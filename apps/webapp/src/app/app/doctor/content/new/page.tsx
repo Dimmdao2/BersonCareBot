@@ -27,6 +27,7 @@ export default async function DoctorContentNewPage({
     suggestedTitle: pick(sp, "suggestedTitle"),
     suggestedSlug: pick(sp, "suggestedSlug"),
   });
+  const sectionQueryRaw = pick(sp, "section")?.trim() ?? "";
   const deps = buildAppDeps();
   let sections: Awaited<ReturnType<typeof deps.contentSections.listAll>> = [];
   let publishedCourses: { id: string; title: string }[] = [];
@@ -41,6 +42,10 @@ export default async function DoctorContentNewPage({
   }
 
   const isDev = process.env.NODE_ENV === "development";
+
+  const knownSectionSlugs = new Set(sections.map((s) => s.slug));
+  const initialSectionSlug =
+    sectionQueryRaw.length > 0 && knownSectionSlugs.has(sectionQueryRaw) ? sectionQueryRaw : null;
 
   return (
     <AppShell
@@ -60,6 +65,7 @@ export default async function DoctorContentNewPage({
           sections={sections}
           publishedCourses={publishedCourses}
           patientHomeContext={patientHomeContext ?? undefined}
+          initialSectionSlug={initialSectionSlug ?? undefined}
         />
       </section>
     </AppShell>

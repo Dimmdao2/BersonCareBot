@@ -76,6 +76,12 @@ export async function saveContentPage(
     }
   }
 
+  const pageIdRaw = (formData.get("page_id") as string)?.trim() ?? "";
+  const pageIdParsed = pageIdRaw.length > 0 ? z.string().uuid().safeParse(pageIdRaw) : null;
+  if (pageIdRaw.length > 0 && !pageIdParsed?.success) {
+    return { ok: false, error: "Некорректный идентификатор страницы" };
+  }
+
   let allPages: Awaited<ReturnType<typeof deps.contentPages.listAll>>;
   try {
     allPages = await deps.contentPages.listAll();
@@ -85,6 +91,61 @@ export async function saveContentPage(
       ok: false,
       error: "Не удалось загрузить список страниц. Попробуйте ещё раз.",
     };
+  }
+
+  const editingId = pageIdParsed?.success ? pageIdParsed.data : null;
+
+  if (editingId) {
+    const existingById = await deps.contentPages.getById(editingId);
+    if (!existingById) {
+      return { ok: false, error: "Страница не найдена" };
+    }
+    if (existingById.slug !== slug) {
+      return { ok: false, error: "Slug страницы изменён недопустимым образом" };
+    }
+    const dup = allPages.find((p) => p.section === section && p.slug === slug && p.id !== editingId);
+    if (dup) {
+      return { ok: false, error: "В выбранном разделе уже есть материал с таким slug" };
+    }
+    const sortOrder =
+      existingById.section === section
+        ? existingById.sortOrder
+        : allPages
+            .filter((p) => p.section === section)
+            .reduce((max, pageRow) => Math.max(max, pageRow.sortOrder), -1) + 1;
+
+    if (linkedCourseId) {
+      const course = await deps.courses.getCourseForDoctor(linkedCourseId);
+      if (!course || course.status !== "published") {
+        return { ok: false, error: "Курс не найден или не опубликован." };
+      }
+    }
+
+    try {
+      await deps.contentPages.updateFull(editingId, {
+        section,
+        slug,
+        title,
+        summary,
+        bodyMd: bodyMdStored,
+        bodyHtml: bodyHtmlStored,
+        sortOrder,
+        isPublished,
+        requiresAuth,
+        videoUrl,
+        videoType,
+        imageUrl,
+        linkedCourseId,
+      });
+    } catch (err) {
+      console.error("saveContentPage failed:", err);
+      return { ok: false, error: "Не удалось сохранить страницу. Попробуйте ещё раз." };
+    }
+
+    revalidatePath("/app/doctor/content");
+    revalidatePath(`/app/patient/content/${slug}`);
+    revalidatePath("/app/patient/sections", "layout");
+    return { ok: true };
   }
 
   const existingPage = allPages.find((p) => p.section === section && p.slug === slug);

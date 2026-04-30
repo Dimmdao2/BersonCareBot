@@ -65,4 +65,42 @@ describe("inMemoryContentPagesPort (linked_course_id)", () => {
     const row = await inMemoryContentPagesPort.getBySlug("p2");
     expect(row?.linkedCourseId).toBeNull();
   });
+
+  it("updateFull changes section without duplicating row", async () => {
+    const id = await inMemoryContentPagesPort.upsert({
+      section: "a",
+      slug: "shared-slug",
+      title: "T",
+      summary: "",
+      bodyMd: "x",
+      bodyHtml: "",
+      sortOrder: 1,
+      isPublished: true,
+      requiresAuth: false,
+      videoUrl: null,
+      videoType: null,
+      imageUrl: null,
+      linkedCourseId: null,
+    });
+    await inMemoryContentPagesPort.updateFull(id, {
+      section: "b",
+      slug: "shared-slug",
+      title: "T2",
+      summary: "",
+      bodyMd: "y",
+      bodyHtml: "",
+      sortOrder: 0,
+      isPublished: true,
+      requiresAuth: false,
+      videoUrl: null,
+      videoType: null,
+      imageUrl: null,
+      linkedCourseId: null,
+    });
+    const all = await inMemoryContentPagesPort.listAll();
+    expect(all.filter((p) => p.slug === "shared-slug")).toHaveLength(1);
+    const row = await inMemoryContentPagesPort.getById(id);
+    expect(row?.section).toBe("b");
+    expect(row?.bodyMd).toBe("y");
+  });
 });

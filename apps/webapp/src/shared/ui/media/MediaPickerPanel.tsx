@@ -25,19 +25,8 @@ import { PickerSearchField } from "@/shared/ui/PickerSearchField";
 import { fetchAdminMediaListItem } from "@/shared/ui/media/fetchAdminMediaListItem";
 import { UploadRequestError, uploadWithProgress } from "@/shared/ui/media/uploadWithProgress";
 import { FILE_INPUT_ACCEPT } from "@/modules/media/uploadAllowedMime";
-
-function folderPathLabel(folder: MediaFolderRecord, all: MediaFolderRecord[]): string {
-  const byId = new Map(all.map((f) => [f.id, f]));
-  const parts: string[] = [];
-  let cur: MediaFolderRecord | undefined = folder;
-  const guard = new Set<string>();
-  while (cur && !guard.has(cur.id)) {
-    guard.add(cur.id);
-    parts.unshift(cur.name);
-    cur = cur.parentId ? byId.get(cur.parentId) : undefined;
-  }
-  return parts.join(" / ");
-}
+import { MediaLibraryFolderScopeSelect } from "@/shared/ui/media/MediaLibraryFolderScopeSelect";
+import { mediaFolderPathLabel } from "@/shared/ui/media/mediaFolderScopeUtils";
 
 type MediaPickerListSortPreset = "date:desc" | "date:asc" | "name:asc" | "name:desc";
 
@@ -72,17 +61,10 @@ type UploadOkSingle = {
   error?: string;
 };
 
-function resolveUploadTargetFolderId(args: {
-  exercisePicker: boolean;
-  pickerFolderId: string | null | undefined;
-  listFolderId: string | null | undefined;
-}): string | null {
-  if (args.exercisePicker) {
-    if (args.pickerFolderId === undefined) return null;
-    return args.pickerFolderId;
-  }
-  if (args.listFolderId === undefined) return null;
-  return args.listFolderId ?? null;
+/** Куда класть файл при загрузке с устройства: при фильтре «Все папки» — корень. */
+function resolveUploadTargetFolderId(listFolderId: string | null | undefined): string | null {
+  if (listFolderId === undefined) return null;
+  return listFolderId ?? null;
 }
 
 function appendFolderIdToFormData(fd: FormData, folderId: string | null) {
@@ -156,10 +138,12 @@ export type MediaPickerPanelProps = {
   kind: MediaLibraryPickerKindFilter;
   onPick: (item: MediaListItem) => void;
   exercisePicker: boolean;
-  pickerFolderId: string | null | undefined;
+  /** Изменить фильтр списка по папке */
   onPickerFolderIdChange: (next: string | null | undefined) => void;
   /** When false, sort stays server default (date desc) without extra UI */
   showSort: boolean;
+  /** Блок «Папка» (все / корень / конкретная папка). По умолчанию включён. */
+  showFolderScope?: boolean;
 };
 
 /**
@@ -172,9 +156,9 @@ export function MediaPickerPanel({
   kind,
   onPick,
   exercisePicker,
-  pickerFolderId,
   onPickerFolderIdChange,
   showSort,
+  showFolderScope = true,
 }: MediaPickerPanelProps) {
   const [query, setQuery] = useState("");
   const [listSortPreset, setListSortPreset] = useState<MediaPickerListSortPreset>("date:desc");
@@ -218,7 +202,7 @@ export function MediaPickerPanel({
   const usageRequestRef = useRef(0);
 
   useEffect(() => {
-    if (!open || !exercisePicker) {
+    if (!open || !showFolderScope) {
       queueMicrotask(() => {
         setFolders([]);
         setFoldersLoaded(false);
@@ -246,7 +230,7 @@ export function MediaPickerPanel({
         setFoldersLoaded(true);
       });
     return () => ac.abort();
-  }, [open, exercisePicker]);
+  }, [open, showFolderScope]);
 
   useEffect(() => {
     if (!open || !exercisePicker) {
@@ -322,26 +306,6 @@ export function MediaPickerPanel({
     };
   }, [open, exercisePicker, items]);
 
-  const sortedFolders = useMemo(() => {
-    if (folders.length === 0) return [];
-    return folders.slice().sort((a, b) => {
-      const pa = folderPathLabel(a, folders);
-      const pb = folderPathLabel(b, folders);
-      return pa.localeCompare(pb, "ru");
-    });
-  }, [folders]);
-
-  const folderSelectValue =
-    pickerFolderId === undefined ? "__all__" : pickerFolderId === null ? "__root__" : pickerFolderId;
-
-  const folderSelectDisplayLabel = useMemo(() => {
-    if (pickerFolderId === undefined) return "Все папки";
-    if (pickerFolderId === null) return "Корень";
-    const f = folders.find((x) => x.id === pickerFolderId);
-    if (f) return folderPathLabel(f, folders);
-    return foldersLoaded ? pickerFolderId : "Загрузка…";
-  }, [pickerFolderId, folders, foldersLoaded]);
-
   const kindFiltered = useMemo(() => narrowMediaLibraryPickerItemsByKind(items, kind), [items, kind]);
   const queryFiltered = useMemo(
     () => filterMediaLibraryPickerItemsByQuery(kindFiltered, query),
@@ -356,15 +320,12 @@ export function MediaPickerPanel({
     });
   }, [exercisePicker, newOnly, queryFiltered, usageReady, exerciseUsageByMediaId]);
 
-  const uploadTargetFolderId = useMemo(
-    () => resolveUploadTargetFolderId({ exercisePicker, pickerFolderId, listFolderId: folderId }),
-    [exercisePicker, pickerFolderId, folderId],
-  );
+  const uploadTargetFolderId = useMemo(() => resolveUploadTargetFolderId(folderId), [folderId]);
 
   const uploadDestinationPhrase = useMemo(() => {
     if (uploadTargetFolderId === null) return "корень библиотеки";
     const f = folders.find((x) => x.id === uploadTargetFolderId);
-    const path = f ? folderPathLabel(f, folders) : uploadTargetFolderId;
+    const path = f ? mediaFolderPathLabel(f, folders) : uploadTargetFolderId;
     return `папку «${path}»`;
   }, [uploadTargetFolderId, folders]);
 
@@ -487,58 +448,45 @@ export function MediaPickerPanel({
           </div>
         ) : null}
 
-        {exercisePicker ? (
+        {(showFolderScope || exercisePicker) ? (
           <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end">
-            <div className="flex min-w-[10rem] flex-1 flex-col gap-1">
-              <span className="text-xs text-muted-foreground">Папка</span>
-              <Select
-                value={folderSelectValue}
-                onValueChange={(v) => {
-                  if (v === "__all__") onPickerFolderIdChange(undefined);
-                  else if (v === "__root__") onPickerFolderIdChange(null);
-                  else onPickerFolderIdChange(v);
-                }}
-              >
-                <SelectTrigger size="sm" className="w-full max-w-full min-w-0 text-left">
-                  <SelectValue placeholder="Папка">{folderSelectDisplayLabel}</SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__all__">Все папки</SelectItem>
-                  <SelectItem value="__root__">Корень</SelectItem>
-                  {sortedFolders.map((f) => (
-                    <SelectItem key={f.id} value={f.id}>
-                      {folderPathLabel(f, folders)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex flex-col gap-1 sm:items-end">
-              <span className="text-xs text-muted-foreground">Фильтр</span>
-              <div className="flex h-[32px] shrink-0 items-center gap-1 rounded-md border border-border bg-muted/20 px-1.5 text-[11px] leading-tight">
-                <button
-                  type="button"
-                  className={cn(
-                    "rounded px-1.5 py-0.5 transition-colors",
-                    !newOnly ? "bg-background font-medium shadow-sm" : "text-muted-foreground hover:text-foreground",
-                  )}
-                  onClick={() => setNewOnly(false)}
-                >
-                  все
-                </button>
-                <span className="text-muted-foreground/60">|</span>
-                <button
-                  type="button"
-                  className={cn(
-                    "rounded px-1.5 py-0.5 transition-colors",
-                    newOnly ? "bg-background font-medium shadow-sm" : "text-muted-foreground hover:text-foreground",
-                  )}
-                  onClick={() => setNewOnly(true)}
-                >
-                  только новые
-                </button>
+            {showFolderScope ? (
+              <MediaLibraryFolderScopeSelect
+                className="min-w-0 sm:max-w-md"
+                value={folderId}
+                onChange={onPickerFolderIdChange}
+                folders={folders}
+                foldersLoaded={foldersLoaded}
+              />
+            ) : null}
+            {exercisePicker ? (
+              <div className="flex flex-col gap-1 sm:items-end">
+                <span className="text-xs text-muted-foreground">Фильтр</span>
+                <div className="flex h-[32px] shrink-0 items-center gap-1 rounded-md border border-border bg-muted/20 px-1.5 text-[11px] leading-tight">
+                  <button
+                    type="button"
+                    className={cn(
+                      "rounded px-1.5 py-0.5 transition-colors",
+                      !newOnly ? "bg-background font-medium shadow-sm" : "text-muted-foreground hover:text-foreground",
+                    )}
+                    onClick={() => setNewOnly(false)}
+                  >
+                    все
+                  </button>
+                  <span className="text-muted-foreground/60">|</span>
+                  <button
+                    type="button"
+                    className={cn(
+                      "rounded px-1.5 py-0.5 transition-colors",
+                      newOnly ? "bg-background font-medium shadow-sm" : "text-muted-foreground hover:text-foreground",
+                    )}
+                    onClick={() => setNewOnly(true)}
+                  >
+                    только новые
+                  </button>
+                </div>
               </div>
-            </div>
+            ) : null}
           </div>
         ) : null}
 
@@ -557,7 +505,7 @@ export function MediaPickerPanel({
           Файл будет загружен в{" "}
           <span className="font-medium text-foreground">{uploadDestinationPhrase}</span>.
         </p>
-        {exercisePicker && pickerFolderId === undefined ? (
+        {folderId === undefined ? (
           <p className="text-xs text-muted-foreground">
             При фильтре списка «Все папки» загрузка всегда выполняется в корень библиотеки.
           </p>

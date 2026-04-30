@@ -35,6 +35,21 @@ const testSections = [
   },
 ];
 
+const testSectionsTwo = [
+  ...testSections,
+  {
+    id: "sec-2",
+    slug: "news",
+    title: "Новости",
+    description: "",
+    sortOrder: 1,
+    isVisible: true,
+    requiresAuth: false,
+    coverImageUrl: null,
+    iconImageUrl: null,
+  },
+];
+
 describe("ContentForm", () => {
   beforeEach(() => {
     saveContentPageMock.mockReset();
@@ -50,6 +65,18 @@ describe("ContentForm", () => {
     expect(form).not.toBeNull();
     const fd = new FormData(form!);
     expect(fd.get("body_md")).toBe("# Заголовок");
+  });
+
+  it("defaults section select to initialSectionSlug when creating", () => {
+    render(<ContentForm sections={testSectionsTwo} initialSectionSlug="news" />);
+    const sel = document.querySelector("select[name=section]") as HTMLSelectElement;
+    expect(sel.value).toBe("news");
+  });
+
+  it("ignores initialSectionSlug when slug is unknown", () => {
+    render(<ContentForm sections={testSectionsTwo} initialSectionSlug="no-such" />);
+    const sel = document.querySelector("select[name=section]") as HTMLSelectElement;
+    expect(sel.value).toBe("lessons");
   });
 
   it("renders section options from sections prop", () => {
@@ -68,6 +95,34 @@ describe("ContentForm", () => {
   it("does not include legacy sort_order input", () => {
     render(<ContentForm sections={testSections} />);
     expect(document.querySelector('input[name="sort_order"]')).toBeNull();
+  });
+
+  it("renders section select when editing existing page", () => {
+    render(
+      <ContentForm
+        sections={testSections}
+        page={{
+          id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          section: "lessons",
+          slug: "mat",
+          title: "M",
+          summary: "",
+          bodyMd: "",
+          bodyHtml: "",
+          sortOrder: 0,
+          isPublished: true,
+          requiresAuth: false,
+          videoUrl: null,
+        }}
+      />,
+    );
+    const sel = document.querySelector("select[name=section]") as HTMLSelectElement;
+    expect(sel).not.toBeNull();
+    expect(sel.value).toBe("lessons");
+    expect(document.querySelector('input[name="page_id"]')).toHaveAttribute(
+      "value",
+      "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    );
   });
 
   it("includes linked_course_id in FormData when publishedCourses provided", async () => {

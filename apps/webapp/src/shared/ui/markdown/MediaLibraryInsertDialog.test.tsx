@@ -100,7 +100,11 @@ describe("MediaLibraryInsertDialog", () => {
       expect(screen.queryByText("notes.txt")).toBeNull();
       expect(screen.getByText("photo.png")).toBeInTheDocument();
     });
-    expect(fetchMock.mock.calls.length).toBe(1);
+    const mediaListFetches = fetchMock.mock.calls.filter((c) => {
+      const url = String((c as unknown[])[0] ?? "");
+      return url.includes("/api/admin/media?") && url.includes("kind=");
+    });
+    expect(mediaListFetches.length).toBe(1);
   });
 
   it("shows library and upload tabs when opened", async () => {

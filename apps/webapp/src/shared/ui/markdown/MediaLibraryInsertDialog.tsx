@@ -18,6 +18,7 @@ type Props = {
  */
 export function MediaLibraryInsertDialog({ onInsert }: Props) {
   const [open, setOpen] = useState(false);
+  const [folderScope, setFolderScope] = useState<string | null | undefined>(undefined);
 
   const handleOpenChange = useCallback((next: boolean) => {
     setOpen(next);
@@ -48,12 +49,11 @@ export function MediaLibraryInsertDialog({ onInsert }: Props) {
           key={open ? "insert-open" : "insert-closed"}
           open={open}
           apiKind="all"
-          folderId={undefined}
+          folderId={folderScope}
           kind="all"
           onPick={handlePicked}
           exercisePicker={false}
-          pickerFolderId={undefined}
-          onPickerFolderIdChange={() => {}}
+          onPickerFolderIdChange={setFolderScope}
           showSort
         />
       </MediaPickerShell>

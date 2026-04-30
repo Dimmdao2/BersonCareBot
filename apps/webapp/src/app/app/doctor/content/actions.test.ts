@@ -4,6 +4,8 @@ const upsertMock = vi.fn();
 const getBySlugMock = vi.fn();
 const listAllMock = vi.fn();
 const getCourseForDoctorMock = vi.fn();
+const getByIdMock = vi.fn();
+const updateFullMock = vi.fn();
 
 vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
@@ -15,7 +17,12 @@ vi.mock("@/app-layer/guards/requireRole", () => ({
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
-    contentPages: { upsert: upsertMock, listAll: listAllMock },
+    contentPages: {
+      upsert: upsertMock,
+      listAll: listAllMock,
+      getById: getByIdMock,
+      updateFull: updateFullMock,
+    },
     contentSections: { getBySlug: getBySlugMock },
     courses: { getCourseForDoctor: getCourseForDoctorMock },
   }),
@@ -39,6 +46,8 @@ describe("saveContentPage", () => {
     getCourseForDoctorMock.mockReset();
     getCourseForDoctorMock.mockResolvedValue(null);
     getBySlugMock.mockReset();
+    getByIdMock.mockReset();
+    updateFullMock.mockReset();
     getBySlugMock.mockResolvedValue({
       id: "s1",
       slug: "lessons",
@@ -202,13 +211,33 @@ describe("saveContentPage", () => {
     expect(upsertMock).toHaveBeenCalledWith(expect.objectContaining({ sortOrder: 5 }));
   });
 
-  it("keeps existing sort order when editing without sort_order field", async () => {
-    upsertMock.mockResolvedValue(undefined);
+  it("keeps existing sort order when editing with page_id", async () => {
+    updateFullMock.mockResolvedValue(undefined);
+    const pageId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    getByIdMock.mockResolvedValue({
+      id: pageId,
+      section: "lessons",
+      slug: "existing",
+      title: "Old",
+      summary: "",
+      bodyMd: "",
+      bodyHtml: "",
+      sortOrder: 7,
+      isPublished: true,
+      requiresAuth: false,
+      videoUrl: null,
+      videoType: null,
+      imageUrl: null,
+      archivedAt: null,
+      deletedAt: null,
+      linkedCourseId: null,
+    });
     listAllMock.mockResolvedValue([
-      { section: "lessons", slug: "existing", sortOrder: 7 },
-      { section: "lessons", slug: "other", sortOrder: 1 },
+      { id: pageId, section: "lessons", slug: "existing", sortOrder: 7 },
+      { id: "other-id", section: "lessons", slug: "other", sortOrder: 1 },
     ]);
     const fd = formWith({
+      page_id: pageId,
       section: "lessons",
       slug: "existing",
       title: "Edited",
@@ -217,7 +246,48 @@ describe("saveContentPage", () => {
     });
     const res = await saveContentPage(null, fd);
     expect(res.ok).toBe(true);
-    expect(upsertMock).toHaveBeenCalledWith(expect.objectContaining({ sortOrder: 7 }));
+    expect(updateFullMock).toHaveBeenCalledWith(pageId, expect.objectContaining({ sortOrder: 7 }));
+    expect(upsertMock).not.toHaveBeenCalled();
+  });
+
+  it("when moving section with page_id appends sort order in target section", async () => {
+    updateFullMock.mockResolvedValue(undefined);
+    const pageId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+    getByIdMock.mockResolvedValue({
+      id: pageId,
+      section: "from-sec",
+      slug: "page-x",
+      title: "T",
+      summary: "",
+      bodyMd: "# x",
+      bodyHtml: "",
+      sortOrder: 3,
+      isPublished: true,
+      requiresAuth: false,
+      videoUrl: null,
+      videoType: null,
+      imageUrl: null,
+      archivedAt: null,
+      deletedAt: null,
+      linkedCourseId: null,
+    });
+    listAllMock.mockResolvedValue([
+      { id: pageId, section: "from-sec", slug: "page-x", sortOrder: 3 },
+      { id: "c1", section: "lessons", slug: "a", sortOrder: 2 },
+      { id: "c2", section: "lessons", slug: "b", sortOrder: 4 },
+    ]);
+    const fd = formWith({
+      page_id: pageId,
+      section: "lessons",
+      slug: "page-x",
+      title: "T",
+      summary: "",
+      body_md: "# x",
+    });
+    const res = await saveContentPage(null, fd);
+    expect(res.ok).toBe(true);
+    expect(updateFullMock).toHaveBeenCalledWith(pageId, expect.objectContaining({ section: "lessons", sortOrder: 5 }));
+    expect(upsertMock).not.toHaveBeenCalled();
   });
 
   it("returns error when listAll fails", async () => {

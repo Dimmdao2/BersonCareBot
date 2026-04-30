@@ -133,7 +133,11 @@ describe("MediaLibraryPickerDialog", () => {
       expect(screen.queryByText("alpha.png")).toBeNull();
       expect(screen.getByText("beta.png")).toBeInTheDocument();
     });
-    expect(fetchMock.mock.calls.length).toBe(1);
+    const mediaListFetches = fetchMock.mock.calls.filter((c) => {
+      const url = String((c as unknown[])[0] ?? "");
+      return url.includes("/api/admin/media?") && url.includes("kind=");
+    });
+    expect(mediaListFetches.length).toBe(1);
   });
 
   it("filters by displayName locally without new fetch", async () => {
@@ -181,7 +185,11 @@ describe("MediaLibraryPickerDialog", () => {
       expect(screen.getByText("Демо для пациента")).toBeInTheDocument();
       expect(screen.queryByText("Разминка")).toBeNull();
     });
-    expect(fetchMock.mock.calls.length).toBe(1);
+    const mediaListFetches = fetchMock.mock.calls.filter((c) => {
+      const url = String((c as unknown[])[0] ?? "");
+      return url.includes("/api/admin/media?") && url.includes("kind=");
+    });
+    expect(mediaListFetches.length).toBe(1);
   });
 
   it("exercise mode shows folder filter and new-only toggle", async () => {

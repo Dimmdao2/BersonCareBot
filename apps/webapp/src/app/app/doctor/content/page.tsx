@@ -115,7 +115,14 @@ export default async function DoctorContentPage({ searchParams }: Props) {
           <div className="flex min-w-0 flex-1 flex-col gap-4">
             <div className="flex flex-wrap items-start justify-between gap-2">
               <h2 className="m-0 text-lg font-semibold">{mainHeading}</h2>
-              <Link href="/app/doctor/content/new" className={createPageBtnClass}>
+              <Link
+                href={
+                  activeSectionSlug !== null
+                    ? `/app/doctor/content/new?section=${encodeURIComponent(activeSectionSlug)}`
+                    : "/app/doctor/content/new"
+                }
+                className={createPageBtnClass}
+              >
                 Создать страницу
               </Link>
             </div>

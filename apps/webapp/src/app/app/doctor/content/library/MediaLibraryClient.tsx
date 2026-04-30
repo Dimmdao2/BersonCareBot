@@ -31,6 +31,9 @@ import { MediaLightbox } from "./MediaLightbox";
 import { canRenderInlineImage } from "./mediaPreview";
 import type { MediaPreviewStatus } from "@/modules/media/types";
 import { MediaThumb } from "@/shared/ui/media/MediaThumb";
+import { MediaLibraryFolderScopeSelect } from "@/shared/ui/media/MediaLibraryFolderScopeSelect";
+import { buildCrumbsForMediaFolder } from "@/shared/ui/media/mediaFolderScopeUtils";
+import { useFlatMediaFolders } from "@/shared/ui/media/useFlatMediaFolders";
 import { libraryMediaRowToPreviewUi } from "@/shared/ui/media/mediaPreviewUiModel";
 
 type MediaKindFilter = "all" | "image" | "video" | "audio" | "file";
@@ -182,6 +185,9 @@ export function MediaLibraryClient() {
   const mobileFilesInputRef = useRef<HTMLInputElement | null>(null);
   const mobileCaptureInputRef = useRef<HTMLInputElement | null>(null);
   const [crumbs, setCrumbs] = useState<Crumb[]>([{ id: null, label: "Корень" }]);
+  /** Список без ограничения по папке в запросе медиа (все файлы библиотеки). */
+  const [viewAllFiles, setViewAllFiles] = useState(false);
+  const { folders: flatFolderRecords, foldersLoaded: flatFoldersLoaded } = useFlatMediaFolders(true);
   const [childFolders, setChildFolders] = useState<FolderRow[]>([]);
   const [foldersLoading, setFoldersLoading] = useState(false);
   const [newFolderDialog, setNewFolderDialog] = useState<NewFolderDialogState>(null);
@@ -196,6 +202,8 @@ export function MediaLibraryClient() {
   const loadMoreSentinelRef = useRef<HTMLDivElement | null>(null);
 
   const currentFolderId = crumbs[crumbs.length - 1]?.id ?? null;
+  const parentForChildFolders = viewAllFiles ? null : currentFolderId;
+  const uploadTargetFolderId = viewAllFiles ? null : currentFolderId;
 
   const searchParams = useMemo(() => {
     const p = new URLSearchParams();
@@ -203,10 +211,12 @@ export function MediaLibraryClient() {
     p.set("sortBy", sortBy);
     p.set("sortDir", sortDir);
     if (query.trim()) p.set("q", query.trim());
-    if (currentFolderId === null) p.set("folderId", "root");
-    else p.set("folderId", currentFolderId);
+    if (!viewAllFiles) {
+      if (currentFolderId === null) p.set("folderId", "root");
+      else p.set("folderId", currentFolderId);
+    }
     return p.toString();
-  }, [kind, sortBy, sortDir, query, currentFolderId]);
+  }, [kind, sortBy, sortDir, query, currentFolderId, viewAllFiles]);
 
   useEffect(() => {
     let cancelled = false;
@@ -237,7 +247,7 @@ export function MediaLibraryClient() {
   useEffect(() => {
     let cancelled = false;
     setFoldersLoading(true);
-    const parent = currentFolderId;
+    const parent = parentForChildFolders;
     const url =
       parent === null
         ? "/api/admin/media/folders"
@@ -257,7 +267,7 @@ export function MediaLibraryClient() {
     return () => {
       cancelled = true;
     };
-  }, [currentFolderId, reloadKey]);
+  }, [parentForChildFolders, reloadKey]);
 
   useEffect(() => {
     let cancelled = false;
@@ -310,6 +320,21 @@ export function MediaLibraryClient() {
     const index = items.findIndex((item) => item.id === itemId);
     if (index >= 0) setLightboxIndex(index);
   }
+
+  function handleFolderScopeChange(next: string | null | undefined) {
+    if (next === undefined) {
+      setViewAllFiles(true);
+      return;
+    }
+    setViewAllFiles(false);
+    if (next === null) {
+      setCrumbs([{ id: null, label: "Корень" }]);
+      return;
+    }
+    setCrumbs(buildCrumbsForMediaFolder(flatFolderRecords, next));
+  }
+
+  const folderScopeSelectValue = viewAllFiles ? undefined : currentFolderId;
 
   const lightboxItem = lightboxIndex !== null ? (items[lightboxIndex] ?? null) : null;
 
@@ -434,6 +459,8 @@ export function MediaLibraryClient() {
         if (!useS3Multipart) {
           const fd = new FormData();
           fd.set("file", file);
+          if (uploadTargetFolderId === null) fd.set("folderId", "root");
+          else if (uploadTargetFolderId) fd.set("folderId", uploadTargetFolderId);
           await uploadWithProgress<UploadOkResponse>({
             url: "/api/media/upload",
             formData: fd,
@@ -447,7 +474,7 @@ export function MediaLibraryClient() {
           multipartSessionRef.current = null;
           await libraryMultipartUpload({
             file,
-            folderId: currentFolderId,
+            folderId: uploadTargetFolderId,
             signal: ac.signal,
             onSessionReady: (sid) => {
               multipartSessionRef.current = sid;
@@ -581,7 +608,7 @@ export function MediaLibraryClient() {
         method: "POST",
         credentials: "same-origin",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ name, parentId: currentFolderId }),
+        body: JSON.stringify({ name, parentId: viewAllFiles ? null : currentFolderId }),
       });
       const data = (await res.json().catch(() => ({}))) as { ok?: boolean };
       if (!res.ok || !data.ok) {
@@ -1101,7 +1128,10 @@ export function MediaLibraryClient() {
               <button
                 type="button"
                 className="rounded px-1 hover:bg-muted hover:text-foreground"
-                onClick={() => setCrumbs(crumbs.slice(0, idx + 1))}
+                onClick={() => {
+                  setViewAllFiles(false);
+                  setCrumbs(crumbs.slice(0, idx + 1));
+                }}
               >
                 {c.label}
               </button>
@@ -1143,7 +1173,10 @@ export function MediaLibraryClient() {
                   type="button"
                   variant="secondary"
                   size="sm"
-                  onClick={() => setCrumbs([...crumbs, { id: f.id, label: f.name }])}
+                  onClick={() => {
+                    setViewAllFiles(false);
+                    setCrumbs([...crumbs, { id: f.id, label: f.name }]);
+                  }}
                 >
                   {f.name}
                 </Button>
@@ -1224,6 +1257,15 @@ export function MediaLibraryClient() {
             <option value="file">Файлы</option>
           </select>
         </label>
+
+        <MediaLibraryFolderScopeSelect
+          label="Область списка"
+          className="min-w-[12rem] max-w-[min(100%,22rem)]"
+          value={folderScopeSelectValue}
+          onChange={handleFolderScopeChange}
+          folders={flatFolderRecords}
+          foldersLoaded={flatFoldersLoaded}
+        />
 
         <label className="flex min-w-[9rem] flex-col gap-1 text-sm">
           <span className="text-xs text-muted-foreground">Сортировать по</span>

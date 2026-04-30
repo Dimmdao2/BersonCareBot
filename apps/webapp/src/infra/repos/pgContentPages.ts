@@ -48,6 +48,8 @@ export type ContentPagesPort = {
   getById: (id: string) => Promise<ContentPageRow | null>;
   listAll: () => Promise<ContentPageRow[]>;
   upsert: (page: ContentPageUpsertInput) => Promise<string>;
+  /** Полное обновление строки по `id` (в т.ч. смена `section`); без вставки новой строки. */
+  updateFull: (id: string, page: ContentPageUpsertInput) => Promise<void>;
   updateLifecycle: (id: string, patch: ContentPageLifecyclePatch) => Promise<void>;
   /** Устанавливает sort_order по порядку id (0..n-1) только для строк с данным section. */
   reorderInSection: (section: string, orderedIds: string[]) => Promise<void>;
@@ -171,6 +173,33 @@ export function createPgContentPagesPort(): ContentPagesPort {
       const id = rows[0]?.id;
       if (!id) throw new Error("content_pages upsert returned no id");
       return id;
+    },
+
+    async updateFull(id, page) {
+      const db = getDrizzle();
+      const linked =
+        page.linkedCourseId !== undefined && page.linkedCourseId !== null && page.linkedCourseId.trim()
+          ? page.linkedCourseId.trim()
+          : null;
+      await db
+        .update(contentPages)
+        .set({
+          section: page.section,
+          slug: page.slug,
+          title: page.title,
+          summary: page.summary,
+          bodyMd: page.bodyMd,
+          bodyHtml: page.bodyHtml,
+          sortOrder: page.sortOrder,
+          isPublished: page.isPublished,
+          requiresAuth: page.requiresAuth ?? false,
+          videoUrl: page.videoUrl,
+          videoType: page.videoType,
+          imageUrl: page.imageUrl,
+          linkedCourseId: linked,
+          updatedAt: sql`now()` as unknown as string,
+        })
+        .where(eq(contentPages.id, id));
     },
 
     async updateLifecycle(id, patch) {
@@ -310,6 +339,25 @@ export const inMemoryContentPagesPort: ContentPagesPort = {
       linkedCourseId: linked,
     });
     return id;
+  },
+
+  async updateFull(id, page) {
+    const linked = page.linkedCourseId?.trim() ? page.linkedCourseId.trim() : null;
+    const p = inMemoryContentPagesStore.find((x) => x.id === id);
+    if (!p) return;
+    p.section = page.section;
+    p.slug = page.slug;
+    p.title = page.title;
+    p.summary = page.summary;
+    p.bodyMd = page.bodyMd;
+    p.bodyHtml = page.bodyHtml;
+    p.sortOrder = page.sortOrder;
+    p.isPublished = page.isPublished;
+    p.requiresAuth = page.requiresAuth ?? false;
+    p.videoUrl = page.videoUrl;
+    p.videoType = page.videoType;
+    p.imageUrl = page.imageUrl;
+    p.linkedCourseId = linked;
   },
 
   async updateLifecycle(id, patch) {

@@ -38,11 +38,14 @@ export function ContentForm({
   sections,
   publishedCourses = [],
   patientHomeContext,
+  /** При создании страницы: slug раздела из query (`?section=`), если есть в списке разделов. */
+  initialSectionSlug,
 }: {
   page?: ContentPage;
   sections: ContentSectionRow[];
   publishedCourses?: PublishedCourseOption[];
   patientHomeContext?: PatientHomeCmsReturnQuery;
+  initialSectionSlug?: string | null;
 }) {
   const [state, formAction, pending] = useActionState(saveContentPage, null as SaveContentPageState | null);
   const isNew = !page;
@@ -68,8 +71,11 @@ export function ContentForm({
     );
   }
 
-  const sectionTitleForEdit =
-    (page && sections.find((s) => s.slug === page.section)?.title) ?? page?.section ?? "";
+  const defaultSectionSlugForSelect =
+    page?.section ??
+    (initialSectionSlug && sections.some((s) => s.slug === initialSectionSlug)
+      ? initialSectionSlug
+      : sections[0]?.slug ?? "");
 
   return (
     <form
@@ -134,28 +140,24 @@ export function ContentForm({
         )}
       </label>
 
+      {page ? <input type="hidden" name="page_id" value={page.id} /> : null}
+
       <label className="flex flex-col gap-1">
         <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Раздел</span>
-        {page ? (
-          <>
-            <input type="hidden" name="section" value={page.section} />
-            <Input type="text" value={sectionTitleForEdit} disabled readOnly />
-          </>
-        ) : (
-          <select
-            id="content-section"
-            name="section"
-            required
-            className="h-11 w-full rounded-xl border border-input bg-background px-4 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            defaultValue={sections[0]?.slug ?? ""}
-          >
-            {sections.map((s) => (
-              <option key={s.slug} value={s.slug}>
-                {s.title}
-              </option>
-            ))}
-          </select>
-        )}
+        <select
+          id="content-section"
+          name="section"
+          required
+          className="h-11 w-full rounded-xl border border-input bg-background px-4 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          defaultValue={defaultSectionSlugForSelect}
+          key={page ? `section-${page.id}` : `section-new-${defaultSectionSlugForSelect}`}
+        >
+          {sections.map((s) => (
+            <option key={s.slug} value={s.slug}>
+              {s.title}
+            </option>
+          ))}
+        </select>
       </label>
 
       <label className="flex flex-col gap-1">

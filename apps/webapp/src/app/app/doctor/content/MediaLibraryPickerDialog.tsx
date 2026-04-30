@@ -111,7 +111,7 @@ export function MediaLibraryPickerDialog({
 
   const apiKind = kind === "image_or_video" ? "all" : kind;
 
-  const effectiveFolderId = exercisePicker ? pickerFolderId : folderId;
+  const effectiveFolderId = pickerFolderId;
 
   const effectiveLastPick = useMemo(() => {
     const t = value.trim();
@@ -295,7 +295,6 @@ export function MediaLibraryPickerDialog({
           kind={kind}
           onPick={handlePickFromLibrary}
           exercisePicker={exercisePicker}
-          pickerFolderId={pickerFolderId}
           onPickerFolderIdChange={setPickerFolderId}
           showSort
         />
