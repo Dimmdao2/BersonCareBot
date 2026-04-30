@@ -93,6 +93,13 @@ const METADATA_BY_CODE: Record<PatientHomeBlockCode, PatientHomeBlockEditorMetad
     "Добавить материал",
     "Исключение: на главной пациента сохраняется пустое состояние hero-разминки, даже если материал не выбран (блок не скрывается полностью).",
   ),
+  useful_post: cmsBlockBase(
+    "useful_post",
+    "Полезный пост",
+    "материал",
+    "Выбрать материал",
+    "Без валидной CMS-страницы блок на главной пациента не отображается.",
+  ),
   subscription_carousel: cmsBlockBase(
     "subscription_carousel",
     "Подписки и уведомления",

@@ -1,5 +1,6 @@
 export type PatientHomeBlockCode =
   | "daily_warmup"
+  | "useful_post"
   | "booking"
   | "situations"
   | "progress"

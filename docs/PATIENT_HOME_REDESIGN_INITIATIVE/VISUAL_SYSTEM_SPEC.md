@@ -85,7 +85,7 @@ Visual redesign — отдельный pass поверх уже завершён
 | Nav config | `apps/webapp/src/app-layer/routes/navigation.ts` | `PATIENT_BOTTOM_NAV_ITEMS = [Сегодня, Запись, Разминки, План, Дневник]`; `patientNavByPlatform.*.headerRightIcons = ["profile"]` | состав bottom nav сохранить; `Профиль` остаётся top/right; добавить декларативный конфиг desktop top nav |
 | Greeting | `apps/webapp/src/app/app/patient/home/PatientHomeGreeting.tsx` | `Здравствуйте` / `Здравствуйте, <name>` + статичный subtitle | time-of-day greeting (`Доброе утро`/`день`/`вечер`) с учётом app display tz; подписка по spec §10.1 |
 | Button primitives | `apps/webapp/src/components/ui/button-variants.ts` | `variant: default/primary/outline/secondary/ghost/destructive/link`, sizes `xs..lg` + icon-* | расширить или добавить patient-специфичный `success` (appointment) и подкорректировать размеры под spec; не ломать doctor/admin |
-| Patient card styles | `apps/webapp/src/app/app/patient/home/patientHomeCardStyles.ts` | один экспорт `patientHomeCardClass` с `rounded-3xl border bg-card p-4 shadow-md` | расширить до набора `base/compact/hero/success/warning/danger/gradientWarm`, явные mobile vs desktop размеры |
+| Patient card styles | `apps/webapp/src/app/app/patient/home/patientHomeCardStyles.ts` | один экспорт `patientHomeCardClass` с `rounded-3xl border bg-card p-4 shadow-md` | расширить до набора `base/compact/hero/success/warning/danger/gradientWarm`, явные mobile vs desktop размеры; для `useful_post` — оболочка без padding/bg текста базовой карточки (`patientHomeUsefulPostCardShellClass`), full-bleed обложка |
 | Home layout | `apps/webapp/src/app/app/patient/home/PatientHomeTodayLayout.tsx` | grid `lg:grid-cols-[3fr_2fr]` с per-block ordering | mobile single column, desktop dashboard grid (см. §6.2), сохранить per-block placement |
 | Hero | `apps/webapp/src/app/app/patient/home/PatientHomeDailyWarmupCard.tsx` | image сверху (`aspect-[4/3]`), затем title/summary/CTA в карточке `patientHomeCardClass` | gradient hero, image справа снизу, badge row и accent duration line по §10.2 |
 | Booking | `apps/webapp/src/app/app/patient/home/PatientHomeBookingCard.tsx` | белая карточка, два CTA (`primary`, `outline`) | success-toned appointment card, success CTA + secondary outline CTA |
@@ -211,6 +211,7 @@ Use existing Tailwind breakpoints. Do not invent custom breakpoints unless neces
 - Content padding: `24-32px`.
 - Dashboard grid gap: `20-24px`.
 - Main dashboard columns: `2fr 1fr` or current `3fr 2fr` if visual QA confirms it matches reference.
+- **Patient home «Сегодня» (`lg+`, `lg:grid-cols-12`):** верхний ряд — разминка (`daily_warmup`, 8) + полезный пост (`useful_post`, 4); второй — ситуации (8) + запись (`booking`, 4); третий — прогресс (8) + ближайшее напоминание (4); затем **SOS на всю ширину (12)**; далее план (8) + чекин настроения (4); нижний ряд — курсы (8) + карусель подписки (4), как при парковке карусели справа от списка курсов.
 - Single-column content pages: max-width `720-760px`.
 
 ---
@@ -246,6 +247,8 @@ Do not rely only on global `--primary` if changing it would affect doctor/admin.
 - Disabled text: `#98A2B3`.
 
 ### 7.2. Semantic colors
+
+Акцентный primary на главной пациента и в patient-scope UI фактически задан токенами из §7.5 (`--patient-color-primary`, мягкий фон `--patient-color-primary-soft`). Значения ниже в блоке «Primary / warmups» — ориентир для legacy/нейтральных состояний и не должны противоречить §7.5 там, где речь о текущей реализации «Сегодня».
 
 Primary / warmups:
 
@@ -303,6 +306,14 @@ Define a small patient radius/shadow scale and reuse it.
 - `--patient-radius` (`12px`) и `--patient-radius-lg` (`16px`) с текущей семантикой не совпадают с новой шкалой. Переопределять их не безопасно: они используются как small/medium radius. Поэтому ввести новые имена и постепенно заменять usages, не трогая старые значения, пока есть зависимости.
 - В новом коде использовать только новые имена.
 - В `LOG.md` зафиксировать список оставшихся usages старых переменных и план их замены.
+
+### 7.5. Текущее выравнивание patient home (обновление 2026-04)
+
+Фактические акценты главной «Сегодня» в webapp (для согласования спеки с кодом):
+
+- Primary в patient-scope: `#284da0` (`--patient-color-primary`), мягкий фон под primary‑элементы: `#e8eefb` (`--patient-color-primary-soft`).
+- Страница / контентная поверхность в patient shell: белый фон `#ffffff` для основной области (см. `--patient-card-bg` / shell).
+- Типографика заголовков patient: семейство Roboto для heading через `--font-roboto-heading`; веса `h1`–`h3` на главной пациента ориентируются на `400`, hero‑заголовок разминки — `font-medium` (не bold).
 
 ---
 
@@ -445,6 +456,8 @@ Desktop:
 
 The hero card is the most important visual block. It must be redesigned as a proper hero, not a standard image-on-top card.
 
+**Текущая реализация webapp (patient home):** градиент фона `linear-gradient(205deg, #f1ecf1 10%, #f9f4ff 52%, #fafaf5 80%)`; mobile высота от `min-h-[192px]` и `min-[380px]:min-h-[204px]`; desktop слот `h-[300px]`; внутренние отступы `p-4` / `lg:p-5`; бейджи верхнего ряда высотой `24px` (`h-6`), типографика `text-[11px] font-semibold` для pill «Разминка дня» / длительности; image-slot справа снизу с фиксированными размерами по breakpoint (см. `patientHomeHeroImageSlotClass`); CTA блок с отступами `pt-6 pb-3 lg:pb-[34px]`.
+
 Mobile:
 
 - Min-height: `300-360px`.
@@ -475,6 +488,24 @@ Asset fallback:
 - If `imageUrl` is empty, keep hero height and show a subtle decorative radial gradient or abstract shape.
 - Do not collapse hero into a small empty card.
 
+### 10.2.1. Cover card: `useful_post`
+
+Карточка без заголовка блока и без leading-icon: одна CMS-страница (`content_page`), обложка на всю карточку, градиент затемнения снизу, заголовок страницы поверх (белый текст). Опциональный бейдж из `badge_label` (продуктовый дефолт копирайта — «Новый пост»), только если строка непустая. Визуальная оболочка — `patientHomeUsefulPostCardShellClass` (border/radius/shadow без «белого» padding-блока базовой карточки; контент и отступы задаются внутри cover-слоя).
+
+В настройках главной врача: если для item задан произвольный текст в `badge_label`, при сохранении с включённым чекбоксом «Показывать бейдж «Новый пост»» текст заменяется на канонический «Новый пост»; UI показывает пояснение в этом случае.
+
+Mobile:
+
+- Минимальная высота карточки ~`172px`, padding контента `16px`.
+- Заголовок: до 3 строк (`line-clamp-3`), `20px / medium`.
+
+Desktop:
+
+- Высота ряда с разминкой: `300px` ( companion к hero ).
+- Padding контента `20px`.
+
+Нет отдельного summary на карточке (при необходимости расширять отдельным решением).
+
 ### 10.3. Appointment card: `booking`
 
 Mobile:
@@ -491,26 +522,29 @@ Mobile:
 Desktop:
 
 - Radius `24px`.
-- Padding `20-24px`.
-- Min-height `160-200px`.
-- Designed as the right-column companion to hero.
+- Padding `20px`.
+- Target height в ряду рядом с **situations**: ~`170px` (компактная карточка, не companion hero).
+- Icon перед заголовком в зелёном круге (`#dcfce7`), кнопки в один ряд на desktop фиксированной ширины (~`8.75rem` каждая).
+- Designed as the right-column companion to **situations** on the second dashboard row.
 
 ### 10.4. Quick situations: `situations`
 
+Section container:
+
+- Обернуть блок в базовую patient-карточку (`patientHomeCardClass`): высота desktop ~`170px`, padding `16px` mobile / `20px` desktop.
+- Заголовок: «Выберите ситуацию», `16px / medium` mobile, `18px / medium` desktop.
+
 Section heading:
 
-- Mobile title: `18px / 24px / 700`.
 - Link `Все ситуации`: `14px / 20px / 600`, primary.
-- Desktop title: `20-22px / 28px / 700`.
 
 Item:
 
-- Mobile item width: `76-88px`.
-- Desktop item width: `96-112px`.
-- Icon box: `58-64px` mobile / `72-80px` desktop.
-- Radius: `18-20px` mobile / `22-24px` desktop.
+- Горизонтальный скролл на mobile; на desktop — сетка до 6 колонок.
+- Mobile item width: ~`76px`; desktop — равномерная сетка.
+- Icon box: мягкий primary-soft фон, лёгкое кольцо границы; без отдельной «плитки-карточки» вокруг айтема.
 - Label margin-top: `8px`.
-- Label mobile: `12-13px / 16-18px / 500`.
+- Label mobile: `13px / 18px / 500`.
 - Label desktop: `14px / 20px / 500`.
 
 Color rule:
@@ -525,18 +559,17 @@ Render progress and streak as one card with two visual regions.
 
 Mobile:
 
-- Card: base white, radius `20px`, padding `16px`, min-height `120-140px`.
-- Title: `Сегодня выполнено`.
-- Main value: `30-34px / 38px / 800`, primary.
-- Progress bar height: `7-8px`, bg `#E5E7EB`, fill `#4F46E5`.
+- Card: base white, radius `20px`, padding `16px`, min-height ~`150px`.
+- Title: `Сегодня выполнено`, `16px / medium`.
+- Main value: показывать как **`{n} из {target}`** (число цели крупнее/primary, «из N» — secondary/muted), например `28px / semibold` + `24px / semibold` для suffix.
+- Progress bar height: `8px`, bg `#E5E7EB`, fill primary (`var(--patient-color-primary)`).
 - Hint: `14px / 20px`, secondary.
-- Streak number: `28-32px / 36px / 800`.
-- Fire icon: `22-26px`.
+- Streak: круг `white` с кольцом `ring-[8px] ring-[#f3f4f6]`, внутри иконка и число серии; подпись «дней подряд» под кругом.
 
 Layout:
 
-- At normal mobile width, two columns: progress left, streak right.
-- On very narrow screens, stack if needed.
+- Desktop target row height ~`170px`.
+- Grid: основная колонка + узкая колонка под streak (~`6.25rem` → `7.5rem` на `lg`).
 
 ### 10.6. Reminder: `next_reminder`
 
@@ -546,12 +579,22 @@ Mobile:
 - Border `#FDE68A`.
 - Radius `18-20px`.
 - Padding `14-16px`.
-- Min-height `88-104px`.
-- Leading icon box: `44px`, bg `#FEF3C7`, icon warning.
-- Label: `13px / 18px / 500`, warning text.
-- Time: `18px / 24px / 700`.
-- Description: `14px / 20px`.
-- Action: button-like link, height `36-40px`, radius `12px`, border `#FDE68A`, text `#D97706`.
+- Min-height ~`150px`.
+
+Leading icon:
+
+- Контейнер `44px`, radius `16px`, фон `#FEF3C7`, warning icon color.
+
+CTA:
+
+- Не на всю ширину на desktop: компактная кнопка ~`8.75rem`, `rounded-xl`, border `#FDE68A`, фон `#FFFBEB`, текст `#D97706`.
+
+Desktop:
+
+- Min-height ~`170px`.
+- Label: `13px / 18px / 500`, warning brown text.
+- Title/time line: `18px / 24px / semibold`.
+- Description: `14px / 20px`, secondary.
 
 ### 10.7. Mood check-in: `mood_checkin`
 

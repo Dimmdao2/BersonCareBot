@@ -128,6 +128,25 @@ describe("PatientHomeBlockSettingsCard", () => {
     expect(screen.queryByText("Иконка блока")).toBeNull();
   });
 
+  it("hides create section action and block icon for useful_post block", () => {
+    const block: PatientHomeBlock = {
+      code: "useful_post",
+      title: "Полезный пост",
+      description: "",
+      isVisible: true,
+      sortOrder: 1,
+      iconImageUrl: null,
+      items: [],
+    };
+    const runtimeStatus = computePatientHomeBlockRuntimeStatus(block, { knownRefs, resolverSync });
+    render(
+      <PatientHomeBlockSettingsCard block={block} knownRefs={knownRefs} runtimeStatus={runtimeStatus} onChanged={vi.fn()} />,
+    );
+    expect(screen.queryByText("Создать раздел и добавить")).toBeNull();
+    expect(screen.queryByText("Иконка блока")).toBeNull();
+    expect(screen.getByText("Выбрать материал")).toBeInTheDocument();
+  });
+
   it("shows block icon section for booking whitelist block", () => {
     const block: PatientHomeBlock = {
       code: "booking",

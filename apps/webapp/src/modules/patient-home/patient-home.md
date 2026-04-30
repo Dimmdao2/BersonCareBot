@@ -9,7 +9,7 @@
 - `patient_home_blocks`
 - `patient_home_block_items`
 
-`CONTENT_PLAN.md` - только редакционный ориентир. Runtime не должен зависеть от slug из этого файла. Исключение: коды фиксированных блоков (`daily_warmup`, `subscription_carousel` и т.п.) являются частью схемы главной, а не editorial slug.
+`CONTENT_PLAN.md` - только редакционный ориентир. Runtime не должен зависеть от slug из этого файла. Исключение: коды фиксированных блоков (`daily_warmup`, `useful_post`, `subscription_carousel` и т.п.) являются частью схемы главной, а не editorial slug.
 
 ## Files
 
@@ -21,7 +21,7 @@
 - `service.ts` - валидация команд admin UI (show/hide, reorder, add/update/delete item), без прямого доступа к infra.
 - `todayConfig.ts` - `getPatientHomeTodayConfig(deps)`: первый видимый `content_page` item блока `daily_warmup` + `patient_home_daily_practice_target` из `system_settings` (1-10, default 3). Разминка не читается из отдельного slug-setting.
 - `patientHomeBlockPolicy.ts` - фильтр/сортировка блоков для главной, включая скрытие персональных блоков при `personalTierOk === false`.
-- `patientHomeResolvers.ts` - разрешение items блоков `situations`, `subscription_carousel`, `sos`, `courses` в DTO для UI. Здесь же `DEFAULT_SUBSCRIPTION_BADGE` и `getSubscriptionCarouselSectionPresentation(blocks, sectionSlug)` для промо-бейджа на странице раздела.
+- `patientHomeResolvers.ts` — разрешение items блоков `situations`, `subscription_carousel`, `sos`, `courses`, плюс `resolveUsefulPostCard` для блока `useful_post` (первый видимый `content_page`). Здесь же `DEFAULT_SUBSCRIPTION_BADGE` и `getSubscriptionCarouselSectionPresentation(blocks, sectionSlug)` для промо-бейджа на странице раздела.
 - `nextReminderOccurrence.ts` - расчёт ближайшего срабатывания reminder rule по `daysMask`, окну, интервалу и timezone.
 
 ## Patient home UI
@@ -29,7 +29,7 @@
 Главная пациента: `app/app/patient/home/PatientHomeToday.tsx` и дочерние компоненты.
 
 - Mobile и `md`: линейный порядок секций из `patient_home_blocks.sort_order`.
-- `lg+`: `PatientHomeTodayLayout` раскладывает блоки по зонам: левая колонка (`daily_warmup`, `situations`, `progress`, `plan`, `courses`), правая колонка (`booking`, `next_reminder`, `sos`, `mood_checkin`), `subscription_carousel` полноширинно под колонками.
+- `lg+`: `PatientHomeTodayLayout` — desktop dashboard (`lg:grid-cols-12`): верхний ряд — `daily_warmup` (8) + `useful_post` (4); второй — `situations` (8) + `booking` (4); третий — `progress` (8) + `next_reminder` (4); затем **`sos` на всю ширину (12)**; далее `plan` (8) + `mood_checkin` (4); нижний ряд — `courses` (8) + `subscription_carousel` (4).
 - Progress приходит из `modules/patient-practice`.
 - Mood приходит из `modules/patient-mood`.
 - Подписочная карусель и бейджи не закрывают доступ к контенту.

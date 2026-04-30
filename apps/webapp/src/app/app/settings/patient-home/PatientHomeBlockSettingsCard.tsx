@@ -60,7 +60,8 @@ export function PatientHomeBlockSettingsCard({
   );
   const repairOnlyHiddenBroken =
     canManageItems && visibleUnresolved.length === 0 && hiddenUnresolved.length > 0;
-  const canInlineCreateSection = getPatientHomeBlockEditorMetadata(block.code).inlineCreate.contentSection;
+  const blockMeta = getPatientHomeBlockEditorMetadata(block.code);
+  const canInlineCreateSection = blockMeta.inlineCreate.contentSection;
 
   const handleToggle = () => {
     setError(null);
@@ -113,11 +114,9 @@ export function PatientHomeBlockSettingsCard({
               {canManageItems && canInlineCreateSection ? (
                 <DropdownMenuItem onClick={() => setCreateSectionOpen(true)}>Создать раздел и добавить</DropdownMenuItem>
               ) : null}
-              {canManageItems ? (
-                <DropdownMenuItem onClick={() => setAddOpen(true)}>
-                  Добавить материал
-                </DropdownMenuItem>
-              ) : null}
+              {canManageItems && blockMeta.addLabel ?
+                <DropdownMenuItem onClick={() => setAddOpen(true)}>{blockMeta.addLabel}</DropdownMenuItem>
+              : null}
               {canManageItems ? (
                 <DropdownMenuItem onClick={() => setEditOpen(true)}>
                   Изменить

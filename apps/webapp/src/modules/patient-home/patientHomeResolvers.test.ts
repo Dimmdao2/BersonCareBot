@@ -7,6 +7,7 @@ import {
   resolveSituationChips,
   resolveSosCard,
   resolveSubscriptionCarouselCards,
+  resolveUsefulPostCard,
 } from "./patientHomeResolvers";
 
 function item(p: Partial<PatientHomeBlockItem> & Pick<PatientHomeBlockItem, "id" | "targetType" | "targetRef">): PatientHomeBlockItem {
@@ -207,5 +208,73 @@ describe("patientHomeResolvers", () => {
       deps,
     );
     expect(cards.map((c) => c.courseId)).toEqual(["pub"]);
+  });
+
+  it("resolveUsefulPostCard returns first visible content_page", async () => {
+    const deps = {
+      contentSections: { getBySlug: async () => null },
+      contentPages: {
+        getBySlug: async (slug: string) =>
+          slug === "post-a" ?
+            {
+              slug: "post-a",
+              title: "Post A",
+              summary: "Sum",
+              requiresAuth: false,
+              imageUrl: "/img/a.png",
+            }
+          : slug === "post-b" ?
+            {
+              slug: "post-b",
+              title: "Post B",
+              summary: "",
+              requiresAuth: false,
+              imageUrl: null,
+            }
+          : null,
+      },
+      courses: { getCourseForDoctor: async () => null },
+    };
+    const card = await resolveUsefulPostCard(
+      [
+        item({ id: "x", blockCode: "useful_post", targetType: "content_page", targetRef: "missing", sortOrder: 1 }),
+        item({
+          id: "y",
+          blockCode: "useful_post",
+          targetType: "content_page",
+          targetRef: "post-a",
+          badgeLabel: "  Новый пост  ",
+          sortOrder: 2,
+        }),
+        item({ id: "z", blockCode: "useful_post", targetType: "content_page", targetRef: "post-b", sortOrder: 3 }),
+      ],
+      deps,
+      true,
+    );
+    expect(card?.slug).toBe("post-a");
+    expect(card?.badgeLabel).toBe("Новый пост");
+    expect(card?.href).toContain("post-a");
+  });
+
+  it("resolveUsefulPostCard returns null when auth-only page for guest", async () => {
+    const deps = {
+      contentSections: { getBySlug: async () => null },
+      contentPages: {
+        getBySlug: async () => ({
+          slug: "auth-post",
+          title: "Auth",
+          summary: "",
+          requiresAuth: true,
+          imageUrl: null,
+        }),
+      },
+      courses: { getCourseForDoctor: async () => null },
+    };
+    const card = await resolveUsefulPostCard(
+      [item({ id: "1", blockCode: "useful_post", targetType: "content_page", targetRef: "auth-post", sortOrder: 0 })],
+      deps,
+      false,
+    );
+    expect(card).toBeNull();
   });
 });

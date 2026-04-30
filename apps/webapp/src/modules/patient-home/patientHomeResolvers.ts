@@ -56,6 +56,15 @@ export type ResolvedSosCard = {
   href: string;
 };
 
+export type ResolvedUsefulPostCard = {
+  itemId: string;
+  slug: string;
+  title: string;
+  imageUrl: string | null;
+  badgeLabel: string | null;
+  href: string;
+};
+
 export type ResolvedCourseCard = {
   itemId: string;
   courseId: string;
@@ -180,6 +189,31 @@ export async function resolveSubscriptionCarouselCards(
     }
   }
   return out;
+}
+
+export async function resolveUsefulPostCard(
+  items: PatientHomeBlockItem[],
+  deps: PatientHomeResolverDeps,
+  canViewAuthOnlyContent: boolean,
+): Promise<ResolvedUsefulPostCard | null> {
+  for (const item of sortItems(items)) {
+    if (item.targetType !== "content_page") continue;
+    const slug = item.targetRef.trim();
+    if (!slug) continue;
+    const row = await deps.contentPages.getBySlug(slug);
+    if (!row) continue;
+    if (row.requiresAuth && !canViewAuthOnlyContent) continue;
+    const trimmedBadge = item.badgeLabel?.trim();
+    return {
+      itemId: item.id,
+      slug: row.slug,
+      title: item.titleOverride?.trim() || row.title,
+      imageUrl: item.imageUrlOverride ?? row.imageUrl,
+      badgeLabel: trimmedBadge && trimmedBadge.length > 0 ? trimmedBadge : null,
+      href: `/app/patient/content/${encodeURIComponent(row.slug)}`,
+    };
+  }
+  return null;
 }
 
 export async function resolveSosCard(

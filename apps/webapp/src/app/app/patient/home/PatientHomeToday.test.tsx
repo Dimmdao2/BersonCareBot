@@ -106,6 +106,7 @@ describe("PatientHomeToday", () => {
 
     listBlocksWithItems.mockResolvedValue([
       homeBlock("daily_warmup", 10, [homeItem("i-w", "daily_warmup", "content_page", "fixture-warmup-page", 0)]),
+      homeBlock("useful_post", 15, []),
       homeBlock("booking", 20, []),
       homeBlock("situations", 30, [homeItem("i-s", "situations", "content_section", "fixture-section-a", 0)]),
       homeBlock("progress", 40, []),
@@ -220,5 +221,51 @@ describe("PatientHomeToday", () => {
     expect(screen.getByRole("heading", { name: /Fixture User!/i })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: /^Прогресс$/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Самочувствие 4 из 5/i })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("patient tier: renders useful post link when block has a content_page item", async () => {
+    listBlocksWithItems.mockResolvedValue([
+      homeBlock("daily_warmup", 10, [homeItem("i-w", "daily_warmup", "content_page", "fixture-warmup-page", 0)]),
+      homeBlock("useful_post", 15, [homeItem("i-up", "useful_post", "content_page", "fixture-useful-post", 0)]),
+      homeBlock("booking", 20, []),
+      homeBlock("situations", 30, [homeItem("i-s", "situations", "content_section", "fixture-section-a", 0)]),
+      homeBlock("progress", 40, []),
+      homeBlock("mood_checkin", 50, []),
+      homeBlock("next_reminder", 60, []),
+      homeBlock("plan", 70, []),
+      homeBlock("courses", 80, []),
+    ]);
+
+    contentPagesGetBySlug.mockImplementation(async (slug: string) => {
+      if (slug === "fixture-warmup-page") {
+        return {
+          slug,
+          title: "Fixture warmup",
+          summary: "Summary",
+          requiresAuth: false,
+          imageUrl: "/api/media/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+        };
+      }
+      if (slug === "fixture-useful-post") {
+        return {
+          slug,
+          title: "Статья для главной",
+          summary: "",
+          requiresAuth: false,
+          imageUrl: null,
+        };
+      }
+      return null;
+    });
+
+    const tree = await PatientHomeToday({
+      session: fixtureSession,
+      personalTierOk: true,
+      canViewAuthOnlyContent: true,
+    });
+    render(tree);
+
+    const link = screen.getByRole("link", { name: /Статья для главной/i });
+    expect(link).toHaveAttribute("href", "/app/patient/content/fixture-useful-post");
   });
 });

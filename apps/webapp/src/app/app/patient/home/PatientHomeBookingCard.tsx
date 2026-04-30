@@ -47,10 +47,10 @@ export function PatientHomeBookingCard({ personalTierOk, anonymousGuest, blockIc
         id="patient-home-booking-card"
         className={cn(patientHomeCardSuccessClass, patientHomeBookingCardGeometryClass)}
       >
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col items-stretch justify-between gap-4 min-[380px]:flex-row min-[380px]:items-start lg:flex-col lg:items-stretch">
-          <div className="flex min-h-0 min-w-0 shrink-0 gap-3 lg:flex-col">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col justify-between gap-4 lg:gap-3">
+          <div className="flex min-w-0 items-start gap-3">
             <div
-              className="inline-flex size-11 shrink-0 items-center justify-center rounded-xl bg-[#dcfce7] text-[var(--patient-color-success)] lg:size-12"
+              className="inline-flex size-11 shrink-0 items-center justify-center rounded-xl bg-[#dcfce7] text-[var(--patient-color-success)]"
               aria-hidden
             >
               <PatientHomeSafeImage
@@ -61,18 +61,26 @@ export function PatientHomeBookingCard({ personalTierOk, anonymousGuest, blockIc
                 fallback={<Calendar className="size-6" aria-hidden />}
               />
             </div>
-            <div className="min-w-0 flex-1 lg:max-w-[18rem]">
-              <h2 id="patient-home-booking-heading" className="text-base font-medium leading-5 text-[var(--patient-text-primary)] min-[380px]:text-lg lg:text-xl lg:leading-6">
+            <div className="min-w-0 flex-1">
+              <h2 id="patient-home-booking-heading" className="text-base font-medium leading-5 text-[var(--patient-text-primary)] lg:text-lg lg:leading-6">
                 Нужна консультация?
               </h2>
               <p className={patientHomeBookingCopyClampClass}>Запишитесь на приём к специалисту очно или онлайн.</p>
             </div>
           </div>
           <div className={patientHomeBookingActionsClass}>
-            <Link href={bookingHref} prefetch={false} className={cn(patientButtonSuccessClass, "min-h-10 w-full min-w-0 rounded-lg px-3 text-sm lg:min-h-12 lg:text-base")}>
+            <Link
+              href={bookingHref}
+              prefetch={false}
+              className={cn(patientButtonSuccessClass, "min-h-10 w-full rounded-lg px-3 text-sm lg:w-[8.75rem]")}
+            >
               Записаться
             </Link>
-            <Link href={cabinetHref} prefetch={false} className={cn(patientButtonSecondaryClass, "min-h-9 w-full min-w-0 rounded-lg px-3 text-sm lg:min-h-11")}>
+            <Link
+              href={cabinetHref}
+              prefetch={false}
+              className={cn(patientButtonSecondaryClass, "min-h-10 w-full rounded-lg px-3 text-sm lg:w-[8.75rem]")}
+            >
               Мои приёмы
             </Link>
           </div>

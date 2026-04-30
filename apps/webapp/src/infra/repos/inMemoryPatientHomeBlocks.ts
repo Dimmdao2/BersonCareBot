@@ -11,6 +11,7 @@ import { PATIENT_HOME_BLOCK_CODES } from "@/modules/patient-home/blocks";
 
 const defaultTitles: Record<PatientHomeBlockCode, string> = {
   daily_warmup: "Разминка дня",
+  useful_post: "Полезный пост",
   booking: "Запись на приём",
   situations: "Ситуации",
   progress: "Прогресс",

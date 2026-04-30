@@ -34,6 +34,15 @@ describe("getPatientHomeBlockEditorMetadata", () => {
     expect(meta.addLabel).toBe("Добавить материал");
   });
 
+  it("useful_post: only content_page", () => {
+    const meta = getPatientHomeBlockEditorMetadata("useful_post");
+    expect(meta.allowedTargetTypes).toEqual(["content_page"]);
+    expect(meta.itemNoun).toBe("материал");
+    expect(meta.addLabel).toBe("Выбрать материал");
+    expect(meta.displayTitle).toBe("Полезный пост");
+    expect(meta.inlineCreate.contentSection).toBe(false);
+  });
+
   it("subscription_carousel: content_section, content_page, course", () => {
     const meta = getPatientHomeBlockEditorMetadata("subscription_carousel");
     expect(meta.allowedTargetTypes).toEqual(["content_section", "content_page", "course"]);
@@ -54,6 +63,7 @@ describe("getPatientHomeBlockEditorMetadata", () => {
   it("CMS list blocks have canManageItems true", () => {
     const cms: PatientHomeBlockCode[] = [
       "daily_warmup",
+      "useful_post",
       "situations",
       "subscription_carousel",
       "sos",

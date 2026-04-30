@@ -29,7 +29,7 @@ function desktopBlockLayout(code: PatientHomeBlockCode): {
         "data-lg-col-start": "1",
         "data-lg-col-span": "8",
       };
-    case "booking":
+    case "useful_post":
       return {
         className: "lg:col-span-4 lg:order-[10]",
         "data-lg-order": "10",
@@ -43,7 +43,7 @@ function desktopBlockLayout(code: PatientHomeBlockCode): {
         "data-lg-col-start": "1",
         "data-lg-col-span": "8",
       };
-    case "next_reminder":
+    case "booking":
       return {
         className: "lg:col-span-4 lg:order-[20]",
         "data-lg-order": "20",
@@ -57,12 +57,20 @@ function desktopBlockLayout(code: PatientHomeBlockCode): {
         "data-lg-col-start": "1",
         "data-lg-col-span": "8",
       };
-    case "sos":
+    case "next_reminder":
       return {
         className: "lg:col-span-4 lg:order-[30]",
         "data-lg-order": "30",
         "data-lg-col-start": "9",
         "data-lg-col-span": "4",
+      };
+    /** Раньше SOS стоял справа от progress; после пары progress+reminder — отдельная полоса на всю ширину. */
+    case "sos":
+      return {
+        className: "lg:col-span-12 lg:order-[35]",
+        "data-lg-order": "35",
+        "data-lg-col-start": "1",
+        "data-lg-col-span": "12",
       };
     case "plan":
       return {

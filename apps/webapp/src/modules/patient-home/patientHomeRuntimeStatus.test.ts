@@ -86,6 +86,34 @@ describe("computePatientHomeBlockRuntimeStatus", () => {
     expect(st.visibleResolvedItems).toBe(1);
   });
 
+  it("useful_post: visible block with no resolvable page is empty", () => {
+    const b = block(
+      "useful_post",
+      [item({ id: "1", blockCode: "useful_post", targetType: "content_page", targetRef: "missing" })],
+      true,
+    );
+    const st = computePatientHomeBlockRuntimeStatus(b, {
+      knownRefs: { ...knownEmpty, contentPages: ["missing"] },
+      resolverSync,
+    });
+    expect(st.kind).toBe("empty");
+    expect(st.visibleResolvedItems).toBe(0);
+  });
+
+  it("useful_post: resolves visible content_page when slug exists", () => {
+    const b = block(
+      "useful_post",
+      [item({ id: "1", blockCode: "useful_post", targetType: "content_page", targetRef: "page-ok" })],
+      true,
+    );
+    const st = computePatientHomeBlockRuntimeStatus(b, {
+      knownRefs: { ...knownEmpty, contentPages: ["page-ok"] },
+      resolverSync,
+    });
+    expect(st.kind).toBe("ready");
+    expect(st.visibleResolvedItems).toBe(1);
+  });
+
   it("situations: section in DB but not patient-visible yields empty", () => {
     const b = block(
       "situations",

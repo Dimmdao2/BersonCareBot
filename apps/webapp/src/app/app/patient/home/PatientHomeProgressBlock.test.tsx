@@ -28,7 +28,9 @@ describe("PatientHomeProgressBlock", () => {
         progress={{ todayDone: 2, streak: 4 }}
       />,
     );
-    expect(screen.getByText(/2 из 3/)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Выполнено практик сегодня: 2, цель 3/)).toHaveTextContent(/2/);
+    expect(screen.getByLabelText(/Выполнено практик сегодня: 2, цель 3/)).toHaveTextContent(/из/);
+    expect(screen.getByLabelText(/Выполнено практик сегодня: 2, цель 3/)).toHaveTextContent(/3/);
     expect(screen.getByText(/4/)).toBeInTheDocument();
   });
 

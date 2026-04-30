@@ -1,5 +1,53 @@
 # PATIENT_HOME_REDESIGN_INITIATIVE — LOG
 
+## 2026-04-30 — Аудит useful_post / сетки: доведение до плана
+
+- **Сетка `lg+`:** после пары `progress` + `next_reminder` — полоса `sos` (`col-span-12`, order 35), затем `plan` + `mood_checkin` (order 40), затем `courses` + `subscription_carousel` (order 50); карусель снова в правой колонке рядом с курсами.
+- **Сервис:** `updateItem` без retarget — перед `port.updateItem` проверка `getItemById`, иначе `unknown_item`.
+- **Резолвер/UI:** из `ResolvedUsefulPostCard` убрано поле `summary` (не использовалось карточкой).
+- **Стили:** `patientHomeUsefulPostCardShellClass` — border/radius/shadow без `p-4`/фона текста; `PatientHomeUsefulPostCard` переведена на оболочку.
+- **Настройки врача:** подсказка под чекбоксом бейджа, если задан произвольный `badge_label` (включение заменит на «Новый пост» при сохранении).
+- **Тесты:** `PatientHomeTodayLayout.test.tsx` (в т.ч. `sos`, ожидания по карусели); `service.test.ts` — patch-only `unknown_item`; `PatientHomeToday.test.tsx` — ссылка useful post при настроенном item; правки фикстур без `summary`.
+- **Документы:** `VISUAL_SYSTEM_SPEC.md` §6.2, §7.2 отсылка к §7.5, строка §4 про shell карточки; `patient-home.md` — описание сетки.
+
+### Результат прогона (после правок)
+
+- `vitest --run` (файлы: `service.test.ts`, `PatientHomeToday.test.tsx`, `PatientHomeTodayLayout.test.tsx`, `PatientHomeUsefulPostCard.test.tsx`): **exit 0**, 21 passed.
+- `pnpm exec tsc --noEmit` + `pnpm lint` (каталог `apps/webapp`): **exit 0**.
+
+## 2026-04-30 — Полезный пост (`useful_post`) + референс сетки и карточек главной
+
+- **Цель:** блок `useful_post` (CMS `content_page`, обложка, опциональный бейдж через `badge_label`), новый desktop layout (`warmup`+`useful_post`, `situations`+`booking`, `progress`+`next_reminder`, перестановка нижних рядов), визуальное выравнивание booking/situations/progress/reminder.
+- **Миграция данных:** `apps/webapp/db/drizzle-migrations/0014_patient_home_useful_post.sql` — seed `patient_home_blocks` для `useful_post`, `sort_order = 15`.
+- **Код (основное):** `blocks.ts`, `ports.ts`, `blockEditorMetadata.ts`, `patientHomeResolvers.ts` (`resolveUsefulPostCard`), `patientHomeRuntimeStatus.ts`, `usefulPostPresentation.ts`, `PatientHomeToday.tsx`, `PatientHomeUsefulPostCard.tsx`, `PatientHomeTodayLayout.tsx`, стили `patientHomeCardStyles.ts`, компоненты booking/situations/progress/reminder, настройки врача `actions.ts` (`updatePatientHomeItemPresentation`), `PatientHomeBlockItemsDialog.tsx`, `PatientHomeBlockSettingsCard.tsx`, in-memory порт, `service.ts` (`getItemById`).
+- **Документы:** `VISUAL_SYSTEM_SPEC.md` (§6.2, §7.5, §10.2 реализация, §10.2.1, §10.3–10.6), `BLOCK_EDITOR_CONTRACT.md`, `patient-home.md`.
+- **Проверки:** см. команды в секции «Commands» ниже после прогона.
+
+### Результат прогона (локально)
+
+- Targeted `vitest`: **exit 0**, 104 passed (1 skipped — прежний skip в одном из файлов).
+- `pnpm exec tsc --noEmit`: **exit 0**.
+- `pnpm lint` (webapp): **exit 0**.
+- `pnpm run migrate`: **exit 0** (`0014_patient_home_useful_post` применена).
+- Проверка SQL после `source apps/webapp/.env.dev`: строка `useful_post` присутствует, `sort_order = 15`.
+
+### Commands (targeted + app-level, без полного `pnpm run ci`)
+
+```bash
+pnpm --dir apps/webapp exec vitest --run src/modules/patient-home/service.test.ts src/modules/patient-home/patientHomeResolvers.test.ts src/modules/patient-home/blockEditorMetadata.test.ts src/modules/patient-home/patientHomeRuntimeStatus.test.ts
+pnpm --dir apps/webapp exec vitest --run src/app/app/settings/patient-home/actions.test.ts src/app/app/settings/patient-home/PatientHomeBlockSettingsCard.test.tsx src/app/app/settings/patient-home/PatientHomeBlocksSettingsPageClient.test.tsx
+pnpm --dir apps/webapp exec vitest --run src/app/app/patient/home/PatientHomeToday.test.tsx src/app/app/patient/home/PatientHomeTodayLayout.test.tsx src/app/app/patient/home/PatientHomeBookingCard.test.tsx src/app/app/patient/home/PatientHomeProgressBlock.test.tsx src/app/app/patient/home/PatientHomeNextReminderCard.test.tsx src/app/app/patient/home/PatientHomeUsefulPostCard.test.tsx src/infra/repos/pgPatientHomeBlocks.test.ts
+pnpm --dir apps/webapp exec tsc --noEmit
+pnpm --dir apps/webapp lint
+pnpm --dir apps/webapp run migrate   # dev DB, после зелёных тестов
+```
+
+### Migrate / DB verify (dev)
+
+После успешных проверок: `pnpm --dir apps/webapp run migrate` (exit 0). SQL-проверка: `SELECT code, title, sort_order FROM patient_home_blocks WHERE code = 'useful_post';` — ожидается одна строка, `sort_order = 15`.
+
+---
+
 ## 2026-04-28 — Phase 1 start
 
 - Phase: `Phase 1 — БД и CMS: медиа разделов + настройка блоков главной`

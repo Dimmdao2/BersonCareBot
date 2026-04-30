@@ -12,6 +12,7 @@ describe("patient home blocks port (in-memory)", () => {
     const blocks = await port.listBlocksWithItems();
     expect(blocks.map((block) => block.code)).toEqual([
       "daily_warmup",
+      "useful_post",
       "booking",
       "situations",
       "progress",
@@ -52,6 +53,7 @@ describe("patient home blocks port (in-memory)", () => {
     await port.reorderBlocks([
       "courses",
       "daily_warmup",
+      "useful_post",
       "booking",
       "situations",
       "progress",

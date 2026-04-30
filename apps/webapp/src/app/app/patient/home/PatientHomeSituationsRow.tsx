@@ -3,6 +3,7 @@ import { ChevronRight } from "lucide-react";
 import { routePaths } from "@/app-layer/routes/paths";
 import type { ResolvedSituationChip } from "@/modules/patient-home/patientHomeResolvers";
 import {
+  patientHomeCardClass,
   patientHomeSituationTileMediaClass,
   patientHomeSituationTileShellClass,
   patientHomeSituationTileTitleClass,
@@ -23,10 +24,17 @@ export function PatientHomeSituationsRow({ chips }: Props) {
   if (chips.length === 0) return null;
 
   return (
-    <section id="patient-home-situations" className="flex min-w-0 flex-col gap-3" aria-labelledby="patient-home-situations-heading">
+    <section
+      id="patient-home-situations"
+      className={cn(patientHomeCardClass, "flex min-w-0 flex-col gap-4 p-4 lg:h-[170px] lg:p-5")}
+      aria-labelledby="patient-home-situations-heading"
+    >
       <div className="flex items-center justify-between gap-3">
-        <h2 id="patient-home-situations-heading" className="text-lg font-bold text-[var(--patient-text-primary)] lg:text-xl">
-          Быстрый выбор ситуации
+        <h2
+          id="patient-home-situations-heading"
+          className="text-base font-medium leading-6 text-[var(--patient-text-primary)] lg:text-lg"
+        >
+          Выберите ситуацию
         </h2>
         <Link
           href={routePaths.patientSectionsIndex}
@@ -37,7 +45,7 @@ export function PatientHomeSituationsRow({ chips }: Props) {
           <ChevronRight className="size-4" aria-hidden />
         </Link>
       </div>
-      <div className="-mx-1 flex gap-2.5 overflow-x-auto px-1 pb-1 pt-0.5 [scrollbar-width:thin] lg:gap-3">
+      <div className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-1 [scrollbar-width:thin] lg:mx-0 lg:grid lg:grid-cols-6 lg:gap-4 lg:overflow-visible lg:px-0 lg:pb-0">
         {chips.map((c) => (
           <Link
             key={c.itemId}

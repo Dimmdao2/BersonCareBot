@@ -20,6 +20,7 @@ const CMS_RUNTIME_BLOCKS = new Set<PatientHomeBlockCode>([
   "sos",
   "courses",
   "daily_warmup",
+  "useful_post",
 ]);
 
 export type PatientHomeResolverSyncContext = {
@@ -94,7 +95,8 @@ export function isPatientHomeItemRuntimeResolvedOnHome(
       const req = ctx.sectionRequiresAuthBySlug.get(slug);
       return authOk(req, ctx.canViewAuthOnlyContent);
     }
-    case "daily_warmup": {
+    case "daily_warmup":
+    case "useful_post": {
       if (item.targetType !== "content_page") return false;
       const slug = item.targetRef.trim();
       if (!slug || !ctx.existingPageSlugs.has(slug)) return false;

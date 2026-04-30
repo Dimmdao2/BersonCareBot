@@ -100,6 +100,7 @@ describe("patient-home service", () => {
   it("setBlockIcon rejects unsupported blocks", async () => {
     const { service } = makeService();
     await expect(service.setBlockIcon("daily_warmup", "https://x")).rejects.toThrow("block_icon_not_supported");
+    await expect(service.setBlockIcon("useful_post", "https://x")).rejects.toThrow("block_icon_not_supported");
   });
 
   it("retarget updates target_ref when CMS target exists", async () => {
@@ -122,6 +123,13 @@ describe("patient-home service", () => {
     const { service } = makeService();
     await expect(
       service.updateItem("00000000-0000-0000-0000-000000000099", { targetRef: "s-1" }),
+    ).rejects.toThrow("unknown_item");
+  });
+
+  it("patch-only updateItem rejects unknown item id", async () => {
+    const { service } = makeService();
+    await expect(
+      service.updateItem("00000000-0000-0000-0000-000000000099", { isVisible: false }),
     ).rejects.toThrow("unknown_item");
   });
 

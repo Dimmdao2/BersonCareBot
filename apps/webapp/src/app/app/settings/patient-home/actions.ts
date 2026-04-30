@@ -11,6 +11,7 @@ import {
   supportsConfigurablePatientHomeBlockIcon,
 } from "@/modules/patient-home/blocks";
 import type { PatientHomeBlockItemTargetType } from "@/modules/patient-home/ports";
+import { PATIENT_HOME_USEFUL_POST_BADGE_LABEL } from "@/modules/patient-home/usefulPostPresentation";
 import { validateContentSectionSlug } from "@/shared/lib/contentSectionSlug";
 import { API_MEDIA_URL_RE, isLegacyAbsoluteUrl } from "@/shared/lib/mediaUrlPolicy";
 
@@ -175,6 +176,37 @@ export async function updatePatientHomeItemVisibility(
     return { ok: true };
   } catch (error) {
     return fail(error instanceof Error ? error.message : "update_item_failed");
+  }
+}
+
+export async function updatePatientHomeItemPresentation(input: {
+  itemId: string;
+  badgeLabel: string | null;
+}): Promise<ActionState> {
+  try {
+    await requireDoctorForPatientHomeBlocks();
+    const idParsed = parsePatientHomeItemId(input.itemId);
+    if (!idParsed.ok) return fail(idParsed.error);
+
+    const raw = input.badgeLabel;
+    let badgeLabel: string | null;
+    if (raw === null || (typeof raw === "string" && raw.trim() === "")) {
+      badgeLabel = null;
+    } else if (typeof raw === "string" && raw.trim() === PATIENT_HOME_USEFUL_POST_BADGE_LABEL) {
+      badgeLabel = PATIENT_HOME_USEFUL_POST_BADGE_LABEL;
+    } else {
+      return fail("invalid_badge_label");
+    }
+
+    const deps = buildAppDeps();
+    const item = await deps.patientHomeBlocks.getItemById(idParsed.id);
+    if (!item || item.blockCode !== "useful_post") return fail("invalid_item_for_badge");
+
+    await deps.patientHomeBlocks.updateItem(idParsed.id, { badgeLabel });
+    revalidatePatientHomeSettings();
+    return { ok: true };
+  } catch (error) {
+    return fail(error instanceof Error ? error.message : "update_item_presentation_failed");
   }
 }
 

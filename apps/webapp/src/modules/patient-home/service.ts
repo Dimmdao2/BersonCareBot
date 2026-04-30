@@ -9,6 +9,7 @@ import {
 import type {
   PatientHomeBlock,
   PatientHomeBlockCode,
+  PatientHomeBlockItem,
   PatientHomeBlockItemAddInput,
   PatientHomeBlockItemPatch,
   PatientHomeBlockItemTargetType,
@@ -173,6 +174,9 @@ export function createPatientHomeBlocksService(deps: PatientHomeServiceDeps) {
         return;
       }
 
+      const existingNonRetarget = await deps.port.getItemById(itemId);
+      if (!existingNonRetarget) throw new Error("unknown_item");
+
       await deps.port.updateItem(itemId, {
         ...patch,
         titleOverride: patch.titleOverride === undefined ? undefined : sanitizeNullable(patch.titleOverride),
@@ -186,6 +190,12 @@ export function createPatientHomeBlocksService(deps: PatientHomeServiceDeps) {
       const itemId = id.trim();
       if (!itemId) throw new Error("empty_item_id");
       await deps.port.deleteItem(itemId);
+    },
+
+    async getItemById(id: string): Promise<PatientHomeBlockItem | null> {
+      const itemId = id.trim();
+      if (!itemId) return null;
+      return deps.port.getItemById(itemId);
     },
 
     async reorderItems(blockCode: string, orderedItemIds: string[]): Promise<void> {

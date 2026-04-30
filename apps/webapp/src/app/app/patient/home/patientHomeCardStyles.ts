@@ -21,6 +21,13 @@ export const patientHomeCardClass = cn(
   "shadow-[var(--patient-shadow-card-mobile)] lg:shadow-[var(--patient-shadow-card-desktop)]",
 );
 
+/** Полезный пост: только border/radius/shadow без padding/bg текста базовой карточки (full-bleed cover). */
+export const patientHomeUsefulPostCardShellClass = cn(
+  patientCardBorder,
+  "overflow-hidden rounded-[var(--patient-card-radius-mobile)] lg:rounded-[var(--patient-card-radius-desktop)]",
+  "shadow-[var(--patient-shadow-card-mobile)] lg:shadow-[var(--patient-shadow-card-desktop)]",
+);
+
 /** Компактная карточка — меньше padding, те же токены радиуса/тени. */
 export const patientHomeCardCompactClass = cn(
   patientCardBorder,
@@ -242,15 +249,15 @@ export const patientHomeHeroImageSlotClass = cn(
   "h-[156px] w-[132px] min-[380px]:h-[168px] min-[380px]:w-[148px] lg:h-[262px] lg:w-[224px] xl:h-[274px] xl:w-[248px]",
 );
 
-/** Booking: companion consultation card, compact on mobile and stretched beside hero on desktop. */
+/** Booking: compact beside situations on desktop (VISUAL_SYSTEM_SPEC refresh). */
 export const patientHomeBookingCardGeometryClass = cn(
   "flex min-h-[128px] flex-col gap-3 overflow-hidden p-4",
-  "lg:h-[300px] lg:min-h-0 lg:gap-4 lg:p-5 xl:h-[300px]",
+  "lg:h-[170px] lg:min-h-0 lg:gap-3 lg:p-5",
 );
 
 export const patientHomeBookingCopyClampClass = cn(
   patientLineClamp2Class,
-  "mt-1 text-sm leading-5 text-[var(--patient-text-secondary)] lg:text-sm lg:leading-5",
+  "mt-1 text-sm leading-5 text-[var(--patient-text-secondary)] lg:line-clamp-2",
 );
 
 /** Слот под guest / activation copy (всегда занимает место — высота карточки не прыгает). */
@@ -258,43 +265,45 @@ export const patientHomeBookingFooterSlotClass =
   "flex min-h-5 shrink-0 flex-col justify-end overflow-hidden text-xs leading-5 text-[var(--patient-text-secondary)]";
 
 export const patientHomeBookingActionsClass = cn(
-  "flex w-full shrink-0 flex-row gap-2 min-[380px]:w-[9.25rem] min-[380px]:flex-col",
-  "lg:w-full lg:min-w-0 lg:max-w-none lg:flex-col lg:justify-end lg:gap-3",
+  "flex w-full shrink-0 flex-row gap-2 lg:w-auto lg:max-w-none lg:flex-row lg:justify-start",
 );
 
-/** Situations: фиксированная плитка + медиа-слот (цвета только нейтральные / hover). */
+/** Situations row: tile shells (reference — без отдельной «карточки-плитки»). */
 export const patientHomeSituationTileShellClass = cn(
-  "flex w-[5.5rem] shrink-0 flex-col items-stretch overflow-hidden rounded-[1.35rem] border border-white/70 bg-white/85 p-2 text-center shadow-[0_4px_14px_rgba(15,23,42,0.05)] transition-colors",
-  "h-[122px] hover:border-[var(--patient-color-primary)]/40 hover:shadow-md",
-  "lg:h-[144px] lg:w-[7.25rem] lg:rounded-3xl lg:p-3",
+  "flex w-[4.75rem] shrink-0 flex-col items-center bg-transparent p-0 text-center lg:w-auto",
 );
 
 export const patientHomeSituationTileMediaClass = cn(
-  "mx-auto flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-[1.15rem] bg-gradient-to-br from-white to-[var(--patient-color-primary-soft)]/55 text-xs font-bold text-[var(--patient-text-secondary)] ring-1 ring-[var(--patient-border)]/70 lg:size-20 lg:rounded-[1.35rem]",
+  "flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-[1.25rem] bg-[var(--patient-color-primary-soft)]/45 ring-1 ring-[var(--patient-border)]/50 lg:size-20 lg:rounded-[1.35rem]",
 );
 
 export const patientHomeSituationTileTitleClass = cn(
   patientLineClamp2Class,
-  "mt-2 flex min-h-0 flex-1 items-start justify-center px-0.5 text-center text-xs font-medium leading-4 text-[var(--patient-text-primary)] lg:text-sm lg:leading-5",
+  "mt-2 min-w-0 text-center text-[13px] font-medium leading-[18px] text-[var(--patient-text-primary)] lg:text-sm lg:leading-5",
 );
 
-/** Progress: одна высота guest / tier / loading / full. */
-export const patientHomeProgressCardGeometryClass = cn("flex h-[168px] flex-col overflow-hidden sm:h-[172px] lg:h-[176px]");
+/** Progress block geometry (patient home reference row). */
+export const patientHomeProgressCardGeometryClass = cn(
+  "flex min-h-[150px] flex-col overflow-hidden sm:min-h-[158px] lg:h-[170px] lg:min-h-0",
+);
 
 export const patientHomeProgressGridClass = cn(
-  "grid min-h-0 flex-1 grid-cols-1 gap-3 min-[380px]:grid-cols-[minmax(0,1fr)_minmax(0,7.5rem)] min-[380px]:items-stretch min-[380px]:gap-4",
+  "grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_6.25rem] items-center gap-4 lg:grid-cols-[minmax(0,1fr)_7.5rem]",
 );
 
+/** Streak column: centered circle (no side tinted panel). */
 export const patientHomeProgressStreakColClass = cn(
-  "flex min-h-0 flex-col items-center justify-center gap-1 rounded-2xl bg-[var(--patient-color-primary-soft)]/45 px-3 py-2 text-center",
-  "min-[380px]:border-l min-[380px]:border-[var(--patient-border)] min-[380px]:bg-transparent min-[380px]:pl-4",
+  "flex min-h-0 flex-col items-center justify-center gap-2 text-center lg:gap-2.5",
 );
 
 export const patientHomeProgressValueClass =
-  "mt-1 text-[28px] font-extrabold leading-8 text-[var(--patient-color-primary)] sm:text-[30px] sm:leading-[38px]";
+  "mt-1 text-[28px] font-semibold leading-8 text-[var(--patient-color-primary)]";
+
+export const patientHomeProgressValueSuffixClass =
+  "text-[24px] font-semibold leading-8 text-[var(--patient-text-secondary)]";
 
 export const patientHomeProgressStreakValueClass =
-  "text-[26px] font-extrabold leading-8 text-[var(--patient-text-primary)] sm:text-[28px] sm:leading-9";
+  "text-[26px] font-semibold leading-8 text-[var(--patient-text-primary)] sm:text-[28px] sm:leading-9";
 
 /** Mood: фиксированная высота карточки; слот статуса не даёт прыгать по клику. */
 export const patientHomeMoodCardGeometryClass = cn("flex flex-col overflow-hidden", "h-[184px] sm:h-[188px] lg:h-[208px]");
@@ -320,6 +329,11 @@ export const patientHomeSosTitleClampClass = cn(
 export const patientHomeSosSubtitleClampClass = cn(
   patientLineClamp2Class,
   "mt-1 text-sm leading-5 text-[var(--patient-text-secondary)]",
+);
+
+/** Next reminder: compact warning card (отдельно от других secondary-карточек). */
+export const patientHomeReminderCardGeometryClass = cn(
+  "flex min-h-[150px] flex-col justify-between gap-3 overflow-hidden rounded-[var(--patient-card-radius-mobile)] border border-[#fde68a] bg-[linear-gradient(135deg,#fffaf0_0%,#fff7df_100%)] p-4 lg:h-[170px] lg:min-h-0 lg:rounded-[var(--patient-card-radius-desktop)] lg:p-5",
 );
 
 export const patientHomeSosThumbSlotClass = cn(

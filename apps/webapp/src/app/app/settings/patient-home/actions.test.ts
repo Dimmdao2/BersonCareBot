@@ -7,6 +7,7 @@ const addItemMock = vi.fn();
 const reorderItemsMock = vi.fn();
 const updateItemMock = vi.fn();
 const deleteItemMock = vi.fn();
+const getItemByIdMock = vi.fn();
 const upsertSectionMock = vi.fn();
 
 vi.mock("next/cache", () => ({
@@ -27,6 +28,7 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
       reorderBlocks: vi.fn(),
       updateItem: updateItemMock,
       deleteItem: deleteItemMock,
+      getItemById: getItemByIdMock,
       listCandidatesForBlock: vi.fn().mockResolvedValue([]),
     },
     contentSections: {
@@ -44,6 +46,7 @@ import {
   retargetPatientHomeItem,
   setPatientHomeBlockIcon,
   togglePatientHomeBlockVisibility,
+  updatePatientHomeItemPresentation,
   updatePatientHomeItemVisibility,
 } from "./actions";
 
@@ -63,6 +66,7 @@ describe("patient-home settings actions", () => {
     reorderItemsMock.mockReset();
     updateItemMock.mockReset();
     deleteItemMock.mockReset();
+    getItemByIdMock.mockReset();
     upsertSectionMock.mockReset();
     vi.mocked(getCurrentSession).mockResolvedValue(sessionWithRole("admin"));
   });
@@ -110,6 +114,50 @@ describe("patient-home settings actions", () => {
     expect(res.ok).toBe(false);
     if (!res.ok) expect(res.error).toBe("block_icon_not_supported");
     expect(setBlockIconMock).not.toHaveBeenCalled();
+  });
+
+  it("updatePatientHomeItemPresentation updates useful_post badge label", async () => {
+    getItemByIdMock.mockResolvedValue({
+      id: "550e8400-e29b-41d4-a716-446655440099",
+      blockCode: "useful_post",
+      targetType: "content_page",
+      targetRef: "page",
+      titleOverride: null,
+      subtitleOverride: null,
+      imageUrlOverride: null,
+      badgeLabel: null,
+      isVisible: true,
+      sortOrder: 0,
+    });
+    updateItemMock.mockResolvedValue(undefined);
+    const res = await updatePatientHomeItemPresentation({
+      itemId: "550e8400-e29b-41d4-a716-446655440099",
+      badgeLabel: "Новый пост",
+    });
+    expect(res.ok).toBe(true);
+    expect(updateItemMock).toHaveBeenCalledWith("550e8400-e29b-41d4-a716-446655440099", { badgeLabel: "Новый пост" });
+  });
+
+  it("updatePatientHomeItemPresentation rejects non-useful_post items", async () => {
+    getItemByIdMock.mockResolvedValue({
+      id: "550e8400-e29b-41d4-a716-446655440099",
+      blockCode: "daily_warmup",
+      targetType: "content_page",
+      targetRef: "page",
+      titleOverride: null,
+      subtitleOverride: null,
+      imageUrlOverride: null,
+      badgeLabel: null,
+      isVisible: true,
+      sortOrder: 0,
+    });
+    const res = await updatePatientHomeItemPresentation({
+      itemId: "550e8400-e29b-41d4-a716-446655440099",
+      badgeLabel: "Новый пост",
+    });
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.error).toBe("invalid_item_for_badge");
+    expect(updateItemMock).not.toHaveBeenCalled();
   });
 
   it("setPatientHomeBlockIcon rejects URL outside media policy", async () => {

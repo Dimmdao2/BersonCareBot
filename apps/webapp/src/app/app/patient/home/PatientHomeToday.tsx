@@ -15,12 +15,14 @@ import type {
   ResolvedCourseCard,
   ResolvedSituationChip,
   ResolvedSosCard,
+  ResolvedUsefulPostCard,
 } from "@/modules/patient-home/patientHomeResolvers";
 import {
   resolveCourseRowCards,
   resolveSituationChips,
   resolveSosCard,
   resolveSubscriptionCarouselCards,
+  resolveUsefulPostCard,
 } from "@/modules/patient-home/patientHomeResolvers";
 import { greetingPrefixFromHour } from "./PatientHomeGreeting";
 import { PatientHomeDailyWarmupCard } from "./PatientHomeDailyWarmupCard";
@@ -34,6 +36,7 @@ import { PatientHomePlanCard } from "./PatientHomePlanCard";
 import { PatientHomeSubscriptionCarousel } from "./PatientHomeSubscriptionCarousel";
 import { PatientHomeCoursesRow } from "./PatientHomeCoursesRow";
 import { PatientHomeTodayLayout } from "./PatientHomeTodayLayout";
+import { PatientHomeUsefulPostCard } from "./PatientHomeUsefulPostCard";
 import { hrefForPatientHomeDrilldown, stripApiMediaForAnonymousGuest } from "./patientHomeGuestNav";
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
 import { DateTime } from "luxon";
@@ -77,6 +80,15 @@ function mapCourseCardsForGuest(cards: ResolvedCourseCard[], anonymousGuest: boo
   return cards.map((c) => ({ ...c, href: hrefForPatientHomeDrilldown(c.href, true) }));
 }
 
+function mapUsefulPostForGuest(post: ResolvedUsefulPostCard | null, anonymousGuest: boolean): ResolvedUsefulPostCard | null {
+  if (!post || !anonymousGuest) return post;
+  return {
+    ...post,
+    href: hrefForPatientHomeDrilldown(post.href, true),
+    imageUrl: stripApiMediaForAnonymousGuest(post.imageUrl, true),
+  };
+}
+
 export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnlyContent }: Props) {
   const deps = buildAppDeps();
   const anonymousGuest = session === null;
@@ -108,20 +120,25 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
   const subscriptionBlock = homeBlocks.find((b) => b.code === "subscription_carousel");
   const sosBlock = homeBlocks.find((b) => b.code === "sos");
   const coursesBlock = homeBlocks.find((b) => b.code === "courses");
+  const usefulPostBlock = homeBlocks.find((b) => b.code === "useful_post");
 
-  const [situationChipsRaw, subscriptionCardsRaw, sosCardRaw, courseCardsRaw] = await Promise.all([
+  const [situationChipsRaw, subscriptionCardsRaw, sosCardRaw, courseCardsRaw, usefulPostRaw] = await Promise.all([
     situationsBlock ? resolveSituationChips(situationsBlock.items, resolverDeps, canViewAuthOnlyContent) : Promise.resolve([]),
     subscriptionBlock ?
       resolveSubscriptionCarouselCards(subscriptionBlock.items, resolverDeps, canViewAuthOnlyContent)
     : Promise.resolve([]),
     sosBlock ? resolveSosCard(sosBlock.items, resolverDeps, canViewAuthOnlyContent) : Promise.resolve(null),
     coursesBlock ? resolveCourseRowCards(coursesBlock.items, resolverDeps) : Promise.resolve([]),
+    usefulPostBlock ?
+      resolveUsefulPostCard(usefulPostBlock.items, resolverDeps, canViewAuthOnlyContent)
+    : Promise.resolve(null),
   ]);
 
   const situationChips = mapSituationChipsForGuest(situationChipsRaw, anonymousGuest);
   const subscriptionCards = mapCarouselForGuest(subscriptionCardsRaw, anonymousGuest);
   const sosCard = mapSosForGuest(sosCardRaw, anonymousGuest);
   const courseCards = mapCourseCardsForGuest(courseCardsRaw, anonymousGuest);
+  const usefulPost = mapUsefulPostForGuest(usefulPostRaw, anonymousGuest);
 
   let homeReminder: { rule: ReminderRule; nextAt: Date } | null = null;
   let planInstance: { id: string; title: string } | null = null;
@@ -164,6 +181,9 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
             anonymousGuest={anonymousGuest}
           />
         );
+      case "useful_post":
+        if (!usefulPost) return null;
+        return <PatientHomeUsefulPostCard post={usefulPost} />;
       case "booking":
         return (
           <PatientHomeBookingCard

@@ -2,6 +2,7 @@ import type { PatientHomeBlockCode, PatientHomeBlockItemTargetType } from "./por
 
 export const PATIENT_HOME_BLOCK_CODES = [
   "daily_warmup",
+  "useful_post",
   "booking",
   "situations",
   "progress",
@@ -15,6 +16,7 @@ export const PATIENT_HOME_BLOCK_CODES = [
 
 export const PATIENT_HOME_ITEM_LIST_BLOCKS = [
   "daily_warmup",
+  "useful_post",
   "situations",
   "subscription_carousel",
   "courses",
@@ -45,6 +47,7 @@ export function supportsConfigurablePatientHomeBlockIcon(code: PatientHomeBlockC
 
 const blockTargetTypeMap: Record<PatientHomeBlockCode, readonly PatientHomeBlockItemTargetType[]> = {
   daily_warmup: ["content_page"],
+  useful_post: ["content_page"],
   booking: [],
   situations: ["content_section"],
   progress: [],
