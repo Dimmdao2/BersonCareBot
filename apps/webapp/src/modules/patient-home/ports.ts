@@ -35,6 +35,8 @@ export type PatientHomeBlock = {
   description: string;
   isVisible: boolean;
   sortOrder: number;
+  /** CMS media URL for the block leading icon; `null` uses the built-in Lucide fallback. */
+  iconImageUrl: string | null;
   items: PatientHomeBlockItem[];
 };
 
@@ -67,6 +69,7 @@ export type PatientHomeBlockItemPatch = Partial<
 export type PatientHomeBlocksPort = {
   listBlocksWithItems(): Promise<PatientHomeBlock[]>;
   setBlockVisibility(code: PatientHomeBlockCode, visible: boolean): Promise<void>;
+  setBlockIcon(code: PatientHomeBlockCode, iconImageUrl: string | null): Promise<void>;
   reorderBlocks(orderedCodes: PatientHomeBlockCode[]): Promise<void>;
   addItem(input: PatientHomeBlockItemAddInput): Promise<string>;
   getItemById(id: string): Promise<PatientHomeBlockItem | null>;

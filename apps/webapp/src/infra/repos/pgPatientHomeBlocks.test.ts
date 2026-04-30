@@ -89,4 +89,13 @@ describe("patient home blocks port (in-memory)", () => {
     await port.updateItem(id, { targetRef: "b" });
     expect((await port.getItemById(id))?.targetRef).toBe("b");
   });
+
+  it("setBlockIcon updates block iconImageUrl", async () => {
+    const port = createInMemoryPatientHomeBlocksPort();
+    await port.setBlockIcon("sos", "https://media.example/sos.png");
+    const blocks = await port.listBlocksWithItems();
+    expect(blocks.find((b) => b.code === "sos")?.iconImageUrl).toBe("https://media.example/sos.png");
+    await port.setBlockIcon("sos", null);
+    expect((await port.listBlocksWithItems()).find((b) => b.code === "sos")?.iconImageUrl).toBeNull();
+  });
 });

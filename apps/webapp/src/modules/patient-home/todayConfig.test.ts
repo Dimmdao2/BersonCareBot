@@ -13,6 +13,7 @@ function block(code: PatientHomeBlock["code"], items: PatientHomeBlockItem[], is
     description: "",
     isVisible,
     sortOrder: 10,
+    iconImageUrl: null,
     items,
   };
 }

@@ -34,6 +34,7 @@ export function createInMemoryPatientHomeBlocksPort(): PatientHomeBlocksPort {
       description: "",
       isVisible: true,
       sortOrder: i + 1,
+      iconImageUrl: null,
       items: [],
     });
   }
@@ -56,6 +57,12 @@ export function createInMemoryPatientHomeBlocksPort(): PatientHomeBlocksPort {
       const block = blocks.get(code);
       if (!block) return;
       block.isVisible = visible;
+    },
+
+    async setBlockIcon(code, iconImageUrl) {
+      const block = blocks.get(code);
+      if (!block) return;
+      block.iconImageUrl = iconImageUrl;
     },
 
     async reorderBlocks(orderedCodes) {

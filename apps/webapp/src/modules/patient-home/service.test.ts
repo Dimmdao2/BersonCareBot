@@ -87,6 +87,21 @@ describe("patient-home service", () => {
     await expect(service.reorderBlocks(["daily_warmup", "booking"])).rejects.toThrow("invalid_block_count");
   });
 
+  it("setBlockIcon updates supported blocks and clears with null", async () => {
+    const { service, port } = makeService();
+    await service.setBlockIcon("booking", "https://cdn.example/icon.png");
+    let blocks = await port.listBlocksWithItems();
+    expect(blocks.find((b) => b.code === "booking")?.iconImageUrl).toBe("https://cdn.example/icon.png");
+    await service.setBlockIcon("booking", null);
+    blocks = await port.listBlocksWithItems();
+    expect(blocks.find((b) => b.code === "booking")?.iconImageUrl).toBeNull();
+  });
+
+  it("setBlockIcon rejects unsupported blocks", async () => {
+    const { service } = makeService();
+    await expect(service.setBlockIcon("daily_warmup", "https://x")).rejects.toThrow("block_icon_not_supported");
+  });
+
   it("retarget updates target_ref when CMS target exists", async () => {
     const { service, port } = makeService();
     const id = await port.addItem({

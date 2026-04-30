@@ -14,6 +14,7 @@ function block(
     description: "",
     isVisible,
     sortOrder,
+    iconImageUrl: null,
     items,
   };
 }

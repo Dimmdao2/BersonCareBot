@@ -59,6 +59,7 @@ describe("PatientHomeBlocksSettingsPageClient", () => {
         description: "",
         isVisible: true,
         sortOrder: 1,
+        iconImageUrl: null,
         items: [],
       },
       {
@@ -67,6 +68,7 @@ describe("PatientHomeBlocksSettingsPageClient", () => {
         description: "",
         isVisible: true,
         sortOrder: 2,
+        iconImageUrl: null,
         items: [],
       },
     ];

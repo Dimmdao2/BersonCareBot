@@ -28,6 +28,21 @@ export const PATIENT_HOME_ITEM_LIST_BLOCKS = [
 export const PATIENT_HOME_CMS_BLOCK_CODES = PATIENT_HOME_ITEM_LIST_BLOCKS;
 export type PatientHomeCmsBlockCode = (typeof PATIENT_HOME_ITEM_LIST_BLOCKS)[number];
 
+/** Blocks whose home card uses a single leading icon configurable from CMS media. */
+export const PATIENT_HOME_LEADING_ICON_BLOCK_CODES = [
+  "sos",
+  "next_reminder",
+  "booking",
+  "progress",
+  "plan",
+] as const satisfies readonly PatientHomeBlockCode[];
+
+export type PatientHomeLeadingIconBlockCode = (typeof PATIENT_HOME_LEADING_ICON_BLOCK_CODES)[number];
+
+export function supportsConfigurablePatientHomeBlockIcon(code: PatientHomeBlockCode): boolean {
+  return (PATIENT_HOME_LEADING_ICON_BLOCK_CODES as readonly string[]).includes(code);
+}
+
 const blockTargetTypeMap: Record<PatientHomeBlockCode, readonly PatientHomeBlockItemTargetType[]> = {
   daily_warmup: ["content_page"],
   booking: [],

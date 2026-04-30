@@ -72,6 +72,7 @@ function homeBlock(code: PatientHomeBlock["code"], sortOrder: number, items: Pat
     description: "",
     isVisible: true,
     sortOrder,
+    iconImageUrl: null,
     items,
   };
 }

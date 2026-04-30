@@ -28,6 +28,7 @@ function homeBlock(p: Partial<PatientHomeBlock> & Pick<PatientHomeBlock, "code" 
     description: "",
     isVisible: true,
     sortOrder: 0,
+    iconImageUrl: null,
     ...p,
   };
 }

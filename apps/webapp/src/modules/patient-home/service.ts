@@ -4,6 +4,7 @@ import {
   allowedTargetTypesForBlock,
   canManageItemsForBlock,
   isTargetTypeAllowedForBlock,
+  supportsConfigurablePatientHomeBlockIcon,
 } from "./blocks";
 import type {
   PatientHomeBlock,
@@ -96,6 +97,14 @@ export function createPatientHomeBlocksService(deps: PatientHomeServiceDeps) {
 
     async setBlockVisibility(code: string, visible: boolean): Promise<void> {
       await deps.port.setBlockVisibility(parseBlockCode(code), visible);
+    },
+
+    async setBlockIcon(code: string, iconImageUrl: string | null): Promise<void> {
+      const parsed = parseBlockCode(code);
+      if (!supportsConfigurablePatientHomeBlockIcon(parsed)) {
+        throw new Error(`block_icon_not_supported:${parsed}`);
+      }
+      await deps.port.setBlockIcon(parsed, sanitizeNullable(iconImageUrl));
     },
 
     async reorderBlocks(orderedCodes: string[]): Promise<void> {

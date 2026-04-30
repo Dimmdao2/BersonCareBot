@@ -57,6 +57,7 @@ describe("PatientHomeBlockSettingsCard", () => {
       description: "",
       isVisible: true,
       sortOrder: 1,
+      iconImageUrl: null,
       items: [
         {
           id: "550e8400-e29b-41d4-a716-446655440001",
@@ -94,6 +95,7 @@ describe("PatientHomeBlockSettingsCard", () => {
       description: "",
       isVisible: true,
       sortOrder: 1,
+      iconImageUrl: null,
       items: [],
     };
     const runtimeStatus = computePatientHomeBlockRuntimeStatus(block, { knownRefs, resolverSync });
@@ -110,6 +112,7 @@ describe("PatientHomeBlockSettingsCard", () => {
       description: "",
       isVisible: true,
       sortOrder: 1,
+      iconImageUrl: null,
       items: [],
     };
     const runtimeStatus = computePatientHomeBlockRuntimeStatus(block, { knownRefs, resolverSync });

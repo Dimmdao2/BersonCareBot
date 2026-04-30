@@ -588,3 +588,28 @@
   - pass
 - Next:
   - commit при необходимости; ручной smoke `CMS_EDITOR_UX_LIFT_TASK_FOR_GPT55.md` §Manual smoke
+
+---
+
+## 2026-04-30 — Patient home block icon (data layer)
+
+- Branch: `feat/patient-home-cms-editor-uxlift-2026-04-29`
+- Scope:
+  - Колонка `patient_home_blocks.icon_image_url` (nullable text), поле `iconImageUrl` в типе `PatientHomeBlock`; `NULL` = Lucide fallback на карточке (runtime/UI не трогались).
+  - Порт `setBlockIcon` + реализации pg / in-memory; сервис `setBlockIcon` с whitelist блоков с одной leading-иконкой (`sos`, `next_reminder`, `booking`, `progress`, `plan`) через `supportsConfigurablePatientHomeBlockIcon` в `blocks.ts`.
+  - Миграция Drizzle `0013_patient_home_block_icon_image_url.sql` (SQL вручную сведён к одному `ALTER TABLE` — `drizzle-kit generate` изначально подтянул лишний DDL из-за отсутствующего `0012_snapshot` в meta).
+- Changed files:
+  - `apps/webapp/db/schema/schema.ts`
+  - `apps/webapp/db/drizzle-migrations/0013_patient_home_block_icon_image_url.sql`
+  - `apps/webapp/db/drizzle-migrations/meta/_journal.json`, `meta/0013_snapshot.json`
+  - `apps/webapp/src/modules/patient-home/ports.ts`, `blocks.ts`, `service.ts`
+  - `apps/webapp/src/infra/repos/pgPatientHomeBlocks.ts`, `inMemoryPatientHomeBlocks.ts`
+  - Тесты: `service.test.ts`, `pgPatientHomeBlocks.test.ts`, правки фикстур `PatientHomeBlock` в смежных тестах
+  - `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/LOG.md`
+- Checks:
+  - `pnpm --dir apps/webapp exec vitest run src/modules/patient-home src/infra/repos/pgPatientHomeBlocks.test.ts` — pass
+  - `pnpm --dir apps/webapp exec tsc --noEmit` — pass
+- Result:
+  - pass
+- Next:
+  - UI picker иконки и чтение `iconImageUrl` в runtime карточках — отдельные задачи.
