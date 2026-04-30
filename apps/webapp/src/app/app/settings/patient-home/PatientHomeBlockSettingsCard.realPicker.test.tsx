@@ -12,6 +12,7 @@ import {
   buildPatientHomeResolverSyncContext,
   computePatientHomeBlockRuntimeStatus,
 } from "@/modules/patient-home/patientHomeRuntimeStatus";
+import { emptyPatientHomeRefDisplayTitles } from "@/modules/patient-home/patientHomeBlockItemDisplayTitle";
 import { PatientHomeBlockSettingsCard } from "./PatientHomeBlockSettingsCard";
 
 beforeAll(() => {
@@ -80,7 +81,13 @@ describe("PatientHomeBlockSettingsCard (real MediaLibraryPickerDialog)", () => {
     };
     const runtimeStatus = computePatientHomeBlockRuntimeStatus(block, { knownRefs, resolverSync });
     render(
-      <PatientHomeBlockSettingsCard block={block} knownRefs={knownRefs} runtimeStatus={runtimeStatus} onChanged={vi.fn()} />,
+      <PatientHomeBlockSettingsCard
+        block={block}
+        knownRefs={knownRefs}
+        refDisplayTitles={emptyPatientHomeRefDisplayTitles}
+        runtimeStatus={runtimeStatus}
+        onChanged={vi.fn()}
+      />,
     );
 
     expect(screen.getByText("Иконка блока")).toBeInTheDocument();

@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import type { PatientHomeRefDisplayTitles } from "@/modules/patient-home/patientHomeBlockItemDisplayTitle";
 import type { PatientHomeBlock } from "@/modules/patient-home/ports";
 import type { PatientHomeBlockRuntimeStatus } from "@/modules/patient-home/patientHomeRuntimeStatus";
 import { PatientHomeBlockSettingsCard } from "./PatientHomeBlockSettingsCard";
@@ -17,10 +18,12 @@ type KnownRefs = {
 export function PatientHomeBlocksSettingsPageClient({
   initialBlocks,
   knownRefs,
+  refDisplayTitles,
   blockRuntimeStatuses,
 }: {
   initialBlocks: PatientHomeBlock[];
   knownRefs: KnownRefs;
+  refDisplayTitles: PatientHomeRefDisplayTitles;
   blockRuntimeStatuses: Readonly<Record<string, PatientHomeBlockRuntimeStatus>>;
 }) {
   const router = useRouter();
@@ -43,6 +46,7 @@ export function PatientHomeBlocksSettingsPageClient({
             key={block.code}
             block={block}
             knownRefs={knownRefs}
+            refDisplayTitles={refDisplayTitles}
             runtimeStatus={blockRuntimeStatuses[block.code]!}
             onChanged={() => router.refresh()}
           />

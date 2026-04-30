@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Flame } from "lucide-react";
 import { routePaths } from "@/app-layer/routes/paths";
 import {
+  patientHomeBlockHeadingClass,
   patientHomeCardClass,
   patientHomeProgressCardGeometryClass,
   patientHomeProgressGridClass,
@@ -9,10 +10,12 @@ import {
   patientHomeProgressStreakValueClass,
   patientHomeProgressValueClass,
   patientHomeProgressValueSuffixClass,
+  patientHomeBlockBodySmClamp2Mt2Class,
+  patientHomeBlockBodySmClass,
+  patientHomeBlockBodySmMt2Class,
 } from "./patientHomeCardStyles";
 import { appLoginWithNextHref } from "./patientHomeGuestNav";
 import { PatientHomeSafeImage } from "./PatientHomeSafeImage";
-import { patientLineClamp2Class } from "@/shared/ui/patientVisual";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -58,9 +61,9 @@ export function PatientHomeProgressBlock({
         </h2>
         <div className={patientHomeProgressGridClass}>
           <div className="flex min-h-0 flex-col justify-center">
-            <p className="text-base font-medium leading-6 text-[var(--patient-text-primary)]">Сегодня выполнено</p>
+            <p className={patientHomeBlockHeadingClass}>Сегодня выполнено</p>
             {anonymousGuest || !personalTierOk ?
-              <p className={cn(patientLineClamp2Class, "mt-2 text-sm leading-5 text-[var(--patient-text-secondary)]")}>{guestCopy}</p>
+              <p className={patientHomeBlockBodySmClamp2Mt2Class}>{guestCopy}</p>
             : progress ?
               <>
                 <p className="mt-1" aria-label={`Выполнено практик сегодня: ${progress.todayDone}, цель ${practiceTarget}`}>
@@ -80,7 +83,7 @@ export function PatientHomeProgressBlock({
                     style={{ width: `${pct}%` }}
                   />
                 </div>
-                <p className="mt-2 text-sm leading-5 text-[var(--patient-text-secondary)]">Цель дня — {practiceTarget} практики.</p>
+                <p className={patientHomeBlockBodySmMt2Class}>Цель дня — {practiceTarget} практики.</p>
               </>
             :
               <div className="mt-2 space-y-2" aria-busy="true">
@@ -88,7 +91,7 @@ export function PatientHomeProgressBlock({
                 <div className="h-2 w-full overflow-hidden rounded-full bg-[#e5e7eb]">
                   <div className="h-full w-1/3 rounded-full bg-muted/90" />
                 </div>
-                <p className="text-sm text-[var(--patient-text-secondary)]">Загрузка прогресса…</p>
+                <p className={patientHomeBlockBodySmClass}>Загрузка прогресса…</p>
               </div>
             }
           </div>
@@ -110,7 +113,7 @@ export function PatientHomeProgressBlock({
               }
             </div>
             {progress && personalTierOk && !anonymousGuest ?
-              <span className="text-xs font-semibold text-[var(--patient-text-secondary)]">{streakLabel(progress.streak)} подряд</span>
+              <span className="text-xs font-semibold text-[var(--patient-block-caption)]">{streakLabel(progress.streak)} подряд</span>
             :
               <span className="text-xs font-semibold text-[var(--patient-text-muted)]">дней подряд</span>
             }

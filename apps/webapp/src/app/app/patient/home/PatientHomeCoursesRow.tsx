@@ -2,11 +2,13 @@ import Link from "next/link";
 import { BookOpen } from "lucide-react";
 import type { ResolvedCourseCard } from "@/modules/patient-home/patientHomeResolvers";
 import {
+  patientHomeBlockHeadingBoldClass,
   patientHomeCardClass,
   patientHomeCardCompactClass,
   patientHomeCardSubtitleClampXs3Class,
   patientHomeCardTitleClampSmClass,
   patientHomeCourseRowItemLayoutClass,
+  patientHomeTodaySectionStackClass,
 } from "./patientHomeCardStyles";
 import { routePaths } from "@/app-layer/routes/paths";
 import { appLoginWithNextHref } from "./patientHomeGuestNav";
@@ -27,8 +29,8 @@ export function PatientHomeCoursesRow({
     const catalogHref = anonymousGuest ? appLoginWithNextHref(routePaths.patientCourses) : routePaths.patientCourses;
     const ctaLabel = anonymousGuest ? "Войти и смотреть курсы" : "К каталогу курсов";
     return (
-      <section id="patient-home-courses-row" className="flex flex-col gap-2" aria-labelledby="patient-home-courses-heading">
-        <h2 id="patient-home-courses-heading" className="text-base font-bold text-[var(--patient-text-primary)]">
+      <section id="patient-home-courses-row" className={patientHomeTodaySectionStackClass} aria-labelledby="patient-home-courses-heading">
+        <h2 id="patient-home-courses-heading" className={patientHomeBlockHeadingBoldClass}>
           Курсы
         </h2>
         <article
@@ -46,10 +48,10 @@ export function PatientHomeCoursesRow({
               <BookOpen className="size-5" />
             </div>
             <div className="min-w-0 flex-1">
-              <p className={cn(patientHomeCardTitleClampSmClass, "font-semibold text-[var(--patient-text-primary)]")}>
+              <p className={cn(patientHomeCardTitleClampSmClass, "text-[var(--patient-text-primary)]")}>
                 Пока нет курсов на главной
               </p>
-              <p className={cn(patientHomeCardSubtitleClampXs3Class, "mt-1 text-[var(--patient-text-secondary)]")}>
+              <p className={cn(patientHomeCardSubtitleClampXs3Class, "mt-1")}>
                 {anonymousGuest ?
                   "Войдите, чтобы видеть доступные вам курсы и материалы."
                 : !personalTierOk ?
@@ -74,8 +76,8 @@ export function PatientHomeCoursesRow({
   }
 
   return (
-    <section id="patient-home-courses-row" className="flex flex-col gap-2" aria-labelledby="patient-home-courses-heading">
-      <h2 id="patient-home-courses-heading" className="text-base font-bold text-[var(--patient-text-primary)]">
+    <section id="patient-home-courses-row" className={patientHomeTodaySectionStackClass} aria-labelledby="patient-home-courses-heading">
+      <h2 id="patient-home-courses-heading" className={patientHomeBlockHeadingBoldClass}>
         Курсы
       </h2>
       <ul className="m-0 flex list-none flex-col gap-3 p-0">

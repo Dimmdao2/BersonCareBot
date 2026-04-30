@@ -1,14 +1,16 @@
 import Link from "next/link";
-import { ChevronRight } from "lucide-react";
-import { routePaths } from "@/app-layer/routes/paths";
 import type { ResolvedSituationChip } from "@/modules/patient-home/patientHomeResolvers";
 import {
+  patientHomeBlockHeadingClass,
   patientHomeCardClass,
+  patientHomeSituationsCardGeometryClass,
   patientHomeSituationTileMediaClass,
   patientHomeSituationTileShellClass,
   patientHomeSituationTileTitleClass,
+  patientHomeTodayCardScrollRowBleedClass,
 } from "./patientHomeCardStyles";
 import { PatientHomeSafeImage } from "./PatientHomeSafeImage";
+import { patientHomeChipFallbackImageSrc, patientHomeChipImageSrc } from "./patientHomeChipImageSrc";
 import { cn } from "@/lib/utils";
 
 type Props = { chips: ResolvedSituationChip[] };
@@ -26,45 +28,56 @@ export function PatientHomeSituationsRow({ chips }: Props) {
   return (
     <section
       id="patient-home-situations"
-      className={cn(patientHomeCardClass, "flex min-w-0 flex-col gap-4 p-4 lg:h-[170px] lg:p-5")}
-      aria-labelledby="patient-home-situations-heading"
+      className={cn(patientHomeCardClass, patientHomeSituationsCardGeometryClass)}
+      aria-label="Выберите пользу для себя"
     >
-      <div className="flex items-center justify-between gap-3">
+      <div className="min-w-0">
         <h2
           id="patient-home-situations-heading"
-          className="text-base font-medium leading-6 text-[var(--patient-text-primary)] lg:text-lg"
+          aria-hidden="true"
+          className={cn(
+            patientHomeBlockHeadingClass,
+            "hidden shrink-0 lg:block",
+          )}
         >
-          Выберите ситуацию
+          Выберите пользу для себя:
         </h2>
-        <Link
-          href={routePaths.patientSectionsIndex}
-          prefetch={false}
-          className="inline-flex shrink-0 items-center gap-1 text-sm font-semibold text-[var(--patient-color-primary)]"
-        >
-          Все ситуации
-          <ChevronRight className="size-4" aria-hidden />
-        </Link>
-      </div>
-      <div className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-1 [scrollbar-width:thin] lg:mx-0 lg:grid lg:grid-cols-6 lg:gap-4 lg:overflow-visible lg:px-0 lg:pb-0">
-        {chips.map((c) => (
-          <Link
-            key={c.itemId}
-            href={c.href}
-            prefetch={false}
-            className={cn(patientHomeSituationTileShellClass, "transition-opacity hover:opacity-95 active:scale-[0.99]")}
-          >
-            <div className={patientHomeSituationTileMediaClass}>
-              <PatientHomeSafeImage
-                src={c.imageUrl}
-                alt=""
-                className="size-full object-cover"
-                loading="lazy"
-                fallback={<span className="leading-none">{initials(c.title)}</span>}
-              />
-            </div>
-            <span className={patientHomeSituationTileTitleClass}>{c.title}</span>
-          </Link>
-        ))}
+        <div className={patientHomeTodayCardScrollRowBleedClass}>
+          {chips.map((c) => (
+            <Link
+              key={c.itemId}
+              href={c.href}
+              prefetch={false}
+              className={cn(
+                patientHomeSituationTileShellClass,
+                "group transition-opacity hover:opacity-95 active:scale-[0.99]",
+              )}
+            >
+              <div
+                className={cn(
+                  "rounded-[1.4rem] p-[2px] transition-[transform,box-shadow] duration-200 ease-out motion-reduce:transition-none",
+                  "ring-1 ring-[var(--patient-border)]/50 group-hover:-translate-y-0.5 group-hover:shadow-md group-hover:ring-2 group-hover:ring-[var(--patient-color-primary-soft)]",
+                  "motion-reduce:group-hover:translate-y-0 motion-reduce:group-hover:shadow-none motion-reduce:group-hover:ring-1",
+                  "group-focus-visible:-translate-y-0.5 group-focus-visible:shadow-md group-focus-visible:ring-2 group-focus-visible:ring-[var(--patient-color-primary-soft)]",
+                  "motion-reduce:group-focus-visible:translate-y-0 motion-reduce:group-focus-visible:shadow-none motion-reduce:group-focus-visible:ring-1",
+                )}
+              >
+                <div className={patientHomeSituationTileMediaClass}>
+                  <PatientHomeSafeImage
+                    src={patientHomeChipImageSrc(c.imageUrl)}
+                    fallbackSrc={patientHomeChipFallbackImageSrc(c.imageUrl)}
+                    alt=""
+                    className="size-full object-cover"
+                    loading="lazy"
+                    decoding="async"
+                    fallback={<span className="text-xs font-semibold leading-none">{initials(c.title)}</span>}
+                  />
+                </div>
+              </div>
+              <span className={patientHomeSituationTileTitleClass}>{c.title}</span>
+            </Link>
+          ))}
+        </div>
       </div>
     </section>
   );

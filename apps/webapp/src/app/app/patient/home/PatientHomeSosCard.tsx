@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Zap } from "lucide-react";
 import type { ResolvedSosCard } from "@/modules/patient-home/patientHomeResolvers";
 import {
+  patientHomeBlockHeadingClass,
   patientHomeCardDangerClass,
   patientHomeSosCardGeometryClass,
   patientHomeSosSubtitleClampClass,
@@ -37,7 +38,7 @@ export function PatientHomeSosCard({ sos, blockIconImageUrl }: Props) {
               />
             </div>
             <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-              <p id="patient-home-sos-heading" className="shrink-0 text-[13px] font-medium leading-[18px] text-[#b91c1c]">
+              <p id="patient-home-sos-heading" className={cn(patientHomeBlockHeadingClass, "shrink-0")}>
                 Если болит сейчас
               </p>
               <h2 className={patientHomeSosTitleClampClass}>{sos.title}</h2>

@@ -197,6 +197,13 @@ Audit выявил 16 узких мест; внесены исправления
 - **Проверка:** `pnpm install --frozen-lockfile && pnpm run ci` — **зелёный** на этом срезе (lint, typecheck, integrator + webapp tests, build integrator + webapp, `registry-prod-audit`).
 - **Ручной visual QA** по `05_TESTS_QA_CLEANUP_PLAN.md` и остаточные риски из `AUDIT_VISUAL_FINAL.md` §4 — вне этого коммита, на владельца продукта/дизайна.
 
+## 2026-05-01 — FIX (patient home visual QA follow-up)
+
+- **Scope:** точечный follow-up по ручному visual QA главной «Сегодня»: единые heading/badge роли, плотность блока ситуаций, высота пары `situations` + `booking`, fallback иконок ситуаций.
+- **Что изменено:** общий 24px pill contract для бейджей hero/post; `patientHomeBlockHeadingClass` применён к secondary heading-ролям; base/tone card padding сведён к `p-4 lg:p-[18px]`; `situations` и `booking` выровнены на `lg:h-[176px]`.
+- **Ситуации:** desktop-gap от заголовка уменьшен, mobile tile/icon слегка компактнее, scroll-row сохраняет `py` для hover/ring и fallback цепочку `preview/sm -> original /api/media -> initials`.
+- **Проверки:** `pnpm --dir apps/webapp exec vitest --run src/app/app/patient/home/patientHomeChipImageSrc.test.ts src/app/app/patient/home/PatientHomeSituationsRow.test.tsx src/app/app/patient/home/PatientHomeBookingCard.test.tsx src/app/app/patient/home/PatientHomeNextReminderCard.test.tsx src/app/app/patient/home/PatientHomeMoodCheckin.test.tsx src/app/app/patient/home/PatientHomeSosCard.test.tsx` — **19 passed**; `pnpm --dir apps/webapp run lint` — **passed**; `pnpm --dir apps/webapp run typecheck` — **passed**.
+
 ## Template for future entries
 
 ```md

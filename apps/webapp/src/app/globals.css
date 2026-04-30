@@ -87,6 +87,9 @@
   --patient-text-primary: #111827;
   --patient-text-secondary: #667085;
   --patient-text-muted: #98a2b3;
+  --patient-block-heading: #172f62;
+  /** Подписи под плитками и вспомогательные строки в блоках «Сегодня». */
+  --patient-block-caption: #465880;
 }
 
 /*---break---

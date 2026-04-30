@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ClipboardList } from "lucide-react";
 import { routePaths } from "@/app-layer/routes/paths";
 import {
+  patientHomeBlockHeadingBoldClass,
   patientHomeCardClass,
   patientHomeSecondaryCardTallHeightClass,
   patientIconLeadingClass,
@@ -54,10 +55,7 @@ export function PatientHomePlanCard({
           id="patient-home-plan-card"
           className={cn(patientHomeCardClass, patientHomeSecondaryCardTallHeightClass)}
         >
-          <p
-            id="patient-home-plan-heading"
-            className="shrink-0 text-base font-bold leading-6 text-[var(--patient-text-primary)]"
-          >
+          <p id="patient-home-plan-heading" className={cn(patientHomeBlockHeadingBoldClass, "shrink-0")}>
             Мой план
           </p>
           <div className="flex min-h-0 flex-1 gap-3">
@@ -87,10 +85,7 @@ export function PatientHomePlanCard({
         id="patient-home-plan-card"
         className={cn(patientHomeCardClass, patientHomeSecondaryCardTallHeightClass)}
       >
-        <p
-          id="patient-home-plan-heading"
-          className="shrink-0 text-base font-bold leading-6 text-[var(--patient-text-primary)]"
-        >
+        <p id="patient-home-plan-heading" className={cn(patientHomeBlockHeadingBoldClass, "shrink-0")}>
           Мой план
         </p>
         <div className="flex min-h-0 flex-1 gap-3">

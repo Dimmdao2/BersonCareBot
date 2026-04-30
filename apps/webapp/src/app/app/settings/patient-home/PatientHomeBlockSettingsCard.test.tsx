@@ -8,6 +8,7 @@ import {
   buildPatientHomeResolverSyncContext,
   computePatientHomeBlockRuntimeStatus,
 } from "@/modules/patient-home/patientHomeRuntimeStatus";
+import { emptyPatientHomeRefDisplayTitles } from "@/modules/patient-home/patientHomeBlockItemDisplayTitle";
 import { PatientHomeBlockSettingsCard } from "./PatientHomeBlockSettingsCard";
 
 vi.mock("next/navigation", () => ({
@@ -83,6 +84,7 @@ describe("PatientHomeBlockSettingsCard", () => {
       <PatientHomeBlockSettingsCard
         block={block}
         knownRefs={knownRefs}
+        refDisplayTitles={emptyPatientHomeRefDisplayTitles}
         runtimeStatus={runtimeStatus}
         onChanged={vi.fn()}
       />,
@@ -105,7 +107,7 @@ describe("PatientHomeBlockSettingsCard", () => {
     };
     const runtimeStatus = computePatientHomeBlockRuntimeStatus(block, { knownRefs, resolverSync });
     render(
-      <PatientHomeBlockSettingsCard block={block} knownRefs={knownRefs} runtimeStatus={runtimeStatus} onChanged={vi.fn()} />,
+      <PatientHomeBlockSettingsCard block={block} knownRefs={knownRefs} refDisplayTitles={emptyPatientHomeRefDisplayTitles} runtimeStatus={runtimeStatus} onChanged={vi.fn()} />,
     );
     expect(screen.getByText("Создать раздел и добавить")).toBeInTheDocument();
   });
@@ -122,7 +124,7 @@ describe("PatientHomeBlockSettingsCard", () => {
     };
     const runtimeStatus = computePatientHomeBlockRuntimeStatus(block, { knownRefs, resolverSync });
     render(
-      <PatientHomeBlockSettingsCard block={block} knownRefs={knownRefs} runtimeStatus={runtimeStatus} onChanged={vi.fn()} />,
+      <PatientHomeBlockSettingsCard block={block} knownRefs={knownRefs} refDisplayTitles={emptyPatientHomeRefDisplayTitles} runtimeStatus={runtimeStatus} onChanged={vi.fn()} />,
     );
     expect(screen.queryByText("Создать раздел и добавить")).toBeNull();
     expect(screen.queryByText("Иконка блока")).toBeNull();
@@ -140,7 +142,7 @@ describe("PatientHomeBlockSettingsCard", () => {
     };
     const runtimeStatus = computePatientHomeBlockRuntimeStatus(block, { knownRefs, resolverSync });
     render(
-      <PatientHomeBlockSettingsCard block={block} knownRefs={knownRefs} runtimeStatus={runtimeStatus} onChanged={vi.fn()} />,
+      <PatientHomeBlockSettingsCard block={block} knownRefs={knownRefs} refDisplayTitles={emptyPatientHomeRefDisplayTitles} runtimeStatus={runtimeStatus} onChanged={vi.fn()} />,
     );
     expect(screen.queryByText("Создать раздел и добавить")).toBeNull();
     expect(screen.queryByText("Иконка блока")).toBeNull();
@@ -159,7 +161,7 @@ describe("PatientHomeBlockSettingsCard", () => {
     };
     const runtimeStatus = computePatientHomeBlockRuntimeStatus(block, { knownRefs, resolverSync });
     render(
-      <PatientHomeBlockSettingsCard block={block} knownRefs={knownRefs} runtimeStatus={runtimeStatus} onChanged={vi.fn()} />,
+      <PatientHomeBlockSettingsCard block={block} knownRefs={knownRefs} refDisplayTitles={emptyPatientHomeRefDisplayTitles} runtimeStatus={runtimeStatus} onChanged={vi.fn()} />,
     );
     expect(screen.getByText("Иконка блока")).toBeInTheDocument();
     expect(screen.getByTestId("media-library-picker-stub")).toBeInTheDocument();

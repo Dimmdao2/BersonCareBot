@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Calendar } from "lucide-react";
 import { routePaths } from "@/app-layer/routes/paths";
 import {
+  patientHomeBlockHeadingClass,
   patientHomeBookingActionsClass,
   patientHomeBookingCardGeometryClass,
   patientHomeBookingCopyClampClass,
@@ -62,7 +63,7 @@ export function PatientHomeBookingCard({ personalTierOk, anonymousGuest, blockIc
               />
             </div>
             <div className="min-w-0 flex-1">
-              <h2 id="patient-home-booking-heading" className="text-base font-medium leading-5 text-[var(--patient-text-primary)] lg:text-lg lg:leading-6">
+              <h2 id="patient-home-booking-heading" className={patientHomeBlockHeadingClass}>
                 Нужна консультация?
               </h2>
               <p className={patientHomeBookingCopyClampClass}>Запишитесь на приём к специалисту очно или онлайн.</p>

@@ -57,7 +57,7 @@ export function PatientHomeGreeting({
         </div>
       ) : null}
       <div className="min-w-0 flex-1">
-        <h1 className="text-lg font-bold leading-6 tracking-tight text-[var(--patient-text-primary)] lg:text-xl lg:leading-7">
+        <h1 className="text-lg font-semibold leading-6 tracking-tight text-[var(--patient-text-primary)] lg:text-xl lg:leading-7">
           {title}
         </h1>
         <p className="mt-1 text-sm leading-5 text-[var(--patient-text-secondary)] lg:text-[15px] lg:leading-6">

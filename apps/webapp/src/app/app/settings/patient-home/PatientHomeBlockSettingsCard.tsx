@@ -17,6 +17,7 @@ import { getPatientHomeBlockEditorMetadata } from "@/modules/patient-home/blockE
 import { canManageItemsForBlock, supportsConfigurablePatientHomeBlockIcon } from "@/modules/patient-home/blocks";
 import type { PatientHomeBlock } from "@/modules/patient-home/ports";
 import type { PatientHomeBlockRuntimeStatus } from "@/modules/patient-home/patientHomeRuntimeStatus";
+import type { PatientHomeRefDisplayTitles } from "@/modules/patient-home/patientHomeBlockItemDisplayTitle";
 import {
   listUnresolvedPatientHomeBlockItems,
   partitionUnresolvedPatientHomeItemsByVisibility,
@@ -38,11 +39,13 @@ type KnownRefs = {
 export function PatientHomeBlockSettingsCard({
   block,
   knownRefs,
+  refDisplayTitles,
   runtimeStatus,
   onChanged,
 }: {
   block: PatientHomeBlock;
   knownRefs: KnownRefs;
+  refDisplayTitles: PatientHomeRefDisplayTitles;
   runtimeStatus: PatientHomeBlockRuntimeStatus;
   onChanged(): void;
 }) {
@@ -134,6 +137,8 @@ export function PatientHomeBlockSettingsCard({
       <PatientHomeBlockPreview
         items={block.items}
         knownRefs={knownRefs}
+        refDisplayTitles={refDisplayTitles}
+        emptyPreviewText={blockMeta.emptyPreviewText}
         onRepairClick={canManageItems && visibleUnresolved.length > 0 ? () => setRepairOpen(true) : undefined}
       />
       {supportsConfigurablePatientHomeBlockIcon(block.code) ? (
@@ -214,6 +219,7 @@ export function PatientHomeBlockSettingsCard({
           onOpenChange={setEditOpen}
           blockCode={block.code}
           initialItems={block.items}
+          refDisplayTitles={refDisplayTitles}
           onSaved={onChanged}
         />
       ) : null}
@@ -223,6 +229,7 @@ export function PatientHomeBlockSettingsCard({
           onOpenChange={setRepairOpen}
           blockCode={block.code}
           unresolvedItems={unresolved}
+          refDisplayTitles={refDisplayTitles}
           onSaved={onChanged}
         />
       ) : null}

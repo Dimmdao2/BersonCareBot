@@ -3,13 +3,14 @@ import Link from "next/link";
 import { Clock3, PlayCircle, Sparkles } from "lucide-react";
 import type { ResolvedPatientHomeBlockItem } from "@/modules/patient-home/todayConfig";
 import {
-  patientBadgeDurationClass,
-  patientBadgePrimaryClass,
   patientHomeHeroCardGeometryClass,
+  patientHomeHeroBadgeClass,
+  patientHomeHeroDurationBadgeClass,
   patientHomeHeroImageSlotClass,
   patientHomeHeroSummaryClampClass,
   patientHomeHeroTextColumnClass,
   patientHomeHeroTitleClampClass,
+  patientHomeCardSubtitleClampXsClass,
 } from "./patientHomeCardStyles";
 import { appLoginWithNextHref, stripApiMediaForAnonymousGuest } from "./patientHomeGuestNav";
 import { PatientHomeSafeImage } from "./PatientHomeSafeImage";
@@ -27,20 +28,10 @@ const FALLBACK_DURATION_BADGE_LABEL = "5 мин";
 function HeroBadgeRow() {
   return (
     <div className="relative z-20 flex h-6 shrink-0 items-start justify-start gap-1.5">
-      <span
-        className={cn(
-          patientBadgePrimaryClass,
-          "h-6 max-w-[min(100%,9.5rem)] whitespace-nowrap border border-[#e0e7ff] bg-white px-2.5 text-[11px] font-semibold uppercase leading-none text-[var(--patient-color-primary)]",
-        )}
-      >
+      <span className={patientHomeHeroBadgeClass}>
         Разминка дня
       </span>
-      <span
-        className={cn(
-          patientBadgeDurationClass,
-          "h-6 max-w-[min(100%,5.5rem)] gap-1 whitespace-nowrap px-2.5 text-[11px] font-semibold leading-none",
-        )}
-      >
+      <span className={patientHomeHeroDurationBadgeClass}>
         <Clock3 className="size-3.5 shrink-0" aria-hidden />
         {FALLBACK_DURATION_BADGE_LABEL}
       </span>
@@ -112,11 +103,11 @@ export function PatientHomeDailyWarmupCard({ warmup, personalTierOk, anonymousGu
             {anonymousGuest || !personalTierOk ?
               <div className="hidden h-[2.75rem] shrink-0 overflow-hidden lg:block">
                 {anonymousGuest ?
-                  <p className="line-clamp-2 text-xs leading-5 text-[var(--patient-text-secondary)]">
+                  <p className={patientHomeCardSubtitleClampXsClass}>
                     Войдите, чтобы открыть материал и отмечать прогресс выполнения.
                   </p>
                 : !personalTierOk ?
-                  <p className="line-clamp-2 text-xs leading-5 text-[var(--patient-text-secondary)]">
+                  <p className={patientHomeCardSubtitleClampXsClass}>
                     Активируйте профиль пациента, чтобы отмечать прогресс выполнения.
                   </p>
                 : null}

@@ -9,6 +9,8 @@ import { routePaths } from "@/app-layer/routes/paths";
 import type { PatientMoodToday } from "@/modules/patient-mood/types";
 import type { PatientHomeMoodIconOption } from "@/modules/patient-home/patientHomeMoodIcons";
 import {
+  patientHomeBlockBodySmClass,
+  patientHomeBlockHeadingClass,
   patientHomeCardGradientWarmClass,
   patientHomeMoodCardGeometryClass,
   patientHomeMoodOptionButtonClass,
@@ -163,10 +165,10 @@ export function PatientHomeMoodCheckin({
     >
       <div className="relative z-[1] flex h-full min-h-0 flex-col">
         <div className="shrink-0">
-          <h2 id="patient-home-mood-heading" className="text-lg font-bold text-[var(--patient-text-primary)]">
+          <h2 id="patient-home-mood-heading" className={patientHomeBlockHeadingClass}>
             Как вы себя чувствуете?
           </h2>
-          <p className="mt-1 text-sm text-[var(--patient-text-secondary)]">Отметьте своё состояние одним касанием</p>
+          <p className={cn("mt-1", patientHomeBlockBodySmClass)}>Отметьте своё состояние одним касанием</p>
         </div>
         {anonymousGuest ?
           <div className="flex min-h-0 flex-1 flex-col justify-between gap-2 pt-3">

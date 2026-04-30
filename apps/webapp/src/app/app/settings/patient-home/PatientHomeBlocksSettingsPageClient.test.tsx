@@ -8,6 +8,7 @@ import {
   buildPatientHomeResolverSyncContext,
   computePatientHomeBlockRuntimeStatus,
 } from "@/modules/patient-home/patientHomeRuntimeStatus";
+import { emptyPatientHomeRefDisplayTitles } from "@/modules/patient-home/patientHomeBlockItemDisplayTitle";
 import { PatientHomeBlocksSettingsPageClient } from "./PatientHomeBlocksSettingsPageClient";
 
 vi.mock("next/navigation", () => ({
@@ -76,6 +77,7 @@ describe("PatientHomeBlocksSettingsPageClient", () => {
       <PatientHomeBlocksSettingsPageClient
         initialBlocks={initialBlocks}
         knownRefs={knownRefs}
+        refDisplayTitles={emptyPatientHomeRefDisplayTitles}
         blockRuntimeStatuses={statusesForBlocks(initialBlocks)}
       />,
     );

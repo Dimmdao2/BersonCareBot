@@ -1,6 +1,10 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import {
+  patientHomeBlockItemDisplayTitle,
+  type PatientHomeRefDisplayTitles,
+} from "@/modules/patient-home/patientHomeBlockItemDisplayTitle";
 import type { PatientHomeBlockItem } from "@/modules/patient-home/ports";
 import {
   type KnownPatientHomeRefs,
@@ -10,17 +14,22 @@ import {
 export function PatientHomeBlockPreview({
   items,
   knownRefs,
+  refDisplayTitles,
+  emptyPreviewText,
   onRepairClick,
 }: {
   items: PatientHomeBlockItem[];
   knownRefs: KnownPatientHomeRefs;
+  refDisplayTitles: PatientHomeRefDisplayTitles;
+  /** Shown when there are no visible items (copy from `getPatientHomeBlockEditorMetadata(code).emptyPreviewText`). */
+  emptyPreviewText: string;
   onRepairClick?: () => void;
 }) {
   const visibleItems = items.filter((item) => item.isVisible).sort((a, b) => a.sortOrder - b.sortOrder);
   if (visibleItems.length === 0) {
     return (
       <div className="rounded-xl border border-dashed border-border/70 bg-muted/20 p-3 text-sm text-muted-foreground">
-        Нет видимых элементов.
+        {emptyPreviewText}
       </div>
     );
   }
@@ -28,7 +37,7 @@ export function PatientHomeBlockPreview({
     <div className="flex flex-col gap-2">
       {visibleItems.map((item) => {
         const resolved = isPatientHomeItemResolved(item, knownRefs);
-        const title = item.titleOverride ?? item.targetRef;
+        const title = patientHomeBlockItemDisplayTitle(item, refDisplayTitles);
         return (
           <div
             key={item.id}

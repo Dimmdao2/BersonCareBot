@@ -20,6 +20,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { PatientHomeBlockItem } from "@/modules/patient-home/ports";
+import {
+  patientHomeBlockItemDisplayTitle,
+  patientHomeBlockItemTargetTypeLabelRu,
+  type PatientHomeRefDisplayTitles,
+} from "@/modules/patient-home/patientHomeBlockItemDisplayTitle";
 import { suggestedSlugForNewContentSection } from "@/modules/patient-home/patientHomeUnresolvedRefs";
 import { listPatientHomeCandidates, retargetPatientHomeItem } from "./actions";
 
@@ -36,12 +41,14 @@ export function PatientHomeRepairTargetsDialog({
   onOpenChange,
   blockCode,
   unresolvedItems,
+  refDisplayTitles,
   onSaved,
 }: {
   open: boolean;
   onOpenChange(open: boolean): void;
   blockCode: string;
   unresolvedItems: PatientHomeBlockItem[];
+  refDisplayTitles: PatientHomeRefDisplayTitles;
   onSaved(): void;
 }) {
   const router = useRouter();
@@ -133,10 +140,10 @@ export function PatientHomeRepairTargetsDialog({
             return (
               <div key={item.id} className="rounded-lg border border-border p-3">
                 <div className="text-sm font-medium">
-                  {item.titleOverride?.trim() || item.targetRef}
+                  {patientHomeBlockItemDisplayTitle(item, refDisplayTitles)}
                 </div>
                 <div className="mt-1 text-xs text-muted-foreground">
-                  {item.targetType}: {item.targetRef} (не найдено в CMS)
+                  {patientHomeBlockItemTargetTypeLabelRu(item.targetType)} · {item.targetRef} (не найдено в CMS)
                 </div>
                 <div className="mt-3 space-y-2">
                   <Select

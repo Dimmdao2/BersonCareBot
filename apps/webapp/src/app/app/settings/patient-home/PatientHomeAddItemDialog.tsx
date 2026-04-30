@@ -13,6 +13,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { patientHomeBlockItemTargetTypeLabelRu } from "@/modules/patient-home/patientHomeBlockItemDisplayTitle";
 import { canManageItemsForBlock, isPatientHomeBlockCode, type PatientHomeCmsBlockCode } from "@/modules/patient-home/blocks";
 import {
   assertPatientHomeCmsBlockCode,
@@ -119,7 +120,7 @@ export function PatientHomeAddItemDialog({
                 <div key={`${item.targetType}:${item.targetRef}`} className="rounded-lg border border-border p-3">
                   <div className="text-sm font-medium">{item.title}</div>
                   <div className="text-xs text-muted-foreground">
-                    {item.targetType}: {item.targetRef}
+                    {patientHomeBlockItemTargetTypeLabelRu(item.targetType)} · {item.targetRef}
                   </div>
                   {item.subtitle ? <div className="mt-1 text-xs text-muted-foreground">{item.subtitle}</div> : null}
                   <div className="mt-2">

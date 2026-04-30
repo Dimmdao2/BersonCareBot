@@ -1,12 +1,14 @@
 import Link from "next/link";
 import type { ResolvedCarouselCard } from "@/modules/patient-home/patientHomeResolvers";
 import {
+  patientHomeBlockHeadingBoldClass,
   patientBadgePrimaryClass,
   patientHomeCardCompactClass,
   patientHomeCardMediaSlotClass,
   patientHomeCardSubtitleClampXsClass,
   patientHomeCardTitleClampSmClass,
   patientHomeCarouselItemLayoutClass,
+  patientHomeTodaySectionStackClass,
 } from "./patientHomeCardStyles";
 import { PatientHomeSafeImage } from "./PatientHomeSafeImage";
 import { cn } from "@/lib/utils";
@@ -25,8 +27,8 @@ export function PatientHomeSubscriptionCarousel({ cards, sectionTitle }: Props) 
   const heading = sectionTitle?.trim() || DEFAULT_SECTION_TITLE;
 
   return (
-    <section id="patient-home-subscription-carousel" className="flex flex-col gap-2" aria-labelledby="patient-home-subscription-heading">
-      <h2 id="patient-home-subscription-heading" className="text-base font-bold text-[var(--patient-text-primary)]">
+    <section id="patient-home-subscription-carousel" className={patientHomeTodaySectionStackClass} aria-labelledby="patient-home-subscription-heading">
+      <h2 id="patient-home-subscription-heading" className={patientHomeBlockHeadingBoldClass}>
         {heading}
       </h2>
       <div

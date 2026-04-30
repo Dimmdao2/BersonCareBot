@@ -11,6 +11,7 @@ import {
   parsePatientHomeMorningPingEnabled,
   parsePatientHomeMorningPingLocalTime,
 } from "@/modules/patient-home/patientHomeMorningPingSettings";
+import { buildPatientHomeRefDisplayTitles } from "@/modules/patient-home/patientHomeBlockItemDisplayTitle";
 import {
   buildPatientHomeResolverSyncContext,
   computePatientHomeBlockRuntimeStatus,
@@ -43,6 +44,11 @@ export default async function DoctorPatientHomeSettingsPage() {
     contentSections: [...new Set(sections.map((s) => s.slug))],
     courses: [...new Set(courses.map((c) => c.id))],
   };
+  const refDisplayTitles = buildPatientHomeRefDisplayTitles({
+    pages: pages.map((p) => ({ slug: p.slug, title: p.title })),
+    sections: sections.map((s) => ({ slug: s.slug, title: s.title })),
+    courses: courses.map((c) => ({ id: c.id, title: c.title })),
+  });
 
   const resolverSync = buildPatientHomeResolverSyncContext({
     sections: sections.map((s) => ({
@@ -87,6 +93,7 @@ export default async function DoctorPatientHomeSettingsPage() {
       <PatientHomeBlocksSettingsPageClient
         initialBlocks={blocks}
         knownRefs={knownRefs}
+        refDisplayTitles={refDisplayTitles}
         blockRuntimeStatuses={blockRuntimeStatuses}
       />
     </div>

@@ -16,6 +16,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import type { PatientHomeBlockItem } from "@/modules/patient-home/ports";
+import type { PatientHomeRefDisplayTitles } from "@/modules/patient-home/patientHomeBlockItemDisplayTitle";
+import {
+  patientHomeBlockItemDisplayTitle,
+  patientHomeBlockItemTargetTypeLabelRu,
+} from "@/modules/patient-home/patientHomeBlockItemDisplayTitle";
 import { PATIENT_HOME_USEFUL_POST_BADGE_LABEL } from "@/modules/patient-home/usefulPostPresentation";
 import {
   deletePatientHomeItem,
@@ -32,6 +37,7 @@ function normalizeUsefulPostBadge(label: string | null | undefined): string | nu
 function SortableItemRow({
   blockCode,
   item,
+  refDisplayTitles,
   onToggleVisible,
   onDelete,
   onBadgeChange,
@@ -39,6 +45,7 @@ function SortableItemRow({
 }: {
   blockCode: string;
   item: PatientHomeBlockItem;
+  refDisplayTitles: PatientHomeRefDisplayTitles;
   onToggleVisible(itemId: string, next: boolean): void;
   onDelete(itemId: string): void;
   onBadgeChange(itemId: string, badgeLabel: string | null): void;
@@ -71,7 +78,7 @@ function SortableItemRow({
         </button>
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <div className="truncate text-sm font-medium">{item.titleOverride ?? item.targetRef}</div>
+            <div className="truncate text-sm font-medium">{patientHomeBlockItemDisplayTitle(item, refDisplayTitles)}</div>
             {item.badgeLabel?.trim() ?
               <span className="shrink-0 rounded-md bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
                 {item.badgeLabel.trim()}
@@ -79,7 +86,7 @@ function SortableItemRow({
             : null}
           </div>
           <div className="text-xs text-muted-foreground">
-            {item.targetType}: {item.targetRef}
+            {patientHomeBlockItemTargetTypeLabelRu(item.targetType)} · {item.targetRef}
           </div>
           {usefulPost ?
             <>
@@ -134,12 +141,14 @@ export function PatientHomeBlockItemsDialog({
   onOpenChange,
   blockCode,
   initialItems,
+  refDisplayTitles,
   onSaved,
 }: {
   open: boolean;
   onOpenChange(open: boolean): void;
   blockCode: string;
   initialItems: PatientHomeBlockItem[];
+  refDisplayTitles: PatientHomeRefDisplayTitles;
   onSaved(): void;
 }) {
   const sortItems = (rows: PatientHomeBlockItem[]) =>
@@ -154,9 +163,11 @@ export function PatientHomeBlockItemsDialog({
   /** При каждом открытии диалога подтягиваем актуальный список с сервера (после сохранения / refresh). */
   useEffect(() => {
     if (open && !prevOpenRef.current) {
-      setItems(sortItems(initialItems));
-      setRemovedIds([]);
-      setError(null);
+      queueMicrotask(() => {
+        setItems(sortItems(initialItems));
+        setRemovedIds([]);
+        setError(null);
+      });
     }
     prevOpenRef.current = open;
   }, [open, initialItems]);
@@ -249,6 +260,7 @@ export function PatientHomeBlockItemsDialog({
                   key={item.id}
                   blockCode={blockCode}
                   item={item}
+                  refDisplayTitles={refDisplayTitles}
                   onToggleVisible={(itemId, next) =>
                     setItems((prev) => prev.map((row) => (row.id === itemId ? { ...row, isVisible: next } : row)))
                   }

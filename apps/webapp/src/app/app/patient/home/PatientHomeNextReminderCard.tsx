@@ -2,14 +2,18 @@ import Link from "next/link";
 import { Bell } from "lucide-react";
 import type { ReminderRule } from "@/modules/reminders/types";
 import { routePaths } from "@/app-layer/routes/paths";
-import { patientHomeReminderCardGeometryClass } from "./patientHomeCardStyles";
-import { patientLineClamp2Class } from "@/shared/ui/patientVisual";
+import {
+  patientHomeBlockCaptionSmClamp2Mt1Class,
+  patientHomeBlockHeadingClass,
+  patientHomeCardTitleClampSmClass,
+  patientHomeReminderCardGeometryClass,
+} from "./patientHomeCardStyles";
 import { appLoginWithNextHref } from "./patientHomeGuestNav";
 import { PatientHomeSafeImage } from "./PatientHomeSafeImage";
+import { patientButtonWarningOutlineClass } from "@/shared/ui/patientVisual";
 import { cn } from "@/lib/utils";
 
-const reminderCtaClass =
-  "inline-flex min-h-10 w-full items-center justify-center rounded-xl border border-[#fde68a] bg-[#fffbeb] px-4 text-sm font-semibold text-[#d97706] lg:ml-auto lg:w-[8.75rem]";
+const reminderCtaClass = "lg:ml-auto lg:w-[8.75rem]";
 
 type Props = {
   rule: ReminderRule | null;
@@ -52,13 +56,13 @@ export function PatientHomeNextReminderCard({
           <div className="flex min-h-0 gap-3">
             <LeadingIcon blockIconImageUrl={blockIconImageUrl} />
             <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-              <p id="patient-home-reminder-heading" className="text-[13px] font-medium leading-[18px] text-[#92400e]">
+              <p id="patient-home-reminder-heading" className={patientHomeBlockHeadingClass}>
                 Следующее напоминание
               </p>
-              <h2 className="mt-1 line-clamp-2 text-lg font-semibold leading-6 text-[var(--patient-text-primary)]">
+              <h2 className={cn(patientHomeCardTitleClampSmClass, "mt-1")}>
                 Пока нет ближайших
               </h2>
-              <p className={cn(patientLineClamp2Class, "mt-1 text-sm leading-5 text-[var(--patient-text-secondary)]")}>
+              <p className={patientHomeBlockCaptionSmClamp2Mt1Class}>
                 {anonymousGuest ?
                   "Войдите, чтобы настроить напоминания о практиках и приёме лекарств."
                 : !personalTierOk ?
@@ -67,7 +71,7 @@ export function PatientHomeNextReminderCard({
               </p>
             </div>
           </div>
-          <Link href={remindersHref} prefetch={false} className={reminderCtaClass}>
+          <Link href={remindersHref} prefetch={false} className={cn(patientButtonWarningOutlineClass, reminderCtaClass)}>
             {ctaLabel}
           </Link>
         </article>
@@ -83,16 +87,16 @@ export function PatientHomeNextReminderCard({
         <div className="flex min-h-0 gap-3">
           <LeadingIcon blockIconImageUrl={blockIconImageUrl} />
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-            <p id="patient-home-reminder-heading" className="text-[13px] font-medium leading-[18px] text-[#92400e]">
+            <p id="patient-home-reminder-heading" className={patientHomeBlockHeadingClass}>
               Следующее напоминание
             </p>
-            <h2 className="mt-1 line-clamp-2 text-lg font-semibold leading-6 text-[var(--patient-text-primary)]">{ruleLabel}</h2>
-            <p className={cn(patientLineClamp2Class, "mt-1 text-sm leading-5 text-[var(--patient-text-secondary)]")}>
+            <h2 className={cn(patientHomeCardTitleClampSmClass, "mt-1")}>{ruleLabel}</h2>
+            <p className={patientHomeBlockCaptionSmClamp2Mt1Class}>
               Ближайшее срабатывание: <span className="text-[var(--patient-text-primary)]">{scheduleLabel}</span>
             </p>
           </div>
         </div>
-        <Link href={routePaths.patientReminders} prefetch={false} className={reminderCtaClass}>
+        <Link href={routePaths.patientReminders} prefetch={false} className={cn(patientButtonWarningOutlineClass, reminderCtaClass)}>
           Открыть напоминания
         </Link>
       </article>
