@@ -64,4 +64,28 @@ describe("AppShell patient width variants", () => {
     );
     expect(screen.getByTestId("patient-header-title-badge")).toHaveTextContent("По подписке");
   });
+
+  it("hides patient header row on lg when top nav shell is active (no duplicate chrome)", () => {
+    const { container } = render(
+      <AppShell title="Сегодня" user={null} variant="patient">
+        <div>Content</div>
+      </AppShell>,
+    );
+
+    expect(container.querySelector("#patient-top-nav")).toBeTruthy();
+    const headerWrap = screen.getByTestId("patient-gated-header-wrap");
+    expect(headerWrap).toHaveClass("lg:hidden");
+  });
+
+  it("shows patient header on all breakpoints when bottom nav is hidden (no top nav)", () => {
+    render(
+      <AppShell title="Вход" user={null} variant="patient" patientHideBottomNav>
+        <div>Body</div>
+      </AppShell>,
+    );
+
+    expect(screen.queryByRole("navigation", { name: /Основная навигация/i })).toBeNull();
+    const headerWrap = screen.getByTestId("patient-gated-header-wrap");
+    expect(headerWrap).not.toHaveClass("lg:hidden");
+  });
 });

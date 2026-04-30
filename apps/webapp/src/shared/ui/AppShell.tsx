@@ -95,16 +95,21 @@ export function AppShell({
             <PatientTopNav />
           </div>
         ) : null}
-        <PatientGatedHeader
-          pageTitle={title}
-          showBack={!!backHref}
-          backHref={backHref}
-          backLabel={backLabel}
-          hideHome={patientHideHome}
-          hideRightIcons={patientHideRightIcons}
-          brandTitleBar={patientBrandTitleBar}
-          titleBadge={patientTitleBadge}
-        />
+        <div
+          data-testid="patient-gated-header-wrap"
+          className={showPatientShellNav ? "lg:hidden" : undefined}
+        >
+          <PatientGatedHeader
+            pageTitle={title}
+            showBack={!!backHref}
+            backHref={backHref}
+            backLabel={backLabel}
+            hideHome={patientHideHome}
+            hideRightIcons={patientHideRightIcons}
+            brandTitleBar={patientBrandTitleBar}
+            titleBadge={patientTitleBadge}
+          />
+        </div>
         <main
           id="app-shell-content"
           className={cn(

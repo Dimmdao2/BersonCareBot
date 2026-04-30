@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { PatientHomeNextReminderCard } from "./PatientHomeNextReminderCard";
 import type { ReminderRule } from "@/modules/reminders/types";
+import { routePaths } from "@/app-layer/routes/paths";
 
 const baseRule = (): ReminderRule => ({
   id: "r1",
@@ -24,6 +25,15 @@ const baseRule = (): ReminderRule => ({
 });
 
 describe("PatientHomeNextReminderCard", () => {
+  it("empty guest state links to login with next to reminders", () => {
+    render(
+      <PatientHomeNextReminderCard rule={null} scheduleLabel="" anonymousGuest personalTierOk={false} />,
+    );
+    const cta = screen.getByRole("link", { name: /Войти и открыть напоминания/i });
+    expect(cta.getAttribute("href")).toContain(`${routePaths.root}?next=`);
+    expect(cta.getAttribute("href")).toContain(encodeURIComponent(routePaths.patientReminders));
+  });
+
   it("shows the calculated nearest occurrence label and link to reminders", () => {
     render(<PatientHomeNextReminderCard rule={baseRule()} scheduleLabel="ср, 10:15" />);
     expect(screen.getByText(/Ближайшее срабатывание:/i)).toBeInTheDocument();

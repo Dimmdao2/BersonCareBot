@@ -143,7 +143,7 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
     initialMood = mood;
   }
 
-  const sorted = filterAndSortPatientHomeBlocks(homeBlocks, personalTierOk);
+  const sorted = filterAndSortPatientHomeBlocks(homeBlocks);
 
   const nextReminderScheduleLabel =
     homeReminder ? formatNextReminderLabel(homeReminder.nextAt, appTz) : "";
@@ -186,12 +186,13 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
           />
         );
       case "next_reminder":
-        if (!homeReminder) return null;
         return (
           <PatientHomeNextReminderCard
-            rule={homeReminder.rule}
+            rule={homeReminder?.rule ?? null}
             scheduleLabel={nextReminderScheduleLabel}
             blockIconImageUrl={blockLeadingIconFor("next_reminder")}
+            anonymousGuest={anonymousGuest}
+            personalTierOk={personalTierOk}
           />
         );
       case "mood_checkin":
@@ -207,8 +208,14 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
         if (!sosCard) return null;
         return <PatientHomeSosCard sos={sosCard} blockIconImageUrl={blockLeadingIconFor("sos")} />;
       case "plan":
-        if (!planInstance) return null;
-        return <PatientHomePlanCard instance={planInstance} blockIconImageUrl={blockLeadingIconFor("plan")} />;
+        return (
+          <PatientHomePlanCard
+            instance={planInstance}
+            blockIconImageUrl={blockLeadingIconFor("plan")}
+            anonymousGuest={anonymousGuest}
+            personalTierOk={personalTierOk}
+          />
+        );
       case "subscription_carousel":
         if (subscriptionCards.length === 0) return null;
         return (
@@ -218,8 +225,13 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
           />
         );
       case "courses":
-        if (courseCards.length === 0) return null;
-        return <PatientHomeCoursesRow cards={courseCards} />;
+        return (
+          <PatientHomeCoursesRow
+            cards={courseCards}
+            anonymousGuest={anonymousGuest}
+            personalTierOk={personalTierOk}
+          />
+        );
       default:
         return null;
     }

@@ -112,6 +112,7 @@ describe("PatientHomeToday", () => {
       homeBlock("mood_checkin", 50, []),
       homeBlock("next_reminder", 60, []),
       homeBlock("plan", 70, []),
+      homeBlock("courses", 80, []),
     ]);
 
     contentPagesGetBySlug.mockImplementation(async (slug: string) => {
@@ -149,7 +150,7 @@ describe("PatientHomeToday", () => {
     getTodayMood.mockResolvedValue({ moodDate: "2026-04-28", score: 4 });
   });
 
-  it("anonymous guest: no personal API, login drilldown on warmup, no progress block", async () => {
+  it("anonymous guest: no personal API, login drilldown on warmup, shows personal blocks with guest CTAs", async () => {
     const tree = await PatientHomeToday({ session: null, personalTierOk: false, canViewAuthOnlyContent: false });
     render(tree);
 
@@ -159,13 +160,26 @@ describe("PatientHomeToday", () => {
     expect(getTodayMood).not.toHaveBeenCalled();
 
     expect(screen.queryByText(/Fixture User/i)).toBeNull();
-    expect(screen.queryByRole("heading", { name: /^Прогресс$/ })).toBeNull();
+    expect(screen.getByRole("heading", { name: /^Прогресс$/ })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /Как вы себя чувствуете/i })).toBeInTheDocument();
+    expect(screen.getByText(/Пока нет ближайших/i)).toBeInTheDocument();
+    expect(screen.getByText(/Нет активного плана/i)).toBeInTheDocument();
+    expect(screen.getByText(/Пока нет курсов на главной/i)).toBeInTheDocument();
 
     const start = screen.getByRole("link", { name: /Начать разминку/i });
     expect(start.getAttribute("href")).toContain(`${routePaths.root}?next=`);
     expect(start.getAttribute("href")).toContain(encodeURIComponent("/app/patient/content/"));
 
     expect(screen.queryByRole("img")).toBeNull();
+
+    const loginReminder = screen.getByRole("link", { name: /Войти и открыть напоминания/i });
+    expect(loginReminder.getAttribute("href")).toContain(encodeURIComponent(routePaths.patientReminders));
+
+    const loginPlan = screen.getByRole("link", { name: /Войти и открыть планы/i });
+    expect(loginPlan.getAttribute("href")).toContain(encodeURIComponent(routePaths.patientTreatmentPrograms));
+
+    const loginCourses = screen.getByRole("link", { name: /Войти и смотреть курсы/i });
+    expect(loginCourses.getAttribute("href")).toContain(encodeURIComponent(routePaths.patientCourses));
   });
 
   it("authorized without tier: no personal API, activation copy, no name in greeting", async () => {
@@ -183,7 +197,11 @@ describe("PatientHomeToday", () => {
 
     expect(screen.queryByText(/Fixture User/i)).toBeNull();
     expect(screen.getByRole("link", { name: /Активировать профиль/i })).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: /^Прогресс$/ })).toBeNull();
+    expect(screen.getByRole("heading", { name: /^Прогресс$/ })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /Как вы себя чувствуете/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Открыть напоминания/i })).toHaveAttribute("href", routePaths.patientReminders);
+    expect(screen.getByRole("link", { name: /К программам лечения/i })).toHaveAttribute("href", routePaths.patientTreatmentPrograms);
+    expect(screen.getByRole("link", { name: /К каталогу курсов/i })).toHaveAttribute("href", routePaths.patientCourses);
   });
 
   it("patient tier: calls personal loaders and shows progress", async () => {

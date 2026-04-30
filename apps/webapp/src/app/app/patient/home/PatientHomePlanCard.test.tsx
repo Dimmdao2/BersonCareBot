@@ -1,13 +1,17 @@
 /** @vitest-environment jsdom */
 
 import { describe, expect, it } from "vitest";
-import { render } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { PatientHomePlanCard } from "./PatientHomePlanCard";
+import { routePaths } from "@/app-layer/routes/paths";
 
 describe("PatientHomePlanCard", () => {
-  it("returns null when instance is null", () => {
-    const { container } = render(<PatientHomePlanCard instance={null} />);
-    expect(container.firstChild).toBeNull();
+  it("renders empty state when instance is null (guest CTA uses login+next)", () => {
+    render(<PatientHomePlanCard instance={null} anonymousGuest personalTierOk={false} />);
+    expect(screen.getByText(/Нет активного плана/i)).toBeInTheDocument();
+    const cta = screen.getByRole("link", { name: /Войти и открыть планы/i });
+    expect(cta.getAttribute("href")).toContain(`${routePaths.root}?next=`);
+    expect(cta.getAttribute("href")).toContain(encodeURIComponent(routePaths.patientTreatmentPrograms));
   });
 
   it("renders custom leading icon when blockIconImageUrl is set", () => {

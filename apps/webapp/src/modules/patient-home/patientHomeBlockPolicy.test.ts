@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { filterAndSortPatientHomeBlocks, shouldRenderPatientHomeBlock } from "./patientHomeBlockPolicy";
+import { filterAndSortPatientHomeBlocks, isPatientHomePersonalBlock } from "./patientHomeBlockPolicy";
 import type { PatientHomeBlock } from "./ports";
 
 function block(
@@ -20,35 +20,30 @@ function block(
 }
 
 describe("patientHomeBlockPolicy", () => {
-  it("hides personal blocks when personalTierOk is false", () => {
-    expect(shouldRenderPatientHomeBlock("progress", false)).toBe(false);
-    expect(shouldRenderPatientHomeBlock("mood_checkin", false)).toBe(false);
-    expect(shouldRenderPatientHomeBlock("next_reminder", false)).toBe(false);
-    expect(shouldRenderPatientHomeBlock("plan", false)).toBe(false);
-    expect(shouldRenderPatientHomeBlock("booking", false)).toBe(true);
-    expect(shouldRenderPatientHomeBlock("daily_warmup", false)).toBe(true);
-  });
-
-  it("shows personal blocks when personalTierOk is true", () => {
-    expect(shouldRenderPatientHomeBlock("progress", true)).toBe(true);
-    expect(shouldRenderPatientHomeBlock("plan", true)).toBe(true);
+  it("marks personal block codes for gated UI (not used to hide blocks)", () => {
+    expect(isPatientHomePersonalBlock("progress")).toBe(true);
+    expect(isPatientHomePersonalBlock("mood_checkin")).toBe(true);
+    expect(isPatientHomePersonalBlock("next_reminder")).toBe(true);
+    expect(isPatientHomePersonalBlock("plan")).toBe(true);
+    expect(isPatientHomePersonalBlock("booking")).toBe(false);
+    expect(isPatientHomePersonalBlock("daily_warmup")).toBe(false);
   });
 
   it("sorts visible blocks by sortOrder", () => {
     const blocks = [block("situations", 30), block("booking", 20), block("daily_warmup", 10)];
-    const sorted = filterAndSortPatientHomeBlocks(blocks, true).map((b) => b.code);
+    const sorted = filterAndSortPatientHomeBlocks(blocks).map((b) => b.code);
     expect(sorted).toEqual(["daily_warmup", "booking", "situations"]);
   });
 
   it("drops invisible blocks", () => {
     const blocks = [block("booking", 20, false), block("daily_warmup", 10, true)];
-    const sorted = filterAndSortPatientHomeBlocks(blocks, true).map((b) => b.code);
+    const sorted = filterAndSortPatientHomeBlocks(blocks).map((b) => b.code);
     expect(sorted).toEqual(["daily_warmup"]);
   });
 
-  it("filters personal blocks for non-tier before sort", () => {
+  it("does not filter personal blocks when tier is false (visibility is CMS-only)", () => {
     const blocks = [block("progress", 5), block("booking", 20), block("daily_warmup", 10)];
-    const sorted = filterAndSortPatientHomeBlocks(blocks, false).map((b) => b.code);
-    expect(sorted).toEqual(["daily_warmup", "booking"]);
+    const sorted = filterAndSortPatientHomeBlocks(blocks).map((b) => b.code);
+    expect(sorted).toEqual(["progress", "daily_warmup", "booking"]);
   });
 });
