@@ -1,6 +1,11 @@
 import Link from "next/link";
 import type { ResolvedCourseCard } from "@/modules/patient-home/patientHomeResolvers";
-import { patientHomeCardCompactClass } from "./patientHomeCardStyles";
+import {
+  patientHomeCardCompactClass,
+  patientHomeCardSubtitleClampXsClass,
+  patientHomeCardTitleClampSmClass,
+  patientHomeCourseRowItemLayoutClass,
+} from "./patientHomeCardStyles";
 import { cn } from "@/lib/utils";
 
 type Props = { cards: ResolvedCourseCard[] };
@@ -21,12 +26,13 @@ export function PatientHomeCoursesRow({ cards }: Props) {
               prefetch={false}
               className={cn(
                 patientHomeCardCompactClass,
-                "flex min-h-[72px] flex-col justify-center transition-opacity hover:opacity-95 active:scale-[0.99]",
+                patientHomeCourseRowItemLayoutClass,
+                "transition-opacity hover:opacity-95 active:scale-[0.99]",
               )}
             >
-              <span className="text-sm font-bold text-[var(--patient-text-primary)]">{c.title}</span>
+              <span className={patientHomeCardTitleClampSmClass}>{c.title}</span>
               {c.subtitle?.trim() ?
-                <span className="mt-1 line-clamp-2 text-xs text-[var(--patient-text-secondary)]">{c.subtitle.trim()}</span>
+                <span className={cn(patientHomeCardSubtitleClampXsClass, "mt-1")}>{c.subtitle.trim()}</span>
               : null}
             </Link>
           </li>

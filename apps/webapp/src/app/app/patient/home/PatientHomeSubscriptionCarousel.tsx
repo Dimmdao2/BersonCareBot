@@ -1,6 +1,13 @@
 import Link from "next/link";
 import type { ResolvedCarouselCard } from "@/modules/patient-home/patientHomeResolvers";
-import { patientBadgePrimaryClass, patientHomeCardCompactClass } from "./patientHomeCardStyles";
+import {
+  patientBadgePrimaryClass,
+  patientHomeCardCompactClass,
+  patientHomeCardMediaSlotClass,
+  patientHomeCardSubtitleClampXsClass,
+  patientHomeCardTitleClampSmClass,
+  patientHomeCarouselItemLayoutClass,
+} from "./patientHomeCardStyles";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -30,27 +37,24 @@ export function PatientHomeSubscriptionCarousel({ cards, sectionTitle }: Props) 
             key={c.itemId}
             href={c.href}
             prefetch={false}
-            className={cn(
-              patientHomeCardCompactClass,
-              "flex min-h-[104px] min-w-[280px] w-[min(100%,280px)] shrink-0 snap-start flex-col gap-2 sm:w-[300px]",
-            )}
+            className={cn(patientHomeCardCompactClass, patientHomeCarouselItemLayoutClass)}
           >
-            <div className="flex gap-3">
-              <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl bg-muted">
+            <div className="flex min-h-0 flex-1 gap-3">
+              <div className={patientHomeCardMediaSlotClass}>
               {c.imageUrl ?
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={c.imageUrl} alt="" className="size-full object-cover" loading="lazy" />
               : <div className="size-full bg-[var(--patient-color-primary-soft)]" aria-hidden />}
               </div>
-              <div className="min-w-0 flex-1">
+              <div className="flex min-h-0 min-w-0 flex-1 flex-col">
               {c.badgeLabel ?
-                <span className={cn(patientBadgePrimaryClass, "mb-1 max-w-full truncate")}>
+                <span className={cn(patientBadgePrimaryClass, "mb-1 max-w-full shrink-0 truncate")}>
                   {c.badgeLabel}
                 </span>
               : null}
-              <p className="line-clamp-2 text-sm font-bold leading-5 text-[var(--patient-text-primary)]">{c.title}</p>
+              <p className={patientHomeCardTitleClampSmClass}>{c.title}</p>
               {c.subtitle?.trim() ?
-                <p className="mt-0.5 line-clamp-2 text-xs text-[var(--patient-text-secondary)]">{c.subtitle.trim()}</p>
+                <p className={cn(patientHomeCardSubtitleClampXsClass, "mt-0.5")}>{c.subtitle.trim()}</p>
               : null}
               </div>
             </div>

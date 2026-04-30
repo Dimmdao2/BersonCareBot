@@ -5,6 +5,12 @@ import { cn } from "@/lib/utils";
  * Использовать только внутри patient shell, где заданы CSS-токены `#app-shell-patient`.
  */
 
+/** Базовый двухстрочный clamp для динамического текста на карточках пациента. */
+export const patientLineClamp2Class = "line-clamp-2 min-w-0";
+
+/** Трёхстрочный clamp для редких случаев превью текста. */
+export const patientLineClamp3Class = "line-clamp-3 min-w-0";
+
 export const patientButtonPrimaryClass = cn(
   "inline-flex min-h-[var(--patient-touch)] w-full min-w-0 items-center justify-center gap-2 rounded-2xl px-4 text-base font-bold text-white transition-colors",
   "bg-[var(--patient-color-primary)] hover:bg-[#4338ca] active:bg-[#4338ca]",

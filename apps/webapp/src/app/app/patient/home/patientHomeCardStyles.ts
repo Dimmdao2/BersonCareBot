@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { patientLineClamp2Class } from "@/shared/ui/patientVisual";
 
 /**
  * Стили карточек главной пациента «Сегодня» по `VISUAL_SYSTEM_SPEC.md` §10.x.
@@ -105,4 +106,98 @@ export const patientIconLeadingWarningClass = cn(
 export const patientIconLeadingDangerClass = cn(
   "inline-flex size-11 shrink-0 items-center justify-center rounded-2xl lg:size-14",
   "bg-[var(--patient-color-danger)] text-white",
+);
+
+// --- Phase 1 visual contracts: fixed slots + clamps (patient home «Сегодня») ---
+
+/**
+ * Внешний слот hero (DailyWarmup) — стабильная полоса по breakpoint; внутреннюю вёрстку задаёт карточка.
+ */
+export const patientHomeHeroSlotClass = cn(
+  "w-full overflow-hidden",
+  "min-h-[176px] md:min-h-[192px] lg:min-h-[208px]",
+);
+
+/**
+ * Слот companion booking — резерв высоты под верхний ряд дашборда (применение в BookingCard — отдельно).
+ */
+export const patientHomeBookingCompanionSlotClass = cn(
+  "w-full overflow-hidden",
+  "min-h-[132px] md:min-h-[144px] lg:min-h-[140px]",
+);
+
+/** Общая оболочка secondary-карточек: колонка + отступы между зонами. */
+export const patientHomeSecondaryCardShellClass = cn("flex flex-col gap-3 overflow-hidden");
+
+/**
+ * Фиксированная высота «короткой» secondary-карточки (напоминание и аналоги).
+ */
+export const patientHomeSecondaryCardShortHeightClass = cn(
+  patientHomeSecondaryCardShellClass,
+  "h-[188px] sm:h-[196px] lg:h-[200px]",
+);
+
+/**
+ * Фиксированная высота «высокой» secondary-карточки (план и аналоги с CTA).
+ */
+export const patientHomeSecondaryCardTallHeightClass = cn(
+  patientHomeSecondaryCardShellClass,
+  "h-[184px] sm:h-[192px] lg:h-[200px]",
+);
+
+/**
+ * Карусель подписки: фиксированная высота айтема + ширина полосы (min-w для тестов / snap).
+ */
+export const patientHomeCarouselItemLayoutClass = cn(
+  "flex shrink-0 snap-start flex-col gap-2 overflow-hidden",
+  "h-[128px] min-w-[280px] w-[min(100%,280px)] sm:h-[136px] sm:w-[300px] lg:h-[140px]",
+);
+
+/**
+ * Строка «Курсы»: фиксированная высота ячейки списка.
+ */
+export const patientHomeCourseRowItemLayoutClass = cn(
+  "flex flex-col justify-center gap-1 overflow-hidden",
+  "h-[96px] sm:h-[104px] lg:h-[108px]",
+);
+
+/** Медиа-слот превью 56×56 в карточках карусели / списков. */
+export const patientHomeCardMediaSlotClass = cn(
+  "relative h-14 w-14 shrink-0 overflow-hidden rounded-xl bg-muted",
+);
+
+/** Заголовок карточки — до 2 строк, sm. */
+export const patientHomeCardTitleClampSmClass = cn(
+  patientLineClamp2Class,
+  "text-sm font-bold leading-5 text-[var(--patient-text-primary)]",
+);
+
+/** Заголовок карточки — до 2 строк, lg (напоминание). */
+export const patientHomeCardTitleClampLgClass = cn(
+  patientLineClamp2Class,
+  "text-lg font-bold leading-6 text-[var(--patient-text-primary)]",
+);
+
+/** Подзаголовок — 2 строки, xs. */
+export const patientHomeCardSubtitleClampXsClass = cn(
+  patientLineClamp2Class,
+  "text-xs text-[var(--patient-text-secondary)]",
+);
+
+/** Подзаголовок / вторичный абзац — 2 строки, sm. */
+export const patientHomeCardSubtitleClampSmClass = cn(
+  patientLineClamp2Class,
+  "text-sm leading-5 text-[var(--patient-text-secondary)]",
+);
+
+/** Заголовок блока «Мой план». */
+export const patientHomePlanTitleClampClass = cn(
+  patientLineClamp2Class,
+  "text-[15px] font-bold leading-[22px] text-[var(--patient-text-primary)]",
+);
+
+/** Подзаголовок блока «Мой план». */
+export const patientHomePlanSubtitleClampClass = cn(
+  patientLineClamp2Class,
+  "mt-1 text-[13px] leading-5 text-[var(--patient-text-secondary)]",
 );
