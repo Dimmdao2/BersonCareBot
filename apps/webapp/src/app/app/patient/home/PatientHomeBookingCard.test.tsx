@@ -21,4 +21,17 @@ describe("PatientHomeBookingCard", () => {
     expect(screen.getByRole("link", { name: /Войти$/i })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /Активировать профиль/i })).toBeNull();
   });
+
+  it("renders custom block icon when blockIconImageUrl is set", () => {
+    const { container } = render(
+      <PatientHomeBookingCard
+        personalTierOk
+        anonymousGuest={false}
+        blockIconImageUrl="/api/media/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+      />,
+    );
+    const img = container.querySelector("img");
+    expect(img).toBeTruthy();
+    expect(img).toHaveAttribute("src", "/api/media/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb");
+  });
 });

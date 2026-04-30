@@ -5,7 +5,11 @@ import { z } from "zod";
 import { getCurrentSession } from "@/modules/auth/service";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { canAccessDoctor } from "@/modules/roles/service";
-import { allowedTargetTypesForBlock, isPatientHomeBlockCode } from "@/modules/patient-home/blocks";
+import {
+  allowedTargetTypesForBlock,
+  isPatientHomeBlockCode,
+  supportsConfigurablePatientHomeBlockIcon,
+} from "@/modules/patient-home/blocks";
 import type { PatientHomeBlockItemTargetType } from "@/modules/patient-home/ports";
 import { validateContentSectionSlug } from "@/shared/lib/contentSectionSlug";
 import { API_MEDIA_URL_RE, isLegacyAbsoluteUrl } from "@/shared/lib/mediaUrlPolicy";
@@ -99,6 +103,25 @@ export async function togglePatientHomeBlockVisibility(
     return { ok: true };
   } catch (error) {
     return fail(error instanceof Error ? error.message : "toggle_failed");
+  }
+}
+
+export async function setPatientHomeBlockIcon(code: string, iconImageUrl: string | null): Promise<ActionState> {
+  try {
+    await requireDoctorForPatientHomeBlocks();
+    if (!isPatientHomeBlockCode(code)) return fail("invalid_block_code");
+    if (!supportsConfigurablePatientHomeBlockIcon(code)) return fail("block_icon_not_supported");
+    const raw = typeof iconImageUrl === "string" ? iconImageUrl.trim() : "";
+    const normalized = raw.length > 0 ? raw : null;
+    if (normalized && !API_MEDIA_URL_RE.test(normalized) && !isLegacyAbsoluteUrl(normalized)) {
+      return fail("Иконка должна быть выбрана из библиотеки файлов");
+    }
+    const deps = buildAppDeps();
+    await deps.patientHomeBlocks.setBlockIcon(code, normalized);
+    revalidatePatientHomeSettings();
+    return { ok: true };
+  } catch (error) {
+    return fail(error instanceof Error ? error.message : "set_block_icon_failed");
   }
 }
 

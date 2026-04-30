@@ -18,9 +18,17 @@ type Props = {
   personalTierOk: boolean;
   anonymousGuest: boolean;
   progress: { todayDone: number; streak: number } | null;
+  /** CMS media URL for streak leading icon; Lucide fallback when null/empty. */
+  blockIconImageUrl?: string | null;
 };
 
-export function PatientHomeProgressBlock({ practiceTarget, personalTierOk, anonymousGuest, progress }: Props) {
+export function PatientHomeProgressBlock({
+  practiceTarget,
+  personalTierOk,
+  anonymousGuest,
+  progress,
+  blockIconImageUrl,
+}: Props) {
   const displayDone =
     progress && practiceTarget > 0 ? Math.min(progress.todayDone, practiceTarget) : progress?.todayDone ?? 0;
   const pct =
@@ -90,7 +98,15 @@ export function PatientHomeProgressBlock({ practiceTarget, personalTierOk, anony
           </div>
           <div className={patientHomeProgressStreakColClass}>
             <div className="flex items-center gap-2 md:flex-col md:items-start md:gap-1">
-              <Flame className="size-6 shrink-0 text-[#ea580c]" aria-hidden />
+              {blockIconImageUrl?.trim() ?
+                // eslint-disable-next-line @next/next/no-img-element -- CMS URL, decorative
+                <img
+                  src={blockIconImageUrl.trim()}
+                  alt=""
+                  className="size-6 shrink-0 rounded-md object-cover md:size-7"
+                  loading="lazy"
+                />
+              : <Flame className="size-6 shrink-0 text-[#ea580c]" aria-hidden />}
               <span className="text-sm font-medium text-[var(--patient-text-secondary)] md:hidden">Серия</span>
             </div>
             {progress && personalTierOk && !anonymousGuest ?

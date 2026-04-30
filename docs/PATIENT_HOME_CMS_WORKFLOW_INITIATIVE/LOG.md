@@ -652,3 +652,26 @@
   - pass
 - Next:
   - UI picker / runtime при отдельной задаче
+
+---
+
+## 2026-04-30 — Patient home block icon: admin picker + runtime
+
+- Branch: `feat/patient-home-cms-editor-uxlift-2026-04-29`
+- Scope:
+  - CMS `/app/doctor/patient-home`: секция «Иконка блока» только для whitelist (`sos`, `next_reminder`, `booking`, `progress`, `plan`) — `MediaLibraryPickerDialog` (`kind="image"`), превью 40×40, «Очистить иконку» → `setPatientHomeBlockIcon` → NULL.
+  - Server action `setPatientHomeBlockIcon` в `actions.ts` (whitelist + `API_MEDIA_URL_RE` / legacy absolute).
+  - Runtime «Сегодня»: передача `iconImageUrl` из `listBlocksWithItems` в карточки; `stripApiMediaForAnonymousGuest` для гостя; в существующих leading-контейнерах — decorative `img` или Lucide fallback.
+- Changed files:
+  - `apps/webapp/src/app/app/settings/patient-home/PatientHomeBlockSettingsCard.tsx`, `actions.ts`
+  - `apps/webapp/src/app/app/patient/home/PatientHomeToday.tsx`, `PatientHomeBookingCard.tsx`, `PatientHomeProgressBlock.tsx`, `PatientHomeNextReminderCard.tsx`, `PatientHomeSosCard.tsx`, `PatientHomePlanCard.tsx`
+  - Тесты: `actions.test.ts`, `PatientHomeBlockSettingsCard.test.tsx`, `PatientHomeBookingCard.test.tsx`, `PatientHomeNextReminderCard.test.tsx`, `PatientHomeSosCard.test.tsx`, `PatientHomeProgressBlock.test.tsx`, `PatientHomePlanCard.test.tsx` (новый)
+  - `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/LOG.md`
+- Checks:
+  - `pnpm --dir apps/webapp exec vitest run` (7 файлов: settings actions + BlockSettingsCard + 5 patient home card tests) — pass (46 tests)
+  - ReadLints — ok
+  - root `pnpm run ci` — не запускался
+- Result:
+  - pass
+- Next:
+  - при необходимости: полировка копирайта / a11y превью

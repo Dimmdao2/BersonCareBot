@@ -26,6 +26,11 @@ vi.mock("@/components/ui/dropdown-menu", () => ({
 
 vi.mock("./actions", () => ({
   togglePatientHomeBlockVisibility: vi.fn().mockResolvedValue({ ok: true }),
+  setPatientHomeBlockIcon: vi.fn().mockResolvedValue({ ok: true }),
+}));
+
+vi.mock("@/app/app/doctor/content/MediaLibraryPickerDialog", () => ({
+  MediaLibraryPickerDialog: () => <div data-testid="media-library-picker-stub" />,
 }));
 
 vi.mock("./PatientHomeAddItemDialog", () => ({
@@ -120,5 +125,25 @@ describe("PatientHomeBlockSettingsCard", () => {
       <PatientHomeBlockSettingsCard block={block} knownRefs={knownRefs} runtimeStatus={runtimeStatus} onChanged={vi.fn()} />,
     );
     expect(screen.queryByText("Создать раздел и добавить")).toBeNull();
+    expect(screen.queryByText("Иконка блока")).toBeNull();
+  });
+
+  it("shows block icon section for booking whitelist block", () => {
+    const block: PatientHomeBlock = {
+      code: "booking",
+      title: "Запись на приём",
+      description: "",
+      isVisible: true,
+      sortOrder: 1,
+      iconImageUrl: null,
+      items: [],
+    };
+    const runtimeStatus = computePatientHomeBlockRuntimeStatus(block, { knownRefs, resolverSync });
+    render(
+      <PatientHomeBlockSettingsCard block={block} knownRefs={knownRefs} runtimeStatus={runtimeStatus} onChanged={vi.fn()} />,
+    );
+    expect(screen.getByText("Иконка блока")).toBeInTheDocument();
+    expect(screen.getByTestId("media-library-picker-stub")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Очистить иконку" })).toBeDisabled();
   });
 });

@@ -16,9 +16,11 @@ type Props = {
   /** Полный tier patient — без CTA активации. */
   personalTierOk: boolean;
   anonymousGuest: boolean;
+  /** CMS media URL for card leading icon; Lucide fallback when null/empty. */
+  blockIconImageUrl?: string | null;
 };
 
-export function PatientHomeBookingCard({ personalTierOk, anonymousGuest }: Props) {
+export function PatientHomeBookingCard({ personalTierOk, anonymousGuest, blockIconImageUrl }: Props) {
   const bookingHref = anonymousGuest ? appLoginWithNextHref(routePaths.patientBooking) : routePaths.patientBooking;
   const cabinetHref = anonymousGuest ? appLoginWithNextHref(routePaths.cabinet) : routePaths.cabinet;
 
@@ -52,7 +54,15 @@ export function PatientHomeBookingCard({ personalTierOk, anonymousGuest }: Props
         <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 lg:flex-row lg:items-stretch lg:gap-5">
           <div className="flex min-h-0 min-w-0 flex-1 gap-3">
             <div className="inline-flex size-11 shrink-0 items-center justify-center rounded-2xl bg-[#dcfce7] text-[var(--patient-color-success)] lg:size-14">
-              <Calendar className="size-6" aria-hidden />
+              {blockIconImageUrl?.trim() ?
+                // eslint-disable-next-line @next/next/no-img-element -- CMS URL, decorative
+                <img
+                  src={blockIconImageUrl.trim()}
+                  alt=""
+                  className="size-6 rounded-md object-cover lg:size-7"
+                  loading="lazy"
+                />
+              : <Calendar className="size-6" aria-hidden />}
             </div>
             <div className="min-w-0 flex-1">
               <h2 id="patient-home-booking-heading" className="text-lg font-bold text-[var(--patient-text-primary)] lg:text-xl">

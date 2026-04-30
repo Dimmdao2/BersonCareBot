@@ -24,4 +24,22 @@ describe("PatientHomeSosCard", () => {
     );
     expect(screen.getByRole("link", { name: /SOS title/i })).toHaveAttribute("href", "/app/patient/content/sos-page");
   });
+
+  it("renders custom leading block icon when blockIconImageUrl is set", () => {
+    const { container } = render(
+      <PatientHomeSosCard
+        sos={{
+          itemId: "1",
+          title: "SOS title",
+          subtitle: "Help",
+          imageUrl: null,
+          href: "/app/patient/content/sos-page",
+        }}
+        blockIconImageUrl="/api/media/dddddddd-dddd-4ddd-8ddd-dddddddddddd"
+      />,
+    );
+    const imgs = container.querySelectorAll("img");
+    const leading = [...imgs].find((el) => el.getAttribute("src")?.includes("dddddddd"));
+    expect(leading).toBeTruthy();
+  });
 });

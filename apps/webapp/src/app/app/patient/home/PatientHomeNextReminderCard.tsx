@@ -12,9 +12,9 @@ import {
 import { patientButtonWarningOutlineClass } from "@/shared/ui/patientVisual";
 import { cn } from "@/lib/utils";
 
-type Props = { rule: ReminderRule; scheduleLabel: string };
+type Props = { rule: ReminderRule; scheduleLabel: string; blockIconImageUrl?: string | null };
 
-export function PatientHomeNextReminderCard({ rule, scheduleLabel }: Props) {
+export function PatientHomeNextReminderCard({ rule, scheduleLabel, blockIconImageUrl }: Props) {
   const ruleLabel = rule.customTitle?.trim() || "Напоминание";
 
   return (
@@ -25,7 +25,15 @@ export function PatientHomeNextReminderCard({ rule, scheduleLabel }: Props) {
       >
         <div className="flex min-h-0 flex-1 gap-3">
           <div className={patientIconLeadingWarningClass} aria-hidden>
-            <Bell className="size-6" />
+            {blockIconImageUrl?.trim() ?
+              // eslint-disable-next-line @next/next/no-img-element -- CMS URL, decorative
+              <img
+                src={blockIconImageUrl.trim()}
+                alt=""
+                className="size-6 rounded-md object-cover"
+                loading="lazy"
+              />
+            : <Bell className="size-6" />}
           </div>
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
             <p id="patient-home-reminder-heading" className="shrink-0 text-[13px] font-medium leading-[18px] text-[#92400e]">

@@ -12,9 +12,9 @@ import {
 import { patientButtonDangerOutlineClass } from "@/shared/ui/patientVisual";
 import { cn } from "@/lib/utils";
 
-type Props = { sos: ResolvedSosCard | null };
+type Props = { sos: ResolvedSosCard | null; blockIconImageUrl?: string | null };
 
-export function PatientHomeSosCard({ sos }: Props) {
+export function PatientHomeSosCard({ sos, blockIconImageUrl }: Props) {
   if (!sos) return null;
 
   return (
@@ -27,7 +27,15 @@ export function PatientHomeSosCard({ sos }: Props) {
         <article id="patient-home-sos-card" className={cn(patientHomeCardDangerClass, patientHomeSosCardGeometryClass)}>
           <div className="relative z-[1] flex min-h-0 flex-1 gap-2">
             <div className={patientIconLeadingDangerClass} aria-hidden>
-              <Zap className="size-6" />
+              {blockIconImageUrl?.trim() ?
+                // eslint-disable-next-line @next/next/no-img-element -- CMS URL, decorative
+                <img
+                  src={blockIconImageUrl.trim()}
+                  alt=""
+                  className="size-6 rounded-md object-cover"
+                  loading="lazy"
+                />
+              : <Zap className="size-6" />}
             </div>
             <div className="flex min-h-0 min-w-0 flex-1 flex-col">
               <p id="patient-home-sos-heading" className="shrink-0 text-[13px] font-medium leading-[18px] text-[#b91c1c]">

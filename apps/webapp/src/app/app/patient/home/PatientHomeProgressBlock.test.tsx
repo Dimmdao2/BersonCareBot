@@ -31,4 +31,18 @@ describe("PatientHomeProgressBlock", () => {
     expect(screen.getByText(/2 из 3/)).toBeInTheDocument();
     expect(screen.getByText(/4/)).toBeInTheDocument();
   });
+
+  it("renders custom streak icon when blockIconImageUrl is set", () => {
+    const { container } = render(
+      <PatientHomeProgressBlock
+        practiceTarget={3}
+        personalTierOk
+        anonymousGuest={false}
+        progress={{ todayDone: 2, streak: 4 }}
+        blockIconImageUrl="/api/media/eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee"
+      />,
+    );
+    const img = container.querySelector("img");
+    expect(img).toHaveAttribute("src", "/api/media/eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee");
+  });
 });

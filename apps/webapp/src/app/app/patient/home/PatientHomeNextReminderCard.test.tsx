@@ -30,4 +30,16 @@ describe("PatientHomeNextReminderCard", () => {
     expect(screen.getByText("ср, 10:15")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Открыть напоминания/i })).toHaveAttribute("href", "/app/patient/reminders");
   });
+
+  it("renders custom leading icon when blockIconImageUrl is set", () => {
+    const { container } = render(
+      <PatientHomeNextReminderCard
+        rule={baseRule()}
+        scheduleLabel="ср, 10:15"
+        blockIconImageUrl="/api/media/cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      />,
+    );
+    const img = container.querySelector("img");
+    expect(img).toHaveAttribute("src", "/api/media/cccccccc-cccc-4ccc-8ccc-cccccccccccc");
+  });
 });

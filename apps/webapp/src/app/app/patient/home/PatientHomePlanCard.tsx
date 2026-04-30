@@ -16,9 +16,9 @@ export type PatientHomePlanCardInstance = {
   title: string;
 };
 
-type Props = { instance: PatientHomePlanCardInstance | null };
+type Props = { instance: PatientHomePlanCardInstance | null; blockIconImageUrl?: string | null };
 
-export function PatientHomePlanCard({ instance }: Props) {
+export function PatientHomePlanCard({ instance, blockIconImageUrl }: Props) {
   if (!instance) return null;
 
   return (
@@ -32,7 +32,15 @@ export function PatientHomePlanCard({ instance }: Props) {
         </p>
         <div className="flex min-h-0 flex-1 gap-3">
           <div className={patientIconLeadingClass} aria-hidden>
-            <ClipboardList className="size-6" />
+            {blockIconImageUrl?.trim() ?
+              // eslint-disable-next-line @next/next/no-img-element -- CMS URL, decorative
+              <img
+                src={blockIconImageUrl.trim()}
+                alt=""
+                className="size-6 rounded-md object-cover"
+                loading="lazy"
+              />
+            : <ClipboardList className="size-6" />}
           </div>
           <div className="flex min-h-0 min-w-0 flex-1 flex-col justify-center">
             <h2 className={patientHomePlanTitleClampClass}>{instance.title}</h2>

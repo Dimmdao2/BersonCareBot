@@ -151,6 +151,9 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
   const personalizedName = personalTierOk && session ? session.user.displayName?.trim() || null : null;
   const timeOfDayPrefix = greetingPrefixFromHour(DateTime.now().setZone(appTz).hour);
 
+  const blockLeadingIconFor = (code: PatientHomeBlockCode) =>
+    stripApiMediaForAnonymousGuest(homeBlocks.find((b) => b.code === code)?.iconImageUrl ?? null, anonymousGuest);
+
   const renderBlock = (code: PatientHomeBlockCode): ReactNode => {
     switch (code) {
       case "daily_warmup":
@@ -162,7 +165,13 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
           />
         );
       case "booking":
-        return <PatientHomeBookingCard personalTierOk={personalTierOk} anonymousGuest={anonymousGuest} />;
+        return (
+          <PatientHomeBookingCard
+            personalTierOk={personalTierOk}
+            anonymousGuest={anonymousGuest}
+            blockIconImageUrl={blockLeadingIconFor("booking")}
+          />
+        );
       case "situations":
         if (situationChips.length === 0) return null;
         return <PatientHomeSituationsRow chips={situationChips} />;
@@ -173,6 +182,7 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
             personalTierOk={personalTierOk}
             anonymousGuest={anonymousGuest}
             progress={progress}
+            blockIconImageUrl={blockLeadingIconFor("progress")}
           />
         );
       case "next_reminder":
@@ -181,6 +191,7 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
           <PatientHomeNextReminderCard
             rule={homeReminder.rule}
             scheduleLabel={nextReminderScheduleLabel}
+            blockIconImageUrl={blockLeadingIconFor("next_reminder")}
           />
         );
       case "mood_checkin":
@@ -194,10 +205,10 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
         );
       case "sos":
         if (!sosCard) return null;
-        return <PatientHomeSosCard sos={sosCard} />;
+        return <PatientHomeSosCard sos={sosCard} blockIconImageUrl={blockLeadingIconFor("sos")} />;
       case "plan":
         if (!planInstance) return null;
-        return <PatientHomePlanCard instance={planInstance} />;
+        return <PatientHomePlanCard instance={planInstance} blockIconImageUrl={blockLeadingIconFor("plan")} />;
       case "subscription_carousel":
         if (subscriptionCards.length === 0) return null;
         return (

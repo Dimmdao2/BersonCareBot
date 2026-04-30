@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AppSession } from "@/shared/types/session";
 
 const setBlockVisibilityMock = vi.fn();
+const setBlockIconMock = vi.fn();
 const addItemMock = vi.fn();
 const reorderItemsMock = vi.fn();
 const updateItemMock = vi.fn();
@@ -20,6 +21,7 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
     patientHomeBlocks: {
       setBlockVisibility: setBlockVisibilityMock,
+      setBlockIcon: setBlockIconMock,
       addItem: addItemMock,
       reorderItems: reorderItemsMock,
       reorderBlocks: vi.fn(),
@@ -40,6 +42,7 @@ import {
   deletePatientHomeItem,
   reorderPatientHomeItems,
   retargetPatientHomeItem,
+  setPatientHomeBlockIcon,
   togglePatientHomeBlockVisibility,
   updatePatientHomeItemVisibility,
 } from "./actions";
@@ -55,6 +58,7 @@ function sessionWithRole(role: AppSession["user"]["role"]): AppSession {
 describe("patient-home settings actions", () => {
   beforeEach(() => {
     setBlockVisibilityMock.mockReset();
+    setBlockIconMock.mockReset();
     addItemMock.mockReset();
     reorderItemsMock.mockReset();
     updateItemMock.mockReset();
@@ -92,6 +96,41 @@ describe("patient-home settings actions", () => {
     expect(res.ok).toBe(false);
     if (!res.ok) expect(res.error).toBe("forbidden");
     expect(setBlockVisibilityMock).not.toHaveBeenCalled();
+  });
+
+  it("setPatientHomeBlockIcon calls service for whitelist block with media URL", async () => {
+    setBlockIconMock.mockResolvedValue(undefined);
+    const res = await setPatientHomeBlockIcon("booking", "/api/media/aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee");
+    expect(res.ok).toBe(true);
+    expect(setBlockIconMock).toHaveBeenCalledWith("booking", "/api/media/aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee");
+  });
+
+  it("setPatientHomeBlockIcon rejects non-whitelist block", async () => {
+    const res = await setPatientHomeBlockIcon("daily_warmup", "/api/media/aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee");
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.error).toBe("block_icon_not_supported");
+    expect(setBlockIconMock).not.toHaveBeenCalled();
+  });
+
+  it("setPatientHomeBlockIcon rejects URL outside media policy", async () => {
+    const res = await setPatientHomeBlockIcon("booking", "/static/icon.png");
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.error).toContain("библиотеки");
+    expect(setBlockIconMock).not.toHaveBeenCalled();
+  });
+
+  it("setPatientHomeBlockIcon forbids client", async () => {
+    vi.mocked(getCurrentSession).mockResolvedValue(sessionWithRole("client"));
+    const res = await setPatientHomeBlockIcon("booking", null);
+    expect(res.ok).toBe(false);
+    expect(setBlockIconMock).not.toHaveBeenCalled();
+  });
+
+  it("setPatientHomeBlockIcon passes null to clear icon", async () => {
+    setBlockIconMock.mockResolvedValue(undefined);
+    const res = await setPatientHomeBlockIcon("plan", null);
+    expect(res.ok).toBe(true);
+    expect(setBlockIconMock).toHaveBeenCalledWith("plan", null);
   });
 
   it("rejects invalid block code on add item", async () => {
