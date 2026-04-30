@@ -647,3 +647,12 @@
 - Slug audit (editorial slugs из `CONTENT_PLAN.md`, единый `rg` по списку slug): `apps/webapp/src`, `apps/integrator/src` — **0 совпадений** в `*.{ts,tsx,js,jsx}`.
 - `pnpm install --frozen-lockfile && pnpm run ci` — **PASS** (lint, typecheck, integrator+webapp tests, builds, `registry-prod-audit`).
 
+## 2026-04-30 — Audit: Mechanical Visual Contract (patient home)
+
+- Mode: `AUDIT` (no application fixes; documentation only).
+- Branch: `feat/patient-home-cms-editor-uxlift-2026-04-29`.
+- Deliverable: [`AUDIT_VISUAL_MECHANICAL_CONTRACT.md`](./AUDIT_VISUAL_MECHANICAL_CONTRACT.md) — Verdict **PASS WITH NOTES** (short vs tall height naming/pixels; optional test de-coupling from `className` substring).
+- Mechanical step under review: shared clamps/slots in `patientHomeCardStyles.ts` + `patientVisual.ts`; subscription/courses/plan/reminder UI only; `linkedObjectType` removed from `PatientHomeNextReminderCard` patient-facing copy; schema/repos/CMS/navigation untouched in that step.
+- **Gate (targeted):** `pnpm --dir apps/webapp exec vitest run src/app/app/patient/home/PatientHomeSubscriptionCarousel.test.tsx src/app/app/patient/home/PatientHomeNextReminderCard.test.tsx` — **PASS** (`2` files, `5` tests). Full root `pnpm run ci` **not** run.
+- Push: not requested / not done.
+
