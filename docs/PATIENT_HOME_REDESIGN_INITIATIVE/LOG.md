@@ -672,3 +672,11 @@
 - **Не трогалось:** navigation / topbar / bottom nav, schema, CMS, env.
 - **Gate:** targeted Vitest — `PatientHomeTodayLayout`, `PatientHomeDailyWarmupCard`, `PatientHomeBookingCard`, `PatientHomeProgressBlock`, `PatientHomeMoodCheckin`, `PatientHomeSosCard`, `PatientHomeSituationsRow`, `PatientHomeToday` — **PASS** (`8` files, `21` tests). ESLint на изменённых файлах — **PASS**. Full root `pnpm run ci` **not** run.
 - Push: not requested.
+
+## 2026-04-30 — Audit: design-critical visual pass (patient home)
+
+- Mode: `AUDIT` (documentation only; no code fixes).
+- Branch: `feat/patient-home-cms-editor-uxlift-2026-04-29`.
+- Deliverable: [`AUDIT_VISUAL_DESIGN_CRITICAL.md`](./AUDIT_VISUAL_DESIGN_CRITICAL.md) — Verdict **PASS WITH NOTES**: полный PASS по viewports/состояниям не заявляется без реального браузерного просмотра; зафиксированы код-ревью, targeted Vitest, findings (в т.ч. отсутствие pixel-QA, хрупкость `toHaveClass` в layout-тесте, мелкие риски hero/booking/courses).
+- **Gate:** targeted Vitest на 10 файлах `PatientHome*` (см. § Tests в аудите) — **PASS** (`10` files, `26` tests). Full root `pnpm run ci` **not** run.
+- Push: not requested.
