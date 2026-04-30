@@ -33,7 +33,7 @@ export const patientHomeCardCompactClass = cn(
 export const patientHomeCardHeroClass = cn(
   "overflow-hidden border border-[#ddd6fe]",
   "rounded-[var(--patient-hero-radius-mobile)] lg:rounded-[var(--patient-hero-radius-desktop)]",
-  "bg-gradient-to-br from-[#f3f0ff] to-[#eef2ff] p-5 text-[var(--patient-text-primary)]",
+  "bg-[linear-gradient(205deg,#f1ecf1_10%,#f9f4ff_52%,#fafaf5_80%)] text-[var(--patient-text-primary)]",
   "shadow-[var(--patient-shadow-card-mobile)] lg:shadow-[var(--patient-shadow-card-desktop)]",
 );
 
@@ -215,46 +215,42 @@ export const patientHomePlanSubtitleClampClass = cn(
 export const patientHomeHeroCardGeometryClass = cn(
   patientHomeCardHeroClass,
   "relative isolate flex flex-col overflow-hidden",
-  "h-[212px] p-4 min-[380px]:h-[224px] lg:h-[336px] lg:p-8 xl:h-[348px]",
+  "min-h-[192px] p-4 min-[380px]:min-h-[204px] lg:h-[300px] lg:min-h-0 lg:p-5 xl:h-[300px]",
 );
 
 /** Hero: колонка текста с отступом под фиксированный image-slot справа. */
 export const patientHomeHeroTextColumnClass = cn(
-  "relative z-10 flex min-h-0 flex-1 flex-col",
-  "pr-[136px] min-[380px]:pr-[152px] lg:pr-[260px] xl:pr-[292px]",
+  "relative z-10 flex flex-1 flex-col lg:min-h-0",
+  "pr-[144px] min-[380px]:pr-[160px] lg:pr-[244px] xl:pr-[268px]",
 );
 
 /** Hero: заголовок (крупнее на mobile), line-clamp-2. */
 export const patientHomeHeroTitleClampClass = cn(
-  patientLineClamp2Class,
-  "mt-3 max-w-[min(100%,210px)] text-[18px] font-extrabold leading-[22px] tracking-[-0.025em] text-[var(--patient-text-primary)] min-[380px]:text-[20px] min-[380px]:leading-6 lg:mt-5 lg:max-w-[min(100%,390px)] lg:text-[34px] lg:leading-10 xl:text-[36px] xl:leading-[42px]",
+  "min-w-0",
+  "mt-2 max-w-[min(100%,210px)] text-[18px] font-medium leading-6 tracking-[-0.015em] text-[var(--patient-text-primary)] min-[380px]:text-[20px] min-[380px]:leading-[26px] lg:mt-4 lg:max-w-[min(100%,390px)] lg:line-clamp-2 lg:text-[34px] lg:leading-10 xl:text-[36px] xl:leading-[42px]",
 );
 
 /** Hero: summary, line-clamp-2. */
 export const patientHomeHeroSummaryClampClass = cn(
-  patientLineClamp2Class,
-  "mt-2 max-w-[min(100%,210px)] line-clamp-3 text-[12px] leading-4 text-[var(--patient-text-secondary)] min-[380px]:text-[13px] min-[380px]:leading-[18px] lg:mt-4 lg:max-w-[min(100%,330px)] lg:text-[15px] lg:leading-[22px]",
+  "min-w-0",
+  "mt-1 max-w-[min(100%,205px)] text-[12px] leading-4 text-[var(--patient-text-secondary)] min-[380px]:max-w-[min(100%,214px)] min-[380px]:text-[13px] min-[380px]:leading-[18px] lg:mt-4 lg:max-w-[min(100%,330px)] lg:line-clamp-2 lg:text-[15px] lg:leading-[22px]",
 );
-
-/** Hero: заметная duration-строка под заголовком (`3 минуты` в референсе). */
-export const patientHomeHeroDurationAccentClass =
-  "mt-1 text-[18px] font-extrabold leading-[22px] tracking-[-0.025em] text-[var(--patient-color-primary)] min-[380px]:text-[20px] min-[380px]:leading-6 lg:text-[30px] lg:leading-9";
 
 /** Hero: фиксированный слот картинки / декора справа снизу. */
 export const patientHomeHeroImageSlotClass = cn(
-  "pointer-events-none absolute bottom-0 right-0 z-[1] flex items-end justify-end overflow-hidden",
-  "h-[156px] w-[132px] min-[380px]:h-[168px] min-[380px]:w-[148px] lg:h-[292px] lg:w-[248px] xl:h-[304px] xl:w-[272px]",
+  "pointer-events-none absolute bottom-0 right-4 z-[1] flex items-end justify-end overflow-hidden min-[380px]:right-6 lg:right-10",
+  "h-[156px] w-[132px] min-[380px]:h-[168px] min-[380px]:w-[148px] lg:h-[262px] lg:w-[224px] xl:h-[274px] xl:w-[248px]",
 );
 
 /** Booking: companion consultation card, compact on mobile and stretched beside hero on desktop. */
 export const patientHomeBookingCardGeometryClass = cn(
   "flex min-h-[128px] flex-col gap-3 overflow-hidden p-4",
-  "lg:h-full lg:min-h-[348px] lg:p-6 xl:min-h-[360px]",
+  "lg:h-[300px] lg:min-h-0 lg:gap-4 lg:p-5 xl:h-[300px]",
 );
 
 export const patientHomeBookingCopyClampClass = cn(
   patientLineClamp2Class,
-  "mt-1 text-sm leading-5 text-[var(--patient-text-secondary)] lg:text-[15px] lg:leading-6",
+  "mt-1 text-sm leading-5 text-[var(--patient-text-secondary)] lg:text-sm lg:leading-5",
 );
 
 /** Слот под guest / activation copy (всегда занимает место — высота карточки не прыгает). */
@@ -263,7 +259,7 @@ export const patientHomeBookingFooterSlotClass =
 
 export const patientHomeBookingActionsClass = cn(
   "flex w-full shrink-0 flex-row gap-2 min-[380px]:w-[9.25rem] min-[380px]:flex-col",
-  "lg:mt-auto lg:w-full lg:min-w-0 lg:max-w-none lg:flex-col lg:justify-end",
+  "lg:w-full lg:min-w-0 lg:max-w-none lg:flex-col lg:justify-end lg:gap-3",
 );
 
 /** Situations: фиксированная плитка + медиа-слот (цвета только нейтральные / hover). */
