@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
+import type { PatientHomeBlockCode } from "@/modules/patient-home/ports";
 import { createInMemoryPatientHomeBlocksPort } from "./inMemoryPatientHomeBlocks";
+import { createPgPatientHomeBlocksPort } from "./pgPatientHomeBlocks";
+
+const hasRealDb =
+  process.env.USE_REAL_DATABASE === "1" && Boolean(process.env.DATABASE_URL?.trim());
 
 describe("patient home blocks port (in-memory)", () => {
   it("lists seeded blocks", async () => {
@@ -97,5 +102,30 @@ describe("patient home blocks port (in-memory)", () => {
     expect(blocks.find((b) => b.code === "sos")?.iconImageUrl).toBe("https://media.example/sos.png");
     await port.setBlockIcon("sos", null);
     expect((await port.listBlocksWithItems()).find((b) => b.code === "sos")?.iconImageUrl).toBeNull();
+  });
+
+  it("setBlockIcon throws unknown_patient_home_block_code for invalid code", async () => {
+    const port = createInMemoryPatientHomeBlocksPort();
+    await expect(port.setBlockIcon("__no_such__" as PatientHomeBlockCode, null)).rejects.toThrow(
+      "unknown_patient_home_block_code",
+    );
+  });
+});
+
+describe("createPgPatientHomeBlocksPort (icon_image_url)", () => {
+  it.skipIf(!hasRealDb)("read/write/null iconImageUrl on real DB", async () => {
+    const port = createPgPatientHomeBlocksPort();
+    const before = (await port.listBlocksWithItems()).find((b) => b.code === "booking");
+    const prev = before?.iconImageUrl ?? null;
+    try {
+      await port.setBlockIcon("booking", "https://example.test/patient-home-block-icon.png");
+      const mid = (await port.listBlocksWithItems()).find((b) => b.code === "booking");
+      expect(mid?.iconImageUrl).toBe("https://example.test/patient-home-block-icon.png");
+      await port.setBlockIcon("booking", null);
+      const after = (await port.listBlocksWithItems()).find((b) => b.code === "booking");
+      expect(after?.iconImageUrl).toBeNull();
+    } finally {
+      await port.setBlockIcon("booking", prev);
+    }
   });
 });

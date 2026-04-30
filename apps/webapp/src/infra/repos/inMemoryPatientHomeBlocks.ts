@@ -61,7 +61,9 @@ export function createInMemoryPatientHomeBlocksPort(): PatientHomeBlocksPort {
 
     async setBlockIcon(code, iconImageUrl) {
       const block = blocks.get(code);
-      if (!block) return;
+      if (!block) {
+        throw new Error(`unknown_patient_home_block_code:${code}`);
+      }
       block.iconImageUrl = iconImageUrl;
     },
 

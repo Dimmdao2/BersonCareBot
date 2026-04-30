@@ -60,10 +60,14 @@ export function createPgPatientHomeBlocksPort(): PatientHomeBlocksPort {
 
     async setBlockIcon(code, iconImageUrl) {
       const db = getDrizzle();
-      await db
+      const updated = await db
         .update(patientHomeBlocks)
         .set({ iconImageUrl, updatedAt: sql`now()` })
-        .where(eq(patientHomeBlocks.code, code));
+        .where(eq(patientHomeBlocks.code, code))
+        .returning({ code: patientHomeBlocks.code });
+      if (updated.length === 0) {
+        throw new Error(`unknown_patient_home_block_code:${code}`);
+      }
     },
 
     async reorderBlocks(orderedCodes) {

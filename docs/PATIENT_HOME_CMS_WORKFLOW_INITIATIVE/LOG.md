@@ -630,3 +630,25 @@
   - pass with notes (вердикт в аудит-доке: **PASS WITH NOTES**)
 - Next:
   - по необходимости: UI picker + runtime; опционально pg-backed smoke для колонки; выравнивание Drizzle meta для будущих `generate`
+
+---
+
+## 2026-04-30 — Fix: block icon audit findings (6–8)
+
+- Branch: `feat/patient-home-cms-editor-uxlift-2026-04-29`
+- Scope:
+  - Закрытие findings из `AUDIT_BLOCK_ICON_DATA_LAYER.md`: паритет pg/in-memory для `setBlockIcon`, цепочка Drizzle meta `0012_snapshot`, pg-backed тест `icon_image_url` + включение в `test:with-db`.
+- Changed files:
+  - `apps/webapp/src/infra/repos/pgPatientHomeBlocks.ts`, `inMemoryPatientHomeBlocks.ts`
+  - `apps/webapp/src/infra/repos/pgPatientHomeBlocks.test.ts`
+  - `apps/webapp/package.json` (`test:with-db`)
+  - `apps/webapp/db/drizzle-migrations/meta/0012_snapshot.json` (новый), `meta/0013_snapshot.json` (`prevId`)
+  - `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/AUDIT_BLOCK_ICON_DATA_LAYER.md`, `LOG.md`
+- Checks:
+  - `pnpm --dir apps/webapp exec vitest run src/infra/repos/pgPatientHomeBlocks.test.ts src/modules/patient-home/service.test.ts` — pass (19 passed, 1 skipped)
+  - ReadLints по затронутым ts — ok
+  - root `pnpm run ci` — не запускался
+- Result:
+  - pass
+- Next:
+  - UI picker / runtime при отдельной задаче
