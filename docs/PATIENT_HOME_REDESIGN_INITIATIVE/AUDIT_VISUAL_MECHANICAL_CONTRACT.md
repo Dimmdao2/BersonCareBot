@@ -2,11 +2,26 @@
 
 **Scope:** post-step review of the «Tighten patient home visual primitives» change set (shared contracts in `patientHomeCardStyles.ts` / `patientVisual.ts`, clamp + fixed sizing on subscription / courses / plan / reminder, removal of `linkedObjectType` from home reminder UI).
 
-**Verdict: PASS WITH NOTES**
+**Verdict: PASS**
 
 ---
 
-## Findings (by severity)
+## Fix follow-up (2026-04-30)
+
+| Finding | Resolution |
+|---------|------------|
+| **1 — Short vs tall pixel semantics** | Retuned `patientHomeSecondaryCardShortHeightClass` and `patientHomeSecondaryCardTallHeightClass` in `patientHomeCardStyles.ts` so **tall ≥ short** at every breakpoint (`176/184/188` vs `192/200/208`). JSDoc clarifies reminder vs plan. |
+| **2 — Subscription test + `className` regex** | Each carousel `Link` has `data-testid="patient-home-subscription-carousel-item"`. Test asserts two items via `querySelectorAll` instead of matching `min-w-[280px]` in `className`. |
+| **3 — Hero/booking slot exports unused** | No code change (per original audit: intentional forward contract for a later layout pass). |
+| **4 — `patientLineClamp3Class` unused** | `patientLineClamp3Class` is now composed into `patientHomeCardSubtitleClampXs3Class`; **courses** row subtitle uses that export so the primitive is wired through the shared style module. |
+
+**Verification:** targeted Vitest — `PatientHomeSubscriptionCarousel.test.tsx`, `PatientHomeNextReminderCard.test.tsx` — pass. Full root `pnpm run ci` not run for this follow-up.
+
+---
+
+## Findings (by severity) — historical
+
+The items below describe the pre-fix state; see **Fix follow-up** above for resolutions.
 
 ### 1. Medium — Misleading height token names vs pixel values
 
@@ -76,7 +91,7 @@
 
 ### Tests not brittle class snapshots
 
-- **PASS WITH NOTES.** Tests assert behaviour (roles, hrefs, text, snap track class `.snap-x.snap-mandatory`), not full `className` snapshots. **Note:** subscription width test still uses one regex on `className` (Finding 2).
+- **PASS.** Carousel width is no longer asserted via a Tailwind substring on `className`; stable `data-testid` is used (see Fix follow-up).
 
 ---
 

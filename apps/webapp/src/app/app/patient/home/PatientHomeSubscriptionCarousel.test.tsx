@@ -54,8 +54,7 @@ describe("PatientHomeSubscriptionCarousel", () => {
     );
     const track = container.querySelector(".snap-x.snap-mandatory");
     expect(track).toBeTruthy();
-    const card = container.querySelector("a.snap-start");
-    expect(card?.className).toMatch(/min-w-\[280px\]/);
+    expect(container.querySelectorAll('[data-testid="patient-home-subscription-carousel-item"]')).toHaveLength(2);
     expect(screen.getByText("Клуб")).toBeInTheDocument();
     expect(screen.getByText("Премиум")).toBeInTheDocument();
   });

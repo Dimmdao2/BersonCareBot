@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import { patientLineClamp2Class } from "@/shared/ui/patientVisual";
+import { patientLineClamp2Class, patientLineClamp3Class } from "@/shared/ui/patientVisual";
 
 /**
  * Стили карточек главной пациента «Сегодня» по `VISUAL_SYSTEM_SPEC.md` §10.x.
@@ -130,19 +130,20 @@ export const patientHomeBookingCompanionSlotClass = cn(
 export const patientHomeSecondaryCardShellClass = cn("flex flex-col gap-3 overflow-hidden");
 
 /**
- * Фиксированная высота «короткой» secondary-карточки (напоминание и аналоги).
+ * Фиксированная высота secondary-карточки напоминания (меньше, чем у блока «план»).
+ * Значения подобраны так, чтобы на каждом breakpoint высота «плана» (`patientHomeSecondaryCardTallHeightClass`) была не меньше.
  */
 export const patientHomeSecondaryCardShortHeightClass = cn(
   patientHomeSecondaryCardShellClass,
-  "h-[188px] sm:h-[196px] lg:h-[200px]",
+  "h-[176px] sm:h-[184px] lg:h-[188px]",
 );
 
 /**
- * Фиксированная высота «высокой» secondary-карточки (план и аналоги с CTA).
+ * Фиксированная высота secondary-карточки «Мой план» (с CTA снизу) — всегда ≥ short.
  */
 export const patientHomeSecondaryCardTallHeightClass = cn(
   patientHomeSecondaryCardShellClass,
-  "h-[184px] sm:h-[192px] lg:h-[200px]",
+  "h-[192px] sm:h-[200px] lg:h-[208px]",
 );
 
 /**
@@ -181,6 +182,12 @@ export const patientHomeCardTitleClampLgClass = cn(
 /** Подзаголовок — 2 строки, xs. */
 export const patientHomeCardSubtitleClampXsClass = cn(
   patientLineClamp2Class,
+  "text-xs text-[var(--patient-text-secondary)]",
+);
+
+/** Подзаголовок — до 3 строк, xs (длинные описания в списках, напр. курсы). */
+export const patientHomeCardSubtitleClampXs3Class = cn(
+  patientLineClamp3Class,
   "text-xs text-[var(--patient-text-secondary)]",
 );
 

@@ -37,6 +37,7 @@ export function PatientHomeSubscriptionCarousel({ cards, sectionTitle }: Props) 
             key={c.itemId}
             href={c.href}
             prefetch={false}
+            data-testid="patient-home-subscription-carousel-item"
             className={cn(patientHomeCardCompactClass, patientHomeCarouselItemLayoutClass)}
           >
             <div className="flex min-h-0 flex-1 gap-3">

@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { ResolvedCourseCard } from "@/modules/patient-home/patientHomeResolvers";
 import {
   patientHomeCardCompactClass,
-  patientHomeCardSubtitleClampXsClass,
+  patientHomeCardSubtitleClampXs3Class,
   patientHomeCardTitleClampSmClass,
   patientHomeCourseRowItemLayoutClass,
 } from "./patientHomeCardStyles";
@@ -32,7 +32,7 @@ export function PatientHomeCoursesRow({ cards }: Props) {
             >
               <span className={patientHomeCardTitleClampSmClass}>{c.title}</span>
               {c.subtitle?.trim() ?
-                <span className={cn(patientHomeCardSubtitleClampXsClass, "mt-1")}>{c.subtitle.trim()}</span>
+                <span className={cn(patientHomeCardSubtitleClampXs3Class, "mt-1")}>{c.subtitle.trim()}</span>
               : null}
             </Link>
           </li>

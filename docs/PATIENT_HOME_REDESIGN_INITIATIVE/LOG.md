@@ -656,3 +656,12 @@
 - **Gate (targeted):** `pnpm --dir apps/webapp exec vitest run src/app/app/patient/home/PatientHomeSubscriptionCarousel.test.tsx src/app/app/patient/home/PatientHomeNextReminderCard.test.tsx` — **PASS** (`2` files, `5` tests). Full root `pnpm run ci` **not** run.
 - Push: not requested / not done.
 
+## 2026-04-30 — Fix: Mechanical Visual Contract audit findings
+
+- Mode: `FIX` (only items from [`AUDIT_VISUAL_MECHANICAL_CONTRACT.md`](./AUDIT_VISUAL_MECHANICAL_CONTRACT.md) § Findings).
+- Branch: `feat/patient-home-cms-editor-uxlift-2026-04-29`.
+- **Code:** `patientHomeCardStyles.ts` — aligned short/tall secondary heights (tall ≥ short at all breakpoints); added `patientHomeCardSubtitleClampXs3Class` using `patientLineClamp3Class`. `PatientHomeSubscriptionCarousel.tsx` — `data-testid="patient-home-subscription-carousel-item"`. `PatientHomeSubscriptionCarousel.test.tsx` — assert carousel items via test id count. `PatientHomeCoursesRow.tsx` — subtitle uses `patientHomeCardSubtitleClampXs3Class`.
+- **Docs:** audit doc — verdict **PASS**, new **Fix follow-up** section; Finding 3 explicitly unchanged by design.
+- **Gate:** `pnpm --dir apps/webapp exec vitest run src/app/app/patient/home/PatientHomeSubscriptionCarousel.test.tsx src/app/app/patient/home/PatientHomeNextReminderCard.test.tsx` — **PASS**. Full root `pnpm run ci` **not** run.
+- Push: performed **without** full root CI (explicit request for this change).
+
