@@ -675,3 +675,20 @@
   - pass
 - Next:
   - при необходимости: полировка копирайта / a11y превью
+
+---
+
+## 2026-04-30 — Audit: block icon admin + runtime
+
+- Branch: `feat/patient-home-cms-editor-uxlift-2026-04-29`
+- Scope:
+  - Статический аудит whitelist picker, `MediaLibraryPickerDialog` / cms-unified layout, preview/clear, отсутствие picker на не-whitelist блоках, runtime leading slot + fallback, a11y/size, покрытие тестами.
+- Changed files:
+  - `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/AUDIT_BLOCK_ICON_ADMIN_RUNTIME.md` (новый)
+  - `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/LOG.md`
+- Checks:
+  - просмотр кода и тестов; root `pnpm run ci` — не запускался; targeted vitest — не гонялся в этом проходе
+- Result:
+  - pass (вердикт в аудит-доке: **PASS**)
+- Next:
+  - при смене требований — доп. e2e на реальный picker
