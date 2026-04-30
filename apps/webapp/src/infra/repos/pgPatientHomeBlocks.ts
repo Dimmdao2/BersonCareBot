@@ -20,6 +20,7 @@ function mapItem(row: typeof patientHomeBlockItems.$inferSelect): PatientHomeBlo
     subtitleOverride: row.subtitleOverride,
     imageUrlOverride: row.imageUrlOverride,
     badgeLabel: row.badgeLabel,
+    showTitle: row.showTitle,
     isVisible: row.isVisible,
     sortOrder: row.sortOrder,
   };
@@ -103,6 +104,7 @@ export function createPgPatientHomeBlocksPort(): PatientHomeBlocksPort {
           subtitleOverride: input.subtitleOverride ?? null,
           imageUrlOverride: input.imageUrlOverride ?? null,
           badgeLabel: input.badgeLabel ?? null,
+          showTitle: input.showTitle ?? true,
           isVisible: input.isVisible ?? true,
           sortOrder,
         })
@@ -126,6 +128,7 @@ export function createPgPatientHomeBlocksPort(): PatientHomeBlocksPort {
       if (patch.subtitleOverride !== undefined) setPayload.subtitleOverride = patch.subtitleOverride;
       if (patch.imageUrlOverride !== undefined) setPayload.imageUrlOverride = patch.imageUrlOverride;
       if (patch.badgeLabel !== undefined) setPayload.badgeLabel = patch.badgeLabel;
+      if (patch.showTitle !== undefined) setPayload.showTitle = patch.showTitle;
       if (patch.isVisible !== undefined) setPayload.isVisible = patch.isVisible;
       if (patch.sortOrder !== undefined) setPayload.sortOrder = patch.sortOrder;
       if (patch.targetRef !== undefined) setPayload.targetRef = patch.targetRef;

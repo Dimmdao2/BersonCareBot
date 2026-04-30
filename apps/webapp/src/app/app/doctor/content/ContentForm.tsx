@@ -195,7 +195,7 @@ export function ContentForm({
             name="slug"
             required
             defaultValue={page?.slug ?? ""}
-            readOnly
+            pattern="[a-z0-9-]+"
             key={`slug-${page?.id ?? "new"}`}
           />
         )}

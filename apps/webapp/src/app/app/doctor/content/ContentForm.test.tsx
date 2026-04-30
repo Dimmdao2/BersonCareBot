@@ -123,6 +123,7 @@ describe("ContentForm", () => {
       "value",
       "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
     );
+    expect(document.querySelector('input[name="slug"]')).not.toHaveAttribute("readonly");
   });
 
   it("includes linked_course_id in FormData when publishedCourses provided", async () => {

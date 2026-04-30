@@ -9,6 +9,7 @@
 - Основное поле контента в БД: **`body_md`** (Markdown).
 - **`body_html`** хранит только legacy-контент для записей, созданных до перехода на Markdown; пока `body_md` пустой, резолвер (`createContentCatalogResolver`) подставляет в `ContentStubItem.bodyText` значение из **`body_html`**.
 - Если **`body_md`** непустой (после `trim`), используется только он, **`body_html`** для отображения игнорируется.
+- Slug материала редактируется в CMS на форме `/app/doctor/content/edit/[id]`; серверная валидация сохраняет уникальность пары `section + slug` и ревалидирует старый и новый patient URL.
 
 ## Видимость для пациента
 

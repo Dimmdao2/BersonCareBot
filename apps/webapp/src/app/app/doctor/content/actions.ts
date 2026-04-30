@@ -100,9 +100,6 @@ export async function saveContentPage(
     if (!existingById) {
       return { ok: false, error: "Страница не найдена" };
     }
-    if (existingById.slug !== slug) {
-      return { ok: false, error: "Slug страницы изменён недопустимым образом" };
-    }
     const dup = allPages.find((p) => p.section === section && p.slug === slug && p.id !== editingId);
     if (dup) {
       return { ok: false, error: "В выбранном разделе уже есть материал с таким slug" };
@@ -143,6 +140,9 @@ export async function saveContentPage(
     }
 
     revalidatePath("/app/doctor/content");
+    if (existingById.slug !== slug) {
+      revalidatePath(`/app/patient/content/${existingById.slug}`);
+    }
     revalidatePath(`/app/patient/content/${slug}`);
     revalidatePath("/app/patient/sections", "layout");
     return { ok: true };

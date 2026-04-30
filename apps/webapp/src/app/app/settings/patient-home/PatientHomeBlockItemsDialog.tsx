@@ -35,12 +35,14 @@ function SortableItemRow({
   onToggleVisible,
   onDelete,
   onBadgeChange,
+  onShowTitleChange,
 }: {
   blockCode: string;
   item: PatientHomeBlockItem;
   onToggleVisible(itemId: string, next: boolean): void;
   onDelete(itemId: string): void;
   onBadgeChange(itemId: string, badgeLabel: string | null): void;
+  onShowTitleChange(itemId: string, showTitle: boolean): void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: item.id });
   const usefulPost = blockCode === "useful_post";
@@ -49,6 +51,7 @@ function SortableItemRow({
     usefulPost &&
     Boolean(item.badgeLabel?.trim()) &&
     normalizeUsefulPostBadge(item.badgeLabel) === null;
+  const usefulPostShowTitle = item.showTitle !== false;
 
   return (
     <li
@@ -80,6 +83,15 @@ function SortableItemRow({
           </div>
           {usefulPost ?
             <>
+              <label className="mt-2 flex cursor-pointer items-center gap-2 text-xs text-foreground">
+                <input
+                  type="checkbox"
+                  className="size-4 accent-primary"
+                  checked={usefulPostShowTitle}
+                  onChange={(e) => onShowTitleChange(item.id, e.target.checked)}
+                />
+                Отображать заголовок текстом
+              </label>
               <label className="mt-2 flex cursor-pointer items-center gap-2 text-xs text-foreground">
                 <input
                   type="checkbox"
@@ -179,8 +191,13 @@ export function PatientHomeBlockItemsDialog({
           if (!source) continue;
           const prevB = normalizeUsefulPostBadge(source.badgeLabel);
           const nextB = normalizeUsefulPostBadge(item.badgeLabel);
-          if (prevB !== nextB) {
-            const pres = await updatePatientHomeItemPresentation({ itemId: item.id, badgeLabel: nextB });
+          const prevShowTitle = source.showTitle !== false;
+          const nextShowTitle = item.showTitle !== false;
+          if (prevB !== nextB || prevShowTitle !== nextShowTitle) {
+            const payload: { itemId: string; badgeLabel?: string | null; showTitle?: boolean } = { itemId: item.id };
+            if (prevB !== nextB) payload.badgeLabel = nextB;
+            if (prevShowTitle !== nextShowTitle) payload.showTitle = nextShowTitle;
+            const pres = await updatePatientHomeItemPresentation(payload);
             if (!pres.ok) {
               setError(pres.error);
               return;
@@ -222,6 +239,9 @@ export function PatientHomeBlockItemsDialog({
                     setItems((prev) =>
                       prev.map((row) => (row.id === itemId ? { ...row, badgeLabel } : row)),
                     )
+                  }
+                  onShowTitleChange={(itemId, showTitle) =>
+                    setItems((prev) => prev.map((row) => (row.id === itemId ? { ...row, showTitle } : row)))
                   }
                   onDelete={(itemId) => {
                     setRemovedIds((prev) => (prev.includes(itemId) ? prev : [...prev, itemId]));

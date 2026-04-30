@@ -252,6 +252,7 @@ describe("patientHomeResolvers", () => {
       true,
     );
     expect(card?.slug).toBe("post-a");
+    expect(card?.showTitle).toBe(true);
     expect(card?.badgeLabel).toBe("Новый пост");
     expect(card?.href).toContain("post-a");
   });
@@ -276,5 +277,32 @@ describe("patientHomeResolvers", () => {
       false,
     );
     expect(card).toBeNull();
+  });
+
+  it("resolveUsefulPostCard preserves hidden title setting", async () => {
+    const deps = {
+      contentSections: { getBySlug: async () => null },
+      contentPages: {
+        getBySlug: async () => ({
+          slug: "post",
+          title: "Post",
+          summary: "",
+          requiresAuth: false,
+          imageUrl: null,
+        }),
+      },
+      courses: { getCourseForDoctor: async () => null },
+    };
+    const card = await resolveUsefulPostCard(
+      [
+        {
+          ...item({ id: "1", blockCode: "useful_post", targetType: "content_page", targetRef: "post", sortOrder: 0 }),
+          showTitle: false,
+        },
+      ],
+      deps,
+      true,
+    );
+    expect(card?.showTitle).toBe(false);
   });
 });

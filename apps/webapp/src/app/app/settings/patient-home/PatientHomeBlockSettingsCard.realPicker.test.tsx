@@ -85,7 +85,7 @@ describe("PatientHomeBlockSettingsCard (real MediaLibraryPickerDialog)", () => {
 
     expect(screen.getByText("Иконка блока")).toBeInTheDocument();
     expect(screen.queryByTestId("media-library-picker-stub")).toBeNull();
-    expect(screen.getByText("Файл не выбран")).toBeInTheDocument();
+    expect(screen.queryByText("Файл не выбран")).toBeNull();
     expect(screen.getByText("Выбрать изображение")).toBeInTheDocument();
   });
 });

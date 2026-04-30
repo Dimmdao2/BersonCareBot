@@ -1048,6 +1048,7 @@ export const patientHomeBlockItems = pgTable("patient_home_block_items", {
 	subtitleOverride: text("subtitle_override"),
 	imageUrlOverride: text("image_url_override"),
 	badgeLabel: text("badge_label"),
+	showTitle: boolean("show_title").default(true).notNull(),
 	isVisible: boolean("is_visible").default(true).notNull(),
 	sortOrder: integer("sort_order").default(0).notNull(),
 	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),

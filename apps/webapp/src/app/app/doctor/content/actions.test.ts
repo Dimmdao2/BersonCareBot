@@ -250,6 +250,45 @@ describe("saveContentPage", () => {
     expect(upsertMock).not.toHaveBeenCalled();
   });
 
+  it("allows changing slug when editing with page_id", async () => {
+    updateFullMock.mockResolvedValue(undefined);
+    const pageId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    getByIdMock.mockResolvedValue({
+      id: pageId,
+      section: "lessons",
+      slug: "old-slug",
+      title: "Old",
+      summary: "",
+      bodyMd: "",
+      bodyHtml: "",
+      sortOrder: 7,
+      isPublished: true,
+      requiresAuth: false,
+      videoUrl: null,
+      videoType: null,
+      imageUrl: null,
+      archivedAt: null,
+      deletedAt: null,
+      linkedCourseId: null,
+    });
+    listAllMock.mockResolvedValue([
+      { id: pageId, section: "lessons", slug: "old-slug", sortOrder: 7 },
+      { id: "other-id", section: "lessons", slug: "other", sortOrder: 1 },
+    ]);
+    const fd = formWith({
+      page_id: pageId,
+      section: "lessons",
+      slug: "new-slug",
+      title: "Edited",
+      summary: "",
+      body_md: "Body",
+    });
+    const res = await saveContentPage(null, fd);
+    expect(res.ok).toBe(true);
+    expect(updateFullMock).toHaveBeenCalledWith(pageId, expect.objectContaining({ slug: "new-slug", sortOrder: 7 }));
+    expect(upsertMock).not.toHaveBeenCalled();
+  });
+
   it("when moving section with page_id appends sort order in target section", async () => {
     updateFullMock.mockResolvedValue(undefined);
     const pageId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";

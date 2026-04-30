@@ -106,6 +106,13 @@
       "when": 1777568074358,
       "tag": "0014_patient_home_useful_post",
       "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1777573976837,
+      "tag": "0015_patient_home_item_show_title",
+      "breakpoints": true
     }
   ]
 }

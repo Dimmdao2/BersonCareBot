@@ -8,6 +8,14 @@ import type { PatientHomeMoodIconOption } from "@/modules/patient-home/patientHo
 
 type Row = { score: 1 | 2 | 3 | 4 | 5; label: string; imageUrl: string | null };
 
+const FALLBACK_LABEL_BY_SCORE: Record<1 | 2 | 3 | 4 | 5, string> = {
+  1: "Очень плохо",
+  2: "Скорее плохо",
+  3: "Нейтрально",
+  4: "Хорошо",
+  5: "Отлично",
+};
+
 function toRows(options: readonly PatientHomeMoodIconOption[]): Row[] {
   return options.map((o) => ({
     score: o.score,
@@ -26,17 +34,17 @@ export function PatientHomeMoodIconsPanel(props: { initialOptions: readonly Pati
     setRows((prev) => prev.map((r) => (r.score === score ? { ...r, imageUrl: url.trim() || null } : r)));
   }
 
-  function setLabel(score: 1 | 2 | 3 | 4 | 5, label: string) {
-    setRows((prev) => prev.map((r) => (r.score === score ? { ...r, label } : r)));
-  }
-
   async function onSave() {
     setMessage(null);
     setError(null);
     setPending(true);
     try {
       const res = await savePatientHomeMoodIconsAction(
-        rows.map((r) => ({ score: r.score, label: r.label.trim(), imageUrl: r.imageUrl })),
+        rows.map((r) => ({
+          score: r.score,
+          label: r.label.trim() || FALLBACK_LABEL_BY_SCORE[r.score],
+          imageUrl: r.imageUrl,
+        })),
       );
       if (!res.ok) {
         setError("Не удалось сохранить.");
@@ -57,30 +65,29 @@ export function PatientHomeMoodIconsPanel(props: { initialOptions: readonly Pati
         Иконки самочувствия на главной
       </h2>
       <p className="mt-1 text-sm text-muted-foreground">
-        Для каждой оценки 1–5 выберите изображение в медиатеке. Текст подписи можно изменить.
+        Для каждой оценки 1–5 выберите изображение в медиатеке. Подписи на главной не показываются.
       </p>
-      <div className="mt-4 space-y-4">
+      <div className="mt-4 grid grid-cols-5 gap-2 sm:gap-3">
         {rows.map((r) => (
           <div
             key={r.score}
-            className="flex flex-col gap-2 rounded-lg border border-border/70 bg-background/50 p-3 sm:flex-row sm:items-end sm:gap-4"
+            className="flex min-w-0 flex-col items-center gap-2 rounded-lg border border-border/70 bg-background/50 p-2 text-center sm:p-3"
           >
-            <div className="text-sm font-medium text-muted-foreground sm:w-20">Оценка {r.score}</div>
-            <label className="flex min-w-0 flex-1 flex-col gap-1">
-              <span className="text-xs font-medium text-muted-foreground">Подпись</span>
-              <input
-                className="h-9 w-full min-w-0 rounded-md border border-border bg-background px-3 text-sm"
-                value={r.label}
-                onChange={(e) => setLabel(r.score, e.target.value)}
-                aria-label={`Подпись для оценки ${r.score}`}
-              />
-            </label>
-            <div className="flex min-w-0 flex-col gap-1 sm:flex-1">
-              <span className="text-xs font-medium text-muted-foreground">Изображение</span>
+            <div className="flex size-14 items-center justify-center overflow-hidden rounded-full border border-border bg-muted/30 sm:size-16">
+              {r.imageUrl ?
+                // eslint-disable-next-line @next/next/no-img-element -- doctor preview for selected CMS media URL
+                <img src={r.imageUrl} alt="" className="size-full object-cover" loading="lazy" />
+              : <span className="text-lg font-semibold text-muted-foreground">{r.score}</span>}
+            </div>
+            <div className="text-xs font-semibold text-foreground">{r.score}</div>
+            <div className="flex justify-center">
               <MediaLibraryPickerDialog
                 kind="image"
                 value={r.imageUrl ?? ""}
                 onChange={(url) => setImage(r.score, url)}
+                pickerTitle={`Иконка самочувствия ${r.score}`}
+                selectButtonLabel="Выбрать иконку"
+                showPreview={false}
               />
             </div>
           </div>

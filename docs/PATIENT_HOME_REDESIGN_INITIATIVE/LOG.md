@@ -1,5 +1,14 @@
 # PATIENT_HOME_REDESIGN_INITIATIVE — LOG
 
+## 2026-04-30 — Правки doctor settings UX и CMS slug
+
+- **Порядок блока:** `useful_post` закреплён сразу после `daily_warmup` в seed (`sort_order = 11`) и в UI остаётся под разминкой дня при сортировке блоков.
+- **`useful_post` settings:** добавлен флаг `patient_home_block_items.show_title` и галочка «Отображать заголовок текстом» рядом с галочкой бейджа «Новый пост».
+- **Иконки без cover:** для picker-а иконок блоков (`booking`, `progress`, `next_reminder`, `sos`, `plan`) убран большой placeholder preview; остаётся компактное действие «Изменить».
+- **Самочувствие:** настройки 5 иконок переведены в одну строку: иконка, оценка `1–5`, кнопка «Изменить»; редактирование текстовых подписей убрано из UI.
+- **CMS:** slug существующего материала теперь редактируется в форме материала; action проверяет уникальность `section + slug` и ревалидирует старый и новый patient URL.
+- **Проверки:** targeted `vitest` по settings/CMS/useful_post/repo — **exit 0**, 84 passed (1 skipped); `pnpm --dir apps/webapp exec tsc --noEmit` + `pnpm --dir apps/webapp lint` — **exit 0**; `pnpm --dir apps/webapp run migrate` — **exit 0**.
+
 ## 2026-04-30 — Аудит useful_post / сетки: доведение до плана
 
 - **Сетка `lg+`:** после пары `progress` + `next_reminder` — полоса `sos` (`col-span-12`, order 35), затем `plan` + `mood_checkin` (order 40), затем `courses` + `subscription_carousel` (order 50); карусель снова в правой колонке рядом с курсами.
@@ -18,7 +27,7 @@
 ## 2026-04-30 — Полезный пост (`useful_post`) + референс сетки и карточек главной
 
 - **Цель:** блок `useful_post` (CMS `content_page`, обложка, опциональный бейдж через `badge_label`), новый desktop layout (`warmup`+`useful_post`, `situations`+`booking`, `progress`+`next_reminder`, перестановка нижних рядов), визуальное выравнивание booking/situations/progress/reminder.
-- **Миграция данных:** `apps/webapp/db/drizzle-migrations/0014_patient_home_useful_post.sql` — seed `patient_home_blocks` для `useful_post`, `sort_order = 15`.
+- **Миграция данных:** `apps/webapp/db/drizzle-migrations/0014_patient_home_useful_post.sql` — seed `patient_home_blocks` для `useful_post`, `sort_order = 11`.
 - **Код (основное):** `blocks.ts`, `ports.ts`, `blockEditorMetadata.ts`, `patientHomeResolvers.ts` (`resolveUsefulPostCard`), `patientHomeRuntimeStatus.ts`, `usefulPostPresentation.ts`, `PatientHomeToday.tsx`, `PatientHomeUsefulPostCard.tsx`, `PatientHomeTodayLayout.tsx`, стили `patientHomeCardStyles.ts`, компоненты booking/situations/progress/reminder, настройки врача `actions.ts` (`updatePatientHomeItemPresentation`), `PatientHomeBlockItemsDialog.tsx`, `PatientHomeBlockSettingsCard.tsx`, in-memory порт, `service.ts` (`getItemById`).
 - **Документы:** `VISUAL_SYSTEM_SPEC.md` (§6.2, §7.5, §10.2 реализация, §10.2.1, §10.3–10.6), `BLOCK_EDITOR_CONTRACT.md`, `patient-home.md`.
 - **Проверки:** см. команды в секции «Commands» ниже после прогона.

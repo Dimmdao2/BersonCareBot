@@ -167,6 +167,7 @@ export function PatientHomeBlockSettingsCard({
                 }}
                 pickerTitle="Иконка блока"
                 selectButtonLabel="Выбрать изображение"
+                showPreview={false}
               />
             </div>
             <Button

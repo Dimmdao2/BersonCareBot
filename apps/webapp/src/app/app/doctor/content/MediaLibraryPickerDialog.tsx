@@ -86,6 +86,8 @@ type Props = {
   selectButtonLabel?: string;
   /** For `image_or_video`: persisted type so preview works after reload (bare `/api/media/…`). */
   selectedPreviewKind?: MediaLibrarySelectedPreviewKind;
+  /** Hide selected-file preview/empty text when this picker is used as a compact action control. */
+  showPreview?: boolean;
 };
 
 export function MediaLibraryPickerDialog({
@@ -96,6 +98,7 @@ export function MediaLibraryPickerDialog({
   pickerTitle = "Библиотека файлов",
   selectButtonLabel = "Выбрать из библиотеки",
   selectedPreviewKind,
+  showPreview = true,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [lastPick, setLastPick] = useState<LastPick | null>(null);
@@ -224,35 +227,37 @@ export function MediaLibraryPickerDialog({
   return (
     <div className="flex flex-col gap-2">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-4">
-        <div className="w-full min-w-0 sm:w-[70%] sm:max-w-[70%]">
-          <div className="space-y-2 text-sm">
-            {value ? (
-              <>
-                {previewMode === "video" || previewMode === "image" || previewMode === "gif" ? (
-                  <div
-                    className="overflow-hidden rounded-md border border-border/60 bg-muted/30"
-                    data-testid="selected-media-preview"
-                  >
-                    <MediaThumb
-                      media={selectedPreviewMedia}
-                      className="h-40 w-full"
-                      imgClassName="h-40 w-full object-contain bg-muted/30"
-                      labels={{ skipped: "Превью не создаётся", failed: "Превью недоступно" }}
-                      sizes="160px"
-                    />
-                  </div>
-                ) : null}
-                {!isApiMedia ? (
-                  <p className="text-xs text-amber-700">
-                    Legacy URL: для нового значения используйте выбор из библиотеки.
-                  </p>
-                ) : null}
-              </>
-            ) : (
-              <p className="text-sm text-muted-foreground">Файл не выбран</p>
-            )}
+        {showPreview ? (
+          <div className="w-full min-w-0 sm:w-[70%] sm:max-w-[70%]">
+            <div className="space-y-2 text-sm">
+              {value ? (
+                <>
+                  {previewMode === "video" || previewMode === "image" || previewMode === "gif" ? (
+                    <div
+                      className="overflow-hidden rounded-md border border-border/60 bg-muted/30"
+                      data-testid="selected-media-preview"
+                    >
+                      <MediaThumb
+                        media={selectedPreviewMedia}
+                        className="h-40 w-full"
+                        imgClassName="h-40 w-full object-contain bg-muted/30"
+                        labels={{ skipped: "Превью не создаётся", failed: "Превью недоступно" }}
+                        sizes="160px"
+                      />
+                    </div>
+                  ) : null}
+                  {!isApiMedia ? (
+                    <p className="text-xs text-amber-700">
+                      Legacy URL: для нового значения используйте выбор из библиотеки.
+                    </p>
+                  ) : null}
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground">Файл не выбран</p>
+              )}
+            </div>
           </div>
-        </div>
+        ) : null}
 
         <div className="flex w-full min-w-0 shrink-0 flex-wrap items-center justify-start gap-2 sm:ml-auto sm:flex-1 sm:justify-end">
           <DropdownMenu>

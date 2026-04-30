@@ -138,6 +138,29 @@ describe("patient-home settings actions", () => {
     expect(updateItemMock).toHaveBeenCalledWith("550e8400-e29b-41d4-a716-446655440099", { badgeLabel: "Новый пост" });
   });
 
+  it("updatePatientHomeItemPresentation updates useful_post title visibility", async () => {
+    getItemByIdMock.mockResolvedValue({
+      id: "550e8400-e29b-41d4-a716-446655440099",
+      blockCode: "useful_post",
+      targetType: "content_page",
+      targetRef: "page",
+      titleOverride: null,
+      subtitleOverride: null,
+      imageUrlOverride: null,
+      badgeLabel: null,
+      showTitle: true,
+      isVisible: true,
+      sortOrder: 0,
+    });
+    updateItemMock.mockResolvedValue(undefined);
+    const res = await updatePatientHomeItemPresentation({
+      itemId: "550e8400-e29b-41d4-a716-446655440099",
+      showTitle: false,
+    });
+    expect(res.ok).toBe(true);
+    expect(updateItemMock).toHaveBeenCalledWith("550e8400-e29b-41d4-a716-446655440099", { showTitle: false });
+  });
+
   it("updatePatientHomeItemPresentation rejects non-useful_post items", async () => {
     getItemByIdMock.mockResolvedValue({
       id: "550e8400-e29b-41d4-a716-446655440099",

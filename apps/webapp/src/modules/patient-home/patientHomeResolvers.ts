@@ -60,6 +60,7 @@ export type ResolvedUsefulPostCard = {
   itemId: string;
   slug: string;
   title: string;
+  showTitle: boolean;
   imageUrl: string | null;
   badgeLabel: string | null;
   href: string;
@@ -208,6 +209,7 @@ export async function resolveUsefulPostCard(
       itemId: item.id,
       slug: row.slug,
       title: item.titleOverride?.trim() || row.title,
+      showTitle: item.showTitle !== false,
       imageUrl: item.imageUrlOverride ?? row.imageUrl,
       badgeLabel: trimmedBadge && trimmedBadge.length > 0 ? trimmedBadge : null,
       href: `/app/patient/content/${encodeURIComponent(row.slug)}`,

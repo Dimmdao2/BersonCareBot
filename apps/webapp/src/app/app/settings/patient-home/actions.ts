@@ -181,28 +181,34 @@ export async function updatePatientHomeItemVisibility(
 
 export async function updatePatientHomeItemPresentation(input: {
   itemId: string;
-  badgeLabel: string | null;
+  badgeLabel?: string | null;
+  showTitle?: boolean;
 }): Promise<ActionState> {
   try {
     await requireDoctorForPatientHomeBlocks();
     const idParsed = parsePatientHomeItemId(input.itemId);
     if (!idParsed.ok) return fail(idParsed.error);
 
-    const raw = input.badgeLabel;
-    let badgeLabel: string | null;
-    if (raw === null || (typeof raw === "string" && raw.trim() === "")) {
-      badgeLabel = null;
-    } else if (typeof raw === "string" && raw.trim() === PATIENT_HOME_USEFUL_POST_BADGE_LABEL) {
-      badgeLabel = PATIENT_HOME_USEFUL_POST_BADGE_LABEL;
-    } else {
-      return fail("invalid_badge_label");
-    }
-
     const deps = buildAppDeps();
     const item = await deps.patientHomeBlocks.getItemById(idParsed.id);
     if (!item || item.blockCode !== "useful_post") return fail("invalid_item_for_badge");
 
-    await deps.patientHomeBlocks.updateItem(idParsed.id, { badgeLabel });
+    const patch: { badgeLabel?: string | null; showTitle?: boolean } = {};
+    if (input.badgeLabel !== undefined) {
+      const raw = input.badgeLabel;
+      if (raw === null || (typeof raw === "string" && raw.trim() === "")) {
+        patch.badgeLabel = null;
+      } else if (typeof raw === "string" && raw.trim() === PATIENT_HOME_USEFUL_POST_BADGE_LABEL) {
+        patch.badgeLabel = PATIENT_HOME_USEFUL_POST_BADGE_LABEL;
+      } else {
+        return fail("invalid_badge_label");
+      }
+    }
+    if (input.showTitle !== undefined) {
+      patch.showTitle = input.showTitle;
+    }
+
+    await deps.patientHomeBlocks.updateItem(idParsed.id, patch);
     revalidatePatientHomeSettings();
     return { ok: true };
   } catch (error) {

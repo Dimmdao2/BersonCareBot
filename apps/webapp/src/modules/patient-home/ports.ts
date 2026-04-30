@@ -26,6 +26,8 @@ export type PatientHomeBlockItem = {
   subtitleOverride: string | null;
   imageUrlOverride: string | null;
   badgeLabel: string | null;
+  /** For cover-style cards, controls whether target/title text is visibly rendered. Defaults to true. */
+  showTitle?: boolean;
   isVisible: boolean;
   sortOrder: number;
 };
@@ -49,6 +51,7 @@ export type PatientHomeBlockItemAddInput = {
   subtitleOverride?: string | null;
   imageUrlOverride?: string | null;
   badgeLabel?: string | null;
+  showTitle?: boolean;
   isVisible?: boolean;
   sortOrder?: number;
 };
@@ -60,6 +63,7 @@ export type PatientHomeBlockItemPatch = Partial<
     | "subtitleOverride"
     | "imageUrlOverride"
     | "badgeLabel"
+    | "showTitle"
     | "isVisible"
     | "sortOrder"
     | "targetRef"

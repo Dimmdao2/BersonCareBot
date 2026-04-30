@@ -93,6 +93,7 @@ export function createInMemoryPatientHomeBlocksPort(): PatientHomeBlocksPort {
         subtitleOverride: input.subtitleOverride ?? null,
         imageUrlOverride: input.imageUrlOverride ?? null,
         badgeLabel: input.badgeLabel ?? null,
+        showTitle: input.showTitle ?? true,
         isVisible: input.isVisible ?? true,
         sortOrder,
       });

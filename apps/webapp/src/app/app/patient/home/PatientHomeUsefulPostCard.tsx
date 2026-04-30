@@ -14,6 +14,7 @@ export function PatientHomeUsefulPostCard({ post }: Props) {
       <Link
         href={post.href}
         prefetch={false}
+        aria-label={post.showTitle ? undefined : post.title}
         className={cn(
           patientHomeUsefulPostCardShellClass,
           "group relative isolate block min-h-[172px] overflow-hidden p-0 lg:h-[300px] lg:min-h-0",
@@ -42,7 +43,11 @@ export function PatientHomeUsefulPostCard({ post }: Props) {
           : null}
           <h2
             id="patient-home-useful-post-heading"
-            className="line-clamp-3 text-xl font-medium leading-6 tracking-[-0.015em] text-white lg:text-2xl lg:leading-7"
+            className={cn(
+              post.showTitle
+                ? "line-clamp-3 text-xl font-medium leading-6 tracking-[-0.015em] text-white lg:text-2xl lg:leading-7"
+                : "sr-only",
+            )}
           >
             {post.title}
           </h2>
