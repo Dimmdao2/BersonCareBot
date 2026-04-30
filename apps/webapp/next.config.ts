@@ -5,8 +5,15 @@ const withAnalyzer = withBundleAnalyzer({
   enabled: process.env.ANALYZE === "true",
 });
 
+const allowedDevOrigins = [
+  "127.0.0.1:15200",
+  "localhost:15200",
+  ...(process.env.NEXT_ALLOWED_DEV_ORIGINS?.split(",").map((origin) => origin.trim()).filter(Boolean) ?? []),
+];
+
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  allowedDevOrigins,
   output: "standalone",
   /** Native / dynamic-require deps: do not bundle for Turbopack (media preview worker). */
   serverExternalPackages: [
