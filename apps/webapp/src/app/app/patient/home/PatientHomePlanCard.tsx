@@ -26,15 +26,18 @@ type Props = {
   personalTierOk?: boolean;
 };
 
-function LeadingPlanIcon({ blockIconImageUrl }: { blockIconImageUrl?: string | null }) {
+function LeadingPlanIcon({ blockIconImageUrl, emphasized = false }: { blockIconImageUrl?: string | null; emphasized?: boolean }) {
   return (
-    <div className={patientIconLeadingClass} aria-hidden>
+    <div
+      className={cn(patientIconLeadingClass, emphasized && "size-12 rounded-2xl bg-[var(--patient-color-primary-soft)]/60 lg:size-14")}
+      aria-hidden
+    >
       <PatientHomeSafeImage
         src={blockIconImageUrl}
         alt=""
-        className="size-6 rounded-md object-cover"
+        className={cn("rounded-md object-cover", emphasized ? "size-7" : "size-6")}
         loading="lazy"
-        fallback={<ClipboardList className="size-6" />}
+        fallback={<ClipboardList className={emphasized ? "size-7 text-[var(--patient-color-primary)]" : "size-6"} />}
       />
     </div>
   );
@@ -59,7 +62,7 @@ export function PatientHomePlanCard({
             Мой план
           </p>
           <div className="flex min-h-0 flex-1 gap-3">
-            <LeadingPlanIcon blockIconImageUrl={blockIconImageUrl} />
+            <LeadingPlanIcon blockIconImageUrl={blockIconImageUrl} emphasized />
             <div className="flex min-h-0 min-w-0 flex-1 flex-col justify-center">
               <h2 className={patientHomePlanTitleClampClass}>Нет активного плана</h2>
               <p className={patientHomePlanSubtitleClampClass}>

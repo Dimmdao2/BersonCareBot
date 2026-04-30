@@ -35,7 +35,7 @@ export const patientButtonGhostLinkClass = cn(
 );
 
 export const patientButtonDangerOutlineClass = cn(
-  "inline-flex min-h-10 w-full min-w-0 items-center justify-center gap-2 rounded-md border border-[var(--patient-color-danger)] bg-[var(--patient-card-bg)] px-4 text-sm font-bold text-[#dc2626] transition-colors",
+  "inline-flex min-h-10 min-w-0 items-center justify-center gap-2 rounded-md border border-[var(--patient-color-danger)] bg-[var(--patient-card-bg)] px-4 text-sm font-bold text-[#dc2626] transition-colors",
   "hover:bg-[var(--patient-color-danger-soft)] active:bg-[var(--patient-color-danger-soft)]",
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-danger)]",
 );

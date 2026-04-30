@@ -94,10 +94,10 @@ export function PatientHomeDailyWarmupCard({ warmup, personalTierOk, anonymousGu
               prefetch={false}
               className={cn(
                 patientButtonPrimaryClass,
-                "min-h-10 w-fit shrink-0 rounded-lg px-4 text-sm font-bold shadow-[0_6px_14px_rgba(40,77,160,0.24)] lg:min-h-12 lg:w-[22rem] lg:pr-5 lg:text-base xl:w-[24rem]",
+                "min-h-11 w-fit shrink-0 rounded-lg px-4 py-2 text-sm font-bold shadow-[0_6px_14px_rgba(40,77,160,0.24)] lg:min-h-12 lg:w-[22rem] lg:pr-5 lg:text-base xl:w-[24rem]",
               )}
             >
-              <PlayCircle className="size-4 shrink-0 lg:size-5" aria-hidden />
+              <PlayCircle className="size-5 shrink-0 lg:size-6" aria-hidden />
               Начать разминку
             </Link>
             {anonymousGuest || !personalTierOk ?

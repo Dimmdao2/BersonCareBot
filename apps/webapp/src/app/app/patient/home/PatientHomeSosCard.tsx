@@ -48,11 +48,26 @@ export function PatientHomeSosCard({ sos, blockIconImageUrl }: Props) {
                   .
                 </p>}
             </div>
-            <div className={patientHomeSosThumbSlotClass} aria-hidden>
-              <PatientHomeSafeImage src={sos.imageUrl} alt="" className="size-full object-cover opacity-60" loading="lazy" />
-            </div>
+            {sos.imageUrl ?
+              <div className={patientHomeSosThumbSlotClass} aria-hidden>
+                <PatientHomeSafeImage
+                  src={sos.imageUrl}
+                  alt=""
+                  className="size-full object-cover opacity-60"
+                  loading="lazy"
+                  fallback={<div className="size-full bg-[var(--patient-color-danger-soft)]/40" aria-hidden />}
+                />
+              </div>
+            : null}
           </div>
-          <span className={cn(patientButtonDangerOutlineClass, "relative z-[1] shrink-0")}>Открыть</span>
+          <span
+            className={cn(
+              patientButtonDangerOutlineClass,
+              "relative z-[1] mt-1 min-w-[8rem] shrink-0 self-start px-5 lg:mt-2 lg:px-6",
+            )}
+          >
+            Открыть
+          </span>
         </article>
       </Link>
     </section>

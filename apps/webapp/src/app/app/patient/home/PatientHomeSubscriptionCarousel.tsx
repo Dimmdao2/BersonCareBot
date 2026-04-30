@@ -41,7 +41,11 @@ export function PatientHomeSubscriptionCarousel({ cards, sectionTitle }: Props) 
             href={c.href}
             prefetch={false}
             data-testid="patient-home-subscription-carousel-item"
-            className={cn(patientHomeCardCompactClass, patientHomeCarouselItemLayoutClass)}
+            className={cn(
+              patientHomeCardCompactClass,
+              patientHomeCarouselItemLayoutClass,
+              cards.length === 1 && "lg:w-full lg:max-w-none lg:min-w-0",
+            )}
           >
             <div className="flex min-h-0 flex-1 gap-3">
               <div className={patientHomeCardMediaSlotClass}>

@@ -1,5 +1,61 @@
 # PATIENT_HOME_REDESIGN_INITIATIVE — LOG
 
+## 2026-05-01 — QA волна: фазы A+B+C (план patient-home-qa-fixes)
+
+- **Ветка:** `feat/patient-home-cms-editor-uxlift-2026-04-29`.
+- **Фаза A — карточки:**
+  - **Ситуации:** `patientHomeSituationTileTitleClass` — `flex min-h-[2rem] … items-start justify-center`, на lg `lg:min-h-[2.25rem]`, чтобы подписи в 1 vs 2 строки не «прыгали» по вертикали относительно соседних плиток.
+  - **SOS:** правый thumbnail рендерится только при непустом `sos.imageUrl`; при загрузке ошибки — `fallback` с мягким `danger-soft` фоном вместо broken-image.
+  - **`useful_post` бейдж:** `patientHomeUsefulPostCoverBadgeClass` — `truncate`; в `PatientHomeUsefulPostCard` позиция `right-3 top-3`, на ≤360px `max-[360px]:max-w-[8rem]` в дополнение к `max-w-[min(100%,11rem)]`.
+  - **`patientButtonDangerOutlineClass`:** убран глобальный `w-full` ([`patientVisual.ts`](apps/webapp/src/shared/ui/patientVisual.ts)); в SOS CTA убран лишний `w-fit` (остаётся `inline-flex` + `min-w-[8rem]`).
+- **Фаза B — desktop пары:**
+  - **`subscription_carousel`:** при `cards.length === 1` на item добавлены `lg:w-full lg:max-w-none lg:min-w-0`, чтобы единственная карточка заполняла правую колонку сетки.
+  - **План + самочувствие:** `patientHomeSecondaryCardTallHeightClass` — `lg:h-[188px]` → `lg:h-[208px]` вровень с `patientHomeMoodCardGeometryClass` (`lg:h-[208px]`).
+  - **План empty-state:** `LeadingPlanIcon` с опцией `emphasized` — крупнее контейнер и иконка (пустое состояние визуально ближе к насыщенности mood-блока).
+- **Фаза C — документация:** добавлен [`CONTENT_GUIDE.md`](CONTENT_GUIDE.md) (бейдж `useful_post`, hero/useful_post изображения, отсылка к CMS-таску на ассет разминки).
+- **Проверки:** `eslint` на изменённых ts/tsx; `vitest --run` — `PatientHomeSituationsRow`, `PatientHomeSosCard`, `PatientHomeUsefulPostCard`, `PatientHomeSubscriptionCarousel`, `PatientHomePlanCard`, `PatientHomeMoodCheckin`, `PatientHomeTodayLayout` — **22 passed**.
+
+## 2026-05-01 — QA главной: hero ширина, бейджи, SOS CTA, desktop grid
+
+- **Ветка:** `feat/patient-home-cms-editor-uxlift-2026-04-29`.
+- **Что исправлено по фидбэку «перенос слов в Разминке дня, бейджи разные, хаос внизу»:**
+  - **Hero text-column ширина (`patientHomeHeroTextColumnClass`):** `pr-[144px] min-[380px]:pr-[160px]` → `pr-[100px] min-[380px]:pr-[124px] min-[415px]:pr-[160px]`. На <415px текст-колонка получает 55–60% ширины карточки вместо ~40%, заголовок и кнопка перестают переноситься, image-slot декоративен (z-1) и допускает лёгкий нахлёст текстом (z-10).
+  - **Hero title clamp:** `max-w-[min(100%,210px)]` → `max-w-[min(100%,240px)]` (mobile cap поднят, чтобы не резать на узких).
+  - **Hero summary clamp:** `205px / 214px` → `235px / 240px`.
+  - **CTA «Начать разминку» (`PatientHomeDailyWarmupCard`):** `min-h-10 px-4` → `min-h-11 px-4 py-2` (44px, лучший tap-target, нормальный вертикальный padding); `PlayCircle` `size-4 lg:size-5` → `size-5 lg:size-6` (20→24px), пропорционально шрифту кнопки.
+  - **Бейджи hero и useful_post — приведены к одинаковому внешнему размеру (h-6):** у hero `border` заменён на `ring-1 ring-inset ring-[#e0e7ff]`, у useful_post `ring-1 ring-white/35` → `ring-1 ring-inset ring-white/40`. До этого hero был border-box (24px outside), а useful_post — `ring-1` (наружный) + `shadow-md` ⇒ визуально 26+px outside и казался крупнее. После правок outside-размеры совпадают, остаётся только разница цвета (синий vs красный) и `shadow-md` у cover-бейджа (легитимный «лифт» поверх фото).
+  - **SOS «Открыть» (`PatientHomeSosCard`):** локальное переопределение `patientButtonDangerOutlineClass` (в нём зашит `w-full`) — теперь `w-fit min-w-[8rem] self-start px-5 lg:px-6 mt-1`. Кнопка перестала растягиваться по всей ширине карточки и больше не выглядит разделителем.
+  - **Desktop grid auto-flow (`PatientHomeTodayLayout`):**
+    - У всех блоков добавлен явный `lg:col-start-{1|9}` в className (раньше был только `data-lg-col-start` для тестов, в Tailwind-классах его не было ⇒ позиция определялась DOM-порядком из `sort_order`).
+    - На grid-родителе включён `lg:grid-flow-row-dense` — backfill пустых ячеек, чтобы пары `(col-span-8, col-span-4)` всегда лежали на одной строке независимо от DOM-порядка. Это устраняет ситуацию, когда `subscription_carousel` (sort_order < `courses`) вылезал в левую 4-кол колонку, `courses` уезжал на следующую строку слева, а `mood_checkin` оказывался выше `plan` отдельной строкой.
+- **Параллельные косяки (зафиксированы как наблюдения, без правок в этом проходе):**
+  1. **Hero image clipping (mobile):** фигура на правом краю карточки обрезается при `right-4 w-[132px]` — пользователь подтвердил, что причина — сам ассет (быстрый crop CMS), решение — заменить файл или включить `object-contain` + `object-right-bottom`.
+  2. **`useful_post` бейдж «Новый пост»:** текст бейджа задан в CMS (`badge_label`); `max-w-[min(100%,11rem)]` уже стоит, но при длинном label на узких mobile (≤ 360px) бейдж может уезжать за край. Радикальное решение — короткий label.
+  3. **Mood vs Plan высоты на lg:** при `lg:items-stretch` карточки выравниваются по строке, но содержимое внутри (5 emoji vs «Нет активного плана» + ссылка) визуально неравновесное; стоило бы вынести CTA планa в `mt-auto` и поднять `lg:min-h` до общего значения, либо переосмыслить пару.
+  4. **`subscription_carousel` пустое пространство:** при единственной активной материалке внутренняя карточка `w-fit`, остаётся ~40% пустоты в правой 4-кол колонке. Решение — дать карточке `w-full max-w-[280px]` или добавить empty-state-ассет.
+  5. **`patientButtonDangerOutlineClass` имеет `w-full` глобально** — другие места (если есть) могут тоже хотеть `w-fit`. Локальный override в SOS card не трогает класс глобально (по плану безопаснее, чем менять `patientVisual.ts`).
+  6. **Bottom-nav avatar (mobile):** чёрный круг с `N` — это Turbopack-индикатор (dev-only), пользователь подтвердил «забей».
+- **Проверки:**
+  - `pnpm --dir apps/webapp exec vitest --run PatientHomeTodayLayout PatientHomeSosCard PatientHomeDailyWarmupCard PatientHomeSituationsRow` — **8 passed**.
+  - `pnpm exec eslint patientHomeCardStyles.ts PatientHomeDailyWarmupCard.tsx PatientHomeSosCard.tsx PatientHomeTodayLayout.tsx` — **exit 0**.
+  - Visual QA headless Chromium: mobile `390x1400` — заголовок «Разминка для позвоночника» в 2 строки, кнопка одной строкой, иконка 20px; desktop `1366x2200` — пары `plan+mood`, `courses+subscription` лежат на одной строке корректно, SOS «Открыть» компактен с `min-w-[8rem]`.
+
+## 2026-05-01 — QA главной: выравнивание первой иконки ситуаций и опись косяков
+
+- **Ветка:** `feat/patient-home-cms-editor-uxlift-2026-04-29`.
+- **Scope:** мобильное выравнивание блока `situations` и фиксация косяков, замеченных в визуальном QA главной (без массовых правок других блоков).
+- **Что исправлено:**
+  - **Левый отступ ряда ситуаций (mobile):** `patientHomeTodayCardScrollRowBleedClass` — `pl-4` → `pl-[11px]`, `scroll-pl-4` → `scroll-pl-[11px]`, `pr-3` → `pr-2`. Tile shell (`w-[4.5rem]`, 72px) с `items-center` и media `size-[3.75rem]` (60px) даёт +6px между tile-краем и media-краем; компенсация `pl-[11px]` (≈ 16 − 5px) выводит левый край первой иконки на одну вертикаль с левым краем контента других карточек (`shell-padding 20 + card border 1 + card padding 16 ≈ 37px от края экрана`).
+  - Перепроверено визуально mobile `390x844`: first tile «Офисная работа» теперь стоит ровно под левым краем бейджа `«РАЗМИНКА ДНЯ»` в hero-карточке.
+- **Косяки, найденные в визуальном QA (зафиксированы как наблюдения, без правок):**
+  1. **Hero «Разминка дня»**: image slot (`patientHomeHeroImageSlotClass`, `right-4 h-[156px] w-[132px]`) обрезает фигуру у правого края на узких mobile (≤ 390px). Возможно желательно, но смотрится как обрезание; решение — либо `object-contain` + `right-0`, либо корректный crop CMS.
+  2. **`useful_post` бейдж**: «НОВЫЙ ПОСТ» обрезается у правого края на mobile. Бейдж absolute, без `max-w` и `right-x` clamp; решение — фикс позиции + `max-w` или сокращение текста (`badge_label` короче) в CMS.
+  3. **`situations` подписи**: `patientHomeSituationTileTitleClass` без `min-h`, поэтому подписи в 1 vs 2 строки выравниваются неровно по нижнему краю плиток. Решение — `min-h-[2.5rem]` и `flex items-start` для блока подписи.
+  4. **Bottom nav avatar**: чёрный круг с буквой `N` на mobile bottom nav не согласован с patient-аватаром hero (`var(--patient-color-primary-soft)` + indigo текст). Стоит унифицировать палитру.
+  5. **`patientHomeSituationsCardGeometryClass`**: `overflow-visible` на mobile нужен для hover/ring, но вместе с `-mx-4` в bleed-row позволяет ряду визуально касаться правого края шелла без зазора — для вертикального ритма стоило бы зафиксировать `min-h` плиток.
+  6. **Padding всей mobile-сетки**: `safe-padding-patient` = `1.25rem` (20px) + card `p-4` (16px) дают ≈ 36–37px content-x для большинства блоков; ситуации без border теперь приведены к этому же якорю — но любое будущее изменение `safe-padding-patient` сместит эту опорную линию для всех карточек одновременно.
+- **Проверки:** `pnpm exec eslint src/app/app/patient/home/patientHomeCardStyles.ts` — exit 0; визуальный smoke headless Chromium mobile подтверждает выравнивание первой иконки. Тесты не менялись (геометрия в DOM не проверяется текстовыми селекторами).
+
 ## 2026-05-01 — QA главной: блок ситуаций, мобильный chrome и media preview fallback
 
 - **Ветка:** `feat/patient-home-cms-editor-uxlift-2026-04-29`.

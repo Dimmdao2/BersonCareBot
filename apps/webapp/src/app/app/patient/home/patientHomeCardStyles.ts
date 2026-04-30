@@ -85,11 +85,14 @@ export const patientHomeFeatureBadgeBaseClass = cn(
   "text-[11px] font-semibold uppercase leading-none tracking-[0.02em]",
 );
 
-/** Бейдж на cover карточки «Полезный пост» — акцентный кирпичный; позиционирование — в компоненте. */
+/**
+ * Бейдж на cover карточки «Полезный пост» — акцентный кирпичный; позиционирование — в компоненте.
+ * `ring-inset` (а не наружный ring) — чтобы внешний размер совпадал с hero-бейджем (h-6).
+ */
 export const patientHomeUsefulPostCoverBadgeClass = cn(
   patientHomeFeatureBadgeBaseClass,
-  "max-w-[min(100%,11rem)] text-white shadow-md",
-  "bg-[#c0392b] ring-1 ring-white/35",
+  "max-w-[min(100%,11rem)] truncate text-white shadow-md",
+  "bg-[#c0392b] ring-1 ring-inset ring-white/40",
 );
 
 /** Primary pill badge. */
@@ -98,14 +101,17 @@ export const patientBadgePrimaryClass = cn(
   "bg-[var(--patient-color-primary-soft)] text-[#3730a3]",
 );
 
+/** `ring-inset` (а не `border`) — чтобы pill совпадал по внешнему размеру с cover-badge useful_post. */
 export const patientHomeHeroBadgeClass = cn(
   patientHomeFeatureBadgeBaseClass,
-  "max-w-[min(100%,9.5rem)] whitespace-nowrap border border-[#e0e7ff] bg-white text-[var(--patient-color-primary)]",
+  "max-w-[min(100%,9.5rem)] whitespace-nowrap bg-white text-[var(--patient-color-primary)]",
+  "ring-1 ring-inset ring-[#e0e7ff]",
 );
 
 export const patientHomeHeroDurationBadgeClass = cn(
   patientHomeFeatureBadgeBaseClass,
-  "max-w-[min(100%,5.5rem)] gap-1 whitespace-nowrap border border-[#e0e7ff] bg-[var(--patient-card-bg)] text-[var(--patient-color-primary)]",
+  "max-w-[min(100%,5.5rem)] gap-1 whitespace-nowrap bg-[var(--patient-card-bg)] text-[var(--patient-color-primary)]",
+  "ring-1 ring-inset ring-[#e0e7ff]",
 );
 
 export const patientBadgeSuccessClass = cn(
@@ -179,7 +185,7 @@ export const patientHomeSecondaryCardShortHeightClass = cn(
  */
 export const patientHomeSecondaryCardTallHeightClass = cn(
   patientHomeSecondaryCardShellClass,
-  "h-[168px] sm:h-[176px] lg:h-[188px]",
+  "h-[168px] sm:h-[176px] lg:h-[208px]",
 );
 
 /**
@@ -263,7 +269,8 @@ export const patientHomeTodayCardSectionStackClass = "flex min-w-0 flex-col gap-
 export const patientHomeTodayCardScrollRowBleedClass = cn(
   /* Mobile: py-0 — без вертикального «второго» отступа внутри карточки; lg: лёгкий py, чтобы hover translate/ring не резались. */
   "mt-0 flex min-h-0 min-w-0 flex-1 gap-3 overflow-x-auto py-0 lg:py-1.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
-  "-mx-4 scroll-pl-4 pl-4 pr-3",
+  /* `-mx-4` компенсирует card `px-4`; `pl-[11px]` подобран так, чтобы media первой плитки (60px в 72px tile, items-center) визуально выровнялась с левым краем контента других карточек (border 1 + padding 16). `pr-2` оставляет правый peek, не вынося плитку за визуальный край шелла. */
+  "-mx-4 scroll-pl-[11px] pl-[11px] pr-2",
   /* Не использовать repeat(...,minmax(...)) в одном arbitrary grid-cols — запятая ломает класс в Tailwind → одна колонка и вертикальный столбик на lg */
   "lg:mx-0 lg:mt-2 lg:grid lg:grid-cols-6 lg:content-start lg:items-start lg:gap-3 lg:overflow-x-auto lg:px-0 lg:pr-0 lg:scroll-pl-0",
 );
@@ -301,22 +308,28 @@ export const patientHomeHeroCardGeometryClass = cn(
   "min-h-[192px] p-4 min-[380px]:min-h-[204px] lg:h-[300px] lg:min-h-0 lg:p-5 xl:h-[300px]",
 );
 
-/** Hero: колонка текста с отступом под фиксированный image-slot справа. */
+/**
+ * Hero: колонка текста с отступом под фиксированный image-slot справа.
+ *
+ * Mobile <415px: уменьшенный `pr` (≈100/124px вместо 160px), чтобы заголовок и кнопка
+ * получали ~55–60% ширины карточки, а не ~40%. Image-slot декоративен и располагается
+ * за text-column (z-1 vs z-10), поэтому небольшой визуальный нахлёст безопасен.
+ */
 export const patientHomeHeroTextColumnClass = cn(
   "relative z-10 flex flex-1 flex-col lg:min-h-0",
-  "pr-[144px] min-[380px]:pr-[160px] lg:pr-[244px] xl:pr-[268px]",
+  "pr-[100px] min-[380px]:pr-[124px] min-[415px]:pr-[160px] lg:pr-[244px] xl:pr-[268px]",
 );
 
 /** Hero: заголовок (крупнее на mobile), line-clamp-2 — тон как у заголовков блоков «Сегодня». */
 export const patientHomeHeroTitleClampClass = cn(
   "min-w-0",
-  "mt-2 max-w-[min(100%,210px)] text-[18px] font-semibold leading-6 tracking-[-0.015em] text-[var(--patient-block-heading)] min-[380px]:text-[20px] min-[380px]:leading-[26px] lg:mt-4 lg:max-w-[min(100%,390px)] lg:line-clamp-2 lg:text-[34px] lg:leading-10 xl:text-[36px] xl:leading-[42px]",
+  "mt-2 max-w-[min(100%,240px)] text-[18px] font-semibold leading-6 tracking-[-0.015em] text-[var(--patient-block-heading)] min-[380px]:text-[20px] min-[380px]:leading-[26px] lg:mt-4 lg:max-w-[min(100%,390px)] lg:line-clamp-2 lg:text-[34px] lg:leading-10 xl:text-[36px] xl:leading-[42px]",
 );
 
 /** Hero: summary, line-clamp-2. */
 export const patientHomeHeroSummaryClampClass = cn(
   "min-w-0",
-  "mt-1 max-w-[min(100%,205px)] text-[12px] leading-4 text-[var(--patient-text-secondary)] min-[380px]:max-w-[min(100%,214px)] min-[380px]:text-[13px] min-[380px]:leading-[18px] lg:mt-4 lg:max-w-[min(100%,330px)] lg:line-clamp-2 lg:text-[15px] lg:leading-[22px]",
+  "mt-1 max-w-[min(100%,235px)] text-[12px] leading-4 text-[var(--patient-text-secondary)] min-[380px]:max-w-[min(100%,240px)] min-[380px]:text-[13px] min-[380px]:leading-[18px] lg:mt-4 lg:max-w-[min(100%,330px)] lg:line-clamp-2 lg:text-[15px] lg:leading-[22px]",
 );
 
 /** Hero: фиксированный слот картинки / декора справа снизу. */
@@ -358,7 +371,7 @@ export const patientHomeSituationTileMediaClass = cn(
 /** Подпись под иконкой ситуации — `patientHomeBlockCaptionTypographyClass` + выравнивание под плитку. */
 export const patientHomeSituationTileTitleClass = cn(
   patientHomeBlockCaptionTypographyClass,
-  "mx-auto mt-1.5 min-w-0 max-w-[5.25rem] whitespace-normal break-words text-center lg:mt-2 lg:max-w-[5.5rem]",
+  "mx-auto mt-1.5 flex min-h-[2rem] min-w-0 max-w-[5.25rem] items-start justify-center whitespace-normal break-words text-center lg:mt-2 lg:min-h-[2.25rem] lg:max-w-[5.5rem]",
 );
 
 /** Fixed companion geometry for the row paired with booking on desktop. */

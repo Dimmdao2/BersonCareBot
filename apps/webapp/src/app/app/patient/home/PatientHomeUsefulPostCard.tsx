@@ -37,7 +37,7 @@ export function PatientHomeUsefulPostCard({ post }: Props) {
           <span
             className={cn(
               patientHomeUsefulPostCoverBadgeClass,
-              "pointer-events-none absolute top-4 right-4 z-[3] lg:top-5 lg:right-5",
+              "pointer-events-none absolute right-3 top-3 z-[3] max-[360px]:max-w-[8rem] lg:right-5 lg:top-5",
             )}
           >
             {post.badgeLabel}

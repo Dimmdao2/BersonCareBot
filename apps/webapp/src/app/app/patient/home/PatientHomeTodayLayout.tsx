@@ -24,42 +24,42 @@ function desktopBlockLayout(code: PatientHomeBlockCode): {
   switch (code) {
     case "daily_warmup":
       return {
-        className: "lg:col-span-8 lg:order-[10]",
+        className: "lg:col-span-8 lg:col-start-1 lg:order-[10]",
         "data-lg-order": "10",
         "data-lg-col-start": "1",
         "data-lg-col-span": "8",
       };
     case "useful_post":
       return {
-        className: "lg:col-span-4 lg:order-[10]",
+        className: "lg:col-span-4 lg:col-start-9 lg:order-[10]",
         "data-lg-order": "10",
         "data-lg-col-start": "9",
         "data-lg-col-span": "4",
       };
     case "situations":
       return {
-        className: "lg:col-span-8 lg:order-[20]",
+        className: "lg:col-span-8 lg:col-start-1 lg:order-[20]",
         "data-lg-order": "20",
         "data-lg-col-start": "1",
         "data-lg-col-span": "8",
       };
     case "booking":
       return {
-        className: "lg:col-span-4 lg:order-[20]",
+        className: "lg:col-span-4 lg:col-start-9 lg:order-[20]",
         "data-lg-order": "20",
         "data-lg-col-start": "9",
         "data-lg-col-span": "4",
       };
     case "progress":
       return {
-        className: "lg:col-span-8 lg:order-[30]",
+        className: "lg:col-span-8 lg:col-start-1 lg:order-[30]",
         "data-lg-order": "30",
         "data-lg-col-start": "1",
         "data-lg-col-span": "8",
       };
     case "next_reminder":
       return {
-        className: "lg:col-span-4 lg:order-[30]",
+        className: "lg:col-span-4 lg:col-start-9 lg:order-[30]",
         "data-lg-order": "30",
         "data-lg-col-start": "9",
         "data-lg-col-span": "4",
@@ -67,35 +67,35 @@ function desktopBlockLayout(code: PatientHomeBlockCode): {
     /** Раньше SOS стоял справа от progress; после пары progress+reminder — отдельная полоса на всю ширину. */
     case "sos":
       return {
-        className: "lg:col-span-12 lg:order-[35]",
+        className: "lg:col-span-12 lg:col-start-1 lg:order-[35]",
         "data-lg-order": "35",
         "data-lg-col-start": "1",
         "data-lg-col-span": "12",
       };
     case "plan":
       return {
-        className: "lg:col-span-8 lg:order-[40]",
+        className: "lg:col-span-8 lg:col-start-1 lg:order-[40]",
         "data-lg-order": "40",
         "data-lg-col-start": "1",
         "data-lg-col-span": "8",
       };
     case "mood_checkin":
       return {
-        className: "lg:col-span-4 lg:order-[40]",
+        className: "lg:col-span-4 lg:col-start-9 lg:order-[40]",
         "data-lg-order": "40",
         "data-lg-col-start": "9",
         "data-lg-col-span": "4",
       };
     case "courses":
       return {
-        className: "lg:col-span-8 lg:order-[50]",
+        className: "lg:col-span-8 lg:col-start-1 lg:order-[50]",
         "data-lg-order": "50",
         "data-lg-col-start": "1",
         "data-lg-col-span": "8",
       };
     case "subscription_carousel":
       return {
-        className: "lg:col-span-4 lg:order-[50]",
+        className: "lg:col-span-4 lg:col-start-9 lg:order-[50]",
         "data-lg-order": "50",
         "data-lg-col-start": "9",
         "data-lg-col-span": "4",
@@ -112,7 +112,11 @@ export function PatientHomeTodayLayout({ personalizedName, timeOfDayPrefix, bloc
       <PatientHomeGreeting personalizedName={personalizedName} timeOfDayPrefix={timeOfDayPrefix} />
 
       <div
-        className="grid w-full min-w-0 gap-5 lg:grid-cols-12 lg:items-stretch lg:gap-5 xl:gap-6"
+        /**
+         * `lg:grid-flow-row-dense` — чтобы пары (col-span-8 + col-span-4) держались на одной строке
+         * вне зависимости от DOM-порядка (`sort_order` в БД может ставить правый col перед левым).
+         */
+        className="grid w-full min-w-0 gap-5 lg:grid-cols-12 lg:grid-flow-row-dense lg:items-stretch lg:gap-5 xl:gap-6"
         data-testid="patient-home-layout-grid"
       >
         {blocks.map((block) => {
