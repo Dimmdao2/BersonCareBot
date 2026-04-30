@@ -126,5 +126,16 @@ export function createInMemoryPatientHomeBlocksPort(): PatientHomeBlocksPort {
         items.set(itemId, { ...current, sortOrder: i + 1 });
       }
     },
+
+    async retargetContentPageItems(_contentPageId: string, oldSlug: string, newSlug: string) {
+      const oldT = oldSlug.trim();
+      if (!oldT) return;
+      for (const [id, item] of items) {
+        if (item.targetType !== "content_page") continue;
+        if (item.targetRef.trim() !== oldT) continue;
+        items.set(id, { ...item, targetRef: newSlug });
+      }
+      syncItems();
+    },
   };
 }

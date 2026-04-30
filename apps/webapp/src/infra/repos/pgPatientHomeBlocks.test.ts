@@ -97,6 +97,26 @@ describe("patient home blocks port (in-memory)", () => {
     expect((await port.getItemById(id))?.targetRef).toBe("b");
   });
 
+  it("retargetContentPageItems updates content_page items matching old slug", async () => {
+    const port = createInMemoryPatientHomeBlocksPort();
+    const idOld = await port.addItem({
+      blockCode: "useful_post",
+      targetType: "content_page",
+      targetRef: "article-old",
+      isVisible: true,
+    });
+    await port.addItem({
+      blockCode: "sos",
+      targetType: "content_section",
+      targetRef: "section-x",
+      isVisible: true,
+    });
+    await port.retargetContentPageItems("11111111-1111-4111-8111-111111111111", "article-old", "article-new");
+    expect((await port.getItemById(idOld))?.targetRef).toBe("article-new");
+    const sos = (await port.listBlocksWithItems()).find((b) => b.code === "sos")?.items[0];
+    expect(sos?.targetRef).toBe("section-x");
+  });
+
   it("setBlockIcon updates block iconImageUrl", async () => {
     const port = createInMemoryPatientHomeBlocksPort();
     await port.setBlockIcon("sos", "https://media.example/sos.png");

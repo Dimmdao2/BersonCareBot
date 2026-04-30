@@ -208,6 +208,10 @@ export function createPatientHomeBlocksService(deps: PatientHomeServiceDeps) {
       await deps.port.reorderItems(parsedCode, orderedItemIds);
     },
 
+    async retargetContentPageItems(contentPageId: string, oldSlug: string, newSlug: string): Promise<void> {
+      await deps.port.retargetContentPageItems(contentPageId, oldSlug, newSlug);
+    },
+
     async listCandidatesForBlock(blockCode: string): Promise<Candidate[]> {
       const parsedCode = parseBlockCode(blockCode);
       const allowedTypes = allowedTargetTypesForBlock(parsedCode);

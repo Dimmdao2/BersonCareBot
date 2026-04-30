@@ -139,9 +139,20 @@ export async function saveContentPage(
       return { ok: false, error: "Не удалось сохранить страницу. Попробуйте ещё раз." };
     }
 
+    if (existingById.slug !== slug) {
+      try {
+        await deps.patientHomeBlocks.retargetContentPageItems(editingId, existingById.slug, slug);
+        await deps.reminders.retargetContentPageLinkedSlug(editingId, existingById.slug, slug);
+      } catch (err) {
+        console.error("saveContentPage retarget slug refs failed:", err);
+        return { ok: false, error: "Страница сохранена, но не удалось обновить ссылки на главной и в напоминаниях." };
+      }
+    }
+
     revalidatePath("/app/doctor/content");
     if (existingById.slug !== slug) {
       revalidatePath(`/app/patient/content/${existingById.slug}`);
+      revalidatePath("/app/patient/home");
     }
     revalidatePath(`/app/patient/content/${slug}`);
     revalidatePath("/app/patient/sections", "layout");

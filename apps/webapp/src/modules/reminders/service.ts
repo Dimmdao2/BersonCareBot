@@ -263,6 +263,14 @@ export function createRemindersService(port: ReminderRulesPort, deps?: Reminders
       };
     },
 
+    async retargetContentPageLinkedSlug(
+      contentPageId: string,
+      oldSlug: string,
+      newSlug: string,
+    ): Promise<void> {
+      await port.retargetContentPageLinkedSlug(contentPageId, oldSlug, newSlug);
+    },
+
     async deleteReminder(platformUserId: string, ruleId: string): Promise<ServiceResult<{ deletedId: string }>> {
       const deleted = await port.delete(ruleId, platformUserId);
       if (!deleted) return { ok: false, error: "not_found" };

@@ -81,4 +81,9 @@ export type PatientHomeBlocksPort = {
   updateItem(id: string, patch: PatientHomeBlockItemPatch): Promise<void>;
   deleteItem(id: string): Promise<void>;
   reorderItems(blockCode: PatientHomeBlockCode, orderedItemIds: string[]): Promise<void>;
+  /**
+   * После успешного сохранения материала с новым slug: обновить `target_ref` у элементов главной,
+   * где был старый slug (строка `content_pages` уже с `newSlug`).
+   */
+  retargetContentPageItems(contentPageId: string, oldSlug: string, newSlug: string): Promise<void>;
 };

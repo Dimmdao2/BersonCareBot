@@ -32,4 +32,6 @@ export type ReminderRulesPort = {
     customTitle: string | null,
     customText: string | null,
   ): Promise<void>;
+  /** После успешного переименования страницы: обновить slug в `linked_object_id` для `content_page`. */
+  retargetContentPageLinkedSlug(contentPageId: string, oldSlug: string, newSlug: string): Promise<void>;
 };

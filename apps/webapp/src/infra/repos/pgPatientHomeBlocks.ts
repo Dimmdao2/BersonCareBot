@@ -1,6 +1,6 @@
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
-import { patientHomeBlockItems, patientHomeBlocks } from "../../../db/schema";
+import { contentPages, patientHomeBlockItems, patientHomeBlocks } from "../../../db/schema";
 import type {
   PatientHomeBlock,
   PatientHomeBlockItem,
@@ -171,6 +171,31 @@ export function createPgPatientHomeBlocksPort(): PatientHomeBlocksPort {
             .where(and(eq(patientHomeBlockItems.id, orderedItemIds[i]!), eq(patientHomeBlockItems.blockCode, blockCode)));
         }
       });
+    },
+
+    /**
+     * Вызывать после успешного обновления строки в `content_pages` (slug уже `newSlug`),
+     * чтобы при ошибке сохранения страницы не оставались «висячие» ссылки на новый slug.
+     */
+    async retargetContentPageItems(contentPageId, oldSlug, newSlug) {
+      const db = getDrizzle();
+      await db
+        .update(patientHomeBlockItems)
+        .set({
+          targetRef: newSlug,
+          updatedAt: sql`now()` as unknown as string,
+        })
+        .where(
+          and(
+            eq(patientHomeBlockItems.targetType, "content_page"),
+            sql`btrim(${patientHomeBlockItems.targetRef}) = ${oldSlug}`,
+            sql`exists (
+              select 1 from ${contentPages}
+              where ${contentPages.id} = ${contentPageId}::uuid
+                and ${contentPages.slug} = ${newSlug}
+            )`,
+          ),
+        );
     },
   };
 }

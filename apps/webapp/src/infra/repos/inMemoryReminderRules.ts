@@ -108,5 +108,16 @@ export function createInMemoryReminderRulesPort(
         });
       }
     },
+
+    async retargetContentPageLinkedSlug(_contentPageId: string, oldSlug: string, newSlug: string) {
+      const oldT = oldSlug.trim();
+      if (!oldT) return;
+      for (const [id, rule] of store) {
+        if (rule.linkedObjectType !== "content_page") continue;
+        const rid = rule.linkedObjectId?.trim();
+        if (!rid || rid !== oldT) continue;
+        store.set(id, { ...rule, linkedObjectId: newSlug, updatedAt: new Date().toISOString() });
+      }
+    },
   };
 }

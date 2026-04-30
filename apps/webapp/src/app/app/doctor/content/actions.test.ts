@@ -7,6 +7,11 @@ const getCourseForDoctorMock = vi.fn();
 const getByIdMock = vi.fn();
 const updateFullMock = vi.fn();
 
+const { retargetHomeMock, retargetReminderMock } = vi.hoisted(() => ({
+  retargetHomeMock: vi.fn().mockResolvedValue(undefined),
+  retargetReminderMock: vi.fn().mockResolvedValue(undefined),
+}));
+
 vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
 }));
@@ -25,6 +30,8 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
     },
     contentSections: { getBySlug: getBySlugMock },
     courses: { getCourseForDoctor: getCourseForDoctorMock },
+    patientHomeBlocks: { retargetContentPageItems: retargetHomeMock },
+    reminders: { retargetContentPageLinkedSlug: retargetReminderMock },
   }),
 }));
 
@@ -48,6 +55,10 @@ describe("saveContentPage", () => {
     getBySlugMock.mockReset();
     getByIdMock.mockReset();
     updateFullMock.mockReset();
+    retargetHomeMock.mockReset();
+    retargetReminderMock.mockReset();
+    retargetHomeMock.mockResolvedValue(undefined);
+    retargetReminderMock.mockResolvedValue(undefined);
     getBySlugMock.mockResolvedValue({
       id: "s1",
       slug: "lessons",
@@ -246,12 +257,23 @@ describe("saveContentPage", () => {
     });
     const res = await saveContentPage(null, fd);
     expect(res.ok).toBe(true);
+    expect(retargetHomeMock).not.toHaveBeenCalled();
+    expect(retargetReminderMock).not.toHaveBeenCalled();
     expect(updateFullMock).toHaveBeenCalledWith(pageId, expect.objectContaining({ sortOrder: 7 }));
     expect(upsertMock).not.toHaveBeenCalled();
   });
 
   it("allows changing slug when editing with page_id", async () => {
-    updateFullMock.mockResolvedValue(undefined);
+    const order: string[] = [];
+    updateFullMock.mockImplementation(async () => {
+      order.push("update");
+    });
+    retargetHomeMock.mockImplementation(async () => {
+      order.push("home");
+    });
+    retargetReminderMock.mockImplementation(async () => {
+      order.push("reminder");
+    });
     const pageId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
     getByIdMock.mockResolvedValue({
       id: pageId,
@@ -285,8 +307,52 @@ describe("saveContentPage", () => {
     });
     const res = await saveContentPage(null, fd);
     expect(res.ok).toBe(true);
+    expect(order).toEqual(["update", "home", "reminder"]);
+    expect(retargetHomeMock).toHaveBeenCalledWith(pageId, "old-slug", "new-slug");
+    expect(retargetReminderMock).toHaveBeenCalledWith(pageId, "old-slug", "new-slug");
     expect(updateFullMock).toHaveBeenCalledWith(pageId, expect.objectContaining({ slug: "new-slug", sortOrder: 7 }));
     expect(upsertMock).not.toHaveBeenCalled();
+  });
+
+  it("when slug changes and retarget fails after save, returns error", async () => {
+    updateFullMock.mockResolvedValue(undefined);
+    retargetHomeMock.mockRejectedValueOnce(new Error("retarget failed"));
+    const pageId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    getByIdMock.mockResolvedValue({
+      id: pageId,
+      section: "lessons",
+      slug: "old-slug",
+      title: "Old",
+      summary: "",
+      bodyMd: "",
+      bodyHtml: "",
+      sortOrder: 7,
+      isPublished: true,
+      requiresAuth: false,
+      videoUrl: null,
+      videoType: null,
+      imageUrl: null,
+      archivedAt: null,
+      deletedAt: null,
+      linkedCourseId: null,
+    });
+    listAllMock.mockResolvedValue([
+      { id: pageId, section: "lessons", slug: "old-slug", sortOrder: 7 },
+      { id: "other-id", section: "lessons", slug: "other", sortOrder: 1 },
+    ]);
+    const fd = formWith({
+      page_id: pageId,
+      section: "lessons",
+      slug: "new-slug",
+      title: "Edited",
+      summary: "",
+      body_md: "Body",
+    });
+    const res = await saveContentPage(null, fd);
+    expect(res.ok).toBe(false);
+    expect(res.error).toMatch(/главной|напоминаниях/i);
+    expect(updateFullMock).toHaveBeenCalled();
+    expect(retargetReminderMock).not.toHaveBeenCalled();
   });
 
   it("when moving section with page_id appends sort order in target section", async () => {
@@ -325,6 +391,8 @@ describe("saveContentPage", () => {
     });
     const res = await saveContentPage(null, fd);
     expect(res.ok).toBe(true);
+    expect(retargetHomeMock).not.toHaveBeenCalled();
+    expect(retargetReminderMock).not.toHaveBeenCalled();
     expect(updateFullMock).toHaveBeenCalledWith(pageId, expect.objectContaining({ section: "lessons", sortOrder: 5 }));
     expect(upsertMock).not.toHaveBeenCalled();
   });

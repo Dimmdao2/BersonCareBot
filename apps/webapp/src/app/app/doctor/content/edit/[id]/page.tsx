@@ -41,7 +41,7 @@ export default async function DoctorContentEditPage({ params }: Props) {
             devMessage={isDev ? `${loadError.name}: ${loadError.message}` : undefined}
           />
         ) : null}
-        <ContentForm page={page} sections={sections} publishedCourses={publishedCourses} />
+        <ContentForm key={`${page.id}-${page.slug}`} page={page} sections={sections} publishedCourses={publishedCourses} />
       </section>
     </AppShell>
   );

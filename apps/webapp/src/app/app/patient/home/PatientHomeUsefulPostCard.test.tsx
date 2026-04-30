@@ -28,6 +28,13 @@ describe("PatientHomeUsefulPostCard", () => {
     expect(screen.getByText("Новый пост")).toBeInTheDocument();
   });
 
+  it("cover image uses object-cover to fill the card", () => {
+    const { container } = render(<PatientHomeUsefulPostCard post={basePost()} />);
+    const img = container.querySelector("img");
+    expect(img).toBeTruthy();
+    expect(img?.className).toMatch(/object-cover/);
+  });
+
   it("keeps link accessible when visible title is disabled", () => {
     render(<PatientHomeUsefulPostCard post={{ ...basePost(), showTitle: false }} />);
     const link = screen.getByRole("link", { name: /Полезная статья/i });

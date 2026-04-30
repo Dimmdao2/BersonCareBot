@@ -266,5 +266,20 @@ export function createPgReminderRulesPort(): ReminderRulesPort {
         [ruleIntegratorId, customTitle, customText],
       );
     },
+
+    /** После успешного переименования страницы в CMS (`content_pages.slug` уже `newSlug`). */
+    async retargetContentPageLinkedSlug(contentPageId, oldSlug, newSlug) {
+      const pool = getPool();
+      await pool.query(
+        `UPDATE reminder_rules AS rr
+         SET linked_object_id = $1, updated_at = now()
+         FROM content_pages AS cp
+         WHERE cp.id = $2::uuid
+           AND cp.slug = $1
+           AND rr.linked_object_type = 'content_page'
+           AND btrim(rr.linked_object_id) = $3`,
+        [newSlug, contentPageId, oldSlug],
+      );
+    },
   };
 }

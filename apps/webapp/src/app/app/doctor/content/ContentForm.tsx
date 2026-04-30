@@ -194,9 +194,9 @@ export function ContentForm({
             type="text"
             name="slug"
             required
-            defaultValue={page?.slug ?? ""}
+            value={slugValue}
+            onChange={(e) => setSlugValue(e.target.value)}
             pattern="[a-z0-9-]+"
-            key={`slug-${page?.id ?? "new"}`}
           />
         )}
       </label>

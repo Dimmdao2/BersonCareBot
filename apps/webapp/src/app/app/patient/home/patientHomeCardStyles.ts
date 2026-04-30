@@ -73,6 +73,13 @@ export const patientHomeCardGradientWarmClass = cn(
   "shadow-[var(--patient-shadow-card-mobile)] lg:shadow-[var(--patient-shadow-card-desktop)]",
 );
 
+/** Бейдж на cover карточки «Полезный пост» — акцентный кирпичный; позиционирование — в компоненте. */
+export const patientHomeUsefulPostCoverBadgeClass = cn(
+  "inline-flex max-w-[min(100%,11rem)] shrink-0 items-center justify-center rounded-[var(--patient-pill-radius)] px-2.5 py-1",
+  "text-[11px] font-semibold uppercase tracking-wide text-white shadow-md",
+  "bg-[#c0392b] ring-1 ring-white/35",
+);
+
 /** Primary pill badge. */
 export const patientBadgePrimaryClass = cn(
   "inline-flex h-7 min-w-0 max-w-full items-center justify-center rounded-[var(--patient-pill-radius)] px-2.5 text-xs font-bold leading-none",
