@@ -680,3 +680,12 @@
 - Deliverable: [`AUDIT_VISUAL_DESIGN_CRITICAL.md`](./AUDIT_VISUAL_DESIGN_CRITICAL.md) — Verdict **PASS WITH NOTES**: полный PASS по viewports/состояниям не заявляется без реального браузерного просмотра; зафиксированы код-ревью, targeted Vitest, findings (в т.ч. отсутствие pixel-QA, хрупкость `toHaveClass` в layout-тесте, мелкие риски hero/booking/courses).
 - **Gate:** targeted Vitest на 10 файлах `PatientHome*` (см. § Tests в аудите) — **PASS** (`10` files, `26` tests). Full root `pnpm run ci` **not** run.
 - Push: not requested.
+
+## 2026-04-30 — Fix: design-critical visual audit (`AUDIT_VISUAL_DESIGN_CRITICAL.md`)
+
+- Mode: `FIX` (только findings из audit doc; без navigation / schema / CMS).
+- Branch: `feat/patient-home-cms-editor-uxlift-2026-04-29`.
+- **Code:** `PatientHomeTodayLayout.tsx` — `data-lg-order` / `data-lg-col-start` / `data-lg-col-span`; `PatientHomeTodayLayout.test.tsx` — инварианты через `data-lg-*` вместо хрупких `toHaveClass` на Tailwind сетки. `PatientHomeDailyWarmupCard.tsx` — `flex-nowrap` + `truncate` на бейджах hero. `PatientHomeProgressBlock.tsx` — высота скелетона числа в loading. Findings 1 / 4 / 6 — residual (см. audit § Fix follow-up).
+- **Docs:** `AUDIT_VISUAL_DESIGN_CRITICAL.md` — **Fix follow-up**, обновлённые **Remaining risks** / **Out of scope**.
+- **Gate:** targeted Vitest (те же 10 `PatientHome*` файлов) — **PASS** (`26` tests). Full root `pnpm run ci` **not** run.
+- Push: not requested.

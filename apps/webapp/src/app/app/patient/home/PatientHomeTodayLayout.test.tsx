@@ -12,7 +12,7 @@ function block(code: PatientHomeTodayLayoutBlock["code"], label: string): Patien
 }
 
 describe("PatientHomeTodayLayout", () => {
-  it("keeps mobile and md as a single stack while lg uses two columns", () => {
+  it("renders dashboard grid with stable desktop placement metadata on blocks", () => {
     const { container } = render(
       <PatientHomeTodayLayout
         personalizedName={null}
@@ -32,25 +32,22 @@ describe("PatientHomeTodayLayout", () => {
     );
 
     const layoutGrid = screen.getByTestId("patient-home-layout-grid");
-    expect(layoutGrid).toHaveClass("grid");
-    expect(layoutGrid).toHaveClass("gap-5");
-    expect(layoutGrid).toHaveClass("lg:gap-6");
-    expect(layoutGrid).toHaveClass("lg:grid-cols-[3fr_2fr]");
-    expect(layoutGrid).toHaveClass("lg:items-stretch");
+    expect(layoutGrid).toBeInTheDocument();
+    expect(layoutGrid.children).toHaveLength(10);
 
     const warmup = container.querySelector('[data-patient-home-block="daily_warmup"]');
-    expect(warmup).toHaveClass("lg:col-start-1");
-    expect(warmup).toHaveClass("lg:order-[10]");
+    expect(warmup).toHaveAttribute("data-lg-order", "10");
+    expect(warmup).toHaveAttribute("data-lg-col-start", "1");
     expect(within(warmup as HTMLElement).getByText("Warmup")).toBeInTheDocument();
 
     const booking = container.querySelector('[data-patient-home-block="booking"]');
-    expect(booking).toHaveClass("lg:col-start-2");
-    expect(booking).toHaveClass("lg:order-[10]");
+    expect(booking).toHaveAttribute("data-lg-order", "10");
+    expect(booking).toHaveAttribute("data-lg-col-start", "2");
     expect(within(booking as HTMLElement).getByText("Booking")).toBeInTheDocument();
 
     const subscription = container.querySelector('[data-patient-home-block="subscription_carousel"]');
-    expect(subscription).toHaveClass("lg:col-span-2");
-    expect(subscription).toHaveClass("lg:order-[60]");
+    expect(subscription).toHaveAttribute("data-lg-order", "60");
+    expect(subscription).toHaveAttribute("data-lg-col-span", "2");
     expect(within(subscription as HTMLElement).getByText("Subscription")).toBeInTheDocument();
   });
 

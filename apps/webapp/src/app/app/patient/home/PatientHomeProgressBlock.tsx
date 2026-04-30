@@ -80,7 +80,7 @@ export function PatientHomeProgressBlock({ practiceTarget, personalTierOk, anony
               </>
             :
               <div className="mt-2 space-y-2" aria-busy="true">
-                <div className="h-8 w-24 animate-pulse rounded-lg bg-muted/80" />
+                <div className="h-9 min-h-[36px] w-24 animate-pulse rounded-lg bg-muted/80 sm:h-10 sm:min-h-[40px]" />
                 <div className="h-2 w-full overflow-hidden rounded-full bg-[#e5e7eb]">
                   <div className="h-full w-1/3 rounded-full bg-muted/90" />
                 </div>

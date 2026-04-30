@@ -41,9 +41,11 @@ export function PatientHomeDailyWarmupCard({ warmup, personalTierOk, anonymousGu
       <section aria-labelledby="patient-home-warmup-heading">
         <article className={patientHomeHeroCardGeometryClass}>
           <div className={patientHomeHeroTextColumnClass}>
-            <div className="flex flex-wrap items-center gap-2">
-              <span className={patientBadgePrimaryClass}>Разминка дня</span>
-              <span className={patientBadgeDurationClass}>{FALLBACK_DURATION_LABEL}</span>
+            <div className="flex flex-nowrap items-center gap-2">
+              <span className={cn(patientBadgePrimaryClass, "max-w-[min(100%,11rem)] shrink-0 truncate")}>Разминка дня</span>
+              <span className={cn(patientBadgeDurationClass, "max-w-[min(100%,6rem)] shrink-0 truncate")}>
+                {FALLBACK_DURATION_LABEL}
+              </span>
             </div>
             <div className={patientHomeHeroAccentBarTrackClass}>
               <div className={patientHomeHeroAccentBarFillClass} style={{ width: "38%" }} />
@@ -77,9 +79,11 @@ export function PatientHomeDailyWarmupCard({ warmup, personalTierOk, anonymousGu
     <section aria-labelledby="patient-home-warmup-heading">
       <article className={patientHomeHeroCardGeometryClass}>
         <div className={patientHomeHeroTextColumnClass}>
-          <div className="flex flex-wrap items-center gap-2">
-            <span className={patientBadgePrimaryClass}>Разминка дня</span>
-            <span className={patientBadgeDurationClass}>{FALLBACK_DURATION_LABEL}</span>
+          <div className="flex flex-nowrap items-center gap-2">
+            <span className={cn(patientBadgePrimaryClass, "max-w-[min(100%,11rem)] shrink-0 truncate")}>Разминка дня</span>
+            <span className={cn(patientBadgeDurationClass, "max-w-[min(100%,6rem)] shrink-0 truncate")}>
+              {FALLBACK_DURATION_LABEL}
+            </span>
           </div>
           <div className={patientHomeHeroAccentBarTrackClass}>
             <div className={patientHomeHeroAccentBarFillClass} style={{ width: "100%" }} />

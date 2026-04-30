@@ -14,30 +14,74 @@ type Props = {
   blocks: PatientHomeTodayLayoutBlock[];
 };
 
-function getDesktopBlockClass(code: PatientHomeBlockCode): string {
+/** Desktop grid placement: Tailwind classes + stable `data-lg-*` for tests (avoid coupling tests to full class strings). */
+function desktopBlockLayout(code: PatientHomeBlockCode): {
+  className: string;
+  "data-lg-order"?: string;
+  "data-lg-col-start"?: string;
+  "data-lg-col-span"?: string;
+} {
   switch (code) {
     case "daily_warmup":
-      return "lg:col-start-1 lg:order-[10]";
+      return {
+        className: "lg:col-start-1 lg:order-[10]",
+        "data-lg-order": "10",
+        "data-lg-col-start": "1",
+      };
     case "booking":
-      return "lg:col-start-2 lg:order-[10]";
+      return {
+        className: "lg:col-start-2 lg:order-[10]",
+        "data-lg-order": "10",
+        "data-lg-col-start": "2",
+      };
     case "situations":
-      return "lg:col-start-1 lg:order-[20]";
+      return {
+        className: "lg:col-start-1 lg:order-[20]",
+        "data-lg-order": "20",
+        "data-lg-col-start": "1",
+      };
     case "next_reminder":
-      return "lg:col-start-2 lg:order-[20]";
+      return {
+        className: "lg:col-start-2 lg:order-[20]",
+        "data-lg-order": "20",
+        "data-lg-col-start": "2",
+      };
     case "progress":
-      return "lg:col-start-1 lg:order-[30]";
+      return {
+        className: "lg:col-start-1 lg:order-[30]",
+        "data-lg-order": "30",
+        "data-lg-col-start": "1",
+      };
     case "sos":
-      return "lg:col-start-2 lg:order-[30]";
+      return {
+        className: "lg:col-start-2 lg:order-[30]",
+        "data-lg-order": "30",
+        "data-lg-col-start": "2",
+      };
     case "plan":
-      return "lg:col-start-1 lg:order-[40]";
+      return {
+        className: "lg:col-start-1 lg:order-[40]",
+        "data-lg-order": "40",
+        "data-lg-col-start": "1",
+      };
     case "mood_checkin":
-      return "lg:col-start-2 lg:order-[40]";
+      return {
+        className: "lg:col-start-2 lg:order-[40]",
+        "data-lg-order": "40",
+        "data-lg-col-start": "2",
+      };
     case "courses":
-      return "lg:col-start-1 lg:order-[50]";
+      return {
+        className: "lg:col-start-1 lg:order-[50]",
+        "data-lg-order": "50",
+        "data-lg-col-start": "1",
+      };
     case "subscription_carousel":
-      return "lg:col-span-2 lg:order-[60]";
-    default:
-      return "";
+      return {
+        className: "lg:col-span-2 lg:order-[60]",
+        "data-lg-order": "60",
+        "data-lg-col-span": "2",
+      };
   }
 }
 
@@ -53,11 +97,21 @@ export function PatientHomeTodayLayout({ personalizedName, timeOfDayPrefix, bloc
         className="grid w-full min-w-0 gap-5 lg:grid-cols-[3fr_2fr] lg:items-stretch lg:gap-6"
         data-testid="patient-home-layout-grid"
       >
-        {blocks.map((block) => (
-          <div key={block.code} className={cn("min-w-0", getDesktopBlockClass(block.code))} data-patient-home-block={block.code}>
-            {block.node}
-          </div>
-        ))}
+        {blocks.map((block) => {
+          const layout = desktopBlockLayout(block.code);
+          return (
+            <div
+              key={block.code}
+              className={cn("min-w-0", layout.className)}
+              data-patient-home-block={block.code}
+              data-lg-order={layout["data-lg-order"]}
+              data-lg-col-start={layout["data-lg-col-start"]}
+              data-lg-col-span={layout["data-lg-col-span"]}
+            >
+              {block.node}
+            </div>
+          );
+        })}
       </div>
     </div>
   );

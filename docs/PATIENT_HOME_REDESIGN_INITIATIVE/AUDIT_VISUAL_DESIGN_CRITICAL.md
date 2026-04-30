@@ -2,13 +2,28 @@
 
 **Scope:** независимая проверка после коммита визуального прохода (`Refine patient home visual layout` и связанных примитивов). Навигация (topbar / bottom nav / маршруты) **вне оценки** как источник дефектов, по запросу аудита.
 
-**Verdict: PASS WITH NOTES**
+**Verdict: PASS WITH NOTES** (после fix follow-up: закрыты code-level findings 2–3; механическое выравнивание loading в progress; viewport-QA и продуктовые пункты 1 / 4 / 6 остаются вне кода.)
 
-Полный **PASS** по критериям «реальный просмотр состояний на 390 / 1024 / 1280 и т.п.» **не заявляется**: в этом шаге не выполнялся браузерный осмотр и матрица guest / anonymous / tier / loading на целевых ширинах. Ниже — статический разбор исходников + targeted Vitest. Оставшиеся риски — в конце.
+Полный **PASS** по критериям «реальный просмотр состояний на 390 / 1024 / 1280 и т.п.» **по-прежнему не заявляется** без браузерного QA — см. **Fix follow-up** и **Remaining risks**.
 
 ---
 
-## Findings (by severity)
+## Fix follow-up (2026-04-30)
+
+| Finding | Resolution |
+|---------|------------|
+| **1 — Medium, viewport/state matrix** | **Не закрывается кодом** (процесс / продуктовый QA). Остаётся рекомендация: ручной или инструментальный visual pass по ширинам и состояниям. |
+| **2 — Low, тесты и Tailwind** | `PatientHomeTodayLayout.tsx`: на обёртки блоков добавлены стабильные атрибуты `data-lg-order`, `data-lg-col-start`, `data-lg-col-span` (дублируют контракт desktop-сетки без парсинга `className`). `PatientHomeTodayLayout.test.tsx`: убраны хрупкие `toHaveClass` по responsive-классам сетки; проверяются `data-testid`, число детей, `data-lg-*` и контент блоков. |
+| **3 — Low, hero `flex-wrap`** | `PatientHomeDailyWarmupCard.tsx`: ряд бейджей — `flex-nowrap`, на бейджах `truncate` + `max-w-*` + `shrink-0`, чтобы длинные подписи не ломали строку внутри фиксированной высоты hero. |
+| **4 — Low, booking CTA пиксели** | **Без произвольного продуктового решения** (копирайт / `text-sm` на кнопках). Остаётся residual до ручной проверки на 1024/1280. |
+| **5 — Low, progress loading density** | `PatientHomeProgressBlock.tsx`: первая полоска скелетона числа увеличена по высоте (`h-9` / `sm:h-10` с `min-h`), чтобы ближе к визуальной массе блока со счётчиком — без изменения внешней высоты карточки. |
+| **6 — Low, courses vertical alignment** | **Без изменения** `justify-center` vs `justify-start` — продуктовое решение после QA. Residual. |
+
+---
+
+## Findings (by severity) — as originally filed
+
+The rows below retain the original audit wording for traceability; see **Fix follow-up** for what was addressed in-repo.
 
 ### 1. Medium — Нет фактической верификации viewports и визуальных состояний
 
@@ -106,14 +121,14 @@ pnpm --dir apps/webapp exec vitest run \
 
 ## Remaining risks
 
-- Нет подтверждения **референсом** для 390px «как app», без скриншотов.
-- **Контент из CMS** (очень длинные заголовки SOS/plan в пределах clamp) может выглядеть плотно — функционально обрезано, визуально нужен глаз.
-- **Активные состояния mood** (ring/border) могут слегка менять визуальный вес кнопки без изменения высоты карточки — приемлемо, но стоит проверить тап-зону вручную.
-- Соседние блоки в **двухколоночной сетке** при частично скрытых блоках CMS могут давать «дыры» — продуктово ожидаемо; визуальный баланс только через QA.
+- **Браузерный visual QA** по ширинам (390, 768, 1024, 1280) и полной матрице состояний — всё ещё не заменён кодом (Finding 1).
+- **Booking CTA** при очень длинных подписях кнопок / локализации — не подтверждён пиксельно (Finding 4).
+- **Courses:** вертикальное выравнивание title-only vs title+subtitle — без продуктового решения (Finding 6).
+- **CMS-длина** заголовков в clamp, **mood** active ring, **дыры в сетке** при скрытых CMS-блоках — как в исходном аудите.
 
 ---
 
 ## Out of scope
 
-- Исправления кода в этом шаге не вносились (только этот документ + `LOG.md`).
-- Полный root `pnpm run ci` не запускался.
+- Полный root `pnpm run ci` не запускался (ни при первоначальном audit, ни при fix follow-up 2026-04-30).
+
