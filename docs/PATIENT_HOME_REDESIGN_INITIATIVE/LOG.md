@@ -689,3 +689,14 @@
 - **Docs:** `AUDIT_VISUAL_DESIGN_CRITICAL.md` — **Fix follow-up**, обновлённые **Remaining risks** / **Out of scope**.
 - **Gate:** targeted Vitest (те же 10 `PatientHome*` файлов) — **PASS** (`26` tests). Full root `pnpm run ci` **not** run.
 - Push: not requested.
+
+## 2026-04-30 — Fix: patient home guest visibility, empty personal blocks, desktop header dedupe
+
+- Branch: `feat/patient-home-cms-editor-uxlift-2026-04-29`.
+- Commit (pushed): `098a144` — `fix(webapp): patient home guest visibility and desktop shell header`.
+- **Политика блоков:** `patientHomeBlockPolicy.ts` — порядок/видимость только из CMS (`isVisible`, `sort_order`); `isPatientHomePersonalBlock` оставлен для маркировки gated-блоков, фильтра по tier **нет** (раньше в журнале фигурировало скрытие personal при gate — это поведение заменено).
+- **Runtime:** `PatientHomeToday.tsx` — personal loaders только при `personalTierOk && session`; reminder / plan / courses всегда рендерятся при видимом блоке; пустые состояния и CTA. Карточки: `PatientHomeNextReminderCard.tsx`, `PatientHomePlanCard.tsx`, `PatientHomeCoursesRow.tsx`.
+- **Shell:** `AppShell.tsx` — при стандартном patient shell с top nav `PatientGatedHeader` в обёртке `lg:hidden` (`data-testid="patient-gated-header-wrap"`), чтобы на desktop не дублировать шапку с `PatientTopNav`.
+- **Тесты:** `patientHomeBlockPolicy.test.ts`, `PatientHomeToday.test.tsx`, `PatientHomeNextReminderCard.test.tsx`, `PatientHomePlanCard.test.tsx`, `PatientHomeProgressBlock.test.tsx`, `AppShell.test.tsx`.
+- **Проверки:** перед пушем — `pnpm install --frozen-lockfile && pnpm run ci` — **PASS** (полный корневой CI).
+- **Остатки (вне этого шага):** pixel-полировка empty-состояний под `VISUAL_SYSTEM_SPEC`; при желании — уточнить `next` для mood guest (сейчас `appLoginWithNextHref(routePaths.patient)`). Schema / DB / CMS / doctor UI не менялись.
