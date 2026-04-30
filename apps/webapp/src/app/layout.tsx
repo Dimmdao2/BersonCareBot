@@ -8,7 +8,7 @@ import type { Metadata, Viewport } from "next";
 import Script from "next/script";
 import type { ReactNode } from "react";
 import "./globals.css";
-import { Geist } from "next/font/google";
+import { Geist, Roboto } from "next/font/google";
 import { ClientToaster } from "@/components/ClientToaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
@@ -18,6 +18,12 @@ import { PlatformProvider } from "@/shared/ui/PlatformProvider";
 import { BuildVersionWatcher } from "@/shared/ui/BuildVersionWatcher";
 
 const geist = Geist({ subsets: ["latin"], variable: "--font-sans" });
+const robotoHeading = Roboto({
+  subsets: ["latin", "cyrillic"],
+  weight: ["400", "500", "700", "900"],
+  variable: "--font-roboto-heading",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "BersonCare Webapp",
@@ -36,7 +42,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   const platformEntry = await getPlatformEntry();
   const buildId = (process.env.BUILD_ID || process.env.NEXT_PUBLIC_BUILD_ID || "").trim();
   return (
-    <html lang="ru" suppressHydrationWarning className={cn("font-sans", geist.variable)}>
+    <html lang="ru" suppressHydrationWarning className={cn("font-sans", geist.variable, robotoHeading.variable)}>
       <head>
         <meta name={BUILD_ID_META_NAME} content={buildId} />
       </head>

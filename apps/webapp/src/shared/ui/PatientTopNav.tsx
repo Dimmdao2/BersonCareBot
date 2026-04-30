@@ -42,7 +42,7 @@ export function PatientTopNav() {
   return (
     <div
       id="patient-top-nav"
-      className="border-b border-[var(--patient-border)] bg-[var(--patient-surface)] shadow-sm"
+      className="relative left-1/2 w-screen -translate-x-1/2 border-b border-[var(--patient-border)] bg-[var(--patient-surface)] shadow-sm"
     >
       <div className="mx-auto flex h-16 w-full max-w-[min(1180px,calc(100vw-2rem))] items-center gap-4 px-4">
         <Link

@@ -10,6 +10,7 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { env } from "@/config/env";
 import {
   classifyUnauthenticatedAppEntry,
+  isDevBypassToken,
   shouldAllowStandaloneTokenExchange,
 } from "@/modules/auth/appEntryClassification";
 import { buildPrefetchedPublicAuthConfig } from "@/modules/auth/publicAuthSnapshot";
@@ -30,22 +31,28 @@ export default async function AppEntryPage({
   const deps = buildAppDeps();
   const session = await deps.auth.getCurrentSession();
   const { next: nextParam, t, token, switch: switchParam } = await searchParams;
+  const rawToken = (t ?? token ?? null)?.trim() || null;
 
   if (session) {
     redirect(getPostAuthRedirectTarget(session.user.role, nextParam ?? null));
   }
 
   const allowDevBypass = env.ALLOW_DEV_AUTH_BYPASS === true && env.NODE_ENV !== "production";
+  const allowStandaloneTokenExchange = shouldAllowStandaloneTokenExchange({
+    token: rawToken,
+    switchParam: switchParam ?? null,
+  });
+  if (allowDevBypass && allowStandaloneTokenExchange && rawToken && isDevBypassToken(rawToken)) {
+    const params = new URLSearchParams({ token: rawToken });
+    if (nextParam) params.set("next", nextParam);
+    redirect(`/api/auth/dev-bypass?${params.toString()}`);
+  }
+
   const [prefetchedPublicAuth, platformEntry, messengerSurface] = await Promise.all([
     buildPrefetchedPublicAuthConfig(),
     getPlatformEntry(),
     getMessengerSurfaceHint(),
   ]);
-  const rawToken = (t ?? token ?? null)?.trim() || null;
-  const allowStandaloneTokenExchange = shouldAllowStandaloneTokenExchange({
-    token: rawToken,
-    switchParam: switchParam ?? null,
-  });
   const entryClassification = classifyUnauthenticatedAppEntry({
     platformEntry,
     messengerSurface,

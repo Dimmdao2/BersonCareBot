@@ -215,35 +215,35 @@ export const patientHomePlanSubtitleClampClass = cn(
 export const patientHomeHeroCardGeometryClass = cn(
   patientHomeCardHeroClass,
   "relative isolate flex flex-col overflow-hidden",
-  "h-[336px] p-5 md:h-[332px] lg:h-[348px] lg:p-8 xl:h-[360px]",
+  "h-[212px] p-4 min-[380px]:h-[224px] lg:h-[336px] lg:p-8 xl:h-[348px]",
 );
 
 /** Hero: колонка текста с отступом под фиксированный image-slot справа. */
 export const patientHomeHeroTextColumnClass = cn(
   "relative z-10 flex min-h-0 flex-1 flex-col",
-  "pr-[96px] min-[360px]:pr-[112px] min-[380px]:pr-[132px] md:pr-[156px] lg:pr-[220px] xl:pr-[260px]",
+  "pr-[136px] min-[380px]:pr-[152px] lg:pr-[260px] xl:pr-[292px]",
 );
 
 /** Hero: заголовок (крупнее на mobile), line-clamp-2. */
 export const patientHomeHeroTitleClampClass = cn(
   patientLineClamp2Class,
-  "mt-4 max-w-[min(100%,280px)] text-[1.75rem] font-extrabold leading-8 tracking-[-0.035em] text-[var(--patient-text-primary)] min-[360px]:text-[2rem] min-[360px]:leading-9 md:text-[2.125rem] md:leading-10 lg:max-w-[min(100%,430px)] lg:text-[2.5rem] lg:leading-[2.85rem]",
+  "mt-3 max-w-[min(100%,210px)] text-[18px] font-extrabold leading-[22px] tracking-[-0.025em] text-[var(--patient-text-primary)] min-[380px]:text-[20px] min-[380px]:leading-6 lg:mt-5 lg:max-w-[min(100%,390px)] lg:text-[34px] lg:leading-10 xl:text-[36px] xl:leading-[42px]",
 );
 
 /** Hero: summary, line-clamp-2. */
 export const patientHomeHeroSummaryClampClass = cn(
   patientLineClamp2Class,
-  "mt-3 max-w-[min(100%,250px)] text-[15px] leading-6 text-[var(--patient-text-secondary)] lg:max-w-[min(100%,390px)] lg:text-base",
+  "mt-2 max-w-[min(100%,210px)] line-clamp-3 text-[12px] leading-4 text-[var(--patient-text-secondary)] min-[380px]:text-[13px] min-[380px]:leading-[18px] lg:mt-4 lg:max-w-[min(100%,330px)] lg:text-[15px] lg:leading-[22px]",
 );
 
 /** Hero: заметная duration-строка под заголовком (`3 минуты` в референсе). */
 export const patientHomeHeroDurationAccentClass =
-  "mt-1 text-[1.75rem] font-extrabold leading-8 tracking-[-0.03em] text-[var(--patient-color-primary)] lg:text-[2.125rem] lg:leading-10";
+  "mt-1 text-[18px] font-extrabold leading-[22px] tracking-[-0.025em] text-[var(--patient-color-primary)] min-[380px]:text-[20px] min-[380px]:leading-6 lg:text-[30px] lg:leading-9";
 
 /** Hero: фиксированный слот картинки / декора справа снизу. */
 export const patientHomeHeroImageSlotClass = cn(
-  "pointer-events-none absolute bottom-0 right-0 z-[1] flex items-end justify-end",
-  "h-[202px] w-[146px] min-[360px]:h-[218px] min-[360px]:w-[168px] min-[380px]:h-[236px] min-[380px]:w-[188px] md:h-[244px] md:w-[210px] lg:h-[312px] lg:w-[286px] xl:h-[330px] xl:w-[320px]",
+  "pointer-events-none absolute bottom-0 right-0 z-[1] flex items-end justify-end overflow-hidden",
+  "h-[156px] w-[132px] min-[380px]:h-[168px] min-[380px]:w-[148px] lg:h-[292px] lg:w-[248px] xl:h-[304px] xl:w-[272px]",
 );
 
 /** Booking: companion consultation card, compact on mobile and stretched beside hero on desktop. */

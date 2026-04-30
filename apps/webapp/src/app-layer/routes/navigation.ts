@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { Activity, BookOpen, CalendarPlus, ClipboardList, Home } from "lucide-react";
+import { BookOpen, CalendarPlus, ClipboardList, Dumbbell, Home } from "lucide-react";
 import { routePaths } from "@/app-layer/routes/paths";
 
 /**
@@ -79,7 +79,7 @@ export const PATIENT_BOTTOM_NAV_ITEMS: PatientBottomNavItem[] = [
   {
     href: routePaths.patientWarmups,
     label: "Разминки",
-    Icon: Activity,
+    Icon: Dumbbell,
     isActive: (pathname) =>
       pathname === routePaths.patientWarmups || pathname.startsWith(`${routePaths.patientWarmups}/`),
   },

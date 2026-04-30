@@ -5,7 +5,6 @@
  * dev-bypass и Suspense с AuthBootstrap.
  */
 
-import Link from "next/link";
 import { Suspense, useCallback, useState } from "react";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { cn } from "@/lib/utils";
@@ -74,27 +73,27 @@ export function AppEntryLoginContent({
               Войти в интерфейс без Telegram (только при ALLOW_DEV_AUTH_BYPASS=true):
             </p>
             <div id="app-entry-dev-bypass-actions" className="flex flex-wrap gap-3">
-              <Link
+              <a
                 id="app-entry-dev-login-patient"
-                href="/app?t=dev:client&switch=1"
+                href="/api/auth/dev-bypass?token=dev%3Aclient"
                 className={cn(buttonVariants({ size: "sm" }))}
               >
                 Как пациент
-              </Link>
-              <Link
+              </a>
+              <a
                 id="app-entry-dev-login-doctor"
-                href="/app?t=dev:admin&switch=1"
+                href="/api/auth/dev-bypass?token=dev%3Aadmin"
                 className={cn(buttonVariants({ size: "sm" }))}
               >
                 Как врач / админ
-              </Link>
-              <Link
+              </a>
+              <a
                 id="app-entry-dev-login-doctor-role"
-                href="/app?t=dev:doctor&switch=1"
+                href="/api/auth/dev-bypass?token=dev%3Adoctor"
                 className={cn(buttonVariants({ size: "sm" }))}
               >
                 Как специалист
-              </Link>
+              </a>
             </div>
           </div>
         ) : null}
