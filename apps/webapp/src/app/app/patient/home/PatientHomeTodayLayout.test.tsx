@@ -38,16 +38,19 @@ describe("PatientHomeTodayLayout", () => {
     const warmup = container.querySelector('[data-patient-home-block="daily_warmup"]');
     expect(warmup).toHaveAttribute("data-lg-order", "10");
     expect(warmup).toHaveAttribute("data-lg-col-start", "1");
+    expect(warmup).toHaveAttribute("data-lg-col-span", "8");
     expect(within(warmup as HTMLElement).getByText("Warmup")).toBeInTheDocument();
 
     const booking = container.querySelector('[data-patient-home-block="booking"]');
     expect(booking).toHaveAttribute("data-lg-order", "10");
-    expect(booking).toHaveAttribute("data-lg-col-start", "2");
+    expect(booking).toHaveAttribute("data-lg-col-start", "9");
+    expect(booking).toHaveAttribute("data-lg-col-span", "4");
     expect(within(booking as HTMLElement).getByText("Booking")).toBeInTheDocument();
 
     const subscription = container.querySelector('[data-patient-home-block="subscription_carousel"]');
-    expect(subscription).toHaveAttribute("data-lg-order", "60");
-    expect(subscription).toHaveAttribute("data-lg-col-span", "2");
+    expect(subscription).toHaveAttribute("data-lg-order", "50");
+    expect(subscription).toHaveAttribute("data-lg-col-start", "9");
+    expect(subscription).toHaveAttribute("data-lg-col-span", "4");
     expect(within(subscription as HTMLElement).getByText("Subscription")).toBeInTheDocument();
   });
 

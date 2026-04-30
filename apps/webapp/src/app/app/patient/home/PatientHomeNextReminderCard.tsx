@@ -11,6 +11,7 @@ import {
 } from "./patientHomeCardStyles";
 import { patientButtonWarningOutlineClass } from "@/shared/ui/patientVisual";
 import { appLoginWithNextHref } from "./patientHomeGuestNav";
+import { PatientHomeSafeImage } from "./PatientHomeSafeImage";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -24,10 +25,13 @@ type Props = {
 function LeadingIcon({ blockIconImageUrl }: { blockIconImageUrl?: string | null }) {
   return (
     <div className={patientIconLeadingWarningClass} aria-hidden>
-      {blockIconImageUrl?.trim() ?
-        // eslint-disable-next-line @next/next/no-img-element -- CMS URL, decorative
-        <img src={blockIconImageUrl.trim()} alt="" className="size-6 rounded-md object-cover" loading="lazy" />
-      : <Bell className="size-6" />}
+      <PatientHomeSafeImage
+        src={blockIconImageUrl}
+        alt=""
+        className="size-6 rounded-md object-cover"
+        loading="lazy"
+        fallback={<Bell className="size-6" />}
+      />
     </div>
   );
 }

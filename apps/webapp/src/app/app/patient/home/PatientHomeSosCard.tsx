@@ -10,6 +10,7 @@ import {
   patientIconLeadingDangerClass,
 } from "./patientHomeCardStyles";
 import { patientButtonDangerOutlineClass } from "@/shared/ui/patientVisual";
+import { PatientHomeSafeImage } from "./PatientHomeSafeImage";
 import { cn } from "@/lib/utils";
 
 type Props = { sos: ResolvedSosCard | null; blockIconImageUrl?: string | null };
@@ -27,15 +28,13 @@ export function PatientHomeSosCard({ sos, blockIconImageUrl }: Props) {
         <article id="patient-home-sos-card" className={cn(patientHomeCardDangerClass, patientHomeSosCardGeometryClass)}>
           <div className="relative z-[1] flex min-h-0 flex-1 gap-2">
             <div className={patientIconLeadingDangerClass} aria-hidden>
-              {blockIconImageUrl?.trim() ?
-                // eslint-disable-next-line @next/next/no-img-element -- CMS URL, decorative
-                <img
-                  src={blockIconImageUrl.trim()}
-                  alt=""
-                  className="size-6 rounded-md object-cover"
-                  loading="lazy"
-                />
-              : <Zap className="size-6" />}
+              <PatientHomeSafeImage
+                src={blockIconImageUrl}
+                alt=""
+                className="size-6 rounded-md object-cover"
+                loading="lazy"
+                fallback={<Zap className="size-6" />}
+              />
             </div>
             <div className="flex min-h-0 min-w-0 flex-1 flex-col">
               <p id="patient-home-sos-heading" className="shrink-0 text-[13px] font-medium leading-[18px] text-[#b91c1c]">
@@ -49,10 +48,7 @@ export function PatientHomeSosCard({ sos, blockIconImageUrl }: Props) {
                 </p>}
             </div>
             <div className={patientHomeSosThumbSlotClass} aria-hidden>
-              {sos.imageUrl ?
-                // eslint-disable-next-line @next/next/no-img-element -- CMS URL, decorative
-                <img src={sos.imageUrl} alt="" className="size-full object-cover opacity-60" loading="lazy" />
-              : null}
+              <PatientHomeSafeImage src={sos.imageUrl} alt="" className="size-full object-cover opacity-60" loading="lazy" />
             </div>
           </div>
           <span className={cn(patientButtonDangerOutlineClass, "relative z-[1] shrink-0")}>Открыть</span>

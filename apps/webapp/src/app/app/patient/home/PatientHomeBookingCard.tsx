@@ -9,6 +9,7 @@ import {
   patientHomeCardSuccessClass,
 } from "./patientHomeCardStyles";
 import { appLoginWithNextHref } from "./patientHomeGuestNav";
+import { PatientHomeSafeImage } from "./PatientHomeSafeImage";
 import { patientButtonSecondaryClass, patientButtonSuccessClass, patientButtonGhostLinkClass } from "@/shared/ui/patientVisual";
 import { cn } from "@/lib/utils";
 
@@ -26,18 +27,17 @@ export function PatientHomeBookingCard({ personalTierOk, anonymousGuest, blockIc
 
   const footer =
     anonymousGuest ?
-      <p className="line-clamp-2">
-        <Link href={appLoginWithNextHref(routePaths.patient)} className={patientButtonGhostLinkClass}>
+      <p className="line-clamp-1 text-[11px] lg:text-xs">
+        Запись откроется после входа
+        <Link href={appLoginWithNextHref(routePaths.patient)} className="sr-only">
           Войти
         </Link>
-        {" — чтобы пользоваться записями и персональными разделами."}
       </p>
     : !personalTierOk ?
       <p className="line-clamp-2">
-        <Link href={`${routePaths.bindPhone}?next=${encodeURIComponent(routePaths.patient)}`} className="font-medium text-primary underline-offset-4 hover:underline">
+        <Link href={`${routePaths.bindPhone}?next=${encodeURIComponent(routePaths.patient)}`} className={patientButtonGhostLinkClass}>
           Активировать профиль
         </Link>
-        {" — чтобы пользоваться записями и персональными разделами."}
       </p>
     : (
       <span className="invisible select-none" aria-hidden>
@@ -46,42 +46,38 @@ export function PatientHomeBookingCard({ personalTierOk, anonymousGuest, blockIc
     );
 
   return (
-    <section aria-labelledby="patient-home-booking-heading">
+    <section aria-labelledby="patient-home-booking-heading" className="h-full">
       <article
         id="patient-home-booking-card"
         className={cn(patientHomeCardSuccessClass, patientHomeBookingCardGeometryClass)}
       >
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 lg:flex-row lg:items-stretch lg:gap-5">
-          <div className="flex min-h-0 min-w-0 flex-1 gap-3">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col items-stretch gap-3 min-[380px]:flex-row min-[380px]:items-start lg:flex-col lg:items-stretch lg:gap-5">
+          <div className="flex min-h-0 min-w-0 flex-1 gap-3 lg:flex-col">
             <div
               className="inline-flex size-11 shrink-0 items-center justify-center rounded-2xl bg-[#dcfce7] text-[var(--patient-color-success)] lg:size-14"
               aria-hidden
             >
-              {blockIconImageUrl?.trim() ?
-                // eslint-disable-next-line @next/next/no-img-element -- CMS URL, decorative
-                <img
-                  src={blockIconImageUrl.trim()}
-                  alt=""
-                  className="size-6 rounded-md object-cover lg:size-7"
-                  loading="lazy"
-                />
-              : <Calendar className="size-6" aria-hidden />}
+              <PatientHomeSafeImage
+                src={blockIconImageUrl}
+                alt=""
+                className="size-6 rounded-md object-cover lg:size-7"
+                loading="lazy"
+                fallback={<Calendar className="size-6" aria-hidden />}
+              />
             </div>
-            <div className="min-w-0 flex-1">
-              <h2 id="patient-home-booking-heading" className="text-lg font-bold text-[var(--patient-text-primary)] lg:text-xl">
-                Запись на приём
+            <div className="min-w-0 flex-1 lg:max-w-[18rem]">
+              <h2 id="patient-home-booking-heading" className="text-base font-bold leading-5 text-[var(--patient-text-primary)] min-[380px]:text-lg lg:text-2xl lg:leading-7">
+                Нужна консультация?
               </h2>
-              <p className={patientHomeBookingCopyClampClass}>
-                {anonymousGuest ? "Войдите, чтобы выбрать время и услугу." : "Выберите удобное время и откройте кабинет с вашими визитами."}
-              </p>
+              <p className={patientHomeBookingCopyClampClass}>Запишитесь на приём к специалисту очно или онлайн.</p>
             </div>
           </div>
           <div className={patientHomeBookingActionsClass}>
-            <Link href={bookingHref} prefetch={false} className={cn(patientButtonSuccessClass, "w-full min-w-0 lg:w-full")}>
-              {anonymousGuest ? "Войти, чтобы записаться" : "Записаться"}
+            <Link href={bookingHref} prefetch={false} className={cn(patientButtonSuccessClass, "min-h-10 w-full min-w-0 rounded-xl px-3 text-sm lg:min-h-12 lg:text-base")}>
+              Записаться
             </Link>
-            <Link href={cabinetHref} prefetch={false} className={cn(patientButtonSecondaryClass, "w-full min-w-0 lg:w-full")}>
-              {anonymousGuest ? "Войти к записям" : "Мои записи"}
+            <Link href={cabinetHref} prefetch={false} className={cn(patientButtonSecondaryClass, "min-h-9 w-full min-w-0 rounded-xl px-3 text-sm lg:min-h-11")}>
+              Мои приёмы
             </Link>
           </div>
         </div>

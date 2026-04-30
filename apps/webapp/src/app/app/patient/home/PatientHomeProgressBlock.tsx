@@ -10,6 +10,7 @@ import {
   patientHomeProgressValueClass,
 } from "./patientHomeCardStyles";
 import { appLoginWithNextHref } from "./patientHomeGuestNav";
+import { PatientHomeSafeImage } from "./PatientHomeSafeImage";
 import { patientLineClamp2Class } from "@/shared/ui/patientVisual";
 import { cn } from "@/lib/utils";
 
@@ -97,29 +98,26 @@ export function PatientHomeProgressBlock({
             }
           </div>
           <div className={patientHomeProgressStreakColClass}>
-            <div className="flex items-center gap-2 md:flex-col md:items-start md:gap-1">
-              {blockIconImageUrl?.trim() ?
-                // eslint-disable-next-line @next/next/no-img-element -- CMS URL, decorative
-                <img
-                  src={blockIconImageUrl.trim()}
-                  alt=""
-                  className="size-6 shrink-0 rounded-md object-cover md:size-7"
-                  loading="lazy"
-                />
-              : <Flame className="size-6 shrink-0 text-[#ea580c]" aria-hidden />}
-              <span className="text-sm font-medium text-[var(--patient-text-secondary)] md:hidden">Серия</span>
+            <div className="flex size-11 items-center justify-center rounded-full bg-white shadow-[0_4px_16px_rgba(245,158,11,0.18)] ring-1 ring-[#fed7aa]">
+              <PatientHomeSafeImage
+                src={blockIconImageUrl}
+                alt=""
+                className="size-7 shrink-0 rounded-full object-cover"
+                loading="lazy"
+                fallback={<Flame className="size-6 shrink-0 text-[#ea580c]" aria-hidden />}
+              />
             </div>
             {progress && personalTierOk && !anonymousGuest ?
               <p className={patientHomeProgressStreakValueClass}>
                 {progress.streak}
-                <span className="mt-0.5 block text-xs font-semibold text-[var(--patient-text-secondary)] md:mt-1 md:text-center">
+                <span className="mt-0.5 block text-xs font-semibold text-[var(--patient-text-secondary)] md:mt-1">
                   {streakLabel(progress.streak)} подряд
                 </span>
               </p>
             :
               <p className={patientHomeProgressStreakValueClass} aria-hidden>
                 <span className="text-[var(--patient-text-muted)]">—</span>
-                <span className="mt-0.5 block text-xs font-semibold text-[var(--patient-text-muted)] md:mt-1 md:text-center">дней подряд</span>
+                <span className="mt-0.5 block text-xs font-semibold text-[var(--patient-text-muted)] md:mt-1">дней подряд</span>
               </p>
             }
           </div>

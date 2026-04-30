@@ -10,6 +10,7 @@ import {
 } from "./patientHomeCardStyles";
 import { patientButtonGhostLinkClass } from "@/shared/ui/patientVisual";
 import { appLoginWithNextHref } from "./patientHomeGuestNav";
+import { PatientHomeSafeImage } from "./PatientHomeSafeImage";
 import { cn } from "@/lib/utils";
 
 export type PatientHomePlanCardInstance = {
@@ -27,10 +28,13 @@ type Props = {
 function LeadingPlanIcon({ blockIconImageUrl }: { blockIconImageUrl?: string | null }) {
   return (
     <div className={patientIconLeadingClass} aria-hidden>
-      {blockIconImageUrl?.trim() ?
-        // eslint-disable-next-line @next/next/no-img-element -- CMS URL, decorative
-        <img src={blockIconImageUrl.trim()} alt="" className="size-6 rounded-md object-cover" loading="lazy" />
-      : <ClipboardList className="size-6" />}
+      <PatientHomeSafeImage
+        src={blockIconImageUrl}
+        alt=""
+        className="size-6 rounded-md object-cover"
+        loading="lazy"
+        fallback={<ClipboardList className="size-6" />}
+      />
     </div>
   );
 }

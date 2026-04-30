@@ -14,6 +14,7 @@ import {
   patientHomeMoodOptionButtonClass,
   patientHomeMoodStatusSlotClass,
 } from "./patientHomeCardStyles";
+import { PatientHomeSafeImage } from "./PatientHomeSafeImage";
 import { appLoginWithNextHref } from "./patientHomeGuestNav";
 import { cn } from "@/lib/utils";
 
@@ -114,6 +115,46 @@ export function PatientHomeMoodCheckin({
       </>
     : "Выберите оценку от 1 до 5.";
 
+  const renderMoodScale = (disabled: boolean) => (
+    <div className="grid min-h-[4rem] flex-1 grid-cols-5 items-start gap-2" role="group" aria-label="Оценка самочувствия">
+      {moodOptions.map((option) => {
+        const active = selectedScore === option.score;
+        const MoodIcon = MOOD_SCORE_ICONS[option.score];
+        return (
+          <div key={option.score} className="flex min-w-0 flex-col items-center gap-1">
+            <button
+              type="button"
+              aria-label={`Самочувствие ${option.score} из 5: ${option.label}`}
+              aria-pressed={active}
+              disabled={disabled || submittingScore !== null}
+              className={cn(
+                patientHomeMoodOptionButtonClass,
+                active ? MOOD_SCORE_CONTAINER_ACTIVE[option.score] : MOOD_SCORE_CONTAINER_HOVER[option.score],
+                (disabled || submittingScore !== null) && "cursor-not-allowed opacity-70",
+              )}
+              onClick={() => void saveScore(option.score)}
+            >
+              <PatientHomeSafeImage
+                src={disabled ? null : option.imageUrl}
+                alt=""
+                className="size-8 rounded-full object-cover sm:size-9"
+                loading="lazy"
+                fallback={
+                  <MoodIcon
+                    aria-hidden
+                    className={cn("size-8 shrink-0 sm:size-9", MOOD_SCORE_ICON_CLASS[option.score])}
+                    strokeWidth={1.25}
+                  />
+                }
+              />
+            </button>
+            <span className="text-xs font-semibold leading-none text-[var(--patient-text-primary)]">{option.score}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+
   return (
     <section
       id="patient-home-mood-checkin"
@@ -128,8 +169,9 @@ export function PatientHomeMoodCheckin({
           <p className="mt-1 text-sm text-[var(--patient-text-secondary)]">Отметьте своё состояние одним касанием</p>
         </div>
         {anonymousGuest ?
-          <div className="flex min-h-0 flex-1 flex-col justify-center">
-            <p className="text-sm leading-5 text-[var(--patient-text-secondary)]">
+          <div className="flex min-h-0 flex-1 flex-col justify-between gap-2 pt-3">
+            {renderMoodScale(true)}
+            <p className={patientHomeMoodStatusSlotClass}>
               <Link href={appLoginWithNextHref(routePaths.patient)} className="font-medium text-primary underline-offset-4 hover:underline">
                 Войдите
               </Link>
@@ -137,40 +179,12 @@ export function PatientHomeMoodCheckin({
             </p>
           </div>
         : !personalTierOk ?
-          <div className="flex min-h-0 flex-1 flex-col justify-center">
-            <p className={cn(patientHomeMoodStatusSlotClass, "min-h-0")}>Чек-ин самочувствия будет доступен после активации профиля.</p>
+          <div className="flex min-h-0 flex-1 flex-col justify-between gap-2 pt-3">
+            {renderMoodScale(true)}
+            <p className={patientHomeMoodStatusSlotClass}>Чек-ин самочувствия будет доступен после активации профиля.</p>
           </div>
-        : <div className="flex min-h-0 flex-1 flex-col justify-between gap-3 pt-3">
-            <div className="grid min-h-[3.75rem] flex-1 grid-cols-5 items-center gap-2" role="group" aria-label="Оценка самочувствия">
-              {moodOptions.map((option) => {
-                const active = selectedScore === option.score;
-                const MoodIcon = MOOD_SCORE_ICONS[option.score];
-                return (
-                  <button
-                    key={option.score}
-                    type="button"
-                    aria-label={`Самочувствие ${option.score} из 5: ${option.label}`}
-                    aria-pressed={active}
-                    disabled={submittingScore !== null}
-                    className={cn(
-                      patientHomeMoodOptionButtonClass,
-                      active ? MOOD_SCORE_CONTAINER_ACTIVE[option.score] : MOOD_SCORE_CONTAINER_HOVER[option.score],
-                      submittingScore !== null && "cursor-not-allowed opacity-70",
-                    )}
-                    onClick={() => void saveScore(option.score)}
-                  >
-                    {option.imageUrl ?
-                      // eslint-disable-next-line @next/next/no-img-element -- CMS URL
-                      <img src={option.imageUrl} alt="" className="size-9 rounded-full object-cover sm:size-10" loading="lazy" />
-                    : <MoodIcon
-                        aria-hidden
-                        className={cn("size-9 shrink-0 sm:size-10", MOOD_SCORE_ICON_CLASS[option.score])}
-                        strokeWidth={1.25}
-                      />}
-                  </button>
-                );
-              })}
-            </div>
+        : <div className="flex min-h-0 flex-1 flex-col justify-between gap-2 pt-3">
+            {renderMoodScale(false)}
             <p className={patientHomeMoodStatusSlotClass} aria-live="polite">
               {statusLine}
             </p>

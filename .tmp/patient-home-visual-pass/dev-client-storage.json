@@ -1,0 +1,15 @@
+{
+  "cookies": [
+    {
+      "name": "bersoncare_platform",
+      "value": "standalone",
+      "domain": "127.0.0.1",
+      "path": "/",
+      "expires": 1777629770.4479,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    }
+  ],
+  "origins": []
+}

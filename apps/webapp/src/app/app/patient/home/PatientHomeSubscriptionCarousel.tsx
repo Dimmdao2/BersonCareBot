@@ -8,6 +8,7 @@ import {
   patientHomeCardTitleClampSmClass,
   patientHomeCarouselItemLayoutClass,
 } from "./patientHomeCardStyles";
+import { PatientHomeSafeImage } from "./PatientHomeSafeImage";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -42,10 +43,13 @@ export function PatientHomeSubscriptionCarousel({ cards, sectionTitle }: Props) 
           >
             <div className="flex min-h-0 flex-1 gap-3">
               <div className={patientHomeCardMediaSlotClass}>
-              {c.imageUrl ?
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={c.imageUrl} alt="" className="size-full object-cover" loading="lazy" />
-              : <div className="size-full bg-[var(--patient-color-primary-soft)]" aria-hidden />}
+                <PatientHomeSafeImage
+                  src={c.imageUrl}
+                  alt=""
+                  className="size-full object-cover"
+                  loading="lazy"
+                  fallback={<div className="size-full bg-[var(--patient-color-primary-soft)]" aria-hidden />}
+                />
               </div>
               <div className="flex min-h-0 min-w-0 flex-1 flex-col">
               {c.badgeLabel ?

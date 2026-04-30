@@ -17,7 +17,7 @@ describe("PatientHomeBookingCard", () => {
 
   it("shows login CTAs when anonymousGuest", () => {
     render(<PatientHomeBookingCard personalTierOk={false} anonymousGuest />);
-    expect(screen.getByRole("link", { name: /Войти, чтобы записаться/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Записаться/i }).getAttribute("href")).toContain("?next=");
     expect(screen.getByRole("link", { name: /Войти$/i })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /Активировать профиль/i })).toBeNull();
   });
