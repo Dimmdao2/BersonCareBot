@@ -71,4 +71,17 @@ describe("GET /api/media/[id]/preview/[size]", () => {
     expect(res.headers.get("cache-control")).toBe("private, max-age=86400, stale-while-revalidate=604800");
     expect(mocks.presignGetUrl).toHaveBeenCalledWith("previews/sm/x.jpg", 86400);
   });
+
+  it("redirects to original media when preview metadata is missing", async () => {
+    mocks.getMediaPreviewS3KeyForRedirect.mockResolvedValueOnce(null);
+    const { GET } = await import("./route");
+    const res = await GET(new Request(`http://localhost/api/media/${MEDIA_ID}/preview/sm`), {
+      params: Promise.resolve({ id: MEDIA_ID, size: "sm" }),
+    });
+    expect(res.status).toBe(307);
+    expect(res.headers.get("location")).toBe(`/api/media/${MEDIA_ID}`);
+    expect(res.headers.get("cache-control")).toBe("private, max-age=60");
+    expect(mocks.s3HeadObjectDetails).not.toHaveBeenCalled();
+    expect(mocks.s3GetObjectBody).not.toHaveBeenCalled();
+  });
 });

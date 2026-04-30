@@ -4,6 +4,7 @@ import {
   patientHomeBlockHeadingClass,
   patientHomeCardClass,
   patientHomeSituationsCardGeometryClass,
+  patientHomeSituationsCardMobileChromeClass,
   patientHomeSituationTileMediaClass,
   patientHomeSituationTileShellClass,
   patientHomeSituationTileTitleClass,
@@ -28,7 +29,11 @@ export function PatientHomeSituationsRow({ chips }: Props) {
   return (
     <section
       id="patient-home-situations"
-      className={cn(patientHomeCardClass, patientHomeSituationsCardGeometryClass)}
+      className={cn(
+        patientHomeCardClass,
+        patientHomeSituationsCardGeometryClass,
+        patientHomeSituationsCardMobileChromeClass,
+      )}
       aria-label="Выберите пользу для себя"
     >
       <div className="min-w-0">
@@ -67,7 +72,9 @@ export function PatientHomeSituationsRow({ chips }: Props) {
                     src={patientHomeChipImageSrc(c.imageUrl)}
                     fallbackSrc={patientHomeChipFallbackImageSrc(c.imageUrl)}
                     alt=""
-                    className="size-full object-cover"
+                    width={64}
+                    height={64}
+                    className="block h-full w-full max-h-full max-w-full object-cover"
                     loading="lazy"
                     decoding="async"
                     fallback={<span className="text-xs font-semibold leading-none">{initials(c.title)}</span>}

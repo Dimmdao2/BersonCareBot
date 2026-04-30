@@ -23,6 +23,16 @@ async function redirectPresignedPreview(s3Key: string): Promise<Response> {
   }
 }
 
+function redirectOriginalMedia(id: string): Response {
+  return new Response(null, {
+    status: 307,
+    headers: {
+      Location: `/api/media/${id}`,
+      "Cache-Control": "private, max-age=60",
+    },
+  });
+}
+
 export async function GET(request: Request, { params }: { params: Promise<{ id: string; size: string }> }) {
   const { id, size: sizeRaw } = await params;
   if (!id || !UUID_RE.test(id)) {
@@ -42,7 +52,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const s3Key = await getMediaPreviewS3KeyForRedirect(id, size);
   if (!s3Key) {
     logger.warn({ mediaId: id, size }, "[preview GET] not found");
-    return NextResponse.json({ error: "not found" }, { status: 404 });
+    logger.warn({ mediaId: id, size }, "[preview GET] fallback original redirect used");
+    return redirectOriginalMedia(id);
   }
 
   const ifNoneMatch = request.headers.get("if-none-match");

@@ -203,6 +203,8 @@ Audit выявил 16 узких мест; внесены исправления
 - **Что изменено:** общий 24px pill contract для бейджей hero/post; `patientHomeBlockHeadingClass` применён к secondary heading-ролям; base/tone card padding сведён к `p-4 lg:p-[18px]`; `situations` и `booking` выровнены на `lg:h-[176px]`.
 - **Ситуации:** desktop-gap от заголовка уменьшен, mobile tile/icon слегка компактнее, scroll-row сохраняет `py` для hover/ring и fallback цепочку `preview/sm -> original /api/media -> initials`.
 - **Проверки:** `pnpm --dir apps/webapp exec vitest --run src/app/app/patient/home/patientHomeChipImageSrc.test.ts src/app/app/patient/home/PatientHomeSituationsRow.test.tsx src/app/app/patient/home/PatientHomeBookingCard.test.tsx src/app/app/patient/home/PatientHomeNextReminderCard.test.tsx src/app/app/patient/home/PatientHomeMoodCheckin.test.tsx src/app/app/patient/home/PatientHomeSosCard.test.tsx` — **19 passed**; `pnpm --dir apps/webapp run lint` — **passed**; `pnpm --dir apps/webapp run typecheck` — **passed**.
+- **Addendum (situations QA):** после дополнительной проверки главной на mobile `390x844` блок `situations` стабилизирован: mobile-card chrome без border/shadow/vertical padding, scrollbar скрыт, wrapper `overflow-hidden` ограничен desktop-ом, изображения чипов получили явные `width/height` и CSS max-size. Media preview route теперь при отсутствующем `preview/sm` делает относительный `307` fallback на `/api/media/:id`, вместо `404`.
+- **Доп. проверки:** focused `vitest` для media preview route + `PatientHomeSituationsRow` — **6 passed**; ESLint по изменённым файлам — **exit 0**; headless Chromium screenshot mobile подтвердил нормальный рендер блока и фиксированный размер иконок.
 
 ## Template for future entries
 

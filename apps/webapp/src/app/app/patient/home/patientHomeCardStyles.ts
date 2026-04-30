@@ -258,10 +258,11 @@ export const patientHomeTodayCardSectionStackClass = "flex min-w-0 flex-col gap-
 /**
  * Горизонтальный ряд со скроллом внутри карточки с `p-4`: отрицательный margin
  * на ширину padding, чтобы скролл доходил до визуального края контента.
+ * Полоса прокрутки скрыта (свайп/колёсико/тач), чтобы ряд выглядел как карусель.
  */
 export const patientHomeTodayCardScrollRowBleedClass = cn(
-  /* py: при overflow-x-auto ось Y ведёт себя как auto — hover translate-y и кольцо не обрезаются сверху/снизу */
-  "mt-0 flex min-h-0 min-w-0 flex-1 gap-3 overflow-x-auto py-1.5 [scrollbar-width:thin]",
+  /* Mobile: py-0 — без вертикального «второго» отступа внутри карточки; lg: лёгкий py, чтобы hover translate/ring не резались. */
+  "mt-0 flex min-h-0 min-w-0 flex-1 gap-3 overflow-x-auto py-0 lg:py-1.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
   "-mx-4 scroll-pl-4 pl-4 pr-3",
   /* Не использовать repeat(...,minmax(...)) в одном arbitrary grid-cols — запятая ломает класс в Tailwind → одна колонка и вертикальный столбик на lg */
   "lg:mx-0 lg:mt-2 lg:grid lg:grid-cols-6 lg:content-start lg:items-start lg:gap-3 lg:overflow-x-auto lg:px-0 lg:pr-0 lg:scroll-pl-0",
@@ -361,7 +362,11 @@ export const patientHomeSituationTileTitleClass = cn(
 );
 
 /** Fixed companion geometry for the row paired with booking on desktop. */
-export const patientHomeSituationsCardGeometryClass = cn("overflow-hidden lg:h-[176px] lg:min-h-0");
+export const patientHomeSituationsCardGeometryClass = cn("overflow-visible lg:h-[176px] lg:min-h-0 lg:overflow-hidden");
+
+/** Mobile: секция «ситуации» без рамки/тени карточки и без вертикального padding оболочки. */
+export const patientHomeSituationsCardMobileChromeClass =
+  "max-lg:border-0 max-lg:shadow-none max-lg:py-0";
 
 /** Progress block geometry (patient home reference row). */
 export const patientHomeProgressCardGeometryClass = cn(

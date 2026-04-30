@@ -1,5 +1,16 @@
 # PATIENT_HOME_REDESIGN_INITIATIVE — LOG
 
+## 2026-05-01 — QA главной: блок ситуаций, мобильный chrome и media preview fallback
+
+- **Ветка:** `feat/patient-home-cms-editor-uxlift-2026-04-29`.
+- **Scope:** оперативная доводка главного экрана пациента после ручного visual QA: блок `situations`, стабильность иконок, мобильные отступы/обводка, скрытый scrollbar, fallback для отсутствующих `preview/sm`.
+- **Блок ситуаций:** обводка вокруг иконок скруглена до `1.4rem`; hover/focus ring переведён на более светлый `--patient-color-primary-soft`; на mobile у карточки блока убраны border/shadow и вертикальный padding, scrollbar горизонтальной карусели скрыт без отключения скролла.
+- **Стабильность рендера:** для ситуаций `overflow-hidden` оставлен только на desktop (`lg`), чтобы mobile-карусель и hover-ring не обрезались; изображения чипов получили явные `width={64}` / `height={64}` и CSS-ограничения `h-full w-full max-h-full max-w-full`, чтобы не раздуваться натуральным размером.
+- **Media fallback:** `/api/media/[id]/preview/[size]` при отсутствии preview metadata больше не отдаёт `404`, а делает относительный `307` на оригинальный `/api/media/:id`; это стабилизирует ситуации, когда `preview/sm` ещё не сгенерирован, но оригинал доступен.
+- **Проверки:** `pnpm --dir apps/webapp exec vitest --run 'src/app/api/media/[id]/preview/[size]/route.test.ts' 'src/app/app/patient/home/PatientHomeSituationsRow.test.tsx'` — **6 passed**; `pnpm exec eslint` на изменённых files (`PatientHomeSituationsRow.tsx`, `patientHomeCardStyles.ts`, media preview route + test) — **exit 0**; `ReadLints` — no linter errors.
+- **Visual QA:** локальный headless Chromium, mobile `390x844`, `/api/auth/dev-bypass?token=dev:client&next=/app/patient`: блок `situations` рендерится, иконки остаются фиксированного размера; временные скриншоты/профиль браузера удалены.
+- **До этой micro-fix волны:** полный push всего дерева выполнен коммитом `3e7f8f79` после `pnpm install --frozen-lockfile && pnpm run ci` — **green**. Текущие QA-fix правки после этого коммита пока не пушились.
+
 ## 2026-04-30 — Закрытие волны «Полезный пост» и настройки главной
 
 - **План:** `.cursor/plans/useful_post_home_07e450d7.plan.md` — все todos **completed**; ниже зафиксированы последние UX-правки кабинета.
