@@ -665,3 +665,10 @@
 - **Gate:** `pnpm --dir apps/webapp exec vitest run src/app/app/patient/home/PatientHomeSubscriptionCarousel.test.tsx src/app/app/patient/home/PatientHomeNextReminderCard.test.tsx` — **PASS**. Full root `pnpm run ci` **not** run.
 - Push: performed **without** full root CI (explicit request for this change).
 
+## 2026-04-30 — Patient home visual layout (hero, booking, situations, progress, mood, SOS)
+
+- Branch: `feat/patient-home-cms-editor-uxlift-2026-04-29`.
+- Scope: `PatientHomeTodayLayout.tsx` (`lg:items-stretch` для выравнивания верхнего ряда hero + booking), `PatientHomeDailyWarmupCard.tsx` (единая фиксированная геометрия filled/empty, accent-bar duration, clamp title/summary, фиксированный image-slot), `PatientHomeBookingCard.tsx` (фиксированная высота, clamp описания, слот footer guest/tier, узкая колонка CTA на desktop), `PatientHomeSituationsRow.tsx` (фиксированные плитки + медиа через `patientHomeSituationTile*`, без slug-based цветов), `PatientHomeProgressBlock.tsx` (одна высота карточки, сетка `md:` вместо `sm:` для progress + streak), `PatientHomeMoodCheckin.tsx` (фиксированная высота карточки, слот статуса, крупнее mood-кнопки через `patientHomeMoodOptionButtonClass`), `PatientHomeSosCard.tsx` (Zap как leading, фиксированный thumb-слот, clamp, фиксированная высота). Расширены примитивы в `patientHomeCardStyles.ts`.
+- **Не трогалось:** navigation / topbar / bottom nav, schema, CMS, env.
+- **Gate:** targeted Vitest — `PatientHomeTodayLayout`, `PatientHomeDailyWarmupCard`, `PatientHomeBookingCard`, `PatientHomeProgressBlock`, `PatientHomeMoodCheckin`, `PatientHomeSosCard`, `PatientHomeSituationsRow`, `PatientHomeToday` — **PASS** (`8` files, `21` tests). ESLint на изменённых файлах — **PASS**. Full root `pnpm run ci` **not** run.
+- Push: not requested.

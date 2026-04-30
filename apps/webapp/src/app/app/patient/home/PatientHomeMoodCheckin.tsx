@@ -8,7 +8,12 @@ import toast from "react-hot-toast";
 import { routePaths } from "@/app-layer/routes/paths";
 import type { PatientMoodToday } from "@/modules/patient-mood/types";
 import type { PatientHomeMoodIconOption } from "@/modules/patient-home/patientHomeMoodIcons";
-import { patientHomeCardGradientWarmClass } from "./patientHomeCardStyles";
+import {
+  patientHomeCardGradientWarmClass,
+  patientHomeMoodCardGeometryClass,
+  patientHomeMoodOptionButtonClass,
+  patientHomeMoodStatusSlotClass,
+} from "./patientHomeCardStyles";
 import { appLoginWithNextHref } from "./patientHomeGuestNav";
 import { cn } from "@/lib/utils";
 
@@ -97,28 +102,46 @@ export function PatientHomeMoodCheckin({
     }
   }
 
+  const statusLine =
+    submittingScore !== null ?
+      "Сохраняем..."
+    : savedScore !== null && selectedScore !== null ?
+      <>
+        Записано.{" "}
+        <button type="button" className="font-medium text-primary underline-offset-4 hover:underline" onClick={() => setSelectedScore(null)}>
+          Изменить
+        </button>
+      </>
+    : "Выберите оценку от 1 до 5.";
+
   return (
     <section
       id="patient-home-mood-checkin"
-      className={cn(patientHomeCardGradientWarmClass, "relative min-h-[140px] overflow-hidden")}
+      className={cn(patientHomeCardGradientWarmClass, patientHomeMoodCardGeometryClass, "relative")}
       aria-labelledby="patient-home-mood-heading"
     >
-      <div className="relative z-[1]">
-        <h2 id="patient-home-mood-heading" className="text-lg font-bold text-[var(--patient-text-primary)]">
-          Как вы себя чувствуете?
-        </h2>
-        <p className="mt-1 text-sm text-[var(--patient-text-secondary)]">Отметьте своё состояние одним касанием</p>
+      <div className="relative z-[1] flex h-full min-h-0 flex-col">
+        <div className="shrink-0">
+          <h2 id="patient-home-mood-heading" className="text-lg font-bold text-[var(--patient-text-primary)]">
+            Как вы себя чувствуете?
+          </h2>
+          <p className="mt-1 text-sm text-[var(--patient-text-secondary)]">Отметьте своё состояние одним касанием</p>
+        </div>
         {anonymousGuest ?
-          <p className="mt-4 text-sm leading-5 text-[var(--patient-text-secondary)]">
-            <Link href={appLoginWithNextHref(routePaths.patient)} className="font-medium text-primary underline-offset-4 hover:underline">
-              Войдите
-            </Link>
-            , чтобы отмечать самочувствие.
-          </p>
+          <div className="flex min-h-0 flex-1 flex-col justify-center">
+            <p className="text-sm leading-5 text-[var(--patient-text-secondary)]">
+              <Link href={appLoginWithNextHref(routePaths.patient)} className="font-medium text-primary underline-offset-4 hover:underline">
+                Войдите
+              </Link>
+              , чтобы отмечать самочувствие.
+            </p>
+          </div>
         : !personalTierOk ?
-          <p className="mt-4 text-sm leading-5 text-[var(--patient-text-secondary)]">Чек-ин самочувствия будет доступен после активации профиля.</p>
-        : <div className="mt-4 space-y-3">
-            <div className="grid grid-cols-5 gap-2" role="group" aria-label="Оценка самочувствия">
+          <div className="flex min-h-0 flex-1 flex-col justify-center">
+            <p className={cn(patientHomeMoodStatusSlotClass, "min-h-0")}>Чек-ин самочувствия будет доступен после активации профиля.</p>
+          </div>
+        : <div className="flex min-h-0 flex-1 flex-col justify-between gap-3 pt-3">
+            <div className="grid min-h-[3.75rem] flex-1 grid-cols-5 items-center gap-2" role="group" aria-label="Оценка самочувствия">
               {moodOptions.map((option) => {
                 const active = selectedScore === option.score;
                 const MoodIcon = MOOD_SCORE_ICONS[option.score];
@@ -130,8 +153,7 @@ export function PatientHomeMoodCheckin({
                     aria-pressed={active}
                     disabled={submittingScore !== null}
                     className={cn(
-                      "mx-auto flex aspect-square h-11 w-11 max-w-full shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-transparent bg-white/50 p-0.5 transition-colors",
-                      "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-primary)]",
+                      patientHomeMoodOptionButtonClass,
                       active ? MOOD_SCORE_CONTAINER_ACTIVE[option.score] : MOOD_SCORE_CONTAINER_HOVER[option.score],
                       submittingScore !== null && "cursor-not-allowed opacity-70",
                     )}
@@ -139,27 +161,18 @@ export function PatientHomeMoodCheckin({
                   >
                     {option.imageUrl ?
                       // eslint-disable-next-line @next/next/no-img-element -- CMS URL
-                      <img src={option.imageUrl} alt="" className="size-8 rounded-full object-cover" loading="lazy" />
+                      <img src={option.imageUrl} alt="" className="size-9 rounded-full object-cover sm:size-10" loading="lazy" />
                     : <MoodIcon
                         aria-hidden
-                        className={cn("size-8 shrink-0", MOOD_SCORE_ICON_CLASS[option.score])}
+                        className={cn("size-9 shrink-0 sm:size-10", MOOD_SCORE_ICON_CLASS[option.score])}
                         strokeWidth={1.25}
                       />}
                   </button>
                 );
               })}
             </div>
-            <p className="text-sm leading-5 text-[var(--patient-text-secondary)]" aria-live="polite">
-              {submittingScore !== null ?
-                "Сохраняем..."
-              : savedScore && selectedScore !== null ?
-                <>
-                  Записано.{" "}
-                  <button type="button" className="font-medium text-primary underline-offset-4 hover:underline" onClick={() => setSelectedScore(null)}>
-                    Изменить
-                  </button>
-                </>
-              : "Выберите оценку от 1 до 5."}
+            <p className={patientHomeMoodStatusSlotClass} aria-live="polite">
+              {statusLine}
             </p>
           </div>}
       </div>

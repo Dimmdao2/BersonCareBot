@@ -50,7 +50,7 @@ export function PatientHomeTodayLayout({ personalizedName, timeOfDayPrefix, bloc
       <PatientHomeGreeting personalizedName={personalizedName} timeOfDayPrefix={timeOfDayPrefix} />
 
       <div
-        className="grid w-full min-w-0 gap-5 lg:grid-cols-[3fr_2fr] lg:items-start lg:gap-6"
+        className="grid w-full min-w-0 gap-5 lg:grid-cols-[3fr_2fr] lg:items-stretch lg:gap-6"
         data-testid="patient-home-layout-grid"
       >
         {blocks.map((block) => (

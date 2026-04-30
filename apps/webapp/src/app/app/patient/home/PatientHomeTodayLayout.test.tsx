@@ -36,7 +36,7 @@ describe("PatientHomeTodayLayout", () => {
     expect(layoutGrid).toHaveClass("gap-5");
     expect(layoutGrid).toHaveClass("lg:gap-6");
     expect(layoutGrid).toHaveClass("lg:grid-cols-[3fr_2fr]");
-    expect(layoutGrid).toHaveClass("lg:items-start");
+    expect(layoutGrid).toHaveClass("lg:items-stretch");
 
     const warmup = container.querySelector('[data-patient-home-block="daily_warmup"]');
     expect(warmup).toHaveClass("lg:col-start-1");
