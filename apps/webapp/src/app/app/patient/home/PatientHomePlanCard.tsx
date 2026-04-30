@@ -56,7 +56,7 @@ export function PatientHomePlanCard({
         >
           <p
             id="patient-home-plan-heading"
-            className="shrink-0 text-xs font-semibold uppercase tracking-wide text-[var(--patient-text-muted)]"
+            className="shrink-0 text-base font-bold leading-6 text-[var(--patient-text-primary)]"
           >
             Мой план
           </p>
@@ -89,7 +89,7 @@ export function PatientHomePlanCard({
       >
         <p
           id="patient-home-plan-heading"
-          className="shrink-0 text-xs font-semibold uppercase tracking-wide text-[var(--patient-text-muted)]"
+          className="shrink-0 text-base font-bold leading-6 text-[var(--patient-text-primary)]"
         >
           Мой план
         </p>

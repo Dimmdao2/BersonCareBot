@@ -16,9 +16,9 @@ export function PatientBottomNav() {
       id="patient-bottom-nav"
       role="navigation"
       aria-label="Основная навигация пациента"
-      className="fixed bottom-0 left-0 right-0 z-30 border-t border-border/80 bg-[var(--patient-surface)] pb-[env(safe-area-inset-bottom,0px)] pt-1 shadow-[0_-4px_16px_rgba(0,0,0,0.06)]"
+      className="fixed bottom-0 left-0 right-0 z-30 border-t border-[var(--patient-border)] bg-[rgba(255,255,255,0.96)] pb-[max(0.25rem,env(safe-area-inset-bottom,0px))] pt-2 shadow-[var(--patient-shadow-nav)] backdrop-blur-md"
     >
-      <div className="mx-auto flex max-w-[480px] items-stretch justify-around px-1 lg:max-w-6xl">
+      <div className="mx-auto flex max-w-[430px] items-stretch justify-around px-1">
         {PATIENT_BOTTOM_NAV_ITEMS.map(({ href, label, Icon, isActive }) => {
           const active = isActive(pathname);
           return (
@@ -28,11 +28,13 @@ export function PatientBottomNav() {
               prefetch={false}
               aria-current={active ? "page" : undefined}
               className={cn(
-                "flex min-h-[52px] min-w-0 flex-1 flex-col items-center justify-center gap-0.5 px-1 py-2 text-[11px] font-medium leading-tight",
-                active ? "text-primary" : "text-muted-foreground hover:text-foreground",
+                "flex min-h-16 min-w-0 flex-1 flex-col items-center justify-center gap-1 px-1 py-1 text-[11px] leading-4 transition-colors",
+                active ?
+                  "font-bold text-[var(--patient-color-primary)]"
+                : "font-medium text-[var(--patient-text-secondary)] hover:text-[var(--patient-text-primary)]",
               )}
             >
-              <Icon className={cn("size-[22px] shrink-0", active ? "text-primary" : undefined)} aria-hidden />
+              <Icon className={cn("size-6 shrink-0", active && "size-[26px]")} aria-hidden />
               <span className="truncate">{label}</span>
             </Link>
           );

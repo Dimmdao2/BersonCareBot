@@ -22,7 +22,7 @@ describe("PatientHomeGreeting", () => {
     render(<PatientHomeGreeting personalizedName={null} timeOfDayPrefix="Добрый день" />);
 
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Добрый день!");
-    expect(screen.getByText("Сегодня — короткие практики в удобном темпе")).toBeInTheDocument();
+    expect(screen.getByText("Забота о себе — это сила")).toBeInTheDocument();
   });
 
   it("renders patient name only when provided by the caller", () => {

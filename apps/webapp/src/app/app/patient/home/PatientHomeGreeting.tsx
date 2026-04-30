@@ -24,7 +24,7 @@ type Props = {
 export function PatientHomeGreeting({
   personalizedName,
   timeOfDayPrefix,
-  subtitle = "Сегодня — короткие практики в удобном темпе",
+  subtitle = "Забота о себе — это сила",
 }: Props) {
   const displayName = personalizedName?.trim() || null;
   const title =
