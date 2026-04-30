@@ -18,7 +18,7 @@
 
 6. **Lucide fallback on NULL/empty** — All five components use `blockIconImageUrl?.trim() ? <img …> : <LucideIcon …>` (or equivalent); optional prop omitted behaves as unset.
 
-7. **Decorative images** — Runtime `<img>` use `alt=""` (and eslint-disable where needed for CMS URLs). Leading wrappers for reminder/sos/plan use `aria-hidden` on the icon container. Booking: parent not `aria-hidden`; img has `alt=""`. Progress: img has `alt=""`. Admin preview: wrapper `aria-hidden` + img `alt=""`.
+7. **Decorative images** — Runtime `<img>` use `alt=""` (and eslint-disable where needed for CMS URLs). Leading wrappers for reminder/sos/plan use `aria-hidden` on the icon container. **Booking:** outer leading slot now uses `aria-hidden` (aligned with other cards); inner `<img>` keeps `alt=""`. Progress: img has `alt=""`. Admin preview: wrapper `aria-hidden` + img `alt=""`.
 
 8. **Layout shift** — Leading **outer** dimensions unchanged (`size-11` / `lg:size-14` booking; `patientIconLeading*` unchanged; progress uses same `size-6` / `md:size-7` footprint as `Flame`). Inner swap Lucide ↔ `img` at matched Tailwind sizes reduces CLS risk versus changing outer layout.
 
@@ -28,7 +28,13 @@
 
 ## Verdict
 
-**PASS** — Whitelist gating, shared `MediaLibraryPickerDialog` / shell+panel, preview and clear, no picker on excluded blocks, runtime behavior and a11y/size constraints match the audit checklist. Residual risk is only **manual** exercise of the real picker modal (unit tests stub `MediaLibraryPickerDialog` on the settings card).
+**PASS** — Whitelist gating, shared `MediaLibraryPickerDialog` / shell+panel, preview and clear, no picker on excluded blocks, runtime behavior and a11y/size constraints match the audit checklist. Automated coverage now includes a mount of the **real** `MediaLibraryPickerDialog` inside `PatientHomeBlockSettingsCard` for a whitelist block (see Fix follow-up).
+
+## Fix follow-up (2026-04-30)
+
+- **Gap (stub-only picker in tests):** Added `PatientHomeBlockSettingsCard.realPicker.test.tsx`, which does **not** mock `MediaLibraryPickerDialog`. It asserts «Иконка блока», absence of the old `data-testid="media-library-picker-stub"`, and copy from the real dialog (`Файл не выбран`, `Выбрать изображение`). `window.matchMedia` is stubbed so `MediaPickerShell` uses the desktop `Dialog` branch in jsdom.
+- **Finding 7 (booking leading slot a11y):** `PatientHomeBookingCard` — `aria-hidden` on the outer leading icon container (decorative slot; heading remains the accessible name).
+- **Collateral test fix:** `PatientHomeBlocksSettingsPageClient.test.tsx` — `getByText("Изменить")` replaced with `getAllByText` / `length >= 1` because the booking block now includes the picker trigger label «Изменить» alongside the CMS items menu on other blocks.
 
 ## Tests reviewed / run
 
@@ -39,6 +45,18 @@
 - `apps/webapp/src/app/app/patient/home/PatientHomeBookingCard.test.tsx` — custom `blockIconImageUrl` renders `<img src="…">`.
 - `PatientHomeNextReminderCard.test.tsx`, `PatientHomeSosCard.test.tsx`, `PatientHomeProgressBlock.test.tsx`, `PatientHomePlanCard.test.tsx` — custom URL renders leading `<img>` where applicable.
 
-**Executed (this audit):** none (per instructions: no full root CI; targeted vitest not re-run).
+**Executed (fix follow-up):**
 
-**Gap (informational):** no test mounts the full `MediaLibraryPickerDialog` UI in block settings (stub only); acceptable for audit **PASS** with note above.
+```bash
+pnpm --dir apps/webapp exec vitest run \
+  src/app/app/settings/patient-home \
+  src/app/app/patient/home/PatientHomeBookingCard.test.tsx \
+  src/app/app/patient/home/PatientHomeNextReminderCard.test.tsx \
+  src/app/app/patient/home/PatientHomeSosCard.test.tsx \
+  src/app/app/patient/home/PatientHomeProgressBlock.test.tsx \
+  src/app/app/patient/home/PatientHomePlanCard.test.tsx
+```
+
+Result: **13 files, 61 tests passed.**
+
+**Gap (informational):** ~~no test mounts the full `MediaLibraryPickerDialog` UI~~ — addressed by `PatientHomeBlockSettingsCard.realPicker.test.tsx`. Full E2E (open shell, pick row, upload tab) remains optional manual / future E2E scope.

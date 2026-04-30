@@ -53,7 +53,10 @@ export function PatientHomeBookingCard({ personalTierOk, anonymousGuest, blockIc
       >
         <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 lg:flex-row lg:items-stretch lg:gap-5">
           <div className="flex min-h-0 min-w-0 flex-1 gap-3">
-            <div className="inline-flex size-11 shrink-0 items-center justify-center rounded-2xl bg-[#dcfce7] text-[var(--patient-color-success)] lg:size-14">
+            <div
+              className="inline-flex size-11 shrink-0 items-center justify-center rounded-2xl bg-[#dcfce7] text-[var(--patient-color-success)] lg:size-14"
+              aria-hidden
+            >
               {blockIconImageUrl?.trim() ?
                 // eslint-disable-next-line @next/next/no-img-element -- CMS URL, decorative
                 <img

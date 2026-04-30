@@ -692,3 +692,24 @@
   - pass (вердикт в аудит-доке: **PASS**)
 - Next:
   - при смене требований — доп. e2e на реальный picker
+
+---
+
+## 2026-04-30 — Fix: block icon admin/runtime audit findings
+
+- Branch: `feat/patient-home-cms-editor-uxlift-2026-04-29`
+- Scope:
+  - Закрытие gap из `AUDIT_BLOCK_ICON_ADMIN_RUNTIME.md`: тест с **реальным** `MediaLibraryPickerDialog` без стаба; `aria-hidden` на leading-слоте booking; правка `PatientHomeBlocksSettingsPageClient.test.tsx` под дублирующийся текст «Изменить».
+- Changed files:
+  - `apps/webapp/src/app/app/settings/patient-home/PatientHomeBlockSettingsCard.realPicker.test.tsx` (новый)
+  - `apps/webapp/src/app/app/patient/home/PatientHomeBookingCard.tsx`
+  - `apps/webapp/src/app/app/settings/patient-home/PatientHomeBlocksSettingsPageClient.test.tsx`
+  - `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/AUDIT_BLOCK_ICON_ADMIN_RUNTIME.md`, `LOG.md`
+- Checks:
+  - `pnpm --dir apps/webapp exec vitest run src/app/app/settings/patient-home …` + карточки home (см. аудит-док) — pass (13 files, 61 tests)
+  - ReadLints — ok
+  - root `pnpm run ci` — не запускался
+- Result:
+  - pass
+- Next:
+  - опционально: e2e открытие shell и выбор строки в библиотеке

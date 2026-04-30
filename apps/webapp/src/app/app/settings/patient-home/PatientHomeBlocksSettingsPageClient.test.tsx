@@ -86,6 +86,6 @@ describe("PatientHomeBlocksSettingsPageClient", () => {
 
     expect(screen.getAllByText(/Скрыть|Показать/).length).toBeGreaterThan(0);
     expect(screen.getByText("Добавить материал")).toBeInTheDocument();
-    expect(screen.getByText("Изменить")).toBeInTheDocument();
+    expect(screen.getAllByText("Изменить").length).toBeGreaterThanOrEqual(1);
   });
 });
