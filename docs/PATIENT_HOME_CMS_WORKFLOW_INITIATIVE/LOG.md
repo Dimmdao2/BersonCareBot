@@ -40,6 +40,18 @@
 
 ---
 
+## 2026-04-30 — useful_post / patient-home settings — closure
+
+- Branch: `feat/patient-home-cms-editor-uxlift-2026-04-29` (typical)
+- Mode: **EXEC** (closure note)
+- Summary: блок `useful_post` и связанные настройки кабинета врача по волне плана считаются завершёнными; диалог редактирования items синхронизируется при открытии.
+- Changed files (repo): `PatientHomeBlockItemsDialog.tsx`, `docs/PATIENT_HOME_REDESIGN_INITIATIVE/LOG.md`
+- Checks: targeted `actions.test.ts` (patient-home settings) — pass
+- Result: **pass**
+- Next: нет (волна закрыта)
+
+---
+
 ## 2026-04-29 — Initialization
 
 - Branch: `TBD`

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -142,12 +142,24 @@ export function PatientHomeBlockItemsDialog({
   initialItems: PatientHomeBlockItem[];
   onSaved(): void;
 }) {
-  const [items, setItems] = useState<PatientHomeBlockItem[]>(
-    () => [...initialItems].sort((a, b) => a.sortOrder - b.sortOrder),
-  );
+  const sortItems = (rows: PatientHomeBlockItem[]) =>
+    [...rows].sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id));
+
+  const [items, setItems] = useState<PatientHomeBlockItem[]>(() => sortItems(initialItems));
   const [removedIds, setRemovedIds] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const prevOpenRef = useRef(false);
+
+  /** При каждом открытии диалога подтягиваем актуальный список с сервера (после сохранения / refresh). */
+  useEffect(() => {
+    if (open && !prevOpenRef.current) {
+      setItems(sortItems(initialItems));
+      setRemovedIds([]);
+      setError(null);
+    }
+    prevOpenRef.current = open;
+  }, [open, initialItems]);
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
@@ -222,7 +234,12 @@ export function PatientHomeBlockItemsDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Изменить элементы блока</DialogTitle>
-          <DialogDescription>Перетащите элементы, измените видимость или удалите лишние.</DialogDescription>
+          <DialogDescription>
+            Перетащите элементы, измените видимость или удалите лишние.
+            {blockCode === "useful_post" ?
+              " Для «Полезного поста»: порядок сверху вниз — приоритет показа карточки; доступны бейдж «Новый пост» и подпись заголовка на обложке."
+            : null}
+          </DialogDescription>
         </DialogHeader>
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
           <SortableContext items={ids} strategy={verticalListSortingStrategy}>
