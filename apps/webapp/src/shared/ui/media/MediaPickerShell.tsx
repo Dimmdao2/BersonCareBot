@@ -34,11 +34,11 @@ export function MediaPickerShell({ title, open, onOpenChange, children }: MediaP
   if (isMobileViewport) {
     return (
       <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent side="bottom" className="max-h-[90vh] overflow-auto">
-          <SheetHeader>
+        <SheetContent side="bottom" className="flex max-h-[90vh] flex-col gap-0 overflow-hidden p-0">
+          <SheetHeader className="shrink-0 border-b border-border/60">
             <SheetTitle>{title}</SheetTitle>
           </SheetHeader>
-          <div className="mt-3">{children}</div>
+          <div className="min-h-0 min-w-0 flex-1 overflow-auto px-4 pb-4">{children}</div>
         </SheetContent>
       </Sheet>
     );
@@ -46,11 +46,11 @@ export function MediaPickerShell({ title, open, onOpenChange, children }: MediaP
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[85vh] overflow-auto sm:max-w-4xl">
-        <DialogHeader>
+      <DialogContent className="flex max-h-[85vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-4xl">
+        <DialogHeader className="shrink-0 border-b border-border/60 px-4 pt-4 pb-3">
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
-        {children}
+        <div className="min-h-0 min-w-0 flex-1 overflow-auto px-4 pb-4">{children}</div>
       </DialogContent>
     </Dialog>
   );

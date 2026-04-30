@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { Angry, Frown, Laugh, Meh, Smile } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import toast from "react-hot-toast";
@@ -10,6 +11,39 @@ import type { PatientHomeMoodIconOption } from "@/modules/patient-home/patientHo
 import { patientHomeCardGradientWarmClass } from "./patientHomeCardStyles";
 import { appLoginWithNextHref } from "./patientHomeGuestNav";
 import { cn } from "@/lib/utils";
+
+const MOOD_SCORE_ICONS = {
+  1: Angry,
+  2: Frown,
+  3: Meh,
+  4: Smile,
+  5: Laugh,
+} as const;
+
+const MOOD_SCORE_ICON_CLASS: Record<1 | 2 | 3 | 4 | 5, string> = {
+  1: "text-red-600",
+  2: "text-orange-600",
+  3: "text-amber-500",
+  4: "text-lime-600",
+  5: "text-green-600",
+};
+
+/** Hover/active border в цвет иконки (полные строки для Tailwind JIT). */
+const MOOD_SCORE_CONTAINER_ACTIVE: Record<1 | 2 | 3 | 4 | 5, string> = {
+  1: "border-red-600 bg-red-50/90 ring-2 ring-red-600/25",
+  2: "border-orange-600 bg-orange-50/90 ring-2 ring-orange-600/25",
+  3: "border-amber-500 bg-amber-50/90 ring-2 ring-amber-500/25",
+  4: "border-lime-600 bg-lime-50/90 ring-2 ring-lime-600/25",
+  5: "border-green-600 bg-green-50/90 ring-2 ring-green-600/25",
+};
+
+const MOOD_SCORE_CONTAINER_HOVER: Record<1 | 2 | 3 | 4 | 5, string> = {
+  1: "hover:border-red-600 hover:bg-white/90",
+  2: "hover:border-orange-600 hover:bg-white/90",
+  3: "hover:border-amber-500 hover:bg-white/90",
+  4: "hover:border-lime-600 hover:bg-white/90",
+  5: "hover:border-green-600 hover:bg-white/90",
+};
 
 type Props = {
   moodOptions: readonly PatientHomeMoodIconOption[];
@@ -87,6 +121,7 @@ export function PatientHomeMoodCheckin({
             <div className="grid grid-cols-5 gap-2" role="group" aria-label="Оценка самочувствия">
               {moodOptions.map((option) => {
                 const active = selectedScore === option.score;
+                const MoodIcon = MOOD_SCORE_ICONS[option.score];
                 return (
                   <button
                     key={option.score}
@@ -95,19 +130,21 @@ export function PatientHomeMoodCheckin({
                     aria-pressed={active}
                     disabled={submittingScore !== null}
                     className={cn(
-                      "flex min-h-[48px] w-full flex-col items-center justify-center overflow-hidden rounded-2xl border-2 border-transparent bg-white/50 py-2 text-2xl transition-colors",
+                      "mx-auto flex aspect-square h-11 w-11 max-w-full shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-transparent bg-white/50 p-0.5 transition-colors",
                       "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-primary)]",
-                      active ?
-                        "border-[var(--patient-color-primary)] bg-[#eef2ff] ring-2 ring-[var(--patient-color-primary)]"
-                      : "hover:border-[var(--patient-color-primary)]/40 hover:bg-white/80",
+                      active ? MOOD_SCORE_CONTAINER_ACTIVE[option.score] : MOOD_SCORE_CONTAINER_HOVER[option.score],
                       submittingScore !== null && "cursor-not-allowed opacity-70",
                     )}
                     onClick={() => void saveScore(option.score)}
                   >
                     {option.imageUrl ?
                       // eslint-disable-next-line @next/next/no-img-element -- CMS URL
-                      <img src={option.imageUrl} alt="" className="size-10 rounded-full object-contain" loading="lazy" />
-                    : <span aria-hidden="true" className="leading-none">{option.emoji}</span>}
+                      <img src={option.imageUrl} alt="" className="size-8 rounded-full object-cover" loading="lazy" />
+                    : <MoodIcon
+                        aria-hidden
+                        className={cn("size-8 shrink-0", MOOD_SCORE_ICON_CLASS[option.score])}
+                        strokeWidth={1.25}
+                      />}
                   </button>
                 );
               })}

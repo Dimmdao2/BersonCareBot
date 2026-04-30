@@ -137,11 +137,17 @@ export function DoctorHeader({ userDisplayName, adminMode, hideMenuOnDesktop }: 
       </header>
 
       <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
-        <SheetContent side="right" className="flex w-[min(100vw,22rem)] flex-col px-4 sm:max-w-sm">
-          <SheetHeader className="px-0 text-left">
+        <SheetContent
+          side="right"
+          className="flex min-h-0 max-h-[100dvh] w-[min(100vw,22rem)] flex-col overflow-hidden px-4 sm:max-w-sm"
+        >
+          <SheetHeader className="shrink-0 px-0 text-left">
             <SheetTitle>Разделы</SheetTitle>
           </SheetHeader>
-          <nav className="flex flex-col gap-1 py-2" aria-label="Разделы кабинета">
+          <nav
+            className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto overscroll-y-contain py-2 pb-[max(1rem,env(safe-area-inset-bottom,0px))]"
+            aria-label="Разделы кабинета"
+          >
             {DOCTOR_MENU_ENTRIES.map((entry) =>
               entry.kind === "separator" ? (
                 <Separator key={entry.id} className="my-2" />

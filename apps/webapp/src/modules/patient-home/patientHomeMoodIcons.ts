@@ -3,19 +3,15 @@
 export type PatientHomeMoodIconOption = {
   score: 1 | 2 | 3 | 4 | 5;
   label: string;
-  emoji: string;
   imageUrl: string | null;
 };
 
-const DEFAULT_BY_SCORE: Record<
-  1 | 2 | 3 | 4 | 5,
-  { label: string; emoji: string }
-> = {
-  1: { label: "Очень плохо", emoji: "😣" },
-  2: { label: "Скорее плохо", emoji: "😕" },
-  3: { label: "Нейтрально", emoji: "😐" },
-  4: { label: "Хорошо", emoji: "🙂" },
-  5: { label: "Отлично", emoji: "😄" },
+const DEFAULT_BY_SCORE: Record<1 | 2 | 3 | 4 | 5, { label: string }> = {
+  1: { label: "Очень плохо" },
+  2: { label: "Скорее плохо" },
+  3: { label: "Нейтрально" },
+  4: { label: "Хорошо" },
+  5: { label: "Отлично" },
 };
 
 function unwrapValueJson(valueJson: unknown): unknown {
@@ -26,7 +22,7 @@ function unwrapValueJson(valueJson: unknown): unknown {
 }
 
 /**
- * Возвращает 5 кнопок настроения (1-5) с label/иконками; неизвестные URL отбрасываются, остаётся emoji.
+ * Возвращает 5 кнопок настроения (1-5) с label; без картинки из настроек UI показывает стандартные Lucide-иконки.
  */
 export function parsePatientHomeMoodIcons(valueJson: unknown): readonly PatientHomeMoodIconOption[] {
   const raw = unwrapValueJson(valueJson);
@@ -56,7 +52,6 @@ export function parsePatientHomeMoodIcons(valueJson: unknown): readonly PatientH
     out.push({
       score: s,
       label: d?.label && d.label.length > 0 ? d.label : def.label,
-      emoji: def.emoji,
       imageUrl,
     });
   }

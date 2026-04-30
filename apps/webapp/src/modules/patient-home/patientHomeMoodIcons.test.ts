@@ -7,7 +7,6 @@ describe("parsePatientHomeMoodIcons", () => {
     expect(out).toHaveLength(5);
     expect(out[0]?.score).toBe(1);
     expect(out[0]?.label).toBe("Очень плохо");
-    expect(out[0]?.emoji).toBe("😣");
     expect(out[0]?.imageUrl).toBeNull();
   });
 

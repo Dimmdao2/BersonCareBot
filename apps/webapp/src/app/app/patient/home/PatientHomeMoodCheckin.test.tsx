@@ -37,7 +37,7 @@ describe("PatientHomeMoodCheckin", () => {
     expect(screen.getByText(/будет доступен после активации профиля/i)).toBeInTheDocument();
   });
 
-  it("renders five emoji buttons and highlights saved score", () => {
+  it("renders five mood icon buttons and highlights saved score", () => {
     render(
       <PatientHomeMoodCheckin
         moodOptions={defaultMoodOptions}

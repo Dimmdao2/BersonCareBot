@@ -41,6 +41,13 @@ function folderPathLabel(folder: MediaFolderRecord, all: MediaFolderRecord[]): s
 
 type MediaPickerListSortPreset = "date:desc" | "date:asc" | "name:asc" | "name:desc";
 
+const MEDIA_PICKER_SORT_OPTIONS: { value: MediaPickerListSortPreset; label: string }[] = [
+  { value: "date:desc", label: "Сначала новые" },
+  { value: "date:asc", label: "Сначала старые" },
+  { value: "name:asc", label: "Название А→Я" },
+  { value: "name:desc", label: "Название Я→А" },
+];
+
 function parseMediaPickerListSortPreset(preset: MediaPickerListSortPreset): {
   sortBy: "date" | "name";
   sortDir: "asc" | "desc";
@@ -465,13 +472,16 @@ export function MediaPickerPanel({
               onValueChange={(v) => setListSortPreset(v as MediaPickerListSortPreset)}
             >
               <SelectTrigger size="sm" className="w-full text-left">
-                <SelectValue />
+                <SelectValue placeholder="Порядок списка">
+                  {MEDIA_PICKER_SORT_OPTIONS.find((o) => o.value === listSortPreset)?.label ?? "Сначала новые"}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="date:desc">Сначала новые</SelectItem>
-                <SelectItem value="date:asc">Сначала старые</SelectItem>
-                <SelectItem value="name:asc">Название А→Я</SelectItem>
-                <SelectItem value="name:desc">Название Я→А</SelectItem>
+                {MEDIA_PICKER_SORT_OPTIONS.map((o) => (
+                  <SelectItem key={o.value} value={o.value}>
+                    {o.label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>

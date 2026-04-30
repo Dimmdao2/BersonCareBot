@@ -27,6 +27,7 @@ export function getDoctorScreenTitle(pathname: string): string {
     "/app/doctor/recommendations/new": "Новая рекомендация",
     "/app/doctor/treatment-program-templates": "Шаблоны программ",
     "/app/doctor/treatment-program-templates/new": "Новый шаблон программы",
+    "/app/doctor/courses": "Курсы",
     "/app/doctor/courses/new": "Новый курс",
     "/app/doctor/lfk-templates": "Комплексы",
     "/app/doctor/lfk-templates/new": "Новый комплекс",
@@ -55,6 +56,9 @@ export function getDoctorScreenTitle(pathname: string): string {
   if (p.startsWith("/app/doctor/content/sections/edit/")) return "Редактировать раздел";
   if (p.startsWith("/app/doctor/content/new")) return "Новая страница";
   if (p.includes("/app/doctor/content/edit")) return "Редактировать страницу";
+  if (/^\/app\/doctor\/courses\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(p)) {
+    return "Редактирование курса";
+  }
 
   return "Кабинет";
 }

@@ -54,7 +54,7 @@ export function MediaLibraryInsertDialog({ onInsert }: Props) {
           exercisePicker={false}
           pickerFolderId={undefined}
           onPickerFolderIdChange={() => {}}
-          showSort={false}
+          showSort
         />
       </MediaPickerShell>
     </>
