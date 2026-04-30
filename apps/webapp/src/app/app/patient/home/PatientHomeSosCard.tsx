@@ -6,7 +6,6 @@ import {
   patientHomeCardDangerClass,
   patientHomeSosCardGeometryClass,
   patientHomeSosSubtitleClampClass,
-  patientHomeSosThumbSlotClass,
   patientHomeSosTitleClampClass,
   patientIconLeadingDangerClass,
 } from "./patientHomeCardStyles";
@@ -48,17 +47,6 @@ export function PatientHomeSosCard({ sos, blockIconImageUrl }: Props) {
                   .
                 </p>}
             </div>
-            {sos.imageUrl ?
-              <div className={patientHomeSosThumbSlotClass} aria-hidden>
-                <PatientHomeSafeImage
-                  src={sos.imageUrl}
-                  alt=""
-                  className="size-full object-cover opacity-60"
-                  loading="lazy"
-                  fallback={<div className="size-full bg-[var(--patient-color-danger-soft)]/40" aria-hidden />}
-                />
-              </div>
-            : null}
           </div>
           <span
             className={cn(

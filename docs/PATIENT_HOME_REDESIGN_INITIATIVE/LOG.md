@@ -3,10 +3,13 @@
 ## 2026-05-01 — QA волна: фазы A+B+C (план patient-home-qa-fixes)
 
 - **Ветка:** `feat/patient-home-cms-editor-uxlift-2026-04-29`.
+- **Корректирующий visual QA после первичного выполнения:**
+  - **SOS:** декоративный thumbnail справа удалён полностью из `PatientHomeSosCard`, потому что stale/non-loadable `sos.imageUrl` успевал показывать broken-image glyph до fallback даже после условного рендера. Главная цель блока — быстрый CTA; thumbnail не критичен и только добавлял визуальный шум.
+  - **`useful_post` badge на mobile:** карточке добавлены `min-w-0 max-w-full`, badge сдвинут глубже внутрь (`right-10`, на ≤360px `right-8`) и ограничен через `max-w-[calc(...)]`. Повторный mobile smoke `390x1400` показывает «НОВЫЙ ПОСТ» целиком, без среза у правого края.
 - **Фаза A — карточки:**
   - **Ситуации:** `patientHomeSituationTileTitleClass` — `flex min-h-[2rem] … items-start justify-center`, на lg `lg:min-h-[2.25rem]`, чтобы подписи в 1 vs 2 строки не «прыгали» по вертикали относительно соседних плиток.
-  - **SOS:** правый thumbnail рендерится только при непустом `sos.imageUrl`; при загрузке ошибки — `fallback` с мягким `danger-soft` фоном вместо broken-image.
-  - **`useful_post` бейдж:** `patientHomeUsefulPostCoverBadgeClass` — `truncate`; в `PatientHomeUsefulPostCard` позиция `right-3 top-3`, на ≤360px `max-[360px]:max-w-[8rem]` в дополнение к `max-w-[min(100%,11rem)]`.
+  - **SOS:** декоративный правый thumbnail убран из карточки, чтобы stale/non-loadable `sos.imageUrl` не показывал broken-image glyph.
+  - **`useful_post` бейдж:** `patientHomeUsefulPostCoverBadgeClass` — `truncate`; в `PatientHomeUsefulPostCard` карточка зафиксирована через `min-w-0 max-w-full`, mobile-позиция бейджа `right-10 top-4`, на ≤360px — `right-8 top-3 max-w-[7.5rem]`.
   - **`patientButtonDangerOutlineClass`:** убран глобальный `w-full` ([`patientVisual.ts`](apps/webapp/src/shared/ui/patientVisual.ts)); в SOS CTA убран лишний `w-fit` (остаётся `inline-flex` + `min-w-[8rem]`).
 - **Фаза B — desktop пары:**
   - **`subscription_carousel`:** при `cards.length === 1` на item добавлены `lg:w-full lg:max-w-none lg:min-w-0`, чтобы единственная карточка заполняла правую колонку сетки.

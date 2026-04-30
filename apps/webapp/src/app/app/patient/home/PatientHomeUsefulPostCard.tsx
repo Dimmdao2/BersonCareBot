@@ -12,7 +12,7 @@ export function PatientHomeUsefulPostCard({ post }: Props) {
   return (
     <section
       aria-labelledby="patient-home-useful-post-heading"
-      className="flex h-full min-h-[172px] flex-col lg:min-h-0"
+      className="flex h-full min-h-[172px] min-w-0 max-w-full flex-col lg:min-h-0"
     >
       <Link
         href={post.href}
@@ -20,7 +20,7 @@ export function PatientHomeUsefulPostCard({ post }: Props) {
         aria-label={post.showTitle ? undefined : post.title}
         className={cn(
           patientHomeUsefulPostCardShellClass,
-          "group relative isolate flex h-full min-h-[172px] flex-1 overflow-hidden p-0 lg:min-h-[300px]",
+          "group relative isolate flex h-full min-h-[172px] min-w-0 max-w-full flex-1 overflow-hidden p-0 lg:min-h-[300px]",
         )}
       >
         <PatientHomeSafeImage
@@ -37,7 +37,7 @@ export function PatientHomeUsefulPostCard({ post }: Props) {
           <span
             className={cn(
               patientHomeUsefulPostCoverBadgeClass,
-              "pointer-events-none absolute right-3 top-3 z-[3] max-[360px]:max-w-[8rem] lg:right-5 lg:top-5",
+              "pointer-events-none absolute right-10 top-4 z-[3] max-w-[calc(100%-5rem)] max-[360px]:right-8 max-[360px]:top-3 max-[360px]:max-w-[7.5rem] lg:right-5 lg:top-5 lg:max-w-[calc(100%-2.5rem)]",
             )}
           >
             {post.badgeLabel}
