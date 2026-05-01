@@ -7,6 +7,7 @@ import { getOptionalPatientSession, patientRscPersonalDataGate } from "@/app-lay
 import { routePaths } from "@/app-layer/routes/paths";
 import { CabinetGuestAccess } from "@/shared/ui/patient/guestAccess";
 import { AppShell } from "@/shared/ui/AppShell";
+import { patientInnerPageStackClass } from "@/shared/ui/patientVisual";
 import { CabinetActiveBookings } from "./CabinetActiveBookings";
 import { CabinetInfoLinks } from "./CabinetInfoLinks";
 import { CabinetBookingEntry } from "./CabinetBookingEntry";
@@ -54,7 +55,7 @@ export default async function PatientCabinetPage() {
       backLabel="Меню"
       variant="patient"
     >
-      <section className="flex flex-col gap-6">
+      <section className={patientInnerPageStackClass}>
         <CabinetActiveBookings bookings={records.upcoming} appDisplayTimeZone={appDisplayTimeZone} />
         <CabinetInfoLinks />
         <CabinetBookingEntry />

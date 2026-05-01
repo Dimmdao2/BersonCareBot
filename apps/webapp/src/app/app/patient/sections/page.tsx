@@ -8,10 +8,14 @@ import { getOptionalPatientSession } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
 import { resolvePatientCanViewAuthOnlyContent } from "@/modules/platform-access";
 import { logServerRuntimeError } from "@/infra/logging/serverRuntimeLog";
-import { cn } from "@/lib/utils";
 import { AppShell } from "@/shared/ui/AppShell";
 import { FeatureCard } from "@/shared/ui/FeatureCard";
-import { patientMutedTextClass } from "@/shared/ui/patientVisual";
+import {
+  patientInnerCardGridClass,
+  patientInnerPageStackClass,
+  patientMutedTextClass,
+  patientPageSubtitleClass,
+} from "@/shared/ui/patientVisual";
 
 export default async function PatientSectionsIndexPage() {
   const session = await getOptionalPatientSession();
@@ -33,23 +37,25 @@ export default async function PatientSectionsIndexPage() {
       backLabel="Меню"
       variant="patient"
     >
-      <p className={cn(patientMutedTextClass, "mb-4")}>
-        Материалы по разделам. Некоторые разделы доступны после входа с подтверждённым телефоном.
-      </p>
-      <section className="grid gap-4 md:grid-cols-2">
-        {sections.map((s) => (
-          <FeatureCard
-            key={s.id}
-            containerId={`patient-sections-index-${s.slug}`}
-            title={s.title}
-            description={s.description || undefined}
-            href={`/app/patient/sections/${encodeURIComponent(s.slug)}`}
-          />
-        ))}
-      </section>
-      {sections.length === 0 ? (
-        <p className={cn(patientMutedTextClass, "mt-4")}>Пока нет доступных разделов.</p>
-      ) : null}
+      <div className={patientInnerPageStackClass}>
+        <p className={patientPageSubtitleClass}>
+          Материалы по разделам. Некоторые разделы доступны после входа с подтверждённым телефоном.
+        </p>
+        <section className={patientInnerCardGridClass}>
+          {sections.map((s) => (
+            <FeatureCard
+              key={s.id}
+              containerId={`patient-sections-index-${s.slug}`}
+              title={s.title}
+              description={s.description || undefined}
+              href={`/app/patient/sections/${encodeURIComponent(s.slug)}`}
+            />
+          ))}
+        </section>
+        {sections.length === 0 ? (
+          <p className={patientMutedTextClass}>Пока нет доступных разделов.</p>
+        ) : null}
+      </div>
     </AppShell>
   );
 }

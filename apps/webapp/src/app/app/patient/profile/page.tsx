@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 import { AppShell } from "@/shared/ui/AppShell";
 import { ConnectMessengersBlock } from "@/shared/ui/ConnectMessengersBlock";
 import {
+  patientInnerPageStackClass,
   patientMutedTextClass,
   patientSecondaryActionClass,
 } from "@/shared/ui/patientVisual";
@@ -77,7 +78,7 @@ export default async function PatientProfilePage() {
       backLabel="Меню"
       variant="patient"
     >
-      <div className="flex flex-col gap-3">
+      <div className={patientInnerPageStackClass}>
         <ProfileAccordionSection id="patient-profile-personal" title="Личные данные">
           <ProfileForm
             displayName={session.user.displayName}

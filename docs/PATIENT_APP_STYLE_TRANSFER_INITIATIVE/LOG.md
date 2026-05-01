@@ -1,5 +1,28 @@
 # LOG — Patient App Style Transfer
 
+## 2026-05-01 — Step 1–2 EXEC
+
+- Agent/model: Composer (Cursor).
+- Scope: шаги **1** и **2** из `docs/PATIENT_APP_STYLE_TRANSFER_INITIATIVE/ПОРЯДОК РАБОТ.md` — общие primitives внутренних страниц в `patientVisual.ts` и эталонное применение на трёх маршрутах; без product/content/API/БД/env/integrator/doctor/admin; `PatientHomeToday` и deferred-маршруты не затрагивались.
+- Files changed (**code**): `apps/webapp/src/shared/ui/patientVisual.ts`, `apps/webapp/src/app/app/patient/cabinet/page.tsx`, `apps/webapp/src/app/app/patient/sections/page.tsx`, `apps/webapp/src/app/app/patient/profile/page.tsx`.
+- Files changed (**artifacts**): `docs/PATIENT_APP_STYLE_TRANSFER_INITIATIVE/ARTIFACTS/step-1-2-primitives/*` — по 6 PNG на страницу (3 viewport × before/after): `cabinet|sections|profile`-`390x844|768x1024|1280x900`-`before|after`.png.
+- Style-only confirmation: строки UI, заголовки shell, порядок блоков/карточек, ссылки, server actions и data fetching не менялись; новый `h1` в content area не вводился (заголовки остаются в `AppShell`).
+- Checks: `pnpm --dir apps/webapp exec eslint` на перечисленные ts/tsx; `pnpm --dir apps/webapp typecheck`. Root `pnpm run ci` не запускался. Vitest по страницам не гонялся: `cabinet/page.tsx` / `sections/page.tsx` / `profile/page.tsx` не имеют прямых тестовых импортов.
+- Visual QA: локальный dev (`127.0.0.1:5200`), headless Chromium, `dev:client` через `/api/auth/dev-bypass`.
+- Gaps / перед шагом 3:
+  - `patientPageTitleClass` и `patientPageHeaderClass` определены, на этих трёх страницах **не подключались** (дублировать shell `h1` не стали).
+  - `patientPageSectionGapClass` пока только в библиотеке примитивов; на эталонах не понадобился.
+  - Профиль: аккордеоны и «шапка спорная» — вынесено в `ПОРЯДОК РАБОТ.md` шаг 5/8; здесь только обёртка стопки (`patientInnerPageStackClass`).
+  - Разделы: вводный абзац переведён на `patientPageSubtitleClass` (вторичный цвет вместо прежнего `patientMutedTextClass` — визуальный сдвиг тона без смены текста).
+
+## 2026-05-01 — Порядок работ saved
+
+- Agent/model: GPT-5.5 (Cursor).
+- Scope: docs-only — сохранил рекомендуемую последовательность задач Композеру по результатам `GLOBAL_AUDIT.md`, `PATIENT_SHARED_STYLE_ELEMENTS_AUDIT.md` и материалов Shadcn Alignment.
+- Files changed: `docs/PATIENT_APP_STYLE_TRANSFER_INITIATIVE/ПОРЯДОК РАБОТ.md` (создан), `docs/PATIENT_APP_STYLE_TRANSFER_INITIATIVE/LOG.md`.
+- App-code changes: none.
+- Checks: docs-only.
+
 ## 2026-05-01 — Audit review / docs corrections
 
 - Agent/model: GPT-5.5 (Cursor).

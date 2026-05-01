@@ -125,3 +125,34 @@ export const patientPrimaryActionClass = patientButtonPrimaryClass;
 export const patientSecondaryActionClass = patientButtonSecondaryClass;
 
 export const patientDangerActionClass = patientButtonDangerOutlineClass;
+
+/** Заголовок страницы в зоне контента (`h1`): primary-текст patient, без фона и карточной обводки. Дублировать shell-title только если сознательно нужен второй уровень иерархии. */
+export const patientPageTitleClass = cn(
+  "font-sans font-semibold tracking-tight text-[var(--patient-text-primary)]",
+  "text-[17px] leading-snug md:text-xl md:leading-snug",
+);
+
+/** Вводный текст / подпись под заголовком страницы (secondary-тон patient). Без карточного фона. */
+export const patientPageSubtitleClass = cn(
+  "text-sm leading-5 text-[var(--patient-text-secondary)]",
+);
+
+/** Обёртка пары «заголовок + подпись» вверху страницы: компактный gap и нижний отступ без card-style. */
+export const patientPageHeaderClass = cn("mb-3 flex flex-col gap-2 md:mb-4");
+
+/**
+ * Базовая вертикальная стопка контента внутренней страницы (`gap` 12px → 16px на lg).
+ * Ширину задаёт shell — без max-width здесь.
+ */
+export const patientInnerPageStackClass = cn("flex flex-col gap-3 lg:gap-4");
+
+/** Типовая сетка карточек: одна колонка на мобиле, две от `md`; те же промежутки, что у `patientInnerPageStackClass`. */
+export const patientInnerCardGridClass = cn(
+  "grid grid-cols-1 gap-3 md:grid-cols-2 lg:gap-4",
+);
+
+/**
+ * Дополнительный вертикальный отступ между логическими блоками (если уже есть своя стопка и нужен только rhythm).
+ * Обычно — верхний отступ у следующего сиблинга-секции.
+ */
+export const patientPageSectionGapClass = "mt-4 lg:mt-6";
