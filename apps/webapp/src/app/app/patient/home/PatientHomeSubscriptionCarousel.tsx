@@ -28,9 +28,9 @@ export function PatientHomeSubscriptionCarousel({ cards, sectionTitle }: Props) 
 
   return (
     <section id="patient-home-subscription-carousel" className={patientHomeTodaySectionStackClass} aria-labelledby="patient-home-subscription-heading">
-      <h2 id="patient-home-subscription-heading" className={cn(patientHomeBlockHeadingClass, "px-4 lg:px-[18px]")}>
+      <p id="patient-home-subscription-heading" className={cn(patientHomeBlockHeadingClass, "px-4 lg:px-[18px]")}>
         {heading}
-      </h2>
+      </p>
       <div
         className={cn(
           "-mx-1 flex snap-x snap-mandatory gap-3 overflow-x-auto px-1 pb-1 [scrollbar-width:thin]",

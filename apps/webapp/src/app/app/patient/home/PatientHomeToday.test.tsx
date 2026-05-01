@@ -162,7 +162,7 @@ describe("PatientHomeToday", () => {
 
     expect(screen.queryByText(/Fixture User/i)).toBeNull();
     expect(screen.getByRole("heading", { name: /^Прогресс$/ })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: /Как вы себя чувствуете/i })).toBeInTheDocument();
+    expect(screen.getByText(/Как вы себя чувствуете/i)).toHaveProperty("tagName", "P");
     expect(screen.getByText(/Пока нет ближайших/i)).toBeInTheDocument();
     expect(screen.getByText(/Назначит специалист или выберите готовую программу/i)).toBeInTheDocument();
     expect(screen.queryByText(/Пока нет курсов на главной/i)).toBeNull();
@@ -198,7 +198,7 @@ describe("PatientHomeToday", () => {
     expect(screen.queryByText(/Fixture User/i)).toBeNull();
     expect(screen.getByRole("link", { name: /Активировать профиль/i })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: /^Прогресс$/ })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: /Как вы себя чувствуете/i })).toBeInTheDocument();
+    expect(screen.getByText(/Как вы себя чувствуете/i)).toHaveProperty("tagName", "P");
     expect(screen.getByRole("link", { name: /Настроить/i })).toHaveAttribute("href", routePaths.patientReminders);
     expect(screen.getByRole("link", { name: /Выбрать курс/i })).toHaveAttribute("href", routePaths.patientTreatmentPrograms);
     expect(screen.queryByRole("link", { name: /К каталогу курсов/i })).toBeNull();

@@ -37,7 +37,7 @@ export function PatientHomeSituationsRow({ chips }: Props) {
       aria-label="Выберите пользу для себя"
     >
       <div className="min-w-0">
-        <h2
+        <p
           id="patient-home-situations-heading"
           aria-hidden="true"
           className={cn(
@@ -46,7 +46,7 @@ export function PatientHomeSituationsRow({ chips }: Props) {
           )}
         >
           Выберите пользу для себя:
-        </h2>
+        </p>
         <div className={patientHomeTodayCardScrollRowBleedClass}>
           {chips.map((c) => (
             <Link

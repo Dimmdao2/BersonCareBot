@@ -49,7 +49,8 @@ describe("PatientHomeMoodCheckin", () => {
 
     expect(screen.getAllByRole("button", { name: /Самочувствие/i })).toHaveLength(5);
     expect(screen.getByRole("button", { name: /Самочувствие 4 из 5/i })).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByText(/Записано/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Записано/i)).toBeNull();
+    expect(screen.queryByRole("button", { name: /Изменить/i })).toBeNull();
   });
 
   it("optimistically saves selected score", async () => {

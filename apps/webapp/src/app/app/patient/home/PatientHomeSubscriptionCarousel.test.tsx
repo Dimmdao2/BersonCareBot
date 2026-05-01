@@ -75,6 +75,6 @@ describe("PatientHomeSubscriptionCarousel", () => {
         ]}
       />,
     );
-    expect(screen.getByRole("heading", { name: "Карусель из админки" })).toBeInTheDocument();
+    expect(screen.getByText("Карусель из админки")).toHaveProperty("tagName", "P");
   });
 });

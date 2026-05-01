@@ -38,7 +38,10 @@ describe("PatientHomeNextReminderCard", () => {
     render(<PatientHomeNextReminderCard rule={baseRule()} scheduleLabel="ср, 10:15" />);
     expect(screen.getByText("ср, 10:15")).toBeInTheDocument();
     expect(screen.getByText("Напоминание")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Изменить/i })).toHaveAttribute("href", "/app/patient/reminders");
+    const cta = screen.getByRole("link", { name: /Изменить/i });
+    expect(cta).toHaveAttribute("href", "/app/patient/reminders");
+    expect(cta).toHaveClass("self-end");
+    expect(cta).toHaveClass("min-w-[6.75rem]");
   });
 
   it("renders custom leading icon when blockIconImageUrl is set", () => {

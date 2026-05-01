@@ -203,9 +203,14 @@
   }
 }
 
-#app-shell-patient h1,
-#app-shell-patient h2,
-#app-shell-patient h3 {
+/**
+ * Patient shell heading baseline (display Roboto, weight 400) — оставлен как **дефолт**,
+ * перекрываемый утилитарными классами Tailwind (см. `patientHomeBlockHeadingClass`).
+ * `:where()` понижает специфичность с `(1,0,1)` до `(0,0,1)`, иначе ID-селектор бьёт класс
+ * и in-card block headings (`<h2>`) выглядят отлично от `<p>`-заголовка «Сегодня выполнено»
+ * (другое семейство, weight 400 вместо 600). См. `LOG.md` 2026-05-01 — «Открытая проблема — шрифты/заголовки».
+ */
+:where(#app-shell-patient) :where(h1, h2, h3) {
   font-family: var(--font-roboto-heading), var(--font-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-weight: 400;
 }

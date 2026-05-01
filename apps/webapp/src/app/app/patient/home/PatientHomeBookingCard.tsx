@@ -63,9 +63,9 @@ export function PatientHomeBookingCard({ personalTierOk, anonymousGuest, blockIc
               />
             </div>
             <div className="min-w-0 flex-1">
-              <h2 id="patient-home-booking-heading" className={patientHomeBlockHeadingClass}>
+              <p id="patient-home-booking-heading" className={patientHomeBlockHeadingClass}>
                 Нужна консультация?
-              </h2>
+              </p>
               <p className={patientHomeBookingCopyClampClass}>Запишитесь на приём к специалисту очно или онлайн.</p>
             </div>
           </div>

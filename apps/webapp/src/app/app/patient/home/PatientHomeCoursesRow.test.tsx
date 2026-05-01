@@ -26,7 +26,7 @@ describe("PatientHomeCoursesRow", () => {
       />,
     );
 
-    expect(screen.getByRole("heading", { name: "Курсы" })).toBeInTheDocument();
+    expect(screen.getByText("Курсы")).toHaveProperty("tagName", "P");
     expect(screen.getByRole("link", { name: /Курс для спины/i })).toHaveAttribute("href", "/app/patient/courses/course-1");
   });
 });

@@ -107,13 +107,6 @@ export function PatientHomeMoodCheckin({
   const statusLine =
     submittingScore !== null ?
       "Сохраняем..."
-    : savedScore !== null && selectedScore !== null ?
-      <>
-        Записано.{" "}
-        <button type="button" className="font-medium text-primary underline-offset-4 hover:underline" onClick={() => setSelectedScore(null)}>
-          Изменить
-        </button>
-      </>
     : null;
 
   const renderMoodScale = (disabled: boolean) => (
@@ -164,9 +157,9 @@ export function PatientHomeMoodCheckin({
     >
       <div className="relative z-[1] flex h-full min-h-0 flex-col">
         <div className="shrink-0">
-          <h2 id="patient-home-mood-heading" className={patientHomeBlockHeadingClass}>
+          <p id="patient-home-mood-heading" className={patientHomeBlockHeadingClass}>
             Как вы себя чувствуете?
-          </h2>
+          </p>
         </div>
         {anonymousGuest ?
           <div className="flex min-h-0 flex-1 flex-col justify-between gap-1.5 pt-2.5">

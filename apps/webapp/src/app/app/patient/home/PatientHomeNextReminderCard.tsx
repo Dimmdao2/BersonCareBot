@@ -13,7 +13,8 @@ import { PatientHomeSafeImage } from "./PatientHomeSafeImage";
 import { patientButtonWarningOutlineClass } from "@/shared/ui/patientVisual";
 import { cn } from "@/lib/utils";
 
-const reminderCtaClass = "w-fit min-w-[8.75rem] self-start px-4 lg:ml-auto lg:w-[8.75rem] lg:self-auto";
+const reminderCtaClass =
+  "!w-auto min-w-[6.75rem] self-end px-3 text-[13px] lg:min-w-[8rem] lg:px-4 lg:text-sm";
 
 type Props = {
   rule: ReminderRule | null;

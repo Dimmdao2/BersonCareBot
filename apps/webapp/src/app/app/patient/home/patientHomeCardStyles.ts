@@ -239,8 +239,18 @@ export const patientHomeCardSubtitleClampSmClass = cn(
 
 // --- Patient home «Сегодня»: fixed-geometry cards (hero, booking, grid blocks) ---
 
-/** Единый заголовок блоков главной пациента — визуальный тон как у «Мой план реабилитации». */
+/**
+ * Единый заголовок блоков главной пациента — визуальный тон как у «Сегодня выполнено» / «Мой план реабилитации».
+ *
+ * Важно: видимые block-heading элементы рендерятся как `<p>`, как эталон «Сегодня выполнено».
+ * `font-sans` оставлен явно, чтобы будущие `<h2>`-варианты не наследовали
+ * `font-family: var(--font-roboto-heading)` и `font-weight: 400` от глобального
+ * patient-shell baseline (`globals.css#app-shell-patient :where(h1,h2,h3)`). С `:where()` baseline
+ * имеет специфичность `(0,0,1)`, поэтому утилитарные классы Tailwind (`font-sans`, `font-[var(--…-weight)]`)
+ * выигрывают и `<p>` / `<h2>` рендерятся идентично.
+ */
 export const patientHomeBlockHeadingClass = cn(
+  "font-sans",
   "text-[length:var(--patient-block-heading-font-size)] font-[var(--patient-block-heading-font-weight)] leading-[var(--patient-block-heading-line-height)] text-[var(--patient-block-heading)]",
 );
 
@@ -265,8 +275,14 @@ export const patientHomeTodayCardSectionStackClass = "flex min-w-0 flex-col gap-
  * Полоса прокрутки скрыта (свайп/колёсико/тач), чтобы ряд выглядел как карусель.
  */
 export const patientHomeTodayCardScrollRowBleedClass = cn(
-  /* Mobile: py-0 — без вертикального «второго» отступа внутри карточки; lg: лёгкий py, чтобы hover translate/ring не резались. */
-  "mt-0 flex min-h-0 min-w-0 flex-1 gap-3 overflow-x-auto py-0 lg:py-1.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+  /**
+   * Mobile/lg: `py-3` обязателен — `overflow-x-auto` по CSS-спеке принудительно делает `overflow-y` clipped
+   * (нельзя иметь scroll по одной оси и visible по другой). Без вертикального padding hover-эффект
+   * плитки (`-translate-y-0.5 + shadow-md + ring-2`) обрезается у верхнего/нижнего края scroll row,
+   * хотя сама карточка `overflow-visible`. `py-3` (12px) даёт запас под lift (2px) + ring (2px) + shadow (~6px).
+   * `-my-3` компенсирует визуально, чтобы общая высота карточки не росла.
+   */
+  "mt-0 flex min-h-0 min-w-0 flex-1 gap-3 overflow-x-auto py-3 -my-3 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
   /* `-mx-4` компенсирует card `px-4`; `pl-[11px]` подобран так, чтобы media первой плитки (60px в 72px tile, items-center) визуально выровнялась с левым краем контента других карточек (border 1 + padding 16). `pr-2` оставляет правый peek, не вынося плитку за визуальный край шелла. */
   "-mx-4 scroll-pl-[11px] pl-[11px] pr-2",
   /* Не использовать repeat(...,minmax(...)) в одном arbitrary grid-cols — запятая ломает класс в Tailwind → одна колонка и вертикальный столбик на lg */
@@ -372,8 +388,12 @@ export const patientHomeSituationTileTitleClass = cn(
   "mx-auto mt-1.5 flex min-h-[2rem] min-w-0 max-w-[5.25rem] items-start justify-center whitespace-normal break-words text-center lg:mt-2 lg:min-h-[2.25rem] lg:max-w-[5.5rem]",
 );
 
-/** Fixed companion geometry for the row paired with booking on desktop. */
-export const patientHomeSituationsCardGeometryClass = cn("overflow-visible lg:h-[176px] lg:min-h-0 lg:overflow-hidden");
+/**
+ * Fixed companion geometry for the row paired with booking on desktop.
+ * `overflow-visible` на всех breakpoints — иначе hover ring/shadow и translate-y плиток
+ * обрезаются по краю карточки (и на lg, и при увеличении на mobile).
+ */
+export const patientHomeSituationsCardGeometryClass = cn("overflow-visible lg:h-[176px] lg:min-h-0");
 
 /** Mobile: секция «ситуации» без рамки/тени карточки и без вертикального padding оболочки. */
 export const patientHomeSituationsCardMobileChromeClass =
@@ -385,7 +405,7 @@ export const patientHomeProgressCardGeometryClass = cn(
 );
 
 export const patientHomeProgressGridClass = cn(
-  "grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_4.5rem] items-center gap-1 lg:grid-cols-[minmax(0,1fr)_7.5rem] lg:gap-4",
+  "grid min-h-[100px] min-w-0 grid-cols-[minmax(0,1fr)_4.5rem] items-center gap-1 sm:min-h-[108px] lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_7.5rem] lg:gap-4",
 );
 
 /** Mobile keeps the compact divider; desktop returns the progress circle with more breathing room. */
@@ -411,12 +431,21 @@ export const patientHomeMoodStatusSlotClass = cn(
 );
 
 export const patientHomeMoodOptionButtonClass = cn(
-  "mx-auto flex size-11 max-w-full shrink-0 items-center justify-center overflow-hidden rounded-full border border-transparent bg-white/45 p-0 transition-colors sm:size-12",
+  "mx-auto flex size-11 max-w-full shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-full border border-transparent bg-white/45 p-0 transition-colors sm:size-12",
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-primary)]",
+  "disabled:cursor-not-allowed",
 );
 
-/** SOS: compact action-card for the 3-card desktop row. */
-export const patientHomeSosCardGeometryClass = cn("flex h-[104px] flex-col justify-between gap-2 overflow-hidden lg:h-[136px]");
+/**
+ * SOS: на mobile — горизонтальный ряд (icon | text | CTA), как в референсе;
+ * на lg — вертикальная карточка (icon+text сверху, CTA снизу).
+ * Mobile high-enough min-h, без жёсткой `h-[104px]` (с ним subtitle и CTA не помещались внутри `overflow-hidden`).
+ */
+export const patientHomeSosCardGeometryClass = cn(
+  "flex flex-row items-center gap-3 overflow-hidden",
+  "min-h-[88px]",
+  "lg:h-[136px] lg:min-h-0 lg:flex-col lg:items-stretch lg:justify-between lg:gap-2",
+);
 
 export const patientHomeSosTitleClampClass = cn(
   patientLineClamp2Class,
