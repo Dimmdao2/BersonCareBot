@@ -1,9 +1,74 @@
 import { cn } from "@/lib/utils";
 
 /**
- * Patient-only кнопочные классы (без изменения глобального `buttonVariants` / doctor UI).
- * Использовать только внутри patient shell, где заданы CSS-токены `#app-shell-patient`.
+ * Patient-only визуальные примитивы для `#app-shell-patient` (токены в `globals.css`).
+ * Не меняют глобальные `buttonVariants` / shadcn Card — только экспорт строк классов.
+ *
+ * Surfaces / текст — для последующих фаз style-transfer без импорта из `patient/home/`.
+ * Кнопки с префиксом `patientButton*` сохранены; семантические алиасы `patient*ActionClass`
+ * и `patientInlineLinkClass` добавлены по MASTER_PLAN style-transfer.
  */
+
+/** Общая обводка и фон карточки пациента (не hero / не mood-shell — см. `patientHomeCardStyles`). */
+const patientCardSurfaceTokens = cn(
+  "border border-[var(--patient-border)] bg-[var(--patient-card-bg)] text-[var(--patient-text-primary)]",
+  "rounded-[var(--patient-card-radius-mobile)] lg:rounded-[var(--patient-card-radius-desktop)]",
+  "shadow-[var(--patient-shadow-card-mobile)] lg:shadow-[var(--patient-shadow-card-desktop)]",
+);
+
+/** Базовая карточка (секции каталога, списки и т.д.). */
+export const patientCardClass = cn(patientCardSurfaceTokens, "p-4 lg:p-[18px]");
+
+/** Компактная карточка (плотные списки). */
+export const patientCardCompactClass = cn(
+  patientCardSurfaceTokens,
+  "p-3 text-[var(--patient-text-primary)] lg:p-4",
+);
+
+/** Строка списка / узкая карточка-блок без тени карточки «полного» размера. */
+export const patientListItemClass = cn(
+  "rounded-lg border border-[var(--patient-border)] bg-[var(--patient-card-bg)] p-3 text-[var(--patient-text-primary)]",
+);
+
+/** Обёртка секции страницы (типичный блок с отступами и тенью карточки). */
+export const patientSectionSurfaceClass = cn(
+  patientCardSurfaceTokens,
+  "flex flex-col gap-4 p-4",
+);
+
+/** Визуальная оболочка формы (контейнер полей), без изменения инпутов внутри. */
+export const patientFormSurfaceClass = cn(patientCardSurfaceTokens, "flex flex-col gap-4 p-4");
+
+/** Заголовок секции блока (тон заголовков «Сегодня» / блоков). */
+export const patientSectionTitleClass = cn(
+  "font-semibold text-[length:var(--patient-block-heading-font-size)] leading-[length:var(--patient-block-heading-line-height)] text-[var(--patient-block-heading)]",
+);
+
+/** Основной текст абзаца внутри patient shell. */
+export const patientBodyTextClass = "text-sm text-[var(--patient-text-primary)]";
+
+/** Приглушённый текст (подписи, вторичные строки). */
+export const patientMutedTextClass = "text-sm text-[var(--patient-text-muted)]";
+
+/** Контейнер пустого состояния (центрирование + типичный вертикальный ритм). */
+export const patientEmptyStateClass = cn(
+  "flex flex-col items-center justify-center gap-2 py-8 text-center text-sm text-[var(--patient-text-muted)]",
+);
+
+/** Компактная «пилюля» / бейдж для статусов и меток (не hero-метрики главной). */
+export const patientPillClass = cn(
+  "inline-flex max-w-full items-center rounded-[var(--patient-pill-radius)] px-2 py-0.5 text-xs font-medium",
+  "bg-[var(--patient-color-primary-soft)] text-[var(--patient-color-primary)]",
+);
+
+/**
+ * Текстовая ссылка в потоке текста (не полноразмерная кнопка).
+ * Для кнопкообразных действий используйте `patientButtonGhostLinkClass` / secondary.
+ */
+export const patientInlineLinkClass = cn(
+  "font-semibold text-[var(--patient-color-primary)] underline-offset-2 hover:underline",
+  "focus-visible:rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-primary)]",
+);
 
 /** Базовый двухстрочный clamp для динамического текста на карточках пациента. */
 export const patientLineClamp2Class = "line-clamp-2 min-w-0";
@@ -46,3 +111,10 @@ export const patientButtonWarningOutlineClass = cn(
   "hover:bg-[#fef3c7]/80 active:bg-[#fef3c7]",
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#f59e0b]",
 );
+
+/** Семантические алиасы действий (`MASTER_PLAN.md` — patient Primary/Secondary/Danger action). */
+export const patientPrimaryActionClass = patientButtonPrimaryClass;
+
+export const patientSecondaryActionClass = patientButtonSecondaryClass;
+
+export const patientDangerActionClass = patientButtonDangerOutlineClass;
