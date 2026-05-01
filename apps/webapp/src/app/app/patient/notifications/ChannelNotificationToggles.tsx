@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { setChannelNotificationEnabled } from "./actions";
 import type { ChannelCard } from "@/modules/channel-preferences/types";
 import { cn } from "@/lib/utils";
+import { patientMutedTextClass } from "@/shared/ui/patientVisual";
 
 type Props = {
   cards: ChannelCard[];
@@ -17,7 +18,7 @@ export function ChannelNotificationToggles({ cards }: Props) {
 
   if (linked.length === 0) {
     return (
-      <p className="text-muted-foreground text-sm">
+      <p className={patientMutedTextClass}>
         Нет привязанных каналов. Подключите телефон, email или мессенджер ниже.
       </p>
     );
@@ -30,11 +31,11 @@ export function ChannelNotificationToggles({ cards }: Props) {
         {linked.map((c) => (
           <li
             key={c.code}
-            className="border-border/80 flex flex-wrap items-center justify-between gap-3 rounded-lg border px-3 py-2"
+            className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[var(--patient-border)]/80 px-3 py-2"
           >
             <span className="font-medium">{c.title}</span>
             <label className="flex cursor-pointer items-center gap-2 text-sm">
-              <span className="text-muted-foreground">Уведомления</span>
+              <span className={patientMutedTextClass}>Уведомления</span>
               <input
                 type="checkbox"
                 className={cn("size-4 accent-primary", pending && "opacity-60")}

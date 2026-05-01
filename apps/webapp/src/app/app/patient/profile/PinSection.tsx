@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { PinInput } from "@/shared/ui/auth/PinInput";
+import { patientMutedTextClass } from "@/shared/ui/patientVisual";
 
 type PinSectionProps = {
   /** На сервере: есть ли уже PIN у пользователя. */
@@ -54,7 +55,7 @@ export function PinSection({ hasPin: initialHasPin }: PinSectionProps) {
   if (!showPinForm) {
     return (
       <div id="patient-profile-pin-created" className="flex flex-col gap-3">
-        <p className="text-muted-foreground text-sm">
+        <p className={patientMutedTextClass}>
           Вы можете войти по номеру телефона и PIN без кода из SMS или мессенджера.
         </p>
         <Button type="button" variant="outline" className="w-fit" onClick={() => setResetting(true)}>
@@ -67,7 +68,7 @@ export function PinSection({ hasPin: initialHasPin }: PinSectionProps) {
   if (stage === "first") {
     return (
       <div id="patient-profile-pin-step-1" className="flex flex-col gap-3">
-        <p className="text-muted-foreground text-sm">
+        <p className={patientMutedTextClass}>
           {initialHasPin
             ? "Задайте новый PIN для входа по номеру телефона."
             : "Задайте PIN для быстрого входа по номеру телефона."}
@@ -93,7 +94,7 @@ export function PinSection({ hasPin: initialHasPin }: PinSectionProps) {
 
   return (
     <div id="patient-profile-pin-step-2" className="flex flex-col gap-3">
-      <p className="text-muted-foreground text-sm">Повторите PIN-код.</p>
+      <p className={patientMutedTextClass}>Повторите PIN-код.</p>
       <PinInput
         disabled={loading}
         submitLabel="Сохранить PIN"

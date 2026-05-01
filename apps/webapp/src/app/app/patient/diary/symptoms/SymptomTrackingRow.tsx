@@ -25,6 +25,8 @@ import { NumericChipGroup } from "@/components/common/controls/NumericChipGroup"
 import { notifyDiarySymptomEntrySaved } from "@/modules/diaries/symptomDiaryClientEvents";
 import { shouldConfirmInstantDuplicate, type LastSymptomSaveMeta } from "./symptomEntryDedup";
 import { addSymptomEntry, archiveSymptomTracking, renameSymptomTracking } from "./actions";
+import { cn } from "@/lib/utils";
+import { patientListItemClass, patientMutedTextClass } from "@/shared/ui/patientVisual";
 
 export function SymptomTrackingRow({ id, title }: { id: string; title: string }) {
   const router = useRouter();
@@ -42,7 +44,7 @@ export function SymptomTrackingRow({ id, title }: { id: string; title: string })
   }, [title]);
 
   return (
-    <li id={`patient-symptoms-tracking-item-${id}`} className="rounded-lg border border-border bg-card p-3 flex items-center justify-between gap-2">
+    <li id={`patient-symptoms-tracking-item-${id}`} className={cn(patientListItemClass, "flex items-center justify-between gap-2")}>
       <strong>{title ?? "—"}</strong>
       <div className="flex items-center gap-1">
         <Button
@@ -134,11 +136,11 @@ export function SymptomTrackingRow({ id, title }: { id: string; title: string })
             }}
           >
             <div className="flex flex-col gap-3">
-              <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Интенсивность (0–10)</span>
+              <span className={cn(patientMutedTextClass, "text-xs font-medium uppercase tracking-wide")}>Интенсивность (0–10)</span>
               <NumericChipGroup min={0} max={10} value={selectedValue} onChange={setSelectedValue} />
             </div>
             <label className="flex flex-col gap-1">
-              <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Тип записи</span>
+              <span className={cn(patientMutedTextClass, "text-xs font-medium uppercase tracking-wide")}>Тип записи</span>
               <select
                 className="h-10 w-full rounded-xl border border-input bg-background px-3 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 value={entryType}
@@ -149,7 +151,7 @@ export function SymptomTrackingRow({ id, title }: { id: string; title: string })
               </select>
             </label>
             <label className="flex flex-col gap-1">
-              <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Заметки (необязательно)</span>
+              <span className={cn(patientMutedTextClass, "text-xs font-medium uppercase tracking-wide")}>Заметки (необязательно)</span>
               <Textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} />
             </label>
             <DialogFooter>

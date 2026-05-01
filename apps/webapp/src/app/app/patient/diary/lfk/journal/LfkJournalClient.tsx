@@ -27,6 +27,7 @@ import type { StatsPeriod } from "@/modules/diaries/stats/periodWindow";
 import type { LfkSession } from "@/modules/diaries/types";
 import { JournalMonthNav } from "../../JournalMonthNav";
 import { deleteLfkJournalSession, updateLfkJournalSession } from "../actions";
+import { patientListItemClass, patientMutedTextClass } from "@/shared/ui/patientVisual";
 
 function pad2(n: number) {
   return String(n).padStart(2, "0");
@@ -72,7 +73,7 @@ export function LfkJournalClient(props: {
 
       {complexes.length > 1 ? (
         <label className="flex flex-wrap items-center gap-2 text-sm">
-          <span className="text-muted-foreground">Комплекс</span>
+          <span className={patientMutedTextClass}>Комплекс</span>
           <select
             className="h-10 w-full rounded-xl border border-input bg-background px-3 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring min-w-[200px]"
             value={activeComplexId}
@@ -90,7 +91,7 @@ export function LfkJournalClient(props: {
       ) : null}
 
       <div className="flex flex-col gap-2">
-        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Период (календарный месяц)</span>
+        <span className={cn(patientMutedTextClass, "text-xs font-medium uppercase tracking-wide")}>Период (календарный месяц)</span>
         <JournalMonthNav
           basePath={routePaths.diaryLfkJournal}
           monthYm={monthYm}
@@ -101,13 +102,13 @@ export function LfkJournalClient(props: {
       </div>
 
       {sessions.length === 0 ? (
-        <p className="text-muted-foreground text-sm">За этот месяц занятий нет.</p>
+        <p className={patientMutedTextClass}>За этот месяц занятий нет.</p>
       ) : (
         <ul className="m-0 list-none space-y-3 p-0">
           {sessions.map((s) => (
             <li
               key={s.id}
-              className="rounded-lg border border-border bg-card p-3 flex flex-wrap items-start justify-between gap-2"
+              className={cn(patientListItemClass, "flex flex-wrap items-start justify-between gap-2")}
             >
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
@@ -116,7 +117,7 @@ export function LfkJournalClient(props: {
                     Завершен
                   </Badge>
                 </div>
-                <div className="text-muted-foreground text-sm">
+                <div className={patientMutedTextClass}>
                   {new Date(s.completedAt).toLocaleString("ru-RU", {
                     day: "2-digit",
                     month: "2-digit",
@@ -168,7 +169,7 @@ export function LfkJournalClient(props: {
       )}
 
       <Dialog open={editSession !== null} onOpenChange={(o) => !o && setEditSession(null)}>
-        <DialogContent className="border border-border shadow-md sm:max-w-md">
+        <DialogContent className="border border-[var(--patient-border)] shadow-md sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Редактировать занятие</DialogTitle>
           </DialogHeader>
@@ -199,7 +200,7 @@ export function LfkJournalClient(props: {
               }}
             >
               <label className="flex flex-col gap-1">
-                <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Дата и время</span>
+                <span className={cn(patientMutedTextClass, "text-xs font-medium uppercase tracking-wide")}>Дата и время</span>
                 <Input
                   type="datetime-local"
                   name="completedAtLocal"
@@ -208,7 +209,7 @@ export function LfkJournalClient(props: {
                 />
               </label>
               <label className="flex flex-col gap-1">
-                <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Длительность (мин)</span>
+                <span className={cn(patientMutedTextClass, "text-xs font-medium uppercase tracking-wide")}>Длительность (мин)</span>
                 <Input
                   type="number"
                   name="durationMinutes"
@@ -219,7 +220,7 @@ export function LfkJournalClient(props: {
                 />
               </label>
               <label className="flex flex-col gap-1">
-                <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Сложность 0–10</span>
+                <span className={cn(patientMutedTextClass, "text-xs font-medium uppercase tracking-wide")}>Сложность 0–10</span>
                 <Input
                   type="number"
                   name="difficulty0_10"
@@ -230,7 +231,7 @@ export function LfkJournalClient(props: {
                 />
               </label>
               <label className="flex flex-col gap-1">
-                <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Боль 0–10</span>
+                <span className={cn(patientMutedTextClass, "text-xs font-medium uppercase tracking-wide")}>Боль 0–10</span>
                 <Input
                   type="number"
                   name="pain0_10"
@@ -241,7 +242,7 @@ export function LfkJournalClient(props: {
                 />
               </label>
               <label className="flex flex-col gap-1">
-                <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Комментарий</span>
+                <span className={cn(patientMutedTextClass, "text-xs font-medium uppercase tracking-wide")}>Комментарий</span>
                 <textarea
                   name="comment"
                   className="h-10 w-full rounded-xl border border-input bg-background px-3 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring"

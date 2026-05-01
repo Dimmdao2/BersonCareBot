@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { CreateTrackingForm } from "./CreateTrackingForm";
 import { SymptomTrackingRow } from "./SymptomTrackingRow";
+import { patientMutedTextClass, patientSectionSurfaceClass } from "@/shared/ui/patientVisual";
 
 export function SymptomsTrackingSectionClient({
   trackings,
@@ -22,7 +23,7 @@ export function SymptomsTrackingSectionClient({
   return (
     <section
       id="patient-symptoms-tracking-section"
-      className="rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col gap-4"
+      className={patientSectionSurfaceClass}
     >
       <h2 className="text-lg font-semibold">Отслеживаемые симптомы</h2>
       {rows.length > 0 ? (
@@ -32,11 +33,11 @@ export function SymptomsTrackingSectionClient({
           ))}
         </ul>
       ) : (
-        <p className="text-sm text-muted-foreground">Пока нет отслеживаний — добавьте симптом ниже.</p>
+        <p className={patientMutedTextClass}>Пока нет отслеживаний — добавьте симптом ниже.</p>
       )}
 
       {addOpen ? (
-        <div className="flex flex-col gap-3 border-t border-border pt-4">
+        <div className="flex flex-col gap-3 border-t border-[var(--patient-border)] pt-4">
           <CreateTrackingForm
             onSuccess={(t) => {
               setAddOpen(false);

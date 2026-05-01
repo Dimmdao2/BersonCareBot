@@ -8,6 +8,7 @@ import { NotificationsGuestAccess } from "@/shared/ui/patient/guestAccess";
 import { ChannelNotificationToggles } from "./ChannelNotificationToggles";
 import { SubscriptionsList } from "./SubscriptionsList";
 import { getSupportContactUrl } from "@/modules/system-settings/supportContactUrl";
+import { patientSectionSurfaceClass } from "@/shared/ui/patientVisual";
 
 const SUBSCRIPTIONS = [
   { id: "exercise_reminders", title: "Напоминания об упражнениях" },
@@ -57,19 +58,19 @@ export default async function NotificationsPage() {
       variant="patient"
     >
       <div className="flex flex-col gap-8">
-        <section className="rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col gap-4">
+        <section className={patientSectionSurfaceClass}>
           <h2 className="text-base font-semibold">Каналы доставки</h2>
           <ChannelNotificationToggles cards={channelCards} />
         </section>
 
-        <section className="rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col gap-4">
+        <section className={patientSectionSurfaceClass}>
           <h2 className="text-base font-semibold">Темы рассылок</h2>
           <SubscriptionsList subscriptions={SUBSCRIPTIONS} />
         </section>
 
         <ConnectMessengersBlock channelCards={channelCards} implementedOnly />
 
-        <section className="rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col gap-4">
+        <section className={patientSectionSurfaceClass}>
           <h2 className="text-base font-semibold">Email</h2>
           <EmailAccountPanel
             initialEmail={emailFields.email}

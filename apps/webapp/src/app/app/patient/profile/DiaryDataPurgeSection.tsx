@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { PinInput } from "@/shared/ui/auth/PinInput";
 import { SmsCodeForm } from "@/shared/ui/auth/SmsCodeForm";
+import { cn } from "@/lib/utils";
+import { patientMutedTextClass } from "@/shared/ui/patientVisual";
 
 type Props = {
   hasPin: boolean;
@@ -57,7 +59,7 @@ export function DiaryDataPurgeSection({ hasPin, phoneMasked }: Props) {
 
   if (!hasPin) {
     return (
-      <div className="flex flex-col gap-2 text-sm text-muted-foreground">
+      <div className={cn(patientMutedTextClass, "flex flex-col gap-2")}>
         <p>Чтобы удалить данные дневников, сначала задайте PIN в разделе «PIN для входа» выше.</p>
       </div>
     );
@@ -65,7 +67,7 @@ export function DiaryDataPurgeSection({ hasPin, phoneMasked }: Props) {
 
   if (!phoneMasked) {
     return (
-      <div className="flex flex-col gap-2 text-sm text-muted-foreground">
+      <div className={cn(patientMutedTextClass, "flex flex-col gap-2")}>
         <p>Чтобы подтвердить удаление по телефону, привяжите номер в профиле.</p>
       </div>
     );
@@ -75,7 +77,7 @@ export function DiaryDataPurgeSection({ hasPin, phoneMasked }: Props) {
     <div className="flex flex-col gap-4">
       {step === "intro" ? (
         <>
-          <p className="text-muted-foreground text-sm">
+          <p className={patientMutedTextClass}>
             Будут удалены все отслеживания симптомов, записи и данные ЛФК. Профиль и карта клиента у врача сохранятся.
           </p>
           <label className="flex items-start gap-2 text-sm">
@@ -101,7 +103,7 @@ export function DiaryDataPurgeSection({ hasPin, phoneMasked }: Props) {
 
       {step === "pin" ? (
         <div className="flex flex-col gap-3">
-          <p className="text-muted-foreground text-sm">Введите PIN для подтверждения.</p>
+          <p className={patientMutedTextClass}>Введите PIN для подтверждения.</p>
           <PinInput
             submitLabel="Далее"
             forgotHidden
@@ -130,11 +132,11 @@ export function DiaryDataPurgeSection({ hasPin, phoneMasked }: Props) {
 
       {step === "otp" ? (
         <div className="flex flex-col gap-3">
-          <p className="text-muted-foreground text-sm">
+          <p className={patientMutedTextClass}>
             Код отправлен на номер {phoneMasked}. Введите его для финального подтверждения.
           </p>
           {otpLoading || !challengeId ? (
-            <p className="text-sm text-muted-foreground">Отправляем код…</p>
+            <p className={patientMutedTextClass}>Отправляем код…</p>
           ) : (
             <SmsCodeForm
               challengeId={challengeId}

@@ -28,6 +28,7 @@ import type { SymptomEntry } from "@/modules/diaries/types";
 import { JournalMonthNav } from "../../JournalMonthNav";
 import { deleteSymptomJournalEntry, updateSymptomJournalEntry } from "../actions";
 import { isSymptomJournalEntryEditable } from "../symptomJournalEditWindow";
+import { patientListItemClass, patientMutedTextClass } from "@/shared/ui/patientVisual";
 
 function pad2(n: number) {
   return String(n).padStart(2, "0");
@@ -73,7 +74,7 @@ export function SymptomsJournalClient(props: {
 
       {trackings.length > 1 ? (
         <label className="flex flex-wrap items-center gap-2 text-sm">
-          <span className="text-muted-foreground">Симптом</span>
+          <span className={patientMutedTextClass}>Симптом</span>
           <select
             className="h-10 w-full rounded-xl border border-input bg-background px-3 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring min-w-[200px]"
             value={activeTrackingId}
@@ -91,7 +92,7 @@ export function SymptomsJournalClient(props: {
       ) : null}
 
       <div className="flex flex-col gap-2">
-        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Период (календарный месяц)</span>
+        <span className={cn(patientMutedTextClass, "text-xs font-medium uppercase tracking-wide")}>Период (календарный месяц)</span>
         <JournalMonthNav
           basePath={routePaths.diarySymptomsJournal}
           monthYm={monthYm}
@@ -102,7 +103,7 @@ export function SymptomsJournalClient(props: {
       </div>
 
       {entries.length === 0 ? (
-        <p className="text-muted-foreground text-sm">За этот месяц записей нет.</p>
+        <p className={patientMutedTextClass}>За этот месяц записей нет.</p>
       ) : (
         <ul className="m-0 list-none space-y-3 p-0">
           {entries.map((e) => {
@@ -110,12 +111,12 @@ export function SymptomsJournalClient(props: {
             return (
             <li
               key={e.id}
-              className="rounded-lg border border-border bg-card p-3 flex flex-wrap items-start justify-between gap-2"
+              className={cn(patientListItemClass, "flex flex-wrap items-start justify-between gap-2")}
             >
               <div className="min-w-0 flex-1">
                 <strong>{e.symptomTitle ?? "—"}</strong> — {e.value0_10}/10 ·{" "}
                 {e.entryType === "daily" ? "за день" : "в моменте"}
-                <div className="text-muted-foreground text-sm">
+                <div className={patientMutedTextClass}>
                   {new Date(e.recordedAt).toLocaleString("ru-RU", {
                     day: "2-digit",
                     month: "2-digit",
@@ -169,14 +170,14 @@ export function SymptomsJournalClient(props: {
       )}
 
       <Dialog open={editEntry !== null} onOpenChange={(o) => !o && setEditEntry(null)}>
-        <DialogContent className="border border-border shadow-md sm:max-w-md">
+        <DialogContent className="border border-[var(--patient-border)] shadow-md sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Редактировать запись</DialogTitle>
           </DialogHeader>
           {editEntry ? (
             !isSymptomJournalEntryEditable(editEntry.recordedAt) ? (
               <>
-                <p className="text-sm text-muted-foreground">
+                <p className={patientMutedTextClass}>
                   Редактирование доступно только в течение 24 часов с момента времени записи.
                 </p>
                 <DialogFooter>
@@ -212,7 +213,7 @@ export function SymptomsJournalClient(props: {
                 }}
               >
                 <label className="flex flex-col gap-1">
-                  <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Интенсивность (0–10)</span>
+                  <span className={cn(patientMutedTextClass, "text-xs font-medium uppercase tracking-wide")}>Интенсивность (0–10)</span>
                   <Input
                     type="number"
                     name="value"
@@ -223,7 +224,7 @@ export function SymptomsJournalClient(props: {
                   />
                 </label>
                 <label className="flex flex-col gap-1">
-                  <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Дата и время</span>
+                  <span className={cn(patientMutedTextClass, "text-xs font-medium uppercase tracking-wide")}>Дата и время</span>
                   <Input
                     type="datetime-local"
                     name="recordedAtLocal"
@@ -232,7 +233,7 @@ export function SymptomsJournalClient(props: {
                   />
                 </label>
                 <label className="flex flex-col gap-1">
-                  <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Заметки</span>
+                  <span className={cn(patientMutedTextClass, "text-xs font-medium uppercase tracking-wide")}>Заметки</span>
                   <Textarea name="notes" rows={3} defaultValue={editEntry.notes ?? ""} />
                 </label>
                 <DialogFooter>

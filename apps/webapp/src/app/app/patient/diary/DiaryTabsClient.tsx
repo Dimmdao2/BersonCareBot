@@ -37,13 +37,13 @@ export function DiaryTabsClient({
         <TabsList className="grid h-auto w-full grid-cols-2 gap-2 rounded-none border-none bg-transparent p-0 shadow-none">
           <TabsTrigger
             value="symptoms"
-            className="h-auto rounded-lg bg-transparent py-2.5 text-base text-muted-foreground shadow-none after:hidden data-active:bg-primary/15 data-active:font-semibold data-active:text-primary data-active:shadow-none dark:data-active:bg-primary/20"
+            className="h-auto rounded-lg bg-transparent py-2.5 text-base text-[var(--patient-text-muted)] shadow-none after:hidden data-active:bg-[var(--patient-color-primary-soft)]/40 data-active:font-semibold data-active:text-[var(--patient-color-primary)] data-active:shadow-none"
           >
             Симптомы
           </TabsTrigger>
           <TabsTrigger
             value="lfk"
-            className="h-auto rounded-lg bg-transparent py-2.5 text-base text-muted-foreground shadow-none after:hidden data-active:bg-primary/15 data-active:font-semibold data-active:text-primary data-active:shadow-none dark:data-active:bg-primary/20"
+            className="h-auto rounded-lg bg-transparent py-2.5 text-base text-[var(--patient-text-muted)] shadow-none after:hidden data-active:bg-[var(--patient-color-primary-soft)]/40 data-active:font-semibold data-active:text-[var(--patient-color-primary)] data-active:shadow-none"
           >
             ЛФК
           </TabsTrigger>

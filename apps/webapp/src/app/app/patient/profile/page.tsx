@@ -5,9 +5,13 @@ import { requirePatientAccess } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
 import type { OtpUiChannel } from "@/modules/auth/otpChannelUi";
 import { getPlatformEntry } from "@/shared/lib/platformCookie.server";
+import { cn } from "@/lib/utils";
 import { AppShell } from "@/shared/ui/AppShell";
 import { ConnectMessengersBlock } from "@/shared/ui/ConnectMessengersBlock";
-import { buttonVariants } from "@/components/ui/button-variants";
+import {
+  patientMutedTextClass,
+  patientSecondaryActionClass,
+} from "@/shared/ui/patientVisual";
 import { AuthOtpChannelPreference } from "./AuthOtpChannelPreference";
 import { DiaryDataPurgeSection } from "./DiaryDataPurgeSection";
 import { LogoutSection } from "./LogoutSection";
@@ -109,12 +113,12 @@ export default async function PatientProfilePage() {
         </ProfileAccordionSection>
 
         <ProfileAccordionSection id="patient-profile-notifications" title="Уведомления">
-          <p className="text-muted-foreground text-sm">
+          <p className={patientMutedTextClass}>
             Настройте каналы доставки и темы рассылок: напоминания о приёме, упражнениях, симптомах и новостях.
           </p>
           <Link
             href={routePaths.notifications}
-            className={buttonVariants({ variant: "outline", size: "sm" })}
+            className={cn(patientSecondaryActionClass, "!min-h-9 !w-auto text-sm")}
           >
             Настройки уведомлений
           </Link>

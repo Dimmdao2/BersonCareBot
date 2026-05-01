@@ -9,6 +9,8 @@ import { getOptionalPatientSession, patientRscPersonalDataGate } from "@/app-lay
 import { routePaths } from "@/app-layer/routes/paths";
 import { AppShell } from "@/shared/ui/AppShell";
 import { PurchasesGuestAccess } from "@/shared/ui/patient/guestAccess";
+import { cn } from "@/lib/utils";
+import { patientMutedTextClass, patientSectionSurfaceClass } from "@/shared/ui/patientVisual";
 
 /** Рендерит страницу покупок: hero с описанием и блок «Курсы, доступы и подписки» с empty-state. */
 export default async function PurchasesPage() {
@@ -33,12 +35,12 @@ export default async function PurchasesPage() {
 
   return (
     <AppShell title="Мои покупки" user={session.user} backHref="/app/patient" backLabel="Меню" variant="patient">
-      <section id="patient-purchases-hero-section" className="rounded-2xl border border-border bg-card p-6 shadow-sm flex flex-col gap-4">
+      <section id="patient-purchases-hero-section" className={cn(patientSectionSurfaceClass, "!gap-4 !p-6")}>
         <p>{state.description}</p>
       </section>
-      <section id="patient-purchases-items-section" className="rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col gap-4">
+      <section id="patient-purchases-items-section" className={patientSectionSurfaceClass}>
         <h2>Курсы, доступы и подписки</h2>
-        <p className="text-sm text-muted-foreground">
+        <p className={patientMutedTextClass}>
           Сейчас у вас нет активных покупок. Раздел станет доступен после запуска платежного функционала.
         </p>
       </section>

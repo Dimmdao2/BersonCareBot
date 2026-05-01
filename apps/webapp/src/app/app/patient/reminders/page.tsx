@@ -4,6 +4,8 @@ import { routePaths } from "@/app-layer/routes/paths";
 import type { ReminderRule } from "@/modules/reminders/types";
 import { AppShell } from "@/shared/ui/AppShell";
 import { Card, CardContent } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
+import { patientCardClass, patientMutedTextClass } from "@/shared/ui/patientVisual";
 import { ReminderRulesClient, type PersonalReminderRowVM } from "./ReminderRulesClient";
 
 function mapIconKind(linked: NonNullable<ReminderRule["linkedObjectType"]>): PersonalReminderRowVM["iconKind"] {
@@ -92,28 +94,33 @@ export default async function RemindersPage() {
       backLabel="Меню"
       variant="patient"
     >
-      <p className="mb-4 text-sm text-muted-foreground">
+      <p className={cn(patientMutedTextClass, "mb-4")}>
         Свои напоминания (ЛФК, разминки, текст) и категории от врача. Изменения синхронизируются с ботом.
       </p>
 
       {projectionStats.total > 0 && (
-        <Card className="mb-4">
+        <Card className={cn(patientCardClass, "mb-4")}>
           <CardContent className="pb-4 pt-4">
-            <p className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+            <p
+              className={cn(
+                patientMutedTextClass,
+                "mb-2 text-xs font-semibold uppercase tracking-wide",
+              )}
+            >
               Уведомления за 30 дней
             </p>
             <div className="flex flex-wrap gap-4 text-sm">
               <span>
                 <span className="font-medium">{projectionStats.total}</span>{" "}
-                <span className="text-muted-foreground">отправлено</span>
+                <span className={patientMutedTextClass}>отправлено</span>
               </span>
               <span>
                 <span className="font-medium">{projectionStats.seen}</span>{" "}
-                <span className="text-muted-foreground">просмотрено</span>
+                <span className={patientMutedTextClass}>просмотрено</span>
               </span>
               <span>
                 <span className="font-medium">{projectionStats.unseen}</span>{" "}
-                <span className="text-muted-foreground">пропущено</span>
+                <span className={patientMutedTextClass}>пропущено</span>
               </span>
             </div>
           </CardContent>

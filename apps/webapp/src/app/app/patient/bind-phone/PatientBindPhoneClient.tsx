@@ -14,6 +14,8 @@ import { postPatientMessengerRequestContact } from "@/shared/lib/patientMessenge
 import toast from "react-hot-toast";
 import { PatientSharePhoneViaBotPanel } from "@/shared/ui/patient/PatientSharePhoneViaBotPanel";
 import { PatientBrowserMessengerBindPanel } from "./PatientBrowserMessengerBindPanel";
+import { cn } from "@/lib/utils";
+import { patientMutedTextClass } from "@/shared/ui/patientVisual";
 
 type Props = {
   telegramId: string;
@@ -165,14 +167,14 @@ export function PatientBindPhoneClient({ telegramId, maxId, supportContactHref, 
   if (tg || mx) {
     if (useMessengerPanel !== true) {
       return (
-        <div className="flex min-h-[12rem] items-center justify-center text-sm text-muted-foreground" role="status">
+        <div className={cn(patientMutedTextClass, "flex min-h-[12rem] items-center justify-center")} role="status">
           Загрузка…
         </div>
       );
     }
     return (
       <div id="patient-bind-phone-messenger-unified" className="flex flex-col gap-4">
-        {hint ? <p className="text-muted-foreground text-sm">{hint}</p> : null}
+        {hint ? <p className={patientMutedTextClass}>{hint}</p> : null}
         <PatientSharePhoneViaBotPanel
           mode={panelMode}
           botHref={botHref}

@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { isMessengerMiniAppHost } from "@/shared/lib/messengerMiniApp";
 import { routePaths } from "@/app-layer/routes/paths";
+import { cn } from "@/lib/utils";
+import { patientMutedTextClass } from "@/shared/ui/patientVisual";
 
 const MAX_LEN = 4000;
 
@@ -74,7 +76,7 @@ export function PatientSupportForm({ defaultEmail, supportSubmitPath = "/api/pat
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-2">
-        <label htmlFor="support-email" className="text-muted-foreground text-xs font-medium uppercase tracking-wide">
+        <label htmlFor="support-email" className={cn(patientMutedTextClass, "text-xs font-medium uppercase tracking-wide")}>
           Email для ответа
         </label>
         <Input
@@ -88,7 +90,7 @@ export function PatientSupportForm({ defaultEmail, supportSubmitPath = "/api/pat
         />
       </div>
       <div className="flex flex-col gap-2">
-        <label htmlFor="support-message" className="text-muted-foreground text-xs font-medium uppercase tracking-wide">
+        <label htmlFor="support-message" className={cn(patientMutedTextClass, "text-xs font-medium uppercase tracking-wide")}>
           Сообщение
         </label>
         <textarea
@@ -100,7 +102,7 @@ export function PatientSupportForm({ defaultEmail, supportSubmitPath = "/api/pat
           maxLength={MAX_LEN}
           disabled={loading}
         />
-        <p className="text-muted-foreground text-xs">{message.length} / {MAX_LEN}</p>
+        <p className={cn(patientMutedTextClass, "text-xs")}>{message.length} / {MAX_LEN}</p>
       </div>
       <Button type="button" onClick={() => void submit()} disabled={loading}>
         {loading ? "Отправка…" : "Отправить"}

@@ -5,6 +5,7 @@ import { useCallback, useMemo, useState } from "react";
 import type { PatientReminderRuleJson } from "@/app/api/patient/reminders/reminderPatientJson";
 import type { LfkComplex } from "@/modules/diaries/types";
 import { ReminderCreateDialog } from "@/modules/reminders/components/ReminderCreateDialog";
+import { patientSectionSurfaceClass } from "@/shared/ui/patientVisual";
 import { LfkComplexCard } from "./LfkComplexCard";
 
 export function LfkDiarySectionClient({
@@ -40,7 +41,7 @@ export function LfkDiarySectionClient({
     <>
       <section
         id="patient-lfk-complexes-section"
-        className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-4 shadow-sm"
+        className={patientSectionSurfaceClass}
       >
         <h2 className="text-lg font-semibold">Комплексы</h2>
         <ul id="patient-lfk-complexes-list" className="m-0 list-none space-y-3 p-0">

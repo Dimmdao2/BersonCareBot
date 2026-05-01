@@ -8,6 +8,8 @@ import { ReferenceSelect } from "@/shared/ui/ReferenceSelect";
 import { SegmentControl } from "@/components/common/controls/SegmentControl";
 import { createSymptomTracking } from "./actions";
 import type { SymptomSide } from "@/modules/diaries/types";
+import { cn } from "@/lib/utils";
+import { patientMutedTextClass } from "@/shared/ui/patientVisual";
 
 const SIDE_OPTIONS: { value: SymptomSide; label: string }[] = [
   { value: "left", label: "Лев" },
@@ -52,7 +54,7 @@ export function CreateTrackingForm({
       className="flex flex-col gap-4"
     >
       <label className="flex flex-col gap-1">
-        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Название</span>
+        <span className={cn(patientMutedTextClass, "text-xs font-medium uppercase tracking-wide")}>Название</span>
         <Input
           type="text"
           name="symptomTitle"
@@ -79,9 +81,9 @@ export function CreateTrackingForm({
       </Button>
 
       {showAdvanced ? (
-        <div className="flex flex-col gap-4 border-l-2 border-primary/20 pl-3">
+        <div className="flex flex-col gap-4 border-l-2 border-[var(--patient-color-primary)]/20 pl-3">
           <label className="flex flex-col gap-1">
-            <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Тип симптома</span>
+            <span className={cn(patientMutedTextClass, "text-xs font-medium uppercase tracking-wide")}>Тип симптома</span>
             <ReferenceSelect
               categoryCode="symptom_type"
               value={symptomTypeRefId}
@@ -92,7 +94,7 @@ export function CreateTrackingForm({
 
           <div className="flex flex-wrap items-end gap-2">
             <label className="flex min-w-[200px] flex-1 flex-col gap-1">
-              <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Регион</span>
+              <span className={cn(patientMutedTextClass, "text-xs font-medium uppercase tracking-wide")}>Регион</span>
               <ReferenceSelect
                 categoryCode="body_region"
                 value={regionRefId}
@@ -112,13 +114,13 @@ export function CreateTrackingForm({
           </div>
 
           <label className="flex flex-col gap-1">
-            <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Диагноз (текст, только для вас)</span>
+            <span className={cn(patientMutedTextClass, "text-xs font-medium uppercase tracking-wide")}>Диагноз (текст, только для вас)</span>
             <Input type="text" name="diagnosisText" placeholder="Свободный текст" maxLength={500} />
           </label>
 
           <label className="flex flex-col gap-1">
-            <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Диагноз (справочник)</span>
-            <span className="text-xs text-muted-foreground">
+            <span className={cn(patientMutedTextClass, "text-xs font-medium uppercase tracking-wide")}>Диагноз (справочник)</span>
+            <span className={cn(patientMutedTextClass, "text-xs")}>
               Только выбор из списка; новые позиции добавляет администратор.
             </span>
             <ReferenceSelect
@@ -130,7 +132,7 @@ export function CreateTrackingForm({
           </label>
 
           <label className="flex flex-col gap-1">
-            <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Стадия</span>
+            <span className={cn(patientMutedTextClass, "text-xs font-medium uppercase tracking-wide")}>Стадия</span>
             <ReferenceSelect
               categoryCode="disease_stage"
               value={stageRefId}

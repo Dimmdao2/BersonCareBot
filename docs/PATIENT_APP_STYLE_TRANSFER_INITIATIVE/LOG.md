@@ -1,5 +1,22 @@
 # LOG — Patient App Style Transfer
 
+## 2026-05-01 — Phase 3 / FIX (`AUDIT_PHASE_3` mandatory)
+
+- Agent/model: Composer (Cursor).
+- Scope: только mandatory из `AUDIT_PHASE_3.md` — **§3: mandatory fixes отсутствуют**; изменений app-кода для FIX не требовалось.
+- Files changed (FIX): `docs/PATIENT_APP_STYLE_TRANSFER_INITIATIVE/LOG.md` (этот файл).
+- Checks (targeted): eslint по patient-маршрутам Phase 3 (как в записи Phase 3 EXEC ниже); `pnpm --dir apps/webapp typecheck`; vitest `LfkComplexCard.test.tsx`, `reminders/actions.test.ts`, `ProfileForm.test.tsx`. Root **`pnpm run ci`** не запускался (запрос FIX).
+- Next step: Phase 4 по плану инициативы / `CHECKLISTS.md` §4 (booking/cabinet).
+
+## 2026-05-01 — Phase 3 / EXEC (interactive patient pages — style-only)
+
+- Agent/model: Composer (Cursor).
+- Scope: style-only pass по `03_INTERACTIVE_PAGES_STYLE_PLAN.md` — профиль (оставшиеся блоки), уведомления, напоминания, дневник (вкладки, симптомы, ЛФК, журналы), утилиты (поддержка, справка, покупки, привязка телефона, установка PWA), плюс `PatientBindPhoneSection`. Копирайт, поля форм, обработчики, server actions, ключи вкладок/`?tab=`, валидация — без изменений.
+- Files changed (representative): `patientVisual` примитивы потреблены в `notifications/*`, `reminders/{page.tsx,ReminderRulesClient.tsx,journal/[ruleId]/page.tsx}`, `diary/**/*` (в т.ч. `DiaryTabsClient`, `LfkComplexCard`, журналы симптомов/ЛФК, `LfkSessionForm`), `support/*`, `help/page.tsx`, `purchases/page.tsx`, `bind-phone/*`, `install/page.tsx`, `PatientBindPhoneSection.tsx`; профиль: `DiaryDataPurgeSection`, `AuthOtpChannelPreference` (и ранее в сессии — аккордеон/форма/PIN по summary).
+- What explicitly did not change: тексты UI; имена полей и API; маршруты и query-параметры; бизнес-логика напоминаний/дневника/поддержки.
+- Checks (targeted): eslint по затронутым patient-маршрутам Phase 3; `pnpm --dir apps/webapp typecheck`; vitest `LfkComplexCard.test.tsx`, `reminders/actions.test.ts`, `ProfileForm.test.tsx`.
+- Next step: при необходимости — AUDIT Phase 3 или следующая фаза по плану инициативы.
+
 ## 2026-05-01 — Phase 2 / FIX (`AUDIT_PHASE_2` mandatory)
 
 - Agent/model: Composer (Cursor).

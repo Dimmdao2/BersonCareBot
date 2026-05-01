@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 import { getSupportContactUrl } from "@/modules/system-settings/supportContactUrl";
 import { getPlatformEntry } from "@/shared/lib/platformCookie.server";
 import { PatientBindPhoneClient } from "./PatientBindPhoneClient";
+import { patientMutedTextClass } from "@/shared/ui/patientVisual";
 
 type Props = { searchParams: Promise<{ next?: string; reason?: string }> };
 
@@ -79,9 +80,9 @@ export default async function BindPhonePage({ searchParams }: Props) {
         {isBotMiniApp ? (
           <div
             id="patient-bind-phone-miniapp-extras"
-            className="border-border/80 flex flex-col gap-2 border-t pt-4"
+            className="flex flex-col gap-2 border-t border-[var(--patient-border)]/80 pt-4"
           >
-            <p className="text-muted-foreground text-xs font-medium uppercase tracking-wide">
+            <p className={cn(patientMutedTextClass, "text-xs font-medium uppercase tracking-wide")}>
               Пока без телефона
             </p>
             <Link

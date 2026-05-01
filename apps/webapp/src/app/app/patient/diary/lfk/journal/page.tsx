@@ -7,6 +7,7 @@ import { DiarySectionGuestAccess } from "@/shared/ui/patient/guestAccess";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { cn } from "@/lib/utils";
 import { AppShell } from "@/shared/ui/AppShell";
+import { patientMutedTextClass } from "@/shared/ui/patientVisual";
 import {
   parseOffset,
   parseStatsPeriod,
@@ -72,7 +73,7 @@ export default async function LfkJournalPage({
         backLabel="Дневник"
         variant="patient"
       >
-        <p className="text-muted-foreground text-sm">Создайте комплекс, чтобы вести журнал занятий.</p>
+        <p className={patientMutedTextClass}>Создайте комплекс, чтобы вести журнал занятий.</p>
         <Link
           href={`${routePaths.diary}?tab=lfk`}
           className={cn(buttonVariants({ variant: "outline", size: "sm" }), "mt-4 inline-flex")}

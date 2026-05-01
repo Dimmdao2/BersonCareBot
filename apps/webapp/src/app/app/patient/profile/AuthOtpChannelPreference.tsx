@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import type { OtpUiChannel } from "@/modules/auth/otpChannelUi";
 import { setPreferredAuthOtpChannelAction } from "./actions";
 import { cn } from "@/lib/utils";
+import { patientMutedTextClass } from "@/shared/ui/patientVisual";
 
 export type AuthOtpOption = { code: OtpUiChannel; label: string };
 
@@ -42,7 +43,7 @@ export function AuthOtpChannelPreference({ options, initialSelection, showBindHi
 
   if (options.length === 0) {
     return (
-      <p className="text-muted-foreground text-sm" id="patient-profile-auth-otp-empty">
+      <p className={patientMutedTextClass} id="patient-profile-auth-otp-empty">
         Привяжите удобный вам мессенджер для подтверждения входа.
       </p>
     );
@@ -52,7 +53,7 @@ export function AuthOtpChannelPreference({ options, initialSelection, showBindHi
 
   return (
     <div id="patient-profile-auth-otp" className="flex flex-col gap-2">
-      <p className="text-muted-foreground text-sm">
+      <p className={patientMutedTextClass}>
         Куда отправлять код при входе по номеру телефона (если PIN не задан или нужен сброс).
       </p>
       <fieldset disabled={pending} className="flex flex-col gap-1 border-0 p-0">
@@ -87,7 +88,7 @@ export function AuthOtpChannelPreference({ options, initialSelection, showBindHi
         ))}
       </fieldset>
       {showBindHint ? (
-        <p className="text-muted-foreground text-sm" id="patient-profile-auth-otp-bind-hint">
+        <p className={patientMutedTextClass} id="patient-profile-auth-otp-bind-hint">
           Привяжите удобный вам мессенджер для подтверждения входа — так код можно получить не только по SMS.
         </p>
       ) : null}

@@ -6,6 +6,8 @@ import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { finishChannelLinkNavigation } from "@/shared/lib/telegramChannelLinkOpen";
 import { SupportContactLink } from "@/shared/ui/SupportContactLink";
+import { cn } from "@/lib/utils";
+import { patientInlineLinkClass, patientMutedTextClass } from "@/shared/ui/patientVisual";
 
 const POLL_MS = 4000;
 
@@ -101,12 +103,12 @@ export function PatientBrowserMessengerBindPanel({ hint, supportContactHref }: P
 
   return (
     <div id="patient-browser-messenger-bind-panel" className="flex flex-col gap-4">
-      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Привязка телефона</p>
-      <p className="text-muted-foreground text-sm">
+      <p className={cn(patientMutedTextClass, "text-xs font-medium uppercase tracking-wide")}>Привязка телефона</p>
+      <p className={patientMutedTextClass}>
         {hint ??
           "Для стабильной работы приложения и синхронизации на всех платформах необходимо привязать номер телефона. Он не будет использоваться для SMS-рассылок."}
       </p>
-      <p className="text-sm text-foreground">Выберите мессенджер, в котором удобнее подтвердить номер:</p>
+      <p className="text-sm text-[var(--patient-text-primary)]">Выберите мессенджер, в котором удобнее подтвердить номер:</p>
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
         <Button
           type="button"
@@ -128,7 +130,7 @@ export function PatientBrowserMessengerBindPanel({ hint, supportContactHref }: P
         </Button>
       </div>
       {telegramUrl ? (
-        <p className="text-xs text-muted-foreground">
+        <p className={cn(patientMutedTextClass, "text-xs")}>
           Если окно не открылось, перейдите по ссылке:{" "}
           <button
             type="button"
@@ -147,7 +149,7 @@ export function PatientBrowserMessengerBindPanel({ hint, supportContactHref }: P
         </p>
       ) : null}
       {maxOpenUrl ? (
-        <p className="text-xs text-muted-foreground">
+        <p className={cn(patientMutedTextClass, "text-xs")}>
           Если окно не открылось:{" "}
           <button
             type="button"
@@ -166,15 +168,15 @@ export function PatientBrowserMessengerBindPanel({ hint, supportContactHref }: P
         </p>
       ) : null}
       {maxCommand ? (
-        <p className="rounded-md bg-muted px-2 py-1 font-mono text-xs break-all" data-testid="max-manual-command">
+        <p className="rounded-md bg-[var(--patient-color-primary-soft)]/40 px-2 py-1 font-mono text-xs break-all" data-testid="max-manual-command">
           {maxCommand}
         </p>
       ) : null}
-      <p className="text-xs text-muted-foreground">
+      <p className={cn(patientMutedTextClass, "text-xs")}>
         После нажатия Start в боте и отправки контакта эта страница обновится сама (или обновите вручную через несколько секунд).
       </p>
       {supportContactHref ? (
-        <SupportContactLink href={supportContactHref} className="text-sm text-primary underline">
+        <SupportContactLink href={supportContactHref} className={cn(patientInlineLinkClass, "text-sm")}>
           Связаться с поддержкой
         </SupportContactLink>
       ) : null}

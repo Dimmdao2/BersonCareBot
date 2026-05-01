@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { PatientBindPhoneClient } from "@/app/app/patient/bind-phone/PatientBindPhoneClient";
 import { EmailAccountPanel } from "@/shared/ui/EmailAccountPanel";
 import { InlineEditField } from "@/shared/ui/InlineEditField";
+import { patientMutedTextClass } from "@/shared/ui/patientVisual";
 import { updateDisplayName } from "./actions";
 
 type Props = {
@@ -67,9 +68,9 @@ export function ProfileForm({
         onSave={handleSaveName}
       />
 
-      <div className="flex flex-col gap-1 border-t border-border pt-4">
+      <div className="flex flex-col gap-1 border-t border-[var(--patient-border)] pt-4">
         <div className="flex flex-wrap items-start justify-between gap-2">
-          <span className="text-muted-foreground text-xs font-medium uppercase tracking-wide">Телефон</span>
+          <span className={cn(patientMutedTextClass, "text-xs font-medium uppercase tracking-wide")}>Телефон</span>
           {!phone ? (
             <Link
               href="/app/patient/bind-phone?next=/app/patient/profile"
@@ -94,7 +95,7 @@ export function ProfileForm({
         ) : null}
         {phone && editingPhone ? (
           <div className="flex flex-col gap-2 sm:max-w-md">
-            <Suspense fallback={<p className="text-muted-foreground text-sm">Загрузка…</p>}>
+            <Suspense fallback={<p className={patientMutedTextClass}>Загрузка…</p>}>
               <PatientBindPhoneClient
                 telegramId={telegramId}
                 maxId={maxId}
@@ -105,7 +106,7 @@ export function ProfileForm({
             <Button
               type="button"
               variant="link"
-              className="h-auto min-h-0 px-0 text-muted-foreground"
+              className={cn(patientMutedTextClass, "h-auto min-h-0 px-0")}
               onClick={() => {
                 phoneAtEditStartRef.current = null;
                 setEditingPhone(false);

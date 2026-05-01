@@ -8,6 +8,8 @@ import { routePaths } from "@/app-layer/routes/paths";
 import { DiarySectionGuestAccess } from "@/shared/ui/patient/guestAccess";
 import { Button } from "@/components/ui/button";
 import { AppShell } from "@/shared/ui/AppShell";
+import { cn } from "@/lib/utils";
+import { patientMutedTextClass, patientSectionSurfaceClass } from "@/shared/ui/patientVisual";
 import { SymptomsTrackingSectionClient } from "./symptoms/SymptomsTrackingSectionClient";
 import { DiaryTabsClient } from "./DiaryTabsClient";
 import { LfkSessionForm } from "./lfk/LfkSessionForm";
@@ -57,14 +59,14 @@ export default async function PatientDiaryPage() {
   const symptomsPanel = (
     <>
       <SymptomsTrackingSectionClient trackings={trackings} />
-      <section id="patient-symptoms-stats-section" className="rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col gap-4">
+      <section id="patient-symptoms-stats-section" className={patientSectionSurfaceClass}>
         <h2 className="text-lg font-semibold">Статистика</h2>
         {trackings.length > 0 ? (
           <SymptomChart
             trackings={trackings.map((t) => ({ id: t.id, symptomTitle: t.symptomTitle ?? "—" }))}
           />
         ) : (
-          <p className="text-muted-foreground">{EMPTY_STATS}</p>
+          <p className={patientMutedTextClass}>{EMPTY_STATS}</p>
         )}
       </section>
     </>
@@ -72,14 +74,14 @@ export default async function PatientDiaryPage() {
 
   const lfkPanel = (
     <>
-      <section id="patient-lfk-diary-hero-section" className="rounded-2xl border border-border bg-card p-6 shadow-sm flex flex-col gap-4">
+      <section id="patient-lfk-diary-hero-section" className={cn(patientSectionSurfaceClass, "!gap-4 !p-6")}>
         <h2 className="text-lg font-semibold">Отметить занятие</h2>
-        <p className="text-sm text-muted-foreground">
+        <p className={patientMutedTextClass}>
           Комплексы ЛФК и история занятий. Добавить комплекс можно здесь или в боте.
         </p>
         {complexes.length === 0 ? (
           <div className="flex flex-col gap-3">
-            <p className="text-sm text-muted-foreground">Создайте комплекс упражнений, чтобы начать отслеживать занятия.</p>
+            <p className={patientMutedTextClass}>Создайте комплекс упражнений, чтобы начать отслеживать занятия.</p>
             <form action={createLfkComplex} className="flex flex-col gap-2">
               <div className="flex flex-wrap gap-2">
                 <input
@@ -100,12 +102,12 @@ export default async function PatientDiaryPage() {
       {complexes.length > 0 ? (
         <LfkDiarySectionClient complexes={complexes} remindersByComplexId={remindersByComplexId} />
       ) : null}
-      <section id="patient-lfk-stats-section" className="rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col gap-4">
+      <section id="patient-lfk-stats-section" className={patientSectionSurfaceClass}>
         <h2 className="text-lg font-semibold">Статистика</h2>
         {complexes.length > 0 ? (
           <LfkStatsTable complexes={complexes.map((c) => ({ id: c.id, title: c.title ?? "—" }))} />
         ) : (
-          <p className="text-muted-foreground">{EMPTY_STATS}</p>
+          <p className={patientMutedTextClass}>{EMPTY_STATS}</p>
         )}
       </section>
     </>
@@ -119,7 +121,7 @@ export default async function PatientDiaryPage() {
       backLabel="Меню"
       variant="patient"
     >
-      <Suspense fallback={<div className="p-4 text-sm text-muted-foreground">Загрузка…</div>}>
+      <Suspense fallback={<div className={cn(patientMutedTextClass, "p-4")}>Загрузка…</div>}>
         <DiaryTabsClient symptomsPanel={symptomsPanel} lfkPanel={lfkPanel} />
       </Suspense>
     </AppShell>

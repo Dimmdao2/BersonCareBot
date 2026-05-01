@@ -1,3 +1,6 @@
+import { cn } from "@/lib/utils";
+import { patientMutedTextClass } from "@/shared/ui/patientVisual";
+
 type Subscription = { id: string; title: string };
 
 type Props = {
@@ -11,7 +14,10 @@ export function SubscriptionsList({ subscriptions }: Props) {
       {subscriptions.map((s) => (
         <li
           key={s.id}
-          className="border-border/60 text-muted-foreground rounded-md border border-dashed px-3 py-2 text-sm"
+          className={cn(
+            patientMutedTextClass,
+            "rounded-md border border-dashed border-[var(--patient-border)]/60 px-3 py-2",
+          )}
         >
           {s.title}
         </li>

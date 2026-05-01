@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import type { LfkComplex } from "@/modules/diaries/types";
 import { MediaThumb } from "@/shared/ui/media/MediaThumb";
 import { lfkCoverToPreviewUi } from "@/shared/ui/media/mediaPreviewUiModel";
+import { patientCardCompactClass, patientMutedTextClass } from "@/shared/ui/patientVisual";
 
 export type LfkComplexCardProps = {
   complex: Pick<
@@ -43,9 +44,9 @@ export function LfkComplexCard({
   const coverThumbMedia = lfkCoverToPreviewUi(complex);
 
   return (
-    <Card className="overflow-hidden rounded-xl border border-border/80 bg-card py-0 shadow-sm">
+    <Card className={cn(patientCardCompactClass, "!p-0 overflow-hidden py-0")}>
       <div className="flex items-stretch gap-3 p-2 sm:gap-3 sm:p-3">
-        <div className="relative size-[4.5rem] shrink-0 overflow-hidden rounded-lg border border-border/60 bg-muted sm:size-[5.25rem]">
+        <div className="relative size-[4.5rem] shrink-0 overflow-hidden rounded-lg border border-[var(--patient-border)]/60 bg-[var(--patient-color-primary-soft)]/35 sm:size-[5.25rem]">
           <MediaThumb
             media={coverThumbMedia}
             className="size-full"
@@ -57,20 +58,20 @@ export function LfkComplexCard({
           <div className="flex items-start gap-2">
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
-                <p className="truncate font-medium text-foreground">{title}</p>
+                <p className="truncate font-medium text-[var(--patient-text-primary)]">{title}</p>
                 {complex.origin === "assigned_by_specialist" ? (
                   <Badge variant="secondary" className="shrink-0 font-normal">
                     Назначен врачом
                   </Badge>
                 ) : null}
               </div>
-              <p className="mt-0.5 line-clamp-2 text-sm text-muted-foreground">{desc}</p>
+              <p className={cn(patientMutedTextClass, "mt-0.5 line-clamp-2")}>{desc}</p>
               {hasReminder && onEditScheduleClick ? (
                 <Button
                   type="button"
                   variant="link"
                   size="sm"
-                  className="h-auto p-0 text-xs font-medium text-primary"
+                  className="h-auto p-0 text-xs font-medium text-[var(--patient-color-primary)]"
                   onClick={onEditScheduleClick}
                 >
                   Изменить расписание
@@ -81,7 +82,7 @@ export function LfkComplexCard({
               type="button"
               variant="ghost"
               size="icon"
-              className="size-10 shrink-0 rounded-full border border-border/80"
+              className="size-10 shrink-0 rounded-full border border-[var(--patient-border)]/80"
               onClick={onBellClick}
               aria-label={hasReminder ? "Изменить напоминание" : "Создать напоминание"}
               title={hasReminder ? "Напоминание включено" : "Напоминание не настроено"}
@@ -89,7 +90,7 @@ export function LfkComplexCard({
               <Bell
                 className={cn(
                   "size-5",
-                  hasReminder ? "fill-primary text-primary" : "text-muted-foreground",
+                  hasReminder ? "fill-[var(--patient-color-primary)] text-[var(--patient-color-primary)]" : "text-[var(--patient-text-muted)]",
                 )}
                 strokeWidth={hasReminder ? 1.25 : 2}
               />

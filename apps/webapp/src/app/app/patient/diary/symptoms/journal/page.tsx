@@ -7,6 +7,7 @@ import { DiarySectionGuestAccess } from "@/shared/ui/patient/guestAccess";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { cn } from "@/lib/utils";
 import { AppShell } from "@/shared/ui/AppShell";
+import { patientMutedTextClass } from "@/shared/ui/patientVisual";
 import {
   parseOffset,
   parseStatsPeriod,
@@ -75,7 +76,7 @@ export default async function SymptomsJournalPage({
         backLabel="Дневник"
         variant="patient"
       >
-        <p className="text-muted-foreground text-sm">Добавьте симптом, чтобы вести журнал.</p>
+        <p className={patientMutedTextClass}>Добавьте симптом, чтобы вести журнал.</p>
         <Link
           href={`${routePaths.diary}?tab=symptoms`}
           className={cn(buttonVariants({ variant: "outline", size: "sm" }), "mt-4 inline-flex")}

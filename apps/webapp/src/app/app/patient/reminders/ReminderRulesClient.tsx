@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { patientCardClass, patientMutedTextClass } from "@/shared/ui/patientVisual";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -96,7 +97,7 @@ function LegacyCategoryRuleCard({ rule }: { rule: ReminderRule }) {
   };
 
   return (
-    <Card className="mb-3">
+    <Card className={cn(patientCardClass, "mb-3")}>
       <CardHeader className="px-4 pb-2 pt-4">
         <div className="flex items-center justify-between gap-3">
           <CardTitle className="text-base font-medium leading-tight">
@@ -113,7 +114,7 @@ function LegacyCategoryRuleCard({ rule }: { rule: ReminderRule }) {
 
       {rule.enabled && (
         <CardContent className="px-4 pb-4 pt-0">
-          <p className="mb-2 text-xs text-muted-foreground">
+          <p className={cn(patientMutedTextClass, "mb-2 text-xs")}>
             Расписание: {minutesToTime(rule.windowStartMinute)}–{minutesToTime(rule.windowEndMinute)}, каждые{" "}
             {rule.intervalMinutes ?? "—"} мин.
           </p>
@@ -231,7 +232,7 @@ function PersonalReminderCard({
   };
 
   return (
-    <Card className="mb-3 overflow-hidden">
+    <Card className={cn(patientCardClass, "mb-3 overflow-hidden")}>
       <CardHeader className="space-y-0 px-4 pb-2 pt-4">
         <div className="flex items-start gap-3">
           <TypeIcon kind={iconKind} />
@@ -245,19 +246,19 @@ function PersonalReminderCard({
                 aria-label={`Включить: ${label}`}
               />
             </div>
-            <p className="mt-1 text-xs text-muted-foreground">
+            <p className={cn(patientMutedTextClass, "mt-1 text-xs")}>
               {minutesToTime(rule.windowStartMinute)}–{minutesToTime(rule.windowEndMinute)}, каждые{" "}
               {rule.intervalMinutes ?? "—"} мин.
             </p>
-            <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground">
+            <div className={cn(patientMutedTextClass, "mt-2 flex flex-wrap gap-2 text-xs")}>
               <span>
-                <span className="font-medium text-foreground">{stats.done}</span> выполнено
+                <span className="font-medium text-[var(--patient-text-primary)]">{stats.done}</span> выполнено
               </span>
               <span>
-                <span className="font-medium text-foreground">{stats.skipped}</span> пропущено
+                <span className="font-medium text-[var(--patient-text-primary)]">{stats.skipped}</span> пропущено
               </span>
               <span>
-                <span className="font-medium text-foreground">{stats.snoozed}</span> отложено
+                <span className="font-medium text-[var(--patient-text-primary)]">{stats.snoozed}</span> отложено
               </span>
               <Badge variant="outline" className="font-normal">
                 за 30 дней
@@ -413,7 +414,7 @@ export function ReminderRulesClient({
     <div>
       {unseenCount > 0 && (
         <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-xs text-muted-foreground">Непросмотрено: {unseenCount}</p>
+          <p className={cn(patientMutedTextClass, "text-xs")}>Непросмотрено: {unseenCount}</p>
           <Button size="sm" variant="outline" onClick={handleMarkAllSeen} disabled={isPending}>
             Отметить все как просмотренные
           </Button>
@@ -440,14 +441,14 @@ export function ReminderRulesClient({
       />
 
       {isEmpty ? (
-        <p className="py-4 text-center text-sm text-muted-foreground">
+        <p className={cn(patientMutedTextClass, "py-4 text-center")}>
           Пока нет напоминаний. Добавьте своё или дождитесь настроек от врача.
         </p>
       ) : null}
 
       {personalRows.length > 0 ? (
         <>
-          <h2 className="mb-2 text-sm font-semibold text-foreground">Мои напоминания</h2>
+          <h2 className="mb-2 text-sm font-semibold text-[var(--patient-text-primary)]">Мои напоминания</h2>
           {personalRows.map((row) => (
             <PersonalReminderCard
               key={row.rule.id}
@@ -461,8 +462,8 @@ export function ReminderRulesClient({
 
       {legacyRules.length > 0 ? (
         <>
-          <h2 className="mb-2 mt-4 text-sm font-semibold text-foreground">Категории от врача</h2>
-          <p className="mb-3 text-xs text-muted-foreground">
+          <h2 className="mb-2 mt-4 text-sm font-semibold text-[var(--patient-text-primary)]">Категории от врача</h2>
+          <p className={cn(patientMutedTextClass, "mb-3 text-xs")}>
             Общие напоминания по типам сообщений. Управляются врачом и синхронизируются с ботом.
           </p>
           {legacyRules.map((r) => (
