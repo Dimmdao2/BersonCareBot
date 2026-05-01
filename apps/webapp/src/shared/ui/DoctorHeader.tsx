@@ -139,47 +139,49 @@ export function DoctorHeader({ userDisplayName, adminMode, hideMenuOnDesktop }: 
       <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
         <SheetContent
           side="right"
-          className="flex min-h-0 max-h-[100dvh] w-[min(100vw,22rem)] flex-col overflow-hidden px-4 sm:max-w-sm"
+          className="flex h-[100dvh] max-h-[100dvh] min-h-0 w-[min(100vw,22rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-sm"
         >
-          <SheetHeader className="shrink-0 px-0 text-left">
-            <SheetTitle>Разделы</SheetTitle>
-          </SheetHeader>
-          <nav
-            className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto overscroll-y-contain py-2 pb-[max(1rem,env(safe-area-inset-bottom,0px))]"
-            aria-label="Разделы кабинета"
-          >
-            {DOCTOR_MENU_ENTRIES.map((entry) =>
-              entry.kind === "separator" ? (
-                <Separator key={entry.id} className="my-2" />
-              ) : (
-                <Link
-                  key={entry.id}
-                  id={`doctor-menu-link-${entry.id}`}
-                  href={entry.href}
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-4 pb-[env(safe-area-inset-bottom,0px)] pt-[max(0.75rem,env(safe-area-inset-top,0px))]">
+            <SheetHeader className="shrink-0 border-0 px-0 py-2 text-left">
+              <SheetTitle>Разделы</SheetTitle>
+            </SheetHeader>
+            <nav
+              className="flex min-h-0 min-w-0 flex-1 flex-col gap-1 overflow-y-auto overflow-x-hidden overscroll-y-contain py-2 pb-[max(0.5rem,env(safe-area-inset-bottom,0px))]"
+              aria-label="Разделы кабинета"
+            >
+              {DOCTOR_MENU_ENTRIES.map((entry) =>
+                entry.kind === "separator" ? (
+                  <Separator key={entry.id} className="my-2" />
+                ) : (
+                  <Link
+                    key={entry.id}
+                    id={`doctor-menu-link-${entry.id}`}
+                    href={entry.href}
+                    onClick={closeMenu}
+                    className={DOCTOR_SHEET_LINK_CLASS}
+                  >
+                    {entry.label}
+                  </Link>
+                ),
+              )}
+              <Separator className="my-2" />
+              <Link href="/app/settings" onClick={closeMenu} className={DOCTOR_SHEET_LINK_CLASS}>
+                Профиль и настройки
+              </Link>
+              <Separator className="my-2" />
+              <form action="/api/auth/logout" method="post" className="w-full">
+                <Button
+                  type="submit"
+                  variant="ghost"
+                  id="doctor-menu-logout"
+                  className="h-auto w-full justify-start px-3 py-2 font-normal text-destructive hover:bg-destructive/10 hover:text-destructive"
                   onClick={closeMenu}
-                  className={DOCTOR_SHEET_LINK_CLASS}
                 >
-                  {entry.label}
-                </Link>
-              ),
-            )}
-            <Separator className="my-2" />
-            <Link href="/app/settings" onClick={closeMenu} className={DOCTOR_SHEET_LINK_CLASS}>
-              Профиль и настройки
-            </Link>
-            <Separator className="my-2" />
-            <form action="/api/auth/logout" method="post" className="w-full">
-              <Button
-                type="submit"
-                variant="ghost"
-                id="doctor-menu-logout"
-                className="h-auto w-full justify-start px-3 py-2 font-normal text-destructive hover:bg-destructive/10 hover:text-destructive"
-                onClick={closeMenu}
-              >
-                Выйти
-              </Button>
-            </form>
-          </nav>
+                  Выйти
+                </Button>
+              </form>
+            </nav>
+          </div>
         </SheetContent>
       </Sheet>
     </>
