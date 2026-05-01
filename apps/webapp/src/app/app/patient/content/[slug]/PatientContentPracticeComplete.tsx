@@ -6,11 +6,17 @@ import { useState } from "react";
 import toast from "react-hot-toast";
 import { routePaths } from "@/app-layer/routes/paths";
 import { appLoginWithNextHref } from "@/app/app/patient/home/patientHomeGuestNav";
-import { patientHomeCardClass } from "@/app/app/patient/home/patientHomeCardStyles";
 import { PageSection } from "@/components/common/layout/PageSection";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { PracticeSource } from "@/modules/patient-practice/types";
+import { cn } from "@/lib/utils";
+import {
+  patientCardClass,
+  patientInlineLinkClass,
+  patientMutedTextClass,
+  patientPrimaryActionClass,
+} from "@/shared/ui/patientVisual";
 
 type Props = {
   contentPageId: string;
@@ -74,9 +80,9 @@ export function PatientContentPracticeComplete({
   if (guest) {
     return (
       <PageSection as="section" id="patient-content-practice-complete" className="mt-4">
-        <div className={patientHomeCardClass}>
-          <p className="text-sm text-muted-foreground">
-            <Link href={loginHref} className="font-medium text-primary underline-offset-4 hover:underline">
+        <div className={patientCardClass}>
+          <p className={patientMutedTextClass}>
+            <Link href={loginHref} className={patientInlineLinkClass}>
               Войдите
             </Link>
             , чтобы отмечать выполнение практики.
@@ -89,12 +95,12 @@ export function PatientContentPracticeComplete({
   if (needsActivation) {
     return (
       <PageSection as="section" id="patient-content-practice-complete" className="mt-4">
-        <div className={patientHomeCardClass}>
-          <p className="text-sm text-muted-foreground">
+        <div className={patientCardClass}>
+          <p className={patientMutedTextClass}>
             Активируйте профиль пациента, чтобы отмечать прогресс.{" "}
             <Link
               href={`${routePaths.bindPhone}?next=${encodeURIComponent(contentPath)}`}
-              className="font-medium text-primary underline-offset-4 hover:underline"
+              className={patientInlineLinkClass}
             >
               Подтвердить телефон
             </Link>
@@ -107,8 +113,8 @@ export function PatientContentPracticeComplete({
   if (saved) {
     return (
       <PageSection as="section" id="patient-content-practice-complete" className="mt-4">
-        <div className={patientHomeCardClass}>
-          <p className="text-sm text-muted-foreground">Практика отмечена выполненной.</p>
+        <div className={patientCardClass}>
+          <p className={patientMutedTextClass}>Практика отмечена выполненной.</p>
         </div>
       </PageSection>
     );
@@ -117,8 +123,8 @@ export function PatientContentPracticeComplete({
   return (
     <>
       <PageSection as="section" id="patient-content-practice-complete" className="mt-4">
-        <div className={patientHomeCardClass}>
-          <Button type="button" className="w-full sm:w-auto" onClick={() => setDialogOpen(true)}>
+        <div className={patientCardClass}>
+          <Button type="button" className={cn(patientPrimaryActionClass, "w-full sm:w-auto")} onClick={() => setDialogOpen(true)}>
             Я выполнил(а) практику
           </Button>
         </div>

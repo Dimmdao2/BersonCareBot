@@ -11,8 +11,10 @@ import { resolvePatientContentSectionSlug } from "@/infra/repos/resolvePatientCo
 import { getSubscriptionCarouselSectionPresentation } from "@/modules/patient-home/patientHomeResolvers";
 import { DEFAULT_WARMUPS_SECTION_SLUG } from "@/modules/patient-home/warmupsSection";
 import { resolvePatientCanViewAuthOnlyContent } from "@/modules/platform-access";
+import { cn } from "@/lib/utils";
 import { AppShell } from "@/shared/ui/AppShell";
 import { FeatureCard } from "@/shared/ui/FeatureCard";
+import { patientMutedTextClass } from "@/shared/ui/patientVisual";
 import { PatientSectionSubscriptionCallout } from "../PatientSectionSubscriptionCallout";
 import { SectionWarmupsReminderBar } from "../SectionWarmupsReminderBar";
 
@@ -117,7 +119,7 @@ export default async function PatientSectionPage({ params }: Props) {
         ))}
       </section>
       {pages.length === 0 ? (
-        <p className="text-muted-foreground mt-4 text-sm">В этом разделе пока нет материалов.</p>
+        <p className={cn(patientMutedTextClass, "mt-4")}>В этом разделе пока нет материалов.</p>
       ) : null}
     </AppShell>
   );

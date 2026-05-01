@@ -6,6 +6,7 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { getOptionalPatientSession, patientRscPersonalDataGate } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
 import { AppShell } from "@/shared/ui/AppShell";
+import { patientMutedTextClass } from "@/shared/ui/patientVisual";
 import { PatientTreatmentProgramDetailClient } from "../PatientTreatmentProgramDetailClient";
 
 type Props = { params: Promise<{ instanceId: string }> };
@@ -15,7 +16,7 @@ export default async function PatientTreatmentProgramDetailPage({ params }: Prop
   if (!session) {
     return (
       <AppShell title="Программа" user={null} backHref={routePaths.patientTreatmentPrograms} backLabel="Программы" variant="patient">
-        <p className="text-sm text-muted-foreground">Войдите для доступа.</p>
+        <p className={patientMutedTextClass}>Войдите для доступа.</p>
       </AppShell>
     );
   }
@@ -24,7 +25,7 @@ export default async function PatientTreatmentProgramDetailPage({ params }: Prop
   if (dataGate === "guest") {
     return (
       <AppShell title="Программа" user={session.user} backHref={routePaths.patientTreatmentPrograms} backLabel="Программы" variant="patient">
-        <p className="text-sm text-muted-foreground">Раздел доступен после входа.</p>
+        <p className={patientMutedTextClass}>Раздел доступен после входа.</p>
       </AppShell>
     );
   }

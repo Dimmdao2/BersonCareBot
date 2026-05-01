@@ -5,6 +5,8 @@ import { useState } from "react";
 import type { PatientReminderRuleJson } from "@/app/api/patient/reminders/reminderPatientJson";
 import { Button } from "@/components/ui/button";
 import { ReminderCreateDialog } from "@/modules/reminders/components/ReminderCreateDialog";
+import { cn } from "@/lib/utils";
+import { patientPrimaryActionClass, patientSecondaryActionClass } from "@/shared/ui/patientVisual";
 
 /**
  * Напоминание на весь CMS-раздел разминок: `content_section` и slug канона разминок (см. `warmupsSection.ts`).
@@ -27,7 +29,7 @@ export function SectionWarmupsReminderBar({
         id="patient-warmups-reminder-actions"
         className="mb-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center"
       >
-        <Button type="button" className="w-full sm:w-auto" onClick={() => setOpen(true)}>
+        <Button type="button" className={cn(patientPrimaryActionClass, "w-full sm:w-auto")} onClick={() => setOpen(true)}>
           Напоминать сделать разминку
         </Button>
         {existingRule ? (
@@ -35,7 +37,7 @@ export function SectionWarmupsReminderBar({
             type="button"
             variant="outline"
             size="sm"
-            className="w-full sm:w-auto"
+            className={cn(patientSecondaryActionClass, "w-full sm:w-auto")}
             onClick={() => setOpen(true)}
           >
             Изменить расписание

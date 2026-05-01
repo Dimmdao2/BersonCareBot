@@ -6,7 +6,9 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { getOptionalPatientSession } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
 import { patientClientBusinessGate } from "@/modules/platform-access/patientClientBusinessGate";
+import { cn } from "@/lib/utils";
 import { AppShell } from "@/shared/ui/AppShell";
+import { patientMutedTextClass } from "@/shared/ui/patientVisual";
 import { PatientCoursesCatalogClient } from "./PatientCoursesCatalogClient";
 
 type PageProps = { searchParams: Promise<{ highlight?: string | string[] }> };
@@ -36,7 +38,7 @@ export default async function PatientCoursesPage({ searchParams }: PageProps) {
       backLabel="Меню"
       variant="patient"
     >
-      <p className="mb-4 text-sm text-muted-foreground">
+      <p className={cn(patientMutedTextClass, "mb-4")}>
         После записи вы получите программу лечения с этапами и материалами — как при назначении врача.
       </p>
       <PatientCoursesCatalogClient

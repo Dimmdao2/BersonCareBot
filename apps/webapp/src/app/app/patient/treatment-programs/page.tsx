@@ -6,13 +6,15 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { getOptionalPatientSession, patientRscPersonalDataGate } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
 import { AppShell } from "@/shared/ui/AppShell";
+import { cn } from "@/lib/utils";
+import { patientCardCompactClass, patientMutedTextClass } from "@/shared/ui/patientVisual";
 
 export default async function PatientTreatmentProgramsPage() {
   const session = await getOptionalPatientSession();
   if (!session) {
     return (
       <AppShell title="Программы лечения" user={null} backHref={routePaths.patient} backLabel="Меню" variant="patient">
-        <p className="text-sm text-muted-foreground">Войдите, чтобы увидеть назначенные программы.</p>
+        <p className={patientMutedTextClass}>Войдите, чтобы увидеть назначенные программы.</p>
       </AppShell>
     );
   }
@@ -21,7 +23,7 @@ export default async function PatientTreatmentProgramsPage() {
   if (dataGate === "guest") {
     return (
       <AppShell title="Программы лечения" user={session.user} backHref={routePaths.patient} backLabel="Меню" variant="patient">
-        <p className="text-sm text-muted-foreground">Раздел доступен после входа.</p>
+        <p className={patientMutedTextClass}>Раздел доступен после входа.</p>
       </AppShell>
     );
   }
@@ -32,17 +34,20 @@ export default async function PatientTreatmentProgramsPage() {
   return (
     <AppShell title="Программы лечения" user={session.user} backHref={routePaths.patient} backLabel="Меню" variant="patient">
       {list.length === 0 ? (
-        <p className="text-sm text-muted-foreground">У вас пока нет назначенных программ.</p>
+        <p className={patientMutedTextClass}>У вас пока нет назначенных программ.</p>
       ) : (
         <ul className="m-0 list-none space-y-3 p-0">
           {list.map((p) => (
             <li key={p.id}>
               <Link
                 href={routePaths.patientTreatmentProgram(p.id)}
-                className="block rounded-xl border border-border bg-card p-4 text-sm font-medium shadow-sm transition-colors hover:border-primary/30"
+                className={cn(
+                  patientCardCompactClass,
+                  "block text-sm font-medium transition-colors hover:border-primary/30",
+                )}
               >
                 {p.title}
-                <span className="mt-1 block text-xs font-normal text-muted-foreground">
+                <span className={cn(patientMutedTextClass, "mt-1 block text-xs font-normal")}>
                   {p.status === "completed" ? "завершена" : "активна"}
                 </span>
               </Link>

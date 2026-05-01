@@ -1,5 +1,24 @@
 # LOG — Patient App Style Transfer
 
+## 2026-05-01 — Phase 2 / FIX (`AUDIT_PHASE_2` mandatory)
+
+- Agent/model: Composer (Cursor).
+- Branch: `patient-app-style-transfer-initiative`.
+- Scope: только mandatory из `AUDIT_PHASE_2.md` — **§3: mandatory fixes отсутствуют**; изменений app-кода для FIX не требовалось; дополнительный polish не делался.
+- Files changed (FIX): `docs/PATIENT_APP_STYLE_TRANSFER_INITIATIVE/LOG.md` (этот файл). Остальное в том же коммите — незакоммиченное дерево Phase 2 EXEC + артефакты инициативы (`AUDIT_PHASE_*.md`, `PLAN_INVENTORY.md` и т.д.).
+- Checks (targeted): eslint по файлам Phase 2, `pnpm --dir apps/webapp typecheck`, vitest как в записи Phase 2 EXEC ниже.
+- Next step: Phase 3 EXEC по `03_INTERACTIVE_PAGES_STYLE_PLAN.md`.
+
+## 2026-05-01 — Phase 2 / EXEC (static / read-only style pass)
+
+- Agent/model: Composer (Cursor).
+- Branch: `patient-app-style-transfer-initiative`.
+- Scope: style-only — patient primitives на Phase 2 маршрутах (`02_STATIC_PAGES_STYLE_PLAN.md`); тексты, порядок блоков, fetch, course/treatment/CMS логика не менялись.
+- Files changed: `FeatureCard.tsx` (карточки разделов/главы — только patient chrome); `sections/page.tsx`, `sections/[slug]/page.tsx`, `PatientSectionSubscriptionCallout.tsx`, `SectionWarmupsReminderBar.tsx`; `content/[slug]/page.tsx`, `PatientContentPracticeComplete.tsx`; `courses/page.tsx`, `PatientCoursesCatalogClient.tsx`; `treatment-programs/page.tsx`, `treatment-programs/[instanceId]/page.tsx`, `PatientTreatmentProgramDetailClient.tsx`; `LOG.md`.
+- What explicitly did not change: строки UI; структура страниц; API вызовы; enrollment/progress бизнес-правила; глобальные shadcn кроме локального `className` на patient страницах.
+- Checks: eslint по всем изменённым файлам Phase 2; `pnpm --dir apps/webapp typecheck`; vitest `FeatureCard.test.tsx`, `PatientContentPracticeComplete.test.tsx`, `sections/[slug]/page.{subscription,warmupsGate,slugRedirect}.test.tsx`.
+- Next step: AUDIT Phase 2.
+
 ## 2026-05-01 — Phase 1 / FIX (`AUDIT_PHASE_1` mandatory)
 
 - Agent/model: Composer (Cursor).

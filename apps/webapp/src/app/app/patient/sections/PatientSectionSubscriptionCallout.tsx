@@ -1,3 +1,5 @@
+import { cn } from "@/lib/utils";
+
 /**
  * Информационный блок для разделов, включённых в блок главной `subscription_carousel`.
  * Контент раздела не блокируется — только редакционное пояснение (README Phase 7).
@@ -6,7 +8,9 @@ export function PatientSectionSubscriptionCallout() {
   return (
     <div
       role="status"
-      className="rounded-xl border border-border bg-muted/40 px-4 py-3 text-sm text-foreground"
+      className={cn(
+        "rounded-[var(--patient-card-radius-mobile)] border border-[var(--patient-border)] bg-[var(--patient-color-primary-soft)]/35 px-4 py-3 text-sm text-[var(--patient-text-primary)]",
+      )}
       data-testid="patient-section-subscription-callout"
     >
       <p className="m-0 leading-snug">

@@ -13,6 +13,13 @@ import {
   formatTreatmentProgramStageStatusRu,
 } from "@/modules/treatment-program/types";
 import { testIdsFromTestSetSnapshot } from "@/modules/treatment-program/progress-service";
+import { cn } from "@/lib/utils";
+import {
+  patientCardClass,
+  patientListItemClass,
+  patientMutedTextClass,
+  patientPrimaryActionClass,
+} from "@/shared/ui/patientVisual";
 
 function snapshotTitle(snapshot: Record<string, unknown>, itemType: string): string {
   const t = snapshot.title;
@@ -56,22 +63,22 @@ export function PatientTreatmentProgramDetailClient(props: {
         </p>
       ) : null}
 
-      <div className="rounded-xl border border-border bg-card p-4">
+      <div className={patientCardClass}>
         <h2 className="text-lg font-semibold tracking-tight">{detail.title}</h2>
-        <p className="mt-1 text-xs text-muted-foreground">
+        <p className={cn(patientMutedTextClass, "mt-1 text-xs")}>
           Статус программы: {detail.status === "completed" ? "завершена" : "активна"}
         </p>
       </div>
 
       {testResults.length > 0 ? (
-        <section className="rounded-xl border border-border bg-card p-4" aria-label="Результаты тестов">
+        <section className={patientCardClass} aria-label="Результаты тестов">
           <h3 className="text-base font-semibold">Ваши результаты тестов</h3>
           <ul className="mt-3 list-none space-y-2 p-0 text-sm">
             {testResults.map((r) => (
-              <li key={r.id} className="rounded-lg border border-border/70 bg-muted/15 p-2">
+              <li key={r.id} className={cn(patientListItemClass, "border-[var(--patient-border)]/70 bg-[var(--patient-color-primary-soft)]/15")}>
                 <p className="font-medium">
                   {r.testTitle ?? r.testId}{" "}
-                  <span className="text-xs font-normal text-muted-foreground">
+                  <span className={cn(patientMutedTextClass, "text-xs font-normal")}>
                     ({r.stageTitle}) · {formatNormalizedTestDecisionRu(r.normalizedDecision)}
                   </span>
                   {r.decidedBy ? (
@@ -80,7 +87,7 @@ export function PatientTreatmentProgramDetailClient(props: {
                     </span>
                   ) : null}
                 </p>
-                <pre className="mt-1 max-h-24 overflow-auto text-[11px] text-muted-foreground">
+                <pre className={cn(patientMutedTextClass, "mt-1 max-h-24 overflow-auto text-[11px]")}>
                   {JSON.stringify(r.rawValue, null, 0)}
                 </pre>
               </li>
@@ -90,30 +97,30 @@ export function PatientTreatmentProgramDetailClient(props: {
       ) : null}
 
       {detail.stages.map((stage) => (
-        <section key={stage.id} className="rounded-xl border border-border bg-card p-4">
+        <section key={stage.id} className={patientCardClass}>
           <div className="mb-3 flex flex-wrap items-baseline gap-2">
             <h3 className="text-base font-semibold">{stage.title}</h3>
-            <span className="text-xs uppercase tracking-wide text-muted-foreground">
+            <span className={cn(patientMutedTextClass, "text-xs uppercase tracking-wide")}>
               {formatTreatmentProgramStageStatusRu(stage.status)}
             </span>
           </div>
           {stage.status === "locked" ? (
-            <p className="text-sm text-muted-foreground">Этап откроется после завершения предыдущего или по решению врача.</p>
+            <p className={patientMutedTextClass}>Этап откроется после завершения предыдущего или по решению врача.</p>
           ) : null}
           <ul className="m-0 list-none space-y-4 p-0">
             {stage.items.map((item) => (
-              <li key={item.id} className="rounded-lg border border-border/80 bg-muted/20 p-3">
+              <li key={item.id} className={cn(patientListItemClass, "border-[var(--patient-border)]/80 bg-[var(--patient-color-primary-soft)]/10")}>
                 <p className="text-sm font-medium">
                   {snapshotTitle(item.snapshot, item.itemType)}{" "}
-                  <span className="font-normal text-muted-foreground">({item.itemType})</span>
+                  <span className={cn(patientMutedTextClass, "font-normal")}>({item.itemType})</span>
                 </p>
                 {effectiveInstanceStageItemComment(item) ? (
-                  <p className="mt-1 text-xs text-muted-foreground">
+                  <p className={cn(patientMutedTextClass, "mt-1 text-xs")}>
                     Комментарий:{" "}
                     <span className="text-foreground">{effectiveInstanceStageItemComment(item)}</span>
                   </p>
                 ) : null}
-                <p className="mt-1 text-xs text-muted-foreground">
+                <p className={cn(patientMutedTextClass, "mt-1 text-xs")}>
                   Элемент:{" "}
                   {item.completedAt ? (
                     <span className="text-emerald-600 dark:text-emerald-400">выполнен</span>
@@ -139,6 +146,7 @@ export function PatientTreatmentProgramDetailClient(props: {
                       <Button
                         type="button"
                         size="sm"
+                        className={cn(patientPrimaryActionClass, "!h-9 !min-h-0 w-auto px-3 text-sm")}
                         disabled={Boolean(item.completedAt) || busy !== null}
                         onClick={async () => {
                           setBusy(item.id);
@@ -220,12 +228,15 @@ function TestSetBlock(props: {
 
   return (
     <div className="mt-3 flex flex-col gap-3">
-      <p className="text-xs text-muted-foreground">Введите числовой балл (score) для каждого теста, если настроены пороги в программе, или укажите итог вручную.</p>
+      <p className={cn(patientMutedTextClass, "text-xs")}>Введите числовой балл (score) для каждого теста, если настроены пороги в программе, или укажите итог вручную.</p>
       {testsMeta.length === 0 ? (
         <p className="text-xs text-destructive">В снимке нет списка тестов.</p>
       ) : (
         testsMeta.map((t) => (
-          <div key={t.testId} className="flex flex-col gap-1 rounded border border-border/60 p-2">
+          <div
+            key={t.testId}
+            className="flex flex-col gap-1 rounded-lg border border-[var(--patient-border)]/60 bg-[var(--patient-card-bg)] p-2"
+          >
             <span className="text-xs font-medium">{t.title ?? t.testId}</span>
             <div className="flex flex-wrap items-center gap-2">
               <Input
@@ -239,6 +250,7 @@ function TestSetBlock(props: {
               <Button
                 type="button"
                 size="sm"
+                className={cn(patientPrimaryActionClass, "!h-8 !min-h-0 w-auto px-3 text-sm")}
                 disabled={busy !== null}
                 onClick={async () => {
                   setBusy(itemId + t.testId);
@@ -277,7 +289,7 @@ function TestSetBlock(props: {
         ))
       )}
       {testIds.length > 0 ? (
-        <p className="text-[11px] text-muted-foreground">Тестов в наборе: {testIds.length}</p>
+        <p className={cn(patientMutedTextClass, "text-[11px]")}>Тестов в наборе: {testIds.length}</p>
       ) : null}
     </div>
   );

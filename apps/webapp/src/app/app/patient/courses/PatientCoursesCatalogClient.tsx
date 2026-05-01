@@ -6,6 +6,13 @@ import { useState } from "react";
 import { routePaths } from "@/app-layer/routes/paths";
 import type { CourseCatalogItem } from "@/modules/courses/types";
 import { cn } from "@/lib/utils";
+import {
+  patientCardClass,
+  patientInlineLinkClass,
+  patientMutedTextClass,
+  patientPrimaryActionClass,
+  patientSecondaryActionClass,
+} from "@/shared/ui/patientVisual";
 
 function formatPrice(minor: number, currency: string): string {
   const major = minor / 100;
@@ -54,7 +61,7 @@ export function PatientCoursesCatalogClient(props: {
   }
 
   if (items.length === 0) {
-    return <p className="text-sm text-muted-foreground">Пока нет опубликованных курсов.</p>;
+    return <p className={patientMutedTextClass}>Пока нет опубликованных курсов.</p>;
   }
 
   return (
@@ -69,19 +76,19 @@ export function PatientCoursesCatalogClient(props: {
           <li
             key={c.id}
             className={cn(
-              "rounded-xl border bg-card p-4 shadow-sm",
-              highlightCourseId === c.id ? "border-primary ring-2 ring-primary/40" : "border-border",
+              patientCardClass,
+              highlightCourseId === c.id ? "border-[var(--patient-color-primary)] ring-2 ring-[var(--patient-color-primary)]/40" : "",
             )}
           >
             <h2 className="text-base font-semibold">{c.title}</h2>
             {c.description ? (
-              <p className="mt-2 text-sm text-muted-foreground whitespace-pre-wrap">{c.description}</p>
+              <p className={cn(patientMutedTextClass, "mt-2 whitespace-pre-wrap")}>{c.description}</p>
             ) : null}
             <p className="mt-2 text-sm font-medium">{formatPrice(c.priceMinor, c.currency)}</p>
             {c.introContentSlug ? (
               <Link
                 href={`/app/patient/content/${encodeURIComponent(c.introContentSlug)}`}
-                className="mt-3 inline-block text-sm text-primary underline"
+                className={cn(patientInlineLinkClass, "mt-3 inline-block text-sm")}
               >
                 Вступительный урок
               </Link>
@@ -90,16 +97,14 @@ export function PatientCoursesCatalogClient(props: {
               {!loggedIn ? (
                 <Link
                   href={`${routePaths.root}?next=${encodeURIComponent(routePaths.patientCourses)}`}
-                  className={cn(
-                    "inline-flex items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground",
-                  )}
+                  className={cn(patientPrimaryActionClass, "!min-h-10 text-sm")}
                 >
                   Войти, чтобы записаться
                 </Link>
               ) : !enrollReady ? (
                 <Link
                   href={`${routePaths.bindPhone}?next=${encodeURIComponent(routePaths.patientCourses)}`}
-                  className="inline-flex items-center justify-center rounded-lg border border-border px-4 py-2 text-sm font-medium"
+                  className={cn(patientSecondaryActionClass, "!w-auto text-sm")}
                 >
                   Активируйте профиль для записи
                 </Link>
@@ -108,7 +113,7 @@ export function PatientCoursesCatalogClient(props: {
                   type="button"
                   disabled={busyId !== null}
                   onClick={() => enroll(c.id)}
-                  className="inline-flex items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-60"
+                  className={cn(patientPrimaryActionClass, "!min-h-10 text-sm disabled:opacity-60")}
                 >
                   {busyId === c.id ? "Запись…" : "Записаться на программу"}
                 </button>

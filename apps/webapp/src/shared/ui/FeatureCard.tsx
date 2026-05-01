@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { patientCardClass, patientInlineLinkClass, patientMutedTextClass } from "@/shared/ui/patientVisual";
 
 /**
  * Карточка раздела на главном экране: заголовок, описание, статус (доступно / скоро / заблокировано).
@@ -47,7 +48,8 @@ export function FeatureCard({
   secondaryLabel = "Открыть курс",
 }: FeatureCardProps) {
   const cardClass = cn(
-    "rounded-xl border border-border bg-card p-4 shadow-sm transition-shadow",
+    patientCardClass,
+    "transition-shadow",
     compact && "flex min-h-[52px] items-center justify-center text-center",
   );
 
@@ -66,7 +68,7 @@ export function FeatureCard({
         </div>
       )}
       {titleEl}
-      {!compact && description ? <p className="mt-2 text-sm text-muted-foreground">{description}</p> : null}
+      {!compact && description ? <p className={cn(patientMutedTextClass, "mt-2")}>{description}</p> : null}
     </>
   );
 
@@ -83,8 +85,8 @@ export function FeatureCard({
       <div
         id={containerId}
         className={cn(
-          "rounded-xl border border-border bg-card p-4 shadow-sm transition-shadow",
-          "flex flex-col gap-2",
+          patientCardClass,
+          "flex flex-col gap-2 transition-shadow",
           compact && "min-h-[52px] py-3",
         )}
       >
@@ -101,7 +103,8 @@ export function FeatureCard({
           href={secondaryHref}
           prefetch={false}
           className={cn(
-            "text-sm font-medium text-primary underline-offset-2 hover:underline",
+            patientInlineLinkClass,
+            "text-sm",
             compact ? "text-center text-xs" : "text-center sm:text-left",
           )}
         >

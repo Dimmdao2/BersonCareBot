@@ -13,9 +13,11 @@ import { routePaths } from "@/app-layer/routes/paths";
 import { resolvePatientCanViewAuthOnlyContent } from "@/modules/platform-access";
 import { PageSection } from "@/components/common/layout/PageSection";
 import { AppShell } from "@/shared/ui/AppShell";
+import { cn } from "@/lib/utils";
 import { MarkdownContent } from "@/shared/ui/markdown/MarkdownContent";
 import { ContentHeroImage } from "@/shared/ui/media/ContentHeroImage";
 import { NoContextMenuVideo } from "@/shared/ui/media/NoContextMenuVideo";
+import { patientMutedTextClass, patientPrimaryActionClass, patientSectionSurfaceClass } from "@/shared/ui/patientVisual";
 import { PatientContentPracticeComplete } from "./PatientContentPracticeComplete";
 
 type Props = {
@@ -129,7 +131,7 @@ export default async function ContentSlugPage({ params, searchParams }: Props) {
           </PageSection>
         ) : (
           <PageSection as="section" id={`patient-content-video-section-${slug}`} className="mt-4 flex flex-col gap-2">
-            <p className="text-muted-foreground">Видео будет добавлено в ближайшее время.</p>
+            <p className={patientMutedTextClass}>Видео будет добавлено в ближайшее время.</p>
           </PageSection>
         )}
         <PatientContentPracticeComplete
@@ -143,14 +145,14 @@ export default async function ContentSlugPage({ params, searchParams }: Props) {
           <PageSection
             as="section"
             id={`patient-content-course-cta-${slug}`}
-            className="mt-4 rounded-2xl border border-border bg-card p-4 shadow-sm"
+            className={cn(patientSectionSurfaceClass, "mt-4")}
           >
             <p className="text-sm font-medium">
               Это часть курса «{courseCta.courseTitle}»
             </p>
             <Link
               href={courseCta.href}
-              className="mt-3 inline-flex items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
+              className={cn(patientPrimaryActionClass, "mt-3 !min-h-10 w-full text-sm sm:w-auto")}
             >
               Открыть курс
             </Link>

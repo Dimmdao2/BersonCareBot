@@ -8,8 +8,10 @@ import { getOptionalPatientSession } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
 import { resolvePatientCanViewAuthOnlyContent } from "@/modules/platform-access";
 import { logServerRuntimeError } from "@/infra/logging/serverRuntimeLog";
+import { cn } from "@/lib/utils";
 import { AppShell } from "@/shared/ui/AppShell";
 import { FeatureCard } from "@/shared/ui/FeatureCard";
+import { patientMutedTextClass } from "@/shared/ui/patientVisual";
 
 export default async function PatientSectionsIndexPage() {
   const session = await getOptionalPatientSession();
@@ -31,7 +33,7 @@ export default async function PatientSectionsIndexPage() {
       backLabel="Меню"
       variant="patient"
     >
-      <p className="text-muted-foreground mb-4 text-sm">
+      <p className={cn(patientMutedTextClass, "mb-4")}>
         Материалы по разделам. Некоторые разделы доступны после входа с подтверждённым телефоном.
       </p>
       <section className="grid gap-4 md:grid-cols-2">
@@ -46,7 +48,7 @@ export default async function PatientSectionsIndexPage() {
         ))}
       </section>
       {sections.length === 0 ? (
-        <p className="text-muted-foreground mt-4 text-sm">Пока нет доступных разделов.</p>
+        <p className={cn(patientMutedTextClass, "mt-4")}>Пока нет доступных разделов.</p>
       ) : null}
     </AppShell>
   );
