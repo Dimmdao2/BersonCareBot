@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { BookingSlot } from "@/modules/patient-booking/types";
 import { formatBookingTimeShortRu } from "@/shared/lib/formatBusinessDateTime";
+import { patientMutedTextClass } from "@/shared/ui/patientVisual";
 
 type Props = {
   slots: BookingSlot[];
@@ -21,7 +22,7 @@ export function BookingSlotList({ slots, selectedSlot, onSelectSlot, appDisplayT
         <Badge variant="outline">Шаг 4</Badge>
       </div>
       {slots.length === 0 ? (
-        <p className="text-sm text-muted-foreground">На выбранную дату слоты не найдены.</p>
+        <p className={patientMutedTextClass}>На выбранную дату слоты не найдены.</p>
       ) : (
         <div className="flex flex-wrap gap-2">
           {slots.map((slot) => {

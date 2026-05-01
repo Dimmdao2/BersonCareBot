@@ -8,6 +8,8 @@ import type { PatientBookingRecord } from "@/modules/patient-booking/types";
 import { formatBookingDateTimeMediumRu } from "@/shared/lib/formatBusinessDateTime";
 import { openExternalLinkInMessenger } from "@/shared/lib/openExternalLinkInMessenger";
 import { bookingProvenancePrefix, nativeBookingSubtitle } from "./patientBookingLabels";
+import { cn } from "@/lib/utils";
+import { patientCardClass, patientInlineLinkClass, patientListItemClass, patientMutedTextClass } from "@/shared/ui/patientVisual";
 
 type Props = {
   bookings: PatientBookingRecord[];
@@ -45,19 +47,19 @@ function showManageLink(status: PatientBookingRecord["status"]): boolean {
 export function CabinetActiveBookings({ bookings, appDisplayTimeZone }: Props) {
   if (bookings.length === 0) {
     return (
-      <Card>
+      <Card className={cn(patientCardClass, "ring-0")}>
         <CardHeader className="pb-2">
           <CardTitle className="text-base">Активные записи</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-muted-foreground">У вас пока нет активных записей.</p>
+          <p className={patientMutedTextClass}>У вас пока нет активных записей.</p>
         </CardContent>
       </Card>
     );
   }
 
   return (
-    <Card>
+    <Card className={cn(patientCardClass, "ring-0")}>
       <CardHeader className="pb-2">
         <CardTitle className="text-base">Активные записи</CardTitle>
       </CardHeader>
@@ -72,13 +74,16 @@ export function CabinetActiveBookings({ bookings, appDisplayTimeZone }: Props) {
           return (
             <div
               key={row.id}
-              className="flex flex-col gap-2 rounded-lg border border-border px-3 py-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3"
+              className={cn(
+                patientListItemClass,
+                "flex flex-col gap-2 !px-3 !py-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3",
+              )}
             >
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-medium">
                   {formatBookingDateTimeMediumRu(row.slotStart, appDisplayTimeZone)}
                 </p>
-                <p className="truncate text-xs text-muted-foreground">
+                <p className={cn(patientMutedTextClass, "truncate text-xs")}>
                   {bookingProvenancePrefix(row)}
                   {nativeBookingSubtitle(row)}
                 </p>
@@ -89,7 +94,7 @@ export function CabinetActiveBookings({ bookings, appDisplayTimeZone }: Props) {
                   <Button
                     type="button"
                     variant="link"
-                    className="h-auto min-h-0 px-0 py-0 text-sm font-medium text-primary underline-offset-4 hover:underline"
+                    className={cn(patientInlineLinkClass, "h-auto min-h-0 px-0 py-0 text-sm font-medium")}
                     onClick={() => {
                       openExternalLinkInMessenger(manageHref);
                     }}

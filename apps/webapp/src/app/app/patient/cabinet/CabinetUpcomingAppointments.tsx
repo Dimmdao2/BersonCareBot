@@ -3,6 +3,8 @@
 import type { AppointmentSummary } from "@/modules/appointments/service";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { isSafeExternalHref } from "@/lib/url/isSafeExternalHref";
+import { cn } from "@/lib/utils";
+import { patientInlineLinkClass, patientListItemClass, patientMutedTextClass } from "@/shared/ui/patientVisual";
 import { AppointmentStatusBadge } from "./AppointmentStatusBadge";
 
 type Props = {
@@ -12,7 +14,7 @@ type Props = {
 /** Единый TooltipProvider для списка бейджей (без N вложенных провайдеров). */
 export function CabinetUpcomingAppointments({ appointments }: Props) {
   if (appointments.length === 0) {
-    return <p className="text-muted-foreground text-sm">Нет предстоящих приёмов.</p>;
+    return <p className={patientMutedTextClass}>Нет предстоящих приёмов.</p>;
   }
 
   return (
@@ -25,7 +27,7 @@ export function CabinetUpcomingAppointments({ appointments }: Props) {
                 href={a.link}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-primary font-medium underline-offset-2 hover:underline"
+                className={cn(patientInlineLinkClass, "font-medium")}
               >
                 {a.timeLabel}
               </a>
@@ -35,10 +37,10 @@ export function CabinetUpcomingAppointments({ appointments }: Props) {
           return (
             <li
               key={a.id}
-              className="border-border/80 bg-card flex flex-col gap-1 rounded-lg border px-3 py-2"
+              className={cn(patientListItemClass, "flex flex-col gap-1 !px-3 !py-2")}
             >
               {a.scheduleProvenancePrefix ? (
-                <span className="text-xs text-muted-foreground">{a.scheduleProvenancePrefix}</span>
+                <span className={cn(patientMutedTextClass, "text-xs")}>{a.scheduleProvenancePrefix}</span>
               ) : null}
               <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
               <span className="min-w-0 text-left text-sm tabular-nums">{a.dateLabel}</span>

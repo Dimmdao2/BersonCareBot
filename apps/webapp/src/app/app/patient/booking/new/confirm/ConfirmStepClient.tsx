@@ -15,6 +15,8 @@ import {
   formatBookingTimeShortRu,
 } from "@/shared/lib/formatBusinessDateTime";
 import toast from "react-hot-toast";
+import { cn } from "@/lib/utils";
+import { patientCardClass, patientMutedTextClass } from "@/shared/ui/patientVisual";
 
 type Props = {
   type: "in_person" | "online";
@@ -84,9 +86,9 @@ export function ConfirmStepClient({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="rounded-xl border border-border bg-card p-4 text-sm shadow-sm">
+      <div className={cn(patientCardClass, "text-sm ring-0")}>
         <p className="font-semibold">Сводка</p>
-        <ul className="mt-2 list-inside list-disc text-muted-foreground">
+        <ul className={cn(patientMutedTextClass, "mt-2 list-inside list-disc")}>
           <li>{formatLabel}</li>
           {type === "in_person" && cityCode ? <li>Код города: {cityCode}</li> : null}
           <li>
@@ -121,15 +123,15 @@ export function ConfirmStepClient({
         </div>
 
         <label className="flex flex-col gap-1">
-          <span className="text-xs text-muted-foreground">Имя</span>
+          <span className={cn(patientMutedTextClass, "text-xs")}>Имя</span>
           <Input value={name} onChange={(e) => setName(e.target.value)} required />
         </label>
         <label className="flex flex-col gap-1">
-          <span className="text-xs text-muted-foreground">Телефон</span>
+          <span className={cn(patientMutedTextClass, "text-xs")}>Телефон</span>
           <Input value={phone} onChange={(e) => setPhone(e.target.value)} required />
         </label>
         <label className="flex flex-col gap-1">
-          <span className="text-xs text-muted-foreground">Email (опционально)</span>
+          <span className={cn(patientMutedTextClass, "text-xs")}>Email (опционально)</span>
           <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
         </label>
         {error ? <p className="text-sm text-destructive">{error}</p> : null}

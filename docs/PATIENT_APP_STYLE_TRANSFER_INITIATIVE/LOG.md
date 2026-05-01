@@ -1,5 +1,22 @@
 # LOG — Patient App Style Transfer
 
+## 2026-05-01 — Phase 4 / FIX (`AUDIT_PHASE_4` mandatory)
+
+- Agent/model: Composer (Cursor).
+- Scope: только mandatory из `AUDIT_PHASE_4.md` — **§3: mandatory fixes отсутствуют**; изменений app-кода для FIX не требовалось.
+- Files changed (FIX): `docs/PATIENT_APP_STYLE_TRANSFER_INITIATIVE/LOG.md` (этот файл).
+- Checks (targeted): eslint по `apps/webapp/src/app/app/patient/booking` и `cabinet`; `pnpm --dir apps/webapp typecheck`; vitest как в записи Phase 4 EXEC ниже. Root **`pnpm run ci`** не запускался (запрос FIX).
+- Next step: Phase 5 / global QA prep по инициативе или закрытие ветки по процессу команды.
+
+## 2026-05-01 — Phase 4 / EXEC (booking wizard + cabinet — style-only)
+
+- Agent/model: Composer (Cursor).
+- Scope: style-only по `04_BOOKING_STYLE_PLAN.md` — `booking/new/*` (wizard shell, format/city/service/slot/confirm), компоненты `cabinet/*` для записи и списков (в т.ч. `BookingCalendar`, `BookingSlotList`, `BookingConfirmationForm`, `CabinetInfoLinks`, `CabinetIntakeHistory`, `CabinetUpcomingAppointments`). Порядок шагов, query-параметры `router.push`/`?…`, обработчики, вызовы `useCreateBooking` / `useBookingSlots` / каталог, Rubitime-ссылки, видимые подписи полей — без изменений.
+- Files changed (representative): `BookingWizardShell.tsx`, `FormatStepClient.tsx`, `CityStepClient.tsx`, `ServiceStepClient.tsx`, `SlotStepClient.tsx`, `ConfirmStepClient.tsx`; `BookingCalendar.tsx`, `BookingSlotList.tsx`, `BookingConfirmationForm.tsx`; `CabinetActiveBookings.tsx`, `CabinetPastBookings.tsx`, `CabinetUpcomingAppointments.tsx`, `CabinetIntakeHistory.tsx`, `CabinetInfoLinks.tsx`, `CabinetBookingEntry.tsx`.
+- What explicitly did not change: тексты UI и лейблы; имена полей форм; маршруты и строки query; логика статусов и условий «Изменить» / external URL.
+- Checks (targeted): eslint по `apps/webapp/src/app/app/patient/booking` и `cabinet`; `pnpm --dir apps/webapp typecheck`; vitest: все `booking/new/**/*.test.tsx`, `CabinetActiveBookings.test.tsx`, `CabinetBookingEntry.test.tsx`.
+- Next step: AUDIT Phase 4 или Phase 5 по плану инициативы.
+
 ## 2026-05-01 — Phase 3 / FIX (`AUDIT_PHASE_3` mandatory)
 
 - Agent/model: Composer (Cursor).

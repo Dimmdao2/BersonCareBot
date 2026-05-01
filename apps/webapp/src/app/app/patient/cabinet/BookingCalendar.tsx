@@ -2,6 +2,7 @@
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { patientMutedTextClass } from "@/shared/ui/patientVisual";
 
 type Props = {
   availableDates: string[];
@@ -27,7 +28,7 @@ export function BookingCalendar({ availableDates, selectedDate, onSelectDate }: 
           <h3 className="text-sm font-semibold">Выбор даты</h3>
           <Badge variant="outline">Шаг 4</Badge>
         </div>
-        <p className="text-sm text-muted-foreground">Нет доступных дат для выбранного формата.</p>
+        <p className={patientMutedTextClass}>Нет доступных дат для выбранного формата.</p>
       </div>
     );
   }

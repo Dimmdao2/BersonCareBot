@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { routePaths } from "@/app-layer/routes/paths";
+import { patientMutedTextClass } from "@/shared/ui/patientVisual";
 import { useBookingCatalogCities } from "../../cabinet/useBookingCatalog";
 
 export function FormatStepClient() {
@@ -20,7 +21,7 @@ export function FormatStepClient() {
       <div className="flex flex-col gap-3">
         <h3 className="text-sm font-semibold">Очный прием</h3>
         {catalogCities.loading ? (
-          <p className="text-sm text-muted-foreground">Загрузка городов…</p>
+          <p className={patientMutedTextClass}>Загрузка городов…</p>
         ) : null}
         {catalogCities.error ? (
           <div className="flex flex-col gap-2">

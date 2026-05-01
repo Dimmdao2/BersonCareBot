@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { routePaths } from "@/app-layer/routes/paths";
+import { patientMutedTextClass } from "@/shared/ui/patientVisual";
 import type { BookingCategory, BookingSlot } from "@/modules/patient-booking/types";
 import { BookingCalendar } from "../../../cabinet/BookingCalendar";
 import { BookingSlotList } from "../../../cabinet/BookingSlotList";
@@ -86,7 +87,7 @@ export function SlotStepClient(props: Props) {
         }}
       />
 
-      {slotsState.loading ? <p className="text-sm text-muted-foreground">Загрузка слотов...</p> : null}
+      {slotsState.loading ? <p className={patientMutedTextClass}>Загрузка слотов...</p> : null}
       {slotsState.error ? (
         <div className="flex flex-col gap-2">
           <p className="text-sm text-destructive">{slotsState.error}</p>

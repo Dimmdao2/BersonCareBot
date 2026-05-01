@@ -3,7 +3,9 @@
 import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { routePaths } from "@/app-layer/routes/paths";
+import { patientMutedTextClass } from "@/shared/ui/patientVisual";
 import { useBookingCatalogServices } from "../../../cabinet/useBookingCatalog";
 
 type Props = {
@@ -21,7 +23,7 @@ export function ServiceStepClient({ cityCode, cityTitle }: Props) {
         <h2 className="text-sm font-semibold">Услуга</h2>
         <Badge variant="outline">Шаг 2</Badge>
       </div>
-      {catalogServices.loading ? <p className="text-sm text-muted-foreground">Загрузка услуг…</p> : null}
+      {catalogServices.loading ? <p className={patientMutedTextClass}>Загрузка услуг…</p> : null}
       {catalogServices.error ? (
         <div className="flex flex-col gap-2">
           <p className="text-sm text-destructive">{catalogServices.error}</p>
@@ -53,13 +55,13 @@ export function ServiceStepClient({ cityCode, cityTitle }: Props) {
               }
             >
               <span className="font-medium">{label}</span>
-              {desc ? <span className="text-xs font-normal text-muted-foreground">{desc}</span> : null}
+              {desc ? <span className={cn(patientMutedTextClass, "text-xs font-normal")}>{desc}</span> : null}
             </Button>
           );
         })}
       </div>
       {catalogServices.services.length === 0 && !catalogServices.loading && !catalogServices.error ? (
-        <p className="text-sm text-muted-foreground">Нет доступных услуг в этом городе.</p>
+        <p className={patientMutedTextClass}>Нет доступных услуг в этом городе.</p>
       ) : null}
     </div>
   );

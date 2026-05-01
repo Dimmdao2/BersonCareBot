@@ -7,6 +7,8 @@ import { Input } from "@/components/ui/input";
 import type { BookingSelection } from "./useBookingSelection";
 import type { BookingSlot } from "@/modules/patient-booking/types";
 import { useCreateBooking } from "./useCreateBooking";
+import { cn } from "@/lib/utils";
+import { patientMutedTextClass } from "@/shared/ui/patientVisual";
 
 type Props = {
   selection: BookingSelection | null;
@@ -53,15 +55,15 @@ export function BookingConfirmationForm({
       </div>
 
       <label className="flex flex-col gap-1">
-        <span className="text-xs text-muted-foreground">Имя</span>
+        <span className={cn(patientMutedTextClass, "text-xs")}>Имя</span>
         <Input value={name} onChange={(e) => setName(e.target.value)} required />
       </label>
       <label className="flex flex-col gap-1">
-        <span className="text-xs text-muted-foreground">Телефон</span>
+        <span className={cn(patientMutedTextClass, "text-xs")}>Телефон</span>
         <Input value={phone} onChange={(e) => setPhone(e.target.value)} required />
       </label>
       <label className="flex flex-col gap-1">
-        <span className="text-xs text-muted-foreground">Email (опционально)</span>
+        <span className={cn(patientMutedTextClass, "text-xs")}>Email (опционально)</span>
         <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
       </label>
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
