@@ -1,4 +1,4 @@
-import type { BroadcastAudienceFilter, BroadcastCategory } from "@/modules/doctor-broadcasts/ports";
+import type { BroadcastAudienceFilter, BroadcastCategory, BroadcastChannel } from "@/modules/doctor-broadcasts/ports";
 
 /** Порядок опций в селекте аудитории (совпадает с `BroadcastAudienceSelect`). */
 export const BROADCAST_AUDIENCE_FILTERS_ORDER: readonly BroadcastAudienceFilter[] = [
@@ -33,6 +33,18 @@ export const CATEGORY_LABELS: Record<BroadcastCategory, string> = {
   education: "Образовательное",
   survey: "Опрос",
 };
+
+export const CHANNEL_LABELS: Record<BroadcastChannel, string> = {
+  bot_message: "Сообщение в боте",
+  sms: "SMS",
+  push: "Push",
+  home_banner: "Баннер на главной",
+  notification_bell: "Уведомления в приложении",
+};
+
+export function formatChannelsSummary(channels: BroadcastChannel[]): string {
+  return channels.map((c) => CHANNEL_LABELS[c] ?? c).join(", ");
+}
 
 /** Сегменты без полноценного фильтра в `DoctorClientsPort`: число получателей = все клиенты (см. TODO AUDIT-BACKLOG-010/011 в buildAppDeps). */
 export function isAudienceEstimateApproximate(filter: BroadcastAudienceFilter): boolean {

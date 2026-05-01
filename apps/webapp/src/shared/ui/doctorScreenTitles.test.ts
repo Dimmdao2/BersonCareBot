@@ -24,8 +24,8 @@ describe("getDoctorScreenTitle", () => {
   it("returns edit content title", () => {
     expect(getDoctorScreenTitle("/app/doctor/content/edit/abc")).toBe("Редактировать страницу");
   });
-  it("returns news and motivation titles", () => {
-    expect(getDoctorScreenTitle("/app/doctor/content/news")).toBe("Новости");
+  it("returns legacy news path title (redirects to motivation)", () => {
+    expect(getDoctorScreenTitle("/app/doctor/content/news")).toBe("Мотивация");
     expect(getDoctorScreenTitle("/app/doctor/content/motivation")).toBe("Мотивация");
   });
   it("returns content sections titles", () => {

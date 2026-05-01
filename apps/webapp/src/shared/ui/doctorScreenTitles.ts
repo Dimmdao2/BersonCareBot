@@ -13,7 +13,7 @@ export function getDoctorScreenTitle(pathname: string): string {
     "/app/doctor/broadcasts": "Рассылки",
     "/app/doctor/stats": "Статистика",
     "/app/doctor/content": "Контент",
-    "/app/doctor/content/news": "Новости",
+    "/app/doctor/content/news": "Мотивация",
     "/app/doctor/content/motivation": "Мотивация",
     "/app/doctor/content/sections": "Разделы контента",
     "/app/doctor/content/sections/new": "Новый раздел",

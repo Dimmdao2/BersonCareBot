@@ -300,20 +300,6 @@ export async function mergePlatformUsersInTransaction(
     [targetId, targetId, duplicateId, duplicateId],
   );
 
-  await client.query(
-    `INSERT INTO news_item_views (news_id, user_id, viewed_at, platform_user_id)
-     SELECT news_id, $1::text, viewed_at, $2::uuid
-     FROM news_item_views
-     WHERE user_id = $3::text OR platform_user_id = $4::uuid
-     ON CONFLICT (news_id, user_id) DO UPDATE SET
-       viewed_at = LEAST(news_item_views.viewed_at, EXCLUDED.viewed_at)`,
-    [targetId, targetId, duplicateId, duplicateId],
-  );
-  await client.query(
-    `DELETE FROM news_item_views WHERE user_id = $1::text OR platform_user_id = $2::uuid`,
-    [duplicateId, duplicateId],
-  );
-
   await client.query(`UPDATE media_files SET uploaded_by = $1::uuid WHERE uploaded_by = $2::uuid`, [
     targetId,
     duplicateId,

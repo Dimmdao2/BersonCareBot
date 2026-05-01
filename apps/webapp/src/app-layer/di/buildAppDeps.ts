@@ -46,6 +46,8 @@ import type { BroadcastAudienceFilter } from "@/modules/doctor-broadcasts/ports"
 import { inMemoryDoctorClientsPort } from "@/infra/repos/inMemoryDoctorClients";
 import { inMemoryBroadcastAuditPort } from "@/infra/repos/inMemoryBroadcastAudit";
 import { createPgBroadcastAuditPort } from "@/infra/repos/pgBroadcastAudit";
+import { createPgDoctorMotivationQuotesEditorPort } from "@/infra/repos/pgDoctorMotivationQuotesEditor";
+import { inMemoryDoctorMotivationQuotesEditorPort } from "@/infra/repos/inMemoryDoctorMotivationQuotesEditor";
 import { inMemoryDoctorAppointmentsPort } from "@/infra/repos/inMemoryDoctorAppointments";
 import { inMemoryMessageLogPort } from "@/infra/repos/inMemoryMessageLog";
 import { createPgMessageLogPort } from "@/infra/repos/pgMessageLog";
@@ -191,6 +193,9 @@ const doctorAppointmentsPort = !inMemoryRepos ? createPgDoctorAppointmentsPort()
 const challengeStore = !inMemoryRepos ? createPgPhoneChallengeStore() : inMemoryPhoneChallengeStore;
 const messageLogPort = !inMemoryRepos ? createPgMessageLogPort() : inMemoryMessageLogPort;
 const broadcastAuditPort = !inMemoryRepos ? createPgBroadcastAuditPort() : inMemoryBroadcastAuditPort;
+const doctorMotivationQuotesEditorPort = !inMemoryRepos
+  ? createPgDoctorMotivationQuotesEditorPort()
+  : inMemoryDoctorMotivationQuotesEditorPort;
 const userProjectionPort = !inMemoryRepos ? pgUserProjectionPort : inMemoryUserProjectionPort;
 const supportCommunicationPort = !inMemoryRepos
   ? createPgSupportCommunicationPort()
@@ -616,6 +621,7 @@ function _buildAppDeps() {
       },
       broadcastAuditPort,
     }),
+    doctorMotivationQuotesEditor: doctorMotivationQuotesEditorPort,
     purchases: {
       getPurchaseSectionState,
     },

@@ -31,10 +31,7 @@ UNION ALL
 SELECT 'user_channel_preferences.platform_user_id_null', COUNT(*)::bigint
 FROM user_channel_preferences
 WHERE platform_user_id IS NULL
-UNION ALL
-SELECT 'news_item_views.platform_user_id_null', COUNT(*)::bigint
-FROM news_item_views
-WHERE platform_user_id IS NULL
+-- news_item_views removed (APP_RESTRUCTURE этап 1)
 UNION ALL
 SELECT 'message_log.platform_user_id_null', COUNT(*)::bigint
 FROM message_log
@@ -92,10 +89,6 @@ UNION ALL
 SELECT 'message_log', COUNT(*)::bigint
 FROM message_log ml
 WHERE ml.platform_user_id IN (SELECT id FROM merged_aliases)
-UNION ALL
-SELECT 'news_item_views', COUNT(*)::bigint
-FROM news_item_views niv
-WHERE niv.platform_user_id IN (SELECT id FROM merged_aliases)
 UNION ALL
 SELECT 'support_conversations', COUNT(*)::bigint
 FROM support_conversations sc

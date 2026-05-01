@@ -1,11 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  PATIENT_PRIMARY_NAV_ITEMS,
-  patientHomeBlocksByPlatform,
-  patientHomeBlocksCanonical,
-  patientHomeBlocksForEntry,
-  patientNavByPlatform,
-} from "@/app-layer/routes/navigation";
+import { PATIENT_PRIMARY_NAV_ITEMS, patientNavByPlatform } from "@/app-layer/routes/navigation";
 import type { PlatformMode } from "@/shared/lib/platform";
 
 const modes: PlatformMode[] = ["bot", "mobile", "desktop"];
@@ -43,40 +37,5 @@ describe("PATIENT_PRIMARY_NAV_ITEMS", () => {
       "План",
       "Профиль",
     ]);
-  });
-});
-
-describe("patientHomeBlocksByPlatform", () => {
-  it("canonical blocks list does not include purchases", () => {
-    expect(patientHomeBlocksCanonical).not.toContain("purchases");
-  });
-
-  it("defines blocks for every platform mode", () => {
-    for (const mode of modes) {
-      expect(Array.isArray(patientHomeBlocksByPlatform[mode])).toBe(true);
-      expect(patientHomeBlocksByPlatform[mode].length).toBeGreaterThan(0);
-    }
-  });
-
-  it("bot is canonical list minus blocks hidden in mini-app (news, mailings, motivation, channels)", () => {
-    expect(patientHomeBlocksByPlatform.bot).toEqual(
-      patientHomeBlocksCanonical.filter((id) =>
-        !["news", "mailings", "motivation", "channels"].includes(id),
-      ),
-    );
-  });
-
-  it("bot includes cabinet block (как на веб-главной)", () => {
-    expect(patientHomeBlocksByPlatform.bot).toContain("cabinet");
-  });
-
-  it("mobile and desktop lists match canonical", () => {
-    expect(patientHomeBlocksByPlatform.mobile).toEqual(patientHomeBlocksCanonical);
-    expect(patientHomeBlocksByPlatform.desktop).toEqual(patientHomeBlocksCanonical);
-  });
-
-  it("patientHomeBlocksForEntry mirrors bot vs standalone", () => {
-    expect(patientHomeBlocksForEntry("standalone")).toEqual(patientHomeBlocksCanonical);
-    expect(patientHomeBlocksForEntry("bot")).toEqual(patientHomeBlocksByPlatform.bot);
   });
 });

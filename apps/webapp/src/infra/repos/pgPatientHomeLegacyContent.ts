@@ -1,8 +1,7 @@
-import { and, asc, count, desc, eq, isNull, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, isNull, sql } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import { quoteDayKeyUtc, quoteIndexForDaySeed } from "@/modules/patient-home/patientHomeQuoteUtils";
 import type {
-  HomeNews,
   HomeQuote,
   PatientHomeBanner,
   PatientHomeLegacyContentPort,
@@ -12,8 +11,6 @@ import {
   mailingLogsWebapp,
   mailingTopicsWebapp,
   motivationalQuotes,
-  newsItems,
-  newsItemViews,
   platformUsers,
 } from "../../../db/schema";
 
@@ -76,72 +73,6 @@ export function createPgPatientHomeLegacyContentPort(): PatientHomeLegacyContent
         }));
       } catch {
         return [];
-      }
-    },
-
-    async getHomeNews(): Promise<HomeNews | null> {
-      try {
-        const db = getDrizzle();
-        const rows = await db
-          .select({
-            id: newsItems.id,
-            title: newsItems.title,
-            bodyMd: newsItems.bodyMd,
-          })
-          .from(newsItems)
-          .where(and(eq(newsItems.isVisible, true), isNull(newsItems.archivedAt)))
-          .orderBy(
-            desc(newsItems.sortOrder),
-            desc(sql`coalesce(${newsItems.publishedAt}, ${newsItems.createdAt})`),
-          )
-          .limit(1);
-        const row = rows[0];
-        if (!row) return null;
-        return { id: row.id, title: row.title, bodyMd: row.bodyMd ?? "" };
-      } catch {
-        return null;
-      }
-    },
-
-    async incrementNewsViews(newsId: string, userId: string): Promise<void> {
-      try {
-        const db = getDrizzle();
-        const updated = await db
-          .update(newsItemViews)
-          .set({
-            viewedAt: sql`LEAST(${newsItemViews.viewedAt}::timestamptz, now())` as unknown as string,
-          })
-          .where(
-            and(
-              eq(newsItemViews.newsId, newsId),
-              or(eq(newsItemViews.platformUserId, userId), eq(newsItemViews.userId, userId)),
-            ),
-          )
-          .returning({ newsId: newsItemViews.newsId });
-        if (updated.length > 0) {
-          return;
-        }
-        const inserted = await db
-          .insert(newsItemViews)
-          .values({
-            newsId,
-            userId,
-            platformUserId: userId,
-            viewedAt: sql`now()` as unknown as string,
-          })
-          .onConflictDoNothing({ target: [newsItemViews.newsId, newsItemViews.userId] })
-          .returning({ newsId: newsItemViews.newsId });
-        if (inserted.length > 0) {
-          await db
-            .update(newsItems)
-            .set({
-              viewsCount: sql`${newsItems.viewsCount} + 1`,
-              updatedAt: sql`now()` as unknown as string,
-            })
-            .where(eq(newsItems.id, newsId));
-        }
-      } catch {
-        /* ignore — как в legacy */
       }
     },
 

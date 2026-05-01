@@ -69,12 +69,14 @@
 
 ## Read/Write правила для migrated legacy таблиц
 
-Для `symptom_*`, `lfk_*`, `user_channel_preferences`, `message_log`, `news_item_views`:
+Для `symptom_*`, `lfk_*`, `user_channel_preferences`, `message_log`:
 
 - write path: dual-write (`user_id` + `platform_user_id`);
 - read path: использовать `platform_user_id`, допускается transition fallback на legacy `user_id` до cleanup-фазы;
 - merge path: переносить `platform_user_id` на canonical;
 - `message_log.platform_user_id` остаётся nullable (audit-safe, `ON DELETE SET NULL`).
+
+**Снято (APP_RESTRUCTURE этап 1, webapp):** таблица `news_item_views` удалена миграцией `apps/webapp/db/drizzle-migrations/0016_drop_news_broadcast_channels.sql` — для merge больше не применяется; исторические миграции `062–064` в `apps/webapp/migrations/` отражают состояние до drop.
 
 ## Интеграционный ingestion (Rubitime)
 

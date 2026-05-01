@@ -9,6 +9,7 @@ import { getCurrentSession } from "@/modules/auth/service";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { ALLOWED_KEYS } from "@/modules/system-settings/types";
 import { invalidateConfigKey } from "@/modules/system-settings/configAdapter";
+import { normalizeNotificationsTopicsForAdminPatch } from "@/modules/patient-notifications/notificationsTopics";
 
 const ADMIN_SCOPE_KEYS = [
   "sms_fallback_enabled",
@@ -30,6 +31,7 @@ const ADMIN_SCOPE_KEYS = [
   "patient_home_morning_ping_enabled",
   "patient_home_morning_ping_local_time",
   "patient_home_mood_icons",
+  "notifications_topics",
   "yandex_oauth_client_id",
   "yandex_oauth_client_secret",
   "yandex_oauth_redirect_uri",
@@ -229,6 +231,17 @@ export async function PATCH(request: Request) {
     }
     cleaned.sort((a, b) => a.score - b.score);
     normalizedValue = { value: cleaned };
+  }
+
+  if (parsed.data.key === "notifications_topics") {
+    const inner = normalizedValue.value;
+    const topics = await deps.subscriptionMailingProjection.listTopics();
+    const knownTopicCodes = new Set(topics.map((t) => t.code));
+    const checked = normalizeNotificationsTopicsForAdminPatch(inner, { knownTopicCodes });
+    if (!checked.ok) {
+      return NextResponse.json({ ok: false, error: "invalid_value" }, { status: 400 });
+    }
+    normalizedValue = { value: checked.value };
   }
 
   // Audit log перед обновлением (секреты редактируются без вывода raw значения в logs).

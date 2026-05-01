@@ -64,10 +64,10 @@ describe("doctor pages e2e (in-process)", () => {
     expect(typeof list.total).toBe("number");
   });
 
-  it("NewMessageForm and SendMessageForm are client components", async () => {
-    const newForm = await import("@/app/app/doctor/messages/NewMessageForm");
+  it("DoctorSupportInbox and SendMessageForm are client components", async () => {
+    const inbox = await import("@/app/app/doctor/messages/DoctorSupportInbox");
     const sendForm = await import("@/app/app/doctor/clients/[userId]/SendMessageForm");
-    expect(typeof newForm.NewMessageForm).toBe("function");
+    expect(typeof inbox.DoctorSupportInbox).toBe("function");
     expect(typeof sendForm.SendMessageForm).toBe("function");
   });
 });

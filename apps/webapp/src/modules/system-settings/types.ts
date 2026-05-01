@@ -39,6 +39,8 @@ export const ALLOWED_KEYS = [
   "patient_home_morning_ping_local_time",
   /** Иконки чек-ина настроения на главной: 5 записей score 1-5, label + imageUrl (/api/media/...). */
   "patient_home_mood_icons",
+  /** Темы рассылок для экрана пациента `/notifications` (id = mailing_topics_webapp.code, title — подпись). */
+  "notifications_topics",
   /** Yandex OAuth (backend-only; не показывать в публичном login UI). */
   "yandex_oauth_client_id",
   "yandex_oauth_client_secret",

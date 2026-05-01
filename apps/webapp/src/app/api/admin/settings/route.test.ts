@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ALLOWED_KEYS } from "@/modules/system-settings/types";
 
-const { getSessionMock, listSettingsByScopeMock, updateSettingMock, getSettingMock, buildAppDepsMock } =
+const { getSessionMock, listSettingsByScopeMock, updateSettingMock, getSettingMock, buildAppDepsMock, listTopicsMock } =
   vi.hoisted(() => {
     const listSettingsByScopeMockInner = vi.fn().mockResolvedValue([]);
     const updateSettingMockInner = vi.fn().mockResolvedValue({
@@ -12,16 +12,21 @@ const { getSessionMock, listSettingsByScopeMock, updateSettingMock, getSettingMo
       updatedBy: null,
     });
     const getSettingMockInner = vi.fn().mockResolvedValue(null);
+    const listTopicsMockInner = vi.fn().mockResolvedValue([]);
     return {
       getSessionMock: vi.fn(),
       listSettingsByScopeMock: listSettingsByScopeMockInner,
       updateSettingMock: updateSettingMockInner,
       getSettingMock: getSettingMockInner,
+      listTopicsMock: listTopicsMockInner,
       buildAppDepsMock: vi.fn(() => ({
         systemSettings: {
           listSettingsByScope: listSettingsByScopeMockInner,
           updateSetting: updateSettingMockInner,
           getSetting: getSettingMockInner,
+        },
+        subscriptionMailingProjection: {
+          listTopics: listTopicsMockInner,
         },
       })),
     };
@@ -77,6 +82,10 @@ describe("ALLOWED_KEYS / ADMIN scope (Phase 2)", () => {
     expect(ALLOWED_KEYS).toContain("patient_home_morning_ping_enabled");
     expect(ALLOWED_KEYS).toContain("patient_home_morning_ping_local_time");
   });
+
+  it("includes notifications_topics for webapp whitelist", () => {
+    expect(ALLOWED_KEYS).toContain("notifications_topics");
+  });
 });
 
 describe("PATCH /api/admin/settings", () => {
@@ -84,6 +93,8 @@ describe("PATCH /api/admin/settings", () => {
     getSessionMock.mockReset();
     updateSettingMock.mockReset();
     getSettingMock.mockReset();
+    listTopicsMock.mockReset();
+    listTopicsMock.mockResolvedValue([]);
   });
 
   it("returns 403 for doctor role", async () => {
@@ -525,6 +536,114 @@ describe("PATCH /api/admin/settings", () => {
               { score: 3, label: "C", imageUrl: null },
               { score: 4, label: "D", imageUrl: null },
               { score: 5, label: "E", imageUrl: null },
+            ],
+          },
+        }),
+      }),
+    );
+    expect(res.status).toBe(400);
+    expect(updateSettingMock).not.toHaveBeenCalled();
+  });
+
+  it("returns 200 for notifications_topics when projection empty (structural only)", async () => {
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSettingMock.mockResolvedValue(null);
+    listTopicsMock.mockResolvedValue([]);
+    updateSettingMock.mockResolvedValue({
+      key: "notifications_topics",
+      scope: "admin",
+      valueJson: { value: [{ id: "alpha", title: "Alpha" }] },
+      updatedAt: "",
+      updatedBy: "a1",
+    });
+    const value = [{ id: "alpha", title: "Alpha" }];
+    const res = await PATCH(
+      new Request("http://localhost/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: "notifications_topics", value: { value } }),
+      }),
+    );
+    expect(res.status).toBe(200);
+    expect(updateSettingMock).toHaveBeenCalledWith("notifications_topics", "admin", { value }, "a1");
+  });
+
+  it("returns 200 for notifications_topics when ids are subset of projection codes", async () => {
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSettingMock.mockResolvedValue(null);
+    listTopicsMock.mockResolvedValue([
+      {
+        integratorTopicId: "1",
+        code: "news",
+        title: "News",
+        key: "news",
+        isActive: true,
+      },
+      {
+        integratorTopicId: "2",
+        code: "symptom_reminders",
+        title: "Symptoms",
+        key: "symptom_reminders",
+        isActive: true,
+      },
+    ]);
+    updateSettingMock.mockResolvedValue({
+      key: "notifications_topics",
+      scope: "admin",
+      valueJson: { value: [{ id: "news", title: "Новости" }] },
+      updatedAt: "",
+      updatedBy: "a1",
+    });
+    const value = [{ id: "news", title: "Новости" }];
+    const res = await PATCH(
+      new Request("http://localhost/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: "notifications_topics", value: { value } }),
+      }),
+    );
+    expect(res.status).toBe(200);
+    expect(updateSettingMock).toHaveBeenCalledWith("notifications_topics", "admin", { value }, "a1");
+  });
+
+  it("returns 400 for notifications_topics when id unknown and projection non-empty", async () => {
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    listTopicsMock.mockResolvedValue([
+      {
+        integratorTopicId: "1",
+        code: "news",
+        title: "News",
+        key: "news",
+        isActive: true,
+      },
+    ]);
+    const res = await PATCH(
+      new Request("http://localhost/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          key: "notifications_topics",
+          value: { value: [{ id: "not_in_projection", title: "X" }] },
+        }),
+      }),
+    );
+    expect(res.status).toBe(400);
+    expect(updateSettingMock).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 for notifications_topics duplicate ids", async () => {
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    listTopicsMock.mockResolvedValue([]);
+    const res = await PATCH(
+      new Request("http://localhost/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          key: "notifications_topics",
+          value: {
+            value: [
+              { id: "a", title: "A" },
+              { id: "a", title: "B" },
             ],
           },
         }),

@@ -49,6 +49,7 @@ describe("doctor-broadcasts service", () => {
     expect(result.audienceSize).toBe(30);
     expect(result.category).toBe("reminder");
     expect(result.audienceFilter).toBe("with_telegram");
+    expect(result.channels).toEqual(["bot_message", "sms"]);
     expect(auditEntries.length).toBe(0);
   });
 
@@ -67,7 +68,19 @@ describe("doctor-broadcasts service", () => {
     expect(auditEntry.audienceSize).toBe(42);
     expect(auditEntry.sentCount).toBe(0);
     expect(auditEntry.errorCount).toBe(0);
+    expect(auditEntry.channels).toEqual(["bot_message", "sms"]);
     expect(auditEntries.length).toBe(1);
+  });
+
+  it("preview respects explicit channels subset", async () => {
+    const result = await service.preview({
+      category: "reminder",
+      audienceFilter: "all",
+      message: { title: "T", body: "Body text here" },
+      actorId: "a",
+      channels: ["sms"],
+    });
+    expect(result.channels).toEqual(["sms"]);
   });
 
   it("listAudit returns entries", async () => {

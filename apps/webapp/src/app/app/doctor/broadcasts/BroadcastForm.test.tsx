@@ -40,6 +40,7 @@ describe("BroadcastForm", () => {
       audienceSize: 30,
       category: "reminder",
       audienceFilter: "with_telegram",
+      channels: ["bot_message", "sms"],
     });
 
     render(<BroadcastForm />);
@@ -51,6 +52,7 @@ describe("BroadcastForm", () => {
         category: "reminder",
         audienceFilter: "with_telegram",
         message: { title: "Заголовок теста", body: "Достаточно длинный текст" },
+        channels: ["bot_message", "sms"],
       });
     });
   });
@@ -76,6 +78,7 @@ describe("BroadcastForm", () => {
       audienceSize: 5,
       category: "reminder",
       audienceFilter: "with_telegram",
+      channels: ["bot_message", "sms"],
     });
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: /подтверждение рассылки/i })).toBeInTheDocument();
@@ -96,6 +99,7 @@ describe("BroadcastForm", () => {
       audienceSize: 99,
       category: "reminder",
       audienceFilter: "with_telegram",
+      channels: ["bot_message", "sms"],
     });
 
     render(<BroadcastForm />);
@@ -113,6 +117,7 @@ describe("BroadcastForm", () => {
       audienceSize: 2,
       category: "reminder",
       audienceFilter: "with_telegram",
+      channels: ["bot_message", "sms"],
     });
     executeBroadcastAction.mockResolvedValue({
       auditEntry: {
@@ -121,6 +126,7 @@ describe("BroadcastForm", () => {
         category: "reminder",
         audienceFilter: "with_telegram",
         messageTitle: "Заголовок теста",
+        channels: ["bot_message", "sms"],
         executedAt: new Date().toISOString(),
         previewOnly: false,
         audienceSize: 2,

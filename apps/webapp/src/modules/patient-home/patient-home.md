@@ -14,9 +14,9 @@
 ## Files
 
 - `blocks.ts` - канонический список блоков, блоков с item-list и матрица допустимых `target_type`.
-- `patientHomeLegacyContentPort.ts` - контракт **legacy** данных главной: баннер рассылок, логи рассылок, одна новость, просмотры новостей, «цитата дня». Реализации: `infra/repos/pgPatientHomeLegacyContent.ts` (Drizzle), `infra/repos/inMemoryPatientHomeLegacyContent.ts` (Vitest). Доступ с сервера: `const deps = buildAppDeps(); await deps.patientHomeLegacy.getHomeNews()` и т.п. **Не** импортировать `@/infra/db` из `modules/patient-home/*`.
+- `patientHomeLegacyContentPort.ts` - контракт **legacy** данных главной: баннер рассылок, логи рассылок, «цитата дня». Реализации: `infra/repos/pgPatientHomeLegacyContent.ts` (Drizzle), `infra/repos/inMemoryPatientHomeLegacyContent.ts` (Vitest). Доступ с сервера: `const deps = buildAppDeps(); await deps.patientHomeLegacy.getQuoteForDay(...)` и т.п. **Не** импортировать `@/infra/db` из `modules/patient-home/*`.
 - `patientHomeQuoteUtils.ts` - чистые `quoteDayKeyUtc`, `quoteIndexForDaySeed` для детерминированного выбора цитаты.
-- `repository.ts` / `newsMotivation.ts` - только типы и re-export pure utils для старых UI-компонентов (`PatientHomeNewsSection`, `PatientHomeMailingsSection`).
+- `repository.ts` / `newsMotivation.ts` - только типы и re-export pure utils для legacy-данных главной (баннеры/рассылки); отдельные секции под это на новой главной не используются.
 - `ports.ts` - контракт хранилища `patient_home_blocks` / `patient_home_block_items`.
 - `service.ts` - валидация команд admin UI (show/hide, reorder, add/update/delete item), без прямого доступа к infra.
 - `todayConfig.ts` - `getPatientHomeTodayConfig(deps)`: первый видимый `content_page` item блока `daily_warmup` + `patient_home_daily_practice_target` из `system_settings` (1-10, default 3). Разминка не читается из отдельного slug-setting.

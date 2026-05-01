@@ -1,6 +1,5 @@
 import { quoteDayKeyUtc, quoteIndexForDaySeed } from "@/modules/patient-home/patientHomeQuoteUtils";
 import type {
-  HomeNews,
   HomeQuote,
   PatientHomeBanner,
   PatientHomeLegacyContentPort,
@@ -19,7 +18,6 @@ export type InMemoryPatientHomeLegacyQuote = {
 export type InMemoryPatientHomeLegacyContentOpts = {
   banner?: PatientHomeBanner | null;
   mailings?: PatientHomeMailingRow[];
-  homeNews?: HomeNews | null;
   quotes?: InMemoryPatientHomeLegacyQuote[];
 };
 
@@ -28,7 +26,6 @@ export function createInMemoryPatientHomeLegacyContentPort(
 ): PatientHomeLegacyContentPort {
   const banner = opts.banner ?? null;
   const mailings = opts.mailings ?? [];
-  const homeNews = opts.homeNews ?? null;
   const quotes = opts.quotes ?? [];
 
   return {
@@ -37,12 +34,6 @@ export function createInMemoryPatientHomeLegacyContentPort(
     },
     async listRecentMailingLogsForPlatformUser() {
       return mailings;
-    },
-    async getHomeNews() {
-      return homeNews;
-    },
-    async incrementNewsViews() {
-      /* no-op */
     },
     async getQuoteForDay(daySeed: string, referenceDate: Date = new Date()) {
       const active = quotes.filter((q) => q.isActive !== false && q.archivedAt == null);

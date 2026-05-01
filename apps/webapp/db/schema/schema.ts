@@ -144,6 +144,7 @@ export const broadcastAudit = pgTable("broadcast_audit", {
 	category: text().notNull(),
 	audienceFilter: text("audience_filter").notNull(),
 	messageTitle: text("message_title").notNull(),
+	channels: text("channels").array().notNull().default(sql`ARRAY['bot_message'::text, 'sms'::text]`),
 	executedAt: timestamp("executed_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 	previewOnly: boolean("preview_only").default(false).notNull(),
 	audienceSize: integer("audience_size").default(0).notNull(),
@@ -692,22 +693,6 @@ export const symptomTrackings = pgTable("symptom_trackings", {
 			name: "symptom_trackings_symptom_type_ref_id_fkey"
 		}),
 	check("symptom_trackings_side_check", sql`(side IS NULL) OR (side = ANY (ARRAY['left'::text, 'right'::text, 'both'::text]))`),
-]);
-
-export const newsItems = pgTable("news_items", {
-	id: uuid().defaultRandom().primaryKey().notNull(),
-	title: text().notNull(),
-	bodyMd: text("body_md").default('').notNull(),
-	isVisible: boolean("is_visible").default(false).notNull(),
-	archivedAt: timestamp("archived_at", { withTimezone: true, mode: 'string' }),
-	viewsCount: integer("views_count").default(0).notNull(),
-	publishedAt: timestamp("published_at", { withTimezone: true, mode: 'string' }),
-	sortOrder: integer("sort_order").default(0).notNull(),
-	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
-	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
-}, (table) => [
-	index("idx_news_items_visible").using("btree", table.isVisible.asc().nullsLast().op("bool_ops"), table.sortOrder.desc().nullsFirst().op("int4_ops"), table.publishedAt.desc().nullsFirst().op("bool_ops")),
-	check("news_items_views_count_check", sql`views_count >= 0`),
 ]);
 
 export const lfkComplexes = pgTable("lfk_complexes", {
@@ -2044,28 +2029,6 @@ export const userNotificationTopics = pgTable("user_notification_topics", {
 			name: "user_notification_topics_user_id_fkey"
 		}).onDelete("cascade"),
 	primaryKey({ columns: [table.userId, table.topicCode], name: "user_notification_topics_pkey"}),
-]);
-
-export const newsItemViews = pgTable("news_item_views", {
-	newsId: uuid("news_id").notNull(),
-	userId: text("user_id").notNull(),
-	viewedAt: timestamp("viewed_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
-	platformUserId: uuid("platform_user_id").notNull(),
-}, (table) => [
-	index("idx_news_item_views_news_id").using("btree", table.newsId.asc().nullsLast().op("uuid_ops")),
-	index("idx_news_item_views_platform_user_id").using("btree", table.platformUserId.asc().nullsLast().op("uuid_ops")).where(sql`(platform_user_id IS NOT NULL)`),
-	uniqueIndex("uq_news_item_views_news_platform_user").using("btree", table.newsId.asc().nullsLast().op("uuid_ops"), table.platformUserId.asc().nullsLast().op("uuid_ops")),
-	foreignKey({
-			columns: [table.newsId],
-			foreignColumns: [newsItems.id],
-			name: "news_item_views_news_id_fkey"
-		}).onDelete("cascade"),
-	foreignKey({
-			columns: [table.platformUserId],
-			foreignColumns: [platformUsers.id],
-			name: "news_item_views_platform_user_id_fkey"
-		}).onDelete("cascade"),
-	primaryKey({ columns: [table.newsId, table.userId], name: "news_item_views_pkey"}),
 ]);
 
 export const userSubscriptions = pgTable("user_subscriptions", {

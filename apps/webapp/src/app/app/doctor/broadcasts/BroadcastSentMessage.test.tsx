@@ -11,10 +11,12 @@ describe("BroadcastSentMessage", () => {
       audienceSize: 7,
       category: "reminder",
       audienceFilter: "all",
+      channels: ["bot_message", "sms"],
     };
     render(<BroadcastSentMessage preview={preview} />);
     expect(screen.getByText(/рассылка запущена/i)).toBeInTheDocument();
     expect(screen.getByText(/7 получателей/i)).toBeInTheDocument();
+    expect(screen.getByText(/каналы/i)).toBeInTheDocument();
     expect(document.getElementById("broadcast-sent-message")).toBeInTheDocument();
   });
 });

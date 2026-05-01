@@ -4,7 +4,6 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { env } from "@/config/env";
 import { DEFAULT_APP_DISPLAY_TIMEZONE } from "@/modules/system-settings/appDisplayTimezone";
 import { DEFAULT_SUPPORT_CONTACT_URL } from "@/modules/system-settings/supportContactConstants";
-import { cn } from "@/lib/utils";
 import { DOCTOR_PAGE_CONTAINER_CLASS } from "@/shared/ui/doctorWorkspaceLayout";
 import { parseIdTokens } from "@/shared/parsers/parseIdTokens";
 import { SettingsForm } from "./SettingsForm";
@@ -12,6 +11,7 @@ import { AdminModeToggle } from "./AdminModeToggle";
 import { AdminSettingsTabsClient } from "./AdminSettingsTabsClient";
 import { AdminSettingsSection, type IntegratorLinkedPhoneSource } from "./AdminSettingsSection";
 import { AppParametersSection } from "./AppParametersSection";
+import { NotificationsTopicsSection } from "./NotificationsTopicsSection";
 import { AuthProvidersSection } from "./AuthProvidersSection";
 import { AccessListsSection } from "./AccessListsSection";
 import { BookingCatalogHelp } from "./BookingCatalogHelp";
@@ -19,6 +19,7 @@ import { RubitimeSection } from "./RubitimeSection";
 import { GoogleCalendarSection } from "./GoogleCalendarSection";
 import { AdminAuditLogSection } from "./AdminAuditLogSection";
 import { SystemHealthSection } from "./SystemHealthSection";
+import { parseNotificationsTopics } from "@/modules/patient-notifications/notificationsTopics";
 
 function getValueJson<T>(valueJson: unknown, fallback: T): T {
   if (valueJson !== null && typeof valueJson === "object" && "value" in (valueJson as Record<string, unknown>)) {
@@ -190,6 +191,11 @@ export default async function SettingsPage() {
       }
     : null;
 
+  const notificationsTopicsRows =
+    isAdmin && adminMode
+      ? parseNotificationsTopics(adminSettingsList.find((x) => x.key === "notifications_topics")?.valueJson ?? null)
+      : [];
+
   return (
     <div className={DOCTOR_PAGE_CONTAINER_CLASS}>
       <h1 className="mb-6 text-xl font-semibold">Настройки</h1>
@@ -217,7 +223,14 @@ export default async function SettingsPage() {
               />
             }
             systemHealth={<SystemHealthSection />}
-            appParams={appParametersConfig ? <AppParametersSection {...appParametersConfig} /> : null}
+            appParams={
+              appParametersConfig ? (
+                <>
+                  <AppParametersSection {...appParametersConfig} />
+                  <NotificationsTopicsSection initialRows={notificationsTopicsRows} />
+                </>
+              ) : null
+            }
             auth={authProvidersConfig ? <AuthProvidersSection {...authProvidersConfig} /> : null}
             access={accessListsConfig ? <AccessListsSection {...accessListsConfig} /> : null}
             integrations={

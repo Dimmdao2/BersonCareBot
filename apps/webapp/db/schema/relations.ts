@@ -18,7 +18,7 @@ import {
 } from "./treatmentProgramTestAttempts";
 import { entityComments } from "./entityComments";
 import { courses } from "./courses";
-import { platformUsers, supportConversations, messageLog, userChannelBindings, supportQuestions, supportQuestionMessages, supportConversationMessages, supportDeliveryEvents, symptomEntries, symptomTrackings, contentAccessGrantsWebapp, branches, appointmentRecords, emailChallenges, userPins, channelLinkSecrets, userChannelPreferences, userOauthBindings, lfkComplexes, lfkSessions, loginTokens, referenceCategories, referenceItems, doctorNotes, lfkExercises, lfkComplexTemplateExercises, lfkComplexTemplates, lfkExerciseMedia, patientLfkAssignments, lfkComplexExercises, mediaFolders, mediaFiles, bookingCities, bookingBranches, bookingSpecialists, bookingBranchServices, bookingServices, onlineIntakeRequests, patientBookings, onlineIntakeAnswers, onlineIntakeAttachments, onlineIntakeStatusHistory, reminderRules, reminderOccurrenceHistory, reminderJournal, adminAuditLog, mediaUploadSessions, users, identities, contacts, contentPages, messageDrafts, conversations, conversationMessages, userQuestions, questionMessages, userReminderRules, userReminderOccurrences, userReminderDeliveryLogs, contentAccessGrants, mailingTopics, mailings, telegramState, rubitimeBranches, rubitimeBookingProfiles, rubitimeCooperators, rubitimeServices, emailSendCooldowns, userNotificationTopics, newsItems, newsItemViews, userSubscriptions, systemSettings, mailingLogs } from "./schema";
+import { platformUsers, supportConversations, messageLog, userChannelBindings, supportQuestions, supportQuestionMessages, supportConversationMessages, supportDeliveryEvents, symptomEntries, symptomTrackings, contentAccessGrantsWebapp, branches, appointmentRecords, emailChallenges, userPins, channelLinkSecrets, userChannelPreferences, userOauthBindings, lfkComplexes, lfkSessions, loginTokens, referenceCategories, referenceItems, doctorNotes, lfkExercises, lfkComplexTemplateExercises, lfkComplexTemplates, lfkExerciseMedia, patientLfkAssignments, lfkComplexExercises, mediaFolders, mediaFiles, bookingCities, bookingBranches, bookingSpecialists, bookingBranchServices, bookingServices, onlineIntakeRequests, patientBookings, onlineIntakeAnswers, onlineIntakeAttachments, onlineIntakeStatusHistory, reminderRules, reminderOccurrenceHistory, reminderJournal, adminAuditLog, mediaUploadSessions, users, identities, contacts, contentPages, messageDrafts, conversations, conversationMessages, userQuestions, questionMessages, userReminderRules, userReminderOccurrences, userReminderDeliveryLogs, contentAccessGrants, mailingTopics, mailings, telegramState, rubitimeBranches, rubitimeBookingProfiles, rubitimeCooperators, rubitimeServices, emailSendCooldowns, userNotificationTopics, userSubscriptions, systemSettings, mailingLogs } from "./schema";
 
 export const supportConversationsRelations = relations(supportConversations, ({one, many}) => ({
 	platformUser: one(platformUsers, {
@@ -84,7 +84,6 @@ export const platformUsersRelations = relations(platformUsers, ({one, many}) => 
 	mediaUploadSessions: many(mediaUploadSessions),
 	emailSendCooldowns: many(emailSendCooldowns),
 	userNotificationTopics: many(userNotificationTopics),
-	newsItemViews: many(newsItemViews),
 	systemSettings: many(systemSettings),
 	clinicalTests: many(clinicalTests),
 	testSets: many(testSets),
@@ -726,21 +725,6 @@ export const userNotificationTopicsRelations = relations(userNotificationTopics,
 		fields: [userNotificationTopics.userId],
 		references: [platformUsers.id]
 	}),
-}));
-
-export const newsItemViewsRelations = relations(newsItemViews, ({one}) => ({
-	newsItem: one(newsItems, {
-		fields: [newsItemViews.newsId],
-		references: [newsItems.id]
-	}),
-	platformUser: one(platformUsers, {
-		fields: [newsItemViews.platformUserId],
-		references: [platformUsers.id]
-	}),
-}));
-
-export const newsItemsRelations = relations(newsItems, ({many}) => ({
-	newsItemViews: many(newsItemViews),
 }));
 
 export const userSubscriptionsRelations = relations(userSubscriptions, ({one}) => ({

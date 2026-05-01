@@ -124,6 +124,13 @@ describe("buildAppDeps", () => {
     expect(stats.clients).toHaveProperty("total");
   });
 
+  it("doctorMotivationQuotesEditor has listQuotesForEditor", async () => {
+    const deps = buildAppDeps();
+    expect(typeof deps.doctorMotivationQuotesEditor.listQuotesForEditor).toBe("function");
+    const rows = await deps.doctorMotivationQuotesEditor.listQuotesForEditor();
+    expect(Array.isArray(rows)).toBe(true);
+  });
+
   it("doctorBroadcasts has getCategories, preview, execute, listAudit", async () => {
     const deps = buildAppDeps();
     expect(typeof deps.doctorBroadcasts.getCategories).toBe("function");

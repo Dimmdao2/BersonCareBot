@@ -9,13 +9,7 @@ import { ChannelNotificationToggles } from "./ChannelNotificationToggles";
 import { SubscriptionsList } from "./SubscriptionsList";
 import { getSupportContactUrl } from "@/modules/system-settings/supportContactUrl";
 import { patientSectionSurfaceClass } from "@/shared/ui/patientVisual";
-
-const SUBSCRIPTIONS = [
-  { id: "exercise_reminders", title: "Напоминания об упражнениях" },
-  { id: "symptom_reminders", title: "Напоминания о симптомах" },
-  { id: "appointment_reminders", title: "Напоминания о записях" },
-  { id: "news", title: "Новости и обновления" },
-];
+import { parseNotificationsTopics } from "@/modules/patient-notifications/notificationsTopics";
 
 export default async function NotificationsPage() {
   const session = await getOptionalPatientSession();
@@ -36,6 +30,8 @@ export default async function NotificationsPage() {
 
   const s = session!;
   const deps = buildAppDeps();
+  const notificationsTopicsSetting = await deps.systemSettings.getSetting("notifications_topics", "admin");
+  const subscriptionTopics = parseNotificationsTopics(notificationsTopicsSetting?.valueJson ?? null);
   const supportContactHref = await getSupportContactUrl();
   const emailFields = await deps.userProjection.getProfileEmailFields(s.user.userId);
   const emailVerified = Boolean(emailFields.emailVerifiedAt);
@@ -65,7 +61,7 @@ export default async function NotificationsPage() {
 
         <section className={patientSectionSurfaceClass}>
           <h2 className="text-base font-semibold">Темы рассылок</h2>
-          <SubscriptionsList subscriptions={SUBSCRIPTIONS} />
+          <SubscriptionsList subscriptions={subscriptionTopics} />
         </section>
 
         <ConnectMessengersBlock channelCards={channelCards} implementedOnly />

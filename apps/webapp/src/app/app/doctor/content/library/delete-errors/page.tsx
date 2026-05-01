@@ -1,18 +1,24 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { listMediaDeleteErrors } from "@/infra/repos/s3MediaStorage";
 import { AppShell } from "@/shared/ui/AppShell";
 import { PageSection } from "@/components/common/layout/PageSection";
 
+const CONTENT_LIBRARY = "/app/doctor/content/library";
+
 export default async function MediaDeleteErrorsPage() {
   const session = await requireDoctorAccess();
+  if (session.user.role !== "admin" || !session.adminMode) {
+    redirect(CONTENT_LIBRARY);
+  }
   const { items, total } = await listMediaDeleteErrors(100);
 
   return (
     <AppShell title="Ошибки удаления в S3" user={session.user} variant="doctor">
       <PageSection id="media-delete-errors-section" as="section" className="flex flex-col gap-4">
         <div className="flex flex-wrap items-center gap-3">
-          <Link href="/app/doctor/content/library" className="text-sm text-primary underline">
+          <Link href={CONTENT_LIBRARY} className="text-sm text-primary underline">
             ← Библиотека файлов
           </Link>
           <h2 className="m-0 text-lg font-semibold">Очередь удаления: сбои S3 ({total})</h2>

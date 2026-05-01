@@ -32,19 +32,18 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  reorderNewsItems,
-  setNewsArchived,
-  setNewsItemVisible,
-  upsertNewsItem,
-  type NewsActionState,
+  reorderMotivationQuotes,
+  setQuoteActive,
+  setQuoteArchived,
+  upsertMotivationQuote,
+  type MotivationActionState,
 } from "./actions";
-import { firstNewsBodyLine } from "./newsPreview";
 
-export type NewsRow = {
+export type QuoteRow = {
   id: string;
-  title: string;
-  body_md: string;
-  is_visible: boolean;
+  body_text: string;
+  author: string | null;
+  is_active: boolean;
   sort_order: number;
   archived_at: Date | null;
 };
@@ -69,26 +68,25 @@ function DragHandle({ listeners, attributes }: { listeners: Record<string, unkno
   );
 }
 
-function SortableNewsRow({
-  n,
+function SortableQuoteRow({
+  q,
   expanded,
   onToggleExpand,
-  onToggleVisible,
-  newsAction,
-  newsPending,
+  onToggleActive,
+  quoteAction,
+  quotePending,
   formPending,
 }: {
-  n: NewsRow;
+  q: QuoteRow;
   expanded: boolean;
   onToggleExpand: (id: string) => void;
-  onToggleVisible: (id: string, next: boolean) => void;
-  newsAction: (formData: FormData) => void;
-  newsPending: boolean;
+  onToggleActive: (id: string, next: boolean) => void;
+  quoteAction: (formData: FormData) => void;
+  quotePending: boolean;
   formPending: boolean;
 }) {
-  const archived = n.archived_at != null;
-  const preview = firstNewsBodyLine(n.body_md);
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: n.id });
+  const archived = q.archived_at != null;
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: q.id });
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
@@ -101,11 +99,10 @@ function SortableNewsRow({
       style={style}
       className="flex flex-col gap-2 rounded-xl border border-border/80 bg-card px-2 py-2 shadow-sm"
     >
-      <div className="flex items-center gap-2">
+      <div className="flex items-start gap-2">
         <DragHandle listeners={listeners as never} attributes={attributes as never} />
         <div className="min-w-0 flex-1">
-          {n.title.trim() ? <p className="truncate font-semibold text-foreground">{n.title}</p> : null}
-          <p className="truncate whitespace-nowrap text-sm text-muted-foreground">{preview || "—"}</p>
+          <p className="line-clamp-2 text-sm text-foreground">{q.body_text || "—"}</p>
         </div>
         <Button
           type="button"
@@ -113,11 +110,11 @@ function SortableNewsRow({
           size="icon"
           className="size-9 shrink-0 rounded-full border border-border/80"
           disabled={formPending || archived}
-          title={archived ? "В архиве" : n.is_visible ? "Видна пациенту" : "Скрыта"}
-          aria-label={n.is_visible ? "Видна пациенту" : "Скрыта"}
-          onClick={() => !archived && onToggleVisible(n.id, !n.is_visible)}
+          title={archived ? "В архиве" : q.is_active ? "Активна" : "Не активна"}
+          aria-label={q.is_active ? "Активна" : "Не активна"}
+          onClick={() => !archived && onToggleActive(q.id, !q.is_active)}
         >
-          {n.is_visible && !archived ? (
+          {q.is_active && !archived ? (
             <Eye className="size-4 text-green-600 dark:text-green-500" />
           ) : (
             <EyeOff className="size-4 text-muted-foreground" />
@@ -134,13 +131,13 @@ function SortableNewsRow({
             <DropdownMenuGroup>
               <DropdownMenuLabel>Действия</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => onToggleExpand(n.id)}>
+              <DropdownMenuItem onClick={() => onToggleExpand(q.id)}>
                 {expanded ? "Свернуть" : "Изменить"}
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={(e) => {
                   e.preventDefault();
-                  void setNewsArchived(n.id, !archived);
+                  void setQuoteArchived(q.id, !archived);
                 }}
               >
                 {archived ? "Из архива" : "Архивировать"}
@@ -149,23 +146,26 @@ function SortableNewsRow({
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+      {q.author?.trim() ? (
+        <p className="border-t border-border/50 pt-2 text-xs text-muted-foreground">{q.author}</p>
+      ) : null}
       {expanded ? (
-        <form action={newsAction} className="flex flex-col gap-2 border-t border-border/60 pt-3">
-          <input type="hidden" name="id" value={n.id} />
-          <input type="hidden" name="sort_order" value={String(n.sort_order)} />
+        <form action={quoteAction} className="flex flex-col gap-2 border-t border-border/60 pt-3">
+          <input type="hidden" name="id" value={q.id} />
+          <input type="hidden" name="sort_order" value={String(q.sort_order)} />
           <label className="flex flex-col gap-1 text-sm">
-            Заголовок
-            <Input name="title" defaultValue={n.title} required />
+            Текст
+            <Textarea name="body_text" className="text-sm" rows={3} defaultValue={q.body_text} required />
           </label>
           <label className="flex flex-col gap-1 text-sm">
-            Текст (Markdown)
-            <Textarea name="body_md" className="font-mono text-sm" rows={4} defaultValue={n.body_md} />
+            Автор
+            <Input name="author" defaultValue={q.author ?? ""} />
           </label>
           <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" name="is_visible" defaultChecked={n.is_visible} />
-            Видна пациенту
+            <input type="checkbox" name="is_active" defaultChecked={q.is_active} />
+            Активна
           </label>
-          <Button type="submit" className="w-fit" disabled={newsPending}>
+          <Button type="submit" className="w-fit" disabled={quotePending}>
             Сохранить
           </Button>
         </form>
@@ -174,19 +174,19 @@ function SortableNewsRow({
   );
 }
 
-export function NewsListClient({ newsRows }: { newsRows: NewsRow[] }) {
-  const [items, setItems] = useState(newsRows);
+export function MotivationListClient({ quoteRows }: { quoteRows: QuoteRow[] }) {
+  const [items, setItems] = useState(quoteRows);
   const [showAdd, setShowAdd] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [reorderPending, startReorderTransition] = useTransition();
-  const [visPending, startVisTransition] = useTransition();
-  const [newsState, newsAction, newsPending] = useActionState(upsertNewsItem, null as NewsActionState | null);
+  const [actPending, startActTransition] = useTransition();
+  const [quoteState, quoteAction, quotePending] = useActionState(upsertMotivationQuote, null as MotivationActionState | null);
 
   useEffect(() => {
-    setItems(newsRows);
-  }, [newsRows]);
+    setItems(quoteRows);
+  }, [quoteRows]);
 
-  const sortIds = items.map((n) => n.id);
+  const sortIds = items.map((q) => q.id);
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
@@ -203,16 +203,16 @@ export function NewsListClient({ newsRows }: { newsRows: NewsRow[] }) {
       const next = arrayMove(prev, oldIndex, newIndex);
       const orderedIds = next.map((p) => p.id);
       startReorderTransition(async () => {
-        const res = await reorderNewsItems(orderedIds);
+        const res = await reorderMotivationQuotes(orderedIds);
         if (!res.ok) setItems(previous);
       });
       return next;
     });
   }, []);
 
-  const onToggleVisible = useCallback((id: string, next: boolean) => {
-    startVisTransition(async () => {
-      await setNewsItemVisible(id, next);
+  const onToggleActive = useCallback((id: string, next: boolean) => {
+    startActTransition(async () => {
+      await setQuoteActive(id, next);
     });
   }, []);
 
@@ -222,9 +222,9 @@ export function NewsListClient({ newsRows }: { newsRows: NewsRow[] }) {
 
   return (
     <div className="flex flex-col gap-4">
-      {newsState?.error ? (
+      {quoteState?.error ? (
         <p role="alert" className="text-destructive">
-          {newsState.error}
+          {quoteState.error}
         </p>
       ) : null}
 
@@ -233,21 +233,15 @@ export function NewsListClient({ newsRows }: { newsRows: NewsRow[] }) {
       </Button>
 
       {showAdd ? (
-        <form action={newsAction} className="flex flex-col gap-2 rounded-xl border border-dashed border-border p-4">
-          <strong className="text-sm">Новая новость</strong>
-          <label className="flex flex-col gap-1 text-sm">
-            Заголовок
-            <Input name="title" required />
-          </label>
-          <label className="flex flex-col gap-1 text-sm">
-            Текст (Markdown)
-            <Textarea name="body_md" className="font-mono text-sm" rows={3} />
-          </label>
+        <form action={quoteAction} className="flex flex-col gap-2 rounded-xl border border-dashed border-border p-4">
+          <strong className="text-sm">Новая цитата</strong>
+          <Textarea name="body_text" className="text-sm" rows={2} placeholder="Текст" required />
+          <Input name="author" placeholder="Автор (необязательно)" />
           <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" name="is_visible" />
-            Видна пациенту
+            <input type="checkbox" name="is_active" defaultChecked />
+            Активна
           </label>
-          <Button type="submit" disabled={newsPending}>
+          <Button type="submit" disabled={quotePending}>
             Добавить
           </Button>
         </form>
@@ -256,16 +250,16 @@ export function NewsListClient({ newsRows }: { newsRows: NewsRow[] }) {
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
         <SortableContext items={sortIds} strategy={verticalListSortingStrategy}>
           <ul className="flex flex-col gap-2" aria-busy={reorderPending}>
-            {items.map((n) => (
-              <SortableNewsRow
-                key={n.id}
-                n={n}
-                expanded={expandedId === n.id}
+            {items.map((q) => (
+              <SortableQuoteRow
+                key={q.id}
+                q={q}
+                expanded={expandedId === q.id}
                 onToggleExpand={toggleExpand}
-                onToggleVisible={onToggleVisible}
-                newsAction={newsAction}
-                newsPending={newsPending}
-                formPending={visPending}
+                onToggleActive={onToggleActive}
+                quoteAction={quoteAction}
+                quotePending={quotePending}
+                formPending={actPending}
               />
             ))}
           </ul>

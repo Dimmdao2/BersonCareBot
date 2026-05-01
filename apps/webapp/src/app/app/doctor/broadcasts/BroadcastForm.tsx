@@ -5,10 +5,12 @@ import type {
   BroadcastAuditEntry,
   BroadcastAudienceFilter,
   BroadcastCategory,
+  BroadcastChannel,
   BroadcastCommand,
   BroadcastPreviewResult,
 } from "@/modules/doctor-broadcasts/ports";
-import { CATEGORY_LABELS, isAudienceEstimateApproximate } from "./labels";
+import { BROADCAST_PLANNED_CHANNELS } from "@/modules/doctor-broadcasts/broadcastChannels";
+import { CATEGORY_LABELS, CHANNEL_LABELS, isAudienceEstimateApproximate } from "./labels";
 import { BroadcastAudienceSelect } from "./BroadcastAudienceSelect";
 import { BroadcastConfirmStep } from "./BroadcastConfirmStep";
 import { BroadcastSentMessage } from "./BroadcastSentMessage";
@@ -31,6 +33,8 @@ export function BroadcastForm({ onBroadcastSent }: Props) {
 
   const [category, setCategory] = useState<BroadcastCategory | "">("");
   const [audience, setAudience] = useState<BroadcastAudienceFilter | "">("");
+  const [channelBot, setChannelBot] = useState(true);
+  const [channelSms, setChannelSms] = useState(true);
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
 
@@ -38,14 +42,20 @@ export function BroadcastForm({ onBroadcastSent }: Props) {
 
   function buildCommand(): Omit<BroadcastCommand, "actorId"> | null {
     if (!category || !audience || !title.trim() || body.trim().length < 10) return null;
+    if (!channelBot && !channelSms) return null;
+    const channels: BroadcastChannel[] = [];
+    if (channelBot) channels.push("bot_message");
+    if (channelSms) channels.push("sms");
     return {
       category,
       audienceFilter: audience,
       message: { title: title.trim(), body: body.trim() },
+      channels,
     };
   }
 
-  const isPreviewValid = Boolean(category && audience && title.trim() && body.trim().length >= 10);
+  const isPreviewValid =
+    Boolean(category && audience && title.trim() && body.trim().length >= 10) && (channelBot || channelSms);
 
   function handlePreview() {
     const command = buildCommand();
@@ -89,6 +99,8 @@ export function BroadcastForm({ onBroadcastSent }: Props) {
   function handleReset() {
     setCategory("");
     setAudience("");
+    setChannelBot(true);
+    setChannelSms(true);
     setTitle("");
     setBody("");
     setPreview(null);
@@ -175,6 +187,41 @@ export function BroadcastForm({ onBroadcastSent }: Props) {
           </p>
         ) : null}
       </div>
+
+      <fieldset className="flex flex-col gap-2 border-0 p-0">
+        <legend className="mb-1 text-sm font-medium">Каналы</legend>
+        <label htmlFor="broadcast-channel-bot" className="flex cursor-pointer items-center gap-2 text-sm">
+          <input
+            id="broadcast-channel-bot"
+            type="checkbox"
+            checked={channelBot}
+            disabled={isFormLocked}
+            onChange={(e) => setChannelBot(e.target.checked)}
+          />
+          {CHANNEL_LABELS.bot_message}
+        </label>
+        <label htmlFor="broadcast-channel-sms" className="flex cursor-pointer items-center gap-2 text-sm">
+          <input
+            id="broadcast-channel-sms"
+            type="checkbox"
+            checked={channelSms}
+            disabled={isFormLocked}
+            onChange={(e) => setChannelSms(e.target.checked)}
+          />
+          {CHANNEL_LABELS.sms}
+        </label>
+        {BROADCAST_PLANNED_CHANNELS.map((code) => (
+          <label
+            key={code}
+            className="flex cursor-not-allowed items-center gap-2 text-sm text-muted-foreground"
+          >
+            <input type="checkbox" disabled checked={false} readOnly className="pointer-events-none" />
+            <span>
+              {CHANNEL_LABELS[code]} <span className="text-xs">(скоро)</span>
+            </span>
+          </label>
+        ))}
+      </fieldset>
 
       <div className="flex flex-col gap-1.5">
         <label htmlFor="broadcast-title" className="text-sm font-medium">

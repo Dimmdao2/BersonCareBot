@@ -1,5 +1,5 @@
 /**
- * E2E (in-process): CMS media upload route и новости главной.
+ * E2E (in-process): CMS media upload route и страница контента врача.
  */
 import { describe, expect, it } from "vitest";
 
@@ -9,8 +9,8 @@ describe("cms e2e (in-process)", () => {
     expect(typeof mod.POST).toBe("function");
   });
 
-  it("doctor content news page loads", async () => {
-    const mod = await import("@/app/app/doctor/content/news/page");
+  it("doctor content motivation page loads", async () => {
+    const mod = await import("@/app/app/doctor/content/motivation/page");
     expect(typeof mod.default).toBe("function");
   });
 });

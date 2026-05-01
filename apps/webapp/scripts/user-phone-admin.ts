@@ -369,7 +369,6 @@ const CONTENT_TABLES: { table: string; column: string }[] = [
   { table: "content_access_grants_webapp", column: "platform_user_id" },
   { table: "user_notification_topics", column: "user_id" },
   { table: "user_channel_preferences", column: "user_id" },
-  { table: "news_item_views", column: "user_id" },
   { table: "online_intake_requests", column: "user_id" },
 ];
 

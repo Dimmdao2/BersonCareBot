@@ -1,3 +1,7 @@
+/**
+ * Legacy URL `/app/doctor/subscribers`: сохранён для старых закладок и deeplink’ов.
+ * В меню не добавлять — канон списка клиентов: `/app/doctor/clients`.
+ */
 import { redirect } from "next/navigation";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 

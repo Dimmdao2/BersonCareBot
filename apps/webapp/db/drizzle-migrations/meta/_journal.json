@@ -113,6 +113,13 @@
       "when": 1777573976837,
       "tag": "0015_patient_home_item_show_title",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1777658273229,
+      "tag": "0016_drop_news_broadcast_channels",
+      "breakpoints": true
     }
   ]
 }

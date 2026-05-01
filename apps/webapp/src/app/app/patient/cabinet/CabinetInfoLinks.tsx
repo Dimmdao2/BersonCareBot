@@ -17,17 +17,11 @@ export function CabinetInfoLinks() {
         >
           Адрес кабинета
         </Link>
-        <Link
-          href={routePaths.patientHelp}
-          className={patientInfoLinkTileClass}
-        >
-          Как подготовиться
+        <Link href={routePaths.bookingNew} className={patientInfoLinkTileClass}>
+          Записаться
         </Link>
-        <Link
-          href={routePaths.patientHelp}
-          className={patientInfoLinkTileClass}
-        >
-          Стоимость
+        <Link href={routePaths.patientHelp} className={patientInfoLinkTileClass}>
+          Справка и контакты
         </Link>
       </CardContent>
     </Card>

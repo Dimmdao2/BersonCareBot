@@ -1,3 +1,5 @@
+import type { BroadcastChannel } from "./broadcastChannels";
+
 /** Категория рассылки (обязательный выбор). */
 export type BroadcastCategory =
   | "service"
@@ -25,6 +27,8 @@ export type BroadcastCommand = {
   audienceFilter: BroadcastAudienceFilter;
   message: { title: string; body: string };
   actorId: string;
+  /** Если не задано на границе — сервис подставляет активные каналы по умолчанию. */
+  channels?: BroadcastChannel[];
 };
 
 /** Результат preview (dry-run): сколько пользователей попало, без отправки. */
@@ -32,6 +36,7 @@ export type BroadcastPreviewResult = {
   audienceSize: number;
   category: BroadcastCategory;
   audienceFilter: BroadcastAudienceFilter;
+  channels: BroadcastChannel[];
 };
 
 /** Запись в журнале рассылок (аудит). */
@@ -41,6 +46,7 @@ export type BroadcastAuditEntry = {
   category: BroadcastCategory;
   audienceFilter: BroadcastAudienceFilter;
   messageTitle: string;
+  channels: BroadcastChannel[];
   executedAt: string;
   previewOnly: boolean;
   audienceSize: number;
@@ -52,3 +58,5 @@ export type BroadcastAuditPort = {
   append(entry: Omit<BroadcastAuditEntry, "id" | "executedAt">): Promise<BroadcastAuditEntry>;
   list(limit?: number): Promise<BroadcastAuditEntry[]>;
 };
+
+export type { BroadcastChannel } from "./broadcastChannels";

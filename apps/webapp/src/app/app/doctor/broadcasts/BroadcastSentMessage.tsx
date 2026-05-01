@@ -1,6 +1,7 @@
 "use client";
 
 import type { BroadcastPreviewResult } from "@/modules/doctor-broadcasts/ports";
+import { formatChannelsSummary } from "./labels";
 
 type Props = {
   preview: BroadcastPreviewResult;
@@ -17,6 +18,7 @@ export function BroadcastSentMessage({ preview }: Props) {
       <p className="text-xs text-muted-foreground">
         Аудитория: {preview.audienceSize} получателей
       </p>
+      <p className="text-xs text-muted-foreground">Каналы: {formatChannelsSummary(preview.channels)}</p>
     </div>
   );
 }

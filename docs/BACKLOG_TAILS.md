@@ -18,7 +18,13 @@
 - `PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE`: пока docs-only backlog, стартовать только отдельным решением.
 - Deferred patient routes (`/messages`, `/emergency`, `/lessons`, `/address`, `/intake/*`, booking landing): покрывать в будущих фазах `APP_RESTRUCTURE_INITIATIVE` только если маршруты сохраняются в целевой IA.
 - `VIDEO_HLS_DELIVERY`: крупная инфраструктурная инициатива, пока в состоянии проектирования (без кода).
-- `APP_RESTRUCTURE_INITIATIVE`: стратегическая рамка и roadmap, к реализации не приступали.
+- `APP_RESTRUCTURE_INITIATIVE` — **этапы 2–8** по [`RECOMMENDATIONS_AND_ROADMAP.md`](APP_RESTRUCTURE_INITIATIVE/RECOMMENDATIONS_AND_ROADMAP.md) (CMS `kind`, хаб, уведомления, ядро пациента и т.д.).
+
+### APP_RESTRUCTURE — хвосты этапа 1 (2026-05-01)
+
+- **Ops:** перед первым применением `0016_drop_news_broadcast_channels` на БД с ценными строками `news_items` — readonly выгрузка и фиксация в тикете/хранилище (в репо артефакт не коммитится); см. [`LOG.md`](APP_RESTRUCTURE_INITIATIVE/LOG.md) §«Этап 1».
+- **Продукт/интеграция:** массовая доставка по выбранным `channels` после записи в `broadcast_audit` — отдельный контур (сейчас UI и аудит фиксируют намерение).
+- **Архитектура:** мутации мотивации в [`motivation/actions.ts`](../apps/webapp/src/app/app/doctor/content/motivation/actions.ts) (raw SQL) — вынести в порт/DI; baseline [`STRUCTURE_AUDIT.md`](APP_RESTRUCTURE_INITIATIVE/STRUCTURE_AUDIT.md) §III по news/RSC не обновлять (immutable).
 
 ## Что уже перенесено в архив (2026-05-01)
 

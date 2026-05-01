@@ -1,7 +1,12 @@
 "use client";
 
 import type { BroadcastCommand, BroadcastPreviewResult } from "@/modules/doctor-broadcasts/ports";
-import { formatAudienceLabel, formatCategoryLabel, isAudienceEstimateApproximate } from "./labels";
+import {
+  formatAudienceLabel,
+  formatCategoryLabel,
+  formatChannelsSummary,
+  isAudienceEstimateApproximate,
+} from "./labels";
 
 type Props = {
   preview: BroadcastPreviewResult;
@@ -28,6 +33,8 @@ export function BroadcastConfirmStep({ preview, command, onConfirm, onCancel, is
         <dd className="font-medium">{command.message.title}</dd>
         <dt className="text-muted-foreground">Получателей</dt>
         <dd id="broadcast-audience-size" className="font-semibold">{preview.audienceSize}</dd>
+        <dt className="text-muted-foreground">Каналы</dt>
+        <dd id="broadcast-channels-summary">{formatChannelsSummary(preview.channels)}</dd>
       </dl>
 
       {isAudienceEstimateApproximate(command.audienceFilter) ? (

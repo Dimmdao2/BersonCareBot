@@ -47,6 +47,7 @@ describe("previewBroadcastAction", () => {
       audienceSize: 30,
       category: "reminder",
       audienceFilter: "with_telegram",
+      channels: ["bot_message", "sms"],
     };
     previewMock.mockResolvedValue(expected);
 
@@ -70,6 +71,7 @@ describe("executeBroadcastAction", () => {
       category: "reminder",
       audienceFilter: "with_telegram",
       messageTitle: "Test",
+      channels: ["bot_message", "sms"],
       executedAt: new Date().toISOString(),
       previewOnly: false,
       audienceSize: 30,

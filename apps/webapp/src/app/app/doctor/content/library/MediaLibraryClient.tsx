@@ -156,7 +156,12 @@ function mediaTitle(item: MediaItem): string {
   return item.displayName?.trim() || item.filename;
 }
 
-export function MediaLibraryClient() {
+export type MediaLibraryClientProps = {
+  /** Только admin в admin mode — см. страницу delete-errors и ops/debug сценарий. */
+  canSeeDeleteErrorsLink?: boolean;
+};
+
+export function MediaLibraryClient({ canSeeDeleteErrorsLink = false }: MediaLibraryClientProps = {}) {
   const [kind, setKind] = useState<MediaKindFilter>("all");
   const [sortBy, setSortBy] = useState<SortBy>("date");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
@@ -1209,7 +1214,7 @@ export function MediaLibraryClient() {
       </div>
 
       <div className="flex flex-wrap items-end gap-2">
-        {s3DeleteQueueErrors != null && s3DeleteQueueErrors > 0 ? (
+        {canSeeDeleteErrorsLink && s3DeleteQueueErrors != null && s3DeleteQueueErrors > 0 ? (
           <Link
             href="/app/doctor/content/library/delete-errors"
             className="inline-flex h-10 items-center gap-2 rounded-md border border-destructive/50 bg-destructive/10 px-3 text-sm font-medium text-destructive hover:bg-destructive/15"

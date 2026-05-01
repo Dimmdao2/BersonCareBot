@@ -16,9 +16,9 @@
 - В production cookie: `SameSite=None; Secure` (iframe Mini App). В dev на http: `Lax` без `Secure`.
 - **Клиентский fallback**: если Mini App без предварительного `?ctx=bot`, [PlatformProvider.tsx](../ui/PlatformProvider.tsx) пишет ту же cookie через `serializePlatformBotCookie()` ([platform.ts](platform.ts)).
 
-## Навигация и главная (заготовка)
+## Навигация пациента
 
-Декларативные конфиги по `PlatformMode`: [app-layer/routes/navigation.ts](../../app-layer/routes/navigation.ts) (`patientNavByPlatform`, `patientHomeBlocksByPlatform`). Подключение к `PatientHeader` и главной пациента — отдельная задача.
+Декларативные конфиги по `PlatformMode`: [app-layer/routes/navigation.ts](../../app-layer/routes/navigation.ts) (`patientNavByPlatform`, primary nav). Состав блоков главной «Сегодня» задаётся в БД (`patient_home_blocks`), не в этом файле.
 
 ## Связанные файлы
 

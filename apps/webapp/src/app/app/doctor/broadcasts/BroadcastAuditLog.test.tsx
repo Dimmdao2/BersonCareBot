@@ -11,6 +11,7 @@ const makeEntry = (overrides: Partial<BroadcastAuditEntry> = {}): BroadcastAudit
   category: "reminder",
   audienceFilter: "with_telegram",
   messageTitle: "Напоминание о приёме",
+  channels: ["bot_message", "sms"],
   executedAt: "2026-03-31T10:05:00.000Z",
   previewOnly: false,
   audienceSize: 30,
@@ -44,6 +45,11 @@ describe("BroadcastAuditLog", () => {
     render(<BroadcastAuditLog entries={[makeEntry()]} />);
     expect(screen.getByText("Напоминание")).toBeInTheDocument();
     expect(screen.getByText("Telegram-пользователи")).toBeInTheDocument();
+  });
+
+  it("shows channel labels", () => {
+    render(<BroadcastAuditLog entries={[makeEntry({ channels: ["sms"] })]} />);
+    expect(screen.getByText("SMS")).toBeInTheDocument();
   });
 
   it("hides error column when all errorCount are zero", () => {

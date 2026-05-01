@@ -19,7 +19,7 @@ function filterBtnClass(active: boolean) {
 
 const CONTENT_BASE = "/app/doctor/content";
 
-/** Левое меню хаба CMS: новости, мотивации, разделы, фильтр по разделам, библиотека. */
+/** Левое меню хаба CMS: мотивации, разделы, фильтр по разделам, библиотека. */
 export function ContentPagesSidebar({
   sections,
   activeSectionSlug,
@@ -32,9 +32,6 @@ export function ContentPagesSidebar({
       className="flex w-full flex-col gap-2 md:w-64 md:shrink-0"
       aria-label="Контент и страницы"
     >
-      <Link href={`${CONTENT_BASE}/news`} className={navBtnClass}>
-        Новости
-      </Link>
       <Link href={`${CONTENT_BASE}/motivation`} className={navBtnClass}>
         Мотивации
       </Link>

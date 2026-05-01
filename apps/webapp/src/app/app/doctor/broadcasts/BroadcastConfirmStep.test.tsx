@@ -10,6 +10,7 @@ const preview: BroadcastPreviewResult = {
   audienceSize: 42,
   category: "reminder",
   audienceFilter: "with_telegram",
+  channels: ["bot_message", "sms"],
 };
 
 const command: Omit<BroadcastCommand, "actorId"> = {
@@ -30,6 +31,8 @@ describe("BroadcastConfirmStep", () => {
       />
     );
     expect(screen.getByText("42")).toBeInTheDocument();
+    expect(document.getElementById("broadcast-channels-summary")).toHaveTextContent(/сообщение в боте/i);
+    expect(document.getElementById("broadcast-channels-summary")).toHaveTextContent(/sms/i);
   });
 
   it("calls onConfirm when confirm button is clicked", async () => {
