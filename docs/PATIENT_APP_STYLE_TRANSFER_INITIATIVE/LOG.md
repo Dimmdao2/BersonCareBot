@@ -1,5 +1,48 @@
 # LOG — Patient App Style Transfer
 
+## 2026-05-01 — Audit review / docs corrections
+
+- Agent/model: GPT-5.5 (Cursor).
+- Scope: docs-only review of the previous audit/spec additions in this chat.
+- Files changed: `docs/PATIENT_APP_STYLE_TRANSFER_INITIATIVE/README.md`, `docs/README.md`, `docs/PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/README.md`, `docs/PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/AUDIT_RESULTS.md`, `docs/PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/MASTER_PLAN.md`, `docs/PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/TASKS.md`, `docs/PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/LOG.md`.
+- Corrections: added missing links to `PATIENT_SHARED_STYLE_ELEMENTS_AUDIT.md`; clarified that local UI primitives are based on `@base-ui/react`, local `Button` has no `asChild` API, and link-like button work should use `Link` + `buttonVariants(...)` / patient action classes or a future adapter.
+- App-code changes: none.
+- Checks: docs-only; `ReadLints` for touched docs.
+
+## 2026-05-01 — Shared style elements audit
+
+- Agent/model: GPT-5.5 (Cursor).
+- Scope: docs-only audit of reusable style elements after new patient home redesign and Style Transfer.
+- Files changed: `docs/PATIENT_APP_STYLE_TRANSFER_INITIATIVE/PATIENT_SHARED_STYLE_ELEMENTS_AUDIT.md`, `docs/PATIENT_APP_STYLE_TRANSFER_INITIATIVE/LOG.md`.
+- Summary: зафиксированы фактические home primitives (`patientHomeCardStyles`), shared primitives (`patientVisual`), comparison with inner patient pages, gaps that make inner pages look visually unchanged, and candidates for future shared style extraction.
+- App-code changes: none.
+- Checks: docs-only; `ReadLints` for audit/log.
+
+## 2026-05-01 — GLOBAL FIX / follow-up (safe minor notes)
+
+- Agent/model: GPT-5.5 (Cursor).
+- Scope: три заранее согласованных safe minor пункта из `GLOBAL_AUDIT.md` — без product/content изменений и без правок business/API/DB/env.
+- Files changed (code): `apps/webapp/src/shared/ui/patientVisual.ts` (новый именованный примитив `patientInfoLinkTileClass`), `apps/webapp/src/app/app/patient/cabinet/CabinetInfoLinks.tsx` (перевод на примитив), `apps/webapp/src/app/app/patient/cabinet/BookingFormatGrid.tsx` (style-only pass для неактивного компонента).
+- Files changed (artifacts/docs): `docs/PATIENT_APP_STYLE_TRANSFER_INITIATIVE/ARTIFACTS/global-fix-2026-05-01/*` (скриншоты viewport), `docs/PATIENT_APP_STYLE_TRANSFER_INITIATIVE/GLOBAL_AUDIT.md`, `docs/PATIENT_APP_STYLE_TRANSFER_INITIATIVE/LOG.md`.
+- Visual QA screenshots captured (headless Chromium, local dev server):
+  - `docs/PATIENT_APP_STYLE_TRANSFER_INITIATIVE/ARTIFACTS/global-fix-2026-05-01/patient-390x844.png`
+  - `docs/PATIENT_APP_STYLE_TRANSFER_INITIATIVE/ARTIFACTS/global-fix-2026-05-01/patient-768x1024.png`
+  - `docs/PATIENT_APP_STYLE_TRANSFER_INITIATIVE/ARTIFACTS/global-fix-2026-05-01/patient-1280x900.png`
+  - `docs/PATIENT_APP_STYLE_TRANSFER_INITIATIVE/ARTIFACTS/global-fix-2026-05-01/booking-new-390x844.png`
+- Style-only confirmation: copy, маршруты, query-параметры, обработчики и flow не менялись.
+- Checks (targeted): `pnpm --dir apps/webapp exec eslint src/shared/ui/patientVisual.ts src/app/app/patient/cabinet/CabinetInfoLinks.tsx src/app/app/patient/cabinet/BookingFormatGrid.tsx`.
+- Mandatory findings: не применимо (это follow-up к minor notes после `GLOBAL_AUDIT`).
+
+## 2026-05-01 — GLOBAL FIX (`GLOBAL_AUDIT` mandatory)
+
+- Agent/model: GPT-5.5 (Cursor).
+- Scope: только mandatory из `GLOBAL_AUDIT.md` — **§3: mandatory fixes отсутствуют**; app-код не менялся, polish из minor notes не выполнялся.
+- Style-only confirmation: content/copy/product structure, business/API/DB/env, doctor/admin не затрагивались.
+- Files changed (FIX): `docs/PATIENT_APP_STYLE_TRANSFER_INITIATIVE/LOG.md` (этот файл).
+- Checks (targeted): `ReadLints` для `docs/PATIENT_APP_STYLE_TRANSFER_INITIATIVE/LOG.md`; root `pnpm run ci` не запускался.
+- Mandatory findings: **No mandatory fixes.**
+- Next step: закрытие инициативы / merge по процессу команды.
+
 ## 2026-05-01 — Phase 5 / FIX (`AUDIT_PHASE_5` mandatory)
 
 - Agent/model: Composer (Cursor).

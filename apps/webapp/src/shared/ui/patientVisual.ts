@@ -70,6 +70,13 @@ export const patientInlineLinkClass = cn(
   "focus-visible:rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-primary)]",
 );
 
+/** Плитка-ссылка внутри patient карточек (например, блок «Полезная информация» в cabinet). */
+export const patientInfoLinkTileClass = cn(
+  "rounded-lg border border-[var(--patient-border)] px-3 py-2 text-sm font-medium text-[var(--patient-text-primary)] transition-colors",
+  "hover:bg-[var(--patient-color-primary-soft)]/40",
+  "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-primary)]",
+);
+
 /** Базовый двухстрочный clamp для динамического текста на карточках пациента. */
 export const patientLineClamp2Class = "line-clamp-2 min-w-0";
 

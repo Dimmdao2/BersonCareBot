@@ -74,6 +74,8 @@ Forbidden:
 - `04_BOOKING_STYLE_PLAN.md` — booking/cabinet visual chrome.
 - `05_QA_DOCS_PLAN.md` — final QA/docs.
 - `AUDIT_TEMPLATE.md` — phase/global audit format.
+- `GLOBAL_AUDIT.md` — global closeout audit.
+- `PATIENT_SHARED_STYLE_ELEMENTS_AUDIT.md` — audit of shared/new patient style elements and reuse candidates.
 - `PROMPTS_EXEC_AUDIT_FIX.md` — copy-paste prompts for Composer.
 
 ## Model Strategy
