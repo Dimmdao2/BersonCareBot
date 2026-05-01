@@ -70,13 +70,25 @@ export const patientHomeCardDangerClass = cn(
   "shadow-[var(--patient-shadow-card-mobile)] lg:shadow-[var(--patient-shadow-card-desktop)]",
 );
 
-/** Mood / pastel warm gradient (`§10.7`). */
+/** Mood / pastel warm gradient (`§10.7`) — legacy; блок самочувствия использует {@link patientHomeMoodCheckinShellClass}. */
 export const patientHomeCardGradientWarmClass = cn(
   "overflow-hidden border border-[#fed7aa]",
   "rounded-[var(--patient-card-radius-mobile)] lg:rounded-[var(--patient-card-radius-desktop)]",
   "bg-gradient-to-br from-[#fff7ed] to-[#fff1f2] text-[var(--patient-text-primary)]",
   patientCardPaddingClass,
   "shadow-[var(--patient-shadow-card-mobile)] lg:shadow-[var(--patient-shadow-card-desktop)]",
+);
+
+/**
+ * Оболочка блока «Как вы себя чувствуете?»:
+ * mobile — без фона/бордера/тени и без вертикальных отступов карточки;
+ * lg+ — почти белый с холодным подтоном, лёгкая рамка.
+ */
+export const patientHomeMoodCheckinShellClass = cn(
+  "relative overflow-hidden text-[var(--patient-text-primary)]",
+  "max-lg:border-0 max-lg:bg-transparent max-lg:shadow-none max-lg:rounded-none max-lg:p-0 max-lg:py-0",
+  "lg:rounded-[var(--patient-card-radius-desktop)] lg:border lg:border-[#e2e8f0]/90",
+  "lg:bg-[#f4f7fb] lg:p-[18px] lg:shadow-[0_1px_2px_rgba(15,23,42,0.04)]",
 );
 
 /** Shared 24px pill metrics for top-card labels (hero / useful post). */
@@ -191,7 +203,7 @@ export const patientHomeSecondaryCardTallHeightClass = cn(
  */
 export const patientHomeCarouselItemLayoutClass = cn(
   "flex shrink-0 snap-start flex-col gap-2 overflow-hidden",
-  "h-[128px] min-w-[280px] w-[min(100%,280px)] sm:h-[136px] sm:w-[300px] lg:h-[140px]",
+  "h-[128px] min-w-full w-full sm:h-[136px] lg:h-[140px]",
 );
 
 /**
@@ -422,8 +434,12 @@ export const patientHomeProgressValueSuffixClass =
 export const patientHomeProgressStreakValueClass =
   "text-[28px] font-semibold leading-8 text-[var(--patient-text-primary)]";
 
-/** Mood: compact fixed-height card for the 3-card desktop row. */
-export const patientHomeMoodCardGeometryClass = cn("flex flex-col overflow-hidden", "h-[132px] sm:h-[136px] lg:h-[136px]");
+/** Mood: на mobile высота по контенту; на desktop — фиксированная строка дашборда. */
+export const patientHomeMoodCardGeometryClass = cn(
+  "flex flex-col overflow-hidden",
+  "max-lg:my-1 max-lg:h-auto max-lg:min-h-0",
+  "lg:h-[136px]",
+);
 
 export const patientHomeMoodStatusSlotClass = cn(
   patientLineClamp2Class,
@@ -459,7 +475,7 @@ export const patientHomeSosSubtitleClampClass = cn(
 
 /** Next reminder: compact warning card (отдельно от других secondary-карточек). */
 export const patientHomeReminderCardGeometryClass = cn(
-  "flex min-h-[150px] flex-col justify-between gap-3 overflow-hidden rounded-[var(--patient-card-radius-mobile)] border border-[#fde68a] bg-[linear-gradient(135deg,#fffaf0_0%,#fff7df_100%)] p-4 lg:h-[150px] lg:min-h-0 lg:rounded-[var(--patient-card-radius-desktop)] lg:p-5",
+  "flex min-h-[112px] flex-col justify-center gap-3 overflow-hidden rounded-[var(--patient-card-radius-mobile)] border border-[#fde68a] bg-[linear-gradient(135deg,#fffaf0_0%,#fff7df_100%)] p-4 lg:h-[150px] lg:min-h-0 lg:justify-between lg:rounded-[var(--patient-card-radius-desktop)] lg:p-5",
 );
 
 export const patientHomeSosThumbSlotClass = cn(

@@ -54,7 +54,10 @@ describe("PatientHomeSubscriptionCarousel", () => {
     );
     const track = container.querySelector(".snap-x.snap-mandatory");
     expect(track).toBeTruthy();
-    expect(container.querySelectorAll('[data-testid="patient-home-subscription-carousel-item"]')).toHaveLength(2);
+    const items = container.querySelectorAll('[data-testid="patient-home-subscription-carousel-item"]');
+    expect(items).toHaveLength(2);
+    expect(items[0]).toHaveClass("min-w-full");
+    expect(items[0]).toHaveClass("w-full");
     expect(screen.getByText("Клуб")).toBeInTheDocument();
     expect(screen.getByText("Премиум")).toBeInTheDocument();
   });

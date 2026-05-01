@@ -57,9 +57,9 @@ export function PatientHomeBookingCard({ personalTierOk, anonymousGuest, blockIc
               <PatientHomeSafeImage
                 src={blockIconImageUrl}
                 alt=""
-                className="size-6 rounded-full object-cover"
+                className="size-7 rounded-full object-cover"
                 loading="lazy"
-                fallback={<Calendar className="size-6" aria-hidden />}
+                fallback={<Calendar className="size-7" aria-hidden />}
               />
             </div>
             <div className="min-w-0 flex-1">

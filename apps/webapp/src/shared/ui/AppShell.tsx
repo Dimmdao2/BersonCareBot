@@ -1,8 +1,8 @@
 /**
  * Общая оболочка страницы приложения: верхняя панель и контент.
- * Для пациента (variant="patient" / "patient-wide") — {@link PatientGatedHeader} / {@link PatientHeader}:
- * заголовок, «Назад», «Домой» на главную, справа иконка профиля;
- * внизу — {@link PatientBottomNav} (кроме `patientEmbedMain` / `patientHideBottomNav`).
+ * Для пациента (variant="patient" / "patient-wide") — {@link PatientTopNav} на всех ширинах;
+ * заголовок экрана под полоской меню (кроме главной при `patientSuppressShellTitle`);
+ * при `patientEmbedMain` / `patientHideBottomNav` / `patientBrandTitleBar` — классическая {@link PatientGatedHeader}.
  * Для кабинета врача (variant="doctor") — контейнер контента; шапка в `app/doctor/layout.tsx`.
  */
 
@@ -11,7 +11,6 @@ import type { ReactNode } from "react";
 import { buttonVariants } from "@/components/ui/button-variants";
 import type { SessionUser } from "@/shared/types/session";
 import { PatientGatedHeader } from "@/shared/ui/PatientGatedHeader";
-import { PatientBottomNav } from "@/shared/ui/PatientBottomNav";
 import { PatientTopNav } from "@/shared/ui/PatientTopNav";
 import { SectionHeading } from "@/components/common/typography/SectionHeading";
 import { cn } from "@/lib/utils";
@@ -28,9 +27,8 @@ type AppShellProps = {
   titleSmall?: boolean;
   /**
    * Вариант оболочки.
-   * - `patient` — patient mobile shell (`max-w-[430px]`) с расширением до `~1180px` на `lg+`.
-   *   На `lg+` сверху рендерится {@link PatientTopNav} (primary nav), нижний {@link PatientBottomNav} скрывается через `lg:hidden`.
-   *   `patient-wide` (legacy alias) ведёт себя так же — отдельный широкий вариант больше не нужен по `VISUAL_SYSTEM_SPEC §3` / `§5`.
+   * - `patient` — patient shell (`max-w-[430px]`, `lg+` до `~1180px`), сверху {@link PatientTopNav} (primary nav).
+   *   `patient-wide` — тот же layout (legacy alias).
    * - `doctor` — кабинет специалиста (широкий workspace).
    */
   variant?: "default" | "patient" | "patient-wide" | "doctor";
@@ -49,8 +47,10 @@ type AppShellProps = {
   patientBrandTitleBar?: boolean;
   /** См. {@link PatientHeader}: компактный бейдж рядом с заголовком (например «По подписке» на странице раздела). */
   patientTitleBadge?: string;
-  /** Скрыть нижнюю навигацию (экраны входа и гостевые страницы без основного меню пациента). */
+  /** Скрыть patient shell nav (экраны входа, iframe, brand bar): только {@link PatientGatedHeader}. */
   patientHideBottomNav?: boolean;
+  /** Не показывать полоску заголовка под {@link PatientTopNav} (главная «Сегодня»). */
+  patientSuppressShellTitle?: boolean;
 };
 
 /** Рендерит контейнер приложения, шапку с заголовком и действиями и основной контент. */
@@ -69,15 +69,14 @@ export function AppShell({
   patientBrandTitleBar = false,
   patientTitleBadge,
   patientHideBottomNav = false,
+  patientSuppressShellTitle = false,
 }: AppShellProps) {
   if (variant === "patient" || variant === "patient-wide") {
-    /**
-     * VISUAL_SYSTEM_SPEC §3 / §5: mobile shell `max-w-[430px]`, на `lg+` колонка
-     * расширяется до `~1180px`, top primary nav рендерится только на `lg+`,
-     * bottom primary nav — только `< lg`. Bg — страничный `--patient-page-bg`,
-     * чтобы карточки контрастировали с фоном (карточки используют `--patient-card-bg`).
-     */
     const showPatientShellNav = !patientEmbedMain && !patientHideBottomNav && !patientBrandTitleBar;
+    const shellTitleBadge = patientTitleBadge?.trim() ?? "";
+    const shellTitle = title?.trim() ?? "";
+    const showShellTitleStrip =
+      showPatientShellNav && !patientSuppressShellTitle && (Boolean(shellTitleBadge) || Boolean(shellTitle));
     return (
       <div
         id="app-shell-patient"
@@ -90,26 +89,53 @@ export function AppShell({
               : "max-w-[430px] safe-padding-patient gap-3 lg:max-w-[min(1180px,calc(100vw-2rem))]",
         )}
       >
-        {showPatientShellNav ? (
-          <div className="z-50 hidden shrink-0 lg:block">
-            <PatientTopNav />
-          </div>
-        ) : null}
-        <div
-          data-testid="patient-gated-header-wrap"
-          className={showPatientShellNav ? "lg:hidden" : undefined}
-        >
-          <PatientGatedHeader
-            pageTitle={title}
-            showBack={!!backHref}
-            backHref={backHref}
-            backLabel={backLabel}
-            hideHome={patientHideHome}
-            hideRightIcons={patientHideRightIcons}
-            brandTitleBar={patientBrandTitleBar}
-            titleBadge={patientTitleBadge}
-          />
-        </div>
+        {showPatientShellNav ?
+          <>
+            <div className="z-50 shrink-0">
+              <PatientTopNav backHref={backHref} backLabel={backLabel} />
+            </div>
+            {showShellTitleStrip ?
+              <div
+                data-testid="patient-shell-page-title-wrap"
+                className="shrink-0 border-b border-[var(--patient-border)] bg-[var(--patient-surface)] px-4 py-2.5"
+              >
+                {shellTitleBadge ?
+                  <span
+                    data-testid="patient-header-title-badge"
+                    className="inline-block max-w-full truncate rounded-full border border-border bg-muted/70 px-2 py-0.5 text-[10px] font-medium text-foreground"
+                    title={shellTitleBadge}
+                  >
+                    {shellTitleBadge}
+                  </span>
+                : null}
+                {shellTitle ?
+                  <h1
+                    className={cn(
+                      "text-base font-semibold tracking-tight text-[var(--patient-text-primary)]",
+                      shellTitleBadge && "mt-1.5",
+                    )}
+                  >
+                    {shellTitle}
+                  </h1>
+                : null}
+              </div>
+            : null}
+          </>
+        : null}
+        {showPatientShellNav ?
+          null
+        : <div data-testid="patient-gated-header-wrap">
+            <PatientGatedHeader
+              pageTitle={title}
+              showBack={!!backHref}
+              backHref={backHref}
+              backLabel={backLabel}
+              hideHome={patientHideHome}
+              hideRightIcons={patientHideRightIcons}
+              brandTitleBar={patientBrandTitleBar}
+              titleBadge={patientTitleBadge}
+            />
+          </div>}
         <main
           id="app-shell-content"
           className={cn(
@@ -120,7 +146,6 @@ export function AppShell({
           {children}
         </main>
         {patientFloatingSlot}
-        {showPatientShellNav ? <div className="lg:hidden"><PatientBottomNav /></div> : null}
       </div>
     );
   }

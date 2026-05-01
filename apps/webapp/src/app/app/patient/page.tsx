@@ -18,6 +18,7 @@ export default async function PatientHomePage() {
         title="Сегодня"
         user={null}
         variant="patient-wide"
+        patientSuppressShellTitle
         patientHideRightIcons
         patientHideHome
       >
@@ -31,7 +32,7 @@ export default async function PatientHomePage() {
   const canViewAuthOnlyContent = await resolvePatientCanViewAuthOnlyContent(session);
 
   return (
-    <AppShell title="Сегодня" user={session.user} variant="patient-wide">
+    <AppShell title="Сегодня" user={session.user} variant="patient-wide" patientSuppressShellTitle>
       <PatientHomeToday
         session={session}
         personalTierOk={personalTierOk}

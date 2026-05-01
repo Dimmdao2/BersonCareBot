@@ -199,7 +199,9 @@ describe("PatientHomeToday", () => {
     expect(screen.getByRole("link", { name: /Активировать профиль/i })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: /^Прогресс$/ })).toBeInTheDocument();
     expect(screen.getByText(/Как вы себя чувствуете/i)).toHaveProperty("tagName", "P");
-    expect(screen.getByRole("link", { name: /Настроить/i })).toHaveAttribute("href", routePaths.patientReminders);
+    for (const link of screen.getAllByRole("link", { name: /Настроить/i })) {
+      expect(link).toHaveAttribute("href", routePaths.patientReminders);
+    }
     expect(screen.getByRole("link", { name: /Выбрать курс/i })).toHaveAttribute("href", routePaths.patientTreatmentPrograms);
     expect(screen.queryByRole("link", { name: /К каталогу курсов/i })).toBeNull();
   });

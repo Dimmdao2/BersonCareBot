@@ -10,8 +10,8 @@ import type { PatientMoodToday } from "@/modules/patient-mood/types";
 import type { PatientHomeMoodIconOption } from "@/modules/patient-home/patientHomeMoodIcons";
 import {
   patientHomeBlockHeadingClass,
-  patientHomeCardGradientWarmClass,
   patientHomeMoodCardGeometryClass,
+  patientHomeMoodCheckinShellClass,
   patientHomeMoodOptionButtonClass,
   patientHomeMoodStatusSlotClass,
 } from "./patientHomeCardStyles";
@@ -152,17 +152,17 @@ export function PatientHomeMoodCheckin({
   return (
     <section
       id="patient-home-mood-checkin"
-      className={cn(patientHomeCardGradientWarmClass, patientHomeMoodCardGeometryClass, "relative")}
+      className={cn(patientHomeMoodCheckinShellClass, patientHomeMoodCardGeometryClass)}
       aria-labelledby="patient-home-mood-heading"
     >
       <div className="relative z-[1] flex h-full min-h-0 flex-col">
         <div className="shrink-0">
-          <p id="patient-home-mood-heading" className={patientHomeBlockHeadingClass}>
+          <p id="patient-home-mood-heading" className={cn(patientHomeBlockHeadingClass, "px-4 lg:px-0")}>
             Как вы себя чувствуете?
           </p>
         </div>
         {anonymousGuest ?
-          <div className="flex min-h-0 flex-1 flex-col justify-between gap-1.5 pt-2.5">
+          <div className="flex min-h-0 flex-1 flex-col justify-between gap-1.5 max-lg:pt-2 lg:pt-2.5">
             {renderMoodScale(true)}
             <p className={patientHomeMoodStatusSlotClass}>
               <Link href={appLoginWithNextHref(routePaths.patient)} className="font-medium text-primary underline-offset-4 hover:underline">
@@ -172,11 +172,11 @@ export function PatientHomeMoodCheckin({
             </p>
           </div>
         : !personalTierOk ?
-          <div className="flex min-h-0 flex-1 flex-col justify-between gap-1.5 pt-2.5">
+          <div className="flex min-h-0 flex-1 flex-col justify-between gap-1.5 max-lg:pt-2 lg:pt-2.5">
             {renderMoodScale(true)}
             <p className={patientHomeMoodStatusSlotClass}>Чек-ин самочувствия будет доступен после активации профиля.</p>
           </div>
-        : <div className="flex min-h-0 flex-1 flex-col justify-between gap-1.5 pt-2.5">
+        : <div className="flex min-h-0 flex-1 flex-col justify-between gap-1.5 max-lg:pt-2 lg:pt-2.5">
             {renderMoodScale(false)}
             {statusLine ?
               <p className={patientHomeMoodStatusSlotClass} aria-live="polite">

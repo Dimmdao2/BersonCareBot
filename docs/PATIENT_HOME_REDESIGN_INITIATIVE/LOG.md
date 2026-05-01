@@ -1,5 +1,16 @@
 # PATIENT_HOME_REDESIGN_INITIATIVE — LOG
 
+## 2026-05-01 — Shell пациента: аудит плана `patient_nav_fab_removal`
+
+- **План:** `.cursor/plans/patient_nav_fab_removal_eb082df2.plan.md` — в файле плана todos помечены `completed`, добавлена секция «Аудит выполнения».
+- **Сверка с кодом (`apps/webapp`):**
+  - [x] FAB: `PatientQuickAddFAB` удалён, не рендерится из `AppShell`; проп `hidePatientQuickAddFAB` убран.
+  - [x] Шапка: `patientNavByPlatform` → `headerRightIcons: ["profile"]`; в `PatientHeader` ветка профиля → `routePaths.profile`.
+  - [x] Нижняя навигация: `PatientBottomNav`, конфиг в `app-layer/routes/navigation.ts` (`PATIENT_BOTTOM_NAV_ITEMS` / согласованный desktop `PATIENT_PRIMARY_NAV_ITEMS`); в `AppShell` — `patientHideBottomNav` для исключений.
+  - [x] Отступы: `.safe-padding-patient` в `globals.css` под нижнюю панель + safe-area (не под FAB).
+  - [x] Тесты: `AppShell.test.tsx` обновлён (в т.ч. `patientHideBottomNav`, `role="navigation"`).
+- **Хвост по плану (не блокирует UX):** [ ] `QuickAddPopup.tsx`, маршрут `GET /api/patient/diary/quick-add-context`, `.safe-fab-br`, e2e-импорт модуля QuickAdd — код ещё в дереве, из shell не вызывается; можно снести отдельным коммитом.
+
 ## 2026-05-01 — Главная пациента: финальная visual QA волна
 
 - **Ветка:** `feat/patient-home-cms-editor-uxlift-2026-04-29`.

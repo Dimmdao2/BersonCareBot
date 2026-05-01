@@ -56,25 +56,25 @@ describe("AppShell patient width variants", () => {
     expect(shell).toHaveClass("bg-[var(--patient-page-bg)]");
   });
 
-  it("forwards patientTitleBadge to patient header", () => {
+  it("forwards patientTitleBadge below top nav title strip", () => {
     render(
       <AppShell title="Раздел" user={null} variant="patient" patientTitleBadge="По подписке">
         <div>Body</div>
       </AppShell>,
     );
     expect(screen.getByTestId("patient-header-title-badge")).toHaveTextContent("По подписке");
+    expect(screen.getByTestId("patient-shell-page-title-wrap")).toBeInTheDocument();
   });
 
-  it("hides patient header row on lg when top nav shell is active (no duplicate chrome)", () => {
+  it("does not render patient header row when top nav shell is active", () => {
     const { container } = render(
-      <AppShell title="Сегодня" user={null} variant="patient">
+      <AppShell title="Сегодня" user={null} variant="patient" patientSuppressShellTitle>
         <div>Content</div>
       </AppShell>,
     );
 
     expect(container.querySelector("#patient-top-nav")).toBeTruthy();
-    const headerWrap = screen.getByTestId("patient-gated-header-wrap");
-    expect(headerWrap).toHaveClass("lg:hidden");
+    expect(screen.queryByTestId("patient-gated-header-wrap")).toBeNull();
   });
 
   it("shows patient header on all breakpoints when bottom nav is hidden (no top nav)", () => {

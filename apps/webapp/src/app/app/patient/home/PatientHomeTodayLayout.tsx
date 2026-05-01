@@ -107,7 +107,7 @@ export function PatientHomeTodayLayout({ personalizedName, timeOfDayPrefix, bloc
   return (
     <div
       id="patient-home-today-layout"
-      className="flex min-w-0 flex-col gap-5 overflow-x-hidden pb-6 lg:gap-6"
+      className="flex min-w-0 flex-col gap-3 overflow-x-hidden pb-6 lg:gap-4"
     >
       <PatientHomeGreeting personalizedName={personalizedName} timeOfDayPrefix={timeOfDayPrefix} />
 
@@ -116,7 +116,7 @@ export function PatientHomeTodayLayout({ personalizedName, timeOfDayPrefix, bloc
          * `lg:grid-flow-row-dense` — чтобы пары (col-span-8 + col-span-4) держались на одной строке
          * вне зависимости от DOM-порядка (`sort_order` в БД может ставить правый col перед левым).
          */
-        className="grid w-full min-w-0 gap-5 lg:grid-cols-12 lg:grid-flow-row-dense lg:items-stretch lg:gap-5 xl:gap-6"
+        className="grid w-full min-w-0 gap-4 lg:grid-cols-12 lg:grid-flow-row-dense lg:items-stretch lg:gap-5 xl:gap-6"
         data-testid="patient-home-layout-grid"
       >
         {blocks.map((block) => {
@@ -124,7 +124,11 @@ export function PatientHomeTodayLayout({ personalizedName, timeOfDayPrefix, bloc
           return (
             <div
               key={block.code}
-              className={cn("min-w-0", layout.className)}
+              className={cn(
+                "min-w-0",
+                block.code === "situations" && "max-lg:my-1",
+                layout.className,
+              )}
               data-patient-home-block={block.code}
               data-lg-order={layout["data-lg-order"]}
               data-lg-col-start={layout["data-lg-col-start"]}

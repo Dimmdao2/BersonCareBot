@@ -29,19 +29,22 @@ describe("PatientHomeNextReminderCard", () => {
     render(
       <PatientHomeNextReminderCard rule={null} scheduleLabel="" anonymousGuest personalTierOk={false} />,
     );
-    const cta = screen.getByRole("link", { name: /Войти/i });
-    expect(cta.getAttribute("href")).toContain(`${routePaths.root}?next=`);
-    expect(cta.getAttribute("href")).toContain(encodeURIComponent(routePaths.patientReminders));
+    const ctas = screen.getAllByRole("link", { name: /Войти/i });
+    expect(ctas[0]?.getAttribute("href")).toContain(`${routePaths.root}?next=`);
+    expect(ctas[0]?.getAttribute("href")).toContain(encodeURIComponent(routePaths.patientReminders));
   });
 
   it("shows the calculated nearest occurrence label and link to reminders", () => {
     render(<PatientHomeNextReminderCard rule={baseRule()} scheduleLabel="ср, 10:15" />);
     expect(screen.getByText("ср, 10:15")).toBeInTheDocument();
     expect(screen.getByText("Напоминание")).toBeInTheDocument();
-    const cta = screen.getByRole("link", { name: /Изменить/i });
-    expect(cta).toHaveAttribute("href", "/app/patient/reminders");
-    expect(cta).toHaveClass("self-end");
-    expect(cta).toHaveClass("min-w-[6.75rem]");
+    const [mobileCta, desktopCta] = screen.getAllByRole("link", { name: /Изменить/i });
+    expect(mobileCta).toHaveAttribute("href", "/app/patient/reminders");
+    expect(mobileCta).toHaveClass("self-end");
+    expect(mobileCta).toHaveClass("!min-h-10");
+    expect(mobileCta).toHaveClass("lg:hidden");
+    expect(desktopCta).toHaveClass("self-end");
+    expect(desktopCta).toHaveClass("max-lg:hidden");
   });
 
   it("renders custom leading icon when blockIconImageUrl is set", () => {

@@ -35,9 +35,9 @@ function LeadingPlanIcon({ blockIconImageUrl, emphasized = false }: { blockIconI
       <PatientHomeSafeImage
         src={blockIconImageUrl}
         alt=""
-        className="size-6 rounded-full object-cover"
+        className="size-7 rounded-full object-cover"
         loading="lazy"
-        fallback={<ClipboardList className="size-6 text-[var(--patient-color-primary)]" />}
+        fallback={<ClipboardList className="size-7 text-[var(--patient-color-primary)]" />}
       />
     </div>
   );

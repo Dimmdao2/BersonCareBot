@@ -26,9 +26,9 @@ export function PatientHomeSosCard({ sos, blockIconImageUrl }: Props) {
             <PatientHomeSafeImage
               src={blockIconImageUrl}
               alt=""
-              className="size-6 rounded-full object-cover"
+              className="size-7 rounded-full object-cover"
               loading="lazy"
-              fallback={<Zap className="size-6" />}
+              fallback={<Zap className="size-7" />}
             />
           </div>
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
@@ -43,7 +43,7 @@ export function PatientHomeSosCard({ sos, blockIconImageUrl }: Props) {
           prefetch={false}
           className={cn(
             patientButtonDangerOutlineClass,
-            "relative z-[1] min-h-9 shrink-0 self-center whitespace-nowrap border-[#b91c1c] px-3 text-[13px] text-[#991b1b] hover:bg-[#fee2e2]/60 active:bg-[#fee2e2]/70",
+            "relative z-[1] !min-h-10 shrink-0 self-end whitespace-nowrap border-[#d8a3a3] px-3 text-[13px] text-[#8a3a3a] hover:bg-[#fff1f1]/80 active:bg-[#fee7e7]/80",
             "lg:mt-auto lg:-mb-1 lg:min-w-[8rem] lg:self-end lg:px-6 lg:text-sm",
           )}
         >

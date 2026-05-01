@@ -13,8 +13,10 @@ import { PatientHomeSafeImage } from "./PatientHomeSafeImage";
 import { patientButtonWarningOutlineClass } from "@/shared/ui/patientVisual";
 import { cn } from "@/lib/utils";
 
-const reminderCtaClass =
-  "!w-auto min-w-[6.75rem] self-end px-3 text-[13px] lg:min-w-[8rem] lg:px-4 lg:text-sm";
+const reminderCtaMobileClass =
+  "!min-h-10 !w-auto min-w-[6.75rem] self-end px-3 text-[13px] lg:hidden";
+const reminderCtaDesktopClass =
+  "!w-auto min-w-[8rem] self-end px-4 text-sm max-lg:hidden";
 
 type Props = {
   rule: ReminderRule | null;
@@ -33,9 +35,9 @@ function LeadingIcon({ blockIconImageUrl }: { blockIconImageUrl?: string | null 
       <PatientHomeSafeImage
         src={blockIconImageUrl}
         alt=""
-        className="size-6 rounded-full object-cover"
+        className="size-7 rounded-full object-cover"
         loading="lazy"
-        fallback={<Bell className="size-6" />}
+        fallback={<Bell className="size-7" />}
       />
     </div>
   );
@@ -54,10 +56,10 @@ export function PatientHomeNextReminderCard({
     return (
       <section aria-labelledby="patient-home-reminder-heading" data-reminder-empty>
         <article id="patient-home-next-reminder-card" className={patientHomeReminderCardGeometryClass}>
-          <div className="flex min-h-0 gap-3">
+          <div className="flex min-h-0 gap-3 max-lg:items-center">
             <LeadingIcon blockIconImageUrl={blockIconImageUrl} />
             <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-              <p id="patient-home-reminder-heading" className={patientHomeBlockHeadingClass}>
+              <p id="patient-home-reminder-heading" className={cn(patientHomeBlockHeadingClass, "whitespace-nowrap")}>
                 Следующее напоминание
               </p>
               <h2 className={cn(patientHomeCardTitleClampSmClass, "mt-1")}>
@@ -71,8 +73,11 @@ export function PatientHomeNextReminderCard({
                 : "Добавьте время практики."}
               </p>
             </div>
+            <Link href={remindersHref} prefetch={false} className={cn(patientButtonWarningOutlineClass, reminderCtaMobileClass)}>
+              {ctaLabel}
+            </Link>
           </div>
-          <Link href={remindersHref} prefetch={false} className={cn(patientButtonWarningOutlineClass, reminderCtaClass)}>
+          <Link href={remindersHref} prefetch={false} className={cn(patientButtonWarningOutlineClass, reminderCtaDesktopClass)}>
             {ctaLabel}
           </Link>
         </article>
@@ -85,10 +90,10 @@ export function PatientHomeNextReminderCard({
   return (
     <section aria-labelledby="patient-home-reminder-heading" data-reminder-rule-id={rule.id}>
       <article id="patient-home-next-reminder-card" className={patientHomeReminderCardGeometryClass}>
-        <div className="flex min-h-0 gap-3">
+        <div className="flex min-h-0 gap-3 max-lg:items-center">
           <LeadingIcon blockIconImageUrl={blockIconImageUrl} />
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-            <p id="patient-home-reminder-heading" className={patientHomeBlockHeadingClass}>
+            <p id="patient-home-reminder-heading" className={cn(patientHomeBlockHeadingClass, "whitespace-nowrap")}>
               Следующее напоминание
             </p>
             <h2 className={cn(patientHomeCardTitleClampSmClass, "mt-1")}>{scheduleLabel}</h2>
@@ -96,8 +101,11 @@ export function PatientHomeNextReminderCard({
               {ruleLabel}
             </p>
           </div>
+          <Link href={routePaths.patientReminders} prefetch={false} className={cn(patientButtonWarningOutlineClass, reminderCtaMobileClass)}>
+            Изменить
+          </Link>
         </div>
-        <Link href={routePaths.patientReminders} prefetch={false} className={cn(patientButtonWarningOutlineClass, reminderCtaClass)}>
+        <Link href={routePaths.patientReminders} prefetch={false} className={cn(patientButtonWarningOutlineClass, reminderCtaDesktopClass)}>
           Изменить
         </Link>
       </article>

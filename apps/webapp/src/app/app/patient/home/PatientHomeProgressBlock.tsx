@@ -66,7 +66,7 @@ export function PatientHomeProgressBlock({
           Прогресс
         </h2>
         <div className={patientHomeProgressGridClass}>
-          <div className="flex min-h-0 flex-col justify-center">
+          <div className="flex min-h-0 flex-col justify-center pr-3 lg:pr-0">
             <p className={cn(patientHomeBlockHeadingClass, "inline-flex items-center gap-1.5")}>
               Сегодня выполнено
               <Info className="size-3.5 text-[var(--patient-text-muted)]" aria-hidden />

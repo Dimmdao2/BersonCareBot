@@ -69,7 +69,7 @@ export function PatientHomeSubscriptionCarousel({ cards, sectionTitle }: Props) 
               : null}
               <p className={patientHomeCardTitleClampSmClass}>{c.title}</p>
               {c.subtitle?.trim() ?
-                <p className={cn(patientHomeCardSubtitleClampXsClass, "mt-0.5 line-clamp-1")}>{c.subtitle.trim()}</p>
+                <p className={cn(patientHomeCardSubtitleClampXsClass, "mt-0.5")}>{c.subtitle.trim()}</p>
               : null}
               </div>
             </div>

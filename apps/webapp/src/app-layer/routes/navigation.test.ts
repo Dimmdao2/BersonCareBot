@@ -35,13 +35,13 @@ describe("patientNavByPlatform", () => {
 });
 
 describe("PATIENT_PRIMARY_NAV_ITEMS", () => {
-  it("lists exactly Сегодня, Запись, Разминки, План, Дневник in order", () => {
+  it("lists Сегодня, Запись, Дневник, План, Профиль in order (без разминок)", () => {
     expect(PATIENT_PRIMARY_NAV_ITEMS.map((i) => i.label)).toEqual([
       "Сегодня",
       "Запись",
-      "Разминки",
-      "План",
       "Дневник",
+      "План",
+      "Профиль",
     ]);
   });
 });

@@ -355,8 +355,8 @@
   .safe-padding-patient {
     padding-left: max(1.25rem, env(safe-area-inset-left, 0px));
     padding-right: max(1.25rem, env(safe-area-inset-right, 0px));
-    /* Запас под фиксированную нижнюю навигацию пациента + safe area */
-    padding-bottom: max(4.5rem, calc(3.25rem + env(safe-area-inset-bottom, 0px)));
+    /* Нижняя навигация снята: только safe area + обычный отступ */
+    padding-bottom: max(1.25rem, env(safe-area-inset-bottom, 0px));
   }
 
   .safe-bleed-x {
