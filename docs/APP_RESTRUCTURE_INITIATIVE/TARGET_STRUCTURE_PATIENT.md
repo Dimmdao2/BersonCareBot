@@ -8,6 +8,7 @@
 - baseline-аудит: [`STRUCTURE_AUDIT.md`](STRUCTURE_AUDIT.md)
 - рекомендации и этапы работ: [`RECOMMENDATIONS_AND_ROADMAP.md`](RECOMMENDATIONS_AND_ROADMAP.md)
 - редизайн «Сегодня»: [`../PATIENT_HOME_REDESIGN_INITIATIVE/README.md`](../PATIENT_HOME_REDESIGN_INITIATIVE/README.md), [`VISUAL_SYSTEM_SPEC.md`](../PATIENT_HOME_REDESIGN_INITIATIVE/VISUAL_SYSTEM_SPEC.md)
+- стандарт реализации patient UI: [`../ARCHITECTURE/PATIENT_APP_UI_STYLE_GUIDE.md`](../ARCHITECTURE/PATIENT_APP_UI_STYLE_GUIDE.md)
 - целевая структура врача: [`TARGET_STRUCTURE_DOCTOR.md`](TARGET_STRUCTURE_DOCTOR.md)
 
 ---
@@ -246,6 +247,7 @@ flowchart TD
 6. **Материал — атом.** Все пути ведут в одну страницу `/content/[slug]`, она знает свой контекст.
 7. **«Помощь» — это контент, а не пустые ссылки.** Если в `/cabinet` сказано «Как подготовиться» — это `kind=article` страница с реальным содержанием.
 8. **Поддержка — один чат.** Не форма + чат + ссылка в три места.
+9. **Reuse-first визуальный слой.** Новые экраны веток «План/Дневник/Запись/Профиль» собираются на shared patient primitives + shadcn/base-ui по [`../ARCHITECTURE/PATIENT_APP_UI_STYLE_GUIDE.md`](../ARCHITECTURE/PATIENT_APP_UI_STYLE_GUIDE.md), без локального одноразового chrome.
 
 ---
 

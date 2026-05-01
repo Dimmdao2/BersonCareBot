@@ -7,6 +7,7 @@
 **Зависимости:**
 - Базовый снимок «как есть» — [`STRUCTURE_AUDIT.md`](STRUCTURE_AUDIT.md) (immutable).
 - Целевое видение — [`TARGET_STRUCTURE_PATIENT.md`](TARGET_STRUCTURE_PATIENT.md), [`TARGET_STRUCTURE_DOCTOR.md`](TARGET_STRUCTURE_DOCTOR.md).
+- UI-стандарт реализации страниц — [`../ARCHITECTURE/PATIENT_APP_UI_STYLE_GUIDE.md`](../ARCHITECTURE/PATIENT_APP_UI_STYLE_GUIDE.md): сначала shared patient primitives/shadcn base, без одноразового custom chrome.
 
 ---
 

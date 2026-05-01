@@ -12,11 +12,11 @@
 
 - `TREATMENT_PROGRAM_INITIATIVE` (архив): планово разгребать `LEGACY_CLEANUP_BACKLOG.md` (старые boundary-нарушения, не блокируют runtime).
 - `PATIENT_HOME_REDESIGN_INITIATIVE` (архив): остаточная pixel-полировка пустых состояний и микро-UX мелочи (не блокеры).
-- `PATIENT_APP_STYLE_TRANSFER_INITIATIVE` (архив): deferred routes (`/messages`, `/emergency`, `/lessons`, `/address`, `/intake/*`, booking landing) — отдельным мини-пассом при отдельном решении.
 
 ## Низкий приоритет / наблюдение
 
 - `PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE`: пока docs-only backlog, стартовать только отдельным решением.
+- Deferred patient routes (`/messages`, `/emergency`, `/lessons`, `/address`, `/intake/*`, booking landing): покрывать в будущих фазах `APP_RESTRUCTURE_INITIATIVE` только если маршруты сохраняются в целевой IA.
 - `VIDEO_HLS_DELIVERY`: крупная инфраструктурная инициатива, пока в состоянии проектирования (без кода).
 - `APP_RESTRUCTURE_INITIATIVE`: стратегическая рамка и roadmap, к реализации не приступали.
 

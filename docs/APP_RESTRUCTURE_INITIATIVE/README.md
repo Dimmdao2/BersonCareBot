@@ -17,7 +17,8 @@
 ## Связанные документы
 
 - Редизайн «Сегодня» пациента: [`../PATIENT_HOME_REDESIGN_INITIATIVE/README.md`](../PATIENT_HOME_REDESIGN_INITIATIVE/README.md), [`VISUAL_SYSTEM_SPEC.md`](../PATIENT_HOME_REDESIGN_INITIATIVE/VISUAL_SYSTEM_SPEC.md)
-- Перенос стиля по внутренним страницам: [`../PATIENT_APP_STYLE_TRANSFER_INITIATIVE/`](../PATIENT_APP_STYLE_TRANSFER_INITIATIVE/) (контекст до этой инициативы)
+- Стандарт patient UI (актуальный): [`../ARCHITECTURE/PATIENT_APP_UI_STYLE_GUIDE.md`](../ARCHITECTURE/PATIENT_APP_UI_STYLE_GUIDE.md)
+- Исторический style-transfer контекст: [`../archive/2026-05-initiatives/PATIENT_APP_STYLE_TRANSFER_INITIATIVE/`](../archive/2026-05-initiatives/PATIENT_APP_STYLE_TRANSFER_INITIATIVE/)
 - CMS-workflow: [`../archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/`](../archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/)
 - Правила репозитория: `.cursor/rules/clean-architecture-module-isolation.mdc`, `runtime-config-env-vs-db.mdc`, `system-settings-integrator-mirror.mdc`, `000-critical-integration-config-in-db.mdc`
 

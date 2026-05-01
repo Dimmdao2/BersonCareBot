@@ -6,6 +6,8 @@
 
 Это **не** продолжение visual redesign и **не** расширение Style Transfer route matrix. Это отдельный технический UI alignment pass.
 
+Нормативная база по визуальному слою: [`../ARCHITECTURE/PATIENT_APP_UI_STYLE_GUIDE.md`](../ARCHITECTURE/PATIENT_APP_UI_STYLE_GUIDE.md). Любой pass в этой инициативе должен переиспользовать shared patient primitives и shadcn/base-ui, а не вводить одноразовый route-level custom chrome.
+
 ## 2. Non-goals
 
 Не делать в рамках этой инициативы:
@@ -42,6 +44,8 @@
 - link/tile styles.
 
 Shadcn alignment не означает удаление `patientVisual.ts`.
+
+При конфликте решений приоритет у `PATIENT_APP_UI_STYLE_GUIDE.md`: home-specific geometry не переносим на inner pages, reusable слой расширяем только семантическими примитивами.
 
 ## 4. Phase Plan
 

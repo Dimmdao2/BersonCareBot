@@ -15,6 +15,7 @@
 - [`ARCHITECTURE/PLATFORM_IDENTITY_SCENARIOS_AND_CODE_MAP.md`](ARCHITECTURE/PLATFORM_IDENTITY_SCENARIOS_AND_CODE_MAP.md) — сценарии и привязка к коду (trusted paths, ops-скрипты §8).
 - [`ARCHITECTURE/PLATFORM_USER_MERGE.md`](ARCHITECTURE/PLATFORM_USER_MERGE.md) — canonical user, logical merge, миграции 061-064.
 - [`ARCHITECTURE/SPECIALIST_CABINET_STRUCTURE.md`](ARCHITECTURE/SPECIALIST_CABINET_STRUCTURE.md) — кабинет специалиста (header, layout, карточка клиента, вкладки settings).
+- [`ARCHITECTURE/PATIENT_APP_UI_STYLE_GUIDE.md`](ARCHITECTURE/PATIENT_APP_UI_STYLE_GUIDE.md) — стандарт patient UI: shared primitives, shadcn base, запрет лишнего custom chrome.
 - [`ARCHITECTURE/DOCTOR_CMS_AND_RUNTIME.md`](ARCHITECTURE/DOCTOR_CMS_AND_RUNTIME.md) — CMS врача, `MediaPickerShell`, мягкая деградация UI.
 - [`ARCHITECTURE/EXERCISES_CATALOG_PERFORMANCE_PRIMITIVES.md`](ARCHITECTURE/EXERCISES_CATALOG_PERFORMANCE_PRIMITIVES.md) — переиспользуемые примитивы каталогов (`CatalogSplitLayout`, `VirtualizedItemGrid`).
 - [`ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md`](ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md) — вебхук, `rubitime_events`, статусы 0–7, throttle 5500ms.

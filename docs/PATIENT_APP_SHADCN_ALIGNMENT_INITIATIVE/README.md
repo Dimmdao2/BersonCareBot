@@ -6,6 +6,8 @@
 
 Важно: локальный `Button` реализован через `@base-ui/react/button` и `buttonVariants`; на момент аудита у него **нет** `asChild` API. Для link-like кнопок текущий безопасный путь — `Link` + `buttonVariants(...)` / patient action classes, либо отдельный adapter после осознанного решения.
 
+Базовый визуальный стандарт для всех фаз: [`../ARCHITECTURE/PATIENT_APP_UI_STYLE_GUIDE.md`](../ARCHITECTURE/PATIENT_APP_UI_STYLE_GUIDE.md).
+
 ## Почему отдельная инициатива
 
 В global audit Style Transfer зафиксировано:
@@ -29,4 +31,5 @@
 - `AUDIT_RESULTS.md` — текущие результаты аудита и обсуждения.
 - `TASKS.md` — конкретные candidate tasks / passes.
 - `LOG.md` — журнал исполнения этой инициативы.
+- `../ARCHITECTURE/PATIENT_APP_UI_STYLE_GUIDE.md` — общий стандарт shared/shadcn/patient layer, который эта инициатива не должна нарушать.
 

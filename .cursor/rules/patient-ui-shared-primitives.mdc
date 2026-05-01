@@ -1,0 +1,25 @@
+---
+description: Patient UI — reuse shared/shadcn primitives before custom styles
+alwaysApply: true
+---
+
+# Patient UI Shared Primitives
+
+При работе с patient pages (`apps/webapp/src/app/app/patient/**`) сначала использовать готовые shared стили и UI-примитивы.
+
+## Источники по умолчанию
+
+1. `docs/ARCHITECTURE/PATIENT_APP_UI_STYLE_GUIDE.md`
+2. `apps/webapp/src/shared/ui/patientVisual.ts`
+3. `apps/webapp/src/components/ui/*` (shadcn/base-ui)
+4. `apps/webapp/src/app/globals.css` (`#app-shell-patient` токены)
+
+## Обязательные правила
+
+- Не писать новый локальный custom UI для карточек/кнопок/бейджей/accordion-like/form controls, если уже есть shared/shadcn решение.
+- Не переносить home-specific geometry из `app/app/patient/home/patientHomeCardStyles.ts` на внутренние страницы.
+- Для новых page-redesign/style-pass задач переиспользовать patient primitives и shadcn base, а не создавать “одноразовый chrome” внутри route-компонента.
+
+## Когда кастом допустим
+
+Кастом возможен только при явной продуктовой причине и отсутствии подходящего shared/shadcn варианта. Причину нужно зафиксировать в docs/LOG активной инициативы.
