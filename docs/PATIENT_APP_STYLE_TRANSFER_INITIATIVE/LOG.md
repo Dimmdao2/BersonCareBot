@@ -1,5 +1,28 @@
 # LOG — Patient App Style Transfer
 
+## 2026-05-01 — Phase 5 / FIX (`AUDIT_PHASE_5` mandatory)
+
+- Agent/model: Composer (Cursor).
+- Scope: только mandatory из `AUDIT_PHASE_5.md` — **§3: mandatory fixes отсутствуют**; изменений app-кода для FIX не требовалось.
+- Files changed (FIX): `docs/PATIENT_APP_STYLE_TRANSFER_INITIATIVE/LOG.md` (этот файл); в том же коммите — артефакты Phase 5 / AUDIT (`AUDIT_PHASE_5.md`, `GLOBAL_AUDIT.md`, правки `CHECKLISTS.md`, `05_QA_DOCS_PLAN.md`, `docs/README.md`) если они ещё не были на remote.
+- Checks: **`pnpm install --frozen-lockfile`** и root **`pnpm run ci`** (полный CI перед push по запросу FIX).
+- Next step: выполнить глобальный аудит по **`GLOBAL_AUDIT.md`** / merge по процессу команды.
+
+## 2026-05-01 — Phase 5 / EXEC (QA, docs, global audit prep)
+
+- Agent/model: Composer (Cursor).
+- Scope: docs-only prep по **`05_QA_DOCS_PLAN.md`** — без нового page style pass; app-код не менялся.
+- Mandatory fixes: проверено закрытие — **Phase 0** (`PLAN_INVENTORY.md` + записи `LOG`); **Phase 1–4** в соответствующих **`AUDIT_PHASE_*.md` §3** — *No mandatory fixes.* Новых mandatory не вводилось.
+- Files changed: `docs/PATIENT_APP_STYLE_TRANSFER_INITIATIVE/CHECKLISTS.md` (§4 отмечен выполненным по EXEC фаз 2–4; добавлен §4.1 deferred routes), `docs/PATIENT_APP_STYLE_TRANSFER_INITIATIVE/GLOBAL_AUDIT.md` (prep + инструкция к глобальному аудиту), `docs/PATIENT_APP_STYLE_TRANSFER_INITIATIVE/05_QA_DOCS_PLAN.md` (чеклист Phase 5), `docs/README.md` (active initiative links), этот **`LOG.md`**.
+- Product/content gaps **deferred** (зафиксировано для global audit / не решалось в transfer):
+  - Маршруты из **`CHECKLISTS.md` §4.1** и **`PLAN_INVENTORY.md` §1** (home, messages, emergency, lessons, booking landing, address, intake, и пр.) — вне пофазовой матрицы §4.
+  - **`AUDIT_PHASE_4`**: `BookingFormatGrid.tsx` без импортов в дереве — при появлении flow пройти style pass; **`CabinetInfoLinks`** — опционально вынести инлайн `--patient-*` в именованный примитив позже.
+  - Визуальный QA по **`CHECKLISTS.md` §5** и полные скриншоты — не выполнялись в audit-сессиях фаз (см. minor notes в аудитах); остаётся на ручной / global audit шаг.
+  - Чекбоксы внутри самих `*_STYLE_PLAN.md` могли не синхронизироваться — источник факта выполнения: этот **`LOG.md`** и **`AUDIT_PHASE_*.md`**.
+- Style-only confirmation: широкий «редизайн контента» в документах инициативы не вводился; отсылки к другим инициативам (`VISUAL_REDESIGN`, Home) только как контекст токенов / baseline.
+- Checks: `pnpm --dir apps/webapp typecheck`; `pnpm --dir apps/webapp lint`. Root **`pnpm run ci`** не запускался (запрос Phase 5).
+- Next step: **глобальный аудит** — заполнить **`GLOBAL_AUDIT.md`** по **`AUDIT_TEMPLATE.md`** отдельной сессией; при необходимости закрыть инициативу по процессу команды.
+
 ## 2026-05-01 — Phase 4 / FIX (`AUDIT_PHASE_4` mandatory)
 
 - Agent/model: Composer (Cursor).

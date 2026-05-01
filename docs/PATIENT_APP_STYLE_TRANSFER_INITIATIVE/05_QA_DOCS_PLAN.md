@@ -22,15 +22,15 @@ Forbidden:
 
 ## Checklist
 
-- [ ] Verify all phase audits exist.
-- [ ] Verify all mandatory findings are closed.
-- [ ] Review `CHECKLISTS.md` route matrix and mark deferred routes explicitly.
-- [ ] Confirm product/content gaps are logged as deferred.
-- [ ] Confirm no old broad "redesign" language remains in this initiative.
-- [ ] Confirm no home-specific geometry is imported into unrelated pages.
-- [ ] Confirm no doctor/admin files were intentionally changed.
-- [ ] Update `docs/README.md`.
-- [ ] Prepare for `GLOBAL_AUDIT.md`.
+- [x] Verify all phase audits exist.
+- [x] Verify all mandatory findings are closed.
+- [x] Review `CHECKLISTS.md` route matrix and mark deferred routes explicitly.
+- [x] Confirm product/content gaps are logged as deferred.
+- [x] Confirm no old broad "redesign" language remains in this initiative.
+- [x] Confirm no home-specific geometry is imported into unrelated pages (by audit record + inventory intent; grep при global audit).
+- [x] Confirm no doctor/admin files were intentionally changed (per phase audits).
+- [x] Update `docs/README.md`.
+- [x] Prepare for `GLOBAL_AUDIT.md`.
 
 ## Visual QA
 

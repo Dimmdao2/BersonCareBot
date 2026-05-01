@@ -40,33 +40,50 @@ If any item fails, stop and ask for product/engineering approval.
 
 Phase 2 — static/read-only style pass:
 
-- [ ] `/app/patient/sections`
-- [ ] `/app/patient/sections/[slug]`
-- [ ] `/app/patient/content/[slug]`
-- [ ] `/app/patient/courses`
-- [ ] `/app/patient/treatment-programs`
-- [ ] `/app/patient/treatment-programs/[instanceId]`
+- [x] `/app/patient/sections`
+- [x] `/app/patient/sections/[slug]`
+- [x] `/app/patient/content/[slug]`
+- [x] `/app/patient/courses`
+- [x] `/app/patient/treatment-programs`
+- [x] `/app/patient/treatment-programs/[instanceId]`
 
 Phase 3 — interactive style pass:
 
-- [ ] `/app/patient/profile`
-- [ ] `/app/patient/notifications`
-- [ ] `/app/patient/reminders`
-- [ ] `/app/patient/reminders/journal/[ruleId]`
-- [ ] `/app/patient/diary`
-- [ ] `/app/patient/diary/symptoms*`
-- [ ] `/app/patient/diary/lfk*`
-- [ ] `/app/patient/support`
-- [ ] `/app/patient/help`
-- [ ] `/app/patient/purchases`
-- [ ] `/app/patient/bind-phone`
+- [x] `/app/patient/profile`
+- [x] `/app/patient/notifications`
+- [x] `/app/patient/reminders`
+- [x] `/app/patient/reminders/journal/[ruleId]`
+- [x] `/app/patient/diary`
+- [x] `/app/patient/diary/symptoms*`
+- [x] `/app/patient/diary/lfk*`
+- [x] `/app/patient/support`
+- [x] `/app/patient/help`
+- [x] `/app/patient/purchases`
+- [x] `/app/patient/bind-phone`
 
 Phase 4 — booking/cabinet style pass:
 
-- [ ] `/app/patient/booking/new*`
-- [ ] patient cabinet booking components
-- [ ] appointment cards/lists
-- [ ] booking calendar/slot chips
+- [x] `/app/patient/booking/new*`
+- [x] patient cabinet booking components
+- [x] appointment cards/lists
+- [x] booking calendar/slot chips
+
+### 4.1 Routes deferred (вне матрицы §4 EXEC)
+
+Маршруты и блоки под `apps/webapp/src/app/app/patient/**`, для которых **не** был отдельный пофазовый style pass по матрице выше; учитывать при **`GLOBAL_AUDIT.md`** и будущих решениях (не придумывать продукт в рамках transfer).
+
+| Зона | Примечание |
+|------|------------|
+| `/app/patient` (home) | Эталон токенов; hero/специфика главной — см. Patient Home инициативы. |
+| `/app/patient/booking` (landing, не шаги `new/*`) | Не входил в чеклист §4 Phase 4 как `booking/new*` — **deferred** для глобального обзора. |
+| `/app/patient/messages` | deferred |
+| `/app/patient/emergency` | deferred |
+| `/app/patient/lessons` | deferred |
+| `/app/patient/install` | Частично: Phase 3 EXEC задействовал `install/page.tsx` (`LOG.md`); политика «extra route» из `PLAN_INVENTORY.md` сохраняется. |
+| `/app/patient/address` | deferred |
+| `/app/patient/intake/*` | deferred |
+
+Источник списка extra: **`PLAN_INVENTORY.md` §1** (таблица «Главная и прочие patient pages»).
 
 ## 5. Visual QA Checklist
 
