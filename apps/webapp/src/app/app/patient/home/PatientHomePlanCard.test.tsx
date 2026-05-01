@@ -8,8 +8,9 @@ import { routePaths } from "@/app-layer/routes/paths";
 describe("PatientHomePlanCard", () => {
   it("renders empty state when instance is null (guest CTA uses login+next)", () => {
     render(<PatientHomePlanCard instance={null} anonymousGuest personalTierOk={false} />);
-    expect(screen.getByText(/Нет активного плана/i)).toBeInTheDocument();
-    const cta = screen.getByRole("link", { name: /Войти и открыть планы/i });
+    expect(screen.getByText("Мой план реабилитации")).toBeInTheDocument();
+    expect(screen.getByText("Назначит специалист или выберите готовую программу")).toBeInTheDocument();
+    const cta = screen.getByRole("link", { name: /Выбрать курс/i });
     expect(cta.getAttribute("href")).toContain(`${routePaths.root}?next=`);
     expect(cta.getAttribute("href")).toContain(encodeURIComponent(routePaths.patientTreatmentPrograms));
   });

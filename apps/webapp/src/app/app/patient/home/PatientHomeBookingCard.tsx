@@ -51,13 +51,13 @@ export function PatientHomeBookingCard({ personalTierOk, anonymousGuest, blockIc
         <div className="flex min-h-0 min-w-0 flex-1 flex-col justify-between gap-4 lg:gap-3">
           <div className="flex min-w-0 items-start gap-3">
             <div
-              className="inline-flex size-11 shrink-0 items-center justify-center rounded-xl bg-[#dcfce7] text-[var(--patient-color-success)]"
+              className="inline-flex size-11 shrink-0 items-center justify-center rounded-full bg-[#dcfce7] text-[var(--patient-color-success)] lg:size-14"
               aria-hidden
             >
               <PatientHomeSafeImage
                 src={blockIconImageUrl}
                 alt=""
-                className="size-6 rounded-md object-cover"
+                className="size-6 rounded-full object-cover"
                 loading="lazy"
                 fallback={<Calendar className="size-6" aria-hidden />}
               />
@@ -73,14 +73,14 @@ export function PatientHomeBookingCard({ personalTierOk, anonymousGuest, blockIc
             <Link
               href={bookingHref}
               prefetch={false}
-              className={cn(patientButtonSuccessClass, "min-h-10 w-full rounded-lg px-3 text-sm lg:w-[8.75rem]")}
+              className={cn(patientButtonSuccessClass, "min-h-10 flex-1 rounded-lg px-3 text-sm")}
             >
               Записаться
             </Link>
             <Link
               href={cabinetHref}
               prefetch={false}
-              className={cn(patientButtonSecondaryClass, "min-h-10 w-full rounded-lg px-3 text-sm lg:w-[8.75rem]")}
+              className={cn(patientButtonSecondaryClass, "min-h-10 flex-1 rounded-lg px-3 text-sm")}
             >
               Мои приёмы
             </Link>

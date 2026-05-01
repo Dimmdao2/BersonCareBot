@@ -68,11 +68,11 @@
   --patient-page-bg: #ffffff;
   --patient-card-bg: #ffffff;
   --patient-border: #e5e7eb;
-  --patient-card-radius-mobile: 20px;
-  --patient-card-radius-desktop: 24px;
-  --patient-hero-radius-mobile: 24px;
-  --patient-hero-radius-desktop: 28px;
-  --patient-pill-radius: 9999px;
+  --patient-card-radius-mobile: 10px;
+  --patient-card-radius-desktop: 12px;
+  --patient-hero-radius-mobile: 12px;
+  --patient-hero-radius-desktop: 14px;
+  --patient-pill-radius: 10px;
   --patient-shadow-card-mobile: 0 4px 14px rgba(15, 23, 42, 0.04);
   --patient-shadow-card-desktop: 0 8px 24px rgba(15, 23, 42, 0.05);
   --patient-shadow-nav: 0 -4px 16px rgba(15, 23, 42, 0.04);
@@ -88,6 +88,9 @@
   --patient-text-secondary: #667085;
   --patient-text-muted: #98a2b3;
   --patient-block-heading: #172f62;
+  --patient-block-heading-font-size: 0.875rem;
+  --patient-block-heading-line-height: 1.25rem;
+  --patient-block-heading-font-weight: 600;
   /** Подписи под плитками и вспомогательные строки в блоках «Сегодня». */
   --patient-block-caption: #465880;
 }

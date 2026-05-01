@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { ResolvedCarouselCard } from "@/modules/patient-home/patientHomeResolvers";
 import {
-  patientHomeBlockHeadingBoldClass,
+  patientHomeBlockHeadingClass,
   patientBadgePrimaryClass,
   patientHomeCardCompactClass,
   patientHomeCardMediaSlotClass,
@@ -28,11 +28,14 @@ export function PatientHomeSubscriptionCarousel({ cards, sectionTitle }: Props) 
 
   return (
     <section id="patient-home-subscription-carousel" className={patientHomeTodaySectionStackClass} aria-labelledby="patient-home-subscription-heading">
-      <h2 id="patient-home-subscription-heading" className={patientHomeBlockHeadingBoldClass}>
+      <h2 id="patient-home-subscription-heading" className={cn(patientHomeBlockHeadingClass, "px-4 lg:px-[18px]")}>
         {heading}
       </h2>
       <div
-        className={cn("-mx-1 flex snap-x snap-mandatory gap-3 overflow-x-auto px-1 pb-1 [scrollbar-width:thin]")}
+        className={cn(
+          "-mx-1 flex snap-x snap-mandatory gap-3 overflow-x-auto px-1 pb-1 [scrollbar-width:thin]",
+          "lg:mx-0 lg:grid lg:grid-cols-3 lg:overflow-visible lg:px-0",
+        )}
         style={{ WebkitOverflowScrolling: "touch" }}
       >
         {cards.map((c) => (
@@ -44,7 +47,8 @@ export function PatientHomeSubscriptionCarousel({ cards, sectionTitle }: Props) 
             className={cn(
               patientHomeCardCompactClass,
               patientHomeCarouselItemLayoutClass,
-              cards.length === 1 && "lg:w-full lg:max-w-none lg:min-w-0",
+              "lg:w-full lg:max-w-none lg:min-w-0",
+              cards.length === 1 && "lg:col-span-full",
             )}
           >
             <div className="flex min-h-0 flex-1 gap-3">
@@ -65,7 +69,7 @@ export function PatientHomeSubscriptionCarousel({ cards, sectionTitle }: Props) 
               : null}
               <p className={patientHomeCardTitleClampSmClass}>{c.title}</p>
               {c.subtitle?.trim() ?
-                <p className={cn(patientHomeCardSubtitleClampXsClass, "mt-0.5")}>{c.subtitle.trim()}</p>
+                <p className={cn(patientHomeCardSubtitleClampXsClass, "mt-0.5 line-clamp-1")}>{c.subtitle.trim()}</p>
               : null}
               </div>
             </div>

@@ -22,7 +22,9 @@ describe("PatientHomeSosCard", () => {
         }}
       />,
     );
-    expect(screen.getByRole("link", { name: /SOS title/i })).toHaveAttribute("href", "/app/patient/content/sos-page");
+    expect(screen.getByText(/Если болит сейчас/i)).toBeInTheDocument();
+    expect(screen.getByText("Рекомендации по облегчению боли")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Быстрая помощь/i })).toHaveAttribute("href", "/app/patient/content/sos-page");
   });
 
   it("renders custom leading block icon when blockIconImageUrl is set", () => {

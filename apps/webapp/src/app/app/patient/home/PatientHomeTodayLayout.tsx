@@ -64,41 +64,41 @@ function desktopBlockLayout(code: PatientHomeBlockCode): {
         "data-lg-col-start": "9",
         "data-lg-col-span": "4",
       };
-    /** Раньше SOS стоял справа от progress; после пары progress+reminder — отдельная полоса на всю ширину. */
+    /** Compact desktop row: mood / SOS / rehab plan. */
     case "sos":
       return {
-        className: "lg:col-span-12 lg:col-start-1 lg:order-[35]",
-        "data-lg-order": "35",
-        "data-lg-col-start": "1",
-        "data-lg-col-span": "12",
+        className: "lg:col-span-4 lg:col-start-5 lg:order-[40]",
+        "data-lg-order": "40",
+        "data-lg-col-start": "5",
+        "data-lg-col-span": "4",
       };
     case "plan":
-      return {
-        className: "lg:col-span-8 lg:col-start-1 lg:order-[40]",
-        "data-lg-order": "40",
-        "data-lg-col-start": "1",
-        "data-lg-col-span": "8",
-      };
-    case "mood_checkin":
       return {
         className: "lg:col-span-4 lg:col-start-9 lg:order-[40]",
         "data-lg-order": "40",
         "data-lg-col-start": "9",
         "data-lg-col-span": "4",
       };
+    case "mood_checkin":
+      return {
+        className: "lg:col-span-4 lg:col-start-1 lg:order-[40]",
+        "data-lg-order": "40",
+        "data-lg-col-start": "1",
+        "data-lg-col-span": "4",
+      };
     case "courses":
       return {
-        className: "lg:col-span-8 lg:col-start-1 lg:order-[50]",
-        "data-lg-order": "50",
+        className: "lg:col-span-12 lg:col-start-1 lg:order-[60]",
+        "data-lg-order": "60",
         "data-lg-col-start": "1",
-        "data-lg-col-span": "8",
+        "data-lg-col-span": "12",
       };
     case "subscription_carousel":
       return {
-        className: "lg:col-span-4 lg:col-start-9 lg:order-[50]",
+        className: "lg:col-span-12 lg:col-start-1 lg:order-[50]",
         "data-lg-order": "50",
-        "data-lg-col-start": "9",
-        "data-lg-col-span": "4",
+        "data-lg-col-start": "1",
+        "data-lg-col-span": "12",
       };
   }
 }
@@ -107,7 +107,7 @@ export function PatientHomeTodayLayout({ personalizedName, timeOfDayPrefix, bloc
   return (
     <div
       id="patient-home-today-layout"
-      className="flex flex-col gap-5 pb-6 lg:gap-6"
+      className="flex min-w-0 flex-col gap-5 overflow-x-hidden pb-6 lg:gap-6"
     >
       <PatientHomeGreeting personalizedName={personalizedName} timeOfDayPrefix={timeOfDayPrefix} />
 

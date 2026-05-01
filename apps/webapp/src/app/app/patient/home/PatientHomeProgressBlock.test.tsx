@@ -16,7 +16,7 @@ describe("PatientHomeProgressBlock", () => {
     render(
       <PatientHomeProgressBlock practiceTarget={3} personalTierOk={false} anonymousGuest={false} progress={null} />,
     );
-    expect(screen.getByText(/Активируйте профиль пациента/i)).toBeInTheDocument();
+    expect(screen.getByText(/Прогресс появится после активации профиля/i)).toBeInTheDocument();
   });
 
   it("shows counters for patient with progress", () => {

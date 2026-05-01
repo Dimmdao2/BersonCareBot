@@ -9,7 +9,6 @@ import { routePaths } from "@/app-layer/routes/paths";
 import type { PatientMoodToday } from "@/modules/patient-mood/types";
 import type { PatientHomeMoodIconOption } from "@/modules/patient-home/patientHomeMoodIcons";
 import {
-  patientHomeBlockBodySmClass,
   patientHomeBlockHeadingClass,
   patientHomeCardGradientWarmClass,
   patientHomeMoodCardGeometryClass,
@@ -38,19 +37,19 @@ const MOOD_SCORE_ICON_CLASS: Record<1 | 2 | 3 | 4 | 5, string> = {
 
 /** Hover/active border в цвет иконки (полные строки для Tailwind JIT). */
 const MOOD_SCORE_CONTAINER_ACTIVE: Record<1 | 2 | 3 | 4 | 5, string> = {
-  1: "border-red-600 bg-red-50/90 ring-2 ring-red-600/25",
-  2: "border-orange-600 bg-orange-50/90 ring-2 ring-orange-600/25",
-  3: "border-amber-500 bg-amber-50/90 ring-2 ring-amber-500/25",
-  4: "border-lime-600 bg-lime-50/90 ring-2 ring-lime-600/25",
-  5: "border-green-600 bg-green-50/90 ring-2 ring-green-600/25",
+  1: "border-red-300 bg-red-50/70 ring-1 ring-red-200/50",
+  2: "border-orange-300 bg-orange-50/70 ring-1 ring-orange-200/50",
+  3: "border-amber-300 bg-amber-50/70 ring-1 ring-amber-200/50",
+  4: "border-lime-300 bg-lime-50/70 ring-1 ring-lime-200/50",
+  5: "border-green-300 bg-green-50/70 ring-1 ring-green-200/50",
 };
 
 const MOOD_SCORE_CONTAINER_HOVER: Record<1 | 2 | 3 | 4 | 5, string> = {
-  1: "hover:border-red-600 hover:bg-white/90",
-  2: "hover:border-orange-600 hover:bg-white/90",
-  3: "hover:border-amber-500 hover:bg-white/90",
-  4: "hover:border-lime-600 hover:bg-white/90",
-  5: "hover:border-green-600 hover:bg-white/90",
+  1: "border-red-200 hover:border-red-400 hover:bg-red-50/40",
+  2: "border-orange-200 hover:border-orange-400 hover:bg-orange-50/40",
+  3: "border-amber-200 hover:border-amber-400 hover:bg-amber-50/40",
+  4: "border-lime-200 hover:border-lime-400 hover:bg-lime-50/40",
+  5: "border-green-200 hover:border-green-400 hover:bg-green-50/40",
 };
 
 type Props = {
@@ -115,15 +114,15 @@ export function PatientHomeMoodCheckin({
           Изменить
         </button>
       </>
-    : "Выберите оценку от 1 до 5.";
+    : null;
 
   const renderMoodScale = (disabled: boolean) => (
-    <div className="grid min-h-[4rem] flex-1 grid-cols-5 items-start gap-2" role="group" aria-label="Оценка самочувствия">
+    <div className="grid min-h-[3.5rem] flex-1 grid-cols-5 items-start gap-1.5" role="group" aria-label="Оценка самочувствия">
       {moodOptions.map((option) => {
         const active = selectedScore === option.score;
         const MoodIcon = MOOD_SCORE_ICONS[option.score];
         return (
-          <div key={option.score} className="flex min-w-0 flex-col items-center gap-1">
+          <div key={option.score} className="flex min-w-0 flex-col items-center">
             <button
               type="button"
               aria-label={`Самочувствие ${option.score} из 5: ${option.label}`}
@@ -139,18 +138,18 @@ export function PatientHomeMoodCheckin({
               <PatientHomeSafeImage
                 src={disabled ? null : option.imageUrl}
                 alt=""
-                className="size-8 rounded-full object-cover sm:size-9"
+                className="size-full rounded-full object-cover"
                 loading="lazy"
                 fallback={
                   <MoodIcon
                     aria-hidden
-                    className={cn("size-8 shrink-0 sm:size-9", MOOD_SCORE_ICON_CLASS[option.score])}
+                    className={cn("size-10 shrink-0 sm:size-11", MOOD_SCORE_ICON_CLASS[option.score])}
                     strokeWidth={1.25}
                   />
                 }
               />
             </button>
-            <span className="text-xs font-semibold leading-none text-[var(--patient-text-primary)]">{option.score}</span>
+            <span className="mt-1.5 text-xs font-semibold leading-none text-[var(--patient-text-primary)]">{option.score}</span>
           </div>
         );
       })}
@@ -168,10 +167,9 @@ export function PatientHomeMoodCheckin({
           <h2 id="patient-home-mood-heading" className={patientHomeBlockHeadingClass}>
             Как вы себя чувствуете?
           </h2>
-          <p className={cn("mt-1", patientHomeBlockBodySmClass)}>Отметьте своё состояние одним касанием</p>
         </div>
         {anonymousGuest ?
-          <div className="flex min-h-0 flex-1 flex-col justify-between gap-2 pt-3">
+          <div className="flex min-h-0 flex-1 flex-col justify-between gap-1.5 pt-2.5">
             {renderMoodScale(true)}
             <p className={patientHomeMoodStatusSlotClass}>
               <Link href={appLoginWithNextHref(routePaths.patient)} className="font-medium text-primary underline-offset-4 hover:underline">
@@ -181,15 +179,17 @@ export function PatientHomeMoodCheckin({
             </p>
           </div>
         : !personalTierOk ?
-          <div className="flex min-h-0 flex-1 flex-col justify-between gap-2 pt-3">
+          <div className="flex min-h-0 flex-1 flex-col justify-between gap-1.5 pt-2.5">
             {renderMoodScale(true)}
             <p className={patientHomeMoodStatusSlotClass}>Чек-ин самочувствия будет доступен после активации профиля.</p>
           </div>
-        : <div className="flex min-h-0 flex-1 flex-col justify-between gap-2 pt-3">
+        : <div className="flex min-h-0 flex-1 flex-col justify-between gap-1.5 pt-2.5">
             {renderMoodScale(false)}
-            <p className={patientHomeMoodStatusSlotClass} aria-live="polite">
-              {statusLine}
-            </p>
+            {statusLine ?
+              <p className={patientHomeMoodStatusSlotClass} aria-live="polite">
+                {statusLine}
+              </p>
+            : null}
           </div>}
       </div>
     </section>

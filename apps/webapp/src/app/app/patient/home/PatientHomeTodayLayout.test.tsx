@@ -52,25 +52,35 @@ describe("PatientHomeTodayLayout", () => {
     expect(booking).toHaveAttribute("data-lg-col-span", "4");
 
     const sos = container.querySelector('[data-patient-home-block="sos"]');
-    expect(sos).toHaveAttribute("data-lg-order", "35");
-    expect(sos).toHaveAttribute("data-lg-col-start", "1");
-    expect(sos).toHaveAttribute("data-lg-col-span", "12");
+    expect(sos).toHaveAttribute("data-lg-order", "40");
+    expect(sos).toHaveAttribute("data-lg-col-start", "5");
+    expect(sos).toHaveAttribute("data-lg-col-span", "4");
+    expect(sos).toHaveClass("lg:order-[40]");
 
     const plan = container.querySelector('[data-patient-home-block="plan"]');
     expect(plan).toHaveAttribute("data-lg-order", "40");
-    expect(plan).toHaveAttribute("data-lg-col-start", "1");
-    expect(plan).toHaveAttribute("data-lg-col-span", "8");
+    expect(plan).toHaveAttribute("data-lg-col-start", "9");
+    expect(plan).toHaveAttribute("data-lg-col-span", "4");
+    expect(plan).toHaveClass("lg:order-[40]");
 
     const mood = container.querySelector('[data-patient-home-block="mood_checkin"]');
     expect(mood).toHaveAttribute("data-lg-order", "40");
-    expect(mood).toHaveAttribute("data-lg-col-start", "9");
+    expect(mood).toHaveAttribute("data-lg-col-start", "1");
     expect(mood).toHaveAttribute("data-lg-col-span", "4");
+    expect(mood).toHaveClass("lg:order-[40]");
 
     const subscription = container.querySelector('[data-patient-home-block="subscription_carousel"]');
     expect(subscription).toHaveAttribute("data-lg-order", "50");
-    expect(subscription).toHaveAttribute("data-lg-col-start", "9");
-    expect(subscription).toHaveAttribute("data-lg-col-span", "4");
+    expect(subscription).toHaveAttribute("data-lg-col-start", "1");
+    expect(subscription).toHaveAttribute("data-lg-col-span", "12");
+    expect(subscription).toHaveClass("lg:order-[50]");
     expect(within(subscription as HTMLElement).getByText("Subscription")).toBeInTheDocument();
+
+    const courses = container.querySelector('[data-patient-home-block="courses"]');
+    expect(courses).toHaveAttribute("data-lg-order", "60");
+    expect(courses).toHaveAttribute("data-lg-col-start", "1");
+    expect(courses).toHaveAttribute("data-lg-col-span", "12");
+    expect(courses).toHaveClass("lg:order-[60]");
   });
 
   it("does not render full-width carousel wrapper when carousel block is absent", () => {
@@ -85,5 +95,25 @@ describe("PatientHomeTodayLayout", () => {
     );
 
     expect(container.querySelector('[data-patient-home-block="subscription_carousel"]')).not.toBeInTheDocument();
+  });
+
+  it("keeps mobile block order in the same order as resolved settings", () => {
+    render(
+      <PatientHomeTodayLayout
+        personalizedName={null}
+        blocks={[
+          block("daily_warmup", "Warmup"),
+          block("situations", "Situations"),
+          block("booking", "Booking"),
+        ]}
+      />,
+    );
+
+    const layoutGrid = screen.getByTestId("patient-home-layout-grid");
+    expect([...layoutGrid.children].map((child) => child.getAttribute("data-patient-home-block"))).toEqual([
+      "daily_warmup",
+      "situations",
+      "booking",
+    ]);
   });
 });

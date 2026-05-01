@@ -13,7 +13,7 @@ import { PatientHomeSafeImage } from "./PatientHomeSafeImage";
 import { patientButtonWarningOutlineClass } from "@/shared/ui/patientVisual";
 import { cn } from "@/lib/utils";
 
-const reminderCtaClass = "lg:ml-auto lg:w-[8.75rem]";
+const reminderCtaClass = "w-fit min-w-[8.75rem] self-start px-4 lg:ml-auto lg:w-[8.75rem] lg:self-auto";
 
 type Props = {
   rule: ReminderRule | null;
@@ -26,13 +26,13 @@ type Props = {
 function LeadingIcon({ blockIconImageUrl }: { blockIconImageUrl?: string | null }) {
   return (
     <div
-      className="inline-flex size-11 shrink-0 items-center justify-center rounded-2xl bg-[#fef3c7] text-[var(--patient-color-warning)]"
+      className="inline-flex size-11 shrink-0 items-center justify-center rounded-full bg-[#fef3c7] text-[var(--patient-color-warning)] lg:size-14"
       aria-hidden
     >
       <PatientHomeSafeImage
         src={blockIconImageUrl}
         alt=""
-        className="size-6 rounded-md object-cover"
+        className="size-6 rounded-full object-cover"
         loading="lazy"
         fallback={<Bell className="size-6" />}
       />
@@ -49,7 +49,7 @@ export function PatientHomeNextReminderCard({
 }: Props) {
   if (!rule) {
     const remindersHref = anonymousGuest ? appLoginWithNextHref(routePaths.patientReminders) : routePaths.patientReminders;
-    const ctaLabel = anonymousGuest ? "Войти и открыть напоминания" : "Открыть напоминания";
+    const ctaLabel = anonymousGuest ? "Войти" : "Настроить";
     return (
       <section aria-labelledby="patient-home-reminder-heading" data-reminder-empty>
         <article id="patient-home-next-reminder-card" className={patientHomeReminderCardGeometryClass}>
@@ -62,12 +62,12 @@ export function PatientHomeNextReminderCard({
               <h2 className={cn(patientHomeCardTitleClampSmClass, "mt-1")}>
                 Пока нет ближайших
               </h2>
-              <p className={patientHomeBlockCaptionSmClamp2Mt1Class}>
+              <p className={cn(patientHomeBlockCaptionSmClamp2Mt1Class, "lg:hidden")}>
                 {anonymousGuest ?
-                  "Войдите, чтобы настроить напоминания о практиках и приёме лекарств."
+                  "Чтобы настроить напоминания."
                 : !personalTierOk ?
-                  "Напоминания станут доступны после активации профиля пациента."
-                : "Добавьте правило напоминаний в разделе «Напоминания»."}
+                  "После активации профиля."
+                : "Добавьте время практики."}
               </p>
             </div>
           </div>
@@ -90,14 +90,14 @@ export function PatientHomeNextReminderCard({
             <p id="patient-home-reminder-heading" className={patientHomeBlockHeadingClass}>
               Следующее напоминание
             </p>
-            <h2 className={cn(patientHomeCardTitleClampSmClass, "mt-1")}>{ruleLabel}</h2>
-            <p className={patientHomeBlockCaptionSmClamp2Mt1Class}>
-              Ближайшее срабатывание: <span className="text-[var(--patient-text-primary)]">{scheduleLabel}</span>
+            <h2 className={cn(patientHomeCardTitleClampSmClass, "mt-1")}>{scheduleLabel}</h2>
+            <p className={cn(patientHomeBlockCaptionSmClamp2Mt1Class, "lg:hidden")}>
+              {ruleLabel}
             </p>
           </div>
         </div>
         <Link href={routePaths.patientReminders} prefetch={false} className={cn(patientButtonWarningOutlineClass, reminderCtaClass)}>
-          Открыть напоминания
+          Изменить
         </Link>
       </article>
     </section>

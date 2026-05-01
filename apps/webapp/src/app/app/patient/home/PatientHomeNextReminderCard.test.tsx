@@ -29,16 +29,16 @@ describe("PatientHomeNextReminderCard", () => {
     render(
       <PatientHomeNextReminderCard rule={null} scheduleLabel="" anonymousGuest personalTierOk={false} />,
     );
-    const cta = screen.getByRole("link", { name: /Войти и открыть напоминания/i });
+    const cta = screen.getByRole("link", { name: /Войти/i });
     expect(cta.getAttribute("href")).toContain(`${routePaths.root}?next=`);
     expect(cta.getAttribute("href")).toContain(encodeURIComponent(routePaths.patientReminders));
   });
 
   it("shows the calculated nearest occurrence label and link to reminders", () => {
     render(<PatientHomeNextReminderCard rule={baseRule()} scheduleLabel="ср, 10:15" />);
-    expect(screen.getByText(/Ближайшее срабатывание:/i)).toBeInTheDocument();
     expect(screen.getByText("ср, 10:15")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Открыть напоминания/i })).toHaveAttribute("href", "/app/patient/reminders");
+    expect(screen.getByText("Напоминание")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Изменить/i })).toHaveAttribute("href", "/app/patient/reminders");
   });
 
   it("renders custom leading icon when blockIconImageUrl is set", () => {

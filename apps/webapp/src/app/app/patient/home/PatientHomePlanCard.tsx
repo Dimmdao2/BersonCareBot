@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ClipboardList } from "lucide-react";
 import { routePaths } from "@/app-layer/routes/paths";
 import {
-  patientHomeBlockHeadingBoldClass,
+  patientHomeBlockHeadingClass,
   patientHomeCardClass,
   patientHomeSecondaryCardTallHeightClass,
   patientIconLeadingClass,
@@ -29,15 +29,15 @@ type Props = {
 function LeadingPlanIcon({ blockIconImageUrl, emphasized = false }: { blockIconImageUrl?: string | null; emphasized?: boolean }) {
   return (
     <div
-      className={cn(patientIconLeadingClass, emphasized && "size-12 rounded-2xl bg-[var(--patient-color-primary-soft)]/60 lg:size-14")}
+      className={cn(patientIconLeadingClass, emphasized && "bg-[var(--patient-color-primary-soft)]/60")}
       aria-hidden
     >
       <PatientHomeSafeImage
         src={blockIconImageUrl}
         alt=""
-        className={cn("rounded-md object-cover", emphasized ? "size-7" : "size-6")}
+        className="size-6 rounded-full object-cover"
         loading="lazy"
-        fallback={<ClipboardList className={emphasized ? "size-7 text-[var(--patient-color-primary)]" : "size-6"} />}
+        fallback={<ClipboardList className="size-6 text-[var(--patient-color-primary)]" />}
       />
     </div>
   );
@@ -47,35 +47,32 @@ export function PatientHomePlanCard({
   instance,
   blockIconImageUrl,
   anonymousGuest = false,
-  personalTierOk = true,
 }: Props) {
   if (!instance) {
     const programsHref = anonymousGuest ? appLoginWithNextHref(routePaths.patientTreatmentPrograms) : routePaths.patientTreatmentPrograms;
-    const ctaLabel = anonymousGuest ? "Войти и открыть планы" : "К программам лечения";
     return (
       <section aria-labelledby="patient-home-plan-heading" data-plan-empty>
         <article
           id="patient-home-plan-card"
           className={cn(patientHomeCardClass, patientHomeSecondaryCardTallHeightClass)}
         >
-          <p id="patient-home-plan-heading" className={cn(patientHomeBlockHeadingBoldClass, "shrink-0")}>
-            Мой план
-          </p>
-          <div className="flex min-h-0 flex-1 gap-3">
+          <div className="flex min-h-0 gap-3">
             <LeadingPlanIcon blockIconImageUrl={blockIconImageUrl} emphasized />
-            <div className="flex min-h-0 min-w-0 flex-1 flex-col justify-center">
-              <h2 className={patientHomePlanTitleClampClass}>Нет активного плана</h2>
-              <p className={patientHomePlanSubtitleClampClass}>
-                {anonymousGuest ?
-                  "Войдите, чтобы видеть назначенную программу лечения."
-                : !personalTierOk ?
-                  "План лечения появится после активации профиля пациента."
-                : "Когда врач назначит программу, она отобразится здесь."}
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+              <p id="patient-home-plan-heading" className={cn(patientHomeBlockHeadingClass, "shrink-0")}>
+                Мой план реабилитации
+              </p>
+              <p className={cn(patientHomePlanSubtitleClampClass, "line-clamp-none")}>
+                Назначит специалист или выберите готовую программу
               </p>
             </div>
           </div>
-          <Link href={programsHref} prefetch={false} className={cn(patientButtonGhostLinkClass, "w-full shrink-0 sm:w-auto")}>
-            {ctaLabel}
+          <Link
+            href={programsHref}
+            prefetch={false}
+            className={cn(patientButtonGhostLinkClass, "mt-auto -mb-1 min-h-9 min-w-[8rem] shrink-0 self-end px-5 lg:px-6")}
+          >
+            Выбрать курс
           </Link>
         </article>
       </section>
@@ -88,20 +85,20 @@ export function PatientHomePlanCard({
         id="patient-home-plan-card"
         className={cn(patientHomeCardClass, patientHomeSecondaryCardTallHeightClass)}
       >
-        <p id="patient-home-plan-heading" className={cn(patientHomeBlockHeadingBoldClass, "shrink-0")}>
-          Мой план
-        </p>
-        <div className="flex min-h-0 flex-1 gap-3">
+        <div className="flex min-h-0 gap-3">
           <LeadingPlanIcon blockIconImageUrl={blockIconImageUrl} />
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col justify-center">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+            <p id="patient-home-plan-heading" className={cn(patientHomeBlockHeadingClass, "shrink-0")}>
+              Мой план реабилитации
+            </p>
             <h2 className={patientHomePlanTitleClampClass}>{instance.title}</h2>
-            <p className={patientHomePlanSubtitleClampClass}>Активная программа лечения</p>
+            <p className={patientHomePlanSubtitleClampClass}>Активная программа</p>
           </div>
         </div>
         <Link
           href={routePaths.patientTreatmentProgram(instance.id)}
           prefetch={false}
-          className={cn(patientButtonGhostLinkClass, "w-full shrink-0 sm:w-auto")}
+          className={cn(patientButtonGhostLinkClass, "mt-auto -mb-1 min-h-9 min-w-[8rem] shrink-0 self-end px-5 lg:px-6")}
         >
           Смотреть план
         </Link>

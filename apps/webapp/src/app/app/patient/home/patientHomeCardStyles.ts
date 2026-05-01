@@ -136,17 +136,17 @@ export const patientBadgeDurationClass = cn(
 
 /** Ведущая иконка в карточке — tap area ≥44px (`§9.4` / `§12`). */
 export const patientIconLeadingClass = cn(
-  "inline-flex size-11 shrink-0 items-center justify-center rounded-2xl lg:size-14",
+  "inline-flex size-11 shrink-0 items-center justify-center rounded-full lg:size-14",
   "bg-[var(--patient-color-primary-soft)] text-[var(--patient-color-primary)]",
 );
 
 export const patientIconLeadingWarningClass = cn(
-  "inline-flex size-11 shrink-0 items-center justify-center rounded-2xl lg:size-14",
+  "inline-flex size-11 shrink-0 items-center justify-center rounded-full lg:size-14",
   "bg-[#fef3c7] text-[var(--patient-color-warning)]",
 );
 
 export const patientIconLeadingDangerClass = cn(
-  "inline-flex size-11 shrink-0 items-center justify-center rounded-2xl lg:size-14",
+  "inline-flex size-11 shrink-0 items-center justify-center rounded-full lg:size-14",
   "bg-[var(--patient-color-danger)] text-white",
 );
 
@@ -180,12 +180,10 @@ export const patientHomeSecondaryCardShortHeightClass = cn(
   "h-[152px] sm:h-[160px] lg:h-[168px]",
 );
 
-/**
- * Фиксированная высота secondary-карточки «Мой план» (с CTA снизу) — всегда ≥ short.
- */
+/** Фиксированная компактная высота secondary-карточки «Мой план». */
 export const patientHomeSecondaryCardTallHeightClass = cn(
   patientHomeSecondaryCardShellClass,
-  "h-[168px] sm:h-[176px] lg:h-[208px]",
+  "h-[136px] sm:h-[136px] lg:h-[136px]",
 );
 
 /**
@@ -206,7 +204,7 @@ export const patientHomeCourseRowItemLayoutClass = cn(
 
 /** Медиа-слот превью 56×56 в карточках карусели / списков. */
 export const patientHomeCardMediaSlotClass = cn(
-  "relative h-14 w-14 shrink-0 overflow-hidden rounded-xl bg-muted",
+  "relative h-14 w-14 shrink-0 overflow-hidden rounded-full bg-muted",
 );
 
 /** Заголовок карточки — до 2 строк, sm. */
@@ -241,9 +239,9 @@ export const patientHomeCardSubtitleClampSmClass = cn(
 
 // --- Patient home «Сегодня»: fixed-geometry cards (hero, booking, grid blocks) ---
 
-/** Заголовок секции на главной пациента (16px / semibold 600). */
+/** Единый заголовок блоков главной пациента — визуальный тон как у «Мой план реабилитации». */
 export const patientHomeBlockHeadingClass = cn(
-  "text-base font-semibold leading-6 text-[var(--patient-block-heading)]",
+  "text-[length:var(--patient-block-heading-font-size)] font-[var(--patient-block-heading-font-weight)] leading-[var(--patient-block-heading-line-height)] text-[var(--patient-block-heading)]",
 );
 
 /** Раньше отличался весом; для единообразия с заголовками — тот же semibold 600. */
@@ -355,7 +353,7 @@ export const patientHomeBookingFooterSlotClass =
   "flex min-h-5 shrink-0 flex-col justify-end overflow-hidden text-xs leading-5 text-[var(--patient-block-caption)]";
 
 export const patientHomeBookingActionsClass = cn(
-  "flex w-full shrink-0 flex-row gap-2 lg:w-auto lg:max-w-none lg:flex-row lg:justify-start",
+  "flex w-full shrink-0 flex-row gap-3 lg:max-w-none lg:flex-row",
 );
 
 /** Situations row: tile shells (reference — без отдельной «карточки-плитки»). */
@@ -383,29 +381,29 @@ export const patientHomeSituationsCardMobileChromeClass =
 
 /** Progress block geometry (patient home reference row). */
 export const patientHomeProgressCardGeometryClass = cn(
-  "flex min-h-[150px] flex-col overflow-hidden sm:min-h-[158px] lg:h-[170px] lg:min-h-0",
+  "flex min-h-[132px] flex-col overflow-hidden sm:min-h-[140px] lg:h-[150px] lg:min-h-0",
 );
 
 export const patientHomeProgressGridClass = cn(
-  "grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_6.25rem] items-center gap-4 lg:grid-cols-[minmax(0,1fr)_7.5rem]",
+  "grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_4.5rem] items-center gap-1 lg:grid-cols-[minmax(0,1fr)_7.5rem] lg:gap-4",
 );
 
-/** Streak column: centered circle (no side tinted panel). */
+/** Mobile keeps the compact divider; desktop returns the progress circle with more breathing room. */
 export const patientHomeProgressStreakColClass = cn(
-  "flex min-h-0 flex-col items-center justify-center gap-2 text-center lg:gap-2.5",
+  "flex min-h-0 max-w-full flex-col items-center justify-center border-l border-[#e5e7eb] pl-2 pr-1 text-center lg:border-l-0 lg:pl-0 lg:pr-0",
 );
 
 export const patientHomeProgressValueClass =
-  "mt-1 text-[28px] font-semibold leading-8 text-[var(--patient-color-primary)]";
+  "mt-1 text-[26px] font-semibold leading-8 text-[var(--patient-color-primary)]";
 
 export const patientHomeProgressValueSuffixClass =
-  "text-[24px] font-semibold leading-8 text-[var(--patient-text-secondary)]";
+  "text-[22px] font-semibold leading-8 text-[var(--patient-color-primary)]";
 
 export const patientHomeProgressStreakValueClass =
-  "text-[26px] font-semibold leading-8 text-[var(--patient-text-primary)] sm:text-[28px] sm:leading-9";
+  "text-[28px] font-semibold leading-8 text-[var(--patient-text-primary)]";
 
-/** Mood: фиксированная высота карточки; слот статуса не даёт прыгать по клику. */
-export const patientHomeMoodCardGeometryClass = cn("flex flex-col overflow-hidden", "h-[184px] sm:h-[188px] lg:h-[208px]");
+/** Mood: compact fixed-height card for the 3-card desktop row. */
+export const patientHomeMoodCardGeometryClass = cn("flex flex-col overflow-hidden", "h-[132px] sm:h-[136px] lg:h-[136px]");
 
 export const patientHomeMoodStatusSlotClass = cn(
   patientLineClamp2Class,
@@ -413,12 +411,12 @@ export const patientHomeMoodStatusSlotClass = cn(
 );
 
 export const patientHomeMoodOptionButtonClass = cn(
-  "mx-auto flex size-11 max-w-full shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-transparent bg-white/65 p-0.5 transition-colors sm:size-12",
+  "mx-auto flex size-11 max-w-full shrink-0 items-center justify-center overflow-hidden rounded-full border border-transparent bg-white/45 p-0 transition-colors sm:size-12",
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-primary)]",
 );
 
-/** SOS: фиксированная высота; колонка под CMS-thumb всегда одного размера (padding от `patientHomeCardDangerClass`). */
-export const patientHomeSosCardGeometryClass = cn("flex h-[128px] flex-col gap-2 overflow-hidden lg:h-[144px]");
+/** SOS: compact action-card for the 3-card desktop row. */
+export const patientHomeSosCardGeometryClass = cn("flex h-[104px] flex-col justify-between gap-2 overflow-hidden lg:h-[136px]");
 
 export const patientHomeSosTitleClampClass = cn(
   patientLineClamp2Class,
@@ -432,7 +430,7 @@ export const patientHomeSosSubtitleClampClass = cn(
 
 /** Next reminder: compact warning card (отдельно от других secondary-карточек). */
 export const patientHomeReminderCardGeometryClass = cn(
-  "flex min-h-[150px] flex-col justify-between gap-3 overflow-hidden rounded-[var(--patient-card-radius-mobile)] border border-[#fde68a] bg-[linear-gradient(135deg,#fffaf0_0%,#fff7df_100%)] p-4 lg:h-[170px] lg:min-h-0 lg:rounded-[var(--patient-card-radius-desktop)] lg:p-5",
+  "flex min-h-[150px] flex-col justify-between gap-3 overflow-hidden rounded-[var(--patient-card-radius-mobile)] border border-[#fde68a] bg-[linear-gradient(135deg,#fffaf0_0%,#fff7df_100%)] p-4 lg:h-[150px] lg:min-h-0 lg:rounded-[var(--patient-card-radius-desktop)] lg:p-5",
 );
 
 export const patientHomeSosThumbSlotClass = cn(

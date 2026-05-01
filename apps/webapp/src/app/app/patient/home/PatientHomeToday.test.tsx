@@ -164,8 +164,8 @@ describe("PatientHomeToday", () => {
     expect(screen.getByRole("heading", { name: /^Прогресс$/ })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: /Как вы себя чувствуете/i })).toBeInTheDocument();
     expect(screen.getByText(/Пока нет ближайших/i)).toBeInTheDocument();
-    expect(screen.getByText(/Нет активного плана/i)).toBeInTheDocument();
-    expect(screen.getByText(/Пока нет курсов на главной/i)).toBeInTheDocument();
+    expect(screen.getByText(/Назначит специалист или выберите готовую программу/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Пока нет курсов на главной/i)).toBeNull();
 
     const start = screen.getByRole("link", { name: /Начать разминку/i });
     expect(start.getAttribute("href")).toContain(`${routePaths.root}?next=`);
@@ -173,14 +173,13 @@ describe("PatientHomeToday", () => {
 
     expect(screen.queryByRole("img")).toBeNull();
 
-    const loginReminder = screen.getByRole("link", { name: /Войти и открыть напоминания/i });
-    expect(loginReminder.getAttribute("href")).toContain(encodeURIComponent(routePaths.patientReminders));
+    const loginReminder = screen
+      .getAllByRole("link", { name: /^Войти$/i })
+      .find((link) => link.getAttribute("href")?.includes(encodeURIComponent(routePaths.patientReminders)));
+    expect(loginReminder?.getAttribute("href")).toContain(encodeURIComponent(routePaths.patientReminders));
 
-    const loginPlan = screen.getByRole("link", { name: /Войти и открыть планы/i });
+    const loginPlan = screen.getByRole("link", { name: /Выбрать курс/i });
     expect(loginPlan.getAttribute("href")).toContain(encodeURIComponent(routePaths.patientTreatmentPrograms));
-
-    const loginCourses = screen.getByRole("link", { name: /Войти и смотреть курсы/i });
-    expect(loginCourses.getAttribute("href")).toContain(encodeURIComponent(routePaths.patientCourses));
   });
 
   it("authorized without tier: no personal API, activation copy, no name in greeting", async () => {
@@ -200,9 +199,9 @@ describe("PatientHomeToday", () => {
     expect(screen.getByRole("link", { name: /Активировать профиль/i })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: /^Прогресс$/ })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: /Как вы себя чувствуете/i })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Открыть напоминания/i })).toHaveAttribute("href", routePaths.patientReminders);
-    expect(screen.getByRole("link", { name: /К программам лечения/i })).toHaveAttribute("href", routePaths.patientTreatmentPrograms);
-    expect(screen.getByRole("link", { name: /К каталогу курсов/i })).toHaveAttribute("href", routePaths.patientCourses);
+    expect(screen.getByRole("link", { name: /Настроить/i })).toHaveAttribute("href", routePaths.patientReminders);
+    expect(screen.getByRole("link", { name: /Выбрать курс/i })).toHaveAttribute("href", routePaths.patientTreatmentPrograms);
+    expect(screen.queryByRole("link", { name: /К каталогу курсов/i })).toBeNull();
   });
 
   it("patient tier: calls personal loaders and shows progress", async () => {

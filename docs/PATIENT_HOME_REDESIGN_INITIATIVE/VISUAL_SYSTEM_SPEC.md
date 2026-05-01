@@ -211,7 +211,7 @@ Use existing Tailwind breakpoints. Do not invent custom breakpoints unless neces
 - Content padding: `24-32px`.
 - Dashboard grid gap: `20-24px`.
 - Main dashboard columns: `2fr 1fr` or current `3fr 2fr` if visual QA confirms it matches reference.
-- **Patient home «Сегодня» (`lg+`, `lg:grid-cols-12`):** верхний ряд — разминка (`daily_warmup`, 8) + полезный пост (`useful_post`, 4); второй — ситуации (8) + запись (`booking`, 4); третий — прогресс (8) + ближайшее напоминание (4); затем **SOS на всю ширину (12)**; далее план (8) + чекин настроения (4); нижний ряд — курсы (8) + карусель подписки (4), как при парковке карусели справа от списка курсов.
+- **Patient home «Сегодня» (`lg+`, `lg:grid-cols-12`) — фактическая финальная сетка 2026-05-01:** верхний ряд — разминка (`daily_warmup`, 8) + полезный пост (`useful_post`, 4); второй — ситуации (8) + запись (`booking`, 4); третий — прогресс (8) + ближайшее напоминание (4); затем компактный ряд `mood_checkin` (4) + `sos` (4) + `plan` (4); далее `subscription_carousel` на всю ширину (12); `courses` — хвостовой full-width ряд (12) при наличии карточек.
 - Single-column content pages: max-width `720-760px`.
 
 ---
@@ -286,11 +286,16 @@ SOS / danger:
 
 Define a small patient radius/shadow scale and reuse it.
 
-- `--patient-radius-sm`: `14-16px`.
-- `--patient-radius-md`: `20px`.
-- `--patient-radius-lg`: `24px`.
-- `--patient-radius-xl`: `28px`.
-- `--patient-radius-pill`: `999px`.
+Current `patient home` tokens after 2026-05-01 visual QA:
+
+- `--patient-card-radius-mobile`: `10px`.
+- `--patient-card-radius-desktop`: `12px`.
+- `--patient-hero-radius-mobile`: `12px`.
+- `--patient-hero-radius-desktop`: `14px`.
+- `--patient-pill-radius`: `10px`.
+
+Legacy/older reference values (`20px+` cards, fully rounded pills) are no longer the target for the current home screen. Do not change button radii when adjusting these card/badge tokens.
+
 - Mobile base card shadow: `0 4px 14px rgba(15, 23, 42, 0.04)`.
 - Desktop base card shadow: `0 8px 24px rgba(15, 23, 42, 0.05)`.
 - Nav shadow: `0 -4px 16px rgba(15, 23, 42, 0.04)` for bottom nav.
@@ -313,13 +318,30 @@ Define a small patient radius/shadow scale and reuse it.
 
 - Primary в patient-scope: `#284da0` (`--patient-color-primary`), мягкий фон под primary‑элементы: `#e8eefb` (`--patient-color-primary-soft`).
 - Страница / контентная поверхность в patient shell: белый фон `#ffffff` для основной области (см. `--patient-card-bg` / shell).
-- Типографика заголовков patient: семейство Roboto для heading через `--font-roboto-heading`; веса `h1`–`h3` на главной пациента ориентируются на `400`, hero‑заголовок разминки — `font-medium` (не bold).
+- Заголовки малых блоков главной (`patientHomeBlockHeadingClass`) должны читать числовые параметры из общих токенов `--patient-block-heading-font-size`, `--patient-block-heading-line-height`, `--patient-block-heading-font-weight` и цвет из `--patient-block-heading`. Позиция заголовков не унифицируется принудительно: часть заголовков остаётся внутри карточек, часть — section-heading над списком/каруселью.
 
 ---
 
 ## 8. Typography
 
 Do not connect a new font. Use the existing project/system font via current font variables.
+
+### 8.0. Open issue: block heading fonts (2026-05-01)
+
+Статус: **не решено**, переносится в отдельный follow-up.
+
+Проблема: заголовки `Как вы себя чувствуете?`, `Выберите пользу для себя:`, `Материалы по подписке` визуально всё ещё воспринимаются как несинхронизированные, хотя в коде они сведены к одному `patientHomeBlockHeadingClass`. Последний проход вынес только size / line-height / weight в CSS variables:
+
+- `--patient-block-heading-font-size: 0.875rem`;
+- `--patient-block-heading-line-height: 1.25rem`;
+- `--patient-block-heading-font-weight: 600`.
+
+Что не доказано и требует следующего pass:
+
+- фактический computed `font-family` для заголовков внутри карточек и section-heading вне карточек;
+- влияние разных фоновых контекстов (градиентная mood-card, белая situations-card, page background у subscription);
+- различие tag/context (`h2`/`p`, внутри padding карточки vs внешний заголовок секции);
+- нужно ли добавить отдельный токен `--patient-block-heading-font-family` и явно применить его в `patientHomeBlockHeadingClass`.
 
 ### 8.1. Mobile
 
@@ -512,7 +534,7 @@ Mobile:
 
 - Background `#ECFDF3`.
 - Border `#BBF7D0`.
-- Radius `20px`.
+- Radius uses current card token (`--patient-card-radius-mobile`, currently `10px`).
 - Padding `14-16px`.
 - Min-height `104-128px`.
 - Layout may be horizontal when space permits: icon + text + actions.
@@ -521,7 +543,7 @@ Mobile:
 
 Desktop:
 
-- Radius `24px`.
+- Radius uses current card token (`--patient-card-radius-desktop`, currently `12px`).
 - Padding `20px`.
 - Target height в ряду рядом с **situations**: ~`170px` (компактная карточка, не companion hero).
 - Icon перед заголовком в зелёном круге (`#dcfce7`), кнопки в один ряд на desktop фиксированной ширины (~`8.75rem` каждая).
@@ -532,7 +554,7 @@ Desktop:
 Section container:
 
 - Обернуть блок в базовую patient-карточку (`patientHomeCardClass`): высота desktop ~`170px`, padding `16px` mobile / `20px` desktop.
-- Заголовок: «Выберите ситуацию», `16px / medium` mobile, `18px / medium` desktop.
+- Заголовок: продуктовый текст `Выберите пользу для себя:`; типографика через `patientHomeBlockHeadingClass`. На mobile заголовок в текущей реализации скрыт, чтобы блок ситуаций выглядел как компактная карусель под hero.
 
 Section heading:
 
@@ -568,8 +590,9 @@ Mobile:
 
 Layout:
 
-- Desktop target row height ~`170px`.
-- Grid: основная колонка + узкая колонка под streak (~`6.25rem` → `7.5rem` на `lg`).
+- Desktop target row height ~`150px` после compact QA.
+- Grid: основная колонка + узкая колонка под streak (`4.5rem` на mobile, `7.5rem` на `lg`). На mobile сохраняется вертикальный divider; на desktop — белый круг streak с `ring-[8px]`.
+- Подпись `дней подряд` должна переноситься на две строки и оставаться внутри круга.
 
 ### 10.6. Reminder: `next_reminder`
 
@@ -591,10 +614,10 @@ CTA:
 
 Desktop:
 
-- Min-height ~`170px`.
+- Min-height/height ~`150px`.
 - Label: `13px / 18px / 500`, warning brown text.
 - Title/time line: `18px / 24px / semibold`.
-- Description: `14px / 20px`, secondary.
+- Description hidden on `lg` in empty/active compact card if it breaks height parity with progress.
 
 ### 10.7. Mood check-in: `mood_checkin`
 
@@ -604,16 +627,17 @@ Mobile:
 - Border: `#FED7AA`.
 - Radius: `20px`.
 - Padding: `16px`.
-- Min-height: `140-160px`.
+- Fixed compact height in current home row: `132px` mobile, `136px` `sm/lg`.
 - Title: `Как вы себя чувствуете?`.
-- Subtitle: `Отметьте своё состояние одним касанием`.
+- Subtitle removed from the current card; no default status text before user action.
 
 Mood buttons:
 
 - Five equal slots.
 - Tap area: `44-52px`.
-- Circle/image: `36-42px`.
-- Active state: `2px` primary ring, bg `#EEF2FF`.
+- Circle/image fills the round button slot (`size-full` for CMS image; fallback icon `40-44px`).
+- Border is thin (`1px`) and color-matched to score; hover border is intentionally slightly brighter than the resting border.
+- Active state is pale score-colored bg + subtle `ring-1`, not a heavy primary ring.
 - Use configured mood icons from `patient_home_mood_icons` when available.
 - Fallback emoji is acceptable until CMS assets are configured.
 
@@ -623,13 +647,14 @@ Mobile:
 
 - Background `#FEF2F2`.
 - Border `#FECACA`.
-- Radius `20px`.
+- Radius uses current card token (`--patient-card-radius-mobile`, currently `10px`).
 - Padding `14-16px`.
 - Min-height `96-120px`.
 - Leading icon circle: `48px`, bg `#EF4444`, icon white.
 - Title: `Если болит сейчас`.
-- Text: `14px / 20px`.
-- Button: white, border `#EF4444`, text `#DC2626`, height `42-44px`, radius `12-14px`.
+- Text: `Рекомендации по облегчению боли`, `14px / 20px`.
+- Button text: `Быстрая помощь`. Button is white with darker calmer danger outline/text (`#b91c1c` / `#991b1b` in current override), positioned right and close to the bottom edge.
+- The card itself is not a link and must not translate/move on hover; only the CTA link is interactive.
 
 If CMS item has no image:
 
@@ -641,18 +666,20 @@ If CMS item has no image:
 Mobile:
 
 - Base white card.
-- Radius `20px`.
+- Radius uses current card token (`--patient-card-radius-mobile`, currently `10px`).
 - Padding `16px`.
-- Min-height `112-136px`.
-- Section title: `Мой план`.
-- Link: `Смотреть план`, primary.
+- Fixed compact height: `136px`.
+- Section title: `Мой план реабилитации`.
+- Empty-state subtitle: `Назначит специалист или выберите готовую программу`; do not show `Нет активного плана`.
+- Empty-state link: `Выбрать курс`, primary ghost link, right/bottom aligned.
+- Active link: `Смотреть план`, primary ghost link, right/bottom aligned.
 - Icon container: `48px`, bg `#EEF2FF`, icon primary.
 - Program title: `15-16px / 22px / 700`.
 - Meta: `13-14px / 18-20px`.
 - Percent: `14-15px / 20px / 600`.
 - Progress height: `6-8px`.
 
-If no active plan exists, current behavior may omit the block.
+If no active plan exists, render the compact empty-state above; do not omit the block when CMS has it enabled.
 
 ### 10.10. Subscription carousel and courses
 
@@ -661,13 +688,15 @@ Use the same base card primitives.
 Subscription cards (`PatientHomeSubscriptionCarousel.tsx`):
 
 - Horizontal scroll on mobile.
-- Snap alignment.
+- Snap alignment on mobile; desktop is a full-width grid row.
 - Badge uses patient badge primitive.
 - Image ratio can remain content-dependent, but cards should visually match the soft radius/shadow system.
+- If only one subscription card exists on desktop, it may span the full row.
 
 Courses (`PatientHomeCoursesRow.tsx`):
 
 - Use base/compact patient card style.
+- If there are no course cards, render nothing on the patient home page.
 - Do not mix course engine changes into this visual task.
 
 ---
