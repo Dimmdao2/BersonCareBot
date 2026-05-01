@@ -93,6 +93,39 @@
   --patient-block-heading-font-weight: 600;
   /** Подписи под плитками и вспомогательные строки в блоках «Сегодня». */
   --patient-block-caption: #465880;
+
+  /**
+   * Semantic surface tones — фон/рамка/текст/акцент для карточек внутренних страниц пациента
+   * (`patientSurface*Class` в `patientVisual.ts`). Тона согласованы с home success/warning/danger/booking;
+   * геометрия главной сюда не входит.
+   *
+   * «info»: отдельного бренд-цвета нет — используем primary (`--patient-color-primary*`);
+   * рамка info — color-mix от primary (единственное определение, без дубля hex в TS).
+   */
+  --patient-surface-neutral-bg: var(--patient-card-bg);
+  --patient-surface-neutral-border: var(--patient-border);
+  --patient-surface-neutral-text: var(--patient-text-primary);
+  --patient-surface-neutral-accent: var(--patient-color-primary);
+
+  --patient-surface-info-bg: var(--patient-color-primary-soft);
+  --patient-surface-info-border: color-mix(in srgb, var(--patient-color-primary) 32%, #ffffff);
+  --patient-surface-info-text: var(--patient-text-primary);
+  --patient-surface-info-accent: var(--patient-color-primary);
+
+  --patient-surface-success-bg: var(--patient-color-success-soft);
+  --patient-surface-success-border: #bbf7d0;
+  --patient-surface-success-text: var(--patient-text-primary);
+  --patient-surface-success-accent: var(--patient-color-success);
+
+  --patient-surface-warning-bg: var(--patient-color-warning-soft);
+  --patient-surface-warning-border: #fde68a;
+  --patient-surface-warning-text: var(--patient-text-primary);
+  --patient-surface-warning-accent: var(--patient-color-warning);
+
+  --patient-surface-danger-bg: var(--patient-color-danger-soft);
+  --patient-surface-danger-border: #fecaca;
+  --patient-surface-danger-text: var(--patient-text-primary);
+  --patient-surface-danger-accent: var(--patient-color-danger);
 }
 
 /*---break---

@@ -66,13 +66,25 @@
 | `--patient-block-heading` | `#172f62` | заголовки блоков home |
 | `--patient-block-caption` | `#465880` | подписи/описания home |
 
+**Semantic surface tones (шаг 3, 2026-05-01)** — централизованы в `#app-shell-patient`, без дубля hex в `patientVisual.ts`:
+
+| Token group | Назначение |
+|---|---|
+| `--patient-surface-neutral-{bg,border,text,accent}` | нейтральная карточка (как обычный card) |
+| `--patient-surface-info-{bg,border,text,accent}` | info = primary; `border` через `color-mix` от `--patient-color-primary` (см. комментарий в `globals.css`) |
+| `--patient-surface-success-*` | тон записи / success |
+| `--patient-surface-warning-*` | тон напоминаний / warning |
+| `--patient-surface-danger-*` | тон SOS / danger |
+
+Примитивы в `patientVisual.ts`: `patientSurfaceNeutralClass`, `patientSurfaceInfoClass`, `patientSurfaceSuccessClass`, `patientSurfaceWarningClass`, `patientSurfaceDangerClass`. **Подключение на внутренних страницах — отдельно (шаг 4 по `ПОРЯДОК РАБОТ.md`), в этом шаге не выполнялось.**
+
 ### Gap
 
 Внутренние страницы используют часть этих tokens (`patientMutedTextClass`, `patientCardClass`), но не всегда используют:
 
 - `--patient-block-heading`;
 - `--patient-block-caption`;
-- semantic card tones (`success/warning/danger`) вне home.
+- semantic surfaces: токены и классы `patientSurface*Class` готовы; **применение по страницам — шаг 4**.
 
 ## 4. Заголовки
 
@@ -253,10 +265,11 @@ Gap:
 - слишком общий “one size fits all”;
 - нет вариантов для:
   - hero/intro block;
-  - warning/info surface;
   - compact settings section;
   - full-width page section;
   - no-shadow surface.
+
+**Частично снято (шаг 3):** warning / info / success / danger / neutral как **tone-only** surfaces вынесены в `--patient-surface-*` + `patientSurface*Class` (без home-геометрии). Остаётся применить на страницах (шаг 4).
 
 ## 7. Semantic home cards
 
@@ -265,9 +278,10 @@ Gap:
 | Home element | Primitive | Current style | Reuse recommendation |
 |---|---|---|---|
 | Hero card | `patientHomeCardHeroClass` / `patientHomeHeroCardGeometryClass` | gradient, purple border, fixed image slot, fixed heights | не переносить целиком; только как inspiration для future `patientHeroSurfaceClass` |
-| Booking / success card | `patientHomeCardSuccessClass` | green soft bg, green border, same radius/shadow | candidate: `patientSuccessSurfaceClass` |
-| Reminder / warning card | `patientHomeCardWarningClass` / `patientHomeReminderCardGeometryClass` | warning soft bg/border; geometry fixed | candidate: split tone from geometry |
-| SOS / danger card | `patientHomeCardDangerClass` | danger soft bg/border | candidate: `patientDangerSurfaceClass` |
+| Booking / success card | `patientHomeCardSuccessClass` | green soft bg, green border, same radius/shadow | **Тон вынесен:** `patientSurfaceSuccessClass` + `--patient-surface-success-*` в `globals.css` (home-класс не меняли) |
+| Reminder / warning card | `patientHomeCardWarningClass` / `patientHomeReminderCardGeometryClass` | warning soft bg/border; geometry fixed | **Тон вынесен:** `patientSurfaceWarningClass` + `--patient-surface-warning-*`; геометрия reminder — home-only |
+| SOS / danger card | `patientHomeCardDangerClass` | danger soft bg/border | **Тон вынесен:** `patientSurfaceDangerClass` + `--patient-surface-danger-*` |
+| Booking / info (soft blue) | (раньше только через home) | primary-soft + синяя рамка | **Тон вынесен:** `patientSurfaceInfoClass` + `--patient-surface-info-*` (= primary, см. CSS-комментарий) |
 | Mood gradient | `patientHomeMoodCheckinShellClass` / gradient warm legacy | special responsive behavior | keep home-specific |
 | Useful post cover | `patientHomeUsefulPostCardShellClass` | full-bleed cover card | keep content-card-specific |
 
@@ -275,10 +289,10 @@ Gap:
 
 Home classes mix two responsibilities:
 
-1. **Tone/surface** — success/warning/danger/hero colors.
+1. **Tone/surface** — success/warning/danger/hero colors. **Централизованные тона для внутренних страниц:** переменные `--patient-surface-<tone>-*` в `#app-shell-patient` и классы `patientSurface*Class` в `patientVisual.ts` (шаг 3).
 2. **Geometry** — fixed height, grid placement, image slot, mobile/desktop adjustments.
 
-For reuse on internal pages, extract only tone/surface pieces, not fixed home geometry.
+For reuse on internal pages, extract only tone/surface pieces, not fixed home geometry. **Применение `patientSurface*Class` на маршрутах cabinet/sections/profile/… — шаг 4, здесь не сделано.**
 
 ## 8. Buttons / actions
 
@@ -438,7 +452,8 @@ These can be treated as current shared patient style primitives:
 - `patientDangerActionClass`;
 - `patientButtonSuccessClass`;
 - `patientButtonGhostLinkClass`;
-- `patientButtonWarningOutlineClass`.
+- `patientButtonWarningOutlineClass`;
+- **Semantic surfaces (шаг 3):** `patientSurfaceNeutralClass`, `patientSurfaceInfoClass`, `patientSurfaceSuccessClass`, `patientSurfaceWarningClass`, `patientSurfaceDangerClass` — тона через `--patient-surface-*` в `#app-shell-patient`.
 
 ## 14. Main candidates to create / extract
 
@@ -458,11 +473,8 @@ These can be treated as current shared patient style primitives:
 
 ### Cards / surfaces
 
-- `patientSuccessSurfaceClass`
-- `patientWarningSurfaceClass`
-- `patientDangerSurfaceClass`
-- `patientInfoSurfaceClass`
-- `patientNoShadowSurfaceClass`
+- `patientSurfaceSuccessClass` / `patientSurfaceWarningClass` / `patientSurfaceDangerClass` / `patientSurfaceInfoClass` / `patientSurfaceNeutralClass` — **добавлены** (тона через `--patient-surface-*` в `#app-shell-patient`; применение на страницах — шаг 4).
+- `patientNoShadowSurfaceClass` — по-прежнему кандидат на будущее.
 
 ### Typography
 
@@ -492,7 +504,7 @@ Likely reasons:
 2. **Subtle border/shadow**: `#e5e7eb` border and low-opacity shadow do not create a strong visual break.
 3. **No unified page heading system**: internal pages still use shell title strip, not a content-level page header matching new home hierarchy.
 4. **No unified internal grid**: each page keeps local layout (`gap-3`, `gap-4`, `md:grid-cols-2`, etc.).
-5. **Semantic colors mostly stayed on home**: success/warning/danger surfaces were not broadly extracted to inner pages.
+5. **Semantic colors mostly stayed on home**: токены `patientSurface*Class` / `--patient-surface-*` добавлены (шаг 3), но **до шага 4** внутренние страницы их в разметке ещё не используют — визуально «белые карточки» могут сохраняться.
 6. **Many controls still shadcn/default**: buttons, badges, forms are mixed between shadcn defaults and patient classes.
 
 ## 16. Recommended next audit/fix direction

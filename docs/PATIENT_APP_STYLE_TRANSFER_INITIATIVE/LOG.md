@@ -1,5 +1,17 @@
 # LOG — Patient App Style Transfer
 
+## 2026-05-01 — Step 3 EXEC
+
+- Agent/model: Composer (Cursor).
+- Scope: шаг **3** из `ПОРЯДОК РАБОТ.md` — semantic surface tones (neutral / info / success / warning / danger) через общие CSS variables в `#app-shell-patient` и reusable primitives в `patientVisual.ts`; без геометрии главной.
+- Files changed (**code**): `apps/webapp/src/app/globals.css`, `apps/webapp/src/shared/ui/patientVisual.ts`.
+- Files changed (**docs**): `docs/PATIENT_APP_STYLE_TRANSFER_INITIATIVE/LOG.md`, `docs/PATIENT_APP_STYLE_TRANSFER_INITIATIVE/PATIENT_SHARED_STYLE_ELEMENTS_AUDIT.md`.
+- Confirmation: страницы и `PatientHomeToday` / `patientHomeCardStyles.ts` не менялись; новые классы нигде не подключались; API/БД/env/integrator/doctor/admin не затрагивались; `patientVisual.ts` не импортирует `patientHomeCardStyles`.
+- Новые CSS variables (все только внутри `#app-shell-patient`): `--patient-surface-neutral-{bg,border,text,accent}`, `--patient-surface-info-{bg,border,text,accent}`, `--patient-surface-success-{bg,border,text,accent}`, `--patient-surface-warning-{bg,border,text,accent}`, `--patient-surface-danger-{bg,border,text,accent}` (info/border через primary + `color-mix`; success/warning/danger border — `#bbf7d0` / `#fde68a` / `#fecaca` в одном месте в CSS).
+- Новые exports в `patientVisual.ts`: `patientSurfaceNeutralClass`, `patientSurfaceInfoClass`, `patientSurfaceSuccessClass`, `patientSurfaceWarningClass`, `patientSurfaceDangerClass`.
+- Checks: `pnpm --dir apps/webapp exec eslint src/shared/ui/patientVisual.ts`; `pnpm --dir apps/webapp typecheck`. Readonly: импорты `patientHomeCardStyles` только под `apps/webapp/src/app/app/patient/home/**`. Root `pnpm run ci` не запускался.
+- Next: **шаг 4** — точечное применение этих surfaces на внутренних страницах (кабинет, уведомления, поддержка и т.д. по плану).
+
 ## 2026-05-01 — Step 1–2 EXEC
 
 - Agent/model: Composer (Cursor).

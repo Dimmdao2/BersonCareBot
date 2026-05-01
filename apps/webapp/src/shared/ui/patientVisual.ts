@@ -7,13 +7,71 @@ import { cn } from "@/lib/utils";
  * Surfaces / текст — для последующих фаз style-transfer без импорта из `patient/home/`.
  * Кнопки с префиксом `patientButton*` сохранены; семантические алиасы `patient*ActionClass`
  * и `patientInlineLinkClass` добавлены по MASTER_PLAN style-transfer.
+ *
+ * Semantic surfaces (`patientSurface*Class`): базовый цвет текста — `--patient-surface-*-text`;
+ * акцент (иконки, метки) — `--patient-surface-*-accent` на дочерних элементах при необходимости.
  */
 
-/** Общая обводка и фон карточки пациента (не hero / не mood-shell — см. `patientHomeCardStyles`). */
+/** Общая обводка и фон карточки пациента (не hero / не mood-shell — home-only стили остаются в `app/patient/home/`, без импорта сюда). */
 const patientCardSurfaceTokens = cn(
   "border border-[var(--patient-border)] bg-[var(--patient-card-bg)] text-[var(--patient-text-primary)]",
   "rounded-[var(--patient-card-radius-mobile)] lg:rounded-[var(--patient-card-radius-desktop)]",
   "shadow-[var(--patient-shadow-card-mobile)] lg:shadow-[var(--patient-shadow-card-desktop)]",
+);
+
+/**
+ * Общая «карточная» оболочка semantic surface: радиус и тень как у обычной patient-карточки, без home-геометрии.
+ * Цвета задаются отдельно через `--patient-surface-<tone>-*`.
+ */
+const patientSemanticSurfaceCardChrome = cn(
+  "rounded-[var(--patient-card-radius-mobile)] lg:rounded-[var(--patient-card-radius-desktop)]",
+  "shadow-[var(--patient-shadow-card-mobile)] lg:shadow-[var(--patient-shadow-card-desktop)]",
+  "p-4 lg:p-[18px]",
+);
+
+/**
+ * Общий semantic surface для внутренних patient-страниц: нейтральная карточка (тот же тон, что обычный `patientCardClass`).
+ * Переносится только tone/surface и карточный chrome, не геометрия главной. Цвета — через `#app-shell-patient` (`--patient-surface-neutral-*`).
+ */
+export const patientSurfaceNeutralClass = cn(
+  patientSemanticSurfaceCardChrome,
+  "border border-[var(--patient-surface-neutral-border)] bg-[var(--patient-surface-neutral-bg)] text-[var(--patient-surface-neutral-text)]",
+);
+
+/**
+ * Общий semantic surface «info» (тон primary): мягкий синий фон и рамка для информационных блоков на внутренних страницах.
+ * Не hero/booking layout главной. Палитра — переменные `--patient-surface-info-*` в `#app-shell-patient` (info = primary, см. комментарий в `globals.css`).
+ */
+export const patientSurfaceInfoClass = cn(
+  patientSemanticSurfaceCardChrome,
+  "border border-[var(--patient-surface-info-border)] bg-[var(--patient-surface-info-bg)] text-[var(--patient-surface-info-text)]",
+);
+
+/**
+ * Общий semantic surface «success»: мягкий зелёный фон и рамка (как тон карточки записи на главной), без фиксированных высот/сетки.
+ * Цвета централизованы в `--patient-surface-success-*` под `#app-shell-patient`.
+ */
+export const patientSurfaceSuccessClass = cn(
+  patientSemanticSurfaceCardChrome,
+  "border border-[var(--patient-surface-success-border)] bg-[var(--patient-surface-success-bg)] text-[var(--patient-surface-success-text)]",
+);
+
+/**
+ * Общий semantic surface «warning»: мягкий жёлтый тон для предупреждений на внутренних страницах; не геометрия reminder-карточки главной.
+ * Цвета — `--patient-surface-warning-*`.
+ */
+export const patientSurfaceWarningClass = cn(
+  patientSemanticSurfaceCardChrome,
+  "border border-[var(--patient-surface-warning-border)] bg-[var(--patient-surface-warning-bg)] text-[var(--patient-surface-warning-text)]",
+);
+
+/**
+ * Общий semantic surface «danger»: мягкий красный тон для критичных/SOS-сообщений на внутренних страницах; не SOS-layout главной.
+ * Цвета — `--patient-surface-danger-*`.
+ */
+export const patientSurfaceDangerClass = cn(
+  patientSemanticSurfaceCardChrome,
+  "border border-[var(--patient-surface-danger-border)] bg-[var(--patient-surface-danger-bg)] text-[var(--patient-surface-danger-text)]",
 );
 
 /** Базовая карточка (секции каталога, списки и т.д.). */
