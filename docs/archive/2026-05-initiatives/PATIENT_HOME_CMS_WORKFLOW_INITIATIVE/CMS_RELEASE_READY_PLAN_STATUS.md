@@ -18,7 +18,7 @@
 | 7 | Patient runtime: primary + secondary от CMS при видимости блока; без редизайна shell/cards | **PASS** — `app/patient/page.tsx`, `PatientHomeToday.tsx`, SOS/carousel/courses |
 | 8 | Тесты (точечные) + документация LOG / ROLLBACK / FINAL_AUDIT | **PASS** — см. запись «DOC sync» в `LOG.md`, переписан `FINAL_AUDIT.md` |
 | 9 | Root CI `pnpm install --frozen-lockfile && pnpm run ci` | **PASS** |
-| 10 | Ручной QA `06_QA_RELEASE_PLAN.md` | **OPEN** — вне автоматического gate; зафиксировать в `LOG.md` после прогона |
+| 10 | Ручной QA `06_QA_RELEASE_PLAN.md` | **PASS** — принято текущее состояние владельцем продукта (2026-05-01); без полного матричного прогона; см. `LOG.md` |
 
 ## Связанные документы
 

@@ -18,7 +18,7 @@
 - Не коммить чужие несвязанные изменения. Перед commit смотри `git status`, `git diff`, `git log -5 --oneline`; добавляй только файлы своего шага.
 - После implementation/audit/fix обновляй релевантный LOG:
   - visual home: `docs/PATIENT_HOME_REDESIGN_INITIATIVE/LOG.md`;
-  - block icons/CMS: `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/LOG.md`.
+  - block icons/CMS: `docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/LOG.md`.
 - Audit steps создают отдельный audit doc, не только сообщение в чате.
 
 ---
@@ -335,7 +335,7 @@ Scope:
 3. Расширить pg repo и in-memory repo.
 4. Добавить миграцию patient_home_blocks.icon_image_url.
 5. Обновить data-layer tests.
-6. Обновить docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/LOG.md.
+6. Обновить docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/LOG.md.
 
 Проверки:
 - targeted vitest для modules/patient-home и repos tests;
@@ -367,12 +367,12 @@ Commit:
 
 Выход:
 1. Создай/обнови:
-   - docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/AUDIT_BLOCK_ICON_DATA_LAYER.md
+   - docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/AUDIT_BLOCK_ICON_DATA_LAYER.md
 2. Формат:
    - Verdict: PASS / PASS WITH NOTES / NEEDS FIX.
    - Findings first.
    - Tests reviewed/run.
-3. Обнови docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/LOG.md.
+3. Обнови docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/LOG.md.
 
 Проверки:
 - full root pnpm run ci НЕ запускать.
@@ -391,14 +391,14 @@ Commit:
 ```text
 Ты работаешь в текущей ветке feat/patient-home-cms-editor-uxlift-2026-04-29. Новую ветку не создавай.
 
-Задача: закрыть findings из docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/AUDIT_BLOCK_ICON_DATA_LAYER.md.
+Задача: закрыть findings из docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/AUDIT_BLOCK_ICON_DATA_LAYER.md.
 
 Правила:
 - Исправляй только findings из audit doc.
 - Не добавляй UI/runtime.
 - Не расширяй scope.
 - Обнови audit doc разделом "Fix follow-up".
-- Обнови docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/LOG.md.
+- Обнови docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/LOG.md.
 
 Проверки:
 - targeted vitest для затронутых modules/repos tests;
@@ -450,7 +450,7 @@ Scope:
 - Не меняй nav.
 - Не меняй schema, кроме если нужно исправить data-layer commit.
 - Не используй env/settings.
-- Обнови docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/LOG.md.
+- Обнови docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/LOG.md.
 
 Проверки:
 - targeted vitest: settings/admin tests, affected PatientHome* runtime tests, service/action tests если есть;
@@ -486,12 +486,12 @@ Commit:
 
 Выход:
 1. Создай/обнови:
-   - docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/AUDIT_BLOCK_ICON_ADMIN_RUNTIME.md
+   - docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/AUDIT_BLOCK_ICON_ADMIN_RUNTIME.md
 2. Формат:
    - Verdict: PASS / PASS WITH NOTES / NEEDS FIX.
    - Findings first.
    - Tests reviewed/run.
-3. Обнови docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/LOG.md.
+3. Обнови docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/LOG.md.
 
 Проверки:
 - full root pnpm run ci НЕ запускать.
@@ -510,7 +510,7 @@ Commit:
 ```text
 Ты работаешь в текущей ветке feat/patient-home-cms-editor-uxlift-2026-04-29. Новую ветку не создавай.
 
-Задача: закрыть findings из docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/AUDIT_BLOCK_ICON_ADMIN_RUNTIME.md.
+Задача: закрыть findings из docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/AUDIT_BLOCK_ICON_ADMIN_RUNTIME.md.
 
 Правила:
 - Исправляй только findings из audit doc.
@@ -519,7 +519,7 @@ Commit:
 - Не меняй navigation.
 - Не добавляй env/settings.
 - Обнови audit doc разделом "Fix follow-up".
-- Обнови docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/LOG.md.
+- Обнови docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/LOG.md.
 
 Проверки:
 - targeted vitest по affected modules/repos/settings/runtime tests;
@@ -553,8 +553,8 @@ PUSH MILESTONE.
    - relevant tests;
    - audit docs + LOG.
 2. Убедись, что есть audit docs:
-   - docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/AUDIT_BLOCK_ICON_DATA_LAYER.md
-   - docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/AUDIT_BLOCK_ICON_ADMIN_RUNTIME.md
+   - docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/AUDIT_BLOCK_ICON_DATA_LAYER.md
+   - docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/AUDIT_BLOCK_ICON_ADMIN_RUNTIME.md
    - LOG обновлён.
 3. Audit verdict не должен быть NEEDS FIX, либо residual risks явно неблокирующие.
 4. Запусти targeted tests:

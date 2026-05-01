@@ -22,9 +22,9 @@
 - `deploy/HOST_DEPLOY_README.md`
 - `.cursor/rules/clean-architecture-module-isolation.mdc`
 - `.cursor/rules/pre-push-ci.mdc`
-- `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/MASTER_PLAN.md`
-- `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/BLOCK_EDITOR_CONTRACT.md`
-- `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/06_QA_RELEASE_PLAN.md`
+- `docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/MASTER_PLAN.md`
+- `docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/BLOCK_EDITOR_CONTRACT.md`
+- `docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/06_QA_RELEASE_PLAN.md`
 - этот файл полностью
 
 Текущее unified-состояние, на которое опираемся:
@@ -353,7 +353,7 @@ pnpm run ci
 
 Не пушить без зелёного `pnpm run ci`.
 
-Обновить `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/LOG.md`:
+Обновить `docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/LOG.md`:
 
 - что сделано в каждой фазе;
 - какие файлы добавлены/изменены;

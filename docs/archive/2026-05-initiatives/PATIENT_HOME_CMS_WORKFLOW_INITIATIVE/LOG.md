@@ -58,9 +58,9 @@
 - Scope:
   - Created initiative docs and decomposed execution plans.
 - Changed files:
-  - `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/README.md`
-  - `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/MASTER_PLAN.md`
-  - `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/PROMPTS_PLAN_EXEC_AUDIT_FIX.md`
+  - `docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/README.md`
+  - `docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/MASTER_PLAN.md`
+  - `docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/PROMPTS_PLAN_EXEC_AUDIT_FIX.md`
 - Checks:
   - docs self-review
 - Result:
@@ -76,13 +76,13 @@
 - Scope:
   - Phase 0 по `00_AUDIT_UX_CONTRACT_PLAN.md`: контракт редактора блоков и журнал (без кода, без миграций).
 - Changed files:
-  - `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/BLOCK_EDITOR_CONTRACT.md`
-  - `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/LOG.md`
+  - `docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/BLOCK_EDITOR_CONTRACT.md`
+  - `docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/LOG.md`
 - Mandatory docs reviewed (доступные в дереве):
-  - `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/README.md`
-  - `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/MASTER_PLAN.md`
-  - `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/LOG.md`
-  - `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/00_AUDIT_UX_CONTRACT_PLAN.md`
+  - `docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/README.md`
+  - `docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/MASTER_PLAN.md`
+  - `docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/LOG.md`
+  - `docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/00_AUDIT_UX_CONTRACT_PLAN.md`
   - `docs/PATIENT_HOME_REDESIGN_INITIATIVE/VISUAL_SYSTEM_SPEC.md` (ссылки на модель блоков; README redesign по путям из Phase 0 в репозитории отсутствует)
   - `.cursor/rules/clean-architecture-module-isolation.mdc`, `.cursor/rules/000-critical-integration-config-in-db.mdc` (просмотрены по чеклисту Phase 0)
 - Code / paths из Phase 0:
@@ -103,9 +103,9 @@
 - Scope:
   - Закрытие mandatory fixes из `AUDIT_PHASE_0.md` §2 только документацией: исполняемый чеклист повторной верификации после появления `blocks.ts`, резолверов и путей редактора.
 - Changed files:
-  - `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/BLOCK_EDITOR_CONTRACT.md`
-  - `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/AUDIT_PHASE_0.md`
-  - `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/LOG.md`
+  - `docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/BLOCK_EDITOR_CONTRACT.md`
+  - `docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/AUDIT_PHASE_0.md`
+  - `docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/LOG.md`
 - Checks:
   - self-review docs (без CI, без тестов)
 - Result:
@@ -135,9 +135,9 @@
   - `apps/webapp/src/app-layer/routes/paths.ts`
   - `apps/webapp/src/shared/ui/doctorNavLinks.ts`
   - `apps/webapp/src/modules/patient-home/README.md`
-  - `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/01_DIAGNOSTICS_LABELS_PLAN.md` (чеклист Phase 1)
-  - `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/BLOCK_EDITOR_CONTRACT.md` (заметка Phase 1)
-  - `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/LOG.md`
+  - `docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/01_DIAGNOSTICS_LABELS_PLAN.md` (чеклист Phase 1)
+  - `docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/BLOCK_EDITOR_CONTRACT.md` (заметка Phase 1)
+  - `docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/LOG.md`
 - Checks:
   - `pnpm --dir apps/webapp exec vitest run src/modules/patient-home/blockEditorMetadata.test.ts src/modules/patient-home/patientHomeUnresolvedRefs.test.ts src/app/app/settings/patient-home/patientHomeBlockEditor.test.tsx` — pass
   - `pnpm --dir apps/webapp exec tsc --noEmit` — pass (локально при ошибках в `.next/types/validator.ts` удалён устаревший `apps/webapp/.next`)
@@ -157,9 +157,9 @@
 - Scope:
   - Mandatory fixes из `AUDIT_PHASE_1.md`: исполняемый чеклист на регрессию после появления add/edit/reorder/repair; актуализация `BLOCK_EDITOR_CONTRACT.md` (наличие `blocks.ts`, раздел §B после Phase 1); секция §9 в `AUDIT_PHASE_1.md`.
 - Changed files:
-  - `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/BLOCK_EDITOR_CONTRACT.md`
-  - `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/AUDIT_PHASE_1.md`
-  - `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/LOG.md`
+  - `docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/BLOCK_EDITOR_CONTRACT.md`
+  - `docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/AUDIT_PHASE_1.md`
+  - `docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/LOG.md`
 - Checks:
   - `pnpm --dir apps/webapp exec vitest run src/modules/patient-home/blockEditorMetadata.test.ts src/modules/patient-home/patientHomeUnresolvedRefs.test.ts src/app/app/settings/patient-home/patientHomeBlockEditor.test.tsx` — pass
 - Result:
@@ -187,8 +187,8 @@
   - `apps/webapp/src/app/app/settings/patient-home/patientHomeBlockEditor.test.tsx`
   - `apps/webapp/src/modules/patient-home/patientHomeEditorDemo.ts`
   - `apps/webapp/src/app/app/doctor/patient-home/page.tsx` (демо `initialItems` / `initialCandidates` для CMS-блоков)
-  - `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/02_UNIFIED_BLOCK_EDITOR_PLAN.md` (чеклист Phase 2)
-  - `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/LOG.md`
+  - `docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/02_UNIFIED_BLOCK_EDITOR_PLAN.md` (чеклист Phase 2)
+  - `docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/LOG.md`
 - Checks:
   - `pnpm --dir apps/webapp exec vitest run src/app/app/settings/patient-home/patientHomeBlockEditor.test.tsx src/app/app/settings/patient-home/actions.test.ts` — pass
   - `pnpm --dir apps/webapp exec tsc --noEmit` — pass
@@ -208,8 +208,8 @@
 - Scope:
   - Сверка Phase 2 с `02_UNIFIED_BLOCK_EDITOR_PLAN.md`: чеклист, completion criteria, mandatory behavior, design constraints, out of scope.
 - Changed files:
-  - `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/AUDIT_PHASE_2.md` (новый)
-  - `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/LOG.md`
+  - `docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/AUDIT_PHASE_2.md` (новый)
+  - `docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/LOG.md`
 - Checks:
   - обзор кода и `LOG.md` Phase 2 EXEC; grep `patient_home` в `apps/webapp/db` — без совпадений
 - Result:
@@ -225,11 +225,11 @@
 - Scope:
   - Mandatory fixes из `AUDIT_PHASE_2.md` §3 / §8 / §9: синхронизация плана `02_…` с отсутствием `PatientHomeAddItemDialog.tsx`; контракт Phase 2 и заглушки actions в `BLOCK_EDITOR_CONTRACT.md`; уточнение чеклиста AUDIT_PHASE_1 §2; актуализация `AUDIT_PHASE_1.md` §2/§9; закрытие §12 в `AUDIT_PHASE_2.md`.
 - Changed files:
-  - `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/02_UNIFIED_BLOCK_EDITOR_PLAN.md`
-  - `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/BLOCK_EDITOR_CONTRACT.md`
-  - `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/AUDIT_PHASE_1.md`
-  - `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/AUDIT_PHASE_2.md`
-  - `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/LOG.md`
+  - `docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/02_UNIFIED_BLOCK_EDITOR_PLAN.md`
+  - `docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/BLOCK_EDITOR_CONTRACT.md`
+  - `docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/AUDIT_PHASE_1.md`
+  - `docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/AUDIT_PHASE_2.md`
+  - `docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/LOG.md`
 - Checks:
   - `pnpm --dir apps/webapp exec tsc --noEmit` — pass (изменения только в docs; smoke-команда для регрессии TS)
 - Result:
@@ -262,9 +262,9 @@
   - `apps/webapp/src/modules/patient-home/blocks.ts` (`patientHomeCmsBlockAllowsContentSection`)
   - `apps/webapp/src/modules/patient-home/patientHomeEditorDemo.ts` (кандидаты `situations` — [])
   - `apps/webapp/src/app/app/settings/patient-home/patientHomeBlockEditor.test.tsx`
-  - `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/03_INLINE_CREATE_SECTIONS_PLAN.md` (чеклист)
-  - `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/BLOCK_EDITOR_CONTRACT.md`
-  - `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/LOG.md`
+  - `docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/03_INLINE_CREATE_SECTIONS_PLAN.md` (чеклист)
+  - `docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/BLOCK_EDITOR_CONTRACT.md`
+  - `docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/LOG.md`
 - Checks:
   - `pnpm --dir apps/webapp exec vitest run src/app/app/settings/patient-home/patientHomeBlockEditor.test.tsx src/app/app/settings/patient-home/actions.test.ts` — pass
   - `pnpm --dir apps/webapp exec tsc --noEmit` — pass
@@ -282,8 +282,8 @@
 - Scope:
   - Mandatory fixes из `AUDIT_PHASE_3.md` §5: явный контракт action и edge cases в записи **Phase 3 — EXEC**; удаление дублирующей записи **Phase 3 — EXEC (повторный запрос)**; добавлен `AUDIT_PHASE_3.md` с §6 (статус после FIX).
 - Changed files:
-  - `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/AUDIT_PHASE_3.md`
-  - `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/LOG.md`
+  - `docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/AUDIT_PHASE_3.md`
+  - `docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/LOG.md`
 - Checks:
   - не применялись (только markdown)
 - Result:
@@ -309,9 +309,9 @@
   - `apps/webapp/src/app/app/doctor/content/sections/actions.ts`, `actions.test.ts`, `SectionForm.tsx`, `SectionSlugRenameDialog.tsx`, `edit/[slug]/page.tsx`
   - `apps/webapp/src/app/app/patient/sections/[slug]/page.tsx`, `page.slugRedirect.test.tsx`, `page.warmupsGate.test.tsx`
   - `apps/webapp/scripts/verify-drizzle-public-table-count.mjs` (исключение legacy `patient_*` до появления их `pgTable` в schema slice)
-  - `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/04_SAFE_SLUG_RENAME_PLAN.md` (чеклист)
-  - `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/ROLLBACK_SQL.md`
-  - `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/LOG.md`
+  - `docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/04_SAFE_SLUG_RENAME_PLAN.md` (чеклист)
+  - `docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/ROLLBACK_SQL.md`
+  - `docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/LOG.md`
 - Checks:
   - `pnpm --dir apps/webapp exec vitest run src/shared/lib/contentSectionSlug.test.ts src/infra/repos/resolvePatientContentSectionSlug.test.ts src/infra/repos/pgContentSections.test.ts src/app/app/doctor/content/sections/actions.test.ts src/app/app/patient/sections/[slug]/page.slugRedirect.test.tsx src/app/app/patient/sections/[slug]/page.warmupsGate.test.tsx` — pass
   - `pnpm --dir apps/webapp run db:verify-public-table-count` — pass
@@ -334,7 +334,7 @@
   - Mandatory fixes из `AUDIT_PHASE_4.md` §10: фильтр правил напоминаний на странице раздела пациента — `linkedObjectId` сравнивается с **`section.slug`**, а не литералом `warmups`; зафиксированы в журнале пункты по verify-скрипту (исключения до появления `pgTable` в schema slice) и ops-проверке миграции `0008`.
 - Changed files:
   - `apps/webapp/src/app/app/patient/sections/[slug]/page.tsx`
-  - `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/LOG.md`
+  - `docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/LOG.md`
 - Checks:
   - `pnpm --dir apps/webapp exec vitest run src/app/app/patient/sections/[slug]/page.warmupsGate.test.tsx` — pass
 - Notes:
@@ -360,9 +360,9 @@
   - `apps/webapp/src/app/app/doctor/content/new/page.tsx`, `ContentForm.tsx`, `actions.ts`, `actions.test.ts`
   - `apps/webapp/src/app/app/doctor/courses/new/page.tsx`, `DoctorCourseDraftCreateForm.tsx`
   - `apps/webapp/src/app/app/doctor/patient-home/page.tsx`
-  - `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/05_CREATE_RETURN_FLOWS_PLAN.md` (чеклист)
-  - `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/BLOCK_EDITOR_CONTRACT.md`
-  - `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/LOG.md`
+  - `docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/05_CREATE_RETURN_FLOWS_PLAN.md` (чеклист)
+  - `docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/BLOCK_EDITOR_CONTRACT.md`
+  - `docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/LOG.md`
 - Checks:
   - `pnpm --dir apps/webapp exec vitest run src/modules/patient-home/patientHomeCmsReturnUrls.test.ts src/app/app/settings/patient-home/patientHomeBlockEditor.test.tsx src/app/app/doctor/content/actions.test.ts src/app/app/doctor/content/ContentForm.test.tsx` — pass
   - `pnpm --dir apps/webapp exec tsc --noEmit` — pass
@@ -382,7 +382,7 @@
 - Scope:
   - Аудит Phase 5 по `05_CREATE_RETURN_FLOWS_PLAN.md`; артефакт `AUDIT_PHASE_5.md` (**pass with notes**). Зазор §5.1 (`sections/new` без return-context) закрыт в **Phase 6 — FIX**.
 - Changed files:
-  - `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/AUDIT_PHASE_5.md`
+  - `docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/AUDIT_PHASE_5.md`
 - Checks:
   - обзор кода и `05`
 - Result:
@@ -398,10 +398,10 @@
 - Scope:
   - Phase 6 по `06_QA_RELEASE_PLAN.md` и §Phase 6 `MASTER_PLAN.md`: закрыт **Documentation Checklist** в `06_…` (с пометкой, что Final Manual QA остаётся операторским gate); примечание к completion criteria про отсутствие full root CI; модульная заметка **`apps/webapp/src/modules/patient-home/patient-home.md`** (workflow редактора + ссылки на тесты/аудит); ссылка из `modules/patient-home/README.md`; **full CI не запускался** (условия §Gate Strategy не выполнены).
 - Changed files:
-  - `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/06_QA_RELEASE_PLAN.md`
+  - `docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/06_QA_RELEASE_PLAN.md`
   - `apps/webapp/src/modules/patient-home/patient-home.md` (новый)
   - `apps/webapp/src/modules/patient-home/README.md`
-  - `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/LOG.md`
+  - `docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/LOG.md`
 - Checks (phase-level, `apps/webapp`):
   - `pnpm --dir apps/webapp exec vitest run src/modules/patient-home/blockEditorMetadata.test.ts src/modules/patient-home/patientHomeUnresolvedRefs.test.ts src/modules/patient-home/patientHomeCmsReturnUrls.test.ts src/app/app/settings/patient-home/patientHomeBlockEditor.test.tsx src/app/app/settings/patient-home/actions.test.ts src/app/app/doctor/content/actions.test.ts src/app/app/doctor/content/ContentForm.test.tsx src/shared/lib/contentSectionSlug.test.ts src/infra/repos/resolvePatientContentSectionSlug.test.ts src/infra/repos/pgContentSections.test.ts src/app/app/doctor/content/sections/actions.test.ts src/app/app/patient/sections/[slug]/page.slugRedirect.test.tsx src/app/app/patient/sections/[slug]/page.warmupsGate.test.tsx` — pass
   - `pnpm --dir apps/webapp run db:verify-public-table-count` — pass
@@ -423,9 +423,9 @@
 - Scope:
   - Финальная сверка с `06_QA_RELEASE_PLAN.md`: Documentation Checklist, Final Manual QA (статус gate), Gate Strategy / completion criteria; создан `AUDIT_PHASE_6.md` (вердикт **pass with notes**).
 - Changed files:
-  - `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/AUDIT_PHASE_6.md` (новый)
-  - `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/06_QA_RELEASE_PLAN.md` (строка про аудиты)
-  - `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/LOG.md`
+  - `docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/AUDIT_PHASE_6.md` (новый)
+  - `docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/06_QA_RELEASE_PLAN.md` (строка про аудиты)
+  - `docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/LOG.md`
 - Checks:
   - обзор `LOG.md`, `06_QA_RELEASE_PLAN.md`, `AUDIT_PHASE_0..6`, `ROLLBACK_SQL.md`, `docs/README.md`, `patient-home.md` (без повторного прогона CI в этом AUDIT)
 - Result:
@@ -445,9 +445,9 @@
   - `apps/webapp/src/app/app/doctor/content/sections/SectionForm.tsx`
   - `apps/webapp/src/app/app/doctor/content/sections/actions.ts`
   - `apps/webapp/src/modules/patient-home/patient-home.md`
-  - `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/AUDIT_PHASE_5.md`
-  - `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/AUDIT_PHASE_6.md`
-  - `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/LOG.md`
+  - `docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/AUDIT_PHASE_5.md`
+  - `docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/AUDIT_PHASE_6.md`
+  - `docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/LOG.md`
 - Checks:
   - `pnpm --dir apps/webapp exec vitest run src/modules/patient-home/patientHomeCmsReturnUrls.test.ts src/app/app/settings/patient-home/patientHomeBlockEditor.test.tsx src/app/app/doctor/content/sections/actions.test.ts src/shared/lib/contentSectionSlug.test.ts src/infra/repos/resolvePatientContentSectionSlug.test.ts src/infra/repos/pgContentSections.test.ts src/app/app/patient/sections/[slug]/page.slugRedirect.test.tsx src/app/app/patient/sections/[slug]/page.warmupsGate.test.tsx` — pass
   - `pnpm --dir apps/webapp exec tsc --noEmit` — pass
@@ -474,7 +474,7 @@
   - `apps/webapp/src/app/app/settings/patient-home/actions.ts`, `actions.test.ts`, `PatientHomeBlockEditorDialog.tsx`, `PatientHomeBlockEditorItems.tsx`
   - `apps/webapp/src/app/app/doctor/patient-home/page.tsx`, `doctor/content/sections/*` (rename actor, icon/cover form)
   - `apps/webapp/src/app/app/patient/page.tsx`, `patient/home/PatientHomeToday.tsx`, `PatientHomeSituationsRow.tsx`
-  - `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/FINAL_AUDIT.md`, `LOG.md`, `ROLLBACK_SQL.md`
+  - `docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/FINAL_AUDIT.md`, `LOG.md`, `ROLLBACK_SQL.md`
 - Checks:
   - `pnpm --dir apps/webapp exec vitest run src/modules/patient-home/service.test.ts src/app/app/settings/patient-home/actions.test.ts` — pass
   - `pnpm --dir apps/webapp exec tsc --noEmit` — pass
@@ -496,11 +496,11 @@
   - Канонический чеклист плана: `CMS_RELEASE_READY_PLAN_STATUS.md` (строка 8 уточнена: доки синхронизированы).
   - Навигация в `README.md` инициативы и в `docs/README.md` (индекс) на статус, финальный аудит и журнал доработки доков (`DOC_SYNC_AND_PASS_CLOSURE.md`).
 - Changed files:
-  - `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/FINAL_AUDIT.md`
-  - `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/README.md`
+  - `docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/FINAL_AUDIT.md`
+  - `docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/README.md`
   - `docs/README.md`
-  - `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/CMS_RELEASE_READY_PLAN_STATUS.md`
-  - `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/LOG.md`
+  - `docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/CMS_RELEASE_READY_PLAN_STATUS.md`
+  - `docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/LOG.md`
 - Checks:
   - самопроверка согласованности ссылок и формулировок между `FINAL_AUDIT.md`, `DOC_SYNC_AND_PASS_CLOSURE.md`, `CMS_RELEASE_READY_PLAN_STATUS.md`
 - Result:
@@ -530,8 +530,8 @@
   - `apps/webapp/src/infra/repos/pgContentPages.ts`
   - `apps/webapp/src/infra/repos/pgContentSections.ts`
   - `apps/webapp/src/modules/content-catalog/service.test.ts`
-  - `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/SLUG_RENAME_WIRING_TASK.md`
-  - `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/LOG.md`
+  - `docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/SLUG_RENAME_WIRING_TASK.md`
+  - `docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/LOG.md`
 - Checks:
   - `pnpm --dir apps/webapp run typecheck` — pass
   - `pnpm --dir apps/webapp exec vitest --run` (focused) — pass
@@ -569,7 +569,7 @@
   - `apps/webapp/src/app/app/settings/patient-home/actions.test.ts`
   - `apps/webapp/src/app/app/settings/patient-home/PatientHomeBlockSettingsCard.test.tsx`
   - `apps/webapp/src/app/app/settings/patient-home/PatientHomeBlocksSettingsPageClient.test.tsx`
-  - `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/LOG.md`
+  - `docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/LOG.md`
 - Checks:
   - Phase 5 targeted (`CMS_EDITOR_UX_LIFT_TASK_FOR_GPT55.md` §Phase 5): `pnpm --dir apps/webapp exec vitest run` по **14** тестовым файлам (включая `PatientHomeBlocksSettingsPageClient.test.tsx` — проброс runtime status) — **pass** (14 files, 96 tests). В dev `vitest.globalSetup` при сбое migrate: `console.warn` — одна краткая строка (без dump объекта `Error`); дочерний `pnpm run migrate` всё ещё может печатать своё сообщение; тесты green.
   - `pnpm --dir apps/webapp exec tsc --noEmit` — pass
@@ -590,8 +590,8 @@
   - `apps/webapp/vitest.globalSetup.ts`: при optional failure migrate `console.warn` печатает краткую строку (без полного dump `Error` во втором аргументе); stderr дочернего `pnpm run migrate` при локальной БД может остаться.
   - Повторная проверка pre-push: `pnpm install --frozen-lockfile && pnpm run ci` (корень) — **pass**.
 - Changed files:
-  - `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/CMS_EDITOR_UX_LIFT_TASK_FOR_GPT55.md`
-  - `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/LOG.md` (также обновлён предыдущий блок «Phases 1–4 + Phase 5 gate»)
+  - `docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/CMS_EDITOR_UX_LIFT_TASK_FOR_GPT55.md`
+  - `docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/LOG.md` (также обновлён предыдущий блок «Phases 1–4 + Phase 5 gate»)
   - `apps/webapp/vitest.globalSetup.ts`
 - Checks:
   - Phase 5 vitest (14 файлов из задачи) — 14 passed, 96 passed
@@ -617,7 +617,7 @@
   - `apps/webapp/src/modules/patient-home/ports.ts`, `blocks.ts`, `service.ts`
   - `apps/webapp/src/infra/repos/pgPatientHomeBlocks.ts`, `inMemoryPatientHomeBlocks.ts`
   - Тесты: `service.test.ts`, `pgPatientHomeBlocks.test.ts`, правки фикстур `PatientHomeBlock` в смежных тестах
-  - `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/LOG.md`
+  - `docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/LOG.md`
 - Checks:
   - `pnpm --dir apps/webapp exec vitest run src/modules/patient-home src/infra/repos/pgPatientHomeBlocks.test.ts` — pass
   - `pnpm --dir apps/webapp exec tsc --noEmit` — pass
@@ -634,8 +634,8 @@
 - Scope:
   - Аудит data layer для `patient_home_blocks.icon_image_url` / порт `setBlockIcon` / сервис / repos; без правок кода.
 - Changed files:
-  - `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/AUDIT_BLOCK_ICON_DATA_LAYER.md` (новый)
-  - `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/LOG.md`
+  - `docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/AUDIT_BLOCK_ICON_DATA_LAYER.md` (новый)
+  - `docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/LOG.md`
 - Checks:
   - `pnpm --dir apps/webapp exec vitest run src/modules/patient-home/service.test.ts src/infra/repos/pgPatientHomeBlocks.test.ts` — pass (2 files, 18 tests); root `pnpm run ci` — не запускался
 - Result:
@@ -655,7 +655,7 @@
   - `apps/webapp/src/infra/repos/pgPatientHomeBlocks.test.ts`
   - `apps/webapp/package.json` (`test:with-db`)
   - `apps/webapp/db/drizzle-migrations/meta/0012_snapshot.json` (новый), `meta/0013_snapshot.json` (`prevId`)
-  - `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/AUDIT_BLOCK_ICON_DATA_LAYER.md`, `LOG.md`
+  - `docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/AUDIT_BLOCK_ICON_DATA_LAYER.md`, `LOG.md`
 - Checks:
   - `pnpm --dir apps/webapp exec vitest run src/infra/repos/pgPatientHomeBlocks.test.ts src/modules/patient-home/service.test.ts` — pass (19 passed, 1 skipped)
   - ReadLints по затронутым ts — ok
@@ -678,7 +678,7 @@
   - `apps/webapp/src/app/app/settings/patient-home/PatientHomeBlockSettingsCard.tsx`, `actions.ts`
   - `apps/webapp/src/app/app/patient/home/PatientHomeToday.tsx`, `PatientHomeBookingCard.tsx`, `PatientHomeProgressBlock.tsx`, `PatientHomeNextReminderCard.tsx`, `PatientHomeSosCard.tsx`, `PatientHomePlanCard.tsx`
   - Тесты: `actions.test.ts`, `PatientHomeBlockSettingsCard.test.tsx`, `PatientHomeBookingCard.test.tsx`, `PatientHomeNextReminderCard.test.tsx`, `PatientHomeSosCard.test.tsx`, `PatientHomeProgressBlock.test.tsx`, `PatientHomePlanCard.test.tsx` (новый)
-  - `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/LOG.md`
+  - `docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/LOG.md`
 - Checks:
   - `pnpm --dir apps/webapp exec vitest run` (7 файлов: settings actions + BlockSettingsCard + 5 patient home card tests) — pass (46 tests)
   - ReadLints — ok
@@ -696,8 +696,8 @@
 - Scope:
   - Статический аудит whitelist picker, `MediaLibraryPickerDialog` / cms-unified layout, preview/clear, отсутствие picker на не-whitelist блоках, runtime leading slot + fallback, a11y/size, покрытие тестами.
 - Changed files:
-  - `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/AUDIT_BLOCK_ICON_ADMIN_RUNTIME.md` (новый)
-  - `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/LOG.md`
+  - `docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/AUDIT_BLOCK_ICON_ADMIN_RUNTIME.md` (новый)
+  - `docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/LOG.md`
 - Checks:
   - просмотр кода и тестов; root `pnpm run ci` — не запускался; targeted vitest — не гонялся в этом проходе
 - Result:
@@ -716,7 +716,7 @@
   - `apps/webapp/src/app/app/settings/patient-home/PatientHomeBlockSettingsCard.realPicker.test.tsx` (новый)
   - `apps/webapp/src/app/app/patient/home/PatientHomeBookingCard.tsx`
   - `apps/webapp/src/app/app/settings/patient-home/PatientHomeBlocksSettingsPageClient.test.tsx`
-  - `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/AUDIT_BLOCK_ICON_ADMIN_RUNTIME.md`, `LOG.md`
+  - `docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/AUDIT_BLOCK_ICON_ADMIN_RUNTIME.md`, `LOG.md`
 - Checks:
   - `pnpm --dir apps/webapp exec vitest run src/app/app/settings/patient-home …` + карточки home (см. аудит-док) — pass (13 files, 61 tests)
   - ReadLints — ok
@@ -725,3 +725,20 @@
   - pass
 - Next:
   - опционально: e2e открытие shell и выбор строки в библиотеке
+
+---
+
+## 2026-05-01 — Закрытие инициативы: принятие QA, архив
+
+- Branch: n/a (docs-only)
+- Scope:
+  - Продуктовый gate по ручному QA: **принято текущее состояние** без полного матричного прогона по `06_QA_RELEASE_PLAN.md`; инициатива переносится в `docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/`.
+- Changed files:
+  - `FINAL_AUDIT.md`, `CMS_RELEASE_READY_PLAN_STATUS.md`, `LOG.md` — запись о закрытии
+  - перенос папки инициативы в `docs/archive/2026-05-initiatives/`; stub `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/README.md`; корневые ссылки в `docs/README.md`, `BACKLOG_TAILS.md`, `APP_RESTRUCTURE_INITIATIVE/README.md`; комментарий в `blockEditorMetadata.ts`
+- Checks:
+  - n/a
+- Result:
+  - pass — gate закрыт явным принятием (2026-05-01)
+- Next:
+  - нет

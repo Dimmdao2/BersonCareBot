@@ -203,8 +203,8 @@ Document exact current behavior, label decisions, and target block editor contra
 
 ### Files
 
-- `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/LOG.md` - create.
-- `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/BLOCK_EDITOR_CONTRACT.md` - create.
+- `docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/LOG.md` - create.
+- `docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/BLOCK_EDITOR_CONTRACT.md` - create.
 
 ### Acceptance
 
@@ -578,7 +578,7 @@ Allow changing a CMS section slug safely.
 - `apps/webapp/src/app/app/doctor/content/sections/SectionSlugRenameDialog.tsx`
 - `apps/webapp/src/app/app/doctor/content/sections/SectionForm.tsx`
 - `apps/webapp/src/app/app/patient/sections/[slug]/page.tsx`
-- `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/ROLLBACK_SQL.md`
+- `docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/ROLLBACK_SQL.md`
 
 ### Tests
 

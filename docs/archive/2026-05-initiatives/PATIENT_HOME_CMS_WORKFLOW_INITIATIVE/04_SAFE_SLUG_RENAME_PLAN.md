@@ -28,7 +28,7 @@
 - `apps/webapp/src/app/app/doctor/content/sections/SectionForm.tsx`
 - `apps/webapp/src/app/app/doctor/content/sections/SectionSlugRenameDialog.tsx` (new)
 - `apps/webapp/src/app/app/patient/sections/[slug]/page.tsx`
-- `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/ROLLBACK_SQL.md` (new or update)
+- `docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/ROLLBACK_SQL.md` (new or update)
 
 ## Behavior Requirements
 

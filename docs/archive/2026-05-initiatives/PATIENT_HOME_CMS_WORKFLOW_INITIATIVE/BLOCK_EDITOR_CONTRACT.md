@@ -4,8 +4,8 @@
 
 ## Нормативный источник
 
-- Продуктовые решения и резолвинг целей: `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/MASTER_PLAN.md` (§1.1 runtime, §2.1–2.4).
-- SoT данных: `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/README.md` (`patient_home_blocks`, `patient_home_block_items`, CMS-таблицы).
+- Продуктовые решения и резолвинг целей: `docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/MASTER_PLAN.md` (§1.1 runtime, §2.1–2.4).
+- SoT данных: `docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/README.md` (`patient_home_blocks`, `patient_home_block_items`, CMS-таблицы).
 
 Колонка **allowed target types** ниже согласована с `MASTER_PLAN.md` §1.1 (карта `patientHomeResolvers`). Источник кодов и типов целей в репозитории: `apps/webapp/src/modules/patient-home/blocks.ts` (Phase 1); при расхождении с таблицей — обновить документ или код (см. раздел «Обязательная повторная верификация» §A).
 

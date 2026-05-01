@@ -7,9 +7,9 @@
 
 **PASS по коду и автоматическим gate:** контракт персистентности (`patient_home_blocks` / `patient_home_block_items`), редактор врача и runtime основной страницы `/app/patient` согласованы через `deps.patientHome` и миграцию `0009_patient_home_cms_blocks`.
 
-**OPEN (продуктовый gate, не код):** ручной smoke по [`06_QA_RELEASE_PLAN.md`](06_QA_RELEASE_PLAN.md) в целевом окружении — зафиксировать результат в [`LOG.md`](LOG.md).
+**PASS (продуктовый gate):** владелец продукта принял текущее состояние **2026-05-01** (матрица `06_QA_RELEASE_PLAN.md` не выполнялась полностью; gate закрыт явным принятием). Запись в [`LOG.md`](LOG.md).
 
-Практический статус: **release-ready по data path и CI**; полный «release signed off» — после ручного QA.
+Практический статус: **release-ready по data path и CI**; инициатива **перенесена в архив** (`docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/`).
 
 Чеклист плана в репозитории: [`CMS_RELEASE_READY_PLAN_STATUS.md`](CMS_RELEASE_READY_PLAN_STATUS.md).  
 Журнал синхронизации документов: [`DOC_SYNC_AND_PASS_CLOSURE.md`](DOC_SYNC_AND_PASS_CLOSURE.md).
@@ -80,9 +80,7 @@ pnpm --dir apps/webapp exec vitest run src/modules/patient-home/service.test.ts 
 
 Закрытые ранее в §4 **blocker/high** пункты (отсутствие `patient_home_*`, demo-only редактор, отсутствие icon/cover, только `revalidatePath`, отсутствие actor/CHECK) **сняты реализацией §10** — см. [`DOC_SYNC_AND_PASS_CLOSURE.md`](DOC_SYNC_AND_PASS_CLOSURE.md).
 
-**Остаётся зафиксировать вручную:**
-
-- **LOW / process:** пройти чеклист `06_QA_RELEASE_PLAN.md` и записать в `LOG.md`.
+**Продуктовый gate:** закрыт принятием (2026-05-01); при необходимости регресса — повторный прогон по `06_QA_RELEASE_PLAN.md` вне рамок этой инициативы.
 
 **Backlog (не регресс PASS):**
 
@@ -108,7 +106,7 @@ pnpm --dir apps/webapp exec vitest run src/modules/patient-home/service.test.ts 
 
 Код и **root CI** — зелёные на актуальном дереве после release-ready батча.
 
-Для полного продуктового подписания: **ручной QA** по `06_QA_RELEASE_PLAN.md` + запись в `LOG.md`.
+Продуктовое подписание: **принято** (2026-05-01), см. `LOG.md`.
 
 ## 7. Выполненный порядок работ (release-ready batch)
 
@@ -116,7 +114,7 @@ pnpm --dir apps/webapp exec vitest run src/modules/patient-home/service.test.ts 
 
 ## 8. Финальное заключение
 
-Инициатива по **контракту персистентной главной** для основного patient home path закрыта в коде; остаётся операционный шаг ручной проверки и поддержание документации в согласовании с кодом (см. `DOC_SYNC_AND_PASS_CLOSURE.md` при будущих расхождениях).
+Инициатива по **контракту персистентной главной** для основного patient home path закрыта в коде и **заархивирована**; поддержание документации при расхождениях с кодом — см. `DOC_SYNC_AND_PASS_CLOSURE.md`.
 
 ## 9. Примечание об устаревших версиях этого файла
 
@@ -130,7 +128,7 @@ pnpm --dir apps/webapp exec vitest run src/modules/patient-home/service.test.ts 
 - Runtime `/app/patient` + вторичная зона от CMS.
 - Root `pnpm install --frozen-lockfile && pnpm run ci` — **pass**.
 
-Ручной QA по `06_QA_RELEASE_PLAN.md` в сессии release-ready **не выполнялся** — **OPEN**.
+Ручной QA по `06_QA_RELEASE_PLAN.md` в сессии release-ready **не выполнялся полностью**; gate закрыт **принятием текущего состояния** (2026-05-01) — **PASS**.
 
 ## 11. Связанные артефакты
 

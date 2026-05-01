@@ -9,7 +9,7 @@
 - Рабочая ветка: `patient-home-cms-workflow-initiative` (если нет — создать перед первым EXEC).
 - После каждого EXEC запускать AUDIT.
 - Следующую фазу не начинать, пока mandatory fixes текущей не закрыты.
-- В каждом PLAN/EXEC/FIX/AUDIT обновлять `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/LOG.md`.
+- В каждом PLAN/EXEC/FIX/AUDIT обновлять `docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/LOG.md`.
 - Не исполнять промпты из `PATIENT_APP_VISUAL_REDESIGN_INITIATIVE` в рамках этой инициативы.
 - Не трогать patient visual shell/nav/card styling (`globals.css`, `AppShell`, `PatientHeader`, `PatientBottomNav`, `PatientTopNav`, `navigation.ts`, `button-variants.ts`, `patientHomeCardStyles.ts`), кроме user-approved conflict fix.
 - Не хардкодить slug-и из `CONTENT_PLAN.md`.
@@ -30,10 +30,10 @@
 
 Сделай sanity check перед началом:
 1. Прочитай:
-   - docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/README.md
-   - docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/MASTER_PLAN.md
-   - docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/LOG.md
-   - docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/00_AUDIT_UX_CONTRACT_PLAN.md
+   - docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/README.md
+   - docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/MASTER_PLAN.md
+   - docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/LOG.md
+   - docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/00_AUDIT_UX_CONTRACT_PLAN.md
 2. Подтверди, что phase files `00..06` существуют и будут источником работ.
 3. Подтверди, что не будешь исполнять prompt-файлы других инициатив.
 4. Проверь текущую ветку; если это не `patient-home-cms-workflow-initiative`, предложи создать/переключиться.
@@ -53,9 +53,9 @@
 Режим: PLAN.
 
 Прочитай:
-- docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/00_AUDIT_UX_CONTRACT_PLAN.md
-- docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/MASTER_PLAN.md
-- docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/LOG.md
+- docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/00_AUDIT_UX_CONTRACT_PLAN.md
+- docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/MASTER_PLAN.md
+- docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/LOG.md
 - docs/PATIENT_HOME_REDESIGN_INITIATIVE/README.md
 - docs/PATIENT_HOME_REDESIGN_INITIATIVE/LOG.md
 - docs/PATIENT_HOME_REDESIGN_INITIATIVE/AUDIT_PHASE_9.md
@@ -98,7 +98,7 @@
 Проверь результат Phase 0 против чеклиста `00_AUDIT_UX_CONTRACT_PLAN.md`.
 
 Создай:
-- docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/AUDIT_PHASE_0.md
+- docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/AUDIT_PHASE_0.md
 
 Формат:
 1. Verdict
@@ -130,10 +130,10 @@
 Режим: PLAN.
 
 Прочитай:
-- docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/01_DIAGNOSTICS_LABELS_PLAN.md
-- docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/BLOCK_EDITOR_CONTRACT.md
-- docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/AUDIT_PHASE_0.md
-- docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/LOG.md
+- docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/01_DIAGNOSTICS_LABELS_PLAN.md
+- docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/BLOCK_EDITOR_CONTRACT.md
+- docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/AUDIT_PHASE_0.md
+- docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/LOG.md
 
 Составь детальный план Phase 1:
 - какие файлы меняешь;

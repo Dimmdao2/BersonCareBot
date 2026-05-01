@@ -2,7 +2,7 @@
 
 Аудит финальной готовности по `06_QA_RELEASE_PLAN.md` (goal, scope, final manual QA, documentation checklist, gate strategy, completion criteria, out of scope). Дата аудита: 2026-04-29.
 
-Источник фактов: `06_QA_RELEASE_PLAN.md`, `LOG.md` (в т.ч. **Phase 6 — EXEC**), дерево `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/AUDIT_PHASE_*.md`, `apps/webapp/src/modules/patient-home/patient-home.md`.
+Источник фактов: `06_QA_RELEASE_PLAN.md`, `LOG.md` (в т.ч. **Phase 6 — EXEC**), дерево `docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/AUDIT_PHASE_*.md`, `apps/webapp/src/modules/patient-home/patient-home.md`.
 
 ---
 

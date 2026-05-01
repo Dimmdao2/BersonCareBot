@@ -3,7 +3,7 @@ import { allowedTargetTypesForBlock, canManageItemsForBlock } from "./blocks";
 
 /**
  * Централизованный admin-copy и правила редактора блоков главной пациента.
- * Согласовано с `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/BLOCK_EDITOR_CONTRACT.md`.
+ * Согласовано с `docs/archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/BLOCK_EDITOR_CONTRACT.md`.
  */
 export type PatientHomeBlockEditorMetadata = {
   code: PatientHomeBlockCode;
