@@ -10,11 +10,13 @@ import {
   saveTestSetCore,
   saveTestSetItemsCore,
   TEST_SETS_PATH,
+  unarchiveTestSetCore,
   type ArchiveTestSetState,
   type SaveTestSetState,
+  type UnarchiveTestSetState,
 } from "./actionsShared";
 
-export type { ArchiveTestSetState } from "./actionsShared";
+export type { ArchiveTestSetState, UnarchiveTestSetState } from "./actionsShared";
 
 export async function saveDoctorTestSet(
   _prev: SaveTestSetState | null,
@@ -63,6 +65,19 @@ export async function archiveDoctorTestSet(
   revalidatePath(TEST_SETS_PATH);
   revalidatePath(`${TEST_SETS_PATH}/${result.id}`);
   redirect(TEST_SETS_PATH);
+}
+
+export async function unarchiveDoctorTestSet(
+  _prev: UnarchiveTestSetState | null,
+  formData: FormData,
+): Promise<UnarchiveTestSetState> {
+  const result = await unarchiveTestSetCore(formData);
+  if (result.kind === "invalid") {
+    return { ok: false, error: result.error };
+  }
+  revalidatePath(TEST_SETS_PATH);
+  revalidatePath(`${TEST_SETS_PATH}/${result.id}`);
+  redirect(`${TEST_SETS_PATH}/${result.id}`);
 }
 
 export async function fetchDoctorTestSetUsageSnapshot(testSetId: string) {

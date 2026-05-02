@@ -123,6 +123,13 @@ export const inMemoryRecommendationsPort: RecommendationsPort = {
     return true;
   },
 
+  async unarchive(id: string): Promise<boolean> {
+    const cur = store.get(id);
+    if (!cur || !cur.isArchived) return false;
+    store.set(id, { ...cur, isArchived: false, updatedAt: new Date().toISOString() });
+    return true;
+  },
+
   async getRecommendationUsageSummary(id: string): Promise<RecommendationUsageSnapshot> {
     return usageByRecommendationId.get(id) ?? { ...EMPTY_RECOMMENDATION_USAGE_SNAPSHOT };
   },

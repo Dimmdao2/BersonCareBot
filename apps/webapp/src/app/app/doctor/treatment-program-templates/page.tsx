@@ -8,6 +8,10 @@ import {
 } from "@/modules/treatment-program/types";
 import type { TreatmentProgramLibraryPickers } from "./[id]/TreatmentProgramConstructorClient";
 import { TreatmentProgramTemplatesPageClient } from "./TreatmentProgramTemplatesPageClient";
+import {
+  parseTemplateCourseCatalogListStatus,
+  serverListFilterFromTemplateCourseCatalogStatus,
+} from "@/shared/lib/doctorCatalogListStatus";
 
 type PageProps = {
   searchParams?: Promise<{
@@ -16,6 +20,7 @@ type PageProps = {
     titleSort?: string;
     region?: string;
     load?: string;
+    status?: string;
   }>;
 };
 
@@ -23,8 +28,12 @@ export default async function TreatmentProgramTemplatesPage({ searchParams }: Pa
   const session = await requireDoctorAccess();
   const deps = buildAppDeps();
 
+  const sp = (await searchParams) ?? {};
+  const listStatus = parseTemplateCourseCatalogListStatus(sp);
+  const tplListFilter = serverListFilterFromTemplateCourseCatalogStatus(listStatus);
+
   const [items, exercises, lfkTemplates, testSets, recommendations, contentPagesAll] = await Promise.all([
-    deps.treatmentProgram.listTemplates({ includeArchived: false }),
+    deps.treatmentProgram.listTemplates(tplListFilter),
     deps.lfkExercises.listExercises({ includeArchived: false }),
     deps.lfkTemplates.listTemplates({}),
     deps.testSets.listTestSets({ includeArchived: false }),
@@ -48,7 +57,6 @@ export default async function TreatmentProgramTemplatesPage({ searchParams }: Pa
       .map((p) => ({ id: p.id, title: p.title })),
   };
 
-  const sp = (await searchParams) ?? {};
   const raw = typeof sp.selected === "string" ? sp.selected.trim() : "";
   const initialSelectedId = raw && items.some((t) => t.id === raw) ? raw : null;
   const q = typeof sp.q === "string" ? sp.q : "";
@@ -69,7 +77,7 @@ export default async function TreatmentProgramTemplatesPage({ searchParams }: Pa
         templates={items}
         library={library}
         initialSelectedId={initialSelectedId}
-        filters={{ q, regionRefId, loadType }}
+        filters={{ q, regionRefId, loadType, listStatus }}
         initialTitleSort={initialTitleSort}
       />
     </AppShell>

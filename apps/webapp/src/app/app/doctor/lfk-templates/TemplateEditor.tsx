@@ -49,7 +49,9 @@ import {
   fetchDoctorLfkTemplateUsageSnapshot,
   persistLfkTemplateDraft,
   publishLfkTemplateAction,
+  unarchiveDoctorLfkTemplate,
   type ArchiveDoctorLfkTemplateState,
+  type UnarchiveDoctorLfkTemplateState,
 } from "./actions";
 import { doctorLfkTemplateUsageHref } from "./lfkTemplatesUsageDocLinks";
 import {
@@ -331,6 +333,11 @@ export function TemplateEditor({
     null as ArchiveDoctorLfkTemplateState | null,
   );
 
+  const [unarchiveState, unarchiveFormAction, unarchivePending] = useActionState(
+    unarchiveDoctorLfkTemplate,
+    null as UnarchiveDoctorLfkTemplateState | null,
+  );
+
   useEffect(() => {
     if (
       archiveState?.ok === false &&
@@ -361,6 +368,9 @@ export function TemplateEditor({
 
   const archiveError =
     archiveState?.ok === false && "error" in archiveState ? archiveState.error : null;
+
+  const unarchiveError =
+    unarchiveState?.ok === false && "error" in unarchiveState ? unarchiveState.error : null;
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -549,89 +559,105 @@ export function TemplateEditor({
         </Button>
       </div>
 
-      {!archived ? (
-        <div className="border-t border-border/60 pt-4">
-          <div className="mb-3 rounded-md border border-border/60 bg-muted/20 p-3">
-            <p className="text-sm font-medium text-foreground">Где используется</p>
-            {usageBusy ? (
-              <p className="mt-1 text-sm text-muted-foreground">Загрузка…</p>
-            ) : usageLoadError ? (
-              <p className="mt-1 text-sm text-muted-foreground">{usageLoadError}</p>
-            ) : !usage ? null : !lfkTemplateUsageHasAnyReference(usage) ? (
-              <p className="mt-1 text-sm text-muted-foreground">Пока не используется</p>
-            ) : (
-              <LfkTemplateUsageSectionsView sections={usageSections} />
-            )}
-          </div>
-
-          {archiveError ? (
-            <p role="alert" className="mb-2 text-sm text-destructive">
-              {archiveError}
-            </p>
-          ) : null}
-
-          <form ref={archiveFormRef} action={archiveFormAction} className="flex flex-col gap-2">
-            <input type="hidden" name="id" value={template.id} />
-            <input type="hidden" name="listPreserveQuery" value={listPreserveQuery} />
-            <input type="hidden" name="acknowledgeUsageWarning" value={archiveUsageAck ? "1" : ""} readOnly />
-            <Button
-              type="submit"
-              variant="destructive"
-              disabled={archivePending || pending}
-              onClick={() => {
-                setArchiveUsageAck(false);
-              }}
-            >
-              {archivePending ? "Архивация…" : "Архивировать"}
-            </Button>
-          </form>
-
-          <Dialog open={warnOpen} onOpenChange={setWarnOpen}>
-            <DialogContent showCloseButton className="max-w-md">
-              <DialogHeader>
-                <DialogTitle>Комплекс уже используется</DialogTitle>
-                <div className="space-y-2 text-sm text-muted-foreground *:[a]:underline *:[a]:underline-offset-3 *:[a]:hover:text-foreground">
-                  <span className="block">
-                    Архивация уберёт комплекс из каталога для новых назначений. Уже выданные назначения и история не
-                    удаляются.
-                  </span>
-                  {!warnSections.length &&
-                  archiveState?.ok === false &&
-                  "code" in archiveState &&
-                  archiveState.code === "USAGE_CONFIRMATION_REQUIRED" &&
-                  !lfkTemplateUsageHasAnyReference(archiveState.usage) ? (
-                    <span className="block text-sm">
-                      Сервер запросил подтверждение — проверьте связи перед архивацией.
-                    </span>
-                  ) : warnSections.length ? (
-                    <LfkTemplateUsageSectionsView sections={warnSections} />
-                  ) : null}
-                </div>
-              </DialogHeader>
-              <DialogFooter className="gap-2 sm:gap-2">
-                <Button type="button" variant="outline" onClick={() => setWarnOpen(false)}>
-                  Отмена
-                </Button>
-                <Button
-                  type="button"
-                  variant="destructive"
-                  disabled={archivePending}
-                  onClick={() => {
-                    setArchiveUsageAck(true);
-                    setWarnOpen(false);
-                    queueMicrotask(() => {
-                      archiveFormRef.current?.requestSubmit();
-                      setArchiveUsageAck(false);
-                    });
-                  }}
-                >
-                  Архивировать всё равно
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+      <div className="border-t border-border/60 pt-4">
+        <div className="mb-3 rounded-md border border-border/60 bg-muted/20 p-3">
+          <p className="text-sm font-medium text-foreground">Где используется</p>
+          {usageBusy ? (
+            <p className="mt-1 text-sm text-muted-foreground">Загрузка…</p>
+          ) : usageLoadError ? (
+            <p className="mt-1 text-sm text-muted-foreground">{usageLoadError}</p>
+          ) : !usage ? null : !lfkTemplateUsageHasAnyReference(usage) ? (
+            <p className="mt-1 text-sm text-muted-foreground">Пока не используется</p>
+          ) : (
+            <LfkTemplateUsageSectionsView sections={usageSections} />
+          )}
         </div>
-      ) : null}
+
+        {archived ? (
+          <div className="flex flex-col gap-2">
+            {unarchiveError ? (
+              <p role="alert" className="text-sm text-destructive">
+                {unarchiveError}
+              </p>
+            ) : null}
+            <form action={unarchiveFormAction} className="flex flex-col gap-2">
+              <input type="hidden" name="id" value={template.id} />
+              <Button type="submit" variant="secondary" disabled={unarchivePending}>
+                {unarchivePending ? "Восстановление…" : "Вернуть из архива"}
+              </Button>
+            </form>
+          </div>
+        ) : (
+          <>
+            {archiveError ? (
+              <p role="alert" className="mb-2 text-sm text-destructive">
+                {archiveError}
+              </p>
+            ) : null}
+
+            <form ref={archiveFormRef} action={archiveFormAction} className="flex flex-col gap-2">
+              <input type="hidden" name="id" value={template.id} />
+              <input type="hidden" name="listPreserveQuery" value={listPreserveQuery} />
+              <input type="hidden" name="acknowledgeUsageWarning" value={archiveUsageAck ? "1" : ""} readOnly />
+              <Button
+                type="submit"
+                variant="destructive"
+                disabled={archivePending || pending}
+                onClick={() => {
+                  setArchiveUsageAck(false);
+                }}
+              >
+                {archivePending ? "Архивация…" : "Архивировать"}
+              </Button>
+            </form>
+
+            <Dialog open={warnOpen} onOpenChange={setWarnOpen}>
+              <DialogContent showCloseButton className="max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Комплекс уже используется</DialogTitle>
+                  <div className="space-y-2 text-sm text-muted-foreground *:[a]:underline *:[a]:underline-offset-3 *:[a]:hover:text-foreground">
+                    <span className="block">
+                      Архивация уберёт комплекс из каталога для новых назначений. Уже выданные назначения и история не
+                      удаляются.
+                    </span>
+                    {!warnSections.length &&
+                    archiveState?.ok === false &&
+                    "code" in archiveState &&
+                    archiveState.code === "USAGE_CONFIRMATION_REQUIRED" &&
+                    !lfkTemplateUsageHasAnyReference(archiveState.usage) ? (
+                      <span className="block text-sm">
+                        Сервер запросил подтверждение — проверьте связи перед архивацией.
+                      </span>
+                    ) : warnSections.length ? (
+                      <LfkTemplateUsageSectionsView sections={warnSections} />
+                    ) : null}
+                  </div>
+                </DialogHeader>
+                <DialogFooter className="gap-2 sm:gap-2">
+                  <Button type="button" variant="outline" onClick={() => setWarnOpen(false)}>
+                    Отмена
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    disabled={archivePending}
+                    onClick={() => {
+                      setArchiveUsageAck(true);
+                      setWarnOpen(false);
+                      queueMicrotask(() => {
+                        archiveFormRef.current?.requestSubmit();
+                        setArchiveUsageAck(false);
+                      });
+                    }}
+                  >
+                    Архивировать всё равно
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </>
+        )}
+      </div>
 
       <p className="text-xs text-muted-foreground">
         Перед публикацией черновик сохраняется автоматически. Если в базе нет упражнений в шаблоне, опубликация

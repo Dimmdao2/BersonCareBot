@@ -39,6 +39,17 @@ export function isClinicalTestArchiveAlreadyArchivedError(e: unknown): e is Clin
   return e instanceof ClinicalTestArchiveAlreadyArchivedError;
 }
 
+export class ClinicalTestUnarchiveNotArchivedError extends Error {
+  constructor() {
+    super("Тест не в архиве");
+    this.name = "ClinicalTestUnarchiveNotArchivedError";
+  }
+}
+
+export function isClinicalTestUnarchiveNotArchivedError(e: unknown): e is ClinicalTestUnarchiveNotArchivedError {
+  return e instanceof ClinicalTestUnarchiveNotArchivedError;
+}
+
 export class TestSetUsageConfirmationRequiredError extends Error {
   readonly code = USAGE_CONFIRMATION_REQUIRED;
 
@@ -72,4 +83,15 @@ export class TestSetArchiveAlreadyArchivedError extends Error {
 
 export function isTestSetArchiveAlreadyArchivedError(e: unknown): e is TestSetArchiveAlreadyArchivedError {
   return e instanceof TestSetArchiveAlreadyArchivedError;
+}
+
+export class TestSetUnarchiveNotArchivedError extends Error {
+  constructor() {
+    super("Набор не в архиве");
+    this.name = "TestSetUnarchiveNotArchivedError";
+  }
+}
+
+export function isTestSetUnarchiveNotArchivedError(e: unknown): e is TestSetUnarchiveNotArchivedError {
+  return e instanceof TestSetUnarchiveNotArchivedError;
 }

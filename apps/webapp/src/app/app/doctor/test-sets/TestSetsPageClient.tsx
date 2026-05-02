@@ -23,7 +23,9 @@ import {
   archiveDoctorTestSetInline,
   saveDoctorTestSetInline,
   saveDoctorTestSetItemsInline,
+  unarchiveDoctorTestSetInline,
 } from "./actionsInline";
+import type { RecommendationListFilterScope } from "@/shared/lib/doctorCatalogListStatus";
 import { TestSetForm } from "./TestSetForm";
 import { TestSetItemsForm } from "./TestSetItemsForm";
 import { TEST_SETS_PATH } from "./paths";
@@ -35,6 +37,7 @@ type Props = {
     q: string;
     regionRefId?: string;
     loadType?: ExerciseLoadType;
+    listStatus: RecommendationListFilterScope;
   };
 };
 
@@ -146,12 +149,22 @@ export function TestSetsPageClient({
           testSet={selected}
           saveAction={saveDoctorTestSetInline}
           archiveAction={archiveDoctorTestSetInline}
+          unarchiveAction={unarchiveDoctorTestSetInline}
+          workspaceListPreserve={{
+            q: filters.q,
+            titleSort,
+            regionRefId: filters.regionRefId,
+            loadType: filters.loadType,
+            listStatus: filters.listStatus,
+          }}
           backHref={TEST_SETS_PATH}
           externalUsageSnapshot={usageForSelection}
         />
         <section className="flex flex-col gap-2 border-t border-border/60 pt-4">
           <h2 className="text-lg font-medium">Состав набора</h2>
-          <TestSetItemsForm testSet={selected} saveItemsAction={saveDoctorTestSetItemsInline} />
+          {!selected.isArchived ? <TestSetItemsForm testSet={selected} saveItemsAction={saveDoctorTestSetItemsInline} /> : (
+            <p className="text-sm text-muted-foreground">Состав недоступен, пока набор в архиве.</p>
+          )}
         </section>
       </div>
     ) : (
@@ -178,6 +191,7 @@ export function TestSetsPageClient({
             regionRefId={filters.regionRefId}
             loadType={filters.loadType}
             titleSort={titleSort}
+            selectedId={creating ? null : selected?.id ?? mobileSheet?.id ?? null}
           />
         </DoctorCatalogToolbarFiltersSlot>
       }
@@ -213,6 +227,10 @@ export function TestSetsPageClient({
                 }
                 titleSort={titleSortForHeader}
                 onTitleSortChange={changeTitleSort}
+                archiveScope={filters.listStatus}
+                archiveScopeExtraParams={{
+                  titleSort,
+                }}
               />
             }
           >

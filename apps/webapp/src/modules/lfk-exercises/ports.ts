@@ -12,5 +12,6 @@ export type LfkExercisesPort = {
   create(input: CreateExerciseInput, createdBy: string | null): Promise<Exercise>;
   update(id: string, input: UpdateExerciseInput): Promise<Exercise | null>;
   archive(id: string): Promise<boolean>;
+  unarchive(id: string): Promise<boolean>;
   getExerciseUsageSummary(id: string): Promise<ExerciseUsageSnapshot>;
 };

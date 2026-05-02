@@ -1,6 +1,6 @@
 import { describe, expect, it, beforeEach } from "vitest";
 import { createRecommendationsService } from "./service";
-import { RecommendationUsageConfirmationRequiredError } from "./errors";
+import { RecommendationUnarchiveNotArchivedError, RecommendationUsageConfirmationRequiredError } from "./errors";
 import {
   inMemoryRecommendationsPort,
   resetInMemoryRecommendationsStore,
@@ -115,5 +115,26 @@ describe("recommendations service", () => {
     });
     await svc.archiveRecommendation(rec.id);
     expect((await svc.getRecommendation(rec.id))?.isArchived).toBe(true);
+  });
+
+  it("unarchiveRecommendation clears isArchived", async () => {
+    const svc = createRecommendationsService(inMemoryRecommendationsPort);
+    const rec = await svc.createRecommendation({ title: "Back", bodyMd: "x" }, null);
+    await svc.archiveRecommendation(rec.id);
+    await svc.unarchiveRecommendation(rec.id);
+    expect((await svc.getRecommendation(rec.id))?.isArchived).toBe(false);
+  });
+
+  it("unarchiveRecommendation throws when not archived", async () => {
+    const svc = createRecommendationsService(inMemoryRecommendationsPort);
+    const rec = await svc.createRecommendation({ title: "Live", bodyMd: "x" }, null);
+    await expect(svc.unarchiveRecommendation(rec.id)).rejects.toBeInstanceOf(RecommendationUnarchiveNotArchivedError);
+  });
+
+  it("updateRecommendation throws when archived", async () => {
+    const svc = createRecommendationsService(inMemoryRecommendationsPort);
+    const rec = await svc.createRecommendation({ title: "NoEdit", bodyMd: "x" }, null);
+    await svc.archiveRecommendation(rec.id);
+    await expect(svc.updateRecommendation(rec.id, { title: "Nope" })).rejects.toThrow(/архиве/);
   });
 });

@@ -2,6 +2,10 @@ import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import type { ExerciseLoadType } from "@/modules/lfk-exercises/types";
 import { AppShell } from "@/shared/ui/AppShell";
+import {
+  clinicalTestListArchiveScopeFromRecommendationFilter,
+  parseRecommendationListFilterScope,
+} from "@/shared/lib/doctorCatalogListStatus";
 import { TestSetsPageClient } from "./TestSetsPageClient";
 
 type PageProps = {
@@ -11,6 +15,7 @@ type PageProps = {
     region?: string;
     load?: string;
     titleSort?: string;
+    status?: string;
   }>;
 };
 
@@ -30,8 +35,11 @@ export default async function DoctorTestSetsPage({ searchParams }: PageProps) {
       ? (sp.load as ExerciseLoadType)
       : undefined;
 
+  const listStatus = parseRecommendationListFilterScope(sp, "active");
+  const archiveScope = clinicalTestListArchiveScopeFromRecommendationFilter(listStatus);
+
   const items = await deps.testSets.listTestSets({
-    archiveScope: "active",
+    archiveScope,
     search: q || null,
   });
 
@@ -46,7 +54,7 @@ export default async function DoctorTestSetsPage({ searchParams }: PageProps) {
         initialSets={items}
         initialSelectedId={initialSelectedId}
         initialSelectedUsageSnapshot={initialSelectedUsageSnapshot}
-        filters={{ q, regionRefId, loadType }}
+        filters={{ q, regionRefId, loadType, listStatus }}
       />
     </AppShell>
   );

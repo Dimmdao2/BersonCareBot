@@ -7,8 +7,10 @@ import {
   archiveRecommendationCore,
   RECOMMENDATIONS_PATH,
   saveRecommendationCore,
+  unarchiveRecommendationCore,
   type ArchiveRecommendationState,
   type SaveRecommendationState,
+  type UnarchiveRecommendationState,
 } from "./actionsShared";
 
 function appendRecommendationsListParams(sp: URLSearchParams, formData: FormData) {
@@ -22,6 +24,10 @@ function appendRecommendationsListParams(sp: URLSearchParams, formData: FormData
   if (typeof listDomain === "string" && listDomain.trim()) {
     const d = parseRecommendationDomain(listDomain.trim());
     if (d) sp.set("domain", d);
+  }
+  const listStatus = formData.get("listStatus");
+  if (listStatus === "active" || listStatus === "all" || listStatus === "archived") {
+    sp.set("status", listStatus);
   }
 }
 
@@ -66,6 +72,24 @@ export async function archiveRecommendationInline(
   const view = formData.get("view") === "list" ? "list" : "tiles";
   const sp = new URLSearchParams();
   sp.set("view", view);
+  appendRecommendationsListParams(sp, formData);
+  redirect(`${RECOMMENDATIONS_PATH}?${sp.toString()}`);
+}
+
+export async function unarchiveRecommendationInline(
+  _prev: UnarchiveRecommendationState | null,
+  formData: FormData,
+): Promise<UnarchiveRecommendationState> {
+  const result = await unarchiveRecommendationCore(formData);
+  if (result.kind === "invalid") {
+    return { ok: false, error: result.error };
+  }
+  revalidatePath(RECOMMENDATIONS_PATH);
+  revalidatePath(`${RECOMMENDATIONS_PATH}/${result.id}`);
+  const view = formData.get("view") === "list" ? "list" : "tiles";
+  const sp = new URLSearchParams();
+  sp.set("view", view);
+  sp.set("selected", result.id);
   appendRecommendationsListParams(sp, formData);
   redirect(`${RECOMMENDATIONS_PATH}?${sp.toString()}`);
 }

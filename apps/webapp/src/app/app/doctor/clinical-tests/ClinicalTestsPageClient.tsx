@@ -24,10 +24,11 @@ import { CatalogLeftPane } from "@/shared/ui/CatalogLeftPane";
 import { CatalogRightPane } from "@/shared/ui/CatalogRightPane";
 import { CatalogSplitLayout } from "@/shared/ui/CatalogSplitLayout";
 import { DoctorCatalogPageLayout } from "@/shared/ui/DoctorCatalogPageLayout";
-import { ClinicalTestForm } from "./ClinicalTestForm";
-import { archiveClinicalTestInline, saveClinicalTestInline } from "./actionsInline";
+import type { RecommendationListFilterScope } from "@/shared/lib/doctorCatalogListStatus";
+import { archiveClinicalTestInline, saveClinicalTestInline, unarchiveClinicalTestInline } from "./actionsInline";
 import { DoctorCatalogFiltersForm } from "@/shared/ui/doctor/DoctorCatalogFiltersForm";
 import { Card, CardContent } from "@/components/ui/card";
+import { ClinicalTestForm } from "./ClinicalTestForm";
 
 export type ClinicalTestsViewMode = "tiles" | "list";
 export type ClinicalTestTitleSort = "asc" | "desc";
@@ -49,6 +50,7 @@ type Props = {
     q: string;
     regionRefId?: string;
     loadType?: ExerciseLoadType;
+    listStatus: RecommendationListFilterScope;
   };
 };
 
@@ -271,12 +273,14 @@ function ClinicalTestsContent({
         test={formTest ?? undefined}
         saveAction={saveClinicalTestInline}
         archiveAction={archiveClinicalTestInline}
+        unarchiveAction={unarchiveClinicalTestInline}
         workspaceView={viewMode}
         workspaceListPreserve={{
           q: filters.q,
           titleSort,
           regionRefId: filters.regionRefId,
           loadType: filters.loadType,
+          listStatus: filters.listStatus,
         }}
         externalUsageSnapshot={usageForSelection}
       />
@@ -331,6 +335,11 @@ function ClinicalTestsContent({
                 titleSort={titleSort}
                 onTitleSortChange={changeTitleSort}
                 listBusy={isListPending}
+                archiveScope={filters.listStatus}
+                archiveScopeExtraParams={{
+                  view: viewMode,
+                  titleSort,
+                }}
               />
             }
           >

@@ -37,3 +37,15 @@ export class ExerciseArchiveAlreadyArchivedError extends Error {
 export function isExerciseArchiveAlreadyArchivedError(e: unknown): e is ExerciseArchiveAlreadyArchivedError {
   return e instanceof ExerciseArchiveAlreadyArchivedError;
 }
+
+/** Попытка разархивировать неархивное упражнение. */
+export class ExerciseUnarchiveNotArchivedError extends Error {
+  constructor() {
+    super("Упражнение не в архиве");
+    this.name = "ExerciseUnarchiveNotArchivedError";
+  }
+}
+
+export function isExerciseUnarchiveNotArchivedError(e: unknown): e is ExerciseUnarchiveNotArchivedError {
+  return e instanceof ExerciseUnarchiveNotArchivedError;
+}

@@ -161,6 +161,7 @@ export function DoctorCatalogFiltersForm({
               }}
               placeholder={tertiaryFilter.placeholder}
               clearOptionLabel={tertiaryFilter.clearLabel}
+              showAllOnFocus
             />
           </>
         ) : (
@@ -181,6 +182,7 @@ export function DoctorCatalogFiltersForm({
               }}
               placeholder="Все типы"
               clearOptionLabel="Все типы"
+              showAllOnFocus
             />
           </>
         )}
@@ -190,7 +192,10 @@ export function DoctorCatalogFiltersForm({
       </Button>
       {selectedRegionLabel || tertiarySummary ? (
         <p className="w-full text-xs text-muted-foreground">
-          {[selectedRegionLabel ? `Регион: ${selectedRegionLabel}` : null, tertiarySummary || null]
+          {[
+            selectedRegionLabel ? `Регион: ${selectedRegionLabel}` : null,
+            tertiarySummary || null,
+          ]
             .filter(Boolean)
             .join(" · ")}
         </p>

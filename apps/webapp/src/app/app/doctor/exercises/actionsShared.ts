@@ -6,6 +6,7 @@ import { logger } from "@/infra/logging/logger";
 import {
   isExerciseArchiveAlreadyArchivedError,
   isExerciseArchiveNotFoundError,
+  isExerciseUnarchiveNotArchivedError,
   isUsageConfirmationRequiredError,
 } from "@/modules/lfk-exercises/errors";
 import type { MediaExerciseUsageEntry } from "@/modules/media/types";
@@ -27,6 +28,12 @@ export type ArchiveDoctorExerciseCoreResult =
   | { kind: "archived"; id: string }
   | { kind: "needs_confirmation"; usage: ExerciseUsageSnapshot }
   | { kind: "invalid"; error: string };
+
+export type UnarchiveDoctorExerciseCoreResult =
+  | { kind: "unarchived"; id: string }
+  | { kind: "invalid"; error: string };
+
+export type UnarchiveDoctorExerciseState = { ok: true } | { ok: false; error: string };
 
 function parseAcknowledgeUsageWarning(fd: FormData): boolean {
   const v = fd.get("acknowledgeUsageWarning");
@@ -252,6 +259,13 @@ export async function saveDoctorExerciseCore(formData: FormData): Promise<SaveEx
 
   const deps = buildAppDeps();
   if (id) {
+    const current = await deps.lfkExercises.getExercise(id);
+    if (!current) {
+      return { ok: false, error: "Упражнение не найдено" };
+    }
+    if (current.isArchived) {
+      return { ok: false, error: "Упражнение в архиве. Верните из архива, чтобы редактировать." };
+    }
     await deps.lfkExercises.updateExercise(id, {
       title,
       description,
@@ -304,5 +318,27 @@ export async function archiveDoctorExerciseCore(formData: FormData): Promise<Arc
     }
     logger.warn({ event: "doctor_exercise_archive_unexpected_error", exerciseId: id, err: e }, "archive failed");
     return { kind: "invalid", error: "Не удалось архивировать упражнение" };
+  }
+}
+
+export async function unarchiveDoctorExerciseCore(formData: FormData): Promise<UnarchiveDoctorExerciseCoreResult> {
+  await requireDoctorAccess();
+  const idRaw = formData.get("id");
+  const id = typeof idRaw === "string" ? idRaw.trim() : "";
+  if (!id) return { kind: "invalid", error: "Не указано упражнение" };
+
+  const deps = buildAppDeps();
+  try {
+    await deps.lfkExercises.unarchiveExercise(id);
+    return { kind: "unarchived", id };
+  } catch (e) {
+    if (isExerciseArchiveNotFoundError(e)) {
+      return { kind: "invalid", error: e.message };
+    }
+    if (isExerciseUnarchiveNotArchivedError(e)) {
+      return { kind: "invalid", error: e.message };
+    }
+    logger.warn({ event: "doctor_exercise_unarchive_unexpected_error", exerciseId: id, err: e }, "unarchive failed");
+    return { kind: "invalid", error: "Не удалось вернуть упражнение из архива" };
   }
 }

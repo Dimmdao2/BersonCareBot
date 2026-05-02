@@ -35,6 +35,14 @@ describe("createPgLfkExercisesPort", () => {
     expect(sql).toContain("is_archived = false");
   });
 
+  it("list with archiveListScope archived filters archived only", async () => {
+    queryMock.mockResolvedValueOnce({ rows: [] });
+    const port = createPgLfkExercisesPort();
+    await port.list({ archiveListScope: "archived" });
+    const sql = String(queryMock.mock.calls[0]?.[0] ?? "");
+    expect(sql).toContain("is_archived = true");
+  });
+
   it("list applies NFC-normalized ILIKE search for titles", async () => {
     queryMock.mockResolvedValueOnce({ rows: [] });
     const port = createPgLfkExercisesPort();
@@ -86,12 +94,12 @@ describe("createPgLfkExercisesPort", () => {
     expect(sql).toContain("completed_tp_instances");
   });
 
-  it("archive updates is_archived", async () => {
+  it("unarchive updates is_archived to false", async () => {
     queryMock.mockResolvedValueOnce({ rowCount: 1 });
     const port = createPgLfkExercisesPort();
-    const ok = await port.archive("550e8400-e29b-41d4-a716-446655440000");
+    const ok = await port.unarchive("550e8400-e29b-41d4-a716-446655440000");
     expect(ok).toBe(true);
     const sql = String(queryMock.mock.calls[0]?.[0] ?? "");
-    expect(sql).toContain("is_archived = true");
+    expect(sql).toContain("is_archived = false");
   });
 });

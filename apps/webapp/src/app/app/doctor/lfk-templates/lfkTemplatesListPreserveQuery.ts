@@ -1,11 +1,14 @@
 import type { ExerciseLoadType } from "@/modules/lfk-exercises/types";
+import type { RecommendationListFilterScope } from "@/shared/lib/doctorCatalogListStatus";
 
 const LOAD_VALUES: ExerciseLoadType[] = ["strength", "stretch", "balance", "cardio", "other"];
+const STATUS_VALUES: RecommendationListFilterScope[] = ["active", "all", "archived"];
 
 export type LfkTemplatesListPreserveInput = {
   q: string;
   regionRefId?: string;
   loadType?: ExerciseLoadType;
+  listStatus?: RecommendationListFilterScope;
   /** Текущая сортировка в UI (может отличаться от URL до применения фильтров). */
   titleSort: "asc" | "desc" | null;
 };
@@ -18,6 +21,7 @@ export function buildLfkTemplatesListPreserveQuery(input: LfkTemplatesListPreser
   const region = input.regionRefId?.trim();
   if (region) p.set("region", region);
   if (input.loadType) p.set("load", input.loadType);
+  if (input.listStatus && input.listStatus !== "active") p.set("status", input.listStatus);
   if (input.titleSort === "asc" || input.titleSort === "desc") p.set("titleSort", input.titleSort);
   return p.toString();
 }
@@ -46,6 +50,9 @@ export function sanitizeLfkTemplatesListPreserveQuery(raw: string): string {
 
   const titleSort = sp.get("titleSort");
   if (titleSort === "asc" || titleSort === "desc") out.set("titleSort", titleSort);
+
+  const status = sp.get("status");
+  if (status && (STATUS_VALUES as readonly string[]).includes(status)) out.set("status", status);
 
   return out.toString();
 }

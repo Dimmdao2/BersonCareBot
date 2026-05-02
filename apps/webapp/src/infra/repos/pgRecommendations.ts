@@ -314,6 +314,16 @@ export function createPgRecommendationsPort(): RecommendationsPort {
       return rows.length > 0;
     },
 
+    async unarchive(id: string): Promise<boolean> {
+      const db = getDrizzle();
+      const rows = await db
+        .update(recommendationsTable)
+        .set({ isArchived: false, updatedAt: new Date().toISOString() })
+        .where(and(eq(recommendationsTable.id, id), eq(recommendationsTable.isArchived, true)))
+        .returning({ id: recommendationsTable.id });
+      return rows.length > 0;
+    },
+
     async getRecommendationUsageSummary(id: string): Promise<RecommendationUsageSnapshot> {
       const pool = getPool();
       return loadRecommendationUsageSummary(pool, id);

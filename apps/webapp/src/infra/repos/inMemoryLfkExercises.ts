@@ -1,4 +1,5 @@
 import type { LfkExercisesPort } from "@/modules/lfk-exercises/ports";
+import type { RecommendationListFilterScope } from "@/shared/lib/doctorCatalogListStatus";
 import { normalizeRuSearchString } from "@/shared/lib/ruSearchNormalize";
 import type {
   CreateExerciseInput,
@@ -24,8 +25,16 @@ export function resetInMemoryLfkExercisesStore(): void {
   usageByExerciseId.clear();
 }
 
+function exerciseListArchiveScope(f: ExerciseFilter): RecommendationListFilterScope {
+  if (f.archiveListScope) return f.archiveListScope;
+  if (f.includeArchived === true) return "all";
+  return "active";
+}
+
 function matchesFilter(ex: Exercise, f: ExerciseFilter): boolean {
-  if (!f.includeArchived && ex.isArchived) return false;
+  const scope = exerciseListArchiveScope(f);
+  if (scope === "active" && ex.isArchived) return false;
+  if (scope === "archived" && !ex.isArchived) return false;
   if (f.regionRefId && ex.regionRefId !== f.regionRefId) return false;
   if (f.loadType && ex.loadType !== f.loadType) return false;
   if (f.difficultyMin != null && (ex.difficulty1_10 == null || ex.difficulty1_10 < f.difficultyMin)) return false;
@@ -118,6 +127,13 @@ export const inMemoryLfkExercisesPort: LfkExercisesPort = {
     const cur = exercises.get(id);
     if (!cur || cur.isArchived) return false;
     exercises.set(id, { ...cur, isArchived: true, updatedAt: new Date().toISOString() });
+    return true;
+  },
+
+  async unarchive(id: string): Promise<boolean> {
+    const cur = exercises.get(id);
+    if (!cur || !cur.isArchived) return false;
+    exercises.set(id, { ...cur, isArchived: false, updatedAt: new Date().toISOString() });
     return true;
   },
 

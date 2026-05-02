@@ -12,7 +12,7 @@ export default async function EditRecommendationPage({ params }: PageProps) {
   const { id } = await params;
   const deps = buildAppDeps();
   const rec = await deps.recommendations.getRecommendation(id);
-  if (!rec || rec.isArchived) notFound();
+  if (!rec) notFound();
   const usageSnapshot = await deps.recommendations.getRecommendationUsage(rec.id);
 
   return (

@@ -2,6 +2,7 @@ import { getPool } from "@/infra/db/client";
 import type { MediaExerciseUsageEntry, MediaPreviewStatus } from "@/modules/media/types";
 import { mediaPreviewUrlById } from "@/shared/lib/mediaPreviewUrls";
 import { pgRuSubstringSearchPattern } from "@/shared/lib/ruSearchNormalize";
+import type { RecommendationListFilterScope } from "@/shared/lib/doctorCatalogListStatus";
 import type { LfkExercisesPort } from "@/modules/lfk-exercises/ports";
 import type {
   CreateExerciseInput,
@@ -388,6 +389,12 @@ async function loadExerciseUsageSummary(
   };
 }
 
+function exerciseListArchiveScope(filter: ExerciseFilter): RecommendationListFilterScope {
+  if (filter.archiveListScope) return filter.archiveListScope;
+  if (filter.includeArchived === true) return "all";
+  return "active";
+}
+
 export function createPgLfkExercisesPort(): LfkExercisesPort {
   return {
     async list(filter: ExerciseFilter): Promise<Exercise[]> {
@@ -396,8 +403,11 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
       const params: unknown[] = [];
       let i = 1;
 
-      if (!filter.includeArchived) {
+      const scope = exerciseListArchiveScope(filter);
+      if (scope === "active") {
         conds.push("e.is_archived = false");
+      } else if (scope === "archived") {
+        conds.push("e.is_archived = true");
       }
       if (filter.regionRefId) {
         conds.push(`e.region_ref_id = $${i++}`);
@@ -618,6 +628,15 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
       const pool = getPool();
       const r = await pool.query(
         `UPDATE lfk_exercises SET is_archived = true, updated_at = now() WHERE id = $1 AND is_archived = false`,
+        [id]
+      );
+      return (r.rowCount ?? 0) > 0;
+    },
+
+    async unarchive(id: string): Promise<boolean> {
+      const pool = getPool();
+      const r = await pool.query(
+        `UPDATE lfk_exercises SET is_archived = false, updated_at = now() WHERE id = $1 AND is_archived = true`,
         [id]
       );
       return (r.rowCount ?? 0) > 0;

@@ -11,7 +11,7 @@ export default async function DoctorExerciseEditPage({ params }: PageProps) {
   const { id } = await params;
   const deps = buildAppDeps();
   const exercise = await deps.lfkExercises.getExercise(id);
-  if (!exercise || exercise.isArchived) {
+  if (!exercise) {
     notFound();
   }
   const usage = await deps.lfkExercises.getExerciseUsage(exercise.id);

@@ -4,6 +4,7 @@ import { logger } from "@/infra/logging/logger";
 import {
   isTestSetArchiveAlreadyArchivedError,
   isTestSetArchiveNotFoundError,
+  isTestSetUnarchiveNotArchivedError,
   isTestSetUsageConfirmationRequiredError,
 } from "@/modules/tests/errors";
 import type { TestSetItemInput, TestSetUsageSnapshot } from "@/modules/tests/types";
@@ -18,6 +19,12 @@ export type ArchiveTestSetState =
 export type ArchiveTestSetCoreResult =
   | { kind: "archived"; id: string }
   | { kind: "needs_confirmation"; usage: TestSetUsageSnapshot }
+  | { kind: "invalid"; error: string };
+
+export type UnarchiveTestSetState = { ok: true } | { ok: false; error: string };
+
+export type UnarchiveTestSetCoreResult =
+  | { kind: "unarchived"; id: string }
   | { kind: "invalid"; error: string };
 
 function parseAcknowledgeUsageWarning(fd: FormData): boolean {
@@ -62,6 +69,11 @@ export async function saveTestSetCore(
 
   try {
     if (id) {
+      const cur = await deps.testSets.getTestSet(id);
+      if (!cur) return { ok: false, error: "Набор не найден" };
+      if (cur.isArchived) {
+        return { ok: false, error: "Набор в архиве. Верните из архива, чтобы редактировать." };
+      }
       await deps.testSets.updateTestSet(id, {
         title,
         description: description || null,
@@ -98,6 +110,11 @@ export async function saveTestSetItemsCore(
 
   const deps = buildAppDeps();
   try {
+    const set = await deps.testSets.getTestSet(setId);
+    if (!set) return { ok: false, error: "Набор не найден" };
+    if (set.isArchived) {
+      return { ok: false, error: "Набор в архиве. Верните из архива, чтобы менять состав." };
+    }
     await deps.testSets.setTestSetItems(setId, items);
     return { ok: true };
   } catch (e) {
@@ -128,5 +145,27 @@ export async function archiveTestSetCore(formData: FormData): Promise<ArchiveTes
     }
     logger.warn({ event: "doctor_test_set_archive_unexpected_error", testSetId: id, err: e }, "archive failed");
     return { kind: "invalid", error: "Не удалось архивировать набор" };
+  }
+}
+
+export async function unarchiveTestSetCore(formData: FormData): Promise<UnarchiveTestSetCoreResult> {
+  await requireDoctorAccess();
+  const idRaw = formData.get("id");
+  const id = typeof idRaw === "string" && idRaw.trim() ? idRaw.trim() : "";
+  if (!id) return { kind: "invalid", error: "Не указан набор" };
+
+  const deps = buildAppDeps();
+  try {
+    await deps.testSets.unarchiveTestSet(id);
+    return { kind: "unarchived", id };
+  } catch (e) {
+    if (isTestSetArchiveNotFoundError(e)) {
+      return { kind: "invalid", error: e.message };
+    }
+    if (isTestSetUnarchiveNotArchivedError(e)) {
+      return { kind: "invalid", error: e.message };
+    }
+    logger.warn({ event: "doctor_test_set_unarchive_unexpected_error", testSetId: id, err: e }, "unarchive failed");
+    return { kind: "invalid", error: "Не удалось вернуть набор из архива" };
   }
 }

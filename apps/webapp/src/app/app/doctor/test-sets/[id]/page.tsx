@@ -16,7 +16,7 @@ export default async function EditTestSetPage({ params }: PageProps) {
   const { id } = await params;
   const deps = buildAppDeps();
   const testSet = await deps.testSets.getTestSet(id);
-  if (!testSet || testSet.isArchived) notFound();
+  if (!testSet) notFound();
   const usage = await deps.testSets.getTestSetUsage(testSet.id);
 
   return (
@@ -34,7 +34,11 @@ export default async function EditTestSetPage({ params }: PageProps) {
         <TestSetForm testSet={testSet} externalUsageSnapshot={usage} />
         <section className="flex flex-col gap-2">
           <h2 className="text-lg font-medium">Состав набора</h2>
-          <TestSetItemsForm testSet={testSet} />
+          {!testSet.isArchived ? (
+            <TestSetItemsForm testSet={testSet} />
+          ) : (
+            <p className="text-sm text-muted-foreground">Состав недоступен, пока набор в архиве.</p>
+          )}
         </section>
       </div>
     </AppShell>

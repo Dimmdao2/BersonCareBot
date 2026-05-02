@@ -5,6 +5,7 @@ import type { ClinicalTestMediaItem, ClinicalTestUsageSnapshot } from "@/modules
 import {
   isClinicalTestArchiveAlreadyArchivedError,
   isClinicalTestArchiveNotFoundError,
+  isClinicalTestUnarchiveNotArchivedError,
   isClinicalTestUsageConfirmationRequiredError,
 } from "@/modules/tests/errors";
 import { API_MEDIA_URL_RE, isLegacyAbsoluteUrl } from "@/shared/lib/mediaUrlPolicy";
@@ -19,6 +20,12 @@ export type ArchiveClinicalTestState =
 export type ArchiveClinicalTestCoreResult =
   | { kind: "archived"; id: string }
   | { kind: "needs_confirmation"; usage: ClinicalTestUsageSnapshot }
+  | { kind: "invalid"; error: string };
+
+export type UnarchiveClinicalTestState = { ok: true } | { ok: false; error: string };
+
+export type UnarchiveClinicalTestCoreResult =
+  | { kind: "unarchived"; id: string }
   | { kind: "invalid"; error: string };
 
 function parseAcknowledgeUsageWarning(fd: FormData): boolean {
@@ -103,6 +110,11 @@ export async function saveClinicalTestCore(formData: FormData): Promise<
 
   try {
     if (id) {
+      const cur = await deps.clinicalTests.getClinicalTest(id);
+      if (!cur) return { ok: false, error: "Тест не найден" };
+      if (cur.isArchived) {
+        return { ok: false, error: "Тест в архиве. Верните из архива, чтобы редактировать." };
+      }
       await deps.clinicalTests.updateClinicalTest(id, {
         title,
         description: description || null,
@@ -153,5 +165,27 @@ export async function archiveClinicalTestCore(formData: FormData): Promise<Archi
     }
     logger.warn({ event: "doctor_clinical_test_archive_unexpected_error", clinicalTestId: id, err: e }, "archive failed");
     return { kind: "invalid", error: "Не удалось архивировать тест" };
+  }
+}
+
+export async function unarchiveClinicalTestCore(formData: FormData): Promise<UnarchiveClinicalTestCoreResult> {
+  await requireDoctorAccess();
+  const idRaw = formData.get("id");
+  const id = typeof idRaw === "string" && idRaw.trim() ? idRaw.trim() : "";
+  if (!id) return { kind: "invalid", error: "Не указан тест" };
+
+  const deps = buildAppDeps();
+  try {
+    await deps.clinicalTests.unarchiveClinicalTest(id);
+    return { kind: "unarchived", id };
+  } catch (e) {
+    if (isClinicalTestArchiveNotFoundError(e)) {
+      return { kind: "invalid", error: e.message };
+    }
+    if (isClinicalTestUnarchiveNotArchivedError(e)) {
+      return { kind: "invalid", error: e.message };
+    }
+    logger.warn({ event: "doctor_clinical_test_unarchive_unexpected_error", clinicalTestId: id, err: e }, "unarchive failed");
+    return { kind: "invalid", error: "Не удалось вернуть тест из архива" };
   }
 }

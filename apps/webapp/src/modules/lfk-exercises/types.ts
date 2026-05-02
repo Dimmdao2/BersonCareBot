@@ -1,4 +1,5 @@
 import type { MediaPreviewStatus } from "@/modules/media/types";
+import type { RecommendationListFilterScope } from "@/shared/lib/doctorCatalogListStatus";
 
 export type ExerciseLoadType = "strength" | "stretch" | "balance" | "cardio" | "other";
 
@@ -40,6 +41,8 @@ export type ExerciseFilter = {
   difficultyMax?: number | null;
   tags?: string[] | null;
   includeArchived?: boolean;
+  /** Активные / все / только архив. Имеет приоритет над устаревшим `includeArchived`. */
+  archiveListScope?: RecommendationListFilterScope;
   search?: string | null;
 };
 

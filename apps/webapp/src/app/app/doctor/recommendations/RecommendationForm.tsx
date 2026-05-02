@@ -16,6 +16,7 @@ import { MarkdownEditorToastUi } from "@/shared/ui/markdown/MarkdownEditorToastU
 import { RECOMMENDATION_DOMAIN_ITEMS } from "@/modules/recommendations/recommendationDomain";
 import type { RecommendationDomain } from "@/modules/recommendations/recommendationDomain";
 import type { Recommendation, RecommendationUsageSnapshot } from "@/modules/recommendations/types";
+import type { RecommendationListFilterScope } from "@/shared/lib/doctorCatalogListStatus";
 import { ReferenceSelect } from "@/shared/ui/ReferenceSelect";
 import { cn } from "@/lib/utils";
 import { MediaLibraryPickerDialog } from "@/app/app/doctor/content/MediaLibraryPickerDialog";
@@ -23,8 +24,13 @@ import {
   archiveRecommendation,
   fetchDoctorRecommendationUsageSnapshot,
   saveRecommendation,
+  unarchiveRecommendation,
 } from "./actions";
-import type { ArchiveRecommendationState, SaveRecommendationState } from "./actionsShared";
+import type {
+  ArchiveRecommendationState,
+  SaveRecommendationState,
+  UnarchiveRecommendationState,
+} from "./actionsShared";
 import {
   exerciseMediaTypeFromPick,
   exerciseTitleFromPickMeta,
@@ -104,6 +110,7 @@ type Props = {
     titleSort?: "asc" | "desc" | null;
     regionRefId?: string;
     domain?: RecommendationDomain;
+    listStatus?: RecommendationListFilterScope;
   };
   saveAction?: (
     _prev: SaveRecommendationState | null,
@@ -113,6 +120,10 @@ type Props = {
     _prev: ArchiveRecommendationState | null,
     formData: FormData,
   ) => Promise<ArchiveRecommendationState>;
+  unarchiveAction?: (
+    _prev: UnarchiveRecommendationState | null,
+    formData: FormData,
+  ) => Promise<UnarchiveRecommendationState>;
   externalUsageSnapshot?: RecommendationUsageSnapshot;
 };
 
@@ -123,6 +134,7 @@ export function RecommendationForm({
   workspaceListPreserve,
   saveAction = saveRecommendation,
   archiveAction = archiveRecommendation,
+  unarchiveAction = unarchiveRecommendation,
   externalUsageSnapshot,
 }: Props) {
   const recordKey = recommendation?.id ?? "create";
@@ -190,6 +202,11 @@ export function RecommendationForm({
     null as ArchiveRecommendationState | null,
   );
 
+  const [unarchiveState, unarchiveFormAction, unarchivePending] = useActionState(
+    unarchiveAction,
+    null as UnarchiveRecommendationState | null,
+  );
+
   useEffect(() => {
     if (
       archiveState?.ok === false &&
@@ -221,6 +238,11 @@ export function RecommendationForm({
   const archiveError =
     archiveState?.ok === false && "error" in archiveState ? archiveState.error : null;
 
+  const unarchiveError =
+    unarchiveState?.ok === false && "error" in unarchiveState ? unarchiveState.error : null;
+
+  const isArchived = !!recommendation?.isArchived;
+
   return (
     <div className="flex max-w-2xl flex-col gap-4">
       <form action={formAction} className="flex flex-col gap-4">
@@ -243,89 +265,97 @@ export function RecommendationForm({
         {workspaceListPreserve?.domain != null ? (
           <input type="hidden" name="listDomain" value={workspaceListPreserve.domain} />
         ) : null}
+        {workspaceListPreserve?.listStatus != null ? (
+          <input type="hidden" name="listStatus" value={workspaceListPreserve.listStatus} />
+        ) : null}
         <input type="hidden" name="mediaUrl" value={values.mediaUrl} />
         <input type="hidden" name="mediaType" value={values.mediaType} />
 
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="rec-title">Название</Label>
-          <Input
-            id="rec-title"
-            name="title"
-            required
-            value={values.title}
-            onChange={(e) => setValues((v) => ({ ...v, title: e.target.value }))}
-          />
-        </div>
+        <fieldset disabled={isArchived} className="m-0 min-w-0 border-0 p-0">
+          <legend className="sr-only">Поля рекомендации</legend>
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-3">
+              <Label htmlFor="rec-title">Название</Label>
+              <Input
+                id="rec-title"
+                name="title"
+                required
+                value={values.title}
+                onChange={(e) => setValues((v) => ({ ...v, title: e.target.value }))}
+              />
+            </div>
 
-        <div className="flex flex-col gap-2">
-          <Label className="text-sm font-medium text-foreground" htmlFor="rec-domain">
-            Область
-          </Label>
-          <ReferenceSelect
-            id="rec-domain"
-            name="domain"
-            prefetchedItems={RECOMMENDATION_DOMAIN_ITEMS}
-            valueMatch="code"
-            submitField="code"
-            value={values.domainCode}
-            onChange={(code, _label) => {
-              setValues((v) => ({ ...v, domainCode: code }));
-            }}
-            placeholder="Выберите область"
-            clearOptionLabel="Без области"
-          />
-        </div>
+            <div className="flex flex-col gap-3">
+              <Label className="text-sm font-medium text-foreground" htmlFor="rec-domain">
+                Область
+              </Label>
+              <ReferenceSelect
+                id="rec-domain"
+                name="domain"
+                prefetchedItems={RECOMMENDATION_DOMAIN_ITEMS}
+                valueMatch="code"
+                submitField="code"
+                value={values.domainCode}
+                onChange={(code, _label) => {
+                  setValues((v) => ({ ...v, domainCode: code }));
+                }}
+                placeholder="Выберите область"
+                clearOptionLabel="Без области"
+              />
+            </div>
 
-        <div className="flex flex-col gap-3">
-          <span className="text-sm font-medium">Медиа</span>
-          <MediaLibraryPickerDialog
-            kind="image_or_video"
-            value={values.mediaUrl}
-            selectedPreviewKind={values.mediaType || undefined}
-            pickerTitle="Изображение, GIF или видео"
-            onChange={(url, meta) => {
-              setValues((prev) => {
-                let nextTitle = prev.title;
-                let nextType: FormValues["mediaType"] = "";
-                if (url && meta) {
-                  nextType = exerciseMediaTypeFromPick(meta);
-                  if (nextTitle.trim() === "") nextTitle = exerciseTitleFromPickMeta(meta);
-                }
-                return { ...prev, mediaUrl: url, mediaType: nextType, title: nextTitle };
-              });
-            }}
-          />
-        </div>
+            <div className="flex flex-col gap-3">
+              <span className="text-sm font-medium">Медиа</span>
+              <MediaLibraryPickerDialog
+                kind="image_or_video"
+                value={values.mediaUrl}
+                selectedPreviewKind={values.mediaType || undefined}
+                pickerTitle="Изображение, GIF или видео"
+                onChange={(url, meta) => {
+                  setValues((prev) => {
+                    let nextTitle = prev.title;
+                    let nextType: FormValues["mediaType"] = "";
+                    if (url && meta) {
+                      nextType = exerciseMediaTypeFromPick(meta);
+                      if (nextTitle.trim() === "") nextTitle = exerciseTitleFromPickMeta(meta);
+                    }
+                    return { ...prev, mediaUrl: url, mediaType: nextType, title: nextTitle };
+                  });
+                }}
+              />
+            </div>
 
-        <div className="flex flex-col gap-2">
-          <MarkdownEditorToastUi
-            key={`rec-body-${recordKey}`}
-            name="bodyMd"
-            defaultValue={values.bodyMd}
-            label={<span className="text-sm font-medium text-foreground">Описание</span>}
-            helpText={null}
-            onValueChange={(md) => setValues((v) => ({ ...v, bodyMd: md }))}
-          />
-        </div>
+            <div className="flex flex-col gap-3">
+              <MarkdownEditorToastUi
+                key={`rec-body-${recordKey}`}
+                name="bodyMd"
+                defaultValue={values.bodyMd}
+                label={<span className="text-sm font-medium text-foreground">Описание</span>}
+                helpText={null}
+                onValueChange={(md) => setValues((v) => ({ ...v, bodyMd: md }))}
+              />
+            </div>
 
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="rec-tags">Теги (через запятую)</Label>
-          <Input
-            id="rec-tags"
-            name="tags"
-            value={values.tags}
-            onChange={(e) => setValues((v) => ({ ...v, tags: e.target.value }))}
-          />
-        </div>
+            <div className="flex flex-col gap-3">
+              <Label htmlFor="rec-tags">Теги (через запятую)</Label>
+              <Input
+                id="rec-tags"
+                name="tags"
+                value={values.tags}
+                onChange={(e) => setValues((v) => ({ ...v, tags: e.target.value }))}
+              />
+            </div>
 
-        <div className="flex flex-wrap gap-2">
-          <Button type="submit" disabled={pending}>
-            {pending ? "Сохранение…" : recommendation ? "Сохранить" : "Создать"}
-          </Button>
-          <Link href={backHref} className={cn(buttonVariants({ variant: "outline" }))}>
-            К списку
-          </Link>
-        </div>
+            <div className="flex flex-wrap gap-2">
+              <Button type="submit" disabled={pending}>
+                {pending ? "Сохранение…" : recommendation ? "Сохранить" : "Создать"}
+              </Button>
+              <Link href={backHref} className={cn(buttonVariants({ variant: "outline" }))}>
+                К списку
+              </Link>
+            </div>
+          </div>
+        </fieldset>
       </form>
 
       {recommendation ? (
@@ -343,83 +373,122 @@ export function RecommendationForm({
             )}
           </div>
 
-          {archiveError ? (
-            <p role="alert" className="mb-2 text-sm text-destructive">
-              {archiveError}
-            </p>
-          ) : null}
-
-          <form ref={archiveFormRef} action={archiveFormAction} className="flex flex-col gap-2">
-            <input type="hidden" name="id" value={recommendation.id} />
-            {workspaceView ? <input type="hidden" name="view" value={workspaceView} /> : null}
-            {workspaceListPreserve?.q != null && workspaceListPreserve.q !== "" ? (
-              <input type="hidden" name="listQ" value={workspaceListPreserve.q} />
-            ) : null}
-            {workspaceListPreserve?.titleSort === "asc" || workspaceListPreserve?.titleSort === "desc" ? (
-              <input type="hidden" name="listTitleSort" value={workspaceListPreserve.titleSort} />
-            ) : null}
-            {workspaceListPreserve?.regionRefId != null && workspaceListPreserve.regionRefId !== "" ? (
-              <input type="hidden" name="listRegion" value={workspaceListPreserve.regionRefId} />
-            ) : null}
-            {workspaceListPreserve?.domain != null ? (
-              <input type="hidden" name="listDomain" value={workspaceListPreserve.domain} />
-            ) : null}
-            <input type="hidden" name="acknowledgeUsageWarning" value={archiveUsageAck ? "1" : ""} readOnly />
-            <Button
-              type="submit"
-              variant="destructive"
-              disabled={archivePending}
-              onClick={() => {
-                setArchiveUsageAck(false);
-              }}
-            >
-              {archivePending ? "Архивация…" : "Архивировать"}
-            </Button>
-          </form>
-
-          <Dialog open={warnOpen} onOpenChange={setWarnOpen}>
-            <DialogContent showCloseButton className="max-w-md">
-              <DialogHeader>
-                <DialogTitle>Рекомендация уже используется</DialogTitle>
-                <div className="space-y-2 text-sm text-muted-foreground *:[a]:underline *:[a]:underline-offset-3 *:[a]:hover:text-foreground">
-                  <span className="block">
-                    Архивация уберёт рекомендацию из каталога для новых программ. Уже выданные программы не удаляются.
-                  </span>
-                  {!warnSections.length &&
-                  archiveState?.ok === false &&
-                  "code" in archiveState &&
-                  archiveState.code === "USAGE_CONFIRMATION_REQUIRED" &&
-                  !recommendationUsageHasAnyReference(archiveState.usage) ? (
-                    <span className="block text-sm">
-                      Рекомендация помечена как используемая — проверьте связи перед архивацией.
-                    </span>
-                  ) : warnSections.length ? (
-                    <RecommendationUsageSectionsView sections={warnSections} />
-                  ) : null}
-                </div>
-              </DialogHeader>
-              <DialogFooter className="gap-2 sm:gap-2">
-                <Button type="button" variant="outline" onClick={() => setWarnOpen(false)}>
-                  Отмена
+          {isArchived ? (
+            <div className="rounded-md border border-border/60 bg-muted/30 p-3 text-sm">
+              <p className="font-medium text-foreground">Рекомендация в архиве</p>
+              <p className="mt-1 text-muted-foreground">Верните из архива, чтобы снова добавлять в программы.</p>
+              {unarchiveError ? (
+                <p role="alert" className="mt-2 text-sm text-destructive">
+                  {unarchiveError}
+                </p>
+              ) : null}
+              <form action={unarchiveFormAction} className="mt-3 flex flex-col gap-2">
+                <input type="hidden" name="id" value={recommendation.id} />
+                {workspaceView ? <input type="hidden" name="view" value={workspaceView} /> : null}
+                {workspaceListPreserve?.q != null && workspaceListPreserve.q !== "" ? (
+                  <input type="hidden" name="listQ" value={workspaceListPreserve.q} />
+                ) : null}
+                {workspaceListPreserve?.titleSort === "asc" || workspaceListPreserve?.titleSort === "desc" ? (
+                  <input type="hidden" name="listTitleSort" value={workspaceListPreserve.titleSort} />
+                ) : null}
+                {workspaceListPreserve?.regionRefId != null && workspaceListPreserve.regionRefId !== "" ? (
+                  <input type="hidden" name="listRegion" value={workspaceListPreserve.regionRefId} />
+                ) : null}
+                {workspaceListPreserve?.domain != null ? (
+                  <input type="hidden" name="listDomain" value={workspaceListPreserve.domain} />
+                ) : null}
+                {workspaceListPreserve?.listStatus != null ? (
+                  <input type="hidden" name="listStatus" value={workspaceListPreserve.listStatus} />
+                ) : null}
+                <Button type="submit" variant="secondary" disabled={unarchivePending}>
+                  {unarchivePending ? "Восстановление…" : "Вернуть из архива"}
                 </Button>
+              </form>
+            </div>
+          ) : (
+            <>
+              {archiveError ? (
+                <p role="alert" className="mb-2 text-sm text-destructive">
+                  {archiveError}
+                </p>
+              ) : null}
+
+              <form ref={archiveFormRef} action={archiveFormAction} className="flex flex-col gap-2">
+                <input type="hidden" name="id" value={recommendation.id} />
+                {workspaceView ? <input type="hidden" name="view" value={workspaceView} /> : null}
+                {workspaceListPreserve?.q != null && workspaceListPreserve.q !== "" ? (
+                  <input type="hidden" name="listQ" value={workspaceListPreserve.q} />
+                ) : null}
+                {workspaceListPreserve?.titleSort === "asc" || workspaceListPreserve?.titleSort === "desc" ? (
+                  <input type="hidden" name="listTitleSort" value={workspaceListPreserve.titleSort} />
+                ) : null}
+                {workspaceListPreserve?.regionRefId != null && workspaceListPreserve.regionRefId !== "" ? (
+                  <input type="hidden" name="listRegion" value={workspaceListPreserve.regionRefId} />
+                ) : null}
+                {workspaceListPreserve?.domain != null ? (
+                  <input type="hidden" name="listDomain" value={workspaceListPreserve.domain} />
+                ) : null}
+                {workspaceListPreserve?.listStatus != null ? (
+                  <input type="hidden" name="listStatus" value={workspaceListPreserve.listStatus} />
+                ) : null}
+                <input type="hidden" name="acknowledgeUsageWarning" value={archiveUsageAck ? "1" : ""} readOnly />
                 <Button
-                  type="button"
+                  type="submit"
                   variant="destructive"
                   disabled={archivePending}
                   onClick={() => {
-                    setArchiveUsageAck(true);
-                    setWarnOpen(false);
-                    queueMicrotask(() => {
-                      archiveFormRef.current?.requestSubmit();
-                      setArchiveUsageAck(false);
-                    });
+                    setArchiveUsageAck(false);
                   }}
                 >
-                  Архивировать всё равно
+                  {archivePending ? "Архивация…" : "Архивировать"}
                 </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+              </form>
+
+              <Dialog open={warnOpen} onOpenChange={setWarnOpen}>
+                <DialogContent showCloseButton className="max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>Рекомендация уже используется</DialogTitle>
+                    <div className="space-y-2 text-sm text-muted-foreground *:[a]:underline *:[a]:underline-offset-3 *:[a]:hover:text-foreground">
+                      <span className="block">
+                        Архивация уберёт рекомендацию из каталога для новых программ. Уже выданные программы не удаляются.
+                      </span>
+                      {!warnSections.length &&
+                      archiveState?.ok === false &&
+                      "code" in archiveState &&
+                      archiveState.code === "USAGE_CONFIRMATION_REQUIRED" &&
+                      !recommendationUsageHasAnyReference(archiveState.usage) ? (
+                        <span className="block text-sm">
+                          Рекомендация помечена как используемая — проверьте связи перед архивацией.
+                        </span>
+                      ) : warnSections.length ? (
+                        <RecommendationUsageSectionsView sections={warnSections} />
+                      ) : null}
+                    </div>
+                  </DialogHeader>
+                  <DialogFooter className="gap-2 sm:gap-2">
+                    <Button type="button" variant="outline" onClick={() => setWarnOpen(false)}>
+                      Отмена
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      disabled={archivePending}
+                      onClick={() => {
+                        setArchiveUsageAck(true);
+                        setWarnOpen(false);
+                        queueMicrotask(() => {
+                          archiveFormRef.current?.requestSubmit();
+                          setArchiveUsageAck(false);
+                        });
+                      }}
+                    >
+                      Архивировать всё равно
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </>
+          )}
         </div>
       ) : null}
     </div>

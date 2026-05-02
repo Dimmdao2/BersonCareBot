@@ -6,6 +6,7 @@ import type {
   CreateClinicalTestInput,
   UpdateClinicalTestInput,
   ClinicalTestMediaItem,
+  TestSetArchiveScope,
 } from "@/modules/tests/types";
 import { EMPTY_CLINICAL_TEST_USAGE_SNAPSHOT } from "@/modules/tests/types";
 
@@ -40,8 +41,16 @@ function normalizeMedia(raw: unknown): ClinicalTestMediaItem[] {
   return out;
 }
 
+function archiveScopeFromFilter(f: ClinicalTestFilter): TestSetArchiveScope {
+  if (f.archiveScope) return f.archiveScope;
+  if (f.includeArchived) return "all";
+  return "active";
+}
+
 function matchesFilter(t: ClinicalTest, f: ClinicalTestFilter): boolean {
-  if (!f.includeArchived && t.isArchived) return false;
+  const scope = archiveScopeFromFilter(f);
+  if (scope === "active" && t.isArchived) return false;
+  if (scope === "archived" && !t.isArchived) return false;
   if (f.testType && f.testType.trim() && t.testType !== f.testType.trim()) return false;
   if (f.search?.trim()) {
     const q = f.search.trim().toLowerCase();
@@ -105,6 +114,13 @@ export const inMemoryClinicalTestsPort: ClinicalTestsPort = {
     const cur = store.get(id);
     if (!cur || cur.isArchived) return false;
     store.set(id, { ...cur, isArchived: true, updatedAt: new Date().toISOString() });
+    return true;
+  },
+
+  async unarchive(id: string): Promise<boolean> {
+    const cur = store.get(id);
+    if (!cur || !cur.isArchived) return false;
+    store.set(id, { ...cur, isArchived: false, updatedAt: new Date().toISOString() });
     return true;
   },
 

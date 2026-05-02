@@ -19,6 +19,7 @@ import {
   readDoctorCatalogViewPreference,
   writeDoctorCatalogViewPreference,
 } from "@/shared/lib/doctorCatalogViewPreference";
+import { type RecommendationListFilterScope } from "@/shared/lib/doctorCatalogListStatus";
 import { MediaThumb } from "@/shared/ui/media/MediaThumb";
 import { recommendationMediaItemToPreviewUi } from "@/shared/ui/media/mediaPreviewUiModel";
 import { VirtualizedItemGrid } from "@/shared/ui/VirtualizedItemGrid";
@@ -37,7 +38,7 @@ import {
   type DoctorCatalogTertiaryFilter,
 } from "@/shared/ui/doctor/DoctorCatalogFiltersForm";
 import { RecommendationForm } from "./RecommendationForm";
-import { archiveRecommendationInline, saveRecommendationInline } from "./actionsInline";
+import { archiveRecommendationInline, saveRecommendationInline, unarchiveRecommendationInline } from "./actionsInline";
 export type RecommendationsViewMode = "tiles" | "list";
 export type RecommendationTitleSort = "asc" | "desc";
 
@@ -57,6 +58,7 @@ type Props = {
     q: string;
     regionRefId?: string;
     domain?: RecommendationDomain;
+    listStatus: RecommendationListFilterScope;
   };
 };
 
@@ -338,12 +340,14 @@ function RecommendationsContent({
         recommendation={formRecommendation ?? undefined}
         saveAction={saveRecommendationInline}
         archiveAction={archiveRecommendationInline}
+        unarchiveAction={unarchiveRecommendationInline}
         workspaceView={viewMode}
         workspaceListPreserve={{
           q: filters.q,
           titleSort,
           regionRefId: filters.regionRefId,
           domain: filters.domain,
+          listStatus: filters.listStatus,
         }}
         externalUsageSnapshot={usageForSelection}
       />
@@ -357,7 +361,7 @@ function RecommendationsContent({
           filters={
             <DoctorCatalogToolbarFiltersSlot>
               <DoctorCatalogFiltersForm
-                key={`rec-filters-${filters.q}-${filters.regionRefId ?? ""}-${filters.domain ?? ""}`}
+                key={`rec-filters-${filters.q}-${filters.regionRefId ?? ""}-${filters.domain ?? ""}-${filters.listStatus}`}
                 idPrefix="rec"
                 q={filters.q}
                 regionRefId={filters.regionRefId}
@@ -403,6 +407,11 @@ function RecommendationsContent({
                 titleSort={titleSort}
                 onTitleSortChange={changeTitleSort}
                 listBusy={isListPending}
+                archiveScope={filters.listStatus}
+                archiveScopeExtraParams={{
+                  view: viewMode,
+                  titleSort,
+                }}
               />
             }
           >

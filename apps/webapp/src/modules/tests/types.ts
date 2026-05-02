@@ -21,6 +21,8 @@ export type ClinicalTest = {
 
 export type ClinicalTestFilter = {
   includeArchived?: boolean;
+  /** @deprecated Используйте {@link archiveScope}: `includeArchived: true` эквивалентно `archiveScope: "all"`. */
+  archiveScope?: TestSetArchiveScope;
   search?: string | null;
   testType?: string | null;
   /** Зарезервировано под единый UI с упражнениями; список в БД пока не фильтрует. */

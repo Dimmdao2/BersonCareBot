@@ -12,12 +12,14 @@ import {
   bulkCreateExercisesFromMediaInputSchema,
   EXERCISES_PATH,
   saveDoctorExerciseCore,
+  unarchiveDoctorExerciseCore,
   type ArchiveDoctorExerciseState,
   type BulkCreateExercisesFromMediaResult,
   type SaveDoctorExerciseState,
+  type UnarchiveDoctorExerciseState,
 } from "./actionsShared";
 
-export type { ArchiveDoctorExerciseState } from "./actionsShared";
+export type { ArchiveDoctorExerciseState, UnarchiveDoctorExerciseState } from "./actionsShared";
 
 /** Создание или обновление упражнения из формы врача. */
 export async function saveDoctorExercise(
@@ -51,6 +53,22 @@ export async function archiveDoctorExercise(
   revalidatePath(EXERCISES_PATH);
   revalidatePath(`${EXERCISES_PATH}/${result.id}`);
   redirect(EXERCISES_PATH);
+}
+
+export async function unarchiveDoctorExercise(
+  _prev: UnarchiveDoctorExerciseState | null,
+  formData: FormData,
+): Promise<UnarchiveDoctorExerciseState> {
+  const result = await unarchiveDoctorExerciseCore(formData);
+  if (result.kind === "invalid") {
+    const idRaw = formData.get("id");
+    const id = typeof idRaw === "string" ? idRaw.trim() : "";
+    if (!id) redirect(EXERCISES_PATH);
+    return { ok: false, error: result.error };
+  }
+  revalidatePath(EXERCISES_PATH);
+  revalidatePath(`${EXERCISES_PATH}/${result.id}`);
+  redirect(`${EXERCISES_PATH}/${result.id}`);
 }
 
 /** Загрузка usage для формы, когда нет server-passed snapshot (split-view без `selected` в URL). */

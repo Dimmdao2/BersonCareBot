@@ -14,8 +14,11 @@ vi.mock("@/app/app/doctor/content/MediaLibraryPickerDialog", () => ({
 }));
 
 vi.mock("@/shared/ui/ReferenceSelect", () => ({
-  ReferenceSelect: ({ value }: { value: string | null }) => (
-    <input type="text" data-testid="region-select" readOnly value={value ?? ""} />
+  ReferenceSelect: ({ value, name }: { value: string | null; name?: string }) => (
+    <>
+      {name ? <input type="hidden" name={name} value={value ?? ""} /> : null}
+      <input type="text" data-testid={name ? `${name}-select` : "region-select"} readOnly value={value ?? ""} />
+    </>
   ),
 }));
 

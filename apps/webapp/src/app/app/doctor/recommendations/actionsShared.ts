@@ -4,6 +4,7 @@ import { logger } from "@/infra/logging/logger";
 import {
   isRecommendationArchiveAlreadyArchivedError,
   isRecommendationArchiveNotFoundError,
+  isRecommendationUnarchiveNotArchivedError,
   isRecommendationUsageConfirmationRequiredError,
 } from "@/modules/recommendations/errors";
 import { parseRecommendationDomain } from "@/modules/recommendations/recommendationDomain";
@@ -20,6 +21,12 @@ export type ArchiveRecommendationState =
 export type ArchiveRecommendationCoreResult =
   | { kind: "archived"; id: string }
   | { kind: "needs_confirmation"; usage: RecommendationUsageSnapshot }
+  | { kind: "invalid"; error: string };
+
+export type UnarchiveRecommendationState = { ok: true } | { ok: false; error: string };
+
+export type UnarchiveRecommendationCoreResult =
+  | { kind: "unarchived"; id: string }
   | { kind: "invalid"; error: string };
 
 function parseAcknowledgeUsageWarning(fd: FormData): boolean {
@@ -89,6 +96,11 @@ export async function saveRecommendationCore(formData: FormData): Promise<
 
   try {
     if (id) {
+      const cur = await deps.recommendations.getRecommendation(id);
+      if (!cur) return { ok: false, error: "Рекомендация не найдена" };
+      if (cur.isArchived) {
+        return { ok: false, error: "Рекомендация в архиве. Верните из архива, чтобы редактировать." };
+      }
       await deps.recommendations.updateRecommendation(id, {
         title,
         bodyMd,
@@ -137,5 +149,30 @@ export async function archiveRecommendationCore(formData: FormData): Promise<Arc
     }
     logger.warn({ event: "doctor_recommendation_archive_unexpected_error", recommendationId: id, err: e }, "archive failed");
     return { kind: "invalid", error: "Не удалось архивировать рекомендацию" };
+  }
+}
+
+export async function unarchiveRecommendationCore(formData: FormData): Promise<UnarchiveRecommendationCoreResult> {
+  await requireDoctorAccess();
+  const idRaw = formData.get("id");
+  const id = typeof idRaw === "string" && idRaw.trim() ? idRaw.trim() : "";
+  if (!id) return { kind: "invalid", error: "Не указана рекомендация" };
+
+  const deps = buildAppDeps();
+  try {
+    await deps.recommendations.unarchiveRecommendation(id);
+    return { kind: "unarchived", id };
+  } catch (e) {
+    if (isRecommendationArchiveNotFoundError(e)) {
+      return { kind: "invalid", error: e.message };
+    }
+    if (isRecommendationUnarchiveNotArchivedError(e)) {
+      return { kind: "invalid", error: e.message };
+    }
+    logger.warn(
+      { event: "doctor_recommendation_unarchive_unexpected_error", recommendationId: id, err: e },
+      "unarchive failed",
+    );
+    return { kind: "invalid", error: "Не удалось вернуть рекомендацию из архива" };
   }
 }

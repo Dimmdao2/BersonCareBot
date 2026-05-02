@@ -301,8 +301,12 @@ export function createPgClinicalTestsPort(): ClinicalTestsPort {
     async list(filter: ClinicalTestFilter): Promise<ClinicalTest[]> {
       const db = getDrizzle();
       const conds = [];
-      if (!filter.includeArchived) {
+      const scope =
+        filter.archiveScope ?? (filter.includeArchived ? "all" : "active");
+      if (scope === "active") {
         conds.push(eq(clinicalTestsTable.isArchived, false));
+      } else if (scope === "archived") {
+        conds.push(eq(clinicalTestsTable.isArchived, true));
       }
       if (filter.testType?.trim()) {
         conds.push(eq(clinicalTestsTable.testType, filter.testType.trim()));
@@ -372,6 +376,16 @@ export function createPgClinicalTestsPort(): ClinicalTestsPort {
         .update(clinicalTestsTable)
         .set({ isArchived: true, updatedAt: new Date().toISOString() })
         .where(and(eq(clinicalTestsTable.id, id), eq(clinicalTestsTable.isArchived, false)))
+        .returning({ id: clinicalTestsTable.id });
+      return rows.length > 0;
+    },
+
+    async unarchive(id: string): Promise<boolean> {
+      const db = getDrizzle();
+      const rows = await db
+        .update(clinicalTestsTable)
+        .set({ isArchived: false, updatedAt: new Date().toISOString() })
+        .where(and(eq(clinicalTestsTable.id, id), eq(clinicalTestsTable.isArchived, true)))
         .returning({ id: clinicalTestsTable.id });
       return rows.length > 0;
     },

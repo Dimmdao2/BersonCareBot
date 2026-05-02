@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { DoctorCatalogMasterListHeader } from "@/shared/ui/doctor/DoctorCatalogMasterListHeader";
 import type { Exercise, ExerciseLoadType, ExerciseUsageSnapshot } from "@/modules/lfk-exercises/types";
+import type { RecommendationListFilterScope } from "@/shared/lib/doctorCatalogListStatus";
 import { cn } from "@/lib/utils";
 import { useViewportMinWidth } from "@/shared/hooks/useViewportMinWidth";
 import {
@@ -31,7 +32,7 @@ import { DoctorCatalogPageLayout } from "@/shared/ui/DoctorCatalogPageLayout";
 import { ExerciseListCatalogThumb } from "@/shared/ui/media/ExerciseListCatalogThumb";
 import { VirtualizedItemGrid } from "@/shared/ui/VirtualizedItemGrid";
 import { ExercisesFiltersForm } from "./ExercisesFiltersForm";
-import { archiveExerciseInline, saveExerciseInline } from "./actionsInline";
+import { archiveExerciseInline, saveExerciseInline, unarchiveExerciseInline } from "./actionsInline";
 import { ExerciseTileCard } from "./ExerciseTileCard";
 
 export type ExercisesViewMode = "tiles" | "list";
@@ -70,6 +71,7 @@ type Props = {
     q: string;
     regionRefId?: string;
     loadType?: ExerciseLoadType;
+    listStatus: RecommendationListFilterScope;
   };
 };
 
@@ -264,6 +266,8 @@ function ExercisesContent({
         exercise={mobileSheet?.exercise ?? exerciseForDesktop}
         saveAction={saveExerciseInline}
         archiveAction={archiveExerciseInline}
+        unarchiveAction={unarchiveExerciseInline}
+        listArchiveScope={filters.listStatus}
         viewHint={viewMode}
         externalUsageSnapshot={usageForSelection}
       />
@@ -316,6 +320,11 @@ function ExercisesContent({
                 titleSort={titleSort}
                 onTitleSortChange={changeTitleSort}
                 listBusy={isListPending}
+                archiveScope={filters.listStatus}
+                archiveScopeExtraParams={{
+                  view: viewMode,
+                  titleSort,
+                }}
               />
             }
           >

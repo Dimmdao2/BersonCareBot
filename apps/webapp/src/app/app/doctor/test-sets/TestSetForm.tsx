@@ -13,10 +13,17 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import type { ExerciseLoadType } from "@/modules/lfk-exercises/types";
 import type { TestSet, TestSetUsageSnapshot } from "@/modules/tests/types";
+import type { RecommendationListFilterScope } from "@/shared/lib/doctorCatalogListStatus";
 import { cn } from "@/lib/utils";
-import { archiveDoctorTestSet, fetchDoctorTestSetUsageSnapshot, saveDoctorTestSet } from "./actions";
-import type { ArchiveTestSetState, SaveTestSetState } from "./actionsShared";
+import {
+  archiveDoctorTestSet,
+  fetchDoctorTestSetUsageSnapshot,
+  saveDoctorTestSet,
+  unarchiveDoctorTestSet,
+} from "./actions";
+import type { ArchiveTestSetState, SaveTestSetState, UnarchiveTestSetState } from "./actionsShared";
 import { TEST_SETS_PATH } from "./paths";
 import { doctorTestSetUsageHref } from "./testSetUsageDocLinks";
 import {
@@ -62,19 +69,32 @@ function TestSetUsageSectionsView({ sections }: { sections: TestSetUsageSection[
 type Props = {
   testSet?: TestSet | null;
   backHref?: string;
+  workspaceListPreserve?: {
+    q?: string;
+    titleSort?: "asc" | "desc" | null;
+    regionRefId?: string;
+    loadType?: ExerciseLoadType;
+    listStatus?: RecommendationListFilterScope;
+  };
   saveAction?: (_prev: SaveTestSetState | null, formData: FormData) => Promise<SaveTestSetState>;
   archiveAction?: (
     _prev: ArchiveTestSetState | null,
     formData: FormData,
   ) => Promise<ArchiveTestSetState>;
+  unarchiveAction?: (
+    _prev: UnarchiveTestSetState | null,
+    formData: FormData,
+  ) => Promise<UnarchiveTestSetState>;
   externalUsageSnapshot?: TestSetUsageSnapshot;
 };
 
 export function TestSetForm({
   testSet,
   backHref = TEST_SETS_PATH,
+  workspaceListPreserve,
   saveAction = saveDoctorTestSet,
   archiveAction = archiveDoctorTestSet,
+  unarchiveAction = unarchiveDoctorTestSet,
   externalUsageSnapshot,
 }: Props) {
   const recordKey = testSet?.id ?? "create";
@@ -144,6 +164,11 @@ export function TestSetForm({
     null as ArchiveTestSetState | null,
   );
 
+  const [unarchiveState, unarchiveFormAction, unarchivePending] = useActionState(
+    unarchiveAction,
+    null as UnarchiveTestSetState | null,
+  );
+
   useEffect(() => {
     if (
       archiveState?.ok === false &&
@@ -175,6 +200,11 @@ export function TestSetForm({
   const archiveError =
     archiveState?.ok === false && "error" in archiveState ? archiveState.error : null;
 
+  const unarchiveError =
+    unarchiveState?.ok === false && "error" in unarchiveState ? unarchiveState.error : null;
+
+  const isArchived = !!testSet?.isArchived;
+
   return (
     <div className="flex max-w-2xl flex-col gap-4">
       <form action={formAction} className="flex flex-col gap-4">
@@ -184,34 +214,58 @@ export function TestSetForm({
           </p>
         ) : null}
         {testSet ? <input type="hidden" name="id" value={testSet.id} /> : null}
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="ts-title">Название набора</Label>
-          <Input
-            id="ts-title"
-            name="title"
-            required
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-          />
-        </div>
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="ts-desc">Описание</Label>
-          <Textarea
-            id="ts-desc"
-            name="description"
-            className="min-h-[72px]"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-          />
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button type="submit" disabled={pending}>
-            {pending ? "Сохранение…" : testSet ? "Сохранить" : "Создать набор"}
-          </Button>
-          <Link href={backHref} className={cn(buttonVariants({ variant: "outline" }))}>
-            К списку
-          </Link>
-        </div>
+        {workspaceListPreserve?.q != null && workspaceListPreserve.q !== "" ? (
+          <input type="hidden" name="listQ" value={workspaceListPreserve.q} />
+        ) : null}
+        {workspaceListPreserve?.titleSort === "asc" || workspaceListPreserve?.titleSort === "desc" ? (
+          <input type="hidden" name="listTitleSort" value={workspaceListPreserve.titleSort} />
+        ) : null}
+        {workspaceListPreserve?.regionRefId != null && workspaceListPreserve.regionRefId !== "" ? (
+          <input type="hidden" name="listRegion" value={workspaceListPreserve.regionRefId} />
+        ) : null}
+        {workspaceListPreserve?.loadType === "strength" ||
+        workspaceListPreserve?.loadType === "stretch" ||
+        workspaceListPreserve?.loadType === "balance" ||
+        workspaceListPreserve?.loadType === "cardio" ||
+        workspaceListPreserve?.loadType === "other" ? (
+          <input type="hidden" name="listLoad" value={workspaceListPreserve.loadType} />
+        ) : null}
+        {workspaceListPreserve?.listStatus != null ? (
+          <input type="hidden" name="listStatus" value={workspaceListPreserve.listStatus} />
+        ) : null}
+        <fieldset disabled={isArchived} className="m-0 min-w-0 border-0 p-0">
+          <legend className="sr-only">Поля набора тестов</legend>
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-3">
+              <Label htmlFor="ts-title">Название набора</Label>
+              <Input
+                id="ts-title"
+                name="title"
+                required
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+              />
+            </div>
+            <div className="flex flex-col gap-3">
+              <Label htmlFor="ts-desc">Описание</Label>
+              <Textarea
+                id="ts-desc"
+                name="description"
+                className="min-h-[72px]"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+              />
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button type="submit" disabled={pending}>
+                {pending ? "Сохранение…" : testSet ? "Сохранить" : "Создать набор"}
+              </Button>
+              <Link href={backHref} className={cn(buttonVariants({ variant: "outline" }))}>
+                К списку
+              </Link>
+            </div>
+          </div>
+        </fieldset>
       </form>
 
       {testSet ? (
@@ -229,6 +283,43 @@ export function TestSetForm({
             )}
           </div>
 
+          {isArchived ? (
+            <div className="rounded-md border border-border/60 bg-muted/30 p-3 text-sm">
+              <p className="font-medium text-foreground">Набор в архиве</p>
+              <p className="mt-1 text-muted-foreground">Верните из архива, чтобы снова добавлять в программы.</p>
+              {unarchiveError ? (
+                <p role="alert" className="mt-2 text-sm text-destructive">
+                  {unarchiveError}
+                </p>
+              ) : null}
+              <form action={unarchiveFormAction} className="mt-3 flex flex-col gap-2">
+                <input type="hidden" name="id" value={testSet.id} />
+                {workspaceListPreserve?.q != null && workspaceListPreserve.q !== "" ? (
+                  <input type="hidden" name="listQ" value={workspaceListPreserve.q} />
+                ) : null}
+                {workspaceListPreserve?.titleSort === "asc" || workspaceListPreserve?.titleSort === "desc" ? (
+                  <input type="hidden" name="listTitleSort" value={workspaceListPreserve.titleSort} />
+                ) : null}
+                {workspaceListPreserve?.regionRefId != null && workspaceListPreserve.regionRefId !== "" ? (
+                  <input type="hidden" name="listRegion" value={workspaceListPreserve.regionRefId} />
+                ) : null}
+                {workspaceListPreserve?.loadType === "strength" ||
+                workspaceListPreserve?.loadType === "stretch" ||
+                workspaceListPreserve?.loadType === "balance" ||
+                workspaceListPreserve?.loadType === "cardio" ||
+                workspaceListPreserve?.loadType === "other" ? (
+                  <input type="hidden" name="listLoad" value={workspaceListPreserve.loadType} />
+                ) : null}
+                {workspaceListPreserve?.listStatus != null ? (
+                  <input type="hidden" name="listStatus" value={workspaceListPreserve.listStatus} />
+                ) : null}
+                <Button type="submit" variant="secondary" disabled={unarchivePending}>
+                  {unarchivePending ? "Восстановление…" : "Вернуть из архива"}
+                </Button>
+              </form>
+            </div>
+          ) : (
+            <>
           {archiveError ? (
             <p role="alert" className="mb-2 text-sm text-destructive">
               {archiveError}
@@ -237,6 +328,25 @@ export function TestSetForm({
 
           <form ref={archiveFormRef} action={archiveFormAction} className="flex flex-col gap-2">
             <input type="hidden" name="id" value={testSet.id} />
+            {workspaceListPreserve?.q != null && workspaceListPreserve.q !== "" ? (
+              <input type="hidden" name="listQ" value={workspaceListPreserve.q} />
+            ) : null}
+            {workspaceListPreserve?.titleSort === "asc" || workspaceListPreserve?.titleSort === "desc" ? (
+              <input type="hidden" name="listTitleSort" value={workspaceListPreserve.titleSort} />
+            ) : null}
+            {workspaceListPreserve?.regionRefId != null && workspaceListPreserve.regionRefId !== "" ? (
+              <input type="hidden" name="listRegion" value={workspaceListPreserve.regionRefId} />
+            ) : null}
+            {workspaceListPreserve?.loadType === "strength" ||
+            workspaceListPreserve?.loadType === "stretch" ||
+            workspaceListPreserve?.loadType === "balance" ||
+            workspaceListPreserve?.loadType === "cardio" ||
+            workspaceListPreserve?.loadType === "other" ? (
+              <input type="hidden" name="listLoad" value={workspaceListPreserve.loadType} />
+            ) : null}
+            {workspaceListPreserve?.listStatus != null ? (
+              <input type="hidden" name="listStatus" value={workspaceListPreserve.listStatus} />
+            ) : null}
             <input type="hidden" name="acknowledgeUsageWarning" value={archiveUsageAck ? "1" : ""} readOnly />
             <Button
               type="submit"
@@ -294,6 +404,8 @@ export function TestSetForm({
               </DialogFooter>
             </DialogContent>
           </Dialog>
+            </>
+          )}
         </div>
       ) : null}
     </div>

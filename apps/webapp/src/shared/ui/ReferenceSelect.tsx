@@ -27,6 +27,8 @@ export type ReferenceSelectProps = {
   id?: string;
   /** Первый пункт списка: сбрасывает значение (например «Все» в фильтрах). */
   clearOptionLabel?: string;
+  /** For enum-like filters, opening should reveal every option instead of filtering by the selected label. */
+  showAllOnFocus?: boolean;
 };
 
 /** Выпадающий список значений справочника с поиском; данные кэшируются в sessionStorage. */
@@ -44,6 +46,7 @@ export function ReferenceSelect({
   name,
   id,
   clearOptionLabel,
+  showAllOnFocus = false,
 }: ReferenceSelectProps) {
   const [remoteItems, setRemoteItems] = useState<ReferenceItemDto[]>([]);
   const [loadState, setLoadState] = useState<"loading" | "done">(() =>
@@ -121,7 +124,7 @@ export function ReferenceSelect({
         }}
         onFocus={() => {
           setOpen(true);
-          setQuery(selectedLabel);
+          setQuery(showAllOnFocus ? "" : selectedLabel);
         }}
         onBlur={() => {
           setTimeout(() => setOpen(false), 150);

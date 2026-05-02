@@ -2,6 +2,7 @@ import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { AppShell } from "@/shared/ui/AppShell";
 import { doctorCatalogViewFromSearchParams } from "@/shared/lib/doctorCatalogViewPreference";
+import { parseRecommendationListFilterScope } from "@/shared/lib/doctorCatalogListStatus";
 import type { Exercise, ExerciseUsageSnapshot } from "@/modules/lfk-exercises/types";
 import { ExercisesPageClient } from "./ExercisesPageClient";
 
@@ -13,6 +14,7 @@ type PageProps = {
     view?: string;
     selected?: string;
     titleSort?: string;
+    status?: string;
   }>;
 };
 
@@ -34,6 +36,7 @@ export default async function DoctorExercisesPage({ searchParams }: PageProps) {
   );
   const selectedExerciseId = typeof sp.selected === "string" && sp.selected.trim() ? sp.selected.trim() : null;
   const titleSort = sp.titleSort === "asc" || sp.titleSort === "desc" ? sp.titleSort : null;
+  const listStatus = parseRecommendationListFilterScope(sp, "active");
 
   type DoctorExerciseSelection = { exercise: Exercise | null; usage: ExerciseUsageSnapshot | null };
 
@@ -42,13 +45,13 @@ export default async function DoctorExercisesPage({ searchParams }: PageProps) {
     search: q || null,
     regionRefId: regionRefId ?? null,
     loadType: loadType ?? null,
-    includeArchived: false,
+    archiveListScope: listStatus,
   });
   const doctorExerciseSelectionPromise: Promise<DoctorExerciseSelection> = selectedExerciseId
     ? deps.lfkExercises
         .getExercise(selectedExerciseId)
         .then(async (ex) => {
-          if (!ex || ex.isArchived) return { exercise: null, usage: null };
+          if (!ex) return { exercise: null, usage: null };
           const usage = await deps.lfkExercises.getExerciseUsage(ex.id);
           return { exercise: ex, usage };
         })
@@ -62,7 +65,7 @@ export default async function DoctorExercisesPage({ searchParams }: PageProps) {
         initialViewMode={initialViewMode}
         viewLockedByUrl={viewLockedByUrl}
         initialTitleSort={titleSort}
-        filters={{ q, regionRefId, loadType }}
+        filters={{ q, regionRefId, loadType, listStatus }}
       />
     </AppShell>
   );

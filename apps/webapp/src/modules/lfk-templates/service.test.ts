@@ -3,6 +3,7 @@ import {
   LfkTemplateUsageConfirmationRequiredError,
   TemplateArchiveAlreadyArchivedError,
   TemplateArchiveNotFoundError,
+  TemplateUnarchiveNotArchivedError,
 } from "./errors";
 import { createLfkTemplatesService } from "./service";
 import {
@@ -79,6 +80,22 @@ describe("lfk-templates service", () => {
     const svc = createLfkTemplatesService(port);
     await svc.archiveTemplate(t.id);
     await expect(svc.archiveTemplate(t.id)).rejects.toBeInstanceOf(TemplateArchiveAlreadyArchivedError);
+  });
+
+  it("unarchiveTemplate sets status to draft", async () => {
+    const port = inMemoryLfkTemplatesPort;
+    const t = await port.create({ title: "Back" }, null);
+    const svc = createLfkTemplatesService(port);
+    await svc.archiveTemplate(t.id);
+    await svc.unarchiveTemplate(t.id);
+    expect((await svc.getTemplate(t.id))?.status).toBe("draft");
+  });
+
+  it("unarchiveTemplate throws TemplateUnarchiveNotArchivedError when not archived", async () => {
+    const port = inMemoryLfkTemplatesPort;
+    const t = await port.create({ title: "Live" }, null);
+    const svc = createLfkTemplatesService(port);
+    await expect(svc.unarchiveTemplate(t.id)).rejects.toBeInstanceOf(TemplateUnarchiveNotArchivedError);
   });
 
   it("getTemplateUsage returns empty snapshot for unknown template (in-memory)", async () => {

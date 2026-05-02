@@ -2,6 +2,7 @@ import type { RecommendationsPort } from "./ports";
 import {
   RecommendationArchiveAlreadyArchivedError,
   RecommendationArchiveNotFoundError,
+  RecommendationUnarchiveNotArchivedError,
   RecommendationUsageConfirmationRequiredError,
 } from "./errors";
 import type {
@@ -37,6 +38,11 @@ export function createRecommendationsService(port: RecommendationsPort) {
     },
 
     async updateRecommendation(id: string, input: UpdateRecommendationInput) {
+      const existing = await port.getById(id);
+      if (!existing) throw new Error("Рекомендация не найдена");
+      if (existing.isArchived) {
+        throw new Error("Рекомендация в архиве. Верните из архива, чтобы редактировать.");
+      }
       const patch: UpdateRecommendationInput = { ...input };
       if (input.title !== undefined) {
         const t = input.title.trim();
@@ -66,6 +72,15 @@ export function createRecommendationsService(port: RecommendationsPort) {
       }
 
       const ok = await port.archive(id);
+      if (!ok) throw new RecommendationArchiveNotFoundError();
+    },
+
+    async unarchiveRecommendation(id: string) {
+      const existing = await port.getById(id);
+      if (!existing) throw new RecommendationArchiveNotFoundError();
+      if (!existing.isArchived) throw new RecommendationUnarchiveNotArchivedError();
+
+      const ok = await port.unarchive(id);
       if (!ok) throw new RecommendationArchiveNotFoundError();
     },
   };

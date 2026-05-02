@@ -128,6 +128,13 @@ export const inMemoryTestSetsPort: TestSetsPort = {
     return true;
   },
 
+  async unarchive(id: string): Promise<boolean> {
+    const cur = setsMeta.get(id);
+    if (!cur || !cur.isArchived) return false;
+    setsMeta.set(id, { ...cur, isArchived: false, updatedAt: new Date().toISOString() });
+    return true;
+  },
+
   async replaceItems(testSetId: string, items: TestSetItemInput[]): Promise<void> {
     const cur = setsMeta.get(testSetId);
     if (!cur) throw new Error("test set not found");

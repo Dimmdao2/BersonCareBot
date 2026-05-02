@@ -9,11 +9,13 @@ import {
   archiveClinicalTestCore,
   CLINICAL_TESTS_PATH,
   saveClinicalTestCore,
+  unarchiveClinicalTestCore,
   type ArchiveClinicalTestState,
   type SaveClinicalTestState,
+  type UnarchiveClinicalTestState,
 } from "./actionsShared";
 
-export type { ArchiveClinicalTestState } from "./actionsShared";
+export type { ArchiveClinicalTestState, UnarchiveClinicalTestState } from "./actionsShared";
 
 export async function saveClinicalTest(
   _prev: SaveClinicalTestState | null,
@@ -46,6 +48,19 @@ export async function archiveClinicalTest(
   revalidatePath(CLINICAL_TESTS_PATH);
   revalidatePath(`${CLINICAL_TESTS_PATH}/${result.id}`);
   redirect(CLINICAL_TESTS_PATH);
+}
+
+export async function unarchiveClinicalTest(
+  _prev: UnarchiveClinicalTestState | null,
+  formData: FormData,
+): Promise<UnarchiveClinicalTestState> {
+  const result = await unarchiveClinicalTestCore(formData);
+  if (result.kind === "invalid") {
+    return { ok: false, error: result.error };
+  }
+  revalidatePath(CLINICAL_TESTS_PATH);
+  revalidatePath(`${CLINICAL_TESTS_PATH}/${result.id}`);
+  redirect(`${CLINICAL_TESTS_PATH}/${result.id}`);
 }
 
 export async function fetchDoctorClinicalTestUsageSnapshot(clinicalTestId: string) {

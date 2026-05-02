@@ -6,8 +6,17 @@ import type { CourseStatus } from "@/modules/courses/types";
 import { AppShell } from "@/shared/ui/AppShell";
 import { DataLoadFailureNotice } from "@/shared/ui/DataLoadFailureNotice";
 import { Badge } from "@/components/ui/badge";
-import { buttonVariants } from "@/components/ui/button-variants";
 import { cn } from "@/lib/utils";
+import {
+  parseTemplateCourseCatalogListStatus,
+  serverListFilterFromTemplateCourseCatalogStatus,
+} from "@/shared/lib/doctorCatalogListStatus";
+import {
+  doctorCatalogToolbarPrimaryActionClassName,
+  DoctorCatalogFiltersToolbar,
+  DoctorCatalogToolbarFiltersSlot,
+} from "@/shared/ui/doctor/DoctorCatalogFiltersToolbar";
+import { DoctorCatalogArchiveScopeSelect } from "@/shared/ui/doctor/DoctorCatalogArchiveScopeSelect";
 
 function statusLabel(status: CourseStatus): string {
   switch (status) {
@@ -33,13 +42,21 @@ function statusBadgeClass(status: CourseStatus): string {
   }
 }
 
-export default async function DoctorCoursesPage() {
+type PageProps = {
+  searchParams?: Promise<{ status?: string }>;
+};
+
+export default async function DoctorCoursesPage({ searchParams }: PageProps) {
   const session = await requireDoctorAccess();
   const deps = buildAppDeps();
+  const sp = (await searchParams) ?? {};
+  const listStatus = parseTemplateCourseCatalogListStatus(sp);
+  const courseFilter = serverListFilterFromTemplateCourseCatalogStatus(listStatus);
+
   let courses: Awaited<ReturnType<typeof deps.courses.listCoursesForDoctor>> = [];
   let loadError: ReturnType<typeof logServerRuntimeError> | null = null;
   try {
-    courses = await deps.courses.listCoursesForDoctor({ includeArchived: true });
+    courses = await deps.courses.listCoursesForDoctor(courseFilter);
   } catch (err) {
     loadError = logServerRuntimeError("app/doctor/courses", err);
   }
@@ -48,14 +65,21 @@ export default async function DoctorCoursesPage() {
 
   return (
     <AppShell title="Курсы" user={session.user} variant="doctor" backHref="/app/doctor">
-      <section className="flex flex-col gap-4 rounded-lg border border-border bg-card p-4 shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="text-sm text-muted-foreground">
-            Все курсы (черновики, опубликованные и архивные). Создание — отдельная форма.
-          </p>
-          <Link href="/app/doctor/courses/new" className={buttonVariants({ size: "sm" })}>
+      <DoctorCatalogFiltersToolbar
+        filters={
+          <DoctorCatalogToolbarFiltersSlot>
+            <DoctorCatalogArchiveScopeSelect value={listStatus} />
+          </DoctorCatalogToolbarFiltersSlot>
+        }
+        end={
+          <Link href="/app/doctor/courses/new" className={doctorCatalogToolbarPrimaryActionClassName}>
             Новый курс
           </Link>
+        }
+      />
+      <section className="mt-4 flex flex-col gap-4 rounded-lg border border-border bg-card p-4 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-muted-foreground">Курсы</p>
         </div>
         {loadError ? (
           <DataLoadFailureNotice
@@ -64,7 +88,7 @@ export default async function DoctorCoursesPage() {
           />
         ) : null}
         {courses.length === 0 && !loadError ? (
-          <p className="text-sm text-muted-foreground">Пока нет ни одного курса.</p>
+          <p className="text-sm text-muted-foreground">Нет курсов по выбранному фильтру.</p>
         ) : null}
         {courses.length > 0 ? (
           <ul className="divide-y divide-border rounded-lg border border-border">

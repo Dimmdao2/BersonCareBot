@@ -2,6 +2,7 @@ import {
   LfkTemplateUsageConfirmationRequiredError,
   TemplateArchiveAlreadyArchivedError,
   TemplateArchiveNotFoundError,
+  TemplateUnarchiveNotArchivedError,
 } from "./errors";
 import type { LfkTemplatesPort } from "./ports";
 import type {
@@ -30,6 +31,11 @@ export function createLfkTemplatesService(port: LfkTemplatesPort) {
     },
 
     async updateTemplate(id: string, input: UpdateTemplateInput) {
+      const existing = await port.getById(id);
+      if (!existing) throw new Error("Шаблон не найден");
+      if (existing.status === "archived") {
+        throw new Error("Комплекс в архиве. Верните из архива, чтобы редактировать.");
+      }
       const patch: UpdateTemplateInput = { ...input };
       if (input.title !== undefined) {
         const t = input.title.trim();
@@ -47,6 +53,9 @@ export function createLfkTemplatesService(port: LfkTemplatesPort) {
     async updateExercises(templateId: string, exercises: TemplateExerciseInput[]) {
       const t = await port.getById(templateId);
       if (!t) throw new Error("Шаблон не найден");
+      if (t.status === "archived") {
+        throw new Error("Комплекс в архиве. Верните из архива, чтобы редактировать.");
+      }
       if (t.status === "published" && exercises.length === 0) {
         throw new Error("Нельзя удалить все упражнения из опубликованного шаблона");
       }
@@ -88,6 +97,16 @@ export function createLfkTemplatesService(port: LfkTemplatesPort) {
       }
 
       const next = await port.setStatus(id, "archived");
+      if (!next) throw new TemplateArchiveNotFoundError();
+      return next;
+    },
+
+    async unarchiveTemplate(id: string) {
+      const existing = await port.getById(id);
+      if (!existing) throw new TemplateArchiveNotFoundError();
+      if (existing.status !== "archived") throw new TemplateUnarchiveNotArchivedError();
+
+      const next = await port.setStatus(id, "draft");
       if (!next) throw new TemplateArchiveNotFoundError();
       return next;
     },

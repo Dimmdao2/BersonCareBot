@@ -4,6 +4,10 @@ import type { RecommendationUsageSnapshot } from "@/modules/recommendations/type
 import { parseRecommendationDomain } from "@/modules/recommendations/recommendationDomain";
 import { AppShell } from "@/shared/ui/AppShell";
 import { doctorCatalogViewFromSearchParams } from "@/shared/lib/doctorCatalogViewPreference";
+import {
+  parseRecommendationListFilterScope,
+  recommendationArchiveScopeFromListScope,
+} from "@/shared/lib/doctorCatalogListStatus";
 import { RecommendationsPageClient, type RecommendationTitleSort } from "./RecommendationsPageClient";
 
 type PageProps = {
@@ -14,6 +18,7 @@ type PageProps = {
     titleSort?: string;
     region?: string;
     domain?: string;
+    status?: string;
   }>;
 };
 
@@ -26,10 +31,12 @@ export default async function DoctorRecommendationsPage({ searchParams }: PagePr
   const domain = parseRecommendationDomain(typeof sp.domain === "string" ? sp.domain : undefined);
   const titleSort: RecommendationTitleSort | null =
     sp.titleSort === "asc" || sp.titleSort === "desc" ? sp.titleSort : null;
+  const listStatus = parseRecommendationListFilterScope(sp, "active");
+  const archiveScope = recommendationArchiveScopeFromListScope(listStatus);
 
   const items = await deps.recommendations.listRecommendations({
     search: q || null,
-    archiveScope: "active",
+    archiveScope,
     regionRefId: regionRefId ?? null,
     domain: domain ?? null,
   });
@@ -54,7 +61,7 @@ export default async function DoctorRecommendationsPage({ searchParams }: PagePr
         initialViewMode={initialViewMode}
         viewLockedByUrl={viewLockedByUrl}
         initialTitleSort={titleSort}
-        filters={{ q, regionRefId, domain }}
+        filters={{ q, regionRefId, domain, listStatus }}
       />
     </AppShell>
   );

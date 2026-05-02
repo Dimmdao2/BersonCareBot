@@ -17,12 +17,17 @@ import type { ExerciseLoadType } from "@/modules/lfk-exercises/types";
 import type { ClinicalTest, ClinicalTestUsageSnapshot } from "@/modules/tests/types";
 import { cn } from "@/lib/utils";
 import { MediaLibraryPickerDialog } from "@/app/app/doctor/content/MediaLibraryPickerDialog";
-import { archiveClinicalTest, fetchDoctorClinicalTestUsageSnapshot, saveClinicalTest } from "./actions";
-import type { ArchiveClinicalTestState, SaveClinicalTestState } from "./actionsShared";
+import { archiveClinicalTest, fetchDoctorClinicalTestUsageSnapshot, saveClinicalTest, unarchiveClinicalTest } from "./actions";
+import type {
+  ArchiveClinicalTestState,
+  SaveClinicalTestState,
+  UnarchiveClinicalTestState,
+} from "./actionsShared";
 import {
   exerciseMediaTypeFromPick,
   exerciseTitleFromPickMeta,
 } from "@/app/app/doctor/exercises/exerciseMediaFromLibrary";
+import type { RecommendationListFilterScope } from "@/shared/lib/doctorCatalogListStatus";
 import { CLINICAL_TESTS_PATH } from "./paths";
 import { doctorClinicalTestUsageHref } from "./clinicalTestsUsageDocLinks";
 import {
@@ -108,6 +113,7 @@ type ClinicalTestFormProps = {
     titleSort?: "asc" | "desc" | null;
     regionRefId?: string;
     loadType?: ExerciseLoadType;
+    listStatus?: RecommendationListFilterScope;
   };
   saveAction?: (
     _prev: SaveClinicalTestState | null,
@@ -117,6 +123,10 @@ type ClinicalTestFormProps = {
     _prev: ArchiveClinicalTestState | null,
     formData: FormData,
   ) => Promise<ArchiveClinicalTestState>;
+  unarchiveAction?: (
+    _prev: UnarchiveClinicalTestState | null,
+    formData: FormData,
+  ) => Promise<UnarchiveClinicalTestState>;
   /**
    * Snapshot с сервера (например split-view с выбранным тестом). Если не передан — usage
    * подгружается через `fetchDoctorClinicalTestUsageSnapshot`.
@@ -131,6 +141,7 @@ export function ClinicalTestForm({
   workspaceListPreserve,
   saveAction = saveClinicalTest,
   archiveAction = archiveClinicalTest,
+  unarchiveAction = unarchiveClinicalTest,
   externalUsageSnapshot,
 }: ClinicalTestFormProps) {
   const recordKey = test?.id ?? "create";
@@ -198,6 +209,11 @@ export function ClinicalTestForm({
     null as ArchiveClinicalTestState | null,
   );
 
+  const [unarchiveState, unarchiveFormAction, unarchivePending] = useActionState(
+    unarchiveAction,
+    null as UnarchiveClinicalTestState | null,
+  );
+
   useEffect(() => {
     if (
       archiveState?.ok === false &&
@@ -229,6 +245,11 @@ export function ClinicalTestForm({
   const archiveError =
     archiveState?.ok === false && "error" in archiveState ? archiveState.error : null;
 
+  const unarchiveError =
+    unarchiveState?.ok === false && "error" in unarchiveState ? unarchiveState.error : null;
+
+  const isArchived = !!test?.isArchived;
+
   return (
     <div className="flex max-w-2xl flex-col gap-4">
       <form action={formAction} className="flex flex-col gap-4">
@@ -255,93 +276,101 @@ export function ClinicalTestForm({
         workspaceListPreserve?.loadType === "other" ? (
           <input type="hidden" name="listLoad" value={workspaceListPreserve.loadType} />
         ) : null}
+        {workspaceListPreserve?.listStatus != null ? (
+          <input type="hidden" name="listStatus" value={workspaceListPreserve.listStatus} />
+        ) : null}
         <input type="hidden" name="mediaUrl" value={values.mediaUrl} />
         <input type="hidden" name="mediaType" value={values.mediaType} />
 
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="ct-title">Название</Label>
-          <Input
-            id="ct-title"
-            name="title"
-            required
-            value={values.title}
-            onChange={(e) => setValues((v) => ({ ...v, title: e.target.value }))}
-          />
-        </div>
+        <fieldset disabled={isArchived} className="m-0 min-w-0 border-0 p-0">
+          <legend className="sr-only">Поля клинического теста</legend>
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-3">
+              <Label htmlFor="ct-title">Название</Label>
+              <Input
+                id="ct-title"
+                name="title"
+                required
+                value={values.title}
+                onChange={(e) => setValues((v) => ({ ...v, title: e.target.value }))}
+              />
+            </div>
 
-        <div className="flex flex-col gap-3">
-          <span className="text-sm font-medium">Медиа</span>
-          <MediaLibraryPickerDialog
-            kind="image_or_video"
-            value={values.mediaUrl}
-            selectedPreviewKind={values.mediaType || undefined}
-            pickerTitle="Изображение, GIF или видео"
-            onChange={(url, meta) => {
-              setValues((prev) => {
-                let nextTitle = prev.title;
-                let nextType: ClinicalTestFormValues["mediaType"] = "";
-                if (url && meta) {
-                  nextType = exerciseMediaTypeFromPick(meta);
-                  if (nextTitle.trim() === "") nextTitle = exerciseTitleFromPickMeta(meta);
-                }
-                return { ...prev, mediaUrl: url, mediaType: nextType, title: nextTitle };
-              });
-            }}
-          />
-        </div>
+            <div className="flex flex-col gap-3">
+              <span className="text-sm font-medium">Медиа</span>
+              <MediaLibraryPickerDialog
+                kind="image_or_video"
+                value={values.mediaUrl}
+                selectedPreviewKind={values.mediaType || undefined}
+                pickerTitle="Изображение, GIF или видео"
+                onChange={(url, meta) => {
+                  setValues((prev) => {
+                    let nextTitle = prev.title;
+                    let nextType: ClinicalTestFormValues["mediaType"] = "";
+                    if (url && meta) {
+                      nextType = exerciseMediaTypeFromPick(meta);
+                      if (nextTitle.trim() === "") nextTitle = exerciseTitleFromPickMeta(meta);
+                    }
+                    return { ...prev, mediaUrl: url, mediaType: nextType, title: nextTitle };
+                  });
+                }}
+              />
+            </div>
 
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="ct-desc">Описание</Label>
-          <Textarea
-            id="ct-desc"
-            name="description"
-            className="min-h-[80px]"
-            value={values.description}
-            onChange={(e) => setValues((v) => ({ ...v, description: e.target.value }))}
-          />
-        </div>
+            <div className="flex flex-col gap-3">
+              <Label htmlFor="ct-desc">Описание</Label>
+              <Textarea
+                id="ct-desc"
+                name="description"
+                className="min-h-[80px]"
+                value={values.description}
+                onChange={(e) => setValues((v) => ({ ...v, description: e.target.value }))}
+              />
+            </div>
 
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="ct-type">Тип теста (произвольная метка)</Label>
-          <Input
-            id="ct-type"
-            name="testType"
-            value={values.testType}
-            onChange={(e) => setValues((v) => ({ ...v, testType: e.target.value }))}
-            placeholder="например screening"
-          />
-        </div>
+            <div className="flex flex-col gap-3">
+              <Label htmlFor="ct-type">Тип теста (произвольная метка)</Label>
+              <Input
+                id="ct-type"
+                name="testType"
+                value={values.testType}
+                onChange={(e) => setValues((v) => ({ ...v, testType: e.target.value }))}
+                placeholder="например screening"
+              />
+            </div>
 
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="ct-score">Scoring config (JSON, опционально)</Label>
-          <Textarea
-            id="ct-score"
-            name="scoringConfigJson"
-            className="min-h-[120px] font-mono text-sm"
-            value={values.scoringConfigJson}
-            onChange={(e) => setValues((v) => ({ ...v, scoringConfigJson: e.target.value }))}
-            placeholder='{"threshold": 5}'
-          />
-        </div>
+            <div className="flex flex-col gap-3">
+              <Label htmlFor="ct-score">Scoring config (JSON, опционально)</Label>
+              <Textarea
+                id="ct-score"
+                name="scoringConfigJson"
+                className="min-h-[120px] font-mono text-sm"
+                value={values.scoringConfigJson}
+                onChange={(e) => setValues((v) => ({ ...v, scoringConfigJson: e.target.value }))}
+                placeholder='{"threshold": 5}'
+              />
+            </div>
 
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="ct-tags">Теги (через запятую)</Label>
-          <Input
-            id="ct-tags"
-            name="tags"
-            value={values.tags}
-            onChange={(e) => setValues((v) => ({ ...v, tags: e.target.value }))}
-          />
-        </div>
+            <div className="flex flex-col gap-3">
+              <Label htmlFor="ct-tags">Теги (через запятую)</Label>
+              <Input
+                id="ct-tags"
+                name="tags"
+                value={values.tags}
+                onChange={(e) => setValues((v) => ({ ...v, tags: e.target.value }))}
+              />
+            </div>
 
-        <div className="flex flex-wrap gap-2">
-          <Button type="submit" disabled={savePending}>
-            {savePending ? "Сохранение…" : test ? "Сохранить" : "Создать тест"}
-          </Button>
-          <Link href={backHref} className={cn(buttonVariants({ variant: "outline" }))}>
-            К списку
-          </Link>
-        </div>
+            <div className="flex flex-wrap gap-2">
+              <Button type="submit" disabled={savePending}>
+                {savePending ? "Сохранение…" : test ? "Сохранить" : "Создать тест"}
+              </Button>
+              <Link href={backHref} className={cn(buttonVariants({ variant: "outline" }))}>
+                К списку
+              </Link>
+            </div>
+          </div>
+        </fieldset>
       </form>
 
       {test ? (
@@ -359,6 +388,44 @@ export function ClinicalTestForm({
             )}
           </div>
 
+          {isArchived ? (
+            <div className="rounded-md border border-border/60 bg-muted/30 p-3 text-sm">
+              <p className="font-medium text-foreground">Тест в архиве</p>
+              <p className="mt-1 text-muted-foreground">Верните из архива, чтобы снова добавлять в наборы и шаблоны.</p>
+              {unarchiveError ? (
+                <p role="alert" className="mt-2 text-sm text-destructive">
+                  {unarchiveError}
+                </p>
+              ) : null}
+              <form action={unarchiveFormAction} className="mt-3 flex flex-col gap-2">
+                <input type="hidden" name="id" value={test.id} />
+                {workspaceView ? <input type="hidden" name="view" value={workspaceView} /> : null}
+                {workspaceListPreserve?.q != null && workspaceListPreserve.q !== "" ? (
+                  <input type="hidden" name="listQ" value={workspaceListPreserve.q} />
+                ) : null}
+                {workspaceListPreserve?.titleSort === "asc" || workspaceListPreserve?.titleSort === "desc" ? (
+                  <input type="hidden" name="listTitleSort" value={workspaceListPreserve.titleSort} />
+                ) : null}
+                {workspaceListPreserve?.regionRefId != null && workspaceListPreserve.regionRefId !== "" ? (
+                  <input type="hidden" name="listRegion" value={workspaceListPreserve.regionRefId} />
+                ) : null}
+                {workspaceListPreserve?.loadType === "strength" ||
+                workspaceListPreserve?.loadType === "stretch" ||
+                workspaceListPreserve?.loadType === "balance" ||
+                workspaceListPreserve?.loadType === "cardio" ||
+                workspaceListPreserve?.loadType === "other" ? (
+                  <input type="hidden" name="listLoad" value={workspaceListPreserve.loadType} />
+                ) : null}
+                {workspaceListPreserve?.listStatus != null ? (
+                  <input type="hidden" name="listStatus" value={workspaceListPreserve.listStatus} />
+                ) : null}
+                <Button type="submit" variant="secondary" disabled={unarchivePending}>
+                  {unarchivePending ? "Восстановление…" : "Вернуть из архива"}
+                </Button>
+              </form>
+            </div>
+          ) : (
+            <>
           {archiveError ? (
             <p role="alert" className="mb-2 text-sm text-destructive">
               {archiveError}
@@ -383,6 +450,9 @@ export function ClinicalTestForm({
             workspaceListPreserve?.loadType === "cardio" ||
             workspaceListPreserve?.loadType === "other" ? (
               <input type="hidden" name="listLoad" value={workspaceListPreserve.loadType} />
+            ) : null}
+            {workspaceListPreserve?.listStatus != null ? (
+              <input type="hidden" name="listStatus" value={workspaceListPreserve.listStatus} />
             ) : null}
             <input type="hidden" name="acknowledgeUsageWarning" value={archiveUsageAck ? "1" : ""} readOnly />
             <Button
@@ -441,6 +511,8 @@ export function ClinicalTestForm({
               </DialogFooter>
             </DialogContent>
           </Dialog>
+            </>
+          )}
         </div>
       ) : null}
     </div>

@@ -3,6 +3,10 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import type { ExerciseLoadType } from "@/modules/lfk-exercises/types";
 import { AppShell } from "@/shared/ui/AppShell";
 import { doctorCatalogViewFromSearchParams } from "@/shared/lib/doctorCatalogViewPreference";
+import {
+  clinicalTestListArchiveScopeFromRecommendationFilter,
+  parseRecommendationListFilterScope,
+} from "@/shared/lib/doctorCatalogListStatus";
 import { ClinicalTestsPageClient, type ClinicalTestTitleSort } from "./ClinicalTestsPageClient";
 
 type PageProps = {
@@ -13,6 +17,7 @@ type PageProps = {
     titleSort?: string;
     region?: string;
     load?: string;
+    status?: string;
   }>;
 };
 
@@ -33,9 +38,12 @@ export default async function DoctorClinicalTestsPage({ searchParams }: PageProp
   const titleSort: ClinicalTestTitleSort | null =
     sp.titleSort === "asc" || sp.titleSort === "desc" ? sp.titleSort : null;
 
+  const listStatus = parseRecommendationListFilterScope(sp, "active");
+  const archiveScope = clinicalTestListArchiveScopeFromRecommendationFilter(listStatus);
+
   const items = await deps.clinicalTests.listClinicalTests({
     search: q || null,
-    includeArchived: false,
+    archiveScope,
     regionRefId: regionRefId ?? null,
     loadType: loadType ?? null,
   });
@@ -58,7 +66,7 @@ export default async function DoctorClinicalTestsPage({ searchParams }: PageProp
         initialViewMode={initialViewMode}
         viewLockedByUrl={viewLockedByUrl}
         initialTitleSort={titleSort}
-        filters={{ q, regionRefId, loadType }}
+        filters={{ q, regionRefId, loadType, listStatus }}
       />
     </AppShell>
   );

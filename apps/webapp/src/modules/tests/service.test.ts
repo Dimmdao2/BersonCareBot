@@ -33,7 +33,7 @@ describe("clinical tests / test sets service", () => {
     const svc = createClinicalTestsService(inMemoryClinicalTestsPort);
     const listed = await svc.listClinicalTests({});
     expect(listed.some((t) => t.id === hidden.id)).toBe(false);
-    const withArchived = await svc.listClinicalTests({ includeArchived: true });
+    const withArchived = await svc.listClinicalTests({ archiveScope: "all" });
     expect(withArchived.some((t) => t.id === hidden.id)).toBe(true);
   });
 
@@ -64,6 +64,51 @@ describe("clinical tests / test sets service", () => {
 
     const again = await setsSvc.getTestSet(set.id);
     expect(again?.items.map((i) => i.testId)).toEqual([t2.id, t1.id]);
+  });
+
+  it("unarchiveClinicalTest clears isArchived", async () => {
+    const t = await inMemoryClinicalTestsPort.create({ title: "U" }, null);
+    const svc = createClinicalTestsService(inMemoryClinicalTestsPort);
+    await svc.archiveClinicalTest(t.id);
+    await svc.unarchiveClinicalTest(t.id);
+    expect((await svc.getClinicalTest(t.id))?.isArchived).toBe(false);
+  });
+
+  it("unarchiveClinicalTest throws when not archived", async () => {
+    const t = await inMemoryClinicalTestsPort.create({ title: "N" }, null);
+    const svc = createClinicalTestsService(inMemoryClinicalTestsPort);
+    await expect(svc.unarchiveClinicalTest(t.id)).rejects.toMatchObject({ name: "ClinicalTestUnarchiveNotArchivedError" });
+  });
+
+  it("updateClinicalTest rejects when archived", async () => {
+    const t = await inMemoryClinicalTestsPort.create({ title: "A" }, null);
+    const svc = createClinicalTestsService(inMemoryClinicalTestsPort);
+    await svc.archiveClinicalTest(t.id);
+    await expect(svc.updateClinicalTest(t.id, { title: "B" })).rejects.toThrow(/архиве/);
+  });
+
+  it("unarchiveTestSet clears isArchived", async () => {
+    const setsSvc = createTestSetsService(inMemoryTestSetsPort, inMemoryClinicalTestsPort);
+    const set = await setsSvc.createTestSet({ title: "S" }, null);
+    await setsSvc.archiveTestSet(set.id);
+    await setsSvc.unarchiveTestSet(set.id);
+    expect((await setsSvc.getTestSet(set.id))?.isArchived).toBe(false);
+  });
+
+  it("unarchiveTestSet throws when not archived", async () => {
+    const setsSvc = createTestSetsService(inMemoryTestSetsPort, inMemoryClinicalTestsPort);
+    const set = await setsSvc.createTestSet({ title: "S2" }, null);
+    await expect(setsSvc.unarchiveTestSet(set.id)).rejects.toMatchObject({ name: "TestSetUnarchiveNotArchivedError" });
+  });
+
+  it("setTestSetItems rejects when set is archived", async () => {
+    const clinical = createClinicalTestsService(inMemoryClinicalTestsPort);
+    const t = await clinical.createClinicalTest({ title: "T" }, null);
+    const setsSvc = createTestSetsService(inMemoryTestSetsPort, inMemoryClinicalTestsPort);
+    const set = await setsSvc.createTestSet({ title: "Arch" }, null);
+    await setsSvc.setTestSetItems(set.id, [{ testId: t.id, sortOrder: 0 }]);
+    await setsSvc.archiveTestSet(set.id);
+    await expect(setsSvc.setTestSetItems(set.id, [{ testId: t.id, sortOrder: 0 }])).rejects.toThrow(/архиве/);
   });
 
   it("getClinicalTestUsage returns seeded snapshot", async () => {

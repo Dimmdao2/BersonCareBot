@@ -40,3 +40,16 @@ export function isRecommendationArchiveAlreadyArchivedError(
 ): e is RecommendationArchiveAlreadyArchivedError {
   return e instanceof RecommendationArchiveAlreadyArchivedError;
 }
+
+export class RecommendationUnarchiveNotArchivedError extends Error {
+  constructor() {
+    super("Рекомендация не в архиве");
+    this.name = "RecommendationUnarchiveNotArchivedError";
+  }
+}
+
+export function isRecommendationUnarchiveNotArchivedError(
+  e: unknown,
+): e is RecommendationUnarchiveNotArchivedError {
+  return e instanceof RecommendationUnarchiveNotArchivedError;
+}

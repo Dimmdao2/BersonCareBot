@@ -9,6 +9,7 @@ import {
   isLfkTemplateUsageConfirmationRequiredError,
   isTemplateArchiveAlreadyArchivedError,
   isTemplateArchiveNotFoundError,
+  isTemplateUnarchiveNotArchivedError,
 } from "@/modules/lfk-templates/errors";
 import type { LfkTemplateUsageSnapshot, TemplateExerciseInput } from "@/modules/lfk-templates/types";
 import { EMPTY_LFK_TEMPLATE_USAGE_SNAPSHOT } from "@/modules/lfk-templates/types";
@@ -20,6 +21,8 @@ export type ArchiveDoctorLfkTemplateState =
   | { ok: true }
   | { ok: false; code: "USAGE_CONFIRMATION_REQUIRED"; usage: LfkTemplateUsageSnapshot }
   | { ok: false; error: string };
+
+export type UnarchiveDoctorLfkTemplateState = { ok: true } | { ok: false; error: string };
 
 function parseAcknowledgeUsageWarning(fd: FormData): boolean {
   const v = fd.get("acknowledgeUsageWarning");
@@ -58,6 +61,30 @@ async function archiveDoctorLfkTemplateCore(
   }
 }
 
+async function unarchiveDoctorLfkTemplateCore(
+  formData: FormData,
+): Promise<{ kind: "unarchived"; id: string } | { kind: "invalid"; error: string }> {
+  await requireDoctorAccess();
+  const idRaw = formData.get("id");
+  const id = typeof idRaw === "string" ? idRaw.trim() : "";
+  if (!id) return { kind: "invalid", error: "Не указан шаблон комплекса" };
+
+  const deps = buildAppDeps();
+  try {
+    await deps.lfkTemplates.unarchiveTemplate(id);
+    return { kind: "unarchived", id };
+  } catch (e) {
+    if (isTemplateArchiveNotFoundError(e)) {
+      return { kind: "invalid", error: e.message };
+    }
+    if (isTemplateUnarchiveNotArchivedError(e)) {
+      return { kind: "invalid", error: e.message };
+    }
+    logger.warn({ event: "doctor_lfk_template_unarchive_unexpected_error", templateId: id, err: e }, "unarchive failed");
+    return { kind: "invalid", error: "Не удалось вернуть комплекс из архива" };
+  }
+}
+
 export async function createLfkTemplateDraft(formData: FormData) {
   const session = await requireDoctorAccess();
   const titleRaw = formData.get("title");
@@ -78,6 +105,11 @@ export async function persistLfkTemplateDraft(payload: {
   try {
     await requireDoctorAccess();
     const deps = buildAppDeps();
+    const cur = await deps.lfkTemplates.getTemplate(payload.templateId);
+    if (!cur) return { ok: false, error: "Шаблон не найден" };
+    if (cur.status === "archived") {
+      return { ok: false, error: "Комплекс в архиве. Верните из архива, чтобы редактировать." };
+    }
     await deps.lfkTemplates.updateTemplate(payload.templateId, {
       title: payload.title,
       description: payload.description,
@@ -123,6 +155,19 @@ export async function archiveDoctorLfkTemplate(
     typeof preserveRaw === "string" ? preserveRaw : "",
   );
   redirect(safePreserve ? `${BASE}?${safePreserve}` : BASE);
+}
+
+export async function unarchiveDoctorLfkTemplate(
+  _prev: UnarchiveDoctorLfkTemplateState | null,
+  formData: FormData,
+): Promise<UnarchiveDoctorLfkTemplateState> {
+  const result = await unarchiveDoctorLfkTemplateCore(formData);
+  if (result.kind === "invalid") {
+    return { ok: false, error: result.error };
+  }
+  revalidatePath(BASE);
+  revalidatePath(`${BASE}/${result.id}`);
+  redirect(`${BASE}/${result.id}`);
 }
 
 export async function fetchDoctorLfkTemplateUsageSnapshot(templateId: string) {

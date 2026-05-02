@@ -6,8 +6,10 @@ import {
   archiveClinicalTestCore,
   CLINICAL_TESTS_PATH,
   saveClinicalTestCore,
+  unarchiveClinicalTestCore,
   type ArchiveClinicalTestState,
   type SaveClinicalTestState,
+  type UnarchiveClinicalTestState,
 } from "./actionsShared";
 
 function appendClinicalTestsListParams(sp: URLSearchParams, formData: FormData) {
@@ -20,6 +22,10 @@ function appendClinicalTestsListParams(sp: URLSearchParams, formData: FormData) 
   const load = formData.get("listLoad");
   if (load === "strength" || load === "stretch" || load === "balance" || load === "cardio" || load === "other") {
     sp.set("load", load);
+  }
+  const listStatus = formData.get("listStatus");
+  if (listStatus === "active" || listStatus === "all" || listStatus === "archived") {
+    sp.set("status", listStatus);
   }
 }
 
@@ -61,4 +67,22 @@ export async function archiveClinicalTestInline(
   }
   revalidatePath(CLINICAL_TESTS_PATH);
   redirect(`${CLINICAL_TESTS_PATH}?${qs}`);
+}
+
+export async function unarchiveClinicalTestInline(
+  _prev: UnarchiveClinicalTestState | null,
+  formData: FormData,
+): Promise<UnarchiveClinicalTestState> {
+  const result = await unarchiveClinicalTestCore(formData);
+  if (result.kind === "invalid") {
+    return { ok: false, error: result.error };
+  }
+  revalidatePath(CLINICAL_TESTS_PATH);
+  revalidatePath(`${CLINICAL_TESTS_PATH}/${result.id}`);
+  const view = formData.get("view") === "list" ? "list" : "tiles";
+  const sp = new URLSearchParams();
+  sp.set("view", view);
+  sp.set("selected", result.id);
+  appendClinicalTestsListParams(sp, formData);
+  redirect(`${CLINICAL_TESTS_PATH}?${sp.toString()}`);
 }

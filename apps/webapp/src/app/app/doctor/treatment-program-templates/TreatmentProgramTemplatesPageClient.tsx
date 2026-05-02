@@ -26,6 +26,7 @@ import {
   type TreatmentProgramLibraryPickers,
 } from "./[id]/TreatmentProgramConstructorClient";
 import { NewTemplateForm } from "./new/NewTemplateForm";
+import type { RecommendationListFilterScope } from "@/shared/lib/doctorCatalogListStatus";
 import { TREATMENT_PROGRAM_TEMPLATES_PATH } from "./paths";
 
 type Props = {
@@ -36,6 +37,7 @@ type Props = {
     q: string;
     regionRefId?: string;
     loadType?: ExerciseLoadType;
+    listStatus: RecommendationListFilterScope;
   };
   initialTitleSort: "asc" | "desc" | null;
 };
@@ -217,7 +219,7 @@ export function TreatmentProgramTemplatesPageClient({
       filters={
         <DoctorCatalogToolbarFiltersSlot>
           <DoctorCatalogFiltersForm
-            key={`tpt-filters-${filters.regionRefId ?? ""}-${filters.loadType ?? ""}-${filters.q}`}
+            key={`tpt-filters-${filters.listStatus}-${filters.regionRefId ?? ""}-${filters.loadType ?? ""}-${filters.q}`}
             idPrefix={`${formKey}-tpt`}
             q={filters.q}
             regionRefId={filters.regionRefId}
@@ -251,6 +253,10 @@ export function TreatmentProgramTemplatesPageClient({
                 }
                 titleSort={titleSortForHeader}
                 onTitleSortChange={changeTitleSort}
+                archiveScope={filters.listStatus}
+                archiveScopeExtraParams={{
+                  titleSort,
+                }}
               />
             }
           >

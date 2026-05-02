@@ -1,6 +1,7 @@
 import {
   ExerciseArchiveAlreadyArchivedError,
   ExerciseArchiveNotFoundError,
+  ExerciseUnarchiveNotArchivedError,
   UsageConfirmationRequiredError,
 } from "./errors";
 import type { LfkExercisesPort } from "./ports";
@@ -39,6 +40,11 @@ export function createLfkExercisesService(port: LfkExercisesPort) {
     },
 
     async updateExercise(id: string, input: UpdateExerciseInput) {
+      const existing = await port.getById(id);
+      if (!existing) throw new Error("Упражнение не найдено");
+      if (existing.isArchived) {
+        throw new Error("Упражнение в архиве. Верните из архива, чтобы редактировать.");
+      }
       const patch: UpdateExerciseInput = { ...input };
       if (input.title !== undefined) {
         const t = input.title.trim();
@@ -71,6 +77,15 @@ export function createLfkExercisesService(port: LfkExercisesPort) {
       }
 
       const ok = await port.archive(id);
+      if (!ok) throw new ExerciseArchiveNotFoundError();
+    },
+
+    async unarchiveExercise(id: string) {
+      const existing = await port.getById(id);
+      if (!existing) throw new ExerciseArchiveNotFoundError();
+      if (!existing.isArchived) throw new ExerciseUnarchiveNotArchivedError();
+
+      const ok = await port.unarchive(id);
       if (!ok) throw new ExerciseArchiveNotFoundError();
     },
   };

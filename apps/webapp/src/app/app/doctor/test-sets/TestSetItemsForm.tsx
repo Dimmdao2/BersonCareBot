@@ -49,6 +49,8 @@ export function TestSetItemsForm({ testSet, saveItemsAction = saveDoctorTestSetI
       className="flex max-w-2xl flex-col gap-3 rounded-lg border border-border/60 p-4"
     >
       <input type="hidden" name="setId" value={testSet.id} />
+      <fieldset disabled={testSet.isArchived} className="m-0 min-w-0 border-0 p-0">
+        <legend className="sr-only">Состав набора</legend>
       <div className="flex flex-col gap-2">
         <Label htmlFor={`ts-items-${testSet.id}`}>Тесты в наборе (UUID по одному на строку)</Label>
         <Textarea
@@ -70,6 +72,7 @@ export function TestSetItemsForm({ testSet, saveItemsAction = saveDoctorTestSetI
       <Button type="submit" disabled={pending} variant="secondary">
         {pending ? "Сохранение состава…" : "Сохранить состав"}
       </Button>
+      </fieldset>
     </form>
   );
 }

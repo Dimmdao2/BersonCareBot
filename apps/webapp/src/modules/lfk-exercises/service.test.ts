@@ -2,6 +2,7 @@ import { describe, expect, it, beforeEach } from "vitest";
 import {
   ExerciseArchiveAlreadyArchivedError,
   ExerciseArchiveNotFoundError,
+  ExerciseUnarchiveNotArchivedError,
   UsageConfirmationRequiredError,
 } from "./errors";
 import { createLfkExercisesService } from "./service";
@@ -110,5 +111,43 @@ describe("lfk-exercises service", () => {
     const svc = createLfkExercisesService(port);
     await svc.archiveExercise(ex.id);
     await expect(svc.archiveExercise(ex.id)).rejects.toBeInstanceOf(ExerciseArchiveAlreadyArchivedError);
+  });
+
+  it("unarchiveExercise clears isArchived", async () => {
+    const port = inMemoryLfkExercisesPort;
+    const ex = await port.create({ title: "Back" }, null);
+    const svc = createLfkExercisesService(port);
+    await svc.archiveExercise(ex.id);
+    await svc.unarchiveExercise(ex.id);
+    expect((await svc.getExercise(ex.id))?.isArchived).toBe(false);
+    const activeList = await svc.listExercises({ archiveListScope: "active" });
+    expect(activeList.some((e) => e.id === ex.id)).toBe(true);
+  });
+
+  it("unarchiveExercise throws ExerciseUnarchiveNotArchivedError when not archived", async () => {
+    const port = inMemoryLfkExercisesPort;
+    const ex = await port.create({ title: "Live" }, null);
+    const svc = createLfkExercisesService(port);
+    await expect(svc.unarchiveExercise(ex.id)).rejects.toBeInstanceOf(ExerciseUnarchiveNotArchivedError);
+  });
+
+  it("listExercises archiveListScope archived returns only archived", async () => {
+    const port = inMemoryLfkExercisesPort;
+    const a = await port.create({ title: "Active one" }, null);
+    const b = await port.create({ title: "Gone" }, null);
+    const svc = createLfkExercisesService(port);
+    await svc.archiveExercise(b.id);
+    const archivedOnly = await svc.listExercises({ archiveListScope: "archived" });
+    expect(archivedOnly.every((e) => e.isArchived)).toBe(true);
+    expect(archivedOnly.some((e) => e.id === b.id)).toBe(true);
+    expect(archivedOnly.some((e) => e.id === a.id)).toBe(false);
+  });
+
+  it("updateExercise throws when exercise is archived", async () => {
+    const port = inMemoryLfkExercisesPort;
+    const ex = await port.create({ title: "No edit" }, null);
+    const svc = createLfkExercisesService(port);
+    await svc.archiveExercise(ex.id);
+    await expect(svc.updateExercise(ex.id, { title: "Nope" })).rejects.toThrow(/архиве/);
   });
 });

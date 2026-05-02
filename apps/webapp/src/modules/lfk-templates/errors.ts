@@ -38,3 +38,14 @@ export class TemplateArchiveAlreadyArchivedError extends Error {
 export function isTemplateArchiveAlreadyArchivedError(e: unknown): e is TemplateArchiveAlreadyArchivedError {
   return e instanceof TemplateArchiveAlreadyArchivedError;
 }
+
+export class TemplateUnarchiveNotArchivedError extends Error {
+  constructor() {
+    super("Комплекс не в архиве");
+    this.name = "TemplateUnarchiveNotArchivedError";
+  }
+}
+
+export function isTemplateUnarchiveNotArchivedError(e: unknown): e is TemplateUnarchiveNotArchivedError {
+  return e instanceof TemplateUnarchiveNotArchivedError;
+}

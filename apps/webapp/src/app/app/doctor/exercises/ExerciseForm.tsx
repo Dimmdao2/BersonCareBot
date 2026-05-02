@@ -16,17 +16,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { EXERCISE_LOAD_TYPE_OPTIONS, exerciseLoadTypeLabel } from "@/modules/lfk-exercises/exerciseLoadTypeOptions";
+  EXERCISE_LOAD_TYPE_OPTIONS,
+} from "@/modules/lfk-exercises/exerciseLoadTypeOptions";
 import type { Exercise, ExerciseLoadType, ExerciseUsageSnapshot } from "@/modules/lfk-exercises/types";
+import type { ReferenceItemDto } from "@/modules/references/referenceCache";
+import type { RecommendationListFilterScope } from "@/shared/lib/doctorCatalogListStatus";
 import { MediaLibraryPickerDialog } from "@/app/app/doctor/content/MediaLibraryPickerDialog";
-import { archiveDoctorExercise, fetchDoctorExerciseUsageSnapshot, saveDoctorExercise } from "./actions";
-import type { ArchiveDoctorExerciseState, SaveDoctorExerciseState } from "./actionsShared";
+import { archiveDoctorExercise, fetchDoctorExerciseUsageSnapshot, saveDoctorExercise, unarchiveDoctorExercise } from "./actions";
+import type { ArchiveDoctorExerciseState, SaveDoctorExerciseState, UnarchiveDoctorExerciseState } from "./actionsShared";
 import { exerciseMediaTypeFromPick, exerciseTitleFromPickMeta } from "./exerciseMediaFromLibrary";
 import { doctorExerciseUsageHref } from "./exerciseUsageDocLinks";
 import {
@@ -35,8 +32,12 @@ import {
   type ExerciseUsageSection,
 } from "./exerciseUsageSummaryText";
 
-/** Sentinel для Base UI Select: `undefined`/`""` даёт uncontrolled→controlled warning. */
-const LOAD_TYPE_SELECT_EMPTY = "__load_type_empty__";
+const EXERCISE_LOAD_TYPE_ITEMS: ReferenceItemDto[] = EXERCISE_LOAD_TYPE_OPTIONS.map((o, idx) => ({
+  id: `exercise-load-type-${o.value}`,
+  code: o.value,
+  title: o.label,
+  sortOrder: idx + 1,
+}));
 
 function ExerciseUsageSectionsView({ sections }: { sections: ExerciseUsageSection[] }) {
   if (sections.length === 0) {
@@ -106,6 +107,12 @@ type ExerciseFormProps = {
     _prev: ArchiveDoctorExerciseState | null,
     formData: FormData,
   ) => Promise<ArchiveDoctorExerciseState>;
+  unarchiveAction?: (
+    _prev: UnarchiveDoctorExerciseState | null,
+    formData: FormData,
+  ) => Promise<UnarchiveDoctorExerciseState>;
+  /** Для inline-редиректов: сохранить `status` в query (каталог активные/все/архив). */
+  listArchiveScope?: RecommendationListFilterScope;
   /** Current exercises list view — passed as hidden field for inline redirects after save/archive. */
   viewHint?: string;
   /**
@@ -119,7 +126,9 @@ export function ExerciseForm({
   exercise,
   saveAction = saveDoctorExercise,
   archiveAction = archiveDoctorExercise,
+  unarchiveAction = unarchiveDoctorExercise,
   viewHint,
+  listArchiveScope,
   externalUsageSnapshot,
 }: ExerciseFormProps) {
   const recordKey = exercise?.id ?? "create";
@@ -190,6 +199,11 @@ export function ExerciseForm({
     null as ArchiveDoctorExerciseState | null,
   );
 
+  const [unarchiveState, unarchiveFormAction, unarchivePending] = useActionState(
+    unarchiveAction,
+    null as UnarchiveDoctorExerciseState | null,
+  );
+
   useEffect(() => {
     if (
       archiveState?.ok === false &&
@@ -223,6 +237,11 @@ export function ExerciseForm({
   const archiveError =
     archiveState?.ok === false && "error" in archiveState ? archiveState.error : null;
 
+  const unarchiveError =
+    unarchiveState?.ok === false && "error" in unarchiveState ? unarchiveState.error : null;
+
+  const isArchived = !!exercise?.isArchived;
+
   return (
     <div className="flex max-w-2xl flex-col gap-4">
       <form action={formAction} className="flex flex-col gap-4">
@@ -233,137 +252,166 @@ export function ExerciseForm({
         ) : null}
         {exercise ? <input type="hidden" name="id" value={exercise.id} /> : null}
         {viewHint ? <input type="hidden" name="view" value={viewHint} /> : null}
+        {listArchiveScope ? <input type="hidden" name="status" value={listArchiveScope} /> : null}
         <input type="hidden" name="regionRefId" value={values.regionRefId ?? ""} />
         <input type="hidden" name="mediaUrl" value={values.mediaUrl} />
         <input type="hidden" name="mediaType" value={values.mediaType} />
 
-        <div className="flex flex-col gap-3">
-          <Label htmlFor="ex-title">Название</Label>
-          <Input
-            id="ex-title"
-            name="title"
-            required
-            value={values.title}
-            onChange={(e) => setValues((v) => ({ ...v, title: e.target.value }))}
-            placeholder="Например, разгибание колена сидя"
-          />
-        </div>
+        <fieldset disabled={isArchived} className="m-0 min-w-0 border-0 p-0">
+          <legend className="sr-only">Поля упражнения</legend>
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-3">
+              <Label htmlFor="ex-title">Название</Label>
+              <Input
+                id="ex-title"
+                name="title"
+                required
+                value={values.title}
+                onChange={(e) => setValues((v) => ({ ...v, title: e.target.value }))}
+                placeholder="Например, разгибание колена сидя"
+              />
+            </div>
 
-        <div className="flex flex-col gap-3">
-          <span className="text-sm font-medium">Медиа</span>
-          <MediaLibraryPickerDialog
-            kind="image_or_video"
-            value={values.mediaUrl}
-            selectedPreviewKind={values.mediaType || undefined}
-            pickerTitle="Изображение, GIF или видео"
-            onChange={(url, meta) => {
-              setValues((prev) => {
-                let nextTitle = prev.title;
-                let nextType: ExerciseFormValues["mediaType"] = "";
-                if (url && meta) {
-                  nextType = exerciseMediaTypeFromPick(meta);
-                  if (nextTitle.trim() === "") nextTitle = exerciseTitleFromPickMeta(meta);
-                }
-                return { ...prev, mediaUrl: url, mediaType: nextType, title: nextTitle };
-              });
-            }}
-          />
-        </div>
+            <div className="flex flex-col gap-3">
+              <span className="text-sm font-medium">Медиа</span>
+              <MediaLibraryPickerDialog
+                kind="image_or_video"
+                value={values.mediaUrl}
+                selectedPreviewKind={values.mediaType || undefined}
+                pickerTitle="Изображение, GIF или видео"
+                onChange={(url, meta) => {
+                  setValues((prev) => {
+                    let nextTitle = prev.title;
+                    let nextType: ExerciseFormValues["mediaType"] = "";
+                    if (url && meta) {
+                      nextType = exerciseMediaTypeFromPick(meta);
+                      if (nextTitle.trim() === "") nextTitle = exerciseTitleFromPickMeta(meta);
+                    }
+                    return { ...prev, mediaUrl: url, mediaType: nextType, title: nextTitle };
+                  });
+                }}
+              />
+            </div>
 
-        <DoctorDifficulty1to10Slider
-          id="ex-difficulty"
-          name="difficulty1_10"
-          value={values.difficulty}
-          onChange={(n) => setValues((v) => ({ ...v, difficulty: n }))}
-          label="Сложность:"
-        />
+            <DoctorDifficulty1to10Slider
+              id="ex-difficulty"
+              name="difficulty1_10"
+              value={values.difficulty}
+              onChange={(n) => setValues((v) => ({ ...v, difficulty: n }))}
+              label="Сложность:"
+            />
 
-        <div className="flex flex-col gap-3">
-          <Label htmlFor="ex-tags">Теги (через запятую)</Label>
-          <Input
-            id="ex-tags"
-            name="tags"
-            value={values.tags}
-            onChange={(e) => setValues((v) => ({ ...v, tags: e.target.value }))}
-            placeholder="колено, дома"
-          />
-        </div>
+            <div className="flex flex-col gap-3">
+              <Label htmlFor="ex-tags">Теги (через запятую)</Label>
+              <Input
+                id="ex-tags"
+                name="tags"
+                value={values.tags}
+                onChange={(e) => setValues((v) => ({ ...v, tags: e.target.value }))}
+                placeholder="колено, дома"
+              />
+            </div>
 
-        <div className="flex flex-col gap-3">
-          <span className="text-sm font-medium">Регион</span>
-          <ReferenceSelect
-            categoryCode="body_region"
-            value={values.regionRefId}
-            onChange={(refId, label) => {
-              setValues((v) => ({ ...v, regionRefId: refId }));
-              setRegionLabel(label);
-            }}
-            placeholder="Выберите регион"
-          />
-          {regionLabel ? (
-            <p className="text-xs text-muted-foreground">Выбрано: {regionLabel}</p>
-          ) : null}
-        </div>
+            <div className="flex flex-col gap-3">
+              <span className="text-sm font-medium">Регион</span>
+              <ReferenceSelect
+                categoryCode="body_region"
+                value={values.regionRefId}
+                onChange={(refId, label) => {
+                  setValues((v) => ({ ...v, regionRefId: refId }));
+                  setRegionLabel(label);
+                }}
+                placeholder="Выберите регион"
+              />
+              {regionLabel ? (
+                <p className="text-xs text-muted-foreground">Выбрано: {regionLabel}</p>
+              ) : null}
+            </div>
 
-        <div className="flex flex-col gap-3">
-          <Label>Тип нагрузки</Label>
-          <input type="hidden" name="loadType" value={values.loadType} />
-          <Select
-            value={values.loadType === "" ? LOAD_TYPE_SELECT_EMPTY : values.loadType}
-            onValueChange={(v) => {
-              setValues((prev) => ({
-                ...prev,
-                loadType: v === LOAD_TYPE_SELECT_EMPTY ? "" : (v as ExerciseLoadType),
-              }));
-            }}
-          >
-            <SelectTrigger className="w-full max-w-md">
-              <SelectValue placeholder="Не выбран">
-                {values.loadType === "" ? "Не выбран" : exerciseLoadTypeLabel(values.loadType)}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={LOAD_TYPE_SELECT_EMPTY}>Не выбран</SelectItem>
-              {EXERCISE_LOAD_TYPE_OPTIONS.map((o) => (
-                <SelectItem key={o.value} value={o.value}>
-                  {o.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+            <div className="flex flex-col gap-3">
+              <Label htmlFor="ex-load-type">Тип нагрузки</Label>
+              <ReferenceSelect
+                id="ex-load-type"
+                name="loadType"
+                prefetchedItems={EXERCISE_LOAD_TYPE_ITEMS}
+                valueMatch="code"
+                submitField="code"
+                value={values.loadType || null}
+                onChange={(code) => {
+                  setValues((prev) => ({ ...prev, loadType: code ? (code as ExerciseLoadType) : "" }));
+                }}
+                placeholder="Выберите тип нагрузки"
+                clearOptionLabel="Без типа нагрузки"
+                className="max-w-md"
+                showAllOnFocus
+              />
+            </div>
 
-        <div className="flex flex-col gap-3">
-          <Label htmlFor="ex-desc">Описание</Label>
-          <Textarea
-            id="ex-desc"
-            name="description"
-            className="min-h-[100px]"
-            value={values.description}
-            onChange={(e) => setValues((v) => ({ ...v, description: e.target.value }))}
-            placeholder="Краткая техника выполнения"
-          />
-        </div>
+            <div className="flex flex-col gap-3">
+              <Label htmlFor="ex-desc">Описание</Label>
+              <Textarea
+                id="ex-desc"
+                name="description"
+                className="min-h-[100px]"
+                value={values.description}
+                onChange={(e) => setValues((v) => ({ ...v, description: e.target.value }))}
+                placeholder="Краткая техника выполнения"
+              />
+            </div>
 
-        <div className="flex flex-col gap-3">
-          <Label htmlFor="ex-contra">Противопоказания</Label>
-          <Textarea
-            id="ex-contra"
-            name="contraindications"
-            className="min-h-[72px]"
-            value={values.contraindications}
-            onChange={(e) => setValues((v) => ({ ...v, contraindications: e.target.value }))}
-          />
-        </div>
+            <div className="flex flex-col gap-3">
+              <Label htmlFor="ex-contra">Противопоказания</Label>
+              <Textarea
+                id="ex-contra"
+                name="contraindications"
+                className="min-h-[72px]"
+                value={values.contraindications}
+                onChange={(e) => setValues((v) => ({ ...v, contraindications: e.target.value }))}
+              />
+            </div>
 
-        <div className="flex flex-wrap gap-2">
-          <Button type="submit" disabled={savePending}>
-            {savePending ? "Сохранение…" : exercise ? "Сохранить" : "Создать упражнение"}
-          </Button>
-        </div>
+            <div className="flex flex-wrap gap-2">
+              <Button type="submit" disabled={savePending}>
+                {savePending ? "Сохранение…" : exercise ? "Сохранить" : "Создать упражнение"}
+              </Button>
+            </div>
+          </div>
+        </fieldset>
       </form>
 
-      {exercise ? (
+      {exercise && isArchived ? (
+        <div className="rounded-md border border-border/60 bg-muted/30 p-3 text-sm">
+          <p className="font-medium text-foreground">Упражнение в архиве</p>
+          <p className="mt-1 text-muted-foreground">Верните из архива, чтобы снова назначать и редактировать.</p>
+          <div className="mb-3 mt-3 rounded-md border border-border/60 bg-muted/20 p-3">
+            <p className="text-sm font-medium text-foreground">Где используется</p>
+            {usageBusy ? (
+              <p className="mt-1 text-sm text-muted-foreground">Загрузка…</p>
+            ) : usageLoadError ? (
+              <p className="mt-1 text-sm text-muted-foreground">{usageLoadError}</p>
+            ) : !usage ? null : !exerciseUsageHasAnyReference(usage) ? (
+              <p className="mt-1 text-sm text-muted-foreground">Пока не используется</p>
+            ) : (
+              <ExerciseUsageSectionsView sections={usageSections} />
+            )}
+          </div>
+          {unarchiveError ? (
+            <p role="alert" className="mt-2 text-sm text-destructive">
+              {unarchiveError}
+            </p>
+          ) : null}
+          <form action={unarchiveFormAction} className="mt-3 flex flex-col gap-2">
+            <input type="hidden" name="id" value={exercise.id} />
+            {viewHint ? <input type="hidden" name="view" value={viewHint} /> : null}
+            {listArchiveScope ? <input type="hidden" name="status" value={listArchiveScope} /> : null}
+            <Button type="submit" variant="secondary" disabled={unarchivePending}>
+              {unarchivePending ? "Восстановление…" : "Вернуть из архива"}
+            </Button>
+          </form>
+        </div>
+      ) : null}
+
+      {exercise && !isArchived ? (
         <div className="border-t border-border/60 pt-4">
           <div className="mb-3 rounded-md border border-border/60 bg-muted/20 p-3">
             <p className="text-sm font-medium text-foreground">Где используется</p>
@@ -387,6 +435,7 @@ export function ExerciseForm({
           <form ref={archiveFormRef} action={archiveFormAction} className="flex flex-col gap-2">
             <input type="hidden" name="id" value={exercise.id} />
             {viewHint ? <input type="hidden" name="view" value={viewHint} /> : null}
+            {listArchiveScope ? <input type="hidden" name="status" value={listArchiveScope} /> : null}
             <input type="hidden" name="acknowledgeUsageWarning" value={archiveUsageAck ? "1" : ""} readOnly />
             <Button
               type="submit"

@@ -959,3 +959,54 @@ ORDER BY 1, 2;
 | `/app/doctor/clients/[userId]` (карточка пациента, регрессия) | OK | OK |
 
 ---
+
+## 2026-05-02 — doctor-каталоги: завершение archive/unarchive (batch)
+
+**Повод:** план «Archive Unarchive Completion» — `unarchive`, фильтр `status` (как у рекомендаций) и открытие архивных карточек для `clinical-tests` / `test-sets`, UX статусов для `treatment-program-templates` и `courses`; опора на [`ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md`](ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md).
+
+**Scope:** как в baseline-записи ниже; **вне scope:** миграции БД, CI/workflows, интеграции/env/system_settings.
+
+**Сделано:**
+
+- **Домен:** `ClinicalTestsPort` / `TestSetsPort` — `unarchive`; `ClinicalTestFilter.archiveScope`; `pgClinicalTests` / `pgTestSets` / in-memory — list по scope + `unarchive`; сервисы — `unarchiveClinicalTest` / `unarchiveTestSet`, запрет `update*` и `setTestSetItems` для архивных сущностей.
+- **UI clinical-tests / test-sets:** `unarchive*Core` + actions/inline; формы — архивный блок «Вернуть из архива», `fieldset disabled`, скрытые `listStatus` + списочные параметры в редиректах; списки — `parseRecommendationListFilterScope` + `clinicalTestListArchiveScopeFromRecommendationFilter`, `DoctorCatalogFiltersForm` с `archiveListScope`; `[id]/page` — не `notFound` только из‑за архива; состав набора на отдельной странице скрыт в архиве.
+- **Шаблоны программ / курсы / комплексы ЛФК:** `parseTemplateCourseCatalogListStatus`, `serverListFilterFromTemplateCourseCatalogStatus`; в UI оставлен только архивный фильтр `Активные / Архив` без пользовательских вариантов `Черновики / Опубликованные / В работе`.
+- **Общее:** `doctorCatalogListStatus.ts` — типы/парсер для шаблонов+курсов; тесты `service.test.ts` на unarchive/guards.
+
+**Проверки:** `pnpm exec tsc -p apps/webapp --noEmit` · `pnpm --dir apps/webapp exec vitest --run src/modules/tests/service.test.ts src/app/app/doctor/clinical-tests/ClinicalTestForm.test.tsx src/app/app/doctor/test-sets/TestSetForm.test.tsx src/app/app/doctor/exercises/ExerciseForm.test.tsx src/app/app/doctor/recommendations/RecommendationForm.test.tsx`.
+
+**Сознательно не делали:** полный корневой `pnpm run ci`; e2e по doctor-каталогам.
+
+**Пост-аудит UI-фильтров:** по ручному smoke выявлен плохой плановый gap: в `lfk-templates` не был подключён фильтр статуса, а enum-селекты (`status` / `loadType`) визуально и поведенчески расходились. Исправлено:
+
+- [`ReferenceSelect`](../../apps/webapp/src/shared/ui/ReferenceSelect.tsx): режим `showAllOnFocus` для закрытых enum-фильтров; тест [`ReferenceSelect.test.ts`](../../apps/webapp/src/shared/ui/ReferenceSelect.test.ts).
+- [`DoctorCatalogFiltersForm`](../../apps/webapp/src/shared/ui/doctor/DoctorCatalogFiltersForm.tsx): `showAllOnFocus` для enum-фильтров (`status`, `load`, tertiary domain).
+- [`Input`](../../apps/webapp/src/components/ui/input.tsx) и [`Select`](../../apps/webapp/src/components/ui/select.tsx): явный `text-foreground`, чтобы выбранные значения не выпадали в чёрный браузерный текст.
+- [`ExerciseForm`](../../apps/webapp/src/app/app/doctor/exercises/ExerciseForm.tsx): `Тип нагрузки` переведён на тот же `ReferenceSelect`-паттерн, что соседние поля; placeholder — «Выберите тип нагрузки».
+- [`lfk-templates`](../../apps/webapp/src/app/app/doctor/lfk-templates): подключён `status`-фильтр и preserve-query для archive/unarchive редиректов.
+- Позже пользовательский фильтр статусов упрощён до архивности (`Активные / Архив`), потому что текущий enum `draft | published | archived` смешивает готовность и архивность; отдельные `Черновики / Опубликованные` не выносятся в toolbar до разделения модели.
+- Последняя UI-коррекция: архивный контрол вынесен из `DoctorCatalogFiltersForm` в шапку списка рядом с сортировкой (`DoctorCatalogArchiveScopeSelect` на shadcn `Select`); `Активные` — выбранное значение по умолчанию, `Архив` — второй вариант. Старый `status=all` в URL трактуется как `active`.
+- Layout-коррекция карточек сущностей: `RecommendationForm`, `ClinicalTestForm`, `TestSetForm` получили тот же внутренний `fieldset`-контейнер `flex flex-col gap-4`, что и `ExerciseForm`, чтобы карточки не теряли вертикальные отступы после блокировки архивных полей.
+- Документация: в [`ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md`](ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md) добавлено решение по archive-фильтру (`Активные` по умолчанию, `Архив`, без `Все`) и по черновикам; в [`docs/TODO.md`](../TODO.md) заведён backlog на разделение модели, если черновики станут отдельным продуктовым сценарием.
+
+**Проверки пост-аудита:** `pnpm exec tsc -p apps/webapp --noEmit` · `pnpm --dir apps/webapp exec vitest --run src/shared/ui/ReferenceSelect.test.ts src/app/app/doctor/exercises/ExerciseForm.test.tsx src/app/app/doctor/lfk-templates/lfkTemplatesListPreserveQuery.test.ts src/app/app/doctor/clinical-tests/ClinicalTestForm.test.tsx src/app/app/doctor/test-sets/TestSetForm.test.tsx src/app/app/doctor/recommendations/RecommendationForm.test.tsx` · `ReadLints` по изменённым файлам.
+
+---
+
+## 2026-05-02 — doctor-каталоги: завершение archive/unarchive (batch baseline) — архив
+
+**Повод:** план «Archive Unarchive Completion» — закрыть хвосты по `unarchive`, фильтру `status` и открытию архивных карточек для `clinical-tests` / `test-sets`, выровнять UX для `treatment-program-templates` и `courses`; опора на [`ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md`](ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md).
+
+**Scope (разрешено):** `apps/webapp/src/modules/tests`, `apps/webapp/src/infra/repos` (только tests/test-sets), `apps/webapp/src/app/app/doctor/clinical-tests`, `test-sets`, `treatment-program-templates`, `courses`, `shared/ui/doctor/DoctorCatalogFiltersForm.tsx`, `shared/lib/doctorCatalogListStatus.ts`, этот `LOG.md`.
+
+**Вне scope:** миграции БД, CI/workflows, интеграции/env/system_settings, редизайн вне archive/status.
+
+**Baseline на старт:**
+
+- `exercises` / `recommendations` / `lfk-templates`: archive/unarchive и фильтр списка частично или полностью готовы.
+- `clinical-tests` / `test-sets`: в портах только `archive`, нет `unarchive`; списки жёстко `active` / `includeArchived: false`; `[id]/page` даёт `notFound` при `isArchived`.
+- `DoctorCatalogFiltersForm`: ряд «Показать в каталоге» только при переданном `archiveListScope` (опциональный проп).
+
+**Риски:** разные модели статуса (`is_archived` vs `draft/published/archived` у шаблонов программ и курсов) — в фазе 5 только UX-согласование без смены доменной модели.
+
+---

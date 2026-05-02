@@ -12,7 +12,7 @@ export default async function EditClinicalTestPage({ params }: PageProps) {
   const { id } = await params;
   const deps = buildAppDeps();
   const test = await deps.clinicalTests.getClinicalTest(id);
-  if (!test || test.isArchived) notFound();
+  if (!test) notFound();
   const usage = await deps.clinicalTests.getClinicalTestUsage(test.id);
 
   return (

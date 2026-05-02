@@ -9,11 +9,13 @@ import {
   archiveRecommendationCore,
   RECOMMENDATIONS_PATH,
   saveRecommendationCore,
+  unarchiveRecommendationCore,
   type ArchiveRecommendationState,
   type SaveRecommendationState,
+  type UnarchiveRecommendationState,
 } from "./actionsShared";
 
-export type { ArchiveRecommendationState } from "./actionsShared";
+export type { ArchiveRecommendationState, UnarchiveRecommendationState } from "./actionsShared";
 
 export async function saveRecommendation(
   _prev: SaveRecommendationState | null,
@@ -44,6 +46,19 @@ export async function archiveRecommendation(
   revalidatePath(RECOMMENDATIONS_PATH);
   revalidatePath(`${RECOMMENDATIONS_PATH}/${result.id}`);
   redirect(RECOMMENDATIONS_PATH);
+}
+
+export async function unarchiveRecommendation(
+  _prev: UnarchiveRecommendationState | null,
+  formData: FormData,
+): Promise<UnarchiveRecommendationState> {
+  const result = await unarchiveRecommendationCore(formData);
+  if (result.kind === "invalid") {
+    return { ok: false, error: result.error };
+  }
+  revalidatePath(RECOMMENDATIONS_PATH);
+  revalidatePath(`${RECOMMENDATIONS_PATH}/${result.id}`);
+  redirect(`${RECOMMENDATIONS_PATH}/${result.id}`);
 }
 
 export async function fetchDoctorRecommendationUsageSnapshot(recommendationId: string) {

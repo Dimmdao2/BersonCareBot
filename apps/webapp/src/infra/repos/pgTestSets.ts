@@ -330,6 +330,16 @@ export function createPgTestSetsPort(): TestSetsPort {
       return rows.length > 0;
     },
 
+    async unarchive(id: string): Promise<boolean> {
+      const db = getDrizzle();
+      const rows = await db
+        .update(testSetsTable)
+        .set({ isArchived: false, updatedAt: new Date().toISOString() })
+        .where(and(eq(testSetsTable.id, id), eq(testSetsTable.isArchived, true)))
+        .returning({ id: testSetsTable.id });
+      return rows.length > 0;
+    },
+
     async replaceItems(testSetId: string, items: TestSetItemInput[]): Promise<void> {
       const db = getDrizzle();
       await db.transaction(async (tx) => {
