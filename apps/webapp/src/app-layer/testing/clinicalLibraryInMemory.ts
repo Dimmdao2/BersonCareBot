@@ -6,6 +6,7 @@
 export {
   inMemoryClinicalTestsPort,
   resetInMemoryClinicalTestsStore,
+  seedInMemoryClinicalTestUsageSnapshot,
 } from "@/infra/repos/inMemoryClinicalTests";
 export {
   inMemoryTestSetsPort,

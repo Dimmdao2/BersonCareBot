@@ -43,6 +43,8 @@ export default async function DoctorClinicalTestsPage({ searchParams }: PageProp
   const rawSelected = typeof sp.selected === "string" ? sp.selected.trim() : "";
   const initialSelectedId =
     rawSelected && items.some((t) => t.id === rawSelected) ? rawSelected : null;
+  const initialSelectedUsageSnapshot =
+    initialSelectedId != null ? await deps.clinicalTests.getClinicalTestUsage(initialSelectedId) : null;
   const { initialViewMode, viewLockedByUrl } = doctorCatalogViewFromSearchParams(
     typeof sp.view === "string" ? sp.view : undefined,
   );
@@ -52,6 +54,7 @@ export default async function DoctorClinicalTestsPage({ searchParams }: PageProp
       <ClinicalTestsPageClient
         initialItems={items}
         initialSelectedId={initialSelectedId}
+        initialSelectedUsageSnapshot={initialSelectedUsageSnapshot}
         initialViewMode={initialViewMode}
         viewLockedByUrl={viewLockedByUrl}
         initialTitleSort={titleSort}

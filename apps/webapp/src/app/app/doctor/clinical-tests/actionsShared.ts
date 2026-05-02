@@ -1,9 +1,30 @@
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import type { ClinicalTestMediaItem } from "@/modules/tests/types";
+import { logger } from "@/infra/logging/logger";
+import type { ClinicalTestMediaItem, ClinicalTestUsageSnapshot } from "@/modules/tests/types";
+import {
+  isClinicalTestArchiveAlreadyArchivedError,
+  isClinicalTestArchiveNotFoundError,
+  isClinicalTestUsageConfirmationRequiredError,
+} from "@/modules/tests/errors";
 import { API_MEDIA_URL_RE, isLegacyAbsoluteUrl } from "@/shared/lib/mediaUrlPolicy";
 
 export type SaveClinicalTestState = { ok: boolean; error?: string };
+
+export type ArchiveClinicalTestState =
+  | { ok: true }
+  | { ok: false; code: "USAGE_CONFIRMATION_REQUIRED"; usage: ClinicalTestUsageSnapshot }
+  | { ok: false; error: string };
+
+export type ArchiveClinicalTestCoreResult =
+  | { kind: "archived"; id: string }
+  | { kind: "needs_confirmation"; usage: ClinicalTestUsageSnapshot }
+  | { kind: "invalid"; error: string };
+
+function parseAcknowledgeUsageWarning(fd: FormData): boolean {
+  const v = fd.get("acknowledgeUsageWarning");
+  return v === "1" || v === "true" || v === "on";
+}
 
 export { CLINICAL_TESTS_PATH } from "./paths";
 
@@ -109,13 +130,28 @@ export async function saveClinicalTestCore(formData: FormData): Promise<
   }
 }
 
-export async function archiveClinicalTestCore(formData: FormData): Promise<{ archivedId: string | null }> {
+export async function archiveClinicalTestCore(formData: FormData): Promise<ArchiveClinicalTestCoreResult> {
   await requireDoctorAccess();
   const idRaw = formData.get("id");
   const id = typeof idRaw === "string" && idRaw.trim() ? idRaw.trim() : "";
-  if (!id) return { archivedId: null };
+  if (!id) return { kind: "invalid", error: "Не указан тест" };
 
+  const acknowledgeUsageWarning = parseAcknowledgeUsageWarning(formData);
   const deps = buildAppDeps();
-  await deps.clinicalTests.archiveClinicalTest(id);
-  return { archivedId: id };
+  try {
+    await deps.clinicalTests.archiveClinicalTest(id, { acknowledgeUsageWarning });
+    return { kind: "archived", id };
+  } catch (e) {
+    if (isClinicalTestUsageConfirmationRequiredError(e)) {
+      return { kind: "needs_confirmation", usage: e.usage };
+    }
+    if (isClinicalTestArchiveNotFoundError(e)) {
+      return { kind: "invalid", error: e.message };
+    }
+    if (isClinicalTestArchiveAlreadyArchivedError(e)) {
+      return { kind: "invalid", error: e.message };
+    }
+    logger.warn({ event: "doctor_clinical_test_archive_unexpected_error", clinicalTestId: id, err: e }, "archive failed");
+    return { kind: "invalid", error: "Не удалось архивировать тест" };
+  }
 }

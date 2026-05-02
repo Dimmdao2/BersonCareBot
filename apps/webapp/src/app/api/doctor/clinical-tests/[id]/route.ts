@@ -3,6 +3,11 @@ import { z } from "zod";
 import { getCurrentSession } from "@/modules/auth/service";
 import { canAccessDoctor } from "@/modules/roles/service";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import {
+  isClinicalTestArchiveAlreadyArchivedError,
+  isClinicalTestArchiveNotFoundError,
+  isClinicalTestUsageConfirmationRequiredError,
+} from "@/modules/tests/errors";
 
 const mediaItemSchema = z.object({
   mediaUrl: z.string().min(1),
@@ -65,7 +70,8 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
   }
 }
 
-export async function DELETE(_request: Request, ctx: { params: Promise<{ id: string }> }) {
+/** Архивация (DELETE): при необходимости подтверждения usage вернётся 409; повторите с `?acknowledgeUsageWarning=1`. */
+export async function DELETE(request: Request, ctx: { params: Promise<{ id: string }> }) {
   const session = await getCurrentSession();
   if (!session) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
   if (!canAccessDoctor(session.user.role)) {
@@ -73,11 +79,24 @@ export async function DELETE(_request: Request, ctx: { params: Promise<{ id: str
   }
 
   const { id } = await ctx.params;
+  const url = new URL(request.url);
+  const ack = url.searchParams.get("acknowledgeUsageWarning");
+  const acknowledgeUsageWarning = ack === "1" || ack === "true" || ack === "on";
+
   const deps = buildAppDeps();
   try {
-    await deps.clinicalTests.archiveClinicalTest(id);
+    await deps.clinicalTests.archiveClinicalTest(id, { acknowledgeUsageWarning });
     return NextResponse.json({ ok: true });
-  } catch {
-    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+  } catch (e) {
+    if (isClinicalTestUsageConfirmationRequiredError(e)) {
+      return NextResponse.json({ ok: false, code: e.code, usage: e.usage }, { status: 409 });
+    }
+    if (isClinicalTestArchiveAlreadyArchivedError(e)) {
+      return NextResponse.json({ ok: false, error: "already_archived" }, { status: 400 });
+    }
+    if (isClinicalTestArchiveNotFoundError(e)) {
+      return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+    }
+    return NextResponse.json({ ok: false, error: "archive_failed" }, { status: 400 });
   }
 }

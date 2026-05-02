@@ -1,4 +1,5 @@
 import { describe, expect, it, beforeEach } from "vitest";
+import { ClinicalTestUsageConfirmationRequiredError } from "./errors";
 import {
   createClinicalTestsService,
   createTestSetsService,
@@ -6,9 +7,11 @@ import {
 import {
   inMemoryClinicalTestsPort,
   resetInMemoryClinicalTestsStore,
+  seedInMemoryClinicalTestUsageSnapshot,
   inMemoryTestSetsPort,
   resetInMemoryTestSetsStore,
 } from "@/app-layer/testing/clinicalLibraryInMemory";
+import { EMPTY_CLINICAL_TEST_USAGE_SNAPSHOT } from "./types";
 
 describe("clinical tests / test sets service", () => {
   beforeEach(() => {
@@ -60,5 +63,58 @@ describe("clinical tests / test sets service", () => {
 
     const again = await setsSvc.getTestSet(set.id);
     expect(again?.items.map((i) => i.testId)).toEqual([t2.id, t1.id]);
+  });
+
+  it("getClinicalTestUsage returns seeded snapshot", async () => {
+    const t = await inMemoryClinicalTestsPort.create({ title: "U" }, null);
+    seedInMemoryClinicalTestUsageSnapshot(t.id, {
+      ...EMPTY_CLINICAL_TEST_USAGE_SNAPSHOT,
+      publishedTreatmentProgramTemplateCount: 2,
+    });
+    const svc = createClinicalTestsService(inMemoryClinicalTestsPort);
+    const u = await svc.getClinicalTestUsage(t.id);
+    expect(u.publishedTreatmentProgramTemplateCount).toBe(2);
+  });
+
+  it("archiveClinicalTest blocks without acknowledgement when usage requires it", async () => {
+    const t = await inMemoryClinicalTestsPort.create({ title: "Guarded" }, null);
+    seedInMemoryClinicalTestUsageSnapshot(t.id, {
+      ...EMPTY_CLINICAL_TEST_USAGE_SNAPSHOT,
+      nonArchivedTestSetsContainingCount: 1,
+      nonArchivedTestSetRefs: [{ kind: "test_set", id: "set-1", title: "Набор" }],
+    });
+    const svc = createClinicalTestsService(inMemoryClinicalTestsPort);
+    await expect(svc.archiveClinicalTest(t.id)).rejects.toBeInstanceOf(ClinicalTestUsageConfirmationRequiredError);
+    await svc.archiveClinicalTest(t.id, { acknowledgeUsageWarning: true });
+    const row = await svc.getClinicalTest(t.id);
+    expect(row?.isArchived).toBe(true);
+  });
+
+  it("archiveClinicalTest proceeds without dialog when only archived program templates in usage", async () => {
+    const t = await inMemoryClinicalTestsPort.create({ title: "ArchivedTplOnly" }, null);
+    seedInMemoryClinicalTestUsageSnapshot(t.id, {
+      ...EMPTY_CLINICAL_TEST_USAGE_SNAPSHOT,
+      archivedTreatmentProgramTemplateCount: 2,
+      archivedTreatmentProgramTemplateRefs: [
+        { kind: "treatment_program_template", id: "tpl-1", title: "Old" },
+      ],
+    });
+    const svc = createClinicalTestsService(inMemoryClinicalTestsPort);
+    await svc.archiveClinicalTest(t.id);
+    expect((await svc.getClinicalTest(t.id))?.isArchived).toBe(true);
+  });
+
+  it("archiveClinicalTest proceeds without dialog when only historical usage", async () => {
+    const t = await inMemoryClinicalTestsPort.create({ title: "Hist" }, null);
+    seedInMemoryClinicalTestUsageSnapshot(t.id, {
+      ...EMPTY_CLINICAL_TEST_USAGE_SNAPSHOT,
+      archivedTestSetsContainingCount: 1,
+      draftTreatmentProgramTemplateCount: 1,
+      completedTreatmentProgramInstanceCount: 1,
+      testResultsRecordedCount: 5,
+    });
+    const svc = createClinicalTestsService(inMemoryClinicalTestsPort);
+    await svc.archiveClinicalTest(t.id);
+    expect((await svc.getClinicalTest(t.id))?.isArchived).toBe(true);
   });
 });

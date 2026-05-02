@@ -13,10 +13,11 @@ export default async function EditClinicalTestPage({ params }: PageProps) {
   const deps = buildAppDeps();
   const test = await deps.clinicalTests.getClinicalTest(id);
   if (!test || test.isArchived) notFound();
+  const usage = await deps.clinicalTests.getClinicalTestUsage(test.id);
 
   return (
     <AppShell title="Редактирование теста" user={session.user} variant="doctor" backHref={CLINICAL_TESTS_PATH}>
-      <ClinicalTestForm test={test} />
+      <ClinicalTestForm test={test} externalUsageSnapshot={usage} />
     </AppShell>
   );
 }

@@ -2,15 +2,23 @@ import type { ClinicalTestsPort } from "@/modules/tests/ports";
 import type {
   ClinicalTest,
   ClinicalTestFilter,
+  ClinicalTestUsageSnapshot,
   CreateClinicalTestInput,
   UpdateClinicalTestInput,
   ClinicalTestMediaItem,
 } from "@/modules/tests/types";
+import { EMPTY_CLINICAL_TEST_USAGE_SNAPSHOT } from "@/modules/tests/types";
 
 const store = new Map<string, ClinicalTest>();
+const usageByTestId = new Map<string, ClinicalTestUsageSnapshot>();
+
+export function seedInMemoryClinicalTestUsageSnapshot(testId: string, snapshot: ClinicalTestUsageSnapshot): void {
+  usageByTestId.set(testId, snapshot);
+}
 
 export function resetInMemoryClinicalTestsStore(): void {
   store.clear();
+  usageByTestId.clear();
 }
 
 function normalizeMedia(raw: unknown): ClinicalTestMediaItem[] {
@@ -98,5 +106,9 @@ export const inMemoryClinicalTestsPort: ClinicalTestsPort = {
     if (!cur || cur.isArchived) return false;
     store.set(id, { ...cur, isArchived: true, updatedAt: new Date().toISOString() });
     return true;
+  },
+
+  async getClinicalTestUsageSummary(id: string): Promise<ClinicalTestUsageSnapshot> {
+    return usageByTestId.get(id) ?? { ...EMPTY_CLINICAL_TEST_USAGE_SNAPSHOT };
   },
 };

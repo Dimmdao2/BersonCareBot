@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import type { ExerciseLoadType } from "@/modules/lfk-exercises/types";
-import type { ClinicalTest } from "@/modules/tests/types";
+import type { ClinicalTest, ClinicalTestUsageSnapshot } from "@/modules/tests/types";
 import { cn } from "@/lib/utils";
 import { useViewportMinWidth } from "@/shared/hooks/useViewportMinWidth";
 import {
@@ -40,6 +40,8 @@ const LIST_ROW_VISIBILITY_STYLE = {
 type Props = {
   initialItems: ClinicalTest[];
   initialSelectedId: string | null;
+  /** Usage для `?selected=`, чтобы не дёргать клиентский fetch при первом рендере. */
+  initialSelectedUsageSnapshot: ClinicalTestUsageSnapshot | null;
   initialViewMode: ClinicalTestsViewMode;
   viewLockedByUrl: boolean;
   initialTitleSort: ClinicalTestTitleSort | null;
@@ -126,6 +128,7 @@ function mediaThumbRow(test: ClinicalTest) {
 function ClinicalTestsContent({
   initialItems,
   initialSelectedId,
+  initialSelectedUsageSnapshot,
   viewMode,
   toolbarViewMode,
   titleSort,
@@ -140,6 +143,7 @@ function ClinicalTestsContent({
 }: {
   initialItems: ClinicalTest[];
   initialSelectedId: string | null;
+  initialSelectedUsageSnapshot: ClinicalTestUsageSnapshot | null;
   viewMode: ClinicalTestsViewMode;
   toolbarViewMode: ClinicalTestsViewMode;
   titleSort: ClinicalTestTitleSort | null;
@@ -189,6 +193,13 @@ function ClinicalTestsContent({
   const activeTileColumns = isDesktopViewport ? tileColsDesktop : tileColsMobile;
 
   const formTest = mobileSheet != null ? mobileSheet.test : testForDesktop;
+
+  const usageForSelection = useMemo(() => {
+    const current = mobileSheet?.test ?? testForDesktop;
+    if (!current || initialSelectedUsageSnapshot == null) return undefined;
+    if (initialSelectedId === current.id) return initialSelectedUsageSnapshot;
+    return undefined;
+  }, [mobileSheet?.test, testForDesktop, initialSelectedId, initialSelectedUsageSnapshot]);
 
   const renderTestList = (
     list: ClinicalTest[],
@@ -267,6 +278,7 @@ function ClinicalTestsContent({
           regionRefId: filters.regionRefId,
           loadType: filters.loadType,
         }}
+        externalUsageSnapshot={usageForSelection}
       />
     </CatalogRightPane>
   );
@@ -359,6 +371,7 @@ function ClinicalTestsContent({
 export function ClinicalTestsPageClient({
   initialItems,
   initialSelectedId,
+  initialSelectedUsageSnapshot,
   initialViewMode,
   viewLockedByUrl,
   initialTitleSort,
@@ -407,6 +420,7 @@ export function ClinicalTestsPageClient({
     <ClinicalTestsContent
       initialItems={initialItems}
       initialSelectedId={initialSelectedId}
+      initialSelectedUsageSnapshot={initialSelectedUsageSnapshot}
       viewMode={viewMode}
       toolbarViewMode={toolbarViewMode}
       titleSort={titleSort}

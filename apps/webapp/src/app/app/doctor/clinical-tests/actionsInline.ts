@@ -6,6 +6,7 @@ import {
   archiveClinicalTestCore,
   CLINICAL_TESTS_PATH,
   saveClinicalTestCore,
+  type ArchiveClinicalTestState,
   type SaveClinicalTestState,
 } from "./actionsShared";
 
@@ -39,14 +40,25 @@ export async function saveClinicalTestInline(
   redirect(`${CLINICAL_TESTS_PATH}?${sp.toString()}`);
 }
 
-export async function archiveClinicalTestInline(formData: FormData) {
+export async function archiveClinicalTestInline(
+  _prev: ArchiveClinicalTestState | null,
+  formData: FormData,
+): Promise<ArchiveClinicalTestState> {
   const result = await archiveClinicalTestCore(formData);
+  if (result.kind === "needs_confirmation") {
+    return { ok: false, code: "USAGE_CONFIRMATION_REQUIRED", usage: result.usage };
+  }
   const view = formData.get("view") === "list" ? "list" : "tiles";
   const sp = new URLSearchParams();
   sp.set("view", view);
   appendClinicalTestsListParams(sp, formData);
   const qs = sp.toString();
-  if (!result.archivedId) redirect(`${CLINICAL_TESTS_PATH}?${qs}`);
+  if (result.kind === "invalid") {
+    const idRaw = formData.get("id");
+    const id = typeof idRaw === "string" ? idRaw.trim() : "";
+    if (!id) redirect(`${CLINICAL_TESTS_PATH}?${qs}`);
+    return { ok: false, error: result.error };
+  }
   revalidatePath(CLINICAL_TESTS_PATH);
   redirect(`${CLINICAL_TESTS_PATH}?${qs}`);
 }

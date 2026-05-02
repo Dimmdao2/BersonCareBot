@@ -1,5 +1,11 @@
+import {
+  ClinicalTestArchiveAlreadyArchivedError,
+  ClinicalTestArchiveNotFoundError,
+  ClinicalTestUsageConfirmationRequiredError,
+} from "./errors";
 import type { ClinicalTestsPort, TestSetsPort } from "./ports";
 import type {
+  ArchiveClinicalTestOptions,
   CreateClinicalTestInput,
   CreateTestSetInput,
   ClinicalTestFilter,
@@ -8,6 +14,7 @@ import type {
   UpdateTestSetInput,
   TestSetItemInput,
 } from "./types";
+import { clinicalTestArchiveRequiresAcknowledgement } from "./types";
 
 export function createClinicalTestsService(port: ClinicalTestsPort) {
   return {
@@ -47,9 +54,22 @@ export function createClinicalTestsService(port: ClinicalTestsPort) {
       return row;
     },
 
-    async archiveClinicalTest(id: string) {
+    async getClinicalTestUsage(id: string) {
+      return port.getClinicalTestUsageSummary(id);
+    },
+
+    async archiveClinicalTest(id: string, options?: ArchiveClinicalTestOptions) {
+      const existing = await port.getById(id);
+      if (!existing) throw new ClinicalTestArchiveNotFoundError();
+      if (existing.isArchived) throw new ClinicalTestArchiveAlreadyArchivedError();
+
+      const usage = await port.getClinicalTestUsageSummary(id);
+      if (clinicalTestArchiveRequiresAcknowledgement(usage) && !options?.acknowledgeUsageWarning) {
+        throw new ClinicalTestUsageConfirmationRequiredError(usage);
+      }
+
       const ok = await port.archive(id);
-      if (!ok) throw new Error("Тест не найден");
+      if (!ok) throw new ClinicalTestArchiveNotFoundError();
     },
   };
 }

@@ -6,6 +6,27 @@
 
 ---
 
+## 2026-05-02 — этап 7 подшаг: клинические тесты (usage + archive guard)
+
+**Сделано:**
+
+- Сводка использования теста: цепочка `test_set_items` → шаблоны/экземпляры программ с `item_type = 'test_set'` и `item_ref_id` = id набора; счётчик строк в `test_results` по `test_id` (история, не блокирует архив). Реализация: один SELECT в [`pgClinicalTests.ts`](../../apps/webapp/src/infra/repos/pgClinicalTests.ts) (`loadClinicalTestUsageSummary`).
+- Доменная модель: [`ClinicalTestUsageSnapshot`](../../apps/webapp/src/modules/tests/types.ts), [`clinicalTestArchiveRequiresAcknowledgement`](../../apps/webapp/src/modules/tests/types.ts), ошибки [`ClinicalTestUsageConfirmationRequiredError`](../../apps/webapp/src/modules/tests/errors.ts) и отдельные «не найден» / «уже в архиве».
+- Сервис: [`getClinicalTestUsage`](../../apps/webapp/src/modules/tests/service.ts), [`archiveClinicalTest(id, options?)`](../../apps/webapp/src/modules/tests/service.ts) с `acknowledgeUsageWarning`; in-memory [`seedInMemoryClinicalTestUsageSnapshot`](../../apps/webapp/src/infra/repos/inMemoryClinicalTests.ts).
+- UI врача: блок «Где используется», диалог, [`useActionState`](../../apps/webapp/src/app/app/doctor/clinical-tests/ClinicalTestForm.tsx) для архива; [`archiveClinicalTest`](../../apps/webapp/src/app/app/doctor/clinical-tests/actions.ts) / [`archiveClinicalTestInline`](../../apps/webapp/src/app/app/doctor/clinical-tests/actionsInline.ts); [`fetchDoctorClinicalTestUsageSnapshot`](../../apps/webapp/src/app/app/doctor/clinical-tests/actions.ts); тексты/ссылки — [`clinicalTestsUsageSummaryText.ts`](../../apps/webapp/src/app/app/doctor/clinical-tests/clinicalTestsUsageSummaryText.ts), [`clinicalTestsUsageDocLinks.ts`](../../apps/webapp/src/app/app/doctor/clinical-tests/clinicalTestsUsageDocLinks.ts).
+- API DELETE [`clinical-tests/[id]`](../../apps/webapp/src/app/api/doctor/clinical-tests/[id]/route.ts): `409` + `usage` при необходимости подтверждения.
+- Тесты: [`service.test.ts`](../../apps/webapp/src/modules/tests/service.test.ts), [`pgClinicalTests.test.ts`](../../apps/webapp/src/infra/repos/pgClinicalTests.test.ts), [`clinicalTestsUsageDocLinks.test.ts`](../../apps/webapp/src/app/app/doctor/clinical-tests/clinicalTestsUsageDocLinks.test.ts), [`clinicalTestsUsageSummaryText.test.ts`](../../apps/webapp/src/app/app/doctor/clinical-tests/clinicalTestsUsageSummaryText.test.ts), [`ClinicalTestForm.test.tsx`](../../apps/webapp/src/app/app/doctor/clinical-tests/ClinicalTestForm.test.tsx).
+
+**Проверки:** `pnpm --dir apps/webapp exec vitest run` (файлы выше); `pnpm --dir apps/webapp typecheck`.
+
+**Guard архива:** блокируют активные (неархивные) наборы тестов, опубликованные шаблоны программ и активные экземпляры; черновики и архивные шаблоны программ, только архивные наборы, завершённые экземпляры и счётчик `test_results` — только сводка, без обязательного подтверждения.
+
+**Вне scope:** scoring UI, справочник `test_type`, этап «Наборы тестов».
+
+**Пост-аудит:** в сводку добавлены архивные шаблоны программ (`status = 'archived'`), только для отображения; split-view и `/clinical-tests/[id]` получают usage с сервера при первом рендере; `DELETE /api/doctor/clinical-tests/[id]` поддерживает `?acknowledgeUsageWarning=1`; тест [`ClinicalTestForm.test.tsx`](../../apps/webapp/src/app/app/doctor/clinical-tests/ClinicalTestForm.test.tsx).
+
+---
+
 ## 2026-05-02 — этап 7 подшаг: упражнения (usage + archive guard)
 
 **Сделано:**

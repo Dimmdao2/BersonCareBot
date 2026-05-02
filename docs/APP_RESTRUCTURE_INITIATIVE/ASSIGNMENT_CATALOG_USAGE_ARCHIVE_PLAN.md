@@ -46,7 +46,7 @@
 |---|---|---|
 | 1. Упражнения | `completed` | `completed` (см. `ExerciseUsageSnapshot` + `exerciseUsageDocLinks.ts`) |
 | 2. Комплексы ЛФК | `completed` | `completed` (`LfkTemplateUsageSnapshot`, `lfkTemplatesUsageDocLinks.ts`, `pgLfkTemplates.loadTemplateUsageSummary`) |
-| 3. Клинические тесты | `pending` | `pending` |
+| 3. Клинические тесты | `completed` | `completed` (`ClinicalTestUsageSnapshot`, `clinicalTestsUsageDocLinks.ts`, `pgClinicalTests.loadClinicalTestUsageSummary`) |
 | 4. Наборы тестов | `pending` | `pending` |
 | 5. Рекомендации | `pending` | `pending` |
 | 6. Шаблоны программ | `pending` | `pending` |
