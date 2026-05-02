@@ -2,8 +2,9 @@
 
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
-import type { ClinicalTest } from "@/modules/tests/types";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import type { ClinicalTest, ClinicalTestUsageSnapshot } from "@/modules/tests/types";
 import { EMPTY_CLINICAL_TEST_USAGE_SNAPSHOT } from "@/modules/tests/types";
 import type { ArchiveClinicalTestState, SaveClinicalTestState } from "./actionsShared";
 import { ClinicalTestForm } from "./ClinicalTestForm";
@@ -23,6 +24,20 @@ vi.mock("./actions", async () => {
     fetchDoctorClinicalTestUsageSnapshot: vi.fn(async () => ({ ...EMPTY_CLINICAL_TEST_USAGE_SNAPSHOT })),
   };
 });
+
+function makeUsageWithTemplateRef(): ClinicalTestUsageSnapshot {
+  return {
+    ...EMPTY_CLINICAL_TEST_USAGE_SNAPSHOT,
+    publishedTreatmentProgramTemplateCount: 1,
+    publishedTreatmentProgramTemplateRefs: [
+      {
+        kind: "treatment_program_template",
+        id: "11111111-1111-4111-8111-111111111111",
+        title: "Шаблон тест",
+      },
+    ],
+  };
+}
 
 function makeClinicalTest(over: Partial<ClinicalTest>): ClinicalTest {
   return {
@@ -78,5 +93,37 @@ describe("ClinicalTestForm", () => {
     expect(screen.getByLabelText(/^название$/i)).toHaveValue("Beta");
     expect(screen.getByLabelText(/^описание$/i)).toHaveValue("Desc B");
     expect(screen.getByLabelText(/теги/i)).toHaveValue("back");
+  });
+
+  it("opens archive warning on USAGE_CONFIRMATION_REQUIRED and resubmits with acknowledgeUsageWarning", async () => {
+    const user = userEvent.setup();
+    const usageHeavy = makeUsageWithTemplateRef();
+    const archiveAction = vi.fn(
+      async (_prev: ArchiveClinicalTestState | null, fd: FormData): Promise<ArchiveClinicalTestState> => {
+        const ack = fd.get("acknowledgeUsageWarning");
+        if (ack === "1" || ack === "true" || ack === "on") {
+          return { ok: true };
+        }
+        return { ok: false, code: "USAGE_CONFIRMATION_REQUIRED", usage: usageHeavy };
+      },
+    );
+
+    render(
+      <ClinicalTestForm
+        test={makeClinicalTest({ id: "ct-1" })}
+        saveAction={vi.fn(async () => ({ ok: true }))}
+        archiveAction={archiveAction}
+        externalUsageSnapshot={usageHeavy}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /архивировать/i }));
+    expect(await screen.findByRole("heading", { name: /элемент уже используется/i })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /архивировать всё равно/i }));
+
+    await waitFor(() => expect(archiveAction).toHaveBeenCalledTimes(2));
+    const secondFd = archiveAction.mock.calls[1][1] as FormData;
+    expect(secondFd.get("acknowledgeUsageWarning")).toBe("1");
   });
 });

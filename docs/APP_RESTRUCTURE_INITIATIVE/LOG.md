@@ -6,6 +6,23 @@
 
 ---
 
+## 2026-05-02 — этап 7: closeout после аудита (DoD)
+
+**Повод:** закрыть пробелы из независимого аудита [`ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md`](ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md): документация HTTP для архивации с guard, RTL на формах каталогов 1/3/4, статус плана, финальный корневой CI.
+
+**Сделано:**
+
+- [`api.md`](../../apps/webapp/src/app/api/api.md): для **`DELETE`** `clinical-tests`, `test-sets`, `recommendations` описаны **`409`** с `code: USAGE_CONFIRMATION_REQUIRED`, поле `usage`, повтор с **`?acknowledgeUsageWarning=1`** и отсылки к доменным функциям guard в типах.
+- [`ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md`](ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md): статус «выполнено», блок **Closeout** в Definition of Done.
+- RTL: [`ExerciseForm.test.tsx`](../../apps/webapp/src/app/app/doctor/exercises/ExerciseForm.test.tsx), [`ClinicalTestForm.test.tsx`](../../apps/webapp/src/app/app/doctor/clinical-tests/ClinicalTestForm.test.tsx), [`TestSetForm.test.tsx`](../../apps/webapp/src/app/app/doctor/test-sets/TestSetForm.test.tsx) — сценарий «архив → диалог → Архивировать всё равно» с проверкой второго submit и `acknowledgeUsageWarning=1`.
+- Исправление подтверждения архива: на формах врача (`ExerciseForm`, `ClinicalTestForm`, `TestSetForm`, `RecommendationForm`, `TemplateEditor`) флаг `acknowledgeUsageWarning` перенесён в state `archiveUsageAck` (скрытое поле с `value`), чтобы повторный submit после `setWarnOpen(false)` не терял `1` при ре-рендере; тело диалога с секциями usage вынесено из `DialogDescription` (невалидные вложенные `<p>`) в `div` с теми же стилями.
+
+**Проверки:** `pnpm install --frozen-lockfile && pnpm run ci` — успех на рабочем дереве (2026-05-02): lint, typecheck, integrator + webapp tests, build integrator + webapp, audit deps.
+
+**Manual smoke этапа 7:** по-прежнему приёмочный шаг оператора по чеклисту в плане; автоматизированы только точечные RTL для трёх форм выше.
+
+---
+
 ## 2026-05-02 — этап 7 подшаг: курсы (usage + archive guard)
 
 **Сделано:**
@@ -18,7 +35,7 @@
 - Тесты: [`service.test.ts`](../../apps/webapp/src/modules/courses/service.test.ts), [`pgCourses.test.ts`](../../apps/webapp/src/infra/repos/pgCourses.test.ts), [`courseUsageDocLinks.test.ts`](../../apps/webapp/src/app/app/doctor/courses/courseUsageDocLinks.test.ts), [`courseUsageSummaryText.test.ts`](../../apps/webapp/src/app/app/doctor/courses/courseUsageSummaryText.test.ts), RTL [`DoctorCourseEditForm.test.tsx`](../../apps/webapp/src/app/app/doctor/courses/%5Bid%5D/DoctorCourseEditForm.test.tsx) (usage из RSC / `GET …/usage`, архив без guard, `409` → диалог → `acknowledgeUsageWarning`).
 - Документация: [`api.md`](../../apps/webapp/src/app/api/api.md); трекер в [`ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md`](ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md).
 
-**Аудит подшага (после первичной реализации):** закрыт пробел без RTL на форме — добавлен `DoctorCourseEditForm.test.tsx`; ручной smoke и финальный корневой `pnpm run ci` остаются по чеклисту оператора и правилам push.
+**Аудит подшага (после первичной реализации):** закрыт пробел без RTL на форме — добавлен `DoctorCourseEditForm.test.tsx`. Финальный корневой `pnpm run ci` и ручной smoke — см. запись **«2026-05-02 — этап 7: closeout после аудита (DoD)»** выше в этом файле.
 
 **Проверки:** `pnpm --dir apps/webapp typecheck`; `pnpm --dir apps/webapp exec vitest run src/modules/courses/service.test.ts src/infra/repos/pgCourses.test.ts src/app/app/doctor/courses/courseUsageDocLinks.test.ts src/app/app/doctor/courses/courseUsageSummaryText.test.ts "src/app/app/doctor/courses/[id]/DoctorCourseEditForm.test.tsx"`; `pnpm --dir apps/webapp lint`.
 
@@ -26,7 +43,7 @@
 
 **Ручной smoke (оператор):** по чеклисту «Manual smoke» в [`ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md`](ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md).
 
-**Closeout этапа 7 по каталогам:** все семь подшагов в [`ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md`](ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md) закрыты; перед merge/push выполнить финальный корневой `pnpm install --frozen-lockfile && pnpm run ci` (см. Definition of Done в том же файле).
+**Closeout этапа 7 по каталогам:** все семь подшагов в [`ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md`](ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md) закрыты; итоговый прогон CI — в записи **«2026-05-02 — этап 7: closeout после аудита (DoD)»**.
 
 ---
 

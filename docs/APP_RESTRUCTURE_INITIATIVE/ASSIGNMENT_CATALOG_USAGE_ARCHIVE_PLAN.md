@@ -1,7 +1,7 @@
 # ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN — этап 7: где используется и безопасная архивация
 
 **Дата:** 2026-05-02.  
-**Статус:** ТЗ готово к исполнению по отдельным каталогам.  
+**Статус:** Выполнено — все 7 каталогов закрыты; пост-аудит и доводка DoD: 2026-05-02.  
 **Связанный общий план:** [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md), этап 7.
 
 ---
@@ -593,3 +593,5 @@ pnpm run ci
 - `LOG.md` содержит записи по каждому каталогу и общий closeout этапа.
 
 Если закрыт только один каталог, в `LOG.md` писать «закрыт подшаг этапа 7», а не весь этап.
+
+**Closeout 2026-05-02 (доводка после независимого аудита):** доведены доказательства DoD — `apps/webapp/src/app/api/api.md` (контракт `DELETE` + `409` / `USAGE_CONFIRMATION_REQUIRED` / `acknowledgeUsageWarning` для `clinical-tests`, `test-sets`, `recommendations`), RTL-тесты цикла предупреждения→повтор с подтверждением для `ExerciseForm`, `ClinicalTestForm`, `TestSetForm`, финальный корневой `pnpm run ci` зафиксирован в `LOG.md`. Дополнительно: подтверждение архива на формах каталогов переведено на state (`archiveUsageAck`), диалог usage без вложенного блочного контента внутри `DialogDescription` (валидный HTML).

@@ -6,7 +6,6 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -141,14 +140,15 @@ export function ClinicalTestForm({
   const [usageLoadError, setUsageLoadError] = useState<string | null>(null);
   const [usageBusy, setUsageBusy] = useState(false);
   const [warnOpen, setWarnOpen] = useState(false);
+  const [archiveUsageAck, setArchiveUsageAck] = useState(false);
   const archiveFormRef = useRef<HTMLFormElement>(null);
-  const acknowledgeRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setValues(clinicalTestToFormValues(test));
     setLocalError(null);
     setUsageLoadError(null);
     setWarnOpen(false);
+    setArchiveUsageAck(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- сброс при смене записи
   }, [recordKey]);
 
@@ -384,13 +384,13 @@ export function ClinicalTestForm({
             workspaceListPreserve?.loadType === "other" ? (
               <input type="hidden" name="listLoad" value={workspaceListPreserve.loadType} />
             ) : null}
-            <input ref={acknowledgeRef} type="hidden" name="acknowledgeUsageWarning" value="" />
+            <input type="hidden" name="acknowledgeUsageWarning" value={archiveUsageAck ? "1" : ""} readOnly />
             <Button
               type="submit"
               variant="destructive"
               disabled={archivePending}
               onClick={() => {
-                if (acknowledgeRef.current) acknowledgeRef.current.value = "";
+                setArchiveUsageAck(false);
               }}
             >
               {archivePending ? "Архивация…" : "Архивировать"}
@@ -401,7 +401,7 @@ export function ClinicalTestForm({
             <DialogContent showCloseButton className="max-w-md">
               <DialogHeader>
                 <DialogTitle>Элемент уже используется</DialogTitle>
-                <DialogDescription className="space-y-2">
+                <div className="space-y-2 text-sm text-muted-foreground *:[a]:underline *:[a]:underline-offset-3 *:[a]:hover:text-foreground">
                   <span className="block">
                     Архивация уберёт тест из каталога для новых наборов и шаблонов. Уже выданные программы и история
                     результатов не удаляются.
@@ -417,7 +417,7 @@ export function ClinicalTestForm({
                   ) : warnSections.length ? (
                     <ClinicalTestUsageSectionsView sections={warnSections} />
                   ) : null}
-                </DialogDescription>
+                </div>
               </DialogHeader>
               <DialogFooter className="gap-2 sm:gap-2">
                 <Button type="button" variant="outline" onClick={() => setWarnOpen(false)}>
@@ -428,9 +428,12 @@ export function ClinicalTestForm({
                   variant="destructive"
                   disabled={archivePending}
                   onClick={() => {
-                    if (acknowledgeRef.current) acknowledgeRef.current.value = "1";
+                    setArchiveUsageAck(true);
                     setWarnOpen(false);
-                    queueMicrotask(() => archiveFormRef.current?.requestSubmit());
+                    queueMicrotask(() => {
+                      archiveFormRef.current?.requestSubmit();
+                      setArchiveUsageAck(false);
+                    });
                   }}
                 >
                   Архивировать всё равно

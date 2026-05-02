@@ -6,7 +6,6 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -133,14 +132,15 @@ export function RecommendationForm({
   const [usageLoadError, setUsageLoadError] = useState<string | null>(null);
   const [usageBusy, setUsageBusy] = useState(false);
   const [warnOpen, setWarnOpen] = useState(false);
+  const [archiveUsageAck, setArchiveUsageAck] = useState(false);
   const archiveFormRef = useRef<HTMLFormElement>(null);
-  const acknowledgeRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setValues(toValues(recommendation));
     setLocalError(null);
     setUsageLoadError(null);
     setWarnOpen(false);
+    setArchiveUsageAck(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recordKey]);
 
@@ -364,13 +364,13 @@ export function RecommendationForm({
             {workspaceListPreserve?.domain != null ? (
               <input type="hidden" name="listDomain" value={workspaceListPreserve.domain} />
             ) : null}
-            <input ref={acknowledgeRef} type="hidden" name="acknowledgeUsageWarning" value="" />
+            <input type="hidden" name="acknowledgeUsageWarning" value={archiveUsageAck ? "1" : ""} readOnly />
             <Button
               type="submit"
               variant="destructive"
               disabled={archivePending}
               onClick={() => {
-                if (acknowledgeRef.current) acknowledgeRef.current.value = "";
+                setArchiveUsageAck(false);
               }}
             >
               {archivePending ? "Архивация…" : "Архивировать"}
@@ -381,7 +381,7 @@ export function RecommendationForm({
             <DialogContent showCloseButton className="max-w-md">
               <DialogHeader>
                 <DialogTitle>Рекомендация уже используется</DialogTitle>
-                <DialogDescription className="space-y-2">
+                <div className="space-y-2 text-sm text-muted-foreground *:[a]:underline *:[a]:underline-offset-3 *:[a]:hover:text-foreground">
                   <span className="block">
                     Архивация уберёт рекомендацию из каталога для новых программ. Уже выданные программы не удаляются.
                   </span>
@@ -396,7 +396,7 @@ export function RecommendationForm({
                   ) : warnSections.length ? (
                     <RecommendationUsageSectionsView sections={warnSections} />
                   ) : null}
-                </DialogDescription>
+                </div>
               </DialogHeader>
               <DialogFooter className="gap-2 sm:gap-2">
                 <Button type="button" variant="outline" onClick={() => setWarnOpen(false)}>
@@ -407,9 +407,12 @@ export function RecommendationForm({
                   variant="destructive"
                   disabled={archivePending}
                   onClick={() => {
-                    if (acknowledgeRef.current) acknowledgeRef.current.value = "1";
+                    setArchiveUsageAck(true);
                     setWarnOpen(false);
-                    queueMicrotask(() => archiveFormRef.current?.requestSubmit());
+                    queueMicrotask(() => {
+                      archiveFormRef.current?.requestSubmit();
+                      setArchiveUsageAck(false);
+                    });
                   }}
                 >
                   Архивировать всё равно

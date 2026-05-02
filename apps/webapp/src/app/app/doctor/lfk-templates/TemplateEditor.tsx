@@ -38,7 +38,6 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -288,8 +287,8 @@ export function TemplateEditor({
   const [usageLoadError, setUsageLoadError] = useState<string | null>(null);
   const [usageBusy, setUsageBusy] = useState(false);
   const [warnOpen, setWarnOpen] = useState(false);
+  const [archiveUsageAck, setArchiveUsageAck] = useState(false);
   const archiveFormRef = useRef<HTMLFormElement>(null);
-  const acknowledgeRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setTitle(template.title);
@@ -297,6 +296,7 @@ export function TemplateEditor({
     setLines(templateToLines(template));
     setUsageLoadError(null);
     setWarnOpen(false);
+    setArchiveUsageAck(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- полный сброс при смене редактируемого шаблона
   }, [recordKey]);
 
@@ -573,13 +573,13 @@ export function TemplateEditor({
           <form ref={archiveFormRef} action={archiveFormAction} className="flex flex-col gap-2">
             <input type="hidden" name="id" value={template.id} />
             <input type="hidden" name="listPreserveQuery" value={listPreserveQuery} />
-            <input ref={acknowledgeRef} type="hidden" name="acknowledgeUsageWarning" value="" />
+            <input type="hidden" name="acknowledgeUsageWarning" value={archiveUsageAck ? "1" : ""} readOnly />
             <Button
               type="submit"
               variant="destructive"
               disabled={archivePending || pending}
               onClick={() => {
-                if (acknowledgeRef.current) acknowledgeRef.current.value = "";
+                setArchiveUsageAck(false);
               }}
             >
               {archivePending ? "Архивация…" : "Архивировать"}
@@ -590,7 +590,7 @@ export function TemplateEditor({
             <DialogContent showCloseButton className="max-w-md">
               <DialogHeader>
                 <DialogTitle>Комплекс уже используется</DialogTitle>
-                <DialogDescription className="space-y-2">
+                <div className="space-y-2 text-sm text-muted-foreground *:[a]:underline *:[a]:underline-offset-3 *:[a]:hover:text-foreground">
                   <span className="block">
                     Архивация уберёт комплекс из каталога для новых назначений. Уже выданные назначения и история не
                     удаляются.
@@ -606,7 +606,7 @@ export function TemplateEditor({
                   ) : warnSections.length ? (
                     <LfkTemplateUsageSectionsView sections={warnSections} />
                   ) : null}
-                </DialogDescription>
+                </div>
               </DialogHeader>
               <DialogFooter className="gap-2 sm:gap-2">
                 <Button type="button" variant="outline" onClick={() => setWarnOpen(false)}>
@@ -617,9 +617,12 @@ export function TemplateEditor({
                   variant="destructive"
                   disabled={archivePending}
                   onClick={() => {
-                    if (acknowledgeRef.current) acknowledgeRef.current.value = "1";
+                    setArchiveUsageAck(true);
                     setWarnOpen(false);
-                    queueMicrotask(() => archiveFormRef.current?.requestSubmit());
+                    queueMicrotask(() => {
+                      archiveFormRef.current?.requestSubmit();
+                      setArchiveUsageAck(false);
+                    });
                   }}
                 >
                   Архивировать всё равно

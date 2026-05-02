@@ -2,8 +2,9 @@
 
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
-import type { Exercise } from "@/modules/lfk-exercises/types";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import type { Exercise, ExerciseUsageSnapshot } from "@/modules/lfk-exercises/types";
 import { EMPTY_EXERCISE_USAGE_SNAPSHOT } from "@/modules/lfk-exercises/types";
 import type { ArchiveDoctorExerciseState, SaveDoctorExerciseState } from "./actionsShared";
 import { ExerciseForm } from "./ExerciseForm";
@@ -29,6 +30,16 @@ vi.mock("./actions", async () => {
     fetchDoctorExerciseUsageSnapshot: vi.fn(async () => ({ ...EMPTY_EXERCISE_USAGE_SNAPSHOT })),
   };
 });
+
+function makeUsageWithTemplateRef(): ExerciseUsageSnapshot {
+  return {
+    ...EMPTY_EXERCISE_USAGE_SNAPSHOT,
+    publishedLfkComplexTemplateCount: 1,
+    publishedLfkComplexTemplateRefs: [
+      { kind: "lfk_complex_template", id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", title: "Комплекс тест" },
+    ],
+  };
+}
 
 function makeExercise(over: Partial<Exercise>): Exercise {
   return {
@@ -90,5 +101,37 @@ describe("ExerciseForm", () => {
     expect(screen.getByLabelText(/описание/i)).toHaveValue("Desc B");
     expect(screen.getByLabelText(/теги/i)).toHaveValue("back");
     expect(screen.getByLabelText(/противопоказания/i)).toHaveValue("None B");
+  });
+
+  it("opens archive warning on USAGE_CONFIRMATION_REQUIRED and resubmits with acknowledgeUsageWarning", async () => {
+    const user = userEvent.setup();
+    const usageHeavy = makeUsageWithTemplateRef();
+    const archiveAction = vi.fn(
+      async (_prev: ArchiveDoctorExerciseState | null, fd: FormData): Promise<ArchiveDoctorExerciseState> => {
+        const ack = fd.get("acknowledgeUsageWarning");
+        if (ack === "1" || ack === "true" || ack === "on") {
+          return { ok: true };
+        }
+        return { ok: false, code: "USAGE_CONFIRMATION_REQUIRED", usage: usageHeavy };
+      },
+    );
+
+    render(
+      <ExerciseForm
+        exercise={makeExercise({ id: "ex-1" })}
+        saveAction={vi.fn(async () => ({ ok: true }))}
+        archiveAction={archiveAction}
+        externalUsageSnapshot={usageHeavy}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /архивировать/i }));
+    expect(await screen.findByRole("heading", { name: /элемент уже используется/i })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /архивировать всё равно/i }));
+
+    await waitFor(() => expect(archiveAction).toHaveBeenCalledTimes(2));
+    const secondFd = archiveAction.mock.calls[1][1] as FormData;
+    expect(secondFd.get("acknowledgeUsageWarning")).toBe("1");
   });
 });
