@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const upsertMock = vi.fn();
+const updateMock = vi.fn();
 const renameSectionSlugMock = vi.fn();
 const getBySlugMock = vi.hoisted(() => vi.fn().mockResolvedValue(null));
 
@@ -18,6 +19,7 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
     contentSections: {
       upsert: upsertMock,
+      update: updateMock,
       renameSectionSlug: renameSectionSlugMock,
       getBySlug: getBySlugMock,
     },
@@ -25,7 +27,7 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
 }));
 
 import { revalidatePath } from "next/cache";
-import { renameContentSectionSlug, saveContentSection } from "./actions";
+import { attachArticleSectionToSystemFolder, renameContentSectionSlug, saveContentSection } from "./actions";
 
 function formWith(entries: Record<string, string>) {
   const fd = new FormData();
@@ -38,6 +40,7 @@ function formWith(entries: Record<string, string>) {
 describe("saveContentSection", () => {
   beforeEach(() => {
     upsertMock.mockClear();
+    updateMock.mockClear();
     renameSectionSlugMock.mockReset();
     getBySlugMock.mockReset();
     getBySlugMock.mockResolvedValue(null);
@@ -177,5 +180,55 @@ describe("saveContentSection", () => {
     const res = await renameContentSectionSlug(null, fd);
     expect(res?.ok).toBe(false);
     expect(renameSectionSlugMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("attachArticleSectionToSystemFolder", () => {
+  beforeEach(() => {
+    updateMock.mockClear();
+    getBySlugMock.mockReset();
+    vi.mocked(revalidatePath).mockClear();
+  });
+
+  it("moves article section into system folder via update", async () => {
+    getBySlugMock.mockResolvedValue({
+      slug: "antistress",
+      kind: "article",
+      systemParentCode: null,
+    });
+    updateMock.mockResolvedValue(undefined);
+    const fd = new FormData();
+    fd.set("section_slug", "antistress");
+    fd.set("system_parent_code", "situations");
+    const res = await attachArticleSectionToSystemFolder(null, fd);
+    expect(res.ok).toBe(true);
+    expect(updateMock).toHaveBeenCalledWith("antistress", {
+      kind: "system",
+      systemParentCode: "situations",
+    });
+  });
+
+  it("rejects when section is not article", async () => {
+    getBySlugMock.mockResolvedValue({
+      slug: "warmups",
+      kind: "system",
+      systemParentCode: "warmups",
+    });
+    const fd = new FormData();
+    fd.set("section_slug", "warmups");
+    fd.set("system_parent_code", "situations");
+    const res = await attachArticleSectionToSystemFolder(null, fd);
+    expect(res.ok).toBe(false);
+    expect(updateMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects immutable slug", async () => {
+    const fd = new FormData();
+    fd.set("section_slug", "warmups");
+    fd.set("system_parent_code", "situations");
+    const res = await attachArticleSectionToSystemFolder(null, fd);
+    expect(res.ok).toBe(false);
+    expect(getBySlugMock).not.toHaveBeenCalled();
+    expect(updateMock).not.toHaveBeenCalled();
   });
 });

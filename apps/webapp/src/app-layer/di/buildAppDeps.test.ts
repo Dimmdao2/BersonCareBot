@@ -221,6 +221,8 @@ describe("buildAppDeps", () => {
     expect(typeof deps.messaging.patient.bootstrap).toBe("function");
     expect(typeof deps.messaging.patient.sendText).toBe("function");
     expect(typeof deps.messaging.doctorSupport.listOpenConversations).toBe("function");
+    expect(typeof deps.messaging.doctorSupport.ensureConversationForPatient).toBe("function");
+    expect(typeof deps.messaging.doctorSupport.unreadFromPatient).toBe("function");
     expect(typeof deps.messaging.doctorSupport.getMessages).toBe("function");
   });
 

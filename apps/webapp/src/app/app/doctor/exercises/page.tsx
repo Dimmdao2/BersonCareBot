@@ -2,6 +2,7 @@ import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { AppShell } from "@/shared/ui/AppShell";
 import { doctorCatalogViewFromSearchParams } from "@/shared/lib/doctorCatalogViewPreference";
+import type { Exercise, ExerciseUsageSnapshot } from "@/modules/lfk-exercises/types";
 import { ExercisesPageClient } from "./ExercisesPageClient";
 
 type PageProps = {
@@ -34,6 +35,8 @@ export default async function DoctorExercisesPage({ searchParams }: PageProps) {
   const selectedExerciseId = typeof sp.selected === "string" && sp.selected.trim() ? sp.selected.trim() : null;
   const titleSort = sp.titleSort === "asc" || sp.titleSort === "desc" ? sp.titleSort : null;
 
+  type DoctorExerciseSelection = { exercise: Exercise | null; usage: ExerciseUsageSnapshot | null };
+
   const deps = buildAppDeps();
   const listPromise = deps.lfkExercises.listExercises({
     search: q || null,
@@ -41,17 +44,21 @@ export default async function DoctorExercisesPage({ searchParams }: PageProps) {
     loadType: loadType ?? null,
     includeArchived: false,
   });
-  const selectedExercisePromise = selectedExerciseId
+  const doctorExerciseSelectionPromise: Promise<DoctorExerciseSelection> = selectedExerciseId
     ? deps.lfkExercises
         .getExercise(selectedExerciseId)
-        .then((ex) => (ex && !ex.isArchived ? ex : null))
-        .catch(() => null)
-    : Promise.resolve(null);
+        .then(async (ex) => {
+          if (!ex || ex.isArchived) return { exercise: null, usage: null };
+          const usage = await deps.lfkExercises.getExerciseUsage(ex.id);
+          return { exercise: ex, usage };
+        })
+        .catch(() => ({ exercise: null, usage: null }))
+    : Promise.resolve({ exercise: null, usage: null });
   return (
     <AppShell title="Упражнения ЛФК" user={session.user} variant="doctor" backHref="/app/doctor">
       <ExercisesPageClient
         listPromise={listPromise}
-        selectedExercisePromise={selectedExercisePromise}
+        doctorExerciseSelectionPromise={doctorExerciseSelectionPromise}
         initialViewMode={initialViewMode}
         viewLockedByUrl={viewLockedByUrl}
         initialTitleSort={titleSort}

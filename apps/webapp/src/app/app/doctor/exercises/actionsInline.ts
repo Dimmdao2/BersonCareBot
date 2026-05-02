@@ -6,6 +6,7 @@ import {
   archiveDoctorExerciseCore,
   EXERCISES_PATH,
   saveDoctorExerciseCore,
+  type ArchiveDoctorExerciseState,
   type SaveDoctorExerciseState,
 } from "./actionsShared";
 
@@ -24,10 +25,21 @@ export async function saveExerciseInline(
   redirect(`${EXERCISES_PATH}?view=${view}&selected=${encodeURIComponent(result.exerciseId)}`);
 }
 
-export async function archiveExerciseInline(formData: FormData) {
+export async function archiveExerciseInline(
+  _prev: ArchiveDoctorExerciseState | null,
+  formData: FormData,
+): Promise<ArchiveDoctorExerciseState> {
   const result = await archiveDoctorExerciseCore(formData);
+  if (result.kind === "needs_confirmation") {
+    return { ok: false, code: "USAGE_CONFIRMATION_REQUIRED", usage: result.usage };
+  }
   const view = formData.get("view") === "tiles" ? "tiles" : "list";
-  if (!result.archivedId) redirect(`${EXERCISES_PATH}?view=${view}`);
+  if (result.kind === "invalid") {
+    const idRaw = formData.get("id");
+    const id = typeof idRaw === "string" ? idRaw.trim() : "";
+    if (!id) redirect(`${EXERCISES_PATH}?view=${view}`);
+    return { ok: false, error: result.error };
+  }
   revalidatePath(EXERCISES_PATH);
   redirect(`${EXERCISES_PATH}?view=${view}`);
 }

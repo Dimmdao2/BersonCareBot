@@ -16,7 +16,7 @@
 | Область | Сделано |
 |---------|---------|
 | Главная пациента / код | Удалены orphan `PatientHomeNewsSection` / `PatientHomeMailingsSection` (+ тесты); из `navigation.ts` убраны legacy `HomeBlockId` / `patientHomeBlocks*`. |
-| Меню врача | Кластерное меню + аккордеон (`doctorNavLinks.ts`, `DoctorMenuAccordion`); пункт «Онлайн-заявки» в кластере «Работа с пациентами» → `/app/doctor/online-intake` (этап 2 закрыт 2026-05-02, см. [`DOCTOR_MENU_RESTRUCTURE_EXECUTION_AUDIT.md`](DOCTOR_MENU_RESTRUCTURE_EXECUTION_AUDIT.md)). Ранее (2026-05-01) пункт добавлялся в плоский список меню. |
+| Меню врача | Кластерное меню + аккордеон (`doctorNavLinks.ts`, `DoctorMenuAccordion`); пункт «Онлайн-заявки» в кластере «Работа с пациентами» → `/app/doctor/online-intake` (**план кабинета** [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md) этап 2 закрыт 2026-05-02, см. [`DOCTOR_MENU_RESTRUCTURE_EXECUTION_AUDIT.md`](DOCTOR_MENU_RESTRUCTURE_EXECUTION_AUDIT.md)). Ранее (2026-05-01) пункт добавлялся в плоский список меню. |
 | Debug / admin | Страница `delete-errors` и ссылка из медиа-библиотеки только для admin + adminMode; legacy `/subscribers` остаётся redirect с комментарием «не в меню». |
 | Сообщения vs рассылки | `/app/doctor/messages` — только чат поддержки; журнал массовых рассылок остаётся на `/broadcasts`. |
 | Patient intake | `/app/patient/intake/nutrition` и `/lfk` обёрнуты в `AppShell` (patient shell). |
@@ -110,11 +110,11 @@
 
 ## II.1. Сквозные проблемы
 
-1. **Меню плоское, без приоритетов;** два разделителя ничего не означают для пользователя.
-2. **`/online-intake` в меню.** Пункт «Онлайн-заявки» между «Записи» и «Сообщения» в кластере «Работа с пациентами» ([`doctorNavLinks.ts`](../../apps/webapp/src/shared/ui/doctorNavLinks.ts)); полная перестройка меню под кластеры и аккордеон — этап 2 (2026-05-02), см. [`DOCTOR_MENU_RESTRUCTURE_EXECUTION_AUDIT.md`](DOCTOR_MENU_RESTRUCTURE_EXECUTION_AUDIT.md).
+1. ~~**Меню плоское, без приоритетов.**~~ **Снято (2026-05-02):** кластерное меню + аккордеон, см. [`DOCTOR_MENU_RESTRUCTURE_EXECUTION_AUDIT.md`](DOCTOR_MENU_RESTRUCTURE_EXECUTION_AUDIT.md) и [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md) этап 2. Остаётся продуктовый хвост — баджи на «Онлайн-заявки» / «Сообщения» (этап 3 того же плана).
+2. ~~**`/online-intake` в меню.**~~ **Сделано:** пункт «Онлайн-заявки» в кластере «Работа с пациентами» ([`doctorNavLinks.ts`](../../apps/webapp/src/shared/ui/doctorNavLinks.ts)); вместе с кластерным меню — [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md) этап 2 / [`DOCTOR_MENU_RESTRUCTURE_EXECUTION_AUDIT.md`](DOCTOR_MENU_RESTRUCTURE_EXECUTION_AUDIT.md).
 3. **Дублирующиеся точки входа:**
    - ~~Рассылки в двух местах (`/messages` журнал + `/broadcasts`).~~ **Частично снято (2026-05-01):** `/messages` — только чат; журнал массовых рассылок на `/broadcasts`.
-   - Сообщения в двух местах (страница `/messages` + аккордеон «Коммуникации» в карточке клиента).
+   - Сообщения: **дубль отправки снят (2026-05-02)** — из карточки пациента тот же `DoctorChatPanel`, что и на `/messages` (см. [`DOCTOR_MESSAGES_UNIFIED_CHAT_EXECUTION_AUDIT.md`](DOCTOR_MESSAGES_UNIFIED_CHAT_EXECUTION_AUDIT.md)); остаётся IA-долг аккордеона «Коммуникации» до переработки карточки ([`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md) этап 6 — заморозка).
    - Записи (`/appointments` + `/clients?scope=...`).
    - `/subscribers` — полностью legacy (redirect).
 4. **Архитектурные нарушения:** ~~`/content/news/page.tsx`~~ снят (редирект). Чтение списка `/content/motivation` — через `buildAppDeps().doctorMotivationQuotesEditor` (порт + Drizzle), не `pool.query` в RSC. **Остаётся:** сырой SQL в server actions мотивации ([`motivation/actions.ts`](../../apps/webapp/src/app/app/doctor/content/motivation/actions.ts)) — вынести в порт/DI отдельным шагом.
@@ -141,7 +141,7 @@
 - **Заметки врача** (главный артефакт работы с пациентом) — один из последних аккордеонов, без приоритета и без таймлайна.
 - **Назначить ЛФК / программу** спрятаны внутри аккордеонов — это главное действие, а не подопция.
 - **Дневник симптомов** показан как «Симптомы: A, B, C. Последние записи: 3, 4, 2» — без графика, дат и связи с назначениями.
-- **Коммуникации внутри карточки** дублируют `/messages`.
+- **Коммуникации внутри карточки** — старый аккордеон всё ещё рядом с новым потоком чата; отправка унифицирована (`DoctorChatPanel`), но IA карточки не приведена к табам (см. [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md) этап 6 — заморозка).
 - Сразу при открытии раскрыт `contacts` (реквизиты), а не клиническая часть.
 
 **Целевая структура — рабочие табы:**
@@ -319,7 +319,7 @@
 
 | Долг (см. `STRUCTURE_AUDIT.md` §III) | К какой инициативе |
 |---------------------------------------|---------------------|
-| `LESSON_CONTENT_SECTION` хардкод | CMS-типизация (этап 2) |
+| `LESSON_CONTENT_SECTION` хардкод | CMS-типизация (**часть IV, этап 2** roadmap — не путать с этапом 2 [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md)) |
 | `target_ref=slug` без FK | Backlog (не блокер) |
 | `pool.query` в RSC (news/motivation) | **News:** снято (страница — редирект). **Motivation (список):** чтение через `DoctorMotivationQuotesEditorPort`. **Остаётся:** мутации в `motivation/actions.ts` (backlog). |
 | ~~Хардкод тем для `/notifications` (`SUBSCRIPTIONS`)~~ | **Снято (2026-05-01):** ключ `notifications_topics` в `system_settings`; полная реформа UX этапа 4 (связь с reminders, профиль) остаётся |
@@ -491,6 +491,8 @@
 
 ## Этап 6. Кабинет врача: меню + дашборд + карточка пациента
 
+**Примечание 2026-05-02:** этот этап roadmap **пересекается** с микро-этапами [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md). Уже закрыто в коде там: **2** (меню), **5** (единый чат), **8** (плотность UI) — см. [`LOG.md`](LOG.md) и профильные execution audit. Ниже список остаётся **продуктовым чек-листом**; зачёркнуто — перенесено в закрытые подэтапы плана кабинета или выполнено отдельно.
+
 **Что меняется (для врача):** кабинет превращается из «панели настроек и каталогов» в **рабочий инструмент дня**.
 
 **Что меняется (для пациента):** ничего.
@@ -499,6 +501,8 @@
 
 **Конкретно:**
 - ~~Перестроить `DOCTOR_MENU_ENTRIES` под 5 кластеров~~ — **выполнено (2026-05-02):** кластеры + standalone «Библиотека файлов», аккордеон, см. [`DOCTOR_MENU_RESTRUCTURE_EXECUTION_AUDIT.md`](DOCTOR_MENU_RESTRUCTURE_EXECUTION_AUDIT.md). ~~Добавить `/online-intake` в меню.~~ **Пункт меню добавлен (2026-05-01)** до полной перестройки; теперь входит в кластер «Работа с пациентами». Убрать `/subscribers` (legacy) — **redirect пока оставлен** (закладки); без пункта в меню.
+- ~~Единый чат врача (страница + карточка пациента)~~ — **выполнено (2026-05-02)** по [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md) этап 5 / [`DOCTOR_MESSAGES_UNIFIED_CHAT_EXECUTION_AUDIT.md`](DOCTOR_MESSAGES_UNIFIED_CHAT_EXECUTION_AUDIT.md).
+- ~~Пакет «плотность UI» без редизайна~~ — **выполнено (2026-05-02)** по [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md) этап 8 / [`DOCTOR_UI_DENSITY_EXECUTION_AUDIT.md`](DOCTOR_UI_DENSITY_EXECUTION_AUDIT.md).
 - Заменить `/app/doctor` («Сегодня врача»):
   - Записи на сегодня (карточки с CTA).
   - Inbox онлайн-заявок (бадж).
@@ -507,9 +511,9 @@
   - Ближайшие приёмы 2–3 дня.
   - Метрики — переехали в `/stats`.
 - Карточка пациента `/clients/[userId]` — переделать в табы (II.3). Заметки врача — в основной таб.
-- Аккордеон «Коммуникации» в карточке заменить на ссылку «Открыть чат» в `/messages`.
-- На каталогах назначений показать «сколько раз назначено» / «в скольких шаблонах».
-- На архивации упражнений/комплексов показывать предупреждение, если используется в активной программе.
+- Аккордеон «Коммуникации» в карточке — **свести к одному IA-потоку** с `/messages` (сейчас отправка уже через `DoctorChatPanel`; дальше — убрать лишний chrome / привести к табам после снятия заморозки этапа 6 в плане кабинета).
+- На каталогах назначений показать «сколько раз назначено» / «в скольких шаблонах» — **не сделано**; см. [`ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md`](ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md) ([`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md) этап 7).
+- На архивации упражнений/комплексов показывать предупреждение, если используется в активной программе — **не сделано** (тот же этап 7).
 
 **Размер:** крупный, 7–10 дней.
 **Риск:** средний.

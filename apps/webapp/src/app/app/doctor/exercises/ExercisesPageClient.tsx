@@ -12,7 +12,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { DoctorCatalogMasterListHeader } from "@/shared/ui/doctor/DoctorCatalogMasterListHeader";
-import type { Exercise, ExerciseLoadType } from "@/modules/lfk-exercises/types";
+import type { Exercise, ExerciseLoadType, ExerciseUsageSnapshot } from "@/modules/lfk-exercises/types";
 import { cn } from "@/lib/utils";
 import { useViewportMinWidth } from "@/shared/hooks/useViewportMinWidth";
 import {
@@ -54,9 +54,14 @@ const LIST_ROW_VISIBILITY_STYLE = {
   containIntrinsicSize: "52px",
 } as const;
 
+type DoctorExerciseSelection = {
+  exercise: Exercise | null;
+  usage: ExerciseUsageSnapshot | null;
+};
+
 type Props = {
   listPromise: Promise<Exercise[]>;
-  selectedExercisePromise: Promise<Exercise | null>;
+  doctorExerciseSelectionPromise: Promise<DoctorExerciseSelection>;
   initialViewMode: ExercisesViewMode;
   /** Если false — режим подставляется из localStorage (последний выбор на этой странице). */
   viewLockedByUrl: boolean;
@@ -122,7 +127,7 @@ function CreateExerciseMenu({ triggerId, onNewExercise }: CreateExerciseMenuProp
 
 type ExercisesContentProps = {
   listPromise: Promise<Exercise[]>;
-  selectedExercisePromise: Promise<Exercise | null>;
+  doctorExerciseSelectionPromise: Promise<DoctorExerciseSelection>;
   viewMode: ExercisesViewMode;
   toolbarViewMode: ExercisesViewMode;
   titleSort: ExerciseTitleSort | null;
@@ -138,7 +143,7 @@ type ExercisesContentProps = {
 
 function ExercisesContent({
   listPromise,
-  selectedExercisePromise,
+  doctorExerciseSelectionPromise,
   viewMode,
   toolbarViewMode,
   titleSort,
@@ -152,26 +157,35 @@ function ExercisesContent({
   filters,
 }: ExercisesContentProps) {
   const exercises = use(listPromise);
-  const selectedExercise = use(selectedExercisePromise);
+  const selection = use(doctorExerciseSelectionPromise);
 
   useEffect(() => {
-    if (selectedExercise?.id) setDesktopSelectedId(selectedExercise.id);
-  }, [selectedExercise?.id, setDesktopSelectedId]);
+    if (selection.exercise?.id) setDesktopSelectedId(selection.exercise.id);
+  }, [selection.exercise?.id, setDesktopSelectedId]);
 
   useEffect(() => {
     if (!desktopSelectedId) return;
     const inList = exercises.some((e) => e.id === desktopSelectedId);
-    const fromServer = selectedExercise?.id === desktopSelectedId;
+    const fromServer = selection.exercise?.id === desktopSelectedId;
     if (!inList && !fromServer) setDesktopSelectedId(null);
-  }, [desktopSelectedId, exercises, selectedExercise?.id, setDesktopSelectedId]);
+  }, [desktopSelectedId, exercises, selection.exercise?.id, setDesktopSelectedId]);
 
   const exerciseForDesktop = useMemo(() => {
     if (!desktopSelectedId) return null;
     const fromList = exercises.find((e) => e.id === desktopSelectedId);
     if (fromList) return fromList;
-    if (selectedExercise?.id === desktopSelectedId) return selectedExercise;
+    if (selection.exercise?.id === desktopSelectedId) return selection.exercise;
     return null;
-  }, [desktopSelectedId, exercises, selectedExercise]);
+  }, [desktopSelectedId, exercises, selection.exercise]);
+
+  const usageForSelection = useMemo(() => {
+    const current = mobileSheet?.exercise ?? exerciseForDesktop;
+    if (!current) return undefined;
+    if (selection.exercise?.id === current.id && selection.usage != null) {
+      return selection.usage;
+    }
+    return undefined;
+  }, [exerciseForDesktop, mobileSheet?.exercise, selection.exercise?.id, selection.usage]);
 
   const displayExercises = useMemo(() => {
     if (!titleSort) return exercises;
@@ -251,6 +265,7 @@ function ExercisesContent({
         saveAction={saveExerciseInline}
         archiveAction={archiveExerciseInline}
         viewHint={viewMode}
+        externalUsageSnapshot={usageForSelection}
       />
     </CatalogRightPane>
   );
@@ -395,7 +410,7 @@ function CatalogSplitLayoutSkeleton() {
 
 export function ExercisesPageClient({
   listPromise,
-  selectedExercisePromise,
+  doctorExerciseSelectionPromise,
   initialViewMode,
   viewLockedByUrl,
   initialTitleSort,
@@ -444,7 +459,7 @@ export function ExercisesPageClient({
     <Suspense fallback={<CatalogSplitLayoutSkeleton />}>
       <ExercisesContent
         listPromise={listPromise}
-        selectedExercisePromise={selectedExercisePromise}
+        doctorExerciseSelectionPromise={doctorExerciseSelectionPromise}
         viewMode={viewMode}
         toolbarViewMode={toolbarViewMode}
         titleSort={titleSort}

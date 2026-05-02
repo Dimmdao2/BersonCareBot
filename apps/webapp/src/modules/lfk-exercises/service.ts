@@ -1,5 +1,16 @@
+import {
+  ExerciseArchiveAlreadyArchivedError,
+  ExerciseArchiveNotFoundError,
+  UsageConfirmationRequiredError,
+} from "./errors";
 import type { LfkExercisesPort } from "./ports";
-import type { CreateExerciseInput, ExerciseFilter, UpdateExerciseInput } from "./types";
+import type {
+  ArchiveExerciseOptions,
+  CreateExerciseInput,
+  ExerciseFilter,
+  UpdateExerciseInput,
+} from "./types";
+import { exerciseArchiveRequiresAcknowledgement } from "./types";
 
 export function createLfkExercisesService(port: LfkExercisesPort) {
   return {
@@ -45,9 +56,22 @@ export function createLfkExercisesService(port: LfkExercisesPort) {
       return row;
     },
 
-    async archiveExercise(id: string) {
+    async getExerciseUsage(id: string) {
+      return port.getExerciseUsageSummary(id);
+    },
+
+    async archiveExercise(id: string, options?: ArchiveExerciseOptions) {
+      const existing = await port.getById(id);
+      if (!existing) throw new ExerciseArchiveNotFoundError();
+      if (existing.isArchived) throw new ExerciseArchiveAlreadyArchivedError();
+
+      const usage = await port.getExerciseUsageSummary(id);
+      if (exerciseArchiveRequiresAcknowledgement(usage) && !options?.acknowledgeUsageWarning) {
+        throw new UsageConfirmationRequiredError(usage);
+      }
+
       const ok = await port.archive(id);
-      if (!ok) throw new Error("Упражнение не найдено");
+      if (!ok) throw new ExerciseArchiveNotFoundError();
     },
   };
 }

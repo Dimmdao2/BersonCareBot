@@ -1,11 +1,12 @@
 /** @vitest-environment jsdom */
 
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { ClientProfile } from "@/modules/doctor-clients/service";
 import { ClientProfileCard } from "./ClientProfileCard";
 
-vi.mock("./[userId]/SendMessageForm", () => ({ SendMessageForm: () => null }));
+vi.mock("@/modules/messaging/components/DoctorChatPanel", () => ({ DoctorChatPanel: () => null }));
 vi.mock("./AssignLfkTemplatePanel", () => ({ AssignLfkTemplatePanel: () => null }));
 vi.mock("./AdminDangerActions", () => ({ AdminDangerActions: () => null }));
 vi.mock("./DoctorClientLifecycleActions", () => ({ DoctorClientLifecycleActions: () => null }));
@@ -40,11 +41,21 @@ const minimalProfile: ClientProfile = {
 };
 
 describe("ClientProfileCard back link (scope)", () => {
+  beforeEach(() => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify({ ok: true, unreadCount: 0 }))),
+    );
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   it("shows client display name in contacts block", () => {
     render(
       <ClientProfileCard
         profile={minimalProfile}
-        messageDraft={null}
         messageHistory={[]}
         userId="u1"
         listBasePath="/app/doctor/clients?scope=all"
@@ -63,7 +74,6 @@ describe("ClientProfileCard back link (scope)", () => {
     render(
       <ClientProfileCard
         profile={profileEmptyName}
-        messageDraft={null}
         messageHistory={[]}
         userId="u1"
         listBasePath="/app/doctor/clients?scope=all"
@@ -77,7 +87,6 @@ describe("ClientProfileCard back link (scope)", () => {
     const { container } = render(
       <ClientProfileCard
         profile={minimalProfile}
-        messageDraft={null}
         messageHistory={[]}
         userId="u1"
         listBasePath="/app/doctor/clients?scope=all"
@@ -93,7 +102,6 @@ describe("ClientProfileCard back link (scope)", () => {
     render(
       <ClientProfileCard
         profile={minimalProfile}
-        messageDraft={null}
         messageHistory={[]}
         userId="u1"
         listBasePath={href}
@@ -108,7 +116,6 @@ describe("ClientProfileCard back link (scope)", () => {
     render(
       <ClientProfileCard
         profile={minimalProfile}
-        messageDraft={null}
         messageHistory={[]}
         userId="u1"
         listBasePath={href}
@@ -116,5 +123,70 @@ describe("ClientProfileCard back link (scope)", () => {
     );
     const link = screen.getByRole("link", { name: /к списку клиентов/i });
     expect(link).toHaveAttribute("href", href);
+  });
+
+  it("renders support chat CTA instead of legacy send form", async () => {
+    render(
+      <ClientProfileCard
+        profile={minimalProfile}
+        messageHistory={[]}
+        userId="00000000-0000-4000-8000-000000000111"
+        listBasePath="/app/doctor/clients?scope=all"
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: /коммуникации/i }));
+    expect(screen.getByRole("button", { name: /открыть чат/i })).toBeInTheDocument();
+    expect(screen.getByText(/единый чат поддержки/i)).toBeInTheDocument();
+    expect(screen.getByText(/старый журнал отправок/i)).toBeInTheDocument();
+  });
+
+  it("shows support chat unread badge on CTA", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify({ ok: true, unreadCount: 2 }))),
+    );
+
+    render(
+      <ClientProfileCard
+        profile={minimalProfile}
+        messageHistory={[]}
+        userId="00000000-0000-4000-8000-000000000111"
+        listBasePath="/app/doctor/clients?scope=all"
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: /коммуникации/i }));
+
+    expect(await screen.findByRole("button", { name: /открыть чат 2/i })).toBeInTheDocument();
+  });
+
+  it("shows a clear error when patient is missing during chat ensure", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.includes("/api/doctor/messages/conversations/unread-by-patient")) {
+          return new Response(JSON.stringify({ ok: true, unreadCount: 0 }));
+        }
+        if (url.includes("/api/doctor/messages/conversations/ensure")) {
+          return new Response(JSON.stringify({ ok: false, error: "patient_not_found" }), { status: 404 });
+        }
+        return new Response(JSON.stringify({ ok: true }));
+      }),
+    );
+
+    render(
+      <ClientProfileCard
+        profile={minimalProfile}
+        messageHistory={[]}
+        userId="00000000-0000-4000-8000-000000000111"
+        listBasePath="/app/doctor/clients?scope=all"
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: /коммуникации/i }));
+    await userEvent.click(screen.getByRole("button", { name: /открыть чат/i }));
+    expect(await screen.findByText("Пациент не найден, чат открыть нельзя.")).toBeInTheDocument();
   });
 });

@@ -2,10 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { ChatView } from "@/modules/messaging/components/ChatView";
-import { useMessagePolling } from "@/modules/messaging/hooks/useMessagePolling";
-import type { SerializedSupportMessage } from "@/modules/messaging/serializeSupportMessage";
+import { DoctorChatPanel } from "@/modules/messaging/components/DoctorChatPanel";
 
 type ConvRow = {
   conversationId: string;
@@ -14,64 +11,68 @@ type ConvRow = {
   lastMessageAt: string;
   lastMessageText: string | null;
   lastSenderRole: string | null;
+  unreadFromUserCount: number;
+  hasUnreadFromUser: boolean;
 };
+
+function formatConversationTime(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleString("ru-RU", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
 
 export function DoctorSupportInbox() {
   const [list, setList] = useState<ConvRow[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [messages, setMessages] = useState<SerializedSupportMessage[]>([]);
-  const [draft, setDraft] = useState("");
+  const [unreadOnly, setUnreadOnly] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const loadList = useCallback(async () => {
-    const res = await fetch("/api/doctor/messages/conversations");
-    const data = (await res.json()) as {
-      ok?: boolean;
-      conversations?: {
-        conversationId: string;
-        displayName: string;
-        phoneNormalized: string | null;
-        lastMessageAt: string;
-        lastMessageText: string | null;
-        lastSenderRole: string | null;
-      }[];
-    };
-    if (!res.ok || !data.ok || !data.conversations) {
-      setError("Не удалось загрузить диалоги");
-      return;
+    setError(null);
+    try {
+      const url = new URL("/api/doctor/messages/conversations", window.location.origin);
+      if (unreadOnly) url.searchParams.set("unread", "1");
+      const res = await fetch(url.toString());
+      const data = (await res.json()) as {
+        ok?: boolean;
+        conversations?: {
+          conversationId: string;
+          displayName: string;
+          phoneNormalized: string | null;
+          lastMessageAt: string;
+          lastMessageText: string | null;
+          lastSenderRole: string | null;
+          unreadFromUserCount?: number;
+          hasUnreadFromUser?: boolean;
+        }[];
+      };
+      if (!res.ok || !data.ok || !data.conversations) {
+        setError("Не удалось загрузить диалоги");
+        setList([]);
+        return;
+      }
+      const rows = data.conversations.map((c) => ({
+        conversationId: c.conversationId,
+        displayName: c.displayName,
+        phoneNormalized: c.phoneNormalized,
+        lastMessageAt: c.lastMessageAt,
+        lastMessageText: c.lastMessageText,
+        lastSenderRole: c.lastSenderRole,
+        unreadFromUserCount: c.unreadFromUserCount ?? 0,
+        hasUnreadFromUser: c.hasUnreadFromUser ?? (c.unreadFromUserCount ?? 0) > 0,
+      }));
+      setList(rows);
+    } catch {
+      setError("Ошибка сети при загрузке диалогов");
+      setList([]);
     }
-    const rows = data.conversations.map((c) => ({
-      conversationId: c.conversationId,
-      displayName: c.displayName,
-      phoneNormalized: c.phoneNormalized,
-      lastMessageAt: c.lastMessageAt,
-      lastMessageText: c.lastMessageText,
-      lastSenderRole: c.lastSenderRole,
-    }));
-    // 8.5.2: диалоги с последним сообщением от пользователя — сверху (требуют ответа)
-    rows.sort((a, b) => {
-      const aUser = a.lastSenderRole === "user" ? 0 : 1;
-      const bUser = b.lastSenderRole === "user" ? 0 : 1;
-      if (aUser !== bUser) return aUser - bUser;
-      return b.lastMessageAt.localeCompare(a.lastMessageAt);
-    });
-    setList(rows);
-  }, []);
-
-  const loadMessages = useCallback(async (conversationId: string) => {
-    const res = await fetch(`/api/doctor/messages/${encodeURIComponent(conversationId)}`);
-    const data = (await res.json()) as { ok?: boolean; messages?: SerializedSupportMessage[] };
-    if (!res.ok || !data.ok) {
-      setError("Не удалось загрузить сообщения");
-      return;
-    }
-    setMessages(data.messages ?? []);
-    await fetch(`/api/doctor/messages/${encodeURIComponent(conversationId)}/read`, {
-      method: "POST",
-    });
-  }, []);
+  }, [unreadOnly]);
 
   useEffect(() => {
     let cancelled = false;
@@ -88,61 +89,6 @@ export function DoctorSupportInbox() {
     };
   }, [loadList]);
 
-  useEffect(() => {
-    if (!selectedId) return;
-    void loadMessages(selectedId);
-  }, [selectedId, loadMessages]);
-
-  const lastCreatedAt = messages.length ? messages[messages.length - 1]!.createdAt : null;
-
-  const poll = useCallback(async () => {
-    if (!selectedId || !lastCreatedAt) return;
-    const u = new URL(`/api/doctor/messages/${encodeURIComponent(selectedId)}`, window.location.origin);
-    u.searchParams.set("since", lastCreatedAt);
-    const res = await fetch(u.toString());
-    const data = (await res.json()) as { ok?: boolean; messages?: SerializedSupportMessage[] };
-    if (!res.ok || !data.ok) return;
-    const incoming = data.messages ?? [];
-    if (incoming.length === 0) return;
-    setMessages((prev) => {
-      const ids = new Set(prev.map((m) => m.id));
-      const merged = [...prev];
-      for (const m of incoming) {
-        if (!ids.has(m.id)) merged.push(m);
-      }
-      merged.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-      return merged;
-    });
-  }, [selectedId, lastCreatedAt]);
-
-  useMessagePolling(poll, Boolean(selectedId && lastCreatedAt), 18000);
-
-  const send = async () => {
-    const t = draft.trim();
-    if (!t || !selectedId || sending) return;
-    setSending(true);
-    setError(null);
-    try {
-      const res = await fetch(`/api/doctor/messages/${encodeURIComponent(selectedId)}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: t }),
-      });
-      const data = (await res.json()) as { ok?: boolean };
-      if (!res.ok || !data.ok) {
-        setError("Не отправлено");
-        return;
-      }
-      setDraft("");
-      await loadMessages(selectedId);
-      await loadList();
-    } catch {
-      setError("Ошибка сети");
-    } finally {
-      setSending(false);
-    }
-  };
-
   if (loading) {
     return <p className="text-muted-foreground">Загрузка…</p>;
   }
@@ -150,11 +96,21 @@ export function DoctorSupportInbox() {
   return (
     <section id="doctor-support-inbox" className="flex flex-col gap-4">
       <h2 className="text-lg font-semibold">Поддержка (чат)</h2>
+      <div className="flex flex-wrap gap-2" aria-label="Фильтр диалогов">
+        <Button type="button" size="sm" variant={!unreadOnly ? "default" : "outline"} onClick={() => setUnreadOnly(false)}>
+          Все
+        </Button>
+        <Button type="button" size="sm" variant={unreadOnly ? "default" : "outline"} onClick={() => setUnreadOnly(true)}>
+          Непрочитанные
+        </Button>
+      </div>
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
       <div className="grid gap-4 md:grid-cols-[minmax(0,220px)_1fr]">
         <ul className="space-y-1 border border-border/60 rounded-lg p-2 max-h-[60vh] overflow-y-auto">
           {list.length === 0 ? (
-            <li className="text-sm text-muted-foreground px-2 py-2">Нет открытых диалогов</li>
+            <li className="text-sm text-muted-foreground px-2 py-2">
+              {unreadOnly ? "Нет непрочитанных диалогов" : "Нет открытых диалогов"}
+            </li>
           ) : (
             list.map((c) => (
               <li key={c.conversationId}>
@@ -168,14 +124,35 @@ export function DoctorSupportInbox() {
                   }
                   onClick={() => {
                     setSelectedId(c.conversationId);
-                    setMessages([]);
                   }}
                 >
-                  <span className="block w-full truncate font-medium">{c.displayName || "Без имени"}</span>
+                  <span className="flex w-full items-center justify-between gap-2">
+                    <span className="truncate font-medium">{c.displayName || "Без имени"}</span>
+                    <span className="flex shrink-0 items-center gap-1.5">
+                      <span className="text-[10px] text-muted-foreground">{formatConversationTime(c.lastMessageAt)}</span>
+                      {c.unreadFromUserCount > 0 ? (
+                        <span className="rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-semibold text-primary-foreground">
+                          {c.unreadFromUserCount}
+                        </span>
+                      ) : null}
+                    </span>
+                  </span>
+                  <span className="block w-full truncate text-xs text-muted-foreground">
+                    {c.phoneNormalized ? `Телефон: ${c.phoneNormalized}` : "Телефон не указан"}
+                  </span>
                   <span className="block w-full text-xs text-muted-foreground">
-                    {c.lastSenderRole === "user" ? "Пациент · " : ""}
+                    {c.hasUnreadFromUser ? "Пациент · " : c.lastSenderRole === "user" ? "Пациент · " : ""}
                     {(c.lastMessageText ?? "").slice(0, 80)}
                     {(c.lastMessageText?.length ?? 0) > 80 ? "…" : ""}
+                  </span>
+                  <span className="block w-full text-[11px] text-muted-foreground/90">
+                    {c.phoneNormalized ? `Телефон: ${c.phoneNormalized}` : "Телефон не указан"} ·{" "}
+                    {new Date(c.lastMessageAt).toLocaleString("ru-RU", {
+                      day: "2-digit",
+                      month: "2-digit",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
                   </span>
                 </Button>
               </li>
@@ -186,26 +163,11 @@ export function DoctorSupportInbox() {
           {!selectedId ? (
             <p className="text-muted-foreground text-sm">Выберите диалог слева</p>
           ) : (
-            <ChatView
-              variant="doctor"
-              messages={messages}
-              emptyText="Нет сообщений в этом диалоге."
-              composer={
-                <div className="mt-4 flex flex-col gap-2 border-t border-border pt-3">
-                  <Textarea
-                    className="min-h-[88px] resize-y"
-                    placeholder="Ответ…"
-                    value={draft}
-                    maxLength={4000}
-                    onChange={(e) => setDraft(e.target.value)}
-                    disabled={sending}
-                    aria-label="Текст ответа"
-                  />
-                  <Button type="button" onClick={() => void send()} disabled={sending || !draft.trim()}>
-                    {sending ? "Отправка…" : "Отправить"}
-                  </Button>
-                </div>
-              }
+            <DoctorChatPanel
+              key={selectedId}
+              conversationId={selectedId}
+              onReadStateChanged={loadList}
+              onSent={loadList}
             />
           )}
         </div>

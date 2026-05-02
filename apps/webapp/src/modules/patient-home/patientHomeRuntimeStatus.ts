@@ -177,12 +177,27 @@ export function isPatientHomeItemRuntimeResolvedOnHome(
       if (item.targetType === "content_section") {
         const slug = item.targetRef.trim();
         if (!slug || !ctx.patientVisibleSectionSlugs.has(slug)) return false;
+        const tax = ctx.sectionTaxonomyBySlug.get(slug);
+        if (!tax || !isPatientHomeContentSectionCandidateForBlock("subscription_carousel", tax)) return false;
         const req = ctx.sectionRequiresAuthBySlug.get(slug);
         return authOk(req, ctx.canViewAuthOnlyContent);
       }
       if (item.targetType === "content_page") {
         const slug = item.targetRef.trim();
         if (!slug || !ctx.existingPageSlugs.has(slug)) return false;
+        const secSlug = ctx.pageSectionByPageSlug.get(slug);
+        if (!secSlug) return false;
+        const tax = ctx.sectionTaxonomyBySlug.get(secSlug);
+        if (!tax) return false;
+        const sectionMap = new Map([[secSlug, tax]]);
+        const pagePick = {
+          slug,
+          section: secSlug,
+          isPublished: true,
+          archivedAt: null,
+          deletedAt: null,
+        };
+        if (!isPatientHomeContentPageCandidateForBlock("subscription_carousel", pagePick, sectionMap)) return false;
         const req = ctx.pageRequiresAuthBySlug.get(slug);
         return authOk(req, ctx.canViewAuthOnlyContent);
       }

@@ -1,8 +1,15 @@
 import { describe, expect, it, beforeEach } from "vitest";
+import {
+  ExerciseArchiveAlreadyArchivedError,
+  ExerciseArchiveNotFoundError,
+  UsageConfirmationRequiredError,
+} from "./errors";
 import { createLfkExercisesService } from "./service";
+import { EMPTY_EXERCISE_USAGE_SNAPSHOT } from "./types";
 import {
   inMemoryLfkExercisesPort,
   resetInMemoryLfkExercisesStore,
+  seedInMemoryExerciseUsageSnapshot,
 } from "@/infra/repos/inMemoryLfkExercises";
 
 describe("lfk-exercises service", () => {
@@ -52,5 +59,56 @@ describe("lfk-exercises service", () => {
     expect(listed.some((e) => e.id === ex.id)).toBe(false);
     const all = await svc.listExercises({ includeArchived: true });
     expect(all.find((e) => e.id === ex.id)?.isArchived).toBe(true);
+  });
+
+  it("getExerciseUsage delegates to port snapshot", async () => {
+    const port = inMemoryLfkExercisesPort;
+    const ex = await port.create({ title: "U" }, null);
+    seedInMemoryExerciseUsageSnapshot(ex.id, {
+      ...EMPTY_EXERCISE_USAGE_SNAPSHOT,
+      publishedLfkComplexTemplateCount: 2,
+    });
+    const svc = createLfkExercisesService(port);
+    const u = await svc.getExerciseUsage(ex.id);
+    expect(u.publishedLfkComplexTemplateCount).toBe(2);
+  });
+
+  it("archiveExercise requires acknowledgement when blocking usage exists", async () => {
+    const port = inMemoryLfkExercisesPort;
+    const ex = await port.create({ title: "Y" }, null);
+    seedInMemoryExerciseUsageSnapshot(ex.id, {
+      ...EMPTY_EXERCISE_USAGE_SNAPSHOT,
+      activeTreatmentProgramInstanceCount: 1,
+    });
+    const svc = createLfkExercisesService(port);
+    await expect(svc.archiveExercise(ex.id)).rejects.toBeInstanceOf(UsageConfirmationRequiredError);
+  });
+
+  it("archiveExercise succeeds with acknowledgement when blocking usage exists", async () => {
+    const port = inMemoryLfkExercisesPort;
+    const ex = await port.create({ title: "Z" }, null);
+    seedInMemoryExerciseUsageSnapshot(ex.id, {
+      ...EMPTY_EXERCISE_USAGE_SNAPSHOT,
+      publishedTreatmentProgramTemplateCount: 1,
+    });
+    const svc = createLfkExercisesService(port);
+    await svc.archiveExercise(ex.id, { acknowledgeUsageWarning: true });
+    const all = await svc.listExercises({ includeArchived: true });
+    expect(all.find((e) => e.id === ex.id)?.isArchived).toBe(true);
+  });
+
+  it("archiveExercise throws ExerciseArchiveNotFoundError for unknown id", async () => {
+    const svc = createLfkExercisesService(inMemoryLfkExercisesPort);
+    await expect(svc.archiveExercise("00000000-0000-4000-8000-000000000001")).rejects.toBeInstanceOf(
+      ExerciseArchiveNotFoundError,
+    );
+  });
+
+  it("archiveExercise throws ExerciseArchiveAlreadyArchivedError when already archived", async () => {
+    const port = inMemoryLfkExercisesPort;
+    const ex = await port.create({ title: "Archived twice" }, null);
+    const svc = createLfkExercisesService(port);
+    await svc.archiveExercise(ex.id);
+    await expect(svc.archiveExercise(ex.id)).rejects.toBeInstanceOf(ExerciseArchiveAlreadyArchivedError);
   });
 });

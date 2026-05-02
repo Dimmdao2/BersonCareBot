@@ -8,6 +8,7 @@ import { AppShell } from "@/shared/ui/AppShell";
 import { DataLoadFailureNotice } from "@/shared/ui/DataLoadFailureNotice";
 import type { ContentSectionRow } from "@/modules/content-sections/ports";
 import { isSystemParentCode, SYSTEM_PARENT_CODES } from "@/modules/content-sections/types";
+import { AttachExistingSectionsModal } from "./AttachExistingSectionsModal";
 import { ContentPagesSectionList, type ContentPageListRow } from "./ContentPagesSectionList";
 import { ContentPagesSidebar } from "./ContentPagesSidebar";
 
@@ -81,6 +82,9 @@ export default async function DoctorContentPage({ searchParams }: Props) {
       : null);
 
   const articleSections = sections.filter((s) => s.kind === "article").map((s) => ({ slug: s.slug, title: s.title }));
+  const freeSectionsSortedForAttach = [...articleSections].sort((a, b) =>
+    a.title.localeCompare(b.title, "ru"),
+  );
 
   const articlePages = pages.filter((p) => isArticlePage(p, sections));
   const groupedArticle = groupBySection(articlePages);
@@ -123,15 +127,13 @@ export default async function DoctorContentPage({ searchParams }: Props) {
     mainHeading = sectionTitleBySlug.get(activeSectionSlug) ?? activeSectionSlug;
   }
 
+  /** На корне системной папки (?systemParentCode без ?section) страницу не создаём — только разделы. */
+  const isSystemFolderRoot = validSystemParent !== undefined && activeSectionSlug === null;
+  const showCreatePageButton = !isSystemFolderRoot;
+
   let createPageHref = "/app/doctor/content/new";
   if (activeSectionSlug !== null) {
     createPageHref = `/app/doctor/content/new?section=${encodeURIComponent(activeSectionSlug)}`;
-  } else if (validSystemParent !== undefined) {
-    if (folderChildSections.length > 0) {
-      createPageHref = `/app/doctor/content/new?section=${encodeURIComponent(folderChildSections[0]!.slug)}`;
-    } else {
-      createPageHref = `/app/doctor/content/sections/new?systemParentCode=${encodeURIComponent(validSystemParent)}`;
-    }
   }
 
   const isDev = process.env.NODE_ENV === "development";
@@ -140,7 +142,7 @@ export default async function DoctorContentPage({ searchParams }: Props) {
     return (
       <AppShell title="Контент" user={session.user} variant="doctor">
         <PageSection id="doctor-content-section" as="section" className="flex flex-col gap-4">
-          <div className="flex flex-col gap-4 md:flex-row md:items-start md:gap-6">
+          <div className="flex flex-col gap-4 md:flex-row md:items-start md:gap-4">
             <ContentPagesSidebar
               articleSections={[]}
               highlightArticleSlug={null}
@@ -161,7 +163,7 @@ export default async function DoctorContentPage({ searchParams }: Props) {
   return (
     <AppShell title="Контент" user={session.user} variant="doctor">
       <PageSection id="doctor-content-section" as="section" className="flex flex-col gap-4">
-        <div className="flex flex-col gap-4 md:flex-row md:items-start md:gap-6">
+        <div className="flex flex-col gap-4 md:flex-row md:items-start md:gap-4">
           <ContentPagesSidebar
             articleSections={articleSections}
             highlightArticleSlug={highlightArticleSlug}
@@ -172,16 +174,24 @@ export default async function DoctorContentPage({ searchParams }: Props) {
               <h2 className="m-0 text-lg font-semibold">{mainHeading}</h2>
               <div className="flex flex-wrap items-center gap-2">
                 {validSystemParent !== undefined && activeSectionSlug === null ? (
-                  <Link
-                    href={`/app/doctor/content/sections/new?systemParentCode=${encodeURIComponent(validSystemParent)}`}
-                    className={buttonVariants({ variant: "outline", size: "default" })}
-                  >
-                    Создать раздел
+                  <>
+                    <Link
+                      href={`/app/doctor/content/sections/new?systemParentCode=${encodeURIComponent(validSystemParent)}`}
+                      className={buttonVariants({ variant: "outline", size: "default" })}
+                    >
+                      Создать раздел
+                    </Link>
+                    <AttachExistingSectionsModal
+                      folderCode={validSystemParent}
+                      freeSections={freeSectionsSortedForAttach}
+                    />
+                  </>
+                ) : null}
+                {showCreatePageButton ? (
+                  <Link href={createPageHref} className={createPageBtnClass}>
+                    Создать страницу
                   </Link>
                 ) : null}
-                <Link href={createPageHref} className={createPageBtnClass}>
-                  Создать страницу
-                </Link>
               </div>
             </div>
 

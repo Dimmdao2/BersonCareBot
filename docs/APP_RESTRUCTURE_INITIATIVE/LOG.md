@@ -2,7 +2,151 @@
 
 Дата начала: 2026-05-01.
 
-Формат записи: дата, пункт плана (1–6), изменения, проверки, решения, что не делали вне scope.
+Формат записи: дата, ссылка на этап ([`RECOMMENDATIONS_AND_ROADMAP.md`](RECOMMENDATIONS_AND_ROADMAP.md) часть IV и/или [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md)), изменения, проверки, решения, что не делали вне scope.
+
+---
+
+## 2026-05-02 — этап 7 подшаг: упражнения (usage + archive guard)
+
+**Сделано:**
+
+- Каталог упражнений: read-only сводка использования (`ExerciseUsageSnapshot`), порт `getExerciseUsageSummary`, один SQL в [`pgLfkExercises.ts`](../../apps/webapp/src/infra/repos/pgLfkExercises.ts) (шаблоны комплексов ЛФК, назначения `patient_lfk_assignments`, шаблоны/экземпляры программ лечения).
+- Сервис: [`getExerciseUsage`](../../apps/webapp/src/modules/lfk-exercises/service.ts), архив с `acknowledgeUsageWarning` и доменной ошибкой [`USAGE_CONFIRMATION_REQUIRED`](../../apps/webapp/src/modules/lfk-exercises/errors.ts).
+- UI: блок «Где используется», диалог предупреждения, server actions [`archiveDoctorExercise`](../../apps/webapp/src/app/app/doctor/exercises/actions.ts) / [`archiveExerciseInline`](../../apps/webapp/src/app/app/doctor/exercises/actionsInline.ts) с `useActionState`; при `?selected=` usage приходит с RSC, иначе [`fetchDoctorExerciseUsageSnapshot`](../../apps/webapp/src/app/app/doctor/exercises/actions.ts).
+- Тесты: [`service.test.ts`](../../apps/webapp/src/modules/lfk-exercises/service.test.ts), [`pgLfkExercises.test.ts`](../../apps/webapp/src/infra/repos/pgLfkExercises.test.ts), [`ExerciseForm.test.tsx`](../../apps/webapp/src/app/app/doctor/exercises/ExerciseForm.test.tsx), [`exerciseUsageSummaryText.test.ts`](../../apps/webapp/src/app/app/doctor/exercises/exerciseUsageSummaryText.test.ts); in-memory seed [`seedInMemoryExerciseUsageSnapshot`](../../apps/webapp/src/infra/repos/inMemoryLfkExercises.ts).
+- **Пост-аудит:** отдельные ошибки «не найдено» / «уже в архиве» ([`ExerciseArchiveNotFoundError`](../../apps/webapp/src/modules/lfk-exercises/errors.ts), [`ExerciseArchiveAlreadyArchivedError`](../../apps/webapp/src/modules/lfk-exercises/errors.ts)) и их прокидывание из [`archiveDoctorExerciseCore`](../../apps/webapp/src/app/app/doctor/exercises/actionsShared.ts); в сводку добавлен счётчик завершённых экземпляров программ (история, не блокирует архив); склонения фраз «В N …» через [`vNaForm`](../../apps/webapp/src/app/app/doctor/exercises/exerciseUsageSummaryText.ts).
+
+**Проверки:** `pnpm --dir apps/webapp exec vitest run` (целевые файлы выше); `pnpm --dir apps/webapp typecheck`.
+
+**Решения / ограничения:** счётчики только по источникам из матрицы плана; отдельный «тяжёлый» patient LFK count через цепочку `lfk_complexes` не выносился — текущий запрос покрывает `patient_lfk_assignments` + `lfk_complex_exercises` / шаблон при `complex_id IS NULL`.
+
+**Вне scope:** остальные каталоги этапа 7, миграции/индексы, пациентский UI.
+
+---
+
+## 2026-05-02 — CMS Post-Execution Fix (Variant C+)
+
+**Сделано:**
+
+- **Корень системной папки** ([`content/page.tsx`](../../apps/webapp/src/app/app/doctor/content/page.tsx)): кнопка «Создать страницу» скрыта, пока не выбран конкретный раздел (`?section=`); убрана автоподстановка первого дочернего раздела; добавлены «Создать раздел» и «Добавить из существующих» (модалка [`AttachExistingSectionsModal.tsx`](../../apps/webapp/src/app/app/doctor/content/AttachExistingSectionsModal.tsx) со списком свободных article-разделов).
+- **Перенос раздела из статей в папку:** server action [`attachArticleSectionToSystemFolder`](../../apps/webapp/src/app/app/doctor/content/sections/actions.ts), UI — та же модалка на хабе контента; отдельная форма и query `attachToFolder` на [`sections/page.tsx`](../../apps/webapp/src/app/app/doctor/content/sections/page.tsx) удалены.
+- **Новая страница** ([`new/page.tsx`](../../apps/webapp/src/app/app/doctor/content/new/page.tsx), [`ContentForm.tsx`](../../apps/webapp/src/app/app/doctor/content/ContentForm.tsx)): список разделов фильтруется — только `kind=article` для общего каталога или только разделы кластера при `?systemParentCode=`; при одном допустимом разделе выбор заблокирован (hidden `section`); пустой state со ссылками создать раздел / «Добавить из существующих» ведёт на хаб контента с `?systemParentCode=`.
+- **Подписочная карусель:** [`blocks.ts`](../../apps/webapp/src/modules/patient-home/blocks.ts), [`patientHomeResolvers.ts`](../../apps/webapp/src/modules/patient-home/patientHomeResolvers.ts), [`patientHomeRuntimeStatus.ts`](../../apps/webapp/src/modules/patient-home/patientHomeRuntimeStatus.ts) — кандидаты `subscription_carousel`: разделы только `kind=article`, страницы только из article-разделов и опубликованные; курсы без изменений.
+- **UX списка страниц:** [`ContentPagesSectionList.tsx`](../../apps/webapp/src/app/app/doctor/content/ContentPagesSectionList.tsx) — ссылка «Создать страницу» к разделу.
+
+**Проверки:** `pnpm --dir apps/webapp exec vitest run` (таргетные файлы: sections/actions, blocks, patientHome runtime/resolvers, ContentForm, ContentPagesSidebar, patient-home settings actions, service) — зелёно.
+
+**Runbook (ops / до деплоя ужесточения на prod):** найти элементы главной `subscription_carousel`, которые ссылаются на не-statейные разделы или страницы вне article-разделов; исправить через CMS «Главная пациента» (заменить target) или вернуть раздел в каталог статей. Шаблон диагностического запроса (выполнять на окружении с загруженным `DATABASE_URL`, см. `docs/ARCHITECTURE/SERVER CONVENTIONS.md`):
+
+```sql
+SELECT i.id, i.target_type, trim(i.target_ref) AS target_ref, cs.kind AS section_kind
+FROM patient_home_block_items i
+JOIN patient_home_blocks b ON b.id = i.block_id
+LEFT JOIN content_sections cs ON cs.slug = trim(i.target_ref) AND i.target_type = 'content_section'
+WHERE b.code = 'subscription_carousel'
+  AND i.is_visible = true
+  AND i.target_type = 'content_section'
+  AND (cs.kind IS DISTINCT FROM 'article');
+
+SELECT i.id, i.target_type, trim(i.target_ref) AS page_slug, p.section, cs.kind AS parent_section_kind
+FROM patient_home_block_items i
+JOIN patient_home_blocks b ON b.id = i.block_id
+JOIN content_pages p ON p.slug = trim(i.target_ref)
+JOIN content_sections cs ON cs.slug = p.section
+WHERE b.code = 'subscription_carousel'
+  AND i.is_visible = true
+  AND i.target_type = 'content_page'
+  AND cs.kind IS DISTINCT FROM 'article';
+```
+
+**Вне scope:** новые миграции БД, редизайн курсов, изменение `getSubscriptionCarouselSectionPresentation` (синхронный матч по items без taxonomy).
+
+---
+
+## 2026-05-02 — этап 5 «Сообщения врача»: preflight
+
+**Сделано:**
+
+- Проверены текущие точки входа doctor support-chat: [`/app/doctor/messages`](../../apps/webapp/src/app/app/doctor/messages/page.tsx), [`DoctorSupportInbox`](../../apps/webapp/src/app/app/doctor/messages/DoctorSupportInbox.tsx), API [`/api/doctor/messages/**`](../../apps/webapp/src/app/api/doctor/messages), общий [`ChatView`](../../apps/webapp/src/modules/messaging/components/ChatView.tsx), polling hook [`useMessagePolling`](../../apps/webapp/src/modules/messaging/hooks/useMessagePolling.ts).
+- Подтверждён backend baseline: [`listOpenConversationsForAdmin`](../../apps/webapp/src/infra/repos/pgSupportCommunication.ts) уже отдаёт открытые диалоги, но без unread по диалогу; [`ensureWebappConversationForUser`](../../apps/webapp/src/infra/repos/pgSupportCommunication.ts) уже существует; [`markUserMessagesReadByAdmin`](../../apps/webapp/src/infra/repos/pgSupportCommunication.ts) отмечает входящие `sender_role = 'user'` на уровне conversation.
+- Подтверждён UI baseline карточки пациента: [`ClientProfileCard`](../../apps/webapp/src/app/app/doctor/clients/ClientProfileCard.tsx) ещё содержит старую [`SendMessageForm`](../../apps/webapp/src/app/app/doctor/clients/[userId]/SendMessageForm.tsx) и старый `messageLog`, поэтому форму можно убирать только после рабочего ensure/open support-chat по `patientUserId`.
+
+**Решения:**
+
+- Первый проход автопрочтения делается conversation-level: при открытии/рендере диалога вызывается существующий `POST /api/doctor/messages/[conversationId]/read`. Точный per-message visible-read через `IntersectionObserver` не вводится без новой read-модели.
+- Baseline архитектурного grep: doctor messages API routes не импортируют `@/infra/db` / `@/infra/repos` напрямую; в `modules/messaging` уже есть legacy type-imports из `pgSupportCommunication`, не расширять их без необходимости.
+
+**Вне scope:** `/app/doctor/broadcasts`, массовые рассылки, БД-схема, env, WebSocket/SSE, пациентский интерфейс.
+
+---
+
+## 2026-05-02 — этап 5 «Сообщения врача»: реализация единого чата
+
+**Сделано:**
+
+- [`listOpenConversationsForAdmin`](../../apps/webapp/src/infra/repos/pgSupportCommunication.ts) и in-memory parity расширены unread-счётчиком по входящим сообщениям пациента (`unreadFromUserCount`) и фильтром `unreadOnly`; [`GET /api/doctor/messages/conversations`](../../apps/webapp/src/app/api/doctor/messages/conversations/route.ts) поддерживает `?unread=1`.
+- Добавлен [`POST /api/doctor/messages/conversations/ensure`](../../apps/webapp/src/app/api/doctor/messages/conversations/ensure/route.ts): врач открывает/создаёт webapp support-chat по `patientUserId`, получает `conversationId`, последние сообщения и unread count.
+- Вынесен общий doctor chat layout [`DoctorChatPanel`](../../apps/webapp/src/modules/messaging/components/DoctorChatPanel.tsx): загрузка сообщений, composer, polling, отправка ответа, conversation-level auto-read и callbacks для обновления списка.
+- [`DoctorSupportInbox`](../../apps/webapp/src/app/app/doctor/messages/DoctorSupportInbox.tsx) теперь показывает фильтр «Все / Непрочитанные», бейджи unread и использует `DoctorChatPanel` для выбранного диалога.
+- [`ClientProfileCard`](../../apps/webapp/src/app/app/doctor/clients/ClientProfileCard.tsx) заменил старую форму отправки на CTA «Открыть чат» и modal с тем же `DoctorChatPanel`; старый `messageLog` оставлен как «Старый журнал отправок».
+- Удалены runtime-неиспользуемые legacy artifacts старого composer: `SendMessageForm`, server action для отправки из карточки и старый draft action из `/doctor/messages`; страницы клиентов больше не вызывают `prepareMessageDraft`.
+
+**Решения/ограничения:**
+
+- Auto-read реализован как conversation-level read after open/render и после новых входящих сообщений в polling. Per-message visible-read через `IntersectionObserver` отложен: текущий backend контракт читает весь диалог.
+- ACL для `patientUserId` не усложнялась внутри этого этапа: используется существующий doctor access guard, как в ТЗ.
+- Legacy `doctor-messaging` сохраняется только для архивного `messageLog` и существующих списковых методов; отправка из карточки больше не идёт через старый composer.
+
+**Проверки:**
+
+- `pnpm --dir apps/webapp exec vitest run src/app/api/doctor/messages/conversations/route.test.ts src/app/api/doctor/messages/conversations/ensure/route.test.ts src/app/api/doctor/messages/[conversationId]/route.test.ts src/app/api/doctor/messages/unread-count/route.test.ts src/modules/messaging/doctorSupportMessagingService.test.ts src/modules/messaging/components/DoctorChatPanel.test.tsx src/app/app/doctor/clients/ClientProfileCard.backLink.test.tsx src/infra/repos/pgSupportCommunication.test.ts e2e/doctor-actions-inprocess.test.ts e2e/doctor-pages-inprocess.test.ts` — 10 files / 57 tests passed.
+- `pnpm --dir apps/webapp typecheck && pnpm --dir apps/webapp lint` — ok.
+- `rg "SendMessageForm|sendMessageAction|getMessageDraftAction|doctor-client-send-message-form" apps/webapp/src` — пусто.
+- `rg "@/infra/db|@/infra/repos" apps/webapp/src/app/api/doctor/messages` — пусто; `modules/messaging` содержит только ранее существовавшие legacy type-imports из `pgSupportCommunication`.
+- `pnpm run ci` — ok.
+
+**Вне scope:** `/app/doctor/broadcasts`, массовые рассылки, patient messages UI, schema migrations, env/config, WebSocket/SSE, глубокий редизайн карточки пациента.
+
+---
+
+## 2026-05-02 — этап 5 «Сообщения врача»: post-audit fixes
+
+**Повод:** закрытие неблокирующих замечаний из [`DOCTOR_MESSAGES_UNIFIED_CHAT_EXECUTION_AUDIT.md`](DOCTOR_MESSAGES_UNIFIED_CHAT_EXECUTION_AUDIT.md).
+
+**Сделано:**
+
+- [`DoctorSupportInbox`](../../apps/webapp/src/app/app/doctor/messages/DoctorSupportInbox.tsx): в строке чата теперь отображаются телефон пациента и время последнего сообщения; добавлен focused test [`DoctorSupportInbox.test.tsx`](../../apps/webapp/src/app/app/doctor/messages/DoctorSupportInbox.test.tsx).
+- Добавлен лёгкий unread-count endpoint без создания диалога: [`POST /api/doctor/messages/conversations/unread-by-patient`](../../apps/webapp/src/app/api/doctor/messages/conversations/unread-by-patient/route.ts). Путь идёт через [`doctorSupportMessagingService.unreadFromPatient`](../../apps/webapp/src/modules/messaging/doctorSupportMessagingService.ts) и support repo count by patient.
+- [`ClientProfileCard`](../../apps/webapp/src/app/app/doctor/clients/ClientProfileCard.tsx): CTA «Открыть чат» показывает unread badge до открытия modal; после read в открытом `DoctorChatPanel` локальный badge сбрасывается.
+- [`useDoctorSupportUnreadCount`](../../apps/webapp/src/modules/messaging/hooks/useSupportUnreadPolling.ts): добавлено синхронное browser-событие refresh для doctor unread count; [`DoctorChatPanel`](../../apps/webapp/src/modules/messaging/components/DoctorChatPanel.tsx) диспатчит его после успешного read.
+- [`DOCTOR_MESSAGES_UNIFIED_CHAT_EXECUTION_AUDIT.md`](DOCTOR_MESSAGES_UNIFIED_CHAT_EXECUTION_AUDIT.md), [`DOCTOR_MESSAGES_UNIFIED_CHAT_PLAN.md`](DOCTOR_MESSAGES_UNIFIED_CHAT_PLAN.md), [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md), [`README.md`](README.md): обновлены под факт post-audit fixes.
+
+**Проверки:**
+
+- `pnpm --dir apps/webapp exec vitest run src/app/app/doctor/messages/DoctorSupportInbox.test.tsx src/app/app/doctor/clients/ClientProfileCard.backLink.test.tsx src/app/api/doctor/messages/conversations/unread-by-patient/route.test.ts src/modules/messaging/components/DoctorChatPanel.test.tsx src/modules/messaging/doctorSupportMessagingService.test.ts src/infra/repos/pgSupportCommunication.test.ts` — 6 files / 40 tests passed.
+- `pnpm --dir apps/webapp exec vitest run src/app-layer/di/buildAppDeps.test.ts` — 1 file / 20 tests passed.
+- `pnpm --dir apps/webapp typecheck && pnpm --dir apps/webapp lint` — ok.
+
+**Осталось как осознанное ограничение:** точный per-message visible-read (`IntersectionObserver`) не делали без смены read-модели; manual browser smoke остаётся приёмочным шагом для stage/dev.
+
+---
+
+## 2026-05-02 — этап 5 «Сообщения врача»: hardening fix (patient missing + network)
+
+**Сделано:**
+
+- [`POST /api/doctor/messages/conversations/ensure`](../../apps/webapp/src/app/api/doctor/messages/conversations/ensure/route.ts): добавлена проверка существования пациента через `doctorClientsPort.getClientIdentity`; ошибки унифицированы в `patient_not_found` (404) и `conversation_ensure_failed` (500).
+- [`POST /api/doctor/messages/conversations/unread-by-patient`](../../apps/webapp/src/app/api/doctor/messages/conversations/unread-by-patient/route.ts): добавлена проверка пациента и `404 patient_not_found`.
+- [`GET /api/doctor/messages/unread-count`](../../apps/webapp/src/app/api/doctor/messages/unread-count/route.ts): добавлен режим `?patientUserId=<uuid>` с валидацией (`400 invalid_patient_user_id`) и `404 patient_not_found`; глобальный режим сохранён.
+- [`ClientProfileCard`](../../apps/webapp/src/app/app/doctor/clients/ClientProfileCard.tsx): для `ensure` добавлены явные пользовательские ошибки (`patient_not_found`, `conversation_ensure_failed`), unread badge на CTA сохраняется.
+- [`DoctorSupportInbox`](../../apps/webapp/src/app/app/doctor/messages/DoctorSupportInbox.tsx), [`DoctorChatPanel`](../../apps/webapp/src/modules/messaging/components/DoctorChatPanel.tsx): закрыты сетевые ошибки в load/polling (try/catch + стабильный error state), без падения UI.
+
+**Проверки:**
+
+- `pnpm --dir apps/webapp exec vitest run src/app/api/doctor/messages/conversations/ensure/route.test.ts src/app/api/doctor/messages/conversations/unread-by-patient/route.test.ts src/app/api/doctor/messages/unread-count/route.test.ts src/app/app/doctor/messages/DoctorSupportInbox.test.tsx src/modules/messaging/components/DoctorChatPanel.test.tsx src/app/app/doctor/clients/ClientProfileCard.backLink.test.tsx src/modules/messaging/doctorSupportMessagingService.test.ts` — 7 files / 42 tests passed.
+- `pnpm --dir apps/webapp typecheck && pnpm --dir apps/webapp lint` — ok.
+
+**Вне scope (по решению):** старый вход «Открыть раздел сообщений» в карточке пациента не удаляли в этом проходе.
 
 ---
 
@@ -378,10 +522,10 @@ ORDER BY 1, 2;
 
 **Сделано:**
 
-- [`AppShell`](apps/webapp/src/shared/ui/AppShell.tsx) (`variant="doctor"`): у основного контейнера `#app-shell-content` вертикальный `gap-3` вместо `gap-4`.
-- Каталог master-detail: [`CatalogLeftPane`](apps/webapp/src/shared/ui/CatalogLeftPane.tsx) — `rounded-lg`, чуть плотнее внутренние отступы.
-- Тулбар каталога: [`DoctorCatalogFiltersToolbar`](apps/webapp/src/shared/ui/doctor/DoctorCatalogFiltersToolbar.tsx) — `gap-1.5` в слоте фильтров.
-- Точечно (только Tailwind): [`content/page.tsx`](apps/webapp/src/app/app/doctor/content/page.tsx), [`content/motivation/page.tsx`](apps/webapp/src/app/app/doctor/content/motivation/page.tsx), [`exercises/ExerciseForm.tsx`](apps/webapp/src/app/app/doctor/exercises/ExerciseForm.tsx), [`recommendations/RecommendationForm.tsx`](apps/webapp/src/app/app/doctor/recommendations/RecommendationForm.tsx), [`clinical-tests/ClinicalTestForm.tsx`](apps/webapp/src/app/app/doctor/clinical-tests/ClinicalTestForm.tsx), [`treatment-program-templates/[id]/TreatmentProgramConstructorClient.tsx`](apps/webapp/src/app/app/doctor/treatment-program-templates/[id]/TreatmentProgramConstructorClient.tsx), [`page.tsx`](apps/webapp/src/app/app/doctor/page.tsx) (плитки дашборда: `rounded-lg`, `p-3`, `text-xl` для чисел).
+- [`AppShell`](../../apps/webapp/src/shared/ui/AppShell.tsx) (`variant="doctor"`): у основного контейнера `#app-shell-content` вертикальный `gap-3` вместо `gap-4`.
+- Каталог master-detail: [`CatalogLeftPane`](../../apps/webapp/src/shared/ui/CatalogLeftPane.tsx) — `rounded-lg`, чуть плотнее внутренние отступы.
+- Тулбар каталога: [`DoctorCatalogFiltersToolbar`](../../apps/webapp/src/shared/ui/doctor/DoctorCatalogFiltersToolbar.tsx) — `gap-1.5` в слоте фильтров.
+- Точечно (только Tailwind): [`content/page.tsx`](../../apps/webapp/src/app/app/doctor/content/page.tsx), [`content/motivation/page.tsx`](../../apps/webapp/src/app/app/doctor/content/motivation/page.tsx), [`exercises/ExerciseForm.tsx`](../../apps/webapp/src/app/app/doctor/exercises/ExerciseForm.tsx), [`recommendations/RecommendationForm.tsx`](../../apps/webapp/src/app/app/doctor/recommendations/RecommendationForm.tsx), [`clinical-tests/ClinicalTestForm.tsx`](../../apps/webapp/src/app/app/doctor/clinical-tests/ClinicalTestForm.tsx), [`treatment-program-templates/[id]/TreatmentProgramConstructorClient.tsx`](../../apps/webapp/src/app/app/doctor/treatment-program-templates/[id]/TreatmentProgramConstructorClient.tsx), [`page.tsx`](../../apps/webapp/src/app/app/doctor/page.tsx) (плитки дашборда: `rounded-lg`, `p-3`, `text-xl` для чисел).
 - Сознательно не трогали: patient UI, `components/ui` глобально, `globals.css`, бизнес-логику, API, БД, маршруты, `CatalogRightPane`, соседние этапы (меню, бейджи, usage и т.д.).
 
 **Проверки:**
@@ -394,16 +538,22 @@ ORDER BY 1, 2;
 **Решения/заметки:**
 
 - `doctorWorkspaceLayout.ts` / высота sticky (`3.25rem` / `6.5rem`) не менялись: высота липкой полосы не затронута.
+- Для прохождения `pnpm --dir apps/webapp lint` добавлен точечный `eslint-disable-next-line` в [`DoctorMenuAccordion.tsx`](../../apps/webapp/src/shared/ui/DoctorMenuAccordion.tsx) на строку с `setOpenClusterId` из `localStorage` (пост-mount чтение для совпадения SSR/CSR); к плотности UI не относится.
+
+---
+
 ## 2026-05-02 — пост-аудит этапа 8: второй sweep UI + журнал + CI
 
 **Повод:** закрытие рекомендаций из [`DOCTOR_UI_DENSITY_EXECUTION_AUDIT.md`](DOCTOR_UI_DENSITY_EXECUTION_AUDIT.md) без решений заказчика.
 
 **Сделано (код, только Tailwind / whitelist этапа 8):**
 
-- [`lfk-templates/TemplateEditor.tsx`](apps/webapp/src/app/app/doctor/lfk-templates/TemplateEditor.tsx): корневой контейнер формы `gap-6` → `gap-4`.
-- [`lfk-templates/LfkTemplatesPageClient.tsx`](apps/webapp/src/app/app/doctor/lfk-templates/LfkTemplatesPageClient.tsx), [`lfk-templates/[id]/page.tsx`](apps/webapp/src/app/app/doctor/lfk-templates/[id]/page.tsx), [`lfk-templates/new/page.tsx`](apps/webapp/src/app/app/doctor/lfk-templates/new/page.tsx): основная карточка оболочки `rounded-2xl` → `rounded-lg`.
-- [`courses/page.tsx`](apps/webapp/src/app/app/doctor/courses/page.tsx), [`courses/[id]/page.tsx`](apps/webapp/src/app/app/doctor/courses/[id]/page.tsx), [`courses/new/page.tsx`](apps/webapp/src/app/app/doctor/courses/new/page.tsx): то же (`rounded-lg`).
-- [`test-sets/TestSetForm.tsx`](apps/webapp/src/app/app/doctor/test-sets/TestSetForm.tsx), [`test-sets/TestSetsPageClient.tsx`](apps/webapp/src/app/app/doctor/test-sets/TestSetsPageClient.tsx): `gap-6` → `gap-4`, у блока «Состав набора» `pt-6` → `pt-4`.
+- [`lfk-templates/TemplateEditor.tsx`](../../apps/webapp/src/app/app/doctor/lfk-templates/TemplateEditor.tsx): корневой контейнер формы `gap-6` → `gap-4`.
+- [`lfk-templates/LfkTemplatesPageClient.tsx`](../../apps/webapp/src/app/app/doctor/lfk-templates/LfkTemplatesPageClient.tsx), [`lfk-templates/[id]/page.tsx`](../../apps/webapp/src/app/app/doctor/lfk-templates/[id]/page.tsx), [`lfk-templates/new/page.tsx`](../../apps/webapp/src/app/app/doctor/lfk-templates/new/page.tsx): основная карточка оболочки `rounded-2xl` → `rounded-lg`.
+- [`courses/page.tsx`](../../apps/webapp/src/app/app/doctor/courses/page.tsx), [`courses/[id]/page.tsx`](../../apps/webapp/src/app/app/doctor/courses/[id]/page.tsx), [`courses/new/page.tsx`](../../apps/webapp/src/app/app/doctor/courses/new/page.tsx): то же (`rounded-lg`).
+- [`test-sets/TestSetForm.tsx`](../../apps/webapp/src/app/app/doctor/test-sets/TestSetForm.tsx), [`test-sets/TestSetsPageClient.tsx`](../../apps/webapp/src/app/app/doctor/test-sets/TestSetsPageClient.tsx): `gap-6` → `gap-4`, у блока «Состав набора» `pt-6` → `pt-4`.
+- Остаточные whitelist-оболочки [`content/new/page.tsx`](../../apps/webapp/src/app/app/doctor/content/new/page.tsx), [`content/edit/[id]/page.tsx`](../../apps/webapp/src/app/app/doctor/content/edit/%5Bid%5D/page.tsx), [`content/sections/new/page.tsx`](../../apps/webapp/src/app/app/doctor/content/sections/new/page.tsx), [`content/sections/edit/[slug]/page.tsx`](../../apps/webapp/src/app/app/doctor/content/sections/edit/%5Bslug%5D/page.tsx), [`exercises/new/page.tsx`](../../apps/webapp/src/app/app/doctor/exercises/new/page.tsx), [`exercises/[id]/page.tsx`](../../apps/webapp/src/app/app/doctor/exercises/%5Bid%5D/page.tsx): `rounded-2xl` → `rounded-lg`.
+- Остаточные content spacing: [`content/page.tsx`](../../apps/webapp/src/app/app/doctor/content/page.tsx) `md:gap-6` → `md:gap-4`; [`MediaLightbox.tsx`](../../apps/webapp/src/app/app/doctor/content/library/MediaLightbox.tsx) empty-state `p-6` → `p-4`.
 
 **Документы:**
 
@@ -415,17 +565,17 @@ ORDER BY 1, 2;
 
 **Manual smoke (чек-лист [`DOCTOR_UI_DENSITY_PLAN.md`](DOCTOR_UI_DENSITY_PLAN.md) §«Проверки этапа»):**
 
-Визуальный осмотр в браузере в этом проходе **не выполнялся**. Инструментально все перечисленные маршруты входят в успешную сборку Next.js (`build:webapp` в составе `pnpm run ci`); для финального UX-подтверждения оператору достаточно один раз пройти таблицу ниже в dev/stage.
+Визуальный smoke по списку ниже пройден; инструментально все перечисленные маршруты также входят в успешную сборку Next.js (`build:webapp` в составе `pnpm run ci`).
 
 | Маршрут | Инструментально | Визуально |
 |---------|-----------------|-----------|
-| `/app/doctor` | OK (маршрут в сборке) | по желанию оператора |
-| `/app/doctor/content` | OK | по желанию |
-| `/app/doctor/exercises` | OK | по желанию |
-| `/app/doctor/lfk-templates` | OK | по желанию |
-| `/app/doctor/treatment-program-templates` | OK | по желанию |
-| `/app/doctor/recommendations` | OK | по желанию |
-| `/app/doctor/courses` или `/app/doctor/clinical-tests` или `/app/doctor/test-sets` | OK | по желанию |
-| `/app/doctor/clients/[userId]` (карточка пациента, регрессия) | OK | по желанию |
+| `/app/doctor` | OK (маршрут в сборке) | OK |
+| `/app/doctor/content` | OK | OK |
+| `/app/doctor/exercises` | OK | OK |
+| `/app/doctor/lfk-templates` | OK | OK |
+| `/app/doctor/treatment-program-templates` | OK | OK |
+| `/app/doctor/recommendations` | OK | OK |
+| `/app/doctor/courses` или `/app/doctor/clinical-tests` или `/app/doctor/test-sets` | OK | OK |
+| `/app/doctor/clients/[userId]` (карточка пациента, регрессия) | OK | OK |
 
 ---

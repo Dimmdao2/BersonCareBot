@@ -70,3 +70,39 @@ export type UpdateExerciseInput = {
   tags?: string[] | null;
   media?: ExerciseMediaInput[] | null;
 };
+
+/** Read-only counters for doctor «где используется» / archive guard (упражнения). */
+export type ExerciseUsageSnapshot = {
+  publishedLfkComplexTemplateCount: number;
+  draftLfkComplexTemplateCount: number;
+  activePatientLfkAssignmentCount: number;
+  publishedTreatmentProgramTemplateCount: number;
+  draftTreatmentProgramTemplateCount: number;
+  activeTreatmentProgramInstanceCount: number;
+  /** Завершённые экземпляры программ (только сводка «в истории», не блокирует архив). */
+  completedTreatmentProgramInstanceCount: number;
+};
+
+export const EMPTY_EXERCISE_USAGE_SNAPSHOT: ExerciseUsageSnapshot = {
+  publishedLfkComplexTemplateCount: 0,
+  draftLfkComplexTemplateCount: 0,
+  activePatientLfkAssignmentCount: 0,
+  publishedTreatmentProgramTemplateCount: 0,
+  draftTreatmentProgramTemplateCount: 0,
+  activeTreatmentProgramInstanceCount: 0,
+  completedTreatmentProgramInstanceCount: 0,
+};
+
+/** Требуется явное подтверждение архивации (см. ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN). */
+export function exerciseArchiveRequiresAcknowledgement(u: ExerciseUsageSnapshot): boolean {
+  return (
+    u.publishedLfkComplexTemplateCount > 0 ||
+    u.activePatientLfkAssignmentCount > 0 ||
+    u.publishedTreatmentProgramTemplateCount > 0 ||
+    u.activeTreatmentProgramInstanceCount > 0
+  );
+}
+
+export type ArchiveExerciseOptions = {
+  acknowledgeUsageWarning?: boolean;
+};

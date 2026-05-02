@@ -24,7 +24,7 @@ describe("patient-home CMS taxonomy helpers", () => {
     );
   });
 
-  it("filters useful_post page candidates to published article sections", () => {
+  it("filters useful_post page candidates: article catalog, system folders except warmups/sos", () => {
     const pageOk = {
       slug: "a",
       section: "articles",
@@ -45,6 +45,14 @@ describe("patient-home CMS taxonomy helpers", () => {
     expect(
       isPatientHomeContentPageCandidateForBlock("useful_post", { ...pageOk, section: "warmups" }, sectionMap),
     ).toBe(false);
+
+    expect(
+      isPatientHomeContentPageCandidateForBlock("useful_post", { ...pageOk, section: "sos-x" }, sectionMap),
+    ).toBe(false);
+
+    expect(
+      isPatientHomeContentPageCandidateForBlock("useful_post", { ...pageOk, section: "sit-x" }, sectionMap),
+    ).toBe(true);
   });
 
   it("filters daily_warmup pages to warmups cluster", () => {
@@ -58,6 +66,38 @@ describe("patient-home CMS taxonomy helpers", () => {
     expect(isPatientHomeContentPageCandidateForBlock("daily_warmup", pageOk, sectionMap)).toBe(true);
     expect(
       isPatientHomeContentPageCandidateForBlock("daily_warmup", { ...pageOk, section: "articles" }, sectionMap),
+    ).toBe(false);
+  });
+
+  it("filters subscription_carousel section and page candidates to article taxonomy", () => {
+    expect(
+      isPatientHomeContentSectionCandidateForBlock("subscription_carousel", {
+        kind: "article",
+        systemParentCode: null,
+      }),
+    ).toBe(true);
+    expect(
+      isPatientHomeContentSectionCandidateForBlock("subscription_carousel", {
+        kind: "system",
+        systemParentCode: "situations",
+      }),
+    ).toBe(false);
+
+    const pageOk = {
+      slug: "p",
+      section: "articles",
+      isPublished: true,
+      archivedAt: null,
+      deletedAt: null,
+    };
+    const articleOnlyMap = new Map([["articles", { kind: "article" as const, systemParentCode: null }]]);
+    expect(isPatientHomeContentPageCandidateForBlock("subscription_carousel", pageOk, articleOnlyMap)).toBe(true);
+    expect(
+      isPatientHomeContentPageCandidateForBlock(
+        "subscription_carousel",
+        { ...pageOk, section: "warmups" },
+        sectionMap,
+      ),
     ).toBe(false);
   });
 });

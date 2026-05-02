@@ -26,10 +26,9 @@ export default async function DoctorClientProfilePage({
         ? "/app/doctor/clients?scope=archived"
         : "/app/doctor/clients?scope=appointments";
   const deps = buildAppDeps();
-  const [profile, messageDraft, messageHistory, publishedLfkTemplates, publishedTreatmentTemplates] =
+  const [profile, messageHistory, publishedLfkTemplates, publishedTreatmentTemplates] =
     await Promise.all([
       deps.doctorClients.getClientProfile(userId),
-      deps.doctorMessaging.prepareMessageDraft({ userId }),
       deps.doctorMessaging.listMessageHistory({ userId, pageSize: 10 }),
       deps.lfkTemplates.listTemplates({ status: "published" }),
       deps.treatmentProgram.listTemplates({ includeArchived: false, status: "published" }),
@@ -47,7 +46,6 @@ export default async function DoctorClientProfilePage({
     >
       <ClientProfileCard
         profile={profile}
-        messageDraft={messageDraft}
         messageHistory={messageHistory.items}
         userId={userId}
         listBasePath={listBasePath}

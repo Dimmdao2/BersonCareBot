@@ -167,6 +167,32 @@ describe("patientHomeResolvers", () => {
     expect(cards[0]!.badgeLabel).toBe("По подписке");
   });
 
+  it("resolveSubscriptionCarouselCards skips non-article sections", async () => {
+    const deps = {
+      contentSections: {
+        getBySlug: async () => ({
+          slug: "sit",
+          title: "S",
+          description: "",
+          isVisible: true,
+          requiresAuth: false,
+          iconImageUrl: null,
+          coverImageUrl: null,
+          kind: "system" as const,
+          systemParentCode: "situations" as const,
+        }),
+      },
+      contentPages: { getBySlug: async () => null },
+      courses: { getCourseForDoctor: async () => null },
+    };
+    const cards = await resolveSubscriptionCarouselCards(
+      [item({ id: "1", blockCode: "subscription_carousel", targetType: "content_section", targetRef: "sit" })],
+      deps,
+      true,
+    );
+    expect(cards).toHaveLength(0);
+  });
+
   it("resolveSosCard returns first visible resolved item", async () => {
     const deps = {
       contentSections: {

@@ -10,6 +10,7 @@ const { getSessionMock, listMock, buildAppDepsMock } = vi.hoisted(() => {
       messaging: {
         doctorSupport: {
           listOpenConversations: listMockInner,
+          ensureConversationForPatient: vi.fn(),
           getMessages: vi.fn(),
           sendAdminReply: vi.fn(),
           markUserMessagesRead: vi.fn(),
@@ -37,7 +38,7 @@ describe("GET /api/doctor/messages/conversations", () => {
 
   it("returns 401 without session", async () => {
     getSessionMock.mockResolvedValue(null);
-    const res = await GET();
+    const res = await GET(new Request("http://localhost/api/doctor/messages/conversations"));
     expect(res.status).toBe(401);
   });
 
@@ -45,7 +46,7 @@ describe("GET /api/doctor/messages/conversations", () => {
     getSessionMock.mockResolvedValue({
       user: { userId: "u1", role: "client", bindings: {} },
     });
-    const res = await GET();
+    const res = await GET(new Request("http://localhost/api/doctor/messages/conversations"));
     expect(res.status).toBe(403);
   });
 
@@ -65,12 +66,28 @@ describe("GET /api/doctor/messages/conversations", () => {
         phoneNormalized: "+7",
         lastMessageText: "Hi",
         lastSenderRole: "user",
+        unreadFromUserCount: 2,
       },
     ]);
-    const res = await GET();
+    const res = await GET(new Request("http://localhost/api/doctor/messages/conversations"));
     expect(res.status).toBe(200);
-    const data = (await res.json()) as { ok: boolean; conversations: unknown[] };
+    const data = (await res.json()) as {
+      ok: boolean;
+      conversations: { unreadFromUserCount: number; hasUnreadFromUser: boolean }[];
+    };
     expect(data.ok).toBe(true);
     expect(data.conversations).toHaveLength(1);
+    expect(data.conversations[0]?.unreadFromUserCount).toBe(2);
+    expect(data.conversations[0]?.hasUnreadFromUser).toBe(true);
+  });
+
+  it("passes unread=1 as unreadOnly to service", async () => {
+    getSessionMock.mockResolvedValue({
+      user: { userId: "d1", role: "doctor", bindings: {} },
+    });
+    listMock.mockResolvedValue([]);
+    const res = await GET(new Request("http://localhost/api/doctor/messages/conversations?unread=1"));
+    expect(res.status).toBe(200);
+    expect(listMock).toHaveBeenCalledWith({ limit: 50, unreadOnly: true });
   });
 });

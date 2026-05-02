@@ -173,7 +173,15 @@ export function ContentPagesSectionList({
     return (
       <div className="flex flex-col gap-2">
         {showSectionHeading ? (
-          <h3 className="m-0 text-base font-semibold">{sectionTitle}</h3>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h3 className="m-0 text-base font-semibold">{sectionTitle}</h3>
+            <Link
+              href={`/app/doctor/content/new?section=${encodeURIComponent(sectionSlug)}`}
+              className="text-sm font-medium text-primary underline-offset-4 hover:underline"
+            >
+              Создать страницу
+            </Link>
+          </div>
         ) : null}
         <p className="text-sm text-muted-foreground">Нет страниц в этом разделе.</p>
       </div>
@@ -182,7 +190,17 @@ export function ContentPagesSectionList({
 
   return (
     <div className="flex flex-col gap-2">
-      {showSectionHeading ? <h3 className="m-0 text-base font-semibold">{sectionTitle}</h3> : null}
+      {showSectionHeading ? (
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="m-0 text-base font-semibold">{sectionTitle}</h3>
+          <Link
+            href={`/app/doctor/content/new?section=${encodeURIComponent(sectionSlug)}`}
+            className="text-sm font-medium text-primary underline-offset-4 hover:underline"
+          >
+            Создать страницу
+          </Link>
+        </div>
+      ) : null}
       <DndContext id={dndContextId} sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
         <SortableContext items={sortIds} strategy={verticalListSortingStrategy}>
           <ul className="flex flex-col gap-2" aria-busy={pending}>

@@ -1,8 +1,9 @@
 # DOCTOR_MESSAGES_UNIFIED_CHAT_PLAN — этап 5: сообщения врача
 
 **Дата:** 2026-05-02.  
-**Статус:** ТЗ готово к исполнению отдельным проходом.  
-**Связанный общий план:** [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md), этап 5.
+**Статус:** выполнено; post-audit + hardening fixes закрыты 2026-05-02 (unread badge, patient-missing errors, network fallback).  
+**Связанный общий план:** [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md), этап 5.  
+**Audit/LOG:** [`DOCTOR_MESSAGES_UNIFIED_CHAT_EXECUTION_AUDIT.md`](DOCTOR_MESSAGES_UNIFIED_CHAT_EXECUTION_AUDIT.md), [`LOG.md`](LOG.md).
 
 ---
 
@@ -262,6 +263,17 @@ doctor page / client component
 ---
 
 ## Шаги исполнения
+
+**Статус шагов (факт 2026-05-02):**
+
+- [x] Шаг 0. Preflight
+- [x] Шаг 1. Conversation list + unread filter
+- [x] Шаг 2. Chat layout extraction
+- [x] Шаг 3. Modal opening from messages list
+- [x] Шаг 4. Open chat from patient card
+- [x] Шаг 5. Read behavior (conversation-level; limitation зафиксирован в `LOG.md`)
+- [x] Шаг 6. Удаление дубля отправки
+- [x] Шаг 7. Документация и лог
 
 ### Шаг 0. Preflight
 

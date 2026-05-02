@@ -24,7 +24,10 @@ export default async function DoctorContentSectionsPage() {
 
   const isDev = process.env.NODE_ENV === "development";
 
-  const initialSections = sections.map((s) => ({
+  /** Только каталог статей: разделы, перенесённые в системную папку CMS (`kind=system`), не показываем — они в дереве «Контент». */
+  const catalogSections = sections.filter((s) => s.kind === "article");
+
+  const initialSections = catalogSections.map((s) => ({
     id: s.id,
     slug: s.slug,
     title: s.title,

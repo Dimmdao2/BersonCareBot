@@ -5,14 +5,23 @@ import type {
   Exercise,
   ExerciseFilter,
   ExerciseMedia,
+  ExerciseUsageSnapshot,
   UpdateExerciseInput,
 } from "@/modules/lfk-exercises/types";
+import { EMPTY_EXERCISE_USAGE_SNAPSHOT } from "@/modules/lfk-exercises/types";
 
 const exercises = new Map<string, Exercise>();
+const usageByExerciseId = new Map<string, ExerciseUsageSnapshot>();
+
+/** Только для тестов: задать usage snapshot для упражнения (in-memory port). */
+export function seedInMemoryExerciseUsageSnapshot(id: string, snapshot: ExerciseUsageSnapshot): void {
+  usageByExerciseId.set(id, snapshot);
+}
 
 /** Только для тестов: очистить хранилище. */
 export function resetInMemoryLfkExercisesStore(): void {
   exercises.clear();
+  usageByExerciseId.clear();
 }
 
 function matchesFilter(ex: Exercise, f: ExerciseFilter): boolean {
@@ -110,5 +119,9 @@ export const inMemoryLfkExercisesPort: LfkExercisesPort = {
     if (!cur || cur.isArchived) return false;
     exercises.set(id, { ...cur, isArchived: true, updatedAt: new Date().toISOString() });
     return true;
+  },
+
+  async getExerciseUsageSummary(id: string): Promise<ExerciseUsageSnapshot> {
+    return usageByExerciseId.get(id) ?? { ...EMPTY_EXERCISE_USAGE_SNAPSHOT };
   },
 };

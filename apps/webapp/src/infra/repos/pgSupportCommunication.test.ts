@@ -160,6 +160,48 @@ describe("SupportCommunicationPort admin reads (in-memory)", () => {
     expect(list.some((c) => c.integratorConversationId === "conv-admin-open-1")).toBe(true);
   });
 
+  it("listOpenConversationsForAdmin includes unread user count and supports unreadOnly", async () => {
+    const { id } = await port.upsertConversationFromProjection({
+      integratorConversationId: "conv-admin-unread-1",
+      integratorUserId: "10",
+      source: "telegram",
+      adminScope: "support",
+      status: "open",
+      openedAt: "2025-01-01T10:00:00Z",
+      lastMessageAt: "2025-01-01T10:03:00Z",
+    });
+    await port.appendConversationMessageFromProjection({
+      integratorMessageId: "msg-admin-unread-1",
+      integratorConversationId: "conv-admin-unread-1",
+      senderRole: "user",
+      text: "Unread",
+      source: "telegram",
+      createdAt: "2025-01-01T10:03:00Z",
+    });
+
+    const list = await port.listOpenConversationsForAdmin({ limit: 50, unreadOnly: true });
+    const row = list.find((c) => c.integratorConversationId === "conv-admin-unread-1");
+
+    expect(row?.conversationId).toBe(id);
+    expect(row?.unreadFromUserCount).toBe(1);
+    expect(await port.countUnreadUserMessagesForAdminByConversation(id)).toBe(1);
+  });
+
+  it("counts unread user messages for admin by patient without ensuring a new conversation", async () => {
+    const patientUserId = "00000000-0000-4000-8000-000000000123";
+    const { id } = await port.ensureWebappConversationForUser(patientUserId);
+    await port.appendWebappMessage({
+      conversationId: id,
+      integratorMessageId: "msg-admin-unread-by-patient-1",
+      senderRole: "user",
+      text: "Unread from patient",
+      source: "webapp",
+      createdAt: "2025-01-01T10:04:00Z",
+    });
+
+    expect(await port.countUnreadUserMessagesForAdminByPatient(patientUserId)).toBeGreaterThanOrEqual(1);
+  });
+
   it("listOpenConversationsForAdmin excludes closed conversations", async () => {
     await port.upsertConversationFromProjection({
       integratorConversationId: "conv-admin-closed-1",

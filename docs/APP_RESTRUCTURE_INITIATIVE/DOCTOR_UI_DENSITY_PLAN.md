@@ -255,4 +255,4 @@ Manual smoke обязателен:
 
 Подробная сверка ТЗ, кода, [`LOG.md`](LOG.md) и пометок в мастер-плане: [`DOCTOR_UI_DENSITY_EXECUTION_AUDIT.md`](DOCTOR_UI_DENSITY_EXECUTION_AUDIT.md).
 
-**Кратко:** реализация и инструментальные проверки зафиксированы в [`LOG.md`](LOG.md); актуальное состояние сверки ТЗ/кода — [`DOCTOR_UI_DENSITY_EXECUTION_AUDIT.md`](DOCTOR_UI_DENSITY_EXECUTION_AUDIT.md). Визуальный smoke по маршрутам ТЗ остаётся на оператора при работе в dev/stage (таблица в журнале, пост-аудит этапа 8).
+**Кратко:** реализация, инструментальные проверки и visual smoke зафиксированы в [`LOG.md`](LOG.md); актуальное состояние сверки ТЗ/кода — [`DOCTOR_UI_DENSITY_EXECUTION_AUDIT.md`](DOCTOR_UI_DENSITY_EXECUTION_AUDIT.md).

@@ -94,9 +94,12 @@ export type PatientHomePagePickForRules = {
   deletedAt: string | null;
 };
 
+/** Территории блоков «Разминка дня» / SOS — страницы из этих кластеров не предлагаем для «Полезного поста». */
+const USEFUL_POST_EXCLUDED_SYSTEM_PARENTS = new Set<SystemParentCode>(["warmups", "sos"]);
+
 /**
  * Whether a `content_sections` row may appear in the picker / be saved as a target for this home block.
- * `subscription_carousel` keeps a permissive list (no extra taxonomy filter in this pass).
+ * `subscription_carousel`: только разделы каталога статей (`kind=article`).
  */
 export function isPatientHomeContentSectionCandidateForBlock(
   blockCode: PatientHomeBlockCode,
@@ -109,7 +112,7 @@ export function isPatientHomeContentSectionCandidateForBlock(
     return section.kind === "system" && section.systemParentCode === "sos";
   }
   if (blockCode === "subscription_carousel") {
-    return true;
+    return section.kind === "article" && section.systemParentCode == null;
   }
   return false;
 }
@@ -128,7 +131,16 @@ export function isPatientHomeContentPageCandidateForBlock(
 
   if (blockCode === "useful_post") {
     if (!page.isPublished || page.archivedAt != null || page.deletedAt != null) return false;
-    return sec.kind === "article";
+    if (sec.kind === "article") return true;
+    // После переноса раздела из каталога статей в системную папку CMS (`kind=system`) материал остаётся валидным
+    // для карточки, кроме зон, зарезервированных под другие блоки главной.
+    if (sec.kind === "system") {
+      if (sec.systemParentCode != null && USEFUL_POST_EXCLUDED_SYSTEM_PARENTS.has(sec.systemParentCode)) {
+        return false;
+      }
+      return true;
+    }
+    return false;
   }
   if (blockCode === "daily_warmup") {
     if (!page.isPublished || page.archivedAt != null || page.deletedAt != null) return false;
@@ -139,7 +151,8 @@ export function isPatientHomeContentPageCandidateForBlock(
     return sec.kind === "system" && sec.systemParentCode === "sos";
   }
   if (blockCode === "subscription_carousel") {
-    return true;
+    if (!page.isPublished || page.archivedAt != null || page.deletedAt != null) return false;
+    return sec.kind === "article" && sec.systemParentCode == null;
   }
   return false;
 }

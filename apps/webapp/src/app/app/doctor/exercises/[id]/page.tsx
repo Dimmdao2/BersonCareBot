@@ -14,6 +14,7 @@ export default async function DoctorExerciseEditPage({ params }: PageProps) {
   if (!exercise || exercise.isArchived) {
     notFound();
   }
+  const usage = await deps.lfkExercises.getExerciseUsage(exercise.id);
 
   return (
     <AppShell
@@ -22,8 +23,8 @@ export default async function DoctorExerciseEditPage({ params }: PageProps) {
       variant="doctor"
       backHref="/app/doctor/exercises"
     >
-      <section className="rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col gap-4">
-        <ExerciseForm exercise={exercise} />
+      <section className="rounded-lg border border-border bg-card p-4 shadow-sm flex flex-col gap-4">
+        <ExerciseForm exercise={exercise} externalUsageSnapshot={usage} />
       </section>
     </AppShell>
   );

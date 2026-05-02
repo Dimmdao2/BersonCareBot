@@ -4,15 +4,17 @@
  */
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { ChevronDown, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/components/ui/button-variants";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { ClientProfile } from "@/modules/doctor-clients/service";
+import { DoctorChatPanel } from "@/modules/messaging/components/DoctorChatPanel";
+import type { SerializedSupportMessage } from "@/modules/messaging/serializeSupportMessage";
 import { cn } from "@/lib/utils";
 import type { MessageLogEntry } from "@/modules/doctor-messaging/ports";
-import type { PrepareDraftResult } from "@/modules/doctor-messaging/service";
 import { phoneToTelHref } from "@/shared/lib/phoneLinks";
 import { AssignLfkTemplatePanel } from "./AssignLfkTemplatePanel";
 import { PatientTreatmentProgramsPanel } from "./PatientTreatmentProgramsPanel";
@@ -22,12 +24,10 @@ import { AdminClientProfileEditPanel } from "./AdminClientProfileEditPanel";
 import { AdminMergeAccountsPanel } from "./AdminMergeAccountsPanel";
 import { DoctorClientLifecycleActions } from "./DoctorClientLifecycleActions";
 import { DoctorNotesPanel } from "./DoctorNotesPanel";
-import { SendMessageForm } from "./[userId]/SendMessageForm";
 import { SubscriberBlockPanel } from "./SubscriberBlockPanel";
 
 type ClientProfileCardProps = {
   profile: ClientProfile;
-  messageDraft: PrepareDraftResult | null;
   messageHistory: MessageLogEntry[];
   userId: string;
   listBasePath?: string;
@@ -86,7 +86,6 @@ export function ClientProfileCard(props: ClientProfileCardProps) {
 
 function ClientProfileCardInner({
   profile,
-  messageDraft,
   messageHistory,
   userId,
   listBasePath = "/app/doctor/clients",
@@ -101,6 +100,12 @@ function ClientProfileCardInner({
 }: ClientProfileCardProps) {
   const [openSection, setOpenSection] = useState<string | null>("contacts");
   const [contactsEditing, setContactsEditing] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatLoading, setChatLoading] = useState(false);
+  const [chatError, setChatError] = useState<string | null>(null);
+  const [chatConversationId, setChatConversationId] = useState<string | null>(null);
+  const [chatInitialMessages, setChatInitialMessages] = useState<SerializedSupportMessage[] | null>(null);
+  const [chatUnreadCount, setChatUnreadCount] = useState(0);
   const toggle = (id: string) => setOpenSection((cur) => (cur === id ? null : id));
 
   const {
@@ -125,6 +130,63 @@ function ClientProfileCardInner({
       : listBasePath.includes("scope=archived")
         ? "К архиву"
         : "К списку клиентов";
+
+  const loadPatientUnreadCount = useCallback(async () => {
+    try {
+      const res = await fetch("/api/doctor/messages/conversations/unread-by-patient", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ patientUserId: userId }),
+      });
+      const data = (await res.json()) as { ok?: boolean; unreadCount?: number };
+      if (res.ok && data.ok && typeof data.unreadCount === "number") {
+        setChatUnreadCount(data.unreadCount);
+      }
+    } catch {
+      // Badge is auxiliary; chat opening remains available if count fetch fails.
+    }
+  }, [userId]);
+
+  useEffect(() => {
+    void loadPatientUnreadCount();
+  }, [loadPatientUnreadCount]);
+
+  const openPatientChat = async () => {
+    setChatOpen(true);
+    setChatLoading(true);
+    setChatError(null);
+    try {
+      const res = await fetch("/api/doctor/messages/conversations/ensure", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ patientUserId: userId }),
+      });
+      const data = (await res.json()) as {
+        ok?: boolean;
+        conversationId?: string;
+        messages?: SerializedSupportMessage[];
+        unreadFromUserCount?: number;
+        error?: string;
+      };
+      if (!res.ok || !data.ok || !data.conversationId) {
+        if (data.error === "patient_not_found") {
+          setChatError("Пациент не найден, чат открыть нельзя.");
+        } else if (data.error === "conversation_ensure_failed") {
+          setChatError("Не удалось открыть чат пациента. Попробуйте ещё раз.");
+        } else {
+          setChatError("Не удалось открыть чат пациента");
+        }
+        return;
+      }
+      setChatConversationId(data.conversationId);
+      setChatInitialMessages(data.messages ?? []);
+      setChatUnreadCount(data.unreadFromUserCount ?? 0);
+    } catch {
+      setChatError("Ошибка сети при открытии чата");
+    } finally {
+      setChatLoading(false);
+    }
+  };
 
   return (
     <div id={`doctor-client-profile-page-${userId}`} className="flex flex-col gap-3">
@@ -336,18 +398,28 @@ function ClientProfileCardInner({
 
         <AccItem id="communications" title="Коммуникации" openSection={openSection} onToggle={toggle}>
           <div className="flex flex-col gap-4">
-            {messageDraft ? (
-              <SendMessageForm
-                userId={userId}
-                availableChannels={messageDraft.availableChannels}
-                channelBindings={messageDraft.channelBindings}
-              />
-            ) : (
-              <p className="text-muted-foreground">Невозможно отправить сообщение (клиент не найден).</p>
-            )}
-            <h3 className="text-sm font-medium">История сообщений</h3>
+            <div className="rounded-lg border border-border bg-card p-3">
+              <h3 className="text-sm font-medium">Единый чат поддержки</h3>
+              <p className="mt-1 text-sm text-muted-foreground">
+                История переписки и отправка сообщений открываются в едином чате.
+              </p>
+              <Button
+                type="button"
+                className="mt-3"
+                id="doctor-client-open-support-chat-button"
+                onClick={() => void openPatientChat()}
+              >
+                Открыть чат
+                {chatUnreadCount > 0 ? (
+                  <span className="ml-2 rounded-full bg-primary-foreground px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+                    {chatUnreadCount}
+                  </span>
+                ) : null}
+              </Button>
+            </div>
+            <h3 className="text-sm font-medium">Старый журнал отправок</h3>
             {messageHistory.length === 0 ? (
-              <p className="text-muted-foreground">Сообщений пока нет.</p>
+              <p className="text-muted-foreground">Записей старого журнала пока нет.</p>
             ) : (
               <ul id="doctor-client-message-history-list" className="m-0 list-none space-y-3 p-0">
                 {messageHistory.map((entry) => (
@@ -418,6 +490,25 @@ function ClientProfileCardInner({
           {backLabel}
         </Link>
       </p>
+
+      <Dialog open={chatOpen} onOpenChange={setChatOpen}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl" showCloseButton={!chatLoading}>
+          <DialogHeader>
+            <DialogTitle>Чат с пациентом</DialogTitle>
+            <DialogDescription>{displayHeading}</DialogDescription>
+          </DialogHeader>
+          {chatLoading ? <p className="text-sm text-muted-foreground">Открываем чат...</p> : null}
+          {chatError ? <p className="text-sm text-destructive">{chatError}</p> : null}
+          {!chatLoading && !chatError && chatConversationId ? (
+            <DoctorChatPanel
+              key={chatConversationId}
+              conversationId={chatConversationId}
+              initialMessages={chatInitialMessages ?? []}
+              onReadStateChanged={() => setChatUnreadCount(0)}
+            />
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

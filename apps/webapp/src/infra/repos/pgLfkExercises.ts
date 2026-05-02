@@ -10,8 +10,10 @@ import type {
   ExerciseLoadType,
   ExerciseMedia,
   ExerciseMediaType,
+  ExerciseUsageSnapshot,
   UpdateExerciseInput,
 } from "@/modules/lfk-exercises/types";
+import { EMPTY_EXERCISE_USAGE_SNAPSHOT } from "@/modules/lfk-exercises/types";
 
 function mapMediaRow(row: {
   id: string;
@@ -134,6 +136,83 @@ async function loadAllMediaForExercise(pool: ReturnType<typeof getPool>, exercis
     [exerciseId],
   );
   return r.rows.map(mapMediaRow);
+}
+
+async function loadExerciseUsageSummary(
+  pool: ReturnType<typeof getPool>,
+  exerciseId: string,
+): Promise<ExerciseUsageSnapshot> {
+  const r = await pool.query<{
+    published_lfk_templates: string | number | null;
+    draft_lfk_templates: string | number | null;
+    active_patient_lfk: string | number | null;
+    published_tp_templates: string | number | null;
+    draft_tp_templates: string | number | null;
+    active_tp_instances: string | number | null;
+    completed_tp_instances: string | number | null;
+  }>(
+    `SELECT
+       (SELECT COUNT(DISTINCT ct.id)::int
+          FROM lfk_complex_template_exercises te
+          INNER JOIN lfk_complex_templates ct ON ct.id = te.template_id
+         WHERE te.exercise_id = $1::uuid AND ct.status = 'published') AS published_lfk_templates,
+       (SELECT COUNT(DISTINCT ct.id)::int
+          FROM lfk_complex_template_exercises te
+          INNER JOIN lfk_complex_templates ct ON ct.id = te.template_id
+         WHERE te.exercise_id = $1::uuid AND ct.status = 'draft') AS draft_lfk_templates,
+       (SELECT COUNT(DISTINCT pla.id)::int
+          FROM patient_lfk_assignments pla
+         WHERE pla.is_active = true
+           AND (
+             (pla.complex_id IS NOT NULL AND EXISTS (
+               SELECT 1 FROM lfk_complex_exercises ce
+               WHERE ce.complex_id = pla.complex_id AND ce.exercise_id = $1::uuid
+             ))
+             OR
+             (pla.complex_id IS NULL AND EXISTS (
+               SELECT 1 FROM lfk_complex_template_exercises te2
+               WHERE te2.template_id = pla.template_id AND te2.exercise_id = $1::uuid
+             ))
+           )) AS active_patient_lfk,
+       (SELECT COUNT(DISTINCT t.id)::int
+          FROM treatment_program_template_stage_items si
+          INNER JOIN treatment_program_template_stages st ON st.id = si.stage_id
+          INNER JOIN treatment_program_templates t ON t.id = st.template_id
+         WHERE si.item_type = 'exercise' AND si.item_ref_id = $1::uuid AND t.status = 'published') AS published_tp_templates,
+       (SELECT COUNT(DISTINCT t.id)::int
+          FROM treatment_program_template_stage_items si
+          INNER JOIN treatment_program_template_stages st ON st.id = si.stage_id
+          INNER JOIN treatment_program_templates t ON t.id = st.template_id
+         WHERE si.item_type = 'exercise' AND si.item_ref_id = $1::uuid AND t.status = 'draft') AS draft_tp_templates,
+       (SELECT COUNT(DISTINCT i.id)::int
+          FROM treatment_program_instance_stage_items sii
+          INNER JOIN treatment_program_instance_stages ist ON ist.id = sii.stage_id
+          INNER JOIN treatment_program_instances i ON i.id = ist.instance_id
+         WHERE sii.item_type = 'exercise' AND sii.item_ref_id = $1::uuid AND i.status = 'active') AS active_tp_instances,
+       (SELECT COUNT(DISTINCT i.id)::int
+          FROM treatment_program_instance_stage_items sii
+          INNER JOIN treatment_program_instance_stages ist ON ist.id = sii.stage_id
+          INNER JOIN treatment_program_instances i ON i.id = ist.instance_id
+         WHERE sii.item_type = 'exercise' AND sii.item_ref_id = $1::uuid AND i.status = 'completed') AS completed_tp_instances`,
+    [exerciseId],
+  );
+  const row = r.rows[0];
+  if (!row) return { ...EMPTY_EXERCISE_USAGE_SNAPSHOT };
+  const n = (v: string | number | null | undefined) => {
+    if (v == null) return 0;
+    if (typeof v === "number") return v;
+    const parsed = Number.parseInt(String(v), 10);
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+  return {
+    publishedLfkComplexTemplateCount: n(row.published_lfk_templates),
+    draftLfkComplexTemplateCount: n(row.draft_lfk_templates),
+    activePatientLfkAssignmentCount: n(row.active_patient_lfk),
+    publishedTreatmentProgramTemplateCount: n(row.published_tp_templates),
+    draftTreatmentProgramTemplateCount: n(row.draft_tp_templates),
+    activeTreatmentProgramInstanceCount: n(row.active_tp_instances),
+    completedTreatmentProgramInstanceCount: n(row.completed_tp_instances),
+  };
 }
 
 export function createPgLfkExercisesPort(): LfkExercisesPort {
@@ -369,6 +448,11 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
         [id]
       );
       return (r.rowCount ?? 0) > 0;
+    },
+
+    async getExerciseUsageSummary(id: string): Promise<ExerciseUsageSnapshot> {
+      const pool = getPool();
+      return loadExerciseUsageSummary(pool, id);
     },
   };
 }

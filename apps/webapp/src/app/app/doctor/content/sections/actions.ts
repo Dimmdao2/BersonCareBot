@@ -5,9 +5,11 @@ import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import {
   isImmutableSystemSectionSlug,
+  isSystemParentCode,
   isValidSectionTaxonomy,
   taxonomyFromPlacement,
 } from "@/modules/content-sections/types";
+import type { SystemParentCode } from "@/modules/content-sections/types";
 import { validateContentSectionSlug } from "@/shared/lib/contentSectionSlug";
 import { API_MEDIA_URL_RE, isLegacyAbsoluteUrl } from "@/shared/lib/mediaUrlPolicy";
 
@@ -98,6 +100,69 @@ export async function saveContentSection(
   } catch (err) {
     console.error("saveContentSection failed:", err);
     return { ok: false, error: "Не удалось сохранить раздел. Попробуйте ещё раз." };
+  }
+
+  revalidatePath("/app/doctor/content/sections");
+  revalidatePath("/app/doctor/content");
+  revalidatePath("/app/patient");
+  revalidatePath("/app/patient/sections", "layout");
+  return { ok: true };
+}
+
+export type AttachArticleSectionToFolderState = { ok: boolean; error?: string };
+
+/**
+ * Перенос существующего раздела из каталога статей (`kind=article`) в системную папку CMS
+ * (`kind=system` + `system_parent_code`).
+ */
+export async function attachArticleSectionToSystemFolder(
+  _prev: AttachArticleSectionToFolderState | null,
+  formData: FormData,
+): Promise<AttachArticleSectionToFolderState> {
+  await requireDoctorAccess();
+  const deps = buildAppDeps();
+
+  const slug = ((formData.get("section_slug") as string) ?? "").trim();
+  const folderRaw = ((formData.get("system_parent_code") as string) ?? "").trim().toLowerCase();
+
+  if (!slug) {
+    return { ok: false, error: "Выберите раздел" };
+  }
+  if (!isSystemParentCode(folderRaw)) {
+    return { ok: false, error: "Некорректная системная папка" };
+  }
+  const systemParentCode: SystemParentCode = folderRaw;
+
+  if (isImmutableSystemSectionSlug(slug)) {
+    return { ok: false, error: "Встроенный раздел нельзя переносить в папку таким образом" };
+  }
+
+  let existing: Awaited<ReturnType<typeof deps.contentSections.getBySlug>>;
+  try {
+    existing = await deps.contentSections.getBySlug(slug);
+  } catch {
+    return { ok: false, error: "Не удалось загрузить раздел" };
+  }
+  if (!existing) {
+    return { ok: false, error: "Раздел не найден" };
+  }
+  if (existing.kind !== "article") {
+    return { ok: false, error: "В папку можно добавить только раздел из каталога статей" };
+  }
+
+  const kind = "system" as const;
+  if (!isValidSectionTaxonomy(kind, systemParentCode)) {
+    return { ok: false, error: "Некорректное сочетание типа раздела и папки CMS" };
+  }
+
+  try {
+    await deps.contentSections.update(slug, {
+      kind,
+      systemParentCode,
+    });
+  } catch (err) {
+    console.error("attachArticleSectionToSystemFolder failed:", err);
+    return { ok: false, error: "Не удалось перенести раздел. Попробуйте ещё раз." };
   }
 
   revalidatePath("/app/doctor/content/sections");

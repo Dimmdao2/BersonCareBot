@@ -3,7 +3,8 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import type { Exercise } from "@/modules/lfk-exercises/types";
-import type { SaveDoctorExerciseState } from "./actionsShared";
+import { EMPTY_EXERCISE_USAGE_SNAPSHOT } from "@/modules/lfk-exercises/types";
+import type { ArchiveDoctorExerciseState, SaveDoctorExerciseState } from "./actionsShared";
 import { ExerciseForm } from "./ExerciseForm";
 
 vi.mock("@/app/app/doctor/content/MediaLibraryPickerDialog", () => ({
@@ -15,6 +16,14 @@ vi.mock("@/shared/ui/ReferenceSelect", () => ({
     <input type="text" data-testid="region-select" readOnly value={value ?? ""} />
   ),
 }));
+
+vi.mock("./actions", async () => {
+  const actual = await vi.importActual<typeof import("./actions")>("./actions");
+  return {
+    ...actual,
+    fetchDoctorExerciseUsageSnapshot: vi.fn(async () => ({ ...EMPTY_EXERCISE_USAGE_SNAPSHOT })),
+  };
+});
 
 function makeExercise(over: Partial<Exercise>): Exercise {
   return {
@@ -40,7 +49,11 @@ describe("ExerciseForm", () => {
     const saveAction = vi.fn(
       async (_prev: SaveDoctorExerciseState | null): Promise<SaveDoctorExerciseState> => ({ ok: true }),
     );
-    const archiveAction = vi.fn(async () => {});
+    const archiveAction = vi.fn(
+      async (_prev: ArchiveDoctorExerciseState | null, _fd: FormData): Promise<ArchiveDoctorExerciseState> => ({
+        ok: true,
+      }),
+    );
 
     const exA = makeExercise({
       id: "a",

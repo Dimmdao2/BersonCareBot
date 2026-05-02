@@ -164,6 +164,14 @@ export async function resolveSubscriptionCarouselCards(
       const row = await deps.contentSections.getBySlug(slug);
       if (!row?.isVisible) continue;
       if (row.requiresAuth && !canViewAuthOnlyContent) continue;
+      if (
+        !isPatientHomeContentSectionCandidateForBlock("subscription_carousel", {
+          kind: row.kind,
+          systemParentCode: row.systemParentCode,
+        })
+      ) {
+        continue;
+      }
       out.push({
         itemId: item.id,
         title: item.titleOverride?.trim() || row.title,
@@ -180,6 +188,25 @@ export async function resolveSubscriptionCarouselCards(
       const row = await deps.contentPages.getBySlug(slug);
       if (!row) continue;
       if (row.requiresAuth && !canViewAuthOnlyContent) continue;
+      const parent = await deps.contentSections.getBySlug(row.section);
+      const sectionMap = parent
+        ? new Map([[parent.slug, { kind: parent.kind, systemParentCode: parent.systemParentCode }]])
+        : new Map<string, { kind: ContentSectionKind; systemParentCode: SystemParentCode | null }>();
+      if (
+        !isPatientHomeContentPageCandidateForBlock(
+          "subscription_carousel",
+          {
+            slug: row.slug,
+            section: row.section,
+            isPublished: true,
+            archivedAt: null,
+            deletedAt: null,
+          },
+          sectionMap,
+        )
+      ) {
+        continue;
+      }
       out.push({
         itemId: item.id,
         title: item.titleOverride?.trim() || row.title,

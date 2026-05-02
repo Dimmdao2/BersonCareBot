@@ -37,6 +37,37 @@
 
 Не объединять все семь каталогов в один большой проход без отдельного решения.
 
+### Трекер подшагов этапа 7
+
+Поддерживать в этом файле актуальные статусы:
+
+| Каталог | Статус |
+|---|---|
+| 1. Упражнения | `completed` |
+| 2. Комплексы ЛФК | `pending` |
+| 3. Клинические тесты | `pending` |
+| 4. Наборы тестов | `pending` |
+| 5. Рекомендации | `pending` |
+| 6. Шаблоны программ | `pending` |
+| 7. Курсы | `pending` |
+
+Допустимые статусы: `pending` -> `in_progress` -> `completed` (или `cancelled`, если подшаг отменён отдельным решением).
+
+---
+
+## Обязательный pre-read перед первым каталогом
+
+Перед началом работ по каталогу исполнитель читает и подтверждает, что учитывает:
+
+- `.cursor/rules/clean-architecture-module-isolation.mdc`;
+- `.cursor/rules/plan-authoring-execution-standard.mdc`;
+- `.cursor/rules/000-critical-integration-config-in-db.mdc`;
+- `.cursor/rules/runtime-config-env-vs-db.mdc`;
+- `docs/TREATMENT_PROGRAM_INITIATIVE/EXECUTION_RULES.md` (для абсолютных запретов инициативы);
+- `docs/APP_RESTRUCTURE_INITIATIVE/PLAN_DOCTOR_CABINET.md` (этап 7 как parent-plan).
+
+Если между документами есть конфликт, приоритет: always-apply rules -> более узкоспециализированное правило по теме -> текущий plan.
+
 ---
 
 ## Scope boundaries
@@ -61,6 +92,7 @@
 - соответствующие infra repos:
   - `apps/webapp/src/infra/repos/pgLfkExercises.ts`;
   - `apps/webapp/src/infra/repos/pgLfkTemplates.ts`;
+  - `apps/webapp/src/infra/repos/pgLfkAssignments.ts`;
   - `apps/webapp/src/infra/repos/pgClinicalTests.ts`;
   - `apps/webapp/src/infra/repos/pgTestSets.ts`;
   - `apps/webapp/src/infra/repos/pgRecommendations.ts`;
@@ -68,6 +100,8 @@
   - `apps/webapp/src/infra/repos/pgTreatmentProgramInstance.ts`;
   - `apps/webapp/src/infra/repos/pgCourses.ts`;
   - in-memory repos and tests for the same ports, if present;
+- doctor API routes только для каталогов, где архив/статус уже проходят через route handlers:
+  - `apps/webapp/src/app/api/doctor/courses/**`;
 - DI only where needed:
   - `apps/webapp/src/app-layer/di/buildAppDeps.ts`;
   - `apps/webapp/src/app-layer/di/buildAppDeps.test.ts`;
@@ -139,6 +173,16 @@ doctor page / server action / route
 - `formatCatalogUsageSummary`.
 
 Не выносить абстракцию заранее, пока не понятно, какие счётчики реально нужны.
+
+### Единый контракт archive guard
+
+Чтобы поведение в 7 каталогах не расходилось, использовать общий семантический контракт:
+
+- сервис возвращает доменную ошибку с кодом `USAGE_CONFIRMATION_REQUIRED`;
+- ошибка включает usage snapshot (минимум active counters), который показывается в warning dialog;
+- server action / route маппит ошибку в ожидаемый для текущего flow формат (например, `ok: false` + code/message для form state);
+- при повторной отправке с `acknowledgeUsageWarning=true` архивирование проходит по существующему path;
+- UI не пытается "догадываться" о критичности по тексту ошибки, а ориентируется на `code`.
 
 ---
 
@@ -235,6 +279,7 @@ doctor page / server action / route
 
 - `rg "archive|archived|setStatus|delete" <catalog-paths>`;
 - `rg "<catalog-id-field>|item_type" apps/webapp/src apps/webapp/db/schema`;
+- `rg "<expected-table-or-column>" apps/webapp/db/schema` (перед query сверить точные имена таблиц/колонок в Drizzle schema);
 - `rg "@/infra/db|@/infra/repos" apps/webapp/src/modules/<module>`.
 
 Критерий закрытия: исполнитель понимает текущую цепочку архивации и источники счётчиков.
@@ -267,14 +312,15 @@ doctor page / server action / route
 ### Шаг 3. Archive guard
 
 - Service archive method должен проверять usage.
-- Если есть active usage и нет явного подтверждения, вернуть понятную ошибку/код для UI.
+- Если есть active usage и нет явного подтверждения, вернуть доменную ошибку `USAGE_CONFIRMATION_REQUIRED`.
+- Ошибка должна нести usage snapshot, который UI показывает в предупреждении без повторной интерпретации текста.
 - Если подтверждение есть, архивировать как сейчас.
 - Исторические назначения не удалять.
 
 Проверки:
 
 - archive unused item — проходит без предупреждения;
-- archive used item без confirmation — не проходит и сообщает usage;
+- archive used item без confirmation — не проходит, возвращает `USAGE_CONFIRMATION_REQUIRED` и usage snapshot;
 - archive used item с confirmation — проходит.
 
 ### Шаг 4. UI summary
@@ -462,6 +508,13 @@ rg "@/infra/db|@/infra/repos" apps/webapp/src/modules apps/webapp/src/app/api/do
 
 Полный корневой `pnpm run ci` внутри каждого каталога не нужен. Перед push действует общее правило репозитория.
 
+После закрытия всех 7 каталогов (перед merge/push) выполнить один финальный прогон:
+
+```bash
+pnpm install --frozen-lockfile
+pnpm run ci
+```
+
 ---
 
 ## Manual smoke для каждого каталога
@@ -510,6 +563,8 @@ rg "@/infra/db|@/infra/repos" apps/webapp/src/modules apps/webapp/src/app/api/do
 - нет schema changes в запрещённых LFK таблицах;
 - нет новых нарушений module isolation;
 - tests по каждому каталогу прошли на уровне риска;
+- статусы в таблице «Трекер подшагов этапа 7» обновлены до фактических;
+- после закрытия всех семи каталогов выполнен единый финальный `pnpm run ci`;
 - `LOG.md` содержит записи по каждому каталогу и общий closeout этапа.
 
 Если закрыт только один каталог, в `LOG.md` писать «закрыт подшаг этапа 7», а не весь этап.

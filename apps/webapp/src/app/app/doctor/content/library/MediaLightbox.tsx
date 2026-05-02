@@ -51,7 +51,7 @@ export function MediaLightbox({ open, item, onOpenChange, onPrev, onNext }: Prop
               ) : item.previewStatus === "failed" || item.previewStatus === "skipped" ? (
                 <div
                   className={cn(
-                    "flex min-h-[40vh] flex-col items-center justify-center gap-2 rounded-md bg-muted/20 p-6 text-sm text-muted-foreground",
+                    "flex min-h-[40vh] flex-col items-center justify-center gap-2 rounded-md bg-muted/20 p-4 text-sm text-muted-foreground",
                   )}
                 >
                   <ImageOff className="h-12 w-12 opacity-60" aria-hidden />

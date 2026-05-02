@@ -253,7 +253,21 @@ export const inMemorySupportCommunicationPort: SupportCommunicationPort = {
         c.closedAt == null &&
         (source == null || c.source === source)
     );
-    list = list.sort((a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime()).slice(0, limit);
+    const unreadCount = (conversationId: string) =>
+      Array.from(messages.values()).filter(
+        (m) => m.conversationId === conversationId && m.senderRole === "user" && m.readAt == null,
+      ).length;
+    if (params.unreadOnly) {
+      list = list.filter((c) => unreadCount(c.id) > 0);
+    }
+    list = list
+      .sort((a, b) => {
+        const aUnread = unreadCount(a.id) > 0;
+        const bUnread = unreadCount(b.id) > 0;
+        if (aUnread !== bUnread) return aUnread ? -1 : 1;
+        return new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime();
+      })
+      .slice(0, limit);
     return list.map((c) => {
       const lastMsg = Array.from(messages.values())
         .filter((m) => m.conversationId === c.id)
@@ -274,6 +288,7 @@ export const inMemorySupportCommunicationPort: SupportCommunicationPort = {
         channelExternalId: c.channelExternalId,
         lastMessageText: lastMsg?.text ?? null,
         lastSenderRole: lastMsg?.senderRole ?? null,
+        unreadFromUserCount: unreadCount(c.id),
       };
     });
   },
@@ -305,6 +320,9 @@ export const inMemorySupportCommunicationPort: SupportCommunicationPort = {
       channelExternalId: c.channelExternalId,
       lastMessageText: lastMsg?.text ?? null,
       lastSenderRole: lastMsg?.senderRole ?? null,
+      unreadFromUserCount: Array.from(messages.values()).filter(
+        (m) => m.conversationId === c.id && m.senderRole === "user" && m.readAt == null,
+      ).length,
       userChatId: userMsg?.externalChatId ?? null,
     };
   },
@@ -474,6 +492,27 @@ export const inMemorySupportCommunicationPort: SupportCommunicationPort = {
     let n = 0;
     for (const m of messages.values()) {
       if (m.senderRole === "user" && m.readAt == null) n += 1;
+    }
+    return n;
+  },
+
+  async countUnreadUserMessagesForAdminByConversation(conversationId) {
+    let n = 0;
+    for (const m of messages.values()) {
+      if (m.conversationId === conversationId && m.senderRole === "user" && m.readAt == null) n += 1;
+    }
+    return n;
+  },
+
+  async countUnreadUserMessagesForAdminByPatient(platformUserId) {
+    const convIds = new Set(
+      Array.from(conversations.values())
+        .filter((c) => c.platformUserId === platformUserId)
+        .map((c) => c.id),
+    );
+    let n = 0;
+    for (const m of messages.values()) {
+      if (convIds.has(m.conversationId) && m.senderRole === "user" && m.readAt == null) n += 1;
     }
     return n;
   },

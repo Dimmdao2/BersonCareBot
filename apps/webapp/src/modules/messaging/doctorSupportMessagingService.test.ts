@@ -57,6 +57,8 @@ function createPort(overrides: Partial<SupportCommunicationPort> = {}): SupportC
     markUserMessagesReadByAdmin: async () => undefined,
     countUnreadForUser: async () => 0,
     countUnreadUserMessagesForAdmin: async () => 0,
+    countUnreadUserMessagesForAdminByConversation: async () => 0,
+    countUnreadUserMessagesForAdminByPatient: async () => 0,
     ...overrides,
   };
 }
@@ -105,6 +107,69 @@ describe("doctorSupportMessagingService", () => {
       sinceCreatedAt: "2026-01-01T00:00:00.000Z",
       limit: 50,
     });
+  });
+
+  it("passes unreadOnly to listOpenConversationsForAdmin", async () => {
+    const listOpenConversationsForAdmin = vi.fn(async () => []);
+    const service = createDoctorSupportMessagingService(
+      createPort({ listOpenConversationsForAdmin }),
+    );
+
+    await service.listOpenConversations({ limit: 25, unreadOnly: true });
+
+    expect(listOpenConversationsForAdmin).toHaveBeenCalledWith({ limit: 25, unreadOnly: true });
+  });
+
+  it("ensures a patient conversation and returns messages with unread count", async () => {
+    const ensureWebappConversationForUser = vi.fn(async () => ({ id: "conv-webapp-1" }));
+    const listMessagesSince = vi.fn(async () => [
+      {
+        id: "m1",
+        integratorMessageId: "i1",
+        conversationId: "conv-webapp-1",
+        senderRole: "user",
+        messageType: "text",
+        text: "hello",
+        source: "webapp",
+        externalChatId: null,
+        externalMessageId: null,
+        deliveryStatus: null,
+        createdAt: "2026-01-01T00:00:00.000Z",
+        readAt: null,
+        deliveredAt: null,
+        mediaUrl: null,
+        mediaType: null,
+      },
+    ]);
+    const countUnreadUserMessagesForAdminByConversation = vi.fn(async () => 1);
+    const service = createDoctorSupportMessagingService(
+      createPort({
+        ensureWebappConversationForUser,
+        listMessagesSince,
+        countUnreadUserMessagesForAdminByConversation,
+      }),
+    );
+
+    const res = await service.ensureConversationForPatient("patient-1");
+
+    expect(res.conversationId).toBe("conv-webapp-1");
+    expect(res.messages).toHaveLength(1);
+    expect(res.unreadFromUserCount).toBe(1);
+    expect(ensureWebappConversationForUser).toHaveBeenCalledWith("patient-1");
+    expect(listMessagesSince).toHaveBeenCalledWith("conv-webapp-1", { sinceCreatedAt: null, limit: 100 });
+    expect(countUnreadUserMessagesForAdminByConversation).toHaveBeenCalledWith("conv-webapp-1");
+  });
+
+  it("returns unread count for a patient without ensuring a conversation", async () => {
+    const countUnreadUserMessagesForAdminByPatient = vi.fn(async () => 3);
+    const service = createDoctorSupportMessagingService(
+      createPort({ countUnreadUserMessagesForAdminByPatient }),
+    );
+
+    const count = await service.unreadFromPatient("patient-1");
+
+    expect(count).toBe(3);
+    expect(countUnreadUserMessagesForAdminByPatient).toHaveBeenCalledWith("patient-1");
   });
 
   it("returns not_found for missing conversation in sendAdminReply", async () => {

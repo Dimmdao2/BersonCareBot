@@ -40,12 +40,15 @@ export function ContentForm({
   patientHomeContext,
   /** При создании страницы: slug раздела из query (`?section=`), если есть в списке разделов. */
   initialSectionSlug,
+  /** Если один допустимый раздел в контексте — скрыть выбор и отправить hidden `section`. */
+  sectionSelectReadOnly,
 }: {
   page?: ContentPage;
   sections: ContentSectionRow[];
   publishedCourses?: PublishedCourseOption[];
   patientHomeContext?: PatientHomeCmsReturnQuery;
   initialSectionSlug?: string | null;
+  sectionSelectReadOnly?: boolean;
 }) {
   const [state, formAction, pending] = useActionState(saveContentPage, null as SaveContentPageState | null);
   const isNew = !page;
@@ -76,6 +79,12 @@ export function ContentForm({
     (initialSectionSlug && sections.some((s) => s.slug === initialSectionSlug)
       ? initialSectionSlug
       : sections[0]?.slug ?? "");
+
+  const readOnlySection =
+    !page &&
+    Boolean(sectionSelectReadOnly) &&
+    sections.length === 1 &&
+    Boolean(defaultSectionSlugForSelect);
 
   return (
     <form
@@ -142,23 +151,33 @@ export function ContentForm({
 
       {page ? <input type="hidden" name="page_id" value={page.id} /> : null}
 
-      <label className="flex flex-col gap-1">
+      <div className="flex flex-col gap-1">
         <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Раздел</span>
-        <select
-          id="content-section"
-          name="section"
-          required
-          className="h-11 w-full rounded-xl border border-input bg-background px-4 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          defaultValue={defaultSectionSlugForSelect}
-          key={page ? `section-${page.id}` : `section-new-${defaultSectionSlugForSelect}`}
-        >
-          {sections.map((s) => (
-            <option key={s.slug} value={s.slug}>
-              {s.title}
-            </option>
-          ))}
-        </select>
-      </label>
+        {readOnlySection ? (
+          <>
+            <input type="hidden" name="section" value={defaultSectionSlugForSelect} />
+            <p className="text-sm text-foreground">
+              {sections.find((s) => s.slug === defaultSectionSlugForSelect)?.title ?? defaultSectionSlugForSelect}
+            </p>
+            <p className="text-xs text-muted-foreground">Раздел задан контекстом страницы создания.</p>
+          </>
+        ) : (
+          <select
+            id="content-section"
+            name="section"
+            required
+            className="h-11 w-full rounded-xl border border-input bg-background px-4 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            defaultValue={defaultSectionSlugForSelect}
+            key={page ? `section-${page.id}` : `section-new-${defaultSectionSlugForSelect}`}
+          >
+            {sections.map((s) => (
+              <option key={s.slug} value={s.slug}>
+                {s.title}
+              </option>
+            ))}
+          </select>
+        )}
+      </div>
 
       <label className="flex flex-col gap-1">
         <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Slug</span>

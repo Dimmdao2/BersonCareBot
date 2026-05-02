@@ -94,6 +94,7 @@ export function PatientHomeAddItemDialog({
   const returnTo = PATIENT_HOME_CMS_DEFAULT_RETURN_PATH;
   const showCmsCreateShortcuts =
     cmsNavBlock !== null && items.length === 0 && error === null && !isPending;
+  const usefulPostMaterialOnly = blockCode === "useful_post";
 
   return (
     <Dialog
@@ -137,16 +138,22 @@ export function PatientHomeAddItemDialog({
                 className="rounded-lg border border-dashed border-border/80 bg-muted/20 p-3 text-sm"
                 data-testid="patient-home-add-item-cms-shortcuts"
               >
-                <p className="mb-2 text-muted-foreground">Нет готовых элементов в списке. Создайте новый объект в CMS:</p>
+                <p className="mb-2 text-muted-foreground">
+                  {usefulPostMaterialOnly ?
+                    "Нет материалов, которые можно выбрать для этого блока. Создайте страницу в каталоге статей или в системной папке CMS (не в разделах «Разминки» и SOS), затем вернитесь сюда."
+                  : "Нет готовых элементов в списке. Создайте новый объект в CMS:"}
+                </p>
                 <ul className="flex flex-col gap-2">
-                  <li>
-                    <Link
-                      className="text-primary underline underline-offset-2"
-                      href={buildPatientHomeSectionsNewUrl({ returnTo, patientHomeBlock: cmsNavBlock! })}
-                    >
-                      Создать раздел
-                    </Link>
-                  </li>
+                  {!usefulPostMaterialOnly ?
+                    <li>
+                      <Link
+                        className="text-primary underline underline-offset-2"
+                        href={buildPatientHomeSectionsNewUrl({ returnTo, patientHomeBlock: cmsNavBlock! })}
+                      >
+                        Создать раздел
+                      </Link>
+                    </li>
+                  : null}
                   <li>
                     <Link
                       className="text-primary underline underline-offset-2"
@@ -155,14 +162,16 @@ export function PatientHomeAddItemDialog({
                       Создать материал
                     </Link>
                   </li>
-                  <li>
-                    <Link
-                      className="text-primary underline underline-offset-2"
-                      href={buildPatientHomeCourseNewUrl({ returnTo, patientHomeBlock: cmsNavBlock! })}
-                    >
-                      Создать курс
-                    </Link>
-                  </li>
+                  {!usefulPostMaterialOnly ?
+                    <li>
+                      <Link
+                        className="text-primary underline underline-offset-2"
+                        href={buildPatientHomeCourseNewUrl({ returnTo, patientHomeBlock: cmsNavBlock! })}
+                      >
+                        Создать курс
+                      </Link>
+                    </li>
+                  : null}
                 </ul>
               </div>
             ) : (

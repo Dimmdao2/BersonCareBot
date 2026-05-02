@@ -34,7 +34,7 @@ export default async function DoctorContentEditPage({ params }: Props) {
 
   return (
     <AppShell title="Редактировать страницу" user={session.user} variant="doctor" backHref="/app/doctor/content">
-      <section className="rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col gap-4">
+      <section className="rounded-lg border border-border bg-card p-4 shadow-sm flex flex-col gap-4">
         {loadError ? (
           <DataLoadFailureNotice
             digest={loadError.digest}

@@ -117,6 +117,27 @@ describe("computePatientHomeBlockRuntimeStatus", () => {
     expect(st.visibleResolvedItems).toBe(1);
   });
 
+  it("useful_post: resolves content_page in system folder (e.g. lessons) after CMS section attach", () => {
+    const resolverWithLessons = buildPatientHomeResolverSyncContext({
+      sections: [
+        { slug: "lessons-sec", isVisible: true, requiresAuth: false, kind: "system", systemParentCode: "lessons" },
+      ],
+      pages: [{ slug: "post-lessons", requiresAuth: false, section: "lessons-sec" }],
+      courses: [],
+    });
+    const b = block(
+      "useful_post",
+      [item({ id: "1", blockCode: "useful_post", targetType: "content_page", targetRef: "post-lessons" })],
+      true,
+    );
+    const st = computePatientHomeBlockRuntimeStatus(b, {
+      knownRefs: { ...knownEmpty, contentPages: ["post-lessons"] },
+      resolverSync: resolverWithLessons,
+    });
+    expect(st.kind).toBe("ready");
+    expect(st.visibleResolvedItems).toBe(1);
+  });
+
   it("situations: section in DB but not patient-visible yields empty", () => {
     const b = block(
       "situations",
@@ -145,14 +166,14 @@ describe("computePatientHomeBlockRuntimeStatus", () => {
     expect(st.visibleResolvedItems).toBe(1);
   });
 
-  it("subscription_carousel: accepts section, page, published course", () => {
+  it("subscription_carousel: accepts article section, useful_post-like page, published course", () => {
     const b = block("subscription_carousel", [
-      item({ id: "1", blockCode: "subscription_carousel", targetType: "content_section", targetRef: "sec-vis" }),
+      item({ id: "1", blockCode: "subscription_carousel", targetType: "content_section", targetRef: "articles-sec" }),
       item({ id: "2", blockCode: "subscription_carousel", targetType: "content_page", targetRef: "post-ok" }),
       item({ id: "3", blockCode: "subscription_carousel", targetType: "course", targetRef: "c-pub" }),
     ]);
     const st = computePatientHomeBlockRuntimeStatus(b, {
-      knownRefs: { contentPages: ["post-ok"], contentSections: ["sec-vis"], courses: ["c-pub"] },
+      knownRefs: { contentPages: ["post-ok"], contentSections: ["articles-sec"], courses: ["c-pub"] },
       resolverSync,
     });
     expect(st.kind).toBe("ready");

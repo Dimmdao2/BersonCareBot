@@ -3,8 +3,13 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { webappReposAreInMemory } from "@/config/env";
 import { pgListExerciseUsageForMediaIds } from "@/infra/repos/pgLfkExercises";
 import { logger } from "@/infra/logging/logger";
+import {
+  isExerciseArchiveAlreadyArchivedError,
+  isExerciseArchiveNotFoundError,
+  isUsageConfirmationRequiredError,
+} from "@/modules/lfk-exercises/errors";
 import type { MediaExerciseUsageEntry } from "@/modules/media/types";
-import type { ExerciseLoadType } from "@/modules/lfk-exercises/types";
+import type { ExerciseLoadType, ExerciseUsageSnapshot } from "@/modules/lfk-exercises/types";
 import { parseMediaFileIdFromAppUrl } from "@/shared/lib/mediaPreviewUrls";
 import { API_MEDIA_URL_RE, isLegacyAbsoluteUrl } from "@/shared/lib/mediaUrlPolicy";
 import { z } from "zod";
@@ -12,6 +17,21 @@ import { z } from "zod";
 import { EXERCISES_PATH } from "./exercisesPaths";
 
 export type SaveDoctorExerciseState = { ok: boolean; error?: string };
+
+export type ArchiveDoctorExerciseState =
+  | { ok: true }
+  | { ok: false; code: "USAGE_CONFIRMATION_REQUIRED"; usage: ExerciseUsageSnapshot }
+  | { ok: false; error: string };
+
+export type ArchiveDoctorExerciseCoreResult =
+  | { kind: "archived"; id: string }
+  | { kind: "needs_confirmation"; usage: ExerciseUsageSnapshot }
+  | { kind: "invalid"; error: string };
+
+function parseAcknowledgeUsageWarning(fd: FormData): boolean {
+  const v = fd.get("acknowledgeUsageWarning");
+  return v === "1" || v === "true" || v === "on";
+}
 
 export { EXERCISES_PATH };
 
@@ -261,17 +281,28 @@ export async function saveDoctorExerciseCore(formData: FormData): Promise<SaveEx
   return { ok: true, exerciseId: created.id, wasUpdate: false };
 }
 
-export async function archiveDoctorExerciseCore(formData: FormData): Promise<{ archivedId: string | null }> {
+export async function archiveDoctorExerciseCore(formData: FormData): Promise<ArchiveDoctorExerciseCoreResult> {
   await requireDoctorAccess();
   const idRaw = formData.get("id");
   const id = typeof idRaw === "string" ? idRaw.trim() : "";
-  if (!id) return { archivedId: null };
+  if (!id) return { kind: "invalid", error: "Не указано упражнение" };
 
+  const acknowledgeUsageWarning = parseAcknowledgeUsageWarning(formData);
   const deps = buildAppDeps();
   try {
-    await deps.lfkExercises.archiveExercise(id);
-  } catch {
-    /* ignore not found */
+    await deps.lfkExercises.archiveExercise(id, { acknowledgeUsageWarning });
+    return { kind: "archived", id };
+  } catch (e) {
+    if (isUsageConfirmationRequiredError(e)) {
+      return { kind: "needs_confirmation", usage: e.usage };
+    }
+    if (isExerciseArchiveNotFoundError(e)) {
+      return { kind: "invalid", error: e.message };
+    }
+    if (isExerciseArchiveAlreadyArchivedError(e)) {
+      return { kind: "invalid", error: e.message };
+    }
+    logger.warn({ event: "doctor_exercise_archive_unexpected_error", exerciseId: id, err: e }, "archive failed");
+    return { kind: "invalid", error: "Не удалось архивировать упражнение" };
   }
-  return { archivedId: id };
 }

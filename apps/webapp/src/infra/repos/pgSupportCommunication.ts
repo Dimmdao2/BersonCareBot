@@ -96,6 +96,7 @@ export type AdminConversationListRow = {
   channelExternalId: string | null;
   lastMessageText: string | null;
   lastSenderRole: string | null;
+  unreadFromUserCount: number;
 };
 
 export type AdminConversationDetailRow = AdminConversationListRow & {
@@ -179,7 +180,7 @@ export type SupportCommunicationPort = {
   } | null>;
   listQuestionsByUser(platformUserId: string): Promise<SupportQuestionRow[]>;
   listRecentDeliveryTrailForConversation(conversationId: string, limit?: number): Promise<SupportDeliveryEventRow[]>;
-  listOpenConversationsForAdmin(params: { source?: string; limit?: number }): Promise<AdminConversationListRow[]>;
+  listOpenConversationsForAdmin(params: { source?: string; limit?: number; unreadOnly?: boolean }): Promise<AdminConversationListRow[]>;
   getConversationByIntegratorId(integratorConversationId: string): Promise<AdminConversationDetailRow | null>;
   listUnansweredQuestionsForAdmin(params: { limit?: number }): Promise<AdminQuestionListRow[]>;
   getQuestionByIntegratorConversationId(integratorConversationId: string): Promise<{ id: string; answered: boolean } | null>;
@@ -201,6 +202,8 @@ export type SupportCommunicationPort = {
   markUserMessagesReadByAdmin(conversationId: string): Promise<void>;
   countUnreadForUser(platformUserId: string): Promise<number>;
   countUnreadUserMessagesForAdmin(): Promise<number>;
+  countUnreadUserMessagesForAdminByConversation(conversationId: string): Promise<number>;
+  countUnreadUserMessagesForAdminByPatient(platformUserId: string): Promise<number>;
 };
 
 function mapMessageRow(m: Record<string, unknown>): SupportConversationMessageRow {
@@ -614,7 +617,8 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
           pu.phone_normalized,
           sc.channel_external_id,
           lm.text AS last_message_text,
-          lm.sender_role AS last_sender_role
+          lm.sender_role AS last_sender_role,
+          COALESCE(unread.unread_from_user_count, 0)::int AS unread_from_user_count
          FROM support_conversations sc
          LEFT JOIN platform_users pu ON pu.id = sc.platform_user_id
          LEFT JOIN LATERAL (
@@ -624,12 +628,20 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
            ORDER BY m.created_at DESC
            LIMIT 1
          ) lm ON true
+         LEFT JOIN LATERAL (
+           SELECT COUNT(*)::int AS unread_from_user_count
+           FROM support_conversation_messages m
+           WHERE m.conversation_id = sc.id
+             AND m.sender_role = 'user'
+             AND m.read_at IS NULL
+         ) unread ON true
          WHERE sc.status <> 'closed'
            AND sc.closed_at IS NULL
            AND ($1::text IS NULL OR sc.source = $1)
-         ORDER BY sc.last_message_at DESC
+           AND ($3::boolean = false OR COALESCE(unread.unread_from_user_count, 0) > 0)
+         ORDER BY (COALESCE(unread.unread_from_user_count, 0) > 0) DESC, sc.last_message_at DESC
          LIMIT $2`,
-        [source, limit]
+        [source, limit, params.unreadOnly === true]
       );
       return r.rows.map((row) => ({
         conversationId: String(row.conversation_id),
@@ -647,6 +659,7 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
         channelExternalId: row.channel_external_id,
         lastMessageText: row.last_message_text,
         lastSenderRole: row.last_sender_role,
+        unreadFromUserCount: Number(row.unread_from_user_count ?? 0),
       }));
     },
 
@@ -669,6 +682,7 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
           sc.channel_external_id,
           lm.text AS last_message_text,
           lm.sender_role AS last_sender_role,
+          COALESCE(unread.unread_from_user_count, 0)::int AS unread_from_user_count,
           user_chat.external_chat_id AS user_chat_id
          FROM support_conversations sc
          LEFT JOIN platform_users pu ON pu.id = sc.platform_user_id
@@ -679,6 +693,13 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
            ORDER BY m.created_at DESC
            LIMIT 1
          ) lm ON true
+         LEFT JOIN LATERAL (
+           SELECT COUNT(*)::int AS unread_from_user_count
+           FROM support_conversation_messages m
+           WHERE m.conversation_id = sc.id
+             AND m.sender_role = 'user'
+             AND m.read_at IS NULL
+         ) unread ON true
          LEFT JOIN LATERAL (
            SELECT m2.external_chat_id
            FROM support_conversation_messages m2
@@ -708,6 +729,7 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
         channelExternalId: row.channel_external_id,
         lastMessageText: row.last_message_text,
         lastSenderRole: row.last_sender_role,
+        unreadFromUserCount: Number(row.unread_from_user_count ?? 0),
         userChatId: row.user_chat_id,
       };
     },
@@ -953,6 +975,30 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
       const r = await pool.query<{ c: string }>(
         `SELECT COUNT(*)::text AS c FROM support_conversation_messages m
          WHERE m.sender_role = 'user' AND m.read_at IS NULL`
+      );
+      return parseInt(r.rows[0]?.c ?? "0", 10);
+    },
+
+    async countUnreadUserMessagesForAdminByConversation(conversationId) {
+      const pool = getPool();
+      const r = await pool.query<{ c: string }>(
+        `SELECT COUNT(*)::text AS c FROM support_conversation_messages m
+         WHERE m.conversation_id = $1::uuid AND m.sender_role = 'user' AND m.read_at IS NULL`,
+        [conversationId]
+      );
+      return parseInt(r.rows[0]?.c ?? "0", 10);
+    },
+
+    async countUnreadUserMessagesForAdminByPatient(platformUserId) {
+      const pool = getPool();
+      const r = await pool.query<{ c: string }>(
+        `SELECT COUNT(*)::text AS c
+         FROM support_conversation_messages m
+         JOIN support_conversations c ON c.id = m.conversation_id
+         WHERE c.platform_user_id = $1::uuid
+           AND m.sender_role = 'user'
+           AND m.read_at IS NULL`,
+        [platformUserId]
       );
       return parseInt(r.rows[0]?.c ?? "0", 10);
     },

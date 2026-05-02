@@ -41,7 +41,7 @@ export default async function DoctorContentSectionNewPage({ searchParams }: Page
       variant="doctor"
       backHref={patientHomeContext?.returnTo ?? "/app/doctor/content/sections"}
     >
-      <section className="rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col gap-4">
+      <section className="rounded-lg border border-border bg-card p-4 shadow-sm flex flex-col gap-4">
         <SectionForm
           key={`${initialSuggestedSlug ?? ""}-${initialSystemParentCode ?? ""}`}
           initialSuggestedSlug={initialSuggestedSlug}

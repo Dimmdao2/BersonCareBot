@@ -14,8 +14,22 @@ export function createDoctorSupportMessagingService(
   opts?: DoctorSupportMessagingServiceOpts,
 ) {
   return {
-    listOpenConversations(params: { limit?: number }): Promise<AdminConversationListRow[]> {
-      return port.listOpenConversationsForAdmin({ limit: params.limit ?? 50 });
+    listOpenConversations(params: { limit?: number; unreadOnly?: boolean }): Promise<AdminConversationListRow[]> {
+      return port.listOpenConversationsForAdmin({
+        limit: params.limit ?? 50,
+        unreadOnly: params.unreadOnly === true,
+      });
+    },
+
+    async ensureConversationForPatient(platformUserId: string): Promise<{
+      conversationId: string;
+      messages: SupportConversationMessageRow[];
+      unreadFromUserCount: number;
+    }> {
+      const { id } = await port.ensureWebappConversationForUser(platformUserId);
+      const messages = await port.listMessagesSince(id, { sinceCreatedAt: null, limit: 100 });
+      const unreadFromUserCount = await port.countUnreadUserMessagesForAdminByConversation(id);
+      return { conversationId: id, messages, unreadFromUserCount };
     },
 
     async getMessages(
@@ -80,6 +94,10 @@ export function createDoctorSupportMessagingService(
 
     unreadFromUsers(): Promise<number> {
       return port.countUnreadUserMessagesForAdmin();
+    },
+
+    unreadFromPatient(platformUserId: string): Promise<number> {
+      return port.countUnreadUserMessagesForAdminByPatient(platformUserId);
     },
   };
 }

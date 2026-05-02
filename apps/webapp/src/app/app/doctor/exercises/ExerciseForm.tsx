@@ -1,9 +1,17 @@
 "use client";
 
 import type { CSSProperties } from "react";
-import { useActionState, useCallback, useEffect, useMemo, useState } from "react";
+import { useActionState, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ReferenceSelect } from "@/shared/ui/ReferenceSelect";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -14,11 +22,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { Exercise, ExerciseLoadType } from "@/modules/lfk-exercises/types";
+import type { Exercise, ExerciseLoadType, ExerciseUsageSnapshot } from "@/modules/lfk-exercises/types";
 import { MediaLibraryPickerDialog } from "@/app/app/doctor/content/MediaLibraryPickerDialog";
-import { archiveDoctorExercise, saveDoctorExercise } from "./actions";
-import type { SaveDoctorExerciseState } from "./actionsShared";
+import { archiveDoctorExercise, fetchDoctorExerciseUsageSnapshot, saveDoctorExercise } from "./actions";
+import type { ArchiveDoctorExerciseState, SaveDoctorExerciseState } from "./actionsShared";
 import { exerciseMediaTypeFromPick, exerciseTitleFromPickMeta } from "./exerciseMediaFromLibrary";
+import { exerciseUsageHasAnyReference, exerciseUsageSummaryLines } from "./exerciseUsageSummaryText";
 
 const LOAD_OPTIONS: { value: ExerciseLoadType; label: string }[] = [
   { value: "strength", label: "Силовая" },
@@ -81,9 +90,17 @@ export function exerciseToFormValues(exercise: Exercise | null | undefined): Exe
 type ExerciseFormProps = {
   exercise?: Exercise | null;
   saveAction?: (_prev: SaveDoctorExerciseState | null, formData: FormData) => Promise<SaveDoctorExerciseState>;
-  archiveAction?: (formData: FormData) => Promise<void>;
+  archiveAction?: (
+    _prev: ArchiveDoctorExerciseState | null,
+    formData: FormData,
+  ) => Promise<ArchiveDoctorExerciseState>;
   /** Current exercises list view — passed as hidden field for inline redirects after save/archive. */
   viewHint?: string;
+  /**
+   * Snapshot с сервера (например `?selected=` или RSC edit page). Если не передан — usage
+   * подгружается через `fetchDoctorExerciseUsageSnapshot`.
+   */
+  externalUsageSnapshot?: ExerciseUsageSnapshot;
 };
 
 export function ExerciseForm({
@@ -91,19 +108,57 @@ export function ExerciseForm({
   saveAction = saveDoctorExercise,
   archiveAction = archiveDoctorExercise,
   viewHint,
+  externalUsageSnapshot,
 }: ExerciseFormProps) {
   const recordKey = exercise?.id ?? "create";
 
   const [values, setValues] = useState<ExerciseFormValues>(() => exerciseToFormValues(exercise));
   const [regionLabel, setRegionLabel] = useState("");
   const [localError, setLocalError] = useState<string | null>(null);
+  const [usage, setUsage] = useState<ExerciseUsageSnapshot | null>(null);
+  const [usageLoadError, setUsageLoadError] = useState<string | null>(null);
+  const [usageBusy, setUsageBusy] = useState(false);
+  const [warnOpen, setWarnOpen] = useState(false);
+  const archiveFormRef = useRef<HTMLFormElement>(null);
+  const acknowledgeRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setValues(exerciseToFormValues(exercise));
     setRegionLabel("");
     setLocalError(null);
+    setUsageLoadError(null);
+    setWarnOpen(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- полный reset только при смене редактируемой сущности
   }, [recordKey]);
+
+  useEffect(() => {
+    if (!exercise?.id) {
+      setUsage(null);
+      return;
+    }
+    if (externalUsageSnapshot !== undefined) {
+      setUsage(externalUsageSnapshot);
+      return;
+    }
+    let cancelled = false;
+    setUsageBusy(true);
+    void fetchDoctorExerciseUsageSnapshot(exercise.id)
+      .then((u) => {
+        if (!cancelled) setUsage(u);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setUsage(null);
+          setUsageLoadError("Не удалось загрузить сводку использования");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setUsageBusy(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [exercise?.id, externalUsageSnapshot]);
 
   const wrappedSaveAction = useCallback(
     async (prev: SaveDoctorExerciseState | null, formData: FormData) => {
@@ -117,7 +172,44 @@ export function ExerciseForm({
 
   const [, formAction, savePending] = useActionState(wrappedSaveAction, null as SaveDoctorExerciseState | null);
 
+  const [archiveState, archiveFormAction, archivePending] = useActionState(
+    archiveAction,
+    null as ArchiveDoctorExerciseState | null,
+  );
+
+  useEffect(() => {
+    if (
+      archiveState?.ok === false &&
+      "code" in archiveState &&
+      archiveState.code === "USAGE_CONFIRMATION_REQUIRED"
+    ) {
+      setWarnOpen(true);
+    }
+  }, [archiveState]);
+
   const displayError = localError;
+
+  const usageLines = useMemo(() => {
+    if (!usage) return [];
+    if (!exerciseUsageHasAnyReference(usage)) return ["Пока не используется"];
+    return exerciseUsageSummaryLines(usage);
+  }, [usage]);
+
+  const warnLines = useMemo(() => {
+    if (
+      archiveState?.ok === false &&
+      "code" in archiveState &&
+      archiveState.code === "USAGE_CONFIRMATION_REQUIRED"
+    ) {
+      const u = archiveState.usage;
+      if (!exerciseUsageHasAnyReference(u)) return ["Упражнение помечено как используемое — проверьте связи перед архивацией."];
+      return exerciseUsageSummaryLines(u);
+    }
+    return [];
+  }, [archiveState]);
+
+  const archiveError =
+    archiveState?.ok === false && "error" in archiveState ? archiveState.error : null;
 
   const difficultyRangeStyle = useMemo(
     () => exerciseDifficultyRangeSliderStyle(values.difficulty),
@@ -269,13 +361,82 @@ export function ExerciseForm({
       </form>
 
       {exercise ? (
-        <form action={archiveAction} className="border-t border-border/60 pt-4">
-          <input type="hidden" name="id" value={exercise.id} />
-          {viewHint ? <input type="hidden" name="view" value={viewHint} /> : null}
-          <Button type="submit" variant="destructive">
-            Архивировать
-          </Button>
-        </form>
+        <div className="border-t border-border/60 pt-4">
+          <div className="mb-3 rounded-md border border-border/60 bg-muted/20 p-3">
+            <p className="text-sm font-medium text-foreground">Где используется</p>
+            {usageBusy ? (
+              <p className="mt-1 text-sm text-muted-foreground">Загрузка…</p>
+            ) : usageLoadError ? (
+              <p className="mt-1 text-sm text-muted-foreground">{usageLoadError}</p>
+            ) : (
+              <ul className="mt-2 list-inside list-disc space-y-1 text-sm text-muted-foreground">
+                {usageLines.map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          {archiveError ? (
+            <p role="alert" className="mb-2 text-sm text-destructive">
+              {archiveError}
+            </p>
+          ) : null}
+
+          <form ref={archiveFormRef} action={archiveFormAction} className="flex flex-col gap-2">
+            <input type="hidden" name="id" value={exercise.id} />
+            {viewHint ? <input type="hidden" name="view" value={viewHint} /> : null}
+            <input ref={acknowledgeRef} type="hidden" name="acknowledgeUsageWarning" value="" />
+            <Button
+              type="submit"
+              variant="destructive"
+              disabled={archivePending}
+              onClick={() => {
+                if (acknowledgeRef.current) acknowledgeRef.current.value = "";
+              }}
+            >
+              {archivePending ? "Архивация…" : "Архивировать"}
+            </Button>
+          </form>
+
+          <Dialog open={warnOpen} onOpenChange={setWarnOpen}>
+            <DialogContent showCloseButton className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>Элемент уже используется</DialogTitle>
+                <DialogDescription className="space-y-2">
+                  <span className="block">
+                    Архивация уберёт упражнение из каталога для новых назначений. Уже выданные назначения и история не
+                    удаляются.
+                  </span>
+                  {warnLines.length ? (
+                    <ul className="list-inside list-disc space-y-1">
+                      {warnLines.map((line) => (
+                        <li key={line}>{line}</li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter className="gap-2 sm:gap-2">
+                <Button type="button" variant="outline" onClick={() => setWarnOpen(false)}>
+                  Отмена
+                </Button>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  disabled={archivePending}
+                  onClick={() => {
+                    if (acknowledgeRef.current) acknowledgeRef.current.value = "1";
+                    setWarnOpen(false);
+                    queueMicrotask(() => archiveFormRef.current?.requestSubmit());
+                  }}
+                >
+                  Архивировать всё равно
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
       ) : null}
     </div>
   );

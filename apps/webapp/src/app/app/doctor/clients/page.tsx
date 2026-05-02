@@ -53,17 +53,15 @@ export default async function DoctorClientsPage({ searchParams }: Props) {
     selected
       ? Promise.all([
           deps.doctorClients.getClientProfile(selected),
-          deps.doctorMessaging.prepareMessageDraft({ userId: selected }),
           deps.doctorMessaging.listMessageHistory({ userId: selected, pageSize: 10 }),
-        ]).then(([profile, messageDraft, messageHistory]) =>
-          profile ? { profile, messageDraft, messageHistory: messageHistory.items } : null,
+        ]).then(([profile, messageHistory]) =>
+          profile ? { profile, messageHistory: messageHistory.items } : null,
         )
       : Promise.resolve(null),
     deps.lfkTemplates.listTemplates({ status: "published" }),
   ]);
 
   const selectedProfile = selectedData?.profile ?? null;
-  const selectedMessageDraft = selectedData?.messageDraft ?? null;
   const selectedMessageHistory = selectedData?.messageHistory ?? [];
   const listBasePathWithScope =
     scope === "all"
@@ -93,7 +91,6 @@ export default async function DoctorClientsPage({ searchParams }: Props) {
           <div id="doctor-clients-detail-column" className="hidden md:block">
             <ClientProfileCard
               profile={selectedProfile}
-              messageDraft={selectedMessageDraft}
               messageHistory={selectedMessageHistory}
               userId={selected!}
               listBasePath={listBasePathWithScope}
