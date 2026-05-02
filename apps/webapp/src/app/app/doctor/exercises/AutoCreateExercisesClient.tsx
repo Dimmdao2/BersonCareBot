@@ -24,18 +24,14 @@ import {
   filterMediaLibraryPickerItemsByQuery,
   narrowMediaLibraryPickerItemsByKind,
   useMediaLibraryPickerItems,
-  type AdminMediaListUrlSortBy,
 } from "@/shared/ui/media/useMediaLibraryPickerItems";
 
-type AutoCreateListSortPreset = "date:desc" | "date:asc" | "name:asc" | "name:desc";
-
-function parseAutoCreateListSortPreset(preset: AutoCreateListSortPreset): {
-  sortBy: AdminMediaListUrlSortBy;
-  sortDir: "asc" | "desc";
-} {
-  const [a, b] = preset.split(":") as ["date" | "name", "asc" | "desc"];
-  return { sortBy: a, sortDir: b };
-}
+import {
+  type MediaLibraryListSortPreset,
+  MEDIA_LIBRARY_LIST_SORT_OPTIONS,
+  mediaLibraryListSortLabel,
+  parseMediaLibraryListSortPreset,
+} from "@/shared/ui/media/mediaLibraryListSortOptions";
 import { bulkCreateExercisesFromMedia } from "./actions";
 import { EXERCISES_PATH } from "./exercisesPaths";
 import { exerciseMediaTypeFromPick, exerciseTitleFromLibraryItem } from "./exerciseMediaFromLibrary";
@@ -142,10 +138,10 @@ export function AutoCreateExercisesClient() {
   >({});
   const [usageReady, setUsageReady] = useState(false);
   const [selectedById, setSelectedById] = useState<Map<string, MediaListItem>>(new Map());
-  const [listSortPreset, setListSortPreset] = useState<AutoCreateListSortPreset>("date:desc");
+  const [listSortPreset, setListSortPreset] = useState<MediaLibraryListSortPreset>("date:desc");
 
   const { sortBy: listSortBy, sortDir: listSortDir } = useMemo(
-    () => parseAutoCreateListSortPreset(listSortPreset),
+    () => parseMediaLibraryListSortPreset(listSortPreset),
     [listSortPreset],
   );
 
@@ -405,15 +401,16 @@ export function AutoCreateExercisesClient() {
               </div>
               <div className="flex min-w-[10rem] flex-1 flex-col gap-1">
                 <span className="text-xs text-muted-foreground">Порядок списка</span>
-                <Select value={listSortPreset} onValueChange={(v) => setListSortPreset(v as AutoCreateListSortPreset)}>
+                <Select value={listSortPreset} onValueChange={(v) => setListSortPreset(v as MediaLibraryListSortPreset)}>
                   <SelectTrigger size="sm" className="w-full text-left">
-                    <SelectValue />
+                    <SelectValue placeholder="Порядок списка">{mediaLibraryListSortLabel(listSortPreset)}</SelectValue>
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="date:desc">Сначала новые</SelectItem>
-                    <SelectItem value="date:asc">Сначала старые</SelectItem>
-                    <SelectItem value="name:asc">Название А→Я</SelectItem>
-                    <SelectItem value="name:desc">Название Я→А</SelectItem>
+                    {MEDIA_LIBRARY_LIST_SORT_OPTIONS.map((o) => (
+                      <SelectItem key={o.value} value={o.value}>
+                        {o.label}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>

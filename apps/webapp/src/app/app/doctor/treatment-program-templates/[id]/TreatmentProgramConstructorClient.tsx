@@ -689,7 +689,7 @@ export function TreatmentProgramConstructorClient({
                 }}
               >
                 <SelectTrigger>
-                  <SelectValue />
+                  <SelectValue>{ITEM_TYPE_LABEL[itemType]}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {(Object.keys(ITEM_TYPE_LABEL) as TreatmentProgramItemType[]).map((k) => (

@@ -6,6 +6,55 @@
 
 ---
 
+## 2026-05-02 — SelectValue: sentinel «тип нагрузки» и оставшиеся raw-value
+
+**Повод:** при пустом типе нагрузки в [`ExerciseForm.tsx`](../../apps/webapp/src/app/app/doctor/exercises/ExerciseForm.tsx) в триггере отображался внутренний sentinel `__load_type_empty__` (children `SelectValue` были `null`). Дополнительно: самозакрывающийся `SelectValue` в [`CommentBlock.tsx`](../../apps/webapp/src/components/comments/CommentBlock.tsx) и [`PatientHomeRepairTargetsDialog.tsx`](../../apps/webapp/src/app/app/settings/patient-home/PatientHomeRepairTargetsDialog.tsx) мог показывать технический `value` вместо подписи.
+
+**Сделано:**
+
+- `ExerciseForm`: при пустом `loadType` в `SelectValue` явно **«Не выбран»** (sentinel остаётся только как controlled `value` селекта).
+- `CommentBlock`: в `SelectValue` — `COMMENT_TYPE_LABEL[newType]`.
+- `PatientHomeRepairTargetsDialog`: подпись выбранной цели по совпадению с `options` (как в `SelectItem`: `title (targetRef)`).
+- [`AppParametersSection.tsx`](../../apps/webapp/src/app/app/settings/AppParametersSection.tsx), [`SettingsForm.tsx`](../../apps/webapp/src/app/app/settings/SettingsForm.tsx): комментарий у самозакрывающегося `SelectValue`, что value уже человекочитаемый (IANA / русские подписи).
+
+**Проверки:** `pnpm --dir apps/webapp exec eslint` по перечисленным файлам · `pnpm --dir apps/webapp exec vitest run src/app/app/doctor/exercises/ExerciseForm.test.tsx` (при наличии).
+
+**Вне scope:** прочие экраны без регрессии в этом проходе.
+
+---
+
+## 2026-05-02 — каталоги назначений: подписи в Select (тип нагрузки и др.)
+
+**Повод:** в карточке упражнения в поле «Тип нагрузки» в закрытом селекте отображался ключ (`strength` и т.д.), хотя в списке — русские названия. Та же модель Base UI (`SelectValue` без children) давала сырой `value` и в других селектах (порядок списка медиа, статус шаблона, тип элемента программы, фильтр справочника, выбор шаблона у пациента).
+
+**Сделано:**
+
+- [`exerciseLoadTypeOptions.ts`](../../apps/webapp/src/modules/lfk-exercises/exerciseLoadTypeOptions.ts) — единые `EXERCISE_LOAD_TYPE_OPTIONS` и `exerciseLoadTypeLabel`; [`ExerciseForm.tsx`](../../apps/webapp/src/app/app/doctor/exercises/ExerciseForm.tsx) и [`DoctorCatalogFiltersForm.tsx`](../../apps/webapp/src/shared/ui/doctor/DoctorCatalogFiltersForm.tsx) переведены на общий источник.
+- [`mediaLibraryListSortOptions.ts`](../../apps/webapp/src/shared/ui/media/mediaLibraryListSortOptions.ts) — общие пресеты сортировки списка медиа; [`MediaPickerPanel.tsx`](../../apps/webapp/src/shared/ui/media/MediaPickerPanel.tsx), [`AutoCreateExercisesClient.tsx`](../../apps/webapp/src/app/app/doctor/exercises/AutoCreateExercisesClient.tsx).
+- Явная подпись в `SelectValue`: [`NewTemplateForm.tsx`](../../apps/webapp/src/app/app/doctor/treatment-program-templates/new/NewTemplateForm.tsx), [`TreatmentProgramConstructorClient.tsx`](../../apps/webapp/src/app/app/doctor/treatment-program-templates/[id]/TreatmentProgramConstructorClient.tsx), [`ReferenceItemsTableClient.tsx`](../../apps/webapp/src/app/app/doctor/references/[categoryCode]/ReferenceItemsTableClient.tsx), [`PatientTreatmentProgramsPanel.tsx`](../../apps/webapp/src/app/app/doctor/clients/PatientTreatmentProgramsPanel.tsx).
+
+**Проверки:** `pnpm --dir apps/webapp exec vitest run src/modules/lfk-exercises/exerciseLoadTypeOptions.test.ts` · целевой eslint по изменённым файлам.
+
+**Документация:** этот блок; примечание в [`ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md`](ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md).
+
+**Вне scope:** полный проход по всем остальным self-closing `SelectValue` вне перечисленных в первом проходе файлов.
+
+---
+
+## 2026-05-02 — меню врача: визуальный polish аккордеона
+
+**Повод:** UX кластерного меню в [`DoctorMenuAccordion.tsx`](../../apps/webapp/src/shared/ui/DoctorMenuAccordion.tsx) — жирные заголовки `text-foreground`, тонкая рамка кластера, шеврон слева (вправо / вниз при раскрытии), отступ вложенных ссылок, больший зазор между кластерами.
+
+**Сделано:** правки только в `DoctorMenuAccordion.tsx`; логика `openClusterId` / `localStorage` без изменений.
+
+**Проверки:** `pnpm exec vitest run src/shared/ui/DoctorMenuAccordion.test.tsx` (из `apps/webapp`) · `pnpm exec eslint src/shared/ui/DoctorMenuAccordion.tsx`.
+
+**Вне scope:** подпись «Разделы» в `DoctorAdminSidebar`, `doctorNavLinks`, примитивы `components/ui/*`, новые зависимости.
+
+**Документация:** краткое дополнение в [`DOCTOR_MENU_RESTRUCTURE_PLAN.md`](DOCTOR_MENU_RESTRUCTURE_PLAN.md).
+
+---
+
 ## 2026-05-02 — doctor clients: карточка и список (DOCTOR_CLIENT_PROFILE_REPACK)
 
 **Повод:** ТЗ [`DOCTOR_CLIENT_PROFILE_REPACK_PLAN.md`](DOCTOR_CLIENT_PROFILE_REPACK_PLAN.md) — убрать аккордеон карточки, sticky-шапка и плоские секции; компактный список с иконочными бейджами каналов; удалить заглушку «Создать из записи на приём».

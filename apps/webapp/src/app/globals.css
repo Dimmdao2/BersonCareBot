@@ -332,8 +332,8 @@
   background: linear-gradient(to right, #22c55e, #eab308 50%, #ef4444);
 }
 
-/* Форма упражнения (врач): сложность 1–10 — компактный thumb, явная полоска трека */
-.doctor-exercise-difficulty-range {
+/* Кабинет врача: шкала 1–10 (сложность упражнения и др.) — компактный thumb, явная полоска трека */
+.doctor-difficulty-1to10-range {
   -webkit-appearance: none;
   appearance: none;
   box-sizing: border-box;
@@ -342,14 +342,14 @@
   border-radius: 9999px;
   border: 1px solid var(--border);
   cursor: pointer;
-  /* Полная отрисовка заливки — inline `background` из ExerciseForm (валидный двухстопный градиент + ширина). */
+  /* Полная отрисовка заливки — inline `background` из DoctorDifficulty1to10Slider (валидный двухстопный градиент + ширина). */
   background: color-mix(in srgb, var(--muted) 88%, var(--border));
 }
-.doctor-exercise-difficulty-range:focus-visible {
+.doctor-difficulty-1to10-range:focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: 2px;
 }
-.doctor-exercise-difficulty-range::-webkit-slider-thumb {
+.doctor-difficulty-1to10-range::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
   width: 20px;
@@ -360,12 +360,12 @@
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
   margin-top: -7px;
 }
-.doctor-exercise-difficulty-range::-webkit-slider-runnable-track {
+.doctor-difficulty-1to10-range::-webkit-slider-runnable-track {
   height: 6px;
   border-radius: 9999px;
   background: transparent;
 }
-.doctor-exercise-difficulty-range::-moz-range-thumb {
+.doctor-difficulty-1to10-range::-moz-range-thumb {
   width: 20px;
   height: 20px;
   border-radius: 50%;
@@ -373,15 +373,15 @@
   border: 2px solid var(--primary);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
 }
-.doctor-exercise-difficulty-range::-moz-range-track {
+.doctor-difficulty-1to10-range::-moz-range-track {
   height: 6px;
   border-radius: 9999px;
   background: color-mix(in srgb, var(--muted) 88%, var(--border));
 }
-.doctor-exercise-difficulty-range::-moz-range-progress {
+.doctor-difficulty-1to10-range::-moz-range-progress {
   height: 6px;
   border-radius: 9999px;
-  background: var(--ex-diff-fill, hsl(215 42% 78% / 0.55));
+  background: var(--doctor-diff-1to10-fill, hsl(215 42% 78% / 0.55));
 }
 
 @layer utilities {

@@ -64,6 +64,7 @@ export function SettingsForm({ patientLabel, smsFallbackEnabled }: SettingsFormP
           </label>
           <Select value={label} onValueChange={(v) => { if (v) setLabel(v); }}>
             <SelectTrigger id="patient-label-select" className="w-40">
+              {/* SelectItem values are already human-readable Russian */}
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

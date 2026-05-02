@@ -16,6 +16,12 @@ import {
 import { cn } from "@/lib/utils";
 import { TREATMENT_PROGRAM_TEMPLATES_PATH } from "../paths";
 
+const TEMPLATE_STATUS_LABEL: Record<"draft" | "published" | "archived", string> = {
+  draft: "Черновик",
+  published: "Опубликован",
+  archived: "Архив",
+};
+
 export type NewTemplateFormProps = {
   /** Показать ссылку «Отмена» на список шаблонов (страница `/new`). */
   showCancelLink?: boolean;
@@ -89,7 +95,7 @@ export function NewTemplateForm({
           <Label htmlFor={`${titleInputId}-status`}>Статус</Label>
           <Select value={status} onValueChange={(v) => setStatus(v as typeof status)}>
             <SelectTrigger id={`${titleInputId}-status`} size="sm" className="w-full max-w-md text-left">
-              <SelectValue />
+              <SelectValue>{TEMPLATE_STATUS_LABEL[status]}</SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="draft">Черновик</SelectItem>

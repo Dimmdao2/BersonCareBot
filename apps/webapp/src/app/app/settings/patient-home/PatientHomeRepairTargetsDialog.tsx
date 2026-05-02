@@ -136,6 +136,12 @@ export function PatientHomeRepairTargetsDialog({
           {unresolvedItems.map((item) => {
             const options = candidatesByType.get(item.targetType) ?? [];
             const selectValue = selectionByItemId[item.id] ?? "";
+            const selectedCandidate = options.find(
+              (c) => `${c.targetType}:${c.targetRef}` === selectValue,
+            );
+            const selectDisplayLabel = selectedCandidate
+              ? `${selectedCandidate.title} (${selectedCandidate.targetRef})`
+              : null;
             const suggested = suggestedSlugForNewContentSection(item.targetRef);
             return (
               <div key={item.id} className="rounded-lg border border-border p-3">
@@ -154,7 +160,11 @@ export function PatientHomeRepairTargetsDialog({
                     disabled={candidatesLoading || isPending || options.length === 0}
                   >
                     <SelectTrigger className="w-full">
-                      <SelectValue placeholder={options.length === 0 ? "Нет доступных целей" : "Выберите цель"} />
+                      <SelectValue
+                        placeholder={options.length === 0 ? "Нет доступных целей" : "Выберите цель"}
+                      >
+                        {selectDisplayLabel}
+                      </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       {options.map((c) => (

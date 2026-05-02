@@ -4,6 +4,8 @@
 **Статус:** выполнено (см. [аудит выполнения](DOCTOR_MENU_RESTRUCTURE_EXECUTION_AUDIT.md)).  
 **Связанный общий план:** [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md), этап 2.
 
+**Дополнение (2026-05-02):** визуальный polish в [`DoctorMenuAccordion.tsx`](../../apps/webapp/src/shared/ui/DoctorMenuAccordion.tsx) после закрытия этапа 2 — рамка кластера (`border-muted-foreground/30`), жирные заголовки блоков, слева шеврон (`ChevronRight` с поворотом при раскрытии), отступ вложенных пунктов меню. Поведение аккордеона и сохранение открытого кластера в `localStorage` не менялись.
+
 ---
 
 ## Цель

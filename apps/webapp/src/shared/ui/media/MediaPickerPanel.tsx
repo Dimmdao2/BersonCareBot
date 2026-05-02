@@ -27,23 +27,12 @@ import { UploadRequestError, uploadWithProgress } from "@/shared/ui/media/upload
 import { FILE_INPUT_ACCEPT } from "@/modules/media/uploadAllowedMime";
 import { MediaLibraryFolderScopeSelect } from "@/shared/ui/media/MediaLibraryFolderScopeSelect";
 import { mediaFolderPathLabel } from "@/shared/ui/media/mediaFolderScopeUtils";
-
-type MediaPickerListSortPreset = "date:desc" | "date:asc" | "name:asc" | "name:desc";
-
-const MEDIA_PICKER_SORT_OPTIONS: { value: MediaPickerListSortPreset; label: string }[] = [
-  { value: "date:desc", label: "Сначала новые" },
-  { value: "date:asc", label: "Сначала старые" },
-  { value: "name:asc", label: "Название А→Я" },
-  { value: "name:desc", label: "Название Я→А" },
-];
-
-function parseMediaPickerListSortPreset(preset: MediaPickerListSortPreset): {
-  sortBy: "date" | "name";
-  sortDir: "asc" | "desc";
-} {
-  const [a, b] = preset.split(":") as ["date" | "name", "asc" | "desc"];
-  return { sortBy: a, sortDir: b };
-}
+import {
+  MEDIA_LIBRARY_LIST_SORT_OPTIONS,
+  type MediaLibraryListSortPreset,
+  mediaLibraryListSortLabel,
+  parseMediaLibraryListSortPreset,
+} from "@/shared/ui/media/mediaLibraryListSortOptions";
 
 function kindFromMimeForListItem(mimeType: string): MediaListItem["kind"] {
   const lower = mimeType.toLowerCase();
@@ -161,7 +150,7 @@ export function MediaPickerPanel({
   showFolderScope = true,
 }: MediaPickerPanelProps) {
   const [query, setQuery] = useState("");
-  const [listSortPreset, setListSortPreset] = useState<MediaPickerListSortPreset>("date:desc");
+  const [listSortPreset, setListSortPreset] = useState<MediaLibraryListSortPreset>("date:desc");
   const [folders, setFolders] = useState<MediaFolderRecord[]>([]);
   const [foldersLoaded, setFoldersLoaded] = useState(false);
   const [newOnly, setNewOnly] = useState(false);
@@ -178,7 +167,7 @@ export function MediaPickerPanel({
   const uploadInputId = useId();
 
   const { sortBy: listSortBy, sortDir: listSortDir } = useMemo(
-    () => parseMediaPickerListSortPreset(listSortPreset),
+    () => parseMediaLibraryListSortPreset(listSortPreset),
     [listSortPreset],
   );
 
@@ -430,15 +419,15 @@ export function MediaPickerPanel({
             <span className="text-xs text-muted-foreground">Порядок списка</span>
             <Select
               value={listSortPreset}
-              onValueChange={(v) => setListSortPreset(v as MediaPickerListSortPreset)}
+              onValueChange={(v) => setListSortPreset(v as MediaLibraryListSortPreset)}
             >
               <SelectTrigger size="sm" className="w-full text-left">
                 <SelectValue placeholder="Порядок списка">
-                  {MEDIA_PICKER_SORT_OPTIONS.find((o) => o.value === listSortPreset)?.label ?? "Сначала новые"}
+                  {mediaLibraryListSortLabel(listSortPreset)}
                 </SelectValue>
               </SelectTrigger>
               <SelectContent>
-                {MEDIA_PICKER_SORT_OPTIONS.map((o) => (
+                {MEDIA_LIBRARY_LIST_SORT_OPTIONS.map((o) => (
                   <SelectItem key={o.value} value={o.value}>
                     {o.label}
                   </SelectItem>

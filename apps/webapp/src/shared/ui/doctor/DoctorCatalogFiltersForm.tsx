@@ -4,21 +4,20 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ReferenceSelect } from "@/shared/ui/ReferenceSelect";
+import { EXERCISE_LOAD_TYPE_OPTIONS, exerciseLoadTypeLabel } from "@/modules/lfk-exercises/exerciseLoadTypeOptions";
 import type { ExerciseLoadType } from "@/modules/lfk-exercises/types";
 import type { ReferenceItemDto } from "@/modules/references/referenceCache";
 import type { ReactNode } from "react";
 
-const EXERCISE_LOAD_FILTER_ITEMS: ReferenceItemDto[] = [
-  { id: "ex-filter-load-strength", code: "strength", title: "Силовая", sortOrder: 1 },
-  { id: "ex-filter-load-stretch", code: "stretch", title: "Растяжка", sortOrder: 2 },
-  { id: "ex-filter-load-balance", code: "balance", title: "Баланс", sortOrder: 3 },
-  { id: "ex-filter-load-cardio", code: "cardio", title: "Кардио", sortOrder: 4 },
-  { id: "ex-filter-load-other", code: "other", title: "Другое", sortOrder: 5 },
-];
+const EXERCISE_LOAD_FILTER_ITEMS: ReferenceItemDto[] = EXERCISE_LOAD_TYPE_OPTIONS.map((o, idx) => ({
+  id: `ex-filter-load-${o.value}`,
+  code: o.value,
+  title: o.label,
+  sortOrder: idx + 1,
+}));
 
 function loadTypeTitle(code: ExerciseLoadType | undefined): string {
-  if (!code) return "";
-  return EXERCISE_LOAD_FILTER_ITEMS.find((i) => i.code === code)?.title ?? "";
+  return exerciseLoadTypeLabel(code ?? "");
 }
 
 /** Альтернатива колонке «тип нагрузки»: свой справочник и имя GET-параметра (например область рекомендаций — `domain`). */

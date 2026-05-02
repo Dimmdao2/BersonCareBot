@@ -4,6 +4,7 @@ import {
   DOCTOR_MENU_DEFAULT_CLUSTER_ID,
   DOCTOR_MENU_LINKS,
   DOCTOR_MENU_OPEN_CLUSTER_STORAGE_KEY,
+  DOCTOR_MENU_OPEN_CLUSTERS_STORAGE_KEY,
   DOCTOR_MENU_STANDALONE_LINKS,
   getDoctorMenuRenderSections,
   isDoctorMenuClusterId,
@@ -86,8 +87,9 @@ describe("doctor menu structure", () => {
     expect(DOCTOR_MENU_LINKS.some((l) => l.label === "Комплексы ЛФК")).toBe(true);
   });
 
-  it("exposes localStorage key constant for accordion", () => {
+  it("exposes localStorage keys for accordion (legacy single id + open set JSON)", () => {
     expect(DOCTOR_MENU_OPEN_CLUSTER_STORAGE_KEY).toBe("doctorMenu.openCluster.v1");
+    expect(DOCTOR_MENU_OPEN_CLUSTERS_STORAGE_KEY).toBe("doctorMenu.openClusters.v1");
   });
 
   it("assigns badgeKey to online intake and messages only", () => {

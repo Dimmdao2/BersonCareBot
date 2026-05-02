@@ -168,6 +168,7 @@ export function AppParametersSection({ appBaseUrl, supportContactUrl, appDisplay
             disabled={isPending}
           >
             <SelectTrigger id="app-display-timezone" className="w-full max-w-lg">
+              {/* IANA id = value = visible label; explicit SelectValue children not required */}
               <SelectValue />
             </SelectTrigger>
             <SelectContent className="max-h-72">

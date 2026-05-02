@@ -102,7 +102,9 @@ export function PatientTreatmentProgramsPanel(props: {
             disabled={disabled || templates.length === 0}
           >
             <SelectTrigger aria-label="Выбор шаблона программы">
-              <SelectValue placeholder={templates.length === 0 ? "Нет шаблонов" : "Выберите шаблон"} />
+              <SelectValue placeholder={templates.length === 0 ? "Нет шаблонов" : "Выберите шаблон"}>
+                {selectedTpl ? templates.find((t) => t.id === selectedTpl)?.title ?? null : null}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               {templates.map((t) => (

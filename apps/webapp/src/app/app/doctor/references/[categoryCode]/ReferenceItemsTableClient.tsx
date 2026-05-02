@@ -134,6 +134,12 @@ type Row = {
 
 type StatusFilter = "all" | "active" | "archived";
 
+const STATUS_FILTER_LABEL: Record<StatusFilter, string> = {
+  all: "Все",
+  active: "Активные",
+  archived: "Архивные",
+};
+
 function matchesStatusFilter(row: Row, statusFilter: StatusFilter): boolean {
   if (statusFilter === "all") return true;
   if (statusFilter === "active") return row.isActive;
@@ -537,7 +543,7 @@ export function ReferenceItemsTableClient({ categoryTitle, categoryCode, initial
             />
             <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as StatusFilter)}>
               <SelectTrigger className="w-[11rem]" aria-label="Фильтр по статусу">
-                <SelectValue placeholder="Статус" />
+                <SelectValue placeholder="Статус">{STATUS_FILTER_LABEL[statusFilter]}</SelectValue>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Все</SelectItem>

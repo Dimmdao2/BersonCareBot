@@ -179,7 +179,7 @@ export function CommentBlock({
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <Select value={newType} onValueChange={(v) => setNewType(v as CommentType)}>
             <SelectTrigger className="w-full sm:w-[200px]" aria-label="Тип комментария">
-              <SelectValue />
+              <SelectValue>{COMMENT_TYPE_LABEL[newType]}</SelectValue>
             </SelectTrigger>
             <SelectContent>
               {COMMENT_TYPES.map((t) => (

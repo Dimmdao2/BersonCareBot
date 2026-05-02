@@ -2,8 +2,11 @@
 
 import { routePaths } from "@/app-layer/routes/paths";
 
-/** Ключ localStorage для открытого кластера аккордеона. */
+/** Устаревший ключ: один открытый кластер. Читается только для миграции в формат множества. */
 export const DOCTOR_MENU_OPEN_CLUSTER_STORAGE_KEY = "doctorMenu.openCluster.v1";
+
+/** Ключ localStorage: JSON-массив id открытых кластеров (независимое сворачивание секций). */
+export const DOCTOR_MENU_OPEN_CLUSTERS_STORAGE_KEY = "doctorMenu.openClusters.v1";
 
 /** Дефолтный открытый кластер при первом заходе. */
 export const DOCTOR_MENU_DEFAULT_CLUSTER_ID = "patients-work";

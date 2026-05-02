@@ -20,6 +20,10 @@
 
 Это не этап переделки самих каталогов. Это защитный слой поверх существующих каталогов.
 
+### Примечание (UI, 2026-05-02)
+
+Компонент `Select` на Base UI (`@/components/ui/select`): в триггере у `SelectValue` без дочерних узлов часто отображается сырое `value` (ключ), а не подпись из `SelectItem`. Для каталогов назначений и связанных экранов подпись выбранного пункта задаётся **явно** дочерним текстом `SelectValue` (как в `DoctorCatalogTitleSortSelect`, `MediaLibraryFolderScopeSelect`) или через общие хелперы (`exerciseLoadTypeLabel`, `mediaLibraryListSortLabel`). Если для controlled-пустого состояния используется sentinel-`value`, в `SelectValue` нельзя оставлять `null`/`undefined` как children — иначе в триггер попадёт сам sentinel; нужна явная подпись (например «Не выбран»).
+
 ---
 
 ## Каталоги этапа

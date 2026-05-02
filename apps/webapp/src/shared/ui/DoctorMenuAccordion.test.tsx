@@ -5,7 +5,10 @@ import { describe, expect, it, beforeEach, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { DoctorMenuAccordion, formatNavBadgeCount } from "./DoctorMenuAccordion";
-import { DOCTOR_MENU_OPEN_CLUSTER_STORAGE_KEY } from "./doctorNavLinks";
+import {
+  DOCTOR_MENU_OPEN_CLUSTER_STORAGE_KEY,
+  DOCTOR_MENU_OPEN_CLUSTERS_STORAGE_KEY,
+} from "./doctorNavLinks";
 
 const pathnameRef = vi.hoisted(() => ({ value: "/app/doctor" }));
 const unreadCountRef = vi.hoisted(() => ({ value: 0 }));
@@ -87,15 +90,40 @@ describe("DoctorMenuAccordion", () => {
     expect(screen.getByRole("button", { name: "Назначения" })).toHaveAttribute("aria-expanded", "false");
   });
 
-  it("shows assignments cluster when its header clicked and persists id", async () => {
+  it("toggles Работа с пациентами closed and open on header click", async () => {
+    const user = userEvent.setup();
+    render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor" />);
+    await waitFor(() => screen.getByRole("link", { name: "Сегодня" }));
+    await user.click(screen.getByRole("button", { name: "Работа с пациентами" }));
+    expect(screen.queryByRole("link", { name: "Сегодня" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Работа с пациентами" })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+    await user.click(screen.getByRole("button", { name: "Работа с пациентами" }));
+    await waitFor(() => {
+      expect(screen.getByRole("link", { name: "Сегодня" })).toBeInTheDocument();
+    });
+    expect(screen.getByRole("button", { name: "Работа с пациентами" })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+  });
+
+  it("adds assignments cluster when its header clicked without closing other open clusters", async () => {
     const user = userEvent.setup();
     render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor" />);
     await waitFor(() => screen.getByRole("link", { name: "Сегодня" }));
     await user.click(screen.getByRole("button", { name: "Назначения" }));
-    expect(screen.queryByRole("link", { name: "Сегодня" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Сегодня" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Упражнения" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Назначения" })).toHaveAttribute("aria-expanded", "true");
-    expect(localStorage.getItem(DOCTOR_MENU_OPEN_CLUSTER_STORAGE_KEY)).toBe("assignments");
+    const raw = localStorage.getItem(DOCTOR_MENU_OPEN_CLUSTERS_STORAGE_KEY);
+    expect(raw).toBeTruthy();
+    const ids = JSON.parse(raw!) as string[];
+    expect(ids).toContain("assignments");
+    expect(ids).toContain("patients-work");
+    expect(localStorage.getItem(DOCTOR_MENU_OPEN_CLUSTER_STORAGE_KEY)).toBeNull();
   });
 
   it("always shows standalone Библиотека файлов", async () => {
@@ -107,7 +135,7 @@ describe("DoctorMenuAccordion", () => {
     );
   });
 
-  it("restores cluster id from localStorage", async () => {
+  it("restores from legacy v1 single-cluster key when v2 absent", async () => {
     localStorage.setItem(DOCTOR_MENU_OPEN_CLUSTER_STORAGE_KEY, "assignments");
     render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor" />);
     await waitFor(() => {
@@ -116,7 +144,17 @@ describe("DoctorMenuAccordion", () => {
     expect(screen.queryByRole("link", { name: "Сегодня" })).not.toBeInTheDocument();
   });
 
-  it("falls back to default cluster id when localStorage invalid", async () => {
+  it("restores open clusters from localStorage (JSON array)", async () => {
+    localStorage.setItem(DOCTOR_MENU_OPEN_CLUSTERS_STORAGE_KEY, JSON.stringify(["assignments"]));
+    render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor" />);
+    await waitFor(() => {
+      expect(screen.getByRole("link", { name: "Упражнения" })).toBeInTheDocument();
+    });
+    expect(screen.queryByRole("link", { name: "Сегодня" })).not.toBeInTheDocument();
+  });
+
+  it("falls back to default cluster when localStorage invalid for both keys", async () => {
+    localStorage.setItem(DOCTOR_MENU_OPEN_CLUSTERS_STORAGE_KEY, "not-json");
     localStorage.setItem(DOCTOR_MENU_OPEN_CLUSTER_STORAGE_KEY, "no-such-cluster");
     render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor" />);
     await waitFor(() => {
