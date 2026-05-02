@@ -169,6 +169,151 @@
 
 ---
 
+## 2026-05-02 — `PLAN_DOCTOR_CABINET.md` приведён в соответствие с новыми решениями
+
+- Порядок этапов перестроен на **CMS-first**. Этап 1 = CMS-разделение по [`CMS_RESTRUCTURE_PLAN.md`](CMS_RESTRUCTURE_PLAN.md).
+- Этап 2 «Меню» расширен: аккордеон с состоянием в `localStorage`, перенос «Библиотеки файлов» из CMS в основное меню.
+- Этап 5 «Сообщения» переписан под новую идею: страница чатов с фильтром «непрочитанные», универсальный layout чата как модалка, переиспользование в карточке пациента, автопрочтение по видимости.
+- Этап 6 «Карточка пациента» свёрнут до минимальной пересборки. Подробный tabs/hero-план положен в `<details>` как архив. В текущем проходе глубокая переработка не выполняется.
+- Этап 7 «Каталоги»: добавлены курсы.
+- Этап 8 — новый: «Плотность интерфейса» (карточки/тексты/отступы кабинета врача слишком крупные).
+- Этап 9 — старое содержание (`content_sections.kind` + редизайн CMS hub) **переехало** в `CMS_RESTRUCTURE_PLAN.md`. В этом плане этап оставлен пустым с указанием хвоста по мотивациям (raw SQL → порт).
+- Definition of Done переписан под новый набор этапов.
+- Код не правился, только документация.
+
+---
+
+## 2026-05-02 — заведена инициатива CMS-разделения (Вариант C)
+
+- Добавлен документ-инициатива [`CMS_RESTRUCTURE_PLAN.md`](CMS_RESTRUCTURE_PLAN.md): визуальная иерархия CMS через поля `kind` и `system_parent_code` у `content_sections`, без настоящей parent-иерархии в БД (Вариант A отложен).
+- Контекст и факты — [`CMS_AUDIT.md`](CMS_AUDIT.md).
+- Старт шагов — после согласования открытых вопросов §«Открытые вопросы (к шагу 1)» в плане.
+- Код на этом этапе не правится.
+
+---
+
+## CMS Composer — шаг 0 (preflight): таксономия в документах, без кода
+
+**Сделано:**
+
+- В [`CMS_RESTRUCTURE_PLAN.md`](CMS_RESTRUCTURE_PLAN.md) устранено противоречие: канонические значения `system_parent_code` — `situations` \| `sos` \| `warmups` \| `lessons` \| `null` (включён `lessons` для `lessons` / `course_lessons`).
+- Зафиксировано: «Мотивации» — отдельный маршрут и `motivational_quotes`, **не** значение `system_parent_code` у `content_sections` в этом проходе.
+- Добавлена таблица canonical backfill (slug → `kind` / `system_parent_code`) в шаге 1 плана.
+- Сайдбар DoD и формулировки «что входит» приведены в соответствие (системные папки: Ситуации, SOS, Разминки, Уроки; мотивации — отдельная ссылка).
+- Защита slug: зафиксированы **immutable** встроенные slug; пользовательские разделы `kind=system` в папках кластера могут переименовываться (см. реализацию и [`CMS_RESTRUCTURE_PLAN.md`](CMS_RESTRUCTURE_PLAN.md)).
+
+**Проверки:** ручная сверка `CMS_RESTRUCTURE_PLAN.md`; `STRUCTURE_AUDIT.md` не меняли.
+
+**Вне scope:** миграция БД и правки кода — следующие шаги плана Composer.
+
+---
+
+## CMS Composer — реализация варианта C (миграция, CMS, patient-home, резолверы)
+
+**Сделано:**
+
+- БД и порт: `content_sections.kind` / `system_parent_code`, миграция с backfill, `apps/webapp/src/modules/content-sections/*`, реализация в `pgContentSections` (фильтры, upsert; переименование slug запрещено только для встроенных immutable slug, пользовательские разделы в папках можно переименовывать).
+- CMS: `ContentPagesSidebar` (статьи vs папки), `/app/doctor/content?section=` и `?systemParentCode=`, список разделов с бейджами таксономии, форма раздела с «Расположение в CMS», `saveContentSection` с `placement`, защита встроенных slug в UI и в actions.
+- Patient-home: правила в `blocks.ts`, фильтр кандидатов и проверка целей в `service.ts`, inline-создание раздела с `kind=system` и родителем из `systemParentCodeForPatientHomeBlock` (карусель — `inline_section_not_supported_for_block`).
+- Главная пациента: `patientHomeResolvers.ts` и `todayConfig.ts` пропускают цели вне кластера; `patientHomeRuntimeStatus` и `/app/doctor/patient-home` передают в sync-контекст таксономию разделов и поле `section` у страниц.
+
+**Проверки (зафиксированы явно для трассируемости):**
+
+- `pnpm --dir apps/webapp typecheck`
+- `pnpm --dir apps/webapp lint`
+- `pnpm --dir apps/webapp test` (полный прогон тестов пакета webapp)
+
+**Ops (после применения миграции `0017_content_sections_kind_system_parent.sql` на окружении):** выполнить контрольный запрос и при приёмке этапа добавить в этот журнал **одну строку** с датой, именем окружения (dev/stage/prod) и краткой сводкой счётчиков (без секретов, без полного дампа строк):
+
+```sql
+SELECT kind, COALESCE(system_parent_code::text, 'null') AS parent, COUNT(*) AS n
+FROM content_sections
+GROUP BY 1, 2
+ORDER BY 1, 2;
+```
+
+**Вне scope этого прохода:** `parent_id` в БД, смена patient URL, перенос библиотеки в основное меню врача.
+
+---
+
+## 2026-05-02 — пост-аудит CMS Composer: журнал, планы и факты в CMS_AUDIT
+
+**Сделано:**
+
+- В записи «CMS Composer — реализация варианта C» выше — явный список команд проверки и шаблон контрольного `SELECT` для ops после миграции (рекомендации из [`CMS_RESTRUCTURE_EXECUTION_AUDIT.md`](CMS_RESTRUCTURE_EXECUTION_AUDIT.md) §4).
+- [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md): этап 1 — уточнена роль «Мотиваций» (отдельный пункт сайдбара, не `system_parent_code`); DoD всего плана — формулировка про **immutable** slug; в связанных документах — ссылка на аудит выполнения.
+- [`RECOMMENDATIONS_AND_ROADMAP.md`](RECOMMENDATIONS_AND_ROADMAP.md): примечание к «Этапу 2» дорожной карты — фактическая первая итерация типизации соответствует **варианту C** из `CMS_RESTRUCTURE_PLAN.md`, а не полному enum из старого текста этапа.
+- [`README.md`](README.md) этой папки — строки в таблице «Что в этой папке» для CMS-плана и аудита.
+- [`CMS_AUDIT.md`](CMS_AUDIT.md): разграничение baseline «до миграции» и текущего состояния; строки таблицы §4 по CMS-хабу приведены в соответствие с вариантом C.
+- [`TARGET_STRUCTURE_DOCTOR.md`](TARGET_STRUCTURE_DOCTOR.md): сноска к §8 про вариант C как первый шаг к целевой типизации.
+- [`CMS_RESTRUCTURE_PLAN.md`](CMS_RESTRUCTURE_PLAN.md): в Definition of Done уточнён пункт про контрольный `SELECT` (шаблон в `LOG.md`).
+
+**Проверки:** ручная сверка изменённых markdown-файлов; код не менялся.
+
+---
+
+## 2026-05-02 — этап 1 `PLAN_DOCTOR_CABINET` помечен закрытым
+
+**Сделано:** в [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md) в шапке и в блоке «Этап 1» зафиксировано закрытие CMS-разделения (вариант C); в сводной таблице этапов строка 1 помечена как **закрыт**.
+
+**Проверки:** сверка с [`CMS_RESTRUCTURE_PLAN.md`](CMS_RESTRUCTURE_PLAN.md) (статус «реализовано») и записью «CMS Composer — реализация» в этом журнале.
+
+---
+
+## 2026-05-02 — подготовлено ТЗ для этапа 2 «Меню врача»
+
+**Сделано:**
+
+- Добавлен [`DOCTOR_MENU_RESTRUCTURE_PLAN.md`](DOCTOR_MENU_RESTRUCTURE_PLAN.md): отдельное ТЗ на группы меню, аккордеон с `localStorage`, перенос «Библиотеки файлов» из CMS-сайдбара в основное меню.
+- В [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md) добавлена ссылка на новое ТЗ в связанных документах и в блоке этапа 2.
+- Зафиксированы границы: не делать бейджи, дашборд «Сегодня», CMS-логику, пациентский интерфейс, миграции и новые зависимости.
+- Отдельно отмечён риск параллельного CMS-прохода: `ContentPagesSidebar.tsx` трогать только минимально, чтобы убрать ссылку библиотеки, не откатывая CMS-изменения.
+
+**Проверки:** ручная сверка плана и текущих файлов меню (`doctorNavLinks.ts`, `DoctorHeader.tsx`, `DoctorAdminSidebar.tsx`, `doctorScreenTitles.ts`, `ContentPagesSidebar.tsx`). Код не правился.
+
+---
+
+## 2026-05-02 — подготовлено ТЗ для этапа 8 «Плотность интерфейса»
+
+**Сделано:**
+
+- Добавлен [`DOCTOR_UI_DENSITY_PLAN.md`](DOCTOR_UI_DENSITY_PLAN.md): отдельное ТЗ на уменьшение крупности doctor UI без редизайна.
+- В [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md) добавлена ссылка на новое ТЗ в связанных документах и в блоке этапа 8.
+- Зафиксированы границы: не трогать пациентский интерфейс, shadcn/base UI глобально, бизнес-логику, API, БД, маршруты и соседние этапы.
+- Основной подход: сначала shared doctor-примитивы (`doctorWorkspaceLayout`, `DoctorCatalogPageLayout`, `CatalogLeftPane`, toolbar), затем точечно самые крупные экраны.
+
+**Проверки:** ручная сверка текущих shared doctor layout-файлов и блока этапа 8 в плане. Код не правился.
+
+---
+
+## 2026-05-02 — подготовлено ТЗ для этапа 7 «Каталоги назначений»
+
+**Сделано:**
+
+- Добавлен [`ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md`](ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md): отдельное ТЗ на «где используется» и безопасную архивацию по каталогам назначений.
+- В [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md) добавлена ссылка на новое ТЗ в связанных документах и в блоке этапа 7.
+- Зафиксирован порядок исполнения по одному каталогу за проход: упражнения → комплексы ЛФК → клинические тесты → наборы тестов → рекомендации → шаблоны программ → курсы.
+- Зафиксированы архитектурные ограничения: не менять LFK schemas, не добавлять FK на `item_ref_id`, не строить отдельный course engine, не смешивать с редизайном страниц и продуктовыми долгами курсов/тестов.
+- Отдельно отмечено ограничение по курсам: точного `course_id` в экземплярах программ нет, поэтому счётчик назначений можно формулировать только через связанный `programTemplateId`, если не появится другой подтверждённый источник.
+
+**Проверки:** ручная сверка текущих module/port/repo цепочек для LFK, tests, recommendations, treatment programs и courses. Код не правился.
+
+---
+
+## 2026-05-02 — подготовлено ТЗ для этапа 5 «Сообщения»
+
+**Сделано:**
+
+- Добавлен [`DOCTOR_MESSAGES_UNIFIED_CHAT_PLAN.md`](DOCTOR_MESSAGES_UNIFIED_CHAT_PLAN.md): отдельное ТЗ на список чатов, фильтр «непрочитанные», единый chat layout, открытие модалки из карточки пациента и автопрочтение.
+- В [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md) добавлена ссылка на новое ТЗ в связанных документах и в блоке этапа 5.
+- Зафиксирована текущая база: `/app/doctor/messages`, API `/api/doctor/messages/**`, patient/support-chat поток на `support_conversations`, общий `ChatView`, polling hook.
+- Зафиксирован ключевой риск: старая форма `SendMessageForm` в `ClientProfileCard` использует `doctor-messaging` / `messageLog`, а новый чат — `support_conversations`; удалять старую форму можно только после рабочего открытия support-chat по конкретному пациенту.
+- Зафиксированы границы: не трогать `/broadcasts`, рассылки, пациентский интерфейс, realtime/websocket/SSE, БД-схему и глубокую переработку карточки пациента.
+
+**Проверки:** ручная сверка текущих doctor messages routes/components, patient messages flow, `ClientProfileCard`, `modules/messaging`, `doctor-messaging` и `pgSupportCommunication`. Код не правился.
+
+---
+
 ## 2026-05-01 — рамка текущего прохода `PLAN_DOCTOR_CABINET`
 
 - В [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md) добавлен общий фокус текущего прохода: работать прежде всего с механиками и разделами, которые определяют будущий пациентский опыт главной и внутренних блоков (`разминки`, `прогресс`, `ситуации`, `курсы`, `подписка` и т.д.), параллельно с doctor-facing UI кабинета.

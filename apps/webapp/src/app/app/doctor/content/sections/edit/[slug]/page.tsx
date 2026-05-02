@@ -33,6 +33,8 @@ export default async function DoctorContentSectionEditPage({ params }: Props) {
             requiresAuth: row.requiresAuth,
             coverImageUrl: row.coverImageUrl,
             iconImageUrl: row.iconImageUrl,
+            kind: row.kind,
+            systemParentCode: row.systemParentCode,
           }}
           pagesInSection={pagesInSection}
         />

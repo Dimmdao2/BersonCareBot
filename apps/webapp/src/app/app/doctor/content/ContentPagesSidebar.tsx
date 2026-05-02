@@ -2,8 +2,16 @@ import Link from "next/link";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
+import { SYSTEM_PARENT_CODES } from "@/modules/content-sections/types";
 
 export type ContentPagesSidebarSection = { slug: string; title: string };
+
+const SYSTEM_FOLDER_LABELS: Record<(typeof SYSTEM_PARENT_CODES)[number], string> = {
+  situations: "Ситуации",
+  sos: "SOS",
+  warmups: "Разминки",
+  lessons: "Уроки",
+};
 
 const navBtnClass = cn(
   buttonVariants({ variant: "outline", size: "default" }),
@@ -19,14 +27,20 @@ function filterBtnClass(active: boolean) {
 
 const CONTENT_BASE = "/app/doctor/content";
 
-/** Левое меню хаба CMS: мотивации, разделы, фильтр по разделам, библиотека. */
+/** Левое меню хаба CMS: мотивации, разделы, статьи / системные папки, библиотека. */
 export function ContentPagesSidebar({
-  sections,
-  activeSectionSlug,
+  articleSections,
+  highlightArticleSlug,
+  highlightSystemFolderCode,
 }: {
-  sections: ContentPagesSidebarSection[];
-  activeSectionSlug: string | null;
+  articleSections: ContentPagesSidebarSection[];
+  /** Slug из `?section=` когда раздел — статья (`kind=article`). */
+  highlightArticleSlug: string | null;
+  /** Кластер из `?systemParentCode=` или выведенный из открытого системного раздела. */
+  highlightSystemFolderCode: string | null;
 }) {
+  const allPagesActive = highlightArticleSlug === null && highlightSystemFolderCode === null;
+
   return (
     <nav
       className="flex w-full flex-col gap-2 md:w-64 md:shrink-0"
@@ -40,16 +54,16 @@ export function ContentPagesSidebar({
         Разделы
       </Link>
       <Separator className="my-1" />
-      <p className="px-1 text-xs font-medium text-muted-foreground">Страницы</p>
+      <p className="px-1 text-xs font-medium text-muted-foreground">Статьи</p>
       <Link
         href={CONTENT_BASE}
-        className={filterBtnClass(activeSectionSlug === null)}
-        aria-current={activeSectionSlug === null ? "page" : undefined}
+        className={filterBtnClass(allPagesActive)}
+        aria-current={allPagesActive ? "page" : undefined}
       >
         Все страницы
       </Link>
-      {sections.map((s) => {
-        const active = activeSectionSlug === s.slug;
+      {articleSections.map((s) => {
+        const active = highlightArticleSlug === s.slug && highlightSystemFolderCode === null;
         return (
           <Link
             key={s.slug}
@@ -58,6 +72,21 @@ export function ContentPagesSidebar({
             aria-current={active ? "page" : undefined}
           >
             {s.title}
+          </Link>
+        );
+      })}
+      <Separator className="my-1" />
+      <p className="px-1 text-xs font-medium text-muted-foreground">Системные папки</p>
+      {SYSTEM_PARENT_CODES.map((code) => {
+        const active = highlightSystemFolderCode === code;
+        return (
+          <Link
+            key={code}
+            href={`${CONTENT_BASE}?systemParentCode=${encodeURIComponent(code)}`}
+            className={filterBtnClass(active)}
+            aria-current={active ? "page" : undefined}
+          >
+            {SYSTEM_FOLDER_LABELS[code]}
           </Link>
         );
       })}

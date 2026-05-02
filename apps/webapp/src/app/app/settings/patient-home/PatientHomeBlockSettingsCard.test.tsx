@@ -50,8 +50,8 @@ vi.mock("./PatientHomeCreateSectionInlineDialog", () => ({
 
 const knownRefs = { contentPages: ["ok-page"], contentSections: ["ok-sec"], courses: [] as string[] };
 const resolverSync = buildPatientHomeResolverSyncContext({
-  sections: [{ slug: "ok-sec", isVisible: true, requiresAuth: false }],
-  pages: [{ slug: "ok-page", requiresAuth: false }],
+  sections: [{ slug: "ok-sec", isVisible: true, requiresAuth: false, kind: "system", systemParentCode: "situations" }],
+  pages: [{ slug: "ok-page", requiresAuth: false, section: "ok-sec" }],
   courses: [],
 });
 

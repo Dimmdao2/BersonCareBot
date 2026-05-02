@@ -351,6 +351,17 @@ describe("patient-home settings actions", () => {
       expect(upsertSectionMock).not.toHaveBeenCalled();
     });
 
+    it("rejects inline section for subscription_carousel", async () => {
+      const res = await createContentSectionForPatientHomeBlock({
+        blockCode: "subscription_carousel",
+        title: "T",
+        slug: "ok-slug",
+      });
+      expect(res.ok).toBe(false);
+      if (!res.ok) expect(res.error).toBe("inline_section_not_supported_for_block");
+      expect(upsertSectionMock).not.toHaveBeenCalled();
+    });
+
     it("rejects invalid slug (only dashes)", async () => {
       const res = await createContentSectionForPatientHomeBlock({
         blockCode: "situations",
@@ -405,6 +416,8 @@ describe("patient-home settings actions", () => {
           requiresAuth: true,
           coverImageUrl: null,
           iconImageUrl: null,
+          kind: "system",
+          systemParentCode: "situations",
         }),
       );
       expect(addItemMock).toHaveBeenCalledWith({

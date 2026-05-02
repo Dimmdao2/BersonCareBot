@@ -1,59 +1,42 @@
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
+import type {
+  ContentSectionRow,
+  ContentSectionsListFilter,
+  ContentSectionsPort,
+  ContentSectionUpsertInput,
+  ListVisibleContentSectionsOpts,
+  RenameSectionSlugResult,
+} from "@/modules/content-sections/ports";
+import {
+  isImmutableSystemSectionSlug,
+  isContentSectionKind,
+  isSystemParentCode,
+  isValidSectionTaxonomy,
+} from "@/modules/content-sections/types";
 import { validateContentSectionSlug } from "@/shared/lib/contentSectionSlug";
 import { contentPages, contentSectionSlugHistory, contentSections, patientHomeBlockItems } from "../../../db/schema";
 
-export type ContentSectionRow = {
-  id: string;
-  slug: string;
-  title: string;
-  description: string;
-  sortOrder: number;
-  isVisible: boolean;
-  /** Если true — только tier patient (см. `requires_auth` в БД). */
-  requiresAuth: boolean;
-  coverImageUrl: string | null;
-  iconImageUrl: string | null;
-};
+export type {
+  ContentSectionRow,
+  ContentSectionsListFilter,
+  ContentSectionsPort,
+  ContentSectionUpsertInput,
+  ListVisibleContentSectionsOpts,
+  RenameSectionSlugResult,
+} from "@/modules/content-sections/ports";
 
-export type ListVisibleContentSectionsOpts = {
-  /**
-   * Если false — только разделы без `requires_auth` (гость / onboarding).
-   * Если true — все с `is_visible` (как раньше по смыслу для tier patient).
-   * @default true
-   */
-  viewAuthOnlySections?: boolean;
-};
-
-export type RenameSectionSlugResult = { ok: true; newSlug: string } | { ok: false; error: string };
-
-export type ContentSectionsPort = {
-  listVisible: (opts?: ListVisibleContentSectionsOpts) => Promise<ContentSectionRow[]>;
-  listAll: () => Promise<ContentSectionRow[]>;
-  getBySlug: (slug: string) => Promise<ContentSectionRow | null>;
-  upsert: (section: Omit<ContentSectionRow, "id"> & { id?: string }) => Promise<string>;
-  update: (
-    slug: string,
-    patch: Partial<
-      Pick<
-        ContentSectionRow,
-        "title" | "description" | "sortOrder" | "isVisible" | "requiresAuth" | "coverImageUrl" | "iconImageUrl"
-      >
-    >,
-  ) => Promise<void>;
-  /** Выставить `sort_order` по порядку slug (0..n-1) в одной транзакции. */
-  reorderSlugs: (orderedSlugs: string[]) => Promise<void>;
-  /** Атомарное переименование slug раздела с обновлением зависимых ссылок и истории редиректа. */
-  renameSectionSlug: (
-    oldSlug: string,
-    newSlug: string,
-    opts?: { changedByUserId?: string | null },
-  ) => Promise<RenameSectionSlugResult>;
-  /** Один шаг цепочки редиректа: куда вести URL с устаревшим slug. */
-  getRedirectNewSlugForOldSlug: (oldSlug: string) => Promise<string | null>;
-};
+function normalizeKind(value: string | null | undefined): ContentSectionRow["kind"] {
+  return isContentSectionKind(value) ? value : "article";
+}
 
 function mapRow(row: typeof contentSections.$inferSelect): ContentSectionRow {
+  const kind = normalizeKind(row.kind);
+  const raw = row.systemParentCode;
+  let systemParentCode: ContentSectionRow["systemParentCode"] = null;
+  if (kind === "system" && isSystemParentCode(raw)) {
+    systemParentCode = raw;
+  }
   return {
     id: row.id,
     slug: row.slug,
@@ -64,7 +47,24 @@ function mapRow(row: typeof contentSections.$inferSelect): ContentSectionRow {
     requiresAuth: Boolean(row.requiresAuth),
     coverImageUrl: row.coverImageUrl ?? null,
     iconImageUrl: row.iconImageUrl ?? null,
+    kind,
+    systemParentCode: kind === "article" ? null : systemParentCode,
   };
+}
+
+function taxonomyFilterConditions(filter?: ContentSectionsListFilter) {
+  const parts: ReturnType<typeof eq>[] = [];
+  if (filter?.kind !== undefined) {
+    parts.push(eq(contentSections.kind, filter.kind));
+  }
+  if (filter?.systemParentCode !== undefined) {
+    if (filter.systemParentCode === null) {
+      parts.push(isNull(contentSections.systemParentCode));
+    } else {
+      parts.push(eq(contentSections.systemParentCode, filter.systemParentCode));
+    }
+  }
+  return parts;
 }
 
 export function createPgContentSectionsPort(): ContentSectionsPort {
@@ -72,9 +72,15 @@ export function createPgContentSectionsPort(): ContentSectionsPort {
     async listVisible(opts?: ListVisibleContentSectionsOpts) {
       const db = getDrizzle();
       const viewAuthOnlySections = opts?.viewAuthOnlySections !== false;
-      const whereClause = viewAuthOnlySections
+      const vis = viewAuthOnlySections
         ? eq(contentSections.isVisible, true)
         : and(eq(contentSections.isVisible, true), eq(contentSections.requiresAuth, false));
+      const tax = taxonomyFilterConditions(
+        opts?.kind !== undefined || opts?.systemParentCode !== undefined
+          ? { kind: opts.kind, systemParentCode: opts.systemParentCode }
+          : undefined,
+      );
+      const whereClause = tax.length > 0 ? and(vis, ...tax) : vis;
       const rows = await db
         .select()
         .from(contentSections)
@@ -82,12 +88,12 @@ export function createPgContentSectionsPort(): ContentSectionsPort {
         .orderBy(asc(contentSections.sortOrder), asc(contentSections.title));
       return rows.map(mapRow);
     },
-    async listAll() {
+    async listAll(filter?: ContentSectionsListFilter) {
       const db = getDrizzle();
-      const rows = await db
-        .select()
-        .from(contentSections)
-        .orderBy(asc(contentSections.sortOrder), asc(contentSections.title));
+      const tax = taxonomyFilterConditions(filter);
+      const whereClause = tax.length > 0 ? and(...tax) : undefined;
+      const base = db.select().from(contentSections).orderBy(asc(contentSections.sortOrder), asc(contentSections.title));
+      const rows = whereClause ? await base.where(whereClause) : await base;
       return rows.map(mapRow);
     },
     async getBySlug(slug) {
@@ -96,7 +102,12 @@ export function createPgContentSectionsPort(): ContentSectionsPort {
       const row = rows[0];
       return row ? mapRow(row) : null;
     },
-    async upsert(section) {
+    async upsert(section: ContentSectionUpsertInput) {
+      const kind = section.kind ?? "article";
+      const systemParentCode = kind === "article" ? null : (section.systemParentCode ?? null);
+      if (!isValidSectionTaxonomy(kind, systemParentCode)) {
+        throw new Error("invalid_content_section_taxonomy");
+      }
       const db = getDrizzle();
       const values = {
         slug: section.slug,
@@ -107,6 +118,8 @@ export function createPgContentSectionsPort(): ContentSectionsPort {
         requiresAuth: section.requiresAuth ?? false,
         coverImageUrl: section.coverImageUrl ?? null,
         iconImageUrl: section.iconImageUrl ?? null,
+        kind,
+        systemParentCode,
         updatedAt: sql`now()` as unknown as string,
       };
       const rows = await db
@@ -122,6 +135,8 @@ export function createPgContentSectionsPort(): ContentSectionsPort {
             requiresAuth: section.requiresAuth ?? false,
             coverImageUrl: section.coverImageUrl ?? null,
             iconImageUrl: section.iconImageUrl ?? null,
+            kind,
+            systemParentCode,
             updatedAt: sql`now()` as unknown as string,
           },
         })
@@ -131,6 +146,7 @@ export function createPgContentSectionsPort(): ContentSectionsPort {
       return id;
     },
     async update(slug, patch) {
+      const db = getDrizzle();
       const setPayload: Partial<typeof contentSections.$inferInsert> = {
         updatedAt: sql`now()` as unknown as string,
       };
@@ -141,8 +157,29 @@ export function createPgContentSectionsPort(): ContentSectionsPort {
       if (patch.requiresAuth !== undefined) setPayload.requiresAuth = patch.requiresAuth;
       if (patch.coverImageUrl !== undefined) setPayload.coverImageUrl = patch.coverImageUrl;
       if (patch.iconImageUrl !== undefined) setPayload.iconImageUrl = patch.iconImageUrl;
+      if (patch.kind !== undefined || patch.systemParentCode !== undefined) {
+        const curRows = await db.select().from(contentSections).where(eq(contentSections.slug, slug)).limit(1);
+        const cur = curRows[0];
+        if (!cur) return;
+        const nextKind = patch.kind !== undefined ? patch.kind : normalizeKind(cur.kind);
+        const curParent =
+          cur.systemParentCode != null && isSystemParentCode(cur.systemParentCode)
+            ? cur.systemParentCode
+            : null;
+        const nextParent =
+          patch.systemParentCode !== undefined
+            ? patch.systemParentCode
+            : nextKind === "system"
+              ? curParent
+              : null;
+        const resolvedParent = nextKind === "article" ? null : nextParent;
+        if (!isValidSectionTaxonomy(nextKind, resolvedParent)) {
+          throw new Error("invalid_content_section_taxonomy");
+        }
+        setPayload.kind = nextKind;
+        setPayload.systemParentCode = resolvedParent;
+      }
       if (Object.keys(setPayload).length <= 1) return;
-      const db = getDrizzle();
       await db.update(contentSections).set(setPayload).where(eq(contentSections.slug, slug));
     },
     async reorderSlugs(orderedSlugs) {
@@ -184,13 +221,13 @@ export function createPgContentSectionsPort(): ContentSectionsPort {
       try {
         const db = getDrizzle();
         return await db.transaction(async (tx): Promise<RenameSectionSlugResult> => {
-          const existing = await tx
-            .select({ id: contentSections.id })
-            .from(contentSections)
-            .where(eq(contentSections.slug, o))
-            .limit(1);
-          if (existing.length === 0) {
+          const existingRows = await tx.select().from(contentSections).where(eq(contentSections.slug, o)).limit(1);
+          const existingRow = existingRows[0];
+          if (!existingRow) {
             return { ok: false, error: "Раздел с исходным slug не найден" };
+          }
+          if (isImmutableSystemSectionSlug(o)) {
+            return { ok: false, error: "Slug встроенного раздела нельзя переименовать" };
           }
 
           const taken = await tx
@@ -260,20 +297,45 @@ export const inMemoryContentSectionsPort: ContentSectionsPort = {
 export function createInMemoryContentSectionsPort(): ContentSectionsPort {
   const memory = new Map<string, ContentSectionRow>();
   const slugRedirects = new Map<string, string>();
+
+  function matchesFilter(row: ContentSectionRow, filter?: ContentSectionsListFilter): boolean {
+    if (!filter) return true;
+    if (filter.kind !== undefined && row.kind !== filter.kind) return false;
+    if (filter.systemParentCode !== undefined) {
+      const want = filter.systemParentCode;
+      const have = row.systemParentCode;
+      if (want === null && have !== null) return false;
+      if (want !== null && want !== undefined && have !== want) return false;
+    }
+    return true;
+  }
+
   return {
     async listVisible(opts?: ListVisibleContentSectionsOpts) {
       const viewAuthOnlySections = opts?.viewAuthOnlySections !== false;
+      const filter: ContentSectionsListFilter | undefined =
+        opts?.kind !== undefined || opts?.systemParentCode !== undefined
+          ? { kind: opts.kind, systemParentCode: opts.systemParentCode }
+          : undefined;
       return [...memory.values()]
         .filter((r) => r.isVisible && (viewAuthOnlySections || !r.requiresAuth))
+        .filter((r) => matchesFilter(r, filter))
         .sort((a, b) => a.sortOrder - b.sortOrder || a.title.localeCompare(b.title));
     },
-    async listAll() {
-      return [...memory.values()].sort((a, b) => a.sortOrder - b.sortOrder || a.title.localeCompare(b.title));
+    async listAll(filter?: ContentSectionsListFilter) {
+      return [...memory.values()]
+        .filter((r) => matchesFilter(r, filter))
+        .sort((a, b) => a.sortOrder - b.sortOrder || a.title.localeCompare(b.title));
     },
     async getBySlug(slug) {
       return memory.get(slug) ?? null;
     },
-    async upsert(section) {
+    async upsert(section: ContentSectionUpsertInput) {
+      const kind = section.kind ?? "article";
+      const systemParentCode = kind === "article" ? null : (section.systemParentCode ?? null);
+      if (!isValidSectionTaxonomy(kind, systemParentCode)) {
+        throw new Error("invalid_content_section_taxonomy");
+      }
       const id = section.id ?? `mem-${section.slug}`;
       const row: ContentSectionRow = {
         id,
@@ -285,6 +347,8 @@ export function createInMemoryContentSectionsPort(): ContentSectionsPort {
         requiresAuth: section.requiresAuth ?? false,
         coverImageUrl: section.coverImageUrl ?? null,
         iconImageUrl: section.iconImageUrl ?? null,
+        kind,
+        systemParentCode,
       };
       memory.set(section.slug, row);
       return id;
@@ -292,6 +356,19 @@ export function createInMemoryContentSectionsPort(): ContentSectionsPort {
     async update(slug, patch) {
       const cur = memory.get(slug);
       if (!cur) return;
+      const nextKind = patch.kind ?? cur.kind;
+      const nextParent =
+        patch.systemParentCode !== undefined
+          ? patch.systemParentCode
+          : nextKind === "article"
+            ? null
+            : cur.systemParentCode;
+      const resolvedParent = nextKind === "article" ? null : nextParent;
+      if (patch.kind !== undefined || patch.systemParentCode !== undefined) {
+        if (!isValidSectionTaxonomy(nextKind, resolvedParent)) {
+          throw new Error("invalid_content_section_taxonomy");
+        }
+      }
       memory.set(slug, {
         ...cur,
         ...(patch.title !== undefined ? { title: patch.title } : {}),
@@ -301,14 +378,17 @@ export function createInMemoryContentSectionsPort(): ContentSectionsPort {
         ...(patch.requiresAuth !== undefined ? { requiresAuth: patch.requiresAuth } : {}),
         ...(patch.coverImageUrl !== undefined ? { coverImageUrl: patch.coverImageUrl } : {}),
         ...(patch.iconImageUrl !== undefined ? { iconImageUrl: patch.iconImageUrl } : {}),
+        ...(patch.kind !== undefined || patch.systemParentCode !== undefined
+          ? { kind: nextKind, systemParentCode: resolvedParent }
+          : {}),
       });
     },
     async reorderSlugs(orderedSlugs) {
       const slugs = orderedSlugs.map((s) => String(s).trim()).filter(Boolean);
       for (let i = 0; i < slugs.length; i += 1) {
-        const slug = slugs[i]!;
-        const cur = memory.get(slug);
-        if (cur) memory.set(slug, { ...cur, sortOrder: i });
+        const s = slugs[i]!;
+        const cur = memory.get(s);
+        if (cur) memory.set(s, { ...cur, sortOrder: i });
       }
     },
     async getRedirectNewSlugForOldSlug(oldSlug) {
@@ -324,6 +404,9 @@ export function createInMemoryContentSectionsPort(): ContentSectionsPort {
       if (o === n) return { ok: false, error: "Новый slug совпадает с текущим" };
       const cur = memory.get(o);
       if (!cur) return { ok: false, error: "Раздел с исходным slug не найден" };
+      if (isImmutableSystemSectionSlug(o)) {
+        return { ok: false, error: "Slug встроенного раздела нельзя переименовать" };
+      }
       if (memory.has(n)) return { ok: false, error: "Раздел с таким slug уже существует" };
       memory.delete(o);
       memory.set(n, { ...cur, slug: n });

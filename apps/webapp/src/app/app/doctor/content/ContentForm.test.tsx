@@ -32,6 +32,8 @@ const testSections = [
     requiresAuth: false,
     coverImageUrl: null,
     iconImageUrl: null,
+    kind: "system" as const,
+    systemParentCode: "lessons" as const,
   },
 ];
 
@@ -47,6 +49,8 @@ const testSectionsTwo = [
     requiresAuth: false,
     coverImageUrl: null,
     iconImageUrl: null,
+    kind: "article" as const,
+    systemParentCode: null,
   },
 ];
 

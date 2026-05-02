@@ -41,6 +41,8 @@ describe("createInMemoryContentSectionsPort", () => {
       requiresAuth: false,
       coverImageUrl: null,
       iconImageUrl: null,
+      kind: "system",
+      systemParentCode: "warmups",
     });
     const row = await p.getBySlug("warmups");
     expect(row?.title).toBe("Разминки");
@@ -60,6 +62,8 @@ describe("createInMemoryContentSectionsPort", () => {
       requiresAuth: false,
       coverImageUrl: "/api/media/11111111-1111-1111-1111-111111111111",
       iconImageUrl: "/api/media/22222222-2222-2222-2222-222222222222",
+      kind: "article",
+      systemParentCode: null,
     });
     const row = await p.getBySlug("with-media");
     expect(row?.coverImageUrl).toContain("/api/media/");
@@ -79,6 +83,8 @@ describe("createInMemoryContentSectionsPort", () => {
       requiresAuth: false,
       coverImageUrl: null,
       iconImageUrl: null,
+      kind: "article",
+      systemParentCode: null,
     });
     expect(await p.listVisible()).toEqual([]);
     expect((await p.listAll()).length).toBe(1);
@@ -95,6 +101,8 @@ describe("createInMemoryContentSectionsPort", () => {
       requiresAuth: false,
       coverImageUrl: null,
       iconImageUrl: null,
+      kind: "article",
+      systemParentCode: null,
     });
     await p.upsert({
       slug: "b",
@@ -105,6 +113,8 @@ describe("createInMemoryContentSectionsPort", () => {
       requiresAuth: false,
       coverImageUrl: null,
       iconImageUrl: null,
+      kind: "article",
+      systemParentCode: null,
     });
     await p.reorderSlugs(["b", "a"]);
     const all = await p.listAll();

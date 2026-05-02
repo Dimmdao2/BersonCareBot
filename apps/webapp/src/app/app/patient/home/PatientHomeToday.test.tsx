@@ -124,6 +124,7 @@ describe("PatientHomeToday", () => {
           summary: "Summary",
           requiresAuth: false,
           imageUrl: "/api/media/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+          section: "warmups",
         };
       }
       return null;
@@ -139,6 +140,21 @@ describe("PatientHomeToday", () => {
           requiresAuth: false,
           iconImageUrl: null,
           coverImageUrl: null,
+          kind: "system" as const,
+          systemParentCode: "situations" as const,
+        };
+      }
+      if (slug === "warmups") {
+        return {
+          slug: "warmups",
+          title: "Warmups",
+          description: "",
+          isVisible: true,
+          requiresAuth: false,
+          iconImageUrl: null,
+          coverImageUrl: null,
+          kind: "system" as const,
+          systemParentCode: "warmups" as const,
         };
       }
       return null;
@@ -245,6 +261,7 @@ describe("PatientHomeToday", () => {
           summary: "Summary",
           requiresAuth: false,
           imageUrl: "/api/media/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+          section: "warmups",
         };
       }
       if (slug === "fixture-useful-post") {
@@ -254,6 +271,50 @@ describe("PatientHomeToday", () => {
           summary: "",
           requiresAuth: false,
           imageUrl: null,
+          section: "article-home",
+        };
+      }
+      return null;
+    });
+
+    contentSectionsGetBySlug.mockImplementation(async (slug: string) => {
+      if (slug === "fixture-section-a") {
+        return {
+          slug,
+          title: "Fixture section",
+          description: "",
+          isVisible: true,
+          requiresAuth: false,
+          iconImageUrl: null,
+          coverImageUrl: null,
+          kind: "system" as const,
+          systemParentCode: "situations" as const,
+        };
+      }
+      if (slug === "warmups") {
+        return {
+          slug: "warmups",
+          title: "Warmups",
+          description: "",
+          isVisible: true,
+          requiresAuth: false,
+          iconImageUrl: null,
+          coverImageUrl: null,
+          kind: "system" as const,
+          systemParentCode: "warmups" as const,
+        };
+      }
+      if (slug === "article-home") {
+        return {
+          slug: "article-home",
+          title: "Articles",
+          description: "",
+          isVisible: true,
+          requiresAuth: false,
+          iconImageUrl: null,
+          coverImageUrl: null,
+          kind: "article" as const,
+          systemParentCode: null,
         };
       }
       return null;

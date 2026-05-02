@@ -1,4 +1,5 @@
 import type { PatientHomeBlockCode, PatientHomeBlockItemTargetType } from "./ports";
+import type { ContentSectionKind, SystemParentCode } from "@/modules/content-sections/types";
 
 export const PATIENT_HOME_BLOCK_CODES = [
   "daily_warmup",
@@ -76,4 +77,69 @@ export function isTargetTypeAllowedForBlock(
   targetType: PatientHomeBlockItemTargetType,
 ): boolean {
   return allowedTargetTypesForBlock(code).includes(targetType);
+}
+
+/** Section taxonomy fields needed for patient-home CMS candidate / validation rules. */
+export type PatientHomeSectionTaxonomyPick = {
+  kind: ContentSectionKind;
+  systemParentCode: SystemParentCode | null;
+};
+
+/** Page fields needed for patient-home CMS candidate / validation rules. */
+export type PatientHomePagePickForRules = {
+  slug: string;
+  section: string;
+  isPublished: boolean;
+  archivedAt: string | null;
+  deletedAt: string | null;
+};
+
+/**
+ * Whether a `content_sections` row may appear in the picker / be saved as a target for this home block.
+ * `subscription_carousel` keeps a permissive list (no extra taxonomy filter in this pass).
+ */
+export function isPatientHomeContentSectionCandidateForBlock(
+  blockCode: PatientHomeBlockCode,
+  section: PatientHomeSectionTaxonomyPick,
+): boolean {
+  if (blockCode === "situations") {
+    return section.kind === "system" && section.systemParentCode === "situations";
+  }
+  if (blockCode === "sos") {
+    return section.kind === "system" && section.systemParentCode === "sos";
+  }
+  if (blockCode === "subscription_carousel") {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Whether a `content_pages` row may appear in the picker / be saved as a target for this home block.
+ * Uses the page's `section` slug to resolve parent section taxonomy.
+ */
+export function isPatientHomeContentPageCandidateForBlock(
+  blockCode: PatientHomeBlockCode,
+  page: PatientHomePagePickForRules,
+  sectionBySlug: ReadonlyMap<string, PatientHomeSectionTaxonomyPick>,
+): boolean {
+  const sec = sectionBySlug.get(page.section);
+  if (!sec) return false;
+
+  if (blockCode === "useful_post") {
+    if (!page.isPublished || page.archivedAt != null || page.deletedAt != null) return false;
+    return sec.kind === "article";
+  }
+  if (blockCode === "daily_warmup") {
+    if (!page.isPublished || page.archivedAt != null || page.deletedAt != null) return false;
+    return sec.kind === "system" && sec.systemParentCode === "warmups";
+  }
+  if (blockCode === "sos") {
+    if (!page.isPublished || page.archivedAt != null || page.deletedAt != null) return false;
+    return sec.kind === "system" && sec.systemParentCode === "sos";
+  }
+  if (blockCode === "subscription_carousel") {
+    return true;
+  }
+  return false;
 }

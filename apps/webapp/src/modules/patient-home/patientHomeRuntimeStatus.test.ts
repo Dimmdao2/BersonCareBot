@@ -37,13 +37,16 @@ function block(code: PatientHomeBlock["code"], items: PatientHomeBlockItem[], is
 describe("computePatientHomeBlockRuntimeStatus", () => {
   const resolverSync = buildPatientHomeResolverSyncContext({
     sections: [
-      { slug: "sec-vis", isVisible: true, requiresAuth: false },
-      { slug: "sec-hidden", isVisible: false, requiresAuth: false },
-      { slug: "sec-auth", isVisible: true, requiresAuth: true },
+      { slug: "sec-vis", isVisible: true, requiresAuth: false, kind: "system", systemParentCode: "situations" },
+      { slug: "sec-hidden", isVisible: false, requiresAuth: false, kind: "system", systemParentCode: "situations" },
+      { slug: "sec-auth", isVisible: true, requiresAuth: true, kind: "system", systemParentCode: "situations" },
+      { slug: "warm-sec", isVisible: true, requiresAuth: false, kind: "system", systemParentCode: "warmups" },
+      { slug: "articles-sec", isVisible: true, requiresAuth: false, kind: "article", systemParentCode: null },
     ],
     pages: [
-      { slug: "page-ok", requiresAuth: false },
-      { slug: "page-auth", requiresAuth: true },
+      { slug: "page-ok", requiresAuth: false, section: "warm-sec" },
+      { slug: "page-auth", requiresAuth: true, section: "warm-sec" },
+      { slug: "post-ok", requiresAuth: false, section: "articles-sec" },
     ],
     courses: [
       { id: "c-pub", status: "published" },
@@ -103,11 +106,11 @@ describe("computePatientHomeBlockRuntimeStatus", () => {
   it("useful_post: resolves visible content_page when slug exists", () => {
     const b = block(
       "useful_post",
-      [item({ id: "1", blockCode: "useful_post", targetType: "content_page", targetRef: "page-ok" })],
+      [item({ id: "1", blockCode: "useful_post", targetType: "content_page", targetRef: "post-ok" })],
       true,
     );
     const st = computePatientHomeBlockRuntimeStatus(b, {
-      knownRefs: { ...knownEmpty, contentPages: ["page-ok"] },
+      knownRefs: { ...knownEmpty, contentPages: ["post-ok"] },
       resolverSync,
     });
     expect(st.kind).toBe("ready");
@@ -145,11 +148,11 @@ describe("computePatientHomeBlockRuntimeStatus", () => {
   it("subscription_carousel: accepts section, page, published course", () => {
     const b = block("subscription_carousel", [
       item({ id: "1", blockCode: "subscription_carousel", targetType: "content_section", targetRef: "sec-vis" }),
-      item({ id: "2", blockCode: "subscription_carousel", targetType: "content_page", targetRef: "page-ok" }),
+      item({ id: "2", blockCode: "subscription_carousel", targetType: "content_page", targetRef: "post-ok" }),
       item({ id: "3", blockCode: "subscription_carousel", targetType: "course", targetRef: "c-pub" }),
     ]);
     const st = computePatientHomeBlockRuntimeStatus(b, {
-      knownRefs: { contentPages: ["page-ok"], contentSections: ["sec-vis"], courses: ["c-pub"] },
+      knownRefs: { contentPages: ["post-ok"], contentSections: ["sec-vis"], courses: ["c-pub"] },
       resolverSync,
     });
     expect(st.kind).toBe("ready");
@@ -190,14 +193,17 @@ describe("computePatientHomeBlockRuntimeStatus", () => {
 
 describe("isPatientHomeItemRuntimeResolvedOnHome", () => {
   const ctx = buildPatientHomeResolverSyncContext({
-    sections: [{ slug: "s1", isVisible: true, requiresAuth: false }],
-    pages: [{ slug: "p1", requiresAuth: false }],
+    sections: [
+      { slug: "s1", isVisible: true, requiresAuth: false, kind: "system", systemParentCode: "situations" },
+      { slug: "sos-sec", isVisible: true, requiresAuth: false, kind: "system", systemParentCode: "sos" },
+    ],
+    pages: [{ slug: "p1", requiresAuth: false, section: "sos-sec" }],
     courses: [{ id: "pub", status: "published" }],
   });
 
   it("respects canViewAuthOnlyContent for section", () => {
     const ctxNoAuth = buildPatientHomeResolverSyncContext({
-      sections: [{ slug: "sa", isVisible: true, requiresAuth: true }],
+      sections: [{ slug: "sa", isVisible: true, requiresAuth: true, kind: "system", systemParentCode: "situations" }],
       pages: [],
       courses: [],
       canViewAuthOnlyContent: false,
@@ -208,7 +214,7 @@ describe("isPatientHomeItemRuntimeResolvedOnHome", () => {
 
   it("allows auth-only section when canViewAuthOnlyContent", () => {
     const ctxAuth = buildPatientHomeResolverSyncContext({
-      sections: [{ slug: "sa", isVisible: true, requiresAuth: true }],
+      sections: [{ slug: "sa", isVisible: true, requiresAuth: true, kind: "system", systemParentCode: "situations" }],
       pages: [],
       courses: [],
       canViewAuthOnlyContent: true,

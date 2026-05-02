@@ -6,6 +6,8 @@ import { logServerRuntimeError } from "@/infra/logging/serverRuntimeLog";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { AppShell } from "@/shared/ui/AppShell";
 import { DataLoadFailureNotice } from "@/shared/ui/DataLoadFailureNotice";
+import type { ContentSectionRow } from "@/modules/content-sections/ports";
+import { isSystemParentCode, SYSTEM_PARENT_CODES } from "@/modules/content-sections/types";
 import { ContentPagesSectionList, type ContentPageListRow } from "./ContentPagesSectionList";
 import { ContentPagesSidebar } from "./ContentPagesSidebar";
 
@@ -19,7 +21,7 @@ function groupBySection<T extends { section: string }>(rows: T[]): Map<string, T
   return m;
 }
 
-function normalizeSectionQuery(v: string | string[] | undefined): string | undefined {
+function normalizeQueryParam(v: string | string[] | undefined): string | undefined {
   if (v === undefined) return undefined;
   const s = Array.isArray(v) ? v[0] : v;
   if (typeof s !== "string") return undefined;
@@ -27,15 +29,29 @@ function normalizeSectionQuery(v: string | string[] | undefined): string | undef
   return t.length > 0 ? t : undefined;
 }
 
+const SYSTEM_FOLDER_HEADING: Record<(typeof SYSTEM_PARENT_CODES)[number], string> = {
+  situations: "Ситуации",
+  sos: "SOS",
+  warmups: "Разминки",
+  lessons: "Уроки",
+};
+
+function isArticlePage(p: { section: string }, sections: ContentSectionRow[]): boolean {
+  const sec = sections.find((s) => s.slug === p.section);
+  return !sec || sec.kind === "article";
+}
+
 type Props = {
-  searchParams: Promise<{ section?: string | string[] }>;
+  searchParams: Promise<{ section?: string | string[]; systemParentCode?: string | string[] }>;
 };
 
 export default async function DoctorContentPage({ searchParams }: Props) {
   const session = await requireDoctorAccess();
   const deps = buildAppDeps();
   const params = await searchParams;
-  const sectionParam = normalizeSectionQuery(params.section);
+  const sectionParam = normalizeQueryParam(params.section);
+  const systemParentParam = normalizeQueryParam(params.systemParentCode);
+  const validSystemParent = isSystemParentCode(systemParentParam) ? systemParentParam : undefined;
 
   let pages: Awaited<ReturnType<typeof deps.contentPages.listAll>> = [];
   let sections: Awaited<ReturnType<typeof deps.contentSections.listAll>> = [];
@@ -55,16 +71,29 @@ export default async function DoctorContentPage({ searchParams }: Props) {
   const activeSectionSlug =
     sectionParam !== undefined && knownSlugs.has(sectionParam) ? sectionParam : null;
 
-  const orderedSectionSlugs: string[] = [];
-  for (const s of sections) {
-    if (grouped.has(s.slug)) {
-      orderedSectionSlugs.push(s.slug);
-    }
+  const sectionRowForActive = activeSectionSlug ? sections.find((s) => s.slug === activeSectionSlug) : undefined;
+  const highlightArticleSlug =
+    activeSectionSlug !== null && sectionRowForActive?.kind === "article" ? activeSectionSlug : null;
+  const highlightSystemFolderCode: (typeof SYSTEM_PARENT_CODES)[number] | null =
+    validSystemParent ??
+    (sectionRowForActive?.kind === "system" && sectionRowForActive.systemParentCode
+      ? sectionRowForActive.systemParentCode
+      : null);
+
+  const articleSections = sections.filter((s) => s.kind === "article").map((s) => ({ slug: s.slug, title: s.title }));
+
+  const articlePages = pages.filter((p) => isArticlePage(p, sections));
+  const groupedArticle = groupBySection(articlePages);
+  const articleSectionSlugsOrdered = sections.filter((s) => s.kind === "article").map((s) => s.slug);
+
+  const orderedArticleSectionSlugs: string[] = [];
+  for (const slug of articleSectionSlugsOrdered) {
+    if (groupedArticle.has(slug)) orderedArticleSectionSlugs.push(slug);
   }
-  const orphanSlugs = [...grouped.keys()]
-    .filter((k) => !knownSlugs.has(k))
+  const orphanArticleSlugs = [...groupedArticle.keys()]
+    .filter((k) => !articleSectionSlugsOrdered.includes(k))
     .sort();
-  orderedSectionSlugs.push(...orphanSlugs);
+  orderedArticleSectionSlugs.push(...orphanArticleSlugs);
 
   const toListRow = (p: (typeof pages)[0]): ContentPageListRow => ({
     id: p.id,
@@ -78,14 +107,32 @@ export default async function DoctorContentPage({ searchParams }: Props) {
     deletedAt: p.deletedAt,
   });
 
-  const sidebarSections = sections.map((s) => ({ slug: s.slug, title: s.title }));
-
   const createPageBtnClass = buttonVariants({ size: "default" });
 
-  const mainHeading =
-    activeSectionSlug !== null
-      ? (sectionTitleBySlug.get(activeSectionSlug) ?? activeSectionSlug)
-      : "Страницы контента";
+  const folderChildSections =
+    validSystemParent !== undefined && activeSectionSlug === null
+      ? sections
+          .filter((s) => s.kind === "system" && s.systemParentCode === validSystemParent)
+          .sort((a, b) => a.sortOrder - b.sortOrder || a.title.localeCompare(b.title, "ru"))
+      : [];
+
+  let mainHeading = "Страницы контента";
+  if (validSystemParent !== undefined && activeSectionSlug === null) {
+    mainHeading = SYSTEM_FOLDER_HEADING[validSystemParent];
+  } else if (activeSectionSlug !== null) {
+    mainHeading = sectionTitleBySlug.get(activeSectionSlug) ?? activeSectionSlug;
+  }
+
+  let createPageHref = "/app/doctor/content/new";
+  if (activeSectionSlug !== null) {
+    createPageHref = `/app/doctor/content/new?section=${encodeURIComponent(activeSectionSlug)}`;
+  } else if (validSystemParent !== undefined) {
+    if (folderChildSections.length > 0) {
+      createPageHref = `/app/doctor/content/new?section=${encodeURIComponent(folderChildSections[0]!.slug)}`;
+    } else {
+      createPageHref = `/app/doctor/content/sections/new?systemParentCode=${encodeURIComponent(validSystemParent)}`;
+    }
+  }
 
   const isDev = process.env.NODE_ENV === "development";
 
@@ -94,7 +141,11 @@ export default async function DoctorContentPage({ searchParams }: Props) {
       <AppShell title="Контент" user={session.user} variant="doctor">
         <PageSection id="doctor-content-section" as="section" className="flex flex-col gap-6">
           <div className="flex flex-col gap-6 md:flex-row md:items-start md:gap-8">
-            <ContentPagesSidebar sections={[]} activeSectionSlug={null} />
+            <ContentPagesSidebar
+              articleSections={[]}
+              highlightArticleSlug={null}
+              highlightSystemFolderCode={null}
+            />
             <div className="flex min-w-0 flex-1 flex-col gap-4">
               <DataLoadFailureNotice
                 digest={loadError.digest}
@@ -111,35 +162,60 @@ export default async function DoctorContentPage({ searchParams }: Props) {
     <AppShell title="Контент" user={session.user} variant="doctor">
       <PageSection id="doctor-content-section" as="section" className="flex flex-col gap-6">
         <div className="flex flex-col gap-6 md:flex-row md:items-start md:gap-8">
-          <ContentPagesSidebar sections={sidebarSections} activeSectionSlug={activeSectionSlug} />
+          <ContentPagesSidebar
+            articleSections={articleSections}
+            highlightArticleSlug={highlightArticleSlug}
+            highlightSystemFolderCode={highlightSystemFolderCode}
+          />
           <div className="flex min-w-0 flex-1 flex-col gap-4">
             <div className="flex flex-wrap items-start justify-between gap-2">
               <h2 className="m-0 text-lg font-semibold">{mainHeading}</h2>
-              <Link
-                href={
-                  activeSectionSlug !== null
-                    ? `/app/doctor/content/new?section=${encodeURIComponent(activeSectionSlug)}`
-                    : "/app/doctor/content/new"
-                }
-                className={createPageBtnClass}
-              >
-                Создать страницу
-              </Link>
+              <div className="flex flex-wrap items-center gap-2">
+                {validSystemParent !== undefined && activeSectionSlug === null ? (
+                  <Link
+                    href={`/app/doctor/content/sections/new?systemParentCode=${encodeURIComponent(validSystemParent)}`}
+                    className={buttonVariants({ variant: "outline", size: "default" })}
+                  >
+                    Создать раздел
+                  </Link>
+                ) : null}
+                <Link href={createPageHref} className={createPageBtnClass}>
+                  Создать страницу
+                </Link>
+              </div>
             </div>
 
-            {activeSectionSlug !== null ? (
+            {validSystemParent !== undefined && activeSectionSlug === null ? (
+              folderChildSections.length === 0 ? (
+                <p className="text-muted-foreground">В этой папке пока нет разделов. Создайте раздел, затем страницы.</p>
+              ) : (
+                <div className="flex flex-col gap-8">
+                  {folderChildSections.map((sec) => {
+                    const rows = grouped.get(sec.slug) ?? [];
+                    return (
+                      <ContentPagesSectionList
+                        key={sec.slug}
+                        sectionSlug={sec.slug}
+                        sectionTitle={sec.title}
+                        initialPages={rows.map(toListRow)}
+                      />
+                    );
+                  })}
+                </div>
+              )
+            ) : activeSectionSlug !== null ? (
               <ContentPagesSectionList
                 sectionSlug={activeSectionSlug}
                 sectionTitle={sectionTitleBySlug.get(activeSectionSlug) ?? activeSectionSlug}
                 initialPages={(grouped.get(activeSectionSlug) ?? []).map(toListRow)}
                 showSectionHeading={false}
               />
-            ) : pages.length === 0 ? (
+            ) : articlePages.length === 0 ? (
               <p className="text-muted-foreground">Нет страниц контента.</p>
             ) : (
               <div className="flex flex-col gap-8">
-                {orderedSectionSlugs.map((sectionSlug) => {
-                  const rows = grouped.get(sectionSlug);
+                {orderedArticleSectionSlugs.map((sectionSlug) => {
+                  const rows = groupedArticle.get(sectionSlug);
                   if (!rows?.length) return null;
                   return (
                     <ContentPagesSectionList

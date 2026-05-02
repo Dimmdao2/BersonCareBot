@@ -13,6 +13,8 @@ function row(slug: string, visible = true): ContentSectionRow {
     requiresAuth: false,
     coverImageUrl: null,
     iconImageUrl: null,
+    kind: "article",
+    systemParentCode: null,
   };
 }
 

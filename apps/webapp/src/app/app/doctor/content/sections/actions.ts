@@ -3,6 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import {
+  isImmutableSystemSectionSlug,
+  isValidSectionTaxonomy,
+  taxonomyFromPlacement,
+} from "@/modules/content-sections/types";
 import { validateContentSectionSlug } from "@/shared/lib/contentSectionSlug";
 import { API_MEDIA_URL_RE, isLegacyAbsoluteUrl } from "@/shared/lib/mediaUrlPolicy";
 
@@ -25,6 +30,15 @@ export async function saveContentSection(
   const iconImageUrlRaw = (formData.get("icon_image_url") as string)?.trim() || "";
   const coverImageUrl = coverImageUrlRaw.length > 0 ? coverImageUrlRaw : null;
   const iconImageUrl = iconImageUrlRaw.length > 0 ? iconImageUrlRaw : null;
+  const placementRaw = (formData.get("placement") as string | null) ?? "";
+  const trimmedPlacement = placementRaw.trim();
+  const parsedPlacement =
+    trimmedPlacement === ""
+      ? ({ kind: "article" as const, systemParentCode: null })
+      : taxonomyFromPlacement(trimmedPlacement);
+  if (!parsedPlacement) {
+    return { ok: false, error: "Выберите корректное расположение раздела" };
+  }
 
   if (!slug || !title) {
     return { ok: false, error: "Заполните slug и заголовок" };
@@ -44,6 +58,30 @@ export async function saveContentSection(
     return { ok: false, error: "Иконка должна быть выбрана из библиотеки файлов" };
   }
 
+  let existing: Awaited<ReturnType<typeof deps.contentSections.getBySlug>> = null;
+  try {
+    existing = await deps.contentSections.getBySlug(slug);
+  } catch {
+    /* ignore — upsert path will surface errors */
+  }
+
+  if (!existing && isImmutableSystemSectionSlug(slug)) {
+    return { ok: false, error: "Этот slug зарезервирован для встроенного раздела приложения" };
+  }
+
+  let kind = parsedPlacement.kind;
+  let systemParentCode = parsedPlacement.systemParentCode;
+  if (!existing && trimmedPlacement === "system_root") {
+    return { ok: false, error: "Новый раздел нельзя сохранить как встроенный корневой системный тип" };
+  }
+  if (existing && isImmutableSystemSectionSlug(slug)) {
+    kind = existing.kind;
+    systemParentCode = existing.systemParentCode;
+  }
+  if (!kind || !isValidSectionTaxonomy(kind, systemParentCode)) {
+    return { ok: false, error: "Некорректное сочетание типа раздела и папки CMS" };
+  }
+
   try {
     await deps.contentSections.upsert({
       slug,
@@ -54,6 +92,8 @@ export async function saveContentSection(
       requiresAuth,
       coverImageUrl,
       iconImageUrl,
+      kind,
+      systemParentCode,
     });
   } catch (err) {
     console.error("saveContentSection failed:", err);
@@ -89,6 +129,9 @@ export async function renameContentSectionSlug(
   if (!newParsed.ok) return { ok: false, error: newParsed.error };
   if (oldParsed.slug === newParsed.slug) {
     return { ok: false, error: "Новый slug совпадает с текущим" };
+  }
+  if (isImmutableSystemSectionSlug(oldParsed.slug)) {
+    return { ok: false, error: "Slug встроенного раздела нельзя переименовать" };
   }
 
   const result = await deps.contentSections.renameSectionSlug(oldParsed.slug, newParsed.slug, {

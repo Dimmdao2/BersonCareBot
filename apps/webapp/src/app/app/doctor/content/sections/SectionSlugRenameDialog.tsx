@@ -17,13 +17,23 @@ import { renameContentSectionSlug, type RenameContentSectionSlugState } from "./
 type Props = {
   oldSlug: string;
   pagesAffectedCount: number;
+  disabled?: boolean;
+  disabledReason?: string;
 };
 
-export function SectionSlugRenameDialog({ oldSlug, pagesAffectedCount }: Props) {
+export function SectionSlugRenameDialog({ oldSlug, pagesAffectedCount, disabled, disabledReason }: Props) {
   const [open, setOpen] = useState(false);
   const [state, formAction, pending] = useActionState(renameContentSectionSlug, null as RenameContentSectionSlugState | null);
   const newSlugFieldId = useId();
   const confirmId = useId();
+
+  if (disabled) {
+    return (
+      <p className="max-w-sm text-xs text-muted-foreground">
+        {disabledReason ?? "Переименование slug для этого раздела недоступно."}
+      </p>
+    );
+  }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>

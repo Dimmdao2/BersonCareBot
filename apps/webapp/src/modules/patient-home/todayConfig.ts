@@ -1,4 +1,6 @@
 import type { PatientHomeBlock, PatientHomeBlockItem } from "@/modules/patient-home/ports";
+import type { ContentSectionKind, SystemParentCode } from "@/modules/content-sections/types";
+import { isPatientHomeContentPageCandidateForBlock } from "@/modules/patient-home/blocks";
 import type { SystemSetting, SystemSettingKey, SystemSettingScope } from "@/modules/system-settings/types";
 
 export type ResolvedWarmupPage = {
@@ -15,7 +17,16 @@ export type ResolvedPatientHomeBlockItem = {
 
 export type PatientHomeTodayConfigDeps = {
   patientHomeBlocks: { listBlocksWithItems(): Promise<PatientHomeBlock[]> };
-  contentPages: { getBySlug(slug: string): Promise<ResolvedWarmupPage | null> };
+  contentPages: {
+    getBySlug(slug: string): Promise<(ResolvedWarmupPage & { section: string }) | null>;
+  };
+  contentSections: {
+    getBySlug(slug: string): Promise<{
+      slug: string;
+      kind: ContentSectionKind;
+      systemParentCode: SystemParentCode | null;
+    } | null>;
+  };
   systemSettings: {
     getSetting(key: SystemSettingKey, scope: SystemSettingScope): Promise<SystemSetting | null>;
   };
@@ -85,6 +96,25 @@ export async function getPatientHomeTodayConfig(
     if (!slug) continue;
     const row = await deps.contentPages.getBySlug(slug);
     if (!row) continue;
+    const parent = await deps.contentSections.getBySlug(row.section);
+    const sectionMap = parent
+      ? new Map([[parent.slug, { kind: parent.kind, systemParentCode: parent.systemParentCode }]])
+      : new Map<string, { kind: ContentSectionKind; systemParentCode: SystemParentCode | null }>();
+    if (
+      !isPatientHomeContentPageCandidateForBlock(
+        "daily_warmup",
+        {
+          slug: row.slug,
+          section: row.section,
+          isPublished: true,
+          archivedAt: null,
+          deletedAt: null,
+        },
+        sectionMap,
+      )
+    ) {
+      continue;
+    }
     return {
       dailyWarmupItem: { blockItem, page: mapPage(row) },
       practiceTarget,

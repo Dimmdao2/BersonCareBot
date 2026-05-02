@@ -114,6 +114,8 @@ describe("patientHomeResolvers", () => {
               requiresAuth: false,
               iconImageUrl: null,
               coverImageUrl: null,
+              kind: "system" as const,
+              systemParentCode: "situations" as const,
             }
           : {
               slug: "auth",
@@ -123,6 +125,8 @@ describe("patientHomeResolvers", () => {
               requiresAuth: true,
               iconImageUrl: null,
               coverImageUrl: null,
+              kind: "system" as const,
+              systemParentCode: "situations" as const,
             },
       },
       contentPages: { getBySlug: async () => null },
@@ -147,6 +151,8 @@ describe("patientHomeResolvers", () => {
           requiresAuth: false,
           iconImageUrl: null,
           coverImageUrl: null,
+          kind: "article" as const,
+          systemParentCode: null,
         }),
       },
       contentPages: { getBySlug: async () => null },
@@ -163,7 +169,22 @@ describe("patientHomeResolvers", () => {
 
   it("resolveSosCard returns first visible resolved item", async () => {
     const deps = {
-      contentSections: { getBySlug: async () => null },
+      contentSections: {
+        getBySlug: async (slug: string) =>
+          slug === "sos-root" ?
+            {
+              slug: "sos-root",
+              title: "SOS root",
+              description: "",
+              isVisible: true,
+              requiresAuth: false,
+              iconImageUrl: null,
+              coverImageUrl: null,
+              kind: "system" as const,
+              systemParentCode: "sos" as const,
+            }
+          : null,
+      },
       contentPages: {
         getBySlug: async (slug: string) =>
           slug === "p1" ?
@@ -173,6 +194,7 @@ describe("patientHomeResolvers", () => {
               summary: "",
               requiresAuth: false,
               imageUrl: null,
+              section: "sos-root",
             }
           : null,
       },
@@ -211,8 +233,21 @@ describe("patientHomeResolvers", () => {
   });
 
   it("resolveUsefulPostCard returns first visible content_page", async () => {
+    const articleSection = {
+      slug: "articles",
+      title: "Articles",
+      description: "",
+      isVisible: true,
+      requiresAuth: false,
+      iconImageUrl: null,
+      coverImageUrl: null,
+      kind: "article" as const,
+      systemParentCode: null,
+    };
     const deps = {
-      contentSections: { getBySlug: async () => null },
+      contentSections: {
+        getBySlug: async (slug: string) => (slug === "articles" ? articleSection : null),
+      },
       contentPages: {
         getBySlug: async (slug: string) =>
           slug === "post-a" ?
@@ -222,6 +257,7 @@ describe("patientHomeResolvers", () => {
               summary: "Sum",
               requiresAuth: false,
               imageUrl: "/img/a.png",
+              section: "articles",
             }
           : slug === "post-b" ?
             {
@@ -230,6 +266,7 @@ describe("patientHomeResolvers", () => {
               summary: "",
               requiresAuth: false,
               imageUrl: null,
+              section: "articles",
             }
           : null,
       },
@@ -259,7 +296,19 @@ describe("patientHomeResolvers", () => {
 
   it("resolveUsefulPostCard returns null when auth-only page for guest", async () => {
     const deps = {
-      contentSections: { getBySlug: async () => null },
+      contentSections: {
+        getBySlug: async () => ({
+          slug: "articles",
+          title: "A",
+          description: "",
+          isVisible: true,
+          requiresAuth: false,
+          iconImageUrl: null,
+          coverImageUrl: null,
+          kind: "article" as const,
+          systemParentCode: null,
+        }),
+      },
       contentPages: {
         getBySlug: async () => ({
           slug: "auth-post",
@@ -267,6 +316,7 @@ describe("patientHomeResolvers", () => {
           summary: "",
           requiresAuth: true,
           imageUrl: null,
+          section: "articles",
         }),
       },
       courses: { getCourseForDoctor: async () => null },
@@ -281,7 +331,19 @@ describe("patientHomeResolvers", () => {
 
   it("resolveUsefulPostCard preserves hidden title setting", async () => {
     const deps = {
-      contentSections: { getBySlug: async () => null },
+      contentSections: {
+        getBySlug: async () => ({
+          slug: "articles",
+          title: "A",
+          description: "",
+          isVisible: true,
+          requiresAuth: false,
+          iconImageUrl: null,
+          coverImageUrl: null,
+          kind: "article" as const,
+          systemParentCode: null,
+        }),
+      },
       contentPages: {
         getBySlug: async () => ({
           slug: "post",
@@ -289,6 +351,7 @@ describe("patientHomeResolvers", () => {
           summary: "",
           requiresAuth: false,
           imageUrl: null,
+          section: "articles",
         }),
       },
       courses: { getCourseForDoctor: async () => null },

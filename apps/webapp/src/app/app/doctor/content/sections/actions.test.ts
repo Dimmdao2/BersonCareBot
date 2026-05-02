@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const upsertMock = vi.fn();
 const renameSectionSlugMock = vi.fn();
+const getBySlugMock = vi.hoisted(() => vi.fn().mockResolvedValue(null));
 
 vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
@@ -18,6 +19,7 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
     contentSections: {
       upsert: upsertMock,
       renameSectionSlug: renameSectionSlugMock,
+      getBySlug: getBySlugMock,
     },
   }),
 }));
@@ -37,6 +39,8 @@ describe("saveContentSection", () => {
   beforeEach(() => {
     upsertMock.mockClear();
     renameSectionSlugMock.mockReset();
+    getBySlugMock.mockReset();
+    getBySlugMock.mockResolvedValue(null);
     vi.mocked(revalidatePath).mockClear();
   });
 
@@ -58,8 +62,47 @@ describe("saveContentSection", () => {
         slug: "new-sec",
         title: "Новый раздел",
         isVisible: true,
+        kind: "article",
+        systemParentCode: null,
       }),
     );
+  });
+
+  it("saves taxonomy from placement field", async () => {
+    upsertMock.mockResolvedValue(undefined);
+    const fd = formWith({
+      slug: "sub-sos",
+      title: "Подраздел SOS",
+      description: "",
+      sort_order: "0",
+      placement: "sos",
+      cover_image_url: "",
+      icon_image_url: "",
+    });
+    const res = await saveContentSection(null, fd);
+    expect(res.ok).toBe(true);
+    expect(upsertMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        slug: "sub-sos",
+        kind: "system",
+        systemParentCode: "sos",
+      }),
+    );
+  });
+
+  it("rejects reserved slug on create", async () => {
+    const fd = formWith({
+      slug: "warmups",
+      title: "Клон",
+      description: "",
+      sort_order: "0",
+      cover_image_url: "",
+      icon_image_url: "",
+    });
+    const res = await saveContentSection(null, fd);
+    expect(res.ok).toBe(false);
+    expect(res.error).toMatch(/зарезервирован/i);
+    expect(upsertMock).not.toHaveBeenCalled();
   });
 
   it("rejects missing title", async () => {
@@ -113,6 +156,17 @@ describe("saveContentSection", () => {
     expect(revalidatePath).toHaveBeenCalledWith("/app/doctor/content/sections");
     expect(revalidatePath).toHaveBeenCalledWith("/app/patient/sections/old-sec");
     expect(revalidatePath).toHaveBeenCalledWith("/app/patient/sections/new-sec");
+  });
+
+  it("rejects rename for immutable built-in slug", async () => {
+    const fd = formWith({
+      old_slug: "warmups",
+      new_slug: "warmups-2",
+      confirm_rename: "on",
+    });
+    const res = await renameContentSectionSlug(null, fd);
+    expect(res?.ok).toBe(false);
+    expect(renameSectionSlugMock).not.toHaveBeenCalled();
   });
 
   it("rejects rename without explicit confirmation", async () => {

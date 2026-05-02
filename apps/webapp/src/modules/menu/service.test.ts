@@ -25,6 +25,8 @@ describe("menu service", () => {
           requiresAuth: false,
           coverImageUrl: null,
           iconImageUrl: null,
+          kind: "system",
+          systemParentCode: null,
         },
       ],
     });

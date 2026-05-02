@@ -18,6 +18,14 @@ function block(code: PatientHomeBlock["code"], items: PatientHomeBlockItem[], is
   };
 }
 
+const warmSection = {
+  getBySlug: vi.fn(async (slug: string) =>
+    slug === "warmups" ?
+      { slug: "warmups", kind: "system" as const, systemParentCode: "warmups" as const }
+    : null,
+  ),
+};
+
 describe("parsePatientHomeDailyPracticeTarget", () => {
   it("defaults to 3 when missing", () => {
     expect(parsePatientHomeDailyPracticeTarget(null)).toBe(3);
@@ -39,6 +47,7 @@ describe("getPatientHomeTodayConfig", () => {
         listBlocksWithItems: async () => [block("daily_warmup", [], true)],
       },
       contentPages: { getBySlug: vi.fn() },
+      contentSections: warmSection,
       systemSettings: { getSetting: async () => null },
     };
     const out = await getPatientHomeTodayConfig(deps);
@@ -53,6 +62,7 @@ describe("getPatientHomeTodayConfig", () => {
       title: "Warm",
       summary: "S",
       imageUrl: null,
+      section: "warmups",
     });
     const deps = {
       patientHomeBlocks: {
@@ -74,6 +84,7 @@ describe("getPatientHomeTodayConfig", () => {
         ],
       },
       contentPages: { getBySlug: getBySlug },
+      contentSections: warmSection,
       systemSettings: {
         getSetting: async (): Promise<SystemSetting | null> => ({
           key: "patient_home_daily_practice_target",
@@ -124,10 +135,11 @@ describe("getPatientHomeTodayConfig", () => {
         ],
       },
       contentPages: { getBySlug: getBySlug },
+      contentSections: warmSection,
       systemSettings: { getSetting: async () => null },
     };
     getBySlug.mockImplementation(async (slug: string) =>
-      slug === "ok" ? { slug: "ok", title: "OK", summary: "", imageUrl: null } : null,
+      slug === "ok" ? { slug: "ok", title: "OK", summary: "", imageUrl: null, section: "warmups" } : null,
     );
     const out = await getPatientHomeTodayConfig(deps);
     expect(out.dailyWarmupItem?.page?.slug).toBe("ok");
@@ -136,7 +148,7 @@ describe("getPatientHomeTodayConfig", () => {
   it("rotates visible warmup items by weekday index", async () => {
     const getBySlug = vi.fn(async (slug: string) =>
       slug === "warm-a" || slug === "warm-b" ?
-        { slug, title: slug, summary: "", imageUrl: null }
+        { slug, title: slug, summary: "", imageUrl: null, section: "warmups" }
       : null,
     );
     const deps = {
@@ -171,6 +183,7 @@ describe("getPatientHomeTodayConfig", () => {
         ],
       },
       contentPages: { getBySlug },
+      contentSections: warmSection,
       systemSettings: { getSetting: async () => null },
     };
     const monday = await getPatientHomeTodayConfig(deps, 0);
@@ -204,6 +217,7 @@ describe("getPatientHomeTodayConfig", () => {
         ],
       },
       contentPages: { getBySlug: vi.fn() },
+      contentSections: warmSection,
       systemSettings: { getSetting: async () => null },
     };
     const out = await getPatientHomeTodayConfig(deps);

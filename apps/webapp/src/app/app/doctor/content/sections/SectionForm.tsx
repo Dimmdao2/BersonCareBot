@@ -1,15 +1,31 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useRef, useState } from "react";
+import { useActionState, useMemo, useRef, useState } from "react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  type ContentSectionKind,
+  type SystemParentCode,
+  isImmutableSystemSectionSlug,
+  isSystemParentCode,
+  placementFromTaxonomy,
+} from "@/modules/content-sections/types";
 import type { PatientHomeCmsReturnQuery } from "@/modules/patient-home/patientHomeCmsReturnUrls";
 import { fallbackSlug, slugFromTitle } from "@/shared/lib/slugify";
 import { MediaLibraryPickerDialog } from "../MediaLibraryPickerDialog";
 import { saveContentSection, type SaveContentSectionState } from "./actions";
 import { SectionSlugRenameDialog } from "./SectionSlugRenameDialog";
+
+const FOLDER_LABELS: Record<SystemParentCode, string> = {
+  situations: "Ситуации",
+  sos: "SOS",
+  warmups: "Разминки",
+  lessons: "Уроки",
+};
 
 type SectionRow = {
   slug: string;
@@ -20,17 +36,28 @@ type SectionRow = {
   requiresAuth: boolean;
   coverImageUrl: string | null;
   iconImageUrl: string | null;
+  kind: ContentSectionKind;
+  systemParentCode: SystemParentCode | null;
 };
+
+function placementSummary(kind: ContentSectionKind, systemParentCode: SystemParentCode | null): string {
+  if (kind === "article") return "Статьи (общий каталог)";
+  if (systemParentCode && isSystemParentCode(systemParentCode)) return `Папка «${FOLDER_LABELS[systemParentCode]}»`;
+  return "Встроенный системный раздел (корень приложения)";
+}
 
 export function SectionForm({
   section,
   initialSuggestedSlug,
+  initialSystemParentCode,
   pagesInSection = 0,
   patientHomeContext,
 }: {
   section?: SectionRow;
   /** Из query `?suggestedSlug=` при создании раздела (латиница, цифры, дефис). */
   initialSuggestedSlug?: string | null;
+  /** Из query `?systemParentCode=` — предвыбор папки CMS при создании. */
+  initialSystemParentCode?: string | null;
   pagesInSection?: number;
   patientHomeContext?: PatientHomeCmsReturnQuery;
 }) {
@@ -49,6 +76,17 @@ export function SectionForm({
   const [coverImageUrlValue, setCoverImageUrlValue] = useState(section?.coverImageUrl ?? "");
   const [iconImageUrlValue, setIconImageUrlValue] = useState(section?.iconImageUrl ?? "");
   const slugManualRef = useRef(initialCreateSlug.length > 0);
+
+  const placementLocked = isEdit && section != null && isImmutableSystemSectionSlug(section.slug);
+
+  const defaultCreatePlacement = useMemo(() => {
+    const raw = initialSystemParentCode?.trim() ?? "";
+    if (raw && isSystemParentCode(raw)) return raw;
+    return "article";
+  }, [initialSystemParentCode]);
+
+  const editPlacementValue =
+    section != null ? placementFromTaxonomy(section.kind, section.systemParentCode) : "article";
 
   return (
     <form action={formAction} className="flex flex-col gap-4">
@@ -81,7 +119,12 @@ export function SectionForm({
           <div className="flex flex-wrap items-center gap-2">
             <input type="hidden" name="slug" value={section!.slug} />
             <Input type="text" value={section!.slug} disabled readOnly className="min-w-[12rem] flex-1" />
-            <SectionSlugRenameDialog oldSlug={section!.slug} pagesAffectedCount={pagesInSection} />
+            <SectionSlugRenameDialog
+              oldSlug={section!.slug}
+              pagesAffectedCount={pagesInSection}
+              disabled={isImmutableSystemSectionSlug(section!.slug)}
+              disabledReason="Встроенные разделы приложения используются в пациентском интерфейсе; slug нельзя изменить."
+            />
           </div>
         </div>
       ) : null}
@@ -146,6 +189,58 @@ export function SectionForm({
           </div>
         </label>
       ) : null}
+
+      <div className="flex flex-col gap-2 rounded-lg border border-border/80 bg-muted/20 p-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            Расположение в CMS
+          </Label>
+          {placementLocked ? (
+            <Badge variant="secondary" className="text-[10px]">
+              только чтение
+            </Badge>
+          ) : null}
+        </div>
+        {placementLocked && section ? (
+          <>
+            <input type="hidden" name="placement" value={editPlacementValue} />
+            <p className="text-sm text-muted-foreground">{placementSummary(section.kind, section.systemParentCode)}</p>
+          </>
+        ) : isEdit && section ? (
+          <select
+            name="placement"
+            className="h-10 w-full max-w-md rounded-md border border-input bg-background px-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+            defaultValue={editPlacementValue}
+            key={`placement-${section.slug}`}
+          >
+            <option value="article">Статьи (общий каталог)</option>
+            <option value="situations">Ситуации</option>
+            <option value="sos">SOS</option>
+            <option value="warmups">Разминки</option>
+            <option value="lessons">Уроки</option>
+            {editPlacementValue === "system_root" ? <option value="system_root">Встроенный (корень)</option> : null}
+          </select>
+        ) : (
+          <select
+            name="placement"
+            className="h-10 w-full max-w-md rounded-md border border-input bg-background px-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+            defaultValue={defaultCreatePlacement}
+            key={`placement-new-${defaultCreatePlacement}`}
+          >
+            <option value="article">Статьи (общий каталог)</option>
+            <option value="situations">Ситуации</option>
+            <option value="sos">SOS</option>
+            <option value="warmups">Разминки</option>
+            <option value="lessons">Уроки</option>
+          </select>
+        )}
+        {!placementLocked ? (
+          <p className="text-xs text-muted-foreground">
+            Разделы в папках «Ситуации», «SOS», «Разминки» и «Уроки» не попадают в список всех статей; статьи остаются в
+            общем каталоге.
+          </p>
+        ) : null}
+      </div>
 
       <label className="flex flex-col gap-1">
         <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Описание</span>

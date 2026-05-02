@@ -3,6 +3,7 @@ import {
   parsePatientHomeCmsReturnQuery,
   type PatientHomeCmsReturnQuery,
 } from "@/modules/patient-home/patientHomeCmsReturnUrls";
+import { isSystemParentCode } from "@/modules/content-sections/types";
 import { AppShell } from "@/shared/ui/AppShell";
 import { SectionForm } from "../SectionForm";
 
@@ -30,6 +31,8 @@ export default async function DoctorContentSectionNewPage({ searchParams }: Page
   });
   const initialSuggestedSlug =
     normalizeSuggestedSlug(patientHomeContext?.suggestedSlug) ?? normalizeSuggestedSlug(sp.suggestedSlug);
+  const rawParent = pick(sp, "systemParentCode")?.trim().toLowerCase() ?? "";
+  const initialSystemParentCode = isSystemParentCode(rawParent) ? rawParent : null;
 
   return (
     <AppShell
@@ -40,8 +43,9 @@ export default async function DoctorContentSectionNewPage({ searchParams }: Page
     >
       <section className="rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col gap-4">
         <SectionForm
-          key={initialSuggestedSlug ?? "__new__"}
+          key={`${initialSuggestedSlug ?? ""}-${initialSystemParentCode ?? ""}`}
           initialSuggestedSlug={initialSuggestedSlug}
+          initialSystemParentCode={initialSystemParentCode}
           patientHomeContext={patientHomeContext ?? undefined}
         />
       </section>

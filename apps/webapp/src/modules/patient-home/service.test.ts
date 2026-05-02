@@ -1,14 +1,48 @@
 import { describe, expect, it } from "vitest";
 import { createInMemoryPatientHomeBlocksPort } from "@/infra/repos/inMemoryPatientHomeBlocks";
+import type { ContentSectionKind, SystemParentCode } from "@/modules/content-sections/types";
 import { createPatientHomeBlocksService } from "./service";
 
+type PageFixture = {
+  slug: string;
+  title?: string;
+  summary?: string;
+  section: string;
+  isPublished?: boolean;
+  archivedAt?: string | null;
+  deletedAt?: string | null;
+  missing?: boolean;
+};
+
+type SectionFixture = {
+  slug: string;
+  title?: string;
+  description?: string;
+  kind: ContentSectionKind;
+  systemParentCode: SystemParentCode | null;
+  missing?: boolean;
+};
+
 function makeService(opts?: {
-  pages?: Record<string, boolean>;
-  sections?: Record<string, boolean>;
+  pages?: PageFixture[];
+  sections?: SectionFixture[];
   courses?: Record<string, "published" | "draft">;
 }) {
-  const pages = opts?.pages ?? { "p-1": true };
-  const sections = opts?.sections ?? { "s-1": true };
+  const pages: PageFixture[] = opts?.pages ?? [
+    {
+      slug: "p-1",
+      section: "warmups",
+      title: "p-1",
+      summary: "",
+      isPublished: true,
+      archivedAt: null,
+      deletedAt: null,
+    },
+  ];
+  const sections: SectionFixture[] = opts?.sections ?? [
+    { slug: "warmups", kind: "system", systemParentCode: "warmups" },
+    { slug: "s-1", kind: "system", systemParentCode: "situations" },
+  ];
   const courses = opts?.courses ?? { "c-1": "published" };
 
   const port = createInMemoryPatientHomeBlocksPort();
@@ -16,20 +50,49 @@ function makeService(opts?: {
     port,
     contentPages: {
       async listAll() {
-        return Object.keys(pages).filter((k) => pages[k]).map((slug) => ({ slug, title: slug, summary: "", imageUrl: null }));
+        return pages
+          .filter((p) => !p.missing)
+          .map((p) => ({
+            slug: p.slug,
+            title: p.title ?? p.slug,
+            summary: p.summary ?? "",
+            imageUrl: null as string | null,
+            section: p.section,
+            isPublished: p.isPublished ?? true,
+            archivedAt: p.archivedAt ?? null,
+            deletedAt: p.deletedAt ?? null,
+          }));
       },
       async getBySlug(slug: string) {
-        return pages[slug] ? { slug } : null;
+        const p = pages.find((x) => x.slug === slug && !x.missing);
+        return p
+          ? {
+              slug: p.slug,
+              section: p.section,
+              isPublished: p.isPublished ?? true,
+              archivedAt: p.archivedAt ?? null,
+              deletedAt: p.deletedAt ?? null,
+            }
+          : null;
       },
     },
     contentSections: {
       async listAll() {
-        return Object.keys(sections)
-          .filter((k) => sections[k])
-          .map((slug) => ({ slug, title: slug, description: "", iconImageUrl: null, coverImageUrl: null }));
+        return sections
+          .filter((s) => !s.missing)
+          .map((s) => ({
+            slug: s.slug,
+            title: s.title ?? s.slug,
+            description: s.description ?? "",
+            iconImageUrl: null as string | null,
+            coverImageUrl: null as string | null,
+            kind: s.kind,
+            systemParentCode: s.systemParentCode,
+          }));
       },
       async getBySlug(slug: string) {
-        return sections[slug] ? { slug } : null;
+        const s = sections.find((x) => x.slug === slug && !x.missing);
+        return s ? { slug: s.slug, kind: s.kind, systemParentCode: s.systemParentCode } : null;
       },
     },
     courses: {
@@ -73,6 +136,52 @@ describe("patient-home service", () => {
     await expect(
       service.addItem({ blockCode: "daily_warmup", targetType: "content_page", targetRef: "nope", isVisible: true }),
     ).rejects.toThrow("target_content_page_not_found");
+  });
+
+  it("addItem rejects page outside block taxonomy", async () => {
+    const { service } = makeService({
+      pages: [{ slug: "p-art", section: "articles", isPublished: true }],
+      sections: [
+        { slug: "articles", kind: "article", systemParentCode: null },
+        { slug: "warmups", kind: "system", systemParentCode: "warmups" },
+      ],
+    });
+    await expect(
+      service.addItem({ blockCode: "daily_warmup", targetType: "content_page", targetRef: "p-art", isVisible: true }),
+    ).rejects.toThrow("target_content_page_not_allowed_for_block");
+  });
+
+  it("addItem rejects section outside block taxonomy", async () => {
+    const { service } = makeService({
+      sections: [
+        { slug: "warmups", kind: "system", systemParentCode: "warmups" },
+        { slug: "s-1", kind: "system", systemParentCode: "situations" },
+        { slug: "wrong", kind: "system", systemParentCode: "warmups" },
+      ],
+    });
+    await expect(
+      service.addItem({ blockCode: "situations", targetType: "content_section", targetRef: "wrong", isVisible: true }),
+    ).rejects.toThrow("target_content_section_not_allowed_for_block");
+  });
+
+  it("listCandidatesForBlock filters SOS targets by cluster", async () => {
+    const { service } = makeService({
+      pages: [
+        { slug: "p-sos", section: "sos-root", isPublished: true },
+        { slug: "p-art", section: "articles", isPublished: true },
+      ],
+      sections: [
+        { slug: "sos-root", kind: "system", systemParentCode: "sos" },
+        { slug: "articles", kind: "article", systemParentCode: null },
+        { slug: "sit-sec", kind: "system", systemParentCode: "situations" },
+      ],
+    });
+    const c = await service.listCandidatesForBlock("sos");
+    const keys = new Set(c.map((x) => `${x.targetType}:${x.targetRef}`));
+    expect(keys.has("content_page:p-sos")).toBe(true);
+    expect(keys.has("content_page:p-art")).toBe(false);
+    expect(keys.has("content_section:sos-root")).toBe(true);
+    expect(keys.has("content_section:sit-sec")).toBe(false);
   });
 
   it("addItem rejects invalid course id format", async () => {

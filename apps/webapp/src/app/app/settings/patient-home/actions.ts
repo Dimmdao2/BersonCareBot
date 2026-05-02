@@ -13,6 +13,7 @@ import {
 import type { PatientHomeBlockItemTargetType } from "@/modules/patient-home/ports";
 import { PATIENT_HOME_USEFUL_POST_BADGE_LABEL } from "@/modules/patient-home/usefulPostPresentation";
 import { validateContentSectionSlug } from "@/shared/lib/contentSectionSlug";
+import { systemParentCodeForPatientHomeBlock } from "@/modules/content-sections/types";
 import { API_MEDIA_URL_RE, isLegacyAbsoluteUrl } from "@/shared/lib/mediaUrlPolicy";
 
 const targetTypeSchema = z.enum(["content_page", "content_section", "course", "static_action"]);
@@ -331,6 +332,12 @@ export async function createContentSectionForPatientHomeBlock(input: {
     }
 
     const deps = buildAppDeps();
+
+    const parent = systemParentCodeForPatientHomeBlock(input.blockCode);
+    if (parent === undefined) {
+      return { ok: false, error: "inline_section_not_supported_for_block" };
+    }
+
     await deps.contentSections.upsert({
       slug,
       title,
@@ -340,6 +347,8 @@ export async function createContentSectionForPatientHomeBlock(input: {
       requiresAuth,
       coverImageUrl,
       iconImageUrl,
+      kind: "system",
+      systemParentCode: parent,
     });
 
     const itemId = await deps.patientHomeBlocks.addItem({

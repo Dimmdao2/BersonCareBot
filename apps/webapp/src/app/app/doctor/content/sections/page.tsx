@@ -33,6 +33,8 @@ export default async function DoctorContentSectionsPage() {
     requiresAuth: s.requiresAuth,
     coverImageUrl: s.coverImageUrl,
     iconImageUrl: s.iconImageUrl,
+    kind: s.kind,
+    systemParentCode: s.systemParentCode,
   }));
 
   return (

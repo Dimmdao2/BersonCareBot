@@ -997,9 +997,30 @@ export const contentSections = pgTable("content_sections", {
 	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 	requiresAuth: boolean("requires_auth").default(false).notNull(),
+	kind: text("kind").default("article").notNull(),
+	systemParentCode: text("system_parent_code"),
 }, (table) => [
 	index("idx_content_sections_sort").using("btree", table.sortOrder.asc().nullsLast().op("int4_ops"), table.title.asc().nullsLast().op("int4_ops")),
+	index("idx_content_sections_kind_parent_sort").using(
+		"btree",
+		table.kind.asc().nullsLast().op("text_ops"),
+		table.systemParentCode.asc().nullsLast().op("text_ops"),
+		table.sortOrder.asc().nullsLast().op("int4_ops"),
+		table.title.asc().nullsLast().op("text_ops"),
+	),
 	unique("content_sections_slug_key").on(table.slug),
+	check(
+		"content_sections_kind_check",
+		sql`${table.kind} = ANY (ARRAY['article'::text, 'system'::text])`,
+	),
+	check(
+		"content_sections_system_parent_code_check",
+		sql`(${table.systemParentCode} IS NULL) OR (${table.systemParentCode} = ANY (ARRAY['situations'::text, 'sos'::text, 'warmups'::text, 'lessons'::text]))`,
+	),
+	check(
+		"content_sections_article_no_system_parent_check",
+		sql`(${table.kind} = 'system'::text) OR (${table.systemParentCode} IS NULL)`,
+	),
 ]);
 
 export const contentSectionSlugHistory = pgTable("content_section_slug_history", {

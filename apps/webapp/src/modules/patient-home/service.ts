@@ -3,6 +3,8 @@ import {
   PATIENT_HOME_BLOCK_CODES,
   allowedTargetTypesForBlock,
   canManageItemsForBlock,
+  isPatientHomeContentPageCandidateForBlock,
+  isPatientHomeContentSectionCandidateForBlock,
   isTargetTypeAllowedForBlock,
   supportsConfigurablePatientHomeBlockIcon,
 } from "./blocks";
@@ -15,6 +17,7 @@ import type {
   PatientHomeBlockItemTargetType,
   PatientHomeBlocksPort,
 } from "./ports";
+import type { ContentSectionKind, SystemParentCode } from "@/modules/content-sections/types";
 
 type Candidate = {
   targetType: PatientHomeBlockItemTargetType;
@@ -27,12 +30,43 @@ type Candidate = {
 type PatientHomeServiceDeps = {
   port: PatientHomeBlocksPort;
   contentPages: {
-    listAll(): Promise<Array<{ slug: string; title: string; summary: string; imageUrl: string | null }>>;
-    getBySlug(slug: string): Promise<{ slug: string } | null>;
+    listAll(): Promise<
+      Array<{
+        slug: string;
+        title: string;
+        summary: string;
+        imageUrl: string | null;
+        section: string;
+        isPublished: boolean;
+        archivedAt: string | null;
+        deletedAt: string | null;
+      }>
+    >;
+    getBySlug(slug: string): Promise<{
+      slug: string;
+      section: string;
+      isPublished: boolean;
+      archivedAt: string | null;
+      deletedAt: string | null;
+    } | null>;
   };
   contentSections: {
-    listAll(): Promise<Array<{ slug: string; title: string; description: string; iconImageUrl?: string | null; coverImageUrl?: string | null }>>;
-    getBySlug(slug: string): Promise<{ slug: string } | null>;
+    listAll(): Promise<
+      Array<{
+        slug: string;
+        title: string;
+        description: string;
+        iconImageUrl?: string | null;
+        coverImageUrl?: string | null;
+        kind: ContentSectionKind;
+        systemParentCode: SystemParentCode | null;
+      }>
+    >;
+    getBySlug(slug: string): Promise<{
+      slug: string;
+      kind: ContentSectionKind;
+      systemParentCode: SystemParentCode | null;
+    } | null>;
   };
   courses: {
     listCoursesForDoctor(filter?: { includeArchived?: boolean }): Promise<Array<{ id: string; title: string; description: string | null }>>;
@@ -70,17 +104,35 @@ function assertCourseTargetRef(ref: string): void {
 
 async function assertCmsTargetExists(
   deps: PatientHomeServiceDeps,
+  blockCode: PatientHomeBlockCode,
   targetType: PatientHomeBlockItemTargetType,
   targetRef: string,
 ): Promise<void> {
+  const sections = await deps.contentSections.listAll();
+  const sectionMap = new Map(
+    sections.map((s) => [s.slug, { kind: s.kind, systemParentCode: s.systemParentCode }] as const),
+  );
+
   if (targetType === "content_page") {
-    const row = await deps.contentPages.getBySlug(targetRef);
+    const pages = await deps.contentPages.listAll();
+    const row = pages.find((p) => p.slug === targetRef);
     if (!row) throw new Error("target_content_page_not_found");
+    if (!isPatientHomeContentPageCandidateForBlock(blockCode, row, sectionMap)) {
+      throw new Error("target_content_page_not_allowed_for_block");
+    }
     return;
   }
   if (targetType === "content_section") {
     const row = await deps.contentSections.getBySlug(targetRef);
     if (!row) throw new Error("target_content_section_not_found");
+    if (
+      !isPatientHomeContentSectionCandidateForBlock(blockCode, {
+        kind: row.kind,
+        systemParentCode: row.systemParentCode,
+      })
+    ) {
+      throw new Error("target_content_section_not_allowed_for_block");
+    }
     return;
   }
   if (targetType === "course") {
@@ -130,7 +182,7 @@ export function createPatientHomeBlocksService(deps: PatientHomeServiceDeps) {
       }
       const targetRef = input.targetRef.trim();
       if (!targetRef) throw new Error("empty_target_ref");
-      await assertCmsTargetExists(deps, input.targetType, targetRef);
+      await assertCmsTargetExists(deps, input.blockCode, input.targetType, targetRef);
       return deps.port.addItem({
         ...input,
         targetRef,
@@ -160,7 +212,7 @@ export function createPatientHomeBlocksService(deps: PatientHomeServiceDeps) {
           throw new Error(`invalid_target_type_for_block:${item.blockCode}:${nextType}`);
         }
 
-        await assertCmsTargetExists(deps, nextType, nextRef);
+        await assertCmsTargetExists(deps, item.blockCode, nextType, nextRef);
 
         await deps.port.updateItem(itemId, {
           ...patch,
@@ -217,10 +269,16 @@ export function createPatientHomeBlocksService(deps: PatientHomeServiceDeps) {
       const allowedTypes = allowedTargetTypesForBlock(parsedCode);
       if (allowedTypes.length === 0) return [];
 
+      const sections = await deps.contentSections.listAll();
+      const sectionMap = new Map(
+        sections.map((s) => [s.slug, { kind: s.kind, systemParentCode: s.systemParentCode }] as const),
+      );
+
       const out: Candidate[] = [];
       if (allowedTypes.includes("content_page")) {
         const pages = await deps.contentPages.listAll();
         for (const p of pages) {
+          if (!isPatientHomeContentPageCandidateForBlock(parsedCode, p, sectionMap)) continue;
           out.push({
             targetType: "content_page",
             targetRef: p.slug,
@@ -231,8 +289,15 @@ export function createPatientHomeBlocksService(deps: PatientHomeServiceDeps) {
         }
       }
       if (allowedTypes.includes("content_section")) {
-        const sections = await deps.contentSections.listAll();
         for (const s of sections) {
+          if (
+            !isPatientHomeContentSectionCandidateForBlock(parsedCode, {
+              kind: s.kind,
+              systemParentCode: s.systemParentCode,
+            })
+          ) {
+            continue;
+          }
           out.push({
             targetType: "content_section",
             targetRef: s.slug,

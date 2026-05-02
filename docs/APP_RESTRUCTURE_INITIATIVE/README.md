@@ -3,12 +3,16 @@
 Глобальная инициатива по ретруктуризации информационной архитектуры приложения (пациент + кабинет врача/админа) и связанной с ней реформе CMS, уведомлений и архитектурного долга.
 
 **Дата старта:** 2026-05-01.
-**Статус:** в реализации — **этап 1 дорожной карты закрыт в коде и CI** (2026-05-01): см. [`LOG.md`](LOG.md), [`STAGE1_PLAN_CLOSEOUT.md`](STAGE1_PLAN_CLOSEOUT.md), [`RECOMMENDATIONS_AND_ROADMAP.md`](RECOMMENDATIONS_AND_ROADMAP.md) §«Этап 1». Этапы 2–8 и целевые структуры остаются продуктовым backlog.
+**Статус:** в реализации — **этап 1 дорожной карты закрыт в коде и CI** (2026-05-01): см. [`LOG.md`](LOG.md), [`STAGE1_PLAN_CLOSEOUT.md`](STAGE1_PLAN_CLOSEOUT.md), [`RECOMMENDATIONS_AND_ROADMAP.md`](RECOMMENDATIONS_AND_ROADMAP.md) §«Этап 1». **CMS-first (вариант C):** [`CMS_RESTRUCTURE_PLAN.md`](CMS_RESTRUCTURE_PLAN.md) — реализовано; сверка — [`CMS_RESTRUCTURE_EXECUTION_AUDIT.md`](CMS_RESTRUCTURE_EXECUTION_AUDIT.md). Этапы 2–8 и целевые структуры остаются продуктовым backlog.
 
 ## Что в этой папке
 
 | Файл | Назначение | Изменяемость |
 |------|------------|--------------|
+| [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md) | Порядок этапов кабинета врача (CMS-first, меню, дашборд, каталоги…) | **живой** |
+| [`CMS_RESTRUCTURE_PLAN.md`](CMS_RESTRUCTURE_PLAN.md) | План разделения CMS: `content_sections.kind` + `system_parent_code` (вариант C) | **живой** |
+| [`CMS_RESTRUCTURE_EXECUTION_AUDIT.md`](CMS_RESTRUCTURE_EXECUTION_AUDIT.md) | Аудит выполнения плана CMS и синхронизация с журналом | **живой** |
+| [`CMS_AUDIT.md`](CMS_AUDIT.md) | Факты по CMS до/после типизации (ориентир для решений) | **живой** |
 | [`STAGE1_PLAN_CLOSEOUT.md`](STAGE1_PLAN_CLOSEOUT.md) | Закрытие Cursor-плана «этап 1»: статусы задач, остатки в backlog | **живой** (последующие этапы — отдельные closeout-файлы по решению команды) |
 | [`LOG.md`](LOG.md) | Журнал исполнения задач по этой инициативе (решения, проверки, чек-листы) | **живой** |
 | [`STRUCTURE_AUDIT.md`](STRUCTURE_AUDIT.md) | Снимок текущей IA (маршруты, меню, блоки, архитектурные факты) — **точка отсчёта** | **immutable** — не правится после фиксации, чтобы можно было сравнивать «до/после» |

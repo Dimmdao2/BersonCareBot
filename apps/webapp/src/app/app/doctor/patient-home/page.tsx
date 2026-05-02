@@ -55,10 +55,13 @@ export default async function DoctorPatientHomeSettingsPage() {
       slug: s.slug,
       isVisible: s.isVisible,
       requiresAuth: s.requiresAuth,
+      kind: s.kind,
+      systemParentCode: s.systemParentCode,
     })),
     pages: pages.map((p) => ({
       slug: p.slug,
       requiresAuth: p.requiresAuth,
+      section: p.section,
     })),
     courses: courses.map((c) => ({
       id: c.id,

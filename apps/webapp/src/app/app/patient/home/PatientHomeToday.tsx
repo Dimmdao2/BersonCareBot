@@ -102,6 +102,7 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
       {
         patientHomeBlocks: deps.patientHomeBlocks,
         contentPages: deps.contentPages,
+        contentSections: deps.contentSections,
         systemSettings: deps.systemSettings,
       },
       weekdayMonday0,

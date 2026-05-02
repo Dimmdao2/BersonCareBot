@@ -21,6 +21,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { EllipsisVertical, Eye, EyeOff, Shield, ShieldOff } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { MediaThumb } from "@/shared/ui/media/MediaThumb";
 import {
@@ -34,6 +35,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { reorderContentSections } from "./reorderContentSections";
 import { setSectionRequiresAuth, setSectionVisibility } from "./sectionVisibilityActions";
+import type { ContentSectionKind, SystemParentCode } from "@/modules/content-sections/types";
+import { isImmutableSystemSectionSlug } from "@/modules/content-sections/types";
 
 export type SectionListRow = {
   id: string;
@@ -44,6 +47,8 @@ export type SectionListRow = {
   requiresAuth: boolean;
   coverImageUrl: string | null;
   iconImageUrl: string | null;
+  kind: ContentSectionKind;
+  systemParentCode: SystemParentCode | null;
 };
 
 function DragHandle({ listeners, attributes }: { listeners: Record<string, unknown>; attributes: Record<string, unknown> }) {
@@ -125,6 +130,28 @@ function SortableSectionRow({
           {row.title}
         </Link>
         <p className="truncate font-mono text-xs text-muted-foreground">{row.slug}</p>
+        <div className="mt-1 flex flex-wrap items-center gap-1">
+          <Badge variant={row.kind === "article" ? "outline" : "secondary"} className="text-[10px]">
+            {row.kind === "article" ? "Статьи" : "Системный"}
+          </Badge>
+          {row.kind === "system" ? (
+            <Badge variant="outline" className="text-[10px]">
+              {row.systemParentCode
+                ? ({
+                    situations: "Ситуации",
+                    sos: "SOS",
+                    warmups: "Разминки",
+                    lessons: "Уроки",
+                  })[row.systemParentCode] ?? row.systemParentCode
+                : "Корень"}
+            </Badge>
+          ) : null}
+          {isImmutableSystemSectionSlug(row.slug) ? (
+            <Badge variant="secondary" className="text-[10px]">
+              встроенный
+            </Badge>
+          ) : null}
+        </div>
         {coverPreview || iconPreview ? (
           <div className="mt-2 flex items-center gap-2">
             {coverPreview ? (

@@ -1,4 +1,9 @@
 import type { PatientHomeBlock, PatientHomeBlockItem } from "./ports";
+import type { ContentSectionKind, SystemParentCode } from "@/modules/content-sections/types";
+import {
+  isPatientHomeContentPageCandidateForBlock,
+  isPatientHomeContentSectionCandidateForBlock,
+} from "./blocks";
 
 export type PatientHomeResolverDeps = {
   contentSections: {
@@ -10,6 +15,8 @@ export type PatientHomeResolverDeps = {
       requiresAuth: boolean;
       iconImageUrl: string | null;
       coverImageUrl: string | null;
+      kind: ContentSectionKind;
+      systemParentCode: SystemParentCode | null;
     } | null>;
   };
   contentPages: {
@@ -19,6 +26,7 @@ export type PatientHomeResolverDeps = {
       summary: string;
       requiresAuth: boolean;
       imageUrl: string | null;
+      section: string;
     } | null>;
   };
   courses: {
@@ -93,6 +101,14 @@ export async function resolveSituationChips(
     const row = await deps.contentSections.getBySlug(slug);
     if (!row?.isVisible) continue;
     if (row.requiresAuth && !canViewAuthOnlyContent) continue;
+    if (
+      !isPatientHomeContentSectionCandidateForBlock("situations", {
+        kind: row.kind,
+        systemParentCode: row.systemParentCode,
+      })
+    ) {
+      continue;
+    }
     out.push({
       itemId: item.id,
       slug: row.slug,
@@ -204,6 +220,25 @@ export async function resolveUsefulPostCard(
     const row = await deps.contentPages.getBySlug(slug);
     if (!row) continue;
     if (row.requiresAuth && !canViewAuthOnlyContent) continue;
+    const parent = await deps.contentSections.getBySlug(row.section);
+    const sectionMap = parent
+      ? new Map([[parent.slug, { kind: parent.kind, systemParentCode: parent.systemParentCode }]])
+      : new Map<string, { kind: ContentSectionKind; systemParentCode: SystemParentCode | null }>();
+    if (
+      !isPatientHomeContentPageCandidateForBlock(
+        "useful_post",
+        {
+          slug: row.slug,
+          section: row.section,
+          isPublished: true,
+          archivedAt: null,
+          deletedAt: null,
+        },
+        sectionMap,
+      )
+    ) {
+      continue;
+    }
     const trimmedBadge = item.badgeLabel?.trim();
     return {
       itemId: item.id,
@@ -230,6 +265,14 @@ export async function resolveSosCard(
       const row = await deps.contentSections.getBySlug(slug);
       if (!row?.isVisible) continue;
       if (row.requiresAuth && !canViewAuthOnlyContent) continue;
+      if (
+        !isPatientHomeContentSectionCandidateForBlock("sos", {
+          kind: row.kind,
+          systemParentCode: row.systemParentCode,
+        })
+      ) {
+        continue;
+      }
       return {
         itemId: item.id,
         title: item.titleOverride?.trim() || row.title,
@@ -244,6 +287,25 @@ export async function resolveSosCard(
       const row = await deps.contentPages.getBySlug(slug);
       if (!row) continue;
       if (row.requiresAuth && !canViewAuthOnlyContent) continue;
+      const parent = await deps.contentSections.getBySlug(row.section);
+      const sectionMap = parent
+        ? new Map([[parent.slug, { kind: parent.kind, systemParentCode: parent.systemParentCode }]])
+        : new Map<string, { kind: ContentSectionKind; systemParentCode: SystemParentCode | null }>();
+      if (
+        !isPatientHomeContentPageCandidateForBlock(
+          "sos",
+          {
+            slug: row.slug,
+            section: row.section,
+            isPublished: true,
+            archivedAt: null,
+            deletedAt: null,
+          },
+          sectionMap,
+        )
+      ) {
+        continue;
+      }
       return {
         itemId: item.id,
         title: item.titleOverride?.trim() || row.title,
