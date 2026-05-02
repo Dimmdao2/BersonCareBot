@@ -3,7 +3,7 @@
 Глобальная инициатива по ретруктуризации информационной архитектуры приложения (пациент + кабинет врача/админа) и связанной с ней реформе CMS, уведомлений и архитектурного долга.
 
 **Дата старта:** 2026-05-01.
-**Статус:** в реализации — **этап 1 дорожной карты закрыт в коде и CI** (2026-05-01): см. [`LOG.md`](LOG.md), [`STAGE1_PLAN_CLOSEOUT.md`](STAGE1_PLAN_CLOSEOUT.md), [`RECOMMENDATIONS_AND_ROADMAP.md`](RECOMMENDATIONS_AND_ROADMAP.md) §«Этап 1». **CMS-first (вариант C):** [`CMS_RESTRUCTURE_PLAN.md`](CMS_RESTRUCTURE_PLAN.md) — реализовано; сверка — [`CMS_RESTRUCTURE_EXECUTION_AUDIT.md`](CMS_RESTRUCTURE_EXECUTION_AUDIT.md). **Часть IV roadmap, этап 2** (`content_sections.kind` + `system_parent_code`) — закрыт в коде (см. тот же §«Этап 2» и аудит CMS). По **кабинету врача** см. [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md): в коде закрыты этапы **1, 2, 5, 8** (таблица статусов там); **3, 4, 7** — не закрыты; **6** — заморозка до patient card; **9–10** — после закрытия 1–8. Номера этапов в roadmap и в `PLAN_DOCTOR_CABINET` **разные** — сверять по ссылкам. Остальное в IV (пациентское ядро, курсы↔шаблоны, inbox) — backlog до постановки.
+**Статус:** в реализации — **этап 1 дорожной карты закрыт в коде и CI** (2026-05-01): см. [`LOG.md`](LOG.md), [`STAGE1_PLAN_CLOSEOUT.md`](STAGE1_PLAN_CLOSEOUT.md), [`RECOMMENDATIONS_AND_ROADMAP.md`](RECOMMENDATIONS_AND_ROADMAP.md) §«Этап 1». **CMS-first (вариант C):** [`CMS_RESTRUCTURE_PLAN.md`](CMS_RESTRUCTURE_PLAN.md) — реализовано; сверка — [`CMS_RESTRUCTURE_EXECUTION_AUDIT.md`](CMS_RESTRUCTURE_EXECUTION_AUDIT.md). **Часть IV roadmap, этап 2** (`content_sections.kind` + `system_parent_code`) — закрыт в коде (см. тот же §«Этап 2» и аудит CMS). По **кабинету врача** см. [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md): в коде закрыты этапы **1, 2, 5, 7, 8** (таблица статусов там); **3, 4** — ТЗ готовы; **6** — заморозка до patient card; **9–10** — после закрытия 1–8. Номера этапов в roadmap и в `PLAN_DOCTOR_CABINET` **разные** — сверять по ссылкам. Остальное в IV (пациентское ядро, курсы↔шаблоны, inbox) — backlog до постановки.
 
 ## Что в этой папке
 
@@ -12,11 +12,13 @@
 | [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md) | Порядок этапов кабинета врача (CMS-first, меню, дашборд, каталоги…) | **живой** |
 | [`DOCTOR_MENU_RESTRUCTURE_PLAN.md`](DOCTOR_MENU_RESTRUCTURE_PLAN.md) | ТЗ этапа 2: кластерное меню врача, аккордеон, библиотека файлов | **выполнено** (документ остаётся справочником) |
 | [`DOCTOR_MENU_RESTRUCTURE_EXECUTION_AUDIT.md`](DOCTOR_MENU_RESTRUCTURE_EXECUTION_AUDIT.md) | Аудит выполнения этапа 2 (меню врача) и сверка с журналом | **живой** |
+| [`DOCTOR_NAV_BADGES_PLAN.md`](DOCTOR_NAV_BADGES_PLAN.md) | ТЗ этапа 3: бейджи новых онлайн-заявок и непрочитанных сообщений в меню врача | **готово к исполнению** |
+| [`DOCTOR_TODAY_DASHBOARD_PLAN.md`](DOCTOR_TODAY_DASHBOARD_PLAN.md) | ТЗ этапа 4: рабочий экран «Сегодня» вместо отчётного обзора | **готово к исполнению** |
 | [`DOCTOR_MESSAGES_UNIFIED_CHAT_PLAN.md`](DOCTOR_MESSAGES_UNIFIED_CHAT_PLAN.md) | ТЗ этапа 5: единый чат врача, unread-фильтр, открытие из карточки пациента | **выполнено; post-audit fixes закрыты** |
 | [`DOCTOR_MESSAGES_UNIFIED_CHAT_EXECUTION_AUDIT.md`](DOCTOR_MESSAGES_UNIFIED_CHAT_EXECUTION_AUDIT.md) | Аудит выполнения этапа 5 (сообщения врача): код, LOG, план, проверки, post-audit fixes | **живой** |
 | [`CMS_RESTRUCTURE_PLAN.md`](CMS_RESTRUCTURE_PLAN.md) | План разделения CMS: `content_sections.kind` + `system_parent_code` (вариант C) | **живой** |
 | [`CMS_RESTRUCTURE_EXECUTION_AUDIT.md`](CMS_RESTRUCTURE_EXECUTION_AUDIT.md) | Аудит выполнения плана CMS и синхронизация с журналом | **живой** |
-| [`ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md`](ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md) | ТЗ на «где используется» и безопасную архивацию в каталогах назначений (этап 7 плана кабинета) | **живой** |
+| [`ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md`](ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md) | ТЗ на «где используется» и безопасную архивацию в каталогах назначений (этап 7 плана кабинета) | **выполнено** |
 | [`DOCTOR_UI_DENSITY_PLAN.md`](DOCTOR_UI_DENSITY_PLAN.md) | ТЗ на плотность UI врача (этап 8 плана кабинета) | **живой** |
 | [`CMS_AUDIT.md`](CMS_AUDIT.md) | Факты по CMS до/после типизации (ориентир для решений) | **живой** |
 | [`STAGE1_PLAN_CLOSEOUT.md`](STAGE1_PLAN_CLOSEOUT.md) | Закрытие Cursor-плана «этап 1»: статусы задач, остатки в backlog | **живой** (последующие этапы — отдельные closeout-файлы по решению команды) |

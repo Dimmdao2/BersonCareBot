@@ -8,10 +8,14 @@ export const DOCTOR_MENU_OPEN_CLUSTER_STORAGE_KEY = "doctorMenu.openCluster.v1";
 /** Дефолтный открытый кластер при первом заходе. */
 export const DOCTOR_MENU_DEFAULT_CLUSTER_ID = "patients-work";
 
+/** Ключ счётчика для бейджа пункта меню врача (навигация). */
+export type DoctorMenuBadgeKey = "onlineIntakeNew" | "messagesUnread";
+
 export type DoctorMenuLinkItem = {
   id: string;
   label: string;
   href: string;
+  badgeKey?: DoctorMenuBadgeKey;
 };
 
 export type DoctorMenuCluster = {
@@ -39,8 +43,14 @@ const CLUSTER_PATIENTS_WORK: DoctorMenuCluster = {
       id: "online-intake",
       label: "Онлайн-заявки",
       href: routePaths.doctorOnlineIntake,
+      badgeKey: "onlineIntakeNew",
     },
-    { id: "messages", label: "Сообщения", href: "/app/doctor/messages" },
+    {
+      id: "messages",
+      label: "Сообщения",
+      href: "/app/doctor/messages",
+      badgeKey: "messagesUnread",
+    },
   ],
 };
 

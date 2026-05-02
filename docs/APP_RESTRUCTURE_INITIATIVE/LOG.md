@@ -6,6 +6,61 @@
 
 ---
 
+## 2026-05-02 — этап 3: бейджи меню врача (реализация)
+
+**Повод:** закрыть [`DOCTOR_NAV_BADGES_PLAN.md`](DOCTOR_NAV_BADGES_PLAN.md) — бейджи «Онлайн-заявки» (`status=new`) и «Сообщения» (непрочитанные) в desktop sidebar и mobile Sheet.
+
+**Сделано:**
+
+- Hook [`useDoctorOnlineIntakeNewCount`](../../apps/webapp/src/modules/online-intake/hooks/useDoctorOnlineIntakeNewCount.ts): `GET /api/doctor/online-intake?status=new&limit=1`, счётчик из `total`, polling **20 с**, без запросов при `document.visibilityState !== "visible"` (вариант **A** из ТЗ).
+- [`doctorNavLinks.ts`](../../apps/webapp/src/shared/ui/doctorNavLinks.ts): типы `DoctorMenuBadgeKey`, опциональный `badgeKey` у пунктов `online-intake` и `messages`.
+- [`DoctorMenuAccordion.tsx`](../../apps/webapp/src/shared/ui/DoctorMenuAccordion.tsx): `useDoctorSupportUnreadCount` + новый hook; `formatNavBadgeCount` (`1..99`, `99+` при `≥100`, `0` скрыт); бейдж в строке пункта; `aria-label` у ссылки и бейджа; сохранены `id` `doctor-sidebar-link-*` / `doctor-menu-link-*`.
+- Тесты: [`useDoctorOnlineIntakeNewCount.test.tsx`](../../apps/webapp/src/modules/online-intake/hooks/useDoctorOnlineIntakeNewCount.test.tsx), обновлены [`doctorNavLinks.test.ts`](../../apps/webapp/src/shared/ui/doctorNavLinks.test.ts), [`DoctorMenuAccordion.test.tsx`](../../apps/webapp/src/shared/ui/DoctorMenuAccordion.test.tsx).
+
+**Проверки:**  
+`pnpm --dir apps/webapp exec vitest run src/shared/ui/DoctorMenuAccordion.test.tsx src/shared/ui/doctorNavLinks.test.ts src/modules/online-intake/hooks/useDoctorOnlineIntakeNewCount.test.tsx`  
+`pnpm --dir apps/webapp typecheck`  
+`pnpm --dir apps/webapp lint`  
+`rg "@/infra/db|@/infra/repos" apps/webapp/src/app/api/doctor/online-intake apps/webapp/src/shared/ui apps/webapp/src/modules/online-intake/hooks` — без совпадений в новом hook.
+
+**Вне scope:** дашборд «Сегодня», realtime/push/SSE, отдельный endpoint `new-count`, бейдж на заголовке закрытого кластера, `notifyDoctorOnlineIntakeCountChanged` (не добавляли — достаточно polling).
+
+---
+
+## 2026-05-02 — этап 4: ТЗ для экрана «Сегодня» врача
+
+**Повод:** подготовить отдельное ТЗ для замены отчётного обзора `/app/doctor` на рабочий экран дня.
+
+**Сделано:**
+
+- Создано [`DOCTOR_TODAY_DASHBOARD_PLAN.md`](DOCTOR_TODAY_DASHBOARD_PLAN.md): цель, текущая база, продуктовые решения, scope boundaries, целевые секции, техническая форма, шаги исполнения, проверки, manual smoke, stop conditions и Definition of Done.
+- В [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md) добавлена ссылка на ТЗ этапа 4 и статус «ТЗ готово».
+- Зафиксирован MVP: «Записи сегодня», «Новые онлайн-заявки», «Непрочитанные сообщения», «Ближайшие записи»; метрики остаются на `/app/doctor/stats`.
+- Зафиксировано ограничение: «К проверке» не делать как реальную очередь без готового источника данных «требует проверки врача».
+
+**Проверки:** документационная правка; код не менялся, targeted tests не запускались.
+
+**Вне scope:** не делали реализацию `/app/doctor`, patient card, новую очередь проверки тестов, realtime/push/SSE, миграции или настройки окружения.
+
+---
+
+## 2026-05-02 — этап 3: ТЗ для бейджей меню врача
+
+**Повод:** подготовить отдельное ТЗ для дешёвого, но полезного слоя быстрых сигналов в меню врача: новые онлайн-заявки и непрочитанные сообщения.
+
+**Сделано:**
+
+- Создано [`DOCTOR_NAV_BADGES_PLAN.md`](DOCTOR_NAV_BADGES_PLAN.md): цель, scope boundaries, источники данных, UI plan, backend plan, шаги исполнения, проверки, manual smoke, stop conditions и Definition of Done.
+- В [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md) добавлена ссылка на ТЗ этапа 3 и зафиксированы ключевые решения.
+- Уточнён источник счётчика онлайн-заявок: только `status=new`, потому что `in_review` уже означает «взято в работу».
+- Зафиксировано, что счётчик сообщений должен переиспользовать существующий `useDoctorSupportUnreadCount` / `GET /api/doctor/messages/unread-count`, без второго источника истины.
+
+**Проверки:** документационная правка; код не менялся, targeted tests не запускались.
+
+**Вне scope:** не делали дашборд «Сегодня», realtime/push/SSE, новые миграции, изменение статусов online-intake или пациентский интерфейс.
+
+---
+
 ## 2026-05-02 — этап 7: closeout после аудита (DoD)
 
 **Повод:** закрыть пробелы из независимого аудита [`ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md`](ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md): документация HTTP для архивации с guard, RTL на формах каталогов 1/3/4, статус плана, финальный корневой CI.

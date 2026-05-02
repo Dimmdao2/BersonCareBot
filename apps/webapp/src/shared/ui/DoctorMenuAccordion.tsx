@@ -1,17 +1,40 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useDoctorOnlineIntakeNewCount } from "@/modules/online-intake/hooks/useDoctorOnlineIntakeNewCount";
+import { useDoctorSupportUnreadCount } from "@/shared/hooks/useSupportUnreadPolling";
 import {
   DOCTOR_MENU_DEFAULT_CLUSTER_ID,
   DOCTOR_MENU_OPEN_CLUSTER_STORAGE_KEY,
   getDoctorMenuRenderSections,
   isDoctorMenuClusterId,
   isDoctorNavItemActive,
+  type DoctorMenuBadgeKey,
   type DoctorMenuLinkItem,
 } from "@/shared/ui/doctorNavLinks";
+
+/** Отображаемый текст бейджа; `null` — не показывать. */
+export function formatNavBadgeCount(n: number): string | null {
+  if (!Number.isFinite(n) || n <= 0) return null;
+  if (n >= 100) return "99+";
+  return String(Math.floor(n));
+}
+
+function badgeSpanAriaLabel(badgeKey: DoctorMenuBadgeKey, formatted: string): string {
+  return badgeKey === "onlineIntakeNew"
+    ? `Новых заявок: ${formatted}`
+    : `Непрочитанных сообщений: ${formatted}`;
+}
+
+function linkAriaLabelWhenBadged(item: DoctorMenuLinkItem, formatted: string): string | undefined {
+  if (!item.badgeKey || !formatted) return undefined;
+  return item.badgeKey === "onlineIntakeNew"
+    ? `${item.label}. Новых заявок: ${formatted}.`
+    : `${item.label}. Непрочитанных сообщений: ${formatted}.`;
+}
 
 const SIDEBAR_LINK_CLASS = cn(
   buttonVariants({ variant: "ghost" }),
@@ -37,6 +60,18 @@ export type DoctorMenuAccordionProps = {
 
 export function DoctorMenuAccordion({ variant, pathname, onNavigate }: DoctorMenuAccordionProps) {
   const linkClass = variant === "sidebar" ? SIDEBAR_LINK_CLASS : SHEET_LINK_CLASS;
+
+  const messagesUnread = useDoctorSupportUnreadCount();
+  const onlineIntakeNew = useDoctorOnlineIntakeNewCount();
+
+  const badgeCounts = useMemo(
+    () =>
+      ({
+        onlineIntakeNew,
+        messagesUnread,
+      }) satisfies Record<DoctorMenuBadgeKey, number>,
+    [onlineIntakeNew, messagesUnread],
+  );
 
   const [openClusterId, setOpenClusterId] = useState<string>(DOCTOR_MENU_DEFAULT_CLUSTER_ID);
 
@@ -66,18 +101,37 @@ export function DoctorMenuAccordion({ variant, pathname, onNavigate }: DoctorMen
 
   const sections = getDoctorMenuRenderSections();
 
-  const renderLink = (item: DoctorMenuLinkItem, navPrefix: "sidebar" | "menu") => (
-    <Link
-      key={item.id}
-      id={navPrefix === "sidebar" ? `doctor-sidebar-link-${item.id}` : `doctor-menu-link-${item.id}`}
-      href={item.href}
-      prefetch={false}
-      onClick={onNavigate}
-      className={cn(linkClass, isDoctorNavItemActive(item.href, pathname) && "bg-muted font-medium text-foreground")}
-    >
-      {item.label}
-    </Link>
-  );
+  const renderLink = (item: DoctorMenuLinkItem, navPrefix: "sidebar" | "menu") => {
+    const rawCount = item.badgeKey ? badgeCounts[item.badgeKey] : 0;
+    const badgeText = item.badgeKey ? formatNavBadgeCount(rawCount) : null;
+    const aria = badgeText ? linkAriaLabelWhenBadged(item, badgeText) : undefined;
+
+    return (
+      <Link
+        key={item.id}
+        id={navPrefix === "sidebar" ? `doctor-sidebar-link-${item.id}` : `doctor-menu-link-${item.id}`}
+        href={item.href}
+        prefetch={false}
+        onClick={onNavigate}
+        aria-label={aria}
+        className={cn(linkClass, isDoctorNavItemActive(item.href, pathname) && "bg-muted font-medium text-foreground")}
+      >
+        <span className="flex min-w-0 flex-1 items-center justify-between gap-2">
+          <span className="min-w-0 flex-1 text-left">{item.label}</span>
+          {badgeText && item.badgeKey ? (
+            <span
+              className={cn(
+                "inline-flex min-h-[1.25rem] min-w-[1.25rem] shrink-0 items-center justify-center rounded-full bg-muted px-1.5 text-[10px] font-semibold tabular-nums leading-none text-muted-foreground",
+              )}
+              aria-label={badgeSpanAriaLabel(item.badgeKey, badgeText)}
+            >
+              {badgeText}
+            </span>
+          ) : null}
+        </span>
+      </Link>
+    );
+  };
 
   return (
     <div className={cn("flex flex-col gap-0.5", variant === "sheet" && "gap-1")}>

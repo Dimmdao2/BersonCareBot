@@ -89,4 +89,14 @@ describe("doctor menu structure", () => {
   it("exposes localStorage key constant for accordion", () => {
     expect(DOCTOR_MENU_OPEN_CLUSTER_STORAGE_KEY).toBe("doctorMenu.openCluster.v1");
   });
+
+  it("assigns badgeKey to online intake and messages only", () => {
+    const patients = DOCTOR_MENU_CLUSTERS.find((c) => c.id === "patients-work");
+    const intake = patients?.items.find((i) => i.id === "online-intake");
+    const messages = patients?.items.find((i) => i.id === "messages");
+    expect(intake?.badgeKey).toBe("onlineIntakeNew");
+    expect(messages?.badgeKey).toBe("messagesUnread");
+    const other = patients?.items.filter((i) => i.id !== "online-intake" && i.id !== "messages");
+    expect(other?.every((i) => !i.badgeKey)).toBe(true);
+  });
 });
