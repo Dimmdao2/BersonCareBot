@@ -10,10 +10,11 @@ import type {
   ExerciseLoadType,
   ExerciseMedia,
   ExerciseMediaType,
+  ExerciseUsageRef,
   ExerciseUsageSnapshot,
   UpdateExerciseInput,
 } from "@/modules/lfk-exercises/types";
-import { EMPTY_EXERCISE_USAGE_SNAPSHOT } from "@/modules/lfk-exercises/types";
+import { EMPTY_EXERCISE_USAGE_SNAPSHOT, EXERCISE_USAGE_DETAIL_LIMIT } from "@/modules/lfk-exercises/types";
 
 function mapMediaRow(row: {
   id: string;
@@ -138,10 +139,45 @@ async function loadAllMediaForExercise(pool: ReturnType<typeof getPool>, exercis
   return r.rows.map(mapMediaRow);
 }
 
+function parseExerciseUsageRefs(raw: unknown): ExerciseUsageRef[] {
+  if (raw == null) return [];
+  let arr: unknown[];
+  if (Array.isArray(raw)) arr = raw;
+  else if (typeof raw === "string") {
+    try {
+      const p = JSON.parse(raw) as unknown;
+      arr = Array.isArray(p) ? p : [];
+    } catch {
+      return [];
+    }
+  } else return [];
+
+  const out: ExerciseUsageRef[] = [];
+  for (const x of arr) {
+    if (!x || typeof x !== "object") continue;
+    const o = x as Record<string, unknown>;
+    const kind = o.kind;
+    const id = o.id;
+    const title = o.title;
+    const patientUserId = o.patientUserId;
+    if (kind === "lfk_complex_template" || kind === "treatment_program_template") {
+      if (typeof id !== "string" || typeof title !== "string") continue;
+      out.push({ kind, id, title });
+      continue;
+    }
+    if (kind === "treatment_program_instance" || kind === "patient_lfk_assignment_client") {
+      if (typeof id !== "string" || typeof title !== "string" || typeof patientUserId !== "string") continue;
+      out.push({ kind, id, title, patientUserId });
+    }
+  }
+  return out;
+}
+
 async function loadExerciseUsageSummary(
   pool: ReturnType<typeof getPool>,
   exerciseId: string,
 ): Promise<ExerciseUsageSnapshot> {
+  const lim = EXERCISE_USAGE_DETAIL_LIMIT;
   const r = await pool.query<{
     published_lfk_templates: string | number | null;
     draft_lfk_templates: string | number | null;
@@ -150,6 +186,13 @@ async function loadExerciseUsageSummary(
     draft_tp_templates: string | number | null;
     active_tp_instances: string | number | null;
     completed_tp_instances: string | number | null;
+    published_lfk_template_refs: unknown;
+    draft_lfk_template_refs: unknown;
+    published_tp_template_refs: unknown;
+    draft_tp_template_refs: unknown;
+    active_tp_instance_refs: unknown;
+    completed_tp_instance_refs: unknown;
+    active_patient_lfk_refs: unknown;
   }>(
     `SELECT
        (SELECT COUNT(DISTINCT ct.id)::int
@@ -193,7 +236,130 @@ async function loadExerciseUsageSummary(
           FROM treatment_program_instance_stage_items sii
           INNER JOIN treatment_program_instance_stages ist ON ist.id = sii.stage_id
           INNER JOIN treatment_program_instances i ON i.id = ist.instance_id
-         WHERE sii.item_type = 'exercise' AND sii.item_ref_id = $1::uuid AND i.status = 'completed') AS completed_tp_instances`,
+         WHERE sii.item_type = 'exercise' AND sii.item_ref_id = $1::uuid AND i.status = 'completed') AS completed_tp_instances,
+       (SELECT COALESCE(jsonb_agg(q.obj), '[]'::jsonb)
+          FROM (
+            SELECT DISTINCT ON (ct.id)
+              jsonb_build_object(
+                'kind', 'lfk_complex_template',
+                'id', ct.id::text,
+                'title', ct.title
+              ) AS obj
+            FROM lfk_complex_template_exercises te
+            INNER JOIN lfk_complex_templates ct ON ct.id = te.template_id
+            WHERE te.exercise_id = $1::uuid AND ct.status = 'published'
+            ORDER BY ct.id, ct.title ASC
+            LIMIT ${lim}
+          ) q) AS published_lfk_template_refs,
+       (SELECT COALESCE(jsonb_agg(q.obj), '[]'::jsonb)
+          FROM (
+            SELECT DISTINCT ON (ct.id)
+              jsonb_build_object(
+                'kind', 'lfk_complex_template',
+                'id', ct.id::text,
+                'title', ct.title
+              ) AS obj
+            FROM lfk_complex_template_exercises te
+            INNER JOIN lfk_complex_templates ct ON ct.id = te.template_id
+            WHERE te.exercise_id = $1::uuid AND ct.status = 'draft'
+            ORDER BY ct.id, ct.title ASC
+            LIMIT ${lim}
+          ) q) AS draft_lfk_template_refs,
+       (SELECT COALESCE(jsonb_agg(q.obj), '[]'::jsonb)
+          FROM (
+            SELECT DISTINCT ON (t.id)
+              jsonb_build_object(
+                'kind', 'treatment_program_template',
+                'id', t.id::text,
+                'title', t.title
+              ) AS obj
+            FROM treatment_program_template_stage_items si
+            INNER JOIN treatment_program_template_stages st ON st.id = si.stage_id
+            INNER JOIN treatment_program_templates t ON t.id = st.template_id
+            WHERE si.item_type = 'exercise' AND si.item_ref_id = $1::uuid AND t.status = 'published'
+            ORDER BY t.id, t.title ASC
+            LIMIT ${lim}
+          ) q) AS published_tp_template_refs,
+       (SELECT COALESCE(jsonb_agg(q.obj), '[]'::jsonb)
+          FROM (
+            SELECT DISTINCT ON (t.id)
+              jsonb_build_object(
+                'kind', 'treatment_program_template',
+                'id', t.id::text,
+                'title', t.title
+              ) AS obj
+            FROM treatment_program_template_stage_items si
+            INNER JOIN treatment_program_template_stages st ON st.id = si.stage_id
+            INNER JOIN treatment_program_templates t ON t.id = st.template_id
+            WHERE si.item_type = 'exercise' AND si.item_ref_id = $1::uuid AND t.status = 'draft'
+            ORDER BY t.id, t.title ASC
+            LIMIT ${lim}
+          ) q) AS draft_tp_template_refs,
+       (SELECT COALESCE(jsonb_agg(q.obj), '[]'::jsonb)
+          FROM (
+            SELECT DISTINCT ON (i.id)
+              jsonb_build_object(
+                'kind', 'treatment_program_instance',
+                'id', i.id::text,
+                'title', COALESCE(NULLIF(btrim(i.title), ''), tpl.title, 'Программа'),
+                'patientUserId', i.patient_user_id::text
+              ) AS obj
+            FROM treatment_program_instance_stage_items sii
+            INNER JOIN treatment_program_instance_stages ist ON ist.id = sii.stage_id
+            INNER JOIN treatment_program_instances i ON i.id = ist.instance_id
+            LEFT JOIN treatment_program_templates tpl ON tpl.id = i.template_id
+            WHERE sii.item_type = 'exercise' AND sii.item_ref_id = $1::uuid AND i.status = 'active'
+            ORDER BY i.id, i.title ASC
+            LIMIT ${lim}
+          ) q) AS active_tp_instance_refs,
+       (SELECT COALESCE(jsonb_agg(q.obj), '[]'::jsonb)
+          FROM (
+            SELECT DISTINCT ON (i.id)
+              jsonb_build_object(
+                'kind', 'treatment_program_instance',
+                'id', i.id::text,
+                'title', COALESCE(NULLIF(btrim(i.title), ''), tpl.title, 'Программа'),
+                'patientUserId', i.patient_user_id::text
+              ) AS obj
+            FROM treatment_program_instance_stage_items sii
+            INNER JOIN treatment_program_instance_stages ist ON ist.id = sii.stage_id
+            INNER JOIN treatment_program_instances i ON i.id = ist.instance_id
+            LEFT JOIN treatment_program_templates tpl ON tpl.id = i.template_id
+            WHERE sii.item_type = 'exercise' AND sii.item_ref_id = $1::uuid AND i.status = 'completed'
+            ORDER BY i.id, i.title ASC
+            LIMIT ${lim}
+          ) q) AS completed_tp_instance_refs,
+       (SELECT COALESCE(jsonb_agg(q.obj), '[]'::jsonb)
+          FROM (
+            SELECT jsonb_build_object(
+              'kind', 'patient_lfk_assignment_client',
+              'id', pla.id::text,
+              'title',
+                ct.title || ' — ' || COALESCE(
+                  NULLIF(btrim(pu.display_name), ''),
+                  NULLIF(btrim(pu.phone_normalized), ''),
+                  'пациент'
+                ),
+              'patientUserId', pla.patient_user_id::text
+            ) AS obj
+            FROM patient_lfk_assignments pla
+            INNER JOIN lfk_complex_templates ct ON ct.id = pla.template_id
+            LEFT JOIN platform_users pu ON pu.id = pla.patient_user_id
+            WHERE pla.is_active = true
+              AND (
+                (pla.complex_id IS NOT NULL AND EXISTS (
+                  SELECT 1 FROM lfk_complex_exercises ce
+                  WHERE ce.complex_id = pla.complex_id AND ce.exercise_id = $1::uuid
+                ))
+                OR
+                (pla.complex_id IS NULL AND EXISTS (
+                  SELECT 1 FROM lfk_complex_template_exercises te2
+                  WHERE te2.template_id = pla.template_id AND te2.exercise_id = $1::uuid
+                ))
+              )
+            ORDER BY pla.assigned_at DESC NULLS LAST
+            LIMIT ${lim}
+          ) q) AS active_patient_lfk_refs`,
     [exerciseId],
   );
   const row = r.rows[0];
@@ -212,6 +378,13 @@ async function loadExerciseUsageSummary(
     draftTreatmentProgramTemplateCount: n(row.draft_tp_templates),
     activeTreatmentProgramInstanceCount: n(row.active_tp_instances),
     completedTreatmentProgramInstanceCount: n(row.completed_tp_instances),
+    publishedLfkComplexTemplateRefs: parseExerciseUsageRefs(row.published_lfk_template_refs),
+    draftLfkComplexTemplateRefs: parseExerciseUsageRefs(row.draft_lfk_template_refs),
+    publishedTreatmentProgramTemplateRefs: parseExerciseUsageRefs(row.published_tp_template_refs),
+    draftTreatmentProgramTemplateRefs: parseExerciseUsageRefs(row.draft_tp_template_refs),
+    activeTreatmentProgramInstanceRefs: parseExerciseUsageRefs(row.active_tp_instance_refs),
+    completedTreatmentProgramInstanceRefs: parseExerciseUsageRefs(row.completed_tp_instance_refs),
+    activePatientLfkAssignmentRefs: parseExerciseUsageRefs(row.active_patient_lfk_refs),
   };
 }
 

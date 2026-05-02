@@ -1,6 +1,7 @@
 "use client";
 
 import type { CSSProperties } from "react";
+import Link from "next/link";
 import { useActionState, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ReferenceSelect } from "@/shared/ui/ReferenceSelect";
 import { Button } from "@/components/ui/button";
@@ -27,7 +28,12 @@ import { MediaLibraryPickerDialog } from "@/app/app/doctor/content/MediaLibraryP
 import { archiveDoctorExercise, fetchDoctorExerciseUsageSnapshot, saveDoctorExercise } from "./actions";
 import type { ArchiveDoctorExerciseState, SaveDoctorExerciseState } from "./actionsShared";
 import { exerciseMediaTypeFromPick, exerciseTitleFromPickMeta } from "./exerciseMediaFromLibrary";
-import { exerciseUsageHasAnyReference, exerciseUsageSummaryLines } from "./exerciseUsageSummaryText";
+import { doctorExerciseUsageHref } from "./exerciseUsageDocLinks";
+import {
+  exerciseUsageHasAnyReference,
+  exerciseUsageSections,
+  type ExerciseUsageSection,
+} from "./exerciseUsageSummaryText";
 
 const LOAD_OPTIONS: { value: ExerciseLoadType; label: string }[] = [
   { value: "strength", label: "Силовая" },
@@ -36,6 +42,43 @@ const LOAD_OPTIONS: { value: ExerciseLoadType; label: string }[] = [
   { value: "cardio", label: "Кардио" },
   { value: "other", label: "Другое" },
 ];
+
+/** Sentinel для Base UI Select: `undefined`/`""` даёт uncontrolled→controlled warning. */
+const LOAD_TYPE_SELECT_EMPTY = "__load_type_empty__";
+
+function ExerciseUsageSectionsView({ sections }: { sections: ExerciseUsageSection[] }) {
+  if (sections.length === 0) {
+    return <p className="mt-1 text-sm text-muted-foreground">Пока не используется</p>;
+  }
+  return (
+    <div className="mt-2 space-y-3">
+      {sections.map((sec) => (
+        <div key={sec.key}>
+          <p className="text-sm text-muted-foreground">{sec.summary}</p>
+          {sec.refs.length > 0 ? (
+            <ul className="mt-1 ml-3 list-disc space-y-0.5 text-sm">
+              {sec.refs.map((r) => (
+                <li key={`${sec.key}-${r.kind}-${r.id}`}>
+                  <Link
+                    href={doctorExerciseUsageHref(r)}
+                    className="text-primary underline-offset-2 hover:underline"
+                  >
+                    {r.title}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          {sec.total > sec.refs.length ? (
+            <p className="mt-1 text-xs text-muted-foreground">
+              Показаны первые {sec.refs.length} из {sec.total}.
+            </p>
+          ) : null}
+        </div>
+      ))}
+    </div>
+  );
+}
 
 /** Заливка дорожки слайдера: от почти прозрачного светло-синего к почти чёрному тёмно-синему (1→10). */
 function exerciseDifficultyTrackFill(level: number): string {
@@ -189,21 +232,20 @@ export function ExerciseForm({
 
   const displayError = localError;
 
-  const usageLines = useMemo(() => {
-    if (!usage) return [];
-    if (!exerciseUsageHasAnyReference(usage)) return ["Пока не используется"];
-    return exerciseUsageSummaryLines(usage);
+  const usageSections = useMemo(() => {
+    if (!usage || !exerciseUsageHasAnyReference(usage)) return [];
+    return exerciseUsageSections(usage);
   }, [usage]);
 
-  const warnLines = useMemo(() => {
+  const warnSections = useMemo(() => {
     if (
       archiveState?.ok === false &&
       "code" in archiveState &&
       archiveState.code === "USAGE_CONFIRMATION_REQUIRED"
     ) {
       const u = archiveState.usage;
-      if (!exerciseUsageHasAnyReference(u)) return ["Упражнение помечено как используемое — проверьте связи перед архивацией."];
-      return exerciseUsageSummaryLines(u);
+      if (!exerciseUsageHasAnyReference(u)) return [];
+      return exerciseUsageSections(u);
     }
     return [];
   }, [archiveState]);
@@ -312,15 +354,19 @@ export function ExerciseForm({
           <Label>Тип нагрузки</Label>
           <input type="hidden" name="loadType" value={values.loadType} />
           <Select
-            value={values.loadType || undefined}
+            value={values.loadType === "" ? LOAD_TYPE_SELECT_EMPTY : values.loadType}
             onValueChange={(v) => {
-              if (v) setValues((prev) => ({ ...prev, loadType: v as ExerciseLoadType }));
+              setValues((prev) => ({
+                ...prev,
+                loadType: v === LOAD_TYPE_SELECT_EMPTY ? "" : (v as ExerciseLoadType),
+              }));
             }}
           >
             <SelectTrigger className="w-full max-w-md">
               <SelectValue placeholder="Не выбран" />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value={LOAD_TYPE_SELECT_EMPTY}>Не выбран</SelectItem>
               {LOAD_OPTIONS.map((o) => (
                 <SelectItem key={o.value} value={o.value}>
                   {o.label}
@@ -368,12 +414,10 @@ export function ExerciseForm({
               <p className="mt-1 text-sm text-muted-foreground">Загрузка…</p>
             ) : usageLoadError ? (
               <p className="mt-1 text-sm text-muted-foreground">{usageLoadError}</p>
+            ) : !usage ? null : !exerciseUsageHasAnyReference(usage) ? (
+              <p className="mt-1 text-sm text-muted-foreground">Пока не используется</p>
             ) : (
-              <ul className="mt-2 list-inside list-disc space-y-1 text-sm text-muted-foreground">
-                {usageLines.map((line) => (
-                  <li key={line}>{line}</li>
-                ))}
-              </ul>
+              <ExerciseUsageSectionsView sections={usageSections} />
             )}
           </div>
 
@@ -408,12 +452,16 @@ export function ExerciseForm({
                     Архивация уберёт упражнение из каталога для новых назначений. Уже выданные назначения и история не
                     удаляются.
                   </span>
-                  {warnLines.length ? (
-                    <ul className="list-inside list-disc space-y-1">
-                      {warnLines.map((line) => (
-                        <li key={line}>{line}</li>
-                      ))}
-                    </ul>
+                  {!warnSections.length &&
+                  archiveState?.ok === false &&
+                  "code" in archiveState &&
+                  archiveState.code === "USAGE_CONFIRMATION_REQUIRED" &&
+                  !exerciseUsageHasAnyReference(archiveState.usage) ? (
+                    <span className="block text-sm">
+                      Упражнение помечено как используемое — проверьте связи перед архивацией.
+                    </span>
+                  ) : warnSections.length ? (
+                    <ExerciseUsageSectionsView sections={warnSections} />
                   ) : null}
                 </DialogDescription>
               </DialogHeader>

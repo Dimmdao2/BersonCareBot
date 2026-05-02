@@ -13,7 +13,8 @@
 Минимальный результат:
 
 - на карточке / строке элемента есть понятная сводка «где используется»;
-- перед архивацией элемента с активным использованием показывается предупреждение;
+- **под каждой группой счётчиков — до N конкретных сущностей с названием и ссылкой** на экран врача (тот же паттерн, что для упражнений: read-only refs в snapshot, лимит списка, остаток только числом «показаны первые K из M»);
+- перед архивацией элемента с активным использованием показывается предупреждение (в диалоге — те же сводки и ссылки, что в блоке usage);
 - врач понимает, это просто уборка каталога или действие, которое затронет текущие назначения пациентов;
 - серверный слой не позволяет обойти важное предупреждение простым submit без подтверждения.
 
@@ -41,15 +42,15 @@
 
 Поддерживать в этом файле актуальные статусы:
 
-| Каталог | Статус |
-|---|---|
-| 1. Упражнения | `completed` |
-| 2. Комплексы ЛФК | `pending` |
-| 3. Клинические тесты | `pending` |
-| 4. Наборы тестов | `pending` |
-| 5. Рекомендации | `pending` |
-| 6. Шаблоны программ | `pending` |
-| 7. Курсы | `pending` |
+| Каталог | Статус | Детальные ссылки (refs) |
+|---|---|---|
+| 1. Упражнения | `completed` | `completed` (см. `ExerciseUsageSnapshot` + `exerciseUsageDocLinks.ts`) |
+| 2. Комплексы ЛФК | `completed` | `completed` (`LfkTemplateUsageSnapshot`, `lfkTemplatesUsageDocLinks.ts`, `pgLfkTemplates.loadTemplateUsageSummary`) |
+| 3. Клинические тесты | `pending` | `pending` |
+| 4. Наборы тестов | `pending` | `pending` |
+| 5. Рекомендации | `pending` | `pending` |
+| 6. Шаблоны программ | `pending` | `pending` |
+| 7. Курсы | `pending` | `pending` (осторожные формулировки без `course_id` сохраняются) |
 
 Допустимые статусы: `pending` -> `in_progress` -> `completed` (или `cancelled`, если подшаг отменён отдельным решением).
 
@@ -106,6 +107,7 @@
   - `apps/webapp/src/app-layer/di/buildAppDeps.ts`;
   - `apps/webapp/src/app-layer/di/buildAppDeps.test.ts`;
 - small doctor-only UI primitives for usage summary / archive warning;
+- рядом с doctor-страницей каталога — локальный модуль ссылок вида `*UsageDocLinks.ts` (как `exerciseUsageDocLinks.ts`): строит `/app/doctor/...` из `kind` + id, **без** захардкоженных путей в `modules/*` или SQL;
 - docs:
   - `docs/APP_RESTRUCTURE_INITIATIVE/LOG.md`;
   - this document;
@@ -155,7 +157,8 @@ doctor page / server action / route
 
 Рекомендуемая форма для каждого каталога:
 
-- добавить read-only usage type в `types.ts`;
+- добавить read-only usage type в `types.ts` (**числовые счётчики для guard + массивы `*Refs` с лимитом**, см. `EXERCISE_USAGE_DETAIL_LIMIT` и `ExerciseUsageRef` в упражнениях);
+- проверка «есть ли какое-то использование» для пустого UI — **только по числовым полям**, не через `Object.values(snapshot)` (массивы refs не должны ломать логику);
 - расширить port методом `getUsage(id)` или более точным именем;
 - добавить service method `getXUsage(id)`;
 - для архивации добавить подтверждение, если есть активное использование:
@@ -179,7 +182,7 @@ doctor page / server action / route
 Чтобы поведение в 7 каталогах не расходилось, использовать общий семантический контракт:
 
 - сервис возвращает доменную ошибку с кодом `USAGE_CONFIRMATION_REQUIRED`;
-- ошибка включает usage snapshot (минимум active counters), который показывается в warning dialog;
+- ошибка включает usage snapshot (**счётчики + refs**, как для упражнений), который показывается в warning dialog без повторного запроса;
 - server action / route маппит ошибку в ожидаемый для текущего flow формат (например, `ok: false` + code/message для form state);
 - при повторной отправке с `acknowledgeUsageWarning=true` архивирование проходит по существующему path;
 - UI не пытается "догадываться" о критичности по тексту ошибки, а ориентируется на `code`.
@@ -203,15 +206,15 @@ doctor page / server action / route
 
 ### Матрица источников
 
-| Каталог | Где искать usage | Что показывать в UI |
-|---|---|---|
-| Упражнение | `lfk_complex_template_exercises.exercise_id`; `lfk_complex_exercises.exercise_id`; `treatment_program_template_stage_items item_type='exercise'`; `treatment_program_instance_stage_items item_type='exercise'` | В N комплексах ЛФК, в N шаблонах программ, назначено N пациентам / активным программам |
-| Комплекс ЛФК | `patient_lfk_assignments.template_id`; `treatment_program_template_stage_items item_type='lfk_complex'`; `treatment_program_instance_stage_items item_type='lfk_complex'` | Назначен N пациентам, используется в N шаблонах программ |
-| Клинический тест | `test_set_items.test_id`; через test sets, которые включены в `treatment_program_*_stage_items item_type='test_set'`; результаты/attempts, если уже есть | В N наборах тестов, через них назначен N пациентам |
-| Набор тестов | `treatment_program_template_stage_items item_type='test_set'`; `treatment_program_instance_stage_items item_type='test_set'`; `treatment_program_test_attempts/results` для истории | В N шаблонах программ, назначен N пациентам, есть результаты |
-| Рекомендация | `treatment_program_template_stage_items item_type='recommendation'`; `treatment_program_instance_stage_items item_type='recommendation'` | В N шаблонах программ, назначена N пациентам |
-| Шаблон программы | `treatment_program_instances.template_id`; `courses.program_template_id` | Назначен N пациентам, используется N курсами |
-| Курс | `courses.program_template_id`; активные `treatment_program_instances` по связанному шаблону; `content_pages.linked_course_id`, если используется как промо | Опубликован / есть связанный шаблон / по связанному шаблону есть N активных программ |
+| Каталог | Где искать usage | Что показывать в UI | Детализация (refs + куда вести ссылку) |
+|---|---|---|---|
+| Упражнение | `lfk_complex_template_exercises.exercise_id`; `lfk_complex_exercises.exercise_id`; `treatment_program_template_stage_items item_type='exercise'`; `treatment_program_instance_stage_items item_type='exercise'` | В N комплексах ЛФК, в N шаблонах программ, назначено N пациентам / активным программам | Шаблон комплекса → `/app/doctor/lfk-templates/[id]`; шаблон программы → `/app/doctor/treatment-program-templates/[id]`; экземпляр программы → `/app/doctor/clients/[userId]/treatment-programs/[instanceId]`; активное назначение ЛФК → карточка клиента `/app/doctor/clients/[userId]` |
+| Комплекс ЛФК | `patient_lfk_assignments.template_id`; `treatment_program_template_stage_items item_type='lfk_complex'`; `treatment_program_instance_stage_items item_type='lfk_complex'` | Назначен N пациентам, используется в N шаблонах программ | Шаблон комплекса (редактор); шаблон программы; экземпляр программы; назначение → клиент (как для упражнений) |
+| Клинический тест | `test_set_items.test_id`; через test sets, которые включены в `treatment_program_*_stage_items item_type='test_set'`; результаты/attempts, если уже есть | В N наборах тестов, через них назначен N пациентам | Набор тестов → `/app/doctor/test-sets/[id]`; далее шаблоны/экземпляры программ по цепочке |
+| Набор тестов | `treatment_program_template_stage_items item_type='test_set'`; `treatment_program_instance_stage_items item_type='test_set'`; `treatment_program_test_attempts/results` для истории | В N шаблонах программ, назначен N пациентам, есть результаты | Шаблон программы; экземпляр программы; при необходимости только текст для «истории результатов» без URL |
+| Рекомендация | `treatment_program_template_stage_items item_type='recommendation'`; `treatment_program_instance_stage_items item_type='recommendation'` | В N шаблонах программ, назначена N пациентам | Шаблон программы; экземпляр программы |
+| Шаблон программы | `treatment_program_instances.template_id`; `courses.program_template_id` | Назначен N пациентам, используется N курсами | Экземпляр программы; курс → `/app/doctor/courses/[id]`; карточка клиента при необходимости |
+| Курс | `courses.program_template_id`; активные `treatment_program_instances` по связанному шаблону; `content_pages.linked_course_id`, если используется как промо | Опубликован / есть связанный шаблон / по связанному шаблону есть N активных программ | Связанный шаблон программы; экземпляры по `template_id`; CMS-страница по `linked_course_id` только если есть стабильный doctor/admin URL в проекте — иначе текст без ссылки |
 
 Важно по курсам: сейчас `treatment_program_instances` не хранит `course_id`. Поэтому точную фразу «купили этот курс N пациентов» писать нельзя, если нет отдельного подтверждённого источника. Допустимая формулировка: «по связанному шаблону есть N активных программ». Если продукту нужен точный счётчик именно по курсу, это отдельная модель данных и отдельный этап.
 
@@ -225,8 +228,8 @@ doctor page / server action / route
 
 - компактный блок «Где используется»;
 - если usage пустой: «Пока не используется»;
-- если usage есть: 1-3 короткие строки, без длинных таблиц;
-- ссылки на конкретные шаблоны можно не делать в первом проходе, достаточно счётчиков.
+- если usage есть: **для каждой ненулевой группы** — одна строка-сводка (как сейчас) **и** маркированный список из **до N** конкретных целей со ссылкой `next/link` на соответствующий экран врача (лимит N общий для каталога, как `EXERCISE_USAGE_DETAIL_LIMIT`; если всего больше — строка «Показаны первые K из M»);
+- счётчики для archive guard остаются агрегатами по БД; список refs — только UX, не обязан покрывать все строки при больших M.
 
 Примеры формулировок:
 
@@ -286,9 +289,9 @@ doctor page / server action / route
 
 ### Шаг 1. Usage type + port
 
-- Добавить usage type в module types.
+- Добавить usage type в module types (**counts + `*Refs[]` с дискриминантом `kind`**, id/title/pри необходимости `patientUserId` или другие поля для построения URL только в doctor-слое).
 - Расширить port read-only методом usage.
-- Обновить in-memory repo.
+- Обновить in-memory repo (в тестах задавать и refs, если проверяется UI/actions).
 - В service добавить `getXUsage(id)`.
 
 Проверки:
@@ -298,7 +301,7 @@ doctor page / server action / route
 
 ### Шаг 2. Infra query
 
-- Реализовать usage query в infra repo.
+- Реализовать usage query в infra repo (**один round-trip**: агрегаты + `jsonb_agg` подзапросы по TOP N для каждой группы refs, либо эквивалент без N+1).
 - Использовать Drizzle там, где repo уже Drizzle.
 - В legacy LFK repos допустимо продолжить существующий repo-style, но только внутри infra.
 - Считать active patient usage отдельно от template usage.
@@ -325,7 +328,8 @@ doctor page / server action / route
 
 ### Шаг 4. UI summary
 
-- Показать usage на карточке / detail-панели.
+- Показать usage на карточке / detail-панели (**секции: сводка + список ссылок**, общий UX-паттерн с `ExerciseForm` / `ExerciseUsageSectionsView`).
+- Рядом с формой каталога — функции `doctor…UsageHref(ref)` или модуль `*UsageDocLinks.ts` (пути только здесь).
 - Не перегружать list, если query дорогой.
 - Empty state: «Пока не используется».
 - Loading/error state — мягкий: если usage не загрузился, не блокировать весь экран, но не скрывать предупреждение при archive action на сервере.
@@ -339,7 +343,7 @@ doctor page / server action / route
 ### Шаг 5. Archive warning UI
 
 - Добавить dialog / confirm state.
-- Для active usage показать понятный warning.
+- Для active usage показать понятный warning **с теми же секциями и ссылками**, что в блоке usage (данные из snapshot в ответе `USAGE_CONFIRMATION_REQUIRED`).
 - При подтверждении отправить `acknowledgeUsageWarning=true`.
 - Сохранить текущие redirect/list preserve параметры, если они есть.
 
@@ -354,6 +358,7 @@ doctor page / server action / route
 - Добавить запись в `LOG.md`:
   - какой каталог закрыт;
   - какие счётчики добавлены;
+  - **добавлены ли списки refs и куда ведут ссылки** (или явное ограничение без URL);
   - какие проверки выполнены;
   - что сознательно не делали.
 - Если по каталогу обнаружена невозможность точного счётчика — записать как decision / limitation.
@@ -378,6 +383,8 @@ doctor page / server action / route
 - активные пациентские комплексы/назначения, где упражнение уже находится;
 - шаблоны программ и активные экземпляры программ, где item type = `exercise`.
 
+**Refs:** реализовано (`ExerciseUsageSnapshot`, `pgLfkExercises.loadExerciseUsageSummary`, UI в `ExerciseForm`).
+
 Stop condition: если активные patient LFK counts требуют дорогой цепочки через `lfk_complexes` / `lfk_complex_exercises`, можно сначала закрыть template/program usage и записать patient LFK count как follow-up.
 
 ### 2. Комплексы ЛФК
@@ -386,15 +393,17 @@ Stop condition: если активные patient LFK counts требуют до
 
 - `apps/webapp/src/app/app/doctor/lfk-templates/**`;
 - `apps/webapp/src/modules/lfk-templates/**`;
-- `apps/webapp/src/modules/lfk-assignments/**`;
+- `apps/webapp/src/modules/lfk-assignments/**` *(опционально: usage для шага 2 собирается в `pgLfkTemplates` из `patient_lfk_assignments`; отдельный модуль не обязателен)*;
 - `apps/webapp/src/infra/repos/pgLfkTemplates.ts`;
-- `apps/webapp/src/infra/repos/pgLfkAssignments.ts`.
+- `apps/webapp/src/infra/repos/pgLfkAssignments.ts` *(опционально — см. выше)*.
 
 Минимальные счётчики:
 
 - активные `patient_lfk_assignments`;
 - шаблоны программ с item type = `lfk_complex`;
 - активные экземпляры программ с item type = `lfk_complex`.
+
+**Refs:** по строкам матрицы — шаблон комплекса, шаблон программы, экземпляр программы, карточка клиента для назначения (аналог упражнений).
 
 Не чинить весь UX страницы комплексов в этом этапе. Баг восстановления из архива — отдельный follow-up, если он не блокирует текущую архивацию.
 
@@ -411,6 +420,8 @@ Stop condition: если активные patient LFK counts требуют до
 
 - наборы тестов, где тест включён;
 - через эти наборы — шаблоны программ / активные экземпляры программ.
+
+**Refs:** ссылки на наборы тестов и далее на шаблоны/экземпляры программ (см. колонку матрицы).
 
 Не чинить scoring UI и `test_type` как справочник в этом этапе.
 
@@ -429,6 +440,8 @@ Stop condition: если активные patient LFK counts требуют до
 - активные экземпляры программ с item type = `test_set`;
 - наличие попыток/результатов тестов как исторический сигнал, если query уже рядом.
 
+**Refs:** шаблоны и экземпляры программ; для «истории результатов» допускается только счётчик без перечисления каждой попытки.
+
 ### 5. Рекомендации
 
 Файлы старта:
@@ -442,6 +455,8 @@ Stop condition: если активные patient LFK counts требуют до
 
 - шаблоны программ с item type = `recommendation`;
 - активные экземпляры программ с item type = `recommendation`.
+
+**Refs:** шаблоны и экземпляры программ со ссылками.
 
 Не переименовывать поле «Область» и не трогать markdown preview в этом этапе.
 
@@ -461,6 +476,8 @@ Stop condition: если активные patient LFK counts требуют до
 - завершённые instances как historical usage;
 - курсы, которые ссылаются на шаблон.
 
+**Refs:** экземпляры программ, курсы с `program_template_id`, при необходимости карточка клиента.
+
 Важное место внимания: в `TreatmentProgramPort` сейчас есть `deleteTemplate`, а у таблицы есть `status='archived'`. Для этого этапа предпочтительна безопасная архивация, не физическое удаление. Если текущий UI реально удаляет шаблон, исполнитель должен остановиться и согласовать переход на archive/status flow.
 
 ### 7. Курсы
@@ -478,6 +495,8 @@ Stop condition: если активные patient LFK counts требуют до
 - linked `programTemplateId`;
 - active/completed instances по linked template id с осторожной формулировкой;
 - `content_pages.linked_course_id`, если курс используется как промо/контент.
+
+**Refs:** связанный шаблон программы; до N экземпляров по `template_id`; CMS-страницы — только при наличии стабильного URL в продукте.
 
 Не делать отдельный course engine. Не обещать точный счётчик «купили курс», пока нет прямого источника `course_id` в назначениях/покупках.
 
@@ -526,7 +545,7 @@ pnpm run ci
 
 Проверить:
 
-- usage summary отображается;
+- usage summary отображается (**в т.ч. кликабельные refs**, если каталог их поддерживает);
 - empty usage отображается понятно;
 - archive unused item работает как раньше;
 - archive used item показывает warning;
@@ -556,7 +575,7 @@ pnpm run ci
 
 Этап 7 считается закрытым, когда по всем семи каталогам:
 
-- есть usage summary на doctor UI;
+- есть usage summary на doctor UI **с перечислением до N ссылок на конкретные сущности** в каждой ненулевой группе (как для упражнений), либо в `LOG.md` зафиксировано обоснованное исключение (нет стабильного URL);
 - archive action предупреждает при активном использовании;
 - service layer перепроверяет active usage перед архивацией;
 - исторические назначения/результаты не удаляются;

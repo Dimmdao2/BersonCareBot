@@ -24,6 +24,26 @@
 
 ---
 
+## 2026-05-02 — этап 7 подшаг: комплексы ЛФК (usage + archive guard)
+
+**Сделано:**
+
+- Сводка использования шаблона комплекса: `LfkTemplateUsageSnapshot` — активные `patient_lfk_assignments` по `template_id`, шаблоны/экземпляры программ лечения с `item_type = 'lfk_complex'` и `item_ref_id = template_id` ([`pgLfkTemplates.ts`](../../apps/webapp/src/infra/repos/pgLfkTemplates.ts), один SELECT).
+- Сервис: [`getTemplateUsage`](../../apps/webapp/src/modules/lfk-templates/service.ts), архив с `acknowledgeUsageWarning` и [`LfkTemplateUsageConfirmationRequiredError`](../../apps/webapp/src/modules/lfk-templates/errors.ts) (`USAGE_CONFIRMATION_REQUIRED`).
+- UI: блок «Где используется», диалог архивации, [`archiveDoctorLfkTemplate`](../../apps/webapp/src/app/app/doctor/lfk-templates/actions.ts) + [`TemplateEditor`](../../apps/webapp/src/app/app/doctor/lfk-templates/TemplateEditor.tsx); на `/lfk-templates/[id]` snapshot с RSC; в split-view — [`fetchDoctorLfkTemplateUsageSnapshot`](../../apps/webapp/src/app/app/doctor/lfk-templates/actions.ts).
+- Ссылки врача: [`lfkTemplatesUsageDocLinks.ts`](../../apps/webapp/src/app/app/doctor/lfk-templates/lfkTemplatesUsageDocLinks.ts); тексты секций — [`lfkTemplatesUsageSummaryText.ts`](../../apps/webapp/src/app/app/doctor/lfk-templates/lfkTemplatesUsageSummaryText.ts) (`vNaForm` из упражнений).
+- Тесты: [`service.test.ts`](../../apps/webapp/src/modules/lfk-templates/service.test.ts), [`pgLfkTemplates.test.ts`](../../apps/webapp/src/infra/repos/pgLfkTemplates.test.ts), [`lfkTemplatesUsageDocLinks.test.ts`](../../apps/webapp/src/app/app/doctor/lfk-templates/lfkTemplatesUsageDocLinks.test.ts), [`lfkTemplatesUsageSummaryText.test.ts`](../../apps/webapp/src/app/app/doctor/lfk-templates/lfkTemplatesUsageSummaryText.test.ts), [`lfkTemplatesListPreserveQuery.test.ts`](../../apps/webapp/src/app/app/doctor/lfk-templates/lfkTemplatesListPreserveQuery.test.ts), [`TemplateEditor.test.tsx`](../../apps/webapp/src/app/app/doctor/lfk-templates/TemplateEditor.test.tsx); in-memory [`seedInMemoryLfkTemplateUsageSnapshot`](../../apps/webapp/src/infra/repos/inMemoryLfkTemplates.ts).
+
+**Пост-аудит (фиксы):** сохранение GET-параметров списка (`q`, `region`, `load`, `titleSort`) после архивации — [`lfkTemplatesListPreserveQuery.ts`](../../apps/webapp/src/app/app/doctor/lfk-templates/lfkTemplatesListPreserveQuery.ts) + hidden `listPreserveQuery` в [`TemplateEditor`](../../apps/webapp/src/app/app/doctor/lfk-templates/TemplateEditor.tsx) / [`LfkTemplatesPageClient`](../../apps/webapp/src/app/app/doctor/lfk-templates/LfkTemplatesPageClient.tsx), санитизация в [`archiveDoctorLfkTemplate`](../../apps/webapp/src/app/app/doctor/lfk-templates/actions.ts); тесты [`TemplateEditor.test.tsx`](../../apps/webapp/src/app/app/doctor/lfk-templates/TemplateEditor.test.tsx), непустые refs в [`pgLfkTemplates.test.ts`](../../apps/webapp/src/infra/repos/pgLfkTemplates.test.ts); в плане уточнены опциональные стартовые пути `lfk-assignments` / `pgLfkAssignments`. Диалог архивации при `USAGE_CONFIRMATION_REQUIRED` по-прежнему без отдельного e2e-теста (ручной smoke).
+
+**Проверки:** `pnpm --dir apps/webapp exec vitest run` (файлы выше); `pnpm --dir apps/webapp typecheck`.
+
+**Guard архива:** как у упражнений — блокируют только опубликованные шаблоны программ, активные экземпляры и активные назначения ЛФК; черновики шаблонов программ и завершённые экземпляры — в сводке, без обязательного подтверждения.
+
+**Вне scope:** остальные каталоги этапа 7, схема LFK, редизайн списка комплексов.
+
+---
+
 ## 2026-05-02 — CMS Post-Execution Fix (Variant C+)
 
 **Сделано:**

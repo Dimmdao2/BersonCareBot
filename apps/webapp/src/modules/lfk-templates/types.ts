@@ -67,3 +67,56 @@ export type TemplateExerciseInput = {
 export type ExerciseSummary = Pick<Exercise, "id" | "title" | "loadType" | "difficulty1_10"> & {
   previewMediaUrl?: string | null;
 };
+
+/** Сколько сущностей отдаём в UI подробно (остальное — только счётчик). */
+export const LFK_TEMPLATE_USAGE_DETAIL_LIMIT = 12;
+
+/** Одна ссылка «где используется» для шаблона комплекса ЛФК. */
+export type LfkTemplateUsageRef =
+  | { kind: "treatment_program_template"; id: string; title: string }
+  | {
+      kind: "treatment_program_instance" | "patient_lfk_assignment_client";
+      id: string;
+      title: string;
+      patientUserId: string;
+    };
+
+/** Сводка использования шаблона комплекса (read-only, для врача и archive guard). */
+export type LfkTemplateUsageSnapshot = {
+  activePatientLfkAssignmentCount: number;
+  publishedTreatmentProgramTemplateCount: number;
+  draftTreatmentProgramTemplateCount: number;
+  activeTreatmentProgramInstanceCount: number;
+  completedTreatmentProgramInstanceCount: number;
+  activePatientLfkAssignmentRefs: LfkTemplateUsageRef[];
+  publishedTreatmentProgramTemplateRefs: LfkTemplateUsageRef[];
+  draftTreatmentProgramTemplateRefs: LfkTemplateUsageRef[];
+  activeTreatmentProgramInstanceRefs: LfkTemplateUsageRef[];
+  completedTreatmentProgramInstanceRefs: LfkTemplateUsageRef[];
+};
+
+export const EMPTY_LFK_TEMPLATE_USAGE_SNAPSHOT: LfkTemplateUsageSnapshot = {
+  activePatientLfkAssignmentCount: 0,
+  publishedTreatmentProgramTemplateCount: 0,
+  draftTreatmentProgramTemplateCount: 0,
+  activeTreatmentProgramInstanceCount: 0,
+  completedTreatmentProgramInstanceCount: 0,
+  activePatientLfkAssignmentRefs: [],
+  publishedTreatmentProgramTemplateRefs: [],
+  draftTreatmentProgramTemplateRefs: [],
+  activeTreatmentProgramInstanceRefs: [],
+  completedTreatmentProgramInstanceRefs: [],
+};
+
+/** Требуется явное подтверждение архивации (см. ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN). */
+export function lfkTemplateArchiveRequiresAcknowledgement(u: LfkTemplateUsageSnapshot): boolean {
+  return (
+    u.activePatientLfkAssignmentCount > 0 ||
+    u.publishedTreatmentProgramTemplateCount > 0 ||
+    u.activeTreatmentProgramInstanceCount > 0
+  );
+}
+
+export type ArchiveTemplateOptions = {
+  acknowledgeUsageWarning?: boolean;
+};

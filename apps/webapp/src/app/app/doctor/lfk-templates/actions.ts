@@ -4,9 +4,59 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import type { TemplateExerciseInput } from "@/modules/lfk-templates/types";
+import { logger } from "@/infra/logging/logger";
+import {
+  isLfkTemplateUsageConfirmationRequiredError,
+  isTemplateArchiveAlreadyArchivedError,
+  isTemplateArchiveNotFoundError,
+} from "@/modules/lfk-templates/errors";
+import type { LfkTemplateUsageSnapshot, TemplateExerciseInput } from "@/modules/lfk-templates/types";
+import { EMPTY_LFK_TEMPLATE_USAGE_SNAPSHOT } from "@/modules/lfk-templates/types";
+import { sanitizeLfkTemplatesListPreserveQuery } from "./lfkTemplatesListPreserveQuery";
 
 const BASE = "/app/doctor/lfk-templates";
+
+export type ArchiveDoctorLfkTemplateState =
+  | { ok: true }
+  | { ok: false; code: "USAGE_CONFIRMATION_REQUIRED"; usage: LfkTemplateUsageSnapshot }
+  | { ok: false; error: string };
+
+function parseAcknowledgeUsageWarning(fd: FormData): boolean {
+  const v = fd.get("acknowledgeUsageWarning");
+  return v === "1" || v === "true" || v === "on";
+}
+
+async function archiveDoctorLfkTemplateCore(
+  formData: FormData,
+): Promise<
+  | { kind: "archived" }
+  | { kind: "needs_confirmation"; usage: LfkTemplateUsageSnapshot }
+  | { kind: "invalid"; error: string }
+> {
+  await requireDoctorAccess();
+  const idRaw = formData.get("id");
+  const id = typeof idRaw === "string" ? idRaw.trim() : "";
+  if (!id) return { kind: "invalid", error: "Не указан шаблон комплекса" };
+
+  const acknowledgeUsageWarning = parseAcknowledgeUsageWarning(formData);
+  const deps = buildAppDeps();
+  try {
+    await deps.lfkTemplates.archiveTemplate(id, { acknowledgeUsageWarning });
+    return { kind: "archived" };
+  } catch (e) {
+    if (isLfkTemplateUsageConfirmationRequiredError(e)) {
+      return { kind: "needs_confirmation", usage: e.usage };
+    }
+    if (isTemplateArchiveNotFoundError(e)) {
+      return { kind: "invalid", error: e.message };
+    }
+    if (isTemplateArchiveAlreadyArchivedError(e)) {
+      return { kind: "invalid", error: e.message };
+    }
+    logger.warn({ event: "doctor_lfk_template_archive_unexpected_error", templateId: id, err: e }, "archive failed");
+    return { kind: "invalid", error: "Не удалось архивировать комплекс" };
+  }
+}
 
 export async function createLfkTemplateDraft(formData: FormData) {
   const session = await requireDoctorAccess();
@@ -56,10 +106,29 @@ export async function publishLfkTemplateAction(
   }
 }
 
-export async function archiveLfkTemplateAction(templateId: string) {
-  await requireDoctorAccess();
-  const deps = buildAppDeps();
-  await deps.lfkTemplates.archiveTemplate(templateId);
+export async function archiveDoctorLfkTemplate(
+  _prev: ArchiveDoctorLfkTemplateState | null,
+  formData: FormData,
+): Promise<ArchiveDoctorLfkTemplateState> {
+  const result = await archiveDoctorLfkTemplateCore(formData);
+  if (result.kind === "needs_confirmation") {
+    return { ok: false, code: "USAGE_CONFIRMATION_REQUIRED", usage: result.usage };
+  }
+  if (result.kind === "invalid") {
+    return { ok: false, error: result.error };
+  }
   revalidatePath(BASE);
-  redirect(BASE);
+  const preserveRaw = formData.get("listPreserveQuery");
+  const safePreserve = sanitizeLfkTemplatesListPreserveQuery(
+    typeof preserveRaw === "string" ? preserveRaw : "",
+  );
+  redirect(safePreserve ? `${BASE}?${safePreserve}` : BASE);
+}
+
+export async function fetchDoctorLfkTemplateUsageSnapshot(templateId: string) {
+  await requireDoctorAccess();
+  const id = templateId.trim();
+  if (!id) return { ...EMPTY_LFK_TEMPLATE_USAGE_SNAPSHOT };
+  const deps = buildAppDeps();
+  return deps.lfkTemplates.getTemplateUsage(id);
 }

@@ -1,6 +1,15 @@
 "use client";
 
-import { useCallback, useMemo, useState, useTransition } from "react";
+import Link from "next/link";
+import {
+  useActionState,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
 import {
   DndContext,
   KeyboardSensor,
@@ -29,15 +38,26 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import type { LfkTemplateUsageSnapshot } from "@/modules/lfk-templates/types";
 import {
-  archiveLfkTemplateAction,
+  archiveDoctorLfkTemplate,
+  fetchDoctorLfkTemplateUsageSnapshot,
   persistLfkTemplateDraft,
   publishLfkTemplateAction,
+  type ArchiveDoctorLfkTemplateState,
 } from "./actions";
+import { doctorLfkTemplateUsageHref } from "./lfkTemplatesUsageDocLinks";
+import {
+  lfkTemplateUsageHasAnyReference,
+  lfkTemplateUsageSections,
+  type LfkTemplateUsageSection,
+} from "./lfkTemplatesUsageSummaryText";
 import { editorLinesToTemplateExerciseInputs } from "./templateExercisePayload";
 import { normalizeRuSearchString } from "@/shared/lib/ruSearchNormalize";
 import { ExerciseListCatalogThumb } from "@/shared/ui/media/ExerciseListCatalogThumb";
@@ -92,6 +112,40 @@ function linesToPayload(lines: EditorLine[]) {
       maxPain0_10: optInt(l.maxPain),
       comment: l.comment.trim() || null,
     }))
+  );
+}
+
+function LfkTemplateUsageSectionsView({ sections }: { sections: LfkTemplateUsageSection[] }) {
+  if (sections.length === 0) {
+    return <p className="mt-1 text-sm text-muted-foreground">Пока не используется</p>;
+  }
+  return (
+    <div className="mt-2 space-y-3">
+      {sections.map((sec) => (
+        <div key={sec.key}>
+          <p className="text-sm text-muted-foreground">{sec.summary}</p>
+          {sec.refs.length > 0 ? (
+            <ul className="mt-1 ml-3 list-disc space-y-0.5 text-sm">
+              {sec.refs.map((r) => (
+                <li key={`${sec.key}-${r.kind}-${r.id}`}>
+                  <Link
+                    href={doctorLfkTemplateUsageHref(r)}
+                    className="text-primary underline-offset-2 hover:underline"
+                  >
+                    {r.title}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          {sec.total > sec.refs.length ? (
+            <p className="mt-1 text-xs text-muted-foreground">
+              Показаны первые {sec.refs.length} из {sec.total}.
+            </p>
+          ) : null}
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -211,15 +265,102 @@ function SortableRow({
 type TemplateEditorProps = {
   template: Template;
   exerciseCatalog: ExerciseOption[];
+  /** Снимок «где используется» с RSC (страница `/lfk-templates/[id]`); в split-view не передаётся — подгрузка на клиенте. */
+  externalUsageSnapshot?: LfkTemplateUsageSnapshot;
+  /** Строка query (без `?`) для сохранения фильтров списка после архивации и редиректа на каталог. */
+  listPreserveQuery?: string;
 };
 
-export function TemplateEditor({ template, exerciseCatalog }: TemplateEditorProps) {
+export function TemplateEditor({
+  template,
+  exerciseCatalog,
+  externalUsageSnapshot,
+  listPreserveQuery = "",
+}: TemplateEditorProps) {
+  const recordKey = template.id;
   const [title, setTitle] = useState(template.title);
   const [description, setDescription] = useState(template.description ?? "");
   const [lines, setLines] = useState<EditorLine[]>(() => templateToLines(template));
   const [addOpen, setAddOpen] = useState(false);
   const [pickQuery, setPickQuery] = useState("");
   const [pending, startTransition] = useTransition();
+  const [usage, setUsage] = useState<LfkTemplateUsageSnapshot | null>(null);
+  const [usageLoadError, setUsageLoadError] = useState<string | null>(null);
+  const [usageBusy, setUsageBusy] = useState(false);
+  const [warnOpen, setWarnOpen] = useState(false);
+  const archiveFormRef = useRef<HTMLFormElement>(null);
+  const acknowledgeRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setTitle(template.title);
+    setDescription(template.description ?? "");
+    setLines(templateToLines(template));
+    setUsageLoadError(null);
+    setWarnOpen(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- полный сброс при смене редактируемого шаблона
+  }, [recordKey]);
+
+  useEffect(() => {
+    if (externalUsageSnapshot !== undefined) {
+      setUsage(externalUsageSnapshot);
+      return;
+    }
+    let cancelled = false;
+    setUsageLoadError(null);
+    setUsageBusy(true);
+    void fetchDoctorLfkTemplateUsageSnapshot(template.id)
+      .then((u) => {
+        if (!cancelled) setUsage(u);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setUsage(null);
+          setUsageLoadError("Не удалось загрузить сводку использования");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setUsageBusy(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [template.id, externalUsageSnapshot]);
+
+  const [archiveState, archiveFormAction, archivePending] = useActionState(
+    archiveDoctorLfkTemplate,
+    null as ArchiveDoctorLfkTemplateState | null,
+  );
+
+  useEffect(() => {
+    if (
+      archiveState?.ok === false &&
+      "code" in archiveState &&
+      archiveState.code === "USAGE_CONFIRMATION_REQUIRED"
+    ) {
+      setWarnOpen(true);
+    }
+  }, [archiveState]);
+
+  const usageSections = useMemo(() => {
+    if (!usage || !lfkTemplateUsageHasAnyReference(usage)) return [];
+    return lfkTemplateUsageSections(usage);
+  }, [usage]);
+
+  const warnSections = useMemo(() => {
+    if (
+      archiveState?.ok === false &&
+      "code" in archiveState &&
+      archiveState.code === "USAGE_CONFIRMATION_REQUIRED"
+    ) {
+      const u = archiveState.usage;
+      if (!lfkTemplateUsageHasAnyReference(u)) return [];
+      return lfkTemplateUsageSections(u);
+    }
+    return [];
+  }, [archiveState]);
+
+  const archiveError =
+    archiveState?.ok === false && "error" in archiveState ? archiveState.error : null;
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -406,14 +547,89 @@ export function TemplateEditor({ template, exerciseCatalog }: TemplateEditorProp
         <Button type="button" variant="default" onClick={publish} disabled={archived || pending}>
           Опубликовать
         </Button>
-        {template.status !== "archived" ? (
-          <form action={archiveLfkTemplateAction.bind(null, template.id)}>
-            <Button type="submit" variant="destructive" disabled={pending}>
-              Архивировать
+      </div>
+
+      {!archived ? (
+        <div className="border-t border-border/60 pt-4">
+          <div className="mb-3 rounded-md border border-border/60 bg-muted/20 p-3">
+            <p className="text-sm font-medium text-foreground">Где используется</p>
+            {usageBusy ? (
+              <p className="mt-1 text-sm text-muted-foreground">Загрузка…</p>
+            ) : usageLoadError ? (
+              <p className="mt-1 text-sm text-muted-foreground">{usageLoadError}</p>
+            ) : !usage ? null : !lfkTemplateUsageHasAnyReference(usage) ? (
+              <p className="mt-1 text-sm text-muted-foreground">Пока не используется</p>
+            ) : (
+              <LfkTemplateUsageSectionsView sections={usageSections} />
+            )}
+          </div>
+
+          {archiveError ? (
+            <p role="alert" className="mb-2 text-sm text-destructive">
+              {archiveError}
+            </p>
+          ) : null}
+
+          <form ref={archiveFormRef} action={archiveFormAction} className="flex flex-col gap-2">
+            <input type="hidden" name="id" value={template.id} />
+            <input type="hidden" name="listPreserveQuery" value={listPreserveQuery} />
+            <input ref={acknowledgeRef} type="hidden" name="acknowledgeUsageWarning" value="" />
+            <Button
+              type="submit"
+              variant="destructive"
+              disabled={archivePending || pending}
+              onClick={() => {
+                if (acknowledgeRef.current) acknowledgeRef.current.value = "";
+              }}
+            >
+              {archivePending ? "Архивация…" : "Архивировать"}
             </Button>
           </form>
-        ) : null}
-      </div>
+
+          <Dialog open={warnOpen} onOpenChange={setWarnOpen}>
+            <DialogContent showCloseButton className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>Комплекс уже используется</DialogTitle>
+                <DialogDescription className="space-y-2">
+                  <span className="block">
+                    Архивация уберёт комплекс из каталога для новых назначений. Уже выданные назначения и история не
+                    удаляются.
+                  </span>
+                  {!warnSections.length &&
+                  archiveState?.ok === false &&
+                  "code" in archiveState &&
+                  archiveState.code === "USAGE_CONFIRMATION_REQUIRED" &&
+                  !lfkTemplateUsageHasAnyReference(archiveState.usage) ? (
+                    <span className="block text-sm">
+                      Сервер запросил подтверждение — проверьте связи перед архивацией.
+                    </span>
+                  ) : warnSections.length ? (
+                    <LfkTemplateUsageSectionsView sections={warnSections} />
+                  ) : null}
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter className="gap-2 sm:gap-2">
+                <Button type="button" variant="outline" onClick={() => setWarnOpen(false)}>
+                  Отмена
+                </Button>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  disabled={archivePending}
+                  onClick={() => {
+                    if (acknowledgeRef.current) acknowledgeRef.current.value = "1";
+                    setWarnOpen(false);
+                    queueMicrotask(() => archiveFormRef.current?.requestSubmit());
+                  }}
+                >
+                  Архивировать всё равно
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
+      ) : null}
+
       <p className="text-xs text-muted-foreground">
         Перед публикацией черновик сохраняется автоматически. Если в базе нет упражнений в шаблоне, опубликация
         будет отклонена.

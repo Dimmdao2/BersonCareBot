@@ -1,5 +1,17 @@
+import {
+  LfkTemplateUsageConfirmationRequiredError,
+  TemplateArchiveAlreadyArchivedError,
+  TemplateArchiveNotFoundError,
+} from "./errors";
 import type { LfkTemplatesPort } from "./ports";
-import type { CreateTemplateInput, TemplateExerciseInput, TemplateFilter, UpdateTemplateInput } from "./types";
+import type {
+  ArchiveTemplateOptions,
+  CreateTemplateInput,
+  TemplateExerciseInput,
+  TemplateFilter,
+  UpdateTemplateInput,
+} from "./types";
+import { lfkTemplateArchiveRequiresAcknowledgement } from "./types";
 
 export function createLfkTemplatesService(port: LfkTemplatesPort) {
   return {
@@ -61,9 +73,22 @@ export function createLfkTemplatesService(port: LfkTemplatesPort) {
       return next;
     },
 
-    async archiveTemplate(id: string) {
+    async getTemplateUsage(id: string) {
+      return port.getTemplateUsageSummary(id);
+    },
+
+    async archiveTemplate(id: string, options?: ArchiveTemplateOptions) {
+      const existing = await port.getById(id);
+      if (!existing) throw new TemplateArchiveNotFoundError();
+      if (existing.status === "archived") throw new TemplateArchiveAlreadyArchivedError();
+
+      const usage = await port.getTemplateUsageSummary(id);
+      if (lfkTemplateArchiveRequiresAcknowledgement(usage) && !options?.acknowledgeUsageWarning) {
+        throw new LfkTemplateUsageConfirmationRequiredError(usage);
+      }
+
       const next = await port.setStatus(id, "archived");
-      if (!next) throw new Error("Шаблон не найден");
+      if (!next) throw new TemplateArchiveNotFoundError();
       return next;
     },
   };

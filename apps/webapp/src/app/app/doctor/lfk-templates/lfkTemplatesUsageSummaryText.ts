@@ -1,20 +1,8 @@
-import type { ExerciseUsageRef, ExerciseUsageSnapshot } from "@/modules/lfk-exercises/types";
+import type { LfkTemplateUsageRef, LfkTemplateUsageSnapshot } from "@/modules/lfk-templates/types";
+import { vNaForm } from "@/app/app/doctor/exercises/exerciseUsageSummaryText";
 
-/** «В N + одна/несколько/много» для существительного после числа (род. мн. / предл. мн.). */
-export function vNaForm(n: number, one: string, few: string, many: string): string {
-  const mod10 = n % 10;
-  const mod100 = n % 100;
-  let w: string;
-  if (mod10 === 1 && mod100 !== 11) w = one;
-  else if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) w = few;
-  else w = many;
-  return `В ${n} ${w}`;
-}
-
-export function exerciseUsageHasAnyReference(u: ExerciseUsageSnapshot): boolean {
+export function lfkTemplateUsageHasAnyReference(u: LfkTemplateUsageSnapshot): boolean {
   return (
-    u.publishedLfkComplexTemplateCount > 0 ||
-    u.draftLfkComplexTemplateCount > 0 ||
     u.activePatientLfkAssignmentCount > 0 ||
     u.publishedTreatmentProgramTemplateCount > 0 ||
     u.draftTreatmentProgramTemplateCount > 0 ||
@@ -23,42 +11,15 @@ export function exerciseUsageHasAnyReference(u: ExerciseUsageSnapshot): boolean 
   );
 }
 
-export type ExerciseUsageSection = {
+export type LfkTemplateUsageSection = {
   key: string;
   summary: string;
-  refs: ExerciseUsageRef[];
+  refs: LfkTemplateUsageRef[];
   total: number;
 };
 
-/** Секции для UI: сводная строка + ограниченный список ссылок. */
-export function exerciseUsageSections(u: ExerciseUsageSnapshot): ExerciseUsageSection[] {
-  const sections: ExerciseUsageSection[] = [];
-  if (u.publishedLfkComplexTemplateCount > 0) {
-    sections.push({
-      key: "published_lfk",
-      summary: vNaForm(
-        u.publishedLfkComplexTemplateCount,
-        "опубликованном шаблоне комплексов ЛФК",
-        "опубликованных шаблонах комплексов ЛФК",
-        "опубликованных шаблонах комплексов ЛФК",
-      ),
-      refs: u.publishedLfkComplexTemplateRefs,
-      total: u.publishedLfkComplexTemplateCount,
-    });
-  }
-  if (u.draftLfkComplexTemplateCount > 0) {
-    sections.push({
-      key: "draft_lfk",
-      summary: vNaForm(
-        u.draftLfkComplexTemplateCount,
-        "черновом шаблоне комплексов ЛФК",
-        "черновых шаблонах комплексов ЛФК",
-        "черновых шаблонах комплексов ЛФК",
-      ),
-      refs: u.draftLfkComplexTemplateRefs,
-      total: u.draftLfkComplexTemplateCount,
-    });
-  }
+export function lfkTemplateUsageSections(u: LfkTemplateUsageSnapshot): LfkTemplateUsageSection[] {
+  const sections: LfkTemplateUsageSection[] = [];
   if (u.publishedTreatmentProgramTemplateCount > 0) {
     sections.push({
       key: "published_tp_tpl",
@@ -125,9 +86,4 @@ export function exerciseUsageSections(u: ExerciseUsageSnapshot): ExerciseUsageSe
     });
   }
   return sections;
-}
-
-/** Короткие строки для блока «Где используется» (только сводка, без списка ссылок). */
-export function exerciseUsageSummaryLines(u: ExerciseUsageSnapshot): string[] {
-  return exerciseUsageSections(u).map((s) => s.summary);
 }

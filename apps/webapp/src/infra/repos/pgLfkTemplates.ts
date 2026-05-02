@@ -4,12 +4,18 @@ import type { MediaPreviewStatus } from "@/modules/media/types";
 import type { LfkTemplatesPort } from "@/modules/lfk-templates/ports";
 import type {
   CreateTemplateInput,
+  LfkTemplateUsageRef,
+  LfkTemplateUsageSnapshot,
   Template,
   TemplateExercise,
   TemplateExerciseInput,
   TemplateFilter,
   TemplateStatus,
   UpdateTemplateInput,
+} from "@/modules/lfk-templates/types";
+import {
+  EMPTY_LFK_TEMPLATE_USAGE_SNAPSHOT,
+  LFK_TEMPLATE_USAGE_DETAIL_LIMIT,
 } from "@/modules/lfk-templates/types";
 import { mediaPreviewUrlById } from "@/shared/lib/mediaPreviewUrls";
 
@@ -93,6 +99,188 @@ function mapListThumbMediaRow(row: Omit<TemplateListThumbRow, "template_id">): E
   };
 }
 
+function parseLfkTemplateUsageRefs(raw: unknown): LfkTemplateUsageRef[] {
+  if (raw == null) return [];
+  let arr: unknown[];
+  if (Array.isArray(raw)) arr = raw;
+  else if (typeof raw === "string") {
+    try {
+      const p = JSON.parse(raw) as unknown;
+      arr = Array.isArray(p) ? p : [];
+    } catch {
+      return [];
+    }
+  } else return [];
+
+  const out: LfkTemplateUsageRef[] = [];
+  for (const x of arr) {
+    if (!x || typeof x !== "object") continue;
+    const o = x as Record<string, unknown>;
+    const kind = o.kind;
+    const id = o.id;
+    const title = o.title;
+    const patientUserId = o.patientUserId;
+    if (kind === "treatment_program_template") {
+      if (typeof id !== "string" || typeof title !== "string") continue;
+      out.push({ kind, id, title });
+      continue;
+    }
+    if (kind === "treatment_program_instance" || kind === "patient_lfk_assignment_client") {
+      if (typeof id !== "string" || typeof title !== "string" || typeof patientUserId !== "string") continue;
+      out.push({ kind, id, title, patientUserId });
+    }
+  }
+  return out;
+}
+
+async function loadTemplateUsageSummary(
+  pool: ReturnType<typeof getPool>,
+  templateId: string,
+): Promise<LfkTemplateUsageSnapshot> {
+  const lim = LFK_TEMPLATE_USAGE_DETAIL_LIMIT;
+  const r = await pool.query<{
+    active_patient_lfk: string | number | null;
+    published_tp_templates: string | number | null;
+    draft_tp_templates: string | number | null;
+    active_tp_instances: string | number | null;
+    completed_tp_instances: string | number | null;
+    active_patient_lfk_refs: unknown;
+    published_tp_template_refs: unknown;
+    draft_tp_template_refs: unknown;
+    active_tp_instance_refs: unknown;
+    completed_tp_instance_refs: unknown;
+  }>(
+    `SELECT
+       (SELECT COUNT(*)::int
+          FROM patient_lfk_assignments pla
+         WHERE pla.template_id = $1::uuid AND pla.is_active = true) AS active_patient_lfk,
+       (SELECT COUNT(DISTINCT t.id)::int
+          FROM treatment_program_template_stage_items si
+          INNER JOIN treatment_program_template_stages st ON st.id = si.stage_id
+          INNER JOIN treatment_program_templates t ON t.id = st.template_id
+         WHERE si.item_type = 'lfk_complex' AND si.item_ref_id = $1::uuid AND t.status = 'published') AS published_tp_templates,
+       (SELECT COUNT(DISTINCT t.id)::int
+          FROM treatment_program_template_stage_items si
+          INNER JOIN treatment_program_template_stages st ON st.id = si.stage_id
+          INNER JOIN treatment_program_templates t ON t.id = st.template_id
+         WHERE si.item_type = 'lfk_complex' AND si.item_ref_id = $1::uuid AND t.status = 'draft') AS draft_tp_templates,
+       (SELECT COUNT(DISTINCT i.id)::int
+          FROM treatment_program_instance_stage_items sii
+          INNER JOIN treatment_program_instance_stages ist ON ist.id = sii.stage_id
+          INNER JOIN treatment_program_instances i ON i.id = ist.instance_id
+         WHERE sii.item_type = 'lfk_complex' AND sii.item_ref_id = $1::uuid AND i.status = 'active') AS active_tp_instances,
+       (SELECT COUNT(DISTINCT i.id)::int
+          FROM treatment_program_instance_stage_items sii
+          INNER JOIN treatment_program_instance_stages ist ON ist.id = sii.stage_id
+          INNER JOIN treatment_program_instances i ON i.id = ist.instance_id
+         WHERE sii.item_type = 'lfk_complex' AND sii.item_ref_id = $1::uuid AND i.status = 'completed') AS completed_tp_instances,
+       (SELECT COALESCE(jsonb_agg(q.obj), '[]'::jsonb)
+          FROM (
+            SELECT jsonb_build_object(
+              'kind', 'patient_lfk_assignment_client',
+              'id', pla.id::text,
+              'title', ct.title || ' — ' || COALESCE(
+                NULLIF(btrim(pu.display_name), ''),
+                NULLIF(btrim(pu.phone_normalized), ''),
+                'пациент'
+              ),
+              'patientUserId', pla.patient_user_id::text
+            ) AS obj
+            FROM patient_lfk_assignments pla
+            INNER JOIN lfk_complex_templates ct ON ct.id = pla.template_id
+            LEFT JOIN platform_users pu ON pu.id = pla.patient_user_id
+            WHERE pla.template_id = $1::uuid AND pla.is_active = true
+            ORDER BY pla.assigned_at DESC NULLS LAST
+            LIMIT ${lim}
+          ) q) AS active_patient_lfk_refs,
+       (SELECT COALESCE(jsonb_agg(q.obj), '[]'::jsonb)
+          FROM (
+            SELECT DISTINCT ON (t.id)
+              jsonb_build_object(
+                'kind', 'treatment_program_template',
+                'id', t.id::text,
+                'title', t.title
+              ) AS obj
+            FROM treatment_program_template_stage_items si
+            INNER JOIN treatment_program_template_stages st ON st.id = si.stage_id
+            INNER JOIN treatment_program_templates t ON t.id = st.template_id
+            WHERE si.item_type = 'lfk_complex' AND si.item_ref_id = $1::uuid AND t.status = 'published'
+            ORDER BY t.id, t.title ASC
+            LIMIT ${lim}
+          ) q) AS published_tp_template_refs,
+       (SELECT COALESCE(jsonb_agg(q.obj), '[]'::jsonb)
+          FROM (
+            SELECT DISTINCT ON (t.id)
+              jsonb_build_object(
+                'kind', 'treatment_program_template',
+                'id', t.id::text,
+                'title', t.title
+              ) AS obj
+            FROM treatment_program_template_stage_items si
+            INNER JOIN treatment_program_template_stages st ON st.id = si.stage_id
+            INNER JOIN treatment_program_templates t ON t.id = st.template_id
+            WHERE si.item_type = 'lfk_complex' AND si.item_ref_id = $1::uuid AND t.status = 'draft'
+            ORDER BY t.id, t.title ASC
+            LIMIT ${lim}
+          ) q) AS draft_tp_template_refs,
+       (SELECT COALESCE(jsonb_agg(q.obj), '[]'::jsonb)
+          FROM (
+            SELECT DISTINCT ON (i.id)
+              jsonb_build_object(
+                'kind', 'treatment_program_instance',
+                'id', i.id::text,
+                'title', COALESCE(NULLIF(btrim(i.title), ''), tpl.title, 'Программа'),
+                'patientUserId', i.patient_user_id::text
+              ) AS obj
+            FROM treatment_program_instance_stage_items sii
+            INNER JOIN treatment_program_instance_stages ist ON ist.id = sii.stage_id
+            INNER JOIN treatment_program_instances i ON i.id = ist.instance_id
+            LEFT JOIN treatment_program_templates tpl ON tpl.id = i.template_id
+            WHERE sii.item_type = 'lfk_complex' AND sii.item_ref_id = $1::uuid AND i.status = 'active'
+            ORDER BY i.id, i.title ASC
+            LIMIT ${lim}
+          ) q) AS active_tp_instance_refs,
+       (SELECT COALESCE(jsonb_agg(q.obj), '[]'::jsonb)
+          FROM (
+            SELECT DISTINCT ON (i.id)
+              jsonb_build_object(
+                'kind', 'treatment_program_instance',
+                'id', i.id::text,
+                'title', COALESCE(NULLIF(btrim(i.title), ''), tpl.title, 'Программа'),
+                'patientUserId', i.patient_user_id::text
+              ) AS obj
+            FROM treatment_program_instance_stage_items sii
+            INNER JOIN treatment_program_instance_stages ist ON ist.id = sii.stage_id
+            INNER JOIN treatment_program_instances i ON i.id = ist.instance_id
+            LEFT JOIN treatment_program_templates tpl ON tpl.id = i.template_id
+            WHERE sii.item_type = 'lfk_complex' AND sii.item_ref_id = $1::uuid AND i.status = 'completed'
+            ORDER BY i.id, i.title ASC
+            LIMIT ${lim}
+          ) q) AS completed_tp_instance_refs`,
+    [templateId],
+  );
+  const row = r.rows[0];
+  if (!row) return { ...EMPTY_LFK_TEMPLATE_USAGE_SNAPSHOT };
+  const n = (v: string | number | null | undefined) => {
+    if (v == null) return 0;
+    if (typeof v === "number") return v;
+    const parsed = Number.parseInt(String(v), 10);
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+  return {
+    activePatientLfkAssignmentCount: n(row.active_patient_lfk),
+    publishedTreatmentProgramTemplateCount: n(row.published_tp_templates),
+    draftTreatmentProgramTemplateCount: n(row.draft_tp_templates),
+    activeTreatmentProgramInstanceCount: n(row.active_tp_instances),
+    completedTreatmentProgramInstanceCount: n(row.completed_tp_instances),
+    activePatientLfkAssignmentRefs: parseLfkTemplateUsageRefs(row.active_patient_lfk_refs),
+    publishedTreatmentProgramTemplateRefs: parseLfkTemplateUsageRefs(row.published_tp_template_refs),
+    draftTreatmentProgramTemplateRefs: parseLfkTemplateUsageRefs(row.draft_tp_template_refs),
+    activeTreatmentProgramInstanceRefs: parseLfkTemplateUsageRefs(row.active_tp_instance_refs),
+    completedTreatmentProgramInstanceRefs: parseLfkTemplateUsageRefs(row.completed_tp_instance_refs),
+  };
+}
+
 function mapTeRow(
   row: {
     id: string;
@@ -139,6 +327,11 @@ function firstMediaFromListJoinRow(row: TemplateListExerciseJoinRow): ExerciseMe
 
 export function createPgLfkTemplatesPort(): LfkTemplatesPort {
   return {
+    async getTemplateUsageSummary(templateId: string): Promise<LfkTemplateUsageSnapshot> {
+      const pool = getPool();
+      return loadTemplateUsageSummary(pool, templateId);
+    },
+
     async list(filter: TemplateFilter): Promise<Template[]> {
       const pool = getPool();
       const conds: string[] = ["1=1"];

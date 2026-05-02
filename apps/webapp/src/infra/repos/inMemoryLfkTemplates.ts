@@ -1,6 +1,7 @@
 import type { LfkTemplatesPort } from "@/modules/lfk-templates/ports";
 import type {
   CreateTemplateInput,
+  LfkTemplateUsageSnapshot,
   Template,
   TemplateExercise,
   TemplateExerciseInput,
@@ -8,11 +9,18 @@ import type {
   TemplateStatus,
   UpdateTemplateInput,
 } from "@/modules/lfk-templates/types";
+import { EMPTY_LFK_TEMPLATE_USAGE_SNAPSHOT } from "@/modules/lfk-templates/types";
 
 const templates = new Map<string, Template>();
+const usageByTemplateId = new Map<string, LfkTemplateUsageSnapshot>();
+
+export function seedInMemoryLfkTemplateUsageSnapshot(id: string, snapshot: LfkTemplateUsageSnapshot): void {
+  usageByTemplateId.set(id, snapshot);
+}
 
 export function resetInMemoryLfkTemplatesStore(): void {
   templates.clear();
+  usageByTemplateId.clear();
 }
 
 function matchesFilter(t: Template, f: TemplateFilter): boolean {
@@ -24,6 +32,10 @@ function matchesFilter(t: Template, f: TemplateFilter): boolean {
 }
 
 export const inMemoryLfkTemplatesPort: LfkTemplatesPort = {
+  async getTemplateUsageSummary(id: string): Promise<LfkTemplateUsageSnapshot> {
+    return usageByTemplateId.get(id) ?? { ...EMPTY_LFK_TEMPLATE_USAGE_SNAPSHOT };
+  },
+
   async list(filter: TemplateFilter): Promise<Template[]> {
     const withDetails = filter.includeExerciseDetails === true;
     return [...templates.values()]

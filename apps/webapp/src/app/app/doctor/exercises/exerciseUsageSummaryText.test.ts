@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { EMPTY_EXERCISE_USAGE_SNAPSHOT } from "@/modules/lfk-exercises/types";
-import { exerciseUsageSummaryLines, vNaForm } from "./exerciseUsageSummaryText";
+import {
+  exerciseUsageHasAnyReference,
+  exerciseUsageSummaryLines,
+  vNaForm,
+} from "./exerciseUsageSummaryText";
 
 describe("exerciseUsageSummaryText", () => {
   it("vNaForm uses singular for 1 and 21", () => {
@@ -18,6 +22,15 @@ describe("exerciseUsageSummaryText", () => {
     expect(vNaForm(5, "коте", "котах", "котах")).toBe("В 5 котах");
     expect(vNaForm(11, "коте", "котах", "котах")).toBe("В 11 котах");
     expect(vNaForm(22, "коте", "котах", "котах")).toBe("В 22 котах");
+  });
+
+  it("exerciseUsageHasAnyReference uses only numeric counts", () => {
+    expect(
+      exerciseUsageHasAnyReference({
+        ...EMPTY_EXERCISE_USAGE_SNAPSHOT,
+        publishedLfkComplexTemplateRefs: [{ kind: "lfk_complex_template", id: "x", title: "T" }],
+      }),
+    ).toBe(false);
   });
 
   it("exerciseUsageSummaryLines includes completed history line", () => {

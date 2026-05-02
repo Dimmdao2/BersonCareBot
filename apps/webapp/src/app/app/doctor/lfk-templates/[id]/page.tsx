@@ -15,7 +15,10 @@ export default async function DoctorLfkTemplateEditPage({ params }: PageProps) {
     notFound();
   }
 
-  const exercises = await deps.lfkExercises.listExercises({ includeArchived: false });
+  const [usage, exercises] = await Promise.all([
+    deps.lfkTemplates.getTemplateUsage(template.id),
+    deps.lfkExercises.listExercises({ includeArchived: false }),
+  ]);
   const exerciseCatalog = exercises.map((e) => ({
     id: e.id,
     title: e.title,
@@ -30,7 +33,11 @@ export default async function DoctorLfkTemplateEditPage({ params }: PageProps) {
       backHref="/app/doctor/lfk-templates"
     >
       <section className="rounded-lg border border-border bg-card p-4 shadow-sm flex flex-col gap-4">
-        <TemplateEditor template={template} exerciseCatalog={exerciseCatalog} />
+        <TemplateEditor
+          template={template}
+          exerciseCatalog={exerciseCatalog}
+          externalUsageSnapshot={usage}
+        />
       </section>
     </AppShell>
   );

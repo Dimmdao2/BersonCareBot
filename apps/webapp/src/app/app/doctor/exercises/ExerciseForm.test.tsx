@@ -1,5 +1,6 @@
 /** @vitest-environment jsdom */
 
+import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import type { Exercise } from "@/modules/lfk-exercises/types";
@@ -15,6 +16,10 @@ vi.mock("@/shared/ui/ReferenceSelect", () => ({
   ReferenceSelect: ({ value }: { value: string | null }) => (
     <input type="text" data-testid="region-select" readOnly value={value ?? ""} />
   ),
+}));
+
+vi.mock("next/link", () => ({
+  default: ({ href, children }: { href: string; children: ReactNode }) => <a href={href}>{children}</a>,
 }));
 
 vi.mock("./actions", async () => {

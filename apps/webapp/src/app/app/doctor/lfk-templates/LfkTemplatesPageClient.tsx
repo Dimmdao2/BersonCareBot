@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,6 +25,7 @@ import {
 import { MediaThumb } from "@/shared/ui/media/MediaThumb";
 import { exerciseMediaToPreviewUi } from "@/shared/ui/media/mediaPreviewUiModel";
 import { createLfkTemplateDraft } from "./actions";
+import { buildLfkTemplatesListPreserveQuery } from "./lfkTemplatesListPreserveQuery";
 import { TemplateEditor } from "./TemplateEditor";
 
 type Props = {
@@ -77,6 +78,17 @@ export function LfkTemplatesPageClient({
 
   const titleSortForHeader: CatalogMasterTitleSort | null =
     titleSort === "asc" || titleSort === "desc" ? titleSort : null;
+
+  const listPreserveQuery = useMemo(
+    () =>
+      buildLfkTemplatesListPreserveQuery({
+        q: filters.q,
+        regionRefId: filters.regionRefId,
+        loadType: filters.loadType,
+        titleSort,
+      }),
+    [filters.q, filters.regionRefId, filters.loadType, titleSort],
+  );
 
   const changeTitleSort = (next: CatalogMasterTitleSort | null) => {
     startListTransition(() => {
@@ -168,7 +180,12 @@ export function LfkTemplatesPageClient({
   const desktopRight = (
     <CatalogRightPane className="h-full">
       {selected ? (
-        <TemplateEditor key={selected.id} template={selected} exerciseCatalog={exerciseCatalog} />
+        <TemplateEditor
+          key={selected.id}
+          template={selected}
+          exerciseCatalog={exerciseCatalog}
+          listPreserveQuery={listPreserveQuery}
+        />
       ) : (
         <section className="flex max-w-md flex-col gap-4 rounded-lg border border-border bg-card p-4 shadow-sm">
           <p className="text-sm text-muted-foreground">

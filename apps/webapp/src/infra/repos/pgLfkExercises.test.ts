@@ -48,7 +48,7 @@ describe("createPgLfkExercisesPort", () => {
     expect(params?.some((p) => typeof p === "string" && p.includes("южный"))).toBe(true);
   });
 
-  it("getExerciseUsageSummary runs scalar subqueries", async () => {
+  it("getExerciseUsageSummary runs scalar subqueries and ref aggregates", async () => {
     const id = "550e8400-e29b-41d4-a716-446655440000";
     queryMock.mockResolvedValueOnce({
       rows: [
@@ -60,6 +60,13 @@ describe("createPgLfkExercisesPort", () => {
           draft_tp_templates: 1,
           active_tp_instances: 3,
           completed_tp_instances: 4,
+          published_lfk_template_refs: [],
+          draft_lfk_template_refs: [],
+          published_tp_template_refs: [],
+          draft_tp_template_refs: [],
+          active_tp_instance_refs: [],
+          completed_tp_instance_refs: [],
+          active_patient_lfk_refs: [],
         },
       ],
     });
@@ -70,8 +77,10 @@ describe("createPgLfkExercisesPort", () => {
     expect(u.draftTreatmentProgramTemplateCount).toBe(1);
     expect(u.activeTreatmentProgramInstanceCount).toBe(3);
     expect(u.completedTreatmentProgramInstanceCount).toBe(4);
+    expect(u.publishedLfkComplexTemplateRefs).toEqual([]);
     const sql = String(queryMock.mock.calls[0]?.[0] ?? "");
-    expect(sql).toContain("published_lfk_templates");
+    expect(sql).toContain("published_lfk_template_refs");
+    expect(sql).toContain("jsonb_agg");
     expect(sql).toContain("treatment_program_template_stage_items");
     expect(sql).toContain("patient_lfk_assignments");
     expect(sql).toContain("completed_tp_instances");
