@@ -1,5 +1,6 @@
 import { and, desc, eq, ilike, or } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
+import { getPool } from "@/infra/db/client";
 import { recommendations as recommendationsTable } from "../../../db/schema/recommendations";
 import type { RecommendationsPort } from "@/modules/recommendations/ports";
 import { parseRecommendationDomain } from "@/modules/recommendations/recommendationDomain";
@@ -9,6 +10,12 @@ import type {
   CreateRecommendationInput,
   UpdateRecommendationInput,
   RecommendationMediaItem,
+  RecommendationUsageRef,
+  RecommendationUsageSnapshot,
+} from "@/modules/recommendations/types";
+import {
+  EMPTY_RECOMMENDATION_USAGE_SNAPSHOT,
+  RECOMMENDATION_USAGE_DETAIL_LIMIT,
 } from "@/modules/recommendations/types";
 
 function normalizeMedia(raw: unknown): RecommendationMediaItem[] {
@@ -44,6 +51,186 @@ function mapRow(row: typeof recommendationsTable.$inferSelect): Recommendation {
     createdBy: row.createdBy,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
+  };
+}
+
+function parseRecommendationUsageRefs(raw: unknown): RecommendationUsageRef[] {
+  if (raw == null) return [];
+  let arr: unknown[];
+  if (Array.isArray(raw)) arr = raw;
+  else if (typeof raw === "string") {
+    try {
+      const p = JSON.parse(raw) as unknown;
+      arr = Array.isArray(p) ? p : [];
+    } catch {
+      return [];
+    }
+  } else return [];
+
+  const out: RecommendationUsageRef[] = [];
+  for (const x of arr) {
+    if (!x || typeof x !== "object") continue;
+    const o = x as Record<string, unknown>;
+    const kind = o.kind;
+    const id = o.id;
+    const title = o.title;
+    const patientUserId = o.patientUserId;
+    if (kind === "treatment_program_template") {
+      if (typeof id !== "string" || typeof title !== "string") continue;
+      out.push({ kind, id, title });
+      continue;
+    }
+    if (kind === "treatment_program_instance") {
+      if (typeof id !== "string" || typeof title !== "string" || typeof patientUserId !== "string") continue;
+      out.push({ kind, id, title, patientUserId });
+    }
+  }
+  return out;
+}
+
+async function loadRecommendationUsageSummary(
+  pool: ReturnType<typeof getPool>,
+  recommendationId: string,
+): Promise<RecommendationUsageSnapshot> {
+  const lim = RECOMMENDATION_USAGE_DETAIL_LIMIT;
+  const r = await pool.query<{
+    published_tp_templates: string | number | null;
+    draft_tp_templates: string | number | null;
+    archived_tp_templates: string | number | null;
+    active_tp_instances: string | number | null;
+    completed_tp_instances: string | number | null;
+    published_tp_template_refs: unknown;
+    draft_tp_template_refs: unknown;
+    archived_tp_template_refs: unknown;
+    active_tp_instance_refs: unknown;
+    completed_tp_instance_refs: unknown;
+  }>(
+    `SELECT
+       (SELECT COUNT(DISTINCT t.id)::int
+          FROM treatment_program_template_stage_items si
+          INNER JOIN treatment_program_template_stages st ON st.id = si.stage_id
+          INNER JOIN treatment_program_templates t ON t.id = st.template_id
+         WHERE si.item_type = 'recommendation' AND si.item_ref_id = $1::uuid AND t.status = 'published') AS published_tp_templates,
+       (SELECT COUNT(DISTINCT t.id)::int
+          FROM treatment_program_template_stage_items si
+          INNER JOIN treatment_program_template_stages st ON st.id = si.stage_id
+          INNER JOIN treatment_program_templates t ON t.id = st.template_id
+         WHERE si.item_type = 'recommendation' AND si.item_ref_id = $1::uuid AND t.status = 'draft') AS draft_tp_templates,
+       (SELECT COUNT(DISTINCT t.id)::int
+          FROM treatment_program_template_stage_items si
+          INNER JOIN treatment_program_template_stages st ON st.id = si.stage_id
+          INNER JOIN treatment_program_templates t ON t.id = st.template_id
+         WHERE si.item_type = 'recommendation' AND si.item_ref_id = $1::uuid AND t.status = 'archived') AS archived_tp_templates,
+       (SELECT COUNT(DISTINCT i.id)::int
+          FROM treatment_program_instance_stage_items sii
+          INNER JOIN treatment_program_instance_stages ist ON ist.id = sii.stage_id
+          INNER JOIN treatment_program_instances i ON i.id = ist.instance_id
+         WHERE sii.item_type = 'recommendation' AND sii.item_ref_id = $1::uuid AND i.status = 'active') AS active_tp_instances,
+       (SELECT COUNT(DISTINCT i.id)::int
+          FROM treatment_program_instance_stage_items sii
+          INNER JOIN treatment_program_instance_stages ist ON ist.id = sii.stage_id
+          INNER JOIN treatment_program_instances i ON i.id = ist.instance_id
+         WHERE sii.item_type = 'recommendation' AND sii.item_ref_id = $1::uuid AND i.status = 'completed') AS completed_tp_instances,
+       (SELECT COALESCE(jsonb_agg(q.obj), '[]'::jsonb)
+          FROM (
+            SELECT DISTINCT ON (t.id)
+              jsonb_build_object(
+                'kind', 'treatment_program_template',
+                'id', t.id::text,
+                'title', t.title
+              ) AS obj
+            FROM treatment_program_template_stage_items si
+            INNER JOIN treatment_program_template_stages st ON st.id = si.stage_id
+            INNER JOIN treatment_program_templates t ON t.id = st.template_id
+            WHERE si.item_type = 'recommendation' AND si.item_ref_id = $1::uuid AND t.status = 'published'
+            ORDER BY t.id, t.title ASC
+            LIMIT ${lim}
+          ) q) AS published_tp_template_refs,
+       (SELECT COALESCE(jsonb_agg(q.obj), '[]'::jsonb)
+          FROM (
+            SELECT DISTINCT ON (t.id)
+              jsonb_build_object(
+                'kind', 'treatment_program_template',
+                'id', t.id::text,
+                'title', t.title
+              ) AS obj
+            FROM treatment_program_template_stage_items si
+            INNER JOIN treatment_program_template_stages st ON st.id = si.stage_id
+            INNER JOIN treatment_program_templates t ON t.id = st.template_id
+            WHERE si.item_type = 'recommendation' AND si.item_ref_id = $1::uuid AND t.status = 'draft'
+            ORDER BY t.id, t.title ASC
+            LIMIT ${lim}
+          ) q) AS draft_tp_template_refs,
+       (SELECT COALESCE(jsonb_agg(q.obj), '[]'::jsonb)
+          FROM (
+            SELECT DISTINCT ON (t.id)
+              jsonb_build_object(
+                'kind', 'treatment_program_template',
+                'id', t.id::text,
+                'title', t.title
+              ) AS obj
+            FROM treatment_program_template_stage_items si
+            INNER JOIN treatment_program_template_stages st ON st.id = si.stage_id
+            INNER JOIN treatment_program_templates t ON t.id = st.template_id
+            WHERE si.item_type = 'recommendation' AND si.item_ref_id = $1::uuid AND t.status = 'archived'
+            ORDER BY t.id, t.title ASC
+            LIMIT ${lim}
+          ) q) AS archived_tp_template_refs,
+       (SELECT COALESCE(jsonb_agg(q.obj), '[]'::jsonb)
+          FROM (
+            SELECT DISTINCT ON (i.id)
+              jsonb_build_object(
+                'kind', 'treatment_program_instance',
+                'id', i.id::text,
+                'title', COALESCE(NULLIF(btrim(i.title), ''), tpl.title, 'Программа'),
+                'patientUserId', i.patient_user_id::text
+              ) AS obj
+            FROM treatment_program_instance_stage_items sii
+            INNER JOIN treatment_program_instance_stages ist ON ist.id = sii.stage_id
+            INNER JOIN treatment_program_instances i ON i.id = ist.instance_id
+            LEFT JOIN treatment_program_templates tpl ON tpl.id = i.template_id
+            WHERE sii.item_type = 'recommendation' AND sii.item_ref_id = $1::uuid AND i.status = 'active'
+            ORDER BY i.id, i.title ASC
+            LIMIT ${lim}
+          ) q) AS active_tp_instance_refs,
+       (SELECT COALESCE(jsonb_agg(q.obj), '[]'::jsonb)
+          FROM (
+            SELECT DISTINCT ON (i.id)
+              jsonb_build_object(
+                'kind', 'treatment_program_instance',
+                'id', i.id::text,
+                'title', COALESCE(NULLIF(btrim(i.title), ''), tpl.title, 'Программа'),
+                'patientUserId', i.patient_user_id::text
+              ) AS obj
+            FROM treatment_program_instance_stage_items sii
+            INNER JOIN treatment_program_instance_stages ist ON ist.id = sii.stage_id
+            INNER JOIN treatment_program_instances i ON i.id = ist.instance_id
+            LEFT JOIN treatment_program_templates tpl ON tpl.id = i.template_id
+            WHERE sii.item_type = 'recommendation' AND sii.item_ref_id = $1::uuid AND i.status = 'completed'
+            ORDER BY i.id, i.title ASC
+            LIMIT ${lim}
+          ) q) AS completed_tp_instance_refs`,
+    [recommendationId],
+  );
+  const row = r.rows[0];
+  if (!row) return { ...EMPTY_RECOMMENDATION_USAGE_SNAPSHOT };
+  const n = (v: string | number | null | undefined) => {
+    if (v == null) return 0;
+    if (typeof v === "number") return v;
+    const parsed = Number.parseInt(String(v), 10);
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+  return {
+    publishedTreatmentProgramTemplateCount: n(row.published_tp_templates),
+    draftTreatmentProgramTemplateCount: n(row.draft_tp_templates),
+    archivedTreatmentProgramTemplateCount: n(row.archived_tp_templates),
+    activeTreatmentProgramInstanceCount: n(row.active_tp_instances),
+    completedTreatmentProgramInstanceCount: n(row.completed_tp_instances),
+    publishedTreatmentProgramTemplateRefs: parseRecommendationUsageRefs(row.published_tp_template_refs),
+    draftTreatmentProgramTemplateRefs: parseRecommendationUsageRefs(row.draft_tp_template_refs),
+    archivedTreatmentProgramTemplateRefs: parseRecommendationUsageRefs(row.archived_tp_template_refs),
+    activeTreatmentProgramInstanceRefs: parseRecommendationUsageRefs(row.active_tp_instance_refs),
+    completedTreatmentProgramInstanceRefs: parseRecommendationUsageRefs(row.completed_tp_instance_refs),
   };
 }
 
@@ -125,6 +312,11 @@ export function createPgRecommendationsPort(): RecommendationsPort {
         .where(and(eq(recommendationsTable.id, id), eq(recommendationsTable.isArchived, false)))
         .returning({ id: recommendationsTable.id });
       return rows.length > 0;
+    },
+
+    async getRecommendationUsageSummary(id: string): Promise<RecommendationUsageSnapshot> {
+      const pool = getPool();
+      return loadRecommendationUsageSummary(pool, id);
     },
   };
 }

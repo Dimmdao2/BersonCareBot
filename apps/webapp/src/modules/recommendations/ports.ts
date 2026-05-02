@@ -3,6 +3,7 @@ import type {
   RecommendationFilter,
   CreateRecommendationInput,
   UpdateRecommendationInput,
+  RecommendationUsageSnapshot,
 } from "./types";
 
 export type RecommendationsPort = {
@@ -11,4 +12,5 @@ export type RecommendationsPort = {
   create(input: CreateRecommendationInput, createdBy: string | null): Promise<Recommendation>;
   update(id: string, input: UpdateRecommendationInput): Promise<Recommendation | null>;
   archive(id: string): Promise<boolean>;
+  getRecommendationUsageSummary(id: string): Promise<RecommendationUsageSnapshot>;
 };

@@ -16,4 +16,5 @@ export {
 export {
   inMemoryRecommendationsPort,
   resetInMemoryRecommendationsStore,
+  seedInMemoryRecommendationUsageSnapshot,
 } from "@/infra/repos/inMemoryRecommendations";

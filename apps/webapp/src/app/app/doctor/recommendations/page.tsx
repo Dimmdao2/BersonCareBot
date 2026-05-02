@@ -1,5 +1,6 @@
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import type { RecommendationUsageSnapshot } from "@/modules/recommendations/types";
 import { parseRecommendationDomain } from "@/modules/recommendations/recommendationDomain";
 import { AppShell } from "@/shared/ui/AppShell";
 import { doctorCatalogViewFromSearchParams } from "@/shared/lib/doctorCatalogViewPreference";
@@ -36,6 +37,10 @@ export default async function DoctorRecommendationsPage({ searchParams }: PagePr
   const rawSelected = typeof sp.selected === "string" ? sp.selected.trim() : "";
   const initialSelectedId =
     rawSelected && items.some((r) => r.id === rawSelected) ? rawSelected : null;
+  let initialSelectedUsageSnapshot: RecommendationUsageSnapshot | null = null;
+  if (initialSelectedId != null) {
+    initialSelectedUsageSnapshot = await deps.recommendations.getRecommendationUsage(initialSelectedId);
+  }
   const { initialViewMode, viewLockedByUrl } = doctorCatalogViewFromSearchParams(
     typeof sp.view === "string" ? sp.view : undefined,
   );
@@ -45,6 +50,7 @@ export default async function DoctorRecommendationsPage({ searchParams }: PagePr
       <RecommendationsPageClient
         initialItems={items}
         initialSelectedId={initialSelectedId}
+        initialSelectedUsageSnapshot={initialSelectedUsageSnapshot}
         initialViewMode={initialViewMode}
         viewLockedByUrl={viewLockedByUrl}
         initialTitleSort={titleSort}

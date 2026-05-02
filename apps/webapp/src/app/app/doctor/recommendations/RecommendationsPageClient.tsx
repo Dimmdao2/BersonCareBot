@@ -7,7 +7,11 @@ import {
   RECOMMENDATION_DOMAIN_ITEMS,
   type RecommendationDomain,
 } from "@/modules/recommendations/recommendationDomain";
-import type { Recommendation, RecommendationMediaItem } from "@/modules/recommendations/types";
+import type {
+  Recommendation,
+  RecommendationMediaItem,
+  RecommendationUsageSnapshot,
+} from "@/modules/recommendations/types";
 import { cn } from "@/lib/utils";
 import { useViewportMinWidth } from "@/shared/hooks/useViewportMinWidth";
 import {
@@ -45,6 +49,7 @@ const LIST_ROW_VISIBILITY_STYLE = {
 type Props = {
   initialItems: Recommendation[];
   initialSelectedId: string | null;
+  initialSelectedUsageSnapshot: RecommendationUsageSnapshot | null;
   initialViewMode: RecommendationsViewMode;
   viewLockedByUrl: boolean;
   initialTitleSort: RecommendationTitleSort | null;
@@ -169,6 +174,7 @@ function mediaThumbRow(r: Recommendation) {
 function RecommendationsContent({
   initialItems,
   initialSelectedId,
+  initialSelectedUsageSnapshot,
   viewMode,
   toolbarViewMode,
   titleSort,
@@ -183,6 +189,7 @@ function RecommendationsContent({
 }: {
   initialItems: Recommendation[];
   initialSelectedId: string | null;
+  initialSelectedUsageSnapshot: RecommendationUsageSnapshot | null;
   viewMode: RecommendationsViewMode;
   toolbarViewMode: RecommendationsViewMode;
   titleSort: RecommendationTitleSort | null;
@@ -236,6 +243,13 @@ function RecommendationsContent({
   const activeTileColumns = isDesktopViewport ? tileColsDesktop : tileColsMobile;
 
   const formRecommendation = mobileSheet != null ? mobileSheet.recommendation : recommendationForDesktop;
+
+  const usageForSelection = (() => {
+    const current = formRecommendation;
+    if (!current || initialSelectedUsageSnapshot == null) return undefined;
+    if (initialSelectedId === current.id) return initialSelectedUsageSnapshot;
+    return undefined;
+  })();
 
   const recommendationTertiaryFilter = useMemo((): DoctorCatalogTertiaryFilter => {
     return {
@@ -331,6 +345,7 @@ function RecommendationsContent({
           regionRefId: filters.regionRefId,
           domain: filters.domain,
         }}
+        externalUsageSnapshot={usageForSelection}
       />
     </CatalogRightPane>
   );
@@ -428,6 +443,7 @@ function RecommendationsContent({
 export function RecommendationsPageClient({
   initialItems,
   initialSelectedId,
+  initialSelectedUsageSnapshot,
   initialViewMode,
   viewLockedByUrl,
   initialTitleSort,
@@ -476,6 +492,7 @@ export function RecommendationsPageClient({
     <RecommendationsContent
       initialItems={initialItems}
       initialSelectedId={initialSelectedId}
+      initialSelectedUsageSnapshot={initialSelectedUsageSnapshot}
       viewMode={viewMode}
       toolbarViewMode={toolbarViewMode}
       titleSort={titleSort}

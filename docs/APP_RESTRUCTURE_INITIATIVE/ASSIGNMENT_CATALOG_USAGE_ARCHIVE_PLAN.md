@@ -48,7 +48,7 @@
 | 2. Комплексы ЛФК | `completed` | `completed` (`LfkTemplateUsageSnapshot`, `lfkTemplatesUsageDocLinks.ts`, `pgLfkTemplates.loadTemplateUsageSummary`) |
 | 3. Клинические тесты | `completed` | `completed` (`ClinicalTestUsageSnapshot`, `clinicalTestsUsageDocLinks.ts`, `pgClinicalTests.loadClinicalTestUsageSummary`) |
 | 4. Наборы тестов | `completed` | `completed` (`TestSetUsageSnapshot`, `testSetUsageDocLinks.ts`, `pgTestSets.loadTestSetUsageSummary`) |
-| 5. Рекомендации | `pending` | `pending` |
+| 5. Рекомендации | `completed` | `completed` (`RecommendationUsageSnapshot`, `recommendationUsageDocLinks.ts`, `pgRecommendations.loadRecommendationUsageSummary`) |
 | 6. Шаблоны программ | `pending` | `pending` |
 | 7. Курсы | `pending` | `pending` (осторожные формулировки без `course_id` сохраняются) |
 
@@ -455,12 +455,14 @@ Stop condition: если активные patient LFK counts требуют до
 - `apps/webapp/src/infra/repos/pgRecommendations.ts`;
 - treatment program repos.
 
-Минимальные счётчики:
+Минимальные счётчики (сводка в UI):
 
-- шаблоны программ с item type = `recommendation`;
-- активные экземпляры программ с item type = `recommendation`.
+- шаблоны программ с item type = `recommendation` — по статусам (`published` / `draft` / `archived`);
+- активные и завершённые экземпляры программ с item type = `recommendation` (завершённые — история).
 
 **Refs:** шаблоны и экземпляры программ со ссылками.
+
+**Guard архива** (как в разделах 4 и «Единый контракт archive guard»): подтверждение только при **опубликованных** шаблонах или **активных** экземплярах; только черновики / только архивные шаблоны / только завершённые экземпляры не требуют `acknowledgeUsageWarning`.
 
 Не переименовывать поле «Область» и не трогать markdown preview в этом этапе.
 

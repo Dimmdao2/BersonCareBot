@@ -1,24 +1,76 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useCallback, useEffect, useState } from "react";
+import { useActionState, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button, buttonVariants } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { MarkdownEditorToastUi } from "@/shared/ui/markdown/MarkdownEditorToastUi";
 import { RECOMMENDATION_DOMAIN_ITEMS } from "@/modules/recommendations/recommendationDomain";
 import type { RecommendationDomain } from "@/modules/recommendations/recommendationDomain";
-import type { Recommendation } from "@/modules/recommendations/types";
+import type { Recommendation, RecommendationUsageSnapshot } from "@/modules/recommendations/types";
 import { ReferenceSelect } from "@/shared/ui/ReferenceSelect";
 import { cn } from "@/lib/utils";
 import { MediaLibraryPickerDialog } from "@/app/app/doctor/content/MediaLibraryPickerDialog";
-import { archiveRecommendation, saveRecommendation } from "./actions";
-import type { SaveRecommendationState } from "./actionsShared";
+import {
+  archiveRecommendation,
+  fetchDoctorRecommendationUsageSnapshot,
+  saveRecommendation,
+} from "./actions";
+import type { ArchiveRecommendationState, SaveRecommendationState } from "./actionsShared";
 import {
   exerciseMediaTypeFromPick,
   exerciseTitleFromPickMeta,
 } from "@/app/app/doctor/exercises/exerciseMediaFromLibrary";
 import { RECOMMENDATIONS_PATH } from "./paths";
+import { doctorRecommendationUsageHref } from "./recommendationUsageDocLinks";
+import {
+  recommendationUsageHasAnyReference,
+  recommendationUsageSections,
+  type RecommendationUsageSection,
+} from "./recommendationUsageSummaryText";
+
+function RecommendationUsageSectionsView({ sections }: { sections: RecommendationUsageSection[] }) {
+  if (sections.length === 0) {
+    return <p className="mt-1 text-sm text-muted-foreground">Пока не используется</p>;
+  }
+  return (
+    <div className="mt-2 space-y-3">
+      {sections.map((sec) => (
+        <div key={sec.key}>
+          <p className="text-sm text-muted-foreground">{sec.summary}</p>
+          {sec.refs.length > 0 ? (
+            <ul className="mt-1 ml-3 list-disc space-y-0.5 text-sm">
+              {sec.refs.map((r) => (
+                <li key={`${sec.key}-${r.kind}-${r.id}`}>
+                  <Link
+                    href={doctorRecommendationUsageHref(r)}
+                    className="text-primary underline-offset-2 hover:underline"
+                  >
+                    {r.title}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          {sec.refs.length > 0 && sec.total > sec.refs.length ? (
+            <p className="mt-1 text-xs text-muted-foreground">
+              Показаны первые {sec.refs.length} из {sec.total}.
+            </p>
+          ) : null}
+        </div>
+      ))}
+    </div>
+  );
+}
 
 type FormValues = {
   title: string;
@@ -58,7 +110,11 @@ type Props = {
     _prev: SaveRecommendationState | null,
     formData: FormData,
   ) => Promise<SaveRecommendationState>;
-  archiveAction?: (formData: FormData) => Promise<void>;
+  archiveAction?: (
+    _prev: ArchiveRecommendationState | null,
+    formData: FormData,
+  ) => Promise<ArchiveRecommendationState>;
+  externalUsageSnapshot?: RecommendationUsageSnapshot;
 };
 
 export function RecommendationForm({
@@ -68,16 +124,54 @@ export function RecommendationForm({
   workspaceListPreserve,
   saveAction = saveRecommendation,
   archiveAction = archiveRecommendation,
+  externalUsageSnapshot,
 }: Props) {
   const recordKey = recommendation?.id ?? "create";
   const [values, setValues] = useState<FormValues>(() => toValues(recommendation));
   const [localError, setLocalError] = useState<string | null>(null);
+  const [usage, setUsage] = useState<RecommendationUsageSnapshot | null>(null);
+  const [usageLoadError, setUsageLoadError] = useState<string | null>(null);
+  const [usageBusy, setUsageBusy] = useState(false);
+  const [warnOpen, setWarnOpen] = useState(false);
+  const archiveFormRef = useRef<HTMLFormElement>(null);
+  const acknowledgeRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setValues(toValues(recommendation));
     setLocalError(null);
+    setUsageLoadError(null);
+    setWarnOpen(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recordKey]);
+
+  useEffect(() => {
+    if (!recommendation?.id) {
+      setUsage(null);
+      return;
+    }
+    if (externalUsageSnapshot !== undefined) {
+      setUsage(externalUsageSnapshot);
+      return;
+    }
+    let cancelled = false;
+    setUsageBusy(true);
+    void fetchDoctorRecommendationUsageSnapshot(recommendation.id)
+      .then((u) => {
+        if (!cancelled) setUsage(u);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setUsage(null);
+          setUsageLoadError("Не удалось загрузить сводку использования");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setUsageBusy(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [recommendation?.id, externalUsageSnapshot]);
 
   const wrappedSave = useCallback(
     async (prev: SaveRecommendationState | null, formData: FormData) => {
@@ -90,6 +184,42 @@ export function RecommendationForm({
   );
 
   const [, formAction, pending] = useActionState(wrappedSave, null as SaveRecommendationState | null);
+
+  const [archiveState, archiveFormAction, archivePending] = useActionState(
+    archiveAction,
+    null as ArchiveRecommendationState | null,
+  );
+
+  useEffect(() => {
+    if (
+      archiveState?.ok === false &&
+      "code" in archiveState &&
+      archiveState.code === "USAGE_CONFIRMATION_REQUIRED"
+    ) {
+      setWarnOpen(true);
+    }
+  }, [archiveState]);
+
+  const usageSections = useMemo(() => {
+    if (!usage || !recommendationUsageHasAnyReference(usage)) return [];
+    return recommendationUsageSections(usage);
+  }, [usage]);
+
+  const warnSections = useMemo(() => {
+    if (
+      archiveState?.ok === false &&
+      "code" in archiveState &&
+      archiveState.code === "USAGE_CONFIRMATION_REQUIRED"
+    ) {
+      const u = archiveState.usage;
+      if (!recommendationUsageHasAnyReference(u)) return [];
+      return recommendationUsageSections(u);
+    }
+    return [];
+  }, [archiveState]);
+
+  const archiveError =
+    archiveState?.ok === false && "error" in archiveState ? archiveState.error : null;
 
   return (
     <div className="flex max-w-2xl flex-col gap-4">
@@ -199,25 +329,95 @@ export function RecommendationForm({
       </form>
 
       {recommendation ? (
-        <form action={archiveAction} className="border-t border-border/60 pt-4">
-          <input type="hidden" name="id" value={recommendation.id} />
-          {workspaceView ? <input type="hidden" name="view" value={workspaceView} /> : null}
-          {workspaceListPreserve?.q != null && workspaceListPreserve.q !== "" ? (
-            <input type="hidden" name="listQ" value={workspaceListPreserve.q} />
+        <div className="border-t border-border/60 pt-4">
+          <div className="mb-3 rounded-md border border-border/60 bg-muted/20 p-3">
+            <p className="text-sm font-medium text-foreground">Где используется</p>
+            {usageBusy ? (
+              <p className="mt-1 text-sm text-muted-foreground">Загрузка…</p>
+            ) : usageLoadError ? (
+              <p className="mt-1 text-sm text-muted-foreground">{usageLoadError}</p>
+            ) : !usage ? null : !recommendationUsageHasAnyReference(usage) ? (
+              <p className="mt-1 text-sm text-muted-foreground">Пока не используется</p>
+            ) : (
+              <RecommendationUsageSectionsView sections={usageSections} />
+            )}
+          </div>
+
+          {archiveError ? (
+            <p role="alert" className="mb-2 text-sm text-destructive">
+              {archiveError}
+            </p>
           ) : null}
-          {workspaceListPreserve?.titleSort === "asc" || workspaceListPreserve?.titleSort === "desc" ? (
-            <input type="hidden" name="listTitleSort" value={workspaceListPreserve.titleSort} />
-          ) : null}
-          {workspaceListPreserve?.regionRefId != null && workspaceListPreserve.regionRefId !== "" ? (
-            <input type="hidden" name="listRegion" value={workspaceListPreserve.regionRefId} />
-          ) : null}
-          {workspaceListPreserve?.domain != null ? (
-            <input type="hidden" name="listDomain" value={workspaceListPreserve.domain} />
-          ) : null}
-          <Button type="submit" variant="destructive">
-            Архивировать
-          </Button>
-        </form>
+
+          <form ref={archiveFormRef} action={archiveFormAction} className="flex flex-col gap-2">
+            <input type="hidden" name="id" value={recommendation.id} />
+            {workspaceView ? <input type="hidden" name="view" value={workspaceView} /> : null}
+            {workspaceListPreserve?.q != null && workspaceListPreserve.q !== "" ? (
+              <input type="hidden" name="listQ" value={workspaceListPreserve.q} />
+            ) : null}
+            {workspaceListPreserve?.titleSort === "asc" || workspaceListPreserve?.titleSort === "desc" ? (
+              <input type="hidden" name="listTitleSort" value={workspaceListPreserve.titleSort} />
+            ) : null}
+            {workspaceListPreserve?.regionRefId != null && workspaceListPreserve.regionRefId !== "" ? (
+              <input type="hidden" name="listRegion" value={workspaceListPreserve.regionRefId} />
+            ) : null}
+            {workspaceListPreserve?.domain != null ? (
+              <input type="hidden" name="listDomain" value={workspaceListPreserve.domain} />
+            ) : null}
+            <input ref={acknowledgeRef} type="hidden" name="acknowledgeUsageWarning" value="" />
+            <Button
+              type="submit"
+              variant="destructive"
+              disabled={archivePending}
+              onClick={() => {
+                if (acknowledgeRef.current) acknowledgeRef.current.value = "";
+              }}
+            >
+              {archivePending ? "Архивация…" : "Архивировать"}
+            </Button>
+          </form>
+
+          <Dialog open={warnOpen} onOpenChange={setWarnOpen}>
+            <DialogContent showCloseButton className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>Рекомендация уже используется</DialogTitle>
+                <DialogDescription className="space-y-2">
+                  <span className="block">
+                    Архивация уберёт рекомендацию из каталога для новых программ. Уже выданные программы не удаляются.
+                  </span>
+                  {!warnSections.length &&
+                  archiveState?.ok === false &&
+                  "code" in archiveState &&
+                  archiveState.code === "USAGE_CONFIRMATION_REQUIRED" &&
+                  !recommendationUsageHasAnyReference(archiveState.usage) ? (
+                    <span className="block text-sm">
+                      Рекомендация помечена как используемая — проверьте связи перед архивацией.
+                    </span>
+                  ) : warnSections.length ? (
+                    <RecommendationUsageSectionsView sections={warnSections} />
+                  ) : null}
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter className="gap-2 sm:gap-2">
+                <Button type="button" variant="outline" onClick={() => setWarnOpen(false)}>
+                  Отмена
+                </Button>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  disabled={archivePending}
+                  onClick={() => {
+                    if (acknowledgeRef.current) acknowledgeRef.current.value = "1";
+                    setWarnOpen(false);
+                    queueMicrotask(() => archiveFormRef.current?.requestSubmit());
+                  }}
+                >
+                  Архивировать всё равно
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
       ) : null}
     </div>
   );

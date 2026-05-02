@@ -1,10 +1,31 @@
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { logger } from "@/infra/logging/logger";
+import {
+  isRecommendationArchiveAlreadyArchivedError,
+  isRecommendationArchiveNotFoundError,
+  isRecommendationUsageConfirmationRequiredError,
+} from "@/modules/recommendations/errors";
 import { parseRecommendationDomain } from "@/modules/recommendations/recommendationDomain";
-import type { RecommendationMediaItem } from "@/modules/recommendations/types";
+import type { RecommendationMediaItem, RecommendationUsageSnapshot } from "@/modules/recommendations/types";
 import { API_MEDIA_URL_RE, isLegacyAbsoluteUrl } from "@/shared/lib/mediaUrlPolicy";
 
 export type SaveRecommendationState = { ok: boolean; error?: string };
+
+export type ArchiveRecommendationState =
+  | { ok: true }
+  | { ok: false; code: "USAGE_CONFIRMATION_REQUIRED"; usage: RecommendationUsageSnapshot }
+  | { ok: false; error: string };
+
+export type ArchiveRecommendationCoreResult =
+  | { kind: "archived"; id: string }
+  | { kind: "needs_confirmation"; usage: RecommendationUsageSnapshot }
+  | { kind: "invalid"; error: string };
+
+function parseAcknowledgeUsageWarning(fd: FormData): boolean {
+  const v = fd.get("acknowledgeUsageWarning");
+  return v === "1" || v === "true" || v === "on";
+}
 export { RECOMMENDATIONS_PATH } from "./paths";
 
 function parseTags(raw: FormDataEntryValue | null): string[] | null {
@@ -93,13 +114,28 @@ export async function saveRecommendationCore(formData: FormData): Promise<
   }
 }
 
-export async function archiveRecommendationCore(formData: FormData): Promise<{ archivedId: string | null }> {
+export async function archiveRecommendationCore(formData: FormData): Promise<ArchiveRecommendationCoreResult> {
   await requireDoctorAccess();
   const idRaw = formData.get("id");
   const id = typeof idRaw === "string" && idRaw.trim() ? idRaw.trim() : "";
-  if (!id) return { archivedId: null };
+  if (!id) return { kind: "invalid", error: "Не указана рекомендация" };
 
+  const acknowledgeUsageWarning = parseAcknowledgeUsageWarning(formData);
   const deps = buildAppDeps();
-  await deps.recommendations.archiveRecommendation(id);
-  return { archivedId: id };
+  try {
+    await deps.recommendations.archiveRecommendation(id, { acknowledgeUsageWarning });
+    return { kind: "archived", id };
+  } catch (e) {
+    if (isRecommendationUsageConfirmationRequiredError(e)) {
+      return { kind: "needs_confirmation", usage: e.usage };
+    }
+    if (isRecommendationArchiveNotFoundError(e)) {
+      return { kind: "invalid", error: e.message };
+    }
+    if (isRecommendationArchiveAlreadyArchivedError(e)) {
+      return { kind: "invalid", error: e.message };
+    }
+    logger.warn({ event: "doctor_recommendation_archive_unexpected_error", recommendationId: id, err: e }, "archive failed");
+    return { kind: "invalid", error: "Не удалось архивировать рекомендацию" };
+  }
 }

@@ -1,9 +1,16 @@
 import type { RecommendationsPort } from "./ports";
+import {
+  RecommendationArchiveAlreadyArchivedError,
+  RecommendationArchiveNotFoundError,
+  RecommendationUsageConfirmationRequiredError,
+} from "./errors";
 import type {
+  ArchiveRecommendationOptions,
   CreateRecommendationInput,
   RecommendationFilter,
   UpdateRecommendationInput,
 } from "./types";
+import { recommendationArchiveRequiresAcknowledgement } from "./types";
 
 export function createRecommendationsService(port: RecommendationsPort) {
   return {
@@ -44,9 +51,22 @@ export function createRecommendationsService(port: RecommendationsPort) {
       return row;
     },
 
-    async archiveRecommendation(id: string) {
+    async getRecommendationUsage(recommendationId: string) {
+      return port.getRecommendationUsageSummary(recommendationId);
+    },
+
+    async archiveRecommendation(id: string, options?: ArchiveRecommendationOptions) {
+      const existing = await port.getById(id);
+      if (!existing) throw new RecommendationArchiveNotFoundError();
+      if (existing.isArchived) throw new RecommendationArchiveAlreadyArchivedError();
+
+      const usage = await port.getRecommendationUsageSummary(id);
+      if (recommendationArchiveRequiresAcknowledgement(usage) && !options?.acknowledgeUsageWarning) {
+        throw new RecommendationUsageConfirmationRequiredError(usage);
+      }
+
       const ok = await port.archive(id);
-      if (!ok) throw new Error("Рекомендация не найдена");
+      if (!ok) throw new RecommendationArchiveNotFoundError();
     },
   };
 }

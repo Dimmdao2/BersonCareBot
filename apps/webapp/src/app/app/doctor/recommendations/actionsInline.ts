@@ -7,6 +7,7 @@ import {
   archiveRecommendationCore,
   RECOMMENDATIONS_PATH,
   saveRecommendationCore,
+  type ArchiveRecommendationState,
   type SaveRecommendationState,
 } from "./actionsShared";
 
@@ -41,14 +42,30 @@ export async function saveRecommendationInline(
   redirect(`${RECOMMENDATIONS_PATH}?${sp.toString()}`);
 }
 
-export async function archiveRecommendationInline(formData: FormData) {
+export async function archiveRecommendationInline(
+  _prev: ArchiveRecommendationState | null,
+  formData: FormData,
+): Promise<ArchiveRecommendationState> {
   const result = await archiveRecommendationCore(formData);
+  if (result.kind === "needs_confirmation") {
+    return { ok: false, code: "USAGE_CONFIRMATION_REQUIRED", usage: result.usage };
+  }
+  if (result.kind === "invalid") {
+    const idRaw = formData.get("id");
+    const id = typeof idRaw === "string" ? idRaw.trim() : "";
+    if (!id) {
+      const view = formData.get("view") === "list" ? "list" : "tiles";
+      const sp = new URLSearchParams();
+      sp.set("view", view);
+      appendRecommendationsListParams(sp, formData);
+      redirect(`${RECOMMENDATIONS_PATH}?${sp.toString()}`);
+    }
+    return { ok: false, error: result.error };
+  }
+  revalidatePath(RECOMMENDATIONS_PATH);
   const view = formData.get("view") === "list" ? "list" : "tiles";
   const sp = new URLSearchParams();
   sp.set("view", view);
   appendRecommendationsListParams(sp, formData);
-  const qs = sp.toString();
-  if (!result.archivedId) redirect(`${RECOMMENDATIONS_PATH}?${qs}`);
-  revalidatePath(RECOMMENDATIONS_PATH);
-  redirect(`${RECOMMENDATIONS_PATH}?${qs}`);
+  redirect(`${RECOMMENDATIONS_PATH}?${sp.toString()}`);
 }

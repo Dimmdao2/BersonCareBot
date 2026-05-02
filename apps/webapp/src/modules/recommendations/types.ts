@@ -51,3 +51,45 @@ export type UpdateRecommendationInput = {
   tags?: string[] | null;
   domain?: RecommendationDomain | null;
 };
+
+/** См. `ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md` раздел 5 (Guard архива). */
+export const RECOMMENDATION_USAGE_DETAIL_LIMIT = 12;
+
+export type RecommendationUsageRef =
+  | { kind: "treatment_program_template"; id: string; title: string }
+  | { kind: "treatment_program_instance"; id: string; title: string; patientUserId: string };
+
+export type RecommendationUsageSnapshot = {
+  publishedTreatmentProgramTemplateCount: number;
+  draftTreatmentProgramTemplateCount: number;
+  archivedTreatmentProgramTemplateCount: number;
+  activeTreatmentProgramInstanceCount: number;
+  completedTreatmentProgramInstanceCount: number;
+  publishedTreatmentProgramTemplateRefs: RecommendationUsageRef[];
+  draftTreatmentProgramTemplateRefs: RecommendationUsageRef[];
+  archivedTreatmentProgramTemplateRefs: RecommendationUsageRef[];
+  activeTreatmentProgramInstanceRefs: RecommendationUsageRef[];
+  completedTreatmentProgramInstanceRefs: RecommendationUsageRef[];
+};
+
+export const EMPTY_RECOMMENDATION_USAGE_SNAPSHOT: RecommendationUsageSnapshot = {
+  publishedTreatmentProgramTemplateCount: 0,
+  draftTreatmentProgramTemplateCount: 0,
+  archivedTreatmentProgramTemplateCount: 0,
+  activeTreatmentProgramInstanceCount: 0,
+  completedTreatmentProgramInstanceCount: 0,
+  publishedTreatmentProgramTemplateRefs: [],
+  draftTreatmentProgramTemplateRefs: [],
+  archivedTreatmentProgramTemplateRefs: [],
+  activeTreatmentProgramInstanceRefs: [],
+  completedTreatmentProgramInstanceRefs: [],
+};
+
+/** См. `ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md` раздел 5 (Guard архива). */
+export function recommendationArchiveRequiresAcknowledgement(u: RecommendationUsageSnapshot): boolean {
+  return u.publishedTreatmentProgramTemplateCount > 0 || u.activeTreatmentProgramInstanceCount > 0;
+}
+
+export type ArchiveRecommendationOptions = {
+  acknowledgeUsageWarning?: boolean;
+};

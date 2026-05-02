@@ -6,12 +6,23 @@ import type {
   CreateRecommendationInput,
   UpdateRecommendationInput,
   RecommendationMediaItem,
+  RecommendationUsageSnapshot,
 } from "@/modules/recommendations/types";
+import { EMPTY_RECOMMENDATION_USAGE_SNAPSHOT } from "@/modules/recommendations/types";
 
 const store = new Map<string, Recommendation>();
+const usageByRecommendationId = new Map<string, RecommendationUsageSnapshot>();
+
+export function seedInMemoryRecommendationUsageSnapshot(
+  recommendationId: string,
+  snapshot: RecommendationUsageSnapshot,
+): void {
+  usageByRecommendationId.set(recommendationId, snapshot);
+}
 
 export function resetInMemoryRecommendationsStore(): void {
   store.clear();
+  usageByRecommendationId.clear();
 }
 
 function normalizeMedia(raw: unknown): RecommendationMediaItem[] {
@@ -110,5 +121,9 @@ export const inMemoryRecommendationsPort: RecommendationsPort = {
     if (!cur || cur.isArchived) return false;
     store.set(id, { ...cur, isArchived: true, updatedAt: new Date().toISOString() });
     return true;
+  },
+
+  async getRecommendationUsageSummary(id: string): Promise<RecommendationUsageSnapshot> {
+    return usageByRecommendationId.get(id) ?? { ...EMPTY_RECOMMENDATION_USAGE_SNAPSHOT };
   },
 };

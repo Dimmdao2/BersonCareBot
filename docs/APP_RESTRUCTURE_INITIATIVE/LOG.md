@@ -6,6 +6,27 @@
 
 ---
 
+## 2026-05-02 — этап 7 подшаг: рекомендации (usage + archive guard)
+
+**Сделано:**
+
+- Сводка: шаблоны и экземпляры программ с `item_type = 'recommendation'` и `item_ref_id` = id рекомендации ([`pgRecommendations.ts`](../../apps/webapp/src/infra/repos/pgRecommendations.ts), `loadRecommendationUsageSummary`).
+- Домен: [`RecommendationUsageSnapshot`](../../apps/webapp/src/modules/recommendations/types.ts), [`recommendationArchiveRequiresAcknowledgement`](../../apps/webapp/src/modules/recommendations/types.ts), [`errors.ts`](../../apps/webapp/src/modules/recommendations/errors.ts).
+- Сервис: [`getRecommendationUsage`](../../apps/webapp/src/modules/recommendations/service.ts), [`archiveRecommendation(id, options?)`](../../apps/webapp/src/modules/recommendations/service.ts); in-memory [`seedInMemoryRecommendationUsageSnapshot`](../../apps/webapp/src/infra/repos/inMemoryRecommendations.ts).
+- UI: [`RecommendationForm.tsx`](../../apps/webapp/src/app/app/doctor/recommendations/RecommendationForm.tsx), [`actions.ts`](../../apps/webapp/src/app/app/doctor/recommendations/actions.ts) / [`actionsInline.ts`](../../apps/webapp/src/app/app/doctor/recommendations/actionsInline.ts), [`fetchDoctorRecommendationUsageSnapshot`](../../apps/webapp/src/app/app/doctor/recommendations/actions.ts); [`recommendationUsageSummaryText.ts`](../../apps/webapp/src/app/app/doctor/recommendations/recommendationUsageSummaryText.ts), [`recommendationUsageDocLinks.ts`](../../apps/webapp/src/app/app/doctor/recommendations/recommendationUsageDocLinks.ts); RSC usage при `?selected=` ([`page.tsx`](../../apps/webapp/src/app/app/doctor/recommendations/page.tsx)) и на [`[id]/page.tsx`](../../apps/webapp/src/app/app/doctor/recommendations/[id]/page.tsx).
+- API DELETE [`recommendations/[id]`](../../apps/webapp/src/app/api/doctor/recommendations/[id]/route.ts): `409` + `usage`, повтор с `?acknowledgeUsageWarning=1`.
+- Тесты: [`service.test.ts`](../../apps/webapp/src/modules/recommendations/service.test.ts), [`pgRecommendations.test.ts`](../../apps/webapp/src/infra/repos/pgRecommendations.test.ts), [`recommendationUsageDocLinks.test.ts`](../../apps/webapp/src/app/app/doctor/recommendations/recommendationUsageDocLinks.test.ts), [`recommendationUsageSummaryText.test.ts`](../../apps/webapp/src/app/app/doctor/recommendations/recommendationUsageSummaryText.test.ts), [`RecommendationForm.test.tsx`](../../apps/webapp/src/app/app/doctor/recommendations/RecommendationForm.test.tsx).
+
+**Проверки:** `pnpm --dir apps/webapp typecheck`; целевые `vitest run` по файлам выше; **`pnpm --dir apps/webapp lint`** (полный прогон webapp после аудита подшага).
+
+**Аудит подшага (2026-05-02):** в [`service.test.ts`](../../apps/webapp/src/modules/recommendations/service.test.ts) добавлены кейсы guard для **только активного** экземпляра программы и проход архива при **только завершённых** экземплярах; в проверках зафиксирован полный lint webapp.
+
+**Guard архива:** опубликованные шаблоны и активные экземпляры; черновики, архивные шаблоны и завершённые экземпляры — только сводка.
+
+**Вне scope:** переименование «Область», markdown preview, редизайн каталога.
+
+---
+
 ## 2026-05-02 — этап 7 подшаг: наборы тестов (usage + archive guard)
 
 **Сделано:**

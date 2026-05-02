@@ -13,6 +13,7 @@ export default async function EditRecommendationPage({ params }: PageProps) {
   const deps = buildAppDeps();
   const rec = await deps.recommendations.getRecommendation(id);
   if (!rec || rec.isArchived) notFound();
+  const usageSnapshot = await deps.recommendations.getRecommendationUsage(rec.id);
 
   return (
     <AppShell
@@ -21,7 +22,7 @@ export default async function EditRecommendationPage({ params }: PageProps) {
       variant="doctor"
       backHref={RECOMMENDATIONS_PATH}
     >
-      <RecommendationForm recommendation={rec} />
+      <RecommendationForm recommendation={rec} externalUsageSnapshot={usageSnapshot} />
     </AppShell>
   );
 }
