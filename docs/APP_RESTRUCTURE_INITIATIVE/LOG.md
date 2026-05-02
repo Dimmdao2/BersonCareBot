@@ -17,12 +17,13 @@
 - **`relayOutbound`:** guard `shouldDispatchRelay({ channel, recipient })`; DI в `buildAppDeps`.
 - **Settings UI:** вкладка «Админ: режим» → **«Режимы»**; вкладка «Доступ и роли» убрана из `AdminSettingsTabsClient`; блок техработ перенесён из «Параметры приложения» в «Режимы»; `AppParametersSection` — только URL/поддержка/таймзона.
 - **Patient layout:** при техработах полный UI для сессий, совпадающих с `test_account_identifiers`; `patientMaintenanceReplacesPatientShell(..., isTestAccount)`.
-- Документы: `INTEGRATOR_CONTRACT.md` (dev_mode guard), `CONFIGURATION_ENV_VS_DATABASE.md`, `settings.md`, этот лог.
+- **Batch PATCH «Режимы»:** один запрос `{ items }` → транзакция `upsertManyInTransaction` + `persistAdminModesBatch`; общая нормализация `adminSettingsPatchNormalize.ts` / `MODES_FORM_KEYS`; политики `empty_batch`, `duplicate_key_in_batch`, `ambiguous_body`; предпросмотр отброшенных телефонов `previewTestAccountPhoneTokens` в UI.
+- Документы: `INTEGRATOR_CONTRACT.md` (dev_mode guard), `CONFIGURATION_ENV_VS_DATABASE.md`, этот лог; планы/аудиты: [`MODES_BATCH_PATCH_AND_PHONE_PREVIEW_PLAN.md`](MODES_BATCH_PATCH_AND_PHONE_PREVIEW_PLAN.md), [`MODES_AND_TEST_ACCOUNTS_EXECUTION_AUDIT.md`](MODES_AND_TEST_ACCOUNTS_EXECUTION_AUDIT.md).
 
-**Проверки (целевые):**  
-`pnpm --dir apps/webapp exec vitest run` (список из плана режимов) · `pnpm --dir apps/webapp typecheck` · `pnpm --dir apps/webapp lint`
+**Проверки (целевые, после batch+preview):**  
+`pnpm --dir apps/webapp exec vitest run src/app/api/admin/settings/route.test.ts src/modules/system-settings/adminSettingsPatchNormalize.test.ts src/modules/system-settings/testAccounts.test.ts src/modules/system-settings/service.test.ts src/modules/system-settings/patientMaintenance.test.ts src/modules/messaging/relayOutbound.test.ts src/modules/messaging/doctorSupportMessagingService.test.ts src/app/app/settings/AdminSettingsSection.test.tsx src/app/app/settings/AppParametersSection.test.tsx` · `pnpm --dir apps/webapp typecheck` · `pnpm --dir apps/webapp lint` · перед merge — **`pnpm run ci`** (корень репо).
 
-**Глубокий аудит закрытия (2026-05-02):** [`MODES_AND_TEST_ACCOUNTS_EXECUTION_AUDIT.md`](MODES_AND_TEST_ACCOUNTS_EXECUTION_AUDIT.md) — сверка DoD, `rg`, кросс-обновление `PATIENT_MAINTENANCE_MODE_EXECUTION_AUDIT.md`, `CONFIGURATION_ENV_VS_DATABASE.md`, `RECOMMENDATIONS_AND_ROADMAP.md`, legacy `AccessListsSection`. Зеркало плана: [`MODES_SETTINGS_CLEANUP_PLAN.md`](MODES_SETTINGS_CLEANUP_PLAN.md).
+**Глубокий аудит закрытия (2026-05-02):** [`MODES_AND_TEST_ACCOUNTS_EXECUTION_AUDIT.md`](MODES_AND_TEST_ACCOUNTS_EXECUTION_AUDIT.md) — сверка DoD, `rg`, кросс-обновление `PATIENT_MAINTENANCE_MODE_EXECUTION_AUDIT.md`, `CONFIGURATION_ENV_VS_DATABASE.md`, `RECOMMENDATIONS_AND_ROADMAP.md`, legacy `AccessListsSection`. Зеркала планов: [`MODES_SETTINGS_CLEANUP_PLAN.md`](MODES_SETTINGS_CLEANUP_PLAN.md), [`MODES_BATCH_PATCH_AND_PHONE_PREVIEW_PLAN.md`](MODES_BATCH_PATCH_AND_PHONE_PREVIEW_PLAN.md).
 
 **Вне scope (без изменений):** миграция пользователей, новая таблица тестовых аккаунтов, удаление legacy-ключей из `ALLOWED_KEYS`, смена auth-модели ролей.
 

@@ -1,4 +1,4 @@
-import type { SystemSettingsPort } from "@/modules/system-settings/ports";
+import type { SystemSettingsPort, SystemSettingsUpsertRow } from "@/modules/system-settings/ports";
 import type { SystemSetting, SystemSettingKey, SystemSettingScope } from "@/modules/system-settings/types";
 
 export function createInMemorySystemSettingsPort(): SystemSettingsPort {
@@ -32,6 +32,22 @@ export function createInMemorySystemSettingsPort(): SystemSettingsPort {
       };
       store.set(makeKey(key, scope), setting);
       return setting;
+    },
+
+    async upsertManyInTransaction(rows: SystemSettingsUpsertRow[]): Promise<SystemSetting[]> {
+      const out: SystemSetting[] = [];
+      for (const row of rows) {
+        const setting: SystemSetting = {
+          key: row.key,
+          scope: row.scope,
+          valueJson: row.valueJson,
+          updatedAt: new Date().toISOString(),
+          updatedBy: row.updatedBy,
+        };
+        store.set(makeKey(row.key, row.scope), setting);
+        out.push(setting);
+      }
+      return out;
     },
   };
 }

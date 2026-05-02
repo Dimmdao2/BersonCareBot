@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createSystemSettingsService } from "./service";
-import type { SystemSettingsPort } from "./ports";
+import type { SystemSettingsPort, SystemSettingsUpsertRow } from "./ports";
 import type { SystemSetting } from "./types";
 
 const syncSettingToIntegratorMock = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
@@ -25,6 +25,15 @@ function makePort(overrides: Partial<SystemSettingsPort> = {}): SystemSettingsPo
         updatedAt: new Date().toISOString(),
         updatedBy,
       })
+    ),
+    upsertManyInTransaction: vi.fn().mockImplementation(async (rows: SystemSettingsUpsertRow[]) =>
+      rows.map((r: SystemSettingsUpsertRow) => ({
+        key: r.key,
+        scope: r.scope,
+        valueJson: r.valueJson,
+        updatedAt: new Date().toISOString(),
+        updatedBy: r.updatedBy,
+      }))
     ),
     ...overrides,
   };
@@ -61,6 +70,27 @@ describe("SystemSettingsService", () => {
       valueJson: { value: true },
       updatedBy: "user-uuid",
     });
+  });
+
+  it("persistAdminModesBatch — upsertManyInTransaction и sync по каждому ключу", async () => {
+    const upsertManyInTransaction = vi.fn().mockResolvedValue([
+      { key: "dev_mode", scope: "admin", valueJson: { value: false }, updatedAt: "", updatedBy: "u1" },
+      { key: "debug_forward_to_admin", scope: "admin", valueJson: { value: true }, updatedAt: "", updatedBy: "u1" },
+    ]);
+    const port = makePort({ upsertManyInTransaction });
+    const service = createSystemSettingsService(port);
+    await service.persistAdminModesBatch(
+      [
+        { key: "dev_mode", valueJson: { value: false } },
+        { key: "debug_forward_to_admin", valueJson: { value: true } },
+      ],
+      "u1",
+    );
+    expect(upsertManyInTransaction).toHaveBeenCalledWith([
+      { key: "dev_mode", scope: "admin", valueJson: { value: false }, updatedBy: "u1" },
+      { key: "debug_forward_to_admin", scope: "admin", valueJson: { value: true }, updatedBy: "u1" },
+    ]);
+    expect(syncSettingToIntegratorMock).toHaveBeenCalledTimes(2);
   });
 
   it("shouldDispatchRelayToRecipient — dev_mode false → true для любого recipient", async () => {

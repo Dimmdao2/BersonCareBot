@@ -10,7 +10,12 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { ALLOWED_KEYS } from "@/modules/system-settings/types";
 import { invalidateConfigKey } from "@/modules/system-settings/configAdapter";
 import { normalizeNotificationsTopicsForAdminPatch } from "@/modules/patient-notifications/notificationsTopics";
-import { normalizeTestAccountIdentifiersValue } from "@/modules/system-settings/testAccounts";
+import {
+  normalizeModesFormBatchItems,
+  normalizeModesFormPatchItem,
+  normalizeValueJson,
+} from "@/modules/system-settings/adminSettingsPatchNormalize";
+import { isModesFormKey, MODES_FORM_KEYS } from "@/modules/system-settings/modesFormKeys";
 
 const ADMIN_SCOPE_KEYS = [
   "sms_fallback_enabled",
@@ -71,6 +76,17 @@ const patchSchema = z.object({
   value: z.unknown(),
 });
 
+const batchBodySchema = z.object({
+  items: z
+    .array(
+      z.object({
+        key: z.enum(MODES_FORM_KEYS),
+        value: z.unknown(),
+      }),
+    )
+    .min(1),
+});
+
 const SECRET_LIKE_KEYS = new Set<string>([
   "max_bot_api_key",
   "yandex_oauth_client_secret",
@@ -78,29 +94,6 @@ const SECRET_LIKE_KEYS = new Set<string>([
   "google_refresh_token",
   "apple_oauth_private_key",
 ]);
-
-function normalizeValueJson(value: unknown): { value: unknown } {
-  if (value !== null && typeof value === "object" && "value" in (value as Record<string, unknown>)) {
-    return value as { value: unknown };
-  }
-  return { value };
-}
-
-const INTEGRATOR_LINKED_PHONE_SOURCE_ALLOWED = new Set([
-  "public_then_contacts",
-  "public_only",
-  "contacts_only",
-]);
-
-function assertValidIntegratorLinkedPhoneSourceValue(
-  normalized: { value: unknown },
-): { ok: true; value: string } | { ok: false } {
-  const inner = normalized.value;
-  if (typeof inner !== "string") return { ok: false };
-  const t = inner.trim();
-  if (!INTEGRATOR_LINKED_PHONE_SOURCE_ALLOWED.has(t)) return { ok: false };
-  return { ok: true, value: t };
-}
 
 function auditValueForLog(key: string, value: unknown): unknown {
   if (SECRET_LIKE_KEYS.has(key)) return "[REDACTED]";
@@ -127,6 +120,67 @@ export async function PATCH(request: Request) {
   }
 
   const raw = (await request.json().catch(() => null)) as unknown;
+
+  if (raw !== null && typeof raw === "object" && "items" in raw) {
+    const body = raw as Record<string, unknown>;
+    const itemsRaw = body.items;
+    if (itemsRaw !== null && itemsRaw !== undefined && !Array.isArray(itemsRaw)) {
+      return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
+    }
+    if (Array.isArray(itemsRaw)) {
+      if (typeof body.key === "string" && itemsRaw.length >= 1) {
+        return NextResponse.json({ ok: false, error: "ambiguous_body" }, { status: 400 });
+      }
+      if (itemsRaw.length === 0) {
+        return NextResponse.json({ ok: false, error: "empty_batch" }, { status: 400 });
+      }
+      const batchParsed = batchBodySchema.safeParse(raw);
+      if (!batchParsed.success) {
+        return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
+      }
+      const items = batchParsed.data.items;
+      const seen = new Set<string>();
+      for (let i = 0; i < items.length; i++) {
+        const k = items[i]!.key;
+        if (seen.has(k)) {
+          return NextResponse.json(
+            { ok: false, error: "duplicate_key_in_batch", atIndex: i, key: k },
+            { status: 400 },
+          );
+        }
+        seen.add(k);
+      }
+      for (let i = 0; i < items.length; i++) {
+        if (!(ALLOWED_KEYS as readonly string[]).includes(items[i]!.key)) {
+          return NextResponse.json(
+            { ok: false, error: "invalid_key", atIndex: i, key: items[i]!.key },
+            { status: 400 },
+          );
+        }
+      }
+      const norm = normalizeModesFormBatchItems(items);
+      if (!norm.ok) {
+        return NextResponse.json(
+          { ok: false, error: "invalid_value", atIndex: norm.atIndex, key: norm.key },
+          { status: 400 },
+        );
+      }
+      const deps = buildAppDeps();
+      for (const row of norm.rows) {
+        const oldSetting = await deps.systemSettings.getSetting(row.key, "admin");
+        console.info("[admin-settings audit]", {
+          key: row.key,
+          oldValue: auditValueForLog(row.key, oldSetting?.valueJson ?? null),
+          newValue: auditValueForLog(row.key, row.valueJson),
+          updatedBy: session.user.userId,
+          timestamp: new Date().toISOString(),
+        });
+      }
+      const settings = await deps.systemSettings.persistAdminModesBatch(norm.rows, session.user.userId);
+      return NextResponse.json({ ok: true, settings });
+    }
+  }
+
   const parsed = patchSchema.safeParse(raw);
   if (!parsed.success) {
     return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
@@ -141,12 +195,12 @@ export async function PATCH(request: Request) {
 
   let normalizedValue = normalizeValueJson(parsed.data.value);
 
-  if (parsed.data.key === "integrator_linked_phone_source") {
-    const checked = assertValidIntegratorLinkedPhoneSourceValue(normalizedValue);
+  if (isModesFormKey(parsed.data.key)) {
+    const checked = normalizeModesFormPatchItem(parsed.data.key, parsed.data.value);
     if (!checked.ok) {
       return NextResponse.json({ ok: false, error: "invalid_value" }, { status: 400 });
     }
-    normalizedValue = { value: checked.value };
+    normalizedValue = checked.valueJson;
   }
 
   if (parsed.data.key === "patient_home_daily_practice_target") {
@@ -188,55 +242,6 @@ export async function PATCH(request: Request) {
     const [hs, ms] = s.split(":");
     const pad = `${hs!.padStart(2, "0")}:${ms}`;
     normalizedValue = { value: pad };
-  }
-
-  if (parsed.data.key === "patient_app_maintenance_enabled") {
-    const inner = normalizedValue.value;
-    const b =
-      typeof inner === "boolean"
-        ? inner
-        : inner === "true" || inner === 1
-          ? true
-          : inner === "false" || inner === 0
-            ? false
-            : null;
-    if (b === null) {
-      return NextResponse.json({ ok: false, error: "invalid_value" }, { status: 400 });
-    }
-    normalizedValue = { value: b };
-  }
-
-  if (parsed.data.key === "patient_app_maintenance_message") {
-    const inner = normalizedValue.value;
-    if (inner !== null && typeof inner !== "string") {
-      return NextResponse.json({ ok: false, error: "invalid_value" }, { status: 400 });
-    }
-    const s = typeof inner === "string" ? inner.trim() : "";
-    if (s.length > 500) {
-      return NextResponse.json({ ok: false, error: "invalid_value" }, { status: 400 });
-    }
-    normalizedValue = { value: s };
-  }
-
-  if (parsed.data.key === "patient_booking_url") {
-    const inner = normalizedValue.value;
-    if (inner !== null && typeof inner !== "string") {
-      return NextResponse.json({ ok: false, error: "invalid_value" }, { status: 400 });
-    }
-    const raw = typeof inner === "string" ? inner.trim() : "";
-    if (raw.length === 0) {
-      normalizedValue = { value: "" };
-    } else {
-      try {
-        const u = new URL(raw);
-        if (u.protocol !== "http:" && u.protocol !== "https:") {
-          return NextResponse.json({ ok: false, error: "invalid_value" }, { status: 400 });
-        }
-      } catch {
-        return NextResponse.json({ ok: false, error: "invalid_value" }, { status: 400 });
-      }
-      normalizedValue = { value: raw };
-    }
   }
 
   if (parsed.data.key === "patient_home_mood_icons") {
@@ -296,15 +301,6 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ ok: false, error: "invalid_value" }, { status: 400 });
     }
     normalizedValue = { value: checked.value };
-  }
-
-  if (parsed.data.key === "test_account_identifiers") {
-    const inner = normalizedValue.value;
-    const cleaned = normalizeTestAccountIdentifiersValue(inner);
-    if (cleaned === null) {
-      return NextResponse.json({ ok: false, error: "invalid_value" }, { status: 400 });
-    }
-    normalizedValue = { value: cleaned };
   }
 
   // Audit log перед обновлением (секреты редактируются без вывода raw значения в logs).

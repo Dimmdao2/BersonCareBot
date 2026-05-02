@@ -5,10 +5,11 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AdminSettingsSection } from "./AdminSettingsSection";
 
-const patchMock = vi.fn();
+const patchBatchMock = vi.fn();
 
 vi.mock("./patchAdminSetting", () => ({
-  patchAdminSetting: (...args: unknown[]) => patchMock(...args),
+  patchAdminSetting: vi.fn(),
+  patchAdminSettingsBatch: (...args: unknown[]) => patchBatchMock(...args),
 }));
 
 const baseProps = {
@@ -31,11 +32,11 @@ const baseProps = {
 
 describe("AdminSettingsSection", () => {
   beforeEach(() => {
-    patchMock.mockReset();
-    patchMock.mockResolvedValue(true);
+    patchBatchMock.mockReset();
+    patchBatchMock.mockResolvedValue({ ok: true });
   });
 
-  it("save issues PATCH for admin slots, test_account_identifiers, maintenance and mode flags", async () => {
+  it("save issues one batch PATCH for admin slots, test_account_identifiers, maintenance and mode flags", async () => {
     const user = userEvent.setup();
     render(
       <AdminSettingsSection
@@ -46,9 +47,11 @@ describe("AdminSettingsSection", () => {
       />,
     );
     await user.click(screen.getByRole("button", { name: /Сохранить настройки/i }));
-    await waitFor(() => expect(patchMock).toHaveBeenCalledTimes(13));
+    await waitFor(() => expect(patchBatchMock).toHaveBeenCalledTimes(1));
 
-    const keys = patchMock.mock.calls.map((c) => c[0] as string);
+    const items = patchBatchMock.mock.calls[0]![0] as { key: string; value: unknown }[];
+    expect(items).toHaveLength(13);
+    const keys = items.map((i) => i.key);
     expect(keys).toEqual(
       expect.arrayContaining([
         "dev_mode",
@@ -67,11 +70,11 @@ describe("AdminSettingsSection", () => {
       ]),
     );
 
-    const phonesCall = patchMock.mock.calls.find((c) => c[0] === "admin_phones");
-    expect(phonesCall?.[1]).toEqual(["+79990000001"]);
+    const phonesItem = items.find((c) => c.key === "admin_phones");
+    expect(phonesItem?.value).toEqual(["+79990000001"]);
 
-    const testCall = patchMock.mock.calls.find((c) => c[0] === "test_account_identifiers");
-    expect(testCall?.[1]).toEqual({
+    const testItem = items.find((c) => c.key === "test_account_identifiers");
+    expect(testItem?.value).toEqual({
       phones: [],
       telegramIds: ["111", "222"],
       maxIds: ["m1"],

@@ -1,36 +1,55 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ALLOWED_KEYS } from "@/modules/system-settings/types";
 
-const { getSessionMock, listSettingsByScopeMock, updateSettingMock, getSettingMock, buildAppDepsMock, listTopicsMock } =
-  vi.hoisted(() => {
-    const listSettingsByScopeMockInner = vi.fn().mockResolvedValue([]);
-    const updateSettingMockInner = vi.fn().mockResolvedValue({
-      key: "dev_mode",
-      scope: "admin",
-      valueJson: { value: false },
-      updatedAt: "",
-      updatedBy: null,
-    });
-    const getSettingMockInner = vi.fn().mockResolvedValue(null);
-    const listTopicsMockInner = vi.fn().mockResolvedValue([]);
-    return {
-      getSessionMock: vi.fn(),
-      listSettingsByScopeMock: listSettingsByScopeMockInner,
-      updateSettingMock: updateSettingMockInner,
-      getSettingMock: getSettingMockInner,
-      listTopicsMock: listTopicsMockInner,
-      buildAppDepsMock: vi.fn(() => ({
-        systemSettings: {
-          listSettingsByScope: listSettingsByScopeMockInner,
-          updateSetting: updateSettingMockInner,
-          getSetting: getSettingMockInner,
-        },
-        subscriptionMailingProjection: {
-          listTopics: listTopicsMockInner,
-        },
-      })),
-    };
+const {
+  getSessionMock,
+  listSettingsByScopeMock,
+  updateSettingMock,
+  getSettingMock,
+  buildAppDepsMock,
+  listTopicsMock,
+  persistAdminModesBatchMock,
+} = vi.hoisted(() => {
+  const listSettingsByScopeMockInner = vi.fn().mockResolvedValue([]);
+  const updateSettingMockInner = vi.fn().mockResolvedValue({
+    key: "dev_mode",
+    scope: "admin",
+    valueJson: { value: false },
+    updatedAt: "",
+    updatedBy: null,
   });
+  const getSettingMockInner = vi.fn().mockResolvedValue(null);
+  const listTopicsMockInner = vi.fn().mockResolvedValue([]);
+  const persistAdminModesBatchMockInner = vi.fn().mockImplementation(
+    async (rows: { key: string; valueJson: unknown }[]) =>
+      rows.map((r) => ({
+        key: r.key,
+        scope: "admin",
+        valueJson: r.valueJson,
+        updatedAt: "",
+        updatedBy: "a1",
+      })),
+  );
+  return {
+    getSessionMock: vi.fn(),
+    listSettingsByScopeMock: listSettingsByScopeMockInner,
+    updateSettingMock: updateSettingMockInner,
+    getSettingMock: getSettingMockInner,
+    listTopicsMock: listTopicsMockInner,
+    persistAdminModesBatchMock: persistAdminModesBatchMockInner,
+    buildAppDepsMock: vi.fn(() => ({
+      systemSettings: {
+        listSettingsByScope: listSettingsByScopeMockInner,
+        updateSetting: updateSettingMockInner,
+        getSetting: getSettingMockInner,
+        persistAdminModesBatch: persistAdminModesBatchMockInner,
+      },
+      subscriptionMailingProjection: {
+        listTopics: listTopicsMockInner,
+      },
+    })),
+  };
+});
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({ buildAppDeps: buildAppDepsMock }));
 vi.mock("@/modules/auth/service", () => ({ getCurrentSession: getSessionMock }));
@@ -102,6 +121,16 @@ describe("PATCH /api/admin/settings", () => {
     getSettingMock.mockReset();
     listTopicsMock.mockReset();
     listTopicsMock.mockResolvedValue([]);
+    persistAdminModesBatchMock.mockReset();
+    persistAdminModesBatchMock.mockImplementation(async (rows: { key: string; valueJson: unknown }[]) =>
+      rows.map((r) => ({
+        key: r.key,
+        scope: "admin",
+        valueJson: r.valueJson,
+        updatedAt: "",
+        updatedBy: "a1",
+      })),
+    );
   });
 
   it("returns 403 for doctor role", async () => {
@@ -838,5 +867,110 @@ describe("PATCH /api/admin/settings", () => {
     );
     expect(res.status).toBe(400);
     expect(updateSettingMock).not.toHaveBeenCalled();
+  });
+
+  it("batch: returns 200 and calls persistAdminModesBatch (not updateSetting)", async () => {
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSettingMock.mockResolvedValue(null);
+    const items = [
+      { key: "dev_mode", value: { value: false } },
+      { key: "debug_forward_to_admin", value: { value: true } },
+    ];
+    const res = await PATCH(
+      new Request("http://localhost/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ items }),
+      }),
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { ok: boolean; settings?: unknown[] };
+    expect(body.ok).toBe(true);
+    expect(Array.isArray(body.settings)).toBe(true);
+    expect(persistAdminModesBatchMock).toHaveBeenCalledTimes(1);
+    expect(updateSettingMock).not.toHaveBeenCalled();
+    expect(persistAdminModesBatchMock).toHaveBeenCalledWith(
+      [
+        { key: "dev_mode", valueJson: { value: false } },
+        { key: "debug_forward_to_admin", valueJson: { value: true } },
+      ],
+      "a1",
+    );
+  });
+
+  it("batch: returns 400 empty_batch for items: []", async () => {
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    const res = await PATCH(
+      new Request("http://localhost/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ items: [] }),
+      }),
+    );
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { ok: boolean; error?: string };
+    expect(body.error).toBe("empty_batch");
+    expect(persistAdminModesBatchMock).not.toHaveBeenCalled();
+  });
+
+  it("batch: returns 400 duplicate_key_in_batch", async () => {
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    const res = await PATCH(
+      new Request("http://localhost/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          items: [
+            { key: "dev_mode", value: { value: false } },
+            { key: "dev_mode", value: { value: true } },
+          ],
+        }),
+      }),
+    );
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { ok: boolean; error?: string; atIndex?: number };
+    expect(body.error).toBe("duplicate_key_in_batch");
+    expect(body.atIndex).toBe(1);
+    expect(persistAdminModesBatchMock).not.toHaveBeenCalled();
+  });
+
+  it("batch: returns 400 ambiguous_body when key and items both present", async () => {
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    const res = await PATCH(
+      new Request("http://localhost/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          key: "dev_mode",
+          value: true,
+          items: [{ key: "dev_mode", value: { value: false } }],
+        }),
+      }),
+    );
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { ok: boolean; error?: string };
+    expect(body.error).toBe("ambiguous_body");
+  });
+
+  it("batch: returns 400 invalid_value with atIndex for bad integrator_linked_phone_source", async () => {
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    const res = await PATCH(
+      new Request("http://localhost/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          items: [
+            { key: "dev_mode", value: { value: false } },
+            { key: "integrator_linked_phone_source", value: { value: "bad" } },
+          ],
+        }),
+      }),
+    );
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { ok: boolean; error?: string; atIndex?: number; key?: string };
+    expect(body.error).toBe("invalid_value");
+    expect(body.atIndex).toBe(1);
+    expect(body.key).toBe("integrator_linked_phone_source");
+    expect(persistAdminModesBatchMock).not.toHaveBeenCalled();
   });
 });

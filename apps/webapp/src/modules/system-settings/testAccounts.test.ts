@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   normalizeTestAccountIdentifiersValue,
+  previewTestAccountPhoneTokens,
   relayRecipientAllowedInDevMode,
   sessionMatchesTestAccountIdentifiers,
 } from "./testAccounts";
@@ -32,6 +33,29 @@ describe("normalizeTestAccountIdentifiersValue", () => {
       maxIds: ["a", "a"],
     });
     expect(v).toEqual({ phones: [], telegramIds: ["1", "2"], maxIds: ["a"] });
+  });
+});
+
+describe("previewTestAccountPhoneTokens", () => {
+  it("splits valid vs invalid and matches normalizeTestAccountIdentifiers phones", () => {
+    const tokens = ["+7 999 000 00 01", "bad", "+79990000001"];
+    const preview = previewTestAccountPhoneTokens(tokens);
+    expect(preview.accepted).toEqual(["+79990000001"]);
+    expect(preview.rejected).toEqual(["bad"]);
+    expect(preview.truncatedAfterCap).toBe(false);
+    const normalized = normalizeTestAccountIdentifiersValue({
+      phones: tokens,
+      telegramIds: [],
+      maxIds: [],
+    });
+    expect(normalized?.phones).toEqual(preview.accepted);
+  });
+
+  it("rejects token longer than 64 chars as invalid preview", () => {
+    const long = `${"+79990000001".padEnd(65, "0")}`;
+    const preview = previewTestAccountPhoneTokens([long]);
+    expect(preview.rejected).toContain(long);
+    expect(preview.accepted).toEqual([]);
   });
 });
 

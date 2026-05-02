@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,7 +9,8 @@ import { LabeledSwitch } from "@/components/common/form/LabeledSwitch";
 import { parseIdTokens } from "@/shared/parsers/parseIdTokens";
 import { normalizePhone } from "@/modules/auth/phoneAuth";
 import { isValidPhoneE164 } from "@/modules/auth/phoneValidation";
-import { patchAdminSetting } from "./patchAdminSetting";
+import { previewTestAccountPhoneTokens } from "@/modules/system-settings/testAccounts";
+import { patchAdminSettingsBatch } from "./patchAdminSetting";
 
 export type IntegratorLinkedPhoneSource = "public_then_contacts" | "public_only" | "contacts_only";
 
@@ -89,6 +90,11 @@ export function AdminSettingsSection({
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
+  const testPhonesPreview = useMemo(
+    () => previewTestAccountPhoneTokens(parseIdTokens(testPhonesVal)),
+    [testPhonesVal],
+  );
+
   async function handleSave() {
     setSaved(false);
     setError(null);
@@ -126,23 +132,39 @@ export function AdminSettingsSection({
           maxIds: parseIdTokens(testMaxVal),
         };
 
-        const results = await Promise.all([
-          patchAdminSetting("dev_mode", devModeVal),
-          patchAdminSetting("debug_forward_to_admin", debugForward),
-          patchAdminSetting("max_debug_page_enabled", miniappVerbose),
-          patchAdminSetting("important_fallback_delay_minutes", fallbackDelay),
-          patchAdminSetting("platform_user_merge_v2_enabled", mergeV2),
-          patchAdminSetting("integrator_linked_phone_source", linkedPhoneSource),
-          patchAdminSetting("admin_phones", adminPhonesPayload),
-          patchAdminSetting("admin_telegram_ids", firstIdTokenForAdminSave(adminTgVal)),
-          patchAdminSetting("admin_max_ids", firstIdTokenForAdminSave(adminMaxVal)),
-          patchAdminSetting("test_account_identifiers", testPayload),
-          patchAdminSetting("patient_app_maintenance_enabled", maintenanceEnabled),
-          patchAdminSetting("patient_app_maintenance_message", msgRaw),
-          patchAdminSetting("patient_booking_url", bookingRaw),
+        const batchResult = await patchAdminSettingsBatch([
+          { key: "dev_mode", value: devModeVal },
+          { key: "debug_forward_to_admin", value: debugForward },
+          { key: "max_debug_page_enabled", value: miniappVerbose },
+          { key: "important_fallback_delay_minutes", value: fallbackDelay },
+          { key: "platform_user_merge_v2_enabled", value: mergeV2 },
+          { key: "integrator_linked_phone_source", value: linkedPhoneSource },
+          { key: "admin_phones", value: adminPhonesPayload },
+          { key: "admin_telegram_ids", value: firstIdTokenForAdminSave(adminTgVal) },
+          { key: "admin_max_ids", value: firstIdTokenForAdminSave(adminMaxVal) },
+          { key: "test_account_identifiers", value: testPayload },
+          { key: "patient_app_maintenance_enabled", value: maintenanceEnabled },
+          { key: "patient_app_maintenance_message", value: msgRaw },
+          { key: "patient_booking_url", value: bookingRaw },
         ]);
-        if (results.some((r) => !r)) {
-          setError("Не удалось сохранить часть настроек");
+        if (!batchResult.ok) {
+          const idx = batchResult.atIndex;
+          const key = batchResult.key;
+          const suffix =
+            typeof idx === "number"
+              ? ` (элемент ${idx + 1}${key != null ? `, ключ ${key}` : ""})`
+              : "";
+          setError(
+            batchResult.error === "duplicate_key_in_batch"
+              ? "В запросе повторяется один и тот же ключ настроек"
+              : batchResult.error === "ambiguous_body"
+                ? "Некорректное тело запроса (лишние поля)"
+                : batchResult.error === "empty_batch"
+                  ? "Пустой список настроек"
+                  : batchResult.error === "invalid_value"
+                    ? `Некорректное значение${suffix}`
+                    : "Не удалось сохранить настройки",
+          );
           return;
         }
         setSaved(true);
@@ -218,6 +240,22 @@ export function AdminSettingsSection({
               disabled={isPending}
               className="max-w-2xl font-mono text-sm"
             />
+            {(testPhonesPreview.rejected.length > 0 || testPhonesPreview.truncatedAfterCap) && (
+              <div className="max-w-2xl rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-950 dark:text-amber-100">
+                {testPhonesPreview.rejected.length > 0 && (
+                  <p>
+                    <span className="font-medium">Не попадут в сохранённый список (невалидный E.164 или лимит): </span>
+                    {testPhonesPreview.rejected.slice(0, 12).join(", ")}
+                    {testPhonesPreview.rejected.length > 12
+                      ? ` (+ещё ${testPhonesPreview.rejected.length - 12})`
+                      : ""}
+                  </p>
+                )}
+                {testPhonesPreview.truncatedAfterCap && (
+                  <p className="mt-1 font-medium">Дальше 200 номеров в списке сервер не сохраняет.</p>
+                )}
+              </div>
+            )}
           </label>
           <label className="flex flex-col gap-1">
             <span className="text-xs font-medium">Telegram ID</span>
@@ -252,6 +290,7 @@ export function AdminSettingsSection({
             checked={maintenanceEnabled}
             onCheckedChange={(v) => setMaintenanceEnabled(Boolean(v))}
             disabled={isPending}
+            switchClassName="data-checked:bg-destructive dark:data-checked:bg-destructive"
           />
           <label className="flex flex-col gap-1">
             <span className="text-xs font-medium">Текст на экране</span>

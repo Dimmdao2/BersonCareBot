@@ -1,5 +1,6 @@
 import { ALLOWED_KEYS, type SystemSettingKey, type SystemSettingScope, type SystemSetting } from "./types";
 import type { SystemSettingsPort } from "./ports";
+import type { ModesFormKey } from "./modesFormKeys";
 import { invalidateConfigKey } from "./configAdapter";
 import {
   normalizeStoredValueJsonForIntegratorSync,
@@ -54,6 +55,37 @@ export function createSystemSettingsService(port: SystemSettingsPort) {
         invalidateConfigKey("app_base_url");
       }
       return result;
+    },
+
+    /**
+     * Persists a pre-normalized «Режимы» batch (one DB transaction), then syncs each key to integrator and invalidates config cache.
+     */
+    async persistAdminModesBatch(
+      rows: Array<{ key: ModesFormKey; valueJson: { value: unknown } }>,
+      updatedBy: string | null
+    ): Promise<SystemSetting[]> {
+      for (const r of rows) {
+        if (!isAllowedKey(r.key)) {
+          throw new Error(`unknown_setting_key: ${r.key}`);
+        }
+      }
+      const upsertRows = rows.map((r) => ({
+        key: r.key,
+        scope: "admin" as const,
+        valueJson: r.valueJson,
+        updatedBy,
+      }));
+      const saved = await port.upsertManyInTransaction(upsertRows);
+      for (const s of saved) {
+        void syncSettingToIntegrator({
+          key: s.key,
+          scope: s.scope,
+          valueJson: normalizeStoredValueJsonForIntegratorSync(s.valueJson),
+          updatedBy: s.updatedBy,
+        });
+        invalidateConfigKey(s.key);
+      }
+      return saved;
     },
 
     /**

@@ -17,7 +17,7 @@
 
 | Критерий | Результат |
 |----------|-----------|
-| Админ включает/выключает режим без деплоя | Да — **`AdminSettingsSection`** (вкладка «Режимы») + `PATCH /api/admin/settings` |
+| Админ включает/выключает режим без деплоя | Да — **`AdminSettingsSection`** (вкладка «Режимы») + `PATCH /api/admin/settings` (один batch `{ items }` для всей формы «Режимы» через [`patchAdminSettingsBatch`](../../apps/webapp/src/app/app/settings/patchAdminSetting.ts); одиночный PATCH для остальных админ-форм без изменений) |
 | URL записи редактируется, дефолт `https://dmitryberson.rubitime.ru` | Да — `patient_booking_url`, пустое значение → рантайм-дефолт |
 | У `client` под `/app/patient` один экран без основого меню при включении | Да — `PatientMaintenanceScreen` + `patientHideBottomNav` |
 | Экран: сообщение, внешняя запись, ближайшие записи (`upcoming`) | Да |
@@ -53,9 +53,9 @@
 | Пункт | Статус |
 |-------|--------|
 | `page.tsx` — значения для экрана техработ | ✅ передаются в **`AdminSettingsSection`** (вкладка «Режимы») |
-| Секция «Режим техработ…», PATCH вместе с режимами | ✅ один «Сохранить настройки» в `AdminSettingsSection` (включая `patient_app_*`, `patient_booking_url`, `test_account_identifiers`, …) |
+| Секция «Режим техработ…», сохранение вместе с режимами | ✅ один «Сохранить настройки» в `AdminSettingsSection` — **один** вызов `patchAdminSettingsBatch` (13 ключей `MODES_FORM_KEYS`, включая `patient_app_*`, `patient_booking_url`, `test_account_identifiers`, …) |
 | Клиентская валидация согласована с API | ✅ |
-| RTL-тест | ✅ **`AdminSettingsSection.test.tsx`** — save → PATCH включают maintenance keys; **`AppParametersSection.test.tsx`** — save **не** шлёт maintenance (только три app-параметра) |
+| RTL-тест | ✅ **`AdminSettingsSection.test.tsx`** — save → один batch-вызов с ожидаемыми ключами и payload; **`AppParametersSection.test.tsx`** — save **не** шлёт maintenance (только три app-параметра) |
 
 ### Шаг 4 — экран техработ
 
@@ -92,7 +92,7 @@
 1. **Оптимизация `getPatientMaintenanceConfig`:** при `enabled=false` читается только флаг, без `message`/`booking_url` из БД; при `enabled=true` — параллельное чтение двух ключей. Тесты: `patientMaintenance.getConfig.test.ts`.
 2. **Явная логика «заменить shell»:** `patientMaintenanceReplacesPatientShell(enabled, skipPath, isTestAccount)` + тесты в `patientMaintenance.test.ts` (третий аргумент — bypass для аккаунтов из `test_account_identifiers`, с 2026-05-02).
 3. **a11y:** `sr-only` `<h2>` у блока сообщения на экране техработ.
-4. **RTL:** `AppParametersSection.test.tsx` (три PATCH без maintenance); **`AdminSettingsSection.test.tsx`** — smoke на сохранение режимов с ключами техработ и `test_account_identifiers`.
+4. **RTL:** `AppParametersSection.test.tsx` (три PATCH без maintenance); **`AdminSettingsSection.test.tsx`** — smoke на сохранение режимов с ключами техработ и `test_account_identifiers` через **один** batch (`patchAdminSettingsBatch`).
 5. **Полный CI перед push** — выполнен в рамках команды «пуш».
 
 ---
@@ -116,6 +116,7 @@
 | [`apps/webapp/src/app/app/settings/AppParametersSection.test.tsx`](../../apps/webapp/src/app/app/settings/AppParametersSection.test.tsx) |
 | [`apps/webapp/src/app/api/admin/settings/route.ts`](../../apps/webapp/src/app/api/admin/settings/route.ts) |
 | [`apps/webapp/src/app/api/admin/settings/route.test.ts`](../../apps/webapp/src/app/api/admin/settings/route.test.ts) |
+| [`apps/webapp/src/app/app/settings/patchAdminSetting.ts`](../../apps/webapp/src/app/app/settings/patchAdminSetting.ts) |
 | [`apps/webapp/src/app/app/settings/page.tsx`](../../apps/webapp/src/app/app/settings/page.tsx) |
 | [`apps/webapp/src/app/app/settings/AppParametersSection.tsx`](../../apps/webapp/src/app/app/settings/AppParametersSection.tsx) |
 | [`apps/webapp/src/app/app/patient/layout.tsx`](../../apps/webapp/src/app/app/patient/layout.tsx) |
@@ -129,6 +130,7 @@
 ```bash
 pnpm --dir apps/webapp exec vitest run \
   src/app/api/admin/settings/route.test.ts \
+  src/modules/system-settings/adminSettingsPatchNormalize.test.ts \
   src/modules/system-settings/patientMaintenance.test.ts \
   src/modules/system-settings/patientMaintenance.getConfig.test.ts \
   src/app/app/patient/PatientMaintenanceScreen.test.tsx \

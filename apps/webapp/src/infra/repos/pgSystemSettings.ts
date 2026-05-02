@@ -1,5 +1,5 @@
 import { getPool } from "@/infra/db/client";
-import type { SystemSettingsPort } from "@/modules/system-settings/ports";
+import type { SystemSettingsPort, SystemSettingsUpsertRow } from "@/modules/system-settings/ports";
 import type { SystemSetting, SystemSettingKey, SystemSettingScope } from "@/modules/system-settings/types";
 
 type SystemSettingRow = {
@@ -61,6 +61,40 @@ export function createPgSystemSettingsPort(): SystemSettingsPort {
         [key, scope, JSON.stringify(valueJson), updatedBy]
       );
       return rowToSetting(r.rows[0]!);
+    },
+
+    async upsertManyInTransaction(rows: SystemSettingsUpsertRow[]) {
+      if (rows.length === 0) return [];
+      const pool = getPool();
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
+        const out: SystemSetting[] = [];
+        for (const row of rows) {
+          const r = await client.query<SystemSettingRow>(
+            `INSERT INTO system_settings (key, scope, value_json, updated_at, updated_by)
+             VALUES ($1, $2, $3::jsonb, now(), $4)
+             ON CONFLICT (key, scope) DO UPDATE
+               SET value_json = EXCLUDED.value_json,
+                   updated_at = now(),
+                   updated_by = EXCLUDED.updated_by
+             RETURNING key, scope, value_json, updated_at, updated_by`,
+            [row.key, row.scope, JSON.stringify(row.valueJson), row.updatedBy]
+          );
+          out.push(rowToSetting(r.rows[0]!));
+        }
+        await client.query("COMMIT");
+        return out;
+      } catch (err) {
+        try {
+          await client.query("ROLLBACK");
+        } catch {
+          /* ignore rollback errors */
+        }
+        throw err;
+      } finally {
+        client.release();
+      }
     },
   };
 }

@@ -19,6 +19,16 @@ function dedupeStrings(items: string[]): string[] {
   return out;
 }
 
+/** One token for `test_account_identifiers.phones`; `null` if skipped or invalid. */
+function normalizeTestAccountPhoneToken(raw: string): string | null {
+  const t = raw.trim();
+  if (!t) return null;
+  if (t.length > MAX_TOKEN_LEN) return null;
+  const n = normalizePhone(t);
+  if (!isValidPhoneE164(n)) return null;
+  return n;
+}
+
 function parseStringArrayField(raw: unknown, field: "phones" | "telegramIds" | "maxIds"): string[] {
   if (raw === undefined || raw === null) return [];
   if (!Array.isArray(raw)) return [];
@@ -27,17 +37,55 @@ function parseStringArrayField(raw: unknown, field: "phones" | "telegramIds" | "
     if (typeof item !== "string") continue;
     const t = item.trim();
     if (!t) continue;
-    if (t.length > MAX_TOKEN_LEN) continue;
     if (field === "phones") {
-      const n = normalizePhone(t);
-      if (!isValidPhoneE164(n)) continue;
+      const n = normalizeTestAccountPhoneToken(t);
+      if (n === null) continue;
       out.push(n);
     } else {
+      if (t.length > MAX_TOKEN_LEN) continue;
       out.push(t);
     }
     if (out.length >= MAX_LIST_LEN) break;
   }
   return dedupeStrings(out);
+}
+
+/**
+ * Client-side preview: which phone tokens would be kept vs rejected (same rules as stored `phones[]`).
+ * Order follows `rawTokens`; duplicates map to one accepted E.164 (later duplicates skipped silently).
+ */
+export function previewTestAccountPhoneTokens(rawTokens: string[]): {
+  accepted: string[];
+  rejected: string[];
+  truncatedAfterCap: boolean;
+} {
+  const accepted: string[] = [];
+  const rejected: string[] = [];
+  let truncatedAfterCap = false;
+  const seen = new Set<string>();
+
+  for (const raw of rawTokens) {
+    const t = raw.trim();
+    if (!t) continue;
+    if (t.length > MAX_TOKEN_LEN) {
+      rejected.push(t);
+      continue;
+    }
+    const n = normalizeTestAccountPhoneToken(t);
+    if (n === null) {
+      rejected.push(t);
+      continue;
+    }
+    if (seen.has(n)) continue;
+    if (accepted.length >= MAX_LIST_LEN) {
+      truncatedAfterCap = true;
+      rejected.push(t);
+      continue;
+    }
+    seen.add(n);
+    accepted.push(n);
+  }
+  return { accepted, rejected, truncatedAfterCap };
 }
 
 /**

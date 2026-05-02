@@ -1,15 +1,15 @@
 # Аудит выполнения: Режимы и тестовые аккаунты
 
-**Дата аудита:** 2026-05-02 (глубокая сверка после реализации).  
-**Исходный план (Cursor):** `modes_settings_cleanup_2c131a1e` — зеркало в репозитории: [`MODES_SETTINGS_CLEANUP_PLAN.md`](MODES_SETTINGS_CLEANUP_PLAN.md).  
-**Журнал:** [`LOG.md`](LOG.md) — запись «режимы, тестовые аккаунты, dev_mode relay».  
-**Статус:** **закрыт** — Definition of Done плана выполнен; остаточные правки после аудита: заголовок legacy `AccessListsSection`, синхронизация `PATIENT_MAINTENANCE_MODE_EXECUTION_AUDIT.md`, `CONFIGURATION_ENV_VS_DATABASE.md`, `SPECIALIST_CABINET_STRUCTURE.md`, `RECOMMENDATIONS_AND_ROADMAP.md`, индекс [`README.md`](README.md).
+**Дата аудита:** 2026-05-02 (глубокая сверка после реализации); **доп. сверка 2026-05-02** — batch PATCH «Режимы» + предпросмотр телефонов тестовых аккаунтов.  
+**Исходный план (Cursor):** `modes_settings_cleanup_2c131a1e` — зеркало: [`MODES_SETTINGS_CLEANUP_PLAN.md`](MODES_SETTINGS_CLEANUP_PLAN.md). **План batch + preview:** [`MODES_BATCH_PATCH_AND_PHONE_PREVIEW_PLAN.md`](MODES_BATCH_PATCH_AND_PHONE_PREVIEW_PLAN.md).  
+**Журнал:** [`LOG.md`](LOG.md) — запись «режимы, тестовые аккаунты, dev_mode relay» + пункт batch/preview.  
+**Статус:** **закрыт** — DoD первого плана и последующего batch/preview выполнены; документация и команды верификации синхронизированы с кодом.
 
 ---
 
 ## 1. Краткий вывод
 
-Реализованы: ключ **`test_account_identifiers`** (нормализация, PATCH, тесты API), хелперы **`testAccounts.ts`**, **`SystemSettingsService.shouldDispatchRelayToRecipient`** / **`isTestPatientSession`** (fail-closed), **`relayOutbound`** с **`shouldDispatchRelay({ channel, recipient })`**, DI в **`buildAppDeps`**, вкладка **«Режимы»** (админ одной строкой, тестовые аккаунты, техработы, dev/debug), скрыта вкладка **«Доступ и роли»**, техработы убраны из **«Параметры приложения»**, bypass техработ в **`patient/layout.tsx`** через `patientMaintenanceReplacesPatientShell(..., isTestAccount)`. **`integration_test_ids`** остаётся в **`ALLOWED_KEYS`** без основного UI; runtime relay **не** использует internal `userId` для guard. Миграция integrator: `apps/integrator/src/infra/db/migrations/core/20260502_0002_test_account_identifiers_setting.sql`.
+Реализованы: ключ **`test_account_identifiers`** (нормализация, PATCH, тесты API), хелперы **`testAccounts.ts`** (в т.ч. **`previewTestAccountPhoneTokens`** для UI), **`SystemSettingsService.shouldDispatchRelayToRecipient`** / **`isTestPatientSession`** / **`persistAdminModesBatch`** (fail-closed), **`relayOutbound`** с **`shouldDispatchRelay({ channel, recipient })`**, DI в **`buildAppDeps`**, вкладка **«Режимы»** (админ одной строкой, тестовые аккаунты, техработы, dev/debug), скрыта вкладка **«Доступ и роли»**, техработы убраны из **«Параметры приложения»**, bypass техработ в **`patient/layout.tsx`** через `patientMaintenanceReplacesPatientShell(..., isTestAccount)`. Сохранение формы «Режимы» — **batch** `PATCH { items }` + транзакция `upsertManyInTransaction`. **`integration_test_ids`** остаётся в **`ALLOWED_KEYS`** без основного UI; runtime relay **не** использует internal `userId` для guard. Миграция integrator: `apps/integrator/src/infra/db/migrations/core/20260502_0002_test_account_identifiers_setting.sql`.
 
 ---
 
@@ -24,8 +24,9 @@
 | Dev mode relay по Telegram/Max recipient, не по userId | Да — `relayOutbound` + `shouldDispatchRelayToRecipient` |
 | При техработах: обычный client — заглушка; тестовый — полный UI | Да — `layout.tsx` + `isTestPatientSession` |
 | Настройки в `system_settings`, без новых env | Да |
-| Документация инициативы и runtime-config | Да — этот файл, `LOG`, `CONFIGURATION_*`, `INTEGRATOR_CONTRACT`, `settings.md`, roadmap |
+| Документация инициативы и runtime-config | Да — этот файл, `LOG`, `CONFIGURATION_*`, `INTEGRATOR_CONTRACT`, [`settings.md`](../../apps/webapp/src/app/app/settings/settings.md), roadmap |
 | Целевые тесты + webapp typecheck + lint | Да — см. §6 |
+| Batch PATCH «Режимы» (один запрос, TX в `public`) + preview телефонов | Да — см. §4a и [`MODES_BATCH_PATCH_AND_PHONE_PREVIEW_PLAN.md`](MODES_BATCH_PATCH_AND_PHONE_PREVIEW_PLAN.md) |
 
 ---
 
@@ -36,8 +37,8 @@
 | Пункт | Статус |
 |-------|--------|
 | `ALLOWED_KEYS` + ветка PATCH + нормализация | ✅ `types.ts`, `route.ts`, `normalizeTestAccountIdentifiersValue` |
-| Тесты route: 200 нормализация/dedupe, 400 неверная форма | ✅ `route.test.ts` |
-| Сохранение через `updateSetting` / sync | ✅ тот же путь PATCH → `updateSetting` |
+| Тесты route: 200 нормализация/dedupe, 400 неверная форма; batch «Режимы» | ✅ `route.test.ts` |
+| Сохранение через `updateSetting` / sync | ✅ одиночный PATCH → `updateSetting`; batch «Режимы» (`{ items }`) → `persistAdminModesBatch` (TX + sync + invalidate по ключам) |
 
 ### Шаг 2 — helper и сервис
 
@@ -45,7 +46,7 @@
 |-------|--------|
 | `testAccounts.ts` + unit-тесты | ✅ |
 | `readTestAccountIdentifiersFromPort` + fail-closed | ✅ `service.ts` |
-| `service.test.ts` relay + `isTestPatientSession` | ✅ |
+| `service.test.ts` relay + `isTestPatientSession` + `persistAdminModesBatch` | ✅ |
 
 ### Шаг 3 — dev_mode relay
 
@@ -65,7 +66,7 @@
 | `page.tsx`: данные для режимов, без `AccessListsSection` | ✅ |
 | `AdminSettingsSection`: админ, тесты, техработы, флаги | ✅ |
 | `AppParametersSection` без maintenance | ✅ |
-| RTL: `AdminSettingsSection.test.tsx`, `AppParametersSection.test.tsx` | ✅ |
+| RTL: `AdminSettingsSection.test.tsx` (batch-save), `AppParametersSection.test.tsx` | ✅ |
 | `rg "Доступ и роли\|Админ: режим\|integration_test_ids" apps/webapp/src/app/app/settings` | ✅ **0 совпадений** (доки и legacy-компонент переименованы; `integration_test_ids` не в этом каталоге кроме исключённых путей) |
 
 ### Шаг 5 — bypass техработ
@@ -83,7 +84,7 @@
 | `LOG.md` | ✅ + ссылка на этот аудит |
 | `CONFIGURATION_ENV_VS_DATABASE.md` | ✅ |
 | `INTEGRATOR_CONTRACT.md` | ✅ |
-| `settings.md`, roadmap, patient maintenance audit (кросс-ссылки) | ✅ |
+| [`settings.md`](../../apps/webapp/src/app/app/settings/settings.md), roadmap, patient maintenance audit (кросс-ссылки) | ✅ |
 
 ---
 
@@ -97,6 +98,7 @@
 6. **`types.ts`:** JSDoc для **`integration_test_ids`** как legacy.
 7. **`service.ts`:** уточнён JSDoc relay (Telegram/Max; телефоны в `test_account_identifiers` для bypass пациента; SMS relay — задел на будущее по полю `phone` в контракте deps при появлении вызовов).
 8. **Индекс инициативы** [`README.md`](README.md): строки плана и аудита.
+9. **Третий прогон (batch + preview):** репозиторное зеркало плана [`MODES_BATCH_PATCH_AND_PHONE_PREVIEW_PLAN.md`](MODES_BATCH_PATCH_AND_PHONE_PREVIEW_PLAN.md); обновлены [`LOG.md`](LOG.md), [`../ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md`](../ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md), [`PATIENT_MAINTENANCE_MODE_EXECUTION_AUDIT.md`](PATIENT_MAINTENANCE_MODE_EXECUTION_AUDIT.md), [`RECOMMENDATIONS_AND_ROADMAP.md`](RECOMMENDATIONS_AND_ROADMAP.md), [`../README.md`](../README.md), индекс [`README.md`](README.md) — §4a этого аудита.
 
 ### Закрытие хвостов полного аудита (второй прогон, 2026-05-02)
 
@@ -106,7 +108,18 @@
 | Текст предупреждения при включении admin mode | ✅ `AdminModeToggle.tsx`: явное имя ключа `test_account_identifiers` |
 | JSDoc `relayRecipientAllowedInDevMode` vs фактическое поведение | ✅ `testAccounts.ts` (см. предыдущий прогон) |
 
-**Намеренно не делали:** один атомарный PATCH / транзакция на все ключи «Режимы» (остаётся `Promise.all` из 13 PATCH; частичный сбой — операционный риск для отдельного решения); клиентская предварительная нормализация списка телефонов тестовых аккаунтов (нормализация на сервере в `normalizeTestAccountIdentifiersValue`).
+### Закрытие хвостов (третий прогон, 2026-05-02) — batch PATCH + preview телефонов
+
+| Пункт | Статус |
+|-------|--------|
+| Один HTTP-запрос вместо `Promise.all` из 13 PATCH | ✅ `patchAdminSettingsBatch` + `PATCH` с `{ items }` в [`route.ts`](../../apps/webapp/src/app/api/admin/settings/route.ts) |
+| Транзакция на все ключи формы «Режимы» в `public.system_settings` | ✅ `upsertManyInTransaction` + `persistAdminModesBatch` |
+| Общая нормализация с одиночным PATCH | ✅ `adminSettingsPatchNormalize.ts`, `MODES_FORM_KEYS` |
+| Ошибки batch: `empty_batch`, `ambiguous_body`, `duplicate_key_in_batch`, `invalid_value` + `atIndex` | ✅ route + тесты |
+| Предпросмотр отброшенных телефонов до Save | ✅ `previewTestAccountPhoneTokens` + UI в `AdminSettingsSection` |
+| Документация / лог / план-зеркало | ✅ этот файл, `LOG.md`, [`MODES_BATCH_PATCH_AND_PHONE_PREVIEW_PLAN.md`](MODES_BATCH_PATCH_AND_PHONE_PREVIEW_PLAN.md), `CONFIGURATION_ENV_VS_DATABASE.md`, `PATIENT_MAINTENANCE_MODE_EXECUTION_AUDIT.md`, `RECOMMENDATIONS_AND_ROADMAP.md` |
+
+**Ранее (до третьего прогона) намеренно не делали:** один batch PATCH и клиентский preview — **снято**: реализовано и задокументировано выше.
 
 ---
 
@@ -115,6 +128,11 @@
 | Файл |
 |------|
 | [`apps/webapp/src/modules/system-settings/types.ts`](../../apps/webapp/src/modules/system-settings/types.ts) |
+| [`apps/webapp/src/modules/system-settings/modesFormKeys.ts`](../../apps/webapp/src/modules/system-settings/modesFormKeys.ts) |
+| [`apps/webapp/src/modules/system-settings/adminSettingsPatchNormalize.ts`](../../apps/webapp/src/modules/system-settings/adminSettingsPatchNormalize.ts) |
+| [`apps/webapp/src/modules/system-settings/ports.ts`](../../apps/webapp/src/modules/system-settings/ports.ts) |
+| [`apps/webapp/src/infra/repos/pgSystemSettings.ts`](../../apps/webapp/src/infra/repos/pgSystemSettings.ts) |
+| [`apps/webapp/src/infra/repos/inMemorySystemSettings.ts`](../../apps/webapp/src/infra/repos/inMemorySystemSettings.ts) |
 | [`apps/webapp/src/modules/system-settings/testAccounts.ts`](../../apps/webapp/src/modules/system-settings/testAccounts.ts) |
 | [`apps/webapp/src/modules/system-settings/service.ts`](../../apps/webapp/src/modules/system-settings/service.ts) |
 | [`apps/webapp/src/modules/system-settings/patientMaintenance.ts`](../../apps/webapp/src/modules/system-settings/patientMaintenance.ts) |
@@ -122,6 +140,7 @@
 | [`apps/webapp/src/app-layer/di/buildAppDeps.ts`](../../apps/webapp/src/app-layer/di/buildAppDeps.ts) |
 | [`apps/webapp/src/app/api/admin/settings/route.ts`](../../apps/webapp/src/app/api/admin/settings/route.ts) |
 | [`apps/webapp/src/app/app/settings/AdminSettingsTabsClient.tsx`](../../apps/webapp/src/app/app/settings/AdminSettingsTabsClient.tsx) |
+| [`apps/webapp/src/app/app/settings/patchAdminSetting.ts`](../../apps/webapp/src/app/app/settings/patchAdminSetting.ts) |
 | [`apps/webapp/src/app/app/settings/AdminSettingsSection.tsx`](../../apps/webapp/src/app/app/settings/AdminSettingsSection.tsx) |
 | [`apps/webapp/src/app/app/settings/page.tsx`](../../apps/webapp/src/app/app/settings/page.tsx) |
 | [`apps/webapp/src/app/app/patient/layout.tsx`](../../apps/webapp/src/app/app/patient/layout.tsx) |
@@ -136,6 +155,7 @@ rg "test_account_identifiers|integration_test_ids" apps/webapp/src --glob '!**/*
 rg "Доступ и роли|Админ: режим|integration_test_ids" apps/webapp/src/app/app/settings
 pnpm --dir apps/webapp exec vitest run \
   src/app/api/admin/settings/route.test.ts \
+  src/modules/system-settings/adminSettingsPatchNormalize.test.ts \
   src/modules/system-settings/testAccounts.test.ts \
   src/modules/system-settings/service.test.ts \
   src/modules/system-settings/patientMaintenance.test.ts \
