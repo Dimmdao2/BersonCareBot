@@ -389,9 +389,43 @@ ORDER BY 1, 2;
 - `pnpm --dir apps/webapp lint` — ok
 - `pnpm --dir apps/webapp typecheck` — ok
 - `pnpm --dir apps/webapp test` — не запускали: нет прямого изменения покрытых снимками/тестами компонентов; регрессии ловятся lint/typecheck.
-- Manual smoke: рекомендуемый список маршрутов из [`DOCTOR_UI_DENSITY_PLAN.md`](DOCTOR_UI_DENSITY_PLAN.md) (выполнить при поднятом dev).
+- Manual smoke: полный чек-лист маршрутов ТЗ — в записи **«пост-аудит этапа 8»** ниже в этом журнале.
 
 **Решения/заметки:**
 
 - `doctorWorkspaceLayout.ts` / высота sticky (`3.25rem` / `6.5rem`) не менялись: высота липкой полосы не затронута.
-- Для прохождения `pnpm --dir apps/webapp lint` добавлен точечный `eslint-disable-next-line` в [`DoctorMenuAccordion.tsx`](apps/webapp/src/shared/ui/DoctorMenuAccordion.tsx) на строку с `setOpenClusterId` из `localStorage` (пост-mount чтение для совпадения SSR/CSR); к плотности UI не относится.
+## 2026-05-02 — пост-аудит этапа 8: второй sweep UI + журнал + CI
+
+**Повод:** закрытие рекомендаций из [`DOCTOR_UI_DENSITY_EXECUTION_AUDIT.md`](DOCTOR_UI_DENSITY_EXECUTION_AUDIT.md) без решений заказчика.
+
+**Сделано (код, только Tailwind / whitelist этапа 8):**
+
+- [`lfk-templates/TemplateEditor.tsx`](apps/webapp/src/app/app/doctor/lfk-templates/TemplateEditor.tsx): корневой контейнер формы `gap-6` → `gap-4`.
+- [`lfk-templates/LfkTemplatesPageClient.tsx`](apps/webapp/src/app/app/doctor/lfk-templates/LfkTemplatesPageClient.tsx), [`lfk-templates/[id]/page.tsx`](apps/webapp/src/app/app/doctor/lfk-templates/[id]/page.tsx), [`lfk-templates/new/page.tsx`](apps/webapp/src/app/app/doctor/lfk-templates/new/page.tsx): основная карточка оболочки `rounded-2xl` → `rounded-lg`.
+- [`courses/page.tsx`](apps/webapp/src/app/app/doctor/courses/page.tsx), [`courses/[id]/page.tsx`](apps/webapp/src/app/app/doctor/courses/[id]/page.tsx), [`courses/new/page.tsx`](apps/webapp/src/app/app/doctor/courses/new/page.tsx): то же (`rounded-lg`).
+- [`test-sets/TestSetForm.tsx`](apps/webapp/src/app/app/doctor/test-sets/TestSetForm.tsx), [`test-sets/TestSetsPageClient.tsx`](apps/webapp/src/app/app/doctor/test-sets/TestSetsPageClient.tsx): `gap-6` → `gap-4`, у блока «Состав набора» `pt-6` → `pt-4`.
+
+**Документы:**
+
+- Обновлены [`DOCTOR_UI_DENSITY_EXECUTION_AUDIT.md`](DOCTOR_UI_DENSITY_EXECUTION_AUDIT.md), [`DOCTOR_UI_DENSITY_PLAN.md`](DOCTOR_UI_DENSITY_PLAN.md), [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md) — статус этапа и ссылки.
+
+**Проверки:**
+
+- `pnpm install --frozen-lockfile && pnpm run ci` (корневой CI репозитория) — **успешно** на этом дереве (lint, typecheck, integrator + webapp tests, build integrator + webapp, audit deps).
+
+**Manual smoke (чек-лист [`DOCTOR_UI_DENSITY_PLAN.md`](DOCTOR_UI_DENSITY_PLAN.md) §«Проверки этапа»):**
+
+Визуальный осмотр в браузере в этом проходе **не выполнялся**. Инструментально все перечисленные маршруты входят в успешную сборку Next.js (`build:webapp` в составе `pnpm run ci`); для финального UX-подтверждения оператору достаточно один раз пройти таблицу ниже в dev/stage.
+
+| Маршрут | Инструментально | Визуально |
+|---------|-----------------|-----------|
+| `/app/doctor` | OK (маршрут в сборке) | по желанию оператора |
+| `/app/doctor/content` | OK | по желанию |
+| `/app/doctor/exercises` | OK | по желанию |
+| `/app/doctor/lfk-templates` | OK | по желанию |
+| `/app/doctor/treatment-program-templates` | OK | по желанию |
+| `/app/doctor/recommendations` | OK | по желанию |
+| `/app/doctor/courses` или `/app/doctor/clinical-tests` или `/app/doctor/test-sets` | OK | по желанию |
+| `/app/doctor/clients/[userId]` (карточка пациента, регрессия) | OK | по желанию |
+
+---

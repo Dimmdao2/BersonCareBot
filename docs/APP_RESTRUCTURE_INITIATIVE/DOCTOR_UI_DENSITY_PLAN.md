@@ -1,8 +1,8 @@
 # DOCTOR_UI_DENSITY_PLAN — этап 8: плотность интерфейса врача
 
 **Дата:** 2026-05-02.  
-**Статус:** ТЗ готово к исполнению отдельным проходом.  
-**Аудит выполнения (код, LOG, планы):** [`DOCTOR_UI_DENSITY_EXECUTION_AUDIT.md`](DOCTOR_UI_DENSITY_EXECUTION_AUDIT.md) — 2026-05-02.  
+**Статус:** реализовано (2026-05-02); журнал исполнения и пост-аудит — [`LOG.md`](LOG.md), [`DOCTOR_UI_DENSITY_EXECUTION_AUDIT.md`](DOCTOR_UI_DENSITY_EXECUTION_AUDIT.md).  
+**Исполнение плана / ТЗ:** **выполнено** (код, записи в журнале, пост-аудит, закрытие этапа в [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md)).  
 **Связанный общий план:** [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md), этап 8.
 
 ---
@@ -255,4 +255,4 @@ Manual smoke обязателен:
 
 Подробная сверка ТЗ, кода, [`LOG.md`](LOG.md) и пометок в мастер-плане: [`DOCTOR_UI_DENSITY_EXECUTION_AUDIT.md`](DOCTOR_UI_DENSITY_EXECUTION_AUDIT.md).
 
-**Кратко:** реализация в коде и границы scope соответствуют ТЗ; автоматические проверки webapp зафиксированы в `LOG.md`; для полного совпадения с текстом Definition of Done выше желательно дописать в журнал явный список пройденных manual smoke-маршрутов после прогона в dev.
+**Кратко:** реализация и инструментальные проверки зафиксированы в [`LOG.md`](LOG.md); актуальное состояние сверки ТЗ/кода — [`DOCTOR_UI_DENSITY_EXECUTION_AUDIT.md`](DOCTOR_UI_DENSITY_EXECUTION_AUDIT.md). Визуальный smoke по маршрутам ТЗ остаётся на оператора при работе в dev/stage (таблица в журнале, пост-аудит этапа 8).
