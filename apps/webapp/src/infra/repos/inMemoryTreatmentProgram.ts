@@ -9,10 +9,25 @@ import type {
   TreatmentProgramTemplateDetail,
   TreatmentProgramTemplateFilter,
   TreatmentProgramTemplateStatus,
+  TreatmentProgramTemplateUsageSnapshot,
   UpdateTreatmentProgramStageInput,
   UpdateTreatmentProgramStageItemInput,
   UpdateTreatmentProgramTemplateInput,
 } from "@/modules/treatment-program/types";
+import { EMPTY_TREATMENT_PROGRAM_TEMPLATE_USAGE_SNAPSHOT } from "@/modules/treatment-program/types";
+
+const templateUsageSnapshots = new Map<string, TreatmentProgramTemplateUsageSnapshot>();
+
+export function seedInMemoryTreatmentProgramTemplateUsageSnapshot(
+  templateId: string,
+  snapshot: TreatmentProgramTemplateUsageSnapshot,
+): void {
+  templateUsageSnapshots.set(templateId, snapshot);
+}
+
+export function clearInMemoryTreatmentProgramTemplateUsageSnapshots(): void {
+  templateUsageSnapshots.clear();
+}
 
 function isoNow(): string {
   return new Date().toISOString();
@@ -109,17 +124,14 @@ export function createInMemoryTreatmentProgramPort(seed?: {
     },
 
     async deleteTemplate(id: string) {
-      const existed = templates.has(id);
-      if (!existed) return false;
-      templates.delete(id);
-      const stageIds = [...stages.values()].filter((s) => s.templateId === id).map((s) => s.id);
-      for (const sid of stageIds) {
-        stages.delete(sid);
-        for (const [iid, it] of items) {
-          if (it.stageId === sid) items.delete(iid);
-        }
-      }
+      const cur = templates.get(id);
+      if (!cur || cur.status === "archived") return false;
+      templates.set(id, { ...cur, status: "archived", updatedAt: isoNow() });
       return true;
+    },
+
+    async getTreatmentProgramTemplateUsageSummary(templateId: string): Promise<TreatmentProgramTemplateUsageSnapshot> {
+      return templateUsageSnapshots.get(templateId) ?? { ...EMPTY_TREATMENT_PROGRAM_TEMPLATE_USAGE_SNAPSHOT };
     },
 
     async createStage(templateId: string, input: CreateTreatmentProgramStageInput) {

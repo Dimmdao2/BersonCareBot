@@ -1,7 +1,13 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
+import { TreatmentProgramTemplateUsageConfirmationRequiredError } from "./errors";
 import { createTreatmentProgramService } from "./service";
-import { createInMemoryTreatmentProgramPort } from "@/app-layer/testing/treatmentProgramInMemory";
+import {
+  clearInMemoryTreatmentProgramTemplateUsageSnapshots,
+  createInMemoryTreatmentProgramPort,
+  seedInMemoryTreatmentProgramTemplateUsageSnapshot,
+} from "@/app-layer/testing/treatmentProgramInMemory";
 import type { TreatmentProgramItemRefValidationPort } from "./ports";
+import { EMPTY_TREATMENT_PROGRAM_TEMPLATE_USAGE_SNAPSHOT } from "./types";
 
 const validRef = "11111111-1111-4111-8111-111111111111";
 
@@ -14,6 +20,7 @@ describe("treatment-program service", () => {
   let itemRefs: TreatmentProgramItemRefValidationPort;
 
   beforeEach(() => {
+    clearInMemoryTreatmentProgramTemplateUsageSnapshots();
     port = createInMemoryTreatmentProgramPort();
     itemRefs = {
       assertItemRefExists: vi.fn(async () => {}),
@@ -89,5 +96,57 @@ describe("treatment-program service", () => {
     const after = await svc.getTemplate(tpl.id);
     const titles = sortByOrderThenId(after.stages).map((s) => s.title);
     expect(titles).toEqual(["B", "A"]);
+  });
+
+  it("deleteTemplate requires acknowledgement when active instances exist", async () => {
+    const svc = createTreatmentProgramService(port, itemRefs);
+    const tpl = await svc.createTemplate({ title: "T" }, null);
+    seedInMemoryTreatmentProgramTemplateUsageSnapshot(tpl.id, {
+      ...EMPTY_TREATMENT_PROGRAM_TEMPLATE_USAGE_SNAPSHOT,
+      activeTreatmentProgramInstanceCount: 1,
+      activeTreatmentProgramInstanceRefs: [
+        {
+          kind: "treatment_program_instance",
+          id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          title: "Программа",
+          patientUserId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        },
+      ],
+    });
+    await expect(svc.deleteTemplate(tpl.id)).rejects.toBeInstanceOf(TreatmentProgramTemplateUsageConfirmationRequiredError);
+    await svc.deleteTemplate(tpl.id, { acknowledgeUsageWarning: true });
+    const archived = await svc.getTemplate(tpl.id);
+    expect(archived.status).toBe("archived");
+  });
+
+  it("deleteTemplate archives without acknowledgement when only draft courses reference template", async () => {
+    const svc = createTreatmentProgramService(port, itemRefs);
+    const tpl = await svc.createTemplate({ title: "T" }, null);
+    seedInMemoryTreatmentProgramTemplateUsageSnapshot(tpl.id, {
+      ...EMPTY_TREATMENT_PROGRAM_TEMPLATE_USAGE_SNAPSHOT,
+      draftCourseCount: 2,
+      draftCourseRefs: [],
+    });
+    await svc.deleteTemplate(tpl.id);
+    const archived = await svc.getTemplate(tpl.id);
+    expect(archived.status).toBe("archived");
+  });
+
+  it("updateTemplate to archived requires acknowledgement like deleteTemplate", async () => {
+    const svc = createTreatmentProgramService(port, itemRefs);
+    const tpl = await svc.createTemplate({ title: "T", status: "published" }, null);
+    seedInMemoryTreatmentProgramTemplateUsageSnapshot(tpl.id, {
+      ...EMPTY_TREATMENT_PROGRAM_TEMPLATE_USAGE_SNAPSHOT,
+      publishedCourseCount: 1,
+      publishedCourseRefs: [
+        { kind: "course", id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc", title: "Курс" },
+      ],
+    });
+    await expect(svc.updateTemplate(tpl.id, { status: "archived" })).rejects.toBeInstanceOf(
+      TreatmentProgramTemplateUsageConfirmationRequiredError,
+    );
+    await svc.updateTemplate(tpl.id, { status: "archived" }, { acknowledgeUsageWarning: true });
+    const archived = await svc.getTemplate(tpl.id);
+    expect(archived.status).toBe("archived");
   });
 });

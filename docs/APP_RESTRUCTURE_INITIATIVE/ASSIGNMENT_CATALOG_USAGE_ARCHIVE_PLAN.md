@@ -49,8 +49,8 @@
 | 3. Клинические тесты | `completed` | `completed` (`ClinicalTestUsageSnapshot`, `clinicalTestsUsageDocLinks.ts`, `pgClinicalTests.loadClinicalTestUsageSummary`) |
 | 4. Наборы тестов | `completed` | `completed` (`TestSetUsageSnapshot`, `testSetUsageDocLinks.ts`, `pgTestSets.loadTestSetUsageSummary`) |
 | 5. Рекомендации | `completed` | `completed` (`RecommendationUsageSnapshot`, `recommendationUsageDocLinks.ts`, `pgRecommendations.loadRecommendationUsageSummary`) |
-| 6. Шаблоны программ | `pending` | `pending` |
-| 7. Курсы | `pending` | `pending` (осторожные формулировки без `course_id` сохраняются) |
+| 6. Шаблоны программ | `completed` | `completed` (`TreatmentProgramTemplateUsageSnapshot`, `templateUsageDocLinks.ts`, `GET …/treatment-program-templates/[id]/usage`, архивация через `DELETE` / `PATCH` + `acknowledgeUsageWarning`) |
+| 7. Курсы | `completed` | `completed` (`CourseUsageSnapshot`, `courseUsageDocLinks.ts`, `GET …/courses/[id]/usage`, `PATCH` + `acknowledgeUsageWarning`) |
 
 Допустимые статусы: `pending` -> `in_progress` -> `completed` (или `cancelled`, если подшаг отменён отдельным решением).
 

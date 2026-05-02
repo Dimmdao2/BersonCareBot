@@ -1,11 +1,14 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ChevronDown, ChevronUp, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -19,10 +22,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { USAGE_CONFIRMATION_REQUIRED } from "@/modules/treatment-program/errors";
 import type {
   TreatmentProgramItemType,
   TreatmentProgramTemplateDetail,
+  TreatmentProgramTemplateUsageRef,
+  TreatmentProgramTemplateUsageSnapshot,
 } from "@/modules/treatment-program/types";
+import { doctorTreatmentProgramTemplateUsageHref } from "../templateUsageDocLinks";
+import {
+  treatmentProgramTemplateUsageHasAnyReference,
+  treatmentProgramTemplateUsageSections,
+  type TreatmentProgramTemplateUsageSection,
+} from "../templateUsageSummaryText";
 
 const ITEM_TYPE_LABEL: Record<TreatmentProgramItemType, string> = {
   exercise: "Упражнение ЛФК",
@@ -44,14 +56,59 @@ type Props = {
   templateId: string;
   initialDetail: TreatmentProgramTemplateDetail;
   library: TreatmentProgramLibraryPickers;
+  /** Снимок с сервера (`[id]/page`). Если не передан — подгружается через GET `/usage`. */
+  externalUsageSnapshot?: TreatmentProgramTemplateUsageSnapshot;
+  /** После успешной архивации (например обновить список в master-detail). */
+  onArchived?: () => void;
 };
+
+function TemplateUsageSectionsView({ sections }: { sections: TreatmentProgramTemplateUsageSection[] }) {
+  if (sections.length === 0) {
+    return <p className="mt-1 text-sm text-muted-foreground">Пока не используется в программах пациентов и курсах.</p>;
+  }
+  return (
+    <div className="mt-2 space-y-3">
+      {sections.map((sec) => (
+        <div key={sec.key}>
+          <p className="text-sm text-muted-foreground">{sec.summary}</p>
+          {sec.refs.length > 0 ? (
+            <ul className="mt-1 ml-3 list-disc space-y-0.5 text-sm">
+              {sec.refs.map((r: TreatmentProgramTemplateUsageRef) => (
+                <li key={`${sec.key}-${r.kind}-${r.id}`}>
+                  <Link
+                    href={doctorTreatmentProgramTemplateUsageHref(r)}
+                    className="text-primary underline-offset-2 hover:underline"
+                  >
+                    {r.title}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          {sec.total > sec.refs.length ? (
+            <p className="mt-1 text-xs text-muted-foreground">
+              Показаны первые {sec.refs.length} из {sec.total}.
+            </p>
+          ) : null}
+        </div>
+      ))}
+    </div>
+  );
+}
 
 /** Стабильный порядок для этапов и элементов (как на сервере в `getTemplateById`). */
 function sortByOrderThenId<T extends { sortOrder: number; id: string }>(rows: T[]): T[] {
   return [...rows].sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id));
 }
 
-export function TreatmentProgramConstructorClient({ templateId, initialDetail, library }: Props) {
+export function TreatmentProgramConstructorClient({
+  templateId,
+  initialDetail,
+  library,
+  externalUsageSnapshot,
+  onArchived,
+}: Props) {
+  const router = useRouter();
   const [detail, setDetail] = useState<TreatmentProgramTemplateDetail>(initialDetail);
   const [selectedStageId, setSelectedStageId] = useState<string | null>(
     initialDetail.stages[0]?.id ?? null,
@@ -63,6 +120,62 @@ export function TreatmentProgramConstructorClient({ templateId, initialDetail, l
   const [itemSearch, setItemSearch] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [usage, setUsage] = useState<TreatmentProgramTemplateUsageSnapshot | null>(null);
+  const [usageBusy, setUsageBusy] = useState(false);
+  const [usageLoadError, setUsageLoadError] = useState<string | null>(null);
+  const [archiveWarnOpen, setArchiveWarnOpen] = useState(false);
+  const [archiveWarnUsage, setArchiveWarnUsage] = useState<TreatmentProgramTemplateUsageSnapshot | null>(null);
+
+  const isArchived = detail.status === "archived";
+
+  useEffect(() => {
+    setDetail(initialDetail);
+    setSelectedStageId((prev) =>
+      prev && initialDetail.stages.some((s) => s.id === prev)
+        ? prev
+        : (initialDetail.stages[0]?.id ?? null),
+    );
+  }, [initialDetail]);
+
+  useEffect(() => {
+    if (externalUsageSnapshot !== undefined) {
+      setUsage(externalUsageSnapshot);
+      setUsageLoadError(null);
+      setUsageBusy(false);
+      return;
+    }
+    let cancelled = false;
+    setUsageBusy(true);
+    setUsageLoadError(null);
+    void fetch(`/api/doctor/treatment-program-templates/${templateId}/usage`)
+      .then(async (res) => {
+        const json = (await res.json()) as { ok?: boolean; usage?: TreatmentProgramTemplateUsageSnapshot };
+        if (!cancelled) {
+          if (res.ok && json.ok && json.usage) setUsage(json.usage);
+          else {
+            setUsage(null);
+            setUsageLoadError("Не удалось загрузить сводку использования");
+          }
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setUsage(null);
+          setUsageLoadError("Не удалось загрузить сводку использования");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setUsageBusy(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [templateId, externalUsageSnapshot]);
+
+  const usageSections = useMemo(() => {
+    if (!usage || !treatmentProgramTemplateUsageHasAnyReference(usage)) return [];
+    return treatmentProgramTemplateUsageSections(usage);
+  }, [usage]);
 
   const reload = useCallback(async () => {
     const res = await fetch(`/api/doctor/treatment-program-templates/${templateId}`);
@@ -74,6 +187,73 @@ export function TreatmentProgramConstructorClient({ templateId, initialDetail, l
       );
     }
   }, [templateId]);
+
+  const refetchUsageClient = useCallback(async () => {
+    if (externalUsageSnapshot !== undefined) return;
+    try {
+      const res = await fetch(`/api/doctor/treatment-program-templates/${templateId}/usage`);
+      const json = (await res.json()) as { ok?: boolean; usage?: TreatmentProgramTemplateUsageSnapshot };
+      if (res.ok && json.ok && json.usage) setUsage(json.usage);
+    } catch {
+      /* ignore */
+    }
+  }, [templateId, externalUsageSnapshot]);
+
+  async function tryArchiveTemplate(withAck: boolean): Promise<boolean> {
+    const url = withAck
+      ? `/api/doctor/treatment-program-templates/${templateId}?acknowledgeUsageWarning=1`
+      : `/api/doctor/treatment-program-templates/${templateId}`;
+    const res = await fetch(url, { method: "DELETE" });
+    const json = (await res.json()) as {
+      ok?: boolean;
+      code?: string;
+      usage?: TreatmentProgramTemplateUsageSnapshot;
+      error?: string;
+    };
+    if (res.ok && json.ok) return true;
+    if (res.status === 409 && json.code === USAGE_CONFIRMATION_REQUIRED && json.usage) {
+      setArchiveWarnUsage(json.usage);
+      setArchiveWarnOpen(true);
+      return false;
+    }
+    setError(json.error ?? "Не удалось отправить шаблон в архив");
+    return false;
+  }
+
+  async function handleArchiveClick() {
+    if (isArchived) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const ok = await tryArchiveTemplate(false);
+      if (!ok) return;
+      setArchiveWarnOpen(false);
+      setArchiveWarnUsage(null);
+      await reload();
+      await refetchUsageClient();
+      onArchived?.();
+      if (!onArchived) router.refresh();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleArchiveConfirmAck() {
+    setBusy(true);
+    setError(null);
+    try {
+      const ok = await tryArchiveTemplate(true);
+      if (!ok) return;
+      setArchiveWarnOpen(false);
+      setArchiveWarnUsage(null);
+      await reload();
+      await refetchUsageClient();
+      onArchived?.();
+      if (!onArchived) router.refresh();
+    } finally {
+      setBusy(false);
+    }
+  }
 
   const orderedStages = useMemo(() => sortByOrderThenId(detail.stages), [detail.stages]);
 
@@ -265,6 +445,13 @@ export function TreatmentProgramConstructorClient({ templateId, initialDetail, l
     }
   }
 
+  const archiveWarnSections = useMemo(() => {
+    if (!archiveWarnUsage || !treatmentProgramTemplateUsageHasAnyReference(archiveWarnUsage)) return [];
+    return treatmentProgramTemplateUsageSections(archiveWarnUsage);
+  }, [archiveWarnUsage]);
+
+  const editLocked = busy || isArchived;
+
   return (
     <div className="flex flex-col gap-4">
       {error ? (
@@ -273,11 +460,49 @@ export function TreatmentProgramConstructorClient({ templateId, initialDetail, l
         </p>
       ) : null}
 
+      <section className="rounded-md border border-border/60 bg-card/20 p-3">
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div className="min-w-0 flex-1">
+            <h2 className="text-sm font-semibold">Где используется</h2>
+            {usageBusy ? (
+              <p className="mt-1 text-sm text-muted-foreground">Загрузка…</p>
+            ) : usageLoadError ? (
+              <p className="mt-1 text-sm text-muted-foreground">{usageLoadError}</p>
+            ) : (
+              <TemplateUsageSectionsView sections={usageSections} />
+            )}
+          </div>
+          {!isArchived ? (
+            <Button
+              type="button"
+              variant="destructive"
+              size="sm"
+              disabled={busy}
+              onClick={() => void handleArchiveClick()}
+            >
+              В архив
+            </Button>
+          ) : (
+            <span className="shrink-0 text-xs uppercase text-muted-foreground">В архиве</span>
+          )}
+        </div>
+      </section>
+
+      {isArchived ? (
+        <p className="text-sm text-muted-foreground">Шаблон в архиве — изменение этапов и элементов отключено.</p>
+      ) : null}
+
       <div className="grid gap-4 md:grid-cols-[minmax(220px,300px)_1fr]">
         <div className="flex flex-col gap-2">
           <div className="flex items-center justify-between gap-2">
             <h2 className="text-sm font-semibold">Этапы</h2>
-            <Button type="button" size="sm" variant="secondary" onClick={() => setStageDialogOpen(true)}>
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              disabled={editLocked}
+              onClick={() => setStageDialogOpen(true)}
+            >
               + Этап
             </Button>
           </div>
@@ -304,7 +529,7 @@ export function TreatmentProgramConstructorClient({ templateId, initialDetail, l
                       size="icon"
                       variant="ghost"
                       className="size-8"
-                      disabled={busy || stageIndex === 0}
+                      disabled={editLocked || stageIndex === 0}
                       aria-label="Этап выше"
                       onClick={(e) => {
                         e.preventDefault();
@@ -318,7 +543,7 @@ export function TreatmentProgramConstructorClient({ templateId, initialDetail, l
                       size="icon"
                       variant="ghost"
                       className="size-8"
-                      disabled={busy || stageIndex >= orderedStages.length - 1}
+                      disabled={editLocked || stageIndex >= orderedStages.length - 1}
                       aria-label="Этап ниже"
                       onClick={(e) => {
                         e.preventDefault();
@@ -332,8 +557,7 @@ export function TreatmentProgramConstructorClient({ templateId, initialDetail, l
                       size="icon"
                       variant="ghost"
                       className="size-8 text-destructive hover:text-destructive"
-                      disabled={busy}
-                      aria-label="Удалить этап"
+                      disabled={editLocked}
                       onClick={(e) => {
                         e.preventDefault();
                         void handleDeleteStage(s.id);
@@ -359,7 +583,7 @@ export function TreatmentProgramConstructorClient({ templateId, initialDetail, l
             <Button
               type="button"
               size="sm"
-              disabled={!selectedStage || busy}
+              disabled={!selectedStage || editLocked}
               onClick={() => {
                 setItemDialogOpen(true);
                 setItemType("exercise");
@@ -384,7 +608,7 @@ export function TreatmentProgramConstructorClient({ templateId, initialDetail, l
                       size="icon"
                       variant="ghost"
                       className="size-8"
-                      disabled={busy || itemIndex === 0}
+                      disabled={editLocked || itemIndex === 0}
                       aria-label="Элемент выше"
                       onClick={() => void handleMoveItem(it.id, -1)}
                     >
@@ -395,7 +619,7 @@ export function TreatmentProgramConstructorClient({ templateId, initialDetail, l
                       size="icon"
                       variant="ghost"
                       className="size-8"
-                      disabled={busy || itemIndex >= orderedStageItems.length - 1}
+                      disabled={editLocked || itemIndex >= orderedStageItems.length - 1}
                       aria-label="Элемент ниже"
                       onClick={() => void handleMoveItem(it.id, 1)}
                     >
@@ -413,8 +637,7 @@ export function TreatmentProgramConstructorClient({ templateId, initialDetail, l
                     size="sm"
                     variant="ghost"
                     className="text-destructive"
-                    disabled={busy}
-                    onClick={() => handleRemoveItem(it.id)}
+                    disabled={editLocked}
                   >
                     Удалить
                   </Button>
@@ -443,7 +666,7 @@ export function TreatmentProgramConstructorClient({ templateId, initialDetail, l
             <Button type="button" variant="outline" onClick={() => setStageDialogOpen(false)}>
               Отмена
             </Button>
-            <Button type="button" disabled={busy || !newStageTitle.trim()} onClick={handleAddStage}>
+            <Button type="button" disabled={editLocked || !newStageTitle.trim()} onClick={handleAddStage}>
               Добавить
             </Button>
           </DialogFooter>
@@ -494,8 +717,7 @@ export function TreatmentProgramConstructorClient({ templateId, initialDetail, l
                   <li key={row.id} className="border-b last:border-0">
                     <button
                       type="button"
-                      disabled={busy}
-                      className="w-full px-3 py-2 text-left text-sm hover:bg-muted/60"
+                      disabled={editLocked}
                       onClick={() => handleAddItem(row.id)}
                     >
                       {row.title}
@@ -508,6 +730,38 @@ export function TreatmentProgramConstructorClient({ templateId, initialDetail, l
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setItemDialogOpen(false)}>
               Закрыть
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={archiveWarnOpen}
+        onOpenChange={(o) => {
+          setArchiveWarnOpen(o);
+          if (!o) setArchiveWarnUsage(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Отправить шаблон в архив?</DialogTitle>
+            <DialogDescription>
+              Есть активные программы у пациентов или опубликованные курсы, ссылающиеся на этот шаблон. В архиве
+              шаблон нельзя назначать заново; уже запущенные программы и история сохраняются.
+            </DialogDescription>
+          </DialogHeader>
+          <TemplateUsageSectionsView sections={archiveWarnSections} />
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setArchiveWarnOpen(false)}>
+              Отмена
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={busy}
+              onClick={() => void handleArchiveConfirmAck()}
+            >
+              В архив, с подтверждением
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -1,5 +1,11 @@
 import type { TreatmentProgramItemRefValidationPort, TreatmentProgramPort } from "./ports";
+import {
+  TreatmentProgramTemplateAlreadyArchivedError,
+  TreatmentProgramTemplateArchiveNotFoundError,
+  TreatmentProgramTemplateUsageConfirmationRequiredError,
+} from "./errors";
 import type {
+  ArchiveTreatmentProgramTemplateOptions,
   CreateTreatmentProgramStageInput,
   CreateTreatmentProgramStageItemInput,
   CreateTreatmentProgramTemplateInput,
@@ -9,7 +15,7 @@ import type {
   UpdateTreatmentProgramStageItemInput,
   UpdateTreatmentProgramTemplateInput,
 } from "./types";
-import { TREATMENT_PROGRAM_ITEM_TYPES } from "./types";
+import { TREATMENT_PROGRAM_ITEM_TYPES, treatmentProgramTemplateArchiveRequiresAcknowledgement } from "./types";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -53,7 +59,11 @@ export function createTreatmentProgramService(
       );
     },
 
-    async updateTemplate(id: string, input: UpdateTreatmentProgramTemplateInput) {
+    async updateTemplate(
+      id: string,
+      input: UpdateTreatmentProgramTemplateInput,
+      options?: ArchiveTreatmentProgramTemplateOptions,
+    ) {
       assertUuid(id);
       const patch: UpdateTreatmentProgramTemplateInput = { ...input };
       if (input.title !== undefined) {
@@ -64,15 +74,44 @@ export function createTreatmentProgramService(
       if (input.description !== undefined) {
         patch.description = input.description?.trim() ?? null;
       }
+
+      if (input.status === "archived") {
+        const existing = await port.getTemplateById(id);
+        if (!existing) throw new TreatmentProgramTemplateArchiveNotFoundError();
+        if (existing.status !== "archived") {
+          const usage = await port.getTreatmentProgramTemplateUsageSummary(id);
+          if (
+            treatmentProgramTemplateArchiveRequiresAcknowledgement(usage) &&
+            !options?.acknowledgeUsageWarning
+          ) {
+            throw new TreatmentProgramTemplateUsageConfirmationRequiredError(usage);
+          }
+        }
+      }
+
       const row = await port.updateTemplate(id, patch);
       if (!row) throw new Error("Шаблон программы не найден");
       return row;
     },
 
-    async deleteTemplate(id: string) {
+    async getTreatmentProgramTemplateUsage(templateId: string) {
+      assertUuid(templateId);
+      return port.getTreatmentProgramTemplateUsageSummary(templateId);
+    },
+
+    async deleteTemplate(id: string, options?: ArchiveTreatmentProgramTemplateOptions) {
       assertUuid(id);
+      const existing = await port.getTemplateById(id);
+      if (!existing) throw new TreatmentProgramTemplateArchiveNotFoundError();
+      if (existing.status === "archived") throw new TreatmentProgramTemplateAlreadyArchivedError();
+
+      const usage = await port.getTreatmentProgramTemplateUsageSummary(id);
+      if (treatmentProgramTemplateArchiveRequiresAcknowledgement(usage) && !options?.acknowledgeUsageWarning) {
+        throw new TreatmentProgramTemplateUsageConfirmationRequiredError(usage);
+      }
+
       const ok = await port.deleteTemplate(id);
-      if (!ok) throw new Error("Шаблон программы не найден");
+      if (!ok) throw new TreatmentProgramTemplateArchiveNotFoundError();
     },
 
     async createStage(templateId: string, input: CreateTreatmentProgramStageInput) {

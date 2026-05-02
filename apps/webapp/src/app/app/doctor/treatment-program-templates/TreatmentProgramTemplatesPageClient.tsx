@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import type { ExerciseLoadType } from "@/modules/lfk-exercises/types";
@@ -46,6 +47,7 @@ export function TreatmentProgramTemplatesPageClient({
   filters,
   initialTitleSort,
 }: Props) {
+  const router = useRouter();
   const formKey = useId();
   const [titleSort, setTitleSort] = useState<CatalogMasterTitleSort | null>(initialTitleSort);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -187,7 +189,17 @@ export function TreatmentProgramTemplatesPageClient({
     ) : detailError ? (
       <p className="text-sm text-destructive">{detailError}</p>
     ) : detail && selected ? (
-      <TreatmentProgramConstructorClient templateId={selected.id} initialDetail={detail} library={library} />
+      <TreatmentProgramConstructorClient
+        templateId={selected.id}
+        initialDetail={detail}
+        library={library}
+        onArchived={() => {
+          router.refresh();
+          setSelectedId(null);
+          setMobileSheet(null);
+          setDetail(null);
+        }}
+      />
     ) : (
       <div className="flex flex-col gap-3">
         <p className="text-sm font-medium text-foreground">Новый шаблон программы</p>

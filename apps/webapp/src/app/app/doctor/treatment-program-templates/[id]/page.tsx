@@ -18,8 +18,12 @@ export default async function TreatmentProgramTemplateEditorPage(props: PageProp
   const deps = buildAppDeps();
 
   let detail;
+  let usage;
   try {
-    detail = await deps.treatmentProgram.getTemplate(id);
+    [detail, usage] = await Promise.all([
+      deps.treatmentProgram.getTemplate(id),
+      deps.treatmentProgram.getTreatmentProgramTemplateUsage(id),
+    ]);
   } catch {
     notFound();
   }
@@ -55,7 +59,12 @@ export default async function TreatmentProgramTemplateEditorPage(props: PageProp
       variant="doctor"
       backHref={TREATMENT_PROGRAM_TEMPLATES_PATH}
     >
-      <TreatmentProgramConstructorClient templateId={id} initialDetail={detail} library={library} />
+      <TreatmentProgramConstructorClient
+        templateId={id}
+        initialDetail={detail}
+        library={library}
+        externalUsageSnapshot={usage}
+      />
     </AppShell>
   );
 }

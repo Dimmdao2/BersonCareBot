@@ -17,6 +17,7 @@ import type {
   TreatmentProgramTemplate,
   TreatmentProgramTemplateDetail,
   TreatmentProgramTemplateFilter,
+  TreatmentProgramTemplateUsageSnapshot,
   TreatmentProgramStage,
   TreatmentProgramStageItem,
   TreatmentProgramTestAttemptRow,
@@ -39,7 +40,9 @@ export type TreatmentProgramPort = {
   ): Promise<TreatmentProgramTemplate | null>;
   getTemplateById(id: string): Promise<TreatmentProgramTemplateDetail | null>;
   listTemplates(filter: TreatmentProgramTemplateFilter): Promise<TreatmentProgramTemplate[]>;
+  /** Перевод шаблона в `status = archived` (не физическое удаление строки). */
   deleteTemplate(id: string): Promise<boolean>;
+  getTreatmentProgramTemplateUsageSummary(id: string): Promise<TreatmentProgramTemplateUsageSnapshot>;
 
   createStage(templateId: string, input: CreateTreatmentProgramStageInput): Promise<TreatmentProgramStage>;
   updateStage(stageId: string, input: UpdateTreatmentProgramStageInput): Promise<TreatmentProgramStage | null>;

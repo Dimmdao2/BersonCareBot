@@ -1,13 +1,18 @@
 import { assertUuid } from "@/modules/treatment-program/service";
+import {
+  CourseArchiveNotFoundError,
+  CourseUsageConfirmationRequiredError,
+} from "./errors";
 import type { CourseIntroPagesPort, CoursesPort } from "./ports";
 import type {
+  ArchiveCourseOptions,
   CourseCatalogItem,
   CourseRecord,
   CreateCourseInput,
   IntroLessonPageRecord,
   UpdateCourseInput,
 } from "./types";
-import { COURSE_LESSON_SECTIONS } from "./types";
+import { COURSE_LESSON_SECTIONS, courseArchiveRequiresAcknowledgement } from "./types";
 
 type AssignTemplate = (input: {
   templateId: string;
@@ -87,6 +92,13 @@ export function createCoursesService(deps: {
       return courses.getById(id.trim());
     },
 
+    async getCourseUsage(courseId: string) {
+      assertUuid(courseId);
+      const snap = await courses.getCourseUsageSummary(courseId.trim());
+      if (!snap) throw new Error("Курс не найден");
+      return snap;
+    },
+
     async createCourse(input: CreateCourseInput) {
       const title = input.title?.trim() ?? "";
       if (!title) throw new Error("Название курса обязательно");
@@ -103,7 +115,7 @@ export function createCoursesService(deps: {
       });
     },
 
-    async updateCourse(id: string, input: UpdateCourseInput) {
+    async updateCourse(id: string, input: UpdateCourseInput, options?: ArchiveCourseOptions) {
       assertUuid(id);
       const patch: UpdateCourseInput = { ...input };
       if (input.title !== undefined) {
@@ -119,6 +131,19 @@ export function createCoursesService(deps: {
         const page = await introPages.getById(input.introLessonPageId);
         assertValidIntroLessonPage(page);
       }
+
+      if (input.status === "archived") {
+        const existing = await courses.getById(id.trim());
+        if (!existing) throw new CourseArchiveNotFoundError();
+        if (existing.status !== "archived") {
+          const usage = await courses.getCourseUsageSummary(id.trim());
+          if (!usage) throw new CourseArchiveNotFoundError();
+          if (courseArchiveRequiresAcknowledgement(usage) && !options?.acknowledgeUsageWarning) {
+            throw new CourseUsageConfirmationRequiredError(usage);
+          }
+        }
+      }
+
       const row = await courses.update(id.trim(), patch);
       if (!row) throw new Error("Курс не найден");
       return row;

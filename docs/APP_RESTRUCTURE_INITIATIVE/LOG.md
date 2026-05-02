@@ -6,6 +6,52 @@
 
 ---
 
+## 2026-05-02 — этап 7 подшаг: курсы (usage + archive guard)
+
+**Сделано:**
+
+- Домен: [`CourseUsageSnapshot`](../../apps/webapp/src/modules/courses/types.ts), [`courseArchiveRequiresAcknowledgement`](../../apps/webapp/src/modules/courses/types.ts), [`errors.ts`](../../apps/webapp/src/modules/courses/errors.ts).
+- Порт: [`getCourseUsageSummary`](../../apps/webapp/src/modules/courses/ports.ts); PG [`pgCourses.ts`](../../apps/webapp/src/infra/repos/pgCourses.ts) (агрегация по `courses.program_template_id`, `treatment_program_instances`, `content_pages.linked_course_id`); in-memory [`seedInMemoryCourseUsageSnapshot`](../../apps/webapp/src/infra/repos/inMemoryCourses.ts).
+- Сервис: [`getCourseUsage`](../../apps/webapp/src/modules/courses/service.ts), [`updateCourse(..., options?)`](../../apps/webapp/src/modules/courses/service.ts) при переходе в `archived`.
+- API: [`GET …/courses/[id]/usage`](../../apps/webapp/src/app/api/doctor/courses/[id]/usage/route.ts); [`PATCH [id]`](../../apps/webapp/src/app/api/doctor/courses/[id]/route.ts) — `409` + `USAGE_CONFIRMATION_REQUIRED`, поле **`acknowledgeUsageWarning`**.
+- UI: [`DoctorCourseEditForm.tsx`](../../apps/webapp/src/app/app/doctor/courses/[id]/DoctorCourseEditForm.tsx), [`courseUsageDocLinks.ts`](../../apps/webapp/src/app/app/doctor/courses/courseUsageDocLinks.ts), [`courseUsageSummaryText.ts`](../../apps/webapp/src/app/app/doctor/courses/courseUsageSummaryText.ts); RSC usage на [`[id]/page.tsx`](../../apps/webapp/src/app/app/doctor/courses/[id]/page.tsx).
+- Тесты: [`service.test.ts`](../../apps/webapp/src/modules/courses/service.test.ts), [`pgCourses.test.ts`](../../apps/webapp/src/infra/repos/pgCourses.test.ts), [`courseUsageDocLinks.test.ts`](../../apps/webapp/src/app/app/doctor/courses/courseUsageDocLinks.test.ts), [`courseUsageSummaryText.test.ts`](../../apps/webapp/src/app/app/doctor/courses/courseUsageSummaryText.test.ts), RTL [`DoctorCourseEditForm.test.tsx`](../../apps/webapp/src/app/app/doctor/courses/%5Bid%5D/DoctorCourseEditForm.test.tsx) (usage из RSC / `GET …/usage`, архив без guard, `409` → диалог → `acknowledgeUsageWarning`).
+- Документация: [`api.md`](../../apps/webapp/src/app/api/api.md); трекер в [`ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md`](ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md).
+
+**Аудит подшага (после первичной реализации):** закрыт пробел без RTL на форме — добавлен `DoctorCourseEditForm.test.tsx`; ручной smoke и финальный корневой `pnpm run ci` остаются по чеклисту оператора и правилам push.
+
+**Проверки:** `pnpm --dir apps/webapp typecheck`; `pnpm --dir apps/webapp exec vitest run src/modules/courses/service.test.ts src/infra/repos/pgCourses.test.ts src/app/app/doctor/courses/courseUsageDocLinks.test.ts src/app/app/doctor/courses/courseUsageSummaryText.test.ts "src/app/app/doctor/courses/[id]/DoctorCourseEditForm.test.tsx"`; `pnpm --dir apps/webapp lint`.
+
+**Guard архива:** активные экземпляры программ по шаблону курса или опубликованные страницы контента с `linked_course_id`; черновики страниц и только завершённые программы не требуют подтверждения.
+
+**Ручной smoke (оператор):** по чеклисту «Manual smoke» в [`ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md`](ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md).
+
+**Closeout этапа 7 по каталогам:** все семь подшагов в [`ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md`](ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md) закрыты; перед merge/push выполнить финальный корневой `pnpm install --frozen-lockfile && pnpm run ci` (см. Definition of Done в том же файле).
+
+---
+
+## 2026-05-02 — этап 7 подшаг: шаблоны программ (usage + archive guard)
+
+**Сделано:**
+
+- Домен: [`TreatmentProgramTemplateUsageSnapshot`](../../apps/webapp/src/modules/treatment-program/types.ts), [`treatmentProgramTemplateArchiveRequiresAcknowledgement`](../../apps/webapp/src/modules/treatment-program/types.ts), [`errors.ts`](../../apps/webapp/src/modules/treatment-program/errors.ts).
+- Порт/репо: [`getTreatmentProgramTemplateUsageSummary`](../../apps/webapp/src/modules/treatment-program/ports.ts), PG/in-memory сводка и soft-archive в [`pgTreatmentProgram.ts`](../../apps/webapp/src/infra/repos/pgTreatmentProgram.ts) / [`inMemoryTreatmentProgram.ts`](../../apps/webapp/src/infra/repos/inMemoryTreatmentProgram.ts); реэкспорт сидов в [`treatmentProgramInMemory.ts`](../../apps/webapp/src/app-layer/testing/treatmentProgramInMemory.ts).
+- Сервис: [`getTreatmentProgramTemplateUsage`](../../apps/webapp/src/modules/treatment-program/service.ts), guard при `updateTemplate(…, archived)` и [`deleteTemplate`](../../apps/webapp/src/modules/treatment-program/service.ts).
+- API: [`GET …/[id]/usage`](../../apps/webapp/src/app/api/doctor/treatment-program-templates/[id]/usage/route.ts); [`PATCH/DELETE [id]`](../../apps/webapp/src/app/api/doctor/treatment-program-templates/[id]/route.ts) — `409` + `USAGE_CONFIRMATION_REQUIRED`, `PATCH acknowledgeUsageWarning`, `DELETE ?acknowledgeUsageWarning=`.
+- UI: блок «Где используется», архивация и диалог подтверждения в [`TreatmentProgramConstructorClient.tsx`](../../apps/webapp/src/app/app/doctor/treatment-program-templates/[id]/TreatmentProgramConstructorClient.tsx); [`templateUsageDocLinks.ts`](../../apps/webapp/src/app/app/doctor/treatment-program-templates/templateUsageDocLinks.ts), [`templateUsageSummaryText.ts`](../../apps/webapp/src/app/app/doctor/treatment-program-templates/templateUsageSummaryText.ts); RSC usage на [`[id]/page.tsx`](../../apps/webapp/src/app/app/doctor/treatment-program-templates/[id]/page.tsx); `onArchived` + `router.refresh` в [`TreatmentProgramTemplatesPageClient.tsx`](../../apps/webapp/src/app/app/doctor/treatment-program-templates/TreatmentProgramTemplatesPageClient.tsx).
+- Документация: [`api.md`](../../apps/webapp/src/app/api/api.md); трекер в [`ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md`](ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md).
+- Тесты: [`service.test.ts`](../../apps/webapp/src/modules/treatment-program/service.test.ts), [`pgTreatmentProgram.test.ts`](../../apps/webapp/src/infra/repos/pgTreatmentProgram.test.ts) (smoke SQL usage через mock `getPool`), [`templateUsageDocLinks.test.ts`](../../apps/webapp/src/app/app/doctor/treatment-program-templates/templateUsageDocLinks.test.ts), [`templateUsageSummaryText.test.ts`](../../apps/webapp/src/app/app/doctor/treatment-program-templates/templateUsageSummaryText.test.ts), [`TreatmentProgramConstructorClient.test.tsx`](../../apps/webapp/src/app/app/doctor/treatment-program-templates/%5Bid%5D/TreatmentProgramConstructorClient.test.tsx).
+
+**Проверки:** `pnpm --dir apps/webapp typecheck`; `pnpm --dir apps/webapp exec vitest run src/modules/treatment-program/service.test.ts src/infra/repos/pgTreatmentProgram.test.ts src/app/app/doctor/treatment-program-templates/templateUsageDocLinks.test.ts src/app/app/doctor/treatment-program-templates/templateUsageSummaryText.test.ts "src/app/app/doctor/treatment-program-templates/[id]/TreatmentProgramConstructorClient.test.tsx"`; `pnpm --dir apps/webapp lint`.
+
+**Аудит подшага (после первичной реализации):** закрыты пробелы — интеграционный smoke для запроса usage в PG-порте и RTL на пустой usage, архив без guard и сценарий `409` → подтверждение → успех.
+
+**Ручной smoke (оператор):** по чеклисту «Manual smoke» в [`ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md`](ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md): шаблон без usage и с usage (активная программа и/или опубликованный курс), кликабельные refs, архив без предупреждения и с диалогом, повтор без `acknowledgeUsageWarning` на API не проходит.
+
+**Guard архива:** активные экземпляры программ и опубликованные курсы; черновики курсов и только завершённые экземпляры не требуют подтверждения.
+
+---
+
 ## 2026-05-02 — этап 7 подшаг: рекомендации (usage + archive guard)
 
 **Сделано:**

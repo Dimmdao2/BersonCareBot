@@ -3,7 +3,7 @@ import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { logServerRuntimeError } from "@/infra/logging/serverRuntimeLog";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
-import { COURSE_LESSON_SECTIONS } from "@/modules/courses/types";
+import { COURSE_LESSON_SECTIONS, type CourseUsageSnapshot } from "@/modules/courses/types";
 import { AppShell } from "@/shared/ui/AppShell";
 import { DataLoadFailureNotice } from "@/shared/ui/DataLoadFailureNotice";
 import { DoctorCourseEditForm } from "./DoctorCourseEditForm";
@@ -30,6 +30,13 @@ export default async function DoctorCourseEditPage(props: PageProps) {
   let templates: { id: string; title: string; status: string }[] = [];
   let introPageOptions: { id: string; title: string }[] = [];
   let loadError: ReturnType<typeof logServerRuntimeError> | null = null;
+  let usage: CourseUsageSnapshot | null = null;
+
+  try {
+    usage = await deps.courses.getCourseUsage(id);
+  } catch {
+    usage = null;
+  }
 
   try {
     const rows = await deps.treatmentProgram.listTemplates({});
@@ -84,6 +91,7 @@ export default async function DoctorCourseEditPage(props: PageProps) {
             initial={course}
             templates={templates}
             introPageOptions={introPageOptions}
+            externalUsageSnapshot={usage ?? undefined}
           />
         )}
       </section>

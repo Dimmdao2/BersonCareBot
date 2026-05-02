@@ -66,6 +66,50 @@ export type UpdateTreatmentProgramTemplateInput = {
   status?: TreatmentProgramTemplateStatus;
 };
 
+/** См. `ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md` раздел 6 (Guard архива шаблона). */
+export const TREATMENT_PROGRAM_TEMPLATE_USAGE_DETAIL_LIMIT = 12;
+
+export type TreatmentProgramTemplateUsageRef =
+  | { kind: "treatment_program_instance"; id: string; title: string; patientUserId: string }
+  | { kind: "course"; id: string; title: string };
+
+export type TreatmentProgramTemplateUsageSnapshot = {
+  activeTreatmentProgramInstanceCount: number;
+  completedTreatmentProgramInstanceCount: number;
+  publishedCourseCount: number;
+  draftCourseCount: number;
+  archivedCourseCount: number;
+  activeTreatmentProgramInstanceRefs: TreatmentProgramTemplateUsageRef[];
+  completedTreatmentProgramInstanceRefs: TreatmentProgramTemplateUsageRef[];
+  publishedCourseRefs: TreatmentProgramTemplateUsageRef[];
+  draftCourseRefs: TreatmentProgramTemplateUsageRef[];
+  archivedCourseRefs: TreatmentProgramTemplateUsageRef[];
+};
+
+export const EMPTY_TREATMENT_PROGRAM_TEMPLATE_USAGE_SNAPSHOT: TreatmentProgramTemplateUsageSnapshot = {
+  activeTreatmentProgramInstanceCount: 0,
+  completedTreatmentProgramInstanceCount: 0,
+  publishedCourseCount: 0,
+  draftCourseCount: 0,
+  archivedCourseCount: 0,
+  activeTreatmentProgramInstanceRefs: [],
+  completedTreatmentProgramInstanceRefs: [],
+  publishedCourseRefs: [],
+  draftCourseRefs: [],
+  archivedCourseRefs: [],
+};
+
+/** Подтверждение перед переводом шаблона в архив: активные программы у пациентов или опубликованные курсы. */
+export function treatmentProgramTemplateArchiveRequiresAcknowledgement(
+  u: TreatmentProgramTemplateUsageSnapshot,
+): boolean {
+  return u.activeTreatmentProgramInstanceCount > 0 || u.publishedCourseCount > 0;
+}
+
+export type ArchiveTreatmentProgramTemplateOptions = {
+  acknowledgeUsageWarning?: boolean;
+};
+
 export type CreateTreatmentProgramStageInput = {
   title: string;
   description?: string | null;

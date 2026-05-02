@@ -3,6 +3,10 @@ import { z } from "zod";
 import { getCurrentSession } from "@/modules/auth/service";
 import { canAccessDoctor } from "@/modules/roles/service";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import {
+  isCourseArchiveNotFoundError,
+  isCourseUsageConfirmationRequiredError,
+} from "@/modules/courses/errors";
 
 const courseStatusSchema = z.enum(["draft", "published", "archived"]);
 
@@ -16,8 +20,12 @@ const patchBodySchema = z
     status: courseStatusSchema.optional(),
     priceMinor: z.number().int().min(0).optional(),
     currency: z.string().min(1).max(8).optional(),
+    /** При переводе в `archived`: если нужно подтверждение usage — повторите PATCH с `true`. */
+    acknowledgeUsageWarning: z.boolean().optional(),
   })
-  .refine((o) => Object.keys(o).length > 0, { message: "empty_patch" });
+  .refine((o) => Object.keys(o).filter((k) => k !== "acknowledgeUsageWarning").length > 0, {
+    message: "empty_patch",
+  });
 
 export async function GET(
   _request: Request,
@@ -62,10 +70,17 @@ export async function PATCH(
   }
 
   const deps = buildAppDeps();
+  const { acknowledgeUsageWarning, ...patch } = parsed.data;
   try {
-    const item = await deps.courses.updateCourse(id, parsed.data);
+    const item = await deps.courses.updateCourse(id, patch, { acknowledgeUsageWarning });
     return NextResponse.json({ ok: true, item });
   } catch (e) {
+    if (isCourseUsageConfirmationRequiredError(e)) {
+      return NextResponse.json({ ok: false, code: e.code, usage: e.usage }, { status: 409 });
+    }
+    if (isCourseArchiveNotFoundError(e)) {
+      return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+    }
     const msg = e instanceof Error ? e.message : "error";
     return NextResponse.json({ ok: false, error: msg }, { status: 400 });
   }

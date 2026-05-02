@@ -2,9 +2,42 @@ import type { CoursesPort } from "@/modules/courses/ports";
 import type {
   CourseRecord,
   CourseStatus,
+  CourseUsageSnapshot,
   CreateCourseInput,
   UpdateCourseInput,
 } from "@/modules/courses/types";
+
+const courseUsageSnapshots = new Map<string, CourseUsageSnapshot>();
+
+export function seedInMemoryCourseUsageSnapshot(courseId: string, snapshot: CourseUsageSnapshot): void {
+  courseUsageSnapshots.set(courseId, snapshot);
+}
+
+export function clearInMemoryCourseUsageSnapshots(): void {
+  courseUsageSnapshots.clear();
+}
+
+function defaultUsageFromCourse(row: CourseRecord): CourseUsageSnapshot {
+  return {
+    programTemplateId: row.programTemplateId,
+    programTemplateTitle: null,
+    programTemplateRef: {
+      kind: "treatment_program_template",
+      id: row.programTemplateId,
+      title: "Шаблон программы",
+    },
+    activeTreatmentProgramInstanceCount: 0,
+    completedTreatmentProgramInstanceCount: 0,
+    activeTreatmentProgramInstanceRefs: [],
+    completedTreatmentProgramInstanceRefs: [],
+    publishedLinkedContentPageCount: 0,
+    draftLinkedContentPageCount: 0,
+    archivedLinkedContentPageCount: 0,
+    publishedLinkedContentPageRefs: [],
+    draftLinkedContentPageRefs: [],
+    archivedLinkedContentPageRefs: [],
+  };
+}
 
 function cloneSettings(s: Record<string, unknown> | undefined): Record<string, unknown> {
   if (!s || typeof s !== "object" || Array.isArray(s)) return {};
@@ -73,6 +106,12 @@ export function createInMemoryCoursesPort(seed: CourseRecord[] = []): CoursesPor
       };
       store.set(id, next);
       return { ...next, accessSettings: cloneSettings(next.accessSettings) };
+    },
+
+    async getCourseUsageSummary(courseId: string): Promise<CourseUsageSnapshot | null> {
+      const row = store.get(courseId);
+      if (!row) return null;
+      return courseUsageSnapshots.get(courseId) ?? defaultUsageFromCourse(row);
     },
   };
 }
