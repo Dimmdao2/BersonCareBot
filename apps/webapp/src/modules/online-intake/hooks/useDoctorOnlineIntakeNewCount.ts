@@ -16,6 +16,7 @@ export function useDoctorOnlineIntakeNewCount() {
       if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
       try {
         const res = await fetch(ONLINE_INTAKE_NEW_LIST_URL);
+        if (!res.ok) return;
         const j = (await res.json()) as { total?: unknown };
         if (!cancelled && typeof j.total === "number" && Number.isFinite(j.total) && j.total >= 0) {
           setCount(j.total);

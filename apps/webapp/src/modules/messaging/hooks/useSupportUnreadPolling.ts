@@ -39,8 +39,12 @@ export function usePatientSupportUnreadCount() {
   return count;
 }
 
-/** Бейдж непрочитанных от пользователей для врача (`/api/doctor/messages/unread-count`). */
-export function useDoctorSupportUnreadCount() {
+/**
+ * Единственный экземпляр polling для врача (`/api/doctor/messages/unread-count`).
+ * Потребители в UI берут значение через `useDoctorSupportUnreadCount` из `@/shared/hooks/useSupportUnreadPolling`
+ * (контекст `DoctorSupportUnreadProvider`), чтобы не дублировать интервал.
+ */
+export function useDoctorSupportUnreadCountPolling() {
   const [count, setCount] = useState(0);
   useEffect(() => {
     let cancelled = false;

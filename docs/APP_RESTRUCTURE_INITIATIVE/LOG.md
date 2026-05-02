@@ -6,6 +6,28 @@
 
 ---
 
+## 2026-05-02 — этап 4: экран «Сегодня» врача (реализация)
+
+**Повод:** выполнить [`DOCTOR_TODAY_DASHBOARD_PLAN.md`](DOCTOR_TODAY_DASHBOARD_PLAN.md) — заменить отчётный `/app/doctor` на рабочий экран дня.
+
+**Сделано:**
+
+- [`page.tsx`](../../apps/webapp/src/app/app/doctor/page.tsx): тонкая страница, `loadDoctorTodayDashboard`, без `getDashboardMetrics` и без плиток метрик.
+- [`loadDoctorTodayDashboard.ts`](../../apps/webapp/src/app/app/doctor/loadDoctorTodayDashboard.ts): `Promise.all` по записям (today + week), новым заявкам (`status=new`, limit 3), непрочитанным диалогам и `unreadFromUsers`; дедуп «ближайших» по `id` относительно списка «сегодня», сортировка по `recordAtIso`, лимит 5.
+- [`DoctorTodayDashboard.tsx`](../../apps/webapp/src/app/app/doctor/DoctorTodayDashboard.tsx): четыре секции с empty-state и CTA, видимый заголовок «Сегодня», ссылка на `/app/doctor/stats`.
+- Удалён клиентский виджет `DoctorDashboardContextWidgets.tsx` (ранее только главная врача); счётчик сообщений на главной — через серверные `listOpenConversations` + `unreadFromUsers`, без polling на этой странице.
+- Тесты: [`DoctorTodayDashboard.test.tsx`](../../apps/webapp/src/app/app/doctor/DoctorTodayDashboard.test.tsx), [`loadDoctorTodayDashboard.test.ts`](../../apps/webapp/src/app/app/doctor/loadDoctorTodayDashboard.test.ts).
+
+**Проверки:**
+
+`pnpm --dir apps/webapp exec vitest run src/app/app/doctor/DoctorTodayDashboard.test.tsx src/app/app/doctor/loadDoctorTodayDashboard.test.ts`  
+`pnpm --dir apps/webapp typecheck`  
+`pnpm --dir apps/webapp lint`
+
+**Вне scope:** секция «К проверке» как рабочая очередь, realtime/push/SSE, новый notification center, изменение карточки пациента, миграции БД и новые env, изменение семантики статусов online-intake.
+
+---
+
 ## 2026-05-02 — этап 3: бейджи меню врача (реализация)
 
 **Повод:** закрыть [`DOCTOR_NAV_BADGES_PLAN.md`](DOCTOR_NAV_BADGES_PLAN.md) — бейджи «Онлайн-заявки» (`status=new`) и «Сообщения» (непрочитанные) в desktop sidebar и mobile Sheet.
@@ -24,6 +46,18 @@
 `rg "@/infra/db|@/infra/repos" apps/webapp/src/app/api/doctor/online-intake apps/webapp/src/shared/ui apps/webapp/src/modules/online-intake/hooks` — без совпадений в новом hook.
 
 **Вне scope:** дашборд «Сегодня», realtime/push/SSE, отдельный endpoint `new-count`, бейдж на заголовке закрытого кластера, `notifyDoctorOnlineIntakeCountChanged` (не добавляли — достаточно polling).
+
+### Закрытие аудита (2026-05-02)
+
+По замечаниям пост-реализации:
+
+- **Дублирование polling unread:** добавлены [`DoctorSupportUnreadProvider`](../../apps/webapp/src/shared/ui/DoctorSupportUnreadProvider.tsx) и переименованный в модуле [`useDoctorSupportUnreadCountPolling`](../../apps/webapp/src/modules/messaging/hooks/useSupportUnreadPolling.ts); провайдер оборачивает дерево в [`DoctorWorkspaceShell`](../../apps/webapp/src/shared/ui/DoctorWorkspaceShell.tsx). `useDoctorSupportUnreadCount` из `@/shared/hooks/useSupportUnreadPolling` читает контекст — один интервал на всё дерево кабинета врача (сейчас основной потребитель меню — [`DoctorMenuAccordion`](../../apps/webapp/src/shared/ui/DoctorMenuAccordion.tsx); другие клиенты под тем же layout получают то же значение без второго polling).
+- **Нестабильный HTTP для online-intake:** в [`useDoctorOnlineIntakeNewCount`](../../apps/webapp/src/modules/online-intake/hooks/useDoctorOnlineIntakeNewCount.ts) добавлена проверка `res.ok` до `json()`.
+- **Manual smoke:** по-прежнему приёмочный шаг оператора по чеклисту из [`DOCTOR_NAV_BADGES_PLAN.md`](DOCTOR_NAV_BADGES_PLAN.md) (раздел Manual smoke); автоматически не воспроизводится.
+
+**Проверки после аудита:**  
+`pnpm --dir apps/webapp exec vitest run src/shared/ui/DoctorSupportUnreadProvider.test.tsx src/modules/online-intake/hooks/useDoctorOnlineIntakeNewCount.test.tsx src/shared/ui/DoctorMenuAccordion.test.tsx`  
+`pnpm --dir apps/webapp typecheck` · `pnpm --dir apps/webapp lint`
 
 ---
 

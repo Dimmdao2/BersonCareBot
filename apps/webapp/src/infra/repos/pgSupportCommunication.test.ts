@@ -218,6 +218,53 @@ describe("SupportCommunicationPort admin reads (in-memory)", () => {
     expect(list.some((c) => c.integratorConversationId === "conv-admin-closed-1")).toBe(false);
   });
 
+  it("countUnreadUserMessagesForAdmin counts only open conversations (matches inbox list)", async () => {
+    const baseline = await port.countUnreadUserMessagesForAdmin();
+
+    await port.upsertConversationFromProjection({
+      integratorConversationId: "conv-closed-unread",
+      integratorUserId: "20",
+      source: "telegram",
+      adminScope: "support",
+      status: "closed",
+      openedAt: "2025-01-01T10:00:00Z",
+      lastMessageAt: "2025-01-01T10:01:00Z",
+      closedAt: "2025-01-01T10:02:00Z",
+      closeReason: "resolved",
+    });
+    await port.appendConversationMessageFromProjection({
+      integratorMessageId: "msg-in-closed",
+      integratorConversationId: "conv-closed-unread",
+      senderRole: "user",
+      text: "Still unread but closed",
+      source: "telegram",
+      createdAt: "2025-01-01T10:03:00Z",
+    });
+
+    expect(await port.countUnreadUserMessagesForAdmin()).toBe(baseline);
+
+    const { id: openId } = await port.upsertConversationFromProjection({
+      integratorConversationId: "conv-open-unread",
+      integratorUserId: "21",
+      source: "telegram",
+      adminScope: "support",
+      status: "open",
+      openedAt: "2025-01-01T11:00:00Z",
+      lastMessageAt: "2025-01-01T11:01:00Z",
+    });
+    await port.appendConversationMessageFromProjection({
+      integratorMessageId: "msg-in-open",
+      integratorConversationId: "conv-open-unread",
+      senderRole: "user",
+      text: "Unread open",
+      source: "telegram",
+      createdAt: "2025-01-01T11:02:00Z",
+    });
+
+    expect(await port.countUnreadUserMessagesForAdmin()).toBe(baseline + 1);
+    expect(await port.countUnreadUserMessagesForAdminByConversation(openId)).toBe(1);
+  });
+
   it("getConversationByIntegratorId returns enriched conversation", async () => {
     await port.upsertConversationFromProjection({
       integratorConversationId: "conv-admin-detail-1",

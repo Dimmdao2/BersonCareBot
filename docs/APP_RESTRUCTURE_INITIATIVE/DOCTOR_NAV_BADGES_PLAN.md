@@ -1,7 +1,7 @@
 # DOCTOR_NAV_BADGES_PLAN — этап 3: бейджи в меню врача
 
 **Дата:** 2026-05-02.  
-**Статус:** реализовано (код: `useDoctorOnlineIntakeNewCount`, `badgeKey` в `doctorNavLinks`, бейджи в `DoctorMenuAccordion`).  
+**Статус:** реализовано и закрыто по аудиту (код + пост-аудит: `DoctorSupportUnreadProvider`, `res.ok` для online-intake count).  
 **Связанный общий план:** [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md), этап 3.
 
 ---

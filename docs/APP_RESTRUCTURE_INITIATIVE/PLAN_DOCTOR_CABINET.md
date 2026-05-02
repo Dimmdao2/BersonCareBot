@@ -50,14 +50,14 @@
 
 | Этап | Зависит от | Можно параллельно с |
 |------|------------|---------------------|
-| 1. CMS-разделение (`CMS_RESTRUCTURE_PLAN.md`) — **закрыт** | — | 2–8 |
+| 1. CMS-разделение (`CMS_RESTRUCTURE_PLAN.md`) — **✅ закрыт** | — | 2–8 |
 | 2. Меню врача (группы, аккордеон, перенос «Библиотеки файлов») — **✅ закрыт** | — | 1, 3–8 |
-| 3. Бейджи (новые заявки, непрочитанные сообщения) — **готово** ([`DOCTOR_NAV_BADGES_PLAN.md`](DOCTOR_NAV_BADGES_PLAN.md)) | 2 | 1, 4–8 |
-| 4. Дашборд «Сегодня» — **ТЗ готово** ([`DOCTOR_TODAY_DASHBOARD_PLAN.md`](DOCTOR_TODAY_DASHBOARD_PLAN.md)) | 2 | 1, 3, 5–8 |
-| 5. Сообщения (страница чатов + универсальный layout + модалка + автопрочтение) — **закрыт** (2026-05-02, см. [`LOG.md`](LOG.md), [`DOCTOR_MESSAGES_UNIFIED_CHAT_EXECUTION_AUDIT.md`](DOCTOR_MESSAGES_UNIFIED_CHAT_EXECUTION_AUDIT.md)) | — | 1–4, 7, 8 |
+| 3. Бейджи (новые заявки, непрочитанные сообщения) — **✅ закрыт** ([`DOCTOR_NAV_BADGES_PLAN.md`](DOCTOR_NAV_BADGES_PLAN.md)) | 2 | 1, 4–8 |
+| 4. Дашборд «Сегодня» — **✅ закрыт** (2026-05-02, см. [`LOG.md`](LOG.md), [`DOCTOR_TODAY_DASHBOARD_PLAN.md`](DOCTOR_TODAY_DASHBOARD_PLAN.md)) | 2 | 1, 3, 5–8 |
+| 5. Сообщения (страница чатов + универсальный layout + модалка + автопрочтение) — **✅ закрыт** (2026-05-02, см. [`LOG.md`](LOG.md), [`DOCTOR_MESSAGES_UNIFIED_CHAT_EXECUTION_AUDIT.md`](DOCTOR_MESSAGES_UNIFIED_CHAT_EXECUTION_AUDIT.md)) | — | 1–4, 7, 8 |
 | 6. Карточка пациента (минимальная пересборка из имеющегося) | 5 опционально | 1–4, 7, 8 |
-| 7. Каталоги: «где используется» + защита архивации (вкл. **курсы**) — **закрыт** (2026-05-02, см. [`LOG.md`](LOG.md), [`ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md`](ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md)) | — | 1–6, 8 |
-| 8. Плотность интерфейса ([`DOCTOR_UI_DENSITY_PLAN.md`](DOCTOR_UI_DENSITY_PLAN.md)) — **закрыт** (2026-05-02, см. [`LOG.md`](LOG.md), [`DOCTOR_UI_DENSITY_EXECUTION_AUDIT.md`](DOCTOR_UI_DENSITY_EXECUTION_AUDIT.md)) | — | 1–7 |
+| 7. Каталоги: «где используется» + защита архивации (вкл. **курсы**) — **✅ закрыт** (2026-05-02, см. [`LOG.md`](LOG.md), [`ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md`](ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md)) | — | 1–6, 8 |
+| 8. Плотность интерфейса ([`DOCTOR_UI_DENSITY_PLAN.md`](DOCTOR_UI_DENSITY_PLAN.md)) — **✅ закрыт** (2026-05-02, см. [`LOG.md`](LOG.md), [`DOCTOR_UI_DENSITY_EXECUTION_AUDIT.md`](DOCTOR_UI_DENSITY_EXECUTION_AUDIT.md)) | — | 1–7 |
 | 9. Что после | завершение пп. 1–8 | — |
 
 ---
@@ -73,7 +73,8 @@
   - `apps/webapp/src/shared/ui/doctorScreenTitles.ts`
 - Doctor dashboard:
   - `apps/webapp/src/app/app/doctor/page.tsx`
-  - `apps/webapp/src/app/app/doctor/DoctorDashboardContextWidgets.tsx`
+  - `apps/webapp/src/app/app/doctor/DoctorTodayDashboard.tsx`
+  - `apps/webapp/src/app/app/doctor/loadDoctorTodayDashboard.ts`
   - модули/порты/репозитории кабинета врача, если нужны для данных главной
 - Online intake doctor surface:
   - `apps/webapp/src/app/app/doctor/online-intake/**`
@@ -269,6 +270,8 @@ Mobile: десктопная иерархия повторяется в Sheet-м
 ---
 
 ## Этап 4. "Сегодня" врача вместо отчётного обзора
+
+**Статус:** **готово** (2026-05-02; см. [`LOG.md`](LOG.md)).
 
 **Зависит от:** этап 2 (новое название «Сегодня» в меню). Независим от этапа 3, но если выполняется раньше, даёт готовые источники данных для бейджей.
 

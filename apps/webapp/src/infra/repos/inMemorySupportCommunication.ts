@@ -491,6 +491,8 @@ export const inMemorySupportCommunicationPort: SupportCommunicationPort = {
   async countUnreadUserMessagesForAdmin() {
     let n = 0;
     for (const m of messages.values()) {
+      const c = conversations.get(m.conversationId);
+      if (!c || c.status === "closed" || c.closedAt != null) continue;
       if (m.senderRole === "user" && m.readAt == null) n += 1;
     }
     return n;

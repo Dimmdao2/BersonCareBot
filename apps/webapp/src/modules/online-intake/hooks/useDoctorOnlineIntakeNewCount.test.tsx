@@ -75,8 +75,12 @@ describe("useDoctorOnlineIntakeNewCount", () => {
     await waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
   });
 
-  it("does not throw on fetch error", async () => {
-    mockFetch.mockRejectedValue(new Error("network"));
+  it("does not update count when response is not ok", async () => {
+    mockFetch.mockResolvedValue({
+      ok: false,
+      status: 500,
+      json: () => Promise.resolve({ error: "SERVER" }),
+    });
     const { result } = renderHook(() => useDoctorOnlineIntakeNewCount());
     await act(async () => {
       await Promise.resolve();

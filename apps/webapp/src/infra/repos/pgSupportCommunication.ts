@@ -201,6 +201,7 @@ export type SupportCommunicationPort = {
   markInboundReadForUser(conversationId: string, platformUserId: string): Promise<void>;
   markUserMessagesReadByAdmin(conversationId: string): Promise<void>;
   countUnreadForUser(platformUserId: string): Promise<number>;
+  /** Непрочитанные от пациентов (роль `user`) в **открытых** диалогах — согласовано с `listOpenConversationsForAdmin`. */
   countUnreadUserMessagesForAdmin(): Promise<number>;
   countUnreadUserMessagesForAdminByConversation(conversationId: string): Promise<number>;
   countUnreadUserMessagesForAdminByPatient(platformUserId: string): Promise<number>;
@@ -973,8 +974,13 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
     async countUnreadUserMessagesForAdmin() {
       const pool = getPool();
       const r = await pool.query<{ c: string }>(
-        `SELECT COUNT(*)::text AS c FROM support_conversation_messages m
-         WHERE m.sender_role = 'user' AND m.read_at IS NULL`
+        `SELECT COUNT(*)::text AS c
+         FROM support_conversation_messages m
+         JOIN support_conversations c ON c.id = m.conversation_id
+         WHERE m.sender_role = 'user'
+           AND m.read_at IS NULL
+           AND c.status <> 'closed'
+           AND c.closed_at IS NULL`
       );
       return parseInt(r.rows[0]?.c ?? "0", 10);
     },
