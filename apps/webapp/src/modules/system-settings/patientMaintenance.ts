@@ -39,12 +39,14 @@ export type PatientMaintenanceConfig = {
 /**
  * Решение о полной замене patient shell на экран техработ.
  * Гейт по роли `client` остаётся в layout — врач/админ сюда не передаются.
+ * Тестовые аккаунты (`test_account_identifiers`) видят полный patient UI даже при включённых техработах.
  */
 export function patientMaintenanceReplacesPatientShell(
   maintenanceEnabled: boolean,
   skipOverlayForPath: boolean,
+  isTestAccount: boolean,
 ): boolean {
-  return maintenanceEnabled && !skipOverlayForPath;
+  return maintenanceEnabled && !skipOverlayForPath && !isTestAccount;
 }
 
 /**

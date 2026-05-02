@@ -256,16 +256,16 @@ describe("doctorSupportMessagingService", () => {
     expect(relayMock).not.toHaveBeenCalled();
   });
 
-  it("shouldDispatch передаётся в relayOutbound как opts", async () => {
+  it("shouldDispatchRelay передаётся в relayOutbound как opts", async () => {
     const convRow = makeConversationRow({ channelCode: "telegram", channelExternalId: "222", platformUserId: "u-1" });
     const appendWebappMessage = vi.fn(async () => ({ id: "msg-webapp-1" }));
-    const shouldDispatch = vi.fn(async () => true);
+    const shouldDispatchRelay = vi.fn(async () => true);
     const service = createDoctorSupportMessagingService(
       createPort({
         getConversationRelayInfo: async () => convRow,
         appendWebappMessage,
       }),
-      { shouldDispatch },
+      { shouldDispatchRelay },
     );
 
     await service.sendAdminReply("conv-1", "reply");
@@ -273,7 +273,7 @@ describe("doctorSupportMessagingService", () => {
 
     expect(relayMock).toHaveBeenCalledWith(
       expect.objectContaining({ userId: "u-1" }),
-      expect.objectContaining({ shouldDispatch }),
+      expect.objectContaining({ shouldDispatchRelay }),
     );
   });
 });

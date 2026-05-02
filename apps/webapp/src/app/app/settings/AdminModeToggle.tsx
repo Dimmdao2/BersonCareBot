@@ -64,7 +64,7 @@ export function AdminModeToggle({ adminMode, onToggle }: AdminModeToggleProps) {
           <DialogDescription>
             {adminMode
               ? "Административные функции будут скрыты до следующего включения."
-              : "В режиме администратора доступны опасные операции: dev_mode, debug forwarding, тестовые ID. Включайте только при необходимости."}
+              : "В режиме администратора доступны опасные операции: dev_mode, debug forwarding, ключ test_account_identifiers (тестовые телефоны / Telegram / Max ID). Включайте только при необходимости."}
           </DialogDescription>
         </DialogHeader>
 

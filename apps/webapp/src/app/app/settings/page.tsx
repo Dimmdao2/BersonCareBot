@@ -10,6 +10,7 @@ import {
 } from "@/modules/system-settings/patientMaintenance";
 import { DOCTOR_PAGE_CONTAINER_CLASS } from "@/shared/ui/doctorWorkspaceLayout";
 import { parseIdTokens } from "@/shared/parsers/parseIdTokens";
+import { normalizeTestAccountIdentifiersValue } from "@/modules/system-settings/testAccounts";
 import { SettingsForm } from "./SettingsForm";
 import { AdminModeToggle } from "./AdminModeToggle";
 import { AdminSettingsTabsClient } from "./AdminSettingsTabsClient";
@@ -17,7 +18,6 @@ import { AdminSettingsSection, type IntegratorLinkedPhoneSource } from "./AdminS
 import { AppParametersSection } from "./AppParametersSection";
 import { NotificationsTopicsSection } from "./NotificationsTopicsSection";
 import { AuthProvidersSection } from "./AuthProvidersSection";
-import { AccessListsSection } from "./AccessListsSection";
 import { BookingCatalogHelp } from "./BookingCatalogHelp";
 import { RubitimeSection } from "./RubitimeSection";
 import { GoogleCalendarSection } from "./GoogleCalendarSection";
@@ -32,11 +32,15 @@ function getValueJson<T>(valueJson: unknown, fallback: T): T {
   return fallback;
 }
 
-function idArrayToString(settings: Array<{ key: string; valueJson: unknown }>, key: string): string {
+/** Первый непустой элемент whitelist-массива в БД (для однострочного UI администратора). */
+function firstAdminSlotFromSettings(settings: Array<{ key: string; valueJson: unknown }>, key: string): string {
   const entry = settings.find((x) => x.key === key);
-  if (!entry) return "";
-  const raw = getValueJson<unknown>(entry.valueJson, "");
-  return parseIdTokens(raw).join(" ");
+  const raw = getValueJson<unknown>(entry?.valueJson, []);
+  if (Array.isArray(raw)) {
+    const s = raw.find((x) => typeof x === "string" && String(x).trim().length > 0);
+    return typeof s === "string" ? s.trim() : "";
+  }
+  return parseIdTokens(raw)[0] ?? "";
 }
 
 export default async function SettingsPage() {
@@ -72,10 +76,6 @@ export default async function SettingsPage() {
         miniappAuthVerboseServerLog: Boolean(
           getValueJson(adminSettingsList.find((x) => x.key === "max_debug_page_enabled")?.valueJson, false),
         ),
-        integrationTestIds: (() => {
-          const v = getValueJson<unknown>(adminSettingsList.find((x) => x.key === "integration_test_ids")?.valueJson, "");
-          return parseIdTokens(v);
-        })(),
         importantFallbackDelayMinutes: Number(getValueJson(adminSettingsList.find((x) => x.key === "important_fallback_delay_minutes")?.valueJson, 60)),
         platformUserMergeV2Enabled: (() => {
           const raw = getValueJson<unknown>(
@@ -92,6 +92,37 @@ export default async function SettingsPage() {
           const s = typeof raw === "string" ? raw.trim() : "";
           if (s === "public_only" || s === "contacts_only" || s === "public_then_contacts") return s;
           return "public_then_contacts";
+        })(),
+        adminPhone: firstAdminSlotFromSettings(adminSettingsList, "admin_phones"),
+        adminTelegramId: firstAdminSlotFromSettings(adminSettingsList, "admin_telegram_ids"),
+        adminMaxId: firstAdminSlotFromSettings(adminSettingsList, "admin_max_ids"),
+        testAccountIdentifiers: (() => {
+          const inner = getValueJson<unknown>(
+            adminSettingsList.find((x) => x.key === "test_account_identifiers")?.valueJson,
+            null,
+          );
+          return normalizeTestAccountIdentifiersValue(inner) ?? {
+            phones: [] as string[],
+            telegramIds: [] as string[],
+            maxIds: [] as string[],
+          };
+        })(),
+        patientAppMaintenanceEnabled: (() => {
+          const raw = getValueJson<unknown>(
+            adminSettingsList.find((x) => x.key === "patient_app_maintenance_enabled")?.valueJson,
+            false,
+          );
+          return raw === true || raw === "true";
+        })(),
+        patientAppMaintenanceMessage: (() => {
+          const raw = getValueJson(adminSettingsList.find((x) => x.key === "patient_app_maintenance_message")?.valueJson, "");
+          const s = typeof raw === "string" ? raw.trim() : "";
+          return s.length > 0 ? s : DEFAULT_PATIENT_MAINTENANCE_MESSAGE;
+        })(),
+        patientBookingUrl: (() => {
+          const raw = getValueJson(adminSettingsList.find((x) => x.key === "patient_booking_url")?.valueJson, "");
+          const s = typeof raw === "string" ? raw.trim() : "";
+          return s.length > 0 ? s : DEFAULT_PATIENT_BOOKING_URL;
         })(),
       }
     : null;
@@ -112,23 +143,6 @@ export default async function SettingsPage() {
           const raw = getValueJson(adminSettingsList.find((x) => x.key === "app_display_timezone")?.valueJson, "");
           const s = typeof raw === "string" ? raw.trim() : "";
           return s.length > 0 ? s : DEFAULT_APP_DISPLAY_TIMEZONE;
-        })(),
-        patientAppMaintenanceEnabled: (() => {
-          const raw = getValueJson<unknown>(
-            adminSettingsList.find((x) => x.key === "patient_app_maintenance_enabled")?.valueJson,
-            false,
-          );
-          return raw === true || raw === "true";
-        })(),
-        patientAppMaintenanceMessage: (() => {
-          const raw = getValueJson(adminSettingsList.find((x) => x.key === "patient_app_maintenance_message")?.valueJson, "");
-          const s = typeof raw === "string" ? raw.trim() : "";
-          return s.length > 0 ? s : DEFAULT_PATIENT_MAINTENANCE_MESSAGE;
-        })(),
-        patientBookingUrl: (() => {
-          const raw = getValueJson(adminSettingsList.find((x) => x.key === "patient_booking_url")?.valueJson, "");
-          const s = typeof raw === "string" ? raw.trim() : "";
-          return s.length > 0 ? s : DEFAULT_PATIENT_BOOKING_URL;
         })(),
       }
     : null;
@@ -186,17 +200,6 @@ export default async function SettingsPage() {
       }
     : null;
 
-  const accessListsConfig = isAdmin && adminMode
-    ? {
-        allowedTelegramIds: idArrayToString(adminSettingsList, "allowed_telegram_ids"),
-        allowedMaxIds: idArrayToString(adminSettingsList, "allowed_max_ids"),
-        adminTelegramIds: idArrayToString(adminSettingsList, "admin_telegram_ids"),
-        doctorTelegramIds: idArrayToString(adminSettingsList, "doctor_telegram_ids"),
-        adminMaxIds: idArrayToString(adminSettingsList, "admin_max_ids"),
-        doctorMaxIds: idArrayToString(adminSettingsList, "doctor_max_ids"),
-      }
-    : null;
-
   const googleCalendarConfig = isAdmin && adminMode
     ? {
         googleClientId: adminStr("google_client_id"),
@@ -237,10 +240,18 @@ export default async function SettingsPage() {
                 devMode={adminSettings.devMode}
                 debugForwardToAdmin={adminSettings.debugForwardToAdmin}
                 miniappAuthVerboseServerLog={adminSettings.miniappAuthVerboseServerLog}
-                integrationTestIds={adminSettings.integrationTestIds}
                 importantFallbackDelayMinutes={adminSettings.importantFallbackDelayMinutes}
                 platformUserMergeV2Enabled={adminSettings.platformUserMergeV2Enabled}
                 integratorLinkedPhoneSource={adminSettings.integratorLinkedPhoneSource}
+                adminPhone={adminSettings.adminPhone}
+                adminTelegramId={adminSettings.adminTelegramId}
+                adminMaxId={adminSettings.adminMaxId}
+                testAccountPhones={adminSettings.testAccountIdentifiers.phones.join(" ")}
+                testAccountTelegramIds={adminSettings.testAccountIdentifiers.telegramIds.join(" ")}
+                testAccountMaxIds={adminSettings.testAccountIdentifiers.maxIds.join(" ")}
+                patientAppMaintenanceEnabled={adminSettings.patientAppMaintenanceEnabled}
+                patientAppMaintenanceMessage={adminSettings.patientAppMaintenanceMessage}
+                patientBookingUrl={adminSettings.patientBookingUrl}
               />
             }
             systemHealth={<SystemHealthSection />}
@@ -253,7 +264,6 @@ export default async function SettingsPage() {
               ) : null
             }
             auth={authProvidersConfig ? <AuthProvidersSection {...authProvidersConfig} /> : null}
-            access={accessListsConfig ? <AccessListsSection {...accessListsConfig} /> : null}
             integrations={
               googleCalendarConfig ? <GoogleCalendarSection {...googleCalendarConfig} /> : null
             }

@@ -17,7 +17,7 @@
 
 | Критерий | Результат |
 |----------|-----------|
-| Админ включает/выключает режим без деплоя | Да — `AppParametersSection` + `PATCH /api/admin/settings` |
+| Админ включает/выключает режим без деплоя | Да — **`AdminSettingsSection`** (вкладка «Режимы») + `PATCH /api/admin/settings` |
 | URL записи редактируется, дефолт `https://dmitryberson.rubitime.ru` | Да — `patient_booking_url`, пустое значение → рантайм-дефолт |
 | У `client` под `/app/patient` один экран без основого меню при включении | Да — `PatientMaintenanceScreen` + `patientHideBottomNav` |
 | Экран: сообщение, внешняя запись, ближайшие записи (`upcoming`) | Да |
@@ -38,7 +38,7 @@
 | PATCH: boolean / сообщение ≤500 / URL http(s) или пусто | ✅ |
 | `invalidateConfigKey` после PATCH | ✅ (общий вызов в конце handler) |
 | Тесты route: невалидные значения → 400 | ✅ |
-| `rg "patient_app_maintenance\|patient_booking_url" apps/webapp/src` | ✅ выполнено (точки интеграции: types, route, route.test, page, AppParametersSection, patientMaintenance.ts, тесты; layout использует helper без прямых строк ключей) |
+| `rg "patient_app_maintenance\|patient_booking_url" apps/webapp/src` | ✅ (интеграция: types, route, page, **AdminSettingsSection**, patientMaintenance, layout, screen; после 2026-05-02 UI техработ — во вкладке «Режимы», см. [`MODES_AND_TEST_ACCOUNTS_EXECUTION_AUDIT.md`](MODES_AND_TEST_ACCOUNTS_EXECUTION_AUDIT.md)) |
 
 ### Шаг 2 — runtime helper
 
@@ -52,10 +52,10 @@
 
 | Пункт | Статус |
 |-------|--------|
-| `page.tsx` — значения в `appParametersConfig` | ✅ |
-| Секция «Режим техработ…», один «Сохранить» с шестью PATCH | ✅ |
+| `page.tsx` — значения для экрана техработ | ✅ передаются в **`AdminSettingsSection`** (вкладка «Режимы») |
+| Секция «Режим техработ…», PATCH вместе с режимами | ✅ один «Сохранить настройки» в `AdminSettingsSection` (включая `patient_app_*`, `patient_booking_url`, `test_account_identifiers`, …) |
 | Клиентская валидация согласована с API | ✅ |
-| RTL-тест `AppParametersSection` | ✅ `AppParametersSection.test.tsx` — один save → шесть PATCH включая maintenance |
+| RTL-тест | ✅ **`AdminSettingsSection.test.tsx`** — save → PATCH включают maintenance keys; **`AppParametersSection.test.tsx`** — save **не** шлёт maintenance (только три app-параметра) |
 
 ### Шаг 4 — экран техработ
 
@@ -73,8 +73,9 @@
 |-------|--------|
 | Редиректы до гейта без изменений семантики | ✅ рефакторинг с единым `patientClientBusinessGate` |
 | Только `client` + `getPatientMaintenanceConfig` + skip paths | ✅ |
+| Bypass для тестовых аккаунтов (`test_account_identifiers`) | ✅ с 2026-05-02 — `isTestPatientSession` + третий аргумент `patientMaintenanceReplacesPatientShell` (см. [`MODES_AND_TEST_ACCOUNTS_EXECUTION_AUDIT.md`](MODES_AND_TEST_ACCOUNTS_EXECUTION_AUDIT.md)) |
 | `listMyBookings` → `upcoming`, ошибки → пустой список + лог | ✅ |
-| Интеграционный тест layout | **Частично** — `patientMaintenanceReplacesPatientShell` + `patientMaintenance.getConfig.test.ts`; без отдельного RSC layout (допустимо по плану) |
+| Интеграционный тест layout | **Частично** — unit/helper + `patientMaintenance.getConfig.test.ts`; отдельный RSC layout-тест не добавлялся (как и ранее по плану техработ) |
 
 ### Шаг 6 — документация
 
@@ -89,16 +90,16 @@
 ## 4. Остаточные действия (закрыто 2026-05-02)
 
 1. **Оптимизация `getPatientMaintenanceConfig`:** при `enabled=false` читается только флаг, без `message`/`booking_url` из БД; при `enabled=true` — параллельное чтение двух ключей. Тесты: `patientMaintenance.getConfig.test.ts`.
-2. **Явная логика «заменить shell»:** `patientMaintenanceReplacesPatientShell` + тесты в `patientMaintenance.test.ts`.
+2. **Явная логика «заменить shell»:** `patientMaintenanceReplacesPatientShell(enabled, skipPath, isTestAccount)` + тесты в `patientMaintenance.test.ts` (третий аргумент — bypass для аккаунтов из `test_account_identifiers`, с 2026-05-02).
 3. **a11y:** `sr-only` `<h2>` у блока сообщения на экране техработ.
-4. **RTL `AppParametersSection`:** smoke на шесть PATCH при сохранении — `AppParametersSection.test.tsx`.
+4. **RTL:** `AppParametersSection.test.tsx` (три PATCH без maintenance); **`AdminSettingsSection.test.tsx`** — smoke на сохранение режимов с ключами техработ и `test_account_identifiers`.
 5. **Полный CI перед push** — выполнен в рамках команды «пуш».
 
 ---
 
 ## 4a. Остаточные действия (эксплуатация, вне кода)
 
-1. **Manual smoke** (оператор): выключен режим → полный patient UI; включён → ключевые маршруты; врач/админ; записи.
+1. **Manual smoke** (оператор): выключен режим → полный patient UI; включён → ключевые маршруты; врач/админ; записи; **тестовый аккаунт** из `test_account_identifiers` при включённых техработах → полный patient UI (см. [`MODES_AND_TEST_ACCOUNTS_EXECUTION_AUDIT.md`](MODES_AND_TEST_ACCOUNTS_EXECUTION_AUDIT.md)).
 2. **Продуктовый trade-off** allowlist при `need_activation` задокументирован; «жёсткий» локаут всех путей — отдельное решение, не в scope первого плана.
 
 ---
@@ -110,6 +111,8 @@
 | [`apps/webapp/src/modules/system-settings/types.ts`](../../apps/webapp/src/modules/system-settings/types.ts) |
 | [`apps/webapp/src/modules/system-settings/patientMaintenance.ts`](../../apps/webapp/src/modules/system-settings/patientMaintenance.ts) |
 | [`apps/webapp/src/modules/system-settings/patientMaintenance.getConfig.test.ts`](../../apps/webapp/src/modules/system-settings/patientMaintenance.getConfig.test.ts) |
+| [`apps/webapp/src/app/app/settings/AdminSettingsSection.tsx`](../../apps/webapp/src/app/app/settings/AdminSettingsSection.tsx) |
+| [`apps/webapp/src/app/app/settings/AdminSettingsSection.test.tsx`](../../apps/webapp/src/app/app/settings/AdminSettingsSection.test.tsx) |
 | [`apps/webapp/src/app/app/settings/AppParametersSection.test.tsx`](../../apps/webapp/src/app/app/settings/AppParametersSection.test.tsx) |
 | [`apps/webapp/src/app/api/admin/settings/route.ts`](../../apps/webapp/src/app/api/admin/settings/route.ts) |
 | [`apps/webapp/src/app/api/admin/settings/route.test.ts`](../../apps/webapp/src/app/api/admin/settings/route.test.ts) |
@@ -129,7 +132,8 @@ pnpm --dir apps/webapp exec vitest run \
   src/modules/system-settings/patientMaintenance.test.ts \
   src/modules/system-settings/patientMaintenance.getConfig.test.ts \
   src/app/app/patient/PatientMaintenanceScreen.test.tsx \
-  src/app/app/settings/AppParametersSection.test.tsx
+  src/app/app/settings/AppParametersSection.test.tsx \
+  src/app/app/settings/AdminSettingsSection.test.tsx
 pnpm --dir apps/webapp typecheck
 pnpm --dir apps/webapp lint
 ```

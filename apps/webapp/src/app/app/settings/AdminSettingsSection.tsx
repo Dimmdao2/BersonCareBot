@@ -3,51 +3,88 @@
 import { useState, useTransition } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { LabeledSwitch } from "@/components/common/form/LabeledSwitch";
 import { parseIdTokens } from "@/shared/parsers/parseIdTokens";
+import { normalizePhone } from "@/modules/auth/phoneAuth";
+import { isValidPhoneE164 } from "@/modules/auth/phoneValidation";
+import { patchAdminSetting } from "./patchAdminSetting";
 
 export type IntegratorLinkedPhoneSource = "public_then_contacts" | "public_only" | "contacts_only";
 
-type AdminSettings = {
+export type AdminSettingsSectionProps = {
   devMode: boolean;
   debugForwardToAdmin: boolean;
   /** Полный initData в journalctl webapp при открытии миниаппа (MAX и Telegram). */
   miniappAuthVerboseServerLog: boolean;
-  integrationTestIds: string[];
   importantFallbackDelayMinutes: number;
   platformUserMergeV2Enabled: boolean;
   /** Как integrator собирает `linkedPhone`: public vs legacy `integrator.contacts`. */
   integratorLinkedPhoneSource: IntegratorLinkedPhoneSource;
+  /** Первый админский телефон (остальные слоты в БД не редактируются из этого поля). */
+  adminPhone: string;
+  adminTelegramId: string;
+  adminMaxId: string;
+  /** Тестовые аккаунты: телефоны (пробел/запятая), Telegram ID, Max ID — для техработ и dev_mode relay. */
+  testAccountPhones: string;
+  testAccountTelegramIds: string;
+  testAccountMaxIds: string;
+  patientAppMaintenanceEnabled: boolean;
+  patientAppMaintenanceMessage: string;
+  patientBookingUrl: string;
 };
 
-type AdminSettingsSectionProps = AdminSettings;
+function firstPhoneTokenForAdminSave(raw: string): string[] {
+  const tokens = parseIdTokens(raw);
+  if (tokens.length === 0) return [];
+  const n = normalizePhone(tokens[0]!);
+  if (!isValidPhoneE164(n)) return [];
+  return [n];
+}
 
-async function patchAdminSetting(key: string, value: unknown): Promise<boolean> {
-  const res = await fetch("/api/admin/settings", {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    // Значения хранятся в формате {value: X} — совместимо с seed и shouldDispatch
-    body: JSON.stringify({ key, value: { value } }),
-  });
-  return res.ok;
+function firstIdTokenForAdminSave(raw: string): string[] {
+  const tokens = parseIdTokens(raw);
+  if (tokens.length === 0) return [];
+  return [tokens[0]!];
 }
 
 export function AdminSettingsSection({
   devMode,
   debugForwardToAdmin,
   miniappAuthVerboseServerLog,
-  integrationTestIds,
   importantFallbackDelayMinutes,
   platformUserMergeV2Enabled,
   integratorLinkedPhoneSource,
+  adminPhone,
+  adminTelegramId,
+  adminMaxId,
+  testAccountPhones,
+  testAccountTelegramIds,
+  testAccountMaxIds,
+  patientAppMaintenanceEnabled,
+  patientAppMaintenanceMessage,
+  patientBookingUrl,
 }: AdminSettingsSectionProps) {
   const [devModeVal, setDevModeVal] = useState(devMode);
   const [debugForward, setDebugForward] = useState(debugForwardToAdmin);
   const [miniappVerbose, setMiniappVerbose] = useState(miniappAuthVerboseServerLog);
-  const [testIdsText, setTestIdsText] = useState(() => integrationTestIds.join(" "));
   const [fallbackDelay, setFallbackDelay] = useState(importantFallbackDelayMinutes);
   const [mergeV2, setMergeV2] = useState(platformUserMergeV2Enabled);
   const [linkedPhoneSource, setLinkedPhoneSource] = useState(integratorLinkedPhoneSource);
+
+  const [adminPhoneVal, setAdminPhoneVal] = useState(adminPhone);
+  const [adminTgVal, setAdminTgVal] = useState(adminTelegramId);
+  const [adminMaxVal, setAdminMaxVal] = useState(adminMaxId);
+
+  const [testPhonesVal, setTestPhonesVal] = useState(testAccountPhones);
+  const [testTgVal, setTestTgVal] = useState(testAccountTelegramIds);
+  const [testMaxVal, setTestMaxVal] = useState(testAccountMaxIds);
+
+  const [maintenanceEnabled, setMaintenanceEnabled] = useState(patientAppMaintenanceEnabled);
+  const [maintenanceMessage, setMaintenanceMessage] = useState(patientAppMaintenanceMessage);
+  const [bookingUrl, setBookingUrl] = useState(patientBookingUrl);
+
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -56,18 +93,53 @@ export function AdminSettingsSection({
     setSaved(false);
     setError(null);
 
-    const testIds = parseIdTokens(testIdsText);
+    const msgRaw = maintenanceMessage.trim();
+    if (msgRaw.length > 500) {
+      setError("Текст техработ: не более 500 символов");
+      return;
+    }
+    const bookingRaw = bookingUrl.trim();
+    if (bookingRaw.length > 0) {
+      try {
+        const u = new URL(bookingRaw);
+        if (u.protocol !== "http:" && u.protocol !== "https:") {
+          setError("Ссылка записи: укажите URL с http:// или https:// либо оставьте пустым");
+          return;
+        }
+      } catch {
+        setError("Ссылка записи: неверный URL");
+        return;
+      }
+    }
+
+    const adminPhonesPayload = firstPhoneTokenForAdminSave(adminPhoneVal);
+    if (adminPhoneVal.trim().length > 0 && adminPhonesPayload.length === 0) {
+      setError("Телефон администратора: укажите валидный номер в формате E.164 или оставьте пустым");
+      return;
+    }
 
     startTransition(async () => {
       try {
+        const testPayload = {
+          phones: parseIdTokens(testPhonesVal),
+          telegramIds: parseIdTokens(testTgVal),
+          maxIds: parseIdTokens(testMaxVal),
+        };
+
         const results = await Promise.all([
           patchAdminSetting("dev_mode", devModeVal),
           patchAdminSetting("debug_forward_to_admin", debugForward),
           patchAdminSetting("max_debug_page_enabled", miniappVerbose),
-          patchAdminSetting("integration_test_ids", testIds),
           patchAdminSetting("important_fallback_delay_minutes", fallbackDelay),
           patchAdminSetting("platform_user_merge_v2_enabled", mergeV2),
           patchAdminSetting("integrator_linked_phone_source", linkedPhoneSource),
+          patchAdminSetting("admin_phones", adminPhonesPayload),
+          patchAdminSetting("admin_telegram_ids", firstIdTokenForAdminSave(adminTgVal)),
+          patchAdminSetting("admin_max_ids", firstIdTokenForAdminSave(adminMaxVal)),
+          patchAdminSetting("test_account_identifiers", testPayload),
+          patchAdminSetting("patient_app_maintenance_enabled", maintenanceEnabled),
+          patchAdminSetting("patient_app_maintenance_message", msgRaw),
+          patchAdminSetting("patient_booking_url", bookingRaw),
         ]);
         if (results.some((r) => !r)) {
           setError("Не удалось сохранить часть настроек");
@@ -83,12 +155,133 @@ export function AdminSettingsSection({
   return (
     <Card className="border-destructive/50 ring-destructive/20">
       <CardHeader>
-        <CardTitle className="text-destructive">Настройки администратора</CardTitle>
+        <CardTitle className="text-destructive">Режимы</CardTitle>
+        <p className="text-xs text-muted-foreground">
+          Ключи в БД (<code className="rounded bg-muted px-1">system_settings</code>, scope admin). Свой числовой ID в
+          Telegram или Max — команда <span className="font-mono">/show_my_id</span> в личном чате с ботом.
+        </p>
       </CardHeader>
       <CardContent className="flex flex-col gap-6">
+        <section className="flex flex-col gap-3 rounded-lg border border-border/80 bg-muted/20 p-4">
+          <p className="text-sm font-semibold">Администратор</p>
+          <p className="text-xs text-muted-foreground">
+            Один телефон и один ID на канал (сохраняется как первый элемент списка в БД; остальные слоты не трогаем).
+          </p>
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-medium">Телефон (E.164)</span>
+            <Input
+              type="text"
+              value={adminPhoneVal}
+              onChange={(e) => setAdminPhoneVal(e.target.value)}
+              disabled={isPending}
+              autoComplete="off"
+              className="max-w-xl font-mono text-sm"
+              placeholder="+79990000000"
+            />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-medium">Telegram ID</span>
+            <Input
+              type="text"
+              value={adminTgVal}
+              onChange={(e) => setAdminTgVal(e.target.value)}
+              disabled={isPending}
+              autoComplete="off"
+              className="max-w-xl font-mono text-sm"
+            />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-medium">Max ID</span>
+            <Input
+              type="text"
+              value={adminMaxVal}
+              onChange={(e) => setAdminMaxVal(e.target.value)}
+              disabled={isPending}
+              autoComplete="off"
+              className="max-w-xl font-mono text-sm"
+            />
+          </label>
+        </section>
+
+        <section className="flex flex-col gap-3 rounded-lg border border-border/80 bg-muted/20 p-4">
+          <p className="text-sm font-semibold">Тестовые аккаунты</p>
+          <p className="text-xs text-muted-foreground">
+            При включённых техработах пациентского приложения эти аккаунты видят полный интерфейс. При dev_mode
+            рассылки уходят только на перечисленные Telegram / Max ID (и телефон для будущих SMS-каналов).
+          </p>
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-medium">Телефоны (пробел, запятая)</span>
+            <Input
+              type="text"
+              value={testPhonesVal}
+              onChange={(e) => setTestPhonesVal(e.target.value)}
+              disabled={isPending}
+              className="max-w-2xl font-mono text-sm"
+            />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-medium">Telegram ID</span>
+            <Input
+              type="text"
+              value={testTgVal}
+              onChange={(e) => setTestTgVal(e.target.value)}
+              disabled={isPending}
+              className="max-w-2xl font-mono text-sm"
+            />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-medium">Max ID</span>
+            <Input
+              type="text"
+              value={testMaxVal}
+              onChange={(e) => setTestMaxVal(e.target.value)}
+              disabled={isPending}
+              className="max-w-2xl font-mono text-sm"
+            />
+          </label>
+        </section>
+
+        <section className="flex flex-col gap-3 rounded-lg border border-border/80 bg-muted/20 p-4">
+          <p className="text-sm font-semibold">Режим техработ пациентского приложения</p>
+          <p className="text-xs text-muted-foreground">
+            Для роли «клиент» под <code className="rounded bg-muted px-1">/app/patient</code> обычно показывается экран
+            техработ; тестовые аккаунты (блок выше) — полный UI. Врач/админ не затрагиваются.
+          </p>
+          <LabeledSwitch
+            label="Включить режим техработ для пациентов"
+            checked={maintenanceEnabled}
+            onCheckedChange={(v) => setMaintenanceEnabled(Boolean(v))}
+            disabled={isPending}
+          />
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-medium">Текст на экране</span>
+            <Textarea
+              value={maintenanceMessage}
+              onChange={(e) => setMaintenanceMessage(e.target.value)}
+              disabled={isPending}
+              rows={4}
+              className="max-w-2xl resize-y"
+            />
+            <span className="text-xs text-muted-foreground">До 500 символов; пусто — текст по умолчанию из кода.</span>
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-medium">Ссылка «Записаться на приём» (внешняя)</span>
+            <Input
+              type="url"
+              placeholder="https://dmitryberson.rubitime.ru"
+              value={bookingUrl}
+              onChange={(e) => setBookingUrl(e.target.value)}
+              disabled={isPending}
+              autoComplete="off"
+              className="max-w-2xl"
+            />
+            <span className="text-xs text-muted-foreground">Пусто — URL по умолчанию (Rubitime).</span>
+          </label>
+        </section>
+
         <LabeledSwitch
           label="Dev mode"
-          hint="При включении рассылки уходят только на тестовые аккаунты"
+          hint="При включении исходящие relay-сообщения только на тестовые Telegram / Max ID из списка выше"
           checked={devModeVal}
           onCheckedChange={setDevModeVal}
           disabled={isPending}
@@ -140,25 +333,8 @@ export function AdminSettingsSection({
             <option value="contacts_only">contacts_only — только legacy contacts (аварийный откат)</option>
           </select>
           <p className="text-xs text-muted-foreground">
-            Влияет на /start и меню: при public_only без телефона в public потребуется контакт, даже если номер
-            остался только в integrator.contacts.
-          </p>
-        </div>
-
-        <div className="flex flex-col gap-2">
-          <label className="text-sm font-medium" htmlFor="test-ids-textarea">
-            Тестовые ID (пробел, запятая, новая строка)
-          </label>
-          <textarea
-            id="test-ids-textarea"
-            className="min-h-24 rounded-md border border-input bg-transparent px-3 py-2 font-mono text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-            value={testIdsText}
-            onChange={(e) => setTestIdsText(e.target.value)}
-            disabled={isPending}
-            placeholder="12345 67890 max-user-1"
-          />
-          <p className="text-xs text-muted-foreground">
-            Используется при dev_mode = true: только эти пользователи получают рассылки
+            Влияет на /start и меню: при public_only без телефона в public потребуется контакт, даже если номер остался
+            только в integrator.contacts.
           </p>
         </div>
 

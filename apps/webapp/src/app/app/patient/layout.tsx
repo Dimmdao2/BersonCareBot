@@ -76,11 +76,31 @@ export default async function PatientLayout({ children }: { children: ReactNode 
       sessionPhoneTrimmed: session.user.phone?.trim(),
     });
 
-    if (patientMaintenanceReplacesPatientShell(maintenance.enabled, skipMaintenance)) {
-      const deps = buildAppDeps();
-      let upcoming: Awaited<ReturnType<typeof deps.patientBooking.listMyBookings>>["upcoming"] = [];
+    let deps: ReturnType<typeof buildAppDeps> | null = null;
+    let isTestAccount = false;
+    if (maintenance.enabled && !skipMaintenance) {
+      deps = buildAppDeps();
       try {
-        const records = await deps.patientBooking.listMyBookings(session.user.userId);
+        isTestAccount = await deps.systemSettings.isTestPatientSession({
+          phone: session.user.phone,
+          telegramId: session.user.bindings?.telegramId,
+          maxId: session.user.bindings?.maxId,
+        });
+      } catch (err) {
+        logger.warn({
+          scope: "patient_layout",
+          event: "patient_test_account_check_failed",
+          error: err instanceof Error ? err.message : String(err),
+        });
+        isTestAccount = false;
+      }
+    }
+
+    if (patientMaintenanceReplacesPatientShell(maintenance.enabled, skipMaintenance, isTestAccount)) {
+      const bookingDeps = deps ?? buildAppDeps();
+      let upcoming: Awaited<ReturnType<typeof bookingDeps.patientBooking.listMyBookings>>["upcoming"] = [];
+      try {
+        const records = await bookingDeps.patientBooking.listMyBookings(session.user.userId);
         upcoming = records.upcoming;
       } catch (err) {
         logger.warn({

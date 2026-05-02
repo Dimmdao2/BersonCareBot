@@ -78,10 +78,13 @@ export function AccessListsSection({
   return (
     <Card className="border-border">
       <CardHeader className="pb-2">
-        <CardTitle className="text-base">Доступ и роли</CardTitle>
+        <CardTitle className="text-base">Вайтлисты ролей (legacy)</CardTitle>
         <p className="text-xs text-muted-foreground">
-          Идентификаторы Telegram / Max для разрешения ролей. Несколько значений: пробел, запятая или новая строка. Свой
-          числовой ID в Telegram или Max можно получить командой{" "}
+          Компонент не подключён к вкладкам <code className="rounded bg-muted px-1">/app/settings</code> (2026-05-02). Ключи
+          по-прежнему в API; при необходимости правки — через{" "}
+          <code className="rounded bg-muted px-1">PATCH /api/admin/settings</code> или временный импорт. Основной UI
+          админских идентификаторов: вкладка «Режимы» (<code className="rounded bg-muted px-1">AdminSettingsSection</code>
+          ). Идентификаторы Telegram / Max: пробел, запятая или новая строка. Свой числовой ID —{" "}
           <span className="font-mono">/show_my_id</span> в личном чате с ботом (в группе —{" "}
           <span className="font-mono">/show_my_id@имя_бота</span>).
         </p>

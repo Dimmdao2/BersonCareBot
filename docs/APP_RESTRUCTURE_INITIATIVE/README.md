@@ -23,7 +23,8 @@
 | [`CMS_AUDIT.md`](CMS_AUDIT.md) | Факты по CMS до/после типизации (ориентир для решений) | **живой** |
 | [`STAGE1_PLAN_CLOSEOUT.md`](STAGE1_PLAN_CLOSEOUT.md) | Закрытие Cursor-плана «этап 1»: статусы задач, остатки в backlog | **живой** (последующие этапы — отдельные closeout-файлы по решению команды) |
 | [`LOG.md`](LOG.md) | Журнал исполнения задач по этой инициативе (решения, проверки, чек-листы) | **живой** |
-| [`PATIENT_MAINTENANCE_MODE_EXECUTION_AUDIT.md`](PATIENT_MAINTENANCE_MODE_EXECUTION_AUDIT.md) | Режим техработ patient app: аудит плана, DoD, чек-листы (операционный guard, не финальная IA) | **живой** |
+| [`MODES_SETTINGS_CLEANUP_PLAN.md`](MODES_SETTINGS_CLEANUP_PLAN.md) | Зеркало Cursor-плана «Режимы и тестовые аккаунты» (статусы todos **completed**) | **закрыт** — см. [`MODES_AND_TEST_ACCOUNTS_EXECUTION_AUDIT.md`](MODES_AND_TEST_ACCOUNTS_EXECUTION_AUDIT.md) |
+| [`MODES_AND_TEST_ACCOUNTS_EXECUTION_AUDIT.md`](MODES_AND_TEST_ACCOUNTS_EXECUTION_AUDIT.md) | Режимы, `test_account_identifiers`, bypass техработ, dev_mode relay: DoD, чек-листы, команды верификации | **живой** (история закрытия) |
 | [`DOCTOR_UI_DENSITY_EXECUTION_AUDIT.md`](DOCTOR_UI_DENSITY_EXECUTION_AUDIT.md) | Аудит выполнения этапа 8 (плотность UI врача): код, LOG, планы; обновлён после пост-аудита (2026-05-02) | **живой** |
 | [`STRUCTURE_AUDIT.md`](STRUCTURE_AUDIT.md) | Снимок текущей IA (маршруты, меню, блоки, архитектурные факты) — **точка отсчёта** | **immutable** — не правится после фиксации, чтобы можно было сравнивать «до/после» |
 | [`RECOMMENDATIONS_AND_ROADMAP.md`](RECOMMENDATIONS_AND_ROADMAP.md) | Оценка текущего состояния по продуктовым целям + предложение этапов работ (0–8) | **живой документ** — обновляется по мере приёма решений |

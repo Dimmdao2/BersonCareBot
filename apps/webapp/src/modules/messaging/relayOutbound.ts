@@ -16,16 +16,16 @@ export type RelayOutboundParams = {
   channel: string;
   recipient: string;
   text: string;
-  /** Webapp userId для shouldDispatch guard (dev_mode whitelist). */
+  /** Опционально: platform user id для отладки/idempotency; не используется в dev_mode guard. */
   userId?: string;
 };
 
 export type RelayOutboundDeps = {
   /**
-   * Callback из Pack B systemSettingsService.shouldDispatch.
+   * Dev-mode guard: если задан, вызывается с каналом и получателем relay (Telegram/Max user id).
    * Если не задан — relay всегда разрешён.
    */
-  shouldDispatch?: (userId: string) => Promise<boolean>;
+  shouldDispatchRelay?: (ctx: { channel: string; recipient: string }) => Promise<boolean>;
   /**
    * Задержки между попытками retry (ms). По умолчанию: [0, 10000, 60000, 300000].
    * Переопределяйте в тестах для ускорения.
@@ -83,8 +83,8 @@ export async function relayOutbound(
   params: RelayOutboundParams,
   deps: RelayOutboundDeps = {},
 ): Promise<RelayResult> {
-  const { messageId, channel, recipient, text, userId } = params;
-  const { shouldDispatch, retryDelaysMs = DEFAULT_RETRY_DELAYS_MS } = deps;
+  const { messageId, channel, recipient, text } = params;
+  const { shouldDispatchRelay, retryDelaysMs = DEFAULT_RETRY_DELAYS_MS } = deps;
 
   const integratorUrl = (await getIntegratorApiUrl()).trim();
   if (!integratorUrl) {
@@ -95,12 +95,8 @@ export async function relayOutbound(
     return { ok: false, reason: "no_integrator_url" };
   }
 
-  if (shouldDispatch) {
-    if (!userId) {
-      // dev_mode guard активен, но userId неизвестен → нельзя проверить whitelist → блокируем
-      return { ok: false, reason: "dev_mode_skip_no_user" };
-    }
-    const allowed = await shouldDispatch(userId);
+  if (shouldDispatchRelay) {
+    const allowed = await shouldDispatchRelay({ channel, recipient });
     if (!allowed) {
       return { ok: false, reason: "dev_mode_skip" };
     }

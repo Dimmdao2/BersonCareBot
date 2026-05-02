@@ -32,11 +32,14 @@ describe("patientMaintenance normalizers", () => {
 });
 
 describe("patientMaintenanceReplacesPatientShell", () => {
-  it("requires maintenance enabled and path not skipped (caller must restrict to client role)", () => {
-    expect(patientMaintenanceReplacesPatientShell(true, false)).toBe(true);
-    expect(patientMaintenanceReplacesPatientShell(false, false)).toBe(false);
-    expect(patientMaintenanceReplacesPatientShell(true, true)).toBe(false);
-    expect(patientMaintenanceReplacesPatientShell(false, true)).toBe(false);
+  it("truth table: overlay only when enabled, path not skipped, and user is not a test account", () => {
+    expect(patientMaintenanceReplacesPatientShell(true, false, false)).toBe(true);
+    expect(patientMaintenanceReplacesPatientShell(true, false, true)).toBe(false);
+    expect(patientMaintenanceReplacesPatientShell(true, true, false)).toBe(false);
+    expect(patientMaintenanceReplacesPatientShell(true, true, true)).toBe(false);
+    expect(patientMaintenanceReplacesPatientShell(false, false, false)).toBe(false);
+    expect(patientMaintenanceReplacesPatientShell(false, false, true)).toBe(false);
+    expect(patientMaintenanceReplacesPatientShell(false, true, false)).toBe(false);
   });
 });
 

@@ -97,43 +97,44 @@ describe("relayOutbound", () => {
     expect(fetchMock).toHaveBeenCalledTimes(4);
   });
 
-  it("shouldDispatch false → skip relay", async () => {
+  it("shouldDispatchRelay false → skip relay", async () => {
     const { relayOutbound } = await importRelay();
-    const result = await relayOutbound(
-      { ...baseParams, userId: "user-1" },
-      { shouldDispatch: async () => false, retryDelaysMs: INSTANT_DELAYS },
-    );
+    const result = await relayOutbound(baseParams, {
+      shouldDispatchRelay: async () => false,
+      retryDelaysMs: INSTANT_DELAYS,
+    });
 
     expect(result).toEqual({ ok: false, reason: "dev_mode_skip" });
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("shouldDispatch true → relay proceeds", async () => {
+  it("shouldDispatchRelay true → relay proceeds", async () => {
     fetchMock.mockResolvedValueOnce({
       ok: true,
       json: async () => ({ ok: true, status: "accepted" }),
     });
 
     const { relayOutbound } = await importRelay();
-    const result = await relayOutbound(
-      { ...baseParams, userId: "user-1" },
-      { shouldDispatch: async () => true, retryDelaysMs: INSTANT_DELAYS },
-    );
+    const result = await relayOutbound(baseParams, {
+      shouldDispatchRelay: async () => true,
+      retryDelaysMs: INSTANT_DELAYS,
+    });
 
     expect(result).toEqual({ ok: true, status: "accepted" });
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it("shouldDispatch задан, но userId отсутствует → dev_mode_skip_no_user", async () => {
-    const { relayOutbound } = await importRelay();
-    const result = await relayOutbound(
-      // userId не передаётся
-      { ...baseParams },
-      { shouldDispatch: async () => true, retryDelaysMs: INSTANT_DELAYS },
-    );
+  it("shouldDispatchRelay получает channel и recipient", async () => {
+    const guard = vi.fn(async () => true);
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ ok: true, status: "accepted" }),
+    });
 
-    expect(result).toEqual({ ok: false, reason: "dev_mode_skip_no_user" });
-    expect(fetchMock).not.toHaveBeenCalled();
+    const { relayOutbound } = await importRelay();
+    await relayOutbound(baseParams, { shouldDispatchRelay: guard, retryDelaysMs: INSTANT_DELAYS });
+
+    expect(guard).toHaveBeenCalledWith({ channel: "telegram", recipient: "123456789" });
   });
 
   it("401 → прерывает retry без дополнительных попыток", async () => {

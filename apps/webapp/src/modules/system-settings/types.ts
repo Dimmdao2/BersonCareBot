@@ -15,7 +15,10 @@ export const ALLOWED_KEYS = [
   "max_debug_page_enabled",
   "dev_mode",
   "important_fallback_delay_minutes",
+  /** Legacy: раньше whitelist для dev_mode по internal id; в текущем webapp не в основном UI, relay-guard не использует. Остаётся в `ALLOWED_KEYS` для совместимости и ручного PATCH. */
   "integration_test_ids",
+  /** Тестовые аккаунты: телефоны (E.164), Telegram user id, Max user id — для bypass техработ и dev_mode relay. */
+  "test_account_identifiers",
   // Non-secret runtime config
   /** Публичный origin веб-приложения (https://…), без завершающего /. Ссылки /app/… строятся от него. Fallback: env APP_BASE_URL. */
   "app_base_url",

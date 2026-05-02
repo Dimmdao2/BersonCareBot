@@ -10,6 +10,7 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { ALLOWED_KEYS } from "@/modules/system-settings/types";
 import { invalidateConfigKey } from "@/modules/system-settings/configAdapter";
 import { normalizeNotificationsTopicsForAdminPatch } from "@/modules/patient-notifications/notificationsTopics";
+import { normalizeTestAccountIdentifiersValue } from "@/modules/system-settings/testAccounts";
 
 const ADMIN_SCOPE_KEYS = [
   "sms_fallback_enabled",
@@ -20,6 +21,7 @@ const ADMIN_SCOPE_KEYS = [
   "integrator_linked_phone_source",
   "important_fallback_delay_minutes",
   "integration_test_ids",
+  "test_account_identifiers",
   "app_base_url",
   "support_contact_url",
   "telegram_login_bot_username",
@@ -294,6 +296,15 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ ok: false, error: "invalid_value" }, { status: 400 });
     }
     normalizedValue = { value: checked.value };
+  }
+
+  if (parsed.data.key === "test_account_identifiers") {
+    const inner = normalizedValue.value;
+    const cleaned = normalizeTestAccountIdentifiersValue(inner);
+    if (cleaned === null) {
+      return NextResponse.json({ ok: false, error: "invalid_value" }, { status: 400 });
+    }
+    normalizedValue = { value: cleaned };
   }
 
   // Audit log перед обновлением (секреты редактируются без вывода raw значения в logs).

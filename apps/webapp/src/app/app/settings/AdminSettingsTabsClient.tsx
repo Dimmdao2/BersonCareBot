@@ -5,11 +5,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 
 const ADMIN_SECTIONS = [
-  { value: "diagnostics", label: "Админ: режим" },
+  { value: "diagnostics", label: "Режимы" },
   { value: "system-health", label: "Здоровье системы" },
   { value: "app-params", label: "Параметры приложения" },
   { value: "auth", label: "Авторизация" },
-  { value: "access", label: "Доступ и роли" },
   { value: "integrations", label: "Интеграции" },
   { value: "catalog", label: "Каталог записи" },
   { value: "audit-log", label: "Лог операций" },
@@ -20,7 +19,6 @@ export type AdminSettingsTabsClientProps = {
   systemHealth: ReactNode;
   appParams: ReactNode;
   auth: ReactNode;
-  access: ReactNode;
   integrations: ReactNode;
   catalog: ReactNode;
   auditLog: ReactNode;
@@ -31,7 +29,6 @@ export function AdminSettingsTabsClient({
   systemHealth,
   appParams,
   auth,
-  access,
   integrations,
   catalog,
   auditLog,
@@ -94,9 +91,6 @@ export function AdminSettingsTabsClient({
           </TabsContent>
           <TabsContent value="auth" className="mt-0">
             {auth}
-          </TabsContent>
-          <TabsContent value="access" className="mt-0">
-            {access}
           </TabsContent>
           <TabsContent value="integrations" className="mt-0 space-y-6">
             {integrations}

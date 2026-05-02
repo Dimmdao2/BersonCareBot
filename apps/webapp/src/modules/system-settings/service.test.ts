@@ -63,7 +63,7 @@ describe("SystemSettingsService", () => {
     });
   });
 
-  it("shouldDispatch — dev_mode false → true для всех", async () => {
+  it("shouldDispatchRelayToRecipient — dev_mode false → true для любого recipient", async () => {
     const port = makePort({
       getByKey: vi.fn().mockImplementation(async (key) => {
         if (key === "dev_mode")
@@ -72,19 +72,19 @@ describe("SystemSettingsService", () => {
       }),
     });
     const service = createSystemSettingsService(port);
-    expect(await service.shouldDispatch("any-user")).toBe(true);
+    expect(await service.shouldDispatchRelayToRecipient({ channel: "telegram", recipient: "999" })).toBe(true);
   });
 
-  it("shouldDispatch — dev_mode true, userId в списке → true", async () => {
+  it("shouldDispatchRelayToRecipient — dev_mode true, telegram recipient в списке → true", async () => {
     const port = makePort({
       getByKey: vi.fn().mockImplementation(async (key) => {
         if (key === "dev_mode")
           return { key: "dev_mode", scope: "admin", valueJson: { value: true }, updatedAt: "", updatedBy: null };
-        if (key === "integration_test_ids")
+        if (key === "test_account_identifiers")
           return {
-            key: "integration_test_ids",
+            key: "test_account_identifiers",
             scope: "admin",
-            valueJson: { value: ["test-user-1", "test-user-2"] },
+            valueJson: { value: { phones: [], telegramIds: ["111"], maxIds: [] } },
             updatedAt: "",
             updatedBy: null,
           };
@@ -92,31 +92,31 @@ describe("SystemSettingsService", () => {
       }),
     });
     const service = createSystemSettingsService(port);
-    expect(await service.shouldDispatch("test-user-1")).toBe(true);
+    expect(await service.shouldDispatchRelayToRecipient({ channel: "telegram", recipient: "111" })).toBe(true);
   });
 
-  it("shouldDispatch — dev_mode true, integration_test_ids отсутствует → false", async () => {
+  it("shouldDispatchRelayToRecipient — dev_mode true, test_account_identifiers отсутствует → false", async () => {
     const port = makePort({
       getByKey: vi.fn().mockImplementation(async (key) => {
         if (key === "dev_mode")
           return { key: "dev_mode", scope: "admin", valueJson: { value: true }, updatedAt: "", updatedBy: null };
-        return null; // integration_test_ids отсутствует
+        return null;
       }),
     });
     const service = createSystemSettingsService(port);
-    expect(await service.shouldDispatch("any-user")).toBe(false);
+    expect(await service.shouldDispatchRelayToRecipient({ channel: "telegram", recipient: "any" })).toBe(false);
   });
 
-  it("shouldDispatch — dev_mode true, userId не в списке → false", async () => {
+  it("shouldDispatchRelayToRecipient — dev_mode true, recipient не в списке → false", async () => {
     const port = makePort({
       getByKey: vi.fn().mockImplementation(async (key) => {
         if (key === "dev_mode")
           return { key: "dev_mode", scope: "admin", valueJson: { value: true }, updatedAt: "", updatedBy: null };
-        if (key === "integration_test_ids")
+        if (key === "test_account_identifiers")
           return {
-            key: "integration_test_ids",
+            key: "test_account_identifiers",
             scope: "admin",
-            valueJson: { value: ["test-user-1"] },
+            valueJson: { value: { phones: [], telegramIds: ["111"], maxIds: [] } },
             updatedAt: "",
             updatedBy: null,
           };
@@ -124,29 +124,50 @@ describe("SystemSettingsService", () => {
       }),
     });
     const service = createSystemSettingsService(port);
-    expect(await service.shouldDispatch("other-user")).toBe(false);
+    expect(await service.shouldDispatchRelayToRecipient({ channel: "telegram", recipient: "222" })).toBe(false);
   });
 
-  it("shouldDispatch — dev_mode true, string IDs format поддерживается", async () => {
+  it("shouldDispatchRelayToRecipient — dev_mode true, max recipient в списке → true", async () => {
     const port = makePort({
       getByKey: vi.fn().mockImplementation(async (key) => {
-        if (key === "dev_mode") {
+        if (key === "dev_mode")
           return { key: "dev_mode", scope: "admin", valueJson: { value: true }, updatedAt: "", updatedBy: null };
-        }
-        if (key === "integration_test_ids") {
+        if (key === "test_account_identifiers")
           return {
-            key: "integration_test_ids",
+            key: "test_account_identifiers",
             scope: "admin",
-            valueJson: { value: "test-user-1 test-user-2" },
+            valueJson: { value: { phones: [], telegramIds: [], maxIds: ["m1"] } },
             updatedAt: "",
             updatedBy: null,
           };
-        }
         return null;
       }),
     });
-
     const service = createSystemSettingsService(port);
-    expect(await service.shouldDispatch("test-user-2")).toBe(true);
+    expect(await service.shouldDispatchRelayToRecipient({ channel: "max", recipient: "m1" })).toBe(true);
+  });
+
+  it("isTestPatientSession — совпадение по телефону", async () => {
+    const port = makePort({
+      getByKey: vi.fn().mockImplementation(async (key) => {
+        if (key === "test_account_identifiers")
+          return {
+            key: "test_account_identifiers",
+            scope: "admin",
+            valueJson: { value: { phones: ["+79990000001"], telegramIds: [], maxIds: [] } },
+            updatedAt: "",
+            updatedBy: null,
+          };
+        return null;
+      }),
+    });
+    const service = createSystemSettingsService(port);
+    expect(await service.isTestPatientSession({ phone: "+7 999 000 00 01" })).toBe(true);
+  });
+
+  it("isTestPatientSession — ключ отсутствует → false", async () => {
+    const port = makePort({ getByKey: vi.fn().mockResolvedValue(null) });
+    const service = createSystemSettingsService(port);
+    expect(await service.isTestPatientSession({ phone: "+79990000001" })).toBe(false);
   });
 });

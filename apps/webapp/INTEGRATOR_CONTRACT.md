@@ -318,7 +318,7 @@ Canonical linking rules:
 
 ### dev_mode guard
 
-Если в `system_settings` включён `dev_mode` (scope: admin), relay отправляется только для userId из whitelist `integration_test_ids`. Проверка выполняется через `systemSettingsService.shouldDispatch(userId)`.
+Если в `system_settings` включён `dev_mode` (scope: admin), исходящий relay из webapp разрешён только когда пара **`channel` + `recipient`** (Telegram chat id / Max user id) попадает в списки **`test_account_identifiers`** (`telegramIds` / `maxIds`). Проверка: `systemSettingsService.shouldDispatchRelayToRecipient({ channel, recipient })`. Ключ **`integration_test_ids`** остаётся в схеме настроек как legacy, **не** используется для этого guard в текущем webapp.
 
 ### Каналы dispatch
 

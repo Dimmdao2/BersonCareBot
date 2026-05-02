@@ -6,6 +6,30 @@
 
 ---
 
+## 2026-05-02 — режимы, тестовые аккаунты, dev_mode relay
+
+**Повод:** один операторский экран для режимов и явных тестовых идентификаторов (телефон / Telegram / Max), без internal `platform_users.id` в UI; bypass техработ для тестовых пациентов; dev_mode relay по `channel`+`recipient`.
+
+**Сделано:**
+
+- Новый ключ **`test_account_identifiers`** (admin): `{ phones[], telegramIds[], maxIds[] }` — парсер/нормализация `testAccounts.ts`, PATCH в `route.ts`, тесты API и unit.
+- **`SystemSettingsService`:** `shouldDispatchRelayToRecipient`, `isTestPatientSession` (fail-closed при отсутствии/битой настройке).
+- **`relayOutbound`:** guard `shouldDispatchRelay({ channel, recipient })`; DI в `buildAppDeps`.
+- **Settings UI:** вкладка «Админ: режим» → **«Режимы»**; вкладка «Доступ и роли» убрана из `AdminSettingsTabsClient`; блок техработ перенесён из «Параметры приложения» в «Режимы»; `AppParametersSection` — только URL/поддержка/таймзона.
+- **Patient layout:** при техработах полный UI для сессий, совпадающих с `test_account_identifiers`; `patientMaintenanceReplacesPatientShell(..., isTestAccount)`.
+- Документы: `INTEGRATOR_CONTRACT.md` (dev_mode guard), `CONFIGURATION_ENV_VS_DATABASE.md`, `settings.md`, этот лог.
+
+**Проверки (целевые):**  
+`pnpm --dir apps/webapp exec vitest run` (список из плана режимов) · `pnpm --dir apps/webapp typecheck` · `pnpm --dir apps/webapp lint`
+
+**Глубокий аудит закрытия (2026-05-02):** [`MODES_AND_TEST_ACCOUNTS_EXECUTION_AUDIT.md`](MODES_AND_TEST_ACCOUNTS_EXECUTION_AUDIT.md) — сверка DoD, `rg`, кросс-обновление `PATIENT_MAINTENANCE_MODE_EXECUTION_AUDIT.md`, `CONFIGURATION_ENV_VS_DATABASE.md`, `RECOMMENDATIONS_AND_ROADMAP.md`, legacy `AccessListsSection`. Зеркало плана: [`MODES_SETTINGS_CLEANUP_PLAN.md`](MODES_SETTINGS_CLEANUP_PLAN.md).
+
+**Вне scope (без изменений):** миграция пользователей, новая таблица тестовых аккаунтов, удаление legacy-ключей из `ALLOWED_KEYS`, смена auth-модели ролей.
+
+**Хвосты полного аудита (закрыто в коде/docs):** `patient/layout.tsx` — устойчивое чтение `isTestPatientSession` при ошибке БД; `AdminModeToggle` — явное название ключа в предупреждении; §«Закрытие хвостов» в [`MODES_AND_TEST_ACCOUNTS_EXECUTION_AUDIT.md`](MODES_AND_TEST_ACCOUNTS_EXECUTION_AUDIT.md).
+
+---
+
 ## 2026-05-02 — режим техработ patient app (операционный guard)
 
 **Повод:** безопасно выкатывать изменения кабинета врача/бэкенда, не открывая весь patient UI; настройка из админки, без env.
@@ -14,7 +38,7 @@
 
 **Сделано:**
 
-- `system_settings` (admin), ключи: `patient_app_maintenance_enabled`, `patient_app_maintenance_message`, `patient_booking_url` — в [`types.ts`](../../apps/webapp/src/modules/system-settings/types.ts), валидация в [`route.ts`](../../apps/webapp/src/app/api/admin/settings/route.ts), UI в «Параметры приложения» ([`AppParametersSection.tsx`](../../apps/webapp/src/app/app/settings/AppParametersSection.tsx), [`page.tsx`](../../apps/webapp/src/app/app/settings/page.tsx)).
+- `system_settings` (admin), ключи: `patient_app_maintenance_enabled`, `patient_app_maintenance_message`, `patient_booking_url` — в [`types.ts`](../../apps/webapp/src/modules/system-settings/types.ts), валидация в [`route.ts`](../../apps/webapp/src/app/api/admin/settings/route.ts); **UI перенесён во вкладку «Режимы»** ([`AdminSettingsSection.tsx`](../../apps/webapp/src/app/app/settings/AdminSettingsSection.tsx), [`page.tsx`](../../apps/webapp/src/app/app/settings/page.tsx)) (ранее блок жил в «Параметры приложения»).
 - Рантайм: [`patientMaintenance.ts`](../../apps/webapp/src/modules/system-settings/patientMaintenance.ts) (`getPatientMaintenanceConfig`, `patientMaintenanceSkipsPath`); чтение через `configAdapter`, дефолты в коде при отсутствии строк в БД.
 - Гейт в [`patient/layout.tsx`](../../apps/webapp/src/app/app/patient/layout.tsx): только **роль `client`**, врач/админ не затрагиваются; пропуск оверлея для `bind-phone` / `help` / `support` и путей allowlist при `need_activation` (см. helper).
 - Экран: [`PatientMaintenanceScreen.tsx`](../../apps/webapp/src/app/app/patient/PatientMaintenanceScreen.tsx) — сообщение, внешняя ссылка записи, `upcoming` из `listMyBookings`, таймзона `getAppDisplayTimeZone`.

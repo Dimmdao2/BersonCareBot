@@ -339,7 +339,7 @@ const patientMessagingService = createPatientMessagingService(supportCommunicati
   isUserMessagingBlocked: (uid) => doctorClientsPort.isClientMessagingBlocked(uid),
 });
 const doctorSupportMessagingService = createDoctorSupportMessagingService(supportCommunicationPort, {
-  shouldDispatch: (userId: string) => systemSettingsService.shouldDispatch(userId),
+  shouldDispatchRelay: (ctx) => systemSettingsService.shouldDispatchRelayToRecipient(ctx),
 });
 
 function linkFromPayload(payload: Record<string, unknown>): string | null {

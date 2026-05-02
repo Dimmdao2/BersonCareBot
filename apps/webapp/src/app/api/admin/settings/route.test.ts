@@ -86,6 +86,7 @@ describe("ALLOWED_KEYS / ADMIN scope (Phase 2)", () => {
   it("includes patient maintenance keys", () => {
     expect(ALLOWED_KEYS).toContain("patient_app_maintenance_enabled");
     expect(ALLOWED_KEYS).toContain("patient_app_maintenance_message");
+    expect(ALLOWED_KEYS).toContain("test_account_identifiers");
     expect(ALLOWED_KEYS).toContain("patient_booking_url");
   });
 
@@ -707,6 +708,70 @@ describe("PATCH /api/admin/settings", () => {
         body: JSON.stringify({
           key: "patient_app_maintenance_message",
           value: { value: "x".repeat(501) },
+        }),
+      }),
+    );
+    expect(res.status).toBe(400);
+    expect(updateSettingMock).not.toHaveBeenCalled();
+  });
+
+  it("returns 200 for test_account_identifiers with normalized deduped arrays", async () => {
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSettingMock.mockResolvedValue(null);
+    updateSettingMock.mockResolvedValue({
+      key: "test_account_identifiers",
+      scope: "admin",
+      valueJson: {
+        value: {
+          phones: ["+79990000001"],
+          telegramIds: ["111", "222"],
+          maxIds: ["m1"],
+        },
+      },
+      updatedAt: "",
+      updatedBy: "a1",
+    });
+    const res = await PATCH(
+      new Request("http://localhost/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          key: "test_account_identifiers",
+          value: {
+            value: {
+              phones: ["+7 999 000 00 01", "+79990000001", "not-a-phone"],
+              telegramIds: [" 111 ", "222", "222"],
+              maxIds: ["m1", ""],
+              extraField: "ignored",
+            },
+          },
+        }),
+      }),
+    );
+    expect(res.status).toBe(200);
+    expect(updateSettingMock).toHaveBeenCalledWith(
+      "test_account_identifiers",
+      "admin",
+      {
+        value: {
+          phones: ["+79990000001"],
+          telegramIds: ["111", "222"],
+          maxIds: ["m1"],
+        },
+      },
+      "a1",
+    );
+  });
+
+  it("returns 400 for test_account_identifiers invalid top-level shape", async () => {
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    const res = await PATCH(
+      new Request("http://localhost/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          key: "test_account_identifiers",
+          value: { value: [] },
         }),
       }),
     );

@@ -5,7 +5,20 @@ import {
   normalizeStoredValueJsonForIntegratorSync,
   syncSettingToIntegrator,
 } from "./syncToIntegrator";
-import { parseIdTokens } from "@/shared/parsers/parseIdTokens";
+import {
+  normalizeTestAccountIdentifiersValue,
+  relayRecipientAllowedInDevMode,
+  sessionMatchesTestAccountIdentifiers,
+  type TestAccountIdentifiers,
+} from "./testAccounts";
+
+async function readTestAccountIdentifiersFromPort(port: SystemSettingsPort): Promise<TestAccountIdentifiers | null> {
+  const row = await port.getByKey("test_account_identifiers", "admin");
+  if (!row?.valueJson || typeof row.valueJson !== "object") return null;
+  const inner = (row.valueJson as Record<string, unknown>).value;
+  const parsed = normalizeTestAccountIdentifiersValue(inner);
+  return parsed;
+}
 
 export function createSystemSettingsService(port: SystemSettingsPort) {
   function isAllowedKey(key: string): key is SystemSettingKey {
@@ -43,8 +56,12 @@ export function createSystemSettingsService(port: SystemSettingsPort) {
       return result;
     },
 
-    /** Возвращает true если сообщения можно доставлять данному userId. */
-    async shouldDispatch(userId: string): Promise<boolean> {
+    /**
+     * Dev-mode guard для relay-outbound: при `dev_mode` сравниваются `channel` и `recipient` с `test_account_identifiers`
+     * (`telegramIds` / `maxIds` через `relayRecipientAllowedInDevMode`). Поле `phones` в том же ключе используется для
+     * bypass техработ пациента (`isTestPatientSession`), не для этого метода, пока нет phone-based relay-вызовов.
+     */
+    async shouldDispatchRelayToRecipient(ctx: { channel: string; recipient: string }): Promise<boolean> {
       const devModeSetting = await port.getByKey("dev_mode", "admin");
       const devMode =
         devModeSetting?.valueJson !== null &&
@@ -53,14 +70,31 @@ export function createSystemSettingsService(port: SystemSettingsPort) {
 
       if (!devMode) return true;
 
-      const testIdsSetting = await port.getByKey("integration_test_ids", "admin");
-      if (!testIdsSetting) return false;
+      const spec = await readTestAccountIdentifiersFromPort(port);
+      if (spec === null) return false;
 
-      const raw = testIdsSetting.valueJson;
-      const ids: unknown =
-        raw !== null && typeof raw === "object" ? (raw as Record<string, unknown>).value : null;
-      const tokens = parseIdTokens(ids);
-      return tokens.includes(userId);
+      return relayRecipientAllowedInDevMode(ctx.channel, ctx.recipient, spec);
+    },
+
+    /**
+     * Тестовый пациентский аккаунт для bypass техработ: совпадение по телефону (E.164) или Telegram/Max ID из сессии.
+     * Fail-closed при отсутствии или некорректном `test_account_identifiers`.
+     */
+    async isTestPatientSession(session: {
+      phone?: string | null;
+      telegramId?: string | null;
+      maxId?: string | null;
+    }): Promise<boolean> {
+      const spec = await readTestAccountIdentifiersFromPort(port);
+      if (spec === null) return false;
+      return sessionMatchesTestAccountIdentifiers(
+        {
+          phone: session.phone ?? undefined,
+          telegramId: session.telegramId ?? undefined,
+          maxId: session.maxId ?? undefined,
+        },
+        spec,
+      );
     },
   };
 }
