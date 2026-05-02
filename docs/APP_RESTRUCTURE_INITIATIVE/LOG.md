@@ -6,6 +6,27 @@
 
 ---
 
+## 2026-05-02 — doctor clients: карточка и список (DOCTOR_CLIENT_PROFILE_REPACK)
+
+**Повод:** ТЗ [`DOCTOR_CLIENT_PROFILE_REPACK_PLAN.md`](DOCTOR_CLIENT_PROFILE_REPACK_PLAN.md) — убрать аккордеон карточки, sticky-шапка и плоские секции; компактный список с иконочными бейджами каналов; удалить заглушку «Создать из записи на приём».
+
+**Полный аудит закрытия:** [`DOCTOR_CLIENT_PROFILE_REPACK_EXECUTION_AUDIT.md`](DOCTOR_CLIENT_PROFILE_REPACK_EXECUTION_AUDIT.md) — `rg`, тесты, отклонения от текста ТЗ (подпись якоря «Программа»), хвост RTL на `suspendLoad`.
+
+**Сделано:**
+
+- Удалён `CreateClientFromRecordStub.tsx`; из [`page.tsx`](../../apps/webapp/src/app/app/doctor/clients/page.tsx) снят условный рендер заглушки.
+- [`DoctorClientsPanel.tsx`](../../apps/webapp/src/app/app/doctor/clients/DoctorClientsPanel.tsx): `space-y-1.5`, `py-2`, имя `text-sm`; телефон не в тексте строки; справа бейджи `Phone` / `Send` / «М» и компактный бейдж отмен.
+- [`ClientProfileCard.tsx`](../../apps/webapp/src/app/app/doctor/clients/ClientProfileCard.tsx): один `article`, sticky-шапка (имя, телефон, ближайшая запись, «Открыть чат», якоря на заметки/программу), секции по группам ТЗ; история записей и старый журнал в `<details>`; блок «Коммуникации» только при непустом `messageHistory`; убрана ссылка «Открыть раздел сообщений»; админ-блок в одном `<details>` с `suspendHeavyFetch` / `suspendLoad` при закрытии.
+- Тесты: [`DoctorClientsPanel.test.tsx`](../../apps/webapp/src/app/app/doctor/clients/DoctorClientsPanel.test.tsx); обновлён [`ClientProfileCard.backLink.test.tsx`](../../apps/webapp/src/app/app/doctor/clients/ClientProfileCard.backLink.test.tsx) (mock `PatientTreatmentProgramsPanel`, без кнопки «Коммуникации»).
+
+**Иконка Telegram в списке:** `Send` из `lucide-react` (как в ТЗ).
+
+**Проверки:** `pnpm --dir apps/webapp exec vitest run src/app/app/doctor/clients/ClientProfileCard.backLink.test.tsx src/app/app/doctor/clients/DoctorClientsPanel.test.tsx` · `pnpm --dir apps/webapp exec vitest run e2e/doctor-clients-inprocess.test.ts` · **`pnpm run ci`** (корень репо). При ошибке `tsc` в `apps/webapp/.next/dev/types` — удалить `apps/webapp/.next` и повторить (битый кэш среды).
+
+**Вне scope:** табы/hero карточки, изменения `doctor-clients` порта/БД, правки дочерних панелей кроме вставки по месту.
+
+---
+
 ## 2026-05-02 — Rubitime → Google Calendar: описание события (комментарии)
 
 **Повод:** в календаре в поле описания события отображался только id записи Rubitime; нужны комментарии клиента и администратора.

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
+import { Phone, Send } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -209,35 +210,51 @@ export function DoctorClientsPanel({
       {filtered.length === 0 ? (
         <p className="text-muted-foreground">Нет записей по текущим фильтрам.</p>
       ) : (
-        <ul id="doctor-clients-list" className="m-0 list-none space-y-3 p-0">
+        <ul id="doctor-clients-list" className="m-0 list-none space-y-1.5 p-0">
           {filtered.map((c) => (
             <li key={c.userId} id={`doctor-clients-item-${c.userId}`} className="rounded-lg border border-border bg-card p-0">
               <Link
                 id={`doctor-clients-card-${c.userId}`}
                 href={`${basePath}/${c.userId}?scope=${scope}`}
                 onClick={onRowClick(c.userId)}
-                className="flex w-full items-start justify-between gap-3 rounded-lg px-3 py-3 text-left no-underline transition-colors hover:bg-muted/50 focus-visible:outline focus-visible:ring-2 focus-visible:ring-ring"
+                className="flex w-full items-start justify-between gap-3 rounded-lg px-3 py-2 text-left no-underline transition-colors hover:bg-muted/50 focus-visible:outline focus-visible:ring-2 focus-visible:ring-ring"
               >
-                <div>
-                  <span className="font-semibold text-foreground">{c.displayName}</span>
-                  {c.phone ? <span className="mt-0.5 block text-xs font-medium uppercase tracking-wide text-muted-foreground">{c.phone}</span> : null}
+                <div className="min-w-0">
+                  <span className="text-sm font-semibold text-foreground">{c.displayName}</span>
                   {c.nextAppointmentLabel ? (
-                    <span className="mt-0.5 block text-xs font-medium uppercase tracking-wide text-muted-foreground">{c.nextAppointmentLabel}</span>
+                    <span className="mt-0.5 block text-[11px] text-muted-foreground">{c.nextAppointmentLabel}</span>
                   ) : null}
                 </div>
-                <div className="flex shrink-0 flex-wrap gap-1.5">
+                <div className="flex shrink-0 flex-wrap items-center gap-1">
+                  {c.phone ? (
+                    <span
+                      className="flex size-6 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground"
+                      aria-label="Телефон указан"
+                      title="Телефон указан"
+                    >
+                      <Phone className="size-3.5" aria-hidden />
+                    </span>
+                  ) : null}
                   {c.bindings.telegramId ? (
-                    <Badge variant="secondary" className="font-normal">
-                      TG
-                    </Badge>
+                    <span
+                      className="flex size-6 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground"
+                      aria-label="Подключён Telegram"
+                      title="Подключён Telegram"
+                    >
+                      <Send className="size-3.5" aria-hidden />
+                    </span>
                   ) : null}
                   {c.bindings.maxId ? (
-                    <Badge variant="secondary" className="font-normal">
-                      MAX
-                    </Badge>
+                    <span
+                      className="flex size-6 shrink-0 items-center justify-center rounded-md bg-muted text-[10px] font-semibold leading-none text-muted-foreground"
+                      aria-label="Подключён MAX"
+                      title="Подключён MAX"
+                    >
+                      М
+                    </span>
                   ) : null}
                   {c.cancellationCount30d > 0 ? (
-                    <Badge variant="destructive" className="font-normal">
+                    <Badge variant="destructive" className="px-1.5 py-0 text-[10px] font-normal leading-tight">
                       {c.cancellationCount30d} {pluralizeRu(c.cancellationCount30d, "отмена", "отмены", "отмен")}
                     </Badge>
                   ) : null}

@@ -369,7 +369,7 @@ rg "DoctorSupportInbox|SendMessageForm|doctorMessaging|supportCommunication|mark
 Проверки:
 
 ```bash
-rg "SendMessageForm|doctorMessaging|doctor-client-message-history-list|doctor-client-open-support-chat-link" apps/webapp/src/app/app/doctor/clients apps/webapp/src/app/app/doctor/messages
+rg "SendMessageForm|doctorMessaging|doctor-client-message-history-list|doctor-client-open-support-chat-button" apps/webapp/src/app/app/doctor/clients apps/webapp/src/app/app/doctor/messages
 ```
 
 ### Шаг 7. Документация и лог

@@ -7,7 +7,6 @@ import { env } from "@/config/env";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { AppShell } from "@/shared/ui/AppShell";
-import { CreateClientFromRecordStub } from "./CreateClientFromRecordStub";
 import { ClientProfileCard } from "./ClientProfileCard";
 import { DoctorClientsPanel } from "./DoctorClientsPanel";
 
@@ -72,7 +71,6 @@ export default async function DoctorClientsPage({ searchParams }: Props) {
 
   return (
     <AppShell title="Клиенты" user={session.user} variant="doctor">
-      {scope === "appointments" ? <CreateClientFromRecordStub /> : null}
       <div id="doctor-clients-master-detail" className="md:grid md:grid-cols-[1fr_2fr] md:gap-4">
         <div id="doctor-clients-list-column">
           <section

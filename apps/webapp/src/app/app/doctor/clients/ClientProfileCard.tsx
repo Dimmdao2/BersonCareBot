@@ -1,12 +1,12 @@
 /**
  * Карточка клиента: контакты, записи, дневники, коммуникации.
- * `/app/doctor/clients/[userId]` — один раскрытый блок (аккордеон).
+ * Единый контейнер (`article`) со sticky-шапкой и плоскими секциями.
  */
 "use client";
 
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { ChevronDown, Pencil } from "lucide-react";
+import { Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -42,40 +42,16 @@ type ClientProfileCardProps = {
   assignTreatmentProgramEnabled?: boolean;
 };
 
-function AccItem({
-  id,
-  title,
-  openSection,
-  onToggle,
-  children,
-}: {
-  id: string;
-  title: string;
-  openSection: string | null;
-  onToggle: (id: string) => void;
-  children: ReactNode;
-}) {
-  const isOpen = openSection === id;
+function SectionGroupTitle({ children, first = false }: { children: ReactNode; first?: boolean }) {
   return (
-    <div className="rounded-2xl border border-border bg-card shadow-sm overflow-hidden">
-      <button
-        type="button"
-        className={cn(
-          "flex w-full items-center justify-between gap-2 px-4 py-3 text-left text-base font-semibold tracking-tight",
-          "hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-        )}
-        onClick={() => onToggle(id)}
-        aria-expanded={isOpen}
-        id={`doctor-client-acc-trigger-${id}`}
-      >
-        {title}
-        <ChevronDown
-          className={cn("size-5 shrink-0 text-muted-foreground transition-transform", isOpen && "rotate-180")}
-          aria-hidden
-        />
-      </button>
-      {isOpen ? <div className="border-t border-border p-4">{children}</div> : null}
-    </div>
+    <p
+      className={cn(
+        "px-4 pb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground",
+        first ? "pt-3" : "border-t border-border pt-4",
+      )}
+    >
+      {children}
+    </p>
   );
 }
 
@@ -98,15 +74,14 @@ function ClientProfileCardInner({
   publishedTreatmentProgramTemplates = [],
   assignTreatmentProgramEnabled = false,
 }: ClientProfileCardProps) {
-  const [openSection, setOpenSection] = useState<string | null>("contacts");
   const [contactsEditing, setContactsEditing] = useState(false);
+  const [adminDetailsOpen, setAdminDetailsOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const [chatLoading, setChatLoading] = useState(false);
   const [chatError, setChatError] = useState<string | null>(null);
   const [chatConversationId, setChatConversationId] = useState<string | null>(null);
   const [chatInitialMessages, setChatInitialMessages] = useState<SerializedSupportMessage[] | null>(null);
   const [chatUnreadCount, setChatUnreadCount] = useState(0);
-  const toggle = (id: string) => setOpenSection((cur) => (cur === id ? null : id));
 
   const {
     identity,
@@ -130,6 +105,9 @@ function ClientProfileCardInner({
       : listBasePath.includes("scope=archived")
         ? "К архиву"
         : "К списку клиентов";
+
+  const firstUpcoming = upcomingAppointments[0];
+  const showAdminDetails = isAdmin || canPermanentDelete;
 
   const loadPatientUnreadCount = useCallback(async () => {
     try {
@@ -201,13 +179,268 @@ function ClientProfileCardInner({
         </div>
       ) : null}
 
-      <div className="flex flex-col gap-3">
-        <AccItem id="contacts" title="Контакты и каналы" openSection={openSection} onToggle={toggle}>
+      <article
+        id={`doctor-client-profile-card-${userId}`}
+        className="overflow-hidden rounded-lg border border-border bg-card shadow-sm"
+      >
+        {/* Sticky header (desktop); на узкой ширине — колонка без sticky */}
+        <header
+          className={cn(
+            "z-10 border-b border-border bg-card px-4 py-3",
+            "md:sticky md:top-[var(--doctor-sticky-offset,0px)]",
+          )}
+        >
+          <div className="flex flex-col gap-3 md:grid md:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)_minmax(0,1fr)] md:items-start md:gap-4">
+            <div className="min-w-0 space-y-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <p id="doctor-client-display-name" className="min-w-0 text-base font-semibold text-foreground">
+                  {displayHeading}
+                </p>
+                {identity.isArchived ? (
+                  <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium uppercase text-muted-foreground">
+                    Архив
+                  </span>
+                ) : null}
+                {identity.isBlocked ? (
+                  <span className="rounded bg-destructive/15 px-1.5 py-0.5 text-[10px] font-medium uppercase text-destructive">
+                    Блок
+                  </span>
+                ) : null}
+              </div>
+              {tel ? (
+                <p className="text-sm">
+                  <a href={tel} className="font-medium text-primary underline">
+                    {identity.phone}
+                  </a>
+                </p>
+              ) : (
+                <p className="text-sm text-muted-foreground">Телефон не указан</p>
+              )}
+            </div>
+
+            <div className="min-w-0 text-center md:px-2">
+              {firstUpcoming ? (
+                <div className="text-sm">
+                  {firstUpcoming.scheduleProvenancePrefix ? (
+                    <p className="mb-0.5 text-xs text-muted-foreground">{firstUpcoming.scheduleProvenancePrefix}</p>
+                  ) : null}
+                  {firstUpcoming.link && /^https?:\/\//i.test(firstUpcoming.link) ? (
+                    <a href={firstUpcoming.link} target="_blank" rel="noopener noreferrer" className="text-primary underline">
+                      {firstUpcoming.label}
+                    </a>
+                  ) : (
+                    <span>{firstUpcoming.label}</span>
+                  )}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">Нет ближайших записей</p>
+              )}
+            </div>
+
+            <div className="flex flex-col gap-2 md:items-end">
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  id="doctor-client-open-support-chat-button"
+                  onClick={() => void openPatientChat()}
+                >
+                  Открыть чат
+                  {chatUnreadCount > 0 ? (
+                    <span className="ml-2 rounded-full bg-primary-foreground px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+                      {chatUnreadCount}
+                    </span>
+                  ) : null}
+                </Button>
+                <Link
+                  href="#doctor-client-section-notes"
+                  className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "shrink-0")}
+                >
+                  Заметки
+                </Link>
+                <Link
+                  href="#doctor-client-section-treatment-programs"
+                  className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "shrink-0")}
+                >
+                  Программа
+                </Link>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        <SectionGroupTitle first>Клиническая работа</SectionGroupTitle>
+
+        <section id="doctor-client-section-notes" className="border-t border-border px-4 pb-4 pt-2">
+          <DoctorNotesPanel userId={userId} />
+        </section>
+
+        <section id="doctor-client-section-treatment-programs" className="border-t border-border px-4 pb-4 pt-2">
+          <PatientTreatmentProgramsPanel
+            patientUserId={userId}
+            templates={publishedTreatmentProgramTemplates}
+            disabled={!assignTreatmentProgramEnabled}
+            profileListScope={profileListScope}
+          />
+        </section>
+
+        <section id="doctor-client-section-lfk" className="border-t border-border px-4 pb-4 pt-2">
+          <div className="flex flex-col gap-4">
+            {lfkComplexes.length === 0 ? (
+              <p className="text-muted-foreground">Нет комплексов ЛФК.</p>
+            ) : (
+              <>
+                <p>Комплексы: {lfkComplexes.map((c) => c.title).join(", ")}</p>
+                {recentLfkSessions.length > 0 && (
+                  <p>Последние занятия: {recentLfkSessions.length} записей</p>
+                )}
+              </>
+            )}
+            <AssignLfkTemplatePanel
+              patientUserId={userId}
+              templates={publishedLfkTemplates}
+              disabled={!assignLfkEnabled}
+            />
+          </div>
+        </section>
+
+        <section id="doctor-client-section-symptoms" className="border-t border-border px-4 pb-4 pt-2">
+          {symptomTrackings.length === 0 ? (
+            <p className="text-muted-foreground">Нет отслеживаемых симптомов.</p>
+          ) : (
+            <>
+              <p>Симптомы: {symptomTrackings.map((t) => t.symptomTitle).join(", ")}</p>
+              {recentSymptomEntries.length > 0 && (
+                <p>Последние записи: {recentSymptomEntries.slice(0, 5).map((e) => `${e.value0_10}`).join(", ")}</p>
+              )}
+            </>
+          )}
+        </section>
+
+        <SectionGroupTitle>Записи</SectionGroupTitle>
+
+        <section id="doctor-client-section-appointments" className="border-t border-border px-4 pb-4 pt-2">
+          <div className="flex flex-col gap-4">
+            {upcomingAppointments.length === 0 ? (
+              <p className="text-muted-foreground">Нет предстоящих записей.</p>
+            ) : (
+              <ul id="doctor-client-upcoming-appointments-list" className="m-0 list-none space-y-3 p-0">
+                {upcomingAppointments.map((a) => (
+                  <li
+                    key={a.id}
+                    id={`doctor-client-upcoming-appointment-${a.id}`}
+                    className="rounded-lg border border-border bg-card p-3"
+                  >
+                    {a.scheduleProvenancePrefix ? (
+                      <p className="mb-1 text-xs text-muted-foreground">{a.scheduleProvenancePrefix}</p>
+                    ) : null}
+                    {a.link && /^https?:\/\//i.test(a.link) ? (
+                      <a href={a.link} target="_blank" rel="noopener noreferrer">
+                        {a.label}
+                      </a>
+                    ) : (
+                      a.label
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Статистика: всего {appointmentStats.total}, отмен за 30 дн.: {appointmentStats.cancellations30d}
+            </p>
+          </div>
+        </section>
+
+        <section id="doctor-client-section-appointment-history" className="border-t border-border px-4 pb-4 pt-2">
+          <details className="group">
+            <summary className="cursor-pointer list-none text-sm font-medium [&::-webkit-details-marker]:hidden">
+              Показать историю записей ({appointmentHistory.length})
+            </summary>
+            <div className="mt-3">
+              {appointmentHistory.length === 0 ? (
+                <p className="text-muted-foreground">Нет записей в projection.</p>
+              ) : (
+                <ul id="doctor-client-appointment-history-list" className="m-0 list-none space-y-3 p-0">
+                  {appointmentHistory.map((row) => (
+                    <li key={row.id} className="rounded-lg border border-border bg-card p-3">
+                      {row.scheduleProvenancePrefix ? (
+                        <p className="mb-1 text-xs text-muted-foreground">{row.scheduleProvenancePrefix}</p>
+                      ) : null}
+                      {row.label}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </details>
+        </section>
+
+        {messageHistory.length > 0 ? (
+          <>
+            <SectionGroupTitle>Коммуникации</SectionGroupTitle>
+            <section id="doctor-client-section-communications" className="border-t border-border px-4 pb-4 pt-2">
+              <div className="flex flex-col gap-3">
+                <div className="md:hidden">
+                  <Button type="button" size="sm" className="w-full sm:w-auto" onClick={() => void openPatientChat()}>
+                    Открыть чат
+                    {chatUnreadCount > 0 ? (
+                      <span className="ml-2 rounded-full bg-primary-foreground px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+                        {chatUnreadCount}
+                      </span>
+                    ) : null}
+                  </Button>
+                </div>
+                <div className="rounded-lg border border-border bg-card p-3">
+                  <h3 className="text-sm font-medium">Единый чат поддержки</h3>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    История переписки и отправка сообщений открываются в едином чате.
+                  </p>
+                </div>
+                <details className="group">
+                  <summary className="cursor-pointer list-none text-sm font-medium [&::-webkit-details-marker]:hidden">
+                    Старый журнал отправок ({messageHistory.length})
+                  </summary>
+                  <ul id="doctor-client-message-history-list" className="m-0 mt-3 list-none space-y-3 p-0">
+                    {messageHistory.map((entry) => (
+                      <li
+                        key={entry.id}
+                        id={`doctor-client-message-history-item-${entry.id}`}
+                        className="rounded-lg border border-border bg-card p-3"
+                      >
+                        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                          {new Date(entry.sentAt).toLocaleString("ru")} · {entry.category}
+                          {entry.outcome === "sent" ? (
+                            <span className="ml-1.5 text-green-600 dark:text-green-500">доставлено</span>
+                          ) : entry.outcome === "failed" ? (
+                            <span className="ml-1.5 text-destructive">ошибка</span>
+                          ) : (
+                            <span className="ml-1.5">{entry.outcome}</span>
+                          )}
+                        </span>
+                        <p className="mt-1">
+                          {entry.text.slice(0, 80)}
+                          {entry.text.length > 80 ? "…" : ""}
+                        </p>
+                        {Object.keys(entry.channelBindingsUsed).length > 0 ? (
+                          <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground opacity-80">
+                            Каналы: {Object.keys(entry.channelBindingsUsed).join(", ")}
+                          </span>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              </div>
+            </section>
+          </>
+        ) : null}
+
+        <SectionGroupTitle>Учётная запись</SectionGroupTitle>
+
+        <section id="doctor-client-section-contacts" className="border-t border-border px-4 pb-4 pt-2">
           <div className="flex flex-col gap-4">
             <div className="flex items-start justify-between gap-2">
-              <p id="doctor-client-display-name" className="min-w-0 text-sm font-medium text-foreground">
-                {displayHeading}
-              </p>
+              <p className="text-sm font-medium text-foreground">Контакты и каналы</p>
               {canEditClientProfile ? (
                 <Button
                   type="button"
@@ -268,22 +501,10 @@ function ClientProfileCardInner({
                 </li>
               ))}
             </ul>
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Чат поддержки (веб-приложение)
-            </p>
-            <p>
-              <Link
-                href="/app/doctor/messages"
-                className="text-primary underline"
-                id="doctor-client-open-support-chat-link"
-              >
-                Открыть раздел сообщений
-              </Link>
-            </p>
           </div>
-        </AccItem>
+        </section>
 
-        <AccItem id="lifecycle" title="Учётная запись и архив" openSection={openSection} onToggle={toggle}>
+        <section id="doctor-client-section-lifecycle" className="border-t border-border px-4 pb-4 pt-2">
           <DoctorClientLifecycleActions
             userId={userId}
             isArchived={identity.isArchived}
@@ -291,195 +512,46 @@ function ClientProfileCardInner({
             isAdmin={isAdmin}
             canPermanentDelete={canPermanentDelete}
           />
-        </AccItem>
+        </section>
 
-        <AccItem id="appointments" title="Ближайшие записи" openSection={openSection} onToggle={toggle}>
-          <div className="flex flex-col gap-4">
-            {upcomingAppointments.length === 0 ? (
-              <p className="text-muted-foreground">Нет предстоящих записей.</p>
-            ) : (
-              <ul id="doctor-client-upcoming-appointments-list" className="m-0 list-none space-y-3 p-0">
-                {upcomingAppointments.map((a) => (
-                  <li
-                    key={a.id}
-                    id={`doctor-client-upcoming-appointment-${a.id}`}
-                    className="rounded-lg border border-border bg-card p-3"
-                  >
-                    {a.scheduleProvenancePrefix ? (
-                      <p className="mb-1 text-xs text-muted-foreground">{a.scheduleProvenancePrefix}</p>
-                    ) : null}
-                    {a.link && /^https?:\/\//i.test(a.link) ? (
-                      <a href={a.link} target="_blank" rel="noopener noreferrer">
-                        {a.label}
-                      </a>
-                    ) : (
-                      a.label
-                    )}
-                  </li>
-                ))}
-              </ul>
-            )}
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Статистика: всего {appointmentStats.total}, отмен за 30 дн.: {appointmentStats.cancellations30d}
-            </p>
-          </div>
-        </AccItem>
-
-        <AccItem id="appointment-history" title="История записей" openSection={openSection} onToggle={toggle}>
-          {appointmentHistory.length === 0 ? (
-            <p className="text-muted-foreground">Нет записей в projection.</p>
-          ) : (
-            <ul id="doctor-client-appointment-history-list" className="m-0 list-none space-y-3 p-0">
-              {appointmentHistory.map((row) => (
-                <li key={row.id} className="rounded-lg border border-border bg-card p-3">
-                  {row.scheduleProvenancePrefix ? (
-                    <p className="mb-1 text-xs text-muted-foreground">{row.scheduleProvenancePrefix}</p>
-                  ) : null}
-                  {row.label}
-                </li>
-              ))}
-            </ul>
-          )}
-        </AccItem>
-
-        <AccItem id="symptoms" title="Дневник симптомов" openSection={openSection} onToggle={toggle}>
-          {symptomTrackings.length === 0 ? (
-            <p className="text-muted-foreground">Нет отслеживаемых симптомов.</p>
-          ) : (
-            <>
-              <p>Симптомы: {symptomTrackings.map((t) => t.symptomTitle).join(", ")}</p>
-              {recentSymptomEntries.length > 0 && (
-                <p>Последние записи: {recentSymptomEntries.slice(0, 5).map((e) => `${e.value0_10}`).join(", ")}</p>
-              )}
-            </>
-          )}
-        </AccItem>
-
-        <AccItem id="lfk" title="Дневник ЛФК" openSection={openSection} onToggle={toggle}>
-          <div className="flex flex-col gap-4">
-            {lfkComplexes.length === 0 ? (
-              <p className="text-muted-foreground">Нет комплексов ЛФК.</p>
-            ) : (
-              <>
-                <p>Комплексы: {lfkComplexes.map((c) => c.title).join(", ")}</p>
-                {recentLfkSessions.length > 0 && (
-                  <p>Последние занятия: {recentLfkSessions.length} записей</p>
-                )}
-              </>
-            )}
-            <AssignLfkTemplatePanel
-              patientUserId={userId}
-              templates={publishedLfkTemplates}
-              disabled={!assignLfkEnabled}
-            />
-          </div>
-        </AccItem>
-
-        <AccItem id="treatment-programs" title="Программа лечения" openSection={openSection} onToggle={toggle}>
-          <PatientTreatmentProgramsPanel
-            patientUserId={userId}
-            templates={publishedTreatmentProgramTemplates}
-            disabled={!assignTreatmentProgramEnabled}
-            profileListScope={profileListScope}
-          />
-        </AccItem>
-
-        <AccItem id="notes" title="Заметки врача" openSection={openSection} onToggle={toggle}>
-          <DoctorNotesPanel userId={userId} />
-        </AccItem>
-
-        <AccItem id="subscriber" title="Блокировка подписчика" openSection={openSection} onToggle={toggle}>
+        <section id="doctor-client-section-subscriber" className="border-t border-border px-4 pb-4 pt-2">
           <SubscriberBlockPanel
             userId={userId}
             initiallyBlocked={identity.isBlocked}
             blockedReason={identity.blockedReason}
           />
-        </AccItem>
+        </section>
 
-        <AccItem id="communications" title="Коммуникации" openSection={openSection} onToggle={toggle}>
-          <div className="flex flex-col gap-4">
-            <div className="rounded-lg border border-border bg-card p-3">
-              <h3 className="text-sm font-medium">Единый чат поддержки</h3>
-              <p className="mt-1 text-sm text-muted-foreground">
-                История переписки и отправка сообщений открываются в едином чате.
-              </p>
-              <Button
-                type="button"
-                className="mt-3"
-                id="doctor-client-open-support-chat-button"
-                onClick={() => void openPatientChat()}
-              >
-                Открыть чат
-                {chatUnreadCount > 0 ? (
-                  <span className="ml-2 rounded-full bg-primary-foreground px-1.5 py-0.5 text-[10px] font-semibold text-primary">
-                    {chatUnreadCount}
-                  </span>
-                ) : null}
-              </Button>
+        {showAdminDetails ? (
+          <details
+            className="border-t border-border"
+            onToggle={(e) => setAdminDetailsOpen(e.currentTarget.open)}
+          >
+            <summary className="cursor-pointer list-none px-4 py-3 text-sm font-semibold [&::-webkit-details-marker]:hidden">
+              Админ-операции
+            </summary>
+            <div className="flex flex-col gap-4 border-t border-border px-4 pb-4 pt-4">
+              {isAdmin ? (
+                <AdminDangerActions userId={userId} sampleIntegratorRecordId={sampleRecordId} />
+              ) : null}
+              {canPermanentDelete ? (
+                <AdminMergeAccountsPanel
+                  anchorUserId={userId}
+                  enabled
+                  suspendHeavyFetch={!adminDetailsOpen}
+                />
+              ) : null}
+              {canPermanentDelete ? (
+                <AdminClientAuditHistorySection
+                  platformUserId={userId}
+                  enabled
+                  suspendLoad={!adminDetailsOpen}
+                />
+              ) : null}
             </div>
-            <h3 className="text-sm font-medium">Старый журнал отправок</h3>
-            {messageHistory.length === 0 ? (
-              <p className="text-muted-foreground">Записей старого журнала пока нет.</p>
-            ) : (
-              <ul id="doctor-client-message-history-list" className="m-0 list-none space-y-3 p-0">
-                {messageHistory.map((entry) => (
-                  <li
-                    key={entry.id}
-                    id={`doctor-client-message-history-item-${entry.id}`}
-                    className="rounded-lg border border-border bg-card p-3"
-                  >
-                    <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                      {new Date(entry.sentAt).toLocaleString("ru")} · {entry.category}
-                      {entry.outcome === "sent" ? (
-                        <span className="ml-1.5 text-green-600 dark:text-green-500">доставлено</span>
-                      ) : entry.outcome === "failed" ? (
-                        <span className="ml-1.5 text-destructive">ошибка</span>
-                      ) : (
-                        <span className="ml-1.5">{entry.outcome}</span>
-                      )}
-                    </span>
-                    <p className="mt-1">
-                      {entry.text.slice(0, 80)}
-                      {entry.text.length > 80 ? "…" : ""}
-                    </p>
-                    {Object.keys(entry.channelBindingsUsed).length > 0 ? (
-                      <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground opacity-80">
-                        Каналы: {Object.keys(entry.channelBindingsUsed).join(", ")}
-                      </span>
-                    ) : null}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </AccItem>
-
-        {isAdmin ? (
-          <AccItem id="admin-danger" title="Опасные действия (admin)" openSection={openSection} onToggle={toggle}>
-            <AdminDangerActions userId={userId} sampleIntegratorRecordId={sampleRecordId} />
-          </AccItem>
+          </details>
         ) : null}
-
-        {canPermanentDelete ? (
-          <AccItem id="admin-merge" title="Объединение учётных записей (admin)" openSection={openSection} onToggle={toggle}>
-            <AdminMergeAccountsPanel
-              anchorUserId={userId}
-              enabled
-              suspendHeavyFetch={openSection !== "admin-merge"}
-            />
-          </AccItem>
-        ) : null}
-
-        {canPermanentDelete ? (
-          <AccItem id="admin-audit" title="История операций (admin)" openSection={openSection} onToggle={toggle}>
-            <AdminClientAuditHistorySection
-              platformUserId={userId}
-              enabled
-              suspendLoad={openSection !== "admin-audit"}
-            />
-          </AccItem>
-        ) : null}
-      </div>
+      </article>
 
       <p id="doctor-client-back-link-container" className="pt-1">
         <Link

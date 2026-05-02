@@ -116,7 +116,7 @@
 2. ~~**`/online-intake` в меню.**~~ **Сделано:** пункт «Онлайн-заявки» в кластере «Работа с пациентами» ([`doctorNavLinks.ts`](../../apps/webapp/src/shared/ui/doctorNavLinks.ts)); вместе с кластерным меню — [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md) этап 2 / [`DOCTOR_MENU_RESTRUCTURE_EXECUTION_AUDIT.md`](DOCTOR_MENU_RESTRUCTURE_EXECUTION_AUDIT.md).
 3. **Дублирующиеся точки входа:**
    - ~~Рассылки в двух местах (`/messages` журнал + `/broadcasts`).~~ **Частично снято (2026-05-01):** `/messages` — только чат; журнал массовых рассылок на `/broadcasts`.
-   - Сообщения: **дубль отправки снят (2026-05-02)** — из карточки пациента тот же `DoctorChatPanel`, что и на `/messages` (см. [`DOCTOR_MESSAGES_UNIFIED_CHAT_EXECUTION_AUDIT.md`](DOCTOR_MESSAGES_UNIFIED_CHAT_EXECUTION_AUDIT.md)); остаётся IA-долг аккордеона «Коммуникации» до переработки карточки ([`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md) этап 6 — заморозка).
+   - Сообщения: **дубль отправки снят (2026-05-02)** — из карточки пациента тот же `DoctorChatPanel`, что и на `/messages` (см. [`DOCTOR_MESSAGES_UNIFIED_CHAT_EXECUTION_AUDIT.md`](DOCTOR_MESSAGES_UNIFIED_CHAT_EXECUTION_AUDIT.md)). **Карточка (2026-05-02):** микро-проход REPACK снял аккордеон и поднял клинические секции ([`DOCTOR_CLIENT_PROFILE_REPACK_PLAN.md`](DOCTOR_CLIENT_PROFILE_REPACK_PLAN.md), [`DOCTOR_CLIENT_PROFILE_REPACK_EXECUTION_AUDIT.md`](DOCTOR_CLIENT_PROFILE_REPACK_EXECUTION_AUDIT.md)); остаётся продуктовый backlog **табов / hero** ([`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md) этап 6 — заморозка глубокой переработки).
    - Записи (`/appointments` + `/clients?scope=...`).
    - `/subscribers` — полностью legacy (redirect).
 4. **Архитектурные нарушения:** ~~`/content/news/page.tsx`~~ снят (редирект). Чтение списка `/content/motivation` — через `buildAppDeps().doctorMotivationQuotesEditor` (порт + Drizzle), не `pool.query` в RSC. **Остаётся:** сырой SQL в server actions мотивации ([`motivation/actions.ts`](../../apps/webapp/src/app/app/doctor/content/motivation/actions.ts)) — вынести в порт/DI отдельным шагом.
@@ -132,14 +132,16 @@
 
 ## II.3. Карточка пациента `/clients/[userId]`
 
-**Что не так** (см. факт в `STRUCTURE_AUDIT.md` §II.3):
+**Факт после микро-прохода REPACK (2026-05-02):** один контейнер, sticky-шапка, клинические секции выше учётной записи; аккордеон `AccItem` снят — см. [`DOCTOR_CLIENT_PROFILE_REPACK_EXECUTION_AUDIT.md`](DOCTOR_CLIENT_PROFILE_REPACK_EXECUTION_AUDIT.md). Ниже — **остающийся** продуктовый backlog относительно целевой модели (табы / hero).
 
-- Это не «карточка пациента», а **раздел системных настроек учётной записи** + рудиментарные view-only данные дневников.
-- **Заметки врача** (главный артефакт работы с пациентом) — один из последних аккордеонов, без приоритета и без таймлайна.
-- **Назначить ЛФК / программу** спрятаны внутри аккордеонов — это главное действие, а не подопция.
+**Что не так относительно целевой модели** (см. также факт в `STRUCTURE_AUDIT.md` §II.3 и [`TARGET_STRUCTURE_DOCTOR.md`](TARGET_STRUCTURE_DOCTOR.md)):
+
+- Экран по-прежнему смешивает **учётную запись** и **клинические данные** в одном скролле — целевая модель предполагает **табы** и hero «Что важно сейчас» (не в scope REPACK).
+- **Заметки врача** — вверху страницы после REPACK, но без **таймлайна** и без выделенного таба.
+- **Назначить ЛФК / программу** — доступны из плоских секций; не вынесены в таб «Назначения» (backlog этапа 6 глубокая часть).
 - **Дневник симптомов** показан как «Симптомы: A, B, C. Последние записи: 3, 4, 2» — без графика, дат и связи с назначениями.
-- **Коммуникации внутри карточки** — старый аккордеон всё ещё рядом с новым потоком чата; отправка унифицирована (`DoctorChatPanel`), но IA карточки не приведена к табам (см. [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md) этап 6 — заморозка).
-- Сразу при открытии раскрыт `contacts` (реквизиты), а не клиническая часть.
+- **Коммуникации:** секция со старым журналом отправок рендерится **только при непустом** `messageHistory`; единый чат — CTA в шапке. Полное **сведение к табам** — после снятия заморозки этапа 6.
+- При первом открытии **контакты** больше не доминируют по умолчанию — приоритет у клинической группы (после REPACK).
 
 **Целевая структура — рабочие табы:**
 
@@ -506,8 +508,9 @@
 - ~~Пакет «плотность UI» без редизайна~~ — **выполнено (2026-05-02)** по [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md) этап 8 / [`DOCTOR_UI_DENSITY_EXECUTION_AUDIT.md`](DOCTOR_UI_DENSITY_EXECUTION_AUDIT.md).
 - ~~Бейджи новых заявок и непрочитанных сообщений в меню~~ — **выполнено (2026-05-02):** [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md) этап 3 / [`DOCTOR_NAV_BADGES_PLAN.md`](DOCTOR_NAV_BADGES_PLAN.md).
 - ~~Экран «Сегодня» на `/app/doctor` вместо отчётных метрик~~ — **MVP выполнен (2026-05-02):** [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md) этап 4 / [`DOCTOR_TODAY_DASHBOARD_PLAN.md`](DOCTOR_TODAY_DASHBOARD_PLAN.md). Реализованы: записи на сегодня, новые заявки, непрочитанные диалоги, ближайшие записи; метрики на `/stats`. **Не сделано:** секция «К проверке» как рабочая очередь (нет источника данных).
-- Карточка пациента `/clients/[userId]` — переделать в табы (II.3). Заметки врача — в основной таб. (**Этап 6** [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md) — заморозка глубокой переработки.)
-- Аккордеон «Коммуникации» в карточке — **свести к одному IA-потоку** с `/messages` (отправка уже через `DoctorChatPanel`; дальше — убрать лишний chrome / привести к табам после снятия заморозки этапа 6 в плане кабинета).
+- ~~Микро-проход карточки и списка клиентов (REPACK: без аккордеона, sticky, иконки каналов, без заглушки записи)~~ — **выполнено (2026-05-02):** [`DOCTOR_CLIENT_PROFILE_REPACK_PLAN.md`](DOCTOR_CLIENT_PROFILE_REPACK_PLAN.md) / [`DOCTOR_CLIENT_PROFILE_REPACK_EXECUTION_AUDIT.md`](DOCTOR_CLIENT_PROFILE_REPACK_EXECUTION_AUDIT.md).
+- Карточка пациента `/clients/[userId]` — целевая **переделка в табы** (II.3). Заметки врача — в основной таб. (**Глубокая часть этапа 6** [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md) — заморозка до отдельного решения.)
+- Секция старого журнала в карточке и условный блок «Коммуникации» — **свести к IA табов** после снятия заморозки глубокой переработки (отправка уже через `DoctorChatPanel` в шапке).
 - ~~Usage «где используется» на каталогах + предупреждение при архивации~~ — **выполнено (2026-05-02):** [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md) этап 7 / [`ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md`](ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md).
 
 **Размер:** крупный, 7–10 дней.
