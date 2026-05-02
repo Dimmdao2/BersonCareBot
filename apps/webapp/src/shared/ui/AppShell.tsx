@@ -157,7 +157,7 @@ export function AppShell({
         id="app-shell-doctor"
         className={DOCTOR_PAGE_CONTAINER_CLASS}
       >
-        <main id="app-shell-content" className="flex flex-col gap-4">
+        <main id="app-shell-content" className="flex flex-col gap-3">
           {children}
         </main>
       </div>

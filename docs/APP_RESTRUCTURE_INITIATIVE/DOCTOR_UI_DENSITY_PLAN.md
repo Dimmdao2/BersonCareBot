@@ -2,6 +2,7 @@
 
 **Дата:** 2026-05-02.  
 **Статус:** ТЗ готово к исполнению отдельным проходом.  
+**Аудит выполнения (код, LOG, планы):** [`DOCTOR_UI_DENSITY_EXECUTION_AUDIT.md`](DOCTOR_UI_DENSITY_EXECUTION_AUDIT.md) — 2026-05-02.  
 **Связанный общий план:** [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md), этап 8.
 
 ---
@@ -247,3 +248,11 @@ Manual smoke обязателен:
 - Нет изменений бизнес-логики, API, БД и маршрутов.
 - `pnpm --dir apps/webapp lint` прошёл; `typecheck` и targeted tests выполнены, если scope этого требовал.
 - `LOG.md` содержит запись о выполнении этапа 8 и список проверенных экранов.
+
+---
+
+## Аудит выполнения
+
+Подробная сверка ТЗ, кода, [`LOG.md`](LOG.md) и пометок в мастер-плане: [`DOCTOR_UI_DENSITY_EXECUTION_AUDIT.md`](DOCTOR_UI_DENSITY_EXECUTION_AUDIT.md).
+
+**Кратко:** реализация в коде и границы scope соответствуют ТЗ; автоматические проверки webapp зафиксированы в `LOG.md`; для полного совпадения с текстом Definition of Done выше желательно дописать в журнал явный список пройденных manual smoke-маршрутов после прогона в dev.

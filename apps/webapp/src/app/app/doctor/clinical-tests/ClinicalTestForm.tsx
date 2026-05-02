@@ -100,7 +100,7 @@ export function ClinicalTestForm({
   const [, formAction, savePending] = useActionState(wrappedSave, null as SaveClinicalTestState | null);
 
   return (
-    <div className="flex max-w-2xl flex-col gap-6">
+    <div className="flex max-w-2xl flex-col gap-4">
       <form action={formAction} className="flex flex-col gap-4">
         {localError ? (
           <p role="alert" className="text-sm text-destructive">

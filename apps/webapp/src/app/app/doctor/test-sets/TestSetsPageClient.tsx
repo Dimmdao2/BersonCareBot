@@ -132,14 +132,14 @@ export function TestSetsPageClient({
         backHref={TEST_SETS_PATH}
       />
     ) : selected ? (
-      <div key={selected.id} className="flex max-w-2xl flex-col gap-6">
+      <div key={selected.id} className="flex max-w-2xl flex-col gap-4">
         <TestSetForm
           testSet={selected}
           saveAction={saveDoctorTestSetInline}
           archiveAction={archiveDoctorTestSetInline}
           backHref={TEST_SETS_PATH}
         />
-        <section className="flex flex-col gap-2 border-t border-border/60 pt-6">
+        <section className="flex flex-col gap-2 border-t border-border/60 pt-4">
           <h2 className="text-lg font-medium">Состав набора</h2>
           <TestSetItemsForm testSet={selected} saveItemsAction={saveDoctorTestSetItemsInline} />
         </section>

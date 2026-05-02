@@ -48,7 +48,7 @@ export default async function DoctorCoursesPage() {
 
   return (
     <AppShell title="Курсы" user={session.user} variant="doctor" backHref="/app/doctor">
-      <section className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-4 shadow-sm">
+      <section className="flex flex-col gap-4 rounded-lg border border-border bg-card p-4 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm text-muted-foreground">
             Все курсы (черновики, опубликованные и архивные). Создание — отдельная форма.

@@ -19,7 +19,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
-import { DOCTOR_MENU_ENTRIES } from "@/shared/ui/doctorNavLinks";
+import { DoctorMenuAccordion } from "@/shared/ui/DoctorMenuAccordion";
 import { DOCTOR_HEADER_INNER_CLASS } from "@/shared/ui/doctorWorkspaceLayout";
 import { getDoctorScreenTitle } from "@/shared/ui/doctorScreenTitles";
 
@@ -104,7 +104,7 @@ export function DoctorHeader({ userDisplayName, adminMode, hideMenuOnDesktop }: 
             <Link
               href="/app/doctor/clients?scope=all"
               prefetch={false}
-              aria-label="Клиенты и подписчики"
+              aria-label="Пациенты"
               className={HEADER_ICON_CLASS}
             >
               <Users className="size-[22px]" aria-hidden />
@@ -149,21 +149,7 @@ export function DoctorHeader({ userDisplayName, adminMode, hideMenuOnDesktop }: 
               className="flex min-h-0 min-w-0 flex-1 flex-col gap-1 overflow-y-auto overflow-x-hidden overscroll-y-contain py-2 pb-[max(0.5rem,env(safe-area-inset-bottom,0px))]"
               aria-label="Разделы кабинета"
             >
-              {DOCTOR_MENU_ENTRIES.map((entry) =>
-                entry.kind === "separator" ? (
-                  <Separator key={entry.id} className="my-2" />
-                ) : (
-                  <Link
-                    key={entry.id}
-                    id={`doctor-menu-link-${entry.id}`}
-                    href={entry.href}
-                    onClick={closeMenu}
-                    className={DOCTOR_SHEET_LINK_CLASS}
-                  >
-                    {entry.label}
-                  </Link>
-                ),
-              )}
+              <DoctorMenuAccordion variant="sheet" pathname={pathname} onNavigate={closeMenu} />
               <Separator className="my-2" />
               <Link href="/app/settings" onClick={closeMenu} className={DOCTOR_SHEET_LINK_CLASS}>
                 Профиль и настройки

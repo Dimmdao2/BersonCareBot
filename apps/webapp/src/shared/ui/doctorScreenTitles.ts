@@ -3,16 +3,18 @@
  */
 export function getDoctorScreenTitle(pathname: string): string {
   const p = pathname.replace(/\/$/, "") || "/app/doctor";
-  if (p === "/app/doctor") return "Обзор";
+  if (p === "/app/doctor") return "Сегодня";
 
   const exact: Record<string, string> = {
     "/app/settings": "Настройки",
     "/app/doctor/clients": "Клиенты",
     "/app/doctor/appointments": "Записи",
     "/app/doctor/messages": "Сообщения",
+    "/app/doctor/online-intake": "Онлайн-заявки",
     "/app/doctor/broadcasts": "Рассылки",
     "/app/doctor/stats": "Статистика",
     "/app/doctor/content": "Контент",
+    "/app/doctor/content/library": "Библиотека файлов",
     "/app/doctor/content/news": "Мотивация",
     "/app/doctor/content/motivation": "Мотивация",
     "/app/doctor/content/sections": "Разделы контента",

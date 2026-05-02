@@ -266,14 +266,14 @@ export function TreatmentProgramConstructorClient({ templateId, initialDetail, l
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-4">
       {error ? (
         <p role="alert" className="text-sm text-destructive">
           {error}
         </p>
       ) : null}
 
-      <div className="grid gap-6 md:grid-cols-[minmax(220px,300px)_1fr]">
+      <div className="grid gap-4 md:grid-cols-[minmax(220px,300px)_1fr]">
         <div className="flex flex-col gap-2">
           <div className="flex items-center justify-between gap-2">
             <h2 className="text-sm font-semibold">Этапы</h2>

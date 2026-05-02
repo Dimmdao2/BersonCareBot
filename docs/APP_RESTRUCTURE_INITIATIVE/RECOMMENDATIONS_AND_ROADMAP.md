@@ -16,7 +16,7 @@
 | Область | Сделано |
 |---------|---------|
 | Главная пациента / код | Удалены orphan `PatientHomeNewsSection` / `PatientHomeMailingsSection` (+ тесты); из `navigation.ts` убраны legacy `HomeBlockId` / `patientHomeBlocks*`. |
-| Меню врача | В `DOCTOR_MENU_ENTRIES` добавлен пункт «Онлайн-заявки» → `/app/doctor/online-intake`. |
+| Меню врача | Кластерное меню + аккордеон (`doctorNavLinks.ts`, `DoctorMenuAccordion`); пункт «Онлайн-заявки» в кластере «Работа с пациентами» → `/app/doctor/online-intake` (этап 2 закрыт 2026-05-02, см. [`DOCTOR_MENU_RESTRUCTURE_EXECUTION_AUDIT.md`](DOCTOR_MENU_RESTRUCTURE_EXECUTION_AUDIT.md)). Ранее (2026-05-01) пункт добавлялся в плоский список меню. |
 | Debug / admin | Страница `delete-errors` и ссылка из медиа-библиотеки только для admin + adminMode; legacy `/subscribers` остаётся redirect с комментарием «не в меню». |
 | Сообщения vs рассылки | `/app/doctor/messages` — только чат поддержки; журнал массовых рассылок остаётся на `/broadcasts`. |
 | Patient intake | `/app/patient/intake/nutrition` и `/lfk` обёрнуты в `AppShell` (patient shell). |
@@ -111,7 +111,7 @@
 ## II.1. Сквозные проблемы
 
 1. **Меню плоское, без приоритетов;** два разделителя ничего не означают для пользователя.
-2. **`/online-intake` в меню.** ~~Раньше отсутствовал в `DOCTOR_MENU_ENTRIES`~~ — **исправлено (2026-05-01):** пункт «Онлайн-заявки» между «Записи» и «Сообщения».
+2. **`/online-intake` в меню.** Пункт «Онлайн-заявки» между «Записи» и «Сообщения» в кластере «Работа с пациентами» ([`doctorNavLinks.ts`](../../apps/webapp/src/shared/ui/doctorNavLinks.ts)); полная перестройка меню под кластеры и аккордеон — этап 2 (2026-05-02), см. [`DOCTOR_MENU_RESTRUCTURE_EXECUTION_AUDIT.md`](DOCTOR_MENU_RESTRUCTURE_EXECUTION_AUDIT.md).
 3. **Дублирующиеся точки входа:**
    - ~~Рассылки в двух местах (`/messages` журнал + `/broadcasts`).~~ **Частично снято (2026-05-01):** `/messages` — только чат; журнал массовых рассылок на `/broadcasts`.
    - Сообщения в двух местах (страница `/messages` + аккордеон «Коммуникации» в карточке клиента).
@@ -498,7 +498,7 @@
 **Зачем:** закрыть боль «дашборд врача — полная ерунда, карточка пациента не рабочая».
 
 **Конкретно:**
-- Перестроить `DOCTOR_MENU_ENTRIES` под 5 кластеров (II.7). ~~Добавить `/online-intake` в меню.~~ **Пункт меню добавлен (2026-05-01);** полная перестройка кластеров — открыта. Убрать `/subscribers` (legacy) — **redirect пока оставлен** (закладки); без пункта в меню.
+- ~~Перестроить `DOCTOR_MENU_ENTRIES` под 5 кластеров~~ — **выполнено (2026-05-02):** кластеры + standalone «Библиотека файлов», аккордеон, см. [`DOCTOR_MENU_RESTRUCTURE_EXECUTION_AUDIT.md`](DOCTOR_MENU_RESTRUCTURE_EXECUTION_AUDIT.md). ~~Добавить `/online-intake` в меню.~~ **Пункт меню добавлен (2026-05-01)** до полной перестройки; теперь входит в кластер «Работа с пациентами». Убрать `/subscribers` (legacy) — **redirect пока оставлен** (закладки); без пункта в меню.
 - Заменить `/app/doctor` («Сегодня врача»):
   - Записи на сегодня (карточки с CTA).
   - Inbox онлайн-заявок (бадж).

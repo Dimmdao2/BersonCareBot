@@ -10,11 +10,14 @@
 | Файл | Назначение | Изменяемость |
 |------|------------|--------------|
 | [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md) | Порядок этапов кабинета врача (CMS-first, меню, дашборд, каталоги…) | **живой** |
+| [`DOCTOR_MENU_RESTRUCTURE_PLAN.md`](DOCTOR_MENU_RESTRUCTURE_PLAN.md) | ТЗ этапа 2: кластерное меню врача, аккордеон, библиотека файлов | **выполнено** (документ остаётся справочником) |
+| [`DOCTOR_MENU_RESTRUCTURE_EXECUTION_AUDIT.md`](DOCTOR_MENU_RESTRUCTURE_EXECUTION_AUDIT.md) | Аудит выполнения этапа 2 (меню врача) и сверка с журналом | **живой** |
 | [`CMS_RESTRUCTURE_PLAN.md`](CMS_RESTRUCTURE_PLAN.md) | План разделения CMS: `content_sections.kind` + `system_parent_code` (вариант C) | **живой** |
 | [`CMS_RESTRUCTURE_EXECUTION_AUDIT.md`](CMS_RESTRUCTURE_EXECUTION_AUDIT.md) | Аудит выполнения плана CMS и синхронизация с журналом | **живой** |
 | [`CMS_AUDIT.md`](CMS_AUDIT.md) | Факты по CMS до/после типизации (ориентир для решений) | **живой** |
 | [`STAGE1_PLAN_CLOSEOUT.md`](STAGE1_PLAN_CLOSEOUT.md) | Закрытие Cursor-плана «этап 1»: статусы задач, остатки в backlog | **живой** (последующие этапы — отдельные closeout-файлы по решению команды) |
 | [`LOG.md`](LOG.md) | Журнал исполнения задач по этой инициативе (решения, проверки, чек-листы) | **живой** |
+| [`DOCTOR_UI_DENSITY_EXECUTION_AUDIT.md`](DOCTOR_UI_DENSITY_EXECUTION_AUDIT.md) | Аудит выполнения этапа 8 (плотность UI врача): код, LOG, планы | **живой** |
 | [`STRUCTURE_AUDIT.md`](STRUCTURE_AUDIT.md) | Снимок текущей IA (маршруты, меню, блоки, архитектурные факты) — **точка отсчёта** | **immutable** — не правится после фиксации, чтобы можно было сравнивать «до/после» |
 | [`RECOMMENDATIONS_AND_ROADMAP.md`](RECOMMENDATIONS_AND_ROADMAP.md) | Оценка текущего состояния по продуктовым целям + предложение этапов работ (0–8) | **живой документ** — обновляется по мере приёма решений |
 | [`TARGET_STRUCTURE_PATIENT.md`](TARGET_STRUCTURE_PATIENT.md) | Целевое видение пациентского приложения (5 вкладок, ткань уведомлений, материал контента) | **живой** — фиксируем решения в §11+ |

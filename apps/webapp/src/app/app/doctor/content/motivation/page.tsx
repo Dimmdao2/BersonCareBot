@@ -19,7 +19,7 @@ export default async function DoctorContentMotivationPage() {
 
   return (
     <AppShell title="Мотивация" user={session.user} variant="doctor" backHref="/app/doctor/content">
-      <PageSection id="doctor-content-motivation" as="section" className="flex flex-col gap-6">
+      <PageSection id="doctor-content-motivation" as="section" className="flex flex-col gap-4">
         <div className="flex w-full flex-wrap gap-2">
           <Link href="/app/doctor/content" className={cn(buttonVariants({ variant: "outline", size: "default" }), "flex-1 basis-0 justify-center sm:flex-none")}>
             Все страницы контента

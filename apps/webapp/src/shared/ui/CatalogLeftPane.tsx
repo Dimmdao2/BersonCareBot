@@ -39,16 +39,16 @@ export function CatalogLeftPane({
   return (
     <aside
       className={cn(
-        "flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-border bg-card",
+        "flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-card",
         stickySplit && stickyAsideClass,
         className,
       )}
     >
-      {headerSlot ? <div className="shrink-0 px-2 pb-1.5 pt-2">{headerSlot}</div> : null}
+      {headerSlot ? <div className="shrink-0 px-2 pb-1 pt-1.5">{headerSlot}</div> : null}
       <div
         className={cn(
           "min-h-0 flex flex-1 flex-col overflow-hidden",
-          headerSlot ? "px-2 pb-2 pt-1.5" : "overflow-y-auto p-2 pt-2",
+          headerSlot ? "px-2 pb-1.5 pt-1" : "overflow-y-auto p-1.5 pt-1.5",
         )}
       >
         {children}

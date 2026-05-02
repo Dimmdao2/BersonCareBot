@@ -6,6 +6,58 @@
 
 ---
 
+## 2026-05-02 — этап 2 «Меню врача» (кабинет врача)
+
+**Сделано:**
+
+- [`doctorNavLinks.ts`](../../apps/webapp/src/shared/ui/doctorNavLinks.ts): кластеры `DOCTOR_MENU_CLUSTERS`, standalone «Библиотека файлов», порядок секций `getDoctorMenuRenderSections()` (библиотека между «Контент приложения» и «Коммуникации»), плоский `DOCTOR_MENU_LINKS`, константы ключа localStorage `doctorMenu.openCluster.v1`; уточнён `isDoctorNavItemActive`, чтобы хаб CMS не был активен на `/app/doctor/content/library`.
+- [`DoctorMenuAccordion.tsx`](../../apps/webapp/src/shared/ui/DoctorMenuAccordion.tsx) + [`DoctorMenuAccordion.test.tsx`](../../apps/webapp/src/shared/ui/DoctorMenuAccordion.test.tsx); подключение в [`DoctorAdminSidebar.tsx`](../../apps/webapp/src/shared/ui/DoctorAdminSidebar.tsx) и [`DoctorHeader.tsx`](../../apps/webapp/src/shared/ui/DoctorHeader.tsx) (mobile Sheet).
+- [`ContentPagesSidebar.tsx`](../../apps/webapp/src/app/app/doctor/content/ContentPagesSidebar.tsx): удалена ссылка «Библиотека файлов» из CMS-сайдбара; тест обновлён.
+- [`doctorScreenTitles.ts`](../../apps/webapp/src/shared/ui/doctorScreenTitles.ts): `/app/doctor` → «Сегодня»; exact titles для `/app/doctor/online-intake` и `/app/doctor/content/library`; тесты обновлены.
+
+**Решения:**
+
+- Без auto-open кластера по смене `pathname` (только выбор пользователя + localStorage, как в утверждённом execution-плане).
+- Переименования только в меню там, где требовал ТЗ; заголовок списка клиентов остаётся «Клиенты».
+
+**Проверки:**
+
+- `pnpm exec vitest run` по файлам: `doctorNavLinks.test.ts`, `doctorScreenTitles.test.ts`, `DoctorMenuAccordion.test.tsx`, `ContentPagesSidebar.test.tsx`.
+- ESLint (из каталога `apps/webapp`, копипаст одной командой):
+
+```bash
+pnpm exec eslint \
+  src/shared/ui/doctorNavLinks.ts \
+  src/shared/ui/doctorNavLinks.test.ts \
+  src/shared/ui/DoctorMenuAccordion.tsx \
+  src/shared/ui/DoctorMenuAccordion.test.tsx \
+  src/shared/ui/DoctorAdminSidebar.tsx \
+  src/shared/ui/DoctorHeader.tsx \
+  src/shared/ui/doctorScreenTitles.ts \
+  src/shared/ui/doctorScreenTitles.test.ts \
+  src/app/app/doctor/content/ContentPagesSidebar.tsx \
+  src/app/app/doctor/content/ContentPagesSidebar.test.tsx
+```
+
+**Вне scope этого прохода:** бейджи заявок/сообщений, dashboard «Сегодня», смена URL, CMS-логика кроме удаления ссылки библиотеки, patient UI, БД/env.
+
+---
+
+## 2026-05-02 — пост-аудит этапа 2 «Меню врача» (фиксы по [`DOCTOR_MENU_RESTRUCTURE_EXECUTION_AUDIT.md`](DOCTOR_MENU_RESTRUCTURE_EXECUTION_AUDIT.md))
+
+**Сделано:**
+
+- [`DoctorHeader.tsx`](../../apps/webapp/src/shared/ui/DoctorHeader.tsx): `aria-label` у shortcut на список клиентов выровнен с меню — «Пациенты».
+- [`LOG.md`](LOG.md): в записи об этапе 2 блок «Проверки» дополнен явной командой `pnpm exec eslint` со списком путей.
+- Актуализированы документы инициативы: [`RECOMMENDATIONS_AND_ROADMAP.md`](RECOMMENDATIONS_AND_ROADMAP.md), [`CMS_AUDIT.md`](CMS_AUDIT.md), [`TARGET_STRUCTURE_DOCTOR.md`](TARGET_STRUCTURE_DOCTOR.md), [`DOCTOR_MENU_RESTRUCTURE_EXECUTION_AUDIT.md`](DOCTOR_MENU_RESTRUCTURE_EXECUTION_AUDIT.md), [`DOCTOR_MENU_RESTRUCTURE_PLAN.md`](DOCTOR_MENU_RESTRUCTURE_PLAN.md), [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md).
+- Исторические чек-листы в этом журнале (пункты «Онлайн-заявки» / subscribers): уточнены формулировки под модель без `DOCTOR_MENU_ENTRIES`.
+
+**Проверки:** `pnpm exec eslint src/shared/ui/DoctorHeader.tsx`; `rg "Клиенты и подписчики" apps/webapp/src/shared/ui` — ожидаемо пусто.
+
+**Вне scope:** auto-open кластера меню по `pathname` (продуктовое решение).
+
+---
+
 ## Этап 1 APP_RESTRUCTURE — удаление «Новостей» + каналы в рассылках (audit)
 
 **Сделано:**
@@ -54,7 +106,7 @@
 
 - [x] В `doctorNavLinks.ts` есть link `online-intake` с `href: routePaths.doctorOnlineIntake`.
 - [x] Пункт расположен между «Записи» и «Сообщения», не в системном/CMS-кластере.
-- [x] `DOCTOR_MENU_LINKS` продолжает собираться из `DOCTOR_MENU_ENTRIES` без ручного дублирования.
+- [x] `DOCTOR_MENU_LINKS` собирается из кластеров и standalone (после этапа 2 «Меню врача», 2026-05-02); до полной перестройки меню — из плоского списка entries без ручного дублирования ссылок.
 - [x] В `LOG.md` записано, что пункт добавлен без перестройки всего меню.
 
 ---
@@ -72,7 +124,7 @@
 
 **Чек-лист закрытия пункта 3 (отмечено):**
 
-- [x] `/app/doctor/subscribers` остался redirect-route, но не появился в `DOCTOR_MENU_ENTRIES`.
+- [x] `/app/doctor/subscribers` остался redirect-route и отсутствует в меню врача (`DOCTOR_MENU_LINKS` / кластеры после этапа 2).
 - [x] `name-match-hints` доступен только admin + adminMode; дублей входа в меню не найдено.
 - [x] `delete-errors/page.tsx` редиректит не-admin/adminMode на `/app/doctor/content/library`.
 - [x] `MediaLibraryClient` показывает ссылку «Ошибки удаления S3» только через серверный prop `canSeeDeleteErrorsLink`.
@@ -319,3 +371,27 @@ ORDER BY 1, 2;
 - В [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md) добавлен общий фокус текущего прохода: работать прежде всего с механиками и разделами, которые определяют будущий пациентский опыт главной и внутренних блоков (`разминки`, `прогресс`, `ситуации`, `курсы`, `подписка` и т.д.), параллельно с doctor-facing UI кабинета.
 - Карточка пациента зафиксирована как отдельный блок без глубокой переработки в текущем проходе: только решения, границы и будущая целевая рамка.
 - Проверки: повторно прочитаны изменённые фрагменты плана; кодовые проверки не запускались, так как менялась только документация.
+
+---
+
+## 2026-05-02 — этап 8 `PLAN_DOCTOR_CABINET`: плотность doctor UI (реализация)
+
+**Сделано:**
+
+- [`AppShell`](apps/webapp/src/shared/ui/AppShell.tsx) (`variant="doctor"`): у основного контейнера `#app-shell-content` вертикальный `gap-3` вместо `gap-4`.
+- Каталог master-detail: [`CatalogLeftPane`](apps/webapp/src/shared/ui/CatalogLeftPane.tsx) — `rounded-lg`, чуть плотнее внутренние отступы.
+- Тулбар каталога: [`DoctorCatalogFiltersToolbar`](apps/webapp/src/shared/ui/doctor/DoctorCatalogFiltersToolbar.tsx) — `gap-1.5` в слоте фильтров.
+- Точечно (только Tailwind): [`content/page.tsx`](apps/webapp/src/app/app/doctor/content/page.tsx), [`content/motivation/page.tsx`](apps/webapp/src/app/app/doctor/content/motivation/page.tsx), [`exercises/ExerciseForm.tsx`](apps/webapp/src/app/app/doctor/exercises/ExerciseForm.tsx), [`recommendations/RecommendationForm.tsx`](apps/webapp/src/app/app/doctor/recommendations/RecommendationForm.tsx), [`clinical-tests/ClinicalTestForm.tsx`](apps/webapp/src/app/app/doctor/clinical-tests/ClinicalTestForm.tsx), [`treatment-program-templates/[id]/TreatmentProgramConstructorClient.tsx`](apps/webapp/src/app/app/doctor/treatment-program-templates/[id]/TreatmentProgramConstructorClient.tsx), [`page.tsx`](apps/webapp/src/app/app/doctor/page.tsx) (плитки дашборда: `rounded-lg`, `p-3`, `text-xl` для чисел).
+- Сознательно не трогали: patient UI, `components/ui` глобально, `globals.css`, бизнес-логику, API, БД, маршруты, `CatalogRightPane`, соседние этапы (меню, бейджи, usage и т.д.).
+
+**Проверки:**
+
+- `pnpm --dir apps/webapp lint` — ok
+- `pnpm --dir apps/webapp typecheck` — ok
+- `pnpm --dir apps/webapp test` — не запускали: нет прямого изменения покрытых снимками/тестами компонентов; регрессии ловятся lint/typecheck.
+- Manual smoke: рекомендуемый список маршрутов из [`DOCTOR_UI_DENSITY_PLAN.md`](DOCTOR_UI_DENSITY_PLAN.md) (выполнить при поднятом dev).
+
+**Решения/заметки:**
+
+- `doctorWorkspaceLayout.ts` / высота sticky (`3.25rem` / `6.5rem`) не менялись: высота липкой полосы не затронута.
+- Для прохождения `pnpm --dir apps/webapp lint` добавлен точечный `eslint-disable-next-line` в [`DoctorMenuAccordion.tsx`](apps/webapp/src/shared/ui/DoctorMenuAccordion.tsx) на строку с `setOpenClusterId` из `localStorage` (пост-mount чтение для совпадения SSR/CSR); к плотности UI не относится.

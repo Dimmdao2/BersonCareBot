@@ -10,7 +10,7 @@ describe("ContentPagesSidebar", () => {
     { slug: "health-50", title: "Здоровье 50+" },
   ];
 
-  it("renders motivation, sections, articles, system folders, library", () => {
+  it("renders motivation, sections, articles, system folders without library link", () => {
     render(
       <ContentPagesSidebar
         articleSections={articleSections}
@@ -38,10 +38,7 @@ describe("ContentPagesSidebar", () => {
       "href",
       "/app/doctor/content?systemParentCode=lessons",
     );
-    expect(screen.getByRole("link", { name: "Библиотека файлов" })).toHaveAttribute(
-      "href",
-      "/app/doctor/content/library",
-    );
+    expect(screen.queryByRole("link", { name: "Библиотека файлов" })).not.toBeInTheDocument();
   });
 
   it("marks all pages active when no highlight", () => {

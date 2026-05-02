@@ -16,6 +16,7 @@
 - [`DOCTOR_MESSAGES_UNIFIED_CHAT_PLAN.md`](DOCTOR_MESSAGES_UNIFIED_CHAT_PLAN.md) — ТЗ на этап 5: список чатов, единый layout, модалка из карточки пациента и автопрочтение.
 - [`ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md`](ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md) — ТЗ на этап 7: «где используется» и безопасная архивация каталогов назначений.
 - [`DOCTOR_UI_DENSITY_PLAN.md`](DOCTOR_UI_DENSITY_PLAN.md) — ТЗ на этап 8: уменьшение крупности doctor UI без редизайна и без пациентского интерфейса.
+- [`DOCTOR_UI_DENSITY_EXECUTION_AUDIT.md`](DOCTOR_UI_DENSITY_EXECUTION_AUDIT.md) — аудит выполнения этапа 8 (код, LOG, сверка с ТЗ).
 - [`LOG.md`](LOG.md) — журнал выполнения инициативы.
 
 ---
@@ -47,7 +48,7 @@
 | Этап | Зависит от | Можно параллельно с |
 |------|------------|---------------------|
 | 1. CMS-разделение (`CMS_RESTRUCTURE_PLAN.md`) — **закрыт** | — | 2–8 |
-| 2. Меню врача (группы, аккордеон, перенос «Библиотеки файлов») | — | 1, 3–8 |
+| 2. Меню врача (группы, аккордеон, перенос «Библиотеки файлов») — **✅ закрыт** | — | 1, 3–8 |
 | 3. Бейджи (новые заявки, непрочитанные сообщения) | 2 | 1, 4–8 |
 | 4. Дашборд «Сегодня» | 2 | 1, 3, 5–8 |
 | 5. Сообщения (страница чатов + универсальный layout + модалка + автопрочтение) | — | 1–4, 7, 8 |
@@ -144,6 +145,8 @@ Out of scope unless explicitly promoted into a separate plan:
 
 ## Этап 2. Меню врача: группы + аккордеон + перенос «Библиотеки»
 
+**Статус:** ✅ **Выполнено** — журнал [`LOG.md`](LOG.md) (этап 2 и пост-аудит); ТЗ и DoD [`DOCTOR_MENU_RESTRUCTURE_PLAN.md`](DOCTOR_MENU_RESTRUCTURE_PLAN.md); аудит [`DOCTOR_MENU_RESTRUCTURE_EXECUTION_AUDIT.md`](DOCTOR_MENU_RESTRUCTURE_EXECUTION_AUDIT.md).
+
 **Зависит от:** —. Может выполняться параллельно с этапом 1.
 
 **Исполняется по отдельному ТЗ:** [`DOCTOR_MENU_RESTRUCTURE_PLAN.md`](DOCTOR_MENU_RESTRUCTURE_PLAN.md).
@@ -191,7 +194,7 @@ Mobile: десктопная иерархия повторяется в Sheet-м
 
 ### Шаги
 
-1. Обновить `DOCTOR_MENU_ENTRIES` так, чтобы поддерживались заголовки кластеров (не декоративные separator-only строки).
+1. Заменить flat/separator-модель в [`doctorNavLinks.ts`](../../apps/webapp/src/shared/ui/doctorNavLinks.ts) на кластеры + standalone (`DOCTOR_MENU_CLUSTERS`, `getDoctorMenuRenderSections()`, `DOCTOR_MENU_LINKS`).
 2. Обновить `DoctorHeader` и `DoctorAdminSidebar`: одинаковая структура; компонент-аккордеон с состоянием в `localStorage` (ключ — стабильный, например `doctorMenu.openCluster.v1`).
 3. Переименовать «Обзор» → «Сегодня». Переименовать «Клиенты и подписчики» → «Пациенты», если не ломает соседнюю терминологию.
 4. Перенести пункт «Библиотека файлов» из CMS-сайдбара (`apps/webapp/src/app/app/doctor/content/ContentPagesSidebar.tsx`) в основное меню как отдельный пункт верхнего уровня. Маршрут `/app/doctor/content/library` оставить как есть (без перемещения роута); из CMS-сайдбара пункт убрать.
@@ -200,7 +203,7 @@ Mobile: десктопная иерархия повторяется в Sheet-м
 
 ### Проверки
 
-- `rg "Обзор|Клиенты и подписчики" apps/webapp/src/shared/ui`
+- `rg "Обзор|Клиенты и подписчики" apps/webapp/src/shared/ui` — ожидаемо **пусто** в подписях меню/шапки после этапа 2 и пост-аудита (допускается «Клиенты» как **screen title** списка `/app/doctor/clients` в `doctorScreenTitles.ts`).
 - Existing tests:
   - `apps/webapp/src/shared/ui/doctorNavLinks.test.ts`
   - `apps/webapp/src/shared/ui/doctorScreenTitles.test.ts`
@@ -459,6 +462,8 @@ Mobile: десктопная иерархия повторяется в Sheet-м
 **Зависит от:** —. Можно делать в любой момент, лучше после этапа 2 (меню), чтобы видеть систему целиком.
 
 **Исполняется по отдельному ТЗ:** [`DOCTOR_UI_DENSITY_PLAN.md`](DOCTOR_UI_DENSITY_PLAN.md).
+
+**Аудит соответствия реализации ТЗ и журналу:** [`DOCTOR_UI_DENSITY_EXECUTION_AUDIT.md`](DOCTOR_UI_DENSITY_EXECUTION_AUDIT.md) (2026-05-02).
 
 **Цель:** уменьшить крупность карточек, текстов, отступов в кабинете врача. Сейчас интерфейс рассчитан слишком «крупно» для рабочего кабинета — на экранах со скриншотов клиент уменьшал масштаб, чтобы помещалось больше.
 

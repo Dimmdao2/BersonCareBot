@@ -29,7 +29,7 @@ export default async function DoctorLfkTemplateEditPage({ params }: PageProps) {
       variant="doctor"
       backHref="/app/doctor/lfk-templates"
     >
-      <section className="rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col gap-4">
+      <section className="rounded-lg border border-border bg-card p-4 shadow-sm flex flex-col gap-4">
         <TemplateEditor template={template} exerciseCatalog={exerciseCatalog} />
       </section>
     </AppShell>

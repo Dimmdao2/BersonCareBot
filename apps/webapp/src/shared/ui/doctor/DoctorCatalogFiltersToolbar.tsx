@@ -19,7 +19,7 @@ export type DoctorCatalogFiltersToolbarProps = {
 
 /** Единая горизонтальная строка контролов слева в тулбаре (поиск, статус и т.д.). */
 export function DoctorCatalogToolbarFiltersSlot({ children }: { children: ReactNode }) {
-  return <div className="flex w-full min-w-0 flex-wrap items-center gap-2">{children}</div>;
+  return <div className="flex w-full min-w-0 flex-wrap items-center gap-1.5">{children}</div>;
 }
 
 /** Липкий тулбар каталога врача: слева фильтры, справа основное действие («Создать» и т.п.). */

@@ -113,9 +113,9 @@ function DashboardTile({
     <Link
       id={id}
       href={href}
-      className="rounded-xl border border-border/60 bg-card p-4 shadow-sm flex flex-col justify-between gap-1 transition-colors hover:bg-muted/40"
+      className="rounded-lg border border-border/60 bg-card p-3 shadow-sm flex flex-col justify-between gap-1 transition-colors hover:bg-muted/40"
     >
-      <span className="text-2xl font-semibold tabular-nums text-foreground">{value}</span>
+      <span className="text-xl font-semibold tabular-nums text-foreground">{value}</span>
       <span className="text-xs font-medium leading-tight text-muted-foreground">{label}</span>
       {hint ? <span className="text-[10px] text-muted-foreground/80">{hint}</span> : null}
     </Link>

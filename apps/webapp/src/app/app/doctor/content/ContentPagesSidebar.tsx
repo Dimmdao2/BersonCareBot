@@ -27,7 +27,7 @@ function filterBtnClass(active: boolean) {
 
 const CONTENT_BASE = "/app/doctor/content";
 
-/** Левое меню хаба CMS: мотивации, разделы, статьи / системные папки, библиотека. */
+/** Левое меню хаба CMS: мотивации, разделы, статьи / системные папки. */
 export function ContentPagesSidebar({
   articleSections,
   highlightArticleSlug,
@@ -90,10 +90,6 @@ export function ContentPagesSidebar({
           </Link>
         );
       })}
-      <Separator className="my-1" />
-      <Link href={`${CONTENT_BASE}/library`} className={navBtnClass}>
-        Библиотека файлов
-      </Link>
     </nav>
   );
 }

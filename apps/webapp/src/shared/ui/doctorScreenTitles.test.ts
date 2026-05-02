@@ -2,8 +2,12 @@ import { describe, expect, it } from "vitest";
 import { getDoctorScreenTitle } from "./doctorScreenTitles";
 
 describe("getDoctorScreenTitle", () => {
-  it("returns overview for /app/doctor", () => {
-    expect(getDoctorScreenTitle("/app/doctor")).toBe("Обзор");
+  it("returns today title for /app/doctor", () => {
+    expect(getDoctorScreenTitle("/app/doctor")).toBe("Сегодня");
+  });
+  it("returns online intake and library titles", () => {
+    expect(getDoctorScreenTitle("/app/doctor/online-intake")).toBe("Онлайн-заявки");
+    expect(getDoctorScreenTitle("/app/doctor/content/library")).toBe("Библиотека файлов");
   });
   it("returns clients for list", () => {
     expect(getDoctorScreenTitle("/app/doctor/clients")).toBe("Клиенты");
@@ -57,8 +61,8 @@ describe("getDoctorScreenTitle", () => {
     expect(getDoctorScreenTitle("/app/doctor/lfk-templates/new")).toBe("Новый комплекс");
     expect(getDoctorScreenTitle("/app/doctor/lfk-templates/abc")).toBe("Конструктор комплекса");
   });
-  it("normalizes trailing slash on overview", () => {
-    expect(getDoctorScreenTitle("/app/doctor/")).toBe("Обзор");
+  it("normalizes trailing slash on today", () => {
+    expect(getDoctorScreenTitle("/app/doctor/")).toBe("Сегодня");
   });
   it("returns fallback for unknown doctor path", () => {
     expect(getDoctorScreenTitle("/app/doctor/unknown-section")).toBe("Кабинет");

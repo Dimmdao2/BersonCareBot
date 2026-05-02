@@ -52,7 +52,7 @@ export default async function DoctorCoursesNewPage({
       backHref={returnContext.returnTo}
       backLabel="Назад"
     >
-      <section className="rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col gap-4">
+      <section className="rounded-lg border border-border bg-card p-4 shadow-sm flex flex-col gap-4">
         {loadError ? (
           <DataLoadFailureNotice
             digest={loadError.digest}

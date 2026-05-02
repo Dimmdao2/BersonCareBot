@@ -139,8 +139,8 @@ export default async function DoctorContentPage({ searchParams }: Props) {
   if (loadError) {
     return (
       <AppShell title="Контент" user={session.user} variant="doctor">
-        <PageSection id="doctor-content-section" as="section" className="flex flex-col gap-6">
-          <div className="flex flex-col gap-6 md:flex-row md:items-start md:gap-8">
+        <PageSection id="doctor-content-section" as="section" className="flex flex-col gap-4">
+          <div className="flex flex-col gap-4 md:flex-row md:items-start md:gap-6">
             <ContentPagesSidebar
               articleSections={[]}
               highlightArticleSlug={null}
@@ -160,8 +160,8 @@ export default async function DoctorContentPage({ searchParams }: Props) {
 
   return (
     <AppShell title="Контент" user={session.user} variant="doctor">
-      <PageSection id="doctor-content-section" as="section" className="flex flex-col gap-6">
-        <div className="flex flex-col gap-6 md:flex-row md:items-start md:gap-8">
+      <PageSection id="doctor-content-section" as="section" className="flex flex-col gap-4">
+        <div className="flex flex-col gap-4 md:flex-row md:items-start md:gap-6">
           <ContentPagesSidebar
             articleSections={articleSections}
             highlightArticleSlug={highlightArticleSlug}

@@ -15,7 +15,7 @@ export default async function DoctorLfkTemplateNewPage() {
       variant="doctor"
       backHref="/app/doctor/lfk-templates"
     >
-      <section className="flex max-w-md flex-col gap-4 rounded-2xl border border-border bg-card p-4 shadow-sm">
+      <section className="flex max-w-md flex-col gap-4 rounded-lg border border-border bg-card p-4 shadow-sm">
         <p className="text-sm text-muted-foreground">
           Задайте название черновика. После создания вы попадёте в конструктор, где можно добавить упражнения и
           опубликовать комплекс.
