@@ -48,6 +48,26 @@ Rubitime передаёт `name` как полную строку (часто Ф
 - Doctor appointments UI питается из `appointment_records` (заполняется через projection).
 - Patient «Мои записи» питается из `patient_bookings` (заполняется напрямую в webapp).
 
+## Google Calendar: поле `description` события
+
+Синхронизация Rubitime → Google Calendar (best-effort, не блокирует вебхук) выполняется в `syncRubitimeWebhookBodyToGoogleCalendar` → `mapRubitimeEventToGoogleEvent` (`apps/integrator/src/integrations/google-calendar/sync.ts`).
+
+**Содержимое описания события:**
+
+- **Клиент:** поле `comment` (как в [документации Rubitime API](https://rubitime.ru/faq/api)).
+- **Администратор:** первое непустое из `admin_comment`, `comment_admin`, `staff_comment`, `internal_comment`, `admin_note` (единого канонического имени во всех ответах API нет — список расширяется при подтверждённых полях из `get-record`).
+- Формат текста: блоки `Клиент: …` и `Администратор: …`, между блоками — пустая строка. Если оба комментария пусты, в описание подставляется резервная строка `Rubitime #<id записи>`.
+
+**Вебхук:** часть полей может приходить только на верхнем уровне `data`, а не внутри `data.record`. В `toRubitimeIncoming` (`connector.ts`) для ключей комментариев выполняется подмешивание с родительского уровня, если во вложенной записи значение пустое (`mergeRubitimeWebhookSiblingCommentFields`).
+
+**Проверки в репозитории:** `apps/integrator/src/integrations/google-calendar/sync.test.ts` (`buildGoogleCalendarDescriptionFromRubitimeRecord`, интеграция с `mapRubitimeEventToGoogleEvent`), `apps/integrator/src/integrations/rubitime/connector.test.ts` (merge полей вебхука).
+
+### Журнал (фрагмент)
+
+| Дата | Изменение |
+|------|-----------|
+| 2026-05-02 | Описание события GCal: комментарии клиента/админа вместо одного только id; merge полей комментариев из тела вебхука; unit-тесты. |
+
 ## Одноразовое восстановление данных (ops)
 
 Если у записи есть телефон в `appointment_records`, но нет строки в `platform_users` с тем же `phone_normalized`, в UI врача может отображаться «Неизвестный клиент». Исправление — создать или связать профиль по согласованным с продуктом правилам.

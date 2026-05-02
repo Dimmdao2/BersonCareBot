@@ -59,6 +59,49 @@ function extractServiceTitle(record: Record<string, unknown> | undefined): strin
   );
 }
 
+/** Комментарий клиента — каноническое поле Rubitime API `comment`. */
+const RUBITIME_CLIENT_COMMENT_KEYS = ['comment'] as const;
+
+/**
+ * Внутренний комментарий администратора: в API нет единого канонического имени во всех версиях;
+ * перебираем типичные ключи (см. также merge в `connector.toRubitimeIncoming`).
+ */
+const RUBITIME_ADMIN_COMMENT_KEYS = [
+  'admin_comment',
+  'comment_admin',
+  'staff_comment',
+  'internal_comment',
+  'admin_note',
+] as const;
+
+function firstNonEmptyFromRecord(
+  record: Record<string, unknown> | undefined,
+  keys: readonly string[],
+): string | undefined {
+  if (!record) return undefined;
+  for (const k of keys) {
+    const s = asString(record[k]);
+    if (s) return s;
+  }
+  return undefined;
+}
+
+/** Текст описания события в Google Calendar (вместо одного только id записи). */
+export function buildGoogleCalendarDescriptionFromRubitimeRecord(
+  record: Record<string, unknown> | undefined,
+  rubRecordId: string,
+): string {
+  const client = firstNonEmptyFromRecord(record, RUBITIME_CLIENT_COMMENT_KEYS);
+  const admin = firstNonEmptyFromRecord(record, RUBITIME_ADMIN_COMMENT_KEYS);
+  const parts: string[] = [];
+  if (client) parts.push(`Клиент: ${client}`);
+  if (admin) parts.push(`Администратор: ${admin}`);
+  if (parts.length > 0) {
+    return parts.join('\n\n');
+  }
+  return `Rubitime #${rubRecordId}`;
+}
+
 export async function mapRubitimeEventToGoogleEvent(
   input: RubitimeCalendarSyncEvent,
   options?: { db?: DbPort; displayTimeZone?: string; dispatchPort?: DispatchPort },
@@ -82,7 +125,7 @@ export async function mapRubitimeEventToGoogleEvent(
     summary,
     startDateTime: startIso,
     endDateTime: endIso,
-    description: `Rubitime record: ${input.rubRecordId}`,
+    description: buildGoogleCalendarDescriptionFromRubitimeRecord(input.record, input.rubRecordId),
   };
 }
 

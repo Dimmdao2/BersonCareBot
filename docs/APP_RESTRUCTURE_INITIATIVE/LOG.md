@@ -6,6 +6,24 @@
 
 ---
 
+## 2026-05-02 — Rubitime → Google Calendar: описание события (комментарии)
+
+**Повод:** в календаре в поле описания события отображался только id записи Rubitime; нужны комментарии клиента и администратора.
+
+**Сделано:**
+
+- `apps/integrator/src/integrations/google-calendar/sync.ts` — `buildGoogleCalendarDescriptionFromRubitimeRecord`: блоки «Клиент» / «Администратор», резерв `Rubitime #id` при пустых комментариях.
+- `apps/integrator/src/integrations/rubitime/connector.ts` — `mergeRubitimeWebhookSiblingCommentFields`: подмешивание полей комментариев с верхнего уровня `data` вебхука во вложенный `record`, если там пусто.
+- Тесты: `sync.test.ts` (описание + существующие кейсы маппинга), `connector.test.ts` (merge `comment` и `admin_comment` с родителя).
+
+**Документация:** [`docs/ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md`](../ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md) — раздел «Google Calendar: поле description события», таблица журнала.
+
+**Проверки:** `pnpm --dir apps/integrator exec vitest run src/integrations/google-calendar/sync.test.ts src/integrations/rubitime/connector.test.ts`
+
+**Вне scope:** настраиваемое сопоставление произвольных `custom_fieldN` Rubitime с полями описания (только фиксированный список ключей админ-комментария).
+
+---
+
 ## 2026-05-02 — режимы, тестовые аккаунты, dev_mode relay
 
 **Повод:** один операторский экран для режимов и явных тестовых идентификаторов (телефон / Telegram / Max), без internal `platform_users.id` в UI; bypass техработ для тестовых пациентов; dev_mode relay по `channel`+`recipient`.

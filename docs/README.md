@@ -18,7 +18,7 @@
 - [`ARCHITECTURE/PATIENT_APP_UI_STYLE_GUIDE.md`](ARCHITECTURE/PATIENT_APP_UI_STYLE_GUIDE.md) — стандарт patient UI: shared primitives, shadcn base, запрет лишнего custom chrome.
 - [`ARCHITECTURE/DOCTOR_CMS_AND_RUNTIME.md`](ARCHITECTURE/DOCTOR_CMS_AND_RUNTIME.md) — CMS врача, `MediaPickerShell`, мягкая деградация UI.
 - [`ARCHITECTURE/EXERCISES_CATALOG_PERFORMANCE_PRIMITIVES.md`](ARCHITECTURE/EXERCISES_CATALOG_PERFORMANCE_PRIMITIVES.md) — переиспользуемые примитивы каталогов (`CatalogSplitLayout`, `VirtualizedItemGrid`).
-- [`ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md`](ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md) — вебхук, `rubitime_events`, статусы 0–7, throttle 5500ms.
+- [`ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md`](ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md) — вебхук, `rubitime_events`, статусы 0–7, throttle 5500ms; Google Calendar: описание события (комментарии клиента/админа).
 - [`MEDIA_PREVIEW_PIPELINE.md`](MEDIA_PREVIEW_PIPELINE.md) · [`ARCHITECTURE/MEDIA_PREVIEW_FRONTEND.md`](ARCHITECTURE/MEDIA_PREVIEW_FRONTEND.md) — превью медиатеки S3, воркер, UI-инварианты.
 - [`ARCHITECTURE/LOW_LEVEL_ARCHITECTURE_AUDIT_AND_REORG.md`](ARCHITECTURE/LOW_LEVEL_ARCHITECTURE_AUDIT_AND_REORG.md) — composition roots, DI, **API route import-policy** (актуальное состояние allowlist).
 - [`ARCHITECTURE/MINIAPP_AUTH_FIX_EXECUTION_LOG.md`](ARCHITECTURE/MINIAPP_AUTH_FIX_EXECUTION_LOG.md) · [`ARCHITECTURE/MINIAPP_AUTH_AUDIT_2026-04-19.md`](ARCHITECTURE/MINIAPP_AUTH_AUDIT_2026-04-19.md) — журнал исполнения и итоговый аудит server-first входа.

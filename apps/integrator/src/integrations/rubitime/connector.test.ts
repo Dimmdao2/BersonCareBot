@@ -217,6 +217,59 @@ describe('rubitimeIncomingToEvent', () => {
   });
 });
 
+describe('toRubitimeIncoming webhook comment merge', () => {
+  it('merges top-level comment into record when nested record omits it', () => {
+    const body = {
+      from: 'rubitime',
+      event: 'event-create-record' as const,
+      data: {
+        comment: 'Из родителя',
+        record: {
+          id: '1',
+          record: '2026-01-01 10:00:00',
+          name: 'Test',
+        },
+      },
+    };
+    const inc = toRubitimeIncoming(body);
+    expect((inc.record as Record<string, unknown>).comment).toBe('Из родителя');
+  });
+
+  it('keeps nested comment when both parent and nested record have comment', () => {
+    const body = {
+      from: 'rubitime',
+      event: 'event-create-record' as const,
+      data: {
+        comment: 'Parent',
+        record: {
+          id: '1',
+          record: '2026-01-01 10:00:00',
+          comment: 'Nested',
+        },
+      },
+    };
+    expect((toRubitimeIncoming(body).record as Record<string, unknown>).comment).toBe('Nested');
+  });
+
+  it('merges top-level admin_comment into record when nested record omits it', () => {
+    const body = {
+      from: 'rubitime',
+      event: 'event-create-record' as const,
+      data: {
+        admin_comment: 'Заметка админа с родителя',
+        record: {
+          id: '1',
+          record: '2026-01-01 10:00:00',
+          name: 'Test',
+        },
+      },
+    };
+    expect((toRubitimeIncoming(body).record as Record<string, unknown>).admin_comment).toBe(
+      'Заметка админа с родителя',
+    );
+  });
+});
+
 describe('normalizeRubitimeStatus via toRubitimeIncoming', () => {
   function statusFor(code: number | string, title?: string) {
     const body = {

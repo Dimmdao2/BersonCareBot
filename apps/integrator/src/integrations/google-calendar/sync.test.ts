@@ -1,6 +1,50 @@
 import { describe, expect, it, vi } from 'vitest';
 import nock from 'nock';
-import { mapRubitimeEventToGoogleEvent, syncAppointmentToCalendar } from './sync.js';
+import {
+  buildGoogleCalendarDescriptionFromRubitimeRecord,
+  mapRubitimeEventToGoogleEvent,
+  syncAppointmentToCalendar,
+} from './sync.js';
+
+describe('Google Calendar event description (Rubitime comments)', () => {
+  it('formats client and admin lines when both present', () => {
+    expect(
+      buildGoogleCalendarDescriptionFromRubitimeRecord(
+        { comment: 'От клиента', admin_comment: 'От админа' },
+        '99',
+      ),
+    ).toBe('Клиент: От клиента\n\nАдминистратор: От админа');
+  });
+
+  it('uses only client line when admin fields empty', () => {
+    expect(
+      buildGoogleCalendarDescriptionFromRubitimeRecord({ comment: 'Только клиент' }, '1'),
+    ).toBe('Клиент: Только клиент');
+  });
+
+  it('uses first matching admin key by priority', () => {
+    expect(
+      buildGoogleCalendarDescriptionFromRubitimeRecord(
+        { admin_comment: 'Первый', staff_comment: 'Второй' },
+        '2',
+      ),
+    ).toBe('Администратор: Первый');
+    expect(
+      buildGoogleCalendarDescriptionFromRubitimeRecord({ staff_comment: 'Только staff' }, '3'),
+    ).toBe('Администратор: Только staff');
+  });
+
+  it('falls back to Rubitime id when no comments', () => {
+    expect(buildGoogleCalendarDescriptionFromRubitimeRecord({}, '42')).toBe('Rubitime #42');
+    expect(buildGoogleCalendarDescriptionFromRubitimeRecord(undefined, '42')).toBe('Rubitime #42');
+  });
+
+  it('trims whitespace on comment values', () => {
+    expect(
+      buildGoogleCalendarDescriptionFromRubitimeRecord({ comment: '  x  ', comment_admin: '  y  ' }, '0'),
+    ).toBe('Клиент: x\n\nАдминистратор: y');
+  });
+});
 
 describe('google calendar sync', () => {
   it('maps rubitime event to google event fields (naive datetime = business offset MSK default)', async () => {
@@ -22,8 +66,27 @@ describe('google calendar sync', () => {
       summary: 'Иванов Иван — ЛФК',
       startDateTime: '2026-04-01T07:00:00.000Z',
       endDateTime: '2026-04-01T07:45:00.000Z',
-      description: 'Rubitime record: rec-1',
+      description: 'Rubitime #rec-1',
     });
+  });
+
+  it('puts client and admin comments in calendar description when present', async () => {
+    const mapped = await mapRubitimeEventToGoogleEvent(
+      {
+        action: 'created',
+        rubRecordId: 'rec-comments',
+        recordAt: '2026-04-01 10:00:00',
+        clientName: 'Иванов Иван',
+        record: {
+          service_title: 'ЛФК',
+          duration_minutes: 45,
+          comment: 'Нужна раскладка',
+          admin_comment: 'Перенесли окно',
+        },
+      },
+      { displayTimeZone: 'Europe/Moscow' },
+    );
+    expect(mapped?.description).toBe('Клиент: Нужна раскладка\n\nАдминистратор: Перенесли окно');
   });
 
   it('preserves explicit Zulu ISO without shifting', async () => {

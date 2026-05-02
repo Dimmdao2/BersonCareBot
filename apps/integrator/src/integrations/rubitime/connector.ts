@@ -70,6 +70,36 @@ function asString(value: unknown): string | undefined {
 }
 
 /**
+ * Вебхук Rubitime может дублировать часть полей на верхнем уровне `data` и во вложенном `data.record`.
+ * Для календаря и проекции нужны комментарии: подмешиваем из родителя, если во вложенной записи пусто.
+ * @see https://rubitime.ru/faq/api — `comment` (клиент); внутренние поля админа зависят от версии API.
+ */
+const RUBITIME_WEBHOOK_SIBLING_COMMENT_KEYS = [
+  'comment',
+  'admin_comment',
+  'comment_admin',
+  'staff_comment',
+  'internal_comment',
+  'admin_note',
+] as const;
+
+function mergeRubitimeWebhookSiblingCommentFields(
+  source: Record<string, unknown>,
+  dataRoot: Record<string, unknown>,
+): Record<string, unknown> {
+  if (source === dataRoot) return source;
+  let out: Record<string, unknown> = { ...source };
+  for (const k of RUBITIME_WEBHOOK_SIBLING_COMMENT_KEYS) {
+    if (asString(out[k])) continue;
+    const fromParent = asString(dataRoot[k]);
+    if (fromParent) {
+      out = { ...out, [k]: dataRoot[k] };
+    }
+  }
+  return out;
+}
+
+/**
  * Split name into first/last only when unambiguous (exactly 2 words).
  * With 3+ words (e.g. Russian ФИО with patronymic, or swapped order)
  * we cannot reliably distinguish first/last, so we skip the split.
@@ -128,7 +158,8 @@ function normalizeRubitimeStatus(status: string | undefined, statusTitle: string
 export function toRubitimeIncoming(body: RubitimeWebhookBodyValidated): RubitimeIncomingPayload {
   const data = asRecord(body.data);
   const record = asRecord(data.record);
-  const source = Object.keys(record).length > 0 ? record : data;
+  const rawSource = Object.keys(record).length > 0 ? record : data;
+  const source = mergeRubitimeWebhookSiblingCommentFields(rawSource, data);
   const rawStatus = asString(source.status) ?? (source.status != null ? String(source.status) : undefined);
   const statusTitle = asString(source.status_title) ?? asString(source.status_name);
   const status = normalizeRubitimeStatus(rawStatus, statusTitle);
