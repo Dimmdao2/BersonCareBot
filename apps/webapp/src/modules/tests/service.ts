@@ -2,10 +2,14 @@ import {
   ClinicalTestArchiveAlreadyArchivedError,
   ClinicalTestArchiveNotFoundError,
   ClinicalTestUsageConfirmationRequiredError,
+  TestSetArchiveAlreadyArchivedError,
+  TestSetArchiveNotFoundError,
+  TestSetUsageConfirmationRequiredError,
 } from "./errors";
 import type { ClinicalTestsPort, TestSetsPort } from "./ports";
 import type {
   ArchiveClinicalTestOptions,
+  ArchiveTestSetOptions,
   CreateClinicalTestInput,
   CreateTestSetInput,
   ClinicalTestFilter,
@@ -14,7 +18,7 @@ import type {
   UpdateTestSetInput,
   TestSetItemInput,
 } from "./types";
-import { clinicalTestArchiveRequiresAcknowledgement } from "./types";
+import { clinicalTestArchiveRequiresAcknowledgement, testSetArchiveRequiresAcknowledgement } from "./types";
 
 export function createClinicalTestsService(port: ClinicalTestsPort) {
   return {
@@ -110,9 +114,22 @@ export function createTestSetsService(setsPort: TestSetsPort, testsPort: Clinica
       return row;
     },
 
-    async archiveTestSet(id: string) {
+    async getTestSetUsage(id: string) {
+      return setsPort.getTestSetUsageSummary(id);
+    },
+
+    async archiveTestSet(id: string, options?: ArchiveTestSetOptions) {
+      const existing = await setsPort.getById(id);
+      if (!existing) throw new TestSetArchiveNotFoundError();
+      if (existing.isArchived) throw new TestSetArchiveAlreadyArchivedError();
+
+      const usage = await setsPort.getTestSetUsageSummary(id);
+      if (testSetArchiveRequiresAcknowledgement(usage) && !options?.acknowledgeUsageWarning) {
+        throw new TestSetUsageConfirmationRequiredError(usage);
+      }
+
       const ok = await setsPort.archive(id);
-      if (!ok) throw new Error("Набор не найден");
+      if (!ok) throw new TestSetArchiveNotFoundError();
     },
 
     async setTestSetItems(testSetId: string, items: TestSetItemInput[]) {

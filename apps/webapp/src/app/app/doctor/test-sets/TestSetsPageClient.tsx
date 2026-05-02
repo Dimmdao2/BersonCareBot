@@ -3,7 +3,7 @@
 import { useEffect, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import type { ExerciseLoadType } from "@/modules/lfk-exercises/types";
-import type { TestSet } from "@/modules/tests/types";
+import type { TestSet, TestSetUsageSnapshot } from "@/modules/tests/types";
 import { cn } from "@/lib/utils";
 import { useDoctorCatalogDisplayList } from "@/shared/hooks/useDoctorCatalogDisplayList";
 import { useDoctorCatalogMasterSelectionSync } from "@/shared/hooks/useDoctorCatalogMasterSelectionSync";
@@ -30,6 +30,7 @@ import { TEST_SETS_PATH } from "./paths";
 type Props = {
   initialSets: TestSet[];
   initialSelectedId: string | null;
+  initialSelectedUsageSnapshot: TestSetUsageSnapshot | null;
   filters: {
     q: string;
     regionRefId?: string;
@@ -40,6 +41,7 @@ type Props = {
 export function TestSetsPageClient({
   initialSets,
   initialSelectedId,
+  initialSelectedUsageSnapshot,
   filters,
 }: Props) {
   const [titleSort, setTitleSort] = useState<CatalogMasterTitleSort | null>(null);
@@ -84,6 +86,13 @@ export function TestSetsPageClient({
 
   const selected = creating ? null : (displayList.find((s) => s.id === selectedId) ?? null);
 
+  const usageForSelection = (() => {
+    const current = mobileSheet ?? selected;
+    if (!current || initialSelectedUsageSnapshot == null) return undefined;
+    if (initialSelectedId === current.id) return initialSelectedUsageSnapshot;
+    return undefined;
+  })();
+
   const renderRows = (onPick: (s: TestSet) => void, activeId: string | null) =>
     displayList.length === 0 ? (
       <p className="text-sm text-muted-foreground">Нет наборов по заданным условиям.</p>
@@ -124,13 +133,13 @@ export function TestSetsPageClient({
 
   const rightInner =
     creating ? (
-      <TestSetForm
-        key="create"
-        testSet={null}
-        saveAction={saveDoctorTestSetInline}
-        archiveAction={archiveDoctorTestSetInline}
-        backHref={TEST_SETS_PATH}
-      />
+        <TestSetForm
+          key="create"
+          testSet={null}
+          saveAction={saveDoctorTestSetInline}
+          archiveAction={archiveDoctorTestSetInline}
+          backHref={TEST_SETS_PATH}
+        />
     ) : selected ? (
       <div key={selected.id} className="flex max-w-2xl flex-col gap-4">
         <TestSetForm
@@ -138,6 +147,7 @@ export function TestSetsPageClient({
           saveAction={saveDoctorTestSetInline}
           archiveAction={archiveDoctorTestSetInline}
           backHref={TEST_SETS_PATH}
+          externalUsageSnapshot={usageForSelection}
         />
         <section className="flex flex-col gap-2 border-t border-border/60 pt-4">
           <h2 className="text-lg font-medium">Состав набора</h2>

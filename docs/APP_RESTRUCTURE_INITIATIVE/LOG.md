@@ -6,6 +6,27 @@
 
 ---
 
+## 2026-05-02 — этап 7 подшаг: наборы тестов (usage + archive guard)
+
+**Сделано:**
+
+- Сводка использования набора: шаблоны и экземпляры программ с `item_type = 'test_set'` и `item_ref_id` = id набора; архивные шаблоны — только в сводке; счётчик попыток через `test_attempts` + `treatment_program_instance_stage_items` ([`pgTestSets.ts`](../../apps/webapp/src/infra/repos/pgTestSets.ts), `loadTestSetUsageSummary`).
+- Доменная модель: [`TestSetUsageSnapshot`](../../apps/webapp/src/modules/tests/types.ts), [`testSetArchiveRequiresAcknowledgement`](../../apps/webapp/src/modules/tests/types.ts), ошибки в [`errors.ts`](../../apps/webapp/src/modules/tests/errors.ts) (`TestSetUsageConfirmationRequiredError` и др.).
+- Сервис: [`getTestSetUsage`](../../apps/webapp/src/modules/tests/service.ts), [`archiveTestSet(id, options?)`](../../apps/webapp/src/modules/tests/service.ts); in-memory [`seedInMemoryTestSetUsageSnapshot`](../../apps/webapp/src/infra/repos/inMemoryTestSets.ts).
+- UI врача: [`TestSetForm.tsx`](../../apps/webapp/src/app/app/doctor/test-sets/TestSetForm.tsx), [`actions.ts`](../../apps/webapp/src/app/app/doctor/test-sets/actions.ts) / [`actionsInline.ts`](../../apps/webapp/src/app/app/doctor/test-sets/actionsInline.ts), [`fetchDoctorTestSetUsageSnapshot`](../../apps/webapp/src/app/app/doctor/test-sets/actions.ts); тексты/ссылки — [`testSetUsageSummaryText.ts`](../../apps/webapp/src/app/app/doctor/test-sets/testSetUsageSummaryText.ts), [`testSetUsageDocLinks.ts`](../../apps/webapp/src/app/app/doctor/test-sets/testSetUsageDocLinks.ts); RSC usage на [`page.tsx`](../../apps/webapp/src/app/app/doctor/test-sets/page.tsx) при `?selected=` и на [`[id]/page.tsx`](../../apps/webapp/src/app/app/doctor/test-sets/[id]/page.tsx).
+- API DELETE [`test-sets/[id]`](../../apps/webapp/src/app/api/doctor/test-sets/[id]/route.ts): `409` + `usage`, повтор с `?acknowledgeUsageWarning=1`.
+- Тесты: [`service.test.ts`](../../apps/webapp/src/modules/tests/service.test.ts), [`pgTestSets.test.ts`](../../apps/webapp/src/infra/repos/pgTestSets.test.ts), [`testSetUsageDocLinks.test.ts`](../../apps/webapp/src/app/app/doctor/test-sets/testSetUsageDocLinks.test.ts), [`testSetUsageSummaryText.test.ts`](../../apps/webapp/src/app/app/doctor/test-sets/testSetUsageSummaryText.test.ts), [`TestSetForm.test.tsx`](../../apps/webapp/src/app/app/doctor/test-sets/TestSetForm.test.tsx).
+
+**Проверки:** `pnpm --dir apps/webapp typecheck`; `pnpm --dir apps/webapp exec vitest run` (файлы выше); **`pnpm --dir apps/webapp lint`** (полный прогон webapp после аудита подшага).
+
+**Аудит подшага (2026-05-02):** в разделе 4 [`ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md`](ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md) зафиксировано различие сводки (все статусы шаблонов + completed + попытки) и guard (только `published` шаблоны + `active` экземпляры); в [`service.test.ts`](../../apps/webapp/src/modules/tests/service.test.ts) — отдельный кейс «только черновые шаблоны» и уточнён кейс «только история попыток».
+
+**Guard архива:** опубликованные шаблоны программ и активные экземпляры; черновики, архивные шаблоны, завершённые экземпляры и счётчик попыток — только сводка.
+
+**Вне scope:** карточный редизайн каталога наборов, scoring.
+
+---
+
 ## 2026-05-02 — этап 7 подшаг: клинические тесты (usage + archive guard)
 
 **Сделано:**

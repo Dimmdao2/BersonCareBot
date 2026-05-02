@@ -11,6 +11,7 @@ export {
 export {
   inMemoryTestSetsPort,
   resetInMemoryTestSetsStore,
+  seedInMemoryTestSetUsageSnapshot,
 } from "@/infra/repos/inMemoryTestSets";
 export {
   inMemoryRecommendationsPort,

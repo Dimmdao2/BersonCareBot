@@ -37,12 +37,15 @@ export default async function DoctorTestSetsPage({ searchParams }: PageProps) {
 
   const raw = typeof sp.selected === "string" ? sp.selected.trim() : "";
   const initialSelectedId = raw && items.some((s) => s.id === raw) ? raw : null;
+  const initialSelectedUsageSnapshot =
+    initialSelectedId != null ? await deps.testSets.getTestSetUsage(initialSelectedId) : null;
 
   return (
     <AppShell title="Наборы тестов" user={session.user} variant="doctor" backHref="/app/doctor">
       <TestSetsPageClient
         initialSets={items}
         initialSelectedId={initialSelectedId}
+        initialSelectedUsageSnapshot={initialSelectedUsageSnapshot}
         filters={{ q, regionRefId, loadType }}
       />
     </AppShell>

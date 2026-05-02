@@ -1,4 +1,4 @@
-import type { ClinicalTestUsageSnapshot } from "./types";
+import type { ClinicalTestUsageSnapshot, TestSetUsageSnapshot } from "./types";
 
 export const USAGE_CONFIRMATION_REQUIRED = "USAGE_CONFIRMATION_REQUIRED" as const;
 
@@ -37,4 +37,39 @@ export class ClinicalTestArchiveAlreadyArchivedError extends Error {
 
 export function isClinicalTestArchiveAlreadyArchivedError(e: unknown): e is ClinicalTestArchiveAlreadyArchivedError {
   return e instanceof ClinicalTestArchiveAlreadyArchivedError;
+}
+
+export class TestSetUsageConfirmationRequiredError extends Error {
+  readonly code = USAGE_CONFIRMATION_REQUIRED;
+
+  constructor(readonly usage: TestSetUsageSnapshot) {
+    super(USAGE_CONFIRMATION_REQUIRED);
+    this.name = "TestSetUsageConfirmationRequiredError";
+  }
+}
+
+export function isTestSetUsageConfirmationRequiredError(e: unknown): e is TestSetUsageConfirmationRequiredError {
+  return e instanceof TestSetUsageConfirmationRequiredError;
+}
+
+export class TestSetArchiveNotFoundError extends Error {
+  constructor(message = "Набор не найден") {
+    super(message);
+    this.name = "TestSetArchiveNotFoundError";
+  }
+}
+
+export function isTestSetArchiveNotFoundError(e: unknown): e is TestSetArchiveNotFoundError {
+  return e instanceof TestSetArchiveNotFoundError;
+}
+
+export class TestSetArchiveAlreadyArchivedError extends Error {
+  constructor() {
+    super("Набор уже в архиве");
+    this.name = "TestSetArchiveAlreadyArchivedError";
+  }
+}
+
+export function isTestSetArchiveAlreadyArchivedError(e: unknown): e is TestSetArchiveAlreadyArchivedError {
+  return e instanceof TestSetArchiveAlreadyArchivedError;
 }

@@ -3,21 +3,29 @@ import type {
   TestSet,
   TestSetArchiveScope,
   TestSetFilter,
+  TestSetUsageSnapshot,
   CreateTestSetInput,
   UpdateTestSetInput,
   TestSetItemInput,
   TestSetItemWithTest,
 } from "@/modules/tests/types";
+import { EMPTY_TEST_SET_USAGE_SNAPSHOT } from "@/modules/tests/types";
 import { inMemoryClinicalTestsPort } from "./inMemoryClinicalTests";
 
 type RawItem = { id: string; testSetId: string; testId: string; sortOrder: number };
 
 const setsMeta = new Map<string, Omit<TestSet, "items">>();
 const itemsBySet = new Map<string, RawItem[]>();
+const usageBySetId = new Map<string, TestSetUsageSnapshot>();
+
+export function seedInMemoryTestSetUsageSnapshot(setId: string, snapshot: TestSetUsageSnapshot): void {
+  usageBySetId.set(setId, snapshot);
+}
 
 export function resetInMemoryTestSetsStore(): void {
   setsMeta.clear();
   itemsBySet.clear();
+  usageBySetId.clear();
 }
 
 function archiveScopeFromFilter(f: TestSetFilter): TestSetArchiveScope {
@@ -132,5 +140,9 @@ export const inMemoryTestSetsPort: TestSetsPort = {
     }));
     itemsBySet.set(testSetId, raw);
     setsMeta.set(testSetId, { ...cur, updatedAt: now });
+  },
+
+  async getTestSetUsageSummary(id: string): Promise<TestSetUsageSnapshot> {
+    return usageBySetId.get(id) ?? { ...EMPTY_TEST_SET_USAGE_SNAPSHOT };
   },
 };

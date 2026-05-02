@@ -7,6 +7,7 @@ import {
   saveTestSetCore,
   saveTestSetItemsCore,
   TEST_SETS_PATH,
+  type ArchiveTestSetState,
   type SaveTestSetState,
 } from "./actionsShared";
 
@@ -38,9 +39,20 @@ export async function saveDoctorTestSetItemsInline(
   return { ok: true };
 }
 
-export async function archiveDoctorTestSetInline(formData: FormData) {
+export async function archiveDoctorTestSetInline(
+  _prev: ArchiveTestSetState | null,
+  formData: FormData,
+): Promise<ArchiveTestSetState> {
   const result = await archiveTestSetCore(formData);
-  if (!result.archivedId) redirect(TEST_SETS_PATH);
+  if (result.kind === "needs_confirmation") {
+    return { ok: false, code: "USAGE_CONFIRMATION_REQUIRED", usage: result.usage };
+  }
+  if (result.kind === "invalid") {
+    const idRaw = formData.get("id");
+    const id = typeof idRaw === "string" ? idRaw.trim() : "";
+    if (!id) redirect(TEST_SETS_PATH);
+    return { ok: false, error: result.error };
+  }
   revalidatePath(TEST_SETS_PATH);
   redirect(TEST_SETS_PATH);
 }

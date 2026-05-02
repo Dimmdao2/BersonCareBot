@@ -154,3 +154,48 @@ export type ArchiveClinicalTestOptions = {
   acknowledgeUsageWarning?: boolean;
 };
 
+/** Сколько сущностей отдаём в UI подробно (наборы тестов — «где используется»). */
+export const TEST_SET_USAGE_DETAIL_LIMIT = 12;
+
+export type TestSetUsageRef =
+  | { kind: "treatment_program_template"; id: string; title: string }
+  | { kind: "treatment_program_instance"; id: string; title: string; patientUserId: string };
+
+export type TestSetUsageSnapshot = {
+  publishedTreatmentProgramTemplateCount: number;
+  draftTreatmentProgramTemplateCount: number;
+  archivedTreatmentProgramTemplateCount: number;
+  activeTreatmentProgramInstanceCount: number;
+  completedTreatmentProgramInstanceCount: number;
+  /** Попытки прохождения блока набора в экземплярах программ (история, не блокирует архив). */
+  testAttemptsRecordedCount: number;
+  publishedTreatmentProgramTemplateRefs: TestSetUsageRef[];
+  draftTreatmentProgramTemplateRefs: TestSetUsageRef[];
+  archivedTreatmentProgramTemplateRefs: TestSetUsageRef[];
+  activeTreatmentProgramInstanceRefs: TestSetUsageRef[];
+  completedTreatmentProgramInstanceRefs: TestSetUsageRef[];
+};
+
+export const EMPTY_TEST_SET_USAGE_SNAPSHOT: TestSetUsageSnapshot = {
+  publishedTreatmentProgramTemplateCount: 0,
+  draftTreatmentProgramTemplateCount: 0,
+  archivedTreatmentProgramTemplateCount: 0,
+  activeTreatmentProgramInstanceCount: 0,
+  completedTreatmentProgramInstanceCount: 0,
+  testAttemptsRecordedCount: 0,
+  publishedTreatmentProgramTemplateRefs: [],
+  draftTreatmentProgramTemplateRefs: [],
+  archivedTreatmentProgramTemplateRefs: [],
+  activeTreatmentProgramInstanceRefs: [],
+  completedTreatmentProgramInstanceRefs: [],
+};
+
+/** См. `ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md` раздел 4 (Guard архива) — не путать с полной сводкой по статусам шаблонов. */
+export function testSetArchiveRequiresAcknowledgement(u: TestSetUsageSnapshot): boolean {
+  return u.publishedTreatmentProgramTemplateCount > 0 || u.activeTreatmentProgramInstanceCount > 0;
+}
+
+export type ArchiveTestSetOptions = {
+  acknowledgeUsageWarning?: boolean;
+};
+

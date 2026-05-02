@@ -1,5 +1,6 @@
 import { and, asc, desc, eq, ilike, or } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
+import { getPool } from "@/infra/db/client";
 import {
   clinicalTests as clinicalTestsTable,
   testSets as testSetsTable,
@@ -13,7 +14,10 @@ import type {
   UpdateTestSetInput,
   TestSetItemInput,
   TestSetItemWithTest,
+  TestSetUsageRef,
+  TestSetUsageSnapshot,
 } from "@/modules/tests/types";
+import { EMPTY_TEST_SET_USAGE_SNAPSHOT, TEST_SET_USAGE_DETAIL_LIMIT } from "@/modules/tests/types";
 
 function mapMeta(row: typeof testSetsTable.$inferSelect): Omit<TestSet, "items"> {
   return {
@@ -57,6 +61,192 @@ async function loadItemsForSet(testSetId: string): Promise<TestSetItemWithTest[]
     sortOrder: r.item.sortOrder,
     test: mapTestRow(r.test),
   }));
+}
+
+function parseTestSetUsageRefs(raw: unknown): TestSetUsageRef[] {
+  if (raw == null) return [];
+  let arr: unknown[];
+  if (Array.isArray(raw)) arr = raw;
+  else if (typeof raw === "string") {
+    try {
+      const p = JSON.parse(raw) as unknown;
+      arr = Array.isArray(p) ? p : [];
+    } catch {
+      return [];
+    }
+  } else return [];
+
+  const out: TestSetUsageRef[] = [];
+  for (const x of arr) {
+    if (!x || typeof x !== "object") continue;
+    const o = x as Record<string, unknown>;
+    const kind = o.kind;
+    const id = o.id;
+    const title = o.title;
+    const patientUserId = o.patientUserId;
+    if (kind === "treatment_program_template") {
+      if (typeof id !== "string" || typeof title !== "string") continue;
+      out.push({ kind, id, title });
+      continue;
+    }
+    if (kind === "treatment_program_instance") {
+      if (typeof id !== "string" || typeof title !== "string" || typeof patientUserId !== "string") continue;
+      out.push({ kind, id, title, patientUserId });
+    }
+  }
+  return out;
+}
+
+async function loadTestSetUsageSummary(
+  pool: ReturnType<typeof getPool>,
+  testSetId: string,
+): Promise<TestSetUsageSnapshot> {
+  const lim = TEST_SET_USAGE_DETAIL_LIMIT;
+  const r = await pool.query<{
+    published_tp_templates: string | number | null;
+    draft_tp_templates: string | number | null;
+    archived_tp_templates: string | number | null;
+    active_tp_instances: string | number | null;
+    completed_tp_instances: string | number | null;
+    test_attempts_recorded: string | number | null;
+    published_tp_template_refs: unknown;
+    draft_tp_template_refs: unknown;
+    archived_tp_template_refs: unknown;
+    active_tp_instance_refs: unknown;
+    completed_tp_instance_refs: unknown;
+  }>(
+    `SELECT
+       (SELECT COUNT(DISTINCT t.id)::int
+          FROM treatment_program_template_stage_items si
+          INNER JOIN treatment_program_template_stages st ON st.id = si.stage_id
+          INNER JOIN treatment_program_templates t ON t.id = st.template_id
+         WHERE si.item_type = 'test_set' AND si.item_ref_id = $1::uuid AND t.status = 'published') AS published_tp_templates,
+       (SELECT COUNT(DISTINCT t.id)::int
+          FROM treatment_program_template_stage_items si
+          INNER JOIN treatment_program_template_stages st ON st.id = si.stage_id
+          INNER JOIN treatment_program_templates t ON t.id = st.template_id
+         WHERE si.item_type = 'test_set' AND si.item_ref_id = $1::uuid AND t.status = 'draft') AS draft_tp_templates,
+       (SELECT COUNT(DISTINCT t.id)::int
+          FROM treatment_program_template_stage_items si
+          INNER JOIN treatment_program_template_stages st ON st.id = si.stage_id
+          INNER JOIN treatment_program_templates t ON t.id = st.template_id
+         WHERE si.item_type = 'test_set' AND si.item_ref_id = $1::uuid AND t.status = 'archived') AS archived_tp_templates,
+       (SELECT COUNT(DISTINCT i.id)::int
+          FROM treatment_program_instance_stage_items sii
+          INNER JOIN treatment_program_instance_stages ist ON ist.id = sii.stage_id
+          INNER JOIN treatment_program_instances i ON i.id = ist.instance_id
+         WHERE sii.item_type = 'test_set' AND sii.item_ref_id = $1::uuid AND i.status = 'active') AS active_tp_instances,
+       (SELECT COUNT(DISTINCT i.id)::int
+          FROM treatment_program_instance_stage_items sii
+          INNER JOIN treatment_program_instance_stages ist ON ist.id = sii.stage_id
+          INNER JOIN treatment_program_instances i ON i.id = ist.instance_id
+         WHERE sii.item_type = 'test_set' AND sii.item_ref_id = $1::uuid AND i.status = 'completed') AS completed_tp_instances,
+       (SELECT COUNT(*)::int
+          FROM test_attempts ta
+          INNER JOIN treatment_program_instance_stage_items sii ON sii.id = ta.instance_stage_item_id
+         WHERE sii.item_type = 'test_set' AND sii.item_ref_id = $1::uuid) AS test_attempts_recorded,
+       (SELECT COALESCE(jsonb_agg(q.obj), '[]'::jsonb)
+          FROM (
+            SELECT DISTINCT ON (t.id)
+              jsonb_build_object(
+                'kind', 'treatment_program_template',
+                'id', t.id::text,
+                'title', t.title
+              ) AS obj
+            FROM treatment_program_template_stage_items si
+            INNER JOIN treatment_program_template_stages st ON st.id = si.stage_id
+            INNER JOIN treatment_program_templates t ON t.id = st.template_id
+            WHERE si.item_type = 'test_set' AND si.item_ref_id = $1::uuid AND t.status = 'published'
+            ORDER BY t.id, t.title ASC
+            LIMIT ${lim}
+          ) q) AS published_tp_template_refs,
+       (SELECT COALESCE(jsonb_agg(q.obj), '[]'::jsonb)
+          FROM (
+            SELECT DISTINCT ON (t.id)
+              jsonb_build_object(
+                'kind', 'treatment_program_template',
+                'id', t.id::text,
+                'title', t.title
+              ) AS obj
+            FROM treatment_program_template_stage_items si
+            INNER JOIN treatment_program_template_stages st ON st.id = si.stage_id
+            INNER JOIN treatment_program_templates t ON t.id = st.template_id
+            WHERE si.item_type = 'test_set' AND si.item_ref_id = $1::uuid AND t.status = 'draft'
+            ORDER BY t.id, t.title ASC
+            LIMIT ${lim}
+          ) q) AS draft_tp_template_refs,
+       (SELECT COALESCE(jsonb_agg(q.obj), '[]'::jsonb)
+          FROM (
+            SELECT DISTINCT ON (t.id)
+              jsonb_build_object(
+                'kind', 'treatment_program_template',
+                'id', t.id::text,
+                'title', t.title
+              ) AS obj
+            FROM treatment_program_template_stage_items si
+            INNER JOIN treatment_program_template_stages st ON st.id = si.stage_id
+            INNER JOIN treatment_program_templates t ON t.id = st.template_id
+            WHERE si.item_type = 'test_set' AND si.item_ref_id = $1::uuid AND t.status = 'archived'
+            ORDER BY t.id, t.title ASC
+            LIMIT ${lim}
+          ) q) AS archived_tp_template_refs,
+       (SELECT COALESCE(jsonb_agg(q.obj), '[]'::jsonb)
+          FROM (
+            SELECT DISTINCT ON (i.id)
+              jsonb_build_object(
+                'kind', 'treatment_program_instance',
+                'id', i.id::text,
+                'title', COALESCE(NULLIF(btrim(i.title), ''), tpl.title, 'Программа'),
+                'patientUserId', i.patient_user_id::text
+              ) AS obj
+            FROM treatment_program_instance_stage_items sii
+            INNER JOIN treatment_program_instance_stages ist ON ist.id = sii.stage_id
+            INNER JOIN treatment_program_instances i ON i.id = ist.instance_id
+            LEFT JOIN treatment_program_templates tpl ON tpl.id = i.template_id
+            WHERE sii.item_type = 'test_set' AND sii.item_ref_id = $1::uuid AND i.status = 'active'
+            ORDER BY i.id, i.title ASC
+            LIMIT ${lim}
+          ) q) AS active_tp_instance_refs,
+       (SELECT COALESCE(jsonb_agg(q.obj), '[]'::jsonb)
+          FROM (
+            SELECT DISTINCT ON (i.id)
+              jsonb_build_object(
+                'kind', 'treatment_program_instance',
+                'id', i.id::text,
+                'title', COALESCE(NULLIF(btrim(i.title), ''), tpl.title, 'Программа'),
+                'patientUserId', i.patient_user_id::text
+              ) AS obj
+            FROM treatment_program_instance_stage_items sii
+            INNER JOIN treatment_program_instance_stages ist ON ist.id = sii.stage_id
+            INNER JOIN treatment_program_instances i ON i.id = ist.instance_id
+            LEFT JOIN treatment_program_templates tpl ON tpl.id = i.template_id
+            WHERE sii.item_type = 'test_set' AND sii.item_ref_id = $1::uuid AND i.status = 'completed'
+            ORDER BY i.id, i.title ASC
+            LIMIT ${lim}
+          ) q) AS completed_tp_instance_refs`,
+    [testSetId],
+  );
+  const row = r.rows[0];
+  if (!row) return { ...EMPTY_TEST_SET_USAGE_SNAPSHOT };
+  const n = (v: string | number | null | undefined) => {
+    if (v == null) return 0;
+    if (typeof v === "number") return v;
+    const parsed = Number.parseInt(String(v), 10);
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+  return {
+    publishedTreatmentProgramTemplateCount: n(row.published_tp_templates),
+    draftTreatmentProgramTemplateCount: n(row.draft_tp_templates),
+    archivedTreatmentProgramTemplateCount: n(row.archived_tp_templates),
+    activeTreatmentProgramInstanceCount: n(row.active_tp_instances),
+    completedTreatmentProgramInstanceCount: n(row.completed_tp_instances),
+    testAttemptsRecordedCount: n(row.test_attempts_recorded),
+    publishedTreatmentProgramTemplateRefs: parseTestSetUsageRefs(row.published_tp_template_refs),
+    draftTreatmentProgramTemplateRefs: parseTestSetUsageRefs(row.draft_tp_template_refs),
+    archivedTreatmentProgramTemplateRefs: parseTestSetUsageRefs(row.archived_tp_template_refs),
+    activeTreatmentProgramInstanceRefs: parseTestSetUsageRefs(row.active_tp_instance_refs),
+    completedTreatmentProgramInstanceRefs: parseTestSetUsageRefs(row.completed_tp_instance_refs),
+  };
 }
 
 export function createPgTestSetsPort(): TestSetsPort {
@@ -158,6 +348,11 @@ export function createPgTestSetsPort(): TestSetsPort {
           .set({ updatedAt: new Date().toISOString() })
           .where(eq(testSetsTable.id, testSetId));
       });
+    },
+
+    async getTestSetUsageSummary(id: string): Promise<TestSetUsageSnapshot> {
+      const pool = getPool();
+      return loadTestSetUsageSummary(pool, id);
     },
   };
 }

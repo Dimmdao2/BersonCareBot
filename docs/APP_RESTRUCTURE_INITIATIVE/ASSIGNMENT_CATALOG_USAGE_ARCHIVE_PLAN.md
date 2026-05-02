@@ -47,7 +47,7 @@
 | 1. Упражнения | `completed` | `completed` (см. `ExerciseUsageSnapshot` + `exerciseUsageDocLinks.ts`) |
 | 2. Комплексы ЛФК | `completed` | `completed` (`LfkTemplateUsageSnapshot`, `lfkTemplatesUsageDocLinks.ts`, `pgLfkTemplates.loadTemplateUsageSummary`) |
 | 3. Клинические тесты | `completed` | `completed` (`ClinicalTestUsageSnapshot`, `clinicalTestsUsageDocLinks.ts`, `pgClinicalTests.loadClinicalTestUsageSummary`) |
-| 4. Наборы тестов | `pending` | `pending` |
+| 4. Наборы тестов | `completed` | `completed` (`TestSetUsageSnapshot`, `testSetUsageDocLinks.ts`, `pgTestSets.loadTestSetUsageSummary`) |
 | 5. Рекомендации | `pending` | `pending` |
 | 6. Шаблоны программ | `pending` | `pending` |
 | 7. Курсы | `pending` | `pending` (осторожные формулировки без `course_id` сохраняются) |
@@ -434,13 +434,17 @@ Stop condition: если активные patient LFK counts требуют до
 - `apps/webapp/src/infra/repos/pgTestSets.ts`;
 - treatment program repos.
 
-Минимальные счётчики:
+Минимальные счётчики (сводка в UI):
 
-- шаблоны программ с item type = `test_set`;
-- активные экземпляры программ с item type = `test_set`;
-- наличие попыток/результатов тестов как исторический сигнал, если query уже рядом.
+- шаблоны программ с item type = `test_set` — **по статусам** (`published` / `draft` / `archived`), чтобы врач видел и черновики, и историю;
+- активные и завершённые экземпляры программ с item type = `test_set` (завершённые — как исторический контекст);
+- наличие попыток/результатов тестов как исторический сигнал, если query уже рядом (счётчик попыток по `test_attempts`, без списка каждой попытки).
 
 **Refs:** шаблоны и экземпляры программ; для «истории результатов» допускается только счётчик без перечисления каждой попытки.
+
+**Guard архива (согласовано с клиническими тестами и разделом «Единый контракт archive guard»):** обязательное подтверждение (`acknowledgeUsageWarning`) только если в usage есть **опубликованные** шаблоны программ с таким набором **или** **активные** экземпляры с таким набором. Наличие **только** черновиков/архивных шаблонов, **только** завершённых экземпляров и/или ненулевого счётчика попыток **не** требует подтверждения — эти поля только информируют врача.
+
+**Ручной smoke** (после доработок): сценарии «без usage» и «с usage», кликабельные refs, архив с предупреждением и с подтверждением, запрет обхода без ack на сервере — по чеклисту «Manual smoke» внизу этого документа.
 
 ### 5. Рекомендации
 

@@ -1,8 +1,30 @@
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import type { TestSetItemInput } from "@/modules/tests/types";
+import { logger } from "@/infra/logging/logger";
+import {
+  isTestSetArchiveAlreadyArchivedError,
+  isTestSetArchiveNotFoundError,
+  isTestSetUsageConfirmationRequiredError,
+} from "@/modules/tests/errors";
+import type { TestSetItemInput, TestSetUsageSnapshot } from "@/modules/tests/types";
 
 export type SaveTestSetState = { ok: boolean; error?: string };
+
+export type ArchiveTestSetState =
+  | { ok: true }
+  | { ok: false; code: "USAGE_CONFIRMATION_REQUIRED"; usage: TestSetUsageSnapshot }
+  | { ok: false; error: string };
+
+export type ArchiveTestSetCoreResult =
+  | { kind: "archived"; id: string }
+  | { kind: "needs_confirmation"; usage: TestSetUsageSnapshot }
+  | { kind: "invalid"; error: string };
+
+function parseAcknowledgeUsageWarning(fd: FormData): boolean {
+  const v = fd.get("acknowledgeUsageWarning");
+  return v === "1" || v === "true" || v === "on";
+}
+
 export { TEST_SETS_PATH } from "./paths";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -83,13 +105,28 @@ export async function saveTestSetItemsCore(
   }
 }
 
-export async function archiveTestSetCore(formData: FormData): Promise<{ archivedId: string | null }> {
+export async function archiveTestSetCore(formData: FormData): Promise<ArchiveTestSetCoreResult> {
   await requireDoctorAccess();
   const idRaw = formData.get("id");
   const id = typeof idRaw === "string" && idRaw.trim() ? idRaw.trim() : "";
-  if (!id) return { archivedId: null };
+  if (!id) return { kind: "invalid", error: "Не указан набор" };
 
+  const acknowledgeUsageWarning = parseAcknowledgeUsageWarning(formData);
   const deps = buildAppDeps();
-  await deps.testSets.archiveTestSet(id);
-  return { archivedId: id };
+  try {
+    await deps.testSets.archiveTestSet(id, { acknowledgeUsageWarning });
+    return { kind: "archived", id };
+  } catch (e) {
+    if (isTestSetUsageConfirmationRequiredError(e)) {
+      return { kind: "needs_confirmation", usage: e.usage };
+    }
+    if (isTestSetArchiveNotFoundError(e)) {
+      return { kind: "invalid", error: e.message };
+    }
+    if (isTestSetArchiveAlreadyArchivedError(e)) {
+      return { kind: "invalid", error: e.message };
+    }
+    logger.warn({ event: "doctor_test_set_archive_unexpected_error", testSetId: id, err: e }, "archive failed");
+    return { kind: "invalid", error: "Не удалось архивировать набор" };
+  }
 }

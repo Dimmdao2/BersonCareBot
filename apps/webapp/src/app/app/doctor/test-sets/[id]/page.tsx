@@ -17,6 +17,7 @@ export default async function EditTestSetPage({ params }: PageProps) {
   const deps = buildAppDeps();
   const testSet = await deps.testSets.getTestSet(id);
   if (!testSet || testSet.isArchived) notFound();
+  const usage = await deps.testSets.getTestSetUsage(testSet.id);
 
   return (
     <AppShell title="Набор тестов" user={session.user} variant="doctor" backHref={TEST_SETS_PATH}>
@@ -30,7 +31,7 @@ export default async function EditTestSetPage({ params }: PageProps) {
           </Link>
           {" — скопируйте UUID нужных строк в состав набора ниже."}
         </p>
-        <TestSetForm testSet={testSet} />
+        <TestSetForm testSet={testSet} externalUsageSnapshot={usage} />
         <section className="flex flex-col gap-2">
           <h2 className="text-lg font-medium">Состав набора</h2>
           <TestSetItemsForm testSet={testSet} />

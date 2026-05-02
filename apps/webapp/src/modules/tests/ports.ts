@@ -3,12 +3,13 @@ import type {
   ClinicalTestFilter,
   ClinicalTestUsageSnapshot,
   CreateClinicalTestInput,
+  CreateTestSetInput,
   TestSet,
   TestSetFilter,
-  CreateTestSetInput,
+  TestSetItemInput,
+  TestSetUsageSnapshot,
   UpdateClinicalTestInput,
   UpdateTestSetInput,
-  TestSetItemInput,
 } from "./types";
 
 export type ClinicalTestsPort = {
@@ -27,4 +28,5 @@ export type TestSetsPort = {
   update(id: string, input: UpdateTestSetInput): Promise<TestSet | null>;
   archive(id: string): Promise<boolean>;
   replaceItems(testSetId: string, items: TestSetItemInput[]): Promise<void>;
+  getTestSetUsageSummary(id: string): Promise<TestSetUsageSnapshot>;
 };

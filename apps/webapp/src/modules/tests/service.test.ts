@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach } from "vitest";
-import { ClinicalTestUsageConfirmationRequiredError } from "./errors";
+import { ClinicalTestUsageConfirmationRequiredError, TestSetUsageConfirmationRequiredError } from "./errors";
 import {
   createClinicalTestsService,
   createTestSetsService,
@@ -8,10 +8,11 @@ import {
   inMemoryClinicalTestsPort,
   resetInMemoryClinicalTestsStore,
   seedInMemoryClinicalTestUsageSnapshot,
+  seedInMemoryTestSetUsageSnapshot,
   inMemoryTestSetsPort,
   resetInMemoryTestSetsStore,
 } from "@/app-layer/testing/clinicalLibraryInMemory";
-import { EMPTY_CLINICAL_TEST_USAGE_SNAPSHOT } from "./types";
+import { EMPTY_CLINICAL_TEST_USAGE_SNAPSHOT, EMPTY_TEST_SET_USAGE_SNAPSHOT } from "./types";
 
 describe("clinical tests / test sets service", () => {
   beforeEach(() => {
@@ -116,5 +117,52 @@ describe("clinical tests / test sets service", () => {
     const svc = createClinicalTestsService(inMemoryClinicalTestsPort);
     await svc.archiveClinicalTest(t.id);
     expect((await svc.getClinicalTest(t.id))?.isArchived).toBe(true);
+  });
+
+  it("getTestSetUsage returns seeded snapshot", async () => {
+    const setsSvc = createTestSetsService(inMemoryTestSetsPort, inMemoryClinicalTestsPort);
+    const set = await setsSvc.createTestSet({ title: "S" }, null);
+    seedInMemoryTestSetUsageSnapshot(set.id, {
+      ...EMPTY_TEST_SET_USAGE_SNAPSHOT,
+      publishedTreatmentProgramTemplateCount: 1,
+    });
+    const u = await setsSvc.getTestSetUsage(set.id);
+    expect(u.publishedTreatmentProgramTemplateCount).toBe(1);
+  });
+
+  it("archiveTestSet blocks without acknowledgement when published templates reference set", async () => {
+    const setsSvc = createTestSetsService(inMemoryTestSetsPort, inMemoryClinicalTestsPort);
+    const set = await setsSvc.createTestSet({ title: "GuardedSet" }, null);
+    seedInMemoryTestSetUsageSnapshot(set.id, {
+      ...EMPTY_TEST_SET_USAGE_SNAPSHOT,
+      publishedTreatmentProgramTemplateCount: 1,
+      publishedTreatmentProgramTemplateRefs: [{ kind: "treatment_program_template", id: "tpl", title: "P" }],
+    });
+    await expect(setsSvc.archiveTestSet(set.id)).rejects.toBeInstanceOf(TestSetUsageConfirmationRequiredError);
+    await setsSvc.archiveTestSet(set.id, { acknowledgeUsageWarning: true });
+    expect((await setsSvc.getTestSet(set.id))?.isArchived).toBe(true);
+  });
+
+  it("archiveTestSet proceeds without acknowledgement when only draft templates reference set", async () => {
+    const setsSvc = createTestSetsService(inMemoryTestSetsPort, inMemoryClinicalTestsPort);
+    const set = await setsSvc.createTestSet({ title: "DraftTplOnly" }, null);
+    seedInMemoryTestSetUsageSnapshot(set.id, {
+      ...EMPTY_TEST_SET_USAGE_SNAPSHOT,
+      draftTreatmentProgramTemplateCount: 1,
+      draftTreatmentProgramTemplateRefs: [{ kind: "treatment_program_template", id: "d1", title: "Draft" }],
+    });
+    await setsSvc.archiveTestSet(set.id);
+    expect((await setsSvc.getTestSet(set.id))?.isArchived).toBe(true);
+  });
+
+  it("archiveTestSet proceeds when only attempts history", async () => {
+    const setsSvc = createTestSetsService(inMemoryTestSetsPort, inMemoryClinicalTestsPort);
+    const set = await setsSvc.createTestSet({ title: "AttemptsOnly" }, null);
+    seedInMemoryTestSetUsageSnapshot(set.id, {
+      ...EMPTY_TEST_SET_USAGE_SNAPSHOT,
+      testAttemptsRecordedCount: 10,
+    });
+    await setsSvc.archiveTestSet(set.id);
+    expect((await setsSvc.getTestSet(set.id))?.isArchived).toBe(true);
   });
 });

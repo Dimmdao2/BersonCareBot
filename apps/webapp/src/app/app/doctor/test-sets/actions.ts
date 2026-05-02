@@ -2,13 +2,19 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
+import { EMPTY_TEST_SET_USAGE_SNAPSHOT } from "@/modules/tests/types";
 import {
   archiveTestSetCore,
   saveTestSetCore,
   saveTestSetItemsCore,
   TEST_SETS_PATH,
+  type ArchiveTestSetState,
   type SaveTestSetState,
 } from "./actionsShared";
+
+export type { ArchiveTestSetState } from "./actionsShared";
 
 export async function saveDoctorTestSet(
   _prev: SaveTestSetState | null,
@@ -40,9 +46,29 @@ export async function saveDoctorTestSetItems(
   return { ok: true };
 }
 
-export async function archiveDoctorTestSet(formData: FormData) {
+export async function archiveDoctorTestSet(
+  _prev: ArchiveTestSetState | null,
+  formData: FormData,
+): Promise<ArchiveTestSetState> {
   const result = await archiveTestSetCore(formData);
-  if (!result.archivedId) redirect(TEST_SETS_PATH);
+  if (result.kind === "needs_confirmation") {
+    return { ok: false, code: "USAGE_CONFIRMATION_REQUIRED", usage: result.usage };
+  }
+  if (result.kind === "invalid") {
+    const idRaw = formData.get("id");
+    const id = typeof idRaw === "string" ? idRaw.trim() : "";
+    if (!id) redirect(TEST_SETS_PATH);
+    return { ok: false, error: result.error };
+  }
   revalidatePath(TEST_SETS_PATH);
+  revalidatePath(`${TEST_SETS_PATH}/${result.id}`);
   redirect(TEST_SETS_PATH);
+}
+
+export async function fetchDoctorTestSetUsageSnapshot(testSetId: string) {
+  await requireDoctorAccess();
+  const id = testSetId.trim();
+  if (!id) return { ...EMPTY_TEST_SET_USAGE_SNAPSHOT };
+  const deps = buildAppDeps();
+  return deps.testSets.getTestSetUsage(id);
 }
