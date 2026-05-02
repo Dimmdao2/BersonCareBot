@@ -6,6 +6,38 @@
 
 ---
 
+## 2026-05-02 — режим техработ patient app (операционный guard)
+
+**Повод:** безопасно выкатывать изменения кабинета врача/бэкенда, не открывая весь patient UI; настройка из админки, без env.
+
+**Полный аудит закрытия плана:** [`PATIENT_MAINTENANCE_MODE_EXECUTION_AUDIT.md`](PATIENT_MAINTENANCE_MODE_EXECUTION_AUDIT.md) (чек-листы шагов 1–6, DoD, остаточный manual smoke).
+
+**Сделано:**
+
+- `system_settings` (admin), ключи: `patient_app_maintenance_enabled`, `patient_app_maintenance_message`, `patient_booking_url` — в [`types.ts`](../../apps/webapp/src/modules/system-settings/types.ts), валидация в [`route.ts`](../../apps/webapp/src/app/api/admin/settings/route.ts), UI в «Параметры приложения» ([`AppParametersSection.tsx`](../../apps/webapp/src/app/app/settings/AppParametersSection.tsx), [`page.tsx`](../../apps/webapp/src/app/app/settings/page.tsx)).
+- Рантайм: [`patientMaintenance.ts`](../../apps/webapp/src/modules/system-settings/patientMaintenance.ts) (`getPatientMaintenanceConfig`, `patientMaintenanceSkipsPath`); чтение через `configAdapter`, дефолты в коде при отсутствии строк в БД.
+- Гейт в [`patient/layout.tsx`](../../apps/webapp/src/app/app/patient/layout.tsx): только **роль `client`**, врач/админ не затрагиваются; пропуск оверлея для `bind-phone` / `help` / `support` и путей allowlist при `need_activation` (см. helper).
+- Экран: [`PatientMaintenanceScreen.tsx`](../../apps/webapp/src/app/app/patient/PatientMaintenanceScreen.tsx) — сообщение, внешняя ссылка записи, `upcoming` из `listMyBookings`, таймзона `getAppDisplayTimeZone`.
+- **Без** SQL-seed миграции: первые значения создаются сохранением в Settings (зеркалирование integrator через `updateSetting`).
+
+**Дефолты (код):** сообщение — «Приложение в разработке, функционал частично недоступен.»; URL записи — `https://dmitryberson.rubitime.ru`; техработы выкл.
+
+**Проверки:**  
+`pnpm --dir apps/webapp exec vitest run src/app/api/admin/settings/route.test.ts src/modules/system-settings/patientMaintenance.test.ts src/app/app/patient/PatientMaintenanceScreen.test.tsx`  
+`pnpm --dir apps/webapp typecheck` · `pnpm --dir apps/webapp lint`
+
+После аудита закрытия: добавлен тест экрана на fallback небезопасного URL записи (`PatientMaintenanceScreen.test.tsx`).
+
+Полный отчёт по чек-листам плана: [`PATIENT_MAINTENANCE_MODE_EXECUTION_AUDIT.md`](PATIENT_MAINTENANCE_MODE_EXECUTION_AUDIT.md).
+
+**Доработки после независимого аудита (2026-05-02):** ранний выход в `getPatientMaintenanceConfig` при выключенном режиме; параллельное чтение message/booking при включённом; `patientMaintenanceReplacesPatientShell`; `sr-only` заголовок у текста; тесты `patientMaintenance.getConfig.test.ts`, `AppParametersSection.test.tsx`; обновлён execution audit.
+
+**Rollout / rollback:** включить/выключить флаг в админке → Settings; откат — выключить режим, cache TTL/инвалидация с PATCH.
+
+**Вне scope:** нативный flow `/app/patient/booking`, сегментация пациентов, изменения IA patient вне полноэкранного оверлея.
+
+---
+
 ## 2026-05-02 — этап 4: экран «Сегодня» врача (реализация)
 
 **Повод:** выполнить [`DOCTOR_TODAY_DASHBOARD_PLAN.md`](DOCTOR_TODAY_DASHBOARD_PLAN.md) — заменить отчётный `/app/doctor` на рабочий экран дня.

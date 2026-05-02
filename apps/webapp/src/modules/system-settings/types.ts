@@ -37,6 +37,12 @@ export const ALLOWED_KEYS = [
   "patient_home_morning_ping_enabled",
   /** Локальное время ежедневного напоминания (HH:MM) в таймзоне приложения, default 09:00. */
   "patient_home_morning_ping_local_time",
+  /** Режим техработ для patient app: один экран без навигации (клиенты; doctor/admin preview не затрагивается). */
+  "patient_app_maintenance_enabled",
+  /** Текст на экране техработ (пациентское приложение). */
+  "patient_app_maintenance_message",
+  /** Публичная ссылка записи на приём (Rubitime и т.п.), редактируется в админке. */
+  "patient_booking_url",
   /** Иконки чек-ина настроения на главной: 5 записей score 1-5, label + imageUrl (/api/media/...). */
   "patient_home_mood_icons",
   /** Темы рассылок для экрана пациента `/notifications` (id = mailing_topics_webapp.code, title — подпись). */

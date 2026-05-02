@@ -83,6 +83,12 @@ describe("ALLOWED_KEYS / ADMIN scope (Phase 2)", () => {
     expect(ALLOWED_KEYS).toContain("patient_home_morning_ping_local_time");
   });
 
+  it("includes patient maintenance keys", () => {
+    expect(ALLOWED_KEYS).toContain("patient_app_maintenance_enabled");
+    expect(ALLOWED_KEYS).toContain("patient_app_maintenance_message");
+    expect(ALLOWED_KEYS).toContain("patient_booking_url");
+  });
+
   it("includes notifications_topics for webapp whitelist", () => {
     expect(ALLOWED_KEYS).toContain("notifications_topics");
   });
@@ -646,6 +652,122 @@ describe("PATCH /api/admin/settings", () => {
               { id: "a", title: "B" },
             ],
           },
+        }),
+      }),
+    );
+    expect(res.status).toBe(400);
+    expect(updateSettingMock).not.toHaveBeenCalled();
+  });
+
+  it("returns 200 for patient_app_maintenance_enabled", async () => {
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSettingMock.mockResolvedValue(null);
+    updateSettingMock.mockResolvedValue({
+      key: "patient_app_maintenance_enabled",
+      scope: "admin",
+      valueJson: { value: true },
+      updatedAt: "",
+      updatedBy: "a1",
+    });
+    const res = await PATCH(
+      new Request("http://localhost/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: "patient_app_maintenance_enabled", value: { value: true } }),
+      }),
+    );
+    expect(res.status).toBe(200);
+    expect(updateSettingMock).toHaveBeenCalledWith(
+      "patient_app_maintenance_enabled",
+      "admin",
+      { value: true },
+      "a1",
+    );
+  });
+
+  it("returns 400 for patient_app_maintenance_enabled invalid", async () => {
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    const res = await PATCH(
+      new Request("http://localhost/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: "patient_app_maintenance_enabled", value: { value: "nope" } }),
+      }),
+    );
+    expect(res.status).toBe(400);
+    expect(updateSettingMock).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 for patient_app_maintenance_message too long", async () => {
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    const res = await PATCH(
+      new Request("http://localhost/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          key: "patient_app_maintenance_message",
+          value: { value: "x".repeat(501) },
+        }),
+      }),
+    );
+    expect(res.status).toBe(400);
+    expect(updateSettingMock).not.toHaveBeenCalled();
+  });
+
+  it("returns 200 for patient_booking_url https", async () => {
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSettingMock.mockResolvedValue(null);
+    updateSettingMock.mockResolvedValue({
+      key: "patient_booking_url",
+      scope: "admin",
+      valueJson: { value: "https://example.com/z" },
+      updatedAt: "",
+      updatedBy: "a1",
+    });
+    const res = await PATCH(
+      new Request("http://localhost/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          key: "patient_booking_url",
+          value: { value: "https://example.com/z" },
+        }),
+      }),
+    );
+    expect(res.status).toBe(200);
+    expect(updateSettingMock).toHaveBeenCalledWith("patient_booking_url", "admin", { value: "https://example.com/z" }, "a1");
+  });
+
+  it("returns 200 for patient_booking_url empty (reset to runtime default)", async () => {
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSettingMock.mockResolvedValue(null);
+    updateSettingMock.mockResolvedValue({
+      key: "patient_booking_url",
+      scope: "admin",
+      valueJson: { value: "" },
+      updatedAt: "",
+      updatedBy: "a1",
+    });
+    const res = await PATCH(
+      new Request("http://localhost/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: "patient_booking_url", value: { value: "" } }),
+      }),
+    );
+    expect(res.status).toBe(200);
+    expect(updateSettingMock).toHaveBeenCalledWith("patient_booking_url", "admin", { value: "" }, "a1");
+  });
+
+  it("returns 400 for patient_booking_url invalid protocol", async () => {
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    const res = await PATCH(
+      new Request("http://localhost/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          key: "patient_booking_url",
+          value: { value: "ftp://example.com" },
         }),
       }),
     );

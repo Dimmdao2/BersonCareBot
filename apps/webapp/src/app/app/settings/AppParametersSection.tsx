@@ -1,9 +1,11 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
+import { LabeledSwitch } from "@/components/common/form/LabeledSwitch";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -24,7 +26,21 @@ export type AppParametersSectionProps = {
   appBaseUrl: string;
   supportContactUrl: string;
   appDisplayTimezone: string;
+  patientAppMaintenanceEnabled: boolean;
+  patientAppMaintenanceMessage: string;
+  patientBookingUrl: string;
 };
+
+function isValidPatientBookingUrl(raw: string): boolean {
+  const t = raw.trim();
+  if (t.length === 0) return true;
+  try {
+    const u = new URL(t);
+    return u.protocol === "http:" || u.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
 
 function isValidAppBaseUrl(raw: string): boolean {
   const t = raw.trim();
@@ -41,10 +57,16 @@ export function AppParametersSection({
   appBaseUrl,
   supportContactUrl,
   appDisplayTimezone,
+  patientAppMaintenanceEnabled,
+  patientAppMaintenanceMessage,
+  patientBookingUrl,
 }: AppParametersSectionProps) {
   const [appUrl, setAppUrl] = useState(appBaseUrl);
   const [support, setSupport] = useState(supportContactUrl);
   const [timezone, setTimezone] = useState(appDisplayTimezone);
+  const [maintenanceEnabled, setMaintenanceEnabled] = useState(patientAppMaintenanceEnabled);
+  const [maintenanceMessage, setMaintenanceMessage] = useState(patientAppMaintenanceMessage);
+  const [bookingUrl, setBookingUrl] = useState(patientBookingUrl);
   const [tzFilter, setTzFilter] = useState("");
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -88,10 +110,23 @@ export function AppParametersSection({
           setError("Таймзона: выберите валидную зону IANA из списка");
           return;
         }
+        const bookingRaw = bookingUrl.trim();
+        if (bookingRaw.length > 0 && !isValidPatientBookingUrl(bookingRaw)) {
+          setError("Ссылка записи: укажите URL с http:// или https:// либо оставьте пустым для значения по умолчанию");
+          return;
+        }
+        const msgRaw = maintenanceMessage.trim();
+        if (msgRaw.length > 500) {
+          setError("Текст техработ: не более 500 символов");
+          return;
+        }
         const results = await Promise.all([
           patchAdminSetting("app_base_url", appUrlRaw),
           patchAdminSetting("support_contact_url", supportRaw),
           patchAdminSetting("app_display_timezone", tzRaw),
+          patchAdminSetting("patient_app_maintenance_enabled", maintenanceEnabled),
+          patchAdminSetting("patient_app_maintenance_message", msgRaw),
+          patchAdminSetting("patient_booking_url", bookingRaw),
         ]);
         if (results.some((r) => !r)) {
           setError("Не удалось сохранить часть настроек");
@@ -147,6 +182,44 @@ export function AppParametersSection({
             <span className="text-xs text-muted-foreground">
               Путь вида /app/… (форма в приложении) или внешняя ссылка https://… Пустое — дефолт из кода.
             </span>
+          </label>
+        </section>
+
+        <section className="flex flex-col gap-3 rounded-lg border border-border/80 bg-muted/20 p-4">
+          <p className="text-sm font-semibold">Режим техработ пациентского приложения</p>
+          <p className="text-xs text-muted-foreground">
+            Для роли «клиент» под <code className="rounded bg-muted px-1">/app/patient</code> показывается один экран
+            с текстом, ссылкой на запись и ближайшими записями. Врач/админ и пути привязки телефона не затрагиваются.
+          </p>
+          <LabeledSwitch
+            label="Включить режим техработ для пациентов"
+            checked={maintenanceEnabled}
+            onCheckedChange={(v) => setMaintenanceEnabled(Boolean(v))}
+            disabled={isPending}
+          />
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-medium">Текст на экране</span>
+            <Textarea
+              value={maintenanceMessage}
+              onChange={(e) => setMaintenanceMessage(e.target.value)}
+              disabled={isPending}
+              rows={4}
+              className="max-w-2xl resize-y"
+            />
+            <span className="text-xs text-muted-foreground">До 500 символов; пусто — текст по умолчанию из кода.</span>
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-medium">Ссылка «Записаться на приём» (внешняя)</span>
+            <Input
+              type="url"
+              placeholder="https://dmitryberson.rubitime.ru"
+              value={bookingUrl}
+              onChange={(e) => setBookingUrl(e.target.value)}
+              disabled={isPending}
+              autoComplete="off"
+              className="max-w-2xl"
+            />
+            <span className="text-xs text-muted-foreground">Пусто — подставляется URL по умолчанию (Rubitime).</span>
           </label>
         </section>
 

@@ -27,6 +27,9 @@ const ADMIN_SCOPE_KEYS = [
   "max_bot_api_key",
   "vk_web_login_url",
   "app_display_timezone",
+  "patient_app_maintenance_enabled",
+  "patient_app_maintenance_message",
+  "patient_booking_url",
   "patient_home_daily_practice_target",
   "patient_home_morning_ping_enabled",
   "patient_home_morning_ping_local_time",
@@ -183,6 +186,55 @@ export async function PATCH(request: Request) {
     const [hs, ms] = s.split(":");
     const pad = `${hs!.padStart(2, "0")}:${ms}`;
     normalizedValue = { value: pad };
+  }
+
+  if (parsed.data.key === "patient_app_maintenance_enabled") {
+    const inner = normalizedValue.value;
+    const b =
+      typeof inner === "boolean"
+        ? inner
+        : inner === "true" || inner === 1
+          ? true
+          : inner === "false" || inner === 0
+            ? false
+            : null;
+    if (b === null) {
+      return NextResponse.json({ ok: false, error: "invalid_value" }, { status: 400 });
+    }
+    normalizedValue = { value: b };
+  }
+
+  if (parsed.data.key === "patient_app_maintenance_message") {
+    const inner = normalizedValue.value;
+    if (inner !== null && typeof inner !== "string") {
+      return NextResponse.json({ ok: false, error: "invalid_value" }, { status: 400 });
+    }
+    const s = typeof inner === "string" ? inner.trim() : "";
+    if (s.length > 500) {
+      return NextResponse.json({ ok: false, error: "invalid_value" }, { status: 400 });
+    }
+    normalizedValue = { value: s };
+  }
+
+  if (parsed.data.key === "patient_booking_url") {
+    const inner = normalizedValue.value;
+    if (inner !== null && typeof inner !== "string") {
+      return NextResponse.json({ ok: false, error: "invalid_value" }, { status: 400 });
+    }
+    const raw = typeof inner === "string" ? inner.trim() : "";
+    if (raw.length === 0) {
+      normalizedValue = { value: "" };
+    } else {
+      try {
+        const u = new URL(raw);
+        if (u.protocol !== "http:" && u.protocol !== "https:") {
+          return NextResponse.json({ ok: false, error: "invalid_value" }, { status: 400 });
+        }
+      } catch {
+        return NextResponse.json({ ok: false, error: "invalid_value" }, { status: 400 });
+      }
+      normalizedValue = { value: raw };
+    }
   }
 
   if (parsed.data.key === "patient_home_mood_icons") {

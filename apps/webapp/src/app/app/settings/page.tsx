@@ -4,6 +4,10 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { env } from "@/config/env";
 import { DEFAULT_APP_DISPLAY_TIMEZONE } from "@/modules/system-settings/appDisplayTimezone";
 import { DEFAULT_SUPPORT_CONTACT_URL } from "@/modules/system-settings/supportContactConstants";
+import {
+  DEFAULT_PATIENT_BOOKING_URL,
+  DEFAULT_PATIENT_MAINTENANCE_MESSAGE,
+} from "@/modules/system-settings/patientMaintenance";
 import { DOCTOR_PAGE_CONTAINER_CLASS } from "@/shared/ui/doctorWorkspaceLayout";
 import { parseIdTokens } from "@/shared/parsers/parseIdTokens";
 import { SettingsForm } from "./SettingsForm";
@@ -108,6 +112,23 @@ export default async function SettingsPage() {
           const raw = getValueJson(adminSettingsList.find((x) => x.key === "app_display_timezone")?.valueJson, "");
           const s = typeof raw === "string" ? raw.trim() : "";
           return s.length > 0 ? s : DEFAULT_APP_DISPLAY_TIMEZONE;
+        })(),
+        patientAppMaintenanceEnabled: (() => {
+          const raw = getValueJson<unknown>(
+            adminSettingsList.find((x) => x.key === "patient_app_maintenance_enabled")?.valueJson,
+            false,
+          );
+          return raw === true || raw === "true";
+        })(),
+        patientAppMaintenanceMessage: (() => {
+          const raw = getValueJson(adminSettingsList.find((x) => x.key === "patient_app_maintenance_message")?.valueJson, "");
+          const s = typeof raw === "string" ? raw.trim() : "";
+          return s.length > 0 ? s : DEFAULT_PATIENT_MAINTENANCE_MESSAGE;
+        })(),
+        patientBookingUrl: (() => {
+          const raw = getValueJson(adminSettingsList.find((x) => x.key === "patient_booking_url")?.valueJson, "");
+          const s = typeof raw === "string" ? raw.trim() : "";
+          return s.length > 0 ? s : DEFAULT_PATIENT_BOOKING_URL;
         })(),
       }
     : null;
