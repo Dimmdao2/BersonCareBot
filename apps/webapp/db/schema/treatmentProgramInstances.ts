@@ -6,6 +6,7 @@ import {
   integer,
   jsonb,
   timestamp,
+  boolean,
   index,
   foreignKey,
   check,
@@ -117,6 +118,13 @@ export const treatmentProgramInstanceStageItems = pgTable(
     snapshot: jsonb("snapshot").$type<Record<string, unknown>>().notNull(),
     /** Элемент этапа отмечен выполненным (тесты — после всех результатов; прочие — вручную пациентом/врачом). */
     completedAt: timestamp("completed_at", { withTimezone: true, mode: "string" }),
+    /**
+     * O4 PROGRAM_PATIENT_SHAPE: только на экземпляре. Для `recommendation`: `true` — требует выполнения,
+     * `false` — постоянная рекомендация (не влияет на автозавершение этапа). Для прочих типов — NULL.
+     */
+    isActionable: boolean("is_actionable"),
+    /** `disabled` — скрыто у пациента; строка не удаляется (A2). */
+    status: text().default("active").notNull(),
   },
   (table) => [
     index("idx_treatment_program_instance_stage_items_stage_order").using(
@@ -132,6 +140,10 @@ export const treatmentProgramInstanceStageItems = pgTable(
     check(
       "treatment_program_instance_stage_items_item_type_check",
       sql`item_type = ANY (ARRAY['exercise'::text, 'lfk_complex'::text, 'recommendation'::text, 'lesson'::text, 'test_set'::text])`,
+    ),
+    check(
+      "treatment_program_instance_stage_items_status_check",
+      sql`status = ANY (ARRAY['active'::text, 'disabled'::text])`,
     ),
   ],
 );

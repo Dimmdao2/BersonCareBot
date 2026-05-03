@@ -6,6 +6,7 @@ import type {
 import type {
   AddTreatmentProgramInstanceStageInput,
   AddTreatmentProgramInstanceStageItemInput,
+  AppendTreatmentProgramEventInput,
   CreateTreatmentProgramInstanceTreeInput,
   ReplaceTreatmentProgramInstanceStageItemInput,
   UpdateTreatmentProgramInstanceStageMetadataInput,
@@ -14,6 +15,7 @@ import type {
   TreatmentProgramInstanceStageItemRow,
   TreatmentProgramInstanceStageRow,
   TreatmentProgramInstanceStageStatus,
+  TreatmentProgramInstanceStageItemStatus,
   TreatmentProgramInstanceStatus,
   TreatmentProgramInstanceSummary,
   TreatmentProgramItemType,
@@ -56,6 +58,22 @@ export function createInMemoryTreatmentProgramPersistence(): InMemoryTreatmentPr
   const results = new Map<string, TreatmentProgramTestResultRow>();
   const programEvents: TreatmentProgramEventRow[] = [];
 
+  function appendProgramEvent(input: AppendTreatmentProgramEventInput): TreatmentProgramEventRow {
+    const row: TreatmentProgramEventRow = {
+      id: crypto.randomUUID(),
+      instanceId: input.instanceId,
+      actorId: input.actorId,
+      eventType: input.eventType,
+      targetType: input.targetType,
+      targetId: input.targetId,
+      payload: input.payload ?? {},
+      reason: input.reason ?? null,
+      createdAt: isoNow(),
+    };
+    programEvents.push(row);
+    return row;
+  }
+
   function touchInstance(instanceId: string): void {
     const inst = instances.get(instanceId);
     if (!inst) return;
@@ -88,10 +106,13 @@ export function createInMemoryTreatmentProgramPersistence(): InMemoryTreatmentPr
   }
 
   function unlockNextLockedStage(instanceId: string, afterSortOrder: number): void {
+    const threshold = afterSortOrder === 0 ? 0 : afterSortOrder;
     const candidates = [...stages.values()]
       .filter(
         (s) =>
-          s.instanceId === instanceId && s.status === "locked" && s.sortOrder > afterSortOrder,
+          s.instanceId === instanceId &&
+          s.status === "locked" &&
+          s.sortOrder > threshold,
       )
       .sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id));
     const next = candidates[0];
@@ -146,6 +167,8 @@ export function createInMemoryTreatmentProgramPersistence(): InMemoryTreatmentPr
             settings: it.settings,
             snapshot: it.snapshot,
             completedAt: null,
+            isActionable: it.isActionable ?? null,
+            status: it.status ?? "active",
           };
           items.set(iid, itemRow);
         }
@@ -312,20 +335,60 @@ export function createInMemoryTreatmentProgramPersistence(): InMemoryTreatmentPr
         settings: input.settings,
         snapshot: input.snapshot,
         completedAt: null,
+        isActionable: input.isActionable ?? null,
+        status: input.status ?? "active",
       };
       items.set(iid, itemRow);
       touchInstance(instanceId);
       return itemRow;
     },
 
-    async removeInstanceStageItem(instanceId: string, itemId: string) {
+    async patchInstanceStageItem(
+      instanceId: string,
+      itemId: string,
+      patch: { status?: TreatmentProgramInstanceStageItemStatus; isActionable?: boolean | null },
+    ) {
+      const inst = instances.get(instanceId);
+      if (!inst) return null;
       const row = items.get(itemId);
-      if (!row) return false;
+      if (!row) return null;
       const st = stages.get(row.stageId);
-      if (!st || st.instanceId !== instanceId) return false;
-      items.delete(itemId);
+      if (!st || st.instanceId !== instanceId) return null;
+      const next: ItemRow = {
+        ...row,
+        ...(patch.status !== undefined ? { status: patch.status } : {}),
+        ...(patch.isActionable !== undefined ? { isActionable: patch.isActionable } : {}),
+      };
+      items.set(itemId, next);
       touchInstance(instanceId);
-      return true;
+      return next;
+    },
+
+    async patchInstanceStageItemWithEvent(
+      instanceId: string,
+      itemId: string,
+      patch: { status?: TreatmentProgramInstanceStageItemStatus; isActionable?: boolean | null },
+      eventInput: AppendTreatmentProgramEventInput,
+    ) {
+      if (eventInput.instanceId !== instanceId) {
+        throw new Error("patchInstanceStageItemWithEvent: event instanceId mismatch");
+      }
+      if (patch.status === undefined && patch.isActionable === undefined) return null;
+      const inst = instances.get(instanceId);
+      if (!inst) return null;
+      const row = items.get(itemId);
+      if (!row) return null;
+      const st = stages.get(row.stageId);
+      if (!st || st.instanceId !== instanceId) return null;
+      const next: ItemRow = {
+        ...row,
+        ...(patch.status !== undefined ? { status: patch.status } : {}),
+        ...(patch.isActionable !== undefined ? { isActionable: patch.isActionable } : {}),
+      };
+      items.set(itemId, next);
+      touchInstance(instanceId);
+      appendProgramEvent(eventInput);
+      return next;
     },
 
     async replaceInstanceStageItem(
@@ -346,6 +409,8 @@ export function createInMemoryTreatmentProgramPersistence(): InMemoryTreatmentPr
         settings: input.settings === undefined ? row.settings : input.settings,
         snapshot: input.snapshot,
         completedAt: null,
+        status: "active",
+        isActionable: null,
       };
       items.set(itemId, next);
       touchInstance(instanceId);
@@ -500,19 +565,7 @@ export function createInMemoryTreatmentProgramPersistence(): InMemoryTreatmentPr
 
   const eventsPort: TreatmentProgramEventsPort = {
     async appendEvent(input) {
-      const row: TreatmentProgramEventRow = {
-        id: crypto.randomUUID(),
-        instanceId: input.instanceId,
-        actorId: input.actorId,
-        eventType: input.eventType,
-        targetType: input.targetType,
-        targetId: input.targetId,
-        payload: input.payload ?? {},
-        reason: input.reason ?? null,
-        createdAt: isoNow(),
-      };
-      programEvents.push(row);
-      return row;
+      return appendProgramEvent(input);
     },
     async listEventsForInstance(instanceId: string, limit = 200) {
       const cap = Math.min(Math.max(limit, 1), 500);

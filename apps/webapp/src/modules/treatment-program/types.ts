@@ -163,6 +163,9 @@ export type TreatmentProgramInstanceStageStatus =
   | "completed"
   | "skipped";
 
+/** A2: строка элемента экземпляра — `active` / `disabled` (без физического удаления). */
+export type TreatmentProgramInstanceStageItemStatus = "active" | "disabled";
+
 export type TreatmentProgramInstanceSummary = {
   id: string;
   patientUserId: string;
@@ -185,6 +188,12 @@ export type TreatmentProgramInstanceStageItemRow = {
   settings: Record<string, unknown> | null;
   snapshot: Record<string, unknown>;
   completedAt: string | null;
+  /**
+   * O4: только на экземпляре. `false` для `recommendation` = постоянная рекомендация;
+   * `true` / `null` = требует выполнения (null трактуем как actionable для обратной совместимости).
+   */
+  isActionable: boolean | null;
+  status: TreatmentProgramInstanceStageItemStatus;
 };
 
 /**
@@ -280,6 +289,8 @@ export type TreatmentProgramInstanceStageInput = {
     comment: string | null;
     settings: Record<string, unknown> | null;
     snapshot: Record<string, unknown>;
+    isActionable?: boolean | null;
+    status?: TreatmentProgramInstanceStageItemStatus;
   }>;
 };
 
@@ -310,6 +321,8 @@ export type AddTreatmentProgramInstanceStageItemInput = {
   comment: string | null;
   settings: Record<string, unknown> | null;
   snapshot: Record<string, unknown>;
+  isActionable?: boolean | null;
+  status?: TreatmentProgramInstanceStageItemStatus;
 };
 
 export type ReplaceTreatmentProgramInstanceStageItemInput = {
@@ -368,6 +381,8 @@ export type TreatmentProgramTestResultDetailRow = TreatmentProgramTestResultRow 
 export const TREATMENT_PROGRAM_EVENT_TYPES = [
   "item_added",
   "item_removed",
+  "item_disabled",
+  "item_enabled",
   "item_replaced",
   "comment_changed",
   "stage_added",
@@ -411,6 +426,10 @@ export function formatTreatmentProgramEventTypeRu(eventType: TreatmentProgramEve
       return "добавлен элемент этапа";
     case "item_removed":
       return "удалён элемент этапа";
+    case "item_disabled":
+      return "элемент отключён";
+    case "item_enabled":
+      return "элемент включён";
     case "item_replaced":
       return "заменён элемент этапа";
     case "comment_changed":

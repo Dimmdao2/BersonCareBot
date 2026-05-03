@@ -12,6 +12,7 @@ import type {
   TreatmentProgramInstanceStageItemRow,
   TreatmentProgramInstanceStageRow,
   TreatmentProgramInstanceStageStatus,
+  TreatmentProgramInstanceStageItemStatus,
   TreatmentProgramInstanceSummary,
   TreatmentProgramItemType,
   TreatmentProgramTemplate,
@@ -106,6 +107,29 @@ export type TreatmentProgramInstancePort = {
     completedAt: string | null,
   ): Promise<TreatmentProgramInstanceStageItemRow | null>;
 
+  patchInstanceStageItem(
+    instanceId: string,
+    itemId: string,
+    patch: {
+      status?: TreatmentProgramInstanceStageItemStatus;
+      isActionable?: boolean | null;
+    },
+  ): Promise<TreatmentProgramInstanceStageItemRow | null>;
+
+  /**
+   * A2-TXN-01: одна транзакция БД — PATCH элемента + вставка строки события (PG);
+   * in-memory: последовательно в одном замыкании. Вызывать только из сервисного слоя с уже нормализованным `eventInput`.
+   */
+  patchInstanceStageItemWithEvent(
+    instanceId: string,
+    itemId: string,
+    patch: {
+      status?: TreatmentProgramInstanceStageItemStatus;
+      isActionable?: boolean | null;
+    },
+    eventInput: AppendTreatmentProgramEventInput,
+  ): Promise<TreatmentProgramInstanceStageItemRow | null>;
+
   addInstanceStage(
     instanceId: string,
     input: AddTreatmentProgramInstanceStageInput,
@@ -116,7 +140,6 @@ export type TreatmentProgramInstancePort = {
     stageId: string,
     input: AddTreatmentProgramInstanceStageItemInput,
   ): Promise<TreatmentProgramInstanceStageItemRow | null>;
-  removeInstanceStageItem(instanceId: string, itemId: string): Promise<boolean>;
   replaceInstanceStageItem(
     instanceId: string,
     itemId: string,

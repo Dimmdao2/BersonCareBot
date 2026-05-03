@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requirePatientApiBusinessAccess } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { omitDisabledInstanceStageItemsForPatientApi } from "@/modules/treatment-program/stage-semantics";
 
 export async function GET(
   _request: Request,
@@ -18,10 +19,11 @@ export async function GET(
 
   const deps = buildAppDeps();
   try {
-    const item = await deps.treatmentProgramInstance.getInstanceForPatient(
+    const raw = await deps.treatmentProgramInstance.getInstanceForPatient(
       gate.session.user.userId,
       instanceId,
     );
+    const item = omitDisabledInstanceStageItemsForPatientApi(raw);
     return NextResponse.json({ ok: true, item });
   } catch {
     return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });

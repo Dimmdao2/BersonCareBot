@@ -1,0 +1,47 @@
+import type {
+  TreatmentProgramInstanceDetail,
+  TreatmentProgramInstanceStageItemRow,
+  TreatmentProgramInstanceStageRow,
+} from "./types";
+
+/** Этап 0 «Общие рекомендации»: `sort_order = 0` на этапе экземпляра, вне FSM автозавершения. */
+export function isStageZero(stage: Pick<TreatmentProgramInstanceStageRow, "sortOrder">): boolean {
+  return stage.sortOrder === 0;
+}
+
+type ItemSemanticsFields = Pick<
+  TreatmentProgramInstanceStageItemRow,
+  "itemType" | "isActionable" | "status"
+>;
+
+/** Постоянная рекомендация: только instance-level `is_actionable === false` (O4). */
+export function isPersistentRecommendation(item: ItemSemanticsFields): boolean {
+  return item.itemType === "recommendation" && item.isActionable === false;
+}
+
+/** Учитывается ли элемент в автозавершении этапа (исключая disabled и persistent). */
+export function isCompletableForStageProgress(item: ItemSemanticsFields): boolean {
+  if (item.status === "disabled") return false;
+  if (isPersistentRecommendation(item)) return false;
+  return true;
+}
+
+export function isInstanceStageItemActiveForPatient(item: ItemSemanticsFields): boolean {
+  return item.status !== "disabled";
+}
+
+/**
+ * Patient HTTP/RSC read model (A2-READ-01): `disabled` rows stay in DB and doctor views;
+ * пациентский API и RSC не отдают отключённые элементы в `stages[].items`.
+ */
+export function omitDisabledInstanceStageItemsForPatientApi(
+  detail: TreatmentProgramInstanceDetail,
+): TreatmentProgramInstanceDetail {
+  return {
+    ...detail,
+    stages: detail.stages.map((stage) => ({
+      ...stage,
+      items: stage.items.filter((it) => isInstanceStageItemActiveForPatient(it)),
+    })),
+  };
+}

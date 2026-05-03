@@ -34,7 +34,7 @@ describe("treatment-program progress-service", () => {
           sourceStageId: tplStageId,
           title: "Этап 1",
           description: null,
-          sortOrder: 0,
+          sortOrder: 1,
           status: "available",
           goals: null,
           objectives: null,
@@ -73,7 +73,7 @@ describe("treatment-program progress-service", () => {
           sourceStageId: tplStageId,
           title: "Этап 1",
           description: null,
-          sortOrder: 0,
+          sortOrder: 1,
           status: "available",
           goals: null,
           objectives: null,
@@ -94,7 +94,7 @@ describe("treatment-program progress-service", () => {
           sourceStageId: tplStage2Id,
           title: "Этап 2",
           description: null,
-          sortOrder: 1,
+          sortOrder: 2,
           status: "locked",
           goals: null,
           objectives: null,
@@ -135,7 +135,7 @@ describe("treatment-program progress-service", () => {
           sourceStageId: tplStageId,
           title: "Этап 1",
           description: null,
-          sortOrder: 0,
+          sortOrder: 1,
           status: "available",
           goals: null,
           objectives: null,
@@ -160,7 +160,7 @@ describe("treatment-program progress-service", () => {
           sourceStageId: tplStage2Id,
           title: "Этап 2",
           description: null,
-          sortOrder: 1,
+          sortOrder: 2,
           status: "locked",
           goals: null,
           objectives: null,
@@ -201,7 +201,7 @@ describe("treatment-program progress-service", () => {
           sourceStageId: tplStageId,
           title: "Этап 1",
           description: null,
-          sortOrder: 0,
+          sortOrder: 1,
           status: "available",
           goals: null,
           objectives: null,
@@ -236,7 +236,7 @@ describe("treatment-program progress-service", () => {
           sourceStageId: tplStageId,
           title: "Этап 1",
           description: null,
-          sortOrder: 0,
+          sortOrder: 1,
           status: "available",
           goals: null,
           objectives: null,
@@ -279,7 +279,7 @@ describe("treatment-program progress-service", () => {
           sourceStageId: tplStageId,
           title: "Этап 1",
           description: null,
-          sortOrder: 0,
+          sortOrder: 1,
           status: "available",
           goals: null,
           objectives: null,
@@ -291,7 +291,7 @@ describe("treatment-program progress-service", () => {
           sourceStageId: tplStage2Id,
           title: "Этап 2",
           description: null,
-          sortOrder: 1,
+          sortOrder: 2,
           status: "locked",
           goals: null,
           objectives: null,
@@ -324,7 +324,7 @@ describe("treatment-program progress-service", () => {
           sourceStageId: tplStageId,
           title: "Этап 1",
           description: null,
-          sortOrder: 0,
+          sortOrder: 1,
           status: "locked",
           goals: null,
           objectives: null,
@@ -355,7 +355,7 @@ describe("treatment-program progress-service", () => {
           sourceStageId: tplStageId,
           title: "Этап 1",
           description: null,
-          sortOrder: 0,
+          sortOrder: 1,
           status: "available",
           goals: null,
           objectives: null,
@@ -394,6 +394,201 @@ describe("treatment-program progress-service", () => {
     });
     expect(row.normalizedDecision).toBe("failed");
     expect(row.decidedBy).toBe(doctor);
+  });
+
+  it("A2: этап с sort_order=0 не завершается автоматически при выполнении всех элементов", async () => {
+    const inst = await persistence.instancePort.createInstanceTree({
+      templateId: "00000000-0000-4000-8000-000000000001",
+      patientUserId: patient,
+      assignedBy: null,
+      title: "Программа",
+      stages: [
+        {
+          sourceStageId: tplStageId,
+          title: "Общие",
+          description: null,
+          sortOrder: 0,
+          status: "available",
+          goals: null,
+          objectives: null,
+          expectedDurationDays: null,
+          expectedDurationText: null,
+          items: [
+            {
+              itemType: "recommendation",
+              itemRefId: "11111111-1111-4111-8111-111111111111",
+              sortOrder: 0,
+              comment: null,
+              settings: null,
+              snapshot: { title: "R" },
+            },
+          ],
+        },
+      ],
+    });
+    const itemId = inst.stages[0]!.items[0]!.id;
+    const out = await progress.patientCompleteSimpleItem({
+      patientUserId: patient,
+      instanceId: inst.id,
+      stageItemId: itemId,
+    });
+    expect(out.stages[0]!.items[0]!.completedAt).not.toBeNull();
+    expect(out.stages[0]!.status).not.toBe("completed");
+  });
+
+  it("A2: постоянная рекомендация — пациент не может отметить выполненной", async () => {
+    const inst = await persistence.instancePort.createInstanceTree({
+      templateId: "00000000-0000-4000-8000-000000000001",
+      patientUserId: patient,
+      assignedBy: null,
+      title: "Программа",
+      stages: [
+        {
+          sourceStageId: tplStageId,
+          title: "Этап",
+          description: null,
+          sortOrder: 1,
+          status: "available",
+          goals: null,
+          objectives: null,
+          expectedDurationDays: null,
+          expectedDurationText: null,
+          items: [
+            {
+              itemType: "recommendation",
+              itemRefId: "11111111-1111-4111-8111-111111111111",
+              sortOrder: 0,
+              comment: null,
+              settings: null,
+              snapshot: { title: "P" },
+              isActionable: false,
+              status: "active",
+            },
+          ],
+        },
+      ],
+    });
+    const itemId = inst.stages[0]!.items[0]!.id;
+    await expect(
+      progress.patientCompleteSimpleItem({
+        patientUserId: patient,
+        instanceId: inst.id,
+        stageItemId: itemId,
+      }),
+    ).rejects.toThrow(/Постоянная рекомендация/);
+  });
+
+  it("A2: отключённый элемент — пациент не может отметить выполненным", async () => {
+    const inst = await persistence.instancePort.createInstanceTree({
+      templateId: "00000000-0000-4000-8000-000000000001",
+      patientUserId: patient,
+      assignedBy: null,
+      title: "Программа",
+      stages: [
+        {
+          sourceStageId: tplStageId,
+          title: "Этап",
+          description: null,
+          sortOrder: 1,
+          status: "available",
+          goals: null,
+          objectives: null,
+          expectedDurationDays: null,
+          expectedDurationText: null,
+          items: [
+            {
+              itemType: "recommendation",
+              itemRefId: "11111111-1111-4111-8111-111111111111",
+              sortOrder: 0,
+              comment: null,
+              settings: null,
+              snapshot: { title: "X" },
+              status: "disabled",
+            },
+          ],
+        },
+      ],
+    });
+    const itemId = inst.stages[0]!.items[0]!.id;
+    await expect(
+      progress.patientCompleteSimpleItem({
+        patientUserId: patient,
+        instanceId: inst.id,
+        stageItemId: itemId,
+      }),
+    ).rejects.toThrow(/отключён/);
+  });
+
+  it("A2: постоянная рекомендация не учитывается в автозавершении этапа", async () => {
+    const inst = await persistence.instancePort.createInstanceTree({
+      templateId: "00000000-0000-4000-8000-000000000001",
+      patientUserId: patient,
+      assignedBy: null,
+      title: "Программа",
+      stages: [
+        {
+          sourceStageId: tplStageId,
+          title: "Этап 1",
+          description: null,
+          sortOrder: 1,
+          status: "available",
+          goals: null,
+          objectives: null,
+          expectedDurationDays: null,
+          expectedDurationText: null,
+          items: [
+            {
+              itemType: "recommendation",
+              itemRefId: "11111111-1111-4111-8111-111111111111",
+              sortOrder: 0,
+              comment: null,
+              settings: null,
+              snapshot: { title: "P" },
+              isActionable: false,
+            },
+            {
+              itemType: "recommendation",
+              itemRefId: "22222222-2222-4222-8222-222222222222",
+              sortOrder: 1,
+              comment: null,
+              settings: null,
+              snapshot: { title: "A" },
+              isActionable: true,
+            },
+          ],
+        },
+        {
+          sourceStageId: tplStage2Id,
+          title: "Этап 2",
+          description: null,
+          sortOrder: 2,
+          status: "locked",
+          goals: null,
+          objectives: null,
+          expectedDurationDays: null,
+          expectedDurationText: null,
+          items: [
+            {
+              itemType: "recommendation",
+              itemRefId: "33333333-3333-4333-8333-333333333333",
+              sortOrder: 0,
+              comment: null,
+              settings: null,
+              snapshot: { title: "B" },
+            },
+          ],
+        },
+      ],
+    });
+    const actionableId = inst.stages[0]!.items.find((i) => i.snapshot.title === "A")!.id;
+    await progress.patientCompleteSimpleItem({
+      patientUserId: patient,
+      instanceId: inst.id,
+      stageItemId: actionableId,
+    });
+    const after = await persistence.instancePort.getInstanceForPatient(patient, inst.id);
+    expect(after!.stages[0]!.status).toBe("completed");
+    expect(after!.stages[1]!.status).toBe("available");
   });
 });
 

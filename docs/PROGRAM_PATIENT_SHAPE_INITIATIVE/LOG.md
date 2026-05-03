@@ -4,6 +4,101 @@
 
 ---
 
+## 2026-05-03 — FIX по AUDIT_STAGE_A2 (A2-READ-01, A2-TXN-01)
+
+**Контекст:**
+
+- Аудит: [`AUDIT_STAGE_A2.md`](AUDIT_STAGE_A2.md).
+
+**Сделано:**
+
+- **A2-READ-01:** `omitDisabledInstanceStageItemsForPatientApi` в `stage-semantics.ts`; patient **`GET /api/patient/treatment-program-instances/[instanceId]`** и RSC `patient/treatment-programs/[instanceId]/page.tsx` отдают дерево **без** строк элементов со **`status: "disabled"`** в `stages[].items`. `getInstanceForPatient` / прогресс по-прежнему работают с полным деревом в сервисном слое.
+- **A2-TXN-01:** порт **`patchInstanceStageItemWithEvent`** — PG оборачивает update item + insert `treatment_program_events` + touch instance в **`db.transaction`**; in-memory — общий `appendProgramEvent` после patch. `doctorDisableInstanceStageItem` / `doctorEnableInstanceStageItem` при переданном **`events`** используют этот путь; без **`events`** — только `patchInstanceStageItem` (фикстуры без порта событий).
+- Тесты: `stage-semantics.test.ts` на read-model helper.
+- **`api.md`**, **`AUDIT_STAGE_A2.md`** (§1b, §2, §4, §6, §7).
+
+**Проверки (целевые A2):**
+
+```bash
+rg "is_actionable|item_disabled|item_enabled|isStageZero|isPersistentRecommendation|patchInstanceStageItem|patchInstanceStageItemWithEvent|omitDisabledInstanceStageItemsForPatientApi" apps/webapp/src apps/webapp/db
+pnpm --dir apps/webapp exec vitest run src/modules/treatment-program/stage-semantics.test.ts src/modules/treatment-program/progress-service.test.ts src/modules/treatment-program/instance-service.test.ts src/modules/treatment-program/treatment-program-events.test.ts src/app/app/patient/treatment-programs/PatientTreatmentProgramDetailClient.test.tsx
+pnpm --dir apps/webapp exec eslint apps/webapp/src/modules/treatment-program/stage-semantics.ts apps/webapp/src/modules/treatment-program/ports.ts apps/webapp/src/modules/treatment-program/instance-service.ts apps/webapp/src/infra/repos/pgTreatmentProgramInstance.ts apps/webapp/src/infra/repos/inMemoryTreatmentProgramInstance.ts apps/webapp/src/app/api/patient/treatment-program-instances/\[instanceId\]/route.ts apps/webapp/src/app/app/patient/treatment-programs/\[instanceId\]/page.tsx
+pnpm --dir apps/webapp exec tsc --noEmit
+```
+
+**Результаты:** `rg` — совпадения только в treatment-program / patient instance API / schema / миграции; **`vitest`** (5 файлов, 41 тест) — PASS; **`eslint`** (перечисленные файлы) — PASS; **`tsc --noEmit`** — PASS.
+
+**Scope / вне scope:**
+
+- In scope: treatment-program instance/events контур (см. §6.6 `AUDIT_STAGE_A2`).
+- Out of scope: **courses**, **каталог B4/B7**, шаблонный контент под **A2-LEGACY-01** (defer Info — только документация).
+
+**Minor:**
+
+- **A2-LEGACY-01:** **defer** — правка шаблонов/контент-гайд, не runtime-код этой задачи.
+
+**CI:** полный `pnpm run ci` не запускался (запрос пользователя).
+
+---
+
+## 2026-05-03 — Stage A2 — `is_actionable` / `status` / Этап 0 / disable вместо DELETE
+
+**Контекст:**
+
+- Этапный план: [`STAGE_A2_PLAN.md`](STAGE_A2_PLAN.md).
+- Продуктовое ТЗ: [`../APP_RESTRUCTURE_INITIATIVE/PROGRAM_PATIENT_SHAPE_PLAN.md`](../APP_RESTRUCTURE_INITIATIVE/PROGRAM_PATIENT_SHAPE_PLAN.md).
+
+**Scope this run:**
+
+- In scope: Drizzle + миграция `0028_treatment_program_a2_instance_item_status.sql` (`is_actionable`, `status`, расширение CHECK `treatment_program_events` для `item_disabled` / `item_enabled`), доменные хелперы, `progress-service` (этап 0, persistent, disabled), `instance-service` (assign: этап 0 + первый FSM-этап; disable/enable; `is_actionable` для recommendation), doctor `PATCH` stage-items (без `DELETE`), UI врача/пациента, целевые тесты, `api.md`.
+- Out of scope: группы A3, `program_action_log` A4, бейджи A5, каталог B4.
+
+**Changed files:**
+
+- `apps/webapp/db/schema/treatmentProgramInstances.ts`, `treatmentProgramEvents.ts` — колонки и типы событий.
+- `apps/webapp/db/drizzle-migrations/0028_*` + `meta/_journal.json`, `meta/0028_snapshot.json`.
+- `apps/webapp/src/modules/treatment-program/stage-semantics.ts`, `types.ts`, `ports.ts`, `instance-service.ts`, `progress-service.ts`.
+- `apps/webapp/src/infra/repos/pgTreatmentProgramInstance.ts`, `inMemoryTreatmentProgramInstance.ts`.
+- `apps/webapp/src/app/api/doctor/treatment-program-instances/.../stage-items/[itemId]/route.ts` — PATCH: `status`, `isActionable`; удалён `DELETE`.
+- `TreatmentProgramInstanceDetailClient.tsx`, `PatientTreatmentProgramDetailClient.tsx`.
+- Тесты: `instance-service.test.ts`, `progress-service.test.ts`, `treatment-program-events.test.ts`.
+- `apps/webapp/src/app/api/api.md`, `STAGE_A2_PLAN.md` §2 (O4).
+
+**Composer-safe UI contract evidence:**
+
+- Doctor: `Button`, `Badge`, `Select`, `Dialog`; строки действий `flex flex-wrap items-center gap-2`; пояснение `text-xs text-muted-foreground`; отключённый элемент `opacity-60`.
+- Patient: `patientSectionSurfaceClass`, `patientSectionTitleClass`, `patientListItemClass`, `patientMutedTextClass`, `patientPillClass` для «Постоянная рекомендация».
+
+**Checks run:**
+
+```bash
+rg "is_actionable|item_disabled|item_enabled|isStageZero|isPersistentRecommendation|patchInstanceStageItem" apps/webapp/src apps/webapp/db
+pnpm --dir apps/webapp exec eslint <changed-files>
+pnpm --dir apps/webapp exec vitest run src/modules/treatment-program/progress-service.test.ts src/modules/treatment-program/instance-service.test.ts src/modules/treatment-program/treatment-program-events.test.ts src/app/app/patient/treatment-programs/PatientTreatmentProgramDetailClient.test.tsx
+pnpm --dir apps/webapp exec tsc --noEmit
+```
+
+**Check results:**
+
+- `rg`: совпадения только в treatment-program / schema / миграции / UI / тестах.
+- `eslint`: PASS по перечисленным файлам.
+- `vitest`: PASS (4 файла, 39 тестов).
+- `tsc --noEmit`: PASS.
+
+**Product decisions closed:**
+
+- **O4:** подтверждено в коде и в `STAGE_A2_PLAN.md` §2 — `is_actionable` только на `treatment_program_instance_stage_items`; при назначении для `recommendation` по умолчанию `true` (экземпляр).
+
+**Known residual risk:**
+
+- Шаблоны, где первый клинический этап имел `sort_order = 0` без отдельного «Этапа 0», меняют семантику FSM (оба первых этапа могут стать `available` при наличии этапа 0 + следующего с `sort_order > 0`); legacy с одним этапом `sort_order = 0` остаётся только «общие рекомендации» без автозавершения этапа по элементам.
+
+**Next step:**
+
+- Этап A3 по `STAGE_A3_PLAN.md`.
+
+---
+
 ## 2026-05-03 — FIX по AUDIT_STAGE_A1 (документация A1 + чек-лист плана)
 
 **Контекст:**

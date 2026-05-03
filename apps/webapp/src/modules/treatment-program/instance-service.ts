@@ -5,7 +5,7 @@ import type {
   TreatmentProgramItemSnapshotPort,
   TreatmentProgramTestAttemptsPort,
 } from "./ports";
-import { buildAppendEventInput, normalizeEventReason } from "./event-recording";
+import { buildAppendEventInput } from "./event-recording";
 import type { TreatmentProgramService } from "./service";
 import { assertUuid } from "./service";
 import type { TreatmentProgramInstanceStageStatus } from "./types";
@@ -16,6 +16,7 @@ import {
   type TreatmentProgramItemType,
   type UpdateTreatmentProgramInstanceStageMetadataInput,
 } from "./types";
+import { isStageZero } from "./stage-semantics";
 
 export function createTreatmentProgramInstanceService(deps: {
   instances: TreatmentProgramInstancePort;
@@ -65,9 +66,21 @@ export function createTreatmentProgramInstanceService(deps: {
       );
 
       const stageInputs = [];
-      for (let i = 0; i < stagesSorted.length; i++) {
-        const st = stagesSorted[i]!;
-        const status = i === 0 ? ("available" as const) : ("locked" as const);
+      const sorted = stagesSorted;
+      const hasFsmStage = sorted.some((s) => s.sortOrder > 0);
+      const firstFsmStage = hasFsmStage ? sorted.find((s) => s.sortOrder > 0) ?? null : null;
+
+      for (let i = 0; i < sorted.length; i++) {
+        const st = sorted[i]!;
+        const isZero = isStageZero(st);
+        let status: TreatmentProgramInstanceStageStatus;
+        if (isZero) {
+          status = "available";
+        } else if (firstFsmStage) {
+          status = st.id === firstFsmStage.id ? "available" : "locked";
+        } else {
+          status = i === 0 ? "available" : "locked";
+        }
         const itemRows = [...st.items].sort(
           (a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id),
         );
@@ -82,6 +95,8 @@ export function createTreatmentProgramInstanceService(deps: {
             comment: it.comment,
             settings: it.settings,
             snapshot,
+            isActionable: it.itemType === "recommendation" ? true : null,
+            status: "active" as const,
           });
         }
         stageInputs.push({
@@ -340,6 +355,8 @@ export function createTreatmentProgramInstanceService(deps: {
         comment: input.comment ?? null,
         settings: input.settings ?? null,
         snapshot,
+        isActionable: input.itemType === "recommendation" ? true : null,
+        status: "active",
       });
       if (!row) throw new Error("Не удалось добавить элемент");
       await appendEvent({
@@ -358,11 +375,10 @@ export function createTreatmentProgramInstanceService(deps: {
       return row;
     },
 
-    async doctorRemoveStageItem(input: {
+    async doctorDisableInstanceStageItem(input: {
       instanceId: string;
       itemId: string;
       actorId: string | null;
-      reason: string;
     }) {
       assertUuid(input.instanceId);
       assertUuid(input.itemId);
@@ -370,23 +386,100 @@ export function createTreatmentProgramInstanceService(deps: {
       const detail = await instances.getInstanceById(input.instanceId);
       const item = detail?.stages.flatMap((s) => s.items).find((i) => i.id === input.itemId);
       if (!item) throw new Error("Элемент не найден");
-      await assertStageItemAllowsStructuralChange(item);
-      const reason = normalizeEventReason("item_removed", input.reason);
-      const ok = await instances.removeInstanceStageItem(input.instanceId, input.itemId);
-      if (!ok) throw new Error("Элемент не найден");
+      if (item.status === "disabled") return item;
+      if (events) {
+        const row = await instances.patchInstanceStageItemWithEvent(
+          input.instanceId,
+          input.itemId,
+          { status: "disabled" },
+          buildAppendEventInput({
+            instanceId: input.instanceId,
+            actorId: input.actorId,
+            eventType: "item_disabled",
+            targetType: "stage_item",
+            targetId: input.itemId,
+            payload: { stageId: item.stageId, itemType: item.itemType, itemRefId: item.itemRefId },
+          }),
+        );
+        if (!row) throw new Error("Элемент не найден");
+        return row;
+      }
+      const row = await instances.patchInstanceStageItem(input.instanceId, input.itemId, {
+        status: "disabled",
+      });
+      if (!row) throw new Error("Элемент не найден");
+      return row;
+    },
+
+    async doctorEnableInstanceStageItem(input: {
+      instanceId: string;
+      itemId: string;
+      actorId: string | null;
+    }) {
+      assertUuid(input.instanceId);
+      assertUuid(input.itemId);
+      if (input.actorId) assertUuid(input.actorId);
+      const detail = await instances.getInstanceById(input.instanceId);
+      const item = detail?.stages.flatMap((s) => s.items).find((i) => i.id === input.itemId);
+      if (!item) throw new Error("Элемент не найден");
+      if (item.status === "active") return item;
+      if (events) {
+        const row = await instances.patchInstanceStageItemWithEvent(
+          input.instanceId,
+          input.itemId,
+          { status: "active" },
+          buildAppendEventInput({
+            instanceId: input.instanceId,
+            actorId: input.actorId,
+            eventType: "item_enabled",
+            targetType: "stage_item",
+            targetId: input.itemId,
+            payload: { stageId: item.stageId, itemType: item.itemType, itemRefId: item.itemRefId },
+          }),
+        );
+        if (!row) throw new Error("Элемент не найден");
+        return row;
+      }
+      const row = await instances.patchInstanceStageItem(input.instanceId, input.itemId, {
+        status: "active",
+      });
+      if (!row) throw new Error("Элемент не найден");
+      return row;
+    },
+
+    async doctorSetInstanceStageItemIsActionable(input: {
+      instanceId: string;
+      itemId: string;
+      actorId: string | null;
+      isActionable: boolean;
+    }) {
+      assertUuid(input.instanceId);
+      assertUuid(input.itemId);
+      if (input.actorId) assertUuid(input.actorId);
+      const detail = await instances.getInstanceById(input.instanceId);
+      const item = detail?.stages.flatMap((s) => s.items).find((i) => i.id === input.itemId);
+      if (!item) throw new Error("Элемент не найден");
+      if (item.itemType !== "recommendation") {
+        throw new Error("Режим выполнения задаётся только для рекомендаций");
+      }
+      const row = await instances.patchInstanceStageItem(input.instanceId, input.itemId, {
+        isActionable: input.isActionable,
+      });
+      if (!row) throw new Error("Элемент не найден");
       await appendEvent({
         instanceId: input.instanceId,
         actorId: input.actorId,
-        eventType: "item_removed",
+        eventType: "status_changed",
         targetType: "stage_item",
         targetId: input.itemId,
-        reason,
         payload: {
+          scope: "stage_item",
+          field: "isActionable",
+          value: input.isActionable,
           stageId: item.stageId,
-          itemType: item.itemType,
-          itemRefId: item.itemRefId,
         },
       });
+      return row;
     },
 
     async doctorReplaceStageItem(input: {
@@ -492,6 +585,7 @@ export function createTreatmentProgramInstanceService(deps: {
         if (!detail) continue;
         for (const st of detail.stages) {
           for (const it of st.items) {
+            if (it.status === "disabled") continue;
             if (it.itemType !== "lfk_complex") continue;
             const snap = it.snapshot;
             const title =

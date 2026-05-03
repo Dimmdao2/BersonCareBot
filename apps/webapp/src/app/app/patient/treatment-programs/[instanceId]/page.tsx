@@ -7,6 +7,7 @@ import { getOptionalPatientSession, patientRscPersonalDataGate } from "@/app-lay
 import { routePaths } from "@/app-layer/routes/paths";
 import { AppShell } from "@/shared/ui/AppShell";
 import { patientMutedTextClass } from "@/shared/ui/patientVisual";
+import { omitDisabledInstanceStageItemsForPatientApi } from "@/modules/treatment-program/stage-semantics";
 import { PatientTreatmentProgramDetailClient } from "../PatientTreatmentProgramDetailClient";
 
 type Props = { params: Promise<{ instanceId: string }> };
@@ -34,7 +35,11 @@ export default async function PatientTreatmentProgramDetailPage({ params }: Prop
   const deps = buildAppDeps();
   let detail;
   try {
-    detail = await deps.treatmentProgramInstance.getInstanceForPatient(session.user.userId, instanceId);
+    const rawDetail = await deps.treatmentProgramInstance.getInstanceForPatient(
+      session.user.userId,
+      instanceId,
+    );
+    detail = omitDisabledInstanceStageItemsForPatientApi(rawDetail);
   } catch {
     notFound();
   }

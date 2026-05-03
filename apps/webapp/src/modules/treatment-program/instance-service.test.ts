@@ -56,7 +56,7 @@ describe("treatment-program instance service", () => {
 
     expect(inst.stages).toHaveLength(2);
     expect(inst.stages[0]!.status).toBe("available");
-    expect(inst.stages[1]!.status).toBe("locked");
+    expect(inst.stages[1]!.status).toBe("available");
     expect(inst.stages[0]!.sourceStageId).toBe(s1.id);
     expect(inst.stages[0]!.items).toHaveLength(1);
     const it0 = inst.stages[0]!.items[0]!;
@@ -64,6 +64,8 @@ describe("treatment-program instance service", () => {
     expect(it0.localComment).toBeNull();
     expect(it0.snapshot).toMatchObject({ itemType: "recommendation", id: refA, stub: true });
     expect(it0.effectiveComment).toBe("Из шаблона");
+    expect(it0.isActionable).toBe(true);
+    expect(it0.status).toBe("active");
   });
 
   it("deep copy: goals, objectives, expected duration from template stages (A1)", async () => {

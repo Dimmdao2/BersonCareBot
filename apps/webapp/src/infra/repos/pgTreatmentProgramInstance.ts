@@ -5,10 +5,12 @@ import {
   treatmentProgramInstanceStages as stageTable,
   treatmentProgramInstances as instTable,
 } from "../../../db/schema/treatmentProgramInstances";
+import { treatmentProgramEvents as eventTable } from "../../../db/schema/treatmentProgramEvents";
 import type { TreatmentProgramInstancePort } from "@/modules/treatment-program/ports";
 import type {
   AddTreatmentProgramInstanceStageInput,
   AddTreatmentProgramInstanceStageItemInput,
+  AppendTreatmentProgramEventInput,
   CreateTreatmentProgramInstanceTreeInput,
   ReplaceTreatmentProgramInstanceStageItemInput,
   UpdateTreatmentProgramInstanceStageMetadataInput,
@@ -18,6 +20,7 @@ import type {
   TreatmentProgramInstanceStatus,
   TreatmentProgramInstanceSummary,
   TreatmentProgramInstanceStageStatus,
+  TreatmentProgramInstanceStageItemStatus,
   TreatmentProgramItemType,
 } from "@/modules/treatment-program/types";
 import { effectiveInstanceStageItemComment } from "@/modules/treatment-program/types";
@@ -75,6 +78,8 @@ function mapItem(row: typeof itemTable.$inferSelect): TreatmentProgramInstanceSt
     settings: (row.settings as Record<string, unknown> | null) ?? null,
     snapshot: (row.snapshot as Record<string, unknown>) ?? {},
     completedAt: row.completedAt ?? null,
+    isActionable: row.isActionable ?? null,
+    status: (row.status ?? "active") as TreatmentProgramInstanceStageItemStatus,
   };
 }
 
@@ -161,6 +166,8 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
               settings: it.settings ?? undefined,
               snapshot: it.snapshot,
               completedAt: null,
+              isActionable: it.isActionable ?? null,
+              status: it.status ?? "active",
             });
           }
         }
@@ -461,6 +468,8 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
           settings: input.settings ?? undefined,
           snapshot: input.snapshot,
           completedAt: null,
+          isActionable: input.isActionable ?? null,
+          status: input.status ?? "active",
         })
         .returning();
       if (!irow) return null;
@@ -468,19 +477,91 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
       return mapItem(irow);
     },
 
-    async removeInstanceStageItem(instanceId: string, itemId: string) {
+    async patchInstanceStageItem(
+      instanceId: string,
+      itemId: string,
+      patch: {
+        status?: TreatmentProgramInstanceStageItemStatus;
+        isActionable?: boolean | null;
+      },
+    ) {
       const db = getDrizzle();
       const itemRow = await db.query.treatmentProgramInstanceStageItems.findFirst({
         where: eq(itemTable.id, itemId),
       });
-      if (!itemRow) return false;
-      const stRow = await db.query.treatmentProgramInstanceStages.findFirst({
+      if (!itemRow) return null;
+      const stageRow = await db.query.treatmentProgramInstanceStages.findFirst({
         where: eq(stageTable.id, itemRow.stageId),
       });
-      if (!stRow || stRow.instanceId !== instanceId) return false;
-      await db.delete(itemTable).where(eq(itemTable.id, itemId));
-      await touchInstanceUpdatedAt(db, instanceId);
-      return true;
+      if (!stageRow || stageRow.instanceId !== instanceId) return null;
+
+      const rowPatch: Partial<typeof itemTable.$inferInsert> = {};
+      if (patch.status !== undefined) rowPatch.status = patch.status;
+      if (patch.isActionable !== undefined) rowPatch.isActionable = patch.isActionable;
+
+      if (Object.keys(rowPatch).length === 0) return mapItem(itemRow);
+
+      const [updated] = await db
+        .update(itemTable)
+        .set(rowPatch)
+        .where(eq(itemTable.id, itemId))
+        .returning();
+      if (updated) await touchInstanceUpdatedAt(db, instanceId);
+      return updated ? mapItem(updated) : null;
+    },
+
+    async patchInstanceStageItemWithEvent(
+      instanceId: string,
+      itemId: string,
+      patch: {
+        status?: TreatmentProgramInstanceStageItemStatus;
+        isActionable?: boolean | null;
+      },
+      eventInput: AppendTreatmentProgramEventInput,
+    ) {
+      if (eventInput.instanceId !== instanceId) {
+        throw new Error("patchInstanceStageItemWithEvent: event instanceId mismatch");
+      }
+      const rowPatch: Partial<typeof itemTable.$inferInsert> = {};
+      if (patch.status !== undefined) rowPatch.status = patch.status;
+      if (patch.isActionable !== undefined) rowPatch.isActionable = patch.isActionable;
+      if (Object.keys(rowPatch).length === 0) return null;
+
+      const db = getDrizzle();
+      return db.transaction(async (tx) => {
+        const itemRow = await tx.query.treatmentProgramInstanceStageItems.findFirst({
+          where: eq(itemTable.id, itemId),
+        });
+        if (!itemRow) return null;
+        const stageRow = await tx.query.treatmentProgramInstanceStages.findFirst({
+          where: eq(stageTable.id, itemRow.stageId),
+        });
+        if (!stageRow || stageRow.instanceId !== instanceId) return null;
+
+        const [updated] = await tx
+          .update(itemTable)
+          .set(rowPatch)
+          .where(eq(itemTable.id, itemId))
+          .returning();
+        if (!updated) return null;
+
+        await tx
+          .update(instTable)
+          .set({ updatedAt: new Date().toISOString() })
+          .where(eq(instTable.id, instanceId));
+
+        await tx.insert(eventTable).values({
+          instanceId: eventInput.instanceId,
+          actorId: eventInput.actorId,
+          eventType: eventInput.eventType,
+          targetType: eventInput.targetType,
+          targetId: eventInput.targetId,
+          payload: eventInput.payload ?? {},
+          reason: eventInput.reason ?? null,
+        });
+
+        return mapItem(updated);
+      });
     },
 
     async replaceInstanceStageItem(
@@ -507,6 +588,8 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
           settings: input.settings === undefined ? itemRow.settings : input.settings,
           snapshot: input.snapshot,
           completedAt: null,
+          status: "active",
+          isActionable: null,
         })
         .where(eq(itemTable.id, itemId))
         .returning();

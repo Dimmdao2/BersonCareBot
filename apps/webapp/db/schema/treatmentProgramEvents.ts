@@ -48,6 +48,8 @@ export const treatmentProgramEvents = pgTable(
       sql`event_type = ANY (ARRAY[
         'item_added'::text,
         'item_removed'::text,
+        'item_disabled'::text,
+        'item_enabled'::text,
         'item_replaced'::text,
         'comment_changed'::text,
         'stage_added'::text,

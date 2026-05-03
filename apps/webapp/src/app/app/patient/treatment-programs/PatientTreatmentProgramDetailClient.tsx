@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type {
@@ -12,6 +12,11 @@ import {
   formatNormalizedTestDecisionRu,
   formatTreatmentProgramStageStatusRu,
 } from "@/modules/treatment-program/types";
+import {
+  isInstanceStageItemActiveForPatient,
+  isPersistentRecommendation,
+  isStageZero,
+} from "@/modules/treatment-program/stage-semantics";
 import { testIdsFromTestSetSnapshot } from "@/modules/treatment-program/progress-service";
 import { cn } from "@/lib/utils";
 import {
@@ -22,6 +27,7 @@ import {
   patientSectionSurfaceClass,
   patientSectionTitleClass,
   patientBodyTextClass,
+  patientPillClass,
 } from "@/shared/ui/patientVisual";
 
 function snapshotTitle(snapshot: Record<string, unknown>, itemType: string): string {
@@ -85,6 +91,109 @@ function PatientStageHeaderFields(props: {
   );
 }
 
+function PatientInstanceStageBody(props: {
+  stage: TreatmentProgramInstanceDetail["stages"][number];
+  base: string;
+  busy: string | null;
+  setBusy: (v: string | null) => void;
+  setError: (v: string | null) => void;
+  refresh: () => Promise<void>;
+  /** Этап 0: контент элементов доступен независимо от статуса «заблокирован» этапа. */
+  ignoreStageLockForContent: boolean;
+  surfaceClass: string;
+  heading: ReactNode;
+}) {
+  const { stage, base, busy, setBusy, setError, refresh, ignoreStageLockForContent, surfaceClass, heading } = props;
+  const contentBlocked =
+    !ignoreStageLockForContent && (stage.status === "locked" || stage.status === "skipped");
+  const visibleItems = stage.items.filter(isInstanceStageItemActiveForPatient);
+
+  return (
+    <section className={surfaceClass}>
+      <div className="mb-3 flex flex-wrap items-baseline gap-2">{heading}</div>
+      <PatientStageHeaderFields stage={stage} />
+      {contentBlocked ? (
+        <p className={patientMutedTextClass}>Этап откроется после завершения предыдущего или по решению врача.</p>
+      ) : null}
+      <ul className="m-0 list-none space-y-4 p-0">
+        {visibleItems.map((item) => (
+          <li
+            key={item.id}
+            className={cn(patientListItemClass, "border-[var(--patient-border)]/80 bg-[var(--patient-color-primary-soft)]/10")}
+          >
+            <p className="text-sm font-medium">
+              {snapshotTitle(item.snapshot, item.itemType)}{" "}
+              <span className={cn(patientMutedTextClass, "font-normal")}>({item.itemType})</span>
+            </p>
+            {isPersistentRecommendation(item) ? (
+              <p className="mt-1">
+                <span className={patientPillClass}>Постоянная рекомендация</span>
+              </p>
+            ) : null}
+            {effectiveInstanceStageItemComment(item) ? (
+              <p className={cn(patientMutedTextClass, "mt-1 text-xs")}>
+                Комментарий:{" "}
+                <span className="text-foreground">{effectiveInstanceStageItemComment(item)}</span>
+              </p>
+            ) : null}
+            <p className={cn(patientMutedTextClass, "mt-1 text-xs")}>
+              Элемент:{" "}
+              {item.completedAt ? (
+                <span className="text-emerald-600 dark:text-emerald-400">выполнен</span>
+              ) : (
+                <span>не выполнен</span>
+              )}
+            </p>
+
+            {!contentBlocked ? (
+              item.itemType === "test_set" ? (
+                <TestSetBlock
+                  itemId={item.id}
+                  snapshot={item.snapshot}
+                  completed={Boolean(item.completedAt)}
+                  baseUrl={base}
+                  busy={busy}
+                  setBusy={setBusy}
+                  setError={setError}
+                  onDone={refresh}
+                />
+              ) : !isPersistentRecommendation(item) ? (
+                <div className="mt-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    className={cn(patientPrimaryActionClass, "!h-9 !min-h-0 w-auto px-3 text-sm")}
+                    disabled={Boolean(item.completedAt) || busy !== null}
+                    onClick={async () => {
+                      setBusy(item.id);
+                      setError(null);
+                      try {
+                        const res = await fetch(`${base}/${encodeURIComponent(item.id)}/progress/complete`, {
+                          method: "POST",
+                        });
+                        const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
+                        if (!res.ok || !data.ok) {
+                          setError(data.error ?? "Ошибка");
+                          return;
+                        }
+                        await refresh();
+                      } finally {
+                        setBusy(null);
+                      }
+                    }}
+                  >
+                    {item.completedAt ? "Готово" : "Отметить выполненным"}
+                  </Button>
+                </div>
+              ) : null
+            ) : null}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 export function PatientTreatmentProgramDetailClient(props: {
   initial: TreatmentProgramInstanceDetail;
   initialTestResults: TreatmentProgramTestResultDetailRow[];
@@ -112,6 +221,9 @@ export function PatientTreatmentProgramDetailClient(props: {
   }, [detail.id]);
 
   const base = `/api/patient/treatment-program-instances/${encodeURIComponent(detail.id)}/items`;
+
+  const stageZeroStages = useMemo(() => detail.stages.filter((s) => isStageZero(s)), [detail.stages]);
+  const otherStages = useMemo(() => detail.stages.filter((s) => !isStageZero(s)), [detail.stages]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -154,86 +266,51 @@ export function PatientTreatmentProgramDetailClient(props: {
         </section>
       ) : null}
 
-      {detail.stages.map((stage) => (
-        <section key={stage.id} className={patientCardClass}>
-          <div className="mb-3 flex flex-wrap items-baseline gap-2">
-            <h3 className="text-base font-semibold">{stage.title}</h3>
-            <span className={cn(patientMutedTextClass, "text-xs uppercase tracking-wide")}>
-              {formatTreatmentProgramStageStatusRu(stage.status)}
-            </span>
-          </div>
-          <PatientStageHeaderFields stage={stage} />
-          {stage.status === "locked" ? (
-            <p className={patientMutedTextClass}>Этап откроется после завершения предыдущего или по решению врача.</p>
-          ) : null}
-          <ul className="m-0 list-none space-y-4 p-0">
-            {stage.items.map((item) => (
-              <li key={item.id} className={cn(patientListItemClass, "border-[var(--patient-border)]/80 bg-[var(--patient-color-primary-soft)]/10")}>
-                <p className="text-sm font-medium">
-                  {snapshotTitle(item.snapshot, item.itemType)}{" "}
-                  <span className={cn(patientMutedTextClass, "font-normal")}>({item.itemType})</span>
-                </p>
-                {effectiveInstanceStageItemComment(item) ? (
-                  <p className={cn(patientMutedTextClass, "mt-1 text-xs")}>
-                    Комментарий:{" "}
-                    <span className="text-foreground">{effectiveInstanceStageItemComment(item)}</span>
-                  </p>
-                ) : null}
-                <p className={cn(patientMutedTextClass, "mt-1 text-xs")}>
-                  Элемент:{" "}
-                  {item.completedAt ? (
-                    <span className="text-emerald-600 dark:text-emerald-400">выполнен</span>
-                  ) : (
-                    <span>не выполнен</span>
-                  )}
-                </p>
+      {stageZeroStages.map((stage) => (
+        <PatientInstanceStageBody
+          key={stage.id}
+          stage={stage}
+          base={base}
+          busy={busy}
+          setBusy={setBusy}
+          setError={setError}
+          refresh={refresh}
+          ignoreStageLockForContent
+          surfaceClass={patientSectionSurfaceClass}
+          heading={
+            <>
+              <h3 className={patientSectionTitleClass}>Общие рекомендации</h3>
+              {stage.title.trim() ? (
+                <span className={cn(patientMutedTextClass, "text-xs font-normal normal-case")}>{stage.title}</span>
+              ) : null}
+              <span className={cn(patientMutedTextClass, "text-xs uppercase tracking-wide")}>
+                {formatTreatmentProgramStageStatusRu(stage.status)}
+              </span>
+            </>
+          }
+        />
+      ))}
 
-                {stage.status !== "locked" && stage.status !== "skipped" ? (
-                  item.itemType === "test_set" ? (
-                    <TestSetBlock
-                      itemId={item.id}
-                      snapshot={item.snapshot}
-                      completed={Boolean(item.completedAt)}
-                      baseUrl={base}
-                      busy={busy}
-                      setBusy={setBusy}
-                      setError={setError}
-                      onDone={refresh}
-                    />
-                  ) : (
-                    <div className="mt-2">
-                      <Button
-                        type="button"
-                        size="sm"
-                        className={cn(patientPrimaryActionClass, "!h-9 !min-h-0 w-auto px-3 text-sm")}
-                        disabled={Boolean(item.completedAt) || busy !== null}
-                        onClick={async () => {
-                          setBusy(item.id);
-                          setError(null);
-                          try {
-                            const res = await fetch(`${base}/${encodeURIComponent(item.id)}/progress/complete`, {
-                              method: "POST",
-                            });
-                            const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
-                            if (!res.ok || !data.ok) {
-                              setError(data.error ?? "Ошибка");
-                              return;
-                            }
-                            await refresh();
-                          } finally {
-                            setBusy(null);
-                          }
-                        }}
-                      >
-                        {item.completedAt ? "Готово" : "Отметить выполненным"}
-                      </Button>
-                    </div>
-                  )
-                ) : null}
-              </li>
-            ))}
-          </ul>
-        </section>
+      {otherStages.map((stage) => (
+        <PatientInstanceStageBody
+          key={stage.id}
+          stage={stage}
+          base={base}
+          busy={busy}
+          setBusy={setBusy}
+          setError={setError}
+          refresh={refresh}
+          ignoreStageLockForContent={false}
+          surfaceClass={patientCardClass}
+          heading={
+            <>
+              <h3 className="text-base font-semibold">{stage.title}</h3>
+              <span className={cn(patientMutedTextClass, "text-xs uppercase tracking-wide")}>
+                {formatTreatmentProgramStageStatusRu(stage.status)}
+              </span>
+            </>
+          }
+        />
       ))}
     </div>
   );

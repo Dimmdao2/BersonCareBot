@@ -2,9 +2,24 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import type { TreatmentProgramInstanceDetail } from "@/modules/treatment-program/types";
 import type { TreatmentProgramTestResultDetailRow } from "@/modules/treatment-program/types";
 import type { TreatmentProgramEventRow } from "@/modules/treatment-program/types";
@@ -14,6 +29,7 @@ import {
   formatTreatmentProgramEventTypeRu,
   formatTreatmentProgramStageStatusRu,
 } from "@/modules/treatment-program/types";
+import { cn } from "@/lib/utils";
 import { CommentBlock } from "@/components/comments/CommentBlock";
 
 function snapshotTitle(snapshot: Record<string, unknown>, itemType: string): string {
@@ -342,6 +358,12 @@ export function TreatmentProgramInstanceDetailClient(props: {
                   initialDraft={item.effectiveComment ?? ""}
                   onSaved={refresh}
                 />
+                <InstanceStageItemDoctorRow
+                  instanceId={detail.id}
+                  item={item}
+                  testResults={testResults}
+                  onSaved={refresh}
+                />
               </li>
             ))}
           </ul>
@@ -355,6 +377,119 @@ export function TreatmentProgramInstanceDetailClient(props: {
         isAdmin={isAdmin}
         title="Комментарии к программе"
       />
+    </div>
+  );
+}
+
+function InstanceStageItemDoctorRow(props: {
+  instanceId: string;
+  item: TreatmentProgramInstanceDetail["stages"][number]["items"][number];
+  testResults: TreatmentProgramTestResultDetailRow[];
+  onSaved: () => Promise<void>;
+}) {
+  const { instanceId, item, testResults, onSaved } = props;
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const hasHistory = Boolean(item.completedAt) || testResults.some((r) => r.instanceStageItemId === item.id);
+
+  const patchItem = async (body: Record<string, unknown>) => {
+    setSaving(true);
+    setMsg(null);
+    try {
+      const res = await fetch(
+        `/api/doctor/treatment-program-instances/${encodeURIComponent(instanceId)}/stage-items/${encodeURIComponent(item.id)}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        },
+      );
+      const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
+      if (!res.ok || !data.ok) {
+        setMsg(data.error ?? "Ошибка");
+        return;
+      }
+      await onSaved();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className={cn("mt-3 flex flex-col gap-2", item.status === "disabled" && "opacity-60")}>
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge variant={item.status === "disabled" ? "secondary" : "default"}>
+          {item.status === "disabled" ? "Отключено" : "Активно"}
+        </Badge>
+        {item.itemType === "recommendation" ? (
+          <Select
+            value={item.isActionable === false ? "persistent" : "actionable"}
+            onValueChange={(v) => void patchItem({ isActionable: v === "actionable" })}
+            disabled={saving}
+          >
+            <SelectTrigger className="h-8 w-[220px] text-xs" size="sm">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="actionable">Требует выполнения</SelectItem>
+              <SelectItem value="persistent">Постоянная рекомендация</SelectItem>
+            </SelectContent>
+          </Select>
+        ) : null}
+        {item.status === "active" ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={saving}
+            onClick={() => {
+              if (hasHistory) setConfirmOpen(true);
+              else void patchItem({ status: "disabled" });
+            }}
+          >
+            Отключить
+          </Button>
+        ) : (
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            disabled={saving}
+            onClick={() => void patchItem({ status: "active" })}
+          >
+            Включить
+          </Button>
+        )}
+      </div>
+      {msg ? <p className="text-xs text-destructive">{msg}</p> : null}
+      <p className="text-xs text-muted-foreground">
+        Отключённый элемент скрывается у пациента; запись в базе сохраняется (без DELETE).
+      </p>
+      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Отключить элемент?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            У элемента уже есть выполнение или результат теста. Он будет скрыт у пациента, история сохранится.
+          </p>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setConfirmOpen(false)}>
+              Отмена
+            </Button>
+            <Button
+              type="button"
+              onClick={() => {
+                setConfirmOpen(false);
+                void patchItem({ status: "disabled" });
+              }}
+            >
+              Отключить
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

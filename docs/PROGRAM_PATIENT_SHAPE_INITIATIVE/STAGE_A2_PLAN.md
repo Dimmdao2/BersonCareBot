@@ -12,7 +12,7 @@
 
 ## 2. Hard gates before coding
 
-- O4 fixed for this initiative: `is_actionable` lives only on `instance_stage_item`.
+- **O4 (закрыто в реализации A2):** `is_actionable` только на `treatment_program_instance_stage_items` (см. `stage-semantics.ts`, колонка Drizzle `is_actionable`); каталог рекомендаций не расширялся.
 - Do not add `default_is_actionable` to recommendation catalog in A2.
 - If B4 recommendation catalog rework is not done, do not redesign recommendation catalog in A2. Add only the minimum instance-level controls.
 - Confirm current stage/item table names before migration with `rg "stage_items|treatment_program_.*items" apps/webapp/db apps/webapp/src`.

@@ -35,7 +35,7 @@ describe("treatment-program events (§8)", () => {
     });
   });
 
-  it("item_removed: без reason — ошибка", async () => {
+  it("item_disabled записывается в treatment_program_events", async () => {
     const tpl = await tplSvc.createTemplate({ title: "П", status: "published" }, null);
     const s1 = await tplSvc.createStage(tpl.id, { title: "Э1" });
     await tplSvc.addStageItem(s1.id, { itemType: "recommendation", itemRefId: refA });
@@ -45,17 +45,16 @@ describe("treatment-program events (§8)", () => {
       assignedBy: null,
     });
     const itemId = inst.stages[0]!.items[0]!.id;
-    await expect(
-      instSvc.doctorRemoveStageItem({
-        instanceId: inst.id,
-        itemId,
-        actorId: doctor,
-        reason: "   ",
-      }),
-    ).rejects.toThrow(/удаления элемента/);
+    await instSvc.doctorDisableInstanceStageItem({
+      instanceId: inst.id,
+      itemId,
+      actorId: doctor,
+    });
+    const ev = await persistence.eventsPort.listEventsForInstance(inst.id);
+    expect(ev.some((e) => e.eventType === "item_disabled")).toBe(true);
   });
 
-  it("item_removed и item_added записываются с reason / payload", async () => {
+  it("item_disabled и item_added записываются с payload", async () => {
     const tpl = await tplSvc.createTemplate({ title: "П", status: "published" }, null);
     const s1 = await tplSvc.createStage(tpl.id, { title: "Э1" });
     await tplSvc.addStageItem(s1.id, { itemType: "recommendation", itemRefId: refA });
@@ -65,11 +64,10 @@ describe("treatment-program events (§8)", () => {
       assignedBy: null,
     });
     const itemId = inst.stages[0]!.items[0]!.id;
-    await instSvc.doctorRemoveStageItem({
+    await instSvc.doctorDisableInstanceStageItem({
       instanceId: inst.id,
       itemId,
       actorId: doctor,
-      reason: "Дубль в программе",
     });
     const stId = inst.stages[0]!.id;
     await instSvc.doctorAddStageItem({
@@ -80,7 +78,7 @@ describe("treatment-program events (§8)", () => {
       itemRefId: refB,
     });
     const ev = await persistence.eventsPort.listEventsForInstance(inst.id);
-    expect(ev.some((e) => e.eventType === "item_removed" && e.reason === "Дубль в программе")).toBe(true);
+    expect(ev.some((e) => e.eventType === "item_disabled")).toBe(true);
     expect(ev.some((e) => e.eventType === "item_added")).toBe(true);
   });
 
@@ -264,7 +262,7 @@ describe("treatment-program events (§8)", () => {
     ).toBe(true);
   });
 
-  it("фаза 9: удаление/замена запрещены при completed_at", async () => {
+  it("фаза 9: замена запрещена при completed_at (отключение разрешено)", async () => {
     const tpl = await tplSvc.createTemplate({ title: "П", status: "published" }, null);
     const s1 = await tplSvc.createStage(tpl.id, { title: "Э1" });
     await tplSvc.addStageItem(s1.id, { itemType: "recommendation", itemRefId: refA });
@@ -275,14 +273,12 @@ describe("treatment-program events (§8)", () => {
     });
     const itemId = inst.stages[0]!.items[0]!.id;
     await persistence.instancePort.setStageItemCompletedAt(inst.id, itemId, new Date().toISOString());
-    await expect(
-      instSvc.doctorRemoveStageItem({
-        instanceId: inst.id,
-        itemId,
-        actorId: doctor,
-        reason: "тест",
-      }),
-    ).rejects.toThrow(/отметкой выполнения/);
+    const disabled = await instSvc.doctorDisableInstanceStageItem({
+      instanceId: inst.id,
+      itemId,
+      actorId: doctor,
+    });
+    expect(disabled.status).toBe("disabled");
     await expect(
       instSvc.doctorReplaceStageItem({
         instanceId: inst.id,
@@ -294,7 +290,7 @@ describe("treatment-program events (§8)", () => {
     ).rejects.toThrow(/отметкой выполнения/);
   });
 
-  it("фаза 9: удаление запрещено при наличии попытки теста", async () => {
+  it("фаза 9: отключение элемента разрешено при наличии попытки теста", async () => {
     const tpl = await tplSvc.createTemplate({ title: "П", status: "published" }, null);
     const s1 = await tplSvc.createStage(tpl.id, { title: "Э1" });
     await tplSvc.addStageItem(s1.id, { itemType: "recommendation", itemRefId: refA });
@@ -308,14 +304,14 @@ describe("treatment-program events (§8)", () => {
       stageItemId: itemId,
       patientUserId: inst.patientUserId,
     });
-    await expect(
-      instSvc.doctorRemoveStageItem({
-        instanceId: inst.id,
-        itemId,
-        actorId: doctor,
-        reason: "тест",
-      }),
-    ).rejects.toThrow(/историей теста/);
+    const row = await instSvc.doctorDisableInstanceStageItem({
+      instanceId: inst.id,
+      itemId,
+      actorId: doctor,
+    });
+    expect(row.status).toBe("disabled");
+    const ev = await persistence.eventsPort.listEventsForInstance(inst.id);
+    expect(ev.some((e) => e.eventType === "item_disabled")).toBe(true);
   });
 
   it("фаза 9: удаление этапа запрещено, если элемент с историей", async () => {

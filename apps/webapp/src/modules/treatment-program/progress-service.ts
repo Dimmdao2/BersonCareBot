@@ -6,6 +6,12 @@ import type {
 import { buildAppendEventInput, normalizeEventReason } from "./event-recording";
 import { assertUuid } from "./service";
 import { inferNormalizedDecisionFromScoring } from "./progress-scoring";
+import {
+  isCompletableForStageProgress,
+  isInstanceStageItemActiveForPatient,
+  isPersistentRecommendation,
+  isStageZero,
+} from "./stage-semantics";
 import type {
   NormalizedTestDecision,
   TreatmentProgramInstanceDetail,
@@ -106,7 +112,10 @@ export function createTreatmentProgramProgressService(deps: {
     if (!detail) return;
     const stage = detail.stages.find((s) => s.id === stageId);
     if (!stage || stage.status === "skipped" || stage.status === "completed") return;
-    if (!stage.items.every((i) => i.completedAt != null)) return;
+    if (isStageZero(stage)) return;
+    const required = stage.items.filter((i) => isCompletableForStageProgress(i));
+    if (required.length === 0) return;
+    if (!required.every((i) => i.completedAt != null)) return;
     const beforeStatus = stage.status;
     const updated = await instances.updateInstanceStage(instanceId, stageId, { status: "completed" });
     if (updated) {
@@ -128,7 +137,8 @@ export function createTreatmentProgramProgressService(deps: {
     return { item, stage };
   }
 
-  function assertStageAccessibleForPatient(stage: { status: string }): void {
+  function assertStageAccessibleForPatient(stage: { status: string; sortOrder: number }): void {
+    if (isStageZero(stage)) return;
     if (stage.status === "locked" || stage.status === "skipped") {
       throw new Error("Этап недоступен");
     }
@@ -188,6 +198,12 @@ export function createTreatmentProgramProgressService(deps: {
       if (!detail) throw new Error("Программа не найдена");
       const { item, stage } = resolveItemAndStage(detail, input.stageItemId);
       assertStageAccessibleForPatient(stage);
+      if (!isInstanceStageItemActiveForPatient(item)) {
+        throw new Error("Элемент отключён");
+      }
+      if (isPersistentRecommendation(item)) {
+        throw new Error("Постоянная рекомендация не отмечается выполненной");
+      }
       if (item.itemType === "test_set") {
         throw new Error("Для набора тестов используйте отправку результатов");
       }
@@ -224,6 +240,9 @@ export function createTreatmentProgramProgressService(deps: {
       if (!detail) throw new Error("Программа не найдена");
       const { item, stage } = resolveItemAndStage(detail, input.stageItemId);
       assertStageAccessibleForPatient(stage);
+      if (!isInstanceStageItemActiveForPatient(item)) {
+        throw new Error("Элемент отключён");
+      }
       if (item.itemType !== "test_set") throw new Error("Элемент не является набором тестов");
       if (item.completedAt) throw new Error("Набор тестов уже завершён");
       return tests.createAttempt({ stageItemId: item.id, patientUserId: input.patientUserId });
@@ -250,6 +269,9 @@ export function createTreatmentProgramProgressService(deps: {
       if (!detail) throw new Error("Программа не найдена");
       const { item, stage } = resolveItemAndStage(detail, input.stageItemId);
       assertStageAccessibleForPatient(stage);
+      if (!isInstanceStageItemActiveForPatient(item)) {
+        throw new Error("Элемент отключён");
+      }
       if (item.itemType !== "test_set") throw new Error("Элемент не является набором тестов");
       if (item.completedAt) throw new Error("Набор тестов уже завершён");
 

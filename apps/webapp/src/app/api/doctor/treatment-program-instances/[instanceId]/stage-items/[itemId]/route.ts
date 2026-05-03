@@ -14,14 +14,17 @@ const patchBodySchema = z
         itemRefId: z.string().uuid(),
       })
       .optional(),
+    status: z.enum(["active", "disabled"]).optional(),
+    isActionable: z.boolean().optional(),
   })
-  .refine((b) => b.localComment !== undefined || b.replace !== undefined, {
-    message: "empty_patch",
-  });
-
-const deleteBodySchema = z.object({
-  reason: z.string().min(1).max(20000),
-});
+  .refine(
+    (b) =>
+      b.localComment !== undefined ||
+      b.replace !== undefined ||
+      b.status !== undefined ||
+      b.isActionable !== undefined,
+    { message: "empty_patch" },
+  );
 
 export async function PATCH(
   request: Request,
@@ -63,6 +66,32 @@ export async function PATCH(
       return NextResponse.json({ ok: true, item: row });
     }
 
+    if (parsed.data.status !== undefined) {
+      const row =
+        parsed.data.status === "disabled"
+          ? await deps.treatmentProgramInstance.doctorDisableInstanceStageItem({
+              instanceId,
+              itemId,
+              actorId: session.user.userId,
+            })
+          : await deps.treatmentProgramInstance.doctorEnableInstanceStageItem({
+              instanceId,
+              itemId,
+              actorId: session.user.userId,
+            });
+      return NextResponse.json({ ok: true, item: row });
+    }
+
+    if (parsed.data.isActionable !== undefined) {
+      const row = await deps.treatmentProgramInstance.doctorSetInstanceStageItemIsActionable({
+        instanceId,
+        itemId,
+        actorId: session.user.userId,
+        isActionable: parsed.data.isActionable,
+      });
+      return NextResponse.json({ ok: true, item: row });
+    }
+
     const row = await deps.treatmentProgramInstance.updateStageItemLocalComment({
       instanceId,
       stageItemId: itemId,
@@ -70,48 +99,6 @@ export async function PATCH(
       actorId: session.user.userId,
     });
     return NextResponse.json({ ok: true, item: row });
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : "error";
-    const status = msg.includes("не найден") ? 404 : 400;
-    return NextResponse.json({ ok: false, error: msg }, { status });
-  }
-}
-
-export async function DELETE(
-  request: Request,
-  context: { params: Promise<{ instanceId: string; itemId: string }> },
-) {
-  const session = await getCurrentSession();
-  if (!session) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  if (!canAccessDoctor(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
-
-  const { instanceId, itemId } = await context.params;
-  if (!z.string().uuid().safeParse(instanceId).success || !z.string().uuid().safeParse(itemId).success) {
-    return NextResponse.json({ ok: false, error: "invalid_id" }, { status: 400 });
-  }
-
-  const raw = (await request.json().catch(() => null)) as unknown;
-  const parsed = deleteBodySchema.safeParse(raw);
-  if (!parsed.success) {
-    return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
-  }
-
-  const deps = buildAppDeps();
-  try {
-    const inst0 = await deps.treatmentProgramInstance.getInstanceById(instanceId);
-    const identity = await deps.doctorClientsPort.getClientIdentity(inst0.patientUserId);
-    if (!identity) {
-      return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
-    }
-    await deps.treatmentProgramInstance.doctorRemoveStageItem({
-      instanceId,
-      itemId,
-      actorId: session.user.userId,
-      reason: parsed.data.reason,
-    });
-    return NextResponse.json({ ok: true });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "error";
     const status = msg.includes("не найден") ? 404 : 400;
