@@ -28,6 +28,11 @@ vi.mock("@/app-layer/media/s3Client", () => ({
   s3HeadObject: (...args: unknown[]) => headMock(...args),
 }));
 
+const autoEnqueueMock = vi.fn();
+vi.mock("@/app-layer/media/mediaTranscodeAutoEnqueue", () => ({
+  maybeAutoEnqueueVideoTranscodeAfterUpload: (...a: unknown[]) => autoEnqueueMock(...a),
+}));
+
 const sessionMock = vi.fn();
 vi.mock("@/modules/auth/service", () => ({
   getCurrentSession: () => sessionMock(),
@@ -41,6 +46,7 @@ describe("POST /api/media/confirm", () => {
     confirmReadyMock.mockReset();
     headMock.mockReset();
     sessionMock.mockReset();
+    autoEnqueueMock.mockReset();
     confirmReadyMock.mockResolvedValue(true);
   });
 
@@ -85,6 +91,7 @@ describe("POST /api/media/confirm", () => {
     expect(json.ok).toBe(true);
     expect(json.url).toBe("/api/media/00000000-0000-4000-8000-000000000099");
     expect(confirmReadyMock).not.toHaveBeenCalled();
+    expect(autoEnqueueMock).not.toHaveBeenCalled();
   });
 
   it("returns 404 when object missing in S3", async () => {
@@ -118,6 +125,7 @@ describe("POST /api/media/confirm", () => {
     expect(json.ok).toBe(true);
     expect(json.url).toBe("/api/media/00000000-0000-4000-8000-000000000003");
     expect(confirmReadyMock).toHaveBeenCalledWith("00000000-0000-4000-8000-000000000003");
+    expect(autoEnqueueMock).toHaveBeenCalledWith("00000000-0000-4000-8000-000000000003");
   });
 
   it("returns 409 when confirm races (updated 0 rows)", async () => {
@@ -137,5 +145,6 @@ describe("POST /api/media/confirm", () => {
       }),
     );
     expect(res.status).toBe(409);
+    expect(autoEnqueueMock).not.toHaveBeenCalled();
   });
 });

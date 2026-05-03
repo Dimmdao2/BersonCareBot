@@ -6,6 +6,21 @@
 
 ---
 
+## 2026-05-03 — Phase 06 (auto-enqueue transcode для новых video uploads)
+
+**Сделано**
+
+- Ключ **`video_hls_new_uploads_auto_transcode`** (admin, default `false`): `ALLOWED_KEYS`, `ADMIN_SCOPE_KEYS`, миграция webapp **`0021_video_hls_new_uploads_auto_transcode.sql`**, зеркало integrator **`20260504_0001_video_hls_new_uploads_auto_transcode.sql`**.
+- **`maybeAutoEnqueueVideoTranscodeAfterUpload`** (`app-layer/media/mediaTranscodeAutoEnqueue.ts`): при **`video_hls_pipeline_enabled`** и **`video_hls_new_uploads_auto_transcode`** вызывает **`enqueueMediaTranscodeJob`** (идемпотентно, один активный job); иначе no-op; ошибки не пробрасываются.
+- Хуки: **`POST /api/media/confirm`** — только после успешного **`confirmMediaFileReady`** (не при раннем `ready`); **`POST /api/media/multipart/complete`** — при **`finalized` / `already_done`**. Легаси: повтор confirm при уже **`ready`** не ставит job.
+- Тесты: **`mediaTranscodeAutoEnqueue.test.ts`** (негатив выкл флагов), расширены **`confirm/route.test.ts`**, **`multipart/complete/route.test.ts`**; **`api.md`** — описание флагов.
+
+**Проверки (на окружении агента)**
+
+- `pnpm install --frozen-lockfile && pnpm run ci`
+
+---
+
 ## 2026-05-03 — FIX AUDIT_PHASE_05 (чеклист браузера, тест режима источника, телеметрия в коде)
 
 **Сделано**

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { env, isS3MediaEnabled } from "@/config/env";
 import { confirmMediaFileReady, getMediaRowForConfirm } from "@/app-layer/media/s3MediaStorage";
+import { maybeAutoEnqueueVideoTranscodeAfterUpload } from "@/app-layer/media/mediaTranscodeAutoEnqueue";
 import { s3HeadObject } from "@/app-layer/media/s3Client";
 import { getCurrentSession } from "@/modules/auth/service";
 import { canAccessDoctor } from "@/modules/roles/service";
@@ -71,6 +72,8 @@ export async function POST(request: Request) {
     }
     return NextResponse.json({ ok: false, error: "confirm_race" }, { status: 409 });
   }
+
+  await maybeAutoEnqueueVideoTranscodeAfterUpload(parsed.data.mediaId);
 
   return NextResponse.json({
     ok: true as const,

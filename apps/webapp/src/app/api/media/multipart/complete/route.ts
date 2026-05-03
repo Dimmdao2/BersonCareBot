@@ -12,6 +12,7 @@ import {
   tryFinalizeMultipartIdempotentTx,
 } from "@/app-layer/media/mediaUploadSessionsRepo";
 import { deletePendingMediaFileById } from "@/app-layer/media/s3MediaStorage";
+import { maybeAutoEnqueueVideoTranscodeAfterUpload } from "@/app-layer/media/mediaTranscodeAutoEnqueue";
 import {
   s3AbortMultipartUpload,
   s3CompleteMultipartUpload,
@@ -157,6 +158,7 @@ export async function POST(request: Request) {
     );
 
     if (fin.kind === "finalized" || fin.kind === "already_done") {
+      await maybeAutoEnqueueVideoTranscodeAfterUpload(row.media_id);
       const appUrl = `/api/media/${row.media_id}`;
       return NextResponse.json({
         ok: true as const,

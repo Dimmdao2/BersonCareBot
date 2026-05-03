@@ -57,6 +57,11 @@ vi.mock("@/app-layer/media/s3Client", () => ({
   s3HeadObjectDetails: (...a: unknown[]) => headMock(...a),
 }));
 
+const autoEnqueueMock = vi.fn();
+vi.mock("@/app-layer/media/mediaTranscodeAutoEnqueue", () => ({
+  maybeAutoEnqueueVideoTranscodeAfterUpload: (...a: unknown[]) => autoEnqueueMock(...a),
+}));
+
 const sessionMock = vi.fn();
 vi.mock("@/modules/auth/service", () => ({
   getCurrentSession: () => sessionMock(),
@@ -93,6 +98,7 @@ describe("POST /api/media/multipart/complete", () => {
     deleteObjMock.mockReset();
     headMock.mockReset();
     sessionMock.mockReset();
+    autoEnqueueMock.mockReset();
     sessionMock.mockResolvedValue({ user: { userId: "doc-1", role: "doctor" } });
     completeS3Mock.mockResolvedValue(undefined);
     abortS3Mock.mockResolvedValue(undefined);
@@ -123,6 +129,7 @@ describe("POST /api/media/multipart/complete", () => {
       }),
     );
     expect(res.status).toBe(403);
+    expect(autoEnqueueMock).not.toHaveBeenCalled();
   });
 
   it("returns 404 when session missing after claim miss", async () => {
@@ -189,6 +196,7 @@ describe("POST /api/media/multipart/complete", () => {
     expect(j.url).toBe(`/api/media/${MEDIA}`);
     expect(completeS3Mock).toHaveBeenCalled();
     expect(tryFinalizeTxMock).toHaveBeenCalled();
+    expect(autoEnqueueMock).toHaveBeenCalledWith(MEDIA);
   });
 
   it("skips S3 complete when retrying stuck completing session", async () => {
@@ -204,6 +212,7 @@ describe("POST /api/media/multipart/complete", () => {
     expect(res.status).toBe(200);
     expect(completeS3Mock).not.toHaveBeenCalled();
     expect(headMock).toHaveBeenCalled();
+    expect(autoEnqueueMock).toHaveBeenCalledWith(MEDIA);
   });
 
   it("returns 400 invalid_parts and marks session failed", async () => {
@@ -242,6 +251,7 @@ describe("POST /api/media/multipart/complete", () => {
     expect(res.status).toBe(409);
     const j = (await res.json()) as { error?: string };
     expect(j.error).toBe("finalize_inconsistent_state");
+    expect(autoEnqueueMock).not.toHaveBeenCalled();
   });
 
   it("returns 200 when finalize idempotent already_done", async () => {
@@ -258,5 +268,6 @@ describe("POST /api/media/multipart/complete", () => {
       }),
     );
     expect(res.status).toBe(200);
+    expect(autoEnqueueMock).toHaveBeenCalledWith(MEDIA);
   });
 });
