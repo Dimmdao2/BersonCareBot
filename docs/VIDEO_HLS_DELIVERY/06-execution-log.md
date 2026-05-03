@@ -6,6 +6,216 @@
 
 ---
 
+## 2026-05-03 — Global fix по [AUDIT_GLOBAL.md](./AUDIT_GLOBAL.md)
+
+**Цель:** закрыть в репозитории **Critical / Major** из глобального аудита; для **minor** — исправить документацию или явный defer.
+
+**Сделано**
+
+- **Critical:** подтверждено отсутствие открытых пунктов.
+- **Major FIND-P08-1:** **CLOSED (repo)** — в [GATE_READINESS_PHASE_08.md](./GATE_READINESS_PHASE_08.md) добавлен § **Repo acceptance** (SQL доли `hls_ready`, события логов `playback_resolved` / `playback_presign_failed`, ссылка на [BROWSER_SMOKE_PHASE05_CHECKLIST.md](./BROWSER_SMOKE_PHASE05_CHECKLIST.md)); обновлены итоговый verdict и таблица условий gate; [AUDIT_PHASE_08.md](./AUDIT_PHASE_08.md) — вердикт §1 и строка FIND-P08-1.
+- **MF-1…MF-5 (phase-08):** классифицированы как **REFERENCE** в [AUDIT_GLOBAL.md](./AUDIT_GLOBAL.md) (правила на будущие PR, не дефекты).
+- **Minor:** [07-post-documentation-implementation-roadmap.md](./07-post-documentation-implementation-roadmap.md) — актуализирован § инфраструктура; systemd unit для media-worker на prod остаётся **до host audit**. [03-rollout-strategy.md](./03-rollout-strategy.md) §4 — канон ключей → `apps/webapp/src/modules/system-settings/types.ts`. [AUDIT_GLOBAL.md](./AUDIT_GLOBAL.md) — пересборка вердикта и таблица **Minor defer**.
+
+**Целевые проверки (без полного CI по задаче)**
+
+- `pnpm --dir apps/webapp exec vitest run src/modules/media/playbackResolveDelivery.test.ts "src/app/api/media/[id]/playback/route.test.ts"` — **OK** (19 tests, 2 files).
+
+**Pre-push**
+
+- `pnpm install --frozen-lockfile && pnpm run ci` — **OK** (exit 0).
+
+---
+
+## 2026-05-03 — FIX AUDIT_PHASE_10 (defer P10-0 benchmark, rollback confirm)
+
+**Сделано**
+
+- **Critical / Major:** подтверждено **N/A → CLOSED** в [`AUDIT_PHASE_10.md`](./AUDIT_PHASE_10.md); открытых не было.
+- **Minor P10-0:** **CLOSED (defer docs)** — секция **Benchmark wall-time (CI vs ops)** в [`PHASE_10_WATERMARK_POLICY.md`](./PHASE_10_WATERMARK_POLICY.md); CI-бенчмарк ffmpeg не вводился намеренно.
+- **Minor P10-1:** **CLOSED (accept)** — один `SELECT` на job; кэш в воркере не добавлялся.
+- **Rollback:** расширен **§ Rollback (безопасный)** в `PHASE_10_WATERMARK_POLICY.md` (админка/SQL, зеркало integrator, поведение новых vs существующих HLS, рестарт воркера).
+
+**Повтор целевых проверок phase-10**
+
+- `pnpm --dir apps/media-worker exec vitest run src/ffmpeg/watermarkVideoFilter.test.ts src/workerToolkit.test.ts`
+- `pnpm install --frozen-lockfile && pnpm run ci`
+
+**Проверки (на окружении агента)**
+
+- `pnpm --dir apps/media-worker exec vitest run src/ffmpeg/watermarkVideoFilter.test.ts src/workerToolkit.test.ts` — **OK** (9 tests).
+- `pnpm install --frozen-lockfile && pnpm run ci` — **OK** (exit 0).
+
+---
+
+## 2026-05-03 — Phase 10 (watermark optional, non-PII, perf doc)
+
+**Сделано**
+
+- **Ключ:** `video_watermark_enabled` (admin, default false) — `ALLOWED_KEYS`, `ADMIN_SCOPE_KEYS`, PATCH boolean в `route.ts`; миграция webapp **`0024_video_watermark_enabled.sql`** + journal; зеркало integrator **`20260507_0001_video_watermark_enabled.sql`**.
+- **Admin UI:** карточка **HLS: watermark при транскоде** (`VideoHlsWatermarkSettingsSection.tsx`) во вкладке «Параметры приложения».
+- **Worker:** уже реализовано — `drawtext` + `textfile`, строка **`id <uuid>`**; шрифт `MEDIA_WORKER_WATERMARK_FONT` или системный TTF; таймаут ffmpeg при watermark **min(1.45×, base+45m)**; лог **`transcode completed`** с полем `watermark`.
+- **Док:** [`PHASE_10_WATERMARK_POLICY.md`](./PHASE_10_WATERMARK_POLICY.md) (PII, производительность, rollback); [`CONFIGURATION_ENV_VS_DATABASE.md`](../ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md); критерии phase-10 в [`phase-10-watermark-and-further-hardening.md`](./phases/phase-10-watermark-and-further-hardening.md).
+
+**Целевые проверки фазы**
+
+- Snapshot ffmpeg args: `pnpm --dir apps/media-worker exec vitest run src/ffmpeg/watermarkVideoFilter.test.ts src/workerToolkit.test.ts`
+- Visual smoke: ручной рецепт в `PHASE_10_WATERMARK_POLICY.md` (кадр через ffmpeg или просмотр сегмента).
+
+**Проверки (на окружении агента)**
+
+- `pnpm --dir apps/media-worker exec vitest run src/ffmpeg/watermarkVideoFilter.test.ts src/workerToolkit.test.ts` — **OK** (9 tests).
+- `pnpm install --frozen-lockfile && pnpm run ci` — **OK** (exit 0).
+
+**Явно не делали**
+
+- Отдельный job type / очередь только для watermark (в коде — тот же transcode job при включённом флаге).
+- Per-user или session-scoped текст на кадре (вне политики non-PII).
+
+---
+
+## 2026-05-03 — FIX AUDIT_PHASE_09 (редокция presign в логах, ops checklist private bucket)
+
+**Сделано**
+
+- **Critical / Major:** в аудите не было открытых — зафиксировано **N/A → CLOSED** в `AUDIT_PHASE_09.md`.
+- **Minor P09-0:** **`serializePresignFailureForLog`** и регулярное удаление http(s) из текста ошибки — `presignLogRedaction.ts`; подключено в **`resolveMediaPlaybackPayload`** и **`GET /api/media/[id]`**; тесты `presignLogRedaction.test.ts`.
+- **Minor P09-1:** **DEFERRED (scope)** — preview/worker TTL отдельно от playback (как в аудите).
+- **Minor P09-2:** **CLOSED (док)** — секция Revision phase-09 в `docs/REPORTS/S3_PRIVATE_MEDIA_EXECUTION_LOG.md`; исполнение на хосте — ops.
+- **Env vs DB:** подтверждено — TTL playback только **`video_presign_ttl_seconds`** в БД, новых env нет.
+
+**Повтор целевых проверок phase-09**
+
+- `pnpm --dir apps/webapp exec vitest run src/app-layer/media/presignLogRedaction.test.ts src/modules/system-settings/configAdapter.test.ts src/app/api/media/\[id\]/playback/route.test.ts src/app/api/media/\[id\]/route.test.ts`
+- `pnpm install --frozen-lockfile && pnpm run ci`
+
+**Проверки (на окружении агента)**
+
+- Целевые vitest — **OK** (29 tests в объединённом прогоне phase-09).
+- `pnpm install --frozen-lockfile && pnpm run ci` — **OK** (exit 0).
+
+---
+
+## 2026-05-03 — Phase 09 (presign TTL в `system_settings`, клиент при истечении URL)
+
+**Сделано**
+
+- **Ключ:** `video_presign_ttl_seconds` (admin) — `ALLOWED_KEYS`, `ADMIN_SCOPE_KEYS`, миграция webapp **`0023_video_presign_ttl_seconds.sql`** + journal; зеркало integrator **`20260506_0001_video_presign_ttl_seconds.sql`**.
+- **`getConfigPositiveInt`** в `configAdapter.ts` — clamp в диапазон; **`getVideoPresignTtlSeconds`** (`app-layer/media/videoPresignTtl.ts`) + **`videoPresignTtlConstants.ts`** (без DB — безопасно для клиента).
+- **Presign:** `resolveMediaPlaybackPayload` и **`GET /api/media/[id]`** используют один TTL; JSON playback поле **`expiresInSeconds`** синхронизировано.
+- **Admin UI:** вкладка «Параметры приложения» — карточка **Приватное видео (S3)** (`VideoPrivateMediaSettingsSection.tsx`); валидация PATCH в **`route.ts`** (60…604800).
+- **Клиент:** `PatientContentAdaptiveVideo` — таймер обновления playback до истечения TTL (~10% буфер, min 30 с); при fatal HLS / `error` на нативном HLS — сначала **refetch** playback, затем автопереход на MP4.
+- **Док:** `apps/webapp/src/app/api/api.md`, `docs/ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md`.
+
+**Целевые проверки фазы**
+
+- TTL unit: `configAdapter.test.ts` (clamp / NaN), `playback/route.test.ts` (presign + TTL), `media/[id]/route.test.ts` (redirect + TTL).
+- Manual expiry / reload: пациентский плеер — повторный `GET .../playback` по таймеру и после ошибки до MP4 fallback; ручной smoke: уменьшить TTL в админке, дождаться окончания сессии просмотра — сессия должна подтянуть новые URL без полного reload страницы (при сбое — «Повторить»).
+
+**Проверки (на окружении агента)**
+
+- `pnpm --dir apps/webapp exec vitest run src/modules/system-settings/configAdapter.test.ts src/app/api/media/\[id\]/playback/route.test.ts src/app/api/media/\[id\]/route.test.ts`
+- `pnpm install --frozen-lockfile && pnpm run ci`
+
+**Явно не делали**
+
+- DRM / device binding (вне phase-09).
+- Изменение TTL для preview route (`FALLBACK_REDIRECT_EXPIRES_SEC`) и internal preview worker — отдельная политика.
+
+---
+
+## 2026-05-03 — Phase 08 (default `video_default_delivery=auto` + gate doc)
+
+**Сделано**
+
+- **Gate:** [GATE_READINESS_PHASE_08.md](../GATE_READINESS_PHASE_08.md) — verdict: техника **PASS**, количественные/Safari пункты **PENDING (ops)**; rollback SQL + admin path; подтверждение: **`GET /api/media/[id]`** не менялся, MP4 progressive через `s3_key` сохраняется.
+- **Миграции:** webapp **`0022_video_default_delivery_auto.sql`** + journal; integrator **`20260505_0001_video_default_delivery_auto.sql`** (upsert `auto`).
+- **Код:** `resolveMediaPlaybackPayload` — fallback при отсутствии ключа в конфиге **`auto`** (согласовано с миграцией).
+- **Док:** [phase-08-default-switch-to-hls.md](../phases/phase-08-default-switch-to-hls.md), [03-rollout-strategy.md](../03-rollout-strategy.md), [api.md](../../apps/webapp/src/app/api/api.md) (playback bullet).
+
+**Целевые проверки фазы**
+
+- Playback smoke: `pnpm --dir apps/webapp exec vitest run src/modules/media/playbackResolveDelivery.test.ts src/app/api/media/[id]/playback/route.test.ts`
+- Rollback rehearsal: задокументирован в gate doc (оператор: установить `mp4` в админке или UPDATE); исполнение на staging — ops.
+
+**Проверки (на окружении агента)**
+
+- `pnpm --dir apps/webapp exec vitest run src/modules/media/playbackResolveDelivery.test.ts src/app/api/media/\[id\]/playback/route.test.ts` — **OK** (18 tests).
+- `pnpm install --frozen-lockfile && pnpm run ci` — **OK** (exit 0).
+
+**MP4**
+
+- Прямой стрим MP4 не затронут; только стратегия JSON playback по умолчанию → приоритет HLS когда готов.
+
+---
+
+## 2026-05-03 — FIX AUDIT_PHASE_07 (статусы FINDING, док dry-run, тест enqueue throw)
+
+**Сделано**
+
+- **Critical / Major:** **N/A → CLOSED** в `AUDIT_PHASE_07.md`.
+- **Minor FIND-P07-1:** **CLOSED** — уточнение dry-run vs read-only отчёт в `phases/phase-07-backfill-legacy-library.md` (секция «Тесты») и комментарий в `videoHlsLegacyBackfill.ts`.
+- **Minor FIND-P07-2:** **DEFERRED** — `pending_backfill` / приоритет jobs вне v1 (как в аудите).
+- **Minor FIND-P07-3:** **CLOSED (INFO)** — зафиксировано в `AUDIT_PHASE_07.md` (FIX): маркировка `failed` остаётся в media-worker.
+- **Тест MF-3:** `videoHlsLegacyBackfill.test.ts` — кейс «enqueue throw → `enqueue.errors`», процесс не падает.
+
+**Повтор целевых проверок phase-07**
+
+- `pnpm --dir apps/webapp exec vitest run src/app-layer/media/videoHlsLegacyBackfill.test.ts` — **OK** (8 tests).
+- `pnpm install --frozen-lockfile && pnpm run ci` — **OK** (exit 0).
+
+**MP4 playback**
+
+- Не меняли `GET /api/media/[id]`; backfill не трогает presign исходного `s3_key`; worker не удаляет source MP4 при транскоде — см. блок MP4 в `AUDIT_PHASE_07.md` (FIX).
+
+---
+
+## 2026-05-03 — Phase 07 (backfill legacy video library → transcode jobs)
+
+**Сделано**
+
+- **Runner:** `src/app-layer/media/videoHlsLegacyBackfill.ts` — выбор кандидатов `video/%`, readable, `s3_key`, без готового HLS / без активной job; опции `includeFailed`, `cutoff`, лимиты, sleep между батчами, `maxSizeBytes`, dry-run без `enqueue`, guard `video_hls_pipeline_enabled` на `--commit` (обход: `--no-require-pipeline`).
+- **CLI:** `scripts/video-hls-backfill-legacy.ts` + `package.json` → `pnpm --dir apps/webapp run video-hls-backfill-legacy` — dry-run по умолчанию, `--commit`, `--state-file` + `--reset-state` + `--cursor` (пауза/возобновление: state обновляется только при `--commit`), динамический import после bootstrap `SESSION_COOKIE_SECRET` для обхода полной инициализации Next env при `--help`.
+- **Отчётность:** финальный JSON: `statusHistogram` (readable video по `video_processing_status`), `failedReasons` (топ ошибок), счётчики enqueue / `skippedOversized`.
+- **Тесты:** `videoHlsLegacyBackfill.test.ts` — dry-run без enqueue, commit → enqueue, oversized skip, abort при выключенном pipeline.
+
+**Целевые проверки фазы**
+
+- Dry-run correctness: тест «dry-run does not call enqueue» + ручной smoke `pnpm exec tsx scripts/video-hls-backfill-legacy.ts --help`.
+- Backfill smoke: unit-тесты enqueue-path и oversized с мок-пулом.
+
+**Проверки (на окружении агента)**
+
+- `pnpm --dir apps/webapp exec vitest run src/app-layer/media/videoHlsLegacyBackfill.test.ts`
+- `pnpm --dir apps/webapp typecheck`
+- `pnpm run ci` — **OK** (exit 0)
+
+**Сознательно не делали (v1)**
+
+- Колонка `priority` в `media_transcode_jobs` и сортировка в worker (опционально в phase doc; FIFO `created_at`).
+
+---
+
+## 2026-05-03 — FIX AUDIT_PHASE_06 (статусы FINDING, тест 23505, повтор проверок)
+
+**Сделано**
+
+- **Critical / Major:** формально **N/A → CLOSED** в `AUDIT_PHASE_06.md` (открытых пунктов аудита не было).
+- **Minor:** **CLOSED** — регрессионный тест **`enqueueMediaTranscodeJob`** на ветку **`23505`** (`pgMediaTranscodeJobs.test.ts`): при гонке двух INSERT остаётся одна логически активная job, ответ `alreadyQueued: true`; инвариант дубля подкреплён индексом `media_transcode_jobs_one_active_per_media` в `0019_media_transcode_jobs_queue.sql`.
+- **Minor:** **DEFERRED** — единый ops-runbook (реплики worker, метрики очереди) до фиксации unit/строк в `SERVER CONVENTIONS.md`; продуктовые критерии — в phase-06 doc.
+- Обновлён **`AUDIT_PHASE_06.md`** (секция FIX, команды целевых тестов).
+
+**Повтор целевых проверок phase-06**
+
+- `pnpm --dir apps/webapp exec vitest run src/app-layer/media/mediaTranscodeAutoEnqueue.test.ts src/app/api/media/confirm/route.test.ts src/app/api/media/multipart/complete/route.test.ts src/infra/repos/pgMediaTranscodeJobs.test.ts` — **OK** (25 tests).
+- `pnpm install --frozen-lockfile && pnpm run ci` — **OK** (exit 0).
+
+**Duplicate jobs**
+
+- DB: partial unique на `(media_id)` для `status IN ('pending','processing')`; app: pre-check + обработка `23505`.
+
+---
+
 ## 2026-05-03 — Phase 06 (auto-enqueue transcode для новых video uploads)
 
 **Сделано**

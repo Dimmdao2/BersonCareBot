@@ -45,11 +45,11 @@
 
 ---
 
-## Инфраструктурные задачи (параллельно с PR 2–3)
+## Инфраструктурные задачи (этап B — актуализация после phase 01–10)
 
-- [ ] Добавить `apps/media-worker` в `pnpm-workspace.yaml`.
-- [ ] Unit файл systemd + строка в `deploy/HOST_DEPLOY_README.md` + `SERVER CONVENTIONS.md`.
-- [ ] Установка `ffmpeg` на хост (документировать пакет ОС).
+- [x] **`apps/media-worker` в монорепозитории** — сделано (`pnpm-workspace.yaml`).
+- [ ] **Отдельный systemd unit для `apps/media-worker` на production** + запись в `docs/ARCHITECTURE/SERVER CONVENTIONS.md` — **не подтверждено audit хоста**; при первом выкате зафиксировать имя unit и `ExecStart` (см. `deploy/HOST_DEPLOY_README.md` § Worker — не смешивать с `bersoncarebot-worker-prod`).
+- [x] **FFmpeg на хосте** — требование для media-worker; установка пакета ОС выполняется оператором на целевой машине, не версионируется в git без нового host audit.
 
 ---
 

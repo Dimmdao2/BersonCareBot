@@ -37,23 +37,22 @@
 | 5 | Включить UI dual-mode **за флагом** или для staff | Средний |
 | 6 | Новые загрузки → auto-enqueue transcode при `video_hls_new_uploads_enabled` | Средний — нагрузка CPU |
 | 7 | Backfill батчами с rate limit | Высокий без лимитов |
-| 8 | `default_delivery=hls` с fallback | Высокий — откат должен быть одной настройкой |
+| 8 | Миграция **`0022`**: `video_default_delivery=auto` + MP4 fallback (см. phase-08) | Высокий без fallback — mitigated в резолвере |
 | 9–10 | TTL/signed hardening, watermark | Средний (кэш, стоимость CPU) |
 
 ---
 
-## 4. Feature flags (предлагаемые ключи — финализировать при реализации)
+## 4. Feature flags
 
-Добавление в `ALLOWED_KEYS` и UI настроек — отдельный PR к фазе 01/04.
-
-Примеры:
+**Канон имён ключей и семантика:** `apps/webapp/src/modules/system-settings/types.ts` (`ALLOWED_KEYS`) и админские карточки настроек. Ниже — краткая семантика (не заменяет типы в коде):
 
 - `video_hls_pipeline_enabled` — мастер-выключатель enqueue + worker consume.
-- `video_hls_new_uploads_auto_transcode` — новые видео → job.
+- `video_hls_new_uploads_auto_transcode` — новые видео → job (вместе с pipeline).
 - `video_playback_api_enabled` — клиенты могут звать playback endpoint.
 - `video_default_delivery` — `"mp4" | "hls" | "auto"`.
+- Дополнительно после phase 09–10: `video_presign_ttl_seconds`, `video_watermark_enabled`.
 
-**Важно:** зеркалирование в integrator DB для ключей не требуется для медиа, если integrator не читает эти настройки; по правилам репозитория новые ключи всё равно проходят через общий механизм `updateSetting` — integrator получит копию (допустимо, без использования).
+**Важно:** по правилам репозитория ключи проходят через `updateSetting` — строка дублируется в `integrator.system_settings` (зеркало); integrator может не читать видео-ключи в runtime — это допустимо.
 
 ---
 
@@ -65,7 +64,7 @@
 - Ошибки плеера HLS в логах ниже порога (метрика внедрить в фазе 04/05).
 - Runbook отката отрепетирован.
 
-**Действие:** выставить `video_default_delivery=auto` или `hls`, сохранить `mp4` fallback при `hls_ready=false`.
+**Действие в кодовой базе:** миграции webapp **`0022_video_default_delivery_auto.sql`** и integrator **`20260505_0001_video_default_delivery_auto.sql`** выставляют **`video_default_delivery=auto`** (upsert); сохраняется **`mp4` fallback** при `hls_ready=false`. Вердикт gate: [GATE_READINESS_PHASE_08.md](./GATE_READINESS_PHASE_08.md).
 
 **Откат:** `video_default_delivery=mp4`, опционально отключить auto-transcode для новых.
 
