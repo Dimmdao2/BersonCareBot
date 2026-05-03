@@ -88,7 +88,11 @@ export type TestSetItemWithTest = {
   testSetId: string;
   testId: string;
   sortOrder: number;
-  test: Pick<ClinicalTest, "id" | "title" | "testType" | "isArchived">;
+  comment: string | null;
+  test: Pick<ClinicalTest, "id" | "title" | "testType" | "isArchived"> & {
+    /** Первое медиа по `sort_order` для превью в редакторе набора. */
+    previewMedia: ClinicalTestMediaItem | null;
+  };
 };
 
 /** Фильтр по архиву в списке наборов: активные (по умолчанию), все, только архив. */
@@ -120,6 +124,7 @@ export type UpdateTestSetInput = {
 export type TestSetItemInput = {
   testId: string;
   sortOrder: number;
+  comment?: string | null;
 };
 
 /** Сколько сущностей отдаём в UI подробно (остальное — только счётчик). */

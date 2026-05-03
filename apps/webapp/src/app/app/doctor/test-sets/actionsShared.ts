@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { logger } from "@/infra/logging/logger";
@@ -34,22 +35,28 @@ function parseAcknowledgeUsageWarning(fd: FormData): boolean {
 
 export { TEST_SETS_PATH } from "./paths";
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const itemsPayloadSchema = z.array(
+  z.object({
+    testId: z.string().uuid(),
+    comment: z.union([z.string(), z.null()]).optional(),
+  }),
+);
 
-function parseItemLines(raw: string): TestSetItemInput[] {
-  const lines = raw
-    .split(/\r?\n/)
-    .map((s) => s.trim())
-    .filter(Boolean);
-  const out: TestSetItemInput[] = [];
-  for (let i = 0; i < lines.length; i++) {
-    const testId = lines[i]!;
-    if (!UUID_RE.test(testId)) {
-      throw new Error(`Некорректный UUID в строке ${i + 1}: ${testId}`);
-    }
-    out.push({ testId, sortOrder: i });
+/** Порядок элементов в JSON — порядок в наборе (sortOrder выставляется по индексу). */
+export function parseTestSetItemsPayloadJson(raw: string): TestSetItemInput[] {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new Error("Некорректный JSON состава набора");
   }
-  return out;
+  const arr = itemsPayloadSchema.parse(parsed);
+  return arr.map((it, idx) => ({
+    testId: it.testId,
+    sortOrder: idx,
+    comment:
+      it.comment === undefined || it.comment === null || it.comment.trim() === "" ? null : it.comment.trim(),
+  }));
 }
 
 export async function saveTestSetCore(
@@ -103,17 +110,20 @@ export async function saveTestSetItemsCore(
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   await requireDoctorAccess();
   const setIdRaw = formData.get("setId");
-  const linesRaw = formData.get("itemLines");
+  const payloadRaw = formData.get("itemsPayload");
   const setId = typeof setIdRaw === "string" ? setIdRaw.trim() : "";
-  const linesText = typeof linesRaw === "string" ? linesRaw : "";
+  const payloadText = typeof payloadRaw === "string" ? payloadRaw : "";
 
   if (!setId) return { ok: false, error: "Не указан набор" };
 
   let items: TestSetItemInput[];
   try {
-    items = parseItemLines(linesText);
+    items = parseTestSetItemsPayloadJson(payloadText);
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Ошибка разбора строк" };
+    if (e instanceof z.ZodError) {
+      return { ok: false, error: "Некорректный формат состава набора" };
+    }
+    return { ok: false, error: e instanceof Error ? e.message : "Ошибка разбора состава" };
   }
 
   const deps = buildAppDeps();

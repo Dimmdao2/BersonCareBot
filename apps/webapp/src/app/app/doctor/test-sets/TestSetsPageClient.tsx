@@ -26,6 +26,7 @@ import {
   unarchiveDoctorTestSetInline,
 } from "./actionsInline";
 import type { DoctorCatalogPubArchQuery } from "@/shared/lib/doctorCatalogListStatus";
+import type { ClinicalTestLibraryPickRow } from "./clinicalTestLibraryRows";
 import { TestSetForm } from "./TestSetForm";
 import { TestSetItemsForm } from "./TestSetItemsForm";
 import { TEST_SETS_PATH } from "./paths";
@@ -33,6 +34,7 @@ type Props = {
   initialSets: TestSet[];
   initialSelectedId: string | null;
   initialSelectedUsageSnapshot: TestSetUsageSnapshot | null;
+  clinicalTestsLibrary: ClinicalTestLibraryPickRow[];
   filters: {
     q: string;
     regionRefId?: string;
@@ -45,6 +47,7 @@ export function TestSetsPageClient({
   initialSets,
   initialSelectedId,
   initialSelectedUsageSnapshot,
+  clinicalTestsLibrary,
   filters,
 }: Props) {
   const [titleSort, setTitleSort] = useState<CatalogMasterTitleSort | null>(null);
@@ -163,7 +166,13 @@ export function TestSetsPageClient({
         />
         <section className="flex flex-col gap-2 border-t border-border/60 pt-4">
           <h2 className="text-lg font-medium">Состав набора</h2>
-          {!selected.isArchived ? <TestSetItemsForm testSet={selected} saveItemsAction={saveDoctorTestSetItemsInline} /> : (
+          {!selected.isArchived ? (
+            <TestSetItemsForm
+              testSet={selected}
+              clinicalTestsLibrary={clinicalTestsLibrary}
+              saveItemsAction={saveDoctorTestSetItemsInline}
+            />
+          ) : (
             <p className="text-sm text-muted-foreground">Состав недоступен, пока набор в архиве.</p>
           )}
         </section>

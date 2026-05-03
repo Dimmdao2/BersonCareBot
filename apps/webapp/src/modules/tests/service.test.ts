@@ -66,6 +66,27 @@ describe("clinical tests / test sets service", () => {
     expect(again?.items.map((i) => i.testId)).toEqual([t2.id, t1.id]);
   });
 
+  it("setTestSetItems persists comments on items", async () => {
+    const t = await inMemoryClinicalTestsPort.create({ title: "Commented" }, null);
+    const setsSvc = createTestSetsService(inMemoryTestSetsPort, inMemoryClinicalTestsPort);
+    const set = await setsSvc.createTestSet({ title: "S" }, null);
+    await setsSvc.setTestSetItems(set.id, [{ testId: t.id, sortOrder: 0, comment: "  note  " }]);
+    const again = await setsSvc.getTestSet(set.id);
+    expect(again?.items[0]?.comment).toBe("note");
+  });
+
+  it("setTestSetItems rejects duplicate test ids", async () => {
+    const t = await inMemoryClinicalTestsPort.create({ title: "DupTest" }, null);
+    const setsSvc = createTestSetsService(inMemoryTestSetsPort, inMemoryClinicalTestsPort);
+    const set = await setsSvc.createTestSet({ title: "DupSet" }, null);
+    await expect(
+      setsSvc.setTestSetItems(set.id, [
+        { testId: t.id, sortOrder: 0 },
+        { testId: t.id, sortOrder: 1 },
+      ]),
+    ).rejects.toThrow(/дважды/);
+  });
+
   it("unarchiveClinicalTest clears isArchived", async () => {
     const t = await inMemoryClinicalTestsPort.create({ title: "U" }, null);
     const svc = createClinicalTestsService(inMemoryClinicalTestsPort);

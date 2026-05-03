@@ -6,6 +6,7 @@ import {
   parseDoctorCatalogPubArchQuery,
   testSetListFilterFromPubArch,
 } from "@/shared/lib/doctorCatalogListStatus";
+import { clinicalTestLibraryRows } from "./clinicalTestLibraryRows";
 import { TestSetsPageClient } from "./TestSetsPageClient";
 
 type PageProps = {
@@ -41,6 +42,9 @@ export default async function DoctorTestSetsPage({ searchParams }: PageProps) {
 
   const items = await deps.testSets.listTestSets(testSetListFilterFromPubArch(listPubArch, q || null));
 
+  const clinicalTestsForPicker = await deps.clinicalTests.listClinicalTests({ archiveScope: "active" });
+  const clinicalTestsLibrary = clinicalTestLibraryRows(clinicalTestsForPicker);
+
   const raw = typeof sp.selected === "string" ? sp.selected.trim() : "";
   const initialSelectedId = raw && items.some((s) => s.id === raw) ? raw : null;
   const initialSelectedUsageSnapshot =
@@ -52,6 +56,7 @@ export default async function DoctorTestSetsPage({ searchParams }: PageProps) {
         initialSets={items}
         initialSelectedId={initialSelectedId}
         initialSelectedUsageSnapshot={initialSelectedUsageSnapshot}
+        clinicalTestsLibrary={clinicalTestsLibrary}
         filters={{ q, regionRefId, loadType, listPubArch }}
       />
     </AppShell>

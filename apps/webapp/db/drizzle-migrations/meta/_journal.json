@@ -239,6 +239,13 @@
       "when": 1777814000000,
       "tag": "0034_clinical_tests_b2_scoring_measure_kinds",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1777823521139,
+      "tag": "0035_test_set_items_comment",
+      "breakpoints": true
     }
   ]
 }

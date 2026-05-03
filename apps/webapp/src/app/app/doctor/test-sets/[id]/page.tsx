@@ -8,6 +8,7 @@ import { TEST_SETS_PATH } from "../paths";
 import Link from "next/link";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { cn } from "@/lib/utils";
+import { clinicalTestLibraryRows } from "../clinicalTestLibraryRows";
 
 type PageProps = { params: Promise<{ id: string }> };
 
@@ -18,6 +19,8 @@ export default async function EditTestSetPage({ params }: PageProps) {
   const testSet = await deps.testSets.getTestSet(id);
   if (!testSet) notFound();
   const usage = await deps.testSets.getTestSetUsage(testSet.id);
+  const clinicalTestsForPicker = await deps.clinicalTests.listClinicalTests({ archiveScope: "active" });
+  const clinicalTestsLibrary = clinicalTestLibraryRows(clinicalTestsForPicker);
 
   return (
     <AppShell title="Набор тестов" user={session.user} variant="doctor" backHref={TEST_SETS_PATH}>
@@ -29,13 +32,13 @@ export default async function EditTestSetPage({ params }: PageProps) {
           >
             Библиотека тестов
           </Link>
-          {" — скопируйте UUID нужных строк в состав набора ниже."}
+          {" — добавляйте тесты через кнопку «Добавить из библиотеки» в составе набора."}
         </p>
         <TestSetForm testSet={testSet} externalUsageSnapshot={usage} />
         <section className="flex flex-col gap-2">
           <h2 className="text-lg font-medium">Состав набора</h2>
           {!testSet.isArchived ? (
-            <TestSetItemsForm testSet={testSet} />
+            <TestSetItemsForm testSet={testSet} clinicalTestsLibrary={clinicalTestsLibrary} />
           ) : (
             <p className="text-sm text-muted-foreground">Состав недоступен, пока набор в архиве.</p>
           )}

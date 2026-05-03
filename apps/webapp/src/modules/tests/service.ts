@@ -211,7 +211,21 @@ export function createTestSetsService(setsPort: TestSetsPort, testsPort: Clinica
         throw new Error("Набор в архиве. Верните из архива, чтобы менять состав.");
       }
 
-      const normalized = [...items].sort((a, b) => a.sortOrder - b.sortOrder);
+      const sorted = [...items].sort((a, b) => a.sortOrder - b.sortOrder);
+      const normalized = sorted.map((it, idx) => ({
+        testId: it.testId,
+        sortOrder: idx,
+        comment: it.comment?.trim() ? it.comment.trim() : null,
+      }));
+
+      const seen = new Set<string>();
+      for (const it of normalized) {
+        if (seen.has(it.testId)) {
+          throw new Error("Один и тот же тест не может входить в набор дважды");
+        }
+        seen.add(it.testId);
+      }
+
       for (const it of normalized) {
         const test = await testsPort.getById(it.testId);
         if (!test) throw new Error(`Тест не найден: ${it.testId}`);

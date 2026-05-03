@@ -9,6 +9,7 @@ const putBodySchema = z.object({
     z.object({
       testId: z.string().uuid(),
       sortOrder: z.number().int(),
+      comment: z.string().max(10000).nullable().optional(),
     }),
   ),
 });

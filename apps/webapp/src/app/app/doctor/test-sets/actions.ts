@@ -43,6 +43,7 @@ export async function saveDoctorTestSetItems(
   const setIdField = formData.get("setId");
   const setId = typeof setIdField === "string" ? setIdField.trim() : "";
   if (setId) {
+    revalidatePath(TEST_SETS_PATH);
     revalidatePath(`${TEST_SETS_PATH}/${setId}`);
   }
   return { ok: true };

@@ -114,6 +114,8 @@ export const testSetItems = pgTable(
     testSetId: uuid("test_set_id").notNull(),
     testId: uuid("test_id").notNull(),
     sortOrder: integer("sort_order").default(0).notNull(),
+    /** Комментарий к позиции в наборе (per-item; см. B7 для согласования с шаблонными комментариями). */
+    comment: text("comment"),
   },
   (table) => [
     index("idx_test_set_items_set_order").using(

@@ -12,7 +12,7 @@ import type {
 import { EMPTY_TEST_SET_USAGE_SNAPSHOT } from "@/modules/tests/types";
 import { inMemoryClinicalTestsPort } from "./inMemoryClinicalTests";
 
-type RawItem = { id: string; testSetId: string; testId: string; sortOrder: number };
+type RawItem = { id: string; testSetId: string; testId: string; sortOrder: number; comment: string | null };
 
 const setsMeta = new Map<string, Omit<TestSet, "items">>();
 const itemsBySet = new Map<string, RawItem[]>();
@@ -66,11 +66,16 @@ async function buildTestSet(id: string): Promise<TestSet | null> {
       testSetId: ri.testSetId,
       testId: ri.testId,
       sortOrder: ri.sortOrder,
+      comment: ri.comment,
       test: {
         id: test.id,
         title: test.title,
         testType: test.testType,
         isArchived: test.isArchived,
+        previewMedia:
+          test.media?.length ?
+            [...test.media].sort((a, b) => a.sortOrder - b.sortOrder)[0] ?? null
+          : null,
       },
     });
   }
@@ -150,6 +155,7 @@ export const inMemoryTestSetsPort: TestSetsPort = {
       testSetId,
       testId: it.testId,
       sortOrder: it.sortOrder ?? idx,
+      comment: it.comment?.trim() ? it.comment.trim() : null,
     }));
     itemsBySet.set(testSetId, raw);
     setsMeta.set(testSetId, { ...cur, updatedAt: now });

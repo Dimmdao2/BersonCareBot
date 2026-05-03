@@ -177,3 +177,49 @@ pnpm exec tsc --noEmit
 ```
 
 **Результат:** eslint / vitest / tsc — **PASS**.
+
+---
+
+## 2026-05-03 — Stage B3 — EXEC (редактор набора тестов, Q5)
+
+**Контекст:** `STAGE_B3_PLAN.md`, `PRE_IMPLEMENTATION_DECISIONS.md` (Q5: без UUID-textarea).
+
+**Сделано:**
+
+- Миграция `0035_test_set_items_comment.sql`: колонка `test_set_items.comment` (nullable `text`); схема Drizzle `clinicalTests.ts`.
+- Типы: `TestSetItemInput.comment`, `TestSetItemWithTest.comment`, у `test` — `previewMedia` (первое медиа теста для превью).
+- `pgTestSets` / `inMemoryTestSets`: чтение/запись `comment` и превью; `setTestSetItems`: нормализация порядка, запрет дубликатов `testId`, комментарии trim/null.
+- Сохранение состава: `itemsPayload` (JSON массива `{ testId, comment? }`, порядок = порядок в наборе), `parseTestSetItemsPayloadJson` + Zod в `actionsShared`; удалены `itemLines` / разбор UUID-строк.
+- `PUT /api/doctor/test-sets/[id]/items`: в Zod добавлено опциональное `comment`.
+- UI `TestSetItemsForm`: `@dnd-kit` (как `TemplateEditor`), карточки с превью, комментарий на строку, диалог библиотеки (`PickerSearchField` + список), кнопка добавления; скрытое поле `itemsPayload`; после успеха — `router.refresh()`.
+- Каталог тестов для пикера: `clinicalTestLibraryRows.ts`, загрузка активных тестов на `page.tsx` (список) и `[id]/page.tsx` (деталь); подсказка про UUID на детальной странице заменена на сценарий с библиотекой.
+- `saveDoctorTestSetItems`: `revalidatePath` также для списка наборов.
+- Тесты: `service.test.ts` (комментарии, дубликаты), `actionsShared.test.ts` (парсер JSON).
+
+**Проверки (целевые, без полного `ci`):**
+
+```bash
+cd apps/webapp && pnpm exec eslint \
+  src/app/app/doctor/test-sets/TestSetItemsForm.tsx \
+  src/app/app/doctor/test-sets/actionsShared.ts \
+  src/app/app/doctor/test-sets/actionsShared.test.ts \
+  src/app/app/doctor/test-sets/clinicalTestLibraryRows.ts \
+  src/app/app/doctor/test-sets/page.tsx \
+  src/app/app/doctor/test-sets/[id]/page.tsx \
+  src/app/app/doctor/test-sets/TestSetsPageClient.tsx \
+  src/infra/repos/pgTestSets.ts \
+  src/infra/repos/inMemoryTestSets.ts \
+  src/modules/tests/service.ts \
+  src/modules/tests/types.ts \
+  src/modules/tests/service.test.ts \
+  src/app/api/doctor/test-sets/[id]/items/route.ts \
+  db/schema/clinicalTests.ts
+pnpm exec vitest run \
+  src/modules/tests/service.test.ts \
+  src/app/app/doctor/test-sets/actionsShared.test.ts
+pnpm exec tsc --noEmit
+```
+
+**Вне scope:** AUDIT B3, полный `pnpm run ci`, правки `api.md` (контракт PUT можно догнать в AUDIT/FIX при необходимости).
+
+**Результат:** eslint / vitest / tsc — **PASS**.

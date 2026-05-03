@@ -8,6 +8,7 @@ import {
 } from "../../../db/schema/clinicalTests";
 import type { TestSetsPort } from "@/modules/tests/ports";
 import type {
+  ClinicalTestMediaItem,
   TestSet,
   TestSetFilter,
   CreateTestSetInput,
@@ -32,6 +33,13 @@ function mapMeta(row: typeof testSetsTable.$inferSelect): Omit<TestSet, "items">
   };
 }
 
+function pickFirstClinicalMedia(media: unknown): ClinicalTestMediaItem | null {
+  if (!Array.isArray(media) || media.length === 0) return null;
+  const arr = media as ClinicalTestMediaItem[];
+  const sorted = [...arr].sort((a, b) => a.sortOrder - b.sortOrder);
+  return sorted[0] ?? null;
+}
+
 function mapTestRow(
   row: typeof clinicalTestsTable.$inferSelect,
 ): TestSetItemWithTest["test"] {
@@ -40,6 +48,7 @@ function mapTestRow(
     title: row.title,
     testType: row.testType,
     isArchived: row.isArchived,
+    previewMedia: pickFirstClinicalMedia(row.media),
   };
 }
 
@@ -60,6 +69,7 @@ async function loadItemsForSet(testSetId: string): Promise<TestSetItemWithTest[]
     testSetId: r.item.testSetId,
     testId: r.item.testId,
     sortOrder: r.item.sortOrder,
+    comment: r.item.comment ?? null,
     test: mapTestRow(r.test),
   }));
 }
@@ -359,6 +369,7 @@ export function createPgTestSetsPort(): TestSetsPort {
               testSetId,
               testId: it.testId,
               sortOrder: it.sortOrder ?? idx,
+              comment: it.comment?.trim() ? it.comment.trim() : null,
             })),
           );
         }
