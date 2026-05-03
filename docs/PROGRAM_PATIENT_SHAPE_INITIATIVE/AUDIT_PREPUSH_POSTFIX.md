@@ -44,18 +44,9 @@ pnpm run ci
 
 ---
 
-## 4. Deferred пункты (не блокируют push)
+## 4. Deferred / backlog после продуктового уточнения
 
-Сводка совпадает с [`AUDIT_GLOBAL.md`](AUDIT_GLOBAL.md) §7 (деферы) и stage-аудитами:
-
-| ID | Суть |
-|---|---|
-| **A4-LOG-TYPES-01** | Отдельные записи `action_type: viewed` / семантика **note** как тип — при необходимости позже. |
-| **A4-UTC-01** | Сутки чек-листа: переход с UTC на business-timezone. |
-| **A5-TODAY-INSTANCE-01** | Несколько активных программ на Today. |
-| **A5-TS-EQUALITY-01** | Сравнение timestamp бейджа «План обновлён» (документировано, без смены семантики). |
-| **A3-UI-INST-01** | Полноценный UI редактирования instance-группы (сейчас **PATCH** API). |
-| **A2-LEGACY-01** | Контент шаблонов с проблемным `sort_order`. |
+Актуальная таблица решений и TODO: [`BACKLOG_PRODUCT_AFTER_AUDITS.md`](BACKLOG_PRODUCT_AFTER_AUDITS.md). Кратко: UTC→TZ пациента (TODO), одна активная программа (правило), UI instance-группы и пустой этап у пациента (ближайшая волна / S), отдельные `viewed` в логе — не нужны, legacy шаблонов нет, A5-TS — несрочно.
 
 ---
 

@@ -1,9 +1,21 @@
 /** @vitest-environment jsdom */
 
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ProfileForm } from "./ProfileForm";
+
+beforeEach(() => {
+  global.fetch = vi
+    .fn()
+    .mockResolvedValue(
+      new Response(JSON.stringify({ ok: true, calendarTimezone: null }), { status: 200 }),
+    ) as typeof fetch;
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: vi.fn(), replace: vi.fn() }),

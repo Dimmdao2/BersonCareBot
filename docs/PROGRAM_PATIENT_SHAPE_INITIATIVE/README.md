@@ -37,3 +37,4 @@
 - [`PROMPTS_EXEC_AUDIT_FIX_GLOBAL.md`](PROMPTS_EXEC_AUDIT_FIX_GLOBAL.md)
 - [`AUDIT_GLOBAL.md`](AUDIT_GLOBAL.md)
 - [`AUDIT_PREPUSH_POSTFIX.md`](AUDIT_PREPUSH_POSTFIX.md) — pre-push postfix audit
+- [`BACKLOG_PRODUCT_AFTER_AUDITS.md`](BACKLOG_PRODUCT_AFTER_AUDITS.md) — backlog и решения по defer-пунктам после аудитов

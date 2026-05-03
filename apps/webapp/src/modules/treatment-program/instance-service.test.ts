@@ -1,6 +1,9 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { createTreatmentProgramService } from "./service";
-import { createTreatmentProgramInstanceService } from "./instance-service";
+import {
+  createTreatmentProgramInstanceService,
+  SECOND_ACTIVE_TREATMENT_PROGRAM_MESSAGE,
+} from "./instance-service";
 import { createInMemoryTreatmentProgramPort } from "@/app-layer/testing/treatmentProgramInMemory";
 import {
   createInMemoryTreatmentProgramInstancePort,
@@ -144,6 +147,48 @@ describe("treatment-program instance service", () => {
     const row = after.stages[0]!.items[0]!;
     expect(row.comment).toBe("original");
     expect(row.snapshot).toEqual(snapBefore);
+  });
+
+  it("rejects second assign while another instance is active", async () => {
+    const tpl = await tplSvc.createTemplate({ title: "План", status: "published" }, null);
+    const s1 = await tplSvc.createStage(tpl.id, { title: "S" });
+    await tplSvc.addStageItem(s1.id, {
+      itemType: "recommendation",
+      itemRefId: refA,
+    });
+    const patient = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    await instSvc.assignTemplateToPatient({
+      templateId: tpl.id,
+      patientUserId: patient,
+      assignedBy: null,
+    });
+    await expect(
+      instSvc.assignTemplateToPatient({
+        templateId: tpl.id,
+        patientUserId: patient,
+        assignedBy: null,
+      }),
+    ).rejects.toThrow(SECOND_ACTIVE_TREATMENT_PROGRAM_MESSAGE);
+  });
+
+  it("allows assign after previous instance is completed", async () => {
+    const tpl = await tplSvc.createTemplate({ title: "План", status: "published" }, null);
+    const s1 = await tplSvc.createStage(tpl.id, { title: "S" });
+    await tplSvc.addStageItem(s1.id, { itemType: "recommendation", itemRefId: refA });
+    const patient = "ffffffff-ffff-4fff-8fff-ffffffffffff";
+    const first = await instSvc.assignTemplateToPatient({
+      templateId: tpl.id,
+      patientUserId: patient,
+      assignedBy: null,
+    });
+    await instPort.updateInstanceMeta(first.id, { status: "completed" });
+    const second = await instSvc.assignTemplateToPatient({
+      templateId: tpl.id,
+      patientUserId: patient,
+      assignedBy: null,
+    });
+    expect(second.id).not.toBe(first.id);
+    expect(second.status).toBe("active");
   });
 
   it("rejects draft template assignment", async () => {

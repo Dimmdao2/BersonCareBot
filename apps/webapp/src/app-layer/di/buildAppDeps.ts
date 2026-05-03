@@ -63,6 +63,10 @@ import {
 import { appointmentRowLabel } from "@/modules/appointments/appointmentLabels";
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
 import {
+  getPatientCalendarTimezoneIana,
+  setPatientCalendarTimezoneIana,
+} from "@/infra/repos/pgPatientCalendarTimezone";
+import {
   formatAppointmentDateNumericRu,
   formatAppointmentTimeShortRu,
   formatBookingDateTimeMediumRu,
@@ -280,9 +284,17 @@ const treatmentProgramEventsPort = treatmentProgramInMemoryPersistence
   ? treatmentProgramInMemoryPersistence.eventsPort
   : createPgTreatmentProgramEventsPort();
 const programActionLogPort = !inMemoryRepos ? createPgProgramActionLogPort() : createInMemoryProgramActionLogPort();
+const patientCalendarTimezoneGet = inMemoryRepos
+  ? async (_userId: string) => null as string | null
+  : getPatientCalendarTimezoneIana;
+const patientCalendarTimezoneSet = inMemoryRepos
+  ? async (_userId: string, _value: string | null) => true
+  : setPatientCalendarTimezoneIana;
 const treatmentProgramPatientActions = createTreatmentProgramPatientActionService({
   instances: treatmentProgramInstancePort,
   actionLog: programActionLogPort,
+  getAppDefaultTimezoneIana: getAppDisplayTimeZone,
+  getPatientCalendarTimezoneIana: patientCalendarTimezoneGet,
 });
 const treatmentProgramItemSnapshotPort = !inMemoryRepos
   ? createPgTreatmentProgramItemSnapshotPort()
@@ -731,6 +743,10 @@ function _buildAppDeps() {
     patientMood: patientMoodService,
     treatmentProgramProgress: treatmentProgramProgressService,
     treatmentProgramPatientActions,
+    patientCalendarTimezone: {
+      getIanaForUser: patientCalendarTimezoneGet,
+      setIanaForPatient: patientCalendarTimezoneSet,
+    },
     lfkTemplates: lfkTemplatesService,
     lfkAssignments: lfkAssignmentsService,
     bookingCatalog: bookingCatalogService,

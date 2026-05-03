@@ -1,30 +1,15 @@
 import { getConfigValue } from "@/modules/system-settings/configAdapter";
+import {
+  DEFAULT_APP_DISPLAY_TIMEZONE,
+  normalizeAppDisplayTimeZone,
+} from "@/modules/system-settings/calendarIana";
 
-/** Дефолт совпадает с integrator `DEFAULT_APP_DISPLAY_TIMEZONE`. */
-export const DEFAULT_APP_DISPLAY_TIMEZONE = "Europe/Moscow";
-
-const IANA_LIKE = /^[A-Za-z_]+(\/[A-Za-z_]+)*$/;
-
-/** Same check as integrator `getAppDisplayTimezone` — reject ICU-invalid IDs admin could otherwise save. */
-function isValidIanaTimeZone(tz: string): boolean {
-  const t = tz.trim();
-  if (!t) return false;
-  try {
-    Intl.DateTimeFormat(undefined, { timeZone: t });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Нормализует значение из `system_settings` / env: допустимая IANA (regex + ICU) или дефолт.
- */
-export function normalizeAppDisplayTimeZone(raw: string): string {
-  const t = raw.trim();
-  if (t.length > 0 && IANA_LIKE.test(t) && isValidIanaTimeZone(t)) return t;
-  return DEFAULT_APP_DISPLAY_TIMEZONE;
-}
+export {
+  DEFAULT_APP_DISPLAY_TIMEZONE,
+  normalizeAppDisplayTimeZone,
+  resolveCalendarDayIanaForPatient,
+  isAcceptableIanaTimezone,
+} from "@/modules/system-settings/calendarIana";
 
 /**
  * IANA-таймзона для отображения «бизнес-времени» (записи, слоты) в webapp.

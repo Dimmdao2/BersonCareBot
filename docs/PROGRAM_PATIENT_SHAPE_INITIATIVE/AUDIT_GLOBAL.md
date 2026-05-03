@@ -103,15 +103,19 @@
 | **GLOBAL-DOC-INDEX-01** | **Medium** | Обновить [`README.md`](README.md) и §4 [`MASTER_PLAN.md`](MASTER_PLAN.md): добавить ссылку на **`AUDIT_GLOBAL.md`**; явно указать, что он заменяет/дополняет черновой `PROGRAM_PATIENT_SHAPE_EXECUTION_AUDIT.md` **или** переименовать файл по решению команды (один канонический URL). | Избежать расхождения «ожидали execution audit — лежит global audit». |
 | **GLOBAL-TZ-HEADER-01** | **Low** | Обновить шапку [`PROGRAM_PATIENT_SHAPE_PLAN.md`](../APP_RESTRUCTURE_INITIATIVE/PROGRAM_PATIENT_SHAPE_PLAN.md): убрать или заменить **«Код не менялся»** на актуальный статус («реализовано по этапам A1–A5», дата). | Синхронность продуктового ТЗ с реальностью репозитория. |
 
-### Деферы из stage-аудитов (не обязательный FIX до следующего продукта)
+### Деферы из stage-аудитов — состояние после продуктового уточнения (2026-05-03)
 
-| ID | Severity | Статус |
-|---|---|---|
-| A4-LOG-TYPES-01 | Info / Future | Отдельные строки лога с `action_type: "viewed"` / как тип **note** — defer (см. [`AUDIT_STAGE_A4.md`](AUDIT_STAGE_A4.md)). |
-| A4-UTC-01 | Info | Чек-лист по UTC — defer до timezone из `system_settings`. |
-| A5-TODAY-INSTANCE-01 | Info | Несколько активных программ на Today — defer. |
-| A3-UI-INST-01 | Info | Полноценный UI редактирования instance-группы — defer. |
-| A2-LEGACY-01 | Info | Контент шаблонов с конфликтующим `sort_order` — defer. |
+Источник правды по backlog: [`BACKLOG_PRODUCT_AFTER_AUDITS.md`](BACKLOG_PRODUCT_AFTER_AUDITS.md).
+
+| ID | Обновлённый статус |
+|---|---|
+| **A4-UTC-01** | **TODO:** часовой пояс пациента и «сегодня» для чек-листа по локальному календарю — см. backlog §1. |
+| **A5-TODAY-INSTANCE-01** | **Правило продукта:** не создавать вторую активную программу; мультипрограммы не планируются — см. backlog §1. |
+| **A4-LOG-TYPES-01** | **Не делаем** — отдельные `viewed` в логе избыточны — см. backlog §3. |
+| **A3-UI-INST-01** | **Ближайшая волна** — UI редактирования instance-группы у врача — см. backlog §2. |
+| **A2-LEGACY-01** | **Не актуально** до боевых шаблонов — см. backlog §3. |
+| **A5-TS-EQUALITY-01** | **Несрочный TODO** — см. backlog §1 и [`AUDIT_STAGE_A5.md`](AUDIT_STAGE_A5.md). |
+| **Пустой этап у пациента (Info A3)** | Объяснение и варианты fix — **backlog §2** (patient UI, не фаза B каталогов). |
 
 ---
 
@@ -134,4 +138,4 @@
 | **GLOBAL-DOC-INDEX-01** | Закрыт: [`README.md`](README.md), §4 [`MASTER_PLAN.md`](MASTER_PLAN.md), §7 Completion Criteria — ссылка на **`AUDIT_GLOBAL.md`** как канон итогового аудита. |
 | **GLOBAL-TZ-HEADER-01** | Закрыт: шапка [`PROGRAM_PATIENT_SHAPE_PLAN.md`](../APP_RESTRUCTURE_INITIATIVE/PROGRAM_PATIENT_SHAPE_PLAN.md) обновлена (статус реализации A1…A5). |
 
-**Minor / defer из §7:** без изменения кодовой базы — деферы stage-аудитов остаются осознанным backlog (см. таблицу в §7 исходного аудита).
+**Minor / defer:** перенесены в [`BACKLOG_PRODUCT_AFTER_AUDITS.md`](BACKLOG_PRODUCT_AFTER_AUDITS.md) с продуктовыми решениями (см. обновлённую таблицу в §7 выше).

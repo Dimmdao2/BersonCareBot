@@ -1,3 +1,4 @@
+import { DateTime } from "luxon";
 import type { ProgramActionLogPort, TreatmentProgramInstancePort } from "./ports";
 import { assertUuid } from "./service";
 import type {
@@ -5,6 +6,7 @@ import type {
   TreatmentProgramInstanceDetail,
   TreatmentProgramInstanceStageItemView,
 } from "./types";
+import { resolveCalendarDayIanaForPatient } from "@/modules/system-settings/calendarIana";
 import {
   isInstanceStageItemActiveForPatient,
   isPersistentRecommendation,
@@ -18,6 +20,17 @@ export function utcDayWindowIso(now = new Date()): { start: string; end: string 
   const start = new Date(Date.UTC(y, m, d, 0, 0, 0, 0)).toISOString();
   const end = new Date(Date.UTC(y, m, d + 1, 0, 0, 0, 0)).toISOString();
   return { start, end };
+}
+
+/** Сутки в зоне IANA (Luxon, DST-safe); границы в ISO UTC для сравнения с `program_action_log`. */
+export function localDayWindowIso(now: Date, iana: string): { start: string; end: string } {
+  const dt = DateTime.fromJSDate(now, { zone: "utc" }).setZone(iana);
+  if (!dt.isValid) {
+    return utcDayWindowIso(now);
+  }
+  const start = dt.startOf("day");
+  const end = start.plus({ days: 1 });
+  return { start: start.toUTC().toISO()!, end: end.toUTC().toISO()! };
 }
 
 export function isProgramChecklistItem(
@@ -80,8 +93,18 @@ export function createTreatmentProgramPatientActionService(deps: {
   instances: TreatmentProgramInstancePort;
   actionLog: ProgramActionLogPort;
   now?: () => Date;
+  getAppDefaultTimezoneIana: () => Promise<string>;
+  getPatientCalendarTimezoneIana?: (platformUserId: string) => Promise<string | null>;
 }) {
   const nowFn = deps.now ?? (() => new Date());
+  const getPersonalTz = deps.getPatientCalendarTimezoneIana ?? (async () => null);
+
+  async function checklistDayWindow(patientUserId: string) {
+    const appDefault = await deps.getAppDefaultTimezoneIana();
+    const personal = await getPersonalTz(patientUserId);
+    const iana = resolveCalendarDayIanaForPatient(personal, appDefault);
+    return localDayWindowIso(nowFn(), iana);
+  }
 
   async function assertItemAccessible(
     patientUserId: string,
@@ -103,6 +126,7 @@ export function createTreatmentProgramPatientActionService(deps: {
 
   return {
     utcDayWindowIso,
+    localDayWindowIso,
 
     async listChecklistDoneToday(patientUserId: string, instanceId: string): Promise<string[]> {
       assertUuid(patientUserId);
@@ -110,7 +134,7 @@ export function createTreatmentProgramPatientActionService(deps: {
       const detail = await deps.instances.getInstanceForPatient(patientUserId, instanceId);
       if (!detail) throw new Error("Программа не найдена");
       if (detail.status !== "active") return [];
-      const win = utcDayWindowIso(nowFn());
+      const win = await checklistDayWindow(patientUserId);
       return deps.actionLog.listDoneItemIdsInWindow({
         instanceId,
         patientUserId,
@@ -132,7 +156,7 @@ export function createTreatmentProgramPatientActionService(deps: {
       if (item.itemType === "lfk_complex") {
         throw new Error("ЛФК отмечайте через форму «Как прошло занятие?»");
       }
-      const win = utcDayWindowIso(nowFn());
+      const win = await checklistDayWindow(input.patientUserId);
       if (input.checked) {
         const existing = await deps.actionLog.listDoneItemIdsInWindow({
           instanceId: input.instanceId,
@@ -180,7 +204,7 @@ export function createTreatmentProgramPatientActionService(deps: {
       assertUuid(input.stageItemId);
       const { item } = await assertItemAccessible(input.patientUserId, input.instanceId, input.stageItemId);
       if (item.itemType !== "lfk_complex") throw new Error("Только для ЛФК-комплекса");
-      const win = utcDayWindowIso(nowFn());
+      const win = await checklistDayWindow(input.patientUserId);
       await deps.actionLog.deleteAllDoneInWindow({
         instanceId: input.instanceId,
         patientUserId: input.patientUserId,

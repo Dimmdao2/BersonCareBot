@@ -67,6 +67,8 @@ export const platformUsers = pgTable("platform_users", {
 	isArchived: boolean("is_archived").default(false).notNull(),
 	mergedIntoId: uuid("merged_into_id"),
 	patientPhoneTrustAt: timestamp("patient_phone_trust_at", { withTimezone: true, mode: 'string' }),
+	/** IANA zone for patient-local calendar day (чек-лист программы и т.п.); null → `app_display_timezone`. */
+	calendarTimezone: text("calendar_timezone"),
 }, (table) => [
 	index("idx_platform_users_integrator_uid").using("btree", table.integratorUserId.asc().nullsLast().op("int8_ops")).where(sql`(integrator_user_id IS NOT NULL)`),
 	index("idx_platform_users_merged_into").using("btree", table.mergedIntoId.asc().nullsLast().op("uuid_ops")).where(sql`(merged_into_id IS NOT NULL)`),

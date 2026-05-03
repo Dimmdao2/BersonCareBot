@@ -225,6 +225,13 @@
       "when": 1777811000000,
       "tag": "0031_treatment_program_a5_last_viewed",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1777812000000,
+      "tag": "0032_platform_users_calendar_timezone",
+      "breakpoints": true
     }
   ]
 }

@@ -4,6 +4,28 @@
 
 ---
 
+## 2026-05-03 — Post-audits «сейчас» (backlog batch)
+
+**Контекст:** [`BACKLOG_PRODUCT_AFTER_AUDITS.md`](BACKLOG_PRODUCT_AFTER_AUDITS.md), план замечаний «сейчас» (пустой этап, один активный инстанс, UI группы инстанса, TZ чек-листа).
+
+**Сделано:**
+
+- **Пустой этап:** `patientStageSectionShouldRender` в [`stage-semantics.ts`](../../apps/webapp/src/modules/treatment-program/stage-semantics.ts); фильтр в [`PatientTreatmentProgramDetailClient.tsx`](../../apps/webapp/src/app/app/patient/treatment-programs/PatientTreatmentProgramDetailClient.tsx); тесты в `stage-semantics.test.ts`.
+- **Один активный инстанс:** проверка в `assignTemplateToPatient`, константа `SECOND_ACTIVE_TREATMENT_PROGRAM_MESSAGE`, **409** на **POST** `doctor/clients/.../treatment-program-instances`; тесты `instance-service.test.ts`; `api.md`.
+- **A3-UI-INST-01:** диалог редактирования группы (**Изменить**) в [`TreatmentProgramInstanceDetailClient.tsx`](../../apps/webapp/src/app/app/doctor/clients/treatment-programs/[instanceId]/TreatmentProgramInstanceDetailClient.tsx).
+- **A4-UTC-01:** миграция **`0032_platform_users_calendar_timezone`**, `localDayWindowIso` (Luxon), `resolveCalendarDayIanaForPatient`, `patient-program-actions` + **`buildAppDeps`** (`patientCalendarTimezone`, `getAppDisplayTimeZone`); API **`GET/PATCH /api/patient/profile/calendar-timezone`**; блок в [`ProfileForm.tsx`](../../apps/webapp/src/app/app/patient/profile/ProfileForm.tsx); подпись чек-листа у пациента без «UTC».
+
+**Проверки (целевые):**
+
+```bash
+pnpm --dir apps/webapp exec vitest run src/modules/treatment-program/stage-semantics.test.ts src/modules/treatment-program/instance-service.test.ts src/modules/treatment-program/patient-program-actions.test.ts
+pnpm --dir apps/webapp exec tsc --noEmit
+```
+
+**Намеренно не делали:** полный корневой **`pnpm run ci`** в этой записи (при необходимости перед push — по правилам репозитория).
+
+---
+
 ## 2026-05-03 — Global fix (`AUDIT_GLOBAL.md` §7 / §9)
 
 **Контекст:** закрытие **GLOBAL-CI-01** (BLOCKER), **GLOBAL-LOG-STRUCT-01** (Major), **GLOBAL-DOC-INDEX-01** (Medium), **GLOBAL-TZ-HEADER-01** (Low); явные defer для info-level backlog без изменения продуктового scope.

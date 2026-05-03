@@ -4,6 +4,7 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { getCurrentSession } from "@/modules/auth/service";
 import { canAccessDoctor } from "@/modules/roles/service";
 import { revalidatePatientTreatmentProgramUi } from "@/app-layer/cache/revalidatePatientTreatmentProgramUi";
+import { SECOND_ACTIVE_TREATMENT_PROGRAM_MESSAGE } from "@/modules/treatment-program/instance-service";
 
 const postBodySchema = z.object({
   templateId: z.string().uuid(),
@@ -71,6 +72,7 @@ export async function POST(
     return NextResponse.json({ ok: true, item });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "error";
-    return NextResponse.json({ ok: false, error: msg }, { status: 400 });
+    const status = msg === SECOND_ACTIVE_TREATMENT_PROGRAM_MESSAGE ? 409 : 400;
+    return NextResponse.json({ ok: false, error: msg }, { status });
   }
 }

@@ -20,6 +20,10 @@ import {
 } from "./types";
 import { isStageZero } from "./stage-semantics";
 
+/** Второй экземпляр со `status: active` для того же пациента запрещён (POST назначения). */
+export const SECOND_ACTIVE_TREATMENT_PROGRAM_MESSAGE =
+  "У пациента уже есть активная программа. Завершите текущую программу или дождитесь её завершения перед назначением новой.";
+
 export function createTreatmentProgramInstanceService(deps: {
   instances: TreatmentProgramInstancePort;
   templates: TreatmentProgramService;
@@ -57,6 +61,11 @@ export function createTreatmentProgramInstanceService(deps: {
       assertUuid(input.templateId);
       assertUuid(input.patientUserId);
       if (input.assignedBy) assertUuid(input.assignedBy);
+
+      const existing = await instances.listInstancesForPatient(input.patientUserId.trim());
+      if (existing.some((i) => i.status === "active")) {
+        throw new Error(SECOND_ACTIVE_TREATMENT_PROGRAM_MESSAGE);
+      }
 
       const tpl = await templates.getTemplate(input.templateId);
       if (tpl.status !== "published") {

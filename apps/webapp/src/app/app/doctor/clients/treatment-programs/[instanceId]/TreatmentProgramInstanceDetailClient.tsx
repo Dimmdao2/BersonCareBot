@@ -461,6 +461,12 @@ function InstanceStageGroupsPanel(props: {
   const { instanceId, stage, onSaved } = props;
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
+  const [groupEdit, setGroupEdit] = useState<{
+    id: string;
+    title: string;
+    description: string;
+    scheduleText: string;
+  } | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const sortedGroups = sortByOrderThenId(stage.groups);
@@ -543,6 +549,40 @@ function InstanceStageGroupsPanel(props: {
     }
   };
 
+  const saveGroupEdit = async () => {
+    if (!groupEdit) return;
+    const t = groupEdit.title.trim();
+    if (!t) {
+      setMsg("Название группы не может быть пустым");
+      return;
+    }
+    setBusy(true);
+    setMsg(null);
+    try {
+      const res = await fetch(
+        `/api/doctor/treatment-program-instances/${encodeURIComponent(instanceId)}/stage-groups/${encodeURIComponent(groupEdit.id)}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: t,
+            description: groupEdit.description.trim() || null,
+            scheduleText: groupEdit.scheduleText.trim() || null,
+          }),
+        },
+      );
+      const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
+      if (!res.ok || !data.ok) {
+        setMsg(data.error ?? "Ошибка");
+        return;
+      }
+      setGroupEdit(null);
+      await onSaved();
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <div className="mb-4 rounded-lg border border-border/70 bg-muted/10 p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -585,6 +625,22 @@ function InstanceStageGroupsPanel(props: {
                   <span className="ml-2 text-xs text-muted-foreground">{g.scheduleText.trim()}</span>
                 ) : null}
               </div>
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                disabled={busy}
+                onClick={() =>
+                  setGroupEdit({
+                    id: g.id,
+                    title: g.title,
+                    description: g.description ?? "",
+                    scheduleText: g.scheduleText ?? "",
+                  })
+                }
+              >
+                Изменить
+              </Button>
               <Button type="button" size="sm" variant="ghost" className="text-destructive" disabled={busy} onClick={() => void removeGroup(g.id)}>
                 Удалить
               </Button>
@@ -610,6 +666,69 @@ function InstanceStageGroupsPanel(props: {
             </Button>
             <Button type="button" disabled={busy || !title.trim()} onClick={() => void addGroup()}>
               Добавить
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={groupEdit !== null}
+        onOpenChange={(v) => {
+          if (!v) setGroupEdit(null);
+        }}
+      >
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Группа этапа</DialogTitle>
+          </DialogHeader>
+          {groupEdit ? (
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor={`eg-title-${groupEdit.id}`}>Название</Label>
+                <Input
+                  id={`eg-title-${groupEdit.id}`}
+                  value={groupEdit.title}
+                  onChange={(e) => setGroupEdit((prev) => (prev ? { ...prev, title: e.target.value } : prev))}
+                  maxLength={2000}
+                  disabled={busy}
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor={`eg-desc-${groupEdit.id}`}>Описание</Label>
+                <Textarea
+                  id={`eg-desc-${groupEdit.id}`}
+                  rows={3}
+                  className="text-sm"
+                  value={groupEdit.description}
+                  onChange={(e) => setGroupEdit((prev) => (prev ? { ...prev, description: e.target.value } : prev))}
+                  maxLength={10000}
+                  disabled={busy}
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor={`eg-sch-${groupEdit.id}`}>Расписание (текст)</Label>
+                <Textarea
+                  id={`eg-sch-${groupEdit.id}`}
+                  rows={2}
+                  className="text-sm"
+                  value={groupEdit.scheduleText}
+                  onChange={(e) => setGroupEdit((prev) => (prev ? { ...prev, scheduleText: e.target.value } : prev))}
+                  maxLength={5000}
+                  disabled={busy}
+                />
+              </div>
+            </div>
+          ) : null}
+          <DialogFooter>
+            <Button type="button" variant="outline" disabled={busy} onClick={() => setGroupEdit(null)}>
+              Отмена
+            </Button>
+            <Button
+              type="button"
+              disabled={busy || !groupEdit?.title.trim()}
+              onClick={() => void saveGroupEdit()}
+            >
+              Сохранить
             </Button>
           </DialogFooter>
         </DialogContent>

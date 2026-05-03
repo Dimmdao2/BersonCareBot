@@ -26,6 +26,7 @@ import {
   isPersistentRecommendation,
   isStageZero,
   patientStageItemShowsNewBadge,
+  patientStageSectionShouldRender,
 } from "@/modules/treatment-program/stage-semantics";
 import { testIdsFromTestSetSnapshot } from "@/modules/treatment-program/progress-service";
 import { buildPatientProgramChecklistRows, type PatientProgramChecklistRow } from "@/modules/treatment-program/patient-program-actions";
@@ -488,8 +489,20 @@ export function PatientTreatmentProgramDetailClient(props: {
     }).catch(() => {});
   }, [detail.id, detail.status]);
 
-  const stageZeroStages = useMemo(() => detail.stages.filter((s) => isStageZero(s)), [detail.stages]);
-  const otherStages = useMemo(() => detail.stages.filter((s) => !isStageZero(s)), [detail.stages]);
+  const stageZeroStages = useMemo(
+    () =>
+      detail.stages
+        .filter((s) => isStageZero(s))
+        .filter((s) => patientStageSectionShouldRender(s, true)),
+    [detail.stages],
+  );
+  const otherStages = useMemo(
+    () =>
+      detail.stages
+        .filter((s) => !isStageZero(s))
+        .filter((s) => patientStageSectionShouldRender(s, false)),
+    [detail.stages],
+  );
 
   return (
     <div className="flex flex-col gap-6">
@@ -510,7 +523,8 @@ export function PatientTreatmentProgramDetailClient(props: {
         <section className={patientSectionSurfaceClass} aria-label="Чек-лист на сегодня">
           <h3 className={patientSectionTitleClass}>Чек-лист на сегодня</h3>
           <p className={cn(patientMutedTextClass, "mb-3 text-xs")}>
-            Отметьте выполненное за сегодня (UTC). ЛФК — краткая оценка занятия (O2: уровень комплекса).
+            Отметьте выполненное за сегодня — по вашим локальным суткам (настройка пояса в профиле). ЛФК — краткая оценка занятия (O2:
+            уровень комплекса).
           </p>
           <ul className="m-0 list-none space-y-4 p-0">
             {checklistRows.map((row) => (

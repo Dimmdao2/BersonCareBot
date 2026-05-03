@@ -3,6 +3,7 @@ import {
   isInstanceStageItemActiveForPatient,
   omitDisabledInstanceStageItemsForPatientApi,
   patientStageItemShowsNewBadge,
+  patientStageSectionShouldRender,
 } from "./stage-semantics";
 import type { TreatmentProgramInstanceDetail } from "./types";
 
@@ -107,6 +108,91 @@ describe("stage-semantics (A2 patient read model)", () => {
     const out = omitDisabledInstanceStageItemsForPatientApi(detail);
     expect(out.stages[0]!.items).toHaveLength(0);
     expect(out.stages[0]!.groups).toHaveLength(0);
+  });
+});
+
+describe("patientStageSectionShouldRender", () => {
+  it("renders when there is at least one visible item", () => {
+    expect(
+      patientStageSectionShouldRender(
+        {
+          status: "available",
+          items: [
+            { itemType: "lesson", isActionable: null, status: "active" },
+            { itemType: "lesson", isActionable: null, status: "disabled" },
+          ],
+          goals: null,
+          objectives: null,
+          expectedDurationDays: null,
+          expectedDurationText: null,
+        },
+        false,
+      ),
+    ).toBe(true);
+  });
+
+  it("does not render when no visible items and stage not blocked", () => {
+    expect(
+      patientStageSectionShouldRender(
+        {
+          status: "available",
+          items: [{ itemType: "lesson", isActionable: null, status: "disabled" }],
+          goals: null,
+          objectives: null,
+          expectedDurationDays: null,
+          expectedDurationText: null,
+        },
+        false,
+      ),
+    ).toBe(false);
+  });
+
+  it("renders when content blocked (locked) and no visible items — «этап откроется»", () => {
+    expect(
+      patientStageSectionShouldRender(
+        {
+          status: "locked",
+          items: [{ itemType: "lesson", isActionable: null, status: "disabled" }],
+          goals: null,
+          objectives: null,
+          expectedDurationDays: null,
+          expectedDurationText: null,
+        },
+        false,
+      ),
+    ).toBe(true);
+  });
+
+  it("does not render empty locked stage when ignoreStageLockForContent (этап 0)", () => {
+    expect(
+      patientStageSectionShouldRender(
+        {
+          status: "locked",
+          items: [{ itemType: "lesson", isActionable: null, status: "disabled" }],
+          goals: null,
+          objectives: null,
+          expectedDurationDays: null,
+          expectedDurationText: null,
+        },
+        true,
+      ),
+    ).toBe(false);
+  });
+
+  it("renders when A1 header fields set but no items", () => {
+    expect(
+      patientStageSectionShouldRender(
+        {
+          status: "available",
+          items: [],
+          goals: "Цель",
+          objectives: null,
+          expectedDurationDays: null,
+          expectedDurationText: null,
+        },
+        false,
+      ),
+    ).toBe(true);
   });
 });
 

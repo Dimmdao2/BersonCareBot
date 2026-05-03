@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   buildPatientProgramChecklistRows,
   createTreatmentProgramPatientActionService,
+  localDayWindowIso,
 } from "./patient-program-actions";
 import type { TreatmentProgramInstanceDetail } from "./types";
 import { createInMemoryTreatmentProgramPort } from "@/app-layer/testing/treatmentProgramInMemory";
@@ -117,7 +118,7 @@ describe("patient-program-actions", () => {
     expect(ids).not.toContain("55555555-5555-4555-8555-555555555555");
   });
 
-  it("toggle checklist inserts done once per UTC day", async () => {
+  it("toggle checklist inserts done once per local calendar day", async () => {
     const tplPort = createInMemoryTreatmentProgramPort();
     const instPort = createInMemoryTreatmentProgramInstancePort();
     const itemRefs: TreatmentProgramItemRefValidationPort = { assertItemRefExists: vi.fn(async () => {}) };
@@ -133,6 +134,8 @@ describe("patient-program-actions", () => {
       instances: instPort,
       actionLog,
       now: () => new Date("2026-05-03T12:00:00.000Z"),
+      getAppDefaultTimezoneIana: async () => "UTC",
+      getPatientCalendarTimezoneIana: async () => null,
     });
 
     const tpl = await tplSvc.createTemplate({ title: "План", status: "published" }, null);
@@ -184,6 +187,8 @@ describe("patient-program-actions", () => {
       instances: instPort,
       actionLog,
       now: () => new Date("2026-05-03T12:00:00.000Z"),
+      getAppDefaultTimezoneIana: async () => "UTC",
+      getPatientCalendarTimezoneIana: async () => null,
     });
 
     const tpl = await tplSvc.createTemplate({ title: "План", status: "published" }, null);
@@ -211,6 +216,58 @@ describe("patient-program-actions", () => {
         actionType: "done",
         note: "Устал",
         payload: expect.objectContaining({ difficulty: "hard", source: "lfk_session" }),
+      }),
+    );
+  });
+
+  it("localDayWindowIso uses Europe/Helsinki local midnight boundaries", () => {
+    const now = new Date("2026-05-03T21:30:00.000Z");
+    const win = localDayWindowIso(now, "Europe/Helsinki");
+    expect(win.start).toBe("2026-05-03T21:00:00.000Z");
+    expect(win.end).toBe("2026-05-04T21:00:00.000Z");
+  });
+
+  it("checklist uses patient timezone when provided", async () => {
+    const tplPort = createInMemoryTreatmentProgramPort();
+    const instPort = createInMemoryTreatmentProgramInstancePort();
+    const itemRefs: TreatmentProgramItemRefValidationPort = { assertItemRefExists: vi.fn(async () => {}) };
+    const tplSvc = createTreatmentProgramService(tplPort, itemRefs);
+    const instSvc = createTreatmentProgramInstanceService({
+      instances: instPort,
+      templates: tplSvc,
+      snapshots: createInMemoryTreatmentProgramItemSnapshotPort(),
+      itemRefs,
+    });
+    const actionLog = createInMemoryProgramActionLogPort();
+    const actions = createTreatmentProgramPatientActionService({
+      instances: instPort,
+      actionLog,
+      now: () => new Date("2026-05-03T21:30:00.000Z"),
+      getAppDefaultTimezoneIana: async () => "UTC",
+      getPatientCalendarTimezoneIana: async () => "Europe/Helsinki",
+    });
+
+    const tpl = await tplSvc.createTemplate({ title: "План", status: "published" }, null);
+    const s1 = await tplSvc.createStage(tpl.id, { title: "Этап 1", sortOrder: 1 });
+    await tplSvc.addStageItem(s1.id, { itemType: "lesson", itemRefId: refA, comment: null });
+    const inst = await instSvc.assignTemplateToPatient({
+      templateId: tpl.id,
+      patientUserId: patient,
+      assignedBy: null,
+    });
+    const itemId = inst.stages[0]!.items[0]!.id;
+    await actions.patientToggleChecklistItem({
+      patientUserId: patient,
+      instanceId: inst.id,
+      stageItemId: itemId,
+      checked: true,
+    });
+    const listSpy = vi.spyOn(actionLog, "listDoneItemIdsInWindow");
+    await actions.listChecklistDoneToday(patient, inst.id);
+    expect(listSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        windowStartIso: "2026-05-03T21:00:00.000Z",
+        windowEndIso: "2026-05-04T21:00:00.000Z",
       }),
     );
   });
