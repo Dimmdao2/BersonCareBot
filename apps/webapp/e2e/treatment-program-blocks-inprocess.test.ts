@@ -37,7 +37,8 @@ describe("treatment program block library (phase 2) doctor e2e (in-process)", ()
   it("clinical test → archive → hidden from list (in-memory)", async () => {
     const { createClinicalTestsService } = await import("@/modules/tests/service");
     const { inMemoryClinicalTestsPort } = await import("@/app-layer/testing/clinicalLibraryInMemory");
-    const svc = createClinicalTestsService(inMemoryClinicalTestsPort);
+    const { inMemoryReferencesPort } = await import("@/infra/repos/inMemoryReferences");
+    const svc = createClinicalTestsService(inMemoryClinicalTestsPort, inMemoryReferencesPort);
     const t = await svc.createClinicalTest({ title: "TP Block" }, "doc-1");
     const listed = await svc.listClinicalTests({});
     expect(listed.some((x) => x.id === t.id)).toBe(true);

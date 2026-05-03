@@ -3,7 +3,10 @@ import { z } from "zod";
 import { getCurrentSession } from "@/modules/auth/service";
 import { canAccessDoctor } from "@/modules/roles/service";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { isClinicalAssessmentKind } from "@/modules/tests/clinicalTestAssessmentKind";
+import {
+  CLINICAL_ASSESSMENT_KIND_CATEGORY_CODE,
+  assessmentKindWriteAllowSet,
+} from "@/modules/tests/clinicalTestAssessmentKind";
 
 const mediaItemSchema = z.object({
   mediaUrl: z.string().min(1),
@@ -26,7 +29,7 @@ const listQuerySchema = z.object({
   includeArchived: z.coerce.boolean().optional(),
   /** UUID `reference_items.id` (категория регионов тела), как на странице каталога `?region=`. */
   region: z.string().optional(),
-  /** Код вида оценки (enum v1), как `?assessment=` на странице каталога. */
+  /** Код вида оценки (`reference_items.code`, категория `clinical_assessment_kind`), как `?assessment=` на странице каталога. */
   assessment: z.string().optional(),
 });
 
@@ -49,7 +52,11 @@ export async function GET(request: Request) {
     return NextResponse.json({ ok: false, error: "invalid_query", field: "region" }, { status: 400 });
   }
   const assessmentTrim = parsed.data.assessment?.trim() ?? "";
-  if (assessmentTrim && !isClinicalAssessmentKind(assessmentTrim)) {
+  const assessmentRefItems = await deps.references.listActiveItemsByCategoryCode(
+    CLINICAL_ASSESSMENT_KIND_CATEGORY_CODE,
+  );
+  const assessmentAllow = assessmentKindWriteAllowSet(assessmentRefItems);
+  if (assessmentTrim && !assessmentAllow.has(assessmentTrim)) {
     return NextResponse.json({ ok: false, error: "invalid_query", field: "assessment" }, { status: 400 });
   }
 

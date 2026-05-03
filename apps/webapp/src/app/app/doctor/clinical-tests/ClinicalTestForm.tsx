@@ -28,7 +28,7 @@ import {
   type ClinicalTestSchemaType,
   type ClinicalTestScoring,
 } from "@/modules/tests/clinicalTestScoring";
-import { CLINICAL_ASSESSMENT_KIND_OPTIONS } from "@/modules/tests/clinicalTestAssessmentKind";
+import { buildClinicalAssessmentKindSelectOptions } from "@/modules/tests/clinicalTestAssessmentKind";
 import { cn } from "@/lib/utils";
 import { MediaLibraryPickerDialog } from "@/app/app/doctor/content/MediaLibraryPickerDialog";
 import { ReferenceSelect } from "@/shared/ui/ReferenceSelect";
@@ -234,6 +234,11 @@ type ClinicalTestFormProps = {
     assessmentKind?: string | null;
     listStatus?: RecommendationListFilterScope;
   };
+  /**
+   * Опции «Вид оценки» из справочника БД (+ read-tolerant legacy).
+   * Если не передано — строится из сида v1 и текущего `test.assessmentKind`.
+   */
+  assessmentKindSelectOptions?: Array<{ code: string; title: string }>;
   saveAction?: (
     _prev: SaveClinicalTestState | null,
     formData: FormData,
@@ -258,6 +263,7 @@ export function ClinicalTestForm({
   backHref = CLINICAL_TESTS_PATH,
   workspaceView,
   workspaceListPreserve,
+  assessmentKindSelectOptions: assessmentKindSelectOptionsProp,
   saveAction = saveClinicalTest,
   archiveAction = archiveClinicalTest,
   unarchiveAction = unarchiveClinicalTest,
@@ -347,6 +353,13 @@ export function ClinicalTestForm({
     if (!usage || !clinicalTestUsageHasAnyReference(usage)) return [];
     return clinicalTestUsageSections(usage);
   }, [usage]);
+
+  const assessmentKindSelectOptions = useMemo(
+    () =>
+      assessmentKindSelectOptionsProp ??
+      buildClinicalAssessmentKindSelectOptions([], test?.assessmentKind ?? null),
+    [assessmentKindSelectOptionsProp, test?.assessmentKind],
+  );
 
   const warnSections = useMemo(() => {
     if (
@@ -476,9 +489,9 @@ export function ClinicalTestForm({
                 onChange={(e) => setValues((v) => ({ ...v, assessmentKind: e.target.value }))}
               >
                 <option value="">Не выбран</option>
-                {CLINICAL_ASSESSMENT_KIND_OPTIONS.map((o) => (
-                  <option key={o.value} value={o.value}>
-                    {o.label}
+                {assessmentKindSelectOptions.map((o) => (
+                  <option key={o.code} value={o.code}>
+                    {o.title}
                   </option>
                 ))}
               </select>

@@ -8,6 +8,7 @@ import {
   TestSetUnarchiveNotArchivedError,
   TestSetUsageConfirmationRequiredError,
 } from "./errors";
+import type { ReferencesPort } from "@/modules/references/ports";
 import type { ClinicalTestsPort, TestSetsPort } from "./ports";
 import type {
   ArchiveClinicalTestOptions,
@@ -21,14 +22,24 @@ import type {
   TestSetItemInput,
 } from "./types";
 import { clinicalTestArchiveRequiresAcknowledgement, testSetArchiveRequiresAcknowledgement } from "./types";
-import { isClinicalAssessmentKind } from "./clinicalTestAssessmentKind";
+import {
+  CLINICAL_ASSESSMENT_KIND_CATEGORY_CODE,
+  assessmentKindWriteAllowSet,
+} from "./clinicalTestAssessmentKind";
 import { clinicalTestScoringSchema, normalizeClinicalTestScoringOrder } from "./clinicalTestScoring";
 
-function assertClinicalTestWritePayload(input: CreateClinicalTestInput | UpdateClinicalTestInput): void {
+async function assertClinicalTestWritePayload(
+  references: ReferencesPort,
+  input: CreateClinicalTestInput | UpdateClinicalTestInput,
+): Promise<void> {
   if (input.assessmentKind !== undefined && input.assessmentKind !== null) {
     const t = input.assessmentKind.trim();
-    if (t && !isClinicalAssessmentKind(t)) {
-      throw new Error("Некорректный вид оценки");
+    if (t) {
+      const refItems = await references.listActiveItemsByCategoryCode(CLINICAL_ASSESSMENT_KIND_CATEGORY_CODE);
+      const allow = assessmentKindWriteAllowSet(refItems);
+      if (!allow.has(t)) {
+        throw new Error("Некорректный вид оценки");
+      }
     }
   }
   if (input.scoring !== undefined && input.scoring !== null) {
@@ -37,8 +48,11 @@ function assertClinicalTestWritePayload(input: CreateClinicalTestInput | UpdateC
   }
 }
 
-function normalizeClinicalWritePayload<T extends CreateClinicalTestInput | UpdateClinicalTestInput>(input: T): T {
-  assertClinicalTestWritePayload(input);
+async function normalizeClinicalWritePayload<T extends CreateClinicalTestInput | UpdateClinicalTestInput>(
+  references: ReferencesPort,
+  input: T,
+): Promise<T> {
+  await assertClinicalTestWritePayload(references, input);
   const next = { ...input };
   if (next.scoring != null) {
     const p = clinicalTestScoringSchema.parse(next.scoring);
@@ -47,7 +61,7 @@ function normalizeClinicalWritePayload<T extends CreateClinicalTestInput | Updat
   return next;
 }
 
-export function createClinicalTestsService(port: ClinicalTestsPort) {
+export function createClinicalTestsService(port: ClinicalTestsPort, references: ReferencesPort) {
   return {
     async listClinicalTests(filter: ClinicalTestFilter = {}) {
       return port.list(filter);
@@ -60,7 +74,7 @@ export function createClinicalTestsService(port: ClinicalTestsPort) {
     async createClinicalTest(input: CreateClinicalTestInput, createdBy: string | null) {
       const title = input.title?.trim() ?? "";
       if (!title) throw new Error("Название теста обязательно");
-      const normalized = normalizeClinicalWritePayload({
+      const normalized = await normalizeClinicalWritePayload(references, {
         ...input,
         title,
         description: input.description?.trim() || null,
@@ -95,7 +109,7 @@ export function createClinicalTestsService(port: ClinicalTestsPort) {
       if (input.rawText !== undefined) {
         patch.rawText = input.rawText?.trim() ? input.rawText.trim() : null;
       }
-      const normalized = normalizeClinicalWritePayload(patch);
+      const normalized = await normalizeClinicalWritePayload(references, patch);
       const row = await port.update(id, normalized);
       if (!row) throw new Error("Тест не найден");
       return row;

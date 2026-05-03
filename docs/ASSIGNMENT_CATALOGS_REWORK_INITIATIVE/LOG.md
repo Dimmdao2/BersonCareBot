@@ -6,6 +6,25 @@
 
 ---
 
+## 2026-05-03 — Stage D2 — `assessmentKind` как системный справочник БД (Q1)
+
+**Сделано:**
+
+- **Миграция `0038_clinical_assessment_kind_reference`:** категория `clinical_assessment_kind` + сид 8 кодов v1 в `reference_items` (`ON CONFLICT DO NOTHING`).
+- **In-memory:** та же категория и строки в `inMemoryReferencesPort` для Vitest/dev.
+- **Домен:** `clinicalTestAssessmentKind.ts` — `assessmentKindWriteAllowSet`, DTO для фильтра, `buildClinicalAssessmentKindSelectOptions` (read tolerant для legacy-кода), `assessmentKindDisplayTitle`.
+- **`createClinicalTestsService(port, references)`:** асинхронная валидация `assessmentKind` при create/update по справочнику; `buildAppDeps` передаёт `referencesPort`.
+- **UI:** страница каталога, split-form, `new`/`[id]` — опции из БД; фильтр `?assessment=` и API `GET` — строгая проверка по allowlist.
+- **actionsShared:** дублирующая проверка enum убрана (источник правды — сервис).
+- **Документация:** `apps/webapp/src/app/api/api.md`.
+- **Тесты:** `clinicalTestAssessmentKind.test.ts`, доп. кейсы в `service.test.ts`.
+
+**Проверки (целевые):** `pnpm exec eslint …`, `pnpm exec vitest --run` (указанные файлы), `pnpm exec tsc --noEmit` в `apps/webapp` — см. выполнение в сессии.
+
+**Вне scope:** полный корневой `pnpm run ci`; UI управления справочником в админке (reuse общего контура references при необходимости позже).
+
+---
+
 ## 2026-05-03 — Stage D1 — FIX (`AUDIT_STAGE_D1`)
 
 **Контекст:** артефакт [`AUDIT_STAGE_D1.md`](AUDIT_STAGE_D1.md) отсутствовал в дереве до FIX; независимая сверка с [`STAGE_D1_PLAN.md`](STAGE_D1_PLAN.md) показала незакрытый объём D1 в коде.

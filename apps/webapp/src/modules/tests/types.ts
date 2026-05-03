@@ -17,7 +17,7 @@ export type ClinicalTest = {
   scoring: ClinicalTestScoring | null;
   /** Fallback / legacy перенос / свободный текст. */
   rawText: string | null;
-  /** Код из {@link import("./clinicalTestAssessmentKind")} или null. */
+  /** Код из справочника `clinical_assessment_kind` (`reference_items.code`) или произвольный legacy-код на чтении. */
   assessmentKind: string | null;
   /** FK `reference_items.id` (категория регионов тела). */
   bodyRegionId: string | null;
@@ -37,7 +37,7 @@ export type ClinicalTestFilter = {
   testType?: string | null;
   /** Фильтр по региону тела (`tests.body_region_id`). */
   regionRefId?: string | null;
-  /** Фильтр по виду оценки (`tests.assessment_kind`), код enum v1. */
+  /** Фильтр по виду оценки (`tests.assessment_kind`), код из справочника `clinical_assessment_kind`. */
   assessmentKind?: string | null;
 };
 
@@ -45,7 +45,7 @@ export type CreateClinicalTestInput = {
   title: string;
   description?: string | null;
   testType?: string | null;
-  /** Код из enum вида оценки (v1) или null. */
+  /** Код из справочника `clinical_assessment_kind` или null. */
   assessmentKind?: string | null;
   bodyRegionId?: string | null;
   scoring?: ClinicalTestScoring | null;

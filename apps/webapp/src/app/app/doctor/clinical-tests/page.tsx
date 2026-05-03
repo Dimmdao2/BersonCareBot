@@ -6,7 +6,11 @@ import {
   clinicalTestListArchiveScopeFromRecommendationFilter,
   parseRecommendationListFilterScope,
 } from "@/shared/lib/doctorCatalogListStatus";
-import { isClinicalAssessmentKind } from "@/modules/tests/clinicalTestAssessmentKind";
+import {
+  CLINICAL_ASSESSMENT_KIND_CATEGORY_CODE,
+  assessmentKindWriteAllowSet,
+  referenceItemsToAssessmentKindFilterDto,
+} from "@/modules/tests/clinicalTestAssessmentKind";
 import { ClinicalTestsPageClient, type ClinicalTestTitleSort } from "./ClinicalTestsPageClient";
 
 type PageProps = {
@@ -28,7 +32,11 @@ export default async function DoctorClinicalTestsPage({ searchParams }: PageProp
   const q = typeof sp.q === "string" ? sp.q : "";
   const regionRefId = typeof sp.region === "string" && sp.region.trim() ? sp.region.trim() : undefined;
   const assessmentRaw = typeof sp.assessment === "string" ? sp.assessment.trim() : "";
-  const assessmentKind = isClinicalAssessmentKind(assessmentRaw) ? assessmentRaw : undefined;
+  const assessmentRefItems = await deps.references.listActiveItemsByCategoryCode(
+    CLINICAL_ASSESSMENT_KIND_CATEGORY_CODE,
+  );
+  const assessmentAllow = assessmentKindWriteAllowSet(assessmentRefItems);
+  const assessmentKind = assessmentRaw && assessmentAllow.has(assessmentRaw) ? assessmentRaw : undefined;
   const titleSort: ClinicalTestTitleSort | null =
     sp.titleSort === "asc" || sp.titleSort === "desc" ? sp.titleSort : null;
 
@@ -51,6 +59,8 @@ export default async function DoctorClinicalTestsPage({ searchParams }: PageProp
     typeof sp.view === "string" ? sp.view : undefined,
   );
 
+  const assessmentKindFilterItems = referenceItemsToAssessmentKindFilterDto(assessmentRefItems);
+
   return (
     <AppShell title="Клинические тесты" user={session.user} variant="doctor" backHref="/app/doctor">
       <ClinicalTestsPageClient
@@ -60,6 +70,8 @@ export default async function DoctorClinicalTestsPage({ searchParams }: PageProp
         initialViewMode={initialViewMode}
         viewLockedByUrl={viewLockedByUrl}
         initialTitleSort={titleSort}
+        assessmentKindFilterItems={assessmentKindFilterItems}
+        assessmentKindCatalogItems={assessmentRefItems}
         filters={{ q, regionRefId, assessmentKind, invalidAssessmentQuery: assessmentRaw !== "" && !assessmentKind, listStatus }}
       />
     </AppShell>

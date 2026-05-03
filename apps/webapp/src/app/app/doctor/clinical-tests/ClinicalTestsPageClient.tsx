@@ -4,7 +4,8 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import type { ClinicalTest, ClinicalTestUsageSnapshot } from "@/modules/tests/types";
 import type { ReferenceItemDto } from "@/modules/references/referenceCache";
-import { CLINICAL_ASSESSMENT_KIND_OPTIONS } from "@/modules/tests/clinicalTestAssessmentKind";
+import type { ReferenceItem } from "@/modules/references/types";
+import { buildClinicalAssessmentKindSelectOptions } from "@/modules/tests/clinicalTestAssessmentKind";
 import { cn } from "@/lib/utils";
 import { useViewportMinWidth } from "@/shared/hooks/useViewportMinWidth";
 import {
@@ -39,13 +40,6 @@ const LIST_ROW_VISIBILITY_STYLE = {
   containIntrinsicSize: "52px",
 } as const;
 
-const ASSESSMENT_KIND_FILTER_ITEMS: ReferenceItemDto[] = CLINICAL_ASSESSMENT_KIND_OPTIONS.map((o, idx) => ({
-  id: `ak-${o.value}`,
-  code: o.value,
-  title: o.label,
-  sortOrder: idx + 1,
-}));
-
 type Props = {
   initialItems: ClinicalTest[];
   initialSelectedId: string | null;
@@ -58,10 +52,12 @@ type Props = {
     q: string;
     regionRefId?: string;
     assessmentKind?: string;
-    /** Ненулевой `?assessment=` в URL не совпал с enum — фильтр не применён. */
+    /** Ненулевой `?assessment=` в URL не совпал со справочником — фильтр не применён. */
     invalidAssessmentQuery?: boolean;
     listStatus: RecommendationListFilterScope;
   };
+  assessmentKindFilterItems: ReferenceItemDto[];
+  assessmentKindCatalogItems: ReferenceItem[];
 };
 
 /** Как у упражнений: минимум 3 колонки на desktop. */
@@ -152,6 +148,8 @@ function ClinicalTestsContent({
   toggleViewMode,
   changeTitleSort,
   filters,
+  assessmentKindFilterItems,
+  assessmentKindCatalogItems,
 }: {
   initialItems: ClinicalTest[];
   initialSelectedId: string | null;
@@ -167,6 +165,8 @@ function ClinicalTestsContent({
   toggleViewMode: () => void;
   changeTitleSort: (next: ClinicalTestTitleSort | null) => void;
   filters: Props["filters"];
+  assessmentKindFilterItems: ReferenceItemDto[];
+  assessmentKindCatalogItems: ReferenceItem[];
 }) {
   useEffect(() => {
     if (!initialSelectedId) return;
@@ -205,6 +205,11 @@ function ClinicalTestsContent({
   const activeTileColumns = isDesktopViewport ? tileColsDesktop : tileColsMobile;
 
   const formTest = mobileSheet != null ? mobileSheet.test : testForDesktop;
+
+  const assessmentKindSelectOptions = useMemo(
+    () => buildClinicalAssessmentKindSelectOptions(assessmentKindCatalogItems, formTest?.assessmentKind ?? null),
+    [assessmentKindCatalogItems, formTest?.assessmentKind],
+  );
 
   const usageForSelection = useMemo(() => {
     const current = mobileSheet?.test ?? testForDesktop;
@@ -285,6 +290,7 @@ function ClinicalTestsContent({
         archiveAction={archiveClinicalTestInline}
         unarchiveAction={unarchiveClinicalTestInline}
         workspaceView={viewMode}
+        assessmentKindSelectOptions={assessmentKindSelectOptions}
         workspaceListPreserve={{
           q: filters.q,
           titleSort,
@@ -308,7 +314,7 @@ function ClinicalTestsContent({
                 q={filters.q}
                 regionRefId={filters.regionRefId}
                 tertiaryFilter={{
-                  items: ASSESSMENT_KIND_FILTER_ITEMS,
+                  items: assessmentKindFilterItems,
                   paramName: "assessment",
                   value: filters.assessmentKind ?? null,
                   label: "Вид оценки",
@@ -410,6 +416,8 @@ export function ClinicalTestsPageClient({
   initialViewMode,
   viewLockedByUrl,
   initialTitleSort,
+  assessmentKindFilterItems,
+  assessmentKindCatalogItems,
   filters,
 }: Props) {
   const [viewMode, setViewMode] = useState<ClinicalTestsViewMode>(initialViewMode);
@@ -467,6 +475,8 @@ export function ClinicalTestsPageClient({
       toggleViewMode={toggleViewMode}
       changeTitleSort={changeTitleSort}
       filters={filters}
+      assessmentKindFilterItems={assessmentKindFilterItems}
+      assessmentKindCatalogItems={assessmentKindCatalogItems}
     />
   );
 }

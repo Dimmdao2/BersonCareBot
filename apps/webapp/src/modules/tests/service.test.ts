@@ -12,6 +12,7 @@ import {
   inMemoryTestSetsPort,
   resetInMemoryTestSetsStore,
 } from "@/app-layer/testing/clinicalLibraryInMemory";
+import { inMemoryReferencesPort } from "@/infra/repos/inMemoryReferences";
 import { EMPTY_CLINICAL_TEST_USAGE_SNAPSHOT, EMPTY_TEST_SET_USAGE_SNAPSHOT } from "./types";
 
 describe("clinical tests / test sets service", () => {
@@ -21,8 +22,21 @@ describe("clinical tests / test sets service", () => {
   });
 
   it("createClinicalTest rejects empty title", async () => {
-    const svc = createClinicalTestsService(inMemoryClinicalTestsPort);
+    const svc = createClinicalTestsService(inMemoryClinicalTestsPort, inMemoryReferencesPort);
     await expect(svc.createClinicalTest({ title: "  " }, null)).rejects.toThrow(/обязательно/);
+  });
+
+  it("createClinicalTest rejects unknown assessmentKind", async () => {
+    const svc = createClinicalTestsService(inMemoryClinicalTestsPort, inMemoryReferencesPort);
+    await expect(
+      svc.createClinicalTest({ title: "X", assessmentKind: "not_in_catalog" }, null),
+    ).rejects.toThrow(/вид оценки/);
+  });
+
+  it("createClinicalTest accepts assessmentKind from reference catalog", async () => {
+    const svc = createClinicalTestsService(inMemoryClinicalTestsPort, inMemoryReferencesPort);
+    const t = await svc.createClinicalTest({ title: "Mob", assessmentKind: "mobility" }, null);
+    expect(t.assessmentKind).toBe("mobility");
   });
 
   it("listClinicalTests hides archived by default", async () => {
@@ -30,7 +44,7 @@ describe("clinical tests / test sets service", () => {
     const hidden = await inMemoryClinicalTestsPort.create({ title: "Gone" }, null);
     await inMemoryClinicalTestsPort.archive(hidden.id);
 
-    const svc = createClinicalTestsService(inMemoryClinicalTestsPort);
+    const svc = createClinicalTestsService(inMemoryClinicalTestsPort, inMemoryReferencesPort);
     const listed = await svc.listClinicalTests({});
     expect(listed.some((t) => t.id === hidden.id)).toBe(false);
     const withArchived = await svc.listClinicalTests({ archiveScope: "all" });
@@ -38,7 +52,7 @@ describe("clinical tests / test sets service", () => {
   });
 
   it("setTestSetItems rejects archived test ids", async () => {
-    const clinical = createClinicalTestsService(inMemoryClinicalTestsPort);
+    const clinical = createClinicalTestsService(inMemoryClinicalTestsPort, inMemoryReferencesPort);
     const archived = await clinical.createClinicalTest({ title: "Old" }, null);
     await clinical.archiveClinicalTest(archived.id);
 
@@ -89,7 +103,7 @@ describe("clinical tests / test sets service", () => {
 
   it("unarchiveClinicalTest clears isArchived", async () => {
     const t = await inMemoryClinicalTestsPort.create({ title: "U" }, null);
-    const svc = createClinicalTestsService(inMemoryClinicalTestsPort);
+    const svc = createClinicalTestsService(inMemoryClinicalTestsPort, inMemoryReferencesPort);
     await svc.archiveClinicalTest(t.id);
     await svc.unarchiveClinicalTest(t.id);
     expect((await svc.getClinicalTest(t.id))?.isArchived).toBe(false);
@@ -97,13 +111,13 @@ describe("clinical tests / test sets service", () => {
 
   it("unarchiveClinicalTest throws when not archived", async () => {
     const t = await inMemoryClinicalTestsPort.create({ title: "N" }, null);
-    const svc = createClinicalTestsService(inMemoryClinicalTestsPort);
+    const svc = createClinicalTestsService(inMemoryClinicalTestsPort, inMemoryReferencesPort);
     await expect(svc.unarchiveClinicalTest(t.id)).rejects.toMatchObject({ name: "ClinicalTestUnarchiveNotArchivedError" });
   });
 
   it("updateClinicalTest rejects when archived", async () => {
     const t = await inMemoryClinicalTestsPort.create({ title: "A" }, null);
-    const svc = createClinicalTestsService(inMemoryClinicalTestsPort);
+    const svc = createClinicalTestsService(inMemoryClinicalTestsPort, inMemoryReferencesPort);
     await svc.archiveClinicalTest(t.id);
     await expect(svc.updateClinicalTest(t.id, { title: "B" })).rejects.toThrow(/архиве/);
   });
@@ -123,7 +137,7 @@ describe("clinical tests / test sets service", () => {
   });
 
   it("setTestSetItems rejects when set is archived", async () => {
-    const clinical = createClinicalTestsService(inMemoryClinicalTestsPort);
+    const clinical = createClinicalTestsService(inMemoryClinicalTestsPort, inMemoryReferencesPort);
     const t = await clinical.createClinicalTest({ title: "T" }, null);
     const setsSvc = createTestSetsService(inMemoryTestSetsPort, inMemoryClinicalTestsPort);
     const set = await setsSvc.createTestSet({ title: "Arch" }, null);
@@ -138,7 +152,7 @@ describe("clinical tests / test sets service", () => {
       ...EMPTY_CLINICAL_TEST_USAGE_SNAPSHOT,
       publishedTreatmentProgramTemplateCount: 2,
     });
-    const svc = createClinicalTestsService(inMemoryClinicalTestsPort);
+    const svc = createClinicalTestsService(inMemoryClinicalTestsPort, inMemoryReferencesPort);
     const u = await svc.getClinicalTestUsage(t.id);
     expect(u.publishedTreatmentProgramTemplateCount).toBe(2);
   });
@@ -150,7 +164,7 @@ describe("clinical tests / test sets service", () => {
       nonArchivedTestSetsContainingCount: 1,
       nonArchivedTestSetRefs: [{ kind: "test_set", id: "set-1", title: "Набор" }],
     });
-    const svc = createClinicalTestsService(inMemoryClinicalTestsPort);
+    const svc = createClinicalTestsService(inMemoryClinicalTestsPort, inMemoryReferencesPort);
     await expect(svc.archiveClinicalTest(t.id)).rejects.toBeInstanceOf(ClinicalTestUsageConfirmationRequiredError);
     await svc.archiveClinicalTest(t.id, { acknowledgeUsageWarning: true });
     const row = await svc.getClinicalTest(t.id);
@@ -166,7 +180,7 @@ describe("clinical tests / test sets service", () => {
         { kind: "treatment_program_template", id: "tpl-1", title: "Old" },
       ],
     });
-    const svc = createClinicalTestsService(inMemoryClinicalTestsPort);
+    const svc = createClinicalTestsService(inMemoryClinicalTestsPort, inMemoryReferencesPort);
     await svc.archiveClinicalTest(t.id);
     expect((await svc.getClinicalTest(t.id))?.isArchived).toBe(true);
   });
@@ -180,7 +194,7 @@ describe("clinical tests / test sets service", () => {
       completedTreatmentProgramInstanceCount: 1,
       testResultsRecordedCount: 5,
     });
-    const svc = createClinicalTestsService(inMemoryClinicalTestsPort);
+    const svc = createClinicalTestsService(inMemoryClinicalTestsPort, inMemoryReferencesPort);
     await svc.archiveClinicalTest(t.id);
     expect((await svc.getClinicalTest(t.id))?.isArchived).toBe(true);
   });

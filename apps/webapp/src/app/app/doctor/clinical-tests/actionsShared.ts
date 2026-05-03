@@ -8,7 +8,6 @@ import {
   isClinicalTestUnarchiveNotArchivedError,
   isClinicalTestUsageConfirmationRequiredError,
 } from "@/modules/tests/errors";
-import { isClinicalAssessmentKind } from "@/modules/tests/clinicalTestAssessmentKind";
 import { clinicalTestScoringSchema, normalizeClinicalTestScoringOrder } from "@/modules/tests/clinicalTestScoring";
 import { API_MEDIA_URL_RE, isLegacyAbsoluteUrl } from "@/shared/lib/mediaUrlPolicy";
 
@@ -79,9 +78,6 @@ export async function saveClinicalTestCore(formData: FormData): Promise<
   const assessmentField = formData.get("assessmentKind");
   const assessmentTrim = typeof assessmentField === "string" ? assessmentField.trim() : "";
   const assessmentKind = assessmentTrim || null;
-  if (assessmentKind && !isClinicalAssessmentKind(assessmentKind)) {
-    return { ok: false, error: "Некорректный вид оценки" };
-  }
 
   let scoringConfigLegacy: unknown | null = null;
 
