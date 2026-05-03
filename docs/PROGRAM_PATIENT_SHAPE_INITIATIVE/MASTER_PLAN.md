@@ -74,7 +74,7 @@
 
 - Этапные планы: [`STAGE_A1_PLAN.md`](STAGE_A1_PLAN.md) ... [`STAGE_A5_PLAN.md`](STAGE_A5_PLAN.md)
 - Журнал: [`LOG.md`](LOG.md)
-- Финальный аудит: `PROGRAM_PATIENT_SHAPE_EXECUTION_AUDIT.md` (создать при закрытии A5)
+- Финальный аудит: [`AUDIT_GLOBAL.md`](AUDIT_GLOBAL.md) (после A1…A5; канон итогового review вместо отдельного `PROGRAM_PATIENT_SHAPE_EXECUTION_AUDIT.md`)
 
 ## 5. Общая политика проверок
 
@@ -160,4 +160,4 @@ Patient UI:
 - Реализация соответствует `PROGRAM_PATIENT_SHAPE_PLAN.md`.
 - Нет regressions по текущим patient/doctor сценариям назначения.
 - `pnpm install --frozen-lockfile && pnpm run ci` зелёный на финальном коммите.
-- Подготовлен итоговый execution audit.
+- Подготовлен итоговый аудит: [`AUDIT_GLOBAL.md`](AUDIT_GLOBAL.md).

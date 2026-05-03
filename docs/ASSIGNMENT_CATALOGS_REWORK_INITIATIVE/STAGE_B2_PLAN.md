@@ -37,21 +37,76 @@
 - `apps/webapp/src/app/api/doctor/measure-kinds/**` (или согласованный путь в `api/doctor/`)
 - `apps/webapp/db/schema/*clinical*`
 
-## 5. B2.5 (внутри этапа) — критерии готовности компонента
+## 5. Контракты данных (обязательная фиксация в коде)
+
+Перед реализацией зафиксировать в типах и комментариях:
+
+1. `assessment_kind`:
+   - nullable в БД;
+   - enum v1 по PRE-решению.
+2. `body_region_id`:
+   - nullable FK на справочник регионов;
+   - при `NULL` фильтр не матчится на конкретный регион.
+3. `scoring` (новый JSONB):
+   - обязательный корневой `schema_type`;
+   - для `numeric|likert|binary` — валидируемые поля и диапазоны;
+   - для `qualitative` — без авто-оценки.
+4. `raw_text`:
+   - nullable fallback для legacy/нестандартизируемых данных.
+5. migration policy:
+   - `scoring_config` не удаляем;
+   - перенос best-effort, невалидные куски уезжают в `raw_text`.
+
+## 6. B2.5 (внутри этапа) — критерии готовности компонента
 
 - Popover + live filter; «+ Добавить …» при отсутствии совпадения; `onCreate` async.
 - Без обязательного `cmdk` (как в ТЗ); не тянуть новую UI-библиотеку.
+- Клавиатурный сценарий: ввод → стрелки/Enter → выбор/создание.
+- Ошибки create (409/422/500) показываются рядом с полем без падения формы.
 
-## 6. Execution checklist
+## 7. Декомпозиция реализации
+
+1. **Schema & migration**
+   - добавить колонки `assessment_kind`, `body_region_id`, `scoring`, `raw_text`;
+   - добавить таблицу `clinical_test_measure_kinds`;
+   - migration/backfill `scoring_config` -> `scoring` + `raw_text`.
+2. **Domain / repo / API**
+   - обновить типы `ClinicalTest`, filters, create/update inputs;
+   - обновить repo read/write paths с новым контрактом;
+   - реализовать `GET/POST /api/doctor/measure-kinds`.
+3. **UI clinical tests**
+   - `ClinicalTestForm`: schema_type sections, measure_items list, raw_text, json-toggle;
+   - `ClinicalTestsPageClient`: фильтры `assessmentKind` + регион.
+4. **Shared component**
+   - `CreatableComboboxInput` + unit tests (фильтр/выбор/создание/ошибка).
+5. **Verification**
+   - migration tests + targeted compose/smoke.
+
+## 8. Execution checklist
 
 1. [ ] Схема + миграции (нерушащие NULL/default).
 2. [ ] Backfill scoring + тесты парсера legacy → new.
 3. [ ] `CreatableComboboxInput` + unit-тесты.
 4. [ ] API measure-kinds + интеграция в форму.
 5. [ ] Форма + список + фильтры.
-6. [ ] `eslint` / `vitest` / `tsc` по затронутой области.
+6. [ ] Negative paths: create measure-kind conflict/invalid input не ломают форму.
+7. [ ] `eslint` / `vitest` / `tsc` по затронутой области.
+8. [ ] Smoke: создание/редактирование теста для всех 4 `schema_type`.
+9. [ ] Smoke: фильтр по региону и `assessmentKind` реально меняет выдачу.
 
-## 7. Stage DoD
+## 9. Recommended checks (targeted)
+
+```bash
+rg "assessment_kind|body_region_id|clinical_test_measure_kinds|scoring_config|schema_type" apps/webapp/db apps/webapp/src
+pnpm --dir apps/webapp exec eslint <changed-files>
+pnpm --dir apps/webapp exec vitest run <clinical-tests-related-tests>
+pnpm --dir apps/webapp exec tsc --noEmit
+```
+
+Если перед пушем полный `ci` упал на webapp-тестах по B2, сначала исправить и перезапустить упавшие файлы, затем использовать `pnpm run ci:resume:after-test-webapp`.
+
+## 10. Stage DoD
 
 - Критерии ТЗ §6 для B2 выполнены.
 - Запись в [`LOG.md`](LOG.md); закрытые Q зафиксированы.
+- В AUDIT есть таблица: migration/backfill/API/UI/tests с PASS/FAIL доказательствами.

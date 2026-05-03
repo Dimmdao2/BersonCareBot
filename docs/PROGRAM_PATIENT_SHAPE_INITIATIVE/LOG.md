@@ -4,6 +4,42 @@
 
 ---
 
+## 2026-05-03 — Global fix (`AUDIT_GLOBAL.md` §7 / §9)
+
+**Контекст:** закрытие **GLOBAL-CI-01** (BLOCKER), **GLOBAL-LOG-STRUCT-01** (Major), **GLOBAL-DOC-INDEX-01** (Medium), **GLOBAL-TZ-HEADER-01** (Low); явные defer для info-level backlog без изменения продуктового scope.
+
+**Сделано (документация):**
+
+- **[GLOBAL-LOG-STRUCT-01]** [`LOG.md`](LOG.md) — исправлена структура: **`## Stage A2 — POST-AUDIT FIX`** вынесен из середины записи **A3** в отдельную дату-секцию (между исполнением A3 и исполнением A2 в обратном хронологическом порядке); уточнён defer **A2-LEGACY-01** в этой секции.
+- **[GLOBAL-DOC-INDEX-01]** [`README.md`](README.md), [`MASTER_PLAN.md`](MASTER_PLAN.md) §4 и §7 — канонический итоговый аудит: [`AUDIT_GLOBAL.md`](AUDIT_GLOBAL.md) (вместо несозданного `PROGRAM_PATIENT_SHAPE_EXECUTION_AUDIT.md`).
+- **[GLOBAL-TZ-HEADER-01]** [`PROGRAM_PATIENT_SHAPE_PLAN.md`](../APP_RESTRUCTURE_INITIATIVE/PROGRAM_PATIENT_SHAPE_PLAN.md) — шапка отражает реализацию A1…A5.
+- **[AUDIT_GLOBAL.md](AUDIT_GLOBAL.md)** — добавлен §9 «Global fix — статус закрытия».
+
+**Defer (minor / info, обоснование без кода):**
+
+- **A4-LOG-TYPES-01, A4-UTC-01, A5-TODAY-INSTANCE-01, A3-UI-INST-01, A2-LEGACY-01** — остаются в backlog инициатив/продукта (см. [`AUDIT_GLOBAL.md`](AUDIT_GLOBAL.md) §7); не входили в global fix кода.
+
+**Проверки (целевые зоны + CI + миграции):**
+
+```bash
+pnpm install --frozen-lockfile
+pnpm run ci
+pnpm --dir apps/webapp run migrate
+```
+
+**Дополнительно:** сверка `drizzle.__drizzle_migrations` с числом `*.sql` в `apps/webapp/db/drizzle-migrations` (локально: **32 / 32**).
+
+**Результаты (2026-05-03):**
+
+- **`pnpm install --frozen-lockfile`** — ок (lockfile актуален).
+- **`pnpm run ci`** — **PASS** (exit 0): lint, typecheck, integrator + webapp + media-worker tests, build, build:webapp, audit.
+- **`pnpm --dir apps/webapp run migrate`** — **PASS** (`drizzle-kit migrate` через `run-webapp-drizzle-migrate.mjs`, env из `apps/webapp/.env.dev`); повторный прогон — «migrations applied successfully» без новых SQL.
+- **Drizzle state:** в dev БД **32** применённых записи, на диске **32** файла миграций — совпадение.
+
+**Definition of done (global fix):** CI зелёный; миграции на dev БД без ошибок; **GLOBAL-CI-01**, **GLOBAL-LOG-STRUCT-01**, **GLOBAL-DOC-INDEX-01**, **GLOBAL-TZ-HEADER-01** закрыты (см. [`AUDIT_GLOBAL.md`](AUDIT_GLOBAL.md) §9).
+
+---
+
 ## 2026-05-03 — Stage A5 — POST-AUDIT FIX (`AUDIT_STAGE_A5.md`)
 
 **Контекст:** [`AUDIT_STAGE_A5.md`](AUDIT_STAGE_A5.md) — закрытие **Major** (нет отдельных Critical в первичном аудите).
@@ -189,6 +225,9 @@ pnpm --dir apps/webapp exec tsc --noEmit
 
 **Продуктовое (A3.5):** пустые группы у пациента скрываются (нет видимых элементов после фильтра disabled).
 
+---
+
+## 2026-05-03 — Stage A2 — POST-AUDIT FIX (`AUDIT_STAGE_A2.md`)
 
 **Контекст:**
 
@@ -217,11 +256,11 @@ pnpm --dir apps/webapp exec tsc --noEmit
 - In scope: treatment-program instance/events контур (см. §6.6 `AUDIT_STAGE_A2`).
 - Out of scope: **courses**, **каталог B4/B7**, шаблонный контент под **A2-LEGACY-01** (defer Info — только документация).
 
-**Minor:**
+**Minor / defer (продукт):**
 
-- **A2-LEGACY-01:** **defer** — правка шаблонов/контент-гайд, не runtime-код этой задачи.
+- **A2-LEGACY-01:** **defer** — коллизии legacy-шаблонов с `sort_order = 0` vs «Этап 0»; правка контента/гайда, не блок кода A2; см. [`AUDIT_STAGE_A2.md`](AUDIT_STAGE_A2.md).
 
-**CI:** полный `pnpm run ci` не запускался (запрос пользователя).
+**CI:** полный `pnpm run ci` не запускался (до global fix).
 
 ---
 

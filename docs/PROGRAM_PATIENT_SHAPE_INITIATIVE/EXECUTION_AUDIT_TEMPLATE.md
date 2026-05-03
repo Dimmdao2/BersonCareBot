@@ -1,6 +1,6 @@
 # EXECUTION AUDIT TEMPLATE — PROGRAM_PATIENT_SHAPE
 
-Создать итоговый `PROGRAM_PATIENT_SHAPE_EXECUTION_AUDIT.md` после закрытия A5 или отдельный `STAGE_AX_EXECUTION_AUDIT.md` после крупного этапа.
+Итоговый аудит полной инициативы A1…A5 — файл [`AUDIT_GLOBAL.md`](AUDIT_GLOBAL.md) (имя `PROGRAM_PATIENT_SHAPE_EXECUTION_AUDIT.md` не используется). Для отдельного этапа при необходимости — `STAGE_AX_EXECUTION_AUDIT.md` или по образцу [`AUDIT_STAGE_A1.md`](AUDIT_STAGE_A1.md).
 
 ---
 

@@ -32,14 +32,58 @@
 - [`apps/webapp/src/modules/recommendations/recommendationDomain.ts`](../../apps/webapp/src/modules/recommendations/recommendationDomain.ts) (или последующий rename в отдельном задаче)
 - `apps/webapp/db/schema/*recommendation*`
 
-## 5. Execution checklist
+## 5. Контракты данных (обязательная фиксация)
+
+1. `recommendations.domain`:
+   - колонка/тип остается как есть в B4;
+   - UI-подпись «Тип».
+2. Новые nullable поля:
+   - `body_region_id`;
+   - `quantity_text`, `frequency_text`, `duration_text`.
+3. Legacy compatibility:
+   - старые записи валидны без backfill;
+   - фильтры корректно работают с `NULL`.
+
+## 6. Декомпозиция реализации
+
+1. **Schema**
+   - migration для 4 новых nullable полей;
+   - при необходимости индекс/where-индекс под region filter.
+2. **Domain & repo**
+   - типы create/update/read;
+   - list/filter mapping по region и domain.
+3. **Doctor UI**
+   - `RecommendationForm`: label rename + 4 новых поля;
+   - page list filters и query preserve.
+4. **Compatibility**
+   - проверить формы/экшены архив/разархив не ломаются;
+   - проверить integration с assignment flows (без изменения B7 логики).
+5. **Verification**
+   - compose tests + smoke.
+
+## 7. Execution checklist
 
 1. [ ] Миграции + enum расширение без ломания существующих строк.
 2. [ ] Форма + список/фильтры.
 3. [ ] Тесты compose формы.
-4. [ ] `eslint` / `vitest` / `tsc`.
+4. [ ] Negative path: пустые/частично заполненные quantity/frequency/duration сохраняются корректно.
+5. [ ] `eslint` / `vitest` / `tsc`.
+6. [ ] Smoke: create/update/archive/unarchive с новыми полями.
+7. [ ] Smoke: region filter и type filter вместе (пересечение фильтров) корректны.
 
-## 6. Stage DoD
+## 8. Recommended checks (targeted)
+
+```bash
+rg "body_region_id|quantity_text|frequency_text|duration_text|domain" apps/webapp/db apps/webapp/src
+pnpm --dir apps/webapp exec eslint <changed-files>
+pnpm --dir apps/webapp exec vitest run <recommendations-related-tests>
+pnpm --dir apps/webapp exec tsc --noEmit
+```
+
+Если перед пушем полный `ci` упал на шагах после lint/typecheck, использовать соответствующий `pnpm run ci:resume:after-*` вместо перезапуска полного `ci` на каждой итерации.
+
+## 9. Stage DoD
 
 - Критерии ТЗ §6 для B4.
 - [`LOG.md`](LOG.md).
+- В AUDIT отражено, что `domain` не переименовывался, а только UI-лейбл/расширение значений.

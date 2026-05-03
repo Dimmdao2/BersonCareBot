@@ -43,6 +43,16 @@
 6. Tests/docs:
    - [ ] ...
 
+**Stage-specific completeness (pick relevant):**
+
+- [ ] B1: проверены обе оси (`arch` + `pub`) + legacy query + три каталога.
+- [ ] B2: проверены все `schema_type` + backfill + measure-kinds API + фильтры region/assessmentKind.
+- [ ] B3: UUID textarea удалён полностью; compose + server-action сценарии состава набора.
+- [ ] B4: `domain` не переименован; UI «Тип» + region + quantity/frequency/duration + фильтры.
+- [ ] B5: зафиксирован вывод «UX-ожидание vs state-bug» по «глазу»; list/editor статусы синхронны.
+- [ ] B6: pre-check post-A зафиксирован; UX pass без изменений assign/snapshot.
+- [ ] B7: заполнена audit-матрица контейнеров; copy/override/fallback покрыты тестами.
+
 **Git:**
 
 - [ ] Сделан **коммит** после этого прохода (EXEC или FIX): краткое сообщение + только файлы этапа/LOG/audit.
@@ -75,6 +85,7 @@ pnpm --dir apps/webapp exec tsc --noEmit
 - `eslint`: PASS/FAIL — notes.
 - `vitest`: PASS/FAIL — notes.
 - `typecheck`: PASS/FAIL/SKIPPED — why.
+- `smoke`: PASS/FAIL — key scenarios.
 
 **Product decisions closed:**
 

@@ -13,7 +13,7 @@
 - `LOG.md` — журнал исполнения по этапам;
 - `LOG_TEMPLATE.md` — шаблон записи после каждого EXEC/FIX прохода;
 - `EXECUTION_AUDIT_TEMPLATE.md` — шаблон аудита этапа/инициативы;
-- (позже) `PROGRAM_PATIENT_SHAPE_EXECUTION_AUDIT.md` — итоговый аудит после кода.
+- [`AUDIT_GLOBAL.md`](AUDIT_GLOBAL.md) — итоговый аудит после A1…A5 (заменяет черновой план `PROGRAM_PATIENT_SHAPE_EXECUTION_AUDIT.md`; отдельный файл с этим именем не обязателен).
 
 ## Связанные документы
 
@@ -35,3 +35,5 @@
 - [`LOG_TEMPLATE.md`](LOG_TEMPLATE.md)
 - [`EXECUTION_AUDIT_TEMPLATE.md`](EXECUTION_AUDIT_TEMPLATE.md)
 - [`PROMPTS_EXEC_AUDIT_FIX_GLOBAL.md`](PROMPTS_EXEC_AUDIT_FIX_GLOBAL.md)
+- [`AUDIT_GLOBAL.md`](AUDIT_GLOBAL.md)
+- [`AUDIT_PREPUSH_POSTFIX.md`](AUDIT_PREPUSH_POSTFIX.md) — pre-push postfix audit

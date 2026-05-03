@@ -28,14 +28,49 @@
 
 - [`apps/webapp/src/app/app/doctor/lfk-templates/`](../../apps/webapp/src/app/app/doctor/lfk-templates/)
 
-## 5. Execution checklist
+## 5. Декомпозиция реализации
 
-1. [ ] Воспроизведение + фикс.
+1. **Диагностика «глаза»**
+   - воспроизвести текущий сценарий (что ожидал пользователь, что делает UI);
+   - разделить: индикатор vs action-path publish/unpublish/archive.
+2. **List pass**
+   - карточки списка: превью/счётчик/статус;
+   - корректные подписи `draft/published/archived`.
+3. **Editor pass**
+   - CTA блок: сохранить/опубликовать/архивировать;
+   - понятные состояния disabled/pending.
+4. **Filter pass**
+   - интеграция двухосевой модели B1;
+   - сохранение query на переходах.
+5. **Verification**
+   - regression сценарии публикации/архивирования/восстановления;
+   - проверка usage/archive guard.
+
+## 6. Execution checklist
+
+1. [ ] Воспроизведение + классификация проблемы («индикатор UX» vs «реальный баг состояния»).
 2. [ ] Список + карточка по критериям ТЗ.
-3. [ ] E2E или manual script публикация / архив / восстановление.
-4. [ ] Сверка с [`../APP_RESTRUCTURE_INITIATIVE/done/ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md`](../APP_RESTRUCTURE_INITIATIVE/done/ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md).
+3. [ ] Статусы и подписи согласованы с двухосевой моделью B1.
+4. [ ] E2E/manual script публикация / архив / восстановление.
+5. [ ] Сверка с [`../APP_RESTRUCTURE_INITIATIVE/done/ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md`](../APP_RESTRUCTURE_INITIATIVE/done/ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md).
+6. [ ] `eslint` / `vitest` / `tsc` по затронутой области.
+7. [ ] Smoke: статус в списке и в editor синхронизирован сразу после action.
 
-## 6. Stage DoD
+## 7. Recommended checks (targeted)
+
+```bash
+rg "Eye|EyeOff|publish|archive|status" apps/webapp/src/app/app/doctor/lfk-templates
+pnpm --dir apps/webapp exec eslint <changed-files>
+pnpm --dir apps/webapp exec vitest run <lfk-templates-related-tests>
+pnpm --dir apps/webapp exec tsc --noEmit
+```
+
+Manual smoke minimum:
+- draft -> publish -> archived -> restore;
+- status chip/иконка в list и в editor совпадают после каждого action.
+
+## 8. Stage DoD
 
 - Критерии ТЗ §6 для B5.
 - [`LOG.md`](LOG.md).
+- В AUDIT явно отражено: была ли проблема в UX-ожидании или в реальном state-bug, и что именно исправлено.
