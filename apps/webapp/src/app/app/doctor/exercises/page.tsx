@@ -70,7 +70,6 @@ export default async function DoctorExercisesPage({ searchParams }: PageProps) {
         filters={{
           q,
           regionCode: regionParsed.regionCode,
-          invalidRegionQuery: regionParsed.invalidRegionQuery,
           loadType,
           listStatus,
         }}

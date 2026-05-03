@@ -9,19 +9,32 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("@/shared/ui/ReferenceSelect", () => ({
-  ReferenceSelect: () => <div data-testid="mock-ref-select" />,
+  ReferenceSelect: (props: { id?: string; onChange?: (code: string | null) => void }) => (
+    <button
+      type="button"
+      data-testid={`mock-ref-${props.id ?? "unknown"}`}
+      onClick={() => {
+        const code = props.id?.includes("-load") ? "strength" : props.id?.includes("-region") ? "spine" : "x";
+        props.onChange?.(code);
+      }}
+    >
+      pick
+    </button>
+  ),
 }));
 
 describe("DoctorCatalogFiltersForm", () => {
   let replaceStateSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
-    replaceStateSpy = vi.spyOn(window.history, "replaceState").mockImplementation(() => {});
+    window.history.replaceState({}, "", "/app/doctor/exercises");
+    replaceStateSpy = vi.spyOn(window.history, "replaceState");
   });
 
   afterEach(() => {
     vi.useRealTimers();
     replaceStateSpy.mockRestore();
+    window.history.replaceState({}, "", "/");
   });
 
   it("debounces search and preserves workspace params in URL", () => {
@@ -52,6 +65,23 @@ describe("DoctorCatalogFiltersForm", () => {
     expect(url).toContain("pub=published");
     expect(url).not.toContain("load=");
     expect(url).not.toContain("region=");
+  });
+
+  it("applies region and load to URL from ReferenceSelect (codes only, no UUID)", () => {
+    window.history.replaceState({}, "", "/app/doctor/exercises");
+    render(<DoctorCatalogFiltersForm q="" view="list" titleSort={null} idPrefix="ex" />);
+
+    fireEvent.click(screen.getByTestId("mock-ref-ex-region"));
+    expect(replaceStateSpy).toHaveBeenCalled();
+    let url = String(replaceStateSpy.mock.calls.at(-1)?.[2]);
+    expect(url).toContain("region=spine");
+    expect(url).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
+    expect(url).not.toContain("regionRefId");
+
+    fireEvent.click(screen.getByTestId("mock-ref-ex-load"));
+    url = String(replaceStateSpy.mock.calls.at(-1)?.[2]);
+    expect(url).toContain("load=strength");
+    expect(url).toContain("region=spine");
   });
 
   it("renders without apply button and summary line", () => {

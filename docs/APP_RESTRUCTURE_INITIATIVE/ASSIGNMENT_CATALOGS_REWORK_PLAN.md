@@ -329,12 +329,12 @@
 
 | Идея | Условие старта |
 |---|---|
-| Удалить старую колонку `clinical_tests.scoring_config JSONB` после полной миграции данных | Через 1–2 итерации после B2 |
-| Перевести `assessmentKind` в системный справочник БД (категория + UI управления + валидация) | После утверждения техплана defer-closure |
-| Перевести типы рекомендаций в системный справочник БД | После утверждения техплана defer-closure |
-| Переименовать `recommendations.domain` → `recommendations.kind` (миграция + API + модуль `recommendations`) | Отдельный этап, если оценка объёма приемлема |
+| ~~Удалить колонку `clinical_tests.scoring_config JSONB`~~ | **Решение 2026-05-04:** колонка **не нужна** — инженерный follow-up: Drizzle-миграция `DROP COLUMN`, удаление fallback-чтения в коде/снимках, тесты; перед применением на prod — backup по [`deploy/HOST_DEPLOY_README.md`](../../deploy/HOST_DEPLOY_README.md) (см. [`../ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/LOG.md`](../ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/LOG.md)). |
+| ~~Перевести `assessmentKind` в системный справочник БД (категория + UI управления + валидация)~~ | **Сделано (D2, 2026-05-03):** [`STAGE_D2_PLAN.md`](../ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/STAGE_D2_PLAN.md), [`AUDIT_STAGE_D2.md`](../ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/AUDIT_STAGE_D2.md) |
+| ~~Перевести типы рекомендаций в системный справочник БД~~ | **Сделано (D3, 2026-05-03):** [`STAGE_D3_PLAN.md`](../ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/STAGE_D3_PLAN.md), [`AUDIT_STAGE_D3.md`](../ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/AUDIT_STAGE_D3.md) |
+| Переименовать `recommendations.domain` → `recommendations.kind` (миграция + API + модуль `recommendations`) | **Отложено (2026-05-04):** отдельный этап по запросу; до снятия паузы остаёмся на колонке `domain` и UI «Тип» (см. [`STAGE_D5_PLAN.md`](../ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/STAGE_D5_PLAN.md)). |
 | Расширить `CreatableComboboxInput` до **многозначного** (теги) | По запросу |
-| Доступ к системному справочнику `measure_kinds` (список/правка позиций) | Первый шаг по Q6 |
+| ~~Доступ к системному справочнику `measure_kinds` (список/правка позиций)~~ | **Сделано (D1, 2026-05-03):** [`STAGE_D1_PLAN.md`](../ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/STAGE_D1_PLAN.md), [`AUDIT_STAGE_D1.md`](../ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/AUDIT_STAGE_D1.md) |
 | ~~`publication_status` на упражнениях / клин. тестах / рекомендациях~~ | **Не делаем** (решение §8.2) |
 | ~~Отдельный API bulk-операций над items внутри контейнера~~ | **Не планируем** (решение §8.2; текущих батч-операций достаточно) |
 
@@ -358,7 +358,9 @@
 - **Q1:** `assessmentKind` — это **системный справочник в БД**, редактируемый из UI, а не фиксированный enum только в TypeScript.
 - **Q2:** в инстансе врач/контур программы отмечает прохождение теста одинаково для всех типов (включая `qualitative`): результат оценён -> этапный прогресс обновлён -> можно открыть следующий этап.
 - **Q3:** для «Типа» рекомендации допускается сосуществование старых и новых кодов; источник правды — справочник в БД; точечная очистка/пополнение на production допускается операционно.
-- **Q4:** до отдельного эпика сохраняем колонку `domain` и подпись UI «Тип»; целевое имя `kind` предпочтительно, но переименование делаем отдельным этапом после оценки объёма.
+- **Q4:** до отдельного эпика сохраняем колонку `domain` и подпись UI «Тип»; целевое имя `kind` предпочтительно, но переименование делаем отдельным этапом после оценки объёма. **2026-05-04:** переименование **отложено** (не в текущем объёме); см. [`STAGE_D5_PLAN.md`](../ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/STAGE_D5_PLAN.md).
 - **Q6:** первый приоритет — доступ к системному справочнику `measure_kinds`; merge/dedup и сложные операции откладываются.
+- **Инженерия:** колонка `clinical_tests.scoring_config` — **не нужна**; планируется миграция `DROP` + чистка кода (см. §7 backlog).
+- **E2E:** расширение Playwright/CI **не** планируется; приёмка — ручной smoke; автоматический e2e — только для уже стабилизированного UI и по отдельному решению.
 - `publication_status` на упражнениях / клинических тестах / рекомендациях в рамках этой инициативы **не вводим**.
 - Отдельный `bulk` API для состава наборов/шаблонов **не планируем**, пока нет подтверждённой нагрузки/боли.

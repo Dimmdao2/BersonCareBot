@@ -6,6 +6,70 @@
 
 ---
 
+## 2026-05-04 (IV) — FILTER URL: пост-аудит, синхронизация стадийных доков
+
+**Контекст:** закрытие хвостов независимого аудита против [`FILTER_URL_CONTRACT_FIX_PLAN.md`](FILTER_URL_CONTRACT_FIX_PLAN.md) — устаревшие упоминания `invalidRegionQuery`/баннера региона в стадийных AUDIT; дополнение residual в [`AUDIT_FILTER_URL_CONTRACT_FIX.md`](AUDIT_FILTER_URL_CONTRACT_FIX.md).
+
+**Сделано (docs-only):**
+
+- [`AUDIT_STAGE_D3.md`](AUDIT_STAGE_D3.md): §1 summary, §3 таблица `region`, оговорки паритета, §5 регрессия B4 (две строки: `domain` / `region`), §9 Final DoD.
+- [`AUDIT_STAGE_B4.md`](AUDIT_STAGE_B4.md): §1, §2 evidence SSR, §9 smoke, §10 medium, §13 таблица FIX (уточнение по баннеру региона), новый §**15** про док-синхронизацию.
+- [`AUDIT_FILTER_URL_CONTRACT_FIX.md`](AUDIT_FILTER_URL_CONTRACT_FIX.md): §Residual — барьер **полного CI** перед push; строка про синхронизацию B4/D3; backlog optional preserve-тестов для rec/clinical.
+
+**Код не менялся.**
+
+---
+
+## 2026-05-04 (III) — FILTER URL tails (region unify + test-sets `load`)
+
+**Контекст:** план «FILTER URL tails fix» — без отдельного UX для UUID/мусора в `?region=`; убрать мёртвую ось `load` у **test-sets**; усилить тесты и синхронизировать [`AUDIT_FILTER_URL_CONTRACT_FIX.md`](AUDIT_FILTER_URL_CONTRACT_FIX.md).
+
+**Сделано:**
+
+- **`parseDoctorCatalogRegionQueryParam`:** только `{ regionCode }`; lower-case + sanity-токен; UUID и невалидный токен → `undefined` (как «Все регионы»), без **`invalidRegionQuery`**.
+- **`doctorCatalogClientUrlSync` / `useDoctorCatalogClientFilterMerge` / `parseRecommendationCatalogSsrQuery`:** убран флаг и поле **`invalidRegionQuery`**; баннеры региона удалены из клиентов каталогов (exercises, recommendations, clinical-tests, lfk-templates, test-sets) и из SSR props.
+- **test-sets:** убраны `load` из `page` searchParams, `filters`, preserve (**`TestSetForm`** hidden `listLoad`), **`actionsInline`**; вынесено **`appendTestSetsListPreserveToSearchParams`** (`testSetsListPreserveParams.ts`) + **`testSetsListPreserveParams.test.ts`**.
+- **Тесты:** обновлены region/SSR/sync; **`DoctorCatalogFiltersForm.test.tsx`** — mock `ReferenceSelect` с `onChange`, assert `region=spine` + `load=strength`; spy на **`replaceState`** без noop (jsdom накапливает query).
+
+**Проверки:** `pnpm --dir apps/webapp exec eslint` (перечень в аудите III), `vitest run` (5 файлов, 19 тестов), `pnpm --dir apps/webapp exec tsc --noEmit`. **Корневой `pnpm run ci` не запускался.**
+
+**Доки:** [`AUDIT_FILTER_URL_CONTRACT_FIX.md`](AUDIT_FILTER_URL_CONTRACT_FIX.md) — закрыты minor m2/m3/m5, блок **Tails fix verification**.
+
+---
+
+## 2026-05-04 — Решения владельца: DROP `scoring_config`, пауза D5, D4/E2E
+
+**Контекст:** зафиксировать последние продуктовые/инженерные решения в канонических документах.
+
+**Решения:**
+
+1. **`clinical_tests.scoring_config`:** колонка **не нужна** — планируется миграция `DROP` + удаление fallback в коде (см. [`../APP_RESTRUCTURE_INITIATIVE/ASSIGNMENT_CATALOGS_REWORK_PLAN.md`](../APP_RESTRUCTURE_INITIATIVE/ASSIGNMENT_CATALOGS_REWORK_PLAN.md) §7, §8.2).
+2. **D5 (`recommendations.domain` → `kind`):** этап **отложен** (owner pause); см. [`STAGE_D5_PLAN.md`](STAGE_D5_PLAN.md), [`../APP_RESTRUCTURE_INITIATIVE/ASSIGNMENT_CATALOGS_REWORK_PLAN.md`](../APP_RESTRUCTURE_INITIATIVE/ASSIGNMENT_CATALOGS_REWORK_PLAN.md) §7/§8.2.
+3. **D4 (qualitative в инстансе программы):** **продуктового выбора не требуется** — канон Q2 в ТЗ §8.2; D4 остаётся техпроверкой/UI/API/тестами; см. [`STAGE_D4_PLAN.md`](STAGE_D4_PLAN.md) §0.
+4. **E2E:** расширение обязательного Playwright/CI **не** планируется; приёмка — ручной smoke; автотесты e2e — только для стабилизированного UI по отдельному решению (см. [`DEFER_CLOSURE_MASTER_PLAN.md`](DEFER_CLOSURE_MASTER_PLAN.md) §2 out of scope, продуктовый план §8.2).
+
+**Сделано (docs):** обновлены [`DEFER_CLOSURE_MASTER_PLAN.md`](DEFER_CLOSURE_MASTER_PLAN.md), [`STAGE_D4_PLAN.md`](STAGE_D4_PLAN.md), [`STAGE_D5_PLAN.md`](STAGE_D5_PLAN.md), [`STAGE_D6_PLAN.md`](STAGE_D6_PLAN.md), [`PROMPTS_DEFER_CLOSURE_STAGES.md`](PROMPTS_DEFER_CLOSURE_STAGES.md), [`../BACKLOG_TAILS.md`](../BACKLOG_TAILS.md), продуктовое ТЗ §7/§8.2.
+
+**Код не менялся.**
+
+---
+
+## 2026-05-04 — Defer docs sync (D1–D3 completion)
+
+**Контекст:** синхронизация документов defer-wave после подтверждения завершённых этапов `D1`/`D2`/`D3` (аудиты `PASS`) и устранение рассинхрона checklist/backlog.
+
+**Сделано (docs-only):**
+
+- [`STAGE_D3_PLAN.md`](STAGE_D3_PLAN.md) §5: checklist переведён в `[x]` по факту закрытия этапа.
+- [`DEFER_CLOSURE_MASTER_PLAN.md`](DEFER_CLOSURE_MASTER_PLAN.md): добавлен статус-срез `D1–D6` (`D1–D3 done`, `D4–D6 pending`).
+- Продуктовый план [`../APP_RESTRUCTURE_INITIATIVE/ASSIGNMENT_CATALOGS_REWORK_PLAN.md`](../APP_RESTRUCTURE_INITIATIVE/ASSIGNMENT_CATALOGS_REWORK_PLAN.md) §7: три defer-пункта отмечены как **сделано** с ссылками на `STAGE_D1/D2/D3` и `AUDIT_STAGE_D1/D2/D3`.
+
+**Проверки:** `rg`-сверка ссылок/статусов в обновлённых документах.
+
+**Код не менялся.**
+
+---
+
 ## 2026-05-04 (II) — FILTER URL CONTRACT FIX — closure M1/M2
 
 **Контекст:** закрытие Major из [`AUDIT_FILTER_URL_CONTRACT_FIX.md`](AUDIT_FILTER_URL_CONTRACT_FIX.md).
@@ -33,11 +97,11 @@
 **Сделано:**
 
 - **`parseDoctorCatalogRegionQueryParam`** (`shared/lib/doctorCatalogRegionQuery.ts`) + unit-тест.
-- **`parseRecommendationCatalogSsrQuery`:** убран `regionRefIdForList`; `regionCodeForCatalog` + `invalidRegionQuery` при UUID в `region`.
+- **`parseRecommendationCatalogSsrQuery`:** убран `regionRefIdForList`; `regionCodeForCatalog` для клиента (на 2026-05-04 III: без отдельного флага `invalidRegionQuery` — см. запись III в этом логе).
 - **Страницы SSR:** exercises, recommendations, clinical-tests, lfk-templates, test-sets — list-вызовы без `search`/`regionRefId`/`loadType` где применимо; `body_region` → `bodyRegionIdToCode` для клиента.
 - **`useDoctorCatalogDisplayList`:** опции `regionCode` + `loadType` + резолверы; unit-тест.
 - **`DoctorCatalogFiltersForm`:** `regionCode`, `ReferenceSelect` с `valueMatch="code"`; `showRegionFilter` / `showLoadFilter` (test-sets без load; treatment program без region/load в панели).
-- **Клиенты:** client-side фильтрация + баннер при UUID в `region` (exercises, recommendations, clinical-tests, lfk-templates, test-sets).
+- **Клиенты:** client-side фильтрация по региону из URL (на 2026-05-04 III: без баннера при UUID/мусоре в `region` — см. запись III).
 - **Treatment program templates:** убрана серверная трактовка `region`/`load` для списка; панель — только поиск + `titleSort` + pub/arch через `catalogPubArch`.
 - **Preserve:** `listRegion` в формах — **код** (`regionCode`); `lfkTemplatesListPreserveQuery` — `regionCode`, sanitize отсекает UUID.
 - **`pgTestSets` / in-memory:** вложенный `test` включает `bodyRegionId` для клиентского фильтра по региону.
@@ -451,7 +515,7 @@ pnpm exec tsc --noEmit
 
 **Сделано:**
 
-- Модуль [`recommendationCatalogSsrQuery.ts`](../../apps/webapp/src/modules/recommendations/recommendationCatalogSsrQuery.ts): невалидный `domain` / не-UUID `region` не передаются в `listRecommendations`; флаги `invalidDomainQuery` / `invalidRegionQuery`.
+- Модуль [`recommendationCatalogSsrQuery.ts`](../../apps/webapp/src/modules/recommendations/recommendationCatalogSsrQuery.ts): невалидный `domain` / невалидный `region` не передаются в `listRecommendations`; флаг **`invalidDomainQuery`**; для региона на 2026-05-04 III — без **`invalidRegionQuery`** (см. запись III в этом логе).
 - [`recommendations/page.tsx`](../../apps/webapp/src/app/app/doctor/recommendations/page.tsx): список на SSR через парсер; проп фильтров в клиент.
 - [`RecommendationsPageClient.tsx`](../../apps/webapp/src/app/app/doctor/recommendations/RecommendationsPageClient.tsx): баннеры (amber) при невалидных query, как у клинических тестов.
 - [`recommendationCatalogSsrQuery.test.ts`](../../apps/webapp/src/modules/recommendations/recommendationCatalogSsrQuery.test.ts): unit на валидные/невалидные комбинации.

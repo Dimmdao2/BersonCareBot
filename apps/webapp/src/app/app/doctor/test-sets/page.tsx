@@ -14,7 +14,6 @@ type PageProps = {
     selected?: string;
     q?: string;
     region?: string;
-    load?: string;
     titleSort?: string;
     status?: string;
     arch?: string;
@@ -29,14 +28,6 @@ export default async function DoctorTestSetsPage({ searchParams }: PageProps) {
   const sp = (await searchParams) ?? {};
   const q = typeof sp.q === "string" ? sp.q : "";
   const regionParsed = parseDoctorCatalogRegionQueryParam(sp.region);
-  const loadType =
-    sp.load === "strength" ||
-    sp.load === "stretch" ||
-    sp.load === "balance" ||
-    sp.load === "cardio" ||
-    sp.load === "other"
-      ? sp.load
-      : undefined;
 
   const listPubArch = parseDoctorCatalogPubArchQuery(sp);
 
@@ -65,8 +56,6 @@ export default async function DoctorTestSetsPage({ searchParams }: PageProps) {
         filters={{
           q,
           regionCode: regionParsed.regionCode,
-          invalidRegionQuery: regionParsed.invalidRegionQuery,
-          loadType,
           listPubArch,
         }}
       />

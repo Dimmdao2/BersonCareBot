@@ -13,7 +13,6 @@ export function dispatchDoctorCatalogUrlSync(): void {
 export type DoctorCatalogClientFilterUrlSlice = {
   q: string;
   regionCode?: string;
-  invalidRegionQuery: boolean;
   loadType?: ExerciseLoadType;
   titleSort: "asc" | "desc" | null;
   /** Рекомендации: `domain` из query. */
@@ -24,7 +23,7 @@ export type DoctorCatalogClientFilterUrlSlice = {
 
 export function readDoctorCatalogClientFilterUrlSlice(): DoctorCatalogClientFilterUrlSlice {
   if (typeof window === "undefined") {
-    return { q: "", invalidRegionQuery: false, titleSort: null };
+    return { q: "", titleSort: null };
   }
   const sp = new URLSearchParams(window.location.search);
   const q = sp.get("q") ?? "";
@@ -44,7 +43,6 @@ export function readDoctorCatalogClientFilterUrlSlice(): DoctorCatalogClientFilt
   return {
     q,
     regionCode: regionParsed.regionCode,
-    invalidRegionQuery: regionParsed.invalidRegionQuery,
     loadType,
     titleSort,
     domain,
@@ -53,13 +51,13 @@ export function readDoctorCatalogClientFilterUrlSlice(): DoctorCatalogClientFilt
 }
 
 /**
- * Добавить `region` в redirect только если это не UUID (контракт каталога).
+ * Добавить `region` в redirect только если значение — валидный код региона (контракт каталога).
  * Использовать в server actions preserve (`listRegion` → `region`).
  */
 export function appendRegionParamFromListPreserve(sp: URLSearchParams, listRegion: FormDataEntryValue | null): void {
   const raw = typeof listRegion === "string" ? listRegion.trim() : "";
   if (!raw) return;
   const p = parseDoctorCatalogRegionQueryParam(raw);
-  if (p.invalidRegionQuery || !p.regionCode) return;
+  if (!p.regionCode) return;
   sp.set("region", p.regionCode);
 }

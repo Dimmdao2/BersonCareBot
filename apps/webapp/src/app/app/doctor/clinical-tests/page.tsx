@@ -80,7 +80,6 @@ export default async function DoctorClinicalTestsPage({ searchParams }: PageProp
         filters={{
           q,
           regionCode: regionParsed.regionCode,
-          invalidRegionQuery: regionParsed.invalidRegionQuery,
           assessmentKind,
           invalidAssessmentQuery: assessmentRaw !== "" && !assessmentKind,
           listStatus,

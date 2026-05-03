@@ -12,12 +12,7 @@ export type RecommendationCatalogSsrParsed = {
    * `{ ok:false, error:"invalid_query", field:"domain" }` (JSON API).
    */
   invalidDomainQuery: boolean;
-  /**
-   * Непустой `?region=` — UUID (в каталоге допускается только код справочника, например `spine`).
-   * На SSR — баннер; фильтр по региону на сервере не выполняется (только клиент по коду).
-   */
-  invalidRegionQuery: boolean;
-  /** Код `body_region` из query для клиентского фильтра; `undefined` если пусто или UUID. */
+  /** Код `body_region` из query для клиентского фильтра; `undefined` если пусто или не проходит контракт кода. */
   regionCodeForCatalog: string | undefined;
 };
 
@@ -42,7 +37,6 @@ export function parseRecommendationCatalogSsrQuery(
   return {
     domainForList,
     invalidDomainQuery,
-    invalidRegionQuery: regionParsed.invalidRegionQuery,
     regionCodeForCatalog: regionParsed.regionCode,
   };
 }

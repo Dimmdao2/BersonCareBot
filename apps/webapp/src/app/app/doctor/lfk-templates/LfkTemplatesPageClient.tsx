@@ -37,7 +37,6 @@ type Props = {
   filters: {
     q: string;
     regionCode?: string;
-    invalidRegionQuery?: boolean;
     loadType?: ExerciseLoadType;
     listPubArch: DoctorCatalogPubArchQuery;
   };
@@ -282,15 +281,6 @@ export function LfkTemplatesPageClient({
 
   return (
     <DoctorCatalogPageLayout toolbar={toolbar}>
-      {mergedFilters.invalidRegionQuery ? (
-        <p
-          role="status"
-          className="border-b border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm text-amber-950 dark:text-amber-100"
-        >
-          Параметр «Регион» в адресе задан как UUID — ожидается код справочника (например spine). Фильтр по региону не
-          применён.
-        </p>
-      ) : null}
       <CatalogSplitLayout
         className="lg:h-[calc(100dvh-3.5rem-env(safe-area-inset-top,0px)-3.25rem-1rem)] lg:overflow-hidden"
         left={

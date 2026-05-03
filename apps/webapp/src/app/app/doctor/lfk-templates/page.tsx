@@ -73,7 +73,6 @@ export default async function DoctorLfkTemplatesPage({ searchParams }: PageProps
           filters={{
             q,
             regionCode: regionParsed.regionCode,
-            invalidRegionQuery: regionParsed.invalidRegionQuery,
             loadType,
             listPubArch,
           }}

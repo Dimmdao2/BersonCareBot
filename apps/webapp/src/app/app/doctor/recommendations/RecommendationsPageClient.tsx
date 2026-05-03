@@ -65,8 +65,6 @@ type Props = {
     listStatus: RecommendationListFilterScope;
     /** Непустой `?domain=` не распознан — фильтр по типу не применён (паритет с GET API). */
     invalidDomainQuery?: boolean;
-    /** Непустой `?region=` — UUID; в URL ожидается код справочника. */
-    invalidRegionQuery?: boolean;
   };
 };
 
@@ -386,7 +384,7 @@ function RecommendationsContent({
           filters={
             <DoctorCatalogToolbarFiltersSlot>
               <DoctorCatalogFiltersForm
-                key={`rec-filters-${filters.listStatus}-${filters.invalidDomainQuery ? "1" : "0"}-${filters.invalidRegionQuery ? "1" : "0"}`}
+                key={`rec-filters-${filters.listStatus}-${filters.invalidDomainQuery ? "1" : "0"}`}
                 idPrefix="rec"
                 q={filters.q}
                 regionCode={filters.regionCode}
@@ -419,15 +417,6 @@ function RecommendationsContent({
           className="border-b border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm text-amber-950 dark:text-amber-100"
         >
           Параметр «Тип» в адресе не распознан — фильтр по типу не применён.
-        </p>
-      ) : null}
-      {filters.invalidRegionQuery ? (
-        <p
-          role="status"
-          className="border-b border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm text-amber-950 dark:text-amber-100"
-        >
-          Параметр «Регион» в адресе задан как UUID — ожидается код справочника (например spine). Фильтр по региону не
-          применён.
         </p>
       ) : null}
       <CatalogSplitLayout

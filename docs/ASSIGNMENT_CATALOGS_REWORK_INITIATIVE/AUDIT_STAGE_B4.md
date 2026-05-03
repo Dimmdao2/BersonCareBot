@@ -7,7 +7,7 @@
 ## 1. Verdict
 
 - **Status:** **PASS** (после FIX 2026-05-03)
-- **Summary:** Колонка `domain`, UI «Тип», поля B4, миграция без merge legacy `domain`, фильтры AND, inline preserve — закрыты. Риски SSR vs API и отсутствие баннеров — **сняты** в FIX: общий парсер `parseRecommendationCatalogSsrQuery`, баннеры на каталоге, `api.md` про `domain` вне allowlist.
+- **Summary:** Колонка `domain`, UI «Тип», поля B4, миграция без merge legacy `domain`, фильтры AND, inline preserve — закрыты. Риски SSR vs API и отсутствие баннера по **`domain`** — **сняты** в FIX: общий парсер `parseRecommendationCatalogSsrQuery`, баннер **`invalidDomainQuery`** на каталоге, `api.md` про `domain` вне allowlist. **Сноска 2026-05-04 (FILTER URL tails III):** отдельный баннер/`invalidRegionQuery` для невалидного `?region=` на странице каталога **снят** — канон [`AUDIT_FILTER_URL_CONTRACT_FIX.md`](AUDIT_FILTER_URL_CONTRACT_FIX.md); §9 и §13 ниже дополнены.
 
 ## 2. Scope Verification
 
@@ -21,7 +21,7 @@
 | Archive / unarchive не ломают новые поля | STAGE_B4 §6 | **PASS** | `archive`/`unarchive` в `pgRecommendations` меняют только `is_archived` / `updated_at`; тест «retain B4 fields» в `service.test.ts` |
 | Preserve query каталога (inline) | STAGE_B4, usage | **PASS** | [`RecommendationForm.tsx`](../../apps/webapp/src/app/app/doctor/recommendations/RecommendationForm.tsx) hidden `listQ` / `listTitleSort` / `listRegion` / `listDomain` / `listStatus`; [`actionsInline.ts`](../../apps/webapp/src/app/app/doctor/recommendations/actionsInline.ts) `appendRecommendationsListParams` |
 | REST API согласована с полями B4 | ТЗ / api | **PASS** | [`route.ts`](../../apps/webapp/src/app/api/doctor/recommendations/route.ts), [`[id]/route.ts`](../../apps/webapp/src/app/api/doctor/recommendations/[id]/route.ts); [`api.md`](../../apps/webapp/src/app/api/api.md) (`invalid_query`, `field` для `domain`/`region`; сериализация `domain` — D3 read tolerant) |
-| SSR каталог: паритет фильтров с GET API + баннеры | AUDIT §10 (FIX) | **PASS** | [`recommendationCatalogSsrQuery.ts`](../../apps/webapp/src/modules/recommendations/recommendationCatalogSsrQuery.ts), [`page.tsx`](../../apps/webapp/src/app/app/doctor/recommendations/page.tsx), [`RecommendationsPageClient.tsx`](../../apps/webapp/src/app/app/doctor/recommendations/RecommendationsPageClient.tsx) |
+| SSR каталог: паритет фильтров с GET API + UX невалидного query | AUDIT §10 (FIX) | **PASS** | [`recommendationCatalogSsrQuery.ts`](../../apps/webapp/src/modules/recommendations/recommendationCatalogSsrQuery.ts), [`page.tsx`](../../apps/webapp/src/app/app/doctor/recommendations/page.tsx), [`RecommendationsPageClient.tsx`](../../apps/webapp/src/app/app/doctor/recommendations/RecommendationsPageClient.tsx); невалидный **`region`** в URL каталога — без баннера (FILTER URL tails III) |
 
 ## 3. Changed Files (ревью-ориентир)
 
@@ -75,7 +75,7 @@ pnpm exec tsc --noEmit
 
 ## 9. Manual Smoke (рекомендации)
 
-- [x] Невалидный `?domain=` / `?region=` на SSR: баннеры + список без применения невалидного фильтра (FIX).
+- [x] Невалидный `?domain=` на SSR: баннер + список без применения фильтра по типу (FIX). Невалидный `?region=` на SSR каталога: без баннера региона, фильтр региона не применяется (FILTER URL tails III, см. [`AUDIT_FILTER_URL_CONTRACT_FIX.md`](AUDIT_FILTER_URL_CONTRACT_FIX.md)).
 - [ ] Периодический полный прогон сценариев §9 первичного аудита (по желанию команды).
 
 ## 10. Regressions / Findings
@@ -86,7 +86,7 @@ pnpm exec tsc --noEmit
 
 ### Medium
 
-1. ~~SSR vs GET API по `domain`/`region`; нет баннера для невалидного `?domain=`.~~ — **Исправлено в FIX 2026-05-03:** [`parseRecommendationCatalogSsrQuery`](../../apps/webapp/src/modules/recommendations/recommendationCatalogSsrQuery.ts), баннеры в [`RecommendationsPageClient.tsx`](../../apps/webapp/src/app/app/doctor/recommendations/RecommendationsPageClient.tsx), вызов из [`page.tsx`](../../apps/webapp/src/app/app/doctor/recommendations/page.tsx).
+1. ~~SSR vs GET API по `domain`/`region`; нет баннера для невалидного `?domain=`.~~ — **Исправлено в FIX 2026-05-03:** [`parseRecommendationCatalogSsrQuery`](../../apps/webapp/src/modules/recommendations/recommendationCatalogSsrQuery.ts), баннер **`invalidDomainQuery`** в [`RecommendationsPageClient.tsx`](../../apps/webapp/src/app/app/doctor/recommendations/RecommendationsPageClient.tsx), вызов из [`page.tsx`](../../apps/webapp/src/app/app/doctor/recommendations/page.tsx). **Доп. 2026-05-04:** баннер/`invalidRegionQuery` для невалидного `region` на каталоге сняты — [`AUDIT_FILTER_URL_CONTRACT_FIX.md`](AUDIT_FILTER_URL_CONTRACT_FIX.md).
 
 ### Low
 
@@ -139,9 +139,9 @@ pnpm exec tsc --noEmit
 ## 13. FIX 2026-05-03 (закрытие AUDIT)
 
 | ID | Действие | Файлы |
-|----|----------|--------|
+|----|----------|---------|
 | major | Парсер SSR query (domain + region UUID), не передавать невалидное в `listRecommendations` | `recommendationCatalogSsrQuery.ts`, `recommendationCatalogSsrQuery.test.ts`, `recommendations/page.tsx` |
-| major | Баннеры `invalidDomainQuery` / `invalidRegionQuery` | `RecommendationsPageClient.tsx` |
+| major | Баннер **`invalidDomainQuery`** на каталоге (исторически также оформлялся `invalidRegionQuery` для региона — снят в FILTER URL tails III) | `RecommendationsPageClient.tsx` |
 | minor | Документация API `invalid_query` + контракт `domain` | `api.md` — эволюция D3 (read tolerant), см. [`AUDIT_STAGE_D3.md`](AUDIT_STAGE_D3.md) FIX |
 
 ---
@@ -151,3 +151,9 @@ pnpm exec tsc --noEmit
 - **Verdict:** см. §1 **PASS**.
 - `LOG.md` — запись B4 FIX.
 - Коммит по [`MASTER_PLAN.md`](MASTER_PLAN.md) §9.
+
+---
+
+## 15. Документная синхронизация 2026-05-04 (FILTER URL audit follow-up)
+
+После независимого аудита выполнения [`FILTER_URL_CONTRACT_FIX_PLAN.md`](FILTER_URL_CONTRACT_FIX_PLAN.md) обновлены формулировки в **настоящем** файле и в [`AUDIT_STAGE_D3.md`](AUDIT_STAGE_D3.md): на HTML-каталоге рекомендаций нет отдельного amber-баннера/`invalidRegionQuery` для невалидного `?region=` — канон [`AUDIT_FILTER_URL_CONTRACT_FIX.md`](AUDIT_FILTER_URL_CONTRACT_FIX.md). Код B4/D3 не пересматривался в этом проходе.

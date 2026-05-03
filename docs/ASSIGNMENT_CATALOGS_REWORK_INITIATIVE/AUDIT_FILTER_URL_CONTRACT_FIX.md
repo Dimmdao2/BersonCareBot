@@ -6,11 +6,15 @@
 
 **FIX verification (2026-05-04, сессия closure):** закрыты **Major M1 / M2**; см. § «FIX verification» внизу.
 
+**Tails fix (2026-05-04, III):** унифицирован парсинг `?region=` (без `invalidRegionQuery` и без отдельного UX для UUID/мусора в URL — ведёт себя как «Все регионы»); у **`test-sets`** убрана ось **`load`** из SSR, preserve и redirect; тесты и аудит обновлены — см. § «Tails fix verification».
+
+**Док-синхронизация (2026-05-04, IV):** после аудита выполнения плана обновлены [`AUDIT_STAGE_D3.md`](AUDIT_STAGE_D3.md), [`AUDIT_STAGE_B4.md`](AUDIT_STAGE_B4.md) (сноски §1/§3/§5/§9/§13/§15); в **этом** файле — § Residual (CI, стадийные AUDIT, backlog preserve-тестов).
+
 ---
 
 ## Verdict: **PASS**
 
-Контракт URL для **`region` как code**, отсутствие **`regionRefId` в query-layer**, клиентские **`q` / `region` / `load` / `titleSort`**, **`view`** как UI-state, preserve без UUID в **`region`** для inline redirects — **соблюдены** после FIX. Остаются **minor** ниже (приняты как defer / residual без блока релиза).
+Контракт URL для **`region` как code**, отсутствие **`regionRefId` в query-layer**, клиентские **`q` / `region` / `load` / `titleSort`**, **`view`** как UI-state, preserve без UUID в **`region`** для inline redirects — **соблюдены** после FIX. Residual — только осознанный defer по каталогу шаблонов программ (см. Minor m1) и внутренние имена полей API (m4).
 
 ---
 
@@ -20,7 +24,7 @@
 |---|------|--------|
 | 1 | URL: `region=<code>`, не UUID в генерируемых фильтрах; нет `regionRefId` в query | **PASS** |
 | 2 | Нет `catalogView` / `loadType=` в generated URLs под doctor catalog | **PASS** (`load` / `view`, grep по `apps/webapp/.../doctor` без `catalogView`) |
-| 3 | SSR: `searchParams.region` без UUID fallback | **PASS** (`parseDoctorCatalogRegionQueryParam`, `recommendationCatalogSsrQuery`) |
+| 3 | SSR / parse: `?region=` — только валидный code-token (UUID и мусор → без фильтра, без отдельного error-state) | **PASS** (`parseDoctorCatalogRegionQueryParam`, `recommendationCatalogSsrQuery`) |
 | 4 | Server pages: не передают `q`, `region`, `load` в `list*` | **PASS** (после FIX: recommendations / clinical-tests отдают полный список по archive scope + клиентский tertiary по `domain` / `assessment`) |
 | 5 | `status` / `arch` / `pub` — scope на сервере | **PASS** |
 | 6 | Client: `q`, `region`, `load`, `titleSort` локально | **PASS** (TP — только `q` + `titleSort` в панели; см. Minor m1) |
@@ -62,17 +66,21 @@ _Нет._
 
 - **Обоснование:** без расширения продукта (данные состава в строке списка / отдельная задача) менять TP не входило в закрытие M1/M2; поведение как ранее в `LOG.md`.
 
-#### m2 — SSR принимает любой не-UUID токен как «код региона» без allowlist — **DEFER (scope)**
+#### m2 — Любой не-UUID токен в `region` без allowlist — **MITIGATED (tails)**
 
-- Приемлемое UX-поведение (пустой список при опечатке); отдельная задача при необходимости SSR-баннера.
+- **`parseDoctorCatalogRegionQueryParam`:** нормализация в lower-case + sanity `[a-z0-9_]+`; UUID и нетокенный мусор → `regionCode: undefined` (как «Все регионы»), без баннеров.
 
-#### m3 — Тест формы: покрытие URL для `region` — **PARTIAL**
+#### m3 — Тест формы: покрытие URL для `region` / `load` — **PASS**
 
-- Добавлены **`doctorCatalogClientUrlSync.test.ts`** (parse + preserve UUID) и обновлён **`DoctorCatalogFiltersForm.test.tsx`** под `replaceState` вместо `router.replace`. Полный сценарий «ReferenceSelect → `region=spine`» по-прежнему упирается в mock `ReferenceSelect` — не блокер при наличии sync-unit-тестов.
+- Mock **`ReferenceSelect`** вызывает `onChange` с кодами; assert на `region=spine` + `load=strength` в URL; spy на **`history.replaceState`** с pass-through (jsdom обновляет query между шагами).
 
 #### m4 — Внутренние имена `regionRefId` в портах/API — **NO CHANGE**
 
 - Читаемость / отдельный рефакторинг.
+
+#### m5 — `test-sets`: «мёртвый» `load` в preserve / URL — **CLOSED**
+
+- Убраны `listLoad` / `loadType` из **`TestSetForm`**, **`TestSetsPageClient`**, **`test-sets/page.tsx`**, **`actionsInline`**; общая чистая функция **`appendTestSetsListPreserveToSearchParams`** + unit-тест **`testSetsListPreserveParams.test.ts`**.
 
 ---
 
@@ -91,13 +99,43 @@ pnpm --dir apps/webapp exec tsc --noEmit   # exit 0
 
 ---
 
+## Tails fix verification (2026-05-04, III)
+
+```bash
+pnpm --dir apps/webapp exec eslint \
+  src/shared/lib/doctorCatalogRegionQuery.ts \
+  src/shared/lib/doctorCatalogClientUrlSync.ts \
+  src/shared/hooks/useDoctorCatalogClientFilterMerge.ts \
+  src/modules/recommendations/recommendationCatalogSsrQuery.ts \
+  src/app/app/doctor/test-sets/testSetsListPreserveParams.ts \
+  src/app/app/doctor/test-sets/actionsInline.ts \
+  src/app/app/doctor/test-sets/TestSetForm.tsx \
+  src/app/app/doctor/test-sets/TestSetsPageClient.tsx \
+  src/app/app/doctor/test-sets/page.tsx   # exit 0
+
+pnpm --dir apps/webapp exec vitest run \
+  src/shared/lib/doctorCatalogRegionQuery.test.ts \
+  src/shared/lib/doctorCatalogClientUrlSync.test.ts \
+  src/modules/recommendations/recommendationCatalogSsrQuery.test.ts \
+  src/shared/ui/doctor/DoctorCatalogFiltersForm.test.tsx \
+  src/app/app/doctor/test-sets/testSetsListPreserveParams.test.ts   # 19 tests passed
+
+pnpm --dir apps/webapp exec tsc --noEmit   # exit 0
+```
+
+**Корневой `pnpm run ci`** в этом tails-pass **не** выполнялся.
+
+---
+
 ## Residual risks & skipped checks
 
 | Риск / пропуск | Комментарий |
 |-----------------|-------------|
 | Каталог шаблонов программ без `region`/`load` в UI | Minor m1 — осознанный residual. |
 | Публичные JSON API (`GET /api/doctor/...`) | Контракт **страниц** каталога; API может отличаться по `region` — вне scope FILTER fix. |
-| Полный CI | Не подтверждён в этом FIX-pass. |
+| Полный CI | Не подтверждён в FIX-pass и в tails-pass (III). Перед push в remote — по правилам репозитория обязателен **`pnpm install --frozen-lockfile && pnpm run ci`**. |
+| Стадийные AUDIT (B4/D3) | **2026-05-04:** текст синхронизирован с каноном [`AUDIT_FILTER_URL_CONTRACT_FIX.md`](AUDIT_FILTER_URL_CONTRACT_FIX.md) (невалидный `region` на HTML-каталоге без отдельного баннера). |
+| Backlog (низкий приоритет) | Опционально: выделить pure-unit тесты preserve-query для **`recommendations`/`clinical-tests`** `actionsInline` по аналогии с **`testSetsListPreserveParams.test.ts`**. |
 
 ---
 
@@ -109,7 +147,7 @@ pnpm --dir apps/webapp exec tsc --noEmit   # exit 0
 - **§6 ReferenceSelect:** регион каталога — `valueMatch="code"`; формы create/edit без изменений контракта.  
 - **§7 Preserve:** inline actions используют `appendRegionParamFromListPreserve`.  
 - **§8 UI regression:** без «Применить», без строки summary под фильтрами.  
-- **§9 Tests:** см. Evidence.
+- **§9 Tests:** см. Evidence (FIX) и **Tails fix verification** (III).
 
 ---
 
@@ -117,10 +155,11 @@ pnpm --dir apps/webapp exec tsc --noEmit   # exit 0
 
 | ID | Критерий закрытия | Подтверждение |
 |----|-------------------|---------------|
+| Tails | Нет отдельного UX/флага для UUID в `region`; мусор в URL → без фильтра региона; `test-sets` без `load` в preserve/redirect | Удалён `invalidRegionQuery` из shared + страниц; **`appendTestSetsListPreserveToSearchParams`**; тесты в § Tails fix verification. |
 | M1 | Нет `router.replace` для синка фильтров; список не зависит от RSC при смене q/region/load/titleSort в URL | `DoctorCatalogFiltersForm`: только `history.replaceState` + `dispatchDoctorCatalogUrlSync`; клиенты с `useDoctorCatalogClientFilterMerge`. |
 | M2 | Redirect после inline save/archive не пишет `region=<uuid>` | `appendRegionParamFromListPreserve` в трёх `actionsInline.ts`. |
 | Консистентность списка без RSC | Recommendations: `listRecommendations` без `domain`; Clinical: `listClinicalTests` без `assessmentKind`; клиент режет по `domain` / `assessmentKind` через опции `useDoctorCatalogDisplayList` (`tertiaryCode` / `getItemTertiaryCode`). |
 
 ---
 
-**Итог:** вердикт **PASS** для merge при принятии residual minor и без полного корневого CI в этом проходе.
+**Итог:** вердикт **PASS** для merge при принятии residual (m1, m4) и без полного корневого CI в FIX/tails проходах.

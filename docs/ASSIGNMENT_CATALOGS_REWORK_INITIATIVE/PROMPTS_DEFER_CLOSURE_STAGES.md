@@ -174,6 +174,12 @@
 
 ---
 
+## D5 — пауза (2026-05-04)
+
+Этап **`recommendations.domain` → `kind` отложен** владельцем. Блоки **D5 — EXEC / AUDIT / FIX ниже не запускать**, пока в [`STAGE_D5_PLAN.md`](STAGE_D5_PLAN.md) или [`LOG.md`](LOG.md) не снята пауза.
+
+---
+
 ## D5 — EXEC
 
 ```text
@@ -217,19 +223,21 @@
 Выполни stage D6 (global defer closure audit) по STAGE_D6_PLAN.md.
 
 Сделай:
-1) собрать результаты D1–D5;
+1) собрать результаты D1–D4 и зафиксированный статус D5 (включая deferred без AUDIT_STAGE_D5);
 2) проверить соответствие product plan §5/§7/§8 факту кода;
 3) проверить что решения "не делаем" (publication_status extra, bulk API) не протекли в реализацию;
-4) подготовить глобальный аудит.
+4) отметить отдельно решение по DROP `clinical_tests.scoring_config` vs состояние миграций;
+5) подготовить глобальный аудит.
 ```
 
 ## D6 — AUDIT
 
 ```text
 Проведи финальный аудит defer-wave:
-- источники: AUDIT_STAGE_D1..D5, LOG, product plan;
+- источники: AUDIT_STAGE_D1..D4, LOG, product plan; D5 — только если был audit-файл;
 - проверь закрытие всех critical/major;
-- зафиксируй residual risks.
+- зафиксируй residual risks;
+- зафиксируй статус D5 (в т.ч. owner pause) и план по DROP scoring_config.
 
 Сохрани: docs/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/AUDIT_DEFER_CLOSURE_GLOBAL.md
 ```

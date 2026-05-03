@@ -31,16 +31,16 @@
 
 ## 5. Усиленный execution checklist
 
-1. [ ] `rg "RECOMMENDATION_DOMAIN_CODES|parseRecommendationDomain|listDomain|domainForList"` — фиксирован периметр.
-2. [ ] Категория/сид справочника добавлены миграцией.
-3. [ ] Форма и фильтры читают список из БД-справочника.
-4. [ ] SSR и REST сохраняют паритет по валидации query.
-5. [ ] Legacy unknown коды не падают на чтении.
-6. [ ] `api.md` обновлён (контракт фильтра и сериализации).
-7. [ ] `eslint`.
-8. [ ] `vitest`.
-9. [ ] `tsc --noEmit`.
-10. [ ] Запись в `LOG.md`.
+1. [x] `rg "RECOMMENDATION_DOMAIN_CODES|parseRecommendationDomain|listDomain|domainForList"` — фиксирован периметр.
+2. [x] Категория/сид справочника добавлены миграцией.
+3. [x] Форма и фильтры читают список из БД-справочника.
+4. [x] SSR и REST сохраняют паритет по валидации query.
+5. [x] Legacy unknown коды не падают на чтении.
+6. [x] `api.md` обновлён (контракт фильтра и сериализации).
+7. [x] `eslint`.
+8. [x] `vitest`.
+9. [x] `tsc --noEmit`.
+10. [x] Запись в `LOG.md`.
 
 ## 6. Stage DoD
 

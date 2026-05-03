@@ -39,6 +39,11 @@
 - **Продукт/интеграция:** массовая доставка по выбранным `channels` после записи в `broadcast_audit` — отдельный контур (сейчас UI и аудит фиксируют намерение).
 - **Архитектура:** мутации мотивации в [`motivation/actions.ts`](../apps/webapp/src/app/app/doctor/content/motivation/actions.ts) (raw SQL) — вынести в порт/DI; baseline [`STRUCTURE_AUDIT.md`](APP_RESTRUCTURE_INITIATIVE/STRUCTURE_AUDIT.md) §III по news/RSC не обновлять (immutable).
 
+### Хвосты ASSIGNMENT_CATALOGS / defer-wave (2026-05-04)
+
+- **`clinical_tests.scoring_config`:** решение владельца — колонка **не нужна**; инженерный follow-up: миграция `DROP` + чистка кода (см. [`APP_RESTRUCTURE_INITIATIVE/ASSIGNMENT_CATALOGS_REWORK_PLAN.md`](APP_RESTRUCTURE_INITIATIVE/ASSIGNMENT_CATALOGS_REWORK_PLAN.md) §7).
+- **`recommendations.domain` → `kind` (D5):** **отложено**; см. [`ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/STAGE_D5_PLAN.md`](ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/STAGE_D5_PLAN.md).
+
 ## Что уже перенесено в архив (2026-05-01)
 
 - `PATIENT_HOME_REDESIGN_INITIATIVE`

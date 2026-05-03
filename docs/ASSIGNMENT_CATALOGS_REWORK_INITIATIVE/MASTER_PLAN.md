@@ -6,7 +6,7 @@
 
 Канонический продуктовый источник: [`../APP_RESTRUCTURE_INITIATIVE/ASSIGNMENT_CATALOGS_REWORK_PLAN.md`](../APP_RESTRUCTURE_INITIATIVE/ASSIGNMENT_CATALOGS_REWORK_PLAN.md).
 
-> Post-B wave: закрытие product defer вынесено в отдельный контур [`DEFER_CLOSURE_MASTER_PLAN.md`](DEFER_CLOSURE_MASTER_PLAN.md) с этапами D1–D6.
+> Post-B wave: закрытие product defer вынесено в отдельный контур [`DEFER_CLOSURE_MASTER_PLAN.md`](DEFER_CLOSURE_MASTER_PLAN.md) с этапами D1–D6. **2026-05-04:** D5 (`domain`→`kind`) **на паузе**; `DROP clinical_tests.scoring_config` — **решено** (инженерный follow-up, см. продуктовое ТЗ §7); расширение обязательного E2E в CI — **не** планируется.
 
 ## 2. Границы scope
 

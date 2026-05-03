@@ -13,7 +13,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import type { ExerciseLoadType } from "@/modules/lfk-exercises/types";
 import type { TestSet, TestSetUsageSnapshot } from "@/modules/tests/types";
 import type { DoctorCatalogPubArchQuery } from "@/shared/lib/doctorCatalogListStatus";
 import { cn } from "@/lib/utils";
@@ -73,7 +72,6 @@ type Props = {
     q?: string;
     titleSort?: "asc" | "desc" | null;
     regionCode?: string;
-    loadType?: ExerciseLoadType;
     listPubArch?: DoctorCatalogPubArchQuery;
   };
   saveAction?: (_prev: SaveTestSetState | null, formData: FormData) => Promise<SaveTestSetState>;
@@ -233,13 +231,6 @@ export function TestSetForm({
         {workspaceListPreserve?.regionCode != null && workspaceListPreserve.regionCode !== "" ? (
           <input type="hidden" name="listRegion" value={workspaceListPreserve.regionCode} />
         ) : null}
-        {workspaceListPreserve?.loadType === "strength" ||
-        workspaceListPreserve?.loadType === "stretch" ||
-        workspaceListPreserve?.loadType === "balance" ||
-        workspaceListPreserve?.loadType === "cardio" ||
-        workspaceListPreserve?.loadType === "other" ? (
-          <input type="hidden" name="listLoad" value={workspaceListPreserve.loadType} />
-        ) : null}
         <WorkspaceListPreserveHidden w={workspaceListPreserve} />
         <fieldset disabled={isArchived} className="m-0 min-w-0 border-0 p-0">
           <legend className="sr-only">Поля набора тестов</legend>
@@ -324,13 +315,6 @@ export function TestSetForm({
                 {workspaceListPreserve?.regionCode != null && workspaceListPreserve.regionCode !== "" ? (
                   <input type="hidden" name="listRegion" value={workspaceListPreserve.regionCode} />
                 ) : null}
-                {workspaceListPreserve?.loadType === "strength" ||
-                workspaceListPreserve?.loadType === "stretch" ||
-                workspaceListPreserve?.loadType === "balance" ||
-                workspaceListPreserve?.loadType === "cardio" ||
-                workspaceListPreserve?.loadType === "other" ? (
-                  <input type="hidden" name="listLoad" value={workspaceListPreserve.loadType} />
-                ) : null}
                 <WorkspaceListPreserveHidden w={workspaceListPreserve} />
                 <Button type="submit" variant="secondary" disabled={unarchivePending}>
                   {unarchivePending ? "Восстановление…" : "Вернуть из архива"}
@@ -355,13 +339,6 @@ export function TestSetForm({
             ) : null}
             {workspaceListPreserve?.regionCode != null && workspaceListPreserve.regionCode !== "" ? (
               <input type="hidden" name="listRegion" value={workspaceListPreserve.regionCode} />
-            ) : null}
-            {workspaceListPreserve?.loadType === "strength" ||
-            workspaceListPreserve?.loadType === "stretch" ||
-            workspaceListPreserve?.loadType === "balance" ||
-            workspaceListPreserve?.loadType === "cardio" ||
-            workspaceListPreserve?.loadType === "other" ? (
-              <input type="hidden" name="listLoad" value={workspaceListPreserve.loadType} />
             ) : null}
             <WorkspaceListPreserveHidden w={workspaceListPreserve} />
             <input type="hidden" name="acknowledgeUsageWarning" value={archiveUsageAck ? "1" : ""} readOnly />

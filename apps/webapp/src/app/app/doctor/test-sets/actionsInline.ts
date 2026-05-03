@@ -12,25 +12,10 @@ import {
   type SaveTestSetState,
   type UnarchiveTestSetState,
 } from "./actionsShared";
-import { appendRegionParamFromListPreserve } from "@/shared/lib/doctorCatalogClientUrlSync";
+import { appendTestSetsListPreserveToSearchParams } from "./testSetsListPreserveParams";
 
 function appendTestSetsListParams(sp: URLSearchParams, formData: FormData) {
-  const q = formData.get("listQ");
-  if (typeof q === "string" && q.trim()) sp.set("q", q.trim());
-  const ts = formData.get("listTitleSort");
-  if (ts === "asc" || ts === "desc") sp.set("titleSort", ts);
-  appendRegionParamFromListPreserve(sp, formData.get("listRegion"));
-  const load = formData.get("listLoad");
-  if (load === "strength" || load === "stretch" || load === "balance" || load === "cardio" || load === "other") {
-    sp.set("load", load);
-  }
-  sp.delete("status");
-  const listArch = formData.get("listArch");
-  if (listArch === "archived") sp.set("arch", "archived");
-  else sp.delete("arch");
-  const listPub = formData.get("listPub");
-  if (listPub === "draft" || listPub === "published") sp.set("pub", listPub);
-  else sp.delete("pub");
+  appendTestSetsListPreserveToSearchParams(sp, formData);
 }
 
 export async function saveDoctorTestSetInline(

@@ -56,7 +56,6 @@ type Props = {
   filters: {
     q: string;
     regionCode?: string;
-    invalidRegionQuery?: boolean;
     assessmentKind?: string;
     /** Ненулевой `?assessment=` в URL не совпал со справочником — фильтр не применён. */
     invalidAssessmentQuery?: boolean;
@@ -366,15 +365,6 @@ function ClinicalTestsContent({
           className="border-b border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm text-amber-950 dark:text-amber-100"
         >
           Параметр «Вид оценки» в адресе не распознан — фильтр по виду оценки не применён.
-        </p>
-      ) : null}
-      {filters.invalidRegionQuery ? (
-        <p
-          role="status"
-          className="border-b border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm text-amber-950 dark:text-amber-100"
-        >
-          Параметр «Регион» в адресе задан как UUID — ожидается код справочника (например spine). Фильтр по региону не
-          применён.
         </p>
       ) : null}
       <CatalogSplitLayout

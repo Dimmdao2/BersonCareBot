@@ -65,6 +65,7 @@
 ## 3. Что ещё остаётся инженерно подтвердить до реализации defer-этапов
 
 - Где хранить новые справочники: `reference_categories/reference_items` (предпочтительно для единообразия UI) или отдельные таблицы.
-- Объём рефакторинга `recommendations.domain` → `kind` по коду/API/миграциям и порог «делаем сейчас / откладываем».
+- Объём рефакторинга `recommendations.domain` → `kind` по коду/API/миграциям и порог «делаем сейчас / откладываем». **2026-05-04:** эпик **отложен** (owner pause); см. [`STAGE_D5_PLAN.md`](STAGE_D5_PLAN.md).
+- **`clinical_tests.scoring_config`:** **2026-05-04** — колонка не нужна; планируется `DROP` + чистка кода (см. продуктовое ТЗ [`../APP_RESTRUCTURE_INITIATIVE/ASSIGNMENT_CATALOGS_REWORK_PLAN.md`](../APP_RESTRUCTURE_INITIATIVE/ASSIGNMENT_CATALOGS_REWORK_PLAN.md) §7).
 
 После обновлений по решениям — синхронизировать §8 в продуктовом плане и `LOG.md` инициативы.

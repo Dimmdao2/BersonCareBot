@@ -42,7 +42,6 @@ export function useDoctorCatalogClientFilterMerge<S extends Record<string, unkno
       ...s,
       q: slice.q,
       regionCode: slice.regionCode,
-      invalidRegionQuery: slice.invalidRegionQuery,
       loadType: slice.loadType ?? s.loadType,
       titleSort: slice.titleSort ?? s.titleSort ?? null,
       domain: slice.domain ?? s.domain,

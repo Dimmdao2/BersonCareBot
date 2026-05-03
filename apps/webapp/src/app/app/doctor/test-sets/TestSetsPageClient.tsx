@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
-import type { ExerciseLoadType } from "@/modules/lfk-exercises/types";
 import type { TestSet, TestSetUsageSnapshot } from "@/modules/tests/types";
 import { cn } from "@/lib/utils";
 import { useDoctorCatalogDisplayList } from "@/shared/hooks/useDoctorCatalogDisplayList";
@@ -41,8 +40,6 @@ type Props = {
   filters: {
     q: string;
     regionCode?: string;
-    invalidRegionQuery?: boolean;
-    loadType?: ExerciseLoadType;
     listPubArch: DoctorCatalogPubArchQuery;
   };
 };
@@ -177,7 +174,6 @@ export function TestSetsPageClient({
             q: mergedFilters.q,
             titleSort: mergedFilters.titleSort,
             regionCode: mergedFilters.regionCode,
-            loadType: mergedFilters.loadType,
             listPubArch: mergedFilters.listPubArch,
           }}
           backHref={TEST_SETS_PATH}
@@ -243,15 +239,6 @@ export function TestSetsPageClient({
 
   return (
     <DoctorCatalogPageLayout toolbar={toolbar}>
-      {mergedFilters.invalidRegionQuery ? (
-        <p
-          role="status"
-          className="border-b border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm text-amber-950 dark:text-amber-100"
-        >
-          Параметр «Регион» в адресе задан как UUID — ожидается код справочника (например spine). Фильтр по региону не
-          применён.
-        </p>
-      ) : null}
       <CatalogSplitLayout
         className="lg:h-[calc(100dvh-3.5rem-env(safe-area-inset-top,0px)-3.25rem-1rem)] lg:overflow-hidden"
         left={

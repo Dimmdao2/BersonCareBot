@@ -2,18 +2,20 @@ import { z } from "zod";
 
 const uuidSchema = z.string().uuid();
 
+/** Код `reference_items.code` для `body_region`: строчные латинские буквы, цифры, подчёркивание (без пробелов/дефисов). */
+const BODY_REGION_CODE_TOKEN = /^[a-z0-9_]+$/;
+
 /**
  * Параметр `?region=` в каталогах врача — только `reference_items.code` (например `spine`).
- * UUID в query не используется и не резолвится в refId на сервере.
+ * Пустое, UUID, несоответствие формату кода — без отдельного UX-флага: `regionCode` просто `undefined` («Все регионы»).
  */
 export function parseDoctorCatalogRegionQueryParam(raw: string | undefined): {
   regionCode: string | undefined;
-  invalidRegionQuery: boolean;
 } {
   const t = typeof raw === "string" ? raw.trim() : "";
-  if (!t) return { regionCode: undefined, invalidRegionQuery: false };
-  if (uuidSchema.safeParse(t).success) {
-    return { regionCode: undefined, invalidRegionQuery: true };
-  }
-  return { regionCode: t, invalidRegionQuery: false };
+  if (!t) return { regionCode: undefined };
+  if (uuidSchema.safeParse(t).success) return { regionCode: undefined };
+  const lower = t.toLowerCase();
+  if (!BODY_REGION_CODE_TOKEN.test(lower)) return { regionCode: undefined };
+  return { regionCode: lower };
 }

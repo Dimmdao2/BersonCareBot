@@ -14,6 +14,19 @@ describe("doctorCatalogClientUrlSync", () => {
     expect(sp.has("region")).toBe(false);
   });
 
+  it("appendRegionParamFromListPreserve skips junk token", () => {
+    const sp = new URLSearchParams();
+    appendRegionParamFromListPreserve(sp, "not valid!");
+    expect(sp.has("region")).toBe(false);
+  });
+
+  it("readDoctorCatalogClientFilterUrlSlice drops UUID region like no filter", () => {
+    window.history.replaceState({}, "", "/?region=550e8400-e29b-41d4-a716-446655440000");
+    const s = readDoctorCatalogClientFilterUrlSlice();
+    expect(s.regionCode).toBeUndefined();
+    window.history.replaceState({}, "", "/");
+  });
+
   it("appendRegionParamFromListPreserve sets region code", () => {
     const sp = new URLSearchParams();
     appendRegionParamFromListPreserve(sp, "spine");
@@ -25,7 +38,6 @@ describe("doctorCatalogClientUrlSync", () => {
     const s = readDoctorCatalogClientFilterUrlSlice();
     expect(s.q).toBe("foo");
     expect(s.regionCode).toBe("spine");
-    expect(s.invalidRegionQuery).toBe(false);
     expect(s.loadType).toBe("strength");
     expect(s.titleSort).toBe("asc");
     expect(s.domain).toBe("nutrition");
