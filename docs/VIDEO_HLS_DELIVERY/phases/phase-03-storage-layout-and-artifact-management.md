@@ -8,26 +8,29 @@
 
 ---
 
-## Предлагаемый layout (пример)
+## Канонический layout (как в коде, phase-03)
 
-Корень по `media_id`:
+Корень объекта = `dirname(s3_key)` → **`media/{mediaId}/`**, когда upload идёт через `s3ObjectKey(id, filename)`.
 
 ```
-media/{uuid}/source.mp4          # или текущий ключ s3_key — не ломать существующие
-media/{uuid}/hls/master.m3u8
-media/{uuid}/hls/1080p/index.m3u8
-media/{uuid}/hls/1080p/seg_00001.ts
-media/{uuid}/hls/480p/...
-media/{uuid}/poster/poster.jpg
+media/{uuid}/{filename}.mp4      # s3_key — исходный MP4 (fallback / re-transcode); транскод не удаляет
+media/{uuid}/hls/master.m3u8     # VOD master, относительные URI на варианты
+media/{uuid}/hls/720p/index.m3u8
+media/{uuid}/hls/720p/*.ts       # сегменты FFmpeg
+media/{uuid}/hls/480p/index.m3u8
+media/{uuid}/hls/480p/*.ts
+media/{uuid}/poster/poster.jpg   # JPEG постер; не под `hls/`
 ```
 
-**Важно:** если текущие объекты уже по пути `s3ObjectKey(id, filename)` — не обязательно физически переносить; для **новых** транскодов можно писать HLS рядом, вычисляя prefix от `dirname(s3_key)` или фиксированный шаблон. Зафиксировать **один** выбранный вариант в PR и здесь обновить.
+Рендеры **720p** и **480p** в master: bandwidth **2 800 000** и **900 000** (см. `apps/media-worker` + `buildVodMasterPlaylistBody`).
+
+**Важно:** существующие объекты с произвольным именем файла в `s3_key` остаются; HLS и постер пишутся **рядом** под тем же `media/{uuid}/`. Если `s3_key` когда-либо не согласован с `id` строки `media_files`, purge-list по HLS/poster опирается на канонический `media/{id}/…` только когда `dirname(s3_key)` совпадает с `media/{id}` (`hlsStorageLayout.ts`).
 
 ---
 
 ## Master playlist и renditions
 
-- 2–3 качества (например 720p, 480p) — согласовать битрейты.
+- Два качества: **720p**, **480p** (битрейты см. выше).
 - `hls_playlist_type vod` для VOD.
 - Master `.m3u8` ссылается на variant playlists относительными URL — presigned должны сохранять относительную структуру или использовать absolute URLs в manifest (предпочтительно **относительные** + presign каждого файла).
 
@@ -42,7 +45,7 @@ media/{uuid}/poster/poster.jpg
 
 ## Cleanup policy
 
-- При удалении медиа (`pending_delete` flow): удалять **весь prefix** дерева `hls/` и `poster/` в addition к source (purge job расширить).
+- При удалении медиа (`pending_delete` flow): `collectS3KeysForMediaPurge` удаляет объекты под prefix `hls/` и `poster/` (ListObjectsV2), плюс явный `poster_s3_key`, preview keys и source `s3_key`.
 - При failed transcode: временные файлы на диске worker — всегда `finally` unlink dir.
 - Опционально: S3 lifecycle на `tmp/` если когда-либо появится отдельный prefix (не обязательно v1).
 
@@ -55,16 +58,16 @@ media/{uuid}/poster/poster.jpg
 
 ---
 
-## Изменения по слоям
+## Изменения по слоям (реализовано)
 
 ### `apps/webapp`
 
-- Расширить S3 purge в `purgePendingMediaDeleteBatch` (или аналог) для удаления HLS дерева по известным ключам из `media_files`.
-- Утилита `buildHlsPrefix(mediaId)` в одном модуле (shared с worker через copy или `packages/`).
+- `purgePendingMediaDeleteBatch` + `collectS3KeysForMediaPurge`: list по prefix (`s3ListObjectKeysUnderPrefix`), HLS + poster + previews + source `s3_key`; доверенный `hls_artifact_prefix` только под каноническим `media/{id}/hls`.
+- Модуль `src/shared/lib/hlsStorageLayout.ts` (копия логики в `apps/media-worker/src/hlsStorageLayout.ts`).
 
 ### `apps/media-worker`
 
-- Строго следовать layout; upload в правильном порядке (сегменты → variants → master последним или master с валидными относительными путями — проверить совместимость с FFmpeg output).
+- `processTranscodeJob`: выкладка под layout; master последним; исходный MP4 не удаляется.
 
 ### Playback
 
@@ -81,15 +84,16 @@ media/{uuid}/poster/poster.jpg
 
 ## Тесты
 
-- Unit: `buildHlsPrefix`, join keys.
-- Integration: purge удаляет mock список ключей (mock S3).
+- Unit: `apps/webapp/src/shared/lib/hlsStorageLayout.test.ts` (пути, purge prefix).
+- Unit / smoke manifest: `apps/webapp/src/shared/lib/hlsMasterPlaylist.test.ts` (`buildVodMasterPlaylistBody` + парс вариантов).
+- Purge: `apps/webapp/src/infra/repos/s3MediaStorage.test.ts` (`collectS3KeysForMediaPurge`, list prefix + source MP4; ошибка S3 delete → backoff).
 
 ---
 
 ## Критерии завершения
 
-- [ ] Документированный layout в этом файле совпадает с кодом.
-- [ ] Удаление медиа чистит HLS артефакты.
+- [x] Документированный layout в этом файле совпадает с кодом.
+- [x] Удаление медиа чистит HLS артефакты (list по prefix `…/hls`, постер `…/poster` или `poster_s3_key`, плюс source `s3_key` и preview keys).
 
 ---
 

@@ -929,12 +929,23 @@ export const mediaFiles = pgTable("media_files", {
 	previewNextAttemptAt: timestamp("preview_next_attempt_at", { withTimezone: true, mode: 'string' }),
 	sourceWidth: integer("source_width"),
 	sourceHeight: integer("source_height"),
+	/** VIDEO_HLS_DELIVERY: transcode pipeline status; NULL = legacy / not yet tracked (MP4-only). */
+	videoProcessingStatus: text("video_processing_status"),
+	videoProcessingError: text("video_processing_error"),
+	hlsMasterPlaylistS3Key: text("hls_master_playlist_s3_key"),
+	/** Prefix under private bucket for HLS tree (variants + segments); optional if derivable from master key in phase-03. */
+	hlsArtifactPrefix: text("hls_artifact_prefix"),
+	posterS3Key: text("poster_s3_key"),
+	videoDurationSeconds: integer("video_duration_seconds"),
+	availableQualitiesJson: jsonb("available_qualities_json"),
+	videoDeliveryOverride: text("video_delivery_override"),
 }, (table) => [
 	index("idx_media_files_created_at").using("btree", table.createdAt.desc().nullsFirst().op("timestamptz_ops")),
 	index("idx_media_files_folder_created").using("btree", table.folderId.asc().nullsLast().op("uuid_ops"), table.createdAt.desc().nullsFirst().op("timestamptz_ops")).where(sql`(folder_id IS NOT NULL)`),
 	index("idx_media_files_preview_status").using("btree", table.previewStatus.asc().nullsLast().op("text_ops")).where(sql`(preview_status = 'pending'::text)`),
 	index("idx_media_files_purge_queue").using("btree", table.nextAttemptAt.asc().nullsFirst().op("timestamptz_ops")).where(sql`(status = ANY (ARRAY['pending_delete'::text, 'deleting'::text]))`),
 	index("idx_media_files_uploaded_by").using("btree", table.uploadedBy.asc().nullsLast().op("uuid_ops")),
+	index("idx_media_files_video_processing_status").using("btree", table.videoProcessingStatus.asc().nullsLast().op("text_ops")).where(sql`(mime_type ~~ 'video/%'::text)`),
 	foreignKey({
 			columns: [table.folderId],
 			foreignColumns: [mediaFolders.id],
@@ -948,6 +959,37 @@ export const mediaFiles = pgTable("media_files", {
 	check("media_files_preview_status_check", sql`preview_status = ANY (ARRAY['pending'::text, 'ready'::text, 'failed'::text, 'skipped'::text])`),
 	check("media_files_size_bytes_check", sql`(size_bytes >= 0) AND (size_bytes <= '3221225472'::bigint)`),
 	check("media_files_status_check", sql`status = ANY (ARRAY['ready'::text, 'pending'::text, 'deleting'::text, 'pending_delete'::text])`),
+	check(
+		"media_files_video_processing_status_check",
+		sql`(video_processing_status IS NULL) OR (video_processing_status = ANY (ARRAY['none'::text, 'pending'::text, 'processing'::text, 'ready'::text, 'failed'::text]))`,
+	),
+	check(
+		"media_files_video_delivery_override_check",
+		sql`(video_delivery_override IS NULL) OR (video_delivery_override = ANY (ARRAY['mp4'::text, 'hls'::text, 'auto'::text]))`,
+	),
+]);
+
+/** VIDEO_HLS_DELIVERY phase-02: one transcode job queue row per media until done/failed. */
+export const mediaTranscodeJobs = pgTable("media_transcode_jobs", {
+	id: uuid().defaultRandom().primaryKey().notNull(),
+	mediaId: uuid("media_id").notNull(),
+	status: text().default('pending').notNull(),
+	attempts: integer("attempts").default(0).notNull(),
+	lockedAt: timestamp("locked_at", { withTimezone: true, mode: 'string' }),
+	lockedBy: text("locked_by"),
+	lastError: text("last_error"),
+	nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true, mode: 'string' }),
+	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+}, (table) => [
+	index("idx_media_transcode_jobs_pending_pick").using("btree", table.nextAttemptAt.asc().nullsFirst().op("timestamptz_ops"), table.createdAt.asc().nullsLast().op("timestamptz_ops")).where(sql`(status = 'pending'::text)`),
+	uniqueIndex("media_transcode_jobs_one_active_per_media").using("btree", table.mediaId.asc().nullsLast().op("uuid_ops")).where(sql`(status = ANY (ARRAY['pending'::text, 'processing'::text]))`),
+	foreignKey({
+		columns: [table.mediaId],
+		foreignColumns: [mediaFiles.id],
+		name: "media_transcode_jobs_media_id_fkey",
+	}).onDelete("cascade"),
+	check("media_transcode_jobs_status_check", sql`status = ANY (ARRAY['pending'::text, 'processing'::text, 'done'::text, 'failed'::text])`),
 ]);
 
 export const bookingBranches = pgTable("booking_branches", {

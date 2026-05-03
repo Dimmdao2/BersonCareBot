@@ -6,6 +6,7 @@ const queryMock = vi.fn();
 const connectQueryMock = vi.fn();
 const s3PutObjectBodyMock = vi.fn();
 const s3DeleteObjectMock = vi.fn();
+const s3ListObjectKeysUnderPrefixMock = vi.fn();
 
 vi.mock("@/infra/db/client", () => ({
   getPool: () => ({
@@ -23,6 +24,7 @@ vi.mock("@/infra/s3/client", async () => {
     ...actual,
     s3PutObjectBody: (...args: unknown[]) => s3PutObjectBodyMock(...args),
     s3DeleteObject: (...args: unknown[]) => s3DeleteObjectMock(...args),
+    s3ListObjectKeysUnderPrefix: (...args: unknown[]) => s3ListObjectKeysUnderPrefixMock(...args),
   };
 });
 
@@ -39,7 +41,7 @@ vi.mock("@/config/env", () => ({
   },
 }));
 
-import { createS3MediaStoragePort, purgePendingMediaDeleteBatch } from "./s3MediaStorage";
+import { collectS3KeysForMediaPurge, createS3MediaStoragePort, purgePendingMediaDeleteBatch } from "./s3MediaStorage";
 
 describe("createS3MediaStoragePort", () => {
   beforeEach(() => {
@@ -47,8 +49,10 @@ describe("createS3MediaStoragePort", () => {
     connectQueryMock.mockReset();
     s3PutObjectBodyMock.mockReset();
     s3DeleteObjectMock.mockReset();
+    s3ListObjectKeysUnderPrefixMock.mockReset();
     s3PutObjectBodyMock.mockResolvedValue(undefined);
     s3DeleteObjectMock.mockResolvedValue(undefined);
+    s3ListObjectKeysUnderPrefixMock.mockResolvedValue([]);
   });
 
   // ----- upload -----
@@ -151,7 +155,71 @@ describe("purgePendingMediaDeleteBatch", () => {
     queryMock.mockReset();
     connectQueryMock.mockReset();
     s3DeleteObjectMock.mockReset();
+    s3ListObjectKeysUnderPrefixMock.mockReset();
     s3DeleteObjectMock.mockResolvedValue(undefined);
+    s3ListObjectKeysUnderPrefixMock.mockResolvedValue([]);
+  });
+
+  it("collectS3KeysForMediaPurge merges list results with source mp4", async () => {
+    s3ListObjectKeysUnderPrefixMock
+      .mockResolvedValueOnce(["media/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/hls/master.m3u8"])
+      .mockResolvedValueOnce(["media/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/poster/poster.jpg"]);
+    const keys = await collectS3KeysForMediaPurge({
+      id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      s3_key: "media/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/video.mp4",
+      preview_sm_key: "previews/sm/x.jpg",
+      preview_md_key: null,
+      hls_artifact_prefix: null,
+      poster_s3_key: null,
+      hls_master_playlist_s3_key: null,
+    });
+    expect(keys.sort()).toEqual(
+      [
+        "previews/sm/x.jpg",
+        "media/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/hls/master.m3u8",
+        "media/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/poster/poster.jpg",
+        "media/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/video.mp4",
+      ].sort(),
+    );
+    expect(s3ListObjectKeysUnderPrefixMock).toHaveBeenCalledWith(
+      "media/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/hls",
+    );
+    expect(s3ListObjectKeysUnderPrefixMock).toHaveBeenCalledWith(
+      "media/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/poster",
+    );
+  });
+
+  it("collectS3KeysForMediaPurge skips untrusted poster_s3_key and lists canonical poster prefix", async () => {
+    const other = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+    s3ListObjectKeysUnderPrefixMock
+      .mockResolvedValueOnce(["media/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/hls/a.ts"])
+      .mockResolvedValueOnce(["media/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/poster/poster.jpg"]);
+    const keys = await collectS3KeysForMediaPurge({
+      id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      s3_key: "media/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/video.mp4",
+      preview_sm_key: null,
+      preview_md_key: null,
+      hls_artifact_prefix: null,
+      poster_s3_key: `media/${other}/poster/poster.jpg`,
+      hls_master_playlist_s3_key: null,
+    });
+    expect(keys).not.toContain(`media/${other}/poster/poster.jpg`);
+    expect(keys).toContain("media/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/poster/poster.jpg");
+    expect(s3ListObjectKeysUnderPrefixMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("collectS3KeysForMediaPurge does not add untrusted hls_master_playlist_s3_key", async () => {
+    const keys = await collectS3KeysForMediaPurge({
+      id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      s3_key: "media/a/legacy.mp4",
+      preview_sm_key: null,
+      preview_md_key: null,
+      hls_artifact_prefix: null,
+      poster_s3_key: null,
+      hls_master_playlist_s3_key: "media/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/hls/master.m3u8",
+    });
+    expect(keys).toEqual(["media/a/legacy.mp4"]);
+    expect(s3ListObjectKeysUnderPrefixMock).not.toHaveBeenCalled();
   });
 
   it("increments delete_attempts and counts errors when S3 delete fails", async () => {
@@ -165,6 +233,11 @@ describe("purgePendingMediaDeleteBatch", () => {
             s3_key: "media/a/x",
             status: "pending_delete",
             delete_attempts: 0,
+            preview_sm_key: null,
+            preview_md_key: null,
+            hls_artifact_prefix: null,
+            poster_s3_key: null,
+            hls_master_playlist_s3_key: null,
           },
         ],
       })

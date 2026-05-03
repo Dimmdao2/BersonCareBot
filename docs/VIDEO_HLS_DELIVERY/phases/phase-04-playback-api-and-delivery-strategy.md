@@ -94,8 +94,8 @@ if default == hls && !ready → fallback mp4 if allow else error JSON
 
 ## Критерии завершения
 
-- [ ] Контракт задокументирован в `apps/webapp/src/app/api/api.md`.
-- [ ] Все ветки delivery покрыты тестами.
+- [x] Контракт задокументирован в `apps/webapp/src/app/api/api.md`.
+- [x] Все ветки delivery покрыты тестами.
 
 ---
 

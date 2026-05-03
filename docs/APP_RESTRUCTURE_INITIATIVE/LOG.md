@@ -6,6 +6,120 @@
 
 ---
 
+## 2026-05-03 (продолжение) — выделен execution-контур PROGRAM_PATIENT_SHAPE (только docs)
+
+**Повод:** пользователь попросил вынести задачи этапа 9 (`PROGRAM_PATIENT_SHAPE`) в отдельную папку инициативы с мастер-планом и отдельными планами этапов.
+
+**Сделано (только документация, код не менялся):**
+
+- Создана новая папка [`../PROGRAM_PATIENT_SHAPE_INITIATIVE/`](../PROGRAM_PATIENT_SHAPE_INITIATIVE/):
+  - [`README.md`](../PROGRAM_PATIENT_SHAPE_INITIATIVE/README.md)
+  - [`MASTER_PLAN.md`](../PROGRAM_PATIENT_SHAPE_INITIATIVE/MASTER_PLAN.md)
+  - [`STAGE_A1_PLAN.md`](../PROGRAM_PATIENT_SHAPE_INITIATIVE/STAGE_A1_PLAN.md)
+  - [`STAGE_A2_PLAN.md`](../PROGRAM_PATIENT_SHAPE_INITIATIVE/STAGE_A2_PLAN.md)
+  - [`STAGE_A3_PLAN.md`](../PROGRAM_PATIENT_SHAPE_INITIATIVE/STAGE_A3_PLAN.md)
+  - [`STAGE_A4_PLAN.md`](../PROGRAM_PATIENT_SHAPE_INITIATIVE/STAGE_A4_PLAN.md)
+  - [`STAGE_A5_PLAN.md`](../PROGRAM_PATIENT_SHAPE_INITIATIVE/STAGE_A5_PLAN.md)
+  - [`LOG.md`](../PROGRAM_PATIENT_SHAPE_INITIATIVE/LOG.md)
+- В [`PROGRAM_PATIENT_SHAPE_PLAN.md`](PROGRAM_PATIENT_SHAPE_PLAN.md) добавлена ссылка на execution-контур.
+- В [`README.md`](README.md) добавлена ссылка на новую инициативную папку (в блок «Новые продуктовые инициативы» и в таблицу «Что в этой папке»).
+- В корневом [`../README.md`](../README.md) добавлен пункт «Program Patient Shape Execution» в блок активных инициатив.
+
+**Решение по структуре:**
+
+- `PROGRAM_PATIENT_SHAPE_PLAN.md` остаётся продуктовым ТЗ.
+- `PROGRAM_PATIENT_SHAPE_INITIATIVE/*` становится операционным контуром реализации (master + stage plans + log).
+- Sister-план B1–B7 (`ASSIGNMENT_CATALOGS_REWORK_PLAN.md`) остаётся отдельной инициативой и не смешивается с A1–A5.
+
+**Проверки:** только docs; CI не запускался.
+
+**Вне scope:** реализация A1–A5/B1–B7 в коде.
+
+---
+
+## 2026-05-03 (продолжение) — ASSIGNMENT_CATALOGS_REWORK + Universal comment pattern (только docs)
+
+**Повод:** после фиксации `PROGRAM_PATIENT_SHAPE_PLAN` и `COURSES_INITIATIVE` пользователь поднял пакет UX/тех-болей в существующих каталогах раздела «Назначения» (по скриншотам админки): JSON `scoring_config` у клин. тестов; «UUID-textarea» для состава наборов тестов; «Область» как название поля у рекомендаций при отсутствии регион-тела; нерабочая «иконка глаза» у комплексов ЛФК; невозможность отдельно фильтровать черновики vs опубликованные; убогий конструктор шаблонов программ.
+
+Прошли по реальному коду каталогов ([`ClinicalTestForm.tsx`](../../apps/webapp/src/app/app/doctor/clinical-tests/ClinicalTestForm.tsx), [`RecommendationForm.tsx`](../../apps/webapp/src/app/app/doctor/recommendations/RecommendationForm.tsx), [`TestSetItemsForm.tsx`](../../apps/webapp/src/app/app/doctor/test-sets/TestSetItemsForm.tsx), [`TreatmentProgramConstructorClient.tsx`](../../apps/webapp/src/app/app/doctor/treatment-program-templates/[id]/TreatmentProgramConstructorClient.tsx), [`doctorCatalogListStatus.ts`](../../apps/webapp/src/shared/lib/doctorCatalogListStatus.ts)) — подтвердили факты, согласовали структуру переработки, оформили в новый sister-план + дополнили `PROGRAM_PATIENT_SHAPE_PLAN`.
+
+**Сделано (только документация, код не менялся):**
+
+- Новый план [`ASSIGNMENT_CATALOGS_REWORK_PLAN.md`](ASSIGNMENT_CATALOGS_REWORK_PLAN.md) с этапами **B1–B7**:
+  - **B1** — две независимых оси фильтра «черновик/опубликован» × «активный/архив» (применимо к LFK-комплексам, шаблонам программ, наборам тестов, будущим курсам). Архивный черновик после восстановления остаётся черновиком.
+  - **B2** — клинические тесты: `assessment_kind` как справочник (mobility/pain/sensitivity/strength/neurodynamics/proprioception/balance/endurance), `body_region` FK; структурированный `scoring` с `schema_type` (`numeric`/`likert`/`binary`/`qualitative`) и `measure_items[]`; raw_text. Фильтр «Регион» в шапке списка наконец заработает.
+  - **B2.5** — новый shared компонент **`CreatableComboboxInput`** (shadcn такого нет, `cmdk` в проекте не используется — пишем свой поверх Input + Popover). Глобальный пул `clinical_test_measure_kinds`, append-only через `POST /api/doctor/measure-kinds`.
+  - **B3** — наборы тестов: переписать редактор как клон LFK-комплекса (без reps/sets, с **комментарием** на каждый тест); добавить selector через диалог библиотеки; UUID-textarea — убрать как основной UI (Q5 — оставить ли admin-fallback).
+  - **B4** — рекомендации: переименовать «Область» → **«Тип»** в UI; добавить `body_region` FK; добавить опц. `quantity_text` / `frequency_text` / `duration_text`; расширить enum под новые `kind`. Описание (`bodyMd`) и комментарий — **разные сущности**, не объединяем.
+  - **B5** — комплексы ЛФК: диагностика и фикс «иконки глаза»; UX pass-1 списка/карточки; превьюшки.
+  - **B6** — шаблоны программ: визуальный pass-1 конструктора с превьюшками в списке и в модалке «Элемент из библиотеки»; sticky-шапка; CTA «Сохранить черновик / Опубликовать / Архивировать»; **без** добавления `goals/objectives/expected_duration` и групп (это A1+A3 PROGRAM_PATIENT_SHAPE).
+  - **B7** — universal comment pattern: раскат `template_comment` + `local_comment override` на все item-контейнеры (test_set_items, instance-LFK и др.); copy template→instance переносит, override работает, очистка → fallback на template.
+- [`PROGRAM_PATIENT_SHAPE_PLAN.md`](PROGRAM_PATIENT_SHAPE_PLAN.md) дополнен:
+  - В preamble — ссылка на sister-план B1–B7.
+  - Новый §1.9 «Universal comment pattern (template + local override)» — фиксирует общий принцип `template_comment` → `local_comment override`, карта применения по контейнерам, граница с описанием контента (`bodyMd` ≠ комментарий).
+  - Новый §8.2 — журнал решений 2026-05-03 (universal comment, разделение sister-инициативы, конструктор шаблона переписывается визуально один раз в B6 → потом доменно в A1+A3).
+- [`README.md`](README.md) — в блоке «Новые продуктовые инициативы» добавлена строка про B-инициативу; в таблицу документов добавлена строка `ASSIGNMENT_CATALOGS_REWORK_PLAN.md`.
+
+**Ключевые продуктовые решения, лёгшие в документы:**
+
+1. **Две независимых оси фильтра.** Не один enum `draft|published|archived`, а отдельно `publication_status (draft|published)` + отдельно `is_archived`. Архивный черновик остаётся черновиком после восстановления.
+2. **Универсальность только для каталогов с `publication_status`.** У упражнений / клин. тестов / рекомендаций жизненного цикла «черновик/опубликован» нет — там остаётся только архив.
+3. **`CreatableComboboxInput`** — новый shared компонент. shadcn такого не предоставляет, `cmdk` в проекте не используется.
+4. **Глобальный пул `measure_kinds`** — без scope per-doctor (в этой копии проекта врач один). Append-only в первой версии; модерация — backlog (Q6).
+5. **`bodyMd` ≠ комментарий.** Описание принадлежит каталоговой записи (что такое рекомендация); комментарий — заметка в контексте конкретного назначения. B7 не объединяет их.
+6. **Universal comment pattern** — `template_comment` → `local_comment override` для всех item-контейнеров; зафиксирован как общий принцип в `PROGRAM_PATIENT_SHAPE_PLAN.md` §1.9 и расписан по таблицам в B7.
+7. **Конструктор шаблона переписывается один раз визуально** в B6, потом доменно расширяется в A1+A3 (цели/задачи/срок этапа + группы). Это исключает двойной refactor.
+8. **Наборы тестов** — UI-модель = LFK-комплекс минус reps/sets/side/pain плюс комментарий. UUID-textarea как основной UI убирается.
+9. **Рекомендации**: «Область» → «Тип» в UI; колонка `domain` в коде остаётся (переименование в `kind` — backlog по решению Q4).
+10. **Фильтр «Регион» в списке клин. тестов наконец заработает** — после добавления `body_region_id` в B2 (раньше фильтр был, поля не было).
+
+**Открытые вопросы зафиксированы:** [`ASSIGNMENT_CATALOGS_REWORK_PLAN.md`](ASSIGNMENT_CATALOGS_REWORK_PLAN.md) §5 (Q1–Q7) — нужны до старта соответствующих B-этапов.
+
+**Проверки:** правки только в docs; CI не запускался (нет кода). Структурная целостность ссылок проверена визуально. Совместимость с уже зафиксированным `PROGRAM_PATIENT_SHAPE_PLAN` обеспечена через явное разделение scope (`PROGRAM_PATIENT_SHAPE` = доменная модель плана; `ASSIGNMENT_CATALOGS_REWORK` = переработка каталогов и поперечные паттерны).
+
+**Вне scope:** реализация (миграции, schema, UI). По требованию пользователя — «погнали» = оформление в документы, не выполнение.
+
+---
+
+## 2026-05-03 — PROGRAM_PATIENT_SHAPE + COURSES_INITIATIVE: фиксация продуктовых решений (только docs)
+
+**Повод:** обсуждение по «доделыванию структуры в кабинете врача» под все сущности из «Назначений» (кроме упражнений). Прошлись по доменной модели программ (опираясь на архивный [`../archive/2026-05-initiatives/TREATMENT_PROGRAM_INITIATIVE/SYSTEM_LOGIC_SCHEMA.md`](../archive/2026-05-initiatives/TREATMENT_PROGRAM_INITIATIVE/SYSTEM_LOGIC_SCHEMA.md)) и зафиксировали продуктовые решения по «Плану лечения» пациента и «Курсам».
+
+**Сделано (только документация, код не менялся):**
+
+- Новый план [`PROGRAM_PATIENT_SHAPE_PLAN.md`](PROGRAM_PATIENT_SHAPE_PLAN.md) с этапами **A1–A5**:
+  - A1 — цели/задачи/срок этапа (`goals`, `objectives`, `expected_duration_*` на template + instance stages);
+  - A2 — рекомендация actionable/persistent + Этап 0 «Общие рекомендации» + «отключение» (`status active/disabled`) вместо удаления;
+  - A3 — отдельные таблицы **`tplStageGroups` / `instStageGroups`** (с `title`/`description`/`schedule_text`/`sort_order`), `group_id` на items;
+  - A4 — общий **`program_action_log`** (`session_id`, `action_type`), чек-лист дня с галочками, упрощённая «Оценка занятия» после run-screen, **Inbox «К проверке» в карточке пациента**;
+  - A5 — бейдж **«План обновлён»** в Сегодня (по `treatment_program_events`) + бейдж **«Новое»** на item-е (`last_viewed_at IS NULL`, бэкфилл `created_at`).
+- Новая инициатива [`../COURSES_INITIATIVE/README.md`](../COURSES_INITIATIVE/README.md) — **геткурс-модель курсов**: курс = отдельная сущность с уроками, unlock-rules, доступом/оплатой, не «обёртка над `treatment_program_template`». Снимает §9 архивного `SYSTEM_LOGIC_SCHEMA`. Стартует **последней** инициативой после ядра пациентского `PROGRAM_PATIENT_SHAPE_PLAN` и оплаты.
+- [`TARGET_STRUCTURE_PATIENT.md`](TARGET_STRUCTURE_PATIENT.md) — переписан §4.2 «План» под зафиксированную модель; добавлен §12 «Зафиксированные продуктовые решения по Плану и Курсам». §10 (открытые вопросы) — закрыт п.2 (курсы как подраздел Плана vs витрина).
+- [`TARGET_STRUCTURE_DOCTOR.md`](TARGET_STRUCTURE_DOCTOR.md) — обновлён §6 (каталоги назначений: типизированные рекомендации §6.5; конструктор шаблона §6.6; курсы — отдельная инициатива §6.3); §3 (меню — курсы перенесены в «Контент приложения», вопрос финального места открыт §15); §5 (карточка пациента — Tab 2 «Назначения» с Inbox «К проверке», `program_action_log` в Tab 3 «Дневники»); §11 / §13 / §14 — закрыт п.1 открытых вопросов, добавлены строки в дельту; новый §15 «Зафиксированные продуктовые решения».
+- [`RECOMMENDATIONS_AND_ROADMAP.md`](RECOMMENDATIONS_AND_ROADMAP.md) §II.5 — переформулирован пункт 3 (курсы — отдельная инициатива, не объединение с шаблонами); добавлен пункт 4 про PROGRAM_PATIENT_SHAPE. Часть IV — этап 7 переформулирован под `COURSES_INITIATIVE`; добавлен новый **этап 9 PROGRAM_PATIENT_SHAPE** (вставлен перед этапом 8 inbox).
+- [`../BACKLOG_TAILS.md`](../BACKLOG_TAILS.md) — расширен список (этапы 2–9), добавлен раздел «Хвосты по Плану лечения / Курсам (2026-05-03)»: расписание (conditional), push в бот, PWA-push, cross-stage бейдж «новое», метрики compliance, гранулярные галочки, шкала боли, сертификаты курсов и т.д.
+
+**Ключевые решения, которые легли в документы:**
+
+1. **«Любое назначение → `treatment_program_instance`»** — параллельных «активных комплексов вне программы» в новой модели нет. Курсы — отдельный продукт, не план лечения.
+2. **Тесты — без лимитов попыток.** Решение врача — gate этапа.
+3. **Рекомендации — типизированный каталог**; флаг `is_actionable` на `instance_stage_item` (решает врач при назначении).
+4. **«Этап 0 — Общие рекомендации»** — псевдо-stage `sort_order=0`, без FSM, переживает `program.status=completed`.
+5. **Группы внутри этапа — отдельные таблицы** (`tplStageGroups` / `instStageGroups`), не колонка.
+6. **«Отключение» вместо удаления** в инстансе (`status active/disabled`); замена шага = disable + add.
+7. **`program_action_log`** — общий лог действий пациента; для тестов спец-таблицы остаются (`test_attempts`/`test_results`), в логе — маркер.
+8. **Бейдж «План обновлён»** — на основе `treatment_program_events`, без новых таблиц. **Бейдж «Новое»** — `last_viewed_at` на `instance_stage_item` с бэкфиллом.
+9. **Inbox «К проверке»** делается в карточке пациента вместе с A4. Кросс-пациентский inbox в «Сегодня» — backlog.
+10. **Курсы — геткурс-модель** (уроки + unlock-rules + доступ/оплата), отдельная инициатива, последняя в очереди.
+
+**Открытые вопросы зафиксированы:** [`PROGRAM_PATIENT_SHAPE_PLAN.md`](PROGRAM_PATIENT_SHAPE_PLAN.md) §5 (O1–O7) и [`../COURSES_INITIATIVE/README.md`](../COURSES_INITIATIVE/README.md) §6 (C1–C7) — нужны до старта реализации.
+
+**Проверки:** правки только в docs; CI не запускался (нет кода). Структурная целостность ссылок проверена визуально.
+
+**Вне scope:** реализация (миграции, schema, ports, UI). По требованию пользователя — «зафиксируй в документах. Сам не выполняй».
+
+---
+
 ## 2026-05-02 — SelectValue: sentinel «тип нагрузки» и оставшиеся raw-value
 
 **Повод:** при пустом типе нагрузки в [`ExerciseForm.tsx`](../../apps/webapp/src/app/app/doctor/exercises/ExerciseForm.tsx) в триггере отображался внутренний sentinel `__load_type_empty__` (children `SelectValue` были `null`). Дополнительно: самозакрывающийся `SelectValue` в [`CommentBlock.tsx`](../../apps/webapp/src/components/comments/CommentBlock.tsx) и [`PatientHomeRepairTargetsDialog.tsx`](../../apps/webapp/src/app/app/settings/patient-home/PatientHomeRepairTargetsDialog.tsx) мог показывать технический `value` вместо подписи.

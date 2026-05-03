@@ -44,6 +44,12 @@ export const ALLOWED_KEYS = [
   "patient_app_maintenance_enabled",
   /** Текст на экране техработ (пациентское приложение). */
   "patient_app_maintenance_message",
+  /** VIDEO_HLS_DELIVERY: глобально включает очередь транскода и poll в `apps/media-worker` (admin UI + worker read same row). */
+  "video_hls_pipeline_enabled",
+  /** VIDEO_HLS_DELIVERY phase-04: включает `GET /api/media/[id]/playback` (JSON + presign HLS). Выключено по умолчанию. */
+  "video_playback_api_enabled",
+  /** VIDEO_HLS_DELIVERY: глобальная стратегия выдачи видео: `mp4` | `hls` | `auto` (строка в JSON value). */
+  "video_default_delivery",
   /** Публичная ссылка записи на приём (Rubitime и т.п.), редактируется в админке. */
   "patient_booking_url",
   /** Иконки чек-ина настроения на главной: 5 записей score 1-5, label + imageUrl (/api/media/...). */

@@ -1,6 +1,7 @@
 export {
   confirmMediaFileReady,
   deletePendingMediaFileById,
+  getMediaRowForPlayback,
   getMediaPreviewS3KeyForRedirect,
   getMediaRowForConfirm,
   getMediaS3KeyForRedirect,

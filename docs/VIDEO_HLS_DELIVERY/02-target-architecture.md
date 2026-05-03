@@ -33,12 +33,12 @@ sequenceDiagram
 
   U->>W: upload / confirm (существующий flow)
   W->>S3: PUT source MP4 (как сейчас)
-  W->>DB: media_files ready + enqueue transcode job
+  W->>DB: media_files upload status=ready + enqueue transcode job
   MW->>Q: claim job
   MW->>S3: GET source
   MW->>MW: ffmpeg HLS renditions
   MW->>S3: PUT m3u8 + segments + poster
-  MW->>DB: processingStatus=hls_ready, keys
+  MW->>DB: video_processing_status=ready (HLS готов), keys
 
   U->>W: GET playback?mediaId=
   W->>W: authz + delivery strategy
@@ -88,15 +88,16 @@ ffmpeg -y -i input.mp4 -ss 00:00:01 -vframes 1 -q:v 3 poster.jpg
 
 ## 5. Модель в БД (логическая, детали в phase-01)
 
-Расширение **`media_files`** (или сопоставимая схема):
+Расширение **`media_files`** (канон совпадает с миграцией `0018_media_files_hls_foundation` и CHECK в БД):
 
-- `video_processing_status`: например `none | pending_transcode | processing | hls_ready | failed` (имена финализировать в миграции).
-- `video_delivery_mode_preference`: nullable / `inherit` — опционально для override.
-- `hls_master_playlist_s3_key`, `hls_artifact_prefix` (если нужен быстрый list), `poster_s3_key`.
-- `video_duration_seconds`, `available_qualities_json` (массив строк/объектов).
+- `video_processing_status`: `none | pending | processing | ready | failed`. Значение **`ready`** означает «артефакты HLS (и при необходимости постер) выставлены в S3, запись пригодна для HLS-playback» — ранее в эскизах документа это могло называться `hls_ready`.
+- `video_processing_error`: текст ошибки транскода (nullable).
+- `video_delivery_override`: nullable; при необходимости per-file override режима выдачи: `mp4 | hls | auto` (в эскизах могло фигурировать как `video_delivery_mode_preference` / `inherit` — в схеме v1 используется только override-текст или NULL = «наследовать глобальную политику из `system_settings` в phase-04+»).
+- `hls_master_playlist_s3_key`, `hls_artifact_prefix`, `poster_s3_key`.
+- `video_duration_seconds`, `available_qualities_json` (JSONB-массив объектов renditions).
 - Исходный объект: текущий `s3_key` **остаётся** MP4 source для transcoding и MP4 fallback.
 
-**Не дублировать** логику статусов загрузки (`pending` multipart) с транскодингом — разные state machines, возможна матрица «upload ready + transcode pending».
+**Не дублировать** логику статусов загрузки (`pending` multipart / `status` строки медиа) с **`video_processing_status`**: это разные state machines (возможна матрица «upload `ready` + транскод `pending`»).
 
 ---
 

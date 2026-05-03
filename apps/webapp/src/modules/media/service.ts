@@ -1,7 +1,7 @@
 import type { MediaStoragePort } from "./ports";
 import type { MediaRecord } from "./types";
 
-export type { MediaRecord, MediaPreviewStatus } from "./types";
+export type { MediaRecord, MediaPreviewStatus, MediaAvailableQuality, VideoDeliveryOverride, VideoProcessingStatus } from "./types";
 export type { MediaListParams, MediaListSortBy, MediaSortDirection, MediaUsageRef } from "./types";
 export type { UploadMediaParams, UploadMediaResult, MediaStoragePort } from "./ports";
 

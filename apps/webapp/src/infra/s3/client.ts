@@ -5,6 +5,7 @@ import {
   DeleteObjectCommand,
   GetObjectCommand,
   HeadObjectCommand,
+  ListObjectsV2Command,
   PutObjectCommand,
   S3Client,
   UploadPartCommand,
@@ -235,6 +236,34 @@ export async function s3DeleteObject(key: string): Promise<void> {
       Key: key,
     }),
   );
+}
+
+/**
+ * Lists object keys under `prefix` in the private bucket (pagination).
+ * `prefix` may be `foo` or `foo/` — normalized to a hierarchical prefix for listing.
+ */
+export async function s3ListObjectKeysUnderPrefix(prefix: string): Promise<string[]> {
+  const client = getS3Client();
+  const p = prefix.replace(/\/+$/, "");
+  const listPrefix = p.length > 0 ? `${p}/` : "";
+  const keys: string[] = [];
+  let continuationToken: string | undefined;
+  for (;;) {
+    const out = await client.send(
+      new ListObjectsV2Command({
+        Bucket: privateBucket(),
+        Prefix: listPrefix,
+        ContinuationToken: continuationToken,
+      }),
+    );
+    for (const obj of out.Contents ?? []) {
+      if (obj.Key) keys.push(obj.Key);
+    }
+    if (!out.IsTruncated) break;
+    continuationToken = out.NextContinuationToken;
+    if (!continuationToken) break;
+  }
+  return keys;
 }
 
 export type S3PerKeyDeleteResult =

@@ -15,9 +15,12 @@ import { PageSection } from "@/components/common/layout/PageSection";
 import { AppShell } from "@/shared/ui/AppShell";
 import { cn } from "@/lib/utils";
 import { MarkdownContent } from "@/shared/ui/markdown/MarkdownContent";
+import { resolveMediaPlaybackPayload } from "@/app-layer/media/resolveMediaPlaybackPayload";
 import { ContentHeroImage } from "@/shared/ui/media/ContentHeroImage";
-import { NoContextMenuVideo } from "@/shared/ui/media/NoContextMenuVideo";
 import { patientMutedTextClass, patientPrimaryActionClass, patientSectionSurfaceClass } from "@/shared/ui/patientVisual";
+import { getConfigBool } from "@/modules/system-settings/configAdapter";
+import type { MediaPlaybackPayload } from "@/modules/media/playbackPayloadTypes";
+import { PatientContentAdaptiveVideo } from "./PatientContentAdaptiveVideo";
 import { PatientContentPracticeComplete } from "./PatientContentPracticeComplete";
 
 type Props = {
@@ -48,6 +51,15 @@ function toYoutubeEmbedSrc(url: string): string | null {
   } catch {
     return null;
   }
+}
+
+const PATIENT_VIDEO_MEDIA_ID_RE =
+  /^\/api\/media\/([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i;
+
+function parseApiMediaIdFromPlayableUrl(path: string): string | null {
+  const base = path.trim().split("?")[0] ?? "";
+  const m = PATIENT_VIDEO_MEDIA_ID_RE.exec(base);
+  return m?.[1] ?? null;
 }
 
 /** Загружает материал по slug из каталога и рендерит статью. Доступно без входа. */
@@ -81,6 +93,24 @@ export default async function ContentSlugPage({ params, searchParams }: Props) {
           : `/api/media/${item.videoSource.mediaId}`
       : undefined;
   const youtubeEmbedSrc = videoPlayableUrl ? toYoutubeEmbedSrc(videoPlayableUrl) : null;
+
+  const apiMediaId =
+    videoPlayableUrl && !youtubeEmbedSrc ? parseApiMediaIdFromPlayableUrl(videoPlayableUrl) : null;
+
+  let patientPlaybackInitial: MediaPlaybackPayload | null = null;
+  if (apiMediaId && session) {
+    const playbackEnabled = await getConfigBool("video_playback_api_enabled", false);
+    if (playbackEnabled) {
+      const resolved = await resolveMediaPlaybackPayload({
+        id: apiMediaId,
+        session,
+        adminPrefer: null,
+      });
+      if (resolved.ok) {
+        patientPlaybackInitial = resolved.data;
+      }
+    }
+  }
 
   let courseCta: { courseTitle: string; href: string } | null = null;
   if (dbRow?.linkedCourseId) {
@@ -124,9 +154,12 @@ export default async function ContentSlugPage({ params, searchParams }: Props) {
                 />
               </div>
             ) : (
-              <NoContextMenuVideo controls preload="metadata" className="max-w-full rounded-lg">
-                <source src={videoPlayableUrl} />
-              </NoContextMenuVideo>
+              <PatientContentAdaptiveVideo
+                mediaId={apiMediaId ?? ""}
+                mp4Url={videoPlayableUrl}
+                title={item.title}
+                initialPlayback={patientPlaybackInitial}
+              />
             )}
           </PageSection>
         ) : (

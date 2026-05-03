@@ -10,11 +10,22 @@ import {
   pgMoveFolder,
   pgRenameFolder,
 } from "@/infra/repos/mediaFoldersRepo";
-import { s3DeleteObject, s3ObjectKey, s3PublicUrl, s3PutObjectBody } from "@/infra/s3/client";
+import { s3DeleteObject, s3ListObjectKeysUnderPrefix, s3ObjectKey, s3PublicUrl, s3PutObjectBody } from "@/infra/s3/client";
 import type { MediaStoragePort } from "@/modules/media/ports";
 import { MAX_MEDIA_BYTES } from "@/modules/media/uploadAllowedMime";
 import type { MediaListParams, MediaPreviewStatus, MediaRecord, MediaUsageRef } from "@/modules/media/types";
+import {
+  parseAvailableQualitiesJson,
+  parseVideoDeliveryOverride,
+  parseVideoProcessingStatus,
+} from "@/modules/media/videoHlsFields";
 import { mediaPreviewUrlById } from "@/shared/lib/mediaPreviewUrls";
+import {
+  isTrustedHlsArtifactS3Key,
+  isTrustedPosterS3Key,
+  resolveHlsPurgeListPrefix,
+  resolvePosterPurgeListPrefix,
+} from "@/shared/lib/hlsStorageLayout";
 import { pgRuSubstringSearchPattern } from "@/shared/lib/ruSearchNormalize";
 
 function mediaAppUrl(mediaId: string): string {
@@ -34,6 +45,34 @@ function kindFromMime(mimeType: string): MediaRecord["kind"] {
   if (lower.startsWith("audio/")) return "audio";
   if (lower.startsWith("video/")) return "video";
   return "file";
+}
+
+function mapVideoHlsColumns(row: {
+  video_processing_status: string | null;
+  video_processing_error: string | null;
+  hls_master_playlist_s3_key: string | null;
+  hls_artifact_prefix: string | null;
+  poster_s3_key: string | null;
+  video_duration_seconds: number | null;
+  available_qualities_json: unknown;
+  video_delivery_override: string | null;
+}) {
+  const err = row.video_processing_error?.trim();
+  return {
+    videoProcessingStatus: parseVideoProcessingStatus(row.video_processing_status),
+    videoProcessingError: err ? err : null,
+    hlsMasterPlaylistS3Key: row.hls_master_playlist_s3_key?.trim()
+      ? row.hls_master_playlist_s3_key
+      : null,
+    hlsArtifactPrefix: row.hls_artifact_prefix?.trim() ? row.hls_artifact_prefix : null,
+    posterS3Key: row.poster_s3_key?.trim() ? row.poster_s3_key : null,
+    videoDurationSeconds:
+      row.video_duration_seconds != null && Number.isFinite(Number(row.video_duration_seconds))
+        ? Number(row.video_duration_seconds)
+        : null,
+    availableQualities: parseAvailableQualitiesJson(row.available_qualities_json),
+    videoDeliveryOverride: parseVideoDeliveryOverride(row.video_delivery_override),
+  };
 }
 
 export function createS3MediaStoragePort(): MediaStoragePort {
@@ -97,6 +136,14 @@ export function createS3MediaStoragePort(): MediaStoragePort {
         preview_md_key: string | null;
         source_width: number | null;
         source_height: number | null;
+        video_processing_status: string | null;
+        video_processing_error: string | null;
+        hls_master_playlist_s3_key: string | null;
+        hls_artifact_prefix: string | null;
+        poster_s3_key: string | null;
+        video_duration_seconds: number | null;
+        available_qualities_json: unknown;
+        video_delivery_override: string | null;
       }>(
         `SELECT m.id, m.original_name, m.display_name, m.mime_type, m.size_bytes, m.uploaded_by,
             COALESCE(
@@ -105,7 +152,10 @@ export function createS3MediaStoragePort(): MediaStoragePort {
             ) AS uploaded_by_name,
             m.created_at,
             m.preview_status, m.preview_sm_key, m.preview_md_key,
-            m.source_width, m.source_height
+            m.source_width, m.source_height,
+            m.video_processing_status, m.video_processing_error,
+            m.hls_master_playlist_s3_key, m.hls_artifact_prefix, m.poster_s3_key,
+            m.video_duration_seconds, m.available_qualities_json, m.video_delivery_override
          FROM media_files m
          LEFT JOIN platform_users pu ON pu.id = m.uploaded_by
          WHERE m.id = $1::uuid AND ${MEDIA_READABLE_STATUS_SQL_M}`,
@@ -129,6 +179,7 @@ export function createS3MediaStoragePort(): MediaStoragePort {
         previewMdUrl: row.preview_md_key?.trim() ? mediaPreviewUrlById(row.id, "md") : null,
         sourceWidth: row.source_width ?? null,
         sourceHeight: row.source_height ?? null,
+        ...mapVideoHlsColumns(row),
       };
     },
 
@@ -228,6 +279,14 @@ export function createS3MediaStoragePort(): MediaStoragePort {
         preview_md_key: string | null;
         source_width: number | null;
         source_height: number | null;
+        video_processing_status: string | null;
+        video_processing_error: string | null;
+        hls_master_playlist_s3_key: string | null;
+        hls_artifact_prefix: string | null;
+        poster_s3_key: string | null;
+        video_duration_seconds: number | null;
+        available_qualities_json: unknown;
+        video_delivery_override: string | null;
       }>(
         `SELECT m.id, m.original_name, m.display_name, m.mime_type, m.size_bytes, m.uploaded_by,
             COALESCE(
@@ -236,7 +295,10 @@ export function createS3MediaStoragePort(): MediaStoragePort {
             ) AS uploaded_by_name,
             m.created_at, m.s3_key, m.folder_id,
             m.preview_status, m.preview_sm_key, m.preview_md_key,
-            m.source_width, m.source_height
+            m.source_width, m.source_height,
+            m.video_processing_status, m.video_processing_error,
+            m.hls_master_playlist_s3_key, m.hls_artifact_prefix, m.poster_s3_key,
+            m.video_duration_seconds, m.available_qualities_json, m.video_delivery_override
          FROM media_files m
          LEFT JOIN platform_users pu ON pu.id = m.uploaded_by
          ${whereSql} AND m.s3_key IS NOT NULL
@@ -264,6 +326,7 @@ export function createS3MediaStoragePort(): MediaStoragePort {
           previewMdUrl: row.preview_md_key?.trim() ? mediaPreviewUrlById(row.id, "md") : null,
           sourceWidth: row.source_width ?? null,
           sourceHeight: row.source_height ?? null,
+          ...mapVideoHlsColumns(row),
         };
       });
     },
@@ -500,6 +563,32 @@ export async function listMediaDeleteErrors(limit: number = 100): Promise<{ item
   return { items: res.rows, total };
 }
 
+/** Row for `GET /api/media/[id]/playback` (JSON + presign HLS master / poster). */
+export type MediaPlaybackRow = {
+  id: string;
+  mime_type: string;
+  s3_key: string;
+  video_processing_status: string | null;
+  hls_master_playlist_s3_key: string | null;
+  poster_s3_key: string | null;
+  video_duration_seconds: number | null;
+  available_qualities_json: unknown;
+  video_delivery_override: string | null;
+};
+
+export async function getMediaRowForPlayback(id: string): Promise<MediaPlaybackRow | null> {
+  const pool = getPool();
+  const res = await pool.query<MediaPlaybackRow>(
+    `SELECT id::text, mime_type, s3_key,
+            video_processing_status, hls_master_playlist_s3_key, poster_s3_key,
+            video_duration_seconds, available_qualities_json, video_delivery_override
+     FROM media_files
+     WHERE id = $1::uuid AND s3_key IS NOT NULL AND length(trim(s3_key)) > 0 AND ${MEDIA_READABLE_STATUS_SQL}`,
+    [id],
+  );
+  return res.rows[0] ?? null;
+}
+
 /** For GET /api/media/[id]: S3 key when row may be redirected (presigned GET to private bucket). */
 export async function getMediaS3KeyForRedirect(id: string): Promise<string | null> {
   const pool = getPool();
@@ -540,6 +629,72 @@ export type PurgePendingMediaDeleteBatchResult = {
 };
 
 /**
+ * Resolves all S3 object keys to delete for a media row in `pending_delete` / `deleting`:
+ * preview JPEGs, entire HLS prefix (variants + master + legacy segments), poster prefix/object, source MP4.
+ */
+export async function collectS3KeysForMediaPurge(row: {
+  id: string;
+  s3_key: string;
+  preview_sm_key: string | null;
+  preview_md_key: string | null;
+  hls_artifact_prefix: string | null;
+  poster_s3_key: string | null;
+  hls_master_playlist_s3_key: string | null;
+}): Promise<string[]> {
+  const keysToDeleteSet = new Set<string>();
+  for (const k of [row.preview_sm_key, row.preview_md_key]) {
+    if (k?.trim()) keysToDeleteSet.add(k.trim());
+  }
+
+  const hlsListPrefix = resolveHlsPurgeListPrefix({
+    mediaId: row.id,
+    sourceS3Key: row.s3_key,
+    hlsArtifactPrefix: row.hls_artifact_prefix,
+  });
+  if (hlsListPrefix) {
+    const hlsKeys = await s3ListObjectKeysUnderPrefix(hlsListPrefix);
+    for (const k of hlsKeys) keysToDeleteSet.add(k);
+  } else if (row.hls_master_playlist_s3_key?.trim()) {
+    const mk = row.hls_master_playlist_s3_key.trim();
+    if (isTrustedHlsArtifactS3Key(row.id, mk)) {
+      keysToDeleteSet.add(mk);
+    } else {
+      logger.warn(
+        { mediaId: row.id, key: mk },
+        "[collectS3KeysForMediaPurge] skipped untrusted hls_master_playlist_s3_key",
+      );
+    }
+  }
+
+  const posterExplicit = row.poster_s3_key?.trim();
+  if (posterExplicit) {
+    if (isTrustedPosterS3Key(row.id, posterExplicit)) {
+      keysToDeleteSet.add(posterExplicit);
+    } else {
+      logger.warn(
+        { mediaId: row.id, key: posterExplicit },
+        "[collectS3KeysForMediaPurge] skipped untrusted poster_s3_key; trying canonical poster prefix list",
+      );
+      const posterListPrefix = resolvePosterPurgeListPrefix(row.id, row.s3_key);
+      if (posterListPrefix) {
+        const posterKeys = await s3ListObjectKeysUnderPrefix(posterListPrefix);
+        for (const k of posterKeys) keysToDeleteSet.add(k);
+      }
+    }
+  } else {
+    const posterListPrefix = resolvePosterPurgeListPrefix(row.id, row.s3_key);
+    if (posterListPrefix) {
+      const posterKeys = await s3ListObjectKeysUnderPrefix(posterListPrefix);
+      for (const k of posterKeys) keysToDeleteSet.add(k);
+    }
+  }
+
+  if (row.s3_key?.trim()) keysToDeleteSet.add(row.s3_key.trim());
+
+  return [...keysToDeleteSet];
+}
+
+/**
  * Background worker: delete S3 objects and DB rows for media in `pending_delete` or stuck `deleting`.
  * On S3 failure: increments `delete_attempts`, sets `next_attempt_at` with exponential backoff (cap 1 day).
  */
@@ -560,10 +715,15 @@ export async function purgePendingMediaDeleteBatch(
         s3_key: string;
         preview_sm_key: string | null;
         preview_md_key: string | null;
+        hls_artifact_prefix: string | null;
+        poster_s3_key: string | null;
+        hls_master_playlist_s3_key: string | null;
         status: string | null;
         delete_attempts: number | null;
       }>(
-        `SELECT id, s3_key, preview_sm_key, preview_md_key, status, COALESCE(delete_attempts, 0) AS delete_attempts
+        `SELECT id, s3_key, preview_sm_key, preview_md_key,
+                hls_artifact_prefix, poster_s3_key, hls_master_playlist_s3_key,
+                status, COALESCE(delete_attempts, 0) AS delete_attempts
          FROM media_files
          WHERE ${MEDIA_S3_PURGE_STATUS_SQL} AND s3_key IS NOT NULL AND length(trim(s3_key)) > 0
          AND (next_attempt_at IS NULL OR next_attempt_at <= now())
@@ -582,9 +742,26 @@ export async function purgePendingMediaDeleteBatch(
         continue;
       }
 
-      const keysToDelete = [row.preview_sm_key, row.preview_md_key, row.s3_key].filter(
-        (k): k is string => Boolean(k && k.trim()),
-      );
+      let keysToDelete: string[];
+      try {
+        keysToDelete = await collectS3KeysForMediaPurge(row);
+      } catch (e) {
+        logger.error({ err: e, mediaId: row.id }, "[purgePendingMediaDeleteBatch] failed to list keys");
+        const prevAttempts = row.delete_attempts ?? 0;
+        const exp = Math.min(prevAttempts + 1, 20);
+        const minutes = Math.min(1440, Math.pow(2, exp));
+        await client.query(
+          `UPDATE media_files SET
+             delete_attempts = delete_attempts + 1,
+             next_attempt_at = now() + ($2::numeric * interval '1 minute')
+           WHERE id = $1::uuid`,
+          [row.id, minutes],
+        );
+        await client.query("COMMIT");
+        errors += 1;
+        continue;
+      }
+
       try {
         for (const key of keysToDelete) {
           await s3DeleteObject(key);

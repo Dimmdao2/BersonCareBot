@@ -7,6 +7,7 @@
 - integrator API
 - integrator worker
 - webapp frontend
+- (инициатива **VIDEO_HLS_DELIVERY**) отдельный процесс **`apps/media-worker`** на хосте — **не** тот же unit, что integrator worker; см. § **systemd units → Worker**.
 
 Отдельный `BersonAdmin`/второй frontend в текущем host deploy **не подтверждён** и в этот документ не включён.
 
@@ -109,6 +110,12 @@
 - `EnvironmentFile=/opt/env/bersoncarebot/api.prod`
 - `ExecStart=/usr/bin/node dist/infra/runtime/worker/main.js`
 
+**Не путать с HLS `apps/media-worker` (VIDEO_HLS_DELIVERY):**
+
+- Юнит **`bersoncarebot-worker-prod`** и команды в **корне** монорепозитория **`pnpm worker:start`** / **`pnpm worker:dev`** относятся **только** к **integrator projection worker** (`apps/integrator`). Он **не** выполняет FFmpeg‑транскод HLS и **не** читает очередь `public.media_transcode_jobs`.
+- Пакет **`apps/media-worker`** — отдельный процесс (poll БД, FFmpeg, S3). Сборка и старт из репозитория: `pnpm --dir apps/media-worker build`, затем `pnpm --dir apps/media-worker start`; нужны те же класс **`DATABASE_URL`** и **S3**‑переменные, что у webapp (см. `apps/media-worker/src/env.ts`).
+- Отдельный **systemd**‑unit для `apps/media-worker` на production **пока не описан** в этом файле и в `docs/ARCHITECTURE/SERVER CONVENTIONS.md` — имя и шаблон фиксируются при выкате HLS на хост (**не** подставлять `ExecStart` из integrator worker).
+
 #### Webapp
 
 Файл юнита:
@@ -156,6 +163,8 @@
 - [ ] Сервисы перезапущены и в статусе active.
 - [ ] Health check возвращает ok (API и webapp).
 - [ ] При необходимости: запуск backfill/reconcile по [DATA_MIGRATION_CHECKLIST.md](DATA_MIGRATION_CHECKLIST.md) (при первом деплое или cutover).
+
+**Webapp Drizzle и порядок относительно билда:** канонический прогон — `pnpm --dir apps/webapp run migrate` с `DATABASE_URL` из `webapp.prod`. Если новый билд webapp расширяет `SELECT` по `media_files` новыми колонками (например VIDEO_HLS_DELIVERY, миграция `0018_media_files_hls_foundation`), **применить миграции до или в одном окне с первым запуском этого билда**, иначе возможна ошибка PostgreSQL `column does not exist`.
 
 ---
 

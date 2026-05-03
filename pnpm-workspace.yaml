@@ -1,5 +1,6 @@
 packages:
   - apps/webapp
+  - apps/media-worker
   - apps/integrator
   - packages/booking-rubitime-sync
   - packages/platform-merge

@@ -60,6 +60,14 @@
 
 ---
 
+## Критерии завершения
+
+- [ ] TTL presigned URL читается из `system_settings` (admin scope) и применяется в playback path.
+- [ ] Playback продолжает работать при истечении URL за счет повторного запроса playback JSON.
+- [ ] В логах и внешней телеметрии не появляются полные presigned URL.
+
+---
+
 ## Чек-листы
 
 **Реализация:** settings key; presign wrapper; документация в api.md.  

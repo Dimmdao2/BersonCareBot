@@ -127,6 +127,27 @@
       "when": 1777678290811,
       "tag": "0017_content_sections_kind_system_parent",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1777769367221,
+      "tag": "0018_media_files_hls_foundation",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1777769879744,
+      "tag": "0019_media_transcode_jobs_queue",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1777772000000,
+      "tag": "0020_video_playback_settings",
+      "breakpoints": true
     }
   ]
 }

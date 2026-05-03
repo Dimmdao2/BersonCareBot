@@ -58,6 +58,14 @@
 
 ---
 
+## Критерии завершения
+
+- [ ] Для новых video uploads при включенных флагах создается ровно один transcode job.
+- [ ] При выключенном `video_hls_new_uploads_auto_transcode` enqueue не выполняется.
+- [ ] Регрессии upload flow (5xx/ошибки confirm/complete) не зафиксированы.
+
+---
+
 ## Чек-листы
 
 **Реализация:** single enqueue point; guard flags.  
