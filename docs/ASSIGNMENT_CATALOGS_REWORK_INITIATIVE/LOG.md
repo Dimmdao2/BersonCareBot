@@ -394,3 +394,51 @@ pnpm exec tsc --noEmit
 
 **Коммит:** `fix(doctor-catalogs): B5 audit toast checklist and audit closure` (ветка `feature/app-restructure-initiative`).
 
+---
+
+## 2026-05-03 — Stage B6 — EXEC (конструктор шаблонов программ: UX pass-1)
+
+**Контекст:** `STAGE_B6_PLAN.md`, `PRE_IMPLEMENTATION_DECISIONS.md` (B6 vs A: pre-check после A), продуктовое ТЗ §3 B6, `MASTER_PLAN.md` §9.
+
+### Pre-check (baseline после фазы A, перед правками B6)
+
+По коду `TreatmentProgramConstructorClient.tsx` и связанным страницам:
+
+- **A1 (этап):** в правой колонке у выбранного этапа присутствуют поля «Цель этапа», «Задачи этапа», «Ожидаемый срок» (дни + текст) и кнопка «Сохранить цели этапа» — доменный baseline, **не удалялся** в B6.
+- **A3 (группы):** группы внутри этапа — создание/редактирование/удаление, порядок, привязка item к группе через `Select`, блок «Без группы» — **не удалялся** в B6.
+- **Usage / архив:** секция «Где используется» + диалог 409 с подтверждением архивации — без смены доменной семантики.
+- **`editLocked`:** `editLocked = busy || isArchived` — в черновике/опубликованном этапы и метаданные этапа **не** блокируются статусом публикации шаблона; блокировка только при `archived` или глобальном `busy`. Баг «этапы не правятся в черновике» по текущей формуле **не воспроизводится**; правок логики lock не вносилось.
+- **Вне B6 (сознательно):** контракты PATCH этапов/items/groups, snapshot/assign — не трогались; добавлены только агрегаты списка шаблонов (`stageCount` / `itemCount`) и PATCH **уже существующего** `status` шаблона через UI.
+
+### Сделано (UX)
+
+- Список шаблонов (`TreatmentProgramTemplatesPageClient`): иконка-заглушка, **бейдж статуса** (`TreatmentProgramTemplateStatusBadge`), счётчики **этапов / элементов** с сервера.
+- Конструктор: **sticky**-шапка с названием шаблона, бейджем статуса, CTA **«Сохранить черновик»** (из published → draft), **«Опубликовать»**, **«Архивировать»**; секция usage без дублирующей кнопки «В архив».
+- Модалка «Элемент из библиотеки» и строки элементов этапа: **превью** (миниатюра или fallback по типу) + подзаголовок где доступно.
+- Общая сборка библиотеки: `buildTreatmentProgramLibraryPickers.ts` (страница списка и `[id]/page`).
+- Тип `TreatmentProgramTemplate`: поля **`stageCount`**, **`itemCount`**; `pgTreatmentProgram` / `inMemoryTreatmentProgram` — агрегаты для list и detail.
+
+**Проверки (целевые B6, без полного `pnpm run ci`):**
+
+```bash
+cd apps/webapp && pnpm exec eslint \
+  src/app/app/doctor/treatment-program-templates/page.tsx \
+  src/app/app/doctor/treatment-program-templates/\[id\]/page.tsx \
+  src/app/app/doctor/treatment-program-templates/buildTreatmentProgramLibraryPickers.ts \
+  src/app/app/doctor/treatment-program-templates/TreatmentProgramTemplatesPageClient.tsx \
+  src/app/app/doctor/treatment-program-templates/TreatmentProgramTemplateStatusBadge.tsx \
+  src/app/app/doctor/treatment-program-templates/\[id\]/TreatmentProgramConstructorClient.tsx \
+  src/app/app/doctor/treatment-program-templates/\[id\]/TreatmentProgramConstructorClient.test.tsx \
+  src/infra/repos/pgTreatmentProgram.ts \
+  src/infra/repos/inMemoryTreatmentProgram.ts \
+  src/modules/treatment-program/types.ts
+pnpm exec vitest run \
+  src/app/app/doctor/treatment-program-templates/\[id\]/TreatmentProgramConstructorClient.test.tsx \
+  src/modules/treatment-program/service.test.ts
+pnpm exec tsc --noEmit
+```
+
+**Вне scope:** полный `pnpm run ci`; удаление/скрытие блоков A1/A3; смена item-types / snapshot.
+
+**Результат:** eslint / vitest / tsc — **PASS**.
+

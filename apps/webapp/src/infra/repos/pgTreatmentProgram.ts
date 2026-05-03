@@ -33,12 +33,17 @@ import {
   TREATMENT_PROGRAM_TEMPLATE_USAGE_DETAIL_LIMIT,
 } from "@/modules/treatment-program/types";
 
-function mapTemplate(row: typeof tplTable.$inferSelect): TreatmentProgramTemplate {
+function mapTemplate(
+  row: typeof tplTable.$inferSelect,
+  counts?: { stageCount: number; itemCount: number },
+): TreatmentProgramTemplate {
   return {
     id: row.id,
     title: row.title,
     description: row.description ?? null,
     status: row.status as TreatmentProgramTemplateStatus,
+    stageCount: counts?.stageCount ?? 0,
+    itemCount: counts?.itemCount ?? 0,
     createdBy: row.createdBy ?? null,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
@@ -70,6 +75,51 @@ function mapItem(row: typeof itemTable.$inferSelect): TreatmentProgramStageItem 
     settings: (row.settings as Record<string, unknown> | null) ?? null,
     groupId: row.groupId ?? null,
   };
+}
+
+async function templateListCounts(
+  db: ReturnType<typeof getDrizzle>,
+  templateIds: string[],
+): Promise<Map<string, { stageCount: number; itemCount: number }>> {
+  const out = new Map<string, { stageCount: number; itemCount: number }>();
+  if (templateIds.length === 0) return out;
+  for (const id of templateIds) {
+    out.set(id, { stageCount: 0, itemCount: 0 });
+  }
+  const stageAgg = await db
+    .select({
+      templateId: stageTable.templateId,
+      c: sql<number>`count(*)::int`.mapWith(Number),
+    })
+    .from(stageTable)
+    .where(inArray(stageTable.templateId, templateIds))
+    .groupBy(stageTable.templateId);
+  for (const row of stageAgg) {
+    const cur = out.get(row.templateId);
+    if (cur) out.set(row.templateId, { ...cur, stageCount: row.c });
+  }
+  const itemAgg = await db
+    .select({
+      templateId: stageTable.templateId,
+      c: sql<number>`count(*)::int`.mapWith(Number),
+    })
+    .from(itemTable)
+    .innerJoin(stageTable, eq(itemTable.stageId, stageTable.id))
+    .where(inArray(stageTable.templateId, templateIds))
+    .groupBy(stageTable.templateId);
+  for (const row of itemAgg) {
+    const cur = out.get(row.templateId);
+    if (cur) out.set(row.templateId, { ...cur, itemCount: row.c });
+  }
+  return out;
+}
+
+async function templateCountsForOne(
+  db: ReturnType<typeof getDrizzle>,
+  templateId: string,
+): Promise<{ stageCount: number; itemCount: number }> {
+  const m = await templateListCounts(db, [templateId]);
+  return m.get(templateId) ?? { stageCount: 0, itemCount: 0 };
 }
 
 function mapTemplateGroup(row: typeof tplGroupTable.$inferSelect): TreatmentProgramTemplateStageGroup {
@@ -233,7 +283,7 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
         })
         .returning();
       if (!row) throw new Error("insert failed");
-      return mapTemplate(row);
+      return mapTemplate(row, { stageCount: 0, itemCount: 0 });
     },
 
     async updateTemplate(id: string, input: UpdateTreatmentProgramTemplateInput) {
@@ -245,7 +295,9 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
       if (input.description !== undefined) patch.description = input.description;
       if (input.status !== undefined) patch.status = input.status;
       const [row] = await db.update(tplTable).set(patch).where(eq(tplTable.id, id)).returning();
-      return row ? mapTemplate(row) : null;
+      if (!row) return null;
+      const counts = await templateCountsForOne(db, id);
+      return mapTemplate(row, counts);
     },
 
     async getTemplateById(id: string): Promise<TreatmentProgramTemplateDetail | null> {
@@ -293,8 +345,9 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
         groups: (groupsByStage.get(s.id) ?? []).map(mapTemplateGroup),
         items: (itemsByStage.get(s.id) ?? []).map(mapItem),
       }));
+      const itemCount = stages.reduce((n, st) => n + st.items.length, 0);
       return {
-        ...mapTemplate(tplRow),
+        ...mapTemplate(tplRow, { stageCount: stages.length, itemCount }),
         stages,
       };
     },
@@ -313,7 +366,9 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
         .from(tplTable)
         .where(conds.length ? and(...conds) : undefined)
         .orderBy(desc(tplTable.updatedAt), desc(tplTable.id));
-      return rows.map(mapTemplate);
+      const ids = rows.map((r) => r.id);
+      const countMap = await templateListCounts(db, ids);
+      return rows.map((r) => mapTemplate(r, countMap.get(r.id)));
     },
 
     async deleteTemplate(id: string) {

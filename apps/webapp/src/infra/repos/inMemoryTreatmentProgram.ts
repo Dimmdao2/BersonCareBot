@@ -57,7 +57,13 @@ export function createInMemoryTreatmentProgramPort(seed?: {
   const items = new Map<string, TreatmentProgramStageItem>();
   const tplGroups = new Map<string, TreatmentProgramTemplateStageGroup>();
 
-  for (const t of seed?.templates ?? []) templates.set(t.id, { ...t });
+  for (const t of seed?.templates ?? []) {
+    templates.set(t.id, {
+      ...t,
+      stageCount: t.stageCount ?? 0,
+      itemCount: t.itemCount ?? 0,
+    });
+  }
   for (const s of seed?.stages ?? []) stages.set(s.id, { ...s });
   for (const i of seed?.items ?? []) items.set(i.id, { ...i });
   for (const g of seed?.groups ?? []) tplGroups.set(g.id, { ...g });
@@ -109,7 +115,8 @@ export function createInMemoryTreatmentProgramPort(seed?: {
         items: itemList.map((i) => ({ ...i })),
       };
     });
-    return { ...tpl, stages: outStages };
+    const itemCount = outStages.reduce((n, st) => n + st.items.length, 0);
+    return { ...tpl, stageCount: outStages.length, itemCount, stages: outStages };
   }
 
   return {
@@ -121,6 +128,8 @@ export function createInMemoryTreatmentProgramPort(seed?: {
         title: input.title,
         description: input.description ?? null,
         status: (input.status ?? "draft") as TreatmentProgramTemplateStatus,
+        stageCount: 0,
+        itemCount: 0,
         createdBy,
         createdAt: now,
         updatedAt: now,
@@ -138,7 +147,15 @@ export function createInMemoryTreatmentProgramPort(seed?: {
         updatedAt: isoNow(),
       };
       templates.set(id, next);
-      return { ...next };
+      const d = buildDetail(id);
+      if (!d) return null;
+      const withCounts: TreatmentProgramTemplate = {
+        ...next,
+        stageCount: d.stages.length,
+        itemCount: d.stages.reduce((n, st) => n + st.items.length, 0),
+      };
+      templates.set(id, withCounts);
+      return { ...withCounts };
     },
 
     async getTemplateById(id: string) {
@@ -151,7 +168,17 @@ export function createInMemoryTreatmentProgramPort(seed?: {
       if (filter.status !== undefined) {
         out = out.filter((t) => t.status === filter.status);
       }
-      return out.sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
+      return out
+        .sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1))
+        .map((t) => {
+          const d = buildDetail(t.id);
+          if (!d) return t;
+          return {
+            ...t,
+            stageCount: d.stages.length,
+            itemCount: d.stages.reduce((n, s) => n + s.items.length, 0),
+          };
+        });
     },
 
     async deleteTemplate(id: string) {

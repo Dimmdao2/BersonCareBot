@@ -2,11 +2,7 @@ import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import type { ExerciseLoadType } from "@/modules/lfk-exercises/types";
 import { AppShell } from "@/shared/ui/AppShell";
-import {
-  LESSON_CONTENT_SECTION,
-  LESSON_CONTENT_SECTION_LEGACY,
-} from "@/modules/treatment-program/types";
-import type { TreatmentProgramLibraryPickers } from "./[id]/TreatmentProgramConstructorClient";
+import { buildTreatmentProgramLibraryPickers } from "./buildTreatmentProgramLibraryPickers";
 import { TreatmentProgramTemplatesPageClient } from "./TreatmentProgramTemplatesPageClient";
 import {
   parseDoctorCatalogPubArchQuery,
@@ -37,27 +33,19 @@ export default async function TreatmentProgramTemplatesPage({ searchParams }: Pa
   const [items, exercises, lfkTemplates, testSets, recommendations, contentPagesAll] = await Promise.all([
     deps.treatmentProgram.listTemplates(tplListFilter),
     deps.lfkExercises.listExercises({ includeArchived: false }),
-    deps.lfkTemplates.listTemplates({}),
+    deps.lfkTemplates.listTemplates({ statusIn: ["draft", "published"] }),
     deps.testSets.listTestSets({ archiveScope: "active", publicationScope: "published" }),
     deps.recommendations.listRecommendations({ includeArchived: false }),
     deps.contentPages.listAll(),
   ]);
 
-  const library: TreatmentProgramLibraryPickers = {
-    exercises: exercises.map((e) => ({ id: e.id, title: e.title })),
-    lfkComplexes: lfkTemplates
-      .filter((t) => t.status !== "archived")
-      .map((t) => ({ id: t.id, title: t.title })),
-    testSets: testSets.map((t) => ({ id: t.id, title: t.title })),
-    recommendations: recommendations.map((r) => ({ id: r.id, title: r.title })),
-    lessons: contentPagesAll
-      .filter(
-        (p) =>
-          (p.section === LESSON_CONTENT_SECTION || p.section === LESSON_CONTENT_SECTION_LEGACY) &&
-          !p.deletedAt,
-      )
-      .map((p) => ({ id: p.id, title: p.title })),
-  };
+  const library = buildTreatmentProgramLibraryPickers({
+    exercises,
+    lfkTemplates,
+    testSets,
+    recommendations,
+    contentPagesAll,
+  });
 
   const raw = typeof sp.selected === "string" ? sp.selected.trim() : "";
   const initialSelectedId = raw && items.some((t) => t.id === raw) ? raw : null;

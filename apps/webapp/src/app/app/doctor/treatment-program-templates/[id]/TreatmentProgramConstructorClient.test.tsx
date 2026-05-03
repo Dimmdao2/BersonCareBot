@@ -27,16 +27,24 @@ const TEMPLATE_ID = "11111111-1111-4111-8111-111111111111";
 
 function makeDetail(over: Partial<TreatmentProgramTemplateDetail> = {}): TreatmentProgramTemplateDetail {
   const now = "2026-01-01T00:00:00.000Z";
-  return {
+  const merged: TreatmentProgramTemplateDetail = {
     id: TEMPLATE_ID,
     title: "Шаблон",
     description: null,
     status: "draft",
+    stageCount: 0,
+    itemCount: 0,
     createdBy: null,
     createdAt: now,
     updatedAt: now,
     stages: [],
     ...over,
+  };
+  const itemCount = merged.stages.reduce((n, st) => n + st.items.length, 0);
+  return {
+    ...merged,
+    stageCount: merged.stages.length,
+    itemCount,
   };
 }
 
@@ -117,9 +125,9 @@ describe("TreatmentProgramConstructorClient", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: /^в архив$/i })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /^архивировать$/i })).toBeInTheDocument();
     });
-    await user.click(screen.getByRole("button", { name: /^в архив$/i }));
+    await user.click(screen.getByRole("button", { name: /^архивировать$/i }));
 
     await waitFor(() => {
       expect(screen.getByText(/Шаблон в архиве — изменение этапов и элементов отключено/i)).toBeInTheDocument();
@@ -170,7 +178,7 @@ describe("TreatmentProgramConstructorClient", () => {
     await waitFor(() => {
       expect(screen.getByRole("link", { name: /моя программа/i })).toBeInTheDocument();
     });
-    await user.click(screen.getByRole("button", { name: /^в архив$/i }));
+    await user.click(screen.getByRole("button", { name: /^архивировать$/i }));
 
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: /отправить шаблон в архив/i })).toBeInTheDocument();

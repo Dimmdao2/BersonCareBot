@@ -21,6 +21,9 @@ export type TreatmentProgramTemplate = {
   title: string;
   description: string | null;
   status: TreatmentProgramTemplateStatus;
+  /** Агрегаты для списка врача (этапы / элементы по всем этапам). */
+  stageCount: number;
+  itemCount: number;
   createdBy: string | null;
   createdAt: string;
   updatedAt: string;

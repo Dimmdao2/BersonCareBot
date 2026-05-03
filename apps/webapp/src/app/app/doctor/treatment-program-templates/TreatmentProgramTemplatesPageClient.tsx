@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState, useTransition } from "react";
+import { ClipboardList } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { ExerciseLoadType } from "@/modules/lfk-exercises/types";
 import type { TreatmentProgramTemplate, TreatmentProgramTemplateDetail } from "@/modules/treatment-program/types";
@@ -28,6 +29,7 @@ import {
 import { NewTemplateForm } from "./new/NewTemplateForm";
 import type { DoctorCatalogPubArchQuery } from "@/shared/lib/doctorCatalogListStatus";
 import { TREATMENT_PROGRAM_TEMPLATES_PATH } from "./paths";
+import { TreatmentProgramTemplateStatusBadge } from "./TreatmentProgramTemplateStatusBadge";
 
 type Props = {
   templates: TreatmentProgramTemplate[];
@@ -164,20 +166,34 @@ export function TreatmentProgramTemplatesPageClient({
                 type="button"
                 onClick={() => onPick(t)}
                 className={cn(
-                  "flex w-full flex-col items-start gap-0.5 rounded-md border border-transparent px-2 py-2 text-left text-sm hover:bg-muted/80",
+                  "flex w-full items-start gap-2 rounded-md border border-transparent px-2 py-2 text-left text-sm transition-colors hover:bg-muted/80",
                   active &&
                     "border-primary/25 bg-primary/15 text-primary hover:bg-primary/20 dark:bg-primary/20 dark:hover:bg-primary/25",
                 )}
               >
-                <span className="line-clamp-2 font-medium leading-tight">{t.title}</span>
-                <span
+                <div
                   className={cn(
-                    "text-xs uppercase tabular-nums",
-                    active ? "text-primary/70" : "text-muted-foreground",
+                    "mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-md border bg-muted/50",
+                    active && "border-primary/20 bg-primary/10",
                   )}
+                  aria-hidden
                 >
-                  {t.status}
-                </span>
+                  <ClipboardList className={cn("size-5", active ? "text-primary" : "text-muted-foreground")} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <span className="line-clamp-2 font-medium leading-tight">{t.title}</span>
+                  <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                    <TreatmentProgramTemplateStatusBadge status={t.status} />
+                    <span
+                      className={cn(
+                        "text-xs tabular-nums text-muted-foreground",
+                        active && "text-primary/80",
+                      )}
+                    >
+                      {t.stageCount} этап. · {t.itemCount} элем.
+                    </span>
+                  </div>
+                </div>
               </button>
             </li>
           );

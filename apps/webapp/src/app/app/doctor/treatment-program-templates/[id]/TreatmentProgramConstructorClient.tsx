@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ChevronDown, ChevronUp, Trash2 } from "lucide-react";
+import { BookOpen, ChevronDown, ChevronUp, ClipboardList, ImageIcon, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -38,6 +38,7 @@ import {
   treatmentProgramTemplateUsageSections,
   type TreatmentProgramTemplateUsageSection,
 } from "../templateUsageSummaryText";
+import { TreatmentProgramTemplateStatusBadge } from "../TreatmentProgramTemplateStatusBadge";
 
 const ITEM_TYPE_LABEL: Record<TreatmentProgramItemType, string> = {
   exercise: "Упражнение ЛФК",
@@ -47,12 +48,19 @@ const ITEM_TYPE_LABEL: Record<TreatmentProgramItemType, string> = {
   test_set: "Набор тестов",
 };
 
+export type TreatmentProgramLibraryRow = {
+  id: string;
+  title: string;
+  subtitle?: string | null;
+  thumbUrl?: string | null;
+};
+
 export type TreatmentProgramLibraryPickers = {
-  exercises: Array<{ id: string; title: string }>;
-  lfkComplexes: Array<{ id: string; title: string }>;
-  testSets: Array<{ id: string; title: string }>;
-  recommendations: Array<{ id: string; title: string }>;
-  lessons: Array<{ id: string; title: string }>;
+  exercises: TreatmentProgramLibraryRow[];
+  lfkComplexes: TreatmentProgramLibraryRow[];
+  testSets: TreatmentProgramLibraryRow[];
+  recommendations: TreatmentProgramLibraryRow[];
+  lessons: TreatmentProgramLibraryRow[];
 };
 
 type Props = {
@@ -97,6 +105,65 @@ function TemplateUsageSectionsView({ sections }: { sections: TreatmentProgramTem
       ))}
     </div>
   );
+}
+
+function LibraryMediaThumb({
+  src,
+  itemType,
+}: {
+  src: string | null | undefined;
+  itemType: TreatmentProgramItemType;
+}) {
+  const icon =
+    itemType === "lesson" ? (
+      <BookOpen className="size-5 text-muted-foreground" aria-hidden />
+    ) : itemType === "test_set" ? (
+      <ClipboardList className="size-5 text-muted-foreground" aria-hidden />
+    ) : (
+      <ImageIcon className="size-5 text-muted-foreground" aria-hidden />
+    );
+  if (src?.trim()) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element -- doctor library previews (/api/media or absolute)
+      <img
+        src={src.trim()}
+        alt=""
+        className="size-12 shrink-0 rounded-md border border-border/60 object-cover"
+      />
+    );
+  }
+  return (
+    <div
+      className="flex size-12 shrink-0 items-center justify-center rounded-md border border-border/60 bg-muted/40"
+      aria-hidden
+    >
+      {icon}
+    </div>
+  );
+}
+
+function findLibraryRow(
+  lib: TreatmentProgramLibraryPickers,
+  type: TreatmentProgramItemType,
+  id: string,
+): TreatmentProgramLibraryRow | null {
+  const rows = (() => {
+    switch (type) {
+      case "exercise":
+        return lib.exercises;
+      case "lfk_complex":
+        return lib.lfkComplexes;
+      case "test_set":
+        return lib.testSets;
+      case "recommendation":
+        return lib.recommendations;
+      case "lesson":
+        return lib.lessons;
+      default:
+        return [];
+    }
+  })();
+  return rows.find((r) => r.id === id) ?? null;
 }
 
 /** Стабильный порядок для этапов и элементов (как на сервере в `getTemplateById`). */
@@ -272,6 +339,32 @@ export function TreatmentProgramConstructorClient({
       setBusy(false);
     }
   }
+
+  const patchPublicationStatus = useCallback(
+    async (status: "draft" | "published") => {
+      if (detail.status === "archived") return;
+      setBusy(true);
+      setError(null);
+      try {
+        const res = await fetch(`/api/doctor/treatment-program-templates/${templateId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status }),
+        });
+        const json = (await res.json()) as { ok?: boolean; error?: string };
+        if (!res.ok || !json.ok) {
+          setError(json.error ?? "Не удалось обновить статус шаблона");
+          return;
+        }
+        await reload();
+        await refetchUsageClient();
+        if (!onArchived) router.refresh();
+      } finally {
+        setBusy(false);
+      }
+    },
+    [detail.status, templateId, reload, refetchUsageClient, onArchived, router],
+  );
 
   const orderedStages = useMemo(() => sortByOrderThenId(detail.stages), [detail.stages]);
 
@@ -670,7 +763,9 @@ export function TreatmentProgramConstructorClient({
 
   const editLocked = busy || isArchived;
 
-  const renderStageItemRow = (it: TreatmentProgramStageItem, section: TreatmentProgramStageItem[], itemIndex: number) => (
+  const renderStageItemRow = (it: TreatmentProgramStageItem, section: TreatmentProgramStageItem[], itemIndex: number) => {
+    const libRow = findLibraryRow(library, it.itemType, it.itemRefId);
+    return (
     <li key={it.id} className="flex flex-wrap items-center gap-2 px-2 py-2 text-sm">
       <div className="flex shrink-0 flex-col gap-0.5">
         <Button
@@ -696,11 +791,15 @@ export function TreatmentProgramConstructorClient({
           <ChevronDown className="size-4" />
         </Button>
       </div>
+      <LibraryMediaThumb src={libRow?.thumbUrl} itemType={it.itemType} />
       <div className="min-w-0 flex-1">
         <span className="font-medium">{ITEM_TYPE_LABEL[it.itemType]}</span>
         <span className="ml-2 text-muted-foreground">
-          {libraryEntryTitle(library, it.itemType, it.itemRefId) ?? it.itemRefId}
+          {libRow?.title ?? it.itemRefId}
         </span>
+        {libRow?.subtitle?.trim() ? (
+          <p className="mt-0.5 text-xs text-muted-foreground line-clamp-1">{libRow.subtitle.trim()}</p>
+        ) : null}
       </div>
       <Select
         value={it.groupId ?? "__none__"}
@@ -743,7 +842,8 @@ export function TreatmentProgramConstructorClient({
         Удалить
       </Button>
     </li>
-  );
+    );
+  };
 
   return (
     <div className="flex flex-col gap-4">
@@ -753,30 +853,55 @@ export function TreatmentProgramConstructorClient({
         </p>
       ) : null}
 
-      <section className="rounded-md border border-border/60 bg-card/20 p-3">
-        <div className="flex flex-wrap items-start justify-between gap-2">
-          <div className="min-w-0 flex-1">
-            <h2 className="text-sm font-semibold">Где используется</h2>
-            {usageBusy ? (
-              <p className="mt-1 text-sm text-muted-foreground">Загрузка…</p>
-            ) : usageLoadError ? (
-              <p className="mt-1 text-sm text-muted-foreground">{usageLoadError}</p>
-            ) : (
-              <TemplateUsageSectionsView sections={usageSections} />
-            )}
+      <header className="sticky top-0 z-20 -mx-1 flex flex-col gap-3 border-b border-border/60 bg-background/95 px-1 pb-3 pt-1 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0 flex-1 space-y-1.5">
+            <h1 className="text-lg font-semibold leading-tight tracking-tight text-foreground line-clamp-2">
+              {detail.title}
+            </h1>
+            <TreatmentProgramTemplateStatusBadge status={detail.status} />
           </div>
-          {!isArchived ? (
+          <div className="flex flex-wrap items-center justify-end gap-2">
             <Button
               type="button"
-              variant="destructive"
               size="sm"
-              disabled={busy}
+              variant="secondary"
+              disabled={busy || isArchived || detail.status === "draft"}
+              onClick={() => void patchPublicationStatus("draft")}
+            >
+              Сохранить черновик
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="default"
+              disabled={busy || isArchived || detail.status === "published"}
+              onClick={() => void patchPublicationStatus("published")}
+            >
+              Опубликовать
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="destructive"
+              disabled={busy || isArchived}
               onClick={() => void handleArchiveClick()}
             >
-              В архив
+              Архивировать
             </Button>
+          </div>
+        </div>
+      </header>
+
+      <section className="rounded-md border border-border/60 bg-card/20 p-3">
+        <div className="min-w-0 flex-1">
+          <h2 className="text-sm font-semibold">Где используется</h2>
+          {usageBusy ? (
+            <p className="mt-1 text-sm text-muted-foreground">Загрузка…</p>
+          ) : usageLoadError ? (
+            <p className="mt-1 text-sm text-muted-foreground">{usageLoadError}</p>
           ) : (
-            <span className="shrink-0 text-xs uppercase text-muted-foreground">В архиве</span>
+            <TemplateUsageSectionsView sections={usageSections} />
           )}
         </div>
       </section>
@@ -785,7 +910,7 @@ export function TreatmentProgramConstructorClient({
         <p className="text-sm text-muted-foreground">Шаблон в архиве — изменение этапов и элементов отключено.</p>
       ) : null}
 
-      <div className="grid gap-4 md:grid-cols-[minmax(220px,300px)_1fr]">
+      <div className="grid min-h-0 gap-4 md:grid-cols-[minmax(240px,320px)_1fr] md:items-start">
         <div className="flex flex-col gap-2">
           <div className="flex items-center justify-between gap-2">
             <h2 className="text-sm font-semibold">Этапы</h2>
@@ -1087,7 +1212,7 @@ export function TreatmentProgramConstructorClient({
       </Dialog>
 
       <Dialog open={itemDialogOpen} onOpenChange={setItemDialogOpen}>
-        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>Элемент из библиотеки</DialogTitle>
           </DialogHeader>
@@ -1141,18 +1266,29 @@ export function TreatmentProgramConstructorClient({
                 placeholder="Фильтр по названию"
               />
             </div>
-            <ul className="max-h-56 overflow-auto rounded-md border">
+            <ul className="max-h-64 space-y-1 overflow-y-auto pr-0.5">
               {pickerList.length === 0 ? (
-                <li className="px-3 py-4 text-sm text-muted-foreground">Нет записей для выбранного типа.</li>
+                <li className="rounded-md border border-dashed px-3 py-6 text-center text-sm text-muted-foreground">
+                  Нет записей для выбранного типа.
+                </li>
               ) : (
                 pickerList.map((row) => (
-                  <li key={row.id} className="border-b last:border-0">
+                  <li key={row.id}>
                     <button
                       type="button"
                       disabled={editLocked}
-                      onClick={() => handleAddItem(row.id)}
+                      onClick={() => void handleAddItem(row.id)}
+                      className="flex w-full items-start gap-3 rounded-md border border-border/50 bg-card/20 px-2 py-2 text-left text-sm shadow-sm transition-colors hover:border-border hover:bg-muted/50 disabled:pointer-events-none disabled:opacity-50"
                     >
-                      {row.title}
+                      <LibraryMediaThumb src={row.thumbUrl} itemType={itemType} />
+                      <span className="min-w-0 flex-1">
+                        <span className="block font-medium leading-snug">{row.title}</span>
+                        {row.subtitle?.trim() ? (
+                          <span className="mt-0.5 block text-xs text-muted-foreground line-clamp-2">
+                            {row.subtitle.trim()}
+                          </span>
+                        ) : null}
+                      </span>
                     </button>
                   </li>
                 ))
@@ -1282,32 +1418,4 @@ export function TreatmentProgramConstructorClient({
       </Dialog>
     </div>
   );
-}
-
-function libraryEntryTitle(
-  lib: TreatmentProgramLibraryPickers,
-  type: TreatmentProgramItemType,
-  id: string,
-): string | null {
-  let list: Array<{ id: string; title: string }>;
-  switch (type) {
-    case "exercise":
-      list = lib.exercises;
-      break;
-    case "lfk_complex":
-      list = lib.lfkComplexes;
-      break;
-    case "test_set":
-      list = lib.testSets;
-      break;
-    case "recommendation":
-      list = lib.recommendations;
-      break;
-    case "lesson":
-      list = lib.lessons;
-      break;
-    default:
-      return null;
-  }
-  return list.find((r) => r.id === id)?.title ?? null;
 }
