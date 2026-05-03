@@ -16,11 +16,11 @@
 | Колонка БД `domain`, UI «Тип» (не переименование в `kind`) | PRE_IMP Q4, STAGE_B4 §5 | **PASS** | [`recommendationDomain.ts`](../../apps/webapp/src/modules/recommendations/recommendationDomain.ts) (коды + подписи); [`RecommendationForm.tsx`](../../apps/webapp/src/app/app/doctor/recommendations/RecommendationForm.tsx) лейбл «Тип»; [`RecommendationsPageClient.tsx`](../../apps/webapp/src/app/app/doctor/recommendations/RecommendationsPageClient.tsx) tertiary «Тип» |
 | `body_region_id` FK, три текстовых поля | ТЗ §3 B4, STAGE_B4 §3 | **PASS** | [`0036_recommendations_b4_body_region_metrics.sql`](../../apps/webapp/db/drizzle-migrations/0036_recommendations_b4_body_region_metrics.sql); [`recommendations.ts`](../../apps/webapp/db/schema/recommendations.ts); типы [`types.ts`](../../apps/webapp/src/modules/recommendations/types.ts) |
 | Без merge legacy `domain` в той же миграции | PRE_IMP Q3 | **PASS** | Миграция `0036` — только `ADD COLUMN` / FK / индекс; **нет** `UPDATE recommendations SET domain …` |
-| Расширение enum/кодов типа без массовой нормализации строк | PRE_IMP Q3 | **PASS** | Новые коды в `RECOMMENDATION_DOMAIN_CODES`; строки с неизвестным `domain` в БД читаются как `domain: null` в DTO ([`mapRow` в `pgRecommendations.ts`](../../apps/webapp/src/infra/repos/pgRecommendations.ts)) — без silent DB rewrite |
+| Расширение enum/кодов типа без массовой нормализации строк | PRE_IMP Q3 | **PASS** | Коды «типа» — справочник БД `recommendation_type` (Stage D3, см. [`AUDIT_STAGE_D3.md`](AUDIT_STAGE_D3.md)). **Сноска к формулировке B4:** ранее здесь было «неизвестный `domain` → `null` в DTO» по `mapRow` — после **D3** чтение **read tolerant** (сырое значение в DTO); см. [`AUDIT_STAGE_D3.md`](AUDIT_STAGE_D3.md) §4. Без silent rewrite строк в БД. |
 | Фильтр по типу (`domain`) и региону, пересечение AND | STAGE_B4 §7 | **PASS** | [`pgRecommendations.ts`](../../apps/webapp/src/infra/repos/pgRecommendations.ts) `list`: `eq(domain)` + `eq(bodyRegionId)`; [`inMemoryRecommendations.ts`](../../apps/webapp/src/infra/repos/inMemoryRecommendations.ts) `matchesFilter`; [`service.test.ts`](../../apps/webapp/src/modules/recommendations/service.test.ts) сценарий пересечения |
 | Archive / unarchive не ломают новые поля | STAGE_B4 §6 | **PASS** | `archive`/`unarchive` в `pgRecommendations` меняют только `is_archived` / `updated_at`; тест «retain B4 fields» в `service.test.ts` |
 | Preserve query каталога (inline) | STAGE_B4, usage | **PASS** | [`RecommendationForm.tsx`](../../apps/webapp/src/app/app/doctor/recommendations/RecommendationForm.tsx) hidden `listQ` / `listTitleSort` / `listRegion` / `listDomain` / `listStatus`; [`actionsInline.ts`](../../apps/webapp/src/app/app/doctor/recommendations/actionsInline.ts) `appendRecommendationsListParams` |
-| REST API согласована с полями B4 | ТЗ / api | **PASS** | [`route.ts`](../../apps/webapp/src/app/api/doctor/recommendations/route.ts), [`[id]/route.ts`](../../apps/webapp/src/app/api/doctor/recommendations/[id]/route.ts); [`api.md`](../../apps/webapp/src/app/api/api.md) (в т.ч. `invalid_query`, сериализация `domain` вне allowlist) |
+| REST API согласована с полями B4 | ТЗ / api | **PASS** | [`route.ts`](../../apps/webapp/src/app/api/doctor/recommendations/route.ts), [`[id]/route.ts`](../../apps/webapp/src/app/api/doctor/recommendations/[id]/route.ts); [`api.md`](../../apps/webapp/src/app/api/api.md) (`invalid_query`, `field` для `domain`/`region`; сериализация `domain` — D3 read tolerant) |
 | SSR каталог: паритет фильтров с GET API + баннеры | AUDIT §10 (FIX) | **PASS** | [`recommendationCatalogSsrQuery.ts`](../../apps/webapp/src/modules/recommendations/recommendationCatalogSsrQuery.ts), [`page.tsx`](../../apps/webapp/src/app/app/doctor/recommendations/page.tsx), [`RecommendationsPageClient.tsx`](../../apps/webapp/src/app/app/doctor/recommendations/RecommendationsPageClient.tsx) |
 
 ## 3. Changed Files (ревью-ориентир)
@@ -128,7 +128,7 @@ pnpm exec tsc --noEmit
 
 ### minor — done / deferred
 
-3. **Done:** [`api.md`](../../apps/webapp/src/app/api/api.md) — `invalid_query`, сериализация `domain` вне allowlist.
+3. **Done:** [`api.md`](../../apps/webapp/src/app/api/api.md) — `invalid_query`, контракт `domain`/`region` (D3: read tolerant serialization + явный `field` для query).
 
 4. **Deferred:** debug-log в `appendRecommendationsListParams` — не внедрялось (см. §11).
 
@@ -142,7 +142,7 @@ pnpm exec tsc --noEmit
 |----|----------|--------|
 | major | Парсер SSR query (domain + region UUID), не передавать невалидное в `listRecommendations` | `recommendationCatalogSsrQuery.ts`, `recommendationCatalogSsrQuery.test.ts`, `recommendations/page.tsx` |
 | major | Баннеры `invalidDomainQuery` / `invalidRegionQuery` | `RecommendationsPageClient.tsx` |
-| minor | Документация API `invalid_query` + `domain` вне allowlist → `null` | `api.md` |
+| minor | Документация API `invalid_query` + контракт `domain` | `api.md` — эволюция D3 (read tolerant), см. [`AUDIT_STAGE_D3.md`](AUDIT_STAGE_D3.md) FIX |
 
 ---
 

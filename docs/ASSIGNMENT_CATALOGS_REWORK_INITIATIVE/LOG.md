@@ -719,3 +719,38 @@ pnpm exec tsc --noEmit
 **Результат:** команды выше — **PASS** (зафиксировано после прогона в сессии).
 
 **Коммит:** `feat(recommendations): D3 recommendation_type DB catalog` — только файлы D3 (остальные локальные правки вне коммита).
+
+---
+
+## 2026-05-03 — Stage D3 — FIX (`AUDIT_STAGE_D3.md`)
+
+**Контекст:** [`AUDIT_STAGE_D3.md`](AUDIT_STAGE_D3.md) — закрыть critical/major (не применимо), low: JSDoc SSR vs REST, `GET region` → `field:"region"`, cross-link B4.
+
+**Сделано:**
+
+- [`recommendationCatalogSsrQuery.ts`](../../apps/webapp/src/modules/recommendations/recommendationCatalogSsrQuery.ts): JSDoc SSR vs REST; вход **`region`** (UUID); паритет с `GET ?region=` / `field:"region"`.
+- [`recommendationCatalogSsrQuery.test.ts`](../../apps/webapp/src/modules/recommendations/recommendationCatalogSsrQuery.test.ts): вызовы с ключом `region`.
+- [`page.tsx`](../../apps/webapp/src/app/app/doctor/recommendations/page.tsx): в парсер передаётся `region` из `?region=` или legacy `?regionRefId=` (`DOCTOR_CATALOG_FILTER_QS`).
+- [`route.ts`](../../apps/webapp/src/app/api/doctor/recommendations/route.ts): `region` в list query как `string` + ручная проверка UUID до `buildAppDeps`; **`400`** `invalid_query` + **`field:"region"`** при не-UUID.
+- [`route.test.ts`](../../apps/webapp/src/app/api/doctor/recommendations/route.test.ts): не-UUID `region`, невалидный `domain`, валидный список.
+- [`AUDIT_STAGE_D3.md`](AUDIT_STAGE_D3.md): Verdict после FIX, §3/§6/MANDATORY low, §7 eslint список + vitest `route.test.ts`.
+- [`AUDIT_STAGE_B4.md`](AUDIT_STAGE_B4.md): сноска §2 про read tolerant D3 вместо «`domain: null` в DTO».
+
+**Проверки (целевые D3 FIX):**
+
+```bash
+cd apps/webapp && pnpm exec eslint \
+  src/modules/recommendations/recommendationCatalogSsrQuery.ts \
+  src/modules/recommendations/recommendationCatalogSsrQuery.test.ts \
+  src/app/app/doctor/recommendations/page.tsx \
+  src/app/api/doctor/recommendations/route.ts \
+  src/app/api/doctor/recommendations/route.test.ts
+pnpm exec vitest run \
+  src/modules/recommendations/recommendationCatalogSsrQuery.test.ts \
+  src/app/api/doctor/recommendations/route.test.ts
+pnpm exec tsc --noEmit
+```
+
+**Результат:** команды выше — **PASS**.
+
+**Коммит:** `fix(recommendations): D3 audit GET region field and SSR docs` (только файлы FIX).

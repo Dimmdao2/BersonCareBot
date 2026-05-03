@@ -7,15 +7,26 @@ export type RecommendationCatalogSsrParsed = {
   domainForList: RecommendationDomain | null;
   /** Значение для `listRecommendations({ regionRefId })`; `null` = без фильтра по региону. */
   regionRefIdForList: string | null;
-  /** Непустой `?domain=` не распознан как код из allowlist — фильтр по типу не применяется (как `GET /api/doctor/recommendations`). */
+  /**
+   * Непустой `?domain=` не входит в allowlist (активные `reference_items` категории `recommendation_type` или сид v1).
+   * На SSR фильтр по типу **не** применяется (`domainForList === null`), страница рендерится; UI может показать баннер.
+   * В отличие от этого, `GET /api/doctor/recommendations` при том же невалидном коде возвращает **`400`**
+   * `{ ok:false, error:"invalid_query", field:"domain" }` (JSON API).
+   */
   invalidDomainQuery: boolean;
-  /** Непустой `?region=` не UUID — фильтр по региону не применяется (как `GET /api/doctor/recommendations`). */
+  /**
+   * Непустой `?region=` не UUID — фильтр по региону не применяется.
+   * На SSR — баннер; `GET /api/doctor/recommendations` с не-UUID `region` — **`400`** `{ ok:false, error:"invalid_query", field:"region" }`.
+   */
   invalidRegionQuery: boolean;
 };
 
 /**
- * Парсинг query каталога рекомендаций на SSR: согласован с валидацией
- * `GET /api/doctor/recommendations` (невалидные части не передаются в список).
+ * Парсинг query каталога рекомендаций на SSR: та же логика allowlist/UUID, что и у `GET /api/doctor/recommendations`,
+ * для передачи в `listRecommendations` (невалидные части query не попадают в фильтр списка).
+ * HTTP-ответ страницы при невалидных query **не** `400` — см. описание флагов `invalidDomainQuery` / `invalidRegionQuery`.
+ *
+ * @param sp — `{ region, domain }`: `region` — UUID из query (на странице каталога врач может передать значение из `?region=` или склеить с legacy `?regionRefId=` до вызова).
  */
 export function parseRecommendationCatalogSsrQuery(
   sp: {

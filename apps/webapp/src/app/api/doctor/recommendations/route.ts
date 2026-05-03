@@ -30,7 +30,8 @@ const postBodySchema = z.object({
 const listQuerySchema = z.object({
   q: z.string().optional(),
   includeArchived: z.coerce.boolean().optional(),
-  region: z.string().uuid().optional(),
+  /** Проверка UUID вручную после Zod — чтобы при невалидном значении вернуть `field: "region"` (паритет с `domain`). */
+  region: z.string().optional(),
   domain: z.string().max(64).optional(),
 });
 
@@ -47,6 +48,12 @@ export async function GET(request: Request) {
     return NextResponse.json({ ok: false, error: "invalid_query" }, { status: 400 });
   }
 
+  const rawRegion = parsed.data.region?.trim() ?? "";
+  if (rawRegion && !z.string().uuid().safeParse(rawRegion).success) {
+    return NextResponse.json({ ok: false, error: "invalid_query", field: "region" }, { status: 400 });
+  }
+  const regionRefId = rawRegion || null;
+
   const deps = buildAppDeps();
   const domainRefItems = await deps.references.listActiveItemsByCategoryCode(RECOMMENDATION_TYPE_CATEGORY_CODE);
   const rawDomain = parsed.data.domain?.trim() ?? "";
@@ -59,7 +66,7 @@ export async function GET(request: Request) {
   const items = await deps.recommendations.listRecommendations({
     search: parsed.data.q?.trim() || null,
     includeArchived: parsed.data.includeArchived ?? false,
-    regionRefId: parsed.data.region ?? null,
+    regionRefId,
     domain,
   });
   return NextResponse.json({ ok: true, items });
