@@ -18,7 +18,7 @@ function exercisesCatalogRedirectSearchParams(
   extra?: { selected?: string },
 ): string {
   const p = new URLSearchParams();
-  p.set("view", view);
+  p.set("catalogView", view);
   if (extra?.selected) p.set("selected", extra.selected);
   const st = formData.get("status");
   if (st === "active" || st === "all" || st === "archived") p.set("status", st);
@@ -36,7 +36,7 @@ export async function saveExerciseInline(
   if (result.wasUpdate) {
     revalidatePath(`${EXERCISES_PATH}/${result.exerciseId}`);
   }
-  const view = formData.get("view") === "tiles" ? "tiles" : "list";
+  const view = formData.get("catalogView") === "tiles" ? "tiles" : "list";
   redirect(
     `${EXERCISES_PATH}?${exercisesCatalogRedirectSearchParams(formData, view, { selected: result.exerciseId })}`,
   );
@@ -50,7 +50,7 @@ export async function archiveExerciseInline(
   if (result.kind === "needs_confirmation") {
     return { ok: false, code: "USAGE_CONFIRMATION_REQUIRED", usage: result.usage };
   }
-  const view = formData.get("view") === "tiles" ? "tiles" : "list";
+  const view = formData.get("catalogView") === "tiles" ? "tiles" : "list";
   if (result.kind === "invalid") {
     const idRaw = formData.get("id");
     const id = typeof idRaw === "string" ? idRaw.trim() : "";
@@ -66,7 +66,7 @@ export async function unarchiveExerciseInline(
   formData: FormData,
 ): Promise<UnarchiveDoctorExerciseState> {
   const result = await unarchiveDoctorExerciseCore(formData);
-  const view = formData.get("view") === "tiles" ? "tiles" : "list";
+  const view = formData.get("catalogView") === "tiles" ? "tiles" : "list";
   if (result.kind === "invalid") {
     const idRaw = formData.get("id");
     const id = typeof idRaw === "string" ? idRaw.trim() : "";

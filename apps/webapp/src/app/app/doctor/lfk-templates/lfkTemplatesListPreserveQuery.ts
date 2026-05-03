@@ -23,8 +23,8 @@ export function buildLfkTemplatesListPreserveQuery(input: LfkTemplatesListPreser
   const qt = input.q.trim();
   if (qt) p.set("q", qt);
   const region = input.regionRefId?.trim();
-  if (region) p.set("region", region);
-  if (input.loadType) p.set("load", input.loadType);
+  if (region) p.set("regionRefId", region);
+  if (input.loadType) p.set("loadType", input.loadType);
   applyDoctorCatalogPubArchToSearchParams(p, input.listPubArch);
   if (input.titleSort === "asc" || input.titleSort === "desc") p.set("titleSort", input.titleSort);
   return p.toString();
@@ -46,11 +46,11 @@ export function sanitizeLfkTemplatesListPreserveQuery(raw: string): string {
   const q = sp.get("q");
   if (q != null && q.length <= 500) out.set("q", q);
 
-  const region = sp.get("region")?.trim();
-  if (region && region.length <= 120 && !/[\s<>"']/.test(region)) out.set("region", region);
+  const region = sp.get("regionRefId")?.trim();
+  if (region && region.length <= 120 && !/[\s<>"']/.test(region)) out.set("regionRefId", region);
 
-  const load = sp.get("load");
-  if (load && (LOAD_VALUES as readonly string[]).includes(load)) out.set("load", load);
+  const load = sp.get("loadType");
+  if (load && (LOAD_VALUES as readonly string[]).includes(load)) out.set("loadType", load);
 
   const titleSort = sp.get("titleSort");
   if (titleSort === "asc" || titleSort === "desc") out.set("titleSort", titleSort);

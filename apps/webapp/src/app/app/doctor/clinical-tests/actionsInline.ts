@@ -18,10 +18,10 @@ function appendClinicalTestsListParams(sp: URLSearchParams, formData: FormData) 
   const ts = formData.get("listTitleSort");
   if (ts === "asc" || ts === "desc") sp.set("titleSort", ts);
   const region = formData.get("listRegion");
-  if (typeof region === "string" && region.trim()) sp.set("region", region.trim());
+  if (typeof region === "string" && region.trim()) sp.set("regionRefId", region.trim());
   const load = formData.get("listLoad");
   if (load === "strength" || load === "stretch" || load === "balance" || load === "cardio" || load === "other") {
-    sp.set("load", load);
+    sp.set("loadType", load);
   }
   const assessment = formData.get("listAssessment");
   if (typeof assessment === "string" && assessment.trim()) {
@@ -42,10 +42,10 @@ export async function saveClinicalTestInline(
 
   revalidatePath(CLINICAL_TESTS_PATH);
   revalidatePath(`${CLINICAL_TESTS_PATH}/${result.testId}`);
-  const view = formData.get("view") === "list" ? "list" : "tiles";
+  const view = formData.get("catalogView") === "list" ? "list" : "tiles";
   const sp = new URLSearchParams();
   sp.set("selected", result.testId);
-  sp.set("view", view);
+  sp.set("catalogView", view);
   appendClinicalTestsListParams(sp, formData);
   redirect(`${CLINICAL_TESTS_PATH}?${sp.toString()}`);
 }
@@ -58,9 +58,9 @@ export async function archiveClinicalTestInline(
   if (result.kind === "needs_confirmation") {
     return { ok: false, code: "USAGE_CONFIRMATION_REQUIRED", usage: result.usage };
   }
-  const view = formData.get("view") === "list" ? "list" : "tiles";
+  const view = formData.get("catalogView") === "list" ? "list" : "tiles";
   const sp = new URLSearchParams();
-  sp.set("view", view);
+  sp.set("catalogView", view);
   appendClinicalTestsListParams(sp, formData);
   const qs = sp.toString();
   if (result.kind === "invalid") {
@@ -83,9 +83,9 @@ export async function unarchiveClinicalTestInline(
   }
   revalidatePath(CLINICAL_TESTS_PATH);
   revalidatePath(`${CLINICAL_TESTS_PATH}/${result.id}`);
-  const view = formData.get("view") === "list" ? "list" : "tiles";
+  const view = formData.get("catalogView") === "list" ? "list" : "tiles";
   const sp = new URLSearchParams();
-  sp.set("view", view);
+  sp.set("catalogView", view);
   sp.set("selected", result.id);
   appendClinicalTestsListParams(sp, formData);
   redirect(`${CLINICAL_TESTS_PATH}?${sp.toString()}`);

@@ -251,7 +251,7 @@ export function ExerciseForm({
           </p>
         ) : null}
         {exercise ? <input type="hidden" name="id" value={exercise.id} /> : null}
-        {viewHint ? <input type="hidden" name="view" value={viewHint} /> : null}
+        {viewHint ? <input type="hidden" name="catalogView" value={viewHint} /> : null}
         {listArchiveScope ? <input type="hidden" name="status" value={listArchiveScope} /> : null}
         <input type="hidden" name="regionRefId" value={values.regionRefId ?? ""} />
         <input type="hidden" name="mediaUrl" value={values.mediaUrl} />
@@ -402,7 +402,7 @@ export function ExerciseForm({
           ) : null}
           <form action={unarchiveFormAction} className="mt-3 flex flex-col gap-2">
             <input type="hidden" name="id" value={exercise.id} />
-            {viewHint ? <input type="hidden" name="view" value={viewHint} /> : null}
+            {viewHint ? <input type="hidden" name="catalogView" value={viewHint} /> : null}
             {listArchiveScope ? <input type="hidden" name="status" value={listArchiveScope} /> : null}
             <Button type="submit" variant="secondary" disabled={unarchivePending}>
               {unarchivePending ? "Восстановление…" : "Вернуть из архива"}
@@ -434,7 +434,7 @@ export function ExerciseForm({
 
           <form ref={archiveFormRef} action={archiveFormAction} className="flex flex-col gap-2">
             <input type="hidden" name="id" value={exercise.id} />
-            {viewHint ? <input type="hidden" name="view" value={viewHint} /> : null}
+            {viewHint ? <input type="hidden" name="catalogView" value={viewHint} /> : null}
             {listArchiveScope ? <input type="hidden" name="status" value={listArchiveScope} /> : null}
             <input type="hidden" name="acknowledgeUsageWarning" value={archiveUsageAck ? "1" : ""} readOnly />
             <Button

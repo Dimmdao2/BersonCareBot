@@ -9,9 +9,9 @@ import { ExercisesPageClient } from "./ExercisesPageClient";
 type PageProps = {
   searchParams?: Promise<{
     q?: string;
-    region?: string;
-    load?: string;
-    view?: string;
+    regionRefId?: string;
+    loadType?: string;
+    catalogView?: string;
     selected?: string;
     titleSort?: string;
     status?: string;
@@ -22,17 +22,17 @@ export default async function DoctorExercisesPage({ searchParams }: PageProps) {
   const session = await requireDoctorAccess();
   const sp = (await searchParams) ?? {};
   const q = typeof sp.q === "string" ? sp.q : "";
-  const regionRefId = typeof sp.region === "string" && sp.region.trim() ? sp.region.trim() : undefined;
+  const regionRefId = typeof sp.regionRefId === "string" && sp.regionRefId.trim() ? sp.regionRefId.trim() : undefined;
   const loadType =
-    sp.load === "strength" ||
-    sp.load === "stretch" ||
-    sp.load === "balance" ||
-    sp.load === "cardio" ||
-    sp.load === "other"
-      ? sp.load
+    sp.loadType === "strength" ||
+    sp.loadType === "stretch" ||
+    sp.loadType === "balance" ||
+    sp.loadType === "cardio" ||
+    sp.loadType === "other"
+      ? sp.loadType
       : undefined;
   const { initialViewMode, viewLockedByUrl } = doctorCatalogViewFromSearchParams(
-    typeof sp.view === "string" ? sp.view : undefined,
+    typeof sp.catalogView === "string" ? sp.catalogView : undefined,
   );
   const selectedExerciseId = typeof sp.selected === "string" && sp.selected.trim() ? sp.selected.trim() : null;
   const titleSort = sp.titleSort === "asc" || sp.titleSort === "desc" ? sp.titleSort : null;

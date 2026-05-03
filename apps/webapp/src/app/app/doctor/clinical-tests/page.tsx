@@ -16,10 +16,10 @@ import { ClinicalTestsPageClient, type ClinicalTestTitleSort } from "./ClinicalT
 type PageProps = {
   searchParams?: Promise<{
     selected?: string;
-    view?: string;
+    catalogView?: string;
     q?: string;
     titleSort?: string;
-    region?: string;
+    regionRefId?: string;
     assessment?: string;
     status?: string;
   }>;
@@ -30,7 +30,7 @@ export default async function DoctorClinicalTestsPage({ searchParams }: PageProp
   const deps = buildAppDeps();
   const sp = (await searchParams) ?? {};
   const q = typeof sp.q === "string" ? sp.q : "";
-  const regionRefId = typeof sp.region === "string" && sp.region.trim() ? sp.region.trim() : undefined;
+  const regionRefId = typeof sp.regionRefId === "string" && sp.regionRefId.trim() ? sp.regionRefId.trim() : undefined;
   const assessmentRaw = typeof sp.assessment === "string" ? sp.assessment.trim() : "";
   const assessmentRefItems = await deps.references.listActiveItemsByCategoryCode(
     CLINICAL_ASSESSMENT_KIND_CATEGORY_CODE,
@@ -56,7 +56,7 @@ export default async function DoctorClinicalTestsPage({ searchParams }: PageProp
   const initialSelectedUsageSnapshot =
     initialSelectedId != null ? await deps.clinicalTests.getClinicalTestUsage(initialSelectedId) : null;
   const { initialViewMode, viewLockedByUrl } = doctorCatalogViewFromSearchParams(
-    typeof sp.view === "string" ? sp.view : undefined,
+    typeof sp.catalogView === "string" ? sp.catalogView : undefined,
   );
 
   const assessmentKindFilterItems = referenceItemsToAssessmentKindFilterDto(assessmentRefItems);

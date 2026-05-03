@@ -14,8 +14,8 @@ type PageProps = {
     selected?: string;
     q?: string;
     titleSort?: string;
-    region?: string;
-    load?: string;
+    regionRefId?: string;
+    loadType?: string;
     status?: string;
     arch?: string;
     pub?: string;
@@ -50,14 +50,14 @@ export default async function TreatmentProgramTemplatesPage({ searchParams }: Pa
   const raw = typeof sp.selected === "string" ? sp.selected.trim() : "";
   const initialSelectedId = raw && items.some((t) => t.id === raw) ? raw : null;
   const q = typeof sp.q === "string" ? sp.q : "";
-  const regionRefId = typeof sp.region === "string" && sp.region.trim() ? sp.region.trim() : undefined;
+  const regionRefId = typeof sp.regionRefId === "string" && sp.regionRefId.trim() ? sp.regionRefId.trim() : undefined;
   const loadType =
-    sp.load === "strength" ||
-    sp.load === "stretch" ||
-    sp.load === "balance" ||
-    sp.load === "cardio" ||
-    sp.load === "other"
-      ? (sp.load as ExerciseLoadType)
+    sp.loadType === "strength" ||
+    sp.loadType === "stretch" ||
+    sp.loadType === "balance" ||
+    sp.loadType === "cardio" ||
+    sp.loadType === "other"
+      ? (sp.loadType as ExerciseLoadType)
       : undefined;
   const initialTitleSort = sp.titleSort === "asc" || sp.titleSort === "desc" ? sp.titleSort : null;
 

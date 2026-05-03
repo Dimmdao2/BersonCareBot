@@ -62,7 +62,7 @@ type Props = {
     listStatus: RecommendationListFilterScope;
     /** Непустой `?domain=` не распознан — фильтр по типу не применён (паритет с GET API). */
     invalidDomainQuery?: boolean;
-    /** Непустой `?region=` не UUID — фильтр по региону не применён. */
+    /** Непустой `?regionRefId=` не UUID — фильтр по региону не применён. */
     invalidRegionQuery?: boolean;
   };
 };

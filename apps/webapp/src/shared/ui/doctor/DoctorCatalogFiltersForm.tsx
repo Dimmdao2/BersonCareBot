@@ -112,7 +112,7 @@ export function DoctorCatalogFiltersForm({
 
   return (
     <form method="get" className="flex flex-wrap items-center gap-2">
-      {view ? <input type="hidden" name="view" value={view} /> : null}
+      {view ? <input type="hidden" name="catalogView" value={view} /> : null}
       {titleSort ? <input type="hidden" name="titleSort" value={titleSort} /> : null}
       {selectedId ? <input type="hidden" name="selected" value={selectedId} /> : null}
       {catalogPubArch?.arch === "archived" ? <input type="hidden" name="arch" value="archived" /> : null}
@@ -139,7 +139,7 @@ export function DoctorCatalogFiltersForm({
         </label>
         <ReferenceSelect
           id={`${idPrefix}-region`}
-          name="region"
+          name="regionRefId"
           categoryCode="body_region"
           value={selectedRegionRefId}
           onChange={(refId, label) => {
@@ -179,7 +179,7 @@ export function DoctorCatalogFiltersForm({
             </label>
             <ReferenceSelect
               id={`${idPrefix}-load`}
-              name="load"
+              name="loadType"
               prefetchedItems={EXERCISE_LOAD_FILTER_ITEMS}
               valueMatch="code"
               submitField="code"
