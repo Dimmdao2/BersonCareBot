@@ -26,7 +26,6 @@
 - Курсы (`COURSES_INITIATIVE`) — отдельная инициатива.
 - Полная переработка каталогов «Назначений» (B1–B7) — sister-инициатива.
 - Push/PWA-уведомления, расширенный календарь, расширенная аналитика — backlog.
-- Любые HLS/media работы (`docs/VIDEO_HLS_DELIVERY`, `apps/media-worker/**`, `modules/media/**`, `api/media/**`).
 
 ## 3. Зависимости и порядок
 
@@ -139,7 +138,6 @@ Patient UI:
 - Ports определяются в `modules/*/ports.ts`, реализации — в `infra/repos/*`.
 - `buildAppDeps()` не вызывается из `modules/*`.
 - Не добавлять env vars для integration config.
-- Не трогать media/HLS контур: `apps/media-worker/**`, `apps/webapp/src/modules/media/**`, `apps/webapp/src/app/api/media/**`, `apps/webapp/src/app/app/patient/content/**`.
 
 ### 6.4 Stage gates
 

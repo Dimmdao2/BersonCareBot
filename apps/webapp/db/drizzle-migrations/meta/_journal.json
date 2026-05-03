@@ -176,6 +176,13 @@
       "when": 1777778000000,
       "tag": "0024_video_watermark_enabled",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1777801389725,
+      "tag": "0025_treatment_program_stage_goals_objectives_duration",
+      "breakpoints": true
     }
   ]
 }

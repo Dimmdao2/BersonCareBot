@@ -142,6 +142,10 @@ export function createInMemoryTreatmentProgramPort(seed?: {
         title: input.title,
         description: input.description ?? null,
         sortOrder: input.sortOrder ?? nextStageOrder(templateId),
+        goals: input.goals ?? null,
+        objectives: input.objectives ?? null,
+        expectedDurationDays: input.expectedDurationDays ?? null,
+        expectedDurationText: input.expectedDurationText ?? null,
       };
       stages.set(id, row);
       return { ...row };

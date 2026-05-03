@@ -70,6 +70,15 @@ export const treatmentProgramInstanceStages = pgTable(
     /** Обязателен при status = skipped (валидация в сервисе; дублируется в `treatment_program_events.reason` для `stage_skipped`). */
     skipReason: text("skip_reason"),
     status: text().notNull(),
+    /** Снимок с шаблона при назначении; markdown. */
+    goals: text("goals"),
+    /**
+     * Снимок с шаблона; markdown.
+     * O1: только TEXT, без JSONB-чеклиста.
+     */
+    objectives: text("objectives"),
+    expectedDurationDays: integer("expected_duration_days"),
+    expectedDurationText: text("expected_duration_text"),
   },
   (table) => [
     index("idx_treatment_program_instance_stages_instance_order").using(

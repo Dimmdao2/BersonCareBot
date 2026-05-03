@@ -52,8 +52,6 @@ Do not edit:
 
 - `apps/webapp/src/app/app/doctor/recommendations/**` except for compile-only type alignment.
 - `apps/webapp/src/app/app/doctor/lfk-templates/**`.
-- `apps/webapp/src/app/app/patient/content/**` and any media playback files.
-- `apps/webapp/src/modules/media/**`, `apps/webapp/src/app/api/media/**`, `apps/media-worker/**`.
 - Courses.
 
 ## 5. Composer-Safe UI contract

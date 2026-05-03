@@ -52,8 +52,6 @@ Do not edit:
 - unrelated catalogs;
 - `COURSES_INITIATIVE` code;
 - `lfk` tables listed as protected in treatment program execution rules.
-- `apps/webapp/src/app/app/patient/content/**` and any media playback files.
-- `apps/webapp/src/modules/media/**`, `apps/webapp/src/app/api/media/**`, `apps/media-worker/**`.
 
 ## 5. Composer-Safe UI contract
 

@@ -1,7 +1,9 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import type { TreatmentProgramInstanceDetail } from "@/modules/treatment-program/types";
 import type { TreatmentProgramTestResultDetailRow } from "@/modules/treatment-program/types";
@@ -18,6 +20,133 @@ function snapshotTitle(snapshot: Record<string, unknown>, itemType: string): str
   const t = snapshot.title;
   if (typeof t === "string" && t.trim() !== "") return t;
   return itemType;
+}
+
+function InstanceStageMetadataForm(props: {
+  instanceId: string;
+  stage: TreatmentProgramInstanceDetail["stages"][number];
+  onSaved: () => Promise<void>;
+}) {
+  const { instanceId, stage, onSaved } = props;
+  const [goalsDraft, setGoalsDraft] = useState(stage.goals ?? "");
+  const [objectivesDraft, setObjectivesDraft] = useState(stage.objectives ?? "");
+  const [daysDraft, setDaysDraft] = useState(
+    stage.expectedDurationDays != null ? String(stage.expectedDurationDays) : "",
+  );
+  const [textDraft, setTextDraft] = useState(stage.expectedDurationText ?? "");
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    setGoalsDraft(stage.goals ?? "");
+    setObjectivesDraft(stage.objectives ?? "");
+    setDaysDraft(stage.expectedDurationDays != null ? String(stage.expectedDurationDays) : "");
+    setTextDraft(stage.expectedDurationText ?? "");
+    setMsg(null);
+  }, [
+    stage.id,
+    stage.goals,
+    stage.objectives,
+    stage.expectedDurationDays,
+    stage.expectedDurationText,
+  ]);
+
+  const save = async () => {
+    const daysTrim = daysDraft.trim();
+    let expectedDurationDays: number | null = null;
+    if (daysTrim !== "") {
+      const n = Number.parseInt(daysTrim, 10);
+      if (!Number.isFinite(n) || n < 0 || String(n) !== daysTrim) {
+        setMsg("Срок в днях: неотрицательное целое число");
+        return;
+      }
+      expectedDurationDays = n;
+    }
+    setSaving(true);
+    setMsg(null);
+    try {
+      const res = await fetch(
+        `/api/doctor/treatment-program-instances/${encodeURIComponent(instanceId)}/stages/${encodeURIComponent(stage.id)}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            goals: goalsDraft.trim() || null,
+            objectives: objectivesDraft.trim() || null,
+            expectedDurationDays,
+            expectedDurationText: textDraft.trim() || null,
+          }),
+        },
+      );
+      const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
+      if (!res.ok || !data.ok) {
+        setMsg(data.error ?? "Ошибка");
+        return;
+      }
+      await onSaved();
+      setMsg("Сохранено");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="rounded-md border border-border/60 bg-muted/20 p-3">
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor={`inst-goals-${stage.id}`}>Цель этапа</Label>
+          <Textarea
+            id={`inst-goals-${stage.id}`}
+            rows={3}
+            className="text-sm"
+            value={goalsDraft}
+            onChange={(e) => setGoalsDraft(e.target.value)}
+            disabled={saving}
+          />
+          <p className="text-xs text-muted-foreground">Markdown; для пациента в шапке этапа.</p>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor={`inst-obj-${stage.id}`}>Задачи этапа</Label>
+          <Textarea
+            id={`inst-obj-${stage.id}`}
+            rows={3}
+            className="text-sm"
+            value={objectivesDraft}
+            onChange={(e) => setObjectivesDraft(e.target.value)}
+            disabled={saving}
+          />
+          <p className="text-xs text-muted-foreground">Только текст/markdown (O1), не чеклист в БД.</p>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor={`inst-days-${stage.id}`}>Ожидаемый срок, дней</Label>
+          <Input
+            id={`inst-days-${stage.id}`}
+            className="max-w-[12rem] text-sm"
+            inputMode="numeric"
+            value={daysDraft}
+            onChange={(e) => setDaysDraft(e.target.value)}
+            disabled={saving}
+          />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor={`inst-dur-${stage.id}`}>Ожидаемый срок, текстом</Label>
+          <Input
+            id={`inst-dur-${stage.id}`}
+            className="text-sm"
+            value={textDraft}
+            onChange={(e) => setTextDraft(e.target.value)}
+            disabled={saving}
+          />
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button type="button" size="sm" disabled={saving} onClick={() => void save()}>
+            {saving ? "Сохранение…" : "Сохранить цели этапа"}
+          </Button>
+          {msg ? <span className="text-xs text-muted-foreground">{msg}</span> : null}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export function TreatmentProgramInstanceDetailClient(props: {
@@ -179,6 +308,9 @@ export function TreatmentProgramInstanceDetailClient(props: {
             status={stage.status}
             onPatched={refresh}
           />
+          <div className="mb-4">
+            <InstanceStageMetadataForm instanceId={detail.id} stage={stage} onSaved={refresh} />
+          </div>
           <ul className="m-0 list-none space-y-4 p-0">
             {stage.items.map((item) => (
               <li key={item.id} className="rounded-lg border border-border/80 bg-muted/20 p-3">

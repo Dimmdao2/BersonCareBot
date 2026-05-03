@@ -250,7 +250,7 @@ treatment_program_instance
 
 | Этап | Таблица | Колонка | Назначение |
 |---|---|---|---|
-| A1 | `treatment_program_template_stages`, `_instance_stages` | `goals TEXT`, `objectives TEXT/JSONB`, `expected_duration_days INT NULL`, `expected_duration_text TEXT NULL` | §1.3 |
+| A1 | `treatment_program_template_stages`, `_instance_stages` | `goals TEXT`, `objectives TEXT` (markdown, O1), `expected_duration_days INT NULL`, `expected_duration_text TEXT NULL` | §1.3 |
 | A2 | `treatment_program_instance_stage_items` | `is_actionable BOOLEAN NULL` (только для типа `recommendation`; иначе игнорируется) | §1.4 |
 | A2 | `treatment_program_instance_stage_items` | `status TEXT NOT NULL DEFAULT 'active'` (`active` \| `disabled`) | §1.8 |
 | A5 | `treatment_program_instance_stage_items` | `last_viewed_at TIMESTAMPTZ NULL` | §1.7 |

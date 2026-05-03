@@ -32,6 +32,14 @@ export type TreatmentProgramStage = {
   title: string;
   description: string | null;
   sortOrder: number;
+  /** Markdown. */
+  goals: string | null;
+  /**
+   * Markdown (O1 PROGRAM_PATIENT_SHAPE: хранится как TEXT, без JSONB-чеклиста).
+   */
+  objectives: string | null;
+  expectedDurationDays: number | null;
+  expectedDurationText: string | null;
 };
 
 export type TreatmentProgramStageItem = {
@@ -114,12 +122,20 @@ export type CreateTreatmentProgramStageInput = {
   title: string;
   description?: string | null;
   sortOrder?: number;
+  goals?: string | null;
+  objectives?: string | null;
+  expectedDurationDays?: number | null;
+  expectedDurationText?: string | null;
 };
 
 export type UpdateTreatmentProgramStageInput = {
   title?: string;
   description?: string | null;
   sortOrder?: number;
+  goals?: string | null;
+  objectives?: string | null;
+  expectedDurationDays?: number | null;
+  expectedDurationText?: string | null;
 };
 
 export type CreateTreatmentProgramStageItemInput = {
@@ -218,6 +234,18 @@ export type TreatmentProgramInstanceStageRow = {
   localComment: string | null;
   skipReason: string | null;
   status: TreatmentProgramInstanceStageStatus;
+  goals: string | null;
+  objectives: string | null;
+  expectedDurationDays: number | null;
+  expectedDurationText: string | null;
+};
+
+/** PATCH метаданных этапа экземпляра (цели/срок); статус этапа — отдельным вызовом. */
+export type UpdateTreatmentProgramInstanceStageMetadataInput = {
+  goals?: string | null;
+  objectives?: string | null;
+  expectedDurationDays?: number | null;
+  expectedDurationText?: string | null;
 };
 
 export type TreatmentProgramInstanceDetail = TreatmentProgramInstanceSummary & {
@@ -241,6 +269,10 @@ export type TreatmentProgramInstanceStageInput = {
   description: string | null;
   sortOrder: number;
   status: TreatmentProgramInstanceStageStatus;
+  goals: string | null;
+  objectives: string | null;
+  expectedDurationDays: number | null;
+  expectedDurationText: string | null;
   items: Array<{
     itemType: TreatmentProgramItemType;
     itemRefId: string;
@@ -265,6 +297,10 @@ export type AddTreatmentProgramInstanceStageInput = {
   sortOrder: number;
   status: TreatmentProgramInstanceStageStatus;
   sourceStageId?: string | null;
+  goals?: string | null;
+  objectives?: string | null;
+  expectedDurationDays?: number | null;
+  expectedDurationText?: string | null;
 };
 
 export type AddTreatmentProgramInstanceStageItemInput = {

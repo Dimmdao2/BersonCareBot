@@ -11,6 +11,7 @@ import type {
   AddTreatmentProgramInstanceStageItemInput,
   CreateTreatmentProgramInstanceTreeInput,
   ReplaceTreatmentProgramInstanceStageItemInput,
+  UpdateTreatmentProgramInstanceStageMetadataInput,
   TreatmentProgramInstanceDetail,
   TreatmentProgramInstanceStageItemRow,
   TreatmentProgramInstanceStageRow,
@@ -55,6 +56,10 @@ function mapStage(row: typeof stageTable.$inferSelect): TreatmentProgramInstance
     localComment: row.localComment ?? null,
     skipReason: row.skipReason ?? null,
     status: row.status as TreatmentProgramInstanceStageStatus,
+    goals: row.goals ?? null,
+    objectives: row.objectives ?? null,
+    expectedDurationDays: row.expectedDurationDays ?? null,
+    expectedDurationText: row.expectedDurationText ?? null,
   };
 }
 
@@ -138,6 +143,10 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
               localComment: null,
               skipReason: null,
               status: st.status,
+              goals: st.goals,
+              objectives: st.objectives,
+              expectedDurationDays: st.expectedDurationDays,
+              expectedDurationText: st.expectedDurationText,
             })
             .returning();
           if (!srow) throw new Error("insert stage failed");
@@ -335,6 +344,37 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
       });
     },
 
+    async updateInstanceStageMetadata(
+      instanceId: string,
+      stageId: string,
+      patch: UpdateTreatmentProgramInstanceStageMetadataInput,
+    ) {
+      const db = getDrizzle();
+      const stRow = await db.query.treatmentProgramInstanceStages.findFirst({
+        where: eq(stageTable.id, stageId),
+      });
+      if (!stRow || stRow.instanceId !== instanceId) return null;
+
+      const rowPatch: Partial<typeof stageTable.$inferInsert> = {};
+      if (patch.goals !== undefined) rowPatch.goals = patch.goals;
+      if (patch.objectives !== undefined) rowPatch.objectives = patch.objectives;
+      if (patch.expectedDurationDays !== undefined) {
+        rowPatch.expectedDurationDays = patch.expectedDurationDays;
+      }
+      if (patch.expectedDurationText !== undefined) {
+        rowPatch.expectedDurationText = patch.expectedDurationText;
+      }
+
+      const [updated] = await db
+        .update(stageTable)
+        .set(rowPatch)
+        .where(eq(stageTable.id, stageId))
+        .returning();
+      if (!updated) return null;
+      await touchInstanceUpdatedAt(db, instanceId);
+      return mapStage(updated);
+    },
+
     async setStageItemCompletedAt(instanceId: string, itemId: string, completedAt: string | null) {
       const db = getDrizzle();
       const inst = await db.query.treatmentProgramInstances.findFirst({
@@ -377,6 +417,10 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
           localComment: null,
           skipReason: null,
           status: input.status,
+          goals: input.goals ?? null,
+          objectives: input.objectives ?? null,
+          expectedDurationDays: input.expectedDurationDays ?? null,
+          expectedDurationText: input.expectedDurationText ?? null,
         })
         .returning();
       if (!srow) return null;

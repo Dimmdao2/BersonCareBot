@@ -19,30 +19,24 @@
 1. Фазы строго последовательно: `A1 -> A2 -> A3 -> A4 -> A5`.
 2. Цикл каждой фазы: `EXEC -> AUDIT -> FIX`. Следующая фаза только после закрытого `FIX`.
 3. Работать только в `treatment-program`-контуре:
-   - `apps/webapp/src/modules/treatment-program/**`
-   - `apps/webapp/src/app/api/*/treatment-program-*/**`
-   - `apps/webapp/src/app/app/patient/treatment-programs/**`
-   - `apps/webapp/db/schema/treatmentProgram*.ts`
-4. Не выходить в media/HLS-контур:
-   - `apps/media-worker/**`
-   - `apps/webapp/src/modules/media/**`
-   - `apps/webapp/src/app/api/media/**`
-   - `apps/webapp/src/app/app/patient/content/**`
-   - `docs/VIDEO_HLS_DELIVERY/**`
-5. Архитектурные правила обязательны: modules через ports/DI, route handlers тонкие, новые таблицы/запросы через Drizzle.
-6. O1/O2/O3/O4 уже зафиксированы и не пересматриваются в рамках A1-A5:
-   - O1: `objectives` = `TEXT` markdown;
-   - O4: `is_actionable` только на `instance_stage_item`;
-   - O2: LFK log в MVP на уровне комплекса;
-   - O3: post-session note в `program_action_log.note`.
-7. Не злоупотреблять full CI: на EXEC/FIX запускать только целевые проверки по затронутой области.
-8. Полный pre-push барьер запускать только перед push:
-   - `pnpm install --frozen-lockfile`
-   - `pnpm run ci`
-9. После каждого EXEC/FIX обновлять `docs/PROGRAM_PATIENT_SHAPE_INITIATIVE/LOG.md` по `LOG_TEMPLATE.md`.
-10. Каждый AUDIT должен содержать `MANDATORY FIX INSTRUCTIONS` с severity: `critical/major/minor`.
-11. При закрытии этапа создать stage audit по `EXECUTION_AUDIT_TEMPLATE.md`.
-12. Не менять `.github/workflows/ci.yml` без явного отдельного решения команды.
+  - `apps/webapp/src/modules/treatment-program/**`
+  - `apps/webapp/src/app/api/*/treatment-program-*/**`
+  - `apps/webapp/src/app/app/patient/treatment-programs/**`
+  - `apps/webapp/db/schema/treatmentProgram*.ts`
+4. Архитектурные правила обязательны: modules через ports/DI, route handlers тонкие, новые таблицы/запросы через Drizzle.
+5. O1/O2/O3/O4 уже зафиксированы и не пересматриваются в рамках A1-A5:
+  - O1: `objectives` = `TEXT` markdown;
+  - O4: `is_actionable` только на `instance_stage_item`;
+  - O2: LFK log в MVP на уровне комплекса;
+  - O3: post-session note в `program_action_log.note`.
+6. Не злоупотреблять full CI: на EXEC/FIX запускать только целевые проверки по затронутой области.
+7. Полный pre-push барьер запускать только перед push:
+  - `pnpm install --frozen-lockfile`
+  - `pnpm run ci`
+8. После каждого EXEC/FIX обновлять `docs/PROGRAM_PATIENT_SHAPE_INITIATIVE/LOG.md` по `LOG_TEMPLATE.md`.
+9. Каждый AUDIT должен содержать `MANDATORY FIX INSTRUCTIONS` с severity: `critical/major/minor`.
+10. При закрытии этапа создать stage audit по `EXECUTION_AUDIT_TEMPLATE.md`.
+11. Не менять `.github/workflows/ci.yml` без явного отдельного решения команды.
 
 Файлы аудитов:
 
@@ -99,8 +93,7 @@
 1) Закрой все critical и major.
 2) Для minor: исправь или зафиксируй обоснованный defer в AUDIT_STAGE_A1.md.
 3) Повтори целевые проверки A1.
-4) Подтверди отсутствие изменений в media/HLS контуре.
-5) Обнови LOG.md.
+4) Обнови LOG.md.
 ```
 
 ---
@@ -147,8 +140,9 @@
 1) Закрой critical и major.
 2) Для minor: фикс или обоснованный defer.
 3) Повтори целевые проверки A2.
-4) Подтверди, что scope не вышел в catalog/media/courses контур.
+4) Подтверди, что scope не вышел в catalog/courses контур.
 5) Обнови LOG.md.
+6) коммит без full ci
 ```
 
 ---
@@ -198,6 +192,7 @@
 3) Повтори целевые проверки A3.
 4) Подтверди сохранение scope внутри treatment-program контура.
 5) Обнови LOG.md.
+6) коммит без full ci
 ```
 
 ---
@@ -216,8 +211,7 @@
 2) Реализуй patient checklist и post-session form.
 3) Зафиксируй O2/O3: LFK log complex-level; note в `program_action_log.note`.
 4) Добавь doctor inbox «К проверке» в карточке пациента.
-5) Не трогай media playback/`app/patient/content/**`.
-6) Выполни целевые проверки A4 и обнови LOG.md.
+5) Выполни целевые проверки A4 и обнови LOG.md.
 ```
 
 ## A4 — AUDIT
@@ -230,7 +224,6 @@
 2) Checklist исключает disabled и persistent items.
 3) Post-session сохраняет difficulty + optional note (в action_log).
 4) Doctor inbox показывает pending tests (`decided_by IS NULL`) и скрывает решенные.
-5) Нет выхода в media/HLS контур.
 
 Сохрани: docs/PROGRAM_PATIENT_SHAPE_INITIATIVE/AUDIT_STAGE_A4.md
 Добавь MANDATORY FIX INSTRUCTIONS.
@@ -247,6 +240,7 @@
 3) Повтори целевые проверки A4.
 4) Подтверди, что run-screen/чеклист остались в treatment-programs контуре.
 5) Обнови LOG.md.
+6) коммит без full ci
 ```
 
 ---
@@ -296,6 +290,7 @@
 3) Повтори целевые проверки A5.
 4) Подтверди корректную cache revalidation.
 5) Обнови LOG.md.
+6) коммит без full ci
 ```
 
 ---
@@ -309,7 +304,7 @@
 1) Все этапы прошли цикл EXEC->AUDIT->FIX.
 2) Реализация соответствует `PROGRAM_PATIENT_SHAPE_PLAN.md` и stage-планам.
 3) O1/O2/O3/O4 реализованы строго в зафиксированном виде.
-4) Scope удержан в treatment-program контуре; media/HLS не затронуты.
+4) Scope удержан в treatment-program контуре.
 5) Stage 0, groups, action log, badges работают согласованно.
 6) Документация и LOG синхронизированы.
 7) Выданы MANDATORY FIX INSTRUCTIONS с severity.
@@ -338,12 +333,13 @@
 
 Сделай:
 1) Проверь, что закрыты stage fixes и global fix (нет открытых critical/major).
-2) Проверь `git status`; не включай несвязанные файлы в commit.
+2) Внеси правки по незакрытым проблемам аудитов
 3) Запусти pre-push барьер на актуальном дереве:
    - pnpm install --frozen-lockfile
    - pnpm run ci
 4) Если CI не прошел: исправь причины и повтори барьер.
 5) Подготовь краткий отчет о рисках и deferred пунктах.
+6) пуш
 
 Сохрани: docs/PROGRAM_PATIENT_SHAPE_INITIATIVE/AUDIT_PREPUSH_POSTFIX.md
 ```

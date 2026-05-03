@@ -50,8 +50,6 @@ Likely:
 Do not edit:
 
 - integrator/bot push.
-- `apps/webapp/src/app/app/patient/content/**` and any media playback files.
-- `apps/webapp/src/modules/media/**`, `apps/webapp/src/app/api/media/**`, `apps/media-worker/**`.
 - courses.
 - unrelated patient home geometry.
 

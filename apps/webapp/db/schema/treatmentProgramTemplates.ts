@@ -55,6 +55,15 @@ export const treatmentProgramTemplateStages = pgTable(
     title: text().notNull(),
     description: text(),
     sortOrder: integer("sort_order").default(0).notNull(),
+    /** Клиническая цель этапа (markdown). */
+    goals: text("goals"),
+    /**
+     * Измеримые задачи этапа (markdown).
+     * O1 (PROGRAM_PATIENT_SHAPE): только TEXT, без JSONB-чеклиста на этапе A1.
+     */
+    objectives: text("objectives"),
+    expectedDurationDays: integer("expected_duration_days"),
+    expectedDurationText: text("expected_duration_text"),
   },
   (table) => [
     index("idx_treatment_program_template_stages_template_order").using(

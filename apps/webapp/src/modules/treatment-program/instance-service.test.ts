@@ -66,6 +66,42 @@ describe("treatment-program instance service", () => {
     expect(it0.effectiveComment).toBe("Из шаблона");
   });
 
+  it("deep copy: goals, objectives, expected duration from template stages (A1)", async () => {
+    const tpl = await tplSvc.createTemplate({ title: "План", status: "published" }, null);
+    const s1 = await tplSvc.createStage(tpl.id, {
+      title: "Этап 1",
+      goals: "Снять боль",
+      objectives: "- 3 раза в неделю\n- без отёка",
+      expectedDurationDays: 14,
+      expectedDurationText: "2 недели",
+    });
+    await tplSvc.addStageItem(s1.id, { itemType: "recommendation", itemRefId: refA });
+    const s2 = await tplSvc.createStage(tpl.id, {
+      title: "Этап 2",
+      goals: null,
+      objectives: null,
+      expectedDurationDays: null,
+      expectedDurationText: null,
+    });
+    await tplSvc.addStageItem(s2.id, { itemType: "exercise", itemRefId: refB });
+
+    const inst = await instSvc.assignTemplateToPatient({
+      templateId: tpl.id,
+      patientUserId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      assignedBy: null,
+    });
+
+    expect(inst.stages[0]!.goals).toBe("Снять боль");
+    expect(inst.stages[0]!.objectives).toBe("- 3 раза в неделю\n- без отёка");
+    expect(inst.stages[0]!.expectedDurationDays).toBe(14);
+    expect(inst.stages[0]!.expectedDurationText).toBe("2 недели");
+
+    expect(inst.stages[1]!.goals).toBeNull();
+    expect(inst.stages[1]!.objectives).toBeNull();
+    expect(inst.stages[1]!.expectedDurationDays).toBeNull();
+    expect(inst.stages[1]!.expectedDurationText).toBeNull();
+  });
+
   it("deep copy preserves settings from template stage item (§5)", async () => {
     const tpl = await tplSvc.createTemplate({ title: "План", status: "published" }, null);
     const s1 = await tplSvc.createStage(tpl.id, { title: "Этап 1" });

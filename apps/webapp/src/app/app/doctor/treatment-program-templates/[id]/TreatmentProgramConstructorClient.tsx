@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -125,6 +126,11 @@ export function TreatmentProgramConstructorClient({
   const [usageLoadError, setUsageLoadError] = useState<string | null>(null);
   const [archiveWarnOpen, setArchiveWarnOpen] = useState(false);
   const [archiveWarnUsage, setArchiveWarnUsage] = useState<TreatmentProgramTemplateUsageSnapshot | null>(null);
+  const [goalsDraft, setGoalsDraft] = useState("");
+  const [objectivesDraft, setObjectivesDraft] = useState("");
+  const [durationDaysDraft, setDurationDaysDraft] = useState("");
+  const [durationTextDraft, setDurationTextDraft] = useState("");
+  const [stageMetaMsg, setStageMetaMsg] = useState<string | null>(null);
 
   const isArchived = detail.status === "archived";
 
@@ -262,6 +268,24 @@ export function TreatmentProgramConstructorClient({
     [detail.stages, selectedStageId],
   );
 
+  useEffect(() => {
+    if (!selectedStage) {
+      setGoalsDraft("");
+      setObjectivesDraft("");
+      setDurationDaysDraft("");
+      setDurationTextDraft("");
+      setStageMetaMsg(null);
+      return;
+    }
+    setGoalsDraft(selectedStage.goals ?? "");
+    setObjectivesDraft(selectedStage.objectives ?? "");
+    setDurationDaysDraft(
+      selectedStage.expectedDurationDays != null ? String(selectedStage.expectedDurationDays) : "",
+    );
+    setDurationTextDraft(selectedStage.expectedDurationText ?? "");
+    setStageMetaMsg(null);
+  }, [selectedStage]);
+
   const orderedStageItems = useMemo(
     () => (selectedStage ? sortByOrderThenId(selectedStage.items) : []),
     [selectedStage],
@@ -306,6 +330,43 @@ export function TreatmentProgramConstructorClient({
     });
     const json = (await res.json()) as { ok?: boolean; error?: string };
     return res.ok && !!json.ok;
+  }
+
+  async function handleSaveStageMetadata() {
+    if (!selectedStageId || editLocked) return;
+    const daysTrim = durationDaysDraft.trim();
+    let expectedDurationDays: number | null = null;
+    if (daysTrim !== "") {
+      const n = Number.parseInt(daysTrim, 10);
+      if (!Number.isFinite(n) || n < 0 || String(n) !== daysTrim) {
+        setStageMetaMsg("Ожидаемый срок в днях: неотрицательное целое число");
+        return;
+      }
+      expectedDurationDays = n;
+    }
+    setBusy(true);
+    setStageMetaMsg(null);
+    try {
+      const res = await fetch(`/api/doctor/treatment-program-templates/stages/${selectedStageId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          goals: goalsDraft.trim() || null,
+          objectives: objectivesDraft.trim() || null,
+          expectedDurationDays,
+          expectedDurationText: durationTextDraft.trim() || null,
+        }),
+      });
+      const json = (await res.json()) as { ok?: boolean; error?: string };
+      if (!res.ok || !json.ok) {
+        setStageMetaMsg(json.error ?? "Не удалось сохранить");
+        return;
+      }
+      await reload();
+      setStageMetaMsg("Сохранено");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function handleMoveStage(stageId: string, dir: -1 | 1) {
@@ -593,6 +654,75 @@ export function TreatmentProgramConstructorClient({
               Добавить из библиотеки
             </Button>
           </div>
+
+          {selectedStage ? (
+            <div className="rounded-md border border-border/60 bg-muted/20 p-3">
+              <div className="flex flex-col gap-3">
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor={`tpl-stage-goals-${selectedStage.id}`}>Цель этапа</Label>
+                  <Textarea
+                    id={`tpl-stage-goals-${selectedStage.id}`}
+                    rows={3}
+                    disabled={editLocked || busy}
+                    value={goalsDraft}
+                    onChange={(e) => setGoalsDraft(e.target.value)}
+                    className="text-sm"
+                  />
+                  <p className="text-xs text-muted-foreground">Кратко, в свободной форме (markdown).</p>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor={`tpl-stage-obj-${selectedStage.id}`}>Задачи этапа</Label>
+                  <Textarea
+                    id={`tpl-stage-obj-${selectedStage.id}`}
+                    rows={3}
+                    disabled={editLocked || busy}
+                    value={objectivesDraft}
+                    onChange={(e) => setObjectivesDraft(e.target.value)}
+                    className="text-sm"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Список задач текстом (markdown); структурированный чеклист в БД не хранится (O1).
+                  </p>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor={`tpl-stage-days-${selectedStage.id}`}>Ожидаемый срок, дней</Label>
+                  <Input
+                    id={`tpl-stage-days-${selectedStage.id}`}
+                    inputMode="numeric"
+                    disabled={editLocked || busy}
+                    value={durationDaysDraft}
+                    onChange={(e) => setDurationDaysDraft(e.target.value)}
+                    className="max-w-[12rem] text-sm"
+                    placeholder="например 14"
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor={`tpl-stage-durtxt-${selectedStage.id}`}>Ожидаемый срок, текстом</Label>
+                  <Input
+                    id={`tpl-stage-durtxt-${selectedStage.id}`}
+                    disabled={editLocked || busy}
+                    value={durationTextDraft}
+                    onChange={(e) => setDurationTextDraft(e.target.value)}
+                    className="text-sm"
+                    placeholder="2–3 недели"
+                  />
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={editLocked || busy}
+                    onClick={() => void handleSaveStageMetadata()}
+                  >
+                    Сохранить цели этапа
+                  </Button>
+                  {stageMetaMsg ? (
+                    <span className="text-xs text-muted-foreground">{stageMetaMsg}</span>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+          ) : null}
 
           {!selectedStage ? (
             <p className="text-sm text-muted-foreground">Выберите этап слева.</p>

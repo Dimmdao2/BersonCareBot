@@ -15,7 +15,7 @@
 
 ## 2. Hard gates before coding
 
-- O1 fixed for this initiative: `objectives` is `TEXT` markdown (no JSONB checklist in A1).
+- **O1 (closed):** поле `objectives` хранится как nullable **TEXT** с семантикой **markdown**; JSONB-чеклист целей не вводится в A1 (отложено в backlog). Зафиксировано в типах/Drizzle JSDoc и в `../APP_RESTRUCTURE_INITIATIVE/PROGRAM_PATIENT_SHAPE_PLAN.md` §8.
 - Preserve migration compatibility: `objectives` stays nullable.
 - B6 from `ASSIGNMENT_CATALOGS_REWORK_PLAN.md` is recommended before A1. If B6 is not done, keep UI changes minimal and do not redesign constructor layout in A1.
 
@@ -56,8 +56,6 @@ Do not edit:
 
 - `apps/webapp/src/modules/**` direct infra imports.
 - `apps/webapp/src/app/app/doctor/lfk-templates/**` unless fixing a compile break caused by shared types.
-- `apps/webapp/src/app/app/patient/content/**` and any media playback files.
-- `apps/webapp/src/modules/media/**`, `apps/webapp/src/app/api/media/**`, `apps/media-worker/**`.
 - Courses.
 
 ## 5. Composer-Safe UI contract
@@ -118,53 +116,53 @@ Empty values:
 
 ### A1.1 Schema
 
-- [ ] Add `goals TEXT NULL` to template stage table.
-- [ ] Add `objectives TEXT NULL` to template stage table.
-- [ ] Add `expected_duration_days INT NULL` to template stage table.
-- [ ] Add `expected_duration_text TEXT NULL` to template stage table.
-- [ ] Add same fields to instance stage table.
-- [ ] Generate Drizzle migration.
-- [ ] Confirm migration is nullable/backward-compatible.
+- [x] Add `goals TEXT NULL` to template stage table.
+- [x] Add `objectives TEXT NULL` to template stage table.
+- [x] Add `expected_duration_days INT NULL` to template stage table.
+- [x] Add `expected_duration_text TEXT NULL` to template stage table.
+- [x] Add same fields to instance stage table.
+- [x] Generate Drizzle migration.
+- [x] Confirm migration is nullable/backward-compatible.
 
 ### A1.2 Types and ports
 
-- [ ] Extend stage select/insert types.
-- [ ] Extend module DTO/read model types.
-- [ ] Extend treatment-program port interfaces.
-- [ ] Extend infra repo implementations.
+- [x] Extend stage select/insert types.
+- [x] Extend module DTO/read model types.
+- [x] Extend treatment-program port interfaces.
+- [x] Extend infra repo implementations.
 
 ### A1.3 Copy service
 
-- [ ] During template->instance copy, copy fields exactly.
-- [ ] Preserve `NULL` values as `NULL`.
-- [ ] Add focused test with non-empty and empty fields.
+- [x] During template->instance copy, copy fields exactly.
+- [x] Preserve `NULL` values as `NULL`.
+- [x] Add focused test with non-empty and empty fields.
 
 ### A1.4 Doctor API/action
 
-- [ ] Extend request payload parser/validation.
-- [ ] Save fields on stage update.
-- [ ] Return fields in reload/read detail.
-- [ ] Keep route handler thin.
+- [x] Extend request payload parser/validation.
+- [x] Save fields on stage update.
+- [x] Return fields in reload/read detail.
+- [x] Keep route handler thin.
 
 ### A1.5 Doctor UI
 
-- [ ] Add fields under selected stage metadata, not inside item list.
-- [ ] Use prescribed components/classes from §5.
-- [ ] Ensure save/reload preserves values.
-- [ ] Avoid layout redesign if B6 is not done.
+- [x] Add fields under selected stage metadata, not inside item list.
+- [x] Use prescribed components/classes from §5.
+- [x] Ensure save/reload preserves values.
+- [x] Avoid layout redesign if B6 is not done.
 
 ### A1.6 Patient UI
 
-- [ ] Render stage fields in header of current/available stage.
-- [ ] Use patient classes from §5.
-- [ ] Hide empty fields.
+- [x] Render stage fields in header of current/available stage.
+- [x] Use patient classes from §5.
+- [x] Hide empty fields.
 
 ### A1.7 Tests
 
-- [ ] Copy-service test.
-- [ ] Repo/read-model test if repo shape changes.
-- [ ] Doctor UI render/save test.
-- [ ] Patient UI render/fallback test.
+- [x] Copy-service test.
+- [x] Repo/read-model test if repo shape changes.
+- [x] Doctor UI render/save test.
+- [x] Patient UI render/fallback test.
 
 ## 7. Required checks
 

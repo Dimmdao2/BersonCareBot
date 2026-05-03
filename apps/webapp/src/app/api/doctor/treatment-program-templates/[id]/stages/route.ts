@@ -8,6 +8,10 @@ const postBodySchema = z.object({
   title: z.string().min(1).max(2000),
   description: z.string().max(20000).optional().nullable(),
   sortOrder: z.number().int().optional(),
+  goals: z.string().max(200000).optional().nullable(),
+  objectives: z.string().max(200000).optional().nullable(),
+  expectedDurationDays: z.number().int().min(0).max(36500).optional().nullable(),
+  expectedDurationText: z.string().max(20000).optional().nullable(),
 });
 
 export async function POST(request: Request, ctx: { params: Promise<{ id: string }> }) {
@@ -30,6 +34,10 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
       title: parsed.data.title,
       description: parsed.data.description ?? null,
       sortOrder: parsed.data.sortOrder,
+      goals: parsed.data.goals,
+      objectives: parsed.data.objectives,
+      expectedDurationDays: parsed.data.expectedDurationDays,
+      expectedDurationText: parsed.data.expectedDurationText,
     });
     return NextResponse.json({ ok: true, stage });
   } catch (e) {

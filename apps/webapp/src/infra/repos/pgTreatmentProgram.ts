@@ -48,6 +48,10 @@ function mapStage(row: typeof stageTable.$inferSelect): TreatmentProgramStage {
     title: row.title,
     description: row.description ?? null,
     sortOrder: row.sortOrder,
+    goals: row.goals ?? null,
+    objectives: row.objectives ?? null,
+    expectedDurationDays: row.expectedDurationDays ?? null,
+    expectedDurationText: row.expectedDurationText ?? null,
   };
 }
 
@@ -310,6 +314,10 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
           title: input.title,
           description: input.description ?? null,
           sortOrder,
+          goals: input.goals ?? null,
+          objectives: input.objectives ?? null,
+          expectedDurationDays: input.expectedDurationDays ?? null,
+          expectedDurationText: input.expectedDurationText ?? null,
         })
         .returning();
       if (!row) throw new Error("insert failed");
@@ -322,6 +330,10 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
       if (input.title !== undefined) patch.title = input.title;
       if (input.description !== undefined) patch.description = input.description;
       if (input.sortOrder !== undefined) patch.sortOrder = input.sortOrder;
+      if (input.goals !== undefined) patch.goals = input.goals;
+      if (input.objectives !== undefined) patch.objectives = input.objectives;
+      if (input.expectedDurationDays !== undefined) patch.expectedDurationDays = input.expectedDurationDays;
+      if (input.expectedDurationText !== undefined) patch.expectedDurationText = input.expectedDurationText;
       const [row] = await db.update(stageTable).set(patch).where(eq(stageTable.id, stageId)).returning();
       return row ? mapStage(row) : null;
     },

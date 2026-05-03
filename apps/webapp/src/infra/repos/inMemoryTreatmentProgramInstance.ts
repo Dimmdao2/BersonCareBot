@@ -8,6 +8,7 @@ import type {
   AddTreatmentProgramInstanceStageItemInput,
   CreateTreatmentProgramInstanceTreeInput,
   ReplaceTreatmentProgramInstanceStageItemInput,
+  UpdateTreatmentProgramInstanceStageMetadataInput,
   TreatmentProgramEventRow,
   TreatmentProgramInstanceDetail,
   TreatmentProgramInstanceStageItemRow,
@@ -126,6 +127,10 @@ export function createInMemoryTreatmentProgramPersistence(): InMemoryTreatmentPr
           localComment: null,
           skipReason: null,
           status: st.status,
+          goals: st.goals,
+          objectives: st.objectives,
+          expectedDurationDays: st.expectedDurationDays,
+          expectedDurationText: st.expectedDurationText,
         };
         stages.set(sid, stageRow);
         for (const it of st.items) {
@@ -217,6 +222,29 @@ export function createInMemoryTreatmentProgramPersistence(): InMemoryTreatmentPr
       return next;
     },
 
+    async updateInstanceStageMetadata(
+      instanceId: string,
+      stageId: string,
+      patch: UpdateTreatmentProgramInstanceStageMetadataInput,
+    ) {
+      const st = stages.get(stageId);
+      if (!st || st.instanceId !== instanceId) return null;
+      const next: StageRow = {
+        ...st,
+        ...(patch.goals !== undefined ? { goals: patch.goals } : {}),
+        ...(patch.objectives !== undefined ? { objectives: patch.objectives } : {}),
+        ...(patch.expectedDurationDays !== undefined
+          ? { expectedDurationDays: patch.expectedDurationDays }
+          : {}),
+        ...(patch.expectedDurationText !== undefined
+          ? { expectedDurationText: patch.expectedDurationText }
+          : {}),
+      };
+      stages.set(stageId, next);
+      touchInstance(instanceId);
+      return next;
+    },
+
     async setStageItemCompletedAt(instanceId: string, itemId: string, completedAt: string | null) {
       const inst = instances.get(instanceId);
       if (!inst) return null;
@@ -244,6 +272,10 @@ export function createInMemoryTreatmentProgramPersistence(): InMemoryTreatmentPr
         localComment: null,
         skipReason: null,
         status: input.status,
+        goals: input.goals ?? null,
+        objectives: input.objectives ?? null,
+        expectedDurationDays: input.expectedDurationDays ?? null,
+        expectedDurationText: input.expectedDurationText ?? null,
       };
       stages.set(sid, stageRow);
       touchInstance(instanceId);

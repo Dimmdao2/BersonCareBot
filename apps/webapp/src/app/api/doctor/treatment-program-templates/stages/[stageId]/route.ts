@@ -8,6 +8,10 @@ const patchBodySchema = z.object({
   title: z.string().min(1).max(2000).optional(),
   description: z.string().max(20000).optional().nullable(),
   sortOrder: z.number().int().optional(),
+  goals: z.string().max(200000).optional().nullable(),
+  objectives: z.string().max(200000).optional().nullable(),
+  expectedDurationDays: z.number().int().min(0).max(36500).optional().nullable(),
+  expectedDurationText: z.string().max(20000).optional().nullable(),
 });
 
 export async function PATCH(request: Request, ctx: { params: Promise<{ stageId: string }> }) {

@@ -14,6 +14,7 @@ import {
   type TreatmentProgramInstanceStageItemRow,
   type TreatmentProgramIntegratorLfkBlock,
   type TreatmentProgramItemType,
+  type UpdateTreatmentProgramInstanceStageMetadataInput,
 } from "./types";
 
 export function createTreatmentProgramInstanceService(deps: {
@@ -89,6 +90,10 @@ export function createTreatmentProgramInstanceService(deps: {
           description: st.description,
           sortOrder: st.sortOrder,
           status,
+          goals: st.goals,
+          objectives: st.objectives,
+          expectedDurationDays: st.expectedDurationDays,
+          expectedDurationText: st.expectedDurationText,
           items: itemInputs,
         });
       }
@@ -164,6 +169,55 @@ export function createTreatmentProgramInstanceService(deps: {
         });
       }
       return row;
+    },
+
+    async doctorUpdateInstanceStageMetadata(input: {
+      instanceId: string;
+      stageId: string;
+      actorId: string | null;
+      patch: UpdateTreatmentProgramInstanceStageMetadataInput;
+    }) {
+      assertUuid(input.instanceId);
+      assertUuid(input.stageId);
+      if (input.actorId) assertUuid(input.actorId);
+
+      const detail = await instances.getInstanceById(input.instanceId);
+      if (!detail) throw new Error("Программа не найдена");
+      if (!detail.stages.some((s) => s.id === input.stageId)) throw new Error("Этап не найден");
+
+      const norm: UpdateTreatmentProgramInstanceStageMetadataInput = {};
+      if (input.patch.goals !== undefined) {
+        norm.goals = input.patch.goals === null ? null : input.patch.goals.trim() || null;
+      }
+      if (input.patch.objectives !== undefined) {
+        norm.objectives =
+          input.patch.objectives === null ? null : input.patch.objectives.trim() || null;
+      }
+      if (input.patch.expectedDurationText !== undefined) {
+        norm.expectedDurationText =
+          input.patch.expectedDurationText === null
+            ? null
+            : input.patch.expectedDurationText.trim() || null;
+      }
+      if (input.patch.expectedDurationDays !== undefined) {
+        const d = input.patch.expectedDurationDays;
+        if (d !== null && (!Number.isInteger(d) || d < 0)) {
+          throw new Error("Ожидаемый срок в днях должен быть неотрицательным целым числом");
+        }
+        norm.expectedDurationDays = d;
+      }
+
+      if (Object.keys(norm).length === 0) {
+        const unchanged = await instances.getInstanceById(input.instanceId);
+        if (!unchanged) throw new Error("Программа не найдена");
+        return unchanged;
+      }
+
+      const updated = await instances.updateInstanceStageMetadata(input.instanceId, input.stageId, norm);
+      if (!updated) throw new Error("Этап не найден");
+      const out = await instances.getInstanceById(input.instanceId);
+      if (!out) throw new Error("Программа не найдена");
+      return out;
     },
 
     async updateInstance(input: {

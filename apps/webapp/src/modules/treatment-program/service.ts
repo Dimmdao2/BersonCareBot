@@ -118,10 +118,32 @@ export function createTreatmentProgramService(
       assertUuid(templateId);
       const title = input.title?.trim() ?? "";
       if (!title) throw new Error("Название этапа обязательно");
+      const goals = input.goals === undefined ? undefined : input.goals === null ? null : input.goals.trim() || null;
+      const objectives =
+        input.objectives === undefined
+          ? undefined
+          : input.objectives === null
+            ? null
+            : input.objectives.trim() || null;
+      const expectedDurationText =
+        input.expectedDurationText === undefined
+          ? undefined
+          : input.expectedDurationText === null
+            ? null
+            : input.expectedDurationText.trim() || null;
+      if (input.expectedDurationDays !== undefined && input.expectedDurationDays !== null) {
+        if (!Number.isInteger(input.expectedDurationDays) || input.expectedDurationDays < 0) {
+          throw new Error("Ожидаемый срок в днях должен быть неотрицательным целым числом");
+        }
+      }
       return port.createStage(templateId, {
         ...input,
         title,
         description: input.description?.trim() ?? null,
+        goals,
+        objectives,
+        expectedDurationText,
+        expectedDurationDays: input.expectedDurationDays,
       });
     },
 
@@ -135,6 +157,21 @@ export function createTreatmentProgramService(
       }
       if (input.description !== undefined) {
         patch.description = input.description?.trim() ?? null;
+      }
+      if (input.goals !== undefined) {
+        patch.goals = input.goals === null ? null : input.goals.trim() || null;
+      }
+      if (input.objectives !== undefined) {
+        patch.objectives = input.objectives === null ? null : input.objectives.trim() || null;
+      }
+      if (input.expectedDurationText !== undefined) {
+        patch.expectedDurationText =
+          input.expectedDurationText === null ? null : input.expectedDurationText.trim() || null;
+      }
+      if (input.expectedDurationDays !== undefined && input.expectedDurationDays !== null) {
+        if (!Number.isInteger(input.expectedDurationDays) || input.expectedDurationDays < 0) {
+          throw new Error("Ожидаемый срок в днях должен быть неотрицательным целым числом");
+        }
       }
       const row = await port.updateStage(stageId, patch);
       if (!row) throw new Error("Этап не найден");

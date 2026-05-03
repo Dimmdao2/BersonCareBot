@@ -20,6 +20,7 @@ import type {
   TreatmentProgramTemplateUsageSnapshot,
   TreatmentProgramStage,
   TreatmentProgramStageItem,
+  UpdateTreatmentProgramInstanceStageMetadataInput,
   TreatmentProgramTestAttemptRow,
   TreatmentProgramTestResultDetailRow,
   TreatmentProgramTestResultRow,
@@ -90,6 +91,13 @@ export type TreatmentProgramInstancePort = {
     instanceId: string,
     stageId: string,
     patch: { status: TreatmentProgramInstanceStageStatus; skipReason?: string | null },
+  ): Promise<TreatmentProgramInstanceStageRow | null>;
+
+  /** Цели/задачи/срок этапа (A1); не меняет FSM статуса. */
+  updateInstanceStageMetadata(
+    instanceId: string,
+    stageId: string,
+    patch: UpdateTreatmentProgramInstanceStageMetadataInput,
   ): Promise<TreatmentProgramInstanceStageRow | null>;
 
   setStageItemCompletedAt(

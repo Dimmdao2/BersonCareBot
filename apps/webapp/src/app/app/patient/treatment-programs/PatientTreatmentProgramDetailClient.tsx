@@ -19,12 +19,70 @@ import {
   patientListItemClass,
   patientMutedTextClass,
   patientPrimaryActionClass,
+  patientSectionSurfaceClass,
+  patientSectionTitleClass,
+  patientBodyTextClass,
 } from "@/shared/ui/patientVisual";
 
 function snapshotTitle(snapshot: Record<string, unknown>, itemType: string): string {
   const t = snapshot.title;
   if (typeof t === "string" && t.trim() !== "") return t;
   return itemType;
+}
+
+function patientStageHasHeaderFields(stage: {
+  goals: string | null;
+  objectives: string | null;
+  expectedDurationDays: number | null;
+  expectedDurationText: string | null;
+}): boolean {
+  return Boolean(
+    stage.goals?.trim() ||
+      stage.objectives?.trim() ||
+      stage.expectedDurationDays != null ||
+      stage.expectedDurationText?.trim(),
+  );
+}
+
+function PatientStageHeaderFields(props: {
+  stage: {
+    goals: string | null;
+    objectives: string | null;
+    expectedDurationDays: number | null;
+    expectedDurationText: string | null;
+  };
+}) {
+  const { stage } = props;
+  if (!patientStageHasHeaderFields(stage)) return null;
+  const durationLine = [
+    stage.expectedDurationDays != null ? `${stage.expectedDurationDays} дн.` : null,
+    stage.expectedDurationText?.trim() || null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
+  return (
+    <div className={cn(patientSectionSurfaceClass, "mb-4 shadow-none")}>
+      {stage.goals?.trim() ? (
+        <div>
+          <p className={patientSectionTitleClass}>Цель</p>
+          <p className={cn(patientBodyTextClass, "mt-1 whitespace-pre-wrap")}>{stage.goals.trim()}</p>
+        </div>
+      ) : null}
+      {stage.objectives?.trim() ? (
+        <div>
+          <p className={patientSectionTitleClass}>Задачи</p>
+          <p className={cn(patientBodyTextClass, "mt-1 whitespace-pre-wrap")}>{stage.objectives.trim()}</p>
+        </div>
+      ) : null}
+      {durationLine ? (
+        <div>
+          <p className={patientSectionTitleClass}>Ожидаемый срок</p>
+          <p className={cn(patientMutedTextClass, "mt-1 text-sm")}>{durationLine}</p>
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 export function PatientTreatmentProgramDetailClient(props: {
@@ -104,6 +162,7 @@ export function PatientTreatmentProgramDetailClient(props: {
               {formatTreatmentProgramStageStatusRu(stage.status)}
             </span>
           </div>
+          <PatientStageHeaderFields stage={stage} />
           {stage.status === "locked" ? (
             <p className={patientMutedTextClass}>Этап откроется после завершения предыдущего или по решению врача.</p>
           ) : null}

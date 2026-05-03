@@ -51,8 +51,6 @@ Do not edit:
 
 - cross-patient doctor Today dashboard, unless only adding an explicit TODO/backlog note.
 - notification/bot/integrator code.
-- `apps/webapp/src/app/app/patient/content/**` and any media playback files.
-- `apps/webapp/src/modules/media/**`, `apps/webapp/src/app/api/media/**`, `apps/media-worker/**`.
 - courses.
 
 ## 5. Composer-Safe UI contract
