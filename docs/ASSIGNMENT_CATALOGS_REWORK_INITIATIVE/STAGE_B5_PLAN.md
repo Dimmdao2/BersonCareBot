@@ -48,13 +48,15 @@
 
 ## 6. Execution checklist
 
-1. [ ] Воспроизведение + классификация проблемы («индикатор UX» vs «реальный баг состояния»).
-2. [ ] Список + карточка по критериям ТЗ.
-3. [ ] Статусы и подписи согласованы с двухосевой моделью B1.
-4. [ ] E2E/manual script публикация / архив / восстановление.
-5. [ ] Сверка с [`../APP_RESTRUCTURE_INITIATIVE/done/ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md`](../APP_RESTRUCTURE_INITIATIVE/done/ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md).
-6. [ ] `eslint` / `vitest` / `tsc` по затронутой области.
-7. [ ] Smoke: статус в списке и в editor синхронизирован сразу после action.
+**Статус:** закрыто EXEC + FIX (AUDIT) 2026-05-03 — детали [`LOG.md`](LOG.md), [`AUDIT_STAGE_B5.md`](AUDIT_STAGE_B5.md).
+
+1. [x] Воспроизведение + классификация проблемы («индикатор UX» vs «реальный баг состояния»).
+2. [x] Список + карточка по критериям ТЗ.
+3. [x] Статусы и подписи согласованы с двухосевой моделью B1.
+4. [x] E2E/manual script публикация / архив / восстановление — **ручной smoke** по [`AUDIT_STAGE_B5.md`](AUDIT_STAGE_B5.md) §8 (в CI не автоматизировано).
+5. [x] Сверка с [`../APP_RESTRUCTURE_INITIATIVE/done/ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md`](../APP_RESTRUCTURE_INITIATIVE/done/ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md) — **по коду** (usage-dialog + acknowledge); полнота сценариев — ручная (AUDIT §5).
+6. [x] `eslint` / `vitest` / `tsc` по затронутой области.
+7. [x] Smoke: статус в списке и в editor синхронизирован сразу после action (`router.refresh()` после persist/publish на split-view).
 
 ## 7. Recommended checks (targeted)
 

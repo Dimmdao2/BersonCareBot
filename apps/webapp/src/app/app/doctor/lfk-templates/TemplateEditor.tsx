@@ -424,11 +424,11 @@ export function TemplateEditor({
       });
       if (!res.ok) toast.error(res.error);
       else {
-        toast.success("Черновик сохранён");
+        toast.success(template.status === "published" ? "Изменения сохранены" : "Черновик сохранён");
         router.refresh();
       }
     });
-  }, [description, lines, router, template.id, title]);
+  }, [description, lines, router, template.id, template.status, title]);
 
   const publish = useCallback(() => {
     startTransition(async () => {

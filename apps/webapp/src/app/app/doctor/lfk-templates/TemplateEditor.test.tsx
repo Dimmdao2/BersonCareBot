@@ -50,6 +50,8 @@ vi.mock("next/link", () => ({
   default: ({ href, children }: { href: string; children: ReactNode }) => <a href={href}>{children}</a>,
 }));
 
+// B5 AUDIT: asserting `router.refresh()` after publish/persist needs mocking server actions end-to-end;
+// jsdom smoke keeps `useRouter` mocked here; see AUDIT_STAGE_B5.md (minor §12 item 3 — deferred).
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: vi.fn() }),
 }));

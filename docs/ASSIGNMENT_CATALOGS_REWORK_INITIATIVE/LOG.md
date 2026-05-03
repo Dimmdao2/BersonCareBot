@@ -362,3 +362,35 @@ pnpm exec tsc --noEmit
 **Результат:** eslint / vitest / tsc — **PASS**.
 
 **Коммит:** `feat(doctor-catalogs): B5 LFK status badges and list-editor sync` (ветка `feature/app-restructure-initiative`).
+
+---
+
+## 2026-05-03 — Stage B5 — FIX (`AUDIT_STAGE_B5.md`)
+
+**Контекст:** [`AUDIT_STAGE_B5.md`](AUDIT_STAGE_B5.md) MANDATORY FIX (critical/major — N/A; minor: toast, чеклист плана; defer теста `router.refresh()`).
+
+**Сделано:**
+
+- [`TemplateEditor.tsx`](../../apps/webapp/src/app/app/doctor/lfk-templates/TemplateEditor.tsx): после успешного `persist` — toast **«Изменения сохранены»** при `template.status === "published"`, иначе **«Черновик сохранён»**; зависимость `persist` от `template.status`.
+- [`STAGE_B5_PLAN.md`](STAGE_B5_PLAN.md) §6: execution checklist закрыт (EXEC+FIX); пункты 4–5 помечены как ручной smoke / сверка по коду.
+- [`AUDIT_STAGE_B5.md`](AUDIT_STAGE_B5.md): Verdict **PASS**; §12 MANDATORY — выполнено; minor 3 **deferred** с обоснованием + комментарий в [`TemplateEditor.test.tsx`](../../apps/webapp/src/app/app/doctor/lfk-templates/TemplateEditor.test.tsx).
+
+**Проверки (целевые B5, без полного `pnpm run ci`):**
+
+```bash
+cd apps/webapp && pnpm exec eslint \
+  src/app/app/doctor/lfk-templates/TemplateEditor.tsx \
+  src/app/app/doctor/lfk-templates/TemplateEditor.test.tsx
+pnpm exec vitest run \
+  src/app/app/doctor/lfk-templates/LfkTemplateStatusBadge.test.tsx \
+  src/app/app/doctor/lfk-templates/TemplateEditor.test.tsx \
+  src/app/app/doctor/lfk-templates/lfkTemplatesListPreserveQuery.test.ts
+pnpm exec tsc --noEmit
+```
+
+**Вне scope:** полный `pnpm run ci` на этапе FIX.
+
+**Результат:** eslint / vitest / tsc — **PASS**.
+
+**Коммит:** `fix(doctor-catalogs): B5 audit toast checklist and audit closure` (ветка `feature/app-restructure-initiative`).
+
