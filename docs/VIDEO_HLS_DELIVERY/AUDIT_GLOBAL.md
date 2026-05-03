@@ -143,20 +143,24 @@
 
 - **IA-2 (independent, 2026-05-03):** `video_default_delivery` в `PATCH /api/admin/settings` — строгая enum-валидация `mp4` \| `hls` \| `auto` (**400** `invalid_value`). **CLOSED (repo, 2026-05-03)** — `apps/webapp/src/app/api/admin/settings/route.ts`, `route.test.ts`, `apps/webapp/src/app/api/api.md`.
 
-### INFO / DEFER (не блокируют merge)
+### INFO / DEFER / решения проекта (не блокируют merge)
 
 | Тема | Решение |
 |------|---------|
 | Кэш `getConfigValue` до **60 с** при чистом SQL-откате | **INFO** — задокументировано; предпочитать админку (`invalidateConfigKey`) |
-| Нет встроенного UI-dashboard по `playback_resolved` | **DEFER** — вне scope; агрегация во внешних логах (обоснование: phase-08 observability = structured logs) |
-| Preview / intake `presignGetUrl` с дефолтом SDK vs playback TTL | **DEFER** — отдельная продуктовая политика ([AUDIT_PHASE_09](./AUDIT_PHASE_09.md) P09-1) |
-| Bucket policy private на хосте | **DEFER (ops)** — чеклист в S3 execution log; выполнение на prod |
-| CI-бенчмарк watermark wall-time | **DEFER (docs)** — [PHASE_10_WATERMARK_POLICY.md](./PHASE_10_WATERMARK_POLICY.md); ops опционально |
+| Нет встроенного UI-dashboard по `playback_resolved` | **CLOSED (repo)** — блок **«Воспроизведение видео»** в **Здоровье системы** (`GET /api/admin/system-health` → `videoPlayback`), агрегаты в **`media_playback_stats_hourly`** |
+| Preview / intake presign TTL vs playback TTL | **CLOSED (repo)** — `getVideoPresignTtlSeconds()` для preview redirect и intake file attachments |
+| Bucket policy private на хосте | **CLOSED (док)** — чеклист и проверка без анонимного чтения: [S3_PRIVATE_MEDIA_EXECUTION_LOG.md](../REPORTS/S3_PRIVATE_MEDIA_EXECUTION_LOG.md) § Private bucket policy |
+| CI-бенчмарк watermark wall-time | **TODO (docs)** — [PHASE_10_WATERMARK_POLICY.md](./PHASE_10_WATERMARK_POLICY.md) § TODO benchmark backlog; ops опционально |
 | Один `SELECT` watermark на job | **ACCEPT** — см. [AUDIT_PHASE_10.md](./AUDIT_PHASE_10.md) |
-| Playwright E2E patient playback | **DEFER** — нет инфраструктуры в репо ([AUDIT_PHASE_05](./AUDIT_PHASE_05.md)) |
-| Приоритет очереди `pending_backfill` | **DEFER** — вне v1 ([AUDIT_PHASE_07](./AUDIT_PHASE_07.md)) |
+| Playwright E2E patient playback | **NOT PLANNED** — решение проекта; при необходимости ручной/API smoke ([AUDIT_PHASE_05](./AUDIT_PHASE_05.md)) |
+| Приоритет очереди `pending_backfill` | **DOC (portability)** — для текущего продукта приемлемо; при копировании модуля см. [`apps/media-worker/README.md`](../../apps/media-worker/README.md) ([AUDIT_PHASE_07](./AUDIT_PHASE_07.md)) |
 
 **Prescriptive MF (phase-09 / phase-10)** — без изменений; см. профильные `AUDIT_PHASE_09.md`, `AUDIT_PHASE_10.md`.
+
+### Post-closure audit (batch playback metrics / TTL / docs)
+
+Сверка реализации закрытия пунктов §8 (дашборд playback, TTL, bucket-док и т.д.) с чек-листами плана и backlog улучшений: **[AUDIT_EXTRA_PLAYBACK_METRICS_CLOSURE.md](./AUDIT_EXTRA_PLAYBACK_METRICS_CLOSURE.md)** (revision **2026-05-03** — тесты probe/upsert, UI подписи, HOST_DEPLOY → S3; **batch 2** — Drizzle‑агрегаты, счётчик **uniquePlaybackPairsFirstSeenInWindow**, UX без ложных нулей при выключенном playback API, internal retention почасового агрегата; **batch 3** — post-fix: alignment cache-control preview redirect с TTL подписи + недостающее тестовое покрытие retention/aggregator route/service). Вердикт §1–§7 и статусы CLOSED в таблице §8 **не отменяются**; документ описывает дополнительные тесты, уточнение смысла метрик и оставшиеся ops‑шаги (cron retention).
 
 ---
 
@@ -180,7 +184,7 @@ IA-1 и IA-2 закрыты (см. §8 и [06-execution-log.md](./06-execution-l
 3. FFmpeg HLS в **`apps/media-worker`**; API routes без транскода.
 4. Контракт playback и **`expiresInSeconds`** из **`system_settings`**.
 5. Phase-08 **FIND-P08-1** закрыт в репозитории (§ Repo acceptance); ops sign-off на среде — отдельно.
-6. Закрыты открытые findings независимого аудита: **IA-1 (Major)**, **IA-2 (Minor)**.
+6. Закрыты открытые findings независимого аудита: **IA-1 (Major)**, **IA-2 (Minor)**; дополнительные пункты §8 (dashboard playback, TTL, bucket-док) закрыты по [06-execution-log.md](./06-execution-log.md).
 
 ---
 

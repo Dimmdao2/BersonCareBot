@@ -24,6 +24,15 @@ describe("computeWorkerStatus", () => {
           "image/heif": { pending: 0, ready: 0, failed: 0, skipped: 0 },
         },
       },
+      videoPlayback: {
+        status: "ok",
+        windowHours: 24,
+        playbackApiEnabled: false,
+        byDelivery: { hls: 0, mp4: 0, file: 0 },
+        fallbackTotal: 0,
+        totalResolutions: 0,
+        uniquePlaybackPairsFirstSeenInWindow: 0,
+      },
       fetchedAt: "2026-04-16T10:00:00.000Z",
     });
     expect(result.worker).toBe("idle");
@@ -51,6 +60,15 @@ describe("computeWorkerStatus", () => {
           "image/heic": { pending: 0, ready: 0, failed: 0, skipped: 0 },
           "image/heif": { pending: 0, ready: 0, failed: 0, skipped: 0 },
         },
+      },
+      videoPlayback: {
+        status: "ok",
+        windowHours: 24,
+        playbackApiEnabled: false,
+        byDelivery: { hls: 0, mp4: 0, file: 0 },
+        fallbackTotal: 0,
+        totalResolutions: 0,
+        uniquePlaybackPairsFirstSeenInWindow: 0,
       },
       fetchedAt: "2026-04-16T10:00:00.000Z",
     });

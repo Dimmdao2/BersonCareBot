@@ -13,6 +13,18 @@
 - **Удаление:** `DELETE /api/admin/media/[id]` ставит строку в статус `pending_delete`; ответ `{ ok, deleted, scheduled: true }`. Фон: `POST /api/internal/media-pending-delete/purge` с заголовком `Authorization: Bearer <INTERNAL_JOB_SECRET>` (cron/systemd). Переменная `INTERNAL_JOB_SECRET` пуста → маршрут возвращает 503. Воркер обрабатывает и **`deleting`** (застрявшие записи от старой синхронной схемы удаления).
 - **Онлайн-заявка ЛФК (врач):** при включённом S3 ссылки на файлы — `presignGetUrl` для private-бакета.
 
+## Private bucket policy (ops checklist)
+
+Модель безопасности presigned GET предполагает, что объекты в **`S3_PRIVATE_BUCKET`** **недоступны анонимно** (нет публичного read ни для префикса, ни для всего бакета). Иначе любой, кто знает ключ объекта, может обойти контроль доступа приложения.
+
+**Проверка на MinIO / S3-совместимом хранилище (пример, без секретов):**
+
+- Консоль MinIO: Bucket → **Access Policy** / **Anonymous** — доступ только через авторизованные операции; или через CLI:
+  - `mc anonymous get <alias>/<bucket>` — не должно быть `download` / `public` для анонимов.
+- После изменений политики — повторить smoke: `GET /api/media/{uuid}` только с сессией (**401** без cookie); presigned URL из ответа работает в окне TTL.
+
+Подробнее про канонические env и пути: **`docs/ARCHITECTURE/SERVER CONVENTIONS.md`**, **`deploy/HOST_DEPLOY_README.md`**.
+
 ## Cutover на проде (операции, без секретов)
 
 1. Скопировать объекты из старого public-бакета в private с **теми же ключами** (`mc mirror`, `aws s3 sync` или аналог).

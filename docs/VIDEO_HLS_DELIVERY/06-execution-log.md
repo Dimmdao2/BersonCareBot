@@ -6,6 +6,90 @@
 
 ---
 
+## 2026-05-03 — Post-fix audit: cache TTL alignment + missing tests closure
+
+**Цель:** закрыть хвосты после post-closure аудита: устранить риск кэширования preview redirect дольше TTL presigned URL и добавить недостающее тестовое покрытие для новых playback-метрик/retention.
+
+**Сделано**
+
+- **Fix:** `GET /api/media/[id]/preview/[size]` — для fallback redirect на presigned preview `Cache-Control` теперь вычисляется от runtime TTL (`video_presign_ttl_seconds`) и не переживает подпись URL; `must-revalidate` добавлен явно.
+- **Тесты:** добавлены `adminPlaybackHealthMetrics.test.ts`, `playbackHourlyRetention.test.ts`, `internal/media-playback-stats/retention/route.test.ts`; обновлён `preview/[size]/route.test.ts` под новый заголовок cache-control.
+- **Аудит-доки:** обновлён `AUDIT_EXTRA_PLAYBACK_METRICS_CLOSURE.md` (batch 3 closure) и post-closure абзац в `AUDIT_GLOBAL.md`.
+
+**Проверки**
+
+- `pnpm --dir apps/webapp exec vitest run src/app-layer/media/playbackStatsHourly.test.ts src/app-layer/media/playbackUserVideoFirstResolve.test.ts src/app-layer/media/adminPlaybackHealthMetrics.test.ts src/app-layer/media/playbackHourlyRetention.test.ts src/app/api/admin/system-health/route.test.ts src/app/api/media/[id]/preview/[size]/route.test.ts src/app/api/internal/media-playback-stats/retention/route.test.ts src/app/api/media/[id]/playback/route.test.ts` — **OK**.
+
+---
+
+## 2026-05-03 — Playback metrics batch 2: уникальные пары пользователь+видео, Drizzle, UX выкл API, retention
+
+**Цель:** закрыть продуктовые решения и хвосты после [AUDIT_EXTRA_PLAYBACK_METRICS_CLOSURE.md](./AUDIT_EXTRA_PLAYBACK_METRICS_CLOSURE.md) (batch 2).
+
+**Сделано**
+
+- **Дедуп уникальных просмотров (lifetime по паре):** таблица `media_playback_user_video_first_resolve`, запись после успешного видео-резолва (`playbackUserVideoFirstResolve.ts`), миграция `0027_…`; в админ‑дашборде поле **`uniquePlaybackPairsFirstSeenInWindow`** (сколько новых dedup‑строк с `first_resolved_at` за последние 24 ч UTC).
+- **`media_playback_stats_hourly` агрегаты в probe:** Drizzle через `adminPlaybackHealthMetrics.ts` (без raw SQL в этом пути).
+- **Выключенный playback API:** при `video_playback_api_enabled=false` probe не дергает `media_playback_*`; **`SystemHealthSection`** не показывает числовые ряды воспроизведения (**`playback_disabled`**).
+- **Retention почасового агрегата:** `purgeStalePlaybackHourlyStats`, `POST /api/internal/media-playback-stats/retention` (Bearer `INTERNAL_JOB_SECRET`, `?dryRun=`, `?days=`, по умолчанию 90).
+- **Док:** `apps/webapp/src/app/api/api.md`, `deploy/HOST_DEPLOY_README.md`, данный файл, **`AUDIT_EXTRA_PLAYBACK_METRICS_CLOSURE.md`**, абзац post-closure в **`AUDIT_GLOBAL.md`**.
+
+**Проверки**
+
+- `pnpm install --frozen-lockfile && pnpm run ci` — OK на дереве этого коммита.
+
+---
+
+## 2026-05-03 — Фиксы по AUDIT_EXTRA (тесты, UI, HOST_DEPLOY, api.md)
+
+**Цель:** закрыть backlog из [AUDIT_EXTRA_PLAYBACK_METRICS_CLOSURE.md](./AUDIT_EXTRA_PLAYBACK_METRICS_CLOSURE.md) (revision 2026-05-03).
+
+**Сделано**
+
+- **Тесты:** `playbackStatsHourly.test.ts` — мок Drizzle для `recordPlaybackResolutionStat` (insert/values/`onConflictDoUpdate`, повтор вызова, падение insert); `system-health/route.test.ts` — маршрутизация SQL в моке pool, кейс `video_playback_probe_failed`.
+- **UI:** `SystemHealthSection` — пояснение, что считаются резолвы API (в т.ч. повторный HLS JSON), подсказка при выключенном playback API и нулевой статистике.
+- **Док:** `deploy/HOST_DEPLOY_README.md` — ссылка на `docs/REPORTS/S3_PRIVATE_MEDIA_EXECUTION_LOG.md` § Private bucket policy; `api.md` — уточнение семантики `videoPlayback`.
+- **Док инициативы:** обновлены [AUDIT_EXTRA_PLAYBACK_METRICS_CLOSURE.md](./AUDIT_EXTRA_PLAYBACK_METRICS_CLOSURE.md), [README.md](./README.md) (строка таблицы), [AUDIT_GLOBAL.md](./AUDIT_GLOBAL.md) (post-closure).
+
+**Проверки**
+
+- `pnpm --dir apps/webapp exec vitest run src/app-layer/media/playbackStatsHourly.test.ts src/app/api/admin/system-health/route.test.ts` — OK.
+- Полный `pnpm run ci` — выполнить на финальном дереве перед merge.
+
+---
+
+## 2026-05-03 — Аудит выполнения плана DEFER/INFO closure (чек-листы + пост-фактум риски)
+
+**Цель:** подробная сверка с чек-листами внутреннего плана закрытия DEFER/INFO, поиск недоделок и неожиданных эффектов после правок.
+
+**Результат**
+
+- Отчёт и backlog экстра-этапа: **[AUDIT_EXTRA_PLAYBACK_METRICS_CLOSURE.md](./AUDIT_EXTRA_PLAYBACK_METRICS_CLOSURE.md)**.
+- Ключевые выводы: функциональное закрытие плана подтверждено; **пробелы чек-листа** — нет unit/integration теста на **upsert** в `playbackStatsHourly`, нет теста на **ошибку SQL** в probe `videoPlayback`; **семантика метрик** — считаются успешные резолвы API (включая повторный JSON для HLS по таймеру), а не «уникальные просмотры»; **HOST_DEPLOY** без явной перекрёстной ссылки на § Private bucket policy в `S3_PRIVATE_MEDIA_EXECUTION_LOG`; **ретенция** строк в `media_playback_stats_hourly` не задана.
+
+**Проверки**
+
+- Ревью кода и тестов по grep/read в каталогах `app-layer/media`, `api/admin/system-health`, `patient/content`, `deploy/HOST_DEPLOY_README.md`, `docs/REPORTS/S3_PRIVATE_MEDIA_EXECUTION_LOG.md`.
+
+---
+
+## 2026-05-03 — DEFER/INFO closure (system-health playback, TTL, docs) по плану
+
+**Цель:** закрыть оставшиеся продуктовые и документные пункты из [AUDIT_GLOBAL.md](./AUDIT_GLOBAL.md) §8: дашборд playback в «Здоровье системы», унификация TTL presign, документация приватного бакета, TODO benchmark watermark, README media-worker, статусы Playwright / backfill.
+
+**Сделано**
+
+- Таблица **`media_playback_stats_hourly`** + запись почасовых агрегатов из **`resolveMediaPlaybackPayload`** (`playbackStatsHourly.ts`); расширение **`GET /api/admin/system-health`** (`videoPlayback`) и UI **`SystemHealthSection`**.
+- **`GET .../preview/[size]`** и intake attachments: presigned TTL из **`getVideoPresignTtlSeconds()`** (`video_presign_ttl_seconds`).
+- Док: **`docs/REPORTS/S3_PRIVATE_MEDIA_EXECUTION_LOG.md`** (§ Private bucket policy), **`PHASE_10_WATERMARK_POLICY.md`** (TODO benchmark backlog), **`apps/media-worker/README.md`** (очередь / porting), обновлён **`AUDIT_GLOBAL.md`** §8.
+- **`apps/webapp/src/app/api/api.md`** — `videoPlayback`, preview TTL.
+
+**Проверки**
+
+- `pnpm install --frozen-lockfile && pnpm run ci` — **OK** (exit 0).
+
+---
+
 ## 2026-05-03 — FIX independent audit (IA-1 Major, IA-2 Minor) по [AUDIT_GLOBAL.md](./AUDIT_GLOBAL.md)
 
 **Цель:** закрыть в репозитории открытые findings независимого финального аудита: production-path для **`apps/media-worker`** и валидацию **`video_default_delivery`**.

@@ -67,6 +67,7 @@ pnpm run worker:dev
 | `pnpm run lint` | ESLint |
 | `pnpm test` | Тесты |
 | `pnpm run ci` / `pnpm check` | Всё, что запускает CI: lint, typecheck, test, test:webapp, webapp:typecheck, build, audit |
+| `pnpm run ci:resume:after-*` | Догон хвоста CI после падения конкретного шага (без повтора уже зелёных шагов) |
 
 ## HTTP endpoints
 

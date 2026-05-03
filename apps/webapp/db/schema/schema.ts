@@ -992,6 +992,60 @@ export const mediaTranscodeJobs = pgTable("media_transcode_jobs", {
 	check("media_transcode_jobs_status_check", sql`status = ANY (ARRAY['pending'::text, 'processing'::text, 'done'::text, 'failed'::text])`),
 ]);
 
+/** VIDEO_HLS_DELIVERY: hourly aggregates for admin «Здоровье системы» playback stats (UTC buckets). */
+export const mediaPlaybackStatsHourly = pgTable(
+	"media_playback_stats_hourly",
+	{
+		bucketHour: timestamp("bucket_hour", { withTimezone: true, mode: "string" }).notNull(),
+		delivery: text().notNull(),
+		resolvedCount: integer("resolved_count").default(0).notNull(),
+		fallbackCount: integer("fallback_count").default(0).notNull(),
+	},
+	(table) => [
+		primaryKey({
+			columns: [table.bucketHour, table.delivery],
+			name: "media_playback_stats_hourly_pkey",
+		}),
+		index("idx_media_playback_stats_hourly_bucket").using("btree", table.bucketHour.desc().nullsFirst().op("timestamptz_ops")),
+		check(
+			"media_playback_stats_hourly_delivery_check",
+			sql`delivery = ANY (ARRAY['hls'::text, 'mp4'::text, 'file'::text])`,
+		),
+	],
+);
+
+/** VIDEO_HLS_DELIVERY: one row per (platform user, media) — first successful video playback resolve only; used for unique-view KPI. */
+export const mediaPlaybackUserVideoFirstResolve = pgTable(
+	"media_playback_user_video_first_resolve",
+	{
+		userId: uuid("user_id").notNull(),
+		mediaId: uuid("media_id").notNull(),
+		firstResolvedAt: timestamp("first_resolved_at", { withTimezone: true, mode: "string" })
+			.defaultNow()
+			.notNull(),
+	},
+	(table) => [
+		primaryKey({
+			columns: [table.userId, table.mediaId],
+			name: "media_playback_user_video_first_resolve_pkey",
+		}),
+		index("idx_media_playback_user_video_first_resolve_time").using(
+			"btree",
+			table.firstResolvedAt.asc().nullsLast().op("timestamptz_ops"),
+		),
+		foreignKey({
+			columns: [table.userId],
+			foreignColumns: [platformUsers.id],
+			name: "media_playback_user_video_first_resolve_user_id_fkey",
+		}).onDelete("cascade"),
+		foreignKey({
+			columns: [table.mediaId],
+			foreignColumns: [mediaFiles.id],
+			name: "media_playback_user_video_first_resolve_media_id_fkey",
+		}).onDelete("cascade"),
+	],
+);
+
 export const bookingBranches = pgTable("booking_branches", {
 	id: uuid().defaultRandom().primaryKey().notNull(),
 	cityId: uuid("city_id").notNull(),

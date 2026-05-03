@@ -33,6 +33,12 @@
 
 Автоматизированного замера «до/после» на эталонном ролике в **CI нет**: нужны стабильный `ffmpeg`, входной файл и воспроизводимая среда; время на shared runners не даёт жёсткого SLA. Для v1 достаточно **эвристики +20–50%** и **формулы таймаута** в коде. Численный benchmark на **staging / выделенном хосте** — опционально (finding **P10-0** в [`AUDIT_PHASE_10.md`](./AUDIT_PHASE_10.md): **DEFERRED (ops)**).
 
+### TODO (backlog): автоматизируемый benchmark watermark
+
+- Добавить опциональный скрипт или CI job: один и тот же входной файл (короткий MP4 в fixtures), два прогона ffmpeg **с**/`без` watermark, сравнение wall-time и RSS по логам.
+- Порог регрессии задать отдельно (например >25% от базового времени без watermark) — до реализации порог не enforced.
+- Связанный audit: **DEFER → TODO (docs)** в [AUDIT_GLOBAL.md](./AUDIT_GLOBAL.md) §8.
+
 ## Проверки (фаза)
 
 - **Snapshot аргументов ffmpeg:** unit-тесты `watermarkVideoFilter.test.ts`, `workerToolkit.test.ts` (цепочка `-vf` с `scale,format,drawtext`).

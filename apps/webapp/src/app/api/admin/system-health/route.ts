@@ -2,9 +2,14 @@ import { NextResponse } from "next/server";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { env, isS3MediaEnabled } from "@/config/env";
 import { logger } from "@/app-layer/logging/logger";
+import {
+  ADMIN_PLAYBACK_METRICS_WINDOW_HOURS,
+  loadAdminPlaybackHealthMetrics,
+} from "@/app-layer/media/adminPlaybackHealthMetrics";
 import { getPool } from "@/app-layer/db/client";
 import { proxyIntegratorProjectionHealth } from "@/app-layer/health/proxyIntegratorProjectionHealth";
 import { requireAdminModeSession } from "@/modules/auth/requireAdminMode";
+import { getConfigBool } from "@/modules/system-settings/configAdapter";
 
 const INTEGRATOR_TIMEOUT_MS = 8_000;
 
@@ -32,6 +37,23 @@ const PREVIEW_STATUSES: PreviewStatus[] = ["pending", "ready", "failed", "skippe
 const PREVIEW_MIMES: PreviewMime[] = ["video/quicktime", "image/heic", "image/heif"];
 const STALE_PENDING_MINUTES = 30;
 
+type VideoPlaybackHealthStatus = "ok" | "error";
+
+type VideoPlaybackHealthPayload = {
+  status: VideoPlaybackHealthStatus;
+  windowHours: number;
+  /** Matches `video_playback_api_enabled`; informational for operators. */
+  playbackApiEnabled: boolean;
+  byDelivery: { hls: number; mp4: number; file: number };
+  fallbackTotal: number;
+  totalResolutions: number;
+  /**
+   * Пары (platform user, медиавидео), у которых первый когда-либо учтённый просмотр попал в rolling `windowHours`.
+   * Отличается от `totalResolutions` (нет повторных визитов одного человека по тому же `media_id`).
+   */
+  uniquePlaybackPairsFirstSeenInWindow: number;
+};
+
 type SystemHealthResponse = {
   webappDb: DbStatus;
   integratorApi: { status: IntegratorApiStatus; db?: DbStatus };
@@ -42,12 +64,15 @@ type SystemHealthResponse = {
     stalePendingCount: number;
     byMimeAndStatus: MediaPreviewCounters;
   };
+  /** VIDEO_HLS_DELIVERY: hourly aggregates of playback resolutions (UTC buckets), last `windowHours`. */
+  videoPlayback: VideoPlaybackHealthPayload;
   meta: {
     probes: {
       webappDb: { status: string; durationMs: number; errorCode?: string };
       integratorApi: { status: string; durationMs: number; errorCode?: string };
       projection: { status: string; durationMs: number; errorCode?: string };
       mediaPreview: { status: string; durationMs: number; errorCode?: string };
+      videoPlayback: { status: string; durationMs: number; errorCode?: string };
     };
   };
   fetchedAt: string;
@@ -249,8 +274,70 @@ async function probeMediaPreview(): Promise<
   }
 }
 
+function emptyVideoPlaybackPayload(
+  status: VideoPlaybackHealthStatus,
+  playbackApiEnabled: boolean,
+): VideoPlaybackHealthPayload {
+  return {
+    status,
+    windowHours: ADMIN_PLAYBACK_METRICS_WINDOW_HOURS,
+    playbackApiEnabled,
+    byDelivery: { hls: 0, mp4: 0, file: 0 },
+    fallbackTotal: 0,
+    totalResolutions: 0,
+    uniquePlaybackPairsFirstSeenInWindow: 0,
+  };
+}
+
+async function probeVideoPlayback(): Promise<ProbeResult<VideoPlaybackHealthPayload>> {
+  const startedAt = Date.now();
+  try {
+    const playbackApiEnabled = await getConfigBool("video_playback_api_enabled", false);
+    if (!playbackApiEnabled) {
+      return {
+        ok: true,
+        value: {
+          status: "ok",
+          windowHours: ADMIN_PLAYBACK_METRICS_WINDOW_HOURS,
+          playbackApiEnabled: false,
+          byDelivery: { hls: 0, mp4: 0, file: 0 },
+          fallbackTotal: 0,
+          totalResolutions: 0,
+          uniquePlaybackPairsFirstSeenInWindow: 0,
+        },
+        durationMs: elapsedMs(startedAt),
+      };
+    }
+
+    const metrics = await loadAdminPlaybackHealthMetrics({
+      windowHours: ADMIN_PLAYBACK_METRICS_WINDOW_HOURS,
+    });
+
+    return {
+      ok: true,
+      value: {
+        status: "ok",
+        windowHours: ADMIN_PLAYBACK_METRICS_WINDOW_HOURS,
+        playbackApiEnabled: true,
+        byDelivery: metrics.byDelivery,
+        fallbackTotal: metrics.fallbackTotal,
+        totalResolutions: metrics.totalResolutions,
+        uniquePlaybackPairsFirstSeenInWindow: metrics.uniquePlaybackPairsFirstSeenInWindow,
+      },
+      durationMs: elapsedMs(startedAt),
+    };
+  } catch {
+    return {
+      ok: false,
+      status: "error",
+      errorCode: "video_playback_probe_failed",
+      durationMs: elapsedMs(startedAt),
+    };
+  }
+}
+
 function logProbe(
-  probe: "webapp_db" | "integrator_api" | "projection" | "media_preview",
+  probe: "webapp_db" | "integrator_api" | "projection" | "media_preview" | "video_playback",
   result: ProbeResult<unknown>,
   statusOverride?: string,
 ) {
@@ -272,11 +359,19 @@ export async function GET() {
   const gate = await requireAdminModeSession();
   if (!gate.ok) return gate.response;
 
-  const [webappDb, integratorApi, projection, mediaPreview] = await Promise.allSettled([
+  let playbackApiEnabledFallback = false;
+  try {
+    playbackApiEnabledFallback = await getConfigBool("video_playback_api_enabled", false);
+  } catch {
+    /* ignore — videoPlayback payload will still return error shell if probe fails */
+  }
+
+  const [webappDb, integratorApi, projection, mediaPreview, videoPlayback] = await Promise.allSettled([
     probeWebappDb(),
     probeIntegratorApi(),
     probeProjection(),
     probeMediaPreview(),
+    probeVideoPlayback(),
   ]);
 
   const webappDbResult: ProbeResult<DbStatus> =
@@ -302,6 +397,15 @@ export async function GET() {
       ? mediaPreview.value
       : { ok: false, status: "error", errorCode: "media_preview_probe_rejected", durationMs: 0 };
 
+  const videoPlaybackResult: ProbeResult<VideoPlaybackHealthPayload> =
+    videoPlayback.status === "fulfilled"
+      ? videoPlayback.value
+      : { ok: false, status: "error", errorCode: "video_playback_probe_rejected", durationMs: 0 };
+
+  const videoPlaybackPayload: VideoPlaybackHealthPayload = videoPlaybackResult.ok
+    ? videoPlaybackResult.value
+    : emptyVideoPlaybackPayload("error", playbackApiEnabledFallback);
+
   const response: SystemHealthResponse = {
     webappDb: webappDbResult.ok ? webappDbResult.value : "down",
     integratorApi: integratorApiResult.ok
@@ -323,6 +427,7 @@ export async function GET() {
           stalePendingCount: 0,
           byMimeAndStatus: initMediaPreviewCounters(),
         },
+    videoPlayback: videoPlaybackPayload,
     meta: {
       probes: {
         webappDb: {
@@ -345,6 +450,11 @@ export async function GET() {
           durationMs: mediaPreviewResult.durationMs,
           ...(mediaPreviewResult.ok ? {} : { errorCode: mediaPreviewResult.errorCode }),
         },
+        videoPlayback: {
+          status: videoPlaybackResult.ok ? videoPlaybackResult.value.status : videoPlaybackResult.status,
+          durationMs: videoPlaybackResult.durationMs,
+          ...(videoPlaybackResult.ok ? {} : { errorCode: videoPlaybackResult.errorCode }),
+        },
       },
     },
     fetchedAt: nowIso(),
@@ -354,6 +464,7 @@ export async function GET() {
   logProbe("integrator_api", integratorApiResult, response.integratorApi.status);
   logProbe("projection", projectionResult, response.projection.status);
   logProbe("media_preview", mediaPreviewResult, response.mediaPreview.status);
+  logProbe("video_playback", videoPlaybackResult, response.videoPlayback.status);
 
   return NextResponse.json(response);
 }

@@ -2,8 +2,20 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { buildDoctorOnlineIntakeDetailResponse } from "./doctorIntakeDetailResponse";
 import type { IntakeRequestFullWithPatientIdentity } from "./types";
 
-vi.mock("@/infra/s3/client", () => ({
+const appLayerMocks = vi.hoisted(() => ({
   presignGetUrl: vi.fn(async () => "https://signed.example/object"),
+  getVideoPresignTtlSeconds: vi.fn(async () => 3600),
+}));
+
+vi.mock("@/app-layer/media/s3Client", () => ({
+  presignGetUrl: appLayerMocks.presignGetUrl,
+}));
+
+vi.mock("@/app-layer/media/videoPresignTtl", () => ({
+  getVideoPresignTtlSeconds: appLayerMocks.getVideoPresignTtlSeconds,
+}));
+
+vi.mock("@/infra/s3/client", () => ({
   s3PublicUrl: vi.fn((key: string) => `https://public.example/${key}`),
 }));
 
@@ -47,6 +59,8 @@ vi.mock("@/config/env", () => ({
 describe("buildDoctorOnlineIntakeDetailResponse", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    appLayerMocks.presignGetUrl.mockResolvedValue("https://signed.example/object");
+    appLayerMocks.getVideoPresignTtlSeconds.mockResolvedValue(3600);
     envFixture.S3_ENDPOINT = "https://fs.test";
     envFixture.S3_PUBLIC_BUCKET = "pub-bucket";
     envFixture.S3_PRIVATE_BUCKET = "";
@@ -114,7 +128,44 @@ describe("buildDoctorOnlineIntakeDetailResponse", () => {
     expect(json.attachmentFiles).toHaveLength(1);
     expect(json.attachmentFiles?.[0].originalName).toBe("file.pdf");
     expect(json.attachmentFiles?.[0].url).toContain("public.example");
+    expect(appLayerMocks.presignGetUrl).not.toHaveBeenCalled();
     expect(logServerRuntimeErrorMock).not.toHaveBeenCalled();
+  });
+
+  it("presigns file attachments with admin TTL when private S3 is enabled", async () => {
+    envFixture.S3_PRIVATE_BUCKET = "priv";
+    envFixture.S3_ACCESS_KEY = "ak";
+    envFixture.S3_SECRET_KEY = "sk";
+    const full: IntakeRequestFullWithPatientIdentity = {
+      id: "req-priv",
+      userId: "u1",
+      type: "lfk",
+      status: "new",
+      summary: "x",
+      patientName: "Пётр",
+      patientPhone: "+7901",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      answers: [],
+      attachments: [
+        {
+          id: "att-file",
+          requestId: "req-priv",
+          attachmentType: "file",
+          s3Key: "media/m9/doc.pdf",
+          url: null,
+          mimeType: "application/pdf",
+          sizeBytes: 100,
+          originalName: "doc.pdf",
+          createdAt: "2026-01-01T00:00:00.000Z",
+        },
+      ],
+      statusHistory: [],
+    };
+    const json = await buildDoctorOnlineIntakeDetailResponse(full);
+    expect(json.attachmentFiles?.[0].url).toBe("https://signed.example/object");
+    expect(appLayerMocks.getVideoPresignTtlSeconds).toHaveBeenCalled();
+    expect(appLayerMocks.presignGetUrl).toHaveBeenCalledWith("media/m9/doc.pdf", 3600);
   });
 
   it("returns empty file url and logs when S3 is not configured for intake attachments", async () => {

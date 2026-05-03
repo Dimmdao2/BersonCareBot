@@ -38,22 +38,46 @@ type SystemHealthPayload = {
     stalePendingCount: number;
     byMimeAndStatus: MediaPreviewCounters;
   };
+  /** VIDEO_HLS_DELIVERY: hourly playback aggregates (UTC), rolling window. */
+  videoPlayback: {
+    status: "ok" | "error";
+    windowHours: number;
+    playbackApiEnabled: boolean;
+    byDelivery: { hls: number; mp4: number; file: number };
+    fallbackTotal: number;
+    totalResolutions: number;
+    /** Первая фиксация пары пользователь+видео за rolling window см. админ-док `/api/admin/system-health`. */
+    uniquePlaybackPairsFirstSeenInWindow: number;
+  };
   meta?: {
     probes?: {
       webappDb?: { status: string; durationMs: number; errorCode?: string };
       integratorApi?: { status: string; durationMs: number; errorCode?: string };
       projection?: { status: string; durationMs: number; errorCode?: string };
       mediaPreview?: { status: string; durationMs: number; errorCode?: string };
+      videoPlayback?: { status: string; durationMs: number; errorCode?: string };
     };
   };
   fetchedAt: string;
 };
 
 function statusBadgeVariant(status: string): "secondary" | "outline" | "destructive" {
-  if (status === "ok" || status === "up" || status === "running" || status === "active" || status === "idle") {
+  if (
+    status === "ok" ||
+    status === "up" ||
+    status === "running" ||
+    status === "active" ||
+    status === "idle"
+  ) {
     return "secondary";
   }
-  if (status === "degraded" || status === "no_signal" || status === "no_source" || status === "no_activity") {
+  if (
+    status === "degraded" ||
+    status === "no_signal" ||
+    status === "no_source" ||
+    status === "no_activity" ||
+    status === "playback_disabled"
+  ) {
     return "outline";
   }
   return "destructive";
@@ -62,6 +86,7 @@ function statusBadgeVariant(status: string): "secondary" | "outline" | "destruct
 function statusDotClass(status: string): string {
   if (status === "ok" || status === "up" || status === "running" || status === "active") return "bg-emerald-500";
   if (status === "idle") return "bg-sky-500";
+  if (status === "playback_disabled") return "bg-amber-500";
   if (status === "degraded" || status === "no_signal" || status === "no_source" || status === "no_activity") {
     return "bg-amber-500";
   }
@@ -72,6 +97,7 @@ function statusDotClass(status: string): string {
 
 function statusLabel(status: string): string {
   if (status === "idle") return "idle";
+  if (status === "playback_disabled") return "API выкл.";
   if (status === "configured") return "сконфигурированы";
   if (status === "not_configured") return "не настроены";
   return status;
@@ -241,6 +267,10 @@ export function SystemHealthSection() {
   }, [load]);
 
   const workers = computeWorkerStatus(data);
+  const playbackApiDisabled = data?.videoPlayback?.playbackApiEnabled === false;
+  const playbackAccordionStatus = playbackApiDisabled
+    ? "playback_disabled"
+    : (data?.videoPlayback?.status ?? "error");
   const projection = data?.projection.snapshot;
   const queuePending = projection?.pendingCount ?? 0;
   const queueProcessing = projection?.processingCount ?? 0;
@@ -377,6 +407,53 @@ export function SystemHealthSection() {
                 );
               })}
               <ProbeInfo probe={data?.meta?.probes?.mediaPreview} />
+            </HealthAccordionItem>
+
+            <HealthAccordionItem
+              name="Воспроизведение видео (playback / HLS)"
+              status={playbackAccordionStatus}
+            >
+              <DetailRow
+                label="Окно"
+                value={`последние ${data?.videoPlayback?.windowHours ?? 24} ч (UTC, почасовые срезы в БД)`}
+              />
+              <DetailRow
+                label="GET /api/media/.../playback"
+                value={
+                  playbackApiDisabled
+                    ? "выключен (`video_playback_api_enabled`, новые счётчики не ведутся)"
+                    : "включён (video_playback_api_enabled)"
+                }
+              />
+              {playbackApiDisabled ? (
+                <p className="pt-1 font-medium text-foreground">
+                  Показатели ниже недоступны: playback JSON API выключен.
+                </p>
+              ) : (
+                <>
+                  <DetailRow label="Всего резолвов API" value={String(data?.videoPlayback?.totalResolutions ?? 0)} />
+                  <DetailRow label="Уник. пары (пользователь+видео, первый раз за всё время, событие в окне)" value={String(data?.videoPlayback?.uniquePlaybackPairsFirstSeenInWindow ?? 0)} />
+                  <DetailRow
+                    label="HLS / MP4 / file (резолвы)"
+                    value={`${data?.videoPlayback?.byDelivery.hls ?? 0} / ${data?.videoPlayback?.byDelivery.mp4 ?? 0} / ${data?.videoPlayback?.byDelivery.file ?? 0}`}
+                  />
+                  <DetailRow
+                    label="Fallback (сумма по строкам почасового агрегата)"
+                    value={String(data?.videoPlayback?.fallbackTotal ?? 0)}
+                  />
+                  <p className="pt-1 text-muted-foreground">
+                    «Всего резолвов» растёт на каждый успешный `resolve` (например, повторный{" "}
+                    <code className="text-foreground">GET …/playback</code> перед истечением presigned URL при длинном
+                    HLS). «Уник. пары» — не более одного события на пару платформенный пользователь + видеофайл за всё время
+                    (первое попадание в таблице дедупликации).
+                  </p>
+                  <p className="pt-1 text-muted-foreground">
+                    Счётчики ведутся с момента внедрения таблиц; полные журналы см. по сообщению{" "}
+                    <code className="text-foreground">playback_resolved</code>.
+                  </p>
+                </>
+              )}
+              <ProbeInfo probe={data?.meta?.probes?.videoPlayback} />
             </HealthAccordionItem>
           </div>
 

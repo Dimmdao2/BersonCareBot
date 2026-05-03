@@ -16,6 +16,7 @@
 | [04-test-strategy.md](./04-test-strategy.md) | Тесты и негативные сценарии |
 | [05-risk-register.md](./05-risk-register.md) | Реестр рисков |
 | [06-execution-log.md](./06-execution-log.md) | Журнал работы |
+| [AUDIT_EXTRA_PLAYBACK_METRICS_CLOSURE.md](./AUDIT_EXTRA_PLAYBACK_METRICS_CLOSURE.md) | Пост-аудит closure batch (метрики playback) + фиксы 2026-05-03 |
 | [07-post-documentation-implementation-roadmap.md](./07-post-documentation-implementation-roadmap.md) | Дорожная карта после утверждения доков |
 | [PROMPTS_EXEC_AUDIT_FIX_GLOBAL.md](./PROMPTS_EXEC_AUDIT_FIX_GLOBAL.md) | Готовые copy-paste промпты для Composer (`EXEC -> AUDIT -> FIX`, `GLOBAL AUDIT/FIX`, `PREPUSH POSTFIX AUDIT`) |
 

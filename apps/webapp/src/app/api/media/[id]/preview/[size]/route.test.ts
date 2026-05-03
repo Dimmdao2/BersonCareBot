@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   s3HeadObjectDetails: vi.fn(),
   s3GetObjectBody: vi.fn(),
   presignGetUrl: vi.fn(),
+  getVideoPresignTtlSeconds: vi.fn(),
 }));
 
 vi.mock("@/modules/auth/service", () => ({
@@ -24,6 +25,10 @@ vi.mock("@/app-layer/media/s3Client", () => ({
   presignGetUrl: mocks.presignGetUrl,
 }));
 
+vi.mock("@/app-layer/media/videoPresignTtl", () => ({
+  getVideoPresignTtlSeconds: mocks.getVideoPresignTtlSeconds,
+}));
+
 describe("GET /api/media/[id]/preview/[size]", () => {
   beforeEach(() => {
     vi.resetAllMocks();
@@ -35,6 +40,7 @@ describe("GET /api/media/[id]/preview/[size]", () => {
     });
     mocks.s3GetObjectBody.mockResolvedValue(Buffer.from([0xff, 0xd8, 0xff, 0xd9]));
     mocks.presignGetUrl.mockResolvedValue("https://signed.example/preview.jpg");
+    mocks.getVideoPresignTtlSeconds.mockResolvedValue(3600);
   });
 
   it("returns 200 with ETag on first successful body read", async () => {
@@ -68,8 +74,8 @@ describe("GET /api/media/[id]/preview/[size]", () => {
     });
     expect(res.status).toBe(307);
     expect(res.headers.get("location")).toBe("https://signed.example/preview.jpg");
-    expect(res.headers.get("cache-control")).toBe("private, max-age=86400, stale-while-revalidate=604800");
-    expect(mocks.presignGetUrl).toHaveBeenCalledWith("previews/sm/x.jpg", 86400);
+    expect(res.headers.get("cache-control")).toBe("private, max-age=3600, must-revalidate");
+    expect(mocks.presignGetUrl).toHaveBeenCalledWith("previews/sm/x.jpg", 3600);
   });
 
   it("redirects to original media when preview metadata is missing", async () => {

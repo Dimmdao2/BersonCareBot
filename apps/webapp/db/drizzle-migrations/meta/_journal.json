@@ -183,6 +183,20 @@
       "when": 1777801389725,
       "tag": "0025_treatment_program_stage_goals_objectives_duration",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1777802999509,
+      "tag": "0026_media_playback_stats_hourly",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1777804686327,
+      "tag": "0027_media_playback_user_video_first_resolve",
+      "breakpoints": true
     }
   ]
 }

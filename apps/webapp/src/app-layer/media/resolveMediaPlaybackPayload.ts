@@ -14,6 +14,8 @@ import {
   parseVideoDeliveryOverride,
   parseVideoProcessingStatus,
 } from "@/modules/media/videoHlsFields";
+import { recordPlaybackResolutionStat } from "@/app-layer/media/playbackStatsHourly";
+import { recordPlaybackUserVideoFirstResolve } from "@/app-layer/media/playbackUserVideoFirstResolve";
 import { getVideoPresignTtlSeconds } from "@/app-layer/media/videoPresignTtl";
 import { getConfigBool, getConfigValue } from "@/modules/system-settings/configAdapter";
 import type { AppSession } from "@/shared/types/session";
@@ -36,7 +38,6 @@ export async function resolveMediaPlaybackPayload(input: {
 }): Promise<ResolveMediaPlaybackSuccess | ResolveMediaPlaybackFailure> {
   const t0 = performance.now();
   const { id, adminPrefer } = input;
-  void input.session;
   if (!UUID_RE.test(id) || !(env.DATABASE_URL ?? "").trim()) {
     return { ok: false, status: 404, error: "not found" };
   }
@@ -77,6 +78,7 @@ export async function resolveMediaPlaybackPayload(input: {
       },
       "playback_resolved",
     );
+    await recordPlaybackResolutionStat({ delivery: "file", fallbackUsed: false });
     return {
       ok: true,
       data: {
@@ -152,6 +154,15 @@ export async function resolveMediaPlaybackPayload(input: {
     },
     "playback_resolved",
   );
+
+  await recordPlaybackResolutionStat({ delivery, fallbackUsed });
+
+  if (delivery === "hls" || delivery === "mp4") {
+    await recordPlaybackUserVideoFirstResolve({
+      userId: input.session.user.userId,
+      mediaId: id,
+    });
+  }
 
   return {
     ok: true,

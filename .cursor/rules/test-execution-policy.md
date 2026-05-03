@@ -64,6 +64,26 @@ alwaysApply: true
 
 Если проверки уже выполнялись и **код не менялся** → **не** запускать снова (ни `ci`, ни полный пакет тестов приложения, ни тот же таргет), кроме случая, когда пользователь **явно** просит повтор.
 
+## CI resume (после падения шага)
+
+Если полный `pnpm run ci` упал на конкретном шаге и после фикса вы хотите проверить продолжение цепочки:
+
+- **не** перезапускайте `pnpm run ci` целиком на каждой итерации;
+- запускайте сначала упавший шаг (или ещё уже: таргетный тест/файл);
+- затем запускайте «хвост» после него через `ci:resume:*` из корневого `package.json`.
+
+**Доступные хвосты:**
+
+- после `lint`: `pnpm run ci:resume:after-lint`
+- после `typecheck`: `pnpm run ci:resume:after-typecheck`
+- после `test` (integrator): `pnpm run ci:resume:after-test`
+- после `test:webapp`: `pnpm run ci:resume:after-test-webapp`
+- после `test:media-worker`: `pnpm run ci:resume:after-test-media-worker`
+- после `build`: `pnpm run ci:resume:after-build`
+- после `build:webapp`: `pnpm run ci:resume:after-build-webapp`
+
+**Важно:** перед фактическим push остаётся обязательным барьер из `.cursor/rules/pre-push-ci.mdc` (`pnpm install --frozen-lockfile && pnpm run ci`).
+
 ## Логи
 
 По умолчанию: что запущено + итог (pass/fail). Полный вывод прогона — при ошибке или по явной просьбе пользователя.
