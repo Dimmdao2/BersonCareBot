@@ -1,5 +1,7 @@
 # FILTER URL CONTRACT FIX PLAN — doctor assignment catalogs
 
+**Статус: завершён (2026-05-04).** Верификация: [`AUDIT_FILTER_URL_CONTRACT_FIX.md`](AUDIT_FILTER_URL_CONTRACT_FIX.md), [`LOG.md`](LOG.md). Решения владельца: каталог **шаблонов программ** не меняли; **историю коммитов** не переписывали; **рефакторинг имён `regionRefId`** в коде не делается — в query-layer только параметр **`region`** (код); добавлены **unit-тесты** preserve для recommendations / clinical-tests / test-sets. Исключение: у **наборов тестов** ось **`load`** в preserve намеренно убрана (см. LOG III).
+
 ## 1. Goal
 
 Bring doctor assignment catalog filters to a stable URL and data-loading contract:
@@ -63,9 +65,9 @@ Decision notes:
 
 Checklist:
 
-- [ ] Locate all doctor catalog filter/query helpers and current param aliases.
-- [ ] Confirm every generated URL uses `region`, `load`, `q`, `view`, `titleSort`.
-- [ ] Confirm tests expect `region=spine` or another readable code, not UUID.
+- [x] Locate all doctor catalog filter/query helpers and current param aliases.
+- [x] Confirm every generated URL uses `region`, `load`, `q`, `view`, `titleSort`.
+- [x] Confirm tests expect `region=spine` or another readable code, not UUID.
 
 Checks:
 
@@ -83,10 +85,10 @@ Closure:
 
 Checklist:
 
-- [ ] Region filter uses `valueMatch="code"` or the existing equivalent.
-- [ ] Submitted/controlled value is `regionCode`.
-- [ ] Internal selected filter state does not store `regionRefId`.
-- [ ] Create/edit forms still submit UUID/FK values where required.
+- [x] Region filter uses `valueMatch="code"` or the existing equivalent.
+- [x] Submitted/controlled value is `regionCode`.
+- [x] Internal selected filter state does not store `regionRefId`.
+- [x] Create/edit forms still submit UUID/FK values where required.
 
 Checks:
 
@@ -103,14 +105,14 @@ Closure:
 
 Checklist:
 
-- [ ] Server passes the client enough data to filter locally: region code or `regionRefId -> code` map, load type, title/search fields.
-- [ ] Client display-list logic applies:
+- [x] Server passes the client enough data to filter locally: region code or `regionRefId -> code` map, load type, title/search fields.
+- [x] Client display-list logic applies:
   - `q`
   - `region` by code
   - `load` by code
   - `titleSort`
-- [ ] Filter changes update URL/local state without triggering list refetch/RSC navigation.
-- [ ] No apply button, no summary line, and dropdown-only focus behavior remain unchanged.
+- [x] Filter changes update URL/local state without triggering list refetch/RSC navigation.
+- [x] No apply button, no summary line, and dropdown-only focus behavior remain unchanged.
 
 Checks:
 
@@ -128,10 +130,10 @@ Closure:
 
 Checklist:
 
-- [ ] Server pages read `q`, `region`, `load`, `view`, and `titleSort` only as initial UI state.
-- [ ] `q`, `region`, and `load` are not passed into server `list*` calls.
-- [ ] Server parsing of `searchParams.region` accepts only code-shaped values and does not treat UUID as a valid region.
-- [ ] `status` / `arch` / `pub` server filtering remains only where it represents data scope.
+- [x] Server pages read `q`, `region`, `load`, `view`, and `titleSort` only as initial UI state.
+- [x] `q`, `region`, and `load` are not passed into server `list*` calls.
+- [x] Server parsing of `searchParams.region` accepts only code-shaped values and does not treat UUID as a valid region.
+- [x] `status` / `arch` / `pub` server filtering remains only where it represents data scope.
 
 Checks:
 
@@ -148,9 +150,11 @@ Closure:
 
 Checklist:
 
-- [ ] Save/archive/restore redirects preserve `region` code, `load`, `q`, `view`, and `titleSort`.
-- [ ] Preserve helpers do not preserve `regionRefId`.
-- [ ] Legacy aliases are not reintroduced by redirects.
+- [x] Save/archive/restore redirects preserve `region` code, `load`, `q`, `view`, and `titleSort`.
+- [x] Preserve helpers do not preserve `regionRefId`.
+- [x] Legacy aliases are not reintroduced by redirects.
+
+**Исключение (принято):** каталог **наборов тестов** не сохраняет `load` в preserve/redirect — см. [`LOG.md`](LOG.md) (III).
 
 Checks:
 
@@ -168,11 +172,11 @@ Closure:
 
 Checklist:
 
-- [ ] `DoctorCatalogFiltersForm` test: URL contains `region=spine`, `load=strength`, and no UUID.
-- [ ] Preserve-query test: catalog redirects keep `region=spine`.
-- [ ] Client filtering test: item with `regionCode=spine` is visible only for `region=spine`.
-- [ ] Existing no apply button / no summary line / dropdown-only focus tests remain green.
-- [ ] `LOG.md` records scope, decisions, changed files, checks, and residual risks.
+- [x] `DoctorCatalogFiltersForm` test: URL contains `region=spine`, `load=strength`, and no UUID.
+- [x] Preserve-query test: catalog redirects keep `region=spine`.
+- [x] Client filtering test: item with `regionCode=spine` is visible only for `region=spine`.
+- [x] Existing no apply button / no summary line / dropdown-only focus tests remain green.
+- [x] `LOG.md` records scope, decisions, changed files, checks, and residual risks.
 
 Checks:
 

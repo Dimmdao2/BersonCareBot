@@ -11,26 +11,10 @@ import {
   type SaveClinicalTestState,
   type UnarchiveClinicalTestState,
 } from "./actionsShared";
-import { appendRegionParamFromListPreserve } from "@/shared/lib/doctorCatalogClientUrlSync";
+import { appendClinicalTestsListPreserveToSearchParams } from "./clinicalTestsListPreserveParams";
 
 function appendClinicalTestsListParams(sp: URLSearchParams, formData: FormData) {
-  const q = formData.get("listQ");
-  if (typeof q === "string" && q.trim()) sp.set("q", q.trim());
-  const ts = formData.get("listTitleSort");
-  if (ts === "asc" || ts === "desc") sp.set("titleSort", ts);
-  appendRegionParamFromListPreserve(sp, formData.get("listRegion"));
-  const load = formData.get("listLoad");
-  if (load === "strength" || load === "stretch" || load === "balance" || load === "cardio" || load === "other") {
-    sp.set("load", load);
-  }
-  const assessment = formData.get("listAssessment");
-  if (typeof assessment === "string" && assessment.trim()) {
-    sp.set("assessment", assessment.trim());
-  }
-  const listStatus = formData.get("listStatus");
-  if (listStatus === "active" || listStatus === "all" || listStatus === "archived") {
-    sp.set("status", listStatus);
-  }
+  appendClinicalTestsListPreserveToSearchParams(sp, formData);
 }
 
 export async function saveClinicalTestInline(

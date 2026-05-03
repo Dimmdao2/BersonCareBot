@@ -6,6 +6,20 @@
 
 ---
 
+## 2026-05-04 (V) — FILTER URL: решения владельца, preserve unit-тесты, план закрыт
+
+**Решения (зафиксировано):** каталог **шаблонов программ** не трогать; **историю коммитов** не переписывать; **рефакторинг имён `regionRefId`** не делать — в URL/query-layer только **`region`** (код).
+
+**Сделано:**
+
+- Pure helpers + vitest: **`recommendationsListPreserveParams.ts`** / **`.test.ts`**, **`clinicalTestsListPreserveParams.ts`** / **`.test.ts`**; `actionsInline` переведены на вызов этих функций (как у test-sets).
+- **[`FILTER_URL_CONTRACT_FIX_PLAN.md`](FILTER_URL_CONTRACT_FIX_PLAN.md):** статус **завершён**, чеклисты Steps 1–6 отмечены `[x]`, сноска по исключению **`load`** у test-sets в Step 5.
+- **[`AUDIT_FILTER_URL_CONTRACT_FIX.md`](AUDIT_FILTER_URL_CONTRACT_FIX.md):** residual (TP, m4, backlog preserve) приведён к решениям владельца; §7 mapping обновлён.
+
+**Проверки:** `pnpm --dir apps/webapp exec vitest run` (7 файлов, **23** теста), `eslint` на новых/changed ts, `pnpm --dir apps/webapp exec tsc --noEmit`.
+
+---
+
 ## 2026-05-04 (IV) — FILTER URL: пост-аудит, синхронизация стадийных доков
 
 **Контекст:** закрытие хвостов независимого аудита против [`FILTER_URL_CONTRACT_FIX_PLAN.md`](FILTER_URL_CONTRACT_FIX_PLAN.md) — устаревшие упоминания `invalidRegionQuery`/баннера региона в стадийных AUDIT; дополнение residual в [`AUDIT_FILTER_URL_CONTRACT_FIX.md`](AUDIT_FILTER_URL_CONTRACT_FIX.md).

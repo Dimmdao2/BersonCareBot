@@ -11,22 +11,10 @@ import {
   type SaveRecommendationState,
   type UnarchiveRecommendationState,
 } from "./actionsShared";
-import { appendRegionParamFromListPreserve } from "@/shared/lib/doctorCatalogClientUrlSync";
+import { appendRecommendationsListPreserveToSearchParams } from "./recommendationsListPreserveParams";
 
 function appendRecommendationsListParams(sp: URLSearchParams, formData: FormData) {
-  const q = formData.get("listQ");
-  if (typeof q === "string" && q.trim()) sp.set("q", q.trim());
-  const ts = formData.get("listTitleSort");
-  if (ts === "asc" || ts === "desc") sp.set("titleSort", ts);
-  appendRegionParamFromListPreserve(sp, formData.get("listRegion"));
-  const listDomain = formData.get("listDomain");
-  if (typeof listDomain === "string" && listDomain.trim()) {
-    sp.set("domain", listDomain.trim());
-  }
-  const listStatus = formData.get("listStatus");
-  if (listStatus === "active" || listStatus === "all" || listStatus === "archived") {
-    sp.set("status", listStatus);
-  }
+  appendRecommendationsListPreserveToSearchParams(sp, formData);
 }
 
 export async function saveRecommendationInline(
