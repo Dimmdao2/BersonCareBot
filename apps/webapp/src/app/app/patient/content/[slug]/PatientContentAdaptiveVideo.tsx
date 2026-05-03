@@ -1,3 +1,9 @@
+/**
+ * Patient content video: HLS (native Safari / hls.js) + progressive MP4 fallback.
+ *
+ * Телеметрия / отладка: не логировать presigned URL, poster URL, query на подписанных ссылках.
+ * Использовать только безопасные поля (mediaId, delivery, тип события, HTTP status) — см. `patientPlaybackDiag`.
+ */
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -8,6 +14,7 @@ import { shouldUseNativeHls } from "@/shared/lib/nativeHls";
 import type { MediaPlaybackPayload } from "@/modules/media/playbackPayloadTypes";
 import { patientBodyTextClass, patientMutedTextClass } from "@/shared/ui/patientVisual";
 import { cn } from "@/lib/utils";
+import { initialPlaybackSourceKind } from "./patientPlaybackSourceKind";
 
 type Props = {
   mediaId: string;
@@ -130,7 +137,7 @@ function DualModePatientVideo({
 
   const [payload, setPayload] = useState<MediaPlaybackPayload>(initialPlayback);
   const [sourceKind, setSourceKind] = useState<"hls" | "mp4">(() =>
-    initialPlayback.delivery === "hls" && initialPlayback.hls?.masterUrl ? "hls" : "mp4",
+    initialPlaybackSourceKind(initialPlayback),
   );
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -275,7 +282,7 @@ function DualModePatientVideo({
       }
       const next = (await res.json()) as MediaPlaybackPayload;
       setPayload(next);
-      setSourceKind(next.delivery === "hls" && next.hls?.masterUrl ? "hls" : "mp4");
+      setSourceKind(initialPlaybackSourceKind(next));
     } catch {
       patientPlaybackDiag({ event: "playback_refetch_exception", mediaId });
       setError("Не удалось загрузить параметры воспроизведения.");

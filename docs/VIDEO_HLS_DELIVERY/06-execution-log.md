@@ -6,6 +6,25 @@
 
 ---
 
+## 2026-05-03 — FIX AUDIT_PHASE_05 (чеклист браузера, тест режима источника, телеметрия в коде)
+
+**Сделано**
+
+- **Critical / Major (аудит):** Critical N/A; Major — **`BROWSER_SMOKE_PHASE05_CHECKLIST.md`** для ops-приёмки Chrome/Safari + MP4-only без URL в логе; на агенте прогнаны **целевые тесты phase-05** и полный **`pnpm run ci`**.
+- **`initialPlaybackSourceKind`** + **`patientPlaybackSourceKind.test.ts`** — единая логика выбора HLS vs MP4 при старте и после «Повторить» (стабильность ветвления).
+- **Minor:** телеметрия — комментарий в **`PatientContentAdaptiveVideo.tsx`**; паритет спиннера legacy — **defer**; Playwright — **defer**.
+
+**MP4 fallback / UX ошибок (подтверждение по коду и тестам)**
+
+- Один автопереход HLS→MP4 (`tryMp4Fallback` + ref), затем сообщение + **«Повторить»** (refetch playback); **destroy** hls в cleanup и при fatal.
+- Юнит-тесты: `patientPlaybackSourceKind`, `nativeHls`, `playback/route`; smoke: `e2e/patient-playback-inprocess.test.ts`.
+
+**Проверки (на окружении агента)**
+
+- `pnpm install --frozen-lockfile && pnpm run ci`
+
+---
+
 ## 2026-05-03 — Phase 05 (patient dual-mode player: HLS + MP4)
 
 **Сделано**
