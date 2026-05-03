@@ -48,6 +48,7 @@ function mapTestRow(
     title: row.title,
     testType: row.testType,
     isArchived: row.isArchived,
+    bodyRegionId: row.bodyRegionId ?? null,
     previewMedia: pickFirstClinicalMedia(row.media),
   };
 }

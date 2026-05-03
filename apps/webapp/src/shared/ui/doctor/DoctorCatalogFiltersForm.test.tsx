@@ -54,7 +54,7 @@ describe("DoctorCatalogFiltersForm", () => {
 
   it("renders without apply button and summary line", () => {
     const { container } = render(
-      <DoctorCatalogFiltersForm q="" regionRefId="r1" loadType="strength" />,
+      <DoctorCatalogFiltersForm q="" regionCode="spine" loadType="strength" />,
     );
 
     expect(screen.queryByRole("button", { name: "Применить" })).toBeNull();

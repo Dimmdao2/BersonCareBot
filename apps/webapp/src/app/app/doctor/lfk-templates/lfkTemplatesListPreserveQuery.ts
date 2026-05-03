@@ -1,4 +1,5 @@
 import type { ExerciseLoadType } from "@/modules/lfk-exercises/types";
+import { z } from "zod";
 import {
   applyDoctorCatalogPubArchToSearchParams,
   type DoctorCatalogPubArchQuery,
@@ -10,7 +11,7 @@ const PUB_VALUES = ["all", "draft", "published"] as const;
 
 export type LfkTemplatesListPreserveInput = {
   q: string;
-  regionRefId?: string;
+  regionCode?: string;
   loadType?: ExerciseLoadType;
   listPubArch: DoctorCatalogPubArchQuery;
   /** Текущая сортировка в UI (может отличаться от URL до применения фильтров). */
@@ -22,7 +23,7 @@ export function buildLfkTemplatesListPreserveQuery(input: LfkTemplatesListPreser
   const p = new URLSearchParams();
   const qt = input.q.trim();
   if (qt) p.set("q", qt);
-  const region = input.regionRefId?.trim();
+  const region = input.regionCode?.trim();
   if (region) p.set("region", region);
   if (input.loadType) p.set("load", input.loadType);
   applyDoctorCatalogPubArchToSearchParams(p, input.listPubArch);
@@ -47,7 +48,14 @@ export function sanitizeLfkTemplatesListPreserveQuery(raw: string): string {
   if (q != null && q.length <= 500) out.set("q", q);
 
   const region = sp.get("region")?.trim();
-  if (region && region.length <= 120 && !/[\s<>"']/.test(region)) out.set("region", region);
+  if (
+    region &&
+    region.length <= 120 &&
+    !/[\s<>"']/.test(region) &&
+    !z.string().uuid().safeParse(region).success
+  ) {
+    out.set("region", region);
+  }
 
   const load = sp.get("load");
   if (load && (LOAD_VALUES as readonly string[]).includes(load)) out.set("load", load);

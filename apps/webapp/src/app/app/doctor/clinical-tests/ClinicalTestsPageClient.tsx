@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import type { ClinicalTest, ClinicalTestUsageSnapshot } from "@/modules/tests/types";
 import type { ReferenceItemDto } from "@/modules/references/referenceCache";
@@ -31,6 +31,7 @@ import { archiveClinicalTestInline, saveClinicalTestInline, unarchiveClinicalTes
 import { DoctorCatalogFiltersForm } from "@/shared/ui/doctor/DoctorCatalogFiltersForm";
 import { Card, CardContent } from "@/components/ui/card";
 import { ClinicalTestForm } from "./ClinicalTestForm";
+import { useDoctorCatalogDisplayList } from "@/shared/hooks/useDoctorCatalogDisplayList";
 
 export type ClinicalTestsViewMode = "tiles" | "list";
 export type ClinicalTestTitleSort = "asc" | "desc";
@@ -48,16 +49,18 @@ type Props = {
   initialViewMode: ClinicalTestsViewMode;
   viewLockedByUrl: boolean;
   initialTitleSort: ClinicalTestTitleSort | null;
+  assessmentKindFilterItems: ReferenceItemDto[];
+  assessmentKindCatalogItems: ReferenceItem[];
+  bodyRegionIdToCode: Record<string, string>;
   filters: {
     q: string;
-    regionRefId?: string;
+    regionCode?: string;
+    invalidRegionQuery?: boolean;
     assessmentKind?: string;
     /** Ненулевой `?assessment=` в URL не совпал со справочником — фильтр не применён. */
     invalidAssessmentQuery?: boolean;
     listStatus: RecommendationListFilterScope;
   };
-  assessmentKindFilterItems: ReferenceItemDto[];
-  assessmentKindCatalogItems: ReferenceItem[];
 };
 
 /** Как у упражнений: минимум 3 колонки на desktop. */
@@ -150,6 +153,7 @@ function ClinicalTestsContent({
   filters,
   assessmentKindFilterItems,
   assessmentKindCatalogItems,
+  bodyRegionIdToCode,
 }: {
   initialItems: ClinicalTest[];
   initialSelectedId: string | null;
@@ -167,6 +171,7 @@ function ClinicalTestsContent({
   filters: Props["filters"];
   assessmentKindFilterItems: ReferenceItemDto[];
   assessmentKindCatalogItems: ReferenceItem[];
+  bodyRegionIdToCode: Record<string, string>;
 }) {
   useEffect(() => {
     if (!initialSelectedId) return;
@@ -178,13 +183,21 @@ function ClinicalTestsContent({
     });
   }, [initialSelectedId, initialItems, setDesktopSelectedId, setMobileSheet]);
 
-  const displayTests = useMemo(() => {
-    if (!titleSort) return initialItems;
-    return [...initialItems].sort((a, b) => {
-      const cmp = a.title.localeCompare(b.title, "ru", { sensitivity: "base" });
-      return titleSort === "asc" ? cmp : -cmp;
-    });
-  }, [initialItems, titleSort]);
+  const getItemRegionCode = useCallback(
+    (t: ClinicalTest) =>
+      t.bodyRegionId ? (bodyRegionIdToCode[t.bodyRegionId] ?? null) : null,
+    [bodyRegionIdToCode],
+  );
+
+  const displayTests = useDoctorCatalogDisplayList(
+    initialItems,
+    filters.q,
+    titleSort === null ? "default" : titleSort,
+    {
+      regionCode: filters.regionCode,
+      getItemRegionCode,
+    },
+  );
 
   useEffect(() => {
     if (!desktopSelectedId) return;
@@ -294,7 +307,7 @@ function ClinicalTestsContent({
         workspaceListPreserve={{
           q: filters.q,
           titleSort,
-          regionRefId: filters.regionRefId,
+          regionCode: filters.regionCode,
           assessmentKind: filters.assessmentKind,
           listStatus: filters.listStatus,
         }}
@@ -312,7 +325,7 @@ function ClinicalTestsContent({
               <DoctorCatalogFiltersForm
                 idPrefix="ct"
                 q={filters.q}
-                regionRefId={filters.regionRefId}
+                regionCode={filters.regionCode}
                 tertiaryFilter={{
                   items: assessmentKindFilterItems,
                   paramName: "assessment",
@@ -350,6 +363,15 @@ function ClinicalTestsContent({
           className="border-b border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm text-amber-950 dark:text-amber-100"
         >
           Параметр «Вид оценки» в адресе не распознан — фильтр по виду оценки не применён.
+        </p>
+      ) : null}
+      {filters.invalidRegionQuery ? (
+        <p
+          role="status"
+          className="border-b border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm text-amber-950 dark:text-amber-100"
+        >
+          Параметр «Регион» в адресе задан как UUID — ожидается код справочника (например spine). Фильтр по региону не
+          применён.
         </p>
       ) : null}
       <CatalogSplitLayout
@@ -418,6 +440,7 @@ export function ClinicalTestsPageClient({
   initialTitleSort,
   assessmentKindFilterItems,
   assessmentKindCatalogItems,
+  bodyRegionIdToCode,
   filters,
 }: Props) {
   const [viewMode, setViewMode] = useState<ClinicalTestsViewMode>(initialViewMode);
@@ -477,6 +500,7 @@ export function ClinicalTestsPageClient({
       filters={filters}
       assessmentKindFilterItems={assessmentKindFilterItems}
       assessmentKindCatalogItems={assessmentKindCatalogItems}
+      bodyRegionIdToCode={bodyRegionIdToCode}
     />
   );
 }

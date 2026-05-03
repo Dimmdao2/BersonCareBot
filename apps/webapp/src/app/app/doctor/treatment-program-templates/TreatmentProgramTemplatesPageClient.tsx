@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState, useTransition } from "react";
 import { ClipboardList } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import type { ExerciseLoadType } from "@/modules/lfk-exercises/types";
 import type { TreatmentProgramTemplate, TreatmentProgramTemplateDetail } from "@/modules/treatment-program/types";
 import { cn } from "@/lib/utils";
 import { useDoctorCatalogDisplayList } from "@/shared/hooks/useDoctorCatalogDisplayList";
@@ -50,8 +49,6 @@ type Props = {
   initialSelectedId: string | null;
   filters: {
     q: string;
-    regionRefId?: string;
-    loadType?: ExerciseLoadType;
     listPubArch: DoctorCatalogPubArchQuery;
   };
   initialTitleSort: "asc" | "desc" | null;
@@ -252,10 +249,11 @@ export function TreatmentProgramTemplatesPageClient({
           <DoctorCatalogFiltersForm
             idPrefix={`${formKey}-tpt`}
             q={filters.q}
-            regionRefId={filters.regionRefId}
-            loadType={filters.loadType}
+            showRegionFilter={false}
+            showLoadFilter={false}
             titleSort={titleSort}
             selectedId={selectedId}
+            catalogPubArch={filters.listPubArch}
           />
         </DoctorCatalogToolbarFiltersSlot>
       }

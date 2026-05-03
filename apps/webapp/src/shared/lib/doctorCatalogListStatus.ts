@@ -217,14 +217,11 @@ function testSetArchiveScopeFromAxis(arch: DoctorCatalogArchiveAxis): TestSetArc
   return "active";
 }
 
-export function testSetListFilterFromPubArch(
-  q: DoctorCatalogPubArchQuery,
-  search?: string | null,
-): TestSetFilter {
+export function testSetListFilterFromPubArch(q: DoctorCatalogPubArchQuery): TestSetFilter {
   return {
     archiveScope: testSetArchiveScopeFromAxis(q.arch),
     publicationScope: q.pub,
-    search: search ?? null,
+    search: null,
   };
 }
 

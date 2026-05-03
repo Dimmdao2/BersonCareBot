@@ -29,11 +29,14 @@ import type { DoctorCatalogPubArchQuery } from "@/shared/lib/doctorCatalogListSt
 
 type Props = {
   templates: Template[];
-  initialSelectedId: string | null;
+  initialSelectedId?: string | null;
   exerciseCatalog: Array<{ id: string; title: string; firstMedia: ExerciseMedia | null }>;
+  exerciseMetaById: Record<string, { regionRefId: string | null; loadType: ExerciseLoadType | null }>;
+  bodyRegionIdToCode: Record<string, string>;
   filters: {
     q: string;
-    regionRefId?: string;
+    regionCode?: string;
+    invalidRegionQuery?: boolean;
     loadType?: ExerciseLoadType;
     listPubArch: DoctorCatalogPubArchQuery;
   };
@@ -42,8 +45,10 @@ type Props = {
 
 export function LfkTemplatesPageClient({
   templates,
-  initialSelectedId,
+  initialSelectedId = null,
   exerciseCatalog,
+  exerciseMetaById,
+  bodyRegionIdToCode,
   filters,
   initialTitleSort,
 }: Props) {
@@ -69,11 +74,32 @@ export function LfkTemplatesPageClient({
     });
   }, [initialSelectedId, templates]);
 
-  const displayList = useDoctorCatalogDisplayList(
+  const qSorted = useDoctorCatalogDisplayList(
     templates,
     filters.q,
     titleSort === null ? "default" : titleSort,
   );
+
+  const displayList = useMemo(() => {
+    let out = qSorted;
+    const rc = filters.regionCode?.trim();
+    const lt = filters.loadType;
+    if (rc) {
+      out = out.filter((tpl) =>
+        tpl.exercises.some((row) => {
+          const m = exerciseMetaById[row.exerciseId];
+          if (!m?.regionRefId) return false;
+          return (bodyRegionIdToCode[m.regionRefId] ?? null) === rc;
+        }),
+      );
+    }
+    if (lt) {
+      out = out.filter((tpl) =>
+        tpl.exercises.some((row) => exerciseMetaById[row.exerciseId]?.loadType === lt),
+      );
+    }
+    return out;
+  }, [qSorted, filters.regionCode, filters.loadType, exerciseMetaById, bodyRegionIdToCode]);
 
   useDoctorCatalogMasterSelectionSync({
     displayList,
@@ -92,12 +118,12 @@ export function LfkTemplatesPageClient({
     () =>
       buildLfkTemplatesListPreserveQuery({
         q: filters.q,
-        regionRefId: filters.regionRefId,
+        regionCode: filters.regionCode,
         loadType: filters.loadType,
         listPubArch: filters.listPubArch,
         titleSort,
       }),
-    [filters.q, filters.regionRefId, filters.loadType, filters.listPubArch, titleSort],
+    [filters.q, filters.regionCode, filters.loadType, filters.listPubArch, titleSort],
   );
 
   const changeTitleSort = (next: CatalogMasterTitleSort | null) => {
@@ -213,9 +239,10 @@ export function LfkTemplatesPageClient({
           <DoctorCatalogFiltersForm
             idPrefix="lfk-tpl"
             q={filters.q}
-            regionRefId={filters.regionRefId}
+            regionCode={filters.regionCode}
             loadType={filters.loadType}
             titleSort={titleSort}
+            catalogPubArch={filters.listPubArch}
           />
         </DoctorCatalogToolbarFiltersSlot>
       }
@@ -245,6 +272,15 @@ export function LfkTemplatesPageClient({
 
   return (
     <DoctorCatalogPageLayout toolbar={toolbar}>
+      {filters.invalidRegionQuery ? (
+        <p
+          role="status"
+          className="border-b border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm text-amber-950 dark:text-amber-100"
+        >
+          Параметр «Регион» в адресе задан как UUID — ожидается код справочника (например spine). Фильтр по региону не
+          применён.
+        </p>
+      ) : null}
       <CatalogSplitLayout
         className="lg:h-[calc(100dvh-3.5rem-env(safe-area-inset-top,0px)-3.25rem-1rem)] lg:overflow-hidden"
         left={

@@ -33,8 +33,13 @@ export type DoctorCatalogTertiaryFilter = {
 
 export type DoctorCatalogFiltersFormProps = {
   q: string;
-  regionRefId?: string;
+  /** Код `reference_items.code` категории `body_region` (в URL `?region=`). */
+  regionCode?: string;
   loadType?: ExerciseLoadType;
+  /** Если false — колонка «Регион» скрыта (синхронизация `?region=` не используется). */
+  showRegionFilter?: boolean;
+  /** Если false — колонка «Тип нагрузки» скрыта (только когда нет `tertiaryFilter`). */
+  showLoadFilter?: boolean;
   /** Если задано, третья колонка — не тип нагрузки, а этот список (напр. область рекомендации). */
   tertiaryFilter?: DoctorCatalogTertiaryFilter;
   view?: "tiles" | "list";
@@ -62,8 +67,10 @@ function applyParamsPatch(sp: URLSearchParams, patch: Record<string, string | nu
  */
 export function DoctorCatalogFiltersForm({
   q,
-  regionRefId,
+  regionCode,
   loadType,
+  showRegionFilter = true,
+  showLoadFilter = true,
   tertiaryFilter,
   view,
   titleSort,
@@ -76,7 +83,7 @@ export function DoctorCatalogFiltersForm({
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  const [selectedRegionRefId, setSelectedRegionRefId] = useState<string | null>(regionRefId ?? null);
+  const [selectedRegionCode, setSelectedRegionCode] = useState<string | null>(regionCode ?? null);
   const [selectedExerciseLoad, setSelectedExerciseLoad] = useState<string | null>(loadType ?? null);
   const [selectedCustomTertiary, setSelectedCustomTertiary] = useState<string | null>(
     tertiaryFilter?.value ?? null,
@@ -155,8 +162,8 @@ export function DoctorCatalogFiltersForm({
   }, [mergeWorkspaceInto, replaceSearch]);
 
   useEffect(() => {
-    setSelectedRegionRefId(regionRefId ?? null);
-  }, [regionRefId]);
+    setSelectedRegionCode(regionCode ?? null);
+  }, [regionCode]);
 
   useEffect(() => {
     setSelectedExerciseLoad(loadType ?? null);
@@ -195,69 +202,71 @@ export function DoctorCatalogFiltersForm({
           className="w-full"
         />
       </div>
-      <div className="w-40 shrink-0">
-        <label className="sr-only" htmlFor={`${idPrefix}-region`}>
-          Регион
-        </label>
-        <ReferenceSelect
-          id={`${idPrefix}-region`}
-          categoryCode="body_region"
-          value={selectedRegionRefId}
-          onChange={(refId) => {
-            setSelectedRegionRefId(refId);
-            navigateWithPatch({ region: refId });
-          }}
-          placeholder="Выберите регион"
-          clearOptionLabel="Все регионы"
-          showAllOnFocus
-          searchable={false}
-        />
-      </div>
-      <div className="w-40 shrink-0">
-        {tertiaryFilter ? (
-          <>
-            <label className="sr-only" htmlFor={`${idPrefix}-${tertiaryFilter.paramName}`}>
-              {tertiaryFilter.label}
-            </label>
-            <ReferenceSelect
-              id={`${idPrefix}-${tertiaryFilter.paramName}`}
-              prefetchedItems={tertiaryFilter.items}
-              valueMatch="code"
-              submitField="code"
-              value={selectedCustomTertiary}
-              onChange={(code) => {
-                setSelectedCustomTertiary(code);
-                navigateWithPatch({ [tertiaryFilter.paramName]: code });
-              }}
-              placeholder={tertiaryFilter.placeholder}
-              clearOptionLabel={tertiaryFilter.clearLabel}
-              showAllOnFocus
-              searchable={false}
-            />
-          </>
-        ) : (
-          <>
-            <label className="sr-only" htmlFor={`${idPrefix}-load`}>
-              Тип нагрузки
-            </label>
-            <ReferenceSelect
-              id={`${idPrefix}-load`}
-              prefetchedItems={EXERCISE_LOAD_FILTER_ITEMS}
-              valueMatch="code"
-              submitField="code"
-              value={selectedExerciseLoad}
-              onChange={(code) => {
-                setSelectedExerciseLoad(code);
-                navigateWithPatch({ load: code });
-              }}
-              placeholder="Все типы"
-              clearOptionLabel="Все типы"
-              showAllOnFocus
-              searchable={false}
-            />
-          </>
-        )}
-      </div>
+      {showRegionFilter ? (
+        <div className="w-40 shrink-0">
+          <label className="sr-only" htmlFor={`${idPrefix}-region`}>
+            Регион
+          </label>
+          <ReferenceSelect
+            id={`${idPrefix}-region`}
+            categoryCode="body_region"
+            valueMatch="code"
+            submitField="code"
+            value={selectedRegionCode}
+            onChange={(code) => {
+              setSelectedRegionCode(code);
+              navigateWithPatch({ region: code });
+            }}
+            placeholder="Выберите регион"
+            clearOptionLabel="Все регионы"
+            showAllOnFocus
+            searchable={false}
+          />
+        </div>
+      ) : null}
+      {tertiaryFilter ? (
+        <div className="w-40 shrink-0">
+          <label className="sr-only" htmlFor={`${idPrefix}-${tertiaryFilter.paramName}`}>
+            {tertiaryFilter.label}
+          </label>
+          <ReferenceSelect
+            id={`${idPrefix}-${tertiaryFilter.paramName}`}
+            prefetchedItems={tertiaryFilter.items}
+            valueMatch="code"
+            submitField="code"
+            value={selectedCustomTertiary}
+            onChange={(code) => {
+              setSelectedCustomTertiary(code);
+              navigateWithPatch({ [tertiaryFilter.paramName]: code });
+            }}
+            placeholder={tertiaryFilter.placeholder}
+            clearOptionLabel={tertiaryFilter.clearLabel}
+            showAllOnFocus
+            searchable={false}
+          />
+        </div>
+      ) : showLoadFilter ? (
+        <div className="w-40 shrink-0">
+          <label className="sr-only" htmlFor={`${idPrefix}-load`}>
+            Тип нагрузки
+          </label>
+          <ReferenceSelect
+            id={`${idPrefix}-load`}
+            prefetchedItems={EXERCISE_LOAD_FILTER_ITEMS}
+            valueMatch="code"
+            submitField="code"
+            value={selectedExerciseLoad}
+            onChange={(code) => {
+              setSelectedExerciseLoad(code);
+              navigateWithPatch({ load: code });
+            }}
+            placeholder="Все типы"
+            clearOptionLabel="Все типы"
+            showAllOnFocus
+            searchable={false}
+          />
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -20,9 +20,7 @@ type PageProps = {
     view?: string;
     q?: string;
     titleSort?: string;
-    /** Паритет с `GET /api/doctor/recommendations?region=`; в UI каталога также поддерживается legacy `regionRefId`. */
     region?: string;
-    regionRefId?: string;
     domain?: string;
     status?: string;
   }>;
@@ -37,15 +35,9 @@ export default async function DoctorRecommendationsPage({ searchParams }: PagePr
     RECOMMENDATION_TYPE_CATEGORY_CODE,
   );
   const domainFilterItems = referenceItemsToRecommendationDomainFilterDto(recommendationTypeRefItems);
-  const regionQs =
-    typeof sp.region === "string" && sp.region.trim()
-      ? sp.region
-      : typeof sp.regionRefId === "string" && sp.regionRefId.trim()
-        ? sp.regionRefId
-        : undefined;
   const catalogQuery = parseRecommendationCatalogSsrQuery(
     {
-      region: regionQs,
+      region: typeof sp.region === "string" ? sp.region : undefined,
       domain: typeof sp.domain === "string" ? sp.domain : undefined,
     },
     recommendationTypeRefItems,
@@ -55,12 +47,16 @@ export default async function DoctorRecommendationsPage({ searchParams }: PagePr
   const listStatus = parseRecommendationListFilterScope(sp, "active");
   const archiveScope = recommendationArchiveScopeFromListScope(listStatus);
 
-  const items = await deps.recommendations.listRecommendations({
-    search: q || null,
-    archiveScope,
-    regionRefId: catalogQuery.regionRefIdForList,
-    domain: catalogQuery.domainForList,
-  });
+  const [items, bodyRegionItems] = await Promise.all([
+    deps.recommendations.listRecommendations({
+      search: null,
+      archiveScope,
+      regionRefId: null,
+      domain: catalogQuery.domainForList,
+    }),
+    deps.references.listActiveItemsByCategoryCode("body_region"),
+  ]);
+  const bodyRegionIdToCode = Object.fromEntries(bodyRegionItems.map((it) => [it.id, it.code]));
 
   const rawSelected = typeof sp.selected === "string" ? sp.selected.trim() : "";
   const initialSelectedId =
@@ -84,13 +80,14 @@ export default async function DoctorRecommendationsPage({ searchParams }: PagePr
         initialTitleSort={titleSort}
         domainFilterItems={domainFilterItems}
         domainCatalogItems={recommendationTypeRefItems}
+        bodyRegionIdToCode={bodyRegionIdToCode}
         filters={{
           q,
-          regionRefId: catalogQuery.regionRefIdForList ?? undefined,
-          domain: catalogQuery.domainForList ?? undefined,
+          regionCode: catalogQuery.regionCodeForCatalog,
           listStatus,
           invalidDomainQuery: catalogQuery.invalidDomainQuery,
           invalidRegionQuery: catalogQuery.invalidRegionQuery,
+          domain: catalogQuery.domainForList ?? undefined,
         }}
       />
     </AppShell>

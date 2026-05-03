@@ -1,12 +1,10 @@
-import { z } from "zod";
 import type { ReferenceItem } from "@/modules/references/types";
+import { parseDoctorCatalogRegionQueryParam } from "@/shared/lib/doctorCatalogRegionQuery";
 import { parseRecommendationDomain, type RecommendationDomain } from "./recommendationDomain";
 
 export type RecommendationCatalogSsrParsed = {
   /** Значение для `listRecommendations({ domain })`; `null` = без фильтра по типу. */
   domainForList: RecommendationDomain | null;
-  /** Значение для `listRecommendations({ regionRefId })`; `null` = без фильтра по региону. */
-  regionRefIdForList: string | null;
   /**
    * Непустой `?domain=` не входит в allowlist (активные `reference_items` категории `recommendation_type` или сид v1).
    * На SSR фильтр по типу **не** применяется (`domainForList === null`), страница рендерится; UI может показать баннер.
@@ -15,18 +13,17 @@ export type RecommendationCatalogSsrParsed = {
    */
   invalidDomainQuery: boolean;
   /**
-   * Непустой `?region=` не UUID — фильтр по региону не применяется.
-   * На SSR — баннер; `GET /api/doctor/recommendations` с не-UUID `region` — **`400`** `{ ok:false, error:"invalid_query", field:"region" }`.
+   * Непустой `?region=` — UUID (в каталоге допускается только код справочника, например `spine`).
+   * На SSR — баннер; фильтр по региону на сервере не выполняется (только клиент по коду).
    */
   invalidRegionQuery: boolean;
+  /** Код `body_region` из query для клиентского фильтра; `undefined` если пусто или UUID. */
+  regionCodeForCatalog: string | undefined;
 };
 
 /**
- * Парсинг query каталога рекомендаций на SSR: та же логика allowlist/UUID, что и у `GET /api/doctor/recommendations`,
- * для передачи в `listRecommendations` (невалидные части query не попадают в фильтр списка).
- * HTTP-ответ страницы при невалидных query **не** `400` — см. описание флагов `invalidDomainQuery` / `invalidRegionQuery`.
- *
- * @param sp — `{ region, domain }`: `region` — UUID из query (на странице каталога врач может передать значение из `?region=` или склеить с legacy `?regionRefId=` до вызова).
+ * Парсинг query каталога рекомендаций на SSR: allowlist для `domain`;
+ * `region` — только код справочника (не UUID), для UI/клиента, не для `listRecommendations`.
  */
 export function parseRecommendationCatalogSsrQuery(
   sp: {
@@ -35,10 +32,7 @@ export function parseRecommendationCatalogSsrQuery(
   },
   refItems: ReferenceItem[],
 ): RecommendationCatalogSsrParsed {
-  const regionRaw = typeof sp.region === "string" ? sp.region.trim() : "";
-  const regionUuidOk = !regionRaw || z.string().uuid().safeParse(regionRaw).success;
-  const invalidRegionQuery = Boolean(regionRaw) && !regionUuidOk;
-  const regionRefIdForList = regionRaw && regionUuidOk ? regionRaw : null;
+  const regionParsed = parseDoctorCatalogRegionQueryParam(sp.region);
 
   const domainRaw = typeof sp.domain === "string" ? sp.domain.trim() : "";
   const domainParsed = domainRaw ? parseRecommendationDomain(domainRaw, refItems) : undefined;
@@ -47,8 +41,8 @@ export function parseRecommendationCatalogSsrQuery(
 
   return {
     domainForList,
-    regionRefIdForList,
     invalidDomainQuery,
-    invalidRegionQuery,
+    invalidRegionQuery: regionParsed.invalidRegionQuery,
+    regionCodeForCatalog: regionParsed.regionCode,
   };
 }

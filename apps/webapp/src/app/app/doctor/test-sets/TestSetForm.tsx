@@ -72,7 +72,7 @@ type Props = {
   workspaceListPreserve?: {
     q?: string;
     titleSort?: "asc" | "desc" | null;
-    regionRefId?: string;
+    regionCode?: string;
     loadType?: ExerciseLoadType;
     listPubArch?: DoctorCatalogPubArchQuery;
   };
@@ -230,8 +230,8 @@ export function TestSetForm({
         {workspaceListPreserve?.titleSort === "asc" || workspaceListPreserve?.titleSort === "desc" ? (
           <input type="hidden" name="listTitleSort" value={workspaceListPreserve.titleSort} />
         ) : null}
-        {workspaceListPreserve?.regionRefId != null && workspaceListPreserve.regionRefId !== "" ? (
-          <input type="hidden" name="listRegion" value={workspaceListPreserve.regionRefId} />
+        {workspaceListPreserve?.regionCode != null && workspaceListPreserve.regionCode !== "" ? (
+          <input type="hidden" name="listRegion" value={workspaceListPreserve.regionCode} />
         ) : null}
         {workspaceListPreserve?.loadType === "strength" ||
         workspaceListPreserve?.loadType === "stretch" ||
@@ -321,8 +321,8 @@ export function TestSetForm({
                 {workspaceListPreserve?.titleSort === "asc" || workspaceListPreserve?.titleSort === "desc" ? (
                   <input type="hidden" name="listTitleSort" value={workspaceListPreserve.titleSort} />
                 ) : null}
-                {workspaceListPreserve?.regionRefId != null && workspaceListPreserve.regionRefId !== "" ? (
-                  <input type="hidden" name="listRegion" value={workspaceListPreserve.regionRefId} />
+                {workspaceListPreserve?.regionCode != null && workspaceListPreserve.regionCode !== "" ? (
+                  <input type="hidden" name="listRegion" value={workspaceListPreserve.regionCode} />
                 ) : null}
                 {workspaceListPreserve?.loadType === "strength" ||
                 workspaceListPreserve?.loadType === "stretch" ||
@@ -353,8 +353,8 @@ export function TestSetForm({
             {workspaceListPreserve?.titleSort === "asc" || workspaceListPreserve?.titleSort === "desc" ? (
               <input type="hidden" name="listTitleSort" value={workspaceListPreserve.titleSort} />
             ) : null}
-            {workspaceListPreserve?.regionRefId != null && workspaceListPreserve.regionRefId !== "" ? (
-              <input type="hidden" name="listRegion" value={workspaceListPreserve.regionRefId} />
+            {workspaceListPreserve?.regionCode != null && workspaceListPreserve.regionCode !== "" ? (
+              <input type="hidden" name="listRegion" value={workspaceListPreserve.regionCode} />
             ) : null}
             {workspaceListPreserve?.loadType === "strength" ||
             workspaceListPreserve?.loadType === "stretch" ||

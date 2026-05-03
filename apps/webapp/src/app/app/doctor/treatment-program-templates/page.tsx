@@ -1,6 +1,5 @@
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import type { ExerciseLoadType } from "@/modules/lfk-exercises/types";
 import { AppShell } from "@/shared/ui/AppShell";
 import { buildTreatmentProgramLibraryPickers } from "./buildTreatmentProgramLibraryPickers";
 import { TreatmentProgramTemplatesPageClient } from "./TreatmentProgramTemplatesPageClient";
@@ -50,15 +49,6 @@ export default async function TreatmentProgramTemplatesPage({ searchParams }: Pa
   const raw = typeof sp.selected === "string" ? sp.selected.trim() : "";
   const initialSelectedId = raw && items.some((t) => t.id === raw) ? raw : null;
   const q = typeof sp.q === "string" ? sp.q : "";
-  const regionRefId = typeof sp.region === "string" && sp.region.trim() ? sp.region.trim() : undefined;
-  const loadType =
-    sp.load === "strength" ||
-    sp.load === "stretch" ||
-    sp.load === "balance" ||
-    sp.load === "cardio" ||
-    sp.load === "other"
-      ? (sp.load as ExerciseLoadType)
-      : undefined;
   const initialTitleSort = sp.titleSort === "asc" || sp.titleSort === "desc" ? sp.titleSort : null;
 
   return (
@@ -67,7 +57,7 @@ export default async function TreatmentProgramTemplatesPage({ searchParams }: Pa
         templates={items}
         library={library}
         initialSelectedId={initialSelectedId}
-        filters={{ q, regionRefId, loadType, listPubArch }}
+        filters={{ q, listPubArch }}
         initialTitleSort={initialTitleSort}
       />
     </AppShell>

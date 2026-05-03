@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import type { ExerciseLoadType } from "@/modules/lfk-exercises/types";
 import type { TestSet, TestSetUsageSnapshot } from "@/modules/tests/types";
@@ -35,9 +35,11 @@ type Props = {
   initialSelectedId: string | null;
   initialSelectedUsageSnapshot: TestSetUsageSnapshot | null;
   clinicalTestsLibrary: ClinicalTestLibraryPickRow[];
+  bodyRegionIdToCode: Record<string, string>;
   filters: {
     q: string;
-    regionRefId?: string;
+    regionCode?: string;
+    invalidRegionQuery?: boolean;
     loadType?: ExerciseLoadType;
     listPubArch: DoctorCatalogPubArchQuery;
   };
@@ -48,6 +50,7 @@ export function TestSetsPageClient({
   initialSelectedId,
   initialSelectedUsageSnapshot,
   clinicalTestsLibrary,
+  bodyRegionIdToCode,
   filters,
 }: Props) {
   const [titleSort, setTitleSort] = useState<CatalogMasterTitleSort | null>(null);
@@ -67,11 +70,22 @@ export function TestSetsPageClient({
     });
   }, [initialSelectedId, initialSets]);
 
-  const displayList = useDoctorCatalogDisplayList(
+  const qSorted = useDoctorCatalogDisplayList(
     initialSets,
     filters.q,
     titleSort === null ? "default" : titleSort,
   );
+
+  const displayList = useMemo(() => {
+    const rc = filters.regionCode?.trim();
+    if (!rc) return qSorted;
+    return qSorted.filter((s) =>
+      s.items.some((it) => {
+        const bid = it.test.bodyRegionId;
+        return Boolean(bid && bodyRegionIdToCode[bid] === rc);
+      }),
+    );
+  }, [qSorted, filters.regionCode, bodyRegionIdToCode]);
 
   const titleSortForHeader: CatalogMasterTitleSort | null =
     titleSort === "asc" || titleSort === "desc" ? titleSort : null;
@@ -157,7 +171,7 @@ export function TestSetsPageClient({
           workspaceListPreserve={{
             q: filters.q,
             titleSort,
-            regionRefId: filters.regionRefId,
+            regionCode: filters.regionCode,
             loadType: filters.loadType,
             listPubArch: filters.listPubArch,
           }}
@@ -198,10 +212,11 @@ export function TestSetsPageClient({
           <DoctorCatalogFiltersForm
             idPrefix="ts"
             q={filters.q}
-            regionRefId={filters.regionRefId}
-            loadType={filters.loadType}
+            regionCode={filters.regionCode}
+            showLoadFilter={false}
             titleSort={titleSort}
             selectedId={creating ? null : selected?.id ?? mobileSheet?.id ?? null}
+            catalogPubArch={filters.listPubArch}
           />
         </DoctorCatalogToolbarFiltersSlot>
       }
@@ -223,6 +238,15 @@ export function TestSetsPageClient({
 
   return (
     <DoctorCatalogPageLayout toolbar={toolbar}>
+      {filters.invalidRegionQuery ? (
+        <p
+          role="status"
+          className="border-b border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm text-amber-950 dark:text-amber-100"
+        >
+          Параметр «Регион» в адресе задан как UUID — ожидается код справочника (например spine). Фильтр по региону не
+          применён.
+        </p>
+      ) : null}
       <CatalogSplitLayout
         className="lg:h-[calc(100dvh-3.5rem-env(safe-area-inset-top,0px)-3.25rem-1rem)] lg:overflow-hidden"
         left={

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import type { ReferenceItem } from "@/modules/references/types";
@@ -38,6 +38,7 @@ import {
 } from "@/shared/ui/doctor/DoctorCatalogFiltersForm";
 import { RecommendationForm } from "./RecommendationForm";
 import { archiveRecommendationInline, saveRecommendationInline, unarchiveRecommendationInline } from "./actionsInline";
+import { useDoctorCatalogDisplayList } from "@/shared/hooks/useDoctorCatalogDisplayList";
 export type RecommendationsViewMode = "tiles" | "list";
 export type RecommendationTitleSort = "asc" | "desc";
 
@@ -55,14 +56,15 @@ type Props = {
   initialTitleSort: RecommendationTitleSort | null;
   domainFilterItems: ReferenceItemDto[];
   domainCatalogItems: ReferenceItem[];
+  bodyRegionIdToCode: Record<string, string>;
   filters: {
     q: string;
-    regionRefId?: string;
+    regionCode?: string;
     domain?: RecommendationDomain;
     listStatus: RecommendationListFilterScope;
     /** Непустой `?domain=` не распознан — фильтр по типу не применён (паритет с GET API). */
     invalidDomainQuery?: boolean;
-    /** Непустой `?region=` не UUID — фильтр по региону не применён. */
+    /** Непустой `?region=` — UUID; в URL ожидается код справочника. */
     invalidRegionQuery?: boolean;
   };
 };
@@ -194,6 +196,7 @@ function RecommendationsContent({
   changeTitleSort,
   domainFilterItems,
   domainCatalogItems,
+  bodyRegionIdToCode,
   filters,
 }: {
   initialItems: Recommendation[];
@@ -211,6 +214,7 @@ function RecommendationsContent({
   changeTitleSort: (next: RecommendationTitleSort | null) => void;
   domainFilterItems: ReferenceItemDto[];
   domainCatalogItems: ReferenceItem[];
+  bodyRegionIdToCode: Record<string, string>;
   filters: Props["filters"];
 }) {
   useEffect(() => {
@@ -223,13 +227,21 @@ function RecommendationsContent({
     });
   }, [initialSelectedId, initialItems, setDesktopSelectedId, setMobileSheet]);
 
-  const displayRecommendations = useMemo(() => {
-    if (!titleSort) return initialItems;
-    return [...initialItems].sort((a, b) => {
-      const cmp = a.title.localeCompare(b.title, "ru", { sensitivity: "base" });
-      return titleSort === "asc" ? cmp : -cmp;
-    });
-  }, [initialItems, titleSort]);
+  const getItemRegionCode = useCallback(
+    (r: Recommendation) =>
+      r.bodyRegionId ? (bodyRegionIdToCode[r.bodyRegionId] ?? null) : null,
+    [bodyRegionIdToCode],
+  );
+
+  const displayRecommendations = useDoctorCatalogDisplayList(
+    initialItems,
+    filters.q,
+    titleSort === null ? "default" : titleSort,
+    {
+      regionCode: filters.regionCode,
+      getItemRegionCode,
+    },
+  );
 
   useEffect(() => {
     if (!desktopSelectedId) return;
@@ -355,7 +367,7 @@ function RecommendationsContent({
         workspaceListPreserve={{
           q: filters.q,
           titleSort,
-          regionRefId: filters.regionRefId,
+          regionCode: filters.regionCode,
           domain: filters.domain,
           listStatus: filters.listStatus,
         }}
@@ -374,7 +386,7 @@ function RecommendationsContent({
                 key={`rec-filters-${filters.listStatus}-${filters.invalidDomainQuery ? "1" : "0"}-${filters.invalidRegionQuery ? "1" : "0"}`}
                 idPrefix="rec"
                 q={filters.q}
-                regionRefId={filters.regionRefId}
+                regionCode={filters.regionCode}
                 tertiaryFilter={recommendationTertiaryFilter}
                 view={viewMode}
                 titleSort={titleSort}
@@ -411,7 +423,8 @@ function RecommendationsContent({
           role="status"
           className="border-b border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm text-amber-950 dark:text-amber-100"
         >
-          Параметр «Регион» в адресе не является UUID — фильтр по региону не применён.
+          Параметр «Регион» в адресе задан как UUID — ожидается код справочника (например spine). Фильтр по региону не
+          применён.
         </p>
       ) : null}
       <CatalogSplitLayout
@@ -484,6 +497,7 @@ export function RecommendationsPageClient({
   initialTitleSort,
   domainFilterItems,
   domainCatalogItems,
+  bodyRegionIdToCode,
   filters,
 }: Props) {
   const [viewMode, setViewMode] = useState<RecommendationsViewMode>(initialViewMode);
@@ -542,6 +556,7 @@ export function RecommendationsPageClient({
       changeTitleSort={changeTitleSort}
       domainFilterItems={domainFilterItems}
       domainCatalogItems={domainCatalogItems}
+      bodyRegionIdToCode={bodyRegionIdToCode}
       filters={filters}
     />
   );

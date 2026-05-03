@@ -6,6 +6,7 @@ import {
   clinicalTestListArchiveScopeFromRecommendationFilter,
   parseRecommendationListFilterScope,
 } from "@/shared/lib/doctorCatalogListStatus";
+import { parseDoctorCatalogRegionQueryParam } from "@/shared/lib/doctorCatalogRegionQuery";
 import {
   CLINICAL_ASSESSMENT_KIND_CATEGORY_CODE,
   assessmentKindWriteAllowSet,
@@ -30,7 +31,7 @@ export default async function DoctorClinicalTestsPage({ searchParams }: PageProp
   const deps = buildAppDeps();
   const sp = (await searchParams) ?? {};
   const q = typeof sp.q === "string" ? sp.q : "";
-  const regionRefId = typeof sp.region === "string" && sp.region.trim() ? sp.region.trim() : undefined;
+  const regionParsed = parseDoctorCatalogRegionQueryParam(sp.region);
   const assessmentRaw = typeof sp.assessment === "string" ? sp.assessment.trim() : "";
   const assessmentRefItems = await deps.references.listActiveItemsByCategoryCode(
     CLINICAL_ASSESSMENT_KIND_CATEGORY_CODE,
@@ -43,12 +44,16 @@ export default async function DoctorClinicalTestsPage({ searchParams }: PageProp
   const listStatus = parseRecommendationListFilterScope(sp, "active");
   const archiveScope = clinicalTestListArchiveScopeFromRecommendationFilter(listStatus);
 
-  const items = await deps.clinicalTests.listClinicalTests({
-    search: q || null,
-    archiveScope,
-    regionRefId: regionRefId ?? null,
-    assessmentKind: assessmentKind ?? null,
-  });
+  const [items, bodyRegionItems] = await Promise.all([
+    deps.clinicalTests.listClinicalTests({
+      search: null,
+      archiveScope,
+      regionRefId: null,
+      assessmentKind: assessmentKind ?? null,
+    }),
+    deps.references.listActiveItemsByCategoryCode("body_region"),
+  ]);
+  const bodyRegionIdToCode = Object.fromEntries(bodyRegionItems.map((it) => [it.id, it.code]));
 
   const rawSelected = typeof sp.selected === "string" ? sp.selected.trim() : "";
   const initialSelectedId =
@@ -72,7 +77,15 @@ export default async function DoctorClinicalTestsPage({ searchParams }: PageProp
         initialTitleSort={titleSort}
         assessmentKindFilterItems={assessmentKindFilterItems}
         assessmentKindCatalogItems={assessmentRefItems}
-        filters={{ q, regionRefId, assessmentKind, invalidAssessmentQuery: assessmentRaw !== "" && !assessmentKind, listStatus }}
+        bodyRegionIdToCode={bodyRegionIdToCode}
+        filters={{
+          q,
+          regionCode: regionParsed.regionCode,
+          invalidRegionQuery: regionParsed.invalidRegionQuery,
+          assessmentKind,
+          invalidAssessmentQuery: assessmentRaw !== "" && !assessmentKind,
+          listStatus,
+        }}
       />
     </AppShell>
   );

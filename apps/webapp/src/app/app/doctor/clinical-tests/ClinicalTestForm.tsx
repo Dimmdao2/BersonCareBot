@@ -230,7 +230,7 @@ type ClinicalTestFormProps = {
   workspaceListPreserve?: {
     q?: string;
     titleSort?: "asc" | "desc" | null;
-    regionRefId?: string;
+    regionCode?: string;
     assessmentKind?: string | null;
     listStatus?: RecommendationListFilterScope;
   };
@@ -407,8 +407,8 @@ export function ClinicalTestForm({
         {workspaceListPreserve?.titleSort === "asc" || workspaceListPreserve?.titleSort === "desc" ? (
           <input type="hidden" name="listTitleSort" value={workspaceListPreserve.titleSort} />
         ) : null}
-        {workspaceListPreserve?.regionRefId != null && workspaceListPreserve.regionRefId !== "" ? (
-          <input type="hidden" name="listRegion" value={workspaceListPreserve.regionRefId} />
+        {workspaceListPreserve?.regionCode != null && workspaceListPreserve.regionCode !== "" ? (
+          <input type="hidden" name="listRegion" value={workspaceListPreserve.regionCode} />
         ) : null}
         {workspaceListPreserve?.assessmentKind != null && workspaceListPreserve.assessmentKind !== "" ? (
           <input type="hidden" name="listAssessment" value={workspaceListPreserve.assessmentKind} />
@@ -722,8 +722,8 @@ export function ClinicalTestForm({
                 {workspaceListPreserve?.titleSort === "asc" || workspaceListPreserve?.titleSort === "desc" ? (
                   <input type="hidden" name="listTitleSort" value={workspaceListPreserve.titleSort} />
                 ) : null}
-                {workspaceListPreserve?.regionRefId != null && workspaceListPreserve.regionRefId !== "" ? (
-                  <input type="hidden" name="listRegion" value={workspaceListPreserve.regionRefId} />
+                {workspaceListPreserve?.regionCode != null && workspaceListPreserve.regionCode !== "" ? (
+                  <input type="hidden" name="listRegion" value={workspaceListPreserve.regionCode} />
                 ) : null}
                 {workspaceListPreserve?.assessmentKind != null && workspaceListPreserve.assessmentKind !== "" ? (
                   <input type="hidden" name="listAssessment" value={workspaceListPreserve.assessmentKind} />
@@ -753,8 +753,8 @@ export function ClinicalTestForm({
             {workspaceListPreserve?.titleSort === "asc" || workspaceListPreserve?.titleSort === "desc" ? (
               <input type="hidden" name="listTitleSort" value={workspaceListPreserve.titleSort} />
             ) : null}
-            {workspaceListPreserve?.regionRefId != null && workspaceListPreserve.regionRefId !== "" ? (
-              <input type="hidden" name="listRegion" value={workspaceListPreserve.regionRefId} />
+            {workspaceListPreserve?.regionCode != null && workspaceListPreserve.regionCode !== "" ? (
+              <input type="hidden" name="listRegion" value={workspaceListPreserve.regionCode} />
             ) : null}
             {workspaceListPreserve?.assessmentKind != null && workspaceListPreserve.assessmentKind !== "" ? (
               <input type="hidden" name="listAssessment" value={workspaceListPreserve.assessmentKind} />

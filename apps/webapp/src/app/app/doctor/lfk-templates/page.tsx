@@ -8,6 +8,7 @@ import {
   parseDoctorCatalogPubArchQuery,
   type DoctorCatalogPubArchQuery,
 } from "@/shared/lib/doctorCatalogListStatus";
+import { parseDoctorCatalogRegionQueryParam } from "@/shared/lib/doctorCatalogRegionQuery";
 import { LfkTemplatesPageClient } from "./LfkTemplatesPageClient";
 
 type PageProps = {
@@ -27,7 +28,7 @@ export default async function DoctorLfkTemplatesPage({ searchParams }: PageProps
   const sp = (await searchParams) ?? {};
 
   const q = typeof sp.q === "string" ? sp.q : "";
-  const regionRefId = typeof sp.region === "string" && sp.region.trim() ? sp.region.trim() : undefined;
+  const regionParsed = parseDoctorCatalogRegionQueryParam(sp.region);
   const loadType =
     sp.load === "strength" ||
     sp.load === "stretch" ||
@@ -41,14 +42,19 @@ export default async function DoctorLfkTemplatesPage({ searchParams }: PageProps
   const listPubArch: DoctorCatalogPubArchQuery = parseDoctorCatalogPubArchQuery(sp);
 
   const deps = buildAppDeps();
-  const [rawList, exercises] = await Promise.all([
+  const [rawList, exercises, bodyRegionItems] = await Promise.all([
     deps.lfkTemplates.listTemplates({
-      search: q || null,
       includeExerciseDetails: true,
       ...lfkTemplateFilterFromPubArch(listPubArch),
     }),
     deps.lfkExercises.listExercises({ includeArchived: false }),
+    deps.references.listActiveItemsByCategoryCode("body_region"),
   ]);
+  const bodyRegionIdToCode = Object.fromEntries(bodyRegionItems.map((it) => [it.id, it.code]));
+  const exerciseMetaById: Record<string, { regionRefId: string | null; loadType: ExerciseLoadType | null }> = {};
+  for (const e of exercises) {
+    exerciseMetaById[e.id] = { regionRefId: e.regionRefId, loadType: e.loadType };
+  }
 
   const exerciseCatalog = exercises.map((e) => ({
     id: e.id,
@@ -62,9 +68,12 @@ export default async function DoctorLfkTemplatesPage({ searchParams }: PageProps
         <LfkTemplatesPageClient
           templates={rawList}
           exerciseCatalog={exerciseCatalog}
+          exerciseMetaById={exerciseMetaById}
+          bodyRegionIdToCode={bodyRegionIdToCode}
           filters={{
             q,
-            regionRefId,
+            regionCode: regionParsed.regionCode,
+            invalidRegionQuery: regionParsed.invalidRegionQuery,
             loadType,
             listPubArch,
           }}

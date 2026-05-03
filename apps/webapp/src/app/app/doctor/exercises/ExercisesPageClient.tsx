@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
-import { Suspense, use, useEffect, useMemo, useState, useTransition } from "react";
+import { Suspense, use, useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { ChevronDown } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
@@ -34,6 +34,7 @@ import { VirtualizedItemGrid } from "@/shared/ui/VirtualizedItemGrid";
 import { ExercisesFiltersForm } from "./ExercisesFiltersForm";
 import { archiveExerciseInline, saveExerciseInline, unarchiveExerciseInline } from "./actionsInline";
 import { ExerciseTileCard } from "./ExerciseTileCard";
+import { useDoctorCatalogDisplayList } from "@/shared/hooks/useDoctorCatalogDisplayList";
 
 export type ExercisesViewMode = "tiles" | "list";
 
@@ -67,9 +68,11 @@ type Props = {
   /** Если false — режим подставляется из localStorage (последний выбор на этой странице). */
   viewLockedByUrl: boolean;
   initialTitleSort: ExerciseTitleSort | null;
+  bodyRegionIdToCode: Record<string, string>;
   filters: {
     q: string;
-    regionRefId?: string;
+    regionCode?: string;
+    invalidRegionQuery?: boolean;
     loadType?: ExerciseLoadType;
     listStatus: RecommendationListFilterScope;
   };
@@ -141,6 +144,7 @@ type ExercisesContentProps = {
   toggleViewMode: () => void;
   changeTitleSort: (next: ExerciseTitleSort | null) => void;
   filters: Props["filters"];
+  bodyRegionIdToCode: Record<string, string>;
 };
 
 function ExercisesContent({
@@ -157,9 +161,17 @@ function ExercisesContent({
   toggleViewMode,
   changeTitleSort,
   filters,
+  bodyRegionIdToCode,
 }: ExercisesContentProps) {
   const exercises = use(listPromise);
   const selection = use(doctorExerciseSelectionPromise);
+
+  const getItemRegionCode = useCallback(
+    (ex: Exercise) =>
+      ex.regionRefId ? (bodyRegionIdToCode[ex.regionRefId] ?? null) : null,
+    [bodyRegionIdToCode],
+  );
+  const getItemLoadType = useCallback((ex: Exercise) => ex.loadType, []);
 
   useEffect(() => {
     if (selection.exercise?.id) setDesktopSelectedId(selection.exercise.id);
@@ -189,13 +201,17 @@ function ExercisesContent({
     return undefined;
   }, [exerciseForDesktop, mobileSheet?.exercise, selection.exercise?.id, selection.usage]);
 
-  const displayExercises = useMemo(() => {
-    if (!titleSort) return exercises;
-    return [...exercises].sort((a, b) => {
-      const cmp = a.title.localeCompare(b.title, "ru", { sensitivity: "base" });
-      return titleSort === "asc" ? cmp : -cmp;
-    });
-  }, [exercises, titleSort]);
+  const displayExercises = useDoctorCatalogDisplayList(
+    exercises,
+    filters.q,
+    titleSort === null ? "default" : titleSort,
+    {
+      regionCode: filters.regionCode,
+      loadType: filters.loadType ?? null,
+      getItemRegionCode,
+      getItemLoadType,
+    },
+  );
 
   const isDesktopViewport = useViewportMinWidth(1024);
   const n = displayExercises.length;
@@ -283,7 +299,7 @@ function ExercisesContent({
               <ExercisesFiltersForm
                 idPrefix="ex"
                 q={filters.q}
-                regionRefId={filters.regionRefId}
+                regionCode={filters.regionCode}
                 loadType={filters.loadType}
                 view={viewMode}
                 titleSort={titleSort}
@@ -303,6 +319,15 @@ function ExercisesContent({
         />
       }
     >
+      {filters.invalidRegionQuery ? (
+        <p
+          role="status"
+          className="border-b border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm text-amber-950 dark:text-amber-100"
+        >
+          Параметр «Регион» в адресе задан как UUID — ожидается код справочника (например spine). Фильтр по региону не
+          применён.
+        </p>
+      ) : null}
       <CatalogSplitLayout
         className="lg:h-[calc(100dvh-3.5rem-env(safe-area-inset-top,0px)-3.25rem-1rem)] lg:overflow-hidden"
         left={
@@ -423,6 +448,7 @@ export function ExercisesPageClient({
   initialViewMode,
   viewLockedByUrl,
   initialTitleSort,
+  bodyRegionIdToCode,
   filters,
 }: Props) {
   const [viewMode, setViewMode] = useState<ExercisesViewMode>(initialViewMode);
@@ -480,6 +506,7 @@ export function ExercisesPageClient({
         toggleViewMode={toggleViewMode}
         changeTitleSort={changeTitleSort}
         filters={filters}
+        bodyRegionIdToCode={bodyRegionIdToCode}
       />
     </Suspense>
   );

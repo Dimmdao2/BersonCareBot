@@ -1,11 +1,11 @@
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import type { ExerciseLoadType } from "@/modules/lfk-exercises/types";
 import { AppShell } from "@/shared/ui/AppShell";
 import {
   parseDoctorCatalogPubArchQuery,
   testSetListFilterFromPubArch,
 } from "@/shared/lib/doctorCatalogListStatus";
+import { parseDoctorCatalogRegionQueryParam } from "@/shared/lib/doctorCatalogRegionQuery";
 import { clinicalTestLibraryRows } from "./clinicalTestLibraryRows";
 import { TestSetsPageClient } from "./TestSetsPageClient";
 
@@ -28,19 +28,23 @@ export default async function DoctorTestSetsPage({ searchParams }: PageProps) {
 
   const sp = (await searchParams) ?? {};
   const q = typeof sp.q === "string" ? sp.q : "";
-  const regionRefId = typeof sp.region === "string" && sp.region.trim() ? sp.region.trim() : undefined;
+  const regionParsed = parseDoctorCatalogRegionQueryParam(sp.region);
   const loadType =
     sp.load === "strength" ||
     sp.load === "stretch" ||
     sp.load === "balance" ||
     sp.load === "cardio" ||
     sp.load === "other"
-      ? (sp.load as ExerciseLoadType)
+      ? sp.load
       : undefined;
 
   const listPubArch = parseDoctorCatalogPubArchQuery(sp);
 
-  const items = await deps.testSets.listTestSets(testSetListFilterFromPubArch(listPubArch, q || null));
+  const [items, bodyRegionItems] = await Promise.all([
+    deps.testSets.listTestSets(testSetListFilterFromPubArch(listPubArch)),
+    deps.references.listActiveItemsByCategoryCode("body_region"),
+  ]);
+  const bodyRegionIdToCode = Object.fromEntries(bodyRegionItems.map((it) => [it.id, it.code]));
 
   const clinicalTestsForPicker = await deps.clinicalTests.listClinicalTests({ archiveScope: "active" });
   const clinicalTestsLibrary = clinicalTestLibraryRows(clinicalTestsForPicker);
@@ -57,7 +61,14 @@ export default async function DoctorTestSetsPage({ searchParams }: PageProps) {
         initialSelectedId={initialSelectedId}
         initialSelectedUsageSnapshot={initialSelectedUsageSnapshot}
         clinicalTestsLibrary={clinicalTestsLibrary}
-        filters={{ q, regionRefId, loadType, listPubArch }}
+        bodyRegionIdToCode={bodyRegionIdToCode}
+        filters={{
+          q,
+          regionCode: regionParsed.regionCode,
+          invalidRegionQuery: regionParsed.invalidRegionQuery,
+          loadType,
+          listPubArch,
+        }}
       />
     </AppShell>
   );

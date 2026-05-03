@@ -89,7 +89,7 @@ export type TestSetItemWithTest = {
   testId: string;
   sortOrder: number;
   comment: string | null;
-  test: Pick<ClinicalTest, "id" | "title" | "testType" | "isArchived"> & {
+  test: Pick<ClinicalTest, "id" | "title" | "testType" | "isArchived" | "bodyRegionId"> & {
     /** Первое медиа по `sort_order` для превью в редакторе набора. */
     previewMedia: ClinicalTestMediaItem | null;
   };

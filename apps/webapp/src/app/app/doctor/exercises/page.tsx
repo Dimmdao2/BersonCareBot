@@ -3,6 +3,7 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { AppShell } from "@/shared/ui/AppShell";
 import { doctorCatalogViewFromSearchParams } from "@/shared/lib/doctorCatalogViewPreference";
 import { parseRecommendationListFilterScope } from "@/shared/lib/doctorCatalogListStatus";
+import { parseDoctorCatalogRegionQueryParam } from "@/shared/lib/doctorCatalogRegionQuery";
 import type { Exercise, ExerciseUsageSnapshot } from "@/modules/lfk-exercises/types";
 import { ExercisesPageClient } from "./ExercisesPageClient";
 
@@ -22,7 +23,7 @@ export default async function DoctorExercisesPage({ searchParams }: PageProps) {
   const session = await requireDoctorAccess();
   const sp = (await searchParams) ?? {};
   const q = typeof sp.q === "string" ? sp.q : "";
-  const regionRefId = typeof sp.region === "string" && sp.region.trim() ? sp.region.trim() : undefined;
+  const regionParsed = parseDoctorCatalogRegionQueryParam(sp.region);
   const loadType =
     sp.load === "strength" ||
     sp.load === "stretch" ||
@@ -42,11 +43,11 @@ export default async function DoctorExercisesPage({ searchParams }: PageProps) {
 
   const deps = buildAppDeps();
   const listPromise = deps.lfkExercises.listExercises({
-    search: q || null,
-    regionRefId: regionRefId ?? null,
-    loadType: loadType ?? null,
     archiveListScope: listStatus,
   });
+  const bodyRegionItems = await deps.references.listActiveItemsByCategoryCode("body_region");
+  const bodyRegionIdToCode = Object.fromEntries(bodyRegionItems.map((it) => [it.id, it.code]));
+
   const doctorExerciseSelectionPromise: Promise<DoctorExerciseSelection> = selectedExerciseId
     ? deps.lfkExercises
         .getExercise(selectedExerciseId)
@@ -65,7 +66,14 @@ export default async function DoctorExercisesPage({ searchParams }: PageProps) {
         initialViewMode={initialViewMode}
         viewLockedByUrl={viewLockedByUrl}
         initialTitleSort={titleSort}
-        filters={{ q, regionRefId, loadType, listStatus }}
+        bodyRegionIdToCode={bodyRegionIdToCode}
+        filters={{
+          q,
+          regionCode: regionParsed.regionCode,
+          invalidRegionQuery: regionParsed.invalidRegionQuery,
+          loadType,
+          listStatus,
+        }}
       />
     </AppShell>
   );

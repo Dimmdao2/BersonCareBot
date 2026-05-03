@@ -121,7 +121,7 @@ type Props = {
   workspaceListPreserve?: {
     q?: string;
     titleSort?: "asc" | "desc" | null;
-    regionRefId?: string;
+    regionCode?: string;
     domain?: RecommendationDomain;
     listStatus?: RecommendationListFilterScope;
   };
@@ -286,8 +286,8 @@ export function RecommendationForm({
         {workspaceListPreserve?.titleSort === "asc" || workspaceListPreserve?.titleSort === "desc" ? (
           <input type="hidden" name="listTitleSort" value={workspaceListPreserve.titleSort} />
         ) : null}
-        {workspaceListPreserve?.regionRefId != null && workspaceListPreserve.regionRefId !== "" ? (
-          <input type="hidden" name="listRegion" value={workspaceListPreserve.regionRefId} />
+        {workspaceListPreserve?.regionCode != null && workspaceListPreserve.regionCode !== "" ? (
+          <input type="hidden" name="listRegion" value={workspaceListPreserve.regionCode} />
         ) : null}
         {workspaceListPreserve?.domain != null ? (
           <input type="hidden" name="listDomain" value={workspaceListPreserve.domain} />
@@ -475,8 +475,8 @@ export function RecommendationForm({
                 {workspaceListPreserve?.titleSort === "asc" || workspaceListPreserve?.titleSort === "desc" ? (
                   <input type="hidden" name="listTitleSort" value={workspaceListPreserve.titleSort} />
                 ) : null}
-                {workspaceListPreserve?.regionRefId != null && workspaceListPreserve.regionRefId !== "" ? (
-                  <input type="hidden" name="listRegion" value={workspaceListPreserve.regionRefId} />
+                {workspaceListPreserve?.regionCode != null && workspaceListPreserve.regionCode !== "" ? (
+                  <input type="hidden" name="listRegion" value={workspaceListPreserve.regionCode} />
                 ) : null}
                 {workspaceListPreserve?.domain != null ? (
                   <input type="hidden" name="listDomain" value={workspaceListPreserve.domain} />
@@ -506,8 +506,8 @@ export function RecommendationForm({
                 {workspaceListPreserve?.titleSort === "asc" || workspaceListPreserve?.titleSort === "desc" ? (
                   <input type="hidden" name="listTitleSort" value={workspaceListPreserve.titleSort} />
                 ) : null}
-                {workspaceListPreserve?.regionRefId != null && workspaceListPreserve.regionRefId !== "" ? (
-                  <input type="hidden" name="listRegion" value={workspaceListPreserve.regionRefId} />
+                {workspaceListPreserve?.regionCode != null && workspaceListPreserve.regionCode !== "" ? (
+                  <input type="hidden" name="listRegion" value={workspaceListPreserve.regionCode} />
                 ) : null}
                 {workspaceListPreserve?.domain != null ? (
                   <input type="hidden" name="listDomain" value={workspaceListPreserve.domain} />

@@ -6,6 +6,30 @@
 
 ---
 
+## 2026-05-04 — FILTER URL CONTRACT FIX (doctor catalog list)
+
+**Контекст:** [`FILTER_URL_CONTRACT_FIX_PLAN.md`](FILTER_URL_CONTRACT_FIX_PLAN.md) — `?region=` только как `reference_items.code`; без UUID fallback и без `regionRefId` в query; `q` / `region` / `load` / `titleSort` не передаются в server `list*`; `view` — только UI-state.
+
+**Сделано:**
+
+- **`parseDoctorCatalogRegionQueryParam`** (`shared/lib/doctorCatalogRegionQuery.ts`) + unit-тест.
+- **`parseRecommendationCatalogSsrQuery`:** убран `regionRefIdForList`; `regionCodeForCatalog` + `invalidRegionQuery` при UUID в `region`.
+- **Страницы SSR:** exercises, recommendations, clinical-tests, lfk-templates, test-sets — list-вызовы без `search`/`regionRefId`/`loadType` где применимо; `body_region` → `bodyRegionIdToCode` для клиента.
+- **`useDoctorCatalogDisplayList`:** опции `regionCode` + `loadType` + резолверы; unit-тест.
+- **`DoctorCatalogFiltersForm`:** `regionCode`, `ReferenceSelect` с `valueMatch="code"`; `showRegionFilter` / `showLoadFilter` (test-sets без load; treatment program без region/load в панели).
+- **Клиенты:** client-side фильтрация + баннер при UUID в `region` (exercises, recommendations, clinical-tests, lfk-templates, test-sets).
+- **Treatment program templates:** убрана серверная трактовка `region`/`load` для списка; панель — только поиск + `titleSort` + pub/arch через `catalogPubArch`.
+- **Preserve:** `listRegion` в формах — **код** (`regionCode`); `lfkTemplatesListPreserveQuery` — `regionCode`, sanitize отсекает UUID.
+- **`pgTestSets` / in-memory:** вложенный `test` включает `bodyRegionId` для клиентского фильтра по региону.
+
+**Проверки (целевые):** `pnpm --dir apps/webapp exec eslint` (изменённые файлы), `vitest run` (целевые тесты), `pnpm --dir apps/webapp exec tsc --noEmit`.
+
+**Residual risks:** каталог шаблонов программ не фильтрует по `region`/`load` (в списке нет состава элементов); `GET /api/doctor/recommendations` и др. API по-прежнему могут ожидать UUID для `region` — контракт только для **страниц** каталога врача.
+
+**Вне scope:** patient UI, assignment runtime, миграции БД, create/edit FK форм (кроме hidden preserve `listRegion`).
+
+---
+
 ## 2026-05-03 — Stage D2 — FIX (`AUDIT_STAGE_D2` MANDATORY)
 
 **Контекст:** закрытие обязательных пунктов [`AUDIT_STAGE_D2.md`](AUDIT_STAGE_D2.md) после аудита D2.

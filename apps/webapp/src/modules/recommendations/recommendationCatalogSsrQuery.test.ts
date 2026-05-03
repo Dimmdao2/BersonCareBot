@@ -11,18 +11,18 @@ beforeAll(async () => {
 });
 
 describe("parseRecommendationCatalogSsrQuery", () => {
-  it("applies valid domain and region", () => {
+  it("applies valid domain and passes region code for client (not server refId)", () => {
     const r = parseRecommendationCatalogSsrQuery(
       {
         domain: "nutrition",
-        region: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        region: "spine",
       },
       refItems,
     );
     expect(r.invalidDomainQuery).toBe(false);
     expect(r.invalidRegionQuery).toBe(false);
     expect(r.domainForList).toBe("nutrition");
-    expect(r.regionRefIdForList).toBe("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
+    expect(r.regionCodeForCatalog).toBe("spine");
   });
 
   it("drops invalid domain and sets invalidDomainQuery", () => {
@@ -31,10 +31,13 @@ describe("parseRecommendationCatalogSsrQuery", () => {
     expect(r.domainForList).toBe(null);
   });
 
-  it("drops invalid region and sets invalidRegionQuery", () => {
-    const r = parseRecommendationCatalogSsrQuery({ region: "not-a-uuid" }, refItems);
+  it("treats UUID region as invalid for catalog URL contract", () => {
+    const r = parseRecommendationCatalogSsrQuery(
+      { region: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" },
+      refItems,
+    );
     expect(r.invalidRegionQuery).toBe(true);
-    expect(r.regionRefIdForList).toBe(null);
+    expect(r.regionCodeForCatalog).toBeUndefined();
   });
 
   it("treats empty strings as no filter", () => {
@@ -42,6 +45,6 @@ describe("parseRecommendationCatalogSsrQuery", () => {
     expect(r.invalidDomainQuery).toBe(false);
     expect(r.invalidRegionQuery).toBe(false);
     expect(r.domainForList).toBe(null);
-    expect(r.regionRefIdForList).toBe(null);
+    expect(r.regionCodeForCatalog).toBeUndefined();
   });
 });
