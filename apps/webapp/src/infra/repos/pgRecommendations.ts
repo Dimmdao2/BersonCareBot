@@ -47,6 +47,10 @@ function mapRow(row: typeof recommendationsTable.$inferSelect): Recommendation {
     media: normalizeMedia(row.media),
     tags: row.tags ?? null,
     domain,
+    bodyRegionId: row.bodyRegionId ?? null,
+    quantityText: row.quantityText?.trim() ? row.quantityText.trim() : null,
+    frequencyText: row.frequencyText?.trim() ? row.frequencyText.trim() : null,
+    durationText: row.durationText?.trim() ? row.durationText.trim() : null,
     isArchived: row.isArchived,
     createdBy: row.createdBy,
     createdAt: row.createdAt,
@@ -255,6 +259,10 @@ export function createPgRecommendationsPort(): RecommendationsPort {
       if (domainFilter) {
         conds.push(eq(recommendationsTable.domain, domainFilter));
       }
+      const regionId = filter.regionRefId?.trim();
+      if (regionId) {
+        conds.push(eq(recommendationsTable.bodyRegionId, regionId));
+      }
       const rows = await db
         .select()
         .from(recommendationsTable)
@@ -279,6 +287,10 @@ export function createPgRecommendationsPort(): RecommendationsPort {
           media: normalizeMedia(input.media ?? []),
           tags: input.tags ?? null,
           domain: input.domain ?? null,
+          bodyRegionId: input.bodyRegionId ?? null,
+          quantityText: input.quantityText ?? null,
+          frequencyText: input.frequencyText ?? null,
+          durationText: input.durationText ?? null,
           createdBy,
         })
         .returning();
@@ -294,6 +306,10 @@ export function createPgRecommendationsPort(): RecommendationsPort {
       if (input.bodyMd !== undefined) patch.bodyMd = input.bodyMd;
       if (input.tags !== undefined) patch.tags = input.tags ?? null;
       if (input.domain !== undefined) patch.domain = input.domain ?? null;
+      if (input.bodyRegionId !== undefined) patch.bodyRegionId = input.bodyRegionId ?? null;
+      if (input.quantityText !== undefined) patch.quantityText = input.quantityText ?? null;
+      if (input.frequencyText !== undefined) patch.frequencyText = input.frequencyText ?? null;
+      if (input.durationText !== undefined) patch.durationText = input.durationText ?? null;
       if (input.media !== undefined) patch.media = normalizeMedia(input.media ?? []);
 
       const rows = await db

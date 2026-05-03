@@ -793,6 +793,11 @@ export const recommendationsRelations = relations(recommendations, ({ one }) => 
 		fields: [recommendations.createdBy],
 		references: [platformUsers.id],
 	}),
+	bodyRegion: one(referenceItems, {
+		fields: [recommendations.bodyRegionId],
+		references: [referenceItems.id],
+		relationName: "recommendations_body_region",
+	}),
 }));
 
 export const treatmentProgramTemplatesRelations = relations(treatmentProgramTemplates, ({ one, many }) => ({

@@ -247,3 +247,44 @@ pnpm exec tsc --noEmit
 **Пуш:** после закрытия B3 рекомендуется чекпоинт-пуш с полным `pnpm install --frozen-lockfile && pnpm run ci` перед `git push` ([`MASTER_PLAN.md`](MASTER_PLAN.md) §9).
 
 **Результат:** vitest / eslint / tsc — **PASS**.
+
+---
+
+## 2026-05-03 — Stage B4 — EXEC (рекомендации: тип, регион, метрики текста)
+
+**Контекст:** `STAGE_B4_PLAN.md`, `PRE_IMPLEMENTATION_DECISIONS.md` (Q3/Q4: колонка остаётся `domain`, UI «Тип»; без merge legacy→новые значения в одной миграции), продуктовое ТЗ §3 B4.
+
+**Сделано:**
+
+- Drizzle **`0036_recommendations_b4_body_region_metrics`**: `body_region_id` (FK `reference_items`), `quantity_text`, `frequency_text`, `duration_text`; индекс по региону; **без** `UPDATE` нормализации исторических `domain`.
+- Домен: расширен список кодов типа (`regimen`, `device`, `self_procedure`, `external_therapy`, `lifestyle` + прежние); парсер без смены имени колонки БД.
+- Репозитории `pg` / in-memory: маппинг полей, фильтр списка по `regionRefId` **и** `domain` (AND).
+- Doctor UI: `RecommendationForm` — «Тип», `ReferenceSelect` региона тела, три коротких поля метрик; `RecommendationsPageClient` — подписи фильтра «Тип».
+- `actionsShared` — парсинг `bodyRegionId` (UUID), лимит длины метрик 2000; сохранение в create/update.
+- API `GET/POST` `/api/doctor/recommendations`, `PATCH` `[id]` — query `region`/`domain` и тело с B4-полями; `api.md`.
+- Тесты: `recommendationDomain.test.ts`, `service.test` (пересечение фильтров, архив/разархив с сохранением B4-полей), `RecommendationForm.test` (лейбл «Тип» + stub `fetch` для `body_region`).
+
+**Проверки (целевые, без полного `pnpm run ci`):**
+
+```bash
+cd apps/webapp && pnpm exec eslint \
+  db/schema/recommendations.ts db/schema/relations.ts \
+  src/modules/recommendations/recommendationDomain.ts src/modules/recommendations/recommendationDomain.test.ts \
+  src/modules/recommendations/types.ts src/modules/recommendations/service.ts src/modules/recommendations/service.test.ts \
+  src/infra/repos/pgRecommendations.ts src/infra/repos/inMemoryRecommendations.ts \
+  src/app/app/doctor/recommendations/RecommendationForm.tsx src/app/app/doctor/recommendations/RecommendationForm.test.tsx \
+  src/app/app/doctor/recommendations/RecommendationsPageClient.tsx \
+  src/app/app/doctor/recommendations/actionsShared.ts \
+  src/app/api/doctor/recommendations/route.ts src/app/api/doctor/recommendations/\[id\]/route.ts
+pnpm exec vitest run \
+  src/modules/recommendations/recommendationDomain.test.ts \
+  src/modules/recommendations/service.test.ts \
+  src/app/app/doctor/recommendations/RecommendationForm.test.tsx
+pnpm exec tsc --noEmit
+```
+
+**Продуктовое:** в продуктовом ТЗ §3 B4 фигурирует имя колонки `kind`; по **PRE_IMPLEMENTATION** §1 B4/Q4 в коде и БД остаётся **`domain`**, в UI — **«Тип»**; переименование колонки — вне B4.
+
+**Вне scope:** полный `pnpm run ci`; переименование `domain` → `kind` в БД.
+
+**Результат:** eslint / vitest / tsc — **PASS**.

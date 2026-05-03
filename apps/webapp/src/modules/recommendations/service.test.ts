@@ -137,4 +137,51 @@ describe("recommendations service", () => {
     await svc.archiveRecommendation(rec.id);
     await expect(svc.updateRecommendation(rec.id, { title: "Nope" })).rejects.toThrow(/архиве/);
   });
+
+  it("listRecommendations intersects domain and regionRefId (AND)", async () => {
+    const regionId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    await inMemoryRecommendationsPort.create(
+      { title: "Match", bodyMd: "x", domain: "nutrition", bodyRegionId: regionId },
+      null,
+    );
+    await inMemoryRecommendationsPort.create(
+      { title: "WrongRegion", bodyMd: "y", domain: "nutrition", bodyRegionId: null },
+      null,
+    );
+    await inMemoryRecommendationsPort.create(
+      { title: "WrongType", bodyMd: "z", domain: "motivation", bodyRegionId: regionId },
+      null,
+    );
+    const svc = createRecommendationsService(inMemoryRecommendationsPort);
+    const out = await svc.listRecommendations({ domain: "nutrition", regionRefId: regionId });
+    expect(out).toHaveLength(1);
+    expect(out[0]?.title).toBe("Match");
+  });
+
+  it("archive and unarchive retain B4 fields (region + metric texts)", async () => {
+    const svc = createRecommendationsService(inMemoryRecommendationsPort);
+    const regionId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+    const rec = await svc.createRecommendation(
+      {
+        title: "R",
+        bodyMd: "md",
+        domain: "regimen",
+        bodyRegionId: regionId,
+        quantityText: "  1 раз  ",
+        frequencyText: "",
+        durationText: null,
+      },
+      null,
+    );
+    expect(rec.quantityText).toBe("1 раз");
+    await svc.archiveRecommendation(rec.id);
+    let cur = await svc.getRecommendation(rec.id);
+    expect(cur?.isArchived).toBe(true);
+    expect(cur?.bodyRegionId).toBe(regionId);
+    expect(cur?.quantityText).toBe("1 раз");
+    await svc.unarchiveRecommendation(rec.id);
+    cur = await svc.getRecommendation(rec.id);
+    expect(cur?.isArchived).toBe(false);
+    expect(cur?.bodyRegionId).toBe(regionId);
+  });
 });

@@ -49,6 +49,23 @@ function parseDomainField(raw: FormDataEntryValue | null) {
   return parseRecommendationDomain(raw.trim()) ?? null;
 }
 
+const RECOMMENDATION_METRIC_TEXT_MAX = 2000;
+
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function parseBodyRegionIdField(raw: FormDataEntryValue | null): string | null {
+  if (typeof raw !== "string" || !raw.trim()) return null;
+  const t = raw.trim();
+  if (!UUID_RE.test(t)) return null;
+  return t;
+}
+
+function parseOptionalMetricText(raw: FormDataEntryValue | null): string | null {
+  if (typeof raw !== "string" || !raw.trim()) return null;
+  return raw.trim();
+}
+
 function validateMedia(mediaUrl: string | null, mediaType: "image" | "video" | "gif" | ""): string | null {
   if (mediaType && !mediaUrl) return "Укажите файл из библиотеки или очистите тип медиа.";
   if (mediaUrl && !mediaType) return "Выберите файл из библиотеки.";
@@ -89,6 +106,19 @@ export async function saveRecommendationCore(formData: FormData): Promise<
 
   const tags = parseTags(formData.get("tags"));
   const domain = parseDomainField(formData.get("domain"));
+  const bodyRegionId = parseBodyRegionIdField(formData.get("bodyRegionId"));
+  const quantityTextRaw = parseOptionalMetricText(formData.get("quantityText"));
+  const frequencyTextRaw = parseOptionalMetricText(formData.get("frequencyText"));
+  const durationTextRaw = parseOptionalMetricText(formData.get("durationText"));
+  for (const [label, val] of [
+    ["Количество", quantityTextRaw],
+    ["Частота", frequencyTextRaw],
+    ["Длительность", durationTextRaw],
+  ] as const) {
+    if (val && val.length > RECOMMENDATION_METRIC_TEXT_MAX) {
+      return { ok: false, error: `${label}: не более ${RECOMMENDATION_METRIC_TEXT_MAX} символов` };
+    }
+  }
   if (!title) return { ok: false, error: "Название обязательно" };
 
   const deps = buildAppDeps();
@@ -107,6 +137,10 @@ export async function saveRecommendationCore(formData: FormData): Promise<
         tags,
         media,
         domain,
+        bodyRegionId,
+        quantityText: quantityTextRaw,
+        frequencyText: frequencyTextRaw,
+        durationText: durationTextRaw,
       });
       return { ok: true, recommendationId: id, wasUpdate: true };
     }
@@ -117,6 +151,10 @@ export async function saveRecommendationCore(formData: FormData): Promise<
         tags,
         media,
         domain,
+        bodyRegionId,
+        quantityText: quantityTextRaw,
+        frequencyText: frequencyTextRaw,
+        durationText: durationTextRaw,
       },
       session.user.userId,
     );

@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import type { Recommendation } from "@/modules/recommendations/types";
 import { EMPTY_RECOMMENDATION_USAGE_SNAPSHOT } from "@/modules/recommendations/types";
@@ -15,6 +15,23 @@ vi.mock("./actions", async () => {
   };
 });
 
+beforeEach(() => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn((input: RequestInfo | URL) => {
+      const u = typeof input === "string" ? input : input instanceof Request ? input.url : String(input);
+      if (u.includes("/api/references/body_region")) {
+        return Promise.resolve(new Response(JSON.stringify({ ok: true, items: [] }), { status: 200 }));
+      }
+      return Promise.resolve(new Response(JSON.stringify({ ok: false, items: [] }), { status: 404 }));
+    }),
+  );
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
 function makeRecommendation(over: Partial<Recommendation>): Recommendation {
   return {
     id: "rec-1",
@@ -23,6 +40,10 @@ function makeRecommendation(over: Partial<Recommendation>): Recommendation {
     media: [],
     tags: null,
     domain: null,
+    bodyRegionId: null,
+    quantityText: null,
+    frequencyText: null,
+    durationText: null,
     isArchived: false,
     createdBy: null,
     createdAt: "2026-01-01T00:00:00.000Z",
@@ -32,6 +53,25 @@ function makeRecommendation(over: Partial<Recommendation>): Recommendation {
 }
 
 describe("RecommendationForm", () => {
+  it("labels catalog type field as Тип", () => {
+    const saveAction = vi.fn(async (_prev: SaveRecommendationState | null): Promise<SaveRecommendationState> => ({
+      ok: true,
+    }));
+    const archiveAction = vi.fn(
+      async (_prev: ArchiveRecommendationState | null, _fd: FormData): Promise<ArchiveRecommendationState> => ({
+        ok: true,
+      }),
+    );
+    render(
+      <RecommendationForm
+        recommendation={makeRecommendation({ id: "x" })}
+        saveAction={saveAction}
+        archiveAction={archiveAction}
+      />,
+    );
+    expect(screen.getByText("Тип")).toBeInTheDocument();
+  });
+
   it("resets title when recommendation id changes", () => {
     const saveAction = vi.fn(async (_prev: SaveRecommendationState | null): Promise<SaveRecommendationState> => ({
       ok: true,

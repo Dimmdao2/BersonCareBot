@@ -246,6 +246,13 @@
       "when": 1777823521139,
       "tag": "0035_test_set_items_comment",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1777900000000,
+      "tag": "0036_recommendations_b4_body_region_metrics",
+      "breakpoints": true
     }
   ]
 }

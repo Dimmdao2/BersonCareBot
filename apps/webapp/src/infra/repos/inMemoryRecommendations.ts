@@ -66,6 +66,10 @@ function matchesFilter(r: Recommendation, f: RecommendationFilter): boolean {
   if (f.domain) {
     if (r.domain !== f.domain) return false;
   }
+  const regionId = f.regionRefId?.trim();
+  if (regionId) {
+    if (r.bodyRegionId !== regionId) return false;
+  }
   return true;
 }
 
@@ -90,6 +94,10 @@ export const inMemoryRecommendationsPort: RecommendationsPort = {
       media: normalizeMedia(input.media ?? []),
       tags: input.tags ?? null,
       domain: input.domain ?? null,
+      bodyRegionId: input.bodyRegionId ?? null,
+      quantityText: input.quantityText ?? null,
+      frequencyText: input.frequencyText ?? null,
+      durationText: input.durationText ?? null,
       isArchived: false,
       createdBy,
       createdAt: now,
@@ -109,6 +117,10 @@ export const inMemoryRecommendationsPort: RecommendationsPort = {
       bodyMd: input.bodyMd !== undefined ? input.bodyMd : cur.bodyMd,
       tags: input.tags !== undefined ? input.tags : cur.tags,
       domain: input.domain !== undefined ? (input.domain ?? null) : cur.domain,
+      bodyRegionId: input.bodyRegionId !== undefined ? (input.bodyRegionId ?? null) : cur.bodyRegionId,
+      quantityText: input.quantityText !== undefined ? (input.quantityText ?? null) : cur.quantityText,
+      frequencyText: input.frequencyText !== undefined ? (input.frequencyText ?? null) : cur.frequencyText,
+      durationText: input.durationText !== undefined ? (input.durationText ?? null) : cur.durationText,
       media: input.media !== undefined ? normalizeMedia(input.media) : cur.media,
       updatedAt: now,
     };

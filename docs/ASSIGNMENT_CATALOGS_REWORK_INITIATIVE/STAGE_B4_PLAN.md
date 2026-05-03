@@ -63,13 +63,13 @@
 
 ## 7. Execution checklist
 
-1. [ ] Миграции + enum расширение без ломания существующих строк.
-2. [ ] Форма + список/фильтры.
-3. [ ] Тесты compose формы.
-4. [ ] Negative path: пустые/частично заполненные quantity/frequency/duration сохраняются корректно.
-5. [ ] `eslint` / `vitest` / `tsc`.
-6. [ ] Smoke: create/update/archive/unarchive с новыми полями.
-7. [ ] Smoke: region filter и type filter вместе (пересечение фильтров) корректны.
+1. [x] Миграции + enum расширение без ломания существующих строк.
+2. [x] Форма + список/фильтры.
+3. [x] Тесты compose формы.
+4. [x] Negative path: пустые/частично заполненные quantity/frequency/duration сохраняются корректно.
+5. [x] `eslint` / `vitest` / `tsc`.
+6. [x] Smoke: create/update/archive/unarchive с новыми полями.
+7. [x] Smoke: region filter и type filter вместе (пересечение фильтров) корректны.
 
 ## 8. Recommended checks (targeted)
 

@@ -12,8 +12,13 @@ export type Recommendation = {
   bodyMd: string;
   media: RecommendationMediaItem[];
   tags: string[] | null;
-  /** Область контента (каталог врача). */
+  /** Тип (колонка БД `domain`). */
   domain: RecommendationDomain | null;
+  /** Регион тела (`reference_items`, категория `body_region`). */
+  bodyRegionId: string | null;
+  quantityText: string | null;
+  frequencyText: string | null;
+  durationText: string | null;
   isArchived: boolean;
   createdBy: string | null;
   createdAt: string;
@@ -28,11 +33,10 @@ export type RecommendationFilter = {
   includeArchived?: boolean;
   archiveScope?: RecommendationArchiveScope;
   search?: string | null;
-  /** Зарезервировано под единый UI с упражнениями; список в БД пока не фильтрует. */
+  /** Фильтр по региону тела (`body_region_id`). */
   regionRefId?: string | null;
-  /** Зарезервировано под единый UI с упражнениями; список в БД пока не фильтрует. */
   loadType?: import("@/modules/lfk-exercises/types").ExerciseLoadType | null;
-  /** Фильтр по области рекомендации (`recommendationDomain`). */
+  /** Фильтр по типу (`domain` в БД). */
   domain?: RecommendationDomain | null;
 };
 
@@ -42,6 +46,10 @@ export type CreateRecommendationInput = {
   media?: RecommendationMediaItem[];
   tags?: string[] | null;
   domain?: RecommendationDomain | null;
+  bodyRegionId?: string | null;
+  quantityText?: string | null;
+  frequencyText?: string | null;
+  durationText?: string | null;
 };
 
 export type UpdateRecommendationInput = {
@@ -50,6 +58,10 @@ export type UpdateRecommendationInput = {
   media?: RecommendationMediaItem[] | null;
   tags?: string[] | null;
   domain?: RecommendationDomain | null;
+  bodyRegionId?: string | null;
+  quantityText?: string | null;
+  frequencyText?: string | null;
+  durationText?: string | null;
 };
 
 /** См. `ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md` раздел 5 (Guard архива). */

@@ -13,6 +13,12 @@ import type {
 } from "./types";
 import { recommendationArchiveRequiresAcknowledgement } from "./types";
 
+function normalizeOptionalCatalogText(raw: string | null | undefined): string | null {
+  if (raw == null) return null;
+  const t = raw.trim();
+  return t ? t : null;
+}
+
 export function createRecommendationsService(port: RecommendationsPort) {
   return {
     async listRecommendations(filter: RecommendationFilter = {}) {
@@ -32,6 +38,10 @@ export function createRecommendationsService(port: RecommendationsPort) {
           ...input,
           title,
           bodyMd,
+          bodyRegionId: input.bodyRegionId?.trim() || null,
+          quantityText: normalizeOptionalCatalogText(input.quantityText),
+          frequencyText: normalizeOptionalCatalogText(input.frequencyText),
+          durationText: normalizeOptionalCatalogText(input.durationText),
         },
         createdBy,
       );
@@ -51,6 +61,18 @@ export function createRecommendationsService(port: RecommendationsPort) {
       }
       if (input.bodyMd !== undefined) {
         patch.bodyMd = input.bodyMd.trim();
+      }
+      if (input.bodyRegionId !== undefined) {
+        patch.bodyRegionId = input.bodyRegionId?.trim() || null;
+      }
+      if (input.quantityText !== undefined) {
+        patch.quantityText = normalizeOptionalCatalogText(input.quantityText);
+      }
+      if (input.frequencyText !== undefined) {
+        patch.frequencyText = normalizeOptionalCatalogText(input.frequencyText);
+      }
+      if (input.durationText !== undefined) {
+        patch.durationText = normalizeOptionalCatalogText(input.durationText);
       }
       const row = await port.update(id, patch);
       if (!row) throw new Error("Рекомендация не найдена");

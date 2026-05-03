@@ -83,8 +83,12 @@ type FormValues = {
   tags: string;
   mediaUrl: string;
   mediaType: "" | "image" | "video" | "gif";
-  /** Код области (`RecommendationDomain`), как в `RECOMMENDATION_DOMAIN_ITEMS.code`. */
+  /** Код типа (`RecommendationDomain`), как в `RECOMMENDATION_DOMAIN_ITEMS.code`. */
   domainCode: string | null;
+  bodyRegionId: string | null;
+  quantityText: string;
+  frequencyText: string;
+  durationText: string;
 };
 
 function toValues(r: Recommendation | null | undefined): FormValues {
@@ -96,6 +100,10 @@ function toValues(r: Recommendation | null | undefined): FormValues {
     mediaUrl: m?.mediaUrl ?? "",
     mediaType: (m?.mediaType ?? "") as FormValues["mediaType"],
     domainCode: r?.domain ?? null,
+    bodyRegionId: r?.bodyRegionId ?? null,
+    quantityText: r?.quantityText ?? "",
+    frequencyText: r?.frequencyText ?? "",
+    durationText: r?.durationText ?? "",
   };
 }
 
@@ -287,7 +295,7 @@ export function RecommendationForm({
 
             <div className="flex flex-col gap-3">
               <Label className="text-sm font-medium text-foreground" htmlFor="rec-domain">
-                Область
+                Тип
               </Label>
               <ReferenceSelect
                 id="rec-domain"
@@ -299,9 +307,60 @@ export function RecommendationForm({
                 onChange={(code, _label) => {
                   setValues((v) => ({ ...v, domainCode: code }));
                 }}
-                placeholder="Выберите область"
-                clearOptionLabel="Без области"
+                placeholder="Выберите тип"
+                clearOptionLabel="Без типа"
               />
+            </div>
+
+            <div className="flex flex-col gap-3">
+              <Label className="text-sm font-medium text-foreground" htmlFor="rec-body-region">
+                Регион тела
+              </Label>
+              <ReferenceSelect
+                id="rec-body-region"
+                name="bodyRegionId"
+                categoryCode="body_region"
+                value={values.bodyRegionId}
+                onChange={(refId) => setValues((v) => ({ ...v, bodyRegionId: refId }))}
+                placeholder="Не задан"
+                clearOptionLabel="Без региона"
+              />
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="rec-quantity">Количество</Label>
+                <Input
+                  id="rec-quantity"
+                  name="quantityText"
+                  value={values.quantityText}
+                  onChange={(e) => setValues((v) => ({ ...v, quantityText: e.target.value }))}
+                  placeholder="Напр. 2×10"
+                  maxLength={2000}
+                />
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="rec-frequency">Частота</Label>
+                <Input
+                  id="rec-frequency"
+                  name="frequencyText"
+                  value={values.frequencyText}
+                  onChange={(e) => setValues((v) => ({ ...v, frequencyText: e.target.value }))}
+                  placeholder="Напр. ежедневно"
+                  maxLength={2000}
+                />
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="rec-duration">Длительность</Label>
+                <Input
+                  id="rec-duration"
+                  name="durationText"
+                  value={values.durationText}
+                  onChange={(e) => setValues((v) => ({ ...v, durationText: e.target.value }))}
+                  placeholder="Напр. 2 недели"
+                  maxLength={2000}
+                />
+              </div>
             </div>
 
             <div className="flex flex-col gap-3">

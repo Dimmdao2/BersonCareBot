@@ -258,10 +258,10 @@ function RecommendationsContent({
       items: RECOMMENDATION_DOMAIN_ITEMS,
       paramName: "domain",
       value: filters.domain ?? null,
-      label: "Область",
-      placeholder: "Все области",
-      clearLabel: "Все области",
-      summaryLabel: "Область",
+      label: "Тип",
+      placeholder: "Все типы",
+      clearLabel: "Все типы",
+      summaryLabel: "Тип",
     };
   }, [filters.domain]);
 

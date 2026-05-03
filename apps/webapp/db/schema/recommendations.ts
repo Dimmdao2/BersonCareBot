@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import { pgTable, uuid, text, boolean, jsonb, timestamp, index, foreignKey } from "drizzle-orm/pg-core";
-import { platformUsers } from "./schema";
+import { platformUsers, referenceItems } from "./schema";
 
 export const recommendations = pgTable(
   "recommendations",
@@ -13,8 +13,13 @@ export const recommendations = pgTable(
       .default(sql`'[]'::jsonb`)
       .notNull(),
     tags: text("tags").array(),
-    /** Код области: см. `recommendationDomain.ts` (техника упражнений, питание, …). */
+    /** Код типа (колонка `domain`); UI — «Тип». См. `recommendationDomain.ts`. */
     domain: text("domain"),
+    /** FK на `reference_items` (категория регионов тела, `body_region`). */
+    bodyRegionId: uuid("body_region_id"),
+    quantityText: text("quantity_text"),
+    frequencyText: text("frequency_text"),
+    durationText: text("duration_text"),
     isArchived: boolean("is_archived").default(false).notNull(),
     createdBy: uuid("created_by"),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
@@ -22,10 +27,16 @@ export const recommendations = pgTable(
   },
   (table) => [
     index("idx_recommendations_archived").using("btree", table.isArchived.asc().nullsLast().op("bool_ops")),
+    index("idx_recommendations_body_region").using("btree", table.bodyRegionId.asc().nullsLast().op("uuid_ops")),
     foreignKey({
       columns: [table.createdBy],
       foreignColumns: [platformUsers.id],
       name: "recommendations_created_by_fkey",
+    }).onDelete("set null"),
+    foreignKey({
+      columns: [table.bodyRegionId],
+      foreignColumns: [referenceItems.id],
+      name: "recommendations_body_region_id_fkey",
     }).onDelete("set null"),
   ],
 );

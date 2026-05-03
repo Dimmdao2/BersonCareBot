@@ -8,6 +8,7 @@ import {
   isRecommendationArchiveNotFoundError,
   isRecommendationUsageConfirmationRequiredError,
 } from "@/modules/recommendations/errors";
+import { parseRecommendationDomain } from "@/modules/recommendations/recommendationDomain";
 
 const mediaItemSchema = z.object({
   mediaUrl: z.string().min(1),
@@ -20,6 +21,11 @@ const patchBodySchema = z.object({
   bodyMd: z.string().max(100000).optional(),
   media: z.array(mediaItemSchema).nullable().optional(),
   tags: z.array(z.string()).optional().nullable(),
+  domain: z.string().max(64).nullable().optional(),
+  bodyRegionId: z.string().uuid().nullable().optional(),
+  quantityText: z.string().max(2000).nullable().optional(),
+  frequencyText: z.string().max(2000).nullable().optional(),
+  durationText: z.string().max(2000).nullable().optional(),
 });
 
 export async function GET(_request: Request, ctx: { params: Promise<{ id: string }> }) {
@@ -52,8 +58,26 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
 
   const deps = buildAppDeps();
   try {
+    const rawDomain = parsed.data.domain;
+    let domainPatch: ReturnType<typeof parseRecommendationDomain> | null | undefined;
+    if (rawDomain === undefined) {
+      domainPatch = undefined;
+    } else if (rawDomain === null || rawDomain === "") {
+      domainPatch = null;
+    } else {
+      domainPatch = parseRecommendationDomain(String(rawDomain).trim());
+      if (String(rawDomain).trim() && domainPatch === undefined) {
+        return NextResponse.json({ ok: false, error: "invalid_body", field: "domain" }, { status: 400 });
+      }
+    }
+
     const item = await deps.recommendations.updateRecommendation(id, {
       ...parsed.data,
+      domain: domainPatch,
+      bodyRegionId: parsed.data.bodyRegionId,
+      quantityText: parsed.data.quantityText,
+      frequencyText: parsed.data.frequencyText,
+      durationText: parsed.data.durationText,
       media:
         parsed.data.media === undefined
           ? undefined
