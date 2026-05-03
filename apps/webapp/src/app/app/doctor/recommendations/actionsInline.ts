@@ -18,7 +18,7 @@ function appendRecommendationsListParams(sp: URLSearchParams, formData: FormData
   const ts = formData.get("listTitleSort");
   if (ts === "asc" || ts === "desc") sp.set("titleSort", ts);
   const region = formData.get("listRegion");
-  if (typeof region === "string" && region.trim()) sp.set("regionRefId", region.trim());
+  if (typeof region === "string" && region.trim()) sp.set("region", region.trim());
   const listDomain = formData.get("listDomain");
   if (typeof listDomain === "string" && listDomain.trim()) {
     sp.set("domain", listDomain.trim());
@@ -38,10 +38,10 @@ export async function saveRecommendationInline(
 
   revalidatePath(RECOMMENDATIONS_PATH);
   revalidatePath(`${RECOMMENDATIONS_PATH}/${result.recommendationId}`);
-  const view = formData.get("catalogView") === "list" ? "list" : "tiles";
+  const view = formData.get("view") === "list" ? "list" : "tiles";
   const sp = new URLSearchParams();
   sp.set("selected", result.recommendationId);
-  sp.set("catalogView", view);
+  sp.set("view", view);
   appendRecommendationsListParams(sp, formData);
   redirect(`${RECOMMENDATIONS_PATH}?${sp.toString()}`);
 }
@@ -58,18 +58,18 @@ export async function archiveRecommendationInline(
     const idRaw = formData.get("id");
     const id = typeof idRaw === "string" ? idRaw.trim() : "";
     if (!id) {
-      const view = formData.get("catalogView") === "list" ? "list" : "tiles";
+      const view = formData.get("view") === "list" ? "list" : "tiles";
       const sp = new URLSearchParams();
-      sp.set("catalogView", view);
+      sp.set("view", view);
       appendRecommendationsListParams(sp, formData);
       redirect(`${RECOMMENDATIONS_PATH}?${sp.toString()}`);
     }
     return { ok: false, error: result.error };
   }
   revalidatePath(RECOMMENDATIONS_PATH);
-  const view = formData.get("catalogView") === "list" ? "list" : "tiles";
+  const view = formData.get("view") === "list" ? "list" : "tiles";
   const sp = new URLSearchParams();
-  sp.set("catalogView", view);
+  sp.set("view", view);
   appendRecommendationsListParams(sp, formData);
   redirect(`${RECOMMENDATIONS_PATH}?${sp.toString()}`);
 }
@@ -84,9 +84,9 @@ export async function unarchiveRecommendationInline(
   }
   revalidatePath(RECOMMENDATIONS_PATH);
   revalidatePath(`${RECOMMENDATIONS_PATH}/${result.id}`);
-  const view = formData.get("catalogView") === "list" ? "list" : "tiles";
+  const view = formData.get("view") === "list" ? "list" : "tiles";
   const sp = new URLSearchParams();
-  sp.set("catalogView", view);
+  sp.set("view", view);
   sp.set("selected", result.id);
   appendRecommendationsListParams(sp, formData);
   redirect(`${RECOMMENDATIONS_PATH}?${sp.toString()}`);

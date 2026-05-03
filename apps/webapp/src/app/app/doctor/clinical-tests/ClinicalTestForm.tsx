@@ -224,7 +224,7 @@ function ClinicalTestUsageSectionsView({ sections }: { sections: ClinicalTestUsa
 type ClinicalTestFormProps = {
   test?: ClinicalTest | null;
   backHref?: string;
-  /** Режим каталога master-detail — передаётся в форму как `catalogView` для редиректа после сохранения. */
+  /** Режим каталога master-detail — передаётся в форму как `view` для редиректа после сохранения. */
   workspaceView?: "tiles" | "list";
   /** Дополнить редирект после save/archive параметрами списка (`q`, `titleSort`, `region`, `load`). */
   workspaceListPreserve?: {
@@ -400,7 +400,7 @@ export function ClinicalTestForm({
           </p>
         ) : null}
         {test ? <input type="hidden" name="id" value={test.id} /> : null}
-        {workspaceView ? <input type="hidden" name="catalogView" value={workspaceView} /> : null}
+        {workspaceView ? <input type="hidden" name="view" value={workspaceView} /> : null}
         {workspaceListPreserve?.q != null && workspaceListPreserve.q !== "" ? (
           <input type="hidden" name="listQ" value={workspaceListPreserve.q} />
         ) : null}
@@ -715,7 +715,7 @@ export function ClinicalTestForm({
               ) : null}
               <form action={unarchiveFormAction} className="mt-3 flex flex-col gap-2">
                 <input type="hidden" name="id" value={test.id} />
-                {workspaceView ? <input type="hidden" name="catalogView" value={workspaceView} /> : null}
+                {workspaceView ? <input type="hidden" name="view" value={workspaceView} /> : null}
                 {workspaceListPreserve?.q != null && workspaceListPreserve.q !== "" ? (
                   <input type="hidden" name="listQ" value={workspaceListPreserve.q} />
                 ) : null}
@@ -746,7 +746,7 @@ export function ClinicalTestForm({
 
           <form ref={archiveFormRef} action={archiveFormAction} className="flex flex-col gap-2">
             <input type="hidden" name="id" value={test.id} />
-            {workspaceView ? <input type="hidden" name="catalogView" value={workspaceView} /> : null}
+            {workspaceView ? <input type="hidden" name="view" value={workspaceView} /> : null}
             {workspaceListPreserve?.q != null && workspaceListPreserve.q !== "" ? (
               <input type="hidden" name="listQ" value={workspaceListPreserve.q} />
             ) : null}

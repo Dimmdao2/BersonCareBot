@@ -45,7 +45,7 @@ describe("ExercisesFiltersForm", () => {
     expect(replace).toHaveBeenCalled();
     const url = String(replace.mock.calls[0]?.[0]);
     expect(url).toContain("q=");
-    expect(url).toContain("catalogView=list");
+    expect(url).toContain("view=list");
     expect(url).toContain("titleSort=asc");
     expect(url).toContain("selected=550e8400-e29b-41d4-a716-446655440099");
     vi.useRealTimers();

@@ -17,9 +17,11 @@ import { RecommendationsPageClient, type RecommendationTitleSort } from "./Recom
 type PageProps = {
   searchParams?: Promise<{
     selected?: string;
-    catalogView?: string;
+    view?: string;
     q?: string;
     titleSort?: string;
+    /** Паритет с `GET /api/doctor/recommendations?region=`; в UI каталога также поддерживается legacy `regionRefId`. */
+    region?: string;
     regionRefId?: string;
     domain?: string;
     status?: string;
@@ -35,9 +37,15 @@ export default async function DoctorRecommendationsPage({ searchParams }: PagePr
     RECOMMENDATION_TYPE_CATEGORY_CODE,
   );
   const domainFilterItems = referenceItemsToRecommendationDomainFilterDto(recommendationTypeRefItems);
+  const regionQs =
+    typeof sp.region === "string" && sp.region.trim()
+      ? sp.region
+      : typeof sp.regionRefId === "string" && sp.regionRefId.trim()
+        ? sp.regionRefId
+        : undefined;
   const catalogQuery = parseRecommendationCatalogSsrQuery(
     {
-      regionRefId: typeof sp.regionRefId === "string" ? sp.regionRefId : undefined,
+      region: regionQs,
       domain: typeof sp.domain === "string" ? sp.domain : undefined,
     },
     recommendationTypeRefItems,
@@ -62,7 +70,7 @@ export default async function DoctorRecommendationsPage({ searchParams }: PagePr
     initialSelectedUsageSnapshot = await deps.recommendations.getRecommendationUsage(initialSelectedId);
   }
   const { initialViewMode, viewLockedByUrl } = doctorCatalogViewFromSearchParams(
-    typeof sp.catalogView === "string" ? sp.catalogView : undefined,
+    typeof sp.view === "string" ? sp.view : undefined,
   );
 
   return (

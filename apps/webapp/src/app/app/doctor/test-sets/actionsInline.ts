@@ -19,10 +19,10 @@ function appendTestSetsListParams(sp: URLSearchParams, formData: FormData) {
   const ts = formData.get("listTitleSort");
   if (ts === "asc" || ts === "desc") sp.set("titleSort", ts);
   const region = formData.get("listRegion");
-  if (typeof region === "string" && region.trim()) sp.set("regionRefId", region.trim());
+  if (typeof region === "string" && region.trim()) sp.set("region", region.trim());
   const load = formData.get("listLoad");
   if (load === "strength" || load === "stretch" || load === "balance" || load === "cardio" || load === "other") {
-    sp.set("loadType", load);
+    sp.set("load", load);
   }
   sp.delete("status");
   const listArch = formData.get("listArch");

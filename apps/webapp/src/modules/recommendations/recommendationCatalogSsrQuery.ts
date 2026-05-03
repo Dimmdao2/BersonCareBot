@@ -15,7 +15,8 @@ export type RecommendationCatalogSsrParsed = {
    */
   invalidDomainQuery: boolean;
   /**
-   * Непустой `?regionRefId=` не UUID — фильтр по региону не применяется.
+   * Непустой `?region=` не UUID — фильтр по региону не применяется.
+   * На SSR — баннер; `GET /api/doctor/recommendations` с не-UUID `region` — **`400`** `{ ok:false, error:"invalid_query", field:"region" }`.
    */
   invalidRegionQuery: boolean;
 };
@@ -25,16 +26,16 @@ export type RecommendationCatalogSsrParsed = {
  * для передачи в `listRecommendations` (невалидные части query не попадают в фильтр списка).
  * HTTP-ответ страницы при невалидных query **не** `400` — см. описание флагов `invalidDomainQuery` / `invalidRegionQuery`.
  *
- * @param sp — `{ regionRefId, domain }`: `regionRefId` — UUID из query (`?regionRefId=`).
+ * @param sp — `{ region, domain }`: `region` — UUID из query (на странице каталога врач может передать значение из `?region=` или склеить с legacy `?regionRefId=` до вызова).
  */
 export function parseRecommendationCatalogSsrQuery(
   sp: {
-    regionRefId?: string;
+    region?: string;
     domain?: string;
   },
   refItems: ReferenceItem[],
 ): RecommendationCatalogSsrParsed {
-  const regionRaw = typeof sp.regionRefId === "string" ? sp.regionRefId.trim() : "";
+  const regionRaw = typeof sp.region === "string" ? sp.region.trim() : "";
   const regionUuidOk = !regionRaw || z.string().uuid().safeParse(regionRaw).success;
   const invalidRegionQuery = Boolean(regionRaw) && !regionUuidOk;
   const regionRefIdForList = regionRaw && regionUuidOk ? regionRaw : null;

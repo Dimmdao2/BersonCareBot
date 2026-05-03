@@ -1,25 +1,23 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Button } from "@/components/ui/button";
+import { startTransition, useCallback, useEffect, useRef, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { ReferenceSelect } from "@/shared/ui/ReferenceSelect";
-import { EXERCISE_LOAD_TYPE_OPTIONS, exerciseLoadTypeLabel } from "@/modules/lfk-exercises/exerciseLoadTypeOptions";
+import { EXERCISE_LOAD_TYPE_OPTIONS } from "@/modules/lfk-exercises/exerciseLoadTypeOptions";
 import type { ExerciseLoadType } from "@/modules/lfk-exercises/types";
 import type { ReferenceItemDto } from "@/modules/references/referenceCache";
 import type { DoctorCatalogPubArchQuery } from "@/shared/lib/doctorCatalogListStatus";
 import type { ReactNode } from "react";
 
-const EXERCISE_LOAD_FILTER_ITEMS: ReferenceItemDto[] = EXERCISE_LOAD_TYPE_OPTIONS.map((o, idx) => ({
-  id: `ex-filter-load-${o.value}`,
-  code: o.value,
-  title: o.label,
+const EXERCISE_LOAD_FILTER_ITEMS: ReferenceItemDto[] = EXERCISE_LOAD_TYPE_OPTIONS.map((option, idx) => ({
+  id: `ex-filter-load-${option.value}`,
+  code: option.value,
+  title: option.label,
   sortOrder: idx + 1,
 }));
 
-function loadTypeTitle(code: ExerciseLoadType | undefined): string {
-  return exerciseLoadTypeLabel(code ?? "");
-}
+const Q_DEBOUNCE_MS = 350;
 
 /** Альтернатива колонке «тип нагрузки»: свой справочник и имя GET-параметра (например область рекомендаций — `domain`). */
 export type DoctorCatalogTertiaryFilter = {
@@ -29,7 +27,7 @@ export type DoctorCatalogTertiaryFilter = {
   label: string;
   placeholder: string;
   clearLabel: string;
-  /** Подпись в строке под фильтрами («Регион: … · …»). */
+  /** Зарезервировано для подписей вне формы (строка под фильтрами удалена). */
   summaryLabel: string;
 };
 
@@ -49,14 +47,18 @@ export type DoctorCatalogFiltersFormProps = {
   leadingSlot?: ReactNode;
 };
 
-function customTertiaryTitle(items: ReferenceItemDto[], code: string | null): string {
-  if (!code) return "";
-  return items.find((i) => i.code === code)?.title ?? "";
+function applyParamsPatch(sp: URLSearchParams, patch: Record<string, string | null | undefined>): URLSearchParams {
+  const next = new URLSearchParams(sp.toString());
+  for (const [k, v] of Object.entries(patch)) {
+    if (v === null || v === undefined || v === "") next.delete(k);
+    else next.set(k, v);
+  }
+  return next;
 }
 
 /**
- * Общая GET-форма каталога врача: поиск + регион + третья колонка
- * (по умолчанию тип нагрузки упражнения; иначе {@link DoctorCatalogTertiaryFilter}) + «Применить».
+ * Общая панель фильтров каталога врача: быстрый поиск по названию (debounce → URL) +
+ * регион и третья колонка применяются сразу при выборе. Без кнопки «Применить».
  */
 export function DoctorCatalogFiltersForm({
   q,
@@ -70,55 +72,113 @@ export function DoctorCatalogFiltersForm({
   catalogPubArch,
   leadingSlot,
 }: DoctorCatalogFiltersFormProps) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
   const [selectedRegionRefId, setSelectedRegionRefId] = useState<string | null>(regionRefId ?? null);
-  const [selectedRegionLabel, setSelectedRegionLabel] = useState("");
   const [selectedExerciseLoad, setSelectedExerciseLoad] = useState<string | null>(loadType ?? null);
-  const [exerciseLoadLabel, setExerciseLoadLabel] = useState(() => loadTypeTitle(loadType));
   const [selectedCustomTertiary, setSelectedCustomTertiary] = useState<string | null>(
     tertiaryFilter?.value ?? null,
   );
-  const [customTertiaryLabel, setCustomTertiaryLabel] = useState(() =>
-    tertiaryFilter ? customTertiaryTitle(tertiaryFilter.items, tertiaryFilter.value) : "",
-  );
   const [qInput, setQInput] = useState(q);
+
+  const qInputRef = useRef(qInput);
+  const qDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    qInputRef.current = qInput;
+  }, [qInput]);
+
+  const replaceSearch = useCallback(
+    (next: URLSearchParams) => {
+      const qs = next.toString();
+      startTransition(() => {
+        router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+      });
+    },
+    [pathname, router],
+  );
+
+  const mergeWorkspaceInto = useCallback(
+    (sp: URLSearchParams) => {
+      if (view) sp.set("view", view);
+      else sp.delete("view");
+
+      if (titleSort) sp.set("titleSort", titleSort);
+      else sp.delete("titleSort");
+
+      if (selectedId) sp.set("selected", selectedId);
+      else sp.delete("selected");
+
+      if (catalogPubArch?.arch === "archived") sp.set("arch", "archived");
+      else sp.delete("arch");
+
+      if (catalogPubArch?.pub === "draft" || catalogPubArch?.pub === "published") {
+        sp.set("pub", catalogPubArch.pub);
+      } else {
+        sp.delete("pub");
+      }
+    },
+    [view, titleSort, selectedId, catalogPubArch],
+  );
+
+  const navigateWithPatch = useCallback(
+    (patch: Record<string, string | null | undefined>) => {
+      if (qDebounceRef.current) {
+        clearTimeout(qDebounceRef.current);
+        qDebounceRef.current = null;
+      }
+      const base = new URLSearchParams(searchParams.toString());
+      const qTrim = qInputRef.current.trim();
+      const next = applyParamsPatch(base, {
+        ...patch,
+        q: qTrim || null,
+      });
+      mergeWorkspaceInto(next);
+      replaceSearch(next);
+    },
+    [mergeWorkspaceInto, replaceSearch, searchParams],
+  );
+
+  const scheduleCommitQ = useCallback(() => {
+    if (qDebounceRef.current) clearTimeout(qDebounceRef.current);
+    qDebounceRef.current = setTimeout(() => {
+      qDebounceRef.current = null;
+      const sp = new URLSearchParams(typeof window !== "undefined" ? window.location.search : "");
+      const qTrim = qInputRef.current.trim();
+      if (qTrim) sp.set("q", qTrim);
+      else sp.delete("q");
+      mergeWorkspaceInto(sp);
+      replaceSearch(sp);
+    }, Q_DEBOUNCE_MS);
+  }, [mergeWorkspaceInto, replaceSearch]);
 
   useEffect(() => {
     setSelectedRegionRefId(regionRefId ?? null);
-    setSelectedRegionLabel("");
   }, [regionRefId]);
 
   useEffect(() => {
     setSelectedExerciseLoad(loadType ?? null);
-    setExerciseLoadLabel(loadTypeTitle(loadType));
   }, [loadType]);
 
   useEffect(() => {
     if (!tertiaryFilter) return;
     setSelectedCustomTertiary(tertiaryFilter.value ?? null);
-    setCustomTertiaryLabel(customTertiaryTitle(tertiaryFilter.items, tertiaryFilter.value));
   }, [tertiaryFilter]);
 
   useEffect(() => {
     setQInput(q);
   }, [q]);
 
-  const tertiarySummary = tertiaryFilter
-    ? customTertiaryLabel
-      ? `${tertiaryFilter.summaryLabel}: ${customTertiaryLabel}`
-      : ""
-    : exerciseLoadLabel
-      ? `Тип нагрузки: ${exerciseLoadLabel}`
-      : "";
+  useEffect(() => {
+    return () => {
+      if (qDebounceRef.current) clearTimeout(qDebounceRef.current);
+    };
+  }, []);
 
   return (
-    <form method="get" className="flex flex-wrap items-center gap-2">
-      {view ? <input type="hidden" name="catalogView" value={view} /> : null}
-      {titleSort ? <input type="hidden" name="titleSort" value={titleSort} /> : null}
-      {selectedId ? <input type="hidden" name="selected" value={selectedId} /> : null}
-      {catalogPubArch?.arch === "archived" ? <input type="hidden" name="arch" value="archived" /> : null}
-      {catalogPubArch?.pub === "draft" || catalogPubArch?.pub === "published" ? (
-        <input type="hidden" name="pub" value={catalogPubArch.pub} />
-      ) : null}
+    <div className="flex flex-wrap items-center gap-2">
       {leadingSlot}
       <div className="w-[220px] shrink-0">
         <label className="sr-only" htmlFor={`${idPrefix}-q`}>
@@ -126,9 +186,11 @@ export function DoctorCatalogFiltersForm({
         </label>
         <Input
           id={`${idPrefix}-q`}
-          name="q"
           value={qInput}
-          onChange={(e) => setQInput(e.target.value)}
+          onChange={(e) => {
+            setQInput(e.target.value);
+            scheduleCommitQ();
+          }}
           placeholder="Поиск по названию"
           className="w-full"
         />
@@ -139,15 +201,16 @@ export function DoctorCatalogFiltersForm({
         </label>
         <ReferenceSelect
           id={`${idPrefix}-region`}
-          name="regionRefId"
           categoryCode="body_region"
           value={selectedRegionRefId}
-          onChange={(refId, label) => {
+          onChange={(refId) => {
             setSelectedRegionRefId(refId);
-            setSelectedRegionLabel(label);
+            navigateWithPatch({ region: refId });
           }}
           placeholder="Выберите регион"
           clearOptionLabel="Все регионы"
+          showAllOnFocus
+          searchable={false}
         />
       </div>
       <div className="w-40 shrink-0">
@@ -158,18 +221,18 @@ export function DoctorCatalogFiltersForm({
             </label>
             <ReferenceSelect
               id={`${idPrefix}-${tertiaryFilter.paramName}`}
-              name={tertiaryFilter.paramName}
               prefetchedItems={tertiaryFilter.items}
               valueMatch="code"
               submitField="code"
               value={selectedCustomTertiary}
-              onChange={(code, label) => {
+              onChange={(code) => {
                 setSelectedCustomTertiary(code);
-                setCustomTertiaryLabel(code ? label : "");
+                navigateWithPatch({ [tertiaryFilter.paramName]: code });
               }}
               placeholder={tertiaryFilter.placeholder}
               clearOptionLabel={tertiaryFilter.clearLabel}
               showAllOnFocus
+              searchable={false}
             />
           </>
         ) : (
@@ -179,35 +242,22 @@ export function DoctorCatalogFiltersForm({
             </label>
             <ReferenceSelect
               id={`${idPrefix}-load`}
-              name="loadType"
               prefetchedItems={EXERCISE_LOAD_FILTER_ITEMS}
               valueMatch="code"
               submitField="code"
               value={selectedExerciseLoad}
-              onChange={(code, label) => {
+              onChange={(code) => {
                 setSelectedExerciseLoad(code);
-                setExerciseLoadLabel(code ? label : "");
+                navigateWithPatch({ load: code });
               }}
               placeholder="Все типы"
               clearOptionLabel="Все типы"
               showAllOnFocus
+              searchable={false}
             />
           </>
         )}
       </div>
-      <Button type="submit" variant="secondary" className="box-border h-[32px] shrink-0 px-3 py-0 text-sm leading-none">
-        Применить
-      </Button>
-      {selectedRegionLabel || tertiarySummary ? (
-        <p className="w-full text-xs text-muted-foreground">
-          {[
-            selectedRegionLabel ? `Регион: ${selectedRegionLabel}` : null,
-            tertiarySummary || null,
-          ]
-            .filter(Boolean)
-            .join(" · ")}
-        </p>
-      ) : null}
-    </form>
+    </div>
   );
 }

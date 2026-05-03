@@ -13,8 +13,8 @@ import { LfkTemplatesPageClient } from "./LfkTemplatesPageClient";
 type PageProps = {
   searchParams?: Promise<{
     q?: string;
-    regionRefId?: string;
-    loadType?: string;
+    region?: string;
+    load?: string;
     titleSort?: string;
     status?: string;
     arch?: string;
@@ -27,14 +27,14 @@ export default async function DoctorLfkTemplatesPage({ searchParams }: PageProps
   const sp = (await searchParams) ?? {};
 
   const q = typeof sp.q === "string" ? sp.q : "";
-  const regionRefId = typeof sp.regionRefId === "string" && sp.regionRefId.trim() ? sp.regionRefId.trim() : undefined;
+  const regionRefId = typeof sp.region === "string" && sp.region.trim() ? sp.region.trim() : undefined;
   const loadType =
-    sp.loadType === "strength" ||
-    sp.loadType === "stretch" ||
-    sp.loadType === "balance" ||
-    sp.loadType === "cardio" ||
-    sp.loadType === "other"
-      ? (sp.loadType as ExerciseLoadType)
+    sp.load === "strength" ||
+    sp.load === "stretch" ||
+    sp.load === "balance" ||
+    sp.load === "cardio" ||
+    sp.load === "other"
+      ? (sp.load as ExerciseLoadType)
       : undefined;
 
   const initialTitleSort = sp.titleSort === "asc" || sp.titleSort === "desc" ? sp.titleSort : null;

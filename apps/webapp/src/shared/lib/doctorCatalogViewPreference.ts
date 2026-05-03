@@ -30,7 +30,7 @@ export function writeDoctorCatalogViewPreference(storageKey: string, mode: Docto
 }
 
 /**
- * Разбор `?catalogView=` из URL: явный параметр блокирует подстановку из localStorage.
+ * Разбор `?view=` из URL: явный параметр блокирует подстановку из localStorage.
  */
 export function doctorCatalogViewFromSearchParams(viewRaw: string | undefined): {
   initialViewMode: DoctorCatalogViewMode;

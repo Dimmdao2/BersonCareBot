@@ -115,9 +115,9 @@ type Props = {
   /** Активные строки справочника `recommendation_type` (SSR). */
   domainCatalogItems: ReferenceItem[];
   backHref?: string;
-  /** Режим каталога master-detail — передаётся как `catalogView` для редиректа после сохранения. */
+  /** Режим каталога master-detail — передаётся как `view` для редиректа после сохранения. */
   workspaceView?: "tiles" | "list";
-  /** Дополнить редирект после save/archive параметрами списка (`q`, `titleSort`, `regionRefId`, `domain`). */
+  /** Дополнить редирект после save/archive параметрами списка (`q`, `titleSort`, `region`, `domain`). */
   workspaceListPreserve?: {
     q?: string;
     titleSort?: "asc" | "desc" | null;
@@ -279,7 +279,7 @@ export function RecommendationForm({
           </p>
         ) : null}
         {recommendation ? <input type="hidden" name="id" value={recommendation.id} /> : null}
-        {workspaceView ? <input type="hidden" name="catalogView" value={workspaceView} /> : null}
+        {workspaceView ? <input type="hidden" name="view" value={workspaceView} /> : null}
         {workspaceListPreserve?.q != null && workspaceListPreserve.q !== "" ? (
           <input type="hidden" name="listQ" value={workspaceListPreserve.q} />
         ) : null}
@@ -468,7 +468,7 @@ export function RecommendationForm({
               ) : null}
               <form action={unarchiveFormAction} className="mt-3 flex flex-col gap-2">
                 <input type="hidden" name="id" value={recommendation.id} />
-                {workspaceView ? <input type="hidden" name="catalogView" value={workspaceView} /> : null}
+                {workspaceView ? <input type="hidden" name="view" value={workspaceView} /> : null}
                 {workspaceListPreserve?.q != null && workspaceListPreserve.q !== "" ? (
                   <input type="hidden" name="listQ" value={workspaceListPreserve.q} />
                 ) : null}
@@ -499,7 +499,7 @@ export function RecommendationForm({
 
               <form ref={archiveFormRef} action={archiveFormAction} className="flex flex-col gap-2">
                 <input type="hidden" name="id" value={recommendation.id} />
-                {workspaceView ? <input type="hidden" name="catalogView" value={workspaceView} /> : null}
+                {workspaceView ? <input type="hidden" name="view" value={workspaceView} /> : null}
                 {workspaceListPreserve?.q != null && workspaceListPreserve.q !== "" ? (
                   <input type="hidden" name="listQ" value={workspaceListPreserve.q} />
                 ) : null}
