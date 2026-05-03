@@ -11,6 +11,7 @@ const postBodySchema = z.object({
   sortOrder: z.number().int().optional(),
   comment: z.string().max(5000).optional().nullable(),
   settings: z.record(z.string(), z.unknown()).optional().nullable(),
+  groupId: z.string().uuid().optional().nullable(),
 });
 
 export async function POST(request: Request, ctx: { params: Promise<{ stageId: string }> }) {
@@ -35,6 +36,7 @@ export async function POST(request: Request, ctx: { params: Promise<{ stageId: s
       sortOrder: parsed.data.sortOrder,
       comment: parsed.data.comment ?? null,
       settings: parsed.data.settings ?? null,
+      groupId: parsed.data.groupId ?? undefined,
     });
     return NextResponse.json({ ok: true, item });
   } catch (e) {

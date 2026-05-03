@@ -41,16 +41,16 @@
  M docs/PLATFORM_USER_MERGE_V2/CUTOVER_RUNBOOK.md
  M docs/PLATFORM_USER_MERGE_V2/README.md
  M docs/PLATFORM_USER_MERGE_V2/STAGE_C_CLOSEOUT.md
- M docs/VIDEO_HLS_DELIVERY/00-master-plan.md
- M docs/VIDEO_HLS_DELIVERY/02-target-architecture.md
- M docs/VIDEO_HLS_DELIVERY/04-test-strategy.md
- M docs/VIDEO_HLS_DELIVERY/05-risk-register.md
- M docs/VIDEO_HLS_DELIVERY/06-execution-log.md
- M docs/VIDEO_HLS_DELIVERY/phases/phase-02-transcoding-pipeline-and-worker.md
- M docs/VIDEO_HLS_DELIVERY/phases/phase-03-storage-layout-and-artifact-management.md
- M docs/VIDEO_HLS_DELIVERY/phases/phase-04-playback-api-and-delivery-strategy.md
- M docs/VIDEO_HLS_DELIVERY/phases/phase-05-player-integration-and-dual-mode-frontend.md
- M docs/VIDEO_HLS_DELIVERY/phases/phase-09-signed-urls-ttl-and-private-access.md
+ M docs/archive/2026-05-initiatives/VIDEO_HLS_DELIVERY/00-master-plan.md
+ M docs/archive/2026-05-initiatives/VIDEO_HLS_DELIVERY/02-target-architecture.md
+ M docs/archive/2026-05-initiatives/VIDEO_HLS_DELIVERY/04-test-strategy.md
+ M docs/archive/2026-05-initiatives/VIDEO_HLS_DELIVERY/05-risk-register.md
+ M docs/archive/2026-05-initiatives/VIDEO_HLS_DELIVERY/06-execution-log.md
+ M docs/archive/2026-05-initiatives/VIDEO_HLS_DELIVERY/phases/phase-02-transcoding-pipeline-and-worker.md
+ M docs/archive/2026-05-initiatives/VIDEO_HLS_DELIVERY/phases/phase-03-storage-layout-and-artifact-management.md
+ M docs/archive/2026-05-initiatives/VIDEO_HLS_DELIVERY/phases/phase-04-playback-api-and-delivery-strategy.md
+ M docs/archive/2026-05-initiatives/VIDEO_HLS_DELIVERY/phases/phase-05-player-integration-and-dual-mode-frontend.md
+ M docs/archive/2026-05-initiatives/VIDEO_HLS_DELIVERY/phases/phase-09-signed-urls-ttl-and-private-access.md
 ?? docs/PLATFORM_USER_MERGE_V2/AUDIT_INDEPENDENT.md
 ```
 

@@ -6,6 +6,24 @@
 
 ---
 
+## 2026-05-03 (продолжение) — execution-контур ASSIGNMENT_CATALOGS_REWORK (B1–B7, только docs)
+
+**Повод:** выровнять sister-инициативу B с паттерном `PROGRAM_PATIENT_SHAPE_INITIATIVE` — отдельная папка с мастер-планом, этапными планами и журналом исполнения.
+
+**Сделано (только документация, код не менялся):**
+
+- Создана папка [`../ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/`](../ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/): [`README.md`](../ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/README.md), [`MASTER_PLAN.md`](../ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/MASTER_PLAN.md), [`STAGE_B1_PLAN.md`](../ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/STAGE_B1_PLAN.md) … [`STAGE_B7_PLAN.md`](../ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/STAGE_B7_PLAN.md), [`LOG.md`](../ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/LOG.md), [`LOG_TEMPLATE.md`](../ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/LOG_TEMPLATE.md), [`EXECUTION_AUDIT_TEMPLATE.md`](../ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/EXECUTION_AUDIT_TEMPLATE.md).
+- В [`ASSIGNMENT_CATALOGS_REWORK_PLAN.md`](ASSIGNMENT_CATALOGS_REWORK_PLAN.md): ссылка на execution-папку; в §6 DoD журнал B — на [`../ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/LOG.md`](../ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/LOG.md) (не путать с журналом `APP_RESTRUCTURE_INITIATIVE/LOG.md`).
+- В [`README.md`](README.md) — execution-пакет в буллете sister-инициативы и строка в таблице «Что в этой папке».
+- В [`PROGRAM_PATIENT_SHAPE_PLAN.md`](PROGRAM_PATIENT_SHAPE_PLAN.md) и [`../PROGRAM_PATIENT_SHAPE_INITIATIVE/README.md`](../PROGRAM_PATIENT_SHAPE_INITIATIVE/README.md) — ссылка на execution B.
+- В корневом [`../README.md`](../README.md) — пункт «Assignment Catalogs Rework (B1–B7) Execution» в блоке активных инициатив.
+
+**Решение по структуре:** `ASSIGNMENT_CATALOGS_REWORK_PLAN.md` остаётся продуктовым ТЗ; операционный контур — `ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/*`.
+
+**Проверки:** только docs; CI не запускался.
+
+---
+
 ## 2026-05-03 (продолжение) — выделен execution-контур PROGRAM_PATIENT_SHAPE (только docs)
 
 **Повод:** пользователь попросил вынести задачи этапа 9 (`PROGRAM_PATIENT_SHAPE`) в отдельную папку инициативы с мастер-планом и отдельными планами этапов.
@@ -29,7 +47,7 @@
 
 - `PROGRAM_PATIENT_SHAPE_PLAN.md` остаётся продуктовым ТЗ.
 - `PROGRAM_PATIENT_SHAPE_INITIATIVE/*` становится операционным контуром реализации (master + stage plans + log).
-- Sister-план B1–B7 (`ASSIGNMENT_CATALOGS_REWORK_PLAN.md`) остаётся отдельной инициативой и не смешивается с A1–A5.
+- Sister-план B1–B7 (`ASSIGNMENT_CATALOGS_REWORK_PLAN.md`) остаётся отдельным **продуктовым ТЗ**; execution-контур — [`../ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/README.md`](../ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/README.md) — не смешивается с A1–A5.
 
 **Проверки:** только docs; CI не запускался.
 
@@ -149,7 +167,7 @@
 
 **Проверки:** `pnpm --dir apps/webapp exec vitest run src/modules/lfk-exercises/exerciseLoadTypeOptions.test.ts` · целевой eslint по изменённым файлам.
 
-**Документация:** этот блок; примечание в [`ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md`](ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md).
+**Документация:** этот блок; примечание в [`ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md`](done/ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md).
 
 **Вне scope:** полный проход по всем остальным self-closing `SelectValue` вне перечисленных в первом проходе файлов.
 
@@ -165,15 +183,15 @@
 
 **Вне scope:** подпись «Разделы» в `DoctorAdminSidebar`, `doctorNavLinks`, примитивы `components/ui/*`, новые зависимости.
 
-**Документация:** краткое дополнение в [`DOCTOR_MENU_RESTRUCTURE_PLAN.md`](DOCTOR_MENU_RESTRUCTURE_PLAN.md).
+**Документация:** краткое дополнение в [`DOCTOR_MENU_RESTRUCTURE_PLAN.md`](done/DOCTOR_MENU_RESTRUCTURE_PLAN.md).
 
 ---
 
 ## 2026-05-02 — doctor clients: карточка и список (DOCTOR_CLIENT_PROFILE_REPACK)
 
-**Повод:** ТЗ [`DOCTOR_CLIENT_PROFILE_REPACK_PLAN.md`](DOCTOR_CLIENT_PROFILE_REPACK_PLAN.md) — убрать аккордеон карточки, sticky-шапка и плоские секции; компактный список с иконочными бейджами каналов; удалить заглушку «Создать из записи на приём».
+**Повод:** ТЗ [`DOCTOR_CLIENT_PROFILE_REPACK_PLAN.md`](done/DOCTOR_CLIENT_PROFILE_REPACK_PLAN.md) — убрать аккордеон карточки, sticky-шапка и плоские секции; компактный список с иконочными бейджами каналов; удалить заглушку «Создать из записи на приём».
 
-**Полный аудит закрытия:** [`DOCTOR_CLIENT_PROFILE_REPACK_EXECUTION_AUDIT.md`](DOCTOR_CLIENT_PROFILE_REPACK_EXECUTION_AUDIT.md) — `rg`, тесты, отклонения от текста ТЗ (подпись якоря «Программа»), хвост RTL на `suspendLoad`.
+**Полный аудит закрытия:** [`DOCTOR_CLIENT_PROFILE_REPACK_EXECUTION_AUDIT.md`](done/DOCTOR_CLIENT_PROFILE_REPACK_EXECUTION_AUDIT.md) — `rg`, тесты, отклонения от текста ТЗ (подпись якоря «Программа»), хвост RTL на `suspendLoad`.
 
 **Сделано:**
 
@@ -220,16 +238,16 @@
 - **Settings UI:** вкладка «Админ: режим» → **«Режимы»**; вкладка «Доступ и роли» убрана из `AdminSettingsTabsClient`; блок техработ перенесён из «Параметры приложения» в «Режимы»; `AppParametersSection` — только URL/поддержка/таймзона.
 - **Patient layout:** при техработах полный UI для сессий, совпадающих с `test_account_identifiers`; `patientMaintenanceReplacesPatientShell(..., isTestAccount)`.
 - **Batch PATCH «Режимы»:** один запрос `{ items }` → транзакция `upsertManyInTransaction` + `persistAdminModesBatch`; общая нормализация `adminSettingsPatchNormalize.ts` / `MODES_FORM_KEYS`; политики `empty_batch`, `duplicate_key_in_batch`, `ambiguous_body`; предпросмотр отброшенных телефонов `previewTestAccountPhoneTokens` в UI.
-- Документы: `INTEGRATOR_CONTRACT.md` (dev_mode guard), `CONFIGURATION_ENV_VS_DATABASE.md`, этот лог; планы/аудиты: [`MODES_BATCH_PATCH_AND_PHONE_PREVIEW_PLAN.md`](MODES_BATCH_PATCH_AND_PHONE_PREVIEW_PLAN.md), [`MODES_AND_TEST_ACCOUNTS_EXECUTION_AUDIT.md`](MODES_AND_TEST_ACCOUNTS_EXECUTION_AUDIT.md).
+- Документы: `INTEGRATOR_CONTRACT.md` (dev_mode guard), `CONFIGURATION_ENV_VS_DATABASE.md`, этот лог; планы/аудиты: [`MODES_BATCH_PATCH_AND_PHONE_PREVIEW_PLAN.md`](done/MODES_BATCH_PATCH_AND_PHONE_PREVIEW_PLAN.md), [`MODES_AND_TEST_ACCOUNTS_EXECUTION_AUDIT.md`](done/MODES_AND_TEST_ACCOUNTS_EXECUTION_AUDIT.md).
 
 **Проверки (целевые, после batch+preview):**  
 `pnpm --dir apps/webapp exec vitest run src/app/api/admin/settings/route.test.ts src/modules/system-settings/adminSettingsPatchNormalize.test.ts src/modules/system-settings/testAccounts.test.ts src/modules/system-settings/service.test.ts src/modules/system-settings/patientMaintenance.test.ts src/modules/messaging/relayOutbound.test.ts src/modules/messaging/doctorSupportMessagingService.test.ts src/app/app/settings/AdminSettingsSection.test.tsx src/app/app/settings/AppParametersSection.test.tsx` · `pnpm --dir apps/webapp typecheck` · `pnpm --dir apps/webapp lint` · перед merge — **`pnpm run ci`** (корень репо).
 
-**Глубокий аудит закрытия (2026-05-02):** [`MODES_AND_TEST_ACCOUNTS_EXECUTION_AUDIT.md`](MODES_AND_TEST_ACCOUNTS_EXECUTION_AUDIT.md) — сверка DoD, `rg`, кросс-обновление `PATIENT_MAINTENANCE_MODE_EXECUTION_AUDIT.md`, `CONFIGURATION_ENV_VS_DATABASE.md`, `RECOMMENDATIONS_AND_ROADMAP.md`, legacy `AccessListsSection`. Зеркала планов: [`MODES_SETTINGS_CLEANUP_PLAN.md`](MODES_SETTINGS_CLEANUP_PLAN.md), [`MODES_BATCH_PATCH_AND_PHONE_PREVIEW_PLAN.md`](MODES_BATCH_PATCH_AND_PHONE_PREVIEW_PLAN.md).
+**Глубокий аудит закрытия (2026-05-02):** [`MODES_AND_TEST_ACCOUNTS_EXECUTION_AUDIT.md`](done/MODES_AND_TEST_ACCOUNTS_EXECUTION_AUDIT.md) — сверка DoD, `rg`, кросс-обновление `PATIENT_MAINTENANCE_MODE_EXECUTION_AUDIT.md`, `CONFIGURATION_ENV_VS_DATABASE.md`, `RECOMMENDATIONS_AND_ROADMAP.md`, legacy `AccessListsSection`. Зеркала планов: [`MODES_SETTINGS_CLEANUP_PLAN.md`](done/MODES_SETTINGS_CLEANUP_PLAN.md), [`MODES_BATCH_PATCH_AND_PHONE_PREVIEW_PLAN.md`](done/MODES_BATCH_PATCH_AND_PHONE_PREVIEW_PLAN.md).
 
 **Вне scope (без изменений):** миграция пользователей, новая таблица тестовых аккаунтов, удаление legacy-ключей из `ALLOWED_KEYS`, смена auth-модели ролей.
 
-**Хвосты полного аудита (закрыто в коде/docs):** `patient/layout.tsx` — устойчивое чтение `isTestPatientSession` при ошибке БД; `AdminModeToggle` — явное название ключа в предупреждении; §«Закрытие хвостов» в [`MODES_AND_TEST_ACCOUNTS_EXECUTION_AUDIT.md`](MODES_AND_TEST_ACCOUNTS_EXECUTION_AUDIT.md).
+**Хвосты полного аудита (закрыто в коде/docs):** `patient/layout.tsx` — устойчивое чтение `isTestPatientSession` при ошибке БД; `AdminModeToggle` — явное название ключа в предупреждении; §«Закрытие хвостов» в [`MODES_AND_TEST_ACCOUNTS_EXECUTION_AUDIT.md`](done/MODES_AND_TEST_ACCOUNTS_EXECUTION_AUDIT.md).
 
 ---
 
@@ -237,7 +255,7 @@
 
 **Повод:** безопасно выкатывать изменения кабинета врача/бэкенда, не открывая весь patient UI; настройка из админки, без env.
 
-**Полный аудит закрытия плана:** [`PATIENT_MAINTENANCE_MODE_EXECUTION_AUDIT.md`](PATIENT_MAINTENANCE_MODE_EXECUTION_AUDIT.md) (чек-листы шагов 1–6, DoD, остаточный manual smoke).
+**Полный аудит закрытия плана:** [`PATIENT_MAINTENANCE_MODE_EXECUTION_AUDIT.md`](done/PATIENT_MAINTENANCE_MODE_EXECUTION_AUDIT.md) (чек-листы шагов 1–6, DoD, остаточный manual smoke).
 
 **Сделано:**
 
@@ -255,7 +273,7 @@
 
 После аудита закрытия: добавлен тест экрана на fallback небезопасного URL записи (`PatientMaintenanceScreen.test.tsx`).
 
-Полный отчёт по чек-листам плана: [`PATIENT_MAINTENANCE_MODE_EXECUTION_AUDIT.md`](PATIENT_MAINTENANCE_MODE_EXECUTION_AUDIT.md).
+Полный отчёт по чек-листам плана: [`PATIENT_MAINTENANCE_MODE_EXECUTION_AUDIT.md`](done/PATIENT_MAINTENANCE_MODE_EXECUTION_AUDIT.md).
 
 **Доработки после независимого аудита (2026-05-02):** ранний выход в `getPatientMaintenanceConfig` при выключенном режиме; параллельное чтение message/booking при включённом; `patientMaintenanceReplacesPatientShell`; `sr-only` заголовок у текста; тесты `patientMaintenance.getConfig.test.ts`, `AppParametersSection.test.tsx`; обновлён execution audit.
 
@@ -267,7 +285,7 @@
 
 ## 2026-05-02 — этап 4: экран «Сегодня» врача (реализация)
 
-**Повод:** выполнить [`DOCTOR_TODAY_DASHBOARD_PLAN.md`](DOCTOR_TODAY_DASHBOARD_PLAN.md) — заменить отчётный `/app/doctor` на рабочий экран дня.
+**Повод:** выполнить [`DOCTOR_TODAY_DASHBOARD_PLAN.md`](done/DOCTOR_TODAY_DASHBOARD_PLAN.md) — заменить отчётный `/app/doctor` на рабочий экран дня.
 
 **Сделано:**
 
@@ -289,7 +307,7 @@
 
 ## 2026-05-02 — этап 3: бейджи меню врача (реализация)
 
-**Повод:** закрыть [`DOCTOR_NAV_BADGES_PLAN.md`](DOCTOR_NAV_BADGES_PLAN.md) — бейджи «Онлайн-заявки» (`status=new`) и «Сообщения» (непрочитанные) в desktop sidebar и mobile Sheet.
+**Повод:** закрыть [`DOCTOR_NAV_BADGES_PLAN.md`](done/DOCTOR_NAV_BADGES_PLAN.md) — бейджи «Онлайн-заявки» (`status=new`) и «Сообщения» (непрочитанные) в desktop sidebar и mobile Sheet.
 
 **Сделано:**
 
@@ -312,7 +330,7 @@
 
 - **Дублирование polling unread:** добавлены [`DoctorSupportUnreadProvider`](../../apps/webapp/src/shared/ui/DoctorSupportUnreadProvider.tsx) и переименованный в модуле [`useDoctorSupportUnreadCountPolling`](../../apps/webapp/src/modules/messaging/hooks/useSupportUnreadPolling.ts); провайдер оборачивает дерево в [`DoctorWorkspaceShell`](../../apps/webapp/src/shared/ui/DoctorWorkspaceShell.tsx). `useDoctorSupportUnreadCount` из `@/shared/hooks/useSupportUnreadPolling` читает контекст — один интервал на всё дерево кабинета врача (сейчас основной потребитель меню — [`DoctorMenuAccordion`](../../apps/webapp/src/shared/ui/DoctorMenuAccordion.tsx); другие клиенты под тем же layout получают то же значение без второго polling).
 - **Нестабильный HTTP для online-intake:** в [`useDoctorOnlineIntakeNewCount`](../../apps/webapp/src/modules/online-intake/hooks/useDoctorOnlineIntakeNewCount.ts) добавлена проверка `res.ok` до `json()`.
-- **Manual smoke:** по-прежнему приёмочный шаг оператора по чеклисту из [`DOCTOR_NAV_BADGES_PLAN.md`](DOCTOR_NAV_BADGES_PLAN.md) (раздел Manual smoke); автоматически не воспроизводится.
+- **Manual smoke:** по-прежнему приёмочный шаг оператора по чеклисту из [`DOCTOR_NAV_BADGES_PLAN.md`](done/DOCTOR_NAV_BADGES_PLAN.md) (раздел Manual smoke); автоматически не воспроизводится.
 
 **Проверки после аудита:**  
 `pnpm --dir apps/webapp exec vitest run src/shared/ui/DoctorSupportUnreadProvider.test.tsx src/modules/online-intake/hooks/useDoctorOnlineIntakeNewCount.test.tsx src/shared/ui/DoctorMenuAccordion.test.tsx`  
@@ -326,7 +344,7 @@
 
 **Сделано:**
 
-- Создано [`DOCTOR_TODAY_DASHBOARD_PLAN.md`](DOCTOR_TODAY_DASHBOARD_PLAN.md): цель, текущая база, продуктовые решения, scope boundaries, целевые секции, техническая форма, шаги исполнения, проверки, manual smoke, stop conditions и Definition of Done.
+- Создано [`DOCTOR_TODAY_DASHBOARD_PLAN.md`](done/DOCTOR_TODAY_DASHBOARD_PLAN.md): цель, текущая база, продуктовые решения, scope boundaries, целевые секции, техническая форма, шаги исполнения, проверки, manual smoke, stop conditions и Definition of Done.
 - В [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md) добавлена ссылка на ТЗ этапа 4 и статус «ТЗ готово».
 - Зафиксирован MVP: «Записи сегодня», «Новые онлайн-заявки», «Непрочитанные сообщения», «Ближайшие записи»; метрики остаются на `/app/doctor/stats`.
 - Зафиксировано ограничение: «К проверке» не делать как реальную очередь без готового источника данных «требует проверки врача».
@@ -343,7 +361,7 @@
 
 **Сделано:**
 
-- Создано [`DOCTOR_NAV_BADGES_PLAN.md`](DOCTOR_NAV_BADGES_PLAN.md): цель, scope boundaries, источники данных, UI plan, backend plan, шаги исполнения, проверки, manual smoke, stop conditions и Definition of Done.
+- Создано [`DOCTOR_NAV_BADGES_PLAN.md`](done/DOCTOR_NAV_BADGES_PLAN.md): цель, scope boundaries, источники данных, UI plan, backend plan, шаги исполнения, проверки, manual smoke, stop conditions и Definition of Done.
 - В [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md) добавлена ссылка на ТЗ этапа 3 и зафиксированы ключевые решения.
 - Уточнён источник счётчика онлайн-заявок: только `status=new`, потому что `in_review` уже означает «взято в работу».
 - Зафиксировано, что счётчик сообщений должен переиспользовать существующий `useDoctorSupportUnreadCount` / `GET /api/doctor/messages/unread-count`, без второго источника истины.
@@ -356,12 +374,12 @@
 
 ## 2026-05-02 — этап 7: closeout после аудита (DoD)
 
-**Повод:** закрыть пробелы из независимого аудита [`ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md`](ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md): документация HTTP для архивации с guard, RTL на формах каталогов 1/3/4, статус плана, финальный корневой CI.
+**Повод:** закрыть пробелы из независимого аудита [`ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md`](done/ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md): документация HTTP для архивации с guard, RTL на формах каталогов 1/3/4, статус плана, финальный корневой CI.
 
 **Сделано:**
 
 - [`api.md`](../../apps/webapp/src/app/api/api.md): для **`DELETE`** `clinical-tests`, `test-sets`, `recommendations` описаны **`409`** с `code: USAGE_CONFIRMATION_REQUIRED`, поле `usage`, повтор с **`?acknowledgeUsageWarning=1`** и отсылки к доменным функциям guard в типах.
-- [`ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md`](ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md): статус «выполнено», блок **Closeout** в Definition of Done.
+- [`ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md`](done/ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md): статус «выполнено», блок **Closeout** в Definition of Done.
 - RTL: [`ExerciseForm.test.tsx`](../../apps/webapp/src/app/app/doctor/exercises/ExerciseForm.test.tsx), [`ClinicalTestForm.test.tsx`](../../apps/webapp/src/app/app/doctor/clinical-tests/ClinicalTestForm.test.tsx), [`TestSetForm.test.tsx`](../../apps/webapp/src/app/app/doctor/test-sets/TestSetForm.test.tsx) — сценарий «архив → диалог → Архивировать всё равно» с проверкой второго submit и `acknowledgeUsageWarning=1`.
 - Исправление подтверждения архива: на формах врача (`ExerciseForm`, `ClinicalTestForm`, `TestSetForm`, `RecommendationForm`, `TemplateEditor`) флаг `acknowledgeUsageWarning` перенесён в state `archiveUsageAck` (скрытое поле с `value`), чтобы повторный submit после `setWarnOpen(false)` не терял `1` при ре-рендере; тело диалога с секциями usage вынесено из `DialogDescription` (невалидные вложенные `<p>`) в `div` с теми же стилями.
 
@@ -381,7 +399,7 @@
 - API: [`GET …/courses/[id]/usage`](../../apps/webapp/src/app/api/doctor/courses/[id]/usage/route.ts); [`PATCH [id]`](../../apps/webapp/src/app/api/doctor/courses/[id]/route.ts) — `409` + `USAGE_CONFIRMATION_REQUIRED`, поле **`acknowledgeUsageWarning`**.
 - UI: [`DoctorCourseEditForm.tsx`](../../apps/webapp/src/app/app/doctor/courses/[id]/DoctorCourseEditForm.tsx), [`courseUsageDocLinks.ts`](../../apps/webapp/src/app/app/doctor/courses/courseUsageDocLinks.ts), [`courseUsageSummaryText.ts`](../../apps/webapp/src/app/app/doctor/courses/courseUsageSummaryText.ts); RSC usage на [`[id]/page.tsx`](../../apps/webapp/src/app/app/doctor/courses/[id]/page.tsx).
 - Тесты: [`service.test.ts`](../../apps/webapp/src/modules/courses/service.test.ts), [`pgCourses.test.ts`](../../apps/webapp/src/infra/repos/pgCourses.test.ts), [`courseUsageDocLinks.test.ts`](../../apps/webapp/src/app/app/doctor/courses/courseUsageDocLinks.test.ts), [`courseUsageSummaryText.test.ts`](../../apps/webapp/src/app/app/doctor/courses/courseUsageSummaryText.test.ts), RTL [`DoctorCourseEditForm.test.tsx`](../../apps/webapp/src/app/app/doctor/courses/%5Bid%5D/DoctorCourseEditForm.test.tsx) (usage из RSC / `GET …/usage`, архив без guard, `409` → диалог → `acknowledgeUsageWarning`).
-- Документация: [`api.md`](../../apps/webapp/src/app/api/api.md); трекер в [`ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md`](ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md).
+- Документация: [`api.md`](../../apps/webapp/src/app/api/api.md); трекер в [`ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md`](done/ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md).
 
 **Аудит подшага (после первичной реализации):** закрыт пробел без RTL на форме — добавлен `DoctorCourseEditForm.test.tsx`. Финальный корневой `pnpm run ci` и ручной smoke — см. запись **«2026-05-02 — этап 7: closeout после аудита (DoD)»** выше в этом файле.
 
@@ -389,9 +407,9 @@
 
 **Guard архива:** активные экземпляры программ по шаблону курса или опубликованные страницы контента с `linked_course_id`; черновики страниц и только завершённые программы не требуют подтверждения.
 
-**Ручной smoke (оператор):** по чеклисту «Manual smoke» в [`ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md`](ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md).
+**Ручной smoke (оператор):** по чеклисту «Manual smoke» в [`ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md`](done/ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md).
 
-**Closeout этапа 7 по каталогам:** все семь подшагов в [`ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md`](ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md) закрыты; итоговый прогон CI — в записи **«2026-05-02 — этап 7: closeout после аудита (DoD)»**.
+**Closeout этапа 7 по каталогам:** все семь подшагов в [`ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md`](done/ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md) закрыты; итоговый прогон CI — в записи **«2026-05-02 — этап 7: closeout после аудита (DoD)»**.
 
 ---
 
@@ -404,14 +422,14 @@
 - Сервис: [`getTreatmentProgramTemplateUsage`](../../apps/webapp/src/modules/treatment-program/service.ts), guard при `updateTemplate(…, archived)` и [`deleteTemplate`](../../apps/webapp/src/modules/treatment-program/service.ts).
 - API: [`GET …/[id]/usage`](../../apps/webapp/src/app/api/doctor/treatment-program-templates/[id]/usage/route.ts); [`PATCH/DELETE [id]`](../../apps/webapp/src/app/api/doctor/treatment-program-templates/[id]/route.ts) — `409` + `USAGE_CONFIRMATION_REQUIRED`, `PATCH acknowledgeUsageWarning`, `DELETE ?acknowledgeUsageWarning=`.
 - UI: блок «Где используется», архивация и диалог подтверждения в [`TreatmentProgramConstructorClient.tsx`](../../apps/webapp/src/app/app/doctor/treatment-program-templates/[id]/TreatmentProgramConstructorClient.tsx); [`templateUsageDocLinks.ts`](../../apps/webapp/src/app/app/doctor/treatment-program-templates/templateUsageDocLinks.ts), [`templateUsageSummaryText.ts`](../../apps/webapp/src/app/app/doctor/treatment-program-templates/templateUsageSummaryText.ts); RSC usage на [`[id]/page.tsx`](../../apps/webapp/src/app/app/doctor/treatment-program-templates/[id]/page.tsx); `onArchived` + `router.refresh` в [`TreatmentProgramTemplatesPageClient.tsx`](../../apps/webapp/src/app/app/doctor/treatment-program-templates/TreatmentProgramTemplatesPageClient.tsx).
-- Документация: [`api.md`](../../apps/webapp/src/app/api/api.md); трекер в [`ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md`](ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md).
+- Документация: [`api.md`](../../apps/webapp/src/app/api/api.md); трекер в [`ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md`](done/ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md).
 - Тесты: [`service.test.ts`](../../apps/webapp/src/modules/treatment-program/service.test.ts), [`pgTreatmentProgram.test.ts`](../../apps/webapp/src/infra/repos/pgTreatmentProgram.test.ts) (smoke SQL usage через mock `getPool`), [`templateUsageDocLinks.test.ts`](../../apps/webapp/src/app/app/doctor/treatment-program-templates/templateUsageDocLinks.test.ts), [`templateUsageSummaryText.test.ts`](../../apps/webapp/src/app/app/doctor/treatment-program-templates/templateUsageSummaryText.test.ts), [`TreatmentProgramConstructorClient.test.tsx`](../../apps/webapp/src/app/app/doctor/treatment-program-templates/%5Bid%5D/TreatmentProgramConstructorClient.test.tsx).
 
 **Проверки:** `pnpm --dir apps/webapp typecheck`; `pnpm --dir apps/webapp exec vitest run src/modules/treatment-program/service.test.ts src/infra/repos/pgTreatmentProgram.test.ts src/app/app/doctor/treatment-program-templates/templateUsageDocLinks.test.ts src/app/app/doctor/treatment-program-templates/templateUsageSummaryText.test.ts "src/app/app/doctor/treatment-program-templates/[id]/TreatmentProgramConstructorClient.test.tsx"`; `pnpm --dir apps/webapp lint`.
 
 **Аудит подшага (после первичной реализации):** закрыты пробелы — интеграционный smoke для запроса usage в PG-порте и RTL на пустой usage, архив без guard и сценарий `409` → подтверждение → успех.
 
-**Ручной smoke (оператор):** по чеклисту «Manual smoke» в [`ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md`](ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md): шаблон без usage и с usage (активная программа и/или опубликованный курс), кликабельные refs, архив без предупреждения и с диалогом, повтор без `acknowledgeUsageWarning` на API не проходит.
+**Ручной smoke (оператор):** по чеклисту «Manual smoke» в [`ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md`](done/ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md): шаблон без usage и с usage (активная программа и/или опубликованный курс), кликабельные refs, архив без предупреждения и с диалогом, повтор без `acknowledgeUsageWarning` на API не проходит.
 
 **Guard архива:** активные экземпляры программ и опубликованные курсы; черновики курсов и только завершённые экземпляры не требуют подтверждения.
 
@@ -451,7 +469,7 @@
 
 **Проверки:** `pnpm --dir apps/webapp typecheck`; `pnpm --dir apps/webapp exec vitest run` (файлы выше); **`pnpm --dir apps/webapp lint`** (полный прогон webapp после аудита подшага).
 
-**Аудит подшага (2026-05-02):** в разделе 4 [`ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md`](ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md) зафиксировано различие сводки (все статусы шаблонов + completed + попытки) и guard (только `published` шаблоны + `active` экземпляры); в [`service.test.ts`](../../apps/webapp/src/modules/tests/service.test.ts) — отдельный кейс «только черновые шаблоны» и уточнён кейс «только история попыток».
+**Аудит подшага (2026-05-02):** в разделе 4 [`ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md`](done/ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md) зафиксировано различие сводки (все статусы шаблонов + completed + попытки) и guard (только `published` шаблоны + `active` экземпляры); в [`service.test.ts`](../../apps/webapp/src/modules/tests/service.test.ts) — отдельный кейс «только черновые шаблоны» и уточнён кейс «только история попыток».
 
 **Guard архива:** опубликованные шаблоны программ и активные экземпляры; черновики, архивные шаблоны, завершённые экземпляры и счётчик попыток — только сводка.
 
@@ -605,7 +623,7 @@ WHERE b.code = 'subscription_carousel'
 
 ## 2026-05-02 — этап 5 «Сообщения врача»: post-audit fixes
 
-**Повод:** закрытие неблокирующих замечаний из [`DOCTOR_MESSAGES_UNIFIED_CHAT_EXECUTION_AUDIT.md`](DOCTOR_MESSAGES_UNIFIED_CHAT_EXECUTION_AUDIT.md).
+**Повод:** закрытие неблокирующих замечаний из [`DOCTOR_MESSAGES_UNIFIED_CHAT_EXECUTION_AUDIT.md`](done/DOCTOR_MESSAGES_UNIFIED_CHAT_EXECUTION_AUDIT.md).
 
 **Сделано:**
 
@@ -613,7 +631,7 @@ WHERE b.code = 'subscription_carousel'
 - Добавлен лёгкий unread-count endpoint без создания диалога: [`POST /api/doctor/messages/conversations/unread-by-patient`](../../apps/webapp/src/app/api/doctor/messages/conversations/unread-by-patient/route.ts). Путь идёт через [`doctorSupportMessagingService.unreadFromPatient`](../../apps/webapp/src/modules/messaging/doctorSupportMessagingService.ts) и support repo count by patient.
 - [`ClientProfileCard`](../../apps/webapp/src/app/app/doctor/clients/ClientProfileCard.tsx): CTA «Открыть чат» показывает unread badge до открытия modal; после read в открытом `DoctorChatPanel` локальный badge сбрасывается.
 - [`useDoctorSupportUnreadCount`](../../apps/webapp/src/modules/messaging/hooks/useSupportUnreadPolling.ts): добавлено синхронное browser-событие refresh для doctor unread count; [`DoctorChatPanel`](../../apps/webapp/src/modules/messaging/components/DoctorChatPanel.tsx) диспатчит его после успешного read.
-- [`DOCTOR_MESSAGES_UNIFIED_CHAT_EXECUTION_AUDIT.md`](DOCTOR_MESSAGES_UNIFIED_CHAT_EXECUTION_AUDIT.md), [`DOCTOR_MESSAGES_UNIFIED_CHAT_PLAN.md`](DOCTOR_MESSAGES_UNIFIED_CHAT_PLAN.md), [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md), [`README.md`](README.md): обновлены под факт post-audit fixes.
+- [`DOCTOR_MESSAGES_UNIFIED_CHAT_EXECUTION_AUDIT.md`](done/DOCTOR_MESSAGES_UNIFIED_CHAT_EXECUTION_AUDIT.md), [`DOCTOR_MESSAGES_UNIFIED_CHAT_PLAN.md`](done/DOCTOR_MESSAGES_UNIFIED_CHAT_PLAN.md), [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md), [`README.md`](README.md): обновлены под факт post-audit fixes.
 
 **Проверки:**
 
@@ -681,13 +699,13 @@ pnpm exec eslint \
 
 ---
 
-## 2026-05-02 — пост-аудит этапа 2 «Меню врача» (фиксы по [`DOCTOR_MENU_RESTRUCTURE_EXECUTION_AUDIT.md`](DOCTOR_MENU_RESTRUCTURE_EXECUTION_AUDIT.md))
+## 2026-05-02 — пост-аудит этапа 2 «Меню врача» (фиксы по [`DOCTOR_MENU_RESTRUCTURE_EXECUTION_AUDIT.md`](done/DOCTOR_MENU_RESTRUCTURE_EXECUTION_AUDIT.md))
 
 **Сделано:**
 
 - [`DoctorHeader.tsx`](../../apps/webapp/src/shared/ui/DoctorHeader.tsx): `aria-label` у shortcut на список клиентов выровнен с меню — «Пациенты».
 - [`LOG.md`](LOG.md): в записи об этапе 2 блок «Проверки» дополнен явной командой `pnpm exec eslint` со списком путей.
-- Актуализированы документы инициативы: [`RECOMMENDATIONS_AND_ROADMAP.md`](RECOMMENDATIONS_AND_ROADMAP.md), [`CMS_AUDIT.md`](CMS_AUDIT.md), [`TARGET_STRUCTURE_DOCTOR.md`](TARGET_STRUCTURE_DOCTOR.md), [`DOCTOR_MENU_RESTRUCTURE_EXECUTION_AUDIT.md`](DOCTOR_MENU_RESTRUCTURE_EXECUTION_AUDIT.md), [`DOCTOR_MENU_RESTRUCTURE_PLAN.md`](DOCTOR_MENU_RESTRUCTURE_PLAN.md), [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md).
+- Актуализированы документы инициативы: [`RECOMMENDATIONS_AND_ROADMAP.md`](RECOMMENDATIONS_AND_ROADMAP.md), [`CMS_AUDIT.md`](CMS_AUDIT.md), [`TARGET_STRUCTURE_DOCTOR.md`](TARGET_STRUCTURE_DOCTOR.md), [`DOCTOR_MENU_RESTRUCTURE_EXECUTION_AUDIT.md`](done/DOCTOR_MENU_RESTRUCTURE_EXECUTION_AUDIT.md), [`DOCTOR_MENU_RESTRUCTURE_PLAN.md`](done/DOCTOR_MENU_RESTRUCTURE_PLAN.md), [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md).
 - Исторические чек-листы в этом журнале (пункты «Онлайн-заявки» / subscribers): уточнены формулировки под модель без `DOCTOR_MENU_ENTRIES`.
 
 **Проверки:** `pnpm exec eslint src/shared/ui/DoctorHeader.tsx`; `rg "Клиенты и подписчики" apps/webapp/src/shared/ui` — ожидаемо пусто.
@@ -855,7 +873,7 @@ pnpm exec eslint \
 - Темы `/notifications` и ключ `notifications_topics`: раздел I.1, таблица долга в части III и этап 4 в [`RECOMMENDATIONS_AND_ROADMAP.md`](RECOMMENDATIONS_AND_ROADMAP.md) обновлены под факт реализации (2026-05-01).
 - Перепроверка после аудита (follow-up к той же записи выше): дорожная карта и таблица «Выполнено» дополнены; дубликат пункта в этапе 4 убран (2026-05-01).
 - **Этап 1 (новости + `broadcast_audit.channels` + порт списка мотивации):** таблица «Выполнено», часть II (долг по RSC), описание этапа 1 и этапа 3 в roadmap; [`PLATFORM_USER_MERGE.md`](../ARCHITECTURE/PLATFORM_USER_MERGE.md) — снятие `news_item_views` из активных merge-правил; код — `doctorMotivationQuotesEditor`, дисклеймер на `/broadcasts` (2026-05-01, финальная перепроверка).
-- Чек-лист закрытия этапа 1 и хвосты перенесены в [`STAGE1_PLAN_CLOSEOUT.md`](STAGE1_PLAN_CLOSEOUT.md) и [`BACKLOG_TAILS.md`](../BACKLOG_TAILS.md).
+- Чек-лист закрытия этапа 1 и хвосты перенесены в [`STAGE1_PLAN_CLOSEOUT.md`](done/STAGE1_PLAN_CLOSEOUT.md) и [`BACKLOG_TAILS.md`](../BACKLOG_TAILS.md).
 
 ---
 
@@ -930,7 +948,7 @@ ORDER BY 1, 2;
 
 **Сделано:**
 
-- В записи «CMS Composer — реализация варианта C» выше — явный список команд проверки и шаблон контрольного `SELECT` для ops после миграции (рекомендации из [`CMS_RESTRUCTURE_EXECUTION_AUDIT.md`](CMS_RESTRUCTURE_EXECUTION_AUDIT.md) §4).
+- В записи «CMS Composer — реализация варианта C» выше — явный список команд проверки и шаблон контрольного `SELECT` для ops после миграции (рекомендации из [`CMS_RESTRUCTURE_EXECUTION_AUDIT.md`](done/CMS_RESTRUCTURE_EXECUTION_AUDIT.md) §4).
 - [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md): этап 1 — уточнена роль «Мотиваций» (отдельный пункт сайдбара, не `system_parent_code`); DoD всего плана — формулировка про **immutable** slug; в связанных документах — ссылка на аудит выполнения.
 - [`RECOMMENDATIONS_AND_ROADMAP.md`](RECOMMENDATIONS_AND_ROADMAP.md): примечание к «Этапу 2» дорожной карты — фактическая первая итерация типизации соответствует **варианту C** из `CMS_RESTRUCTURE_PLAN.md`, а не полному enum из старого текста этапа.
 - [`README.md`](README.md) этой папки — строки в таблице «Что в этой папке» для CMS-плана и аудита.
@@ -954,7 +972,7 @@ ORDER BY 1, 2;
 
 **Сделано:**
 
-- Добавлен [`DOCTOR_MENU_RESTRUCTURE_PLAN.md`](DOCTOR_MENU_RESTRUCTURE_PLAN.md): отдельное ТЗ на группы меню, аккордеон с `localStorage`, перенос «Библиотеки файлов» из CMS-сайдбара в основное меню.
+- Добавлен [`DOCTOR_MENU_RESTRUCTURE_PLAN.md`](done/DOCTOR_MENU_RESTRUCTURE_PLAN.md): отдельное ТЗ на группы меню, аккордеон с `localStorage`, перенос «Библиотеки файлов» из CMS-сайдбара в основное меню.
 - В [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md) добавлена ссылка на новое ТЗ в связанных документах и в блоке этапа 2.
 - Зафиксированы границы: не делать бейджи, дашборд «Сегодня», CMS-логику, пациентский интерфейс, миграции и новые зависимости.
 - Отдельно отмечён риск параллельного CMS-прохода: `ContentPagesSidebar.tsx` трогать только минимально, чтобы убрать ссылку библиотеки, не откатывая CMS-изменения.
@@ -967,7 +985,7 @@ ORDER BY 1, 2;
 
 **Сделано:**
 
-- Добавлен [`DOCTOR_UI_DENSITY_PLAN.md`](DOCTOR_UI_DENSITY_PLAN.md): отдельное ТЗ на уменьшение крупности doctor UI без редизайна.
+- Добавлен [`DOCTOR_UI_DENSITY_PLAN.md`](done/DOCTOR_UI_DENSITY_PLAN.md): отдельное ТЗ на уменьшение крупности doctor UI без редизайна.
 - В [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md) добавлена ссылка на новое ТЗ в связанных документах и в блоке этапа 8.
 - Зафиксированы границы: не трогать пациентский интерфейс, shadcn/base UI глобально, бизнес-логику, API, БД, маршруты и соседние этапы.
 - Основной подход: сначала shared doctor-примитивы (`doctorWorkspaceLayout`, `DoctorCatalogPageLayout`, `CatalogLeftPane`, toolbar), затем точечно самые крупные экраны.
@@ -980,7 +998,7 @@ ORDER BY 1, 2;
 
 **Сделано:**
 
-- Добавлен [`ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md`](ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md): отдельное ТЗ на «где используется» и безопасную архивацию по каталогам назначений.
+- Добавлен [`ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md`](done/ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md): отдельное ТЗ на «где используется» и безопасную архивацию по каталогам назначений.
 - В [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md) добавлена ссылка на новое ТЗ в связанных документах и в блоке этапа 7.
 - Зафиксирован порядок исполнения по одному каталогу за проход: упражнения → комплексы ЛФК → клинические тесты → наборы тестов → рекомендации → шаблоны программ → курсы.
 - Зафиксированы архитектурные ограничения: не менять LFK schemas, не добавлять FK на `item_ref_id`, не строить отдельный course engine, не смешивать с редизайном страниц и продуктовыми долгами курсов/тестов.
@@ -994,7 +1012,7 @@ ORDER BY 1, 2;
 
 **Сделано:**
 
-- Добавлен [`DOCTOR_MESSAGES_UNIFIED_CHAT_PLAN.md`](DOCTOR_MESSAGES_UNIFIED_CHAT_PLAN.md): отдельное ТЗ на список чатов, фильтр «непрочитанные», единый chat layout, открытие модалки из карточки пациента и автопрочтение.
+- Добавлен [`DOCTOR_MESSAGES_UNIFIED_CHAT_PLAN.md`](done/DOCTOR_MESSAGES_UNIFIED_CHAT_PLAN.md): отдельное ТЗ на список чатов, фильтр «непрочитанные», единый chat layout, открытие модалки из карточки пациента и автопрочтение.
 - В [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md) добавлена ссылка на новое ТЗ в связанных документах и в блоке этапа 5.
 - Зафиксирована текущая база: `/app/doctor/messages`, API `/api/doctor/messages/**`, patient/support-chat поток на `support_conversations`, общий `ChatView`, polling hook.
 - Зафиксирован ключевой риск: старая форма `SendMessageForm` в `ClientProfileCard` использует `doctor-messaging` / `messageLog`, а новый чат — `support_conversations`; удалять старую форму можно только после рабочего открытия support-chat по конкретному пациенту.
@@ -1038,7 +1056,7 @@ ORDER BY 1, 2;
 
 ## 2026-05-02 — пост-аудит этапа 8: второй sweep UI + журнал + CI
 
-**Повод:** закрытие рекомендаций из [`DOCTOR_UI_DENSITY_EXECUTION_AUDIT.md`](DOCTOR_UI_DENSITY_EXECUTION_AUDIT.md) без решений заказчика.
+**Повод:** закрытие рекомендаций из [`DOCTOR_UI_DENSITY_EXECUTION_AUDIT.md`](done/DOCTOR_UI_DENSITY_EXECUTION_AUDIT.md) без решений заказчика.
 
 **Сделано (код, только Tailwind / whitelist этапа 8):**
 
@@ -1051,13 +1069,13 @@ ORDER BY 1, 2;
 
 **Документы:**
 
-- Обновлены [`DOCTOR_UI_DENSITY_EXECUTION_AUDIT.md`](DOCTOR_UI_DENSITY_EXECUTION_AUDIT.md), [`DOCTOR_UI_DENSITY_PLAN.md`](DOCTOR_UI_DENSITY_PLAN.md), [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md) — статус этапа и ссылки.
+- Обновлены [`DOCTOR_UI_DENSITY_EXECUTION_AUDIT.md`](done/DOCTOR_UI_DENSITY_EXECUTION_AUDIT.md), [`DOCTOR_UI_DENSITY_PLAN.md`](done/DOCTOR_UI_DENSITY_PLAN.md), [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md) — статус этапа и ссылки.
 
 **Проверки:**
 
 - `pnpm install --frozen-lockfile && pnpm run ci` (корневой CI репозитория) — **успешно** на этом дереве (lint, typecheck, integrator + webapp tests, build integrator + webapp, audit deps).
 
-**Manual smoke (чек-лист [`DOCTOR_UI_DENSITY_PLAN.md`](DOCTOR_UI_DENSITY_PLAN.md) §«Проверки этапа»):**
+**Manual smoke (чек-лист [`DOCTOR_UI_DENSITY_PLAN.md`](done/DOCTOR_UI_DENSITY_PLAN.md) §«Проверки этапа»):**
 
 Визуальный smoke по списку ниже пройден; инструментально все перечисленные маршруты также входят в успешную сборку Next.js (`build:webapp` в составе `pnpm run ci`).
 
@@ -1076,7 +1094,7 @@ ORDER BY 1, 2;
 
 ## 2026-05-02 — doctor-каталоги: завершение archive/unarchive (batch)
 
-**Повод:** план «Archive Unarchive Completion» — `unarchive`, фильтр `status` (как у рекомендаций) и открытие архивных карточек для `clinical-tests` / `test-sets`, UX статусов для `treatment-program-templates` и `courses`; опора на [`ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md`](ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md).
+**Повод:** план «Archive Unarchive Completion» — `unarchive`, фильтр `status` (как у рекомендаций) и открытие архивных карточек для `clinical-tests` / `test-sets`, UX статусов для `treatment-program-templates` и `courses`; опора на [`ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md`](done/ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md).
 
 **Scope:** как в baseline-записи ниже; **вне scope:** миграции БД, CI/workflows, интеграции/env/system_settings.
 
@@ -1101,7 +1119,7 @@ ORDER BY 1, 2;
 - Позже пользовательский фильтр статусов упрощён до архивности (`Активные / Архив`), потому что текущий enum `draft | published | archived` смешивает готовность и архивность; отдельные `Черновики / Опубликованные` не выносятся в toolbar до разделения модели.
 - Последняя UI-коррекция: архивный контрол вынесен из `DoctorCatalogFiltersForm` в шапку списка рядом с сортировкой (`DoctorCatalogArchiveScopeSelect` на shadcn `Select`); `Активные` — выбранное значение по умолчанию, `Архив` — второй вариант. Старый `status=all` в URL трактуется как `active`.
 - Layout-коррекция карточек сущностей: `RecommendationForm`, `ClinicalTestForm`, `TestSetForm` получили тот же внутренний `fieldset`-контейнер `flex flex-col gap-4`, что и `ExerciseForm`, чтобы карточки не теряли вертикальные отступы после блокировки архивных полей.
-- Документация: в [`ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md`](ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md) добавлено решение по archive-фильтру (`Активные` по умолчанию, `Архив`, без `Все`) и по черновикам; в [`docs/TODO.md`](../TODO.md) заведён backlog на разделение модели, если черновики станут отдельным продуктовым сценарием.
+- Документация: в [`ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md`](done/ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md) добавлено решение по archive-фильтру (`Активные` по умолчанию, `Архив`, без `Все`) и по черновикам; в [`docs/TODO.md`](../TODO.md) заведён backlog на разделение модели, если черновики станут отдельным продуктовым сценарием.
 
 **Проверки пост-аудита:** `pnpm exec tsc -p apps/webapp --noEmit` · `pnpm --dir apps/webapp exec vitest --run src/shared/ui/ReferenceSelect.test.ts src/app/app/doctor/exercises/ExerciseForm.test.tsx src/app/app/doctor/lfk-templates/lfkTemplatesListPreserveQuery.test.ts src/app/app/doctor/clinical-tests/ClinicalTestForm.test.tsx src/app/app/doctor/test-sets/TestSetForm.test.tsx src/app/app/doctor/recommendations/RecommendationForm.test.tsx` · `ReadLints` по изменённым файлам.
 
@@ -1109,7 +1127,7 @@ ORDER BY 1, 2;
 
 ## 2026-05-02 — doctor-каталоги: завершение archive/unarchive (batch baseline) — архив
 
-**Повод:** план «Archive Unarchive Completion» — закрыть хвосты по `unarchive`, фильтру `status` и открытию архивных карточек для `clinical-tests` / `test-sets`, выровнять UX для `treatment-program-templates` и `courses`; опора на [`ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md`](ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md).
+**Повод:** план «Archive Unarchive Completion» — закрыть хвосты по `unarchive`, фильтру `status` и открытию архивных карточек для `clinical-tests` / `test-sets`, выровнять UX для `treatment-program-templates` и `courses`; опора на [`ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md`](done/ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md).
 
 **Scope (разрешено):** `apps/webapp/src/modules/tests`, `apps/webapp/src/infra/repos` (только tests/test-sets), `apps/webapp/src/app/app/doctor/clinical-tests`, `test-sets`, `treatment-program-templates`, `courses`, `shared/ui/doctor/DoctorCatalogFiltersForm.tsx`, `shared/lib/doctorCatalogListStatus.ts`, этот `LOG.md`.
 

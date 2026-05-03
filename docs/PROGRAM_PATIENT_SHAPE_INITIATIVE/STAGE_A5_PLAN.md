@@ -93,43 +93,45 @@ Required wrapper pattern:
 
 ### A5.1 Schema/backfill
 
-- [ ] Add `last_viewed_at TIMESTAMPTZ NULL` to instance stage items.
-- [ ] Backfill existing rows: `last_viewed_at = created_at`.
-- [ ] Verify no existing item has `NULL` after backfill unless intentionally new.
+- [x] Add `last_viewed_at TIMESTAMPTZ NULL` to instance stage items.
+- [x] Backfill existing rows: `last_viewed_at = created_at`.
+- [x] Verify no existing item has `NULL` after backfill unless intentionally new.
 
 ### A5.2 New badge read model
 
-- [ ] Add `isNew = last_viewed_at == null` to read model.
-- [ ] Do not compute cross-stage dedupe.
-- [ ] Hide badge for disabled items.
+- [x] Add `isNew = last_viewed_at == null` to read model.
+- [x] Do not compute cross-stage dedupe.
+- [x] Hide badge for disabled items.
 
 ### A5.3 Mark viewed mutation
 
-- [ ] Add service method `markInstanceStageItemViewed`.
-- [ ] It only updates if `last_viewed_at IS NULL`.
-- [ ] It is idempotent.
-- [ ] It validates patient ownership/access.
+- [x] Add service method `markInstanceStageItemViewed`.
+- [x] It only updates if `last_viewed_at IS NULL`.
+- [x] It is idempotent.
+- [x] It validates patient ownership/access.
 
 ### A5.4 Plan updated badge
 
-- [ ] Determine last relevant `treatment_program_events` after patient's last plan open marker.
-- [ ] If no plan-open marker exists, use safe fallback documented in LOG.
-- [ ] Render `План обновлён` in Today.
-- [ ] Define reset behavior: opening plan writes/updates plan-open marker or equivalent.
+- [x] Determine last relevant `treatment_program_events` after patient's last plan open marker.
+- [x] If no plan-open marker exists, use safe fallback documented in LOG.
+- [x] Render `План обновлён` in Today.
+- [x] Define reset behavior: opening plan writes/updates plan-open marker or equivalent.
 
 ### A5.5 Cache revalidation
 
-- [ ] Revalidate Today after program mutation.
-- [ ] Revalidate plan after mark-viewed.
-- [ ] Add `revalidatePath`/`revalidateTag` at mutation points.
+**Note:** `revalidateTag` не вводили; инвалидация через общий helper `revalidatePatientTreatmentProgramUi` → `revalidatePath` для маршрутов Today и списка программ пациента.
+
+- [x] Revalidate Today after program mutation.
+- [x] Revalidate plan after mark-viewed.
+- [x] Add `revalidatePath`/`revalidateTag` at mutation points.
 
 ### A5.6 Tests
 
-- [ ] Backfill/migration test or SQL review note.
-- [ ] Service: new item detection.
-- [ ] Service: mark-viewed idempotent.
-- [ ] UI: badge appears/disappears.
-- [ ] UI: plan-updated appears after event.
+- [x] Backfill/migration test or SQL review note.
+- [x] Service: new item detection.
+- [x] Service: mark-viewed idempotent.
+- [x] UI: badge appears/disappears.
+- [x] UI: plan-updated appears after event.
 
 ## 7. Required checks
 

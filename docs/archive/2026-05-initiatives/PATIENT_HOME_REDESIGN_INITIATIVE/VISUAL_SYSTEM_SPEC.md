@@ -2,7 +2,7 @@
 
 Цель документа: зафиксировать подробную спецификацию визуального редизайна пациентской части webapp на основе референсов главной "Сегодня" и последних продуктовых решений по навигации.
 
-Этот документ дополняет `README.md` инициативы `PATIENT_HOME_REDESIGN_INITIATIVE`. Он не заменяет фазовую архитектуру, правила данных, ограничения по CMS и запрет на хардкод slug-ов из `CONTENT_PLAN.md`.
+Этот документ дополняет `README.md` инициативы `PATIENT_HOME_REDESIGN_INITIATIVE`. Он не заменяет фазовую архитектуру, правила данных, ограничения по CMS и запрет на хардкод slug-ов из [`CONTENT_PLAN.md`](../../../APP_RESTRUCTURE_INITIATIVE/CONTENT_PLAN.md) (рабочая копия в `APP_RESTRUCTURE_INITIATIVE`).
 
 ### Положение в фазовой архитектуре
 
@@ -26,7 +26,7 @@ Visual redesign — отдельный pass поверх уже завершён
 
 - Не создавать параллельную дизайн-систему только для `/app/patient`.
 - Не менять doctor/admin UI в этой задаче.
-- Не хардкодить slug-и, названия ситуаций или привязку цветов к значениям из `CONTENT_PLAN.md`.
+- Не хардкодить slug-и, названия ситуаций или привязку цветов к значениям из [`CONTENT_PLAN.md`](../../../APP_RESTRUCTURE_INITIATIVE/CONTENT_PLAN.md).
 - Не добавлять новые env-переменные для визуального поведения или интеграций.
 - Не восстанавливать старый floating FAB дневника.
 - Не менять модель данных, если задача является только visual/system redesign.
@@ -439,7 +439,7 @@ Keep `lucide-react` for system UI icons. Use CMS images for content-specific ico
 Situation icons:
 
 - Prefer CMS `icon_image_url` with color already in the asset.
-- Do not map color by slug/title from `CONTENT_PLAN.md`.
+- Do not map color by slug/title from [`CONTENT_PLAN.md`](../../../APP_RESTRUCTURE_INITIATIVE/CONTENT_PLAN.md).
 - If no `icon_image_url`, use a deterministic neutral fallback by item order or initials; do not infer category-specific color from slug.
 
 ---
@@ -808,7 +808,7 @@ The visual redesign pass is acceptable when:
 - Settings gear is not shown as a separate patient header action.
 - Existing patient logic and CMS-driven block model are preserved.
 - No doctor/admin visual regressions are intentionally introduced.
-- No runtime slug hardcode from `CONTENT_PLAN.md` is added.
+- No runtime slug hardcode from [`CONTENT_PLAN.md`](../../../APP_RESTRUCTURE_INITIATIVE/CONTENT_PLAN.md) is added.
 - Tests and lints appropriate to the changed files pass.
 
 ---

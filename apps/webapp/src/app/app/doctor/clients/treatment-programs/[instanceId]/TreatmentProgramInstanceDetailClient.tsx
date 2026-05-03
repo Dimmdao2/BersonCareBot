@@ -38,6 +38,10 @@ function snapshotTitle(snapshot: Record<string, unknown>, itemType: string): str
   return itemType;
 }
 
+function sortByOrderThenId<T extends { sortOrder: number; id: string }>(rows: T[]): T[] {
+  return [...rows].sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id));
+}
+
 function InstanceStageMetadataForm(props: {
   instanceId: string;
   stage: TreatmentProgramInstanceDetail["stages"][number];
@@ -327,46 +331,114 @@ export function TreatmentProgramInstanceDetailClient(props: {
           <div className="mb-4">
             <InstanceStageMetadataForm instanceId={detail.id} stage={stage} onSaved={refresh} />
           </div>
-          <ul className="m-0 list-none space-y-4 p-0">
-            {stage.items.map((item) => (
-              <li key={item.id} className="rounded-lg border border-border/80 bg-muted/20 p-3">
-                <p className="text-sm font-medium">
-                  {snapshotTitle(item.snapshot, item.itemType)}{" "}
-                  <span className="font-normal text-muted-foreground">({item.itemType})</span>
-                </p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Комментарий для пациента:{" "}
-                  <span className="text-foreground">
-                    {effectiveInstanceStageItemComment(item) ?? "—"}
-                  </span>
-                </p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Из шаблона (заморожено): {item.comment?.trim() ? item.comment : "—"}
-                </p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Выполнение элемента:{" "}
-                  {item.completedAt ? (
-                    <span className="text-foreground">да ({item.completedAt})</span>
-                  ) : (
-                    <span>нет</span>
-                  )}
-                </p>
-                <ItemLocalCommentForm
-                  key={`${item.id}:${item.localComment ?? ""}`}
-                  instanceId={detail.id}
-                  itemId={item.id}
-                  initialDraft={item.effectiveComment ?? ""}
-                  onSaved={refresh}
-                />
-                <InstanceStageItemDoctorRow
-                  instanceId={detail.id}
-                  item={item}
-                  testResults={testResults}
-                  onSaved={refresh}
-                />
-              </li>
-            ))}
-          </ul>
+          <InstanceStageGroupsPanel instanceId={detail.id} stage={stage} onSaved={refresh} />
+          <div className="space-y-4">
+            {sortByOrderThenId(stage.groups).map((g) => {
+              const gItems = sortByOrderThenId(stage.items.filter((it) => it.groupId === g.id));
+              if (gItems.length === 0) return null;
+              return (
+                <div key={g.id} className="rounded-lg border border-border/70 bg-muted/10 p-3">
+                  <p className="text-sm font-semibold">{g.title}</p>
+                  {g.scheduleText?.trim() ? (
+                    <p className="text-xs text-muted-foreground">{g.scheduleText.trim()}</p>
+                  ) : null}
+                  <ul className="m-0 mt-3 list-none space-y-4 p-0">
+                    {gItems.map((item) => (
+                      <li key={item.id} className="rounded-lg border border-border/80 bg-muted/20 p-3">
+                        <p className="text-sm font-medium">
+                          {snapshotTitle(item.snapshot, item.itemType)}{" "}
+                          <span className="font-normal text-muted-foreground">({item.itemType})</span>
+                        </p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Комментарий для пациента:{" "}
+                          <span className="text-foreground">
+                            {effectiveInstanceStageItemComment(item) ?? "—"}
+                          </span>
+                        </p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Из шаблона (заморожено): {item.comment?.trim() ? item.comment : "—"}
+                        </p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Выполнение элемента:{" "}
+                          {item.completedAt ? (
+                            <span className="text-foreground">да ({item.completedAt})</span>
+                          ) : (
+                            <span>нет</span>
+                          )}
+                        </p>
+                        <ItemLocalCommentForm
+                          key={`${item.id}:${item.localComment ?? ""}`}
+                          instanceId={detail.id}
+                          itemId={item.id}
+                          initialDraft={item.effectiveComment ?? ""}
+                          onSaved={refresh}
+                        />
+                        <InstanceStageItemDoctorRow
+                          instanceId={detail.id}
+                          item={item}
+                          groups={stage.groups}
+                          testResults={testResults}
+                          onSaved={refresh}
+                        />
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              );
+            })}
+            {(() => {
+              const ungrouped = sortByOrderThenId(stage.items.filter((it) => !it.groupId));
+              if (ungrouped.length === 0) return null;
+              return (
+                <div>
+                  {stage.groups.length > 0 ? (
+                    <p className="mb-2 text-sm font-medium text-muted-foreground">Без группы</p>
+                  ) : null}
+                  <ul className="m-0 list-none space-y-4 p-0">
+                    {ungrouped.map((item) => (
+                      <li key={item.id} className="rounded-lg border border-border/80 bg-muted/20 p-3">
+                        <p className="text-sm font-medium">
+                          {snapshotTitle(item.snapshot, item.itemType)}{" "}
+                          <span className="font-normal text-muted-foreground">({item.itemType})</span>
+                        </p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Комментарий для пациента:{" "}
+                          <span className="text-foreground">
+                            {effectiveInstanceStageItemComment(item) ?? "—"}
+                          </span>
+                        </p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Из шаблона (заморожено): {item.comment?.trim() ? item.comment : "—"}
+                        </p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Выполнение элемента:{" "}
+                          {item.completedAt ? (
+                            <span className="text-foreground">да ({item.completedAt})</span>
+                          ) : (
+                            <span>нет</span>
+                          )}
+                        </p>
+                        <ItemLocalCommentForm
+                          key={`${item.id}:${item.localComment ?? ""}`}
+                          instanceId={detail.id}
+                          itemId={item.id}
+                          initialDraft={item.effectiveComment ?? ""}
+                          onSaved={refresh}
+                        />
+                        <InstanceStageItemDoctorRow
+                          instanceId={detail.id}
+                          item={item}
+                          groups={stage.groups}
+                          testResults={testResults}
+                          onSaved={refresh}
+                        />
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              );
+            })()}
+          </div>
         </section>
       ))}
 
@@ -381,13 +453,179 @@ export function TreatmentProgramInstanceDetailClient(props: {
   );
 }
 
+function InstanceStageGroupsPanel(props: {
+  instanceId: string;
+  stage: TreatmentProgramInstanceDetail["stages"][number];
+  onSaved: () => Promise<void>;
+}) {
+  const { instanceId, stage, onSaved } = props;
+  const [open, setOpen] = useState(false);
+  const [title, setTitle] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  const sortedGroups = sortByOrderThenId(stage.groups);
+
+  const reorder = async (groupId: string, dir: -1 | 1) => {
+    const idx = sortedGroups.findIndex((g) => g.id === groupId);
+    const j = idx + dir;
+    if (idx < 0 || j < 0 || j >= sortedGroups.length) return;
+    const newOrder = sortedGroups.map((g) => g.id);
+    const a = newOrder[idx]!;
+    const b = newOrder[j]!;
+    newOrder[idx] = b;
+    newOrder[j] = a;
+    setBusy(true);
+    setMsg(null);
+    try {
+      const res = await fetch(
+        `/api/doctor/treatment-program-instances/${encodeURIComponent(instanceId)}/stages/${encodeURIComponent(stage.id)}/groups/reorder`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ orderedGroupIds: newOrder }),
+        },
+      );
+      const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
+      if (!res.ok || !data.ok) {
+        setMsg(data.error ?? "Ошибка порядка групп");
+        return;
+      }
+      await onSaved();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const removeGroup = async (groupId: string) => {
+    if (!globalThis.confirm("Удалить группу? Элементы останутся без группы.")) return;
+    setBusy(true);
+    setMsg(null);
+    try {
+      const res = await fetch(
+        `/api/doctor/treatment-program-instances/${encodeURIComponent(instanceId)}/stage-groups/${encodeURIComponent(groupId)}`,
+        { method: "DELETE" },
+      );
+      const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
+      if (!res.ok || !data.ok) {
+        setMsg(data.error ?? "Ошибка");
+        return;
+      }
+      await onSaved();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const addGroup = async () => {
+    const t = title.trim();
+    if (!t) return;
+    setBusy(true);
+    setMsg(null);
+    try {
+      const res = await fetch(
+        `/api/doctor/treatment-program-instances/${encodeURIComponent(instanceId)}/stages/${encodeURIComponent(stage.id)}/groups`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title: t }),
+        },
+      );
+      const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
+      if (!res.ok || !data.ok) {
+        setMsg(data.error ?? "Ошибка");
+        return;
+      }
+      setTitle("");
+      setOpen(false);
+      await onSaved();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="mb-4 rounded-lg border border-border/70 bg-muted/10 p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs font-medium text-muted-foreground">Группы внутри этапа</p>
+        <Button type="button" size="sm" variant="secondary" disabled={busy} onClick={() => setOpen(true)}>
+          + Группа
+        </Button>
+      </div>
+      {sortedGroups.length > 0 ? (
+        <ul className="mt-2 list-none space-y-2 p-0">
+          {sortedGroups.map((g, gi) => (
+            <li key={g.id} className="flex flex-wrap items-center gap-2 rounded-md border border-border/60 bg-card/40 px-2 py-2 text-sm">
+              <div className="flex shrink-0 flex-col gap-0.5">
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  className="size-7"
+                  disabled={busy || gi === 0}
+                  aria-label="Группа выше"
+                  onClick={() => void reorder(g.id, -1)}
+                >
+                  ↑
+                </Button>
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  className="size-7"
+                  disabled={busy || gi >= sortedGroups.length - 1}
+                  aria-label="Группа ниже"
+                  onClick={() => void reorder(g.id, 1)}
+                >
+                  ↓
+                </Button>
+              </div>
+              <div className="min-w-0 flex-1">
+                <span className="font-medium">{g.title}</span>
+                {g.scheduleText?.trim() ? (
+                  <span className="ml-2 text-xs text-muted-foreground">{g.scheduleText.trim()}</span>
+                ) : null}
+              </div>
+              <Button type="button" size="sm" variant="ghost" className="text-destructive" disabled={busy} onClick={() => void removeGroup(g.id)}>
+                Удалить
+              </Button>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="mt-1 text-xs text-muted-foreground">Групп нет — элементы можно оставить вне групп.</p>
+      )}
+      {msg ? <p className="mt-2 text-xs text-destructive">{msg}</p> : null}
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Новая группа</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor={`ng-${stage.id}`}>Название</Label>
+            <Input id={`ng-${stage.id}`} value={title} onChange={(e) => setTitle(e.target.value)} maxLength={2000} />
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+              Отмена
+            </Button>
+            <Button type="button" disabled={busy || !title.trim()} onClick={() => void addGroup()}>
+              Добавить
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
 function InstanceStageItemDoctorRow(props: {
   instanceId: string;
   item: TreatmentProgramInstanceDetail["stages"][number]["items"][number];
+  groups: TreatmentProgramInstanceDetail["stages"][number]["groups"];
   testResults: TreatmentProgramTestResultDetailRow[];
   onSaved: () => Promise<void>;
 }) {
-  const { instanceId, item, testResults, onSaved } = props;
+  const { instanceId, item, groups, testResults, onSaved } = props;
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -437,6 +675,23 @@ function InstanceStageItemDoctorRow(props: {
             </SelectContent>
           </Select>
         ) : null}
+        <Select
+          value={item.groupId ?? "__none__"}
+          onValueChange={(v) => void patchItem({ groupId: v === "__none__" ? null : v })}
+          disabled={saving}
+        >
+          <SelectTrigger className="h-8 w-[min(100%,12rem)] text-xs" size="sm">
+            <SelectValue placeholder="Группа" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__none__">Без группы</SelectItem>
+            {sortByOrderThenId(groups).map((g) => (
+              <SelectItem key={g.id} value={g.id}>
+                {g.title}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         {item.status === "active" ? (
           <Button
             type="button"

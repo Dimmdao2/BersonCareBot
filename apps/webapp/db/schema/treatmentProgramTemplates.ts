@@ -79,6 +79,31 @@ export const treatmentProgramTemplateStages = pgTable(
   ],
 );
 
+/** A3 PROGRAM_PATIENT_SHAPE: смысловые группы внутри этапа шаблона. */
+export const treatmentProgramTemplateStageGroups = pgTable(
+  "treatment_program_template_stage_groups",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    stageId: uuid("stage_id").notNull(),
+    title: text().notNull(),
+    description: text(),
+    scheduleText: text("schedule_text"),
+    sortOrder: integer("sort_order").default(0).notNull(),
+  },
+  (table) => [
+    index("idx_treatment_program_tpl_stage_groups_stage_order").using(
+      "btree",
+      table.stageId.asc().nullsLast().op("uuid_ops"),
+      table.sortOrder.asc().nullsLast().op("int4_ops"),
+    ),
+    foreignKey({
+      columns: [table.stageId],
+      foreignColumns: [treatmentProgramTemplateStages.id],
+      name: "treatment_program_template_stage_groups_stage_id_fkey",
+    }).onDelete("cascade"),
+  ],
+);
+
 export const treatmentProgramTemplateStageItems = pgTable(
   "treatment_program_template_stage_items",
   {
@@ -89,6 +114,8 @@ export const treatmentProgramTemplateStageItems = pgTable(
     sortOrder: integer("sort_order").default(0).notNull(),
     comment: text(),
     settings: jsonb("settings").$type<Record<string, unknown>>(),
+    /** A3: ссылка на группу внутри этапа; NULL — вне группы. */
+    groupId: uuid("group_id"),
   },
   (table) => [
     index("idx_treatment_program_stage_items_stage_order").using(
@@ -101,6 +128,11 @@ export const treatmentProgramTemplateStageItems = pgTable(
       foreignColumns: [treatmentProgramTemplateStages.id],
       name: "treatment_program_template_stage_items_stage_id_fkey",
     }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.groupId],
+      foreignColumns: [treatmentProgramTemplateStageGroups.id],
+      name: "treatment_program_template_stage_items_group_id_fkey",
+    }).onDelete("set null"),
     check(
       "treatment_program_template_stage_items_item_type_check",
       sql`item_type = ANY (ARRAY['exercise'::text, 'lfk_complex'::text, 'recommendation'::text, 'lesson'::text, 'test_set'::text])`,

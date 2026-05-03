@@ -11,6 +11,7 @@
 - Дорожная карта реструктуризации: [`RECOMMENDATIONS_AND_ROADMAP.md`](RECOMMENDATIONS_AND_ROADMAP.md) §IV
 - Курсы как отдельная инициатива (геткурс-модель): [`../COURSES_INITIATIVE/README.md`](../COURSES_INITIATIVE/README.md)
 - Sister-инициатива по UX/тех-фиксам каталогов «Назначений»: [`ASSIGNMENT_CATALOGS_REWORK_PLAN.md`](ASSIGNMENT_CATALOGS_REWORK_PLAN.md) (этапы B1–B7). Делается до/параллельно A1+A3, не дублирует доменную работу.
+- Execution-контур B1–B7: [`../ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/README.md`](../ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/README.md) (`MASTER_PLAN` + этапные планы + LOG).
 - Отдельный execution-контур A1–A5: [`../PROGRAM_PATIENT_SHAPE_INITIATIVE/README.md`](../PROGRAM_PATIENT_SHAPE_INITIATIVE/README.md) (`MASTER_PLAN` + этапные планы + LOG).
 
 > Инвариант, на котором строится этот документ: **любое назначение пациенту = `treatment_program_instance`**. Курсы — отдельная сущность по геткурс-модели (см. `COURSES_INITIATIVE`), к плану лечения **не относятся**.
@@ -286,7 +287,7 @@ treatment_program_instance
 - `duration` — «4 недели», «бессрочно» (фристайл-текст);
 - опционально `external_link` / `external_org` для `kind = external_therapy`.
 
-Фильтры списка: `q`, `kind`, `body_region`. Master-detail как у других каталогов. «Где используется» / архивация — те же шаблоны, что в [`ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md`](ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md).
+Фильтры списка: `q`, `kind`, `body_region`. Master-detail как у других каталогов. «Где используется» / архивация — те же шаблоны, что в [`ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md`](done/ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md). Редакционные материалы блоков главной (ситуации, подписка, разминка) — [`CONTENT_PLAN.md`](CONTENT_PLAN.md).
 
 Этот каталог по структуре близок к каталогу упражнений: список + фильтры + карточка с типизированными полями.
 

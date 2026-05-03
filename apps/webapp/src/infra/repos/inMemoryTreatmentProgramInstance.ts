@@ -7,8 +7,11 @@ import type {
   AddTreatmentProgramInstanceStageInput,
   AddTreatmentProgramInstanceStageItemInput,
   AppendTreatmentProgramEventInput,
+  CreateTreatmentProgramInstanceStageGroupInput,
   CreateTreatmentProgramInstanceTreeInput,
   ReplaceTreatmentProgramInstanceStageItemInput,
+  TreatmentProgramInstanceStageGroup,
+  UpdateTreatmentProgramInstanceStageGroupInput,
   UpdateTreatmentProgramInstanceStageMetadataInput,
   TreatmentProgramEventRow,
   TreatmentProgramInstanceDetail,
@@ -23,8 +26,9 @@ import type {
   TreatmentProgramTestResultDetailRow,
   TreatmentProgramTestResultRow,
   NormalizedTestDecision,
+  PendingProgramTestEvaluationRow,
 } from "@/modules/treatment-program/types";
-import { effectiveInstanceStageItemComment } from "@/modules/treatment-program/types";
+import { effectiveInstanceStageItemComment, TREATMENT_PROGRAM_PLAN_MUTATION_EVENT_TYPES } from "@/modules/treatment-program/types";
 
 function sameIdSet(ordered: string[], expected: Set<string>): boolean {
   if (ordered.length !== expected.size) return false;
@@ -54,6 +58,7 @@ export function createInMemoryTreatmentProgramPersistence(): InMemoryTreatmentPr
   const instances = new Map<string, InstRow>();
   const stages = new Map<string, StageRow>();
   const items = new Map<string, ItemRow>();
+  const instGroups = new Map<string, TreatmentProgramInstanceStageGroup>();
   const attempts = new Map<string, TreatmentProgramTestAttemptRow>();
   const results = new Map<string, TreatmentProgramTestResultRow>();
   const programEvents: TreatmentProgramEventRow[] = [];
@@ -80,6 +85,14 @@ export function createInMemoryTreatmentProgramPersistence(): InMemoryTreatmentPr
     instances.set(instanceId, { ...inst, updatedAt: isoNow() });
   }
 
+  function nextGroupOrder(stageId: string): number {
+    let m = -1;
+    for (const g of instGroups.values()) {
+      if (g.stageId === stageId) m = Math.max(m, g.sortOrder);
+    }
+    return m + 1;
+  }
+
   function mapItemView(row: ItemRow): ItemRow & { effectiveComment: string | null } {
     return {
       ...row,
@@ -94,11 +107,15 @@ export function createInMemoryTreatmentProgramPersistence(): InMemoryTreatmentPr
       .filter((s) => s.instanceId === instanceId)
       .sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id));
     const outStages = stageList.map((st) => {
+      const groupList = [...instGroups.values()]
+        .filter((g) => g.stageId === st.id)
+        .sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id));
       const itemList = [...items.values()]
         .filter((it) => it.stageId === st.id)
         .sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id));
       return {
         ...st,
+        groups: groupList.map((g) => ({ ...g })),
         items: itemList.map((row) => mapItemView({ ...row })),
       };
     });
@@ -133,6 +150,7 @@ export function createInMemoryTreatmentProgramPersistence(): InMemoryTreatmentPr
         status: "active" as TreatmentProgramInstanceStatus,
         createdAt: now,
         updatedAt: now,
+        patientPlanLastOpenedAt: null,
       };
       instances.set(id, inst);
 
@@ -154,7 +172,28 @@ export function createInMemoryTreatmentProgramPersistence(): InMemoryTreatmentPr
           expectedDurationText: st.expectedDurationText,
         };
         stages.set(sid, stageRow);
-        for (const it of st.items) {
+        const sortedGroups = [...(st.groups ?? [])].sort(
+          (a, b) => a.sortOrder - b.sortOrder || a.sourceGroupId.localeCompare(b.sourceGroupId),
+        );
+        const tplToInst = new Map<string, string>();
+        for (const g of sortedGroups) {
+          const gid = crypto.randomUUID();
+          const gr: TreatmentProgramInstanceStageGroup = {
+            id: gid,
+            stageId: sid,
+            sourceGroupId: g.sourceGroupId,
+            title: g.title,
+            description: g.description,
+            scheduleText: g.scheduleText,
+            sortOrder: g.sortOrder,
+          };
+          instGroups.set(gid, gr);
+          tplToInst.set(g.sourceGroupId, gid);
+        }
+        const sortedItems = [...st.items].sort(
+          (a, b) => a.sortOrder - b.sortOrder || a.itemRefId.localeCompare(b.itemRefId),
+        );
+        for (const it of sortedItems) {
           const iid = crypto.randomUUID();
           const itemRow: ItemRow = {
             id: iid,
@@ -169,6 +208,9 @@ export function createInMemoryTreatmentProgramPersistence(): InMemoryTreatmentPr
             completedAt: null,
             isActionable: it.isActionable ?? null,
             status: it.status ?? "active",
+            groupId: it.templateGroupId ? tplToInst.get(it.templateGroupId) ?? null : null,
+            createdAt: now,
+            lastViewedAt: now,
           };
           items.set(iid, itemRow);
         }
@@ -311,6 +353,9 @@ export function createInMemoryTreatmentProgramPersistence(): InMemoryTreatmentPr
       for (const [iid, it] of items) {
         if (it.stageId === stageId) items.delete(iid);
       }
+      for (const [gid, g] of instGroups) {
+        if (g.stageId === stageId) instGroups.delete(gid);
+      }
       stages.delete(stageId);
       touchInstance(instanceId);
       return true;
@@ -323,7 +368,12 @@ export function createInMemoryTreatmentProgramPersistence(): InMemoryTreatmentPr
     ) {
       const st = stages.get(stageId);
       if (!st || st.instanceId !== instanceId) return null;
+      if (input.groupId) {
+        const gr = instGroups.get(input.groupId);
+        if (!gr || gr.stageId !== stageId) return null;
+      }
       const iid = crypto.randomUUID();
+      const t = isoNow();
       const itemRow: ItemRow = {
         id: iid,
         stageId,
@@ -337,6 +387,9 @@ export function createInMemoryTreatmentProgramPersistence(): InMemoryTreatmentPr
         completedAt: null,
         isActionable: input.isActionable ?? null,
         status: input.status ?? "active",
+        groupId: input.groupId ?? null,
+        createdAt: t,
+        lastViewedAt: null,
       };
       items.set(iid, itemRow);
       touchInstance(instanceId);
@@ -346,7 +399,11 @@ export function createInMemoryTreatmentProgramPersistence(): InMemoryTreatmentPr
     async patchInstanceStageItem(
       instanceId: string,
       itemId: string,
-      patch: { status?: TreatmentProgramInstanceStageItemStatus; isActionable?: boolean | null },
+      patch: {
+        status?: TreatmentProgramInstanceStageItemStatus;
+        isActionable?: boolean | null;
+        groupId?: string | null;
+      },
     ) {
       const inst = instances.get(instanceId);
       if (!inst) return null;
@@ -354,10 +411,15 @@ export function createInMemoryTreatmentProgramPersistence(): InMemoryTreatmentPr
       if (!row) return null;
       const st = stages.get(row.stageId);
       if (!st || st.instanceId !== instanceId) return null;
+      if (patch.groupId !== undefined && patch.groupId !== null) {
+        const gr = instGroups.get(patch.groupId);
+        if (!gr || gr.stageId !== row.stageId) return null;
+      }
       const next: ItemRow = {
         ...row,
         ...(patch.status !== undefined ? { status: patch.status } : {}),
         ...(patch.isActionable !== undefined ? { isActionable: patch.isActionable } : {}),
+        ...(patch.groupId !== undefined ? { groupId: patch.groupId } : {}),
       };
       items.set(itemId, next);
       touchInstance(instanceId);
@@ -367,23 +429,34 @@ export function createInMemoryTreatmentProgramPersistence(): InMemoryTreatmentPr
     async patchInstanceStageItemWithEvent(
       instanceId: string,
       itemId: string,
-      patch: { status?: TreatmentProgramInstanceStageItemStatus; isActionable?: boolean | null },
+      patch: {
+        status?: TreatmentProgramInstanceStageItemStatus;
+        isActionable?: boolean | null;
+        groupId?: string | null;
+      },
       eventInput: AppendTreatmentProgramEventInput,
     ) {
       if (eventInput.instanceId !== instanceId) {
         throw new Error("patchInstanceStageItemWithEvent: event instanceId mismatch");
       }
-      if (patch.status === undefined && patch.isActionable === undefined) return null;
+      if (patch.status === undefined && patch.isActionable === undefined && patch.groupId === undefined) {
+        return null;
+      }
       const inst = instances.get(instanceId);
       if (!inst) return null;
       const row = items.get(itemId);
       if (!row) return null;
       const st = stages.get(row.stageId);
       if (!st || st.instanceId !== instanceId) return null;
+      if (patch.groupId !== undefined && patch.groupId !== null) {
+        const gr = instGroups.get(patch.groupId);
+        if (!gr || gr.stageId !== row.stageId) return null;
+      }
       const next: ItemRow = {
         ...row,
         ...(patch.status !== undefined ? { status: patch.status } : {}),
         ...(patch.isActionable !== undefined ? { isActionable: patch.isActionable } : {}),
+        ...(patch.groupId !== undefined ? { groupId: patch.groupId } : {}),
       };
       items.set(itemId, next);
       touchInstance(instanceId);
@@ -400,6 +473,7 @@ export function createInMemoryTreatmentProgramPersistence(): InMemoryTreatmentPr
       if (!row) return null;
       const st = stages.get(row.stageId);
       if (!st || st.instanceId !== instanceId) return null;
+      const t = isoNow();
       const next: ItemRow = {
         ...row,
         itemType: input.itemType,
@@ -411,6 +485,9 @@ export function createInMemoryTreatmentProgramPersistence(): InMemoryTreatmentPr
         completedAt: null,
         status: "active",
         isActionable: null,
+        groupId: null,
+        createdAt: t,
+        lastViewedAt: null,
       };
       items.set(itemId, next);
       touchInstance(instanceId);
@@ -447,6 +524,113 @@ export function createInMemoryTreatmentProgramPersistence(): InMemoryTreatmentPr
       }
       touchInstance(instanceId);
       return true;
+    },
+
+    async createInstanceStageGroup(
+      instanceId: string,
+      stageId: string,
+      input: CreateTreatmentProgramInstanceStageGroupInput,
+    ) {
+      const st = stages.get(stageId);
+      if (!st || st.instanceId !== instanceId) return null;
+      const title = input.title?.trim() ?? "";
+      if (!title) return null;
+      const gid = crypto.randomUUID();
+      const gr: TreatmentProgramInstanceStageGroup = {
+        id: gid,
+        stageId,
+        sourceGroupId: null,
+        title,
+        description: input.description?.trim() ?? null,
+        scheduleText: input.scheduleText?.trim() ?? null,
+        sortOrder: input.sortOrder ?? nextGroupOrder(stageId),
+      };
+      instGroups.set(gid, gr);
+      touchInstance(instanceId);
+      return { ...gr };
+    },
+
+    async updateInstanceStageGroup(
+      instanceId: string,
+      groupId: string,
+      input: UpdateTreatmentProgramInstanceStageGroupInput,
+    ) {
+      const cur = instGroups.get(groupId);
+      if (!cur) return null;
+      const st = stages.get(cur.stageId);
+      if (!st || st.instanceId !== instanceId) return null;
+      let title = cur.title;
+      if (input.title !== undefined) {
+        const t = input.title.trim();
+        if (!t) return null;
+        title = t;
+      }
+      const next: TreatmentProgramInstanceStageGroup = {
+        ...cur,
+        title,
+        ...(input.description !== undefined ? { description: input.description?.trim() ?? null } : {}),
+        ...(input.scheduleText !== undefined ? { scheduleText: input.scheduleText?.trim() ?? null } : {}),
+        ...(input.sortOrder !== undefined ? { sortOrder: input.sortOrder } : {}),
+      };
+      instGroups.set(groupId, next);
+      touchInstance(instanceId);
+      return { ...next };
+    },
+
+    async deleteInstanceStageGroup(instanceId: string, groupId: string) {
+      const cur = instGroups.get(groupId);
+      if (!cur) return false;
+      const st = stages.get(cur.stageId);
+      if (!st || st.instanceId !== instanceId) return false;
+      for (const [iid, it] of items) {
+        if (it.groupId === groupId) items.set(iid, { ...it, groupId: null });
+      }
+      instGroups.delete(groupId);
+      touchInstance(instanceId);
+      return true;
+    },
+
+    async reorderInstanceStageGroups(
+      instanceId: string,
+      stageId: string,
+      orderedGroupIds: string[],
+    ) {
+      const st = stages.get(stageId);
+      if (!st || st.instanceId !== instanceId) return false;
+      const groupList = [...instGroups.values()].filter((g) => g.stageId === stageId);
+      const idSet = new Set(groupList.map((g) => g.id));
+      if (!sameIdSet(orderedGroupIds, idSet)) return false;
+      for (let i = 0; i < orderedGroupIds.length; i++) {
+        const gid = orderedGroupIds[i]!;
+        const row = instGroups.get(gid);
+        if (!row) return false;
+        instGroups.set(gid, { ...row, sortOrder: i });
+      }
+      touchInstance(instanceId);
+      return true;
+    },
+
+    async touchPatientPlanLastOpenedAt(patientUserId: string, instanceId: string): Promise<void> {
+      const inst = instances.get(instanceId);
+      if (!inst || inst.patientUserId !== patientUserId) return;
+      const t = isoNow();
+      instances.set(instanceId, { ...inst, patientPlanLastOpenedAt: t, updatedAt: t });
+    },
+
+    async markStageItemViewedIfNever(
+      patientUserId: string,
+      instanceId: string,
+      stageItemId: string,
+    ): Promise<{ updated: boolean }> {
+      const inst = instances.get(instanceId);
+      if (!inst || inst.patientUserId !== patientUserId) return { updated: false };
+      const row = items.get(stageItemId);
+      if (!row || row.lastViewedAt != null) return { updated: false };
+      const st = stages.get(row.stageId);
+      if (!st || st.instanceId !== instanceId) return { updated: false };
+      const t = isoNow();
+      items.set(stageItemId, { ...row, lastViewedAt: t });
+      return { updated: true };
     },
   };
 
@@ -550,6 +734,32 @@ export function createInMemoryTreatmentProgramPersistence(): InMemoryTreatmentPr
       return out.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
     },
 
+    async listPendingEvaluationResultsForPatient(patientUserId: string): Promise<PendingProgramTestEvaluationRow[]> {
+      const out: PendingProgramTestEvaluationRow[] = [];
+      for (const r of results.values()) {
+        if (r.decidedBy) continue;
+        const att = attempts.get(r.attemptId);
+        if (!att || att.patientUserId !== patientUserId) continue;
+        const item = items.get(att.instanceStageItemId);
+        if (!item) continue;
+        const st = stages.get(item.stageId);
+        if (!st) continue;
+        const inst = instances.get(st.instanceId);
+        if (!inst || inst.patientUserId !== patientUserId || inst.status !== "active") continue;
+        out.push({
+          resultId: r.id,
+          testId: r.testId,
+          testTitle: null,
+          createdAt: r.createdAt,
+          instanceId: inst.id,
+          instanceTitle: inst.title,
+          stageTitle: st.title,
+          stageItemId: item.id,
+        });
+      }
+      return out.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+    },
+
     async overrideResultDecision(resultId: string, input: { normalizedDecision: NormalizedTestDecision; decidedBy: string }) {
       const row = results.get(resultId);
       if (!row) return null;
@@ -573,6 +783,17 @@ export function createInMemoryTreatmentProgramPersistence(): InMemoryTreatmentPr
         .filter((e) => e.instanceId === instanceId)
         .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
       return newestFirst.slice(0, cap).reverse();
+    },
+
+    async getMaxPlanMutationEventCreatedAt(instanceId: string): Promise<string | null> {
+      const allowed = new Set<string>(TREATMENT_PROGRAM_PLAN_MUTATION_EVENT_TYPES);
+      let maxAt: string | null = null;
+      for (const e of programEvents) {
+        if (e.instanceId !== instanceId) continue;
+        if (!allowed.has(e.eventType)) continue;
+        if (!maxAt || e.createdAt > maxAt) maxAt = e.createdAt;
+      }
+      return maxAt;
     },
   };
 

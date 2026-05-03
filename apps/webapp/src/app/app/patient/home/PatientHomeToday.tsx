@@ -8,6 +8,7 @@ import {
   formatNextReminderLabel,
   pickNextHomeReminder,
 } from "@/modules/patient-home/nextReminderOccurrence";
+import { formatBookingDateLongRu } from "@/shared/lib/formatBusinessDateTime";
 import type { PatientHomeBlockCode } from "@/modules/patient-home/ports";
 import type { PatientMoodToday } from "@/modules/patient-mood/types";
 import type {
@@ -143,6 +144,7 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
 
   let homeReminder: { rule: ReminderRule; nextAt: Date } | null = null;
   let planInstance: { id: string; title: string } | null = null;
+  let planUpdatedLabel: string | null = null;
   let progress: { todayDone: number; streak: number } | null = null;
   let initialMood: PatientMoodToday | null = null;
   if (personalTierOk && session) {
@@ -157,6 +159,17 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
       .filter((i) => i.status === "active")
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
     planInstance = active[0] ? { id: active[0].id, title: active[0].title } : null;
+    if (planInstance) {
+      const nudge = await deps.treatmentProgramInstance.patientPlanUpdatedBadgeForInstance({
+        patientUserId: session.user.userId,
+        instanceId: planInstance.id,
+      });
+      if (nudge.show) {
+        planUpdatedLabel = nudge.eventIso
+          ? `План обновлён ${formatBookingDateLongRu(nudge.eventIso, appTz)}`
+          : "План обновлён";
+      }
+    }
     progress = { todayDone: p.todayDone, streak: p.streak };
     initialMood = mood;
   }
@@ -232,6 +245,7 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
         return (
           <PatientHomePlanCard
             instance={planInstance}
+            planUpdatedLabel={planUpdatedLabel}
             blockIconImageUrl={blockLeadingIconFor("plan")}
             anonymousGuest={anonymousGuest}
             personalTierOk={personalTierOk}

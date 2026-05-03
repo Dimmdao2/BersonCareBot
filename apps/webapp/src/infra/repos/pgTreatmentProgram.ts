@@ -5,6 +5,7 @@ import {
   treatmentProgramTemplates as tplTable,
   treatmentProgramTemplateStages as stageTable,
   treatmentProgramTemplateStageItems as itemTable,
+  treatmentProgramTemplateStageGroups as tplGroupTable,
 } from "../../../db/schema/treatmentProgramTemplates";
 import type { TreatmentProgramPort } from "@/modules/treatment-program/ports";
 import type {
@@ -17,7 +18,10 @@ import type {
   TreatmentProgramTemplate,
   TreatmentProgramTemplateDetail,
   TreatmentProgramTemplateFilter,
+  TreatmentProgramTemplateStageGroup,
   TreatmentProgramTemplateStatus,
+  CreateTreatmentProgramTemplateStageGroupInput,
+  UpdateTreatmentProgramTemplateStageGroupInput,
   UpdateTreatmentProgramStageInput,
   UpdateTreatmentProgramStageItemInput,
   UpdateTreatmentProgramTemplateInput,
@@ -64,6 +68,18 @@ function mapItem(row: typeof itemTable.$inferSelect): TreatmentProgramStageItem 
     sortOrder: row.sortOrder,
     comment: row.comment ?? null,
     settings: (row.settings as Record<string, unknown> | null) ?? null,
+    groupId: row.groupId ?? null,
+  };
+}
+
+function mapTemplateGroup(row: typeof tplGroupTable.$inferSelect): TreatmentProgramTemplateStageGroup {
+  return {
+    id: row.id,
+    stageId: row.stageId,
+    title: row.title,
+    description: row.description ?? null,
+    scheduleText: row.scheduleText ?? null,
+    sortOrder: row.sortOrder,
   };
 }
 
@@ -258,8 +274,23 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
         list.push(it);
         itemsByStage.set(it.stageId, list);
       }
+      const groupsRows =
+        stageIds.length === 0
+          ? []
+          : await db
+              .select()
+              .from(tplGroupTable)
+              .where(inArray(tplGroupTable.stageId, stageIds))
+              .orderBy(asc(tplGroupTable.stageId), asc(tplGroupTable.sortOrder), asc(tplGroupTable.id));
+      const groupsByStage = new Map<string, typeof groupsRows>();
+      for (const g of groupsRows) {
+        const list = groupsByStage.get(g.stageId) ?? [];
+        list.push(g);
+        groupsByStage.set(g.stageId, list);
+      }
       const stages = stagesRows.map((s) => ({
         ...mapStage(s),
+        groups: (groupsByStage.get(s.id) ?? []).map(mapTemplateGroup),
         items: (itemsByStage.get(s.id) ?? []).map(mapItem),
       }));
       return {
@@ -360,6 +391,7 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
           sortOrder,
           comment: input.comment ?? null,
           settings: input.settings ?? undefined,
+          groupId: input.groupId ?? null,
         })
         .returning();
       if (!row) throw new Error("insert failed");
@@ -382,6 +414,7 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
       if (input.sortOrder !== undefined) patch.sortOrder = input.sortOrder;
       if (input.comment !== undefined) patch.comment = input.comment;
       if (input.settings !== undefined) patch.settings = input.settings ?? undefined;
+      if (input.groupId !== undefined) patch.groupId = input.groupId;
       const [row] = await db.update(itemTable).set(patch).where(eq(itemTable.id, itemId)).returning();
       return row ? mapItem(row) : null;
     },
@@ -390,6 +423,75 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
       const db = getDrizzle();
       const res = await db.delete(itemTable).where(eq(itemTable.id, itemId)).returning({ id: itemTable.id });
       return res.length > 0;
+    },
+
+    async createTemplateStageGroup(stageId: string, input: CreateTreatmentProgramTemplateStageGroupInput) {
+      const db = getDrizzle();
+      const [{ max }] = await db
+        .select({ max: sql<number>`coalesce(max(${tplGroupTable.sortOrder}), -1)` })
+        .from(tplGroupTable)
+        .where(eq(tplGroupTable.stageId, stageId));
+      const sortOrder = input.sortOrder ?? max + 1;
+      const title = input.title?.trim() ?? "";
+      if (!title) throw new Error("Название группы обязательно");
+      const [row] = await db
+        .insert(tplGroupTable)
+        .values({
+          stageId,
+          title,
+          description: input.description?.trim() ?? null,
+          scheduleText: input.scheduleText?.trim() ?? null,
+          sortOrder,
+        })
+        .returning();
+      if (!row) throw new Error("insert group failed");
+      return mapTemplateGroup(row);
+    },
+
+    async updateTemplateStageGroup(groupId: string, input: UpdateTreatmentProgramTemplateStageGroupInput) {
+      const db = getDrizzle();
+      const patch: Partial<typeof tplGroupTable.$inferInsert> = {};
+      if (input.title !== undefined) {
+        const t = input.title.trim();
+        if (!t) throw new Error("Название группы обязательно");
+        patch.title = t;
+      }
+      if (input.description !== undefined) patch.description = input.description?.trim() ?? null;
+      if (input.scheduleText !== undefined) patch.scheduleText = input.scheduleText?.trim() ?? null;
+      if (input.sortOrder !== undefined) patch.sortOrder = input.sortOrder;
+      const [row] = await db.update(tplGroupTable).set(patch).where(eq(tplGroupTable.id, groupId)).returning();
+      return row ? mapTemplateGroup(row) : null;
+    },
+
+    async deleteTemplateStageGroup(groupId: string) {
+      const db = getDrizzle();
+      await db.update(itemTable).set({ groupId: null }).where(eq(itemTable.groupId, groupId));
+      const res = await db.delete(tplGroupTable).where(eq(tplGroupTable.id, groupId)).returning({ id: tplGroupTable.id });
+      return res.length > 0;
+    },
+
+    async reorderTemplateStageGroups(stageId: string, orderedGroupIds: string[]) {
+      const db = getDrizzle();
+      return db.transaction(async (tx) => {
+        const rows = await tx
+          .select({ id: tplGroupTable.id })
+          .from(tplGroupTable)
+          .where(eq(tplGroupTable.stageId, stageId));
+        const idSet = new Set(rows.map((r) => r.id));
+        if (orderedGroupIds.length !== idSet.size) return false;
+        const seen = new Set<string>();
+        for (const id of orderedGroupIds) {
+          if (!idSet.has(id) || seen.has(id)) return false;
+          seen.add(id);
+        }
+        for (let i = 0; i < orderedGroupIds.length; i++) {
+          await tx
+            .update(tplGroupTable)
+            .set({ sortOrder: i })
+            .where(eq(tplGroupTable.id, orderedGroupIds[i]!));
+        }
+        return true;
+      });
     },
   };
 }

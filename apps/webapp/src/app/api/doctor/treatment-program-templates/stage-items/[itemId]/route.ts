@@ -11,6 +11,8 @@ const patchBodySchema = z.object({
   sortOrder: z.number().int().optional(),
   comment: z.string().max(5000).optional().nullable(),
   settings: z.record(z.string(), z.unknown()).optional().nullable(),
+  /** Группа этапа; `null` — вне групп. */
+  groupId: z.string().uuid().nullable().optional(),
 });
 
 export async function PATCH(request: Request, ctx: { params: Promise<{ itemId: string }> }) {

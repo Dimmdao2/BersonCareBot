@@ -222,4 +222,22 @@ describe("treatment-program instance service", () => {
     expect(row.localComment).toBeNull();
     expect(row.effectiveComment).toBe("Оригинал");
   });
+
+  it("assign copies template stage groups and maps item groupId to instance group", async () => {
+    const tpl = await tplSvc.createTemplate({ title: "С группами", status: "published" }, null);
+    const s1 = await tplSvc.createStage(tpl.id, { title: "Этап 1" });
+    const g = await tplSvc.createTemplateStageGroup(s1.id, { title: "Неделя 1" });
+    await tplSvc.addStageItem(s1.id, { itemType: "recommendation", itemRefId: refA, groupId: g.id });
+    const inst = await instSvc.assignTemplateToPatient({
+      templateId: tpl.id,
+      patientUserId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      assignedBy: null,
+    });
+    const stage = inst.stages[0]!;
+    expect(stage.groups).toHaveLength(1);
+    expect(stage.groups[0]!.title).toBe("Неделя 1");
+    expect(stage.groups[0]!.sourceGroupId).toBe(g.id);
+    const it0 = stage.items[0]!;
+    expect(it0.groupId).toBe(stage.groups[0]!.id);
+  });
 });

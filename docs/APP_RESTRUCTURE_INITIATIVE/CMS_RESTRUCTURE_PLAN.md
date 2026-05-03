@@ -11,7 +11,7 @@
 - [`CMS_AUDIT.md`](CMS_AUDIT.md) — факты, на основе которых выбран этот план.
 - [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md) — общий план кабинета врача.
 - [`LOG.md`](LOG.md) — журнал исполнения инициативы.
-- [`CMS_RESTRUCTURE_EXECUTION_AUDIT.md`](CMS_RESTRUCTURE_EXECUTION_AUDIT.md) — аудит соответствия реализации плану, коду и журналу.
+- [`CMS_RESTRUCTURE_EXECUTION_AUDIT.md`](done/CMS_RESTRUCTURE_EXECUTION_AUDIT.md) — аудит соответствия реализации плану, коду и журналу.
 
 ## Аудит выполнения
 

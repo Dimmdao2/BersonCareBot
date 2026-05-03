@@ -8,6 +8,7 @@ import { useCallback, useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { ClientProfile } from "@/modules/doctor-clients/service";
@@ -15,6 +16,7 @@ import { DoctorChatPanel } from "@/modules/messaging/components/DoctorChatPanel"
 import type { SerializedSupportMessage } from "@/modules/messaging/serializeSupportMessage";
 import { cn } from "@/lib/utils";
 import type { MessageLogEntry } from "@/modules/doctor-messaging/ports";
+import type { PendingProgramTestEvaluationRow } from "@/modules/treatment-program/types";
 import { phoneToTelHref } from "@/shared/lib/phoneLinks";
 import { AssignLfkTemplatePanel } from "./AssignLfkTemplatePanel";
 import { PatientTreatmentProgramsPanel } from "./PatientTreatmentProgramsPanel";
@@ -40,6 +42,8 @@ type ClientProfileCardProps = {
   assignLfkEnabled?: boolean;
   publishedTreatmentProgramTemplates?: { id: string; title: string }[];
   assignTreatmentProgramEnabled?: boolean;
+  /** A4: тесты программ без `decided_by` у активных экземпляров пациента. */
+  pendingProgramTestEvaluations?: PendingProgramTestEvaluationRow[];
 };
 
 function SectionGroupTitle({ children, first = false }: { children: ReactNode; first?: boolean }) {
@@ -73,7 +77,9 @@ function ClientProfileCardInner({
   assignLfkEnabled = false,
   publishedTreatmentProgramTemplates = [],
   assignTreatmentProgramEnabled = false,
+  pendingProgramTestEvaluations = [],
 }: ClientProfileCardProps) {
+  const scopeQs = profileListScope ? `?scope=${encodeURIComponent(profileListScope)}` : "";
   const [contactsEditing, setContactsEditing] = useState(false);
   const [adminDetailsOpen, setAdminDetailsOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
@@ -282,6 +288,38 @@ function ClientProfileCardInner({
             disabled={!assignTreatmentProgramEnabled}
             profileListScope={profileListScope}
           />
+        </section>
+
+        <section id="doctor-client-section-pending-program-tests" className="border-t border-border px-4 pb-4 pt-2">
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            <h3 className="text-sm font-semibold">Тесты, ожидающие оценки</h3>
+            {pendingProgramTestEvaluations.length > 0 ? (
+              <Badge variant="secondary" className="text-xs">
+                К проверке
+              </Badge>
+            ) : null}
+          </div>
+          {pendingProgramTestEvaluations.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Нет тестов, ожидающих оценки.</p>
+          ) : (
+            <ul className="m-0 list-none space-y-2 p-0">
+              {pendingProgramTestEvaluations.map((row) => (
+                <li key={row.resultId} className="rounded-lg border border-border bg-card p-3">
+                  <p className="text-sm font-medium">{row.testTitle ?? row.testId}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {row.instanceTitle} · {row.stageTitle} ·{" "}
+                    {row.createdAt.length >= 10 ? row.createdAt.slice(0, 10) : row.createdAt}
+                  </p>
+                  <Link
+                    href={`/app/doctor/clients/${encodeURIComponent(userId)}/treatment-programs/${encodeURIComponent(row.instanceId)}${scopeQs}`}
+                    className={cn(buttonVariants({ variant: "outline", size: "sm" }), "mt-2 inline-flex")}
+                  >
+                    Открыть тест
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
 
         <section id="doctor-client-section-lfk" className="border-t border-border px-4 pb-4 pt-2">

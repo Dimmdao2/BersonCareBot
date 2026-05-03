@@ -4,6 +4,70 @@
 
 ---
 
+## 2026-05-03 — Stage A5 — POST-AUDIT FIX (`AUDIT_STAGE_A5.md`)
+
+**Контекст:** [`AUDIT_STAGE_A5.md`](AUDIT_STAGE_A5.md) — закрытие **Major** (нет отдельных Critical в первичном аудите).
+
+**Сделано:**
+
+- **`patientRecordPlanOpened`:** проверка через **`getInstanceForPatient`** — при отсутствии экземпляра **`throw`** → **`POST .../plan-opened`** отвечает **404**; для **`status !== "active"`** возврат **`{ recorded: false }`** без `touchPatientPlanLastOpenedAt`.
+- **`POST .../plan-opened`:** тело **`{ ok: true, recorded }`**; **`revalidatePatientTreatmentProgramUi`** только при **`recorded: true`** (корректная инвалидация кэша при реальной записи).
+- **UI:** `PatientTreatmentProgramDetailClient` — **`POST plan-opened`** только при **`detail.status === "active"`**.
+- **RSC:** `[instanceId]/page.tsx` — **`notFound()`** если `getInstanceForPatient` вернул **`null`** до `omitDisabled…`.
+- **A5-PG-MAX-TYPE-01:** `coerceMaxPlanMutationCreatedAtToIso` + unit **`pgTreatmentProgramEvents.coerce.test.ts`**.
+- Тесты: расширены **`treatment-program-a5-badges.test.ts`**, **`PatientTreatmentProgramDetailClient.test.tsx`**; обновлены **`api.md`**, **`AUDIT_STAGE_A5.md`** (§1, §1b, §6).
+
+**Проверки (целевые A5 + FIX):**
+
+```bash
+rg "last_viewed_at|План обновлён|Новое|mark.*viewed|revalidatePatientTreatmentProgramUi|patientRecordPlanOpened|recorded|coerceMaxPlanMutationCreatedAtToIso" apps/webapp/src apps/webapp/db
+pnpm --dir apps/webapp exec vitest run src/modules/treatment-program/treatment-program-a5-badges.test.ts src/modules/treatment-program/stage-semantics.test.ts src/modules/treatment-program/patient-program-actions.test.ts src/app/app/patient/treatment-programs/PatientTreatmentProgramDetailClient.test.tsx src/infra/repos/pgTreatmentProgramEvents.coerce.test.ts
+pnpm --dir apps/webapp exec tsc --noEmit
+```
+
+**Результаты:** `rg` — ожидаемые вхождения; **vitest** (5 файлов) — PASS; **`tsc --noEmit`** — PASS.
+
+**Defer:** **A5-TODAY-INSTANCE-01** (несколько активных программ на Today) — product backlog; **A5-TS-EQUALITY-01** — без изменения семантики.
+
+**Намеренно не делали:** полный **`pnpm run ci`**.
+
+---
+
+## 2026-05-03 — Stage A5 — бейджи «План обновлён» / «Новое», `last_viewed_at`, mark-viewed, revalidate
+
+**Контекст:** [`STAGE_A5_PLAN.md`](STAGE_A5_PLAN.md), [`MASTER_PLAN.md`](MASTER_PLAN.md).
+
+**Сделано:**
+
+- **Схема / миграция `0031_treatment_program_a5_last_viewed`:** у `treatment_program_instance_stage_items` — `created_at` (NOT NULL, backfill от экземпляра), `last_viewed_at` (backfill `= created_at` для старых строк); у `treatment_program_instances` — `patient_plan_last_opened_at`. Drizzle: `db/schema/treatmentProgramInstances.ts`.
+- **Порты / PG / in-memory:** чтение/запись новых полей; копия дерева при назначении — `lastViewedAt` = `createdAt` у пунктов из шаблона; врачебное добавление/замена — `lastViewedAt: null`; `touchPatientPlanLastOpenedAt`, `markStageItemViewedIfNever` (UPDATE только при `last_viewed_at IS NULL`); `getMaxPlanMutationEventCreatedAt` по `TREATMENT_PROGRAM_PLAN_MUTATION_EVENT_TYPES`.
+- **Сервис:** `patientRecordPlanOpened`, `patientMarkStageItemViewedIfNever`, `patientPlanUpdatedBadgeForInstance` (baseline: `patientPlanLastOpenedAt ?? instance.createdAt`; бейдж, если max(event) **строго** позже baseline).
+- **Семантика:** `patientStageItemShowsNewBadge` в `stage-semantics.ts` (этап не заблокирован для контента, активный item, `lastViewedAt == null`).
+- **API (patient):** `POST .../plan-opened`, `POST .../items/[itemId]/mark-viewed` (`{ ok, updated }`).
+- **Кэш:** `revalidatePatientTreatmentProgramUi` — `revalidatePath` для patient home и списка программ; вызовы после mark-viewed, plan-opened и врачебных мутаций плана (stage-items, POST item, assign instance).
+- **UI:** Today / карточка плана — строка «План обновлён» (+ дата); деталь программы — `patientPillClass` «Новое», intersection + POST mark-viewed; при открытии детали — POST plan-opened.
+- **`api.md`** — описание полей и маршрутов A5.
+
+**Проверки (целевые A5):**
+
+```bash
+rg "last_viewed_at|План обновлён|Новое|mark.*viewed|revalidatePath|revalidateTag" apps/webapp/src apps/webapp/db
+pnpm --dir apps/webapp exec eslint "src/modules/treatment-program/treatment-program-a5-badges.test.ts" "src/modules/treatment-program/stage-semantics.test.ts" "src/modules/treatment-program/stage-semantics.ts" "src/modules/treatment-program/instance-service.ts" "src/modules/treatment-program/patient-program-actions.test.ts" "src/modules/treatment-program/ports.ts" "src/modules/treatment-program/types.ts" "src/infra/repos/pgTreatmentProgramInstance.ts" "src/infra/repos/inMemoryTreatmentProgramInstance.ts" "src/infra/repos/pgTreatmentProgramEvents.ts" "src/app-layer/cache/revalidatePatientTreatmentProgramUi.ts" "src/app/api/patient/treatment-program-instances/[instanceId]/plan-opened/route.ts" "src/app/api/patient/treatment-program-instances/[instanceId]/items/[itemId]/mark-viewed/route.ts" "src/app/api/doctor/treatment-program-instances/[instanceId]/stage-items/[itemId]/route.ts" "src/app/api/doctor/treatment-program-instances/[instanceId]/stages/[stageId]/items/route.ts" "src/app/api/doctor/clients/[userId]/treatment-program-instances/route.ts" "src/app/app/patient/home/PatientHomeToday.tsx" "src/app/app/patient/home/PatientHomePlanCard.tsx" "src/app/app/patient/treatment-programs/PatientTreatmentProgramDetailClient.tsx" "src/app/app/patient/treatment-programs/PatientTreatmentProgramDetailClient.test.tsx" "db/schema/treatmentProgramInstances.ts"
+pnpm --dir apps/webapp exec vitest run src/modules/treatment-program/treatment-program-a5-badges.test.ts src/modules/treatment-program/stage-semantics.test.ts src/modules/treatment-program/patient-program-actions.test.ts src/app/app/patient/treatment-programs/PatientTreatmentProgramDetailClient.test.tsx
+pnpm --dir apps/webapp exec tsc --noEmit
+```
+
+**Результаты:** `rg` — ожидаемые вхождения; **eslint** (перечисленные файлы) — PASS; **vitest** (4 файла) — PASS; **`tsc --noEmit`** — PASS.
+
+**Решения / примечания:**
+
+- Сравнение бейджа «План обновлён»: событие с тем же ISO-timestamp, что и `instance.createdAt`, **не** показывает бейдж (`maxAt <= baseline`); в unit-тесте использованы fake timers + сдвиг, чтобы событие было строго после baseline.
+- **`revalidateTag`:** не добавляли; достаточно `revalidatePath` через общий helper (см. `STAGE_A5_PLAN.md` §A5.5 note).
+
+**Намеренно не делали:** полный **`pnpm run ci`** в этом прогоне.
+
+---
+
 ## 2026-05-03 — Stage A4 — `program_action_log`, чек-лист пациента, ЛФК post-session, inbox «К проверке»
 
 **Контекст:** [`STAGE_A4_PLAN.md`](STAGE_A4_PLAN.md), [`MASTER_PLAN.md`](MASTER_PLAN.md) (O2/O3 зафиксированы в коде и `api.md`).

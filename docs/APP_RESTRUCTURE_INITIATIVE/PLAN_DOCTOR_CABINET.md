@@ -11,14 +11,14 @@
 - [`RECOMMENDATIONS_AND_ROADMAP.md`](RECOMMENDATIONS_AND_ROADMAP.md) — общая дорожная карта APP_RESTRUCTURE.
 - [`CMS_AUDIT.md`](CMS_AUDIT.md) — аудит CMS-сущностей (факты по текущему состоянию).
 - [`CMS_RESTRUCTURE_PLAN.md`](CMS_RESTRUCTURE_PLAN.md) — отдельный план разделения CMS (Вариант C). Это **первый шаг** этого общего плана.
-- [`CMS_RESTRUCTURE_EXECUTION_AUDIT.md`](CMS_RESTRUCTURE_EXECUTION_AUDIT.md) — аудит соответствия реализации плану и журналу.
-- [`DOCTOR_MENU_RESTRUCTURE_PLAN.md`](DOCTOR_MENU_RESTRUCTURE_PLAN.md) — ТЗ на этап 2: группы меню, аккордеон и перенос «Библиотеки файлов».
-- [`DOCTOR_NAV_BADGES_PLAN.md`](DOCTOR_NAV_BADGES_PLAN.md) — ТЗ на этап 3: бейджи новых онлайн-заявок и непрочитанных сообщений в меню врача.
-- [`DOCTOR_TODAY_DASHBOARD_PLAN.md`](DOCTOR_TODAY_DASHBOARD_PLAN.md) — ТЗ на этап 4: рабочий экран «Сегодня» вместо отчётного обзора.
-- [`DOCTOR_MESSAGES_UNIFIED_CHAT_PLAN.md`](DOCTOR_MESSAGES_UNIFIED_CHAT_PLAN.md) — ТЗ на этап 5: список чатов, единый layout, модалка из карточки пациента и автопрочтение.
-- [`ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md`](ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md) — ТЗ на этап 7: «где используется» и безопасная архивация каталогов назначений.
-- [`DOCTOR_UI_DENSITY_PLAN.md`](DOCTOR_UI_DENSITY_PLAN.md) — ТЗ на этап 8: уменьшение крупности doctor UI без редизайна и без пациентского интерфейса.
-- [`DOCTOR_UI_DENSITY_EXECUTION_AUDIT.md`](DOCTOR_UI_DENSITY_EXECUTION_AUDIT.md) — аудит выполнения этапа 8 (код, LOG, сверка с ТЗ).
+- [`CMS_RESTRUCTURE_EXECUTION_AUDIT.md`](done/CMS_RESTRUCTURE_EXECUTION_AUDIT.md) — аудит соответствия реализации плану и журналу.
+- [`DOCTOR_MENU_RESTRUCTURE_PLAN.md`](done/DOCTOR_MENU_RESTRUCTURE_PLAN.md) — ТЗ на этап 2: группы меню, аккордеон и перенос «Библиотеки файлов».
+- [`DOCTOR_NAV_BADGES_PLAN.md`](done/DOCTOR_NAV_BADGES_PLAN.md) — ТЗ на этап 3: бейджи новых онлайн-заявок и непрочитанных сообщений в меню врача.
+- [`DOCTOR_TODAY_DASHBOARD_PLAN.md`](done/DOCTOR_TODAY_DASHBOARD_PLAN.md) — ТЗ на этап 4: рабочий экран «Сегодня» вместо отчётного обзора.
+- [`DOCTOR_MESSAGES_UNIFIED_CHAT_PLAN.md`](done/DOCTOR_MESSAGES_UNIFIED_CHAT_PLAN.md) — ТЗ на этап 5: список чатов, единый layout, модалка из карточки пациента и автопрочтение.
+- [`ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md`](done/ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md) — ТЗ на этап 7: «где используется» и безопасная архивация каталогов назначений.
+- [`DOCTOR_UI_DENSITY_PLAN.md`](done/DOCTOR_UI_DENSITY_PLAN.md) — ТЗ на этап 8: уменьшение крупности doctor UI без редизайна и без пациентского интерфейса.
+- [`DOCTOR_UI_DENSITY_EXECUTION_AUDIT.md`](done/DOCTOR_UI_DENSITY_EXECUTION_AUDIT.md) — аудит выполнения этапа 8 (код, LOG, сверка с ТЗ).
 - [`LOG.md`](LOG.md) — журнал выполнения инициативы.
 
 ---
@@ -30,13 +30,13 @@
 Последовательность шагов прохода (нумерация **как в сводной таблице §ниже**, не как «Этап N» в [`RECOMMENDATIONS_AND_ROADMAP.md`](RECOMMENDATIONS_AND_ROADMAP.md)):
 
 1. **Этап 1 — CMS-разделение** — [`CMS_RESTRUCTURE_PLAN.md`](CMS_RESTRUCTURE_PLAN.md) (вариант C: `kind` + `system_parent_code`).
-2. **Этап 2 — Меню врача** — группы по смыслу, аккордеон, «Библиотека файлов» в основном меню ([`DOCTOR_MENU_RESTRUCTURE_PLAN.md`](DOCTOR_MENU_RESTRUCTURE_PLAN.md)).
-3. **Этап 3 — Бейджи** на «Онлайн-заявки» и «Сообщения» ([`DOCTOR_NAV_BADGES_PLAN.md`](DOCTOR_NAV_BADGES_PLAN.md)).
-4. **Этап 4 — Дашборд «Сегодня»** — рабочие очереди вместо метрик; метрики в `/stats` ([`DOCTOR_TODAY_DASHBOARD_PLAN.md`](DOCTOR_TODAY_DASHBOARD_PLAN.md)).
-5. **Этап 5 — Сообщения** — единый чат ([`DOCTOR_MESSAGES_UNIFIED_CHAT_PLAN.md`](DOCTOR_MESSAGES_UNIFIED_CHAT_PLAN.md)): список тредов, `DoctorChatPanel`, модалка из карточки, автопрочтение.
+2. **Этап 2 — Меню врача** — группы по смыслу, аккордеон, «Библиотека файлов» в основном меню ([`DOCTOR_MENU_RESTRUCTURE_PLAN.md`](done/DOCTOR_MENU_RESTRUCTURE_PLAN.md)).
+3. **Этап 3 — Бейджи** на «Онлайн-заявки» и «Сообщения» ([`DOCTOR_NAV_BADGES_PLAN.md`](done/DOCTOR_NAV_BADGES_PLAN.md)).
+4. **Этап 4 — Дашборд «Сегодня»** — рабочие очереди вместо метрик; метрики в `/stats` ([`DOCTOR_TODAY_DASHBOARD_PLAN.md`](done/DOCTOR_TODAY_DASHBOARD_PLAN.md)).
+5. **Этап 5 — Сообщения** — единый чат ([`DOCTOR_MESSAGES_UNIFIED_CHAT_PLAN.md`](done/DOCTOR_MESSAGES_UNIFIED_CHAT_PLAN.md)): список тредов, `DoctorChatPanel`, модалка из карточки, автопрочтение.
 6. **Этап 6 — Карточка пациента** — в текущем проходе **заморожена** (нет табов/hero): только дешёвые правки без смены IA.
-7. **Этап 7 — Каталоги назначений** — «где используется» и предупреждение при архиве ([`ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md`](ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md)).
-8. **Этап 8 — Плотность UI** — [`DOCTOR_UI_DENSITY_PLAN.md`](DOCTOR_UI_DENSITY_PLAN.md).
+7. **Этап 7 — Каталоги назначений** — «где используется» и предупреждение при архиве ([`ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md`](done/ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md)).
+8. **Этап 8 — Плотность UI** — [`DOCTOR_UI_DENSITY_PLAN.md`](done/DOCTOR_UI_DENSITY_PLAN.md).
 
 ### Фокус текущего прохода
 
@@ -52,12 +52,12 @@
 |------|------------|---------------------|
 | 1. CMS-разделение (`CMS_RESTRUCTURE_PLAN.md`) — **✅ закрыт** | — | 2–8 |
 | 2. Меню врача (группы, аккордеон, перенос «Библиотеки файлов») — **✅ закрыт** | — | 1, 3–8 |
-| 3. Бейджи (новые заявки, непрочитанные сообщения) — **✅ закрыт** ([`DOCTOR_NAV_BADGES_PLAN.md`](DOCTOR_NAV_BADGES_PLAN.md)) | 2 | 1, 4–8 |
-| 4. Дашборд «Сегодня» — **✅ закрыт** (2026-05-02, см. [`LOG.md`](LOG.md), [`DOCTOR_TODAY_DASHBOARD_PLAN.md`](DOCTOR_TODAY_DASHBOARD_PLAN.md)) | 2 | 1, 3, 5–8 |
-| 5. Сообщения (страница чатов + универсальный layout + модалка + автопрочтение) — **✅ закрыт** (2026-05-02, см. [`LOG.md`](LOG.md), [`DOCTOR_MESSAGES_UNIFIED_CHAT_EXECUTION_AUDIT.md`](DOCTOR_MESSAGES_UNIFIED_CHAT_EXECUTION_AUDIT.md)) | — | 1–4, 7, 8 |
+| 3. Бейджи (новые заявки, непрочитанные сообщения) — **✅ закрыт** ([`DOCTOR_NAV_BADGES_PLAN.md`](done/DOCTOR_NAV_BADGES_PLAN.md)) | 2 | 1, 4–8 |
+| 4. Дашборд «Сегодня» — **✅ закрыт** (2026-05-02, см. [`LOG.md`](LOG.md), [`DOCTOR_TODAY_DASHBOARD_PLAN.md`](done/DOCTOR_TODAY_DASHBOARD_PLAN.md)) | 2 | 1, 3, 5–8 |
+| 5. Сообщения (страница чатов + универсальный layout + модалка + автопрочтение) — **✅ закрыт** (2026-05-02, см. [`LOG.md`](LOG.md), [`DOCTOR_MESSAGES_UNIFIED_CHAT_EXECUTION_AUDIT.md`](done/DOCTOR_MESSAGES_UNIFIED_CHAT_EXECUTION_AUDIT.md)) | — | 1–4, 7, 8 |
 | 6. Карточка пациента (минимальная пересборка из имеющегося) | 5 опционально | 1–4, 7, 8 |
-| 7. Каталоги: «где используется» + защита архивации (вкл. **курсы**) — **✅ закрыт** (2026-05-02, см. [`LOG.md`](LOG.md), [`ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md`](ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md)) | — | 1–6, 8 |
-| 8. Плотность интерфейса ([`DOCTOR_UI_DENSITY_PLAN.md`](DOCTOR_UI_DENSITY_PLAN.md)) — **✅ закрыт** (2026-05-02, см. [`LOG.md`](LOG.md), [`DOCTOR_UI_DENSITY_EXECUTION_AUDIT.md`](DOCTOR_UI_DENSITY_EXECUTION_AUDIT.md)) | — | 1–7 |
+| 7. Каталоги: «где используется» + защита архивации (вкл. **курсы**) — **✅ закрыт** (2026-05-02, см. [`LOG.md`](LOG.md), [`ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md`](done/ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md)) | — | 1–6, 8 |
+| 8. Плотность интерфейса ([`DOCTOR_UI_DENSITY_PLAN.md`](done/DOCTOR_UI_DENSITY_PLAN.md)) — **✅ закрыт** (2026-05-02, см. [`LOG.md`](LOG.md), [`DOCTOR_UI_DENSITY_EXECUTION_AUDIT.md`](done/DOCTOR_UI_DENSITY_EXECUTION_AUDIT.md)) | — | 1–7 |
 | 9. Что после | завершение пп. 1–8 | — |
 
 ---
@@ -91,7 +91,7 @@
   - `PLAN_DOCTOR_CABINET.md`
   - `LOG.md`
   - `CMS_RESTRUCTURE_PLAN.md`
-  - `CMS_RESTRUCTURE_EXECUTION_AUDIT.md`
+  - `done/CMS_RESTRUCTURE_EXECUTION_AUDIT.md`
   - `TARGET_STRUCTURE_DOCTOR.md`
   - `RECOMMENDATIONS_AND_ROADMAP.md`
 
@@ -149,11 +149,11 @@ Out of scope unless explicitly promoted into a separate plan:
 
 ## Этап 2. Меню врача: группы + аккордеон + перенос «Библиотеки»
 
-**Статус:** ✅ **Выполнено** — журнал [`LOG.md`](LOG.md) (этап 2 и пост-аудит); ТЗ и DoD [`DOCTOR_MENU_RESTRUCTURE_PLAN.md`](DOCTOR_MENU_RESTRUCTURE_PLAN.md); аудит [`DOCTOR_MENU_RESTRUCTURE_EXECUTION_AUDIT.md`](DOCTOR_MENU_RESTRUCTURE_EXECUTION_AUDIT.md).
+**Статус:** ✅ **Выполнено** — журнал [`LOG.md`](LOG.md) (этап 2 и пост-аудит); ТЗ и DoD [`DOCTOR_MENU_RESTRUCTURE_PLAN.md`](done/DOCTOR_MENU_RESTRUCTURE_PLAN.md); аудит [`DOCTOR_MENU_RESTRUCTURE_EXECUTION_AUDIT.md`](done/DOCTOR_MENU_RESTRUCTURE_EXECUTION_AUDIT.md).
 
 **Зависит от:** —. Может выполняться параллельно с этапом 1.
 
-**Исполняется по отдельному ТЗ:** [`DOCTOR_MENU_RESTRUCTURE_PLAN.md`](DOCTOR_MENU_RESTRUCTURE_PLAN.md).
+**Исполняется по отдельному ТЗ:** [`DOCTOR_MENU_RESTRUCTURE_PLAN.md`](done/DOCTOR_MENU_RESTRUCTURE_PLAN.md).
 
 **Цель:** меню должно объяснять врачу, где ежедневная работа, где библиотеки назначений, где редакторские задачи, а где система. Во избежание длинного скролла — аккордеон с одним открытым блоком; состояние сохраняется в браузере.
 
@@ -228,7 +228,7 @@ Mobile: десктопная иерархия повторяется в Sheet-м
 
 **Зависит от:** этап 2 (новая структура меню с явными пунктами «Онлайн-заявки» и «Сообщения»).
 
-**ТЗ:** [`DOCTOR_NAV_BADGES_PLAN.md`](DOCTOR_NAV_BADGES_PLAN.md).
+**ТЗ:** [`DOCTOR_NAV_BADGES_PLAN.md`](done/DOCTOR_NAV_BADGES_PLAN.md).
 
 **Ключевое решение ТЗ:** «Онлайн-заявки» считают только `status=new`; «Сообщения» переиспользуют существующий `useDoctorSupportUnreadCount` и `GET /api/doctor/messages/unread-count`.
 
@@ -275,7 +275,7 @@ Mobile: десктопная иерархия повторяется в Sheet-м
 
 **Зависит от:** этап 2 (новое название «Сегодня» в меню). Независим от этапа 3, но если выполняется раньше, даёт готовые источники данных для бейджей.
 
-**ТЗ:** [`DOCTOR_TODAY_DASHBOARD_PLAN.md`](DOCTOR_TODAY_DASHBOARD_PLAN.md).
+**ТЗ:** [`DOCTOR_TODAY_DASHBOARD_PLAN.md`](done/DOCTOR_TODAY_DASHBOARD_PLAN.md).
 
 **Ключевое решение ТЗ:** MVP этапа — записи сегодня, новые онлайн-заявки, непрочитанные сообщения и ближайшие записи. «К проверке» не делать как реальную очередь, пока нет готового источника «требует проверки врача».
 
@@ -338,9 +338,9 @@ Mobile: десктопная иерархия повторяется в Sheet-м
 
 **Зависит от:** —. Можно вести параллельно с любыми этапами. Откладывается, если не уложимся.
 
-**Исполняется по отдельному ТЗ:** [`DOCTOR_MESSAGES_UNIFIED_CHAT_PLAN.md`](DOCTOR_MESSAGES_UNIFIED_CHAT_PLAN.md).
+**Исполняется по отдельному ТЗ:** [`DOCTOR_MESSAGES_UNIFIED_CHAT_PLAN.md`](done/DOCTOR_MESSAGES_UNIFIED_CHAT_PLAN.md).
 
-**Статус:** закрыт 2026-05-02; post-audit и hardening fixes выполнены (phone/time в списке, unread badge в карточке пациента, `patient_not_found`/`conversation_ensure_failed` в ensure-flow, сетевые fallback в inbox/chat panel, refresh глобального doctor unread count). Детали: [`LOG.md`](LOG.md), [`DOCTOR_MESSAGES_UNIFIED_CHAT_EXECUTION_AUDIT.md`](DOCTOR_MESSAGES_UNIFIED_CHAT_EXECUTION_AUDIT.md).
+**Статус:** закрыт 2026-05-02; post-audit и hardening fixes выполнены (phone/time в списке, unread badge в карточке пациента, `patient_not_found`/`conversation_ensure_failed` в ensure-flow, сетевые fallback в inbox/chat panel, refresh глобального doctor unread count). Детали: [`LOG.md`](LOG.md), [`DOCTOR_MESSAGES_UNIFIED_CHAT_EXECUTION_AUDIT.md`](done/DOCTOR_MESSAGES_UNIFIED_CHAT_EXECUTION_AUDIT.md).
 
 **Цель:** у врача один сценарий переписки с пациентом. История одна. Из общего списка чатов и из карточки пациента открывается один и тот же layout чата.
 
@@ -384,7 +384,7 @@ Mobile: десктопная иерархия повторяется в Sheet-м
 
 **Статус:** заморожена для глубокой переработки в текущем проходе. Разрешена только дешёвая перестановка существующих блоков, без новых функций и без рефакторинга данных.
 
-**ТЗ к точечному микро-проходу (2026-05-02):** [`DOCTOR_CLIENT_PROFILE_REPACK_PLAN.md`](DOCTOR_CLIENT_PROFILE_REPACK_PLAN.md) — пересборка `ClientProfileCard` без аккордеонов в один цельный контейнер со sticky-шапкой, компактный список клиентов с иконочными бейджами каналов (`Phone` / `Send` / glyph «М») и удаление заглушки «Создать из записи на приём». **Микро-проход по ТЗ выполнен (2026-05-02).** **Аудит закрытия:** [`DOCTOR_CLIENT_PROFILE_REPACK_EXECUTION_AUDIT.md`](DOCTOR_CLIENT_PROFILE_REPACK_EXECUTION_AUDIT.md). Не снимает заморозку глубокой переработки (табы / hero / новые сводки остаются вне scope).
+**ТЗ к точечному микро-проходу (2026-05-02):** [`DOCTOR_CLIENT_PROFILE_REPACK_PLAN.md`](done/DOCTOR_CLIENT_PROFILE_REPACK_PLAN.md) — пересборка `ClientProfileCard` без аккордеонов в один цельный контейнер со sticky-шапкой, компактный список клиентов с иконочными бейджами каналов (`Phone` / `Send` / glyph «М») и удаление заглушки «Создать из записи на приём». **Микро-проход по ТЗ выполнен (2026-05-02).** **Аудит закрытия:** [`DOCTOR_CLIENT_PROFILE_REPACK_EXECUTION_AUDIT.md`](done/DOCTOR_CLIENT_PROFILE_REPACK_EXECUTION_AUDIT.md). Не снимает заморозку глубокой переработки (табы / hero / новые сводки остаются вне scope).
 
 **Порядок блоков (целевой, для пересборки):**
 
@@ -405,7 +405,7 @@ Mobile: десктопная иерархия повторяется в Sheet-м
 - Дубль composer снят ранее (этап 5); ссылка «Открыть раздел сообщений» из контактов снята в REPACK.
 - Минимальные правки разметки при тех же данных.
 
-Опциональные дешёвые хвосты из первоначального списка — закрыты в REPACK или признаны не нужными; остатки см. [`DOCTOR_CLIENT_PROFILE_REPACK_EXECUTION_AUDIT.md`](DOCTOR_CLIENT_PROFILE_REPACK_EXECUTION_AUDIT.md) §4–5.
+Опциональные дешёвые хвосты из первоначального списка — закрыты в REPACK или признаны не нужными; остатки см. [`DOCTOR_CLIENT_PROFILE_REPACK_EXECUTION_AUDIT.md`](done/DOCTOR_CLIENT_PROFILE_REPACK_EXECUTION_AUDIT.md) §4–5.
 
 Глубокая переработка (tabs, hero, новые секции) — отдельной инициативой после снятия заморозки этапа 6.
 
@@ -429,7 +429,7 @@ Mobile: десктопная иерархия повторяется в Sheet-м
 
 **Зависит от:** ничего из предыдущих этапов. Можно вести параллельно с этапами 2–6. Не включать в этот этап объединение курсов и шаблонов программ — это stage 7 дорожной карты, отдельная инициатива.
 
-**Исполняется по отдельному ТЗ:** [`ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md`](ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md).
+**Исполняется по отдельному ТЗ:** [`ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md`](done/ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md).
 
 **Цель:** врач должен понимать последствия изменения или архивации элемента каталога.
 
@@ -458,7 +458,7 @@ Mobile: десктопная иерархия повторяется в Sheet-м
 ### Шаги для каждого каталога
 
 1. Найти существующий list/card/action flow.
-2. Определить read-only usage counters **и перечень refs (до N) для ссылок** по матрице в `ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md`.
+2. Определить read-only usage counters **и перечень refs (до N) для ссылок** по матрице в `done/ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md`.
 3. Добавить usage summary на карточку/строку **с кликабельными ссылками** там, где есть стабильные doctor URL.
 4. Добавить archive warning перед действием **с тем же содержимым**, что usage-блок.
 5. Все проверки делать в service layer / port, без изменения forbidden LFK schemas.
@@ -482,9 +482,9 @@ Mobile: десктопная иерархия повторяется в Sheet-м
 
 **Зависит от:** —. Можно делать в любой момент, лучше после этапа 2 (меню), чтобы видеть систему целиком.
 
-**Исполняется по отдельному ТЗ:** [`DOCTOR_UI_DENSITY_PLAN.md`](DOCTOR_UI_DENSITY_PLAN.md).
+**Исполняется по отдельному ТЗ:** [`DOCTOR_UI_DENSITY_PLAN.md`](done/DOCTOR_UI_DENSITY_PLAN.md).
 
-**Аудит соответствия реализации ТЗ и журналу:** [`DOCTOR_UI_DENSITY_EXECUTION_AUDIT.md`](DOCTOR_UI_DENSITY_EXECUTION_AUDIT.md) (обновлён 2026-05-02 после пост-аудита).
+**Аудит соответствия реализации ТЗ и журналу:** [`DOCTOR_UI_DENSITY_EXECUTION_AUDIT.md`](done/DOCTOR_UI_DENSITY_EXECUTION_AUDIT.md) (обновлён 2026-05-02 после пост-аудита).
 
 **Статус этапа (2026-05-02):** закрыт по реализации в коде, записям в [`LOG.md`](LOG.md) («этап 8», «пост-аудит этапа 8») и инструментальной приёмке (`pnpm run ci`).
 
@@ -538,7 +538,7 @@ Mobile: десктопная иерархия повторяется в Sheet-м
 
 Критерии ниже — **полное** закрытие этапов 1–8 этого файла. Текущее выполнение — по колонке «Статус» в сводной таблице §выше и в [`LOG.md`](LOG.md); незакрытые пункты DoD остаются backlog.
 
-- CMS-разделение закрыто по `CMS_RESTRUCTURE_PLAN.md`: системные папки отделены от статей, **встроенные immutable** slug защищены от переименования (см. [`CMS_RESTRUCTURE_EXECUTION_AUDIT.md`](CMS_RESTRUCTURE_EXECUTION_AUDIT.md)).
+- CMS-разделение закрыто по `CMS_RESTRUCTURE_PLAN.md`: системные папки отделены от статей, **встроенные immutable** slug защищены от переименования (см. [`CMS_RESTRUCTURE_EXECUTION_AUDIT.md`](done/CMS_RESTRUCTURE_EXECUTION_AUDIT.md)).
 - Меню врача — группы + аккордеон с сохранением состояния; «Библиотека файлов» вынесена из CMS в основное меню.
 - «Сегодня» показывает рабочие задачи дня, а не пассивный отчёт.
 - Бейджи на «Онлайн-заявки» и «Сообщения» работают одинаково в desktop и mobile.

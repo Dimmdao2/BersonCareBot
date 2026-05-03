@@ -4,6 +4,7 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { getCurrentSession } from "@/modules/auth/service";
 import { canAccessDoctor } from "@/modules/roles/service";
 import { TREATMENT_PROGRAM_ITEM_TYPES } from "@/modules/treatment-program/types";
+import { revalidatePatientTreatmentProgramUi } from "@/app-layer/cache/revalidatePatientTreatmentProgramUi";
 
 const postBodySchema = z.object({
   itemType: z.enum(TREATMENT_PROGRAM_ITEM_TYPES),
@@ -11,6 +12,7 @@ const postBodySchema = z.object({
   sortOrder: z.number().int().optional(),
   comment: z.string().max(20000).optional().nullable(),
   settings: z.record(z.string(), z.unknown()).optional().nullable(),
+  groupId: z.string().uuid().optional().nullable(),
 });
 
 export async function POST(
@@ -37,6 +39,9 @@ export async function POST(
   const deps = buildAppDeps();
   try {
     const inst = await deps.treatmentProgramInstance.getInstanceById(instanceId);
+    if (!inst) {
+      return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+    }
     const identity = await deps.doctorClientsPort.getClientIdentity(inst.patientUserId);
     if (!identity) {
       return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
@@ -50,7 +55,9 @@ export async function POST(
       sortOrder: parsed.data.sortOrder,
       comment: parsed.data.comment,
       settings: parsed.data.settings,
+      groupId: parsed.data.groupId ?? undefined,
     });
+    revalidatePatientTreatmentProgramUi();
     return NextResponse.json({ ok: true, item });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "error";

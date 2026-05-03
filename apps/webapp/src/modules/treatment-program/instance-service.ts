@@ -758,6 +758,52 @@ export function createTreatmentProgramInstanceService(deps: {
       return row;
     },
 
+    async patientRecordPlanOpened(input: {
+      patientUserId: string;
+      instanceId: string;
+    }): Promise<{ recorded: boolean }> {
+      assertUuid(input.patientUserId);
+      assertUuid(input.instanceId);
+      const d = await instances.getInstanceForPatient(input.patientUserId, input.instanceId);
+      if (!d) throw new Error("Программа не найдена");
+      if (d.status !== "active") return { recorded: false };
+      await instances.touchPatientPlanLastOpenedAt(input.patientUserId, input.instanceId);
+      return { recorded: true };
+    },
+
+    async patientMarkStageItemViewedIfNever(input: {
+      patientUserId: string;
+      instanceId: string;
+      stageItemId: string;
+    }): Promise<{ updated: boolean }> {
+      assertUuid(input.patientUserId);
+      assertUuid(input.instanceId);
+      assertUuid(input.stageItemId);
+      const d = await instances.getInstanceForPatient(input.patientUserId, input.instanceId);
+      if (!d) throw new Error("Программа не найдена");
+      const hit = d.stages.flatMap((s) => s.items).find((i) => i.id === input.stageItemId);
+      if (!hit) throw new Error("Элемент не найден");
+      if (hit.status !== "active") return { updated: false };
+      return instances.markStageItemViewedIfNever(input.patientUserId, input.instanceId, input.stageItemId);
+    },
+
+    async patientPlanUpdatedBadgeForInstance(input: {
+      patientUserId: string;
+      instanceId: string;
+    }): Promise<{ show: boolean; eventIso: string | null }> {
+      assertUuid(input.patientUserId);
+      assertUuid(input.instanceId);
+      if (!events) return { show: false, eventIso: null };
+      const sums = await instances.listInstancesForPatient(input.patientUserId);
+      const inst = sums.find((s) => s.id === input.instanceId && s.status === "active");
+      if (!inst) return { show: false, eventIso: null };
+      const maxAt = await events.getMaxPlanMutationEventCreatedAt(input.instanceId);
+      if (!maxAt) return { show: false, eventIso: null };
+      const baseline = inst.patientPlanLastOpenedAt ?? inst.createdAt;
+      if (maxAt <= baseline) return { show: false, eventIso: null };
+      return { show: true, eventIso: maxAt };
+    },
+
     async listTreatmentProgramLfkBlocksForIntegratorPatient(
       patientUserId: string,
     ): Promise<TreatmentProgramIntegratorLfkBlock[]> {

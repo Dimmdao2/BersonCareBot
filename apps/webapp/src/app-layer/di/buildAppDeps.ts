@@ -125,6 +125,7 @@ import { createCommentsService } from "@/modules/comments/service";
 import { createTreatmentProgramService } from "@/modules/treatment-program/service";
 import { createTreatmentProgramInstanceService } from "@/modules/treatment-program/instance-service";
 import { createTreatmentProgramProgressService } from "@/modules/treatment-program/progress-service";
+import { createTreatmentProgramPatientActionService } from "@/modules/treatment-program/patient-program-actions";
 import { createCoursesService } from "@/modules/courses/service";
 import { pgClinicalTestsPort } from "@/infra/repos/pgClinicalTests";
 import { pgTestSetsPort } from "@/infra/repos/pgTestSets";
@@ -143,6 +144,8 @@ import {
   createInMemoryTreatmentProgramPersistence,
 } from "@/infra/repos/inMemoryTreatmentProgramInstance";
 import { createPgTreatmentProgramTestAttemptsPort } from "@/infra/repos/pgTreatmentProgramTestAttempts";
+import { createPgProgramActionLogPort } from "@/infra/repos/pgProgramActionLog";
+import { createInMemoryProgramActionLogPort } from "@/infra/repos/inMemoryProgramActionLog";
 import { createPgTreatmentProgramEventsPort } from "@/infra/repos/pgTreatmentProgramEvents";
 import { createPgTreatmentProgramItemSnapshotPort } from "@/infra/repos/pgTreatmentProgramItemSnapshot";
 import { createInMemoryTreatmentProgramItemSnapshotPort } from "@/infra/repos/inMemoryTreatmentProgramItemSnapshot";
@@ -276,6 +279,11 @@ const treatmentProgramTestAttemptsPort = treatmentProgramInMemoryPersistence
 const treatmentProgramEventsPort = treatmentProgramInMemoryPersistence
   ? treatmentProgramInMemoryPersistence.eventsPort
   : createPgTreatmentProgramEventsPort();
+const programActionLogPort = !inMemoryRepos ? createPgProgramActionLogPort() : createInMemoryProgramActionLogPort();
+const treatmentProgramPatientActions = createTreatmentProgramPatientActionService({
+  instances: treatmentProgramInstancePort,
+  actionLog: programActionLogPort,
+});
 const treatmentProgramItemSnapshotPort = !inMemoryRepos
   ? createPgTreatmentProgramItemSnapshotPort()
   : createInMemoryTreatmentProgramItemSnapshotPort();
@@ -320,6 +328,7 @@ const treatmentProgramProgressService = createTreatmentProgramProgressService({
   instances: treatmentProgramInstancePort,
   tests: treatmentProgramTestAttemptsPort,
   events: treatmentProgramEventsPort,
+  actionLog: programActionLogPort,
 });
 
 const lfkTemplatesPort = !inMemoryRepos ? pgLfkTemplatesPort : inMemoryLfkTemplatesPort;
@@ -721,6 +730,7 @@ function _buildAppDeps() {
     patientPractice: patientPracticeService,
     patientMood: patientMoodService,
     treatmentProgramProgress: treatmentProgramProgressService,
+    treatmentProgramPatientActions,
     lfkTemplates: lfkTemplatesService,
     lfkAssignments: lfkAssignmentsService,
     bookingCatalog: bookingCatalogService,

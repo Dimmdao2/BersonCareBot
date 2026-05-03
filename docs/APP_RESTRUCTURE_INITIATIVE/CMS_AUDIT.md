@@ -5,7 +5,7 @@
 Связанные документы:
 
 - [`CMS_RESTRUCTURE_PLAN.md`](CMS_RESTRUCTURE_PLAN.md) — принятая реализация разделения (вариант C).
-- [`CMS_RESTRUCTURE_EXECUTION_AUDIT.md`](CMS_RESTRUCTURE_EXECUTION_AUDIT.md) — аудит соответствия плану и коду.
+- [`CMS_RESTRUCTURE_EXECUTION_AUDIT.md`](done/CMS_RESTRUCTURE_EXECUTION_AUDIT.md) — аудит соответствия плану и коду.
 - [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md) — общий план.
 - [`STRUCTURE_AUDIT.md`](STRUCTURE_AUDIT.md) — immutable baseline «как было» (не редактируется).
 
@@ -159,7 +159,7 @@
 
 Признать, что некоторые разделы (`warmups`, `lessons`, `course_lessons`, `materials`, `emergency`) — это не «контент, который врач свободно создаёт», а технические слоты, на которые ссылается главная пациента. Их нельзя удалить или переименовать без последствий, и редактор должен это видеть (бейдж «системный», блокировка переименования slug, и т.п.).
 
-**Факт репозитория (2026-05-02):** для встроенных системных slug и для операций, ломающих ссылки с главной пациента, в сервисе разделов / patient-home есть **блокирующие** проверки (нельзя тихо переименовать/удалить то, на что ссылается `patient_home` — см. [`CMS_RESTRUCTURE_EXECUTION_AUDIT.md`](CMS_RESTRUCTURE_EXECUTION_AUDIT.md), [`LOG.md`](LOG.md)).
+**Факт репозитория (2026-05-02):** для встроенных системных slug и для операций, ломающих ссылки с главной пациента, в сервисе разделов / patient-home есть **блокирующие** проверки (нельзя тихо переименовать/удалить то, на что ссылается `patient_home` — см. [`CMS_RESTRUCTURE_EXECUTION_AUDIT.md`](done/CMS_RESTRUCTURE_EXECUTION_AUDIT.md), [`LOG.md`](LOG.md)).
 
 ### 5.4. Курсы и шаблоны программ
 

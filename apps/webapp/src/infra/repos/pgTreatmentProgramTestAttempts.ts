@@ -2,6 +2,7 @@ import { and, asc, desc, eq, isNull } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import { clinicalTests } from "../../../db/schema/clinicalTests";
 import {
+  treatmentProgramInstances as instanceTable,
   treatmentProgramInstanceStageItems as itemTable,
   treatmentProgramInstanceStages as stageTable,
 } from "../../../db/schema/treatmentProgramInstances";
@@ -15,6 +16,7 @@ import type {
   TreatmentProgramTestResultDetailRow,
   TreatmentProgramTestResultRow,
   NormalizedTestDecision,
+  PendingProgramTestEvaluationRow,
 } from "@/modules/treatment-program/types";
 
 function mapAttempt(row: typeof attemptTable.$inferSelect): TreatmentProgramTestAttemptRow {
@@ -155,6 +157,46 @@ export function createPgTreatmentProgramTestAttemptsPort(): TreatmentProgramTest
         stageTitle: r.stageTitle,
         stageSortOrder: r.stageSortOrder,
         testTitle: r.testTitle ?? null,
+      }));
+    },
+
+    async listPendingEvaluationResultsForPatient(
+      patientUserId: string,
+    ): Promise<PendingProgramTestEvaluationRow[]> {
+      const db = getDrizzle();
+      const rows = await db
+        .select({
+          result: resultTable,
+          instanceId: instanceTable.id,
+          instanceTitle: instanceTable.title,
+          stageTitle: stageTable.title,
+          instanceStageItemId: attemptTable.instanceStageItemId,
+          testTitle: clinicalTests.title,
+        })
+        .from(resultTable)
+        .innerJoin(attemptTable, eq(resultTable.attemptId, attemptTable.id))
+        .innerJoin(itemTable, eq(attemptTable.instanceStageItemId, itemTable.id))
+        .innerJoin(stageTable, eq(itemTable.stageId, stageTable.id))
+        .innerJoin(instanceTable, eq(stageTable.instanceId, instanceTable.id))
+        .innerJoin(clinicalTests, eq(resultTable.testId, clinicalTests.id))
+        .where(
+          and(
+            eq(instanceTable.patientUserId, patientUserId),
+            eq(instanceTable.status, "active"),
+            isNull(resultTable.decidedBy),
+          ),
+        )
+        .orderBy(desc(resultTable.createdAt), asc(resultTable.id));
+
+      return rows.map((r) => ({
+        resultId: r.result.id,
+        testId: r.result.testId,
+        testTitle: r.testTitle ?? null,
+        createdAt: r.result.createdAt,
+        instanceId: r.instanceId,
+        instanceTitle: r.instanceTitle,
+        stageTitle: r.stageTitle,
+        stageItemId: r.instanceStageItemId,
       }));
     },
 

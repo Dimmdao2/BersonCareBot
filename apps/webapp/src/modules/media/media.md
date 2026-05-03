@@ -28,7 +28,7 @@
 
 См. также [`apps/webapp/src/app/api/api.md`](../../app/api/api.md) и `docs/REPORTS/S3_PRIVATE_MEDIA_EXECUTION_LOG.md`.
 
-План поэтапного введения **HLS** параллельно с текущей MP4-выдачей (без простоя): `docs/VIDEO_HLS_DELIVERY/00-master-plan.md`.
+План поэтапного введения **HLS** параллельно с текущей MP4-выдачей (без простоя): `docs/archive/2026-05-initiatives/VIDEO_HLS_DELIVERY/00-master-plan.md`.
 
 ### Колонки `media_files` для HLS (VIDEO_HLS_DELIVERY phase-01)
 

@@ -1,8 +1,9 @@
-import { describe, expect, it, beforeEach } from "vitest";
+import { describe, expect, it, beforeEach, vi } from "vitest";
 import { createTreatmentProgramProgressService } from "./progress-service";
 import { inferNormalizedDecisionFromScoring } from "./progress-scoring";
 import { formatNormalizedTestDecisionRu, formatTreatmentProgramStageStatusRu } from "./types";
 import { createInMemoryTreatmentProgramPersistence } from "@/app-layer/testing/treatmentProgramInstanceInMemory";
+import { createInMemoryProgramActionLogPort } from "@/infra/repos/inMemoryProgramActionLog";
 
 const patient = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const doctor = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
@@ -20,6 +21,7 @@ describe("treatment-program progress-service", () => {
       instances: persistence.instancePort,
       tests: persistence.testAttemptsPort,
       events: persistence.eventsPort,
+      actionLog: createInMemoryProgramActionLogPort(),
     });
   });
 
@@ -188,6 +190,81 @@ describe("treatment-program progress-service", () => {
     const ev = await persistence.eventsPort.listEventsForInstance(inst.id);
     expect(ev.some((e) => e.eventType === "test_completed")).toBe(true);
     expect(ev.some((e) => e.eventType === "stage_completed")).toBe(true);
+  });
+
+  it("A4: patientSubmitTestResult writes program_action_log marker and pending inbox lists it", async () => {
+    const actionLog = createInMemoryProgramActionLogPort();
+    const insertSpy = vi.spyOn(actionLog, "insertAction");
+    const p = createTreatmentProgramProgressService({
+      instances: persistence.instancePort,
+      tests: persistence.testAttemptsPort,
+      events: persistence.eventsPort,
+      actionLog,
+    });
+    const inst = await persistence.instancePort.createInstanceTree({
+      templateId: "00000000-0000-4000-8000-000000000001",
+      patientUserId: patient,
+      assignedBy: null,
+      title: "Программа",
+      stages: [
+        {
+          sourceStageId: tplStageId,
+          title: "Этап 1",
+          description: null,
+          sortOrder: 1,
+          status: "available",
+          goals: null,
+          objectives: null,
+          expectedDurationDays: null,
+          expectedDurationText: null,
+          items: [
+            {
+              itemType: "test_set",
+              itemRefId: "44444444-4444-4444-8444-444444444444",
+              sortOrder: 0,
+              comment: null,
+              settings: null,
+              snapshot: {
+                itemType: "test_set",
+                title: "Набор",
+                tests: [{ testId, title: "T1", scoringConfig: { passIfGte: 5 } }],
+              },
+            },
+          ],
+        },
+        {
+          sourceStageId: tplStage2Id,
+          title: "Этап 2",
+          description: null,
+          sortOrder: 2,
+          status: "locked",
+          goals: null,
+          objectives: null,
+          expectedDurationDays: null,
+          expectedDurationText: null,
+          items: [],
+        },
+      ],
+    });
+    const itemId = inst.stages[0]!.items[0]!.id;
+    await p.patientSubmitTestResult({
+      patientUserId: patient,
+      instanceId: inst.id,
+      stageItemId: itemId,
+      testId,
+      rawValue: { score: 6 },
+    });
+    expect(insertSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actionType: "done",
+        payload: expect.objectContaining({
+          source: "test_submitted",
+          testResultId: expect.any(String),
+        }),
+      }),
+    );
+    const pending = await p.listPendingTestEvaluationsForPatient(patient);
+    expect(pending.some((x) => x.instanceId === inst.id && x.stageItemId === itemId)).toBe(true);
   });
 
   it("§8: stage_skipped записывается в treatment_program_events", async () => {

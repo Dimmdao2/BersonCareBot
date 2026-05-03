@@ -7,7 +7,8 @@
 **Связанные документы:**
 - baseline-аудит: [`STRUCTURE_AUDIT.md`](STRUCTURE_AUDIT.md)
 - рекомендации и этапы работ: [`RECOMMENDATIONS_AND_ROADMAP.md`](RECOMMENDATIONS_AND_ROADMAP.md)
-- редизайн «Сегодня»: [`../PATIENT_HOME_REDESIGN_INITIATIVE/README.md`](../PATIENT_HOME_REDESIGN_INITIATIVE/README.md), [`VISUAL_SYSTEM_SPEC.md`](../PATIENT_HOME_REDESIGN_INITIATIVE/VISUAL_SYSTEM_SPEC.md)
+- редизайн «Сегодня» (архив): [`../archive/2026-05-initiatives/PATIENT_HOME_REDESIGN_INITIATIVE/README.md`](../archive/2026-05-initiatives/PATIENT_HOME_REDESIGN_INITIATIVE/README.md), [`VISUAL_SYSTEM_SPEC.md`](../archive/2026-05-initiatives/PATIENT_HOME_REDESIGN_INITIATIVE/VISUAL_SYSTEM_SPEC.md)
+- контент главной (таблицы материалов / CMS): [`CONTENT_PLAN.md`](CONTENT_PLAN.md)
 - стандарт реализации patient UI: [`../ARCHITECTURE/PATIENT_APP_UI_STYLE_GUIDE.md`](../ARCHITECTURE/PATIENT_APP_UI_STYLE_GUIDE.md)
 - целевая структура врача: [`TARGET_STRUCTURE_DOCTOR.md`](TARGET_STRUCTURE_DOCTOR.md)
 
@@ -313,7 +314,7 @@ flowchart TD
 
 Для безопасных выкаток при параллельной переработке кабинета врача/бэкенда добавлен **переключаемый в админке** режим: для пользователей с ролью **client** под `/app/patient` отображается один экран без основого меню (текст, ссылка на внешнюю запись по умолчанию `https://dmitryberson.rubitime.ru`, список ближайших записей из интеграции). Врачи и админы при предпросмотре patient UI не попадают под этот оверлей; часть маршрутов (привязка телефона, help, support и allowlist при активации телефона) исключена.
 
-Это **не** элемент целевой навигации из §3 и **не** заменяет этапы roadmap по пациентскому ядру — только операционный предохранитель. Полная сверка с планом и чек-листами: [`PATIENT_MAINTENANCE_MODE_EXECUTION_AUDIT.md`](PATIENT_MAINTENANCE_MODE_EXECUTION_AUDIT.md).
+Это **не** элемент целевой навигации из §3 и **не** заменяет этапы roadmap по пациентскому ядру — только операционный предохранитель. Полная сверка с планом и чек-листами: [`PATIENT_MAINTENANCE_MODE_EXECUTION_AUDIT.md`](done/PATIENT_MAINTENANCE_MODE_EXECUTION_AUDIT.md).
 
 ---
 

@@ -16,14 +16,14 @@
 | Область | Сделано |
 |---------|---------|
 | Главная пациента / код | Удалены orphan `PatientHomeNewsSection` / `PatientHomeMailingsSection` (+ тесты); из `navigation.ts` убраны legacy `HomeBlockId` / `patientHomeBlocks*`. |
-| Меню врача | Кластерное меню + аккордеон (`doctorNavLinks.ts`, `DoctorMenuAccordion`); пункт «Онлайн-заявки» в кластере «Работа с пациентами» → `/app/doctor/online-intake` (**план кабинета** [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md) этап 2 закрыт 2026-05-02, см. [`DOCTOR_MENU_RESTRUCTURE_EXECUTION_AUDIT.md`](DOCTOR_MENU_RESTRUCTURE_EXECUTION_AUDIT.md)). Ранее (2026-05-01) пункт добавлялся в плоский список меню. |
+| Меню врача | Кластерное меню + аккордеон (`doctorNavLinks.ts`, `DoctorMenuAccordion`); пункт «Онлайн-заявки» в кластере «Работа с пациентами» → `/app/doctor/online-intake` (**план кабинета** [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md) этап 2 закрыт 2026-05-02, см. [`DOCTOR_MENU_RESTRUCTURE_EXECUTION_AUDIT.md`](done/DOCTOR_MENU_RESTRUCTURE_EXECUTION_AUDIT.md)). Ранее (2026-05-01) пункт добавлялся в плоский список меню. |
 | Debug / admin | Страница `delete-errors` и ссылка из медиа-библиотеки только для admin + adminMode; legacy `/subscribers` остаётся redirect с комментарием «не в меню». |
 | Сообщения vs рассылки | `/app/doctor/messages` — только чат поддержки; журнал массовых рассылок остаётся на `/broadcasts`. |
 | Patient intake | `/app/patient/intake/nutrition` и `/lfk` обёрнуты в `AppShell` (patient shell). |
 | Кабинет пациента | `CabinetInfoLinks`: честные подписи и маршруты (адрес, запись через wizard, справка), без вводящих в заблуждение плиток под `/help`. |
 | Темы `/notifications` | Ключ `notifications_topics` в `system_settings` (admin), UI в `/app/settings` → «Параметры приложения». Перепроверка после аудита: клиентская валидация до PATCH, тест совпадения дефолтного JSON с миграцией `083_*`, синхронизация roadmap и [`LOG.md`](LOG.md) (2026-05-01). |
-| Режим техработ patient app | **Операционный guard (2026-05-02):** при включении в админке клиенты видят один экран под `/app/patient` (сообщение, внешняя запись Rubitime, ближайшие записи); без новых env; ключи `patient_app_*` / `patient_booking_url`. **UI настроек техработ перенесён во вкладку «Режимы»** (тот же день). Детали — [`PATIENT_MAINTENANCE_MODE_EXECUTION_AUDIT.md`](PATIENT_MAINTENANCE_MODE_EXECUTION_AUDIT.md), запись в [`LOG.md`](LOG.md). **Не** заменяет целевую IA из §I.3 / [`TARGET_STRUCTURE_PATIENT.md`](TARGET_STRUCTURE_PATIENT.md). |
-| Режимы / тестовые аккаунты / dev relay | **2026-05-02:** вкладка «Режимы» — `test_account_identifiers`, bypass техработ для тестовых клиентов, `dev_mode` relay по `channel`+`recipient` (без internal userId в UI). **2026-05-02 (доп.):** batch PATCH всей формы «Режимы» + предпросмотр отброшенных телефонов тестовых аккаунтов до Save. Аудит: [`MODES_AND_TEST_ACCOUNTS_EXECUTION_AUDIT.md`](MODES_AND_TEST_ACCOUNTS_EXECUTION_AUDIT.md); зеркала планов: [`MODES_SETTINGS_CLEANUP_PLAN.md`](MODES_SETTINGS_CLEANUP_PLAN.md), [`MODES_BATCH_PATCH_AND_PHONE_PREVIEW_PLAN.md`](MODES_BATCH_PATCH_AND_PHONE_PREVIEW_PLAN.md). |
+| Режим техработ patient app | **Операционный guard (2026-05-02):** при включении в админке клиенты видят один экран под `/app/patient` (сообщение, внешняя запись Rubitime, ближайшие записи); без новых env; ключи `patient_app_*` / `patient_booking_url`. **UI настроек техработ перенесён во вкладку «Режимы»** (тот же день). Детали — [`PATIENT_MAINTENANCE_MODE_EXECUTION_AUDIT.md`](done/PATIENT_MAINTENANCE_MODE_EXECUTION_AUDIT.md), запись в [`LOG.md`](LOG.md). **Не** заменяет целевую IA из §I.3 / [`TARGET_STRUCTURE_PATIENT.md`](TARGET_STRUCTURE_PATIENT.md). |
+| Режимы / тестовые аккаунты / dev relay | **2026-05-02:** вкладка «Режимы» — `test_account_identifiers`, bypass техработ для тестовых клиентов, `dev_mode` relay по `channel`+`recipient` (без internal userId в UI). **2026-05-02 (доп.):** batch PATCH всей формы «Режимы» + предпросмотр отброшенных телефонов тестовых аккаунтов до Save. Аудит: [`MODES_AND_TEST_ACCOUNTS_EXECUTION_AUDIT.md`](done/MODES_AND_TEST_ACCOUNTS_EXECUTION_AUDIT.md); зеркала планов: [`MODES_SETTINGS_CLEANUP_PLAN.md`](done/MODES_SETTINGS_CLEANUP_PLAN.md), [`MODES_BATCH_PATCH_AND_PHONE_PREVIEW_PLAN.md`](done/MODES_BATCH_PATCH_AND_PHONE_PREVIEW_PLAN.md). |
 | Этап 1: новости + рассылки | Таблицы `news_*` сняты миграцией `0016_*`; `broadcast_audit.channels`; UI каналов и редирект `/content/news` → мотивация; чтение списка мотиваций через порт (см. блок «Этап 1» выше). Массовая доставка не в `doctor-broadcasts.execute` — только аудит. |
 
 ---
@@ -112,11 +112,11 @@
 
 ## II.1. Сквозные проблемы
 
-1. ~~**Меню плоское, без приоритетов.**~~ **Снято (2026-05-02):** кластерное меню + аккордеон, см. [`DOCTOR_MENU_RESTRUCTURE_EXECUTION_AUDIT.md`](DOCTOR_MENU_RESTRUCTURE_EXECUTION_AUDIT.md) и [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md) этап 2. ~~Баджи на «Онлайн-заявки» / «Сообщения»~~ — **снято (2026-05-02):** [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md) этап 3 / [`DOCTOR_NAV_BADGES_PLAN.md`](DOCTOR_NAV_BADGES_PLAN.md).
-2. ~~**`/online-intake` в меню.**~~ **Сделано:** пункт «Онлайн-заявки» в кластере «Работа с пациентами» ([`doctorNavLinks.ts`](../../apps/webapp/src/shared/ui/doctorNavLinks.ts)); вместе с кластерным меню — [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md) этап 2 / [`DOCTOR_MENU_RESTRUCTURE_EXECUTION_AUDIT.md`](DOCTOR_MENU_RESTRUCTURE_EXECUTION_AUDIT.md).
+1. ~~**Меню плоское, без приоритетов.**~~ **Снято (2026-05-02):** кластерное меню + аккордеон, см. [`DOCTOR_MENU_RESTRUCTURE_EXECUTION_AUDIT.md`](done/DOCTOR_MENU_RESTRUCTURE_EXECUTION_AUDIT.md) и [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md) этап 2. ~~Баджи на «Онлайн-заявки» / «Сообщения»~~ — **снято (2026-05-02):** [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md) этап 3 / [`DOCTOR_NAV_BADGES_PLAN.md`](done/DOCTOR_NAV_BADGES_PLAN.md).
+2. ~~**`/online-intake` в меню.**~~ **Сделано:** пункт «Онлайн-заявки» в кластере «Работа с пациентами» ([`doctorNavLinks.ts`](../../apps/webapp/src/shared/ui/doctorNavLinks.ts)); вместе с кластерным меню — [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md) этап 2 / [`DOCTOR_MENU_RESTRUCTURE_EXECUTION_AUDIT.md`](done/DOCTOR_MENU_RESTRUCTURE_EXECUTION_AUDIT.md).
 3. **Дублирующиеся точки входа:**
    - ~~Рассылки в двух местах (`/messages` журнал + `/broadcasts`).~~ **Частично снято (2026-05-01):** `/messages` — только чат; журнал массовых рассылок на `/broadcasts`.
-   - Сообщения: **дубль отправки снят (2026-05-02)** — из карточки пациента тот же `DoctorChatPanel`, что и на `/messages` (см. [`DOCTOR_MESSAGES_UNIFIED_CHAT_EXECUTION_AUDIT.md`](DOCTOR_MESSAGES_UNIFIED_CHAT_EXECUTION_AUDIT.md)). **Карточка (2026-05-02):** микро-проход REPACK снял аккордеон и поднял клинические секции ([`DOCTOR_CLIENT_PROFILE_REPACK_PLAN.md`](DOCTOR_CLIENT_PROFILE_REPACK_PLAN.md), [`DOCTOR_CLIENT_PROFILE_REPACK_EXECUTION_AUDIT.md`](DOCTOR_CLIENT_PROFILE_REPACK_EXECUTION_AUDIT.md)); остаётся продуктовый backlog **табов / hero** ([`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md) этап 6 — заморозка глубокой переработки).
+   - Сообщения: **дубль отправки снят (2026-05-02)** — из карточки пациента тот же `DoctorChatPanel`, что и на `/messages` (см. [`DOCTOR_MESSAGES_UNIFIED_CHAT_EXECUTION_AUDIT.md`](done/DOCTOR_MESSAGES_UNIFIED_CHAT_EXECUTION_AUDIT.md)). **Карточка (2026-05-02):** микро-проход REPACK снял аккордеон и поднял клинические секции ([`DOCTOR_CLIENT_PROFILE_REPACK_PLAN.md`](done/DOCTOR_CLIENT_PROFILE_REPACK_PLAN.md), [`DOCTOR_CLIENT_PROFILE_REPACK_EXECUTION_AUDIT.md`](done/DOCTOR_CLIENT_PROFILE_REPACK_EXECUTION_AUDIT.md)); остаётся продуктовый backlog **табов / hero** ([`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md) этап 6 — заморозка глубокой переработки).
    - Записи (`/appointments` + `/clients?scope=...`).
    - `/subscribers` — полностью legacy (redirect).
 4. **Архитектурные нарушения:** ~~`/content/news/page.tsx`~~ снят (редирект). Чтение списка `/content/motivation` — через `buildAppDeps().doctorMotivationQuotesEditor` (порт + Drizzle), не `pool.query` в RSC. **Остаётся:** сырой SQL в server actions мотивации ([`motivation/actions.ts`](../../apps/webapp/src/app/app/doctor/content/motivation/actions.ts)) — вынести в порт/DI отдельным шагом.
@@ -124,7 +124,7 @@
 
 ## II.2. Дашборд `/app/doctor`
 
-**Факт (2026-05-02):** `/app/doctor` — рабочий экран «Сегодня» ([`DOCTOR_TODAY_DASHBOARD_PLAN.md`](DOCTOR_TODAY_DASHBOARD_PLAN.md), [`LOG.md`](LOG.md)): записи на сегодня, новые онлайн-заявки (`status=new`), непрочитанные диалоги поддержки, ближайшие записи (неделя с дедупом относительно «сегодня»); агрегированные метрики — на `/app/doctor/stats`.
+**Факт (2026-05-02):** `/app/doctor` — рабочий экран «Сегодня» ([`DOCTOR_TODAY_DASHBOARD_PLAN.md`](done/DOCTOR_TODAY_DASHBOARD_PLAN.md), [`LOG.md`](LOG.md)): записи на сегодня, новые онлайн-заявки (`status=new`), непрочитанные диалоги поддержки, ближайшие записи (неделя с дедупом относительно «сегодня»); агрегированные метрики — на `/app/doctor/stats`.
 
 **Что остаётся backlog относительно полной «рабочей модели дня»:**
 1. **«К проверке»** как реальная очередь — нет готового единого источника «требует проверки врача» (вне MVP этапа 4 [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md)).
@@ -132,7 +132,7 @@
 
 ## II.3. Карточка пациента `/clients/[userId]`
 
-**Факт после микро-прохода REPACK (2026-05-02):** один контейнер, sticky-шапка, клинические секции выше учётной записи; аккордеон `AccItem` снят — см. [`DOCTOR_CLIENT_PROFILE_REPACK_EXECUTION_AUDIT.md`](DOCTOR_CLIENT_PROFILE_REPACK_EXECUTION_AUDIT.md). Ниже — **остающийся** продуктовый backlog относительно целевой модели (табы / hero).
+**Факт после микро-прохода REPACK (2026-05-02):** один контейнер, sticky-шапка, клинические секции выше учётной записи; аккордеон `AccItem` снят — см. [`DOCTOR_CLIENT_PROFILE_REPACK_EXECUTION_AUDIT.md`](done/DOCTOR_CLIENT_PROFILE_REPACK_EXECUTION_AUDIT.md). Ниже — **остающийся** продуктовый backlog относительно целевой модели (табы / hero).
 
 **Что не так относительно целевой модели** (см. также факт в `STRUCTURE_AUDIT.md` §II.3 и [`TARGET_STRUCTURE_DOCTOR.md`](TARGET_STRUCTURE_DOCTOR.md)):
 
@@ -265,7 +265,7 @@
 **Хорошо:** одинаковая структура, единый `doctorCatalogViewFromSearchParams`, общие фильтры (`q`, `region`, `load`).
 
 **Что было проблемой / что остаётся:**
-1. ~~**Обратная связь «где используется» / счётчики назначений**~~ — **снято (2026-05-02):** [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md) этап 7 / [`ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md`](ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md).
+1. ~~**Обратная связь «где используется» / счётчики назначений**~~ — **снято (2026-05-02):** [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md) этап 7 / [`ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md`](done/ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md).
 2. ~~**Архивация без предупреждения при активном использовании**~~ — **снято** тем же этапом 7 (guard + `acknowledgeUsageWarning` по каталогам по ТЗ).
 3. ~~**Курсы и Шаблоны программ — объединение административных экранов**~~ — **переформулировано (2026-05-03):** курсы — отдельная сущность по геткурс-модели, не «шаблон программы с флагом». Делается отдельной инициативой [`../COURSES_INITIATIVE/README.md`](../COURSES_INITIATIVE/README.md). См. этап 7 ниже (часть IV) — переформулирован.
 4. **Расширение каталогов и конструктора шаблонов программ под новую модель плана пациента** (цели/задачи/срок этапа, группы, типизированные рекомендации, «отключение» вместо удаления, Inbox «К проверке») — отдельная инициатива [`PROGRAM_PATIENT_SHAPE_PLAN.md`](PROGRAM_PATIENT_SHAPE_PLAN.md), новый этап 9 ниже.
@@ -372,7 +372,7 @@
 - [x] `pnpm install --frozen-lockfile && pnpm run ci` — зелёный (2026-05-01).
 - [ ] Выгрузка архива `news_items` перед **первым** применением `0016_*` на среде с ценными данными — операционный хвост, см. [`BACKLOG_TAILS.md`](../BACKLOG_TAILS.md).
 
-Закрытие по пунктам Cursor-плана зафиксировано в [`STAGE1_PLAN_CLOSEOUT.md`](STAGE1_PLAN_CLOSEOUT.md).
+Закрытие по пунктам Cursor-плана зафиксировано в [`STAGE1_PLAN_CLOSEOUT.md`](done/STAGE1_PLAN_CLOSEOUT.md).
 
 **Что меняется (для редактора):** исчезает раздел «Новости» в CMS-хабе. В редакторе рассылок появляется выбор канала (на старте только два — бот и SMS, как и сейчас по факту). Это закладывает фундамент: позже можно будет «опубликовать сообщение на главную пациента» без новой инициативы.
 
@@ -395,7 +395,7 @@
 
 ## Этап 2. CMS-типизация: `content_sections.kind`
 
-**Статус 2026-05-02 (факт репозитория):** первый шаг CMS-first выполнен как **вариант C** в [`CMS_RESTRUCTURE_PLAN.md`](CMS_RESTRUCTURE_PLAN.md): колонки `kind` ∈ {`article`, `system`} и `system_parent_code` для кластеров CMS и patient-home; детали и сверка с кодом — [`CMS_RESTRUCTURE_EXECUTION_AUDIT.md`](CMS_RESTRUCTURE_EXECUTION_AUDIT.md). Блок **«Конкретно»** ниже описывает **более широкую** целевую модель (отдельные `situation` / `subscription` / `course_lesson` и т.д.) и остаётся ориентиром для последующих этапов, а не дословным описанием уже вмерженного кода.
+**Статус 2026-05-02 (факт репозитория):** первый шаг CMS-first выполнен как **вариант C** в [`CMS_RESTRUCTURE_PLAN.md`](CMS_RESTRUCTURE_PLAN.md): колонки `kind` ∈ {`article`, `system`} и `system_parent_code` для кластеров CMS и patient-home; детали и сверка с кодом — [`CMS_RESTRUCTURE_EXECUTION_AUDIT.md`](done/CMS_RESTRUCTURE_EXECUTION_AUDIT.md). Блок **«Конкретно»** ниже описывает **более широкую** целевую модель (отдельные `situation` / `subscription` / `course_lesson` и т.д.) и остаётся ориентиром для последующих этапов, а не дословным описанием уже вмерженного кода.
 
 **Что меняется (для редактора):** редактор перестаёт «не понимать, куда уйдёт страница». В CMS-хабе появляются отдельные табы по типу контента: «Статьи», «Ситуации», «Подписочные», «Уроки курсов». При создании страницы редактор сразу выбирает тип и видит соответствующий набор полей.
 
@@ -504,15 +504,15 @@
 **Зачем:** закрыть боль «дашборд врача — полная ерунда, карточка пациента не рабочая».
 
 **Конкретно:**
-- ~~Перестроить `DOCTOR_MENU_ENTRIES` под 5 кластеров~~ — **выполнено (2026-05-02):** кластеры + standalone «Библиотека файлов», аккордеон, см. [`DOCTOR_MENU_RESTRUCTURE_EXECUTION_AUDIT.md`](DOCTOR_MENU_RESTRUCTURE_EXECUTION_AUDIT.md). ~~Добавить `/online-intake` в меню.~~ **Пункт меню добавлен (2026-05-01)** до полной перестройки; теперь входит в кластер «Работа с пациентами». Убрать `/subscribers` (legacy) — **redirect пока оставлен** (закладки); без пункта в меню.
-- ~~Единый чат врача (страница + карточка пациента)~~ — **выполнено (2026-05-02)** по [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md) этап 5 / [`DOCTOR_MESSAGES_UNIFIED_CHAT_EXECUTION_AUDIT.md`](DOCTOR_MESSAGES_UNIFIED_CHAT_EXECUTION_AUDIT.md).
-- ~~Пакет «плотность UI» без редизайна~~ — **выполнено (2026-05-02)** по [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md) этап 8 / [`DOCTOR_UI_DENSITY_EXECUTION_AUDIT.md`](DOCTOR_UI_DENSITY_EXECUTION_AUDIT.md).
-- ~~Бейджи новых заявок и непрочитанных сообщений в меню~~ — **выполнено (2026-05-02):** [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md) этап 3 / [`DOCTOR_NAV_BADGES_PLAN.md`](DOCTOR_NAV_BADGES_PLAN.md).
-- ~~Экран «Сегодня» на `/app/doctor` вместо отчётных метрик~~ — **MVP выполнен (2026-05-02):** [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md) этап 4 / [`DOCTOR_TODAY_DASHBOARD_PLAN.md`](DOCTOR_TODAY_DASHBOARD_PLAN.md). Реализованы: записи на сегодня, новые заявки, непрочитанные диалоги, ближайшие записи; метрики на `/stats`. **Не сделано:** секция «К проверке» как рабочая очередь (нет источника данных).
-- ~~Микро-проход карточки и списка клиентов (REPACK: без аккордеона, sticky, иконки каналов, без заглушки записи)~~ — **выполнено (2026-05-02):** [`DOCTOR_CLIENT_PROFILE_REPACK_PLAN.md`](DOCTOR_CLIENT_PROFILE_REPACK_PLAN.md) / [`DOCTOR_CLIENT_PROFILE_REPACK_EXECUTION_AUDIT.md`](DOCTOR_CLIENT_PROFILE_REPACK_EXECUTION_AUDIT.md).
+- ~~Перестроить `DOCTOR_MENU_ENTRIES` под 5 кластеров~~ — **выполнено (2026-05-02):** кластеры + standalone «Библиотека файлов», аккордеон, см. [`DOCTOR_MENU_RESTRUCTURE_EXECUTION_AUDIT.md`](done/DOCTOR_MENU_RESTRUCTURE_EXECUTION_AUDIT.md). ~~Добавить `/online-intake` в меню.~~ **Пункт меню добавлен (2026-05-01)** до полной перестройки; теперь входит в кластер «Работа с пациентами». Убрать `/subscribers` (legacy) — **redirect пока оставлен** (закладки); без пункта в меню.
+- ~~Единый чат врача (страница + карточка пациента)~~ — **выполнено (2026-05-02)** по [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md) этап 5 / [`DOCTOR_MESSAGES_UNIFIED_CHAT_EXECUTION_AUDIT.md`](done/DOCTOR_MESSAGES_UNIFIED_CHAT_EXECUTION_AUDIT.md).
+- ~~Пакет «плотность UI» без редизайна~~ — **выполнено (2026-05-02)** по [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md) этап 8 / [`DOCTOR_UI_DENSITY_EXECUTION_AUDIT.md`](done/DOCTOR_UI_DENSITY_EXECUTION_AUDIT.md).
+- ~~Бейджи новых заявок и непрочитанных сообщений в меню~~ — **выполнено (2026-05-02):** [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md) этап 3 / [`DOCTOR_NAV_BADGES_PLAN.md`](done/DOCTOR_NAV_BADGES_PLAN.md).
+- ~~Экран «Сегодня» на `/app/doctor` вместо отчётных метрик~~ — **MVP выполнен (2026-05-02):** [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md) этап 4 / [`DOCTOR_TODAY_DASHBOARD_PLAN.md`](done/DOCTOR_TODAY_DASHBOARD_PLAN.md). Реализованы: записи на сегодня, новые заявки, непрочитанные диалоги, ближайшие записи; метрики на `/stats`. **Не сделано:** секция «К проверке» как рабочая очередь (нет источника данных).
+- ~~Микро-проход карточки и списка клиентов (REPACK: без аккордеона, sticky, иконки каналов, без заглушки записи)~~ — **выполнено (2026-05-02):** [`DOCTOR_CLIENT_PROFILE_REPACK_PLAN.md`](done/DOCTOR_CLIENT_PROFILE_REPACK_PLAN.md) / [`DOCTOR_CLIENT_PROFILE_REPACK_EXECUTION_AUDIT.md`](done/DOCTOR_CLIENT_PROFILE_REPACK_EXECUTION_AUDIT.md).
 - Карточка пациента `/clients/[userId]` — целевая **переделка в табы** (II.3). Заметки врача — в основной таб. (**Глубокая часть этапа 6** [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md) — заморозка до отдельного решения.)
 - Секция старого журнала в карточке и условный блок «Коммуникации» — **свести к IA табов** после снятия заморозки глубокой переработки (отправка уже через `DoctorChatPanel` в шапке).
-- ~~Usage «где используется» на каталогах + предупреждение при архивации~~ — **выполнено (2026-05-02):** [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md) этап 7 / [`ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md`](ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md).
+- ~~Usage «где используется» на каталогах + предупреждение при архивации~~ — **выполнено (2026-05-02):** [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md) этап 7 / [`ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md`](done/ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md).
 
 **Размер:** крупный, 7–10 дней.
 **Риск:** средний.
@@ -541,8 +541,8 @@
 ## Этап 9. Новая модель «Плана лечения» пациента (PROGRAM_PATIENT_SHAPE) + переработка каталогов «Назначений»
 
 > Зафиксирован 2026-05-03 как отдельная инициатива. Состоит из **двух параллельных планов**:
-> - **Доменный**: [`PROGRAM_PATIENT_SHAPE_PLAN.md`](PROGRAM_PATIENT_SHAPE_PLAN.md) — этапы A1–A5 (модель плана, цели/задачи/срок, группы, action_log, бейджи, Inbox К проверке, universal comment pattern §1.9).
-> - **Sister-план по каталогам**: [`ASSIGNMENT_CATALOGS_REWORK_PLAN.md`](ASSIGNMENT_CATALOGS_REWORK_PLAN.md) — этапы B1–B7 (UX/тех-фиксы каталогов «Назначений», `CreatableComboboxInput`, две оси фильтра «черновик/опубликован» × «активный/архив», universal comment pattern на все item-контейнеры).
+> - **Доменный**: [`PROGRAM_PATIENT_SHAPE_PLAN.md`](PROGRAM_PATIENT_SHAPE_PLAN.md) — этапы A1–A5 (модель плана, цели/задачи/срок, группы, action_log, бейджи, Inbox К проверке, universal comment pattern §1.9). Execution: [`../PROGRAM_PATIENT_SHAPE_INITIATIVE/README.md`](../PROGRAM_PATIENT_SHAPE_INITIATIVE/README.md).
+> - **Sister-план по каталогам**: [`ASSIGNMENT_CATALOGS_REWORK_PLAN.md`](ASSIGNMENT_CATALOGS_REWORK_PLAN.md) — этапы B1–B7 (UX/тех-фиксы каталогов «Назначений», `CreatableComboboxInput`, две оси фильтра «черновик/опубликован» × «активный/архив», universal comment pattern на все item-контейнеры). Execution: [`../ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/README.md`](../ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/README.md).
 >
 > Делается **до** этапа 7 (Курсы).
 

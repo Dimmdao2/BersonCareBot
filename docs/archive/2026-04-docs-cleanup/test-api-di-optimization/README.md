@@ -45,4 +45,4 @@
 - **`docs/ARCHITECTURE/LOW_LEVEL_ARCHITECTURE_AUDIT_AND_REORG.md`** — composition roots, риски обхода DI (сверка со снимком: `docs/archive/2026-04-docs-cleanup/test-api-di-optimization/DISCOVERY_REPORT.md`).
 - **`docs/ARCHITECTURE/ARCHITECTURE_GUARDRAILS.md`** — guardrails integrator/Telegram (не про webapp route imports; контекст безопасности).
 - **`apps/webapp/src/app/api/api.md`**, **`apps/webapp/src/app-layer/di/di.md`** — локальные описания API и DI (целью трека B будет синхронизация с кодом после рефакторинга).
-- **`docs/VIDEO_HLS_DELIVERY/04-test-strategy.md`** — пример отдельной test strategy по фиче (не дублируем содержимое).
+- **`docs/archive/2026-05-initiatives/VIDEO_HLS_DELIVERY/04-test-strategy.md`** — пример отдельной test strategy по фиче (не дублируем содержимое).

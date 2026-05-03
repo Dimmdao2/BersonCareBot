@@ -30,6 +30,16 @@ export function isInstanceStageItemActiveForPatient(item: ItemSemanticsFields): 
   return item.status !== "disabled";
 }
 
+/** A5: бейдж «Новое» — только активный элемент, `last_viewed_at` ещё null, этап не заблокирован для контента. */
+export function patientStageItemShowsNewBadge(
+  item: Pick<TreatmentProgramInstanceStageItemRow, "itemType" | "isActionable" | "status" | "lastViewedAt">,
+  contentBlockedForStage: boolean,
+): boolean {
+  if (contentBlockedForStage) return false;
+  if (!isInstanceStageItemActiveForPatient(item)) return false;
+  return item.lastViewedAt == null;
+}
+
 /**
  * Patient HTTP/RSC read model (A2-READ-01): `disabled` rows stay in DB and doctor views;
  * пациентский API и RSC не отдают отключённые элементы в `stages[].items`.
@@ -39,9 +49,13 @@ export function omitDisabledInstanceStageItemsForPatientApi(
 ): TreatmentProgramInstanceDetail {
   return {
     ...detail,
-    stages: detail.stages.map((stage) => ({
-      ...stage,
-      items: stage.items.filter((it) => isInstanceStageItemActiveForPatient(it)),
-    })),
+    stages: detail.stages.map((stage) => {
+      const items = stage.items.filter((it) => isInstanceStageItemActiveForPatient(it));
+      const visibleGroupIds = new Set(
+        items.map((it) => it.groupId).filter((gid): gid is string => gid !== null && gid !== ""),
+      );
+      const groups = stage.groups.filter((g) => visibleGroupIds.has(g.id));
+      return { ...stage, items, groups };
+    }),
   };
 }

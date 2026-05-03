@@ -2,6 +2,7 @@ import type {
   TreatmentProgramEventsPort,
   TreatmentProgramInstancePort,
   TreatmentProgramTestAttemptsPort,
+  ProgramActionLogPort,
 } from "./ports";
 import { buildAppendEventInput, normalizeEventReason } from "./event-recording";
 import { assertUuid } from "./service";
@@ -14,6 +15,7 @@ import {
 } from "./stage-semantics";
 import type {
   NormalizedTestDecision,
+  PendingProgramTestEvaluationRow,
   TreatmentProgramInstanceDetail,
   TreatmentProgramInstanceStageRow,
   TreatmentProgramInstanceStageStatus,
@@ -51,10 +53,12 @@ export function createTreatmentProgramProgressService(deps: {
   instances: TreatmentProgramInstancePort;
   tests: TreatmentProgramTestAttemptsPort;
   events?: TreatmentProgramEventsPort;
+  actionLog?: ProgramActionLogPort;
   now?: () => string;
 }) {
   const { instances, tests } = deps;
   const events = deps.events;
+  const actionLog = deps.actionLog;
   const nowIso = deps.now ?? (() => new Date().toISOString());
 
   async function appendEv(params: Parameters<typeof buildAppendEventInput>[0]): Promise<void> {
@@ -303,6 +307,18 @@ export function createTreatmentProgramProgressService(deps: {
         decidedBy: null,
       });
 
+      if (actionLog) {
+        await actionLog.insertAction({
+          instanceId: input.instanceId,
+          instanceStageItemId: input.stageItemId,
+          patientUserId: input.patientUserId,
+          actionType: "done",
+          sessionId: null,
+          payload: { source: "test_submitted", testResultId: resultRow.id },
+          note: null,
+        });
+      }
+
       await appendEv({
         instanceId: input.instanceId,
         actorId: input.patientUserId,
@@ -405,6 +421,11 @@ export function createTreatmentProgramProgressService(deps: {
     listTestResultsForInstance(instanceId: string): Promise<TreatmentProgramTestResultDetailRow[]> {
       assertUuid(instanceId);
       return tests.listResultDetailsForInstance(instanceId);
+    },
+
+    async listPendingTestEvaluationsForPatient(patientUserId: string): Promise<PendingProgramTestEvaluationRow[]> {
+      assertUuid(patientUserId);
+      return tests.listPendingEvaluationResultsForPatient(patientUserId);
     },
   };
 }

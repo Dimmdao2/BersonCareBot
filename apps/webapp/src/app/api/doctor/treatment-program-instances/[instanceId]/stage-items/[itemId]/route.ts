@@ -4,6 +4,7 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { getCurrentSession } from "@/modules/auth/service";
 import { canAccessDoctor } from "@/modules/roles/service";
 import { TREATMENT_PROGRAM_ITEM_TYPES } from "@/modules/treatment-program/types";
+import { revalidatePatientTreatmentProgramUi } from "@/app-layer/cache/revalidatePatientTreatmentProgramUi";
 
 const patchBodySchema = z
   .object({
@@ -16,13 +17,15 @@ const patchBodySchema = z
       .optional(),
     status: z.enum(["active", "disabled"]).optional(),
     isActionable: z.boolean().optional(),
+    groupId: z.string().uuid().nullable().optional(),
   })
   .refine(
     (b) =>
       b.localComment !== undefined ||
       b.replace !== undefined ||
       b.status !== undefined ||
-      b.isActionable !== undefined,
+      b.isActionable !== undefined ||
+      b.groupId !== undefined,
     { message: "empty_patch" },
   );
 
@@ -50,6 +53,9 @@ export async function PATCH(
   const deps = buildAppDeps();
   try {
     const inst0 = await deps.treatmentProgramInstance.getInstanceById(instanceId);
+    if (!inst0) {
+      return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+    }
     const identity = await deps.doctorClientsPort.getClientIdentity(inst0.patientUserId);
     if (!identity) {
       return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
@@ -63,6 +69,7 @@ export async function PATCH(
         itemType: parsed.data.replace.itemType,
         itemRefId: parsed.data.replace.itemRefId,
       });
+      revalidatePatientTreatmentProgramUi();
       return NextResponse.json({ ok: true, item: row });
     }
 
@@ -79,6 +86,7 @@ export async function PATCH(
               itemId,
               actorId: session.user.userId,
             });
+      revalidatePatientTreatmentProgramUi();
       return NextResponse.json({ ok: true, item: row });
     }
 
@@ -89,6 +97,18 @@ export async function PATCH(
         actorId: session.user.userId,
         isActionable: parsed.data.isActionable,
       });
+      revalidatePatientTreatmentProgramUi();
+      return NextResponse.json({ ok: true, item: row });
+    }
+
+    if (parsed.data.groupId !== undefined) {
+      const row = await deps.treatmentProgramInstance.doctorSetInstanceStageItemGroup({
+        instanceId,
+        itemId,
+        actorId: session.user.userId,
+        groupId: parsed.data.groupId,
+      });
+      revalidatePatientTreatmentProgramUi();
       return NextResponse.json({ ok: true, item: row });
     }
 
@@ -98,6 +118,7 @@ export async function PATCH(
       localComment: parsed.data.localComment!,
       actorId: session.user.userId,
     });
+    revalidatePatientTreatmentProgramUi();
     return NextResponse.json({ ok: true, item: row });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "error";

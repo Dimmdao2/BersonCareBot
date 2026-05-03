@@ -3,6 +3,7 @@ import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { getCurrentSession } from "@/modules/auth/service";
 import { canAccessDoctor } from "@/modules/roles/service";
+import { revalidatePatientTreatmentProgramUi } from "@/app-layer/cache/revalidatePatientTreatmentProgramUi";
 
 const postBodySchema = z.object({
   templateId: z.string().uuid(),
@@ -66,6 +67,7 @@ export async function POST(
       patientUserId: userId,
       assignedBy: session.user.userId,
     });
+    revalidatePatientTreatmentProgramUi();
     return NextResponse.json({ ok: true, item });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "error";

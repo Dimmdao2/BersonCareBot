@@ -1,11 +1,31 @@
 /** @vitest-environment jsdom */
 
-import { describe, expect, it } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
+import { render, screen, act } from "@testing-library/react";
 import type { TreatmentProgramInstanceDetail } from "@/modules/treatment-program/types";
 import { PatientTreatmentProgramDetailClient } from "./PatientTreatmentProgramDetailClient";
 
 const now = "2026-01-01T00:00:00.000Z";
+
+beforeEach(() => {
+  global.fetch = vi.fn(async (input: RequestInfo | URL) => {
+    const url = typeof input === "string" ? input : input.toString();
+    if (url.includes("/checklist-today")) {
+      return new Response(JSON.stringify({ ok: true, doneItemIds: [] }), { status: 200 });
+    }
+    if (url.includes("/plan-opened")) {
+      return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    }
+    if (url.includes("/mark-viewed")) {
+      return new Response(JSON.stringify({ ok: true, updated: true }), { status: 200 });
+    }
+    return new Response(JSON.stringify({ ok: false }), { status: 404 });
+  }) as typeof fetch;
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 function makeInstance(over: Partial<TreatmentProgramInstanceDetail> = {}): TreatmentProgramInstanceDetail {
   return {
@@ -17,6 +37,7 @@ function makeInstance(over: Partial<TreatmentProgramInstanceDetail> = {}): Treat
     status: "active",
     createdAt: now,
     updatedAt: now,
+    patientPlanLastOpenedAt: null,
     stages: [
       {
         id: "22222222-2222-4222-8222-222222222222",
@@ -32,6 +53,7 @@ function makeInstance(over: Partial<TreatmentProgramInstanceDetail> = {}): Treat
         objectives: "- 3 раза в неделю",
         expectedDurationDays: 7,
         expectedDurationText: "неделя",
+        groups: [],
         items: [],
       },
     ],
@@ -71,6 +93,7 @@ describe("PatientTreatmentProgramDetailClient", () => {
               objectives: null,
               expectedDurationDays: null,
               expectedDurationText: null,
+              groups: [],
               items: [],
             },
           ],
@@ -81,5 +104,20 @@ describe("PatientTreatmentProgramDetailClient", () => {
     expect(screen.queryByText("Цель")).not.toBeInTheDocument();
     expect(screen.queryByText("Задачи")).not.toBeInTheDocument();
     expect(screen.queryByText("Ожидаемый срок")).not.toBeInTheDocument();
+  });
+
+  it("does not POST plan-opened when program is not active (A5 POST-AUDIT)", async () => {
+    const fetchMock = vi.mocked(global.fetch);
+    render(
+      <PatientTreatmentProgramDetailClient
+        initial={makeInstance({ status: "completed" })}
+        initialTestResults={[]}
+      />,
+    );
+    await act(async () => {
+      await Promise.resolve();
+    });
+    const planOpenedCalls = fetchMock.mock.calls.filter((call) => String(call[0]).includes("/plan-opened"));
+    expect(planOpenedCalls).toHaveLength(0);
   });
 });

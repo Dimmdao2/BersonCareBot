@@ -3,16 +3,19 @@ import type {
   CreateTreatmentProgramStageInput,
   CreateTreatmentProgramStageItemInput,
   CreateTreatmentProgramTemplateInput,
+  CreateTreatmentProgramTemplateStageGroupInput,
   TreatmentProgramStage,
   TreatmentProgramStageItem,
   TreatmentProgramTemplate,
   TreatmentProgramTemplateDetail,
   TreatmentProgramTemplateFilter,
+  TreatmentProgramTemplateStageGroup,
   TreatmentProgramTemplateStatus,
   TreatmentProgramTemplateUsageSnapshot,
   UpdateTreatmentProgramStageInput,
   UpdateTreatmentProgramStageItemInput,
   UpdateTreatmentProgramTemplateInput,
+  UpdateTreatmentProgramTemplateStageGroupInput,
 } from "@/modules/treatment-program/types";
 import { EMPTY_TREATMENT_PROGRAM_TEMPLATE_USAGE_SNAPSHOT } from "@/modules/treatment-program/types";
 
@@ -33,18 +36,31 @@ function isoNow(): string {
   return new Date().toISOString();
 }
 
+function sameIdSet(ordered: string[], expected: Set<string>): boolean {
+  if (ordered.length !== expected.size) return false;
+  const seen = new Set<string>();
+  for (const id of ordered) {
+    if (!expected.has(id) || seen.has(id)) return false;
+    seen.add(id);
+  }
+  return true;
+}
+
 export function createInMemoryTreatmentProgramPort(seed?: {
   templates?: TreatmentProgramTemplate[];
   stages?: TreatmentProgramStage[];
   items?: TreatmentProgramStageItem[];
+  groups?: TreatmentProgramTemplateStageGroup[];
 }): TreatmentProgramPort {
   const templates = new Map<string, TreatmentProgramTemplate>();
   const stages = new Map<string, TreatmentProgramStage>();
   const items = new Map<string, TreatmentProgramStageItem>();
+  const tplGroups = new Map<string, TreatmentProgramTemplateStageGroup>();
 
   for (const t of seed?.templates ?? []) templates.set(t.id, { ...t });
   for (const s of seed?.stages ?? []) stages.set(s.id, { ...s });
   for (const i of seed?.items ?? []) items.set(i.id, { ...i });
+  for (const g of seed?.groups ?? []) tplGroups.set(g.id, { ...g });
 
   function nextTemplateSort(): number {
     return templates.size;
@@ -66,6 +82,14 @@ export function createInMemoryTreatmentProgramPort(seed?: {
     return m + 1;
   }
 
+  function nextTplGroupOrder(stageId: string): number {
+    let m = -1;
+    for (const g of tplGroups.values()) {
+      if (g.stageId === stageId) m = Math.max(m, g.sortOrder);
+    }
+    return m + 1;
+  }
+
   function buildDetail(id: string): TreatmentProgramTemplateDetail | null {
     const tpl = templates.get(id);
     if (!tpl) return null;
@@ -73,10 +97,17 @@ export function createInMemoryTreatmentProgramPort(seed?: {
       .filter((s) => s.templateId === id)
       .sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id));
     const outStages = stageList.map((st) => {
+      const groupList = [...tplGroups.values()]
+        .filter((g) => g.stageId === st.id)
+        .sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id));
       const itemList = [...items.values()]
         .filter((it) => it.stageId === st.id)
         .sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id));
-      return { ...st, items: itemList.map((i) => ({ ...i })) };
+      return {
+        ...st,
+        groups: groupList.map((g) => ({ ...g })),
+        items: itemList.map((i) => ({ ...i })),
+      };
     });
     return { ...tpl, stages: outStages };
   }
@@ -165,10 +196,19 @@ export function createInMemoryTreatmentProgramPort(seed?: {
       for (const [iid, it] of items) {
         if (it.stageId === stageId) items.delete(iid);
       }
+      for (const [gid, g] of tplGroups) {
+        if (g.stageId === stageId) tplGroups.delete(gid);
+      }
       return true;
     },
 
     async addStageItem(stageId: string, input: CreateTreatmentProgramStageItemInput) {
+      if (input.groupId) {
+        const gr = tplGroups.get(input.groupId);
+        if (!gr || gr.stageId !== stageId) {
+          throw new Error("Группа не найдена или не принадлежит этапу");
+        }
+      }
       const id = crypto.randomUUID();
       const row: TreatmentProgramStageItem = {
         id,
@@ -178,6 +218,7 @@ export function createInMemoryTreatmentProgramPort(seed?: {
         sortOrder: input.sortOrder ?? nextItemOrder(stageId),
         comment: input.comment ?? null,
         settings: input.settings ?? null,
+        groupId: input.groupId ?? null,
       };
       items.set(id, row);
       return { ...row };
@@ -191,6 +232,12 @@ export function createInMemoryTreatmentProgramPort(seed?: {
     async updateStageItem(itemId: string, input: UpdateTreatmentProgramStageItemInput) {
       const cur = items.get(itemId);
       if (!cur) return null;
+      if (input.groupId !== undefined && input.groupId !== null) {
+        const gr = tplGroups.get(input.groupId);
+        if (!gr || gr.stageId !== cur.stageId) {
+          throw new Error("Группа не найдена или не принадлежит этапу");
+        }
+      }
       const next = { ...cur, ...input };
       items.set(itemId, next);
       return { ...next };
@@ -199,6 +246,67 @@ export function createInMemoryTreatmentProgramPort(seed?: {
     async deleteStageItem(itemId: string) {
       if (!items.has(itemId)) return false;
       items.delete(itemId);
+      return true;
+    },
+
+    async createTemplateStageGroup(stageId: string, input: CreateTreatmentProgramTemplateStageGroupInput) {
+      const st = stages.get(stageId);
+      if (!st) throw new Error("Этап не найден");
+      const title = input.title?.trim() ?? "";
+      if (!title) throw new Error("Название группы обязательно");
+      const id = crypto.randomUUID();
+      const row: TreatmentProgramTemplateStageGroup = {
+        id,
+        stageId,
+        title,
+        description: input.description?.trim() ?? null,
+        scheduleText: input.scheduleText?.trim() ?? null,
+        sortOrder: input.sortOrder ?? nextTplGroupOrder(stageId),
+      };
+      tplGroups.set(id, row);
+      return { ...row };
+    },
+
+    async updateTemplateStageGroup(groupId: string, input: UpdateTreatmentProgramTemplateStageGroupInput) {
+      const cur = tplGroups.get(groupId);
+      if (!cur) return null;
+      let title = cur.title;
+      if (input.title !== undefined) {
+        const t = input.title.trim();
+        if (!t) throw new Error("Название группы обязательно");
+        title = t;
+      }
+      const next: TreatmentProgramTemplateStageGroup = {
+        ...cur,
+        title,
+        ...(input.description !== undefined ? { description: input.description?.trim() ?? null } : {}),
+        ...(input.scheduleText !== undefined ? { scheduleText: input.scheduleText?.trim() ?? null } : {}),
+        ...(input.sortOrder !== undefined ? { sortOrder: input.sortOrder } : {}),
+      };
+      tplGroups.set(groupId, next);
+      return { ...next };
+    },
+
+    async deleteTemplateStageGroup(groupId: string) {
+      if (!tplGroups.has(groupId)) return false;
+      for (const [iid, it] of items) {
+        if (it.groupId === groupId) items.set(iid, { ...it, groupId: null });
+      }
+      tplGroups.delete(groupId);
+      return true;
+    },
+
+    async reorderTemplateStageGroups(stageId: string, orderedGroupIds: string[]) {
+      if (!stages.has(stageId)) return false;
+      const groupList = [...tplGroups.values()].filter((g) => g.stageId === stageId);
+      const idSet = new Set(groupList.map((g) => g.id));
+      if (!sameIdSet(orderedGroupIds, idSet)) return false;
+      for (let i = 0; i < orderedGroupIds.length; i++) {
+        const gid = orderedGroupIds[i]!;
+        const row = tplGroups.get(gid);
+        if (!row) return false;
+        tplGroups.set(gid, { ...row, sortOrder: i });
+      }
       return true;
     },
   };

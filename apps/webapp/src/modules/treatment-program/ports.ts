@@ -5,10 +5,13 @@ import type {
   CreateTreatmentProgramStageInput,
   CreateTreatmentProgramStageItemInput,
   CreateTreatmentProgramTemplateInput,
+  CreateTreatmentProgramTemplateStageGroupInput,
+  CreateTreatmentProgramInstanceStageGroupInput,
   CreateTreatmentProgramInstanceTreeInput,
   ReplaceTreatmentProgramInstanceStageItemInput,
   TreatmentProgramEventRow,
   TreatmentProgramInstanceDetail,
+  TreatmentProgramInstanceStageGroup,
   TreatmentProgramInstanceStageItemRow,
   TreatmentProgramInstanceStageRow,
   TreatmentProgramInstanceStageStatus,
@@ -21,13 +24,18 @@ import type {
   TreatmentProgramTemplateUsageSnapshot,
   TreatmentProgramStage,
   TreatmentProgramStageItem,
+  TreatmentProgramTemplateStageGroup,
+  UpdateTreatmentProgramInstanceStageGroupInput,
   UpdateTreatmentProgramInstanceStageMetadataInput,
   TreatmentProgramTestAttemptRow,
   TreatmentProgramTestResultDetailRow,
   TreatmentProgramTestResultRow,
   NormalizedTestDecision,
+  PendingProgramTestEvaluationRow,
+  ProgramActionLogInsert,
   UpdateTreatmentProgramStageInput,
   UpdateTreatmentProgramStageItemInput,
+  UpdateTreatmentProgramTemplateStageGroupInput,
   UpdateTreatmentProgramTemplateInput,
 } from "./types";
 
@@ -57,6 +65,17 @@ export type TreatmentProgramPort = {
     input: UpdateTreatmentProgramStageItemInput,
   ): Promise<TreatmentProgramStageItem | null>;
   deleteStageItem(itemId: string): Promise<boolean>;
+
+  createTemplateStageGroup(
+    stageId: string,
+    input: CreateTreatmentProgramTemplateStageGroupInput,
+  ): Promise<TreatmentProgramTemplateStageGroup>;
+  updateTemplateStageGroup(
+    groupId: string,
+    input: UpdateTreatmentProgramTemplateStageGroupInput,
+  ): Promise<TreatmentProgramTemplateStageGroup | null>;
+  deleteTemplateStageGroup(groupId: string): Promise<boolean>;
+  reorderTemplateStageGroups(stageId: string, orderedGroupIds: string[]): Promise<boolean>;
 };
 
 /** Проверка полиморфной ссылки без FK на уровне БД — только в сервисе. */
@@ -113,6 +132,7 @@ export type TreatmentProgramInstancePort = {
     patch: {
       status?: TreatmentProgramInstanceStageItemStatus;
       isActionable?: boolean | null;
+      groupId?: string | null;
     },
   ): Promise<TreatmentProgramInstanceStageItemRow | null>;
 
@@ -126,6 +146,7 @@ export type TreatmentProgramInstancePort = {
     patch: {
       status?: TreatmentProgramInstanceStageItemStatus;
       isActionable?: boolean | null;
+      groupId?: string | null;
     },
     eventInput: AppendTreatmentProgramEventInput,
   ): Promise<TreatmentProgramInstanceStageItemRow | null>;
@@ -154,12 +175,44 @@ export type TreatmentProgramInstancePort = {
     stageId: string,
     orderedItemIds: string[],
   ): Promise<boolean>;
+
+  createInstanceStageGroup(
+    instanceId: string,
+    stageId: string,
+    input: CreateTreatmentProgramInstanceStageGroupInput,
+  ): Promise<TreatmentProgramInstanceStageGroup | null>;
+  updateInstanceStageGroup(
+    instanceId: string,
+    groupId: string,
+    input: UpdateTreatmentProgramInstanceStageGroupInput,
+  ): Promise<TreatmentProgramInstanceStageGroup | null>;
+  /** Элементы группы получают `group_id = NULL`. */
+  deleteInstanceStageGroup(instanceId: string, groupId: string): Promise<boolean>;
+  reorderInstanceStageGroups(
+    instanceId: string,
+    stageId: string,
+    orderedGroupIds: string[],
+  ): Promise<boolean>;
+
+  /** A5: пациент открыл экран программы (Today-бейдж «План обновлён»). */
+  touchPatientPlanLastOpenedAt(patientUserId: string, instanceId: string): Promise<void>;
+  /**
+   * A5: первая отметка «элемент открыт» — только если `last_viewed_at IS NULL` (идемпотентно).
+   * Возвращает `updated: true`, если строка изменилась.
+   */
+  markStageItemViewedIfNever(
+    patientUserId: string,
+    instanceId: string,
+    stageItemId: string,
+  ): Promise<{ updated: boolean }>;
 };
 
 /** §8: история изменений экземпляра программы (только через сервисный слой). */
 export type TreatmentProgramEventsPort = {
   appendEvent(input: AppendTreatmentProgramEventInput): Promise<TreatmentProgramEventRow>;
   listEventsForInstance(instanceId: string, limit?: number): Promise<TreatmentProgramEventRow[]>;
+  /** A5: max(created_at) по событиям, влияющим на бейдж «План обновлён»; нет строк — `null`. */
+  getMaxPlanMutationEventCreatedAt(instanceId: string): Promise<string | null>;
 };
 
 /** Попытки и результаты тестов в программе (фаза 6). */
@@ -188,4 +241,34 @@ export type TreatmentProgramTestAttemptsPort = {
   ): Promise<TreatmentProgramTestResultRow | null>;
   /** Есть ли хотя бы одна попытка теста по элементу (включая завершённые) — для защиты истории при удалении/замене. */
   hasAnyAttemptForStageItem(stageItemId: string): Promise<boolean>;
+  /**
+   * A4: результаты с `decided_by IS NULL` по **активным** экземплярам программ пациента (inbox врача).
+   */
+  listPendingEvaluationResultsForPatient(patientUserId: string): Promise<PendingProgramTestEvaluationRow[]>;
+};
+
+export type ProgramActionLogPort = {
+  insertAction(input: ProgramActionLogInsert): Promise<{ id: string; createdAt: string }>;
+  /** Удаляет «простые» `done` за окно (без `payload.source`, чтобы не трогать маркеры теста). */
+  deleteSimpleDoneInWindow(params: {
+    instanceId: string;
+    patientUserId: string;
+    instanceStageItemId: string;
+    windowStartIso: string;
+    windowEndIso: string;
+  }): Promise<void>;
+  /** Удаляет все `done` за окно по элементу (перезапись ЛФК за день). */
+  deleteAllDoneInWindow(params: {
+    instanceId: string;
+    patientUserId: string;
+    instanceStageItemId: string;
+    windowStartIso: string;
+    windowEndIso: string;
+  }): Promise<void>;
+  listDoneItemIdsInWindow(params: {
+    instanceId: string;
+    patientUserId: string;
+    windowStartIso: string;
+    windowEndIso: string;
+  }): Promise<string[]>;
 };

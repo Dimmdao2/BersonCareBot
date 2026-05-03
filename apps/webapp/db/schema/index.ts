@@ -5,6 +5,7 @@ export * from "./treatmentProgramTemplates";
 export * from "./treatmentProgramInstances";
 export * from "./treatmentProgramTestAttempts";
 export * from "./treatmentProgramEvents";
+export * from "./programActionLog";
 export * from "./entityComments";
 export * from "./courses";
 export * from "./patientPractice";

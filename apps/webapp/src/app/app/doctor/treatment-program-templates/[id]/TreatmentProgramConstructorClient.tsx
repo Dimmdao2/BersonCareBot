@@ -26,7 +26,9 @@ import {
 import { USAGE_CONFIRMATION_REQUIRED } from "@/modules/treatment-program/errors";
 import type {
   TreatmentProgramItemType,
+  TreatmentProgramStageItem,
   TreatmentProgramTemplateDetail,
+  TreatmentProgramTemplateStageGroup,
   TreatmentProgramTemplateUsageRef,
   TreatmentProgramTemplateUsageSnapshot,
 } from "@/modules/treatment-program/types";
@@ -131,8 +133,16 @@ export function TreatmentProgramConstructorClient({
   const [durationDaysDraft, setDurationDaysDraft] = useState("");
   const [durationTextDraft, setDurationTextDraft] = useState("");
   const [stageMetaMsg, setStageMetaMsg] = useState<string | null>(null);
-
-  const isArchived = detail.status === "archived";
+  const [groupDialogOpen, setGroupDialogOpen] = useState(false);
+  const [newGroupTitle, setNewGroupTitle] = useState("");
+  const [newGroupSchedule, setNewGroupSchedule] = useState("");
+  const [newGroupDescription, setNewGroupDescription] = useState("");
+  const [groupEditOpen, setGroupEditOpen] = useState(false);
+  const [groupEditId, setGroupEditId] = useState<string | null>(null);
+  const [groupEditTitle, setGroupEditTitle] = useState("");
+  const [groupEditSchedule, setGroupEditSchedule] = useState("");
+  const [groupEditDescription, setGroupEditDescription] = useState("");
+  const [itemAddGroupId, setItemAddGroupId] = useState<string>("");
 
   useEffect(() => {
     setDetail(initialDetail);
@@ -193,6 +203,8 @@ export function TreatmentProgramConstructorClient({
       );
     }
   }, [templateId]);
+
+  const isArchived = detail.status === "archived";
 
   const refetchUsageClient = useCallback(async () => {
     if (externalUsageSnapshot !== undefined) return;
@@ -286,10 +298,20 @@ export function TreatmentProgramConstructorClient({
     setStageMetaMsg(null);
   }, [selectedStage]);
 
-  const orderedStageItems = useMemo(
-    () => (selectedStage ? sortByOrderThenId(selectedStage.items) : []),
+  const orderedStageGroups = useMemo(
+    () => (selectedStage ? sortByOrderThenId(selectedStage.groups) : []),
     [selectedStage],
   );
+
+  const ungroupedItems = useMemo(
+    () => (selectedStage ? sortByOrderThenId(selectedStage.items.filter((i) => !i.groupId)) : []),
+    [selectedStage],
+  );
+
+  function itemsInGroup(groupId: string): TreatmentProgramStageItem[] {
+    if (!selectedStage) return [];
+    return sortByOrderThenId(selectedStage.items.filter((i) => i.groupId === groupId));
+  }
 
   const pickerList = useMemo(() => {
     const q = itemSearch.trim().toLowerCase();
@@ -411,9 +433,9 @@ export function TreatmentProgramConstructorClient({
     }
   }
 
-  async function handleMoveItem(itemId: string, dir: -1 | 1) {
+  async function handleMoveItemInSubgroup(sectionItems: TreatmentProgramStageItem[], itemId: string, dir: -1 | 1) {
     if (!selectedStage) return;
-    const sorted = sortByOrderThenId(selectedStage.items);
+    const sorted = sortByOrderThenId(sectionItems);
     const idx = sorted.findIndex((it) => it.id === itemId);
     const j = idx + dir;
     if (idx < 0 || j < 0 || j >= sorted.length) return;
@@ -428,6 +450,136 @@ export function TreatmentProgramConstructorClient({
         setError("Не удалось изменить порядок элементов");
         return;
       }
+      await reload();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function patchItemGroupId(itemId: string, groupId: string | null) {
+    const res = await fetch(`/api/doctor/treatment-program-templates/stage-items/${itemId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ groupId }),
+    });
+    const json = (await res.json()) as { ok?: boolean; error?: string };
+    return res.ok && !!json.ok;
+  }
+
+  async function handleAddGroup() {
+    if (!selectedStageId) return;
+    const title = newGroupTitle.trim();
+    if (!title) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/doctor/treatment-program-templates/stages/${selectedStageId}/groups`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title,
+          description: newGroupDescription.trim() || null,
+          scheduleText: newGroupSchedule.trim() || null,
+        }),
+      });
+      const json = (await res.json()) as { ok?: boolean; error?: string };
+      if (!res.ok || !json.ok) {
+        setError(json.error ?? "Не удалось добавить группу");
+        return;
+      }
+      setNewGroupTitle("");
+      setNewGroupSchedule("");
+      setNewGroupDescription("");
+      setGroupDialogOpen(false);
+      await reload();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleReorderGroup(groupId: string, dir: -1 | 1) {
+    if (!selectedStage) return;
+    const sorted = sortByOrderThenId(selectedStage.groups);
+    const idx = sorted.findIndex((g) => g.id === groupId);
+    const j = idx + dir;
+    if (idx < 0 || j < 0 || j >= sorted.length) return;
+    const a = sorted[idx]!;
+    const b = sorted[j]!;
+    const newOrder = sorted.map((g) => g.id);
+    newOrder[idx] = b.id;
+    newOrder[j] = a.id;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(
+        `/api/doctor/treatment-program-templates/stages/${selectedStage.id}/groups/reorder`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ orderedGroupIds: newOrder }),
+        },
+      );
+      const json = (await res.json()) as { ok?: boolean; error?: string };
+      if (!res.ok || !json.ok) {
+        setError(json.error ?? "Не удалось изменить порядок групп");
+        return;
+      }
+      await reload();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleDeleteGroup(groupId: string) {
+    if (!globalThis.confirm("Удалить группу? Элементы останутся вне группы.")) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/doctor/treatment-program-templates/stage-groups/${groupId}`, {
+        method: "DELETE",
+      });
+      const json = (await res.json()) as { ok?: boolean };
+      if (!res.ok || !json.ok) {
+        setError("Не удалось удалить группу");
+        return;
+      }
+      await reload();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function openEditGroup(g: TreatmentProgramTemplateStageGroup) {
+    setGroupEditId(g.id);
+    setGroupEditTitle(g.title);
+    setGroupEditSchedule(g.scheduleText ?? "");
+    setGroupEditDescription(g.description ?? "");
+    setGroupEditOpen(true);
+  }
+
+  async function handleSaveGroupEdit() {
+    if (!groupEditId) return;
+    const title = groupEditTitle.trim();
+    if (!title) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/doctor/treatment-program-templates/stage-groups/${groupEditId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title,
+          description: groupEditDescription.trim() || null,
+          scheduleText: groupEditSchedule.trim() || null,
+        }),
+      });
+      const json = (await res.json()) as { ok?: boolean; error?: string };
+      if (!res.ok || !json.ok) {
+        setError(json.error ?? "Не удалось сохранить группу");
+        return;
+      }
+      setGroupEditOpen(false);
+      setGroupEditId(null);
       await reload();
     } finally {
       setBusy(false);
@@ -472,7 +624,11 @@ export function TreatmentProgramConstructorClient({
       const res = await fetch(`/api/doctor/treatment-program-templates/stages/${selectedStageId}/items`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ itemType, itemRefId: refId }),
+        body: JSON.stringify({
+          itemType,
+          itemRefId: refId,
+          groupId: itemAddGroupId && itemAddGroupId !== "__none__" ? itemAddGroupId : null,
+        }),
       });
       const json = (await res.json()) as { ok?: boolean; error?: string };
       if (!res.ok || !json.ok) {
@@ -481,6 +637,7 @@ export function TreatmentProgramConstructorClient({
       }
       setItemDialogOpen(false);
       setItemSearch("");
+      setItemAddGroupId("");
       await reload();
     } finally {
       setBusy(false);
@@ -512,6 +669,81 @@ export function TreatmentProgramConstructorClient({
   }, [archiveWarnUsage]);
 
   const editLocked = busy || isArchived;
+
+  const renderStageItemRow = (it: TreatmentProgramStageItem, section: TreatmentProgramStageItem[], itemIndex: number) => (
+    <li key={it.id} className="flex flex-wrap items-center gap-2 px-2 py-2 text-sm">
+      <div className="flex shrink-0 flex-col gap-0.5">
+        <Button
+          type="button"
+          size="icon"
+          variant="ghost"
+          className="size-8"
+          disabled={editLocked || itemIndex === 0}
+          aria-label="Элемент выше"
+          onClick={() => void handleMoveItemInSubgroup(section, it.id, -1)}
+        >
+          <ChevronUp className="size-4" />
+        </Button>
+        <Button
+          type="button"
+          size="icon"
+          variant="ghost"
+          className="size-8"
+          disabled={editLocked || itemIndex >= section.length - 1}
+          aria-label="Элемент ниже"
+          onClick={() => void handleMoveItemInSubgroup(section, it.id, 1)}
+        >
+          <ChevronDown className="size-4" />
+        </Button>
+      </div>
+      <div className="min-w-0 flex-1">
+        <span className="font-medium">{ITEM_TYPE_LABEL[it.itemType]}</span>
+        <span className="ml-2 text-muted-foreground">
+          {libraryEntryTitle(library, it.itemType, it.itemRefId) ?? it.itemRefId}
+        </span>
+      </div>
+      <Select
+        value={it.groupId ?? "__none__"}
+        onValueChange={(v) => {
+          void (async () => {
+            const next = v === "__none__" ? null : v;
+            setBusy(true);
+            setError(null);
+            try {
+              const ok = await patchItemGroupId(it.id, next);
+              if (!ok) setError("Не удалось изменить группу");
+              else await reload();
+            } finally {
+              setBusy(false);
+            }
+          })();
+        }}
+        disabled={editLocked}
+      >
+        <SelectTrigger className="h-8 w-[min(100%,11rem)] text-xs">
+          <SelectValue placeholder="Группа" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="__none__">Без группы</SelectItem>
+          {orderedStageGroups.map((g) => (
+            <SelectItem key={g.id} value={g.id}>
+              {g.title}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Button
+        type="button"
+        size="sm"
+        variant="ghost"
+        className="text-destructive"
+        disabled={editLocked}
+        onClick={() => void handleRemoveItem(it.id)}
+      >
+        Удалить
+      </Button>
+    </li>
+  );
 
   return (
     <div className="flex flex-col gap-4">
@@ -641,18 +873,35 @@ export function TreatmentProgramConstructorClient({
                 <span className="ml-2 font-normal text-muted-foreground">— {selectedStage.title}</span>
               ) : null}
             </h2>
-            <Button
-              type="button"
-              size="sm"
-              disabled={!selectedStage || editLocked}
-              onClick={() => {
-                setItemDialogOpen(true);
-                setItemType("exercise");
-                setItemSearch("");
-              }}
-            >
-              Добавить из библиотеки
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                disabled={!selectedStage || editLocked}
+                onClick={() => {
+                  setNewGroupTitle("");
+                  setNewGroupSchedule("");
+                  setNewGroupDescription("");
+                  setGroupDialogOpen(true);
+                }}
+              >
+                + Группа
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                disabled={!selectedStage || editLocked}
+                onClick={() => {
+                  setItemDialogOpen(true);
+                  setItemType("exercise");
+                  setItemSearch("");
+                  setItemAddGroupId("");
+                }}
+              >
+                Добавить из библиотеки
+              </Button>
+            </div>
           </div>
 
           {selectedStage ? (
@@ -726,54 +975,88 @@ export function TreatmentProgramConstructorClient({
 
           {!selectedStage ? (
             <p className="text-sm text-muted-foreground">Выберите этап слева.</p>
-          ) : orderedStageItems.length === 0 ? (
-            <p className="text-sm text-muted-foreground">В этапе пока нет элементов.</p>
+          ) : orderedStageGroups.length === 0 && selectedStage.items.length === 0 ? (
+            <p className="text-sm text-muted-foreground">В этапе пока нет элементов и групп.</p>
           ) : (
-            <ul className="divide-y rounded-md border">
-              {orderedStageItems.map((it, itemIndex) => (
-                <li key={it.id} className="flex flex-wrap items-center gap-2 px-2 py-2 text-sm">
-                  <div className="flex shrink-0 flex-col gap-0.5">
-                    <Button
-                      type="button"
-                      size="icon"
-                      variant="ghost"
-                      className="size-8"
-                      disabled={editLocked || itemIndex === 0}
-                      aria-label="Элемент выше"
-                      onClick={() => void handleMoveItem(it.id, -1)}
-                    >
-                      <ChevronUp className="size-4" />
-                    </Button>
-                    <Button
-                      type="button"
-                      size="icon"
-                      variant="ghost"
-                      className="size-8"
-                      disabled={editLocked || itemIndex >= orderedStageItems.length - 1}
-                      aria-label="Элемент ниже"
-                      onClick={() => void handleMoveItem(it.id, 1)}
-                    >
-                      <ChevronDown className="size-4" />
-                    </Button>
+            <div className="space-y-4">
+              {orderedStageGroups.map((g, groupIndex) => {
+                const gItems = itemsInGroup(g.id);
+                return (
+                  <div key={g.id} className="rounded-md border border-border/60 bg-card/30 p-2">
+                    <div className="flex flex-wrap items-center gap-2 border-b border-border/40 pb-2">
+                      <div className="flex shrink-0 flex-col gap-0.5">
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          className="size-8"
+                          disabled={editLocked || groupIndex === 0}
+                          aria-label="Группа выше"
+                          onClick={() => void handleReorderGroup(g.id, -1)}
+                        >
+                          <ChevronUp className="size-4" />
+                        </Button>
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          className="size-8"
+                          disabled={editLocked || groupIndex >= orderedStageGroups.length - 1}
+                          aria-label="Группа ниже"
+                          onClick={() => void handleReorderGroup(g.id, 1)}
+                        >
+                          <ChevronDown className="size-4" />
+                        </Button>
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold">{g.title}</p>
+                        {g.scheduleText?.trim() ? (
+                          <p className="text-xs text-muted-foreground">{g.scheduleText.trim()}</p>
+                        ) : null}
+                      </div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={editLocked}
+                        onClick={() => openEditGroup(g)}
+                      >
+                        Изменить
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className="text-destructive"
+                        disabled={editLocked}
+                        onClick={() => void handleDeleteGroup(g.id)}
+                      >
+                        Удалить
+                      </Button>
+                    </div>
+                    {gItems.length === 0 ? (
+                      <p className="py-2 text-xs text-muted-foreground">В группе пока нет элементов.</p>
+                    ) : (
+                      <ul className="divide-y rounded-md border border-border/40">
+                        {gItems.map((it, itemIndex) => renderStageItemRow(it, gItems, itemIndex))}
+                      </ul>
+                    )}
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <span className="font-medium">{ITEM_TYPE_LABEL[it.itemType]}</span>
-                    <span className="ml-2 text-muted-foreground">
-                      {libraryEntryTitle(library, it.itemType, it.itemRefId) ?? it.itemRefId}
-                    </span>
-                  </div>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    className="text-destructive"
-                    disabled={editLocked}
-                  >
-                    Удалить
-                  </Button>
-                </li>
-              ))}
-            </ul>
+                );
+              })}
+              {orderedStageGroups.length > 0 && (
+                <p className="text-sm font-medium text-muted-foreground">Без группы</p>
+              )}
+              {ungroupedItems.length > 0 ? (
+                <ul className="divide-y rounded-md border">
+                  {ungroupedItems.map((it, itemIndex) =>
+                    renderStageItemRow(it, ungroupedItems, itemIndex),
+                  )}
+                </ul>
+              ) : orderedStageGroups.length > 0 ? (
+                <p className="text-xs text-muted-foreground">Нет элементов вне групп.</p>
+              ) : null}
+            </div>
           )}
         </div>
       </div>
@@ -831,6 +1114,25 @@ export function TreatmentProgramConstructorClient({
               </Select>
             </div>
             <div className="flex flex-col gap-2">
+              <Label>Группа для нового элемента</Label>
+              <Select
+                value={itemAddGroupId && itemAddGroupId !== "" ? itemAddGroupId : "__none__"}
+                onValueChange={(v) => setItemAddGroupId(v === "__none__" ? "" : (v ?? ""))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Без группы" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Без группы</SelectItem>
+                  {(selectedStage ? sortByOrderThenId(selectedStage.groups) : []).map((g) => (
+                    <SelectItem key={g.id} value={g.id}>
+                      {g.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex flex-col gap-2">
               <Label htmlFor="lib-search">Поиск</Label>
               <Input
                 id="lib-search"
@@ -860,6 +1162,88 @@ export function TreatmentProgramConstructorClient({
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setItemDialogOpen(false)}>
               Закрыть
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={groupDialogOpen} onOpenChange={setGroupDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Новая группа</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="new-group-title">Название</Label>
+            <Input
+              id="new-group-title"
+              value={newGroupTitle}
+              onChange={(e) => setNewGroupTitle(e.target.value)}
+              maxLength={2000}
+            />
+            <Label htmlFor="new-group-schedule">Расписание / подзаголовок (необязательно)</Label>
+            <Input
+              id="new-group-schedule"
+              value={newGroupSchedule}
+              onChange={(e) => setNewGroupSchedule(e.target.value)}
+              maxLength={5000}
+            />
+            <Label htmlFor="new-group-desc">Описание (необязательно)</Label>
+            <Textarea
+              id="new-group-desc"
+              rows={2}
+              className="text-sm"
+              value={newGroupDescription}
+              onChange={(e) => setNewGroupDescription(e.target.value)}
+              maxLength={10000}
+            />
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setGroupDialogOpen(false)}>
+              Отмена
+            </Button>
+            <Button type="button" disabled={editLocked || !newGroupTitle.trim()} onClick={() => void handleAddGroup()}>
+              Добавить
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={groupEditOpen} onOpenChange={setGroupEditOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Группа</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="edit-group-title">Название</Label>
+            <Input
+              id="edit-group-title"
+              value={groupEditTitle}
+              onChange={(e) => setGroupEditTitle(e.target.value)}
+              maxLength={2000}
+            />
+            <Label htmlFor="edit-group-schedule">Расписание / подзаголовок</Label>
+            <Input
+              id="edit-group-schedule"
+              value={groupEditSchedule}
+              onChange={(e) => setGroupEditSchedule(e.target.value)}
+              maxLength={5000}
+            />
+            <Label htmlFor="edit-group-desc">Описание</Label>
+            <Textarea
+              id="edit-group-desc"
+              rows={2}
+              className="text-sm"
+              value={groupEditDescription}
+              onChange={(e) => setGroupEditDescription(e.target.value)}
+              maxLength={10000}
+            />
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setGroupEditOpen(false)}>
+              Отмена
+            </Button>
+            <Button type="button" disabled={editLocked || !groupEditTitle.trim()} onClick={() => void handleSaveGroupEdit()}>
+              Сохранить
             </Button>
           </DialogFooter>
         </DialogContent>

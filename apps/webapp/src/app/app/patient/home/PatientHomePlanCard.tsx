@@ -9,7 +9,7 @@ import {
   patientHomePlanSubtitleClampClass,
   patientHomePlanTitleClampClass,
 } from "./patientHomeCardStyles";
-import { patientButtonGhostLinkClass } from "@/shared/ui/patientVisual";
+import { patientButtonGhostLinkClass, patientMutedTextClass } from "@/shared/ui/patientVisual";
 import { appLoginWithNextHref } from "./patientHomeGuestNav";
 import { PatientHomeSafeImage } from "./PatientHomeSafeImage";
 import { cn } from "@/lib/utils";
@@ -24,6 +24,8 @@ type Props = {
   blockIconImageUrl?: string | null;
   anonymousGuest?: boolean;
   personalTierOk?: boolean;
+  /** A5: одна строка для Today («План обновлён …»), если есть неснятые изменения. */
+  planUpdatedLabel?: string | null;
 };
 
 function LeadingPlanIcon({ blockIconImageUrl, emphasized = false }: { blockIconImageUrl?: string | null; emphasized?: boolean }) {
@@ -47,6 +49,7 @@ export function PatientHomePlanCard({
   instance,
   blockIconImageUrl,
   anonymousGuest = false,
+  planUpdatedLabel = null,
 }: Props) {
   if (!instance) {
     const programsHref = anonymousGuest ? appLoginWithNextHref(routePaths.patientTreatmentPrograms) : routePaths.patientTreatmentPrograms;
@@ -93,6 +96,9 @@ export function PatientHomePlanCard({
             </p>
             <h2 className={patientHomePlanTitleClampClass}>{instance.title}</h2>
             <p className={patientHomePlanSubtitleClampClass}>Активная программа</p>
+            {planUpdatedLabel?.trim() ? (
+              <p className={cn(patientMutedTextClass, "mt-1 text-xs font-medium text-foreground")}>{planUpdatedLabel.trim()}</p>
+            ) : null}
           </div>
         </div>
         <Link

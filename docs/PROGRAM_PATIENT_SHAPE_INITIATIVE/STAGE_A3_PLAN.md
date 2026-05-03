@@ -118,50 +118,50 @@ Do not use home-only styles.
 
 ### A3.1 Schema
 
-- [ ] Add template stage groups table: `id`, `stage_id`, `title`, `description NULL`, `schedule_text NULL`, `sort_order`, timestamps if local pattern uses them.
-- [ ] Add instance stage groups table: same fields + `source_group_id NULL`, optional `snapshot JSONB` if current copy pattern uses snapshots.
-- [ ] Add `group_id UUID NULL` to template stage items.
-- [ ] Add `group_id UUID NULL` to instance stage items.
-- [ ] Add indexes by `stage_id`, `sort_order`.
-- [ ] Keep foreign keys consistent with Drizzle project conventions.
+- [x] Add template stage groups table: `id`, `stage_id`, `title`, `description NULL`, `schedule_text NULL`, `sort_order`, timestamps if local pattern uses them.
+- [x] Add instance stage groups table: same fields + `source_group_id NULL`, optional `snapshot JSONB` if current copy pattern uses snapshots.
+- [x] Add `group_id UUID NULL` to template stage items.
+- [x] Add `group_id UUID NULL` to instance stage items.
+- [x] Add indexes by `stage_id`, `sort_order`.
+- [x] Keep foreign keys consistent with Drizzle project conventions.
 
 ### A3.2 Types/ports/repos
 
-- [ ] Add `TemplateStageGroup` and `InstanceStageGroup` types.
-- [ ] Extend stage detail read model to include `groups`.
-- [ ] Extend item read model with `groupId`.
-- [ ] Add repo methods for CRUD/reorder groups.
+- [x] Add `TemplateStageGroup` and `InstanceStageGroup` types.
+- [x] Extend stage detail read model to include `groups`.
+- [x] Extend item read model with `groupId`.
+- [x] Add repo methods for CRUD/reorder groups.
 
 ### A3.3 Copy service
 
-- [ ] Copy template groups first.
-- [ ] Build `oldTemplateGroupId -> newInstanceGroupId` map.
-- [ ] Copy items and translate `group_id`.
-- [ ] Preserve `NULL` group ids.
+- [x] Copy template groups first.
+- [x] Build `oldTemplateGroupId -> newInstanceGroupId` map.
+- [x] Copy items and translate `group_id`.
+- [x] Preserve `NULL` group ids.
 
 ### A3.4 Doctor UI
 
-- [ ] Render ungrouped items section: `Без группы`.
-- [ ] Render groups sorted by `sort_order`.
-- [ ] Add group button.
-- [ ] Edit group title/description/schedule.
-- [ ] Move group up/down.
-- [ ] Move item between groups via explicit select/dialog/buttons.
-- [ ] Delete group moves items to `NULL`, does not delete items.
+- [x] Render ungrouped items section: `Без группы`.
+- [x] Render groups sorted by `sort_order`.
+- [x] Add group button.
+- [x] Edit group title/description/schedule.
+- [x] Move group up/down.
+- [x] Move item between groups via explicit select/dialog/buttons.
+- [x] Delete group moves items to `NULL`, does not delete items.
 
 ### A3.5 Patient UI
 
-- [ ] Current stage renders group sections.
-- [ ] `schedule_text` appears in group summary as muted text.
-- [ ] Ungrouped items render after groups under `Без группы` or as plain list (choose one and log).
-- [ ] Empty groups are hidden for patient unless product decides otherwise.
+- [x] Current stage renders group sections.
+- [x] `schedule_text` appears in group summary as muted text.
+- [x] Ungrouped items render after groups under `Без группы` or as plain list (choose one and log).
+- [x] Empty groups are hidden for patient unless product decides otherwise.
 
 ### A3.6 Tests
 
-- [ ] Copy service preserves group structure.
-- [ ] Group delete does not delete items.
-- [ ] Item can move group -> group and group -> null.
-- [ ] Patient render handles grouped, ungrouped, no groups.
+- [x] Copy service preserves group structure.
+- [x] Group delete does not delete items.
+- [x] Item can move group -> group and group -> null.
+- [x] Patient render handles grouped, ungrouped, no groups.
 
 ## 7. Required checks
 

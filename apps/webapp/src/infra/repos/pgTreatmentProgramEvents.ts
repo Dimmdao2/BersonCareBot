@@ -1,4 +1,4 @@
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray, max } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import { treatmentProgramEvents as eventTable } from "../../../db/schema/treatmentProgramEvents";
 import type { TreatmentProgramEventsPort } from "@/modules/treatment-program/ports";
@@ -8,6 +8,15 @@ import type {
   TreatmentProgramEventTargetType,
   TreatmentProgramEventType,
 } from "@/modules/treatment-program/types";
+import { TREATMENT_PROGRAM_PLAN_MUTATION_EVENT_TYPES } from "@/modules/treatment-program/types";
+
+/** Coerce Drizzle/Postgres `max(created_at)` aggregate (A5 POST-AUDIT A5-PG-MAX-TYPE-01). */
+export function coerceMaxPlanMutationCreatedAtToIso(v: unknown): string | null {
+  if (v == null) return null;
+  if (typeof v === "string" && v.trim().length > 0) return v.trim();
+  if (v instanceof Date && !Number.isNaN(v.getTime())) return v.toISOString();
+  return null;
+}
 
 function mapRow(row: typeof eventTable.$inferSelect): TreatmentProgramEventRow {
   return {
@@ -54,6 +63,18 @@ export function createPgTreatmentProgramEventsPort(): TreatmentProgramEventsPort
         .limit(cap);
       /** AUDIT_PHASE_7 FIX: в UI — хронологический порядок «старые → новые» внутри окна из последних `cap` событий. */
       return rows.map(mapRow).reverse();
+    },
+
+    async getMaxPlanMutationEventCreatedAt(instanceId: string): Promise<string | null> {
+      const db = getDrizzle();
+      const [row] = await db
+        .select({ m: max(eventTable.createdAt) })
+        .from(eventTable)
+        .where(
+          and(eq(eventTable.instanceId, instanceId), inArray(eventTable.eventType, [...TREATMENT_PROGRAM_PLAN_MUTATION_EVENT_TYPES])),
+        );
+      const v = row?.m;
+      return coerceMaxPlanMutationCreatedAtToIso(v);
     },
   };
 }

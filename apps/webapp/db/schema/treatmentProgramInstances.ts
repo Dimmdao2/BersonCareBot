@@ -15,6 +15,7 @@ import { platformUsers } from "./schema";
 import {
   treatmentProgramTemplates,
   treatmentProgramTemplateStages,
+  treatmentProgramTemplateStageGroups,
 } from "./treatmentProgramTemplates";
 
 export const treatmentProgramInstances = pgTable(
@@ -28,6 +29,11 @@ export const treatmentProgramInstances = pgTable(
     status: text().default("active").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    /** A5: пациент открыл экран программы — сброс бейджа «План обновлён» на Today. */
+    patientPlanLastOpenedAt: timestamp("patient_plan_last_opened_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
   },
   (table) => [
     index("idx_treatment_program_instances_patient").using(
@@ -104,6 +110,38 @@ export const treatmentProgramInstanceStages = pgTable(
   ],
 );
 
+/** A3 PROGRAM_PATIENT_SHAPE: группы внутри этапа экземпляра. */
+export const treatmentProgramInstanceStageGroups = pgTable(
+  "treatment_program_instance_stage_groups",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    stageId: uuid("stage_id").notNull(),
+    /** Ссылка на группу шаблона при копировании (SET NULL если шаблонная группа удалена). */
+    sourceGroupId: uuid("source_group_id"),
+    title: text().notNull(),
+    description: text(),
+    scheduleText: text("schedule_text"),
+    sortOrder: integer("sort_order").default(0).notNull(),
+  },
+  (table) => [
+    index("idx_treatment_program_inst_stage_groups_stage_order").using(
+      "btree",
+      table.stageId.asc().nullsLast().op("uuid_ops"),
+      table.sortOrder.asc().nullsLast().op("int4_ops"),
+    ),
+    foreignKey({
+      columns: [table.stageId],
+      foreignColumns: [treatmentProgramInstanceStages.id],
+      name: "treatment_program_instance_stage_groups_stage_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.sourceGroupId],
+      foreignColumns: [treatmentProgramTemplateStageGroups.id],
+      name: "treatment_program_instance_stage_groups_source_group_id_fkey",
+    }).onDelete("set null"),
+  ],
+);
+
 export const treatmentProgramInstanceStageItems = pgTable(
   "treatment_program_instance_stage_items",
   {
@@ -125,6 +163,15 @@ export const treatmentProgramInstanceStageItems = pgTable(
     isActionable: boolean("is_actionable"),
     /** `disabled` — скрыто у пациента; строка не удаляется (A2). */
     status: text().default("active").notNull(),
+    /** A3: ссылка на группу внутри этапа экземпляра; NULL — вне группы. */
+    groupId: uuid("group_id"),
+    /** A5: время появления строки элемента (миграция — из экземпляра; новые — default now). */
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    /**
+     * A5: NULL — пациент ещё не «открыл» элемент после добавления врачом (бейдж «Новое»);
+     * при назначении шаблона выставляется равным created_at, чтобы не заспамить бейджами.
+     */
+    lastViewedAt: timestamp("last_viewed_at", { withTimezone: true, mode: "string" }),
   },
   (table) => [
     index("idx_treatment_program_instance_stage_items_stage_order").using(
@@ -137,6 +184,11 @@ export const treatmentProgramInstanceStageItems = pgTable(
       foreignColumns: [treatmentProgramInstanceStages.id],
       name: "treatment_program_instance_stage_items_stage_id_fkey",
     }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.groupId],
+      foreignColumns: [treatmentProgramInstanceStageGroups.id],
+      name: "treatment_program_instance_stage_items_group_id_fkey",
+    }).onDelete("set null"),
     check(
       "treatment_program_instance_stage_items_item_type_check",
       sql`item_type = ANY (ARRAY['exercise'::text, 'lfk_complex'::text, 'recommendation'::text, 'lesson'::text, 'test_set'::text])`,

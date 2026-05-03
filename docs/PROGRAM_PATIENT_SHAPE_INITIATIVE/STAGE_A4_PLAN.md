@@ -119,55 +119,55 @@ Forbidden:
 
 ### A4.1 Schema
 
-- [ ] Add `program_action_log` table.
-- [ ] Fields: `id`, `instance_id`, `instance_stage_item_id`, `patient_user_id`, `session_id`, `action_type`, `quantity/payload JSONB NULL`, `note TEXT NULL`, `created_at`.
-- [ ] Index `instance_id`.
-- [ ] Index `instance_stage_item_id`.
-- [ ] Index `created_at`.
+- [x] Add `program_action_log` table.
+- [x] Fields: `id`, `instance_id`, `instance_stage_item_id`, `patient_user_id`, `session_id`, `action_type`, `payload` JSONB NULL, `note TEXT NULL`, `created_at` (колонка **`payload`** вместо «quantity» в продуктовом черновике §1.5 — см. `PROGRAM_PATIENT_SHAPE_PLAN.md`).
+- [x] Index `instance_id`.
+- [x] Index `instance_stage_item_id`.
+- [x] Index `created_at`.
 
 ### A4.2 Domain/service
 
-- [ ] Add action types: `done`, `viewed`, `note`.
-- [ ] Add write method with idempotency for checkbox toggles (avoid duplicate `done` spam for same day/session if product expects one).
-- [ ] Add read method for checklist state.
-- [ ] Add read method for doctor pending test evaluations.
+- [x] Add action types: `done`, `viewed`, `note`.
+- [x] Add write method with idempotency for checkbox toggles (avoid duplicate `done` spam for same day/session if product expects one).
+- [x] Add read method for checklist state.
+- [x] Add read method for doctor pending test evaluations.
 
 ### A4.3 Patient checklist
 
-- [ ] Build list from current available stage.
-- [ ] Exclude disabled items.
-- [ ] Exclude persistent recommendations.
-- [ ] Include actionable recommendations and LFK/test items.
-- [ ] Render flat or grouped based on A3 availability.
-- [ ] Toggle writes action log and updates UI state.
+- [x] Build list from current available stage.
+- [x] Exclude disabled items.
+- [x] Exclude persistent recommendations.
+- [x] Include actionable recommendations and LFK (`test_set` — только экран тестов, не строка чек-листа).
+- [x] Render flat or grouped based on A3 availability (плоский список с подписью группы при A3).
+- [x] Toggle writes action log and updates UI state.
 
 ### A4.4 LFK run-screen/session form
 
-- [ ] On finish, create/close `session_id`.
-- [ ] Save difficulty: `easy|medium|hard`.
-- [ ] Save optional note to `program_action_log.note`.
-- [ ] Do not add pain field.
+- [x] On finish, create/close `session_id`.
+- [x] Save difficulty: `easy|medium|hard`.
+- [x] Save optional note to `program_action_log.note`.
+- [x] Do not add pain field.
 
 ### A4.5 Test run-screen marker
 
-- [ ] Existing test attempt/result remains source of test details.
-- [ ] Add action log marker when patient submits test.
-- [ ] Do not duplicate test result payload in action log.
+- [x] Existing test attempt/result remains source of test details.
+- [x] Add action log marker when patient submits test.
+- [x] Do not duplicate test result payload in action log.
 
 ### A4.6 Doctor inbox
 
-- [ ] Query active patient programs for tests with `test_results.decided_by IS NULL`.
-- [ ] Render section in patient card.
-- [ ] Each row: test title, submitted date, program/stage label if available, `Открыть тест`.
-- [ ] Empty state: `Нет тестов, ожидающих оценки`.
+- [x] Query active patient programs for tests with `test_results.decided_by IS NULL`.
+- [x] Render section in patient card.
+- [x] Each row: test title, submitted date, program/stage label if available, `Открыть тест`.
+- [x] Empty state: `Нет тестов, ожидающих оценки`.
 
 ### A4.7 Tests
 
-- [ ] Service: write/read action.
-- [ ] Service: checklist excludes disabled/persistent.
-- [ ] Service: pending tests query.
-- [ ] Patient UI: checkbox writes and reflects state.
-- [ ] Doctor UI: inbox shows pending and hides decided.
+- [x] Service: write/read action.
+- [x] Service: checklist excludes disabled/persistent.
+- [x] Service: pending tests query.
+- [x] Patient UI: checkbox writes and reflects state.
+- [x] Doctor UI: inbox shows pending and hides decided.
 
 ## 7. Required checks
 

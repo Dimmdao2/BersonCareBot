@@ -53,8 +53,17 @@ export default async function DoctorClientsPage({ searchParams }: Props) {
       ? Promise.all([
           deps.doctorClients.getClientProfile(selected),
           deps.doctorMessaging.listMessageHistory({ userId: selected, pageSize: 10 }),
-        ]).then(([profile, messageHistory]) =>
-          profile ? { profile, messageHistory: messageHistory.items } : null,
+          deps.treatmentProgram.listTemplates({ includeArchived: false, status: "published" }),
+          deps.treatmentProgramProgress.listPendingTestEvaluationsForPatient(selected),
+        ]).then(([profile, messageHistory, publishedTreatmentTemplates, pendingProgramTests]) =>
+          profile
+            ? {
+                profile,
+                messageHistory: messageHistory.items,
+                publishedTreatmentTemplates,
+                pendingProgramTests,
+              }
+            : null,
         )
       : Promise.resolve(null),
     deps.lfkTemplates.listTemplates({ status: "published" }),
@@ -62,6 +71,9 @@ export default async function DoctorClientsPage({ searchParams }: Props) {
 
   const selectedProfile = selectedData?.profile ?? null;
   const selectedMessageHistory = selectedData?.messageHistory ?? [];
+  const selectedPublishedTreatmentTemplates =
+    selectedData?.publishedTreatmentTemplates?.map((t) => ({ id: t.id, title: t.title })) ?? [];
+  const selectedPendingProgramTests = selectedData?.pendingProgramTests ?? [];
   const listBasePathWithScope =
     scope === "all"
       ? `${BASE}?scope=all`
@@ -97,6 +109,10 @@ export default async function DoctorClientsPage({ searchParams }: Props) {
               canEditClientProfile={session.user.role === "admin" && Boolean(session.adminMode)}
               publishedLfkTemplates={publishedLfkTemplates.map((t) => ({ id: t.id, title: t.title }))}
               assignLfkEnabled={Boolean(env.DATABASE_URL)}
+              publishedTreatmentProgramTemplates={selectedPublishedTreatmentTemplates}
+              assignTreatmentProgramEnabled={Boolean(env.DATABASE_URL)}
+              profileListScope={scope}
+              pendingProgramTestEvaluations={selectedPendingProgramTests}
             />
           </div>
         ) : null}

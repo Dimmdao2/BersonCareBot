@@ -9,11 +9,13 @@ import type {
   CreateTreatmentProgramStageInput,
   CreateTreatmentProgramStageItemInput,
   CreateTreatmentProgramTemplateInput,
+  CreateTreatmentProgramTemplateStageGroupInput,
   TreatmentProgramItemType,
   TreatmentProgramTemplateFilter,
   UpdateTreatmentProgramStageInput,
   UpdateTreatmentProgramStageItemInput,
   UpdateTreatmentProgramTemplateInput,
+  UpdateTreatmentProgramTemplateStageGroupInput,
 } from "./types";
 import { TREATMENT_PROGRAM_ITEM_TYPES, treatmentProgramTemplateArchiveRequiresAcknowledgement } from "./types";
 
@@ -188,6 +190,7 @@ export function createTreatmentProgramService(
       assertUuid(stageId);
       assertItemType(input.itemType);
       assertUuid(input.itemRefId);
+      if (input.groupId) assertUuid(input.groupId);
       await itemRefs.assertItemRefExists(input.itemType, input.itemRefId.trim());
       return port.addStageItem(stageId, {
         ...input,
@@ -212,6 +215,9 @@ export function createTreatmentProgramService(
       if (input.comment !== undefined) {
         patch.comment = input.comment?.trim() ?? null;
       }
+      if (input.groupId !== undefined && input.groupId !== null) {
+        assertUuid(input.groupId);
+      }
 
       if (patch.itemRefId !== undefined || patch.itemType !== undefined) {
         const current = await port.getStageItemById(itemId);
@@ -230,6 +236,48 @@ export function createTreatmentProgramService(
       assertUuid(itemId);
       const ok = await port.deleteStageItem(itemId);
       if (!ok) throw new Error("Элемент этапа не найден");
+    },
+
+    async createTemplateStageGroup(stageId: string, input: CreateTreatmentProgramTemplateStageGroupInput) {
+      assertUuid(stageId);
+      const title = input.title?.trim() ?? "";
+      if (!title) throw new Error("Название группы обязательно");
+      return port.createTemplateStageGroup(stageId, {
+        ...input,
+        title,
+        description: input.description?.trim() ?? null,
+        scheduleText: input.scheduleText?.trim() ?? null,
+      });
+    },
+
+    async updateTemplateStageGroup(groupId: string, input: UpdateTreatmentProgramTemplateStageGroupInput) {
+      assertUuid(groupId);
+      const patch: UpdateTreatmentProgramTemplateStageGroupInput = { ...input };
+      if (input.title !== undefined) {
+        patch.title = input.title.trim();
+      }
+      if (input.description !== undefined) {
+        patch.description = input.description?.trim() ?? null;
+      }
+      if (input.scheduleText !== undefined) {
+        patch.scheduleText = input.scheduleText?.trim() ?? null;
+      }
+      const row = await port.updateTemplateStageGroup(groupId, patch);
+      if (!row) throw new Error("Группа этапа не найдена");
+      return row;
+    },
+
+    async deleteTemplateStageGroup(groupId: string) {
+      assertUuid(groupId);
+      const ok = await port.deleteTemplateStageGroup(groupId);
+      if (!ok) throw new Error("Группа этапа не найдена");
+    },
+
+    async reorderTemplateStageGroups(stageId: string, orderedGroupIds: string[]) {
+      assertUuid(stageId);
+      for (const id of orderedGroupIds) assertUuid(id);
+      const ok = await port.reorderTemplateStageGroups(stageId, orderedGroupIds);
+      if (!ok) throw new Error("Некорректный порядок групп этапа");
     },
   };
 }

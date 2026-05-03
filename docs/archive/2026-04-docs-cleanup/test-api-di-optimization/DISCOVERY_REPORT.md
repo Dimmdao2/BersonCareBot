@@ -79,7 +79,7 @@
 | `docs/ARCHITECTURE/ARCHITECTURE_GUARDRAILS.md` | Runtime guardrails integrator/content — **не** substitute для import-policy webapp. |
 | `apps/webapp/src/app/api/api.md` | Обзор API и контрактов — **цель синхронизации** после трека B. |
 | `apps/webapp/src/app-layer/di/di.md` | Краткое описание `buildAppDeps` — расширить после нормализации. |
-| `docs/VIDEO_HLS_DELIVERY/04-test-strategy.md` | Изолированная test strategy фичи HLS — **не конкурирует** с этой инициативой. |
+| `docs/archive/2026-05-initiatives/VIDEO_HLS_DELIVERY/04-test-strategy.md` | Изолированная test strategy фичи HLS — **не конкурирует** с этой инициативой. |
 | `docs/PLATFORM_IDENTITY_ACCESS/*` | Ссылается на `buildAppDeps` и integrator routes — контекст идентичности. |
 | `.cursor/plans/tests_di_optimization_e9845870.plan.md` | Внешний план Composer; **не** часть `docs/` — новая инициатива в `docs/TEST_AND_API_DI_OPTIMIZATION/` его не заменяет автоматически, а **детализирует для репо** с разделением треков. |
 

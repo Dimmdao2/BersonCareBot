@@ -7,7 +7,8 @@
 **Связанные документы:**
 - ТЗ доменной модели плана пациента: [`PROGRAM_PATIENT_SHAPE_PLAN.md`](PROGRAM_PATIENT_SHAPE_PLAN.md) (этапы A1–A5).
 - Дорожная карта: [`RECOMMENDATIONS_AND_ROADMAP.md`](RECOMMENDATIONS_AND_ROADMAP.md) (этап 9, эта переработка — sister-план перед/параллельно A1+A3).
-- Шаблон каталога (usage / archive): [`ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md`](ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md).
+- **Execution-контур B1–B7:** [`../ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/README.md`](../ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/README.md) (`MASTER_PLAN`, `STAGE_B1..B7`, `LOG`).
+- Шаблон каталога (usage / archive): [`ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md`](done/ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md).
 - Целевая IA врача: [`TARGET_STRUCTURE_DOCTOR.md`](TARGET_STRUCTURE_DOCTOR.md) §6.
 
 > Принципы scope:
@@ -37,9 +38,10 @@
 
 1. **Две независимые оси фильтра** для каталогов **с понятием публикации**:
    - **Ось публикации:** `draft` ↔ `published` (только эти два значения; третьего нет).
-   - **Ось архива:** `archived` ↔ `active` (флаг `is_archived`).
+   - **Ось архива:** `archived` ↔ `active` (отдельно от публикации; в сущностях с единым `status` оси строятся на уровне UI/парсинга).
    - Архивный черновик после восстановления остаётся **черновиком**. Архивный published — остаётся **published**. Восстановление НЕ меняет статус публикации.
    - Применяется к: комплексы ЛФК, шаблоны программ, наборы тестов, курсы (когда появятся).
+   - Для `test_sets` публикационный статус добавляется в B1 (миграция + API/UI фильтры).
    - Не применяется (только архив) к: упражнениям, клиническим тестам, рекомендациям. У них `publication_status` нет.
 
 2. **Клинические тесты — структурированный scoring**:
@@ -59,7 +61,7 @@
    - Колонка / список «тесты в наборе» с превьюшкой, drag-n-drop сортировкой.
    - На каждый тест — поле **«Комментарий»** (template-уровень). Поле reps/sets/side/pain — **убрать** (нерелевантно тестам).
    - Selector добавления — диалог поиска по библиотеке (как «Элемент из библиотеки» в конструкторе шаблонов).
-   - UUID-textarea — убрать как пользовательский UI; admin-fallback опционально.
+   - UUID-textarea — удалить полностью (без admin-fallback).
 
 6. **Рекомендации**:
    - Переименовать в UI «Область» → **«Тип»** (поле `domain` в коде остаётся; миграция переименования — отдельным шагом, опционально).
@@ -103,10 +105,11 @@
 - Backward compatibility со старыми ссылками (`status=active|archived` → пустой `pub` + `arch=active|archived`).
 - shared UI компонент `CatalogStatusFilters` — два контрола рядом (Select / Toggle).
 - Применить к: каталогам с `publication_status` (комплексы ЛФК, шаблоны программ, наборы тестов).
+- Для `test_sets` в этом этапе: добавить статус публикации (`draft`|`published`) и провести его в list/query/save.
 
 **Не делать:**
 - Не вводить `publication_status` у упражнений / клин. тестов / рекомендаций. У них только архив.
-- Не менять схему БД — `publication_status` уже есть у соответствующих сущностей.
+- Не добавлять публикационный статус в сущности вне scope B1 (упражнения/клин. тесты/рекомендации).
 
 **Файлы:**
 - [`apps/webapp/src/shared/lib/doctorCatalogListStatus.ts`](../../apps/webapp/src/shared/lib/doctorCatalogListStatus.ts) — расширение.
@@ -218,7 +221,7 @@
 
 **Тесты:**
 - E2E/manual smoke: публикация, архивация, восстановление.
-- Регресс на usage/archive (`ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md`).
+- Регресс на usage/archive (`done/ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md`).
 
 **Размер:** средний, ~3–4 дня.
 
@@ -300,7 +303,7 @@
 | Q2 | `schema_type` `qualitative` — как **именно** врач отмечает прохождение в инстансе (просто текстовое заключение vs кнопки «прошёл/не прошёл/частично») | До B2 |
 | Q3 | Расширение enum `recommendations.domain` — слить ли старые (`physiotherapy/motivation/safety`) с новыми (`external_therapy/lifestyle/regimen`) или оставить как есть с маппингом | До B4 |
 | Q4 | Переименовать ли в коде `domain` → `kind` (миграция колонки + всех ports) или оставить `domain` в коде, поменять только UI-подпись | До B4 |
-| Q5 | UUID-textarea в редакторе наборов тестов — оставить как admin-fallback (toggle «Сырой режим») или удалить полностью | До B3 |
+| Q5 | **Закрыто 2026-05-03:** UUID-textarea в редакторе наборов тестов удалить полностью (без fallback) | Решено |
 | Q6 | Глобальный пул `measure_kinds` — нужны ли админ-инструменты модерации (переименовать / объединить / удалить добавленные через combobox), или достаточно «append-only» в первой версии | До B2 |
 | Q7 | `comment` на template-уровне рекомендации (B7) — нужен ли вообще, если `bodyMd` уже описание; или комментарий имеет смысл только в контексте программы (instance) | До B7 |
 
@@ -315,8 +318,8 @@
 - B5: иконка глаза реагирует, карточка/список комплексов читаемы; фильтры B1.
 - B6: список и модалка добавления элемента в шаблон — с превьюшками; конструктор имеет двухколоночный layout с понятными CTA.
 - B7: `template_comment` + `local_comment` есть на всех item-контейнерах; copy template→instance переносит, override работает.
-- `pnpm install --frozen-lockfile && pnpm run ci` — зелёный после каждого B-этапа.
-- LOG-блок в [`LOG.md`](LOG.md) на каждое реализованное B.
+- На каждом B-этапе — целевые проверки по затронутой области (step/phase policy); полный `pnpm run ci` обязателен перед push.
+- LOG-блок в [`../ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/LOG.md`](../ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/LOG.md) на каждое реализованное B.
 
 ---
 
@@ -339,8 +342,9 @@
 
 - B-план = **отдельная** инициатива от `PROGRAM_PATIENT_SHAPE_PLAN` (доменная работа). Не дублирует A1+A3.
 - Фильтр «опубликовано/черновик» × «архив/активно» — **две независимых оси**, не один enum.
-- Универсально только для каталогов с `publication_status` (LFK / templates / test-sets / future courses).
+- Две оси применяются к каталогам с публикационным lifecycle: LFK/templates уже имеют `status`; для `test_sets` lifecycle добавляется в B1 (миграция + UI/API).
 - `CreatableComboboxInput` — новый shared компонент (shadcn такого нет; пишем сами поверх Input + Popover).
 - Глобальный пул `measure_kinds` — без scope per-doctor (в проекте врач один).
+- UUID-textarea в test-sets удаляется полностью, без fallback-режимов.
 - Описание рекомендации (`bodyMd`) ≠ комментарий — разные сущности (B7 не объединяет их).
 - `comment` (template) → `local_comment` (instance, override) — универсальный паттерн на все item-контейнеры (B7).

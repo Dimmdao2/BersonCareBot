@@ -39,6 +39,7 @@ export default async function PatientTreatmentProgramDetailPage({ params }: Prop
       session.user.userId,
       instanceId,
     );
+    if (!rawDetail) notFound();
     detail = omitDisabledInstanceStageItemsForPatientApi(rawDetail);
   } catch {
     notFound();

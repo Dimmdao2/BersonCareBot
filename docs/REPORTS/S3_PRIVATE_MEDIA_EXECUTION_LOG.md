@@ -129,14 +129,14 @@ systemctl is-active cron
 
 ## Связанные инициативы
 
-- План **HLS dual delivery** (сохранение private S3 и presigned URL; расширение артефактов и playback API): `docs/VIDEO_HLS_DELIVERY/00-master-plan.md`.
+- План **HLS dual delivery** (сохранение private S3 и presigned URL; расширение артефактов и playback API): `docs/archive/2026-05-initiatives/VIDEO_HLS_DELIVERY/00-master-plan.md`.
 
 ## Revision — VIDEO_HLS_DELIVERY phase-09 (private bucket, ops checklist)
 
-Связано с `docs/VIDEO_HLS_DELIVERY/AUDIT_PHASE_09.md` (finding P09-2). Код webapp подписывает только **`S3_PRIVATE_BUCKET`** и требует сессию на **`GET /api/media/[id]`** / playback; ниже — **подтверждение инфраструктуры** (вне репозитория):
+Связано с `docs/archive/2026-05-initiatives/VIDEO_HLS_DELIVERY/AUDIT_PHASE_09.md` (finding P09-2). Код webapp подписывает только **`S3_PRIVATE_BUCKET`** и требует сессию на **`GET /api/media/[id]`** / playback; ниже — **подтверждение инфраструктуры** (вне репозитория):
 
 1. Для бакета **`S3_PRIVATE_BUCKET`**: запретить анонимный **`s3:GetObject`** (bucket policy + при необходимости Block Public Access в AWS / эквивалент в MinIO).
 2. Периодически проверять отсутствие **публичных ACL** чтения на объектах медиа.
 3. Убедиться, что прод-доступ браузера к байтам видео — через **presigned** URL после приложения, а не через публичный endpoint хранилища.
 
-TTL presigned GET для patient playback / progressive redirect задаётся в **`system_settings.video_presign_ttl_seconds`** (не env); см. `docs/VIDEO_HLS_DELIVERY/phases/phase-09-signed-urls-ttl-and-private-access.md`.
+TTL presigned GET для patient playback / progressive redirect задаётся в **`system_settings.video_presign_ttl_seconds`** (не env); см. `docs/archive/2026-05-initiatives/VIDEO_HLS_DELIVERY/phases/phase-09-signed-urls-ttl-and-private-access.md`.

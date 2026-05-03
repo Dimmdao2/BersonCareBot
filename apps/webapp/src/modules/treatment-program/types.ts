@@ -26,6 +26,26 @@ export type TreatmentProgramTemplate = {
   updatedAt: string;
 };
 
+export type TreatmentProgramTemplateStageGroup = {
+  id: string;
+  stageId: string;
+  title: string;
+  description: string | null;
+  scheduleText: string | null;
+  sortOrder: number;
+};
+
+export type TreatmentProgramInstanceStageGroup = {
+  id: string;
+  stageId: string;
+  /** Группа шаблона, с которой скопирована строка (если есть). */
+  sourceGroupId: string | null;
+  title: string;
+  description: string | null;
+  scheduleText: string | null;
+  sortOrder: number;
+};
+
 export type TreatmentProgramStage = {
   id: string;
   templateId: string;
@@ -50,10 +70,17 @@ export type TreatmentProgramStageItem = {
   sortOrder: number;
   comment: string | null;
   settings: Record<string, unknown> | null;
+  /** A3: группа внутри этапа; `null` — вне групп. */
+  groupId: string | null;
 };
 
 export type TreatmentProgramTemplateDetail = TreatmentProgramTemplate & {
-  stages: Array<TreatmentProgramStage & { items: TreatmentProgramStageItem[] }>;
+  stages: Array<
+    TreatmentProgramStage & {
+      groups: TreatmentProgramTemplateStageGroup[];
+      items: TreatmentProgramStageItem[];
+    }
+  >;
 };
 
 export type TreatmentProgramTemplateFilter = {
@@ -144,6 +171,7 @@ export type CreateTreatmentProgramStageItemInput = {
   sortOrder?: number;
   comment?: string | null;
   settings?: Record<string, unknown> | null;
+  groupId?: string | null;
 };
 
 export type UpdateTreatmentProgramStageItemInput = {
@@ -152,6 +180,35 @@ export type UpdateTreatmentProgramStageItemInput = {
   sortOrder?: number;
   comment?: string | null;
   settings?: Record<string, unknown> | null;
+  groupId?: string | null;
+};
+
+export type CreateTreatmentProgramTemplateStageGroupInput = {
+  title: string;
+  description?: string | null;
+  scheduleText?: string | null;
+  sortOrder?: number;
+};
+
+export type UpdateTreatmentProgramTemplateStageGroupInput = {
+  title?: string;
+  description?: string | null;
+  scheduleText?: string | null;
+  sortOrder?: number;
+};
+
+export type CreateTreatmentProgramInstanceStageGroupInput = {
+  title: string;
+  description?: string | null;
+  scheduleText?: string | null;
+  sortOrder?: number;
+};
+
+export type UpdateTreatmentProgramInstanceStageGroupInput = {
+  title?: string;
+  description?: string | null;
+  scheduleText?: string | null;
+  sortOrder?: number;
 };
 
 export type TreatmentProgramInstanceStatus = "active" | "completed";
@@ -175,6 +232,8 @@ export type TreatmentProgramInstanceSummary = {
   status: TreatmentProgramInstanceStatus;
   createdAt: string;
   updatedAt: string;
+  /** A5: последний раз пациент открывал экран программы (сброс «План обновлён»). */
+  patientPlanLastOpenedAt: string | null;
 };
 
 export type TreatmentProgramInstanceStageItemRow = {
@@ -194,6 +253,12 @@ export type TreatmentProgramInstanceStageItemRow = {
    */
   isActionable: boolean | null;
   status: TreatmentProgramInstanceStageItemStatus;
+  /** A3: группа внутри этапа экземпляра; `null` — вне групп. */
+  groupId: string | null;
+  /** A5: время создания строки элемента. */
+  createdAt: string;
+  /** A5: `null` — элемент ещё не открывался пациентом после добавления врачом (бейдж «Новое»). */
+  lastViewedAt: string | null;
 };
 
 /**
@@ -258,7 +323,12 @@ export type UpdateTreatmentProgramInstanceStageMetadataInput = {
 };
 
 export type TreatmentProgramInstanceDetail = TreatmentProgramInstanceSummary & {
-  stages: Array<TreatmentProgramInstanceStageRow & { items: TreatmentProgramInstanceStageItemView[] }>;
+  stages: Array<
+    TreatmentProgramInstanceStageRow & {
+      groups: TreatmentProgramInstanceStageGroup[];
+      items: TreatmentProgramInstanceStageItemView[];
+    }
+  >;
 };
 
 /** §11 SYSTEM_LOGIC_SCHEMA — элементы `lfk_complex` активных экземпляров для интегратора (дневник / бот). */
@@ -291,6 +361,16 @@ export type TreatmentProgramInstanceStageInput = {
     snapshot: Record<string, unknown>;
     isActionable?: boolean | null;
     status?: TreatmentProgramInstanceStageItemStatus;
+    /** A3: id группы **шаблона**; при копировании маппится в группу экземпляра. */
+    templateGroupId?: string | null;
+  }>;
+  /** A3: группы шаблона для копирования (порядок по `sortOrder`). */
+  groups?: Array<{
+    sourceGroupId: string;
+    title: string;
+    description: string | null;
+    scheduleText: string | null;
+    sortOrder: number;
   }>;
 };
 
@@ -323,6 +403,7 @@ export type AddTreatmentProgramInstanceStageItemInput = {
   snapshot: Record<string, unknown>;
   isActionable?: boolean | null;
   status?: TreatmentProgramInstanceStageItemStatus;
+  groupId?: string | null;
 };
 
 export type ReplaceTreatmentProgramInstanceStageItemInput = {
@@ -377,6 +458,35 @@ export type TreatmentProgramTestResultDetailRow = TreatmentProgramTestResultRow 
   testTitle: string | null;
 };
 
+/** A4 PROGRAM_PATIENT_SHAPE: типы строк `program_action_log`. */
+export const PROGRAM_ACTION_TYPES = ["done", "viewed", "note"] as const;
+export type ProgramActionType = (typeof PROGRAM_ACTION_TYPES)[number];
+
+export type ProgramActionLogInsert = {
+  instanceId: string;
+  instanceStageItemId: string;
+  patientUserId: string;
+  sessionId?: string | null;
+  actionType: ProgramActionType;
+  payload?: Record<string, unknown> | null;
+  note?: string | null;
+};
+
+/** Сложность занятия ЛФК в пост-сессионной форме (A4). */
+export type LfkPostSessionDifficulty = "easy" | "medium" | "hard";
+
+/** A4: результат теста без оценки врача для inbox «К проверке». */
+export type PendingProgramTestEvaluationRow = {
+  resultId: string;
+  testId: string;
+  testTitle: string | null;
+  createdAt: string;
+  instanceId: string;
+  instanceTitle: string;
+  stageTitle: string;
+  stageItemId: string;
+};
+
 /** §8 SYSTEM_LOGIC_SCHEMA — `treatment_program_events.event_type`. */
 export const TREATMENT_PROGRAM_EVENT_TYPES = [
   "item_added",
@@ -394,6 +504,20 @@ export const TREATMENT_PROGRAM_EVENT_TYPES = [
 ] as const;
 
 export type TreatmentProgramEventType = (typeof TREATMENT_PROGRAM_EVENT_TYPES)[number];
+
+/** A5: события, влияющие на бейдж «План обновлён» на Today (без прогресса пациента по тестам/завершения этапа). */
+export const TREATMENT_PROGRAM_PLAN_MUTATION_EVENT_TYPES: readonly TreatmentProgramEventType[] = [
+  "item_added",
+  "item_removed",
+  "item_disabled",
+  "item_enabled",
+  "item_replaced",
+  "comment_changed",
+  "stage_added",
+  "stage_removed",
+  "stage_skipped",
+  "status_changed",
+];
 
 export type TreatmentProgramEventTargetType = "stage" | "stage_item" | "program";
 
