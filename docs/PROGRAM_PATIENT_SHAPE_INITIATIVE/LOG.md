@@ -4,7 +4,68 @@
 
 ---
 
-## 2026-05-03 — FIX по AUDIT_STAGE_A2 (A2-READ-01, A2-TXN-01)
+## 2026-05-03 — Stage A3 — POST-AUDIT FIX (`AUDIT_STAGE_A3.md`)
+
+**Сделано:**
+
+- **A3-ASSIGN-DEF (Low):** `assignTemplateToPatient` — `groupRows` из **`[...(st.groups ?? [])]`** в `instance-service.ts` (устойчивость к `undefined` у `groups` на этапе).
+
+**Critical / Major:** в `AUDIT_STAGE_A3.md` §7 первичного прогона не заводились — вердикт PASS без блокирующих пунктов; **N/A**.
+
+**Minor / Info:**
+
+- **A3-ASSIGN-DEF:** закрыт кодом.
+- **A3-UI-INST-01:** **defer (product)** — полноценный диалог редактирования текста instance-группы у врача; до отдельной задачи достаточно **`PATCH .../stage-groups/[groupId]`** (как в первичном A3 «намеренно не делали»).
+- **Пустой этап у пациента (Info в аудите §5):** **defer (UX)** — вне scope этого FIX.
+
+**Scope (подтверждение):** изменения только в **`apps/webapp/src/modules/treatment-program/instance-service.ts`**, **`docs/PROGRAM_PATIENT_SHAPE_INITIATIVE/AUDIT_STAGE_A3.md`**, **`LOG.md`** — внутри treatment-program домена + initiative docs; без courses, без новых API/env, без DnD.
+
+**Проверки (целевые A3, как в `AUDIT_STAGE_A3.md` §9 + контур DnD):**
+
+```bash
+rg "treatment_program_template_stage_groups|treatment_program_instance_stage_groups|group_id|templateGroupId|omitDisabledInstanceStageItemsForPatientApi" apps/webapp/src apps/webapp/db
+rg "@dnd-kit|dnd-kit" apps/webapp/src/app/app/patient/treatment-programs apps/webapp/src/app/app/doctor/treatment-program-templates apps/webapp/src/app/app/doctor/clients/treatment-programs
+pnpm --dir apps/webapp exec vitest run src/modules/treatment-program/instance-service.test.ts src/modules/treatment-program/stage-semantics.test.ts
+pnpm --dir apps/webapp exec tsc --noEmit
+```
+
+**Результаты:** первый `rg` (A3-строки) — совпадения в `db/schema`, миграции `0029_*`, repos/modules как ожидается; второй `rg` DnD по трём путям treatment-program UI — **нет совпадений** (exit code 1 у `rg` = no matches); **vitest** — 2 файла, 11 тестов, PASS; **`tsc --noEmit`** — PASS.
+
+**CI:** полный **`pnpm run ci`** не запускался (запрос пользователя).
+
+---
+
+## 2026-05-03 — Stage A3 — группы этапа (шаблон + экземпляр), copy map, UI врача/пациента
+
+**Контекст:** [`STAGE_A3_PLAN.md`](STAGE_A3_PLAN.md), [`MASTER_PLAN.md`](MASTER_PLAN.md).
+
+**Сделано:**
+
+- **Схема:** `treatment_program_template_stage_groups`, `treatment_program_instance_stage_groups` (`source_group_id`), nullable `group_id` на элементах шаблона и экземпляра; миграция **`0029_treatment_program_a3_stage_groups.sql`**.
+- **Домен:** типы `groups[]` на этапе, `groupId` на элементах; `TreatmentProgramInstanceStageInput` с опциональными **`groups?`** / **`templateGroupId?`**; `assignTemplateToPatient` копирует группы и маппит `group_id` у элементов.
+- **Порты/репозитории:** PG + in-memory — CRUD/reorder групп, patch `group_id` у элементов; `omitDisabledInstanceStageItemsForPatientApi` убирает пустые группы у пациента после фильтра disabled.
+- **API (doctor):** `POST .../templates/stages/[stageId]/groups`, `POST .../groups/reorder`, `PATCH|DELETE .../templates/stage-groups/[groupId]`; зеркально для инстанса + `groupId` в `PATCH` instance `stage-items` и в `POST` добавления элемента (шаблон и инстанс).
+- **UI:** конструктор шаблона — группы (↑↓, создать/редактировать/удалить), элементы по группам + «Без группы», Select группы для элемента; экземпляр у пациента врача — панель групп (↑↓, +группа, удалить), сгруппированный список элементов + Select группы; пациент — `<details>` по группам, `schedule_text` в summary, «Без группы» после групп.
+- **`api.md`**, чекбоксы в **`STAGE_A3_PLAN.md`** §6.
+
+**Проверки (целевые A3):**
+
+```bash
+rg "StageGroup|stage_groups|tplStageGroups|instStageGroups|group_id|schedule_text" apps/webapp/src apps/webapp/db
+pnpm --dir apps/webapp exec vitest run src/modules/treatment-program/instance-service.test.ts src/modules/treatment-program/stage-semantics.test.ts src/modules/treatment-program/progress-service.test.ts src/app/app/patient/treatment-programs/PatientTreatmentProgramDetailClient.test.tsx "src/app/app/doctor/treatment-program-templates/[id]/TreatmentProgramConstructorClient.test.tsx"
+pnpm --dir apps/webapp exec eslint "src/app/app/doctor/treatment-program-templates/[id]/TreatmentProgramConstructorClient.tsx" "src/app/app/doctor/clients/treatment-programs/[instanceId]/TreatmentProgramInstanceDetailClient.tsx" "src/app/app/patient/treatment-programs/PatientTreatmentProgramDetailClient.tsx" "src/app/api/doctor/treatment-program-templates/stages/**/*.ts" "src/app/api/doctor/treatment-program-instances/**/*.ts" "src/modules/treatment-program/instance-service.ts" "src/modules/treatment-program/service.ts" "src/infra/repos/inMemoryTreatmentProgram.ts" "src/infra/repos/inMemoryTreatmentProgramInstance.ts"
+pnpm --dir apps/webapp exec tsc --noEmit
+```
+
+**Результаты:** `rg` — ожидаемые вхождения в treatment-program / schema / миграции / API; **vitest** (перечисленные файлы) — PASS; **eslint** (перечисленные файлы) — PASS; **tsc** — PASS.
+
+**Намеренно не делали / остаток:**
+
+- Полный **`pnpm run ci`** не запускался.
+- UI экземпляра у врача: редактирование текста группы (title/schedule/description) только через API (`PATCH stage-groups`); в панели — создание/удаление/порядок.
+
+**Продуктовое (A3.5):** пустые группы у пациента скрываются (нет видимых элементов после фильтра disabled).
+
 
 **Контекст:**
 

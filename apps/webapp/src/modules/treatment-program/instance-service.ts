@@ -11,9 +11,11 @@ import { assertUuid } from "./service";
 import type { TreatmentProgramInstanceStageStatus } from "./types";
 import {
   effectiveInstanceStageItemComment,
+  type CreateTreatmentProgramInstanceStageGroupInput,
   type TreatmentProgramInstanceStageItemRow,
   type TreatmentProgramIntegratorLfkBlock,
   type TreatmentProgramItemType,
+  type UpdateTreatmentProgramInstanceStageGroupInput,
   type UpdateTreatmentProgramInstanceStageMetadataInput,
 } from "./types";
 import { isStageZero } from "./stage-semantics";
@@ -84,6 +86,16 @@ export function createTreatmentProgramInstanceService(deps: {
         const itemRows = [...st.items].sort(
           (a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id),
         );
+        const groupRows = [...(st.groups ?? [])].sort(
+          (a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id),
+        );
+        const groupInputs = groupRows.map((g) => ({
+          sourceGroupId: g.id,
+          title: g.title,
+          description: g.description,
+          scheduleText: g.scheduleText,
+          sortOrder: g.sortOrder,
+        }));
         const itemInputs = [];
         for (const it of itemRows) {
           await itemRefs.assertItemRefExists(it.itemType, it.itemRefId);
@@ -97,6 +109,7 @@ export function createTreatmentProgramInstanceService(deps: {
             snapshot,
             isActionable: it.itemType === "recommendation" ? true : null,
             status: "active" as const,
+            templateGroupId: it.groupId,
           });
         }
         stageInputs.push({
@@ -110,6 +123,7 @@ export function createTreatmentProgramInstanceService(deps: {
           expectedDurationDays: st.expectedDurationDays,
           expectedDurationText: st.expectedDurationText,
           items: itemInputs,
+          groups: groupInputs,
         });
       }
 
@@ -335,11 +349,13 @@ export function createTreatmentProgramInstanceService(deps: {
       sortOrder?: number;
       comment?: string | null;
       settings?: Record<string, unknown> | null;
+      groupId?: string | null;
     }) {
       assertUuid(input.instanceId);
       assertUuid(input.stageId);
       assertUuid(input.itemRefId);
       if (input.actorId) assertUuid(input.actorId);
+      if (input.groupId) assertUuid(input.groupId);
       await itemRefs.assertItemRefExists(input.itemType, input.itemRefId);
       const snapshot = await snapshots.buildSnapshot(input.itemType, input.itemRefId);
       const detail = await instances.getInstanceById(input.instanceId);
@@ -357,6 +373,7 @@ export function createTreatmentProgramInstanceService(deps: {
         snapshot,
         isActionable: input.itemType === "recommendation" ? true : null,
         status: "active",
+        groupId: input.groupId ?? null,
       });
       if (!row) throw new Error("Не удалось добавить элемент");
       await appendEvent({
@@ -571,6 +588,174 @@ export function createTreatmentProgramInstanceService(deps: {
         targetId: input.stageId,
         payload: { scope: "stage_items_reordered", orderedItemIds: input.orderedItemIds },
       });
+    },
+
+    async doctorCreateInstanceStageGroup(input: {
+      instanceId: string;
+      stageId: string;
+      actorId: string | null;
+      title: string;
+      description?: string | null;
+      scheduleText?: string | null;
+      sortOrder?: number;
+    }) {
+      assertUuid(input.instanceId);
+      assertUuid(input.stageId);
+      if (input.actorId) assertUuid(input.actorId);
+      const title = input.title.trim();
+      if (!title) throw new Error("Название группы не может быть пустым");
+      const detail = await instances.getInstanceById(input.instanceId);
+      if (!detail) throw new Error("Программа не найдена");
+      if (!detail.stages.some((s) => s.id === input.stageId)) throw new Error("Этап не найден");
+      const payload: CreateTreatmentProgramInstanceStageGroupInput = {
+        title,
+        description: input.description === undefined ? undefined : input.description?.trim() ?? null,
+        scheduleText: input.scheduleText === undefined ? undefined : input.scheduleText?.trim() ?? null,
+        sortOrder: input.sortOrder,
+      };
+      const row = await instances.createInstanceStageGroup(input.instanceId, input.stageId, payload);
+      if (!row) throw new Error("Не удалось добавить группу");
+      await appendEvent({
+        instanceId: input.instanceId,
+        actorId: input.actorId,
+        eventType: "status_changed",
+        targetType: "stage",
+        targetId: input.stageId,
+        payload: { scope: "stage_group_added", groupId: row.id, title: row.title },
+      });
+      return row;
+    },
+
+    async doctorUpdateInstanceStageGroup(input: {
+      instanceId: string;
+      groupId: string;
+      actorId: string | null;
+      patch: UpdateTreatmentProgramInstanceStageGroupInput;
+    }) {
+      assertUuid(input.instanceId);
+      assertUuid(input.groupId);
+      if (input.actorId) assertUuid(input.actorId);
+      const norm: UpdateTreatmentProgramInstanceStageGroupInput = {};
+      if (input.patch.title !== undefined) {
+        const t = input.patch.title.trim();
+        if (!t) throw new Error("Название группы не может быть пустым");
+        norm.title = t;
+      }
+      if (input.patch.description !== undefined) {
+        norm.description = input.patch.description === null ? null : input.patch.description.trim() || null;
+      }
+      if (input.patch.scheduleText !== undefined) {
+        norm.scheduleText =
+          input.patch.scheduleText === null ? null : input.patch.scheduleText.trim() || null;
+      }
+      if (input.patch.sortOrder !== undefined) norm.sortOrder = input.patch.sortOrder;
+      if (Object.keys(norm).length === 0) {
+        const d = await instances.getInstanceById(input.instanceId);
+        const g = d?.stages.flatMap((s) => s.groups).find((gr) => gr.id === input.groupId);
+        if (!g) throw new Error("Группа не найдена");
+        return g;
+      }
+      const row = await instances.updateInstanceStageGroup(input.instanceId, input.groupId, norm);
+      if (!row) throw new Error("Группа не найдена");
+      await appendEvent({
+        instanceId: input.instanceId,
+        actorId: input.actorId,
+        eventType: "status_changed",
+        targetType: "stage",
+        targetId: row.stageId,
+        payload: { scope: "stage_group_updated", groupId: row.id },
+      });
+      return row;
+    },
+
+    async doctorDeleteInstanceStageGroup(input: {
+      instanceId: string;
+      groupId: string;
+      actorId: string | null;
+    }) {
+      assertUuid(input.instanceId);
+      assertUuid(input.groupId);
+      if (input.actorId) assertUuid(input.actorId);
+      const detail = await instances.getInstanceById(input.instanceId);
+      const gr = detail?.stages.flatMap((s) => s.groups).find((g) => g.id === input.groupId);
+      if (!gr) throw new Error("Группа не найдена");
+      const ok = await instances.deleteInstanceStageGroup(input.instanceId, input.groupId);
+      if (!ok) throw new Error("Группа не найдена");
+      await appendEvent({
+        instanceId: input.instanceId,
+        actorId: input.actorId,
+        eventType: "status_changed",
+        targetType: "stage",
+        targetId: gr.stageId,
+        payload: { scope: "stage_group_removed", groupId: input.groupId, title: gr.title },
+      });
+    },
+
+    async doctorReorderInstanceStageGroups(input: {
+      instanceId: string;
+      stageId: string;
+      actorId: string | null;
+      orderedGroupIds: string[];
+    }) {
+      assertUuid(input.instanceId);
+      assertUuid(input.stageId);
+      if (input.actorId) assertUuid(input.actorId);
+      const detail = await instances.getInstanceById(input.instanceId);
+      if (!detail) throw new Error("Программа не найдена");
+      if (!detail.stages.some((s) => s.id === input.stageId)) throw new Error("Этап не найден");
+      for (const id of input.orderedGroupIds) assertUuid(id);
+      const ok = await instances.reorderInstanceStageGroups(
+        input.instanceId,
+        input.stageId,
+        input.orderedGroupIds,
+      );
+      if (!ok) throw new Error("Некорректный порядок групп этапа");
+      await appendEvent({
+        instanceId: input.instanceId,
+        actorId: input.actorId,
+        eventType: "status_changed",
+        targetType: "stage",
+        targetId: input.stageId,
+        payload: { scope: "stage_groups_reordered", orderedGroupIds: input.orderedGroupIds },
+      });
+    },
+
+    async doctorSetInstanceStageItemGroup(input: {
+      instanceId: string;
+      itemId: string;
+      groupId: string | null;
+      actorId: string | null;
+    }) {
+      assertUuid(input.instanceId);
+      assertUuid(input.itemId);
+      if (input.actorId) assertUuid(input.actorId);
+      if (input.groupId) assertUuid(input.groupId);
+      const detail = await instances.getInstanceById(input.instanceId);
+      const item = detail?.stages.flatMap((s) => s.items).find((i) => i.id === input.itemId);
+      if (!item) throw new Error("Элемент не найден");
+      const stage = detail!.stages.find((s) => s.id === item.stageId);
+      if (!stage) throw new Error("Этап не найден");
+      if (input.groupId) {
+        const g = stage.groups.find((gr) => gr.id === input.groupId);
+        if (!g) throw new Error("Группа не найдена");
+      }
+      const row = await instances.patchInstanceStageItem(input.instanceId, input.itemId, {
+        groupId: input.groupId,
+      });
+      if (!row) throw new Error("Элемент не найден");
+      await appendEvent({
+        instanceId: input.instanceId,
+        actorId: input.actorId,
+        eventType: "status_changed",
+        targetType: "stage_item",
+        targetId: input.itemId,
+        payload: {
+          scope: "stage_item_group_changed",
+          stageId: item.stageId,
+          groupId: input.groupId,
+        },
+      });
+      return row;
     },
 
     async listTreatmentProgramLfkBlocksForIntegratorPatient(
