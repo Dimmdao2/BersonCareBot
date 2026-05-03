@@ -28,6 +28,11 @@ vi.mock("@/modules/auth/service", () => ({
   getCurrentSession: () => getSessionMock(),
 }));
 
+const getTtlMock = vi.fn(() => Promise.resolve(3600));
+vi.mock("@/app-layer/media/videoPresignTtl", () => ({
+  getVideoPresignTtlSeconds: () => getTtlMock(),
+}));
+
 import { GET } from "./route";
 
 const testUuid = "00000000-0000-4000-8000-000000000099";
@@ -38,6 +43,8 @@ describe("GET /api/media/[id]", () => {
     getStoredMock.mockReset();
     presignGetUrlMock.mockReset();
     getSessionMock.mockReset();
+    getTtlMock.mockReset();
+    getTtlMock.mockResolvedValue(3600);
     getSessionMock.mockResolvedValue({ user: { userId: "u1", role: "patient" } });
   });
 
@@ -64,7 +71,20 @@ describe("GET /api/media/[id]", () => {
     expect(res.headers.get("Location")).toBe("https://fs.example/signed-get?token=abc");
     expect(res.headers.get("Cache-Control")).toContain("max-age=0");
     expect(getS3KeyMock).toHaveBeenCalledWith(testUuid);
-    expect(presignGetUrlMock).toHaveBeenCalledWith("media/uuid/file.png");
+    expect(presignGetUrlMock).toHaveBeenCalledWith("media/uuid/file.png", 3600);
+  });
+
+  it("passes presign TTL from settings", async () => {
+    getS3KeyMock.mockResolvedValue("media/uuid/file.png");
+    getTtlMock.mockResolvedValue(900);
+    presignGetUrlMock.mockResolvedValue("https://fs.example/signed");
+
+    const res = await GET(new Request("http://localhost/api/media/x"), {
+      params: Promise.resolve({ id: testUuid }),
+    });
+
+    expect(res.status).toBe(307);
+    expect(presignGetUrlMock).toHaveBeenCalledWith("media/uuid/file.png", 900);
   });
 
   it("returns 404 when S3 key is missing in DB mode", async () => {

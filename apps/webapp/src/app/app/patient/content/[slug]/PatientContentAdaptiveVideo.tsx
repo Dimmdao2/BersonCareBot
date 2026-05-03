@@ -143,6 +143,37 @@ function DualModePatientVideo({
   const [loading, setLoading] = useState(true);
   const [retryBusy, setRetryBusy] = useState(false);
 
+  const fetchPlaybackJson = useCallback(async (): Promise<MediaPlaybackPayload | null> => {
+    try {
+      const res = await fetch(`/api/media/${encodeURIComponent(mediaId)}/playback`, {
+        credentials: "include",
+      });
+      if (!res.ok) return null;
+      return (await res.json()) as MediaPlaybackPayload;
+    } catch {
+      return null;
+    }
+  }, [mediaId]);
+
+  /** Presigned URLs expire — refresh JSON before S3 rejects segments / progressive stalls. */
+  useEffect(() => {
+    if (sourceKind !== "hls" || !payload.hls?.masterUrl) return;
+    const sec = Math.max(60, payload.expiresInSeconds ?? 3600);
+    const leadSec = Math.min(300, Math.max(60, Math.floor(sec / 10)));
+    const delayMs = Math.max(30_000, (sec - leadSec) * 1000);
+    const timerId = window.setTimeout(() => {
+      void (async () => {
+        const next = await fetchPlaybackJson();
+        if (!next) return;
+        setPayload(next);
+        if (initialPlaybackSourceKind(next) === "hls") {
+          setSourceKind("hls");
+        }
+      })();
+    }, delayMs);
+    return () => window.clearTimeout(timerId);
+  }, [fetchPlaybackJson, sourceKind, payload.expiresInSeconds, payload.hls?.masterUrl]);
+
   const destroyHls = useCallback(() => {
     hlsRef.current?.destroy();
     hlsRef.current = null;
@@ -224,9 +255,22 @@ function DualModePatientVideo({
             detail: data.type,
           });
           destroyHls();
-          if (!tryMp4Fallback()) {
-            finishError("Не удалось воспроизвести видео.");
-          }
+          void (async () => {
+            const next = await fetchPlaybackJson();
+            if (
+              next &&
+              next.hls?.masterUrl &&
+              initialPlaybackSourceKind(next) === "hls"
+            ) {
+              setPayload(next);
+              setSourceKind("hls");
+              autoFallbackUsedRef.current = false;
+              return;
+            }
+            if (!tryMp4Fallback()) {
+              finishError("Не удалось воспроизвести видео.");
+            }
+          })();
         });
       } catch (e) {
         if (cancelled) return;
@@ -241,6 +285,25 @@ function DualModePatientVideo({
     const onVideoError = () => {
       if (cancelled) return;
       patientPlaybackDiag({ event: "video_error", mediaId, delivery: sourceKind });
+      if (sourceKind === "hls") {
+        void (async () => {
+          const next = await fetchPlaybackJson();
+          if (
+            next &&
+            next.hls?.masterUrl &&
+            initialPlaybackSourceKind(next) === "hls"
+          ) {
+            setPayload(next);
+            setSourceKind("hls");
+            autoFallbackUsedRef.current = false;
+            return;
+          }
+          if (!tryMp4Fallback()) {
+            finishError("Не удалось воспроизвести видео.");
+          }
+        })();
+        return;
+      }
       if (!tryMp4Fallback()) {
         finishError("Не удалось воспроизвести видео.");
       }
@@ -259,7 +322,7 @@ function DualModePatientVideo({
       while (video.firstChild) video.removeChild(video.firstChild);
       video.load();
     };
-  }, [destroyHls, mediaId, mp4Url, payload, sourceKind]);
+  }, [destroyHls, fetchPlaybackJson, mediaId, mp4Url, payload, sourceKind]);
 
   const onRetry = useCallback(async () => {
     setRetryBusy(true);
@@ -267,20 +330,17 @@ function DualModePatientVideo({
     setLoading(true);
     autoFallbackUsedRef.current = false;
     try {
-      const res = await fetch(`/api/media/${encodeURIComponent(mediaId)}/playback`, {
-        credentials: "include",
-      });
-      if (!res.ok) {
+      const next = await fetchPlaybackJson();
+      if (!next) {
         patientPlaybackDiag({
           event: "playback_refetch_failed",
           mediaId,
-          detail: String(res.status),
+          detail: "no_body",
         });
         setError("Не удалось загрузить параметры воспроизведения.");
         setLoading(false);
         return;
       }
-      const next = (await res.json()) as MediaPlaybackPayload;
       setPayload(next);
       setSourceKind(initialPlaybackSourceKind(next));
     } catch {
@@ -290,7 +350,7 @@ function DualModePatientVideo({
     } finally {
       setRetryBusy(false);
     }
-  }, [mediaId]);
+  }, [fetchPlaybackJson, mediaId]);
 
   return (
     <div className="relative aspect-video w-full overflow-hidden rounded-lg bg-muted/30">

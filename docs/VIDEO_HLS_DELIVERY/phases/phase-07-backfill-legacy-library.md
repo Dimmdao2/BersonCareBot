@@ -51,7 +51,7 @@
 
 ### `apps/webapp`
 
-- Скрипт в `apps/webapp/scripts/` или `infra/ops/` с dry-run `--limit`.
+- Скрипт `pnpm --dir apps/webapp run video-hls-backfill-legacy` (`scripts/video-hls-backfill-legacy.ts`) + логика `src/app-layer/media/videoHlsLegacyBackfill.ts` с dry-run, `--limit`, батчами, sleep, `--state-file` / `--cursor`, `--include-failed`, отчёт в stdout (JSON).
 
 ### `apps/media-worker`
 
@@ -61,15 +61,16 @@
 
 ## Тесты
 
-- Dry-run не пишет в DB (или откат в transaction test).
+- Dry-run не вызывает enqueue (нет INSERT в `media_transcode_jobs` / UPDATE статуса через `enqueueMediaTranscodeJob`). Финальный отчёт (`statusHistogram`, `failedReasons`) — только **SELECT** к `media_files`.
+- Unit-тесты: `videoHlsLegacyBackfill.test.ts`.
 
 ---
 
 ## Критерии завершения
 
-- [ ] Backfill runner поддерживает dry-run и лимитированные batch-запуски.
-- [ ] Для проблемных файлов фиксируется `failed` + диагностическая причина без падения pipeline.
-- [ ] Есть операционный отчет по статусам (`hls_ready` / `failed` / `pending`) для контроля прогресса.
+- [x] Backfill runner поддерживает dry-run и лимитированные batch-запуски.
+- [x] Для проблемных файлов фиксируется `failed` + диагностическая причина без падения pipeline (сохраняется поведение worker; runner отчёт `failedReasons` + гистограмма статусов).
+- [x] Есть операционный отчет по статусам (`hls_ready` / `failed` / `pending`) для контроля прогресса — JSON `statusHistogram` / `failedReasons` в выводе `pnpm --dir apps/webapp run video-hls-backfill-legacy`.
 
 ---
 

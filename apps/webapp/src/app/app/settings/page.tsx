@@ -11,10 +11,16 @@ import {
 import { DOCTOR_PAGE_CONTAINER_CLASS } from "@/shared/ui/doctorWorkspaceLayout";
 import { parseIdTokens } from "@/shared/parsers/parseIdTokens";
 import { normalizeTestAccountIdentifiersValue } from "@/modules/system-settings/testAccounts";
+import {
+  VIDEO_PRESIGN_TTL_MAX_SEC,
+  VIDEO_PRESIGN_TTL_MIN_SEC,
+} from "@/modules/media/videoPresignTtlConstants";
 import { SettingsForm } from "./SettingsForm";
 import { AdminModeToggle } from "./AdminModeToggle";
 import { AdminSettingsTabsClient } from "./AdminSettingsTabsClient";
 import { AdminSettingsSection, type IntegratorLinkedPhoneSource } from "./AdminSettingsSection";
+import { VideoPrivateMediaSettingsSection } from "./VideoPrivateMediaSettingsSection";
+import { VideoHlsWatermarkSettingsSection } from "./VideoHlsWatermarkSettingsSection";
 import { AppParametersSection } from "./AppParametersSection";
 import { NotificationsTopicsSection } from "./NotificationsTopicsSection";
 import { AuthProvidersSection } from "./AuthProvidersSection";
@@ -126,6 +132,35 @@ export default async function SettingsPage() {
         })(),
       }
     : null;
+
+  const videoPresignTtlInitial =
+    isAdmin && adminMode
+      ? (() => {
+          const raw = getValueJson<unknown>(
+            adminSettingsList.find((x) => x.key === "video_presign_ttl_seconds")?.valueJson,
+            3600,
+          );
+          const n =
+            typeof raw === "number" && Number.isFinite(raw)
+              ? raw
+              : typeof raw === "string" && /^\d+$/.test(raw.trim())
+                ? Number.parseInt(raw.trim(), 10)
+                : 3600;
+          const clamped = Math.min(VIDEO_PRESIGN_TTL_MAX_SEC, Math.max(VIDEO_PRESIGN_TTL_MIN_SEC, Math.round(n)));
+          return clamped;
+        })()
+      : 3600;
+
+  const videoWatermarkInitial =
+    isAdmin && adminMode
+      ? (() => {
+          const raw = getValueJson<unknown>(
+            adminSettingsList.find((x) => x.key === "video_watermark_enabled")?.valueJson,
+            false,
+          );
+          return raw === true || raw === "true";
+        })()
+      : false;
 
   const appParametersConfig = isAdmin && adminMode
     ? {
@@ -259,6 +294,8 @@ export default async function SettingsPage() {
               appParametersConfig ? (
                 <>
                   <AppParametersSection {...appParametersConfig} />
+                  <VideoPrivateMediaSettingsSection initialTtlSeconds={videoPresignTtlInitial} />
+                  <VideoHlsWatermarkSettingsSection initialEnabled={videoWatermarkInitial} />
                   <NotificationsTopicsSection initialRows={notificationsTopicsRows} />
                 </>
               ) : null

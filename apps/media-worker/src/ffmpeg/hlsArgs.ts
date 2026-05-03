@@ -37,6 +37,11 @@ export function buildHlsSingleVariantArgs(params: {
   ];
 }
 
-export function buildPosterFfmpegArgs(inputFile: string, outputJpg: string): string[] {
-  return ["-y", "-ss", "1", "-i", inputFile, "-vframes", "1", "-q:v", "2", outputJpg];
+export function buildPosterFfmpegArgs(inputFile: string, outputJpg: string, videoFilter?: string): string[] {
+  const a = ["-y", "-ss", "1", "-i", inputFile];
+  if (videoFilter) {
+    a.push("-vf", videoFilter);
+  }
+  a.push("-vframes", "1", "-q:v", "2", outputJpg);
+  return a;
 }

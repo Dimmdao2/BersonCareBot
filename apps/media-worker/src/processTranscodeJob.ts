@@ -5,6 +5,7 @@ import { join, posix } from "node:path";
 import type { S3Client } from "@aws-sdk/client-s3";
 import type { Pool } from "pg";
 import { buildHlsSingleVariantArgs, buildPosterFfmpegArgs } from "./ffmpeg/hlsArgs.js";
+import { composeHlsVideoFilter, watermarkTextLine, type WatermarkDrawtextParams } from "./ffmpeg/watermarkVideoFilter.js";
 import { runFfmpeg } from "./ffmpeg/runFfmpeg.js";
 import { backoffMsAfterFailure } from "./jobs/backoff.js";
 import type { ClaimedJob } from "./jobs/claim.js";
@@ -23,6 +24,8 @@ import {
   headObjectExists,
   putObjectWithRetry,
 } from "./s3.js";
+import { readVideoWatermarkEnabled } from "./watermarkEnabled.js";
+import { resolveWatermarkFontPath } from "./watermarkFont.js";
 
 export type TranscodeContext = {
   pool: Pool;
@@ -185,6 +188,26 @@ export async function processTranscodeJob(ctx: TranscodeContext, job: ClaimedJob
     [job.mediaId],
   );
 
+  const watermarkEnabled = await readVideoWatermarkEnabled(ctx.pool);
+  let fontPath: string | null = null;
+  if (watermarkEnabled) {
+    fontPath = resolveWatermarkFontPath(ctx.log);
+    if (!fontPath) {
+      await permanentFail(
+        ctx.pool,
+        job.id,
+        job.mediaId,
+        // eslint-disable-next-line no-secrets/no-secrets -- ops error token, not a secret
+        "watermark_enabled_but_no_truetype_font_install_dejavu_or_set_MEDIA_WORKER_WATERMARK_FONT",
+      );
+      return;
+    }
+  }
+
+  const transcodeTimeoutMs = watermarkEnabled
+    ? Math.min(Math.round(ctx.ffmpegTimeoutMs * 1.45), ctx.ffmpegTimeoutMs + 45 * 60 * 1000)
+    : ctx.ffmpegTimeoutMs;
+
   const hlsBaseKeyPrefix = hlsTreePrefixFromMediaRoot(mediaRoot);
   const masterKey = masterPlaylistKeyFromMediaRoot(mediaRoot);
   const posterKey = posterObjectKeyFromMediaRoot(mediaRoot);
@@ -203,19 +226,32 @@ export async function processTranscodeJob(ctx: TranscodeContext, job: ClaimedJob
     await mkdir(posterDir, { recursive: true });
     await downloadObjectToFile(ctx.s3Client, ctx.bucket, media.s3_key, src);
 
+    let wmDrawtext: WatermarkDrawtextParams | null = null;
+    if (watermarkEnabled && fontPath) {
+      const wmTxt = join(tmpRoot, "watermark.txt");
+      await writeFile(wmTxt, watermarkTextLine(job.mediaId), "utf8");
+      wmDrawtext = {
+        textFilePosix: wmTxt.replace(/\\/g, "/"),
+        fontfilePosix: fontPath.replace(/\\/g, "/"),
+      };
+    }
+
+    const vf720 = composeHlsVideoFilter("scale=1280:-2,format=yuv420p", wmDrawtext);
+    const vf480 = composeHlsVideoFilter("scale=854:-2,format=yuv420p", wmDrawtext);
+
     const run720 = await runFfmpeg(
       ctx.ffmpegBin,
       buildHlsSingleVariantArgs({
         inputFile: src,
         outputM3u8: "index.m3u8",
         segmentFilename: "seg_%03d.ts",
-        videoFilter: "scale=1280:-2,format=yuv420p",
+        videoFilter: vf720,
         videoBitrate: "2500k",
         audioBitrate: "128k",
       }),
       {
         cwd: dir720,
-        timeoutMs: ctx.ffmpegTimeoutMs,
+        timeoutMs: transcodeTimeoutMs,
         collectStderrMaxBytes: 32768,
       },
     );
@@ -237,13 +273,13 @@ export async function processTranscodeJob(ctx: TranscodeContext, job: ClaimedJob
         inputFile: src,
         outputM3u8: "index.m3u8",
         segmentFilename: "seg_%03d.ts",
-        videoFilter: "scale=854:-2,format=yuv420p",
+        videoFilter: vf480,
         videoBitrate: "800k",
         audioBitrate: "96k",
       }),
       {
         cwd: dir480,
-        timeoutMs: ctx.ffmpegTimeoutMs,
+        timeoutMs: transcodeTimeoutMs,
         collectStderrMaxBytes: 32768,
       },
     );
@@ -265,10 +301,14 @@ export async function processTranscodeJob(ctx: TranscodeContext, job: ClaimedJob
     ]);
     await writeFile(join(hlsDir, "master.m3u8"), masterBody, "utf8");
 
-    const posterArgs = buildPosterFfmpegArgs(src, posterLocal);
+    const posterArgs = buildPosterFfmpegArgs(
+      src,
+      posterLocal,
+      wmDrawtext ? vf720 : undefined,
+    );
     const runPoster = await runFfmpeg(ctx.ffmpegBin, posterArgs, {
       cwd: tmpRoot,
-      timeoutMs: ctx.ffmpegTimeoutMs,
+      timeoutMs: transcodeTimeoutMs,
       collectStderrMaxBytes: 16384,
     });
     if (runPoster.code !== 0) {
@@ -323,7 +363,10 @@ export async function processTranscodeJob(ctx: TranscodeContext, job: ClaimedJob
       [masterKey, hlsBaseKeyPrefix, posterKey, qualitiesJson, job.mediaId],
     );
     await markJobDone(ctx.pool, job.id);
-    ctx.log.info({ jobId: job.id, mediaId: job.mediaId, masterKey }, "transcode completed");
+    ctx.log.info(
+      { jobId: job.id, mediaId: job.mediaId, masterKey, watermark: Boolean(watermarkEnabled) },
+      "transcode completed",
+    );
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     ctx.log.error({ err: e, jobId: job.id }, "transcode unexpected error");

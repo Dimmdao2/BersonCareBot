@@ -1,5 +1,6 @@
 import { env } from "@/config/env";
 import { logger } from "@/app-layer/logging/logger";
+import { serializePresignFailureForLog } from "@/app-layer/media/presignLogRedaction";
 import { presignGetUrl } from "@/app-layer/media/s3Client";
 import { getMediaRowForPlayback } from "@/app-layer/media/s3MediaStorage";
 import type { MediaPlaybackPayload } from "@/modules/media/playbackPayloadTypes";
@@ -13,14 +14,13 @@ import {
   parseVideoDeliveryOverride,
   parseVideoProcessingStatus,
 } from "@/modules/media/videoHlsFields";
+import { getVideoPresignTtlSeconds } from "@/app-layer/media/videoPresignTtl";
 import { getConfigBool, getConfigValue } from "@/modules/system-settings/configAdapter";
 import type { AppSession } from "@/shared/types/session";
 import { isTrustedHlsArtifactS3Key, isTrustedPosterS3Key } from "@/shared/lib/hlsStorageLayout";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-
-const PRESIGN_EXPIRES_SEC = 3600;
 
 export type ResolveMediaPlaybackFailure = { ok: false; status: number; error: string };
 export type ResolveMediaPlaybackSuccess = { ok: true; data: MediaPlaybackPayload };
@@ -46,8 +46,10 @@ export async function resolveMediaPlaybackPayload(input: {
     return { ok: false, status: 503, error: "feature_disabled" };
   }
 
-  const defaultRaw = await getConfigValue("video_default_delivery", "mp4");
-  const systemDefault = parseDefaultDeliveryConfig(defaultRaw, "mp4");
+  const presignExpiresSec = await getVideoPresignTtlSeconds();
+
+  const defaultRaw = await getConfigValue("video_default_delivery", "auto");
+  const systemDefault = parseDefaultDeliveryConfig(defaultRaw, "auto");
 
   const row = await getMediaRowForPlayback(id);
   if (!row) {
@@ -86,7 +88,7 @@ export async function resolveMediaPlaybackPayload(input: {
         hls: null,
         mp4: { url: progressivePath },
         fallbackUsed: false,
-        expiresInSeconds: PRESIGN_EXPIRES_SEC,
+        expiresInSeconds: presignExpiresSec,
       },
     };
   }
@@ -110,9 +112,12 @@ export async function resolveMediaPlaybackPayload(input: {
 
   if (resolved.useHls && trustedMaster) {
     try {
-      masterUrl = await presignGetUrl(trustedMaster, PRESIGN_EXPIRES_SEC);
+      masterUrl = await presignGetUrl(trustedMaster, presignExpiresSec);
     } catch (e) {
-      logger.error({ err: e, mediaId: id, presignTarget: "hls_master" }, "playback_presign_failed");
+      logger.error(
+        { err: serializePresignFailureForLog(e), mediaId: id, presignTarget: "hls_master" },
+        "playback_presign_failed",
+      );
       masterUrl = null;
       delivery = "mp4";
       fallbackUsed = true;
@@ -126,9 +131,12 @@ export async function resolveMediaPlaybackPayload(input: {
     const rawPoster = row.poster_s3_key?.trim() ?? "";
     if (rawPoster && isTrustedPosterS3Key(id, rawPoster)) {
       try {
-        posterUrl = await presignGetUrl(rawPoster, PRESIGN_EXPIRES_SEC);
+        posterUrl = await presignGetUrl(rawPoster, presignExpiresSec);
       } catch (e) {
-        logger.error({ err: e, mediaId: id, presignTarget: "poster" }, "playback_presign_failed");
+        logger.error(
+          { err: serializePresignFailureForLog(e), mediaId: id, presignTarget: "poster" },
+          "playback_presign_failed",
+        );
       }
     }
   }
@@ -156,7 +164,7 @@ export async function resolveMediaPlaybackPayload(input: {
       hls: masterUrl ? { masterUrl, qualities: qualities ?? undefined } : null,
       mp4: { url: progressivePath },
       fallbackUsed,
-      expiresInSeconds: PRESIGN_EXPIRES_SEC,
+      expiresInSeconds: presignExpiresSec,
     },
   };
 }

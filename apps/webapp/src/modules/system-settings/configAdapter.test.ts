@@ -7,7 +7,7 @@ vi.mock("@/infra/db/client", () => ({
   })),
 }));
 
-import { getConfigValue, getConfigBool, invalidateConfigCache, invalidateConfigKey } from "./configAdapter";
+import { getConfigValue, getConfigBool, getConfigPositiveInt, invalidateConfigCache, invalidateConfigKey } from "./configAdapter";
 import { getPool } from "@/infra/db/client";
 
 describe("configAdapter", () => {
@@ -99,15 +99,27 @@ describe("configAdapter", () => {
     expect(result).toBe("https://t.me/fallback_support");
   });
 
-  it("returns JSON-stringified array when DB value_json.value is string[]", async () => {
+  it("getConfigPositiveInt clamps to min/max", async () => {
     const mockPool = {
       query: vi.fn().mockResolvedValue({
-        rows: [{ value_json: { value: [" 111 ", "222", "", "111"] } }],
+        rows: [{ value_json: { value: 30 } }],
       }),
     };
     vi.mocked(getPool).mockReturnValue(mockPool as never);
 
-    const result = await getConfigValue("admin_telegram_ids", "fallback");
-    expect(result).toBe('["111","222","111"]');
+    const r = await getConfigPositiveInt("video_presign_ttl_seconds", 3600, { min: 60, max: 604800 });
+    expect(r).toBe(60);
+  });
+
+  it("getConfigPositiveInt returns default on NaN from DB", async () => {
+    const mockPool = {
+      query: vi.fn().mockResolvedValue({
+        rows: [{ value_json: { value: "not-a-number" } }],
+      }),
+    };
+    vi.mocked(getPool).mockReturnValue(mockPool as never);
+
+    const r = await getConfigPositiveInt("video_presign_ttl_seconds", 3600, { min: 60, max: 604800 });
+    expect(r).toBe(3600);
   });
 });

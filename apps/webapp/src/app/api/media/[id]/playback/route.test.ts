@@ -21,6 +21,10 @@ vi.mock("@/modules/system-settings/configAdapter", () => ({
   getConfigValue: (...a: unknown[]) => getConfigValueMock(...a),
 }));
 
+vi.mock("@/app-layer/media/videoPresignTtl", () => ({
+  getVideoPresignTtlSeconds: vi.fn(() => Promise.resolve(3600)),
+}));
+
 vi.mock("@/app-layer/media/s3MediaStorage", () => ({
   getMediaRowForPlayback: (...a: unknown[]) => getRowMock(...a),
 }));
@@ -30,6 +34,7 @@ vi.mock("@/app-layer/media/s3Client", () => ({
 }));
 
 import { GET } from "./route";
+import { getVideoPresignTtlSeconds } from "@/app-layer/media/videoPresignTtl";
 
 const mid = "00000000-0000-4000-8000-000000000099";
 const patientSession = { user: { userId: "u1", role: "client" as const, displayName: "U", bindings: {} } };
@@ -61,6 +66,7 @@ describe("GET /api/media/[id]/playback", () => {
     getConfigBoolMock.mockResolvedValue(true);
     getConfigValueMock.mockResolvedValue("mp4");
     presignMock.mockResolvedValue("https://signed.example/master");
+    vi.mocked(getVideoPresignTtlSeconds).mockResolvedValue(3600);
   });
 
   it("returns 401 when unauthenticated", async () => {
@@ -142,6 +148,20 @@ describe("GET /api/media/[id]/playback", () => {
     expect(b.hls?.masterUrl).toBe("https://signed.example/master.m3u8");
     expect(b.posterUrl).toBe("https://signed.example/poster.jpg");
     expect(presignMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("presign uses TTL from getVideoPresignTtlSeconds", async () => {
+    vi.mocked(getVideoPresignTtlSeconds).mockResolvedValue(7200);
+    getConfigValueMock.mockResolvedValue("auto");
+    getRowMock.mockResolvedValue(videoRow());
+    presignMock
+      .mockResolvedValueOnce("https://signed.example/master.m3u8")
+      .mockResolvedValueOnce("https://signed.example/poster.jpg");
+    await GET(new Request(`http://localhost/api/media/${mid}/playback`), {
+      params: Promise.resolve({ id: mid }),
+    });
+    expect(presignMock).toHaveBeenCalledWith(expect.stringContaining("master"), 7200);
+    expect(presignMock).toHaveBeenCalledWith(expect.stringContaining("poster"), 7200);
   });
 
   it("presign poster fails but master ok → hls with null posterUrl", async () => {

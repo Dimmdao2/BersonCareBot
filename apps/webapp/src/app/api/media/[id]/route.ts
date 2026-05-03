@@ -3,7 +3,9 @@ import { env, isS3MediaEnabled } from "@/config/env";
 import { logger } from "@/app-layer/logging/logger";
 import { getStoredMediaBody } from "@/app-layer/media/mockMediaStorage";
 import { getMediaS3KeyForRedirect } from "@/app-layer/media/s3MediaStorage";
+import { serializePresignFailureForLog } from "@/app-layer/media/presignLogRedaction";
 import { presignGetUrl } from "@/app-layer/media/s3Client";
+import { getVideoPresignTtlSeconds } from "@/app-layer/media/videoPresignTtl";
 import { getCurrentSession } from "@/modules/auth/service";
 
 const UUID_RE =
@@ -11,13 +13,14 @@ const UUID_RE =
 
 async function redirectPresignedOr503(s3Key: string): Promise<Response> {
   try {
-    const signed = await presignGetUrl(s3Key);
+    const ttlSec = await getVideoPresignTtlSeconds();
+    const signed = await presignGetUrl(s3Key, ttlSec);
     /** 307 so clients (esp. Safari/WebKit video) re-issue GET+Range to the presigned URL; 302 often drops Range after redirect. */
     const res = NextResponse.redirect(signed, 307);
     res.headers.set("Cache-Control", "private, max-age=0, must-revalidate");
     return res;
   } catch (e) {
-    logger.error({ err: e }, "[media GET] presign failed");
+    logger.error({ err: serializePresignFailureForLog(e) }, "[media GET] presign failed");
     return NextResponse.json({ error: "storage_error" }, { status: 503 });
   }
 }

@@ -52,6 +52,10 @@ export const ALLOWED_KEYS = [
   "video_playback_api_enabled",
   /** VIDEO_HLS_DELIVERY: глобальная стратегия выдачи видео: `mp4` | `hls` | `auto` (строка в JSON value). */
   "video_default_delivery",
+  /** VIDEO_HLS_DELIVERY phase-09: срок жизни presigned GET для private S3 (секунды, 60…604800). */
+  "video_presign_ttl_seconds",
+  /** VIDEO_HLS_DELIVERY phase-10: burn-in watermark (media id, non-PII) в HLS/постер при транскоде; только с `video_hls_pipeline_enabled`. */
+  "video_watermark_enabled",
   /** Публичная ссылка записи на приём (Rubitime и т.п.), редактируется в админке. */
   "patient_booking_url",
   /** Иконки чек-ина настроения на главной: 5 записей score 1-5, label + imageUrl (/api/media/...). */

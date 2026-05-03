@@ -37,6 +37,7 @@
     "backfill-rubitime-history-to-patient-bookings": "tsx scripts/backfill-rubitime-history-to-patient-bookings.ts",
     "realign-webapp-integrator-user": "tsx scripts/realign-webapp-integrator-user-projection.ts",
     "integrator-push-outbox-tick": "tsx scripts/integrator-push-outbox-tick.ts",
+    "video-hls-backfill-legacy": "tsx scripts/video-hls-backfill-legacy.ts",
     "db:introspect": "drizzle-kit introspect && node scripts/fix-drizzle-introspect-defaults.mjs",
     "db:introspect:fix": "node scripts/fix-drizzle-introspect-defaults.mjs",
     "db:verify-public-table-count": "node scripts/verify-drizzle-public-table-count.mjs",

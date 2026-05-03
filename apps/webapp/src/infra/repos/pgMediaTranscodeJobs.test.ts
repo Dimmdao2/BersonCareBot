@@ -118,4 +118,44 @@ describe("enqueueMediaTranscodeJob", () => {
     expect(qClient).toHaveBeenCalledWith("BEGIN");
     expect(qClient).toHaveBeenCalledWith("COMMIT");
   });
+
+  it("on unique violation (23505), returns alreadyQueued when concurrent insert won the race", async () => {
+    queryMock
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: "00000000-0000-4000-8000-0000000000ee",
+            mime_type: "video/mp4",
+            s3_key: "media/x/v.mp4",
+            hls_master_playlist_s3_key: null,
+            video_processing_status: null,
+          },
+        ],
+      })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ id: "job-concurrent" }] });
+
+    const qClient = vi.fn().mockImplementation((sql: string) => {
+      if (sql === "BEGIN") return Promise.resolve({ rowCount: 0, rows: [] });
+      if (sql.includes("INSERT INTO media_transcode_jobs")) {
+        const err = Object.assign(new Error("duplicate key"), { code: "23505" });
+        return Promise.reject(err);
+      }
+      if (sql === "ROLLBACK") return Promise.resolve({ rowCount: 0, rows: [] });
+      return Promise.resolve({ rows: [], rowCount: 0 });
+    });
+    connectMock.mockResolvedValue({
+      query: qClient,
+      release: vi.fn(),
+    });
+
+    const out = await enqueueMediaTranscodeJob("00000000-0000-4000-8000-0000000000ee");
+    expect(out).toEqual({
+      ok: true,
+      kind: "queued",
+      jobId: "job-concurrent",
+      alreadyQueued: true,
+    });
+    expect(qClient).toHaveBeenCalledWith("ROLLBACK");
+  });
 });

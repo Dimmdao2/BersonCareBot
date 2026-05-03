@@ -16,6 +16,7 @@ import {
   normalizeValueJson,
 } from "@/modules/system-settings/adminSettingsPatchNormalize";
 import { isModesFormKey, MODES_FORM_KEYS } from "@/modules/system-settings/modesFormKeys";
+import { VIDEO_PRESIGN_TTL_MAX_SEC, VIDEO_PRESIGN_TTL_MIN_SEC } from "@/modules/media/videoPresignTtlConstants";
 
 const ADMIN_SCOPE_KEYS = [
   "sms_fallback_enabled",
@@ -40,6 +41,8 @@ const ADMIN_SCOPE_KEYS = [
   "video_hls_new_uploads_auto_transcode",
   "video_playback_api_enabled",
   "video_default_delivery",
+  "video_presign_ttl_seconds",
+  "video_watermark_enabled",
   "patient_booking_url",
   "patient_home_daily_practice_target",
   "patient_home_morning_ping_enabled",
@@ -205,6 +208,36 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ ok: false, error: "invalid_value" }, { status: 400 });
     }
     normalizedValue = checked.valueJson;
+  }
+
+  if (parsed.data.key === "video_watermark_enabled") {
+    const inner = normalizedValue.value;
+    const b =
+      typeof inner === "boolean"
+        ? inner
+        : inner === "true" || inner === 1
+          ? true
+          : inner === "false" || inner === 0
+            ? false
+            : null;
+    if (b === null) {
+      return NextResponse.json({ ok: false, error: "invalid_value" }, { status: 400 });
+    }
+    normalizedValue = { value: b };
+  }
+
+  if (parsed.data.key === "video_presign_ttl_seconds") {
+    const inner = normalizedValue.value;
+    const n =
+      typeof inner === "number" && Number.isInteger(inner)
+        ? inner
+        : typeof inner === "string" && /^\d+$/.test(inner.trim())
+          ? Number.parseInt(inner.trim(), 10)
+          : NaN;
+    if (!Number.isFinite(n) || n < VIDEO_PRESIGN_TTL_MIN_SEC || n > VIDEO_PRESIGN_TTL_MAX_SEC) {
+      return NextResponse.json({ ok: false, error: "invalid_value" }, { status: 400 });
+    }
+    normalizedValue = { value: n };
   }
 
   if (parsed.data.key === "patient_home_daily_practice_target") {

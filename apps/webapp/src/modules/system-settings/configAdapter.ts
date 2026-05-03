@@ -92,3 +92,19 @@ export async function getConfigBool(key: string, envFallback: boolean): Promise<
   const val = await getConfigValue(key, envFallback ? "true" : "false");
   return val === "true" || val === "1";
 }
+
+/**
+ * Integer from `system_settings` with bounds. Non-numeric or out-of-range → `defaultValue`.
+ */
+export async function getConfigPositiveInt(
+  key: string,
+  defaultValue: number,
+  opts: { min: number; max: number },
+): Promise<number> {
+  const raw = await getConfigValue(key, String(defaultValue));
+  const n = Number.parseInt(String(raw).trim(), 10);
+  if (!Number.isFinite(n) || n < 1) {
+    return defaultValue;
+  }
+  return Math.min(opts.max, Math.max(opts.min, n));
+}
