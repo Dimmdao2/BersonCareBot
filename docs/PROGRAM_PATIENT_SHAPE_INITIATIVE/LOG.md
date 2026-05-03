@@ -4,6 +4,65 @@
 
 ---
 
+## 2026-05-03 — Stage A4 — `program_action_log`, чек-лист пациента, ЛФК post-session, inbox «К проверке»
+
+**Контекст:** [`STAGE_A4_PLAN.md`](STAGE_A4_PLAN.md), [`MASTER_PLAN.md`](MASTER_PLAN.md) (O2/O3 зафиксированы в коде и `api.md`).
+
+**Сделано:**
+
+- **Схема:** таблица **`program_action_log`** (`payload` jsonb, `note`, `session_id`, CHECK `action_type` ∈ done/viewed/note); миграция **`0030_program_action_log.sql`**; Drizzle `db/schema/programActionLog.ts`, экспорт в `db/schema/index.ts`, путь в `drizzle.config.ts`.
+- **Порты/репозитории:** `ProgramActionLogPort` + PG `pgProgramActionLog.ts` + in-memory `inMemoryProgramActionLog.ts`; расширен `TreatmentProgramTestAttemptsPort` методом **`listPendingEvaluationResultsForPatient`** (PG + in-memory).
+- **Сервисы:** `patient-program-actions.ts` — чек-лист (UTC-сутки), toggle без дубля `done` за день, ЛФК **`patientSubmitLfkPostSession`** (O2: одна запись на комплекс с `payload.source: "lfk_session"` + difficulty; O3: текст в **`note`**); `progress-service` — после **`upsertResult`** маркер `program_action_log` (`payload.source: "test_submitted"`); **`listPendingTestEvaluationsForPatient`** на progress-сервисе.
+- **DI:** `buildAppDeps` — `programActionLogPort`, **`treatmentProgramPatientActions`**, `actionLog` в **`treatmentProgramProgressService`**.
+- **API (patient):** `GET .../checklist-today`, `POST .../items/[itemId]/progress/checklist`, `POST .../items/[itemId]/progress/lfk-session`.
+- **UI пациента:** `PatientTreatmentProgramDetailClient` — секция «Чек-лист на сегодня», checkbox по плану A4, форма «Как прошло занятие?» / «Заметка для врача» для `lfk_complex`.
+- **UI врача:** `ClientProfileCard` — секция «Тесты, ожидающие оценки», бейдж **«К проверке»**, ссылка **«Открыть тест»**; данные с RSC `clients/[userId]/page.tsx` и `clients/page.tsx` (master-detail).
+- **`api.md`**, чекбоксы **`STAGE_A4_PLAN.md`** §6.
+
+**Проверки (целевые A4):**
+
+```bash
+rg "program_action_log|session_id|action_type|decided_by|К проверке|Как прошло занятие" apps/webapp/src apps/webapp/db
+pnpm --dir apps/webapp exec vitest run src/modules/treatment-program/patient-program-actions.test.ts src/modules/treatment-program/progress-service.test.ts src/app/app/patient/treatment-programs/PatientTreatmentProgramDetailClient.test.tsx
+pnpm --dir apps/webapp exec eslint "src/modules/treatment-program/patient-program-actions.ts" "src/modules/treatment-program/patient-program-actions.test.ts" "src/modules/treatment-program/progress-service.ts" "src/modules/treatment-program/progress-service.test.ts" "src/modules/treatment-program/ports.ts" "src/infra/repos/pgProgramActionLog.ts" "src/infra/repos/inMemoryProgramActionLog.ts" "src/infra/repos/pgTreatmentProgramTestAttempts.ts" "src/infra/repos/inMemoryTreatmentProgramInstance.ts" "src/app-layer/di/buildAppDeps.ts" "src/app/api/patient/treatment-program-instances/[instanceId]/checklist-today/route.ts" "src/app/api/patient/treatment-program-instances/[instanceId]/items/[itemId]/progress/checklist/route.ts" "src/app/api/patient/treatment-program-instances/[instanceId]/items/[itemId]/progress/lfk-session/route.ts" "src/app/app/patient/treatment-programs/PatientTreatmentProgramDetailClient.tsx" "src/app/app/patient/treatment-programs/PatientTreatmentProgramDetailClient.test.tsx" "src/app/app/doctor/clients/ClientProfileCard.tsx" "src/app/app/doctor/clients/[userId]/page.tsx" "src/app/app/doctor/clients/page.tsx"
+pnpm --dir apps/webapp exec tsc --noEmit
+```
+
+**Результаты:** `rg` — ожидаемые вхождения; **vitest** (3 файла) — PASS; **eslint** (перечисленные файлы) — PASS; **`tsc --noEmit`** — PASS.
+
+**Scope / вне scope:**
+
+- In scope: treatment-program контур, patient/doctor UI и API в рамках плана A4; без Today-dashboard, без integrator, без courses.
+
+**Намеренно не делали:**
+
+- Полный **`pnpm run ci`** в этом прогоне не запускался.
+- Тип **`viewed`** в логе зарезервирован схемой; отдельные вызовы записи в A4 не добавлялись.
+
+**Первичный аудит:** [`AUDIT_STAGE_A4.md`](AUDIT_STAGE_A4.md) — см. ниже POST-AUDIT FIX.
+
+---
+
+## 2026-05-03 — Stage A4 — POST-AUDIT FIX (`AUDIT_STAGE_A4.md`)
+
+**Сделано:** обновлён [`AUDIT_STAGE_A4.md`](AUDIT_STAGE_A4.md) — **§1b Post-FIX** (Critical/Major **N/A**; **A4-LOG-TYPES-01** / **A4-UTC-01** → **Defer** с обоснованием; подтверждение контура run-screen/чек-листа в `patient/treatment-programs/` + patient `treatment-program-instances` API); §6 — колонка «Статус после FIX».
+
+**Critical / Major:** N/A.
+
+**Проверки (целевые A4, без full `ci`):**
+
+```bash
+rg "program_action_log|insertAction|listPendingEvaluationResultsForPatient|isProgramChecklistItem|patientSubmitLfkPostSession|test_submitted|lfk_session" apps/webapp/src apps/webapp/db
+pnpm --dir apps/webapp exec vitest run src/modules/treatment-program/patient-program-actions.test.ts src/modules/treatment-program/progress-service.test.ts src/app/app/patient/treatment-programs/PatientTreatmentProgramDetailClient.test.tsx
+pnpm --dir apps/webapp exec tsc --noEmit
+```
+
+**Результаты:** `rg` — ожидаемые вхождения; **vitest** (3 файла) — PASS; **`tsc --noEmit`** — PASS.
+
+**Намеренно не делали:** полный **`pnpm run ci`**.
+
+---
+
 ## 2026-05-03 — Stage A3 — POST-AUDIT FIX (`AUDIT_STAGE_A3.md`)
 
 **Сделано:**
