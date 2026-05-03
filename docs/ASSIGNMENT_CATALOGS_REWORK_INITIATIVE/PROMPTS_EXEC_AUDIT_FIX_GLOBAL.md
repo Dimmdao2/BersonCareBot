@@ -137,72 +137,218 @@ EXEC B3: редактор наборов тестов как LFK (dnd-kit как
 Целевые проверки; НЕ полный ci. LOG + коммит.
 ```
 
-## B3 — AUDIT / FIX
+## B3 — AUDIT
 
 ```text
-AUDIT B3 → AUDIT_STAGE_B3.md + MANDATORY FIX INSTRUCTIONS.
-FIX → закрыть critical/major; LOG; коммит. После закрытия B3 — рекомендуемый пуш-чекпоинт (с полным ci перед push, MASTER §9).
+Проведи аудит stage B3 инициативы ASSIGNMENT_CATALOGS_REWORK_INITIATIVE.
+
+Вход:
+- docs/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/STAGE_B3_PLAN.md
+- docs/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/PRE_IMPLEMENTATION_DECISIONS.md (Q5)
+- docs/APP_RESTRUCTURE_INITIATIVE/ASSIGNMENT_CATALOGS_REWORK_PLAN.md §3 B3
+- docs/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/MASTER_PLAN.md §9
+
+Проверь: dnd-kit редактор наборов тестов, comment на item, диалог библиотеки, полное удаление UUID-textarea (Q5), регресс списков B1, server actions/API при необходимости.
+
+Сохрани: docs/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/AUDIT_STAGE_B3.md
+Добавь MANDATORY FIX INSTRUCTIONS (critical/major/minor).
+```
+
+## B3 — FIX
+
+```text
+Выполни FIX по docs/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/AUDIT_STAGE_B3.md.
+
+1) Закрой critical и major.
+2) Minor — исправь или defer в AUDIT с обоснованием.
+3) Целевые проверки B3; НЕ полный ci.
+4) Обнови LOG.md; коммит (MASTER_PLAN §9).
+
+После закрытия B3 — рекомендуемый пуш-чекпоинт (полный ci перед push, MASTER_PLAN §9).
 ```
 
 ---
 
-## B4 — EXEC / AUDIT / FIX
+## B4 — EXEC
 
 ```text
-EXEC B4:
-1) рекомендации — поля по PRE_IMPLEMENTATION (domain остаётся, UI «Тип», регион, тексты);
-2) без merge старых domain с новыми в одной миграции;
-3) проверить пересечение фильтров type + region и сценарии archive/unarchive.
+Выполни stage B4 инициативы ASSIGNMENT_CATALOGS_REWORK_INITIATIVE.
 
-Затем AUDIT B4 → AUDIT_STAGE_B4.md + MANDATORY FIX INSTRUCTIONS.
-Затем FIX → LOG; коммит.
+Вход:
+- docs/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/STAGE_B4_PLAN.md
+- docs/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/PRE_IMPLEMENTATION_DECISIONS.md (Q3/Q4: колонка `domain`, UI «Тип»; без merge legacy в одной миграции)
+- docs/APP_RESTRUCTURE_INITIATIVE/ASSIGNMENT_CATALOGS_REWORK_PLAN.md §3 B4
+- docs/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/MASTER_PLAN.md §9
+
+Сделай:
+1) Рекомендации — поля по PRE_IMP (`domain` без переименования в БД, UI «Тип», регион тела, текстовые метрики).
+2) Миграция additive — без массового merge старых `domain` в той же миграции.
+3) Фильтры списка: пересечение type + region (AND); archive/unarchive без потери полей.
+4) Репозитории pg/in-memory, форма, список, API при необходимости; целевые eslint/vitest/tsc — НЕ полный pnpm run ci.
+5) Обнови LOG.md; коммит (MASTER_PLAN §9).
+```
+
+## B4 — AUDIT
+
+```text
+Проведи аудит stage B4 инициативы ASSIGNMENT_CATALOGS_REWORK_INITIATIVE.
+
+Проверь: схема/миграция, домен и фильтры AND, форма и список, REST API, паритет SSR списка с GET API (domain/region), баннеры невалидного query при необходимости, archive/unarchive.
+
+Сохрани: docs/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/AUDIT_STAGE_B4.md
+Добавь MANDATORY FIX INSTRUCTIONS (critical/major/minor).
+```
+
+## B4 — FIX
+
+```text
+Выполни FIX по docs/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/AUDIT_STAGE_B4.md.
+
+1) Закрой critical и major.
+2) Minor — исправь или defer в AUDIT с обоснованием.
+3) Целевые проверки B4; НЕ полный ci.
+4) Обнови LOG.md; коммит (MASTER_PLAN §9).
 ```
 
 ---
 
-## B5 — EXEC / AUDIT / FIX
+## B5 — EXEC
 
 ```text
-EXEC B5:
-1) сначала классифицируй «глаз»: UX-ожидание или state-bug;
-2) ЛФК UX pass (список/карточка/CTA) + фильтры B1;
-3) проверь синхронизацию статуса между list и editor сразу после action.
+Выполни stage B5 инициативы ASSIGNMENT_CATALOGS_REWORK_INITIATIVE.
 
-AUDIT B5:
-- явно укажи, что именно было проблемой (UX vs state);
-- проверь publish/archive/restore цепочку;
-- проверь list/editor status parity.
-Сохрани: AUDIT_STAGE_B5.md + MANDATORY FIX INSTRUCTIONS.
-FIX → LOG; коммит.
+Вход:
+- docs/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/STAGE_B5_PLAN.md
+- docs/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/PRE_IMPLEMENTATION_DECISIONS.md
+- docs/APP_RESTRUCTURE_INITIATIVE/ASSIGNMENT_CATALOGS_REWORK_PLAN.md §3 B5
+- docs/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/MASTER_PLAN.md §9
+
+Сделай:
+1) Классифицируй «глаз»: UX-ожидание или state-bug (зафиксируй в LOG кратко).
+2) ЛФК UX pass (список/карточка/CTA) + фильтры B1 где затрагивается список.
+3) Синхронизация статуса между list и editor сразу после action.
+
+Целевые проверки B5; НЕ полный pnpm run ci.
+Обнови LOG.md; коммит (MASTER_PLAN §9).
+```
+
+## B5 — AUDIT
+
+```text
+Проведи аудит stage B5 инициативы ASSIGNMENT_CATALOGS_REWORK_INITIATIVE.
+
+Проверь:
+- что именно было проблемой (UX vs state), с привязкой к файлам/сценариям;
+- цепочку publish/archive/restore где затронута ЛФК;
+- parity статуса list ↔ editor после действий.
+
+Сохрани: docs/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/AUDIT_STAGE_B5.md
+Добавь MANDATORY FIX INSTRUCTIONS (critical/major/minor).
+```
+
+## B5 — FIX
+
+```text
+Выполни FIX по docs/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/AUDIT_STAGE_B5.md.
+
+1) Закрой critical и major.
+2) Minor — исправь или defer в AUDIT с обоснованием.
+3) Целевые проверки B5; НЕ полный ci.
+4) Обнови LOG.md; коммит (MASTER_PLAN §9).
 ```
 
 ---
 
-## B6 — EXEC / AUDIT / FIX
+## B6 — EXEC
 
 ```text
-EXEC B6: сначала pre-check текущего кода конструктора после закрытия A и фиксация baseline в LOG; затем визуальный pass (превью, layout, CTA, модалка); НЕ удалять A1/A3 блоки; НЕ менять assign/snapshot.
+Выполни stage B6 инициативы ASSIGNMENT_CATALOGS_REWORK_INITIATIVE.
 
-AUDIT B6 → AUDIT_STAGE_B6.md + MANDATORY FIX INSTRUCTIONS.
-FIX → LOG; коммит. После закрытия B6 — рекомендуемый пуш-чекпоинт (полный ci перед push).
+Вход:
+- docs/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/STAGE_B6_PLAN.md
+- docs/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/PRE_IMPLEMENTATION_DECISIONS.md (pre-check после фазы A)
+- docs/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/MASTER_PLAN.md §9
+- docs/APP_RESTRUCTURE_INITIATIVE/ASSIGNMENT_CATALOGS_REWORK_PLAN.md §3 B6
+
+Сделай:
+1) Сначала pre-check текущего кода конструктора программы после закрытия A; зафиксируй baseline в LOG.
+2) Визуальный pass: превью, layout, CTA, модалки — без удаления A1/A3 блоков и без изменения assign/snapshot вне scope плана.
+
+Целевые проверки; НЕ полный ci.
+Обнови LOG.md; коммит (MASTER_PLAN §9).
+```
+
+## B6 — AUDIT
+
+```text
+Проведи аудит stage B6 инициативы ASSIGNMENT_CATALOGS_REWORK_INITIATIVE.
+
+Проверь: соответствие STAGE_B6 и зафиксированному baseline в LOG; регресс конструктора; границы scope (не трогать лишнее).
+
+Сохрани: docs/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/AUDIT_STAGE_B6.md
+Добавь MANDATORY FIX INSTRUCTIONS (critical/major/minor).
+```
+
+## B6 — FIX
+
+```text
+Выполни FIX по docs/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/AUDIT_STAGE_B6.md.
+
+1) Закрой critical и major.
+2) Minor — исправь или defer в AUDIT с обоснованием.
+3) Целевые проверки B6; НЕ полный ci.
+4) Обнови LOG.md; коммит (MASTER_PLAN §9).
+
+После закрытия B6 — рекомендуемый пуш-чекпоинт (полный ci перед push).
 ```
 
 ---
 
-## B7 — EXEC / AUDIT / FIX
+## B7 — EXEC
 
 ```text
-EXEC B7:
-1) сначала собери audit-матрицу контейнеров (template/local/copy/ui/read) и зафиксируй в LOG;
-2) universal comment по STAGE_B7 + PRE_IMPLEMENTATION (в т.ч. local_comment на lfk_complex_exercises);
-3) patient слой — без отдельного большого редизайна: обязательны корректные read/fallback данные и точечный рендер комментариев в уже существующих блоках; новые крупные patient-компоненты только при прямой необходимости для DoD.
+Выполни stage B7 инициативы ASSIGNMENT_CATALOGS_REWORK_INITIATIVE.
 
-AUDIT B7:
-- приложи матрицу покрытия контейнеров;
-- проверь copy/override/clear/fallback;
-- отдельно подтвердить, что `bodyMd` не смешан с comment.
-Сохрани: AUDIT_STAGE_B7.md + MANDATORY FIX INSTRUCTIONS.
-FIX → LOG; коммит. Финальный пуш ветки — только после полного pnpm run ci (pre-push-ci).
+Вход:
+- docs/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/STAGE_B7_PLAN.md
+- docs/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/PRE_IMPLEMENTATION_DECISIONS.md (в т.ч. local_comment на lfk_complex_exercises)
+- docs/APP_RESTRUCTURE_INITIATIVE/ASSIGNMENT_CATALOGS_REWORK_PLAN.md §3 B7
+- docs/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/MASTER_PLAN.md §9
+
+Сделай:
+1) Собери audit-матрицу контейнеров (template/local/copy/ui/read) и зафиксируй в LOG.
+2) Universal comment по STAGE_B7 + PRE_IMPLEMENTATION (включая `local_comment` на `lfk_complex_exercises` где применимо).
+3) Patient слой: без отдельного большого редизайна — корректные read/fallback и точечный рендер комментариев; новые крупные patient-компоненты только при прямой необходимости для DoD.
+
+Целевые проверки; НЕ полный ci.
+Обнови LOG.md; коммит (MASTER_PLAN §9).
+```
+
+## B7 — AUDIT
+
+```text
+Проведи аудит stage B7 инициативы ASSIGNMENT_CATALOGS_REWORK_INITIATIVE.
+
+Проверь:
+- матрицу покрытия контейнеров;
+- copy/override/clear/fallback;
+- что `bodyMd` не смешан с comment.
+
+Сохрани: docs/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/AUDIT_STAGE_B7.md
+Добавь MANDATORY FIX INSTRUCTIONS (critical/major/minor).
+```
+
+## B7 — FIX
+
+```text
+Выполни FIX по docs/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/AUDIT_STAGE_B7.md.
+
+1) Закрой critical и major.
+2) Minor — исправь или defer в AUDIT с обоснованием.
+3) Целевые проверки B7; НЕ полный ci.
+4) Обнови LOG.md; коммит (MASTER_PLAN §9).
+
+Финальный пуш ветки — только после полного pnpm run ci (pre-push-ci).
 ```
 
 ---
