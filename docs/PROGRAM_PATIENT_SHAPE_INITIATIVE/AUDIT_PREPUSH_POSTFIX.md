@@ -62,7 +62,7 @@ pnpm run ci
 ## 5. Вердикт
 
 - **Pre-push готовность:** **PASS** — полный CI зелёный на коммите перед push; критичных/major зазоров по инициативе **PROGRAM_PATIENT_SHAPE** не зафиксировано.
-- **Push:** после зелёного CI — commit полного дерева и `git push` текущей ветки (см. проектные правила pre-push).
+- **Commit / push:** после CI выполнены `git add -A`, commit и успешный `git push` ветки `feature/app-restructure-initiative` в `origin`.
 
 ---
 
