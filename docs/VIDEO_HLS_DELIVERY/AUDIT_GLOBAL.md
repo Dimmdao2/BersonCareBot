@@ -4,6 +4,8 @@
 **Дата global fix (репозиторий):** 2026-05-03  
 **Дата независимого финального аудита (code review):** 2026-05-03  
 **Дата закрытия IA-1 / IA-2 (репозиторий):** 2026-05-03  
+**Дата EXTRA audit closure (batch 2 — метрики playback / retention):** 2026-05-03  
+**Дата post-fix closure (batch 3 — preview cache TTL / тесты):** 2026-05-03  
 **Область:** завершённые фазы **phase-01 … phase-10** после циклов **EXEC → AUDIT → FIX** по [07-post-documentation-implementation-roadmap.md](./07-post-documentation-implementation-roadmap.md).  
 **Источники:** `AUDIT_PHASE_01.md` … `AUDIT_PHASE_10.md`, [06-execution-log.md](./06-execution-log.md), [00-master-plan.md](./00-master-plan.md), [03-rollout-strategy.md](./03-rollout-strategy.md), [GATE_READINESS_PHASE_08.md](./GATE_READINESS_PHASE_08.md), `apps/webapp/src/app/api/api.md`, кодовые модули playback / media-worker.
 
@@ -21,9 +23,10 @@
 | Runtime-политики: env vs DB | **PASS** |
 | Синхронизация документации | **PASS** (после global fix) |
 | Независимый финальный code review (infra/operability) | **PASS** — IA-1 / IA-2 закрыты в репозитории (2026-05-03): см. §8 |
+| EXTRA audit + post-fix (метрики playback, dedup, Drizzle, retention, preview cache TTL, тесты) | **CLOSED (repo, batch 3)** — см. §8 чеклист и [AUDIT_EXTRA_PLAYBACK_METRICS_CLOSURE.md](./AUDIT_EXTRA_PLAYBACK_METRICS_CLOSURE.md) |
 | MANDATORY FIX INSTRUCTIONS с severity | **Сводка ниже** |
 
-**Вывод:** инициатива по коду playback/HLS и production-пути для **`apps/media-worker`** в состоянии **PASS** по репозиторию: **FIND-P08-1** закрыт; независимые **IA-1** (systemd + deploy) и **IA-2** (валидация `video_default_delivery`) закрыты кодом и документацией от **2026-05-03**. Подпись на конкретном хосте (обновлённый sudoers под новый unit, первый deploy с новым unit) — **ops**.
+**Вывод:** инициатива по коду playback/HLS и production-пути для **`apps/media-worker`** в состоянии **PASS** по репозиторию: **FIND-P08-1** закрыт; независимые **IA-1** (systemd + deploy) и **IA-2** (валидация `video_default_delivery`) закрыты кодом и документацией от **2026-05-03**; цикл **EXTRA / post-fix** (batch 2–3) по метрикам playback и смежным докам — **CLOSED в repo**. Подпись на конкретном хосте (sudoers/media-worker unit, **cron** retention playback-stats по **HOST_DEPLOY**) — **ops**.
 
 ---
 
@@ -116,10 +119,13 @@
 
 | Документ | Статус |
 |----------|--------|
-| `apps/webapp/src/app/api/api.md` | Актуален |
-| [06-execution-log.md](./06-execution-log.md) | Ведётся |
-| [07-post-documentation-implementation-roadmap.md](./07-post-documentation-implementation-roadmap.md) | Актуализирован (§ инфраструктура после global fix) |
-| [03-rollout-strategy.md](./03-rollout-strategy.md) | §4 — канон имён в `types.ts` |
+| `apps/webapp/src/app/api/api.md` | **Актуален** — playback metrics, preview TTL, internal retention |
+| [06-execution-log.md](./06-execution-log.md) | **Ведётся** — записи closure / EXTRA / post-fix (2026-05-03) |
+| [07-post-documentation-implementation-roadmap.md](./07-post-documentation-implementation-roadmap.md) | **Актуализирован** (§ инфраструктура после global fix) |
+| [03-rollout-strategy.md](./03-rollout-strategy.md) | **Актуален** — §4 канон имён в `types.ts` |
+| [AUDIT_EXTRA_PLAYBACK_METRICS_CLOSURE.md](./AUDIT_EXTRA_PLAYBACK_METRICS_CLOSURE.md) | **CLOSED (repo, batch 3)** — см. §8 post-closure |
+| [deploy/HOST_DEPLOY_README.md](../../deploy/HOST_DEPLOY_README.md) | **Актуален** — retention cron, `INTERNAL_JOB_SECRET` для playback-stats |
+| [S3_PRIVATE_MEDIA_EXECUTION_LOG.md](../REPORTS/S3_PRIVATE_MEDIA_EXECUTION_LOG.md) | **Актуален** — § Private bucket policy |
 
 **Вердикт §7:** **PASS.**
 
@@ -151,6 +157,10 @@
 | Нет встроенного UI-dashboard по `playback_resolved` | **CLOSED (repo)** — блок **«Воспроизведение видео»** в **Здоровье системы** (`GET /api/admin/system-health` → `videoPlayback`), агрегаты в **`media_playback_stats_hourly`** |
 | Preview / intake presign TTL vs playback TTL | **CLOSED (repo)** — `getVideoPresignTtlSeconds()` для preview redirect и intake file attachments |
 | Bucket policy private на хосте | **CLOSED (док)** — чеклист и проверка без анонимного чтения: [S3_PRIVATE_MEDIA_EXECUTION_LOG.md](../REPORTS/S3_PRIVATE_MEDIA_EXECUTION_LOG.md) § Private bucket policy |
+| Уникальные пары пользователь+видео (дашборд) | **CLOSED (repo)** — `media_playback_user_video_first_resolve`, KPI **uniquePlaybackPairsFirstSeenInWindow** в system-health |
+| Ретенция `media_playback_stats_hourly` | **CLOSED (repo)** — `POST /api/internal/media-playback-stats/retention`, Drizzle purge; **ops:** cron по примеру в [HOST_DEPLOY_README.md](../../deploy/HOST_DEPLOY_README.md) |
+| Preview fallback redirect: cache-control vs TTL presign | **CLOSED (repo, batch 3)** — redirect не кэшируется дольше `video_presign_ttl_seconds` |
+| Корневые скрипты `ci:resume:after-*` (ускорение после падения CI) | **CLOSED (repo)** — `package.json`, `.cursor/rules/pre-push-ci.mdc`, `README.md` |
 | CI-бенчмарк watermark wall-time | **TODO (docs)** — [PHASE_10_WATERMARK_POLICY.md](./PHASE_10_WATERMARK_POLICY.md) § TODO benchmark backlog; ops опционально |
 | Один `SELECT` watermark на job | **ACCEPT** — см. [AUDIT_PHASE_10.md](./AUDIT_PHASE_10.md) |
 | Playwright E2E patient playback | **NOT PLANNED** — решение проекта; при необходимости ручной/API smoke ([AUDIT_PHASE_05](./AUDIT_PHASE_05.md)) |
@@ -161,6 +171,17 @@
 ### Post-closure audit (batch playback metrics / TTL / docs)
 
 Сверка реализации закрытия пунктов §8 (дашборд playback, TTL, bucket-док и т.д.) с чек-листами плана и backlog улучшений: **[AUDIT_EXTRA_PLAYBACK_METRICS_CLOSURE.md](./AUDIT_EXTRA_PLAYBACK_METRICS_CLOSURE.md)** (revision **2026-05-03** — тесты probe/upsert, UI подписи, HOST_DEPLOY → S3; **batch 2** — Drizzle‑агрегаты, счётчик **uniquePlaybackPairsFirstSeenInWindow**, UX без ложных нулей при выключенном playback API, internal retention почасового агрегата; **batch 3** — post-fix: alignment cache-control preview redirect с TTL подписи + недостающее тестовое покрытие retention/aggregator route/service). Вердикт §1–§7 и статусы CLOSED в таблице §8 **не отменяются**; документ описывает дополнительные тесты, уточнение смысла метрик и оставшиеся ops‑шаги (cron retention).
+
+**Чеклист EXTRA / post-fix (репозиторий — выполнено):**
+
+- [x] Почасовые агрегаты `media_playback_stats_hourly` + запись из `resolveMediaPlaybackPayload`
+- [x] Дедуп уникальных пар пользователь+видео `media_playback_user_video_first_resolve` + KPI в system-health
+- [x] Агрегация метрик playback в admin health через **Drizzle** (`loadAdminPlaybackHealthMetrics`)
+- [x] При выключенном `video_playback_api_enabled` — без запросов к `media_playback_*` в probe; UI без «живых» нулей (**playback_disabled**)
+- [x] Internal retention `POST /api/internal/media-playback-stats/retention` + документированный cron в **HOST_DEPLOY**
+- [x] TTL preview redirect / intake — `getVideoPresignTtlSeconds`; **fix** cache-control redirect preview не дольше TTL подписи (batch 3)
+- [x] Тесты: upsert hourly stats, probe videoPlayback, dedup insert, adminPlaybackHealthMetrics, playbackHourlyRetention, retention route
+- [ ] **Ops (не в коде):** включить cron retention на production-хосте по примеру из **HOST_DEPLOY**
 
 ---
 
@@ -179,12 +200,14 @@ IA-1 и IA-2 закрыты (см. §8 и [06-execution-log.md](./06-execution-l
 
 ## Definition of Done (инициатива 01–10 в репозитории)
 
-1. Фазы **01–10** отражены в [06-execution-log.md](./06-execution-log.md) и **AUDIT_PHASE_XX.md**.
-2. MP4 и fallback консистентны по тестам playback.
-3. FFmpeg HLS в **`apps/media-worker`**; API routes без транскода.
-4. Контракт playback и **`expiresInSeconds`** из **`system_settings`**.
-5. Phase-08 **FIND-P08-1** закрыт в репозитории (§ Repo acceptance); ops sign-off на среде — отдельно.
-6. Закрыты открытые findings независимого аудита: **IA-1 (Major)**, **IA-2 (Minor)**; дополнительные пункты §8 (dashboard playback, TTL, bucket-док) закрыты по [06-execution-log.md](./06-execution-log.md).
+- [x] Фазы **01–10** отражены в [06-execution-log.md](./06-execution-log.md) и **AUDIT_PHASE_XX.md**.
+- [x] MP4 и fallback консистентны по тестам playback.
+- [x] FFmpeg HLS в **`apps/media-worker`**; API routes без транскода.
+- [x] Контракт playback и **`expiresInSeconds`** из **`system_settings`**.
+- [x] Phase-08 **FIND-P08-1** закрыт в репозитории (§ Repo acceptance); ops sign-off на среде — отдельно.
+- [x] Закрыты открытые findings независимого аудита: **IA-1 (Major)**, **IA-2 (Minor)**.
+- [x] Дополнительные пункты §8 INFO/DEFER (dashboard playback, TTL preview/intake, bucket policy checklist) — закрыты по [06-execution-log.md](./06-execution-log.md) и **[AUDIT_EXTRA_PLAYBACK_METRICS_CLOSURE.md](./AUDIT_EXTRA_PLAYBACK_METRICS_CLOSURE.md)** (batch 2–3).
+- [ ] Ops-only: при необходимости — cron `media-playback-stats/retention` на хосте, sudoers/media-worker unit по **HOST_DEPLOY** (не блокер вердикта repo).
 
 ---
 
