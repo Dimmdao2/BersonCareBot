@@ -1,11 +1,16 @@
 import { describe, expect, it, beforeEach } from "vitest";
 import { createRecommendationsService } from "./service";
-import { RecommendationUnarchiveNotArchivedError, RecommendationUsageConfirmationRequiredError } from "./errors";
+import {
+  RecommendationInvalidDomainError,
+  RecommendationUnarchiveNotArchivedError,
+  RecommendationUsageConfirmationRequiredError,
+} from "./errors";
 import {
   inMemoryRecommendationsPort,
   resetInMemoryRecommendationsStore,
   seedInMemoryRecommendationUsageSnapshot,
 } from "@/app-layer/testing/clinicalLibraryInMemory";
+import { inMemoryReferencesPort } from "@/infra/repos/inMemoryReferences";
 import { EMPTY_RECOMMENDATION_USAGE_SNAPSHOT } from "./types";
 
 describe("recommendations service", () => {
@@ -14,7 +19,7 @@ describe("recommendations service", () => {
   });
 
   it("createRecommendation rejects empty title", async () => {
-    const svc = createRecommendationsService(inMemoryRecommendationsPort);
+    const svc = createRecommendationsService(inMemoryRecommendationsPort, inMemoryReferencesPort);
     await expect(svc.createRecommendation({ title: "  ", bodyMd: "x" }, null)).rejects.toThrow(/обязательно/);
   });
 
@@ -23,7 +28,7 @@ describe("recommendations service", () => {
     const hid = await inMemoryRecommendationsPort.create({ title: "Hidden", bodyMd: "b" }, null);
     await inMemoryRecommendationsPort.archive(hid.id);
 
-    const svc = createRecommendationsService(inMemoryRecommendationsPort);
+    const svc = createRecommendationsService(inMemoryRecommendationsPort, inMemoryReferencesPort);
     const listed = await svc.listRecommendations({});
     expect(listed.some((r) => r.id === hid.id)).toBe(false);
   });
@@ -32,14 +37,14 @@ describe("recommendations service", () => {
     await inMemoryRecommendationsPort.create({ title: "N", bodyMd: "x", domain: "nutrition" }, null);
     await inMemoryRecommendationsPort.create({ title: "M", bodyMd: "y", domain: "motivation" }, null);
 
-    const svc = createRecommendationsService(inMemoryRecommendationsPort);
+    const svc = createRecommendationsService(inMemoryRecommendationsPort, inMemoryReferencesPort);
     const onlyNutrition = await svc.listRecommendations({ domain: "nutrition" });
     expect(onlyNutrition).toHaveLength(1);
     expect(onlyNutrition[0]?.title).toBe("N");
   });
 
   it("getRecommendationUsage returns seeded snapshot", async () => {
-    const svc = createRecommendationsService(inMemoryRecommendationsPort);
+    const svc = createRecommendationsService(inMemoryRecommendationsPort, inMemoryReferencesPort);
     const rec = await svc.createRecommendation({ title: "R", bodyMd: "x" }, null);
     seedInMemoryRecommendationUsageSnapshot(rec.id, {
       ...EMPTY_RECOMMENDATION_USAGE_SNAPSHOT,
@@ -50,7 +55,7 @@ describe("recommendations service", () => {
   });
 
   it("archiveRecommendation blocks without acknowledgement when published templates reference item", async () => {
-    const svc = createRecommendationsService(inMemoryRecommendationsPort);
+    const svc = createRecommendationsService(inMemoryRecommendationsPort, inMemoryReferencesPort);
     const rec = await svc.createRecommendation({ title: "Guarded", bodyMd: "x" }, null);
     seedInMemoryRecommendationUsageSnapshot(rec.id, {
       ...EMPTY_RECOMMENDATION_USAGE_SNAPSHOT,
@@ -65,7 +70,7 @@ describe("recommendations service", () => {
   });
 
   it("archiveRecommendation proceeds without acknowledgement when only draft templates reference item", async () => {
-    const svc = createRecommendationsService(inMemoryRecommendationsPort);
+    const svc = createRecommendationsService(inMemoryRecommendationsPort, inMemoryReferencesPort);
     const rec = await svc.createRecommendation({ title: "DraftOnly", bodyMd: "x" }, null);
     seedInMemoryRecommendationUsageSnapshot(rec.id, {
       ...EMPTY_RECOMMENDATION_USAGE_SNAPSHOT,
@@ -77,7 +82,7 @@ describe("recommendations service", () => {
   });
 
   it("archiveRecommendation blocks without acknowledgement when active instances reference item", async () => {
-    const svc = createRecommendationsService(inMemoryRecommendationsPort);
+    const svc = createRecommendationsService(inMemoryRecommendationsPort, inMemoryReferencesPort);
     const rec = await svc.createRecommendation({ title: "ActiveInst", bodyMd: "x" }, null);
     seedInMemoryRecommendationUsageSnapshot(rec.id, {
       ...EMPTY_RECOMMENDATION_USAGE_SNAPSHOT,
@@ -99,7 +104,7 @@ describe("recommendations service", () => {
   });
 
   it("archiveRecommendation proceeds without acknowledgement when only completed instances reference item", async () => {
-    const svc = createRecommendationsService(inMemoryRecommendationsPort);
+    const svc = createRecommendationsService(inMemoryRecommendationsPort, inMemoryReferencesPort);
     const rec = await svc.createRecommendation({ title: "CompletedOnly", bodyMd: "x" }, null);
     seedInMemoryRecommendationUsageSnapshot(rec.id, {
       ...EMPTY_RECOMMENDATION_USAGE_SNAPSHOT,
@@ -118,7 +123,7 @@ describe("recommendations service", () => {
   });
 
   it("unarchiveRecommendation clears isArchived", async () => {
-    const svc = createRecommendationsService(inMemoryRecommendationsPort);
+    const svc = createRecommendationsService(inMemoryRecommendationsPort, inMemoryReferencesPort);
     const rec = await svc.createRecommendation({ title: "Back", bodyMd: "x" }, null);
     await svc.archiveRecommendation(rec.id);
     await svc.unarchiveRecommendation(rec.id);
@@ -126,13 +131,13 @@ describe("recommendations service", () => {
   });
 
   it("unarchiveRecommendation throws when not archived", async () => {
-    const svc = createRecommendationsService(inMemoryRecommendationsPort);
+    const svc = createRecommendationsService(inMemoryRecommendationsPort, inMemoryReferencesPort);
     const rec = await svc.createRecommendation({ title: "Live", bodyMd: "x" }, null);
     await expect(svc.unarchiveRecommendation(rec.id)).rejects.toBeInstanceOf(RecommendationUnarchiveNotArchivedError);
   });
 
   it("updateRecommendation throws when archived", async () => {
-    const svc = createRecommendationsService(inMemoryRecommendationsPort);
+    const svc = createRecommendationsService(inMemoryRecommendationsPort, inMemoryReferencesPort);
     const rec = await svc.createRecommendation({ title: "NoEdit", bodyMd: "x" }, null);
     await svc.archiveRecommendation(rec.id);
     await expect(svc.updateRecommendation(rec.id, { title: "Nope" })).rejects.toThrow(/архиве/);
@@ -152,14 +157,14 @@ describe("recommendations service", () => {
       { title: "WrongType", bodyMd: "z", domain: "motivation", bodyRegionId: regionId },
       null,
     );
-    const svc = createRecommendationsService(inMemoryRecommendationsPort);
+    const svc = createRecommendationsService(inMemoryRecommendationsPort, inMemoryReferencesPort);
     const out = await svc.listRecommendations({ domain: "nutrition", regionRefId: regionId });
     expect(out).toHaveLength(1);
     expect(out[0]?.title).toBe("Match");
   });
 
   it("archive and unarchive retain B4 fields (region + metric texts)", async () => {
-    const svc = createRecommendationsService(inMemoryRecommendationsPort);
+    const svc = createRecommendationsService(inMemoryRecommendationsPort, inMemoryReferencesPort);
     const regionId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
     const rec = await svc.createRecommendation(
       {
@@ -183,5 +188,31 @@ describe("recommendations service", () => {
     cur = await svc.getRecommendation(rec.id);
     expect(cur?.isArchived).toBe(false);
     expect(cur?.bodyRegionId).toBe(regionId);
+  });
+
+  it("createRecommendation rejects unknown domain", async () => {
+    const svc = createRecommendationsService(inMemoryRecommendationsPort, inMemoryReferencesPort);
+    await expect(
+      svc.createRecommendation({ title: "X", bodyMd: "y", domain: "not_in_catalog" }, null),
+    ).rejects.toBeInstanceOf(RecommendationInvalidDomainError);
+  });
+
+  it("updateRecommendation allows unchanged legacy domain without catalogue match", async () => {
+    const legacy = await inMemoryRecommendationsPort.create(
+      { title: "L", bodyMd: "x", domain: "legacy_unknown_code" },
+      null,
+    );
+    const svc = createRecommendationsService(inMemoryRecommendationsPort, inMemoryReferencesPort);
+    const row = await svc.updateRecommendation(legacy.id, { title: "Renamed" });
+    expect(row.title).toBe("Renamed");
+    expect(row.domain).toBe("legacy_unknown_code");
+  });
+
+  it("updateRecommendation rejects new unknown domain", async () => {
+    const rec = await inMemoryRecommendationsPort.create({ title: "L", bodyMd: "x", domain: "nutrition" }, null);
+    const svc = createRecommendationsService(inMemoryRecommendationsPort, inMemoryReferencesPort);
+    await expect(svc.updateRecommendation(rec.id, { domain: "bad_new" })).rejects.toBeInstanceOf(
+      RecommendationInvalidDomainError,
+    );
   });
 });

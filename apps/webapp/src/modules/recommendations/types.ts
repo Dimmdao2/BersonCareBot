@@ -12,7 +12,7 @@ export type Recommendation = {
   bodyMd: string;
   media: RecommendationMediaItem[];
   tags: string[] | null;
-  /** Тип (колонка БД `domain`). */
+  /** Тип (колонка БД `domain`); может быть legacy-строкой вне справочника на чтении. */
   domain: RecommendationDomain | null;
   /** Регион тела (`reference_items`, категория `body_region`). */
   bodyRegionId: string | null;

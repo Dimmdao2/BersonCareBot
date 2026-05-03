@@ -2,6 +2,10 @@ import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import type { RecommendationUsageSnapshot } from "@/modules/recommendations/types";
 import { parseRecommendationCatalogSsrQuery } from "@/modules/recommendations/recommendationCatalogSsrQuery";
+import {
+  RECOMMENDATION_TYPE_CATEGORY_CODE,
+  referenceItemsToRecommendationDomainFilterDto,
+} from "@/modules/recommendations/recommendationDomain";
 import { AppShell } from "@/shared/ui/AppShell";
 import { doctorCatalogViewFromSearchParams } from "@/shared/lib/doctorCatalogViewPreference";
 import {
@@ -27,10 +31,17 @@ export default async function DoctorRecommendationsPage({ searchParams }: PagePr
   const deps = buildAppDeps();
   const sp = (await searchParams) ?? {};
   const q = typeof sp.q === "string" ? sp.q : "";
-  const catalogQuery = parseRecommendationCatalogSsrQuery({
-    region: typeof sp.region === "string" ? sp.region : undefined,
-    domain: typeof sp.domain === "string" ? sp.domain : undefined,
-  });
+  const recommendationTypeRefItems = await deps.references.listActiveItemsByCategoryCode(
+    RECOMMENDATION_TYPE_CATEGORY_CODE,
+  );
+  const domainFilterItems = referenceItemsToRecommendationDomainFilterDto(recommendationTypeRefItems);
+  const catalogQuery = parseRecommendationCatalogSsrQuery(
+    {
+      region: typeof sp.region === "string" ? sp.region : undefined,
+      domain: typeof sp.domain === "string" ? sp.domain : undefined,
+    },
+    recommendationTypeRefItems,
+  );
   const titleSort: RecommendationTitleSort | null =
     sp.titleSort === "asc" || sp.titleSort === "desc" ? sp.titleSort : null;
   const listStatus = parseRecommendationListFilterScope(sp, "active");
@@ -63,6 +74,8 @@ export default async function DoctorRecommendationsPage({ searchParams }: PagePr
         initialViewMode={initialViewMode}
         viewLockedByUrl={viewLockedByUrl}
         initialTitleSort={titleSort}
+        domainFilterItems={domainFilterItems}
+        domainCatalogItems={recommendationTypeRefItems}
         filters={{
           q,
           regionRefId: catalogQuery.regionRefIdForList ?? undefined,

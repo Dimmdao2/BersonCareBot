@@ -3,7 +3,6 @@ import { getDrizzle } from "@/app-layer/db/drizzle";
 import { getPool } from "@/infra/db/client";
 import { recommendations as recommendationsTable } from "../../../db/schema/recommendations";
 import type { RecommendationsPort } from "@/modules/recommendations/ports";
-import { parseRecommendationDomain } from "@/modules/recommendations/recommendationDomain";
 import type {
   Recommendation,
   RecommendationFilter,
@@ -39,7 +38,7 @@ function normalizeMedia(raw: unknown): RecommendationMediaItem[] {
 
 function mapRow(row: typeof recommendationsTable.$inferSelect): Recommendation {
   const domainRaw = row.domain?.trim() ?? "";
-  const domain = parseRecommendationDomain(domainRaw) ?? null;
+  const domain = domainRaw ? domainRaw : null;
   return {
     id: row.id,
     title: row.title,

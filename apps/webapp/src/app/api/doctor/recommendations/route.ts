@@ -3,7 +3,11 @@ import { z } from "zod";
 import { getCurrentSession } from "@/modules/auth/service";
 import { canAccessDoctor } from "@/modules/roles/service";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { parseRecommendationDomain } from "@/modules/recommendations/recommendationDomain";
+import {
+  RECOMMENDATION_TYPE_CATEGORY_CODE,
+  parseRecommendationDomain,
+} from "@/modules/recommendations/recommendationDomain";
+import { isRecommendationInvalidDomainError } from "@/modules/recommendations/errors";
 
 const mediaItemSchema = z.object({
   mediaUrl: z.string().min(1),
@@ -43,13 +47,15 @@ export async function GET(request: Request) {
     return NextResponse.json({ ok: false, error: "invalid_query" }, { status: 400 });
   }
 
-  const rawDomain = parsed.data.domain?.trim();
-  const domain = rawDomain ? parseRecommendationDomain(rawDomain) : null;
-  if (rawDomain && !domain) {
+  const deps = buildAppDeps();
+  const domainRefItems = await deps.references.listActiveItemsByCategoryCode(RECOMMENDATION_TYPE_CATEGORY_CODE);
+  const rawDomain = parsed.data.domain?.trim() ?? "";
+  const domainParsed = rawDomain ? parseRecommendationDomain(rawDomain, domainRefItems) : undefined;
+  if (rawDomain && domainParsed === undefined) {
     return NextResponse.json({ ok: false, error: "invalid_query", field: "domain" }, { status: 400 });
   }
+  const domain = domainParsed ?? null;
 
-  const deps = buildAppDeps();
   const items = await deps.recommendations.listRecommendations({
     search: parsed.data.q?.trim() || null,
     includeArchived: parsed.data.includeArchived ?? false,
@@ -76,10 +82,7 @@ export async function POST(request: Request) {
   const domain =
     rawDomain === undefined || rawDomain === null || rawDomain === ""
       ? null
-      : parseRecommendationDomain(typeof rawDomain === "string" ? rawDomain.trim() : "");
-  if (rawDomain != null && String(rawDomain).trim() && domain === null) {
-    return NextResponse.json({ ok: false, error: "invalid_body", field: "domain" }, { status: 400 });
-  }
+      : String(rawDomain).trim();
 
   const deps = buildAppDeps();
   try {
@@ -102,6 +105,9 @@ export async function POST(request: Request) {
     );
     return NextResponse.json({ ok: true, item: row });
   } catch (e) {
+    if (isRecommendationInvalidDomainError(e)) {
+      return NextResponse.json({ ok: false, error: e.message, field: "domain" }, { status: 400 });
+    }
     const msg = e instanceof Error ? e.message : "error";
     return NextResponse.json({ ok: false, error: msg }, { status: 400 });
   }

@@ -1,10 +1,16 @@
+import type { ReferencesPort } from "@/modules/references/ports";
 import type { RecommendationsPort } from "./ports";
 import {
   RecommendationArchiveAlreadyArchivedError,
   RecommendationArchiveNotFoundError,
+  RecommendationInvalidDomainError,
   RecommendationUnarchiveNotArchivedError,
   RecommendationUsageConfirmationRequiredError,
 } from "./errors";
+import {
+  RECOMMENDATION_TYPE_CATEGORY_CODE,
+  recommendationDomainWriteAllowSet,
+} from "./recommendationDomain";
 import type {
   ArchiveRecommendationOptions,
   CreateRecommendationInput,
@@ -19,7 +25,29 @@ function normalizeOptionalCatalogText(raw: string | null | undefined): string | 
   return t ? t : null;
 }
 
-export function createRecommendationsService(port: RecommendationsPort) {
+type RecommendationDomainWriteContext =
+  | { kind: "create" }
+  | { kind: "update"; existingDomain: string | null };
+
+async function assertRecommendationDomainWritePayload(
+  references: ReferencesPort,
+  input: CreateRecommendationInput | UpdateRecommendationInput,
+  ctx: RecommendationDomainWriteContext,
+): Promise<void> {
+  if (input.domain === undefined) return;
+  const normalized = input.domain === null ? null : input.domain.trim() || null;
+  const t = normalized === null ? "" : normalized;
+  if (!t) return;
+  const unchangedFromRow = ctx.kind === "update" && (ctx.existingDomain ?? "").trim() === t;
+  if (unchangedFromRow) return;
+  const refItems = await references.listActiveItemsByCategoryCode(RECOMMENDATION_TYPE_CATEGORY_CODE);
+  const allow = recommendationDomainWriteAllowSet(refItems);
+  if (!allow.has(t)) {
+    throw new RecommendationInvalidDomainError();
+  }
+}
+
+export function createRecommendationsService(port: RecommendationsPort, references: ReferencesPort) {
   return {
     async listRecommendations(filter: RecommendationFilter = {}) {
       return port.list(filter);
@@ -33,16 +61,24 @@ export function createRecommendationsService(port: RecommendationsPort) {
       const title = input.title?.trim() ?? "";
       if (!title) throw new Error("Название рекомендации обязательно");
       const bodyMd = input.bodyMd?.trim() ?? "";
+      const domainForCreate =
+        input.domain === undefined ? undefined : input.domain === null ? null : input.domain.trim() || null;
+      await assertRecommendationDomainWritePayload(
+        references,
+        { ...input, domain: domainForCreate },
+        { kind: "create" },
+      );
+      const basePayload = {
+        ...input,
+        title,
+        bodyMd,
+        bodyRegionId: input.bodyRegionId?.trim() || null,
+        quantityText: normalizeOptionalCatalogText(input.quantityText),
+        frequencyText: normalizeOptionalCatalogText(input.frequencyText),
+        durationText: normalizeOptionalCatalogText(input.durationText),
+      };
       return port.create(
-        {
-          ...input,
-          title,
-          bodyMd,
-          bodyRegionId: input.bodyRegionId?.trim() || null,
-          quantityText: normalizeOptionalCatalogText(input.quantityText),
-          frequencyText: normalizeOptionalCatalogText(input.frequencyText),
-          durationText: normalizeOptionalCatalogText(input.durationText),
-        },
+        input.domain === undefined ? basePayload : { ...basePayload, domain: domainForCreate },
         createdBy,
       );
     },
@@ -74,6 +110,13 @@ export function createRecommendationsService(port: RecommendationsPort) {
       if (input.durationText !== undefined) {
         patch.durationText = normalizeOptionalCatalogText(input.durationText);
       }
+      if (input.domain !== undefined) {
+        patch.domain = input.domain === null ? null : input.domain.trim() || null;
+      }
+      await assertRecommendationDomainWritePayload(references, patch, {
+        kind: "update",
+        existingDomain: existing.domain,
+      });
       const row = await port.update(id, patch);
       if (!row) throw new Error("Рекомендация не найдена");
       return row;

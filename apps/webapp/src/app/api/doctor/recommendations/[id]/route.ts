@@ -6,9 +6,9 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import {
   isRecommendationArchiveAlreadyArchivedError,
   isRecommendationArchiveNotFoundError,
+  isRecommendationInvalidDomainError,
   isRecommendationUsageConfirmationRequiredError,
 } from "@/modules/recommendations/errors";
-import { parseRecommendationDomain } from "@/modules/recommendations/recommendationDomain";
 
 const mediaItemSchema = z.object({
   mediaUrl: z.string().min(1),
@@ -59,16 +59,13 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
   const deps = buildAppDeps();
   try {
     const rawDomain = parsed.data.domain;
-    let domainPatch: ReturnType<typeof parseRecommendationDomain> | null | undefined;
+    let domainPatch: string | null | undefined;
     if (rawDomain === undefined) {
       domainPatch = undefined;
     } else if (rawDomain === null || rawDomain === "") {
       domainPatch = null;
     } else {
-      domainPatch = parseRecommendationDomain(String(rawDomain).trim());
-      if (String(rawDomain).trim() && domainPatch === undefined) {
-        return NextResponse.json({ ok: false, error: "invalid_body", field: "domain" }, { status: 400 });
-      }
+      domainPatch = String(rawDomain).trim();
     }
 
     const item = await deps.recommendations.updateRecommendation(id, {
@@ -87,7 +84,10 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
             })),
     });
     return NextResponse.json({ ok: true, item });
-  } catch {
+  } catch (e) {
+    if (isRecommendationInvalidDomainError(e)) {
+      return NextResponse.json({ ok: false, error: e.message, field: "domain" }, { status: 400 });
+    }
     return NextResponse.json({ ok: false, error: "not_found_or_invalid" }, { status: 400 });
   }
 }

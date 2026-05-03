@@ -1,11 +1,22 @@
 /** @vitest-environment jsdom */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import type { Recommendation } from "@/modules/recommendations/types";
 import { EMPTY_RECOMMENDATION_USAGE_SNAPSHOT } from "@/modules/recommendations/types";
 import type { ArchiveRecommendationState, SaveRecommendationState } from "./actionsShared";
 import { RecommendationForm } from "./RecommendationForm";
+import { inMemoryReferencesPort } from "@/infra/repos/inMemoryReferences";
+import { RECOMMENDATION_TYPE_CATEGORY_CODE } from "@/modules/recommendations/recommendationDomain";
+import type { ReferenceItem } from "@/modules/references/types";
+
+let recommendationTypeItems: ReferenceItem[];
+
+beforeAll(async () => {
+  recommendationTypeItems = await inMemoryReferencesPort.listActiveItemsByCategoryCode(
+    RECOMMENDATION_TYPE_CATEGORY_CODE,
+  );
+});
 
 vi.mock("./actions", async () => {
   const actual = await vi.importActual<typeof import("./actions")>("./actions");
@@ -64,6 +75,7 @@ describe("RecommendationForm", () => {
     );
     render(
       <RecommendationForm
+        domainCatalogItems={recommendationTypeItems}
         recommendation={makeRecommendation({ id: "x" })}
         saveAction={saveAction}
         archiveAction={archiveAction}
@@ -86,11 +98,23 @@ describe("RecommendationForm", () => {
     const b = makeRecommendation({ id: "b", title: "Beta" });
 
     const { rerender } = render(
-      <RecommendationForm recommendation={a} saveAction={saveAction} archiveAction={archiveAction} />,
+      <RecommendationForm
+        domainCatalogItems={recommendationTypeItems}
+        recommendation={a}
+        saveAction={saveAction}
+        archiveAction={archiveAction}
+      />,
     );
     expect(screen.getByLabelText(/^название$/i)).toHaveValue("Alpha");
 
-    rerender(<RecommendationForm recommendation={b} saveAction={saveAction} archiveAction={archiveAction} />);
+    rerender(
+      <RecommendationForm
+        domainCatalogItems={recommendationTypeItems}
+        recommendation={b}
+        saveAction={saveAction}
+        archiveAction={archiveAction}
+      />,
+    );
     expect(screen.getByLabelText(/^название$/i)).toHaveValue("Beta");
   });
 });

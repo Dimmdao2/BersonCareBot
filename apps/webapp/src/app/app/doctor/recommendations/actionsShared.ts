@@ -7,7 +7,6 @@ import {
   isRecommendationUnarchiveNotArchivedError,
   isRecommendationUsageConfirmationRequiredError,
 } from "@/modules/recommendations/errors";
-import { parseRecommendationDomain } from "@/modules/recommendations/recommendationDomain";
 import type { RecommendationMediaItem, RecommendationUsageSnapshot } from "@/modules/recommendations/types";
 import { API_MEDIA_URL_RE, isLegacyAbsoluteUrl } from "@/shared/lib/mediaUrlPolicy";
 
@@ -44,9 +43,9 @@ function parseTags(raw: FormDataEntryValue | null): string[] | null {
   return parts.length ? parts : null;
 }
 
-function parseDomainField(raw: FormDataEntryValue | null) {
+function parseDomainField(raw: FormDataEntryValue | null): string | null {
   if (typeof raw !== "string" || !raw.trim()) return null;
-  return parseRecommendationDomain(raw.trim()) ?? null;
+  return raw.trim();
 }
 
 const RECOMMENDATION_METRIC_TEXT_MAX = 2000;

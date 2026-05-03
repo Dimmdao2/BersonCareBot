@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { AppShell } from "@/shared/ui/AppShell";
+import { RECOMMENDATION_TYPE_CATEGORY_CODE } from "@/modules/recommendations/recommendationDomain";
 import { RecommendationForm } from "../RecommendationForm";
 import { RECOMMENDATIONS_PATH } from "../paths";
 
@@ -14,6 +15,9 @@ export default async function EditRecommendationPage({ params }: PageProps) {
   const rec = await deps.recommendations.getRecommendation(id);
   if (!rec) notFound();
   const usageSnapshot = await deps.recommendations.getRecommendationUsage(rec.id);
+  const domainCatalogItems = await deps.references.listActiveItemsByCategoryCode(
+    RECOMMENDATION_TYPE_CATEGORY_CODE,
+  );
 
   return (
     <AppShell
@@ -22,7 +26,11 @@ export default async function EditRecommendationPage({ params }: PageProps) {
       variant="doctor"
       backHref={RECOMMENDATIONS_PATH}
     >
-      <RecommendationForm recommendation={rec} externalUsageSnapshot={usageSnapshot} />
+      <RecommendationForm
+        recommendation={rec}
+        domainCatalogItems={domainCatalogItems}
+        externalUsageSnapshot={usageSnapshot}
+      />
     </AppShell>
   );
 }

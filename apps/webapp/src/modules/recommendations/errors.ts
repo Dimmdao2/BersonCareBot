@@ -53,3 +53,14 @@ export function isRecommendationUnarchiveNotArchivedError(
 ): e is RecommendationUnarchiveNotArchivedError {
   return e instanceof RecommendationUnarchiveNotArchivedError;
 }
+
+export class RecommendationInvalidDomainError extends Error {
+  constructor() {
+    super("Некорректный тип рекомендации");
+    this.name = "RecommendationInvalidDomainError";
+  }
+}
+
+export function isRecommendationInvalidDomainError(e: unknown): e is RecommendationInvalidDomainError {
+  return e instanceof RecommendationInvalidDomainError;
+}

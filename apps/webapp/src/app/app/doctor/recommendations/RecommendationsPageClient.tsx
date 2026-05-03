@@ -3,15 +3,14 @@
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import {
-  RECOMMENDATION_DOMAIN_ITEMS,
-  type RecommendationDomain,
-} from "@/modules/recommendations/recommendationDomain";
+import type { ReferenceItem } from "@/modules/references/types";
+import type { ReferenceItemDto } from "@/modules/references/referenceCache";
 import type {
   Recommendation,
   RecommendationMediaItem,
   RecommendationUsageSnapshot,
 } from "@/modules/recommendations/types";
+import type { RecommendationDomain } from "@/modules/recommendations/recommendationDomain";
 import { cn } from "@/lib/utils";
 import { useViewportMinWidth } from "@/shared/hooks/useViewportMinWidth";
 import {
@@ -54,6 +53,8 @@ type Props = {
   initialViewMode: RecommendationsViewMode;
   viewLockedByUrl: boolean;
   initialTitleSort: RecommendationTitleSort | null;
+  domainFilterItems: ReferenceItemDto[];
+  domainCatalogItems: ReferenceItem[];
   filters: {
     q: string;
     regionRefId?: string;
@@ -191,6 +192,8 @@ function RecommendationsContent({
   setMobileSheet,
   toggleViewMode,
   changeTitleSort,
+  domainFilterItems,
+  domainCatalogItems,
   filters,
 }: {
   initialItems: Recommendation[];
@@ -206,6 +209,8 @@ function RecommendationsContent({
   setMobileSheet: (sheet: { recommendation: Recommendation | null } | null) => void;
   toggleViewMode: () => void;
   changeTitleSort: (next: RecommendationTitleSort | null) => void;
+  domainFilterItems: ReferenceItemDto[];
+  domainCatalogItems: ReferenceItem[];
   filters: Props["filters"];
 }) {
   useEffect(() => {
@@ -259,7 +264,7 @@ function RecommendationsContent({
 
   const recommendationTertiaryFilter = useMemo((): DoctorCatalogTertiaryFilter => {
     return {
-      items: RECOMMENDATION_DOMAIN_ITEMS,
+      items: domainFilterItems,
       paramName: "domain",
       value: filters.domain ?? null,
       label: "Тип",
@@ -267,7 +272,7 @@ function RecommendationsContent({
       clearLabel: "Все типы",
       summaryLabel: "Тип",
     };
-  }, [filters.domain]);
+  }, [domainFilterItems, filters.domain]);
 
   const renderRecommendationList = (
     list: Recommendation[],
@@ -342,6 +347,7 @@ function RecommendationsContent({
     <CatalogRightPane className="h-full">
       <RecommendationForm
         recommendation={formRecommendation ?? undefined}
+        domainCatalogItems={domainCatalogItems}
         saveAction={saveRecommendationInline}
         archiveAction={archiveRecommendationInline}
         unarchiveAction={unarchiveRecommendationInline}
@@ -365,7 +371,7 @@ function RecommendationsContent({
           filters={
             <DoctorCatalogToolbarFiltersSlot>
               <DoctorCatalogFiltersForm
-                key={`rec-filters-${filters.q}-${filters.regionRefId ?? ""}-${filters.domain ?? ""}-${filters.listStatus}-${filters.invalidDomainQuery ? "1" : "0"}-${filters.invalidRegionQuery ? "1" : "0"}`}
+                key={`rec-filters-${filters.listStatus}-${filters.invalidDomainQuery ? "1" : "0"}-${filters.invalidRegionQuery ? "1" : "0"}`}
                 idPrefix="rec"
                 q={filters.q}
                 regionRefId={filters.regionRefId}
@@ -476,6 +482,8 @@ export function RecommendationsPageClient({
   initialViewMode,
   viewLockedByUrl,
   initialTitleSort,
+  domainFilterItems,
+  domainCatalogItems,
   filters,
 }: Props) {
   const [viewMode, setViewMode] = useState<RecommendationsViewMode>(initialViewMode);
@@ -532,6 +540,8 @@ export function RecommendationsPageClient({
       setMobileSheet={setMobileSheet}
       toggleViewMode={toggleViewMode}
       changeTitleSort={changeTitleSort}
+      domainFilterItems={domainFilterItems}
+      domainCatalogItems={domainCatalogItems}
       filters={filters}
     />
   );

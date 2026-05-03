@@ -13,8 +13,11 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { MarkdownEditorToastUi } from "@/shared/ui/markdown/MarkdownEditorToastUi";
-import { RECOMMENDATION_DOMAIN_ITEMS } from "@/modules/recommendations/recommendationDomain";
-import type { RecommendationDomain } from "@/modules/recommendations/recommendationDomain";
+import {
+  buildRecommendationDomainSelectOptions,
+  type RecommendationDomain,
+} from "@/modules/recommendations/recommendationDomain";
+import type { ReferenceItem } from "@/modules/references/types";
 import type { Recommendation, RecommendationUsageSnapshot } from "@/modules/recommendations/types";
 import type { RecommendationListFilterScope } from "@/shared/lib/doctorCatalogListStatus";
 import { ReferenceSelect } from "@/shared/ui/ReferenceSelect";
@@ -83,7 +86,7 @@ type FormValues = {
   tags: string;
   mediaUrl: string;
   mediaType: "" | "image" | "video" | "gif";
-  /** Код типа (`RecommendationDomain`), как в `RECOMMENDATION_DOMAIN_ITEMS.code`. */
+  /** Код типа (`recommendations.domain`); справочник `recommendation_type`. */
   domainCode: string | null;
   bodyRegionId: string | null;
   quantityText: string;
@@ -109,6 +112,8 @@ function toValues(r: Recommendation | null | undefined): FormValues {
 
 type Props = {
   recommendation?: Recommendation | null;
+  /** Активные строки справочника `recommendation_type` (SSR). */
+  domainCatalogItems: ReferenceItem[];
   backHref?: string;
   /** Режим каталога master-detail — передаётся как `view` для редиректа после сохранения. */
   workspaceView?: "tiles" | "list";
@@ -137,6 +142,7 @@ type Props = {
 
 export function RecommendationForm({
   recommendation,
+  domainCatalogItems,
   backHref = RECOMMENDATIONS_PATH,
   workspaceView,
   workspaceListPreserve,
@@ -251,6 +257,19 @@ export function RecommendationForm({
 
   const isArchived = !!recommendation?.isArchived;
 
+  const domainPrefetchedItems = useMemo(() => {
+    const opts = buildRecommendationDomainSelectOptions(
+      domainCatalogItems,
+      recommendation?.domain ?? null,
+    );
+    return opts.map((o, idx) => ({
+      id: `rec-domain-opt-${o.code}`,
+      code: o.code,
+      title: o.title,
+      sortOrder: idx + 1,
+    }));
+  }, [domainCatalogItems, recommendation?.domain]);
+
   return (
     <div className="flex max-w-2xl flex-col gap-4">
       <form action={formAction} className="flex flex-col gap-4">
@@ -300,7 +319,7 @@ export function RecommendationForm({
               <ReferenceSelect
                 id="rec-domain"
                 name="domain"
-                prefetchedItems={RECOMMENDATION_DOMAIN_ITEMS}
+                prefetchedItems={domainPrefetchedItems}
                 valueMatch="code"
                 submitField="code"
                 value={values.domainCode}
@@ -310,6 +329,12 @@ export function RecommendationForm({
                 placeholder="Выберите тип"
                 clearOptionLabel="Без типа"
               />
+              {domainPrefetchedItems.some((i) => i.title.includes("(не в справочнике)")) ? (
+                <p className="text-xs text-muted-foreground">
+                  Код типа не найден в справочнике. Можно сохранить остальные поля без смены значения; чтобы записать
+                  другой тип — выберите код из списка.
+                </p>
+              ) : null}
             </div>
 
             <div className="flex flex-col gap-3">

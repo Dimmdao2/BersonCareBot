@@ -50,7 +50,8 @@ describe("treatment program block library (phase 2) doctor e2e (in-process)", ()
   it("recommendation create → list excludes archived", async () => {
     const { createRecommendationsService } = await import("@/modules/recommendations/service");
     const { inMemoryRecommendationsPort } = await import("@/app-layer/testing/clinicalLibraryInMemory");
-    const svc = createRecommendationsService(inMemoryRecommendationsPort);
+    const { inMemoryReferencesPort } = await import("@/infra/repos/inMemoryReferences");
+    const svc = createRecommendationsService(inMemoryRecommendationsPort, inMemoryReferencesPort);
     const r = await svc.createRecommendation({ title: "R1", bodyMd: "x" }, null);
     await svc.archiveRecommendation(r.id);
     const listed = await svc.listRecommendations({});

@@ -267,6 +267,13 @@
       "when": 1778100000000,
       "tag": "0038_clinical_assessment_kind_reference",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1778200000000,
+      "tag": "0039_recommendation_type_reference",
+      "breakpoints": true
     }
   ]
 }

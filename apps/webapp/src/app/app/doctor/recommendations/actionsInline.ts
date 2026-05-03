@@ -2,7 +2,6 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { parseRecommendationDomain } from "@/modules/recommendations/recommendationDomain";
 import {
   archiveRecommendationCore,
   RECOMMENDATIONS_PATH,
@@ -22,8 +21,7 @@ function appendRecommendationsListParams(sp: URLSearchParams, formData: FormData
   if (typeof region === "string" && region.trim()) sp.set("region", region.trim());
   const listDomain = formData.get("listDomain");
   if (typeof listDomain === "string" && listDomain.trim()) {
-    const d = parseRecommendationDomain(listDomain.trim());
-    if (d) sp.set("domain", d);
+    sp.set("domain", listDomain.trim());
   }
   const listStatus = formData.get("listStatus");
   if (listStatus === "active" || listStatus === "all" || listStatus === "archived") {

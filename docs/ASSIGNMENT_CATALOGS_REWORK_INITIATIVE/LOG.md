@@ -674,3 +674,48 @@ pnpm exec tsc --noEmit
 **Результат:** vitest / eslint / tsc — **PASS**.
 
 **Пуш ветки:** только после полного `pnpm install --frozen-lockfile && pnpm run ci` ([`MASTER_PLAN.md`](MASTER_PLAN.md) §9) — в этой сессии **не** выполнялся.
+
+---
+
+## 2026-05-03 — Stage D3 — типы рекомендаций в БД-справочник (`STAGE_D3_PLAN.md`)
+
+**Контекст:** [`STAGE_D3_PLAN.md`](STAGE_D3_PLAN.md) — категория `recommendation_type`, сид v1, форма/SSR/API на справочник, read tolerant чтение `recommendations.domain`, write strict.
+
+**Сделано:**
+
+- Миграция [`0039_recommendation_type_reference.sql`](../../apps/webapp/db/drizzle-migrations/0039_recommendation_type_reference.sql) + journal.
+- Модуль [`recommendationDomain.ts`](../../apps/webapp/src/modules/recommendations/recommendationDomain.ts): `RECOMMENDATION_TYPE_*`, `recommendationDomainWriteAllowSet`, `parseRecommendationDomain(raw, refItems)`, `buildRecommendationDomainSelectOptions`, `recommendationDomainDisplayTitle` / `recommendationDomainTitle`.
+- [`inMemoryReferences.ts`](../../apps/webapp/src/infra/repos/inMemoryReferences.ts): категория и 11 строк для Vitest.
+- [`pgRecommendations.ts`](../../apps/webapp/src/infra/repos/pgRecommendations.ts): `mapRow` — `domain` как сырая строка (legacy не обнуляется).
+- [`service.ts`](../../apps/webapp/src/modules/recommendations/service.ts): второй аргумент `ReferencesPort`, `RecommendationInvalidDomainError`, правило «unchanged legacy» при `PATCH`.
+- SSR [`page.tsx`](../../apps/webapp/src/app/app/doctor/recommendations/page.tsx), [`recommendationCatalogSsrQuery.ts`](../../apps/webapp/src/modules/recommendations/recommendationCatalogSsrQuery.ts), клиент [`RecommendationsPageClient.tsx`](../../apps/webapp/src/app/app/doctor/recommendations/RecommendationsPageClient.tsx), форма [`RecommendationForm.tsx`](../../apps/webapp/src/app/app/doctor/recommendations/RecommendationForm.tsx), страницы [`new/page.tsx`](../../apps/webapp/src/app/app/doctor/recommendations/new/page.tsx) / [`[id]/page.tsx`](../../apps/webapp/src/app/app/doctor/recommendations/[id]/page.tsx), API [`route.ts`](../../apps/webapp/src/app/api/doctor/recommendations/route.ts) / [`[id]/route.ts`](../../apps/webapp/src/app/api/doctor/recommendations/[id]/route.ts), [`actionsShared.ts`](../../apps/webapp/src/app/app/doctor/recommendations/actionsShared.ts), [`actionsInline.ts`](../../apps/webapp/src/app/app/doctor/recommendations/actionsInline.ts), [`buildAppDeps.ts`](../../apps/webapp/src/app-layer/di/buildAppDeps.ts), e2e in-process.
+- Документация: [`api.md`](../../apps/webapp/src/app/api/api.md), [`di.md`](../../apps/webapp/src/app-layer/di/di.md).
+- Тесты: обновлены domain/catalog SSR/service/form; добавлен [`recommendationTypeSeedParity.test.ts`](../../apps/webapp/src/modules/recommendations/recommendationTypeSeedParity.test.ts).
+
+**Проверки (целевые D3):**
+
+```bash
+cd apps/webapp && pnpm exec eslint \
+  src/modules/recommendations/recommendationDomain.ts \
+  src/modules/recommendations/recommendationCatalogSsrQuery.ts \
+  src/modules/recommendations/service.ts \
+  src/infra/repos/pgRecommendations.ts \
+  src/app/api/doctor/recommendations/route.ts \
+  src/app/api/doctor/recommendations/\[id\]/route.ts \
+  src/app/app/doctor/recommendations/page.tsx \
+  src/app/app/doctor/recommendations/RecommendationsPageClient.tsx \
+  src/app/app/doctor/recommendations/RecommendationForm.tsx \
+  src/infra/repos/inMemoryReferences.ts
+pnpm exec vitest run \
+  src/modules/recommendations/recommendationDomain.test.ts \
+  src/modules/recommendations/recommendationCatalogSsrQuery.test.ts \
+  src/modules/recommendations/recommendationTypeSeedParity.test.ts \
+  src/modules/recommendations/service.test.ts \
+  src/app/app/doctor/recommendations/RecommendationForm.test.tsx \
+  e2e/treatment-program-blocks-inprocess.test.ts
+pnpm exec tsc --noEmit
+```
+
+**Результат:** команды выше — **PASS** (зафиксировано после прогона в сессии).
+
+**Коммит:** `feat(recommendations): D3 recommendation_type DB catalog` — только файлы D3 (остальные локальные правки вне коммита).

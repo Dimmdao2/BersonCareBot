@@ -267,7 +267,7 @@ const commentsPort = !inMemoryRepos ? createPgCommentsPort() : createInMemoryCom
 
 const clinicalTestsService = createClinicalTestsService(clinicalTestsPort, referencesPort);
 const testSetsService = createTestSetsService(testSetsPort, clinicalTestsPort);
-const recommendationsService = createRecommendationsService(recommendationsPort);
+const recommendationsService = createRecommendationsService(recommendationsPort, referencesPort);
 const commentsService = createCommentsService(commentsPort);
 
 const treatmentProgramPort = !inMemoryRepos
