@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 
 import type { ReactNode } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ClinicalTest, ClinicalTestUsageSnapshot } from "@/modules/tests/types";
@@ -11,6 +11,10 @@ import { ClinicalTestForm } from "./ClinicalTestForm";
 
 vi.mock("@/app/app/doctor/content/MediaLibraryPickerDialog", () => ({
   MediaLibraryPickerDialog: () => <div data-testid="media-picker" />,
+}));
+
+vi.mock("./ClinicalTestMeasureRowsEditor", () => ({
+  ClinicalTestMeasureRowsEditor: () => <div data-testid="measure-rows" />,
 }));
 
 vi.mock("next/link", () => ({
@@ -23,6 +27,23 @@ vi.mock("./actions", async () => {
     ...actual,
     fetchDoctorClinicalTestUsageSnapshot: vi.fn(async () => ({ ...EMPTY_CLINICAL_TEST_USAGE_SNAPSHOT })),
   };
+});
+
+beforeEach(() => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn((input: RequestInfo | URL) => {
+      const u = typeof input === "string" ? input : input instanceof Request ? input.url : String(input);
+      if (u.includes("/api/references/body_region")) {
+        return Promise.resolve(new Response(JSON.stringify({ ok: true, items: [] }), { status: 200 }));
+      }
+      return Promise.resolve(new Response(JSON.stringify({ ok: false, items: [] }), { status: 404 }));
+    }),
+  );
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
 });
 
 function makeUsageWithTemplateRef(): ClinicalTestUsageSnapshot {
@@ -46,6 +67,10 @@ function makeClinicalTest(over: Partial<ClinicalTest>): ClinicalTest {
     description: null,
     testType: null,
     scoringConfig: null,
+    scoring: null,
+    rawText: null,
+    assessmentKind: null,
+    bodyRegionId: null,
     media: [],
     tags: null,
     isArchived: false,

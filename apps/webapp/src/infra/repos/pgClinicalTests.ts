@@ -3,6 +3,11 @@ import { getDrizzle } from "@/app-layer/db/drizzle";
 import { getPool } from "@/infra/db/client";
 import { clinicalTests as clinicalTestsTable } from "../../../db/schema/clinicalTests";
 import type { ClinicalTestsPort } from "@/modules/tests/ports";
+import {
+  clinicalTestScoringSchema,
+  migrateLegacyScoringConfig,
+  normalizeClinicalTestScoringOrder,
+} from "@/modules/tests/clinicalTestScoring";
 import type {
   ClinicalTest,
   ClinicalTestFilter,
@@ -33,6 +38,24 @@ function normalizeMedia(raw: unknown): ClinicalTestMediaItem[] {
   return out;
 }
 
+function deriveScoring(row: typeof clinicalTestsTable.$inferSelect) {
+  if (row.scoring != null) {
+    const p = clinicalTestScoringSchema.safeParse(row.scoring);
+    if (p.success) return normalizeClinicalTestScoringOrder(p.data);
+  }
+  if (row.scoringConfig != null) return migrateLegacyScoringConfig(row.scoringConfig).scoring;
+  return null;
+}
+
+function deriveRawText(row: typeof clinicalTestsTable.$inferSelect): string | null {
+  const rt = row.rawText?.trim() ? row.rawText : null;
+  if (rt) return rt;
+  if (row.scoring == null && row.scoringConfig != null) {
+    return migrateLegacyScoringConfig(row.scoringConfig).rawNote;
+  }
+  return null;
+}
+
 function mapRow(row: typeof clinicalTestsTable.$inferSelect): ClinicalTest {
   return {
     id: row.id,
@@ -40,6 +63,10 @@ function mapRow(row: typeof clinicalTestsTable.$inferSelect): ClinicalTest {
     description: row.description,
     testType: row.testType,
     scoringConfig: row.scoringConfig ?? null,
+    scoring: deriveScoring(row),
+    rawText: deriveRawText(row),
+    assessmentKind: row.assessmentKind?.trim() || null,
+    bodyRegionId: row.bodyRegionId ?? null,
     media: normalizeMedia(row.media),
     tags: row.tags ?? null,
     isArchived: row.isArchived,
@@ -311,6 +338,14 @@ export function createPgClinicalTestsPort(): ClinicalTestsPort {
       if (filter.testType?.trim()) {
         conds.push(eq(clinicalTestsTable.testType, filter.testType.trim()));
       }
+      const region = filter.regionRefId?.trim();
+      if (region) {
+        conds.push(eq(clinicalTestsTable.bodyRegionId, region));
+      }
+      const ak = filter.assessmentKind?.trim();
+      if (ak) {
+        conds.push(eq(clinicalTestsTable.assessmentKind, ak));
+      }
       const q = filter.search?.trim();
       if (q) {
         const p = `%${q}%`;
@@ -342,6 +377,10 @@ export function createPgClinicalTestsPort(): ClinicalTestsPort {
           description: input.description ?? null,
           testType: input.testType ?? null,
           scoringConfig: input.scoringConfig ?? null,
+          scoring: input.scoring ?? null,
+          rawText: input.rawText ?? null,
+          assessmentKind: input.assessmentKind?.trim() || null,
+          bodyRegionId: input.bodyRegionId?.trim() || null,
           media,
           tags: input.tags ?? null,
           createdBy,
@@ -359,6 +398,10 @@ export function createPgClinicalTestsPort(): ClinicalTestsPort {
       if (input.description !== undefined) patch.description = input.description;
       if (input.testType !== undefined) patch.testType = input.testType;
       if (input.scoringConfig !== undefined) patch.scoringConfig = input.scoringConfig ?? null;
+      if (input.scoring !== undefined) patch.scoring = input.scoring ?? null;
+      if (input.rawText !== undefined) patch.rawText = input.rawText ?? null;
+      if (input.assessmentKind !== undefined) patch.assessmentKind = input.assessmentKind?.trim() || null;
+      if (input.bodyRegionId !== undefined) patch.bodyRegionId = input.bodyRegionId?.trim() || null;
       if (input.tags !== undefined) patch.tags = input.tags ?? null;
       if (input.media !== undefined) patch.media = normalizeMedia(input.media ?? []);
 

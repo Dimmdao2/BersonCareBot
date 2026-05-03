@@ -2,8 +2,9 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
-import type { ExerciseLoadType } from "@/modules/lfk-exercises/types";
 import type { ClinicalTest, ClinicalTestUsageSnapshot } from "@/modules/tests/types";
+import type { ReferenceItemDto } from "@/modules/references/referenceCache";
+import { CLINICAL_ASSESSMENT_KIND_OPTIONS } from "@/modules/tests/clinicalTestAssessmentKind";
 import { cn } from "@/lib/utils";
 import { useViewportMinWidth } from "@/shared/hooks/useViewportMinWidth";
 import {
@@ -38,6 +39,13 @@ const LIST_ROW_VISIBILITY_STYLE = {
   containIntrinsicSize: "52px",
 } as const;
 
+const ASSESSMENT_KIND_FILTER_ITEMS: ReferenceItemDto[] = CLINICAL_ASSESSMENT_KIND_OPTIONS.map((o, idx) => ({
+  id: `ak-${o.value}`,
+  code: o.value,
+  title: o.label,
+  sortOrder: idx + 1,
+}));
+
 type Props = {
   initialItems: ClinicalTest[];
   initialSelectedId: string | null;
@@ -49,7 +57,7 @@ type Props = {
   filters: {
     q: string;
     regionRefId?: string;
-    loadType?: ExerciseLoadType;
+    assessmentKind?: string;
     listStatus: RecommendationListFilterScope;
   };
 };
@@ -279,7 +287,7 @@ function ClinicalTestsContent({
           q: filters.q,
           titleSort,
           regionRefId: filters.regionRefId,
-          loadType: filters.loadType,
+          assessmentKind: filters.assessmentKind,
           listStatus: filters.listStatus,
         }}
         externalUsageSnapshot={usageForSelection}
@@ -297,7 +305,15 @@ function ClinicalTestsContent({
                 idPrefix="ct"
                 q={filters.q}
                 regionRefId={filters.regionRefId}
-                loadType={filters.loadType}
+                tertiaryFilter={{
+                  items: ASSESSMENT_KIND_FILTER_ITEMS,
+                  paramName: "assessment",
+                  value: filters.assessmentKind ?? null,
+                  label: "Вид оценки",
+                  placeholder: "Все виды",
+                  clearLabel: "Все виды",
+                  summaryLabel: "Вид оценки",
+                }}
                 view={viewMode}
                 titleSort={titleSort}
                 selectedId={desktopSelectedId}

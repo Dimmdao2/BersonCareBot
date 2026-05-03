@@ -23,6 +23,10 @@ function appendClinicalTestsListParams(sp: URLSearchParams, formData: FormData) 
   if (load === "strength" || load === "stretch" || load === "balance" || load === "cardio" || load === "other") {
     sp.set("load", load);
   }
+  const assessment = formData.get("listAssessment");
+  if (typeof assessment === "string" && assessment.trim()) {
+    sp.set("assessment", assessment.trim());
+  }
   const listStatus = formData.get("listStatus");
   if (listStatus === "active" || listStatus === "all" || listStatus === "archived") {
     sp.set("status", listStatus);

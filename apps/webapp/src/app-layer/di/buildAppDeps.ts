@@ -124,6 +124,7 @@ import { createLfkExercisesService } from "@/modules/lfk-exercises/service";
 import { pgLfkExercisesPort } from "@/infra/repos/pgLfkExercises";
 import { inMemoryLfkExercisesPort } from "@/infra/repos/inMemoryLfkExercises";
 import { createClinicalTestsService, createTestSetsService } from "@/modules/tests/service";
+import { createClinicalTestMeasureKindsService } from "@/modules/tests/measureKindsService";
 import { createRecommendationsService } from "@/modules/recommendations/service";
 import { createCommentsService } from "@/modules/comments/service";
 import { createTreatmentProgramService } from "@/modules/treatment-program/service";
@@ -132,6 +133,8 @@ import { createTreatmentProgramProgressService } from "@/modules/treatment-progr
 import { createTreatmentProgramPatientActionService } from "@/modules/treatment-program/patient-program-actions";
 import { createCoursesService } from "@/modules/courses/service";
 import { pgClinicalTestsPort } from "@/infra/repos/pgClinicalTests";
+import { pgClinicalTestMeasureKindsPort } from "@/infra/repos/pgClinicalTestMeasureKinds";
+import { inMemoryClinicalTestMeasureKindsPort } from "@/infra/repos/inMemoryClinicalTestMeasureKinds";
 import { pgTestSetsPort } from "@/infra/repos/pgTestSets";
 import { inMemoryClinicalTestsPort } from "@/infra/repos/inMemoryClinicalTests";
 import { inMemoryTestSetsPort } from "@/infra/repos/inMemoryTestSets";
@@ -254,6 +257,10 @@ const lfkExercisesPort = !inMemoryRepos ? pgLfkExercisesPort : inMemoryLfkExerci
 const lfkExercisesService = createLfkExercisesService(lfkExercisesPort);
 
 const clinicalTestsPort = !inMemoryRepos ? pgClinicalTestsPort : inMemoryClinicalTestsPort;
+const clinicalTestMeasureKindsPort = !inMemoryRepos
+  ? pgClinicalTestMeasureKindsPort
+  : inMemoryClinicalTestMeasureKindsPort;
+const clinicalTestMeasureKindsService = createClinicalTestMeasureKindsService(clinicalTestMeasureKindsPort);
 const testSetsPort = !inMemoryRepos ? pgTestSetsPort : inMemoryTestSetsPort;
 const recommendationsPort = !inMemoryRepos ? pgRecommendationsPort : inMemoryRecommendationsPort;
 const commentsPort = !inMemoryRepos ? createPgCommentsPort() : createInMemoryCommentsPort();
@@ -730,6 +737,7 @@ function _buildAppDeps() {
     systemSettings: systemSettingsService,
     lfkExercises: lfkExercisesService,
     clinicalTests: clinicalTestsService,
+    measureKinds: clinicalTestMeasureKindsService,
     testSets: testSetsService,
     recommendations: recommendationsService,
     comments: commentsService,

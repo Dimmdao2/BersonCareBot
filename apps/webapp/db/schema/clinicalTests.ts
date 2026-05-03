@@ -10,8 +10,25 @@ import {
   index,
   foreignKey,
   check,
+  unique,
 } from "drizzle-orm/pg-core";
-import { platformUsers } from "./schema";
+import { platformUsers, referenceItems } from "./schema";
+
+/** Глобальный пул подписей измерений для клинических тестов (B2). */
+export const clinicalTestMeasureKinds = pgTable(
+  "clinical_test_measure_kinds",
+  {
+    id: uuid("id").defaultRandom().primaryKey().notNull(),
+    code: text("code").notNull(),
+    label: text("label").notNull(),
+    sortOrder: integer("sort_order").default(0).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    unique("clinical_test_measure_kinds_code_key").on(table.code),
+    index("idx_clinical_test_measure_kinds_sort").using("btree", table.sortOrder.asc().nullsLast().op("int4_ops")),
+  ],
+);
 
 /** Клинические тесты (таблица БД `tests`). */
 export const clinicalTests = pgTable(
@@ -22,6 +39,14 @@ export const clinicalTests = pgTable(
     description: text(),
     testType: text("test_type"),
     scoringConfig: jsonb("scoring_config"),
+    /** Структурированная модель оценки (B2); корень с `schema_type`. Legacy: `scoring_config`. */
+    scoring: jsonb("scoring"),
+    /** Свободный текст / fallback при миграции из legacy JSON. */
+    rawText: text("raw_text"),
+    /** Вид оценки по каталогу (PRE v1 enum); NULL — не задано. */
+    assessmentKind: text("assessment_kind"),
+    /** FK на `reference_items` (категория регионов тела, например `body_region`). */
+    bodyRegionId: uuid("body_region_id"),
     media: jsonb("media")
       .$type<{ mediaUrl: string; mediaType: string; sortOrder: number }[]>()
       .default(sql`'[]'::jsonb`)
@@ -35,10 +60,17 @@ export const clinicalTests = pgTable(
   (table) => [
     index("idx_tests_archived").using("btree", table.isArchived.asc().nullsLast().op("bool_ops")),
     index("idx_tests_title_search").using("btree", table.title.asc().nullsLast().op("text_ops")),
+    index("idx_tests_body_region").using("btree", table.bodyRegionId.asc().nullsLast().op("uuid_ops")),
+    index("idx_tests_assessment_kind").using("btree", table.assessmentKind.asc().nullsLast().op("text_ops")),
     foreignKey({
       columns: [table.createdBy],
       foreignColumns: [platformUsers.id],
       name: "tests_created_by_fkey",
+    }).onDelete("set null"),
+    foreignKey({
+      columns: [table.bodyRegionId],
+      foreignColumns: [referenceItems.id],
+      name: "tests_body_region_id_fkey",
     }).onDelete("set null"),
   ],
 );

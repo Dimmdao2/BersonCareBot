@@ -13,10 +13,25 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import type { ExerciseLoadType } from "@/modules/lfk-exercises/types";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import type { ClinicalTest, ClinicalTestUsageSnapshot } from "@/modules/tests/types";
+import {
+  CLINICAL_TEST_SCHEMA_TYPES,
+  parseClinicalTestScoring,
+  type ClinicalTestSchemaType,
+  type ClinicalTestScoring,
+} from "@/modules/tests/clinicalTestScoring";
+import { CLINICAL_ASSESSMENT_KIND_OPTIONS } from "@/modules/tests/clinicalTestAssessmentKind";
 import { cn } from "@/lib/utils";
 import { MediaLibraryPickerDialog } from "@/app/app/doctor/content/MediaLibraryPickerDialog";
+import { ReferenceSelect } from "@/shared/ui/ReferenceSelect";
 import { archiveClinicalTest, fetchDoctorClinicalTestUsageSnapshot, saveClinicalTest, unarchiveClinicalTest } from "./actions";
 import type {
   ArchiveClinicalTestState,
@@ -35,6 +50,142 @@ import {
   clinicalTestUsageSections,
   type ClinicalTestUsageSection,
 } from "./clinicalTestsUsageSummaryText";
+import {
+  ClinicalTestMeasureRowsEditor,
+  type ClinicalTestMeasureRowModel,
+} from "./ClinicalTestMeasureRowsEditor";
+
+export type ClinicalTestFormValues = {
+  title: string;
+  description: string;
+  testType: string;
+  tags: string;
+  mediaUrl: string;
+  mediaType: "" | "image" | "video" | "gif";
+  assessmentKind: string;
+  bodyRegionId: string | null;
+  schemaType: ClinicalTestSchemaType;
+  measureRows: ClinicalTestMeasureRowModel[];
+  likertMin: string;
+  likertMax: string;
+  numericMin: string;
+  numericMax: string;
+  step: string;
+  positiveLabel: string;
+  negativeLabel: string;
+  rawText: string;
+  jsonMode: boolean;
+  scoringJsonRaw: string;
+};
+
+export function clinicalTestToFormValues(test: ClinicalTest | null | undefined): ClinicalTestFormValues {
+  const initialMedia = test?.media?.[0];
+  const parsed = parseClinicalTestScoring(test?.scoring ?? null);
+  const schemaType: ClinicalTestSchemaType =
+    parsed && (CLINICAL_TEST_SCHEMA_TYPES as readonly string[]).includes(parsed.schema_type)
+      ? parsed.schema_type
+      : "qualitative";
+  const measureRows: ClinicalTestMeasureRowModel[] = (parsed?.measure_items ?? []).map((m, idx) => ({
+    id: `row-${idx}-${m.measureKind}`,
+    measureKind: m.measureKind,
+    value: m.value ?? "",
+    unit: m.unit ?? "",
+    comment: m.comment ?? "",
+  }));
+
+  let likertMin = "1";
+  let likertMax = "5";
+  let numericMin = "";
+  let numericMax = "";
+  let step = "";
+  let positiveLabel = "";
+  let negativeLabel = "";
+  if (parsed?.schema_type === "likert") {
+    likertMin = String(parsed.likert_min);
+    likertMax = String(parsed.likert_max);
+  }
+  if (parsed?.schema_type === "numeric") {
+    numericMin = parsed.min_value != null ? String(parsed.min_value) : "";
+    numericMax = parsed.max_value != null ? String(parsed.max_value) : "";
+    step = parsed.step != null ? String(parsed.step) : "";
+  }
+  if (parsed?.schema_type === "binary") {
+    positiveLabel = parsed.positive_label ?? "";
+    negativeLabel = parsed.negative_label ?? "";
+  }
+
+  const scoringJsonRaw =
+    test?.scoring != null
+      ? JSON.stringify(test.scoring, null, 2)
+      : test?.scoringConfig != null
+        ? JSON.stringify(test.scoringConfig, null, 2)
+        : "";
+
+  return {
+    title: test?.title ?? "",
+    description: test?.description ?? "",
+    testType: test?.testType ?? "",
+    tags: test?.tags?.join(", ") ?? "",
+    mediaUrl: initialMedia?.mediaUrl ?? "",
+    mediaType: (initialMedia?.mediaType ?? "") as ClinicalTestFormValues["mediaType"],
+    assessmentKind: test?.assessmentKind ?? "",
+    bodyRegionId: test?.bodyRegionId ?? null,
+    schemaType,
+    measureRows,
+    likertMin,
+    likertMax,
+    numericMin,
+    numericMax,
+    step,
+    positiveLabel,
+    negativeLabel,
+    rawText: test?.rawText ?? "",
+    jsonMode: false,
+    scoringJsonRaw,
+  };
+}
+
+function buildStructuredScoring(v: ClinicalTestFormValues): ClinicalTestScoring {
+  const measure_items = v.measureRows
+    .map((r, idx) => ({
+      measureKind: r.measureKind.trim(),
+      value: r.value.trim() || null,
+      unit: r.unit.trim() || null,
+      comment: r.comment.trim() || null,
+      sortOrder: idx,
+    }))
+    .filter((m) => m.measureKind.length > 0);
+
+  const st = v.schemaType;
+  if (st === "qualitative") return { schema_type: "qualitative", measure_items };
+  if (st === "binary") {
+    return {
+      schema_type: "binary",
+      measure_items,
+      positive_label: v.positiveLabel.trim() || undefined,
+      negative_label: v.negativeLabel.trim() || undefined,
+    };
+  }
+  if (st === "numeric") {
+    const min_v = v.numericMin.trim() ? Number(v.numericMin) : undefined;
+    const max_v = v.numericMax.trim() ? Number(v.numericMax) : undefined;
+    const step_v = v.step.trim() ? Number(v.step) : undefined;
+    if (min_v !== undefined && !Number.isFinite(min_v)) throw new Error("Некорректный min");
+    if (max_v !== undefined && !Number.isFinite(max_v)) throw new Error("Некорректный max");
+    if (step_v !== undefined && (!Number.isFinite(step_v) || step_v <= 0)) throw new Error("Некорректный step");
+    return {
+      schema_type: "numeric",
+      measure_items,
+      min_value: min_v,
+      max_value: max_v,
+      step: step_v,
+    };
+  }
+  const lo = Number.parseInt(v.likertMin, 10);
+  const hi = Number.parseInt(v.likertMax, 10);
+  if (!Number.isFinite(lo) || !Number.isFinite(hi)) throw new Error("Укажите шкалу Ликерта (целые числа)");
+  return { schema_type: "likert", measure_items, likert_min: lo, likert_max: hi };
+}
 
 function ClinicalTestUsageSectionsView({ sections }: { sections: ClinicalTestUsageSection[] }) {
   if (sections.length === 0) {
@@ -70,38 +221,6 @@ function ClinicalTestUsageSectionsView({ sections }: { sections: ClinicalTestUsa
   );
 }
 
-export type ClinicalTestFormValues = {
-  title: string;
-  description: string;
-  testType: string;
-  scoringConfigJson: string;
-  tags: string;
-  mediaUrl: string;
-  mediaType: "" | "image" | "video" | "gif";
-};
-
-function scoringTextFromTest(t: ClinicalTest | null | undefined): string {
-  if (t?.scoringConfig == null) return "";
-  try {
-    return JSON.stringify(t.scoringConfig, null, 2);
-  } catch {
-    return "";
-  }
-}
-
-export function clinicalTestToFormValues(test: ClinicalTest | null | undefined): ClinicalTestFormValues {
-  const initialMedia = test?.media?.[0];
-  return {
-    title: test?.title ?? "",
-    description: test?.description ?? "",
-    testType: test?.testType ?? "",
-    scoringConfigJson: scoringTextFromTest(test ?? null),
-    tags: test?.tags?.join(", ") ?? "",
-    mediaUrl: initialMedia?.mediaUrl ?? "",
-    mediaType: (initialMedia?.mediaType ?? "") as ClinicalTestFormValues["mediaType"],
-  };
-}
-
 type ClinicalTestFormProps = {
   test?: ClinicalTest | null;
   backHref?: string;
@@ -112,7 +231,7 @@ type ClinicalTestFormProps = {
     q?: string;
     titleSort?: "asc" | "desc" | null;
     regionRefId?: string;
-    loadType?: ExerciseLoadType;
+    assessmentKind?: string | null;
     listStatus?: RecommendationListFilterScope;
   };
   saveAction?: (
@@ -250,6 +369,15 @@ export function ClinicalTestForm({
 
   const isArchived = !!test?.isArchived;
 
+  const clinicalStructuredJson = useMemo(() => {
+    if (values.jsonMode) return "";
+    try {
+      return JSON.stringify(buildStructuredScoring(values));
+    } catch {
+      return "";
+    }
+  }, [values]);
+
   return (
     <div className="flex max-w-2xl flex-col gap-4">
       <form action={formAction} className="flex flex-col gap-4">
@@ -269,16 +397,15 @@ export function ClinicalTestForm({
         {workspaceListPreserve?.regionRefId != null && workspaceListPreserve.regionRefId !== "" ? (
           <input type="hidden" name="listRegion" value={workspaceListPreserve.regionRefId} />
         ) : null}
-        {workspaceListPreserve?.loadType === "strength" ||
-        workspaceListPreserve?.loadType === "stretch" ||
-        workspaceListPreserve?.loadType === "balance" ||
-        workspaceListPreserve?.loadType === "cardio" ||
-        workspaceListPreserve?.loadType === "other" ? (
-          <input type="hidden" name="listLoad" value={workspaceListPreserve.loadType} />
+        {workspaceListPreserve?.assessmentKind != null && workspaceListPreserve.assessmentKind !== "" ? (
+          <input type="hidden" name="listAssessment" value={workspaceListPreserve.assessmentKind} />
         ) : null}
         {workspaceListPreserve?.listStatus != null ? (
           <input type="hidden" name="listStatus" value={workspaceListPreserve.listStatus} />
         ) : null}
+        <input type="hidden" name="scoringEditorMode" value={values.jsonMode ? "json" : "structured"} readOnly />
+        <input type="hidden" name="clinicalScoringJson" value={values.jsonMode ? "" : clinicalStructuredJson} readOnly />
+        {!values.jsonMode ? <input type="hidden" name="scoringJsonRaw" value="" readOnly /> : null}
         <input type="hidden" name="mediaUrl" value={values.mediaUrl} />
         <input type="hidden" name="mediaType" value={values.mediaType} />
 
@@ -340,15 +467,186 @@ export function ClinicalTestForm({
             </div>
 
             <div className="flex flex-col gap-3">
-              <Label htmlFor="ct-score">Scoring config (JSON, опционально)</Label>
-              <Textarea
-                id="ct-score"
-                name="scoringConfigJson"
-                className="min-h-[120px] font-mono text-sm"
-                value={values.scoringConfigJson}
-                onChange={(e) => setValues((v) => ({ ...v, scoringConfigJson: e.target.value }))}
-                placeholder='{"threshold": 5}'
+              <Label htmlFor="ct-asm">Вид оценки</Label>
+              <select
+                id="ct-asm"
+                name="assessmentKind"
+                className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                value={values.assessmentKind}
+                onChange={(e) => setValues((v) => ({ ...v, assessmentKind: e.target.value }))}
+              >
+                <option value="">Не выбран</option>
+                {CLINICAL_ASSESSMENT_KIND_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex flex-col gap-3">
+              <Label htmlFor="ct-region">Регион тела</Label>
+              <ReferenceSelect
+                id="ct-region"
+                name="bodyRegionId"
+                categoryCode="body_region"
+                value={values.bodyRegionId}
+                onChange={(refId) => setValues((v) => ({ ...v, bodyRegionId: refId }))}
+                placeholder="Не выбран"
+                clearOptionLabel="Все / не задано"
+                disabled={isArchived}
               />
+            </div>
+
+            <div className="flex flex-col gap-3 rounded-md border border-border/50 p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-sm font-medium">Оценка</span>
+                <div className="flex items-center gap-2">
+                  <Switch
+                    id="ct-json-mode"
+                    checked={values.jsonMode}
+                    onCheckedChange={(c) => setValues((v) => ({ ...v, jsonMode: !!c }))}
+                    disabled={isArchived}
+                  />
+                  <Label htmlFor="ct-json-mode" className="text-sm font-normal">
+                    JSON-режим
+                  </Label>
+                </div>
+              </div>
+
+              {values.jsonMode ? (
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="ct-scoring-json">scoring (JSON)</Label>
+                  <Textarea
+                    id="ct-scoring-json"
+                    name="scoringJsonRaw"
+                    className="min-h-[220px] font-mono text-sm"
+                    value={values.scoringJsonRaw}
+                    onChange={(e) => setValues((v) => ({ ...v, scoringJsonRaw: e.target.value }))}
+                  />
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="flex flex-col gap-2">
+                    <Label>Тип шкалы</Label>
+                    <Select
+                      value={values.schemaType}
+                      onValueChange={(v) =>
+                        setValues((prev) => ({
+                          ...prev,
+                          schemaType:
+                            typeof v === "string" &&
+                            (CLINICAL_TEST_SCHEMA_TYPES as readonly string[]).includes(v)
+                              ? (v as ClinicalTestSchemaType)
+                              : "qualitative",
+                        }))
+                      }
+                    >
+                      <SelectTrigger className="w-full sm:max-w-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="numeric">Числовая</SelectItem>
+                        <SelectItem value="likert">Ликерт</SelectItem>
+                        <SelectItem value="binary">Да/Нет</SelectItem>
+                        <SelectItem value="qualitative">Качественная (вручную)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {values.schemaType === "numeric" ? (
+                    <div className="grid gap-2 sm:grid-cols-3">
+                      <div className="flex flex-col gap-1">
+                        <Label className="text-xs">Min</Label>
+                        <Input
+                          value={values.numericMin}
+                          onChange={(e) => setValues((v) => ({ ...v, numericMin: e.target.value }))}
+                          inputMode="decimal"
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <Label className="text-xs">Max</Label>
+                        <Input
+                          value={values.numericMax}
+                          onChange={(e) => setValues((v) => ({ ...v, numericMax: e.target.value }))}
+                          inputMode="decimal"
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <Label className="text-xs">Шаг</Label>
+                        <Input
+                          value={values.step}
+                          onChange={(e) => setValues((v) => ({ ...v, step: e.target.value }))}
+                          inputMode="decimal"
+                        />
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {values.schemaType === "likert" ? (
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <div className="flex flex-col gap-1">
+                        <Label className="text-xs">Минимум шкалы</Label>
+                        <Input
+                          value={values.likertMin}
+                          onChange={(e) => setValues((v) => ({ ...v, likertMin: e.target.value }))}
+                          inputMode="numeric"
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <Label className="text-xs">Максимум шкалы</Label>
+                        <Input
+                          value={values.likertMax}
+                          onChange={(e) => setValues((v) => ({ ...v, likertMax: e.target.value }))}
+                          inputMode="numeric"
+                        />
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {values.schemaType === "binary" ? (
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <div className="flex flex-col gap-1">
+                        <Label className="text-xs">Подпись «да»</Label>
+                        <Input
+                          value={values.positiveLabel}
+                          onChange={(e) => setValues((v) => ({ ...v, positiveLabel: e.target.value }))}
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <Label className="text-xs">Подпись «нет»</Label>
+                        <Input
+                          value={values.negativeLabel}
+                          onChange={(e) => setValues((v) => ({ ...v, negativeLabel: e.target.value }))}
+                        />
+                      </div>
+                    </div>
+                  ) : null}
+
+                  <ClinicalTestMeasureRowsEditor
+                    disabled={isArchived}
+                    rows={values.measureRows}
+                    setRows={(next) =>
+                      setValues((v) => ({
+                        ...v,
+                        measureRows: typeof next === "function" ? next(v.measureRows) : next,
+                      }))
+                    }
+                  />
+
+                  <div className="flex flex-col gap-2">
+                    <Label htmlFor="ct-raw">Свободный текст / fallback</Label>
+                    <Textarea
+                      id="ct-raw"
+                      name="rawText"
+                      className="min-h-[72px]"
+                      value={values.rawText}
+                      onChange={(e) => setValues((v) => ({ ...v, rawText: e.target.value }))}
+                      placeholder="Заметки, legacy-данные, что не вошло в структуру"
+                    />
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="flex flex-col gap-3">
@@ -409,12 +707,8 @@ export function ClinicalTestForm({
                 {workspaceListPreserve?.regionRefId != null && workspaceListPreserve.regionRefId !== "" ? (
                   <input type="hidden" name="listRegion" value={workspaceListPreserve.regionRefId} />
                 ) : null}
-                {workspaceListPreserve?.loadType === "strength" ||
-                workspaceListPreserve?.loadType === "stretch" ||
-                workspaceListPreserve?.loadType === "balance" ||
-                workspaceListPreserve?.loadType === "cardio" ||
-                workspaceListPreserve?.loadType === "other" ? (
-                  <input type="hidden" name="listLoad" value={workspaceListPreserve.loadType} />
+                {workspaceListPreserve?.assessmentKind != null && workspaceListPreserve.assessmentKind !== "" ? (
+                  <input type="hidden" name="listAssessment" value={workspaceListPreserve.assessmentKind} />
                 ) : null}
                 {workspaceListPreserve?.listStatus != null ? (
                   <input type="hidden" name="listStatus" value={workspaceListPreserve.listStatus} />
@@ -444,12 +738,8 @@ export function ClinicalTestForm({
             {workspaceListPreserve?.regionRefId != null && workspaceListPreserve.regionRefId !== "" ? (
               <input type="hidden" name="listRegion" value={workspaceListPreserve.regionRefId} />
             ) : null}
-            {workspaceListPreserve?.loadType === "strength" ||
-            workspaceListPreserve?.loadType === "stretch" ||
-            workspaceListPreserve?.loadType === "balance" ||
-            workspaceListPreserve?.loadType === "cardio" ||
-            workspaceListPreserve?.loadType === "other" ? (
-              <input type="hidden" name="listLoad" value={workspaceListPreserve.loadType} />
+            {workspaceListPreserve?.assessmentKind != null && workspaceListPreserve.assessmentKind !== "" ? (
+              <input type="hidden" name="listAssessment" value={workspaceListPreserve.assessmentKind} />
             ) : null}
             {workspaceListPreserve?.listStatus != null ? (
               <input type="hidden" name="listStatus" value={workspaceListPreserve.listStatus} />

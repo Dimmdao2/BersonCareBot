@@ -1,12 +1,12 @@
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import type { ExerciseLoadType } from "@/modules/lfk-exercises/types";
 import { AppShell } from "@/shared/ui/AppShell";
 import { doctorCatalogViewFromSearchParams } from "@/shared/lib/doctorCatalogViewPreference";
 import {
   clinicalTestListArchiveScopeFromRecommendationFilter,
   parseRecommendationListFilterScope,
 } from "@/shared/lib/doctorCatalogListStatus";
+import { isClinicalAssessmentKind } from "@/modules/tests/clinicalTestAssessmentKind";
 import { ClinicalTestsPageClient, type ClinicalTestTitleSort } from "./ClinicalTestsPageClient";
 
 type PageProps = {
@@ -16,7 +16,7 @@ type PageProps = {
     q?: string;
     titleSort?: string;
     region?: string;
-    load?: string;
+    assessment?: string;
     status?: string;
   }>;
 };
@@ -27,14 +27,8 @@ export default async function DoctorClinicalTestsPage({ searchParams }: PageProp
   const sp = (await searchParams) ?? {};
   const q = typeof sp.q === "string" ? sp.q : "";
   const regionRefId = typeof sp.region === "string" && sp.region.trim() ? sp.region.trim() : undefined;
-  const loadType =
-    sp.load === "strength" ||
-    sp.load === "stretch" ||
-    sp.load === "balance" ||
-    sp.load === "cardio" ||
-    sp.load === "other"
-      ? (sp.load as ExerciseLoadType)
-      : undefined;
+  const assessmentRaw = typeof sp.assessment === "string" ? sp.assessment.trim() : "";
+  const assessmentKind = isClinicalAssessmentKind(assessmentRaw) ? assessmentRaw : undefined;
   const titleSort: ClinicalTestTitleSort | null =
     sp.titleSort === "asc" || sp.titleSort === "desc" ? sp.titleSort : null;
 
@@ -45,7 +39,7 @@ export default async function DoctorClinicalTestsPage({ searchParams }: PageProp
     search: q || null,
     archiveScope,
     regionRefId: regionRefId ?? null,
-    loadType: loadType ?? null,
+    assessmentKind: assessmentKind ?? null,
   });
 
   const rawSelected = typeof sp.selected === "string" ? sp.selected.trim() : "";
@@ -66,7 +60,7 @@ export default async function DoctorClinicalTestsPage({ searchParams }: PageProp
         initialViewMode={initialViewMode}
         viewLockedByUrl={viewLockedByUrl}
         initialTitleSort={titleSort}
-        filters={{ q, regionRefId, loadType, listStatus }}
+        filters={{ q, regionRefId, assessmentKind, listStatus }}
       />
     </AppShell>
   );

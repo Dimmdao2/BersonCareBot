@@ -8,6 +8,8 @@ import {
   isClinicalTestUnarchiveNotArchivedError,
   isClinicalTestUsageConfirmationRequiredError,
 } from "@/modules/tests/errors";
+import { isClinicalAssessmentKind } from "@/modules/tests/clinicalTestAssessmentKind";
+import { clinicalTestScoringSchema, normalizeClinicalTestScoringOrder } from "@/modules/tests/clinicalTestScoring";
 import { API_MEDIA_URL_RE, isLegacyAbsoluteUrl } from "@/shared/lib/mediaUrlPolicy";
 
 export type SaveClinicalTestState = { ok: boolean; error?: string };
@@ -53,17 +55,6 @@ function validateMedia(mediaUrl: string | null, mediaType: "image" | "video" | "
   return null;
 }
 
-function parseScoringJson(raw: FormDataEntryValue | null): unknown | null {
-  if (typeof raw !== "string") return null;
-  const s = raw.trim();
-  if (!s) return null;
-  try {
-    return JSON.parse(s) as unknown;
-  } catch {
-    throw new Error("Некорректный JSON в поле scoring_config");
-  }
-}
-
 export async function saveClinicalTestCore(formData: FormData): Promise<
   | { ok: true; testId: string; wasUpdate: boolean }
   | { ok: false; error: string }
@@ -77,13 +68,55 @@ export async function saveClinicalTestCore(formData: FormData): Promise<
   const description = typeof descField === "string" ? descField.trim() : "";
   const testTypeField = formData.get("testType");
   const testType = typeof testTypeField === "string" ? testTypeField.trim() : "";
-  let scoringConfig: unknown | null = null;
-  try {
-    scoringConfig = parseScoringJson(formData.get("scoringConfigJson"));
-  } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Ошибка scoring_config" };
+
+  const rawTextField = formData.get("rawText");
+  const rawText = typeof rawTextField === "string" ? (rawTextField.trim() ? rawTextField.trim() : null) : null;
+
+  const bodyRegionField = formData.get("bodyRegionId");
+  const bodyRegionId =
+    typeof bodyRegionField === "string" && bodyRegionField.trim() ? bodyRegionField.trim() : null;
+
+  const assessmentField = formData.get("assessmentKind");
+  const assessmentTrim = typeof assessmentField === "string" ? assessmentField.trim() : "";
+  const assessmentKind = assessmentTrim || null;
+  if (assessmentKind && !isClinicalAssessmentKind(assessmentKind)) {
+    return { ok: false, error: "Некорректный вид оценки" };
   }
 
+  let scoringConfigLegacy: unknown | null = null;
+
+  const editorMode = formData.get("scoringEditorMode");
+  const jsonMode = editorMode === "json";
+
+  let scoringParsed: ReturnType<typeof normalizeClinicalTestScoringOrder> | null = null;
+  if (jsonMode) {
+    const rawJson = formData.get("scoringJsonRaw");
+    if (typeof rawJson === "string" && rawJson.trim()) {
+      try {
+        const parsed = JSON.parse(rawJson) as unknown;
+        const r = clinicalTestScoringSchema.safeParse(parsed);
+        if (!r.success) return { ok: false, error: "Некорректный JSON scoring" };
+        scoringParsed = normalizeClinicalTestScoringOrder(r.data);
+      } catch {
+        return { ok: false, error: "Некорректный JSON scoring" };
+      }
+    }
+  } else {
+    const payload = formData.get("clinicalScoringJson");
+    if (typeof payload === "string" && payload.trim()) {
+      try {
+        const parsed = JSON.parse(payload) as unknown;
+        const r = clinicalTestScoringSchema.safeParse(parsed);
+        if (!r.success) return { ok: false, error: "Некорректная структура scoring" };
+        scoringParsed = normalizeClinicalTestScoringOrder(r.data);
+      } catch {
+        return { ok: false, error: "Некорректная структура scoring" };
+      }
+    }
+  }
+
+  const scoringConfig = scoringParsed != null ? null : scoringConfigLegacy;
+  const scoring = scoringParsed;
   const mediaUrlField = formData.get("mediaUrl");
   const mediaUrl = typeof mediaUrlField === "string" ? mediaUrlField.trim() : "";
   const mediaTypeField = formData.get("mediaType");
@@ -119,6 +152,10 @@ export async function saveClinicalTestCore(formData: FormData): Promise<
         title,
         description: description || null,
         testType: testType || null,
+        assessmentKind,
+        bodyRegionId,
+        scoring,
+        rawText,
         scoringConfig,
         tags,
         media,
@@ -130,6 +167,10 @@ export async function saveClinicalTestCore(formData: FormData): Promise<
         title,
         description: description || null,
         testType: testType || null,
+        assessmentKind,
+        bodyRegionId,
+        scoring,
+        rawText,
         scoringConfig,
         tags,
         media,

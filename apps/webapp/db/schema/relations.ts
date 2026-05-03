@@ -761,6 +761,11 @@ export const clinicalTestsRelations = relations(clinicalTests, ({ one, many }) =
 		fields: [clinicalTests.createdBy],
 		references: [platformUsers.id],
 	}),
+	bodyRegion: one(referenceItems, {
+		fields: [clinicalTests.bodyRegionId],
+		references: [referenceItems.id],
+		relationName: "clinical_tests_body_region",
+	}),
 	testSetItems: many(testSetItems),
 }));
 

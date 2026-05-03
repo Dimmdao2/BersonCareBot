@@ -21,6 +21,31 @@ import type {
   TestSetItemInput,
 } from "./types";
 import { clinicalTestArchiveRequiresAcknowledgement, testSetArchiveRequiresAcknowledgement } from "./types";
+import { isClinicalAssessmentKind } from "./clinicalTestAssessmentKind";
+import { clinicalTestScoringSchema, normalizeClinicalTestScoringOrder } from "./clinicalTestScoring";
+
+function assertClinicalTestWritePayload(input: CreateClinicalTestInput | UpdateClinicalTestInput): void {
+  if (input.assessmentKind !== undefined && input.assessmentKind !== null) {
+    const t = input.assessmentKind.trim();
+    if (t && !isClinicalAssessmentKind(t)) {
+      throw new Error("Некорректный вид оценки");
+    }
+  }
+  if (input.scoring !== undefined && input.scoring !== null) {
+    const p = clinicalTestScoringSchema.safeParse(input.scoring);
+    if (!p.success) throw new Error("Некорректная структура scoring");
+  }
+}
+
+function normalizeClinicalWritePayload<T extends CreateClinicalTestInput | UpdateClinicalTestInput>(input: T): T {
+  assertClinicalTestWritePayload(input);
+  const next = { ...input };
+  if (next.scoring != null) {
+    const p = clinicalTestScoringSchema.parse(next.scoring);
+    return { ...next, scoring: normalizeClinicalTestScoringOrder(p) };
+  }
+  return next;
+}
 
 export function createClinicalTestsService(port: ClinicalTestsPort) {
   return {
@@ -35,15 +60,16 @@ export function createClinicalTestsService(port: ClinicalTestsPort) {
     async createClinicalTest(input: CreateClinicalTestInput, createdBy: string | null) {
       const title = input.title?.trim() ?? "";
       if (!title) throw new Error("Название теста обязательно");
-      return port.create(
-        {
-          ...input,
-          title,
-          description: input.description?.trim() || null,
-          testType: input.testType?.trim() || null,
-        },
-        createdBy,
-      );
+      const normalized = normalizeClinicalWritePayload({
+        ...input,
+        title,
+        description: input.description?.trim() || null,
+        testType: input.testType?.trim() || null,
+        assessmentKind: input.assessmentKind?.trim() || null,
+        bodyRegionId: input.bodyRegionId?.trim() || null,
+        rawText: input.rawText?.trim() ? input.rawText.trim() : input.rawText ?? null,
+      });
+      return port.create(normalized, createdBy);
     },
 
     async updateClinicalTest(id: string, input: UpdateClinicalTestInput) {
@@ -60,7 +86,17 @@ export function createClinicalTestsService(port: ClinicalTestsPort) {
       }
       if (input.description !== undefined) patch.description = input.description?.trim() || null;
       if (input.testType !== undefined) patch.testType = input.testType?.trim() || null;
-      const row = await port.update(id, patch);
+      if (input.assessmentKind !== undefined) {
+        patch.assessmentKind = input.assessmentKind?.trim() || null;
+      }
+      if (input.bodyRegionId !== undefined) {
+        patch.bodyRegionId = input.bodyRegionId?.trim() || null;
+      }
+      if (input.rawText !== undefined) {
+        patch.rawText = input.rawText?.trim() ? input.rawText.trim() : null;
+      }
+      const normalized = normalizeClinicalWritePayload(patch);
+      const row = await port.update(id, normalized);
       if (!row) throw new Error("Тест не найден");
       return row;
     },

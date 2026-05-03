@@ -1,4 +1,5 @@
-/** Медиа-блок в JSON (как снимок для stage_item по SYSTEM_LOGIC_SCHEMA §4). */
+import type { ClinicalTestScoring } from "./clinicalTestScoring";
+
 export type ClinicalTestMediaItem = {
   mediaUrl: string;
   mediaType: "image" | "video" | "gif";
@@ -10,7 +11,16 @@ export type ClinicalTest = {
   title: string;
   description: string | null;
   testType: string | null;
+  /** Legacy JSON; не удаляется в B2 — см. ТЗ. При успешном сохранении структурированного `scoring` может обнуляться приложением. */
   scoringConfig: unknown | null;
+  /** Структурированная оценка (B2); при null на чтении репозиторий может вывести из `scoring_config`. */
+  scoring: ClinicalTestScoring | null;
+  /** Fallback / legacy перенос / свободный текст. */
+  rawText: string | null;
+  /** Код из {@link import("./clinicalTestAssessmentKind")} или null. */
+  assessmentKind: string | null;
+  /** FK `reference_items.id` (категория регионов тела). */
+  bodyRegionId: string | null;
   media: ClinicalTestMediaItem[];
   tags: string[] | null;
   isArchived: boolean;
@@ -25,16 +35,21 @@ export type ClinicalTestFilter = {
   archiveScope?: TestSetArchiveScope;
   search?: string | null;
   testType?: string | null;
-  /** Зарезервировано под единый UI с упражнениями; список в БД пока не фильтрует. */
+  /** Фильтр по региону тела (`tests.body_region_id`). */
   regionRefId?: string | null;
-  /** Зарезервировано под единый UI с упражнениями; список в БД пока не фильтрует. */
-  loadType?: import("@/modules/lfk-exercises/types").ExerciseLoadType | null;
+  /** Фильтр по виду оценки (`tests.assessment_kind`), код enum v1. */
+  assessmentKind?: string | null;
 };
 
 export type CreateClinicalTestInput = {
   title: string;
   description?: string | null;
   testType?: string | null;
+  /** Код из enum вида оценки (v1) или null. */
+  assessmentKind?: string | null;
+  bodyRegionId?: string | null;
+  scoring?: ClinicalTestScoring | null;
+  rawText?: string | null;
   scoringConfig?: unknown | null;
   media?: ClinicalTestMediaItem[];
   tags?: string[] | null;
@@ -44,6 +59,10 @@ export type UpdateClinicalTestInput = {
   title?: string;
   description?: string | null;
   testType?: string | null;
+  assessmentKind?: string | null;
+  bodyRegionId?: string | null;
+  scoring?: ClinicalTestScoring | null;
+  rawText?: string | null;
   scoringConfig?: unknown | null;
   media?: ClinicalTestMediaItem[] | null;
   tags?: string[] | null;

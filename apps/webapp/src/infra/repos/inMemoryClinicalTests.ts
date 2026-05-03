@@ -52,6 +52,10 @@ function matchesFilter(t: ClinicalTest, f: ClinicalTestFilter): boolean {
   if (scope === "active" && t.isArchived) return false;
   if (scope === "archived" && !t.isArchived) return false;
   if (f.testType && f.testType.trim() && t.testType !== f.testType.trim()) return false;
+  const region = f.regionRefId?.trim();
+  if (region && t.bodyRegionId !== region) return false;
+  const ak = f.assessmentKind?.trim();
+  if (ak && t.assessmentKind !== ak) return false;
   if (f.search?.trim()) {
     const q = f.search.trim().toLowerCase();
     if (!t.title.toLowerCase().includes(q) && !(t.description ?? "").toLowerCase().includes(q)) {
@@ -81,6 +85,10 @@ export const inMemoryClinicalTestsPort: ClinicalTestsPort = {
       description: input.description ?? null,
       testType: input.testType ?? null,
       scoringConfig: input.scoringConfig ?? null,
+      scoring: input.scoring ?? null,
+      rawText: input.rawText ?? null,
+      assessmentKind: input.assessmentKind?.trim() || null,
+      bodyRegionId: input.bodyRegionId?.trim() || null,
       media: normalizeMedia(input.media ?? []),
       tags: input.tags ?? null,
       isArchived: false,
@@ -102,6 +110,10 @@ export const inMemoryClinicalTestsPort: ClinicalTestsPort = {
       description: input.description !== undefined ? input.description : cur.description,
       testType: input.testType !== undefined ? input.testType : cur.testType,
       scoringConfig: input.scoringConfig !== undefined ? input.scoringConfig : cur.scoringConfig,
+      scoring: input.scoring !== undefined ? input.scoring : cur.scoring,
+      rawText: input.rawText !== undefined ? input.rawText : cur.rawText,
+      assessmentKind: input.assessmentKind !== undefined ? input.assessmentKind?.trim() || null : cur.assessmentKind,
+      bodyRegionId: input.bodyRegionId !== undefined ? input.bodyRegionId?.trim() || null : cur.bodyRegionId,
       tags: input.tags !== undefined ? input.tags : cur.tags,
       media: input.media !== undefined ? normalizeMedia(input.media) : cur.media,
       updatedAt: now,

@@ -94,3 +94,53 @@ pnpm exec tsc --noEmit
 
 **Результат:** eslint / vitest / tsc — **PASS** (после stub `fetch` в `DoctorCatalogFiltersForm.test.tsx` для `ReferenceSelect` / `body_region`).
 
+---
+
+## 2026-05-03 — Stage B2 + B2.5 — EXEC (clinical tests scoring, measure kinds, catalog UX)
+
+**Контекст:** `STAGE_B2_PLAN.md`, `PRE_IMPLEMENTATION_DECISIONS.md`, продуктовое ТЗ §3 B2; Q2 — только каталог (qualitative в схеме, без инстансного UX).
+
+**Сделано:**
+
+- Drizzle **`0034_clinical_tests_b2_scoring_measure_kinds`**: таблица `clinical_test_measure_kinds`; на `tests` — `assessment_kind`, `body_region_id`, `scoring`, `raw_text` (legacy `scoring_config` сохранён); FK на `reference_items`; backfill `scoring` + `raw_text` из невалидного к новому формату.
+- Домен: `clinicalTestScoring.ts` (Zod discriminated union по `schema_type`, `migrateLegacyScoringConfig`, нормализация порядка измерений), `clinicalTestAssessmentKind.ts`, коды видов измерений + `measureKindsService` / ports / `pg` + in-memory репозитории.
+- Модуль tests: расширенные типы/фильтры, валидация записи в `service.ts`; `pgClinicalTests` / `inMemoryClinicalTests`.
+- **`GET`/`POST /api/doctor/measure-kinds`**; DI `buildAppDeps().measureKinds`.
+- UI: **`CreatableComboboxInput`**, **`ClinicalTestMeasureRowsEditor`** (dnd-kit + combobox), **`ClinicalTestForm`** (assessment, регион тела, JSON vs structured scoring, ветки по `schema_type`, `rawText`); список каталога — фильтр по виду оценки (`DoctorCatalogFiltersForm` tertiary), preserve `listAssessment`; `page.tsx` / `actionsInline` / `actionsShared`.
+- Контракт scoring зафиксирован в типах + Zod; legacy → `qualitative` + перенос в `raw_text`.
+- Документация API: `apps/webapp/src/app/api/api.md` (`doctor/clinical-tests` items B2, новый `doctor/measure-kinds`).
+
+**Проверки (целевые, без полного `pnpm run ci`):**
+
+```bash
+cd apps/webapp && pnpm exec eslint \
+  db/schema/clinicalTests.ts db/schema/relations.ts \
+  src/app-layer/di/buildAppDeps.ts \
+  src/app/app/doctor/clinical-tests/ClinicalTestForm.test.tsx \
+  src/app/app/doctor/clinical-tests/ClinicalTestForm.tsx \
+  src/app/app/doctor/clinical-tests/ClinicalTestMeasureRowsEditor.tsx \
+  src/app/app/doctor/clinical-tests/ClinicalTestsPageClient.tsx \
+  src/app/app/doctor/clinical-tests/actionsInline.ts \
+  src/app/app/doctor/clinical-tests/actionsShared.ts \
+  src/app/app/doctor/clinical-tests/page.tsx \
+  src/app/api/doctor/measure-kinds/route.ts \
+  src/infra/repos/inMemoryClinicalTests.ts \
+  src/infra/repos/inMemoryClinicalTestMeasureKinds.ts \
+  src/infra/repos/pgClinicalTests.ts \
+  src/infra/repos/pgClinicalTestMeasureKinds.ts \
+  src/modules/tests/service.ts src/modules/tests/types.ts \
+  src/modules/tests/clinicalTestAssessmentKind.ts \
+  src/modules/tests/clinicalTestScoring.ts \
+  src/modules/tests/clinicalTestScoring.test.ts \
+  src/modules/tests/measureKindCode.ts \
+  src/modules/tests/measureKindsPorts.ts \
+  src/modules/tests/measureKindsService.ts \
+  src/shared/ui/CreatableComboboxInput.tsx
+pnpm exec vitest run \
+  src/modules/tests/clinicalTestScoring.test.ts \
+  src/app/app/doctor/clinical-tests/ClinicalTestForm.test.tsx
+pnpm exec tsc --noEmit
+```
+
+**Вне scope:** расширение `GET/POST /api/doctor/clinical-tests` под те же query/поля, что RSC-страница; инстансный qualitative UX; `AUDIT_STAGE_B2.md`.
+
