@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getCurrentSession } from "@/modules/auth/service";
 import { canAccessDoctor } from "@/modules/roles/service";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { testSetListFilterFromDoctorApiGetQuery } from "@/shared/lib/doctorCatalogListStatus";
 
 const postBodySchema = z.object({
   title: z.string().min(1).max(2000),
@@ -11,7 +12,10 @@ const postBodySchema = z.object({
 
 const listQuerySchema = z.object({
   q: z.string().optional(),
+  /** @deprecated Предпочтительнее `arch` + `publicationScope`. */
   includeArchived: z.coerce.boolean().optional(),
+  arch: z.enum(["active", "archived"]).optional(),
+  publicationScope: z.enum(["all", "draft", "published"]).optional(),
 });
 
 export async function GET(request: Request) {
@@ -28,10 +32,7 @@ export async function GET(request: Request) {
   }
 
   const deps = buildAppDeps();
-  const items = await deps.testSets.listTestSets({
-    search: parsed.data.q?.trim() || null,
-    includeArchived: parsed.data.includeArchived ?? false,
-  });
+  const items = await deps.testSets.listTestSets(testSetListFilterFromDoctorApiGetQuery(parsed.data));
   return NextResponse.json({ ok: true, items });
 }
 

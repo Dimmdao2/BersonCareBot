@@ -226,6 +226,7 @@ export function TreatmentProgramTemplatesPageClient({
             loadType={filters.loadType}
             titleSort={titleSort}
             selectedId={selectedId}
+            catalogPubArch={filters.listPubArch}
           />
         </DoctorCatalogToolbarFiltersSlot>
       }

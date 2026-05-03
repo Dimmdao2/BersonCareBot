@@ -4,6 +4,7 @@ import {
   parseDoctorCatalogPubArchQuery,
   parseRecommendationListFilterScope,
   parseTemplateCourseCatalogListStatus,
+  testSetListFilterFromDoctorApiGetQuery,
   testSetListFilterFromPubArch,
   treatmentProgramTemplateFilterFromPubArch,
 } from "./doctorCatalogListStatus";
@@ -49,6 +50,13 @@ describe("parseDoctorCatalogPubArchQuery", () => {
       pub: "published",
     });
   });
+
+  it("prefers explicit pub over legacy status=draft without arch param", () => {
+    expect(parseDoctorCatalogPubArchQuery({ status: "draft", pub: "published" })).toEqual({
+      arch: "active",
+      pub: "published",
+    });
+  });
 });
 
 describe("catalog filter builders (B1)", () => {
@@ -70,11 +78,23 @@ describe("catalog filter builders (B1)", () => {
     });
   });
 
-  it("testSetListFilterFromPubArch", () => {
-    expect(testSetListFilterFromPubArch({ arch: "active", pub: "published" }, "x")).toEqual({
+  it("testSetListFilterFromDoctorApiGetQuery", () => {
+    expect(
+      testSetListFilterFromDoctorApiGetQuery({
+        q: "  x  ",
+        includeArchived: true,
+      }),
+    ).toEqual({ search: "x", archiveScope: "all", publicationScope: "all" });
+    expect(
+      testSetListFilterFromDoctorApiGetQuery({
+        arch: "archived",
+        publicationScope: "draft",
+      }),
+    ).toEqual({ search: null, archiveScope: "archived", publicationScope: "draft" });
+    expect(testSetListFilterFromDoctorApiGetQuery({})).toEqual({
+      search: null,
       archiveScope: "active",
-      publicationScope: "published",
-      search: "x",
+      publicationScope: "all",
     });
   });
 });

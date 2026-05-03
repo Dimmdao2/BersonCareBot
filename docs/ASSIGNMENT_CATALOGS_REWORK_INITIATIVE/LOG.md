@@ -58,3 +58,39 @@
 
 **Вне scope:** курсы (`courses/page.tsx`) — прежний одноосевый `status`; клинические тесты / рекомендации / упражнения — без оси публикации.
 
+---
+
+## 2026-05-03 — Stage B1 — FIX (AUDIT_STAGE_B1)
+
+**Контекст:** [`AUDIT_STAGE_B1.md`](AUDIT_STAGE_B1.md) (critical: GET-форма теряла `arch`/`pub`; major: picker шаблона программ и `GET /api/doctor/test-sets` без публикации; minor: терминология + deferred toast для мусорных query).
+
+**Сделано:**
+
+- `DoctorCatalogFiltersForm`: hidden `arch`/`pub` при ненулевых осях; проп `catalogPubArch` с трёх `*PageClient`.
+- `treatment-program-templates/page.tsx`: `listTestSets({ archiveScope: "active", publicationScope: "published" })` для библиотеки наборов.
+- `GET /api/doctor/test-sets`: query `arch`, `publicationScope` (+ legacy `includeArchived`); `testSetListFilterFromDoctorApiGetQuery` в `doctorCatalogListStatus.ts`; `api.md`.
+- Доки: `PROMPTS_EXEC_AUDIT_FIX_GLOBAL.md`, `STAGE_B1_PLAN.md` (`publication_status`); AUDIT обновлён до **PASS**, §13 FIX, mandatory помечены выполненными.
+
+**Проверки (целевые B1, не полный `ci`):**
+
+```bash
+cd apps/webapp && pnpm exec eslint \
+  src/shared/ui/doctor/DoctorCatalogFiltersForm.tsx \
+  src/shared/ui/doctor/DoctorCatalogFiltersForm.test.tsx \
+  src/app/app/doctor/lfk-templates/LfkTemplatesPageClient.tsx \
+  src/app/app/doctor/treatment-program-templates/TreatmentProgramTemplatesPageClient.tsx \
+  src/app/app/doctor/test-sets/TestSetsPageClient.tsx \
+  src/app/app/doctor/treatment-program-templates/page.tsx \
+  src/app/api/doctor/test-sets/route.ts \
+  src/shared/lib/doctorCatalogListStatus.ts \
+  src/shared/lib/doctorCatalogListStatus.test.ts
+pnpm exec vitest run \
+  src/shared/lib/doctorCatalogListStatus.test.ts \
+  src/app/app/doctor/lfk-templates/lfkTemplatesListPreserveQuery.test.ts \
+  src/app/app/doctor/test-sets/TestSetForm.test.tsx \
+  src/shared/ui/doctor/DoctorCatalogFiltersForm.test.tsx
+pnpm exec tsc --noEmit
+```
+
+**Результат:** eslint / vitest / tsc — **PASS** (после stub `fetch` в `DoctorCatalogFiltersForm.test.tsx` для `ReferenceSelect` / `body_region`).
+

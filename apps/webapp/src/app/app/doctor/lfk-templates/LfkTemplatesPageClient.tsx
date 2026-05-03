@@ -216,12 +216,13 @@ export function LfkTemplatesPageClient({
       filters={
         <DoctorCatalogToolbarFiltersSlot>
           <DoctorCatalogFiltersForm
-            key={`lfk-filters-${filters.q}-${filters.regionRefId ?? ""}-${filters.loadType ?? ""}`}
+            key={`lfk-filters-${filters.listPubArch.arch}-${filters.listPubArch.pub}-${filters.q}-${filters.regionRefId ?? ""}-${filters.loadType ?? ""}`}
             idPrefix="lfk-tpl"
             q={filters.q}
             regionRefId={filters.regionRefId}
             loadType={filters.loadType}
             titleSort={titleSort}
+            catalogPubArch={filters.listPubArch}
           />
         </DoctorCatalogToolbarFiltersSlot>
       }

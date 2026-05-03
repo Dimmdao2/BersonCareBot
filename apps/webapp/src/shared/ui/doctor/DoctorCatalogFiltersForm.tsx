@@ -7,6 +7,7 @@ import { ReferenceSelect } from "@/shared/ui/ReferenceSelect";
 import { EXERCISE_LOAD_TYPE_OPTIONS, exerciseLoadTypeLabel } from "@/modules/lfk-exercises/exerciseLoadTypeOptions";
 import type { ExerciseLoadType } from "@/modules/lfk-exercises/types";
 import type { ReferenceItemDto } from "@/modules/references/referenceCache";
+import type { DoctorCatalogPubArchQuery } from "@/shared/lib/doctorCatalogListStatus";
 import type { ReactNode } from "react";
 
 const EXERCISE_LOAD_FILTER_ITEMS: ReferenceItemDto[] = EXERCISE_LOAD_TYPE_OPTIONS.map((o, idx) => ({
@@ -42,6 +43,8 @@ export type DoctorCatalogFiltersFormProps = {
   titleSort?: "asc" | "desc" | null;
   selectedId?: string | null;
   idPrefix?: string;
+  /** Сохранять оси каталога с публикацией при GET submit (ЛФК / шаблоны программ / наборы тестов). */
+  catalogPubArch?: DoctorCatalogPubArchQuery;
   /** Редко: доп. контроль слева (без фильтров по черновикам/архиву в статусе шаблона). */
   leadingSlot?: ReactNode;
 };
@@ -64,6 +67,7 @@ export function DoctorCatalogFiltersForm({
   titleSort,
   selectedId,
   idPrefix = "catalog",
+  catalogPubArch,
   leadingSlot,
 }: DoctorCatalogFiltersFormProps) {
   const [selectedRegionRefId, setSelectedRegionRefId] = useState<string | null>(regionRefId ?? null);
@@ -111,6 +115,10 @@ export function DoctorCatalogFiltersForm({
       {view ? <input type="hidden" name="view" value={view} /> : null}
       {titleSort ? <input type="hidden" name="titleSort" value={titleSort} /> : null}
       {selectedId ? <input type="hidden" name="selected" value={selectedId} /> : null}
+      {catalogPubArch?.arch === "archived" ? <input type="hidden" name="arch" value="archived" /> : null}
+      {catalogPubArch?.pub === "draft" || catalogPubArch?.pub === "published" ? (
+        <input type="hidden" name="pub" value={catalogPubArch.pub} />
+      ) : null}
       {leadingSlot}
       <div className="w-[220px] shrink-0">
         <label className="sr-only" htmlFor={`${idPrefix}-q`}>

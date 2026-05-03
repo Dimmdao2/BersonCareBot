@@ -65,7 +65,7 @@
 
 ## 6. Execution checklist
 
-1. [ ] Миграция `test_sets.status` (`draft|published`), default/backfill/index/check.
+1. [x] Миграция `test_sets.publication_status` (`draft|published`), default/backfill/index/check.
 2. [ ] `doctorCatalogListStatus` и helper-утилиты для двух осей.
 3. [ ] `CatalogStatusFilters` (два селекта рядом).
 4. [ ] Интеграция в 3 каталога (LFK/templates/test-sets).

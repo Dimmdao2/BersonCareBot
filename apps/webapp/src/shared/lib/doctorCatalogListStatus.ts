@@ -1,7 +1,7 @@
 import type { RecommendationArchiveScope } from "@/modules/recommendations/types";
 import type { TemplateFilter, TemplateStatus } from "@/modules/lfk-templates/types";
 import type { TreatmentProgramTemplateFilter } from "@/modules/treatment-program/types";
-import type { TestSetArchiveScope, TestSetFilter } from "@/modules/tests/types";
+import type { TestSetArchiveScope, TestSetFilter, TestSetPublicationScope } from "@/modules/tests/types";
 
 /** Единый фильтр архивности doctor-каталогов: рабочие или архив (`all` оставлен для старых внутренних вызовов). */
 export type DoctorCatalogListStatus = "all" | "active" | "archived";
@@ -225,5 +225,27 @@ export function testSetListFilterFromPubArch(
     archiveScope: testSetArchiveScopeFromAxis(q.arch),
     publicationScope: q.pub,
     search: search ?? null,
+  };
+}
+
+/**
+ * Список наборов для `GET /api/doctor/test-sets` (совместимость с `includeArchived` + новые `arch` / `publicationScope`).
+ */
+export function testSetListFilterFromDoctorApiGetQuery(sp: {
+  q?: string | undefined;
+  /** @deprecated Используйте {@link arch}. */
+  includeArchived?: boolean | undefined;
+  arch?: "active" | "archived" | undefined;
+  publicationScope?: TestSetPublicationScope | undefined;
+}): TestSetFilter {
+  let archiveScope: TestSetArchiveScope = "active";
+  if (sp.arch === "archived") archiveScope = "archived";
+  else if (sp.includeArchived === true) archiveScope = "all";
+
+  const qv = typeof sp.q === "string" ? sp.q.trim() : "";
+  return {
+    search: qv.length > 0 ? qv : null,
+    archiveScope,
+    publicationScope: sp.publicationScope ?? "all",
   };
 }

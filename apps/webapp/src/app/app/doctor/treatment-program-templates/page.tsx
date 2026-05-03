@@ -38,7 +38,7 @@ export default async function TreatmentProgramTemplatesPage({ searchParams }: Pa
     deps.treatmentProgram.listTemplates(tplListFilter),
     deps.lfkExercises.listExercises({ includeArchived: false }),
     deps.lfkTemplates.listTemplates({}),
-    deps.testSets.listTestSets({ includeArchived: false }),
+    deps.testSets.listTestSets({ archiveScope: "active", publicationScope: "published" }),
     deps.recommendations.listRecommendations({ includeArchived: false }),
     deps.contentPages.listAll(),
   ]);

@@ -72,7 +72,7 @@
 ```text
 Проведи аудит stage B1.
 
-Проверь: парсер URL, legacy-ссылки, три списка (ЛФК/шаблоны/test_sets), корректность новой схемы `test_sets.status`, регресс archive/usage где затронуто.
+Проверь: парсер URL, legacy-ссылки, три списка (ЛФК/шаблоны/test_sets), корректность колонки **`test_sets.publication_status`** (и типа `TestSet.publicationStatus`), регресс archive/usage где затронуто.
 
 Сохрани: docs/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/AUDIT_STAGE_B1.md
 Добавь MANDATORY FIX INSTRUCTIONS (critical/major/minor).

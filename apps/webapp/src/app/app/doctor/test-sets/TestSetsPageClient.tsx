@@ -187,12 +187,14 @@ export function TestSetsPageClient({
       filters={
         <DoctorCatalogToolbarFiltersSlot>
           <DoctorCatalogFiltersForm
+            key={`ts-filters-${filters.listPubArch.arch}-${filters.listPubArch.pub}-${filters.q}-${filters.regionRefId ?? ""}-${filters.loadType ?? ""}`}
             idPrefix="ts"
             q={filters.q}
             regionRefId={filters.regionRefId}
             loadType={filters.loadType}
             titleSort={titleSort}
             selectedId={creating ? null : selected?.id ?? mobileSheet?.id ?? null}
+            catalogPubArch={filters.listPubArch}
           />
         </DoctorCatalogToolbarFiltersSlot>
       }
