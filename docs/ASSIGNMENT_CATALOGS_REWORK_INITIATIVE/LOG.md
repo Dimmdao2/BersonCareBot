@@ -442,3 +442,33 @@ pnpm exec tsc --noEmit
 
 **Результат:** eslint / vitest / tsc — **PASS**.
 
+---
+
+## 2026-05-03 — Stage B6 — FIX (`AUDIT_STAGE_B6`)
+
+**Контекст:** [`AUDIT_STAGE_B6.md`](AUDIT_STAGE_B6.md) MANDATORY (major: паритет master-detail после `PATCH` статуса; minor: чеклист плана, тест, a11y счётчиков).
+
+**Сделано:**
+
+- [`TreatmentProgramConstructorClient.tsx`](../../apps/webapp/src/app/app/doctor/treatment-program-templates/[id]/TreatmentProgramConstructorClient.tsx): после успешного `patchPublicationStatus` **всегда** `router.refresh()` (split-view со `onArchived` обновляет RSC-список слева).
+- [`TreatmentProgramConstructorClient.test.tsx`](../../apps/webapp/src/app/app/doctor/treatment-program-templates/[id]/TreatmentProgramConstructorClient.test.tsx): тест «refresh после Опубликовать при переданном `onArchived`».
+- [`TreatmentProgramTemplatesPageClient.tsx`](../../apps/webapp/src/app/app/doctor/treatment-program-templates/TreatmentProgramTemplatesPageClient.tsx): `templateListCountsText` (нормальное русское число) + `aria-label` для строки счётчиков.
+- [`AUDIT_STAGE_B6.md`](AUDIT_STAGE_B6.md): Verdict **PASS**, §12 MANDATORY закрыт; deferred: миниатюра в списке, E2E smoke §8, полный CI **перед push** (чекпоинт B6).
+- [`STAGE_B6_PLAN.md`](STAGE_B6_PLAN.md): §5 execution checklist — `[x]`.
+
+**Проверки (целевые B6, без полного `pnpm run ci`):**
+
+```bash
+cd apps/webapp && pnpm exec eslint \
+  src/app/app/doctor/treatment-program-templates/\[id\]/TreatmentProgramConstructorClient.tsx \
+  src/app/app/doctor/treatment-program-templates/\[id\]/TreatmentProgramConstructorClient.test.tsx \
+  src/app/app/doctor/treatment-program-templates/TreatmentProgramTemplatesPageClient.tsx
+pnpm exec vitest run \
+  src/app/app/doctor/treatment-program-templates/\[id\]/TreatmentProgramConstructorClient.test.tsx
+pnpm exec tsc --noEmit
+```
+
+**Вне scope FIX:** полный `pnpm run ci` в сессии агента; перед **push** ветки — по [`MASTER_PLAN.md`](MASTER_PLAN.md) §9 выполнить `pnpm install --frozen-lockfile && pnpm run ci`.
+
+**Результат:** eslint / vitest / tsc — **PASS** (после прогона команд выше).
+

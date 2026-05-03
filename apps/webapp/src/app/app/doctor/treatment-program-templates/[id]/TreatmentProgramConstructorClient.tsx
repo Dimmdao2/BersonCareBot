@@ -358,12 +358,12 @@ export function TreatmentProgramConstructorClient({
         }
         await reload();
         await refetchUsageClient();
-        if (!onArchived) router.refresh();
+        router.refresh();
       } finally {
         setBusy(false);
       }
     },
-    [detail.status, templateId, reload, refetchUsageClient, onArchived, router],
+    [detail.status, templateId, reload, refetchUsageClient, router],
   );
 
   const orderedStages = useMemo(() => sortByOrderThenId(detail.stages), [detail.stages]);

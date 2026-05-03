@@ -31,6 +31,19 @@ import type { DoctorCatalogPubArchQuery } from "@/shared/lib/doctorCatalogListSt
 import { TREATMENT_PROGRAM_TEMPLATES_PATH } from "./paths";
 import { TreatmentProgramTemplateStatusBadge } from "./TreatmentProgramTemplateStatusBadge";
 
+/** Краткая строка счётчиков + подпись для aria (список шаблонов). */
+function templateListCountsText(stageCount: number, itemCount: number): { line: string; ariaLabel: string } {
+  const ru = (n: number, one: string, few: string, many: string) => {
+    const m = n % 100;
+    const t = n % 10;
+    if (t === 1 && m !== 11) return `${n} ${one}`;
+    if (t >= 2 && t <= 4 && (m < 12 || m > 14)) return `${n} ${few}`;
+    return `${n} ${many}`;
+  };
+  const line = `${ru(stageCount, "этап", "этапа", "этапов")} · ${ru(itemCount, "элемент", "элемента", "элементов")}`;
+  return { line, ariaLabel: `В шаблоне: ${line}` };
+}
+
 type Props = {
   templates: TreatmentProgramTemplate[];
   library: TreatmentProgramLibraryPickers;
@@ -160,6 +173,7 @@ export function TreatmentProgramTemplatesPageClient({
       <ul className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto">
         {displayList.map((t) => {
           const active = activeId === t.id;
+          const counts = templateListCountsText(t.stageCount, t.itemCount);
           return (
             <li key={t.id} className="rounded-md border border-border/40 bg-card/30">
               <button
@@ -185,12 +199,13 @@ export function TreatmentProgramTemplatesPageClient({
                   <div className="mt-1 flex flex-wrap items-center gap-1.5">
                     <TreatmentProgramTemplateStatusBadge status={t.status} />
                     <span
+                      aria-label={counts.ariaLabel}
                       className={cn(
                         "text-xs tabular-nums text-muted-foreground",
                         active && "text-primary/80",
                       )}
                     >
-                      {t.stageCount} этап. · {t.itemCount} элем.
+                      {counts.line}
                     </span>
                   </div>
                 </div>

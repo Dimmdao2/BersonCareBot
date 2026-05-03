@@ -190,4 +190,50 @@ describe("TreatmentProgramConstructorClient", () => {
     });
     expect(refreshMock).toHaveBeenCalled();
   });
+
+  it("calls router.refresh after publish when onArchived is provided (split-view parity)", async () => {
+    const published = makeDetail({ status: "published" });
+    let patchDone = false;
+    fetchMock.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = requestUrl(input);
+      const method = init?.method ?? "GET";
+      if (method === "GET" && url.endsWith("/usage")) {
+        return Promise.resolve(jsonResponse({ ok: true, usage: EMPTY_TREATMENT_PROGRAM_TEMPLATE_USAGE_SNAPSHOT }));
+      }
+      if (
+        method === "PATCH" &&
+        url.includes(`/api/doctor/treatment-program-templates/${TEMPLATE_ID}`) &&
+        !url.endsWith("/usage")
+      ) {
+        patchDone = true;
+        return Promise.resolve(jsonResponse({ ok: true }));
+      }
+      if (method === "GET" && url.includes(TEMPLATE_ID) && !url.endsWith("/usage")) {
+        return Promise.resolve(jsonResponse({ ok: true, item: patchDone ? published : makeDetail() }));
+      }
+      return Promise.resolve(new Response("unexpected", { status: 500 }));
+    });
+
+    const user = userEvent.setup();
+    const onArchived = vi.fn();
+    render(
+      <TreatmentProgramConstructorClient
+        templateId={TEMPLATE_ID}
+        initialDetail={makeDetail()}
+        library={emptyLibrary}
+        onArchived={onArchived}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /^опубликовать$/i })).toBeInTheDocument();
+    });
+    refreshMock.mockClear();
+    await user.click(screen.getByRole("button", { name: /^опубликовать$/i }));
+
+    await waitFor(() => {
+      expect(refreshMock).toHaveBeenCalled();
+    });
+    expect(onArchived).not.toHaveBeenCalled();
+  });
 });
