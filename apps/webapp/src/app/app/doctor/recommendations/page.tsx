@@ -1,7 +1,7 @@
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import type { RecommendationUsageSnapshot } from "@/modules/recommendations/types";
-import { parseRecommendationDomain } from "@/modules/recommendations/recommendationDomain";
+import { parseRecommendationCatalogSsrQuery } from "@/modules/recommendations/recommendationCatalogSsrQuery";
 import { AppShell } from "@/shared/ui/AppShell";
 import { doctorCatalogViewFromSearchParams } from "@/shared/lib/doctorCatalogViewPreference";
 import {
@@ -27,8 +27,10 @@ export default async function DoctorRecommendationsPage({ searchParams }: PagePr
   const deps = buildAppDeps();
   const sp = (await searchParams) ?? {};
   const q = typeof sp.q === "string" ? sp.q : "";
-  const regionRefId = typeof sp.region === "string" && sp.region.trim() ? sp.region.trim() : undefined;
-  const domain = parseRecommendationDomain(typeof sp.domain === "string" ? sp.domain : undefined);
+  const catalogQuery = parseRecommendationCatalogSsrQuery({
+    region: typeof sp.region === "string" ? sp.region : undefined,
+    domain: typeof sp.domain === "string" ? sp.domain : undefined,
+  });
   const titleSort: RecommendationTitleSort | null =
     sp.titleSort === "asc" || sp.titleSort === "desc" ? sp.titleSort : null;
   const listStatus = parseRecommendationListFilterScope(sp, "active");
@@ -37,8 +39,8 @@ export default async function DoctorRecommendationsPage({ searchParams }: PagePr
   const items = await deps.recommendations.listRecommendations({
     search: q || null,
     archiveScope,
-    regionRefId: regionRefId ?? null,
-    domain: domain ?? null,
+    regionRefId: catalogQuery.regionRefIdForList,
+    domain: catalogQuery.domainForList,
   });
 
   const rawSelected = typeof sp.selected === "string" ? sp.selected.trim() : "";
@@ -61,7 +63,14 @@ export default async function DoctorRecommendationsPage({ searchParams }: PagePr
         initialViewMode={initialViewMode}
         viewLockedByUrl={viewLockedByUrl}
         initialTitleSort={titleSort}
-        filters={{ q, regionRefId, domain, listStatus }}
+        filters={{
+          q,
+          regionRefId: catalogQuery.regionRefIdForList ?? undefined,
+          domain: catalogQuery.domainForList ?? undefined,
+          listStatus,
+          invalidDomainQuery: catalogQuery.invalidDomainQuery,
+          invalidRegionQuery: catalogQuery.invalidRegionQuery,
+        }}
       />
     </AppShell>
   );

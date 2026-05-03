@@ -59,6 +59,10 @@ type Props = {
     regionRefId?: string;
     domain?: RecommendationDomain;
     listStatus: RecommendationListFilterScope;
+    /** Непустой `?domain=` не распознан — фильтр по типу не применён (паритет с GET API). */
+    invalidDomainQuery?: boolean;
+    /** Непустой `?region=` не UUID — фильтр по региону не применён. */
+    invalidRegionQuery?: boolean;
   };
 };
 
@@ -361,7 +365,7 @@ function RecommendationsContent({
           filters={
             <DoctorCatalogToolbarFiltersSlot>
               <DoctorCatalogFiltersForm
-                key={`rec-filters-${filters.q}-${filters.regionRefId ?? ""}-${filters.domain ?? ""}-${filters.listStatus}`}
+                key={`rec-filters-${filters.q}-${filters.regionRefId ?? ""}-${filters.domain ?? ""}-${filters.listStatus}-${filters.invalidDomainQuery ? "1" : "0"}-${filters.invalidRegionQuery ? "1" : "0"}`}
                 idPrefix="rec"
                 q={filters.q}
                 regionRefId={filters.regionRefId}
@@ -388,6 +392,22 @@ function RecommendationsContent({
         />
       }
     >
+      {filters.invalidDomainQuery ? (
+        <p
+          role="status"
+          className="border-b border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm text-amber-950 dark:text-amber-100"
+        >
+          Параметр «Тип» в адресе не распознан — фильтр по типу не применён.
+        </p>
+      ) : null}
+      {filters.invalidRegionQuery ? (
+        <p
+          role="status"
+          className="border-b border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm text-amber-950 dark:text-amber-100"
+        >
+          Параметр «Регион» в адресе не является UUID — фильтр по региону не применён.
+        </p>
+      ) : null}
       <CatalogSplitLayout
         className="lg:h-[calc(100dvh-3.5rem-env(safe-area-inset-top,0px)-3.25rem-1rem)] lg:overflow-hidden"
         left={

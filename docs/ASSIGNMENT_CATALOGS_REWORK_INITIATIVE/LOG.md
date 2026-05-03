@@ -288,3 +288,38 @@ pnpm exec tsc --noEmit
 **Вне scope:** полный `pnpm run ci`; переименование `domain` → `kind` в БД.
 
 **Результат:** eslint / vitest / tsc — **PASS**.
+
+---
+
+## 2026-05-03 — Stage B4 — FIX (`AUDIT_STAGE_B4.md`)
+
+**Контекст:** [`AUDIT_STAGE_B4.md`](AUDIT_STAGE_B4.md) MANDATORY FIX (major: паритет SSR с `GET` API по `domain`/`region`; баннеры; minor: `api.md`).
+
+**Сделано:**
+
+- Модуль [`recommendationCatalogSsrQuery.ts`](../../apps/webapp/src/modules/recommendations/recommendationCatalogSsrQuery.ts): невалидный `domain` / не-UUID `region` не передаются в `listRecommendations`; флаги `invalidDomainQuery` / `invalidRegionQuery`.
+- [`recommendations/page.tsx`](../../apps/webapp/src/app/app/doctor/recommendations/page.tsx): список на SSR через парсер; проп фильтров в клиент.
+- [`RecommendationsPageClient.tsx`](../../apps/webapp/src/app/app/doctor/recommendations/RecommendationsPageClient.tsx): баннеры (amber) при невалидных query, как у клинических тестов.
+- [`recommendationCatalogSsrQuery.test.ts`](../../apps/webapp/src/modules/recommendations/recommendationCatalogSsrQuery.test.ts): unit на валидные/невалидные комбинации.
+- [`api.md`](../../apps/webapp/src/app/api/api.md): явный `invalid_query` для GET; сериализация `domain` вне allowlist → `null` в ответах.
+- [`AUDIT_STAGE_B4.md`](AUDIT_STAGE_B4.md): Verdict **PASS**, §13 FIX, MANDATORY отмечены выполненными; minor 4–5 defer с обоснованием.
+
+**Проверки (целевые B4, без полного `pnpm run ci`):**
+
+```bash
+cd apps/webapp && pnpm exec eslint \
+  src/modules/recommendations/recommendationCatalogSsrQuery.ts \
+  src/modules/recommendations/recommendationCatalogSsrQuery.test.ts \
+  src/app/app/doctor/recommendations/page.tsx \
+  src/app/app/doctor/recommendations/RecommendationsPageClient.tsx
+pnpm exec vitest run \
+  src/modules/recommendations/recommendationCatalogSsrQuery.test.ts \
+  src/modules/recommendations/recommendationDomain.test.ts \
+  src/modules/recommendations/service.test.ts \
+  src/app/app/doctor/recommendations/RecommendationForm.test.tsx
+pnpm exec tsc --noEmit
+```
+
+**Вне scope:** полный `pnpm run ci` на этапе FIX.
+
+**Результат:** eslint / vitest / tsc — **PASS**.
