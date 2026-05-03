@@ -11,14 +11,14 @@ import {
   type SaveRecommendationState,
   type UnarchiveRecommendationState,
 } from "./actionsShared";
+import { appendRegionParamFromListPreserve } from "@/shared/lib/doctorCatalogClientUrlSync";
 
 function appendRecommendationsListParams(sp: URLSearchParams, formData: FormData) {
   const q = formData.get("listQ");
   if (typeof q === "string" && q.trim()) sp.set("q", q.trim());
   const ts = formData.get("listTitleSort");
   if (ts === "asc" || ts === "desc") sp.set("titleSort", ts);
-  const region = formData.get("listRegion");
-  if (typeof region === "string" && region.trim()) sp.set("region", region.trim());
+  appendRegionParamFromListPreserve(sp, formData.get("listRegion"));
   const listDomain = formData.get("listDomain");
   if (typeof listDomain === "string" && listDomain.trim()) {
     sp.set("domain", listDomain.trim());

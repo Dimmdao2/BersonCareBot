@@ -32,6 +32,7 @@ import { DoctorCatalogFiltersForm } from "@/shared/ui/doctor/DoctorCatalogFilter
 import { Card, CardContent } from "@/components/ui/card";
 import { ClinicalTestForm } from "./ClinicalTestForm";
 import { useDoctorCatalogDisplayList } from "@/shared/hooks/useDoctorCatalogDisplayList";
+import { useDoctorCatalogClientFilterMerge } from "@/shared/hooks/useDoctorCatalogClientFilterMerge";
 
 export type ClinicalTestsViewMode = "tiles" | "list";
 export type ClinicalTestTitleSort = "asc" | "desc";
@@ -136,13 +137,14 @@ function mediaThumbRow(test: ClinicalTest) {
   );
 }
 
+type ClinicalCatalogFiltersMerged = Props["filters"] & { titleSort: ClinicalTestTitleSort | null };
+
 function ClinicalTestsContent({
   initialItems,
   initialSelectedId,
   initialSelectedUsageSnapshot,
   viewMode,
   toolbarViewMode,
-  titleSort,
   desktopSelectedId,
   mobileSheet,
   isListPending,
@@ -160,7 +162,6 @@ function ClinicalTestsContent({
   initialSelectedUsageSnapshot: ClinicalTestUsageSnapshot | null;
   viewMode: ClinicalTestsViewMode;
   toolbarViewMode: ClinicalTestsViewMode;
-  titleSort: ClinicalTestTitleSort | null;
   desktopSelectedId: string | null;
   mobileSheet: { test: ClinicalTest | null } | null;
   isListPending: boolean;
@@ -168,7 +169,7 @@ function ClinicalTestsContent({
   setMobileSheet: (sheet: { test: ClinicalTest | null } | null) => void;
   toggleViewMode: () => void;
   changeTitleSort: (next: ClinicalTestTitleSort | null) => void;
-  filters: Props["filters"];
+  filters: ClinicalCatalogFiltersMerged;
   assessmentKindFilterItems: ReferenceItemDto[];
   assessmentKindCatalogItems: ReferenceItem[];
   bodyRegionIdToCode: Record<string, string>;
@@ -192,10 +193,12 @@ function ClinicalTestsContent({
   const displayTests = useDoctorCatalogDisplayList(
     initialItems,
     filters.q,
-    titleSort === null ? "default" : titleSort,
+    filters.titleSort === null ? "default" : filters.titleSort,
     {
       regionCode: filters.regionCode,
       getItemRegionCode,
+      tertiaryCode: filters.invalidAssessmentQuery ? null : (filters.assessmentKind ?? null),
+      getItemTertiaryCode: (t) => t.assessmentKind,
     },
   );
 
@@ -306,7 +309,7 @@ function ClinicalTestsContent({
         assessmentKindSelectOptions={assessmentKindSelectOptions}
         workspaceListPreserve={{
           q: filters.q,
-          titleSort,
+          titleSort: filters.titleSort,
           regionCode: filters.regionCode,
           assessmentKind: filters.assessmentKind,
           listStatus: filters.listStatus,
@@ -336,7 +339,7 @@ function ClinicalTestsContent({
                   summaryLabel: "Вид оценки",
                 }}
                 view={viewMode}
-                titleSort={titleSort}
+                titleSort={filters.titleSort}
                 selectedId={desktopSelectedId}
               />
             </DoctorCatalogToolbarFiltersSlot>
@@ -386,13 +389,13 @@ function ClinicalTestsContent({
                 summaryLine={displayTests.length === 0 ? "Нет тестов" : `Тестов: ${displayTests.length}`}
                 viewMode={toolbarViewMode}
                 onToggleView={toggleViewMode}
-                titleSort={titleSort}
+                titleSort={filters.titleSort}
                 onTitleSortChange={changeTitleSort}
                 listBusy={isListPending}
                 archiveScope={filters.listStatus}
                 archiveScopeExtraParams={{
                   view: viewMode,
-                  titleSort,
+                  titleSort: filters.titleSort,
                 }}
               />
             }
@@ -482,6 +485,9 @@ export function ClinicalTestsPageClient({
     });
   };
 
+  const filterScope = useMemo(() => ({ ...filters, titleSort }), [filters, titleSort]);
+  const mergedFilters = useDoctorCatalogClientFilterMerge(filterScope);
+
   return (
     <ClinicalTestsContent
       initialItems={initialItems}
@@ -489,7 +495,6 @@ export function ClinicalTestsPageClient({
       initialSelectedUsageSnapshot={initialSelectedUsageSnapshot}
       viewMode={viewMode}
       toolbarViewMode={toolbarViewMode}
-      titleSort={titleSort}
       desktopSelectedId={desktopSelectedId}
       mobileSheet={mobileSheet}
       isListPending={isListPending}
@@ -497,7 +502,7 @@ export function ClinicalTestsPageClient({
       setMobileSheet={setMobileSheet}
       toggleViewMode={toggleViewMode}
       changeTitleSort={changeTitleSort}
-      filters={filters}
+      filters={mergedFilters}
       assessmentKindFilterItems={assessmentKindFilterItems}
       assessmentKindCatalogItems={assessmentKindCatalogItems}
       bodyRegionIdToCode={bodyRegionIdToCode}

@@ -7,6 +7,7 @@ import type { ExerciseLoadType, ExerciseMedia } from "@/modules/lfk-exercises/ty
 import type { Template } from "@/modules/lfk-templates/types";
 import { cn } from "@/lib/utils";
 import { useDoctorCatalogDisplayList } from "@/shared/hooks/useDoctorCatalogDisplayList";
+import { useDoctorCatalogClientFilterMerge } from "@/shared/hooks/useDoctorCatalogClientFilterMerge";
 import { useDoctorCatalogMasterSelectionSync } from "@/shared/hooks/useDoctorCatalogMasterSelectionSync";
 import { DoctorCatalogFiltersForm } from "@/shared/ui/doctor/DoctorCatalogFiltersForm";
 import { DoctorCatalogListSortHeader } from "@/shared/ui/doctor/DoctorCatalogListSortHeader";
@@ -59,6 +60,9 @@ export function LfkTemplatesPageClient({
   const [mobileSheet, setMobileSheet] = useState<Template | null>(null);
   const [isListPending, startListTransition] = useTransition();
 
+  const filterScope = useMemo(() => ({ ...filters, titleSort }), [filters, titleSort]);
+  const mergedFilters = useDoctorCatalogClientFilterMerge(filterScope);
+
   useEffect(() => {
     setTitleSort(initialTitleSort);
   }, [initialTitleSort]);
@@ -76,14 +80,14 @@ export function LfkTemplatesPageClient({
 
   const qSorted = useDoctorCatalogDisplayList(
     templates,
-    filters.q,
-    titleSort === null ? "default" : titleSort,
+    mergedFilters.q,
+    mergedFilters.titleSort === null ? "default" : mergedFilters.titleSort,
   );
 
   const displayList = useMemo(() => {
     let out = qSorted;
-    const rc = filters.regionCode?.trim();
-    const lt = filters.loadType;
+    const rc = mergedFilters.regionCode?.trim();
+    const lt = mergedFilters.loadType;
     if (rc) {
       out = out.filter((tpl) =>
         tpl.exercises.some((row) => {
@@ -99,7 +103,7 @@ export function LfkTemplatesPageClient({
       );
     }
     return out;
-  }, [qSorted, filters.regionCode, filters.loadType, exerciseMetaById, bodyRegionIdToCode]);
+  }, [qSorted, mergedFilters.regionCode, mergedFilters.loadType, exerciseMetaById, bodyRegionIdToCode]);
 
   useDoctorCatalogMasterSelectionSync({
     displayList,
@@ -112,18 +116,24 @@ export function LfkTemplatesPageClient({
   const selected = creating ? null : (displayList.find((t) => t.id === selectedId) ?? null);
 
   const titleSortForHeader: CatalogMasterTitleSort | null =
-    titleSort === "asc" || titleSort === "desc" ? titleSort : null;
+    mergedFilters.titleSort === "asc" || mergedFilters.titleSort === "desc" ? mergedFilters.titleSort : null;
 
   const listPreserveQuery = useMemo(
     () =>
       buildLfkTemplatesListPreserveQuery({
-        q: filters.q,
-        regionCode: filters.regionCode,
-        loadType: filters.loadType,
-        listPubArch: filters.listPubArch,
-        titleSort,
+        q: mergedFilters.q,
+        regionCode: mergedFilters.regionCode,
+        loadType: mergedFilters.loadType,
+        listPubArch: mergedFilters.listPubArch,
+        titleSort: mergedFilters.titleSort,
       }),
-    [filters.q, filters.regionCode, filters.loadType, filters.listPubArch, titleSort],
+    [
+      mergedFilters.q,
+      mergedFilters.regionCode,
+      mergedFilters.loadType,
+      mergedFilters.listPubArch,
+      mergedFilters.titleSort,
+    ],
   );
 
   const changeTitleSort = (next: CatalogMasterTitleSort | null) => {
@@ -238,11 +248,11 @@ export function LfkTemplatesPageClient({
         <DoctorCatalogToolbarFiltersSlot>
           <DoctorCatalogFiltersForm
             idPrefix="lfk-tpl"
-            q={filters.q}
-            regionCode={filters.regionCode}
-            loadType={filters.loadType}
-            titleSort={titleSort}
-            catalogPubArch={filters.listPubArch}
+            q={mergedFilters.q}
+            regionCode={mergedFilters.regionCode}
+            loadType={mergedFilters.loadType}
+            titleSort={mergedFilters.titleSort}
+            catalogPubArch={mergedFilters.listPubArch}
           />
         </DoctorCatalogToolbarFiltersSlot>
       }
@@ -272,7 +282,7 @@ export function LfkTemplatesPageClient({
 
   return (
     <DoctorCatalogPageLayout toolbar={toolbar}>
-      {filters.invalidRegionQuery ? (
+      {mergedFilters.invalidRegionQuery ? (
         <p
           role="status"
           className="border-b border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm text-amber-950 dark:text-amber-100"
@@ -295,9 +305,9 @@ export function LfkTemplatesPageClient({
                 }
                 titleSort={titleSortForHeader}
                 onTitleSortChange={changeTitleSort}
-                catalogPubArch={filters.listPubArch}
+                catalogPubArch={mergedFilters.listPubArch}
                 archiveScopeExtraParams={{
-                  titleSort,
+                  titleSort: mergedFilters.titleSort,
                 }}
               />
             }

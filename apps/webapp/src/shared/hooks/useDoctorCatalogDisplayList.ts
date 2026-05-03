@@ -10,6 +10,9 @@ export type DoctorCatalogDisplayListOptions<T> = {
   loadType?: ExerciseLoadType | null;
   getItemRegionCode?: (item: T) => string | null;
   getItemLoadType?: (item: T) => ExerciseLoadType | null;
+  /** Доп. фильтр по коду (напр. `domain` у рекомендаций, `assessmentKind` у клин. тестов). */
+  tertiaryCode?: string | null;
+  getItemTertiaryCode?: (item: T) => string | null;
 };
 
 /**
@@ -24,8 +27,10 @@ export function useDoctorCatalogDisplayList<T extends WithTitle>(
 ): T[] {
   const regionCode = options?.regionCode?.trim() ?? "";
   const loadType = options?.loadType ?? null;
+  const tertiaryCode = options?.tertiaryCode?.trim() ?? "";
   const getItemRegionCode = options?.getItemRegionCode;
   const getItemLoadType = options?.getItemLoadType;
+  const getItemTertiaryCode = options?.getItemTertiaryCode;
 
   return useMemo(() => {
     let out = items;
@@ -42,6 +47,10 @@ export function useDoctorCatalogDisplayList<T extends WithTitle>(
       out = out.filter((x) => getItemLoadType(x) === loadType);
     }
 
+    if (tertiaryCode && getItemTertiaryCode) {
+      out = out.filter((x) => getItemTertiaryCode(x) === tertiaryCode);
+    }
+
     if (titleSort === "asc" || titleSort === "desc") {
       out = [...out].sort((a, b) => {
         const cmp = a.title.localeCompare(b.title, "ru", { sensitivity: "base" });
@@ -49,5 +58,15 @@ export function useDoctorCatalogDisplayList<T extends WithTitle>(
       });
     }
     return out;
-  }, [items, searchQuery, titleSort, regionCode, loadType, getItemRegionCode, getItemLoadType]);
+  }, [
+    items,
+    searchQuery,
+    titleSort,
+    regionCode,
+    loadType,
+    tertiaryCode,
+    getItemRegionCode,
+    getItemLoadType,
+    getItemTertiaryCode,
+  ]);
 }

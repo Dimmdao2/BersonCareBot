@@ -6,6 +6,26 @@
 
 ---
 
+## 2026-05-04 (II) — FILTER URL CONTRACT FIX — closure M1/M2
+
+**Контекст:** закрытие Major из [`AUDIT_FILTER_URL_CONTRACT_FIX.md`](AUDIT_FILTER_URL_CONTRACT_FIX.md).
+
+**Сделано:**
+
+- **`DoctorCatalogFiltersForm`:** вместо `router.replace` — `history.replaceState` + `dispatchDoctorCatalogUrlSync` (`doctorcatalog:urlsync`).
+- **`doctorCatalogClientUrlSync.ts`:** чтение клиентского среза URL; **`appendRegionParamFromListPreserve`** для preserve redirect (UUID → не писать `region`).
+- **`useDoctorCatalogClientFilterMerge`:** объединение server scope (`listStatus`, invalid flags, pub/arch) с актуальными q/region/load/titleSort/domain/assessment из `window.location`.
+- **Страницы SSR:** `recommendations/page.tsx` и `clinical-tests/page.tsx` — полный список по archive без server-side `domain` / `assessmentKind`; фильтрация этих осей на клиенте через расширение **`useDoctorCatalogDisplayList`** (`tertiaryCode` / `getItemTertiaryCode`).
+- **Клиенты каталогов:** подключён merge-hook (exercises, recommendations, clinical-tests, lfk-templates, test-sets, treatment-program-templates).
+- **Inline actions:** recommendations / clinical-tests / test-sets — preserve региона через **`appendRegionParamFromListPreserve`**.
+- **Тесты:** `doctorCatalogClientUrlSync.test.ts`; доп. кейс tertiary в `useDoctorCatalogDisplayList.test.ts`; `DoctorCatalogFiltersForm.test.tsx` переведён на assert по `history.replaceState`.
+
+**Проверки:** `pnpm --dir apps/webapp exec eslint` (изменённые файлы), `vitest run` (три целевых файла, 9 тестов), `pnpm --dir apps/webapp exec tsc --noEmit`. **Корневой `pnpm run ci` не запускался.**
+
+**Residual:** Minor m1–m4 как в обновлённом аудите; TP без region/load в панели — без изменений.
+
+---
+
 ## 2026-05-04 — FILTER URL CONTRACT FIX (doctor catalog list)
 
 **Контекст:** [`FILTER_URL_CONTRACT_FIX_PLAN.md`](FILTER_URL_CONTRACT_FIX_PLAN.md) — `?region=` только как `reference_items.code`; без UUID fallback и без `regionRefId` в query; `q` / `region` / `load` / `titleSort` не передаются в server `list*`; `view` — только UI-state.

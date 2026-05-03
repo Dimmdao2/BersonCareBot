@@ -49,7 +49,6 @@ export default async function DoctorClinicalTestsPage({ searchParams }: PageProp
       search: null,
       archiveScope,
       regionRefId: null,
-      assessmentKind: assessmentKind ?? null,
     }),
     deps.references.listActiveItemsByCategoryCode("body_region"),
   ]);

@@ -35,6 +35,7 @@ import { ExercisesFiltersForm } from "./ExercisesFiltersForm";
 import { archiveExerciseInline, saveExerciseInline, unarchiveExerciseInline } from "./actionsInline";
 import { ExerciseTileCard } from "./ExerciseTileCard";
 import { useDoctorCatalogDisplayList } from "@/shared/hooks/useDoctorCatalogDisplayList";
+import { useDoctorCatalogClientFilterMerge } from "@/shared/hooks/useDoctorCatalogClientFilterMerge";
 
 export type ExercisesViewMode = "tiles" | "list";
 
@@ -130,12 +131,13 @@ function CreateExerciseMenu({ triggerId, onNewExercise }: CreateExerciseMenuProp
   );
 }
 
+type ExerciseCatalogFiltersMerged = Props["filters"] & { titleSort: ExerciseTitleSort | null };
+
 type ExercisesContentProps = {
   listPromise: Promise<Exercise[]>;
   doctorExerciseSelectionPromise: Promise<DoctorExerciseSelection>;
   viewMode: ExercisesViewMode;
   toolbarViewMode: ExercisesViewMode;
-  titleSort: ExerciseTitleSort | null;
   desktopSelectedId: string | null;
   mobileSheet: { exercise: Exercise | null } | null;
   isListPending: boolean;
@@ -143,7 +145,7 @@ type ExercisesContentProps = {
   setMobileSheet: (sheet: { exercise: Exercise | null } | null) => void;
   toggleViewMode: () => void;
   changeTitleSort: (next: ExerciseTitleSort | null) => void;
-  filters: Props["filters"];
+  filters: ExerciseCatalogFiltersMerged;
   bodyRegionIdToCode: Record<string, string>;
 };
 
@@ -152,7 +154,6 @@ function ExercisesContent({
   doctorExerciseSelectionPromise,
   viewMode,
   toolbarViewMode,
-  titleSort,
   desktopSelectedId,
   mobileSheet,
   isListPending,
@@ -204,7 +205,7 @@ function ExercisesContent({
   const displayExercises = useDoctorCatalogDisplayList(
     exercises,
     filters.q,
-    titleSort === null ? "default" : titleSort,
+    filters.titleSort === null ? "default" : filters.titleSort,
     {
       regionCode: filters.regionCode,
       loadType: filters.loadType ?? null,
@@ -302,7 +303,7 @@ function ExercisesContent({
                 regionCode={filters.regionCode}
                 loadType={filters.loadType}
                 view={viewMode}
-                titleSort={titleSort}
+                titleSort={filters.titleSort}
                 selectedId={desktopSelectedId}
               />
             </DoctorCatalogToolbarFiltersSlot>
@@ -342,13 +343,13 @@ function ExercisesContent({
                 }
                 viewMode={toolbarViewMode}
                 onToggleView={toggleViewMode}
-                titleSort={titleSort}
+                titleSort={filters.titleSort}
                 onTitleSortChange={changeTitleSort}
                 listBusy={isListPending}
                 archiveScope={filters.listStatus}
                 archiveScopeExtraParams={{
                   view: viewMode,
-                  titleSort,
+                  titleSort: filters.titleSort,
                 }}
               />
             }
@@ -490,6 +491,9 @@ export function ExercisesPageClient({
     });
   };
 
+  const filterScope = useMemo(() => ({ ...filters, titleSort }), [filters, titleSort]);
+  const mergedFilters = useDoctorCatalogClientFilterMerge(filterScope);
+
   return (
     <Suspense fallback={<CatalogSplitLayoutSkeleton />}>
       <ExercisesContent
@@ -497,7 +501,6 @@ export function ExercisesPageClient({
         doctorExerciseSelectionPromise={doctorExerciseSelectionPromise}
         viewMode={viewMode}
         toolbarViewMode={toolbarViewMode}
-        titleSort={titleSort}
         desktopSelectedId={desktopSelectedId}
         mobileSheet={mobileSheet}
         isListPending={isListPending}
@@ -505,7 +508,7 @@ export function ExercisesPageClient({
         setMobileSheet={setMobileSheet}
         toggleViewMode={toggleViewMode}
         changeTitleSort={changeTitleSort}
-        filters={filters}
+        filters={mergedFilters}
         bodyRegionIdToCode={bodyRegionIdToCode}
       />
     </Suspense>

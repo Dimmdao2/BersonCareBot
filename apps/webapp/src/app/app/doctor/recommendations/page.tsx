@@ -52,7 +52,6 @@ export default async function DoctorRecommendationsPage({ searchParams }: PagePr
       search: null,
       archiveScope,
       regionRefId: null,
-      domain: catalogQuery.domainForList,
     }),
     deps.references.listActiveItemsByCategoryCode("body_region"),
   ]);

@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useId, useRef, useState, useTransition } from "react";
+import { useEffect, useId, useMemo, useRef, useState, useTransition } from "react";
 import { ClipboardList } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { TreatmentProgramTemplate, TreatmentProgramTemplateDetail } from "@/modules/treatment-program/types";
 import { cn } from "@/lib/utils";
 import { useDoctorCatalogDisplayList } from "@/shared/hooks/useDoctorCatalogDisplayList";
+import { useDoctorCatalogClientFilterMerge } from "@/shared/hooks/useDoctorCatalogClientFilterMerge";
 import { useDoctorCatalogMasterSelectionSync } from "@/shared/hooks/useDoctorCatalogMasterSelectionSync";
 import type { CatalogMasterTitleSort } from "@/shared/ui/doctor/DoctorCatalogMasterListHeader";
 import { DoctorCatalogFiltersForm } from "@/shared/ui/doctor/DoctorCatalogFiltersForm";
@@ -72,6 +73,9 @@ export function TreatmentProgramTemplatesPageClient({
   const detailFetchGenRef = useRef(0);
   const [isListPending, startListTransition] = useTransition();
 
+  const filterScope = useMemo(() => ({ ...filters, titleSort }), [filters, titleSort]);
+  const mergedFilters = useDoctorCatalogClientFilterMerge(filterScope);
+
   useEffect(() => {
     setTitleSort(initialTitleSort);
   }, [initialTitleSort]);
@@ -90,8 +94,8 @@ export function TreatmentProgramTemplatesPageClient({
 
   const displayList = useDoctorCatalogDisplayList(
     templates,
-    filters.q,
-    titleSort === null ? "default" : titleSort,
+    mergedFilters.q,
+    mergedFilters.titleSort === null ? "default" : mergedFilters.titleSort,
   );
 
   useDoctorCatalogMasterSelectionSync({
@@ -104,7 +108,7 @@ export function TreatmentProgramTemplatesPageClient({
   const selected = displayList.find((t) => t.id === selectedId) ?? null;
 
   const titleSortForHeader: CatalogMasterTitleSort | null =
-    titleSort === "asc" || titleSort === "desc" ? titleSort : null;
+    mergedFilters.titleSort === "asc" || mergedFilters.titleSort === "desc" ? mergedFilters.titleSort : null;
 
   const changeTitleSort = (next: CatalogMasterTitleSort | null) => {
     startListTransition(() => {
@@ -248,12 +252,12 @@ export function TreatmentProgramTemplatesPageClient({
         <DoctorCatalogToolbarFiltersSlot>
           <DoctorCatalogFiltersForm
             idPrefix={`${formKey}-tpt`}
-            q={filters.q}
+            q={mergedFilters.q}
             showRegionFilter={false}
             showLoadFilter={false}
-            titleSort={titleSort}
+            titleSort={mergedFilters.titleSort}
             selectedId={selectedId}
-            catalogPubArch={filters.listPubArch}
+            catalogPubArch={mergedFilters.listPubArch}
           />
         </DoctorCatalogToolbarFiltersSlot>
       }
@@ -281,9 +285,9 @@ export function TreatmentProgramTemplatesPageClient({
                 }
                 titleSort={titleSortForHeader}
                 onTitleSortChange={changeTitleSort}
-                catalogPubArch={filters.listPubArch}
+                catalogPubArch={mergedFilters.listPubArch}
                 archiveScopeExtraParams={{
-                  titleSort,
+                  titleSort: mergedFilters.titleSort,
                 }}
               />
             }

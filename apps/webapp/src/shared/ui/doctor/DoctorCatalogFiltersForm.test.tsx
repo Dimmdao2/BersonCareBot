@@ -1,15 +1,11 @@
 /** @vitest-environment jsdom */
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { DoctorCatalogFiltersForm } from "./DoctorCatalogFiltersForm";
 
-const replace = vi.hoisted(() => vi.fn());
-
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ replace }),
   usePathname: () => "/app/doctor/exercises",
-  useSearchParams: () => new URLSearchParams("status=active"),
 }));
 
 vi.mock("@/shared/ui/ReferenceSelect", () => ({
@@ -17,13 +13,19 @@ vi.mock("@/shared/ui/ReferenceSelect", () => ({
 }));
 
 describe("DoctorCatalogFiltersForm", () => {
+  let replaceStateSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    replaceStateSpy = vi.spyOn(window.history, "replaceState").mockImplementation(() => {});
+  });
+
   afterEach(() => {
     vi.useRealTimers();
+    replaceStateSpy.mockRestore();
   });
 
   it("debounces search and preserves workspace params in URL", () => {
     vi.useFakeTimers();
-    replace.mockClear();
 
     render(
       <DoctorCatalogFiltersForm
@@ -40,8 +42,8 @@ describe("DoctorCatalogFiltersForm", () => {
     });
     vi.advanceTimersByTime(350);
 
-    expect(replace).toHaveBeenCalledTimes(1);
-    const url = String(replace.mock.calls[0]?.[0]);
+    expect(replaceStateSpy).toHaveBeenCalledTimes(1);
+    const url = String(replaceStateSpy.mock.calls[0]?.[2]);
     expect(url).toContain("q=%D0%BA%D0%BE%D0%BB%D0%B5%D0%BD%D0%BE");
     expect(url).toContain("view=list");
     expect(url).toContain("titleSort=desc");

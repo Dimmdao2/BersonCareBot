@@ -6,6 +6,7 @@ import type { ExerciseLoadType } from "@/modules/lfk-exercises/types";
 import type { TestSet, TestSetUsageSnapshot } from "@/modules/tests/types";
 import { cn } from "@/lib/utils";
 import { useDoctorCatalogDisplayList } from "@/shared/hooks/useDoctorCatalogDisplayList";
+import { useDoctorCatalogClientFilterMerge } from "@/shared/hooks/useDoctorCatalogClientFilterMerge";
 import { useDoctorCatalogMasterSelectionSync } from "@/shared/hooks/useDoctorCatalogMasterSelectionSync";
 import type { CatalogMasterTitleSort } from "@/shared/ui/doctor/DoctorCatalogMasterListHeader";
 import { DoctorCatalogListSortHeader } from "@/shared/ui/doctor/DoctorCatalogListSortHeader";
@@ -30,6 +31,7 @@ import type { ClinicalTestLibraryPickRow } from "./clinicalTestLibraryRows";
 import { TestSetForm } from "./TestSetForm";
 import { TestSetItemsForm } from "./TestSetItemsForm";
 import { TEST_SETS_PATH } from "./paths";
+
 type Props = {
   initialSets: TestSet[];
   initialSelectedId: string | null;
@@ -59,6 +61,9 @@ export function TestSetsPageClient({
   const [creating, setCreating] = useState(false);
   const [mobileSheet, setMobileSheet] = useState<TestSet | null>(null);
 
+  const filterScope = useMemo(() => ({ ...filters, titleSort }), [filters, titleSort]);
+  const mergedFilters = useDoctorCatalogClientFilterMerge(filterScope);
+
   useEffect(() => {
     if (!initialSelectedId) return;
     const found = initialSets.find((s) => s.id === initialSelectedId);
@@ -72,12 +77,12 @@ export function TestSetsPageClient({
 
   const qSorted = useDoctorCatalogDisplayList(
     initialSets,
-    filters.q,
-    titleSort === null ? "default" : titleSort,
+    mergedFilters.q,
+    mergedFilters.titleSort === null ? "default" : mergedFilters.titleSort,
   );
 
   const displayList = useMemo(() => {
-    const rc = filters.regionCode?.trim();
+    const rc = mergedFilters.regionCode?.trim();
     if (!rc) return qSorted;
     return qSorted.filter((s) =>
       s.items.some((it) => {
@@ -85,10 +90,10 @@ export function TestSetsPageClient({
         return Boolean(bid && bodyRegionIdToCode[bid] === rc);
       }),
     );
-  }, [qSorted, filters.regionCode, bodyRegionIdToCode]);
+  }, [qSorted, mergedFilters.regionCode, bodyRegionIdToCode]);
 
   const titleSortForHeader: CatalogMasterTitleSort | null =
-    titleSort === "asc" || titleSort === "desc" ? titleSort : null;
+    mergedFilters.titleSort === "asc" || mergedFilters.titleSort === "desc" ? mergedFilters.titleSort : null;
 
   const changeTitleSort = (next: CatalogMasterTitleSort | null) => {
     startListTransition(() => {
@@ -169,11 +174,11 @@ export function TestSetsPageClient({
           archiveAction={archiveDoctorTestSetInline}
           unarchiveAction={unarchiveDoctorTestSetInline}
           workspaceListPreserve={{
-            q: filters.q,
-            titleSort,
-            regionCode: filters.regionCode,
-            loadType: filters.loadType,
-            listPubArch: filters.listPubArch,
+            q: mergedFilters.q,
+            titleSort: mergedFilters.titleSort,
+            regionCode: mergedFilters.regionCode,
+            loadType: mergedFilters.loadType,
+            listPubArch: mergedFilters.listPubArch,
           }}
           backHref={TEST_SETS_PATH}
           externalUsageSnapshot={usageForSelection}
@@ -211,12 +216,12 @@ export function TestSetsPageClient({
         <DoctorCatalogToolbarFiltersSlot>
           <DoctorCatalogFiltersForm
             idPrefix="ts"
-            q={filters.q}
-            regionCode={filters.regionCode}
+            q={mergedFilters.q}
+            regionCode={mergedFilters.regionCode}
             showLoadFilter={false}
-            titleSort={titleSort}
+            titleSort={mergedFilters.titleSort}
             selectedId={creating ? null : selected?.id ?? mobileSheet?.id ?? null}
-            catalogPubArch={filters.listPubArch}
+            catalogPubArch={mergedFilters.listPubArch}
           />
         </DoctorCatalogToolbarFiltersSlot>
       }
@@ -238,7 +243,7 @@ export function TestSetsPageClient({
 
   return (
     <DoctorCatalogPageLayout toolbar={toolbar}>
-      {filters.invalidRegionQuery ? (
+      {mergedFilters.invalidRegionQuery ? (
         <p
           role="status"
           className="border-b border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm text-amber-950 dark:text-amber-100"
@@ -261,9 +266,9 @@ export function TestSetsPageClient({
                 }
                 titleSort={titleSortForHeader}
                 onTitleSortChange={changeTitleSort}
-                catalogPubArch={filters.listPubArch}
+                catalogPubArch={mergedFilters.listPubArch}
                 archiveScopeExtraParams={{
-                  titleSort,
+                  titleSort: mergedFilters.titleSort,
                 }}
               />
             }

@@ -31,4 +31,19 @@ describe("useDoctorCatalogDisplayList", () => {
     );
     expect(result.current.map((r) => r.id)).toEqual(["2"]);
   });
+
+  it("filters by tertiary code when getters provided", () => {
+    type RowT = Row & { kind: string | null };
+    const rowsT: RowT[] = [
+      { id: "1", title: "Альфа", regionCode: "spine", load: "strength", kind: "a" },
+      { id: "2", title: "Бета", regionCode: "knee", load: "stretch", kind: "b" },
+    ];
+    const { result } = renderHook(() =>
+      useDoctorCatalogDisplayList(rowsT, "", "default", {
+        tertiaryCode: "b",
+        getItemTertiaryCode: (r) => r.kind,
+      }),
+    );
+    expect(result.current.map((r) => r.id)).toEqual(["2"]);
+  });
 });

@@ -39,6 +39,7 @@ import {
 import { RecommendationForm } from "./RecommendationForm";
 import { archiveRecommendationInline, saveRecommendationInline, unarchiveRecommendationInline } from "./actionsInline";
 import { useDoctorCatalogDisplayList } from "@/shared/hooks/useDoctorCatalogDisplayList";
+import { useDoctorCatalogClientFilterMerge } from "@/shared/hooks/useDoctorCatalogClientFilterMerge";
 export type RecommendationsViewMode = "tiles" | "list";
 export type RecommendationTitleSort = "asc" | "desc";
 
@@ -180,13 +181,14 @@ function mediaThumbRow(r: Recommendation) {
   );
 }
 
+type RecommendationCatalogFiltersMerged = Props["filters"] & { titleSort: RecommendationTitleSort | null };
+
 function RecommendationsContent({
   initialItems,
   initialSelectedId,
   initialSelectedUsageSnapshot,
   viewMode,
   toolbarViewMode,
-  titleSort,
   desktopSelectedId,
   mobileSheet,
   isListPending,
@@ -204,7 +206,6 @@ function RecommendationsContent({
   initialSelectedUsageSnapshot: RecommendationUsageSnapshot | null;
   viewMode: RecommendationsViewMode;
   toolbarViewMode: RecommendationsViewMode;
-  titleSort: RecommendationTitleSort | null;
   desktopSelectedId: string | null;
   mobileSheet: { recommendation: Recommendation | null } | null;
   isListPending: boolean;
@@ -215,7 +216,7 @@ function RecommendationsContent({
   domainFilterItems: ReferenceItemDto[];
   domainCatalogItems: ReferenceItem[];
   bodyRegionIdToCode: Record<string, string>;
-  filters: Props["filters"];
+  filters: RecommendationCatalogFiltersMerged;
 }) {
   useEffect(() => {
     if (!initialSelectedId) return;
@@ -236,10 +237,12 @@ function RecommendationsContent({
   const displayRecommendations = useDoctorCatalogDisplayList(
     initialItems,
     filters.q,
-    titleSort === null ? "default" : titleSort,
+    filters.titleSort === null ? "default" : filters.titleSort,
     {
       regionCode: filters.regionCode,
       getItemRegionCode,
+      tertiaryCode: filters.invalidDomainQuery ? null : (filters.domain ?? null),
+      getItemTertiaryCode: (r) => r.domain,
     },
   );
 
@@ -366,7 +369,7 @@ function RecommendationsContent({
         workspaceView={viewMode}
         workspaceListPreserve={{
           q: filters.q,
-          titleSort,
+          titleSort: filters.titleSort,
           regionCode: filters.regionCode,
           domain: filters.domain,
           listStatus: filters.listStatus,
@@ -389,7 +392,7 @@ function RecommendationsContent({
                 regionCode={filters.regionCode}
                 tertiaryFilter={recommendationTertiaryFilter}
                 view={viewMode}
-                titleSort={titleSort}
+                titleSort={filters.titleSort}
                 selectedId={desktopSelectedId}
               />
             </DoctorCatalogToolbarFiltersSlot>
@@ -443,13 +446,13 @@ function RecommendationsContent({
                 }
                 viewMode={toolbarViewMode}
                 onToggleView={toggleViewMode}
-                titleSort={titleSort}
+                titleSort={filters.titleSort}
                 onTitleSortChange={changeTitleSort}
                 listBusy={isListPending}
                 archiveScope={filters.listStatus}
                 archiveScopeExtraParams={{
                   view: viewMode,
-                  titleSort,
+                  titleSort: filters.titleSort,
                 }}
               />
             }
@@ -539,6 +542,9 @@ export function RecommendationsPageClient({
     });
   };
 
+  const filterScope = useMemo(() => ({ ...filters, titleSort }), [filters, titleSort]);
+  const mergedFilters = useDoctorCatalogClientFilterMerge(filterScope);
+
   return (
     <RecommendationsContent
       initialItems={initialItems}
@@ -546,7 +552,6 @@ export function RecommendationsPageClient({
       initialSelectedUsageSnapshot={initialSelectedUsageSnapshot}
       viewMode={viewMode}
       toolbarViewMode={toolbarViewMode}
-      titleSort={titleSort}
       desktopSelectedId={desktopSelectedId}
       mobileSheet={mobileSheet}
       isListPending={isListPending}
@@ -557,7 +562,7 @@ export function RecommendationsPageClient({
       domainFilterItems={domainFilterItems}
       domainCatalogItems={domainCatalogItems}
       bodyRegionIdToCode={bodyRegionIdToCode}
-      filters={filters}
+      filters={mergedFilters}
     />
   );
 }

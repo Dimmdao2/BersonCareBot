@@ -1,14 +1,15 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { startTransition, useCallback, useEffect, useRef, useState } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { ReferenceSelect } from "@/shared/ui/ReferenceSelect";
 import { EXERCISE_LOAD_TYPE_OPTIONS } from "@/modules/lfk-exercises/exerciseLoadTypeOptions";
 import type { ExerciseLoadType } from "@/modules/lfk-exercises/types";
 import type { ReferenceItemDto } from "@/modules/references/referenceCache";
 import type { DoctorCatalogPubArchQuery } from "@/shared/lib/doctorCatalogListStatus";
-import type { ReactNode } from "react";
+import { dispatchDoctorCatalogUrlSync } from "@/shared/lib/doctorCatalogClientUrlSync";
 
 const EXERCISE_LOAD_FILTER_ITEMS: ReferenceItemDto[] = EXERCISE_LOAD_TYPE_OPTIONS.map((option, idx) => ({
   id: `ex-filter-load-${option.value}`,
@@ -79,9 +80,7 @@ export function DoctorCatalogFiltersForm({
   catalogPubArch,
   leadingSlot,
 }: DoctorCatalogFiltersFormProps) {
-  const router = useRouter();
   const pathname = usePathname();
-  const searchParams = useSearchParams();
 
   const [selectedRegionCode, setSelectedRegionCode] = useState<string | null>(regionCode ?? null);
   const [selectedExerciseLoad, setSelectedExerciseLoad] = useState<string | null>(loadType ?? null);
@@ -97,15 +96,15 @@ export function DoctorCatalogFiltersForm({
     qInputRef.current = qInput;
   }, [qInput]);
 
-  const replaceSearch = useCallback(
-    (next: URLSearchParams) => {
-      const qs = next.toString();
-      startTransition(() => {
-        router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
-      });
-    },
-    [pathname, router],
-  );
+  const replaceSearch = useCallback((next: URLSearchParams) => {
+    const qs = next.toString();
+    const url = qs ? `${pathname}?${qs}` : pathname;
+    if (typeof window === "undefined") return;
+    window.history.replaceState(window.history.state, "", url);
+    startTransition(() => {
+      dispatchDoctorCatalogUrlSync();
+    });
+  }, [pathname]);
 
   const mergeWorkspaceInto = useCallback(
     (sp: URLSearchParams) => {
@@ -136,7 +135,7 @@ export function DoctorCatalogFiltersForm({
         clearTimeout(qDebounceRef.current);
         qDebounceRef.current = null;
       }
-      const base = new URLSearchParams(searchParams.toString());
+      const base = new URLSearchParams(typeof window !== "undefined" ? window.location.search : "");
       const qTrim = qInputRef.current.trim();
       const next = applyParamsPatch(base, {
         ...patch,
@@ -145,7 +144,7 @@ export function DoctorCatalogFiltersForm({
       mergeWorkspaceInto(next);
       replaceSearch(next);
     },
-    [mergeWorkspaceInto, replaceSearch, searchParams],
+    [mergeWorkspaceInto, replaceSearch],
   );
 
   const scheduleCommitQ = useCallback(() => {
