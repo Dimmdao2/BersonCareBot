@@ -14,8 +14,29 @@ import {
   type SaveRecommendationState,
   type UnarchiveRecommendationState,
 } from "./actionsShared";
+import { appendRecommendationsCatalogFiltersToSearchParams } from "./recommendationsListPreserveParams";
 
 export type { ArchiveRecommendationState, UnarchiveRecommendationState } from "./actionsShared";
+
+function listPreserveFieldString(fd: FormData, name: string): string | undefined {
+  const v = fd.get(name);
+  return typeof v === "string" ? v.trim() : undefined;
+}
+
+function appendListPreserveFromFormData(sp: URLSearchParams, fd: FormData): void {
+  const ts = fd.get("listTitleSort");
+  const titleSort = ts === "asc" || ts === "desc" ? ts : null;
+  const st = fd.get("listStatus");
+  const listStatus =
+    st === "active" || st === "all" || st === "archived" ? (st as "active" | "all" | "archived") : undefined;
+  appendRecommendationsCatalogFiltersToSearchParams(sp, {
+    q: listPreserveFieldString(fd, "listQ"),
+    titleSort,
+    regionCode: listPreserveFieldString(fd, "listRegion"),
+    domain: listPreserveFieldString(fd, "listDomain"),
+    listStatus,
+  });
+}
 
 export async function saveRecommendation(
   _prev: SaveRecommendationState | null,
@@ -26,7 +47,14 @@ export async function saveRecommendation(
 
   revalidatePath(RECOMMENDATIONS_PATH);
   revalidatePath(`${RECOMMENDATIONS_PATH}/${result.recommendationId}`);
-  redirect(`${RECOMMENDATIONS_PATH}/${result.recommendationId}`);
+  const sp = new URLSearchParams();
+  appendListPreserveFromFormData(sp, formData);
+  const qs = sp.toString();
+  redirect(
+    qs
+      ? `${RECOMMENDATIONS_PATH}/${result.recommendationId}?${qs}`
+      : `${RECOMMENDATIONS_PATH}/${result.recommendationId}`,
+  );
 }
 
 export async function archiveRecommendation(
@@ -40,12 +68,20 @@ export async function archiveRecommendation(
   if (result.kind === "invalid") {
     const idRaw = formData.get("id");
     const id = typeof idRaw === "string" ? idRaw.trim() : "";
-    if (!id) redirect(RECOMMENDATIONS_PATH);
+    if (!id) {
+      const sp = new URLSearchParams();
+      appendListPreserveFromFormData(sp, formData);
+      const qs = sp.toString();
+      redirect(qs ? `${RECOMMENDATIONS_PATH}?${qs}` : RECOMMENDATIONS_PATH);
+    }
     return { ok: false, error: result.error };
   }
   revalidatePath(RECOMMENDATIONS_PATH);
   revalidatePath(`${RECOMMENDATIONS_PATH}/${result.id}`);
-  redirect(RECOMMENDATIONS_PATH);
+  const sp = new URLSearchParams();
+  appendListPreserveFromFormData(sp, formData);
+  const qs = sp.toString();
+  redirect(qs ? `${RECOMMENDATIONS_PATH}?${qs}` : RECOMMENDATIONS_PATH);
 }
 
 export async function unarchiveRecommendation(
@@ -58,7 +94,10 @@ export async function unarchiveRecommendation(
   }
   revalidatePath(RECOMMENDATIONS_PATH);
   revalidatePath(`${RECOMMENDATIONS_PATH}/${result.id}`);
-  redirect(`${RECOMMENDATIONS_PATH}/${result.id}`);
+  const sp = new URLSearchParams();
+  appendListPreserveFromFormData(sp, formData);
+  const qs = sp.toString();
+  redirect(qs ? `${RECOMMENDATIONS_PATH}/${result.id}?${qs}` : `${RECOMMENDATIONS_PATH}/${result.id}`);
 }
 
 export async function fetchDoctorRecommendationUsageSnapshot(recommendationId: string) {

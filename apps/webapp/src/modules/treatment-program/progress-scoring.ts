@@ -1,7 +1,7 @@
 import type { NormalizedTestDecision } from "./types";
 
 /**
- * Если в `scoring_config` теста заданы числовые пороги и в `raw_value` есть `score`,
+ * Если в JSON снимка программы у теста в `scoringConfig` заданы числовые пороги и в `raw_value` есть `score`,
  * возвращает решение; иначе `null` — клиент обязан передать `normalized_decision` явно.
  */
 export function inferNormalizedDecisionFromScoring(

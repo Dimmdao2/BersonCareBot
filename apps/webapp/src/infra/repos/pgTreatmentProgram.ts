@@ -27,6 +27,7 @@ import type {
   UpdateTreatmentProgramTemplateInput,
   TreatmentProgramTemplateUsageRef,
   TreatmentProgramTemplateUsageSnapshot,
+  TreatmentProgramTemplateListPreviewMedia,
 } from "@/modules/treatment-program/types";
 import {
   EMPTY_TREATMENT_PROGRAM_TEMPLATE_USAGE_SNAPSHOT,
@@ -36,6 +37,7 @@ import {
 function mapTemplate(
   row: typeof tplTable.$inferSelect,
   counts?: { stageCount: number; itemCount: number },
+  listPreviewMedia?: TreatmentProgramTemplateListPreviewMedia | null,
 ): TreatmentProgramTemplate {
   return {
     id: row.id,
@@ -44,6 +46,7 @@ function mapTemplate(
     status: row.status as TreatmentProgramTemplateStatus,
     stageCount: counts?.stageCount ?? 0,
     itemCount: counts?.itemCount ?? 0,
+    listPreviewMedia: listPreviewMedia ?? null,
     createdBy: row.createdBy ?? null,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
@@ -110,6 +113,114 @@ async function templateListCounts(
   for (const row of itemAgg) {
     const cur = out.get(row.templateId);
     if (cur) out.set(row.templateId, { ...cur, itemCount: row.c });
+  }
+  return out;
+}
+
+async function templateListFirstItemPreviewByTemplateId(
+  pool: ReturnType<typeof getPool>,
+  templateIds: string[],
+): Promise<Map<string, TreatmentProgramTemplateListPreviewMedia | null>> {
+  const out = new Map<string, TreatmentProgramTemplateListPreviewMedia | null>();
+  for (const id of templateIds) {
+    out.set(id, null);
+  }
+  if (templateIds.length === 0) return out;
+
+  type PreviewRow = {
+    template_id: string;
+    preview_url: string | null;
+    preview_type: string | null;
+  };
+
+  const res = await pool.query<PreviewRow>(
+    `
+    WITH first_item AS (
+      SELECT DISTINCT ON (s.template_id)
+        s.template_id,
+        i.item_type,
+        i.item_ref_id
+      FROM treatment_program_template_stage_items i
+      INNER JOIN treatment_program_template_stages s ON s.id = i.stage_id
+      WHERE s.template_id = ANY($1::uuid[])
+      ORDER BY s.template_id, s.sort_order ASC, s.id ASC, i.sort_order ASC, i.id ASC
+    )
+    SELECT fi.template_id::text AS template_id,
+      CASE fi.item_type
+        WHEN 'exercise' THEN (
+          SELECT em.media_url::text FROM lfk_exercise_media em
+          WHERE em.exercise_id = fi.item_ref_id
+          ORDER BY em.sort_order ASC, em.created_at ASC NULLS LAST
+          LIMIT 1
+        )
+        WHEN 'recommendation' THEN (
+          SELECT (r.media->0->>'mediaUrl') FROM recommendations r
+          WHERE r.id = fi.item_ref_id
+            AND jsonb_typeof(r.media) = 'array' AND COALESCE(jsonb_array_length(r.media), 0) > 0
+          LIMIT 1
+        )
+        WHEN 'test_set' THEN (
+          SELECT (t.media->0->>'mediaUrl')
+          FROM test_set_items tsi
+          INNER JOIN tests t ON t.id = tsi.test_id
+          WHERE tsi.test_set_id = fi.item_ref_id
+          ORDER BY tsi.sort_order ASC, tsi.id ASC
+          LIMIT 1
+        )
+        WHEN 'lfk_complex' THEN (
+          SELECT em.media_url::text
+          FROM lfk_complex_template_exercises te
+          INNER JOIN lfk_exercise_media em ON em.exercise_id = te.exercise_id
+          WHERE te.template_id = fi.item_ref_id
+          ORDER BY te.sort_order ASC, te.id ASC, em.sort_order ASC, em.created_at ASC NULLS LAST
+          LIMIT 1
+        )
+        ELSE NULL
+      END AS preview_url,
+      CASE fi.item_type
+        WHEN 'exercise' THEN (
+          SELECT em.media_type::text FROM lfk_exercise_media em
+          WHERE em.exercise_id = fi.item_ref_id
+          ORDER BY em.sort_order ASC, em.created_at ASC NULLS LAST
+          LIMIT 1
+        )
+        WHEN 'recommendation' THEN (
+          SELECT (r.media->0->>'mediaType') FROM recommendations r
+          WHERE r.id = fi.item_ref_id
+            AND jsonb_typeof(r.media) = 'array' AND COALESCE(jsonb_array_length(r.media), 0) > 0
+          LIMIT 1
+        )
+        WHEN 'test_set' THEN (
+          SELECT (t.media->0->>'mediaType')
+          FROM test_set_items tsi
+          INNER JOIN tests t ON t.id = tsi.test_id
+          WHERE tsi.test_set_id = fi.item_ref_id
+          ORDER BY tsi.sort_order ASC, tsi.id ASC
+          LIMIT 1
+        )
+        WHEN 'lfk_complex' THEN (
+          SELECT em.media_type::text
+          FROM lfk_complex_template_exercises te
+          INNER JOIN lfk_exercise_media em ON em.exercise_id = te.exercise_id
+          WHERE te.template_id = fi.item_ref_id
+          ORDER BY te.sort_order ASC, te.id ASC, em.sort_order ASC, em.created_at ASC NULLS LAST
+          LIMIT 1
+        )
+        ELSE NULL
+      END AS preview_type
+    FROM first_item fi
+    `,
+    [templateIds],
+  );
+
+  for (const row of res.rows) {
+    const url = row.preview_url?.trim();
+    const mt = row.preview_type?.trim();
+    if (!url || (mt !== "image" && mt !== "video" && mt !== "gif")) {
+      out.set(row.template_id, null);
+    } else {
+      out.set(row.template_id, { mediaUrl: url, mediaType: mt });
+    }
   }
   return out;
 }
@@ -368,7 +479,9 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
         .orderBy(desc(tplTable.updatedAt), desc(tplTable.id));
       const ids = rows.map((r) => r.id);
       const countMap = await templateListCounts(db, ids);
-      return rows.map((r) => mapTemplate(r, countMap.get(r.id)));
+      const pool = getPool();
+      const previewMap = await templateListFirstItemPreviewByTemplateId(pool, ids);
+      return rows.map((r) => mapTemplate(r, countMap.get(r.id), previewMap.get(r.id) ?? null));
     },
 
     async deleteTemplate(id: string) {

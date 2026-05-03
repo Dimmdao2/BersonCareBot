@@ -27,6 +27,7 @@ import { LfkTemplateStatusBadge } from "./LfkTemplateStatusBadge";
 import { buildLfkTemplatesListPreserveQuery } from "./lfkTemplatesListPreserveQuery";
 import { TemplateEditor } from "./TemplateEditor";
 import type { DoctorCatalogPubArchQuery } from "@/shared/lib/doctorCatalogListStatus";
+import { DoctorCatalogInvalidPubArchToast } from "@/shared/ui/doctor/DoctorCatalogInvalidPubArchToast";
 
 type Props = {
   templates: Template[];
@@ -280,7 +281,9 @@ export function LfkTemplatesPageClient({
   };
 
   return (
-    <DoctorCatalogPageLayout toolbar={toolbar}>
+    <>
+      <DoctorCatalogInvalidPubArchToast />
+      <DoctorCatalogPageLayout toolbar={toolbar}>
       <CatalogSplitLayout
         className="lg:h-[calc(100dvh-3.5rem-env(safe-area-inset-top,0px)-3.25rem-1rem)] lg:overflow-hidden"
         left={
@@ -332,5 +335,6 @@ export function LfkTemplatesPageClient({
         }
       />
     </DoctorCatalogPageLayout>
+    </>
   );
 }

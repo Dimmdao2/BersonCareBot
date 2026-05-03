@@ -16,6 +16,12 @@ export type TreatmentProgramTemplateStatus = "draft" | "published" | "archived";
 
 export type TreatmentProgramItemType = (typeof TREATMENT_PROGRAM_ITEM_TYPES)[number];
 
+/** Миниатюра первого элемента шаблона в списке врача (когда удалось разрешить медиа на сервере). */
+export type TreatmentProgramTemplateListPreviewMedia = {
+  mediaUrl: string;
+  mediaType: "image" | "video" | "gif";
+};
+
 export type TreatmentProgramTemplate = {
   id: string;
   title: string;
@@ -24,6 +30,8 @@ export type TreatmentProgramTemplate = {
   /** Агрегаты для списка врача (этапы / элементы по всем этапам). */
   stageCount: number;
   itemCount: number;
+  /** Превью первого элемента по порядку этапов (B6); иначе `null` — в UI остаётся иконка-заглушка. */
+  listPreviewMedia: TreatmentProgramTemplateListPreviewMedia | null;
   createdBy: string | null;
   createdAt: string;
   updatedAt: string;

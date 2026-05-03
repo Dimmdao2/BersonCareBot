@@ -11,9 +11,7 @@ export type ClinicalTest = {
   title: string;
   description: string | null;
   testType: string | null;
-  /** Legacy JSON; не удаляется в B2 — см. ТЗ. При успешном сохранении структурированного `scoring` может обнуляться приложением. */
-  scoringConfig: unknown | null;
-  /** Структурированная оценка (B2); при null на чтении репозиторий может вывести из `scoring_config`. */
+  /** Структурированная оценка (B2). */
   scoring: ClinicalTestScoring | null;
   /** Fallback / legacy перенос / свободный текст. */
   rawText: string | null;
@@ -50,7 +48,6 @@ export type CreateClinicalTestInput = {
   bodyRegionId?: string | null;
   scoring?: ClinicalTestScoring | null;
   rawText?: string | null;
-  scoringConfig?: unknown | null;
   media?: ClinicalTestMediaItem[];
   tags?: string[] | null;
 };
@@ -63,7 +60,6 @@ export type UpdateClinicalTestInput = {
   bodyRegionId?: string | null;
   scoring?: ClinicalTestScoring | null;
   rawText?: string | null;
-  scoringConfig?: unknown | null;
   media?: ClinicalTestMediaItem[] | null;
   tags?: string[] | null;
 };

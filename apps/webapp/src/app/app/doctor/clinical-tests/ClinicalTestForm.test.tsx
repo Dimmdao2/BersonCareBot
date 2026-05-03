@@ -66,7 +66,6 @@ function makeClinicalTest(over: Partial<ClinicalTest>): ClinicalTest {
     title: "Title",
     description: null,
     testType: null,
-    scoringConfig: null,
     scoring: null,
     rawText: null,
     assessmentKind: null,

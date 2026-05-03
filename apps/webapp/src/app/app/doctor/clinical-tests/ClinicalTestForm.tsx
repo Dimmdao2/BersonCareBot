@@ -114,12 +114,7 @@ export function clinicalTestToFormValues(test: ClinicalTest | null | undefined):
     negativeLabel = parsed.negative_label ?? "";
   }
 
-  const scoringJsonRaw =
-    test?.scoring != null
-      ? JSON.stringify(test.scoring, null, 2)
-      : test?.scoringConfig != null
-        ? JSON.stringify(test.scoringConfig, null, 2)
-        : "";
+  const scoringJsonRaw = test?.scoring != null ? JSON.stringify(test.scoring, null, 2) : "";
 
   return {
     title: test?.title ?? "",

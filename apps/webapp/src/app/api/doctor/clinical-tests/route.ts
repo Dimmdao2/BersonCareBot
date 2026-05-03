@@ -20,7 +20,6 @@ const postBodySchema = z.object({
   testType: z.string().max(200).nullable().optional(),
   /** Код из справочника `clinical_assessment_kind` (`reference_items.code`), как в форме врача. */
   assessmentKind: z.string().max(120).nullable().optional(),
-  scoringConfig: z.unknown().optional(),
   media: z.array(mediaItemSchema).optional(),
   tags: z.array(z.string()).optional().nullable(),
 });
@@ -93,7 +92,6 @@ export async function POST(request: Request) {
         description: parsed.data.description ?? null,
         testType: parsed.data.testType ?? null,
         assessmentKind: parsed.data.assessmentKind?.trim() || null,
-        scoringConfig: parsed.data.scoringConfig ?? null,
         media: parsed.data.media?.map((m, i) => ({
           ...m,
           sortOrder: m.sortOrder ?? i,

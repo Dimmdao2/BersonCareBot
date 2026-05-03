@@ -26,6 +26,7 @@ import {
   unarchiveDoctorTestSetInline,
 } from "./actionsInline";
 import type { DoctorCatalogPubArchQuery } from "@/shared/lib/doctorCatalogListStatus";
+import { DoctorCatalogInvalidPubArchToast } from "@/shared/ui/doctor/DoctorCatalogInvalidPubArchToast";
 import type { ClinicalTestLibraryPickRow } from "./clinicalTestLibraryRows";
 import { TestSetForm } from "./TestSetForm";
 import { TestSetItemsForm } from "./TestSetItemsForm";
@@ -238,7 +239,9 @@ export function TestSetsPageClient({
   );
 
   return (
-    <DoctorCatalogPageLayout toolbar={toolbar}>
+    <>
+      <DoctorCatalogInvalidPubArchToast />
+      <DoctorCatalogPageLayout toolbar={toolbar}>
       <CatalogSplitLayout
         className="lg:h-[calc(100dvh-3.5rem-env(safe-area-inset-top,0px)-3.25rem-1rem)] lg:overflow-hidden"
         left={
@@ -294,5 +297,6 @@ export function TestSetsPageClient({
         }
       />
     </DoctorCatalogPageLayout>
+    </>
   );
 }

@@ -38,8 +38,7 @@ export const clinicalTests = pgTable(
     title: text().notNull(),
     description: text(),
     testType: text("test_type"),
-    scoringConfig: jsonb("scoring_config"),
-    /** Структурированная модель оценки (B2); корень с `schema_type`. Legacy: `scoring_config`. */
+    /** Структурированная модель оценки (B2); корень с `schema_type`. */
     scoring: jsonb("scoring"),
     /** Свободный текст / fallback при миграции из legacy JSON. */
     rawText: text("raw_text"),

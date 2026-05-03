@@ -6,6 +6,18 @@
 
 ---
 
+## 2026-05-03 (defer-closure code) — DROP `scoring_config`, UX B1/B4/B6
+
+**B1 (колонка):** миграция [`0040_drop_tests_scoring_config.sql`](../../apps/webapp/db/drizzle-migrations/0040_drop_tests_scoring_config.sql), обновлены Drizzle-схема и слой приложения без `scoring_config` на `tests`; снимок набора в программе по-прежнему кладёт в JSON ключа `scoringConfig` значение из колонки **`scoring`** (`pgTreatmentProgramItemSnapshot`) для `progress-service`.
+
+**C (аудиты):** toast при явно невалидных `?arch=` / `?pub=` — [`DoctorCatalogInvalidPubArchToast.tsx`](../../apps/webapp/src/shared/ui/doctor/DoctorCatalogInvalidPubArchToast.tsx) + LFK / test-sets / шаблоны программ; standalone рекомендации — preserve фильтров каталога в redirect после save/archive/unarchive и на `/recommendations/[id]` через query + [`appendRecommendationsCatalogFiltersToSearchParams`](../../apps/webapp/src/app/app/doctor/recommendations/recommendationsListPreserveParams.ts); список шаблонов программ — поле **`listPreviewMedia`** (первый item по порядку этапов; SQL в `pgTreatmentProgram.listTemplates`).
+
+**Аудит follow-up (доки + мелкий код):** синхронизированы [`AUDIT_STAGE_B1.md`](AUDIT_STAGE_B1.md), [`AUDIT_STAGE_B4.md`](AUDIT_STAGE_B4.md), [`AUDIT_STAGE_B6.md`](AUDIT_STAGE_B6.md), уточнение §B6 в [`ASSIGNMENT_CATALOGS_REWORK_PLAN.md`](../../APP_RESTRUCTURE_INITIATIVE/ASSIGNMENT_CATALOGS_REWORK_PLAN.md); standalone `saveRecommendation` редирект с list-preserve query; при ошибке archive без id — redirect на список с preserve.
+
+**Проверки:** `pnpm --dir apps/webapp exec vitest run` (целевые наборы + каталог шаблонов), `pnpm --dir apps/webapp exec tsc --noEmit`.
+
+---
+
 ## 2026-05-04 (V) — FILTER URL: решения владельца, preserve unit-тесты, план закрыт
 
 **Решения (зафиксировано):** каталог **шаблонов программ** не трогать; **историю коммитов** не переписывать; **рефакторинг имён `regionRefId`** не делать — в URL/query-layer только **`region`** (код).

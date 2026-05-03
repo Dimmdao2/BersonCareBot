@@ -7,7 +7,7 @@
 ## 1. Verdict
 
 - **Status:** **PASS** (после FIX 2026-05-03)
-- **Summary:** Critical/major из первичного аудита закрыты: GET-форма сохраняет `arch`/`pub`; picker шаблона программ и `GET /api/doctor/test-sets` учитывают публикацию. Minor: терминология выровнена в промптах/STAGE_B1; дополнительный unit-тест на явный `pub` поверх legacy `status`; **deferred:** toast при мусорных `arch`/`pub` в URL (низкая ценность).
+- **Summary:** Critical/major из первичного аудита закрыты: GET-форма сохраняет `arch`/`pub`; picker шаблона программ и `GET /api/doctor/test-sets` учитывают публикацию. Minor: терминология выровнена в промптах/STAGE_B1; дополнительный unit-тест на явный `pub` поверх legacy `status`. **FIX defer-closure 2026-05-03:** toast при явно невалидных `arch`/`pub` — [`DoctorCatalogInvalidPubArchToast.tsx`](../../apps/webapp/src/shared/ui/doctor/DoctorCatalogInvalidPubArchToast.tsx) на трёх каталогах (LFK, test-sets, шаблоны программ) + `explicitDoctorCatalogPubArchParamsInvalid` в [`doctorCatalogListStatus.ts`](../../apps/webapp/src/shared/lib/doctorCatalogListStatus.ts).
 
 ## 2. Scope Verification
 
@@ -91,12 +91,12 @@ pnpm exec tsc --noEmit   # в каталоге apps/webapp
 
 4. **Именование `test_sets.status` в промптах** — **исправлено** в [`PROMPTS_EXEC_AUDIT_FIX_GLOBAL.md`](PROMPTS_EXEC_AUDIT_FIX_GLOBAL.md), чеклист [`STAGE_B1_PLAN.md`](STAGE_B1_PLAN.md) (миграция `publication_status`).
 
-5. **Невалидные `arch`/`pub` в URL** — **deferred:** по-прежнему тихий fallback к default; отдельный toast/redirect не внеднялся (низкий приоритет, нет продуктового запроса).
+5. **Невалидные `arch`/`pub` в URL** — **исправлено (defer-closure 2026-05-03):** toast при **явно** переданных недопустимых `?arch=` / `?pub=`; legacy `status=` по-прежнему тихо мапится. См. [`DoctorCatalogInvalidPubArchToast.tsx`](../../apps/webapp/src/shared/ui/doctor/DoctorCatalogInvalidPubArchToast.tsx), [`doctorCatalogListStatus.ts`](../../apps/webapp/src/shared/lib/doctorCatalogListStatus.ts) (`explicitDoctorCatalogPubArchParamsInvalid`), тесты в [`doctorCatalogListStatus.test.ts`](../../apps/webapp/src/shared/lib/doctorCatalogListStatus.test.ts).
 
 ## 11. Deferred Work
 
 - Периодический smoke §9 (legacy URL, usage).
-- Опционально: toast при невалидных query-параметрах (§10.5).
+- ~~Опционально: toast при невалидных query-параметрах (§10.5).~~ — **закрыто** см. §10.5 и §16.
 
 ## 12. Final DoD (этап)
 
@@ -135,4 +135,15 @@ pnpm exec tsc --noEmit   # в каталоге apps/webapp
 
 4. Терминология — см. §10.4.
 
-5. **Deferred** — см. §10.5.
+5. **Done (defer-closure 2026-05-03)** — см. §16.
+
+---
+
+## 16. FIX defer-closure 2026-05-03 (toast `arch`/`pub`)
+
+| Действие | Файлы |
+|----------|--------|
+| Детекция явно битых `arch`/`pub` | [`doctorCatalogListStatus.ts`](../../apps/webapp/src/shared/lib/doctorCatalogListStatus.ts) — `explicitDoctorCatalogPubArchParamsInvalid`; [`doctorCatalogListStatus.test.ts`](../../apps/webapp/src/shared/lib/doctorCatalogListStatus.test.ts) |
+| Toast на три каталога с B1-осями | [`DoctorCatalogInvalidPubArchToast.tsx`](../../apps/webapp/src/shared/ui/doctor/DoctorCatalogInvalidPubArchToast.tsx); подключение в [`LfkTemplatesPageClient.tsx`](../../apps/webapp/src/app/app/doctor/lfk-templates/LfkTemplatesPageClient.tsx), [`TestSetsPageClient.tsx`](../../apps/webapp/src/app/app/doctor/test-sets/TestSetsPageClient.tsx), [`TreatmentProgramTemplatesPageClient.tsx`](../../apps/webapp/src/app/app/doctor/treatment-program-templates/TreatmentProgramTemplatesPageClient.tsx) |
+
+**Примечание:** не затрагивает каталоги без осей `arch`×`pub` (например клинические тесты с одной осью `status`).

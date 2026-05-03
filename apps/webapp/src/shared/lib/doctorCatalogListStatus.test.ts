@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   lfkTemplateFilterFromPubArch,
+  explicitDoctorCatalogPubArchParamsInvalid,
   parseDoctorCatalogPubArchQuery,
   parseRecommendationListFilterScope,
   parseTemplateCourseCatalogListStatus,
@@ -56,6 +57,13 @@ describe("parseDoctorCatalogPubArchQuery", () => {
       arch: "active",
       pub: "published",
     });
+  });
+
+  it("detects invalid explicit arch or pub", () => {
+    expect(explicitDoctorCatalogPubArchParamsInvalid({ arch: "yes", pub: "all" })).toBe(true);
+    expect(explicitDoctorCatalogPubArchParamsInvalid({ arch: "active", pub: "maybe" })).toBe(true);
+    expect(explicitDoctorCatalogPubArchParamsInvalid({ arch: "", pub: "" })).toBe(false);
+    expect(explicitDoctorCatalogPubArchParamsInvalid({ arch: "active", pub: "draft" })).toBe(false);
   });
 });
 

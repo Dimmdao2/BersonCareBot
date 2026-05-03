@@ -3,11 +3,7 @@ import { getDrizzle } from "@/app-layer/db/drizzle";
 import { getPool } from "@/infra/db/client";
 import { clinicalTests as clinicalTestsTable } from "../../../db/schema/clinicalTests";
 import type { ClinicalTestsPort } from "@/modules/tests/ports";
-import {
-  clinicalTestScoringSchema,
-  migrateLegacyScoringConfig,
-  normalizeClinicalTestScoringOrder,
-} from "@/modules/tests/clinicalTestScoring";
+import { clinicalTestScoringSchema, normalizeClinicalTestScoringOrder } from "@/modules/tests/clinicalTestScoring";
 import type {
   ClinicalTest,
   ClinicalTestFilter,
@@ -43,17 +39,12 @@ function deriveScoring(row: typeof clinicalTestsTable.$inferSelect) {
     const p = clinicalTestScoringSchema.safeParse(row.scoring);
     if (p.success) return normalizeClinicalTestScoringOrder(p.data);
   }
-  if (row.scoringConfig != null) return migrateLegacyScoringConfig(row.scoringConfig).scoring;
   return null;
 }
 
 function deriveRawText(row: typeof clinicalTestsTable.$inferSelect): string | null {
   const rt = row.rawText?.trim() ? row.rawText : null;
-  if (rt) return rt;
-  if (row.scoring == null && row.scoringConfig != null) {
-    return migrateLegacyScoringConfig(row.scoringConfig).rawNote;
-  }
-  return null;
+  return rt ?? null;
 }
 
 function mapRow(row: typeof clinicalTestsTable.$inferSelect): ClinicalTest {
@@ -62,7 +53,6 @@ function mapRow(row: typeof clinicalTestsTable.$inferSelect): ClinicalTest {
     title: row.title,
     description: row.description,
     testType: row.testType,
-    scoringConfig: row.scoringConfig ?? null,
     scoring: deriveScoring(row),
     rawText: deriveRawText(row),
     assessmentKind: row.assessmentKind?.trim() || null,
@@ -376,7 +366,6 @@ export function createPgClinicalTestsPort(): ClinicalTestsPort {
           title: input.title,
           description: input.description ?? null,
           testType: input.testType ?? null,
-          scoringConfig: input.scoringConfig ?? null,
           scoring: input.scoring ?? null,
           rawText: input.rawText ?? null,
           assessmentKind: input.assessmentKind?.trim() || null,
@@ -397,7 +386,6 @@ export function createPgClinicalTestsPort(): ClinicalTestsPort {
       if (input.title !== undefined) patch.title = input.title;
       if (input.description !== undefined) patch.description = input.description;
       if (input.testType !== undefined) patch.testType = input.testType;
-      if (input.scoringConfig !== undefined) patch.scoringConfig = input.scoringConfig ?? null;
       if (input.scoring !== undefined) patch.scoring = input.scoring ?? null;
       if (input.rawText !== undefined) patch.rawText = input.rawText ?? null;
       if (input.assessmentKind !== undefined) patch.assessmentKind = input.assessmentKind?.trim() || null;

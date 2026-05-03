@@ -187,6 +187,17 @@ export function parseDoctorCatalogPubArchQuery(
   return { arch, pub };
 }
 
+/** Явные `?arch=` / `?pub=` с недопустимым значением (пустая строка — не ошибка). */
+export function explicitDoctorCatalogPubArchParamsInvalid(
+  sp: Pick<DoctorCatalogPubArchSearchParams, "arch" | "pub">,
+): boolean {
+  const a = typeof sp.arch === "string" ? sp.arch.trim() : "";
+  const p = typeof sp.pub === "string" ? sp.pub.trim() : "";
+  if (a !== "" && a !== "active" && a !== "archived") return true;
+  if (p !== "" && p !== "all" && p !== "draft" && p !== "published") return true;
+  return false;
+}
+
 /** Записать оси `arch`/`pub` в {@link URLSearchParams}; удалить legacy `status`. */
 export function applyDoctorCatalogPubArchToSearchParams(p: URLSearchParams, q: DoctorCatalogPubArchQuery): void {
   p.delete("status");

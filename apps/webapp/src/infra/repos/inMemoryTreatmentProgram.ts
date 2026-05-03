@@ -62,6 +62,7 @@ export function createInMemoryTreatmentProgramPort(seed?: {
       ...t,
       stageCount: t.stageCount ?? 0,
       itemCount: t.itemCount ?? 0,
+      listPreviewMedia: t.listPreviewMedia ?? null,
     });
   }
   for (const s of seed?.stages ?? []) stages.set(s.id, { ...s });
@@ -130,6 +131,7 @@ export function createInMemoryTreatmentProgramPort(seed?: {
         status: (input.status ?? "draft") as TreatmentProgramTemplateStatus,
         stageCount: 0,
         itemCount: 0,
+        listPreviewMedia: null,
         createdBy,
         createdAt: now,
         updatedAt: now,
@@ -177,6 +179,7 @@ export function createInMemoryTreatmentProgramPort(seed?: {
             ...t,
             stageCount: d.stages.length,
             itemCount: d.stages.reduce((n, s) => n + s.items.length, 0),
+            listPreviewMedia: t.listPreviewMedia ?? null,
           };
         });
     },

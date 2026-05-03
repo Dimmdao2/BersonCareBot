@@ -79,8 +79,6 @@ export async function saveClinicalTestCore(formData: FormData): Promise<
   const assessmentTrim = typeof assessmentField === "string" ? assessmentField.trim() : "";
   const assessmentKind = assessmentTrim || null;
 
-  let scoringConfigLegacy: unknown | null = null;
-
   const editorMode = formData.get("scoringEditorMode");
   const jsonMode = editorMode === "json";
 
@@ -111,8 +109,8 @@ export async function saveClinicalTestCore(formData: FormData): Promise<
     }
   }
 
-  const scoringConfig = scoringParsed != null ? null : scoringConfigLegacy;
   const scoring = scoringParsed;
+
   const mediaUrlField = formData.get("mediaUrl");
   const mediaUrl = typeof mediaUrlField === "string" ? mediaUrlField.trim() : "";
   const mediaTypeField = formData.get("mediaType");
@@ -152,7 +150,6 @@ export async function saveClinicalTestCore(formData: FormData): Promise<
         bodyRegionId,
         scoring,
         rawText,
-        scoringConfig,
         tags,
         media,
       });
@@ -167,7 +164,6 @@ export async function saveClinicalTestCore(formData: FormData): Promise<
         bodyRegionId,
         scoring,
         rawText,
-        scoringConfig,
         tags,
         media,
       },

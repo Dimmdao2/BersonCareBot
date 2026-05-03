@@ -34,6 +34,7 @@ function makeDetail(over: Partial<TreatmentProgramTemplateDetail> = {}): Treatme
     status: "draft",
     stageCount: 0,
     itemCount: 0,
+    listPreviewMedia: null,
     createdBy: null,
     createdAt: now,
     updatedAt: now,
@@ -45,6 +46,7 @@ function makeDetail(over: Partial<TreatmentProgramTemplateDetail> = {}): Treatme
     ...merged,
     stageCount: merged.stages.length,
     itemCount,
+    listPreviewMedia: merged.listPreviewMedia ?? null,
   };
 }
 

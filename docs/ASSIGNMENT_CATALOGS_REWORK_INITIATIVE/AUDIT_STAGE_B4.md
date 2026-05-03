@@ -92,7 +92,7 @@ pnpm exec tsc --noEmit
 
 2. **Неизвестный текст в колонке `domain` в БД** — задокументировано в [`api.md`](../../apps/webapp/src/app/api/api.md); поведение без изменений (PRE_IMP Q3).
 
-3. **Standalone `actions.ts`** — без preserve списка; **deferred** как вне scope B4-FIX (ожидаемо для `/new` и отдельного редактора).
+3. **Standalone `actions.ts`** — **исправлено (defer-closure 2026-05-03):** preserve фильтров каталога в redirect после `save` / `archive` / `unarchive` и на `/recommendations/[id]` через query; см. [`actions.ts`](../../apps/webapp/src/app/app/doctor/recommendations/actions.ts), [`recommendationsListPreserveParams.ts`](../../apps/webapp/src/app/app/doctor/recommendations/recommendationsListPreserveParams.ts) (`appendRecommendationsCatalogFiltersToSearchParams`), [`[id]/page.tsx`](../../apps/webapp/src/app/app/doctor/recommendations/[id]/page.tsx). **Доп. 2026-05-03:** редирект после standalone **«Сохранить»** также переносит list-preserve query на URL карточки.
 
 4. **Archive inline без `selected=`** — **deferred**: осознанное отличие от `unarchive`; менять только по продуктовому запросу.
 
@@ -101,6 +101,7 @@ pnpm exec tsc --noEmit
 - Периодический smoke полного сценария каталога.
 - Опционально: расширить `GET` list query оси архива до паритета с UI (`status=active|all|archived`), если API станет единственным клиентом каталога.
 - **Deferred (minor AUDIT):** debug-log при невалидном `listDomain` в `appendRecommendationsListParams` — **не делали**: параметр и так не попадает в redirect URL; дополнительный шум в server actions не оправдан без инцидента.
+- ~~**Deferred:** standalone preserve / `selected` после archive~~ — **закрыто** см. §10 п.3 и §16.
 
 ## 12. Final DoD (этап B4)
 
@@ -108,6 +109,7 @@ pnpm exec tsc --noEmit
 - [x] Миграция без merge legacy `domain`.
 - [x] Фильтры type + region (AND) и тесты пересечения.
 - [x] Archive/unarchive + preserve для inline-сценария.
+- [x] Standalone `/recommendations/[id]`: preserve фильтров каталога в URL и редиректах (defer-closure 2026-05-03, см. §16).
 - [x] `LOG.md` обновлён (EXEC + FIX).
 - [x] Коммит за EXEC + FIX ([`MASTER_PLAN.md`](MASTER_PLAN.md) §9).
 - [x] **Открыто:** пункты MANDATORY FIX (major) — **закрыты в FIX 2026-05-03** (см. §13).
@@ -132,9 +134,7 @@ pnpm exec tsc --noEmit
 
 4. **Deferred:** debug-log в `appendRecommendationsListParams` — не внедрялось (см. §11).
 
-5. **Deferred:** standalone preserve / `selected` после archive — без изменений (см. §10 Low).
-
----
+5. **Done (defer-closure 2026-05-03):** standalone list-preserve — см. §16.
 
 ## 13. FIX 2026-05-03 (закрытие AUDIT)
 
@@ -157,3 +157,13 @@ pnpm exec tsc --noEmit
 ## 15. Документная синхронизация 2026-05-04 (FILTER URL audit follow-up)
 
 После независимого аудита выполнения [`FILTER_URL_CONTRACT_FIX_PLAN.md`](FILTER_URL_CONTRACT_FIX_PLAN.md) обновлены формулировки в **настоящем** файле и в [`AUDIT_STAGE_D3.md`](AUDIT_STAGE_D3.md): на HTML-каталоге рекомендаций нет отдельного amber-баннера/`invalidRegionQuery` для невалидного `?region=` — канон [`AUDIT_FILTER_URL_CONTRACT_FIX.md`](AUDIT_FILTER_URL_CONTRACT_FIX.md). Код B4/D3 не пересматривался в этом проходе.
+
+---
+
+## 16. FIX defer-closure 2026-05-03 (standalone recommendations + docs sync)
+
+| Действие | Файлы |
+|----------|--------|
+| Сборка query каталога из объекта preserve | [`recommendationsListPreserveParams.ts`](../../apps/webapp/src/app/app/doctor/recommendations/recommendationsListPreserveParams.ts) — `appendRecommendationsCatalogFiltersToSearchParams`; тест в [`recommendationsListPreserveParams.test.ts`](../../apps/webapp/src/app/app/doctor/recommendations/recommendationsListPreserveParams.test.ts) |
+| Standalone SSR: `searchParams` → `workspaceListPreserve` + `backHref` | [`recommendations/[id]/page.tsx`](../../apps/webapp/src/app/app/doctor/recommendations/[id]/page.tsx) |
+| Redirect после save / archive / unarchive + preserve при ошибке archive без id | [`actions.ts`](../../apps/webapp/src/app/app/doctor/recommendations/actions.ts) — `appendListPreserveFromFormData` |

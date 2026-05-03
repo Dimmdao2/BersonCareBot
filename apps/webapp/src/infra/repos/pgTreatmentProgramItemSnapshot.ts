@@ -115,7 +115,7 @@ export function createPgTreatmentProgramItemSnapshotPort(): TreatmentProgramItem
               return {
                 testId: it.testId,
                 title: t?.title ?? null,
-                scoringConfig: t?.scoringConfig ?? null,
+                scoringConfig: (t?.scoring ?? null) as unknown,
                 sortOrder: it.sortOrder,
                 comment: it.comment ?? null,
               };

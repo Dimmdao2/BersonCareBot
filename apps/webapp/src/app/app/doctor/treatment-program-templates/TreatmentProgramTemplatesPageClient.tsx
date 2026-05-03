@@ -2,10 +2,15 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import type { ReactNode } from "react";
 import { useEffect, useId, useMemo, useRef, useState, useTransition } from "react";
 import { ClipboardList } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import type { TreatmentProgramTemplate, TreatmentProgramTemplateDetail } from "@/modules/treatment-program/types";
+import type {
+  TreatmentProgramTemplate,
+  TreatmentProgramTemplateDetail,
+  TreatmentProgramTemplateListPreviewMedia,
+} from "@/modules/treatment-program/types";
 import { cn } from "@/lib/utils";
 import { useDoctorCatalogDisplayList } from "@/shared/hooks/useDoctorCatalogDisplayList";
 import { useDoctorCatalogClientFilterMerge } from "@/shared/hooks/useDoctorCatalogClientFilterMerge";
@@ -28,6 +33,9 @@ import {
 } from "./[id]/TreatmentProgramConstructorClient";
 import { NewTemplateForm } from "./new/NewTemplateForm";
 import type { DoctorCatalogPubArchQuery } from "@/shared/lib/doctorCatalogListStatus";
+import { MediaThumb } from "@/shared/ui/media/MediaThumb";
+import { clinicalTestMediaItemToPreviewUi } from "@/shared/ui/media/mediaPreviewUiModel";
+import { DoctorCatalogInvalidPubArchToast } from "@/shared/ui/doctor/DoctorCatalogInvalidPubArchToast";
 import { TREATMENT_PROGRAM_TEMPLATES_PATH } from "./paths";
 import { TreatmentProgramTemplateStatusBadge } from "./TreatmentProgramTemplateStatusBadge";
 
@@ -42,6 +50,55 @@ function templateListCountsText(stageCount: number, itemCount: number): { line: 
   };
   const line = `${ru(stageCount, "этап", "этапа", "этапов")} · ${ru(itemCount, "элемент", "элемента", "элементов")}`;
   return { line, ariaLabel: `В шаблоне: ${line}` };
+}
+
+function TreatmentProgramTemplateRowPreviewMedia({
+  preview,
+  active,
+}: {
+  preview: TreatmentProgramTemplateListPreviewMedia | null;
+  active: boolean;
+}): ReactNode {
+  const shellClass = cn(
+    "mt-0.5 flex size-10 shrink-0 overflow-hidden rounded-md border bg-muted/50",
+    active && "border-primary/20 bg-primary/10",
+  );
+  if (!preview?.mediaUrl) {
+    return (
+      <div className={shellClass} aria-hidden>
+        <div className="flex size-full items-center justify-center">
+          <ClipboardList className={cn("size-5", active ? "text-primary" : "text-muted-foreground")} />
+        </div>
+      </div>
+    );
+  }
+  if (preview.mediaType === "video") {
+    return (
+      <div className={shellClass} aria-hidden>
+        <video
+          src={preview.mediaUrl}
+          muted
+          playsInline
+          preload="metadata"
+          className="size-full object-cover"
+        />
+      </div>
+    );
+  }
+  return (
+    <div className={shellClass} aria-hidden>
+      <MediaThumb
+        media={clinicalTestMediaItemToPreviewUi({
+          mediaUrl: preview.mediaUrl,
+          mediaType: preview.mediaType,
+          sortOrder: 0,
+        })}
+        className="size-full"
+        imgClassName="size-full object-cover"
+        sizes="40px"
+      />
+    </div>
+  );
 }
 
 type Props = {
@@ -186,15 +243,7 @@ export function TreatmentProgramTemplatesPageClient({
                     "border-primary/25 bg-primary/15 text-primary hover:bg-primary/20 dark:bg-primary/20 dark:hover:bg-primary/25",
                 )}
               >
-                <div
-                  className={cn(
-                    "mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-md border bg-muted/50",
-                    active && "border-primary/20 bg-primary/10",
-                  )}
-                  aria-hidden
-                >
-                  <ClipboardList className={cn("size-5", active ? "text-primary" : "text-muted-foreground")} />
-                </div>
+                <TreatmentProgramTemplateRowPreviewMedia preview={t.listPreviewMedia} active={active} />
                 <div className="min-w-0 flex-1">
                   <span className="line-clamp-2 font-medium leading-tight">{t.title}</span>
                   <div className="mt-1 flex flex-wrap items-center gap-1.5">
@@ -270,7 +319,9 @@ export function TreatmentProgramTemplatesPageClient({
   );
 
   return (
-    <DoctorCatalogPageLayout toolbar={toolbar}>
+    <>
+      <DoctorCatalogInvalidPubArchToast />
+      <DoctorCatalogPageLayout toolbar={toolbar}>
       <CatalogSplitLayout
         className="lg:h-[calc(100dvh-3.5rem-env(safe-area-inset-top,0px)-3.25rem-1rem)] lg:overflow-hidden"
         left={
@@ -317,5 +368,6 @@ export function TreatmentProgramTemplatesPageClient({
         }
       />
     </DoctorCatalogPageLayout>
+    </>
   );
 }

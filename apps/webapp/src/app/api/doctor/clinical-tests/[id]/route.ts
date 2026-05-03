@@ -19,7 +19,6 @@ const patchBodySchema = z.object({
   title: z.string().min(1).max(2000).optional(),
   description: z.string().max(20000).nullable().optional(),
   testType: z.string().max(200).nullable().optional(),
-  scoringConfig: z.unknown().nullable().optional(),
   media: z.array(mediaItemSchema).nullable().optional(),
   tags: z.array(z.string()).optional().nullable(),
 });
