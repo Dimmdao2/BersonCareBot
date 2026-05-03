@@ -1,10 +1,10 @@
 import Link from "next/link";
-import { Eye, EyeOff } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { cn } from "@/lib/utils";
 import type { Template, TemplateExercise } from "@/modules/lfk-templates/types";
 import { MediaThumb } from "@/shared/ui/media/MediaThumb";
 import { exerciseMediaToPreviewUi } from "@/shared/ui/media/mediaPreviewUiModel";
+import { LfkTemplateStatusBadge } from "./LfkTemplateStatusBadge";
 
 function sideRu(side: TemplateExercise["side"]): string | null {
   if (side === "left") return "Левая";
@@ -57,33 +57,14 @@ function TemplateExercisePreviewRow({ line }: { line: TemplateExercise }) {
   );
 }
 
-function statusEyeMeta(status: Template["status"]) {
-  const published = status === "published";
-  const archived = status === "archived";
-  const label = archived ? "В архиве" : published ? "Опубликован" : "Черновик";
-  return { published, archived, label };
-}
-
 export function LfkTemplatePreviewPanel({ template }: { template: Template }) {
-  const { published, label } = statusEyeMeta(template.status);
   const lines = [...template.exercises].sort((a, b) => a.sortOrder - b.sortOrder);
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
       <div className="flex flex-wrap items-start justify-between gap-2">
-        <h2 className="min-w-0 text-lg font-semibold leading-tight">{template.title}</h2>
-        <span
-          className="inline-flex size-8 shrink-0 items-center justify-center rounded-full border border-border/80"
-          role="img"
-          aria-label={label}
-          title={label}
-        >
-          {published ? (
-            <Eye className="size-4 text-green-600 dark:text-green-500" aria-hidden />
-          ) : (
-            <EyeOff className="size-4 text-muted-foreground" aria-hidden />
-          )}
-        </span>
+        <h2 className="min-w-0 flex-1 text-lg font-semibold leading-tight">{template.title}</h2>
+        <LfkTemplateStatusBadge status={template.status} className="shrink-0" />
       </div>
       {template.description?.trim() ? (
         <p className="text-sm text-muted-foreground">{template.description.trim()}</p>

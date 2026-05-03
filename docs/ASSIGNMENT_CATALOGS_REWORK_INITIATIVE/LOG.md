@@ -323,3 +323,42 @@ pnpm exec tsc --noEmit
 **Вне scope:** полный `pnpm run ci` на этапе FIX.
 
 **Результат:** eslint / vitest / tsc — **PASS**.
+
+---
+
+## 2026-05-03 — Stage B5 — EXEC (ЛФК: статус в списке/превью/редакторе, sync после action)
+
+**Контекст:** `STAGE_B5_PLAN.md`, `PRE_IMPLEMENTATION_DECISIONS.md`, продуктовое ТЗ §3 B5, `MASTER_PLAN.md` §9.
+
+**Классификация «глаза» (Eye/EyeOff в списке):** **UX-ожидание**, не state-bug. Иконка читалась как переключатель видимости; для `archived` и `draft` оба давали «закрытый глаз», без различия архива vs черновика. Реализация уже была **индикатором** публикации (`span` + `cursor-default`), не action.
+
+**Сделано:**
+
+- Общий [`LfkTemplateStatusBadge.tsx`](../../apps/webapp/src/app/app/doctor/lfk-templates/LfkTemplateStatusBadge.tsx): явные подписи **Черновик / Опубликован / В архиве** (единый `TemplateStatus`).
+- Список [`LfkTemplatesPageClient.tsx`](../../apps/webapp/src/app/app/doctor/lfk-templates/LfkTemplatesPageClient.tsx): колонка статуса вместо Eye/EyeOff; фильтры B1 не менялись (уже `catalogPubArch` + preserve).
+- Превью [`LfkTemplatePreviewPanel.tsx`](../../apps/webapp/src/app/app/doctor/lfk-templates/LfkTemplatePreviewPanel.tsx): тот же бейдж у заголовка.
+- Редактор [`TemplateEditor.tsx`](../../apps/webapp/src/app/app/doctor/lfk-templates/TemplateEditor.tsx): блок статуса + подсказки по состоянию; CTA «Сохранить черновик» → «Сохранить изменения» для опубликованного; «Опубликовать» disabled после публикации; после успешного **persist** и **publish** — `router.refresh()` для синхронизации RSC-списка и пропсов редактора с сервером сразу после action.
+- Тесты: `LfkTemplateStatusBadge.test.tsx`; mock `useRouter` в `TemplateEditor.test.tsx`.
+
+**Проверки (целевые B5, без полного `pnpm run ci`):**
+
+```bash
+cd apps/webapp && pnpm exec eslint \
+  src/app/app/doctor/lfk-templates/LfkTemplatesPageClient.tsx \
+  src/app/app/doctor/lfk-templates/LfkTemplatePreviewPanel.tsx \
+  src/app/app/doctor/lfk-templates/LfkTemplateStatusBadge.tsx \
+  src/app/app/doctor/lfk-templates/LfkTemplateStatusBadge.test.tsx \
+  src/app/app/doctor/lfk-templates/TemplateEditor.tsx \
+  src/app/app/doctor/lfk-templates/TemplateEditor.test.tsx
+pnpm exec vitest run \
+  src/app/app/doctor/lfk-templates/LfkTemplateStatusBadge.test.tsx \
+  src/app/app/doctor/lfk-templates/TemplateEditor.test.tsx \
+  src/app/app/doctor/lfk-templates/lfkTemplatesListPreserveQuery.test.ts
+pnpm exec tsc --noEmit
+```
+
+**Вне scope:** полный `pnpm run ci`; отдельный AUDIT-документ B5.
+
+**Результат:** eslint / vitest / tsc — **PASS**.
+
+**Коммит:** `feat(doctor-catalogs): B5 LFK status badges and list-editor sync` (ветка `feature/app-restructure-initiative`).

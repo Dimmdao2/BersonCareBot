@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   useActionState,
   useCallback,
@@ -65,6 +66,7 @@ import { ExerciseListCatalogThumb } from "@/shared/ui/media/ExerciseListCatalogT
 import { MediaThumb } from "@/shared/ui/media/MediaThumb";
 import { exerciseMediaToPreviewUi } from "@/shared/ui/media/mediaPreviewUiModel";
 import { PickerSearchField } from "@/shared/ui/PickerSearchField";
+import { LfkTemplateStatusBadge } from "./LfkTemplateStatusBadge";
 
 type ExerciseOption = { id: string; title: string; firstMedia: ExerciseMedia | null };
 
@@ -278,6 +280,7 @@ export function TemplateEditor({
   externalUsageSnapshot,
   listPreserveQuery = "",
 }: TemplateEditorProps) {
+  const router = useRouter();
   const recordKey = template.id;
   const [title, setTitle] = useState(template.title);
   const [description, setDescription] = useState(template.description ?? "");
@@ -420,9 +423,12 @@ export function TemplateEditor({
         exercises: linesToPayload(lines),
       });
       if (!res.ok) toast.error(res.error);
-      else toast.success("Черновик сохранён");
+      else {
+        toast.success("Черновик сохранён");
+        router.refresh();
+      }
     });
-  }, [description, lines, template.id, title]);
+  }, [description, lines, router, template.id, title]);
 
   const publish = useCallback(() => {
     startTransition(async () => {
@@ -438,9 +444,12 @@ export function TemplateEditor({
       }
       const res = await publishLfkTemplateAction(template.id);
       if (!res.ok) toast.error(res.error);
-      else toast.success("Шаблон опубликован");
+      else {
+        toast.success("Шаблон опубликован");
+        router.refresh();
+      }
     });
-  }, [description, lines, template.id, template.title, title]);
+  }, [description, lines, router, template.id, template.title, title]);
 
   const filteredPick = useMemo(() => {
     const needle = normalizeRuSearchString(pickQuery.trim());
@@ -469,9 +478,20 @@ export function TemplateEditor({
   }, []);
 
   const archived = template.status === "archived";
+  const published = template.status === "published";
 
   return (
     <div className="flex w-full min-w-0 flex-col gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border/50 bg-muted/15 px-3 py-2">
+        <LfkTemplateStatusBadge status={template.status} />
+        {published ? (
+          <p className="max-w-md text-xs text-muted-foreground">Комплекс в каталоге; правки сохраняются в опубликованной версии.</p>
+        ) : archived ? (
+          <p className="max-w-md text-xs text-muted-foreground">В архиве — редактирование недоступно до восстановления.</p>
+        ) : (
+          <p className="max-w-md text-xs text-muted-foreground">Черновик — после публикации комплекс станет доступен для назначений.</p>
+        )}
+      </div>
       <div className="flex flex-col gap-2">
         <Label htmlFor="tpl-title">Название</Label>
         <Input
@@ -552,10 +572,15 @@ export function TemplateEditor({
 
       <div className="flex flex-wrap gap-2 border-t border-border/60 pt-4">
         <Button type="button" onClick={persist} disabled={archived || pending}>
-          Сохранить черновик
+          {published ? "Сохранить изменения" : "Сохранить черновик"}
         </Button>
-        <Button type="button" variant="default" onClick={publish} disabled={archived || pending}>
-          Опубликовать
+        <Button
+          type="button"
+          variant={published ? "secondary" : "default"}
+          onClick={publish}
+          disabled={archived || pending || published}
+        >
+          {published ? "Опубликован" : "Опубликовать"}
         </Button>
       </div>
 
@@ -660,8 +685,9 @@ export function TemplateEditor({
       </div>
 
       <p className="text-xs text-muted-foreground">
-        Перед публикацией черновик сохраняется автоматически. Если в базе нет упражнений в шаблоне, опубликация
-        будет отклонена.
+        {published
+          ? "Правки вступают в силу после «Сохранить изменения». Кнопка «Опубликовать» доступна только для черновиков."
+          : "Перед публикацией черновик сохраняется автоматически. Если в шаблоне нет упражнений, публикация будет отклонена."}
       </p>
     </div>
   );

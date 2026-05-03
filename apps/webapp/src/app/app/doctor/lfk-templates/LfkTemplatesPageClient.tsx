@@ -2,11 +2,10 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState, useTransition } from "react";
-import { Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { ExerciseLoadType, ExerciseMedia } from "@/modules/lfk-exercises/types";
-import type { Template, TemplateStatus } from "@/modules/lfk-templates/types";
+import type { Template } from "@/modules/lfk-templates/types";
 import { cn } from "@/lib/utils";
 import { useDoctorCatalogDisplayList } from "@/shared/hooks/useDoctorCatalogDisplayList";
 import { useDoctorCatalogMasterSelectionSync } from "@/shared/hooks/useDoctorCatalogMasterSelectionSync";
@@ -25,6 +24,7 @@ import {
 import { MediaThumb } from "@/shared/ui/media/MediaThumb";
 import { exerciseMediaToPreviewUi } from "@/shared/ui/media/mediaPreviewUiModel";
 import { createLfkTemplateDraft } from "./actions";
+import { LfkTemplateStatusBadge } from "./LfkTemplateStatusBadge";
 import { buildLfkTemplatesListPreserveQuery } from "./lfkTemplatesListPreserveQuery";
 import { TemplateEditor } from "./TemplateEditor";
 import type { DoctorCatalogPubArchQuery } from "@/shared/lib/doctorCatalogListStatus";
@@ -40,13 +40,6 @@ type Props = {
   };
   initialTitleSort: "asc" | "desc" | null;
 };
-
-function statusEyeMeta(status: TemplateStatus) {
-  const published = status === "published";
-  const archived = status === "archived";
-  const label = archived ? "В архиве" : published ? "Опубликован" : "Черновик";
-  return { published, label };
-}
 
 export function LfkTemplatesPageClient({
   templates,
@@ -106,7 +99,6 @@ export function LfkTemplatesPageClient({
       <ul className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto">
         {displayList.map((t) => {
           const active = activeId === t.id;
-          const { published, label } = statusEyeMeta(t.status);
           const rowN = t.exerciseCount ?? t.exercises.length;
           const thumbs = (t.exerciseThumbnails ?? []).map(exerciseMediaToPreviewUi);
           return (
@@ -159,20 +151,13 @@ export function LfkTemplatesPageClient({
                     </div>
                   </div>
                 </button>
-                <span
-                  className="inline-flex w-10 shrink-0 cursor-default items-center justify-center border-l border-border/40 bg-background/50"
-                  role="img"
-                  aria-label={label}
-                  title={label}
+                <div
+                  className="flex w-[6.75rem] shrink-0 flex-col items-stretch justify-center border-l border-border/40 bg-background/50 px-1 py-1"
                   onClick={(e) => e.stopPropagation()}
                   onPointerDown={(e) => e.stopPropagation()}
                 >
-                  {published ? (
-                    <Eye className="size-4 text-green-600 dark:text-green-500" aria-hidden />
-                  ) : (
-                    <EyeOff className="size-4 text-muted-foreground" aria-hidden />
-                  )}
-                </span>
+                  <LfkTemplateStatusBadge status={t.status} className="w-full justify-center text-[10px] leading-tight" />
+                </div>
               </div>
             </li>
           );

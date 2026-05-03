@@ -50,6 +50,10 @@ vi.mock("next/link", () => ({
   default: ({ href, children }: { href: string; children: ReactNode }) => <a href={href}>{children}</a>,
 }));
 
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: vi.fn() }),
+}));
+
 vi.mock("./actions", async () => {
   const actual = await vi.importActual<typeof import("./actions")>("./actions");
   return {
