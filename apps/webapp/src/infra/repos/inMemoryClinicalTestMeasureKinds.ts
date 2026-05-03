@@ -25,4 +25,17 @@ export const inMemoryClinicalTestMeasureKindsPort: ClinicalTestMeasureKindsPort 
     store.set(row.id, row);
     return { row, created: true };
   },
+
+  async saveMeasureKindsOrderAndLabels(
+    updates: { id: string; label: string; sortOrder: number }[],
+  ): Promise<ClinicalTestMeasureKindRow[]> {
+    for (const u of updates) {
+      const hit = [...store.values()].find((r) => r.id === u.id);
+      if (!hit) {
+        throw new Error("internal: measure kind row missing");
+      }
+      store.set(hit.id, { ...hit, label: u.label, sortOrder: u.sortOrder });
+    }
+    return [...store.values()].sort((a, b) => a.sortOrder - b.sortOrder || a.label.localeCompare(b.label, "ru"));
+  },
 };

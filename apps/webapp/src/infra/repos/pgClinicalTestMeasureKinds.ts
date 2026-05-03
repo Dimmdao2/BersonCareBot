@@ -46,6 +46,25 @@ export function createPgClinicalTestMeasureKindsPort(): ClinicalTestMeasureKinds
         .returning();
       return { row: mapRow(rows[0]), created: true };
     },
+
+    async saveMeasureKindsOrderAndLabels(
+      updates: { id: string; label: string; sortOrder: number }[],
+    ): Promise<ClinicalTestMeasureKindRow[]> {
+      const db = getDrizzle();
+      await db.transaction(async (tx) => {
+        for (const u of updates) {
+          await tx
+            .update(clinicalTestMeasureKinds)
+            .set({ label: u.label, sortOrder: u.sortOrder })
+            .where(eq(clinicalTestMeasureKinds.id, u.id));
+        }
+      });
+      const rows = await db
+        .select()
+        .from(clinicalTestMeasureKinds)
+        .orderBy(asc(clinicalTestMeasureKinds.sortOrder), asc(clinicalTestMeasureKinds.label));
+      return rows.map(mapRow);
+    },
   };
 }
 

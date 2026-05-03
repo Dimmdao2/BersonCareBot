@@ -6,6 +6,8 @@
 
 Канонический продуктовый источник: [`../APP_RESTRUCTURE_INITIATIVE/ASSIGNMENT_CATALOGS_REWORK_PLAN.md`](../APP_RESTRUCTURE_INITIATIVE/ASSIGNMENT_CATALOGS_REWORK_PLAN.md).
 
+> Post-B wave: закрытие product defer вынесено в отдельный контур [`DEFER_CLOSURE_MASTER_PLAN.md`](DEFER_CLOSURE_MASTER_PLAN.md) с этапами D1–D6.
+
 ## 2. Границы scope
 
 ### In scope
@@ -38,7 +40,7 @@ B1 ──► B3, B4, B5, B6 (параллель по ресурсам)
          └──► B7 (после B3+B4; согласовать с A2 по stage items)
 ```
 
-Открытые продуктовые вопросы **Q1–Q7** — в продуктовом ТЗ §5. Инженерные default до кода — в [`PRE_IMPLEMENTATION_DECISIONS.md`](PRE_IMPLEMENTATION_DECISIONS.md).
+Статусы продуктовых вопросов **Q1–Q7** — в продуктовом ТЗ §5/§8.2. Инженерные default до кода — в [`PRE_IMPLEMENTATION_DECISIONS.md`](PRE_IMPLEMENTATION_DECISIONS.md).
 
 ## 4. Карта кодовой базы (ориентир)
 

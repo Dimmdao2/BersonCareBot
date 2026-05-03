@@ -12,7 +12,10 @@ export default async function DoctorReferencesLayout({ children }: { children: R
   return (
     <AppShell title="Справочники" user={session.user} variant="doctor" backHref="/app/doctor">
       <div className="grid gap-4 lg:grid-cols-[300px_minmax(0,1fr)]">
-        <ReferencesSidebar categories={categories} />
+        <ReferencesSidebar
+          categories={categories}
+          systemLinks={[{ href: "/app/doctor/references/measure-kinds", label: "Виды измерений" }]}
+        />
         <section className="min-w-0 rounded-xl border border-border bg-card p-4">{children}</section>
       </div>
     </AppShell>

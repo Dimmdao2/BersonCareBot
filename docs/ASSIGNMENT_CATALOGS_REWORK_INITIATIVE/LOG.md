@@ -6,6 +6,48 @@
 
 ---
 
+## 2026-05-03 — Stage D1 — FIX (`AUDIT_STAGE_D1`)
+
+**Контекст:** артефакт [`AUDIT_STAGE_D1.md`](AUDIT_STAGE_D1.md) отсутствовал в дереве до FIX; независимая сверка с [`STAGE_D1_PLAN.md`](STAGE_D1_PLAN.md) показала незакрытый объём D1 в коде.
+
+**Сделано:**
+
+- **API:** `PATCH /api/doctor/measure-kinds` — полное сохранение `{ items: [{ id, label, sortOrder }] }`; валидация Zod; ошибки домена **`422`** (как у `POST`).
+- **Домен:** `saveMeasureKindsOrderAndLabels` в сервисе + порт; реализации **pg** (транзакция `UPDATE`) и **in-memory**.
+- **UI врача:** `/app/doctor/references/measure-kinds` — DnD + правка подписей + «Добавить» через `POST`; ссылка в сайдбаре справочников (`ReferencesSidebar` + `layout`).
+- **Форма клин. теста:** порядок опций combobox по **`sortOrder`** с API; подписка на `MEASURE_KINDS_CATALOG_CHANGED_EVENT` + refetch после сохранения каталога / локального `POST` create.
+- **Документация:** [`api.md`](../../apps/webapp/src/app/api/api.md); создан **[`AUDIT_STAGE_D1.md`](AUDIT_STAGE_D1.md)** (verdict **PASS**, minor deferred §5).
+- **Тесты:** [`measureKindsService.test.ts`](../../apps/webapp/src/modules/tests/measureKindsService.test.ts).
+
+**Проверки (целевые, без полного `pnpm run ci`):** команды — §6 в [`AUDIT_STAGE_D1.md`](AUDIT_STAGE_D1.md).
+
+**Результат:** vitest (`measureKindsService.test.ts`) / eslint (список в AUDIT §6) / `tsc --noEmit` — **PASS**.
+
+**Вне scope:** merge/dedup; колонка `is_active` для `measure_kinds`; полный CI перед push.
+
+---
+
+## 2026-05-03 — Defer closure planning wave (Q1/Q2/Q3/Q4/Q6)
+
+**Контекст:** после независимого аудита пользователь зафиксировал дополнительные продуктовые решения по defer-хвостам.
+
+**Сделано (docs):**
+
+- Продуктовый план [`../APP_RESTRUCTURE_INITIATIVE/ASSIGNMENT_CATALOGS_REWORK_PLAN.md`](../APP_RESTRUCTURE_INITIATIVE/ASSIGNMENT_CATALOGS_REWORK_PLAN.md):
+  - обновлены §5 (статусы Q1–Q7),
+  - обновлён §7 backlog с учётом решений «не делаем»,
+  - добавлен журнал решений §8.2.
+- [`PRE_IMPLEMENTATION_DECISIONS.md`](PRE_IMPLEMENTATION_DECISIONS.md): добавлены уточнения Q1/Q2/Q6, обновлены формулировки Q3/Q4, переработан блок открытых инженерных подтверждений.
+- Добавлен отдельный контур планирования defer-wave:
+  - [`DEFER_CLOSURE_MASTER_PLAN.md`](DEFER_CLOSURE_MASTER_PLAN.md),
+  - [`STAGE_D1_PLAN.md`](STAGE_D1_PLAN.md) … [`STAGE_D6_PLAN.md`](STAGE_D6_PLAN.md),
+  - [`PROMPTS_DEFER_CLOSURE_STAGES.md`](PROMPTS_DEFER_CLOSURE_STAGES.md) с раздельными prompt-блоками `EXEC` / `AUDIT` / `FIX` по каждому этапу.
+- [`README.md`](README.md) инициативы синхронизирован с новыми D-артефактами.
+
+**Код не менялся.**
+
+---
+
 ## 2026-05-03 — Документация: закрытие замечаний независимого аудита
 
 **Контекст:** расхождения между планами/ТЗ и фактом выполнения; незакоммиченные `AUDIT_GLOBAL.md` / `AUDIT_PREPUSH_POSTFIX.md`.

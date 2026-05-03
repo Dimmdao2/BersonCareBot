@@ -1,5 +1,7 @@
 # ASSIGNMENT_CATALOGS_REWORK_INITIATIVE — Composer prompts (copy-paste)
 
+> Для post-B defer closure используйте отдельный файл: [`PROMPTS_DEFER_CLOSURE_STAGES.md`](PROMPTS_DEFER_CLOSURE_STAGES.md) — там промпты разбиты по D-этапам и отдельно на `EXEC` / `AUDIT` / `FIX`.
+
 Контекст инициативы:
 
 - `docs/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/README.md`

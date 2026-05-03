@@ -17,6 +17,7 @@
 - [`PRE_IMPLEMENTATION_DECISIONS.md`](PRE_IMPLEMENTATION_DECISIONS.md) — решения до кода и расхождения планов с репозиторием;
 - [`AUDIT_GLOBAL.md`](AUDIT_GLOBAL.md) — сводный аудит B1–B7 после закрытия этапов в коде;
 - [`AUDIT_PREPUSH_POSTFIX.md`](AUDIT_PREPUSH_POSTFIX.md) — фиксация полного `pnpm run ci` перед push (барьер §9).
+- Для post-B defer closure: [`DEFER_CLOSURE_MASTER_PLAN.md`](DEFER_CLOSURE_MASTER_PLAN.md), [`STAGE_D1_PLAN.md`](STAGE_D1_PLAN.md) … [`STAGE_D6_PLAN.md`](STAGE_D6_PLAN.md), [`PROMPTS_DEFER_CLOSURE_STAGES.md`](PROMPTS_DEFER_CLOSURE_STAGES.md).
 
 ## Связанные документы
 
@@ -45,3 +46,6 @@
 | [`PROMPTS_EXEC_AUDIT_FIX_GLOBAL.md`](PROMPTS_EXEC_AUDIT_FIX_GLOBAL.md) | Промпты EXEC/AUDIT/FIX, коммиты, пуш, CI (см. `MASTER_PLAN` §9) |
 | [`AUDIT_GLOBAL.md`](AUDIT_GLOBAL.md) | Сводный аудит B1–B7 и кросс-регресс |
 | [`AUDIT_PREPUSH_POSTFIX.md`](AUDIT_PREPUSH_POSTFIX.md) | Запись полного CI перед push |
+| [`DEFER_CLOSURE_MASTER_PLAN.md`](DEFER_CLOSURE_MASTER_PLAN.md) | Мастер-план закрытия product defer после B1–B7 |
+| [`STAGE_D1_PLAN.md`](STAGE_D1_PLAN.md) … [`STAGE_D6_PLAN.md`](STAGE_D6_PLAN.md) | Технические планы defer-wave по этапам |
+| [`PROMPTS_DEFER_CLOSURE_STAGES.md`](PROMPTS_DEFER_CLOSURE_STAGES.md) | Раздельные промпты `EXEC` / `AUDIT` / `FIX` для каждого D-этапа |

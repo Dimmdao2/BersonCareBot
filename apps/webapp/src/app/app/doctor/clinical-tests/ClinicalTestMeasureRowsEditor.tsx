@@ -23,6 +23,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CreatableComboboxInput, type CreatableComboboxItem } from "@/shared/ui/CreatableComboboxInput";
+import { MEASURE_KINDS_CATALOG_CHANGED_EVENT } from "@/modules/tests/measureKindsClientEvent";
 
 export type ClinicalTestMeasureRowModel = {
   id: string;
@@ -157,7 +158,11 @@ export function ClinicalTestMeasureRowsEditor({
         } catch {
           throw new Error("Некорректный ответ сервера");
         }
-        const d = data as { ok?: boolean; error?: string; items?: { code: string; label: string }[] };
+        const d = data as {
+          ok?: boolean;
+          error?: string;
+          items?: { code: string; label: string; sortOrder?: number }[];
+        };
         if (!res.ok) {
           throw new Error(d.error ?? `Ошибка загрузки (${res.status})`);
         }
@@ -166,9 +171,12 @@ export function ClinicalTestMeasureRowsEditor({
         }
         if (cancelled) return;
         setKindItems(
-          d.items
-            .map((it) => ({ value: it.code, label: it.label }))
-            .sort((a, b) => a.label.localeCompare(b.label, "ru")),
+          [...d.items]
+            .sort(
+              (a, b) =>
+                (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.label.localeCompare(b.label, "ru"),
+            )
+            .map((it) => ({ value: it.code, label: it.label })),
         );
       } catch (e) {
         if (cancelled) return;
@@ -183,6 +191,12 @@ export function ClinicalTestMeasureRowsEditor({
     };
   }, [reloadToken]);
 
+  useEffect(() => {
+    const onChanged = () => setReloadToken((t) => t + 1);
+    window.addEventListener(MEASURE_KINDS_CATALOG_CHANGED_EVENT, onChanged);
+    return () => window.removeEventListener(MEASURE_KINDS_CATALOG_CHANGED_EVENT, onChanged);
+  }, []);
+
   const onCreate = useCallback(async (label: string) => {
     const res = await fetch("/api/doctor/measure-kinds", {
       method: "POST",
@@ -194,10 +208,7 @@ export function ClinicalTestMeasureRowsEditor({
       throw new Error(data.error ?? "Ошибка создания вида измерения");
     }
     const next: CreatableComboboxItem = { value: data.item.code, label: data.item.label };
-    setKindItems((prev) => {
-      const exists = prev.some((p) => p.value === next.value);
-      return exists ? prev : [...prev, next].sort((a, b) => a.label.localeCompare(b.label, "ru"));
-    });
+    setReloadToken((t) => t + 1);
     return next;
   }, []);
 
