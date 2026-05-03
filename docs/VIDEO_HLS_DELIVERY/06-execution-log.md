@@ -6,6 +6,25 @@
 
 ---
 
+## 2026-05-03 — FIX independent audit (IA-1 Major, IA-2 Minor) по [AUDIT_GLOBAL.md](./AUDIT_GLOBAL.md)
+
+**Цель:** закрыть в репозитории открытые findings независимого финального аудита: production-path для **`apps/media-worker`** и валидацию **`video_default_delivery`**.
+
+**Сделано**
+
+- **IA-1 (Major):** unit **`bersoncarebot-media-worker-prod.service`** (`deploy/systemd/`); сборка `pnpm --dir apps/media-worker build` и **restart** + **`systemctl is-active`** в **`deploy/host/deploy-prod.sh`**; установка/enable в **`deploy/host/bootstrap-systemd-prod.sh`** при наличии `webapp.prod` и `dist/main.js`; строки в **`deploy/sudoers-deploy.example`**. Док: **`deploy/HOST_DEPLOY_README.md`** (§ HLS media-worker, список сервисов), **`docs/ARCHITECTURE/SERVER CONVENTIONS.md`** (units, порты при необходимости).
+- **IA-2 (Minor):** в **`PATCH /api/admin/settings`** для ключа **`video_default_delivery`** — только **`mp4` \| `hls` \| `auto`** (trim + lower), иначе **400** `invalid_value`; тесты в **`route.test.ts`**; строка в **`apps/webapp/src/app/api/api.md`**.
+- **[AUDIT_GLOBAL.md](./AUDIT_GLOBAL.md):** вердикт **PASS**, IA-1 / IA-2 **CLOSED**, §9 помечен как выполненный в репозитории.
+
+**Проверки**
+
+- `pnpm --dir apps/webapp exec vitest run src/app/api/admin/settings/route.test.ts` — **OK**.
+- `pnpm install --frozen-lockfile && pnpm run ci` — **OK** (exit 0).
+
+**Ops (не автоматизировано в репо):** на production после merge — обновить sudoers по примеру, один деплой для установки unit в `/etc/systemd/system/`.
+
+---
+
 ## 2026-05-03 — Global fix по [AUDIT_GLOBAL.md](./AUDIT_GLOBAL.md)
 
 **Цель:** закрыть в репозитории **Critical / Major** из глобального аудита; для **minor** — исправить документацию или явный defer.
@@ -15,7 +34,7 @@
 - **Critical:** подтверждено отсутствие открытых пунктов.
 - **Major FIND-P08-1:** **CLOSED (repo)** — в [GATE_READINESS_PHASE_08.md](./GATE_READINESS_PHASE_08.md) добавлен § **Repo acceptance** (SQL доли `hls_ready`, события логов `playback_resolved` / `playback_presign_failed`, ссылка на [BROWSER_SMOKE_PHASE05_CHECKLIST.md](./BROWSER_SMOKE_PHASE05_CHECKLIST.md)); обновлены итоговый verdict и таблица условий gate; [AUDIT_PHASE_08.md](./AUDIT_PHASE_08.md) — вердикт §1 и строка FIND-P08-1.
 - **MF-1…MF-5 (phase-08):** классифицированы как **REFERENCE** в [AUDIT_GLOBAL.md](./AUDIT_GLOBAL.md) (правила на будущие PR, не дефекты).
-- **Minor:** [07-post-documentation-implementation-roadmap.md](./07-post-documentation-implementation-roadmap.md) — актуализирован § инфраструктура; systemd unit для media-worker на prod остаётся **до host audit**. [03-rollout-strategy.md](./03-rollout-strategy.md) §4 — канон ключей → `apps/webapp/src/modules/system-settings/types.ts`. [AUDIT_GLOBAL.md](./AUDIT_GLOBAL.md) — пересборка вердикта и таблица **Minor defer**.
+- **Minor:** [07-post-documentation-implementation-roadmap.md](./07-post-documentation-implementation-roadmap.md) — актуализирован § инфраструктура. Шаблон unit и интеграция в deploy/bootstrap для media-worker закрыты отдельной записью **2026-05-03 — FIX independent audit** (см. выше в этом журнале). [03-rollout-strategy.md](./03-rollout-strategy.md) §4 — канон ключей → `apps/webapp/src/modules/system-settings/types.ts`. [AUDIT_GLOBAL.md](./AUDIT_GLOBAL.md) — пересборка вердикта и таблица **Minor defer** (до закрытия IA-1/IA-2 отдельным циклом).
 
 **Целевые проверки (без полного CI по задаче)**
 

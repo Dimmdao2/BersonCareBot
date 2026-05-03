@@ -63,11 +63,12 @@
 
 ### systemd units
 
-На хосте установлены и активны:
+На хосте установлены и активны (канонические имена юнитов; шаблоны — `deploy/systemd/`):
 
 - `bersoncarebot-api-prod.service`
 - `bersoncarebot-worker-prod.service`
 - `bersoncarebot-webapp-prod.service`
+- `bersoncarebot-media-worker-prod.service` — FFmpeg HLS transcode (`apps/media-worker`), очередь `public.media_transcode_jobs`; **не** путать с integrator `bersoncarebot-worker-prod`.
 
 ### Unit details
 
@@ -98,6 +99,15 @@
 - Режим: Next.js standalone (`output: "standalone"` в `next.config.ts`)
 - **Mini App auth (логи pino / journal):** маршруты `POST` `auth/telegram-init` и `auth/max-init` пишут структурные поля `route`, `miniappAuthOutcome` (`session_ok` | `denied` | `invalid_body` для Telegram), заголовок **`x-bc-auth-correlation-id`** (клиент задаёт в `AuthBootstrap`). Удобный grep: `miniappAuthOutcome` или строки `Mini App: initData принят`. Подробности и troubleshooting: [`MINIAPP_AUTH_FIX_EXECUTION_LOG.md`](./MINIAPP_AUTH_FIX_EXECUTION_LOG.md).
 
+#### HLS media-worker (VIDEO_HLS_DELIVERY)
+
+- Unit: `bersoncarebot-media-worker-prod.service`
+- WorkingDirectory: `/opt/projects/bersoncarebot/apps/media-worker`
+- EnvironmentFile: `/opt/env/bersoncarebot/webapp.prod`
+- ExecStart: `/usr/bin/node dist/main.js` (после `pnpm --dir apps/media-worker build` на хосте)
+- Public port: нет  
+Шаблон юнита: `deploy/systemd/bersoncarebot-media-worker-prod.service`; установка и restart — `deploy/host/deploy-prod.sh`. Подробнее: [`deploy/HOST_DEPLOY_README.md`](../../deploy/HOST_DEPLOY_README.md).
+
 ### Ports
 
 | Сервис | Bind |
@@ -105,7 +115,8 @@
 | PostgreSQL | `127.0.0.1:5432` |
 | Integrator API | `127.0.0.1:3200` |
 | Webapp | `127.0.0.1:6200` |
-| Worker | без порта |
+| Integrator worker | без порта |
+| HLS media-worker (`apps/media-worker`) | без порта |
 
 ### Public URLs / nginx
 
@@ -317,6 +328,7 @@
 - `deploy/systemd/bersoncarebot-api-prod.service`
 - `deploy/systemd/bersoncarebot-worker-prod.service`
 - `deploy/systemd/bersoncarebot-webapp-prod.service`
+- `deploy/systemd/bersoncarebot-media-worker-prod.service`
 - `deploy/systemd/bersoncarebot-api-dev.service`
 - `deploy/systemd/bersoncarebot-worker-dev.service`
 - `deploy/systemd/bersoncarebot-webapp-dev.service`

@@ -48,7 +48,7 @@
 ## Инфраструктурные задачи (этап B — актуализация после phase 01–10)
 
 - [x] **`apps/media-worker` в монорепозитории** — сделано (`pnpm-workspace.yaml`).
-- [ ] **Отдельный systemd unit для `apps/media-worker` на production** + запись в `docs/ARCHITECTURE/SERVER CONVENTIONS.md` — **не подтверждено audit хоста**; при первом выкате зафиксировать имя unit и `ExecStart` (см. `deploy/HOST_DEPLOY_README.md` § Worker — не смешивать с `bersoncarebot-worker-prod`).
+- [x] **Отдельный systemd unit для `apps/media-worker` на production** — шаблон **`bersoncarebot-media-worker-prod.service`** в репозитории (`deploy/systemd/`), интеграция в `deploy/host/deploy-prod.sh`, `deploy/host/bootstrap-systemd-prod.sh`, записи в `deploy/HOST_DEPLOY_README.md` и `docs/ARCHITECTURE/SERVER CONVENTIONS.md`. На новом хосте оператор устанавливает unit из дерева деплоя и при необходимости расширяет sudoers по `deploy/sudoers-deploy.example`.
 - [x] **FFmpeg на хосте** — требование для media-worker; установка пакета ОС выполняется оператором на целевой машине, не версионируется в git без нового host audit.
 
 ---

@@ -48,11 +48,12 @@
 
 ### Production services
 
-Подтверждены и активны:
+Подтверждены и активны (шаблоны в `deploy/systemd/`; на prod после `deploy-prod`):
 
 - `bersoncarebot-api-prod.service`
 - `bersoncarebot-worker-prod.service`
 - `bersoncarebot-webapp-prod.service`
+- `bersoncarebot-media-worker-prod.service` — HLS transcode (`apps/media-worker`), см. § **systemd units → HLS media-worker**
 
 ### Dev services
 
@@ -79,6 +80,7 @@
 | Project root | `/opt/projects/bersoncarebot` |
 | Integrator app dir | `/opt/projects/bersoncarebot/apps/integrator` |
 | Webapp app dir | `/opt/projects/bersoncarebot/apps/webapp` |
+| **Media-worker app dir (HLS)** | `/opt/projects/bersoncarebot/apps/media-worker` |
 | Prod env dir | `/opt/env/bersoncarebot` |
 | Integrator env | `/opt/env/bersoncarebot/api.prod` |
 | Webapp env | `/opt/env/bersoncarebot/webapp.prod` |
@@ -112,9 +114,26 @@
 
 **Не путать с HLS `apps/media-worker` (VIDEO_HLS_DELIVERY):**
 
-- Юнит **`bersoncarebot-worker-prod`** и команды в **корне** монорепозитория **`pnpm worker:start`** / **`pnpm worker:dev`** относятся **только** к **integrator projection worker** (`apps/integrator`). Он **не** выполняет FFmpeg‑транскод HLS и **не** читает очередь `public.media_transcode_jobs`.
-- Пакет **`apps/media-worker`** — отдельный процесс (poll БД, FFmpeg, S3). Сборка и старт из репозитория: `pnpm --dir apps/media-worker build`, затем `pnpm --dir apps/media-worker start`; нужны те же класс **`DATABASE_URL`** и **S3**‑переменные, что у webapp (см. `apps/media-worker/src/env.ts`).
-- Отдельный **systemd**‑unit для `apps/media-worker` на production **пока не описан** в этом файле и в `docs/ARCHITECTURE/SERVER CONVENTIONS.md` — имя и шаблон фиксируются при выкате HLS на хост (**не** подставлять `ExecStart` из integrator worker).
+- Юнит **`bersoncarebot-worker-prod`** и команды **`pnpm worker:start`** / **`pnpm worker:dev`** в корне репозитория относятся **только** к **integrator projection worker** (`apps/integrator`). Он **не** выполняет FFmpeg‑транскод HLS и **не** читает очередь `public.media_transcode_jobs`.
+
+См. отдельный unit **`bersoncarebot-media-worker-prod`** ниже.
+
+#### HLS media-worker (VIDEO_HLS_DELIVERY)
+
+Файл юнита (шаблон в репозитории):
+
+- [`deploy/systemd/bersoncarebot-media-worker-prod.service`](../systemd/bersoncarebot-media-worker-prod.service) → на хосте: `/etc/systemd/system/bersoncarebot-media-worker-prod.service`
+
+Эффективная конфигурация:
+
+- `WorkingDirectory=/opt/projects/bersoncarebot/apps/media-worker`
+- `EnvironmentFile=/opt/env/bersoncarebot/webapp.prod`
+- `ExecStart=/usr/bin/node dist/main.js`
+- Публичного порта нет (только исходящие к БД / S3 / `ffmpeg`).
+
+`deploy-prod.sh` устанавливает unit, собирает `apps/media-worker`, перезапускает сервис при наличии `webapp.prod` и проверяет `systemctl is-active`. Пользователю **`deploy`** нужен `NOPASSWD` на `install` этого unit-файла, `enable`/`restart`/`is-active`/`journalctl` — см. [`deploy/sudoers-deploy.example`](../sudoers-deploy.example).
+
+**Не путать** с `bersoncarebot-worker-prod` (integrator projection): это разные процессы.
 
 #### Webapp
 
@@ -588,7 +607,8 @@ bash deploy/host/deploy-prod.sh
 sudo systemctl status \
   bersoncarebot-api-prod.service \
   bersoncarebot-worker-prod.service \
-  bersoncarebot-webapp-prod.service
+  bersoncarebot-webapp-prod.service \
+  bersoncarebot-media-worker-prod.service
 ```
 
 ### Health

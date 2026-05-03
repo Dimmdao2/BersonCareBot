@@ -808,6 +808,42 @@ describe("PATCH /api/admin/settings", () => {
     expect(updateSettingMock).not.toHaveBeenCalled();
   });
 
+  it("returns 400 for video_default_delivery invalid enum", async () => {
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    const res = await PATCH(
+      new Request("http://localhost/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: "video_default_delivery", value: { value: "youtube" } }),
+      }),
+    );
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { ok: boolean; error?: string };
+    expect(body.error).toBe("invalid_value");
+    expect(updateSettingMock).not.toHaveBeenCalled();
+  });
+
+  it("returns 200 for video_default_delivery and normalizes to lowercase", async () => {
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSettingMock.mockResolvedValue(null);
+    updateSettingMock.mockResolvedValue({
+      key: "video_default_delivery",
+      scope: "admin",
+      valueJson: { value: "hls" },
+      updatedAt: "",
+      updatedBy: "a1",
+    });
+    const res = await PATCH(
+      new Request("http://localhost/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: "video_default_delivery", value: "  HLS  " }),
+      }),
+    );
+    expect(res.status).toBe(200);
+    expect(updateSettingMock).toHaveBeenCalledWith("video_default_delivery", "admin", { value: "hls" }, "a1");
+  });
+
   it("returns 200 for patient_booking_url https", async () => {
     getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
     getSettingMock.mockResolvedValue(null);

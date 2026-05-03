@@ -9,6 +9,7 @@ STAGE13_CUTOVER_SCRIPT=deploy/host/run-stage13-cutover.sh
 API_SERVICE=bersoncarebot-api-prod.service
 WORKER_SERVICE=bersoncarebot-worker-prod.service
 WEBAPP_SERVICE=bersoncarebot-webapp-prod.service
+MEDIA_WORKER_SERVICE=bersoncarebot-media-worker-prod.service
 
 fail() {
   echo "deploy-prod: $*" >&2
@@ -57,6 +58,9 @@ require_sudo_rule "systemd unit install worker (bootstrap)" /usr/bin/install -m 
 if [ -f "${PROJECT_ROOT}/deploy/systemd/bersoncarebot-webapp-prod.service" ]; then
   require_sudo_rule "systemd unit install webapp (bootstrap)" /usr/bin/install -m 0644 "${PROJECT_ROOT}/deploy/systemd/bersoncarebot-webapp-prod.service" /etc/systemd/system/bersoncarebot-webapp-prod.service
 fi
+if [ -f "${PROJECT_ROOT}/deploy/systemd/${MEDIA_WORKER_SERVICE}" ]; then
+  require_sudo_rule "systemd unit install media-worker (bootstrap)" /usr/bin/install -m 0644 "${PROJECT_ROOT}/deploy/systemd/${MEDIA_WORKER_SERVICE}" "/etc/systemd/system/${MEDIA_WORKER_SERVICE}"
+fi
 require_sudo_rule "systemd daemon-reload (bootstrap)" /bin/systemctl daemon-reload
 bash deploy/host/bootstrap-systemd-prod.sh
 
@@ -84,6 +88,8 @@ if [ -d apps/webapp/.next ]; then
   rm -rf apps/webapp/.next || fail "Cannot remove apps/webapp/.next (likely root-owned). As root on the host: systemctl stop ${WEBAPP_SERVICE} && rm -rf ${PROJECT_ROOT}/apps/webapp/.next — then redeploy as deploy. See SERVER CONVENTIONS.md."
 fi
 pnpm build:webapp
+
+pnpm --dir apps/media-worker build
 
 bash deploy/host/sync-webapp-standalone-assets.sh
 WEBAPP_STANDALONE_CHUNKS=apps/webapp/.next/standalone/apps/webapp/.next/static/chunks
@@ -135,6 +141,15 @@ if [ -e "/etc/systemd/system/${WEBAPP_SERVICE}" ] && [ -f "${WEBAPP_ENV_FILE}" ]
   done
   if [ "${chunk_ok}" != "1" ]; then
     fail "Chunk is not served after webapp restart: /_next/static/chunks/${sample_chunk} (last HTTP ${chunk_http_code:-<none>})"
+  fi
+fi
+
+if [ -e "/etc/systemd/system/${MEDIA_WORKER_SERVICE}" ] && [ -f "${WEBAPP_ENV_FILE}" ]; then
+  sudo -n /bin/systemctl restart "${MEDIA_WORKER_SERVICE}"
+  if ! sudo -n /bin/systemctl is-active --quiet "${MEDIA_WORKER_SERVICE}"; then
+    echo "deploy-prod: ${MEDIA_WORKER_SERVICE} is not active. Last journal lines:" >&2
+    sudo -n journalctl -u "${MEDIA_WORKER_SERVICE}" -n 40 --no-pager 2>/dev/null || true
+    fail "${MEDIA_WORKER_SERVICE} failed to start (ensure webapp.prod has DATABASE_URL, S3_*, FFMPEG_PATH; apps/media-worker built)."
   fi
 fi
 

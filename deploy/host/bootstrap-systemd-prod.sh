@@ -6,9 +6,11 @@ SYSTEMD_DIR=/etc/systemd/system
 API_SERVICE=bersoncarebot-api-prod.service
 WORKER_SERVICE=bersoncarebot-worker-prod.service
 WEBAPP_SERVICE=bersoncarebot-webapp-prod.service
+MEDIA_WORKER_SERVICE=bersoncarebot-media-worker-prod.service
 API_UNIT_SOURCE="${PROJECT_ROOT}/deploy/systemd/${API_SERVICE}"
 WORKER_UNIT_SOURCE="${PROJECT_ROOT}/deploy/systemd/${WORKER_SERVICE}"
 WEBAPP_UNIT_SOURCE="${PROJECT_ROOT}/deploy/systemd/${WEBAPP_SERVICE}"
+MEDIA_WORKER_UNIT_SOURCE="${PROJECT_ROOT}/deploy/systemd/${MEDIA_WORKER_SERVICE}"
 
 fail() {
   echo "bootstrap-systemd-prod: $*" >&2
@@ -39,6 +41,9 @@ run_as_root install -m 0644 "${WORKER_UNIT_SOURCE}" "${SYSTEMD_DIR}/${WORKER_SER
 if [ -f "${WEBAPP_UNIT_SOURCE}" ]; then
   run_as_root install -m 0644 "${WEBAPP_UNIT_SOURCE}" "${SYSTEMD_DIR}/${WEBAPP_SERVICE}"
 fi
+if [ -f "${MEDIA_WORKER_UNIT_SOURCE}" ]; then
+  run_as_root install -m 0644 "${MEDIA_WORKER_UNIT_SOURCE}" "${SYSTEMD_DIR}/${MEDIA_WORKER_SERVICE}"
+fi
 run_as_root /bin/systemctl daemon-reload
 
 if [ -f /opt/env/bersoncarebot/api.prod ] \
@@ -51,11 +56,19 @@ if [ -f /opt/env/bersoncarebot/api.prod ] \
     && [ -d "${PROJECT_ROOT}/apps/webapp/.next" ]; then
     run_as_root /bin/systemctl enable --now "${WEBAPP_SERVICE}"
   fi
+  if [ -e "${SYSTEMD_DIR}/${MEDIA_WORKER_SERVICE}" ] \
+    && [ -f /opt/env/bersoncarebot/webapp.prod ] \
+    && [ -f "${PROJECT_ROOT}/apps/media-worker/dist/main.js" ]; then
+    run_as_root /bin/systemctl enable --now "${MEDIA_WORKER_SERVICE}"
+  fi
 else
   run_as_root /bin/systemctl enable "${API_SERVICE}"
   run_as_root /bin/systemctl enable "${WORKER_SERVICE}"
   if [ -e "${SYSTEMD_DIR}/${WEBAPP_SERVICE}" ]; then
     run_as_root /bin/systemctl enable "${WEBAPP_SERVICE}"
+  fi
+  if [ -e "${SYSTEMD_DIR}/${MEDIA_WORKER_SERVICE}" ]; then
+    run_as_root /bin/systemctl enable "${MEDIA_WORKER_SERVICE}"
   fi
   echo "Units installed and enabled, but not started because /opt/env/bersoncarebot/*.prod or build artifacts are missing."
   echo "Run deploy/host/deploy-prod.sh after the first build to start the services."

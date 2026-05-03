@@ -15,21 +15,27 @@ deploy ALL=(root) NOPASSWD: \
     /usr/bin/install -m 0644 /opt/projects/bersoncarebot/deploy/systemd/bersoncarebot-api-prod.service /etc/systemd/system/bersoncarebot-api-prod.service, \
     /usr/bin/install -m 0644 /opt/projects/bersoncarebot/deploy/systemd/bersoncarebot-worker-prod.service /etc/systemd/system/bersoncarebot-worker-prod.service, \
     /usr/bin/install -m 0644 /opt/projects/bersoncarebot/deploy/systemd/bersoncarebot-webapp-prod.service /etc/systemd/system/bersoncarebot-webapp-prod.service, \
+    /usr/bin/install -m 0644 /opt/projects/bersoncarebot/deploy/systemd/bersoncarebot-media-worker-prod.service /etc/systemd/system/bersoncarebot-media-worker-prod.service, \
     /bin/systemctl enable bersoncarebot-api-prod.service, \
     /bin/systemctl enable bersoncarebot-worker-prod.service, \
     /bin/systemctl enable bersoncarebot-webapp-prod.service, \
+    /bin/systemctl enable bersoncarebot-media-worker-prod.service, \
     /bin/systemctl enable --now bersoncarebot-api-prod.service, \
     /bin/systemctl enable --now bersoncarebot-worker-prod.service, \
     /bin/systemctl enable --now bersoncarebot-webapp-prod.service, \
+    /bin/systemctl enable --now bersoncarebot-media-worker-prod.service, \
     /bin/systemctl restart bersoncarebot-api-prod.service, \
     /bin/systemctl restart bersoncarebot-worker-prod.service, \
     /bin/systemctl restart bersoncarebot-webapp-prod.service, \
+    /bin/systemctl restart bersoncarebot-media-worker-prod.service, \
     /bin/systemctl is-active --quiet bersoncarebot-api-prod.service, \
     /bin/systemctl is-active --quiet bersoncarebot-worker-prod.service, \
     /bin/systemctl is-active --quiet bersoncarebot-webapp-prod.service, \
+    /bin/systemctl is-active --quiet bersoncarebot-media-worker-prod.service, \
     /usr/bin/journalctl -u bersoncarebot-api-prod.service -n 40 --no-pager, \
     /usr/bin/journalctl -u bersoncarebot-worker-prod.service -n 40 --no-pager, \
-    /usr/bin/journalctl -u bersoncarebot-webapp-prod.service -n 40 --no-pager
+    /usr/bin/journalctl -u bersoncarebot-webapp-prod.service -n 40 --no-pager, \
+    /usr/bin/journalctl -u bersoncarebot-media-worker-prod.service -n 40 --no-pager
 
 # =============================================================================
 # Storylama: web и api (restart, status, is-active)

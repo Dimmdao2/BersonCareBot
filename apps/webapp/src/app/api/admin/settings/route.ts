@@ -210,6 +210,15 @@ export async function PATCH(request: Request) {
     normalizedValue = checked.valueJson;
   }
 
+  if (parsed.data.key === "video_default_delivery") {
+    const inner = normalizedValue.value;
+    const raw = typeof inner === "string" ? inner.trim().toLowerCase() : "";
+    if (raw !== "mp4" && raw !== "hls" && raw !== "auto") {
+      return NextResponse.json({ ok: false, error: "invalid_value" }, { status: 400 });
+    }
+    normalizedValue = { value: raw };
+  }
+
   if (parsed.data.key === "video_watermark_enabled") {
     const inner = normalizedValue.value;
     const b =
