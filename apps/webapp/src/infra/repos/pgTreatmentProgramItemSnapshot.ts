@@ -117,6 +117,7 @@ export function createPgTreatmentProgramItemSnapshotPort(): TreatmentProgramItem
                 title: t?.title ?? null,
                 scoringConfig: t?.scoringConfig ?? null,
                 sortOrder: it.sortOrder,
+                comment: it.comment ?? null,
               };
             }),
           };

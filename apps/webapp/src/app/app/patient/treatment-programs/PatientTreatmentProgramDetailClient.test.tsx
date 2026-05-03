@@ -120,4 +120,57 @@ describe("PatientTreatmentProgramDetailClient", () => {
     const planOpenedCalls = fetchMock.mock.calls.filter((call) => String(call[0]).includes("/plan-opened"));
     expect(planOpenedCalls).toHaveLength(0);
   });
+
+  it("shows test_set per-test catalog comment from snapshot (B7 FIX)", () => {
+    const testSetItem = {
+      id: "33333333-3333-4333-8333-333333333333",
+      stageId: "22222222-2222-4222-8222-222222222222",
+      itemType: "test_set" as const,
+      itemRefId: "99999999-9999-4999-8999-999999999999",
+      sortOrder: 0,
+      comment: null,
+      localComment: null,
+      settings: null,
+      snapshot: {
+        itemType: "test_set",
+        title: "Набор А",
+        tests: [{ testId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", title: "Тест один", comment: "Пейте воду" }],
+      },
+      completedAt: null,
+      isActionable: true,
+      status: "active" as const,
+      groupId: null,
+      createdAt: now,
+      lastViewedAt: now,
+      effectiveComment: null,
+    };
+    render(
+      <PatientTreatmentProgramDetailClient
+        initial={makeInstance({
+          stages: [
+            {
+              id: "22222222-2222-4222-8222-222222222222",
+              instanceId: "11111111-1111-4111-8111-111111111111",
+              sourceStageId: null,
+              title: "Этап 1",
+              description: null,
+              sortOrder: 0,
+              localComment: null,
+              skipReason: null,
+              status: "available",
+              goals: null,
+              objectives: null,
+              expectedDurationDays: null,
+              expectedDurationText: null,
+              groups: [],
+              items: [testSetItem],
+            },
+          ],
+        })}
+        initialTestResults={[]}
+      />,
+    );
+    expect(screen.getByText("Набор А")).toBeInTheDocument();
+    expect(screen.getByText("Пейте воду")).toBeInTheDocument();
+  });
 });

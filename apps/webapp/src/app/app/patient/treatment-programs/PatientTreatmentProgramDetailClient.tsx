@@ -29,6 +29,7 @@ import {
   patientStageSectionShouldRender,
 } from "@/modules/treatment-program/stage-semantics";
 import { testIdsFromTestSetSnapshot } from "@/modules/treatment-program/progress-service";
+import { parseTestSetSnapshotTests } from "@/modules/treatment-program/testSetSnapshotView";
 import { buildPatientProgramChecklistRows, type PatientProgramChecklistRow } from "@/modules/treatment-program/patient-program-actions";
 import { cn } from "@/lib/utils";
 import {
@@ -679,21 +680,7 @@ function TestSetBlock(props: {
 }) {
   const { itemId, snapshot, completed, baseUrl, busy, setBusy, setError, onDone } = props;
   const testIds = useMemo(() => testIdsFromTestSetSnapshot(snapshot), [snapshot]);
-  const testsMeta = useMemo(() => {
-    const arr = snapshot.tests;
-    if (!Array.isArray(arr)) return [] as { testId: string; title: string | null }[];
-    return arr
-      .map((t) => {
-        if (!t || typeof t !== "object" || !("testId" in t)) return null;
-        const testId = String((t as { testId: unknown }).testId);
-        const title =
-          "title" in t && typeof (t as { title: unknown }).title === "string"
-            ? (t as { title: string }).title
-            : null;
-        return { testId, title };
-      })
-      .filter((x): x is { testId: string; title: string | null } => x != null && x.testId.length > 0);
-  }, [snapshot]);
+  const testsMeta = useMemo(() => parseTestSetSnapshotTests(snapshot), [snapshot]);
 
   const [scores, setScores] = useState<Record<string, string>>({});
 
@@ -725,6 +712,11 @@ function TestSetBlock(props: {
             className="flex flex-col gap-1 rounded-lg border border-[var(--patient-border)]/60 bg-[var(--patient-card-bg)] p-2"
           >
             <span className="text-xs font-medium">{t.title ?? t.testId}</span>
+            {t.comment ? (
+              <p className={cn(patientMutedTextClass, "mt-0.5 text-[11px]")}>
+                Комментарий к позиции: <span className="text-foreground">{t.comment}</span>
+              </p>
+            ) : null}
             <div className="flex flex-wrap items-center gap-2">
               <Input
                 type="number"

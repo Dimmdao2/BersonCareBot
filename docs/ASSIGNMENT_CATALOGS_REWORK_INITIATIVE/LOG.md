@@ -483,7 +483,7 @@ pnpm exec tsc --noEmit
 | entity | template comment | instance `local_comment` | copy path | doctor template UI | doctor instance UI | patient read | B7 action |
 |--------|-------------------|---------------------------|-----------|---------------------|-------------------|--------------|-----------|
 | treatment_program_template_stage_items → instance_stage_items | `comment` | `local_comment` | `createInstanceTree`: `comment` + `localComment: null` | **Добавлено:** комментарий в конструкторе (`TemplateStageItemCommentBlock` + PATCH) | уже: override + «Из шаблона (заморожено)»; **исправлено:** draft override = только `localComment`, placeholder из шаблона | `effectiveInstanceStageItemComment` + `PatientTreatmentProgramDetailClient` | закрыто |
-| test_set_items | `comment` | нет отдельной instance-таблицы; комментарий каталога | не копируется в отдельный instance-row набора; контекст пациента — через элемент программы / снимки | `TestSetItemsForm` | N/A (нет instance rows набора) | через программу при необходимости | **defer:** отдельный patient-facing read для строк набора вне TP — вне DoD B7 |
+| test_set_items | `comment` | нет отдельной instance-таблицы; контекст — snapshot `tests[].comment` | `buildSnapshot` (PG) | `TestSetItemsForm` | экземпляр: блок каталога в [`TreatmentProgramInstanceDetailClient`](../../apps/webapp/src/app/app/doctor/clients/treatment-programs/[instanceId]/TreatmentProgramInstanceDetailClient.tsx) | `TestSetBlock` + парсер [`testSetSnapshotView`](../../apps/webapp/src/modules/treatment-program/testSetSnapshotView.ts) | **закрыто в B7 FIX** |
 | lfk_complex_template_exercises → lfk_complex_exercises | `comment` | **`local_comment`** (новая колонка) | `assignPublishedTemplateToPatient`: `comment` = шаблон, `local_comment` NULL | уже: `TemplateEditor` | **Добавлено:** `DoctorLfkComplexExerciseOverridesPanel` + `PATCH .../lfk-complex-exercises/[id]` | **Добавлено:** `listLfkComplexExerciseLinesForUser` + карточка дневника | закрыто |
 | recommendation / catalog | Q7: без отдельного template comment каталога | — | — | — | — | `body_md` не смешивался с `comment` | вне scope |
 
@@ -531,3 +531,36 @@ pnpm exec tsc --noEmit
 **Результат:** eslint / vitest / tsc — **PASS** (`lfkComplexExerciseComment`, `pgLfkAssignments`, `ClientProfileCard.backLink`, `TreatmentProgramConstructorClient`).
 
 **Smoke (ручной):** назначить опубликованный шаблон ЛФК с комментариями в строках → карточка клиента (override) + дневник пациента (строки под комплексом).
+
+---
+
+## 2026-05-03 — Stage B7 — FIX (`AUDIT_STAGE_B7`)
+
+**Контекст:** [`AUDIT_STAGE_B7.md`](AUDIT_STAGE_B7.md) major **B7-M1**; minor — defer в AUDIT §8 с обоснованием.
+
+**Сделано:**
+
+- Снимок элемента программы `test_set`: в `tests[]` добавлено поле **`comment`** из `test_set_items` ([`pgTreatmentProgramItemSnapshot.ts`](../../apps/webapp/src/infra/repos/pgTreatmentProgramItemSnapshot.ts)).
+- Общий парсер снимка [`testSetSnapshotView.ts`](../../apps/webapp/src/modules/treatment-program/testSetSnapshotView.ts) + [`testSetSnapshotView.test.ts`](../../apps/webapp/src/modules/treatment-program/testSetSnapshotView.test.ts) (legacy без ключа `comment`).
+- Пациент: [`PatientTreatmentProgramDetailClient.tsx`](../../apps/webapp/src/app/app/patient/treatment-programs/PatientTreatmentProgramDetailClient.tsx) `TestSetBlock` — строка «Комментарий к позиции» при непустом `comment`; витест в [`PatientTreatmentProgramDetailClient.test.tsx`](../../apps/webapp/src/app/app/patient/treatment-programs/PatientTreatmentProgramDetailClient.test.tsx).
+- Врач: [`TreatmentProgramInstanceDetailClient.tsx`](../../apps/webapp/src/app/app/doctor/clients/treatment-programs/[instanceId]/TreatmentProgramInstanceDetailClient.tsx) — блок «Набор тестов (каталог)» для `item.itemType === "test_set"`.
+- AUDIT: Verdict **PASS**, §9 MANDATORY FIX — выполнено; minor **deferred** (нет E2E-контура в репо; in-memory dev — by design).
+
+**Проверки (целевые B7 FIX, без полного `pnpm run ci`):**
+
+```bash
+cd apps/webapp && pnpm exec vitest run \
+  src/modules/treatment-program/testSetSnapshotView.test.ts \
+  src/app/app/patient/treatment-programs/PatientTreatmentProgramDetailClient.test.tsx
+pnpm exec eslint \
+  src/modules/treatment-program/testSetSnapshotView.ts \
+  src/modules/treatment-program/testSetSnapshotView.test.ts \
+  src/infra/repos/pgTreatmentProgramItemSnapshot.ts \
+  src/app/app/patient/treatment-programs/PatientTreatmentProgramDetailClient.tsx \
+  src/app/app/doctor/clients/treatment-programs/\[instanceId\]/TreatmentProgramInstanceDetailClient.tsx
+pnpm exec tsc --noEmit
+```
+
+**Результат:** vitest / eslint / tsc — **PASS**.
+
+**Пуш ветки:** только после полного `pnpm install --frozen-lockfile && pnpm run ci` ([`MASTER_PLAN.md`](MASTER_PLAN.md) §9) — в этой сессии **не** выполнялся.
