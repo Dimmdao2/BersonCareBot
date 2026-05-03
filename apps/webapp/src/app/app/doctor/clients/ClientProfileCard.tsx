@@ -16,9 +16,11 @@ import { DoctorChatPanel } from "@/modules/messaging/components/DoctorChatPanel"
 import type { SerializedSupportMessage } from "@/modules/messaging/serializeSupportMessage";
 import { cn } from "@/lib/utils";
 import type { MessageLogEntry } from "@/modules/doctor-messaging/ports";
+import type { LfkComplexExerciseLine } from "@/modules/diaries/types";
 import type { PendingProgramTestEvaluationRow } from "@/modules/treatment-program/types";
 import { phoneToTelHref } from "@/shared/lib/phoneLinks";
 import { AssignLfkTemplatePanel } from "./AssignLfkTemplatePanel";
+import { DoctorLfkComplexExerciseOverridesPanel } from "./DoctorLfkComplexExerciseOverridesPanel";
 import { PatientTreatmentProgramsPanel } from "./PatientTreatmentProgramsPanel";
 import { AdminDangerActions } from "./AdminDangerActions";
 import { AdminClientAuditHistorySection } from "./AdminClientAuditHistorySection";
@@ -44,6 +46,8 @@ type ClientProfileCardProps = {
   assignTreatmentProgramEnabled?: boolean;
   /** A4: тесты программ без `decided_by` у активных экземпляров пациента. */
   pendingProgramTestEvaluations?: PendingProgramTestEvaluationRow[];
+  /** B7: строки упражнений по комплексам (read с сервера). */
+  lfkExerciseLinesByComplexId?: Record<string, LfkComplexExerciseLine[]>;
 };
 
 function SectionGroupTitle({ children, first = false }: { children: ReactNode; first?: boolean }) {
@@ -78,6 +82,7 @@ function ClientProfileCardInner({
   publishedTreatmentProgramTemplates = [],
   assignTreatmentProgramEnabled = false,
   pendingProgramTestEvaluations = [],
+  lfkExerciseLinesByComplexId = {},
 }: ClientProfileCardProps) {
   const scopeQs = profileListScope ? `?scope=${encodeURIComponent(profileListScope)}` : "";
   const [contactsEditing, setContactsEditing] = useState(false);
@@ -338,6 +343,11 @@ function ClientProfileCardInner({
               patientUserId={userId}
               templates={publishedLfkTemplates}
               disabled={!assignLfkEnabled}
+            />
+            <DoctorLfkComplexExerciseOverridesPanel
+              patientUserId={userId}
+              complexes={lfkComplexes}
+              linesByComplexId={lfkExerciseLinesByComplexId}
             />
           </div>
         </section>

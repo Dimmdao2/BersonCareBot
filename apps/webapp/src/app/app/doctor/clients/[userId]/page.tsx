@@ -37,6 +37,15 @@ export default async function DoctorClientProfilePage({
 
   if (!profile) notFound();
 
+  const lfkComplexIds = profile.lfkComplexes.map((c) => c.id);
+  const lfkExerciseLinesByComplexId =
+    Boolean(env.DATABASE_URL) && lfkComplexIds.length > 0
+      ? await deps.diaries.listLfkComplexExerciseLinesForUser({
+          userId,
+          complexIds: lfkComplexIds,
+        })
+      : {};
+
   return (
     <AppShell
       title={profile.identity.displayName}
@@ -62,6 +71,7 @@ export default async function DoctorClientProfilePage({
         }))}
         assignTreatmentProgramEnabled={Boolean(env.DATABASE_URL)}
         pendingProgramTestEvaluations={pendingProgramTests}
+        lfkExerciseLinesByComplexId={lfkExerciseLinesByComplexId}
       />
     </AppShell>
   );

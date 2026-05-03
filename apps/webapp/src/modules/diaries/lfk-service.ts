@@ -4,11 +4,12 @@
  */
 
 import type { LfkDiaryPort } from "./ports";
-import type { LfkComplex, LfkSession, SymptomSide } from "./types";
+import type { LfkComplex, LfkComplexExerciseLine, LfkSession, SymptomSide } from "./types";
 
-export type { LfkComplex, LfkSession } from "./types";
+export type { LfkComplex, LfkSession, LfkComplexExerciseLine } from "./types";
 
 const COMMENT_MAX = 200;
+const LFK_COMPLEX_EXERCISE_LOCAL_COMMENT_MAX = 5000;
 
 /** Создаёт сервис дневника ЛФК, привязанный к переданному порту хранилища. */
 export function createLfkDiaryService(port: LfkDiaryPort) {
@@ -105,6 +106,30 @@ export function createLfkDiaryService(port: LfkDiaryPort) {
     },
     async deleteLfkSession(params: { userId: string; sessionId: string }): Promise<void> {
       await port.deleteSession(params);
+    },
+    async listLfkComplexExerciseLinesForUser(params: {
+      userId: string;
+      complexIds: string[];
+    }): Promise<Record<string, LfkComplexExerciseLine[]>> {
+      return port.listLfkComplexExerciseLinesForUser(params);
+    },
+    async updateLfkComplexExerciseLocalCommentForUser(params: {
+      userId: string;
+      rowId: string;
+      localComment: string | null;
+    }): Promise<void> {
+      let local = params.localComment;
+      if (local != null) {
+        local = local.trim() || null;
+        if (local && local.length > LFK_COMPLEX_EXERCISE_LOCAL_COMMENT_MAX) {
+          local = local.slice(0, LFK_COMPLEX_EXERCISE_LOCAL_COMMENT_MAX);
+        }
+      }
+      await port.updateLfkComplexExerciseLocalCommentForUser({
+        userId: params.userId,
+        rowId: params.rowId,
+        localComment: local,
+      });
     },
   };
 }

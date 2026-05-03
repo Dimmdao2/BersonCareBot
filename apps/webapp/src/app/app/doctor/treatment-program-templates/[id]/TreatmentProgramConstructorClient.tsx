@@ -171,6 +171,74 @@ function sortByOrderThenId<T extends { sortOrder: number; id: string }>(rows: T[
   return [...rows].sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id));
 }
 
+/** B7: комментарий элемента шаблона (template `comment` → копия в instance при назначении). */
+function TemplateStageItemCommentBlock({
+  itemId,
+  initialComment,
+  disabled,
+  onReload,
+}: {
+  itemId: string;
+  initialComment: string | null;
+  disabled: boolean;
+  onReload: () => Promise<void>;
+}) {
+  const [value, setValue] = useState(initialComment ?? "");
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    setValue(initialComment ?? "");
+  }, [itemId, initialComment]);
+
+  return (
+    <div className="mt-2 w-full min-w-0 border-t border-border/30 pt-2">
+      <Label className="text-xs text-muted-foreground" htmlFor={`tpl-item-c-${itemId}`}>
+        Комментарий для пациента (шаблон)
+      </Label>
+      <Textarea
+        id={`tpl-item-c-${itemId}`}
+        rows={2}
+        className="mt-1 text-sm"
+        disabled={disabled || saving}
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+      />
+      <div className="mt-1 flex flex-wrap items-center gap-2">
+        <Button
+          type="button"
+          size="sm"
+          variant="secondary"
+          disabled={disabled || saving}
+          onClick={async () => {
+            setSaving(true);
+            setMsg(null);
+            try {
+              const res = await fetch(`/api/doctor/treatment-program-templates/stage-items/${itemId}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ comment: value.trim() === "" ? null : value.trim() }),
+              });
+              const json = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
+              if (!res.ok || !json.ok) {
+                setMsg(json.error ?? "Не удалось сохранить");
+                return;
+              }
+              await onReload();
+              setMsg("Сохранено");
+            } finally {
+              setSaving(false);
+            }
+          }}
+        >
+          {saving ? "Сохранение…" : "Сохранить комментарий"}
+        </Button>
+        {msg ? <span className="text-xs text-muted-foreground">{msg}</span> : null}
+      </div>
+    </div>
+  );
+}
+
 export function TreatmentProgramConstructorClient({
   templateId,
   initialDetail,
@@ -766,82 +834,92 @@ export function TreatmentProgramConstructorClient({
   const renderStageItemRow = (it: TreatmentProgramStageItem, section: TreatmentProgramStageItem[], itemIndex: number) => {
     const libRow = findLibraryRow(library, it.itemType, it.itemRefId);
     return (
-    <li key={it.id} className="flex flex-wrap items-center gap-2 px-2 py-2 text-sm">
-      <div className="flex shrink-0 flex-col gap-0.5">
-        <Button
-          type="button"
-          size="icon"
-          variant="ghost"
-          className="size-8"
-          disabled={editLocked || itemIndex === 0}
-          aria-label="Элемент выше"
-          onClick={() => void handleMoveItemInSubgroup(section, it.id, -1)}
-        >
-          <ChevronUp className="size-4" />
-        </Button>
-        <Button
-          type="button"
-          size="icon"
-          variant="ghost"
-          className="size-8"
-          disabled={editLocked || itemIndex >= section.length - 1}
-          aria-label="Элемент ниже"
-          onClick={() => void handleMoveItemInSubgroup(section, it.id, 1)}
-        >
-          <ChevronDown className="size-4" />
-        </Button>
-      </div>
-      <LibraryMediaThumb src={libRow?.thumbUrl} itemType={it.itemType} />
-      <div className="min-w-0 flex-1">
-        <span className="font-medium">{ITEM_TYPE_LABEL[it.itemType]}</span>
-        <span className="ml-2 text-muted-foreground">
-          {libRow?.title ?? it.itemRefId}
-        </span>
-        {libRow?.subtitle?.trim() ? (
-          <p className="mt-0.5 text-xs text-muted-foreground line-clamp-1">{libRow.subtitle.trim()}</p>
-        ) : null}
-      </div>
-      <Select
-        value={it.groupId ?? "__none__"}
-        onValueChange={(v) => {
-          void (async () => {
-            const next = v === "__none__" ? null : v;
-            setBusy(true);
-            setError(null);
-            try {
-              const ok = await patchItemGroupId(it.id, next);
-              if (!ok) setError("Не удалось изменить группу");
-              else await reload();
-            } finally {
-              setBusy(false);
-            }
-          })();
-        }}
-        disabled={editLocked}
-      >
-        <SelectTrigger className="h-8 w-[min(100%,11rem)] text-xs">
-          <SelectValue placeholder="Группа" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="__none__">Без группы</SelectItem>
-          {orderedStageGroups.map((g) => (
-            <SelectItem key={g.id} value={g.id}>
-              {g.title}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      <Button
-        type="button"
-        size="sm"
-        variant="ghost"
-        className="text-destructive"
-        disabled={editLocked}
-        onClick={() => void handleRemoveItem(it.id)}
-      >
-        Удалить
-      </Button>
-    </li>
+      <li key={it.id} className="text-sm">
+        <div className="flex flex-wrap items-center gap-2 px-2 py-2">
+          <div className="flex shrink-0 flex-col gap-0.5">
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              className="size-8"
+              disabled={editLocked || itemIndex === 0}
+              aria-label="Элемент выше"
+              onClick={() => void handleMoveItemInSubgroup(section, it.id, -1)}
+            >
+              <ChevronUp className="size-4" />
+            </Button>
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              className="size-8"
+              disabled={editLocked || itemIndex >= section.length - 1}
+              aria-label="Элемент ниже"
+              onClick={() => void handleMoveItemInSubgroup(section, it.id, 1)}
+            >
+              <ChevronDown className="size-4" />
+            </Button>
+          </div>
+          <LibraryMediaThumb src={libRow?.thumbUrl} itemType={it.itemType} />
+          <div className="min-w-0 flex-1">
+            <span className="font-medium">{ITEM_TYPE_LABEL[it.itemType]}</span>
+            <span className="ml-2 text-muted-foreground">
+              {libRow?.title ?? it.itemRefId}
+            </span>
+            {libRow?.subtitle?.trim() ? (
+              <p className="mt-0.5 text-xs text-muted-foreground line-clamp-1">{libRow.subtitle.trim()}</p>
+            ) : null}
+          </div>
+          <Select
+            value={it.groupId ?? "__none__"}
+            onValueChange={(v) => {
+              void (async () => {
+                const next = v === "__none__" ? null : v;
+                setBusy(true);
+                setError(null);
+                try {
+                  const ok = await patchItemGroupId(it.id, next);
+                  if (!ok) setError("Не удалось изменить группу");
+                  else await reload();
+                } finally {
+                  setBusy(false);
+                }
+              })();
+            }}
+            disabled={editLocked}
+          >
+            <SelectTrigger className="h-8 w-[min(100%,11rem)] text-xs">
+              <SelectValue placeholder="Группа" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__none__">Без группы</SelectItem>
+              {orderedStageGroups.map((g) => (
+                <SelectItem key={g.id} value={g.id}>
+                  {g.title}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="text-destructive"
+            disabled={editLocked}
+            onClick={() => void handleRemoveItem(it.id)}
+          >
+            Удалить
+          </Button>
+        </div>
+        <div className="px-2 pb-2">
+          <TemplateStageItemCommentBlock
+            itemId={it.id}
+            initialComment={it.comment}
+            disabled={editLocked}
+            onReload={reload}
+          />
+        </div>
+      </li>
     );
   };
 

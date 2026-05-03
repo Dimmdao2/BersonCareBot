@@ -71,14 +71,14 @@
 
 ## 6. Execution checklist
 
-1. [ ] Таблица аудита: entity → template table → instance table → есть/нет колонок.
-2. [ ] Миграции nullable.
-3. [ ] Copy-путь в сервисах назначения / комплексов / наборов / программ.
-4. [ ] UI врача + минимальные patient read-paths.
-5. [ ] Unit: copy; override; очистка → fallback.
-6. [ ] Negative tests: отсутствующий template comment, пустой local_comment, rollback на fallback.
-7. [ ] `eslint` / `vitest` / `tsc`.
-8. [ ] Smoke: одинаковый комментарий виден в doctor instance + patient read-path после copy.
+1. [x] Таблица аудита: entity → template table → instance table → есть/нет колонок.
+2. [x] Миграции nullable.
+3. [x] Copy-путь в сервисах назначения / комплексов / наборов / программ.
+4. [x] UI врача + минимальные patient read-paths.
+5. [x] Unit: copy; override; очистка → fallback.
+6. [x] Negative tests: отсутствующий template comment, пустой local_comment, rollback на fallback.
+7. [x] `eslint` / `vitest` / `tsc`.
+8. [x] Smoke: одинаковый комментарий виден в doctor instance + patient read-path после copy.
 
 ## 7. Recommended checks (targeted)
 

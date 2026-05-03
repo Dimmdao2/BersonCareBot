@@ -370,7 +370,12 @@ export function TreatmentProgramInstanceDetailClient(props: {
                           key={`${item.id}:${item.localComment ?? ""}`}
                           instanceId={detail.id}
                           itemId={item.id}
-                          initialDraft={item.effectiveComment ?? ""}
+                          initialDraft={item.localComment ?? ""}
+                          placeholder={
+                            item.comment?.trim()
+                              ? `Из шаблона: ${item.comment.trim()}`
+                              : "Из шаблона: —"
+                          }
                           onSaved={refresh}
                         />
                         <InstanceStageItemDoctorRow
@@ -422,7 +427,12 @@ export function TreatmentProgramInstanceDetailClient(props: {
                           key={`${item.id}:${item.localComment ?? ""}`}
                           instanceId={detail.id}
                           itemId={item.id}
-                          initialDraft={item.effectiveComment ?? ""}
+                          initialDraft={item.localComment ?? ""}
+                          placeholder={
+                            item.comment?.trim()
+                              ? `Из шаблона: ${item.comment.trim()}`
+                              : "Из шаблона: —"
+                          }
                           onSaved={refresh}
                         />
                         <InstanceStageItemDoctorRow
@@ -953,12 +963,17 @@ function ItemLocalCommentForm(props: {
   instanceId: string;
   itemId: string;
   initialDraft: string;
+  placeholder?: string;
   onSaved: () => Promise<void>;
 }) {
-  const { instanceId, itemId, initialDraft, onSaved } = props;
+  const { instanceId, itemId, initialDraft, placeholder, onSaved } = props;
   const [draft, setDraft] = useState(initialDraft);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    setDraft(initialDraft);
+  }, [itemId, initialDraft]);
 
   return (
     <div className="mt-2 flex flex-col gap-2">
@@ -972,6 +987,7 @@ function ItemLocalCommentForm(props: {
         rows={3}
         className="text-sm"
         disabled={saving}
+        placeholder={placeholder ?? "Из шаблона: —"}
       />
       <div className="flex flex-wrap gap-2">
         <Button

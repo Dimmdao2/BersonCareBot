@@ -66,8 +66,8 @@ export function createPgLfkAssignmentsPort(): LfkAssignmentsPort {
         for (const row of exR.rows) {
           await client.query(
             `INSERT INTO lfk_complex_exercises
-             (complex_id, exercise_id, sort_order, reps, sets, side, max_pain_0_10, comment)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+             (complex_id, exercise_id, sort_order, reps, sets, side, max_pain_0_10, comment, local_comment)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NULL)`,
             [
               complexId,
               row.exercise_id,

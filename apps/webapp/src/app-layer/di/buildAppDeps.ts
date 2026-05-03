@@ -678,6 +678,8 @@ function _buildAppDeps() {
       getLfkSessionForUser: lfkDiaryService.getLfkSessionForUser,
       updateLfkSession: lfkDiaryService.updateLfkSession,
       deleteLfkSession: lfkDiaryService.deleteLfkSession,
+      listLfkComplexExerciseLinesForUser: lfkDiaryService.listLfkComplexExerciseLinesForUser,
+      updateLfkComplexExerciseLocalCommentForUser: lfkDiaryService.updateLfkComplexExerciseLocalCommentForUser,
       purgeAllDiaryDataForUser: async (userId: string) => {
         if (!inMemoryRepos) {
           await purgeAllDiaryDataForUserPg(userId);

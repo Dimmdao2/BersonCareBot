@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
 import type { PatientReminderRuleJson } from "@/app/api/patient/reminders/reminderPatientJson";
-import type { LfkComplex } from "@/modules/diaries/types";
+import type { LfkComplex, LfkComplexExerciseLine } from "@/modules/diaries/types";
 import { ReminderCreateDialog } from "@/modules/reminders/components/ReminderCreateDialog";
 import { patientSectionSurfaceClass } from "@/shared/ui/patientVisual";
 import { LfkComplexCard } from "./LfkComplexCard";
@@ -11,9 +11,11 @@ import { LfkComplexCard } from "./LfkComplexCard";
 export function LfkDiarySectionClient({
   complexes,
   remindersByComplexId,
+  exerciseLinesByComplexId = {},
 }: {
   complexes: LfkComplex[];
   remindersByComplexId: Record<string, PatientReminderRuleJson>;
+  exerciseLinesByComplexId?: Record<string, LfkComplexExerciseLine[]>;
 }) {
   const router = useRouter();
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -55,6 +57,7 @@ export function LfkDiarySectionClient({
                   hasReminder={Boolean(reminder)}
                   onBellClick={() => openForComplex(c)}
                   onEditScheduleClick={reminder ? () => openForComplex(c) : undefined}
+                  exerciseLines={exerciseLinesByComplexId[c.id]}
                 />
               </li>
             );

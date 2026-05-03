@@ -46,6 +46,15 @@ export default async function PatientDiaryPage() {
     deps.reminders.listRulesByUser(s.user.userId),
   ]);
 
+  const lfkComplexIds = complexes.map((c) => c.id);
+  const lfkExerciseLinesByComplexId =
+    lfkComplexIds.length > 0
+      ? await deps.diaries.listLfkComplexExerciseLinesForUser({
+          userId: s.user.userId,
+          complexIds: lfkComplexIds,
+        })
+      : {};
+
   const remindersByComplexId: Record<string, ReturnType<typeof reminderRuleToPatientJson>> = {};
   for (const r of reminderRules) {
     if (r.linkedObjectType !== "lfk_complex" || !r.linkedObjectId) continue;
@@ -100,7 +109,11 @@ export default async function PatientDiaryPage() {
         )}
       </section>
       {complexes.length > 0 ? (
-        <LfkDiarySectionClient complexes={complexes} remindersByComplexId={remindersByComplexId} />
+        <LfkDiarySectionClient
+          complexes={complexes}
+          remindersByComplexId={remindersByComplexId}
+          exerciseLinesByComplexId={lfkExerciseLinesByComplexId}
+        />
       ) : null}
       <section id="patient-lfk-stats-section" className={patientSectionSurfaceClass}>
         <h2 className="text-lg font-semibold">Статистика</h2>

@@ -1,7 +1,7 @@
 /**
  * Ports for diary modules. Implementations live in infra (in-memory or DB).
  */
-import type { LfkComplex, LfkSession, SymptomEntry, SymptomSide, SymptomTracking } from "./types";
+import type { LfkComplex, LfkComplexExerciseLine, LfkSession, SymptomEntry, SymptomSide, SymptomTracking } from "./types";
 
 export type SymptomDiaryPort = {
   createTracking(params: {
@@ -106,4 +106,15 @@ export type LfkDiaryPort = {
     comment?: string | null;
   }): Promise<void>;
   deleteSession(params: { userId: string; sessionId: string }): Promise<void>;
+  /** B7: lines for given complexes owned by the patient (`userId` = platform user id). */
+  listLfkComplexExerciseLinesForUser(params: {
+    userId: string;
+    complexIds: string[];
+  }): Promise<Record<string, LfkComplexExerciseLine[]>>;
+  /** B7: update `local_comment` on a row owned by the patient. */
+  updateLfkComplexExerciseLocalCommentForUser(params: {
+    userId: string;
+    rowId: string;
+    localComment: string | null;
+  }): Promise<void>;
 };

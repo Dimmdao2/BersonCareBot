@@ -75,6 +75,7 @@ describe("createPgLfkAssignmentsPort", () => {
     expect(r.assignmentId).toBe("anew");
     const joined = queryMock.mock.calls.map((c) => String(c[0])).join("\n");
     expect(joined).toContain("lfk_complex_exercises");
+    expect(joined).toContain("local_comment");
     expect(joined).toContain("COMMIT");
   });
 });

@@ -72,3 +72,15 @@ export type LfkSession = {
   /** Set when listing (join with complexes). */
   complexTitle?: string;
 };
+
+/** One row in a patient's LFK complex (assigned or manual); B7 read model. */
+export type LfkComplexExerciseLine = {
+  id: string;
+  complexId: string;
+  sortOrder: number;
+  exerciseTitle: string;
+  /** Frozen copy of template line comment at assign. */
+  templateCommentSnapshot: string | null;
+  localComment: string | null;
+  effectiveComment: string | null;
+};

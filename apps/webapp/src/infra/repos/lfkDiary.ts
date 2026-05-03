@@ -123,6 +123,14 @@ export const inMemoryLfkDiaryPort: LfkDiaryPort = {
     const i = sessions.findIndex((x) => x.id === params.sessionId && x.userId === params.userId);
     if (i >= 0) sessions.splice(i, 1);
   },
+
+  async listLfkComplexExerciseLinesForUser() {
+    return {};
+  },
+
+  async updateLfkComplexExerciseLocalCommentForUser() {
+    throw new Error("lfk_complex_exercises: in-memory diary has no exercise rows; use PostgreSQL");
+  },
 };
 
 /** In-memory purge для dev/tests без БД. */

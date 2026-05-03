@@ -883,7 +883,10 @@ export const lfkComplexExercises = pgTable("lfk_complex_exercises", {
 	sets: integer(),
 	side: text(),
 	maxPain010: integer("max_pain_0_10"),
+	/** Snapshot of template line comment at assign (frozen). */
 	comment: text(),
+	/** Override; displayed text uses non-empty trim(local) else trim(comment). */
+	localComment: text("local_comment"),
 }, (table) => [
 	index("idx_lfk_complex_exercises_complex").using("btree", table.complexId.asc().nullsLast().op("int4_ops"), table.sortOrder.asc().nullsLast().op("int4_ops")),
 	foreignKey({

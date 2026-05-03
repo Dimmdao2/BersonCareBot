@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import type { LfkComplex } from "@/modules/diaries/types";
+import type { LfkComplex, LfkComplexExerciseLine } from "@/modules/diaries/types";
 import { MediaThumb } from "@/shared/ui/media/MediaThumb";
 import { lfkCoverToPreviewUi } from "@/shared/ui/media/mediaPreviewUiModel";
 import { patientCardCompactClass, patientMutedTextClass } from "@/shared/ui/patientVisual";
@@ -27,6 +27,8 @@ export type LfkComplexCardProps = {
   onBellClick: () => void;
   /** S4.T09: явная ссылка на редактирование расписания (то же действие, что и колокольчик). */
   onEditScheduleClick?: () => void;
+  /** B7: строки упражнений с комментариями для пациента (read path). */
+  exerciseLines?: LfkComplexExerciseLine[];
 };
 
 export function LfkComplexCard({
@@ -35,6 +37,7 @@ export function LfkComplexCard({
   hasReminder,
   onBellClick,
   onEditScheduleClick,
+  exerciseLines,
 }: LfkComplexCardProps) {
   const title = complex.title?.trim() || "—";
   const desc =
@@ -66,6 +69,20 @@ export function LfkComplexCard({
                 ) : null}
               </div>
               <p className={cn(patientMutedTextClass, "mt-0.5 line-clamp-2")}>{desc}</p>
+              {exerciseLines?.some((l) => l.effectiveComment?.trim()) ? (
+                <ul className="m-0 mt-2 list-none space-y-1 border-t border-[var(--patient-border)]/50 p-0 pt-2">
+                  {exerciseLines
+                    .filter((l) => l.effectiveComment?.trim())
+                    .map((l) => (
+                      <li key={l.id} className="text-xs text-[var(--patient-text-primary)]">
+                        <span className="font-medium">{l.exerciseTitle}</span>
+                        {l.effectiveComment?.trim() ? (
+                          <span className="text-[var(--patient-text-muted)]"> — {l.effectiveComment.trim()}</span>
+                        ) : null}
+                      </li>
+                    ))}
+                </ul>
+              ) : null}
               {hasReminder && onEditScheduleClick ? (
                 <Button
                   type="button"

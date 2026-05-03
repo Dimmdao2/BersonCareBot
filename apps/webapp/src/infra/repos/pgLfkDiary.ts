@@ -5,7 +5,8 @@
 import { getPool } from "@/infra/db/client";
 import type { MediaPreviewStatus } from "@/modules/media/types";
 import type { LfkDiaryPort } from "@/modules/diaries/ports";
-import type { LfkComplex, LfkSession } from "@/modules/diaries/types";
+import type { LfkComplex, LfkComplexExerciseLine, LfkSession } from "@/modules/diaries/types";
+import { effectiveLfkComplexExerciseComment } from "@/modules/diaries/lfkComplexExerciseComment";
 import { mediaPreviewUrlById } from "@/shared/lib/mediaPreviewUrls";
 
 function rowToComplex(row: {
@@ -335,5 +336,70 @@ export const pgLfkDiaryPort: LfkDiaryPort = {
       params.userId,
       params.sessionId,
     ]);
+  },
+
+  async listLfkComplexExerciseLinesForUser(params: {
+    userId: string;
+    complexIds: string[];
+  }): Promise<Record<string, LfkComplexExerciseLine[]>> {
+    if (params.complexIds.length === 0) return {};
+    const pool = getPool();
+    const result = await pool.query<{
+      complex_id: string;
+      id: string;
+      sort_order: number;
+      exercise_title: string;
+      comment: string | null;
+      local_comment: string | null;
+    }>(
+      `SELECT ce.complex_id, ce.id, ce.sort_order,
+              COALESCE(NULLIF(trim(e.title), ''), 'Упражнение') AS exercise_title,
+              ce.comment, ce.local_comment
+       FROM lfk_complex_exercises ce
+       INNER JOIN lfk_exercises e ON e.id = ce.exercise_id
+       INNER JOIN lfk_complexes c ON c.id = ce.complex_id
+       WHERE ce.complex_id = ANY($1::uuid[])
+         AND ${userMatchSql("c", 2)}
+       ORDER BY ce.complex_id, ce.sort_order ASC, ce.id ASC`,
+      [params.complexIds, params.userId]
+    );
+    const byComplex: Record<string, LfkComplexExerciseLine[]> = {};
+    for (const row of result.rows) {
+      const cid = String(row.complex_id);
+      const snap = row.comment ?? null;
+      const loc = row.local_comment ?? null;
+      const line: LfkComplexExerciseLine = {
+        id: String(row.id),
+        complexId: cid,
+        sortOrder: row.sort_order,
+        exerciseTitle: row.exercise_title,
+        templateCommentSnapshot: snap,
+        localComment: loc,
+        effectiveComment: effectiveLfkComplexExerciseComment({ comment: snap, localComment: loc }),
+      };
+      if (!byComplex[cid]) byComplex[cid] = [];
+      byComplex[cid]!.push(line);
+    }
+    return byComplex;
+  },
+
+  async updateLfkComplexExerciseLocalCommentForUser(params: {
+    userId: string;
+    rowId: string;
+    localComment: string | null;
+  }): Promise<void> {
+    const pool = getPool();
+    const r = await pool.query(
+      `UPDATE lfk_complex_exercises ce
+       SET local_comment = $3
+       FROM lfk_complexes c
+       WHERE ce.id = $1::uuid
+         AND ce.complex_id = c.id
+         AND ${userMatchSql("c", 2)}`,
+      [params.rowId, params.userId, params.localComment]
+    );
+    if (r.rowCount === 0) {
+      throw new Error("Строка упражнения не найдена или нет доступа");
+    }
   },
 };

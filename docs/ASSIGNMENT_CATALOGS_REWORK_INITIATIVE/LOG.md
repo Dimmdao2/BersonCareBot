@@ -472,3 +472,62 @@ pnpm exec tsc --noEmit
 
 **Результат:** eslint / vitest / tsc — **PASS** (после прогона команд выше).
 
+---
+
+## 2026-05-03 — Stage B7 — EXEC (universal comment pattern + LFK `local_comment`)
+
+**Контекст:** `STAGE_B7_PLAN.md`, `PRE_IMPLEMENTATION_DECISIONS.md` (B7 ЛФК, Q7), продуктовое ТЗ §2.9 / §3 B7, `MASTER_PLAN.md` §9.
+
+### Матрица аудита контейнеров (template / local / copy / doctor UI / patient read)
+
+| entity | template comment | instance `local_comment` | copy path | doctor template UI | doctor instance UI | patient read | B7 action |
+|--------|-------------------|---------------------------|-----------|---------------------|-------------------|--------------|-----------|
+| treatment_program_template_stage_items → instance_stage_items | `comment` | `local_comment` | `createInstanceTree`: `comment` + `localComment: null` | **Добавлено:** комментарий в конструкторе (`TemplateStageItemCommentBlock` + PATCH) | уже: override + «Из шаблона (заморожено)»; **исправлено:** draft override = только `localComment`, placeholder из шаблона | `effectiveInstanceStageItemComment` + `PatientTreatmentProgramDetailClient` | закрыто |
+| test_set_items | `comment` | нет отдельной instance-таблицы; комментарий каталога | не копируется в отдельный instance-row набора; контекст пациента — через элемент программы / снимки | `TestSetItemsForm` | N/A (нет instance rows набора) | через программу при необходимости | **defer:** отдельный patient-facing read для строк набора вне TP — вне DoD B7 |
+| lfk_complex_template_exercises → lfk_complex_exercises | `comment` | **`local_comment`** (новая колонка) | `assignPublishedTemplateToPatient`: `comment` = шаблон, `local_comment` NULL | уже: `TemplateEditor` | **Добавлено:** `DoctorLfkComplexExerciseOverridesPanel` + `PATCH .../lfk-complex-exercises/[id]` | **Добавлено:** `listLfkComplexExerciseLinesForUser` + карточка дневника | закрыто |
+| recommendation / catalog | Q7: без отдельного template comment каталога | — | — | — | — | `body_md` не смешивался с `comment` | вне scope |
+
+### Сделано
+
+- Drizzle **`0037_lfk_complex_exercises_local_comment.sql`** + `lfkComplexExercises.localComment` в схеме.
+- `effectiveLfkComplexExerciseComment` + unit-тесты; `LfkDiaryPort`: list/update для строк комплекса; `pgLfkDiary` / in-memory; `buildAppDeps.diaries.*`.
+- Назначение ЛФК: INSERT с явным `local_comment` NULL и копией `comment` из шаблона.
+- Doctor: API `PATCH /api/doctor/clients/[userId]/lfk-complex-exercises/[exerciseRowId]`; панель на карточке клиента; конструктор программ — комментарий элемента этапа; instance программы — корректный override UX.
+- Patient: дневник ЛФК — подсказки по упражнениям с `effectiveComment` на `LfkComplexCard` (без крупного редизайна).
+
+**Проверки (целевые B7, без полного `pnpm run ci`):**
+
+```bash
+cd apps/webapp && pnpm exec eslint \
+  src/modules/diaries/lfkComplexExerciseComment.ts \
+  src/modules/diaries/lfkComplexExerciseComment.test.ts \
+  src/modules/diaries/types.ts \
+  src/modules/diaries/ports.ts \
+  src/modules/diaries/lfk-service.ts \
+  src/infra/repos/lfkDiary.ts \
+  src/infra/repos/pgLfkDiary.ts \
+  src/infra/repos/pgLfkAssignments.ts \
+  src/infra/repos/pgLfkAssignments.test.ts \
+  src/app-layer/di/buildAppDeps.ts \
+  src/app/api/doctor/clients/\[userId\]/lfk-complex-exercises/\[exerciseRowId\]/route.ts \
+  src/app/app/doctor/clients/DoctorLfkComplexExerciseOverridesPanel.tsx \
+  src/app/app/doctor/clients/ClientProfileCard.tsx \
+  src/app/app/doctor/clients/ClientProfileCard.backLink.test.tsx \
+  src/app/app/doctor/clients/\[userId\]/page.tsx \
+  src/app/app/doctor/treatment-program-templates/\[id\]/TreatmentProgramConstructorClient.tsx \
+  src/app/app/doctor/clients/treatment-programs/\[instanceId\]/TreatmentProgramInstanceDetailClient.tsx \
+  src/app/app/patient/diary/lfk/LfkComplexCard.tsx \
+  src/app/app/patient/diary/lfk/LfkDiarySectionClient.tsx \
+  src/app/app/patient/diary/page.tsx \
+  db/schema/schema.ts
+pnpm exec vitest run \
+  src/modules/diaries/lfkComplexExerciseComment.test.ts \
+  src/infra/repos/pgLfkAssignments.test.ts
+pnpm exec tsc --noEmit
+```
+
+**Вне scope:** полный `pnpm run ci`; отдельный patient UI для комментариев строк `test_set` вне контекста программы.
+
+**Результат:** eslint / vitest / tsc — **PASS** (`lfkComplexExerciseComment`, `pgLfkAssignments`, `ClientProfileCard.backLink`, `TreatmentProgramConstructorClient`).
+
+**Smoke (ручной):** назначить опубликованный шаблон ЛФК с комментариями в строках → карточка клиента (override) + дневник пациента (строки под комплексом).
