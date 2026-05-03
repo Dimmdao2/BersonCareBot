@@ -3,8 +3,8 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import type { ExerciseLoadType } from "@/modules/lfk-exercises/types";
 import { AppShell } from "@/shared/ui/AppShell";
 import {
-  clinicalTestListArchiveScopeFromRecommendationFilter,
-  parseRecommendationListFilterScope,
+  parseDoctorCatalogPubArchQuery,
+  testSetListFilterFromPubArch,
 } from "@/shared/lib/doctorCatalogListStatus";
 import { TestSetsPageClient } from "./TestSetsPageClient";
 
@@ -16,6 +16,8 @@ type PageProps = {
     load?: string;
     titleSort?: string;
     status?: string;
+    arch?: string;
+    pub?: string;
   }>;
 };
 
@@ -35,13 +37,9 @@ export default async function DoctorTestSetsPage({ searchParams }: PageProps) {
       ? (sp.load as ExerciseLoadType)
       : undefined;
 
-  const listStatus = parseRecommendationListFilterScope(sp, "active");
-  const archiveScope = clinicalTestListArchiveScopeFromRecommendationFilter(listStatus);
+  const listPubArch = parseDoctorCatalogPubArchQuery(sp);
 
-  const items = await deps.testSets.listTestSets({
-    archiveScope,
-    search: q || null,
-  });
+  const items = await deps.testSets.listTestSets(testSetListFilterFromPubArch(listPubArch, q || null));
 
   const raw = typeof sp.selected === "string" ? sp.selected.trim() : "";
   const initialSelectedId = raw && items.some((s) => s.id === raw) ? raw : null;
@@ -54,7 +52,7 @@ export default async function DoctorTestSetsPage({ searchParams }: PageProps) {
         initialSets={items}
         initialSelectedId={initialSelectedId}
         initialSelectedUsageSnapshot={initialSelectedUsageSnapshot}
-        filters={{ q, regionRefId, loadType, listStatus }}
+        filters={{ q, regionRefId, loadType, listPubArch }}
       />
     </AppShell>
   );

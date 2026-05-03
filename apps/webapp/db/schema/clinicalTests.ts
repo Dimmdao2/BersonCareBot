@@ -9,6 +9,7 @@ import {
   timestamp,
   index,
   foreignKey,
+  check,
 } from "drizzle-orm/pg-core";
 import { platformUsers } from "./schema";
 
@@ -48,13 +49,24 @@ export const testSets = pgTable(
     id: uuid().defaultRandom().primaryKey().notNull(),
     title: text().notNull(),
     description: text(),
+    /** Публикация каталога набора: независимо от `is_archived`. */
+    publicationStatus: text("publication_status").default("draft").notNull(),
     isArchived: boolean("is_archived").default(false).notNull(),
     createdBy: uuid("created_by"),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
   },
   (table) => [
+    check(
+      "test_sets_publication_status_check",
+      sql`${table.publicationStatus} IN ('draft', 'published')`,
+    ),
     index("idx_test_sets_archived").using("btree", table.isArchived.asc().nullsLast().op("bool_ops")),
+    index("idx_test_sets_publication_arch").using(
+      "btree",
+      table.isArchived.asc().nullsLast().op("bool_ops"),
+      table.publicationStatus.asc().nullsLast().op("text_ops"),
+    ),
     foreignKey({
       columns: [table.createdBy],
       foreignColumns: [platformUsers.id],

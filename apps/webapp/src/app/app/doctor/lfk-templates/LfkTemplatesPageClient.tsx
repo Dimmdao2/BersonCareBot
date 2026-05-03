@@ -27,7 +27,7 @@ import { exerciseMediaToPreviewUi } from "@/shared/ui/media/mediaPreviewUiModel"
 import { createLfkTemplateDraft } from "./actions";
 import { buildLfkTemplatesListPreserveQuery } from "./lfkTemplatesListPreserveQuery";
 import { TemplateEditor } from "./TemplateEditor";
-import type { RecommendationListFilterScope } from "@/shared/lib/doctorCatalogListStatus";
+import type { DoctorCatalogPubArchQuery } from "@/shared/lib/doctorCatalogListStatus";
 
 type Props = {
   templates: Template[];
@@ -36,7 +36,7 @@ type Props = {
     q: string;
     regionRefId?: string;
     loadType?: ExerciseLoadType;
-    listStatus: RecommendationListFilterScope;
+    listPubArch: DoctorCatalogPubArchQuery;
   };
   initialTitleSort: "asc" | "desc" | null;
 };
@@ -87,10 +87,10 @@ export function LfkTemplatesPageClient({
         q: filters.q,
         regionRefId: filters.regionRefId,
         loadType: filters.loadType,
-        listStatus: filters.listStatus,
+        listPubArch: filters.listPubArch,
         titleSort,
       }),
-    [filters.q, filters.regionRefId, filters.loadType, filters.listStatus, titleSort],
+    [filters.q, filters.regionRefId, filters.loadType, filters.listPubArch, titleSort],
   );
 
   const changeTitleSort = (next: CatalogMasterTitleSort | null) => {
@@ -259,7 +259,7 @@ export function LfkTemplatesPageClient({
                 }
                 titleSort={titleSortForHeader}
                 onTitleSortChange={changeTitleSort}
-                archiveScope={filters.listStatus}
+                catalogPubArch={filters.listPubArch}
                 archiveScopeExtraParams={{
                   titleSort,
                 }}

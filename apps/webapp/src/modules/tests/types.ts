@@ -49,10 +49,14 @@ export type UpdateClinicalTestInput = {
   tags?: string[] | null;
 };
 
+/** Публикация набора в каталоге (независимо от архива). */
+export type TestSetPublicationStatus = "draft" | "published";
+
 export type TestSet = {
   id: string;
   title: string;
   description: string | null;
+  publicationStatus: TestSetPublicationStatus;
   isArchived: boolean;
   createdBy: string | null;
   createdAt: string;
@@ -71,21 +75,27 @@ export type TestSetItemWithTest = {
 /** Фильтр по архиву в списке наборов: активные (по умолчанию), все, только архив. */
 export type TestSetArchiveScope = "active" | "all" | "archived";
 
+/** Ось публикации в списке наборов тестов. */
+export type TestSetPublicationScope = "all" | "draft" | "published";
+
 export type TestSetFilter = {
   /** @deprecated Используйте {@link archiveScope}: `includeArchived: true` эквивалентно `archiveScope: "all"`. */
   includeArchived?: boolean;
   archiveScope?: TestSetArchiveScope;
+  publicationScope?: TestSetPublicationScope;
   search?: string | null;
 };
 
 export type CreateTestSetInput = {
   title: string;
   description?: string | null;
+  publicationStatus?: TestSetPublicationStatus;
 };
 
 export type UpdateTestSetInput = {
   title?: string;
   description?: string | null;
+  publicationStatus?: TestSetPublicationStatus;
 };
 
 export type TestSetItemInput = {

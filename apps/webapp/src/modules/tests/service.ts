@@ -130,6 +130,12 @@ export function createTestSetsService(setsPort: TestSetsPort, testsPort: Clinica
         patch.title = t;
       }
       if (input.description !== undefined) patch.description = input.description?.trim() || null;
+      if (input.publicationStatus !== undefined) {
+        if (input.publicationStatus !== "draft" && input.publicationStatus !== "published") {
+          throw new Error("Некорректный статус публикации");
+        }
+        patch.publicationStatus = input.publicationStatus;
+      }
       const row = await setsPort.update(id, patch);
       if (!row) throw new Error("Набор не найден");
       return row;

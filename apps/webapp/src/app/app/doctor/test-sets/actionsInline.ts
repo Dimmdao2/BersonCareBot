@@ -24,10 +24,13 @@ function appendTestSetsListParams(sp: URLSearchParams, formData: FormData) {
   if (load === "strength" || load === "stretch" || load === "balance" || load === "cardio" || load === "other") {
     sp.set("load", load);
   }
-  const listStatus = formData.get("listStatus");
-  if (listStatus === "active" || listStatus === "all" || listStatus === "archived") {
-    sp.set("status", listStatus);
-  }
+  sp.delete("status");
+  const listArch = formData.get("listArch");
+  if (listArch === "archived") sp.set("arch", "archived");
+  else sp.delete("arch");
+  const listPub = formData.get("listPub");
+  if (listPub === "draft" || listPub === "published") sp.set("pub", listPub);
+  else sp.delete("pub");
 }
 
 export async function saveDoctorTestSetInline(

@@ -61,6 +61,9 @@ export async function saveTestSetCore(
   const title = typeof titleField === "string" ? titleField.trim() : "";
   const descField = formData.get("description");
   const description = typeof descField === "string" ? descField.trim() : "";
+  const pubField = formData.get("publicationStatus");
+  const publicationStatus =
+    pubField === "draft" || pubField === "published" ? pubField : undefined;
 
   if (!title) return { ok: false, error: "Название набора обязательно" };
 
@@ -77,11 +80,16 @@ export async function saveTestSetCore(
       await deps.testSets.updateTestSet(id, {
         title,
         description: description || null,
+        ...(publicationStatus !== undefined ? { publicationStatus } : {}),
       });
       return { ok: true, setId: id, wasUpdate: true };
     }
     const row = await deps.testSets.createTestSet(
-      { title, description: description || null },
+      {
+        title,
+        description: description || null,
+        ...(publicationStatus !== undefined ? { publicationStatus } : {}),
+      },
       session.user.userId,
     );
     return { ok: true, setId: row.id, wasUpdate: false };

@@ -340,6 +340,9 @@ export function createPgLfkTemplatesPort(): LfkTemplatesPort {
       if (filter.status) {
         conds.push(`t.status = $${i++}`);
         params.push(filter.status);
+      } else if (filter.statusIn && filter.statusIn.length > 0) {
+        conds.push(`t.status = ANY($${i++}::text[])`);
+        params.push(filter.statusIn);
       }
       if (filter.search?.trim()) {
         conds.push(`t.title ILIKE $${i++}`);

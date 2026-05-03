@@ -24,6 +24,7 @@ function mapMeta(row: typeof testSetsTable.$inferSelect): Omit<TestSet, "items">
     id: row.id,
     title: row.title,
     description: row.description,
+    publicationStatus: row.publicationStatus as TestSet["publicationStatus"],
     isArchived: row.isArchived,
     createdBy: row.createdBy,
     createdAt: row.createdAt,
@@ -258,8 +259,14 @@ export function createPgTestSetsPort(): TestSetsPort {
         filter.archiveScope ?? (filter.includeArchived ? "all" : "active");
       if (scope === "active") {
         conds.push(eq(testSetsTable.isArchived, false));
-      } else if (scope === "archived") {
+      } else       if (scope === "archived") {
         conds.push(eq(testSetsTable.isArchived, true));
+      }
+      const pub = filter.publicationScope ?? "all";
+      if (pub === "draft") {
+        conds.push(eq(testSetsTable.publicationStatus, "draft"));
+      } else if (pub === "published") {
+        conds.push(eq(testSetsTable.publicationStatus, "published"));
       }
       const q = filter.search?.trim();
       if (q) {
@@ -296,6 +303,7 @@ export function createPgTestSetsPort(): TestSetsPort {
         .values({
           title: input.title,
           description: input.description ?? null,
+          publicationStatus: input.publicationStatus ?? "draft",
           createdBy,
         })
         .returning();
@@ -309,6 +317,7 @@ export function createPgTestSetsPort(): TestSetsPort {
       };
       if (input.title !== undefined) patch.title = input.title;
       if (input.description !== undefined) patch.description = input.description;
+      if (input.publicationStatus !== undefined) patch.publicationStatus = input.publicationStatus;
 
       const rows = await db
         .update(testSetsTable)

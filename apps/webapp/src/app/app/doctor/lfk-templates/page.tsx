@@ -2,11 +2,11 @@ import { Suspense } from "react";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import type { ExerciseLoadType } from "@/modules/lfk-exercises/types";
-import type { TemplateFilter } from "@/modules/lfk-templates/types";
 import { AppShell } from "@/shared/ui/AppShell";
 import {
-  parseTemplateCourseCatalogListStatus,
-  type RecommendationListFilterScope,
+  lfkTemplateFilterFromPubArch,
+  parseDoctorCatalogPubArchQuery,
+  type DoctorCatalogPubArchQuery,
 } from "@/shared/lib/doctorCatalogListStatus";
 import { LfkTemplatesPageClient } from "./LfkTemplatesPageClient";
 
@@ -17,13 +17,10 @@ type PageProps = {
     load?: string;
     titleSort?: string;
     status?: string;
+    arch?: string;
+    pub?: string;
   }>;
 };
-
-function listFilterForStatus(status: RecommendationListFilterScope): TemplateFilter {
-  if (status === "archived") return { status: "archived" };
-  return {};
-}
 
 export default async function DoctorLfkTemplatesPage({ searchParams }: PageProps) {
   const session = await requireDoctorAccess();
@@ -41,18 +38,17 @@ export default async function DoctorLfkTemplatesPage({ searchParams }: PageProps
       : undefined;
 
   const initialTitleSort = sp.titleSort === "asc" || sp.titleSort === "desc" ? sp.titleSort : null;
-  const listStatus = parseTemplateCourseCatalogListStatus(sp);
+  const listPubArch: DoctorCatalogPubArchQuery = parseDoctorCatalogPubArchQuery(sp);
 
   const deps = buildAppDeps();
   const [rawList, exercises] = await Promise.all([
     deps.lfkTemplates.listTemplates({
       search: q || null,
       includeExerciseDetails: true,
-      ...listFilterForStatus(listStatus),
+      ...lfkTemplateFilterFromPubArch(listPubArch),
     }),
     deps.lfkExercises.listExercises({ includeArchived: false }),
   ]);
-  const list = listStatus === "active" ? rawList.filter((t) => t.status !== "archived") : rawList;
 
   const exerciseCatalog = exercises.map((e) => ({
     id: e.id,
@@ -64,13 +60,13 @@ export default async function DoctorLfkTemplatesPage({ searchParams }: PageProps
     <AppShell title="Комплексы" user={session.user} variant="doctor" backHref="/app/doctor">
       <Suspense fallback={<p className="text-sm text-muted-foreground">Загрузка…</p>}>
         <LfkTemplatesPageClient
-          templates={list}
+          templates={rawList}
           exerciseCatalog={exerciseCatalog}
           filters={{
             q,
             regionRefId,
             loadType,
-            listStatus,
+            listPubArch,
           }}
           initialTitleSort={initialTitleSort}
         />

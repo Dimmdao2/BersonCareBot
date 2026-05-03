@@ -10,14 +10,15 @@ describe("lfkTemplatesListPreserveQuery", () => {
       q: "колено ",
       regionRefId: "reg-1",
       loadType: "stretch",
-      listStatus: "archived",
+      listPubArch: { arch: "archived", pub: "all" },
       titleSort: "asc",
     });
     const p = new URLSearchParams(qs);
     expect(p.get("q")).toBe("колено");
     expect(p.get("region")).toBe("reg-1");
     expect(p.get("load")).toBe("stretch");
-    expect(p.get("status")).toBe("archived");
+    expect(p.get("arch")).toBe("archived");
+    expect(p.get("pub")).toBeNull();
     expect(p.get("titleSort")).toBe("asc");
   });
 
@@ -25,6 +26,7 @@ describe("lfkTemplatesListPreserveQuery", () => {
     expect(
       buildLfkTemplatesListPreserveQuery({
         q: "",
+        listPubArch: { arch: "active", pub: "all" },
         titleSort: null,
       }),
     ).toBe("");
@@ -34,18 +36,18 @@ describe("lfkTemplatesListPreserveQuery", () => {
     const malicious =
       "q=" +
       "x".repeat(600) +
-      "&evil=1&region=ok-region&load=strength&status=archived&titleSort=desc&extra=nope";
+      "&evil=1&region=ok-region&load=strength&arch=archived&titleSort=desc&extra=nope";
     const s = sanitizeLfkTemplatesListPreserveQuery(malicious);
     expect(s).not.toContain("evil");
     expect(s).not.toContain("extra");
     expect(s).toContain("region=ok-region");
     expect(s).toContain("load=strength");
-    expect(s).toContain("status=archived");
+    expect(s).toContain("arch=archived");
     expect(s).toContain("titleSort=desc");
     expect(s.length).toBeLessThan(700);
   });
 
   it("sanitize rejects invalid load and titleSort", () => {
-    expect(sanitizeLfkTemplatesListPreserveQuery("load=hijack&status=deleted&titleSort=maybe")).toBe("");
+    expect(sanitizeLfkTemplatesListPreserveQuery("load=hijack&titleSort=maybe")).toBe("");
   });
 });

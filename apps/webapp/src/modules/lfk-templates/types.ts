@@ -35,6 +35,8 @@ export type Template = {
 
 export type TemplateFilter = {
   status?: TemplateStatus | null;
+  /** Фильтр по нескольким статусам (например draft+published без archived). */
+  statusIn?: TemplateStatus[];
   search?: string | null;
   /**
    * Полные строки упражнений и первое медиа каждой строки (доп. JOIN-запрос).

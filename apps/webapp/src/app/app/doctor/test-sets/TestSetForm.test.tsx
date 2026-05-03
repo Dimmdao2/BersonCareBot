@@ -35,6 +35,7 @@ function makeTestSet(over: Partial<TestSet>): TestSet {
     id: "ts-1",
     title: "Set",
     description: null,
+    publicationStatus: "draft",
     isArchived: false,
     createdBy: null,
     createdAt: "2026-01-01T00:00:00.000Z",

@@ -9,8 +9,8 @@ import {
 import type { TreatmentProgramLibraryPickers } from "./[id]/TreatmentProgramConstructorClient";
 import { TreatmentProgramTemplatesPageClient } from "./TreatmentProgramTemplatesPageClient";
 import {
-  parseTemplateCourseCatalogListStatus,
-  serverListFilterFromTemplateCourseCatalogStatus,
+  parseDoctorCatalogPubArchQuery,
+  treatmentProgramTemplateFilterFromPubArch,
 } from "@/shared/lib/doctorCatalogListStatus";
 
 type PageProps = {
@@ -21,6 +21,8 @@ type PageProps = {
     region?: string;
     load?: string;
     status?: string;
+    arch?: string;
+    pub?: string;
   }>;
 };
 
@@ -29,8 +31,8 @@ export default async function TreatmentProgramTemplatesPage({ searchParams }: Pa
   const deps = buildAppDeps();
 
   const sp = (await searchParams) ?? {};
-  const listStatus = parseTemplateCourseCatalogListStatus(sp);
-  const tplListFilter = serverListFilterFromTemplateCourseCatalogStatus(listStatus);
+  const listPubArch = parseDoctorCatalogPubArchQuery(sp);
+  const tplListFilter = treatmentProgramTemplateFilterFromPubArch(listPubArch);
 
   const [items, exercises, lfkTemplates, testSets, recommendations, contentPagesAll] = await Promise.all([
     deps.treatmentProgram.listTemplates(tplListFilter),
@@ -77,7 +79,7 @@ export default async function TreatmentProgramTemplatesPage({ searchParams }: Pa
         templates={items}
         library={library}
         initialSelectedId={initialSelectedId}
-        filters={{ q, regionRefId, loadType, listStatus }}
+        filters={{ q, regionRefId, loadType, listPubArch }}
         initialTitleSort={initialTitleSort}
       />
     </AppShell>

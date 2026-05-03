@@ -38,6 +38,9 @@ function matchesFilter(meta: Omit<TestSet, "items">, f: TestSetFilter): boolean 
   const scope = archiveScopeFromFilter(f);
   if (scope === "active" && meta.isArchived) return false;
   if (scope === "archived" && !meta.isArchived) return false;
+  const pub = f.publicationScope ?? "all";
+  if (pub === "draft" && meta.publicationStatus !== "draft") return false;
+  if (pub === "published" && meta.publicationStatus !== "published") return false;
   if (f.search?.trim()) {
     const q = f.search.trim().toLowerCase();
     if (
@@ -97,6 +100,7 @@ export const inMemoryTestSetsPort: TestSetsPort = {
       id,
       title: input.title,
       description: input.description ?? null,
+      publicationStatus: input.publicationStatus ?? "draft",
       isArchived: false,
       createdBy,
       createdAt: now,
@@ -116,6 +120,8 @@ export const inMemoryTestSetsPort: TestSetsPort = {
       ...cur,
       title: input.title ?? cur.title,
       description: input.description !== undefined ? input.description : cur.description,
+      publicationStatus:
+        input.publicationStatus !== undefined ? input.publicationStatus : cur.publicationStatus,
       updatedAt: now,
     });
     return buildTestSet(id);

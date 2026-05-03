@@ -38,3 +38,23 @@
 - Углублены этапные планы `STAGE_B2_PLAN.md`, `STAGE_B4_PLAN.md`, `STAGE_B5_PLAN.md`, `STAGE_B7_PLAN.md`: добавлены контракты данных, декомпозиция реализации, negative-path проверки, расширенный DoD.
 - В `LOG_TEMPLATE.md` добавлен блок stage-specific completeness checks и явная фиксация smoke-результатов.
 - `PROMPTS_EXEC_AUDIT_FIX_GLOBAL.md` синхронизирован с детализацией этапов (B2/B4/B5/B7), чтобы агент не пропускал критические проверки в AUDIT/FIX.
+
+---
+
+## 2026-05-03 — Stage B1 — EXEC (публикация × архив, test_sets)
+
+**Контекст:** `STAGE_B1_PLAN.md`, `PRE_IMPLEMENTATION_DECISIONS.md`, продуктовое ТЗ §3 B1.
+
+**Сделано:**
+
+- Drizzle `0033_test_sets_publication_status`: колонка `publication_status` (`draft`|`published`), CHECK, индекс `(is_archived, publication_status)`; схема `db/schema/clinicalTests.ts`.
+- Парсинг query `arch` × `pub` + legacy `status`/`scope`: `doctorCatalogListStatus.ts`; билдеры фильтров для ЛФК, шаблонов программ, наборов тестов.
+- UI `CatalogStatusFilters` + `DoctorCatalogListSortHeader` (`catalogPubArch`); подключено к спискам ЛФК, шаблонов программ, наборов тестов.
+- Репозитории: `pgTestSets` / `inMemoryTestSets` — фильтр `publicationScope`, CRUD `publicationStatus`; `pgLfkTemplates` — `statusIn` для «все кроме архива».
+- Форма набора: выбор публикации, preserve `listArch`/`listPub` в редиректах (`actionsInline` / `actionsShared`).
+- `lfkTemplatesListPreserveQuery` переведён на `listPubArch`; тесты парсера/билдеров/preserve.
+
+**Проверки:** `eslint` по затронутым файлам; `vitest run` на `doctorCatalogListStatus.test.ts`, `lfkTemplatesListPreserveQuery.test.ts`, `TestSetForm.test.tsx`; `pnpm exec tsc --noEmit` в `apps/webapp`.
+
+**Вне scope:** курсы (`courses/page.tsx`) — прежний одноосевый `status`; клинические тесты / рекомендации / упражнения — без оси публикации.
+

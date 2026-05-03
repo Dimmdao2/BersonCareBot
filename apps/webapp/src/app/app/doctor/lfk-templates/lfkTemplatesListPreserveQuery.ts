@@ -1,14 +1,18 @@
 import type { ExerciseLoadType } from "@/modules/lfk-exercises/types";
-import type { RecommendationListFilterScope } from "@/shared/lib/doctorCatalogListStatus";
+import {
+  applyDoctorCatalogPubArchToSearchParams,
+  type DoctorCatalogPubArchQuery,
+} from "@/shared/lib/doctorCatalogListStatus";
 
 const LOAD_VALUES: ExerciseLoadType[] = ["strength", "stretch", "balance", "cardio", "other"];
-const STATUS_VALUES: RecommendationListFilterScope[] = ["active", "all", "archived"];
+const ARCH_VALUES = ["active", "archived"] as const;
+const PUB_VALUES = ["all", "draft", "published"] as const;
 
 export type LfkTemplatesListPreserveInput = {
   q: string;
   regionRefId?: string;
   loadType?: ExerciseLoadType;
-  listStatus?: RecommendationListFilterScope;
+  listPubArch: DoctorCatalogPubArchQuery;
   /** Текущая сортировка в UI (может отличаться от URL до применения фильтров). */
   titleSort: "asc" | "desc" | null;
 };
@@ -21,7 +25,7 @@ export function buildLfkTemplatesListPreserveQuery(input: LfkTemplatesListPreser
   const region = input.regionRefId?.trim();
   if (region) p.set("region", region);
   if (input.loadType) p.set("load", input.loadType);
-  if (input.listStatus && input.listStatus !== "active") p.set("status", input.listStatus);
+  applyDoctorCatalogPubArchToSearchParams(p, input.listPubArch);
   if (input.titleSort === "asc" || input.titleSort === "desc") p.set("titleSort", input.titleSort);
   return p.toString();
 }
@@ -51,8 +55,22 @@ export function sanitizeLfkTemplatesListPreserveQuery(raw: string): string {
   const titleSort = sp.get("titleSort");
   if (titleSort === "asc" || titleSort === "desc") out.set("titleSort", titleSort);
 
+  const arch = sp.get("arch");
+  if (arch && (ARCH_VALUES as readonly string[]).includes(arch as "active" | "archived")) {
+    out.set("arch", arch);
+  }
+
+  const pub = sp.get("pub");
+  if (pub && (PUB_VALUES as readonly string[]).includes(pub as "all" | "draft" | "published")) {
+    out.set("pub", pub);
+  }
+
   const status = sp.get("status");
-  if (status && (STATUS_VALUES as readonly string[]).includes(status)) out.set("status", status);
+  if (status && !out.has("arch") && !out.has("pub")) {
+    if (status === "archived" || status === "draft" || status === "published" || status === "active") {
+      out.set("status", status);
+    }
+  }
 
   return out.toString();
 }

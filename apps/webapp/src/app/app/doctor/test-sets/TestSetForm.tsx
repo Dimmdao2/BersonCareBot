@@ -15,7 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import type { ExerciseLoadType } from "@/modules/lfk-exercises/types";
 import type { TestSet, TestSetUsageSnapshot } from "@/modules/tests/types";
-import type { RecommendationListFilterScope } from "@/shared/lib/doctorCatalogListStatus";
+import type { DoctorCatalogPubArchQuery } from "@/shared/lib/doctorCatalogListStatus";
 import { cn } from "@/lib/utils";
 import {
   archiveDoctorTestSet,
@@ -74,7 +74,7 @@ type Props = {
     titleSort?: "asc" | "desc" | null;
     regionRefId?: string;
     loadType?: ExerciseLoadType;
-    listStatus?: RecommendationListFilterScope;
+    listPubArch?: DoctorCatalogPubArchQuery;
   };
   saveAction?: (_prev: SaveTestSetState | null, formData: FormData) => Promise<SaveTestSetState>;
   archiveAction?: (
@@ -87,6 +87,16 @@ type Props = {
   ) => Promise<UnarchiveTestSetState>;
   externalUsageSnapshot?: TestSetUsageSnapshot;
 };
+
+function WorkspaceListPreserveHidden({ w }: { w?: Props["workspaceListPreserve"] }) {
+  if (!w?.listPubArch) return null;
+  return (
+    <>
+      <input type="hidden" name="listArch" value={w.listPubArch.arch} />
+      <input type="hidden" name="listPub" value={w.listPubArch.pub} />
+    </>
+  );
+}
 
 export function TestSetForm({
   testSet,
@@ -230,9 +240,7 @@ export function TestSetForm({
         workspaceListPreserve?.loadType === "other" ? (
           <input type="hidden" name="listLoad" value={workspaceListPreserve.loadType} />
         ) : null}
-        {workspaceListPreserve?.listStatus != null ? (
-          <input type="hidden" name="listStatus" value={workspaceListPreserve.listStatus} />
-        ) : null}
+        <WorkspaceListPreserveHidden w={workspaceListPreserve} />
         <fieldset disabled={isArchived} className="m-0 min-w-0 border-0 p-0">
           <legend className="sr-only">Поля набора тестов</legend>
           <div className="flex flex-col gap-4">
@@ -255,6 +263,19 @@ export function TestSetForm({
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
               />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="ts-publication">Публикация</Label>
+              <select
+                id="ts-publication"
+                name="publicationStatus"
+                key={`pub-${recordKey}`}
+                defaultValue={testSet?.publicationStatus ?? "draft"}
+                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
+              >
+                <option value="draft">Черновик</option>
+                <option value="published">Опубликован</option>
+              </select>
             </div>
             <div className="flex flex-wrap gap-2">
               <Button type="submit" disabled={pending}>
@@ -310,9 +331,7 @@ export function TestSetForm({
                 workspaceListPreserve?.loadType === "other" ? (
                   <input type="hidden" name="listLoad" value={workspaceListPreserve.loadType} />
                 ) : null}
-                {workspaceListPreserve?.listStatus != null ? (
-                  <input type="hidden" name="listStatus" value={workspaceListPreserve.listStatus} />
-                ) : null}
+                <WorkspaceListPreserveHidden w={workspaceListPreserve} />
                 <Button type="submit" variant="secondary" disabled={unarchivePending}>
                   {unarchivePending ? "Восстановление…" : "Вернуть из архива"}
                 </Button>
@@ -344,9 +363,7 @@ export function TestSetForm({
             workspaceListPreserve?.loadType === "other" ? (
               <input type="hidden" name="listLoad" value={workspaceListPreserve.loadType} />
             ) : null}
-            {workspaceListPreserve?.listStatus != null ? (
-              <input type="hidden" name="listStatus" value={workspaceListPreserve.listStatus} />
-            ) : null}
+            <WorkspaceListPreserveHidden w={workspaceListPreserve} />
             <input type="hidden" name="acknowledgeUsageWarning" value={archiveUsageAck ? "1" : ""} readOnly />
             <Button
               type="submit"

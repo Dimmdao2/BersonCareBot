@@ -25,7 +25,7 @@ import {
   saveDoctorTestSetItemsInline,
   unarchiveDoctorTestSetInline,
 } from "./actionsInline";
-import type { RecommendationListFilterScope } from "@/shared/lib/doctorCatalogListStatus";
+import type { DoctorCatalogPubArchQuery } from "@/shared/lib/doctorCatalogListStatus";
 import { TestSetForm } from "./TestSetForm";
 import { TestSetItemsForm } from "./TestSetItemsForm";
 import { TEST_SETS_PATH } from "./paths";
@@ -37,7 +37,7 @@ type Props = {
     q: string;
     regionRefId?: string;
     loadType?: ExerciseLoadType;
-    listStatus: RecommendationListFilterScope;
+    listPubArch: DoctorCatalogPubArchQuery;
   };
 };
 
@@ -126,6 +126,7 @@ export function TestSetsPageClient({
                 >
                   Тестов в наборе: {s.items.length}
                   {s.isArchived ? " · в архиве" : ""}
+                  {s.publicationStatus === "published" ? " · опубликован" : " · черновик"}
                 </span>
               </button>
             </li>
@@ -155,7 +156,7 @@ export function TestSetsPageClient({
             titleSort,
             regionRefId: filters.regionRefId,
             loadType: filters.loadType,
-            listStatus: filters.listStatus,
+            listPubArch: filters.listPubArch,
           }}
           backHref={TEST_SETS_PATH}
           externalUsageSnapshot={usageForSelection}
@@ -227,7 +228,7 @@ export function TestSetsPageClient({
                 }
                 titleSort={titleSortForHeader}
                 onTitleSortChange={changeTitleSort}
-                archiveScope={filters.listStatus}
+                catalogPubArch={filters.listPubArch}
                 archiveScopeExtraParams={{
                   titleSort,
                 }}

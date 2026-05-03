@@ -1,15 +1,19 @@
 "use client";
 
+import type { DoctorCatalogPubArchQuery, RecommendationListFilterScope } from "@/shared/lib/doctorCatalogListStatus";
+import type { CatalogMasterTitleSort } from "@/shared/ui/doctor/DoctorCatalogMasterListHeader";
+import { CatalogStatusFilters } from "@/shared/ui/doctor/CatalogStatusFilters";
 import { DoctorCatalogArchiveScopeSelect } from "@/shared/ui/doctor/DoctorCatalogArchiveScopeSelect";
 import { DoctorCatalogTitleSortSelect } from "@/shared/ui/doctor/DoctorCatalogTitleSortSelect";
-import type { RecommendationListFilterScope } from "@/shared/lib/doctorCatalogListStatus";
-import type { CatalogMasterTitleSort } from "@/shared/ui/doctor/DoctorCatalogMasterListHeader";
 
 export type DoctorCatalogListSortHeaderProps = {
   summaryLine: string;
   titleSort: CatalogMasterTitleSort | null;
   onTitleSortChange: (next: CatalogMasterTitleSort | null) => void;
+  /** Каталоги только с архивом (рекомендации, клин. тесты, …). */
   archiveScope?: RecommendationListFilterScope;
+  /** ЛФК / шаблоны программ / наборы тестов: архив × публикация. */
+  catalogPubArch?: DoctorCatalogPubArchQuery;
   archiveScopeExtraParams?: Record<string, string | null | undefined>;
 };
 
@@ -19,6 +23,7 @@ export function DoctorCatalogListSortHeader({
   titleSort,
   onTitleSortChange,
   archiveScope,
+  catalogPubArch,
   archiveScopeExtraParams,
 }: DoctorCatalogListSortHeaderProps) {
   return (
@@ -31,7 +36,9 @@ export function DoctorCatalogListSortHeader({
             else onTitleSortChange(v as CatalogMasterTitleSort);
           }}
         />
-        {archiveScope ? (
+        {catalogPubArch ? (
+          <CatalogStatusFilters value={catalogPubArch} extraParams={archiveScopeExtraParams} />
+        ) : archiveScope ? (
           <DoctorCatalogArchiveScopeSelect value={archiveScope} extraParams={archiveScopeExtraParams} />
         ) : null}
       </div>
