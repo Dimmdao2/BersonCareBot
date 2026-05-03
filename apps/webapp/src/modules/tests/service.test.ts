@@ -39,6 +39,27 @@ describe("clinical tests / test sets service", () => {
     expect(t.assessmentKind).toBe("mobility");
   });
 
+  it("updateClinicalTest allows unchanged legacy assessmentKind with other field updates", async () => {
+    const row = await inMemoryClinicalTestsPort.create({ title: "Leg", assessmentKind: "legacy_x" }, null);
+    const svc = createClinicalTestsService(inMemoryClinicalTestsPort, inMemoryReferencesPort);
+    const updated = await svc.updateClinicalTest(row.id, { title: "Renamed", assessmentKind: "legacy_x" });
+    expect(updated.title).toBe("Renamed");
+    expect(updated.assessmentKind).toBe("legacy_x");
+  });
+
+  it("updateClinicalTest rejects changing assessmentKind to unknown code", async () => {
+    const row = await inMemoryClinicalTestsPort.create({ title: "L", assessmentKind: "legacy_x" }, null);
+    const svc = createClinicalTestsService(inMemoryClinicalTestsPort, inMemoryReferencesPort);
+    await expect(svc.updateClinicalTest(row.id, { assessmentKind: "nope" })).rejects.toThrow(/вид оценки/);
+  });
+
+  it("updateClinicalTest allows changing from legacy to catalog code", async () => {
+    const row = await inMemoryClinicalTestsPort.create({ title: "L", assessmentKind: "legacy_x" }, null);
+    const svc = createClinicalTestsService(inMemoryClinicalTestsPort, inMemoryReferencesPort);
+    const updated = await svc.updateClinicalTest(row.id, { assessmentKind: "mobility" });
+    expect(updated.assessmentKind).toBe("mobility");
+  });
+
   it("listClinicalTests hides archived by default", async () => {
     await inMemoryClinicalTestsPort.create({ title: "Keep" }, null);
     const hidden = await inMemoryClinicalTestsPort.create({ title: "Gone" }, null);

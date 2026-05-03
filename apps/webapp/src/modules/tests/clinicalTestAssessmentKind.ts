@@ -1,6 +1,17 @@
 import type { ReferenceItemDto } from "@/modules/references/referenceCache";
 import type { ReferenceItem } from "@/modules/references/types";
 
+/**
+ * D2 (Q1): виды оценки клинических тестов — код в `tests.assessment_kind` сверяется со справочником
+ * `reference_categories` / `reference_items` (`clinical_assessment_kind`).
+ *
+ * **Синхронизация набора кодов v1 при любом изменении списка (три точки в одном PR):**
+ * 1. SQL: `apps/webapp/db/drizzle-migrations/0038_clinical_assessment_kind_reference.sql`
+ * 2. Константа `CLINICAL_ASSESSMENT_KIND_SEED_V1` ниже (фоллбек allowlist/UI при пустой БД)
+ * 3. `apps/webapp/src/infra/repos/inMemoryReferences.ts` — категория и строки `clinical_assessment_kind`
+ *
+ * Регрессия: `src/modules/tests/clinicalAssessmentKindSeedParity.test.ts`.
+ */
 /** Категория `reference_categories.code` для видов оценки клинических тестов (D2 / Q1). */
 export const CLINICAL_ASSESSMENT_KIND_CATEGORY_CODE = "clinical_assessment_kind" as const;
 

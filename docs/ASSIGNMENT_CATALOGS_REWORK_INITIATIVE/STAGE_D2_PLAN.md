@@ -31,17 +31,17 @@
 
 ## 5. Усиленный execution checklist
 
-1. [ ] `rg "isClinicalAssessmentKind|CLINICAL_ASSESSMENT_KIND_OPTIONS|assessment_kind"` — список точек замены зафиксирован.
-2. [ ] Добавлена миграция category + seed items.
-3. [ ] Динамический лист значений доступен в UI формы и списка.
-4. [ ] write-path (actions/API/service) валидирует коды по справочнику.
-5. [ ] read-path корректно обрабатывает legacy/unknown коды (без 500).
-6. [ ] Обновлены unit-тесты на валидацию и list query.
-7. [ ] Обновлён `api.md`.
-8. [ ] `eslint`.
-9. [ ] `vitest`.
-10. [ ] `tsc --noEmit`.
-11. [ ] `LOG.md` обновлён.
+1. [x] `rg "isClinicalAssessmentKind|CLINICAL_ASSESSMENT_KIND_OPTIONS|assessment_kind"` — список точек замены зафиксирован.
+2. [x] Добавлена миграция category + seed items.
+3. [x] Динамический лист значений доступен в UI формы и списка.
+4. [x] write-path (actions/API/service) валидирует коды по справочнику.
+5. [x] read-path корректно обрабатывает legacy/unknown коды (без 500).
+6. [x] Обновлены unit-тесты на валидацию и list query.
+7. [x] Обновлён `api.md`.
+8. [x] `eslint`.
+9. [x] `vitest`.
+10. [x] `tsc --noEmit`.
+11. [x] `LOG.md` обновлён.
 
 ## 6. Stage DoD
 

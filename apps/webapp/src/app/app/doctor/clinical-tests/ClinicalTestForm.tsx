@@ -495,6 +495,11 @@ export function ClinicalTestForm({
                   </option>
                 ))}
               </select>
+              {assessmentKindSelectOptions.some((o) => o.title.includes("(не в справочнике)")) ? (
+                <p className="text-xs text-muted-foreground">
+                  Код вида оценки не найден в справочнике. Можно сохранить остальные поля без смены этого значения; чтобы записать другой вид — выберите код из списка.
+                </p>
+              ) : null}
             </div>
 
             <div className="flex flex-col gap-3">

@@ -6,6 +6,23 @@
 
 ---
 
+## 2026-05-03 — Stage D2 — FIX (`AUDIT_STAGE_D2` MANDATORY)
+
+**Контекст:** закрытие обязательных пунктов [`AUDIT_STAGE_D2.md`](AUDIT_STAGE_D2.md) после аудита D2.
+
+**Сделано:**
+
+- **FIX-D2-M1:** `updateClinicalTest` — если `assessmentKind` после trim совпадает с уже сохранённым в строке, проверка по справочнику не выполняется (read tolerant + сохранение без принудительной смены legacy). Тесты в `service.test.ts`. Подсказка под селектом в `ClinicalTestForm.tsx`.
+- **FIX-D2-M2:** комментарий «три файла» в `clinicalTestAssessmentKind.ts` + vitest `clinicalAssessmentKindSeedParity.test.ts` (SQL `0038` ↔ `CLINICAL_ASSESSMENT_KIND_SEED_V1` ↔ in-memory).
+- **FIX-D2-M3:** `POST /api/doctor/clinical-tests` — опциональный `assessmentKind` в Zod и теле `createClinicalTest`; `route.test.ts`; `api.md`.
+- **Документация:** `AUDIT_STAGE_D2.md` (verdict PASS, §9–10 closure), `STAGE_D2_PLAN.md` §5 чеклист `[x]`.
+
+**Проверки (целевые):** vitest (список в `AUDIT_STAGE_D2.md` §11), eslint по затронутым файлам, `pnpm run typecheck` в `apps/webapp`.
+
+**Вне scope:** полный корневой `pnpm run ci`.
+
+---
+
 ## 2026-05-03 — Stage D2 — `assessmentKind` как системный справочник БД (Q1)
 
 **Сделано:**

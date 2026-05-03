@@ -28,17 +28,26 @@ import {
 } from "./clinicalTestAssessmentKind";
 import { clinicalTestScoringSchema, normalizeClinicalTestScoringOrder } from "./clinicalTestScoring";
 
+type ClinicalTestAssessmentWriteContext =
+  | { kind: "create" }
+  | { kind: "update"; existingAssessmentKind: string | null };
+
 async function assertClinicalTestWritePayload(
   references: ReferencesPort,
   input: CreateClinicalTestInput | UpdateClinicalTestInput,
+  ctx: ClinicalTestAssessmentWriteContext,
 ): Promise<void> {
   if (input.assessmentKind !== undefined && input.assessmentKind !== null) {
     const t = input.assessmentKind.trim();
     if (t) {
-      const refItems = await references.listActiveItemsByCategoryCode(CLINICAL_ASSESSMENT_KIND_CATEGORY_CODE);
-      const allow = assessmentKindWriteAllowSet(refItems);
-      if (!allow.has(t)) {
-        throw new Error("Некорректный вид оценки");
+      const unchangedFromRow =
+        ctx.kind === "update" && (ctx.existingAssessmentKind ?? "").trim() === t;
+      if (!unchangedFromRow) {
+        const refItems = await references.listActiveItemsByCategoryCode(CLINICAL_ASSESSMENT_KIND_CATEGORY_CODE);
+        const allow = assessmentKindWriteAllowSet(refItems);
+        if (!allow.has(t)) {
+          throw new Error("Некорректный вид оценки");
+        }
       }
     }
   }
@@ -51,8 +60,9 @@ async function assertClinicalTestWritePayload(
 async function normalizeClinicalWritePayload<T extends CreateClinicalTestInput | UpdateClinicalTestInput>(
   references: ReferencesPort,
   input: T,
+  ctx: ClinicalTestAssessmentWriteContext,
 ): Promise<T> {
-  await assertClinicalTestWritePayload(references, input);
+  await assertClinicalTestWritePayload(references, input, ctx);
   const next = { ...input };
   if (next.scoring != null) {
     const p = clinicalTestScoringSchema.parse(next.scoring);
@@ -74,15 +84,19 @@ export function createClinicalTestsService(port: ClinicalTestsPort, references: 
     async createClinicalTest(input: CreateClinicalTestInput, createdBy: string | null) {
       const title = input.title?.trim() ?? "";
       if (!title) throw new Error("Название теста обязательно");
-      const normalized = await normalizeClinicalWritePayload(references, {
-        ...input,
-        title,
-        description: input.description?.trim() || null,
-        testType: input.testType?.trim() || null,
-        assessmentKind: input.assessmentKind?.trim() || null,
-        bodyRegionId: input.bodyRegionId?.trim() || null,
-        rawText: input.rawText?.trim() ? input.rawText.trim() : input.rawText ?? null,
-      });
+      const normalized = await normalizeClinicalWritePayload(
+        references,
+        {
+          ...input,
+          title,
+          description: input.description?.trim() || null,
+          testType: input.testType?.trim() || null,
+          assessmentKind: input.assessmentKind?.trim() || null,
+          bodyRegionId: input.bodyRegionId?.trim() || null,
+          rawText: input.rawText?.trim() ? input.rawText.trim() : input.rawText ?? null,
+        },
+        { kind: "create" },
+      );
       return port.create(normalized, createdBy);
     },
 
@@ -109,7 +123,10 @@ export function createClinicalTestsService(port: ClinicalTestsPort, references: 
       if (input.rawText !== undefined) {
         patch.rawText = input.rawText?.trim() ? input.rawText.trim() : null;
       }
-      const normalized = await normalizeClinicalWritePayload(references, patch);
+      const normalized = await normalizeClinicalWritePayload(references, patch, {
+        kind: "update",
+        existingAssessmentKind: existing.assessmentKind,
+      });
       const row = await port.update(id, normalized);
       if (!row) throw new Error("Тест не найден");
       return row;
