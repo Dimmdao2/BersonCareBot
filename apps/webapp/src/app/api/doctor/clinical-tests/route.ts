@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getCurrentSession } from "@/modules/auth/service";
 import { canAccessDoctor } from "@/modules/roles/service";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { isClinicalAssessmentKind } from "@/modules/tests/clinicalTestAssessmentKind";
 
 const mediaItemSchema = z.object({
   mediaUrl: z.string().min(1),
@@ -23,6 +24,10 @@ const listQuerySchema = z.object({
   q: z.string().optional(),
   testType: z.string().optional(),
   includeArchived: z.coerce.boolean().optional(),
+  /** UUID `reference_items.id` (категория регионов тела), как на странице каталога `?region=`. */
+  region: z.string().optional(),
+  /** Код вида оценки (enum v1), как `?assessment=` на странице каталога. */
+  assessment: z.string().optional(),
 });
 
 export async function GET(request: Request) {
@@ -39,10 +44,21 @@ export async function GET(request: Request) {
   }
 
   const deps = buildAppDeps();
+  const regionTrim = parsed.data.region?.trim() ?? "";
+  if (regionTrim && !z.string().uuid().safeParse(regionTrim).success) {
+    return NextResponse.json({ ok: false, error: "invalid_query", field: "region" }, { status: 400 });
+  }
+  const assessmentTrim = parsed.data.assessment?.trim() ?? "";
+  if (assessmentTrim && !isClinicalAssessmentKind(assessmentTrim)) {
+    return NextResponse.json({ ok: false, error: "invalid_query", field: "assessment" }, { status: 400 });
+  }
+
   const items = await deps.clinicalTests.listClinicalTests({
     search: parsed.data.q?.trim() || null,
     testType: parsed.data.testType?.trim() || null,
     includeArchived: parsed.data.includeArchived ?? false,
+    regionRefId: regionTrim || null,
+    assessmentKind: assessmentTrim || null,
   });
   return NextResponse.json({ ok: true, items });
 }

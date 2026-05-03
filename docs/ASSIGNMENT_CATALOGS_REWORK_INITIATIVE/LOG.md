@@ -142,5 +142,38 @@ pnpm exec vitest run \
 pnpm exec tsc --noEmit
 ```
 
-**Вне scope:** расширение `GET/POST /api/doctor/clinical-tests` под те же query/поля, что RSC-страница; инстансный qualitative UX; `AUDIT_STAGE_B2.md`.
+**Вне scope:** инстансный qualitative UX; полный `pnpm run ci` на этапе EXEC/FIX не требовался по запросу.
 
+---
+
+## 2026-05-03 — Stage B2 — FIX (`AUDIT_STAGE_B2`)
+
+**Контекст:** [`AUDIT_STAGE_B2.md`](AUDIT_STAGE_B2.md) M1–M3 + low (невалидный `assessment` в URL).
+
+**Сделано:**
+
+- `ClinicalTestMeasureRowsEditor`: состояние ошибки загрузки справочника, кнопка «Повторить», корректная обработка не-JSON / `!ok` / HTTP error.
+- `GET /api/doctor/clinical-tests`: query `region` (UUID), `assessment` (enum); `400` `invalid_query` + `field`; список через `listClinicalTests` с `regionRefId` / `assessmentKind`.
+- Каталог: баннер при нераспознанном `?assessment=`.
+- Тесты: `ClinicalTestMeasureRowsEditor.test.tsx`, `CreatableComboboxInput.test.tsx`.
+- `api.md`, обновление `AUDIT_STAGE_B2.md` до **PASS**.
+
+**Проверки (целевые, без `pnpm run ci`):**
+
+```bash
+cd apps/webapp && pnpm exec eslint \
+  src/app/app/doctor/clinical-tests/ClinicalTestMeasureRowsEditor.tsx \
+  src/app/app/doctor/clinical-tests/ClinicalTestMeasureRowsEditor.test.tsx \
+  src/app/app/doctor/clinical-tests/ClinicalTestsPageClient.tsx \
+  src/app/app/doctor/clinical-tests/page.tsx \
+  src/app/api/doctor/clinical-tests/route.ts \
+  src/shared/ui/CreatableComboboxInput.test.tsx
+pnpm exec vitest run \
+  src/modules/tests/clinicalTestScoring.test.ts \
+  src/app/app/doctor/clinical-tests/ClinicalTestForm.test.tsx \
+  src/app/app/doctor/clinical-tests/ClinicalTestMeasureRowsEditor.test.tsx \
+  src/shared/ui/CreatableComboboxInput.test.tsx
+pnpm exec tsc --noEmit
+```
+
+**Результат:** eslint / vitest / tsc — **PASS**.

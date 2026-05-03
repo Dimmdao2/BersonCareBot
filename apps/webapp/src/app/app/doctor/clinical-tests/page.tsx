@@ -60,7 +60,7 @@ export default async function DoctorClinicalTestsPage({ searchParams }: PageProp
         initialViewMode={initialViewMode}
         viewLockedByUrl={viewLockedByUrl}
         initialTitleSort={titleSort}
-        filters={{ q, regionRefId, assessmentKind, listStatus }}
+        filters={{ q, regionRefId, assessmentKind, invalidAssessmentQuery: assessmentRaw !== "" && !assessmentKind, listStatus }}
       />
     </AppShell>
   );

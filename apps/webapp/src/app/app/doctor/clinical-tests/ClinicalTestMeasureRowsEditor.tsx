@@ -138,6 +138,8 @@ export function ClinicalTestMeasureRowsEditor({
   setRows: React.Dispatch<React.SetStateAction<ClinicalTestMeasureRowModel[]>>;
 }) {
   const [kindItems, setKindItems] = useState<CreatableComboboxItem[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [reloadToken, setReloadToken] = useState(0);
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
@@ -145,19 +147,41 @@ export function ClinicalTestMeasureRowsEditor({
 
   useEffect(() => {
     let cancelled = false;
-    void fetch("/api/doctor/measure-kinds")
-      .then((r) => r.json())
-      .then((data: { ok?: boolean; items?: { code: string; label: string }[] }) => {
-        if (cancelled || !data?.ok || !Array.isArray(data.items)) return;
+    setLoadError(null);
+    const run = async () => {
+      try {
+        const res = await fetch("/api/doctor/measure-kinds");
+        let data: unknown;
+        try {
+          data = await res.json();
+        } catch {
+          throw new Error("Некорректный ответ сервера");
+        }
+        const d = data as { ok?: boolean; error?: string; items?: { code: string; label: string }[] };
+        if (!res.ok) {
+          throw new Error(d.error ?? `Ошибка загрузки (${res.status})`);
+        }
+        if (!d.ok || !Array.isArray(d.items)) {
+          throw new Error(d.error ?? "Справочник видов измерений недоступен");
+        }
+        if (cancelled) return;
         setKindItems(
-          data.items.map((it) => ({ value: it.code, label: it.label })).sort((a, b) => a.label.localeCompare(b.label, "ru")),
+          d.items
+            .map((it) => ({ value: it.code, label: it.label }))
+            .sort((a, b) => a.label.localeCompare(b.label, "ru")),
         );
-      })
-      .catch(() => {});
+      } catch (e) {
+        if (cancelled) return;
+        const msg = e instanceof Error ? e.message : "Не удалось загрузить виды измерений";
+        setLoadError(msg);
+        setKindItems([]);
+      }
+    };
+    void run();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [reloadToken]);
 
   const onCreate = useCallback(async (label: string) => {
     const res = await fetch("/api/doctor/measure-kinds", {
@@ -204,6 +228,23 @@ export function ClinicalTestMeasureRowsEditor({
           + Строка
         </Button>
       </div>
+      {loadError ? (
+        <div
+          role="alert"
+          className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive"
+        >
+          <span className="min-w-0">{loadError}</span>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="shrink-0 border-destructive/50"
+            onClick={() => setReloadToken((n) => n + 1)}
+          >
+            Повторить
+          </Button>
+        </div>
+      ) : null}
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
         <SortableContext items={ids} strategy={verticalListSortingStrategy}>
           <ul className="space-y-3">

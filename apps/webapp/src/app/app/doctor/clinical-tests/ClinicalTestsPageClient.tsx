@@ -58,6 +58,8 @@ type Props = {
     q: string;
     regionRefId?: string;
     assessmentKind?: string;
+    /** Ненулевой `?assessment=` в URL не совпал с enum — фильтр не применён. */
+    invalidAssessmentQuery?: boolean;
     listStatus: RecommendationListFilterScope;
   };
 };
@@ -336,6 +338,14 @@ function ClinicalTestsContent({
         />
       }
     >
+      {filters.invalidAssessmentQuery ? (
+        <p
+          role="status"
+          className="border-b border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm text-amber-950 dark:text-amber-100"
+        >
+          Параметр «Вид оценки» в адресе не распознан — фильтр по виду оценки не применён.
+        </p>
+      ) : null}
       <CatalogSplitLayout
         className="lg:h-[calc(100dvh-3.5rem-env(safe-area-inset-top,0px)-3.25rem-1rem)] lg:overflow-hidden"
         left={
