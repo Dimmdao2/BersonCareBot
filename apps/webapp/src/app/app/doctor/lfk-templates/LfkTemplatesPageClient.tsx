@@ -1,9 +1,8 @@
 "use client";
 
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import type { ExerciseLoadType, ExerciseMedia } from "@/modules/lfk-exercises/types";
 import type { Template } from "@/modules/lfk-templates/types";
 import { cn } from "@/lib/utils";
@@ -23,7 +22,6 @@ import {
 } from "@/shared/ui/doctor/DoctorCatalogFiltersToolbar";
 import { MediaThumb } from "@/shared/ui/media/MediaThumb";
 import { exerciseMediaToPreviewUi } from "@/shared/ui/media/mediaPreviewUiModel";
-import { createLfkTemplateDraft } from "./actions";
 import { LfkTemplateStatusBadge } from "./LfkTemplateStatusBadge";
 import { buildLfkTemplatesListPreserveQuery } from "./lfkTemplatesListPreserveQuery";
 import { TemplateEditor } from "./TemplateEditor";
@@ -31,6 +29,7 @@ import type { DoctorCatalogPubArchQuery } from "@/shared/lib/doctorCatalogListSt
 
 type Props = {
   templates: Template[];
+  initialSelectedId: string | null;
   exerciseCatalog: Array<{ id: string; title: string; firstMedia: ExerciseMedia | null }>;
   filters: {
     q: string;
@@ -43,18 +42,32 @@ type Props = {
 
 export function LfkTemplatesPageClient({
   templates,
+  initialSelectedId,
   exerciseCatalog,
   filters,
   initialTitleSort,
 }: Props) {
+  const router = useRouter();
   const [titleSort, setTitleSort] = useState<CatalogMasterTitleSort | null>(initialTitleSort);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
   const [mobileSheet, setMobileSheet] = useState<Template | null>(null);
   const [isListPending, startListTransition] = useTransition();
 
   useEffect(() => {
     setTitleSort(initialTitleSort);
   }, [initialTitleSort]);
+
+  useEffect(() => {
+    if (!initialSelectedId) return;
+    const found = templates.find((t) => t.id === initialSelectedId);
+    if (!found) return;
+    queueMicrotask(() => {
+      setSelectedId(found.id);
+      setCreating(false);
+      setMobileSheet(found);
+    });
+  }, [initialSelectedId, templates]);
 
   const displayList = useDoctorCatalogDisplayList(
     templates,
@@ -66,10 +79,11 @@ export function LfkTemplatesPageClient({
     displayList,
     setSelectedId,
     setMobileItem: setMobileSheet,
+    suspend: creating,
     fallbackToFirst: false,
   });
 
-  const selected = displayList.find((t) => t.id === selectedId) ?? null;
+  const selected = creating ? null : (displayList.find((t) => t.id === selectedId) ?? null);
 
   const titleSortForHeader: CatalogMasterTitleSort | null =
     titleSort === "asc" || titleSort === "desc" ? titleSort : null;
@@ -175,55 +189,55 @@ export function LfkTemplatesPageClient({
           listPreserveQuery={listPreserveQuery}
         />
       ) : (
-        <section className="flex max-w-md flex-col gap-4 rounded-lg border border-border bg-card p-4 shadow-sm">
-          <p className="text-sm text-muted-foreground">
-            Задайте название черновика. После создания вы попадёте в конструктор, где можно добавить упражнения и
-            опубликовать комплекс.
-          </p>
-          <form action={createLfkTemplateDraft} className="flex flex-col gap-3">
-            <div className="flex flex-col gap-2">
-              <label htmlFor="lfk-tpl-new-title-inline" className="text-sm font-medium">
-                Название
-              </label>
-              <Input id="lfk-tpl-new-title-inline" name="title" placeholder="Новый комплекс" />
-            </div>
-            <Button type="submit">Создать и открыть</Button>
-          </form>
-        </section>
+        <TemplateEditor
+          key="new-lfk-template"
+          template={null}
+          exerciseCatalog={exerciseCatalog}
+          listPreserveQuery={listPreserveQuery}
+          onCreated={(id) => {
+            setCreating(false);
+            setSelectedId(id);
+            router.refresh();
+          }}
+        />
       )}
     </CatalogRightPane>
   );
 
-  const mobileDetailOpen = mobileSheet != null;
+  const mobileDetailOpen = creating || mobileSheet != null;
 
   const toolbar = (
     <DoctorCatalogFiltersToolbar
       filters={
         <DoctorCatalogToolbarFiltersSlot>
           <DoctorCatalogFiltersForm
-            key={`lfk-filters-${filters.listPubArch.arch}-${filters.listPubArch.pub}-${filters.q}-${filters.regionRefId ?? ""}-${filters.loadType ?? ""}`}
             idPrefix="lfk-tpl"
             q={filters.q}
             regionRefId={filters.regionRefId}
             loadType={filters.loadType}
             titleSort={titleSort}
-            catalogPubArch={filters.listPubArch}
           />
         </DoctorCatalogToolbarFiltersSlot>
       }
       end={
-        <Link
-          href="/app/doctor/lfk-templates/new"
+        <button
+          type="button"
           className={doctorCatalogToolbarPrimaryActionClassName}
           id="doctor-lfk-templates-new-link"
+          onClick={() => {
+            setCreating(true);
+            setSelectedId(null);
+            setMobileSheet(null);
+          }}
         >
           Создать
-        </Link>
+        </button>
       }
     />
   );
 
   const pickRow = (id: string) => {
+    setCreating(false);
     const found = displayList.find((t) => t.id === id) ?? null;
     setSelectedId(id);
     setMobileSheet(found);
@@ -259,7 +273,7 @@ export function LfkTemplatesPageClient({
               )}
               aria-busy={isListPending}
             >
-              {renderRows((t) => pickRow(t.id), selected?.id ?? mobileSheet?.id ?? null)}
+              {renderRows((t) => pickRow(t.id), creating ? null : selected?.id ?? mobileSheet?.id ?? null)}
             </div>
           </CatalogLeftPane>
         }
@@ -267,7 +281,15 @@ export function LfkTemplatesPageClient({
         mobileView={mobileDetailOpen ? "detail" : "list"}
         mobileBackSlot={
           mobileDetailOpen ? (
-            <Button variant="ghost" type="button" className="mb-2 h-9 px-2" onClick={() => setMobileSheet(null)}>
+            <Button
+              variant="ghost"
+              type="button"
+              className="mb-2 h-9 px-2"
+              onClick={() => {
+                setMobileSheet(null);
+                setCreating(false);
+              }}
+            >
               ← Назад
             </Button>
           ) : null

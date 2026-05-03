@@ -96,6 +96,29 @@ export async function createLfkTemplateDraft(formData: FormData) {
   redirect(`${BASE}/${t.id}`);
 }
 
+export async function createLfkTemplateDraftFromEditor(payload: {
+  title: string;
+  description: string | null;
+  exercises: TemplateExerciseInput[];
+}): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
+  try {
+    const session = await requireDoctorAccess();
+    const deps = buildAppDeps();
+    const titleRaw = payload.title.trim();
+    const title = titleRaw || "Новый комплекс";
+    const created = await deps.lfkTemplates.createTemplate(
+      { title, description: payload.description },
+      session.user.userId,
+    );
+    await deps.lfkTemplates.updateExercises(created.id, payload.exercises);
+    revalidatePath(BASE);
+    revalidatePath(`${BASE}/${created.id}`);
+    return { ok: true, id: created.id };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Не удалось создать черновик" };
+  }
+}
+
 export async function persistLfkTemplateDraft(payload: {
   templateId: string;
   title: string;

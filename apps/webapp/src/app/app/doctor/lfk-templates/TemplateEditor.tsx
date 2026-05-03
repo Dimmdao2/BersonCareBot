@@ -47,6 +47,7 @@ import {
 import type { LfkTemplateUsageSnapshot } from "@/modules/lfk-templates/types";
 import {
   archiveDoctorLfkTemplate,
+  createLfkTemplateDraftFromEditor,
   fetchDoctorLfkTemplateUsageSnapshot,
   persistLfkTemplateDraft,
   publishLfkTemplateAction,
@@ -266,12 +267,15 @@ function SortableRow({
 }
 
 type TemplateEditorProps = {
-  template: Template;
+  /** `null` — новый черновик до первого сохранения (как форма набора тестов без строки в БД). */
+  template: Template | null;
   exerciseCatalog: ExerciseOption[];
   /** Снимок «где используется» с RSC (страница `/lfk-templates/[id]`); в split-view не передаётся — подгрузка на клиенте. */
   externalUsageSnapshot?: LfkTemplateUsageSnapshot;
   /** Строка query (без `?`) для сохранения фильтров списка после архивации и редиректа на каталог. */
   listPreserveQuery?: string;
+  /** После первого сохранения нового черновика — чтобы список выбрал созданную строку. */
+  onCreated?: (id: string) => void;
 };
 
 export function TemplateEditor({
@@ -279,12 +283,13 @@ export function TemplateEditor({
   exerciseCatalog,
   externalUsageSnapshot,
   listPreserveQuery = "",
+  onCreated,
 }: TemplateEditorProps) {
   const router = useRouter();
-  const recordKey = template.id;
-  const [title, setTitle] = useState(template.title);
-  const [description, setDescription] = useState(template.description ?? "");
-  const [lines, setLines] = useState<EditorLine[]>(() => templateToLines(template));
+  const recordKey = template?.id ?? "__new__";
+  const [title, setTitle] = useState(template?.title ?? "Новый комплекс");
+  const [description, setDescription] = useState(template?.description ?? "");
+  const [lines, setLines] = useState<EditorLine[]>(() => (template ? templateToLines(template) : []));
   const [addOpen, setAddOpen] = useState(false);
   const [pickQuery, setPickQuery] = useState("");
   const [pending, startTransition] = useTransition();
@@ -296,9 +301,9 @@ export function TemplateEditor({
   const archiveFormRef = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
-    setTitle(template.title);
-    setDescription(template.description ?? "");
-    setLines(templateToLines(template));
+    setTitle(template?.title ?? "Новый комплекс");
+    setDescription(template?.description ?? "");
+    setLines(template ? templateToLines(template) : []);
     setUsageLoadError(null);
     setWarnOpen(false);
     setArchiveUsageAck(false);
@@ -306,6 +311,12 @@ export function TemplateEditor({
   }, [recordKey]);
 
   useEffect(() => {
+    if (!template) {
+      setUsage(null);
+      setUsageLoadError(null);
+      setUsageBusy(false);
+      return;
+    }
     if (externalUsageSnapshot !== undefined) {
       setUsage(externalUsageSnapshot);
       return;
@@ -329,7 +340,7 @@ export function TemplateEditor({
     return () => {
       cancelled = true;
     };
-  }, [template.id, externalUsageSnapshot]);
+  }, [template, externalUsageSnapshot]);
 
   const [archiveState, archiveFormAction, archivePending] = useActionState(
     archiveDoctorLfkTemplate,
@@ -416,6 +427,20 @@ export function TemplateEditor({
       return;
     }
     startTransition(async () => {
+      if (!template) {
+        const res = await createLfkTemplateDraftFromEditor({
+          title: t,
+          description: description.trim() || null,
+          exercises: linesToPayload(lines),
+        });
+        if (!res.ok) toast.error(res.error);
+        else {
+          toast.success("Черновик сохранён");
+          onCreated?.(res.id);
+          router.refresh();
+        }
+        return;
+      }
       const res = await persistLfkTemplateDraft({
         templateId: template.id,
         title: t,
@@ -428,9 +453,10 @@ export function TemplateEditor({
         router.refresh();
       }
     });
-  }, [description, lines, router, template.id, template.status, title]);
+  }, [description, lines, onCreated, router, template, title]);
 
   const publish = useCallback(() => {
+    if (!template) return;
     startTransition(async () => {
       const saveFirst = await persistLfkTemplateDraft({
         templateId: template.id,
@@ -449,7 +475,7 @@ export function TemplateEditor({
         router.refresh();
       }
     });
-  }, [description, lines, router, template.id, template.title, title]);
+  }, [description, lines, router, template, title]);
 
   const filteredPick = useMemo(() => {
     const needle = normalizeRuSearchString(pickQuery.trim());
@@ -477,23 +503,16 @@ export function TemplateEditor({
     setPickQuery("");
   }, []);
 
-  const archived = template.status === "archived";
-  const published = template.status === "published";
+  const archived = template?.status === "archived";
+  const published = template?.status === "published";
 
   return (
     <div className="flex w-full min-w-0 flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border/50 bg-muted/15 px-3 py-2">
-        <LfkTemplateStatusBadge status={template.status} />
-        {published ? (
-          <p className="max-w-md text-xs text-muted-foreground">Комплекс в каталоге; правки сохраняются в опубликованной версии.</p>
-        ) : archived ? (
-          <p className="max-w-md text-xs text-muted-foreground">В архиве — редактирование недоступно до восстановления.</p>
-        ) : (
-          <p className="max-w-md text-xs text-muted-foreground">Черновик — после публикации комплекс станет доступен для назначений.</p>
-        )}
-      </div>
       <div className="flex flex-col gap-2">
-        <Label htmlFor="tpl-title">Название</Label>
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+          <Label htmlFor="tpl-title">Название</Label>
+          <LfkTemplateStatusBadge status={template?.status ?? "draft"} className="shrink-0" />
+        </div>
         <Input
           id="tpl-title"
           value={title}
@@ -578,7 +597,7 @@ export function TemplateEditor({
           type="button"
           variant={published ? "secondary" : "default"}
           onClick={publish}
-          disabled={archived || pending || published}
+          disabled={!template || archived || pending || published}
         >
           {published ? "Опубликован" : "Опубликовать"}
         </Button>
@@ -587,7 +606,9 @@ export function TemplateEditor({
       <div className="border-t border-border/60 pt-4">
         <div className="mb-3 rounded-md border border-border/60 bg-muted/20 p-3">
           <p className="text-sm font-medium text-foreground">Где используется</p>
-          {usageBusy ? (
+          {!template ? (
+            <p className="mt-1 text-sm text-muted-foreground">Пока не используется</p>
+          ) : usageBusy ? (
             <p className="mt-1 text-sm text-muted-foreground">Загрузка…</p>
           ) : usageLoadError ? (
             <p className="mt-1 text-sm text-muted-foreground">{usageLoadError}</p>
@@ -598,7 +619,7 @@ export function TemplateEditor({
           )}
         </div>
 
-        {archived ? (
+        {!template ? null : archived ? (
           <div className="flex flex-col gap-2">
             {unarchiveError ? (
               <p role="alert" className="text-sm text-destructive">
@@ -685,9 +706,11 @@ export function TemplateEditor({
       </div>
 
       <p className="text-xs text-muted-foreground">
-        {published
-          ? "Правки вступают в силу после «Сохранить изменения». Кнопка «Опубликовать» доступна только для черновиков."
-          : "Перед публикацией черновик сохраняется автоматически. Если в шаблоне нет упражнений, публикация будет отклонена."}
+        {!template
+          ? "Сохраните черновик, чтобы архивировать комплекс и увидеть связи «где используется». Перед публикацией добавьте хотя бы одно упражнение."
+          : published
+            ? "Правки вступают в силу после «Сохранить изменения». Кнопка «Опубликовать» доступна только для черновиков."
+            : "Перед публикацией черновик сохраняется автоматически. Если в шаблоне нет упражнений, публикация будет отклонена."}
       </p>
     </div>
   );

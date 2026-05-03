@@ -250,14 +250,12 @@ export function TreatmentProgramTemplatesPageClient({
       filters={
         <DoctorCatalogToolbarFiltersSlot>
           <DoctorCatalogFiltersForm
-            key={`tpt-filters-${filters.listPubArch.arch}-${filters.listPubArch.pub}-${filters.regionRefId ?? ""}-${filters.loadType ?? ""}-${filters.q}`}
             idPrefix={`${formKey}-tpt`}
             q={filters.q}
             regionRefId={filters.regionRefId}
             loadType={filters.loadType}
             titleSort={titleSort}
             selectedId={selectedId}
-            catalogPubArch={filters.listPubArch}
           />
         </DoctorCatalogToolbarFiltersSlot>
       }

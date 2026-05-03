@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -29,6 +29,8 @@ export type ReferenceSelectProps = {
   clearOptionLabel?: string;
   /** For enum-like filters, opening should reveal every option instead of filtering by the selected label. */
   showAllOnFocus?: boolean;
+  /** Dropdown-only mode: no text editing/caret, only pick from list. */
+  searchable?: boolean;
 };
 
 /** Выпадающий список значений справочника с поиском; данные кэшируются в sessionStorage. */
@@ -47,6 +49,7 @@ export function ReferenceSelect({
   id,
   clearOptionLabel,
   showAllOnFocus = false,
+  searchable = true,
 }: ReferenceSelectProps) {
   const [remoteItems, setRemoteItems] = useState<ReferenceItemDto[]>([]);
   const [loadState, setLoadState] = useState<"loading" | "done">(() =>
@@ -54,6 +57,13 @@ export function ReferenceSelect({
   );
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  const blurInput = useCallback(() => {
+    queueMicrotask(() => {
+      rootRef.current?.querySelector<HTMLInputElement>('input[data-slot="input"]')?.blur();
+    });
+  }, []);
 
   const items = useMemo(
     () => prefetchedItems ?? (categoryCode ? remoteItems : []),
@@ -104,7 +114,7 @@ export function ReferenceSelect({
   }, [items, query]);
 
   return (
-    <div className={cn("relative", className)}>
+    <div ref={rootRef} className={cn("relative", className)}>
       {name ? <input type="hidden" name={name} value={hiddenSubmitValue} /> : null}
       <Input
         id={id}
@@ -113,8 +123,9 @@ export function ReferenceSelect({
         aria-expanded={open}
         disabled={disabled || loadState !== "done"}
         placeholder={loadState !== "done" ? "Загрузка…" : placeholder}
-        value={open ? query : selectedLabel}
+        value={open && searchable ? query : selectedLabel}
         onChange={(e) => {
+          if (!searchable) return;
           const v = e.target.value;
           setQuery(v);
           setOpen(true);
@@ -122,14 +133,21 @@ export function ReferenceSelect({
             onChange(null, v);
           }
         }}
+        onClick={() => {
+          if (!searchable && loadState === "done" && !disabled) {
+            setOpen(true);
+            setQuery(showAllOnFocus ? "" : "");
+          }
+        }}
         onFocus={() => {
           setOpen(true);
-          setQuery(showAllOnFocus ? "" : selectedLabel);
+          setQuery(showAllOnFocus || !searchable ? "" : selectedLabel);
         }}
         onBlur={() => {
           setTimeout(() => setOpen(false), 150);
         }}
-        className="w-full"
+        className={cn("w-full", !searchable && "cursor-pointer caret-transparent")}
+        readOnly={!searchable}
         autoComplete="off"
       />
       {open && (clearOptionLabel || filtered.length > 0) ? (
@@ -148,6 +166,7 @@ export function ReferenceSelect({
                   onChange(null, "");
                   setQuery("");
                   setOpen(false);
+                  if (!searchable) blurInput();
                 }}
               >
                 {clearOptionLabel}
@@ -165,6 +184,7 @@ export function ReferenceSelect({
                   onChange(valueMatch === "code" ? i.code : i.id, i.title);
                   setQuery("");
                   setOpen(false);
+                  if (!searchable) blurInput();
                 }}
               >
                 {i.title}
