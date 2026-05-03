@@ -4,6 +4,8 @@
 
 **Канонический план:** [`MASTER_PLAN.md`](MASTER_PLAN.md).
 
+**Фазы (детальные планы):** [A](PHASE_A_DATA_MODEL_AND_CORE_ALERTING.md) · [B](PHASE_B_SYNTHETIC_PROBES_CRON.md) · [C](PHASE_C_INBOUND_WEBHOOK_LAST_STATUS.md) · [D](PHASE_D_EVENT_HOOKS.md) · [E](PHASE_E_RESOLUTION_AND_RECOVERY_NOTIFICATIONS.md) · [F](PHASE_F_UI_AND_ADMIN_API.md) · [G](PHASE_G_TESTS_AND_DOCS.md).
+
 **Журнал исполнения:** [`LOG.md`](LOG.md) (ведётся по мере работы).
 
 Связанные документы:

@@ -48,7 +48,7 @@
 
 **Checklist:**
 
-- [ ] `rg reportOperatorIncident` / `openOrTouch` — все объявленные call sites имеют тест или `# reason` в LOG.
+- [ ] Таблица покрытия: для каждого публичного entrypoint (`reportFailure`, `resolve…`) есть тест или явный defer в `LOG.md`.
 
 **Критерий закрытия:** нет критичных непокрытых веток без явного defer.
 

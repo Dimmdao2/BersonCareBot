@@ -13,6 +13,8 @@
 5. **Уведомление о восстановлении** после успешного ping, успешной операции или нормализации очереди (по согласованным критериям).
 6. **Мультиканальная доставка** при недоступности одного канала: Telegram, email, запись в UI (обязательный слой, если outbound TG недоступен).
 
+Детальная декомпозиция реализации по фазам: см. **§5** и файлы `PHASE_A_*.md` … `PHASE_G_*.md` в этой папке.
+
 ## 2. Текущее состояние (baseline)
 
 - Вкладка **«Здоровье системы»** (`/app/settings`, admin mode): `GET /api/admin/system-health` агрегирует webapp DB, integrator `GET /health`, projection `GET /health/projection` (очередь `projection_outbox`: pending/dead/retries/`lastSuccessAt`), медиа-превью, метрики playback. Воркер projection оценивается **косвенно** (нет systemd API в variant 1).
@@ -87,47 +89,19 @@
 
 ## 5. Задачи (поставленный backlog)
 
-### Фаза A — Модель данных и ядро алертинга
+Детальная декомпозиция по фазам — отдельные файлы (этап → шаги → checklist → DoD фазы):
 
-- [ ] Спроектировать таблицу **операторских инцидентов** (открыт/закрыт, dedup key, канал, направление `outbound` | `inbound_webhook` | `internal`, класс ошибки, время первого/последнего события, счётчик повторов опционально).
-- [ ] Drizzle-схема + миграция; запись в `public`, синхронизация с integrator по правилам `system_settings`/зеркалирования только если таблица должна читаться из обоих процессов — **уточнить**: webapp-only vs unified DB single schema.
-- [ ] Сервис: `openIncident` / `touchIncident` / `resolveIncident` с идемпотентностью и конкурентностью (transaction / `ON CONFLICT`).
-- [ ] Первый алерт только при **открытии** нового ключа; повторы не дублировать в TG/email до resolution.
-- [ ] Канал доставки: интегратор **`dispatchPort`** + email + запись для UI.
+| Фаза | Документ |
+|------|----------|
+| **A** — Модель данных и ядро алертинга | [`PHASE_A_DATA_MODEL_AND_CORE_ALERTING.md`](PHASE_A_DATA_MODEL_AND_CORE_ALERTING.md) |
+| **B** — Синтетические пробы (cron) | [`PHASE_B_SYNTHETIC_PROBES_CRON.md`](PHASE_B_SYNTHETIC_PROBES_CRON.md) |
+| **C** — Входящие вебхуки: последний статус | [`PHASE_C_INBOUND_WEBHOOK_LAST_STATUS.md`](PHASE_C_INBOUND_WEBHOOK_LAST_STATUS.md) |
+| **D** — Событийные хуки | [`PHASE_D_EVENT_HOOKS.md`](PHASE_D_EVENT_HOOKS.md) |
+| **E** — Восстановление и уведомление «ок» | [`PHASE_E_RESOLUTION_AND_RECOVERY_NOTIFICATIONS.md`](PHASE_E_RESOLUTION_AND_RECOVERY_NOTIFICATIONS.md) |
+| **F** — UI и admin API | [`PHASE_F_UI_AND_ADMIN_API.md`](PHASE_F_UI_AND_ADMIN_API.md) |
+| **G** — Тесты и документация | [`PHASE_G_TESTS_AND_DOCS.md`](PHASE_G_TESTS_AND_DOCS.md) |
 
-### Фаза B — Синтетические пробы (cron)
-
-- [ ] Единый scheduler (systemd timer на хосте **или** встроенный цикл integrator — решение зафиксировать в `LOG.md` и SERVER CONVENTIONS при появлении факта).
-- [ ] Реализовать пробы: Telegram `getMe`, MAX `getMyInfo`, Google Calendar, Rubitime `get-schedule`, SMSC (по выбранному режиму), опционально SMTP verify.
-- [ ] Конфигурация эталонных параметров (триплет Rubitime, тестовый телефон для SMSC virtual — если требуется) через **`system_settings`** и `ALLOWED_KEYS`, без новых env для секретов интеграций.
-- [ ] Частота: **1×/час или 1–2×/сутки** — параметр в настройках.
-
-### Фаза C — Входящие вебхуки: последний статус
-
-- [ ] Для **Rubitime**, **Telegram**, **MAX** — при завершении обработки вебхука обновлять агрегат «последний результат» (успех / код ошибки / этап).
-- [ ] Отображение на вкладке здоровья: отдельно от исходящего статуса.
-
-### Фаза D — Событийные хуки
-
-- [ ] Ошибки синка **Google Calendar** (post-create projection и др.) — открытие инцидента с классом причины.
-- [ ] **Автомерж** / открытые `auto_merge_conflict` — связка с audit уже есть; добавить операторский алерт по политике (не дублировать при том же conflict_key).
-- [ ] **Очередь проекции**: пороги по `deadCount`, retries, возрасту pending — инцидент + алерт.
-- [ ] Падения **media-worker** — по согласованным сигналам (процесс, метрики БД).
-
-### Фаза E — Восстановление
-
-- [ ] При успешном probe или успешной боевой операции — **resolve** по соответствующему ключу + **одно** уведомление «восстановлено» (мультиканально).
-
-### Фаза F — UI и API
-
-- [ ] Расширить **«Здоровье системы»**: секция **интеграций** — исходящий статус, входящий вебхук last-event, открытые инциденты.
-- [ ] API для списка инцидентов (admin-only): например `GET /api/admin/operator-incidents` или расширение `system-health`.
-
-### Фаза G — Тесты и документация
-
-- [ ] Unit/integration тесты на dedup и transition open→resolved.
-- [ ] Обновить `docs/ARCHITECTURE/` при появлении новых путей cron и таблиц (без секретов).
-- [ ] Вести **`LOG.md`** по правилам инициативы.
+Рекомендуемый порядок исполнения: **A → (B ∥ C)** → **D** → **E** → **F** → **G** (G частично параллелится с F). **B** и **C** можно параллелить после A при разделении файлов/миграций.
 
 ## 6. Оценка трудозатрат (ориентир)
 

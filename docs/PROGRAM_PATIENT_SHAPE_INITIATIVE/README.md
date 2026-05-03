@@ -38,3 +38,4 @@
 - [`AUDIT_GLOBAL.md`](AUDIT_GLOBAL.md)
 - [`AUDIT_PREPUSH_POSTFIX.md`](AUDIT_PREPUSH_POSTFIX.md) — pre-push postfix audit
 - [`BACKLOG_PRODUCT_AFTER_AUDITS.md`](BACKLOG_PRODUCT_AFTER_AUDITS.md) — backlog и решения по defer-пунктам после аудитов
+- [`BACKLOG_POST_AUDITS_IMPLEMENTATION_PLAN.md`](BACKLOG_POST_AUDITS_IMPLEMENTATION_PLAN.md) — план волны post-audits «сейчас» + запись аудита реализации
