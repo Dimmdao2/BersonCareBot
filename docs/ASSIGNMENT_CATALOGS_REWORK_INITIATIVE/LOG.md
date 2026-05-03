@@ -6,6 +6,21 @@
 
 ---
 
+## 2026-05-03 — Документация: закрытие замечаний независимого аудита
+
+**Контекст:** расхождения между планами/ТЗ и фактом выполнения; незакоммиченные `AUDIT_GLOBAL.md` / `AUDIT_PREPUSH_POSTFIX.md`.
+
+**Сделано:**
+
+- Чеклисты §6 закрыты в [`STAGE_B1_PLAN.md`](STAGE_B1_PLAN.md), [`STAGE_B2_PLAN.md`](STAGE_B2_PLAN.md), [`STAGE_B3_PLAN.md`](STAGE_B3_PLAN.md).
+- Продуктовое ТЗ [`../APP_RESTRUCTURE_INITIATIVE/ASSIGNMENT_CATALOGS_REWORK_PLAN.md`](../APP_RESTRUCTURE_INITIATIVE/ASSIGNMENT_CATALOGS_REWORK_PLAN.md) §4: строка B1 — миграция `test_sets.publication_status` + shared lib/UI.
+- [`README.md`](README.md), [`MASTER_PLAN.md`](MASTER_PLAN.md) §7, [`EXECUTION_AUDIT_TEMPLATE.md`](EXECUTION_AUDIT_TEMPLATE.md), [`PROMPTS_EXEC_AUDIT_FIX_GLOBAL.md`](PROMPTS_EXEC_AUDIT_FIX_GLOBAL.md), [`../README.md`](../README.md) — канон итогового аудита: [`AUDIT_GLOBAL.md`](AUDIT_GLOBAL.md), pre-push: [`AUDIT_PREPUSH_POSTFIX.md`](AUDIT_PREPUSH_POSTFIX.md).
+- [`AUDIT_STAGE_B6.md`](AUDIT_STAGE_B6.md) §11 DoD: пункт про полный CI согласован с записью в `AUDIT_PREPUSH_POSTFIX.md` §1.
+
+**Код не менялся.**
+
+---
+
 ## 2026-05-03 — Bootstrap
 
 Создан execution-контур: [`README.md`](README.md), [`MASTER_PLAN.md`](MASTER_PLAN.md), [`STAGE_B1_PLAN.md`](STAGE_B1_PLAN.md) … [`STAGE_B7_PLAN.md`](STAGE_B7_PLAN.md), шаблоны лога и аудита. Код не менялся.

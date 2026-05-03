@@ -56,12 +56,12 @@
 
 ## 6. Execution checklist
 
-1. [ ] Миграция `comment` на `test_set_items`.
-2. [ ] Новый UI списка + DnD порядка.
-3. [ ] Диалог библиотеки + добавление/удаление.
-4. [ ] UUID textarea полностью удалён (UI + серверные ожидания).
-5. [ ] Compose-тесты / server action тесты по объёму изменений.
-6. [ ] Регресс usage/archive для наборов (см. [`../APP_RESTRUCTURE_INITIATIVE/done/ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md`](../APP_RESTRUCTURE_INITIATIVE/done/ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md)).
+1. [x] Миграция `comment` на `test_set_items`.
+2. [x] Новый UI списка + DnD порядка.
+3. [x] Диалог библиотеки + добавление/удаление.
+4. [x] UUID textarea полностью удалён (UI + серверные ожидания).
+5. [x] Compose-тесты / server action тесты по объёму изменений.
+6. [x] Регресс usage/archive для наборов (см. [`../APP_RESTRUCTURE_INITIATIVE/done/ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md`](../APP_RESTRUCTURE_INITIATIVE/done/ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md)).
 
 ## 7. Stage DoD
 

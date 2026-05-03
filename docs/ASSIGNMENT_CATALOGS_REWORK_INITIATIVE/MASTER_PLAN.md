@@ -85,7 +85,7 @@ B1 ──► B3, B4, B5, B6 (параллель по ресурсам)
 - B6: превьюшки, двухколоночный layout, CTA черновик/опубликовать/архив; **без новых доменных полей и без смены assign/snapshot**; существующие блоки A в конструкторе **не удалять** (см. `PRE_IMPLEMENTATION_DECISIONS`).
 - B7: template `comment` + instance `local_comment` на согласованном наборе контейнеров; copy и override по ТЗ.
 - После каждого закрытого B-этапа — запись в [`LOG.md`](LOG.md).
-- Финально: `pnpm install --frozen-lockfile && pnpm run ci` зелёный; итоговый execution audit (файл из README).
+- Финально: `pnpm install --frozen-lockfile && pnpm run ci` зелёный; итоговый execution audit: [`AUDIT_GLOBAL.md`](AUDIT_GLOBAL.md) (+ при необходимости [`AUDIT_PREPUSH_POSTFIX.md`](AUDIT_PREPUSH_POSTFIX.md)).
 
 ## 8. Документы после прохода
 

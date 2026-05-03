@@ -15,7 +15,8 @@
 - [`EXECUTION_AUDIT_TEMPLATE.md`](EXECUTION_AUDIT_TEMPLATE.md) — шаблон аудита этапа/инициативы;
 - [`PROMPTS_EXEC_AUDIT_FIX_GLOBAL.md`](PROMPTS_EXEC_AUDIT_FIX_GLOBAL.md) — copy-paste промпты EXEC/AUDIT/FIX и правила CI/коммитов;
 - [`PRE_IMPLEMENTATION_DECISIONS.md`](PRE_IMPLEMENTATION_DECISIONS.md) — решения до кода и расхождения планов с репозиторием;
-- (позже) `ASSIGNMENT_CATALOGS_REWORK_EXECUTION_AUDIT.md` — итоговый аудит после закрытия B7 в коде.
+- [`AUDIT_GLOBAL.md`](AUDIT_GLOBAL.md) — сводный аудит B1–B7 после закрытия этапов в коде;
+- [`AUDIT_PREPUSH_POSTFIX.md`](AUDIT_PREPUSH_POSTFIX.md) — фиксация полного `pnpm run ci` перед push (барьер §9).
 
 ## Связанные документы
 
@@ -42,3 +43,5 @@
 | [`LOG_TEMPLATE.md`](LOG_TEMPLATE.md) | Шаблон записи в LOG |
 | [`EXECUTION_AUDIT_TEMPLATE.md`](EXECUTION_AUDIT_TEMPLATE.md) | Шаблон аудита |
 | [`PROMPTS_EXEC_AUDIT_FIX_GLOBAL.md`](PROMPTS_EXEC_AUDIT_FIX_GLOBAL.md) | Промпты EXEC/AUDIT/FIX, коммиты, пуш, CI (см. `MASTER_PLAN` §9) |
+| [`AUDIT_GLOBAL.md`](AUDIT_GLOBAL.md) | Сводный аудит B1–B7 и кросс-регресс |
+| [`AUDIT_PREPUSH_POSTFIX.md`](AUDIT_PREPUSH_POSTFIX.md) | Запись полного CI перед push |

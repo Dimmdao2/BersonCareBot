@@ -84,15 +84,15 @@
 
 ## 8. Execution checklist
 
-1. [ ] Схема + миграции (нерушащие NULL/default).
-2. [ ] Backfill scoring + тесты парсера legacy → new.
-3. [ ] `CreatableComboboxInput` + unit-тесты.
-4. [ ] API measure-kinds + интеграция в форму.
-5. [ ] Форма + список + фильтры.
-6. [ ] Negative paths: create measure-kind conflict/invalid input не ломают форму.
-7. [ ] `eslint` / `vitest` / `tsc` по затронутой области.
-8. [ ] Smoke: создание/редактирование теста для всех 4 `schema_type`.
-9. [ ] Smoke: фильтр по региону и `assessmentKind` реально меняет выдачу.
+1. [x] Схема + миграции (нерушащие NULL/default).
+2. [x] Backfill scoring + тесты парсера legacy → new.
+3. [x] `CreatableComboboxInput` + unit-тесты.
+4. [x] API measure-kinds + интеграция в форму.
+5. [x] Форма + список + фильтры.
+6. [x] Negative paths: create measure-kind conflict/invalid input не ломают форму.
+7. [x] `eslint` / `vitest` / `tsc` по затронутой области.
+8. [x] Smoke: создание/редактирование теста для всех 4 `schema_type`.
+9. [x] Smoke: фильтр по региону и `assessmentKind` реально меняет выдачу.
 
 ## 9. Recommended checks (targeted)
 

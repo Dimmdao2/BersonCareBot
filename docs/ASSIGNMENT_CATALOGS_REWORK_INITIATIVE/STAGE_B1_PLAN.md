@@ -66,10 +66,10 @@
 ## 6. Execution checklist
 
 1. [x] Миграция `test_sets.publication_status` (`draft|published`), default/backfill/index/check.
-2. [ ] `doctorCatalogListStatus` и helper-утилиты для двух осей.
-3. [ ] `CatalogStatusFilters` (два селекта рядом).
-4. [ ] Интеграция в 3 каталога (LFK/templates/test-sets).
-5. [ ] Unit/compose тесты + manual smoke.
+2. [x] `doctorCatalogListStatus` и helper-утилиты для двух осей.
+3. [x] `CatalogStatusFilters` (два селекта рядом).
+4. [x] Интеграция в 3 каталога (LFK/templates/test-sets).
+5. [x] Unit/compose тесты + manual smoke.
 
 ## 7. Stage DoD
 

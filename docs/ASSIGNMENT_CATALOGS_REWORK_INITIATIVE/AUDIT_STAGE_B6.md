@@ -65,7 +65,7 @@
 - [x] UX + паритет списка после publish/draft.  
 - [x] `LOG.md` + коммит FIX.  
 - [x] `STAGE_B6_PLAN.md` §5 чекбоксы.  
-- [ ] Полный `pnpm run ci` в сессии агента — **не** требовался по запросу; **перед push** — да.
+- [x] Полный `pnpm run ci` на актуальном дереве — зафиксирован в [`AUDIT_PREPUSH_POSTFIX.md`](AUDIT_PREPUSH_POSTFIX.md) §1 (барьер перед push по [`MASTER_PLAN.md`](MASTER_PLAN.md) §9).
 
 ---
 

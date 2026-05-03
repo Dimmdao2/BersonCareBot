@@ -15,7 +15,7 @@
 
 - `docs/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/AUDIT_STAGE_B1.md`
 - … `AUDIT_STAGE_B7.md`
-- (опционально) `AUDIT_GLOBAL.md`, `AUDIT_PREPUSH_POSTFIX.md`
+- `AUDIT_GLOBAL.md` (сводный аудит B1–B7), `AUDIT_PREPUSH_POSTFIX.md` (полный CI перед push — по факту прогона)
 
 ---
 

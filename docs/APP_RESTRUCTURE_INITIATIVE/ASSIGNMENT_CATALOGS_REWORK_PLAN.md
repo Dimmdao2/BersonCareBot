@@ -7,7 +7,7 @@
 **Связанные документы:**
 - ТЗ доменной модели плана пациента: [`PROGRAM_PATIENT_SHAPE_PLAN.md`](PROGRAM_PATIENT_SHAPE_PLAN.md) (этапы A1–A5).
 - Дорожная карта: [`RECOMMENDATIONS_AND_ROADMAP.md`](RECOMMENDATIONS_AND_ROADMAP.md) (этап 9, эта переработка — sister-план перед/параллельно A1+A3).
-- **Execution-контур B1–B7:** [`../ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/README.md`](../ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/README.md) (`MASTER_PLAN`, `STAGE_B1..B7`, `LOG`).
+- **Execution-контур B1–B7:** [`../ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/README.md`](../ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/README.md) (`MASTER_PLAN`, `STAGE_B1..B7`, `LOG`, сводный [`AUDIT_GLOBAL.md`](../ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/AUDIT_GLOBAL.md), [`AUDIT_PREPUSH_POSTFIX.md`](../ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/AUDIT_PREPUSH_POSTFIX.md)).
 - Шаблон каталога (usage / archive): [`ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md`](done/ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md).
 - Целевая IA врача: [`TARGET_STRUCTURE_DOCTOR.md`](TARGET_STRUCTURE_DOCTOR.md) §6.
 
@@ -282,7 +282,7 @@
 
 | Этап | Таблица | Изменение |
 |---|---|---|
-| B1 | — | Только shared lib + UI; миграций нет |
+| B1 | `test_sets` | + `publication_status` (`draft` \| `published`), CHECK, индекс; shared lib `doctorCatalogListStatus` + UI `CatalogStatusFilters` на трёх каталогах |
 | B2 | `clinical_tests` | + `assessment_kind TEXT NULL`, `body_region_id UUID NULL`, `scoring JSONB NULL`, `raw_text TEXT NULL` |
 | B2 | `clinical_test_measure_kinds` | NEW (`id`, `code UNIQUE`, `label`, `sort_order`, `created_at`) |
 | B3 | `test_set_items` | + `comment TEXT NULL` |

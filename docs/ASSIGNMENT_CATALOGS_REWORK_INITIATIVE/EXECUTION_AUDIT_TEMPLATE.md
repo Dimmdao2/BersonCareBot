@@ -1,6 +1,6 @@
 # EXECUTION AUDIT TEMPLATE — ASSIGNMENT_CATALOGS_REWORK
 
-Создать итоговый `ASSIGNMENT_CATALOGS_REWORK_EXECUTION_AUDIT.md` после закрытия B7 или отдельный `AUDIT_STAGE_BX.md` после крупного этапа.
+После закрытия B7: сводный аудит инициативы в [`AUDIT_GLOBAL.md`](AUDIT_GLOBAL.md) (и при необходимости [`AUDIT_PREPUSH_POSTFIX.md`](AUDIT_PREPUSH_POSTFIX.md) для полного CI). По этапам — отдельный `AUDIT_STAGE_BX.md`. Шаблон ниже можно копировать в новый файл или в секцию `AUDIT_GLOBAL.md`.
 
 ---
 
