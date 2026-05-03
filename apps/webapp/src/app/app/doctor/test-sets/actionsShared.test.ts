@@ -16,6 +16,13 @@ describe("parseTestSetItemsPayloadJson", () => {
     ]);
   });
 
+  it("rejects comment longer than 10000 characters", () => {
+    const id1 = "11111111-1111-4111-8111-111111111111";
+    const long = "a".repeat(10001);
+    const raw = JSON.stringify([{ testId: id1, comment: long }]);
+    expect(() => parseTestSetItemsPayloadJson(raw)).toThrow();
+  });
+
   it("throws on invalid JSON", () => {
     expect(() => parseTestSetItemsPayloadJson("{")).toThrow(/JSON/);
   });

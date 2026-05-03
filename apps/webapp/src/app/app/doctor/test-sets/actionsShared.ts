@@ -38,7 +38,7 @@ export { TEST_SETS_PATH } from "./paths";
 const itemsPayloadSchema = z.array(
   z.object({
     testId: z.string().uuid(),
-    comment: z.union([z.string(), z.null()]).optional(),
+    comment: z.union([z.string().max(10000), z.null()]).optional(),
   }),
 );
 

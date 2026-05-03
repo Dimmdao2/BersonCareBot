@@ -220,6 +220,30 @@ pnpm exec vitest run \
 pnpm exec tsc --noEmit
 ```
 
-**Вне scope:** AUDIT B3, полный `pnpm run ci`, правки `api.md` (контракт PUT можно догнать в AUDIT/FIX при необходимости).
+**Вне scope:** полный `pnpm run ci` на этапе EXEC.
 
 **Результат:** eslint / vitest / tsc — **PASS**.
+
+---
+
+## 2026-05-03 — Stage B3 — AUDIT + FIX (`AUDIT_STAGE_B3.md`)
+
+**Контекст:** [`AUDIT_STAGE_B3.md`](AUDIT_STAGE_B3.md); Verdict **PASS** после FIX.
+
+**Сделано:**
+
+- Документ аудита с scope-матрицей, architecture/UI checks, MANDATORY FIX INSTRUCTIONS.
+- **M1:** `itemsPayloadSchema` — `comment` с `z.string().max(10000)` (паритет с `PUT /api/doctor/test-sets/[id]/items`); unit-тест на длину 10001+.
+- **M1b:** `api.md` — уточнён `GET` doctor/test-sets (`items[].comment`, `test.previewMedia`); у `PUT` зафиксирован лимит длины комментария.
+
+**Проверки (целевые, без полного `ci`):**
+
+```bash
+cd apps/webapp && pnpm exec vitest run src/app/app/doctor/test-sets/actionsShared.test.ts
+pnpm exec eslint src/app/app/doctor/test-sets/actionsShared.ts src/app/app/doctor/test-sets/actionsShared.test.ts
+pnpm exec tsc --noEmit
+```
+
+**Пуш:** после закрытия B3 рекомендуется чекпоинт-пуш с полным `pnpm install --frozen-lockfile && pnpm run ci` перед `git push` ([`MASTER_PLAN.md`](MASTER_PLAN.md) §9).
+
+**Результат:** vitest / eslint / tsc — **PASS**.
