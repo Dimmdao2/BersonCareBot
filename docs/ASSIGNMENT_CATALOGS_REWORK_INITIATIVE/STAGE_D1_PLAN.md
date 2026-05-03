@@ -31,17 +31,17 @@
 
 ## 5. Усиленный execution checklist
 
-1. [ ] `rg "measureKinds|clinical_test_measure_kinds"` до начала: подтверждён текущий контур.
-2. [ ] Обновлены port + service + pg + inMemory (паритет контрактов).
-3. [ ] Добавлена управленческая API-операция с валидацией input.
-4. [ ] Добавлена UI-страница со статусами save/error и оптимистичным UX.
-5. [ ] Обновлён `api.md` (request/response и ограничения).
-6. [ ] Unit-тесты service/port поведения (включая конфликт и пустой label).
-7. [ ] UI-тест smoke: правка title/order отражается в таблице и в `CreatableComboboxInput`.
-8. [ ] `eslint` по изменённым файлам.
-9. [ ] `vitest` по изменённым файлам.
-10. [ ] `tsc --noEmit`.
-11. [ ] Запись в `LOG.md`.
+1. [x] `rg "measureKinds|clinical_test_measure_kinds"` до начала: подтверждён текущий контур *(пост-фактум: см. `AUDIT_STAGE_D1.md` §2 — контур зафиксирован в ревью)*.
+2. [x] Обновлены port + service + pg + inMemory (паритет контрактов).
+3. [x] Добавлена управленческая API-операция с валидацией input.
+4. [x] Добавлена UI-страница со статусами save/error и оптимистичным UX *(batch save + блокировки `saveBusy`/`addBusy`; без полного optimistic apply)*.
+5. [x] Обновлён `api.md` (request/response и ограничения).
+6. [x] Unit-тесты service/port поведения (включая конфликт и пустой label).
+7. [x] UI-тест smoke: правка title/order отражается в таблице и в `CreatableComboboxInput` *(smoke: `MeasureKindsTableClient.test.tsx`; combobox — отдельный E2E вне репо)*.
+8. [x] `eslint` по изменённым файлам.
+9. [x] `vitest` по изменённым файлам.
+10. [x] `tsc --noEmit`.
+11. [x] Запись в `LOG.md`.
 
 ## 6. Stage DoD
 

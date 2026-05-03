@@ -27,6 +27,23 @@
 
 ---
 
+## 2026-05-03 — Stage D1 — FIX follow-up (MANDATORY `AUDIT_STAGE_D1`)
+
+**Контекст:** закрытие инструкций **§9 MANDATORY** в [`AUDIT_STAGE_D1.md`](AUDIT_STAGE_D1.md) после аудита по [`STAGE_D1_PLAN.md`](STAGE_D1_PLAN.md).
+
+**Сделано:**
+
+- **`MeasureKindsTableClient`:** безопасный разбор ответа `readMeasureKindsJsonBody` (текст + JSON; не-JSON при ошибке не маскируется как «сбой сети»); флаги **`saveBusy` / `addBusy`** для блокировки кнопок и полей на время мутации и `router.refresh`.
+- **UI smoke:** [`MeasureKindsTableClient.test.tsx`](../../apps/webapp/src/app/app/doctor/references/measure-kinds/MeasureKindsTableClient.test.tsx) — пустая подпись без `PATCH`, `422` с телом JSON, `502` с plain text, успешный `PATCH` + `dispatchEvent` + `router.refresh`.
+- **Unit:** идемпотентный `createMeasureKindFromLabel` при совпадении нормализованного `code` в [`measureKindsService.test.ts`](../../apps/webapp/src/modules/tests/measureKindsService.test.ts).
+- **Docs:** [`STAGE_D1_PLAN.md`](STAGE_D1_PLAN.md) §5 — чеклист `[x]`; [`AUDIT_STAGE_D1.md`](AUDIT_STAGE_D1.md) — **PASS**, §10 FIX closure, defer E2E / cross-combobox в §7.
+
+**Проверки (целевые):** см. §8 в [`AUDIT_STAGE_D1.md`](AUDIT_STAGE_D1.md) — **vitest / eslint / tsc: PASS**.
+
+**Вне scope:** полный `pnpm run ci`; Playwright E2E.
+
+---
+
 ## 2026-05-03 — Defer closure planning wave (Q1/Q2/Q3/Q4/Q6)
 
 **Контекст:** после независимого аудита пользователь зафиксировал дополнительные продуктовые решения по defer-хвостам.

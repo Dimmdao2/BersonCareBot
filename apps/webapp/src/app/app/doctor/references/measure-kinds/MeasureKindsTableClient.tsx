@@ -36,6 +36,36 @@ import {
 } from "@/shared/ui/doctorWorkspaceLayout";
 import { MEASURE_KINDS_CATALOG_CHANGED_EVENT } from "@/modules/tests/measureKindsClientEvent";
 
+type MeasureKindsJsonBody = { ok?: boolean; error?: string; items?: unknown; item?: unknown };
+
+/** Разбор тела ответа measure-kinds: не-JSON от прокси/ошибок не маскируется как «сбой сети». */
+async function readMeasureKindsJsonBody(res: Response): Promise<{
+  httpOk: boolean;
+  body: MeasureKindsJsonBody;
+  transportError: boolean;
+}> {
+  let text: string;
+  try {
+    text = await res.text();
+  } catch {
+    return { httpOk: res.ok, body: { error: "Ошибка соединения с сервером" }, transportError: true };
+  }
+  if (!text.trim()) {
+    return { httpOk: res.ok, body: {}, transportError: false };
+  }
+  try {
+    return { httpOk: res.ok, body: JSON.parse(text) as MeasureKindsJsonBody, transportError: false };
+  } catch {
+    return {
+      httpOk: res.ok,
+      body: {
+        error: res.ok ? "Некорректный ответ сервера" : `Ответ не JSON (HTTP ${res.status})`,
+      },
+      transportError: false,
+    };
+  }
+}
+
 type Row = { id: string; code: string; label: string; sortOrder: number };
 
 function DragHandle({ listeners, attributes }: { listeners: Record<string, unknown>; attributes: Record<string, unknown> }) {
@@ -101,6 +131,8 @@ export function MeasureKindsTableClient({ initialItems }: Props) {
   const [errorOpen, setErrorOpen] = useState(false);
   const [errorText, setErrorText] = useState("");
   const [newLabel, setNewLabel] = useState("");
+  const [saveBusy, setSaveBusy] = useState(false);
+  const [addBusy, setAddBusy] = useState(false);
 
   useEffect(() => {
     setRows(normalized);
@@ -141,6 +173,7 @@ export function MeasureKindsTableClient({ initialItems }: Props) {
       return;
     }
     startTransition(async () => {
+      setSaveBusy(true);
       try {
         const res = await fetch("/api/doctor/measure-kinds", {
           method: "PATCH",
@@ -153,15 +186,25 @@ export function MeasureKindsTableClient({ initialItems }: Props) {
             })),
           }),
         });
-        const data = (await res.json()) as { ok?: boolean; error?: string };
-        if (!res.ok || !data.ok) {
-          fail(data.error ?? "Не удалось сохранить");
+        const { httpOk, body, transportError } = await readMeasureKindsJsonBody(res);
+        if (transportError) {
+          fail(body.error ?? "Ошибка соединения с сервером");
+          return;
+        }
+        if (!httpOk) {
+          fail(body.error ?? `Ошибка (${res.status})`);
+          return;
+        }
+        if (!body.ok) {
+          fail(body.error ?? "Не удалось сохранить");
           return;
         }
         window.dispatchEvent(new CustomEvent(MEASURE_KINDS_CATALOG_CHANGED_EVENT));
         router.refresh();
       } catch {
         fail("Ошибка соединения с сервером");
+      } finally {
+        setSaveBusy(false);
       }
     });
   };
@@ -173,15 +216,24 @@ export function MeasureKindsTableClient({ initialItems }: Props) {
       return;
     }
     startTransition(async () => {
+      setAddBusy(true);
       try {
         const res = await fetch("/api/doctor/measure-kinds", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ label: t }),
         });
-        const data = (await res.json()) as { ok?: boolean; error?: string };
-        if (!res.ok || !data.ok) {
-          fail(data.error ?? "Не удалось создать");
+        const { httpOk, body, transportError } = await readMeasureKindsJsonBody(res);
+        if (transportError) {
+          fail(body.error ?? "Ошибка соединения с сервером");
+          return;
+        }
+        if (!httpOk) {
+          fail(body.error ?? `Ошибка (${res.status})`);
+          return;
+        }
+        if (!body.ok) {
+          fail(body.error ?? "Не удалось создать");
           return;
         }
         setNewLabel("");
@@ -189,6 +241,8 @@ export function MeasureKindsTableClient({ initialItems }: Props) {
         router.refresh();
       } catch {
         fail("Ошибка соединения с сервером");
+      } finally {
+        setAddBusy(false);
       }
     });
   };
@@ -222,7 +276,7 @@ export function MeasureKindsTableClient({ initialItems }: Props) {
           можно править подписи и порядок в списке.
         </p>
         <div className="flex flex-wrap items-center gap-2">
-          <Button type="button" onClick={onSave} disabled={isPending || !isDirty}>
+          <Button type="button" onClick={onSave} disabled={isPending || !isDirty || saveBusy}>
             Сохранить порядок и подписи
           </Button>
         </div>
@@ -257,9 +311,14 @@ export function MeasureKindsTableClient({ initialItems }: Props) {
       <div className="flex flex-col gap-2 rounded-lg border border-border bg-muted/30 p-3 sm:flex-row sm:items-end">
         <div className="grid min-w-0 flex-1 gap-1">
           <span className="text-xs text-muted-foreground">Новый вид (как в форме теста)</span>
-          <Input value={newLabel} onChange={(e) => setNewLabel(e.target.value)} placeholder="Например: Сила кисти" disabled={isPending} />
+          <Input
+            value={newLabel}
+            onChange={(e) => setNewLabel(e.target.value)}
+            placeholder="Например: Сила кисти"
+            disabled={isPending || addBusy}
+          />
         </div>
-        <Button type="button" variant="secondary" onClick={onAdd} disabled={isPending}>
+        <Button type="button" variant="secondary" onClick={onAdd} disabled={isPending || addBusy}>
           Добавить
         </Button>
       </div>

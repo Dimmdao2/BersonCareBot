@@ -43,4 +43,13 @@ describe("measureKindsService", () => {
     expect(updated[0]?.label).toBe("Второй");
     expect(updated[1]?.label).toBe("Первый");
   });
+
+  it("createMeasureKindFromLabel is idempotent when normalized code matches", async () => {
+    const svc = createClinicalTestMeasureKindsService(inMemoryClinicalTestMeasureKindsPort);
+    const first = await svc.createMeasureKindFromLabel("  HELLO World  ");
+    const second = await svc.createMeasureKindFromLabel("hello world");
+    expect(second.created).toBe(false);
+    expect(second.row.id).toBe(first.row.id);
+    expect(second.row.code).toBe(first.row.code);
+  });
 });
