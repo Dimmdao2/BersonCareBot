@@ -1,6 +1,6 @@
 import { describe, expect, it, beforeEach, vi } from "vitest";
 import { createTreatmentProgramProgressService } from "./progress-service";
-import { inferNormalizedDecisionFromScoring } from "./progress-scoring";
+import { inferNormalizedDecisionFromScoring, scoringAllowsNumericDecisionInference } from "./progress-scoring";
 import { formatNormalizedTestDecisionRu, formatTreatmentProgramStageStatusRu } from "./types";
 import { createInMemoryTreatmentProgramPersistence } from "@/app-layer/testing/treatmentProgramInstanceInMemory";
 import { createInMemoryProgramActionLogPort } from "@/infra/repos/inMemoryProgramActionLog";
@@ -8,6 +8,7 @@ import { createInMemoryProgramActionLogPort } from "@/infra/repos/inMemoryProgra
 const patient = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const doctor = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
 const testId = "33333333-3333-4333-8333-333333333333";
+const testIdQual2 = "44444444-4444-4444-8444-444444444444";
 const tplStageId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const tplStage2Id = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 
@@ -190,6 +191,205 @@ describe("treatment-program progress-service", () => {
     const ev = await persistence.eventsPort.listEventsForInstance(inst.id);
     expect(ev.some((e) => e.eventType === "test_completed")).toBe(true);
     expect(ev.some((e) => e.eventType === "stage_completed")).toBe(true);
+  });
+
+  it("D4/Q2: qualitative test_set — explicit normalizedDecision completes item and stage (no special branch)", async () => {
+    const inst = await persistence.instancePort.createInstanceTree({
+      templateId: "00000000-0000-4000-8000-000000000001",
+      patientUserId: patient,
+      assignedBy: null,
+      title: "Программа",
+      stages: [
+        {
+          sourceStageId: tplStageId,
+          title: "Этап 1",
+          description: null,
+          sortOrder: 1,
+          status: "available",
+          goals: null,
+          objectives: null,
+          expectedDurationDays: null,
+          expectedDurationText: null,
+          items: [
+            {
+              itemType: "test_set",
+              itemRefId: "44444444-4444-4444-8444-444444444444",
+              sortOrder: 0,
+              comment: null,
+              settings: null,
+              snapshot: {
+                itemType: "test_set",
+                title: "Набор",
+                tests: [
+                  {
+                    testId,
+                    title: "Qual",
+                    scoringConfig: { schema_type: "qualitative", measure_items: [] },
+                  },
+                ],
+              },
+            },
+          ],
+        },
+        {
+          sourceStageId: tplStage2Id,
+          title: "Этап 2",
+          description: null,
+          sortOrder: 2,
+          status: "locked",
+          goals: null,
+          objectives: null,
+          expectedDurationDays: null,
+          expectedDurationText: null,
+          items: [],
+        },
+      ],
+    });
+    const itemId = inst.stages[0]!.items[0]!.id;
+    const out = await progress.patientSubmitTestResult({
+      patientUserId: patient,
+      instanceId: inst.id,
+      stageItemId: itemId,
+      testId,
+      rawValue: { note: "субъективно норма" },
+      normalizedDecision: "passed",
+    });
+    expect(out.stages[0]!.items[0]!.completedAt).not.toBeNull();
+    expect(out.stages[0]!.status).toBe("completed");
+    expect(out.stages[1]!.status).toBe("available");
+    const details = await progress.listTestResultsForInstance(inst.id);
+    expect(details).toHaveLength(1);
+    expect(details[0]!.normalizedDecision).toBe("passed");
+  });
+
+  it("D4/Q2: two qualitative tests in set — both require explicit decision; then stage completes", async () => {
+    const inst = await persistence.instancePort.createInstanceTree({
+      templateId: "00000000-0000-4000-8000-000000000001",
+      patientUserId: patient,
+      assignedBy: null,
+      title: "Программа",
+      stages: [
+        {
+          sourceStageId: tplStageId,
+          title: "Этап 1",
+          description: null,
+          sortOrder: 1,
+          status: "available",
+          goals: null,
+          objectives: null,
+          expectedDurationDays: null,
+          expectedDurationText: null,
+          items: [
+            {
+              itemType: "test_set",
+              itemRefId: "55555555-5555-4555-8555-555555555555",
+              sortOrder: 0,
+              comment: null,
+              settings: null,
+              snapshot: {
+                itemType: "test_set",
+                tests: [
+                  {
+                    testId,
+                    title: "A",
+                    scoringConfig: { schema_type: "qualitative", measure_items: [] },
+                  },
+                  {
+                    testId: testIdQual2,
+                    title: "B",
+                    scoringConfig: { schema_type: "qualitative", measure_items: [] },
+                  },
+                ],
+              },
+            },
+          ],
+        },
+        {
+          sourceStageId: tplStage2Id,
+          title: "Этап 2",
+          description: null,
+          sortOrder: 2,
+          status: "locked",
+          goals: null,
+          objectives: null,
+          expectedDurationDays: null,
+          expectedDurationText: null,
+          items: [],
+        },
+      ],
+    });
+    const itemId = inst.stages[0]!.items[0]!.id;
+    await progress.patientSubmitTestResult({
+      patientUserId: patient,
+      instanceId: inst.id,
+      stageItemId: itemId,
+      testId,
+      rawValue: {},
+      normalizedDecision: "passed",
+    });
+    const mid = await persistence.instancePort.getInstanceForPatient(patient, inst.id);
+    expect(mid!.stages[0]!.items[0]!.completedAt).toBeNull();
+    const out = await progress.patientSubmitTestResult({
+      patientUserId: patient,
+      instanceId: inst.id,
+      stageItemId: itemId,
+      testId: testIdQual2,
+      rawValue: { note: "ok" },
+      normalizedDecision: "partial",
+    });
+    expect(out.stages[0]!.items[0]!.completedAt).not.toBeNull();
+    expect(out.stages[0]!.status).toBe("completed");
+    expect(out.stages[1]!.status).toBe("available");
+  });
+
+  it("D4/Q2: qualitative without normalizedDecision and without inferrable score — rejects", async () => {
+    const inst = await persistence.instancePort.createInstanceTree({
+      templateId: "00000000-0000-4000-8000-000000000001",
+      patientUserId: patient,
+      assignedBy: null,
+      title: "Программа",
+      stages: [
+        {
+          sourceStageId: tplStageId,
+          title: "Этап 1",
+          description: null,
+          sortOrder: 1,
+          status: "available",
+          goals: null,
+          objectives: null,
+          expectedDurationDays: null,
+          expectedDurationText: null,
+          items: [
+            {
+              itemType: "test_set",
+              itemRefId: "66666666-6666-4666-8666-666666666666",
+              sortOrder: 0,
+              comment: null,
+              settings: null,
+              snapshot: {
+                tests: [
+                  {
+                    testId,
+                    title: "Qual",
+                    scoringConfig: { schema_type: "qualitative", measure_items: [] },
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      ],
+    });
+    const itemId = inst.stages[0]!.items[0]!.id;
+    await expect(
+      progress.patientSubmitTestResult({
+        patientUserId: patient,
+        instanceId: inst.id,
+        stageItemId: itemId,
+        testId,
+        rawValue: { text: "no score" },
+      }),
+    ).rejects.toThrow(/итог/);
   });
 
   it("A4: patientSubmitTestResult writes program_action_log marker and pending inbox lists it", async () => {
@@ -673,6 +873,15 @@ describe("progress-scoring", () => {
   it("infer passIfGte", () => {
     expect(inferNormalizedDecisionFromScoring({ passIfGte: 3 }, { score: 4 })).toBe("passed");
     expect(inferNormalizedDecisionFromScoring({ passIfGte: 3 }, { score: 2 })).toBeNull();
+  });
+
+  it("scoringAllowsNumericDecisionInference matches threshold keys used by infer", () => {
+    expect(scoringAllowsNumericDecisionInference({ passIfGte: 3 })).toBe(true);
+    expect(scoringAllowsNumericDecisionInference({ passIfLte: 1 })).toBe(true);
+    expect(scoringAllowsNumericDecisionInference({ failIfLt: 2 })).toBe(true);
+    expect(scoringAllowsNumericDecisionInference({ schema_type: "qualitative", measure_items: [] })).toBe(false);
+    expect(scoringAllowsNumericDecisionInference(null)).toBe(false);
+    expect(scoringAllowsNumericDecisionInference({})).toBe(false);
   });
 });
 

@@ -6,7 +6,22 @@
 
 ---
 
-## 2026-05-04 — тип нагрузки упражнения: справочник `load_type` + пост-аудит
+## 2026-05-04 — Stage D4 (Q2 qualitative в инстансе программы)
+
+**Контекст:** [`STAGE_D4_PLAN.md`](STAGE_D4_PLAN.md), [`AUDIT_STAGE_D4.md`](AUDIT_STAGE_D4.md).
+
+**Сделано:**
+
+- Подтверждён общий путь `patientSubmitTestResult` → `maybeCompleteStageFromItems` без отдельной ветки по `qualitative` в `progress-service`.
+- **`scoringAllowsNumericDecisionInference`** в [`progress-scoring.ts`](../../apps/webapp/src/modules/treatment-program/progress-scoring.ts) — единый критерий «можно ли вывести итог из числового score» (те же пороги, что и `inferNormalizedDecisionFromScoring`).
+- Снимок набора: [`testSetSnapshotView.ts`](../../apps/webapp/src/modules/treatment-program/testSetSnapshotView.ts) — в разбор строк добавлен **`scoringConfig`** для UI.
+- Пациентский UI [`PatientTreatmentProgramDetailClient.tsx`](../../apps/webapp/src/app/app/patient/treatment-programs/PatientTreatmentProgramDetailClient.tsx): для тестов без числовых порогов — обязательный выбор итога (`Select`) + опциональный комментарий; для порогов — прежний ввод `score`.
+- Тесты [`progress-service.test.ts`](../../apps/webapp/src/modules/treatment-program/progress-service.test.ts) (qualitative → результат → `completedAt` → завершение этапа; два qualitative в одном наборе; отказ без `normalizedDecision`); [`testSetSnapshotView.test.ts`](../../apps/webapp/src/modules/treatment-program/testSetSnapshotView.test.ts).
+- Док: [`api.md`](../../apps/webapp/src/app/api/api.md) (Q2 в описании `test-result`).
+
+**Проверки:** `pnpm --dir apps/webapp exec eslint` (изменённые ts/tsx), `pnpm --dir apps/webapp exec vitest run src/modules/treatment-program/progress-service.test.ts src/modules/treatment-program/testSetSnapshotView.test.ts`, `pnpm --dir apps/webapp exec tsc --noEmit`.
+
+---
 
 **Контекст:** убрать хардкод пяти кодов в фильтре/форме; выровнять `reference_items` категории `load_type` с CHECK `lfk_exercises.load_type`. Канон плана и пост-аудит: [`EXERCISE_LOAD_TYPE_FROM_REFS_PLAN.md`](EXERCISE_LOAD_TYPE_FROM_REFS_PLAN.md); копия в [`.cursor/plans/exercise_load_from_refs_bb4eba2e.plan.md`](../../.cursor/plans/exercise_load_from_refs_bb4eba2e.plan.md).
 

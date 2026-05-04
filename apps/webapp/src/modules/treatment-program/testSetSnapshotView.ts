@@ -8,6 +8,8 @@ export type TestSetSnapshotTestLine = {
   title: string | null;
   /** Комментарий к позиции в наборе (каталог); null если нет или только пробелы. */
   comment: string | null;
+  /** Снимок `scoring` клинического теста на момент назначения; null если нет в JSON. */
+  scoringConfig: unknown | null;
 };
 
 function snapshotTestComment(raw: unknown): string | null {
@@ -30,7 +32,9 @@ export function parseTestSetSnapshotTests(snapshot: Record<string, unknown>): Te
         ? (entry as { title: string }).title
         : null;
     const comment = snapshotTestComment((entry as { comment?: unknown }).comment);
-    out.push({ testId, title, comment });
+    const scoringConfig =
+      "scoringConfig" in entry ? ((entry as { scoringConfig?: unknown }).scoringConfig ?? null) : null;
+    out.push({ testId, title, comment, scoringConfig });
   }
   return out;
 }

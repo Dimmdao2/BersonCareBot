@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type {
+  NormalizedTestDecision,
   TreatmentProgramInstanceDetail,
   TreatmentProgramTestResultDetailRow,
 } from "@/modules/treatment-program/types";
@@ -29,6 +30,7 @@ import {
   patientStageSectionShouldRender,
 } from "@/modules/treatment-program/stage-semantics";
 import { testIdsFromTestSetSnapshot } from "@/modules/treatment-program/progress-service";
+import { scoringAllowsNumericDecisionInference } from "@/modules/treatment-program/progress-scoring";
 import { parseTestSetSnapshotTests } from "@/modules/treatment-program/testSetSnapshotView";
 import { buildPatientProgramChecklistRows, type PatientProgramChecklistRow } from "@/modules/treatment-program/patient-program-actions";
 import { cn } from "@/lib/utils";
@@ -683,6 +685,8 @@ function TestSetBlock(props: {
   const testsMeta = useMemo(() => parseTestSetSnapshotTests(snapshot), [snapshot]);
 
   const [scores, setScores] = useState<Record<string, string>>({});
+  const [qualDecisions, setQualDecisions] = useState<Record<string, NormalizedTestDecision | "">>({});
+  const [qualNotes, setQualNotes] = useState<Record<string, string>>({});
 
   const ensureAttempt = useCallback(async () => {
     const res = await fetch(`${baseUrl}/${encodeURIComponent(itemId)}/progress/test-attempt`, {
@@ -702,70 +706,149 @@ function TestSetBlock(props: {
 
   return (
     <div className="mt-3 flex flex-col gap-3">
-      <p className={cn(patientMutedTextClass, "text-xs")}>Введите числовой балл (score) для каждого теста, если настроены пороги в программе, или укажите итог вручную.</p>
+      <p className={cn(patientMutedTextClass, "text-xs")}>
+        Если у теста в программе заданы числовые пороги — введите балл (score), итог подставится автоматически. Для
+        качественной оценки и прочих случаев без порогов выберите итог (зачтено / не зачтено / частично); при
+        необходимости добавьте текст в поле комментария.
+      </p>
       {testsMeta.length === 0 ? (
         <p className="text-xs text-destructive">В снимке нет списка тестов.</p>
       ) : (
-        testsMeta.map((t) => (
-          <div
-            key={t.testId}
-            className="flex flex-col gap-1 rounded-lg border border-[var(--patient-border)]/60 bg-[var(--patient-card-bg)] p-2"
-          >
-            <span className="text-xs font-medium">{t.title ?? t.testId}</span>
-            {t.comment ? (
-              <p className={cn(patientMutedTextClass, "mt-0.5 text-[11px]")}>
-                Комментарий к позиции: <span className="text-foreground">{t.comment}</span>
-              </p>
-            ) : null}
-            <div className="flex flex-wrap items-center gap-2">
-              <Input
-                type="number"
-                className="h-8 max-w-[120px] text-sm"
-                placeholder="score"
-                value={scores[t.testId] ?? ""}
-                onChange={(e) => setScores((s) => ({ ...s, [t.testId]: e.target.value }))}
-                disabled={busy !== null}
-              />
-              <Button
-                type="button"
-                size="sm"
-                className={cn(patientPrimaryActionClass, "!h-8 !min-h-0 w-auto px-3 text-sm")}
-                disabled={busy !== null}
-                onClick={async () => {
-                  setBusy(itemId + t.testId);
-                  setError(null);
-                  try {
-                    if (!(await ensureAttempt())) return;
-                    const raw = scores[t.testId]?.trim();
-                    const num = raw === "" || raw === undefined ? NaN : Number(raw);
-                    const body: Record<string, unknown> = {
-                      testId: t.testId,
-                      rawValue: Number.isFinite(num) ? { score: num } : { value: raw ?? "" },
-                    };
-                    if (!Number.isFinite(num)) {
-                      body.normalizedDecision = "partial";
-                    }
-                    const res = await fetch(`${baseUrl}/${encodeURIComponent(itemId)}/progress/test-result`, {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify(body),
-                    });
-                    const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
-                    if (!res.ok || !data.ok) {
-                      setError(data.error ?? "Ошибка сохранения");
-                      return;
-                    }
-                    await onDone();
-                  } finally {
-                    setBusy(null);
-                  }
-                }}
-              >
-                Сохранить
-              </Button>
+        testsMeta.map((t) => {
+          const autoFromScore = scoringAllowsNumericDecisionInference(t.scoringConfig);
+          return (
+            <div
+              key={t.testId}
+              className="flex flex-col gap-1 rounded-lg border border-[var(--patient-border)]/60 bg-[var(--patient-card-bg)] p-2"
+            >
+              <span className="text-xs font-medium">{t.title ?? t.testId}</span>
+              {t.comment ? (
+                <p className={cn(patientMutedTextClass, "mt-0.5 text-[11px]")}>
+                  Комментарий к позиции: <span className="text-foreground">{t.comment}</span>
+                </p>
+              ) : null}
+              {autoFromScore ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  <Input
+                    type="number"
+                    className="h-8 max-w-[120px] text-sm"
+                    placeholder="score"
+                    value={scores[t.testId] ?? ""}
+                    onChange={(e) => setScores((s) => ({ ...s, [t.testId]: e.target.value }))}
+                    disabled={busy !== null}
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    className={cn(patientPrimaryActionClass, "!h-8 !min-h-0 w-auto px-3 text-sm")}
+                    disabled={busy !== null}
+                    onClick={async () => {
+                      setBusy(itemId + t.testId);
+                      setError(null);
+                      try {
+                        if (!(await ensureAttempt())) return;
+                        const raw = scores[t.testId]?.trim();
+                        const num = raw === "" || raw === undefined ? NaN : Number(raw);
+                        const body: Record<string, unknown> = {
+                          testId: t.testId,
+                          rawValue: Number.isFinite(num) ? { score: num } : { value: raw ?? "" },
+                        };
+                        if (!Number.isFinite(num)) {
+                          body.normalizedDecision = "partial";
+                        }
+                        const res = await fetch(`${baseUrl}/${encodeURIComponent(itemId)}/progress/test-result`, {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify(body),
+                        });
+                        const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
+                        if (!res.ok || !data.ok) {
+                          setError(data.error ?? "Ошибка сохранения");
+                          return;
+                        }
+                        await onDone();
+                      } finally {
+                        setBusy(null);
+                      }
+                    }}
+                  >
+                    Сохранить
+                  </Button>
+                </div>
+              ) : (
+                <div className="mt-1 flex flex-col gap-2">
+                  <div className="flex flex-col gap-1">
+                    <Label className={cn(patientMutedTextClass, "text-[11px]")}>Итог</Label>
+                    <Select
+                      value={qualDecisions[t.testId] || undefined}
+                      onValueChange={(v) =>
+                        setQualDecisions((s) => ({ ...s, [t.testId]: v as NormalizedTestDecision }))
+                      }
+                      disabled={busy !== null}
+                    >
+                      <SelectTrigger className="h-9 max-w-[280px] text-sm">
+                        <SelectValue placeholder="Выберите итог" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="passed">{formatNormalizedTestDecisionRu("passed")}</SelectItem>
+                        <SelectItem value="failed">{formatNormalizedTestDecisionRu("failed")}</SelectItem>
+                        <SelectItem value="partial">{formatNormalizedTestDecisionRu("partial")}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <Label className={cn(patientMutedTextClass, "text-[11px]")}>Комментарий (необязательно)</Label>
+                    <Textarea
+                      className={cn(patientFormSurfaceClass, "min-h-[72px] text-sm")}
+                      value={qualNotes[t.testId] ?? ""}
+                      onChange={(e) => setQualNotes((s) => ({ ...s, [t.testId]: e.target.value }))}
+                      disabled={busy !== null}
+                      rows={3}
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    className={cn(patientPrimaryActionClass, "!h-8 !min-h-0 w-auto px-3 text-sm")}
+                    disabled={busy !== null}
+                    onClick={async () => {
+                      setBusy(itemId + t.testId);
+                      setError(null);
+                      try {
+                        if (!(await ensureAttempt())) return;
+                        const d = qualDecisions[t.testId];
+                        if (d !== "passed" && d !== "failed" && d !== "partial") {
+                          setError("Выберите итог: зачтено, не зачтено или частично.");
+                          return;
+                        }
+                        const note = qualNotes[t.testId]?.trim() ?? "";
+                        const res = await fetch(`${baseUrl}/${encodeURIComponent(itemId)}/progress/test-result`, {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({
+                            testId: t.testId,
+                            rawValue: note ? { note } : {},
+                            normalizedDecision: d,
+                          }),
+                        });
+                        const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
+                        if (!res.ok || !data.ok) {
+                          setError(data.error ?? "Ошибка сохранения");
+                          return;
+                        }
+                        await onDone();
+                      } finally {
+                        setBusy(null);
+                      }
+                    }}
+                  >
+                    Сохранить
+                  </Button>
+                </div>
+              )}
             </div>
-          </div>
-        ))
+          );
+        })
       )}
       {testIds.length > 0 ? (
         <p className={cn(patientMutedTextClass, "text-[11px]")}>Тестов в наборе: {testIds.length}</p>

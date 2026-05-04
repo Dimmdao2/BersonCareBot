@@ -34,16 +34,16 @@
 
 ## 5. Усиленный execution checklist
 
-1. [ ] `rg "patientSubmitTestResult|inferNormalizedDecisionFromScoring|maybeCompleteStageFromItems"` — baseline зафиксирован.
-2. [ ] Определён точный источник `normalizedDecision` для `qualitative`.
-3. [ ] Нет отдельной «ветки исключения» для qualitative, нарушающей общий прогресс.
-4. [ ] Добавлены/обновлены unit/integration тесты на `qualitative`.
-5. [ ] Проверен сценарий «результат -> completedAt -> stage completion».
-6. [ ] `api.md` уточнён (какой payload обязателен для qualitative).
-7. [ ] `eslint`.
-8. [ ] `vitest`.
-9. [ ] `tsc --noEmit`.
-10. [ ] `LOG.md` обновлён.
+1. [x] `rg "patientSubmitTestResult|inferNormalizedDecisionFromScoring|maybeCompleteStageFromItems"` — baseline зафиксирован.
+2. [x] Определён точный источник `normalizedDecision` для `qualitative`.
+3. [x] Нет отдельной «ветки исключения» для qualitative, нарушающей общий прогресс.
+4. [x] Добавлены/обновлены unit/integration тесты на `qualitative`.
+5. [x] Проверен сценарий «результат -> completedAt -> stage completion».
+6. [x] `api.md` уточнён (какой payload обязателен для qualitative).
+7. [x] `eslint`.
+8. [x] `vitest`.
+9. [x] `tsc --noEmit`.
+10. [x] `LOG.md` обновлён.
 
 ## 6. Stage DoD
 

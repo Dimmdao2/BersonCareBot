@@ -13,7 +13,7 @@ describe("parseTestSetSnapshotTests", () => {
       parseTestSetSnapshotTests({
         tests: [{ testId: "a1", title: "T1", sortOrder: 0 }],
       }),
-    ).toEqual([{ testId: "a1", title: "T1", comment: null }]);
+    ).toEqual([{ testId: "a1", title: "T1", comment: null, scoringConfig: null }]);
   });
 
   it("trims comment and drops blank", () => {
@@ -25,8 +25,17 @@ describe("parseTestSetSnapshotTests", () => {
         ],
       }),
     ).toEqual([
-      { testId: "b1", title: "T2", comment: "hi" },
-      { testId: "b2", title: null, comment: null },
+      { testId: "b1", title: "T2", comment: "hi", scoringConfig: null },
+      { testId: "b2", title: null, comment: null, scoringConfig: null },
     ]);
+  });
+
+  it("parses scoringConfig when present", () => {
+    const scoring = { schema_type: "qualitative" as const, measure_items: [] };
+    expect(
+      parseTestSetSnapshotTests({
+        tests: [{ testId: "c1", title: "Q", scoringConfig: scoring }],
+      }),
+    ).toEqual([{ testId: "c1", title: "Q", comment: null, scoringConfig: scoring }]);
   });
 });

@@ -44,7 +44,7 @@ D1 (measure_kinds access)
 - D1 — **done** (`AUDIT_STAGE_D1.md`: PASS).
 - D2 — **done** (`AUDIT_STAGE_D2.md`: PASS).
 - D3 — **done** (`AUDIT_STAGE_D3.md`: PASS).
-- D4 — **pending** (аудит не сформирован; **продуктового решения не требуется** — см. [`STAGE_D4_PLAN.md`](STAGE_D4_PLAN.md)).
+- D4 — **done** (`AUDIT_STAGE_D4.md`: PASS).
 - D5 — **deferred (owner pause, 2026-05-04)** — реализация `domain`→`kind` не в текущем объёме; см. [`STAGE_D5_PLAN.md`](STAGE_D5_PLAN.md), [`../APP_RESTRUCTURE_INITIATIVE/ASSIGNMENT_CATALOGS_REWORK_PLAN.md`](../APP_RESTRUCTURE_INITIATIVE/ASSIGNMENT_CATALOGS_REWORK_PLAN.md) §7/§8.2.
 - D6 — **pending** (нет `AUDIT_DEFER_CLOSURE_GLOBAL.md`).
 - **Вне D1–D6, но по той же оси:** `DROP clinical_tests.scoring_config` — **решение владельца:** колонка не нужна; инженерная миграция + чистка кода (см. продуктовый план §7).
