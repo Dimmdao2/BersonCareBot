@@ -196,14 +196,8 @@ export function LfkTemplatesPageClient({
 
   const desktopRight = (
     <CatalogRightPane className="h-full">
-      {selected ? (
-        <TemplateEditor
-          key={selected.id}
-          template={selected}
-          exerciseCatalog={exerciseCatalog}
-          listPreserveQuery={listPreserveQuery}
-        />
-      ) : (
+      {/* Черновик «новый комплекс» держим смонтированным, чтобы не терять state при выборе строки в списке. */}
+      <div className={cn("flex min-h-0 flex-1 flex-col", selected && "hidden")} aria-hidden={Boolean(selected)}>
         <TemplateEditor
           key="new-lfk-template"
           template={null}
@@ -215,7 +209,17 @@ export function LfkTemplatesPageClient({
             router.refresh();
           }}
         />
-      )}
+      </div>
+      {selected ? (
+        <div className="flex min-h-0 flex-1 flex-col">
+          <TemplateEditor
+            key={selected.id}
+            template={selected}
+            exerciseCatalog={exerciseCatalog}
+            listPreserveQuery={listPreserveQuery}
+          />
+        </div>
+      ) : null}
     </CatalogRightPane>
   );
 

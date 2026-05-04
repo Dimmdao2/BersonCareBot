@@ -180,41 +180,41 @@ export function TestSetsPageClient({
       </ul>
     );
 
-  const rightInner =
-    creating ? (
+  const rightInner = (
+    <div className="flex h-full min-h-0 w-full min-w-0 flex-col">
+      {/* Черновик набора держим смонтированным, чтобы не терять state при выборе строки в списке. */}
+      <div
+        className={cn("flex min-h-0 max-w-2xl flex-1 flex-col", selected && "hidden")}
+        aria-hidden={Boolean(selected)}
+      >
         <TestSetForm
-          key="create"
+          key="test-set-inline-draft"
           testSet={null}
           saveAction={saveDoctorTestSetInline}
           archiveAction={archiveDoctorTestSetInline}
           clinicalTestsLibrary={clinicalTestsLibrary}
         />
-    ) : selected ? (
-      <div key={selected.id} className="flex max-w-2xl flex-col gap-4">
-        <TestSetForm
-          testSet={selected}
-          saveAction={saveDoctorTestSetInline}
-          archiveAction={archiveDoctorTestSetInline}
-          unarchiveAction={unarchiveDoctorTestSetInline}
-          workspaceListPreserve={{
-            q: mergedFilters.q,
-            titleSort: mergedFilters.titleSort,
-            regionCode: mergedFilters.regionCode,
-            listPubArch: mergedFilters.listPubArch,
-          }}
-          externalUsageSnapshot={usageForSelection}
-          clinicalTestsLibrary={clinicalTestsLibrary}
-        />
       </div>
-    ) : (
-      <TestSetForm
-        key="empty"
-        testSet={null}
-        saveAction={saveDoctorTestSetInline}
-        archiveAction={archiveDoctorTestSetInline}
-        clinicalTestsLibrary={clinicalTestsLibrary}
-      />
-    );
+      {selected ? (
+        <div key={selected.id} className="flex min-h-0 max-w-2xl flex-1 flex-col gap-4">
+          <TestSetForm
+            testSet={selected}
+            saveAction={saveDoctorTestSetInline}
+            archiveAction={archiveDoctorTestSetInline}
+            unarchiveAction={unarchiveDoctorTestSetInline}
+            workspaceListPreserve={{
+              q: mergedFilters.q,
+              titleSort: mergedFilters.titleSort,
+              regionCode: mergedFilters.regionCode,
+              listPubArch: mergedFilters.listPubArch,
+            }}
+            externalUsageSnapshot={usageForSelection}
+            clinicalTestsLibrary={clinicalTestsLibrary}
+          />
+        </div>
+      ) : null}
+    </div>
+  );
 
   const desktopRight = <CatalogRightPane className="h-full">{rightInner}</CatalogRightPane>;
 
