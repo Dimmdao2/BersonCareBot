@@ -14,6 +14,8 @@
 
 **Проверки:** `pnpm --dir apps/webapp exec vitest run src/modules/treatment-program/progress-service.test.ts src/modules/treatment-program/testSetSnapshotView.test.ts` (**26** тестов), `pnpm --dir apps/webapp exec tsc --noEmit`.
 
+**Финальная сверка defer-wave (тот же день):** обновлён [`AUDIT_DEFER_CLOSURE_GLOBAL.md`](AUDIT_DEFER_CLOSURE_GLOBAL.md) — явные источники, матрица **critical/major** по `AUDIT_STAGE_D1`…`D4`, **D5** без `AUDIT_STAGE_D5`, блок **DROP**/`domain` residual; повторный `vitest` + `tsc` — зелёный.
+
 ---
 
 ## 2026-05-04 — Stage D4 (Q2 qualitative в инстансе программы)

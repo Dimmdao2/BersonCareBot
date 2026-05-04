@@ -1,7 +1,11 @@
 # AUDIT_DEFER_CLOSURE_GLOBAL — ASSIGNMENT_CATALOGS_REWORK (defer-wave D1–D6)
 
-**Дата:** 2026-05-04  
-**Источники:** [`DEFER_CLOSURE_MASTER_PLAN.md`](DEFER_CLOSURE_MASTER_PLAN.md), [`STAGE_D6_PLAN.md`](STAGE_D6_PLAN.md), [`../APP_RESTRUCTURE_INITIATIVE/ASSIGNMENT_CATALOGS_REWORK_PLAN.md`](../APP_RESTRUCTURE_INITIATIVE/ASSIGNMENT_CATALOGS_REWORK_PLAN.md) §5 / §7 / §8.2, stage-аудиты D1–D4, [`LOG.md`](LOG.md).
+**Дата первичного D6:** 2026-05-04  
+**Последнее обновление (финальная сверка PROMPTS D6 — AUDIT):** 2026-05-04  
+
+**Источники свода:** stage-аудиты [`AUDIT_STAGE_D1.md`](AUDIT_STAGE_D1.md) … [`AUDIT_STAGE_D4.md`](AUDIT_STAGE_D4.md); [`LOG.md`](LOG.md) (записи D1–D4, D4 FIX, D6); продуктовый план [`../APP_RESTRUCTURE_INITIATIVE/ASSIGNMENT_CATALOGS_REWORK_PLAN.md`](../APP_RESTRUCTURE_INITIATIVE/ASSIGNMENT_CATALOGS_REWORK_PLAN.md) §5 / §7 / §8.2; [`DEFER_CLOSURE_MASTER_PLAN.md`](DEFER_CLOSURE_MASTER_PLAN.md), [`STAGE_D6_PLAN.md`](STAGE_D6_PLAN.md).
+
+**D5:** отдельный **`AUDIT_STAGE_D5.md`** **не** входил в охват (этап на **owner pause**, spike/audit D5 не выполнялись) — согласно [`STAGE_D6_PLAN.md`](STAGE_D6_PLAN.md) §2 и [`STAGE_D5_PLAN.md`](STAGE_D5_PLAN.md) §0.
 
 ---
 
@@ -10,118 +14,138 @@
 | Критерий | Статус |
 |----------|--------|
 | **Итог defer-wave (D1–D4 + фиксация D5 + D6)** | **PASS** |
-| **Открытые critical/major по D1–D4** | **Нет** (stage-аудиты PASS / закрыты FIX) |
-| **D5** | **`deferred (owner pause, 2026-05-04)`** — допустимое закрытие D6 по [`STAGE_D6_PLAN.md`](STAGE_D6_PLAN.md); **`AUDIT_STAGE_D5.md` отсутствует** (ожидаемо). |
-| **Продуктовый план §5/§7/§8.2 vs код** | **Согласовано** в пределах явных defer/backlog (§3–§4). |
-| **«Не делаем» (publication_status extra, bulk API)** | **Не протекло** (§5). |
-| **`DROP clinical_tests.scoring_config`** | **Выполнено в репозитории** (§6). |
-
-**Резidual:** см. §7. Новый объём (D5 после снятия паузы, ops на prod для миграций) — вне этого закрытия.
+| **Critical / major по D1–D4 на дату финальной сверки** | **Нет открытых** (см. §3) |
+| **D5** | **`deferred (owner pause, 2026-05-04)`** — допустимое закрытие D6; **`AUDIT_STAGE_D5.md`** отсутствует (ожидаемо). |
+| **Продуктовый план §5 / §7 / §8.2 vs код** | **Согласовано** в пределах явных defer/backlog (§5–§6). |
+| **«Не делаем» (publication_status extra, bulk API)** | **Не протекло** (§7). |
+| **`DROP clinical_tests.scoring_config`** | **В репозитории выполнено**; **prod** — см. §8 и §10. |
 
 ---
 
-## 2. Сводка этапов D1–D5 и артефакты
+## 2. Источники финального аудита (явный охват)
+
+| Источник | Использование |
+|----------|----------------|
+| [`AUDIT_STAGE_D1.md`](AUDIT_STAGE_D1.md) | Verdict PASS; MANDATORY critical/major — закрыты (§1, §9–§10). |
+| [`AUDIT_STAGE_D2.md`](AUDIT_STAGE_D2.md) | Verdict PASS; §9 «Открытых инструкций нет» после FIX 2026-05-03. |
+| [`AUDIT_STAGE_D3.md`](AUDIT_STAGE_D3.md) | Status PASS; §6 / MANDATORY: **critical/major на дату аудита не выявлены**; low закрыты FIX 2026-05-03. |
+| [`AUDIT_STAGE_D4.md`](AUDIT_STAGE_D4.md) | Verdict PASS после FIX-D4-L1; §7 Critical/Major — **нет**; MANDATORY закрыт. |
+| [`LOG.md`](LOG.md) | Факты EXEC/FIX D1–D4, D6, defer-closure code (`scoring_config`, и т.д.). |
+| Продуктовый план §5 | Таблица Q1–Q7 — сверка с этапами D1–D4 и статусом D5 (§5). |
+| Продуктовый план §7 / §8.2 | Backlog, «не делаем», E2E, DROP, D5 (§6–§8). |
+| **`AUDIT_STAGE_D5.md`** | **Не использовался** — файл отсутствует (D5 не выходил из паузы). |
+
+---
+
+## 3. Critical / major — сводная проверка по D1–D4
+
+Перекрёстная сверка формулировок в stage-аудитах на предмет **незакрытых** блокеров уровня **critical** / **major**:
+
+| Stage | Critical | Major | Закрытие / комментарий |
+|-------|------------|-------|-------------------------|
+| **D1** | Нет открытых | Нет открытых | §1 Verdict: MANDATORY (critical/major) **закрыты** (см. §10). |
+| **D2** | — | — | §9 MANDATORY: после FIX 2026-05-03 **открытых инструкций нет**. |
+| **D3** | Не выявлены на дату аудита | Не выявлены | §6 / MANDATORY: **critical / major** не применимы; low закрыты FIX. |
+| **D4** | Нет | Нет | §7 MANDATORY: **Critical** и **Major** — пусто; FIX-D4-L1 закрыл minor L1. |
+
+**Вывод:** на дату **финальной сверки** незакрытых **critical/major** по контур defer-wave **D1–D4 не остаётся**.
+
+---
+
+## 4. Сводка этапов D1–D5 и артефакты
 
 | Stage | Статус | Аудит / план |
 |-------|--------|----------------|
-| **D1** — Q6, доступ к `measure_kinds` | **done** | [`AUDIT_STAGE_D1.md`](AUDIT_STAGE_D1.md) — **PASS** |
+| **D1** — Q6, `measure_kinds` | **done** | [`AUDIT_STAGE_D1.md`](AUDIT_STAGE_D1.md) — **PASS** |
 | **D2** — Q1, `assessmentKind` в БД | **done** | [`AUDIT_STAGE_D2.md`](AUDIT_STAGE_D2.md) — **PASS** |
 | **D3** — Q3, типы рекомендаций в БД | **done** | [`AUDIT_STAGE_D3.md`](AUDIT_STAGE_D3.md) — **PASS** |
-| **D4** — Q2, qualitative в инстансе | **done** | [`AUDIT_STAGE_D4.md`](AUDIT_STAGE_D4.md) — **PASS** (включая FIX-D4-L1 2026-05-04) |
-| **D5** — Q4, `domain` → `kind` | **`deferred (owner pause)`** | [`STAGE_D5_PLAN.md`](STAGE_D5_PLAN.md) §0; spike/EXEC не выполнялись; **`AUDIT_STAGE_D5.md`** нет — **не требуется** до выхода из паузы. |
+| **D4** — Q2, qualitative в инстансе | **done** | [`AUDIT_STAGE_D4.md`](AUDIT_STAGE_D4.md) — **PASS** (FIX-D4-L1 2026-05-04) |
+| **D5** — Q4, `domain` → `kind` | **`deferred (owner pause, 2026-05-04)`** | [`STAGE_D5_PLAN.md`](STAGE_D5_PLAN.md) §0; **`AUDIT_STAGE_D5.md`** нет. |
 
-Согласованность с [`DEFER_CLOSURE_MASTER_PLAN.md`](DEFER_CLOSURE_MASTER_PLAN.md) §3 (текущий статус): D1–D4 **done**, D5 **deferred (owner pause)**, D6 закрывается настоящим файлом.
-
----
-
-## 3. Продуктовый план §5 (открытые вопросы) vs факт
-
-| # | Вопрос (§5) | Ожидание журнала | Факт кода / инициативы | Статус |
-|---|-------------|------------------|-------------------------|--------|
-| Q1 | `assessmentKind` | Системный справочник БД | D2 + миграция `clinical_assessment_kind`, репозиторий/формы/API | **PASS** |
-| Q2 | `qualitative` в инстансе | Общий контур прогресса | D4 + `patientSubmitTestResult` / `maybeCompleteStageFromItems`, FIX-L1 | **PASS** |
-| Q3 | `recommendations.domain` / типы | Справочник БД, legacy read tolerant | D3 + `recommendation_type` | **PASS** |
-| Q4 | `domain` vs `kind` | До отдельного эпика `domain`, UI «Тип»; опционально `kind` | Колонка **`domain`** в Drizzle [`recommendations.ts`](../../apps/webapp/db/schema/recommendations.ts); D5 **на паузе** — **PASS** как соответствие §8.2 |
-| Q5 | UUID-textarea test-sets | Закрыто 2026-05-03 | Вне defer D1–D6; B3 scope — не перепроверялось в этом аудите | **N/A** (вне D-wave) |
-| Q6 | `measure_kinds` | Доступ к справочнику | D1 | **PASS** |
-| Q7 | Коммент каталога рекомендации | Не вводим отдельно; `bodyMd` | Соответствует продуктовому решению; деталь B7 — вне D-wave | **PASS** |
+[`DEFER_CLOSURE_MASTER_PLAN.md`](DEFER_CLOSURE_MASTER_PLAN.md) §3: D6 зафиксирован как завершённый документом настоящего файла.
 
 ---
 
-## 4. Продуктовый план §7 (backlog) и §8.2 — явные решения
+## 5. Статус **D5** (`domain` → `kind`) и **Q4**
 
-| Тема (§7 / §8.2) | Проверка | Статус |
-|------------------|----------|--------|
-| `DROP clinical_tests.scoring_config` | Решение владельца: колонка не нужна | **Выполнено в дереве** — см. §6 |
-| `domain` → `kind` | Отложено 2026-05-04 | **Зафиксировано** в §7 ТЗ + `STAGE_D5_PLAN`; код не переименован — **ожидаемо** |
-| `publication_status` на exercises / clinical tests / recommendations | **Не вводим** | В [`apps/webapp/db/schema`](../../apps/webapp/db/schema): **`publication_status` только у `test_sets`** ([`clinicalTests.ts`](../../apps/webapp/db/schema/clinicalTests.ts) внутри таблицы `test_sets`); у `tests` и `recommendations` колонки **нет** — **PASS** |
-| Отдельный **bulk** API состава контейнеров | **Не планируем** | `rg` по `apps/webapp/src/app/api` — **нет** путей вида `/bulk` для test-sets / шаблонов в смысле отдельного публичного bulk-ресурса — **PASS** (серверные batch-actions внутри существующих маршрутов не считаются нарушением формулировки §8.2) |
-| Расширение Playwright/CI E2E | **Не** планируется | Не проверялось изменение CI — **соответствует** §8.2 |
+| Факт | Деталь |
+|------|--------|
+| **Продукт** | [`ASSIGNMENT_CATALOGS_REWORK_PLAN.md`](../APP_RESTRUCTURE_INITIATIVE/ASSIGNMENT_CATALOGS_REWORK_PLAN.md) §5 Q4, §7 backlog, §8.2: колонка **`domain`**, UI «Тип»; переименование в **`kind`** — **отдельный этап** после оценки объёма. |
+| **2026-05-04** | **Owner pause:** [`STAGE_D5_PLAN.md`](STAGE_D5_PLAN.md) §0 — spike / gate / EXEC **не запускать** до снятия паузы (запись в `LOG` / плане). |
+| **Аудит D5** | **`AUDIT_STAGE_D5.md`** отсутствует — **корректно** для текущего статуса. |
+| **Код** | Drizzle [`recommendations.ts`](../../apps/webapp/db/schema/recommendations.ts) — поле **`domain`**; расхождения с целевым именем `kind` **не** введены в коде (ожидаемо при defer). |
 
----
-
-## 5. Решения «не делаем» — отсутствие протечек
-
-### 5.1 `publication_status` на упражнениях / клинических тестах / рекомендациях
-
-- **Клинические тесты (`tests`):** в схеме Drizzle — `isArchived`, `scoring`, `assessmentKind`, `bodyRegionId`; **нет** `publication_status` ([`clinicalTests.ts`](../../apps/webapp/db/schema/clinicalTests.ts)).
-- **Рекомендации:** **нет** `publication_status` ([`recommendations.ts`](../../apps/webapp/db/schema/recommendations.ts)).
-- **Упражнения ЛФК:** в индексированных схемах **нет** `publication_status` (поиск по `apps/webapp/db/schema` — только `test_sets`).
-
-### 5.2 Отдельный bulk API
-
-- Поиск по `apps/webapp/src/app/api`: вхождения **`/bulk`**, **`bulkItems`**, **`bulk-`** — **не найдены** на момент аудита.
+**Residual D5:** после снятия паузы — spike + gate по [`STAGE_D5_PLAN.md`](STAGE_D5_PLAN.md) §2; при Go — миграция/API/UI по §3 плана; при No-go — defer с evidence в `LOG` и учёт в следующем глобальном аудите при необходимости.
 
 ---
 
-## 6. `DROP clinical_tests.scoring_config` vs миграции и код
+## 6. Продуктовый план §5 (Q1–Q7) vs факт
+
+| # | Вопрос (§5) | Статус сверки |
+|---|-------------|----------------|
+| Q1 | `assessmentKind` → справочник БД | **PASS** (D2) |
+| Q2 | `qualitative` в инстансе | **PASS** (D4 + FIX-L1) |
+| Q3 | Типы рекомендаций / `domain` + БД | **PASS** (D3) |
+| Q4 | `domain` vs `kind` | **Согласовано defer** (D5 pause, колонка `domain` в схеме) |
+| Q5 | UUID-textarea test-sets | **N/A** для D-wave (закрытие вне D1–D6) |
+| Q6 | `measure_kinds` | **PASS** (D1) |
+| Q7 | Коммент каталога рекомендации | **PASS** (решение «не вводим»; B7 вне D-wave) |
+
+---
+
+## 7. Продуктовый план §7 / §8.2 и «не делаем»
+
+| Тема | Статус сверки |
+|------|----------------|
+| `publication_status` на exercises / clinical tests / recommendations | **Не вводим** — в схеме только **`test_sets.publication_status`** ([`clinicalTests.ts`](../../apps/webapp/db/schema/clinicalTests.ts)); у таблицы **`tests`** и **`recommendations`** колонки **нет**. |
+| Отдельный **bulk** API контейнеров | **Не планируем** — по `apps/webapp/src/app/api` нет путей **`/bulk`**, **`bulkItems`**, **`bulk-`**. |
+| Расширение Playwright/CI E2E | **Не** планируется (§8.2); отдельная проверка CI в этом аудите **не** требовалась. |
+
+---
+
+## 8. `DROP clinical_tests.scoring_config` — решение, план и факт
+
+**Продуктовый план** ([`ASSIGNMENT_CATALOGS_REWORK_PLAN.md`](../APP_RESTRUCTURE_INITIATIVE/ASSIGNMENT_CATALOGS_REWORK_PLAN.md) §7 backlog, §8.2): колонка **не нужна**; инженерный follow-up: миграция **`DROP COLUMN`**, удаление fallback в коде/снимках, тесты; на **prod** — backup по [`deploy/HOST_DEPLOY_README.md`](../../deploy/HOST_DEPLOY_README.md).
 
 | Проверка | Результат | Evidence |
 |----------|-----------|----------|
-| Миграция в репозитории | **Есть** | [`0040_drop_tests_scoring_config.sql`](../../apps/webapp/db/drizzle-migrations/0040_drop_tests_scoring_config.sql) — `ALTER TABLE "tests" DROP COLUMN IF EXISTS "scoring_config";` |
-| Drizzle-схема `tests` | **Колонки `scoring_config` нет** | [`clinicalTests.ts`](../../apps/webapp/db/schema/clinicalTests.ts) — поле **`scoring`** (JSONB), не `scoring_config` |
-| Лог инициативы | **Зафиксировано** | [`LOG.md`](LOG.md) — блок 2026-05-03 (defer-closure code) про DROP и снимок `scoringConfig` из колонки **`scoring`** |
-
-**Ops:** применение миграции на **production** — вне объёма этого аудита; следовать [`deploy/HOST_DEPLOY_README.md`](../../deploy/HOST_DEPLOY_README.md) и бэкапам из продуктового §7.
+| Миграция в репозитории | **Есть** | [`0040_drop_tests_scoring_config.sql`](../../apps/webapp/db/drizzle-migrations/0040_drop_tests_scoring_config.sql) |
+| Drizzle `tests` | **Без `scoring_config`** | [`clinicalTests.ts`](../../apps/webapp/db/schema/clinicalTests.ts) — JSONB **`scoring`**, снимок программы использует `scoringConfig` из **`scoring`** ([`LOG.md`](LOG.md) defer-closure 2026-05-03). |
+| **Остаточный план (ops)** | Вне репозитория | Убедиться, что на **каждой** production БД применён журнал миграций, включающий **`0040`**, после backup/runbook. |
 
 ---
 
-## 7. Residual risks / follow-up
+## 9. Residual risks / follow-up
 
-| Риск / хвост | Комментарий |
-|--------------|-------------|
-| **D5** | До снятия **owner pause** spike/Go-No-go не выполнялись; объём переименования `domain`→`kind` неизвестен. |
-| **Prod миграции** | Убедиться, что на целевых БД применены миграции ветки defer (в т.ч. `0040`), отдельно от merge в `main`. |
-| **Q4 naming** | Пользовательский и кодовый термин `domain` остаётся до этапа D5 или отдельного эпика. |
-| **E2E** | Ручной smoke по программе/каталогам остаётся каноном §8.2. |
+| ID | Риск / хвост | Комментарий |
+|----|----------------|-------------|
+| R1 | **D5** | Owner pause; объём `domain`→`kind` не оценён (нет spike). |
+| R2 | **Prod миграции** | Применение `0040` и прочих D-миграций на prod — отдельная ops-проверка. |
+| R3 | **Термин Q4** | В UI/API до D5 остаётся **`domain`** / query `domain`. |
+| R4 | **E2E** | Приёмка по §8.2 — ручной smoke; автоматический e2e — только по отдельному решению. |
+| R5 | **Паритет SSR vs REST** | D3 фиксирует известные различия транспорта для невалидного `domain` (HTML vs JSON) — не блокер defer-wave; см. [`AUDIT_STAGE_D3.md`](AUDIT_STAGE_D3.md) §3. |
 
 ---
 
-## 8. MANDATORY / follow-up инструкции (post D6)
+## 10. MANDATORY post D6
 
 **Открытых MANDATORY по закрытию defer-wave нет.**
 
-Рекомендуемые **необязательные** следующие шаги (вне обязательного D6):
-
-1. После снятия паузы D5 — spike + gate по [`STAGE_D5_PLAN.md`](STAGE_D5_PLAN.md).
-2. Ops: подтверждение `0040` (и соседних D-миграций) на production.
-3. При изменении контрактов — синхронизация [`api.md`](../../apps/webapp/src/app/api/api.md).
+Рекомендуемые шаги: см. §9; после снятия паузы D5 — [`STAGE_D5_PLAN.md`](STAGE_D5_PLAN.md); при смене API — [`api.md`](../../apps/webapp/src/app/api/api.md).
 
 ---
 
-## 9. Проверки (sanity), выполненные при закрытии D6
-
-Документо-ориентированный аудит; регресс кода не менялся. Выполнено для уверенности в недавно трогавшихся зонах D4:
+## 11. Проверки (sanity) при финальной сверке
 
 ```bash
 pnpm --dir apps/webapp exec vitest run src/modules/treatment-program/progress-service.test.ts src/modules/treatment-program/testSetSnapshotView.test.ts
 pnpm --dir apps/webapp exec tsc --noEmit
 ```
 
-Ожидание: **зелёный** vitest/tsc (как при последнем D4 FIX). **Факт 2026-05-04:** vitest **26** passed, `tsc --noEmit` **ok**.
+**Факт 2026-05-04 (повторный прогон):** vitest **26** passed, `tsc --noEmit` **ok**.
 
 ---
 
-## 10. Closure
+## 12. Closure
 
-Defer-wave **D1–D4** закрыта stage-аудитами; **D5** формально зафиксирован как **`deferred (owner pause)`** без `AUDIT_STAGE_D5`; **D6** — настоящий глобальный аудит. Продуктовые ограничения §8.2 по `publication_status` / bulk API **соблюдены**; **`scoring_config`** в схеме приложения **снят**, миграция DROP **в репозитории есть**.
+Defer-wave **D1–D4** закрыта **PASS**-аудитами; **critical/major** по ним **не открыты**. **D5** зафиксирован как **`deferred (owner pause)`** без `AUDIT_STAGE_D5`. Продуктовые ограничения §8.2 соблюдены. **`scoring_config`** в коде/миграциях репозитория снят; **prod** — по §8.
