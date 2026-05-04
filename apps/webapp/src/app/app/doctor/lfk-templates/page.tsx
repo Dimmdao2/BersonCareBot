@@ -2,6 +2,11 @@ import { Suspense } from "react";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import type { ExerciseLoadType } from "@/modules/lfk-exercises/types";
+import {
+  EXERCISE_LOAD_TYPE_CATEGORY_CODE,
+  exerciseLoadTypeWriteAllowSet,
+  parseExerciseLoadQueryParam,
+} from "@/modules/lfk-exercises/exerciseLoadTypeReference";
 import { AppShell } from "@/shared/ui/AppShell";
 import {
   lfkTemplateFilterFromPubArch,
@@ -29,27 +34,22 @@ export default async function DoctorLfkTemplatesPage({ searchParams }: PageProps
 
   const q = typeof sp.q === "string" ? sp.q : "";
   const regionParsed = parseDoctorCatalogRegionQueryParam(sp.region);
-  const loadType =
-    sp.load === "strength" ||
-    sp.load === "stretch" ||
-    sp.load === "balance" ||
-    sp.load === "cardio" ||
-    sp.load === "other"
-      ? (sp.load as ExerciseLoadType)
-      : undefined;
 
   const initialTitleSort = sp.titleSort === "asc" || sp.titleSort === "desc" ? sp.titleSort : null;
   const listPubArch: DoctorCatalogPubArchQuery = parseDoctorCatalogPubArchQuery(sp);
 
   const deps = buildAppDeps();
-  const [rawList, exercises, bodyRegionItems] = await Promise.all([
+  const [rawList, exercises, bodyRegionItems, loadTypeRefItems] = await Promise.all([
     deps.lfkTemplates.listTemplates({
       includeExerciseDetails: true,
       ...lfkTemplateFilterFromPubArch(listPubArch),
     }),
     deps.lfkExercises.listExercises({ includeArchived: false }),
     deps.references.listActiveItemsByCategoryCode("body_region"),
+    deps.references.listActiveItemsByCategoryCode(EXERCISE_LOAD_TYPE_CATEGORY_CODE),
   ]);
+  const loadAllow = exerciseLoadTypeWriteAllowSet(loadTypeRefItems);
+  const loadType = parseExerciseLoadQueryParam(typeof sp.load === "string" ? sp.load : undefined, loadAllow);
   const bodyRegionIdToCode = Object.fromEntries(bodyRegionItems.map((it) => [it.id, it.code]));
   const exerciseMetaById: Record<string, { regionRefId: string | null; loadType: ExerciseLoadType | null }> = {};
   for (const e of exercises) {

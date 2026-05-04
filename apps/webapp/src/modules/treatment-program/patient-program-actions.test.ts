@@ -119,6 +119,9 @@ describe("patient-program-actions", () => {
   });
 
   it("toggle checklist inserts done once per local calendar day", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-05-03T12:00:00.000Z"));
+    try {
     const tplPort = createInMemoryTreatmentProgramPort();
     const instPort = createInMemoryTreatmentProgramInstancePort();
     const itemRefs: TreatmentProgramItemRefValidationPort = { assertItemRefExists: vi.fn(async () => {}) };
@@ -168,6 +171,9 @@ describe("patient-program-actions", () => {
       checked: false,
     });
     expect(third).not.toContain(itemId);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("LFK post-session writes note and difficulty payload (O2/O3)", async () => {

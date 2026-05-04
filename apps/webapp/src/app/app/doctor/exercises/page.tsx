@@ -5,6 +5,11 @@ import { doctorCatalogViewFromSearchParams } from "@/shared/lib/doctorCatalogVie
 import { parseRecommendationListFilterScope } from "@/shared/lib/doctorCatalogListStatus";
 import { parseDoctorCatalogRegionQueryParam } from "@/shared/lib/doctorCatalogRegionQuery";
 import type { Exercise, ExerciseUsageSnapshot } from "@/modules/lfk-exercises/types";
+import {
+  EXERCISE_LOAD_TYPE_CATEGORY_CODE,
+  exerciseLoadTypeWriteAllowSet,
+  parseExerciseLoadQueryParam,
+} from "@/modules/lfk-exercises/exerciseLoadTypeReference";
 import { ExercisesPageClient } from "./ExercisesPageClient";
 
 type PageProps = {
@@ -24,14 +29,15 @@ export default async function DoctorExercisesPage({ searchParams }: PageProps) {
   const sp = (await searchParams) ?? {};
   const q = typeof sp.q === "string" ? sp.q : "";
   const regionParsed = parseDoctorCatalogRegionQueryParam(sp.region);
-  const loadType =
-    sp.load === "strength" ||
-    sp.load === "stretch" ||
-    sp.load === "balance" ||
-    sp.load === "cardio" ||
-    sp.load === "other"
-      ? sp.load
-      : undefined;
+
+  const deps = buildAppDeps();
+  const [bodyRegionItems, loadTypeRefItems] = await Promise.all([
+    deps.references.listActiveItemsByCategoryCode("body_region"),
+    deps.references.listActiveItemsByCategoryCode(EXERCISE_LOAD_TYPE_CATEGORY_CODE),
+  ]);
+  const loadAllow = exerciseLoadTypeWriteAllowSet(loadTypeRefItems);
+  const loadType = parseExerciseLoadQueryParam(typeof sp.load === "string" ? sp.load : undefined, loadAllow);
+
   const { initialViewMode, viewLockedByUrl } = doctorCatalogViewFromSearchParams(
     typeof sp.view === "string" ? sp.view : undefined,
   );
@@ -41,11 +47,9 @@ export default async function DoctorExercisesPage({ searchParams }: PageProps) {
 
   type DoctorExerciseSelection = { exercise: Exercise | null; usage: ExerciseUsageSnapshot | null };
 
-  const deps = buildAppDeps();
   const listPromise = deps.lfkExercises.listExercises({
     archiveListScope: listStatus,
   });
-  const bodyRegionItems = await deps.references.listActiveItemsByCategoryCode("body_region");
   const bodyRegionIdToCode = Object.fromEntries(bodyRegionItems.map((it) => [it.id, it.code]));
 
   const doctorExerciseSelectionPromise: Promise<DoctorExerciseSelection> = selectedExerciseId

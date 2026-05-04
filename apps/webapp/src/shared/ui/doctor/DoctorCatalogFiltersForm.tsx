@@ -5,18 +5,11 @@ import { startTransition, useCallback, useEffect, useRef, useState } from "react
 import { usePathname } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { ReferenceSelect } from "@/shared/ui/ReferenceSelect";
-import { EXERCISE_LOAD_TYPE_OPTIONS } from "@/modules/lfk-exercises/exerciseLoadTypeOptions";
+import { EXERCISE_LOAD_TYPE_CATEGORY_CODE } from "@/modules/lfk-exercises/exerciseLoadTypeReference";
 import type { ExerciseLoadType } from "@/modules/lfk-exercises/types";
 import type { ReferenceItemDto } from "@/modules/references/referenceCache";
 import type { DoctorCatalogPubArchQuery } from "@/shared/lib/doctorCatalogListStatus";
 import { dispatchDoctorCatalogUrlSync } from "@/shared/lib/doctorCatalogClientUrlSync";
-
-const EXERCISE_LOAD_FILTER_ITEMS: ReferenceItemDto[] = EXERCISE_LOAD_TYPE_OPTIONS.map((option, idx) => ({
-  id: `ex-filter-load-${option.value}`,
-  code: option.value,
-  title: option.label,
-  sortOrder: idx + 1,
-}));
 
 const Q_DEBOUNCE_MS = 350;
 
@@ -251,7 +244,7 @@ export function DoctorCatalogFiltersForm({
           </label>
           <ReferenceSelect
             id={`${idPrefix}-load`}
-            prefetchedItems={EXERCISE_LOAD_FILTER_ITEMS}
+            categoryCode={EXERCISE_LOAD_TYPE_CATEGORY_CODE}
             valueMatch="code"
             submitField="code"
             value={selectedExerciseLoad}

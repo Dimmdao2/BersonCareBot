@@ -10,7 +10,12 @@ import {
   isUsageConfirmationRequiredError,
 } from "@/modules/lfk-exercises/errors";
 import type { MediaExerciseUsageEntry } from "@/modules/media/types";
-import type { ExerciseLoadType, ExerciseUsageSnapshot } from "@/modules/lfk-exercises/types";
+import type { ExerciseUsageSnapshot } from "@/modules/lfk-exercises/types";
+import {
+  EXERCISE_LOAD_TYPE_CATEGORY_CODE,
+  exerciseLoadTypeWriteAllowSet,
+  parseExerciseLoadFormValue,
+} from "@/modules/lfk-exercises/exerciseLoadTypeReference";
 import { parseMediaFileIdFromAppUrl } from "@/shared/lib/mediaPreviewUrls";
 import { API_MEDIA_URL_RE, isLegacyAbsoluteUrl } from "@/shared/lib/mediaUrlPolicy";
 import { z } from "zod";
@@ -53,15 +58,6 @@ function parseTags(raw: FormDataEntryValue | null): string[] | null {
     .map((s) => s.trim())
     .filter(Boolean);
   return parts.length ? parts : null;
-}
-
-function parseLoadType(raw: FormDataEntryValue | null): ExerciseLoadType | null {
-  if (typeof raw !== "string" || !raw.trim()) return null;
-  const v = raw.trim();
-  if (v === "strength" || v === "stretch" || v === "balance" || v === "cardio" || v === "other") {
-    return v;
-  }
-  return null;
 }
 
 function validateExerciseMedia(mediaUrl: string | null, mediaType: "image" | "video" | "gif" | null): string | null {
@@ -225,6 +221,10 @@ export async function bulkCreateExercisesFromMediaCore(
 
 export async function saveDoctorExerciseCore(formData: FormData): Promise<SaveExerciseResult> {
   const session = await requireDoctorAccess();
+  const deps = buildAppDeps();
+  const loadRefItems = await deps.references.listActiveItemsByCategoryCode(EXERCISE_LOAD_TYPE_CATEGORY_CODE);
+  const loadAllow = exerciseLoadTypeWriteAllowSet(loadRefItems);
+
   const idRaw = formData.get("id");
   const id = typeof idRaw === "string" && idRaw.trim() ? idRaw.trim() : null;
 
@@ -236,7 +236,7 @@ export async function saveDoctorExerciseCore(formData: FormData): Promise<SaveEx
   const description = (formData.get("description") as string)?.trim() || null;
   const regionRefRaw = formData.get("regionRefId");
   const regionRefId = typeof regionRefRaw === "string" && regionRefRaw.trim() ? regionRefRaw.trim() : null;
-  const loadType = parseLoadType(formData.get("loadType"));
+  const loadType = parseExerciseLoadFormValue(formData.get("loadType"), loadAllow);
   const diffRaw = formData.get("difficulty1_10");
   let difficulty1_10: number | null = null;
   if (typeof diffRaw === "string" && diffRaw.trim()) {
@@ -257,7 +257,6 @@ export async function saveDoctorExerciseCore(formData: FormData): Promise<SaveEx
     return { ok: false, error: mediaError };
   }
 
-  const deps = buildAppDeps();
   if (id) {
     const current = await deps.lfkExercises.getExercise(id);
     if (!current) {

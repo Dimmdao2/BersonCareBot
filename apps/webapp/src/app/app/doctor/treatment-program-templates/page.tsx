@@ -14,7 +14,6 @@ type PageProps = {
     q?: string;
     titleSort?: string;
     region?: string;
-    load?: string;
     status?: string;
     arch?: string;
     pub?: string;

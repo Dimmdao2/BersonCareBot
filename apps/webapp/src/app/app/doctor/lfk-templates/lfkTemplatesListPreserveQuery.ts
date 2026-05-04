@@ -1,11 +1,11 @@
 import type { ExerciseLoadType } from "@/modules/lfk-exercises/types";
+import { EXERCISE_LOAD_TYPE_SEED_CODES_ORDERED } from "@/modules/lfk-exercises/exerciseLoadTypeReference";
 import { z } from "zod";
 import {
   applyDoctorCatalogPubArchToSearchParams,
   type DoctorCatalogPubArchQuery,
 } from "@/shared/lib/doctorCatalogListStatus";
 
-const LOAD_VALUES: ExerciseLoadType[] = ["strength", "stretch", "balance", "cardio", "other"];
 const ARCH_VALUES = ["active", "archived"] as const;
 const PUB_VALUES = ["all", "draft", "published"] as const;
 
@@ -58,7 +58,7 @@ export function sanitizeLfkTemplatesListPreserveQuery(raw: string): string {
   }
 
   const load = sp.get("load");
-  if (load && (LOAD_VALUES as readonly string[]).includes(load)) out.set("load", load);
+  if (load && (EXERCISE_LOAD_TYPE_SEED_CODES_ORDERED as readonly string[]).includes(load)) out.set("load", load);
 
   const titleSort = sp.get("titleSort");
   if (titleSort === "asc" || titleSort === "desc") out.set("titleSort", titleSort);

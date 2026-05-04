@@ -345,3 +345,7 @@ Scope:
 
 Если остаются matches, объясни для каждого: исправлено, не runtime, test fixture, или intentional non-filter UUID/FK form behavior.
 ```
+
+## Связанный follow-up (вне контракта FILTER URL)
+
+Параметр `load` в URL каталогов врача по-прежнему осмыслен для упражнений и комплексов ЛФК; **допустимые значения** для парсинга и UI привязаны к справочнику `reference_items` категории `load_type` (миграция `0041`, модуль `exerciseLoadTypeReference`). Документация закрытия: [`EXERCISE_LOAD_TYPE_FROM_REFS_PLAN.md`](EXERCISE_LOAD_TYPE_FROM_REFS_PLAN.md). Каталог **наборов тестов** ось `load` не использует (см. LOG 2026-05-04 (III)).

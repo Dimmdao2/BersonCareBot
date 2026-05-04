@@ -1,4 +1,8 @@
 import type { ExerciseLoadType } from "@/modules/lfk-exercises/types";
+import {
+  exerciseLoadTypeWriteAllowSet,
+  parseExerciseLoadQueryParam,
+} from "@/modules/lfk-exercises/exerciseLoadTypeReference";
 import { parseDoctorCatalogRegionQueryParam } from "@/shared/lib/doctorCatalogRegionQuery";
 
 /** Событие после `history.replaceState` для каталогов врача (без `router.replace`). */
@@ -29,10 +33,8 @@ export function readDoctorCatalogClientFilterUrlSlice(): DoctorCatalogClientFilt
   const q = sp.get("q") ?? "";
   const regionParsed = parseDoctorCatalogRegionQueryParam(sp.get("region") ?? undefined);
   const load = sp.get("load");
-  const loadType =
-    load === "strength" || load === "stretch" || load === "balance" || load === "cardio" || load === "other"
-      ? (load as ExerciseLoadType)
-      : undefined;
+  const loadAllow = exerciseLoadTypeWriteAllowSet([]);
+  const loadType = parseExerciseLoadQueryParam(load ?? undefined, loadAllow);
   const ts = sp.get("titleSort");
   const titleSort = ts === "asc" || ts === "desc" ? ts : null;
   const domainRaw = sp.get("domain");

@@ -56,6 +56,8 @@ B1 ──► B3, B4, B5, B6 (параллель по ресурсам)
 | Шаблоны программ | `apps/webapp/src/app/app/doctor/treatment-program-templates/**` (в т.ч. `TreatmentProgramConstructorClient.tsx`) |
 | Схема БД | `apps/webapp/db/schema/**`, миграции `drizzle-kit` |
 
+**Справочник типа нагрузки упражнения (`load_type`):** см. [`EXERCISE_LOAD_TYPE_FROM_REFS_PLAN.md`](EXERCISE_LOAD_TYPE_FROM_REFS_PLAN.md) (закрыто 2026-05-04).
+
 ## 5. Политика проверок
 
 На каждом этапе:

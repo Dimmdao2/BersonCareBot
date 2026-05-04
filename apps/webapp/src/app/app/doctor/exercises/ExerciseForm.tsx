@@ -15,11 +15,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  EXERCISE_LOAD_TYPE_OPTIONS,
-} from "@/modules/lfk-exercises/exerciseLoadTypeOptions";
+import { EXERCISE_LOAD_TYPE_CATEGORY_CODE } from "@/modules/lfk-exercises/exerciseLoadTypeReference";
 import type { Exercise, ExerciseLoadType, ExerciseUsageSnapshot } from "@/modules/lfk-exercises/types";
-import type { ReferenceItemDto } from "@/modules/references/referenceCache";
 import type { RecommendationListFilterScope } from "@/shared/lib/doctorCatalogListStatus";
 import { MediaLibraryPickerDialog } from "@/app/app/doctor/content/MediaLibraryPickerDialog";
 import { archiveDoctorExercise, fetchDoctorExerciseUsageSnapshot, saveDoctorExercise, unarchiveDoctorExercise } from "./actions";
@@ -31,13 +28,6 @@ import {
   exerciseUsageSections,
   type ExerciseUsageSection,
 } from "./exerciseUsageSummaryText";
-
-const EXERCISE_LOAD_TYPE_ITEMS: ReferenceItemDto[] = EXERCISE_LOAD_TYPE_OPTIONS.map((o, idx) => ({
-  id: `exercise-load-type-${o.value}`,
-  code: o.value,
-  title: o.label,
-  sortOrder: idx + 1,
-}));
 
 function ExerciseUsageSectionsView({ sections }: { sections: ExerciseUsageSection[] }) {
   if (sections.length === 0) {
@@ -333,7 +323,7 @@ export function ExerciseForm({
               <ReferenceSelect
                 id="ex-load-type"
                 name="loadType"
-                prefetchedItems={EXERCISE_LOAD_TYPE_ITEMS}
+                categoryCode={EXERCISE_LOAD_TYPE_CATEGORY_CODE}
                 valueMatch="code"
                 submitField="code"
                 value={values.loadType || null}

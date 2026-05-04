@@ -6,6 +6,27 @@
 
 ---
 
+## 2026-05-04 — тип нагрузки упражнения: справочник `load_type` + пост-аудит
+
+**Контекст:** убрать хардкод пяти кодов в фильтре/форме; выровнять `reference_items` категории `load_type` с CHECK `lfk_exercises.load_type`. Канон плана и пост-аудит: [`EXERCISE_LOAD_TYPE_FROM_REFS_PLAN.md`](EXERCISE_LOAD_TYPE_FROM_REFS_PLAN.md); копия в [`.cursor/plans/exercise_load_from_refs_bb4eba2e.plan.md`](../../.cursor/plans/exercise_load_from_refs_bb4eba2e.plan.md).
+
+**Сделано:**
+
+- Миграция [`0041_exercise_load_type_reference_align.sql`](../../apps/webapp/db/drizzle-migrations/0041_exercise_load_type_reference_align.sql) + journal; in-memory строки в [`inMemoryReferences.ts`](../../apps/webapp/src/infra/repos/inMemoryReferences.ts).
+- Модуль [`exerciseLoadTypeReference.ts`](../../apps/webapp/src/modules/lfk-exercises/exerciseLoadTypeReference.ts), паритет [`exerciseLoadTypeSeedParity.test.ts`](../../apps/webapp/src/modules/lfk-exercises/exerciseLoadTypeSeedParity.test.ts).
+- UI: [`DoctorCatalogFiltersForm.tsx`](../../apps/webapp/src/shared/ui/doctor/DoctorCatalogFiltersForm.tsx), [`ExerciseForm.tsx`](../../apps/webapp/src/app/app/doctor/exercises/ExerciseForm.tsx) — `categoryCode=load_type`.
+- RSC: [`exercises/page.tsx`](../../apps/webapp/src/app/app/doctor/exercises/page.tsx), [`lfk-templates/page.tsx`](../../apps/webapp/src/app/app/doctor/lfk-templates/page.tsx); preserve/client: [`lfkTemplatesListPreserveQuery.ts`](../../apps/webapp/src/app/app/doctor/lfk-templates/lfkTemplatesListPreserveQuery.ts), [`doctorCatalogClientUrlSync.ts`](../../apps/webapp/src/shared/lib/doctorCatalogClientUrlSync.ts), [`clinicalTestsListPreserveParams.ts`](../../apps/webapp/src/app/app/doctor/clinical-tests/clinicalTestsListPreserveParams.ts).
+- Сохранение: [`actionsShared.ts`](../../apps/webapp/src/app/app/doctor/exercises/actionsShared.ts) (`saveDoctorExerciseCore`).
+- [`exerciseLoadTypeOptions.ts`](../../apps/webapp/src/modules/lfk-exercises/exerciseLoadTypeOptions.ts) — лейблы от сида; `EXERCISE_LOAD_TYPE_OPTIONS` помечен deprecated, производный от сида.
+
+**Пост-аудит (код):** из типа `searchParams` [`treatment-program-templates/page.tsx`](../../apps/webapp/src/app/app/doctor/treatment-program-templates/page.tsx) убран неиспользуемый `load` (каталог шаблонов программ фильтр по нагрузке не использует).
+
+**Вне темы плана (стабильность тестов):** [`patient-program-actions.test.ts`](../../apps/webapp/src/modules/treatment-program/patient-program-actions.test.ts) — fake timers вокруг toggle чек-листа (`inMemoryProgramActionLog` использует реальный `Date` для `createdAt`).
+
+**Проверки:** `pnpm --dir apps/webapp exec vitest run` (целевые файлы load type / preserve / filters), `pnpm --dir apps/webapp exec tsc --noEmit`.
+
+---
+
 ## 2026-05-03 (defer-closure code) — DROP `scoring_config`, UX B1/B4/B6
 
 **B1 (колонка):** миграция [`0040_drop_tests_scoring_config.sql`](../../apps/webapp/db/drizzle-migrations/0040_drop_tests_scoring_config.sql), обновлены Drizzle-схема и слой приложения без `scoring_config` на `tests`; снимок набора в программе по-прежнему кладёт в JSON ключа `scoringConfig` значение из колонки **`scoring`** (`pgTreatmentProgramItemSnapshot`) для `progress-service`.
