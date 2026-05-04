@@ -67,22 +67,10 @@ export async function markLfkSession(formData: FormData) {
   revalidatePath(routePaths.diary);
 }
 
-export async function createLfkComplex(formData: FormData) {
-  const session = await requirePatientAccessWithPhone(routePaths.diary);
-  const title = (formData.get("complexTitle") as string)?.trim();
-  if (!title) return;
-  if (title.length > 200) return;
-  const deps = buildAppDeps();
-  try {
-    await deps.diaries.createLfkComplex({
-      userId: session.user.userId,
-      title,
-    });
-  } catch (err) {
-    console.error("createLfkComplex failed:", err);
-    return;
-  }
-  revalidatePath(routePaths.diary);
+/** Patient self-creation of LFK complexes is disabled (complexes come from doctor assignments; see ROADMAP_2 §1.2). */
+export async function createLfkComplex(_formData: FormData) {
+  await requirePatientAccessWithPhone(routePaths.diary);
+  return;
 }
 
 export async function updateLfkJournalSession(formData: FormData): Promise<{ ok: boolean }> {

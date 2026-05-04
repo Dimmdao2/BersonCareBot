@@ -6,6 +6,18 @@
 
 ---
 
+## 2026-05-04 — ROADMAP_2 §1.2 (не-UI): legacy URL дневника + запрет `createLfkComplex` у пациента
+
+**Сделано:** в [`apps/webapp/next.config.ts`](../../apps/webapp/next.config.ts) добавлены permanent-редиректы `/app/patient/diary/symptoms` → `/app/patient/diary?tab=symptoms`, `/app/patient/diary/lfk` → `/app/patient/diary?tab=lfk`; удалены заглушки [`symptoms/page.tsx`](../../apps/webapp/src/app/app/patient/diary/symptoms/page.tsx), [`lfk/page.tsx`](../../apps/webapp/src/app/app/patient/diary/lfk/page.tsx). Server action [`createLfkComplex`](../../apps/webapp/src/app/app/patient/diary/lfk/actions.ts) — no-op после `requirePatientAccessWithPhone` (не вызывает `deps.diaries.createLfkComplex`). Тесты: [`e2e/diaries-inprocess.test.ts`](../../apps/webapp/e2e/diaries-inprocess.test.ts), [`lfk/actions.createLfkComplex.test.ts`](../../apps/webapp/src/app/app/patient/diary/lfk/actions.createLfkComplex.test.ts). Обновлены коллоквиальные [`lfk.md`](../../apps/webapp/src/app/app/patient/diary/lfk/lfk.md), [`symptoms.md`](../../apps/webapp/src/app/app/patient/diary/symptoms/symptoms.md).
+
+**Связь с** [`RECOMMENDATIONS_AND_ROADMAP.md`](RECOMMENDATIONS_AND_ROADMAP.md) **часть IV этап 0:** пункт про удаление legacy `diary/symptoms` | `diary/lfk` **частично закрыт** — файлы `page.tsx` удалены, поведение закладок сохранено через `redirects` в `next.config`.
+
+**Проверки:** см. команды в PR / итоговый `pnpm run ci` перед merge.
+
+**Follow-up (2026-05-04):** варианты legacy URL **со слэшем** на конце пути; empty state на [`diary/page.tsx`](../../apps/webapp/src/app/app/patient/diary/page.tsx) без формы создания комплекса, CTA «Программы лечения» / «Сообщения»; правки [`ROADMAP_2.md`](ROADMAP_2.md) §1.2, [`STRUCTURE_AUDIT.md`](STRUCTURE_AUDIT.md). Полный UX §1.2 (фокус «сегодня», read-only история как первичный сценарий) — отдельная итерация.
+
+---
+
 ## 2026-05-04 — синхронизация статуса: «Назначения» врача, шаблоны программ, курсы (docs-only)
 
 **Зафиксировано (owner):**

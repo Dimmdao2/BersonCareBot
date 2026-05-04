@@ -94,8 +94,8 @@
 |----------|-----|------------|
 | Журнал симптомов | `/app/patient/diary/symptoms/journal` | Записи по месяцам |
 | Журнал ЛФК | `/app/patient/diary/lfk/journal` | Журнал занятий |
-| Симптомы (legacy) | `/app/patient/diary/symptoms` | → `diary?tab=symptoms` |
-| ЛФК (legacy) | `/app/patient/diary/lfk` | → `diary?tab=lfk` |
+| Симптомы (legacy) | `/app/patient/diary/symptoms` (+ вариант со слэшем) | → `diary?tab=symptoms` через `next.config` `redirects` (308) |
+| ЛФК (legacy) | `/app/patient/diary/lfk` (+ вариант со слэшем) | → `diary?tab=lfk` через `next.config` `redirects` (308) |
 
 ### I.3.5 Прочее
 

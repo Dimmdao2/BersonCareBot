@@ -205,14 +205,16 @@ Post-MVP (отдельно, не блокирует MVP): множественн
 
 ### 1.2 `/diary` → режим «сегодня» (read-only past)
 
+**Тех. согласованность (2026-05-04, до полного UX-прохода):** legacy URL `/app/patient/diary/symptoms` и `/app/patient/diary/lfk` (включая вариант со слэшем) → permanent-редиректы в [`apps/webapp/next.config.ts`](../../apps/webapp/next.config.ts); server action `createLfkComplex` — no-op; на единой [`diary/page.tsx`](../../apps/webapp/src/app/app/patient/diary/page.tsx) убрана форма самосоздания комплекса, empty state и CTA ведут на программы лечения и сообщения. Детали — [`LOG.md`](LOG.md) записи 2026-05-04.
+
 **Цель.** Открыть страницу как «давай отметим занятие за сегодня», а не как дашборд. Пациентское создание ЛФК-комплекса убрать (противоречит модели «комплексы из назначений врача»).
 
 **Что делать.**
 
 - Верхний блок — сегодняшняя ЛФК-задача (если есть назначение): кнопка отметки сессии (`PatientLfkChecklistRow`-форма) + быстрая отметка симптомов дня.
 - История — табом/секцией ниже, read-only (просмотр прошлых записей и сессий).
-- Удалить из UI пациентское `createLfkComplex` и форму «Создайте комплекс упражнений» в empty state. Empty state заменить на «Комплексы появятся после назначения врачом» + ссылка на `/treatment-programs` или `/messages`.
-- Подчищать legacy redirect-роуты (`diary/symptoms`, `diary/lfk`) — отдельным микро-PR, если безопасно (предварительный `rg` runtime references).
+- ~~Удалить из UI пациентское `createLfkComplex` и форму «Создайте комплекс упражнений» в empty state. Empty state заменить на «Комплексы появятся после назначения врачом» + ссылка на `/treatment-programs` или `/messages`.~~ **Сделано (2026-05-04)** для empty state на единой странице дневника; см. шапку §1.2 выше.
+- ~~Подчищать legacy redirect-роуты (`diary/symptoms`, `diary/lfk`) — отдельным микро-PR, если безопасно (предварительный `rg` runtime references).~~ **Сделано (2026-05-04):** `next.config` + удалены `page.tsx`-заглушки; см. [`LOG.md`](LOG.md).
 
 **Файлы.**
 

@@ -15,6 +15,16 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   allowedDevOrigins,
   output: "standalone",
+  async redirects() {
+    const diarySymptomsDest = "/app/patient/diary?tab=symptoms";
+    const diaryLfkDest = "/app/patient/diary?tab=lfk";
+    return [
+      { source: "/app/patient/diary/symptoms", destination: diarySymptomsDest, permanent: true },
+      { source: "/app/patient/diary/symptoms/", destination: diarySymptomsDest, permanent: true },
+      { source: "/app/patient/diary/lfk", destination: diaryLfkDest, permanent: true },
+      { source: "/app/patient/diary/lfk/", destination: diaryLfkDest, permanent: true },
+    ];
+  },
   /** Native / dynamic-require deps: do not bundle for Turbopack (media preview worker). */
   serverExternalPackages: [
     "sharp",

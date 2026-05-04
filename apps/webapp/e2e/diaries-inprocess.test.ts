@@ -16,11 +16,13 @@ describe("diaries e2e (in-process)", () => {
     expect(mod.default.constructor.name).toBe("AsyncFunction");
   });
 
-  it("legacy diary subroutes export redirect pages", async () => {
-    const lfk = await import("@/app/app/patient/diary/lfk/page");
-    const sym = await import("@/app/app/patient/diary/symptoms/page");
+  it("diary journal subroutes export async RSC pages", async () => {
+    const lfk = await import("@/app/app/patient/diary/lfk/journal/page");
+    const sym = await import("@/app/app/patient/diary/symptoms/journal/page");
     expect(typeof lfk.default).toBe("function");
     expect(typeof sym.default).toBe("function");
+    expect(lfk.default.constructor.name).toBe("AsyncFunction");
+    expect(sym.default.constructor.name).toBe("AsyncFunction");
   });
 
   it("QuickAddPopup client module loads", async () => {

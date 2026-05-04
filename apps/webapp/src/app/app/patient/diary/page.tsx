@@ -1,12 +1,13 @@
 /**
  * Единая страница дневника: вкладки «Симптомы» и «ЛФК».
  */
+import Link from "next/link";
 import { Suspense } from "react";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { getOptionalPatientSession, patientRscPersonalDataGate } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
 import { DiarySectionGuestAccess } from "@/shared/ui/patient/guestAccess";
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button-variants";
 import { AppShell } from "@/shared/ui/AppShell";
 import { cn } from "@/lib/utils";
 import { patientMutedTextClass, patientSectionSurfaceClass } from "@/shared/ui/patientVisual";
@@ -14,7 +15,6 @@ import { SymptomsTrackingSectionClient } from "./symptoms/SymptomsTrackingSectio
 import { DiaryTabsClient } from "./DiaryTabsClient";
 import { LfkSessionForm } from "./lfk/LfkSessionForm";
 import { reminderRuleToPatientJson } from "@/app/api/patient/reminders/reminderPatientJson";
-import { createLfkComplex } from "./lfk/actions";
 import { LfkDiarySectionClient } from "./lfk/LfkDiarySectionClient";
 import { SymptomChart } from "@/modules/diaries/components/SymptomChart";
 import { LfkStatsTable } from "@/modules/diaries/components/LfkStatsTable";
@@ -84,25 +84,28 @@ export default async function PatientDiaryPage() {
   const lfkPanel = (
     <>
       <section id="patient-lfk-diary-hero-section" className={cn(patientSectionSurfaceClass, "!gap-4 !p-6")}>
-        <h2 className="text-lg font-semibold">Отметить занятие</h2>
+        <h2 className="text-lg font-semibold">{complexes.length > 0 ? "Отметить занятие" : "Комплексы ЛФК"}</h2>
         <p className={patientMutedTextClass}>
-          Комплексы ЛФК и история занятий. Добавить комплекс можно здесь или в боте.
+          {complexes.length > 0
+            ? "Отметка по назначенному комплексу; ниже — список комплексов и история занятий."
+            : "Комплексы назначает врач (в программе лечения). Здесь появятся отметка занятия и история, когда комплекс будет назначен."}
         </p>
         {complexes.length === 0 ? (
           <div className="flex flex-col gap-3">
-            <p className={patientMutedTextClass}>Создайте комплекс упражнений, чтобы начать отслеживать занятия.</p>
-            <form action={createLfkComplex} className="flex flex-col gap-2">
-              <div className="flex flex-wrap gap-2">
-                <input
-                  type="text"
-                  name="complexTitle"
-                  className="h-10 w-full rounded-xl border border-input bg-background px-3 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring min-w-[200px] flex-1"
-                  placeholder="Название комплекса"
-                  required
-                />
-                <Button type="submit">Создать</Button>
-              </div>
-            </form>
+            <div className="flex flex-wrap gap-2">
+              <Link
+                href={routePaths.patientTreatmentPrograms}
+                className={cn(buttonVariants({ variant: "outline", size: "sm" }), "inline-flex")}
+              >
+                Программы лечения
+              </Link>
+              <Link
+                href={routePaths.patientMessages}
+                className={cn(buttonVariants({ variant: "outline", size: "sm" }), "inline-flex")}
+              >
+                Сообщения
+              </Link>
+            </div>
           </div>
         ) : (
           <LfkSessionForm complexes={complexes} />
