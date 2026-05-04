@@ -28,6 +28,7 @@
   - `pnpm --dir apps/webapp lint --max-warnings=0 -- src/modules/treatment-program src/infra/repos db/schema` ✅
   - `pnpm --dir apps/webapp exec vitest run src/infra/repos/pgTreatmentProgramInstance.startedAt.contract.test.ts src/modules/treatment-program` ✅
 - **Stage A A5 (log + status):** pre-flight подтверждён, пробелов не найдено, статус этапа: **Stage A closed**.
+- **Stage A closed + commit.** (Stage A — верификационный, code diff пустой; документация закоммичена в `41c4c91a` совместно с инициализацией Stage B-docs.)
 - **Stage A FIX по `AUDIT_STAGE_A.md` (2026-05-05):**
   - Critical: отсутствуют, исправления не требуются.
   - Major: отсутствуют, исправления не требуются.
@@ -127,3 +128,28 @@
     - `pnpm --dir apps/webapp exec tsc --noEmit` ✅
     - `pnpm --dir apps/webapp exec vitest run src/app/app/patient/treatment-programs` ✅ (14/14)
 - **Stage D closed + commit.**
+
+- **Global Audit (2026-05-05):**
+  - Файл: `AUDIT_GLOBAL.md`.
+  - Вердикт: PASS — инварианты выдержаны, scope чистый, конвейер A→B→C→D пройден.
+  - Critical: 0. Major: 0. Minor M1: Stage A не имеет изолированного commit + «Stage A closed + commit» отсутствовал в LOG.md.
+- **Global FIX (2026-05-05):**
+  - Critical: отсутствуют.
+  - Major: отсутствуют.
+  - Minor M1: добавлена ретроактивная запись «Stage A closed + commit» в LOG.md (одна строка, code diff не затронут).
+  - Повтор целевых проверок по затронутой зоне (только docs): code-файлы не изменялись → lint/typecheck/vitest не перезапускались (no-op).
+- **Global FIX closed.**
+
+- **PREPUSH (2026-05-05):**
+  - `pnpm install --frozen-lockfile` ✅
+  - `pnpm run ci` ✅ (exit_code: 0)
+    - lint (root + webapp) ✅
+    - typecheck (webapp + integrator + media-worker + platform-merge) ✅
+    - test (integrator): 765 passed, 6 skipped / 112 files ✅
+    - test:webapp: 2760 passed, 9 skipped / 543 files ✅
+    - test:media-worker: 11 passed / 3 files ✅
+    - build ✅
+    - build:webapp (Next.js, new route `/treatment-programs/[instanceId]/stages/[stageId]` в сборке) ✅
+    - audit: no known vulnerabilities ✅
+  - **PREPUSH PASS — инициатива готова к push.**
+- **PUSH (2026-05-05):** `git push origin feature/app-restructure-initiative` — инициатива PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE закрыта.
