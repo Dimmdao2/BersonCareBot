@@ -2,21 +2,15 @@ import Link from "next/link";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { cn } from "@/lib/utils";
 import type { Template, TemplateExercise } from "@/modules/lfk-templates/types";
+import { lfkExerciseSideRu } from "@/modules/lfk-templates/lfkExerciseSide";
 import { MediaThumb } from "@/shared/ui/media/MediaThumb";
 import { exerciseMediaToPreviewUi } from "@/shared/ui/media/mediaPreviewUiModel";
 import { LfkTemplateStatusBadge } from "./LfkTemplateStatusBadge";
 
-function sideRu(side: TemplateExercise["side"]): string | null {
-  if (side === "left") return "Левая";
-  if (side === "right") return "Правая";
-  if (side === "both") return "Обе";
-  return null;
-}
-
 function TemplateExercisePreviewRow({ line }: { line: TemplateExercise }) {
   const title = line.exerciseTitle ?? line.exerciseId;
   const preview = line.firstMedia ? exerciseMediaToPreviewUi(line.firstMedia) : null;
-  const side = sideRu(line.side);
+  const side = lfkExerciseSideRu(line.side);
   const parts: { label: string; value: string }[] = [];
   if (line.reps != null) parts.push({ label: "Повторы", value: String(line.reps) });
   if (line.sets != null) parts.push({ label: "Подходы", value: String(line.sets) });

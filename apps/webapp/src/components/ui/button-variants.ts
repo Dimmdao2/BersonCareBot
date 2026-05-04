@@ -10,14 +10,14 @@ export const buttonVariants = cva(
     variants: {
       variant: {
         default:
-          "bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground active:bg-primary/80 active:text-primary-foreground active:shadow-inner [a]:hover:bg-primary/90 [a]:active:bg-primary/80",
+          "border-black/10 bg-primary text-primary-foreground hover:border-black/[0.14] hover:bg-primary/90 hover:text-primary-foreground active:border-black/[0.18] active:bg-primary/80 active:text-primary-foreground active:shadow-inner dark:border-white/15 dark:hover:border-white/20 dark:active:border-white/25 [a]:hover:bg-primary/90 [a]:active:bg-primary/80",
         /** Тёплый серо-синий primary (alias default) — для явного API дизайн-системы. */
         primary:
-          "bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground active:bg-primary/80 active:text-primary-foreground active:shadow-inner [a]:hover:bg-primary/90 [a]:active:bg-primary/80",
+          "border-black/10 bg-primary text-primary-foreground hover:border-black/[0.14] hover:bg-primary/90 hover:text-primary-foreground active:border-black/[0.18] active:bg-primary/80 active:text-primary-foreground active:shadow-inner dark:border-white/15 dark:hover:border-white/20 dark:active:border-white/25 [a]:hover:bg-primary/90 [a]:active:bg-primary/80",
         outline:
           "border-border bg-background text-foreground hover:bg-muted hover:text-foreground active:bg-muted/85 active:shadow-inner aria-expanded:bg-muted aria-expanded:text-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50 dark:active:bg-input/60",
         secondary:
-          "border-border/50 bg-secondary text-secondary-foreground hover:border-border/65 hover:bg-secondary/80 active:border-border/70 active:bg-secondary/65 active:shadow-inner aria-expanded:border-border/50 aria-expanded:bg-secondary aria-expanded:text-secondary-foreground dark:border-border/55 dark:hover:border-border/65",
+          "border-border bg-secondary text-secondary-foreground hover:border-border hover:bg-secondary/80 active:border-border active:bg-secondary/65 active:shadow-inner aria-expanded:border-border aria-expanded:bg-secondary aria-expanded:text-secondary-foreground dark:border-border dark:hover:border-border dark:active:border-border",
         ghost:
           "text-foreground hover:bg-muted hover:text-foreground active:bg-muted/80 active:shadow-inner aria-expanded:bg-muted aria-expanded:text-foreground dark:hover:bg-muted/50 dark:active:bg-muted/70",
         destructive:

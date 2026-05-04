@@ -1,5 +1,9 @@
 import type { Exercise, ExerciseMedia } from "@/modules/lfk-exercises/types";
 
+import type { LfkExerciseSide } from "./lfkExerciseSide";
+
+export type { LfkExerciseSide } from "./lfkExerciseSide";
+
 export type TemplateStatus = "draft" | "published" | "archived";
 
 export type TemplateExercise = {
@@ -11,7 +15,7 @@ export type TemplateExercise = {
   sortOrder: number;
   reps: number | null;
   sets: number | null;
-  side: "left" | "right" | "both" | null;
+  side: LfkExerciseSide | null;
   maxPain0_10: number | null;
   comment: string | null;
   /** Первое медиа упражнения (list/get при join на lfk_exercise_media). */
@@ -60,7 +64,7 @@ export type TemplateExerciseInput = {
   sortOrder: number;
   reps?: number | null;
   sets?: number | null;
-  side?: "left" | "right" | "both" | null;
+  side?: LfkExerciseSide | null;
   maxPain0_10?: number | null;
   comment?: string | null;
 };

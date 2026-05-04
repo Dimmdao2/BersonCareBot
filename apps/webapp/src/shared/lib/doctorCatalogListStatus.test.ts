@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  doctorCatalogArchAxisLabel,
+  doctorCatalogPublicationFilterLabel,
   lfkTemplateFilterFromPubArch,
   explicitDoctorCatalogPubArchParamsInvalid,
   parseDoctorCatalogPubArchQuery,
@@ -11,6 +13,14 @@ import {
 } from "./doctorCatalogListStatus";
 
 describe("doctorCatalogListStatus", () => {
+  it("maps arch and pub filter values to Russian trigger labels", () => {
+    expect(doctorCatalogArchAxisLabel("active")).toBe("Активные");
+    expect(doctorCatalogArchAxisLabel("archived")).toBe("Архив");
+    expect(doctorCatalogPublicationFilterLabel("all")).toBe("Все");
+    expect(doctorCatalogPublicationFilterLabel("draft")).toBe("Черновики");
+    expect(doctorCatalogPublicationFilterLabel("published")).toBe("Опубликованные");
+  });
+
   it("treats an empty status field as the default active scope", () => {
     expect(parseRecommendationListFilterScope({ status: "" })).toBe("active");
     expect(parseTemplateCourseCatalogListStatus({ status: "" })).toBe("active");

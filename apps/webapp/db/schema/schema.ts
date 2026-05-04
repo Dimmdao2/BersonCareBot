@@ -804,7 +804,7 @@ export const lfkComplexTemplateExercises = pgTable("lfk_complex_template_exercis
 		}).onDelete("cascade"),
 	unique("lfk_complex_template_exercises_template_id_exercise_id_key").on(table.templateId, table.exerciseId),
 	check("lfk_complex_template_exercises_max_pain_0_10_check", sql`(max_pain_0_10 IS NULL) OR ((max_pain_0_10 >= 0) AND (max_pain_0_10 <= 10))`),
-	check("lfk_complex_template_exercises_side_check", sql`(side IS NULL) OR (side = ANY (ARRAY['left'::text, 'right'::text, 'both'::text]))`),
+	check("lfk_complex_template_exercises_side_check", sql`(side IS NULL) OR (side = ANY (ARRAY['left'::text, 'right'::text, 'both'::text, 'damaged'::text, 'healthy'::text]))`),
 ]);
 
 export const lfkExerciseMedia = pgTable("lfk_exercise_media", {
@@ -901,7 +901,7 @@ export const lfkComplexExercises = pgTable("lfk_complex_exercises", {
 		}),
 	unique("lfk_complex_exercises_complex_id_exercise_id_key").on(table.complexId, table.exerciseId),
 	check("lfk_complex_exercises_max_pain_0_10_check", sql`(max_pain_0_10 IS NULL) OR ((max_pain_0_10 >= 0) AND (max_pain_0_10 <= 10))`),
-	check("lfk_complex_exercises_side_check", sql`(side IS NULL) OR (side = ANY (ARRAY['left'::text, 'right'::text, 'both'::text]))`),
+	check("lfk_complex_exercises_side_check", sql`(side IS NULL) OR (side = ANY (ARRAY['left'::text, 'right'::text, 'both'::text, 'damaged'::text, 'healthy'::text]))`),
 ]);
 
 export const authRateLimitEvents = pgTable("auth_rate_limit_events", {

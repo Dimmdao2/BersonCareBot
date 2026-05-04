@@ -150,6 +150,17 @@ export type DoctorCatalogPubArchQuery = {
   pub: DoctorCatalogPublicationFilter;
 };
 
+export function doctorCatalogArchAxisLabel(arch: DoctorCatalogArchiveAxis): string {
+  if (arch === "archived") return "Архив";
+  return "Активные";
+}
+
+export function doctorCatalogPublicationFilterLabel(pub: DoctorCatalogPublicationFilter): string {
+  if (pub === "all") return "Все";
+  if (pub === "draft") return "Черновики";
+  return "Опубликованные";
+}
+
 export type DoctorCatalogPubArchSearchParams = {
   arch?: string;
   pub?: string;

@@ -9,7 +9,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { DoctorCatalogPubArchQuery } from "@/shared/lib/doctorCatalogListStatus";
-import { applyDoctorCatalogPubArchToSearchParams } from "@/shared/lib/doctorCatalogListStatus";
+import {
+  applyDoctorCatalogPubArchToSearchParams,
+  doctorCatalogArchAxisLabel,
+  doctorCatalogPublicationFilterLabel,
+} from "@/shared/lib/doctorCatalogListStatus";
 import { cn } from "@/lib/utils";
 
 export type CatalogStatusFiltersProps = {
@@ -47,7 +51,7 @@ export function CatalogStatusFilters({ value, extraParams, className }: CatalogS
           }}
         >
           <SelectTrigger size="sm" className="w-full text-left">
-            <SelectValue />
+            <SelectValue>{doctorCatalogArchAxisLabel(value.arch)}</SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="active">Активные</SelectItem>
@@ -65,7 +69,7 @@ export function CatalogStatusFilters({ value, extraParams, className }: CatalogS
           }}
         >
           <SelectTrigger size="sm" className="w-full text-left">
-            <SelectValue />
+            <SelectValue>{doctorCatalogPublicationFilterLabel(value.pub)}</SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Все</SelectItem>

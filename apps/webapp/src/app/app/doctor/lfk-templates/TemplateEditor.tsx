@@ -30,6 +30,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { GripVertical } from "lucide-react";
 import toast from "react-hot-toast";
+import { LFK_EXERCISE_SIDE_SELECT_OPTIONS, parseLfkExerciseSide } from "@/modules/lfk-templates/lfkExerciseSide";
 import type { Template } from "@/modules/lfk-templates/types";
 import type { ExerciseMedia } from "@/modules/lfk-exercises/types";
 import { Button } from "@/components/ui/button";
@@ -82,6 +83,17 @@ type EditorLine = {
   comment: string;
 };
 
+/** Шкала в UI шаблона ЛФК; в БД поле до 10 — значения 9/10 показываем только если уже есть в строке. */
+const LFK_TEMPLATE_MAX_PAIN_OPTIONS = [0, 1, 2, 3, 4, 5, 6, 7, 8] as const;
+const LFK_TEMPLATE_MAX_PAIN_DEFAULT = "2";
+
+function editorMaxPainValue(raw: string): string {
+  if (raw === "9" || raw === "10") return raw;
+  const n = Number.parseInt(raw, 10);
+  if (!Number.isNaN(n) && n >= 0 && n <= 8) return String(n);
+  return LFK_TEMPLATE_MAX_PAIN_DEFAULT;
+}
+
 function templateToLines(t: Template): EditorLine[] {
   return t.exercises.map((e) => ({
     sortId: e.id,
@@ -90,14 +102,9 @@ function templateToLines(t: Template): EditorLine[] {
     reps: e.reps != null ? String(e.reps) : "",
     sets: e.sets != null ? String(e.sets) : "",
     side: e.side ?? "",
-    maxPain: e.maxPain0_10 != null ? String(e.maxPain0_10) : "",
+    maxPain: editorMaxPainValue(e.maxPain0_10 != null ? String(e.maxPain0_10) : ""),
     comment: e.comment ?? "",
   }));
-}
-
-function parseSide(raw: string): "left" | "right" | "both" | null {
-  if (raw === "left" || raw === "right" || raw === "both") return raw;
-  return null;
 }
 
 function optInt(raw: string): number | null {
@@ -112,8 +119,8 @@ function linesToPayload(lines: EditorLine[]) {
       exerciseId: l.exerciseId,
       reps: optInt(l.reps),
       sets: optInt(l.sets),
-      side: parseSide(l.side),
-      maxPain0_10: optInt(l.maxPain),
+      side: parseLfkExerciseSide(l.side),
+      maxPain0_10: optInt(editorMaxPainValue(l.maxPain)),
       comment: l.comment.trim() || null,
     }))
   );
@@ -177,38 +184,61 @@ function SortableRow({
     <li
       ref={setNodeRef}
       style={style}
-      className="flex w-full items-stretch gap-2 rounded-lg border border-border/70 bg-card p-3 md:items-end"
+      className="flex w-full items-start gap-2 rounded-lg border border-border/70 bg-card p-3"
     >
       <Button
         type="button"
         variant="outline"
         size="icon"
-        className="max-md:mt-0.5 shrink-0 cursor-grab self-start text-muted-foreground md:self-end"
+        className="mt-0.5 shrink-0 cursor-grab self-start text-muted-foreground"
         aria-label="Перетащить"
         {...attributes}
         {...listeners}
       >
         <GripVertical className="size-4" />
       </Button>
-      <div className="flex w-9 shrink-0 flex-col self-stretch md:self-end">
-        {firstMedia ? (
-          <div className="relative min-h-9 flex-1 overflow-hidden rounded border border-border/40 bg-muted/30 md:h-9 md:flex-none">
-            <MediaThumb
-              media={exerciseMediaToPreviewUi(firstMedia)}
-              className="absolute inset-0 size-full md:relative md:inset-auto"
-              imgClassName="size-full object-cover"
-              sizes="36px"
-            />
+      <div className="flex min-w-0 flex-1 flex-col gap-6">
+        <div className="flex min-w-0 items-start gap-3">
+          <div className="relative size-11 shrink-0 overflow-hidden rounded border border-border/40 bg-muted/30">
+            {firstMedia ? (
+              <MediaThumb
+                media={exerciseMediaToPreviewUi(firstMedia)}
+                className="size-full"
+                imgClassName="size-full object-cover"
+                sizes="44px"
+              />
+            ) : (
+              <div className="size-full bg-muted" aria-hidden />
+            )}
           </div>
-        ) : (
-          <div className="min-h-9 flex-1 rounded bg-muted md:h-9 md:flex-none" aria-hidden />
-        )}
-      </div>
-      <div className="flex min-w-0 flex-1 flex-col gap-2 md:flex-row md:flex-wrap md:items-end">
-        <p className="text-sm font-medium leading-tight md:max-w-[min(100%,24rem)] md:shrink-0">
-          {line.title}
-        </p>
-        <div className="flex min-w-0 w-full flex-1 flex-wrap items-end gap-2 md:w-auto">
+          <p className="min-w-0 flex-1 text-sm font-semibold leading-snug">{line.title}</p>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="shrink-0 self-start"
+            onClick={() => onRemove(line.sortId)}
+          >
+            Удалить
+          </Button>
+        </div>
+
+        <div className="flex flex-wrap items-end gap-x-3 gap-y-2">
+          <div className="flex min-w-[6.5rem] flex-col gap-1">
+            <Label className="text-xs">Сторона</Label>
+            <select
+              className="h-8 w-full min-w-0 rounded-md border border-input bg-background px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              value={line.side}
+              onChange={(ev) => onChange(line.sortId, { side: ev.target.value })}
+            >
+              <option value="">—</option>
+              {LFK_EXERCISE_SIDE_SELECT_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </div>
           <div className="flex flex-col gap-1">
             <Label className="text-xs">Повторы</Label>
             <Input
@@ -228,38 +258,37 @@ function SortableRow({
             />
           </div>
           <div className="flex flex-col gap-1">
-            <Label className="text-xs">Сторона</Label>
+            <Label className="text-xs" htmlFor={`tpl-line-maxpain-${line.sortId}`}>
+              Боль макс
+            </Label>
             <select
-              className="h-8 rounded-md border border-input bg-background px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              value={line.side}
-              onChange={(ev) => onChange(line.sortId, { side: ev.target.value })}
+              id={`tpl-line-maxpain-${line.sortId}`}
+              className="h-8 w-14 min-w-[3.25rem] rounded-md border border-input bg-background px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              value={editorMaxPainValue(line.maxPain)}
+              onChange={(ev) => onChange(line.sortId, { maxPain: ev.target.value })}
             >
-              <option value="">—</option>
-              <option value="left">Левая</option>
-              <option value="right">Правая</option>
-              <option value="both">Обе</option>
+              {LFK_TEMPLATE_MAX_PAIN_OPTIONS.map((n) => (
+                <option key={n} value={String(n)}>
+                  {n}
+                </option>
+              ))}
+              {line.maxPain === "9" || line.maxPain === "10" ? (
+                <option value={line.maxPain}>{line.maxPain}</option>
+              ) : null}
             </select>
           </div>
-          <div className="flex flex-col gap-1">
-            <Label className="text-xs">Боль max</Label>
-            <Input
-              className="h-8 w-16"
-              inputMode="numeric"
-              value={line.maxPain}
-              onChange={(ev) => onChange(line.sortId, { maxPain: ev.target.value })}
-            />
-          </div>
-          <div className="flex min-w-[min(100%,10rem)] flex-1 basis-[10rem] flex-col gap-1">
-            <Label className="text-xs">Комментарий</Label>
-            <Input
-              className="min-w-0"
-              value={line.comment}
-              onChange={(ev) => onChange(line.sortId, { comment: ev.target.value })}
-            />
-          </div>
-          <Button type="button" variant="ghost" size="sm" onClick={() => onRemove(line.sortId)}>
-            Удалить
-          </Button>
+        </div>
+
+        <div className="flex min-w-0 flex-col gap-1">
+          <Label className="text-xs" htmlFor={`tpl-line-comment-${line.sortId}`}>
+            Комментарий
+          </Label>
+          <Textarea
+            id={`tpl-line-comment-${line.sortId}`}
+            className="min-h-[72px] min-w-0 resize-y"
+            value={line.comment}
+            onChange={(ev) => onChange(line.sortId, { comment: ev.target.value })}
+          />
         </div>
       </div>
     </li>
@@ -495,7 +524,7 @@ export function TemplateEditor({
         reps: "",
         sets: "",
         side: "",
-        maxPain: "",
+        maxPain: LFK_TEMPLATE_MAX_PAIN_DEFAULT,
         comment: "",
       },
     ]);
@@ -531,63 +560,65 @@ export function TemplateEditor({
         />
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <Dialog open={addOpen} onOpenChange={setAddOpen}>
-          <DialogTrigger
-            render={<Button type="button" variant="secondary" disabled={archived} />}
-          >
-            Добавить упражнение
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>Выбор из справочника</DialogTitle>
-            </DialogHeader>
-            <PickerSearchField
-              id="tpl-exercise-pick-search"
-              label="Поиск по названию"
-              placeholder="Название упражнения"
-              value={pickQuery}
-              onValueChange={setPickQuery}
-              className="min-w-0"
-            />
-            <ul className="max-h-64 overflow-auto">
-              {filteredPick.length === 0 ? (
-                <li className="text-sm text-muted-foreground">Нет доступных упражнений</li>
-              ) : (
-                filteredPick.map((e) => (
-                  <li key={e.id}>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      className="h-auto w-full justify-start gap-2 rounded-md px-2 py-2 text-left text-sm font-normal"
-                      onClick={() => addExercise(e)}
-                    >
-                      <ExerciseListCatalogThumb media={e.firstMedia} />
-                      <span className="line-clamp-2 min-w-0">{e.title}</span>
-                    </Button>
-                  </li>
-                ))
-              )}
+      <div className="flex flex-col gap-3">
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+          <SortableContext items={sortIds} strategy={verticalListSortingStrategy}>
+            <ul className="flex flex-col gap-3">
+              {lines.map((line) => (
+                <SortableRow
+                  key={line.sortId}
+                  line={line}
+                  firstMedia={catalogById.get(line.exerciseId) ?? null}
+                  onChange={updateLine}
+                  onRemove={removeLine}
+                />
+              ))}
             </ul>
-          </DialogContent>
-        </Dialog>
-      </div>
+          </SortableContext>
+        </DndContext>
 
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
-        <SortableContext items={sortIds} strategy={verticalListSortingStrategy}>
-          <ul className="flex flex-col gap-3">
-            {lines.map((line) => (
-              <SortableRow
-                key={line.sortId}
-                line={line}
-                firstMedia={catalogById.get(line.exerciseId) ?? null}
-                onChange={updateLine}
-                onRemove={removeLine}
+        <div className="flex flex-wrap items-center gap-2">
+          <Dialog open={addOpen} onOpenChange={setAddOpen}>
+            <DialogTrigger
+              render={<Button type="button" variant="secondary" disabled={archived} />}
+            >
+              Добавить упражнение
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Выбор из справочника</DialogTitle>
+              </DialogHeader>
+              <PickerSearchField
+                id="tpl-exercise-pick-search"
+                label="Поиск по названию"
+                placeholder="Название упражнения"
+                value={pickQuery}
+                onValueChange={setPickQuery}
+                className="min-w-0"
               />
-            ))}
-          </ul>
-        </SortableContext>
-      </DndContext>
+              <ul className="max-h-64 overflow-auto">
+                {filteredPick.length === 0 ? (
+                  <li className="text-sm text-muted-foreground">Нет доступных упражнений</li>
+                ) : (
+                  filteredPick.map((e) => (
+                    <li key={e.id}>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        className="h-auto w-full justify-start gap-2 rounded-md px-2 py-2 text-left text-sm font-normal"
+                        onClick={() => addExercise(e)}
+                      >
+                        <ExerciseListCatalogThumb media={e.firstMedia} />
+                        <span className="line-clamp-2 min-w-0">{e.title}</span>
+                      </Button>
+                    </li>
+                  ))
+                )}
+              </ul>
+            </DialogContent>
+          </Dialog>
+        </div>
+      </div>
 
       <div className="flex flex-wrap gap-2 border-t border-border/60 pt-4">
         <Button type="button" onClick={persist} disabled={archived || pending}>
