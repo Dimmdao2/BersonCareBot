@@ -15,7 +15,7 @@
 | Phase 0 — инвентаризация | ✅ 2026-05-04 | [`TASKS.md`](TASKS.md) (чеклист + таблицы), [`LOG.md`](LOG.md) |
 | Phase 1 — примитивы `Collapsible` / `Accordion` | ✅ 2026-05-04 | Код: `apps/webapp/src/components/ui/collapsible.tsx`, `accordion.tsx` (обёртки `@base-ui/react`, без новых npm-зависимостей; **без** правок patient routes). [`LOG.md`](LOG.md), [`TASKS.md`](TASKS.md) §Phase 1 |
 | Phase 2 — кабинет (журнал прошлых приёмов + бейдж статуса) | ✅ 2026-05-04 | `CabinetPastBookings.tsx`, `AppointmentStatusBadge.tsx` + vitest |
-| Phase 3 — `FeatureCard` / `Card` (sections + home «Уроки» через shared) | ✅ 2026-05-04 | [`FeatureCard.tsx`](../../apps/webapp/src/shared/ui/FeatureCard.tsx), vitest + маршруты sections; **визуальный smoke главной** — рекомендуется локально на `/app/patient` (см. `LOG.md`) |
+| Phase 3 — `FeatureCard` / `Card` (sections) | ✅ 2026-05-04 | [`FeatureCard.tsx`](../../apps/webapp/src/shared/ui/FeatureCard.tsx), vitest + маршруты sections; follow-up: `<article>` + `h3` для locked, удалён неиспользуемый `PatientHomeLessonsSection` (см. `LOG.md`) |
 | Phase 4+ | не начаты | [`MASTER_PLAN.md`](MASTER_PLAN.md) |
 
 Связь с глобальным roadmap: [`../APP_RESTRUCTURE_INITIATIVE/README.md`](../APP_RESTRUCTURE_INITIATIVE/README.md), [`../APP_RESTRUCTURE_INITIATIVE/LOG.md`](../APP_RESTRUCTURE_INITIATIVE/LOG.md) (запись 2026-05-04).

@@ -253,7 +253,7 @@ phone → check-phone →
 1. PostLoginSuggestion
 2. PatientHomeCabinetSection  — содержит: "symptoms" и "cabinet" → дневник симптомов + мои записи
 3. PatientHomeDiariesSection  — содержит: только "lfk" → дневник ЛФК
-4. PatientHomeLessonsSection  — уроки
+4. PatientHomeLessonsSection  — уроки *(компонент удалён 2026-05-04; исторический пункт)*
 5. PatientHomeNewsSection     — новости
 6. PatientHomeMailingsSection — рассылки
 7. PatientHomeMotivationSection — мотивашка

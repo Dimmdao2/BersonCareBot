@@ -30,7 +30,7 @@
 - Единый маршрут **[`/app/patient/sections/[slug]`](../apps/webapp/src/app/app/patient/sections/[slug]/page.tsx):** раздел из `content_sections`, список карточек из `content_pages` для `section = slug`.
 - **Редиректы:** [`/app/patient/lessons`](../apps/webapp/src/app/app/patient/lessons/page.tsx) → `/app/patient/sections/lessons`, [`/app/patient/emergency`](../apps/webapp/src/app/app/patient/emergency/page.tsx) → `/app/patient/sections/emergency`.
 - [`paths.ts`](../apps/webapp/src/app-layer/routes/paths.ts): `lessons` и `emergency` указывают на canonical URL под `/sections/...`.
-- Главная: [`PatientHomeLessonsSection`](../apps/webapp/src/app/app/patient/home/PatientHomeLessonsSection.tsx) строится из `listVisible()`.
+- Главная: блок каталога разделов из `listVisible()` на текущей главной **не рендерится** (ранее существовал отдельный компонент «Уроки» — удалён; каталог — [`/app/patient/sections`](../apps/webapp/src/app/app/patient/sections/page.tsx)).
 - Меню: [`menu/service.ts`](../apps/webapp/src/modules/menu/service.ts) принимает `contentSections`; [`patient/page.tsx`](../apps/webapp/src/app/app/patient/page.tsx) и [`api/menu/route.ts`](../apps/webapp/src/app/api/menu/route.ts) передают `listVisible()` для роли `client`.
 
 ### Кэш

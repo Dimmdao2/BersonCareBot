@@ -9,11 +9,11 @@ import { patientCardClass, patientInlineLinkClass, patientMutedTextClass } from 
  * Может быть ссылкой или просто блоком. Компактный вариант — только заголовок, без описания.
  *
  * Ветки рендера (контракт стабилен для потребителей):
- * - нет `href` или `status === "locked"`: неинтерактивный блок (`role="article"`), `id` на корне.
- * - есть `secondaryHref`: корень с `id`, внутри Card и два соседних Link (без вложенных ссылок).
- * - иначе: один Link-обёртка на `href`, `id` на Link, внутри Card.
+ * - нет `href` или `status === "locked"`: нативный `<article>` с `id` (без Card), неинтерактивно.
+ * - есть `secondaryHref`: корень `Card` с `id`, два соседних Link (без вложенных ссылок).
+ * - иначе: один Link на `href` с `id`, внутри `Card`.
  *
- * Заголовок остаётся `h2` (не `CardTitle`), чтобы не менять outline документа на страницах со списком карточек.
+ * Заголовок карточки — `h3`, чтобы не плодить уровень `h2` в сетках из многих карточек (страница задаёт свой главный заголовок).
  */
 
 type FeatureCardProps = {
@@ -71,7 +71,7 @@ export function FeatureCard({
     compact ? "m-0 text-[0.95rem] font-medium" : "text-base",
   );
 
-  const titleEl = <h2 className={titleClass}>{title}</h2>;
+  const titleEl = <h3 className={titleClass}>{title}</h3>;
 
   const mainBlock = (
     <>
@@ -87,13 +87,9 @@ export function FeatureCard({
 
   if (!href || status === "locked") {
     return (
-      <Card
-        id={containerId}
-        role="article"
-        className={featureCardShellClass(compact)}
-      >
+      <article id={containerId} className={featureCardShellClass(compact)}>
         {mainBlock}
-      </Card>
+      </article>
     );
   }
 

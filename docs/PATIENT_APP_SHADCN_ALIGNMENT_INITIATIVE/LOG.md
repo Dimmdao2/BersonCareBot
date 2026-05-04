@@ -1,12 +1,21 @@
 # LOG — Patient App Shadcn Alignment
 
+## 2026-05-04 — Docs: архивы и план patient home
+
+- Синхронизированы упоминания удалённого `PatientHomeLessonsSection`: `docs/archive/2026-05-initiatives/PATIENT_HOME_REDESIGN_INITIATIVE/README.md`, `PATIENT_APP_VISUAL_REDESIGN_INITIATIVE/PLAN_INVENTORY.md`, `PATIENT_APP_VISUAL_REDESIGN_INITIATIVE/LOG.md`, `PATIENT_APP_STYLE_TRANSFER_INITIATIVE/AUDIT_PHASE_2.md`, `docs/archive/2026-04-initiatives/FULL_DEV_PLAN/PLATFORM_CONTEXT_REPORT.md`, `docs/archive/FULL_DEV_PLAN_DONE/EXEC/EXEC_H_HOTFIX_UI_AUTH.md`, `docs/archive/FULL_DEV_PLAN_DONE/PLANS/STAGE_04_HOME_AND_APPOINTMENTS/PLAN.md`, `.cursor/plans/phase_3_patient_home_1b1dc5a6.plan.md` — без битых ссылок на файл, зафиксирована дата удаления (2026-05-04).
+
+## 2026-05-04 — Phase 3 follow-up: home «Уроки» + a11y `FeatureCard`
+
+- Agent/model: Composer (Cursor).
+- Удалён неиспользуемый `apps/webapp/src/app/app/patient/home/PatientHomeLessonsSection.tsx` — блок «Уроки» на главной не рендерится; при появлении блока собрать заново.
+- [`FeatureCard.tsx`](../../apps/webapp/src/shared/ui/FeatureCard.tsx): ветка без `href` / `locked` — нативный `<article>` с `id` (не `Card` + `role="article"`); заголовок карточки — **`h3`**, чтобы в сетках из нескольких карточек не плодить уровень `h2`.
+- Тесты: [`FeatureCard.test.tsx`](../../apps/webapp/src/shared/ui/FeatureCard.test.tsx) — проверка `heading` level 3 для locked.
+
 ## 2026-05-04 — Phase 3: FeatureCard on shadcn `Card`
 
 - Agent/model: Composer (Cursor).
-- Scope: `MASTER_PLAN.md` Phase 3 — только [`FeatureCard.tsx`](../../apps/webapp/src/shared/ui/FeatureCard.tsx) + тесты; страницы [`sections/page.tsx`](../../apps/webapp/src/app/app/patient/sections/page.tsx), [`sections/[slug]/page.tsx`](../../apps/webapp/src/app/app/patient/sections/[slug]/page.tsx), [`PatientHomeLessonsSection.tsx`](../../apps/webapp/src/app/app/patient/home/PatientHomeLessonsSection.tsx) **не редактировались** (контракт прежний).
-- Реализация: корень веток на компоненте `Card` из `@/components/ui/card`; `patientCardClass` + overrides `!gap-0 !py-0 ring-0 text-base` чтобы убрать дефолтный chrome Card и сохранить patient surface; без `CardContent` (лишние горизонтальные отступы не нужны). Заблокировано / без href: `Card` с `role="article"` и `id`. Две ссылки: `Card` + два `Link`. Одна ссылка: `Link` с `id` оборачивает `Card` (как раньше кликабельная область).
-- Заголовок остаётся **`h2`** (не `CardTitle`), outline документа не сужается до множества `h3`.
-- **Главная «Уроки»:** визуально тот же слой токенов (`patientCardClass`); внутри — `data-slot="card"`. Рекомендуется **локальный визуальный smoke** `/app/patient` (сетка «Уроки», hover) после деплоя/мержа — в автоматизированном прогоне агентом не выполнялся.
+- Scope: `MASTER_PLAN.md` Phase 3 — только [`FeatureCard.tsx`](../../apps/webapp/src/shared/ui/FeatureCard.tsx) + тесты; страницы [`sections/page.tsx`](../../apps/webapp/src/app/app/patient/sections/page.tsx), [`sections/[slug]/page.tsx`](../../apps/webapp/src/app/app/patient/sections/[slug]/page.tsx) **не редактировались** (контракт прежний). ~~`PatientHomeLessonsSection`~~ — на момент Phase 3 не импортировался на главной; файл удалён в follow-up того же дня.
+- Реализация: корень интерактивных веток на `Card` из `@/components/ui/card`; `patientCardClass` + overrides `!gap-0 !py-0 ring-0 text-base`; без `CardContent`. Две ссылки: `Card` + два `Link`. Одна ссылка: `Link` с `id` оборачивает `Card`. (В follow-up: locked / без href — `<article>`, заголовок `h3`.)
 - Тесты: расширен [`FeatureCard.test.tsx`](../../apps/webapp/src/shared/ui/FeatureCard.test.tsx); `vitest run` — `FeatureCard.test.tsx`, `page.subscription.test.tsx`, `page.warmupsGate.test.tsx`, `page.slugRedirect.test.tsx` (exit 0).
 - Checks: `eslint` на `FeatureCard.tsx` + тест; `pnpm run typecheck` в `apps/webapp` (exit 0).
 
@@ -46,7 +55,7 @@
   - Re-read `apps/webapp/src/components/ui/button.tsx`: `Button` wraps `@base-ui/react/button` + `buttonVariants`; **no `asChild`**.
   - Enumerated **47** patient files under `app/app/patient/**` that import `@/components/ui/*` (full list in `TASKS.md`).
   - Grepped raw `<button>`, `<input>`, `<textarea>`, `<select>` in patient tree; mapped realistic migration candidates to phases (cabinet, profile accordion, notifications, support, diary; intake/home/courses deferred or out of scope per plan).
-  - Noted `FeatureCard` consumers: `sections/page.tsx`, `sections/[slug]/page.tsx`, `home/PatientHomeLessonsSection.tsx` (shared component touches home).
+  - Noted `FeatureCard` consumers: `sections/page.tsx`, `sections/[slug]/page.tsx`; `PatientHomeLessonsSection` существовал в repo, но не был на живой главной — удалён 2026-05-04.
 - Deliverables: updated `TASKS.md` (Phase 0 checklist + tables + frozen Phase 1/2 scope + **GO** for Phase 1).
 - **Phase 0 decision: GO** for optional Phase 1 (add `Accordion` / `Collapsible` under `components/ui/` using existing Base UI).
 - Checks: `rg` inventories only; no `pnpm` / CI run (docs-only).

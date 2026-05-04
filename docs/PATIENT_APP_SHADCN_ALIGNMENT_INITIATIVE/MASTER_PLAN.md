@@ -116,7 +116,7 @@ Checks:
 
 ### Phase 3 — Sections / FeatureCard Alignment
 
-**Статус:** выполнено 2026-05-04 — `FeatureCard` переведён на shadcn `Card` с сохранением `patientCardClass`, веток locked / secondary / single-link, `h2` и пропсов; потребители страниц не менялись; расширены `FeatureCard.test.tsx`; прогнаны vitest маршрутов sections.
+**Статус:** выполнено 2026-05-04 — `FeatureCard` переведён на shadcn `Card` с сохранением `patientCardClass`, веток locked / secondary / single-link и пропсов; locked / без `href` — нативный `<article>`, заголовок **`h3`**; неиспользуемый `PatientHomeLessonsSection` удалён; потребители `sections/*` не менялись; расширены `FeatureCard.test.tsx`; прогнаны vitest маршрутов sections.
 
 Scope:
 

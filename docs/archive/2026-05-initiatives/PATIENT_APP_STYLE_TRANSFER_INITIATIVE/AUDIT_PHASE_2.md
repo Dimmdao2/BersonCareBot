@@ -29,7 +29,7 @@ No mandatory fixes.
 
 ## 4. Minor Notes
 
-- **`FeatureCard`** (`shared/ui/FeatureCard.tsx`) обновлён для patient chrome и затрагивает не только Phase 2 routes, но и **`PatientHomeLessonsSection`** на главной пациента — это согласовано с целью единого patient chrome; не затрагивает doctor/admin.
+- **`FeatureCard`** (`shared/ui/FeatureCard.tsx`) обновлён для patient chrome и используется на маршрутах разделов (`/app/patient/sections` и др.); ранее существовал **`PatientHomeLessonsSection`** (не был на живой главной) — **удалён 2026-05-04**; единый patient chrome по-прежнему не затрагивает doctor/admin.
 - Чеклист **`02_STATIC_PAGES_STYLE_PLAN.md`** § «Product/content gaps logged, not solved»: в **`LOG.md`** для Phase 2 нет отдельного списка отложенных продуктовых вопросов — при EXEC новых продуктовых разрывов не вводилось; при появлении разрывов в будущем их стоит явно добавлять в `LOG.md`.
 - В этой audit-сессии команды проверок **не повторялись** — опора на запись Phase 2 в `LOG.md`.
 

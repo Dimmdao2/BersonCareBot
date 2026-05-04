@@ -710,7 +710,7 @@ export async function getPatientHomeTodayConfig(deps: AppDeps): Promise<{
 - `apps/webapp/src/app/app/patient/home/PatientMiniAppPatientHome.tsx` — удалить (переехать в новый общий компонент).
 - `apps/webapp/src/app/app/patient/home/PatientHomeBrowserHero.tsx` — удалить.
 - `apps/webapp/src/app/app/patient/home/PatientHomeExtraBlocks.tsx` — удалить (в текущем коде он пустой).
-- `apps/webapp/src/app/app/patient/home/PatientHomeLessonsSection.tsx` — оставить, но **не использовать** на новой главной (может пригодиться в гостевом fallback — см. ниже).
+- ~~`apps/webapp/src/app/app/patient/home/PatientHomeLessonsSection.tsx`~~ — **удалён из репозитория (2026-05-04)**; блок «уроки»/каталог разделов на главной при появлении — новая реализация (ориентир: `/app/patient/sections` и `FeatureCard` в `apps/webapp/src/shared/ui/FeatureCard.tsx`).
 
 Создать:
 

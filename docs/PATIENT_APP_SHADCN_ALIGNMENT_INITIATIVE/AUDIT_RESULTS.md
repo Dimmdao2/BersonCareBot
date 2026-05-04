@@ -112,7 +112,7 @@
 
 - видимая новая главная рендерится через `PatientHomeToday`;
 - текущий pipeline включает blocks: `daily_warmup`, `useful_post`, `booking`, `situations`, `progress`, `next_reminder`, `mood_checkin`, `sos`, `plan`, `subscription_carousel`, `courses`;
-- legacy/side components вроде `PatientHomeNewsSection`, `PatientHomeMotivationSection`, `PatientHomeMailingsSection`, `PatientHomeLessonsSection` существуют в repo, но не являются тем, что пользователь сейчас называет новой главной.
+- legacy/side components вроде `PatientHomeNewsSection`, `PatientHomeMotivationSection`, `PatientHomeMailingsSection` существуют в repo, но не являются тем, что пользователь сейчас называет новой главной; `PatientHomeLessonsSection` удалён (2026-05-04).
 
 Поэтому shadcn alignment новой home — **не scope** этой инициативы без отдельного product/design решения.
 

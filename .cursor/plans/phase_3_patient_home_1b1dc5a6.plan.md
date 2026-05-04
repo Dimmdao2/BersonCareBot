@@ -121,9 +121,9 @@ isProject: false
 - [apps/webapp/src/app/app/patient/home/PatientHomeBrowserHero.tsx](apps/webapp/src/app/app/patient/home/PatientHomeBrowserHero.tsx)
 - [apps/webapp/src/app/app/patient/home/PatientHomeExtraBlocks.tsx](apps/webapp/src/app/app/patient/home/PatientHomeExtraBlocks.tsx)
 
-### Оставить без использования на главной (README)
+### ~~Оставить без использования на главной~~ (устарело 2026-05-04)
 
-- [PatientHomeLessonsSection.tsx](apps/webapp/src/app/app/patient/home/PatientHomeLessonsSection.tsx) — не импортировать в новой главной; проверить grep на импорты.
+- `PatientHomeLessonsSection.tsx` **удалён из репозитория**; блок каталога разделов на главной при появлении — новая реализация (см. `docs/PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/LOG.md`, маршрут `/app/patient/sections`).
 
 ### Админ-preview и переиспользование UI
 

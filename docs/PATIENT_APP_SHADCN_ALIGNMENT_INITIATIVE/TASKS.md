@@ -79,7 +79,7 @@ Paths relative to `apps/webapp/src/app/app/patient/`:
 - `support/PatientSupportForm.tsx`
 - `treatment-programs/PatientTreatmentProgramDetailClient.tsx`
 
-**Note:** `sections/page.tsx` and `sections/[slug]/page.tsx` use `FeatureCard` from `@/shared/ui/FeatureCard` only (no direct `@/components/ui/` import). `home/PatientHomeLessonsSection.tsx` also consumes `FeatureCard` — any `FeatureCard` change ripples to home; keep `MASTER_PLAN` non-goals in mind.
+**Note:** `sections/page.tsx` and `sections/[slug]/page.tsx` use `FeatureCard` from `@/shared/ui/FeatureCard` only (no direct `@/components/ui/` import). Ранее существовал `home/PatientHomeLessonsSection.tsx` (не был подключён к текущей главной) — **удалён** 2026-05-04; блок «Уроки» на главной при появлении — новая реализация.
 
 ### Raw controls — migration candidates (by phase)
 
@@ -135,7 +135,7 @@ Hidden inputs and form `name` attributes in diary flows: **do not migrate casual
 ### `FeatureCard` (done)
 
 - Корень: shadcn `Card` + прежний `patientCardClass` / ссылки / `Badge` / `compact` / `containerId` / `status`.
-- Потребители: `sections/page.tsx`, `sections/[slug]/page.tsx`, `PatientHomeLessonsSection` — без правок файлов.
+- Потребители: `sections/page.tsx`, `sections/[slug]/page.tsx` — без правок файлов при Phase 3.
 
 ## Priority 3 — Profile Accordions
 

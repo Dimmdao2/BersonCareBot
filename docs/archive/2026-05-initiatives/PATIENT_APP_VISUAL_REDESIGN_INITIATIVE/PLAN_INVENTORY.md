@@ -16,7 +16,7 @@
 
 Фактически:
 
-- Главная `/app/patient` собирается в **`apps/webapp/src/app/app/patient/page.tsx`** из легаси-блоков: `PatientHomeBrowserHero`, `PatientHomeLessonsSection`, `PatientHomeExtraBlocks`, `PatientHomeNewsSection`, `PatientHomeMailingsSection`, `PatientHomeMotivationSection`, миниапп-ветка `PatientMiniAppPatientHome` и т.д.
+- Главная `/app/patient` собирается в **`apps/webapp/src/app/app/patient/page.tsx`** из легаси-блоков: `PatientHomeBrowserHero`, ~~`PatientHomeLessonsSection`~~ *(файл удалён 2026-05-04; в инвентаризации 2026-04-29 ещё фигурировал в списке)*, `PatientHomeExtraBlocks`, `PatientHomeNewsSection`, `PatientHomeMailingsSection`, `PatientHomeMotivationSection`, миниапп-ветка `PatientMiniAppPatientHome` и т.д.
 - **`PatientBottomNav.tsx`** — **файл отсутствует**; по репозиторию нет `PatientBottomNav`, `PATIENT_BOTTOM_NAV`, `patient-wide`.
 - **`apps/webapp/src/app/app/patient/home/patientHomeCardStyles.ts`** — **отсутствует**.
 - Компонентов вида **`PatientHomeToday*.tsx`**, **`PatientHomeGreeting.tsx`**, **`PatientHomeDailyWarmupCard.tsx`** и остальных из MASTER_PLAN Phase 3–4 — **нет**.

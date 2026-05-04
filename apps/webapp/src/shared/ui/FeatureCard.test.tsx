@@ -31,6 +31,7 @@ describe("FeatureCard", () => {
       />,
     );
     expect(screen.getByRole("article")).toHaveAttribute("id", "card-locked");
+    expect(screen.getByRole("heading", { level: 3, name: "Закрыто" })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Закрыто" })).toBeNull();
     expect(screen.getByText("заблокировано")).toBeInTheDocument();
   });
