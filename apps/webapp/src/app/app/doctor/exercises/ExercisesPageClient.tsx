@@ -264,12 +264,14 @@ function ExercisesContent({
         overscan={2}
         keyExtractor={(ex) => ex.id}
         containerClassName="h-full max-h-[70vh] lg:max-h-none"
+        gridClassName="pb-2"
         renderItem={(ex) => (
           <div className="w-full min-w-0">
             <ExerciseTileCard
               exercise={ex}
               onSelect={(id) => opts.onTileSelect(id)}
               isActive={opts.activeId === ex.id}
+              squarePreview={opts.columns === 4}
             />
           </div>
         )}

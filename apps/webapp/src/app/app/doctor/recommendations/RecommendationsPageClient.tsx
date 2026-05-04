@@ -124,28 +124,35 @@ function RecommendationTileCard({
   recommendation: r,
   onSelect,
   isActive,
+  squarePreview = false,
 }: {
   recommendation: Recommendation;
   onSelect: (id: string) => void;
   isActive: boolean;
+  squarePreview?: boolean;
 }) {
   const firstMedia = firstRecommendationMedia(r);
   return (
     <button
       type="button"
-      className="flex w-full cursor-pointer justify-center rounded-xl border-0 bg-transparent p-0 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+      className="flex w-full cursor-pointer justify-center rounded-[calc(var(--radius-xl)*0.5)] border-0 bg-transparent p-0 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
       onClick={() => onSelect(r.id)}
     >
       <Card
         size="sm"
         className={cn(
-          "h-full w-full min-w-0 transition-shadow",
+          "h-full w-full min-w-0 rounded-[calc(var(--radius-xl)*0.5)] transition-shadow data-[size=sm]:py-1.5",
           isActive && "ring-1 ring-primary/50 ring-offset-1 ring-offset-background",
         )}
       >
-        <CardContent className="flex h-full flex-col gap-1 p-0.5">
+        <CardContent className="flex h-full flex-col gap-1 py-px group-data-[size=sm]/card:px-1.5">
           {firstMedia ? (
-            <div className="h-[135px] w-full overflow-hidden rounded-md border border-border/60 bg-muted/30">
+            <div
+              className={cn(
+                "w-full overflow-hidden rounded-[calc(var(--radius-md)*0.5)] border border-border/60 bg-muted/30",
+                squarePreview ? "aspect-square shrink-0" : "h-[135px]",
+              )}
+            >
               <RecommendationCatalogMediaThumb
                 media={firstMedia}
                 className="h-full w-full"
@@ -154,9 +161,9 @@ function RecommendationTileCard({
               />
             </div>
           ) : null}
-          <p className="line-clamp-2 px-0.5 text-center text-xs leading-snug text-foreground">{r.title}</p>
+          <p className="line-clamp-2 text-center text-xs leading-snug text-foreground">{r.title}</p>
           {r.isArchived ? (
-            <p className="line-clamp-1 px-0.5 text-center text-[10px] text-muted-foreground">В архиве</p>
+            <p className="line-clamp-1 text-center text-[10px] text-muted-foreground">В архиве</p>
           ) : null}
         </CardContent>
       </Card>
@@ -338,12 +345,14 @@ function RecommendationsContent({
         overscan={2}
         keyExtractor={(r) => r.id}
         containerClassName="h-full max-h-[70vh] lg:max-h-none"
+        gridClassName="pb-2"
         renderItem={(r) => (
           <div className="w-full min-w-0">
             <RecommendationTileCard
               recommendation={r}
               onSelect={(id) => opts.onTileSelect(id)}
               isActive={opts.activeId === r.id}
+              squarePreview={opts.columns === 4}
             />
           </div>
         )}

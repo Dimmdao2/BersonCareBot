@@ -296,7 +296,7 @@ export function TreatmentProgramTemplatesPageClient({
       </div>
     );
 
-  const desktopRight = <CatalogRightPane>{rightInner}</CatalogRightPane>;
+  const desktopRight = <CatalogRightPane className="h-full">{rightInner}</CatalogRightPane>;
 
   const mobileDetailOpen = mobileSheet != null;
 

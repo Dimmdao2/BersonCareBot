@@ -273,6 +273,9 @@ export function TreatmentProgramConstructorClient({
   const [durationDaysDraft, setDurationDaysDraft] = useState("");
   const [durationTextDraft, setDurationTextDraft] = useState("");
   const [stageMetaMsg, setStageMetaMsg] = useState<string | null>(null);
+  const [titleDraft, setTitleDraft] = useState(initialDetail.title);
+  const [descriptionDraft, setDescriptionDraft] = useState(initialDetail.description ?? "");
+  const [templateBasicsBusy, setTemplateBasicsBusy] = useState(false);
   const [groupDialogOpen, setGroupDialogOpen] = useState(false);
   const [newGroupTitle, setNewGroupTitle] = useState("");
   const [newGroupSchedule, setNewGroupSchedule] = useState("");
@@ -291,6 +294,8 @@ export function TreatmentProgramConstructorClient({
         ? prev
         : (initialDetail.stages[0]?.id ?? null),
     );
+    setTitleDraft(initialDetail.title);
+    setDescriptionDraft(initialDetail.description ?? "");
   }, [initialDetail]);
 
   useEffect(() => {
@@ -338,6 +343,8 @@ export function TreatmentProgramConstructorClient({
     const json = (await res.json()) as { ok?: boolean; item?: TreatmentProgramTemplateDetail; error?: string };
     if (json.ok && json.item) {
       setDetail(json.item);
+      setTitleDraft(json.item.title);
+      setDescriptionDraft(json.item.description ?? "");
       setSelectedStageId((prev) =>
         prev && json.item!.stages.some((s) => s.id === prev) ? prev : json.item!.stages[0]?.id ?? null,
       );
@@ -356,6 +363,53 @@ export function TreatmentProgramConstructorClient({
       /* ignore */
     }
   }, [templateId, externalUsageSnapshot]);
+
+  const flushTemplateBasicsIfChanged = useCallback(async () => {
+    if (isArchived || templateBasicsBusy) return;
+    const t = titleDraft.trim();
+    if (!t) {
+      setError("Укажите название шаблона");
+      setTitleDraft(detail.title);
+      return;
+    }
+    const descTrimmed = descriptionDraft.trim();
+    const d = descTrimmed === "" ? null : descTrimmed;
+    if (t === detail.title && d === (detail.description ?? null)) return;
+    setTemplateBasicsBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/doctor/treatment-program-templates/${templateId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: t, description: d }),
+      });
+      const json = (await res.json()) as {
+        ok?: boolean;
+        item?: TreatmentProgramTemplateDetail;
+        error?: string;
+      };
+      if (!res.ok || !json.ok) {
+        setError(json.error ?? "Не удалось сохранить название и описание");
+        return;
+      }
+      await reload();
+      await refetchUsageClient();
+      router.refresh();
+    } finally {
+      setTemplateBasicsBusy(false);
+    }
+  }, [
+    descriptionDraft,
+    detail.description,
+    detail.title,
+    isArchived,
+    refetchUsageClient,
+    reload,
+    router,
+    templateBasicsBusy,
+    templateId,
+    titleDraft,
+  ]);
 
   async function tryArchiveTemplate(withAck: boolean): Promise<boolean> {
     const url = withAck
@@ -954,61 +1008,38 @@ export function TreatmentProgramConstructorClient({
   };
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex w-full min-w-0 flex-col gap-4">
       {error ? (
         <p role="alert" className="text-sm text-destructive">
           {error}
         </p>
       ) : null}
 
-      <header className="sticky top-0 z-20 -mx-1 flex flex-col gap-3 border-b border-border/60 bg-background/95 px-1 pb-3 pt-1 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0 flex-1 space-y-1.5">
-            <h1 className="text-lg font-semibold leading-tight tracking-tight text-foreground line-clamp-2">
-              {detail.title}
-            </h1>
-            <TreatmentProgramTemplateStatusBadge status={detail.status} />
-          </div>
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            <DoctorCatalogPersistPublishBar
-              mode="callbacks"
-              className="border-t-0 pt-0"
-              buttonSize="sm"
-              isArchived={isArchived}
-              pending={busy}
-              isPublished={detail.status === "published"}
-              catalogRecordExists
-              persistLabel="Сохранить черновик"
-              persistDisabled={busy || isArchived || detail.status === "draft"}
-              publishDisabled={busy || isArchived || detail.status === "published"}
-              onPersist={() => void patchPublicationStatus("draft")}
-              onPublish={() => void patchPublicationStatus("published")}
-            />
-            <Button
-              type="button"
-              size="sm"
-              variant="destructive"
-              disabled={busy || isArchived}
-              onClick={() => void handleArchiveClick()}
-            >
-              Архивировать
-            </Button>
-          </div>
+      <div className="flex flex-col gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+          <Label htmlFor="tpl-prog-title">Название</Label>
+          <TreatmentProgramTemplateStatusBadge status={detail.status} className="shrink-0" />
         </div>
-      </header>
+        <Input
+          id="tpl-prog-title"
+          value={titleDraft}
+          onChange={(e) => setTitleDraft(e.target.value)}
+          onBlur={() => void flushTemplateBasicsIfChanged()}
+          disabled={isArchived || templateBasicsBusy}
+        />
+      </div>
 
-      <section className="rounded-md border border-border/60 bg-card/20 p-3">
-        <div className="min-w-0 flex-1">
-          <h2 className="text-sm font-semibold">Где используется</h2>
-          {usageBusy ? (
-            <p className="mt-1 text-sm text-muted-foreground">Загрузка…</p>
-          ) : usageLoadError ? (
-            <p className="mt-1 text-sm text-muted-foreground">{usageLoadError}</p>
-          ) : (
-            <TemplateUsageSectionsView sections={usageSections} />
-          )}
-        </div>
-      </section>
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="tpl-prog-desc">Описание</Label>
+        <Textarea
+          id="tpl-prog-desc"
+          className="min-h-[80px]"
+          value={descriptionDraft}
+          onChange={(e) => setDescriptionDraft(e.target.value)}
+          onBlur={() => void flushTemplateBasicsIfChanged()}
+          disabled={isArchived || templateBasicsBusy}
+        />
+      </div>
 
       {isArchived ? (
         <p className="text-sm text-muted-foreground">Шаблон в архиве — изменение этапов и элементов отключено.</p>
@@ -1307,6 +1338,46 @@ export function TreatmentProgramConstructorClient({
           )}
         </div>
       </div>
+
+      <DoctorCatalogPersistPublishBar
+        mode="callbacks"
+        isArchived={isArchived}
+        pending={busy}
+        isPublished={detail.status === "published"}
+        catalogRecordExists
+        persistLabel="Сохранить черновик"
+        persistDisabled={busy || isArchived || detail.status === "draft"}
+        publishDisabled={busy || isArchived || detail.status === "published"}
+        onPersist={() => void patchPublicationStatus("draft")}
+        onPublish={() => void patchPublicationStatus("published")}
+      />
+
+      <div className="border-t border-border/60 pt-4">
+        <div className="mb-3 rounded-md border border-border/60 bg-muted/20 p-3">
+          <h2 className="text-sm font-medium text-foreground">Где используется</h2>
+          {usageBusy ? (
+            <p className="mt-1 text-sm text-muted-foreground">Загрузка…</p>
+          ) : usageLoadError ? (
+            <p className="mt-1 text-sm text-muted-foreground">{usageLoadError}</p>
+          ) : (
+            <TemplateUsageSectionsView sections={usageSections} />
+          )}
+        </div>
+
+        {!isArchived ? (
+          <Button type="button" variant="destructive" disabled={busy} onClick={() => void handleArchiveClick()}>
+            Архивировать
+          </Button>
+        ) : null}
+      </div>
+
+      <p className="text-xs text-muted-foreground">
+        {detail.status === "published"
+          ? "«Сохранить черновик» переводит шаблон обратно в черновик. Название и описание сохраняются при уходе с поля."
+          : detail.status === "draft"
+            ? "Опубликуйте шаблон, когда этапы и элементы готовы. Название и описание сохраняются при уходе с поля."
+            : "Архивный шаблон нельзя редактировать."}
+      </p>
 
       <Dialog open={stageDialogOpen} onOpenChange={setStageDialogOpen}>
         <DialogContent>

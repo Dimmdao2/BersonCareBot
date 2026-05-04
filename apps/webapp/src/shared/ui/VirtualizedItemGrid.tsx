@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import { useRef } from "react";
-import { useVirtualizer } from "@tanstack/react-virtual";
+import { measureElement, useVirtualizer } from "@tanstack/react-virtual";
 import { cn } from "@/lib/utils";
 
 export type VirtualizedItemGridProps<T> = {
@@ -36,6 +36,7 @@ export function VirtualizedItemGrid<T>({
     getScrollElement: () => parentRef.current,
     estimateSize: () => estimatedRowHeight,
     overscan: overscan ?? 2,
+    measureElement,
   });
 
   const virtualRows = rowVirtualizer.getVirtualItems();
@@ -51,6 +52,8 @@ export function VirtualizedItemGrid<T>({
           return (
             <div
               key={virtualRow.key}
+              data-index={virtualRow.index}
+              ref={rowVirtualizer.measureElement}
               className={cn(
                 "absolute grid w-full gap-3 p-0.5",
                 gridClassName,
