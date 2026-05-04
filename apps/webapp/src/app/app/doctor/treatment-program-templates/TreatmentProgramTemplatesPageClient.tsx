@@ -294,7 +294,11 @@ export function TreatmentProgramTemplatesPageClient({
       <div className="flex flex-col gap-3">
         <p className="text-sm font-medium text-foreground">Новый шаблон программы</p>
         <p className="text-sm text-muted-foreground">Задайте название и откройте конструктор этапов.</p>
-        <NewTemplateForm showCancelLink={false} titleInputId="tpl-title-catalog-inline" />
+        <NewTemplateForm
+          showCancelLink={false}
+          showStatusField={false}
+          titleInputId="tpl-title-catalog-inline"
+        />
       </div>
     );
 

@@ -28,7 +28,11 @@ export type NewTemplateFormProps = {
   className?: string;
   /** id поля названия — чтобы не конфликтовать при нескольких формах в дереве. */
   titleInputId?: string;
-  /** Поле статуса при создании (`POST` передаёт `status`). По умолчанию: встроенная форма в каталоге (`showCancelLink === false`). */
+  /**
+   * Поле статуса при создании (`POST` передаёт `status`).
+   * По умолчанию `false` — сервер создаёт черновик (`draft`), как в inline-каталоге.
+   * Передайте `true` только если нужен явный выбор статуса на отдельной странице.
+   */
   showStatusField?: boolean;
 };
 
@@ -39,7 +43,7 @@ export function NewTemplateForm({
   showStatusField: showStatusFieldProp,
 }: NewTemplateFormProps) {
   const router = useRouter();
-  const showStatusField = showStatusFieldProp ?? !showCancelLink;
+  const showStatusField = showStatusFieldProp ?? false;
   const [title, setTitle] = useState("");
   const [status, setStatus] = useState<"draft" | "published" | "archived">("draft");
   const [error, setError] = useState<string | null>(null);
