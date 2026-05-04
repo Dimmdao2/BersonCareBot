@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { BookOpen, ChevronDown, ChevronUp, ClipboardList, ImageIcon, Trash2 } from "lucide-react";
+import { BookOpen, ChevronDown, ChevronUp, ClipboardList, ImageIcon, Settings } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DoctorCatalogPersistPublishBar } from "@/shared/ui/doctor/DoctorCatalogPersistPublishBar";
@@ -112,17 +112,22 @@ function TemplateUsageSectionsView({ sections }: { sections: TreatmentProgramTem
 function LibraryMediaThumb({
   src,
   itemType,
+  compact,
 }: {
   src: string | null | undefined;
   itemType: TreatmentProgramItemType;
+  /** Компактная строка списка этапа (~36px). */
+  compact?: boolean;
 }) {
+  const box = compact ? "size-9" : "size-12";
+  const iconSz = compact ? "size-4" : "size-5";
   const icon =
     itemType === "lesson" ? (
-      <BookOpen className="size-5 text-muted-foreground" aria-hidden />
+      <BookOpen className={`${iconSz} text-muted-foreground`} aria-hidden />
     ) : itemType === "test_set" ? (
-      <ClipboardList className="size-5 text-muted-foreground" aria-hidden />
+      <ClipboardList className={`${iconSz} text-muted-foreground`} aria-hidden />
     ) : (
-      <ImageIcon className="size-5 text-muted-foreground" aria-hidden />
+      <ImageIcon className={`${iconSz} text-muted-foreground`} aria-hidden />
     );
   if (src?.trim()) {
     return (
@@ -130,13 +135,13 @@ function LibraryMediaThumb({
       <img
         src={src.trim()}
         alt=""
-        className="size-12 shrink-0 rounded-md border border-border/60 object-cover"
+        className={`${box} shrink-0 rounded-md border border-border/60 object-cover`}
       />
     );
   }
   return (
     <div
-      className="flex size-12 shrink-0 items-center justify-center rounded-md border border-border/60 bg-muted/40"
+      className={`flex ${box} shrink-0 items-center justify-center rounded-md border border-border/60 bg-muted/40`}
       aria-hidden
     >
       {icon}
@@ -168,9 +173,68 @@ function findLibraryRow(
   return rows.find((r) => r.id === id) ?? null;
 }
 
+function StageItemListRow({
+  library,
+  item,
+  editLocked,
+  onOpenSettings,
+}: {
+  library: TreatmentProgramLibraryPickers;
+  item: TreatmentProgramStageItem;
+  editLocked: boolean;
+  onOpenSettings: () => void;
+}) {
+  const libRow = findLibraryRow(library, item.itemType, item.itemRefId);
+  return (
+    <li className="flex min-w-0 items-center gap-2 px-2 py-2">
+      <LibraryMediaThumb compact src={libRow?.thumbUrl} itemType={item.itemType} />
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-medium">{libRow?.title ?? item.itemRefId}</p>
+        <p className="text-xs text-muted-foreground">{ITEM_TYPE_LABEL[item.itemType]}</p>
+      </div>
+      <Button
+        type="button"
+        size="icon"
+        variant="ghost"
+        className="shrink-0"
+        disabled={editLocked}
+        aria-label="Настройки элемента"
+        onClick={onOpenSettings}
+      >
+        <Settings className="size-4" />
+      </Button>
+    </li>
+  );
+}
+
 /** Стабильный порядок для этапов и элементов (как на сервере в `getTemplateById`). */
 function sortByOrderThenId<T extends { sortOrder: number; id: string }>(rows: T[]): T[] {
   return [...rows].sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id));
+}
+
+type StageWithChildren = TreatmentProgramTemplateDetail["stages"][number];
+
+function orderedGroupsForStage(stage: StageWithChildren) {
+  return sortByOrderThenId(stage.groups);
+}
+
+function ungroupedItemsForStage(stage: StageWithChildren) {
+  return sortByOrderThenId(stage.items.filter((i) => !i.groupId));
+}
+
+function itemsInGroupForStage(stage: StageWithChildren, groupId: string) {
+  return sortByOrderThenId(stage.items.filter((i) => i.groupId === groupId));
+}
+
+function findItemAndStage(
+  d: TreatmentProgramTemplateDetail,
+  itemId: string,
+): { stage: StageWithChildren; item: TreatmentProgramStageItem } | null {
+  for (const stage of d.stages) {
+    const item = stage.items.find((i) => i.id === itemId);
+    if (item) return { stage, item };
+  }
+  return null;
 }
 
 /** B7: комментарий элемента шаблона (template `comment` → копия в instance при назначении). */
@@ -250,9 +314,10 @@ export function TreatmentProgramConstructorClient({
 }: Props) {
   const router = useRouter();
   const [detail, setDetail] = useState<TreatmentProgramTemplateDetail>(initialDetail);
-  const [selectedStageId, setSelectedStageId] = useState<string | null>(
-    initialDetail.stages[0]?.id ?? null,
-  );
+  const [itemDialogStageId, setItemDialogStageId] = useState<string | null>(null);
+  const [groupDialogStageId, setGroupDialogStageId] = useState<string | null>(null);
+  const [stageSettingsStageId, setStageSettingsStageId] = useState<string | null>(null);
+  const [itemSettingsItemId, setItemSettingsItemId] = useState<string | null>(null);
   const [stageDialogOpen, setStageDialogOpen] = useState(false);
   const [newStageTitle, setNewStageTitle] = useState("");
   const [newStageGoals, setNewStageGoals] = useState("");
@@ -272,6 +337,8 @@ export function TreatmentProgramConstructorClient({
   const [objectivesDraft, setObjectivesDraft] = useState("");
   const [durationDaysDraft, setDurationDaysDraft] = useState("");
   const [durationTextDraft, setDurationTextDraft] = useState("");
+  const [stageTitleDraft, setStageTitleDraft] = useState("");
+  const [stageDescriptionDraft, setStageDescriptionDraft] = useState("");
   const [stageMetaMsg, setStageMetaMsg] = useState<string | null>(null);
   const [titleDraft, setTitleDraft] = useState(initialDetail.title);
   const [descriptionDraft, setDescriptionDraft] = useState(initialDetail.description ?? "");
@@ -289,11 +356,6 @@ export function TreatmentProgramConstructorClient({
 
   useEffect(() => {
     setDetail(initialDetail);
-    setSelectedStageId((prev) =>
-      prev && initialDetail.stages.some((s) => s.id === prev)
-        ? prev
-        : (initialDetail.stages[0]?.id ?? null),
-    );
     setTitleDraft(initialDetail.title);
     setDescriptionDraft(initialDetail.description ?? "");
   }, [initialDetail]);
@@ -345,9 +407,6 @@ export function TreatmentProgramConstructorClient({
       setDetail(json.item);
       setTitleDraft(json.item.title);
       setDescriptionDraft(json.item.description ?? "");
-      setSelectedStageId((prev) =>
-        prev && json.item!.stages.some((s) => s.id === prev) ? prev : json.item!.stages[0]?.id ?? null,
-      );
     }
   }, [templateId]);
 
@@ -495,43 +554,44 @@ export function TreatmentProgramConstructorClient({
 
   const orderedStages = useMemo(() => sortByOrderThenId(detail.stages), [detail.stages]);
 
-  const selectedStage = useMemo(
-    () => detail.stages.find((s) => s.id === selectedStageId) ?? null,
-    [detail.stages, selectedStageId],
-  );
+  useEffect(() => {
+    if (stageSettingsStageId && !detail.stages.some((s) => s.id === stageSettingsStageId)) {
+      setStageSettingsStageId(null);
+    }
+    if (itemDialogStageId && !detail.stages.some((s) => s.id === itemDialogStageId)) {
+      setItemDialogOpen(false);
+      setItemDialogStageId(null);
+    }
+    if (groupDialogStageId && !detail.stages.some((s) => s.id === groupDialogStageId)) {
+      setGroupDialogOpen(false);
+      setGroupDialogStageId(null);
+    }
+    if (itemSettingsItemId && !findItemAndStage(detail, itemSettingsItemId)) {
+      setItemSettingsItemId(null);
+    }
+  }, [detail, stageSettingsStageId, itemDialogStageId, groupDialogStageId, itemSettingsItemId]);
 
   useEffect(() => {
-    if (!selectedStage) {
-      setGoalsDraft("");
-      setObjectivesDraft("");
-      setDurationDaysDraft("");
-      setDurationTextDraft("");
+    if (!stageSettingsStageId) {
       setStageMetaMsg(null);
       return;
     }
-    setGoalsDraft(selectedStage.goals ?? "");
-    setObjectivesDraft(selectedStage.objectives ?? "");
-    setDurationDaysDraft(
-      selectedStage.expectedDurationDays != null ? String(selectedStage.expectedDurationDays) : "",
-    );
-    setDurationTextDraft(selectedStage.expectedDurationText ?? "");
+    const st = detail.stages.find((s) => s.id === stageSettingsStageId);
+    if (!st) return;
+    setStageTitleDraft(st.title);
+    setStageDescriptionDraft(st.description ?? "");
+    setGoalsDraft(st.goals ?? "");
+    setObjectivesDraft(st.objectives ?? "");
+    setDurationDaysDraft(st.expectedDurationDays != null ? String(st.expectedDurationDays) : "");
+    setDurationTextDraft(st.expectedDurationText ?? "");
     setStageMetaMsg(null);
-  }, [selectedStage]);
+  }, [stageSettingsStageId, detail.stages]);
 
-  const orderedStageGroups = useMemo(
-    () => (selectedStage ? sortByOrderThenId(selectedStage.groups) : []),
-    [selectedStage],
-  );
-
-  const ungroupedItems = useMemo(
-    () => (selectedStage ? sortByOrderThenId(selectedStage.items.filter((i) => !i.groupId)) : []),
-    [selectedStage],
-  );
-
-  function itemsInGroup(groupId: string): TreatmentProgramStageItem[] {
-    if (!selectedStage) return [];
-    return sortByOrderThenId(selectedStage.items.filter((i) => i.groupId === groupId));
-  }
+  const itemPickerGroupsOrdered = useMemo(() => {
+    if (!itemDialogStageId) return [];
+    const st = detail.stages.find((s) => s.id === itemDialogStageId);
+    return st ? sortByOrderThenId(st.groups) : [];
+  }, [detail.stages, itemDialogStageId]);
 
   const pickerList = useMemo(() => {
     const q = itemSearch.trim().toLowerCase();
@@ -574,8 +634,14 @@ export function TreatmentProgramConstructorClient({
     return res.ok && !!json.ok;
   }
 
-  async function handleSaveStageMetadata() {
-    if (!selectedStageId || editLocked) return;
+  async function handleSaveStageSettings() {
+    const sid = stageSettingsStageId;
+    if (!sid || editLocked) return;
+    const titleTrim = stageTitleDraft.trim();
+    if (!titleTrim) {
+      setStageMetaMsg("Укажите название этапа");
+      return;
+    }
     const daysTrim = durationDaysDraft.trim();
     let expectedDurationDays: number | null = null;
     if (daysTrim !== "") {
@@ -589,10 +655,12 @@ export function TreatmentProgramConstructorClient({
     setBusy(true);
     setStageMetaMsg(null);
     try {
-      const res = await fetch(`/api/doctor/treatment-program-templates/stages/${selectedStageId}`, {
+      const res = await fetch(`/api/doctor/treatment-program-templates/stages/${sid}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          title: titleTrim,
+          description: stageDescriptionDraft.trim() === "" ? null : stageDescriptionDraft.trim(),
           goals: goalsDraft.trim() || null,
           objectives: objectivesDraft.trim() || null,
           expectedDurationDays,
@@ -639,8 +707,8 @@ export function TreatmentProgramConstructorClient({
     }
   }
 
-  async function handleDeleteStage(stageId: string) {
-    if (!globalThis.confirm("Удалить этап и все элементы в нём?")) return;
+  async function handleDeleteStage(stageId: string): Promise<boolean> {
+    if (!globalThis.confirm("Удалить этап и все элементы в нём?")) return false;
     setBusy(true);
     setError(null);
     try {
@@ -650,17 +718,29 @@ export function TreatmentProgramConstructorClient({
       const json = (await res.json()) as { ok?: boolean };
       if (!res.ok || !json.ok) {
         setError("Не удалось удалить этап");
-        return;
+        return false;
       }
-      if (selectedStageId === stageId) setSelectedStageId(null);
+      if (stageSettingsStageId === stageId) setStageSettingsStageId(null);
+      if (itemDialogStageId === stageId) {
+        setItemDialogOpen(false);
+        setItemDialogStageId(null);
+      }
+      if (groupDialogStageId === stageId) {
+        setGroupDialogOpen(false);
+        setGroupDialogStageId(null);
+      }
+      if (itemSettingsItemId) {
+        const loc = findItemAndStage(detail, itemSettingsItemId);
+        if (loc?.stage.id === stageId) setItemSettingsItemId(null);
+      }
       await reload();
+      return true;
     } finally {
       setBusy(false);
     }
   }
 
   async function handleMoveItemInSubgroup(sectionItems: TreatmentProgramStageItem[], itemId: string, dir: -1 | 1) {
-    if (!selectedStage) return;
     const sorted = sortByOrderThenId(sectionItems);
     const idx = sorted.findIndex((it) => it.id === itemId);
     const j = idx + dir;
@@ -693,13 +773,13 @@ export function TreatmentProgramConstructorClient({
   }
 
   async function handleAddGroup() {
-    if (!selectedStageId) return;
+    if (!groupDialogStageId) return;
     const title = newGroupTitle.trim();
     if (!title) return;
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(`/api/doctor/treatment-program-templates/stages/${selectedStageId}/groups`, {
+      const res = await fetch(`/api/doctor/treatment-program-templates/stages/${groupDialogStageId}/groups`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -717,15 +797,15 @@ export function TreatmentProgramConstructorClient({
       setNewGroupSchedule("");
       setNewGroupDescription("");
       setGroupDialogOpen(false);
+      setGroupDialogStageId(null);
       await reload();
     } finally {
       setBusy(false);
     }
   }
 
-  async function handleReorderGroup(groupId: string, dir: -1 | 1) {
-    if (!selectedStage) return;
-    const sorted = sortByOrderThenId(selectedStage.groups);
+  async function handleReorderGroup(stage: StageWithChildren, groupId: string, dir: -1 | 1) {
+    const sorted = sortByOrderThenId(stage.groups);
     const idx = sorted.findIndex((g) => g.id === groupId);
     const j = idx + dir;
     if (idx < 0 || j < 0 || j >= sorted.length) return;
@@ -738,7 +818,7 @@ export function TreatmentProgramConstructorClient({
     setError(null);
     try {
       const res = await fetch(
-        `/api/doctor/treatment-program-templates/stages/${selectedStage.id}/groups/reorder`,
+        `/api/doctor/treatment-program-templates/stages/${stage.id}/groups/reorder`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -849,24 +929,18 @@ export function TreatmentProgramConstructorClient({
       setNewStageObjectives("");
       setNewStageSortOrder("");
       setStageDialogOpen(false);
-      const full = await fetch(`/api/doctor/treatment-program-templates/${templateId}`);
-      const reloadJson = (await full.json()) as { ok?: boolean; item?: TreatmentProgramTemplateDetail };
-      if (reloadJson.ok && reloadJson.item) {
-        setDetail(reloadJson.item);
-        const last = reloadJson.item.stages[reloadJson.item.stages.length - 1];
-        if (last) setSelectedStageId(last.id);
-      }
+      await reload();
     } finally {
       setBusy(false);
     }
   }
 
   async function handleAddItem(refId: string) {
-    if (!selectedStageId) return;
+    if (!itemDialogStageId) return;
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(`/api/doctor/treatment-program-templates/stages/${selectedStageId}/items`, {
+      const res = await fetch(`/api/doctor/treatment-program-templates/stages/${itemDialogStageId}/items`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -881,6 +955,7 @@ export function TreatmentProgramConstructorClient({
         return;
       }
       setItemDialogOpen(false);
+      setItemDialogStageId(null);
       setItemSearch("");
       setItemAddGroupId("");
       await reload();
@@ -902,6 +977,7 @@ export function TreatmentProgramConstructorClient({
         setError("Не удалось удалить");
         return;
       }
+      if (itemSettingsItemId === itemId) setItemSettingsItemId(null);
       await reload();
     } finally {
       setBusy(false);
@@ -915,97 +991,10 @@ export function TreatmentProgramConstructorClient({
 
   const editLocked = busy || isArchived;
 
-  const renderStageItemRow = (it: TreatmentProgramStageItem, section: TreatmentProgramStageItem[], itemIndex: number) => {
-    const libRow = findLibraryRow(library, it.itemType, it.itemRefId);
-    return (
-      <li key={it.id} className="text-sm">
-        <div className="flex flex-wrap items-center gap-2 px-2 py-2">
-          <div className="flex shrink-0 flex-col gap-0.5">
-            <Button
-              type="button"
-              size="icon"
-              variant="ghost"
-              className="size-8"
-              disabled={editLocked || itemIndex === 0}
-              aria-label="Элемент выше"
-              onClick={() => void handleMoveItemInSubgroup(section, it.id, -1)}
-            >
-              <ChevronUp className="size-4" />
-            </Button>
-            <Button
-              type="button"
-              size="icon"
-              variant="ghost"
-              className="size-8"
-              disabled={editLocked || itemIndex >= section.length - 1}
-              aria-label="Элемент ниже"
-              onClick={() => void handleMoveItemInSubgroup(section, it.id, 1)}
-            >
-              <ChevronDown className="size-4" />
-            </Button>
-          </div>
-          <LibraryMediaThumb src={libRow?.thumbUrl} itemType={it.itemType} />
-          <div className="min-w-0 flex-1">
-            <span className="font-medium">{ITEM_TYPE_LABEL[it.itemType]}</span>
-            <span className="ml-2 text-muted-foreground">
-              {libRow?.title ?? it.itemRefId}
-            </span>
-            {libRow?.subtitle?.trim() ? (
-              <p className="mt-0.5 text-xs text-muted-foreground line-clamp-1">{libRow.subtitle.trim()}</p>
-            ) : null}
-          </div>
-          <Select
-            value={it.groupId ?? "__none__"}
-            onValueChange={(v) => {
-              void (async () => {
-                const next = v === "__none__" ? null : v;
-                setBusy(true);
-                setError(null);
-                try {
-                  const ok = await patchItemGroupId(it.id, next);
-                  if (!ok) setError("Не удалось изменить группу");
-                  else await reload();
-                } finally {
-                  setBusy(false);
-                }
-              })();
-            }}
-            disabled={editLocked}
-          >
-            <SelectTrigger className="h-8 w-[min(100%,11rem)] text-xs">
-              <SelectValue placeholder="Группа" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__none__">Без группы</SelectItem>
-              {orderedStageGroups.map((g) => (
-                <SelectItem key={g.id} value={g.id}>
-                  {g.title}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button
-            type="button"
-            size="sm"
-            variant="ghost"
-            className="text-destructive"
-            disabled={editLocked}
-            onClick={() => void handleRemoveItem(it.id)}
-          >
-            Удалить
-          </Button>
-        </div>
-        <div className="px-2 pb-2">
-          <TemplateStageItemCommentBlock
-            itemId={it.id}
-            initialComment={it.comment}
-            disabled={editLocked}
-            onReload={reload}
-          />
-        </div>
-      </li>
-    );
-  };
+  const itemSettingsContext = useMemo(() => {
+    if (!itemSettingsItemId) return null;
+    return findItemAndStage(detail, itemSettingsItemId);
+  }, [detail, itemSettingsItemId]);
 
   return (
     <div className="flex w-full min-w-0 flex-col gap-4">
@@ -1045,298 +1034,220 @@ export function TreatmentProgramConstructorClient({
         <p className="text-sm text-muted-foreground">Шаблон в архиве — изменение этапов и элементов отключено.</p>
       ) : null}
 
-      <div className="grid min-h-0 gap-4 md:grid-cols-[minmax(240px,320px)_1fr] md:items-start">
-        <div className="flex flex-col gap-2">
-          <div className="flex items-center justify-between gap-2">
-            <h2 className="text-sm font-semibold">Этапы</h2>
-            <Button
-              type="button"
-              size="sm"
-              variant="secondary"
-              disabled={editLocked}
-              onClick={() => setStageDialogOpen(true)}
-            >
-              + Этап
-            </Button>
-          </div>
-          <ul className="divide-y rounded-md border">
-            {orderedStages.length === 0 ? (
-              <li className="px-3 py-4 text-sm text-muted-foreground">Нет этапов — добавьте первый.</li>
-            ) : (
-              orderedStages.map((s, stageIndex) => (
-                <li key={s.id} className="flex items-stretch gap-1">
-                  <button
-                    type="button"
-                    onClick={() => setSelectedStageId(s.id)}
-                    className={
-                      selectedStageId === s.id
-                        ? "min-w-0 flex-1 text-left text-sm font-medium bg-muted"
-                        : "min-w-0 flex-1 text-left text-sm hover:bg-muted/50"
-                    }
-                  >
-                    <span className="flex flex-col items-start gap-1 px-3 py-2">
-                      <span className="line-clamp-2">{s.title}</span>
-                      {s.sortOrder === 0 ? (
-                        <Badge
-                          variant="secondary"
-                          className="max-w-full whitespace-normal text-left text-[10px] font-normal leading-tight"
-                        >
-                          Этап 0 — «Общие рекомендации» у пациента
-                        </Badge>
-                      ) : null}
-                    </span>
-                  </button>
-                  <div className="flex shrink-0 flex-col justify-center gap-0.5 py-1 pr-1">
-                    <Button
-                      type="button"
-                      size="icon"
-                      variant="ghost"
-                      className="size-8"
-                      disabled={editLocked || stageIndex === 0}
-                      aria-label="Этап выше"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        void handleMoveStage(s.id, -1);
-                      }}
-                    >
-                      <ChevronUp className="size-4" />
-                    </Button>
-                    <Button
-                      type="button"
-                      size="icon"
-                      variant="ghost"
-                      className="size-8"
-                      disabled={editLocked || stageIndex >= orderedStages.length - 1}
-                      aria-label="Этап ниже"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        void handleMoveStage(s.id, 1);
-                      }}
-                    >
-                      <ChevronDown className="size-4" />
-                    </Button>
-                    <Button
-                      type="button"
-                      size="icon"
-                      variant="ghost"
-                      className="size-8 text-destructive hover:text-destructive"
-                      disabled={editLocked}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        void handleDeleteStage(s.id);
-                      }}
-                    >
-                      <Trash2 className="size-4" />
-                    </Button>
-                  </div>
-                </li>
-              ))
-            )}
-          </ul>
+      <div className="flex min-h-0 w-full min-w-0 flex-col gap-4">
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold">Этапы</h2>
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            disabled={editLocked}
+            onClick={() => setStageDialogOpen(true)}
+          >
+            + Этап
+          </Button>
         </div>
-
-        <div className="flex min-w-0 flex-col gap-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-sm font-semibold">
-              Элементы этапа
-              {selectedStage ? (
-                <span className="ml-2 font-normal text-muted-foreground">— {selectedStage.title}</span>
-              ) : null}
-            </h2>
-            <div className="flex flex-wrap gap-2">
-              <Button
-                type="button"
-                size="sm"
-                variant="secondary"
-                disabled={!selectedStage || editLocked}
-                onClick={() => {
-                  setNewGroupTitle("");
-                  setNewGroupSchedule("");
-                  setNewGroupDescription("");
-                  setGroupDialogOpen(true);
-                }}
-              >
-                + Группа
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                disabled={!selectedStage || editLocked}
-                onClick={() => {
-                  setItemDialogOpen(true);
-                  setItemType("exercise");
-                  setItemSearch("");
-                  setItemAddGroupId("");
-                }}
-              >
-                Добавить из библиотеки
-              </Button>
-            </div>
-          </div>
-
-          {selectedStage?.sortOrder === 0 ? (
-            <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs leading-snug text-foreground">
-              <span className="font-medium">Этап с порядком 0.</span> У пациента он отображается в блоке «Общие
-              рекомендации» (вне прогресса этапов, всегда доступен для чтения). Сюда логично класть постоянные
-              рекомендации и общий режим.
-            </p>
-          ) : null}
-
-          {selectedStage ? (
-            <div className="rounded-md border border-border/60 bg-muted/20 p-3">
-              <div className="flex flex-col gap-3">
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor={`tpl-stage-goals-${selectedStage.id}`}>Цель этапа</Label>
-                  <Textarea
-                    id={`tpl-stage-goals-${selectedStage.id}`}
-                    rows={3}
-                    disabled={editLocked || busy}
-                    value={goalsDraft}
-                    onChange={(e) => setGoalsDraft(e.target.value)}
-                    className="text-sm"
-                  />
-                  <p className="text-xs text-muted-foreground">Кратко, в свободной форме (markdown).</p>
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor={`tpl-stage-obj-${selectedStage.id}`}>Задачи этапа</Label>
-                  <Textarea
-                    id={`tpl-stage-obj-${selectedStage.id}`}
-                    rows={3}
-                    disabled={editLocked || busy}
-                    value={objectivesDraft}
-                    onChange={(e) => setObjectivesDraft(e.target.value)}
-                    className="text-sm"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Список задач текстом (markdown); структурированный чеклист в БД не хранится (O1).
-                  </p>
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor={`tpl-stage-days-${selectedStage.id}`}>Ожидаемый срок, дней</Label>
-                  <Input
-                    id={`tpl-stage-days-${selectedStage.id}`}
-                    inputMode="numeric"
-                    disabled={editLocked || busy}
-                    value={durationDaysDraft}
-                    onChange={(e) => setDurationDaysDraft(e.target.value)}
-                    className="max-w-[12rem] text-sm"
-                    placeholder="например 14"
-                  />
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor={`tpl-stage-durtxt-${selectedStage.id}`}>Ожидаемый срок, текстом</Label>
-                  <Input
-                    id={`tpl-stage-durtxt-${selectedStage.id}`}
-                    disabled={editLocked || busy}
-                    value={durationTextDraft}
-                    onChange={(e) => setDurationTextDraft(e.target.value)}
-                    className="text-sm"
-                    placeholder="2–3 недели"
-                  />
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <Button
-                    type="button"
-                    size="sm"
-                    disabled={editLocked || busy}
-                    onClick={() => void handleSaveStageMetadata()}
-                  >
-                    Сохранить цели этапа
-                  </Button>
-                  {stageMetaMsg ? (
-                    <span className="text-xs text-muted-foreground">{stageMetaMsg}</span>
-                  ) : null}
-                </div>
-              </div>
-            </div>
-          ) : null}
-
-          {!selectedStage ? (
-            <p className="text-sm text-muted-foreground">Выберите этап слева.</p>
-          ) : orderedStageGroups.length === 0 && selectedStage.items.length === 0 ? (
-            <p className="text-sm text-muted-foreground">В этапе пока нет элементов и групп.</p>
-          ) : (
-            <div className="space-y-4">
-              {orderedStageGroups.map((g, groupIndex) => {
-                const gItems = itemsInGroup(g.id);
-                return (
-                  <div key={g.id} className="rounded-md border border-border/60 bg-card/30 p-2">
-                    <div className="flex flex-wrap items-center gap-2 border-b border-border/40 pb-2">
-                      <div className="flex shrink-0 flex-col gap-0.5">
-                        <Button
-                          type="button"
-                          size="icon"
-                          variant="ghost"
-                          className="size-8"
-                          disabled={editLocked || groupIndex === 0}
-                          aria-label="Группа выше"
-                          onClick={() => void handleReorderGroup(g.id, -1)}
-                        >
-                          <ChevronUp className="size-4" />
-                        </Button>
-                        <Button
-                          type="button"
-                          size="icon"
-                          variant="ghost"
-                          className="size-8"
-                          disabled={editLocked || groupIndex >= orderedStageGroups.length - 1}
-                          aria-label="Группа ниже"
-                          onClick={() => void handleReorderGroup(g.id, 1)}
-                        >
-                          <ChevronDown className="size-4" />
-                        </Button>
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-semibold">{g.title}</p>
-                        {g.scheduleText?.trim() ? (
-                          <p className="text-xs text-muted-foreground">{g.scheduleText.trim()}</p>
-                        ) : null}
-                      </div>
+        {orderedStages.length === 0 ? (
+          <p className="rounded-md border px-3 py-4 text-sm text-muted-foreground">Нет этапов — добавьте первый.</p>
+        ) : (
+          <div className="flex flex-col gap-4">
+            {orderedStages.map((s, stageIndex) => {
+              const groupsOrd = orderedGroupsForStage(s);
+              const ungrouped = ungroupedItemsForStage(s);
+              return (
+                <section
+                  key={s.id}
+                  className="w-full min-w-0 rounded-md border border-border/60 bg-card/20 p-3 shadow-sm"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-medium tabular-nums text-muted-foreground">
+                      Этап {s.sortOrder}
+                    </span>
+                    <div className="flex shrink-0 items-center gap-0.5">
                       <Button
                         type="button"
-                        size="sm"
-                        variant="outline"
+                        size="icon"
+                        variant="ghost"
+                        className="size-8"
                         disabled={editLocked}
-                        onClick={() => openEditGroup(g)}
+                        aria-label="Настройки этапа"
+                        onClick={() => setStageSettingsStageId(s.id)}
                       >
-                        Изменить
+                        <Settings className="size-4" />
                       </Button>
                       <Button
                         type="button"
-                        size="sm"
+                        size="icon"
                         variant="ghost"
-                        className="text-destructive"
-                        disabled={editLocked}
-                        onClick={() => void handleDeleteGroup(g.id)}
+                        className="size-8"
+                        disabled={editLocked || stageIndex === 0}
+                        aria-label="Этап выше"
+                        onClick={() => void handleMoveStage(s.id, -1)}
                       >
-                        Удалить
+                        <ChevronUp className="size-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        className="size-8"
+                        disabled={editLocked || stageIndex >= orderedStages.length - 1}
+                        aria-label="Этап ниже"
+                        onClick={() => void handleMoveStage(s.id, 1)}
+                      >
+                        <ChevronDown className="size-4" />
                       </Button>
                     </div>
-                    {gItems.length === 0 ? (
-                      <p className="py-2 text-xs text-muted-foreground">В группе пока нет элементов.</p>
-                    ) : (
-                      <ul className="divide-y rounded-md border border-border/40">
-                        {gItems.map((it, itemIndex) => renderStageItemRow(it, gItems, itemIndex))}
-                      </ul>
-                    )}
                   </div>
-                );
-              })}
-              {orderedStageGroups.length > 0 && (
-                <p className="text-sm font-medium text-muted-foreground">Без группы</p>
-              )}
-              {ungroupedItems.length > 0 ? (
-                <ul className="divide-y rounded-md border">
-                  {ungroupedItems.map((it, itemIndex) =>
-                    renderStageItemRow(it, ungroupedItems, itemIndex),
+                  <h3 className="mt-2 text-base font-semibold leading-tight text-foreground">{s.title}</h3>
+                  {s.sortOrder === 0 ? (
+                    <Badge
+                      variant="secondary"
+                      className="mt-2 max-w-full whitespace-normal text-left text-[10px] font-normal leading-tight"
+                    >
+                      Этап 0 — «Общие рекомендации» у пациента
+                    </Badge>
+                  ) : null}
+                  {s.sortOrder === 0 ? (
+                    <p className="mt-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs leading-snug text-foreground">
+                      <span className="font-medium">Этап с порядком 0.</span> У пациента он отображается в блоке
+                      «Общие рекомендации» (вне прогресса этапов, всегда доступен для чтения). Сюда логично класть
+                      постоянные рекомендации и общий режим.
+                    </p>
+                  ) : null}
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      disabled={editLocked}
+                      onClick={() => {
+                        setGroupDialogStageId(s.id);
+                        setNewGroupTitle("");
+                        setNewGroupSchedule("");
+                        setNewGroupDescription("");
+                        setGroupDialogOpen(true);
+                      }}
+                    >
+                      + Группа
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={editLocked}
+                      onClick={() => {
+                        setItemDialogStageId(s.id);
+                        setItemType("exercise");
+                        setItemSearch("");
+                        setItemAddGroupId("");
+                        setItemDialogOpen(true);
+                      }}
+                    >
+                      Добавить из библиотеки
+                    </Button>
+                  </div>
+                  {groupsOrd.length === 0 && s.items.length === 0 ? (
+                    <p className="mt-3 text-sm text-muted-foreground">В этапе пока нет элементов и групп.</p>
+                  ) : (
+                    <div className="mt-3 space-y-3">
+                      {groupsOrd.map((g, groupIndex) => {
+                        const gItems = itemsInGroupForStage(s, g.id);
+                        return (
+                          <div key={g.id} className="rounded-md border border-border/50 bg-background/60 p-2">
+                            <div className="flex flex-wrap items-center gap-2 border-b border-border/30 pb-2">
+                              <div className="flex items-center gap-0.5">
+                                <Button
+                                  type="button"
+                                  size="icon"
+                                  variant="ghost"
+                                  className="size-8"
+                                  disabled={editLocked || groupIndex === 0}
+                                  aria-label="Группа выше"
+                                  onClick={() => void handleReorderGroup(s, g.id, -1)}
+                                >
+                                  <ChevronUp className="size-4" />
+                                </Button>
+                                <Button
+                                  type="button"
+                                  size="icon"
+                                  variant="ghost"
+                                  className="size-8"
+                                  disabled={editLocked || groupIndex >= groupsOrd.length - 1}
+                                  aria-label="Группа ниже"
+                                  onClick={() => void handleReorderGroup(s, g.id, 1)}
+                                >
+                                  <ChevronDown className="size-4" />
+                                </Button>
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <p className="text-sm font-semibold">{g.title}</p>
+                                {g.scheduleText?.trim() ? (
+                                  <p className="text-xs text-muted-foreground">{g.scheduleText.trim()}</p>
+                                ) : null}
+                              </div>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                disabled={editLocked}
+                                onClick={() => openEditGroup(g)}
+                              >
+                                Изменить
+                              </Button>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="ghost"
+                                className="text-destructive"
+                                disabled={editLocked}
+                                onClick={() => void handleDeleteGroup(g.id)}
+                              >
+                                Удалить
+                              </Button>
+                            </div>
+                            {gItems.length === 0 ? (
+                              <p className="py-2 text-xs text-muted-foreground">В группе пока нет элементов.</p>
+                            ) : (
+                              <ul className="divide-y rounded-md border border-border/30">
+                                {gItems.map((it) => (
+                                  <StageItemListRow
+                                    key={it.id}
+                                    library={library}
+                                    item={it}
+                                    editLocked={editLocked}
+                                    onOpenSettings={() => setItemSettingsItemId(it.id)}
+                                  />
+                                ))}
+                              </ul>
+                            )}
+                          </div>
+                        );
+                      })}
+                      {groupsOrd.length > 0 ? (
+                        <p className="text-sm font-medium text-muted-foreground">Без группы</p>
+                      ) : null}
+                      {ungrouped.length > 0 ? (
+                        <ul className="divide-y rounded-md border border-border/50">
+                          {ungrouped.map((it) => (
+                            <StageItemListRow
+                              key={it.id}
+                              library={library}
+                              item={it}
+                              editLocked={editLocked}
+                              onOpenSettings={() => setItemSettingsItemId(it.id)}
+                            />
+                          ))}
+                        </ul>
+                      ) : groupsOrd.length > 0 ? (
+                        <p className="text-xs text-muted-foreground">Нет элементов вне групп.</p>
+                      ) : null}
+                    </div>
                   )}
-                </ul>
-              ) : orderedStageGroups.length > 0 ? (
-                <p className="text-xs text-muted-foreground">Нет элементов вне групп.</p>
-              ) : null}
-            </div>
-          )}
-        </div>
+                </section>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       <DoctorCatalogPersistPublishBar
@@ -1378,6 +1289,210 @@ export function TreatmentProgramConstructorClient({
             ? "Опубликуйте шаблон, когда этапы и элементы готовы. Название и описание сохраняются при уходе с поля."
             : "Архивный шаблон нельзя редактировать."}
       </p>
+
+      <Dialog
+        open={stageSettingsStageId != null}
+        onOpenChange={(open) => {
+          if (!open) setStageSettingsStageId(null);
+        }}
+      >
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Настройки этапа</DialogTitle>
+            <DialogDescription>Название, описание, цели и сроки этапа шаблона.</DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="tpl-stage-modal-title">Название этапа</Label>
+              <Input
+                id="tpl-stage-modal-title"
+                value={stageTitleDraft}
+                onChange={(e) => setStageTitleDraft(e.target.value)}
+                disabled={editLocked || busy}
+                maxLength={2000}
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="tpl-stage-modal-desc">Описание этапа</Label>
+              <Textarea
+                id="tpl-stage-modal-desc"
+                rows={2}
+                className="text-sm"
+                value={stageDescriptionDraft}
+                onChange={(e) => setStageDescriptionDraft(e.target.value)}
+                disabled={editLocked || busy}
+                maxLength={20000}
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="tpl-stage-modal-goals">Цель этапа</Label>
+              <Textarea
+                id="tpl-stage-modal-goals"
+                rows={3}
+                disabled={editLocked || busy}
+                value={goalsDraft}
+                onChange={(e) => setGoalsDraft(e.target.value)}
+                className="text-sm"
+              />
+              <p className="text-xs text-muted-foreground">Кратко, в свободной форме (markdown).</p>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="tpl-stage-modal-obj">Задачи этапа</Label>
+              <Textarea
+                id="tpl-stage-modal-obj"
+                rows={3}
+                disabled={editLocked || busy}
+                value={objectivesDraft}
+                onChange={(e) => setObjectivesDraft(e.target.value)}
+                className="text-sm"
+              />
+              <p className="text-xs text-muted-foreground">
+                Список задач текстом (markdown); структурированный чеклист в БД не хранится (O1).
+              </p>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="tpl-stage-modal-days">Ожидаемый срок, дней</Label>
+              <Input
+                id="tpl-stage-modal-days"
+                inputMode="numeric"
+                disabled={editLocked || busy}
+                value={durationDaysDraft}
+                onChange={(e) => setDurationDaysDraft(e.target.value)}
+                className="max-w-[12rem] text-sm"
+                placeholder="например 14"
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="tpl-stage-modal-durtxt">Ожидаемый срок, текстом</Label>
+              <Input
+                id="tpl-stage-modal-durtxt"
+                disabled={editLocked || busy}
+                value={durationTextDraft}
+                onChange={(e) => setDurationTextDraft(e.target.value)}
+                className="text-sm"
+                placeholder="2–3 недели"
+              />
+            </div>
+            {stageMetaMsg ? <p className="text-sm text-muted-foreground">{stageMetaMsg}</p> : null}
+            <div className="flex flex-wrap gap-2 border-t pt-3">
+              <Button type="button" disabled={editLocked || busy} onClick={() => void handleSaveStageSettings()}>
+                Сохранить
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                disabled={editLocked || busy || !stageSettingsStageId}
+                onClick={() => {
+                  const id = stageSettingsStageId;
+                  if (!id) return;
+                  void handleDeleteStage(id);
+                }}
+              >
+                Удалить этап
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(itemSettingsItemId)}
+        onOpenChange={(open) => {
+          if (!open) setItemSettingsItemId(null);
+        }}
+      >
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+          {itemSettingsContext ? (
+            <>
+              <DialogHeader>
+                <DialogTitle>Настройки элемента</DialogTitle>
+                <DialogDescription>
+                  {ITEM_TYPE_LABEL[itemSettingsContext.item.itemType]} —{" "}
+                  {findLibraryRow(library, itemSettingsContext.item.itemType, itemSettingsContext.item.itemRefId)
+                    ?.title ?? itemSettingsContext.item.itemRefId}
+                </DialogDescription>
+              </DialogHeader>
+              <div className="flex flex-col gap-3">
+                <div className="flex flex-col gap-2">
+                  <Label>Группа</Label>
+                  <Select
+                    value={itemSettingsContext.item.groupId ?? "__none__"}
+                    onValueChange={(v) => {
+                      void (async () => {
+                        const next = v === "__none__" ? null : v;
+                        setBusy(true);
+                        setError(null);
+                        try {
+                          const ok = await patchItemGroupId(itemSettingsContext.item.id, next);
+                          if (!ok) setError("Не удалось изменить группу");
+                          else await reload();
+                        } finally {
+                          setBusy(false);
+                        }
+                      })();
+                    }}
+                    disabled={editLocked}
+                  >
+                    <SelectTrigger className="w-full text-sm">
+                      <SelectValue placeholder="Группа" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">Без группы</SelectItem>
+                      {sortByOrderThenId(itemSettingsContext.stage.groups).map((g) => (
+                        <SelectItem key={g.id} value={g.id}>
+                          {g.title}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <TemplateStageItemCommentBlock
+                  itemId={itemSettingsContext.item.id}
+                  initialComment={itemSettingsContext.item.comment}
+                  disabled={editLocked}
+                  onReload={reload}
+                />
+                {(() => {
+                  const it = itemSettingsContext.item;
+                  const st = itemSettingsContext.stage;
+                  const section = it.groupId ? itemsInGroupForStage(st, it.groupId) : ungroupedItemsForStage(st);
+                  const itemIndex = section.findIndex((i) => i.id === it.id);
+                  return (
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        disabled={editLocked || busy || itemIndex <= 0}
+                        onClick={() => void handleMoveItemInSubgroup(section, it.id, -1)}
+                      >
+                        Выше в списке
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        disabled={editLocked || busy || itemIndex < 0 || itemIndex >= section.length - 1}
+                        onClick={() => void handleMoveItemInSubgroup(section, it.id, 1)}
+                      >
+                        Ниже в списке
+                      </Button>
+                    </div>
+                  );
+                })()}
+                <Button
+                  type="button"
+                  variant="destructive"
+                  disabled={editLocked || busy}
+                  onClick={() => void handleRemoveItem(itemSettingsContext.item.id)}
+                >
+                  Удалить элемент
+                </Button>
+              </div>
+            </>
+          ) : null}
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={stageDialogOpen} onOpenChange={setStageDialogOpen}>
         <DialogContent>
@@ -1435,7 +1550,13 @@ export function TreatmentProgramConstructorClient({
         </DialogContent>
       </Dialog>
 
-      <Dialog open={itemDialogOpen} onOpenChange={setItemDialogOpen}>
+      <Dialog
+        open={itemDialogOpen}
+        onOpenChange={(open) => {
+          setItemDialogOpen(open);
+          if (!open) setItemDialogStageId(null);
+        }}
+      >
         <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>Элемент из библиотеки</DialogTitle>
@@ -1473,7 +1594,7 @@ export function TreatmentProgramConstructorClient({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__none__">Без группы</SelectItem>
-                  {(selectedStage ? sortByOrderThenId(selectedStage.groups) : []).map((g) => (
+                  {(itemPickerGroupsOrdered).map((g) => (
                     <SelectItem key={g.id} value={g.id}>
                       {g.title}
                     </SelectItem>
@@ -1527,7 +1648,13 @@ export function TreatmentProgramConstructorClient({
         </DialogContent>
       </Dialog>
 
-      <Dialog open={groupDialogOpen} onOpenChange={setGroupDialogOpen}>
+      <Dialog
+        open={groupDialogOpen}
+        onOpenChange={(open) => {
+          setGroupDialogOpen(open);
+          if (!open) setGroupDialogStageId(null);
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Новая группа</DialogTitle>
@@ -1561,7 +1688,11 @@ export function TreatmentProgramConstructorClient({
             <Button type="button" variant="outline" onClick={() => setGroupDialogOpen(false)}>
               Отмена
             </Button>
-            <Button type="button" disabled={editLocked || !newGroupTitle.trim()} onClick={() => void handleAddGroup()}>
+            <Button
+              type="button"
+              disabled={editLocked || !newGroupTitle.trim() || !groupDialogStageId}
+              onClick={() => void handleAddGroup()}
+            >
               Добавить
             </Button>
           </DialogFooter>

@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 import { useEffect, useId, useMemo, useRef, useState, useTransition } from "react";
@@ -37,7 +36,6 @@ import type { DoctorCatalogPubArchQuery } from "@/shared/lib/doctorCatalogListSt
 import { MediaThumb } from "@/shared/ui/media/MediaThumb";
 import { clinicalTestMediaItemToPreviewUi } from "@/shared/ui/media/mediaPreviewUiModel";
 import { DoctorCatalogInvalidPubArchToast } from "@/shared/ui/doctor/DoctorCatalogInvalidPubArchToast";
-import { TREATMENT_PROGRAM_TEMPLATES_PATH } from "./paths";
 import { TreatmentProgramTemplateStatusBadge } from "./TreatmentProgramTemplateStatusBadge";
 
 /** Краткая строка счётчиков + подпись для aria (список шаблонов). */
@@ -132,6 +130,7 @@ export function TreatmentProgramTemplatesPageClient({
   const formKey = useId();
   const [titleSort, setTitleSort] = useState<CatalogMasterTitleSort | null>(initialTitleSort);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
   const [mobileSheet, setMobileSheet] = useState<TreatmentProgramTemplate | null>(null);
   const [detail, setDetail] = useState<TreatmentProgramTemplateDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -151,6 +150,7 @@ export function TreatmentProgramTemplatesPageClient({
       if (initialSelectedId) {
         const found = templates.find((t) => t.id === initialSelectedId);
         if (found) {
+          setCreating(false);
           setSelectedId(found.id);
           setMobileSheet(found);
         }
@@ -168,10 +168,11 @@ export function TreatmentProgramTemplatesPageClient({
     displayList,
     setSelectedId,
     setMobileItem: setMobileSheet,
+    suspend: creating,
     fallbackToFirst: false,
   });
 
-  const selected = displayList.find((t) => t.id === selectedId) ?? null;
+  const selected = creating ? null : (displayList.find((t) => t.id === selectedId) ?? null);
 
   const titleSortForHeader: CatalogMasterTitleSort | null =
     mergedFilters.titleSort === "asc" || mergedFilters.titleSort === "desc" ? mergedFilters.titleSort : null;
@@ -283,6 +284,7 @@ export function TreatmentProgramTemplatesPageClient({
         library={library}
         onArchived={() => {
           router.refresh();
+          setCreating(false);
           setSelectedId(null);
           setMobileSheet(null);
           setDetail(null);
@@ -298,7 +300,7 @@ export function TreatmentProgramTemplatesPageClient({
 
   const desktopRight = <CatalogRightPane className="h-full">{rightInner}</CatalogRightPane>;
 
-  const mobileDetailOpen = mobileSheet != null;
+  const mobileDetailOpen = creating || mobileSheet != null;
 
   const toolbar = (
     <DoctorCatalogFiltersToolbar
@@ -316,9 +318,18 @@ export function TreatmentProgramTemplatesPageClient({
         </DoctorCatalogToolbarFiltersSlot>
       }
       end={
-        <Link href={`${TREATMENT_PROGRAM_TEMPLATES_PATH}/new`} className={doctorCatalogToolbarPrimaryActionClassName}>
+        <button
+          type="button"
+          className={doctorCatalogToolbarPrimaryActionClassName}
+          id="doctor-treatment-program-templates-new"
+          onClick={() => {
+            setCreating(true);
+            setSelectedId(null);
+            setMobileSheet(null);
+          }}
+        >
           Создать
-        </Link>
+        </button>
       }
     />
   );
@@ -356,9 +367,10 @@ export function TreatmentProgramTemplatesPageClient({
               aria-busy={isListPending}
             >
               {renderRows((t) => {
+                setCreating(false);
                 setSelectedId(t.id);
                 setMobileSheet(t);
-              }, selected?.id ?? mobileSheet?.id ?? null)}
+              }, creating ? null : selected?.id ?? mobileSheet?.id ?? null)}
             </div>
           </CatalogLeftPane>
         }
@@ -366,7 +378,15 @@ export function TreatmentProgramTemplatesPageClient({
         mobileView={mobileDetailOpen ? "detail" : "list"}
         mobileBackSlot={
           mobileDetailOpen ? (
-            <Button variant="ghost" type="button" className="mb-2 h-9 px-2" onClick={() => setMobileSheet(null)}>
+            <Button
+              variant="ghost"
+              type="button"
+              className="mb-2 h-9 px-2"
+              onClick={() => {
+                setMobileSheet(null);
+                setCreating(false);
+              }}
+            >
               ← Назад
             </Button>
           ) : null
