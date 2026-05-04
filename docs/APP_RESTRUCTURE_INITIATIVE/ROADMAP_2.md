@@ -4,6 +4,8 @@
 **Синхронизация 2026-05-04 (owner):** редизайн **раздела «Назначения»** в кабинете врача (кластер меню, списки каталогов, общий UX блока) — **практически закрыт**; возможны точечные хвосты по приёмке. **Шаблоны программ лечения** — остаются **небольшие правки** (список/конструктор); **не блокер** для пунктов §3 (patient) и §4 (карточка врача). **Курсы** — **отложены** владельцем (см. [`../COURSES_INITIATIVE/README.md`](../COURSES_INITIATIVE/README.md), §6.2 здесь).
 **Синхронизация 2026-05-04 (код):** пункт **§1.2** — закрыт **технический хвост** (legacy URL → `next.config`, no-op `createLfkComplex`, empty state без самосоздания комплекса); полный UX «сегодня в фокусе / read-only история» — **в backlog** внутри §1.2 (см. DoD ниже, [`LOG.md`](LOG.md)).
 **Синхронизация 2026-05-05 (docs):** инициатива **`PATIENT_APP_SHADCN_ALIGNMENT`** перенесена в архив; правила shadcn/shared при переработке страниц закреплены в **§1 п.4**; бывший единый Phase 7 — в мини-инициативах по экрану (см. [`LOG.md`](LOG.md) 2026-05-05).
+**Синхронизация 2026-05-05 (планирование):** добавлен пункт **§1.1b** — визуальный редизайн `/treatment-programs/[instanceId]` до эталонного дизайна (hero с badges, карточка контроля, `Collapsible` для этапа 0, превью текущего этапа + маршрут `stages/[stageId]`, компактный список предыдущих этапов). Разблокирован закрытием `PATIENT_APP_SHADCN_ALIGNMENT` Phase 1 (`Collapsible`/`Accordion` теперь в `components/ui/`). Зафиксированы **batch-комбинации** для §1.4 (cabinet + `CabinetPastBookings` → `Collapsible`) и §1.6 (profile + `ProfileAccordionSection` → `Collapsible`). Приоритетная очерёдность: `1.1b` → `1.2` → `1.3` → `1.4` → `1.5` → `1.6`.
+**Синхронизация 2026-05-05 (§1.1b уточнение):** на detail программы развёрнутый список результатов тестов заменяется точкой входа **«История тестирования»** (полный UX — по ходу, см. §1.1b **B7**); иконка **Play** у «Открыть план» — статический ассет в репозитории (`apps/webapp/public/...`); **цветовые зоны** макета — приоритет существующих `--patient-surface-*` / `patientSurface*Class` (см. §1.1b); **порядок секций** задан эталонным списком в §1.1b, финальная перестановка — по ходу; для главной при необходимости те же правила для иконок блоков.
 **Назначение:** зафиксировать порядок работ на следующий период с важными деталями (scope, файлы, риски, DoD), чтобы агенты могли брать пункты в работу без переоткрытия контекста.
 **Не заменяет:** [`RECOMMENDATIONS_AND_ROADMAP.md`](RECOMMENDATIONS_AND_ROADMAP.md) (общий стратегический документ) и [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md) (план кабинета врача). Этот документ — операционная нарезка «что брать сейчас», ссылающаяся на оба.
 
@@ -65,6 +67,7 @@
 | 1.0 | Data enabler: `started_at` у этапа программы | data / migration | S | — | 1.2–1.7, 2.x, 3.x |
 | 1.1 | Patient `/treatment-programs` список polish (без % прогресса в MVP) | UI / patient | S–M | 1.0 | 1.2–1.7, 3.x |
 | 1.1a | Patient `/treatment-programs/[instanceId]` MVP-проход (текущий этап + архив + этап 0) | UI / patient | M | 1.0 | 1.2–1.7, 3.x |
+| 1.1b | Patient `/treatment-programs/[instanceId]` визуальный редизайн: hero + badges + Play (ассет), карточка контроля, Collapsible этапа 0, превью этапа → `stages/[stageId]`, компактный архив; на detail — **«История тестирования»** вместо развёрнутого списка результатов | UI / patient | M | 1.1a + SHADCN Phase 1 ✅ | 1.2–1.7, 3.x |
 | 1.2 | Patient `/diary` → режим «сегодня» (read-only past); **тех. хвост 2026-05-04 закрыт в коде** | UI / patient | S | — | 1.1, 1.1a, 1.3–1.6, 3.x |
 | 1.3 | Patient `/reminders` в основное меню | UI / nav | S | — | все |
 | 1.4 | Patient `/cabinet` hero визита + объединение intake/past | UI / patient | M | — | 1.1, 1.2, 1.3, 1.5, 1.6 |
@@ -201,10 +204,140 @@ pnpm --dir apps/webapp exec vitest run src/app/app/patient/treatment-programs
 #### Схема исполнения для блока 1.x
 
 1. **Этап A (данные):** `1.0 started_at`.
-2. **Этап B (detail UX):** `1.1a`.
-3. **Этап C (list UX):** `1.1`.
+2. **Этап B (detail UX MVP):** `1.1a`.
+3. **Этап C (detail visual redesign):** `1.1b`.
+4. **Этап D (list UX):** `1.1`.
 
 Post-MVP (отдельно, не блокирует MVP): множественные контроли внутри этапа и комментарий к факту выполнения `exercise/lesson/recommendation`.
+
+---
+
+### 1.1b `/treatment-programs/[instanceId]` — визуальный редизайн (эталон-дизайн)
+
+**Цель.** Привести страницу детали программы в соответствие с утверждённым эталоном: hero-карточка с branded-бейджами, отдельный блок контроля/записи, этап 0 как свёрнутый `Collapsible`, текущий этап как превью с переходом на отдельную страницу этапа, компактный список предыдущих этапов. Результаты тестов на detail **не** разворачивать длинным списком: первично точка входа **«История тестирования»** (маршрут/модалка/полноэкран — прорабатывается по ходу).
+
+**Предусловие.** `1.1a` закрыт; `PATIENT_APP_SHADCN_ALIGNMENT` Phase 1 закрыт (`Collapsible` / `Accordion` — в `components/ui/` ✅).
+
+**Мини-инициатива.** `docs/PATIENT_PROGRAMS_DETAIL_REDESIGN_INITIATIVE/` (`README.md` + `STAGE_PLAN.md` + `LOG.md`).
+
+**Порядок секций сверху вниз (эталон из обсуждения, финальный порядок может уточняться по ходу).**
+
+1. Hero «Мой план»: бейджи, название программы, описание (если есть данные), CTA «Открыть план», строка «План обновлён», опционально место под иллюстрацию справа.
+2. Карточка «Следующий контроль» / запись: дата, подпись про консультацию, CTA «Выполнить тесты» и «Записаться на приём» (пока только маршруты/якоря — см. B3).
+3. Блок «Рекомендации на период» (этап 0) — `Collapsible`, свёрнут по умолчанию.
+4. Карточка «Текущий этап» — превью + «Открыть этап».
+5. Точка входа **«История тестирования»** вместо развёрнутого списка результатов на detail (см. B7).
+6. Секция «Предыдущие этапы» — компактный список.
+
+**Цветовые зоны макета — приоритет существующих токенов `#app-shell-patient` / `patientVisual.ts`.**
+
+- Hero (lavender / мягкий primary): по умолчанию `patientSurfaceInfoClass` (`--patient-surface-info-*`); при несовпадении — один семантический токен `patientSurfaceProgramClass` в `patientVisual.ts` + при необходимости переменные в `globals.css` (не плодить одноразовые inline-цвета в компоненте).
+- Карточка контроля / «кремовый» тон макета: `patientSurfaceWarningClass` (`--patient-surface-warning-*`), если визуально совпадает; иначе уточнить на ревью без новых произвольных hex в JSX.
+- Блок рекомендаций (этап 0, бледно-зелёный): `patientSurfaceSuccessClass` (`--patient-surface-success-*`), если совпадает с макетом.
+- Карточка текущего этапа и строки списка: существующие `patientCardClass` / `patientListItemClass` и `@/components/ui/card` там, где уместно по §1 п.4.
+
+**Иконки и статические ассеты.**
+
+- Иконка **Play** у CTA «Открыть план»: статический файл в репозитории (например `apps/webapp/public/patient/ui/play.svg` или соседний каталог под patient UI-ассеты); импорт через `next/image` / `<img>` по принятому в проекте паттерну. Допустимо захардкодить путь к ассету на первом проходе.
+- Для **главной** (`/app/patient`) при необходимости те же принципы: выделенная папка под иконки блоков, без CDN на первом этапе — зафиксировать в `LOG.md` мини-инициативы при первом добавлении файлов.
+
+**Что делать.**
+
+**B1–B2. Hero-карточка программы.**
+
+- Badge «МОЙ ПЛАН» — `Badge` из `components/ui/badge` + `patientPillClass`-like className; левый верхний угол.
+- Badge «Этап X из Y» — `patientPillClass`; правый верхний угол; X = `currentWorkingStage.sortOrder`, Y = `pipeline.length` (из `splitPatientProgramStagesForDetailUi`).
+- Фон hero: см. блок «Цветовые зоны» выше (`patientSurfaceInfoClass` или `patientSurfaceProgramClass`).
+- Описание программы под заголовком: проверить `TreatmentProgramInstanceDetail` / `snapshot` шаблона — если поле есть, рендерить; без schema-изменений.
+- Индикатор «● План обновлён»: `<span>` с точкой (`text-destructive` или `text-[var(--patient-color-danger)]`) + дата из `planUpdatedLabel`.
+- CTA «Открыть план» (`Link` + `patientPrimaryActionClass`, полная ширина) + **иконка Play** из статического ассета (см. выше) → scroll к `#patient-program-current-stage`.
+
+**B3. Карточка «Следующий контроль»** (новый компонент `PatientProgramControlCard`).
+
+- Рендерить только при `controlLabel != null`.
+- Поверхность карточки: см. «Цветовые зоны» (`patientSurfaceWarningClass` или согласованный семантический класс).
+- Иконка `CalendarCheck` (lucide-react), дата крупным шрифтом, подпись «Консультация со специалистом».
+- Кнопка «Выполнить тесты» (`patientButtonWarningOutlineClass`) — поведение уточняется по ходу: якорь к тестам на странице этапа, переход на `stages/[stageId]` с фокусом, или связка с «Историей тестирования».
+- Кнопка «Записаться на приём» (`patientButtonSuccessClass`) → `routePaths.patientCabinet`.
+
+**B4. Этап 0 — `Collapsible`, закрыт по умолчанию.**
+
+- Поверхность блока: см. «Цветовые зоны» (`patientSurfaceSuccessClass` для бледно-зелёного тона макета, если совпадает).
+- Обернуть `PatientInstanceStageBody` для `sort_order = 0` в `Collapsible` из `@/components/ui/collapsible`.
+- Trigger: иконка `Shield` (lucide-react, `text-[var(--patient-color-success)]`), заголовок «Рекомендации на период», subtitle «Общие рекомендации, которые действуют на протяжении всей программы», шеврон.
+- `open` по умолчанию — `false`.
+
+**B5. Текущий этап — превью-карточка + CTA «Открыть этап».**
+
+- Заменить полный inline `PatientInstanceStageBody` на компактную секцию:
+  - label «Текущий этап» + badge «Этап X из Y»;
+  - крупный заголовок этапа — новый `patientStageTitleClass` в `patientVisual.ts` (`text-xl font-bold text-[var(--patient-color-primary)]`);
+  - subtitle из `stage.goals` или `stage.objectives` (первые ~80 символов), `patientMutedTextClass`;
+  - кнопка-ссылка «Открыть этап» (`Link` + `patientPrimaryActionClass`) → `routePaths.patientTreatmentProgramStage(instanceId, stageId)`.
+- Полный `PatientInstanceStageBody` переносится на страницу `stages/[stageId]`.
+
+**B6. Предыдущие этапы — компактный список.**
+
+- Заменить `<details>` с развёрнутым inline-содержимым на список строк (`patientListItemClass`):
+  - `CheckCircle2` (lucide-react, `text-[var(--patient-color-success)]`) + «Этап N. Название» + «Завершён DD мм» (из `stage.completedAt`, если поле доступно) + `ChevronRight` → `Link` на `stages/[stageId]`.
+- Если `stage.completedAt` отсутствует в типе — не показывать дату (не вводить поле в этом проходе).
+
+**B7. Результаты тестов на detail — «История тестирования».**
+
+- Убрать с detail-страницы развёрнутый блок «Ваши результаты тестов» как основной режим; заменить на одну явную точку входа: кнопка/ссылка **«История тестирования»** (иконка по желанию — lucide или маленький ассет).
+- Полный список результатов, фильтры, переход к конкретному тесту — прорабатываются по ходу (отдельный маршрут под программу, модалка, секция на странице этапа — решается в реализации и фиксируется в `LOG.md` мини-инициативы). Данные по-прежнему из существующих API/read-моделей; контракт портов не расширять без отдельного решения.
+
+**C1–C4. Новый маршрут `stages/[stageId]`.**
+
+- Создать `apps/webapp/src/app/app/patient/treatment-programs/[instanceId]/stages/[stageId]/page.tsx` (RSC).
+- Загружает detail программы через `deps.treatmentProgramInstance.getInstanceForPatient`; находит stage по `stageId`.
+- Шапка страницы: «Этап N из M · Название», цели/задачи/длительность, статус.
+- Тело: `PatientInstanceStageBody` (перенесённый из detail-страницы) — группы, элементы, ЛФК-форма, тест-блоки.
+- `AppShell backHref` → `routePaths.patientTreatmentProgram(instanceId)`.
+
+**Новый `routePath`.**
+
+- Добавить `patientTreatmentProgramStage(instanceId, stageId)` в `apps/webapp/src/app-layer/routes/paths.ts`.
+
+**Файлы (ожидаемые места правок).**
+
+- `apps/webapp/src/app/app/patient/treatment-programs/PatientTreatmentProgramDetailClient.tsx`.
+- `apps/webapp/src/app/app/patient/treatment-programs/[instanceId]/page.tsx`.
+- `apps/webapp/src/app/app/patient/treatment-programs/[instanceId]/stages/[stageId]/page.tsx` (новый).
+- `apps/webapp/src/app-layer/routes/paths.ts`.
+- `apps/webapp/src/shared/ui/patientVisual.ts` (новые: `patientStageTitleClass`; при необходимости `patientSurfaceProgramClass`).
+- `apps/webapp/src/app/globals.css` (только если недостаточно существующих `--patient-surface-*` для hero программы).
+- Статические ассеты: `apps/webapp/public/...` (Play и др. patient UI; точный путь — в `LOG.md` при добавлении).
+
+**Что НЕ делать.**
+
+- Не возвращать процентные метрики.
+- Не менять портовые контракты и схему БД.
+- Не переписывать `PatientInstanceStageBody` — только перенести на новую страницу.
+- «Записаться на приём» — простая ссылка на `/cabinet`; не реализовывать booking wizard.
+- Иллюстрацию (SVG/изображение справа в hero) — не обязательна в первом проходе; зарезервировать место в разметке.
+
+**Узкие проверки.**
+
+```bash
+pnpm --dir apps/webapp lint --max-warnings=0 -- src/app/app/patient/treatment-programs
+pnpm --dir apps/webapp exec tsc --noEmit
+pnpm --dir apps/webapp exec vitest run src/app/app/patient/treatment-programs
+```
+
+**DoD.**
+
+- Hero-карточка с badges «МОЙ ПЛАН» и «Этап X из Y» отображается корректно; CTA «Открыть план» с иконкой Play из статического ассета.
+- Блок контроля — отдельная карточка с двумя CTA; не отображается при отсутствии `controlLabel`; тон карточки через семантический surface-класс (см. «Цветовые зоны»).
+- Этап 0 (Рекомендации) свёрнут по умолчанию через `Collapsible`, раскрывается без ошибок; фон секции согласован с токенами (success-surface, если применимо).
+- Текущий этап — только превью с CTA «Открыть этап», ведущим на `stages/[stageId]`.
+- На detail вместо длинного списка результатов тестов — точка входа **«История тестирования»**; детали потока зафиксированы в `LOG.md` при реализации.
+- Страница `stages/[stageId]` рендерит полное тело этапа; back-link возвращает на detail.
+- Предыдущие этапы — компактный список с датами (там, где `completedAt` есть) и шевронами.
+- Нет процентных метрик.
+- Все новые стили — через `patientVisual.ts` и существующие `--patient-surface-*`; нет одноразового route-level chrome.
+
+**Кому отдать.** Sonnet 4.6 (UI-M).
 
 ---
 
@@ -289,6 +422,7 @@ pnpm --dir apps/webapp exec tsc --noEmit
 - Hero ближайшего визита: дата/время, врач/услуга, branch, CTA «Подготовка» → `/help/<подходящая статья>` или `/cabinet/[bookingId]`.
 - Единая лента «Прошлые визиты и обращения» с типом записи (intake / booking) и кратким описанием.
 - Сохранить «Адрес» как обычный link-блок (без iframe — см. рекомендацию из `RECOMMENDATIONS_AND_ROADMAP.md` I.2 «Запись и кабинет»).
+- **Batch с SHADCN alignment:** в рамках этого же прохода перевести `CabinetPastBookings` c raw `<button>` + local state на `Collapsible` из `components/ui/collapsible` (теперь доступен); `AppointmentStatusBadge` — на shadcn `Badge`. Scope ограничить этими двумя компонентами; не трогать остальной cabinet UI.
 
 **Файлы.**
 
@@ -358,6 +492,7 @@ pnpm --dir apps/webapp exec vitest run src/app/app/patient/messages src/app/app/
 - Убрать аккордеоны-обёртки, ведущие на отдельные страницы; оставить прямые ссылки.
 - Раздел «Установить приложение» в одном виде.
 - Группа «Связь с клиникой» — единый пункт «Поддержка» (после 1.5).
+- **Batch с SHADCN alignment:** перевести `ProfileAccordionSection` c raw `<button>` + local state на `Collapsible` из `components/ui/collapsible`; сохранить `defaultOpen`, `statusIcon`, визуальный patient card chrome.
 
 **Файлы.**
 
@@ -587,7 +722,7 @@ psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "SELECT current_database();"
 
 Цикл считается закрытым, когда:
 
-1. Закрыты пункты 1.0, 1.1, 1.1a, 1.2–1.6 (1.7 — отдельно после 3.3).
+1. Закрыты пункты 1.0, 1.1, 1.1a, **1.1b**, 1.2–1.6 (1.7 — отдельно после 3.3).
 2. Закрыт пункт 2.1 (с `*_EXECUTION_AUDIT.md` в `done/`) и 2.3.
 3. Пункт 2.2 либо закрыт, либо явно отложен в backlog с причиной в [`LOG.md`](LOG.md).
 4. По 3.1, 3.2, 3.3 — каждый отдельно: либо закрыт, либо явно зафиксирован отложенным с владельцем решения.
@@ -616,7 +751,7 @@ psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "SELECT current_database();"
 
 1. Прочитать ROADMAP_2 целиком + соответствующий пункт §3 или §4.
 2. Прочитать `.cursor/rules/clean-architecture-module-isolation.mdc`, `.cursor/rules/patient-ui-shared-primitives.mdc` (для patient), `.cursor/rules/no-unsolicited-followups.mdc`.
-3. Создать мини-инициативу `docs/<NAME>_INITIATIVE/` с `README.md`, `STAGE_PLAN.md`, `LOG.md` (для **1.0–1.1a** закрытый пример в архиве: [`PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE`](../archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/README.md)).
+3. Создать мини-инициативу `docs/<NAME>_INITIATIVE/` с `README.md`, `STAGE_PLAN.md`, `LOG.md` (для **1.0–1.1a** закрытый пример в архиве: [`PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE`](../archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/README.md); для **1.1b** — `docs/PATIENT_PROGRAMS_DETAIL_REDESIGN_INITIATIVE/`).
 4. Реализовать минимально, узкие проверки.
 5. Обновить ROADMAP_2 (отметить пункт как `done` со ссылкой на мини-инициативу).
 6. Запись в [`LOG.md`](LOG.md) этой папки.
