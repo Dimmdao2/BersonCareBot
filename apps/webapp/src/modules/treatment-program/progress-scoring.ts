@@ -38,3 +38,9 @@ export function scoringAllowsNumericDecisionInference(scoringConfig: unknown): b
   }
   return false;
 }
+
+/** `true`, если в снимке `schema_type: "qualitative"` (Q2: без авто-итога из одного числового `score`). */
+export function scoringConfigIsQualitative(scoringConfig: unknown): boolean {
+  if (!scoringConfig || typeof scoringConfig !== "object") return false;
+  return (scoringConfig as { schema_type?: unknown }).schema_type === "qualitative";
+}

@@ -23,7 +23,7 @@
 
 - `patientSubmitTestResult` уже принимает `normalizedDecision` и завершает stage item при `allDone`.
 - При completion вызывается `maybeCompleteStageFromItems()`; это и есть точка этапного прогресса.
-- Для `qualitative` infer-from-score может не сработать; тогда нужен явный `normalizedDecision`.
+- Для `qualitative` infer-from-score может не сработать; тогда нужен явный `normalizedDecision`. Контракт **`POST .../progress/test-result`** (в т.ч. qualitative vs fallback по `score`) — в [`api.md`](../../apps/webapp/src/app/api/api.md) раздел patient treatment-program progress **test-result**.
 
 ## 4. Пошаговая реализация
 

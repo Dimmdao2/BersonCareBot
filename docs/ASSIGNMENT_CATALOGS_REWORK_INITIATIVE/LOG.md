@@ -23,6 +23,23 @@
 
 ---
 
+## 2026-05-04 — Stage D4 FIX (`AUDIT_STAGE_D4` MANDATORY)
+
+**Контекст:** закрытие minor **M-D4-L1** / **M-D4-L2** из [`AUDIT_STAGE_D4.md`](AUDIT_STAGE_D4.md); critical/major отсутствовали.
+
+**Сделано:**
+
+- **FIX-D4-L1:** [`scoringConfigIsQualitative`](../../apps/webapp/src/modules/treatment-program/progress-scoring.ts); в [`progress-service.ts`](../../apps/webapp/src/modules/treatment-program/progress-service.ts) при `schema_type: qualitative` не применяется запасной итог `partial` только из `raw_value.score` без **`normalizedDecision`**; vitest `FIX-D4-L1: qualitative scoring with only numeric score...` + юнит `scoringConfigIsQualitative`.
+- **M-D4-L2:** [`STAGE_D4_PLAN.md`](STAGE_D4_PLAN.md) §3 — ссылка на [`api.md`](../../apps/webapp/src/app/api/api.md) (test-result).
+- **`api.md`:** уточнён раздел **test-result** (qualitative vs не-qualitative без порогов).
+- [`AUDIT_STAGE_D4.md`](AUDIT_STAGE_D4.md) — §7 закрыт, §8 FIX closure.
+
+**Проверки:** `pnpm --dir apps/webapp exec eslint` (изменённые ts), `pnpm --dir apps/webapp exec vitest run src/modules/treatment-program/progress-service.test.ts src/modules/treatment-program/testSetSnapshotView.test.ts`, `pnpm --dir apps/webapp exec tsc --noEmit`.
+
+---
+
+## 2026-05-04 — тип нагрузки упражнения: справочник `load_type` + пост-аудит
+
 **Контекст:** убрать хардкод пяти кодов в фильтре/форме; выровнять `reference_items` категории `load_type` с CHECK `lfk_exercises.load_type`. Канон плана и пост-аудит: [`EXERCISE_LOAD_TYPE_FROM_REFS_PLAN.md`](EXERCISE_LOAD_TYPE_FROM_REFS_PLAN.md); копия в [`.cursor/plans/exercise_load_from_refs_bb4eba2e.plan.md`](../../.cursor/plans/exercise_load_from_refs_bb4eba2e.plan.md).
 
 **Сделано:**

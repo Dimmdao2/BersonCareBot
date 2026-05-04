@@ -6,7 +6,7 @@ import type {
 } from "./ports";
 import { buildAppendEventInput, normalizeEventReason } from "./event-recording";
 import { assertUuid } from "./service";
-import { inferNormalizedDecisionFromScoring } from "./progress-scoring";
+import { inferNormalizedDecisionFromScoring, scoringConfigIsQualitative } from "./progress-scoring";
 import {
   isCompletableForStageProgress,
   isInstanceStageItemActiveForPatient,
@@ -292,7 +292,12 @@ export function createTreatmentProgramProgressService(deps: {
       const scoring = scoringConfigForTestInSnapshot(item.snapshot, input.testId);
       const inferred = inferNormalizedDecisionFromScoring(scoring, input.rawValue);
       let decision = input.normalizedDecision ?? inferred;
-      if (!decision && typeof input.rawValue.score === "number" && !Number.isNaN(input.rawValue.score)) {
+      if (
+        !decision &&
+        typeof input.rawValue.score === "number" &&
+        !Number.isNaN(input.rawValue.score) &&
+        !scoringConfigIsQualitative(scoring)
+      ) {
         decision = "partial";
       }
       if (!decision) {

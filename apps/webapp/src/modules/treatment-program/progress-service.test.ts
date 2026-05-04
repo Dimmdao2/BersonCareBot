@@ -1,6 +1,6 @@
 import { describe, expect, it, beforeEach, vi } from "vitest";
 import { createTreatmentProgramProgressService } from "./progress-service";
-import { inferNormalizedDecisionFromScoring, scoringAllowsNumericDecisionInference } from "./progress-scoring";
+import { inferNormalizedDecisionFromScoring, scoringAllowsNumericDecisionInference, scoringConfigIsQualitative } from "./progress-scoring";
 import { formatNormalizedTestDecisionRu, formatTreatmentProgramStageStatusRu } from "./types";
 import { createInMemoryTreatmentProgramPersistence } from "@/app-layer/testing/treatmentProgramInstanceInMemory";
 import { createInMemoryProgramActionLogPort } from "@/infra/repos/inMemoryProgramActionLog";
@@ -388,6 +388,56 @@ describe("treatment-program progress-service", () => {
         stageItemId: itemId,
         testId,
         rawValue: { text: "no score" },
+      }),
+    ).rejects.toThrow(/итог/);
+  });
+
+  it("FIX-D4-L1: qualitative scoring with only numeric score (no normalizedDecision) — rejects", async () => {
+    const inst = await persistence.instancePort.createInstanceTree({
+      templateId: "00000000-0000-4000-8000-000000000001",
+      patientUserId: patient,
+      assignedBy: null,
+      title: "Программа",
+      stages: [
+        {
+          sourceStageId: tplStageId,
+          title: "Этап 1",
+          description: null,
+          sortOrder: 1,
+          status: "available",
+          goals: null,
+          objectives: null,
+          expectedDurationDays: null,
+          expectedDurationText: null,
+          items: [
+            {
+              itemType: "test_set",
+              itemRefId: "77777777-7777-4777-8777-777777777777",
+              sortOrder: 0,
+              comment: null,
+              settings: null,
+              snapshot: {
+                tests: [
+                  {
+                    testId,
+                    title: "Qual",
+                    scoringConfig: { schema_type: "qualitative", measure_items: [] },
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      ],
+    });
+    const itemId = inst.stages[0]!.items[0]!.id;
+    await expect(
+      progress.patientSubmitTestResult({
+        patientUserId: patient,
+        instanceId: inst.id,
+        stageItemId: itemId,
+        testId,
+        rawValue: { score: 7 },
       }),
     ).rejects.toThrow(/итог/);
   });
@@ -882,6 +932,13 @@ describe("progress-scoring", () => {
     expect(scoringAllowsNumericDecisionInference({ schema_type: "qualitative", measure_items: [] })).toBe(false);
     expect(scoringAllowsNumericDecisionInference(null)).toBe(false);
     expect(scoringAllowsNumericDecisionInference({})).toBe(false);
+  });
+
+  it("scoringConfigIsQualitative", () => {
+    expect(scoringConfigIsQualitative({ schema_type: "qualitative", measure_items: [] })).toBe(true);
+    expect(scoringConfigIsQualitative({ schema_type: "numeric", measure_items: [] })).toBe(false);
+    expect(scoringConfigIsQualitative({ passIfGte: 1 })).toBe(false);
+    expect(scoringConfigIsQualitative(null)).toBe(false);
   });
 });
 
