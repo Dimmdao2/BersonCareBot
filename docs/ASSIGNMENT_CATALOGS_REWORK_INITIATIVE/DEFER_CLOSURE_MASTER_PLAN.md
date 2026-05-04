@@ -46,7 +46,7 @@ D1 (measure_kinds access)
 - D3 — **done** (`AUDIT_STAGE_D3.md`: PASS).
 - D4 — **done** (`AUDIT_STAGE_D4.md`: PASS).
 - D5 — **deferred (owner pause, 2026-05-04)** — реализация `domain`→`kind` не в текущем объёме; см. [`STAGE_D5_PLAN.md`](STAGE_D5_PLAN.md), [`../APP_RESTRUCTURE_INITIATIVE/ASSIGNMENT_CATALOGS_REWORK_PLAN.md`](../APP_RESTRUCTURE_INITIATIVE/ASSIGNMENT_CATALOGS_REWORK_PLAN.md) §7/§8.2.
-- D6 — **pending** (нет `AUDIT_DEFER_CLOSURE_GLOBAL.md`).
+- D6 — **done** ([`AUDIT_DEFER_CLOSURE_GLOBAL.md`](AUDIT_DEFER_CLOSURE_GLOBAL.md)).
 - **Вне D1–D6, но по той же оси:** `DROP clinical_tests.scoring_config` — **решение владельца:** колонка не нужна; инженерная миграция + чистка кода (см. продуктовый план §7).
 
 ## 4. Кодовая карта
@@ -84,5 +84,5 @@ pnpm run ci
 
 - D1–D4 закрыты с PASS-аудитами.
 - D5 имеет статус `done`, `deferred with spike evidence`, или явный **`deferred (owner pause)`** с датой в `LOG.md` / [`STAGE_D5_PLAN.md`](STAGE_D5_PLAN.md).
+- D6 — [`AUDIT_DEFER_CLOSURE_GLOBAL.md`](AUDIT_DEFER_CLOSURE_GLOBAL.md) (сводный аудит defer-wave).
 - Продуктовый план §5/§7/§8 синхронизирован с фактом кода.
-- Подготовлен итоговый аудит defer-wave (`AUDIT_DEFER_CLOSURE_GLOBAL.md`).

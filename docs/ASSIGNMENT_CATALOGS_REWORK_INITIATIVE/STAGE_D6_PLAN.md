@@ -24,13 +24,13 @@
 
 ## 4. Усиленный execution checklist
 
-1. [ ] Собраны stage-аудиты D1–D4 с verdict + зафиксирован статус D5 (`done` / `deferred with evidence` / `deferred (owner pause)`).
-2. [ ] Проверено отсутствие незакрытых critical/major.
-3. [ ] Проверено, что решения «не делаем» (`publication_status`, bulk API) соблюдены.
-4. [ ] Product plan §5/§7/§8 синхронизирован с кодом.
-5. [ ] `AUDIT_DEFER_CLOSURE_GLOBAL.md` создан и содержит residual risks/defer.
-6. [ ] Таргетный sanity-run по изменённым зонам (`eslint`, `vitest`, `tsc`).
-7. [ ] `LOG.md` обновлён.
+1. [x] Собраны stage-аудиты D1–D4 с verdict + зафиксирован статус D5 (`done` / `deferred with evidence` / `deferred (owner pause)`).
+2. [x] Проверено отсутствие незакрытых critical/major.
+3. [x] Проверено, что решения «не делаем» (`publication_status`, bulk API) соблюдены.
+4. [x] Product plan §5/§7/§8 синхронизирован с кодом.
+5. [x] `AUDIT_DEFER_CLOSURE_GLOBAL.md` создан и содержит residual risks/defer.
+6. [x] Таргетный sanity-run по изменённым зонам (`eslint`, `vitest`, `tsc`).
+7. [x] `LOG.md` обновлён.
 
 ## 5. Stage DoD
 

@@ -6,6 +6,16 @@
 
 ---
 
+## 2026-05-04 — Stage D6 (global defer closure audit)
+
+**Контекст:** [`STAGE_D6_PLAN.md`](STAGE_D6_PLAN.md), [`AUDIT_DEFER_CLOSURE_GLOBAL.md`](AUDIT_DEFER_CLOSURE_GLOBAL.md), [`DEFER_CLOSURE_MASTER_PLAN.md`](DEFER_CLOSURE_MASTER_PLAN.md).
+
+**Сделано:** сводный аудит результатов D1–D4 (verdict PASS по stage-файлам); зафиксирован статус **D5** — `deferred (owner pause, 2026-05-04)` без `AUDIT_STAGE_D5` (ожидаемо); сверка продуктового плана [`ASSIGNMENT_CATALOGS_REWORK_PLAN.md`](../APP_RESTRUCTURE_INITIATIVE/ASSIGNMENT_CATALOGS_REWORK_PLAN.md) §5 / §7 / §8.2 с фактом кода; подтверждено отсутствие протечек **«не делаем»** (`publication_status` только у `test_sets`, не у `tests`/рекомендаций/упражнений; отдельного `/bulk` API в `app/api` нет); отдельная строка по **`DROP clinical_tests.scoring_config`** — миграция [`0040_drop_tests_scoring_config.sql`](../../apps/webapp/db/drizzle-migrations/0040_drop_tests_scoring_config.sql), Drizzle [`clinicalTests.ts`](../../apps/webapp/db/schema/clinicalTests.ts) без колонки.
+
+**Проверки:** `pnpm --dir apps/webapp exec vitest run src/modules/treatment-program/progress-service.test.ts src/modules/treatment-program/testSetSnapshotView.test.ts` (**26** тестов), `pnpm --dir apps/webapp exec tsc --noEmit`.
+
+---
+
 ## 2026-05-04 — Stage D4 (Q2 qualitative в инстансе программы)
 
 **Контекст:** [`STAGE_D4_PLAN.md`](STAGE_D4_PLAN.md), [`AUDIT_STAGE_D4.md`](AUDIT_STAGE_D4.md).
