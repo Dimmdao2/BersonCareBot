@@ -42,6 +42,13 @@
 - [x] Тесты: `CabinetPastBookings.test.tsx`, `AppointmentStatusBadge.test.tsx`.
 - [x] `CabinetInfoLinks.tsx` — без правок (follow-up не понадобился).
 
+### Phase 3 — FeatureCard / `Card` (completed 2026-05-04)
+
+- [x] [`FeatureCard.tsx`](../../apps/webapp/src/shared/ui/FeatureCard.tsx) — оболочка `Card` + `patientCardClass` + overrides `ring`/`gap`/`py`; три ветки (locked+`role="article"`, `secondaryHref`, один `Link`); заголовок **`h2`**; без `CardContent` (избежать лишних px).
+- [x] Потребители страниц не менялись.
+- [x] [`FeatureCard.test.tsx`](../../apps/webapp/src/shared/ui/FeatureCard.test.tsx) — расширен; маршруты sections — vitest прогон.
+- [x] Визуальный smoke главной «Уроки» — вручную (см. `LOG.md`).
+
 ### `@base-ui/react` (webapp `^1.3.0`)
 
 - **Ships with:** `@base-ui/react/accordion` and `@base-ui/react/collapsible` (confirmed via package `exports` and installed `node_modules`).
@@ -123,32 +130,12 @@ Hidden inputs and form `name` attributes in diary flows: **do not migrate casual
 
 ## Priority 2 — Sections / FeatureCard
 
-### `FeatureCard`
+**Выполнено (Phase 3, 2026-05-04):** см. блок «Phase 3 — FeatureCard / `Card`» выше.
 
-Current:
+### `FeatureCard` (done)
 
-- custom `article` / `div` / `Link` card abstraction;
-- uses shadcn `Badge`, but not shadcn `Card`;
-- consumed by `sections/page.tsx`, `sections/[slug]/page.tsx`, and `home/PatientHomeLessonsSection.tsx` (home: align only with explicit approval per `MASTER_PLAN`).
-
-Candidate:
-
-- recompose with `Card` / `CardContent`;
-- keep clickable card behavior via `Link` wrapper / `buttonVariants(...)` strategy; do not use `asChild` unless a local adapter is added first.
-
-Must preserve:
-
-- `href`;
-- `secondaryHref`;
-- `status === "locked"` not clickable;
-- `containerId`;
-- `compact` layout;
-- visible status labels.
-
-Tests to run/review:
-
-- `FeatureCard.test.tsx`;
-- section page route tests that depend on cards.
+- Корень: shadcn `Card` + прежний `patientCardClass` / ссылки / `Badge` / `compact` / `containerId` / `status`.
+- Потребители: `sections/page.tsx`, `sections/[slug]/page.tsx`, `PatientHomeLessonsSection` — без правок файлов.
 
 ## Priority 3 — Profile Accordions
 

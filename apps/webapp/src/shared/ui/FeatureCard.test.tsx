@@ -20,4 +20,42 @@ describe("FeatureCard", () => {
       "/app/patient/courses?highlight=aaaaaaaa-bbbb-4ccc-dddd-eeeeeeeeeeee",
     );
   });
+
+  it("renders locked card as article without link even when href is set", () => {
+    render(
+      <FeatureCard
+        title="Закрыто"
+        href="/app/patient/sections/x"
+        status="locked"
+        containerId="card-locked"
+      />,
+    );
+    expect(screen.getByRole("article")).toHaveAttribute("id", "card-locked");
+    expect(screen.queryByRole("link", { name: "Закрыто" })).toBeNull();
+    expect(screen.getByText("заблокировано")).toBeInTheDocument();
+  });
+
+  it("renders single-link card with link wrapping card surface", () => {
+    render(
+      <FeatureCard title="Раздел" href="/app/patient/sections/warmups" compact containerId="card-one" />,
+    );
+    const link = screen.getByRole("link", { name: "Раздел" });
+    expect(link).toHaveAttribute("href", "/app/patient/sections/warmups");
+    expect(link).toHaveAttribute("id", "card-one");
+    expect(link.querySelector('[data-slot="card"]')).toBeTruthy();
+  });
+
+  it("renders full card with status badge when not compact", () => {
+    render(
+      <FeatureCard
+        title="Секция"
+        description="Описание"
+        href="/app/patient/sections/a"
+        status="coming-soon"
+      />,
+    );
+    expect(screen.getByRole("link", { name: /Секция/i })).toHaveAttribute("href", "/app/patient/sections/a");
+    expect(screen.getByText("скоро")).toBeInTheDocument();
+    expect(screen.getByText("Описание")).toBeInTheDocument();
+  });
 });

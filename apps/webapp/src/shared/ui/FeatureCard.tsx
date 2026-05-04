@@ -1,11 +1,19 @@
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { patientCardClass, patientInlineLinkClass, patientMutedTextClass } from "@/shared/ui/patientVisual";
 
 /**
  * Карточка раздела на главном экране: заголовок, описание, статус (доступно / скоро / заблокировано).
  * Может быть ссылкой или просто блоком. Компактный вариант — только заголовок, без описания.
+ *
+ * Ветки рендера (контракт стабилен для потребителей):
+ * - нет `href` или `status === "locked"`: неинтерактивный блок (`role="article"`), `id` на корне.
+ * - есть `secondaryHref`: корень с `id`, внутри Card и два соседних Link (без вложенных ссылок).
+ * - иначе: один Link-обёртка на `href`, `id` на Link, внутри Card.
+ *
+ * Заголовок остаётся `h2` (не `CardTitle`), чтобы не менять outline документа на страницах со списком карточек.
  */
 
 type FeatureCardProps = {
@@ -36,6 +44,17 @@ const STATUS_BADGE: Record<NonNullable<FeatureCardProps["status"]>, "default" | 
     locked: "destructive",
   };
 
+/** Слой Card: patient surface + отключение дефолтного chrome shadcn Card (ring/py/gap), чтобы совпасть с прежним FeatureCard. */
+function featureCardShellClass(compact: boolean | undefined, extra?: string) {
+  return cn(
+    patientCardClass,
+    "transition-shadow",
+    "!gap-0 !py-0 ring-0 text-[var(--patient-text-primary)] text-base",
+    compact && "flex min-h-[52px] items-center justify-center text-center",
+    extra,
+  );
+}
+
 /** Рендерит карточку: при наличии ссылки и статусе не «заблокировано» — кликабельная, иначе просто блок. */
 export function FeatureCard({
   title,
@@ -47,12 +66,6 @@ export function FeatureCard({
   secondaryHref,
   secondaryLabel = "Открыть курс",
 }: FeatureCardProps) {
-  const cardClass = cn(
-    patientCardClass,
-    "transition-shadow",
-    compact && "flex min-h-[52px] items-center justify-center text-center",
-  );
-
   const titleClass = cn(
     "font-semibold",
     compact ? "m-0 text-[0.95rem] font-medium" : "text-base",
@@ -74,20 +87,23 @@ export function FeatureCard({
 
   if (!href || status === "locked") {
     return (
-      <article id={containerId} className={cardClass}>
+      <Card
+        id={containerId}
+        role="article"
+        className={featureCardShellClass(compact)}
+      >
         {mainBlock}
-      </article>
+      </Card>
     );
   }
 
   if (secondaryHref?.trim()) {
     return (
-      <div
+      <Card
         id={containerId}
-        className={cn(
-          patientCardClass,
-          "flex flex-col gap-2 transition-shadow",
-          compact && "min-h-[52px] py-3",
+        className={featureCardShellClass(
+          compact,
+          cn("flex flex-col gap-2", compact && "min-h-[52px] py-3"),
         )}
       >
         <Link
@@ -110,7 +126,7 @@ export function FeatureCard({
         >
           {secondaryLabel}
         </Link>
-      </div>
+      </Card>
     );
   }
 
@@ -119,11 +135,10 @@ export function FeatureCard({
       href={href}
       id={containerId}
       className={cn(
-        cardClass,
         "block hover:border-primary/30 hover:shadow-md active:scale-[0.98] md:hover:-translate-y-px",
       )}
     >
-      {mainBlock}
+      <Card className={featureCardShellClass(compact)}>{mainBlock}</Card>
     </Link>
   );
 }

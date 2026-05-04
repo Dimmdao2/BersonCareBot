@@ -101,6 +101,7 @@ function LegacyInlineVideo({ mp4Url, title }: Pick<Props, "mp4Url" | "title">) {
           ) : null}
           <NoContextMenuVideo
             controls
+            controlsList="nodownload"
             preload="metadata"
             playsInline
             className="max-h-full w-full object-contain"
@@ -379,6 +380,7 @@ function DualModePatientVideo({
           <NoContextMenuVideo
             ref={videoRef}
             controls
+            controlsList="nodownload"
             preload="metadata"
             playsInline
             className="max-h-full w-full object-contain"

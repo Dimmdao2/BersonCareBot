@@ -1,5 +1,15 @@
 # LOG — Patient App Shadcn Alignment
 
+## 2026-05-04 — Phase 3: FeatureCard on shadcn `Card`
+
+- Agent/model: Composer (Cursor).
+- Scope: `MASTER_PLAN.md` Phase 3 — только [`FeatureCard.tsx`](../../apps/webapp/src/shared/ui/FeatureCard.tsx) + тесты; страницы [`sections/page.tsx`](../../apps/webapp/src/app/app/patient/sections/page.tsx), [`sections/[slug]/page.tsx`](../../apps/webapp/src/app/app/patient/sections/[slug]/page.tsx), [`PatientHomeLessonsSection.tsx`](../../apps/webapp/src/app/app/patient/home/PatientHomeLessonsSection.tsx) **не редактировались** (контракт прежний).
+- Реализация: корень веток на компоненте `Card` из `@/components/ui/card`; `patientCardClass` + overrides `!gap-0 !py-0 ring-0 text-base` чтобы убрать дефолтный chrome Card и сохранить patient surface; без `CardContent` (лишние горизонтальные отступы не нужны). Заблокировано / без href: `Card` с `role="article"` и `id`. Две ссылки: `Card` + два `Link`. Одна ссылка: `Link` с `id` оборачивает `Card` (как раньше кликабельная область).
+- Заголовок остаётся **`h2`** (не `CardTitle`), outline документа не сужается до множества `h3`.
+- **Главная «Уроки»:** визуально тот же слой токенов (`patientCardClass`); внутри — `data-slot="card"`. Рекомендуется **локальный визуальный smoke** `/app/patient` (сетка «Уроки», hover) после деплоя/мержа — в автоматизированном прогоне агентом не выполнялся.
+- Тесты: расширен [`FeatureCard.test.tsx`](../../apps/webapp/src/shared/ui/FeatureCard.test.tsx); `vitest run` — `FeatureCard.test.tsx`, `page.subscription.test.tsx`, `page.warmupsGate.test.tsx`, `page.slugRedirect.test.tsx` (exit 0).
+- Checks: `eslint` на `FeatureCard.tsx` + тест; `pnpm run typecheck` в `apps/webapp` (exit 0).
+
 ## 2026-05-04 — Phase 2: Cabinet (`CabinetPastBookings`, `AppointmentStatusBadge`)
 
 - Agent/model: Composer (Cursor).
