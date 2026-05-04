@@ -239,7 +239,9 @@
 - зафиксируй residual risks;
 - зафиксируй статус D5 (в т.ч. owner pause) и план по DROP scoring_config.
 
-Сохрани: docs/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/AUDIT_DEFER_CLOSURE_GLOBAL.md
+Сохрани полный аудит: docs/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/AUDIT_DEFER_CLOSURE_GLOBAL.md
+
+Именованный вход «этап 6» (короткий указатель + ссылка на файл выше): docs/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/AUDIT_STAGE_D6.md
 ```
 
 ## D6 — FIX

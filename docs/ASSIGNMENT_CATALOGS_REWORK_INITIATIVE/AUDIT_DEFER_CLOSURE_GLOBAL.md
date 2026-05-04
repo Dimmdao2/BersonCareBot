@@ -4,6 +4,8 @@
 **Последнее обновление (финальная сверка PROMPTS D6 — AUDIT):** 2026-05-04  
 **Последний FIX (PROMPTS D6 — FIX):** 2026-05-04  
 
+**Именованный вход к этапу 6:** [`AUDIT_STAGE_D6.md`](AUDIT_STAGE_D6.md) — краткий указатель; полный текст аудита — **ниже в этом документе**.
+
 **Источники свода:** stage-аудиты [`AUDIT_STAGE_D1.md`](AUDIT_STAGE_D1.md) … [`AUDIT_STAGE_D4.md`](AUDIT_STAGE_D4.md); [`LOG.md`](LOG.md) (записи D1–D4, D4 FIX, D6); продуктовый план [`../APP_RESTRUCTURE_INITIATIVE/ASSIGNMENT_CATALOGS_REWORK_PLAN.md`](../APP_RESTRUCTURE_INITIATIVE/ASSIGNMENT_CATALOGS_REWORK_PLAN.md) §5 / §7 / §8.2; [`DEFER_CLOSURE_MASTER_PLAN.md`](DEFER_CLOSURE_MASTER_PLAN.md), [`STAGE_D6_PLAN.md`](STAGE_D6_PLAN.md).
 
 **D5:** отдельный **`AUDIT_STAGE_D5.md`** **не** входил в охват (этап на **owner pause**, spike/audit D5 не выполнялись) — согласно [`STAGE_D6_PLAN.md`](STAGE_D6_PLAN.md) §2 и [`STAGE_D5_PLAN.md`](STAGE_D5_PLAN.md) §0.

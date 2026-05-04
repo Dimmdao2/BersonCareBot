@@ -86,3 +86,12 @@ pnpm run ci
 - D5 имеет статус `done`, `deferred with spike evidence`, или явный **`deferred (owner pause)`** с датой в `LOG.md` / [`STAGE_D5_PLAN.md`](STAGE_D5_PLAN.md).
 - D6 — [`AUDIT_DEFER_CLOSURE_GLOBAL.md`](AUDIT_DEFER_CLOSURE_GLOBAL.md) (сводный аудит defer-wave).
 - Продуктовый план §5/§7/§8 синхронизирован с фактом кода.
+
+## 8. TODO (будущее, вне закрытого D1–D6)
+
+Задачи на потом после **снятия owner pause** по D5 и смежных хвостов по той же инициативе:
+
+| TODO | Где детали |
+|------|------------|
+| **D5** — spike + gate по `recommendations.domain` → `kind` (Q4); при **Go** — миграция, API/UI, `AUDIT_STAGE_D5.md` | [`STAGE_D5_PLAN.md`](STAGE_D5_PLAN.md); операционный хвост — [`../BACKLOG_TAILS.md`](../BACKLOG_TAILS.md) §«Хвосты ASSIGNMENT_CATALOGS / defer-wave» |
+| **`DROP clinical_tests.scoring_config` на prod** (если ещё не применена миграция) | [`AUDIT_DEFER_CLOSURE_GLOBAL.md`](AUDIT_DEFER_CLOSURE_GLOBAL.md) §8–§9 (R2); продуктовый план §7 |

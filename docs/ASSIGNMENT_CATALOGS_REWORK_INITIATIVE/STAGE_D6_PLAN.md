@@ -19,7 +19,8 @@
 ## 3. Артефакты
 
 - `AUDIT_STAGE_D1.md` … `AUDIT_STAGE_D4.md` обязательны; `AUDIT_STAGE_D5.md` — **если** D5 выходил из паузы и выполнялся; иначе в глобальном аудите явная строка про статус D5.
-- `AUDIT_DEFER_CLOSURE_GLOBAL.md` (новый сводный файл).
+- `AUDIT_DEFER_CLOSURE_GLOBAL.md` (сводный файл — **основной** текст аудита D6).
+- `AUDIT_STAGE_D6.md` — краткий **вход** к этапу 6 со ссылкой на `AUDIT_DEFER_CLOSURE_GLOBAL.md` (симметрия имён с D1–D4).
 - Обновление `LOG.md`.
 
 ## 4. Усиленный execution checklist

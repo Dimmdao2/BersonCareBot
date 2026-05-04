@@ -6,6 +6,12 @@
 
 ---
 
+## 2026-05-04 — D6 audit entry (`AUDIT_STAGE_D6`)
+
+**Сделано:** добавлен [`AUDIT_STAGE_D6.md`](AUDIT_STAGE_D6.md) — именованный аудит «этап 6» со ссылкой на полный свод [`AUDIT_DEFER_CLOSURE_GLOBAL.md`](AUDIT_DEFER_CLOSURE_GLOBAL.md); обновлены [`STAGE_D6_PLAN.md`](STAGE_D6_PLAN.md) §3, [`PROMPTS_DEFER_CLOSURE_STAGES.md`](PROMPTS_DEFER_CLOSURE_STAGES.md) (D6 — AUDIT), [`README.md`](README.md).
+
+---
+
 ## 2026-05-04 — D6 FIX (`AUDIT_DEFER_CLOSURE_GLOBAL` MANDATORY)
 
 **Контекст:** PROMPTS D6 — FIX по [`AUDIT_DEFER_CLOSURE_GLOBAL.md`](AUDIT_DEFER_CLOSURE_GLOBAL.md): critical/major **не выявлены**; minor/residual §9 — **defer / accepted / documented** в §12 FIX файла.
