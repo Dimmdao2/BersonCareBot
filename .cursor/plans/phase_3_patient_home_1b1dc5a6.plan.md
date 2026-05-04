@@ -123,7 +123,7 @@ isProject: false
 
 ### ~~Оставить без использования на главной~~ (устарело 2026-05-04)
 
-- `PatientHomeLessonsSection.tsx` **удалён из репозитория**; блок каталога разделов на главной при появлении — новая реализация (см. `docs/PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/LOG.md`, маршрут `/app/patient/sections`).
+- `PatientHomeLessonsSection.tsx` **удалён из репозитория**; блок каталога разделов на главной при появлении — новая реализация (см. `docs/archive/2026-05-initiatives/PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/LOG.md`, маршрут `/app/patient/sections`).
 
 ### Админ-preview и переиспользование UI
 

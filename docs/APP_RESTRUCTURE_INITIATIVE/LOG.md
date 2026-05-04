@@ -6,9 +6,17 @@
 
 ---
 
+## 2026-05-05 — `PATIENT_APP_SHADCN_ALIGNMENT`: архив папки + перенос Phase 7 в мини-инициативы
+
+**Сделано:** `docs/PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/` перенесена в [`../archive/2026-05-initiatives/PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/`](../archive/2026-05-initiatives/PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/README.md). Единый **Phase 7** как отдельный пакет **не ведётся**; deferred-маршруты и расширенный UI/coverage — **в рамках мини-инициатив по конкретному экрану**. В [`ROADMAP_2.md`](ROADMAP_2.md) §1 п.4 зафиксировано правило переработок страниц: приоритет **`components/ui/*`** (shadcn/Base UI) и **shared**-слоёв, без лишнего route-level chrome (порог: не усложнять код, если это бьёт по поддерживаемости). Обновлены [`README.md`](README.md), [`RECOMMENDATIONS_AND_ROADMAP.md`](RECOMMENDATIONS_AND_ROADMAP.md) (зависимости), [`../README.md`](../README.md), [`../BACKLOG_TAILS.md`](../BACKLOG_TAILS.md), журнал и `MASTER_PLAN`/`README` в архивной папке.
+
+**Проверки:** `rg` по репо на старый путь `docs/PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE` (кроме исторических упоминаний в архивных логах при необходимости).
+
+---
+
 ## 2026-05-04 — cross-init: `PATIENT_APP_SHADCN_ALIGNMENT` Phase 6 (form controls)
 
-**Сделано:** закрыта **Phase 6** — patient support/diary/profile/intake: `Textarea`, `Select`, `Switch`, новый `radio-group.tsx`; FAB `QuickAddPopup` на `/app/patient/diary`. Обновлены [`../PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/LOG.md`](../PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/LOG.md), [`TASKS.md`](../PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/TASKS.md), [`README.md`](../PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/README.md), [`MASTER_PLAN.md`](../PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/MASTER_PLAN.md), [`AUDIT_RESULTS.md`](../PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/AUDIT_RESULTS.md) §5; в этом репозитории — [`README.md`](README.md) (буллет shadcn), [`ROADMAP_2.md`](ROADMAP_2.md) §связанные документы.
+**Сделано:** закрыта **Phase 6** — patient support/diary/profile/intake: `Textarea`, `Select`, `Switch`, новый `radio-group.tsx`; FAB `QuickAddPopup` на `/app/patient/diary`. Обновлены [`../archive/2026-05-initiatives/PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/LOG.md`](../archive/2026-05-initiatives/PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/LOG.md), [`TASKS.md`](../archive/2026-05-initiatives/PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/TASKS.md), [`README.md`](../archive/2026-05-initiatives/PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/README.md), [`MASTER_PLAN.md`](../archive/2026-05-initiatives/PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/MASTER_PLAN.md), [`AUDIT_RESULTS.md`](../archive/2026-05-initiatives/PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/AUDIT_RESULTS.md) §5; в этом репозитории — [`README.md`](README.md) (буллет shadcn), [`ROADMAP_2.md`](ROADMAP_2.md) §связанные документы.
 
 **Проверки:** см. запись Phase 6 в журнале shadcn-инициативы; корневой `pnpm run ci`.
 
@@ -16,7 +24,7 @@
 
 ## 2026-05-04 — cross-init: `PATIENT_APP_SHADCN_ALIGNMENT` Phase 5 (notifications Switch)
 
-**Сделано:** закрыта **Phase 5** инициативы shadcn alignment — `ChannelNotificationToggles` → `Switch`; vitest-полифилл `PointerEvent` в `apps/webapp/vitest.setup.ts` для Base UI в jsdom. Обновлены [`../PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/LOG.md`](../PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/LOG.md), [`TASKS.md`](../PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/TASKS.md), [`README.md`](../PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/README.md), [`MASTER_PLAN.md`](../PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/MASTER_PLAN.md), [`AUDIT_RESULTS.md`](../PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/AUDIT_RESULTS.md); в этом репозитории — [`README.md`](README.md) (буллет shadcn + таблица), [`ROADMAP_2.md`](ROADMAP_2.md) §связанные документы.
+**Сделано:** закрыта **Phase 5** инициативы shadcn alignment — `ChannelNotificationToggles` → `Switch`; vitest-полифилл `PointerEvent` в `apps/webapp/vitest.setup.ts` для Base UI в jsdom. Обновлены [`../archive/2026-05-initiatives/PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/LOG.md`](../archive/2026-05-initiatives/PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/LOG.md), [`TASKS.md`](../archive/2026-05-initiatives/PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/TASKS.md), [`README.md`](../archive/2026-05-initiatives/PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/README.md), [`MASTER_PLAN.md`](../archive/2026-05-initiatives/PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/MASTER_PLAN.md), [`AUDIT_RESULTS.md`](../archive/2026-05-initiatives/PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/AUDIT_RESULTS.md); в этом репозитории — [`README.md`](README.md) (буллет shadcn + таблица), [`ROADMAP_2.md`](ROADMAP_2.md) §связанные документы.
 
 **Проверки:** см. запись Phase 5 в журнале shadcn-инициативы.
 
@@ -24,7 +32,7 @@
 
 ## 2026-05-04 — cross-init: `PATIENT_APP_SHADCN_ALIGNMENT` Phase 4 (docs sync)
 
-**Сделано:** синхронизированы ссылки и статусы с фактом закрытия **Phase 4** (профиль: `ProfileAccordionSection` → `Collapsible`): [`../PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/AUDIT_RESULTS.md`](../PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/AUDIT_RESULTS.md) §4–§5, [`MASTER_PLAN.md`](../PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/MASTER_PLAN.md) (working definitions + компактный блок Phase 4), [`README.md`](README.md) и [`ROADMAP_2.md`](ROADMAP_2.md) §связанные документы; в shadcn-инициативе записи уже были в [`LOG.md`](../PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/LOG.md). **Phase 5** (уведомления) и полный охват Phase 2–5 на экранах — в отдельной записи выше и в актуальном [`MASTER_PLAN.md`](../PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/MASTER_PLAN.md).
+**Сделано:** синхронизированы ссылки и статусы с фактом закрытия **Phase 4** (профиль: `ProfileAccordionSection` → `Collapsible`): [`../archive/2026-05-initiatives/PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/AUDIT_RESULTS.md`](../archive/2026-05-initiatives/PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/AUDIT_RESULTS.md) §4–§5, [`MASTER_PLAN.md`](../archive/2026-05-initiatives/PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/MASTER_PLAN.md) (working definitions + компактный блок Phase 4), [`README.md`](README.md) и [`ROADMAP_2.md`](ROADMAP_2.md) §связанные документы; в shadcn-инициативе записи уже были в [`LOG.md`](../archive/2026-05-initiatives/PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/LOG.md). **Phase 5** (уведомления) и полный охват Phase 2–5 на экранах — в отдельной записи выше и в актуальном [`MASTER_PLAN.md`](../archive/2026-05-initiatives/PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/MASTER_PLAN.md).
 
 **Проверки:** docs-only.
 
@@ -32,9 +40,9 @@
 
 ## 2026-05-04 — cross-init: `PATIENT_APP_SHADCN_ALIGNMENT` Phase 0–1 (docs sync)
 
-**Сделано:** зафиксирована связь с roadmap принципом §1 «patient UI primitives» ([`ROADMAP_2.md`](ROADMAP_2.md) §1 п.4): в webapp добавлены shared-примитивы **`Collapsible`** и **`Accordion`** ([`apps/webapp/src/components/ui/collapsible.tsx`](../../apps/webapp/src/components/ui/collapsible.tsx), [`accordion.tsx`](../../apps/webapp/src/components/ui/accordion.tsx)) поверх существующего `@base-ui/react`; **маршруты и экраны patient не менялись** (подключение — следующие фазы инициативы). Обновлены документы [`../PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/README.md`](../PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/README.md), [`MASTER_PLAN.md`](../PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/MASTER_PLAN.md), [`AUDIT_RESULTS.md`](../PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/AUDIT_RESULTS.md), [`LOG.md`](../PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/LOG.md); в этом репозитории — [`README.md`](README.md) §новые инициативы + §связанные документы + таблица файлов, [`ROADMAP_2.md`](ROADMAP_2.md) §связанные документы.
+**Сделано:** зафиксирована связь с roadmap принципом §1 «patient UI primitives» ([`ROADMAP_2.md`](ROADMAP_2.md) §1 п.4): в webapp добавлены shared-примитивы **`Collapsible`** и **`Accordion`** ([`apps/webapp/src/components/ui/collapsible.tsx`](../../apps/webapp/src/components/ui/collapsible.tsx), [`accordion.tsx`](../../apps/webapp/src/components/ui/accordion.tsx)) поверх существующего `@base-ui/react`; **маршруты и экраны patient не менялись** (подключение — следующие фазы инициативы). Обновлены документы [`../archive/2026-05-initiatives/PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/README.md`](../archive/2026-05-initiatives/PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/README.md), [`MASTER_PLAN.md`](../archive/2026-05-initiatives/PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/MASTER_PLAN.md), [`AUDIT_RESULTS.md`](../archive/2026-05-initiatives/PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/AUDIT_RESULTS.md), [`LOG.md`](../archive/2026-05-initiatives/PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/LOG.md); в этом репозитории — [`README.md`](README.md) §новые инициативы + §связанные документы + таблица файлов, [`ROADMAP_2.md`](ROADMAP_2.md) §связанные документы.
 
-**Проверки:** журнал исполнения и инвентаризация — [`../PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/LOG.md`](../PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/LOG.md); узкие проверки кода при внесении примитивов — eslint + `pnpm run typecheck` в `apps/webapp` (см. ту же запись в журнале shadcn-инициативы).
+**Проверки:** журнал исполнения и инвентаризация — [`../archive/2026-05-initiatives/PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/LOG.md`](../archive/2026-05-initiatives/PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/LOG.md); узкие проверки кода при внесении примитивов — eslint + `pnpm run typecheck` в `apps/webapp` (см. ту же запись в журнале shadcn-инициативы).
 
 ---
 

@@ -7,7 +7,7 @@
 **Зависимости:**
 - Базовый снимок «как есть» — [`STRUCTURE_AUDIT.md`](STRUCTURE_AUDIT.md) (immutable baseline «до реформы»). Часть III пункты про `news`/RSC/`pool.query` на страницах контента и таблицу `news_items` **частично устарели** после этапа 1 — актуальный факт: блок **«Этап 1 APP_RESTRUCTURE»** в [`LOG.md`](LOG.md); baseline не переписываем.
 - Целевое видение — [`TARGET_STRUCTURE_PATIENT.md`](TARGET_STRUCTURE_PATIENT.md), [`TARGET_STRUCTURE_DOCTOR.md`](TARGET_STRUCTURE_DOCTOR.md).
-- UI-стандарт реализации страниц — [`../ARCHITECTURE/PATIENT_APP_UI_STYLE_GUIDE.md`](../ARCHITECTURE/PATIENT_APP_UI_STYLE_GUIDE.md): сначала shared patient primitives/shadcn base, без одноразового custom chrome.
+- UI-стандарт реализации страниц — [`../ARCHITECTURE/PATIENT_APP_UI_STYLE_GUIDE.md`](../ARCHITECTURE/PATIENT_APP_UI_STYLE_GUIDE.md): сначала shared patient primitives и shadcn/Base UI (`apps/webapp/src/components/ui/*`), без одноразового custom chrome. При переработке экранов в рамках roadmap и мини-инициатив — см. также [`ROADMAP_2.md`](ROADMAP_2.md) §1 п.4 (порог: не усложнять код ради примитива, если это бьёт по поддерживаемости).
 
 **Актуализация выполнения (2026-05-04, синхронизация с owner / [`LOG.md`](LOG.md)):**
 

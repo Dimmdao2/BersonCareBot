@@ -15,7 +15,7 @@
 
 ## Низкий приоритет / наблюдение
 
-- `PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE`: пока docs-only backlog, стартовать только отдельным решением.
+- `PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE` — **архив** (2026-05-05): [`archive/2026-05-initiatives/PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/README.md`](archive/2026-05-initiatives/PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/README.md); дальнейшие UI-проходы — в мини-инициативах по экрану, см. [`APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md`](APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md) §1 п.4.
 - Deferred patient routes (`/messages`, `/emergency`, `/lessons`, `/address`, `/intake/*`, booking landing): покрывать в будущих фазах `APP_RESTRUCTURE_INITIATIVE` только если маршруты сохраняются в целевой IA.
 - `VIDEO_HLS_DELIVERY`: крупная инфраструктурная инициатива, пока в состоянии проектирования (без кода).
 - `APP_RESTRUCTURE_INITIATIVE` — **этапы 2–9** по [`RECOMMENDATIONS_AND_ROADMAP.md`](APP_RESTRUCTURE_INITIATIVE/RECOMMENDATIONS_AND_ROADMAP.md) (CMS `kind`, хаб, уведомления, ядро пациента и т.д.).

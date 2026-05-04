@@ -45,33 +45,33 @@
 
 ### Phase 3 — FeatureCard / `Card` (completed 2026-05-04)
 
-- [x] [`FeatureCard.tsx`](../../apps/webapp/src/shared/ui/FeatureCard.tsx) — оболочка `Card` + `patientCardClass` + overrides `ring`/`gap`/`py`; три ветки: locked / без `href` — нативный **`<article>`** + `id`; `secondaryHref` — `Card` + два соседних `Link`; один `Link` оборачивает `Card`; заголовок **`h3`**; без `CardContent` (избежать лишних px).
-- [x] Потребители страниц: [`sections/page.tsx`](../../apps/webapp/src/app/app/patient/sections/page.tsx), [`sections/[slug]/page.tsx`](../../apps/webapp/src/app/app/patient/sections/[slug]/page.tsx) — без правок при Phase 3.
-- [x] [`FeatureCard.test.tsx`](../../apps/webapp/src/shared/ui/FeatureCard.test.tsx) — locked / без `href` / `secondaryHref` + `containerId` на корне `Card`, single-link, full card + badge; маршруты sections — vitest прогон.
+- [x] [`FeatureCard.tsx`](../../../apps/webapp/src/shared/ui/FeatureCard.tsx) — оболочка `Card` + `patientCardClass` + overrides `ring`/`gap`/`py`; три ветки: locked / без `href` — нативный **`<article>`** + `id`; `secondaryHref` — `Card` + два соседних `Link`; один `Link` оборачивает `Card`; заголовок **`h3`**; без `CardContent` (избежать лишних px).
+- [x] Потребители страниц: [`sections/page.tsx`](../../../apps/webapp/src/app/app/patient/sections/page.tsx), [`sections/[slug]/page.tsx`](../../../apps/webapp/src/app/app/patient/sections/[slug]/page.tsx) — без правок при Phase 3.
+- [x] [`FeatureCard.test.tsx`](../../../apps/webapp/src/shared/ui/FeatureCard.test.tsx) — locked / без `href` / `secondaryHref` + `containerId` на корне `Card`, single-link, full card + badge; маршруты sections — vitest прогон.
 - [x] Блок «Уроки» на главной через `PatientHomeLessonsSection` — **не используется**; компонент удалён 2026-05-04 (см. `LOG.md`).
 
 ### Phase 4 — Profile accordion / `Collapsible` (completed 2026-05-04)
 
-- [x] [`ProfileAccordionSection.tsx`](../../apps/webapp/src/app/app/patient/profile/ProfileAccordionSection.tsx) — `Collapsible` + `CollapsibleTrigger` + `CollapsibleContent`; без локального `useState`; шеврон по `group-data-[panel-open]`; контент всегда в `CollapsibleContent`.
-- [x] [`ProfileAccordionSection.test.tsx`](../../apps/webapp/src/app/app/patient/profile/ProfileAccordionSection.test.tsx) — свёрнуто/развернуто, `defaultOpen`, `aria-expanded`, `id`, `statusIcon`.
+- [x] [`ProfileAccordionSection.tsx`](../../../apps/webapp/src/app/app/patient/profile/ProfileAccordionSection.tsx) — `Collapsible` + `CollapsibleTrigger` + `CollapsibleContent`; без локального `useState`; шеврон по `group-data-[panel-open]`; контент всегда в `CollapsibleContent`.
+- [x] [`ProfileAccordionSection.test.tsx`](../../../apps/webapp/src/app/app/patient/profile/ProfileAccordionSection.test.tsx) — свёрнуто/развернуто, `defaultOpen`, `aria-expanded`, `id`, `statusIcon`.
 - [x] `profile/page.tsx` — без правок.
 
 ### Phase 5 — Notifications / `Switch` (completed 2026-05-04)
 
-- [x] [`ChannelNotificationToggles.tsx`](../../apps/webapp/src/app/app/patient/notifications/ChannelNotificationToggles.tsx) — `Switch` вместо checkbox; `disabled={pending}`; тот же server action и ошибки.
-- [x] [`ChannelNotificationToggles.test.tsx`](../../apps/webapp/src/app/app/patient/notifications/ChannelNotificationToggles.test.tsx).
-- [x] [`vitest.setup.ts`](../../apps/webapp/vitest.setup.ts) — `PointerEvent` в jsdom для Base UI.
+- [x] [`ChannelNotificationToggles.tsx`](../../../apps/webapp/src/app/app/patient/notifications/ChannelNotificationToggles.tsx) — `Switch` вместо checkbox; `disabled={pending}`; тот же server action и ошибки.
+- [x] [`ChannelNotificationToggles.test.tsx`](../../../apps/webapp/src/app/app/patient/notifications/ChannelNotificationToggles.test.tsx).
+- [x] [`vitest.setup.ts`](../../../apps/webapp/vitest.setup.ts) — `PointerEvent` в jsdom для Base UI.
 
 ### Phase 6 — Form controls (completed 2026-05-04)
 
-- [x] [`PatientSupportForm.tsx`](../../apps/webapp/src/app/app/patient/support/PatientSupportForm.tsx) — сообщение: `Textarea`.
-- [x] [`LfkSessionForm.tsx`](../../apps/webapp/src/app/app/patient/diary/lfk/LfkSessionForm.tsx) — выбор комплекса: `Select` + hidden `complexId`.
-- [x] [`QuickAddPopup.tsx`](../../apps/webapp/src/app/app/patient/diary/QuickAddPopup.tsx) — `Select` + hidden для симптома/комплекса; монтирование в [`diary/page.tsx`](../../apps/webapp/src/app/app/patient/diary/page.tsx).
-- [x] [`SymptomTrackingRow.tsx`](../../apps/webapp/src/app/app/patient/diary/symptoms/SymptomTrackingRow.tsx) — тип записи: `Select`.
-- [x] [`SymptomsJournalClient.tsx`](../../apps/webapp/src/app/app/patient/diary/symptoms/journal/SymptomsJournalClient.tsx), [`LfkJournalClient.tsx`](../../apps/webapp/src/app/app/patient/diary/lfk/journal/LfkJournalClient.tsx) — фильтры: `Select`; комментарий в редакторе ЛФК: `Textarea`.
-- [x] [`DiaryDataPurgeSection.tsx`](../../apps/webapp/src/app/app/patient/profile/DiaryDataPurgeSection.tsx) — согласие: `Switch` + `Label`.
-- [x] [`AuthOtpChannelPreference.tsx`](../../apps/webapp/src/app/app/patient/profile/AuthOtpChannelPreference.tsx) — [`RadioGroup` / `RadioGroupItem`](../../apps/webapp/src/components/ui/radio-group.tsx).
-- [x] [`LfkIntakeClient.tsx`](../../apps/webapp/src/app/app/patient/intake/lfk/LfkIntakeClient.tsx), [`NutritionIntakeClient.tsx`](../../apps/webapp/src/app/app/patient/intake/nutrition/NutritionIntakeClient.tsx) — `Textarea` / `Input`.
+- [x] [`PatientSupportForm.tsx`](../../../apps/webapp/src/app/app/patient/support/PatientSupportForm.tsx) — сообщение: `Textarea`.
+- [x] [`LfkSessionForm.tsx`](../../../apps/webapp/src/app/app/patient/diary/lfk/LfkSessionForm.tsx) — выбор комплекса: `Select` + hidden `complexId`.
+- [x] [`QuickAddPopup.tsx`](../../../apps/webapp/src/app/app/patient/diary/QuickAddPopup.tsx) — `Select` + hidden для симптома/комплекса; монтирование в [`diary/page.tsx`](../../../apps/webapp/src/app/app/patient/diary/page.tsx).
+- [x] [`SymptomTrackingRow.tsx`](../../../apps/webapp/src/app/app/patient/diary/symptoms/SymptomTrackingRow.tsx) — тип записи: `Select`.
+- [x] [`SymptomsJournalClient.tsx`](../../../apps/webapp/src/app/app/patient/diary/symptoms/journal/SymptomsJournalClient.tsx), [`LfkJournalClient.tsx`](../../../apps/webapp/src/app/app/patient/diary/lfk/journal/LfkJournalClient.tsx) — фильтры: `Select`; комментарий в редакторе ЛФК: `Textarea`.
+- [x] [`DiaryDataPurgeSection.tsx`](../../../apps/webapp/src/app/app/patient/profile/DiaryDataPurgeSection.tsx) — согласие: `Switch` + `Label`.
+- [x] [`AuthOtpChannelPreference.tsx`](../../../apps/webapp/src/app/app/patient/profile/AuthOtpChannelPreference.tsx) — [`RadioGroup` / `RadioGroupItem`](../../../apps/webapp/src/components/ui/radio-group.tsx).
+- [x] [`LfkIntakeClient.tsx`](../../../apps/webapp/src/app/app/patient/intake/lfk/LfkIntakeClient.tsx), [`NutritionIntakeClient.tsx`](../../../apps/webapp/src/app/app/patient/intake/nutrition/NutritionIntakeClient.tsx) — `Textarea` / `Input`.
 
 ### `@base-ui/react` (webapp `^1.3.0`)
 
@@ -130,7 +130,7 @@ Hidden inputs and form `name` attributes in diary flows: **do not migrate casual
 - **Phase 3–4:** `FeatureCard` (sections), `ProfileAccordionSection` (profile) — см. чеклисты Phase 3–4 выше и `LOG.md`. *(✅ выполнено 2026-05-04.)*
 - **Phase 5:** `notifications/ChannelNotificationToggles.tsx` — см. чеклист Phase 5 выше. *(✅ выполнено 2026-05-04.)*
 - **Phase 6 (form controls):** support, diary (вкл. `QuickAddPopup` + `diary/page`), профиль OTP/purge, intake — см. чеклист Phase 6 выше. *(✅ выполнено 2026-05-04.)*
-- **Следующий frozen scope по плану:** Phase 7 — deferred routes / coverage (`MASTER_PLAN`).
+- **~~Следующий frozen scope~~ (2026-05-05):** единый Phase 7 **отменён**; deferred-маршруты и расширенный coverage — **в мини-инициативах по экрану**, см. [`MASTER_PLAN.md`](MASTER_PLAN.md) §Phase 7 и [`ROADMAP_2.md`](../../APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md) §1.
 
 ### Phase 0 — GO / NO-GO for Phase 1
 
@@ -183,7 +183,7 @@ Hidden inputs and form `name` attributes in diary flows: **do not migrate casual
 
 ## Priority 5 — Form Controls
 
-**Выполнено (Phase 6, 2026-05-04):** см. блок «Phase 6 — Form controls» выше; новый примитив [`radio-group.tsx`](../../apps/webapp/src/components/ui/radio-group.tsx).
+**Выполнено (Phase 6, 2026-05-04):** см. блок «Phase 6 — Form controls» выше; новый примитив [`radio-group.tsx`](../../../apps/webapp/src/components/ui/radio-group.tsx).
 
 ### `PatientSupportForm` / diary / profile OTP / intake (done)
 

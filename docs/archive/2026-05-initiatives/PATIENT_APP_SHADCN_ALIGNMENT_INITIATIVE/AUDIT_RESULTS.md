@@ -126,23 +126,23 @@
 
 ### `/app/patient/profile`
 
-**2026-05-04 (Phase 4):** [`ProfileAccordionSection`](../../apps/webapp/src/app/app/patient/profile/ProfileAccordionSection.tsx) переведён на **`Collapsible`** (`CollapsibleTrigger` / `CollapsibleContent`); тесты — [`ProfileAccordionSection.test.tsx`](../../apps/webapp/src/app/app/patient/profile/ProfileAccordionSection.test.tsx).
+**2026-05-04 (Phase 4):** [`ProfileAccordionSection`](../../../apps/webapp/src/app/app/patient/profile/ProfileAccordionSection.tsx) переведён на **`Collapsible`** (`CollapsibleTrigger` / `CollapsibleContent`); тесты — [`ProfileAccordionSection.test.tsx`](../../../apps/webapp/src/app/app/patient/profile/ProfileAccordionSection.test.tsx).
 
-**2026-05-04 (Phase 6):** [`AuthOtpChannelPreference`](../../apps/webapp/src/app/app/patient/profile/AuthOtpChannelPreference.tsx) — **`RadioGroup`**; [`DiaryDataPurgeSection`](../../apps/webapp/src/app/app/patient/profile/DiaryDataPurgeSection.tsx) — согласие на purge через **`Switch`**. Прочие блоки профиля (PIN, основные формы данных и т.д.) в Phase 6 не входили — см. [`TASKS.md`](./TASKS.md) / [`LOG.md`](./LOG.md).
+**2026-05-04 (Phase 6):** [`AuthOtpChannelPreference`](../../../apps/webapp/src/app/app/patient/profile/AuthOtpChannelPreference.tsx) — **`RadioGroup`**; [`DiaryDataPurgeSection`](../../../apps/webapp/src/app/app/patient/profile/DiaryDataPurgeSection.tsx) — согласие на purge через **`Switch`**. Прочие блоки профиля (PIN, основные формы данных и т.д.) в Phase 6 не входили — см. [`TASKS.md`](./TASKS.md) / [`LOG.md`](./LOG.md).
 
 ### `/app/patient/notifications`
 
-**2026-05-04 (Phase 5):** [`ChannelNotificationToggles`](../../apps/webapp/src/app/app/patient/notifications/ChannelNotificationToggles.tsx) переведён на **`Switch`**; тесты — [`ChannelNotificationToggles.test.tsx`](../../apps/webapp/src/app/app/patient/notifications/ChannelNotificationToggles.test.tsx). Исторически здесь был raw checkbox — см. журнал инициативы.
+**2026-05-04 (Phase 5):** [`ChannelNotificationToggles`](../../../apps/webapp/src/app/app/patient/notifications/ChannelNotificationToggles.tsx) переведён на **`Switch`**; тесты — [`ChannelNotificationToggles.test.tsx`](../../../apps/webapp/src/app/app/patient/notifications/ChannelNotificationToggles.test.tsx). Исторически здесь был raw checkbox — см. журнал инициативы.
 
 ### `/app/patient/diary/*`
 
-**2026-05-04 (Phase 6):** form controls дневника и журналов симптомов/ЛФК выровнены (`Select` / `Textarea`); FAB [`QuickAddPopup`](../../apps/webapp/src/app/app/patient/diary/QuickAddPopup.tsx) смонтирован на [`diary/page.tsx`](../../apps/webapp/src/app/app/patient/diary/page.tsx) — детали в [`LOG.md`](./LOG.md).
+**2026-05-04 (Phase 6):** form controls дневника и журналов симптомов/ЛФК выровнены (`Select` / `Textarea`); FAB [`QuickAddPopup`](../../../apps/webapp/src/app/app/patient/diary/QuickAddPopup.tsx) смонтирован на [`diary/page.tsx`](../../../apps/webapp/src/app/app/patient/diary/page.tsx) — детали в [`LOG.md`](./LOG.md).
 
 *Архив аудита 2026-05-01:* дневник изначально помечался как высокорисковый для первого pass из‑за плотных form contracts; отдельная **Phase 6** закрыла согласованный поднабор экранов без смены ключей `FormData`.
 
 ### `/app/patient/support`
 
-**2026-05-04 (Phase 6):** [`PatientSupportForm`](../../apps/webapp/src/app/app/patient/support/PatientSupportForm.tsx) — **`Textarea`** для текста сообщения.
+**2026-05-04 (Phase 6):** [`PatientSupportForm`](../../../apps/webapp/src/app/app/patient/support/PatientSupportForm.tsx) — **`Textarea`** для текста сообщения.
 
 *Архив 2026-05-01:* откладывался в общий form-controls pass — выполнено в Phase 6.
 

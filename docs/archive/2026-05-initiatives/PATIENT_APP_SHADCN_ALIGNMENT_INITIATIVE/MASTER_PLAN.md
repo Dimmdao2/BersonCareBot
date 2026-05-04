@@ -6,7 +6,7 @@
 
 Это **не** продолжение visual redesign и **не** расширение Style Transfer route matrix. Это отдельный технический UI alignment pass.
 
-Нормативная база по визуальному слою: [`../ARCHITECTURE/PATIENT_APP_UI_STYLE_GUIDE.md`](../ARCHITECTURE/PATIENT_APP_UI_STYLE_GUIDE.md). Любой pass в этой инициативе должен переиспользовать shared patient primitives и shadcn/base-ui, а не вводить одноразовый route-level custom chrome.
+Нормативная база по визуальному слою: [`PATIENT_APP_UI_STYLE_GUIDE.md`](../../ARCHITECTURE/PATIENT_APP_UI_STYLE_GUIDE.md). Любой pass в этой инициативе должен переиспользовать shared patient primitives и shadcn/base-ui, а не вводить одноразовый route-level custom chrome.
 
 ## 2. Non-goals
 
@@ -31,7 +31,7 @@
 - `Badge` для статусов;
 - `Input`, `Textarea`, `Select`, `Switch` для форм;
 - `Dialog`, `Tabs`, `Tooltip` там, где они уже применяются;
-- `Accordion` / `Collapsible` — **добавлены** в `apps/webapp/src/components/ui/` (Phase 1, 2026-05-04); **подключение в экранах:** Phase 2–6 выполнены (кабинет, `FeatureCard`, профиль, уведомления, form controls — см. [`LOG.md`](./LOG.md)); далее — Phase 7+ по [`MASTER_PLAN.md`](./MASTER_PLAN.md).
+- `Accordion` / `Collapsible` — **добавлены** в `apps/webapp/src/components/ui/` (Phase 1, 2026-05-04); **подключение в экранах:** Phase 2–6 выполнены (кабинет, `FeatureCard`, профиль, уведомления, form controls — см. [`LOG.md`](./LOG.md)). ~~Phase 7+~~ — см. §Phase 7 ниже (перенос в мини-инициативы по экранам, 2026-05-05).
 
 ### Patient visual layer
 
@@ -158,17 +158,17 @@ Checks (выполнено):
 
 ### Phase 6 — Form Controls Alignment
 
-**Статус:** выполнено 2026-05-04 — patient form surfaces переведены на `Textarea` / `Select` / `Switch` / `RadioGroup` (новый [`radio-group.tsx`](../../apps/webapp/src/components/ui/radio-group.tsx) на `@base-ui/react/radio-group` + `radio`); контракты `FormData` и server actions сохранены; [`QuickAddPopup`](../../apps/webapp/src/app/app/patient/diary/QuickAddPopup.tsx) смонтирован на [`diary/page.tsx`](../../apps/webapp/src/app/app/patient/diary/page.tsx) (FAB).
+**Статус:** выполнено 2026-05-04 — patient form surfaces переведены на `Textarea` / `Select` / `Switch` / `RadioGroup` (новый [`radio-group.tsx`](../../../apps/webapp/src/components/ui/radio-group.tsx) на `@base-ui/react/radio-group` + `radio`); контракты `FormData` и server actions сохранены; [`QuickAddPopup`](../../../apps/webapp/src/app/app/patient/diary/QuickAddPopup.tsx) смонтирован на [`diary/page.tsx`](../../../apps/webapp/src/app/app/patient/diary/page.tsx) (FAB).
 
 **Сделано (файлы):**
 
-- [`PatientSupportForm.tsx`](../../apps/webapp/src/app/app/patient/support/PatientSupportForm.tsx) — `Textarea`;
-- [`LfkSessionForm.tsx`](../../apps/webapp/src/app/app/patient/diary/lfk/LfkSessionForm.tsx), [`QuickAddPopup.tsx`](../../apps/webapp/src/app/app/patient/diary/QuickAddPopup.tsx) — `Select` + hidden для `complexId` / `trackingId`;
-- [`SymptomTrackingRow.tsx`](../../apps/webapp/src/app/app/patient/diary/symptoms/SymptomTrackingRow.tsx) — тип записи: `Select`;
-- [`SymptomsJournalClient.tsx`](../../apps/webapp/src/app/app/patient/diary/symptoms/journal/SymptomsJournalClient.tsx), [`LfkJournalClient.tsx`](../../apps/webapp/src/app/app/patient/diary/lfk/journal/LfkJournalClient.tsx) — фильтры журналов: `Select`; редактирование ЛФК: `Textarea` для комментария;
-- [`DiaryDataPurgeSection.tsx`](../../apps/webapp/src/app/app/patient/profile/DiaryDataPurgeSection.tsx) — согласие: `Switch`;
-- [`AuthOtpChannelPreference.tsx`](../../apps/webapp/src/app/app/patient/profile/AuthOtpChannelPreference.tsx) — `RadioGroup` / `RadioGroupItem`;
-- [`LfkIntakeClient.tsx`](../../apps/webapp/src/app/app/patient/intake/lfk/LfkIntakeClient.tsx), [`NutritionIntakeClient.tsx`](../../apps/webapp/src/app/app/patient/intake/nutrition/NutritionIntakeClient.tsx) — `Textarea` / `Input` (вопросы анкеты).
+- [`PatientSupportForm.tsx`](../../../apps/webapp/src/app/app/patient/support/PatientSupportForm.tsx) — `Textarea`;
+- [`LfkSessionForm.tsx`](../../../apps/webapp/src/app/app/patient/diary/lfk/LfkSessionForm.tsx), [`QuickAddPopup.tsx`](../../../apps/webapp/src/app/app/patient/diary/QuickAddPopup.tsx) — `Select` + hidden для `complexId` / `trackingId`;
+- [`SymptomTrackingRow.tsx`](../../../apps/webapp/src/app/app/patient/diary/symptoms/SymptomTrackingRow.tsx) — тип записи: `Select`;
+- [`SymptomsJournalClient.tsx`](../../../apps/webapp/src/app/app/patient/diary/symptoms/journal/SymptomsJournalClient.tsx), [`LfkJournalClient.tsx`](../../../apps/webapp/src/app/app/patient/diary/lfk/journal/LfkJournalClient.tsx) — фильтры журналов: `Select`; редактирование ЛФК: `Textarea` для комментария;
+- [`DiaryDataPurgeSection.tsx`](../../../apps/webapp/src/app/app/patient/profile/DiaryDataPurgeSection.tsx) — согласие: `Switch`;
+- [`AuthOtpChannelPreference.tsx`](../../../apps/webapp/src/app/app/patient/profile/AuthOtpChannelPreference.tsx) — `RadioGroup` / `RadioGroupItem`;
+- [`LfkIntakeClient.tsx`](../../../apps/webapp/src/app/app/patient/intake/lfk/LfkIntakeClient.tsx), [`NutritionIntakeClient.tsx`](../../../apps/webapp/src/app/app/patient/intake/nutrition/NutritionIntakeClient.tsx) — `Textarea` / `Input` (вопросы анкеты).
 
 Checks (выполнено):
 
@@ -180,24 +180,11 @@ Rules (соблюдены):
 - no copy changes;
 - no validation behavior changes.
 
-### Phase 7 — Deferred Routes Decision
+### Phase 7 — ~~Deferred Routes Decision~~ **закрыто как единая фаза (2026-05-05)**
 
-Not automatically in scope.
+Исходный план Phase 7 предполагал либо отдельную restyle/coverage-инициативу, либо выделенную фазу с матрицей маршрутов (messages, emergency, lessons, address, прочие deferred, расширенный pass по intake и т.д.).
 
-Routes:
-
-- `/app/patient/messages`
-- `/app/patient/emergency`
-- `/app/patient/lessons`
-- `/app/patient/address`
-- прочие deferred из route matrix без полного form/UI pass
-
-**Примечание:** онлайн-intake маршруты `/app/patient/intake/*` получили выравнивание полей ввода в Phase 6; расширенный restyle/coverage этих и других маршрутов — по решению Phase 7 или отдельной инициативе.
-
-Decision needed:
-
-- either open a separate restyle/coverage initiative;
-- or add a dedicated phase with exact route matrix and tests.
+**Решение:** единый «Phase 7» **не выполняется**. Любые дальнейшие выравнивания UI и coverage — **внутри мини-инициатив по конкретному экрану/фиче** (см. [`ROADMAP_2.md`](../../APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md) §1: shadcn/shared-примитивы при переработке страниц). Эта папка инициативы перенесена в **`docs/archive/2026-05-initiatives/PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/`** как архив исполнения Phases 0–6.
 
 ## 5. Testing Policy
 
