@@ -2,7 +2,7 @@
 
 Дата фиксации: **2026-05-01**.
 
-**Дополнение 2026-05-04 (execution):** по инициативе `PATIENT_APP_SHADCN_ALIGNMENT` закрыты **Phase 0** (инвентаризация) и **Phase 1** (добавлены `Collapsible` и `Accordion` в `apps/webapp/src/components/ui/`). Подробности и GO/NO-GO — в [`TASKS.md`](TASKS.md) и [`LOG.md`](LOG.md); план фаз — [`MASTER_PLAN.md`](MASTER_PLAN.md).
+**Дополнение 2026-05-04 (execution):** по инициативе `PATIENT_APP_SHADCN_ALIGNMENT` закрыты **Phase 0** (инвентаризация) и **Phase 1** (добавлены `Collapsible` и `Accordion` в `apps/webapp/src/components/ui/`). **Phase 2–5** (кабинет, `FeatureCard` / sections, профиль `ProfileAccordionSection` → `Collapsible`, `ChannelNotificationToggles` → `Switch`) — см. [`LOG.md`](LOG.md), [`MASTER_PLAN.md`](MASTER_PLAN.md), §5 ниже. Подробности и GO/NO-GO по чеклистам — в [`TASKS.md`](TASKS.md).
 
 Источник: global audit и последующее обсуждение после `PATIENT_APP_STYLE_TRANSFER_INITIATIVE`.
 
@@ -56,11 +56,15 @@
 
 ## 3. Текущие основные кандидаты
 
+**Сводка по исполнению (2026-05-04):** alignment-пассы по **кабинету** (Phase 2), **sections / `FeatureCard`** (Phase 3) и связанным подпунктам §3.1–§3.2 **выполнены** — см. [`LOG.md`](LOG.md). Подзаголовки **§3.1–§3.3** ниже сохраняют текст первичного аудита **2026-05-01** как контекст; где они называют кабинет «первым pass» или утверждают отсутствие `accordion`/`collapsible` в `components/ui`, это **устарело** после Phase 1–2.
+
 ### `/app/patient/cabinet`
 
-Это главный кандидат для первого shadcn alignment pass.
+**Статус (2026-05-04):** Phase 2 закрыт — см. [`LOG.md`](LOG.md). Ниже — формулировки аудита 2026-05-01.
 
-Найденные элементы:
+Исторически (аудит 2026-05-01) кабинет был главным кандидатом для первого shadcn alignment pass; **по коду Phase 2 закрыт 2026-05-04.**
+
+Найденные элементы *(снимок 2026-05-01; фактическое состояние после Phase 2 — [`LOG.md`](LOG.md))*:
 
 - `CabinetPastBookings` — custom accordion-like раскрытие через raw `<button>` + local state.
 - `AppointmentStatusBadge` — custom status badge на `<span>` + ручные tone classes.
@@ -72,16 +76,18 @@
 - локальные shadcn-style primitives на базе `@base-ui/react` могут улучшить keyboard/focus/a11y consistency;
 - scope можно держать узким и хорошо покрыть targeted tests.
 
-Важная оговорка:
+Важная оговорка (актуализировано 2026-05-04):
 
-- В `apps/webapp/src/components/ui/` сейчас есть `button`, `card`, `badge`, `dialog`, `tabs`, `tooltip`, `switch`, `select`, `textarea`, `input`, но нет `accordion` / `collapsible`.
-- Если переводить accordion-like блоки правильно, нужно либо добавить shadcn `Accordion`/`Collapsible`, либо не трогать raw `<button>` до отдельного infrastructure step.
+- В `apps/webapp/src/components/ui/` есть в т.ч. **`accordion`** и **`collapsible`** (Phase 1); accordion-like в кабинете переведены на `Collapsible` где запланировано (Phase 2).
+- *(На снимок аудита 2026-05-01: `accordion` / `collapsible` отсутствовали; добавление — Phase 1.)*
 
 ### `/app/patient/sections`
 
+**Статус (2026-05-04):** Phase 3 закрыт — см. [`LOG.md`](LOG.md). Ниже — формулировки аудита 2026-05-01.
+
 Кандидат связан с `FeatureCard`.
 
-Найденные элементы:
+Найденные элементы *(снимок 2026-05-01; фактическое состояние после Phase 3 — [`LOG.md`](LOG.md))*:
 
 - `sections/page.tsx` использует `FeatureCard`.
 - `FeatureCard` — custom clickable card abstraction; внутри использует `Badge`, но не построен как shadcn `Card` composition.
@@ -96,6 +102,8 @@
 - `FeatureCard` также используется вне `/sections` (например legacy/home-side usages), поэтому изменение должно быть осторожным и тестироваться по всем consumers.
 
 ### `/app/patient/sections/[slug]`
+
+**Статус (2026-05-04):** покрыто тем же Phase 3, что и `/sections` — см. [`LOG.md`](LOG.md).
 
 Кандидат по той же причине:
 
@@ -118,27 +126,11 @@
 
 ### `/app/patient/profile`
 
-Есть похожий accordion-like custom component:
-
-- `ProfileAccordionSection` — raw `<button>` + local state.
-
-Почему не первый pass:
-
-- полноценный shadcn migration потребует `Accordion`/`Collapsible`;
-- лучше делать вместе с cabinet accordion-like components после добавления primitive, но как отдельную фазу.
+**2026-05-04 (Phase 4):** [`ProfileAccordionSection`](../../apps/webapp/src/app/app/patient/profile/ProfileAccordionSection.tsx) переведён на **`Collapsible`** (`CollapsibleTrigger` / `CollapsibleContent`); тесты — [`ProfileAccordionSection.test.tsx`](../../apps/webapp/src/app/app/patient/profile/ProfileAccordionSection.test.tsx). Остальные блоки профиля (формы, радио, purge и т.д.) остаются кандидатами **Phase 6** / отдельных a11y-проходов по [`TASKS.md`](./TASKS.md).
 
 ### `/app/patient/notifications`
 
-Есть raw checkbox:
-
-- `ChannelNotificationToggles`.
-
-В проекте уже есть `Switch`, поэтому потенциально можно перевести.
-
-Почему не первый pass:
-
-- это поведенческий control (server action / transition / pending / checked state);
-- менять лучше отдельным focused pass с tests.
+**2026-05-04 (Phase 5):** [`ChannelNotificationToggles`](../../apps/webapp/src/app/app/patient/notifications/ChannelNotificationToggles.tsx) переведён на **`Switch`**; тесты — [`ChannelNotificationToggles.test.tsx`](../../apps/webapp/src/app/app/patient/notifications/ChannelNotificationToggles.test.tsx). Исторически здесь был raw checkbox — см. журнал инициативы.
 
 ### `/app/patient/diary/*`
 
@@ -186,12 +178,12 @@
 
 ## 5. Рекомендуемый порядок
 
-1. **Infrastructure check:** решить, добавляем ли shadcn-compatible `Accordion` / `Collapsible`, и нужен ли adapter для link-like buttons вместо несуществующего сейчас `Button asChild`.
-2. **Cabinet pass:** `CabinetPastBookings`, `AppointmentStatusBadge`, при необходимости small cleanup вокруг info links.
-3. **Sections / FeatureCard pass:** перевести `FeatureCard` на shadcn-compatible `Card` composition без изменения links/copy/status semantics.
-4. **Profile accordion pass:** только после решения по `Accordion`/`Collapsible`.
-5. **Notifications control pass:** `ChannelNotificationToggles` → `Switch`, если подтверждена визуальная и поведенческая целесообразность.
-6. **Diary/support/intake form controls pass:** отдельно, с осторожными tests по form contracts.
+1. **Infrastructure check:** решить, добавляем ли shadcn-compatible `Accordion` / `Collapsible`, и нужен ли adapter для link-like buttons вместо несуществующего сейчас `Button asChild`. *(Выполнено: Phase 1, 2026-05-04 — см. `LOG.md`.)*
+2. **Cabinet pass:** `CabinetPastBookings`, `AppointmentStatusBadge`, при необходимости small cleanup вокруг info links. *(✅ Phase 2, 2026-05-04.)*
+3. **Sections / FeatureCard pass:** перевести `FeatureCard` на shadcn-compatible `Card` composition без изменения links/copy/status semantics. *(✅ Phase 3, 2026-05-04.)*
+4. **Profile accordion pass:** `ProfileAccordionSection` → `Collapsible`. *(✅ Phase 4, 2026-05-04.)*
+5. **Notifications control pass:** `ChannelNotificationToggles` → `Switch`. *(✅ Phase 5, 2026-05-04.)*
+6. **Diary/support/intake form controls pass:** отдельно, с осторожными tests по form contracts. *(Следующий по `MASTER_PLAN` — Phase 6.)*
 7. **Deferred routes restyle pass:** отдельная инициатива или отдельная фаза, не смешивать с shadcn alignment core.
 
 ## 6. Что считать успехом

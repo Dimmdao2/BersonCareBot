@@ -31,7 +31,7 @@
 - `Badge` для статусов;
 - `Input`, `Textarea`, `Select`, `Switch` для форм;
 - `Dialog`, `Tabs`, `Tooltip` там, где они уже применяются;
-- `Accordion` / `Collapsible` — **добавлены** в `apps/webapp/src/components/ui/` (Phase 1, 2026-05-04); дальнейшее — только подключение в экранах (Phase 2+).
+- `Accordion` / `Collapsible` — **добавлены** в `apps/webapp/src/components/ui/` (Phase 1, 2026-05-04); **подключение в экранах:** Phase 2–5 выполнены 2026-05-04 (кабинет, `FeatureCard`, профиль, уведомления — см. [`LOG.md`](./LOG.md)); далее — Phase 6+ по [`MASTER_PLAN.md`](./MASTER_PLAN.md).
 
 ### Patient visual layer
 
@@ -140,38 +140,21 @@ Checks:
 
 ### Phase 4 — Profile Accordion Alignment
 
-Run only after Phase 1 if `Accordion`/`Collapsible` exists.
+**Статус:** выполнено 2026-05-04 — `ProfileAccordionSection` переведён на `Collapsible` / `CollapsibleTrigger` / `CollapsibleContent` (без локального `useState`); сохранены `defaultOpen`, `statusIcon`, `id`, patient card surface; `aria-expanded` с примитива Base UI; добавлен `ProfileAccordionSection.test.tsx`; `profile/page.tsx` без правок.
 
-Scope:
+Checks (выполнено):
 
-- `apps/webapp/src/app/app/patient/profile/ProfileAccordionSection.tsx`
-- focused profile tests.
-
-Candidate changes:
-
-- raw button/local state → shared accordion/collapsible primitive.
-
-Preserve:
-
-- `defaultOpen`;
-- `aria-expanded` / accessibility behavior;
-- `statusIcon`;
-- visual patient card surface.
+- `ProfileAccordionSection.test.tsx`;
+- targeted eslint + `pnpm run typecheck` в `apps/webapp`.
 
 ### Phase 5 — Notification Controls Alignment
 
-Scope:
+**Статус:** выполнено 2026-05-04 — `ChannelNotificationToggles` использует `Switch` (`checked`, `onCheckedChange`, `disabled={pending}`); `setChannelNotificationEnabled` и отображение ошибок без изменения контракта; добавлены `ChannelNotificationToggles.test.tsx` и полифилл `PointerEvent` в `vitest.setup.ts` для jsdom (Base UI).
 
-- `apps/webapp/src/app/app/patient/notifications/ChannelNotificationToggles.tsx`
+Checks (выполнено):
 
-Candidate:
-
-- raw checkbox → shadcn `Switch`, if semantics and keyboard behavior remain correct.
-
-Checks:
-
-- tests around `setChannelNotificationEnabled` behavior if present/needed;
-- ensure pending/disabled/error behavior preserved.
+- `ChannelNotificationToggles.test.tsx` + `parseChannelPreferenceInput.test.ts`;
+- targeted eslint + `pnpm run typecheck` в `apps/webapp`.
 
 ### Phase 6 — Form Controls Alignment
 

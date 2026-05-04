@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { setChannelNotificationEnabled } from "./actions";
 import type { ChannelCard } from "@/modules/channel-preferences/types";
-import { cn } from "@/lib/utils";
+import { Switch } from "@/components/ui/switch";
 import { patientMutedTextClass } from "@/shared/ui/patientVisual";
 
 type Props = {
@@ -34,15 +34,12 @@ export function ChannelNotificationToggles({ cards }: Props) {
             className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[var(--patient-border)]/80 px-3 py-2"
           >
             <span className="font-medium">{c.title}</span>
-            <label className="flex cursor-pointer items-center gap-2 text-sm">
+            <div className="flex items-center gap-2 text-sm">
               <span className={patientMutedTextClass}>Уведомления</span>
-              <input
-                type="checkbox"
-                className={cn("size-4 accent-primary", pending && "opacity-60")}
+              <Switch
                 checked={c.isEnabledForNotifications}
                 disabled={pending}
-                onChange={(e) => {
-                  const next = e.target.checked;
+                onCheckedChange={(next) => {
                   setError(null);
                   startTransition(() => {
                     void (async () => {
@@ -53,8 +50,9 @@ export function ChannelNotificationToggles({ cards }: Props) {
                     })();
                   });
                 }}
+                aria-label={`Уведомления: ${c.title}`}
               />
-            </label>
+            </div>
           </li>
         ))}
       </ul>

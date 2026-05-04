@@ -6,6 +6,22 @@
 
 ---
 
+## 2026-05-04 — cross-init: `PATIENT_APP_SHADCN_ALIGNMENT` Phase 5 (notifications Switch)
+
+**Сделано:** закрыта **Phase 5** инициативы shadcn alignment — `ChannelNotificationToggles` → `Switch`; vitest-полифилл `PointerEvent` в `apps/webapp/vitest.setup.ts` для Base UI в jsdom. Обновлены [`../PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/LOG.md`](../PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/LOG.md), [`TASKS.md`](../PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/TASKS.md), [`README.md`](../PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/README.md), [`MASTER_PLAN.md`](../PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/MASTER_PLAN.md), [`AUDIT_RESULTS.md`](../PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/AUDIT_RESULTS.md); в этом репозитории — [`README.md`](README.md) (буллет shadcn + таблица), [`ROADMAP_2.md`](ROADMAP_2.md) §связанные документы.
+
+**Проверки:** см. запись Phase 5 в журнале shadcn-инициативы.
+
+---
+
+## 2026-05-04 — cross-init: `PATIENT_APP_SHADCN_ALIGNMENT` Phase 4 (docs sync)
+
+**Сделано:** синхронизированы ссылки и статусы с фактом закрытия **Phase 4** (профиль: `ProfileAccordionSection` → `Collapsible`): [`../PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/AUDIT_RESULTS.md`](../PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/AUDIT_RESULTS.md) §4–§5, [`MASTER_PLAN.md`](../PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/MASTER_PLAN.md) (working definitions + компактный блок Phase 4), [`README.md`](README.md) и [`ROADMAP_2.md`](ROADMAP_2.md) §связанные документы; в shadcn-инициативе записи уже были в [`LOG.md`](../PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/LOG.md). **Phase 5** (уведомления) и полный охват Phase 2–5 на экранах — в отдельной записи выше и в актуальном [`MASTER_PLAN.md`](../PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/MASTER_PLAN.md).
+
+**Проверки:** docs-only.
+
+---
+
 ## 2026-05-04 — cross-init: `PATIENT_APP_SHADCN_ALIGNMENT` Phase 0–1 (docs sync)
 
 **Сделано:** зафиксирована связь с roadmap принципом §1 «patient UI primitives» ([`ROADMAP_2.md`](ROADMAP_2.md) §1 п.4): в webapp добавлены shared-примитивы **`Collapsible`** и **`Accordion`** ([`apps/webapp/src/components/ui/collapsible.tsx`](../../apps/webapp/src/components/ui/collapsible.tsx), [`accordion.tsx`](../../apps/webapp/src/components/ui/accordion.tsx)) поверх существующего `@base-ui/react`; **маршруты и экраны patient не менялись** (подключение — следующие фазы инициативы). Обновлены документы [`../PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/README.md`](../PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/README.md), [`MASTER_PLAN.md`](../PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/MASTER_PLAN.md), [`AUDIT_RESULTS.md`](../PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/AUDIT_RESULTS.md), [`LOG.md`](../PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/LOG.md); в этом репозитории — [`README.md`](README.md) §новые инициативы + §связанные документы + таблица файлов, [`ROADMAP_2.md`](ROADMAP_2.md) §связанные документы.

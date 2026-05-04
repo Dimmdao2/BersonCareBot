@@ -21,6 +21,30 @@ describe("FeatureCard", () => {
     );
   });
 
+  it("renders non-interactive article when href is omitted", () => {
+    render(
+      <FeatureCard title="Скоро" description="Текст" status="coming-soon" containerId="card-soon" />,
+    );
+    expect(screen.getByRole("article")).toHaveAttribute("id", "card-soon");
+    expect(screen.getByRole("heading", { level: 3, name: "Скоро" })).toBeInTheDocument();
+    expect(screen.queryByRole("link")).toBeNull();
+    expect(screen.getByText("скоро")).toBeInTheDocument();
+  });
+
+  it("places containerId on Card root in secondaryHref branch", () => {
+    const { container } = render(
+      <FeatureCard
+        title="Материал"
+        href="/app/patient/content/a"
+        secondaryHref="/app/patient/courses"
+        containerId="card-dual"
+      />,
+    );
+    const root = container.querySelector("#card-dual");
+    expect(root).toBeTruthy();
+    expect(root?.getAttribute("data-slot")).toBe("card");
+  });
+
   it("renders locked card as article without link even when href is set", () => {
     render(
       <FeatureCard

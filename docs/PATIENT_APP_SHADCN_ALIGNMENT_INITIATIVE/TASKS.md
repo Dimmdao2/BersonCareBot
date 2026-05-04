@@ -44,10 +44,22 @@
 
 ### Phase 3 — FeatureCard / `Card` (completed 2026-05-04)
 
-- [x] [`FeatureCard.tsx`](../../apps/webapp/src/shared/ui/FeatureCard.tsx) — оболочка `Card` + `patientCardClass` + overrides `ring`/`gap`/`py`; три ветки (locked+`role="article"`, `secondaryHref`, один `Link`); заголовок **`h2`**; без `CardContent` (избежать лишних px).
-- [x] Потребители страниц не менялись.
-- [x] [`FeatureCard.test.tsx`](../../apps/webapp/src/shared/ui/FeatureCard.test.tsx) — расширен; маршруты sections — vitest прогон.
-- [x] Визуальный smoke главной «Уроки» — вручную (см. `LOG.md`).
+- [x] [`FeatureCard.tsx`](../../apps/webapp/src/shared/ui/FeatureCard.tsx) — оболочка `Card` + `patientCardClass` + overrides `ring`/`gap`/`py`; три ветки: locked / без `href` — нативный **`<article>`** + `id`; `secondaryHref` — `Card` + два соседних `Link`; один `Link` оборачивает `Card`; заголовок **`h3`**; без `CardContent` (избежать лишних px).
+- [x] Потребители страниц: [`sections/page.tsx`](../../apps/webapp/src/app/app/patient/sections/page.tsx), [`sections/[slug]/page.tsx`](../../apps/webapp/src/app/app/patient/sections/[slug]/page.tsx) — без правок при Phase 3.
+- [x] [`FeatureCard.test.tsx`](../../apps/webapp/src/shared/ui/FeatureCard.test.tsx) — locked / без `href` / `secondaryHref` + `containerId` на корне `Card`, single-link, full card + badge; маршруты sections — vitest прогон.
+- [x] Блок «Уроки» на главной через `PatientHomeLessonsSection` — **не используется**; компонент удалён 2026-05-04 (см. `LOG.md`).
+
+### Phase 4 — Profile accordion / `Collapsible` (completed 2026-05-04)
+
+- [x] [`ProfileAccordionSection.tsx`](../../apps/webapp/src/app/app/patient/profile/ProfileAccordionSection.tsx) — `Collapsible` + `CollapsibleTrigger` + `CollapsibleContent`; без локального `useState`; шеврон по `group-data-[panel-open]`; контент всегда в `CollapsibleContent`.
+- [x] [`ProfileAccordionSection.test.tsx`](../../apps/webapp/src/app/app/patient/profile/ProfileAccordionSection.test.tsx) — свёрнуто/развернуто, `defaultOpen`, `aria-expanded`, `id`, `statusIcon`.
+- [x] `profile/page.tsx` — без правок.
+
+### Phase 5 — Notifications / `Switch` (completed 2026-05-04)
+
+- [x] [`ChannelNotificationToggles.tsx`](../../apps/webapp/src/app/app/patient/notifications/ChannelNotificationToggles.tsx) — `Switch` вместо checkbox; `disabled={pending}`; тот же server action и ошибки.
+- [x] [`ChannelNotificationToggles.test.tsx`](../../apps/webapp/src/app/app/patient/notifications/ChannelNotificationToggles.test.tsx).
+- [x] [`vitest.setup.ts`](../../apps/webapp/vitest.setup.ts) — `PointerEvent` в jsdom для Base UI.
 
 ### `@base-ui/react` (webapp `^1.3.0`)
 
@@ -86,8 +98,8 @@ Paths relative to `apps/webapp/src/app/app/patient/`:
 | Area | File(s) | Control | Initiative phase |
 |------|---------|---------|------------------|
 | Cabinet | `cabinet/CabinetPastBookings.tsx` | ~~`<button>`~~ → `Collapsible` (Phase 2 ✅) |
-| Profile | `profile/ProfileAccordionSection.tsx` | `<button>` accordion | Phase 4 (after Phase 1 primitive) |
-| Notifications | `notifications/ChannelNotificationToggles.tsx` | `<input type="checkbox">` | Phase 5 |
+| Profile | `profile/ProfileAccordionSection.tsx` | ~~`<button>`~~ → `Collapsible` (Phase 4 ✅) |
+| Notifications | `notifications/ChannelNotificationToggles.tsx` | ~~`<input type="checkbox">`~~ → `Switch` (Phase 5 ✅) |
 | Support | `support/PatientSupportForm.tsx` | `<textarea>` | Phase 6 |
 | Diary | `diary/symptoms/journal/SymptomsJournalClient.tsx`, `SymptomTrackingRow.tsx` | `<select>` | Phase 6 |
 | Diary | `diary/lfk/journal/LfkJournalClient.tsx`, `LfkSessionForm.tsx`, `QuickAddPopup.tsx` | `<select>`, `<textarea>`, hidden `<input>` | Phase 6 (preserve names/actions) |
@@ -101,8 +113,11 @@ Hidden inputs and form `name` attributes in diary flows: **do not migrate casual
 
 ### Frozen scope for next phases
 
-- **Phase 1 (infra only):** new `apps/webapp/src/components/ui/accordion.tsx` and/or `collapsible.tsx` wrapping `@base-ui/react/accordion` / `@base-ui/react/collapsible`; no patient route edits in the same commit if the primitive work is non-trivial (`MASTER_PLAN` §Phase 1).
-- **Phase 2 (cabinet):** `cabinet/CabinetPastBookings.tsx`, `cabinet/AppointmentStatusBadge.tsx`; optional small follow-up: `cabinet/CabinetInfoLinks.tsx` only if needed.
+- **Phase 1 (infra only):** new `apps/webapp/src/components/ui/accordion.tsx` and/or `collapsible.tsx` wrapping `@base-ui/react/accordion` / `@base-ui/react/collapsible`; no patient route edits in the same commit if the primitive work is non-trivial (`MASTER_PLAN` §Phase 1). *(✅ выполнено 2026-05-04.)*
+- **Phase 2 (cabinet):** `cabinet/CabinetPastBookings.tsx`, `cabinet/AppointmentStatusBadge.tsx`; optional small follow-up: `cabinet/CabinetInfoLinks.tsx` only if needed. *(✅ выполнено 2026-05-04.)*
+- **Phase 3–4:** `FeatureCard` (sections), `ProfileAccordionSection` (profile) — см. чеклисты Phase 3–4 выше и `LOG.md`. *(✅ выполнено 2026-05-04.)*
+- **Phase 5:** `notifications/ChannelNotificationToggles.tsx` — см. чеклист Phase 5 выше. *(✅ выполнено 2026-05-04.)*
+- **Следующий frozen scope по плану:** Phase 6 — form controls (`MASTER_PLAN`).
 
 ### Phase 0 — GO / NO-GO for Phase 1
 
@@ -139,43 +154,19 @@ Hidden inputs and form `name` attributes in diary flows: **do not migrate casual
 
 ## Priority 3 — Profile Accordions
 
-### `ProfileAccordionSection`
+**Выполнено (Phase 4, 2026-05-04):** см. блок «Phase 4 — Profile accordion / `Collapsible`» выше.
 
-Current:
+### `ProfileAccordionSection` (done)
 
-- raw `<button>` + local open state;
-- patient card style;
-- used by profile sections.
-
-Candidate:
-
-- migrate to `Collapsible`/`Accordion` after primitive infrastructure exists.
-
-Must preserve:
-
-- `defaultOpen`;
-- `statusIcon`;
-- visual patient card chrome;
-- content visibility behavior.
+- `Collapsible` из `@/components/ui/collapsible`; потребитель — `profile/page.tsx`.
 
 ## Priority 4 — Notification Switches
 
-### `ChannelNotificationToggles`
+**Выполнено (Phase 5, 2026-05-04):** см. блок «Phase 5 — Notifications / `Switch`» выше.
 
-Current:
+### `ChannelNotificationToggles` (done)
 
-- native checkbox for notification enable/disable.
-
-Candidate:
-
-- migrate to existing `Switch`.
-
-Must preserve:
-
-- `checked` state;
-- disabled/pending behavior;
-- server action call `setChannelNotificationEnabled`;
-- error display.
+- `Switch` из `@/components/ui/switch`; потребитель — `notifications/page.tsx` без правок API компонента.
 
 ## Priority 5 — Form Controls
 

@@ -2,7 +2,7 @@
 
 Документированная follow-up инициатива после `PATIENT_APP_STYLE_TRANSFER_INITIATIVE`.
 
-Цель: отдельно, без смешивания со style-transfer, проверить и при необходимости выровнять patient UI с существующими UI primitives в стиле shadcn (`Button`, `Card`, `Badge`, …). Недостающие **`Accordion` / `Collapsible`** добавлены в shared-слой (Phase 1); кабинет — Phase 2; **`FeatureCard` на `Card`** — Phase 3 (2026-05-04); далее — `MASTER_PLAN` Phase 4+.
+Цель: отдельно, без смешивания со style-transfer, проверить и при необходимости выровнять patient UI с существующими UI primitives в стиле shadcn (`Button`, `Card`, `Badge`, …). Недостающие **`Accordion` / `Collapsible`** добавлены в shared-слой (Phase 1); кабинет — Phase 2; **`FeatureCard` на `Card`** — Phase 3 (2026-05-04); профиль **`ProfileAccordionSection` → `Collapsible`** — Phase 4 (2026-05-04); уведомления **`ChannelNotificationToggles` → `Switch`** — Phase 5 (2026-05-04); далее — `MASTER_PLAN` Phase 6+.
 
 Важно: локальный `Button` реализован через `@base-ui/react/button` и `buttonVariants`; на момент аудита у него **нет** `asChild` API. Для link-like кнопок текущий безопасный путь — `Link` + `buttonVariants(...)` / patient action classes, либо отдельный adapter после осознанного решения.
 
@@ -16,7 +16,9 @@
 | Phase 1 — примитивы `Collapsible` / `Accordion` | ✅ 2026-05-04 | Код: `apps/webapp/src/components/ui/collapsible.tsx`, `accordion.tsx` (обёртки `@base-ui/react`, без новых npm-зависимостей; **без** правок patient routes). [`LOG.md`](LOG.md), [`TASKS.md`](TASKS.md) §Phase 1 |
 | Phase 2 — кабинет (журнал прошлых приёмов + бейдж статуса) | ✅ 2026-05-04 | `CabinetPastBookings.tsx`, `AppointmentStatusBadge.tsx` + vitest |
 | Phase 3 — `FeatureCard` / `Card` (sections) | ✅ 2026-05-04 | [`FeatureCard.tsx`](../../apps/webapp/src/shared/ui/FeatureCard.tsx), vitest + маршруты sections; follow-up: `<article>` + `h3` для locked, удалён неиспользуемый `PatientHomeLessonsSection` (см. `LOG.md`) |
-| Phase 4+ | не начаты | [`MASTER_PLAN.md`](MASTER_PLAN.md) |
+| Phase 4 — профиль (`ProfileAccordionSection` / `Collapsible`) | ✅ 2026-05-04 | [`ProfileAccordionSection.tsx`](../../apps/webapp/src/app/app/patient/profile/ProfileAccordionSection.tsx), [`ProfileAccordionSection.test.tsx`](../../apps/webapp/src/app/app/patient/profile/ProfileAccordionSection.test.tsx); см. `LOG.md` |
+| Phase 5 — уведомления (`ChannelNotificationToggles` / `Switch`) | ✅ 2026-05-04 | [`ChannelNotificationToggles.tsx`](../../apps/webapp/src/app/app/patient/notifications/ChannelNotificationToggles.tsx), [`ChannelNotificationToggles.test.tsx`](../../apps/webapp/src/app/app/patient/notifications/ChannelNotificationToggles.test.tsx); см. `LOG.md` |
+| Phase 6+ | не начаты | [`MASTER_PLAN.md`](MASTER_PLAN.md) |
 
 Связь с глобальным roadmap: [`../APP_RESTRUCTURE_INITIATIVE/README.md`](../APP_RESTRUCTURE_INITIATIVE/README.md), [`../APP_RESTRUCTURE_INITIATIVE/LOG.md`](../APP_RESTRUCTURE_INITIATIVE/LOG.md) (запись 2026-05-04).
 

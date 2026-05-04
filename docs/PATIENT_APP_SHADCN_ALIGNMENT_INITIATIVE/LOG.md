@@ -1,5 +1,31 @@
 # LOG — Patient App Shadcn Alignment
 
+## 2026-05-04 — Phase 5: `ChannelNotificationToggles` → `Switch`
+
+- Agent/model: Composer (Cursor).
+- [`ChannelNotificationToggles.tsx`](../../apps/webapp/src/app/app/patient/notifications/ChannelNotificationToggles.tsx): raw `<input type="checkbox">` заменён на [`Switch`](../../apps/webapp/src/components/ui/switch.tsx) (`checked`, `onCheckedChange`, `disabled={pending}`); `useTransition` + `setChannelNotificationEnabled` + отображение ошибки без изменений по смыслу; `aria-label` на переключателе (`Уведомления: {title}`).
+- Тесты: [`ChannelNotificationToggles.test.tsx`](../../apps/webapp/src/app/app/patient/notifications/ChannelNotificationToggles.test.tsx); инфра: в [`vitest.setup.ts`](../../apps/webapp/vitest.setup.ts) — полифилл `PointerEvent` для jsdom (Base UI Switch; только если есть `MouseEvent`, чтобы Node-сьюты без jsdom не ломались).
+- Checks: eslint на изменённых файлах; `pnpm run typecheck` в `apps/webapp`; vitest — `ChannelNotificationToggles.test.tsx`, `parseChannelPreferenceInput.test.ts`.
+
+## 2026-05-04 — Docs sync: Phase 4 + cross-links (AUDIT_RESULTS, APP_RESTRUCTURE)
+
+- Обновлены [`AUDIT_RESULTS.md`](./AUDIT_RESULTS.md) §`/app/patient/profile` и §рекомендуемый порядок (Phase 4 закрыта); [`MASTER_PLAN.md`](./MASTER_PLAN.md) — working definitions **на момент синка** (Phase 2–4 на экранах) и компактный блок Phase 4; **актуальный охват экранов Phase 2–5** — в текущем `MASTER_PLAN` и в записи «Phase 5» выше того же дня; [`TASKS.md`](./TASKS.md) — frozen scope; [`../APP_RESTRUCTURE_INITIATIVE/README.md`](../APP_RESTRUCTURE_INITIATIVE/README.md), [`../APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md`](../APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md), [`../APP_RESTRUCTURE_INITIATIVE/LOG.md`](../APP_RESTRUCTURE_INITIATIVE/LOG.md).
+
+## 2026-05-04 — Phase 4: Profile `ProfileAccordionSection` → `Collapsible`
+
+- Agent/model: Composer (Cursor).
+- Scope: [`ProfileAccordionSection.tsx`](../../apps/webapp/src/app/app/patient/profile/ProfileAccordionSection.tsx) — убраны `useState` и сырой `<button>`; [`Collapsible`](../../apps/webapp/src/components/ui/collapsible.tsx) / `CollapsibleTrigger` / `CollapsibleContent` (как в `CabinetPastBookings`); шеврон `group-data-[panel-open]:rotate-180`; `defaultOpen`, `statusIcon`, `id`, patient card surface сохранены; `aria-expanded` с триггера Base UI.
+- [`profile/page.tsx`](../../apps/webapp/src/app/app/patient/profile/page.tsx) — без правок (тот же публичный API компонента).
+- Тесты: новый [`ProfileAccordionSection.test.tsx`](../../apps/webapp/src/app/app/patient/profile/ProfileAccordionSection.test.tsx).
+- Checks: `eslint` на изменённых файлах; `pnpm run typecheck` в `apps/webapp` (exit 0).
+
+## 2026-05-04 — Phase 3 replay (план): верификация + тесты + TASKS
+
+- Agent/model: Composer (Cursor).
+- Потребители `FeatureCard` в `apps/webapp`: [`sections/page.tsx`](../../apps/webapp/src/app/app/patient/sections/page.tsx), [`sections/[slug]/page.tsx`](../../apps/webapp/src/app/app/patient/sections/[slug]/page.tsx); код [`FeatureCard.tsx`](../../apps/webapp/src/shared/ui/FeatureCard.tsx) соответствует MASTER_PLAN Phase 3 (`Card` / `<article>` / `h3`, без `CardContent`).
+- Тесты: дополнены кейсы «без `href`» и `containerId` на корне `Card` при `secondaryHref`; `vitest` — `FeatureCard.test.tsx`, `page.subscription`, `warmupsGate`, `slugRedirect` (exit 0).
+- Доки: [`TASKS.md`](./TASKS.md) Phase 3 выровнен с кодом; [`ui.md`](../../apps/webapp/src/shared/ui/ui.md) — уточнено место использования.
+
 ## 2026-05-04 — Docs: архивы и план patient home
 
 - Синхронизированы упоминания удалённого `PatientHomeLessonsSection`: `docs/archive/2026-05-initiatives/PATIENT_HOME_REDESIGN_INITIATIVE/README.md`, `PATIENT_APP_VISUAL_REDESIGN_INITIATIVE/PLAN_INVENTORY.md`, `PATIENT_APP_VISUAL_REDESIGN_INITIATIVE/LOG.md`, `PATIENT_APP_STYLE_TRANSFER_INITIATIVE/AUDIT_PHASE_2.md`, `docs/archive/2026-04-initiatives/FULL_DEV_PLAN/PLATFORM_CONTEXT_REPORT.md`, `docs/archive/FULL_DEV_PLAN_DONE/EXEC/EXEC_H_HOTFIX_UI_AUTH.md`, `docs/archive/FULL_DEV_PLAN_DONE/PLANS/STAGE_04_HOME_AND_APPOINTMENTS/PLAN.md`, `.cursor/plans/phase_3_patient_home_1b1dc5a6.plan.md` — без битых ссылок на файл, зафиксирована дата удаления (2026-05-04).
