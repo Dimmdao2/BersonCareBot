@@ -12,6 +12,7 @@
 - **`COURSES_INITIATIVE`** — курсы как **отдельная сущность по геткурс-модели** ([`../COURSES_INITIATIVE/README.md`](../COURSES_INITIATIVE/README.md)); снимает старую идею «объединить Курсы ↔ Шаблоны программ через `published_as_course`». **Статус (2026-05-04, owner): отложены** — не в ближайшей очереди; ранее планировалось стартовать после ядра `PROGRAM_PATIENT_SHAPE_PLAN` и оплаты.
 - **Patient treatment programs polish (`ROADMAP_2` §1.0–1.1a)** — мини-инициатива исполнения части 1 roadmap: [`../PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/README.md`](../PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/README.md) · [`ROADMAP_2.md`](ROADMAP_2.md) §3.
 - **Patient `/diary` (`ROADMAP_2` §1.2)** — тех. согласованность и empty state **в коде (2026-05-04)**; полный UX-проход «сегодня» — см. DoD в [`ROADMAP_2.md`](ROADMAP_2.md) §1.2 и [`LOG.md`](LOG.md).
+- **Patient UI / shadcn alignment (`PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE`)** — тех. слой shared-примитивов для patient (без смены IA/routes). **2026-05-04:** Phase 0 (инвентаризация) + Phase 1 в коде — `apps/webapp/src/components/ui/collapsible.tsx`, `accordion.tsx` (`@base-ui/react`, без новых зависимостей); экраны patient пока **не** переведены на них (Phase 2+). Канон: [`../PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/README.md`](../PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/README.md) · [`LOG.md`](../PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/LOG.md).
 
 ## Что в этой папке
 
@@ -46,6 +47,7 @@
 | [`DOCTOR_UI_DENSITY_EXECUTION_AUDIT.md`](done/DOCTOR_UI_DENSITY_EXECUTION_AUDIT.md) | Аудит выполнения этапа 8 (плотность UI врача): код, LOG, планы; обновлён после пост-аудита (2026-05-02) | **живой** |
 | [`CONTENT_PLAN.md`](CONTENT_PLAN.md) | Материалы и блоки главной пациента (ситуации, подписка, курсы, разминка) + CMS-гайд; не runtime-SoT | **живой** |
 | [`../PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/README.md`](../PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/README.md) | Мини-инициатива: лечебные программы пациента (`ROADMAP_2` §3: 1.0–1.1a, порядок A→B→C) | **живой** |
+| [`../PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/README.md`](../PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/README.md) | Shadcn/Base UI alignment patient: Phase 0–1 (инвентаризация + `collapsible`/`accordion` в `components/ui`, 2026-05-04); дальше — экраны | **живой** |
 | [`CLINICAL_TEST_SCORING_CURRENT_SYSTEM.md`](CLINICAL_TEST_SCORING_CURRENT_SYSTEM.md) | Простое объяснение текущей системы оценки клинических тестов: типы шкал, смысл "Добавить измерение", как это сейчас работает для пациента | **живой** |
 | [`STRUCTURE_AUDIT.md`](STRUCTURE_AUDIT.md) | Снимок текущей IA (маршруты, меню, блоки, архитектурные факты) — **точка отсчёта**; шапка фиксирует **операционные дельты** без полного resnapshot | **immutable таблица + дельта в шапке** (см. пояснение в файле) |
 | [`RECOMMENDATIONS_AND_ROADMAP.md`](RECOMMENDATIONS_AND_ROADMAP.md) | Оценка текущего состояния по продуктовым целям + предложение этапов работ (0–8) | **живой документ** — обновляется по мере приёма решений |
@@ -60,6 +62,7 @@
 - Исторический style-transfer контекст: [`../archive/2026-05-initiatives/PATIENT_APP_STYLE_TRANSFER_INITIATIVE/`](../archive/2026-05-initiatives/PATIENT_APP_STYLE_TRANSFER_INITIATIVE/)
 - CMS-workflow: [`../archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/`](../archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/)
 - Лечебные программы пациента (`ROADMAP_2` §1.0–1.1a): [`../PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/README.md`](../PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/README.md)
+- Shadcn/Base UI alignment для patient (примитивы + поэтапные passes): [`../PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/README.md`](../PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/README.md)
 - Правила репозитория: `.cursor/rules/clean-architecture-module-isolation.mdc`, `runtime-config-env-vs-db.mdc`, `system-settings-integrator-mirror.mdc`, `000-critical-integration-config-in-db.mdc`
 
 ## Принцип работы с этими документами

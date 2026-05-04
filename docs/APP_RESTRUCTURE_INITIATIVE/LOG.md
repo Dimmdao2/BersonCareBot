@@ -6,6 +6,14 @@
 
 ---
 
+## 2026-05-04 — cross-init: `PATIENT_APP_SHADCN_ALIGNMENT` Phase 0–1 (docs sync)
+
+**Сделано:** зафиксирована связь с roadmap принципом §1 «patient UI primitives» ([`ROADMAP_2.md`](ROADMAP_2.md) §1 п.4): в webapp добавлены shared-примитивы **`Collapsible`** и **`Accordion`** ([`apps/webapp/src/components/ui/collapsible.tsx`](../../apps/webapp/src/components/ui/collapsible.tsx), [`accordion.tsx`](../../apps/webapp/src/components/ui/accordion.tsx)) поверх существующего `@base-ui/react`; **маршруты и экраны patient не менялись** (подключение — следующие фазы инициативы). Обновлены документы [`../PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/README.md`](../PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/README.md), [`MASTER_PLAN.md`](../PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/MASTER_PLAN.md), [`AUDIT_RESULTS.md`](../PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/AUDIT_RESULTS.md), [`LOG.md`](../PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/LOG.md); в этом репозитории — [`README.md`](README.md) §новые инициативы + §связанные документы + таблица файлов, [`ROADMAP_2.md`](ROADMAP_2.md) §связанные документы.
+
+**Проверки:** журнал исполнения и инвентаризация — [`../PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/LOG.md`](../PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/LOG.md); узкие проверки кода при внесении примитивов — eslint + `pnpm run typecheck` в `apps/webapp` (см. ту же запись в журнале shadcn-инициативы).
+
+---
+
 ## 2026-05-04 — docs sync: `ROADMAP_2`, `RECOMMENDATIONS`, `TARGET_STRUCTURE_PATIENT`, корневой `docs/README`, `STRUCTURE_AUDIT` шапка
 
 **Сделано:** выровнены формулировки с фактом кода по **§1.2 дневник** (частичное закрытие: тех. хвост + empty state; UX «сегодня» — backlog). Источник правды по исполнению — предыдущие записи этого `LOG.md` за 2026-05-04.

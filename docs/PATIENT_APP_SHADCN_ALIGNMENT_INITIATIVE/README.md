@@ -2,11 +2,21 @@
 
 Документированная follow-up инициатива после `PATIENT_APP_STYLE_TRANSFER_INITIATIVE`.
 
-Цель: отдельно, без смешивания со style-transfer, проверить и при необходимости выровнять patient UI с существующими UI primitives в стиле shadcn (`Button`, `Card`, `Badge`, `Input`, `Textarea`, `Dialog`, `Tabs`, `Switch`, `Select`, `Tooltip`) и аккуратно добавить недостающие primitives (`Accordion` / `Collapsible`) только если они действительно нужны.
+Цель: отдельно, без смешивания со style-transfer, проверить и при необходимости выровнять patient UI с существующими UI primitives в стиле shadcn (`Button`, `Card`, `Badge`, `Input`, `Textarea`, `Dialog`, `Tabs`, `Switch`, `Select`, `Tooltip`). Недостающие **`Accordion` / `Collapsible`** добавлены в shared-слой webapp (Phase 1, 2026-05-04); подключение к конкретным экранам — Phase 2+.
 
 Важно: локальный `Button` реализован через `@base-ui/react/button` и `buttonVariants`; на момент аудита у него **нет** `asChild` API. Для link-like кнопок текущий безопасный путь — `Link` + `buttonVariants(...)` / patient action classes, либо отдельный adapter после осознанного решения.
 
 Базовый визуальный стандарт для всех фаз: [`../ARCHITECTURE/PATIENT_APP_UI_STYLE_GUIDE.md`](../ARCHITECTURE/PATIENT_APP_UI_STYLE_GUIDE.md).
+
+## Статус исполнения (сводка)
+
+| Фаза | Статус | Где зафиксировано |
+|------|--------|-------------------|
+| Phase 0 — инвентаризация | ✅ 2026-05-04 | [`TASKS.md`](TASKS.md) (чеклист + таблицы), [`LOG.md`](LOG.md) |
+| Phase 1 — примитивы `Collapsible` / `Accordion` | ✅ 2026-05-04 | Код: `apps/webapp/src/components/ui/collapsible.tsx`, `accordion.tsx` (обёртки `@base-ui/react`, без новых npm-зависимостей; **без** правок patient routes). [`LOG.md`](LOG.md), [`TASKS.md`](TASKS.md) §Phase 1 |
+| Phase 2+ | не начаты | [`MASTER_PLAN.md`](MASTER_PLAN.md) |
+
+Связь с глобальным roadmap: [`../APP_RESTRUCTURE_INITIATIVE/README.md`](../APP_RESTRUCTURE_INITIATIVE/README.md), [`../APP_RESTRUCTURE_INITIATIVE/LOG.md`](../APP_RESTRUCTURE_INITIATIVE/LOG.md) (запись 2026-05-04).
 
 ## Почему отдельная инициатива
 

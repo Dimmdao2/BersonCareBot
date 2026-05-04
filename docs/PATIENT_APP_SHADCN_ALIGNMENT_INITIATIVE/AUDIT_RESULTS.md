@@ -2,6 +2,8 @@
 
 Дата фиксации: **2026-05-01**.
 
+**Дополнение 2026-05-04 (execution):** по инициативе `PATIENT_APP_SHADCN_ALIGNMENT` закрыты **Phase 0** (инвентаризация) и **Phase 1** (добавлены `Collapsible` и `Accordion` в `apps/webapp/src/components/ui/`). Подробности и GO/NO-GO — в [`TASKS.md`](TASKS.md) и [`LOG.md`](LOG.md); план фаз — [`MASTER_PLAN.md`](MASTER_PLAN.md).
+
 Источник: global audit и последующее обсуждение после `PATIENT_APP_STYLE_TRANSFER_INITIATIVE`.
 
 ## 1. Главный вывод

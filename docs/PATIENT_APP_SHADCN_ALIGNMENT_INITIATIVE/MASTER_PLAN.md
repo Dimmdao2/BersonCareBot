@@ -31,7 +31,7 @@
 - `Badge` для статусов;
 - `Input`, `Textarea`, `Select`, `Switch` для форм;
 - `Dialog`, `Tabs`, `Tooltip` там, где они уже применяются;
-- `Accordion` / `Collapsible`, если будет принято добавить недостающий primitive.
+- `Accordion` / `Collapsible` — **добавлены** в `apps/webapp/src/components/ui/` (Phase 1, 2026-05-04); дальнейшее — только подключение в экранах (Phase 2+).
 
 ### Patient visual layer
 
@@ -51,6 +51,8 @@ Shadcn alignment не означает удаление `patientVisual.ts`.
 
 ### Phase 0 — Readonly Inventory
 
+**Статус:** выполнено 2026-05-04 (`TASKS.md`, `LOG.md`).
+
 Цель: подтвердить текущее состояние перед кодовыми изменениями.
 
 Проверить:
@@ -69,6 +71,8 @@ Deliverables:
 - GO/NO-GO for Phase 1.
 
 ### Phase 1 — Optional UI Primitive Infrastructure
+
+**Статус:** выполнено 2026-05-04 — `collapsible.tsx`, `accordion.tsx` в `components/ui/`; маршруты patient не менялись.
 
 Запускать только если Phase 0 подтверждает необходимость.
 
