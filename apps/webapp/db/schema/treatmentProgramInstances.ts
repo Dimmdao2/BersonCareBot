@@ -77,6 +77,8 @@ export const treatmentProgramInstanceStages = pgTable(
     /** Обязателен при status = skipped (валидация в сервисе; дублируется в `treatment_program_events.reason` для `stage_skipped`). */
     skipReason: text("skip_reason"),
     status: text().notNull(),
+    /** Первый переход этапа в `in_progress` (MVP: опора для даты ожидаемого контроля). */
+    startedAt: timestamp("started_at", { withTimezone: true, mode: "string" }),
     /** Снимок с шаблона при назначении; markdown. */
     goals: text("goals"),
     /**

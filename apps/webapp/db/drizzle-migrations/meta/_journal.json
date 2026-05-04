@@ -295,6 +295,13 @@
       "when": 1778500000000,
       "tag": "0042_lfk_exercise_side_damaged_healthy",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1778600000000,
+      "tag": "0043_treatment_program_instance_stage_started_at",
+      "breakpoints": true
     }
   ]
 }

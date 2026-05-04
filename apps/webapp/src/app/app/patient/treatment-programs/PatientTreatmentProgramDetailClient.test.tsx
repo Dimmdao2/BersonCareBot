@@ -7,6 +7,11 @@ import { PatientTreatmentProgramDetailClient } from "./PatientTreatmentProgramDe
 
 const now = "2026-01-01T00:00:00.000Z";
 
+const detailShellProps = {
+  appDisplayTimeZone: "Europe/Moscow",
+  planUpdatedLabel: null as string | null,
+};
+
 beforeEach(() => {
   global.fetch = vi.fn(async (input: RequestInfo | URL) => {
     const url = typeof input === "string" ? input : input.toString();
@@ -49,6 +54,7 @@ function makeInstance(over: Partial<TreatmentProgramInstanceDetail> = {}): Treat
         localComment: null,
         skipReason: null,
         status: "available",
+        startedAt: null,
         goals: "Снять отёк",
         objectives: "- 3 раза в неделю",
         expectedDurationDays: 7,
@@ -67,6 +73,7 @@ describe("PatientTreatmentProgramDetailClient", () => {
       <PatientTreatmentProgramDetailClient
         initial={makeInstance()}
         initialTestResults={[]}
+        {...detailShellProps}
       />,
     );
     expect(screen.getByText("Снять отёк")).toBeInTheDocument();
@@ -89,6 +96,7 @@ describe("PatientTreatmentProgramDetailClient", () => {
               localComment: null,
               skipReason: null,
               status: "available",
+              startedAt: null,
               goals: null,
               objectives: null,
               expectedDurationDays: null,
@@ -99,6 +107,7 @@ describe("PatientTreatmentProgramDetailClient", () => {
           ],
         })}
         initialTestResults={[]}
+        {...detailShellProps}
       />,
     );
     expect(screen.queryByText("Цель")).not.toBeInTheDocument();
@@ -112,6 +121,7 @@ describe("PatientTreatmentProgramDetailClient", () => {
       <PatientTreatmentProgramDetailClient
         initial={makeInstance({ status: "completed" })}
         initialTestResults={[]}
+        {...detailShellProps}
       />,
     );
     await act(async () => {
@@ -158,6 +168,7 @@ describe("PatientTreatmentProgramDetailClient", () => {
               localComment: null,
               skipReason: null,
               status: "available",
+              startedAt: null,
               goals: null,
               objectives: null,
               expectedDurationDays: null,
@@ -168,9 +179,33 @@ describe("PatientTreatmentProgramDetailClient", () => {
           ],
         })}
         initialTestResults={[]}
+        {...detailShellProps}
       />,
     );
     expect(screen.getByText("Набор А")).toBeInTheDocument();
     expect(screen.getByText("Пейте воду")).toBeInTheDocument();
+  });
+
+  it("does not show removed checklist section (1.1a)", () => {
+    render(
+      <PatientTreatmentProgramDetailClient
+        initial={makeInstance()}
+        initialTestResults={[]}
+        {...detailShellProps}
+      />,
+    );
+    expect(screen.queryByText("Чек-лист на сегодня")).not.toBeInTheDocument();
+  });
+
+  it("shows plan updated label when provided (1.1a)", () => {
+    render(
+      <PatientTreatmentProgramDetailClient
+        initial={makeInstance()}
+        initialTestResults={[]}
+        appDisplayTimeZone="Europe/Moscow"
+        planUpdatedLabel="План обновлён 1 янв."
+      />,
+    );
+    expect(screen.getByText("План обновлён 1 янв.")).toBeInTheDocument();
   });
 });

@@ -64,7 +64,44 @@ describe("TestSetForm", () => {
     expect(screen.getByLabelText(/название набора/i)).toHaveValue("Beta");
   });
 
-  it("opens archive warning on USAGE_CONFIRMATION_REQUIRED and resubmits with acknowledgeUsageWarning", async () => {
+  it("disables publish until a draft test set exists (no id)", () => {
+    const saveAction = vi.fn(async (): Promise<SaveTestSetState> => ({ ok: true }));
+    const archiveAction = vi.fn(
+      async (_prev: ArchiveTestSetState | null, _fd: FormData): Promise<ArchiveTestSetState> => ({ ok: true }),
+    );
+    const libraryRow = {
+      id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      title: "T",
+      previewMedia: null as null,
+    };
+
+    render(
+      <TestSetForm testSet={null} saveAction={saveAction} archiveAction={archiveAction} clinicalTestsLibrary={[libraryRow]} />,
+    );
+
+    expect(screen.getByRole("button", { name: /опубликовать/i })).toBeDisabled();
+  });
+
+  it("enables publish when editing an existing draft test set", () => {
+    const saveAction = vi.fn(async (): Promise<SaveTestSetState> => ({ ok: true }));
+    const archiveAction = vi.fn(
+      async (_prev: ArchiveTestSetState | null, _fd: FormData): Promise<ArchiveTestSetState> => ({ ok: true }),
+    );
+    const ts = makeTestSet({ publicationStatus: "draft" });
+    const libraryRow = {
+      id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      title: "T",
+      previewMedia: null as null,
+    };
+
+    render(
+      <TestSetForm testSet={ts} saveAction={saveAction} archiveAction={archiveAction} clinicalTestsLibrary={[libraryRow]} />,
+    );
+
+    expect(screen.getByRole("button", { name: /опубликовать/i })).not.toBeDisabled();
+  });
+
+  it("archives with usage acknowledgement when template refs exist", async () => {
     const user = userEvent.setup();
     const usageHeavy = makeUsageWithTemplateRef();
     const archiveAction = vi.fn(

@@ -21,15 +21,17 @@ import {
 import { DoctorCatalogFiltersForm } from "@/shared/ui/doctor/DoctorCatalogFiltersForm";
 import {
   archiveDoctorTestSetInline,
-  createDoctorTestSetDraftInline,
   saveDoctorTestSetInline,
-  saveDoctorTestSetItemsInline,
   unarchiveDoctorTestSetInline,
 } from "./actionsInline";
 import type { DoctorCatalogPubArchQuery } from "@/shared/lib/doctorCatalogListStatus";
 import { DoctorCatalogInvalidPubArchToast } from "@/shared/ui/doctor/DoctorCatalogInvalidPubArchToast";
+import { DoctorCatalogMasterListRow } from "@/shared/ui/doctor/DoctorCatalogMasterListRow";
+import { MediaThumb } from "@/shared/ui/media/MediaThumb";
+import { clinicalTestMediaItemToPreviewUi } from "@/shared/ui/media/mediaPreviewUiModel";
 import type { ClinicalTestLibraryPickRow } from "./clinicalTestLibraryRows";
 import { TestSetForm } from "./TestSetForm";
+import { TestSetMasterListStatusBadge } from "./TestSetMasterListStatusBadge";
 
 type Props = {
   initialSets: TestSet[];
@@ -122,33 +124,57 @@ export function TestSetsPageClient({
       <ul className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto">
         {displayList.map((s) => {
           const active = activeId === s.id;
-          return (
-            <li key={s.id} className="rounded-md border border-border/40 bg-card/30">
-              <button
-                type="button"
-                onClick={() => {
-                  setCreating(false);
-                  onPick(s);
-                }}
+          const sortedItems = [...s.items].sort((a, b) => a.sortOrder - b.sortOrder);
+          const previewItems = sortedItems.filter((it) => Boolean(it.test.previewMedia?.mediaUrl));
+          const previewInner =
+            previewItems.length === 0 ? (
+              <span
                 className={cn(
-                  "flex w-full flex-col items-start gap-0.5 rounded-md border border-transparent px-2 py-2 text-left text-sm hover:bg-muted/80",
-                  active &&
-                    "border-primary/25 bg-primary/15 text-primary hover:bg-primary/20 dark:bg-primary/20 dark:hover:bg-primary/25",
+                  "self-center text-[11px] leading-none",
+                  active ? "text-primary/75" : "text-muted-foreground",
                 )}
               >
-                <span className="line-clamp-2 font-medium leading-tight">{s.title}</span>
-                <span
-                  className={cn(
-                    "text-xs tabular-nums",
-                    active ? "text-primary/70" : "text-muted-foreground",
-                  )}
-                >
-                  Тестов в наборе: {s.items.length}
-                  {s.isArchived ? " · в архиве" : ""}
-                  {s.publicationStatus === "published" ? " · опубликован" : " · черновик"}
-                </span>
-              </button>
-            </li>
+                Нет превью
+              </span>
+            ) : (
+              <>
+                {previewItems.slice(0, 12).map((it) => {
+                  const m = it.test.previewMedia!;
+                  return (
+                    <div
+                      key={it.id}
+                      className="relative size-[30px] shrink-0 overflow-hidden rounded border border-border/50 bg-muted/30"
+                    >
+                      <MediaThumb
+                        media={clinicalTestMediaItemToPreviewUi(m)}
+                        className="size-full"
+                        imgClassName="size-full object-cover"
+                        sizes="30px"
+                      />
+                    </div>
+                  );
+                })}
+              </>
+            );
+          return (
+            <DoctorCatalogMasterListRow
+              key={s.id}
+              active={active}
+              onPick={() => {
+                setCreating(false);
+                onPick(s);
+              }}
+              previewInner={previewInner}
+              title={s.title}
+              meta={<>Тестов в наборе: {s.items.length}</>}
+              badge={
+                <TestSetMasterListStatusBadge
+                  publicationStatus={s.publicationStatus}
+                  isArchived={s.isArchived}
+                  className="w-full justify-center text-[10px] leading-tight"
+                />
+              }
+            />
           );
         })}
       </ul>
@@ -161,7 +187,6 @@ export function TestSetsPageClient({
           testSet={null}
           saveAction={saveDoctorTestSetInline}
           archiveAction={archiveDoctorTestSetInline}
-          saveItemsAction={saveDoctorTestSetItemsInline}
           clinicalTestsLibrary={clinicalTestsLibrary}
         />
     ) : selected ? (
@@ -178,7 +203,6 @@ export function TestSetsPageClient({
             listPubArch: mergedFilters.listPubArch,
           }}
           externalUsageSnapshot={usageForSelection}
-          saveItemsAction={saveDoctorTestSetItemsInline}
           clinicalTestsLibrary={clinicalTestsLibrary}
         />
       </div>
@@ -188,7 +212,6 @@ export function TestSetsPageClient({
         testSet={null}
         saveAction={saveDoctorTestSetInline}
         archiveAction={archiveDoctorTestSetInline}
-        saveItemsAction={saveDoctorTestSetItemsInline}
         clinicalTestsLibrary={clinicalTestsLibrary}
       />
     );
@@ -213,20 +236,17 @@ export function TestSetsPageClient({
         </DoctorCatalogToolbarFiltersSlot>
       }
       end={
-        <form action={createDoctorTestSetDraftInline}>
-          {mergedFilters.q.trim() ? <input type="hidden" name="listQ" value={mergedFilters.q} /> : null}
-          {mergedFilters.titleSort === "asc" || mergedFilters.titleSort === "desc" ? (
-            <input type="hidden" name="listTitleSort" value={mergedFilters.titleSort} />
-          ) : null}
-          {mergedFilters.regionCode?.trim() ? (
-            <input type="hidden" name="listRegion" value={mergedFilters.regionCode.trim()} />
-          ) : null}
-          <input type="hidden" name="listArch" value={mergedFilters.listPubArch.arch} />
-          <input type="hidden" name="listPub" value={mergedFilters.listPubArch.pub} />
-          <button type="submit" className={doctorCatalogToolbarPrimaryActionClassName}>
-            Создать
-          </button>
-        </form>
+        <button
+          type="button"
+          className={doctorCatalogToolbarPrimaryActionClassName}
+          onClick={() => {
+            setCreating(true);
+            setSelectedId(null);
+            setMobileSheet(null);
+          }}
+        >
+          Создать
+        </button>
       }
     />
   );

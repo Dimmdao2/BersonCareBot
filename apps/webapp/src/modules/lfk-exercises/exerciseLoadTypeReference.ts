@@ -6,7 +6,7 @@ import type { ExerciseLoadType } from "./types";
  * `reference_categories` / `reference_items` (`load_type`).
  *
  * **Синхронизация набора кодов v1 при любом изменении списка (три точки в одном PR):**
- * 1. SQL: `apps/webapp/db/drizzle-migrations/0041_exercise_load_type_reference_align.sql`
+ * 1. SQL: `apps/webapp/db/drizzle-migrations/0041_exercise_load_type_reference_align.sql` (INSERT … ON CONFLICT DO NOTHING — без удаления существующих строк)
  * 2. Константа `EXERCISE_LOAD_TYPE_SEED_V1` ниже (фоллбек allowlist/UI при пустой БД)
  * 3. `apps/webapp/src/infra/repos/inMemoryReferences.ts` — строки категории `load_type`
  *

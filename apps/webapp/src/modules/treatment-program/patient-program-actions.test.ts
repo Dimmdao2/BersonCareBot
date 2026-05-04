@@ -42,6 +42,7 @@ function makeDetail(over: Partial<TreatmentProgramInstanceDetail> = {}): Treatme
         localComment: null,
         skipReason: null,
         status: "available",
+        startedAt: null,
         goals: null,
         objectives: null,
         expectedDurationDays: null,

@@ -102,6 +102,17 @@ export async function saveTestSetCore(
         description: description || null,
         publicationStatus: nextPublicationStatus,
       });
+      const itemsPayloadField = formData.get("itemsPayload");
+      if (itemsPayloadField !== null && typeof itemsPayloadField === "string") {
+        try {
+          const raw = itemsPayloadField.trim() === "" ? "[]" : itemsPayloadField;
+          const items = parseTestSetItemsPayloadJson(raw);
+          await deps.testSets.setTestSetItems(id, items);
+        } catch (e) {
+          if (e instanceof z.ZodError) return { ok: false, error: "Некорректный формат состава набора" };
+          return { ok: false, error: e instanceof Error ? e.message : "Ошибка разбора состава" };
+        }
+      }
       return { ok: true, setId: id, wasUpdate: true };
     }
     const nextPublicationStatus = intent === "publish" ? "published" : "draft";

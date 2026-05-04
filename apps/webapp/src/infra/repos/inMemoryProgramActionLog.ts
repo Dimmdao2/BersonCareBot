@@ -1,5 +1,6 @@
 import type { ProgramActionLogPort } from "@/modules/treatment-program/ports";
-import type { ProgramActionLogInsert } from "@/modules/treatment-program/types";
+import type { ProgramActionLogInsert, ProgramActionLogListRow, ProgramActionType } from "@/modules/treatment-program/types";
+import { PROGRAM_ACTION_TYPES } from "@/modules/treatment-program/types";
 
 type Row = ProgramActionLogInsert & { id: string; createdAt: string };
 
@@ -77,6 +78,28 @@ export function createInMemoryProgramActionLogPort(): ProgramActionLogPort {
         }
       }
       return [...set];
+    },
+
+    async listForInstance(params) {
+      const limit = Math.min(Math.max(params.limit ?? 200, 1), 500);
+      const filtered = rows.filter((r) => r.instanceId === params.instanceId);
+      filtered.sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0));
+      const out: ProgramActionLogListRow[] = [];
+      for (const r of filtered.slice(0, limit)) {
+        if (!PROGRAM_ACTION_TYPES.includes(r.actionType as ProgramActionType)) continue;
+        out.push({
+          id: r.id,
+          instanceId: r.instanceId,
+          instanceStageItemId: r.instanceStageItemId,
+          patientUserId: r.patientUserId,
+          sessionId: r.sessionId ?? null,
+          actionType: r.actionType as ProgramActionType,
+          payload: r.payload ?? null,
+          note: r.note ?? null,
+          createdAt: r.createdAt,
+        });
+      }
+      return out;
     },
   };
 }

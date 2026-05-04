@@ -16,6 +16,7 @@ import {
 import type {
   NormalizedTestDecision,
   PendingProgramTestEvaluationRow,
+  ProgramActionLogListRow,
   TreatmentProgramInstanceDetail,
   TreatmentProgramInstanceStageRow,
   TreatmentProgramInstanceStageStatus,
@@ -426,6 +427,12 @@ export function createTreatmentProgramProgressService(deps: {
     listTestResultsForInstance(instanceId: string): Promise<TreatmentProgramTestResultDetailRow[]> {
       assertUuid(instanceId);
       return tests.listResultDetailsForInstance(instanceId);
+    },
+
+    listProgramActionLogForInstance(instanceId: string): Promise<ProgramActionLogListRow[]> {
+      assertUuid(instanceId);
+      if (!actionLog) return Promise.resolve([]);
+      return actionLog.listForInstance({ instanceId, limit: 200 });
     },
 
     async listPendingTestEvaluationsForPatient(patientUserId: string): Promise<PendingProgramTestEvaluationRow[]> {

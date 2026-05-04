@@ -1,8 +1,12 @@
+import { DateTime } from "luxon";
 import type {
   TreatmentProgramInstanceDetail,
   TreatmentProgramInstanceStageItemRow,
   TreatmentProgramInstanceStageRow,
 } from "./types";
+
+/** Этап экземпляра в read-model detail (группы + элементы). */
+export type TreatmentProgramInstanceDetailStageRow = TreatmentProgramInstanceDetail["stages"][number];
 
 /** Этап 0 «Общие рекомендации»: `sort_order = 0` на этапе экземпляра, вне FSM автозавершения. */
 export function isStageZero(stage: Pick<TreatmentProgramInstanceStageRow, "sortOrder">): boolean {
@@ -69,6 +73,49 @@ export function patientStageItemShowsNewBadge(
   if (contentBlockedForStage) return false;
   if (!isInstanceStageItemActiveForPatient(item)) return false;
   return item.lastViewedAt == null;
+}
+
+/**
+ * Разбиение этапов для patient detail (1.1a): этап 0, «живой» pipeline и архив завершённых/пропущенных.
+ */
+export function splitPatientProgramStagesForDetailUi(stages: TreatmentProgramInstanceDetailStageRow[]): {
+  stageZero: TreatmentProgramInstanceDetailStageRow[];
+  archive: TreatmentProgramInstanceDetailStageRow[];
+  pipeline: TreatmentProgramInstanceDetailStageRow[];
+} {
+  const ordered = [...stages].sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id));
+  const stageZero = ordered.filter(isStageZero);
+  const nonZero = ordered.filter((s) => !isStageZero(s));
+  const archive = nonZero.filter((s) => s.status === "completed" || s.status === "skipped");
+  const pipeline = nonZero.filter((s) => s.status !== "completed" && s.status !== "skipped");
+  return { stageZero, archive, pipeline };
+}
+
+/** Текущий рабочий этап: сначала `in_progress`, иначе первый `available`, иначе первый `locked` (ожидание). */
+export function selectCurrentWorkingStageForPatientDetail(
+  pipeline: TreatmentProgramInstanceDetailStageRow[],
+): TreatmentProgramInstanceDetailStageRow | null {
+  const inProg = pipeline.find((s) => s.status === "in_progress");
+  if (inProg) return inProg;
+  const avail = pipeline.find((s) => s.status === "available");
+  if (avail) return avail;
+  const locked = pipeline.find((s) => s.status === "locked");
+  return locked ?? null;
+}
+
+/**
+ * Ожидаемая дата контроля этапа: `started_at` + `expected_duration_days` (календарные сутки от момента старта этапа).
+ * Только если оба поля заданы и дни неотрицательны.
+ */
+export function expectedStageControlDateIso(
+  stage: Pick<TreatmentProgramInstanceStageRow, "startedAt" | "expectedDurationDays">,
+): string | null {
+  if (stage.startedAt == null || stage.expectedDurationDays == null) return null;
+  const days = stage.expectedDurationDays;
+  if (!Number.isFinite(days) || days < 0) return null;
+  const dt = DateTime.fromISO(stage.startedAt, { zone: "utc" });
+  if (!dt.isValid) return null;
+  return dt.plus({ days }).toISO();
 }
 
 /**

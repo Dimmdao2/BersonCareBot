@@ -319,6 +319,8 @@ export type TreatmentProgramInstanceStageRow = {
   localComment: string | null;
   skipReason: string | null;
   status: TreatmentProgramInstanceStageStatus;
+  /** Первый вход в `in_progress`; для старых `completed`/`skipped` без записи — `null`. */
+  startedAt: string | null;
   goals: string | null;
   objectives: string | null;
   expectedDurationDays: number | null;
@@ -482,6 +484,36 @@ export type ProgramActionLogInsert = {
   payload?: Record<string, unknown> | null;
   note?: string | null;
 };
+
+/** Строка журнала `program_action_log` для read API / UI врача. */
+export type ProgramActionLogListRow = {
+  id: string;
+  instanceId: string;
+  instanceStageItemId: string;
+  patientUserId: string;
+  sessionId: string | null;
+  actionType: ProgramActionType;
+  payload: Record<string, unknown> | null;
+  note: string | null;
+  createdAt: string;
+};
+
+/** Краткая подпись типа записи журнала для врача (UX-02). */
+export function formatProgramActionLogSummaryRu(row: ProgramActionLogListRow): string {
+  if (row.actionType === "viewed") return "Просмотр элемента";
+  if (row.actionType === "note") return "Заметка";
+  const src = row.payload && typeof row.payload.source === "string" ? row.payload.source : null;
+  if (src === "lfk_session") return "ЛФК: занятие";
+  if (src === "test_submitted") return "Тест отправлен";
+  return "Отметка выполнения";
+}
+
+export function formatLfkPostSessionDifficultyRu(d: unknown): string | null {
+  if (d === "easy") return "легко";
+  if (d === "medium") return "нормально";
+  if (d === "hard") return "тяжело";
+  return null;
+}
 
 /** Сложность занятия ЛФК в пост-сессионной форме (A4). */
 export type LfkPostSessionDifficulty = "easy" | "medium" | "hard";

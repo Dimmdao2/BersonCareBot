@@ -6,6 +6,109 @@
 
 ---
 
+## 2026-05-04 — `PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE`: GLOBAL FIX (закрытие A/B/C в документах)
+
+**Сделано:** по [`../PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/AUDIT_GLOBAL.md`](../PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/AUDIT_GLOBAL.md) закрыты **Major**: в [`ROADMAP_2.md`](ROADMAP_2.md) §0 добавлена строка о закрытии блока **1.0 + 1.1a + 1.1** (ссылка на `AUDIT_GLOBAL.md`); в §1.1 / §1.1a выровнены команды `eslint` на путь `src/app/app/patient/treatment-programs` при `pnpm --dir apps/webapp`. В мини-инициативе: [`STAGE_A/B/C.md`](../PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/STAGE_A.md) чекбоксы отмечены выполненными; [`README.md`](../PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/README.md) — статус закрытия; [`LOG.md`](../PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/LOG.md) — итог GLOBAL FIX.
+
+**Minor — внешняя правка `TestSetForm.test.tsx` (уже в истории этапа B):** **DEFER на откат/перенос в отдельный PR не делаем** — правка остаётся как зафиксированная разблокировка `pnpm --dir apps/webapp exec tsc --noEmit` на пакете; **канон на будущее:** любые аналогичные правки вне дерева `STAGE_*` оформлять отдельным коммитом/PR и строкой здесь или в журнале мини-инициативы (обоснование: не смешивать с продуктовым diff инициативы).
+
+**Проверки:** docs-only для правок в `docs/`; узкий прогон webapp по зоне `patient/treatment-programs` — см. [`../PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/LOG.md`](../PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/LOG.md) секция GLOBAL FIX.
+
+---
+
+## 2026-05-04 — мини-инициатива `PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE`
+
+**Сделано:** добавлена папка [`../PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/`](../PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/README.md) (`README.md`, `STAGE_PLAN.md`, `LOG.md`) — канон исполнения для **ROADMAP_2** §3 пунктов **1.0 / 1.1 / 1.1a** (порядок **A → B → C**). В **ROADMAP_2**, **APP_RESTRUCTURE_INITIATIVE/README**, корневой **docs/README** — ссылки на мини-инициативу.
+
+**Проверки:** docs-only.
+
+---
+
+## 2026-05-04 — ROADMAP_2: уточнение MVP по страницам программы пациента (`/treatment-programs`)
+
+**Повод:** синхронизированы решения по MVP-логике страницы назначения/программы в диалоге с owner: убрать ложные проценты без модели расписания, зафиксировать этапность работ и data-enabler для даты контроля.
+
+**Решения (зафиксировано в roadmap):**
+
+- Согласовано явное исключение в цикле ROADMAP_2: добавить `started_at` в `treatment_program_instance_stages` для расчёта ожидаемого контроля от старта этапа.
+- MVP **не** показывает процентную аналитику (`% за день`, `% этапа`, `% программы`) до появления корректной модели периодичности/расписания.
+- Детальная страница `/app/patient/treatment-programs/[instanceId]` выделена отдельным шагом `1.1a`:
+  - этап 0 (`sort_order=0`) — отдельный постоянный блок «Общие рекомендации»;
+  - текущий этап — главный рабочий блок;
+  - архив этапов — в скрытом `<details>`;
+  - «План обновлён» как отдельный сигнал изменения назначения;
+  - «дата ожидаемого контроля» = `started_at + expected_duration_days` (если оба значения заданы).
+- Исполнение блока разбито на последовательность: **A (`1.0`) -> B (`1.1a`) -> C (`1.1`)**.
+
+**Post-MVP (вынесено в backlog):**
+
+- Множественные контроли в рамках одного этапа (history/reschedule/next).
+- Комментарий пациента к факту выполнения `exercise` / `lesson` / actionable `recommendation`.
+
+**Проверки:** docs-only; runtime-код/миграции не менялись в этой записи.
+
+---
+
+## 2026-05-04 — UX-02: read `program_action_log` для врача (порт + API + экземпляр)
+
+**Отчёт:** [`E2E_ACCEPTANCE_AFTER_AB.md`](E2E_ACCEPTANCE_AFTER_AB.md) — UX-02 **fixed**; §2 шаг 5a PASS; §7 п.3; §8 строка UX-02.
+
+**Контракт / код:**
+
+- `ProgramActionLogPort.listForInstance` — `ports.ts`; тип `ProgramActionLogListRow`, форматтеры `formatProgramActionLogSummaryRu` / `formatLfkPostSessionDifficultyRu` — `modules/treatment-program/types.ts`.
+- `pgProgramActionLog` / `inMemoryProgramActionLog` — Drizzle `select` + `orderBy(desc(createdAt))`, limit ≤500.
+- `createTreatmentProgramProgressService` — `listProgramActionLogForInstance`.
+- **GET** `apps/webapp/src/app/api/doctor/treatment-program-instances/[instanceId]/action-log/route.ts`.
+- RSC `page.tsx` + `TreatmentProgramInstanceDetailClient` — секция «Дневник занятий», `refresh()` подгружает тот же endpoint.
+
+**Проверки:** `eslint` (затронутые файлы), `pnpm --dir apps/webapp exec tsc --noEmit`, `vitest run …/progress-service.test.ts`. Полный `ci` не запускался.
+
+**Вне scope:** prod-миграции, env, `system_settings`, LFK legacy DDL.
+
+---
+
+## 2026-05-04 — B6: `confirm` при перестановке этапа с `sortOrder === 0`
+
+**Код:** `apps/webapp/src/app/app/doctor/treatment-program-templates/[id]/TreatmentProgramConstructorClient.tsx` — в `handleMoveStage` перед swap, если у одного из этапов порядок 0.
+
+**Отчёт:** [`E2E_ACCEPTANCE_AFTER_AB.md`](E2E_ACCEPTANCE_AFTER_AB.md) — §6 п.5, строка §8 «B6: предупреждение…».
+
+**Проверки:** `pnpm --dir apps/webapp exec eslint` на файле конструктора; `pnpm --dir apps/webapp exec tsc --noEmit`. Полный `ci` не запускался.
+
+---
+
+## 2026-05-04 — UI-фиксы по E2E_ACCEPTANCE_AFTER_AB (BLOCK-01/02, UX-01/03/04, B6 диалог этапа)
+
+**Отчёт:** обновлён [`E2E_ACCEPTANCE_AFTER_AB.md`](E2E_ACCEPTANCE_AFTER_AB.md) — статусы **fixed** у закрытых пунктов; **open** остаются UX-02 (нужен API), этап 6 PLAN_DOCTOR_CABINET.
+
+**Код (только webapp UI):**
+
+- `apps/webapp/src/app/app/doctor/treatment-program-templates/[id]/TreatmentProgramConstructorClient.tsx` — …; `handleMoveStage`: `confirm`, если в паре перестановки у этапа `sortOrder === 0`.
+- `apps/webapp/src/app/app/patient/treatment-programs/PatientTreatmentProgramDetailClient.tsx` — ЛФК в теле этапа через `PatientLfkChecklistRow`; кнопка «Снять «Новое»»; `formatPatientTestResultRawValue` вместо сырого JSON.
+
+**Проверки:** `eslint` (2 файла), `pnpm --dir apps/webapp exec tsc --noEmit`, `vitest run …/PatientTreatmentProgramDetailClient.test.tsx` (4 passed). Полный `pnpm run ci` не запускался.
+
+**Вне scope:** `modules/`, `infra/`, `app/api/**`, миграции, env.
+
+---
+
+## 2026-05-04 — E2E acceptance после A1–A5 и B1–B7+D1–D6
+
+**Отчёт:** [`E2E_ACCEPTANCE_AFTER_AB.md`](E2E_ACCEPTANCE_AFTER_AB.md)
+
+**Тип:** read-only code-trace; ни один файл проекта не изменялся.
+
+**Итог:** A1–A5 (PROGRAM_PATIENT_SHAPE) и B1–B7+D1–D4 (ASSIGNMENT_CATALOGS_REWORK) реализованы полностью. D5 — на паузе у owner. Выявлены два P1-хвоста конструктора шаблонов:
+
+- **BLOCK-01:** конструктор не помечает первый этап (sort_order=0) как «Общие рекомендации» — врач не понимает семантику Stage 0; пациент видит неожиданный режим.
+- **BLOCK-02:** ЛФК-комплекс в теле этапа использует кнопку `/progress/complete` вместо формы `PatientLfkChecklistRow` (difficulty + note) — данные о сложности занятия теряются при нажатии из stage body.
+
+Дополнительно: UX-03 (raw JSON для результатов тестов пациента), UX-02 (нет feed action_log у врача). Этап 6 PLAN_DOCTOR_CABINET заморожен — hero/tabs/бейджи прогресса не реализованы.
+
+**Проверки в этом проходе:** только статический code-trace, тесты не запускались. Последний зелёный CI — записи в initiative-логах 2026-05-04 (D6 FIX), vitest 26 passed + tsc ok.
+
+---
+
 ## 2026-05-04 — статус экранов «Назначений» (каталоги B)
 
 **Зафиксировано:** переработка **экранов каталогов раздела «Назначения»** в сквозном порядке **упражнения → клинические тесты → наборы тестов → комплексы ЛФК → рекомендации** — на стадии **почти завершено** (возможны точечные правки по приёмке). **Шаблоны программ лечения** — **ещё в доработке** (список/конструктор, UX).

@@ -21,6 +21,13 @@
 - **TODO:** если черновики понадобятся как продуктовый сценарий, переделать модель на две независимые оси: `is_archived` / archive scope отдельно и readiness/publication status отдельно. После этого добавить отдельный фильтр черновиков/публикации, миграцию данных, сервисные инварианты, UI и тесты.
 - **Ссылка:** `docs/APP_RESTRUCTURE_INITIATIVE/done/ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md` (§ «Примечание (archive-фильтр и черновики, 2026-05-02)»).
 
+## Treatment program — post-MVP controls and completion feedback
+
+- **Контекст:** в MVP по страницам `treatment-programs` принято не показывать ложную процентную аналитику и считать дату ожидаемого контроля от старта этапа (`started_at + expected_duration_days`).
+- **TODO 1:** перейти от одной вычисляемой даты к модели нескольких контролей в рамках этапа (история, перенос, следующий контроль, отметка прохождения).
+- **TODO 2:** добавить комментарий пациента к факту выполнения `exercise` / `lesson` / actionable `recommendation` (сейчас заметка есть только в LFK post-session).
+- **Ссылки:** `docs/APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md` (§1.0, §1.1a, §8), `docs/BACKLOG_TAILS.md` («Хвосты по Плану лечения / Курсам»).
+
 ## Security / Auth
 
 - Сделать OAuth `state` одноразовым (хранить used `state.n` или nonce с TTL в Redis/БД).

@@ -4,7 +4,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { BookOpen, ChevronDown, ChevronUp, ClipboardList, ImageIcon, Trash2 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { DoctorCatalogPersistPublishBar } from "@/shared/ui/doctor/DoctorCatalogPersistPublishBar";
 import {
   Dialog,
   DialogContent,
@@ -253,6 +255,9 @@ export function TreatmentProgramConstructorClient({
   );
   const [stageDialogOpen, setStageDialogOpen] = useState(false);
   const [newStageTitle, setNewStageTitle] = useState("");
+  const [newStageGoals, setNewStageGoals] = useState("");
+  const [newStageObjectives, setNewStageObjectives] = useState("");
+  const [newStageSortOrder, setNewStageSortOrder] = useState("");
   const [itemDialogOpen, setItemDialogOpen] = useState(false);
   const [itemType, setItemType] = useState<TreatmentProgramItemType>("exercise");
   const [itemSearch, setItemSearch] = useState("");
@@ -559,6 +564,12 @@ export function TreatmentProgramConstructorClient({
     if (idx < 0 || j < 0 || j >= sorted.length) return;
     const a = sorted[idx]!;
     const b = sorted[j]!;
+    if (a.sortOrder === 0 || b.sortOrder === 0) {
+      const ok = globalThis.confirm(
+        "Один из этапов имеет порядок 0 — у пациента он показывается как «Общие рекомендации». После перестановки другой этап может получить эту роль. Продолжить?",
+      );
+      if (!ok) return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -753,10 +764,26 @@ export function TreatmentProgramConstructorClient({
     setBusy(true);
     setError(null);
     try {
+      const sortTrim = newStageSortOrder.trim();
+      let sortOrder: number | undefined;
+      if (sortTrim !== "") {
+        const n = Number.parseInt(sortTrim, 10);
+        if (!Number.isFinite(n) || String(n) !== sortTrim || n < 0) {
+          setError("Порядок этапа: неотрицательное целое число или пусто для авто");
+          return;
+        }
+        sortOrder = n;
+      }
+      const postBody: Record<string, unknown> = {
+        title,
+        goals: newStageGoals.trim() || null,
+        objectives: newStageObjectives.trim() || null,
+      };
+      if (sortOrder !== undefined) postBody.sortOrder = sortOrder;
       const res = await fetch(`/api/doctor/treatment-program-templates/${templateId}/stages`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title }),
+        body: JSON.stringify(postBody),
       });
       const json = (await res.json()) as { ok?: boolean; error?: string };
       if (!res.ok || !json.ok) {
@@ -764,12 +791,15 @@ export function TreatmentProgramConstructorClient({
         return;
       }
       setNewStageTitle("");
+      setNewStageGoals("");
+      setNewStageObjectives("");
+      setNewStageSortOrder("");
       setStageDialogOpen(false);
       const full = await fetch(`/api/doctor/treatment-program-templates/${templateId}`);
-      const body = (await full.json()) as { ok?: boolean; item?: TreatmentProgramTemplateDetail };
-      if (body.ok && body.item) {
-        setDetail(body.item);
-        const last = body.item.stages[body.item.stages.length - 1];
+      const reloadJson = (await full.json()) as { ok?: boolean; item?: TreatmentProgramTemplateDetail };
+      if (reloadJson.ok && reloadJson.item) {
+        setDetail(reloadJson.item);
+        const last = reloadJson.item.stages[reloadJson.item.stages.length - 1];
         if (last) setSelectedStageId(last.id);
       }
     } finally {
@@ -940,24 +970,20 @@ export function TreatmentProgramConstructorClient({
             <TreatmentProgramTemplateStatusBadge status={detail.status} />
           </div>
           <div className="flex flex-wrap items-center justify-end gap-2">
-            <Button
-              type="button"
-              size="sm"
-              variant="secondary"
-              disabled={busy || isArchived || detail.status === "draft"}
-              onClick={() => void patchPublicationStatus("draft")}
-            >
-              Сохранить черновик
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="default"
-              disabled={busy || isArchived || detail.status === "published"}
-              onClick={() => void patchPublicationStatus("published")}
-            >
-              Опубликовать
-            </Button>
+            <DoctorCatalogPersistPublishBar
+              mode="callbacks"
+              className="border-t-0 pt-0"
+              buttonSize="sm"
+              isArchived={isArchived}
+              pending={busy}
+              isPublished={detail.status === "published"}
+              catalogRecordExists
+              persistLabel="Сохранить черновик"
+              persistDisabled={busy || isArchived || detail.status === "draft"}
+              publishDisabled={busy || isArchived || detail.status === "published"}
+              onPersist={() => void patchPublicationStatus("draft")}
+              onPublish={() => void patchPublicationStatus("published")}
+            />
             <Button
               type="button"
               size="sm"
@@ -1013,11 +1039,21 @@ export function TreatmentProgramConstructorClient({
                     onClick={() => setSelectedStageId(s.id)}
                     className={
                       selectedStageId === s.id
-                        ? "min-w-0 flex-1 px-3 py-2 text-left text-sm font-medium bg-muted"
-                        : "min-w-0 flex-1 px-3 py-2 text-left text-sm hover:bg-muted/50"
+                        ? "min-w-0 flex-1 text-left text-sm font-medium bg-muted"
+                        : "min-w-0 flex-1 text-left text-sm hover:bg-muted/50"
                     }
                   >
-                    <span className="line-clamp-2">{s.title}</span>
+                    <span className="flex flex-col items-start gap-1 px-3 py-2">
+                      <span className="line-clamp-2">{s.title}</span>
+                      {s.sortOrder === 0 ? (
+                        <Badge
+                          variant="secondary"
+                          className="max-w-full whitespace-normal text-left text-[10px] font-normal leading-tight"
+                        >
+                          Этап 0 — «Общие рекомендации» у пациента
+                        </Badge>
+                      ) : null}
+                    </span>
                   </button>
                   <div className="flex shrink-0 flex-col justify-center gap-0.5 py-1 pr-1">
                     <Button
@@ -1106,6 +1142,14 @@ export function TreatmentProgramConstructorClient({
               </Button>
             </div>
           </div>
+
+          {selectedStage?.sortOrder === 0 ? (
+            <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs leading-snug text-foreground">
+              <span className="font-medium">Этап с порядком 0.</span> У пациента он отображается в блоке «Общие
+              рекомендации» (вне прогресса этапов, всегда доступен для чтения). Сюда логично класть постоянные
+              рекомендации и общий режим.
+            </p>
+          ) : null}
 
           {selectedStage ? (
             <div className="rounded-md border border-border/60 bg-muted/20 p-3">
@@ -1268,6 +1312,10 @@ export function TreatmentProgramConstructorClient({
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Новый этап</DialogTitle>
+            <DialogDescription>
+              Порядок не указан — сервер назначит следующий номер. Первый этап в шаблоне получает порядок 0 и у
+              пациента показывается как «Общие рекомендации».
+            </DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-2">
             <Label htmlFor="stage-title">Название</Label>
@@ -1276,6 +1324,33 @@ export function TreatmentProgramConstructorClient({
               value={newStageTitle}
               onChange={(e) => setNewStageTitle(e.target.value)}
               maxLength={2000}
+            />
+            <Label htmlFor="stage-sort">Порядок (sort_order), опционально</Label>
+            <Input
+              id="stage-sort"
+              inputMode="numeric"
+              value={newStageSortOrder}
+              onChange={(e) => setNewStageSortOrder(e.target.value)}
+              placeholder="Пусто — автоматически"
+            />
+            <p className="text-xs text-muted-foreground">
+              Целое ≥ 0. Обычно 0 — только один этап «Общие рекомендации»; остальные — 1, 2, …
+            </p>
+            <Label htmlFor="stage-new-goals">Цель этапа (опционально)</Label>
+            <Textarea
+              id="stage-new-goals"
+              rows={2}
+              value={newStageGoals}
+              onChange={(e) => setNewStageGoals(e.target.value)}
+              placeholder="Кратко, markdown"
+            />
+            <Label htmlFor="stage-new-obj">Задачи этапа (опционально)</Label>
+            <Textarea
+              id="stage-new-obj"
+              rows={2}
+              value={newStageObjectives}
+              onChange={(e) => setNewStageObjectives(e.target.value)}
+              placeholder="Список задач текстом, markdown"
             />
           </div>
           <DialogFooter>

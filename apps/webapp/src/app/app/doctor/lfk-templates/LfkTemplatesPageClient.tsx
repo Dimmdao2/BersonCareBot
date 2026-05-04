@@ -16,6 +16,7 @@ import { CatalogLeftPane } from "@/shared/ui/CatalogLeftPane";
 import { CatalogRightPane } from "@/shared/ui/CatalogRightPane";
 import { CatalogSplitLayout } from "@/shared/ui/CatalogSplitLayout";
 import { DoctorCatalogPageLayout } from "@/shared/ui/DoctorCatalogPageLayout";
+import { DoctorCatalogMasterListRow } from "@/shared/ui/doctor/DoctorCatalogMasterListRow";
 import {
   doctorCatalogToolbarPrimaryActionClassName,
   DoctorCatalogFiltersToolbar,
@@ -151,65 +152,43 @@ export function LfkTemplatesPageClient({
           const active = activeId === t.id;
           const rowN = t.exerciseCount ?? t.exercises.length;
           const thumbs = (t.exerciseThumbnails ?? []).map(exerciseMediaToPreviewUi);
+          const previewInner =
+            thumbs.length === 0 ? (
+              <span
+                className={cn(
+                  "self-center text-[11px] leading-none",
+                  active ? "text-primary/75" : "text-muted-foreground",
+                )}
+              >
+                Нет превью
+              </span>
+            ) : (
+              <>
+                {thumbs.map((m, idx) => (
+                  <div
+                    key={`${t.id}-${idx}-${m.id}`}
+                    className="relative size-[30px] shrink-0 overflow-hidden rounded border border-border/50 bg-muted/30"
+                  >
+                    <MediaThumb
+                      media={m}
+                      className="size-full"
+                      imgClassName="size-full object-cover"
+                      sizes="30px"
+                    />
+                  </div>
+                ))}
+              </>
+            );
           return (
-            <li key={t.id} className="rounded-md border border-border/40 bg-card/30">
-              <div className="flex w-full items-stretch gap-0">
-                <button
-                  type="button"
-                  onClick={() => onPick(t)}
-                  className={cn(
-                    "flex min-w-0 flex-1 items-center gap-2 rounded-md border border-transparent px-2 py-2 text-left text-sm hover:bg-muted/80",
-                    active &&
-                      "border-primary/25 bg-primary/15 text-primary hover:bg-primary/20 dark:bg-primary/20 dark:hover:bg-primary/25",
-                  )}
-                >
-                  <div className="flex min-h-[30px] flex-wrap content-end items-end gap-1">
-                    {thumbs.length === 0 ? (
-                      <span
-                        className={cn(
-                          "self-center text-[11px] leading-none",
-                          active ? "text-primary/75" : "text-muted-foreground",
-                        )}
-                      >
-                        Нет превью
-                      </span>
-                    ) : (
-                      thumbs.map((m, idx) => (
-                        <div
-                          key={`${t.id}-${idx}-${m.id}`}
-                          className="relative size-[30px] shrink-0 overflow-hidden rounded border border-border/50 bg-muted/30"
-                        >
-                          <MediaThumb
-                            media={m}
-                            className="size-full"
-                            imgClassName="size-full object-cover"
-                            sizes="30px"
-                          />
-                        </div>
-                      ))
-                    )}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="line-clamp-2 font-medium leading-tight">{t.title}</div>
-                    <div
-                      className={cn(
-                        "text-xs tabular-nums",
-                        active ? "text-primary/70" : "text-muted-foreground",
-                      )}
-                    >
-                      Упражнений: {rowN}
-                    </div>
-                  </div>
-                </button>
-                <div
-                  className="flex w-[6.75rem] shrink-0 flex-col items-stretch justify-center border-l border-border/40 bg-background/50 px-1 py-1"
-                  onClick={(e) => e.stopPropagation()}
-                  onPointerDown={(e) => e.stopPropagation()}
-                >
-                  <LfkTemplateStatusBadge status={t.status} className="w-full justify-center text-[10px] leading-tight" />
-                </div>
-              </div>
-            </li>
+            <DoctorCatalogMasterListRow
+              key={t.id}
+              active={active}
+              onPick={() => onPick(t)}
+              previewInner={previewInner}
+              title={t.title}
+              meta={<>Упражнений: {rowN}</>}
+              badge={<LfkTemplateStatusBadge status={t.status} className="w-full justify-center text-[10px] leading-tight" />}
+            />
           );
         })}
       </ul>

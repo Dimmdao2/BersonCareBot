@@ -4,6 +4,9 @@ import {
   omitDisabledInstanceStageItemsForPatientApi,
   patientStageItemShowsNewBadge,
   patientStageSectionShouldRender,
+  splitPatientProgramStagesForDetailUi,
+  selectCurrentWorkingStageForPatientDetail,
+  expectedStageControlDateIso,
 } from "./stage-semantics";
 import type { TreatmentProgramInstanceDetail } from "./types";
 
@@ -45,6 +48,7 @@ function minimalDetail(
         localComment: null,
         skipReason: null,
         status: "available",
+        startedAt: null,
         goals: null,
         objectives: null,
         expectedDurationDays: null,
@@ -222,5 +226,79 @@ describe("stage-semantics (A5 new badge)", () => {
         false,
       ),
     ).toBe(false);
+  });
+});
+
+describe("stage-semantics (1.1a detail split)", () => {
+  const mk = (
+    id: string,
+    sortOrder: number,
+    status: "locked" | "available" | "in_progress" | "completed" | "skipped",
+  ): TreatmentProgramInstanceDetail["stages"][number] => ({
+    id,
+    instanceId: "inst",
+    sourceStageId: null,
+    title: `S${sortOrder}`,
+    description: null,
+    sortOrder,
+    localComment: null,
+    skipReason: null,
+    status,
+    startedAt: null as string | null,
+    goals: null,
+    objectives: null,
+    expectedDurationDays: null,
+    expectedDurationText: null,
+    groups: [],
+    items: [
+      {
+        id: `${id}-item`,
+        stageId: id,
+        itemType: "recommendation" as const,
+        itemRefId: "55555555-5555-4555-8555-555555555555",
+        sortOrder: 0,
+        comment: null,
+        localComment: null,
+        settings: null,
+        snapshot: {},
+        completedAt: null,
+        isActionable: true,
+        status: "active" as const,
+        groupId: null,
+        createdAt: "2026-01-01T00:00:00.000Z",
+        lastViewedAt: null,
+        effectiveComment: null,
+      },
+    ],
+  });
+
+  it("splitPatientProgramStagesForDetailUi separates zero, pipeline, archive", () => {
+    const stages = [
+      mk("z", 0, "available"),
+      mk("a", 1, "completed"),
+      mk("b", 2, "available"),
+    ];
+    const { stageZero, archive, pipeline } = splitPatientProgramStagesForDetailUi(stages);
+    expect(stageZero.map((s) => s.id)).toEqual(["z"]);
+    expect(archive.map((s) => s.id)).toEqual(["a"]);
+    expect(pipeline.map((s) => s.id)).toEqual(["b"]);
+  });
+
+  it("selectCurrentWorkingStageForPatientDetail prefers in_progress over available", () => {
+    const pipeline = [mk("b", 2, "available"), mk("c", 3, "in_progress")];
+    expect(selectCurrentWorkingStageForPatientDetail(pipeline)?.id).toBe("c");
+  });
+
+  it("expectedStageControlDateIso returns null without both fields", () => {
+    expect(expectedStageControlDateIso({ startedAt: null, expectedDurationDays: 7 })).toBeNull();
+    expect(expectedStageControlDateIso({ startedAt: "2026-01-01T00:00:00.000Z", expectedDurationDays: null })).toBeNull();
+  });
+
+  it("expectedStageControlDateIso adds duration days to startedAt", () => {
+    const iso = expectedStageControlDateIso({
+      startedAt: "2026-01-01T00:00:00.000Z",
+      expectedDurationDays: 7,
+    });
+    expect(iso).toMatch(/^2026-01-08T/);
   });
 });

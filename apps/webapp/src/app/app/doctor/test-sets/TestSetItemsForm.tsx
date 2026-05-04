@@ -1,7 +1,6 @@
 "use client";
 
-import { useActionState, useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useCallback, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 import {
   DndContext,
   KeyboardSensor,
@@ -33,15 +32,13 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import type { ClinicalTestMediaItem, TestSet } from "@/modules/tests/types";
-import { saveDoctorTestSetItems } from "./actions";
-import type { SaveTestSetState } from "./actionsShared";
 import type { ClinicalTestLibraryPickRow } from "./clinicalTestLibraryRows";
 import { normalizeRuSearchString } from "@/shared/lib/ruSearchNormalize";
 import { PickerSearchField } from "@/shared/ui/PickerSearchField";
 import { MediaThumb } from "@/shared/ui/media/MediaThumb";
 import { clinicalTestMediaItemToPreviewUi } from "@/shared/ui/media/mediaPreviewUiModel";
 
-type EditorRow = {
+export type TestSetEditorItemRow = {
   sortId: string;
   testId: string;
   title: string;
@@ -50,7 +47,7 @@ type EditorRow = {
   previewMedia: ClinicalTestMediaItem | null;
 };
 
-function rowsFromTestSet(ts: TestSet): EditorRow[] {
+export function rowsFromTestSet(ts: TestSet): TestSetEditorItemRow[] {
   return [...ts.items]
     .sort((a, b) => a.sortOrder - b.sortOrder)
     .map((it) => ({
@@ -66,7 +63,8 @@ function rowsFromTestSet(ts: TestSet): EditorRow[] {
 type Props = {
   testSet: TestSet;
   clinicalTestsLibrary: ClinicalTestLibraryPickRow[];
-  saveItemsAction?: (_prev: SaveTestSetState | null, formData: FormData) => Promise<SaveTestSetState>;
+  rows: TestSetEditorItemRow[];
+  setRows: Dispatch<SetStateAction<TestSetEditorItemRow[]>>;
 };
 
 function SortableRow({
@@ -74,8 +72,8 @@ function SortableRow({
   onChange,
   onRemove,
 }: {
-  row: EditorRow;
-  onChange: (sortId: string, patch: Partial<Pick<EditorRow, "comment">>) => void;
+  row: TestSetEditorItemRow;
+  onChange: (sortId: string, patch: Partial<Pick<TestSetEditorItemRow, "comment">>) => void;
   onRemove: (sortId: string) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -148,59 +146,20 @@ function SortableRow({
   );
 }
 
-export function TestSetItemsForm({
-  testSet,
-  clinicalTestsLibrary,
-  saveItemsAction = saveDoctorTestSetItems,
-}: Props) {
-  const router = useRouter();
-
-  const itemsKey = testSet.items
-    .map((i) => `${i.id}:${i.testId}:${i.sortOrder}:${i.comment ?? ""}`)
-    .sort()
-    .join("|");
-
-  const [rows, setRows] = useState<EditorRow[]>(() => rowsFromTestSet(testSet));
+export function TestSetItemsForm({ testSet, clinicalTestsLibrary, rows, setRows }: Props) {
   const [libOpen, setLibOpen] = useState(false);
   const [pickQuery, setPickQuery] = useState("");
-  const [localError, setLocalError] = useState<string | null>(null);
 
-  useEffect(() => {
-    setRows(rowsFromTestSet(testSet));
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- сброс только при изменении состава с сервера (itemsKey)
-  }, [itemsKey]);
-
-  const wrapped = useCallback(
-    async (prev: SaveTestSetState | null, formData: FormData) => {
-      setLocalError(null);
-      const r = await saveItemsAction(prev, formData);
-      if (!r.ok && r.error) setLocalError(r.error);
-      return r;
-    },
-    [saveItemsAction],
-  );
-
-  const [last, formAction, pending] = useActionState(wrapped, null as SaveTestSetState | null);
-
-  useEffect(() => {
-    if (last?.ok) router.refresh();
-  }, [last?.ok, router]);
-
-  const itemsPayloadJson = useMemo(() => {
-    const payload = rows.map((r) => ({
-      testId: r.testId,
-      comment: r.comment.trim() ? r.comment.trim() : null,
-    }));
-    return JSON.stringify(payload);
-  }, [rows]);
-
-  const updateRow = useCallback((sortId: string, patch: Partial<EditorRow>) => {
+  const updateRow = useCallback((sortId: string, patch: Partial<TestSetEditorItemRow>) => {
     setRows((prev) => prev.map((r) => (r.sortId === sortId ? { ...r, ...patch } : r)));
-  }, []);
+  }, [setRows]);
 
-  const removeRow = useCallback((sortId: string) => {
-    setRows((prev) => prev.filter((r) => r.sortId !== sortId));
-  }, []);
+  const removeRow = useCallback(
+    (sortId: string) => {
+      setRows((prev) => prev.filter((r) => r.sortId !== sortId));
+    },
+    [setRows],
+  );
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -209,16 +168,19 @@ export function TestSetItemsForm({
 
   const sortIds = useMemo(() => rows.map((r) => r.sortId), [rows]);
 
-  const onDragEnd = useCallback((ev: DragEndEvent) => {
-    const { active, over } = ev;
-    if (!over || active.id === over.id) return;
-    setRows((prev) => {
-      const oldIndex = prev.findIndex((l) => l.sortId === active.id);
-      const newIndex = prev.findIndex((l) => l.sortId === over.id);
-      if (oldIndex < 0 || newIndex < 0) return prev;
-      return arrayMove(prev, oldIndex, newIndex);
-    });
-  }, []);
+  const onDragEnd = useCallback(
+    (ev: DragEndEvent) => {
+      const { active, over } = ev;
+      if (!over || active.id === over.id) return;
+      setRows((prev) => {
+        const oldIndex = prev.findIndex((l) => l.sortId === active.id);
+        const newIndex = prev.findIndex((l) => l.sortId === over.id);
+        if (oldIndex < 0 || newIndex < 0) return prev;
+        return arrayMove(prev, oldIndex, newIndex);
+      });
+    },
+    [setRows],
+  );
 
   const byTestId = useMemo(() => new Map(clinicalTestsLibrary.map((r) => [r.id, r])), [clinicalTestsLibrary]);
 
@@ -248,17 +210,11 @@ export function TestSetItemsForm({
       setLibOpen(false);
       setPickQuery("");
     },
-    [byTestId],
+    [byTestId, setRows],
   );
 
   return (
-    <form
-      key={`${testSet.id}:${itemsKey}`}
-      action={formAction}
-      className="flex max-w-2xl flex-col gap-3"
-    >
-      <input type="hidden" name="setId" value={testSet.id} />
-      <input type="hidden" name="itemsPayload" value={itemsPayloadJson} readOnly />
+    <div className="flex flex-col gap-3">
       <fieldset disabled={testSet.isArchived} className="m-0 min-w-0 border-0 p-0">
         <legend className="sr-only">Позиции набора тестов</legend>
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
@@ -328,17 +284,7 @@ export function TestSetItemsForm({
             </DialogFooter>
           </DialogContent>
         </Dialog>
-
-        {localError ? (
-          <p role="alert" className="text-sm text-destructive">
-            {localError}
-          </p>
-        ) : null}
-        {last?.ok ? <p className="text-sm text-muted-foreground">Состав сохранён.</p> : null}
-        <Button type="submit" disabled={pending} variant="secondary">
-          {pending ? "Сохранение состава…" : "Сохранить состав"}
-        </Button>
       </fieldset>
-    </form>
+    </div>
   );
 }

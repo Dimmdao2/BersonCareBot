@@ -3,11 +3,14 @@
  */
 import { notFound } from "next/navigation";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import type { TreatmentProgramInstanceDetail } from "@/modules/treatment-program/types";
 import { getOptionalPatientSession, patientRscPersonalDataGate } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
 import { AppShell } from "@/shared/ui/AppShell";
 import { patientMutedTextClass } from "@/shared/ui/patientVisual";
 import { omitDisabledInstanceStageItemsForPatientApi } from "@/modules/treatment-program/stage-semantics";
+import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
+import { formatBookingDateLongRu } from "@/shared/lib/formatBusinessDateTime";
 import { PatientTreatmentProgramDetailClient } from "../PatientTreatmentProgramDetailClient";
 
 type Props = { params: Promise<{ instanceId: string }> };
@@ -33,7 +36,8 @@ export default async function PatientTreatmentProgramDetailPage({ params }: Prop
 
   const { instanceId } = await params;
   const deps = buildAppDeps();
-  let detail;
+  const appTz = await getAppDisplayTimeZone();
+  let detail: TreatmentProgramInstanceDetail;
   try {
     const rawDetail = await deps.treatmentProgramInstance.getInstanceForPatient(
       session.user.userId,
@@ -43,6 +47,22 @@ export default async function PatientTreatmentProgramDetailPage({ params }: Prop
     detail = omitDisabledInstanceStageItemsForPatientApi(rawDetail);
   } catch {
     notFound();
+  }
+
+  /** Ошибка nudge не должна превращать страницу в 404 при валидном экземпляре. */
+  let planUpdatedLabel: string | null = null;
+  try {
+    const nudge = await deps.treatmentProgramInstance.patientPlanUpdatedBadgeForInstance({
+      patientUserId: session.user.userId,
+      instanceId,
+    });
+    if (nudge.show && nudge.eventIso) {
+      planUpdatedLabel = `План обновлён ${formatBookingDateLongRu(nudge.eventIso, appTz)}`;
+    } else if (nudge.show) {
+      planUpdatedLabel = "План обновлён";
+    }
+  } catch {
+    planUpdatedLabel = null;
   }
 
   const initialTestResults = await deps.treatmentProgramProgress.listTestResultsForInstance(instanceId);
@@ -55,7 +75,12 @@ export default async function PatientTreatmentProgramDetailPage({ params }: Prop
       backLabel="Программы"
       variant="patient"
     >
-      <PatientTreatmentProgramDetailClient initial={detail} initialTestResults={initialTestResults} />
+      <PatientTreatmentProgramDetailClient
+        initial={detail}
+        initialTestResults={initialTestResults}
+        appDisplayTimeZone={appTz}
+        planUpdatedLabel={planUpdatedLabel}
+      />
     </AppShell>
   );
 }

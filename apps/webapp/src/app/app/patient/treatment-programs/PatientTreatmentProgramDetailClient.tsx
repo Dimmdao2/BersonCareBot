@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -25,14 +25,16 @@ import {
 import {
   isInstanceStageItemActiveForPatient,
   isPersistentRecommendation,
-  isStageZero,
   patientStageItemShowsNewBadge,
   patientStageSectionShouldRender,
+  splitPatientProgramStagesForDetailUi,
+  selectCurrentWorkingStageForPatientDetail,
+  expectedStageControlDateIso,
 } from "@/modules/treatment-program/stage-semantics";
 import { testIdsFromTestSetSnapshot } from "@/modules/treatment-program/progress-service";
 import { scoringAllowsNumericDecisionInference } from "@/modules/treatment-program/progress-scoring";
 import { parseTestSetSnapshotTests } from "@/modules/treatment-program/testSetSnapshotView";
-import { buildPatientProgramChecklistRows, type PatientProgramChecklistRow } from "@/modules/treatment-program/patient-program-actions";
+import { type PatientProgramChecklistRow } from "@/modules/treatment-program/patient-program-actions";
 import { cn } from "@/lib/utils";
 import {
   patientCardClass,
@@ -45,6 +47,23 @@ import {
   patientPillClass,
   patientFormSurfaceClass,
 } from "@/shared/ui/patientVisual";
+import { formatBookingDateLongRu } from "@/shared/lib/formatBusinessDateTime";
+
+function formatPatientTestResultRawValue(raw: unknown): string {
+  if (raw === null || raw === undefined) return "—";
+  if (typeof raw !== "object" || Array.isArray(raw)) {
+    return String(raw);
+  }
+  const o = raw as Record<string, unknown>;
+  const parts: string[] = [];
+  if (typeof o.score === "number" && !Number.isNaN(o.score)) parts.push(`Балл: ${o.score}`);
+  if (typeof o.note === "string" && o.note.trim()) parts.push(`Комментарий: ${o.note.trim()}`);
+  if (typeof o.value === "string" && o.value.trim()) parts.push(`Значение: ${o.value.trim()}`);
+  if (parts.length > 0) return parts.join(" · ");
+  const keys = Object.keys(o);
+  if (keys.length === 0) return "Без деталей";
+  return keys.map((k) => `${k}: ${JSON.stringify(o[k])}`).join("; ");
+}
 
 function snapshotTitle(snapshot: Record<string, unknown>, itemType: string): string {
   const t = snapshot.title;
@@ -148,6 +167,8 @@ function usePostMarkItemViewedWhenVisible(opts: {
 
 function PatientInstanceStageItemCard(props: {
   instanceId: string;
+  stage: TreatmentProgramInstanceDetail["stages"][number];
+  groupTitle: string | null;
   item: TreatmentProgramInstanceDetail["stages"][number]["items"][number];
   base: string;
   busy: string | null;
@@ -155,9 +176,36 @@ function PatientInstanceStageItemCard(props: {
   setError: (v: string | null) => void;
   refresh: () => Promise<void>;
   contentBlocked: boolean;
+  doneItemIds: string[];
+  onDoneItemIds: (ids: string[]) => void;
 }) {
-  const { instanceId, item, base, busy, setBusy, setError, refresh, contentBlocked } = props;
+  const {
+    instanceId,
+    stage,
+    groupTitle,
+    item,
+    base,
+    busy,
+    setBusy,
+    setError,
+    refresh,
+    contentBlocked,
+    doneItemIds,
+    onDoneItemIds,
+  } = props;
+  const [markingViewed, setMarkingViewed] = useState(false);
   const showsNew = patientStageItemShowsNewBadge(item, contentBlocked);
+  const lfkRow = useMemo(
+    (): PatientProgramChecklistRow => ({
+      stageId: stage.id,
+      stageTitle: stage.title,
+      stageSortOrder: stage.sortOrder,
+      groupId: item.groupId,
+      groupTitle,
+      item,
+    }),
+    [stage.id, stage.title, stage.sortOrder, item, groupTitle],
+  );
   const markRef = usePostMarkItemViewedWhenVisible({
     instanceId,
     itemId: item.id,
@@ -176,7 +224,33 @@ function PatientInstanceStageItemCard(props: {
     >
       <p className="flex flex-wrap items-center gap-2 text-sm font-medium">
         <span>{snapshotTitle(item.snapshot, item.itemType)}</span>
-        {showsNew ? <span className={patientPillClass}>Новое</span> : null}{" "}
+        {showsNew ? (
+          <span className="flex flex-wrap items-center gap-2">
+            <span className={patientPillClass}>Новое</span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-xs text-muted-foreground underline-offset-2 hover:underline"
+              disabled={markingViewed}
+              onClick={async () => {
+                setMarkingViewed(true);
+                setError(null);
+                try {
+                  const res = await fetch(
+                    `/api/patient/treatment-program-instances/${encodeURIComponent(instanceId)}/items/${encodeURIComponent(item.id)}/mark-viewed`,
+                    { method: "POST" },
+                  );
+                  if (res.ok) void refresh();
+                } finally {
+                  setMarkingViewed(false);
+                }
+              }}
+            >
+              Снять «Новое»
+            </Button>
+          </span>
+        ) : null}{" "}
         <span className={cn(patientMutedTextClass, "font-normal")}>({item.itemType})</span>
       </p>
       {isPersistentRecommendation(item) ? (
@@ -211,6 +285,16 @@ function PatientInstanceStageItemCard(props: {
             setError={setError}
             onDone={refresh}
           />
+        ) : item.itemType === "lfk_complex" && !isPersistentRecommendation(item) ? (
+          <div className="mt-2">
+            <PatientLfkChecklistRow
+              row={lfkRow}
+              itemBaseUrl={base}
+              done={doneItemIds.includes(item.id)}
+              onUpdated={onDoneItemIds}
+              setError={setError}
+            />
+          </div>
         ) : !isPersistentRecommendation(item) ? (
           <div className="mt-2">
             <Button
@@ -257,9 +341,23 @@ function PatientInstanceStageBody(props: {
   ignoreStageLockForContent: boolean;
   surfaceClass: string;
   heading: ReactNode;
+  doneItemIds: string[];
+  onDoneItemIds: (ids: string[]) => void;
 }) {
-  const { instanceId, stage, base, busy, setBusy, setError, refresh, ignoreStageLockForContent, surfaceClass, heading } =
-    props;
+  const {
+    instanceId,
+    stage,
+    base,
+    busy,
+    setBusy,
+    setError,
+    refresh,
+    ignoreStageLockForContent,
+    surfaceClass,
+    heading,
+    doneItemIds,
+    onDoneItemIds,
+  } = props;
   const contentBlocked =
     !ignoreStageLockForContent && (stage.status === "locked" || stage.status === "skipped");
   const visibleItems = stage.items.filter(isInstanceStageItemActiveForPatient);
@@ -303,6 +401,8 @@ function PatientInstanceStageBody(props: {
                   <PatientInstanceStageItemCard
                     key={item.id}
                     instanceId={instanceId}
+                    stage={stage}
+                    groupTitle={g.title}
                     item={item}
                     base={base}
                     busy={busy}
@@ -310,6 +410,8 @@ function PatientInstanceStageBody(props: {
                     setError={setError}
                     refresh={refresh}
                     contentBlocked={contentBlocked}
+                    doneItemIds={doneItemIds}
+                    onDoneItemIds={onDoneItemIds}
                   />
                 ))}
               </ul>
@@ -326,6 +428,8 @@ function PatientInstanceStageBody(props: {
                 <PatientInstanceStageItemCard
                   key={item.id}
                   instanceId={instanceId}
+                  stage={stage}
+                  groupTitle={null}
                   item={item}
                   base={base}
                   busy={busy}
@@ -333,6 +437,8 @@ function PatientInstanceStageBody(props: {
                   setError={setError}
                   refresh={refresh}
                   contentBlocked={contentBlocked}
+                  doneItemIds={doneItemIds}
+                  onDoneItemIds={onDoneItemIds}
                 />
               ))}
             </ul>
@@ -436,12 +542,16 @@ function PatientLfkChecklistRow(props: {
 export function PatientTreatmentProgramDetailClient(props: {
   initial: TreatmentProgramInstanceDetail;
   initialTestResults: TreatmentProgramTestResultDetailRow[];
+  appDisplayTimeZone: string;
+  planUpdatedLabel: string | null;
 }) {
+  const { appDisplayTimeZone, planUpdatedLabel } = props;
   const [detail, setDetail] = useState(props.initial);
   const [testResults, setTestResults] = useState(props.initialTestResults);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [doneItemIds, setDoneItemIds] = useState<string[]>([]);
+  const currentStageRef = useRef<HTMLDivElement | null>(null);
 
   const refresh = useCallback(async () => {
     setError(null);
@@ -469,8 +579,6 @@ export function PatientTreatmentProgramDetailClient(props: {
 
   const base = `/api/patient/treatment-program-instances/${encodeURIComponent(detail.id)}/items`;
 
-  const checklistRows = useMemo(() => buildPatientProgramChecklistRows(detail), [detail]);
-
   useEffect(() => {
     void (async () => {
       if (detail.status !== "active") {
@@ -492,20 +600,53 @@ export function PatientTreatmentProgramDetailClient(props: {
     }).catch(() => {});
   }, [detail.id, detail.status]);
 
-  const stageZeroStages = useMemo(
-    () =>
-      detail.stages
-        .filter((s) => isStageZero(s))
-        .filter((s) => patientStageSectionShouldRender(s, true)),
-    [detail.stages],
-  );
-  const otherStages = useMemo(
-    () =>
-      detail.stages
-        .filter((s) => !isStageZero(s))
-        .filter((s) => patientStageSectionShouldRender(s, false)),
-    [detail.stages],
-  );
+  const { stageZeroStages, archiveStages, currentWorkingStage } = useMemo(() => {
+    const { stageZero, archive, pipeline } = splitPatientProgramStagesForDetailUi(detail.stages);
+    const cur = selectCurrentWorkingStageForPatientDetail(pipeline);
+    return {
+      stageZeroStages: stageZero.filter((s) => patientStageSectionShouldRender(s, true)),
+      archiveStages: archive.filter((s) => patientStageSectionShouldRender(s, false)),
+      currentWorkingStage: cur,
+    };
+  }, [detail.stages]);
+
+  const controlIso = currentWorkingStage ? expectedStageControlDateIso(currentWorkingStage) : null;
+  const controlLabel =
+    controlIso && appDisplayTimeZone ? formatBookingDateLongRu(controlIso, appDisplayTimeZone) : null;
+
+  const currentStageBody =
+    currentWorkingStage && patientStageSectionShouldRender(currentWorkingStage, false) ? (
+      <div ref={currentStageRef} id="patient-program-current-stage">
+        <PatientInstanceStageBody
+          instanceId={detail.id}
+          stage={currentWorkingStage}
+          base={base}
+          busy={busy}
+          setBusy={setBusy}
+          setError={setError}
+          refresh={refresh}
+          ignoreStageLockForContent={false}
+          surfaceClass={cn(patientCardClass, "ring-1 ring-[var(--patient-border)]/80")}
+          doneItemIds={doneItemIds}
+          onDoneItemIds={setDoneItemIds}
+          heading={
+            <>
+              <h3 className="text-base font-semibold">Назначения этапа</h3>
+              <span className={cn(patientMutedTextClass, "text-xs uppercase tracking-wide")}>
+                {formatTreatmentProgramStageStatusRu(currentWorkingStage.status)}
+              </span>
+            </>
+          }
+        />
+      </div>
+    ) : currentWorkingStage ? (
+      <div ref={currentStageRef} id="patient-program-current-stage" className={patientCardClass}>
+        <h3 className="text-base font-semibold">Текущий этап</h3>
+        <p className={cn(patientMutedTextClass, "mt-1 text-xs")}>
+          Этап {currentWorkingStage.sortOrder} · {currentWorkingStage.title}
+        </p>
+      </div>
+    ) : null;
 
   return (
     <div className="flex flex-col gap-6">
@@ -520,77 +661,74 @@ export function PatientTreatmentProgramDetailClient(props: {
         <p className={cn(patientMutedTextClass, "mt-1 text-xs")}>
           Статус программы: {detail.status === "completed" ? "завершена" : "активна"}
         </p>
+        {planUpdatedLabel?.trim() ? (
+          <p className="mt-2 text-sm font-medium text-foreground" role="status">
+            {planUpdatedLabel.trim()}
+          </p>
+        ) : null}
+        {currentWorkingStage ? (
+          <>
+            <p className={cn(patientMutedTextClass, "mt-2 text-sm")}>
+              Текущий этап: этап {currentWorkingStage.sortOrder} · {currentWorkingStage.title}
+            </p>
+            {controlLabel ? (
+              <p className={cn(patientMutedTextClass, "mt-1 text-xs")}>Ожидаемый контроль: {controlLabel}</p>
+            ) : null}
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Button
+                type="button"
+                size="sm"
+                className={cn(patientPrimaryActionClass, "!h-9 !min-h-0 w-auto px-3 text-sm")}
+                onClick={() =>
+                  currentStageRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
+                }
+              >
+                Открыть текущий этап
+              </Button>
+              {archiveStages.length > 0 ? (
+                <a
+                  href="#program-archive"
+                  className={cn(buttonVariants({ variant: "outline", size: "sm" }), "!h-9 inline-flex items-center justify-center")}
+                >
+                  Архив этапов
+                </a>
+              ) : null}
+            </div>
+          </>
+        ) : detail.status === "active" ? (
+          <p className={cn(patientMutedTextClass, "mt-2 text-sm")}>Нет этапа для отображения в работе.</p>
+        ) : null}
       </div>
 
-      {detail.status === "active" && checklistRows.length > 0 ? (
-        <section className={patientSectionSurfaceClass} aria-label="Чек-лист на сегодня">
-          <h3 className={patientSectionTitleClass}>Чек-лист на сегодня</h3>
-          <p className={cn(patientMutedTextClass, "mb-3 text-xs")}>
-            Отметьте выполненное за сегодня — по вашим локальным суткам (настройка пояса в профиле). ЛФК — краткая оценка занятия (O2:
-            уровень комплекса).
-          </p>
-          <ul className="m-0 list-none space-y-4 p-0">
-            {checklistRows.map((row) => (
-              <li key={row.item.id}>
-                {row.item.itemType === "lfk_complex" ? (
-                  <PatientLfkChecklistRow
-                    row={row}
-                    itemBaseUrl={base}
-                    done={doneItemIds.includes(row.item.id)}
-                    onUpdated={setDoneItemIds}
-                    setError={setError}
-                  />
-                ) : (
-                  <label className={patientListItemClass}>
-                    <input
-                      type="checkbox"
-                      className="h-4 w-4 shrink-0"
-                      checked={doneItemIds.includes(row.item.id)}
-                      disabled={busy !== null}
-                      onChange={async (e) => {
-                        const checked = e.target.checked;
-                        setBusy(row.item.id);
-                        setError(null);
-                        try {
-                          const res = await fetch(
-                            `${base}/${encodeURIComponent(row.item.id)}/progress/checklist`,
-                            {
-                              method: "POST",
-                              headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({ checked }),
-                            },
-                          );
-                          const data = (await res.json().catch(() => null)) as {
-                            ok?: boolean;
-                            doneItemIds?: string[];
-                            error?: string;
-                          };
-                          if (!res.ok || !data.ok) {
-                            setError(data.error ?? "Ошибка");
-                            e.target.checked = !checked;
-                            return;
-                          }
-                          if (data.doneItemIds) setDoneItemIds(data.doneItemIds);
-                        } finally {
-                          setBusy(null);
-                        }
-                      }}
-                    />
-                    <span className="min-w-0 flex-1">
-                      <span className="text-sm font-medium">
-                        {snapshotTitle(row.item.snapshot, row.item.itemType)}
-                      </span>
-                      {row.groupTitle ? (
-                        <span className={cn(patientMutedTextClass, "mt-0.5 block text-xs")}>{row.groupTitle}</span>
-                      ) : null}
-                    </span>
-                  </label>
-                )}
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
+      {stageZeroStages.map((stage) => (
+        <PatientInstanceStageBody
+          key={stage.id}
+          instanceId={detail.id}
+          stage={stage}
+          base={base}
+          busy={busy}
+          setBusy={setBusy}
+          setError={setError}
+          refresh={refresh}
+          ignoreStageLockForContent
+          surfaceClass={patientSectionSurfaceClass}
+          doneItemIds={doneItemIds}
+          onDoneItemIds={setDoneItemIds}
+          heading={
+            <>
+              <h3 className={patientSectionTitleClass}>Общие рекомендации</h3>
+              {stage.title.trim() ? (
+                <span className={cn(patientMutedTextClass, "text-xs font-normal normal-case")}>{stage.title}</span>
+              ) : null}
+              <span className={cn(patientMutedTextClass, "text-xs uppercase tracking-wide")}>
+                {formatTreatmentProgramStageStatusRu(stage.status)}
+              </span>
+            </>
+          }
+        />
+      ))}
+
+      {currentStageBody}
 
       {testResults.length > 0 ? (
         <section className={patientCardClass} aria-label="Результаты тестов">
@@ -609,63 +747,49 @@ export function PatientTreatmentProgramDetailClient(props: {
                     </span>
                   ) : null}
                 </p>
-                <pre className={cn(patientMutedTextClass, "mt-1 max-h-24 overflow-auto text-[11px]")}>
-                  {JSON.stringify(r.rawValue, null, 0)}
-                </pre>
+                <p className={cn(patientMutedTextClass, "mt-1 whitespace-pre-wrap text-sm")}>
+                  {formatPatientTestResultRawValue(r.rawValue)}
+                </p>
               </li>
             ))}
           </ul>
         </section>
       ) : null}
 
-      {stageZeroStages.map((stage) => (
-        <PatientInstanceStageBody
-          key={stage.id}
-          instanceId={detail.id}
-          stage={stage}
-          base={base}
-          busy={busy}
-          setBusy={setBusy}
-          setError={setError}
-          refresh={refresh}
-          ignoreStageLockForContent
-          surfaceClass={patientSectionSurfaceClass}
-          heading={
-            <>
-              <h3 className={patientSectionTitleClass}>Общие рекомендации</h3>
-              {stage.title.trim() ? (
-                <span className={cn(patientMutedTextClass, "text-xs font-normal normal-case")}>{stage.title}</span>
-              ) : null}
-              <span className={cn(patientMutedTextClass, "text-xs uppercase tracking-wide")}>
-                {formatTreatmentProgramStageStatusRu(stage.status)}
-              </span>
-            </>
-          }
-        />
-      ))}
-
-      {otherStages.map((stage) => (
-        <PatientInstanceStageBody
-          key={stage.id}
-          instanceId={detail.id}
-          stage={stage}
-          base={base}
-          busy={busy}
-          setBusy={setBusy}
-          setError={setError}
-          refresh={refresh}
-          ignoreStageLockForContent={false}
-          surfaceClass={patientCardClass}
-          heading={
-            <>
-              <h3 className="text-base font-semibold">{stage.title}</h3>
-              <span className={cn(patientMutedTextClass, "text-xs uppercase tracking-wide")}>
-                {formatTreatmentProgramStageStatusRu(stage.status)}
-              </span>
-            </>
-          }
-        />
-      ))}
+      {archiveStages.length > 0 ? (
+        <details id="program-archive" className={cn(patientSectionSurfaceClass, "group")}>
+          <summary className="cursor-pointer list-none py-1 text-sm font-semibold text-foreground [&::-webkit-details-marker]:hidden">
+            Архив этапов ({archiveStages.length})
+            <span className={cn(patientMutedTextClass, "ml-2 text-xs font-normal")}>Завершённые и пропущенные</span>
+          </summary>
+          <div className="mt-4 space-y-4 border-t border-[var(--patient-border)]/60 pt-4">
+            {archiveStages.map((stage) => (
+              <PatientInstanceStageBody
+                key={stage.id}
+                instanceId={detail.id}
+                stage={stage}
+                base={base}
+                busy={busy}
+                setBusy={setBusy}
+                setError={setError}
+                refresh={refresh}
+                ignoreStageLockForContent={false}
+                surfaceClass={patientCardClass}
+                doneItemIds={doneItemIds}
+                onDoneItemIds={setDoneItemIds}
+                heading={
+                  <>
+                    <h3 className="text-base font-semibold">{stage.title}</h3>
+                    <span className={cn(patientMutedTextClass, "text-xs uppercase tracking-wide")}>
+                      {formatTreatmentProgramStageStatusRu(stage.status)}
+                    </span>
+                  </>
+                }
+              />
+            ))}
+          </div>
+        </details>
+      ) : null}
     </div>
   );
 }

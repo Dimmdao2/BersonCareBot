@@ -10,6 +10,7 @@
 - **Execution-пакет этапа 9** — вынесен в отдельную папку инициативы [`../archive/2026-05-initiatives/PROGRAM_PATIENT_SHAPE_INITIATIVE/README.md`](../archive/2026-05-initiatives/PROGRAM_PATIENT_SHAPE_INITIATIVE/README.md): `MASTER_PLAN` + планы `STAGE_A1..A5` + отдельный `LOG`.
 - **Sister-инициатива «ASSIGNMENT_CATALOGS_REWORK»** — UX/тех-фиксы каталогов «Назначений» (типизация клин. тестов через `assessmentKind` + `body_region` + структурированный `scoring`; новый shared `CreatableComboboxInput`; редактор наборов тестов как клон LFK-комплекса с комментариями; регион тела и метрики у рекомендаций; фикс UX комплексов ЛФК; визуальный pass-1 конструктора шаблонов; **две независимых оси фильтра** «черновик/опубликован» × «активный/архив»; universal comment pattern на все item-контейнеры). Продуктовое ТЗ — [`ASSIGNMENT_CATALOGS_REWORK_PLAN.md`](ASSIGNMENT_CATALOGS_REWORK_PLAN.md) (этапы B1–B7). **Execution-пакет** — [`../archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/README.md`](../archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/README.md) (архив: `MASTER_PLAN` + планы `STAGE_B1..B7` + `LOG`). Шёл до/параллельно A1+A3 PROGRAM_PATIENT_SHAPE; не дублировал доменную работу. **По состоянию на 2026-05-04:** экраны каталогов от упражнений до рекомендаций почти доведены; шаблоны программ лечения ещё в доработке.
 - **`COURSES_INITIATIVE`** — курсы как **отдельная сущность по геткурс-модели** ([`../COURSES_INITIATIVE/README.md`](../COURSES_INITIATIVE/README.md)); снимает старую идею «объединить Курсы ↔ Шаблоны программ через `published_as_course`». Стартует **последней** инициативой после ядра пациентского `PROGRAM_PATIENT_SHAPE_PLAN` и оплаты.
+- **Patient treatment programs polish (`ROADMAP_2` §1.0–1.1a)** — мини-инициатива исполнения части 1 roadmap: [`../PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/README.md`](../PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/README.md) · [`ROADMAP_2.md`](ROADMAP_2.md) §3.
 
 ## Что в этой папке
 
@@ -43,6 +44,7 @@
 | [`MODES_AND_TEST_ACCOUNTS_EXECUTION_AUDIT.md`](done/MODES_AND_TEST_ACCOUNTS_EXECUTION_AUDIT.md) | Режимы, `test_account_identifiers`, bypass техработ, dev_mode relay, batch-save, phone preview: DoD, чек-листы, команды верификации | **живой** (история закрытия) |
 | [`DOCTOR_UI_DENSITY_EXECUTION_AUDIT.md`](done/DOCTOR_UI_DENSITY_EXECUTION_AUDIT.md) | Аудит выполнения этапа 8 (плотность UI врача): код, LOG, планы; обновлён после пост-аудита (2026-05-02) | **живой** |
 | [`CONTENT_PLAN.md`](CONTENT_PLAN.md) | Материалы и блоки главной пациента (ситуации, подписка, курсы, разминка) + CMS-гайд; не runtime-SoT | **живой** |
+| [`../PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/README.md`](../PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/README.md) | Мини-инициатива: лечебные программы пациента (`ROADMAP_2` §3: 1.0–1.1a, порядок A→B→C) | **живой** |
 | [`CLINICAL_TEST_SCORING_CURRENT_SYSTEM.md`](CLINICAL_TEST_SCORING_CURRENT_SYSTEM.md) | Простое объяснение текущей системы оценки клинических тестов: типы шкал, смысл "Добавить измерение", как это сейчас работает для пациента | **живой** |
 | [`STRUCTURE_AUDIT.md`](STRUCTURE_AUDIT.md) | Снимок текущей IA (маршруты, меню, блоки, архитектурные факты) — **точка отсчёта** | **immutable** — не правится после фиксации, чтобы можно было сравнивать «до/после» |
 | [`RECOMMENDATIONS_AND_ROADMAP.md`](RECOMMENDATIONS_AND_ROADMAP.md) | Оценка текущего состояния по продуктовым целям + предложение этапов работ (0–8) | **живой документ** — обновляется по мере приёма решений |
@@ -56,6 +58,7 @@
 - Стандарт patient UI (актуальный): [`../ARCHITECTURE/PATIENT_APP_UI_STYLE_GUIDE.md`](../ARCHITECTURE/PATIENT_APP_UI_STYLE_GUIDE.md)
 - Исторический style-transfer контекст: [`../archive/2026-05-initiatives/PATIENT_APP_STYLE_TRANSFER_INITIATIVE/`](../archive/2026-05-initiatives/PATIENT_APP_STYLE_TRANSFER_INITIATIVE/)
 - CMS-workflow: [`../archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/`](../archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/)
+- Лечебные программы пациента (`ROADMAP_2` §1.0–1.1a): [`../PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/README.md`](../PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/README.md)
 - Правила репозитория: `.cursor/rules/clean-architecture-module-isolation.mdc`, `runtime-config-env-vs-db.mdc`, `system-settings-integrator-mirror.mdc`, `000-critical-integration-config-in-db.mdc`
 
 ## Принцип работы с этими документами

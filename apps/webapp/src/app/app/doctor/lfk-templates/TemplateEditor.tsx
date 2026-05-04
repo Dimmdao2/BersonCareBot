@@ -64,6 +64,7 @@ import {
 } from "./lfkTemplatesUsageSummaryText";
 import { editorLinesToTemplateExerciseInputs } from "./templateExercisePayload";
 import { normalizeRuSearchString } from "@/shared/lib/ruSearchNormalize";
+import { DoctorCatalogPersistPublishBar } from "@/shared/ui/doctor/DoctorCatalogPersistPublishBar";
 import { ExerciseListCatalogThumb } from "@/shared/ui/media/ExerciseListCatalogThumb";
 import { MediaThumb } from "@/shared/ui/media/MediaThumb";
 import { exerciseMediaToPreviewUi } from "@/shared/ui/media/mediaPreviewUiModel";
@@ -620,19 +621,16 @@ export function TemplateEditor({
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-2 border-t border-border/60 pt-4">
-        <Button type="button" onClick={persist} disabled={archived || pending}>
-          {published ? "Сохранить изменения" : "Сохранить черновик"}
-        </Button>
-        <Button
-          type="button"
-          variant={published ? "secondary" : "default"}
-          onClick={publish}
-          disabled={!template || archived || pending || published}
-        >
-          {published ? "Опубликован" : "Опубликовать"}
-        </Button>
-      </div>
+      <DoctorCatalogPersistPublishBar
+        mode="callbacks"
+        isArchived={archived}
+        pending={pending}
+        isPublished={published}
+        catalogRecordExists={Boolean(template)}
+        persistLabel={published ? "Сохранить изменения" : "Сохранить черновик"}
+        onPersist={persist}
+        onPublish={publish}
+      />
 
       <div className="border-t border-border/60 pt-4">
         <div className="mb-3 rounded-md border border-border/60 bg-muted/20 p-3">

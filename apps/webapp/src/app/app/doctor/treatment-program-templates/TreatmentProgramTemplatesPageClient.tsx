@@ -27,6 +27,7 @@ import { CatalogLeftPane } from "@/shared/ui/CatalogLeftPane";
 import { CatalogRightPane } from "@/shared/ui/CatalogRightPane";
 import { CatalogSplitLayout } from "@/shared/ui/CatalogSplitLayout";
 import { DoctorCatalogPageLayout } from "@/shared/ui/DoctorCatalogPageLayout";
+import { DoctorCatalogMasterListRow } from "@/shared/ui/doctor/DoctorCatalogMasterListRow";
 import {
   TreatmentProgramConstructorClient,
   type TreatmentProgramLibraryPickers,
@@ -55,19 +56,27 @@ function templateListCountsText(stageCount: number, itemCount: number): { line: 
 function TreatmentProgramTemplateRowPreviewMedia({
   preview,
   active,
+  size = "md",
 }: {
   preview: TreatmentProgramTemplateListPreviewMedia | null;
   active: boolean;
+  /** `sm` — 30px как в списке комплексов ЛФК; `md` — 40px (прежний список шаблонов). */
+  size?: "sm" | "md";
 }): ReactNode {
+  const box = size === "sm" ? "size-[30px]" : "size-10";
   const shellClass = cn(
-    "mt-0.5 flex size-10 shrink-0 overflow-hidden rounded-md border bg-muted/50",
+    size === "md" && "mt-0.5",
+    "flex shrink-0 overflow-hidden rounded-md border bg-muted/50",
+    box,
     active && "border-primary/20 bg-primary/10",
   );
+  const iconClass = size === "sm" ? "size-4" : "size-5";
+  const videoSizes = size === "sm" ? "30px" : "40px";
   if (!preview?.mediaUrl) {
     return (
       <div className={shellClass} aria-hidden>
         <div className="flex size-full items-center justify-center">
-          <ClipboardList className={cn("size-5", active ? "text-primary" : "text-muted-foreground")} />
+          <ClipboardList className={cn(iconClass, active ? "text-primary" : "text-muted-foreground")} />
         </div>
       </div>
     );
@@ -95,7 +104,7 @@ function TreatmentProgramTemplateRowPreviewMedia({
         })}
         className="size-full"
         imgClassName="size-full object-cover"
-        sizes="40px"
+        sizes={videoSizes}
       />
     </div>
   );
@@ -233,34 +242,30 @@ export function TreatmentProgramTemplatesPageClient({
           const active = activeId === t.id;
           const counts = templateListCountsText(t.stageCount, t.itemCount);
           return (
-            <li key={t.id} className="rounded-md border border-border/40 bg-card/30">
-              <button
-                type="button"
-                onClick={() => onPick(t)}
-                className={cn(
-                  "flex w-full items-start gap-2 rounded-md border border-transparent px-2 py-2 text-left text-sm transition-colors hover:bg-muted/80",
-                  active &&
-                    "border-primary/25 bg-primary/15 text-primary hover:bg-primary/20 dark:bg-primary/20 dark:hover:bg-primary/25",
-                )}
-              >
-                <TreatmentProgramTemplateRowPreviewMedia preview={t.listPreviewMedia} active={active} />
-                <div className="min-w-0 flex-1">
-                  <span className="line-clamp-2 font-medium leading-tight">{t.title}</span>
-                  <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                    <TreatmentProgramTemplateStatusBadge status={t.status} />
-                    <span
-                      aria-label={counts.ariaLabel}
-                      className={cn(
-                        "text-xs tabular-nums text-muted-foreground",
-                        active && "text-primary/80",
-                      )}
-                    >
-                      {counts.line}
-                    </span>
-                  </div>
-                </div>
-              </button>
-            </li>
+            <DoctorCatalogMasterListRow
+              key={t.id}
+              active={active}
+              onPick={() => onPick(t)}
+              previewInner={
+                <TreatmentProgramTemplateRowPreviewMedia
+                  preview={t.listPreviewMedia}
+                  active={active}
+                  size="sm"
+                />
+              }
+              title={t.title}
+              meta={
+                <span aria-label={counts.ariaLabel} className={cn(active && "text-primary/80")}>
+                  {counts.line}
+                </span>
+              }
+              badge={
+                <TreatmentProgramTemplateStatusBadge
+                  status={t.status}
+                  className="w-full justify-center text-[10px] leading-tight"
+                />
+              }
+            />
           );
         })}
       </ul>

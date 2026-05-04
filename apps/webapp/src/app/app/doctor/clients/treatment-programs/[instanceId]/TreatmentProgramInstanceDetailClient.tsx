@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -23,11 +23,14 @@ import {
 import type { TreatmentProgramInstanceDetail } from "@/modules/treatment-program/types";
 import type { TreatmentProgramTestResultDetailRow } from "@/modules/treatment-program/types";
 import type { TreatmentProgramEventRow } from "@/modules/treatment-program/types";
+import type { ProgramActionLogListRow } from "@/modules/treatment-program/types";
 import {
   effectiveInstanceStageItemComment,
   formatNormalizedTestDecisionRu,
   formatTreatmentProgramEventTypeRu,
   formatTreatmentProgramStageStatusRu,
+  formatProgramActionLogSummaryRu,
+  formatLfkPostSessionDifficultyRu,
 } from "@/modules/treatment-program/types";
 import { cn } from "@/lib/utils";
 import { CommentBlock } from "@/components/comments/CommentBlock";
@@ -37,6 +40,16 @@ function snapshotTitle(snapshot: Record<string, unknown>, itemType: string): str
   const t = snapshot.title;
   if (typeof t === "string" && t.trim() !== "") return t;
   return itemType;
+}
+
+function itemTitleById(detail: TreatmentProgramInstanceDetail): Map<string, string> {
+  const m = new Map<string, string>();
+  for (const st of detail.stages) {
+    for (const it of st.items) {
+      m.set(it.id, snapshotTitle(it.snapshot, it.itemType));
+    }
+  }
+  return m;
 }
 
 /** B7 FIX: комментарии строк набора из снимка `test_set` (каталог). */
@@ -196,14 +209,19 @@ export function TreatmentProgramInstanceDetailClient(props: {
   initial: TreatmentProgramInstanceDetail;
   initialTestResults: TreatmentProgramTestResultDetailRow[];
   initialEvents: TreatmentProgramEventRow[];
+  initialActionLog: ProgramActionLogListRow[];
   currentUserId: string;
   isAdmin?: boolean;
 }) {
-  const { patientUserId, initial, initialTestResults, initialEvents, currentUserId, isAdmin = false } = props;
+  const { patientUserId, initial, initialTestResults, initialEvents, initialActionLog, currentUserId, isAdmin = false } =
+    props;
   const [detail, setDetail] = useState(initial);
   const [error, setError] = useState<string | null>(null);
   const [testResults, setTestResults] = useState<TreatmentProgramTestResultDetailRow[]>(initialTestResults);
   const [programEvents, setProgramEvents] = useState<TreatmentProgramEventRow[]>(initialEvents);
+  const [actionLog, setActionLog] = useState<ProgramActionLogListRow[]>(initialActionLog);
+
+  const itemTitles = useMemo(() => itemTitleById(detail), [detail]);
 
   const refresh = useCallback(async () => {
     setError(null);
@@ -217,6 +235,12 @@ export function TreatmentProgramInstanceDetailClient(props: {
     const evRes = await fetch(`/api/doctor/treatment-program-instances/${encodeURIComponent(detail.id)}/events`);
     const evData = (await evRes.json().catch(() => null)) as { ok?: boolean; events?: TreatmentProgramEventRow[] };
     if (evRes.ok && evData.ok && evData.events) setProgramEvents(evData.events);
+    const alRes = await fetch(`/api/doctor/treatment-program-instances/${encodeURIComponent(detail.id)}/action-log`);
+    const alData = (await alRes.json().catch(() => null)) as {
+      ok?: boolean;
+      entries?: ProgramActionLogListRow[];
+    };
+    if (alRes.ok && alData.ok && alData.entries) setActionLog(alData.entries);
   }, [detail.id]);
 
   const refreshResults = useCallback(async () => {
@@ -232,6 +256,42 @@ export function TreatmentProgramInstanceDetailClient(props: {
           {error}
         </p>
       ) : null}
+
+      <section className="rounded-xl border border-border bg-card p-4">
+        <h3 className="text-base font-semibold">Дневник занятий</h3>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Журнал действий пациента по программе (<span className="font-mono">program_action_log</span>): ЛФК с
+          оценкой нагрузки, отметки чек-листа, маркеры отправки тестов. Сначала новые записи (до 200).
+        </p>
+        {actionLog.length === 0 ? (
+          <p className="mt-3 text-sm text-muted-foreground">Пока нет записей в журнале.</p>
+        ) : (
+          <ul className="mt-3 max-h-80 list-none space-y-2 overflow-y-auto pl-0 text-sm">
+            {actionLog.map((row) => {
+              const itemLabel = itemTitles.get(row.instanceStageItemId) ?? "Элемент";
+              const diffRu = formatLfkPostSessionDifficultyRu(row.payload?.difficulty);
+              return (
+                <li key={row.id} className="rounded-md border border-border/60 bg-muted/10 px-2 py-1.5">
+                  <span className="text-xs text-muted-foreground">
+                    {new Date(row.createdAt).toLocaleString("ru-RU", {
+                      dateStyle: "short",
+                      timeStyle: "short",
+                    })}
+                  </span>
+                  <span className="ml-2 font-medium">{formatProgramActionLogSummaryRu(row)}</span>
+                  <span className="ml-1 text-xs text-muted-foreground">· {itemLabel}</span>
+                  {row.actionType === "done" && diffRu ? (
+                    <span className="mt-0.5 block text-xs text-foreground/90">Как прошло: {diffRu}</span>
+                  ) : null}
+                  {row.note?.trim() ? (
+                    <span className="mt-0.5 block text-xs text-foreground/90">Заметка пациента: {row.note}</span>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
 
       <section className="rounded-xl border border-border bg-card p-4">
         <h3 className="text-base font-semibold">История изменений программы</h3>

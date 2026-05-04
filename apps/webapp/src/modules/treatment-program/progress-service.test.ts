@@ -63,6 +63,90 @@ describe("treatment-program progress-service", () => {
       stageItemId: itemId,
     });
     expect(out.stages[0]!.status).toBe("in_progress");
+    expect(out.stages[0]!.startedAt).toBeTruthy();
+  });
+
+  it("stage started_at: doctor available → in_progress then idempotent in_progress keeps same started_at", async () => {
+    const inst = await persistence.instancePort.createInstanceTree({
+      templateId: "00000000-0000-4000-8000-000000000001",
+      patientUserId: patient,
+      assignedBy: null,
+      title: "Программа",
+      stages: [
+        {
+          sourceStageId: tplStageId,
+          title: "Этап 1",
+          description: null,
+          sortOrder: 1,
+          status: "available",
+          goals: null,
+          objectives: null,
+          expectedDurationDays: null,
+          expectedDurationText: null,
+          items: [
+            {
+              itemType: "recommendation",
+              itemRefId: "11111111-1111-4111-8111-111111111111",
+              sortOrder: 0,
+              comment: null,
+              settings: null,
+              snapshot: { itemType: "recommendation", title: "R" },
+            },
+          ],
+        },
+      ],
+    });
+    const stageId = inst.stages[0]!.id;
+    await progress.doctorSetStageStatus({
+      instanceId: inst.id,
+      stageId,
+      status: "in_progress",
+      doctorUserId: doctor,
+    });
+    let d = await persistence.instancePort.getInstanceById(inst.id);
+    const first = d!.stages[0]!.startedAt;
+    expect(first).toBeTruthy();
+    await progress.doctorSetStageStatus({
+      instanceId: inst.id,
+      stageId,
+      status: "in_progress",
+      doctorUserId: doctor,
+    });
+    d = await persistence.instancePort.getInstanceById(inst.id);
+    expect(d!.stages[0]!.startedAt).toBe(first);
+  });
+
+  it("stage started_at: createInstanceTree with initial in_progress sets started_at", async () => {
+    const inst = await persistence.instancePort.createInstanceTree({
+      templateId: "00000000-0000-4000-8000-000000000001",
+      patientUserId: patient,
+      assignedBy: null,
+      title: "Программа",
+      stages: [
+        {
+          sourceStageId: tplStageId,
+          title: "Этап старт",
+          description: null,
+          sortOrder: 1,
+          status: "in_progress",
+          goals: null,
+          objectives: null,
+          expectedDurationDays: null,
+          expectedDurationText: null,
+          items: [
+            {
+              itemType: "recommendation",
+              itemRefId: "11111111-1111-4111-8111-111111111111",
+              sortOrder: 0,
+              comment: null,
+              settings: null,
+              snapshot: { title: "R" },
+            },
+          ],
+        },
+      ],
+    });
+    expect(inst.stages[0]!.startedAt).toBeTruthy();
   });
 
   it("§3: completing all items completes stage and unlocks next", async () => {
@@ -515,6 +599,8 @@ describe("treatment-program progress-service", () => {
     );
     const pending = await p.listPendingTestEvaluationsForPatient(patient);
     expect(pending.some((x) => x.instanceId === inst.id && x.stageItemId === itemId)).toBe(true);
+    const logRows = await p.listProgramActionLogForInstance(inst.id);
+    expect(logRows.some((r) => r.payload?.source === "test_submitted")).toBe(true);
   });
 
   it("§8: stage_skipped записывается в treatment_program_events", async () => {

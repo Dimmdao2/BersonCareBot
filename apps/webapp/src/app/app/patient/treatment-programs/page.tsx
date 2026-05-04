@@ -1,13 +1,18 @@
 /**
  * Список назначенных программ лечения (`/app/patient/treatment-programs`).
  */
-import Link from "next/link";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { getOptionalPatientSession, patientRscPersonalDataGate } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
 import { AppShell } from "@/shared/ui/AppShell";
-import { cn } from "@/lib/utils";
-import { patientCardCompactClass, patientMutedTextClass } from "@/shared/ui/patientVisual";
+import { patientMutedTextClass } from "@/shared/ui/patientVisual";
+import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
+import { formatBookingDateLongRu } from "@/shared/lib/formatBusinessDateTime";
+import {
+  PatientTreatmentProgramsListClient,
+  patientProgramsListCurrentStageTitle,
+  type PatientTreatmentProgramsListHero,
+} from "./PatientTreatmentProgramsListClient";
 
 export default async function PatientTreatmentProgramsPage() {
   const session = await getOptionalPatientSession();
@@ -29,32 +34,61 @@ export default async function PatientTreatmentProgramsPage() {
   }
 
   const deps = buildAppDeps();
+  const appTz = await getAppDisplayTimeZone();
   const list = await deps.treatmentProgramInstance.listForPatient(session.user.userId);
+
+  const activeCandidates = list
+    .filter((p) => p.status === "active")
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || b.id.localeCompare(a.id));
+  const activeSummary = activeCandidates[0] ?? null;
+
+  const archived = list
+    .filter((p) => p.status === "completed")
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || b.id.localeCompare(a.id));
+
+  let hero: PatientTreatmentProgramsListHero | null = null;
+  if (activeSummary) {
+    let currentStageTitle: string | null = null;
+    try {
+      const detail = await deps.treatmentProgramInstance.getInstanceForPatient(
+        session.user.userId,
+        activeSummary.id,
+      );
+      currentStageTitle = patientProgramsListCurrentStageTitle(detail);
+    } catch {
+      currentStageTitle = null;
+    }
+
+    let planUpdatedLabel: string | null = null;
+    try {
+      const nudge = await deps.treatmentProgramInstance.patientPlanUpdatedBadgeForInstance({
+        patientUserId: session.user.userId,
+        instanceId: activeSummary.id,
+      });
+      if (nudge.show && nudge.eventIso) {
+        planUpdatedLabel = `План обновлён ${formatBookingDateLongRu(nudge.eventIso, appTz)}`;
+      } else if (nudge.show) {
+        planUpdatedLabel = "План обновлён";
+      }
+    } catch {
+      planUpdatedLabel = null;
+    }
+
+    hero = {
+      instanceId: activeSummary.id,
+      title: activeSummary.title,
+      currentStageTitle,
+      planUpdatedLabel,
+    };
+  }
 
   return (
     <AppShell title="Программы лечения" user={session.user} backHref={routePaths.patient} backLabel="Меню" variant="patient">
-      {list.length === 0 ? (
-        <p className={patientMutedTextClass}>У вас пока нет назначенных программ.</p>
-      ) : (
-        <ul className="m-0 list-none space-y-3 p-0">
-          {list.map((p) => (
-            <li key={p.id}>
-              <Link
-                href={routePaths.patientTreatmentProgram(p.id)}
-                className={cn(
-                  patientCardCompactClass,
-                  "block text-sm font-medium transition-colors hover:border-primary/30",
-                )}
-              >
-                {p.title}
-                <span className={cn(patientMutedTextClass, "mt-1 block text-xs font-normal")}>
-                  {p.status === "completed" ? "завершена" : "активна"}
-                </span>
-              </Link>
-            </li>
-          ))}
-        </ul>
-      )}
+      <PatientTreatmentProgramsListClient
+        hero={hero}
+        archived={archived}
+        messagesHref={routePaths.patientMessages}
+      />
     </AppShell>
   );
 }

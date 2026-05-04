@@ -64,6 +64,7 @@ function mapStage(row: typeof stageTable.$inferSelect): TreatmentProgramInstance
     localComment: row.localComment ?? null,
     skipReason: row.skipReason ?? null,
     status: row.status as TreatmentProgramInstanceStageStatus,
+    startedAt: row.startedAt ?? null,
     goals: row.goals ?? null,
     objectives: row.objectives ?? null,
     expectedDurationDays: row.expectedDurationDays ?? null,
@@ -179,6 +180,7 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
               localComment: null,
               skipReason: null,
               status: st.status,
+              startedAt: st.status === "in_progress" ? treeItemTs : null,
               goals: st.goals,
               objectives: st.objectives,
               expectedDurationDays: st.expectedDurationDays,
@@ -402,11 +404,16 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
 
         const nextSkip = patch.status === "skipped" ? skipReason : null;
 
+        /** First time the stage enters `in_progress` (any prior status if `started_at` was still null), not only `available`→`in_progress`. */
+        const startedAtForPatch =
+          patch.status === "in_progress" && !stRow.startedAt ? new Date().toISOString() : undefined;
+
         const [updated] = await tx
           .update(stageTable)
           .set({
             status: patch.status,
             skipReason: nextSkip,
+            ...(startedAtForPatch !== undefined ? { startedAt: startedAtForPatch } : {}),
           })
           .where(eq(stageTable.id, stageId))
           .returning();
@@ -508,6 +515,7 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
           localComment: null,
           skipReason: null,
           status: input.status,
+          startedAt: input.status === "in_progress" ? new Date().toISOString() : null,
           goals: input.goals ?? null,
           objectives: input.objectives ?? null,
           expectedDurationDays: input.expectedDurationDays ?? null,

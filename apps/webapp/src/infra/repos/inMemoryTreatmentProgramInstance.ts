@@ -166,6 +166,7 @@ export function createInMemoryTreatmentProgramPersistence(): InMemoryTreatmentPr
           localComment: null,
           skipReason: null,
           status: st.status,
+          startedAt: st.status === "in_progress" ? now : null,
           goals: st.goals,
           objectives: st.objectives,
           expectedDurationDays: st.expectedDurationDays,
@@ -275,10 +276,14 @@ export function createInMemoryTreatmentProgramPersistence(): InMemoryTreatmentPr
           : patch.skipReason === null
             ? null
             : patch.skipReason.trim() || null;
+      const nextSkip = patch.status === "skipped" ? skipReason : null;
+      const nextStartedAt =
+        patch.status === "in_progress" && !st.startedAt ? isoNow() : st.startedAt;
       const next: StageRow = {
         ...st,
         status: patch.status,
-        skipReason: patch.status === "skipped" ? skipReason : null,
+        skipReason: nextSkip,
+        startedAt: nextStartedAt,
       };
       stages.set(stageId, next);
       if (patch.status === "completed" || patch.status === "skipped") {
@@ -337,6 +342,7 @@ export function createInMemoryTreatmentProgramPersistence(): InMemoryTreatmentPr
         localComment: null,
         skipReason: null,
         status: input.status,
+        startedAt: input.status === "in_progress" ? isoNow() : null,
         goals: input.goals ?? null,
         objectives: input.objectives ?? null,
         expectedDurationDays: input.expectedDurationDays ?? null,

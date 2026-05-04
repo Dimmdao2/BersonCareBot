@@ -27,6 +27,7 @@ export default async function DoctorPatientTreatmentProgramPage({ params, search
 
   const testResults = await deps.treatmentProgramProgress.listTestResultsForInstance(instanceId);
   const programEvents = await deps.treatmentProgramInstance.listProgramEvents(instanceId);
+  const programActionLog = await deps.treatmentProgramProgress.listProgramActionLogForInstance(instanceId);
 
   const qs = scopeParam ? `?scope=${encodeURIComponent(scopeParam)}` : "";
   const backHref = `/app/doctor/clients/${encodeURIComponent(userId)}${qs}`;
@@ -44,6 +45,7 @@ export default async function DoctorPatientTreatmentProgramPage({ params, search
         initial={detail}
         initialTestResults={testResults}
         initialEvents={programEvents}
+        initialActionLog={programActionLog}
         currentUserId={session.user.userId}
         isAdmin={session.user.role === "admin"}
       />

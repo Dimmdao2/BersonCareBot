@@ -22,17 +22,12 @@ import { normalizeRuSearchString } from "@/shared/lib/ruSearchNormalize";
 import { MediaThumb } from "@/shared/ui/media/MediaThumb";
 import { clinicalTestMediaItemToPreviewUi } from "@/shared/ui/media/mediaPreviewUiModel";
 import { PickerSearchField } from "@/shared/ui/PickerSearchField";
-import {
-  archiveDoctorTestSet,
-  fetchDoctorTestSetUsageSnapshot,
-  saveDoctorTestSet,
-  saveDoctorTestSetItems,
-  unarchiveDoctorTestSet,
-} from "./actions";
+import { archiveDoctorTestSet, fetchDoctorTestSetUsageSnapshot, saveDoctorTestSet, unarchiveDoctorTestSet } from "./actions";
 import type { ArchiveTestSetState, SaveTestSetState, UnarchiveTestSetState } from "./actionsShared";
-import { TestSetItemsForm } from "./TestSetItemsForm";
+import { rowsFromTestSet, TestSetItemsForm, type TestSetEditorItemRow } from "./TestSetItemsForm";
 import type { ClinicalTestLibraryPickRow } from "./clinicalTestLibraryRows";
 import { doctorTestSetUsageHref } from "./testSetUsageDocLinks";
+import { DoctorCatalogPersistPublishBar } from "@/shared/ui/doctor/DoctorCatalogPersistPublishBar";
 import {
   testSetUsageHasAnyReference,
   testSetUsageSections,
@@ -129,7 +124,6 @@ type Props = {
   ) => Promise<UnarchiveTestSetState>;
   externalUsageSnapshot?: TestSetUsageSnapshot;
   clinicalTestsLibrary?: ClinicalTestLibraryPickRow[];
-  saveItemsAction?: (_prev: SaveTestSetState | null, formData: FormData) => Promise<SaveTestSetState>;
 };
 
 function WorkspaceListPreserveHidden({ w }: { w?: Props["workspaceListPreserve"] }) {
@@ -150,7 +144,6 @@ export function TestSetForm({
   unarchiveAction = unarchiveDoctorTestSet,
   externalUsageSnapshot,
   clinicalTestsLibrary = [],
-  saveItemsAction = saveDoctorTestSetItems,
 }: Props) {
   const recordKey = testSet?.id ?? "create";
   const metaFormId = useMemo(() => `test-set-meta-${recordKey}`, [recordKey]);
@@ -166,6 +159,13 @@ export function TestSetForm({
   const [draftRows, setDraftRows] = useState<DraftItemRow[]>([]);
   const [draftPickOpen, setDraftPickOpen] = useState(false);
   const [draftPickQuery, setDraftPickQuery] = useState("");
+  const [itemRows, setItemRows] = useState<TestSetEditorItemRow[]>(() => (testSet ? rowsFromTestSet(testSet) : []));
+
+  const itemsSyncKey = useMemo(
+    () =>
+      testSet?.items.map((i) => `${i.id}:${i.testId}:${i.sortOrder}:${i.comment ?? ""}`).sort().join("|") ?? "",
+    [testSet],
+  );
 
   useEffect(() => {
     setTitle(testSet?.title ?? "");
@@ -179,6 +179,14 @@ export function TestSetForm({
     setDraftPickQuery("");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recordKey]);
+
+  useEffect(() => {
+    if (!testSet) {
+      setItemRows([]);
+      return;
+    }
+    setItemRows(rowsFromTestSet(testSet));
+  }, [testSet, itemsSyncKey]);
 
   useEffect(() => {
     if (!testSet?.id) {
@@ -277,6 +285,14 @@ export function TestSetForm({
     return JSON.stringify(payload);
   }, [draftRows]);
 
+  const itemRowsPayloadJson = useMemo(() => {
+    const payload = itemRows.map((r) => ({
+      testId: r.testId,
+      comment: r.comment.trim() ? r.comment.trim() : null,
+    }));
+    return JSON.stringify(payload);
+  }, [itemRows]);
+
   const draftFilteredPick = useMemo(() => {
     const needle = normalizeRuSearchString(draftPickQuery.trim());
     const used = new Set(draftRows.map((r) => r.testId));
@@ -326,7 +342,9 @@ export function TestSetForm({
           <input type="hidden" name="listRegion" value={workspaceListPreserve.regionCode} />
         ) : null}
         <WorkspaceListPreserveHidden w={workspaceListPreserve} />
-        {!testSet && canUseLibrary ? (
+        {testSet && canUseLibrary && !isArchived ? (
+          <input type="hidden" name="itemsPayload" value={itemRowsPayloadJson} readOnly />
+        ) : !testSet && canUseLibrary ? (
           <input type="hidden" name="itemsPayload" value={draftItemsPayloadJson} readOnly />
         ) : null}
         <fieldset disabled={isArchived} className="m-0 min-w-0 border-0 p-0">
@@ -358,6 +376,17 @@ export function TestSetForm({
                 onChange={(e) => setDescription(e.target.value)}
               />
             </div>
+            {testSet && canUseLibrary && !isArchived ? (
+              <TestSetItemsForm
+                testSet={testSet}
+                clinicalTestsLibrary={clinicalTestsLibrary}
+                rows={itemRows}
+                setRows={setItemRows}
+              />
+            ) : null}
+            {testSet && canUseLibrary && isArchived ? (
+              <p className="text-sm text-muted-foreground">Состав недоступен, пока набор в архиве.</p>
+            ) : null}
             {!testSet && canUseLibrary ? (
               <div className="flex flex-col gap-3">
                 <ul className="flex flex-col gap-3">
@@ -446,45 +475,27 @@ export function TestSetForm({
         </fieldset>
       </form>
 
-      {testSet && canUseLibrary && !testSet.isArchived ? (
-        <TestSetItemsForm testSet={testSet} clinicalTestsLibrary={clinicalTestsLibrary} saveItemsAction={saveItemsAction} />
-      ) : testSet && canUseLibrary && testSet.isArchived ? (
-        <p className="text-sm text-muted-foreground">Состав недоступен, пока набор в архиве.</p>
-      ) : null}
+      <DoctorCatalogPersistPublishBar
+        mode="formIntent"
+        formId={metaFormId}
+        isArchived={isArchived}
+        pending={pending}
+        isPublished={published}
+        catalogRecordExists={Boolean(testSet)}
+        persistLabel={
+          !testSet ? "Создать черновик" : published ? "Сохранить изменения" : "Сохранить черновик"
+        }
+        saveIntentValue="save_draft"
+        publishIntentValue="publish"
+      />
 
-      <div className="flex flex-wrap gap-2 border-t border-border/60 pt-4">
-        <Button
-          type="submit"
-          form={metaFormId}
-          name="intent"
-          value="save_draft"
-          disabled={pending || isArchived}
-        >
-          {pending
-            ? "Сохранение…"
-            : !testSet
-              ? "Создать черновик"
-              : published
-                ? "Сохранить изменения"
-                : "Сохранить черновик"}
-        </Button>
-        {published ? (
-          <Button type="button" variant="secondary" disabled>
-            Опубликован
-          </Button>
-        ) : (
-          <Button
-            type="submit"
-            form={metaFormId}
-            name="intent"
-            value="publish"
-            variant="default"
-            disabled={pending || isArchived}
-          >
-            Опубликовать
-          </Button>
-        )}
-      </div>
+      <p className="text-xs text-muted-foreground">
+        {!testSet
+          ? "Сохраните черновик, чтобы опубликовать набор. Кнопка «Опубликовать» доступна после первого сохранения."
+          : published
+            ? "Правки вступают в силу после «Сохранить изменения»."
+            : "«Сохранить черновик» сохраняет название, описание и состав набора одной отправкой."}
+      </p>
 
       {testSet ? (
         <div className="border-t border-border/60 pt-4">

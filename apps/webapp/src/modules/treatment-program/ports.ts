@@ -33,6 +33,7 @@ import type {
   NormalizedTestDecision,
   PendingProgramTestEvaluationRow,
   ProgramActionLogInsert,
+  ProgramActionLogListRow,
   UpdateTreatmentProgramStageInput,
   UpdateTreatmentProgramStageItemInput,
   UpdateTreatmentProgramTemplateStageGroupInput,
@@ -271,4 +272,6 @@ export type ProgramActionLogPort = {
     windowStartIso: string;
     windowEndIso: string;
   }): Promise<string[]>;
+  /** Журнал действий пациента по экземпляру (новые сверху), для UI врача (UX-02). */
+  listForInstance(params: { instanceId: string; limit?: number }): Promise<ProgramActionLogListRow[]>;
 };

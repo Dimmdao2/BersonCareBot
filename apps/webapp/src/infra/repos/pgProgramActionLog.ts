@@ -1,8 +1,9 @@
-import { and, eq, gte, lt, or, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, gte, lt, or, isNull, sql } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import { programActionLog as logTable } from "../../../db/schema/programActionLog";
 import type { ProgramActionLogPort } from "@/modules/treatment-program/ports";
-import type { ProgramActionLogInsert } from "@/modules/treatment-program/types";
+import type { ProgramActionLogInsert, ProgramActionLogListRow, ProgramActionType } from "@/modules/treatment-program/types";
+import { PROGRAM_ACTION_TYPES } from "@/modules/treatment-program/types";
 
 export function createPgProgramActionLogPort(): ProgramActionLogPort {
   return {
@@ -72,6 +73,45 @@ export function createPgProgramActionLogPort(): ProgramActionLogPort {
           ),
         );
       return [...new Set(rows.map((r) => r.itemId))];
+    },
+
+    async listForInstance(params) {
+      const db = getDrizzle();
+      const limit = Math.min(Math.max(params.limit ?? 200, 1), 500);
+      const rows = await db
+        .select({
+          id: logTable.id,
+          instanceId: logTable.instanceId,
+          instanceStageItemId: logTable.instanceStageItemId,
+          patientUserId: logTable.patientUserId,
+          sessionId: logTable.sessionId,
+          actionType: logTable.actionType,
+          payload: logTable.payload,
+          note: logTable.note,
+          createdAt: logTable.createdAt,
+        })
+        .from(logTable)
+        .where(eq(logTable.instanceId, params.instanceId))
+        .orderBy(desc(logTable.createdAt))
+        .limit(limit);
+
+      const out: ProgramActionLogListRow[] = [];
+      for (const r of rows) {
+        const at = r.actionType;
+        if (!PROGRAM_ACTION_TYPES.includes(at as ProgramActionType)) continue;
+        out.push({
+          id: r.id,
+          instanceId: r.instanceId,
+          instanceStageItemId: r.instanceStageItemId,
+          patientUserId: r.patientUserId,
+          sessionId: r.sessionId ?? null,
+          actionType: at as ProgramActionType,
+          payload: r.payload ?? null,
+          note: r.note ?? null,
+          createdAt: r.createdAt,
+        });
+      }
+      return out;
     },
   };
 }
