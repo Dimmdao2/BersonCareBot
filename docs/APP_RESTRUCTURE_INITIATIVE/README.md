@@ -43,6 +43,7 @@
 | [`MODES_AND_TEST_ACCOUNTS_EXECUTION_AUDIT.md`](done/MODES_AND_TEST_ACCOUNTS_EXECUTION_AUDIT.md) | Режимы, `test_account_identifiers`, bypass техработ, dev_mode relay, batch-save, phone preview: DoD, чек-листы, команды верификации | **живой** (история закрытия) |
 | [`DOCTOR_UI_DENSITY_EXECUTION_AUDIT.md`](done/DOCTOR_UI_DENSITY_EXECUTION_AUDIT.md) | Аудит выполнения этапа 8 (плотность UI врача): код, LOG, планы; обновлён после пост-аудита (2026-05-02) | **живой** |
 | [`CONTENT_PLAN.md`](CONTENT_PLAN.md) | Материалы и блоки главной пациента (ситуации, подписка, курсы, разминка) + CMS-гайд; не runtime-SoT | **живой** |
+| [`CLINICAL_TEST_SCORING_CURRENT_SYSTEM.md`](CLINICAL_TEST_SCORING_CURRENT_SYSTEM.md) | Простое объяснение текущей системы оценки клинических тестов: типы шкал, смысл "Добавить измерение", как это сейчас работает для пациента | **живой** |
 | [`STRUCTURE_AUDIT.md`](STRUCTURE_AUDIT.md) | Снимок текущей IA (маршруты, меню, блоки, архитектурные факты) — **точка отсчёта** | **immutable** — не правится после фиксации, чтобы можно было сравнивать «до/после» |
 | [`RECOMMENDATIONS_AND_ROADMAP.md`](RECOMMENDATIONS_AND_ROADMAP.md) | Оценка текущего состояния по продуктовым целям + предложение этапов работ (0–8) | **живой документ** — обновляется по мере приёма решений |
 | [`TARGET_STRUCTURE_PATIENT.md`](TARGET_STRUCTURE_PATIENT.md) | Целевое видение пациентского приложения (5 вкладок, ткань уведомлений, материал контента) | **живой** — фиксируем решения в §11+ |

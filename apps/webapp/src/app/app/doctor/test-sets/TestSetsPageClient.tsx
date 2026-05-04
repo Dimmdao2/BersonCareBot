@@ -21,6 +21,7 @@ import {
 import { DoctorCatalogFiltersForm } from "@/shared/ui/doctor/DoctorCatalogFiltersForm";
 import {
   archiveDoctorTestSetInline,
+  createDoctorTestSetDraftInline,
   saveDoctorTestSetInline,
   saveDoctorTestSetItemsInline,
   unarchiveDoctorTestSetInline,
@@ -29,7 +30,6 @@ import type { DoctorCatalogPubArchQuery } from "@/shared/lib/doctorCatalogListSt
 import { DoctorCatalogInvalidPubArchToast } from "@/shared/ui/doctor/DoctorCatalogInvalidPubArchToast";
 import type { ClinicalTestLibraryPickRow } from "./clinicalTestLibraryRows";
 import { TestSetForm } from "./TestSetForm";
-import { TestSetItemsForm } from "./TestSetItemsForm";
 import { TEST_SETS_PATH } from "./paths";
 
 type Props = {
@@ -162,6 +162,8 @@ export function TestSetsPageClient({
           testSet={null}
           saveAction={saveDoctorTestSetInline}
           archiveAction={archiveDoctorTestSetInline}
+          saveItemsAction={saveDoctorTestSetItemsInline}
+          clinicalTestsLibrary={clinicalTestsLibrary}
           backHref={TEST_SETS_PATH}
         />
     ) : selected ? (
@@ -179,19 +181,9 @@ export function TestSetsPageClient({
           }}
           backHref={TEST_SETS_PATH}
           externalUsageSnapshot={usageForSelection}
+          saveItemsAction={saveDoctorTestSetItemsInline}
+          clinicalTestsLibrary={clinicalTestsLibrary}
         />
-        <section className="flex flex-col gap-2 border-t border-border/60 pt-4">
-          <h2 className="text-lg font-medium">Состав набора</h2>
-          {!selected.isArchived ? (
-            <TestSetItemsForm
-              testSet={selected}
-              clinicalTestsLibrary={clinicalTestsLibrary}
-              saveItemsAction={saveDoctorTestSetItemsInline}
-            />
-          ) : (
-            <p className="text-sm text-muted-foreground">Состав недоступен, пока набор в архиве.</p>
-          )}
-        </section>
       </div>
     ) : (
       <TestSetForm
@@ -199,6 +191,8 @@ export function TestSetsPageClient({
         testSet={null}
         saveAction={saveDoctorTestSetInline}
         archiveAction={archiveDoctorTestSetInline}
+        saveItemsAction={saveDoctorTestSetItemsInline}
+        clinicalTestsLibrary={clinicalTestsLibrary}
         backHref={TEST_SETS_PATH}
       />
     );
@@ -223,17 +217,20 @@ export function TestSetsPageClient({
         </DoctorCatalogToolbarFiltersSlot>
       }
       end={
-        <button
-          type="button"
-          className={doctorCatalogToolbarPrimaryActionClassName}
-          onClick={() => {
-            setCreating(true);
-            setSelectedId(null);
-            setMobileSheet(null);
-          }}
-        >
-          Создать
-        </button>
+        <form action={createDoctorTestSetDraftInline}>
+          {mergedFilters.q.trim() ? <input type="hidden" name="listQ" value={mergedFilters.q} /> : null}
+          {mergedFilters.titleSort === "asc" || mergedFilters.titleSort === "desc" ? (
+            <input type="hidden" name="listTitleSort" value={mergedFilters.titleSort} />
+          ) : null}
+          {mergedFilters.regionCode?.trim() ? (
+            <input type="hidden" name="listRegion" value={mergedFilters.regionCode.trim()} />
+          ) : null}
+          <input type="hidden" name="listArch" value={mergedFilters.listPubArch.arch} />
+          <input type="hidden" name="listPub" value={mergedFilters.listPubArch.pub} />
+          <button type="submit" className={doctorCatalogToolbarPrimaryActionClassName}>
+            Создать
+          </button>
+        </form>
       }
     />
   );

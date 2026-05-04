@@ -28,6 +28,8 @@ export type UnarchiveTestSetCoreResult =
   | { kind: "unarchived"; id: string }
   | { kind: "invalid"; error: string };
 
+export const NEW_TEST_SET_DRAFT_TITLE = "Новый набор тестов";
+
 function parseAcknowledgeUsageWarning(fd: FormData): boolean {
   const v = fd.get("acknowledgeUsageWarning");
   return v === "1" || v === "true" || v === "on";
@@ -71,11 +73,21 @@ export async function saveTestSetCore(
   const pubField = formData.get("publicationStatus");
   const publicationStatus =
     pubField === "draft" || pubField === "published" ? pubField : undefined;
+  const itemsPayloadRaw = formData.get("itemsPayload");
 
   if (!title) return { ok: false, error: "Название набора обязательно" };
 
   const deps = buildAppDeps();
   const id = typeof idRaw === "string" && idRaw.trim() ? idRaw.trim() : "";
+  let initialItems: TestSetItemInput[] | null = null;
+  if (typeof itemsPayloadRaw === "string" && itemsPayloadRaw.trim().length > 0) {
+    try {
+      initialItems = parseTestSetItemsPayloadJson(itemsPayloadRaw);
+    } catch (e) {
+      if (e instanceof z.ZodError) return { ok: false, error: "Некорректный формат состава набора" };
+      return { ok: false, error: e instanceof Error ? e.message : "Ошибка разбора состава" };
+    }
+  }
 
   try {
     if (id) {
@@ -99,9 +111,35 @@ export async function saveTestSetCore(
       },
       session.user.userId,
     );
+    if (initialItems) {
+      await deps.testSets.setTestSetItems(row.id, initialItems);
+    }
     return { ok: true, setId: row.id, wasUpdate: false };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Ошибка сохранения" };
+  }
+}
+
+export async function createTestSetDraftCore(
+  input: { title?: string; description?: string | null; publicationStatus?: "draft" | "published" } = {},
+): Promise<{ ok: true; setId: string } | { ok: false; error: string }> {
+  const session = await requireDoctorAccess();
+  const title = input.title?.trim() || NEW_TEST_SET_DRAFT_TITLE;
+  const description = input.description?.trim() || null;
+  const publicationStatus = input.publicationStatus;
+  const deps = buildAppDeps();
+  try {
+    const row = await deps.testSets.createTestSet(
+      {
+        title,
+        description,
+        ...(publicationStatus !== undefined ? { publicationStatus } : {}),
+      },
+      session.user.userId,
+    );
+    return { ok: true, setId: row.id };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Не удалось создать черновик набора" };
   }
 }
 

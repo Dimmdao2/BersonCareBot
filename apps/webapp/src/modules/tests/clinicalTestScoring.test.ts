@@ -1,10 +1,20 @@
 import { describe, expect, it } from "vitest";
 import {
+  clinicalTestSchemaTypeLabelRu,
   migrateLegacyScoringConfig,
   normalizeClinicalTestScoringOrder,
   parseClinicalTestScoring,
   clinicalTestScoringSchema,
 } from "./clinicalTestScoring";
+
+describe("clinicalTestSchemaTypeLabelRu", () => {
+  it("returns Russian labels for schema types", () => {
+    expect(clinicalTestSchemaTypeLabelRu("numeric")).toBe("Одно число в интервале");
+    expect(clinicalTestSchemaTypeLabelRu("likert")).toBe("Оценка по баллам");
+    expect(clinicalTestSchemaTypeLabelRu("binary")).toBe("Да или нет");
+    expect(clinicalTestSchemaTypeLabelRu("qualitative")).toBe("Свободный ввод");
+  });
+});
 
 describe("parseClinicalTestScoring", () => {
   it("accepts valid numeric with measure_items", () => {

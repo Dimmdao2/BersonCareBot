@@ -20,10 +20,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import type { ClinicalTest, ClinicalTestUsageSnapshot } from "@/modules/tests/types";
 import {
   CLINICAL_TEST_SCHEMA_TYPES,
+  clinicalTestSchemaTypeLabelRu,
   parseClinicalTestScoring,
   type ClinicalTestSchemaType,
   type ClinicalTestScoring,
@@ -74,8 +74,6 @@ export type ClinicalTestFormValues = {
   positiveLabel: string;
   negativeLabel: string;
   rawText: string;
-  jsonMode: boolean;
-  scoringJsonRaw: string;
 };
 
 export function clinicalTestToFormValues(test: ClinicalTest | null | undefined): ClinicalTestFormValues {
@@ -114,8 +112,6 @@ export function clinicalTestToFormValues(test: ClinicalTest | null | undefined):
     negativeLabel = parsed.negative_label ?? "";
   }
 
-  const scoringJsonRaw = test?.scoring != null ? JSON.stringify(test.scoring, null, 2) : "";
-
   return {
     title: test?.title ?? "",
     description: test?.description ?? "",
@@ -135,8 +131,6 @@ export function clinicalTestToFormValues(test: ClinicalTest | null | undefined):
     positiveLabel,
     negativeLabel,
     rawText: test?.rawText ?? "",
-    jsonMode: false,
-    scoringJsonRaw,
   };
 }
 
@@ -178,7 +172,7 @@ function buildStructuredScoring(v: ClinicalTestFormValues): ClinicalTestScoring 
   }
   const lo = Number.parseInt(v.likertMin, 10);
   const hi = Number.parseInt(v.likertMax, 10);
-  if (!Number.isFinite(lo) || !Number.isFinite(hi)) throw new Error("Укажите шкалу Ликерта (целые числа)");
+  if (!Number.isFinite(lo) || !Number.isFinite(hi)) throw new Error("Укажите минимум и максимум шкалы баллов (целые числа)");
   return { schema_type: "likert", measure_items, likert_min: lo, likert_max: hi };
 }
 
@@ -378,7 +372,6 @@ export function ClinicalTestForm({
   const isArchived = !!test?.isArchived;
 
   const clinicalStructuredJson = useMemo(() => {
-    if (values.jsonMode) return "";
     try {
       return JSON.stringify(buildStructuredScoring(values));
     } catch {
@@ -411,9 +404,9 @@ export function ClinicalTestForm({
         {workspaceListPreserve?.listStatus != null ? (
           <input type="hidden" name="listStatus" value={workspaceListPreserve.listStatus} />
         ) : null}
-        <input type="hidden" name="scoringEditorMode" value={values.jsonMode ? "json" : "structured"} readOnly />
-        <input type="hidden" name="clinicalScoringJson" value={values.jsonMode ? "" : clinicalStructuredJson} readOnly />
-        {!values.jsonMode ? <input type="hidden" name="scoringJsonRaw" value="" readOnly /> : null}
+        <input type="hidden" name="scoringEditorMode" value="structured" readOnly />
+        <input type="hidden" name="clinicalScoringJson" value={clinicalStructuredJson} readOnly />
+        <input type="hidden" name="scoringJsonRaw" value="" readOnly />
         <input type="hidden" name="mediaUrl" value={values.mediaUrl} />
         <input type="hidden" name="mediaType" value={values.mediaType} />
 
@@ -512,34 +505,8 @@ export function ClinicalTestForm({
             </div>
 
             <div className="flex flex-col gap-3 rounded-md border border-border/50 p-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="text-sm font-medium">Оценка</span>
-                <div className="flex items-center gap-2">
-                  <Switch
-                    id="ct-json-mode"
-                    checked={values.jsonMode}
-                    onCheckedChange={(c) => setValues((v) => ({ ...v, jsonMode: !!c }))}
-                    disabled={isArchived}
-                  />
-                  <Label htmlFor="ct-json-mode" className="text-sm font-normal">
-                    JSON-режим
-                  </Label>
-                </div>
-              </div>
-
-              {values.jsonMode ? (
-                <div className="flex flex-col gap-2">
-                  <Label htmlFor="ct-scoring-json">scoring (JSON)</Label>
-                  <Textarea
-                    id="ct-scoring-json"
-                    name="scoringJsonRaw"
-                    className="min-h-[220px] font-mono text-sm"
-                    value={values.scoringJsonRaw}
-                    onChange={(e) => setValues((v) => ({ ...v, scoringJsonRaw: e.target.value }))}
-                  />
-                </div>
-              ) : (
-                <div className="space-y-4">
+              <span className="text-sm font-medium">Оценка</span>
+              <div className="space-y-4">
                   <div className="flex flex-col gap-2">
                     <Label>Тип шкалы</Label>
                     <Select
@@ -556,15 +523,21 @@ export function ClinicalTestForm({
                       }
                     >
                       <SelectTrigger className="w-full sm:max-w-xs">
-                        <SelectValue />
+                        <SelectValue>{clinicalTestSchemaTypeLabelRu(values.schemaType)}</SelectValue>
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="numeric">Числовая</SelectItem>
-                        <SelectItem value="likert">Ликерт</SelectItem>
-                        <SelectItem value="binary">Да/Нет</SelectItem>
-                        <SelectItem value="qualitative">Качественная (вручную)</SelectItem>
+                        <SelectItem value="numeric">Одно число в интервале</SelectItem>
+                        <SelectItem value="likert">Оценка по баллам</SelectItem>
+                        <SelectItem value="binary">Да или нет</SelectItem>
+                        <SelectItem value="qualitative">Свободный ввод</SelectItem>
                       </SelectContent>
                     </Select>
+                    {values.schemaType === "numeric" ? (
+                      <p className="text-xs text-muted-foreground leading-snug">
+                        Пациент вводит одно число между min и max ниже. Примеры: боль 0–10, угол в градусах 0–180,
+                        процент выполнения 0–100.
+                      </p>
+                    ) : null}
                   </div>
 
                   {values.schemaType === "numeric" ? (
@@ -658,18 +631,17 @@ export function ClinicalTestForm({
                       placeholder="Заметки, legacy-данные, что не вошло в структуру"
                     />
                   </div>
-                </div>
-              )}
-            </div>
 
-            <div className="flex flex-col gap-3">
-              <Label htmlFor="ct-tags">Теги (через запятую)</Label>
-              <Input
-                id="ct-tags"
-                name="tags"
-                value={values.tags}
-                onChange={(e) => setValues((v) => ({ ...v, tags: e.target.value }))}
-              />
+                  <div className="flex flex-col gap-2">
+                    <Label htmlFor="ct-tags">Теги (через запятую)</Label>
+                    <Input
+                      id="ct-tags"
+                      name="tags"
+                      value={values.tags}
+                      onChange={(e) => setValues((v) => ({ ...v, tags: e.target.value }))}
+                    />
+                  </div>
+                </div>
             </div>
 
             <div className="flex flex-wrap gap-2">

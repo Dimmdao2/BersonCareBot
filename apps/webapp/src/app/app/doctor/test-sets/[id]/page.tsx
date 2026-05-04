@@ -3,7 +3,6 @@ import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { AppShell } from "@/shared/ui/AppShell";
 import { TestSetForm } from "../TestSetForm";
-import { TestSetItemsForm } from "../TestSetItemsForm";
 import { TEST_SETS_PATH } from "../paths";
 import Link from "next/link";
 import { buttonVariants } from "@/components/ui/button-variants";
@@ -34,15 +33,7 @@ export default async function EditTestSetPage({ params }: PageProps) {
           </Link>
           {" — добавляйте тесты через кнопку «Добавить из библиотеки» в составе набора."}
         </p>
-        <TestSetForm testSet={testSet} externalUsageSnapshot={usage} />
-        <section className="flex flex-col gap-2">
-          <h2 className="text-lg font-medium">Состав набора</h2>
-          {!testSet.isArchived ? (
-            <TestSetItemsForm testSet={testSet} clinicalTestsLibrary={clinicalTestsLibrary} />
-          ) : (
-            <p className="text-sm text-muted-foreground">Состав недоступен, пока набор в архиве.</p>
-          )}
-        </section>
+        <TestSetForm testSet={testSet} externalUsageSnapshot={usage} clinicalTestsLibrary={clinicalTestsLibrary} />
       </div>
     </AppShell>
   );

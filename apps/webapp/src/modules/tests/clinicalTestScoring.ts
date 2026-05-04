@@ -8,6 +8,20 @@ import { z } from "zod";
 export const CLINICAL_TEST_SCHEMA_TYPES = ["numeric", "likert", "binary", "qualitative"] as const;
 export type ClinicalTestSchemaType = (typeof CLINICAL_TEST_SCHEMA_TYPES)[number];
 
+/** Подпись типа шкалы для селектов и превью (не ключ `schema_type`). */
+export function clinicalTestSchemaTypeLabelRu(schemaType: ClinicalTestSchemaType): string {
+  switch (schemaType) {
+    case "numeric":
+      return "Одно число в интервале";
+    case "likert":
+      return "Оценка по баллам";
+    case "binary":
+      return "Да или нет";
+    case "qualitative":
+      return "Свободный ввод";
+  }
+}
+
 const measureItemSchema = z.object({
   measureKind: z.string().min(1).max(200),
   value: z.string().max(4000).nullable().optional(),

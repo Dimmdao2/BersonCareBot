@@ -16,14 +16,19 @@ import { Textarea } from "@/components/ui/textarea";
 import type { TestSet, TestSetUsageSnapshot } from "@/modules/tests/types";
 import type { DoctorCatalogPubArchQuery } from "@/shared/lib/doctorCatalogListStatus";
 import { cn } from "@/lib/utils";
+import { normalizeRuSearchString } from "@/shared/lib/ruSearchNormalize";
+import { PickerSearchField } from "@/shared/ui/PickerSearchField";
 import {
   archiveDoctorTestSet,
   fetchDoctorTestSetUsageSnapshot,
   saveDoctorTestSet,
+  saveDoctorTestSetItems,
   unarchiveDoctorTestSet,
 } from "./actions";
 import type { ArchiveTestSetState, SaveTestSetState, UnarchiveTestSetState } from "./actionsShared";
 import { TEST_SETS_PATH } from "./paths";
+import { TestSetItemsForm } from "./TestSetItemsForm";
+import type { ClinicalTestLibraryPickRow } from "./clinicalTestLibraryRows";
 import { doctorTestSetUsageHref } from "./testSetUsageDocLinks";
 import {
   testSetUsageHasAnyReference,
@@ -65,6 +70,13 @@ function TestSetUsageSectionsView({ sections }: { sections: TestSetUsageSection[
   );
 }
 
+type DraftItemRow = {
+  sortId: string;
+  testId: string;
+  title: string;
+  comment: string;
+};
+
 type Props = {
   testSet?: TestSet | null;
   backHref?: string;
@@ -84,6 +96,8 @@ type Props = {
     formData: FormData,
   ) => Promise<UnarchiveTestSetState>;
   externalUsageSnapshot?: TestSetUsageSnapshot;
+  clinicalTestsLibrary?: ClinicalTestLibraryPickRow[];
+  saveItemsAction?: (_prev: SaveTestSetState | null, formData: FormData) => Promise<SaveTestSetState>;
 };
 
 function WorkspaceListPreserveHidden({ w }: { w?: Props["workspaceListPreserve"] }) {
@@ -104,6 +118,8 @@ export function TestSetForm({
   archiveAction = archiveDoctorTestSet,
   unarchiveAction = unarchiveDoctorTestSet,
   externalUsageSnapshot,
+  clinicalTestsLibrary = [],
+  saveItemsAction = saveDoctorTestSetItems,
 }: Props) {
   const recordKey = testSet?.id ?? "create";
   const [title, setTitle] = useState(testSet?.title ?? "");
@@ -115,6 +131,9 @@ export function TestSetForm({
   const [warnOpen, setWarnOpen] = useState(false);
   const [archiveUsageAck, setArchiveUsageAck] = useState(false);
   const archiveFormRef = useRef<HTMLFormElement>(null);
+  const [draftRows, setDraftRows] = useState<DraftItemRow[]>([]);
+  const [draftPickOpen, setDraftPickOpen] = useState(false);
+  const [draftPickQuery, setDraftPickQuery] = useState("");
 
   useEffect(() => {
     setTitle(testSet?.title ?? "");
@@ -123,6 +142,9 @@ export function TestSetForm({
     setUsageLoadError(null);
     setWarnOpen(false);
     setArchiveUsageAck(false);
+    setDraftRows([]);
+    setDraftPickOpen(false);
+    setDraftPickQuery("");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recordKey]);
 
@@ -212,6 +234,45 @@ export function TestSetForm({
     unarchiveState?.ok === false && "error" in unarchiveState ? unarchiveState.error : null;
 
   const isArchived = !!testSet?.isArchived;
+  const canUseLibrary = clinicalTestsLibrary.length > 0;
+
+  const draftItemsPayloadJson = useMemo(() => {
+    const payload = draftRows.map((r) => ({
+      testId: r.testId,
+      comment: r.comment.trim() ? r.comment.trim() : null,
+    }));
+    return JSON.stringify(payload);
+  }, [draftRows]);
+
+  const draftFilteredPick = useMemo(() => {
+    const needle = normalizeRuSearchString(draftPickQuery.trim());
+    const used = new Set(draftRows.map((r) => r.testId));
+    return clinicalTestsLibrary
+      .filter((t) => !used.has(t.id) && (!needle || normalizeRuSearchString(t.title).includes(needle)))
+      .sort((a, b) => a.title.localeCompare(b.title, "ru"));
+  }, [clinicalTestsLibrary, draftRows, draftPickQuery]);
+
+  const addDraftTest = useCallback((row: ClinicalTestLibraryPickRow) => {
+    setDraftRows((prev) => [
+      ...prev,
+      {
+        sortId: crypto.randomUUID(),
+        testId: row.id,
+        title: row.title,
+        comment: "",
+      },
+    ]);
+    setDraftPickOpen(false);
+    setDraftPickQuery("");
+  }, []);
+
+  const updateDraftComment = useCallback((sortId: string, comment: string) => {
+    setDraftRows((prev) => prev.map((r) => (r.sortId === sortId ? { ...r, comment } : r)));
+  }, []);
+
+  const removeDraftRow = useCallback((sortId: string) => {
+    setDraftRows((prev) => prev.filter((r) => r.sortId !== sortId));
+  }, []);
 
   return (
     <div className="flex max-w-2xl flex-col gap-4">
@@ -232,6 +293,9 @@ export function TestSetForm({
           <input type="hidden" name="listRegion" value={workspaceListPreserve.regionCode} />
         ) : null}
         <WorkspaceListPreserveHidden w={workspaceListPreserve} />
+        {!testSet && canUseLibrary ? (
+          <input type="hidden" name="itemsPayload" value={draftItemsPayloadJson} readOnly />
+        ) : null}
         <fieldset disabled={isArchived} className="m-0 min-w-0 border-0 p-0">
           <legend className="sr-only">Поля набора тестов</legend>
           <div className="flex flex-col gap-4">
@@ -268,9 +332,86 @@ export function TestSetForm({
                 <option value="published">Опубликован</option>
               </select>
             </div>
+            {!testSet && canUseLibrary ? (
+              <section className="flex flex-col gap-2 rounded-lg border border-border/60 p-3">
+                <h2 className="text-base font-medium">Состав набора</h2>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button type="button" variant="secondary" onClick={() => setDraftPickOpen(true)}>
+                    Добавить из библиотеки
+                  </Button>
+                  <p className="text-xs text-muted-foreground">Добавляйте тесты сразу, до первого сохранения набора.</p>
+                </div>
+
+                <Dialog open={draftPickOpen} onOpenChange={setDraftPickOpen}>
+                  <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+                    <DialogHeader>
+                      <DialogTitle>Тест из библиотеки</DialogTitle>
+                    </DialogHeader>
+                    <PickerSearchField
+                      id={`ts-draft-lib-search-${recordKey}`}
+                      label="Поиск по названию"
+                      placeholder="Название теста"
+                      value={draftPickQuery}
+                      onValueChange={setDraftPickQuery}
+                      className="min-w-0"
+                    />
+                    <ul className="max-h-56 overflow-auto rounded-md border">
+                      {draftFilteredPick.length === 0 ? (
+                        <li className="px-3 py-4 text-sm text-muted-foreground">Нет доступных тестов.</li>
+                      ) : (
+                        draftFilteredPick.map((row) => (
+                          <li key={row.id} className="border-b last:border-0">
+                            <button
+                              type="button"
+                              className="flex w-full gap-2 px-3 py-2 text-left text-sm hover:bg-muted/40"
+                              onClick={() => addDraftTest(row)}
+                            >
+                              <span className="min-w-0 flex-1 self-center font-medium leading-snug">{row.title}</span>
+                            </button>
+                          </li>
+                        ))
+                      )}
+                    </ul>
+                    <DialogFooter>
+                      <Button type="button" variant="outline" onClick={() => setDraftPickOpen(false)}>
+                        Закрыть
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+
+                {draftRows.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Добавьте тесты из библиотеки или сохраните пустой набор.</p>
+                ) : (
+                  <ul className="flex flex-col gap-2">
+                    {draftRows.map((r) => (
+                      <li key={r.sortId} className="rounded-lg border border-border/70 bg-card p-3">
+                        <p className="text-sm font-medium leading-tight">{r.title}</p>
+                        <div className="mt-2 flex min-w-0 flex-col gap-1">
+                          <Label className="text-xs" htmlFor={`ts-draft-cmt-${r.sortId}`}>
+                            Комментарий к позиции
+                          </Label>
+                          <Textarea
+                            id={`ts-draft-cmt-${r.sortId}`}
+                            className="min-h-[56px] resize-y text-sm"
+                            value={r.comment}
+                            onChange={(ev) => updateDraftComment(r.sortId, ev.target.value)}
+                          />
+                        </div>
+                        <div className="mt-2 flex justify-end">
+                          <Button type="button" variant="ghost" size="sm" onClick={() => removeDraftRow(r.sortId)}>
+                            Удалить из набора
+                          </Button>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+            ) : null}
             <div className="flex flex-wrap gap-2">
               <Button type="submit" disabled={pending}>
-                {pending ? "Сохранение…" : testSet ? "Сохранить" : "Создать набор"}
+                {pending ? "Сохранение…" : testSet ? "Сохранить" : "Создать черновик"}
               </Button>
               <Link href={backHref} className={cn(buttonVariants({ variant: "outline" }))}>
                 К списку
@@ -279,6 +420,17 @@ export function TestSetForm({
           </div>
         </fieldset>
       </form>
+
+      {testSet && canUseLibrary ? (
+        <section className="flex flex-col gap-2 border-t border-border/60 pt-4">
+          <h2 className="text-lg font-medium">Состав набора</h2>
+          {!testSet.isArchived ? (
+            <TestSetItemsForm testSet={testSet} clinicalTestsLibrary={clinicalTestsLibrary} saveItemsAction={saveItemsAction} />
+          ) : (
+            <p className="text-sm text-muted-foreground">Состав недоступен, пока набор в архиве.</p>
+          )}
+        </section>
+      ) : null}
 
       {testSet ? (
         <div className="border-t border-border/60 pt-4">

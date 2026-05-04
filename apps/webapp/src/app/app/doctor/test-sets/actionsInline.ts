@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import {
   archiveTestSetCore,
+  createTestSetDraftCore,
   saveTestSetCore,
   saveTestSetItemsCore,
   TEST_SETS_PATH,
@@ -24,6 +25,22 @@ export async function saveDoctorTestSetInline(
 ): Promise<SaveTestSetState> {
   const result = await saveTestSetCore(formData);
   if (!result.ok) return { ok: false, error: result.error };
+
+  revalidatePath(TEST_SETS_PATH);
+  revalidatePath(`${TEST_SETS_PATH}/${result.setId}`);
+  const sp = new URLSearchParams();
+  sp.set("selected", result.setId);
+  appendTestSetsListParams(sp, formData);
+  redirect(`${TEST_SETS_PATH}?${sp.toString()}`);
+}
+
+export async function createDoctorTestSetDraftInline(formData: FormData): Promise<void> {
+  const result = await createTestSetDraftCore();
+  if (!result.ok) {
+    const sp = new URLSearchParams();
+    appendTestSetsListParams(sp, formData);
+    redirect(`${TEST_SETS_PATH}?${sp.toString()}`);
+  }
 
   revalidatePath(TEST_SETS_PATH);
   revalidatePath(`${TEST_SETS_PATH}/${result.setId}`);
