@@ -313,11 +313,11 @@ export function RecommendationForm({
             </div>
 
             <div className="flex flex-col gap-3">
-              <Label className="text-sm font-medium text-foreground" htmlFor="rec-domain">
+              <Label className="text-sm font-medium text-foreground" htmlFor="rec-form-domain">
                 Тип
               </Label>
               <ReferenceSelect
-                id="rec-domain"
+                id="rec-form-domain"
                 name="domain"
                 prefetchedItems={domainPrefetchedItems}
                 valueMatch="code"
@@ -328,6 +328,8 @@ export function RecommendationForm({
                 }}
                 placeholder="Выберите тип"
                 clearOptionLabel="Без типа"
+                showAllOnFocus
+                searchable={false}
               />
               {domainPrefetchedItems.some((i) => i.title.includes("(не в справочнике)")) ? (
                 <p className="text-xs text-muted-foreground">
@@ -338,17 +340,19 @@ export function RecommendationForm({
             </div>
 
             <div className="flex flex-col gap-3">
-              <Label className="text-sm font-medium text-foreground" htmlFor="rec-body-region">
+              <Label className="text-sm font-medium text-foreground" htmlFor="rec-form-body-region">
                 Регион тела
               </Label>
               <ReferenceSelect
-                id="rec-body-region"
+                id="rec-form-body-region"
                 name="bodyRegionId"
                 categoryCode="body_region"
                 value={values.bodyRegionId}
                 onChange={(refId) => setValues((v) => ({ ...v, bodyRegionId: refId }))}
                 placeholder="Не задан"
                 clearOptionLabel="Без региона"
+                showAllOnFocus
+                searchable={false}
               />
             </div>
 

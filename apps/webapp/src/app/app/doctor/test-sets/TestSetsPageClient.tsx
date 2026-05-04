@@ -30,7 +30,6 @@ import type { DoctorCatalogPubArchQuery } from "@/shared/lib/doctorCatalogListSt
 import { DoctorCatalogInvalidPubArchToast } from "@/shared/ui/doctor/DoctorCatalogInvalidPubArchToast";
 import type { ClinicalTestLibraryPickRow } from "./clinicalTestLibraryRows";
 import { TestSetForm } from "./TestSetForm";
-import { TEST_SETS_PATH } from "./paths";
 
 type Props = {
   initialSets: TestSet[];
@@ -164,7 +163,6 @@ export function TestSetsPageClient({
           archiveAction={archiveDoctorTestSetInline}
           saveItemsAction={saveDoctorTestSetItemsInline}
           clinicalTestsLibrary={clinicalTestsLibrary}
-          backHref={TEST_SETS_PATH}
         />
     ) : selected ? (
       <div key={selected.id} className="flex max-w-2xl flex-col gap-4">
@@ -179,7 +177,6 @@ export function TestSetsPageClient({
             regionCode: mergedFilters.regionCode,
             listPubArch: mergedFilters.listPubArch,
           }}
-          backHref={TEST_SETS_PATH}
           externalUsageSnapshot={usageForSelection}
           saveItemsAction={saveDoctorTestSetItemsInline}
           clinicalTestsLibrary={clinicalTestsLibrary}
@@ -193,7 +190,6 @@ export function TestSetsPageClient({
         archiveAction={archiveDoctorTestSetInline}
         saveItemsAction={saveDoctorTestSetItemsInline}
         clinicalTestsLibrary={clinicalTestsLibrary}
-        backHref={TEST_SETS_PATH}
       />
     );
 

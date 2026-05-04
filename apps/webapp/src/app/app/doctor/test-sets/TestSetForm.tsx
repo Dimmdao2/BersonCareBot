@@ -2,13 +2,15 @@
 
 import Link from "next/link";
 import { useActionState, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,6 +19,8 @@ import type { TestSet, TestSetUsageSnapshot } from "@/modules/tests/types";
 import type { DoctorCatalogPubArchQuery } from "@/shared/lib/doctorCatalogListStatus";
 import { cn } from "@/lib/utils";
 import { normalizeRuSearchString } from "@/shared/lib/ruSearchNormalize";
+import { MediaThumb } from "@/shared/ui/media/MediaThumb";
+import { clinicalTestMediaItemToPreviewUi } from "@/shared/ui/media/mediaPreviewUiModel";
 import { PickerSearchField } from "@/shared/ui/PickerSearchField";
 import {
   archiveDoctorTestSet,
@@ -26,7 +30,6 @@ import {
   unarchiveDoctorTestSet,
 } from "./actions";
 import type { ArchiveTestSetState, SaveTestSetState, UnarchiveTestSetState } from "./actionsShared";
-import { TEST_SETS_PATH } from "./paths";
 import { TestSetItemsForm } from "./TestSetItemsForm";
 import type { ClinicalTestLibraryPickRow } from "./clinicalTestLibraryRows";
 import { doctorTestSetUsageHref } from "./testSetUsageDocLinks";
@@ -70,6 +73,36 @@ function TestSetUsageSectionsView({ sections }: { sections: TestSetUsageSection[
   );
 }
 
+function TestSetPublicationBadge({
+  publicationStatus,
+  isArchived,
+}: {
+  publicationStatus?: "draft" | "published" | null;
+  isArchived?: boolean;
+}) {
+  if (isArchived) {
+    return (
+      <Badge variant="destructive" className="max-w-full shrink-0 truncate font-medium" title="В архиве">
+        В архиве
+      </Badge>
+    );
+  }
+  const published = publicationStatus === "published";
+  return (
+    <Badge
+      variant={published ? "outline" : "secondary"}
+      className={cn(
+        "max-w-full shrink-0 truncate font-medium",
+        published &&
+          "border-emerald-600/35 bg-emerald-600/12 text-emerald-900 dark:border-emerald-500/45 dark:bg-emerald-500/12 dark:text-emerald-50",
+      )}
+      title={published ? "Опубликован" : "Черновик"}
+    >
+      {published ? "Опубликован" : "Черновик"}
+    </Badge>
+  );
+}
+
 type DraftItemRow = {
   sortId: string;
   testId: string;
@@ -79,7 +112,6 @@ type DraftItemRow = {
 
 type Props = {
   testSet?: TestSet | null;
-  backHref?: string;
   workspaceListPreserve?: {
     q?: string;
     titleSort?: "asc" | "desc" | null;
@@ -112,7 +144,6 @@ function WorkspaceListPreserveHidden({ w }: { w?: Props["workspaceListPreserve"]
 
 export function TestSetForm({
   testSet,
-  backHref = TEST_SETS_PATH,
   workspaceListPreserve,
   saveAction = saveDoctorTestSet,
   archiveAction = archiveDoctorTestSet,
@@ -122,6 +153,7 @@ export function TestSetForm({
   saveItemsAction = saveDoctorTestSetItems,
 }: Props) {
   const recordKey = testSet?.id ?? "create";
+  const metaFormId = useMemo(() => `test-set-meta-${recordKey}`, [recordKey]);
   const [title, setTitle] = useState(testSet?.title ?? "");
   const [description, setDescription] = useState(testSet?.description ?? "");
   const [localError, setLocalError] = useState<string | null>(null);
@@ -234,6 +266,7 @@ export function TestSetForm({
     unarchiveState?.ok === false && "error" in unarchiveState ? unarchiveState.error : null;
 
   const isArchived = !!testSet?.isArchived;
+  const published = !!testSet && testSet.publicationStatus === "published";
   const canUseLibrary = clinicalTestsLibrary.length > 0;
 
   const draftItemsPayloadJson = useMemo(() => {
@@ -276,7 +309,7 @@ export function TestSetForm({
 
   return (
     <div className="flex max-w-2xl flex-col gap-4">
-      <form action={formAction} className="flex flex-col gap-4">
+      <form id={metaFormId} action={formAction} className="flex flex-col gap-4">
         {localError ? (
           <p role="alert" className="text-sm text-destructive">
             {localError}
@@ -300,7 +333,13 @@ export function TestSetForm({
           <legend className="sr-only">Поля набора тестов</legend>
           <div className="flex flex-col gap-4">
             <div className="flex flex-col gap-3">
-              <Label htmlFor="ts-title">Название набора</Label>
+              <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                <Label htmlFor="ts-title">Название набора</Label>
+                <TestSetPublicationBadge
+                  publicationStatus={testSet?.publicationStatus ?? null}
+                  isArchived={isArchived}
+                />
+              </div>
               <Input
                 id="ts-title"
                 name="title"
@@ -319,33 +358,40 @@ export function TestSetForm({
                 onChange={(e) => setDescription(e.target.value)}
               />
             </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="ts-publication">Публикация</Label>
-              <select
-                id="ts-publication"
-                name="publicationStatus"
-                key={`pub-${recordKey}`}
-                defaultValue={testSet?.publicationStatus ?? "draft"}
-                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
-              >
-                <option value="draft">Черновик</option>
-                <option value="published">Опубликован</option>
-              </select>
-            </div>
             {!testSet && canUseLibrary ? (
-              <section className="flex flex-col gap-2 rounded-lg border border-border/60 p-3">
-                <h2 className="text-base font-medium">Состав набора</h2>
-                <div className="flex flex-wrap items-center gap-2">
-                  <Button type="button" variant="secondary" onClick={() => setDraftPickOpen(true)}>
-                    Добавить из библиотеки
-                  </Button>
-                  <p className="text-xs text-muted-foreground">Добавляйте тесты сразу, до первого сохранения набора.</p>
-                </div>
-
+              <div className="flex flex-col gap-3">
+                <ul className="flex flex-col gap-3">
+                  {draftRows.map((r) => (
+                    <li key={r.sortId} className="rounded-lg border border-border/70 bg-card p-3">
+                      <p className="text-sm font-medium leading-tight">{r.title}</p>
+                      <div className="mt-2 flex min-w-0 flex-col gap-1">
+                        <Label className="text-xs" htmlFor={`ts-draft-cmt-${r.sortId}`}>
+                          Комментарий к позиции
+                        </Label>
+                        <Textarea
+                          id={`ts-draft-cmt-${r.sortId}`}
+                          className="min-h-[56px] resize-y text-sm"
+                          value={r.comment}
+                          onChange={(ev) => updateDraftComment(r.sortId, ev.target.value)}
+                        />
+                      </div>
+                      <div className="mt-2 flex justify-end">
+                        <Button type="button" variant="ghost" size="sm" onClick={() => removeDraftRow(r.sortId)}>
+                          Удалить из набора
+                        </Button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
                 <Dialog open={draftPickOpen} onOpenChange={setDraftPickOpen}>
-                  <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <DialogTrigger render={<Button type="button" variant="secondary" />}>
+                      Добавить тест
+                    </DialogTrigger>
+                  </div>
+                  <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-md">
                     <DialogHeader>
-                      <DialogTitle>Тест из библиотеки</DialogTitle>
+                      <DialogTitle>Выбор из справочника</DialogTitle>
                     </DialogHeader>
                     <PickerSearchField
                       id={`ts-draft-lib-search-${recordKey}`}
@@ -355,19 +401,34 @@ export function TestSetForm({
                       onValueChange={setDraftPickQuery}
                       className="min-w-0"
                     />
-                    <ul className="max-h-56 overflow-auto rounded-md border">
+                    <ul className="max-h-64 overflow-auto">
                       {draftFilteredPick.length === 0 ? (
-                        <li className="px-3 py-4 text-sm text-muted-foreground">Нет доступных тестов.</li>
+                        <li className="text-sm text-muted-foreground">Нет доступных тестов.</li>
                       ) : (
                         draftFilteredPick.map((row) => (
-                          <li key={row.id} className="border-b last:border-0">
-                            <button
+                          <li key={row.id}>
+                            <Button
                               type="button"
-                              className="flex w-full gap-2 px-3 py-2 text-left text-sm hover:bg-muted/40"
+                              variant="ghost"
+                              className="h-auto w-full justify-start gap-2 rounded-md px-2 py-2 text-left text-sm font-normal"
                               onClick={() => addDraftTest(row)}
                             >
-                              <span className="min-w-0 flex-1 self-center font-medium leading-snug">{row.title}</span>
-                            </button>
+                              <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded border border-border/40 bg-muted/30">
+                                {row.previewMedia ? (
+                                  <MediaThumb
+                                    media={clinicalTestMediaItemToPreviewUi(row.previewMedia)}
+                                    className="absolute inset-0 size-full"
+                                    imgClassName="size-full object-cover"
+                                    sizes="40px"
+                                  />
+                                ) : (
+                                  <span className="flex size-full items-center justify-center text-xs text-muted-foreground">
+                                    —
+                                  </span>
+                                )}
+                              </div>
+                              <span className="line-clamp-2 min-w-0 font-medium leading-snug">{row.title}</span>
+                            </Button>
                           </li>
                         ))
                       )}
@@ -379,58 +440,51 @@ export function TestSetForm({
                     </DialogFooter>
                   </DialogContent>
                 </Dialog>
-
-                {draftRows.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Добавьте тесты из библиотеки или сохраните пустой набор.</p>
-                ) : (
-                  <ul className="flex flex-col gap-2">
-                    {draftRows.map((r) => (
-                      <li key={r.sortId} className="rounded-lg border border-border/70 bg-card p-3">
-                        <p className="text-sm font-medium leading-tight">{r.title}</p>
-                        <div className="mt-2 flex min-w-0 flex-col gap-1">
-                          <Label className="text-xs" htmlFor={`ts-draft-cmt-${r.sortId}`}>
-                            Комментарий к позиции
-                          </Label>
-                          <Textarea
-                            id={`ts-draft-cmt-${r.sortId}`}
-                            className="min-h-[56px] resize-y text-sm"
-                            value={r.comment}
-                            onChange={(ev) => updateDraftComment(r.sortId, ev.target.value)}
-                          />
-                        </div>
-                        <div className="mt-2 flex justify-end">
-                          <Button type="button" variant="ghost" size="sm" onClick={() => removeDraftRow(r.sortId)}>
-                            Удалить из набора
-                          </Button>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </section>
+              </div>
             ) : null}
-            <div className="flex flex-wrap gap-2">
-              <Button type="submit" disabled={pending}>
-                {pending ? "Сохранение…" : testSet ? "Сохранить" : "Создать черновик"}
-              </Button>
-              <Link href={backHref} className={cn(buttonVariants({ variant: "outline" }))}>
-                К списку
-              </Link>
-            </div>
           </div>
         </fieldset>
       </form>
 
-      {testSet && canUseLibrary ? (
-        <section className="flex flex-col gap-2 border-t border-border/60 pt-4">
-          <h2 className="text-lg font-medium">Состав набора</h2>
-          {!testSet.isArchived ? (
-            <TestSetItemsForm testSet={testSet} clinicalTestsLibrary={clinicalTestsLibrary} saveItemsAction={saveItemsAction} />
-          ) : (
-            <p className="text-sm text-muted-foreground">Состав недоступен, пока набор в архиве.</p>
-          )}
-        </section>
+      {testSet && canUseLibrary && !testSet.isArchived ? (
+        <TestSetItemsForm testSet={testSet} clinicalTestsLibrary={clinicalTestsLibrary} saveItemsAction={saveItemsAction} />
+      ) : testSet && canUseLibrary && testSet.isArchived ? (
+        <p className="text-sm text-muted-foreground">Состав недоступен, пока набор в архиве.</p>
       ) : null}
+
+      <div className="flex flex-wrap gap-2 border-t border-border/60 pt-4">
+        <Button
+          type="submit"
+          form={metaFormId}
+          name="intent"
+          value="save_draft"
+          disabled={pending || isArchived}
+        >
+          {pending
+            ? "Сохранение…"
+            : !testSet
+              ? "Создать черновик"
+              : published
+                ? "Сохранить изменения"
+                : "Сохранить черновик"}
+        </Button>
+        {published ? (
+          <Button type="button" variant="secondary" disabled>
+            Опубликован
+          </Button>
+        ) : (
+          <Button
+            type="submit"
+            form={metaFormId}
+            name="intent"
+            value="publish"
+            variant="default"
+            disabled={pending || isArchived}
+          >
+            Опубликовать
+          </Button>
+        )}
+      </div>
 
       {testSet ? (
         <div className="border-t border-border/60 pt-4">

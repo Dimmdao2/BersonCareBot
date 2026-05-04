@@ -30,6 +30,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from "@/components/ui/dialog";
 import type { ClinicalTestMediaItem, TestSet } from "@/modules/tests/types";
 import { saveDoctorTestSetItems } from "./actions";
@@ -254,23 +255,31 @@ export function TestSetItemsForm({
     <form
       key={`${testSet.id}:${itemsKey}`}
       action={formAction}
-      className="flex max-w-2xl flex-col gap-3 rounded-lg border border-border/60 p-4"
+      className="flex max-w-2xl flex-col gap-3"
     >
       <input type="hidden" name="setId" value={testSet.id} />
       <input type="hidden" name="itemsPayload" value={itemsPayloadJson} readOnly />
       <fieldset disabled={testSet.isArchived} className="m-0 min-w-0 border-0 p-0">
-        <legend className="sr-only">Состав набора</legend>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button type="button" variant="secondary" onClick={() => setLibOpen(true)}>
-            Добавить из библиотеки
-          </Button>
-          <p className="text-xs text-muted-foreground">Только неархивные тесты можно сохранить в составе.</p>
-        </div>
+        <legend className="sr-only">Позиции набора тестов</legend>
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+          <SortableContext items={sortIds} strategy={verticalListSortingStrategy}>
+            <ul className="flex flex-col gap-3">
+              {rows.map((row) => (
+                <SortableRow key={row.sortId} row={row} onChange={updateRow} onRemove={removeRow} />
+              ))}
+            </ul>
+          </SortableContext>
+        </DndContext>
 
         <Dialog open={libOpen} onOpenChange={setLibOpen}>
-          <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+          <div className="flex flex-wrap items-center gap-2">
+            <DialogTrigger render={<Button type="button" variant="secondary" disabled={testSet.isArchived} />}>
+              Добавить тест
+            </DialogTrigger>
+          </div>
+          <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-md">
             <DialogHeader>
-              <DialogTitle>Тест из библиотеки</DialogTitle>
+              <DialogTitle>Выбор из справочника</DialogTitle>
             </DialogHeader>
             <PickerSearchField
               id={`ts-lib-search-${testSet.id}`}
@@ -280,15 +289,16 @@ export function TestSetItemsForm({
               onValueChange={setPickQuery}
               className="min-w-0"
             />
-            <ul className="max-h-56 overflow-auto rounded-md border">
+            <ul className="max-h-64 overflow-auto">
               {filteredPick.length === 0 ? (
-                <li className="px-3 py-4 text-sm text-muted-foreground">Нет доступных тестов.</li>
+                <li className="text-sm text-muted-foreground">Нет доступных тестов.</li>
               ) : (
                 filteredPick.map((row) => (
-                  <li key={row.id} className="border-b last:border-0">
-                    <button
+                  <li key={row.id}>
+                    <Button
                       type="button"
-                      className="flex w-full gap-2 px-3 py-2 text-left text-sm hover:bg-muted/40"
+                      variant="ghost"
+                      className="h-auto w-full justify-start gap-2 rounded-md px-2 py-2 text-left text-sm font-normal"
                       onClick={() => addTest(row.id)}
                     >
                       <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded border border-border/40 bg-muted/30">
@@ -305,8 +315,8 @@ export function TestSetItemsForm({
                           </span>
                         )}
                       </div>
-                      <span className="min-w-0 flex-1 self-center font-medium leading-snug">{row.title}</span>
-                    </button>
+                      <span className="line-clamp-2 min-w-0 font-medium leading-snug">{row.title}</span>
+                    </Button>
                   </li>
                 ))
               )}
@@ -318,20 +328,6 @@ export function TestSetItemsForm({
             </DialogFooter>
           </DialogContent>
         </Dialog>
-
-        {rows.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Добавьте тесты из библиотеки или сохраните пустой набор.</p>
-        ) : (
-          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
-            <SortableContext items={sortIds} strategy={verticalListSortingStrategy}>
-              <ul className="mt-2 flex flex-col gap-3">
-                {rows.map((row) => (
-                  <SortableRow key={row.sortId} row={row} onChange={updateRow} onRemove={removeRow} />
-                ))}
-              </ul>
-            </SortableContext>
-          </DndContext>
-        )}
 
         {localError ? (
           <p role="alert" className="text-sm text-destructive">

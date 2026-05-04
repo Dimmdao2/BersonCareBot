@@ -385,7 +385,7 @@ function RecommendationsContent({
             <DoctorCatalogToolbarFiltersSlot>
               <DoctorCatalogFiltersForm
                 key={`rec-filters-${filters.listStatus}-${filters.invalidDomainQuery ? "1" : "0"}`}
-                idPrefix="rec"
+                idPrefix="rec-filters"
                 q={filters.q}
                 regionCode={filters.regionCode}
                 tertiaryFilter={recommendationTertiaryFilter}

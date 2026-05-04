@@ -70,9 +70,9 @@ export async function saveTestSetCore(
   const title = typeof titleField === "string" ? titleField.trim() : "";
   const descField = formData.get("description");
   const description = typeof descField === "string" ? descField.trim() : "";
-  const pubField = formData.get("publicationStatus");
-  const publicationStatus =
-    pubField === "draft" || pubField === "published" ? pubField : undefined;
+  const intentRaw = formData.get("intent");
+  const intent =
+    typeof intentRaw === "string" && intentRaw.trim() === "publish" ? "publish" : "save_draft";
   const itemsPayloadRaw = formData.get("itemsPayload");
 
   if (!title) return { ok: false, error: "Название набора обязательно" };
@@ -96,18 +96,20 @@ export async function saveTestSetCore(
       if (cur.isArchived) {
         return { ok: false, error: "Набор в архиве. Верните из архива, чтобы редактировать." };
       }
+      const nextPublicationStatus = intent === "publish" ? "published" : cur.publicationStatus;
       await deps.testSets.updateTestSet(id, {
         title,
         description: description || null,
-        ...(publicationStatus !== undefined ? { publicationStatus } : {}),
+        publicationStatus: nextPublicationStatus,
       });
       return { ok: true, setId: id, wasUpdate: true };
     }
+    const nextPublicationStatus = intent === "publish" ? "published" : "draft";
     const row = await deps.testSets.createTestSet(
       {
         title,
         description: description || null,
-        ...(publicationStatus !== undefined ? { publicationStatus } : {}),
+        publicationStatus: nextPublicationStatus,
       },
       session.user.userId,
     );

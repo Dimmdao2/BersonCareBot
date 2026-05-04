@@ -6,6 +6,14 @@
 
 ---
 
+## 2026-05-04 (VII) — продуктовый статус: экраны «Назначений» почти готовы; шаблоны программ — в работе
+
+**Зафиксировано:** цепочка каталогов **упражнения → клинические тесты → наборы тестов → комплексы ЛФК → рекомендации** по экранам — **почти закрыта**; **шаблоны программ лечения** — **ещё дорабатываются**. Зеркало и шапка ТЗ — [`../../../APP_RESTRUCTURE_INITIATIVE/LOG.md`](../../../APP_RESTRUCTURE_INITIATIVE/LOG.md), [`../../../APP_RESTRUCTURE_INITIATIVE/ASSIGNMENT_CATALOGS_REWORK_PLAN.md`](../../../APP_RESTRUCTURE_INITIATIVE/ASSIGNMENT_CATALOGS_REWORK_PLAN.md).
+
+**Код:** в этой записи не менялся (только синхронизация документации).
+
+---
+
 ## 2026-05-04 (VI) — FILTER URL: cleanup `bodyRegionQuery` + пометка по `titleSort`
 
 **Сделано:** удалён неиспользуемый `apps/webapp/src/shared/lib/bodyRegionQuery.ts` (legacy UUID в `?region=`). В [`FILTER_URL_CONTRACT_FIX_PLAN.md`](FILTER_URL_CONTRACT_FIX_PLAN.md) зафиксировано: сортировка по названию — приоритет **интерфейса**; постоянное совпадение `titleSort` с адресной строкой не требуется; уточнены Decision notes, чеклист Step 1 и DoD.
