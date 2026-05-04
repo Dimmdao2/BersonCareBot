@@ -22,6 +22,14 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { routePaths } from "@/app-layer/routes/paths";
 import type { StatsPeriod } from "@/modules/diaries/stats/periodWindow";
 import type { LfkSession } from "@/modules/diaries/types";
@@ -72,22 +80,26 @@ export function LfkJournalClient(props: {
       </div>
 
       {complexes.length > 1 ? (
-        <label className="flex flex-wrap items-center gap-2 text-sm">
+        <div className="flex flex-wrap items-center gap-2 text-sm">
           <span className={patientMutedTextClass}>Комплекс</span>
-          <select
-            className="h-10 w-full rounded-xl border border-input bg-background px-3 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring min-w-[200px]"
+          <Select
             value={activeComplexId}
-            onChange={(e) => {
-              router.push(complexHref(e.target.value));
+            onValueChange={(id) => {
+              if (id != null) router.push(complexHref(id));
             }}
           >
-            {complexes.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.title}
-              </option>
-            ))}
-          </select>
-        </label>
+            <SelectTrigger className="h-10 w-full min-w-[200px] rounded-xl border border-input bg-background px-3 text-base shadow-none focus-visible:ring-2 focus-visible:ring-ring">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {complexes.map((c) => (
+                <SelectItem key={c.id} value={c.id}>
+                  {c.title}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       ) : null}
 
       <div className="flex flex-col gap-2">
@@ -243,9 +255,9 @@ export function LfkJournalClient(props: {
               </label>
               <label className="flex flex-col gap-1">
                 <span className={cn(patientMutedTextClass, "text-xs font-medium uppercase tracking-wide")}>Комментарий</span>
-                <textarea
+                <Textarea
                   name="comment"
-                  className="h-10 w-full rounded-xl border border-input bg-background px-3 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="min-h-[4.5rem] rounded-xl"
                   rows={3}
                   maxLength={200}
                   defaultValue={editSession.comment ?? ""}

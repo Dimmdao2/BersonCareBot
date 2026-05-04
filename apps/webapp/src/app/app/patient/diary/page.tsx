@@ -12,6 +12,7 @@ import { AppShell } from "@/shared/ui/AppShell";
 import { cn } from "@/lib/utils";
 import { patientMutedTextClass, patientSectionSurfaceClass } from "@/shared/ui/patientVisual";
 import { SymptomsTrackingSectionClient } from "./symptoms/SymptomsTrackingSectionClient";
+import { QuickAddPopup } from "./QuickAddPopup";
 import { DiaryTabsClient } from "./DiaryTabsClient";
 import { LfkSessionForm } from "./lfk/LfkSessionForm";
 import { reminderRuleToPatientJson } from "@/app/api/patient/reminders/reminderPatientJson";
@@ -140,6 +141,10 @@ export default async function PatientDiaryPage() {
       <Suspense fallback={<div className={cn(patientMutedTextClass, "p-4")}>Загрузка…</div>}>
         <DiaryTabsClient symptomsPanel={symptomsPanel} lfkPanel={lfkPanel} />
       </Suspense>
+      <QuickAddPopup
+        trackings={trackings.map((t) => ({ id: t.id, title: t.symptomTitle ?? "—" }))}
+        complexes={complexes.map((c) => ({ id: c.id, title: c.title ?? "—" }))}
+      />
     </AppShell>
   );
 }

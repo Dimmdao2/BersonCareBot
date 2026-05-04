@@ -21,6 +21,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { NumericChipGroup } from "@/components/common/controls/NumericChipGroup";
 import { notifyDiarySymptomEntrySaved } from "@/modules/diaries/symptomDiaryClientEvents";
 import { shouldConfirmInstantDuplicate, type LastSymptomSaveMeta } from "./symptomEntryDedup";
@@ -141,14 +148,18 @@ export function SymptomTrackingRow({ id, title }: { id: string; title: string })
             </div>
             <label className="flex flex-col gap-1">
               <span className={cn(patientMutedTextClass, "text-xs font-medium uppercase tracking-wide")}>Тип записи</span>
-              <select
-                className="h-10 w-full rounded-xl border border-input bg-background px-3 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              <Select
                 value={entryType}
-                onChange={(e) => setEntryType(e.target.value === "daily" ? "daily" : "instant")}
+                onValueChange={(v) => v != null && setEntryType(v === "daily" ? "daily" : "instant")}
               >
-                <option value="instant">В моменте</option>
-                <option value="daily">За день</option>
-              </select>
+                <SelectTrigger className="h-10 w-full rounded-xl border border-input bg-background px-3 text-base shadow-none focus-visible:ring-2 focus-visible:ring-ring">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="instant">В моменте</SelectItem>
+                  <SelectItem value="daily">За день</SelectItem>
+                </SelectContent>
+              </Select>
             </label>
             <label className="flex flex-col gap-1">
               <span className={cn(patientMutedTextClass, "text-xs font-medium uppercase tracking-wide")}>Заметки (необязательно)</span>

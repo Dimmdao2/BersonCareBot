@@ -11,7 +11,7 @@
 - [x] Grep raw `<button>`, `<input>`, `<textarea>`, `<select>` in patient routes.
 - [x] Freeze Phase 1 / Phase 2 file scope for upcoming code changes.
 
-### `apps/webapp/src/components/ui/` — exact files (19)
+### `apps/webapp/src/components/ui/` — exact files (20)
 
 | File | Notes |
 |------|--------|
@@ -26,6 +26,7 @@
 | `input.tsx` | `@base-ui/react/input` |
 | `label.tsx` | Styled native `<label>` |
 | `popover.tsx` | `@base-ui/react/popover` |
+| `radio-group.tsx` | `@base-ui/react/radio-group` + `radio` (Phase 6) |
 | `scroll-area.tsx` | `@base-ui/react/scroll-area` |
 | `select.tsx` | `@base-ui/react/select` |
 | `separator.tsx` | `@base-ui/react/separator` |
@@ -60,6 +61,17 @@
 - [x] [`ChannelNotificationToggles.tsx`](../../apps/webapp/src/app/app/patient/notifications/ChannelNotificationToggles.tsx) — `Switch` вместо checkbox; `disabled={pending}`; тот же server action и ошибки.
 - [x] [`ChannelNotificationToggles.test.tsx`](../../apps/webapp/src/app/app/patient/notifications/ChannelNotificationToggles.test.tsx).
 - [x] [`vitest.setup.ts`](../../apps/webapp/vitest.setup.ts) — `PointerEvent` в jsdom для Base UI.
+
+### Phase 6 — Form controls (completed 2026-05-04)
+
+- [x] [`PatientSupportForm.tsx`](../../apps/webapp/src/app/app/patient/support/PatientSupportForm.tsx) — сообщение: `Textarea`.
+- [x] [`LfkSessionForm.tsx`](../../apps/webapp/src/app/app/patient/diary/lfk/LfkSessionForm.tsx) — выбор комплекса: `Select` + hidden `complexId`.
+- [x] [`QuickAddPopup.tsx`](../../apps/webapp/src/app/app/patient/diary/QuickAddPopup.tsx) — `Select` + hidden для симптома/комплекса; монтирование в [`diary/page.tsx`](../../apps/webapp/src/app/app/patient/diary/page.tsx).
+- [x] [`SymptomTrackingRow.tsx`](../../apps/webapp/src/app/app/patient/diary/symptoms/SymptomTrackingRow.tsx) — тип записи: `Select`.
+- [x] [`SymptomsJournalClient.tsx`](../../apps/webapp/src/app/app/patient/diary/symptoms/journal/SymptomsJournalClient.tsx), [`LfkJournalClient.tsx`](../../apps/webapp/src/app/app/patient/diary/lfk/journal/LfkJournalClient.tsx) — фильтры: `Select`; комментарий в редакторе ЛФК: `Textarea`.
+- [x] [`DiaryDataPurgeSection.tsx`](../../apps/webapp/src/app/app/patient/profile/DiaryDataPurgeSection.tsx) — согласие: `Switch` + `Label`.
+- [x] [`AuthOtpChannelPreference.tsx`](../../apps/webapp/src/app/app/patient/profile/AuthOtpChannelPreference.tsx) — [`RadioGroup` / `RadioGroupItem`](../../apps/webapp/src/components/ui/radio-group.tsx).
+- [x] [`LfkIntakeClient.tsx`](../../apps/webapp/src/app/app/patient/intake/lfk/LfkIntakeClient.tsx), [`NutritionIntakeClient.tsx`](../../apps/webapp/src/app/app/patient/intake/nutrition/NutritionIntakeClient.tsx) — `Textarea` / `Input`.
 
 ### `@base-ui/react` (webapp `^1.3.0`)
 
@@ -100,11 +112,11 @@ Paths relative to `apps/webapp/src/app/app/patient/`:
 | Cabinet | `cabinet/CabinetPastBookings.tsx` | ~~`<button>`~~ → `Collapsible` (Phase 2 ✅) |
 | Profile | `profile/ProfileAccordionSection.tsx` | ~~`<button>`~~ → `Collapsible` (Phase 4 ✅) |
 | Notifications | `notifications/ChannelNotificationToggles.tsx` | ~~`<input type="checkbox">`~~ → `Switch` (Phase 5 ✅) |
-| Support | `support/PatientSupportForm.tsx` | `<textarea>` | Phase 6 |
-| Diary | `diary/symptoms/journal/SymptomsJournalClient.tsx`, `SymptomTrackingRow.tsx` | `<select>` | Phase 6 |
-| Diary | `diary/lfk/journal/LfkJournalClient.tsx`, `LfkSessionForm.tsx`, `QuickAddPopup.tsx` | `<select>`, `<textarea>`, hidden `<input>` | Phase 6 (preserve names/actions) |
-| Profile | `profile/AuthOtpChannelPreference.tsx`, `DiaryDataPurgeSection.tsx` | `<input type="radio">`, file/consent inputs | Phase 6 or separate pass (a11y semantics) |
-| Intake | `intake/lfk/LfkIntakeClient.tsx`, `intake/nutrition/NutritionIntakeClient.tsx` | `<textarea>`, `<input>` | Deferred (Phase 7 / explicit scope) |
+| Support | `support/PatientSupportForm.tsx` | ~~`<textarea>`~~ → `Textarea` (Phase 6 ✅) |
+| Diary | `diary/symptoms/journal/SymptomsJournalClient.tsx`, `SymptomTrackingRow.tsx` | ~~`<select>`~~ → `Select` (Phase 6 ✅) |
+| Diary | `diary/lfk/journal/LfkJournalClient.tsx`, `LfkSessionForm.tsx`, `QuickAddPopup.tsx` | ~~`<select>`~~ / ~~`<textarea>`~~ → `Select` / `Textarea`; hidden сохранены (Phase 6 ✅) |
+| Profile | `profile/AuthOtpChannelPreference.tsx`, `DiaryDataPurgeSection.tsx` | ~~radio~~ / ~~checkbox~~ → `RadioGroup` / `Switch` (Phase 6 ✅) |
+| Intake | `intake/lfk/LfkIntakeClient.tsx`, `intake/nutrition/NutritionIntakeClient.tsx` | ~~`<textarea>`~~ / ~~`<input>`~~ → `Textarea` / `Input` (Phase 6 ✅) |
 | Home | `home/PatientHomeMoodCheckin.tsx` | `<button>` | Out of scope per `MASTER_PLAN` (new home) unless explicitly approved |
 | Courses | `courses/PatientCoursesCatalogClient.tsx` | `<button>` | Not in Phase 2–6 matrix; treat as deferred unless added |
 | Bind / logout | `bind-phone/PatientBrowserMessengerBindPanel.tsx`, `profile/LogoutSection.tsx` | `<button>` | Low priority; often intentional native pattern |
@@ -117,7 +129,8 @@ Hidden inputs and form `name` attributes in diary flows: **do not migrate casual
 - **Phase 2 (cabinet):** `cabinet/CabinetPastBookings.tsx`, `cabinet/AppointmentStatusBadge.tsx`; optional small follow-up: `cabinet/CabinetInfoLinks.tsx` only if needed. *(✅ выполнено 2026-05-04.)*
 - **Phase 3–4:** `FeatureCard` (sections), `ProfileAccordionSection` (profile) — см. чеклисты Phase 3–4 выше и `LOG.md`. *(✅ выполнено 2026-05-04.)*
 - **Phase 5:** `notifications/ChannelNotificationToggles.tsx` — см. чеклист Phase 5 выше. *(✅ выполнено 2026-05-04.)*
-- **Следующий frozen scope по плану:** Phase 6 — form controls (`MASTER_PLAN`).
+- **Phase 6 (form controls):** support, diary (вкл. `QuickAddPopup` + `diary/page`), профиль OTP/purge, intake — см. чеклист Phase 6 выше. *(✅ выполнено 2026-05-04.)*
+- **Следующий frozen scope по плану:** Phase 7 — deferred routes / coverage (`MASTER_PLAN`).
 
 ### Phase 0 — GO / NO-GO for Phase 1
 
@@ -170,19 +183,11 @@ Hidden inputs and form `name` attributes in diary flows: **do not migrate casual
 
 ## Priority 5 — Form Controls
 
-Candidate areas:
+**Выполнено (Phase 6, 2026-05-04):** см. блок «Phase 6 — Form controls» выше; новый примитив [`radio-group.tsx`](../../apps/webapp/src/components/ui/radio-group.tsx).
 
-- `support/PatientSupportForm.tsx` raw textarea → `Textarea`.
-- `diary/**/*` native select/textarea controls → maybe `Select`/`Textarea`.
-- `intake/*` raw inputs/textarea → maybe `Input`/`Textarea`, only if intake routes are in scope.
+### `PatientSupportForm` / diary / profile OTP / intake (done)
 
-Do not do as casual cleanup:
-
-- field `name` changes;
-- hidden input changes;
-- form action changes;
-- validation wording changes;
-- submit behavior changes.
+- Сырой `textarea` / `select` / native consent checkbox / native OTP radio заменены на UI-примитивы; ключи `FormData` и server actions без изменений.
 
 ## Deferred / Separate Initiative Candidates
 
@@ -194,8 +199,8 @@ Routes:
 - `/app/patient/emergency`
 - `/app/patient/lessons`
 - `/app/patient/address`
-- `/app/patient/intake/lfk`
-- `/app/patient/intake/nutrition`
+
+**Примечание:** intake URLs остаются кандидатами на расширенный coverage pass; Phase 6 закрыл только выравнивание виджетов ввода на существующих экранах.
 
 Reason separate:
 

@@ -5,6 +5,13 @@ import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { markLfkSession } from "./actions";
 import { cn } from "@/lib/utils";
@@ -59,6 +66,13 @@ export function LfkSessionForm({ complexes }: { complexes: Complex[] }) {
   const [timeOpen, setTimeOpen] = useState(false);
   const [dateDraft, setDateDraft] = useState(defaults.date);
   const [timeDraft, setTimeDraft] = useState(defaults.time);
+  const [pickedComplexId, setPickedComplexId] = useState<string | null>(null);
+  const selectedComplexId = useMemo(() => {
+    if (complexes.length === 0) return "";
+    if (complexes.length === 1) return complexes[0]!.id;
+    if (pickedComplexId && complexes.some((c) => c.id === pickedComplexId)) return pickedComplexId;
+    return complexes[0]!.id;
+  }, [complexes, pickedComplexId]);
 
   if (complexes.length === 0) return null;
 
@@ -76,16 +90,25 @@ export function LfkSessionForm({ complexes }: { complexes: Complex[] }) {
       {single ? (
         <input type="hidden" name="complexId" value={complexes[0].id} />
       ) : (
-        <label className="flex flex-col gap-1">
+        <div className="flex flex-col gap-1">
           <span className={cn(patientMutedTextClass, "text-xs font-medium uppercase tracking-wide")}>Комплекс</span>
-          <select name="complexId" required className="h-10 w-full rounded-xl border border-input bg-background px-3 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring">
-            {complexes.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.title ?? "—"}
-              </option>
-            ))}
-          </select>
-        </label>
+          <input type="hidden" name="complexId" value={selectedComplexId} />
+          <Select value={selectedComplexId} onValueChange={(v) => v != null && setPickedComplexId(v)}>
+            <SelectTrigger
+              className="h-10 w-full min-w-0 rounded-xl border border-input bg-background px-3 text-base shadow-none focus-visible:ring-2 focus-visible:ring-ring"
+              size="default"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {complexes.map((c) => (
+                <SelectItem key={c.id} value={c.id}>
+                  {c.title ?? "—"}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       )}
       <input type="hidden" name="sessionDate" value={sessionDate} />
       <input type="hidden" name="sessionTime" value={sessionTime} />

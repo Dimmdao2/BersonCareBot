@@ -1,6 +1,6 @@
 # Документация проекта
 
-- **Backlog (security, rate limit, observability):** [`TODO.md`](TODO.md)
+- **Backlog (security, rate limit, observability, URL/UUID в адресах):** [`TODO.md`](TODO.md)
 - **Архив (завершённые инициативы и разовые журналы):** [`archive/README.md`](archive/README.md)
 - **Операционные отчёты / runbook:** [`REPORTS/README.md`](REPORTS/README.md)
 

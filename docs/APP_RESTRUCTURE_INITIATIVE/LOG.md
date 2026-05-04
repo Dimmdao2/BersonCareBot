@@ -6,6 +6,14 @@
 
 ---
 
+## 2026-05-04 — cross-init: `PATIENT_APP_SHADCN_ALIGNMENT` Phase 6 (form controls)
+
+**Сделано:** закрыта **Phase 6** — patient support/diary/profile/intake: `Textarea`, `Select`, `Switch`, новый `radio-group.tsx`; FAB `QuickAddPopup` на `/app/patient/diary`. Обновлены [`../PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/LOG.md`](../PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/LOG.md), [`TASKS.md`](../PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/TASKS.md), [`README.md`](../PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/README.md), [`MASTER_PLAN.md`](../PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/MASTER_PLAN.md), [`AUDIT_RESULTS.md`](../PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/AUDIT_RESULTS.md) §5; в этом репозитории — [`README.md`](README.md) (буллет shadcn), [`ROADMAP_2.md`](ROADMAP_2.md) §связанные документы.
+
+**Проверки:** см. запись Phase 6 в журнале shadcn-инициативы; корневой `pnpm run ci`.
+
+---
+
 ## 2026-05-04 — cross-init: `PATIENT_APP_SHADCN_ALIGNMENT` Phase 5 (notifications Switch)
 
 **Сделано:** закрыта **Phase 5** инициативы shadcn alignment — `ChannelNotificationToggles` → `Switch`; vitest-полифилл `PointerEvent` в `apps/webapp/vitest.setup.ts` для Base UI в jsdom. Обновлены [`../PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/LOG.md`](../PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/LOG.md), [`TASKS.md`](../PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/TASKS.md), [`README.md`](../PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/README.md), [`MASTER_PLAN.md`](../PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/MASTER_PLAN.md), [`AUDIT_RESULTS.md`](../PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/AUDIT_RESULTS.md); в этом репозитории — [`README.md`](README.md) (буллет shadcn + таблица), [`ROADMAP_2.md`](ROADMAP_2.md) §связанные документы.

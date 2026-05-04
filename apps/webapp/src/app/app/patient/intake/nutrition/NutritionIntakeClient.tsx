@@ -4,6 +4,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { routePaths } from "@/app-layer/routes/paths";
 
 type QuestionDef = {
@@ -153,9 +155,8 @@ export function NutritionIntakeClient() {
         </p>
 
         {question.type === "text" && (
-          <input
+          <Input
             type="text"
-            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             placeholder={question.placeholder}
             value={currentValue}
             onChange={(e) => setAnswers((a) => ({ ...a, [question.id]: e.target.value }))}
@@ -165,8 +166,8 @@ export function NutritionIntakeClient() {
         )}
 
         {question.type === "textarea" && (
-          <textarea
-            className="min-h-24 w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          <Textarea
+            className="min-h-24"
             placeholder={question.placeholder}
             value={currentValue}
             onChange={(e) => setAnswers((a) => ({ ...a, [question.id]: e.target.value }))}

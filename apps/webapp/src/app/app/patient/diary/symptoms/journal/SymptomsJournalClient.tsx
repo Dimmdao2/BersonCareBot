@@ -22,6 +22,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { routePaths } from "@/app-layer/routes/paths";
 import type { StatsPeriod } from "@/modules/diaries/stats/periodWindow";
 import type { SymptomEntry } from "@/modules/diaries/types";
@@ -73,22 +80,26 @@ export function SymptomsJournalClient(props: {
       </div>
 
       {trackings.length > 1 ? (
-        <label className="flex flex-wrap items-center gap-2 text-sm">
+        <div className="flex flex-wrap items-center gap-2 text-sm">
           <span className={patientMutedTextClass}>Симптом</span>
-          <select
-            className="h-10 w-full rounded-xl border border-input bg-background px-3 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring min-w-[200px]"
+          <Select
             value={activeTrackingId}
-            onChange={(e) => {
-              router.push(trackingHref(e.target.value));
+            onValueChange={(id) => {
+              if (id != null) router.push(trackingHref(id));
             }}
           >
-            {trackings.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.symptomTitle}
-              </option>
-            ))}
-          </select>
-        </label>
+            <SelectTrigger className="h-10 w-full min-w-[200px] rounded-xl border border-input bg-background px-3 text-base shadow-none focus-visible:ring-2 focus-visible:ring-ring">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {trackings.map((t) => (
+                <SelectItem key={t.id} value={t.id}>
+                  {t.symptomTitle}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       ) : null}
 
       <div className="flex flex-col gap-2">

@@ -1,10 +1,17 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import toast from "react-hot-toast";
 import { PlusIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { NumericChipGroup } from "@/components/common/controls/NumericChipGroup";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { addSymptomEntry } from "./symptoms/actions";
 import { notifyDiarySymptomEntrySaved } from "@/modules/diaries/symptomDiaryClientEvents";
@@ -23,6 +30,22 @@ export function QuickAddPopup({ trackings, complexes }: Props) {
   const [symPending, startSymTransition] = useTransition();
   const [lfkPending, startLfkTransition] = useTransition();
   const lastSavedRef = useRef<LastSymptomSaveMeta | null>(null);
+  const [pickedSymTrackingId, setPickedSymTrackingId] = useState<string | null>(null);
+  const [pickedLfkComplexId, setPickedLfkComplexId] = useState<string | null>(null);
+
+  const symTrackingId = useMemo(() => {
+    if (trackings.length === 0) return "";
+    if (trackings.length === 1) return trackings[0]!.id;
+    if (pickedSymTrackingId && trackings.some((t) => t.id === pickedSymTrackingId)) return pickedSymTrackingId;
+    return trackings[0]!.id;
+  }, [trackings, pickedSymTrackingId]);
+
+  const lfkComplexId = useMemo(() => {
+    if (complexes.length === 0) return "";
+    if (complexes.length === 1) return complexes[0]!.id;
+    if (pickedLfkComplexId && complexes.some((c) => c.id === pickedLfkComplexId)) return pickedLfkComplexId;
+    return complexes[0]!.id;
+  }, [complexes, pickedLfkComplexId]);
 
   if (trackings.length === 0 && complexes.length === 0) {
     return null;
@@ -88,13 +111,21 @@ export function QuickAddPopup({ trackings, complexes }: Props) {
                   {trackings.length === 1 ? (
                     <input type="hidden" name="trackingId" value={trackings[0].id} />
                   ) : (
-                    <select name="trackingId" className="h-10 w-full rounded-xl border border-input bg-background px-3 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring" required defaultValue={trackings[0]?.id}>
-                      {trackings.map((t) => (
-                        <option key={t.id} value={t.id}>
-                          {t.title}
-                        </option>
-                      ))}
-                    </select>
+                    <>
+                      <input type="hidden" name="trackingId" value={symTrackingId} />
+                      <Select value={symTrackingId} onValueChange={(v) => v != null && setPickedSymTrackingId(v)}>
+                        <SelectTrigger className="h-10 w-full rounded-xl border border-input bg-background px-3 text-base shadow-none focus-visible:ring-2 focus-visible:ring-ring">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {trackings.map((t) => (
+                            <SelectItem key={t.id} value={t.id}>
+                              {t.title}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </>
                   )}
                   <NumericChipGroup
                     min={0}
@@ -130,13 +161,21 @@ export function QuickAddPopup({ trackings, complexes }: Props) {
                   {complexes.length === 1 ? (
                     <input type="hidden" name="complexId" value={complexes[0].id} />
                   ) : (
-                    <select name="complexId" className="h-10 w-full rounded-xl border border-input bg-background px-3 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring" required>
-                      {complexes.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.title}
-                        </option>
-                      ))}
-                    </select>
+                    <>
+                      <input type="hidden" name="complexId" value={lfkComplexId} />
+                      <Select value={lfkComplexId} onValueChange={(v) => v != null && setPickedLfkComplexId(v)}>
+                        <SelectTrigger className="h-10 w-full rounded-xl border border-input bg-background px-3 text-base shadow-none focus-visible:ring-2 focus-visible:ring-ring">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {complexes.map((c) => (
+                            <SelectItem key={c.id} value={c.id}>
+                              {c.title}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </>
                   )}
                   <Button type="submit" className="w-full" disabled={lfkPending}>
                     {lfkPending ? "Сохраняю…" : "Выполнено"}

@@ -5,6 +5,7 @@ import { useCallback, useState } from "react";
 import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { isMessengerMiniAppHost } from "@/shared/lib/messengerMiniApp";
 import { routePaths } from "@/app-layer/routes/paths";
 import { cn } from "@/lib/utils";
@@ -93,9 +94,9 @@ export function PatientSupportForm({ defaultEmail, supportSubmitPath = "/api/pat
         <label htmlFor="support-message" className={cn(patientMutedTextClass, "text-xs font-medium uppercase tracking-wide")}>
           Сообщение
         </label>
-        <textarea
+        <Textarea
           id="support-message"
-          className="border-input bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring flex min-h-[140px] w-full rounded-md border px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+          className="min-h-[140px]"
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           placeholder="Опишите вопрос или проблему"

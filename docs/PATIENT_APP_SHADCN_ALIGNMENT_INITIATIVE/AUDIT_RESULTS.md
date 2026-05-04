@@ -2,7 +2,7 @@
 
 Дата фиксации: **2026-05-01**.
 
-**Дополнение 2026-05-04 (execution):** по инициативе `PATIENT_APP_SHADCN_ALIGNMENT` закрыты **Phase 0** (инвентаризация) и **Phase 1** (добавлены `Collapsible` и `Accordion` в `apps/webapp/src/components/ui/`). **Phase 2–5** (кабинет, `FeatureCard` / sections, профиль `ProfileAccordionSection` → `Collapsible`, `ChannelNotificationToggles` → `Switch`) — см. [`LOG.md`](LOG.md), [`MASTER_PLAN.md`](MASTER_PLAN.md), §5 ниже. Подробности и GO/NO-GO по чеклистам — в [`TASKS.md`](TASKS.md).
+**Дополнение 2026-05-04 (execution):** по инициативе `PATIENT_APP_SHADCN_ALIGNMENT` закрыты **Phase 0** (инвентаризация) и **Phase 1** (добавлены `Collapsible` и `Accordion` в `apps/webapp/src/components/ui/`). **Phase 2–6** (кабинет, `FeatureCard` / sections, профиль `ProfileAccordionSection` → `Collapsible`, уведомления `ChannelNotificationToggles` → `Switch`, form controls + `radio-group` + intake) — см. [`LOG.md`](LOG.md), [`MASTER_PLAN.md`](MASTER_PLAN.md), §5 ниже. Подробности и GO/NO-GO по чеклистам — в [`TASKS.md`](TASKS.md).
 
 Источник: global audit и последующее обсуждение после `PATIENT_APP_STYLE_TRANSFER_INITIATIVE`.
 
@@ -126,7 +126,9 @@
 
 ### `/app/patient/profile`
 
-**2026-05-04 (Phase 4):** [`ProfileAccordionSection`](../../apps/webapp/src/app/app/patient/profile/ProfileAccordionSection.tsx) переведён на **`Collapsible`** (`CollapsibleTrigger` / `CollapsibleContent`); тесты — [`ProfileAccordionSection.test.tsx`](../../apps/webapp/src/app/app/patient/profile/ProfileAccordionSection.test.tsx). Остальные блоки профиля (формы, радио, purge и т.д.) остаются кандидатами **Phase 6** / отдельных a11y-проходов по [`TASKS.md`](./TASKS.md).
+**2026-05-04 (Phase 4):** [`ProfileAccordionSection`](../../apps/webapp/src/app/app/patient/profile/ProfileAccordionSection.tsx) переведён на **`Collapsible`** (`CollapsibleTrigger` / `CollapsibleContent`); тесты — [`ProfileAccordionSection.test.tsx`](../../apps/webapp/src/app/app/patient/profile/ProfileAccordionSection.test.tsx).
+
+**2026-05-04 (Phase 6):** [`AuthOtpChannelPreference`](../../apps/webapp/src/app/app/patient/profile/AuthOtpChannelPreference.tsx) — **`RadioGroup`**; [`DiaryDataPurgeSection`](../../apps/webapp/src/app/app/patient/profile/DiaryDataPurgeSection.tsx) — согласие на purge через **`Switch`**. Прочие блоки профиля (PIN, основные формы данных и т.д.) в Phase 6 не входили — см. [`TASKS.md`](./TASKS.md) / [`LOG.md`](./LOG.md).
 
 ### `/app/patient/notifications`
 
@@ -134,20 +136,15 @@
 
 ### `/app/patient/diary/*`
 
-Есть native `<select>`, raw `<textarea>`, icon buttons и много form behavior.
+**2026-05-04 (Phase 6):** form controls дневника и журналов симптомов/ЛФК выровнены (`Select` / `Textarea`); FAB [`QuickAddPopup`](../../apps/webapp/src/app/app/patient/diary/QuickAddPopup.tsx) смонтирован на [`diary/page.tsx`](../../apps/webapp/src/app/app/patient/diary/page.tsx) — детали в [`LOG.md`](./LOG.md).
 
-Почему не первый pass:
-
-- высокий риск затронуть form field names, submit contracts, keyboard behavior;
-- diary лучше выносить в отдельную form-controls alignment фазу.
+*Архив аудита 2026-05-01:* дневник изначально помечался как высокорисковый для первого pass из‑за плотных form contracts; отдельная **Phase 6** закрыла согласованный поднабор экранов без смены ключей `FormData`.
 
 ### `/app/patient/support`
 
-Есть raw `<textarea>` при наличии shadcn `Textarea`.
+**2026-05-04 (Phase 6):** [`PatientSupportForm`](../../apps/webapp/src/app/app/patient/support/PatientSupportForm.tsx) — **`Textarea`** для текста сообщения.
 
-Почему не первый pass:
-
-- маленький кандидат, но он не критичен и лучше входит в общий form-controls pass.
+*Архив 2026-05-01:* откладывался в общий form-controls pass — выполнено в Phase 6.
 
 ### `/app/patient/courses`
 
@@ -170,6 +167,8 @@
 - `/app/patient/intake/nutrition`
 - прочие routes из `CHECKLISTS.md` §4.1 Style Transfer.
 
+**Примечание (Phase 6):** для `/app/patient/intake/lfk` и `/app/patient/intake/nutrition` выровнены виджеты ввода (`Textarea` / `Input`); полный restyle/coverage маршрутов остаётся в зоне Phase 7 / отдельной инициативы (`MASTER_PLAN`).
+
 Почему не первый pass:
 
 - это расширение route coverage;
@@ -183,7 +182,7 @@
 3. **Sections / FeatureCard pass:** перевести `FeatureCard` на shadcn-compatible `Card` composition без изменения links/copy/status semantics. *(✅ Phase 3, 2026-05-04.)*
 4. **Profile accordion pass:** `ProfileAccordionSection` → `Collapsible`. *(✅ Phase 4, 2026-05-04.)*
 5. **Notifications control pass:** `ChannelNotificationToggles` → `Switch`. *(✅ Phase 5, 2026-05-04.)*
-6. **Diary/support/intake form controls pass:** отдельно, с осторожными tests по form contracts. *(Следующий по `MASTER_PLAN` — Phase 6.)*
+6. **Diary/support/intake form controls pass:** `Select` / `Textarea` / `Switch` / `RadioGroup` на целевых экранах; `QuickAddPopup` на дневнике. *(✅ Phase 6, 2026-05-04 — см. `LOG.md`.)*
 7. **Deferred routes restyle pass:** отдельная инициатива или отдельная фаза, не смешивать с shadcn alignment core.
 
 ## 6. Что считать успехом

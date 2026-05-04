@@ -4,6 +4,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { routePaths } from "@/app-layer/routes/paths";
 
 type State = "form" | "submitting" | "success" | "error";
@@ -76,9 +78,9 @@ export function LfkIntakeClient() {
         <label className="text-xs font-medium text-muted-foreground" htmlFor="lfk-description">
           Описание проблемы <span className="text-destructive">*</span>
         </label>
-        <textarea
+        <Textarea
           id="lfk-description"
-          className="min-h-32 w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="min-h-32"
           placeholder="Опишите, что беспокоит: симптомы, давность, предыдущее лечение..."
           value={description}
           onChange={(e) => setDescription(e.target.value)}
@@ -93,10 +95,9 @@ export function LfkIntakeClient() {
         <label className="text-xs font-medium text-muted-foreground" htmlFor="lfk-attachment">
           Ссылка на файлы (необязательно)
         </label>
-        <input
+        <Input
           id="lfk-attachment"
           type="url"
-          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           placeholder="https://drive.google.com/..."
           value={attachmentUrl}
           onChange={(e) => setAttachmentUrl(e.target.value)}

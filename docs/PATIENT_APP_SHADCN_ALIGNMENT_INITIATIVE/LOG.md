@@ -1,5 +1,17 @@
 # LOG — Patient App Shadcn Alignment
 
+## 2026-05-04 — Phase 6: form controls (patient)
+
+- Agent/model: Composer (Cursor).
+- **Support:** [`PatientSupportForm.tsx`](../../apps/webapp/src/app/app/patient/support/PatientSupportForm.tsx) — сообщение на [`Textarea`](../../apps/webapp/src/components/ui/textarea.tsx).
+- **Дневник:** [`LfkSessionForm.tsx`](../../apps/webapp/src/app/app/patient/diary/lfk/LfkSessionForm.tsx) — мультивыбор комплекса: [`Select`](../../apps/webapp/src/components/ui/select.tsx) + hidden `complexId`; [`QuickAddPopup.tsx`](../../apps/webapp/src/app/app/patient/diary/QuickAddPopup.tsx) — то же для симптома/ЛФК; **монтирование FAB** на [`diary/page.tsx`](../../apps/webapp/src/app/app/patient/diary/page.tsx) (`trackings`/`complexes` с сервера). [`SymptomTrackingRow.tsx`](../../apps/webapp/src/app/app/patient/diary/symptoms/SymptomTrackingRow.tsx) — тип записи: `Select`. [`SymptomsJournalClient.tsx`](../../apps/webapp/src/app/app/patient/diary/symptoms/journal/SymptomsJournalClient.tsx) / [`LfkJournalClient.tsx`](../../apps/webapp/src/app/app/patient/diary/lfk/journal/LfkJournalClient.tsx) — фильтр журналов: `Select` (навигация через `router.push`, без POST); редактор ЛФК — комментарий через `Textarea`.
+- **Профиль:** [`DiaryDataPurgeSection.tsx`](../../apps/webapp/src/app/app/patient/profile/DiaryDataPurgeSection.tsx) — согласие на удаление: [`Switch`](../../apps/webapp/src/components/ui/switch.tsx) + `Label`. [`AuthOtpChannelPreference.tsx`](../../apps/webapp/src/app/app/patient/profile/AuthOtpChannelPreference.tsx) — канал OTP: новый [`radio-group.tsx`](../../apps/webapp/src/components/ui/radio-group.tsx) (`RadioGroup` / `RadioGroupItem` на `@base-ui/react`).
+- **Intake:** [`LfkIntakeClient.tsx`](../../apps/webapp/src/app/app/patient/intake/lfk/LfkIntakeClient.tsx), [`NutritionIntakeClient.tsx`](../../apps/webapp/src/app/app/patient/intake/nutrition/NutritionIntakeClient.tsx) — `Textarea` / `Input` вместо сырого HTML.
+- Контракты `FormData` и server actions не менялись; копирайт и правила валидации — без изменений.
+- **Журналы фильтров:** нативный `<select>` заменён на `Select` только как controlled navigation (см. [`SymptomsJournalClient.tsx`](../../apps/webapp/src/app/app/patient/diary/symptoms/journal/SymptomsJournalClient.tsx)) — отдельного `name` в POST нет.
+- Checks: `pnpm run typecheck` в `apps/webapp` (exit 0); финал — корневой `pnpm run ci` после док-обновлений; ручной smoke целевых экранов — ок (оператор, 2026-05-04).
+- Доки: [`TASKS.md`](./TASKS.md), [`MASTER_PLAN.md`](./MASTER_PLAN.md), [`README.md`](./README.md), [`AUDIT_RESULTS.md`](./AUDIT_RESULTS.md) (§profile, diary, support, deferred); cross-init: [`../APP_RESTRUCTURE_INITIATIVE/LOG.md`](../APP_RESTRUCTURE_INITIATIVE/LOG.md).
+
 ## 2026-05-04 — Phase 5: `ChannelNotificationToggles` → `Switch`
 
 - Agent/model: Composer (Cursor).
@@ -9,7 +21,7 @@
 
 ## 2026-05-04 — Docs sync: Phase 4 + cross-links (AUDIT_RESULTS, APP_RESTRUCTURE)
 
-- Обновлены [`AUDIT_RESULTS.md`](./AUDIT_RESULTS.md) §`/app/patient/profile` и §рекомендуемый порядок (Phase 4 закрыта); [`MASTER_PLAN.md`](./MASTER_PLAN.md) — working definitions **на момент синка** (Phase 2–4 на экранах) и компактный блок Phase 4; **актуальный охват экранов Phase 2–5** — в текущем `MASTER_PLAN` и в записи «Phase 5» выше того же дня; [`TASKS.md`](./TASKS.md) — frozen scope; [`../APP_RESTRUCTURE_INITIATIVE/README.md`](../APP_RESTRUCTURE_INITIATIVE/README.md), [`../APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md`](../APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md), [`../APP_RESTRUCTURE_INITIATIVE/LOG.md`](../APP_RESTRUCTURE_INITIATIVE/LOG.md).
+- Обновлены [`AUDIT_RESULTS.md`](./AUDIT_RESULTS.md) §`/app/patient/profile` и §рекомендуемый порядок (Phase 4 закрыта); [`MASTER_PLAN.md`](./MASTER_PLAN.md) — working definitions **на момент синка** (Phase 2–4 на экранах) и компактный блок Phase 4; **охват экранов Phase 2–5** — в текущем `MASTER_PLAN` и в записи «Phase 5» того же дня *(полный охват Phase 2–6 — см. запись «Phase 6» в начале этого файла и актуальный `MASTER_PLAN`)*; [`TASKS.md`](./TASKS.md) — frozen scope; [`../APP_RESTRUCTURE_INITIATIVE/README.md`](../APP_RESTRUCTURE_INITIATIVE/README.md), [`../APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md`](../APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md), [`../APP_RESTRUCTURE_INITIATIVE/LOG.md`](../APP_RESTRUCTURE_INITIATIVE/LOG.md).
 
 ## 2026-05-04 — Phase 4: Profile `ProfileAccordionSection` → `Collapsible`
 

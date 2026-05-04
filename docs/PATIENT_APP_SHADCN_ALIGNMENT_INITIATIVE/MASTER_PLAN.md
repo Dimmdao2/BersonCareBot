@@ -31,7 +31,7 @@
 - `Badge` для статусов;
 - `Input`, `Textarea`, `Select`, `Switch` для форм;
 - `Dialog`, `Tabs`, `Tooltip` там, где они уже применяются;
-- `Accordion` / `Collapsible` — **добавлены** в `apps/webapp/src/components/ui/` (Phase 1, 2026-05-04); **подключение в экранах:** Phase 2–5 выполнены 2026-05-04 (кабинет, `FeatureCard`, профиль, уведомления — см. [`LOG.md`](./LOG.md)); далее — Phase 6+ по [`MASTER_PLAN.md`](./MASTER_PLAN.md).
+- `Accordion` / `Collapsible` — **добавлены** в `apps/webapp/src/components/ui/` (Phase 1, 2026-05-04); **подключение в экранах:** Phase 2–6 выполнены (кабинет, `FeatureCard`, профиль, уведомления, form controls — см. [`LOG.md`](./LOG.md)); далее — Phase 7+ по [`MASTER_PLAN.md`](./MASTER_PLAN.md).
 
 ### Patient visual layer
 
@@ -158,17 +158,25 @@ Checks (выполнено):
 
 ### Phase 6 — Form Controls Alignment
 
-Separate careful pass.
+**Статус:** выполнено 2026-05-04 — patient form surfaces переведены на `Textarea` / `Select` / `Switch` / `RadioGroup` (новый [`radio-group.tsx`](../../apps/webapp/src/components/ui/radio-group.tsx) на `@base-ui/react/radio-group` + `radio`); контракты `FormData` и server actions сохранены; [`QuickAddPopup`](../../apps/webapp/src/app/app/patient/diary/QuickAddPopup.tsx) смонтирован на [`diary/page.tsx`](../../apps/webapp/src/app/app/patient/diary/page.tsx) (FAB).
 
-Candidate areas:
+**Сделано (файлы):**
 
-- `support/PatientSupportForm.tsx` raw textarea → `Textarea`;
-- `diary/**/*` native selects/textareas → `Select` / `Textarea` only if form contract stays identical;
-- `intake/*` raw inputs/textareas only if route is explicitly included.
+- [`PatientSupportForm.tsx`](../../apps/webapp/src/app/app/patient/support/PatientSupportForm.tsx) — `Textarea`;
+- [`LfkSessionForm.tsx`](../../apps/webapp/src/app/app/patient/diary/lfk/LfkSessionForm.tsx), [`QuickAddPopup.tsx`](../../apps/webapp/src/app/app/patient/diary/QuickAddPopup.tsx) — `Select` + hidden для `complexId` / `trackingId`;
+- [`SymptomTrackingRow.tsx`](../../apps/webapp/src/app/app/patient/diary/symptoms/SymptomTrackingRow.tsx) — тип записи: `Select`;
+- [`SymptomsJournalClient.tsx`](../../apps/webapp/src/app/app/patient/diary/symptoms/journal/SymptomsJournalClient.tsx), [`LfkJournalClient.tsx`](../../apps/webapp/src/app/app/patient/diary/lfk/journal/LfkJournalClient.tsx) — фильтры журналов: `Select`; редактирование ЛФК: `Textarea` для комментария;
+- [`DiaryDataPurgeSection.tsx`](../../apps/webapp/src/app/app/patient/profile/DiaryDataPurgeSection.tsx) — согласие: `Switch`;
+- [`AuthOtpChannelPreference.tsx`](../../apps/webapp/src/app/app/patient/profile/AuthOtpChannelPreference.tsx) — `RadioGroup` / `RadioGroupItem`;
+- [`LfkIntakeClient.tsx`](../../apps/webapp/src/app/app/patient/intake/lfk/LfkIntakeClient.tsx), [`NutritionIntakeClient.tsx`](../../apps/webapp/src/app/app/patient/intake/nutrition/NutritionIntakeClient.tsx) — `Textarea` / `Input` (вопросы анкеты).
 
-Rules:
+Checks (выполнено):
 
-- preserve `name`, `required`, hidden inputs, action handlers, server action contracts;
+- `pnpm run typecheck` в `apps/webapp`; финальный `pnpm run ci` в корне после батча (см. [`LOG.md`](./LOG.md)).
+
+Rules (соблюдены):
+
+- preserve `name`, hidden inputs, action handlers, server action contracts;
 - no copy changes;
 - no validation behavior changes.
 
@@ -182,7 +190,9 @@ Routes:
 - `/app/patient/emergency`
 - `/app/patient/lessons`
 - `/app/patient/address`
-- `/app/patient/intake/*`
+- прочие deferred из route matrix без полного form/UI pass
+
+**Примечание:** онлайн-intake маршруты `/app/patient/intake/*` получили выравнивание полей ввода в Phase 6; расширенный restyle/coverage этих и других маршрутов — по решению Phase 7 или отдельной инициативе.
 
 Decision needed:
 

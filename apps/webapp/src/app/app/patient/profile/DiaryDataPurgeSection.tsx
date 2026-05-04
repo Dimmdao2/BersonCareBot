@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { PinInput } from "@/shared/ui/auth/PinInput";
 import { SmsCodeForm } from "@/shared/ui/auth/SmsCodeForm";
 import { cn } from "@/lib/utils";
@@ -80,15 +82,17 @@ export function DiaryDataPurgeSection({ hasPin, phoneMasked }: Props) {
           <p className={patientMutedTextClass}>
             Будут удалены все отслеживания симптомов, записи и данные ЛФК. Профиль и карта клиента у врача сохранятся.
           </p>
-          <label className="flex items-start gap-2 text-sm">
-            <input
-              type="checkbox"
-              className="mt-1 size-4 rounded border border-input"
+          <div className="flex items-start gap-3 text-sm">
+            <Switch
+              id="diary-purge-consent"
               checked={accepted}
-              onChange={(e) => setAccepted(e.target.checked)}
+              onCheckedChange={setAccepted}
+              aria-label="Согласие: операцию удаления данных дневников нельзя отменить"
             />
-            <span>Я понимаю, что эту операцию нельзя отменить.</span>
-          </label>
+            <Label htmlFor="diary-purge-consent" className="cursor-pointer leading-snug font-normal">
+              Я понимаю, что эту операцию нельзя отменить.
+            </Label>
+          </div>
           <Button
             type="button"
             variant="destructive"

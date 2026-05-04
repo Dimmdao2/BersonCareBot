@@ -4,6 +4,7 @@ import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import type { OtpUiChannel } from "@/modules/auth/otpChannelUi";
 import { setPreferredAuthOtpChannelAction } from "./actions";
 import { cn } from "@/lib/utils";
@@ -56,37 +57,31 @@ export function AuthOtpChannelPreference({ options, initialSelection, showBindHi
       <p className={patientMutedTextClass}>
         Куда отправлять код при входе по номеру телефона (если PIN не задан или нужен сброс).
       </p>
-      <fieldset disabled={pending} className="flex flex-col gap-1 border-0 p-0">
-        <legend className="sr-only">Канал подтверждения входа</legend>
+      <RadioGroup
+        value={selection === "auto" ? "auto" : selection}
+        onValueChange={(raw) => {
+          const value: "auto" | OtpUiChannel = raw === "auto" ? "auto" : (raw as OtpUiChannel);
+          apply(value);
+        }}
+        disabled={pending}
+        className="flex flex-col gap-1 border-0 p-0"
+        aria-label="Канал подтверждения входа"
+      >
         <div className={rowClass}>
-          <input
-            type="radio"
-            id="auth-otp-auto"
-            name="authOtpChannel"
-            className="size-4 accent-primary"
-            checked={selection === "auto"}
-            onChange={() => apply("auto")}
-          />
+          <RadioGroupItem value="auto" id="auth-otp-auto" />
           <Label htmlFor="auth-otp-auto" className={cn("cursor-pointer font-normal", pending && "opacity-60")}>
             Автоматически (Telegram → Max → email → SMS)
           </Label>
         </div>
         {options.map((o) => (
           <div key={o.code} className={rowClass}>
-            <input
-              type="radio"
-              id={`auth-otp-${o.code}`}
-              name="authOtpChannel"
-              className="size-4 accent-primary"
-              checked={selection === o.code}
-              onChange={() => apply(o.code)}
-            />
+            <RadioGroupItem value={o.code} id={`auth-otp-${o.code}`} />
             <Label htmlFor={`auth-otp-${o.code}`} className={cn("cursor-pointer font-normal", pending && "opacity-60")}>
               {o.label}
             </Label>
           </div>
         ))}
-      </fieldset>
+      </RadioGroup>
       {showBindHint ? (
         <p className={patientMutedTextClass} id="patient-profile-auth-otp-bind-hint">
           Привяжите удобный вам мессенджер для подтверждения входа — так код можно получить не только по SMS.
