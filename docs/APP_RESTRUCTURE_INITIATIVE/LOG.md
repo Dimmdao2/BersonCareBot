@@ -6,6 +6,20 @@
 
 ---
 
+## 2026-05-04 — синхронизация статуса: «Назначения» врача, шаблоны программ, курсы (docs-only)
+
+**Зафиксировано (owner):**
+
+- **Редизайн блока «Назначения»** в кабинете врача (кластер меню, списки каталогов, общий UX) — **практически закрыт**; допускаются точечные хвосты по приёмке.
+- **Шаблоны программ лечения** — остаются **небольшие правки**; **не блокер** для работ по [`ROADMAP_2.md`](ROADMAP_2.md) (patient polish §1.x, карточка врача §2.x).
+- **Курсы** ([`../COURSES_INITIATIVE/README.md`](../COURSES_INITIATIVE/README.md)) — **отложены**; не в ближайшую очередь.
+
+**Сделано:** обновлены [`ROADMAP_2.md`](ROADMAP_2.md) (шапка, §0, §2, §6.2, §8), [`README.md`](README.md) этой инициативы, [`ASSIGNMENT_CATALOGS_REWORK_PLAN.md`](ASSIGNMENT_CATALOGS_REWORK_PLAN.md), [`RECOMMENDATIONS_AND_ROADMAP.md`](RECOMMENDATIONS_AND_ROADMAP.md), [`../README.md`](../README.md), [`../COURSES_INITIATIVE/README.md`](../COURSES_INITIATIVE/README.md).
+
+**Проверки:** docs-only; CI не запускался.
+
+---
+
 ## 2026-05-04 — `PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE`: GLOBAL FIX (закрытие A/B/C в документах)
 
 **Сделано:** по [`../PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/AUDIT_GLOBAL.md`](../PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/AUDIT_GLOBAL.md) закрыты **Major**: в [`ROADMAP_2.md`](ROADMAP_2.md) §0 добавлена строка о закрытии блока **1.0 + 1.1a + 1.1** (ссылка на `AUDIT_GLOBAL.md`); в §1.1 / §1.1a выровнены команды `eslint` на путь `src/app/app/patient/treatment-programs` при `pnpm --dir apps/webapp`. В мини-инициативе: [`STAGE_A/B/C.md`](../PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/STAGE_A.md) чекбоксы отмечены выполненными; [`README.md`](../PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/README.md) — статус закрытия; [`LOG.md`](../PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/LOG.md) — итог GLOBAL FIX.

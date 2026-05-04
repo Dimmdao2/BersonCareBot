@@ -9,6 +9,12 @@
 - Целевое видение — [`TARGET_STRUCTURE_PATIENT.md`](TARGET_STRUCTURE_PATIENT.md), [`TARGET_STRUCTURE_DOCTOR.md`](TARGET_STRUCTURE_DOCTOR.md).
 - UI-стандарт реализации страниц — [`../ARCHITECTURE/PATIENT_APP_UI_STYLE_GUIDE.md`](../ARCHITECTURE/PATIENT_APP_UI_STYLE_GUIDE.md): сначала shared patient primitives/shadcn base, без одноразового custom chrome.
 
+**Актуализация выполнения (2026-05-04, синхронизация с owner / [`LOG.md`](LOG.md)):**
+
+- **Кабинет врача — раздел «Назначения»:** редизайн блока (кластер меню, списки каталогов, навигация) — **практически закрыт**; детали execution каталогов B1–B7 — в архиве [`../archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/`](../archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/README.md).
+- **Шаблоны программ лечения** внутри «Назначений» — остаются **небольшие правки**; **не блокер** для следующего цикла patient IA — см. [`ROADMAP_2.md`](ROADMAP_2.md).
+- **Курсы** (этап 7 части IV, [`../COURSES_INITIATIVE/README.md`](../COURSES_INITIATIVE/README.md)) — **отложены** владельцем; дата возврата — по отдельному решению.
+
 ## Выполнено — быстрые устойчивые правки IA (2026-05-01)
 
 Зафиксировано в [`LOG.md`](LOG.md) в этой же инициативе. Это **не** закрывает этапы 0–8 целиком, только узкий пакет стабилизации IA.

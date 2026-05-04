@@ -1,6 +1,7 @@
 # ROADMAP_2 — следующий цикл после закрытия A1–A5 / B1–B7 / D1–D6 и E2E acceptance
 
 **Статус:** живой документ. Создан 2026-05-04 по итогам [`E2E_ACCEPTANCE_AFTER_AB.md`](E2E_ACCEPTANCE_AFTER_AB.md).
+**Синхронизация 2026-05-04 (owner):** редизайн **раздела «Назначения»** в кабинете врача (кластер меню, списки каталогов, общий UX блока) — **практически закрыт**; возможны точечные хвосты по приёмке. **Шаблоны программ лечения** — остаются **небольшие правки** (список/конструктор); **не блокер** для пунктов §3 (patient) и §4 (карточка врача). **Курсы** — **отложены** владельцем (см. [`../COURSES_INITIATIVE/README.md`](../COURSES_INITIATIVE/README.md), §6.2 здесь).
 **Назначение:** зафиксировать порядок работ на следующий период с важными деталями (scope, файлы, риски, DoD), чтобы агенты могли брать пункты в работу без переоткрытия контекста.
 **Не заменяет:** [`RECOMMENDATIONS_AND_ROADMAP.md`](RECOMMENDATIONS_AND_ROADMAP.md) (общий стратегический документ) и [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md) (план кабинета врача). Этот документ — операционная нарезка «что брать сейчас», ссылающаяся на оба.
 
@@ -31,8 +32,11 @@
 | Этап 6 PLAN_DOCTOR_CABINET — глубокая часть карточки пациента (hero / табы / таб «Назначения») | ❄ FROZEN намеренно | `PLAN_DOCTOR_CABINET.md` §этап 6 |
 | Patient Plan polish первого прохода (Stage 0 badge, формат тестов, «Снять Новое», LFK-форма в теле этапа, sort_order, goals/objectives в диалоге, swap-confirm) | ✅ закрыто 2026-05-04 | `E2E_ACCEPTANCE_AFTER_AB.md` §4–§6 |
 | Patient treatment programs polish (**1.0** + **1.1a** + **1.1**, этапы A→B→C) | ✅ закрыто 2026-05-04 | [`../PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/AUDIT_GLOBAL.md`](../PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/AUDIT_GLOBAL.md) |
+| Редизайн **раздела «Назначения»** в кабинете врача (IA/UI кластера: меню, списки, навигация по каталогам) | ✅ практически закрыто 2026-05-04 | owner sync; детали каталогов — execution в [`../archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/AUDIT_GLOBAL.md`](../archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/AUDIT_GLOBAL.md) |
+| **Шаблоны программ** внутри «Назначений» — мелкий хвост (список/конструктор, UX) | ⚡ неблокирующий хвост | [`ASSIGNMENT_CATALOGS_REWORK_PLAN.md`](ASSIGNMENT_CATALOGS_REWORK_PLAN.md) §шапка; не блокирует §1.2–§2.x |
+| **Курсы** (`COURSES_INITIATIVE`, roadmap этап 7) | ⏸ отложены владельцем | [`../COURSES_INITIATIVE/README.md`](../COURSES_INITIATIVE/README.md) |
 
-**Доменно ядро готово.** Дальше — поверхностная полировка пациента, разморозка кусков карточки врача и фоновые хвосты.
+**Доменно ядро готово.** Дальше — поверхностная полировка пациента, разморозка кусков карточки врача и фоновые хвосты. Работа по шаблонам программ идёт **параллельно** низким приоритетом и не стопорит patient IA / doctor card.
 
 ---
 
@@ -51,6 +55,8 @@
 
 | № | Направление | Тип | Размер | Зависит от | Можно параллельно с |
 |---|-------------|-----|--------|------------|---------------------|
+| **—** | **Doctor «Назначения»** — редизайн блока (shell/IA) | UI / doctor | — | ✅ практически закрыто 2026-05-04 (хвосты — точечно) | — |
+| **—** | **Шаблоны программ** — мелкие правки в списке/конструкторе | UI / doctor | S | ⚡ не блокер для §1.x–§2.x | — |
 | 1.0 | Data enabler: `started_at` у этапа программы | data / migration | S | — | 1.2–1.7, 2.x, 3.x |
 | 1.1 | Patient `/treatment-programs` список polish (без % прогресса в MVP) | UI / patient | S–M | 1.0 | 1.2–1.7, 3.x |
 | 1.1a | Patient `/treatment-programs/[instanceId]` MVP-проход (текущий этап + архив + этап 0) | UI / patient | M | 1.0 | 1.2–1.7, 3.x |
@@ -67,7 +73,7 @@
 | 3.2 | Prod-применение миграции `0040` (DROP `tests.scoring_config`) | ops | — | runbook | независимо |
 | 3.3 | CMS типизация до полного enum (этап 2 roadmap) | CMS | M | — | 1.7 включается после |
 | 4.1 | Inbox событий пациентов / proactive doctor assistant | UI / data | L | 2.1 желательно | — |
-| 4.2 | Курсы (полноценная инициатива) | feature | XL | согласие на разморозку | — |
+| 4.2 | Курсы (полноценная инициатива) | feature | XL | ⏸ отложены owner 2026-05-04 | — |
 
 ---
 
@@ -567,7 +573,7 @@ psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "SELECT current_database();"
 
 ### 4.2 Курсы
 
-Отдельная инициатива, явно отложена пользователем. Возвращаемся к ней только после полного цикла 1–3.
+Отдельная инициатива [`../COURSES_INITIATIVE/README.md`](../COURSES_INITIATIVE/README.md). **Статус (2026-05-04, owner):** **отложены** — не входят в ближайшую очередь работ; не блокируют patient IA (`ROADMAP_2` §3), карточку врача §4 и полировку шаблонов. Ранее планировалось стартовать после ядра `PROGRAM_PATIENT_SHAPE` и оплаты; фактическая дата возврата — по отдельному решению.
 
 ---
 
@@ -590,7 +596,7 @@ psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "SELECT current_database();"
 ## 8. Что намеренно вне scope этого цикла
 
 - Любые правки моделей `treatmentProgram*`, `programActionLog`, `recommendations` (поля), `clinical_tests`, `lfk_*` (см. `.cursor/rules/clean-architecture-module-isolation.mdc` «product absolutes»), **кроме уже согласованного пункта 1.0 (`started_at` у stage)** и D5 (3.1).
-- Курсы как продукт.
+- Курсы как продукт (**явно отложены** владельцем на 2026-05-04 — см. §6, подпункт «Курсы» / таблица §2 строка 4.2).
 - Биллинг / `/purchases` функционально.
 - Замена unified chat / messaging API.
 - Любые новые env-переменные для интеграционной конфигурации (см. `.cursor/rules/000-critical-integration-config-in-db.mdc`).
