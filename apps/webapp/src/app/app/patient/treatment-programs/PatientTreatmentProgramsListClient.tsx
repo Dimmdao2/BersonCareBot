@@ -17,6 +17,7 @@ import {
   patientMutedTextClass,
   patientPrimaryActionClass,
   patientSurfaceInfoClass,
+  patientSurfaceProgramClass,
 } from "@/shared/ui/patientVisual";
 
 /** Текущий этап для hero списка: та же семантика, что на detail (`pipeline` без этапа 0). */
@@ -45,7 +46,7 @@ export function PatientTreatmentProgramsListClient(props: {
   return (
     <div className="flex flex-col gap-6">
       {hero ? (
-        <section className={patientCardClass} aria-labelledby="patient-tp-list-hero-title">
+        <section className={patientSurfaceProgramClass} aria-labelledby="patient-tp-list-hero-title">
           <h2 id="patient-tp-list-hero-title" className="text-lg font-semibold tracking-tight">
             {hero.title}
           </h2>
@@ -59,8 +60,9 @@ export function PatientTreatmentProgramsListClient(props: {
             )}
           </p>
           {hero.planUpdatedLabel?.trim() ? (
-            <p className="mt-2 text-sm font-medium text-foreground" role="status">
-              {hero.planUpdatedLabel.trim()}
+            <p className="mt-2 flex items-center gap-1.5 text-sm font-medium" role="status">
+              <span className="text-destructive" aria-hidden="true">●</span>
+              <span>{hero.planUpdatedLabel.trim()}</span>
             </p>
           ) : null}
           <div className="mt-4">

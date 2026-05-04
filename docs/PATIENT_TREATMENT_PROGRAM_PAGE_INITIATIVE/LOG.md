@@ -101,3 +101,29 @@
     - `pnpm --dir apps/webapp exec tsc --noEmit` ✅
     - `pnpm --dir apps/webapp exec vitest run src/app/app/patient/treatment-programs` ✅ (14/14)
 - **Stage C closed + commit.**
+
+- **Stage D gate (EXEC старт, 2026-05-05):**
+  - Прочитаны и применены: `STAGE_D.md`, `STAGE_PLAN.md`, `ROADMAP_2.md` (§1.1), правила `patient-ui-shared-primitives.mdc`, `clean-architecture-module-isolation.mdc`, `no-unsolicited-followups.mdc`.
+  - Подтверждено предусловие `STAGE_D.md`: Stage C закрыт и закоммичен (`ac219941 feat(patient): stage C — visual redesign detail page + stages/[stageId] route`).
+  - Scope Stage D зафиксирован: только `/treatment-programs` (список) — `page.tsx` + `PatientTreatmentProgramsListClient.tsx`; без миграций, без портовых контрактов, без `%` прогресса.
+- **Stage D D1–D4 (implementation / verify):**
+  - **D1**: hero-секция активной программы уже присутствовала с полями `title`, `currentStageTitle`, `planUpdatedLabel`, CTA → detail. В рамках D1-polish: поверхность hero переведена с нейтрального `patientCardClass` на семантический `patientSurfaceProgramClass` (alias `patientSurfaceInfoClass`) для визуальной согласованности с hero detail-страницы (Stage C); индикатор `planUpdatedLabel` оформлен по-бейджевому: красная точка `● (text-destructive, aria-hidden)` + текст в отдельном `<span>` — аналогично detail-hero C1.
+  - **D2**: архив завершённых программ под `<details>` с заголовком «Завершённые программы» — присутствовал, без изменений ✅.
+  - **D3**: empty state «Здесь появится программа после назначения врачом» + ссылка «Написать в чат клиники» → `messagesHref` — присутствовал, без изменений ✅.
+  - **D4**: отсутствие `%`-прогресса в hero и в списке подтверждено: в `PatientTreatmentProgramsListClient.tsx` нет метрик процентов ✅.
+- **Stage D D5 (тесты):**
+  - `PatientTreatmentProgramsListClient.test.tsx` и `page.nudgeResilience.test.tsx` (список) — зелёные без изменений (тест `planUpdatedLabel` ищет текст через дочерний `<span>`, не по всему textContent `<p>`). 14/14 ✅.
+- **Stage D D6 (целевые проверки):**
+  - `pnpm --dir apps/webapp lint --max-warnings=0 -- src/app/app/patient/treatment-programs` ✅
+  - `pnpm --dir apps/webapp exec tsc --noEmit` ✅
+  - `pnpm --dir apps/webapp exec vitest run src/app/app/patient/treatment-programs` ✅ (14/14)
+- **Stage D closed.**
+- **Stage D FIX по `AUDIT_STAGE_D.md` (2026-05-05):**
+  - Critical: отсутствуют, исправления не требуются.
+  - Major: отсутствуют, исправления не требуются.
+  - Minor M1 (`...ListClient.tsx` без `"use client"`): **defer** — компонент функционально корректен как RSC, не использует хуков; переименование потребует правок в `page.tsx` и двух test-файлах; стоимость выше пользы в рамках Stage D.
+  - Повтор целевых проверок Stage D после FIX:
+    - `pnpm --dir apps/webapp lint --max-warnings=0 -- src/app/app/patient/treatment-programs` ✅
+    - `pnpm --dir apps/webapp exec tsc --noEmit` ✅
+    - `pnpm --dir apps/webapp exec vitest run src/app/app/patient/treatment-programs` ✅ (14/14)
+- **Stage D closed + commit.**
