@@ -1,6 +1,6 @@
 # PLAN_DOCTOR_CABINET
 
-**Статус:** рабочий план к выполнению по шагам. **Этап 1 (CMS, вариант C): закрыт** — см. [`CMS_RESTRUCTURE_PLAN.md`](CMS_RESTRUCTURE_PLAN.md) (статус «реализовано»), [`LOG.md`](LOG.md) («CMS Composer — реализация» и «пост-аудит»).  
+**Статус:** рабочий план к выполнению по шагам. **Этап 1 (CMS, вариант C): закрыт** — см. [`CMS_RESTRUCTURE_PLAN.md`](done/CMS_RESTRUCTURE_PLAN.md) (статус «реализовано»), [`LOG.md`](LOG.md) («CMS Composer — реализация» и «пост-аудит»).  
 **Дата создания:** 2026-05-01.  
 **Назначение:** разложить задачи по кабинету врача/админа в порядке, где сначала исправляем видимую рабочую логику врача, а CMS-фундамент и крупные зависимые реформы идут после первых улучшений кабинета врача.
 
@@ -10,7 +10,7 @@
 - [`TARGET_STRUCTURE_DOCTOR.md`](TARGET_STRUCTURE_DOCTOR.md) — целевая структура кабинета врача.
 - [`RECOMMENDATIONS_AND_ROADMAP.md`](RECOMMENDATIONS_AND_ROADMAP.md) — общая дорожная карта APP_RESTRUCTURE.
 - [`CMS_AUDIT.md`](CMS_AUDIT.md) — аудит CMS-сущностей (факты по текущему состоянию).
-- [`CMS_RESTRUCTURE_PLAN.md`](CMS_RESTRUCTURE_PLAN.md) — отдельный план разделения CMS (Вариант C). Это **первый шаг** этого общего плана.
+- [`CMS_RESTRUCTURE_PLAN.md`](done/CMS_RESTRUCTURE_PLAN.md) — отдельный план разделения CMS (Вариант C). Это **первый шаг** этого общего плана.
 - [`CMS_RESTRUCTURE_EXECUTION_AUDIT.md`](done/CMS_RESTRUCTURE_EXECUTION_AUDIT.md) — аудит соответствия реализации плану и журналу.
 - [`DOCTOR_MENU_RESTRUCTURE_PLAN.md`](done/DOCTOR_MENU_RESTRUCTURE_PLAN.md) — ТЗ на этап 2: группы меню, аккордеон и перенос «Библиотеки файлов».
 - [`DOCTOR_NAV_BADGES_PLAN.md`](done/DOCTOR_NAV_BADGES_PLAN.md) — ТЗ на этап 3: бейджи новых онлайн-заявок и непрочитанных сообщений в меню врача.
@@ -29,7 +29,7 @@
 
 Последовательность шагов прохода (нумерация **как в сводной таблице §ниже**, не как «Этап N» в [`RECOMMENDATIONS_AND_ROADMAP.md`](RECOMMENDATIONS_AND_ROADMAP.md)):
 
-1. **Этап 1 — CMS-разделение** — [`CMS_RESTRUCTURE_PLAN.md`](CMS_RESTRUCTURE_PLAN.md) (вариант C: `kind` + `system_parent_code`).
+1. **Этап 1 — CMS-разделение** — [`CMS_RESTRUCTURE_PLAN.md`](done/CMS_RESTRUCTURE_PLAN.md) (вариант C: `kind` + `system_parent_code`).
 2. **Этап 2 — Меню врача** — группы по смыслу, аккордеон, «Библиотека файлов» в основном меню ([`DOCTOR_MENU_RESTRUCTURE_PLAN.md`](done/DOCTOR_MENU_RESTRUCTURE_PLAN.md)).
 3. **Этап 3 — Бейджи** на «Онлайн-заявки» и «Сообщения» ([`DOCTOR_NAV_BADGES_PLAN.md`](done/DOCTOR_NAV_BADGES_PLAN.md)).
 4. **Этап 4 — Дашборд «Сегодня»** — рабочие очереди вместо метрик; метрики в `/stats` ([`DOCTOR_TODAY_DASHBOARD_PLAN.md`](done/DOCTOR_TODAY_DASHBOARD_PLAN.md)).
@@ -50,7 +50,7 @@
 
 | Этап | Зависит от | Можно параллельно с |
 |------|------------|---------------------|
-| 1. CMS-разделение (`CMS_RESTRUCTURE_PLAN.md`) — **✅ закрыт** | — | 2–8 |
+| 1. CMS-разделение (`done/CMS_RESTRUCTURE_PLAN.md`) — **✅ закрыт** | — | 2–8 |
 | 2. Меню врача (группы, аккордеон, перенос «Библиотеки файлов») — **✅ закрыт** | — | 1, 3–8 |
 | 3. Бейджи (новые заявки, непрочитанные сообщения) — **✅ закрыт** ([`DOCTOR_NAV_BADGES_PLAN.md`](done/DOCTOR_NAV_BADGES_PLAN.md)) | 2 | 1, 4–8 |
 | 4. Дашборд «Сегодня» — **✅ закрыт** (2026-05-02, см. [`LOG.md`](LOG.md), [`DOCTOR_TODAY_DASHBOARD_PLAN.md`](done/DOCTOR_TODAY_DASHBOARD_PLAN.md)) | 2 | 1, 3, 5–8 |
@@ -90,7 +90,7 @@
 - Docs in this initiative:
   - `PLAN_DOCTOR_CABINET.md`
   - `LOG.md`
-  - `CMS_RESTRUCTURE_PLAN.md`
+  - `done/CMS_RESTRUCTURE_PLAN.md`
   - `done/CMS_RESTRUCTURE_EXECUTION_AUDIT.md`
   - `TARGET_STRUCTURE_DOCTOR.md`
   - `RECOMMENDATIONS_AND_ROADMAP.md`
@@ -129,9 +129,9 @@ Out of scope unless explicitly promoted into a separate plan:
 
 **Статус этапа:** ✅ **Выполнено** (код, миграция, журнал, пост-аудит документов — [`LOG.md`](LOG.md)).
 
-**Исполняется по отдельному документу:** [`CMS_RESTRUCTURE_PLAN.md`](CMS_RESTRUCTURE_PLAN.md).
+**Исполняется по отдельному документу:** [`CMS_RESTRUCTURE_PLAN.md`](done/CMS_RESTRUCTURE_PLAN.md).
 
-**Цель:** в `content_sections` появляются `kind` (`article` | `system`) и `system_parent_code`. CMS-сайдбар получает визуальную иерархию: «Статьи» отдельно, системные папки («Ситуации», «SOS», «Разминки», «Уроки») — отдельно; **«Мотивации»** — отдельный маршрут и сущность (`motivational_quotes`), не значение `system_parent_code` у разделов. Содержимое блоков главной пациента ограничивается соответствующим `system_parent_code` (с исключениями, см. `CMS_RESTRUCTURE_PLAN.md`).
+**Цель:** в `content_sections` появляются `kind` (`article` | `system`) и `system_parent_code`. CMS-сайдбар получает визуальную иерархию: «Статьи» отдельно, системные папки («Ситуации», «SOS», «Разминки», «Уроки») — отдельно; **«Мотивации»** — отдельный маршрут и сущность (`motivational_quotes`), не значение `system_parent_code` у разделов. Содержимое блоков главной пациента ограничивается соответствующим `system_parent_code` (с исключениями, см. `done/CMS_RESTRUCTURE_PLAN.md`).
 
 **Решения, уже принятые:**
 
@@ -141,9 +141,9 @@ Out of scope unless explicitly promoted into a separate plan:
 - «Уроки» остаются в CMS пока, переедут внутрь карточки курса при будущей переделке курсов.
 - Бонус: создание раздела изнутри системной папки сразу проставляет `system_parent_code`.
 
-**Шаги** — 7 шагов, расписаны в [`CMS_RESTRUCTURE_PLAN.md`](CMS_RESTRUCTURE_PLAN.md). Каждый — отдельный проход с проверкой.
+**Шаги** — 7 шагов, расписаны в [`CMS_RESTRUCTURE_PLAN.md`](done/CMS_RESTRUCTURE_PLAN.md). Каждый — отдельный проход с проверкой.
 
-**Definition of Done** — см. соответствующий блок в `CMS_RESTRUCTURE_PLAN.md`.
+**Definition of Done** — см. соответствующий блок в `done/CMS_RESTRUCTURE_PLAN.md`.
 
 ---
 
@@ -511,9 +511,9 @@ Mobile: десктопная иерархия повторяется в Sheet-м
 
 ## Этап 9. CMS hub и мотивации (закрывается внутри этапа 1)
 
-Старое содержание этого этапа (CMS `content_sections.kind` + редизайн CMS-хаба + перенос мутаций мотиваций в порт) **переехало** в [`CMS_RESTRUCTURE_PLAN.md`](CMS_RESTRUCTURE_PLAN.md) как часть Этапа 1 этого плана.
+Старое содержание этого этапа (CMS `content_sections.kind` + редизайн CMS-хаба + перенос мутаций мотиваций в порт) **переехало** в [`CMS_RESTRUCTURE_PLAN.md`](done/CMS_RESTRUCTURE_PLAN.md) как часть Этапа 1 этого плана.
 
-Хвост, который **не входит** в `CMS_RESTRUCTURE_PLAN.md` и остаётся в backlog:
+Хвост, который **не входит** в `done/CMS_RESTRUCTURE_PLAN.md` и остаётся в backlog:
 
 - Перенос мутаций мотиваций (`apps/webapp/src/app/app/doctor/content/motivation/actions.ts`) из server actions с raw SQL в порт `DoctorMotivationQuotesEditorPort` + DI. Делается отдельным маленьким шагом после стабилизации CMS-разделения.
 - Опциональный bulk import для мотиваций — только если редактору нужно.
@@ -538,7 +538,7 @@ Mobile: десктопная иерархия повторяется в Sheet-м
 
 Критерии ниже — **полное** закрытие этапов 1–8 этого файла. Текущее выполнение — по колонке «Статус» в сводной таблице §выше и в [`LOG.md`](LOG.md); незакрытые пункты DoD остаются backlog.
 
-- CMS-разделение закрыто по `CMS_RESTRUCTURE_PLAN.md`: системные папки отделены от статей, **встроенные immutable** slug защищены от переименования (см. [`CMS_RESTRUCTURE_EXECUTION_AUDIT.md`](done/CMS_RESTRUCTURE_EXECUTION_AUDIT.md)).
+- CMS-разделение закрыто по `done/CMS_RESTRUCTURE_PLAN.md`: системные папки отделены от статей, **встроенные immutable** slug защищены от переименования (см. [`CMS_RESTRUCTURE_EXECUTION_AUDIT.md`](done/CMS_RESTRUCTURE_EXECUTION_AUDIT.md)).
 - Меню врача — группы + аккордеон с сохранением состояния; «Библиотека файлов» вынесена из CMS в основное меню.
 - «Сегодня» показывает рабочие задачи дня, а не пассивный отчёт.
 - Бейджи на «Онлайн-заявки» и «Сообщения» работают одинаково в desktop и mobile.

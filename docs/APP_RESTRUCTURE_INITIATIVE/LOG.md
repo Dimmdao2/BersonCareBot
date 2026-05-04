@@ -12,10 +12,10 @@
 
 **Сделано (только документация, код не менялся):**
 
-- Создана папка [`../ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/`](../ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/): [`README.md`](../ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/README.md), [`MASTER_PLAN.md`](../ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/MASTER_PLAN.md), [`STAGE_B1_PLAN.md`](../ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/STAGE_B1_PLAN.md) … [`STAGE_B7_PLAN.md`](../ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/STAGE_B7_PLAN.md), [`LOG.md`](../ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/LOG.md), [`LOG_TEMPLATE.md`](../ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/LOG_TEMPLATE.md), [`EXECUTION_AUDIT_TEMPLATE.md`](../ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/EXECUTION_AUDIT_TEMPLATE.md).
-- В [`ASSIGNMENT_CATALOGS_REWORK_PLAN.md`](ASSIGNMENT_CATALOGS_REWORK_PLAN.md): ссылка на execution-папку; в §6 DoD журнал B — на [`../ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/LOG.md`](../ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/LOG.md) (не путать с журналом `APP_RESTRUCTURE_INITIATIVE/LOG.md`).
+- Создана папка [`../archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/`](../archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/): [`README.md`](../archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/README.md), [`MASTER_PLAN.md`](../archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/MASTER_PLAN.md), [`STAGE_B1_PLAN.md`](../archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/STAGE_B1_PLAN.md) … [`STAGE_B7_PLAN.md`](../archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/STAGE_B7_PLAN.md), [`LOG.md`](../archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/LOG.md), [`LOG_TEMPLATE.md`](../archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/LOG_TEMPLATE.md), [`EXECUTION_AUDIT_TEMPLATE.md`](../archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/EXECUTION_AUDIT_TEMPLATE.md).
+- В [`ASSIGNMENT_CATALOGS_REWORK_PLAN.md`](ASSIGNMENT_CATALOGS_REWORK_PLAN.md): ссылка на execution-папку; в §6 DoD журнал B — на [`../archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/LOG.md`](../archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/LOG.md) (не путать с журналом `APP_RESTRUCTURE_INITIATIVE/LOG.md`).
 - В [`README.md`](README.md) — execution-пакет в буллете sister-инициативы и строка в таблице «Что в этой папке».
-- В [`PROGRAM_PATIENT_SHAPE_PLAN.md`](PROGRAM_PATIENT_SHAPE_PLAN.md) и [`../PROGRAM_PATIENT_SHAPE_INITIATIVE/README.md`](../PROGRAM_PATIENT_SHAPE_INITIATIVE/README.md) — ссылка на execution B.
+- В [`PROGRAM_PATIENT_SHAPE_PLAN.md`](PROGRAM_PATIENT_SHAPE_PLAN.md) и [`../archive/2026-05-initiatives/PROGRAM_PATIENT_SHAPE_INITIATIVE/README.md`](../archive/2026-05-initiatives/PROGRAM_PATIENT_SHAPE_INITIATIVE/README.md) — ссылка на execution B.
 - В корневом [`../README.md`](../README.md) — пункт «Assignment Catalogs Rework (B1–B7) Execution» в блоке активных инициатив.
 
 **Решение по структуре:** `ASSIGNMENT_CATALOGS_REWORK_PLAN.md` остаётся продуктовым ТЗ; операционный контур — `ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/*`.
@@ -30,15 +30,15 @@
 
 **Сделано (только документация, код не менялся):**
 
-- Создана новая папка [`../PROGRAM_PATIENT_SHAPE_INITIATIVE/`](../PROGRAM_PATIENT_SHAPE_INITIATIVE/):
-  - [`README.md`](../PROGRAM_PATIENT_SHAPE_INITIATIVE/README.md)
-  - [`MASTER_PLAN.md`](../PROGRAM_PATIENT_SHAPE_INITIATIVE/MASTER_PLAN.md)
-  - [`STAGE_A1_PLAN.md`](../PROGRAM_PATIENT_SHAPE_INITIATIVE/STAGE_A1_PLAN.md)
-  - [`STAGE_A2_PLAN.md`](../PROGRAM_PATIENT_SHAPE_INITIATIVE/STAGE_A2_PLAN.md)
-  - [`STAGE_A3_PLAN.md`](../PROGRAM_PATIENT_SHAPE_INITIATIVE/STAGE_A3_PLAN.md)
-  - [`STAGE_A4_PLAN.md`](../PROGRAM_PATIENT_SHAPE_INITIATIVE/STAGE_A4_PLAN.md)
-  - [`STAGE_A5_PLAN.md`](../PROGRAM_PATIENT_SHAPE_INITIATIVE/STAGE_A5_PLAN.md)
-  - [`LOG.md`](../PROGRAM_PATIENT_SHAPE_INITIATIVE/LOG.md)
+- Создана новая папка [`../archive/2026-05-initiatives/PROGRAM_PATIENT_SHAPE_INITIATIVE/`](../archive/2026-05-initiatives/PROGRAM_PATIENT_SHAPE_INITIATIVE/):
+  - [`README.md`](../archive/2026-05-initiatives/PROGRAM_PATIENT_SHAPE_INITIATIVE/README.md)
+  - [`MASTER_PLAN.md`](../archive/2026-05-initiatives/PROGRAM_PATIENT_SHAPE_INITIATIVE/MASTER_PLAN.md)
+  - [`STAGE_A1_PLAN.md`](../archive/2026-05-initiatives/PROGRAM_PATIENT_SHAPE_INITIATIVE/STAGE_A1_PLAN.md)
+  - [`STAGE_A2_PLAN.md`](../archive/2026-05-initiatives/PROGRAM_PATIENT_SHAPE_INITIATIVE/STAGE_A2_PLAN.md)
+  - [`STAGE_A3_PLAN.md`](../archive/2026-05-initiatives/PROGRAM_PATIENT_SHAPE_INITIATIVE/STAGE_A3_PLAN.md)
+  - [`STAGE_A4_PLAN.md`](../archive/2026-05-initiatives/PROGRAM_PATIENT_SHAPE_INITIATIVE/STAGE_A4_PLAN.md)
+  - [`STAGE_A5_PLAN.md`](../archive/2026-05-initiatives/PROGRAM_PATIENT_SHAPE_INITIATIVE/STAGE_A5_PLAN.md)
+  - [`LOG.md`](../archive/2026-05-initiatives/PROGRAM_PATIENT_SHAPE_INITIATIVE/LOG.md)
 - В [`PROGRAM_PATIENT_SHAPE_PLAN.md`](PROGRAM_PATIENT_SHAPE_PLAN.md) добавлена ссылка на execution-контур.
 - В [`README.md`](README.md) добавлена ссылка на новую инициативную папку (в блок «Новые продуктовые инициативы» и в таблицу «Что в этой папке»).
 - В корневом [`../README.md`](../README.md) добавлен пункт «Program Patient Shape Execution» в блок активных инициатив.
@@ -47,7 +47,7 @@
 
 - `PROGRAM_PATIENT_SHAPE_PLAN.md` остаётся продуктовым ТЗ.
 - `PROGRAM_PATIENT_SHAPE_INITIATIVE/*` становится операционным контуром реализации (master + stage plans + log).
-- Sister-план B1–B7 (`ASSIGNMENT_CATALOGS_REWORK_PLAN.md`) остаётся отдельным **продуктовым ТЗ**; execution-контур — [`../ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/README.md`](../ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/README.md) — не смешивается с A1–A5.
+- Sister-план B1–B7 (`ASSIGNMENT_CATALOGS_REWORK_PLAN.md`) остаётся отдельным **продуктовым ТЗ**; execution-контур — [`../archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/README.md`](../archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/README.md) — не смешивается с A1–A5.
 
 **Проверки:** только docs; CI не запускался.
 
@@ -161,7 +161,7 @@
 
 **Сделано:**
 
-- [`exerciseLoadTypeOptions.ts`](../../apps/webapp/src/modules/lfk-exercises/exerciseLoadTypeOptions.ts) — единые `EXERCISE_LOAD_TYPE_OPTIONS` и `exerciseLoadTypeLabel`; [`ExerciseForm.tsx`](../../apps/webapp/src/app/app/doctor/exercises/ExerciseForm.tsx) и [`DoctorCatalogFiltersForm.tsx`](../../apps/webapp/src/shared/ui/doctor/DoctorCatalogFiltersForm.tsx) переведены на общий источник. **2026-05-04 follow-up:** список кодов/подписей для фильтра и формы — из справочника `load_type` ([`exerciseLoadTypeReference.ts`](../../apps/webapp/src/modules/lfk-exercises/exerciseLoadTypeReference.ts)); `EXERCISE_LOAD_TYPE_OPTIONS` оставлен как deprecated-обёртка над сидом; см. [`../ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/EXERCISE_LOAD_TYPE_FROM_REFS_PLAN.md`](../ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/EXERCISE_LOAD_TYPE_FROM_REFS_PLAN.md).
+- [`exerciseLoadTypeOptions.ts`](../../apps/webapp/src/modules/lfk-exercises/exerciseLoadTypeOptions.ts) — единые `EXERCISE_LOAD_TYPE_OPTIONS` и `exerciseLoadTypeLabel`; [`ExerciseForm.tsx`](../../apps/webapp/src/app/app/doctor/exercises/ExerciseForm.tsx) и [`DoctorCatalogFiltersForm.tsx`](../../apps/webapp/src/shared/ui/doctor/DoctorCatalogFiltersForm.tsx) переведены на общий источник. **2026-05-04 follow-up:** список кодов/подписей для фильтра и формы — из справочника `load_type` ([`exerciseLoadTypeReference.ts`](../../apps/webapp/src/modules/lfk-exercises/exerciseLoadTypeReference.ts)); `EXERCISE_LOAD_TYPE_OPTIONS` оставлен как deprecated-обёртка над сидом; см. [`../archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/EXERCISE_LOAD_TYPE_FROM_REFS_PLAN.md`](../archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/EXERCISE_LOAD_TYPE_FROM_REFS_PLAN.md).
 - [`mediaLibraryListSortOptions.ts`](../../apps/webapp/src/shared/ui/media/mediaLibraryListSortOptions.ts) — общие пресеты сортировки списка медиа; [`MediaPickerPanel.tsx`](../../apps/webapp/src/shared/ui/media/MediaPickerPanel.tsx), [`AutoCreateExercisesClient.tsx`](../../apps/webapp/src/app/app/doctor/exercises/AutoCreateExercisesClient.tsx).
 - Явная подпись в `SelectValue`: [`NewTemplateForm.tsx`](../../apps/webapp/src/app/app/doctor/treatment-program-templates/new/NewTemplateForm.tsx), [`TreatmentProgramConstructorClient.tsx`](../../apps/webapp/src/app/app/doctor/treatment-program-templates/[id]/TreatmentProgramConstructorClient.tsx), [`ReferenceItemsTableClient.tsx`](../../apps/webapp/src/app/app/doctor/references/[categoryCode]/ReferenceItemsTableClient.tsx), [`PatientTreatmentProgramsPanel.tsx`](../../apps/webapp/src/app/app/doctor/clients/PatientTreatmentProgramsPanel.tsx).
 
@@ -879,13 +879,13 @@ pnpm exec eslint \
 
 ## 2026-05-02 — `PLAN_DOCTOR_CABINET.md` приведён в соответствие с новыми решениями
 
-- Порядок этапов перестроен на **CMS-first**. Этап 1 = CMS-разделение по [`CMS_RESTRUCTURE_PLAN.md`](CMS_RESTRUCTURE_PLAN.md).
+- Порядок этапов перестроен на **CMS-first**. Этап 1 = CMS-разделение по [`CMS_RESTRUCTURE_PLAN.md`](done/CMS_RESTRUCTURE_PLAN.md).
 - Этап 2 «Меню» расширен: аккордеон с состоянием в `localStorage`, перенос «Библиотеки файлов» из CMS в основное меню.
 - Этап 5 «Сообщения» переписан под новую идею: страница чатов с фильтром «непрочитанные», универсальный layout чата как модалка, переиспользование в карточке пациента, автопрочтение по видимости.
 - Этап 6 «Карточка пациента» свёрнут до минимальной пересборки. Подробный tabs/hero-план положен в `<details>` как архив. В текущем проходе глубокая переработка не выполняется.
 - Этап 7 «Каталоги»: добавлены курсы.
 - Этап 8 — новый: «Плотность интерфейса» (карточки/тексты/отступы кабинета врача слишком крупные).
-- Этап 9 — старое содержание (`content_sections.kind` + редизайн CMS hub) **переехало** в `CMS_RESTRUCTURE_PLAN.md`. В этом плане этап оставлен пустым с указанием хвоста по мотивациям (raw SQL → порт).
+- Этап 9 — старое содержание (`content_sections.kind` + редизайн CMS hub) **переехало** в `done/CMS_RESTRUCTURE_PLAN.md`. В этом плане этап оставлен пустым с указанием хвоста по мотивациям (raw SQL → порт).
 - Definition of Done переписан под новый набор этапов.
 - Код не правился, только документация.
 
@@ -893,7 +893,7 @@ pnpm exec eslint \
 
 ## 2026-05-02 — заведена инициатива CMS-разделения (Вариант C)
 
-- Добавлен документ-инициатива [`CMS_RESTRUCTURE_PLAN.md`](CMS_RESTRUCTURE_PLAN.md): визуальная иерархия CMS через поля `kind` и `system_parent_code` у `content_sections`, без настоящей parent-иерархии в БД (Вариант A отложен).
+- Добавлен документ-инициатива [`CMS_RESTRUCTURE_PLAN.md`](done/CMS_RESTRUCTURE_PLAN.md): визуальная иерархия CMS через поля `kind` и `system_parent_code` у `content_sections`, без настоящей parent-иерархии в БД (Вариант A отложен).
 - Контекст и факты — [`CMS_AUDIT.md`](CMS_AUDIT.md).
 - Старт шагов — после согласования открытых вопросов §«Открытые вопросы (к шагу 1)» в плане.
 - Код на этом этапе не правится.
@@ -904,13 +904,13 @@ pnpm exec eslint \
 
 **Сделано:**
 
-- В [`CMS_RESTRUCTURE_PLAN.md`](CMS_RESTRUCTURE_PLAN.md) устранено противоречие: канонические значения `system_parent_code` — `situations` \| `sos` \| `warmups` \| `lessons` \| `null` (включён `lessons` для `lessons` / `course_lessons`).
+- В [`CMS_RESTRUCTURE_PLAN.md`](done/CMS_RESTRUCTURE_PLAN.md) устранено противоречие: канонические значения `system_parent_code` — `situations` \| `sos` \| `warmups` \| `lessons` \| `null` (включён `lessons` для `lessons` / `course_lessons`).
 - Зафиксировано: «Мотивации» — отдельный маршрут и `motivational_quotes`, **не** значение `system_parent_code` у `content_sections` в этом проходе.
 - Добавлена таблица canonical backfill (slug → `kind` / `system_parent_code`) в шаге 1 плана.
 - Сайдбар DoD и формулировки «что входит» приведены в соответствие (системные папки: Ситуации, SOS, Разминки, Уроки; мотивации — отдельная ссылка).
-- Защита slug: зафиксированы **immutable** встроенные slug; пользовательские разделы `kind=system` в папках кластера могут переименовываться (см. реализацию и [`CMS_RESTRUCTURE_PLAN.md`](CMS_RESTRUCTURE_PLAN.md)).
+- Защита slug: зафиксированы **immutable** встроенные slug; пользовательские разделы `kind=system` в папках кластера могут переименовываться (см. реализацию и [`CMS_RESTRUCTURE_PLAN.md`](done/CMS_RESTRUCTURE_PLAN.md)).
 
-**Проверки:** ручная сверка `CMS_RESTRUCTURE_PLAN.md`; `STRUCTURE_AUDIT.md` не меняли.
+**Проверки:** ручная сверка `done/CMS_RESTRUCTURE_PLAN.md`; `STRUCTURE_AUDIT.md` не меняли.
 
 **Вне scope:** миграция БД и правки кода — следующие шаги плана Composer.
 
@@ -950,11 +950,11 @@ ORDER BY 1, 2;
 
 - В записи «CMS Composer — реализация варианта C» выше — явный список команд проверки и шаблон контрольного `SELECT` для ops после миграции (рекомендации из [`CMS_RESTRUCTURE_EXECUTION_AUDIT.md`](done/CMS_RESTRUCTURE_EXECUTION_AUDIT.md) §4).
 - [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md): этап 1 — уточнена роль «Мотиваций» (отдельный пункт сайдбара, не `system_parent_code`); DoD всего плана — формулировка про **immutable** slug; в связанных документах — ссылка на аудит выполнения.
-- [`RECOMMENDATIONS_AND_ROADMAP.md`](RECOMMENDATIONS_AND_ROADMAP.md): примечание к «Этапу 2» дорожной карты — фактическая первая итерация типизации соответствует **варианту C** из `CMS_RESTRUCTURE_PLAN.md`, а не полному enum из старого текста этапа.
+- [`RECOMMENDATIONS_AND_ROADMAP.md`](RECOMMENDATIONS_AND_ROADMAP.md): примечание к «Этапу 2» дорожной карты — фактическая первая итерация типизации соответствует **варианту C** из `done/CMS_RESTRUCTURE_PLAN.md`, а не полному enum из старого текста этапа.
 - [`README.md`](README.md) этой папки — строки в таблице «Что в этой папке» для CMS-плана и аудита.
 - [`CMS_AUDIT.md`](CMS_AUDIT.md): разграничение baseline «до миграции» и текущего состояния; строки таблицы §4 по CMS-хабу приведены в соответствие с вариантом C.
 - [`TARGET_STRUCTURE_DOCTOR.md`](TARGET_STRUCTURE_DOCTOR.md): сноска к §8 про вариант C как первый шаг к целевой типизации.
-- [`CMS_RESTRUCTURE_PLAN.md`](CMS_RESTRUCTURE_PLAN.md): в Definition of Done уточнён пункт про контрольный `SELECT` (шаблон в `LOG.md`).
+- [`CMS_RESTRUCTURE_PLAN.md`](done/CMS_RESTRUCTURE_PLAN.md): в Definition of Done уточнён пункт про контрольный `SELECT` (шаблон в `LOG.md`).
 
 **Проверки:** ручная сверка изменённых markdown-файлов; код не менялся.
 
@@ -964,7 +964,7 @@ ORDER BY 1, 2;
 
 **Сделано:** в [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md) в шапке и в блоке «Этап 1» зафиксировано закрытие CMS-разделения (вариант C); в сводной таблице этапов строка 1 помечена как **закрыт**.
 
-**Проверки:** сверка с [`CMS_RESTRUCTURE_PLAN.md`](CMS_RESTRUCTURE_PLAN.md) (статус «реализовано») и записью «CMS Composer — реализация» в этом журнале.
+**Проверки:** сверка с [`CMS_RESTRUCTURE_PLAN.md`](done/CMS_RESTRUCTURE_PLAN.md) (статус «реализовано») и записью «CMS Composer — реализация» в этом журнале.
 
 ---
 

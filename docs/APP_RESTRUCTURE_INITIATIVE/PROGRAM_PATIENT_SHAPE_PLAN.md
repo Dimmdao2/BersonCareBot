@@ -1,8 +1,8 @@
 # PROGRAM_PATIENT_SHAPE_PLAN — план лечения пациента и каталоги назначений
 
-**Статус:** живой план (документация). Доменные этапы A1…A5 реализованы в webapp (`docs/PROGRAM_PATIENT_SHAPE_INITIATIVE`); этот файл остаётся источником продуктовых решений и backlog.
+**Статус:** живой план (документация). Доменные этапы A1…A5 реализованы в webapp; журнал execution и этапные аудиты — [`PROGRAM_PATIENT_SHAPE_INITIATIVE/README.md`](../archive/2026-05-initiatives/PROGRAM_PATIENT_SHAPE_INITIATIVE/README.md). Этот файл остаётся источником продуктовых решений и backlog.
 **Дата:** 2026-05-03 (обновление статуса: 2026-05-03).
-**Назначение:** зафиксированные продуктовые решения по «Плану лечения» пациента и сопутствующим каталогам назначений врача (тесты, рекомендации, группы внутри этапа, цели/задачи/срок этапа, лог действий, бейджи обновления). Изначально использовался как ТЗ для рабочих инициатив A1…A5 (см. §6); исполнение см. [`../PROGRAM_PATIENT_SHAPE_INITIATIVE/README.md`](../PROGRAM_PATIENT_SHAPE_INITIATIVE/README.md).
+**Назначение:** зафиксированные продуктовые решения по «Плану лечения» пациента и сопутствующим каталогам назначений врача (тесты, рекомендации, группы внутри этапа, цели/задачи/срок этапа, лог действий, бейджи обновления). Изначально использовался как ТЗ для рабочих инициатив A1…A5 (см. §6); исполнение см. [`../archive/2026-05-initiatives/PROGRAM_PATIENT_SHAPE_INITIATIVE/README.md`](../archive/2026-05-initiatives/PROGRAM_PATIENT_SHAPE_INITIATIVE/README.md).
 
 **Связанные документы:**
 - Опорная доменная модель: [`../archive/2026-05-initiatives/TREATMENT_PROGRAM_INITIATIVE/MASTER_PLAN.md`](../archive/2026-05-initiatives/TREATMENT_PROGRAM_INITIATIVE/MASTER_PLAN.md), [`../archive/2026-05-initiatives/TREATMENT_PROGRAM_INITIATIVE/SYSTEM_LOGIC_SCHEMA.md`](../archive/2026-05-initiatives/TREATMENT_PROGRAM_INITIATIVE/SYSTEM_LOGIC_SCHEMA.md)
@@ -11,8 +11,8 @@
 - Дорожная карта реструктуризации: [`RECOMMENDATIONS_AND_ROADMAP.md`](RECOMMENDATIONS_AND_ROADMAP.md) §IV
 - Курсы как отдельная инициатива (геткурс-модель): [`../COURSES_INITIATIVE/README.md`](../COURSES_INITIATIVE/README.md)
 - Sister-инициатива по UX/тех-фиксам каталогов «Назначений»: [`ASSIGNMENT_CATALOGS_REWORK_PLAN.md`](ASSIGNMENT_CATALOGS_REWORK_PLAN.md) (этапы B1–B7). Делается до/параллельно A1+A3, не дублирует доменную работу.
-- Execution-контур B1–B7: [`../ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/README.md`](../ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/README.md) (`MASTER_PLAN` + этапные планы + LOG).
-- Отдельный execution-контур A1–A5: [`../PROGRAM_PATIENT_SHAPE_INITIATIVE/README.md`](../PROGRAM_PATIENT_SHAPE_INITIATIVE/README.md) (`MASTER_PLAN` + этапные планы + LOG).
+- Execution-контур B1–B7: [`../archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/README.md`](../archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/README.md) (`MASTER_PLAN` + этапные планы + LOG).
+- Отдельный execution-контур A1–A5: [`../archive/2026-05-initiatives/PROGRAM_PATIENT_SHAPE_INITIATIVE/README.md`](../archive/2026-05-initiatives/PROGRAM_PATIENT_SHAPE_INITIATIVE/README.md) (`MASTER_PLAN` + этапные планы + LOG).
 
 > Инвариант, на котором строится этот документ: **любое назначение пациенту = `treatment_program_instance`**. Курсы — отдельная сущность по геткурс-модели (см. `COURSES_INITIATIVE`), к плану лечения **не относятся**.
 
@@ -424,7 +424,7 @@ treatment_program_instance
 - **O4:** `is_actionable` хранится только на `treatment_program_instance_stage_items`. Каталоговый `default_is_actionable` в A2 не вводится.
 - **O2:** `program_action_log` для ЛФК в MVP фиксирован на уровне комплекса (не per-exercise).
 - **O3:** заметка из формы `Как прошло занятие?` сохраняется в `program_action_log.note`; отдельное поле `lfk_session.note` не добавляется в A4.
-- Для исполнения фиксирована карта кодовой базы в `../PROGRAM_PATIENT_SHAPE_INITIATIVE/MASTER_PLAN.md` (§3.1): модули `modules/treatment-program`, API `doctor/patient treatment-program-instances|templates`, patient pages `app/patient/treatment-programs/*`, и Drizzle schema `treatmentProgram*.ts`.
+- Для исполнения фиксирована карта кодовой базы в `../archive/2026-05-initiatives/PROGRAM_PATIENT_SHAPE_INITIATIVE/MASTER_PLAN.md` (§3.1): модули `modules/treatment-program`, API `doctor/patient treatment-program-instances|templates`, patient pages `app/patient/treatment-programs/*`, и Drizzle schema `treatmentProgram*.ts`.
 
 ---
 

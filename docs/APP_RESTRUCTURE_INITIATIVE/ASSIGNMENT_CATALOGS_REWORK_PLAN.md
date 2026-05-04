@@ -7,7 +7,7 @@
 **Связанные документы:**
 - ТЗ доменной модели плана пациента: [`PROGRAM_PATIENT_SHAPE_PLAN.md`](PROGRAM_PATIENT_SHAPE_PLAN.md) (этапы A1–A5).
 - Дорожная карта: [`RECOMMENDATIONS_AND_ROADMAP.md`](RECOMMENDATIONS_AND_ROADMAP.md) (этап 9, эта переработка — sister-план перед/параллельно A1+A3).
-- **Execution-контур B1–B7:** [`../ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/README.md`](../ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/README.md) (`MASTER_PLAN`, `STAGE_B1..B7`, `LOG`, сводный [`AUDIT_GLOBAL.md`](../ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/AUDIT_GLOBAL.md), [`AUDIT_PREPUSH_POSTFIX.md`](../ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/AUDIT_PREPUSH_POSTFIX.md)).
+- **Execution-контур B1–B7:** [`../archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/README.md`](../archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/README.md) (`MASTER_PLAN`, `STAGE_B1..B7`, `LOG`, сводный [`AUDIT_GLOBAL.md`](../archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/AUDIT_GLOBAL.md), [`AUDIT_PREPUSH_POSTFIX.md`](../archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/AUDIT_PREPUSH_POSTFIX.md)).
 - Шаблон каталога (usage / archive): [`ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md`](done/ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md).
 - Целевая IA врача: [`TARGET_STRUCTURE_DOCTOR.md`](TARGET_STRUCTURE_DOCTOR.md) §6.
 
@@ -321,7 +321,7 @@
 - B6: список и модалка добавления элемента в шаблон — с превьюшками; конструктор имеет двухколоночный layout с понятными CTA.
 - B7: `template_comment` + `local_comment` есть на всех item-контейнерах; copy template→instance переносит, override работает.
 - На каждом B-этапе — целевые проверки по затронутой области (step/phase policy); полный `pnpm run ci` обязателен перед push.
-- LOG-блок в [`../ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/LOG.md`](../ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/LOG.md) на каждое реализованное B.
+- LOG-блок в [`../archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/LOG.md`](../archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/LOG.md) на каждое реализованное B.
 
 ---
 
@@ -329,12 +329,12 @@
 
 | Идея | Условие старта |
 |---|---|
-| ~~Удалить колонку `tests.scoring_config` (клинические тесты, таблица `tests`)~~ | **Сделано в репо + dev (2026-05-04):** миграция [`0040_drop_tests_scoring_config.sql`](../../apps/webapp/db/drizzle-migrations/0040_drop_tests_scoring_config.sql) на таблицу **`tests`** (`DROP` legacy-колонки); код/схема без `scoring_config`; **dev** — журнал миграций прогнан для теста. **Prod** — при деплое, с backup по [`deploy/HOST_DEPLOY_README.md`](../../deploy/HOST_DEPLOY_README.md) (см. [`AUDIT_DEFER_CLOSURE_GLOBAL.md`](../ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/AUDIT_DEFER_CLOSURE_GLOBAL.md) §8–§9, [`../ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/LOG.md`](../ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/LOG.md)). |
-| ~~Перевести `assessmentKind` в системный справочник БД (категория + UI управления + валидация)~~ | **Сделано (D2, 2026-05-03):** [`STAGE_D2_PLAN.md`](../ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/STAGE_D2_PLAN.md), [`AUDIT_STAGE_D2.md`](../ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/AUDIT_STAGE_D2.md) |
-| ~~Перевести типы рекомендаций в системный справочник БД~~ | **Сделано (D3, 2026-05-03):** [`STAGE_D3_PLAN.md`](../ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/STAGE_D3_PLAN.md), [`AUDIT_STAGE_D3.md`](../ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/AUDIT_STAGE_D3.md) |
-| Переименовать `recommendations.domain` → `recommendations.kind` (миграция + API + модуль `recommendations`) | **Отложено (2026-05-04):** отдельный этап по запросу; до снятия паузы остаёмся на колонке `domain` и UI «Тип» (см. [`STAGE_D5_PLAN.md`](../ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/STAGE_D5_PLAN.md)). |
+| ~~Удалить колонку `tests.scoring_config` (клинические тесты, таблица `tests`)~~ | **Сделано в репо + dev (2026-05-04):** миграция [`0040_drop_tests_scoring_config.sql`](../../apps/webapp/db/drizzle-migrations/0040_drop_tests_scoring_config.sql) на таблицу **`tests`** (`DROP` legacy-колонки); код/схема без `scoring_config`; **dev** — журнал миграций прогнан для теста. **Prod** — при деплое, с backup по [`deploy/HOST_DEPLOY_README.md`](../../deploy/HOST_DEPLOY_README.md) (см. [`AUDIT_DEFER_CLOSURE_GLOBAL.md`](../archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/AUDIT_DEFER_CLOSURE_GLOBAL.md) §8–§9, [`../archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/LOG.md`](../archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/LOG.md)). |
+| ~~Перевести `assessmentKind` в системный справочник БД (категория + UI управления + валидация)~~ | **Сделано (D2, 2026-05-03):** [`STAGE_D2_PLAN.md`](../archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/STAGE_D2_PLAN.md), [`AUDIT_STAGE_D2.md`](../archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/AUDIT_STAGE_D2.md) |
+| ~~Перевести типы рекомендаций в системный справочник БД~~ | **Сделано (D3, 2026-05-03):** [`STAGE_D3_PLAN.md`](../archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/STAGE_D3_PLAN.md), [`AUDIT_STAGE_D3.md`](../archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/AUDIT_STAGE_D3.md) |
+| Переименовать `recommendations.domain` → `recommendations.kind` (миграция + API + модуль `recommendations`) | **Отложено (2026-05-04):** отдельный этап по запросу; до снятия паузы остаёмся на колонке `domain` и UI «Тип» (см. [`STAGE_D5_PLAN.md`](../archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/STAGE_D5_PLAN.md)). |
 | Расширить `CreatableComboboxInput` до **многозначного** (теги) | По запросу |
-| ~~Доступ к системному справочнику `measure_kinds` (список/правка позиций)~~ | **Сделано (D1, 2026-05-03):** [`STAGE_D1_PLAN.md`](../ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/STAGE_D1_PLAN.md), [`AUDIT_STAGE_D1.md`](../ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/AUDIT_STAGE_D1.md) |
+| ~~Доступ к системному справочнику `measure_kinds` (список/правка позиций)~~ | **Сделано (D1, 2026-05-03):** [`STAGE_D1_PLAN.md`](../archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/STAGE_D1_PLAN.md), [`AUDIT_STAGE_D1.md`](../archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/AUDIT_STAGE_D1.md) |
 | ~~`publication_status` на упражнениях / клин. тестах / рекомендациях~~ | **Не делаем** (решение §8.2) |
 | ~~Отдельный API bulk-операций над items внутри контейнера~~ | **Не планируем** (решение §8.2; текущих батч-операций достаточно) |
 
@@ -358,7 +358,7 @@
 - **Q1:** `assessmentKind` — это **системный справочник в БД**, редактируемый из UI, а не фиксированный enum только в TypeScript.
 - **Q2:** в инстансе врач/контур программы отмечает прохождение теста одинаково для всех типов (включая `qualitative`): результат оценён -> этапный прогресс обновлён -> можно открыть следующий этап.
 - **Q3:** для «Типа» рекомендации допускается сосуществование старых и новых кодов; источник правды — справочник в БД; точечная очистка/пополнение на production допускается операционно.
-- **Q4:** до отдельного эпика сохраняем колонку `domain` и подпись UI «Тип»; целевое имя `kind` предпочтительно, но переименование делаем отдельным этапом после оценки объёма. **2026-05-04:** переименование **отложено** (не в текущем объёме); см. [`STAGE_D5_PLAN.md`](../ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/STAGE_D5_PLAN.md).
+- **Q4:** до отдельного эпика сохраняем колонку `domain` и подпись UI «Тип»; целевое имя `kind` предпочтительно, но переименование делаем отдельным этапом после оценки объёма. **2026-05-04:** переименование **отложено** (не в текущем объёме); см. [`STAGE_D5_PLAN.md`](../archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/STAGE_D5_PLAN.md).
 - **Q6:** первый приоритет — доступ к системному справочнику `measure_kinds`; merge/dedup и сложные операции откладываются.
 - **Инженерия:** колонка `tests.scoring_config` (клинические тесты) — **не нужна**; в репозитории — миграция **`0040`** + чистка кода; на **dev** миграции прогнаны для теста; **prod** — по деплою/runbook (§7).
 - **E2E:** расширение Playwright/CI **не** планируется; приёмка — ручной smoke; автоматический e2e — только для уже стабилизированного UI и по отдельному решению.

@@ -170,11 +170,11 @@
 
 ## II.4. CMS — главная боль
 
-**Примечание 2026-05-02:** в коде уже внедрён **вариант C** ([`CMS_RESTRUCTURE_PLAN.md`](CMS_RESTRUCTURE_PLAN.md)): у `content_sections` есть `kind` (`article` \| `system`) и `system_parent_code`. Подпункты ниже по-прежнему полезны как описание продуктовой проблемы и **дальнейшего** ужесточения типизации (отдельные `situation` / `subscription` / `course_lesson` и т.д.).
+**Примечание 2026-05-02:** в коде уже внедрён **вариант C** ([`CMS_RESTRUCTURE_PLAN.md`](done/CMS_RESTRUCTURE_PLAN.md)): у `content_sections` есть `kind` (`article` \| `system`) и `system_parent_code`. Подпункты ниже по-прежнему полезны как описание продуктовой проблемы и **дальнейшего** ужесточения типизации (отдельные `situation` / `subscription` / `course_lesson` и т.д.).
 
 ### II.4.1 Что сейчас
 
-После **варианта C** ([`CMS_RESTRUCTURE_PLAN.md`](CMS_RESTRUCTURE_PLAN.md)) у `content_sections` уже есть **`kind`** (`article` \| `system`) и **`system_parent_code`** для кластеров CMS и фильтров patient-home; сайдбар CMS разделён на статьи и системные папки. Ниже — что **ещё** тянет техдолг и продуктовую путаницу относительно **целевой** модели отдельных `situation` / `subscription` / `course_lesson` и табов хаба (II.4.3).
+После **варианта C** ([`CMS_RESTRUCTURE_PLAN.md`](done/CMS_RESTRUCTURE_PLAN.md)) у `content_sections` уже есть **`kind`** (`article` \| `system`) и **`system_parent_code`** для кластеров CMS и фильтров patient-home; сайдбар CMS разделён на статьи и системные папки. Ниже — что **ещё** тянет техдолг и продуктовую путаницу относительно **целевой** модели отдельных `situation` / `subscription` / `course_lesson` и табов хаба (II.4.3).
 
 `content_sections` по-прежнему **одна таблица** для разных смыслов контента. Часть различий всё ещё опирается на legacy-признаки и код:
 - `requires_auth` — флаг «нужен tier patient»; используется как proxy для «по подписке»;
@@ -395,7 +395,7 @@
 
 ## Этап 2. CMS-типизация: `content_sections.kind`
 
-**Статус 2026-05-02 (факт репозитория):** первый шаг CMS-first выполнен как **вариант C** в [`CMS_RESTRUCTURE_PLAN.md`](CMS_RESTRUCTURE_PLAN.md): колонки `kind` ∈ {`article`, `system`} и `system_parent_code` для кластеров CMS и patient-home; детали и сверка с кодом — [`CMS_RESTRUCTURE_EXECUTION_AUDIT.md`](done/CMS_RESTRUCTURE_EXECUTION_AUDIT.md). Блок **«Конкретно»** ниже описывает **более широкую** целевую модель (отдельные `situation` / `subscription` / `course_lesson` и т.д.) и остаётся ориентиром для последующих этапов, а не дословным описанием уже вмерженного кода.
+**Статус 2026-05-02 (факт репозитория):** первый шаг CMS-first выполнен как **вариант C** в [`CMS_RESTRUCTURE_PLAN.md`](done/CMS_RESTRUCTURE_PLAN.md): колонки `kind` ∈ {`article`, `system`} и `system_parent_code` для кластеров CMS и patient-home; детали и сверка с кодом — [`CMS_RESTRUCTURE_EXECUTION_AUDIT.md`](done/CMS_RESTRUCTURE_EXECUTION_AUDIT.md). Блок **«Конкретно»** ниже описывает **более широкую** целевую модель (отдельные `situation` / `subscription` / `course_lesson` и т.д.) и остаётся ориентиром для последующих этапов, а не дословным описанием уже вмерженного кода.
 
 **Что меняется (для редактора):** редактор перестаёт «не понимать, куда уйдёт страница». В CMS-хабе появляются отдельные табы по типу контента: «Статьи», «Ситуации», «Подписочные», «Уроки курсов». При создании страницы редактор сразу выбирает тип и видит соответствующий набор полей.
 
@@ -541,8 +541,8 @@
 ## Этап 9. Новая модель «Плана лечения» пациента (PROGRAM_PATIENT_SHAPE) + переработка каталогов «Назначений»
 
 > Зафиксирован 2026-05-03 как отдельная инициатива. Состоит из **двух параллельных планов**:
-> - **Доменный**: [`PROGRAM_PATIENT_SHAPE_PLAN.md`](PROGRAM_PATIENT_SHAPE_PLAN.md) — этапы A1–A5 (модель плана, цели/задачи/срок, группы, action_log, бейджи, Inbox К проверке, universal comment pattern §1.9). Execution: [`../PROGRAM_PATIENT_SHAPE_INITIATIVE/README.md`](../PROGRAM_PATIENT_SHAPE_INITIATIVE/README.md).
-> - **Sister-план по каталогам**: [`ASSIGNMENT_CATALOGS_REWORK_PLAN.md`](ASSIGNMENT_CATALOGS_REWORK_PLAN.md) — этапы B1–B7 (UX/тех-фиксы каталогов «Назначений», `CreatableComboboxInput`, две оси фильтра «черновик/опубликован» × «активный/архив», universal comment pattern на все item-контейнеры). Execution: [`../ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/README.md`](../ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/README.md).
+> - **Доменный**: [`PROGRAM_PATIENT_SHAPE_PLAN.md`](PROGRAM_PATIENT_SHAPE_PLAN.md) — этапы A1–A5 (модель плана, цели/задачи/срок, группы, action_log, бейджи, Inbox К проверке, universal comment pattern §1.9). Execution: [`../archive/2026-05-initiatives/PROGRAM_PATIENT_SHAPE_INITIATIVE/README.md`](../archive/2026-05-initiatives/PROGRAM_PATIENT_SHAPE_INITIATIVE/README.md).
+> - **Sister-план по каталогам**: [`ASSIGNMENT_CATALOGS_REWORK_PLAN.md`](ASSIGNMENT_CATALOGS_REWORK_PLAN.md) — этапы B1–B7 (UX/тех-фиксы каталогов «Назначений», `CreatableComboboxInput`, две оси фильтра «черновик/опубликован» × «активный/архив», universal comment pattern на все item-контейнеры). Execution: [`../archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/README.md`](../archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/README.md).
 >
 > Делается **до** этапа 7 (Курсы).
 

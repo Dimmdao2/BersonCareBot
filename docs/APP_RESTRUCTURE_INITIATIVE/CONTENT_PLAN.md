@@ -8,7 +8,7 @@
 
 Этот файл **не является источником хардкода**. Runtime главной — БД:
 
-- `content_sections` — разделы, `icon_image_url`, `cover_image_url`, таксономия (`kind` / `system_parent_code` — см. [`CMS_RESTRUCTURE_PLAN.md`](CMS_RESTRUCTURE_PLAN.md));
+- `content_sections` — разделы, `icon_image_url`, `cover_image_url`, таксономия (`kind` / `system_parent_code` — см. [`CMS_RESTRUCTURE_PLAN.md`](done/CMS_RESTRUCTURE_PLAN.md));
 - `patient_home_blocks` — видимость и порядок блоков;
 - `patient_home_block_items` — что показывается в блоке (`target_type`, `target_ref`).
 

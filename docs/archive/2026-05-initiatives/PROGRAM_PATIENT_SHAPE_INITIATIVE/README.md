@@ -1,0 +1,43 @@
+# PROGRAM_PATIENT_SHAPE_INITIATIVE
+
+> **Архив (2026-05-04):** execution этапов A1–A5 закрыт (`AUDIT_GLOBAL` PASS). Папка перенесена из `docs/PROGRAM_PATIENT_SHAPE_INITIATIVE/`. Продуктовое ТЗ — [`PROGRAM_PATIENT_SHAPE_PLAN.md`](../../../APP_RESTRUCTURE_INITIATIVE/PROGRAM_PATIENT_SHAPE_PLAN.md).
+
+Отдельная инициатива исполнения этапа 9 roadmap по новой модели «Плана лечения» пациента.
+
+## Зачем отдельная папка
+
+[`PROGRAM_PATIENT_SHAPE_PLAN.md`](../../../APP_RESTRUCTURE_INITIATIVE/PROGRAM_PATIENT_SHAPE_PLAN.md) остаётся продуктовым ТЗ (доменная картина, UX, решения, backlog).
+
+Эта папка — операционный контур реализации:
+
+- `MASTER_PLAN.md` — общий мастер-план и порядок выполнения;
+- `STAGE_A1_PLAN.md` ... `STAGE_A5_PLAN.md` — рабочие планы каждого этапа;
+- `LOG.md` — журнал исполнения по этапам;
+- `LOG_TEMPLATE.md` — шаблон записи после каждого EXEC/FIX прохода;
+- `EXECUTION_AUDIT_TEMPLATE.md` — шаблон аудита этапа/инициативы;
+- [`AUDIT_GLOBAL.md`](AUDIT_GLOBAL.md) — итоговый аудит после A1…A5 (заменяет черновой план `PROGRAM_PATIENT_SHAPE_EXECUTION_AUDIT.md`; отдельный файл с этим именем не обязателен).
+
+## Связанные документы
+
+- Продуктовый ТЗ: [`PROGRAM_PATIENT_SHAPE_PLAN.md`](../../../APP_RESTRUCTURE_INITIATIVE/PROGRAM_PATIENT_SHAPE_PLAN.md)
+- Sister-план каталогов B1–B7: [`ASSIGNMENT_CATALOGS_REWORK_PLAN.md`](../../../APP_RESTRUCTURE_INITIATIVE/ASSIGNMENT_CATALOGS_REWORK_PLAN.md) · execution: [`ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/README.md`](../ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/README.md)
+- Roadmap этап 9: [`RECOMMENDATIONS_AND_ROADMAP.md`](../../../APP_RESTRUCTURE_INITIATIVE/RECOMMENDATIONS_AND_ROADMAP.md)
+- Целевая IA пациента: [`TARGET_STRUCTURE_PATIENT.md`](../../../APP_RESTRUCTURE_INITIATIVE/TARGET_STRUCTURE_PATIENT.md)
+- Целевая IA врача: [`TARGET_STRUCTURE_DOCTOR.md`](../../../APP_RESTRUCTURE_INITIATIVE/TARGET_STRUCTURE_DOCTOR.md)
+
+## Файлы инициативы
+
+- [`MASTER_PLAN.md`](MASTER_PLAN.md)
+- [`STAGE_A1_PLAN.md`](STAGE_A1_PLAN.md)
+- [`STAGE_A2_PLAN.md`](STAGE_A2_PLAN.md)
+- [`STAGE_A3_PLAN.md`](STAGE_A3_PLAN.md)
+- [`STAGE_A4_PLAN.md`](STAGE_A4_PLAN.md)
+- [`STAGE_A5_PLAN.md`](STAGE_A5_PLAN.md)
+- [`LOG.md`](LOG.md)
+- [`LOG_TEMPLATE.md`](LOG_TEMPLATE.md)
+- [`EXECUTION_AUDIT_TEMPLATE.md`](EXECUTION_AUDIT_TEMPLATE.md)
+- [`PROMPTS_EXEC_AUDIT_FIX_GLOBAL.md`](PROMPTS_EXEC_AUDIT_FIX_GLOBAL.md)
+- [`AUDIT_GLOBAL.md`](AUDIT_GLOBAL.md)
+- [`AUDIT_PREPUSH_POSTFIX.md`](AUDIT_PREPUSH_POSTFIX.md) — pre-push postfix audit
+- [`BACKLOG_PRODUCT_AFTER_AUDITS.md`](BACKLOG_PRODUCT_AFTER_AUDITS.md) — backlog и решения по defer-пунктам после аудитов
+- [`BACKLOG_POST_AUDITS_IMPLEMENTATION_PLAN.md`](BACKLOG_POST_AUDITS_IMPLEMENTATION_PLAN.md) — план волны post-audits «сейчас» + запись аудита реализации

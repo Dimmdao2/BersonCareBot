@@ -19,7 +19,7 @@
 - Deferred patient routes (`/messages`, `/emergency`, `/lessons`, `/address`, `/intake/*`, booking landing): покрывать в будущих фазах `APP_RESTRUCTURE_INITIATIVE` только если маршруты сохраняются в целевой IA.
 - `VIDEO_HLS_DELIVERY`: крупная инфраструктурная инициатива, пока в состоянии проектирования (без кода).
 - `APP_RESTRUCTURE_INITIATIVE` — **этапы 2–9** по [`RECOMMENDATIONS_AND_ROADMAP.md`](APP_RESTRUCTURE_INITIATIVE/RECOMMENDATIONS_AND_ROADMAP.md) (CMS `kind`, хаб, уведомления, ядро пациента и т.д.).
-- `APP_RESTRUCTURE_INITIATIVE` — **этап 9 «PROGRAM_PATIENT_SHAPE»** (новая модель плана лечения): docs зафиксированы 2026-05-03, см. [`APP_RESTRUCTURE_INITIATIVE/PROGRAM_PATIENT_SHAPE_PLAN.md`](APP_RESTRUCTURE_INITIATIVE/PROGRAM_PATIENT_SHAPE_PLAN.md). Нарезка A1–A5; реализация — после согласования open questions §5 плана.
+- `APP_RESTRUCTURE_INITIATIVE` — **этап 9 «PROGRAM_PATIENT_SHAPE»** (новая модель плана лечения): продуктовое ТЗ [`APP_RESTRUCTURE_INITIATIVE/PROGRAM_PATIENT_SHAPE_PLAN.md`](APP_RESTRUCTURE_INITIATIVE/PROGRAM_PATIENT_SHAPE_PLAN.md); execution A1–A5 закрыт — см. [`archive/2026-05-initiatives/PROGRAM_PATIENT_SHAPE_INITIATIVE/README.md`](archive/2026-05-initiatives/PROGRAM_PATIENT_SHAPE_INITIATIVE/README.md).
 - `COURSES_INITIATIVE` (геткурс-модель): docs зафиксированы 2026-05-03, см. [`COURSES_INITIATIVE/README.md`](COURSES_INITIATIVE/README.md). Стартует **последней**, после ядра пациентского `PROGRAM_PATIENT_SHAPE_PLAN` и оплаты.
 
 ### Хвосты по «Плану лечения» / «Курсам» (2026-05-03)
@@ -41,8 +41,8 @@
 
 ### Хвосты ASSIGNMENT_CATALOGS / defer-wave (2026-05-04)
 
-- **`tests.scoring_config`:** колонка **не нужна**; в репо — миграция **`0040`**, код обновлён; **dev** — миграции прогнаны. **Prod** — при деплое (см. [`APP_RESTRUCTURE_INITIATIVE/ASSIGNMENT_CATALOGS_REWORK_PLAN.md`](APP_RESTRUCTURE_INITIATIVE/ASSIGNMENT_CATALOGS_REWORK_PLAN.md) §7, [`AUDIT_DEFER_CLOSURE_GLOBAL.md`](ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/AUDIT_DEFER_CLOSURE_GLOBAL.md) §8).
-- **`recommendations.domain` → `kind` (D5):** **отложено (owner pause)**; при возобновлении — см. таблицу **TODO** в [`ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/DEFER_CLOSURE_MASTER_PLAN.md`](ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/DEFER_CLOSURE_MASTER_PLAN.md) §8 и [`ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/STAGE_D5_PLAN.md`](ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/STAGE_D5_PLAN.md).
+- **`tests.scoring_config`:** колонка **не нужна**; в репо — миграция **`0040`**, код обновлён; **dev** — миграции прогнаны. **Prod** — при деплое (см. [`APP_RESTRUCTURE_INITIATIVE/ASSIGNMENT_CATALOGS_REWORK_PLAN.md`](APP_RESTRUCTURE_INITIATIVE/ASSIGNMENT_CATALOGS_REWORK_PLAN.md) §7, [`AUDIT_DEFER_CLOSURE_GLOBAL.md`](archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/AUDIT_DEFER_CLOSURE_GLOBAL.md) §8).
+- **`recommendations.domain` → `kind` (D5):** **отложено (owner pause)**; при возобновлении — см. таблицу **TODO** в [`DEFER_CLOSURE_MASTER_PLAN.md`](archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/DEFER_CLOSURE_MASTER_PLAN.md) §8 и [`STAGE_D5_PLAN.md`](archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/STAGE_D5_PLAN.md).
 
 ## Что уже перенесено в архив (2026-05-01)
 
@@ -52,3 +52,5 @@
 - `TREATMENT_PROGRAM_INITIATIVE`
 - `PATIENT_APP_PAGES_VISUAL_REDESIGN_INITIATIVE` (пустая папка-призрак)
 - `PATIENT_HOME_CMS_WORKFLOW_INITIATIVE` (принято текущее состояние; см. `archive/2026-05-initiatives/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/LOG.md`)
+- `PROGRAM_PATIENT_SHAPE_INITIATIVE` (execution A1–A5 закрыт; см. `archive/2026-05-initiatives/PROGRAM_PATIENT_SHAPE_INITIATIVE/`)
+- `ASSIGNMENT_CATALOGS_REWORK_INITIATIVE` (execution B1–B7 + defer-wave D1–D6 закрыты в доках; см. `archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/`)

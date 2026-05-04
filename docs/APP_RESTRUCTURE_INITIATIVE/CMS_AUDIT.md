@@ -1,10 +1,10 @@
 # CMS_AUDIT — что лежит в CMS и где бардак
 
-**Дата:** 2026-05-02. **Назначение:** факты по CMS и связанным сущностям в кабинете врача. Документ изначально фиксировал состояние **до** явной типизации разделов; после миграции варианта C (см. [`CMS_RESTRUCTURE_PLAN.md`](CMS_RESTRUCTURE_PLAN.md)) добавлены пометки «baseline / сейчас». **Без правок кода** — только текст для решений и сверки.
+**Дата:** 2026-05-02. **Назначение:** факты по CMS и связанным сущностям в кабинете врача. Документ изначально фиксировал состояние **до** явной типизации разделов; после миграции варианта C (см. [`CMS_RESTRUCTURE_PLAN.md`](done/CMS_RESTRUCTURE_PLAN.md)) добавлены пометки «baseline / сейчас». **Без правок кода** — только текст для решений и сверки.
 
 Связанные документы:
 
-- [`CMS_RESTRUCTURE_PLAN.md`](CMS_RESTRUCTURE_PLAN.md) — принятая реализация разделения (вариант C).
+- [`CMS_RESTRUCTURE_PLAN.md`](done/CMS_RESTRUCTURE_PLAN.md) — принятая реализация разделения (вариант C).
 - [`CMS_RESTRUCTURE_EXECUTION_AUDIT.md`](done/CMS_RESTRUCTURE_EXECUTION_AUDIT.md) — аудит соответствия плану и коду.
 - [`PLAN_DOCTOR_CABINET.md`](PLAN_DOCTOR_CABINET.md) — общий план.
 - [`STRUCTURE_AUDIT.md`](STRUCTURE_AUDIT.md) — immutable baseline «как было» (не редактируется).
@@ -13,7 +13,7 @@
 
 ## 1. Что сейчас лежит в кабинете врача под видом CMS
 
-Меню врача (`apps/webapp/src/shared/ui/doctorNavLinks.ts`) показывает CMS как один пункт `/app/doctor/content`. Внутри него — sidebar (`ContentPagesSidebar.tsx`) с такими разделами (до/после варианта C детализировано в [`CMS_RESTRUCTURE_PLAN.md`](CMS_RESTRUCTURE_PLAN.md); **исторически** список выглядел так):
+Меню врача (`apps/webapp/src/shared/ui/doctorNavLinks.ts`) показывает CMS как один пункт `/app/doctor/content`. Внутри него — sidebar (`ContentPagesSidebar.tsx`) с такими разделами (до/после варианта C детализировано в [`CMS_RESTRUCTURE_PLAN.md`](done/CMS_RESTRUCTURE_PLAN.md); **исторически** список выглядел так):
 
 - Мотивации
 - Разделы (список разделов CMS)
@@ -81,7 +81,7 @@
 
 **Baseline (до миграции `0017_content_sections_kind_system_parent`):** в `content_sections` не было поля `kind`/`type`. Все разные роли раздела отличались только по строке slug:
 
-**Сейчас (вариант C, 2026-05-02):** у разделов есть `kind` (`article` \| `system`) и `system_parent_code`; CMS и patient-home используют их для иерархии и фильтров. Ниже — зачем slug-ориентация оставалась проблемой и какие slug-и какие роли имели **концептуально** (часть правил теперь дублируется таксономией в БД — см. [`CMS_RESTRUCTURE_PLAN.md`](CMS_RESTRUCTURE_PLAN.md)).
+**Сейчас (вариант C, 2026-05-02):** у разделов есть `kind` (`article` \| `system`) и `system_parent_code`; CMS и patient-home используют их для иерархии и фильтров. Ниже — зачем slug-ориентация оставалась проблемой и какие slug-и какие роли имели **концептуально** (часть правил теперь дублируется таксономией в БД — см. [`CMS_RESTRUCTURE_PLAN.md`](done/CMS_RESTRUCTURE_PLAN.md)).
 
 - `emergency` — «Скорая помощь», системный slot
 - `warmups` — раздел разминок (системный); код знает его по константе `DEFAULT_WARMUPS_SECTION_SLUG = "warmups"` в `apps/webapp/src/modules/patient-home/warmupsSection.ts`
@@ -133,7 +133,7 @@
 
 ### 5.1. Разделить контент по типу
 
-**Частично сделано (вариант C):** введены `kind` ∈ {`article`, `system`} и `system_parent_code` — см. [`CMS_RESTRUCTURE_PLAN.md`](CMS_RESTRUCTURE_PLAN.md). Ниже — более широкое целевое видение (отдельные типы для ситуаций, подписки, уроков курса), которое может прийти следующими этапами.
+**Частично сделано (вариант C):** введены `kind` ∈ {`article`, `system`} и `system_parent_code` — см. [`CMS_RESTRUCTURE_PLAN.md`](done/CMS_RESTRUCTURE_PLAN.md). Ниже — более широкое целевое видение (отдельные типы для ситуаций, подписки, уроков курса), которое может прийти следующими этапами.
 
 Ввести у `content_sections` явный тип (например колонка `kind`), значения примерно такие:
 
