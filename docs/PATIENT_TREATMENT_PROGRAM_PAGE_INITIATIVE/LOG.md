@@ -1,0 +1,67 @@
+# LOG — PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE
+
+## 2026-05-05
+
+- Создана папка инициативы `docs/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/` с `README.md` (main plan: таблица этапов A–D и модели агентов), `STAGE_PLAN.md`, `LOG.md`.
+- Источник правды по scope/DoD: `docs/APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md` §1.0, §1.1, §1.1a, §1.1b.
+- Добавлена подробная декомпозиция в отдельных файлах: `STAGE_A.md`, `STAGE_B.md`, `STAGE_C.md`, `STAGE_D.md`.
+- Добавлен `PROMPTS_COPYPASTE.md` с конвейером: для каждого этапа `EXEC -> AUDIT -> FIX -> COMMIT`; в конце всей инициативы `GLOBAL AUDIT -> GLOBAL FIX -> PREPUSH -> PUSH`.
+- Зафиксировано правило: после каждого этапа только commit; полный `pnpm run ci` — только в финальном pre-push проходе.
+- **Проверка кода (2026-05-05):** Stage A (`started_at`) **уже реализован** в полном объёме:
+  - schema: `treatmentProgramInstances.ts` l.81 ✅
+  - migration: `0043_treatment_program_instance_stage_started_at.sql` с backfill ✅
+  - pg repo: idempotent patch при `in_progress` ✅
+  - inMemory repo: аналогичная логика ✅
+  - domain types: `TreatmentProgramInstanceStageRow.startedAt: string | null` ✅
+  - contract test: `pgTreatmentProgramInstance.startedAt.contract.test.ts` ✅
+  - `progress-service.ts` изменений не требует (логика на уровне repo-patch).
+  - STAGE_A.md переориентирован на верификацию, не на имплементацию с нуля.
+- **Stage A gate (EXEC/AUDIT/FIX, 2026-05-05):**
+  - Прочитаны и применены: `README.md`, `docs/README.md`, `docs/ARCHITECTURE/SERVER CONVENTIONS.md`, `deploy/HOST_DEPLOY_README.md`, `STAGE_A.md`, `STAGE_PLAN.md`, `ROADMAP_2.md` (§1.0), правила инициативы по модульной изоляции и patient UI/shared primitives (scope не расширяли).
+  - Scope этапа подтверждён по `STAGE_A.md`: только data/repo/type/contract-test слой `started_at`, без UI и без правок `progress-service.ts`.
+- **Stage A A1..A3 (verification):**
+  - A1: `startedAt` присутствует и консистентен в `db/schema`, доменном типе `TreatmentProgramInstanceStageRow`, `pg` и `inMemory` репозиториях; поведение «первый вход в `in_progress`» idempotent.
+  - A2: миграция `0043_treatment_program_instance_stage_started_at.sql` additive; backfill ограничен `status = 'in_progress'` и `started_at IS NULL`, уже выставленные значения не перетираются.
+  - A3: дополнительных пробелов в read-модели/маппингах/edge-cases не обнаружено; кодовые правки не потребовались.
+- **Stage A A4 (target checks):**
+  - `pnpm --dir apps/webapp exec tsc --noEmit` ✅
+  - `pnpm --dir apps/webapp lint --max-warnings=0 -- src/modules/treatment-program src/infra/repos db/schema` ✅
+  - `pnpm --dir apps/webapp exec vitest run src/infra/repos/pgTreatmentProgramInstance.startedAt.contract.test.ts src/modules/treatment-program` ✅
+- **Stage A A5 (log + status):** pre-flight подтверждён, пробелов не найдено, статус этапа: **Stage A closed**.
+- **Stage A FIX по `AUDIT_STAGE_A.md` (2026-05-05):**
+  - Critical: отсутствуют, исправления не требуются.
+  - Major: отсутствуют, исправления не требуются.
+  - Minor: отсутствуют; defer не оформлялся, так как нет пунктов для отложенного исправления.
+  - Повтор целевых проверок Stage A после FIX:
+    - `pnpm --dir apps/webapp exec tsc --noEmit` ✅
+    - `pnpm --dir apps/webapp lint --max-warnings=0 -- src/modules/treatment-program src/infra/repos db/schema` ✅
+    - `pnpm --dir apps/webapp exec vitest run src/infra/repos/pgTreatmentProgramInstance.startedAt.contract.test.ts src/modules/treatment-program` ✅
+- **Stage B gate (EXEC старт, 2026-05-05):**
+  - Прочитаны и применены: `STAGE_B.md`, `STAGE_PLAN.md`, `ROADMAP_2.md` (§1.1a), а также правила `.cursor/rules/clean-architecture-module-isolation.mdc`, `.cursor/rules/patient-ui-shared-primitives.mdc`, `.cursor/rules/no-unsolicited-followups.mdc`.
+  - Подтверждено предусловие `STAGE_B.md`: Stage A закрыт (см. записи выше: `Stage A closed` + `AUDIT/FIX`).
+  - Scope Stage B зафиксирован: только detail MVP `/treatment-programs/[instanceId]` (B1..B8), без миграций, без портовых контрактов, без маршрута `stages/[stageId]` (этап C).
+- **Stage B B1..B6 (implementation status):**
+  - B1: верхний блок detail (название, текущий этап, CTA «Открыть текущий этап», ссылка «Архив этапов») присутствует.
+  - B2: этап 0 рендерится отдельным блоком «Общие рекомендации».
+  - B3: текущий этап выводится как основной рабочий блок с единым списком назначений.
+  - B4: завершённые/пропущенные этапы вынесены в `<details>` и скрыты по умолчанию.
+  - B5: блок «Чек-лист на сегодня» на detail отсутствует.
+  - B6: сигнал «План обновлён» и дата ожидаемого контроля (`started_at + expected_duration_days` при наличии обоих полей) реализованы.
+  - Дополнительные правки кода в рамках Stage B не потребовались (текущая реализация уже соответствует B1..B6).
+- **Stage B B7 (target checks):**
+  - `pnpm --dir apps/webapp lint --max-warnings=0 -- src/app/app/patient/treatment-programs` ✅
+  - `pnpm --dir apps/webapp exec tsc --noEmit` ✅
+  - `pnpm --dir apps/webapp exec vitest run src/app/app/patient/treatment-programs` ✅
+  - Включая файлы из `STAGE_B.md`: `PatientTreatmentProgramDetailClient.test.tsx` и `page.nudgeResilience.test.tsx` — зелёные.
+- **Stage B B8 (log + status):** запись внесена, вне-scope изменения не выполнялись, статус этапа: **Stage B closed**.
+- **Stage B FIX по `AUDIT_STAGE_B.md` (2026-05-05):**
+  - Critical: отсутствуют, исправления не требуются.
+  - Major: отсутствуют, исправления не требуются.
+  - Minor: отсутствуют; defer не оформлялся, так как нет пунктов для отложенного исправления.
+  - Повтор целевых проверок Stage B после FIX:
+    - `pnpm --dir apps/webapp lint --max-warnings=0 -- src/app/app/patient/treatment-programs` ✅
+    - `pnpm --dir apps/webapp exec tsc --noEmit` ✅
+    - `pnpm --dir apps/webapp exec vitest run src/app/app/patient/treatment-programs` ✅
+- **Stage B closed + commit:** этап B закрыт после FIX и подготовлен к отдельному commit (без запуска полного `pnpm run ci`, по правилу этапов).
+
+*(Дальнейшие записи: `read-rules + scope`, результаты проверок, решения по «История тестирования» / маршрутам — по мере исполнения этапов A–D.)*
