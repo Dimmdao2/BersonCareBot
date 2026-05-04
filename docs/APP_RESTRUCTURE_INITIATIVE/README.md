@@ -11,6 +11,7 @@
 - **Sister-инициатива «ASSIGNMENT_CATALOGS_REWORK»** — UX/тех-фиксы каталогов «Назначений» (типизация клин. тестов через `assessmentKind` + `body_region` + структурированный `scoring`; новый shared `CreatableComboboxInput`; редактор наборов тестов как клон LFK-комплекса с комментариями; регион тела и метрики у рекомендаций; фикс UX комплексов ЛФК; визуальный pass-1 конструктора шаблонов; **две независимых оси фильтра** «черновик/опубликован» × «активный/архив»; universal comment pattern на все item-контейнеры). Продуктовое ТЗ — [`ASSIGNMENT_CATALOGS_REWORK_PLAN.md`](ASSIGNMENT_CATALOGS_REWORK_PLAN.md) (этапы B1–B7). **Execution-пакет** — [`../archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/README.md`](../archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/README.md) (архив: `MASTER_PLAN` + планы `STAGE_B1..B7` + `LOG`, сводный аудит закрыт). Шёл до/параллельно A1+A3 PROGRAM_PATIENT_SHAPE; не дублировал доменную работу. **По состоянию на 2026-05-04 (sync owner):** **редизайн блока «Назначения»** в кабинете врача (кластер меню, списки, навигация) — **практически закрыт**; цепочка каталогов упражнения→рекомендации — в целевом состоянии по execution-аудиту. **Шаблоны программ** — остаются **небольшие правки** (список/конструктор); **не блокер** для [`ROADMAP_2.md`](ROADMAP_2.md) §1.x–§2.x.
 - **`COURSES_INITIATIVE`** — курсы как **отдельная сущность по геткурс-модели** ([`../COURSES_INITIATIVE/README.md`](../COURSES_INITIATIVE/README.md)); снимает старую идею «объединить Курсы ↔ Шаблоны программ через `published_as_course`». **Статус (2026-05-04, owner): отложены** — не в ближайшей очереди; ранее планировалось стартовать после ядра `PROGRAM_PATIENT_SHAPE_PLAN` и оплаты.
 - **Patient treatment programs polish (`ROADMAP_2` §1.0–1.1a)** — мини-инициатива исполнения части 1 roadmap: [`../PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/README.md`](../PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/README.md) · [`ROADMAP_2.md`](ROADMAP_2.md) §3.
+- **Patient `/diary` (`ROADMAP_2` §1.2)** — тех. согласованность и empty state **в коде (2026-05-04)**; полный UX-проход «сегодня» — см. DoD в [`ROADMAP_2.md`](ROADMAP_2.md) §1.2 и [`LOG.md`](LOG.md).
 
 ## Что в этой папке
 
@@ -46,7 +47,7 @@
 | [`CONTENT_PLAN.md`](CONTENT_PLAN.md) | Материалы и блоки главной пациента (ситуации, подписка, курсы, разминка) + CMS-гайд; не runtime-SoT | **живой** |
 | [`../PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/README.md`](../PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/README.md) | Мини-инициатива: лечебные программы пациента (`ROADMAP_2` §3: 1.0–1.1a, порядок A→B→C) | **живой** |
 | [`CLINICAL_TEST_SCORING_CURRENT_SYSTEM.md`](CLINICAL_TEST_SCORING_CURRENT_SYSTEM.md) | Простое объяснение текущей системы оценки клинических тестов: типы шкал, смысл "Добавить измерение", как это сейчас работает для пациента | **живой** |
-| [`STRUCTURE_AUDIT.md`](STRUCTURE_AUDIT.md) | Снимок текущей IA (маршруты, меню, блоки, архитектурные факты) — **точка отсчёта** | **immutable** — не правится после фиксации, чтобы можно было сравнивать «до/после» |
+| [`STRUCTURE_AUDIT.md`](STRUCTURE_AUDIT.md) | Снимок текущей IA (маршруты, меню, блоки, архитектурные факты) — **точка отсчёта**; шапка фиксирует **операционные дельты** без полного resnapshot | **immutable таблица + дельта в шапке** (см. пояснение в файле) |
 | [`RECOMMENDATIONS_AND_ROADMAP.md`](RECOMMENDATIONS_AND_ROADMAP.md) | Оценка текущего состояния по продуктовым целям + предложение этапов работ (0–8) | **живой документ** — обновляется по мере приёма решений |
 | [`TARGET_STRUCTURE_PATIENT.md`](TARGET_STRUCTURE_PATIENT.md) | Целевое видение пациентского приложения (5 вкладок, ткань уведомлений, материал контента) | **живой** — фиксируем решения в §11+ |
 | [`TARGET_STRUCTURE_DOCTOR.md`](TARGET_STRUCTURE_DOCTOR.md) | Целевое видение кабинета врача/админа (5 кластеров меню, карточка пациента, CMS-кластер) | **живой** — фиксируем решения в §15+ |
@@ -63,6 +64,6 @@
 
 ## Принцип работы с этими документами
 
-1. **`STRUCTURE_AUDIT.md` не редактируется.** Если факты в коде меняются после старта инициативы — это значит идёт реализация, а аудит остаётся снимком «как было».
+1. **`STRUCTURE_AUDIT.md`** — **immutable таблица** на дату снимка; операционные изменения маршрутов после baseline фиксируются **в шапке файла** (дельта) и в [`ROADMAP_2.md`](ROADMAP_2.md) / [`LOG.md`](LOG.md), без переписывания всего аудита.
 2. **`RECOMMENDATIONS_AND_ROADMAP.md`** — основной рабочий документ для планирования отдельных продуктовых инициатив, рождающихся из этой реформы. Этапы 0–8 — это потенциальные отдельные инициативы (отдельные папки `docs/*_INITIATIVE/`).
 3. **`TARGET_STRUCTURE_*.md`** — мысленные карты, в которые вписываются **зафиксированные продуктовые решения** перед стартом каждого этапа. По мере фиксации решения раскрытые вопросы переезжают из «открытых вопросов» в основной текст.

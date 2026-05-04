@@ -3,6 +3,7 @@
 **Статус:** **immutable snapshot** — фиксируется на старте инициативы и не редактируется.
 **Дата:** 2026-05-01.
 **Назначение:** baseline для последующего редизайна UI/IA. Любое сравнение «до/после» делается относительно этого снимка. Оценки и рекомендации вынесены в [`RECOMMENDATIONS_AND_ROADMAP.md`](RECOMMENDATIONS_AND_ROADMAP.md).
+**Операционная дельта (2026-05-04):** факт маршрутизации legacy `/app/patient/diary/symptoms` | `/diary/lfk` (включая слэш) и канон единой страницы дневника — в [`ROADMAP_2.md`](ROADMAP_2.md) §1.2 и [`LOG.md`](LOG.md); таблица §I.3.4 ниже дополнена строкой «как сейчас в коде» без пересъёмки всего документа.
 
 **Источник фактов:** кодовая база `apps/webapp/src/app/app/patient/`, `apps/webapp/src/app/app/doctor/`, `apps/webapp/src/app-layer/routes/paths.ts`, `apps/webapp/src/shared/ui/doctorNavLinks.ts`, `apps/webapp/src/app-layer/routes/navigation.ts`, `apps/webapp/src/modules/patient-home/ports.ts`, `home/PatientHomeToday.tsx`, `apps/webapp/src/infra/repos/pgContentSections.ts`.
 

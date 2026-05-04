@@ -6,6 +6,14 @@
 
 ---
 
+## 2026-05-04 — docs sync: `ROADMAP_2`, `RECOMMENDATIONS`, `TARGET_STRUCTURE_PATIENT`, корневой `docs/README`, `STRUCTURE_AUDIT` шапка
+
+**Сделано:** выровнены формулировки с фактом кода по **§1.2 дневник** (частичное закрытие: тех. хвост + empty state; UX «сегодня» — backlog). Источник правды по исполнению — предыдущие записи этого `LOG.md` за 2026-05-04.
+
+**Проверки:** docs-only.
+
+---
+
 ## 2026-05-04 — ROADMAP_2 §1.2 (не-UI): legacy URL дневника + запрет `createLfkComplex` у пациента
 
 **Сделано:** в [`apps/webapp/next.config.ts`](../../apps/webapp/next.config.ts) добавлены permanent-редиректы `/app/patient/diary/symptoms` → `/app/patient/diary?tab=symptoms`, `/app/patient/diary/lfk` → `/app/patient/diary?tab=lfk`; удалены заглушки [`symptoms/page.tsx`](../../apps/webapp/src/app/app/patient/diary/symptoms/page.tsx), [`lfk/page.tsx`](../../apps/webapp/src/app/app/patient/diary/lfk/page.tsx). Server action [`createLfkComplex`](../../apps/webapp/src/app/app/patient/diary/lfk/actions.ts) — no-op после `requirePatientAccessWithPhone` (не вызывает `deps.diaries.createLfkComplex`). Тесты: [`e2e/diaries-inprocess.test.ts`](../../apps/webapp/e2e/diaries-inprocess.test.ts), [`lfk/actions.createLfkComplex.test.ts`](../../apps/webapp/src/app/app/patient/diary/lfk/actions.createLfkComplex.test.ts). Обновлены коллоквиальные [`lfk.md`](../../apps/webapp/src/app/app/patient/diary/lfk/lfk.md), [`symptoms.md`](../../apps/webapp/src/app/app/patient/diary/symptoms/symptoms.md).
