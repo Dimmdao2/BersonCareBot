@@ -10,9 +10,9 @@
 
 | Уровень | Статус | Что сделано |
 |---------|--------|-------------|
-| **Critical** | **CLOSED** | Проверено: один файл [`0043_treatment_program_instance_stage_started_at.sql`](../../apps/webapp/db/drizzle-migrations/0043_treatment_program_instance_stage_started_at.sql); ровно одна запись `tag` `0043_treatment_program_instance_stage_started_at` в [`meta/_journal.json`](../../apps/webapp/db/drizzle-migrations/meta/_journal.json). Логика `updateInstanceStage`: `started_at` в `SET` только при `startedAtForPatch !== undefined` (нет перезаписи при повторном `in_progress`). |
+| **Critical** | **CLOSED** | Проверено: один файл [`0043_treatment_program_instance_stage_started_at.sql`](../../../apps/webapp/db/drizzle-migrations/0043_treatment_program_instance_stage_started_at.sql); ровно одна запись `tag` `0043_treatment_program_instance_stage_started_at` в [`meta/_journal.json`](../../../apps/webapp/db/drizzle-migrations/meta/_journal.json). Логика `updateInstanceStage`: `started_at` в `SET` только при `startedAtForPatch !== undefined` (нет перезаписи при повторном `in_progress`). |
 | **Major** | **CLOSED** | `TreatmentProgramInstanceStageRow.startedAt` в типах; `mapStage` отдаёт поле в detail; backfill SQL совпадает с описанием в [`LOG.md`](LOG.md). |
-| **Minor** | **CLOSED / DEFER** | (1) **CLOSED** — команда `rg` и vitest в [`STAGE_A.md`](STAGE_A.md) обновлены (`started_at\|startedAt` + контрактный тест). (2) **CLOSED (частично)** — добавлен [`pgTreatmentProgramInstance.startedAt.contract.test.ts`](../../apps/webapp/src/infra/repos/pgTreatmentProgramInstance.startedAt.contract.test.ts) (статическая проверка исходника PG-репо без БД). **DEFER:** полноценный PG integration test (INSERT/SELECT через `getDrizzle` под `USE_REAL_DATABASE=1`) не добавлен: в `package.json` `test:with-db` нет сценария treatment-program; default `vitest.setup` обнуляет `DATABASE_URL`; ввод в общий DB-harness — отдельная задача при появлении стандарта для instance-tree в реальной БД. (3) **CLOSED** — комментарий у `startedAtForPatch` в [`pgTreatmentProgramInstance.ts`](../../apps/webapp/src/infra/repos/pgTreatmentProgramInstance.ts). |
+| **Minor** | **CLOSED / DEFER** | (1) **CLOSED** — команда `rg` и vitest в [`STAGE_A.md`](STAGE_A.md) обновлены (`started_at\|startedAt` + контрактный тест). (2) **CLOSED (частично)** — добавлен [`pgTreatmentProgramInstance.startedAt.contract.test.ts`](../../../apps/webapp/src/infra/repos/pgTreatmentProgramInstance.startedAt.contract.test.ts) (статическая проверка исходника PG-репо без БД). **DEFER:** полноценный PG integration test (INSERT/SELECT через `getDrizzle` под `USE_REAL_DATABASE=1`) не добавлен: в `package.json` `test:with-db` нет сценария treatment-program; default `vitest.setup` обнуляет `DATABASE_URL`; ввод в общий DB-harness — отдельная задача при появлении стандарта для instance-tree в реальной БД. (3) **CLOSED** — комментарий у `startedAtForPatch` в [`pgTreatmentProgramInstance.ts`](../../../apps/webapp/src/infra/repos/pgTreatmentProgramInstance.ts). |
 
 ---
 
@@ -20,8 +20,8 @@
 
 | Критерий | Статус | Доказательство |
 |----------|--------|----------------|
-| Только добавление колонки, без удаления/переименования существующих | **PASS** | Миграция: один `ALTER TABLE ... ADD COLUMN "started_at"` ([`0043_treatment_program_instance_stage_started_at.sql`](../../apps/webapp/db/drizzle-migrations/0043_treatment_program_instance_stage_started_at.sql)). |
-| Nullable, без принудительного `NOT NULL` на сырых данных | **PASS** | Колонка `timestamp with time zone` без `NOT NULL`; Drizzle: `startedAt: timestamp("started_at", { withTimezone: true, mode: "string" })` без `.notNull()` в [`treatmentProgramInstances.ts`](../../apps/webapp/db/schema/treatmentProgramInstances.ts). |
+| Только добавление колонки, без удаления/переименования существующих | **PASS** | Миграция: один `ALTER TABLE ... ADD COLUMN "started_at"` ([`0043_treatment_program_instance_stage_started_at.sql`](../../../apps/webapp/db/drizzle-migrations/0043_treatment_program_instance_stage_started_at.sql)). |
+| Nullable, без принудительного `NOT NULL` на сырых данных | **PASS** | Колонка `timestamp with time zone` без `NOT NULL`; Drizzle: `startedAt: timestamp("started_at", { withTimezone: true, mode: "string" })` без `.notNull()` в [`treatmentProgramInstances.ts`](../../../apps/webapp/db/schema/treatmentProgramInstances.ts). |
 | Схема приложения согласована с миграцией | **PASS** | Поле `startedAt` на `treatmentProgramInstanceStages` в том же файле схемы. |
 
 **Вывод:** изменение additive и безопасно для отката схемы только удалением колонки (отдельная миграция вне scope этого аудита).
@@ -32,11 +32,11 @@
 
 | Критерий | Статус | Доказательство |
 |----------|--------|----------------|
-| SQL воспроизводим из репозитория | **PASS** | Файл миграции + тег в [`meta/_journal.json`](../../apps/webapp/db/drizzle-migrations/meta/_journal.json): `0043_treatment_program_instance_stage_started_at`. |
+| SQL воспроизводим из репозитория | **PASS** | Файл миграции + тег в [`meta/_journal.json`](../../../apps/webapp/db/drizzle-migrations/meta/_journal.json): `0043_treatment_program_instance_stage_started_at`. |
 | Эвристика явная | **PASS** | `UPDATE ... SET started_at = inst.created_at WHERE status = 'in_progress' AND started_at IS NULL` (join на `treatment_program_instances`). |
 | Ограничения задокументированы | **PASS** | В [`LOG.md`](LOG.md): backfill только для `in_progress`; для `completed` / `skipped` / `locked` / `available` без истории старта — `NULL` осознанно. |
 
-**Воспроизведение на окружении с БД** (после `DATABASE_URL` из [`SERVER CONVENTIONS`](../../docs/ARCHITECTURE/SERVER%20CONVENTIONS.md) для dev):
+**Воспроизведение на окружении с БД** (после `DATABASE_URL` из [`SERVER CONVENTIONS`](../../../ARCHITECTURE/SERVER%20CONVENTIONS.md) для dev):
 
 ```bash
 cd apps/webapp
@@ -51,11 +51,11 @@ pnpm exec drizzle-kit migrate
 
 | Слой | Статус | Доказательство |
 |------|--------|----------------|
-| Тип строки этапа | **PASS** | `TreatmentProgramInstanceStageRow.startedAt: string \| null` в [`types.ts`](../../apps/webapp/src/modules/treatment-program/types.ts). |
-| Read-model детали | **PASS** | `TreatmentProgramInstanceDetail.stages` — массив `TreatmentProgramInstanceStageRow & { groups; items }`; маппинг `mapStage` включает `startedAt` в [`pgTreatmentProgramInstance.ts`](../../apps/webapp/src/infra/repos/pgTreatmentProgramInstance.ts). |
+| Тип строки этапа | **PASS** | `TreatmentProgramInstanceStageRow.startedAt: string \| null` в [`types.ts`](../../../apps/webapp/src/modules/treatment-program/types.ts). |
+| Read-model детали | **PASS** | `TreatmentProgramInstanceDetail.stages` — массив `TreatmentProgramInstanceStageRow & { groups; items }`; маппинг `mapStage` включает `startedAt` в [`pgTreatmentProgramInstance.ts`](../../../apps/webapp/src/infra/repos/pgTreatmentProgramInstance.ts). |
 | PG write | **PASS** | Insert дерева / `addInstanceStage`: `startedAt` при начальном `in_progress`; `updateInstanceStage`: условная установка (см. п. 4). |
-| In-memory симметрия | **PASS** | Те же правила в [`inMemoryTreatmentProgramInstance.ts`](../../apps/webapp/src/infra/repos/inMemoryTreatmentProgramInstance.ts). |
-| Контракт PG-файла (без live DB) | **PASS (post-FIX)** | [`pgTreatmentProgramInstance.startedAt.contract.test.ts`](../../apps/webapp/src/infra/repos/pgTreatmentProgramInstance.startedAt.contract.test.ts) фиксирует наличие `mapStage.startedAt` и guard для первого `in_progress`. |
+| In-memory симметрия | **PASS** | Те же правила в [`inMemoryTreatmentProgramInstance.ts`](../../../apps/webapp/src/infra/repos/inMemoryTreatmentProgramInstance.ts). |
+| Контракт PG-файла (без live DB) | **PASS (post-FIX)** | [`pgTreatmentProgramInstance.startedAt.contract.test.ts`](../../../apps/webapp/src/infra/repos/pgTreatmentProgramInstance.startedAt.contract.test.ts) фиксирует наличие `mapStage.startedAt` и guard для первого `in_progress`. |
 
 **DEFER (полный PG):** см. таблицу «FIX closure» — отдельный интеграционный прогон против Postgres для instance stages вне scope этого FIX.
 
@@ -65,7 +65,7 @@ pnpm exec drizzle-kit migrate
 
 | Критерий | Статус | Доказательство |
 |----------|--------|----------------|
-| Не перетирать уже заданное значение | **PASS** | PG: `startedAtForPatch = patch.status === "in_progress" && !stRow.startedAt ? ... : undefined`; в `.set()` поле попадает только если `!== undefined` ([`pgTreatmentProgramInstance.ts`](../../apps/webapp/src/infra/repos/pgTreatmentProgramInstance.ts) ~407–415). |
+| Не перетирать уже заданное значение | **PASS** | PG: `startedAtForPatch = patch.status === "in_progress" && !stRow.startedAt ? ... : undefined`; в `.set()` поле попадает только если `!== undefined` ([`pgTreatmentProgramInstance.ts`](../../../apps/webapp/src/infra/repos/pgTreatmentProgramInstance.ts) ~407–415). |
 | In-memory аналог | **PASS** | `nextStartedAt = patch.status === "in_progress" && !st.startedAt ? isoNow() : st.startedAt`. |
 | Поведение на уровне продукта | **PASS (с уточнением)** | Код задаёт время при **любом** переходе в `in_progress`, если `started_at` ещё `NULL` (не только из `available`). Для канонического потока `locked → available → in_progress` это эквивалентно требованию STAGE_A; прямой прыжок в `in_progress` из другого статуса теоретически тоже получит метку первого входа — приемлемо как «первый раз в in_progress». |
 
@@ -107,7 +107,7 @@ pnpm exec drizzle-kit migrate
 
 **Если обнаружено (регресс):**
 
-1. **Миграция не в журнале или дублирует tag** — синхронизировать [`meta/_journal.json`](../../apps/webapp/db/drizzle-migrations/meta/_journal.json) с единственным файлом `0043_*.sql`; не применять «ручной» SQL в прод без той же семантики, что в репозитории.
+1. **Миграция не в журнале или дублирует tag** — синхронизировать [`meta/_journal.json`](../../../apps/webapp/db/drizzle-migrations/meta/_journal.json) с единственным файлом `0043_*.sql`; не применять «ручной» SQL в прод без той же семантики, что в репозитории.
 2. **`started_at` перетирается при повторном `UPDATE`** — в `updateInstanceStage` (pg + inMemory) восстановить условие: писать `started_at` **только** если `patch.status === "in_progress"` и текущее значение в строке `NULL`/отсутствует; не включать колонку в `SET` при сохранении существующего значения (как в текущем PG-коде с `startedAtForPatch`).
 
 ### Major (нарушение контракта этапа A)
@@ -116,7 +116,7 @@ pnpm exec drizzle-kit migrate
 
 **Если обнаружено (регресс):**
 
-1. **Тип `TreatmentProgramInstanceStageRow` без `startedAt`, но схема/БД уже с колонкой** — добавить поле в [`types.ts`](../../apps/webapp/src/modules/treatment-program/types.ts) и во все ручные тестовые фикстуры `TreatmentProgramInstanceDetail`, иначе `tsc` и runtime-моки разъедутся.
+1. **Тип `TreatmentProgramInstanceStageRow` без `startedAt`, но схема/БД уже с колонкой** — добавить поле в [`types.ts`](../../../apps/webapp/src/modules/treatment-program/types.ts) и во все ручные тестовые фикстуры `TreatmentProgramInstanceDetail`, иначе `tsc` и runtime-моки разъедутся.
 2. **Read API / detail не отдаёт поле** — проверить `mapStage` и любые альтернативные селекты этапов; убедиться, что Drizzle `select()` не использует урезанный projection без `started_at`.
 3. **Backfill противоречит заявленной эвристике** — править только SQL миграции в согласовании с командой (новая миграция «fix-up», не silent edit уже применённого файла на прод).
 
@@ -137,7 +137,7 @@ pnpm exec drizzle-kit migrate
 
 ## Ссылки на первичные артефакты
 
-- Миграция: [`apps/webapp/db/drizzle-migrations/0043_treatment_program_instance_stage_started_at.sql`](../../apps/webapp/db/drizzle-migrations/0043_treatment_program_instance_stage_started_at.sql)
-- Схема Drizzle: [`apps/webapp/db/schema/treatmentProgramInstances.ts`](../../apps/webapp/db/schema/treatmentProgramInstances.ts)
-- Репозитории: [`pgTreatmentProgramInstance.ts`](../../apps/webapp/src/infra/repos/pgTreatmentProgramInstance.ts), [`inMemoryTreatmentProgramInstance.ts`](../../apps/webapp/src/infra/repos/inMemoryTreatmentProgramInstance.ts)
-- Тесты: [`progress-service.test.ts`](../../apps/webapp/src/modules/treatment-program/progress-service.test.ts), [`pgTreatmentProgramInstance.startedAt.contract.test.ts`](../../apps/webapp/src/infra/repos/pgTreatmentProgramInstance.startedAt.contract.test.ts)
+- Миграция: [`apps/webapp/db/drizzle-migrations/0043_treatment_program_instance_stage_started_at.sql`](../../../apps/webapp/db/drizzle-migrations/0043_treatment_program_instance_stage_started_at.sql)
+- Схема Drizzle: [`apps/webapp/db/schema/treatmentProgramInstances.ts`](../../../apps/webapp/db/schema/treatmentProgramInstances.ts)
+- Репозитории: [`pgTreatmentProgramInstance.ts`](../../../apps/webapp/src/infra/repos/pgTreatmentProgramInstance.ts), [`inMemoryTreatmentProgramInstance.ts`](../../../apps/webapp/src/infra/repos/inMemoryTreatmentProgramInstance.ts)
+- Тесты: [`progress-service.test.ts`](../../../apps/webapp/src/modules/treatment-program/progress-service.test.ts), [`pgTreatmentProgramInstance.startedAt.contract.test.ts`](../../../apps/webapp/src/infra/repos/pgTreatmentProgramInstance.startedAt.contract.test.ts)

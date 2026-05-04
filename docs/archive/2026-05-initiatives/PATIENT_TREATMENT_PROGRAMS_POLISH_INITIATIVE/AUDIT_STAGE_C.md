@@ -2,7 +2,7 @@
 
 **Дата аудита:** 2026-05-04  
 **Дата FIX по аудиту:** 2026-05-04  
-**Канон этапа:** [`STAGE_C.md`](STAGE_C.md) · дорожная карта: [`../APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md`](../APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md) §3 п. **1.1** · журнал: [`LOG.md`](LOG.md).
+**Канон этапа:** [`STAGE_C.md`](STAGE_C.md) · дорожная карта: [`../APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md`](../../../APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md) §3 п. **1.1** · журнал: [`LOG.md`](LOG.md).
 
 ---
 
@@ -10,8 +10,8 @@
 
 | Уровень | Статус | Что сделано |
 |---------|--------|-------------|
-| **Critical** | **CLOSED** | На аудите **0** finding’ов. Сценарии MANDATORY §Critical (hero без активной; расхождение семантики этапа; «План обновлён» не через сервис) — **не воспроизведены**; верификация [`page.tsx`](../../apps/webapp/src/app/app/patient/treatment-programs/page.tsx) + [`PatientTreatmentProgramsListClient.tsx`](../../apps/webapp/src/app/app/patient/treatment-programs/PatientTreatmentProgramsListClient.tsx). |
-| **Major** | **CLOSED** | На аудите **0** finding’ов. Сценарии MANDATORY §Major (архив не в `<details>` / с `open`; empty state; проценты) — **не воспроизведены**; тест архива в [`PatientTreatmentProgramsListClient.test.tsx`](../../apps/webapp/src/app/app/patient/treatment-programs/PatientTreatmentProgramsListClient.test.tsx). |
+| **Critical** | **CLOSED** | На аудите **0** finding’ов. Сценарии MANDATORY §Critical (hero без активной; расхождение семантики этапа; «План обновлён» не через сервис) — **не воспроизведены**; верификация [`page.tsx`](../../../apps/webapp/src/app/app/patient/treatment-programs/page.tsx) + [`PatientTreatmentProgramsListClient.tsx`](../../../apps/webapp/src/app/app/patient/treatment-programs/PatientTreatmentProgramsListClient.tsx). |
+| **Major** | **CLOSED** | На аудите **0** finding’ов. Сценарии MANDATORY §Major (архив не в `<details>` / с `open`; empty state; проценты) — **не воспроизведены**; тест архива в [`PatientTreatmentProgramsListClient.test.tsx`](../../../apps/webapp/src/app/app/patient/treatment-programs/PatientTreatmentProgramsListClient.test.tsx). |
 | **Minor** | **CLOSED (верификация)** | В исходном аудите **0** finding’ов. Пункты MANDATORY §Minor (CTA `instanceId`, ссылка на сообщения, тесты списка): **закрыты подтверждением** кода и vitest — см. [`LOG.md`](LOG.md) post-FIX. |
 | **INFO-1** | **CLOSED** | Расхождение «Завершенные» vs «Завершённые» в чек-листе [`STAGE_C.md`](STAGE_C.md) — **исправлено** в рамках FIX (формулировка приведена к ROADMAP §1.1 и UI). |
 
@@ -37,18 +37,18 @@
 
 | Критерий | Статус | Доказательство |
 |----------|--------|----------------|
-| Loader: активный instance + текущий этап (логический `current_stage_title`) | **PASS** | [`page.tsx`](../../apps/webapp/src/app/app/patient/treatment-programs/page.tsx): `listForPatient` → фильтр `status === "active"`, сортировка по `updatedAt`/`id`, первая запись; затем `getInstanceForPatient` + `patientProgramsListCurrentStageTitle(detail)` — ~38–57. Заголовок этапа выводится из той же семантики, что detail (pipeline без этапа 0): [`PatientTreatmentProgramsListClient.tsx`](../../apps/webapp/src/app/app/patient/treatment-programs/PatientTreatmentProgramsListClient.tsx) `patientProgramsListCurrentStageTitle` ~22–28. |
+| Loader: активный instance + текущий этап (логический `current_stage_title`) | **PASS** | [`page.tsx`](../../../apps/webapp/src/app/app/patient/treatment-programs/page.tsx): `listForPatient` → фильтр `status === "active"`, сортировка по `updatedAt`/`id`, первая запись; затем `getInstanceForPatient` + `patientProgramsListCurrentStageTitle(detail)` — ~38–57. Заголовок этапа выводится из той же семантики, что detail (pipeline без этапа 0): [`PatientTreatmentProgramsListClient.tsx`](../../../apps/webapp/src/app/app/patient/treatment-programs/PatientTreatmentProgramsListClient.tsx) `patientProgramsListCurrentStageTitle` ~22–28. |
 | Hero: название программы, текущий этап, CTA в detail | **PASS** | Компонент: `hero.title`, строка «Текущий этап: …», `Link` с `routePaths.patientTreatmentProgram(hero.instanceId)` и подписью «Открыть программу» — list client ~47–77. |
-| Бейдж «План обновлён» при сигнале | **PASS** | RSC: `patientPlanUpdatedBadgeForInstance` + `formatBookingDateLongRu` / fallback «План обновлён» — [`page.tsx`](../../apps/webapp/src/app/app/patient/treatment-programs/page.tsx) ~62–71; UI при непустом `planUpdatedLabel` с `role="status"` — list client ~61–64. Согласовано с каноном Today/detail (тот же сервис + формат даты). |
-| CTA ведёт на `/app/patient/treatment-programs/[instanceId]` | **PASS** | `routePaths.patientTreatmentProgram` — [`paths.ts`](../../apps/webapp/src/app-layer/routes/paths.ts). |
+| Бейдж «План обновлён» при сигнале | **PASS** | RSC: `patientPlanUpdatedBadgeForInstance` + `formatBookingDateLongRu` / fallback «План обновлён» — [`page.tsx`](../../../apps/webapp/src/app/app/patient/treatment-programs/page.tsx) ~62–71; UI при непустом `planUpdatedLabel` с `role="status"` — list client ~61–64. Согласовано с каноном Today/detail (тот же сервис + формат даты). |
+| CTA ведёт на `/app/patient/treatment-programs/[instanceId]` | **PASS** | `routePaths.patientTreatmentProgram` — [`paths.ts`](../../../apps/webapp/src/app-layer/routes/paths.ts). |
 
 ### 1.2 Архив и empty state (STAGE_C §2, ROADMAP)
 
 | Критерий | Статус | Доказательство |
 |----------|--------|----------------|
-| Завершённые программы в `<details>` | **PASS** | `archived` = `status === "completed"` — [`page.tsx`](../../apps/webapp/src/app/app/patient/treatment-programs/page.tsx) ~45–47; рендер `<details>…<summary>Завершённые программы` — list client ~98–121. |
-| Архив скрыт по умолчанию | **PASS** | У элемента `<details>` **нет** атрибута `open` — list client ~99. Тест: `details.open === false` — [`PatientTreatmentProgramsListClient.test.tsx`](../../apps/webapp/src/app/app/patient/treatment-programs/PatientTreatmentProgramsListClient.test.tsx). |
-| Нет активной программы: пояснение + ссылка на сообщения | **PASS** | Ветка `hero === null`: текст «Здесь появится программа после назначения врачом.» (соответствует ROADMAP §1.1) + `Link` на `messagesHref` (`routePaths.patientMessages` из page) — list client ~79–94; передача пропа — [`page.tsx`](../../apps/webapp/src/app/app/patient/treatment-programs/page.tsx) ~86. |
+| Завершённые программы в `<details>` | **PASS** | `archived` = `status === "completed"` — [`page.tsx`](../../../apps/webapp/src/app/app/patient/treatment-programs/page.tsx) ~45–47; рендер `<details>…<summary>Завершённые программы` — list client ~98–121. |
+| Архив скрыт по умолчанию | **PASS** | У элемента `<details>` **нет** атрибута `open` — list client ~99. Тест: `details.open === false` — [`PatientTreatmentProgramsListClient.test.tsx`](../../../apps/webapp/src/app/app/patient/treatment-programs/PatientTreatmentProgramsListClient.test.tsx). |
+| Нет активной программы: пояснение + ссылка на сообщения | **PASS** | Ветка `hero === null`: текст «Здесь появится программа после назначения врачом.» (соответствует ROADMAP §1.1) + `Link` на `messagesHref` (`routePaths.patientMessages` из page) — list client ~79–94; передача пропа — [`page.tsx`](../../../apps/webapp/src/app/app/patient/treatment-programs/page.tsx) ~86. |
 
 ### 1.3 UI-инварианты (STAGE_C §3, ROADMAP «Что НЕ делать» / DoD)
 
@@ -67,7 +67,7 @@
 
 ### 2.2 Hero: stage title + CTA + plan updated
 
-**PASS** — см. §1.1; при ошибке `getInstanceForPatient` этап показывается как «—» (`currentStageTitle` остаётся `null`) — [`page.tsx`](../../apps/webapp/src/app/app/patient/treatment-programs/page.tsx) ~51–59.
+**PASS** — см. §1.1; при ошибке `getInstanceForPatient` этап показывается как «—» (`currentStageTitle` остаётся `null`) — [`page.tsx`](../../../apps/webapp/src/app/app/patient/treatment-programs/page.tsx) ~51–59.
 
 ### 2.3 Архив завершённых под `<details>`
 
@@ -106,7 +106,7 @@ pnpm --dir apps/webapp exec vitest run src/app/app/patient/treatment-programs
 
 ## 5) Наблюдения (INFO) — post-FIX
 
-**INFO-1 (закрыт).** Чек-лист [`STAGE_C.md`](STAGE_C.md) п.2 синхронизирован с [`ROADMAP_2.md`](../APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md) §1.1 и UI: формулировка «**Завершённые** программы».
+**INFO-1 (закрыт).** Чек-лист [`STAGE_C.md`](STAGE_C.md) п.2 синхронизирован с [`ROADMAP_2.md`](../../../APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md) §1.1 и UI: формулировка «**Завершённые** программы».
 
 ---
 
@@ -123,7 +123,7 @@ pnpm --dir apps/webapp exec vitest run src/app/app/patient/treatment-programs
 
 ## MANDATORY FIX INSTRUCTIONS
 
-Инструкции на случай **регресса** или повторного аудита с отрицательным результатом. Правки — в scope [`STAGE_C.md`](STAGE_C.md): [`page.tsx`](../../apps/webapp/src/app/app/patient/treatment-programs/page.tsx), [`PatientTreatmentProgramsListClient.tsx`](../../apps/webapp/src/app/app/patient/treatment-programs/PatientTreatmentProgramsListClient.tsx), тесты в той же папке; без изменения UX detail **B** без отдельного решения.
+Инструкции на случай **регресса** или повторного аудита с отрицательным результатом. Правки — в scope [`STAGE_C.md`](STAGE_C.md): [`page.tsx`](../../../apps/webapp/src/app/app/patient/treatment-programs/page.tsx), [`PatientTreatmentProgramsListClient.tsx`](../../../apps/webapp/src/app/app/patient/treatment-programs/PatientTreatmentProgramsListClient.tsx), тесты в той же папке; без изменения UX detail **B** без отдельного решения.
 
 ### Critical (блокер 1.1 / вводит в заблуждение)
 
@@ -132,10 +132,10 @@ pnpm --dir apps/webapp exec vitest run src/app/app/patient/treatment-programs
    - Не полагаться только на «первая строка списка» без фильтра по `status`.
 
 2. **`current_stage_title` расходится с тем, что видит пациент на detail (другая семантика «текущего этапа»).**  
-   - Сохранить единый расчёт: `patientProgramsListCurrentStageTitle` = `omitDisabled` + `splitPatientProgramStagesForDetailUi` + `selectCurrentWorkingStageForPatientDetail` по `TreatmentProgramInstanceDetail` — [`PatientTreatmentProgramsListClient.tsx`](../../apps/webapp/src/app/app/patient/treatment-programs/PatientTreatmentProgramsListClient.tsx). Не подставлять «первый этап в массиве» или этап 0 без split.
+   - Сохранить единый расчёт: `patientProgramsListCurrentStageTitle` = `omitDisabled` + `splitPatientProgramStagesForDetailUi` + `selectCurrentWorkingStageForPatientDetail` по `TreatmentProgramInstanceDetail` — [`PatientTreatmentProgramsListClient.tsx`](../../../apps/webapp/src/app/app/patient/treatment-programs/PatientTreatmentProgramsListClient.tsx). Не подставлять «первый этап в массиве» или этап 0 без split.
 
 3. **«План обновлён» привязан не к тому же сигналу, что Today/detail.**  
-   - Использовать только `patientPlanUpdatedBadgeForInstance` + `formatBookingDateLongRu` в RSC ([`page.tsx`](../../apps/webapp/src/app/app/patient/treatment-programs/page.tsx)); не смешивать с прогрессом/процентами.
+   - Использовать только `patientPlanUpdatedBadgeForInstance` + `formatBookingDateLongRu` в RSC ([`page.tsx`](../../../apps/webapp/src/app/app/patient/treatment-programs/page.tsx)); не смешивать с прогрессом/процентами.
 
 ### Major (нарушение STAGE_C / ROADMAP)
 
@@ -143,7 +143,7 @@ pnpm --dir apps/webapp exec vitest run src/app/app/patient/treatment-programs
    - Завершённые (`status === "completed"`) только внутри `<details>` **без** `open`. Не дублировать полный список завершённых в hero.
 
 2. **Empty state не показывается при отсутствии активной программы.**  
-   - Ветка `hero === null`: текст ROADMAP («Здесь появится программа после назначения врачом») + ссылка на `routePaths.patientMessages` (или эквивалентный канонический путь из [`paths.ts`](../../apps/webapp/src/app-layer/routes/paths.ts)).
+   - Ветка `hero === null`: текст ROADMAP («Здесь появится программа после назначения врачом») + ссылка на `routePaths.patientMessages` (или эквивалентный канонический путь из [`paths.ts`](../../../apps/webapp/src/app-layer/routes/paths.ts)).
 
 3. **Появилась процентная «аналитика прогресса» на списке.**  
    - Удалить `%`, «% этапа», «% программы», `daily checklist` как метрику прогресса; прогнать `rg` из [`STAGE_C.md`](STAGE_C.md).
@@ -157,9 +157,9 @@ pnpm --dir apps/webapp exec vitest run src/app/app/patient/treatment-programs
    - Синхронизировать с `routePaths.patientMessages`.
 
 3. **Регресс тестов списка.**  
-   - Держать [`PatientTreatmentProgramsListClient.test.tsx`](../../apps/webapp/src/app/app/patient/treatment-programs/PatientTreatmentProgramsListClient.test.tsx): empty state, hero с nudge, архив в закрытом `details`, семантика `patientProgramsListCurrentStageTitle` (этап 0 не текущий).
+   - Держать [`PatientTreatmentProgramsListClient.test.tsx`](../../../apps/webapp/src/app/app/patient/treatment-programs/PatientTreatmentProgramsListClient.test.tsx): empty state, hero с nudge, архив в закрытом `details`, семантика `patientProgramsListCurrentStageTitle` (этап 0 не текущий).
 
 ### После любого FIX по этому списку
 
 - Обновить [`LOG.md`](LOG.md).  
-- Прогнать команды из §3; перед push — барьер из [`.cursor/rules/pre-push-ci.mdc`](../../.cursor/rules/pre-push-ci.mdc).
+- Прогнать команды из §3; перед push — барьер из [`pre-push-ci.mdc`](../../../.cursor/rules/pre-push-ci.mdc).

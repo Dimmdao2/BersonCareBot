@@ -1,6 +1,6 @@
 # Этап C — `1.1` Список программ (`/treatment-programs`)
 
-← Индекс: [`STAGE_PLAN.md`](STAGE_PLAN.md) · канон: [`../APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md`](../APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md) §3 (п. **1.1**).
+← Индекс: [`STAGE_PLAN.md`](STAGE_PLAN.md) · канон: [`../APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md`](../../../APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md) §3 (п. **1.1**).
 
 **Место в цепочке:** после **B**; не начинать, пока не закрыт [`STAGE_B.md`](STAGE_B.md) по DoD.
 

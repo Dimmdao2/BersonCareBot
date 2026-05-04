@@ -2,7 +2,7 @@
 
 **Дата аудита:** 2026-05-04  
 **Дата FIX по аудиту:** 2026-05-04  
-**Канон этапа:** [`STAGE_B.md`](STAGE_B.md) · дорожная карта: [`../APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md`](../APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md) §3 п. **1.1a** · журнал: [`LOG.md`](LOG.md).
+**Канон этапа:** [`STAGE_B.md`](STAGE_B.md) · дорожная карта: [`../APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md`](../../../APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md) §3 п. **1.1a** · журнал: [`LOG.md`](LOG.md).
 
 ---
 
@@ -10,8 +10,8 @@
 
 | Уровень | Статус | Что сделано |
 |---------|--------|-------------|
-| **Critical** | **CLOSED** | На аудите **0** finding’ов. Сценарии MANDATORY §Critical (дата контроля не от этапа; этап 0 в pipeline; архив не в `<details>` / с `open`) — **не воспроизведены**; повторная верификация кода: `expectedStageControlDateIso(currentWorkingStage)` в [`PatientTreatmentProgramDetailClient.tsx`](../../apps/webapp/src/app/app/patient/treatment-programs/PatientTreatmentProgramDetailClient.tsx); `splitPatientProgramStagesForDetailUi` / `selectCurrentWorkingStageForPatientDetail` в [`stage-semantics.ts`](../../apps/webapp/src/modules/treatment-program/stage-semantics.ts); `#program-archive` без `open`. |
-| **Major** | **CLOSED** | На аудите **0** finding’ов. Сценарии MANDATORY §Major (чек-лист UI; проценты; «План обновлён») — **не воспроизведены**; тест на отсутствие строки «Чек-лист на сегодня» в [`PatientTreatmentProgramDetailClient.test.tsx`](../../apps/webapp/src/app/app/patient/treatment-programs/PatientTreatmentProgramDetailClient.test.tsx). |
+| **Critical** | **CLOSED** | На аудите **0** finding’ов. Сценарии MANDATORY §Critical (дата контроля не от этапа; этап 0 в pipeline; архив не в `<details>` / с `open`) — **не воспроизведены**; повторная верификация кода: `expectedStageControlDateIso(currentWorkingStage)` в [`PatientTreatmentProgramDetailClient.tsx`](../../../apps/webapp/src/app/app/patient/treatment-programs/PatientTreatmentProgramDetailClient.tsx); `splitPatientProgramStagesForDetailUi` / `selectCurrentWorkingStageForPatientDetail` в [`stage-semantics.ts`](../../../apps/webapp/src/modules/treatment-program/stage-semantics.ts); `#program-archive` без `open`. |
+| **Major** | **CLOSED** | На аудите **0** finding’ов. Сценарии MANDATORY §Major (чек-лист UI; проценты; «План обновлён») — **не воспроизведены**; тест на отсутствие строки «Чек-лист на сегодня» в [`PatientTreatmentProgramDetailClient.test.tsx`](../../../apps/webapp/src/app/app/patient/treatment-programs/PatientTreatmentProgramDetailClient.test.tsx). |
 | **Minor** | **CLOSED (верификация)** | В исходном аудите **0** finding’ов. Пункты MANDATORY §Minor (якорь CTA, `href`↔`id`, vitest 1.1a): **закрыты подтверждением** — `id="patient-program-current-stage"` + `ref={currentStageRef}` в обеих ветках текущего этапа; `href="#program-archive"` и `<details id="program-archive">`; тесты `stage-semantics.test.ts` + detail client (см. [`LOG.md`](LOG.md) post-FIX). |
 | **INFO-1** | **DEFER** | Вызов `/checklist-today` на detail **без** UI-блока «Чек-лист на сегодня» оставлен для `doneItemIds` (отметки в карточках назначений). Сужение до «ноль запросов с detail» — **вне закрытия B** (нужен отдельный контракт read-model / согласование продукта); см. §5. |
 
@@ -37,11 +37,11 @@
 
 | Критерий | Статус | Доказательство |
 |----------|--------|----------------|
-| Название программы + номер/название текущего этапа | **PASS** | Hero-карточка: `detail.title`, строка «Текущий этап: этап {sortOrder} · {title}» при наличии `currentWorkingStage` — [`PatientTreatmentProgramDetailClient.tsx`](../../apps/webapp/src/app/app/patient/treatment-programs/PatientTreatmentProgramDetailClient.tsx) ~659–676. |
+| Название программы + номер/название текущего этапа | **PASS** | Hero-карточка: `detail.title`, строка «Текущий этап: этап {sortOrder} · {title}» при наличии `currentWorkingStage` — [`PatientTreatmentProgramDetailClient.tsx`](../../../apps/webapp/src/app/app/patient/treatment-programs/PatientTreatmentProgramDetailClient.tsx) ~659–676. |
 | CTA «Открыть текущий этап» | **PASS** | Кнопка + `scrollIntoView` к `#patient-program-current-stage` — там же ~677–686. |
 | Ссылка «Архив этапов» | **PASS** | Показывается при `archiveStages.length > 0`, `href="#program-archive"` — ~688–695. |
-| Этап `sort_order = 0` отдельным блоком «Общие рекомендации» | **PASS** | `splitPatientProgramStagesForDetailUi` выделяет `stageZero`; рендер `PatientInstanceStageBody` с заголовком «Общие рекомендации» **до** основного рабочего блока — [`stage-semantics.ts`](../../apps/webapp/src/modules/treatment-program/stage-semantics.ts) ~78–91; client ~703–729. |
-| «План обновлён» (смысл как на Today) | **PASS** | RSC: `patientPlanUpdatedBadgeForInstance` + `formatBookingDateLongRu` → `planUpdatedLabel`; клиент рендерит при непустой строке — [`page.tsx`](../../apps/webapp/src/app/app/patient/treatment-programs/[instanceId]/page.tsx) ~49–57, ~72–76; client ~664–667. |
+| Этап `sort_order = 0` отдельным блоком «Общие рекомендации» | **PASS** | `splitPatientProgramStagesForDetailUi` выделяет `stageZero`; рендер `PatientInstanceStageBody` с заголовком «Общие рекомендации» **до** основного рабочего блока — [`stage-semantics.ts`](../../../apps/webapp/src/modules/treatment-program/stage-semantics.ts) ~78–91; client ~703–729. |
+| «План обновлён» (смысл как на Today) | **PASS** | RSC: `patientPlanUpdatedBadgeForInstance` + `formatBookingDateLongRu` → `planUpdatedLabel`; клиент рендерит при непустой строке — [`page.tsx`](../../../apps/webapp/src/app/app/patient/treatment-programs/[instanceId]/page.tsx) ~49–57, ~72–76; client ~664–667. |
 
 ### 1.2 Рабочая часть и архив (STAGE_B §2, ROADMAP)
 
@@ -55,14 +55,14 @@
 
 | Критерий | Статус | Доказательство |
 |----------|--------|----------------|
-| Контроль только при `started_at` и `expected_duration_days` | **PASS** | `expectedStageControlDateIso` возвращает `null`, если любое из полей отсутствует или дни невалидны — [`stage-semantics.ts`](../../apps/webapp/src/modules/treatment-program/stage-semantics.ts) ~106–118. |
+| Контроль только при `started_at` и `expected_duration_days` | **PASS** | `expectedStageControlDateIso` возвращает `null`, если любое из полей отсутствует или дни невалидны — [`stage-semantics.ts`](../../../apps/webapp/src/modules/treatment-program/stage-semantics.ts) ~106–118. |
 | База расчёта — `started_at` **этапа**, не программы | **PASS** | В UI: `expectedStageControlDateIso(currentWorkingStage)` — client ~613; реализация использует только `stage.startedAt` + `stage.expectedDurationDays`. Нет использования `detail.createdAt` для этой метки. |
 
 ### 1.4 UI-инварианты (STAGE_B §4, ROADMAP «Что НЕ делать»)
 
 | Критерий | Статус | Доказательство |
 |----------|--------|----------------|
-| Нет `%` / «за сегодня» / `% этапа` / `% программы` на detail | **PASS** | `rg '%'` по [`PatientTreatmentProgramDetailClient.tsx`](../../apps/webapp/src/app/app/patient/treatment-programs/PatientTreatmentProgramDetailClient.tsx) — совпадений нет; пользовательские формулировки процентов в UI detail не найдены. |
+| Нет `%` / «за сегодня» / `% этапа` / `% программы` на detail | **PASS** | `rg '%'` по [`PatientTreatmentProgramDetailClient.tsx`](../../../apps/webapp/src/app/app/patient/treatment-programs/PatientTreatmentProgramDetailClient.tsx) — совпадений нет; пользовательские формулировки процентов в UI detail не найдены. |
 
 ---
 
@@ -82,7 +82,7 @@
 
 ### 2.4 «Чек-лист на сегодня» отсутствует на detail
 
-**PASS** для **видимого UI** — строка заголовка секции не рендерится; тест закрепляет отсутствие — [`PatientTreatmentProgramDetailClient.test.tsx`](../../apps/webapp/src/app/app/patient/treatment-programs/PatientTreatmentProgramDetailClient.test.tsx) ~189–197.
+**PASS** для **видимого UI** — строка заголовка секции не рендерится; тест закрепляет отсутствие — [`PatientTreatmentProgramDetailClient.test.tsx`](../../../apps/webapp/src/app/app/patient/treatment-programs/PatientTreatmentProgramDetailClient.test.tsx) ~189–197.
 
 ### 2.5 Нет процентов; дата контроля от `started_at`
 
@@ -129,14 +129,14 @@ pnpm --dir apps/webapp exec vitest run src/app/app/patient/treatment-programs sr
 
 ## MANDATORY FIX INSTRUCTIONS
 
-Инструкции на случай **регресса** или повторного аудита с отрицательным результатом. Исправления — в рамках scope [`STAGE_B.md`](STAGE_B.md) (`page.tsx`, `PatientTreatmentProgramDetailClient.tsx`, при необходимости [`stage-semantics.ts`](../../apps/webapp/src/modules/treatment-program/stage-semantics.ts)); без процентов и без возврата MVP-чек-листа секцией, если канон не изменён.
+Инструкции на случай **регресса** или повторного аудита с отрицательным результатом. Исправления — в рамках scope [`STAGE_B.md`](STAGE_B.md) (`page.tsx`, `PatientTreatmentProgramDetailClient.tsx`, при необходимости [`stage-semantics.ts`](../../../apps/webapp/src/modules/treatment-program/stage-semantics.ts)); без процентов и без возврата MVP-чек-листа секцией, если канон не изменён.
 
 ### Critical (блокер соответствия 1.1a / вводит в заблуждение)
 
 1. **Контрольная дата считается от даты программы, а не этапа.**  
    - Восстановить единственный источник: `expectedStageControlDateIso` только от **`currentWorkingStage.startedAt`** и **`currentWorkingStage.expectedDurationDays`**.  
    - Запретить подмешивание `detail.createdAt` / `detail.updatedAt` в эту метку на detail.  
-   - Проверить [`stage-semantics.ts`](../../apps/webapp/src/modules/treatment-program/stage-semantics.ts) `expectedStageControlDateIso` и вызов в [`PatientTreatmentProgramDetailClient.tsx`](../../apps/webapp/src/app/app/patient/treatment-programs/PatientTreatmentProgramDetailClient.tsx).
+   - Проверить [`stage-semantics.ts`](../../../apps/webapp/src/modules/treatment-program/stage-semantics.ts) `expectedStageControlDateIso` и вызов в [`PatientTreatmentProgramDetailClient.tsx`](../../../apps/webapp/src/app/app/patient/treatment-programs/PatientTreatmentProgramDetailClient.tsx).
 
 2. **Этап 0 попал в выбор «текущего» рабочего этапа.**  
    - Убедиться, что `splitPatientProgramStagesForDetailUi` исключает `sortOrder === 0` из `pipeline` и что `selectCurrentWorkingStageForPatientDetail` вызывается **только** на `pipeline`.  
@@ -155,7 +155,7 @@ pnpm --dir apps/webapp exec vitest run src/app/app/patient/treatment-programs sr
    - Удалить с detail согласно ROADMAP «Что НЕ делать»; прогнать `rg` по каталогу `treatment-programs`.
 
 3. **«План обновлён» потерян или смешан с прогрессом.**  
-   - Восстановить цепочку как на Today: RSC собирает `planUpdatedLabel` через `patientPlanUpdatedBadgeForInstance` + `formatBookingDateLongRu` в [`page.tsx`](../../apps/webapp/src/app/app/patient/treatment-programs/[instanceId]/page.tsx); клиент показывает отдельной строкой с `role="status"`.
+   - Восстановить цепочку как на Today: RSC собирает `planUpdatedLabel` через `patientPlanUpdatedBadgeForInstance` + `formatBookingDateLongRu` в [`page.tsx`](../../../apps/webapp/src/app/app/patient/treatment-programs/[instanceId]/page.tsx); клиент показывает отдельной строкой с `role="status"`.
 
 ### Minor (качество / согласованность)
 
@@ -166,9 +166,9 @@ pnpm --dir apps/webapp exec vitest run src/app/app/patient/treatment-programs sr
    - Синхронизировать `href` и `id` архивного `<details>`.
 
 3. **Тесты этапа B не покрывают новую логику.**  
-   - Держать `vitest` для `splitPatientProgramStagesForDetailUi`, `selectCurrentWorkingStageForPatientDetail`, `expectedStageControlDateIso` и регресс «нет чек-листа» / «есть label плана» в [`PatientTreatmentProgramDetailClient.test.tsx`](../../apps/webapp/src/app/app/patient/treatment-programs/PatientTreatmentProgramDetailClient.test.tsx).
+   - Держать `vitest` для `splitPatientProgramStagesForDetailUi`, `selectCurrentWorkingStageForPatientDetail`, `expectedStageControlDateIso` и регресс «нет чек-листа» / «есть label плана» в [`PatientTreatmentProgramDetailClient.test.tsx`](../../../apps/webapp/src/app/app/patient/treatment-programs/PatientTreatmentProgramDetailClient.test.tsx).
 
 ### После любого FIX по этому списку
 
 - Обновить [`LOG.md`](LOG.md) (что изменено, какие команды прогнаны).  
-- Прогнать узкие проверки из §3; перед push — полный барьер из [`.cursor/rules/pre-push-ci.mdc`](../../.cursor/rules/pre-push-ci.mdc).
+- Прогнать узкие проверки из §3; перед push — полный барьер из [`pre-push-ci.mdc`](../../../.cursor/rules/pre-push-ci.mdc).

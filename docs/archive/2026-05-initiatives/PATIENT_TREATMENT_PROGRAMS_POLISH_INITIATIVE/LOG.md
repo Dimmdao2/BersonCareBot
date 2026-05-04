@@ -8,8 +8,8 @@
 
 **Сделано (документы / Major из §8 AUDIT_GLOBAL):**
 
-- [`../APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md`](../APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md) §0: строка о закрытии **1.0 + 1.1a + 1.1** со ссылкой на [`AUDIT_GLOBAL.md`](AUDIT_GLOBAL.md); §1.1 и §1.1a: команда `lint` с путём `src/app/app/patient/treatment-programs` (канон при `--dir apps/webapp`).
-- [`../APP_RESTRUCTURE_INITIATIVE/LOG.md`](../APP_RESTRUCTURE_INITIATIVE/LOG.md): запись **GLOBAL FIX** со ссылками на эту папку и обоснованием **DEFER** по ретроспективной правке `TestSetForm.test.tsx` (не откатывать; на будущее — отдельный коммит/PR).
+- [`../APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md`](../../../APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md) §0: строка о закрытии **1.0 + 1.1a + 1.1** со ссылкой на [`AUDIT_GLOBAL.md`](AUDIT_GLOBAL.md); §1.1 и §1.1a: команда `lint` с путём `src/app/app/patient/treatment-programs` (канон при `--dir apps/webapp`).
+- [`../APP_RESTRUCTURE_INITIATIVE/LOG.md`](../../../APP_RESTRUCTURE_INITIATIVE/LOG.md): запись **GLOBAL FIX** со ссылками на эту папку и обоснованием **DEFER** по ретроспективной правке `TestSetForm.test.tsx` (не откатывать; на будущее — отдельный коммит/PR).
 - [`README.md`](README.md): статус закрытия A/B/C + ссылка на `AUDIT_GLOBAL.md`; в таблицу документов добавлен `AUDIT_GLOBAL.md`.
 - [`STAGE_A.md`](STAGE_A.md), [`STAGE_B.md`](STAGE_B.md), [`STAGE_C.md`](STAGE_C.md): чекбоксы отмечены `[x]` по факту закрытия этапов; в **B/C** исправлен аргумент `lint` на `src/app/...` (согласовано с рабочими прогонами этапов).
 
@@ -54,15 +54,15 @@
 
 ### scope
 
-**В scope:** только [`STAGE_C.md`](STAGE_C.md) — `page.tsx` + [`PatientTreatmentProgramsListClient.tsx`](../../apps/webapp/src/app/app/patient/treatment-programs/PatientTreatmentProgramsListClient.tsx) + локальные тесты списка; чтение `listForPatient`, `getInstanceForPatient` (один активный экземпляр для `current_stage_title`), `patientPlanUpdatedBadgeForInstance`, таймзона для «План обновлён».
+**В scope:** только [`STAGE_C.md`](STAGE_C.md) — `page.tsx` + [`PatientTreatmentProgramsListClient.tsx`](../../../apps/webapp/src/app/app/patient/treatment-programs/PatientTreatmentProgramsListClient.tsx) + локальные тесты списка; чтение `listForPatient`, `getInstanceForPatient` (один активный экземпляр для `current_stage_title`), `patientPlanUpdatedBadgeForInstance`, таймзона для «План обновлён».
 
 **Вне scope:** деталь `[instanceId]` (UX B), миграции/`started_at` write-path, проценты прогресса.
 
 ### Сделано (реализация 1.1)
 
 - RSC `page.tsx`: активная программа (первая по `updatedAt` среди `status === "active"`), загрузка detail для заголовка текущего этапа через `patientProgramsListCurrentStageTitle` (семантика как на detail: `split` + `selectCurrentWorkingStageForPatientDetail` по pipeline без этапа 0), бейдж «План обновлён» как на Today/detail, архив `completed` в `<details>` «Завершённые программы» без `open`, empty state по ROADMAP («Здесь появится программа…» + ссылка на сообщения).
-- [`PatientTreatmentProgramsListClient.tsx`](../../apps/webapp/src/app/app/patient/treatment-programs/PatientTreatmentProgramsListClient.tsx): hero / empty / архив; примитивы `patientVisual` + `Link`.
-- [`PatientTreatmentProgramsListClient.test.tsx`](../../apps/webapp/src/app/app/patient/treatment-programs/PatientTreatmentProgramsListClient.test.tsx): заголовок этапа, разделение от этапа 0, empty, hero, архив в закрытом `details`.
+- [`PatientTreatmentProgramsListClient.tsx`](../../../apps/webapp/src/app/app/patient/treatment-programs/PatientTreatmentProgramsListClient.tsx): hero / empty / архив; примитивы `patientVisual` + `Link`.
+- [`PatientTreatmentProgramsListClient.test.tsx`](../../../apps/webapp/src/app/app/patient/treatment-programs/PatientTreatmentProgramsListClient.test.tsx): заголовок этапа, разделение от этапа 0, empty, hero, архив в закрытом `details`.
 
 ### checks (план)
 
@@ -150,7 +150,7 @@
 **Сделано:**
 
 - По [`AUDIT_STAGE_B.md`](AUDIT_STAGE_B.md): таблица **FIX closure** — Critical/Major закрыты верификацией (0 finding’ов на аудите; сценарии MANDATORY не воспроизведены); Minor из MANDATORY-чеклиста закрыты **верификацией кода** (якорь `#patient-program-current-stage` + `ref`, `href="#program-archive"` ↔ `id="program-archive"`, vitest 1.1a); **INFO-1** (`/checklist-today` без UI-секции для `doneItemIds`) — **DEFER** с обоснованием в AUDIT (отдельный шаг при требовании «ноль запросов» с detail).
-- **Попутно:** в [`TestSetForm.test.tsx`](../../apps/webapp/src/app/app/doctor/test-sets/TestSetForm.test.tsx) восстановлена обёртка `it(...)` (фрагмент теста оказался вне `describe`-блока) — иначе `pnpm --dir apps/webapp exec tsc --noEmit` падал на всём пакете webapp; к этапу B не относится.
+- **Попутно:** в [`TestSetForm.test.tsx`](../../../apps/webapp/src/app/app/doctor/test-sets/TestSetForm.test.tsx) восстановлена обёртка `it(...)` (фрагмент теста оказался вне `describe`-блока) — иначе `pnpm --dir apps/webapp exec tsc --noEmit` падал на всём пакете webapp; к этапу B не относится.
 
 **Проверки (целевые команды этапа B + audit §3):**
 
@@ -168,7 +168,7 @@
 **Сделано:**
 
 - По [`AUDIT_STAGE_A.md`](AUDIT_STAGE_A.md): секция **FIX closure** — Critical/Major закрыты верификацией (`0043` + `_journal.json`, типы/`mapStage`/SQL vs LOG, guard `startedAtForPatch`).
-- **Minor:** обновлены локальные проверки в [`STAGE_A.md`](STAGE_A.md) (`rg "started_at|startedAt"`, vitest + контрактный тест); чек-лист п.4 — ссылка на контрактный тест и defer live PG в AUDIT; комментарий у `startedAtForPatch` в `pgTreatmentProgramInstance.ts`; добавлен [`../../apps/webapp/src/infra/repos/pgTreatmentProgramInstance.startedAt.contract.test.ts`](../../apps/webapp/src/infra/repos/pgTreatmentProgramInstance.startedAt.contract.test.ts).
+- **Minor:** обновлены локальные проверки в [`STAGE_A.md`](STAGE_A.md) (`rg "started_at|startedAt"`, vitest + контрактный тест); чек-лист п.4 — ссылка на контрактный тест и defer live PG в AUDIT; комментарий у `startedAtForPatch` в `pgTreatmentProgramInstance.ts`; добавлен [`pgTreatmentProgramInstance.startedAt.contract.test.ts`](../../../apps/webapp/src/infra/repos/pgTreatmentProgramInstance.startedAt.contract.test.ts).
 - **Defer (обосновано в AUDIT):** полный PG integration для instance-tree не введён (`test:with-db` / `USE_REAL_DATABASE` без treatment-program сценария).
 
 **Проверки (целевые команды этапа A, post-FIX):**
@@ -218,9 +218,9 @@
 
 **Сделано:**
 
-- Создана папка `docs/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/` с `README.md`, `STAGE_PLAN.md`, `LOG.md`.
+- Создана папка `docs/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/` с `README.md`, `STAGE_PLAN.md`, `LOG.md` *(2026-05-05: перенос в `docs/archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/` — см. запись в [`../../../APP_RESTRUCTURE_INITIATIVE/LOG.md`](../../../APP_RESTRUCTURE_INITIATIVE/LOG.md))*.
 - Зафиксирована последовательность исполнения **A (1.0) → B (1.1a) → C (1.1)** и MVP-инварианты (без процентной аналитики; `started_at` для даты контроля).
-- Навигация: ссылки из корневого [`../README.md`](../README.md) (активные инициативы), [`../APP_RESTRUCTURE_INITIATIVE/README.md`](../APP_RESTRUCTURE_INITIATIVE/README.md) (таблица файлов, блок новых инициатив, «Связанные документы»), [`../APP_RESTRUCTURE_INITIATIVE/LOG.md`](../APP_RESTRUCTURE_INITIATIVE/LOG.md); в [`../APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md`](../APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md) — блок «Связанные документы», §3 и шаг §9 с указанием на эту папку.
+- Навигация: ссылки из корневого [`../README.md`](../../../README.md) (активные инициативы), [`../APP_RESTRUCTURE_INITIATIVE/README.md`](../../../APP_RESTRUCTURE_INITIATIVE/README.md) (таблица файлов, блок новых инициатив, «Связанные документы»), [`../APP_RESTRUCTURE_INITIATIVE/LOG.md`](../../../APP_RESTRUCTURE_INITIATIVE/LOG.md); в [`../APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md`](../../../APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md) — блок «Связанные документы», §3 и шаг §9 с указанием на эту папку.
 
 **Проверки:** только структура документов; код не менялся.
 

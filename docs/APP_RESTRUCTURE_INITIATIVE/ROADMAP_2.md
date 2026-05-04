@@ -18,7 +18,7 @@
 - Закрытые B/D-этапы: [`../archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/AUDIT_GLOBAL.md`](../archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/AUDIT_GLOBAL.md), [`../archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/AUDIT_DEFER_CLOSURE_GLOBAL.md`](../archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/AUDIT_DEFER_CLOSURE_GLOBAL.md).
 - Стандарт UI пациента: [`../ARCHITECTURE/PATIENT_APP_UI_STYLE_GUIDE.md`](../ARCHITECTURE/PATIENT_APP_UI_STYLE_GUIDE.md).
 - Архитектура БД: [`../ARCHITECTURE/DATABASE_UNIFIED_POSTGRES.md`](../ARCHITECTURE/DATABASE_UNIFIED_POSTGRES.md), [`../ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md`](../ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md), [`../ARCHITECTURE/SERVER CONVENTIONS.md`](../ARCHITECTURE/SERVER%20CONVENTIONS.md).
-- Мини-инициатива по пунктам **1.0 / 1.1 / 1.1a** (часть 1): [`../PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/README.md`](../PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/README.md).
+- Мини-инициатива по пунктам **1.0 / 1.1 / 1.1a** (часть 1): [`../archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/README.md`](../archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/README.md).
 - Shadcn/Base UI alignment patient-слоя — **архив** (2026-05-05): Phases 0–6 выполнены; бывший Phase 7 перенесён в мини-инициативы по экранам; см. [`../archive/2026-05-initiatives/PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/README.md`](../archive/2026-05-initiatives/PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/README.md) · [`LOG.md`](../archive/2026-05-initiatives/PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/LOG.md). Операционные правила для новых переработок — §1 п.4 ниже.
 
 ---
@@ -34,7 +34,8 @@
 | PLAN_DOCTOR_CABINET этапы 1–8 (CMS C, меню, бейджи, «Сегодня», единый чат, REPACK карточки, usage/archive каталогов, density) | ✅ PASS | `done/*_EXECUTION_AUDIT.md` + `LOG.md` |
 | Этап 6 PLAN_DOCTOR_CABINET — глубокая часть карточки пациента (hero / табы / таб «Назначения») | ❄ FROZEN намеренно | `PLAN_DOCTOR_CABINET.md` §этап 6 |
 | Patient Plan polish первого прохода (Stage 0 badge, формат тестов, «Снять Новое», LFK-форма в теле этапа, sort_order, goals/objectives в диалоге, swap-confirm) | ✅ закрыто 2026-05-04 | `E2E_ACCEPTANCE_AFTER_AB.md` §4–§6 |
-| Patient treatment programs polish (**1.0** + **1.1a** + **1.1**, этапы A→B→C) | ✅ закрыто 2026-05-04 | [`../PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/AUDIT_GLOBAL.md`](../PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/AUDIT_GLOBAL.md) |
+| Patient treatment programs polish (**1.0** + **1.1a** + **1.1**, этапы A→B→C) | ✅ закрыто 2026-05-04 | [`../archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/AUDIT_GLOBAL.md`](../archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/AUDIT_GLOBAL.md) |
+| **PATIENT_APP_SHADCN_ALIGNMENT** — Phases **0–6** (patient shadcn/Base UI alignment: примитивы, patient-экраны, уведомления, формы + FAB дневника и intake) | ✅ закрыто 2026-05-05 | [`../archive/2026-05-initiatives/PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/README.md`](../archive/2026-05-initiatives/PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/README.md) · [`LOG.md`](../archive/2026-05-initiatives/PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/LOG.md) · [`AUDIT_RESULTS.md`](../archive/2026-05-initiatives/PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/AUDIT_RESULTS.md) |
 | Редизайн **раздела «Назначения»** в кабинете врача (IA/UI кластера: меню, списки, навигация по каталогам) | ✅ практически закрыто 2026-05-04 | owner sync; детали каталогов — execution в [`../archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/AUDIT_GLOBAL.md`](../archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/AUDIT_GLOBAL.md) |
 | **Шаблоны программ** внутри «Назначений» — мелкий хвост (список/конструктор, UX) | ⚡ неблокирующий хвост | [`ASSIGNMENT_CATALOGS_REWORK_PLAN.md`](ASSIGNMENT_CATALOGS_REWORK_PLAN.md) §шапка; не блокирует §1.2–§2.x |
 | **Курсы** (`COURSES_INITIATIVE`, roadmap этап 7) | ⏸ отложены владельцем | [`../COURSES_INITIATIVE/README.md`](../COURSES_INITIATIVE/README.md) |
@@ -83,9 +84,9 @@
 
 ## 3. Часть 1 — Patient Cabinet polish (приоритет цикла)
 
-Общий принцип: каждая поверхность — отдельная мини-инициатива в `docs/PATIENT_<имя>_POLISH_INITIATIVE/` со структурой `README.md` + `STAGE_PLAN.md` + `LOG.md`. UI-реализация — с учётом **§1 п.4** (shadcn/`components/ui/*` + shared, см. выше). По умолчанию контракт API/портов в этой части **не меняется**, кроме явного data-enabler `1.0 started_at`.
+Общий принцип: каждая поверхность — отдельная мини-инициатива в `docs/<NAME>_INITIATIVE/` со структурой `README.md` + `STAGE_PLAN.md` + `LOG.md` (закрытые пакеты переносятся в `docs/archive/2026-05-initiatives/<NAME>/`; пример — [`../archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/README.md`](../archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/README.md)). UI-реализация — с учётом **§1 п.4** (shadcn/`components/ui/*` + shared, см. выше). По умолчанию контракт API/портов в этой части **не меняется**, кроме явного data-enabler `1.0 started_at`.
 
-**Канон исполнения для 1.0 / 1.1 / 1.1a:** [`../PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/README.md`](../PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/README.md) · [`../PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/STAGE_PLAN.md`](../PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/STAGE_PLAN.md) · [`../PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/LOG.md`](../PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/LOG.md).
+**Канон исполнения для 1.0 / 1.1 / 1.1a:** [`../archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/README.md`](../archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/README.md) · [`../archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/STAGE_PLAN.md`](../archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/STAGE_PLAN.md) · [`../archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/LOG.md`](../archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/LOG.md).
 
 ### 1.0 Data enabler: `started_at` у этапа программы
 
@@ -615,7 +616,7 @@ psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "SELECT current_database();"
 
 1. Прочитать ROADMAP_2 целиком + соответствующий пункт §3 или §4.
 2. Прочитать `.cursor/rules/clean-architecture-module-isolation.mdc`, `.cursor/rules/patient-ui-shared-primitives.mdc` (для patient), `.cursor/rules/no-unsolicited-followups.mdc`.
-3. Создать мини-инициативу `docs/<NAME>_INITIATIVE/` с `README.md`, `STAGE_PLAN.md`, `LOG.md` (для **1.0–1.1a** уже есть [`../PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/`](../PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/README.md)).
+3. Создать мини-инициативу `docs/<NAME>_INITIATIVE/` с `README.md`, `STAGE_PLAN.md`, `LOG.md` (для **1.0–1.1a** закрытый пример в архиве: [`PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE`](../archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/README.md)).
 4. Реализовать минимально, узкие проверки.
 5. Обновить ROADMAP_2 (отметить пункт как `done` со ссылкой на мини-инициативу).
 6. Запись в [`LOG.md`](LOG.md) этой папки.

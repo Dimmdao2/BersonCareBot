@@ -2,21 +2,21 @@
 
 Контекст инициативы:
 
-- `docs/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/README.md`
-- `docs/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/STAGE_PLAN.md`
-- `docs/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/STAGE_A.md`
-- `docs/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/STAGE_B.md`
-- `docs/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/STAGE_C.md`
-- `docs/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/LOG.md`
+- `docs/archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/README.md`
+- `docs/archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/STAGE_PLAN.md`
+- `docs/archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/STAGE_A.md`
+- `docs/archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/STAGE_B.md`
+- `docs/archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/STAGE_C.md`
+- `docs/archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/LOG.md`
 - `docs/APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md`
 
 Файлы аудитов (создаются по мере прохождения):
 
-- `docs/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/AUDIT_STAGE_A.md`
-- `docs/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/AUDIT_STAGE_B.md`
-- `docs/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/AUDIT_STAGE_C.md`
-- `docs/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/AUDIT_GLOBAL.md`
-- `docs/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/AUDIT_PREPUSH_POSTFIX.md`
+- `docs/archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/AUDIT_STAGE_A.md`
+- `docs/archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/AUDIT_STAGE_B.md`
+- `docs/archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/AUDIT_STAGE_C.md`
+- `docs/archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/AUDIT_GLOBAL.md`
+- (опционально) краткий prepush-отчёт — новый `.md` в этой папке или секция в `LOG.md` (историческое имя: `AUDIT_PREPUSH_POSTFIX.md`)
 
 ---
 
@@ -47,8 +47,8 @@ pnpm run ci
 Выполни stage A инициативы PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE.
 
 Вход:
-- docs/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/STAGE_A.md
-- docs/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/STAGE_PLAN.md
+- docs/archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/STAGE_A.md
+- docs/archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/STAGE_PLAN.md
 - docs/APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md (пункты 1.0/1.1a/1.1)
 
 Сделай:
@@ -70,14 +70,14 @@ pnpm run ci
 4) available->in_progress выставляет started_at только при NULL.
 5) Целевые проверки этапа A реально прогнаны.
 
-Сохрани: docs/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/AUDIT_STAGE_A.md
+Сохрани: docs/archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/AUDIT_STAGE_A.md
 Добавь MANDATORY FIX INSTRUCTIONS (critical/major/minor).
 ```
 
 ## A — FIX
 
 ```text
-Выполни FIX по docs/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/AUDIT_STAGE_A.md.
+Выполни FIX по docs/archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/AUDIT_STAGE_A.md.
 
 1) Закрой critical и major.
 2) Minor: исправь или оформи обоснованный defer в AUDIT_STAGE_A.md.
@@ -93,8 +93,8 @@ pnpm run ci
 Выполни stage B инициативы PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE.
 
 Вход:
-- docs/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/STAGE_B.md
-- docs/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/STAGE_PLAN.md
+- docs/archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/STAGE_B.md
+- docs/archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/STAGE_PLAN.md
 - docs/APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md (п. 1.1a)
 
 Сделай:
@@ -116,14 +116,14 @@ pnpm run ci
 4) "Чек-лист на сегодня" отсутствует на detail.
 5) Нет процентной аналитики; дата контроля считается от started_at.
 
-Сохрани: docs/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/AUDIT_STAGE_B.md
+Сохрани: docs/archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/AUDIT_STAGE_B.md
 Добавь MANDATORY FIX INSTRUCTIONS.
 ```
 
 ## B — FIX
 
 ```text
-Выполни FIX по docs/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/AUDIT_STAGE_B.md.
+Выполни FIX по docs/archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/AUDIT_STAGE_B.md.
 
 1) Закрой critical и major.
 2) Minor: исправь или defer с обоснованием.
@@ -139,8 +139,8 @@ pnpm run ci
 Выполни stage C инициативы PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE.
 
 Вход:
-- docs/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/STAGE_C.md
-- docs/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/STAGE_PLAN.md
+- docs/archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/STAGE_C.md
+- docs/archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/STAGE_PLAN.md
 - docs/APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md (п. 1.1)
 
 Сделай:
@@ -162,14 +162,14 @@ pnpm run ci
 4) Empty state корректен при отсутствии активной программы.
 5) Нет процентной аналитики.
 
-Сохрани: docs/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/AUDIT_STAGE_C.md
+Сохрани: docs/archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/AUDIT_STAGE_C.md
 Добавь MANDATORY FIX INSTRUCTIONS.
 ```
 
 ## C — FIX
 
 ```text
-Выполни FIX по docs/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/AUDIT_STAGE_C.md.
+Выполни FIX по docs/archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/AUDIT_STAGE_C.md.
 
 1) Закрой critical и major.
 2) Minor: исправь или defer с обоснованием.
@@ -196,13 +196,13 @@ pnpm run ci
 5) LOG и docs синхронизированы.
 6) Выданы MANDATORY FIX INSTRUCTIONS по severity.
 
-Сохрани: docs/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/AUDIT_GLOBAL.md
+Сохрани: docs/archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/AUDIT_GLOBAL.md
 ```
 
 ## GLOBAL FIX
 
 ```text
-Выполни global fix по docs/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/AUDIT_GLOBAL.md.
+Выполни global fix по docs/archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/AUDIT_GLOBAL.md.
 
 1) Закрой critical и major.
 2) Minor: исправь или оформи defer с обоснованием.
@@ -226,5 +226,5 @@ pnpm run ci
 4) Если CI упал: исправь причины и повтори барьер до зеленого статуса.
 5) Подготовь краткий итог: что проверено, какие риски/defer остались.
 
-Сохрани: docs/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/AUDIT_PREPUSH_POSTFIX.md
+6) При необходимости зафиксируй итог в `LOG.md` или в новом файле в этой папке (исторически — `AUDIT_PREPUSH_POSTFIX.md`).
 ```

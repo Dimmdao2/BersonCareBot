@@ -6,6 +6,14 @@
 
 ---
 
+## 2026-05-05 — `PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE`: архив папки
+
+**Сделано:** `docs/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/` перенесена в [`../archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/`](../archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/README.md). Обновлены ссылки в [`ROADMAP_2.md`](ROADMAP_2.md), [`README.md`](README.md), [`../README.md`](../README.md); в архиве — баннер в `README.md`, пути в `PROMPTS_COPYPASTE.md`, поправка относительных ссылок на `docs/` и `APP_RESTRUCTURE_INITIATIVE`.
+
+**Проверки:** `rg` по репо на голый путь `docs/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/` (кроме исторических упоминаний внутри архивного README/LOG и комментария SQL-миграции).
+
+---
+
 ## 2026-05-05 — `PATIENT_APP_SHADCN_ALIGNMENT`: архив папки + перенос Phase 7 в мини-инициативы
 
 **Сделано:** `docs/PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/` перенесена в [`../archive/2026-05-initiatives/PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/`](../archive/2026-05-initiatives/PATIENT_APP_SHADCN_ALIGNMENT_INITIATIVE/README.md). Единый **Phase 7** как отдельный пакет **не ведётся**; deferred-маршруты и расширенный UI/coverage — **в рамках мини-инициатив по конкретному экрану**. В [`ROADMAP_2.md`](ROADMAP_2.md) §1 п.4 зафиксировано правило переработок страниц: приоритет **`components/ui/*`** (shadcn/Base UI) и **shared**-слоёв, без лишнего route-level chrome (порог: не усложнять код, если это бьёт по поддерживаемости). Обновлены [`README.md`](README.md), [`RECOMMENDATIONS_AND_ROADMAP.md`](RECOMMENDATIONS_AND_ROADMAP.md) (зависимости), [`../README.md`](../README.md), [`../BACKLOG_TAILS.md`](../BACKLOG_TAILS.md), журнал и `MASTER_PLAN`/`README` в архивной папке.
@@ -82,17 +90,17 @@
 
 ## 2026-05-04 — `PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE`: GLOBAL FIX (закрытие A/B/C в документах)
 
-**Сделано:** по [`../PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/AUDIT_GLOBAL.md`](../PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/AUDIT_GLOBAL.md) закрыты **Major**: в [`ROADMAP_2.md`](ROADMAP_2.md) §0 добавлена строка о закрытии блока **1.0 + 1.1a + 1.1** (ссылка на `AUDIT_GLOBAL.md`); в §1.1 / §1.1a выровнены команды `eslint` на путь `src/app/app/patient/treatment-programs` при `pnpm --dir apps/webapp`. В мини-инициативе: [`STAGE_A/B/C.md`](../PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/STAGE_A.md) чекбоксы отмечены выполненными; [`README.md`](../PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/README.md) — статус закрытия; [`LOG.md`](../PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/LOG.md) — итог GLOBAL FIX.
+**Сделано:** по [`../archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/AUDIT_GLOBAL.md`](../archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/AUDIT_GLOBAL.md) закрыты **Major**: в [`ROADMAP_2.md`](ROADMAP_2.md) §0 добавлена строка о закрытии блока **1.0 + 1.1a + 1.1** (ссылка на `AUDIT_GLOBAL.md`); в §1.1 / §1.1a выровнены команды `eslint` на путь `src/app/app/patient/treatment-programs` при `pnpm --dir apps/webapp`. В мини-инициативе: [`STAGE_A/B/C.md`](../archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/STAGE_A.md) чекбоксы отмечены выполненными; [`README.md`](../archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/README.md) — статус закрытия; [`LOG.md`](../archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/LOG.md) — итог GLOBAL FIX.
 
 **Minor — внешняя правка `TestSetForm.test.tsx` (уже в истории этапа B):** **DEFER на откат/перенос в отдельный PR не делаем** — правка остаётся как зафиксированная разблокировка `pnpm --dir apps/webapp exec tsc --noEmit` на пакете; **канон на будущее:** любые аналогичные правки вне дерева `STAGE_*` оформлять отдельным коммитом/PR и строкой здесь или в журнале мини-инициативы (обоснование: не смешивать с продуктовым diff инициативы).
 
-**Проверки:** docs-only для правок в `docs/`; узкий прогон webapp по зоне `patient/treatment-programs` — см. [`../PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/LOG.md`](../PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/LOG.md) секция GLOBAL FIX.
+**Проверки:** docs-only для правок в `docs/`; узкий прогон webapp по зоне `patient/treatment-programs` — см. [`../archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/LOG.md`](../archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/LOG.md) секция GLOBAL FIX.
 
 ---
 
 ## 2026-05-04 — мини-инициатива `PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE`
 
-**Сделано:** добавлена папка [`../PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/`](../PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/README.md) (`README.md`, `STAGE_PLAN.md`, `LOG.md`) — канон исполнения для **ROADMAP_2** §3 пунктов **1.0 / 1.1 / 1.1a** (порядок **A → B → C**). В **ROADMAP_2**, **APP_RESTRUCTURE_INITIATIVE/README**, корневой **docs/README** — ссылки на мини-инициативу.
+**Сделано:** добавлена папка мини-инициативы (`README.md`, `STAGE_PLAN.md`, `LOG.md`) — канон исполнения для **ROADMAP_2** §3 пунктов **1.0 / 1.1 / 1.1a** (порядок **A → B → C**). В **ROADMAP_2**, **APP_RESTRUCTURE_INITIATIVE/README**, корневой **docs/README** — ссылки на мини-инициативу. *(Исторически создана как `docs/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/`; с 2026-05-05 — в [`../archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/`](../archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/README.md), см. запись того же дня в этом `LOG.md`.)*
 
 **Проверки:** docs-only.
 

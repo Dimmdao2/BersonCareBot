@@ -1,6 +1,6 @@
 # STAGE_PLAN — Patient treatment programs (MVP)
 
-Канон порядка и критериев: [`../APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md`](../APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md) §3 (п. **1.0**, **1.1a**, **1.1**).
+Канон порядка и критериев: [`../APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md`](../../../APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md) §3 (п. **1.0**, **1.1a**, **1.1**).
 
 Исполнение **строго по порядку:** **A → B → C** (data-enabler перед UI детали и списка).
 
@@ -56,7 +56,7 @@
 
 1. Закрыты этапы A, B, C по чек-листам в [`STAGE_A.md`](STAGE_A.md), [`STAGE_B.md`](STAGE_B.md), [`STAGE_C.md`](STAGE_C.md).
 2. Заполнен [`LOG.md`](LOG.md) (решения, проверки, намеренные ограничения).
-3. В [`../APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md`](../APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md) отмечены **1.0**, **1.1a**, **1.1** как выполненные со ссылкой на эту папку (после фактического merge).
-4. Запись в [`../APP_RESTRUCTURE_INITIATIVE/LOG.md`](../APP_RESTRUCTURE_INITIATIVE/LOG.md) папки APP_RESTRUCTURE.
+3. В [`../APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md`](../../../APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md) отмечены **1.0**, **1.1a**, **1.1** как выполненные со ссылкой на эту папку (после фактического merge).
+4. Запись в [`../APP_RESTRUCTURE_INITIATIVE/LOG.md`](../../../APP_RESTRUCTURE_INITIATIVE/LOG.md) папки APP_RESTRUCTURE.
 5. Для каждого этапа в `LOG.md` есть секции: `read-rules`, `scope`, `checks`, `audit-findings/fixes`, `out-of-scope`.
 6. Перед push в remote: полный барьер из `.cursor/rules/pre-push-ci.mdc` (`pnpm install --frozen-lockfile && pnpm run ci`).

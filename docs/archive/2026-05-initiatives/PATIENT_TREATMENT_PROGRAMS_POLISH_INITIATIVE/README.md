@@ -1,14 +1,16 @@
 # PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE
 
+> **Архив (2026-05-05).** Папка перенесена из `docs/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/` в **`docs/archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/`**. Этапы A/B/C и документация закрыты 2026-05-04; операционный канон по пунктам **1.0 / 1.1 / 1.1a** остаётся в [`ROADMAP_2.md`](../../../APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md) §3.
+
 Мини-инициатива по **рабочему экрану программы лечения** пациента: список `/app/patient/treatment-programs` и деталь `/app/patient/treatment-programs/[instanceId]`, плюс data-enabler `started_at` для корректной даты ожидаемого контроля по этапу.
 
 **Статус:** этапы **A / B / C** закрыты (2026-05-04); глобальное закрытие документации и ROADMAP — [`AUDIT_GLOBAL.md`](AUDIT_GLOBAL.md) + запись **GLOBAL FIX** в [`LOG.md`](LOG.md).
 
-**Операционный источник правды по приоритету и DoD:** [`../APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md`](../APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md) — пункты **1.0**, **1.1**, **1.1a** (часть 1, §3).
+**Операционный источник правды по приоритету и DoD:** [`ROADMAP_2.md`](../../../APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md) — пункты **1.0**, **1.1**, **1.1a** (часть 1, §3).
 
 ## Зачем отдельная папка
 
-По [`ROADMAP_2.md`](../APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md) §9 каждая пациентская поверхность — отдельный мини-проход с собственным `README` + `STAGE_PLAN` + `LOG`. Здесь объединены **три связанных шага** одного продуктового среза (список + деталь + миграция), чтобы не плодить три отдельные папки с дублированием контекста.
+По [`ROADMAP_2.md`](../../../APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md) §9 каждая пациентская поверхность — отдельный мини-проход с собственным `README` + `STAGE_PLAN` + `LOG`. Здесь объединены **три связанных шага** одного продуктового среза (список + деталь + миграция), чтобы не плодить три отдельные папки с дублированием контекста.
 
 ## Документы внутри инициативы
 
@@ -46,10 +48,10 @@
 - Несколько контролей внутри одного этапа (история / перенос / следующий контроль).
 - Комментарий пациента к факту выполнения `exercise` / `lesson` / actionable `recommendation`.
 
-См. также: [`../TODO.md`](../TODO.md) (раздел Treatment program), [`../BACKLOG_TAILS.md`](../BACKLOG_TAILS.md).
+См. также: [`../TODO.md`](../../../TODO.md) (раздел Treatment program), [`../BACKLOG_TAILS.md`](../../../BACKLOG_TAILS.md).
 
 ## Связанные документы
 
-- [`../APP_RESTRUCTURE_INITIATIVE/E2E_ACCEPTANCE_AFTER_AB.md`](../APP_RESTRUCTURE_INITIATIVE/E2E_ACCEPTANCE_AFTER_AB.md)
-- [`../APP_RESTRUCTURE_INITIATIVE/PROGRAM_PATIENT_SHAPE_PLAN.md`](../APP_RESTRUCTURE_INITIATIVE/PROGRAM_PATIENT_SHAPE_PLAN.md)
-- [`../ARCHITECTURE/PATIENT_APP_UI_STYLE_GUIDE.md`](../ARCHITECTURE/PATIENT_APP_UI_STYLE_GUIDE.md)
+- [`../APP_RESTRUCTURE_INITIATIVE/E2E_ACCEPTANCE_AFTER_AB.md`](../../../APP_RESTRUCTURE_INITIATIVE/E2E_ACCEPTANCE_AFTER_AB.md)
+- [`../APP_RESTRUCTURE_INITIATIVE/PROGRAM_PATIENT_SHAPE_PLAN.md`](../../../APP_RESTRUCTURE_INITIATIVE/PROGRAM_PATIENT_SHAPE_PLAN.md)
+- [`../ARCHITECTURE/PATIENT_APP_UI_STYLE_GUIDE.md`](../../../ARCHITECTURE/PATIENT_APP_UI_STYLE_GUIDE.md)

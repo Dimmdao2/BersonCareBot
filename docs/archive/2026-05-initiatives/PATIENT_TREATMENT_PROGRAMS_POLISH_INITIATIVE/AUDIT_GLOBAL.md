@@ -8,9 +8,9 @@
 
 ## 0) Методология (как проводился аудит)
 
-1. **Сначала** — анализ артефактов: `LOG.md`, `STAGE_*.md`, `STAGE_PLAN.md`, `README.md`, три `AUDIT_STAGE_*.md`, фрагменты [`ROADMAP_2.md`](../APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md) §0 и §3, запись в [`../APP_RESTRUCTURE_INITIATIVE/LOG.md`](../APP_RESTRUCTURE_INITIATIVE/LOG.md).  
+1. **Сначала** — анализ артефактов: `LOG.md`, `STAGE_*.md`, `STAGE_PLAN.md`, `README.md`, три `AUDIT_STAGE_*.md`, фрагменты [`ROADMAP_2.md`](../../../APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md) §0 и §3, запись в [`../APP_RESTRUCTURE_INITIATIVE/LOG.md`](../../../APP_RESTRUCTURE_INITIATIVE/LOG.md).  
 2. **Точечная сверка кода** — только статические сигналы в scope инициативы (`rg` по `%`/запрещённым формулировкам в `apps/webapp/src/app/app/patient/treatment-programs`), без трактовки как «зелёный CI».  
-3. **Корневой `pnpm run ci` в этом документе не запускался и не является основанием вердикта** (по условию запроса: не начинать с тестов/CI). Барьер перед push остаётся обязательным по [`.cursor/rules/pre-push-ci.mdc`](../../.cursor/rules/pre-push-ci.mdc).
+3. **Корневой `pnpm run ci` в этом документе не запускался и не является основанием вердикта** (по условию запроса: не начинать с тестов/CI). Барьер перед push остаётся обязательным по [`pre-push-ci.mdc`](../../../.cursor/rules/pre-push-ci.mdc).
 
 ---
 
@@ -91,7 +91,7 @@
 
 **Выход за scope (зафиксировано в журнале, требует учёта):**
 
-- Правка [`apps/webapp/src/app/app/doctor/test-sets/TestSetForm.test.tsx`](../../apps/webapp/src/app/app/doctor/test-sets/TestSetForm.test.tsx) под **`pnpm tsc`** (см. [`LOG.md`](LOG.md) §AUDIT_STAGE_B FIX — «к этапу B не относится»)).
+- Правка [`apps/webapp/src/app/app/doctor/test-sets/TestSetForm.test.tsx`](../../../apps/webapp/src/app/app/doctor/test-sets/TestSetForm.test.tsx) под **`pnpm tsc`** (см. [`LOG.md`](LOG.md) §AUDIT_STAGE_B FIX — «к этапу B не относится»)).
 
 **Вердикт:** основной продуктовый scope **соблюдён**; указанная правка — **единичное расширение** за пределы файлов этапа B (см. MANDATORY **Minor** ниже).
 
@@ -106,8 +106,8 @@
 | [`LOG.md`](LOG.md) отражает read-rules, scope, checks, audit-FIX по A/B/C | **PASS** | |
 | [`STAGE_A.md`](STAGE_A.md), [`STAGE_B.md`](STAGE_B.md), [`STAGE_C.md`](STAGE_C.md) — чекбоксы `[ ]` vs фактическое закрытие | **FAIL** | Все пункты остаются **неотмеченными**, хотя журнал и AUDIT декларируют закрытие — вводит в заблуждение при следующем проходе. |
 | [`README.md`](README.md) строка **«Статус: в работе»** vs закрытие A/B/C | **FAIL** | Нужно обновить статус и при необходимости ссылку на этот `AUDIT_GLOBAL.md`. |
-| [`STAGE_PLAN.md`](STAGE_PLAN.md) DoD п. **3** — отметки в [`ROADMAP_2.md`](../APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md) о выполнении **1.0 / 1.1 / 1.1a** | **FAIL / PENDING** | В §**0** «Что считаем закрытым» **нет** строки о закрытии блока 1.0+1.1+1.1a; сводная таблица §2 не содержит колонки «done». Текст DoD допускает отметку **после фактического merge** — если merge уже выполнен, это **долг синхронизации**; если нет — закрыть в том же PR, что merge. |
-| [`STAGE_PLAN.md`](STAGE_PLAN.md) DoD п. **4** — запись в [`../APP_RESTRUCTURE_INITIATIVE/LOG.md`](../APP_RESTRUCTURE_INITIATIVE/LOG.md) о завершении мини-инициативы | **FAIL / PENDING** | Есть запись **2026-05-04** о создании папки и канона, **нет** явной финальной строки «закрыты A/B/C + ссылка на AUDIT_GLOBAL». |
+| [`STAGE_PLAN.md`](STAGE_PLAN.md) DoD п. **3** — отметки в [`ROADMAP_2.md`](../../../APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md) о выполнении **1.0 / 1.1 / 1.1a** | **FAIL / PENDING** | В §**0** «Что считаем закрытым» **нет** строки о закрытии блока 1.0+1.1+1.1a; сводная таблица §2 не содержит колонки «done». Текст DoD допускает отметку **после фактического merge** — если merge уже выполнен, это **долг синхронизации**; если нет — закрыть в том же PR, что merge. |
+| [`STAGE_PLAN.md`](STAGE_PLAN.md) DoD п. **4** — запись в [`../APP_RESTRUCTURE_INITIATIVE/LOG.md`](../../../APP_RESTRUCTURE_INITIATIVE/LOG.md) о завершении мини-инициативы | **FAIL / PENDING** | Есть запись **2026-05-04** о создании папки и канона, **нет** явной финальной строки «закрыты A/B/C + ссылка на AUDIT_GLOBAL». |
 | [`STAGE_C.md`](STAGE_C.md) блок «Локальные проверки»: путь `pnpm … -- apps/webapp/src/...` при `--dir apps/webapp` | **FAIL (minor)** | В [`LOG.md`](LOG.md) зафиксирован рабочий вариант `… -- src/app/app/patient/treatment-programs` — **привести STAGE_C (и при необходимости ROADMAP узкие проверки) к одному канону**. |
 
 ---
@@ -121,7 +121,7 @@
 | 3 | В ROADMAP_2 отмечены 1.0, 1.1, 1.1a (после merge) | **PASS** (после §10 — строка в `ROADMAP_2` §0) |
 | 4 | Запись в APP_RESTRUCTURE `LOG.md` | **PASS** (после §10 — секция **GLOBAL FIX**) |
 | 5 | В `LOG.md` секции read-rules / scope / checks / audit / out-of-scope | **PASS** (с достаточной детализацией по этапам). |
-| 6 | Перед push: полный CI | **Вне этого аудита** — напоминание: не пушить без [`pre-push-ci.mdc`](../../.cursor/rules/pre-push-ci.mdc). |
+| 6 | Перед push: полный CI | **Вне этого аудита** — напоминание: не пушить без [`pre-push-ci.mdc`](../../../.cursor/rules/pre-push-ci.mdc). |
 
 ---
 
@@ -137,8 +137,8 @@
 
 ### Major (нарушение канона / DoD мини-инициативы)
 
-1. **Синхронизировать ROADMAP_2 с фактом закрытия 1.0 / 1.1a / 1.1** после merge в целевую ветку: добавить в §**0** строку вида «Patient treatment programs polish (1.0+1.1a+1.1) | ✅ … | `docs/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/AUDIT_GLOBAL.md`» **или** иной согласованный маркер + ссылку на эту папку (как в DoD [`STAGE_PLAN.md`](STAGE_PLAN.md) п.3).  
-2. **Добавить в [`../APP_RESTRUCTURE_INITIATIVE/LOG.md`](../APP_RESTRUCTURE_INITIATIVE/LOG.md)** финальную запись: закрытие A/B/C, ссылка на [`AUDIT_GLOBAL.md`](AUDIT_GLOBAL.md) и/или stage-audits (DoD п.4).
+1. **Синхронизировать ROADMAP_2 с фактом закрытия 1.0 / 1.1a / 1.1** после merge в целевую ветку: добавить в §**0** строку вида «Patient treatment programs polish (1.0+1.1a+1.1) | ✅ … | `docs/archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAMS_POLISH_INITIATIVE/AUDIT_GLOBAL.md`» **или** иной согласованный маркер + ссылку на эту папку (как в DoD [`STAGE_PLAN.md`](STAGE_PLAN.md) п.3).  
+2. **Добавить в [`../APP_RESTRUCTURE_INITIATIVE/LOG.md`](../../../APP_RESTRUCTURE_INITIATIVE/LOG.md)** финальную запись: закрытие A/B/C, ссылка на [`AUDIT_GLOBAL.md`](AUDIT_GLOBAL.md) и/или stage-audits (DoD п.4).
 
 ### Minor (качество / согласованность / scope hygiene)
 
@@ -155,7 +155,7 @@
 ### После любого GLOBAL FIX по §8
 
 - Обновить [`LOG.md`](LOG.md) этой инициативы.  
-- Перед push — **`pnpm install --frozen-lockfile && pnpm run ci`** ([`pre-push-ci.mdc`](../../.cursor/rules/pre-push-ci.mdc)).
+- Перед push — **`pnpm install --frozen-lockfile && pnpm run ci`** ([`pre-push-ci.mdc`](../../../.cursor/rules/pre-push-ci.mdc)).
 
 ---
 
@@ -199,8 +199,8 @@
 
 **Сделано:**
 
-- [`apps/webapp/src/app/app/patient/treatment-programs/page.tsx`](../../apps/webapp/src/app/app/patient/treatment-programs/page.tsx): `patientPlanUpdatedBadgeForInstance` в отдельном `try/catch` — при ошибке бейдж скрывается, страница рендерится.
-- [`apps/webapp/src/app/app/patient/treatment-programs/[instanceId]/page.tsx`](../../apps/webapp/src/app/app/patient/treatment-programs/%5BinstanceId%5D/page.tsx): загрузка экземпляра и nudge разведены; `notFound()` только на отсутствии/ошибке загрузки instance.
-- Регресс-тесты: [`page.nudgeResilience.test.tsx`](../../apps/webapp/src/app/app/patient/treatment-programs/page.nudgeResilience.test.tsx), [`[instanceId]/page.nudgeResilience.test.tsx`](../../apps/webapp/src/app/app/patient/treatment-programs/%5BinstanceId%5D/page.nudgeResilience.test.tsx).
+- [`apps/webapp/src/app/app/patient/treatment-programs/page.tsx`](../../../apps/webapp/src/app/app/patient/treatment-programs/page.tsx): `patientPlanUpdatedBadgeForInstance` в отдельном `try/catch` — при ошибке бейдж скрывается, страница рендерится.
+- [`apps/webapp/src/app/app/patient/treatment-programs/[instanceId]/page.tsx`](../../../apps/webapp/src/app/app/patient/treatment-programs/%5BinstanceId%5D/page.tsx): загрузка экземпляра и nudge разведены; `notFound()` только на отсутствии/ошибке загрузки instance.
+- Регресс-тесты: [`page.nudgeResilience.test.tsx`](../../../apps/webapp/src/app/app/patient/treatment-programs/page.nudgeResilience.test.tsx), [`[instanceId]/page.nudgeResilience.test.tsx`](../../../apps/webapp/src/app/app/patient/treatment-programs/%5BinstanceId%5D/page.nudgeResilience.test.tsx).
 
 **Проверки:** `vitest` на файлы выше; `pnpm --dir apps/webapp exec tsc --noEmit`; `eslint` по затронутым путям `treatment-programs` (см. [`LOG.md`](LOG.md) секция **post-audit nudge**).

@@ -1,6 +1,6 @@
 # Этап A — `1.0` Data enabler: `started_at`
 
-← Индекс: [`STAGE_PLAN.md`](STAGE_PLAN.md) · канон порядка и критериев: [`../APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md`](../APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md) §3 (п. **1.0**).
+← Индекс: [`STAGE_PLAN.md`](STAGE_PLAN.md) · канон порядка и критериев: [`../APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md`](../../../APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md) §3 (п. **1.0**).
 
 **Место в цепочке:** первый шаг **A → B → C**; предпосылок нет.
 
@@ -54,7 +54,7 @@
 
 - [x] Unit test: автоматическая установка `started_at` на первом старте этапа.
 - [x] Unit test: повторный переход не меняет уже заполненный `started_at`.
-- [x] Интеграционный/репозиторный тест: чтение `started_at` в detail/row (минимум — контракт PG-репо [`pgTreatmentProgramInstance.startedAt.contract.test.ts`](../../apps/webapp/src/infra/repos/pgTreatmentProgramInstance.startedAt.contract.test.ts); live PG — см. [`AUDIT_STAGE_A.md`](AUDIT_STAGE_A.md) FIX closure / defer).
+- [x] Интеграционный/репозиторный тест: чтение `started_at` в detail/row (минимум — контракт PG-репо [`pgTreatmentProgramInstance.startedAt.contract.test.ts`](../../../apps/webapp/src/infra/repos/pgTreatmentProgramInstance.startedAt.contract.test.ts); live PG — см. [`AUDIT_STAGE_A.md`](AUDIT_STAGE_A.md) FIX closure / defer).
 
 ## Локальные проверки
 

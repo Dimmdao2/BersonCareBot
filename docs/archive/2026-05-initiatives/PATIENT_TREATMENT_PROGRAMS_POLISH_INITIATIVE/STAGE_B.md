@@ -1,6 +1,6 @@
 # Этап B — `1.1a` Деталь программы (`[instanceId]`)
 
-← Индекс: [`STAGE_PLAN.md`](STAGE_PLAN.md) · канон: [`../APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md`](../APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md) §3 (п. **1.1a**).
+← Индекс: [`STAGE_PLAN.md`](STAGE_PLAN.md) · канон: [`../APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md`](../../../APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md) §3 (п. **1.1a**).
 
 **Место в цепочке:** после **A**; не начинать, пока не закрыт [`STAGE_A.md`](STAGE_A.md) по DoD.
 
