@@ -214,3 +214,18 @@ export const patientInnerCardGridClass = cn(
  * Обычно — верхний отступ у следующего сиблинга-секции.
  */
 export const patientPageSectionGapClass = "mt-4 lg:mt-6";
+
+/**
+ * Заголовок текущего этапа программы на detail-странице: primary-тон, жирный, крупный.
+ * Используется в превью-карточке текущего этапа (`PatientTreatmentProgramDetailClient`).
+ */
+export const patientStageTitleClass = cn(
+  "text-xl font-bold text-[var(--patient-color-primary)]",
+);
+
+/**
+ * Hero-surface для карточки программы лечения: мягкий primary (lavender) тон.
+ * Использует `--patient-surface-info-*` (info = primary); при несовпадении с макетом — уточнить
+ * и добавить отдельные токены в `globals.css`. Для `PatientTreatmentProgramDetailClient` hero-блока.
+ */
+export const patientSurfaceProgramClass = patientSurfaceInfoClass;

@@ -64,4 +64,40 @@
     - `pnpm --dir apps/webapp exec vitest run src/app/app/patient/treatment-programs` ✅
 - **Stage B closed + commit:** этап B закрыт после FIX и подготовлен к отдельному commit (без запуска полного `pnpm run ci`, по правилу этапов).
 
-*(Дальнейшие записи: `read-rules + scope`, результаты проверок, решения по «История тестирования» / маршрутам — по мере исполнения этапов A–D.)*
+- **Stage C gate (EXEC старт, 2026-05-05):**
+  - Прочитаны и применены: `STAGE_C.md`, `STAGE_PLAN.md`, `ROADMAP_2.md` (§1.1b), правила `patient-ui-shared-primitives.mdc`, `clean-architecture-module-isolation.mdc`, `no-unsolicited-followups.mdc`.
+  - Подтверждено предусловие `STAGE_C.md`: Stage B закрыт (см. записи выше: `Stage B closed`); `Collapsible` из `@base-ui/react` присутствует в `apps/webapp/src/components/ui/collapsible.tsx` ✅.
+  - Scope Stage C зафиксирован: только UI-слой detail-страницы программы + новый маршрут `stages/[stageId]`; без миграций, без портовых контрактов.
+- **Stage C C1–C10 (implementation):**
+  - **C8**: добавлен `patientTreatmentProgramStage(instanceId, stageId)` в `apps/webapp/src/app-layer/routes/paths.ts`.
+  - **patientVisual**: добавлены `patientStageTitleClass` (`text-xl font-bold text-[var(--patient-color-primary)]`) и `patientSurfaceProgramClass` (alias → `patientSurfaceInfoClass`) в `apps/webapp/src/shared/ui/patientVisual.ts`.
+  - **Play SVG**: статический ассет создан в `apps/webapp/public/patient/ui/play.svg`; используется через `<img>` с `className="invert"` для белого цвета на цветном фоне hero.
+  - **C7**: создан RSC `apps/webapp/src/app/app/patient/treatment-programs/[instanceId]/stages/[stageId]/page.tsx` — загружает detail программы, находит этап по `stageId`, рендерит `PatientTreatmentProgramStagePageClient`, back-link → detail, 404 при отсутствии экземпляра или этапа.
+  - **Вспомогательный клиент**: создан `PatientTreatmentProgramStagePageClient.tsx` рядом с detail-клиентом; управляет state (busy/error/doneItemIds), refresh, рендерит `PatientInstanceStageBody`.
+  - **C1**: hero-карточка с `patientSurfaceProgramClass`: badge «МОЙ ПЛАН» (левый верх), badge «Этап X из Y» (правый верх), заголовок программы, индикатор «● Plan обновлён» (`text-destructive`), CTA «Открыть план» + Play SVG → `#patient-program-current-stage`.
+  - **C2**: `PatientProgramControlCard` — только при `controlLabel != null`; поверхность `patientSurfaceWarningClass`; иконка `CalendarCheck`; кнопка «Выполнить тесты» (`patientButtonWarningOutlineClass`) → `stages/[stageId]`; кнопка «Записаться на приём» (`patientButtonSuccessClass`) → `routePaths.cabinet`.
+  - **C3**: этап 0 обёрнут в `Collapsible` из `@/components/ui/collapsible` с поверхностью `patientSurfaceSuccessClass`; trigger: иконка `Shield`, текст «Рекомендации на период», шеврон; `open` default `false` (по умолчанию Base UI).
+  - **C4**: inline `PatientInstanceStageBody` текущего этапа заменён на превью-карточку (`patientCardClass`): label «Текущий этап», `patientStageTitleClass`, subtitle из `goals/objectives` (первые 80 символов), CTA «Открыть этап» → `stages/[stageId]`. `id="patient-program-current-stage"` на превью-блоке.
+  - **C5 (UX-решение)**: развёрнутый список результатов тестов удалён; заменён секцией «История тестирования» с `ClipboardList`, подписью и кнопкой «Перейти к этапу» → текущий `stages/[stageId]`. Показывается только при `status === "active"` и наличии `currentWorkingStage`. Полноценная страница истории тестирования — post-MVP (отдельный маршрут/модалка); будет проработана в отдельной задаче.
+  - **C6**: `<details>` с inline-телами архивных этапов заменён на компактный список `patientListItemClass`: `CheckCircle2` + «Этап N. Название» + `ChevronRight` → `Link` на `stages/[stageId]`. Дата `completedAt` не показана — поля нет в `TreatmentProgramInstanceStageRow` (не вводим в этом проходе).
+  - `PatientInstanceStageBody` экспортирован из `PatientTreatmentProgramDetailClient.tsx` для использования на странице этапа.
+- **Stage C C9 (тесты):**
+  - `PatientTreatmentProgramDetailClient.test.tsx`: тесты A1 и B7-FIX обновлены под новую структуру C3 — добавлен `fireEvent.click(screen.getByText("Рекомендации на период"))` перед assertions (Base UI Collapsible v1.3 лениво рендерит контент Panel, только после открытия). Остальные тесты (A5, 1.1a, plan-updated) — зелёные без изменений.
+  - `page.nudgeResilience.test.tsx` — зелёный без изменений (мокирует `PatientTreatmentProgramDetailClient` целиком).
+- **Stage C C10 (целевые проверки):**
+  - `pnpm --dir apps/webapp lint --max-warnings=0 -- src/app/app/patient/treatment-programs src/app-layer/routes src/shared/ui` ✅
+  - `pnpm --dir apps/webapp exec tsc --noEmit` ✅
+  - `pnpm --dir apps/webapp exec vitest run src/app/app/patient/treatment-programs` ✅ (14/14)
+- **Stage C closed.**
+- **Stage C FIX по `AUDIT_STAGE_C.md` (2026-05-05):**
+  - Critical: отсутствуют.
+  - Major: отсутствуют.
+  - Minor M1: удалён неиспользуемый импорт `buttonVariants` из `PatientTreatmentProgramDetailClient.tsx`.
+  - Minor M2: удалён мёртвый JSX-expression `{testResults.length === 0 ? null : null}` (state и fetch в refresh сохранены для post-MVP).
+  - Minor M3: CTA «История тестирования» — label «Перейти к этапу» → «Открыть текущий этап» для семантической точности.
+  - Minor M4: убраны non-null assertions `detail!` в `stages/[stageId]/page.tsx` → введён `resolvedDetail = detail as NonNullable<typeof detail>`.
+  - Повтор целевых проверок Stage C после FIX:
+    - `pnpm --dir apps/webapp lint --max-warnings=0 -- src/app/app/patient/treatment-programs src/app-layer/routes src/shared/ui` ✅
+    - `pnpm --dir apps/webapp exec tsc --noEmit` ✅
+    - `pnpm --dir apps/webapp exec vitest run src/app/app/patient/treatment-programs` ✅ (14/14)
+- **Stage C closed + commit.**

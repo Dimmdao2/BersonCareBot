@@ -61,6 +61,8 @@ export const routePaths = {
   patientTreatmentPrograms: "/app/patient/treatment-programs",
   patientTreatmentProgram: (instanceId: string) =>
     `/app/patient/treatment-programs/${encodeURIComponent(instanceId)}`,
+  patientTreatmentProgramStage: (instanceId: string, stageId: string) =>
+    `/app/patient/treatment-programs/${encodeURIComponent(instanceId)}/stages/${encodeURIComponent(stageId)}`,
   /** Раздел CMS «Разминки» (канонический slug — см. `warmupsSection.ts`). */
   patientWarmups: patientWarmupsSectionHref(),
   /** Online intake — Nutrition questionnaire. */

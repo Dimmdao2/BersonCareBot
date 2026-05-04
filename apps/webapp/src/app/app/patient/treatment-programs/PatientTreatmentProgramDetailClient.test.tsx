@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
-import { render, screen, act } from "@testing-library/react";
+import { render, screen, act, fireEvent } from "@testing-library/react";
 import type { TreatmentProgramInstanceDetail } from "@/modules/treatment-program/types";
 import { PatientTreatmentProgramDetailClient } from "./PatientTreatmentProgramDetailClient";
 
@@ -76,6 +76,8 @@ describe("PatientTreatmentProgramDetailClient", () => {
         {...detailShellProps}
       />,
     );
+    // Stage 0 (sortOrder=0) is now in a Collapsible (closed by default in C3); open it first.
+    fireEvent.click(screen.getByText("Рекомендации на период"));
     expect(screen.getByText("Снять отёк")).toBeInTheDocument();
     expect(screen.getByText("- 3 раза в неделю")).toBeInTheDocument();
     expect(screen.getByText("7 дн. · неделя")).toBeInTheDocument();
@@ -132,6 +134,7 @@ describe("PatientTreatmentProgramDetailClient", () => {
   });
 
   it("shows test_set per-test catalog comment from snapshot (B7 FIX)", () => {
+    // Stage 0 (sortOrder=0) is inside a Collapsible (C3); open it before asserting item content.
     const testSetItem = {
       id: "33333333-3333-4333-8333-333333333333",
       stageId: "22222222-2222-4222-8222-222222222222",
@@ -182,6 +185,7 @@ describe("PatientTreatmentProgramDetailClient", () => {
         {...detailShellProps}
       />,
     );
+    fireEvent.click(screen.getByText("Рекомендации на период"));
     expect(screen.getByText("Набор А")).toBeInTheDocument();
     expect(screen.getByText("Пейте воду")).toBeInTheDocument();
   });
