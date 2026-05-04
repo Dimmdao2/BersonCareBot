@@ -6,6 +6,26 @@
 
 ---
 
+## 2026-05-04 (VI) — FILTER URL: cleanup `bodyRegionQuery` + пометка по `titleSort`
+
+**Сделано:** удалён неиспользуемый `apps/webapp/src/shared/lib/bodyRegionQuery.ts` (legacy UUID в `?region=`). В [`FILTER_URL_CONTRACT_FIX_PLAN.md`](FILTER_URL_CONTRACT_FIX_PLAN.md) зафиксировано: сортировка по названию — приоритет **интерфейса**; постоянное совпадение `titleSort` с адресной строкой не требуется; уточнены Decision notes, чеклист Step 1 и DoD.
+
+**Проверки:** `rg bodyRegionQuery` по репозиторию — только ссылка в плане (описание cleanup).
+
+---
+
+## 2026-05-04 — Dev: миграции webapp (в т.ч. `0040` DROP `scoring_config`)
+
+**Контекст:** оператор прогнал миграции на **dev** БД webapp для проверки.
+
+**Факт:** журнал Drizzle на dev должен включать тег **`0040_drop_tests_scoring_config`**; таблица **`tests`** без колонки **`scoring_config`**.
+
+**Документация:** синхронизированы продуктовый план §7/§8.2, [`DEFER_CLOSURE_MASTER_PLAN.md`](DEFER_CLOSURE_MASTER_PLAN.md), [`AUDIT_DEFER_CLOSURE_GLOBAL.md`](AUDIT_DEFER_CLOSURE_GLOBAL.md) §8 (остаток — **prod**), [`BACKLOG_TAILS.md`](../BACKLOG_TAILS.md), [`PRE_IMPLEMENTATION_DECISIONS.md`](PRE_IMPLEMENTATION_DECISIONS.md) §3, [`MASTER_PLAN.md`](MASTER_PLAN.md) §1.
+
+**Код не менялся** (только docs).
+
+---
+
 ## 2026-05-04 — D6 audit entry (`AUDIT_STAGE_D6`)
 
 **Сделано:** добавлен [`AUDIT_STAGE_D6.md`](AUDIT_STAGE_D6.md) — именованный аудит «этап 6» со ссылкой на полный свод [`AUDIT_DEFER_CLOSURE_GLOBAL.md`](AUDIT_DEFER_CLOSURE_GLOBAL.md); обновлены [`STAGE_D6_PLAN.md`](STAGE_D6_PLAN.md) §3, [`PROMPTS_DEFER_CLOSURE_STAGES.md`](PROMPTS_DEFER_CLOSURE_STAGES.md) (D6 — AUDIT), [`README.md`](README.md).
@@ -26,7 +46,7 @@
 
 **Контекст:** [`STAGE_D6_PLAN.md`](STAGE_D6_PLAN.md), [`AUDIT_DEFER_CLOSURE_GLOBAL.md`](AUDIT_DEFER_CLOSURE_GLOBAL.md), [`DEFER_CLOSURE_MASTER_PLAN.md`](DEFER_CLOSURE_MASTER_PLAN.md).
 
-**Сделано:** сводный аудит результатов D1–D4 (verdict PASS по stage-файлам); зафиксирован статус **D5** — `deferred (owner pause, 2026-05-04)` без `AUDIT_STAGE_D5` (ожидаемо); сверка продуктового плана [`ASSIGNMENT_CATALOGS_REWORK_PLAN.md`](../APP_RESTRUCTURE_INITIATIVE/ASSIGNMENT_CATALOGS_REWORK_PLAN.md) §5 / §7 / §8.2 с фактом кода; подтверждено отсутствие протечек **«не делаем»** (`publication_status` только у `test_sets`, не у `tests`/рекомендаций/упражнений; отдельного `/bulk` API в `app/api` нет); отдельная строка по **`DROP clinical_tests.scoring_config`** — миграция [`0040_drop_tests_scoring_config.sql`](../../apps/webapp/db/drizzle-migrations/0040_drop_tests_scoring_config.sql), Drizzle [`clinicalTests.ts`](../../apps/webapp/db/schema/clinicalTests.ts) без колонки.
+**Сделано:** сводный аудит результатов D1–D4 (verdict PASS по stage-файлам); зафиксирован статус **D5** — `deferred (owner pause, 2026-05-04)` без `AUDIT_STAGE_D5` (ожидаемо); сверка продуктового плана [`ASSIGNMENT_CATALOGS_REWORK_PLAN.md`](../APP_RESTRUCTURE_INITIATIVE/ASSIGNMENT_CATALOGS_REWORK_PLAN.md) §5 / §7 / §8.2 с фактом кода; подтверждено отсутствие протечек **«не делаем»** (`publication_status` только у `test_sets`, не у `tests`/рекомендаций/упражнений; отдельного `/bulk` API в `app/api` нет); отдельная строка по **`DROP tests.scoring_config` (`0040`)** — миграция [`0040_drop_tests_scoring_config.sql`](../../apps/webapp/db/drizzle-migrations/0040_drop_tests_scoring_config.sql), Drizzle [`clinicalTests.ts`](../../apps/webapp/db/schema/clinicalTests.ts) без колонки.
 
 **Проверки:** `pnpm --dir apps/webapp exec vitest run src/modules/treatment-program/progress-service.test.ts src/modules/treatment-program/testSetSnapshotView.test.ts` (**26** тестов), `pnpm --dir apps/webapp exec tsc --noEmit`.
 
@@ -150,7 +170,7 @@
 
 **Решения:**
 
-1. **`clinical_tests.scoring_config`:** колонка **не нужна** — планируется миграция `DROP` + удаление fallback в коде (см. [`../APP_RESTRUCTURE_INITIATIVE/ASSIGNMENT_CATALOGS_REWORK_PLAN.md`](../APP_RESTRUCTURE_INITIATIVE/ASSIGNMENT_CATALOGS_REWORK_PLAN.md) §7, §8.2).
+1. **`tests.scoring_config`:** колонка **не нужна** — миграция **`0040`** + чистка кода в репо; **dev** — миграции прогнаны; **prod** — при деплое (см. [`../APP_RESTRUCTURE_INITIATIVE/ASSIGNMENT_CATALOGS_REWORK_PLAN.md`](../APP_RESTRUCTURE_INITIATIVE/ASSIGNMENT_CATALOGS_REWORK_PLAN.md) §7, §8.2).
 2. **D5 (`recommendations.domain` → `kind`):** этап **отложен** (owner pause); см. [`STAGE_D5_PLAN.md`](STAGE_D5_PLAN.md), [`../APP_RESTRUCTURE_INITIATIVE/ASSIGNMENT_CATALOGS_REWORK_PLAN.md`](../APP_RESTRUCTURE_INITIATIVE/ASSIGNMENT_CATALOGS_REWORK_PLAN.md) §7/§8.2.
 3. **D4 (qualitative в инстансе программы):** **продуктового выбора не требуется** — канон Q2 в ТЗ §8.2; D4 остаётся техпроверкой/UI/API/тестами; см. [`STAGE_D4_PLAN.md`](STAGE_D4_PLAN.md) §0.
 4. **E2E:** расширение обязательного Playwright/CI **не** планируется; приёмка — ручной smoke; автотесты e2e — только для стабилизированного UI по отдельному решению (см. [`DEFER_CLOSURE_MASTER_PLAN.md`](DEFER_CLOSURE_MASTER_PLAN.md) §2 out of scope, продуктовый план §8.2).

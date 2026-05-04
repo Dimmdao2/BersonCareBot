@@ -39,7 +39,7 @@ D1 (measure_kinds access)
 - D5 допускает controlled defer, если spike покажет непропорциональный объём, либо явную **паузу владельца** (`deferred (owner pause)`) без spike до снятия паузы.
 - D6 закрывается после D1–D4 и явной фиксации статуса D5: **`done`**, **`deferred with spike evidence`**, или **`deferred (owner pause)`** — см. [`STAGE_D6_PLAN.md`](STAGE_D6_PLAN.md).
 
-### Текущий статус синхронизации (обновлено 2026-05-04)
+### Текущий статус синхронизации (обновлено 2026-05-04; dev — миграции прогнаны)
 
 - D1 — **done** (`AUDIT_STAGE_D1.md`: PASS).
 - D2 — **done** (`AUDIT_STAGE_D2.md`: PASS).
@@ -47,7 +47,7 @@ D1 (measure_kinds access)
 - D4 — **done** (`AUDIT_STAGE_D4.md`: PASS).
 - D5 — **deferred (owner pause, 2026-05-04)** — реализация `domain`→`kind` не в текущем объёме; см. [`STAGE_D5_PLAN.md`](STAGE_D5_PLAN.md), [`../APP_RESTRUCTURE_INITIATIVE/ASSIGNMENT_CATALOGS_REWORK_PLAN.md`](../APP_RESTRUCTURE_INITIATIVE/ASSIGNMENT_CATALOGS_REWORK_PLAN.md) §7/§8.2.
 - D6 — **done** ([`AUDIT_DEFER_CLOSURE_GLOBAL.md`](AUDIT_DEFER_CLOSURE_GLOBAL.md)).
-- **Вне D1–D6, но по той же оси:** `DROP clinical_tests.scoring_config` — **решение владельца:** колонка не нужна; инженерная миграция + чистка кода (см. продуктовый план §7).
+- **Вне D1–D6, но по той же оси:** `DROP tests.scoring_config` — **решение владельца:** колонка не нужна; миграция **`0040`** в репозитории + чистка кода; **dev** — миграции прогнаны для теста; **prod** — см. [`AUDIT_DEFER_CLOSURE_GLOBAL.md`](AUDIT_DEFER_CLOSURE_GLOBAL.md) §8–§9 / TODO §8 ниже.
 
 ## 4. Кодовая карта
 
@@ -94,4 +94,4 @@ pnpm run ci
 | TODO | Где детали |
 |------|------------|
 | **D5** — spike + gate по `recommendations.domain` → `kind` (Q4); при **Go** — миграция, API/UI, `AUDIT_STAGE_D5.md` | [`STAGE_D5_PLAN.md`](STAGE_D5_PLAN.md); операционный хвост — [`../BACKLOG_TAILS.md`](../BACKLOG_TAILS.md) §«Хвосты ASSIGNMENT_CATALOGS / defer-wave» |
-| **`DROP clinical_tests.scoring_config` на prod** (если ещё не применена миграция) | [`AUDIT_DEFER_CLOSURE_GLOBAL.md`](AUDIT_DEFER_CLOSURE_GLOBAL.md) §8–§9 (R2); продуктовый план §7 |
+| **`DROP tests.scoring_config` (`0040`) на prod** | Только **production** БД (dev уже прогнан). [`AUDIT_DEFER_CLOSURE_GLOBAL.md`](AUDIT_DEFER_CLOSURE_GLOBAL.md) §8–§9 (R2); продуктовый план §7 |

@@ -2,6 +2,10 @@
 
 **Статус: завершён (2026-05-04).** Верификация: [`AUDIT_FILTER_URL_CONTRACT_FIX.md`](AUDIT_FILTER_URL_CONTRACT_FIX.md), [`LOG.md`](LOG.md). Решения владельца: каталог **шаблонов программ** не меняли; **историю коммитов** не переписывали; **рефакторинг имён `regionRefId`** в коде не делается — в query-layer только параметр **`region`** (код); добавлены **unit-тесты** preserve для recommendations / clinical-tests / test-sets. Исключение: у **наборов тестов** ось **`load`** в preserve намеренно убрана (см. LOG III).
 
+**Сортировка по названию:** важна корректная работа в интерфейсе. Постоянное совпадение `titleSort` с адресной строкой при каждом действии пользователя **не** является продуктовым требованием.
+
+**Код (cleanup):** удалён неиспользуемый `apps/webapp/src/shared/lib/bodyRegionQuery.ts` (UUID fallback для региона в query); канон парсинга региона в каталогах — `parseDoctorCatalogRegionQueryParam`.
+
 ## 1. Goal
 
 Bring doctor assignment catalog filters to a stable URL and data-loading contract:
@@ -55,7 +59,7 @@ Forbidden query-layer contract:
 
 Decision notes:
 
-- `titleSort` should be client-side sorting.
+- `titleSort` — клиентская сортировка; отражение в `?titleSort=` при желании, без требования «URL всегда в синхроне с выбором в шапке» (см. пометку в шапке плана).
 - `status` / `arch` / `pub` may remain server-side filters when a catalog intentionally does not load archived/published scopes together.
 - `selected` may remain in URL if it only controls selected item/details UI and does not change the list query.
 
@@ -66,7 +70,7 @@ Decision notes:
 Checklist:
 
 - [x] Locate all doctor catalog filter/query helpers and current param aliases.
-- [x] Confirm every generated URL uses `region`, `load`, `q`, `view`, `titleSort`.
+- [x] Confirm every generated URL uses `region`, `load`, `q`, `view`; `titleSort` в URL — по возможности, не блокер (см. пометку в шапке плана).
 - [x] Confirm tests expect `region=spine` or another readable code, not UUID.
 
 Checks:
@@ -196,7 +200,7 @@ Closure:
 - URL region is human-readable: `region=spine`.
 - Region UUID never appears in generated filter URLs.
 - `searchParams.region` server parsing does not accept UUID as region fallback.
-- `q`, `region`, `load`, and `titleSort` work without server list refetch.
+- `q`, `region`, `load`, and title sort work in the UI without server list refetch; `?titleSort=` не обязан мгновенно следовать за каждым кликом (см. пометку в шапке плана).
 - `view` remains `view`.
 - `status` / `arch` / `pub` behavior remains compatible with current archive/publication scope loading.
 - UI filters do not reintroduce an apply button, bottom summary text, or dropdown focus regression.

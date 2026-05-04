@@ -226,7 +226,7 @@
 1) собрать результаты D1–D4 и зафиксированный статус D5 (включая deferred без AUDIT_STAGE_D5);
 2) проверить соответствие product plan §5/§7/§8 факту кода;
 3) проверить что решения "не делаем" (publication_status extra, bulk API) не протекли в реализацию;
-4) отметить отдельно решение по DROP `clinical_tests.scoring_config` vs состояние миграций;
+4) отметить отдельно решение по DROP `tests.scoring_config` (`0040`) vs состояние миграций (dev/prod);
 5) подготовить глобальный аудит.
 ```
 
@@ -237,7 +237,7 @@
 - источники: AUDIT_STAGE_D1..D4, LOG, product plan; D5 — только если был audit-файл;
 - проверь закрытие всех critical/major;
 - зафиксируй residual risks;
-- зафиксируй статус D5 (в т.ч. owner pause) и план по DROP scoring_config.
+- зафиксируй статус D5 (в т.ч. owner pause) и факт по DROP `tests.scoring_config` / миграция `0040` (repo, dev, prod);
 
 Сохрани полный аудит: docs/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/AUDIT_DEFER_CLOSURE_GLOBAL.md
 

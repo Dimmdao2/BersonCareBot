@@ -329,7 +329,7 @@
 
 | Идея | Условие старта |
 |---|---|
-| ~~Удалить колонку `clinical_tests.scoring_config JSONB`~~ | **Решение 2026-05-04:** колонка **не нужна** — инженерный follow-up: Drizzle-миграция `DROP COLUMN`, удаление fallback-чтения в коде/снимках, тесты; перед применением на prod — backup по [`deploy/HOST_DEPLOY_README.md`](../../deploy/HOST_DEPLOY_README.md) (см. [`../ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/LOG.md`](../ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/LOG.md)). |
+| ~~Удалить колонку `tests.scoring_config` (клинические тесты, таблица `tests`)~~ | **Сделано в репо + dev (2026-05-04):** миграция [`0040_drop_tests_scoring_config.sql`](../../apps/webapp/db/drizzle-migrations/0040_drop_tests_scoring_config.sql) на таблицу **`tests`** (`DROP` legacy-колонки); код/схема без `scoring_config`; **dev** — журнал миграций прогнан для теста. **Prod** — при деплое, с backup по [`deploy/HOST_DEPLOY_README.md`](../../deploy/HOST_DEPLOY_README.md) (см. [`AUDIT_DEFER_CLOSURE_GLOBAL.md`](../ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/AUDIT_DEFER_CLOSURE_GLOBAL.md) §8–§9, [`../ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/LOG.md`](../ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/LOG.md)). |
 | ~~Перевести `assessmentKind` в системный справочник БД (категория + UI управления + валидация)~~ | **Сделано (D2, 2026-05-03):** [`STAGE_D2_PLAN.md`](../ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/STAGE_D2_PLAN.md), [`AUDIT_STAGE_D2.md`](../ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/AUDIT_STAGE_D2.md) |
 | ~~Перевести типы рекомендаций в системный справочник БД~~ | **Сделано (D3, 2026-05-03):** [`STAGE_D3_PLAN.md`](../ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/STAGE_D3_PLAN.md), [`AUDIT_STAGE_D3.md`](../ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/AUDIT_STAGE_D3.md) |
 | Переименовать `recommendations.domain` → `recommendations.kind` (миграция + API + модуль `recommendations`) | **Отложено (2026-05-04):** отдельный этап по запросу; до снятия паузы остаёмся на колонке `domain` и UI «Тип» (см. [`STAGE_D5_PLAN.md`](../ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/STAGE_D5_PLAN.md)). |
@@ -360,7 +360,7 @@
 - **Q3:** для «Типа» рекомендации допускается сосуществование старых и новых кодов; источник правды — справочник в БД; точечная очистка/пополнение на production допускается операционно.
 - **Q4:** до отдельного эпика сохраняем колонку `domain` и подпись UI «Тип»; целевое имя `kind` предпочтительно, но переименование делаем отдельным этапом после оценки объёма. **2026-05-04:** переименование **отложено** (не в текущем объёме); см. [`STAGE_D5_PLAN.md`](../ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/STAGE_D5_PLAN.md).
 - **Q6:** первый приоритет — доступ к системному справочнику `measure_kinds`; merge/dedup и сложные операции откладываются.
-- **Инженерия:** колонка `clinical_tests.scoring_config` — **не нужна**; планируется миграция `DROP` + чистка кода (см. §7 backlog).
+- **Инженерия:** колонка `tests.scoring_config` (клинические тесты) — **не нужна**; в репозитории — миграция **`0040`** + чистка кода; на **dev** миграции прогнаны для теста; **prod** — по деплою/runbook (§7).
 - **E2E:** расширение Playwright/CI **не** планируется; приёмка — ручной smoke; автоматический e2e — только для уже стабилизированного UI и по отдельному решению.
 - `publication_status` на упражнениях / клинических тестах / рекомендациях в рамках этой инициативы **не вводим**.
 - Отдельный `bulk` API для состава наборов/шаблонов **не планируем**, пока нет подтверждённой нагрузки/боли.

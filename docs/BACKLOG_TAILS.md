@@ -41,7 +41,7 @@
 
 ### Хвосты ASSIGNMENT_CATALOGS / defer-wave (2026-05-04)
 
-- **`clinical_tests.scoring_config`:** решение владельца — колонка **не нужна**; инженерный follow-up: миграция `DROP` + чистка кода (см. [`APP_RESTRUCTURE_INITIATIVE/ASSIGNMENT_CATALOGS_REWORK_PLAN.md`](APP_RESTRUCTURE_INITIATIVE/ASSIGNMENT_CATALOGS_REWORK_PLAN.md) §7).
+- **`tests.scoring_config`:** колонка **не нужна**; в репо — миграция **`0040`**, код обновлён; **dev** — миграции прогнаны. **Prod** — при деплое (см. [`APP_RESTRUCTURE_INITIATIVE/ASSIGNMENT_CATALOGS_REWORK_PLAN.md`](APP_RESTRUCTURE_INITIATIVE/ASSIGNMENT_CATALOGS_REWORK_PLAN.md) §7, [`AUDIT_DEFER_CLOSURE_GLOBAL.md`](ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/AUDIT_DEFER_CLOSURE_GLOBAL.md) §8).
 - **`recommendations.domain` → `kind` (D5):** **отложено (owner pause)**; при возобновлении — см. таблицу **TODO** в [`ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/DEFER_CLOSURE_MASTER_PLAN.md`](ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/DEFER_CLOSURE_MASTER_PLAN.md) §8 и [`ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/STAGE_D5_PLAN.md`](ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/STAGE_D5_PLAN.md).
 
 ## Что уже перенесено в архив (2026-05-01)

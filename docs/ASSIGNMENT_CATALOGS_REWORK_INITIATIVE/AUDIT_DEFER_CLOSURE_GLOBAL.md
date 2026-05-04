@@ -21,7 +21,7 @@
 | **D5** | **`deferred (owner pause, 2026-05-04)`** — допустимое закрытие D6; **`AUDIT_STAGE_D5.md`** отсутствует (ожидаемо). |
 | **Продуктовый план §5 / §7 / §8.2 vs код** | **Согласовано** в пределах явных defer/backlog (§5–§6). |
 | **«Не делаем» (publication_status extra, bulk API)** | **Не протекло** (§7). |
-| **`DROP clinical_tests.scoring_config`** | **В репозитории выполнено**; **prod** — см. §8 и **R2** в §9. |
+| **`DROP tests.scoring_config` (`0040`)** | **В репозитории выполнено**; **dev** — миграции прогнаны для теста; **prod** — см. §8 и **R2** в §9. |
 
 ---
 
@@ -106,15 +106,15 @@
 
 ---
 
-## 8. `DROP clinical_tests.scoring_config` — решение, план и факт
+## 8. `DROP tests.scoring_config` (`0040`) — решение, план и факт
 
-**Продуктовый план** ([`ASSIGNMENT_CATALOGS_REWORK_PLAN.md`](../APP_RESTRUCTURE_INITIATIVE/ASSIGNMENT_CATALOGS_REWORK_PLAN.md) §7 backlog, §8.2): колонка **не нужна**; инженерный follow-up: миграция **`DROP COLUMN`**, удаление fallback в коде/снимках, тесты; на **prod** — backup по [`deploy/HOST_DEPLOY_README.md`](../../deploy/HOST_DEPLOY_README.md).
+**Продуктовый план** ([`ASSIGNMENT_CATALOGS_REWORK_PLAN.md`](../APP_RESTRUCTURE_INITIATIVE/ASSIGNMENT_CATALOGS_REWORK_PLAN.md) §7 backlog, §8.2): колонка **не нужна**; инженерный follow-up: миграция **`DROP COLUMN`**, удаление fallback в коде/снимках, тесты; **dev** — миграции прогнаны для теста (2026-05-04); на **prod** — backup по [`deploy/HOST_DEPLOY_README.md`](../../deploy/HOST_DEPLOY_README.md).
 
 | Проверка | Результат | Evidence |
 |----------|-----------|----------|
 | Миграция в репозитории | **Есть** | [`0040_drop_tests_scoring_config.sql`](../../apps/webapp/db/drizzle-migrations/0040_drop_tests_scoring_config.sql) |
 | Drizzle `tests` | **Без `scoring_config`** | [`clinicalTests.ts`](../../apps/webapp/db/schema/clinicalTests.ts) — JSONB **`scoring`**, снимок программы использует `scoringConfig` из **`scoring`** ([`LOG.md`](LOG.md) defer-closure 2026-05-03). |
-| **Остаточный план (ops)** | Вне репозитория | Убедиться, что на **каждой** production БД применён журнал миграций, включающий **`0040`**, после backup/runbook. |
+| **Остаточный план (ops)** | Вне репозитория | **Dev:** миграции (включая **`0040`**) прогнаны для теста. **Prod:** на **каждой** production БД применить журнал миграций, включающий **`0040`**, после backup/runbook. |
 
 ---
 
@@ -123,7 +123,7 @@
 | ID | Риск / хвост | Комментарий |
 |----|----------------|-------------|
 | R1 | **D5** | Owner pause; объём `domain`→`kind` не оценён (нет spike). |
-| R2 | **Prod миграции** | Применение `0040` и прочих D-миграций на prod — отдельная ops-проверка. |
+| R2 | **Prod миграции** | **defer (ops)** — проверка на **prod** хосте вне репозитория; **dev** — миграции (включая `0040`) прогнаны для теста. [`deploy/HOST_DEPLOY_README.md`](../../deploy/HOST_DEPLOY_README.md). |
 | R3 | **Термин Q4** | В UI/API до D5 остаётся **`domain`** / query `domain`. |
 | R4 | **E2E** | Приёмка по §8.2 — ручной smoke; автоматический e2e — только по отдельному решению. |
 | R5 | **Паритет SSR vs REST** | D3 фиксирует известные различия транспорта для невалидного `domain` (HTML vs JSON) — не блокер defer-wave; см. [`AUDIT_STAGE_D3.md`](AUDIT_STAGE_D3.md) §3. |
@@ -162,7 +162,7 @@ pnpm --dir apps/webapp exec tsc --noEmit
 | ID | Тема | Итог FIX |
 |----|------|----------|
 | **R1** | D5 `domain`→`kind` | **defer** — owner pause; без изменений кода до [`STAGE_D5_PLAN.md`](STAGE_D5_PLAN.md) §0. |
-| **R2** | Prod миграции `0040`+ | **defer (ops)** — проверка на хосте вне репозитория; [`deploy/HOST_DEPLOY_README.md`](../../deploy/HOST_DEPLOY_README.md). |
+| **R2** | Prod миграции `0040`+ | **defer (ops)** — **prod** вне репозитория; **dev** — миграции прогнаны для теста (см. [`LOG.md`](LOG.md)). |
 | **R3** | Термин Q4 | **accepted** — колонка `domain` при defer D5; не дефект. |
 | **R4** | E2E / CI | **defer** — §8.2 продуктового плана; не входит в defer-wave. |
 | **R5** | SSR vs REST невалидный `domain` | **documented defer** — см. [`AUDIT_STAGE_D3.md`](AUDIT_STAGE_D3.md) §3; отдельное продуктовое решение при необходимости. |
@@ -175,4 +175,4 @@ pnpm --dir apps/webapp exec tsc --noEmit
 
 ## 13. Closure
 
-Defer-wave **D1–D4** закрыта **PASS**-аудитами; **critical/major** по ним **не открыты**. **D5** — **`deferred (owner pause)`** без `AUDIT_STAGE_D5`. Ограничения §8.2 соблюдены. **`scoring_config`** в репозитории снят (**§8**). **§12 FIX** фиксирует обработку residual **R1–R5** без новых изменений кода.
+Defer-wave **D1–D4** закрыта **PASS**-аудитами; **critical/major** по ним **не открыты**. **D5** — **`deferred (owner pause)`** без `AUDIT_STAGE_D5`. Ограничения §8.2 соблюдены. **`scoring_config`** на таблице **`tests`** снят в репозитории; **dev** — миграции прогнаны; **prod** — §8 (**§12 FIX** фиксирует residual **R1–R5** без новых изменений кода).
