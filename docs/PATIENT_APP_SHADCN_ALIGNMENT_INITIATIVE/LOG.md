@@ -1,5 +1,15 @@
 # LOG — Patient App Shadcn Alignment
 
+## 2026-05-04 — Phase 2: Cabinet (`CabinetPastBookings`, `AppointmentStatusBadge`)
+
+- Agent/model: Composer (Cursor).
+- Scope: `MASTER_PLAN.md` Phase 2 — только patient cabinet UI; маршруты, copy, API не менялись.
+- `CabinetPastBookings.tsx`: `Collapsible` + `CollapsibleTrigger` + `CollapsibleContent` вместо `useState` и сырого `<button>`; `defaultOpen={items.length > 0}`; `aria-expanded` и фокус — поведение Base UI; шеврон `group-data-[panel-open]:rotate-180`.
+- `AppointmentStatusBadge.tsx`: статус на `Badge variant="outline"` с прежними tone-классами; `Tooltip` для `cancelled` + причина без изменений по смыслу.
+- `CabinetInfoLinks.tsx` — не трогали.
+- Тесты: новые `CabinetPastBookings.test.tsx`, `AppointmentStatusBadge.test.tsx`; прогон вместе с `CabinetActiveBookings.test.tsx`, `CabinetBookingEntry.test.tsx`.
+- Checks: `eslint` на изменённых файлах; `pnpm run typecheck` в `apps/webapp`; `vitest run` на четырёх файлах кабинета (exit 0).
+
 ## 2026-05-04 — Phase 1: Collapsible + Accordion primitives
 
 - Agent/model: Composer (Cursor).

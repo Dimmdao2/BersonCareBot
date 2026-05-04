@@ -11,14 +11,16 @@
 - [x] Grep raw `<button>`, `<input>`, `<textarea>`, `<select>` in patient routes.
 - [x] Freeze Phase 1 / Phase 2 file scope for upcoming code changes.
 
-### `apps/webapp/src/components/ui/` — exact files (17)
+### `apps/webapp/src/components/ui/` — exact files (19)
 
 | File | Notes |
 |------|--------|
+| `accordion.tsx` | `@base-ui/react/accordion` (Phase 1) |
 | `badge.tsx` | `@base-ui/react` merge-props + use-render |
 | `button-variants.ts` | CVA variants (shared with `Button`) |
 | `button.tsx` | `@base-ui/react/button` + `buttonVariants` |
 | `card.tsx` | Styled `div` composition (no Base UI root) |
+| `collapsible.tsx` | `@base-ui/react/collapsible` (Phase 1) |
 | `dialog.tsx` | `@base-ui/react/dialog` |
 | `dropdown-menu.tsx` | `@base-ui/react/menu` |
 | `input.tsx` | `@base-ui/react/input` |
@@ -33,7 +35,12 @@
 | `textarea.tsx` | Styled native `<textarea>` |
 | `tooltip.tsx` | `@base-ui/react/tooltip` |
 
-**Absent under `components/ui/`:** `accordion.tsx`, `collapsible.tsx` (no shadcn-style wrappers in repo yet).
+### Phase 2 — Cabinet alignment (completed 2026-05-04)
+
+- [x] `CabinetPastBookings.tsx` — `Collapsible` / `CollapsibleTrigger` / `CollapsibleContent` вместо `useState` + сырой `<button>`; `defaultOpen={items.length > 0}`; шеврон по `group-data-[panel-open]`.
+- [x] `AppointmentStatusBadge.tsx` — оболочка статуса на `Badge variant="outline"` + прежние tone-классы; `Tooltip` для отмены с причиной сохранён.
+- [x] Тесты: `CabinetPastBookings.test.tsx`, `AppointmentStatusBadge.test.tsx`.
+- [x] `CabinetInfoLinks.tsx` — без правок (follow-up не понадобился).
 
 ### `@base-ui/react` (webapp `^1.3.0`)
 
@@ -71,7 +78,7 @@ Paths relative to `apps/webapp/src/app/app/patient/`:
 
 | Area | File(s) | Control | Initiative phase |
 |------|---------|---------|------------------|
-| Cabinet | `cabinet/CabinetPastBookings.tsx` | `<button>` expand/collapse | Phase 2 |
+| Cabinet | `cabinet/CabinetPastBookings.tsx` | ~~`<button>`~~ → `Collapsible` (Phase 2 ✅) |
 | Profile | `profile/ProfileAccordionSection.tsx` | `<button>` accordion | Phase 4 (after Phase 1 primitive) |
 | Notifications | `notifications/ChannelNotificationToggles.tsx` | `<input type="checkbox">` | Phase 5 |
 | Support | `support/PatientSupportForm.tsx` | `<textarea>` | Phase 6 |
@@ -102,41 +109,17 @@ Hidden inputs and form `name` attributes in diary flows: **do not migrate casual
 
 ## Priority 1 — Cabinet
 
-### `CabinetPastBookings`
+**Выполнено (Phase 2, 2026-05-04):** см. блок «Phase 2 — Cabinet alignment» выше. Ниже — архив критериев приёмки.
 
-Current:
+### `CabinetPastBookings` (done)
 
-- raw `<button>` controls expanded/collapsed state;
-- local `useState`;
-- `Card` / `CardHeader` / `CardContent` already used.
+- ~~raw `<button>`~~ → `Collapsible` + `CollapsibleTrigger` + `CollapsibleContent`; ~~local `useState`~~ → `defaultOpen` у `Collapsible`.
+- Сохранено: `defaultOpen={items.length > 0}`, заголовок, строки и статусы в списке, шеврон.
 
-Candidate:
+### `AppointmentStatusBadge` (done)
 
-- convert to shadcn `Collapsible` or `Accordion` if primitive is added.
-
-Must preserve:
-
-- default open state (`items.length > 0`);
-- visible title `Журнал прошедших приёмов`;
-- Chevron rotation or equivalent visual state;
-- existing rows and status rendering.
-
-### `AppointmentStatusBadge`
-
-Current:
-
-- custom `<span>` with manual status tone classes;
-- `Tooltip` already used for cancelled reason.
-
-Candidate:
-
-- base status UI on `Badge` with patient-specific className/tone.
-
-Must preserve:
-
-- `mode="history"` suppression behavior;
-- `Записан` label for upcoming created/confirmed;
-- cancelled tooltip behavior.
+- ~~custom `<span>`~~ → `Badge variant="outline"` + tone `className`.
+- Сохранено: `mode="history"`, «Записан», tooltip при отмене с причиной.
 
 ## Priority 2 — Sections / FeatureCard
 

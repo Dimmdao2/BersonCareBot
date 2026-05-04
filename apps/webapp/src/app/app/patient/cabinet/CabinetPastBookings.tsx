@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
 import type { PatientBookingRecord } from "@/modules/patient-booking/types";
 import { formatBookingDateTimeMediumRu } from "@/shared/lib/formatBusinessDateTime";
@@ -44,59 +45,59 @@ function projectionPastStatusRight(status: string): ReactNode {
 }
 
 export function CabinetPastBookings({ items, appDisplayTimeZone }: Props) {
-  const [open, setOpen] = useState(() => items.length > 0);
-
   return (
     <Card className={cn(patientCardClass, "ring-0")}>
-      <CardHeader className="pb-2">
-        <button
-          type="button"
-          onClick={() => setOpen((v) => !v)}
-          className="flex w-full items-center justify-between gap-2 text-left"
-          aria-expanded={open}
-        >
-          <CardTitle className="text-base">Журнал прошедших приёмов</CardTitle>
-          <ChevronDown className={cn("size-4 text-[var(--patient-text-muted)] transition-transform", open && "rotate-180")} />
-        </button>
-      </CardHeader>
-      {open ? (
-        <CardContent className="flex flex-col gap-2">
-          {items.length === 0 ? (
-            <p className={patientMutedTextClass}>Пока пусто.</p>
-          ) : (
-            items.map((row) =>
-              row.kind === "native" ? (
-                <div
-                  key={`native-${row.booking.id}`}
-                  className={cn(patientListItemClass, "flex items-center justify-between gap-2 !px-3 !py-2")}
-                >
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">
-                      {formatBookingDateTimeMediumRu(row.booking.slotStart, appDisplayTimeZone)}
-                    </p>
-                    <p className={cn(patientMutedTextClass, "truncate text-xs")}>
-                      {bookingProvenancePrefix(row.booking)}
-                      {nativeBookingSubtitle(row.booking)}
-                    </p>
+      <Collapsible defaultOpen={items.length > 0}>
+        <CardHeader className="pb-2">
+          <CollapsibleTrigger className="group flex w-full items-center justify-between gap-2 text-left">
+            <CardTitle className="text-base">Журнал прошедших приёмов</CardTitle>
+            <ChevronDown
+              className={cn(
+                "size-4 shrink-0 text-[var(--patient-text-muted)] transition-transform",
+                "group-data-[panel-open]:rotate-180"
+              )}
+            />
+          </CollapsibleTrigger>
+        </CardHeader>
+        <CollapsibleContent>
+          <CardContent className="flex flex-col gap-2">
+            {items.length === 0 ? (
+              <p className={patientMutedTextClass}>Пока пусто.</p>
+            ) : (
+              items.map((row) =>
+                row.kind === "native" ? (
+                  <div
+                    key={`native-${row.booking.id}`}
+                    className={cn(patientListItemClass, "flex items-center justify-between gap-2 !px-3 !py-2")}
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium">
+                        {formatBookingDateTimeMediumRu(row.booking.slotStart, appDisplayTimeZone)}
+                      </p>
+                      <p className={cn(patientMutedTextClass, "truncate text-xs")}>
+                        {bookingProvenancePrefix(row.booking)}
+                        {nativeBookingSubtitle(row.booking)}
+                      </p>
+                    </div>
+                    {nativePastStatusRight(row.booking.status)}
                   </div>
-                  {nativePastStatusRight(row.booking.status)}
-                </div>
-              ) : (
-                <div
-                  key={`proj-${row.past.id}`}
-                  className={cn(patientListItemClass, "flex items-center justify-between gap-2 !px-3 !py-2")}
-                >
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">{row.past.label}</p>
-                    <p className={cn(patientMutedTextClass, "truncate text-xs")}>Запись из расписания</p>
+                ) : (
+                  <div
+                    key={`proj-${row.past.id}`}
+                    className={cn(patientListItemClass, "flex items-center justify-between gap-2 !px-3 !py-2")}
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium">{row.past.label}</p>
+                      <p className={cn(patientMutedTextClass, "truncate text-xs")}>Запись из расписания</p>
+                    </div>
+                    {projectionPastStatusRight(row.past.status)}
                   </div>
-                  {projectionPastStatusRight(row.past.status)}
-                </div>
-              ),
-            )
-          )}
-        </CardContent>
-      ) : null}
+                ),
+              )
+            )}
+          </CardContent>
+        </CollapsibleContent>
+      </Collapsible>
     </Card>
   );
 }

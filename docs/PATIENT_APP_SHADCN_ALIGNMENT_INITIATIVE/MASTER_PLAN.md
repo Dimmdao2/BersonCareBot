@@ -94,6 +94,8 @@ Checks:
 
 ### Phase 2 — Cabinet Alignment
 
+**Статус:** выполнено 2026-05-04 (`CabinetPastBookings.tsx`, `AppointmentStatusBadge.tsx`; тесты `CabinetPastBookings.test.tsx`, `AppointmentStatusBadge.test.tsx`).
+
 Scope:
 
 - `apps/webapp/src/app/app/patient/cabinet/CabinetPastBookings.tsx`
