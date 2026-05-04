@@ -2,6 +2,7 @@
 
 **Дата первичного D6:** 2026-05-04  
 **Последнее обновление (финальная сверка PROMPTS D6 — AUDIT):** 2026-05-04  
+**Последний FIX (PROMPTS D6 — FIX):** 2026-05-04  
 
 **Источники свода:** stage-аудиты [`AUDIT_STAGE_D1.md`](AUDIT_STAGE_D1.md) … [`AUDIT_STAGE_D4.md`](AUDIT_STAGE_D4.md); [`LOG.md`](LOG.md) (записи D1–D4, D4 FIX, D6); продуктовый план [`../APP_RESTRUCTURE_INITIATIVE/ASSIGNMENT_CATALOGS_REWORK_PLAN.md`](../APP_RESTRUCTURE_INITIATIVE/ASSIGNMENT_CATALOGS_REWORK_PLAN.md) §5 / §7 / §8.2; [`DEFER_CLOSURE_MASTER_PLAN.md`](DEFER_CLOSURE_MASTER_PLAN.md), [`STAGE_D6_PLAN.md`](STAGE_D6_PLAN.md).
 
@@ -18,7 +19,7 @@
 | **D5** | **`deferred (owner pause, 2026-05-04)`** — допустимое закрытие D6; **`AUDIT_STAGE_D5.md`** отсутствует (ожидаемо). |
 | **Продуктовый план §5 / §7 / §8.2 vs код** | **Согласовано** в пределах явных defer/backlog (§5–§6). |
 | **«Не делаем» (publication_status extra, bulk API)** | **Не протекло** (§7). |
-| **`DROP clinical_tests.scoring_config`** | **В репозитории выполнено**; **prod** — см. §8 и §10. |
+| **`DROP clinical_tests.scoring_config`** | **В репозитории выполнено**; **prod** — см. §8 и **R2** в §9. |
 
 ---
 
@@ -146,6 +147,30 @@ pnpm --dir apps/webapp exec tsc --noEmit
 
 ---
 
-## 12. Closure
+## 12. FIX (PROMPTS D6 — `AUDIT_DEFER_CLOSURE_GLOBAL`)
 
-Defer-wave **D1–D4** закрыта **PASS**-аудитами; **critical/major** по ним **не открыты**. **D5** зафиксирован как **`deferred (owner pause)`** без `AUDIT_STAGE_D5`. Продуктовые ограничения §8.2 соблюдены. **`scoring_config`** в коде/миграциях репозитория снят; **prod** — по §8.
+**Дата:** 2026-05-04  
+
+### Critical / Major
+
+- В глобальном аудите **не зафиксированы** открытые **critical/major** по D1–D4 (§3). **Устранение в коде не требуется.**
+
+### Minor / §9 residual — закрытие в смысле FIX (defer / accepted / documented)
+
+| ID | Тема | Итог FIX |
+|----|------|----------|
+| **R1** | D5 `domain`→`kind` | **defer** — owner pause; без изменений кода до [`STAGE_D5_PLAN.md`](STAGE_D5_PLAN.md) §0. |
+| **R2** | Prod миграции `0040`+ | **defer (ops)** — проверка на хосте вне репозитория; [`deploy/HOST_DEPLOY_README.md`](../../deploy/HOST_DEPLOY_README.md). |
+| **R3** | Термин Q4 | **accepted** — колонка `domain` при defer D5; не дефект. |
+| **R4** | E2E / CI | **defer** — §8.2 продуктового плана; не входит в defer-wave. |
+| **R5** | SSR vs REST невалидный `domain` | **documented defer** — см. [`AUDIT_STAGE_D3.md`](AUDIT_STAGE_D3.md) §3; отдельное продуктовое решение при необходимости. |
+
+### Барьер перед push
+
+Выполнены **`pnpm install --frozen-lockfile`** и **`pnpm run ci`** (корень репозитория) — **PASS** (см. [`LOG.md`](LOG.md) запись D6 FIX).
+
+---
+
+## 13. Closure
+
+Defer-wave **D1–D4** закрыта **PASS**-аудитами; **critical/major** по ним **не открыты**. **D5** — **`deferred (owner pause)`** без `AUDIT_STAGE_D5`. Ограничения §8.2 соблюдены. **`scoring_config`** в репозитории снят (**§8**). **§12 FIX** фиксирует обработку residual **R1–R5** без новых изменений кода.

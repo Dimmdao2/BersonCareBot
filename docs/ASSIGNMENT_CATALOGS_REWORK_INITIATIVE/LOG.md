@@ -6,6 +6,16 @@
 
 ---
 
+## 2026-05-04 — D6 FIX (`AUDIT_DEFER_CLOSURE_GLOBAL` MANDATORY)
+
+**Контекст:** PROMPTS D6 — FIX по [`AUDIT_DEFER_CLOSURE_GLOBAL.md`](AUDIT_DEFER_CLOSURE_GLOBAL.md): critical/major **не выявлены**; minor/residual §9 — **defer / accepted / documented** в §12 FIX файла.
+
+**Сделано:** обновлён [`AUDIT_DEFER_CLOSURE_GLOBAL.md`](AUDIT_DEFER_CLOSURE_GLOBAL.md) (§12 FIX, §13 Closure, правка ссылки prod → §8 + R2).
+
+**Проверки (барьер перед push):** `pnpm install --frozen-lockfile` и `pnpm run ci` из корня репозитория — **PASS** (lint, typecheck, tests, build, audit).
+
+---
+
 ## 2026-05-04 — Stage D6 (global defer closure audit)
 
 **Контекст:** [`STAGE_D6_PLAN.md`](STAGE_D6_PLAN.md), [`AUDIT_DEFER_CLOSURE_GLOBAL.md`](AUDIT_DEFER_CLOSURE_GLOBAL.md), [`DEFER_CLOSURE_MASTER_PLAN.md`](DEFER_CLOSURE_MASTER_PLAN.md).
