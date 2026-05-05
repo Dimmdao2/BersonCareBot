@@ -78,6 +78,6 @@ describe("PatientHomeSubscriptionCarousel", () => {
         ]}
       />,
     );
-    expect(screen.getByText("Карусель из админки")).toHaveProperty("tagName", "P");
+    expect(screen.getByText("Карусель из админки")).toHaveProperty("tagName", "H3");
   });
 });

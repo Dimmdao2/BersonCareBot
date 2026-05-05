@@ -59,9 +59,9 @@ export function PatientHomeNextReminderCard({
           <div className="flex min-h-0 gap-3 max-lg:items-center">
             <LeadingIcon blockIconImageUrl={blockIconImageUrl} />
             <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-              <p id="patient-home-reminder-heading" className={cn(patientHomeBlockHeadingClass, "whitespace-nowrap")}>
+              <h3 id="patient-home-reminder-heading" className={cn(patientHomeBlockHeadingClass, "whitespace-nowrap")}>
                 Следующее напоминание
-              </p>
+              </h3>
               <h2 className={cn(patientHomeCardTitleClampSmClass, "mt-1")}>
                 Пока нет ближайших
               </h2>
@@ -93,9 +93,9 @@ export function PatientHomeNextReminderCard({
         <div className="flex min-h-0 gap-3 max-lg:items-center">
           <LeadingIcon blockIconImageUrl={blockIconImageUrl} />
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-            <p id="patient-home-reminder-heading" className={cn(patientHomeBlockHeadingClass, "whitespace-nowrap")}>
+            <h3 id="patient-home-reminder-heading" className={cn(patientHomeBlockHeadingClass, "whitespace-nowrap")}>
               Следующее напоминание
-            </p>
+            </h3>
             <h2 className={cn(patientHomeCardTitleClampSmClass, "mt-1")}>{scheduleLabel}</h2>
             <p className={cn(patientHomeBlockCaptionSmClamp2Mt1Class, "lg:hidden")}>
               {ruleLabel}

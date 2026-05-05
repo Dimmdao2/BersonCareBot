@@ -88,9 +88,9 @@
   --patient-text-secondary: #667085;
   --patient-text-muted: #98a2b3;
   --patient-block-heading: #172f62;
-  --patient-block-heading-font-size: 0.875rem;
-  --patient-block-heading-line-height: 1.25rem;
-  --patient-block-heading-font-weight: 600;
+  --patient-block-heading-font-size: 1rem;
+  --patient-block-heading-line-height: 1.5rem;
+  --patient-block-heading-font-weight: 500;
   /** Подписи под плитками и вспомогательные строки в блоках «Сегодня». */
   --patient-block-caption: #465880;
 
@@ -234,18 +234,16 @@
   html {
     @apply font-sans;
   }
-}
 
-/**
- * Patient shell heading baseline (display Roboto, weight 400) — оставлен как **дефолт**,
- * перекрываемый утилитарными классами Tailwind (см. `patientHomeBlockHeadingClass`).
- * `:where()` понижает специфичность с `(1,0,1)` до `(0,0,1)`, иначе ID-селектор бьёт класс
- * и in-card block headings (`<h2>`) выглядят отлично от `<p>`-заголовка «Сегодня выполнено»
- * (другое семейство, weight 400 вместо 600). См. `LOG.md` 2026-05-01 — «Открытая проблема — шрифты/заголовки».
- */
-:where(#app-shell-patient) :where(h1, h2, h3) {
-  font-family: var(--font-roboto-heading), var(--font-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  font-weight: 400;
+  /**
+   * Patient shell heading baseline (display Roboto, weight 400) — только в `@layer base`,
+   * иначе стиль вне слоя перебивает утилиты (`font-sans`, `font-[var(--patient-block-heading-font-weight)]`, …).
+   * `:where()` обнуляет специфичность селектора, чтобы при равном слое классы Tailwind выигрывали.
+   */
+  :where(#app-shell-patient) :where(h1, h2, h3) {
+    font-family: var(--font-roboto-heading), var(--font-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-weight: 400;
+  }
 }
 
 /* Markdown preview — стилизация HTML из dangerouslySetInnerHTML */

@@ -177,8 +177,8 @@ describe("PatientHomeToday", () => {
     expect(getTodayMood).not.toHaveBeenCalled();
 
     expect(screen.queryByText(/Fixture User/i)).toBeNull();
-    expect(screen.getByRole("heading", { name: /^Прогресс$/ })).toBeInTheDocument();
-    expect(screen.getByText(/Как вы себя чувствуете/i)).toHaveProperty("tagName", "P");
+    expect(screen.getByRole("heading", { name: /Сегодня выполнено/i })).toBeInTheDocument();
+    expect(screen.getByText(/Как вы себя чувствуете/i)).toHaveProperty("tagName", "H3");
     expect(screen.getByText(/Пока нет ближайших/i)).toBeInTheDocument();
     expect(screen.getByText(/Назначит специалист или выберите готовую программу/i)).toBeInTheDocument();
     expect(screen.queryByText(/Пока нет курсов на главной/i)).toBeNull();
@@ -213,8 +213,8 @@ describe("PatientHomeToday", () => {
 
     expect(screen.queryByText(/Fixture User/i)).toBeNull();
     expect(screen.getByRole("link", { name: /Активировать профиль/i })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: /^Прогресс$/ })).toBeInTheDocument();
-    expect(screen.getByText(/Как вы себя чувствуете/i)).toHaveProperty("tagName", "P");
+    expect(screen.getByRole("heading", { name: /Сегодня выполнено/i })).toBeInTheDocument();
+    expect(screen.getByText(/Как вы себя чувствуете/i)).toHaveProperty("tagName", "H3");
     for (const link of screen.getAllByRole("link", { name: /Настроить/i })) {
       expect(link).toHaveAttribute("href", routePaths.patientReminders);
     }
@@ -236,7 +236,7 @@ describe("PatientHomeToday", () => {
     expect(getTodayMood).toHaveBeenCalledWith(fixtureSession.user.userId, "Europe/Moscow");
 
     expect(screen.getByRole("heading", { name: /Fixture User!/i })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: /^Прогресс$/ })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /Сегодня выполнено/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Самочувствие 4 из 5/i })).toHaveAttribute("aria-pressed", "true");
   });
 

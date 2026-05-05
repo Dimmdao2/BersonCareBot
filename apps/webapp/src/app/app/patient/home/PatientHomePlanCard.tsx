@@ -62,9 +62,9 @@ export function PatientHomePlanCard({
           <div className="flex min-h-0 gap-3">
             <LeadingPlanIcon blockIconImageUrl={blockIconImageUrl} emphasized />
             <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-              <p id="patient-home-plan-heading" className={cn(patientHomeBlockHeadingClass, "shrink-0")}>
+              <h3 id="patient-home-plan-heading" className={cn(patientHomeBlockHeadingClass, "shrink-0")}>
                 Мой план реабилитации
-              </p>
+              </h3>
               <p className={cn(patientHomePlanSubtitleClampClass, "line-clamp-none")}>
                 Назначит специалист или выберите готовую программу
               </p>
@@ -91,9 +91,9 @@ export function PatientHomePlanCard({
         <div className="flex min-h-0 gap-3">
           <LeadingPlanIcon blockIconImageUrl={blockIconImageUrl} />
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-            <p id="patient-home-plan-heading" className={cn(patientHomeBlockHeadingClass, "shrink-0")}>
+            <h3 id="patient-home-plan-heading" className={cn(patientHomeBlockHeadingClass, "shrink-0")}>
               Мой план реабилитации
-            </p>
+            </h3>
             <h2 className={patientHomePlanTitleClampClass}>{instance.title}</h2>
             <p className={patientHomePlanSubtitleClampClass}>Активная программа</p>
             {planUpdatedLabel?.trim() ? (

@@ -157,9 +157,9 @@ export function PatientHomeMoodCheckin({
     >
       <div className="relative z-[1] flex h-full min-h-0 flex-col">
         <div className="shrink-0">
-          <p id="patient-home-mood-heading" className={cn(patientHomeBlockHeadingClass, "px-4 lg:px-0")}>
+          <h3 id="patient-home-mood-heading" className={cn(patientHomeBlockHeadingClass, "px-4 lg:px-0")}>
             Как вы себя чувствуете?
-          </p>
+          </h3>
         </div>
         {anonymousGuest ?
           <div className="flex min-h-0 flex-1 flex-col justify-between gap-1.5 max-lg:pt-2 lg:pt-2.5">

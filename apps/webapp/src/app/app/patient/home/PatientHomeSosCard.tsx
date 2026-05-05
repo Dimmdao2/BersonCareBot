@@ -32,9 +32,9 @@ export function PatientHomeSosCard({ sos, blockIconImageUrl }: Props) {
             />
           </div>
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-            <p id="patient-home-sos-heading" className={cn(patientHomeBlockHeadingClass, "shrink-0")}>
+            <h3 id="patient-home-sos-heading" className={cn(patientHomeBlockHeadingClass, "shrink-0")}>
               Если болит сейчас
-            </p>
+            </h3>
             <p className={cn(patientHomeSosSubtitleClampClass, "mt-1")}>{sosCopy}</p>
           </div>
         </div>

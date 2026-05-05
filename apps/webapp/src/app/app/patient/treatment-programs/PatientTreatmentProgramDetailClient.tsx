@@ -85,6 +85,7 @@ import {
   patientButtonSuccessClass,
   patientButtonWarningOutlineClass,
   patientLineClamp2Class,
+  patientHeroTitleBaseClass,
 } from "@/shared/ui/patientVisual";
 import { formatBookingDateLongRu, formatBookingDateTimeShortStyleRu } from "@/shared/lib/formatBusinessDateTime";
 
@@ -96,17 +97,24 @@ function PatientProgramBlockHeading(props: {
   iconClassName?: string;
   trailing?: ReactNode;
   className?: string;
+  /** Внутри `button` (коллапс) — без `h3`. */
+  titleAs?: "h3" | "span";
 }) {
-  const { id, title, Icon, iconClassName, trailing, className } = props;
+  const { id, title, Icon, iconClassName, trailing, className, titleAs = "h3" } = props;
+  const titleClass = patientSectionTitleClass;
   return (
     <div className={cn("mb-3 flex min-w-0 items-center justify-between gap-2", className)}>
       <div className="flex min-w-0 flex-1 items-center gap-2">
         {Icon ? (
           <Icon className={cn("size-4 shrink-0", iconClassName)} aria-hidden />
         ) : null}
-        <h3 id={id} className={patientSectionTitleClass}>
-          {title}
-        </h3>
+        {titleAs === "span" ? (
+          <span className={titleClass}>{title}</span>
+        ) : (
+          <h3 id={id} className={titleClass}>
+            {title}
+          </h3>
+        )}
       </div>
       {trailing ? <div className="flex shrink-0 items-center">{trailing}</div> : null}
     </div>
@@ -287,12 +295,11 @@ function PatientProgramHeroHistoryPopover(props: {
 }
 
 function PatientProgramStagesTimeline(props: {
-  instanceId: string;
   stages: InstanceStageRow[];
   currentWorkingStage: InstanceStageRow | null;
   stageCountNonZero: number;
 }) {
-  const { instanceId, stages, currentWorkingStage, stageCountNonZero } = props;
+  const { stages, currentWorkingStage, stageCountNonZero } = props;
   const [itemsModalStage, setItemsModalStage] = useState<InstanceStageRow | null>(null);
 
   return (
@@ -305,20 +312,8 @@ function PatientProgramStagesTimeline(props: {
         <PatientProgramBlockHeading
           id="patient-program-stages-heading"
           title="Этапы программы"
-          trailing={
-            currentWorkingStage ? (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="size-9 shrink-0 text-[var(--patient-color-primary)]"
-                aria-label="Состав этапа"
-                onClick={() => setItemsModalStage(currentWorkingStage)}
-              >
-                <List className="size-5" aria-hidden />
-              </Button>
-            ) : null
-          }
+          Icon={List}
+          iconClassName="text-[var(--patient-color-primary)]"
         />
         <ul className="m-0 flex list-none flex-col gap-2 p-0">
           {stages.map((stage) => {
@@ -382,7 +377,7 @@ function PatientProgramStagesTimeline(props: {
               </div>
             );
 
-            const rowInner = (
+            const rowInnerStatic = (
               <div
                 className={cn(
                   "flex items-start gap-3",
@@ -390,30 +385,30 @@ function PatientProgramStagesTimeline(props: {
                 )}
               >
                 {leftIcon}
-                {isActive || isPast ? (
-                  <Link
-                    href={routePaths.patientTreatmentProgramStage(instanceId, stage.id)}
-                    className="flex min-w-0 flex-1 flex-col gap-1 no-underline outline-none transition-colors hover:opacity-90 focus-visible:ring-2 focus-visible:ring-[var(--patient-color-primary)] focus-visible:ring-offset-2"
-                  >
-                    {titleBlock}
-                  </Link>
-                ) : (
-                  <div className="min-w-0 flex-1">{titleBlock}</div>
-                )}
+                <div className="min-w-0 flex-1">{titleBlock}</div>
               </div>
             );
 
+            const openComposition = isActive || isPast;
+
             return (
               <li key={stage.id}>
-                <div
-                  className={cn(
-                    rowClass,
-                    (isActive || isPast) &&
-                      "transition-colors hover:bg-[var(--patient-color-primary-soft)]/20",
-                  )}
-                >
-                  {rowInner}
-                </div>
+                {openComposition ? (
+                  <button
+                    type="button"
+                    className={cn(
+                      rowClass,
+                      "w-full cursor-pointer text-left transition-colors hover:bg-[var(--patient-color-primary-soft)]/20",
+                      "outline-none focus-visible:ring-2 focus-visible:ring-[var(--patient-color-primary)] focus-visible:ring-offset-2",
+                    )}
+                    aria-label={`Состав этапа: ${stage.title}`}
+                    onClick={() => setItemsModalStage(stage)}
+                  >
+                    {rowInnerStatic}
+                  </button>
+                ) : (
+                  <div className={rowClass}>{rowInnerStatic}</div>
+                )}
               </li>
             );
           })}
@@ -497,19 +492,19 @@ function PatientStageHeaderFields(props: {
     >
       {stage.goals?.trim() ? (
         <div>
-          <p className={patientSectionTitleClass}>Цель</p>
+          <h3 className={patientSectionTitleClass}>Цель</h3>
           <p className={cn(patientBodyTextClass, "mt-1 whitespace-pre-wrap")}>{stage.goals.trim()}</p>
         </div>
       ) : null}
       {stage.objectives?.trim() ? (
         <div>
-          <p className={patientSectionTitleClass}>Задачи</p>
+          <h3 className={patientSectionTitleClass}>Задачи</h3>
           <p className={cn(patientBodyTextClass, "mt-1 whitespace-pre-wrap")}>{stage.objectives.trim()}</p>
         </div>
       ) : null}
       {durationLine ? (
         <div>
-          <p className={patientSectionTitleClass}>Ожидаемый срок</p>
+          <h3 className={patientSectionTitleClass}>Ожидаемый срок</h3>
           <p className={cn(patientMutedTextClass, "mt-1 text-sm")}>{durationLine}</p>
         </div>
       ) : null}
@@ -829,7 +824,7 @@ export function PatientInstanceStageBody(props: {
         {ungroupedItems.length > 0 ? (
           <div className={likeStages ? "space-y-2" : "space-y-3"}>
             {sortedGroups.length > 0 ? (
-              <p className={cn(patientSectionTitleClass, "text-sm")}>Без группы</p>
+              <h3 className={cn(patientSectionTitleClass, "text-sm")}>Без группы</h3>
             ) : null}
             <ul className={cn("m-0 list-none p-0", likeStages ? "space-y-2" : "space-y-4")}>
               {ungroupedItems.map((item) => (
@@ -1095,7 +1090,8 @@ export function PatientTreatmentProgramDetailClient(props: {
         <h2
           className={cn(
             patientLineClamp2Class,
-            "mt-0.5 pr-11 text-[15px] font-semibold leading-snug tracking-tight text-[var(--patient-block-heading)] min-[380px]:text-[17px] lg:pr-12 lg:text-[22px] lg:leading-7 xl:text-2xl xl:leading-8",
+            patientHeroTitleBaseClass,
+            "mt-0.5 pr-11 text-[15px] leading-snug min-[380px]:text-[17px] lg:pr-12 lg:text-[22px] lg:leading-7 xl:text-2xl xl:leading-8",
           )}
         >
           {detail.title}
@@ -1148,20 +1144,22 @@ export function PatientTreatmentProgramDetailClient(props: {
         <Collapsible key={stage.id} className={cn(patientCardListSectionClass, "overflow-hidden p-0 lg:p-0")}>
           <CollapsibleTrigger
             className={cn(
-              "flex w-full items-center gap-2 px-3 py-4 text-left lg:px-4 lg:py-[18px]",
+              "flex w-full items-center px-3 py-4 text-left lg:px-4 lg:py-[18px]",
               "bg-[var(--patient-surface-success-bg)] text-[var(--patient-surface-success-text)]",
             )}
           >
-            <div className="flex min-w-0 flex-1 items-center gap-2">
-              <Shield
-                className="size-4 shrink-0 text-[var(--patient-surface-success-accent)]"
-                aria-hidden="true"
-              />
-              <span className={patientSectionTitleClass}>Рекомендации</span>
-            </div>
-            <ChevronDown
-              className="size-4 shrink-0 transition-transform group-data-[open]/collapsible:rotate-180"
-              aria-hidden="true"
+            <PatientProgramBlockHeading
+              className="mb-0 w-full items-center"
+              Icon={Shield}
+              iconClassName="text-[var(--patient-surface-success-accent)]"
+              title="Рекомендации"
+              titleAs="span"
+              trailing={
+                <ChevronDown
+                  className="size-4 shrink-0 transition-transform group-data-[open]/collapsible:rotate-180"
+                  aria-hidden="true"
+                />
+              }
             />
           </CollapsibleTrigger>
           <CollapsibleContent className="border-t border-[var(--patient-border)] bg-[var(--patient-card-bg)]">
@@ -1186,7 +1184,6 @@ export function PatientTreatmentProgramDetailClient(props: {
 
       {stagesTimeline.length > 0 ? (
         <PatientProgramStagesTimeline
-          instanceId={detail.id}
           stages={stagesTimeline}
           currentWorkingStage={currentWorkingStage}
           stageCountNonZero={stageCountNonZero}

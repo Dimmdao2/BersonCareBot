@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
-import { render, screen, act, fireEvent } from "@testing-library/react";
+import { render, screen, act, fireEvent, within } from "@testing-library/react";
 import type { TreatmentProgramInstanceDetail } from "@/modules/treatment-program/types";
 import { PatientTreatmentProgramDetailClient } from "./PatientTreatmentProgramDetailClient";
 
@@ -354,9 +354,13 @@ describe("PatientTreatmentProgramDetailClient", () => {
       />,
     );
     expect(screen.getByRole("heading", { name: "Этапы программы" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Состав этапа" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Состав этапа: Острая фаза" }));
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByText("Состав этапа")).toBeInTheDocument();
     expect(screen.getByText("Активный этап")).toBeInTheDocument();
-    expect(screen.getByText("Острая фаза")).toBeInTheDocument();
-    expect(screen.getByText("Восстановление")).toBeInTheDocument();
+    const stagesSection = document.getElementById("patient-program-current-stage");
+    expect(stagesSection).toBeTruthy();
+    expect(within(stagesSection as HTMLElement).getByText("Острая фаза")).toBeInTheDocument();
+    expect(within(stagesSection as HTMLElement).getByText("Восстановление")).toBeInTheDocument();
   });
 });

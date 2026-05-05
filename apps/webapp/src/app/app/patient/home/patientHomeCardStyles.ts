@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import { patientLineClamp2Class, patientLineClamp3Class } from "@/shared/ui/patientVisual";
+import { patientLineClamp2Class, patientLineClamp3Class, patientHeroTitleBaseClass, patientSectionTitleClass } from "@/shared/ui/patientVisual";
 
 /**
  * Стили карточек главной пациента «Сегодня» по `VISUAL_SYSTEM_SPEC.md` §10.x.
@@ -222,13 +222,13 @@ export const patientHomeCardMediaSlotClass = cn(
 /** Заголовок карточки — до 2 строк, sm. */
 export const patientHomeCardTitleClampSmClass = cn(
   patientLineClamp2Class,
-  "text-sm font-semibold leading-5 text-[var(--patient-text-primary)]",
+  "text-sm font-medium leading-5 text-[var(--patient-text-primary)]",
 );
 
 /** Заголовок карточки — до 2 строк, lg (напоминание). */
 export const patientHomeCardTitleClampLgClass = cn(
   patientLineClamp2Class,
-  "text-lg font-semibold leading-6 text-[var(--patient-text-primary)]",
+  "text-lg font-medium leading-6 text-[var(--patient-text-primary)]",
 );
 
 /** Подзаголовок — 2 строки, xs (цвет — общий caption блоков «Сегодня»). */
@@ -252,32 +252,23 @@ export const patientHomeCardSubtitleClampSmClass = cn(
 // --- Patient home «Сегодня»: fixed-geometry cards (hero, booking, grid blocks) ---
 
 /**
- * Единый заголовок блоков главной пациента — визуальный тон как у «Сегодня выполнено» / «Мой план реабилитации».
- *
- * Важно: видимые block-heading элементы рендерятся как `<p>`, как эталон «Сегодня выполнено».
- * `font-sans` оставлен явно, чтобы будущие `<h2>`-варианты не наследовали
- * `font-family: var(--font-roboto-heading)` и `font-weight: 400` от глобального
- * patient-shell baseline (`globals.css#app-shell-patient :where(h1,h2,h3)`). С `:where()` baseline
- * имеет специфичность `(0,0,1)`, поэтому утилитарные классы Tailwind (`font-sans`, `font-[var(--…-weight)]`)
- * выигрывают и `<p>` / `<h2>` рендерятся идентично.
+ * Алиас на {@link patientSectionTitleClass}: единый заголовок секции блока на главной «Сегодня» и внутренних patient-страницах.
+ * Рендер в компонентах — `<h3>` (кроме исключений вроде `aria-hidden` декора).
  */
-export const patientHomeBlockHeadingClass = cn(
-  "font-sans",
-  "text-[length:var(--patient-block-heading-font-size)] font-[var(--patient-block-heading-font-weight)] leading-[var(--patient-block-heading-line-height)] text-[var(--patient-block-heading)]",
-);
+export const patientHomeBlockHeadingClass = patientSectionTitleClass;
 
-/** Раньше отличался весом; для единообразия с заголовками — тот же semibold 600. */
+/** @deprecated Идентичен {@link patientHomeBlockHeadingClass}. */
 export const patientHomeBlockHeadingBoldClass = patientHomeBlockHeadingClass;
 
 /**
  * Вертикальный стек «заголовок секции + контент» вне полной карточки
- * (курсы, карусель подписок): одинаковый gap от h2 до списка/скролла.
+ * (курсы, карусель подписок): одинаковый gap от заголовка до списка/скролла.
  */
 export const patientHomeTodaySectionStackClass = "flex min-w-0 flex-col gap-2";
 
 /**
  * Вертикальный стек внутри одной карточки блока «Сегодня»
- * (напр. ситуации: скрытый на мобиле h2 + ряд плиток).
+ * (напр. ситуации: скрытый на мобиле заголовок + ряд плиток).
  */
 export const patientHomeTodayCardSectionStackClass = "flex min-w-0 flex-col gap-4";
 
@@ -346,10 +337,11 @@ export const patientHomeHeroTextColumnClass = cn(
   "pr-[100px] min-[380px]:pr-[124px] min-[415px]:pr-[160px] lg:pr-[244px] xl:pr-[268px]",
 );
 
-/** Hero: заголовок (крупнее на mobile), line-clamp-2 — тон как у заголовков блоков «Сегодня». */
+/** Hero: заголовок (крупнее на mobile), line-clamp-2 — база {@link patientHeroTitleBaseClass}, адаптивные размеры под макет главной. */
 export const patientHomeHeroTitleClampClass = cn(
   "min-w-0",
-  "mt-2 max-w-[min(100%,240px)] text-[18px] font-semibold leading-6 tracking-[-0.015em] text-[var(--patient-block-heading)] min-[380px]:text-[20px] min-[380px]:leading-[26px] lg:mt-4 lg:max-w-[min(100%,390px)] lg:line-clamp-2 lg:text-[34px] lg:leading-10 xl:text-[36px] xl:leading-[42px]",
+  patientHeroTitleBaseClass,
+  "mt-2 max-w-[min(100%,240px)] text-[18px] leading-6 min-[380px]:text-[20px] min-[380px]:leading-[26px] lg:mt-4 lg:max-w-[min(100%,390px)] lg:line-clamp-2 lg:text-[34px] lg:leading-10 xl:text-[36px] xl:leading-[42px]",
 );
 
 /** Hero: summary, line-clamp-2. */

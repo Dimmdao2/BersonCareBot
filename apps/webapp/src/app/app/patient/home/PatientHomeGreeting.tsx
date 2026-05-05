@@ -32,7 +32,7 @@ export function PatientHomeGreeting({ personalizedName, timeOfDayPrefix }: Props
     <header id="patient-home-greeting" className="pl-2 pr-0 pt-0">
       <h1
         className={cn(
-          "m-0 text-base font-semibold leading-snug tracking-tight text-[var(--patient-text-secondary)]",
+          "m-0 text-base font-medium leading-snug tracking-tight text-[var(--patient-text-secondary)]",
           "lg:text-lg lg:leading-6",
         )}
       >

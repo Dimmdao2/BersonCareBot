@@ -113,9 +113,10 @@ export const patientSectionSurfaceClass = cn(
 /** Визуальная оболочка формы (контейнер полей), без изменения инпутов внутри. */
 export const patientFormSurfaceClass = cn(patientCardSurfaceTokens, "flex flex-col gap-4 p-4");
 
-/** Заголовок секции блока (тон заголовков «Сегодня» / блоков). */
+/** Заголовок секции блока на страницах пациента: `font-sans` и токены `--patient-block-heading-*` под `#app-shell-patient` (16px / 1.5 line-height). Рендер как `<h3>`. */
 export const patientSectionTitleClass = cn(
-  "font-semibold text-[length:var(--patient-block-heading-font-size)] leading-[length:var(--patient-block-heading-line-height)] text-[var(--patient-block-heading)]",
+  "font-sans",
+  "text-[length:var(--patient-block-heading-font-size)] font-[var(--patient-block-heading-font-weight)] leading-[var(--patient-block-heading-line-height)] text-[var(--patient-block-heading)]",
 );
 
 /** Основной текст абзаца внутри patient shell. */
@@ -232,6 +233,13 @@ export const patientInnerCardGridClass = cn(
 export const patientPageSectionGapClass = "mt-4 lg:mt-6";
 
 /**
+ * Базовая типографика заголовка в patient hero-карточке (главная «Сегодня», деталь/список программ и т.д.):
+ * вес **400**, цвет `--patient-block-heading`. Размеры и отступы задавайте в `cn(..., "text-lg", …)` под экран.
+ */
+export const patientHeroTitleBaseClass =
+  "font-normal tracking-tight text-[var(--patient-block-heading)]";
+
+/**
  * Заголовок текущего этапа программы на detail-странице: primary-тон, жирный, крупный.
  * Используется в превью-карточке текущего этапа (`PatientTreatmentProgramDetailClient`).
  */
@@ -241,6 +249,6 @@ export const patientStageTitleClass = cn(
 
 /**
  * Hero программы лечения в списке: тот же info-surface, что и прочие информационные карточки.
- * Для экрана детали программы используйте {@link patientHomeCardHeroClass} из `patientHomeCardStyles`.
+ * Заголовок в gradient hero — {@link patientHeroTitleBaseClass}; оболочка детали — {@link patientHomeCardHeroClass} в `patientHomeCardStyles`.
  */
 export const patientSurfaceProgramClass = patientSurfaceInfoClass;

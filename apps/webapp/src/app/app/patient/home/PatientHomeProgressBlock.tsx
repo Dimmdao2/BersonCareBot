@@ -62,15 +62,12 @@ export function PatientHomeProgressBlock({
         id="patient-home-progress-block"
         className={cn(patientHomeCardClass, patientHomeProgressCardGeometryClass, "w-[calc(100vw-4rem)] min-w-0 max-w-full lg:w-full")}
       >
-        <h2 id="patient-home-progress-heading" className="sr-only">
-          Прогресс
-        </h2>
         <div className={patientHomeProgressGridClass}>
           <div className="flex min-h-0 flex-col justify-center pr-3 lg:pr-0">
-            <p className={cn(patientHomeBlockHeadingClass, "inline-flex items-center gap-1.5")}>
+            <h3 id="patient-home-progress-heading" className={cn(patientHomeBlockHeadingClass, "inline-flex items-center gap-1.5")}>
               Сегодня выполнено
               <Info className="size-3.5 text-[var(--patient-text-muted)]" aria-hidden />
-            </p>
+            </h3>
             {anonymousGuest || !personalTierOk ?
               <p className={patientHomeBlockBodySmClamp2Mt2Class}>{guestCopy}</p>
             : progress ?
