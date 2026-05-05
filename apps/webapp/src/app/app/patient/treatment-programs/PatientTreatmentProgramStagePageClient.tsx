@@ -63,7 +63,7 @@ export function PatientTreatmentProgramStagePageClient(props: {
   const isStageZero = currentStage.sortOrder === 0;
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-3 lg:gap-4">
       {error ? (
         <p className="text-sm text-destructive" role="alert">
           {error}

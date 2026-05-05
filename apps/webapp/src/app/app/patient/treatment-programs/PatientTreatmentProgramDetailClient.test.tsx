@@ -77,7 +77,7 @@ describe("PatientTreatmentProgramDetailClient", () => {
       />,
     );
     // Stage 0 (sortOrder=0) is now in a Collapsible (closed by default in C3); open it first.
-    fireEvent.click(screen.getByText("Рекомендации на период"));
+    fireEvent.click(screen.getByText("Рекомендации"));
     expect(screen.getByText("Снять отёк")).toBeInTheDocument();
     expect(screen.getByText("- 3 раза в неделю")).toBeInTheDocument();
     expect(screen.getByText("7 дн. · неделя")).toBeInTheDocument();
@@ -185,7 +185,7 @@ describe("PatientTreatmentProgramDetailClient", () => {
         {...detailShellProps}
       />,
     );
-    fireEvent.click(screen.getByText("Рекомендации на период"));
+    fireEvent.click(screen.getByText("Рекомендации"));
     expect(screen.getByText("Набор А")).toBeInTheDocument();
     expect(screen.getByText("Пейте воду")).toBeInTheDocument();
   });

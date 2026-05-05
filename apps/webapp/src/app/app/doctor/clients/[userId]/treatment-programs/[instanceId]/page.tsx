@@ -26,10 +26,17 @@ export default async function DoctorPatientTreatmentProgramPage({ params, search
     notFound();
   }
 
-  const testResults = await deps.treatmentProgramProgress.listTestResultsForInstance(instanceId);
-  const programEvents = await deps.treatmentProgramInstance.listProgramEvents(instanceId);
-  const programActionLog = await deps.treatmentProgramProgress.listProgramActionLogForInstance(instanceId);
-  const appDisplayTimeZone = await getAppDisplayTimeZone();
+  const [testResults, programEvents, programActionLog, appDisplayTimeZone, clientProfile] =
+    await Promise.all([
+      deps.treatmentProgramProgress.listTestResultsForInstance(instanceId),
+      deps.treatmentProgramInstance.listProgramEvents(instanceId),
+      deps.treatmentProgramProgress.listProgramActionLogForInstance(instanceId),
+      getAppDisplayTimeZone(),
+      deps.doctorClients.getClientProfile(userId),
+    ]);
+
+  const patientDisplayNameRaw = clientProfile?.identity.displayName?.trim() ?? "";
+  const patientDisplayName = patientDisplayNameRaw !== "" ? patientDisplayNameRaw : "Имя не указано";
 
   const qs = scopeParam ? `?scope=${encodeURIComponent(scopeParam)}` : "";
   const backHref = `/app/doctor/clients/${encodeURIComponent(userId)}${qs}`;
@@ -43,7 +50,7 @@ export default async function DoctorPatientTreatmentProgramPage({ params, search
       variant="doctor"
     >
       <TreatmentProgramInstanceDetailClient
-        patientUserId={userId}
+        patientDisplayName={patientDisplayName}
         initial={detail}
         initialTestResults={testResults}
         initialEvents={programEvents}

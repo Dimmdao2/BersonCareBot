@@ -46,7 +46,7 @@ export function PatientTreatmentProgramsListClient(props: {
   const { hero, archived, messagesHref } = props;
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-3 lg:gap-4">
       {hero ? (
         <section
           className={cn(patientHomeCardHeroClass, "relative isolate overflow-hidden p-4 lg:p-5")}

@@ -610,10 +610,162 @@ export function formatTreatmentProgramEventTypeRu(eventType: TreatmentProgramEve
     case "stage_completed":
       return "этап завершён";
     case "status_changed":
-      return "изменён статус";
+      return "обновление статуса";
     case "test_completed":
       return "завершён тест";
     default:
       return typeof eventType === "string" ? eventType : String(eventType);
   }
+}
+
+/** Подписи этапов и пунктов для человекочитаемой ленты врача (без технических id). */
+export type TreatmentProgramEventDoctorTimelineLabels = {
+  itemTitle: (stageItemId: string) => string | undefined;
+  stageTitle: (stageId: string) => string | undefined;
+};
+
+function formatTreatmentProgramInstanceStatusRu(status: string): string {
+  if (status === "active") return "активна";
+  if (status === "completed") return "завершена";
+  return status;
+}
+
+function summarizeTreatmentProgramStatusChangedForDoctorRu(
+  event: TreatmentProgramEventRow,
+  labels: TreatmentProgramEventDoctorTimelineLabels,
+  cached: { stageTitle: string; itemLabel: string },
+): string {
+  const p = event.payload ?? {};
+  const scope = typeof p.scope === "string" ? p.scope : "";
+
+  if (event.targetType === "program") {
+    if (scope === "stages_reordered") return "Изменён порядок этапов";
+    const from = p.from;
+    const to = p.to;
+    if (scope === "program" && typeof from === "string" && typeof to === "string") {
+      return `Программа: ${formatTreatmentProgramInstanceStatusRu(from)} → ${formatTreatmentProgramInstanceStatusRu(to)}`;
+    }
+    return "Обновлена программа";
+  }
+
+  if (event.targetType === "stage") {
+    if (scope === "stage_items_reordered") {
+      return `Изменён порядок пунктов в этапе «${cached.stageTitle}»`;
+    }
+    if (scope === "stage_groups_reordered") {
+      return `Изменён порядок групп в этапе «${cached.stageTitle}»`;
+    }
+    if (scope === "stage_group_added") {
+      const t = typeof p.title === "string" ? p.title.trim() : "";
+      return t
+        ? `В этапе «${cached.stageTitle}» добавлена группа «${t}»`
+        : `В этапе «${cached.stageTitle}» добавлена группа`;
+    }
+    if (scope === "stage_group_updated") {
+      return `Обновлена группа в этапе «${cached.stageTitle}»`;
+    }
+    if (scope === "stage_group_removed") {
+      const t = typeof p.title === "string" ? p.title.trim() : "";
+      return t
+        ? `Удалена группа «${t}» (этап «${cached.stageTitle}»)`
+        : `Удалена группа (этап «${cached.stageTitle}»)`;
+    }
+    if (scope === "stage") {
+      const from = p.from;
+      const to = p.to;
+      if (typeof from === "string" && typeof to === "string") {
+        return `Этап «${cached.stageTitle}»: ${formatTreatmentProgramStageStatusRu(from)} → ${formatTreatmentProgramStageStatusRu(to)}`;
+      }
+    }
+    return `Изменения в этапе «${cached.stageTitle}»`;
+  }
+
+  if (event.targetType === "stage_item") {
+    if (p.field === "isActionable") {
+      const v = p.value === true;
+      return v
+        ? `Рекомендация «${cached.itemLabel}» требует отметки выполнения`
+        : `Рекомендация «${cached.itemLabel}» без отметки (справочно)`;
+    }
+    if (scope === "stage_item_group_changed") {
+      return `Пункт «${cached.itemLabel}» перенесён в другую группу`;
+    }
+  }
+
+  return "Обновление плана";
+}
+
+/**
+ * Текст одной строки ленты «История изменений программы» для врача
+ * (назначение выводится отдельно по `createdAt` экземпляра).
+ */
+export function summarizeTreatmentProgramEventForDoctorRu(
+  event: TreatmentProgramEventRow,
+  labels: TreatmentProgramEventDoctorTimelineLabels,
+): string {
+  const p = event.payload ?? {};
+  const stageIdFromPayload = typeof p.stageId === "string" ? p.stageId : undefined;
+
+  const itemLabel =
+    event.targetType === "stage_item"
+      ? (labels.itemTitle(event.targetId) ?? "пункт плана")
+      : "пункт плана";
+
+  const stageTitleForStageTarget =
+    event.targetType === "stage" ? labels.stageTitle(event.targetId) : undefined;
+  const stageTitle =
+    stageTitleForStageTarget ??
+    (stageIdFromPayload ? labels.stageTitle(stageIdFromPayload) : undefined) ??
+    "Этап";
+
+  switch (event.eventType) {
+    case "item_added":
+      return `Добавлен пункт «${itemLabel}» (этап «${stageTitle}»)`;
+    case "item_removed":
+      return `Удалён пункт «${itemLabel}»`;
+    case "item_disabled":
+      return `Пункт отключён: «${itemLabel}»`;
+    case "item_enabled":
+      return `Пункт снова включён: «${itemLabel}»`;
+    case "item_replaced":
+      return `Пункт заменён: «${itemLabel}»`;
+    case "comment_changed":
+      return `Обновлён комментарий к пункту «${itemLabel}»`;
+    case "stage_added":
+      return typeof p.title === "string" && p.title.trim()
+        ? `Добавлен этап «${p.title.trim()}»`
+        : "Добавлен этап";
+    case "stage_removed":
+      return typeof p.title === "string" && p.title.trim()
+        ? `Удалён этап «${p.title.trim()}»`
+        : "Удалён этап";
+    case "stage_skipped":
+      return `Этап «${stageTitle}» пропущен`;
+    case "stage_completed":
+      return `Этап «${stageTitle}» завершён`;
+    case "test_completed": {
+      const dec = p.normalizedDecision;
+      const decRu =
+        dec === "passed" || dec === "failed" || dec === "partial"
+          ? formatNormalizedTestDecisionRu(dec)
+          : typeof dec === "string"
+            ? dec
+            : "";
+      const tail = decRu ? ` — ${decRu}` : "";
+      return `Отправлен результат теста «${itemLabel}»${tail}`;
+    }
+    case "status_changed":
+      return summarizeTreatmentProgramStatusChangedForDoctorRu(event, labels, {
+        stageTitle,
+        itemLabel,
+      });
+    default:
+      return formatTreatmentProgramEventTypeRu(event.eventType);
+  }
+}
+
+/** Скрыть в ленте врача: отметки выполнения пунктов пациентом (дублируют «Дневник занятий»). */
+export function shouldOmitTreatmentProgramEventFromDoctorTimeline(event: TreatmentProgramEventRow): boolean {
+  if (event.eventType !== "status_changed" || event.targetType !== "stage_item") return false;
+  return event.payload?.field === "completedAt";
 }

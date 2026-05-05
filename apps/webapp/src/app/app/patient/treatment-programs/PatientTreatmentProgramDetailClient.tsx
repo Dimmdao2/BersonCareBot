@@ -76,7 +76,6 @@ import {
   patientBodyTextClass,
   patientPillClass,
   patientFormSurfaceClass,
-  patientSurfaceSuccessClass,
   patientSurfaceWarningClass,
   patientSecondaryActionClass,
   patientButtonSuccessClass,
@@ -387,8 +386,10 @@ function PatientStageHeaderFields(props: {
     expectedDurationDays: number | null;
     expectedDurationText: string | null;
   };
+  /** Узкие отступы — как у списка этапов на странице программы. */
+  compactSpacing?: boolean;
 }) {
-  const { stage } = props;
+  const { stage, compactSpacing } = props;
   if (!patientStageHasHeaderFields(stage)) return null;
   const durationLine = [
     stage.expectedDurationDays != null ? `${stage.expectedDurationDays} дн.` : null,
@@ -398,7 +399,13 @@ function PatientStageHeaderFields(props: {
     .join(" · ");
 
   return (
-    <div className={cn(patientSectionSurfaceClass, "mb-4 shadow-none")}>
+    <div
+      className={cn(
+        patientSectionSurfaceClass,
+        "shadow-none",
+        compactSpacing ? "mb-3 gap-2" : "mb-4",
+      )}
+    >
       {stage.goals?.trim() ? (
         <div>
           <p className={patientSectionTitleClass}>Цель</p>
@@ -545,28 +552,27 @@ function PatientInstanceStageItemCard(props: {
               Снять «Новое»
             </Button>
           </span>
-        ) : null}{" "}
-        <span className={cn(patientMutedTextClass, "font-normal")}>({item.itemType})</span>
+        ) : null}
+        {item.itemType !== "recommendation" ? (
+          <span className={cn(patientMutedTextClass, "font-normal")}>({item.itemType})</span>
+        ) : null}
       </p>
-      {isPersistentRecommendation(item) ? (
-        <p className="mt-1">
-          <span className={patientPillClass}>Постоянная рекомендация</span>
-        </p>
-      ) : null}
       {effectiveInstanceStageItemComment(item) ? (
         <p className={cn(patientMutedTextClass, "mt-1 text-xs")}>
           Комментарий:{" "}
           <span className="text-foreground">{effectiveInstanceStageItemComment(item)}</span>
         </p>
       ) : null}
-      <p className={cn(patientMutedTextClass, "mt-1 text-xs")}>
-        Элемент:{" "}
-        {item.completedAt ? (
-          <span className="text-emerald-600 dark:text-emerald-400">выполнен</span>
-        ) : (
-          <span>не выполнен</span>
-        )}
-      </p>
+      {item.itemType !== "recommendation" ? (
+        <p className={cn(patientMutedTextClass, "mt-1 text-xs")}>
+          Элемент:{" "}
+          {item.completedAt ? (
+            <span className="text-emerald-600 dark:text-emerald-400">выполнен</span>
+          ) : (
+            <span>не выполнен</span>
+          )}
+        </p>
+      ) : null}
 
       {!contentBlocked ? (
         item.itemType === "test_set" ? (
@@ -638,6 +644,10 @@ export function PatientInstanceStageBody(props: {
   heading: ReactNode;
   doneItemIds: string[];
   onDoneItemIds: (ids: string[]) => void;
+  /**
+   * Вертикальный ритм как у блока «Этапы программы» (рекомендации в коллапсе на detail).
+   */
+  stackVariant?: "default" | "likeStagesTimeline";
 }) {
   const {
     instanceId,
@@ -652,7 +662,9 @@ export function PatientInstanceStageBody(props: {
     heading,
     doneItemIds,
     onDoneItemIds,
+    stackVariant = "default",
   } = props;
+  const likeStages = stackVariant === "likeStagesTimeline";
   const contentBlocked =
     !ignoreStageLockForContent && (stage.status === "locked" || stage.status === "skipped");
   const visibleItems = stage.items.filter(isInstanceStageItemActiveForPatient);
@@ -663,12 +675,14 @@ export function PatientInstanceStageBody(props: {
 
   return (
     <section className={surfaceClass}>
-      <div className="mb-3 flex flex-wrap items-baseline gap-2">{heading}</div>
-      <PatientStageHeaderFields stage={stage} />
+      {heading != null ? (
+        <div className="mb-3 flex flex-wrap items-baseline gap-2">{heading}</div>
+      ) : null}
+      <PatientStageHeaderFields stage={stage} compactSpacing={likeStages} />
       {contentBlocked ? (
         <p className={patientMutedTextClass}>Этап откроется после завершения предыдущего или по решению врача.</p>
       ) : null}
-      <div className="m-0 space-y-4 p-0">
+      <div className={cn("m-0 p-0", likeStages ? "space-y-2" : "space-y-4")}>
         {sortedGroups.map((g) => {
           const gItems = sortByOrderThenId(visibleItems.filter((it) => it.groupId === g.id));
           return (
@@ -691,7 +705,7 @@ export function PatientInstanceStageBody(props: {
               {g.description?.trim() ? (
                 <p className={cn(patientBodyTextClass, "mt-2 whitespace-pre-wrap text-sm")}>{g.description.trim()}</p>
               ) : null}
-              <ul className="m-0 mt-3 list-none space-y-4 p-0">
+              <ul className={cn("m-0 list-none p-0", likeStages ? "mt-2 space-y-2" : "mt-3 space-y-4")}>
                 {gItems.map((item) => (
                   <PatientInstanceStageItemCard
                     key={item.id}
@@ -714,11 +728,11 @@ export function PatientInstanceStageBody(props: {
           );
         })}
         {ungroupedItems.length > 0 ? (
-          <div className="space-y-3">
+          <div className={likeStages ? "space-y-2" : "space-y-3"}>
             {sortedGroups.length > 0 ? (
               <p className={cn(patientSectionTitleClass, "text-sm")}>Без группы</p>
             ) : null}
-            <ul className="m-0 list-none space-y-4 p-0">
+            <ul className={cn("m-0 list-none p-0", likeStages ? "space-y-2" : "space-y-4")}>
               {ungroupedItems.map((item) => (
                 <PatientInstanceStageItemCard
                   key={item.id}
@@ -964,7 +978,7 @@ export function PatientTreatmentProgramDetailClient(props: {
     controlIso && appDisplayTimeZone ? formatBookingDateLongRu(controlIso, appDisplayTimeZone) : null;
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-3 lg:gap-4">
       {error ? (
         <p className="text-sm text-destructive" role="alert">
           {error}
@@ -1031,22 +1045,24 @@ export function PatientTreatmentProgramDetailClient(props: {
 
       {/* C3: Stage 0 in Collapsible (closed by default) */}
       {stageZeroStages.map((stage) => (
-        <Collapsible key={stage.id} className={cn(patientSurfaceSuccessClass, "overflow-hidden p-0")}>
-          <CollapsibleTrigger className="flex w-full items-center gap-2 p-4 text-left lg:p-[18px]">
+        <Collapsible key={stage.id} className={cn(patientCardClass, "overflow-hidden p-0 lg:p-0")}>
+          <CollapsibleTrigger
+            className={cn(
+              "flex w-full items-center gap-2 p-4 text-left lg:p-[18px]",
+              "bg-[var(--patient-surface-success-bg)] text-[var(--patient-surface-success-text)]",
+            )}
+          >
             <Shield
-              className="size-4 shrink-0 text-[var(--patient-color-success)]"
+              className="size-4 shrink-0 text-[var(--patient-surface-success-accent)]"
               aria-hidden="true"
             />
-            <span className={patientSectionTitleClass}>Рекомендации на период</span>
-            <span className={cn(patientMutedTextClass, "ml-auto mr-2 hidden text-xs sm:block")}>
-              Общие рекомендации на всю программу
-            </span>
+            <span className={patientSectionTitleClass}>Рекомендации</span>
             <ChevronDown
-              className="size-4 shrink-0 transition-transform group-data-[open]/collapsible:rotate-180"
+              className="ml-auto size-4 shrink-0 transition-transform group-data-[open]/collapsible:rotate-180"
               aria-hidden="true"
             />
           </CollapsibleTrigger>
-          <CollapsibleContent className="border-t border-[var(--patient-surface-success-border)]">
+          <CollapsibleContent className="border-t border-[var(--patient-border)] bg-[var(--patient-card-bg)]">
             <PatientInstanceStageBody
               instanceId={detail.id}
               stage={stage}
@@ -1056,19 +1072,11 @@ export function PatientTreatmentProgramDetailClient(props: {
               setError={setError}
               refresh={refresh}
               ignoreStageLockForContent
-              surfaceClass="flex flex-col gap-4 p-4 lg:p-[18px]"
+              surfaceClass="flex flex-col gap-2 p-4 lg:p-[18px]"
+              stackVariant="likeStagesTimeline"
               doneItemIds={doneItemIds}
               onDoneItemIds={setDoneItemIds}
-              heading={
-                <>
-                  <h3 className={patientSectionTitleClass}>Назначения</h3>
-                  {stage.title.trim() ? (
-                    <span className={cn(patientMutedTextClass, "text-xs font-normal normal-case")}>
-                      {stage.title}
-                    </span>
-                  ) : null}
-                </>
-              }
+              heading={null}
             />
           </CollapsibleContent>
         </Collapsible>

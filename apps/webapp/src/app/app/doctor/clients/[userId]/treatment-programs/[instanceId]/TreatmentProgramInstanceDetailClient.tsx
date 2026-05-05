@@ -27,10 +27,11 @@ import type { ProgramActionLogListRow } from "@/modules/treatment-program/types"
 import {
   effectiveInstanceStageItemComment,
   formatNormalizedTestDecisionRu,
-  formatTreatmentProgramEventTypeRu,
   formatTreatmentProgramStageStatusRu,
   formatProgramActionLogSummaryRu,
   formatLfkPostSessionDifficultyRu,
+  shouldOmitTreatmentProgramEventFromDoctorTimeline,
+  summarizeTreatmentProgramEventForDoctorRu,
 } from "@/modules/treatment-program/types";
 import { cn } from "@/lib/utils";
 import { formatBookingDateTimeShortStyleRu } from "@/shared/lib/formatBusinessDateTime";
@@ -51,6 +52,22 @@ function itemTitleById(detail: TreatmentProgramInstanceDetail): Map<string, stri
     }
   }
   return m;
+}
+
+function stageTitleById(detail: TreatmentProgramInstanceDetail): Map<string, string> {
+  const m = new Map<string, string>();
+  for (const st of detail.stages) {
+    const t = st.title?.trim();
+    m.set(st.id, t !== undefined && t !== "" ? t : "Этап");
+  }
+  return m;
+}
+
+function doctorTimelineWhoRu(actorId: string | null, opts: { currentUserId: string; patientUserId: string }): string | null {
+  if (!actorId) return null;
+  if (actorId === opts.currentUserId) return "Вы";
+  if (actorId === opts.patientUserId) return "Пациент";
+  return "Врач";
 }
 
 /** B7 FIX: комментарии строк набора из снимка `test_set` (каталог). */
@@ -275,7 +292,7 @@ function InstanceStageMetadataForm(props: {
 }
 
 export function TreatmentProgramInstanceDetailClient(props: {
-  patientUserId: string;
+  patientDisplayName: string;
   initial: TreatmentProgramInstanceDetail;
   initialTestResults: TreatmentProgramTestResultDetailRow[];
   initialEvents: TreatmentProgramEventRow[];
@@ -285,7 +302,7 @@ export function TreatmentProgramInstanceDetailClient(props: {
   appDisplayTimeZone: string;
 }) {
   const {
-    patientUserId,
+    patientDisplayName,
     initial,
     initialTestResults,
     initialEvents,
@@ -301,6 +318,22 @@ export function TreatmentProgramInstanceDetailClient(props: {
   const [actionLog, setActionLog] = useState<ProgramActionLogListRow[]>(initialActionLog);
 
   const itemTitles = useMemo(() => itemTitleById(detail), [detail]);
+  const stageTitles = useMemo(() => stageTitleById(detail), [detail]);
+  const doctorTimelineEvents = useMemo(
+    () => programEvents.filter((e) => !shouldOmitTreatmentProgramEventFromDoctorTimeline(e)),
+    [programEvents],
+  );
+  const eventLabels = useMemo(
+    () => ({
+      itemTitle: (id: string) => itemTitles.get(id),
+      stageTitle: (id: string) => stageTitles.get(id),
+    }),
+    [itemTitles, stageTitles],
+  );
+  const assignedByLabel = useMemo(
+    () => doctorTimelineWhoRu(detail.assignedBy, { currentUserId, patientUserId: detail.patientUserId }),
+    [detail.assignedBy, detail.patientUserId, currentUserId],
+  );
 
   const refresh = useCallback(async () => {
     setError(null);
@@ -338,10 +371,6 @@ export function TreatmentProgramInstanceDetailClient(props: {
 
       <section className="rounded-xl border border-border bg-card p-4">
         <h3 className="text-base font-semibold">Дневник занятий</h3>
-        <p className="mt-1 text-xs text-muted-foreground">
-          Журнал действий пациента по программе (<span className="font-mono">program_action_log</span>): ЛФК с
-          оценкой нагрузки, отметки чек-листа, маркеры отправки тестов. Сначала новые записи (до 200).
-        </p>
         {actionLog.length === 0 ? (
           <p className="mt-3 text-sm text-muted-foreground">Пока нет записей в журнале.</p>
         ) : (
@@ -371,46 +400,48 @@ export function TreatmentProgramInstanceDetailClient(props: {
 
       <section className="rounded-xl border border-border bg-card p-4">
         <h3 className="text-base font-semibold">История изменений программы</h3>
-        <p className="mt-1 text-xs text-muted-foreground">
-          События по §8 SYSTEM_LOGIC_SCHEMA: мутации структуры, статусы этапов, комментарии, тесты. Порядок:{" "}
-          <span className="font-medium text-foreground/80">от старых к новым</span> (до последних 200 записей).
-        </p>
-        {programEvents.length === 0 ? (
-          <p className="mt-3 text-sm text-muted-foreground">Пока нет записанных событий.</p>
-        ) : (
-          <ul className="mt-3 max-h-80 list-none space-y-2 overflow-y-auto pl-0 text-sm">
-            {programEvents.map((e) => (
-              <li key={e.id} className="rounded-md border border-border/60 bg-muted/10 px-2 py-1.5">
-                <span className="text-xs text-muted-foreground">
-                  {formatBookingDateTimeShortStyleRu(e.createdAt, appDisplayTimeZone)}
-                </span>
-                <span className="ml-2 font-medium">{formatTreatmentProgramEventTypeRu(e.eventType)}</span>
-                <span className="ml-1 text-xs text-muted-foreground">
-                  ({e.targetType} · <span className="font-mono">{e.targetId.slice(0, 8)}…</span>)
-                </span>
-                {e.reason ? (
-                  <span className="mt-0.5 block text-xs text-foreground/90">Причина: {e.reason}</span>
-                ) : null}
-                {e.actorId ? (
-                  <span className="mt-0.5 block text-[11px] text-muted-foreground">
-                    Актор: <span className="font-mono">{e.actorId.slice(0, 8)}…</span>
+        <ul className="mt-3 max-h-80 list-none space-y-2 overflow-y-auto pl-0 text-sm">
+          <li className="rounded-md border border-border/60 bg-muted/10 px-2 py-1.5">
+            <span className="text-xs text-muted-foreground">
+              {formatBookingDateTimeShortStyleRu(detail.createdAt, appDisplayTimeZone)}
+            </span>
+            <span className="ml-2 font-medium">Программа назначена</span>
+            {assignedByLabel ? (
+              <span className="ml-1 text-xs text-muted-foreground">· {assignedByLabel}</span>
+            ) : null}
+          </li>
+          {doctorTimelineEvents.length === 0 ? (
+            <li className="rounded-md border border-dashed border-border/70 px-2 py-2 text-sm text-muted-foreground">
+              Дальше появятся изменения плана и прохождение этапов (отметки выполнения пунктов — в «Дневнике
+              занятий»).
+            </li>
+          ) : (
+            doctorTimelineEvents.map((e) => {
+              const who = doctorTimelineWhoRu(e.actorId, {
+                currentUserId,
+                patientUserId: detail.patientUserId,
+              });
+              return (
+                <li key={e.id} className="rounded-md border border-border/60 bg-muted/10 px-2 py-1.5">
+                  <span className="text-xs text-muted-foreground">
+                    {formatBookingDateTimeShortStyleRu(e.createdAt, appDisplayTimeZone)}
                   </span>
-                ) : (
-                  <span className="mt-0.5 block text-[11px] text-muted-foreground">Актор: система</span>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
+                  <span className="ml-2 font-medium">{summarizeTreatmentProgramEventForDoctorRu(e, eventLabels)}</span>
+                  {who ? <span className="ml-1 text-xs text-muted-foreground">· {who}</span> : null}
+                  {e.reason ? (
+                    <span className="mt-0.5 block text-xs text-foreground/90">Комментарий: {e.reason}</span>
+                  ) : null}
+                </li>
+              );
+            })
+          )}
+        </ul>
       </section>
 
       <div className="rounded-xl border border-border bg-card p-4">
         <h2 className="text-lg font-semibold tracking-tight">{detail.title}</h2>
         <p className="mt-1 text-xs text-muted-foreground">
-          Пациент:{" "}
-          <span className="font-mono text-[11px] text-foreground" translate="no">
-            {patientUserId}
-          </span>
+          Пациент: <span className="font-medium text-foreground">{patientDisplayName}</span>
         </p>
         <p className="mt-1 text-xs text-muted-foreground">
           Статус программы: {detail.status === "completed" ? "завершена" : "активна"}
