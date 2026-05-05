@@ -19,7 +19,6 @@ const sampleMessageHistoryEntry: MessageLogEntry = {
 };
 
 vi.mock("@/modules/messaging/components/DoctorChatPanel", () => ({ DoctorChatPanel: () => null }));
-vi.mock("./AssignLfkTemplatePanel", () => ({ AssignLfkTemplatePanel: () => null }));
 vi.mock("./DoctorLfkComplexExerciseOverridesPanel", () => ({ DoctorLfkComplexExerciseOverridesPanel: () => null }));
 vi.mock("./PatientTreatmentProgramsPanel", () => ({ PatientTreatmentProgramsPanel: () => null }));
 vi.mock("./AdminDangerActions", () => ({ AdminDangerActions: () => null }));

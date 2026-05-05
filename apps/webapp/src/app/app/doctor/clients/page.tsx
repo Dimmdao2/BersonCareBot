@@ -38,7 +38,7 @@ export default async function DoctorClientsPage({ searchParams }: Props) {
       scope === "all" ? `${BASE}?scope=all` : scope === "archived" ? `${BASE}?scope=archived` : BASE,
     );
   }
-  const [allClients, selectedData, publishedLfkTemplates] = await Promise.all([
+  const [allClients, selectedData] = await Promise.all([
     deps.doctorClients.listClients(
       scope === "archived"
         ? { archivedOnly: true }
@@ -66,7 +66,6 @@ export default async function DoctorClientsPage({ searchParams }: Props) {
             : null,
         )
       : Promise.resolve(null),
-    deps.lfkTemplates.listTemplates({ status: "published" }),
   ]);
 
   const selectedProfile = selectedData?.profile ?? null;
@@ -107,8 +106,6 @@ export default async function DoctorClientsPage({ searchParams }: Props) {
               isAdmin={session.user.role === "admin"}
               canPermanentDelete={session.user.role === "admin" && Boolean(session.adminMode)}
               canEditClientProfile={session.user.role === "admin" && Boolean(session.adminMode)}
-              publishedLfkTemplates={publishedLfkTemplates.map((t) => ({ id: t.id, title: t.title }))}
-              assignLfkEnabled={Boolean(env.DATABASE_URL)}
               publishedTreatmentProgramTemplates={selectedPublishedTreatmentTemplates}
               assignTreatmentProgramEnabled={Boolean(env.DATABASE_URL)}
               profileListScope={scope}

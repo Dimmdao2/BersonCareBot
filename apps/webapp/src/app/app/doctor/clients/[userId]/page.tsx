@@ -26,11 +26,10 @@ export default async function DoctorClientProfilePage({
         ? "/app/doctor/clients?scope=archived"
         : "/app/doctor/clients?scope=appointments";
   const deps = buildAppDeps();
-  const [profile, messageHistory, publishedLfkTemplates, publishedTreatmentTemplates, pendingProgramTests] =
+  const [profile, messageHistory, publishedTreatmentTemplates, pendingProgramTests] =
     await Promise.all([
       deps.doctorClients.getClientProfile(userId),
       deps.doctorMessaging.listMessageHistory({ userId, pageSize: 10 }),
-      deps.lfkTemplates.listTemplates({ status: "published" }),
       deps.treatmentProgram.listTemplates({ includeArchived: false, status: "published" }),
       deps.treatmentProgramProgress.listPendingTestEvaluationsForPatient(userId),
     ]);
@@ -63,8 +62,6 @@ export default async function DoctorClientProfilePage({
         isAdmin={session.user.role === "admin"}
         canPermanentDelete={session.user.role === "admin" && Boolean(session.adminMode)}
         canEditClientProfile={session.user.role === "admin" && Boolean(session.adminMode)}
-        publishedLfkTemplates={publishedLfkTemplates.map((t) => ({ id: t.id, title: t.title }))}
-        assignLfkEnabled={Boolean(env.DATABASE_URL)}
         publishedTreatmentProgramTemplates={publishedTreatmentTemplates.map((t) => ({
           id: t.id,
           title: t.title,

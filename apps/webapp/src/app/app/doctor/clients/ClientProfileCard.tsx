@@ -19,7 +19,6 @@ import type { MessageLogEntry } from "@/modules/doctor-messaging/ports";
 import type { LfkComplexExerciseLine } from "@/modules/diaries/types";
 import type { PendingProgramTestEvaluationRow } from "@/modules/treatment-program/types";
 import { phoneToTelHref } from "@/shared/lib/phoneLinks";
-import { AssignLfkTemplatePanel } from "./AssignLfkTemplatePanel";
 import { DoctorLfkComplexExerciseOverridesPanel } from "./DoctorLfkComplexExerciseOverridesPanel";
 import { PatientTreatmentProgramsPanel } from "./PatientTreatmentProgramsPanel";
 import { AdminDangerActions } from "./AdminDangerActions";
@@ -40,8 +39,6 @@ type ClientProfileCardProps = {
   isAdmin?: boolean;
   canPermanentDelete?: boolean;
   canEditClientProfile?: boolean;
-  publishedLfkTemplates?: { id: string; title: string }[];
-  assignLfkEnabled?: boolean;
   publishedTreatmentProgramTemplates?: { id: string; title: string }[];
   assignTreatmentProgramEnabled?: boolean;
   /** A4: тесты программ без `decided_by` у активных экземпляров пациента. */
@@ -77,8 +74,6 @@ function ClientProfileCardInner({
   isAdmin = false,
   canPermanentDelete = false,
   canEditClientProfile = false,
-  publishedLfkTemplates = [],
-  assignLfkEnabled = false,
   publishedTreatmentProgramTemplates = [],
   assignTreatmentProgramEnabled = false,
   pendingProgramTestEvaluations = [],
@@ -339,11 +334,6 @@ function ClientProfileCardInner({
                 )}
               </>
             )}
-            <AssignLfkTemplatePanel
-              patientUserId={userId}
-              templates={publishedLfkTemplates}
-              disabled={!assignLfkEnabled}
-            />
             <DoctorLfkComplexExerciseOverridesPanel
               patientUserId={userId}
               complexes={lfkComplexes}
