@@ -77,6 +77,22 @@ export const patientSurfaceDangerClass = cn(
 /** Базовая карточка (секции каталога, списки и т.д.). */
 export const patientCardClass = cn(patientCardSurfaceTokens, "p-4 lg:p-[18px]");
 
+/**
+ * Секция со списком на внутренних страницах: уже по горизонтали, вертикаль как у {@link patientCardClass}.
+ */
+export const patientCardListSectionClass = cn(
+  patientCardSurfaceTokens,
+  "py-4 px-3 lg:py-[18px] lg:px-4",
+);
+
+/**
+ * Вложенная подложка (цель/задачи/срок) внутри list-секции — компактные поля.
+ */
+export const patientCardNestedListSurfaceClass = cn(
+  patientCardSurfaceTokens,
+  "flex flex-col gap-2 p-3",
+);
+
 /** Компактная карточка (плотные списки). */
 export const patientCardCompactClass = cn(
   patientCardSurfaceTokens,

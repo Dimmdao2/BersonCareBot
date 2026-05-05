@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,6 +33,7 @@ import {
   Lock,
   CornerDownRight,
   Info,
+  ImageIcon,
 } from "lucide-react";
 import type {
   NormalizedTestDecision,
@@ -59,6 +60,7 @@ import { testIdsFromTestSetSnapshot } from "@/modules/treatment-program/progress
 import { scoringAllowsNumericDecisionInference } from "@/modules/treatment-program/progress-scoring";
 import { parseTestSetSnapshotTests } from "@/modules/treatment-program/testSetSnapshotView";
 import { type PatientProgramChecklistRow } from "@/modules/treatment-program/patient-program-actions";
+import type { RecommendationMediaItem } from "@/modules/recommendations/types";
 import { routePaths } from "@/app-layer/routes/paths";
 import {
   patientHomeCardHeroClass,
@@ -68,6 +70,8 @@ import {
 import { cn } from "@/lib/utils";
 import {
   patientCardClass,
+  patientCardListSectionClass,
+  patientCardNestedListSurfaceClass,
   patientListItemClass,
   patientMutedTextClass,
   patientPrimaryActionClass,
@@ -83,6 +87,31 @@ import {
   patientLineClamp2Class,
 } from "@/shared/ui/patientVisual";
 import { formatBookingDateLongRu, formatBookingDateTimeShortStyleRu } from "@/shared/lib/formatBusinessDateTime";
+
+/** Единый заголовок секции (после hero): иконка слева, заголовок, опционально действие справа. */
+function PatientProgramBlockHeading(props: {
+  id?: string;
+  title: string;
+  Icon?: ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
+  iconClassName?: string;
+  trailing?: ReactNode;
+  className?: string;
+}) {
+  const { id, title, Icon, iconClassName, trailing, className } = props;
+  return (
+    <div className={cn("mb-3 flex min-w-0 items-center justify-between gap-2", className)}>
+      <div className="flex min-w-0 flex-1 items-center gap-2">
+        {Icon ? (
+          <Icon className={cn("size-4 shrink-0", iconClassName)} aria-hidden />
+        ) : null}
+        <h3 id={id} className={patientSectionTitleClass}>
+          {title}
+        </h3>
+      </div>
+      {trailing ? <div className="flex shrink-0 items-center">{trailing}</div> : null}
+    </div>
+  );
+}
 
 function formatPatientTestResultRawValue(raw: unknown): string {
   if (raw === null || raw === undefined) return "—";
@@ -104,6 +133,67 @@ function snapshotTitle(snapshot: Record<string, unknown>, itemType: string): str
   const t = snapshot.title;
   if (typeof t === "string" && t.trim() !== "") return t;
   return itemType;
+}
+
+function parseRecommendationMediaFromSnapshot(snapshot: Record<string, unknown>): RecommendationMediaItem[] {
+  const raw = snapshot.media;
+  if (!Array.isArray(raw)) return [];
+  const items: RecommendationMediaItem[] = [];
+  for (const row of raw) {
+    if (!row || typeof row !== "object" || Array.isArray(row)) continue;
+    const o = row as Record<string, unknown>;
+    const mediaUrl = typeof o.mediaUrl === "string" ? o.mediaUrl.trim() : "";
+    if (!mediaUrl) continue;
+    const mt = o.mediaType;
+    const mediaType: RecommendationMediaItem["mediaType"] =
+      mt === "video" || mt === "gif" || mt === "image" ? mt : "image";
+    const sortOrder = typeof o.sortOrder === "number" && Number.isFinite(o.sortOrder) ? o.sortOrder : 0;
+    items.push({ mediaUrl, mediaType, sortOrder });
+  }
+  items.sort((a, b) => a.sortOrder - b.sortOrder || a.mediaUrl.localeCompare(b.mediaUrl));
+  return items;
+}
+
+/** Статичное превью в строке списка: сначала картинка/GIF, иначе первое медиа (видео). */
+function pickRecommendationRowPreviewMedia(items: RecommendationMediaItem[]): RecommendationMediaItem | null {
+  if (items.length === 0) return null;
+  const still = items.find((m) => m.mediaType === "image" || m.mediaType === "gif");
+  return still ?? items[0] ?? null;
+}
+
+function PatientRecommendationRowThumb({ media }: { media: RecommendationMediaItem | null }) {
+  const frame = "size-12 shrink-0 overflow-hidden rounded-md border border-[var(--patient-border)]/70";
+  if (!media) {
+    return (
+      <div className={cn(frame, "flex items-center justify-center bg-muted/25")} aria-hidden>
+        <ImageIcon className="size-5 text-muted-foreground" />
+      </div>
+    );
+  }
+  if (media.mediaType === "video") {
+    return (
+      <div className={cn(frame, "relative isolate bg-black/10")}>
+        <video
+          src={media.mediaUrl}
+          muted
+          playsInline
+          preload="metadata"
+          className="pointer-events-none h-full w-full object-cover"
+          aria-hidden
+        />
+        <div
+          className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/25"
+          aria-hidden
+        >
+          <PlayCircle className="size-6 text-white/95 drop-shadow" strokeWidth={2} aria-hidden />
+        </div>
+      </div>
+    );
+  }
+  return (
+    // eslint-disable-next-line @next/next/no-img-element -- URL каталога / CDN; превью фиксированного размера
+    <img src={media.mediaUrl} alt="" className={cn(frame, "bg-muted/20 object-cover")} />
+  );
 }
 
 type InstanceStageRow = TreatmentProgramInstanceDetail["stages"][number];
@@ -209,12 +299,27 @@ function PatientProgramStagesTimeline(props: {
     <>
       <section
         id="patient-program-current-stage"
-        className={patientCardClass}
+        className={patientCardListSectionClass}
         aria-labelledby="patient-program-stages-heading"
       >
-        <h3 id="patient-program-stages-heading" className={cn(patientSectionTitleClass, "mb-3")}>
-          Этапы программы
-        </h3>
+        <PatientProgramBlockHeading
+          id="patient-program-stages-heading"
+          title="Этапы программы"
+          trailing={
+            currentWorkingStage ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="size-9 shrink-0 text-[var(--patient-color-primary)]"
+                aria-label="Состав этапа"
+                onClick={() => setItemsModalStage(currentWorkingStage)}
+              >
+                <List className="size-5" aria-hidden />
+              </Button>
+            ) : null
+          }
+        />
         <ul className="m-0 flex list-none flex-col gap-2 p-0">
           {stages.map((stage) => {
             const isActive = currentWorkingStage?.id === stage.id;
@@ -295,22 +400,6 @@ function PatientProgramStagesTimeline(props: {
                 ) : (
                   <div className="min-w-0 flex-1">{titleBlock}</div>
                 )}
-                {isActive ? (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="size-9 shrink-0 text-[var(--patient-color-primary)]"
-                    aria-label="Состав этапа"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setItemsModalStage(stage);
-                    }}
-                  >
-                    <List className="size-5" aria-hidden />
-                  </Button>
-                ) : null}
               </div>
             );
 
@@ -401,9 +490,9 @@ function PatientStageHeaderFields(props: {
   return (
     <div
       className={cn(
-        patientSectionSurfaceClass,
+        compactSpacing ? patientCardNestedListSurfaceClass : patientSectionSurfaceClass,
         "shadow-none",
-        compactSpacing ? "mb-3 gap-2" : "mb-4",
+        compactSpacing ? "mb-3" : "mb-4",
       )}
     >
       {stage.goals?.trim() ? (
@@ -508,6 +597,10 @@ function PatientInstanceStageItemCard(props: {
     }),
     [stage.id, stage.title, stage.sortOrder, item, groupTitle],
   );
+  const recommendationPreviewMedia = useMemo(() => {
+    if (item.itemType !== "recommendation") return null;
+    return pickRecommendationRowPreviewMedia(parseRecommendationMediaFromSnapshot(item.snapshot));
+  }, [item.itemType, item.snapshot]);
   const markRef = usePostMarkItemViewedWhenVisible({
     instanceId,
     itemId: item.id,
@@ -522,8 +615,13 @@ function PatientInstanceStageItemCard(props: {
       className={cn(
         patientListItemClass,
         "border-[var(--patient-border)]/80 bg-[var(--patient-color-primary-soft)]/10",
+        item.itemType === "recommendation" && "flex gap-3",
       )}
     >
+      {item.itemType === "recommendation" ? (
+        <PatientRecommendationRowThumb media={recommendationPreviewMedia} />
+      ) : null}
+      <div className={cn(item.itemType === "recommendation" && "min-w-0 flex-1")}>
       <p className="flex flex-wrap items-center gap-2 text-sm font-medium">
         <span>{snapshotTitle(item.snapshot, item.itemType)}</span>
         {showsNew ? (
@@ -626,6 +724,7 @@ function PatientInstanceStageItemCard(props: {
           </div>
         ) : null
       ) : null}
+      </div>
     </li>
   );
 }
@@ -856,11 +955,12 @@ function PatientProgramControlCard(props: {
   const { controlLabel, instanceId, currentStageId } = props;
   return (
     <section className={patientSurfaceWarningClass} aria-label="Следующий контроль">
-      <div className="flex items-center gap-2">
-        <CalendarCheck className="size-5 shrink-0 text-[var(--patient-color-warning)]" aria-hidden="true" />
-        <p className="text-xs font-semibold uppercase tracking-wide">Следующий контроль</p>
-      </div>
-      <p className="mt-1 text-2xl font-bold">{controlLabel}</p>
+      <PatientProgramBlockHeading
+        title="Следующий контроль"
+        Icon={CalendarCheck}
+        iconClassName="text-[var(--patient-color-warning)]"
+      />
+      <p className="text-2xl font-bold">{controlLabel}</p>
       <p className={cn(patientMutedTextClass, "mt-0.5 text-xs")}>Консультация со специалистом</p>
       <div className="mt-3 flex flex-row gap-2">
         {currentStageId ? (
@@ -1045,20 +1145,22 @@ export function PatientTreatmentProgramDetailClient(props: {
 
       {/* C3: Stage 0 in Collapsible (closed by default) */}
       {stageZeroStages.map((stage) => (
-        <Collapsible key={stage.id} className={cn(patientCardClass, "overflow-hidden p-0 lg:p-0")}>
+        <Collapsible key={stage.id} className={cn(patientCardListSectionClass, "overflow-hidden p-0 lg:p-0")}>
           <CollapsibleTrigger
             className={cn(
-              "flex w-full items-center gap-2 p-4 text-left lg:p-[18px]",
+              "flex w-full items-center gap-2 px-3 py-4 text-left lg:px-4 lg:py-[18px]",
               "bg-[var(--patient-surface-success-bg)] text-[var(--patient-surface-success-text)]",
             )}
           >
-            <Shield
-              className="size-4 shrink-0 text-[var(--patient-surface-success-accent)]"
-              aria-hidden="true"
-            />
-            <span className={patientSectionTitleClass}>Рекомендации</span>
+            <div className="flex min-w-0 flex-1 items-center gap-2">
+              <Shield
+                className="size-4 shrink-0 text-[var(--patient-surface-success-accent)]"
+                aria-hidden="true"
+              />
+              <span className={patientSectionTitleClass}>Рекомендации</span>
+            </div>
             <ChevronDown
-              className="ml-auto size-4 shrink-0 transition-transform group-data-[open]/collapsible:rotate-180"
+              className="size-4 shrink-0 transition-transform group-data-[open]/collapsible:rotate-180"
               aria-hidden="true"
             />
           </CollapsibleTrigger>
@@ -1072,7 +1174,7 @@ export function PatientTreatmentProgramDetailClient(props: {
               setError={setError}
               refresh={refresh}
               ignoreStageLockForContent
-              surfaceClass="flex flex-col gap-2 p-4 lg:p-[18px]"
+              surfaceClass="flex flex-col gap-2 px-3 py-4 lg:gap-2 lg:px-4 lg:py-[18px]"
               stackVariant="likeStagesTimeline"
               doneItemIds={doneItemIds}
               onDoneItemIds={setDoneItemIds}
@@ -1094,14 +1196,12 @@ export function PatientTreatmentProgramDetailClient(props: {
       {/* C5: Test history entry point */}
       {detail.status === "active" && currentWorkingStage ? (
         <section className={patientCardClass} aria-label="История тестирования">
-          <div className="flex items-center gap-2">
-            <ClipboardList
-              className="size-4 shrink-0 text-[var(--patient-color-primary)]"
-              aria-hidden="true"
-            />
-            <h3 className="text-sm font-semibold">История тестирования</h3>
-          </div>
-          <p className={cn(patientMutedTextClass, "mt-1 text-xs")}>
+          <PatientProgramBlockHeading
+            title="История тестирования"
+            Icon={ClipboardList}
+            iconClassName="text-[var(--patient-color-primary)]"
+          />
+          <p className={cn(patientMutedTextClass, "text-xs")}>
             Результаты тестов за все этапы программы.
           </p>
           <Link

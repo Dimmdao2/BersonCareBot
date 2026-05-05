@@ -190,6 +190,69 @@ describe("PatientTreatmentProgramDetailClient", () => {
     expect(screen.getByText("Пейте воду")).toBeInTheDocument();
   });
 
+  it("renders recommendation row with left image preview from snapshot media", () => {
+    const recommendationItem = {
+      id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      stageId: "22222222-2222-4222-8222-222222222222",
+      itemType: "recommendation" as const,
+      itemRefId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      sortOrder: 0,
+      comment: null,
+      localComment: null,
+      settings: null,
+      snapshot: {
+        itemType: "recommendation",
+        title: "Пить воду",
+        bodyMd: "",
+        media: [
+          { mediaUrl: "https://example.com/preview.jpg", mediaType: "image" as const, sortOrder: 0 },
+        ],
+      },
+      completedAt: null,
+      isActionable: true,
+      status: "active" as const,
+      groupId: null,
+      createdAt: now,
+      lastViewedAt: now,
+      effectiveComment: null,
+    };
+    render(
+      <PatientTreatmentProgramDetailClient
+        initial={makeInstance({
+          stages: [
+            {
+              id: "22222222-2222-4222-8222-222222222222",
+              instanceId: "11111111-1111-4111-8111-111111111111",
+              sourceStageId: null,
+              title: "Этап 0",
+              description: null,
+              sortOrder: 0,
+              localComment: null,
+              skipReason: null,
+              status: "available",
+              startedAt: null,
+              goals: null,
+              objectives: null,
+              expectedDurationDays: null,
+              expectedDurationText: null,
+              groups: [],
+              items: [recommendationItem],
+            },
+          ],
+        })}
+        initialTestResults={[]}
+        {...detailShellProps}
+      />,
+    );
+    fireEvent.click(screen.getByText("Рекомендации"));
+    expect(screen.getByText("Пить воду")).toBeInTheDocument();
+    const row = screen.getByText("Пить воду").closest("li");
+    expect(row).toBeTruthy();
+    const img = (row as HTMLElement).querySelector("img");
+    expect(img).toBeTruthy();
+    expect(img).toHaveAttribute("src", "https://example.com/preview.jpg");
+  });
+
   it("does not show removed checklist section (1.1a)", () => {
     render(
       <PatientTreatmentProgramDetailClient
@@ -291,6 +354,7 @@ describe("PatientTreatmentProgramDetailClient", () => {
       />,
     );
     expect(screen.getByRole("heading", { name: "Этапы программы" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Состав этапа" })).toBeInTheDocument();
     expect(screen.getByText("Активный этап")).toBeInTheDocument();
     expect(screen.getByText("Острая фаза")).toBeInTheDocument();
     expect(screen.getByText("Восстановление")).toBeInTheDocument();

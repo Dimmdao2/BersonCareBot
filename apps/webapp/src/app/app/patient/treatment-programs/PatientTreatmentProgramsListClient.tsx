@@ -14,8 +14,8 @@ import {
 import { routePaths } from "@/app-layer/routes/paths";
 import { cn } from "@/lib/utils";
 import {
-  patientCardClass,
   patientCardCompactClass,
+  patientCardListSectionClass,
   patientInlineLinkClass,
   patientMutedTextClass,
   patientPrimaryActionClass,
@@ -103,7 +103,7 @@ export function PatientTreatmentProgramsListClient(props: {
       )}
 
       {archived.length > 0 ? (
-        <details className={cn(patientCardClass, "group")}>
+        <details className={cn(patientCardListSectionClass, "group")}>
           <summary className="cursor-pointer list-none py-1 text-sm font-semibold text-foreground [&::-webkit-details-marker]:hidden">
             Завершённые программы
             <span className={cn(patientMutedTextClass, "ml-2 text-xs font-normal")}>({archived.length})</span>

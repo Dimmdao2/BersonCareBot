@@ -8,8 +8,8 @@ import {
 import { PatientInstanceStageBody } from "./PatientTreatmentProgramDetailClient";
 import {
   patientCardClass,
+  patientCardListSectionClass,
   patientMutedTextClass,
-  patientSectionSurfaceClass,
   patientSectionTitleClass,
   patientStageTitleClass,
 } from "@/shared/ui/patientVisual";
@@ -100,7 +100,7 @@ export function PatientTreatmentProgramStagePageClient(props: {
         setError={setError}
         refresh={refresh}
         ignoreStageLockForContent={isStageZero}
-        surfaceClass={patientSectionSurfaceClass}
+        surfaceClass={cn(patientCardListSectionClass, "flex flex-col gap-4")}
         doneItemIds={doneItemIds}
         onDoneItemIds={setDoneItemIds}
         heading={
