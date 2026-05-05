@@ -4,9 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "next dev -H 127.0.0.1 -p 5200",
-    "dev:visual": "WATCHPACK_POLLING=true CHOKIDAR_USEPOLLING=true next dev --turbopack -H 127.0.0.1 -p 5200",
-    "dev:visual:webpack": "WATCHPACK_POLLING=true CHOKIDAR_USEPOLLING=true next dev --webpack -H 127.0.0.1 -p 5200",
+    "dev": "next dev --webpack -H 127.0.0.1 -p 5200",
+    "dev:visual": "WATCHPACK_POLLING=true CHOKIDAR_USEPOLLING=true next dev --webpack -H 127.0.0.1 -p 5200",
     "lint": "eslint . && bash scripts/check-media-preview-invariants.sh",
     "check:catalog-shared-primitives": "bash scripts/check-catalog-shared-primitives.sh",
     "check:media-preview-invariants": "bash scripts/check-media-preview-invariants.sh",

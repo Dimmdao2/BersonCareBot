@@ -22,6 +22,7 @@ import {
   ChevronRight,
   CalendarCheck,
   ClipboardList,
+  PlayCircle,
 } from "lucide-react";
 import type {
   NormalizedTestDecision,
@@ -47,6 +48,12 @@ import { scoringAllowsNumericDecisionInference } from "@/modules/treatment-progr
 import { parseTestSetSnapshotTests } from "@/modules/treatment-program/testSetSnapshotView";
 import { type PatientProgramChecklistRow } from "@/modules/treatment-program/patient-program-actions";
 import { routePaths } from "@/app-layer/routes/paths";
+import {
+  patientHomeCardHeroClass,
+  patientHomeHeroBadgeClass,
+  patientHomeHeroDurationBadgeClass,
+  patientHomeHeroTitleClampClass,
+} from "@/app/app/patient/home/patientHomeCardStyles";
 import { cn } from "@/lib/utils";
 import {
   patientCardClass,
@@ -60,7 +67,6 @@ import {
   patientFormSurfaceClass,
   patientSurfaceSuccessClass,
   patientSurfaceWarningClass,
-  patientSurfaceProgramClass,
   patientStageTitleClass,
   patientSecondaryActionClass,
   patientButtonSuccessClass,
@@ -567,21 +573,21 @@ function PatientProgramControlCard(props: {
   return (
     <section className={patientSurfaceWarningClass} aria-label="Следующий контроль">
       <div className="flex items-center gap-2">
-        <CalendarCheck className="size-5 shrink-0" aria-hidden="true" />
+        <CalendarCheck className="size-5 shrink-0 text-[var(--patient-color-warning)]" aria-hidden="true" />
         <p className="text-xs font-semibold uppercase tracking-wide">Следующий контроль</p>
       </div>
       <p className="mt-1 text-2xl font-bold">{controlLabel}</p>
       <p className={cn(patientMutedTextClass, "mt-0.5 text-xs")}>Консультация со специалистом</p>
-      <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+      <div className="mt-3 flex flex-row gap-2">
         {currentStageId ? (
           <Link
             href={routePaths.patientTreatmentProgramStage(instanceId, currentStageId)}
-            className={patientButtonWarningOutlineClass}
+            className={cn(patientButtonWarningOutlineClass, "flex-1")}
           >
             Выполнить тесты
           </Link>
         ) : null}
-        <Link href={routePaths.cabinet} className={patientButtonSuccessClass}>
+        <Link href={routePaths.cabinet} className={cn(patientButtonSuccessClass, "flex-1")}>
           Записаться на приём
         </Link>
       </div>
@@ -676,17 +682,17 @@ export function PatientTreatmentProgramDetailClient(props: {
         </p>
       ) : null}
 
-      {/* C1: Hero card */}
-      <div className={patientSurfaceProgramClass}>
-        <div className="flex items-start justify-between gap-2">
-          <Badge className={patientPillClass}>МОЙ ПЛАН</Badge>
+      {/* C1: Hero card — фон/бордер/бейджи как hero «Разминка дня» на главной */}
+      <div className={cn(patientHomeCardHeroClass, "relative isolate overflow-hidden p-4 lg:p-5")}>
+        <div className="relative z-20 flex min-h-6 shrink-0 flex-wrap items-start gap-1.5">
+          <span className={patientHomeHeroBadgeClass}>Мой план</span>
           {currentWorkingStage && pipelineLength > 0 ? (
-            <Badge className={patientPillClass}>
+            <span className={patientHomeHeroDurationBadgeClass}>
               Этап {currentWorkingStage.sortOrder} из {pipelineLength}
-            </Badge>
+            </span>
           ) : null}
         </div>
-        <h2 className="mt-2 text-lg font-semibold tracking-tight">{detail.title}</h2>
+        <h2 className={patientHomeHeroTitleClampClass}>{detail.title}</h2>
         {planUpdatedLabel?.trim() ? (
           <p className="mt-2 flex items-center gap-1.5 text-sm font-medium" role="status">
             <span className="text-destructive" aria-hidden="true">●</span>
@@ -696,11 +702,13 @@ export function PatientTreatmentProgramDetailClient(props: {
         {currentWorkingStage ? (
           <a
             href="#patient-program-current-stage"
-            className={cn(patientPrimaryActionClass, "mt-3 flex items-center justify-center gap-2")}
+            className={cn(
+              patientPrimaryActionClass,
+              "mt-3 flex min-h-11 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-bold shadow-[0_6px_14px_rgba(40,77,160,0.24)] lg:min-h-12 lg:text-base",
+            )}
           >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/patient/ui/play.svg" alt="" width={18} height={18} className="invert" aria-hidden="true" />
-            Открыть план
+            <PlayCircle className="size-5 shrink-0 lg:size-6" aria-hidden />
+            Начать занятие
           </a>
         ) : detail.status !== "active" ? (
           <p className={cn(patientMutedTextClass, "mt-2 text-sm")}>Программа завершена.</p>

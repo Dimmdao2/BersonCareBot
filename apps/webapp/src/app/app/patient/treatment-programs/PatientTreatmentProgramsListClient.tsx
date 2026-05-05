@@ -4,6 +4,9 @@ import type {
   TreatmentProgramInstanceSummary,
 } from "@/modules/treatment-program/types";
 import {
+  patientHomeCardHeroClass,
+} from "../home/patientHomeCardStyles";
+import {
   omitDisabledInstanceStageItemsForPatientApi,
   selectCurrentWorkingStageForPatientDetail,
   splitPatientProgramStagesForDetailUi,
@@ -17,7 +20,6 @@ import {
   patientMutedTextClass,
   patientPrimaryActionClass,
   patientSurfaceInfoClass,
-  patientSurfaceProgramClass,
 } from "@/shared/ui/patientVisual";
 
 /** Текущий этап для hero списка: та же семантика, что на detail (`pipeline` без этапа 0). */
@@ -46,7 +48,10 @@ export function PatientTreatmentProgramsListClient(props: {
   return (
     <div className="flex flex-col gap-6">
       {hero ? (
-        <section className={patientSurfaceProgramClass} aria-labelledby="patient-tp-list-hero-title">
+        <section
+          className={cn(patientHomeCardHeroClass, "relative isolate overflow-hidden p-4 lg:p-5")}
+          aria-labelledby="patient-tp-list-hero-title"
+        >
           <h2 id="patient-tp-list-hero-title" className="text-lg font-semibold tracking-tight">
             {hero.title}
           </h2>

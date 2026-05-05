@@ -45,6 +45,7 @@
 | [`STAGE_D.md`](STAGE_D.md) | Подробная декомпозиция §1.1 (список) |
 | [`PROMPTS_COPYPASTE.md`](PROMPTS_COPYPASTE.md) | Шаблоны запусков: stage `exec/audit/fix/commit` + `global audit/fix` + `prepush` + `push` |
 | [`LOG.md`](LOG.md) | Журнал: прочитанные rules, scope, решения |
+| [`BLOCK_LAYOUT_REFERENCE.md`](BLOCK_LAYOUT_REFERENCE.md) | Примитивные блок-схемы: список, MVP-деталь, **эталон §1.1b**, страница этапа |
 
 ---
 

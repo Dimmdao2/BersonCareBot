@@ -224,8 +224,7 @@ export const patientStageTitleClass = cn(
 );
 
 /**
- * Hero-surface для карточки программы лечения: мягкий primary (lavender) тон.
- * Использует `--patient-surface-info-*` (info = primary); при несовпадении с макетом — уточнить
- * и добавить отдельные токены в `globals.css`. Для `PatientTreatmentProgramDetailClient` hero-блока.
+ * Hero программы лечения в списке: тот же info-surface, что и прочие информационные карточки.
+ * Для экрана детали программы используйте {@link patientHomeCardHeroClass} из `patientHomeCardStyles`.
  */
 export const patientSurfaceProgramClass = patientSurfaceInfoClass;
