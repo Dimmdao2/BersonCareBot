@@ -20,16 +20,18 @@
 
 | Этап | EXEC | AUDIT | FIX | COMMIT |
 |------|------|-------|-----|--------|
-| A | ✅ verify (`startedAt` pre-existing) | ✅ `AUDIT_STAGE_A.md` — PASS, 0 findings | ✅ нет исправлений | ⚠️ см. M1 |
+| A | ✅ verify (`startedAt` pre-existing) | ✅ `AUDIT_STAGE_A.md` — PASS, 0 findings | ✅ нет исправлений | ✅ trail закрыт в Global FIX (запись в `LOG.md`, см. «Детали по Stage A — COMMIT (M1)» ниже) |
 | B | ✅ verify (detail MVP pre-existing) | ✅ `AUDIT_STAGE_B.md` — PASS, 0 findings | ✅ нет исправлений | ✅ `25469bd7` |
 | C | ✅ implement C1–C10 | ✅ `AUDIT_STAGE_C.md` — PASS, 4 minor → все закрыты | ✅ M1–M4 applied | ✅ `ac219941` |
 | D | ✅ verify + D1 polish | ✅ `AUDIT_STAGE_D.md` — PASS, 1 minor → defer | ✅ M1 deferred | ✅ `ea97f5c7` |
 
 ### Детали по Stage A — COMMIT (M1)
 
-`STAGE_PLAN.md` требует изолированный `COMMIT` после каждого этапа. Для Stage A нет отдельного коммита — документация Stage A (`AUDIT_STAGE_A.md`, все `STAGE_*.md`, `STAGE_PLAN.md`, `PROMPTS_COPYPASTE.md`, `README.md`) была закоммичена в рамках Stage B context-коммита `41c4c91a`. Запись «Stage A closed + commit» отсутствует в `LOG.md`.
+`STAGE_PLAN.md` требует изолированный `COMMIT` после каждого этапа. Для Stage A нет отдельного **кодового** коммита — документация Stage A (`AUDIT_STAGE_A.md`, все `STAGE_*.md`, `STAGE_PLAN.md`, `PROMPTS_COPYPASTE.md`, `README.md`) была закоммичена в рамках Stage B context-коммита `41c4c91a`. Изначально в `LOG.md` не было строки «Stage A closed + commit».
 
-**Риск:** нулевой (Stage A — верификационный, code diff пустой). Информационный разрыв в трейле — всё остальное корректно задокументировано.
+**Global FIX (2026-05-05):** в `LOG.md` добавлена ретроактивная запись; трейл этапа A по конвейеру закрыт.
+
+**Риск:** нулевой (Stage A — верификационный, code diff пустой).
 
 ---
 
@@ -131,7 +133,7 @@ Scope выдержан строго. ✅
 | `LOG.md` — implementation-записи A1-A5, B1-B8, C1-C10, D1-D6 | ✅ |
 | `LOG.md` — FIX-записи по всем этапам | ✅ |
 | `LOG.md` — «X closed» по всем этапам | ✅ A, B, C, D |
-| `LOG.md` — «X closed + commit» | ✅ B, C, D; ⚠️ A — отсутствует |
+| `LOG.md` — «X closed + commit» | ✅ A (retro), B, C, D |
 | `AUDIT_STAGE_A.md` | ✅ присутствует |
 | `AUDIT_STAGE_B.md` | ✅ присутствует |
 | `AUDIT_STAGE_C.md` | ✅ присутствует |
@@ -145,7 +147,13 @@ Scope выдержан строго. ✅
 
 | ID | Уровень | Описание | Рекомендация |
 |----|---------|----------|--------------|
-| M1 | Minor | Stage A не имеет изолированного commit; «Stage A closed + commit» отсутствует в `LOG.md`. Документация Stage A была объединена в коммит `41c4c91a` с Stage B context. Риск нулевой (code diff пустой в A). | Добавить retroactive-запись в `LOG.md` — 1 строка |
+| M1 | Minor (**закрыто**) | Изначально не было строки «Stage A closed + commit» в `LOG.md` при верификационном Stage A. | Выполнено в Global FIX: retro-запись в `LOG.md`. |
+| M2 | Minor | `README.md` инициативы всё ещё со статусом «в работе / планирование», тогда как `LOG.md` фиксирует закрытие A–D, PREPUSH и PUSH. | Обновить шапку статуса в `README.md` под факт закрытия (без секретов). |
+| M3 | Minor | `ROADMAP_2.md` §1.0 в блоке «Файлы» перечисляет `progress-service.ts`; фактическая реализация `started_at` — в репозитории (`pg` / `inMemory`), в `progress-service.ts` нет логики поля. | Уточнить в roadmap формулировку «ожидаемые места», чтобы не вводить агентов в заблуждение. |
+| M4 | Minor / спека | Тексты и IA `STAGE_B.md` B1 (CTA «Открыть текущий этап», ссылка «Архив этапов») и B4 (архив в `<details>`) после Stage C заменены hero + «Открыть план» (якорь), секцией «Предыдущие этапы» и компактным списком (C6). Поведение соответствует §1.1b / `STAGE_C.md`, но не дословно раннему B. | Зафиксировать в доках как намеренную эволюцию B → C; при продуктовой необходимости выровнять копирайт под §1.1a. |
+| M5 | Minor / покрытие | `pgTreatmentProgramInstance.startedAt.contract.test.ts` проверяет наличие подстрок в исходнике репозитория, а не прогон против БД. | Достаточно для верификационного A; при усилении — добавить интеграционный тест с реальной БД (отдельная задача). |
+| M6 | Minor / зафиксировано | `STAGE_C.md` C6: дата в архиве при `completedAt`; в `TreatmentProgramInstanceStageRow` поля нет — даты в компактном списке не показываются (как в `LOG.md` Stage C). | Оставить до появления поля в модели; не считать дефектом текущей инициативы. |
+| M7 | Minor (**defer**, из `AUDIT_STAGE_D.md`) | `PatientTreatmentProgramsListClient.tsx`: суффикс `Client` в имени файла при отсутствии `"use client"` (компонент фактически RSC, хуков нет). | Defer: переименование/директива — отдельный tech-debt; см. `AUDIT_STAGE_D.md` M1 и follow-up в backlog. |
 
 **Вердикт: PASS** — инвариантов не нарушено, scope выдержан, MVP-условия выполнены.
 
@@ -157,14 +165,55 @@ Scope выдержан строго. ✅
 
 ### Major — нет.
 
-### Minor M1 — LOG.md: добавить «Stage A closed + commit» запись
+### Minor M1 — LOG.md: «Stage A closed + commit» (**выполнено**)
 
-**Файл:** `docs/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/LOG.md`  
-**Действие:** Добавить одну строку после «Stage A A5» записи:
+**Статус:** выполнено в Global FIX (2026-05-05), см. `LOG.md`. Отдельный изолированный git-коммит для кода Stage A по-прежнему отсутствует (верификация, пустой diff) — это ожидаемо.
 
-```
-- **Stage A closed + commit.** (Stage A — верификационный, code diff пустой; документация закоммичена в `41c4c91a` совместно с инициализацией Stage B-docs.)
-```
+### Minor M2 — README.md: статус инициативы
 
-**Приоритет:** низкий — исключительно для трейловой полноты.  
+**Файл:** `docs/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/README.md`  
+**Действие:** заменить строку статуса «в работе / планирование» на отражение фактического закрытия (ссылка на `LOG.md` / дату закрытия).  
 **Блокирует PREPUSH:** нет.
+
+### Minor M3 — ROADMAP_2.md §1.0: список файлов vs реализация
+
+**Файл:** `docs/APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md` (§1.0, блок «Файлы»)  
+**Действие:** уточнить, что установка `started_at` при переходе в `in_progress` реализована в слое репозитория, а не обязательно в `progress-service.ts`.  
+**Блокирует PREPUSH:** нет.
+
+### Minor M4 — STAGE_B vs финальный UI (документирование)
+
+**Файлы:** при желании `STAGE_B.md` примечание «после C тексты/архив отличаются» или запись в `LOG.md`.  
+**Действие:** явно пометить, что B1/B4 дословно заменены дизайном Stage C; дефекта кода нет.  
+**Блокирует PREPUSH:** нет.
+
+### Minor M5 — contract test `startedAt` (усиление покрытия, опционально)
+
+**Файл:** `apps/webapp/src/infra/repos/pgTreatmentProgramInstance.startedAt.contract.test.ts`  
+**Действие:** при будущем рефакторинге репо — не полагаться только на grep по исходнику; рассмотреть интеграционный тест.  
+**Блокирует PREPUSH:** нет.
+
+### Minor M6 — `completedAt` в архивном списке (ожидание модели)
+
+**Действие:** нет до появления поля в `TreatmentProgramInstanceStageRow` / схеме.  
+**Блокирует PREPUSH:** нет.
+
+### Minor M7 — `PatientTreatmentProgramsListClient` vs `"use client"` (**defer**)
+
+**Источник:** `AUDIT_STAGE_D.md` §6 Minor M1.  
+**Суть:** имя файла с суффиксом `Client` без директивы `"use client"`; компонент корректен как RSC.  
+**Действие:** не менять в рамках инициативы; при желании — отдельный тикет на переименование + правки импортов (см. `AUDIT_STAGE_D.md` MANDATORY FIX).  
+**Блокирует PREPUSH:** нет.
+
+---
+
+## 7. Дополнение — независимый повторный аудит (код + тесты)
+
+Проверка после первоначального GLOBAL: прогон `vitest` по `src/app/app/patient/treatment-programs`, `pgTreatmentProgramInstance.startedAt.contract.test.ts`, `stage-semantics.test.ts` — **30 passed** (локально на дереве на момент проверки).
+
+**Дополнительно к таблице §6 (уже учтено в M2–M6):**
+
+- **§1.1 empty state и `/messages`:** в коде используется `messagesHref={routePaths.patientMessages}` из `page.tsx` — каноничный путь приложения; расхождения с литералом `/messages` в тексте roadmap нет по смыслу.
+- **Отсутствие `%` в UI:** узкий grep по `*.tsx` в `treatment-programs` — без символа `%` в разметке (согласуется с §3.2 выше и D4).
+
+Иных находок **critical/major** повторный аудит не выявил.
