@@ -43,12 +43,14 @@ vi.mock("@/app-layer/guards/requireRole", () => ({
 const getInstanceForPatientMock = vi.hoisted(() => vi.fn());
 const patientPlanUpdatedBadgeForInstanceMock = vi.hoisted(() => vi.fn());
 const listTestResultsForInstanceMock = vi.hoisted(() => vi.fn());
+const listProgramEventsMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
     treatmentProgramInstance: {
       getInstanceForPatient: getInstanceForPatientMock,
       patientPlanUpdatedBadgeForInstance: patientPlanUpdatedBadgeForInstanceMock,
+      listProgramEvents: listProgramEventsMock,
     },
     treatmentProgramProgress: {
       listTestResultsForInstance: listTestResultsForInstanceMock,
@@ -137,6 +139,7 @@ describe("PatientTreatmentProgramDetailPage / nudge resilience", () => {
   beforeEach(() => {
     notFoundMock.mockClear();
     getInstanceForPatientMock.mockResolvedValue(minimalActiveDetail());
+    listProgramEventsMock.mockResolvedValue([]);
     listTestResultsForInstanceMock.mockResolvedValue([]);
   });
 

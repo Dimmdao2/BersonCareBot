@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { AppShell } from "@/shared/ui/AppShell";
+import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
 import { TreatmentProgramInstanceDetailClient } from "./TreatmentProgramInstanceDetailClient";
 
 type Props = {
@@ -28,6 +29,7 @@ export default async function DoctorPatientTreatmentProgramPage({ params, search
   const testResults = await deps.treatmentProgramProgress.listTestResultsForInstance(instanceId);
   const programEvents = await deps.treatmentProgramInstance.listProgramEvents(instanceId);
   const programActionLog = await deps.treatmentProgramProgress.listProgramActionLogForInstance(instanceId);
+  const appDisplayTimeZone = await getAppDisplayTimeZone();
 
   const qs = scopeParam ? `?scope=${encodeURIComponent(scopeParam)}` : "";
   const backHref = `/app/doctor/clients/${encodeURIComponent(userId)}${qs}`;
@@ -48,6 +50,7 @@ export default async function DoctorPatientTreatmentProgramPage({ params, search
         initialActionLog={programActionLog}
         currentUserId={session.user.userId}
         isAdmin={session.user.role === "admin"}
+        appDisplayTimeZone={appDisplayTimeZone}
       />
     </AppShell>
   );

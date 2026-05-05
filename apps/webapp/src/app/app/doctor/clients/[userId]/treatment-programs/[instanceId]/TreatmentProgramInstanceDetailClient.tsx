@@ -33,6 +33,7 @@ import {
   formatLfkPostSessionDifficultyRu,
 } from "@/modules/treatment-program/types";
 import { cn } from "@/lib/utils";
+import { formatBookingDateTimeShortStyleRu } from "@/shared/lib/formatBusinessDateTime";
 import { CommentBlock } from "@/components/comments/CommentBlock";
 import { parseTestSetSnapshotTests } from "@/modules/treatment-program/testSetSnapshotView";
 
@@ -281,9 +282,18 @@ export function TreatmentProgramInstanceDetailClient(props: {
   initialActionLog: ProgramActionLogListRow[];
   currentUserId: string;
   isAdmin?: boolean;
+  appDisplayTimeZone: string;
 }) {
-  const { patientUserId, initial, initialTestResults, initialEvents, initialActionLog, currentUserId, isAdmin = false } =
-    props;
+  const {
+    patientUserId,
+    initial,
+    initialTestResults,
+    initialEvents,
+    initialActionLog,
+    currentUserId,
+    isAdmin = false,
+    appDisplayTimeZone,
+  } = props;
   const [detail, setDetail] = useState(initial);
   const [error, setError] = useState<string | null>(null);
   const [testResults, setTestResults] = useState<TreatmentProgramTestResultDetailRow[]>(initialTestResults);
@@ -342,10 +352,7 @@ export function TreatmentProgramInstanceDetailClient(props: {
               return (
                 <li key={row.id} className="rounded-md border border-border/60 bg-muted/10 px-2 py-1.5">
                   <span className="text-xs text-muted-foreground">
-                    {new Date(row.createdAt).toLocaleString("ru-RU", {
-                      dateStyle: "short",
-                      timeStyle: "short",
-                    })}
+                    {formatBookingDateTimeShortStyleRu(row.createdAt, appDisplayTimeZone)}
                   </span>
                   <span className="ml-2 font-medium">{formatProgramActionLogSummaryRu(row)}</span>
                   <span className="ml-1 text-xs text-muted-foreground">· {itemLabel}</span>
@@ -375,10 +382,7 @@ export function TreatmentProgramInstanceDetailClient(props: {
             {programEvents.map((e) => (
               <li key={e.id} className="rounded-md border border-border/60 bg-muted/10 px-2 py-1.5">
                 <span className="text-xs text-muted-foreground">
-                  {new Date(e.createdAt).toLocaleString("ru-RU", {
-                    dateStyle: "short",
-                    timeStyle: "short",
-                  })}
+                  {formatBookingDateTimeShortStyleRu(e.createdAt, appDisplayTimeZone)}
                 </span>
                 <span className="ml-2 font-medium">{formatTreatmentProgramEventTypeRu(e.eventType)}</span>
                 <span className="ml-1 text-xs text-muted-foreground">

@@ -49,12 +49,14 @@ const getInstanceForPatientMock = vi.hoisted(() => vi.fn());
 const patientPlanUpdatedBadgeForInstanceMock = vi.hoisted(() => vi.fn());
 const listTestResultsForInstanceMock = vi.hoisted(() => vi.fn());
 const getTemplateMock = vi.hoisted(() => vi.fn());
+const listProgramEventsMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
     treatmentProgramInstance: {
       getInstanceForPatient: getInstanceForPatientMock,
       patientPlanUpdatedBadgeForInstance: patientPlanUpdatedBadgeForInstanceMock,
+      listProgramEvents: listProgramEventsMock,
     },
     treatmentProgramProgress: {
       listTestResultsForInstance: listTestResultsForInstanceMock,
@@ -147,6 +149,7 @@ describe("PatientTreatmentProgramDetailPage / template description (RSC)", () =>
   beforeEach(() => {
     notFoundMock.mockClear();
     getTemplateMock.mockReset();
+    listProgramEventsMock.mockResolvedValue([]);
     getInstanceForPatientMock.mockResolvedValue(minimalActiveDetail(templateUuid));
     patientPlanUpdatedBadgeForInstanceMock.mockResolvedValue({ show: false });
     listTestResultsForInstanceMock.mockResolvedValue([]);

@@ -19,6 +19,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   Shield,
@@ -31,15 +32,18 @@ import {
   List,
   Lock,
   CornerDownRight,
+  Info,
 } from "lucide-react";
 import type {
   NormalizedTestDecision,
   TreatmentProgramInstanceDetail,
+  TreatmentProgramEventRow,
   TreatmentProgramTestResultDetailRow,
 } from "@/modules/treatment-program/types";
 import {
   effectiveInstanceStageItemComment,
   formatNormalizedTestDecisionRu,
+  formatTreatmentProgramEventTypeRu,
   formatTreatmentProgramStageStatusRu,
 } from "@/modules/treatment-program/types";
 import {
@@ -58,10 +62,6 @@ import { type PatientProgramChecklistRow } from "@/modules/treatment-program/pat
 import { routePaths } from "@/app-layer/routes/paths";
 import {
   patientHomeCardHeroClass,
-  patientHomeHeroBadgeClass,
-  patientHomeHeroTitleClampClass,
-  patientBadgeDurationClass,
-  patientBadgeSuccessClass,
   patientBadgeDangerClass,
   patientBadgePrimaryClass,
 } from "@/app/app/patient/home/patientHomeCardStyles";
@@ -81,8 +81,9 @@ import {
   patientSecondaryActionClass,
   patientButtonSuccessClass,
   patientButtonWarningOutlineClass,
+  patientLineClamp2Class,
 } from "@/shared/ui/patientVisual";
-import { formatBookingDateLongRu } from "@/shared/lib/formatBusinessDateTime";
+import { formatBookingDateLongRu, formatBookingDateTimeShortStyleRu } from "@/shared/lib/formatBusinessDateTime";
 
 function formatPatientTestResultRawValue(raw: unknown): string {
   if (raw === null || raw === undefined) return "—";
@@ -108,40 +109,92 @@ function snapshotTitle(snapshot: Record<string, unknown>, itemType: string): str
 
 type InstanceStageRow = TreatmentProgramInstanceDetail["stages"][number];
 
-/** Бейдж в hero: назначена / старт / завершена (даты в часовом поясе приложения). */
-function programInstanceHeroStatusBadge(
-  detail: TreatmentProgramInstanceDetail,
-  pipeline: InstanceStageRow[],
-  appTz: string,
-): { label: string; className: string } | null {
+function buildProgramHistoryNarrative(detail: TreatmentProgramInstanceDetail, tz: string): string[] {
+  const lines: string[] = [];
+  lines.push(`Назначена — ${formatBookingDateLongRu(detail.createdAt, tz)}`);
+  const pipelineStages = detail.stages.filter((s) => s.sortOrder > 0);
+  const startedInstants = pipelineStages
+    .map((s) => s.startedAt)
+    .filter((x): x is string => x != null && String(x).trim() !== "");
+  const minStarted =
+    startedInstants.length === 0 ? null : startedInstants.reduce((a, b) => (a < b ? a : b));
+  if (minStarted) {
+    lines.push(`Старт выполнения — ${formatBookingDateLongRu(minStarted, tz)}`);
+  } else {
+    lines.push("Старт выполнения — пока не было");
+  }
+  const stagesByStart = [...pipelineStages]
+    .filter((s) => s.startedAt != null && String(s.startedAt).trim() !== "")
+    .sort((a, b) => String(a.startedAt).localeCompare(String(b.startedAt)));
+  for (const s of stagesByStart) {
+    lines.push(`Открыт этап ${s.sortOrder} — ${formatBookingDateLongRu(String(s.startedAt), tz)}`);
+  }
   if (detail.status === "completed") {
-    return {
-      label: `Завершена ${formatBookingDateLongRu(detail.updatedAt, appTz)}`,
-      className: patientBadgeSuccessClass,
-    };
+    lines.push(`Завершена — ${formatBookingDateLongRu(detail.updatedAt, tz)}`);
   }
-  const pipelineNonZero = pipeline.filter((s) => s.sortOrder > 0);
-  const anyStarted = pipelineNonZero.some((s) => s.startedAt != null);
-  if (!anyStarted) {
-    return {
-      label: `Назначена ${formatBookingDateLongRu(detail.createdAt, appTz)}`,
-      className: patientBadgeDurationClass,
-    };
-  }
-  const startedIsos = detail.stages
-    .filter((s) => s.sortOrder > 0 && s.startedAt != null)
-    .map((s) => s.startedAt as string);
-  if (startedIsos.length === 0) {
-    return {
-      label: `Назначена ${formatBookingDateLongRu(detail.createdAt, appTz)}`,
-      className: patientBadgeDurationClass,
-    };
-  }
-  const minIso = startedIsos.reduce((a, b) => (a < b ? a : b));
-  return {
-    label: `Старт с ${formatBookingDateLongRu(minIso, appTz)}`,
-    className: patientBadgeDurationClass,
-  };
+  return lines;
+}
+
+function PatientProgramHeroHistoryPopover(props: {
+  detail: TreatmentProgramInstanceDetail;
+  appDisplayTimeZone: string;
+  programEvents: TreatmentProgramEventRow[];
+}) {
+  const { detail, appDisplayTimeZone, programEvents } = props;
+  const narrative = useMemo(
+    () => buildProgramHistoryNarrative(detail, appDisplayTimeZone),
+    [detail, appDisplayTimeZone],
+  );
+  /** Сырые `status_changed` дают пачку одинаковых строк; статус уже отражён в «Важные даты». */
+  const eventsForPatient = useMemo(
+    () => programEvents.filter((e) => e.eventType !== "status_changed"),
+    [programEvents],
+  );
+  return (
+    <div className="pointer-events-auto absolute right-2 top-2 z-20 lg:right-3 lg:top-3">
+      <Popover>
+        <PopoverTrigger
+          type="button"
+          className={cn(
+            "inline-flex size-9 shrink-0 items-center justify-center rounded-full border-0 bg-transparent text-[var(--patient-color-primary)] outline-none transition-opacity touch-manipulation",
+            "hover:opacity-80 active:opacity-60 focus-visible:ring-2 focus-visible:ring-[var(--patient-color-primary)] focus-visible:ring-offset-2",
+          )}
+          aria-label="История программы"
+        >
+          <Info className="size-[17px] shrink-0 stroke-[2.25]" aria-hidden />
+        </PopoverTrigger>
+        <PopoverContent
+          side="bottom"
+          align="end"
+          sideOffset={6}
+          className="w-[min(calc(100vw-1.5rem),18.5rem)] max-h-[min(70vh,24rem)] overflow-y-auto p-3 text-[11px] leading-snug text-foreground"
+        >
+          <p className="m-0 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Важные даты</p>
+          <ul className="mt-2 max-w-full list-none space-y-1.5 p-0 [word-break:break-word]">
+            {narrative.map((line, i) => (
+              <li key={i} className="text-[11px] leading-snug text-foreground">
+                {line}
+              </li>
+            ))}
+          </ul>
+          {eventsForPatient.length > 0 ? (
+            <>
+              <hr className="my-2.5 border-border/60" />
+              <p className="m-0 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">События</p>
+              <ul className="mt-2 max-w-full list-none space-y-1 p-0 [word-break:break-word]">
+                {eventsForPatient.map((e) => (
+                  <li key={e.id} className="text-[10px] leading-snug text-muted-foreground">
+                    {formatBookingDateTimeShortStyleRu(e.createdAt, appDisplayTimeZone)} —{" "}
+                    {formatTreatmentProgramEventTypeRu(e.eventType)}
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : null}
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
 }
 
 function PatientProgramStagesTimeline(props: {
@@ -161,7 +214,7 @@ function PatientProgramStagesTimeline(props: {
         aria-labelledby="patient-program-stages-heading"
       >
         <h3 id="patient-program-stages-heading" className={cn(patientSectionTitleClass, "mb-3")}>
-          Активный этап
+          Этапы программы
         </h3>
         <ul className="m-0 flex list-none flex-col gap-2 p-0">
           {stages.map((stage) => {
@@ -209,6 +262,11 @@ function PatientProgramStagesTimeline(props: {
 
             const titleBlock = (
               <div className="flex min-w-0 flex-1 flex-col gap-1">
+                {isActive ? (
+                  <span className="text-[10px] font-semibold uppercase leading-none tracking-wide text-[var(--patient-color-primary)]/75">
+                    Активный этап
+                  </span>
+                ) : null}
                 <div className="flex flex-wrap items-center gap-2">
                   <span className={titleClass}>{stage.title}</span>
                   {isActive ? (
@@ -810,13 +868,20 @@ function PatientProgramControlCard(props: {
 export function PatientTreatmentProgramDetailClient(props: {
   initial: TreatmentProgramInstanceDetail;
   initialTestResults: TreatmentProgramTestResultDetailRow[];
+  initialProgramEvents?: TreatmentProgramEventRow[];
   appDisplayTimeZone: string;
   planUpdatedLabel: string | null;
   programDescription?: string | null;
 }) {
-  const { appDisplayTimeZone, planUpdatedLabel, programDescription = null } = props;
+  const {
+    appDisplayTimeZone,
+    planUpdatedLabel,
+    programDescription = null,
+    initialProgramEvents = [],
+  } = props;
   const [detail, setDetail] = useState(props.initial);
   const [testResults, setTestResults] = useState(props.initialTestResults);
+  const [programEvents, setProgramEvents] = useState(initialProgramEvents);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [doneItemIds, setDoneItemIds] = useState<string[]>([]);
@@ -824,10 +889,11 @@ export function PatientTreatmentProgramDetailClient(props: {
   const refresh = useCallback(async () => {
     setError(null);
     const id = detail.id;
-    const [instRes, trRes, checklistRes] = await Promise.all([
+    const [instRes, trRes, checklistRes, evRes] = await Promise.all([
       fetch(`/api/patient/treatment-program-instances/${encodeURIComponent(id)}`),
       fetch(`/api/patient/treatment-program-instances/${encodeURIComponent(id)}/test-results`),
       fetch(`/api/patient/treatment-program-instances/${encodeURIComponent(id)}/checklist-today`),
+      fetch(`/api/patient/treatment-program-instances/${encodeURIComponent(id)}/events`),
     ]);
     const data = (await instRes.json().catch(() => null)) as { ok?: boolean; item?: TreatmentProgramInstanceDetail };
     if (!instRes.ok || !data.ok || !data.item) {
@@ -837,6 +903,8 @@ export function PatientTreatmentProgramDetailClient(props: {
     setDetail(data.item);
     const trData = (await trRes.json().catch(() => null)) as { ok?: boolean; results?: TreatmentProgramTestResultDetailRow[] };
     if (trRes.ok && trData.ok && trData.results) setTestResults(trData.results);
+    const evData = (await evRes.json().catch(() => null)) as { ok?: boolean; events?: TreatmentProgramEventRow[] };
+    if (evRes.ok && evData.ok && Array.isArray(evData.events)) setProgramEvents(evData.events);
     const chData = (await checklistRes.json().catch(() => null)) as { ok?: boolean; doneItemIds?: string[] };
     if (data.item.status === "active" && checklistRes.ok && chData.ok && Array.isArray(chData.doneItemIds)) {
       setDoneItemIds(chData.doneItemIds);
@@ -886,11 +954,6 @@ export function PatientTreatmentProgramDetailClient(props: {
 
   const stageCountNonZero = stagesTimeline.length;
 
-  const heroStatusBadge = useMemo(
-    () => programInstanceHeroStatusBadge(detail, pipelineStages, appDisplayTimeZone),
-    [detail, pipelineStages, appDisplayTimeZone],
-  );
-
   const awaitsStart =
     detail.status === "active" &&
     currentWorkingStage != null &&
@@ -908,20 +971,21 @@ export function PatientTreatmentProgramDetailClient(props: {
         </p>
       ) : null}
 
-      {/* C1: Hero card — фон/бордер/бейджи как hero «Разминка дня» на главной */}
-      <div className={cn(patientHomeCardHeroClass, "relative isolate overflow-hidden p-4 lg:p-5")}>
-        <div className="relative z-20 flex min-h-6 shrink-0 flex-wrap items-start gap-1.5">
-          <span className={patientHomeHeroBadgeClass}>Мой план</span>
-          {heroStatusBadge ? (
-            <span
-              className={cn(heroStatusBadge.className, "max-w-[min(100%,16rem)] truncate")}
-              title={heroStatusBadge.label}
-            >
-              {heroStatusBadge.label}
-            </span>
-          ) : null}
-        </div>
-        <h2 className={patientHomeHeroTitleClampClass}>{detail.title}</h2>
+      {/* C1: Hero — компактный заголовок; история по (i) */}
+      <div className={cn(patientHomeCardHeroClass, "relative isolate overflow-hidden p-4 pt-3 lg:p-5")}>
+        <PatientProgramHeroHistoryPopover
+          detail={detail}
+          appDisplayTimeZone={appDisplayTimeZone}
+          programEvents={programEvents}
+        />
+        <h2
+          className={cn(
+            patientLineClamp2Class,
+            "mt-0.5 pr-11 text-[15px] font-semibold leading-snug tracking-tight text-[var(--patient-block-heading)] min-[380px]:text-[17px] lg:pr-12 lg:text-[22px] lg:leading-7 xl:text-2xl xl:leading-8",
+          )}
+        >
+          {detail.title}
+        </h2>
         {programDescription?.trim() ? (
           <p className={cn(patientMutedTextClass, "mt-2 line-clamp-3 text-sm leading-snug")}>
             {programDescription.trim()}

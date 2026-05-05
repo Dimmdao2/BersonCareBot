@@ -225,7 +225,7 @@ describe("PatientTreatmentProgramDetailClient", () => {
     expect(screen.getByText("Описание из шаблона для пациента.")).toBeInTheDocument();
   });
 
-  it("renders Активный этап timeline for non-zero stages", () => {
+  it("renders Этапы программы timeline with active row label", () => {
     render(
       <PatientTreatmentProgramDetailClient
         initial={makeInstance({
@@ -290,7 +290,8 @@ describe("PatientTreatmentProgramDetailClient", () => {
         {...detailShellProps}
       />,
     );
-    expect(screen.getByRole("heading", { name: "Активный этап" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Этапы программы" })).toBeInTheDocument();
+    expect(screen.getByText("Активный этап")).toBeInTheDocument();
     expect(screen.getByText("Острая фаза")).toBeInTheDocument();
     expect(screen.getByText("Восстановление")).toBeInTheDocument();
   });

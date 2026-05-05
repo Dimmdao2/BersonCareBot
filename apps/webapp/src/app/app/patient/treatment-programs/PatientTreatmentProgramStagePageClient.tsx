@@ -70,17 +70,26 @@ export function PatientTreatmentProgramStagePageClient(props: {
         </p>
       ) : null}
 
-      {!isStageZero ? (
-        <div className={patientCardClass}>
-          <p className={cn(patientMutedTextClass, "text-xs uppercase tracking-wide")}>
-            Этап {currentStage.sortOrder} из {pipelineLength}
-          </p>
-          <h2 className={cn(patientStageTitleClass, "mt-1")}>{currentStage.title}</h2>
-          <p className={cn(patientMutedTextClass, "mt-1 text-xs")}>
-            {formatTreatmentProgramStageStatusRu(currentStage.status)}
-          </p>
-        </div>
-      ) : null}
+      <div className={patientCardClass}>
+        {isStageZero ? (
+          <>
+            <h2 className={patientStageTitleClass}>Общие рекомендации</h2>
+            <p className={cn(patientMutedTextClass, "mt-1 text-xs")}>
+              {formatTreatmentProgramStageStatusRu(currentStage.status)}
+            </p>
+          </>
+        ) : (
+          <>
+            <p className={cn(patientMutedTextClass, "text-xs uppercase tracking-wide")}>
+              Этап {currentStage.sortOrder} из {pipelineLength}
+            </p>
+            <h2 className={cn(patientStageTitleClass, "mt-1")}>{currentStage.title}</h2>
+            <p className={cn(patientMutedTextClass, "mt-1 text-xs")}>
+              {formatTreatmentProgramStageStatusRu(currentStage.status)}
+            </p>
+          </>
+        )}
+      </div>
 
       <PatientInstanceStageBody
         instanceId={instanceId}

@@ -76,6 +76,7 @@ export default async function PatientTreatmentProgramStagePage({ params }: Props
       backHref={routePaths.patientTreatmentProgram(instanceId)}
       backLabel="Программа"
       variant="patient"
+      patientSuppressShellTitle
     >
       <PatientTreatmentProgramStagePageClient
         instanceId={instanceId}

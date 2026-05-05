@@ -5,6 +5,14 @@ import { DateTime } from "luxon";
 
 const NAIVE_WALL_CLOCK_REGEX = /^\d{4}-\d{2}-\d{2}(?:T| )\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?$/;
 
+/**
+ * ru-RU `Intl` в Node и в Chromium может по-разному вставлять U+202F (narrow no-break space) и U+00A0
+ * перед «г.» — ломает гидратацию Client Components. Приводим к обычному пробелу.
+ */
+function normalizeRuIntlSpacing(s: string): string {
+  return s.replace(/\u202f/g, " ").replace(/\u00a0/g, " ");
+}
+
 /** One-time warn: naive wall-clock strings should be rare after ingest normalization (Stage 3). */
 let warnedNaiveBusinessInstantParse = false;
 
@@ -38,20 +46,35 @@ export function parseBusinessInstant(iso: string, displayTimeZone: string): Date
 export function formatBookingDateTimeMediumRu(iso: string, timeZone: string): string {
   const d = parseBusinessInstant(iso, timeZone);
   if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleString("ru-RU", { dateStyle: "medium", timeStyle: "short", timeZone });
+  return normalizeRuIntlSpacing(
+    d.toLocaleString("ru-RU", { dateStyle: "medium", timeStyle: "short", timeZone }),
+  );
+}
+
+/** `dateStyle: "short", timeStyle: "short"` в ru-RU, в явной IANA-таймзоне (без расхождения SSR/клиент). */
+export function formatBookingDateTimeShortStyleRu(iso: string, timeZone: string): string {
+  const d = parseBusinessInstant(iso, timeZone);
+  if (Number.isNaN(d.getTime())) return iso;
+  return normalizeRuIntlSpacing(
+    d.toLocaleString("ru-RU", { dateStyle: "short", timeStyle: "short", timeZone }),
+  );
 }
 
 export function formatBookingTimeShortRu(iso: string, timeZone: string): string {
   const d = parseBusinessInstant(iso, timeZone);
   if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit", timeZone });
+  return normalizeRuIntlSpacing(
+    d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit", timeZone }),
+  );
 }
 
 /** Дата слова́ми (как в сводке подтверждения записи), в бизнес-таймзоне. */
 export function formatBookingDateLongRu(iso: string, timeZone: string): string {
   const d = parseBusinessInstant(iso, timeZone);
   if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric", timeZone });
+  return normalizeRuIntlSpacing(
+    d.toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric", timeZone }),
+  );
 }
 
 /**
@@ -65,12 +88,14 @@ export function formatAppointmentDateNumericRu(
   if (iso == null) return "—";
   const d = typeof iso === "string" ? parseBusinessInstant(iso, timeZone) : iso;
   if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleDateString("ru-RU", {
-    day: "numeric",
-    month: "numeric",
-    year: "numeric",
-    timeZone,
-  });
+  return normalizeRuIntlSpacing(
+    d.toLocaleDateString("ru-RU", {
+      day: "numeric",
+      month: "numeric",
+      year: "numeric",
+      timeZone,
+    }),
+  );
 }
 
 /** Время `ЧЧ:мм` в бизнес-таймзоне (как в кабинете пациента). */

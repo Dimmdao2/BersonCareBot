@@ -66,6 +66,7 @@ export default async function PatientTreatmentProgramDetailPage({ params }: Prop
   }
 
   const initialTestResults = await deps.treatmentProgramProgress.listTestResultsForInstance(instanceId);
+  const initialProgramEvents = await deps.treatmentProgramInstance.listProgramEvents(instanceId);
 
   let programDescription: string | null = null;
   if (detail.templateId) {
@@ -90,6 +91,7 @@ export default async function PatientTreatmentProgramDetailPage({ params }: Prop
       <PatientTreatmentProgramDetailClient
         initial={detail}
         initialTestResults={initialTestResults}
+        initialProgramEvents={initialProgramEvents}
         appDisplayTimeZone={appTz}
         planUpdatedLabel={planUpdatedLabel}
         programDescription={programDescription}

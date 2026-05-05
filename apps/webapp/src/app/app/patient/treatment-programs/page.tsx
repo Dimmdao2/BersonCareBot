@@ -48,7 +48,14 @@ export default async function PatientTreatmentProgramsPage() {
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || b.id.localeCompare(a.id));
 
   return (
-    <AppShell title="Программы лечения" user={session.user} backHref={routePaths.patient} backLabel="Меню" variant="patient">
+    <AppShell
+      title="Программы лечения"
+      user={session.user}
+      backHref={routePaths.patient}
+      backLabel="Меню"
+      variant="patient"
+      patientSuppressShellTitle
+    >
       <PatientTreatmentProgramsListClient
         hero={null}
         archived={archived}
