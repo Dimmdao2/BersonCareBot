@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { DoctorMenuAccordion } from "@/shared/ui/DoctorMenuAccordion";
+import { NAV_STRIP_ICON_STROKE } from "@/shared/ui/navChrome";
 import { DOCTOR_HEADER_INNER_CLASS } from "@/shared/ui/doctorWorkspaceLayout";
 import { getDoctorScreenTitle } from "@/shared/ui/doctorScreenTitles";
 
@@ -71,7 +72,7 @@ export function DoctorHeader({ userDisplayName, adminMode, hideMenuOnDesktop }: 
                 aria-label="Назад"
                 onClick={goBack}
               >
-                <ArrowLeft className="size-[22px]" aria-hidden />
+                <ArrowLeft className="size-[22px]" strokeWidth={NAV_STRIP_ICON_STROKE} aria-hidden />
               </Button>
             ) : (
               <span className="inline-flex w-10 shrink-0" aria-hidden />
@@ -82,19 +83,19 @@ export function DoctorHeader({ userDisplayName, adminMode, hideMenuOnDesktop }: 
               aria-label="Дашборд"
               className={HEADER_ICON_CLASS}
             >
-              <Home className="size-[22px]" aria-hidden />
+              <Home className="size-[22px]" strokeWidth={NAV_STRIP_ICON_STROKE} aria-hidden />
             </Link>
           </div>
 
           <div className="flex min-w-0 flex-1 items-center justify-center gap-1.5">
             <p
-              className="min-w-0 truncate text-center text-[13px] font-medium text-muted-foreground"
+              className="min-w-0 truncate text-center text-[13px] font-normal text-muted-foreground"
               title={title}
             >
               {title}
             </p>
             {adminMode ? (
-              <span className="shrink-0 rounded bg-destructive px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-destructive-foreground">
+              <span className="shrink-0 rounded bg-destructive px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-destructive-foreground">
                 ADMIN MODE
               </span>
             ) : null}
@@ -107,7 +108,7 @@ export function DoctorHeader({ userDisplayName, adminMode, hideMenuOnDesktop }: 
               aria-label="Пациенты"
               className={HEADER_ICON_CLASS}
             >
-              <Users className="size-[22px]" aria-hidden />
+              <Users className="size-[22px]" strokeWidth={NAV_STRIP_ICON_STROKE} aria-hidden />
             </Link>
             <Link
               href="/app/doctor/messages"
@@ -115,7 +116,7 @@ export function DoctorHeader({ userDisplayName, adminMode, hideMenuOnDesktop }: 
               aria-label="Сообщения"
               className={HEADER_ICON_CLASS}
             >
-              <MessageCircle className="size-[22px]" aria-hidden />
+              <MessageCircle className="size-[22px]" strokeWidth={NAV_STRIP_ICON_STROKE} aria-hidden />
             </Link>
             <Button
               type="button"
@@ -127,7 +128,7 @@ export function DoctorHeader({ userDisplayName, adminMode, hideMenuOnDesktop }: 
               aria-expanded={menuOpen}
               onClick={() => setMenuOpen(true)}
             >
-              <Menu className="size-[22px]" aria-hidden />
+              <Menu className="size-[22px]" strokeWidth={NAV_STRIP_ICON_STROKE} aria-hidden />
             </Button>
           </div>
         </div>

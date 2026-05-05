@@ -197,6 +197,12 @@ export const patientButtonWarningOutlineClass = cn(
 /** Семантические алиасы действий (`MASTER_PLAN.md` — patient Primary/Secondary/Danger action). */
 export const patientPrimaryActionClass = patientButtonPrimaryClass;
 
+/**
+ * Основная CTA в patient hero (разминка, программы; рядом с {@link patientHeroTitleBaseClass}): те же цвета и фокус, что {@link patientButtonPrimaryClass},
+ * но **font-semibold (600)** — единый тон hero, без `font-bold`.
+ */
+export const patientHeroPrimaryActionClass = cn(patientButtonPrimaryClass, "font-semibold");
+
 export const patientSecondaryActionClass = patientButtonSecondaryClass;
 
 export const patientDangerActionClass = patientButtonDangerOutlineClass;
@@ -249,6 +255,6 @@ export const patientStageTitleClass = cn(
 
 /**
  * Hero программы лечения в списке: тот же info-surface, что и прочие информационные карточки.
- * Заголовок в gradient hero — {@link patientHeroTitleBaseClass}; оболочка детали — {@link patientHomeCardHeroClass} в `patientHomeCardStyles`.
+ * Заголовок в gradient hero — {@link patientHeroTitleBaseClass}; CTA — {@link patientHeroPrimaryActionClass}; оболочка детали — {@link patientHomeCardHeroClass} в `patientHomeCardStyles`.
  */
 export const patientSurfaceProgramClass = patientSurfaceInfoClass;

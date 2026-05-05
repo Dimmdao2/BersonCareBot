@@ -74,6 +74,7 @@ import {
   patientCardNestedListSurfaceClass,
   patientListItemClass,
   patientMutedTextClass,
+  patientHeroPrimaryActionClass,
   patientPrimaryActionClass,
   patientSectionSurfaceClass,
   patientSectionTitleClass,
@@ -141,6 +142,23 @@ function snapshotTitle(snapshot: Record<string, unknown>, itemType: string): str
   const t = snapshot.title;
   if (typeof t === "string" && t.trim() !== "") return t;
   return itemType;
+}
+
+/** Plain-текст из `bodyMd` снимка рекомендации для превью под заголовком (без рендера MD). */
+function recommendationBodyMdPreviewPlain(bodyMd: unknown): string {
+  if (typeof bodyMd !== "string" || !bodyMd.trim()) return "";
+  let s = bodyMd.trim();
+  s = s.replace(/```[\s\S]*?```/g, " ");
+  s = s.replace(/!\[([^\]]*)\]\([^)]*\)/g, "$1 ");
+  s = s.replace(/\[([^\]]*)\]\([^)]*\)/g, "$1");
+  s = s.replace(/^#{1,6}\s+/gm, "");
+  s = s.replace(/^\s*[-*+]\s+/gm, "");
+  s = s.replace(/\*\*([^*]+)\*\*/g, "$1");
+  s = s.replace(/\*([^*\n]+)\*/g, "$1");
+  s = s.replace(/__([^_]+)__/g, "$1");
+  s = s.replace(/`([^`]+)`/g, "$1");
+  s = s.replace(/\s+/g, " ").trim();
+  return s;
 }
 
 function parseRecommendationMediaFromSnapshot(snapshot: Record<string, unknown>): RecommendationMediaItem[] {
@@ -332,7 +350,7 @@ function PatientProgramStagesTimeline(props: {
               );
               leftIcon = (
                 <Play
-                  className="mt-0.5 size-4 shrink-0 fill-none text-[var(--patient-color-primary)]"
+                  className="size-4 shrink-0 fill-none text-[var(--patient-color-primary)]"
                   strokeWidth={2.5}
                   aria-hidden
                 />
@@ -353,6 +371,8 @@ function PatientProgramStagesTimeline(props: {
               leftIcon = <Lock className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />;
             }
 
+            rowClass = cn(rowClass, "pb-2");
+
             const titleClass = isActive
               ? "text-sm font-bold text-[var(--patient-color-primary)]"
               : isPast
@@ -366,26 +386,36 @@ function PatientProgramStagesTimeline(props: {
                     Активный этап
                   </span>
                 ) : null}
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className={titleClass}>{stage.title}</span>
-                  {isActive ? (
-                    <span className={cn(patientBadgePrimaryClass, "h-6 max-w-full truncate px-2 text-[10px]")}>
-                      {stage.sortOrder} из {stageCountNonZero}
-                    </span>
-                  ) : null}
-                </div>
+                <span className={titleClass}>{stage.title}</span>
               </div>
             );
 
             const rowInnerStatic = (
               <div
                 className={cn(
-                  "flex items-start gap-3",
+                  "flex w-full items-center gap-3",
                   (isFuture || isStale) && "pointer-events-none cursor-default",
                 )}
               >
-                {leftIcon}
-                <div className="min-w-0 flex-1">{titleBlock}</div>
+                <div
+                  className={cn(
+                    "flex min-w-0 flex-1 gap-3",
+                    isActive ? "items-center" : "items-start",
+                  )}
+                >
+                  {leftIcon}
+                  {titleBlock}
+                </div>
+                {isActive ? (
+                  <span
+                    className={cn(
+                      patientBadgePrimaryClass,
+                      "h-6 max-w-full shrink-0 truncate px-2 text-[10px]",
+                    )}
+                  >
+                    {stage.sortOrder} из {stageCountNonZero}
+                  </span>
+                ) : null}
               </div>
             );
 
@@ -596,6 +626,10 @@ function PatientInstanceStageItemCard(props: {
     if (item.itemType !== "recommendation") return null;
     return pickRecommendationRowPreviewMedia(parseRecommendationMediaFromSnapshot(item.snapshot));
   }, [item.itemType, item.snapshot]);
+  const recommendationBodyPreview = useMemo(() => {
+    if (item.itemType !== "recommendation") return "";
+    return recommendationBodyMdPreviewPlain(item.snapshot.bodyMd);
+  }, [item.itemType, item.snapshot]);
   const markRef = usePostMarkItemViewedWhenVisible({
     instanceId,
     itemId: item.id,
@@ -650,6 +684,11 @@ function PatientInstanceStageItemCard(props: {
           <span className={cn(patientMutedTextClass, "font-normal")}>({item.itemType})</span>
         ) : null}
       </p>
+      {item.itemType === "recommendation" && recommendationBodyPreview ? (
+        <p className={cn(patientLineClamp2Class, patientMutedTextClass, "mt-1 text-xs leading-snug")}>
+          {recommendationBodyPreview}
+        </p>
+      ) : null}
       {effectiveInstanceStageItemComment(item) ? (
         <p className={cn(patientMutedTextClass, "mt-1 text-xs")}>
           Комментарий:{" "}
@@ -1116,8 +1155,8 @@ export function PatientTreatmentProgramDetailClient(props: {
           <Link
             href={routePaths.patientTreatmentProgramStage(detail.id, currentWorkingStage.id)}
             className={cn(
-              patientPrimaryActionClass,
-              "mt-3 flex min-h-11 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-bold shadow-[0_6px_14px_rgba(40,77,160,0.24)] lg:min-h-12 lg:text-base",
+              patientHeroPrimaryActionClass,
+              "mt-3 flex min-h-11 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm shadow-[0_6px_14px_rgba(40,77,160,0.24)] lg:min-h-12 lg:text-base",
             )}
           >
             <PlayCircle className="size-5 shrink-0 lg:size-6" aria-hidden />

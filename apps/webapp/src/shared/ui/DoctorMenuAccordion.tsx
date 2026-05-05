@@ -17,6 +17,7 @@ import {
   type DoctorMenuBadgeKey,
   type DoctorMenuLinkItem,
 } from "@/shared/ui/doctorNavLinks";
+import { NAV_STRIP_ICON_STROKE } from "@/shared/ui/navChrome";
 
 /** Отображаемый текст бейджа; `null` — не показывать. */
 export function formatNavBadgeCount(n: number): string | null {
@@ -50,7 +51,7 @@ const SHEET_LINK_CLASS = cn(
 
 const CLUSTER_TRIGGER_CLASS = cn(
   buttonVariants({ variant: "ghost" }),
-  "flex h-auto w-full items-center justify-start gap-2 rounded-t-md bg-white px-3 py-2 text-left text-sm font-bold text-foreground hover:bg-zinc-100/90",
+  "flex h-auto w-full items-center justify-start gap-2 rounded-t-md bg-white px-3 py-2 text-left text-sm font-semibold text-foreground hover:bg-zinc-100/90",
 );
 
 /** Читает набор открытых кластеров: новый JSON-массив, иначе миграция со старого одного id. `null` — оставить начальный state. */
@@ -153,7 +154,7 @@ export function DoctorMenuAccordion({ variant, pathname, onNavigate }: DoctorMen
         className={cn(
           linkClass,
           isDoctorNavItemActive(item.href, pathname) &&
-            "bg-[#7ea1d1] font-medium text-foreground hover:bg-[#7ea1d1] focus-visible:bg-[#7ea1d1]",
+            "bg-[#7ea1d1] font-normal text-foreground hover:bg-[#7ea1d1] focus-visible:bg-[#7ea1d1]",
         )}
       >
         <span className="flex min-w-0 flex-1 items-center justify-between gap-2">
@@ -161,7 +162,7 @@ export function DoctorMenuAccordion({ variant, pathname, onNavigate }: DoctorMen
           {badgeText && item.badgeKey ? (
             <span
               className={cn(
-                "inline-flex min-h-[1.25rem] min-w-[1.25rem] shrink-0 items-center justify-center rounded-full bg-muted px-1.5 text-[10px] font-semibold tabular-nums leading-none text-muted-foreground",
+                "inline-flex min-h-[1.25rem] min-w-[1.25rem] shrink-0 items-center justify-center rounded-full bg-muted px-1.5 text-[10px] font-medium tabular-nums leading-none text-muted-foreground",
               )}
               aria-label={badgeSpanAriaLabel(item.badgeKey, badgeText)}
             >
@@ -207,6 +208,7 @@ export function DoctorMenuAccordion({ variant, pathname, onNavigate }: DoctorMen
                   "size-3.5 shrink-0 text-muted-foreground transition-transform duration-200",
                   open && "rotate-90",
                 )}
+                strokeWidth={NAV_STRIP_ICON_STROKE}
                 aria-hidden
               />
               <span className="min-w-0 flex-1 text-left">{cluster.label}</span>

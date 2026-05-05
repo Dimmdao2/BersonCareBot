@@ -203,7 +203,7 @@ describe("PatientTreatmentProgramDetailClient", () => {
       snapshot: {
         itemType: "recommendation",
         title: "Пить воду",
-        bodyMd: "",
+        bodyMd: "Пейте **не меньше** двух литров в день. Дополнительный длинный текст для проверки обрезки превью под заголовком рекомендации.",
         media: [
           { mediaUrl: "https://example.com/preview.jpg", mediaType: "image" as const, sortOrder: 0 },
         ],
@@ -246,6 +246,11 @@ describe("PatientTreatmentProgramDetailClient", () => {
     );
     fireEvent.click(screen.getByText("Рекомендации"));
     expect(screen.getByText("Пить воду")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /Пейте не меньше двух литров в день\. Дополнительный длинный текст для проверки обрезки превью под заголовком рекомендации\./,
+      ),
+    ).toBeInTheDocument();
     const row = screen.getByText("Пить воду").closest("li");
     expect(row).toBeTruthy();
     const img = (row as HTMLElement).querySelector("img");

@@ -28,6 +28,7 @@ import {
 import { cn } from "@/lib/utils";
 import { usePlatform } from "@/shared/hooks/usePlatform";
 import { useReminderUnreadCount } from "@/shared/hooks/useReminderUnread";
+import { NAV_STRIP_ICON_STROKE } from "@/shared/ui/navChrome";
 
 /** Единый стиль пунктов бокового меню (Sheet). */
 const SHEET_NAV_LINK_CLASS = cn(
@@ -105,7 +106,7 @@ export function PatientHeader({
             aria-label="Сообщения"
             className={HEADER_ICON_CLASS}
           >
-            <MessageCircle className="size-[22px]" aria-hidden />
+            <MessageCircle className="size-[22px]" strokeWidth={NAV_STRIP_ICON_STROKE} aria-hidden />
           </Link>
         );
       case "reminders":
@@ -117,7 +118,7 @@ export function PatientHeader({
             aria-label="Напоминания"
             className={cn(HEADER_ICON_CLASS, "relative")}
           >
-            <Bell className="size-[22px]" aria-hidden />
+            <Bell className="size-[22px]" strokeWidth={NAV_STRIP_ICON_STROKE} aria-hidden />
             {reminderUnread > 0 ? (
               <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-medium text-destructive-foreground">
                 {reminderUnread > 99 ? "99+" : reminderUnread}
@@ -138,7 +139,7 @@ export function PatientHeader({
             aria-expanded={menuOpen}
             onClick={() => setMenuOpen(true)}
           >
-            <Menu className="size-[22px]" aria-hidden />
+            <Menu className="size-[22px]" strokeWidth={NAV_STRIP_ICON_STROKE} aria-hidden />
           </Button>
         );
       case "profile":
@@ -150,7 +151,7 @@ export function PatientHeader({
             aria-label="Профиль"
             className={HEADER_ICON_CLASS}
           >
-            <User className="size-[22px]" aria-hidden />
+            <User className="size-[22px]" strokeWidth={NAV_STRIP_ICON_STROKE} aria-hidden />
           </Link>
         );
     }
@@ -167,7 +168,7 @@ export function PatientHeader({
           onClick={goBack}
           aria-label={backLabel}
         >
-          <ChevronLeft className="size-[22px]" aria-hidden />
+          <ChevronLeft className="size-[22px]" strokeWidth={NAV_STRIP_ICON_STROKE} aria-hidden />
         </Button>
       ) : (
         <span className="inline-flex w-10 shrink-0" aria-hidden />
@@ -181,7 +182,7 @@ export function PatientHeader({
           aria-label="Главное меню"
           className={HEADER_ICON_CLASS}
         >
-          <Home className="size-[22px]" aria-hidden />
+          <Home className="size-[22px]" strokeWidth={NAV_STRIP_ICON_STROKE} aria-hidden />
         </Link>
       )}
     </div>
@@ -202,7 +203,7 @@ export function PatientHeader({
     <div className="flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 text-center">
       {titleBadgeEl}
       <p
-        className="m-0 w-full truncate text-[13px] font-medium text-muted-foreground"
+        className="m-0 w-full truncate text-[13px] font-normal text-muted-foreground"
         title={pageTitle}
       >
         {pageTitle}
@@ -214,7 +215,7 @@ export function PatientHeader({
     <div className="flex min-w-0 max-w-[min(100vw-6rem,280px)] flex-col items-center gap-0.5 px-1">
       {titleBadgeEl}
       <p
-        className="m-0 w-full truncate text-center text-base font-semibold tracking-tight text-foreground"
+        className="m-0 w-full truncate text-center text-base font-medium tracking-tight text-foreground"
         title={pageTitle}
       >
         {pageTitle}

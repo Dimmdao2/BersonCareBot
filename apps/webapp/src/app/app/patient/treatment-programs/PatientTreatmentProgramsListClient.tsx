@@ -16,10 +16,10 @@ import { cn } from "@/lib/utils";
 import {
   patientCardCompactClass,
   patientCardListSectionClass,
+  patientHeroPrimaryActionClass,
   patientHeroTitleBaseClass,
   patientInlineLinkClass,
   patientMutedTextClass,
-  patientPrimaryActionClass,
   patientSurfaceInfoClass,
 } from "@/shared/ui/patientVisual";
 
@@ -76,8 +76,8 @@ export function PatientTreatmentProgramsListClient(props: {
               href={routePaths.patientTreatmentProgram(hero.instanceId)}
               prefetch={false}
               className={cn(
-                patientPrimaryActionClass,
-                "inline-flex min-h-9 items-center justify-center rounded-md px-4 py-2 text-sm font-medium no-underline",
+                patientHeroPrimaryActionClass,
+                "inline-flex min-h-9 items-center justify-center rounded-md px-4 py-2 text-sm no-underline",
               )}
             >
               Открыть программу

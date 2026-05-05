@@ -23,6 +23,7 @@ import {
 } from "@/app-layer/routes/navigation";
 import { cn } from "@/lib/utils";
 import { useReminderUnreadCount } from "@/shared/hooks/useReminderUnread";
+import { NAV_STRIP_ICON_STROKE } from "@/shared/ui/navChrome";
 
 const NAV_ICONS: Record<PatientPrimaryNavItemId, typeof LayoutGrid> = {
   today: Home,
@@ -67,11 +68,15 @@ export function PatientTopNav(_props: PatientTopNavProps) {
         className={cn(
           "flex min-h-16 min-w-0 flex-1 flex-col items-center justify-center gap-1 px-1 py-1 text-[11px] leading-4 transition-colors",
           isActive ?
-            "font-bold text-[var(--patient-color-primary)]"
-          : "font-medium text-[var(--patient-text-secondary)] hover:text-[var(--patient-text-primary)]",
+            "font-semibold text-[var(--patient-color-primary)]"
+          : "font-normal text-[var(--patient-text-secondary)] hover:text-[var(--patient-text-primary)]",
         )}
       >
-        <Icon className={cn("size-6 shrink-0", isActive && "size-[26px]")} aria-hidden />
+        <Icon
+          className={cn("size-6 shrink-0", isActive && "size-[26px]")}
+          strokeWidth={NAV_STRIP_ICON_STROKE}
+          aria-hidden
+        />
         <span className="truncate">{item.label}</span>
       </Link>
     );
@@ -87,13 +92,13 @@ export function PatientTopNav(_props: PatientTopNavProps) {
         prefetch={false}
         aria-current={isActive ? "page" : undefined}
         className={cn(
-          "inline-flex min-h-10 min-w-10 items-center gap-1.5 rounded-lg px-2.5 py-2 text-sm font-medium",
+          "inline-flex min-h-10 min-w-10 items-center gap-1.5 rounded-lg px-2.5 py-2 text-sm font-normal",
           "text-[var(--patient-text-muted)] transition-colors",
           isActive && "bg-[var(--patient-color-primary-soft)]/50 text-[var(--patient-color-primary)]",
           !isActive && "hover:bg-muted/60",
         )}
       >
-        <Icon className="size-[18px] shrink-0" aria-hidden />
+        <Icon className="size-[18px] shrink-0" strokeWidth={NAV_STRIP_ICON_STROKE} aria-hidden />
         <span>{item.label}</span>
       </Link>
     );
@@ -122,8 +127,12 @@ export function PatientTopNav(_props: PatientTopNavProps) {
             prefetch={false}
             className="flex shrink-0 items-center gap-2 text-[var(--patient-text-primary)]"
           >
-            <Stethoscope className="size-6 shrink-0 text-[var(--patient-color-primary)]" aria-hidden />
-            <span className="text-lg font-bold tracking-tight">BersonCare</span>
+            <Stethoscope
+              className="size-6 shrink-0 text-[var(--patient-color-primary)]"
+              strokeWidth={NAV_STRIP_ICON_STROKE}
+              aria-hidden
+            />
+            <span className="text-lg font-semibold tracking-tight">BersonCare</span>
           </Link>
         </div>
         <nav
@@ -139,7 +148,7 @@ export function PatientTopNav(_props: PatientTopNavProps) {
             aria-label="Напоминания"
             className={cn(TOP_ICON_BTN, "relative")}
           >
-            <Bell className="size-[22px]" aria-hidden />
+            <Bell className="size-[22px]" strokeWidth={NAV_STRIP_ICON_STROKE} aria-hidden />
             {reminderUnread > 0 ? (
               <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-medium text-destructive-foreground">
                 {reminderUnread > 99 ? "99+" : reminderUnread}
@@ -147,7 +156,7 @@ export function PatientTopNav(_props: PatientTopNavProps) {
             ) : null}
           </Link>
           <Link href={routePaths.patientMessages} prefetch={false} aria-label="Сообщения" className={TOP_ICON_BTN}>
-            <MessageCircle className="size-[22px]" aria-hidden />
+            <MessageCircle className="size-[22px]" strokeWidth={NAV_STRIP_ICON_STROKE} aria-hidden />
           </Link>
         </div>
       </div>
