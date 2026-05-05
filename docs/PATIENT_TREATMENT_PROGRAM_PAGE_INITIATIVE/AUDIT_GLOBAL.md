@@ -211,9 +211,10 @@ Scope выдержан строго. ✅
 
 Проверка после первоначального GLOBAL: прогон `vitest` по `src/app/app/patient/treatment-programs`, `pgTreatmentProgramInstance.startedAt.contract.test.ts`, `stage-semantics.test.ts` — **30 passed** (локально на дереве на момент проверки).
 
-**Дополнительно к таблице §6 (уже учтено в M2–M6):**
+**Дополнительно к таблице §6 (уже учтено в M2–M7, кроме чисто техпроверок ниже):**
 
 - **§1.1 empty state и `/messages`:** в коде используется `messagesHref={routePaths.patientMessages}` из `page.tsx` — каноничный путь приложения; расхождения с литералом `/messages` в тексте roadmap нет по смыслу.
 - **Отсутствие `%` в UI:** узкий grep по `*.tsx` в `treatment-programs` — без символа `%` в разметке (согласуется с §3.2 выше и D4).
+- **B3 после Stage C:** единый список назначений текущего этапа перенесён на `stages/[stageId]`; на detail остаётся превью + CTA (см. M4 / `STAGE_C.md` C4).
 
 Иных находок **critical/major** повторный аудит не выявил.
