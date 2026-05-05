@@ -20,7 +20,7 @@
 | `apps/webapp/src/app/app/patient/treatment-programs/page.tsx` | существующий — loader и RSC-шелл |
 | `apps/webapp/src/app/app/patient/treatment-programs/PatientTreatmentProgramsListClient.tsx` | существующий — клиентский компонент списка |
 | `apps/webapp/src/app/app/patient/treatment-programs/PatientTreatmentProgramsListClient.test.tsx` | существующий — **должен оставаться зелёным** |
-| `apps/webapp/src/app/app/patient/treatment-programs/page.nudgeResilience.test.tsx` | существующий — **должен оставаться зелёным** |
+| `apps/webapp/src/app/app/patient/treatment-programs/page.nudgeResilience.test.tsx` | регресс списка: empty state / `redirect` при активной программе — **должен оставаться зелёным** |
 | `apps/webapp/src/shared/ui/patientVisual.ts` | существующий — только reuse-токены, без новых одноразовых классов |
 
 ## Out of scope (запрещено)

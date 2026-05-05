@@ -77,6 +77,75 @@ function sortByOrderThenId<T extends { sortOrder: number; id: string }>(rows: T[
   return [...rows].sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id));
 }
 
+/** Завершение экземпляра программы (не путать с «Завершить этап» у отдельного этапа). */
+function ProgramInstanceCompleteControl(props: {
+  instanceId: string;
+  status: TreatmentProgramInstanceDetail["status"];
+  onPatched: () => Promise<void>;
+}) {
+  const { instanceId, status, onPatched } = props;
+  const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  if (status !== "active") return null;
+
+  const complete = async () => {
+    setSaving(true);
+    setMsg(null);
+    try {
+      const res = await fetch(`/api/doctor/treatment-program-instances/${encodeURIComponent(instanceId)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "completed" }),
+      });
+      const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
+      if (!res.ok || !data.ok) {
+        setMsg(data.error ?? "Ошибка");
+        return;
+      }
+      setOpen(false);
+      await onPatched();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <>
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <Button type="button" size="sm" variant="destructive" disabled={saving} onClick={() => setOpen(true)}>
+          Завершить программу лечения
+        </Button>
+        {msg ? (
+          <span className="text-xs text-destructive" role="alert">
+            {msg}
+          </span>
+        ) : null}
+      </div>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Завершить программу лечения?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            У пациента программа будет отмечена как завершённая. После этого при необходимости можно назначить новую
+            активную программу.
+          </p>
+          <DialogFooter>
+            <Button type="button" variant="outline" disabled={saving} onClick={() => setOpen(false)}>
+              Отмена
+            </Button>
+            <Button type="button" variant="destructive" disabled={saving} onClick={() => void complete()}>
+              {saving ? "Сохранение…" : "Завершить программу"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
 function InstanceStageMetadataForm(props: {
   instanceId: string;
   stage: TreatmentProgramInstanceDetail["stages"][number];
@@ -342,6 +411,7 @@ export function TreatmentProgramInstanceDetailClient(props: {
         <p className="mt-1 text-xs text-muted-foreground">
           Статус программы: {detail.status === "completed" ? "завершена" : "активна"}
         </p>
+        <ProgramInstanceCompleteControl instanceId={detail.id} status={detail.status} onPatched={refresh} />
       </div>
 
       {testResults.length > 0 ? (
@@ -1008,6 +1078,17 @@ function StageDoctorControls(props: {
         {status === "locked" ? (
           <Button type="button" size="sm" variant="secondary" disabled={saving} onClick={() => patch({ status: "available" })}>
             Открыть этап
+          </Button>
+        ) : null}
+        {status === "available" ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            disabled={saving}
+            onClick={() => void patch({ status: "in_progress" })}
+          >
+            Старт этапа
           </Button>
         ) : null}
         <Button

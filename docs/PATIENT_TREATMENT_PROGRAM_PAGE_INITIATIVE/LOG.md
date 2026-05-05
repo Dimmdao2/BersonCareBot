@@ -1,5 +1,11 @@
 # LOG — PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE
 
+## 2026-05-05 — follow-up: токены плана «Мой план», RSC-тест, док-синхронизация
+
+- **UI (detail):** строки timeline — прошлые этапы `bg-muted/20 opacity-70`, заблокированные будущие `opacity-50` (как в плане); описание шаблона под заголовком — `line-clamp-3`; на `<section>` timeline добавлен `id="patient-program-current-stage"` для якоря из roadmap.
+- **Тесты:** добавлен `[instanceId]/page.templateDescription.test.tsx` — загрузка описания через `getTemplate` при `templateId`, `patientSuppressShellTitle`, отсутствие 404 при падении `getTemplate`. Обновлён `page.nudgeResilience.test.tsx` у **списка** программ: мок `redirect`, сценарий empty state без активной программы и сценарий редиректа при активной (страница списка больше не вызывает nudge).
+- **Док:** `BLOCK_LAYOUT_REFERENCE.md` §3–§7 приведены к текущему коду; `STAGE_C.md` — примечание про объединение C4/C6 в timeline; `README.md` — статус и описание `BLOCK_LAYOUT_REFERENCE`.
+
 ## 2026-05-05
 
 - Создана папка инициативы `docs/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/` с `README.md` (main plan: таблица этапов A–D и модели агентов), `STAGE_PLAN.md`, `LOG.md`.

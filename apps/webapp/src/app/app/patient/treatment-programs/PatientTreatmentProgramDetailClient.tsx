@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -14,15 +13,24 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   Shield,
   ChevronDown,
   CheckCircle2,
-  ChevronRight,
   CalendarCheck,
   ClipboardList,
   PlayCircle,
+  Play,
+  List,
+  Lock,
+  CornerDownRight,
 } from "lucide-react";
 import type {
   NormalizedTestDecision,
@@ -51,8 +59,11 @@ import { routePaths } from "@/app-layer/routes/paths";
 import {
   patientHomeCardHeroClass,
   patientHomeHeroBadgeClass,
-  patientHomeHeroDurationBadgeClass,
   patientHomeHeroTitleClampClass,
+  patientBadgeDurationClass,
+  patientBadgeSuccessClass,
+  patientBadgeDangerClass,
+  patientBadgePrimaryClass,
 } from "@/app/app/patient/home/patientHomeCardStyles";
 import { cn } from "@/lib/utils";
 import {
@@ -67,7 +78,6 @@ import {
   patientFormSurfaceClass,
   patientSurfaceSuccessClass,
   patientSurfaceWarningClass,
-  patientStageTitleClass,
   patientSecondaryActionClass,
   patientButtonSuccessClass,
   patientButtonWarningOutlineClass,
@@ -96,6 +106,208 @@ function snapshotTitle(snapshot: Record<string, unknown>, itemType: string): str
   return itemType;
 }
 
+type InstanceStageRow = TreatmentProgramInstanceDetail["stages"][number];
+
+/** Бейдж в hero: назначена / старт / завершена (даты в часовом поясе приложения). */
+function programInstanceHeroStatusBadge(
+  detail: TreatmentProgramInstanceDetail,
+  pipeline: InstanceStageRow[],
+  appTz: string,
+): { label: string; className: string } | null {
+  if (detail.status === "completed") {
+    return {
+      label: `Завершена ${formatBookingDateLongRu(detail.updatedAt, appTz)}`,
+      className: patientBadgeSuccessClass,
+    };
+  }
+  const pipelineNonZero = pipeline.filter((s) => s.sortOrder > 0);
+  const anyStarted = pipelineNonZero.some((s) => s.startedAt != null);
+  if (!anyStarted) {
+    return {
+      label: `Назначена ${formatBookingDateLongRu(detail.createdAt, appTz)}`,
+      className: patientBadgeDurationClass,
+    };
+  }
+  const startedIsos = detail.stages
+    .filter((s) => s.sortOrder > 0 && s.startedAt != null)
+    .map((s) => s.startedAt as string);
+  if (startedIsos.length === 0) {
+    return {
+      label: `Назначена ${formatBookingDateLongRu(detail.createdAt, appTz)}`,
+      className: patientBadgeDurationClass,
+    };
+  }
+  const minIso = startedIsos.reduce((a, b) => (a < b ? a : b));
+  return {
+    label: `Старт с ${formatBookingDateLongRu(minIso, appTz)}`,
+    className: patientBadgeDurationClass,
+  };
+}
+
+function PatientProgramStagesTimeline(props: {
+  instanceId: string;
+  stages: InstanceStageRow[];
+  currentWorkingStage: InstanceStageRow | null;
+  stageCountNonZero: number;
+}) {
+  const { instanceId, stages, currentWorkingStage, stageCountNonZero } = props;
+  const [itemsModalStage, setItemsModalStage] = useState<InstanceStageRow | null>(null);
+
+  return (
+    <>
+      <section
+        id="patient-program-current-stage"
+        className={patientCardClass}
+        aria-labelledby="patient-program-stages-heading"
+      >
+        <h3 id="patient-program-stages-heading" className={cn(patientSectionTitleClass, "mb-3")}>
+          Активный этап
+        </h3>
+        <ul className="m-0 flex list-none flex-col gap-2 p-0">
+          {stages.map((stage) => {
+            const isActive = currentWorkingStage?.id === stage.id;
+            const isPast = stage.status === "completed" || stage.status === "skipped";
+            const isFuture = !isActive && !isPast && stage.status === "locked";
+            const isStale =
+              !isActive && !isPast && (stage.status === "available" || stage.status === "in_progress");
+
+            let rowClass = patientListItemClass;
+            let leftIcon: ReactNode;
+            if (isActive) {
+              rowClass = cn(
+                patientListItemClass,
+                "border-l-4 border-l-[var(--patient-color-primary)] bg-[var(--patient-color-primary-soft)]/15",
+              );
+              leftIcon = (
+                <Play
+                  className="mt-0.5 size-4 shrink-0 fill-none text-[var(--patient-color-primary)]"
+                  strokeWidth={2.5}
+                  aria-hidden
+                />
+              );
+            } else if (isPast) {
+              rowClass = cn(patientListItemClass, "bg-muted/20 opacity-70");
+              leftIcon =
+                stage.status === "skipped" ? (
+                  <CornerDownRight className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
+                ) : (
+                  <CheckCircle2
+                    className="mt-0.5 size-4 shrink-0 text-[var(--patient-color-success)]"
+                    aria-hidden
+                  />
+                );
+            } else {
+              rowClass = cn(patientListItemClass, "opacity-50");
+              leftIcon = <Lock className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />;
+            }
+
+            const titleClass = isActive
+              ? "text-sm font-bold text-[var(--patient-color-primary)]"
+              : isPast
+                ? "text-sm font-medium text-foreground"
+                : "text-sm font-medium text-muted-foreground";
+
+            const titleBlock = (
+              <div className="flex min-w-0 flex-1 flex-col gap-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className={titleClass}>{stage.title}</span>
+                  {isActive ? (
+                    <span className={cn(patientBadgePrimaryClass, "h-6 max-w-full truncate px-2 text-[10px]")}>
+                      {stage.sortOrder} из {stageCountNonZero}
+                    </span>
+                  ) : null}
+                </div>
+              </div>
+            );
+
+            const rowInner = (
+              <div
+                className={cn(
+                  "flex items-start gap-3",
+                  (isFuture || isStale) && "pointer-events-none cursor-default",
+                )}
+              >
+                {leftIcon}
+                {isActive || isPast ? (
+                  <Link
+                    href={routePaths.patientTreatmentProgramStage(instanceId, stage.id)}
+                    className="flex min-w-0 flex-1 flex-col gap-1 no-underline outline-none transition-colors hover:opacity-90 focus-visible:ring-2 focus-visible:ring-[var(--patient-color-primary)] focus-visible:ring-offset-2"
+                  >
+                    {titleBlock}
+                  </Link>
+                ) : (
+                  <div className="min-w-0 flex-1">{titleBlock}</div>
+                )}
+                {isActive ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="size-9 shrink-0 text-[var(--patient-color-primary)]"
+                    aria-label="Состав этапа"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setItemsModalStage(stage);
+                    }}
+                  >
+                    <List className="size-5" aria-hidden />
+                  </Button>
+                ) : null}
+              </div>
+            );
+
+            return (
+              <li key={stage.id}>
+                <div
+                  className={cn(
+                    rowClass,
+                    (isActive || isPast) &&
+                      "transition-colors hover:bg-[var(--patient-color-primary-soft)]/20",
+                  )}
+                >
+                  {rowInner}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      </section>
+
+      <Dialog open={itemsModalStage !== null} onOpenChange={(open) => !open && setItemsModalStage(null)}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Состав этапа</DialogTitle>
+          </DialogHeader>
+          {itemsModalStage ? (
+            <>
+              <p className={cn(patientMutedTextClass, "text-sm")}>{itemsModalStage.title}</p>
+              <ul className="m-0 mt-2 max-h-[50vh] list-none space-y-2 overflow-y-auto p-0">
+                {(() => {
+                  const vis = sortByOrderThenId(
+                    itemsModalStage.items.filter((it) => isInstanceStageItemActiveForPatient(it)),
+                  );
+                  if (vis.length === 0) {
+                    return (
+                      <li className={cn(patientMutedTextClass, "text-sm")}>Нет элементов для отображения.</li>
+                    );
+                  }
+                  return vis.map((it) => (
+                    <li key={it.id} className={cn(patientListItemClass, "text-sm")}>
+                      <span className="font-medium text-foreground">{snapshotTitle(it.snapshot, it.itemType)}</span>
+                      <span className={cn(patientMutedTextClass, "ml-1 text-xs")}>({it.itemType})</span>
+                    </li>
+                  ));
+                })()}
+              </ul>
+            </>
+          ) : null}
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
 function patientStageHasHeaderFields(stage: {
   goals: string | null;
   objectives: string | null;
@@ -106,7 +318,7 @@ function patientStageHasHeaderFields(stage: {
     stage.goals?.trim() ||
       stage.objectives?.trim() ||
       stage.expectedDurationDays != null ||
-      stage.expectedDurationText?.trim(),
+      Boolean(stage.expectedDurationText?.trim()),
   );
 }
 
@@ -600,8 +812,9 @@ export function PatientTreatmentProgramDetailClient(props: {
   initialTestResults: TreatmentProgramTestResultDetailRow[];
   appDisplayTimeZone: string;
   planUpdatedLabel: string | null;
+  programDescription?: string | null;
 }) {
-  const { appDisplayTimeZone, planUpdatedLabel } = props;
+  const { appDisplayTimeZone, planUpdatedLabel, programDescription = null } = props;
   const [detail, setDetail] = useState(props.initial);
   const [testResults, setTestResults] = useState(props.initialTestResults);
   const [error, setError] = useState<string | null>(null);
@@ -655,24 +868,37 @@ export function PatientTreatmentProgramDetailClient(props: {
     }).catch(() => {});
   }, [detail.id, detail.status]);
 
-  const { stageZeroStages, archiveStages, currentWorkingStage, pipelineLength } = useMemo(() => {
-    const { stageZero, archive, pipeline } = splitPatientProgramStagesForDetailUi(detail.stages);
+  const { stageZeroStages, currentWorkingStage, pipelineStages } = useMemo(() => {
+    const { stageZero, pipeline } = splitPatientProgramStagesForDetailUi(detail.stages);
     const cur = selectCurrentWorkingStageForPatientDetail(pipeline);
     return {
       stageZeroStages: stageZero.filter((s) => patientStageSectionShouldRender(s, true)),
-      archiveStages: archive.filter((s) => patientStageSectionShouldRender(s, false)),
       currentWorkingStage: cur,
-      pipelineLength: pipeline.length,
+      pipelineStages: pipeline,
     };
   }, [detail.stages]);
+
+  const stagesTimeline = useMemo(() => {
+    const { archive, pipeline } = splitPatientProgramStagesForDetailUi(detail.stages);
+    const merged = [...archive, ...pipeline].filter((s) => s.sortOrder > 0);
+    return sortByOrderThenId(merged);
+  }, [detail.stages]);
+
+  const stageCountNonZero = stagesTimeline.length;
+
+  const heroStatusBadge = useMemo(
+    () => programInstanceHeroStatusBadge(detail, pipelineStages, appDisplayTimeZone),
+    [detail, pipelineStages, appDisplayTimeZone],
+  );
+
+  const awaitsStart =
+    detail.status === "active" &&
+    currentWorkingStage != null &&
+    currentWorkingStage.status === "available";
 
   const controlIso = currentWorkingStage ? expectedStageControlDateIso(currentWorkingStage) : null;
   const controlLabel =
     controlIso && appDisplayTimeZone ? formatBookingDateLongRu(controlIso, appDisplayTimeZone) : null;
-
-  const stageSubtitle = currentWorkingStage
-    ? (currentWorkingStage.goals?.trim() || currentWorkingStage.objectives?.trim() || "").slice(0, 80) || null
-    : null;
 
   return (
     <div className="flex flex-col gap-6">
@@ -686,22 +912,35 @@ export function PatientTreatmentProgramDetailClient(props: {
       <div className={cn(patientHomeCardHeroClass, "relative isolate overflow-hidden p-4 lg:p-5")}>
         <div className="relative z-20 flex min-h-6 shrink-0 flex-wrap items-start gap-1.5">
           <span className={patientHomeHeroBadgeClass}>Мой план</span>
-          {currentWorkingStage && pipelineLength > 0 ? (
-            <span className={patientHomeHeroDurationBadgeClass}>
-              Этап {currentWorkingStage.sortOrder} из {pipelineLength}
+          {heroStatusBadge ? (
+            <span
+              className={cn(heroStatusBadge.className, "max-w-[min(100%,16rem)] truncate")}
+              title={heroStatusBadge.label}
+            >
+              {heroStatusBadge.label}
             </span>
           ) : null}
         </div>
         <h2 className={patientHomeHeroTitleClampClass}>{detail.title}</h2>
+        {programDescription?.trim() ? (
+          <p className={cn(patientMutedTextClass, "mt-2 line-clamp-3 text-sm leading-snug")}>
+            {programDescription.trim()}
+          </p>
+        ) : null}
         {planUpdatedLabel?.trim() ? (
           <p className="mt-2 flex items-center gap-1.5 text-sm font-medium" role="status">
             <span className="text-destructive" aria-hidden="true">●</span>
             {planUpdatedLabel.trim()}
           </p>
         ) : null}
+        {awaitsStart ? (
+          <p className="mt-2" role="status">
+            <span className={patientBadgeDangerClass}>Ожидает старта</span>
+          </p>
+        ) : null}
         {currentWorkingStage ? (
-          <a
-            href="#patient-program-current-stage"
+          <Link
+            href={routePaths.patientTreatmentProgramStage(detail.id, currentWorkingStage.id)}
             className={cn(
               patientPrimaryActionClass,
               "mt-3 flex min-h-11 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-bold shadow-[0_6px_14px_rgba(40,77,160,0.24)] lg:min-h-12 lg:text-base",
@@ -709,7 +948,7 @@ export function PatientTreatmentProgramDetailClient(props: {
           >
             <PlayCircle className="size-5 shrink-0 lg:size-6" aria-hidden />
             Начать занятие
-          </a>
+          </Link>
         ) : detail.status !== "active" ? (
           <p className={cn(patientMutedTextClass, "mt-2 text-sm")}>Программа завершена.</p>
         ) : (
@@ -771,24 +1010,13 @@ export function PatientTreatmentProgramDetailClient(props: {
         </Collapsible>
       ))}
 
-      {/* C4: Current stage preview card */}
-      {currentWorkingStage ? (
-        <div id="patient-program-current-stage" className={patientCardClass}>
-          <div className="flex items-start justify-between gap-2">
-            <p className={cn(patientMutedTextClass, "text-xs uppercase tracking-wide")}>Текущий этап</p>
-            <Badge className={patientPillClass}>Этап {currentWorkingStage.sortOrder}</Badge>
-          </div>
-          <h3 className={cn(patientStageTitleClass, "mt-2")}>{currentWorkingStage.title}</h3>
-          {stageSubtitle ? (
-            <p className={cn(patientMutedTextClass, "mt-1 line-clamp-3 text-sm")}>{stageSubtitle}</p>
-          ) : null}
-          <Link
-            href={routePaths.patientTreatmentProgramStage(detail.id, currentWorkingStage.id)}
-            className={cn(patientPrimaryActionClass, "mt-3")}
-          >
-            Открыть этап
-          </Link>
-        </div>
+      {stagesTimeline.length > 0 ? (
+        <PatientProgramStagesTimeline
+          instanceId={detail.id}
+          stages={stagesTimeline}
+          currentWorkingStage={currentWorkingStage}
+          stageCountNonZero={stageCountNonZero}
+        />
       ) : null}
 
       {/* C5: Test history entry point */}
@@ -810,38 +1038,6 @@ export function PatientTreatmentProgramDetailClient(props: {
           >
             Открыть текущий этап
           </Link>
-        </section>
-      ) : null}
-
-      {/* C6: Compact archive list */}
-      {archiveStages.length > 0 ? (
-        <section className={patientCardClass} aria-label="Предыдущие этапы">
-          <h3 className={cn(patientSectionTitleClass, "mb-2")}>Предыдущие этапы</h3>
-          <ul className="m-0 list-none space-y-2 p-0">
-            {archiveStages.map((stage) => (
-              <li key={stage.id}>
-                <Link
-                  href={routePaths.patientTreatmentProgramStage(detail.id, stage.id)}
-                  className={cn(
-                    patientListItemClass,
-                    "flex items-center gap-3 transition-colors hover:bg-[var(--patient-color-primary-soft)]/30",
-                  )}
-                >
-                  <CheckCircle2
-                    className="size-4 shrink-0 text-[var(--patient-color-success)]"
-                    aria-hidden="true"
-                  />
-                  <span className="min-w-0 flex-1 text-sm font-medium">
-                    Этап {stage.sortOrder}. {stage.title}
-                  </span>
-                  <ChevronRight
-                    className="size-4 shrink-0 text-[var(--patient-text-muted)]"
-                    aria-hidden="true"
-                  />
-                </Link>
-              </li>
-            ))}
-          </ul>
         </section>
       ) : null}
 

@@ -67,6 +67,17 @@ export default async function PatientTreatmentProgramDetailPage({ params }: Prop
 
   const initialTestResults = await deps.treatmentProgramProgress.listTestResultsForInstance(instanceId);
 
+  let programDescription: string | null = null;
+  if (detail.templateId) {
+    try {
+      const tpl = await deps.treatmentProgram.getTemplate(detail.templateId);
+      const d = tpl.description?.trim();
+      programDescription = d || null;
+    } catch {
+      programDescription = null;
+    }
+  }
+
   return (
     <AppShell
       title={detail.title}
@@ -74,12 +85,14 @@ export default async function PatientTreatmentProgramDetailPage({ params }: Prop
       backHref={routePaths.patientTreatmentPrograms}
       backLabel="Программы"
       variant="patient"
+      patientSuppressShellTitle
     >
       <PatientTreatmentProgramDetailClient
         initial={detail}
         initialTestResults={initialTestResults}
         appDisplayTimeZone={appTz}
         planUpdatedLabel={planUpdatedLabel}
+        programDescription={programDescription}
       />
     </AppShell>
   );

@@ -22,6 +22,7 @@
 | `apps/webapp/src/app/app/patient/treatment-programs/[instanceId]/page.tsx` | существующий — minor loader updates |
 | `apps/webapp/src/app/app/patient/treatment-programs/PatientTreatmentProgramDetailClient.test.tsx` | существующий — **должен оставаться зелёным** (при необходимости обновить под новую структуру, не удалять) |
 | `apps/webapp/src/app/app/patient/treatment-programs/[instanceId]/page.nudgeResilience.test.tsx` | существующий — **должен оставаться зелёным** |
+| `apps/webapp/src/app/app/patient/treatment-programs/[instanceId]/page.templateDescription.test.tsx` | RSC loader + шаблон — **должен оставаться зелёным** |
 | `apps/webapp/src/app/app/patient/treatment-programs/[instanceId]/stages/[stageId]/page.tsx` | **новый** RSC — создать |
 | `apps/webapp/src/app-layer/routes/paths.ts` | существующий — добавить `patientTreatmentProgramStage` |
 | `apps/webapp/src/shared/ui/patientVisual.ts` | существующий — добавить `patientStageTitleClass`; при необходимости `patientSurfaceProgramClass` |
@@ -51,6 +52,10 @@
 | C9 | Убедиться, что `PatientTreatmentProgramDetailClient.test.tsx` и `nudgeResilience` тест зелёные (обновить под новую структуру при необходимости) | Все существующие тесты зелёные |
 | C10 | Прогнать целевые проверки | Зелёные lint / typecheck / tests |
 | C11 | Обновить `LOG.md` | Зафиксированы решения по UX «История тестирования», путь статического ассета |
+
+## Соответствие текущей вёрстке (timeline «Активный этап»)
+
+Отдельные подпункты **C4** (превью текущего этапа на detail) и **C6** (компактный список предыдущих этапов) могут быть **объединены** в одну секцию timeline с заголовком «Активный этап», если сохраняются инварианты: полное тело этапа только на `stages/[stageId]`; переходы на этап через `Link`; этап с `sort_order = 0` остаётся в **C3**. Актуальная блок-схема: [`BLOCK_LAYOUT_REFERENCE.md`](BLOCK_LAYOUT_REFERENCE.md) §3.
 
 ## Проверки
 

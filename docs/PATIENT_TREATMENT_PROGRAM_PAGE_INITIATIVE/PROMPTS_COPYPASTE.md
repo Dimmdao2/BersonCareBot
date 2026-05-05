@@ -125,7 +125,7 @@ Pre-flight таблица в STAGE_A.md. Смотри раздел «Pre-flight:
 4) Нет "чек-листа на сегодня" и процентной аналитики.
 5) Дата контроля считается от started_at + expected_duration_days.
 6) PatientTreatmentProgramDetailClient.test.tsx зелёный.
-7) [instanceId]/page.nudgeResilience.test.tsx зелёный.
+7) [instanceId]/page.nudgeResilience.test.tsx и page.templateDescription.test.tsx зелёные.
 
 Сохрани: docs/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/AUDIT_STAGE_B.md
 Добавь MANDATORY FIX INSTRUCTIONS.
@@ -184,7 +184,7 @@ Pre-flight таблица в STAGE_A.md. Смотри раздел «Pre-flight:
 4) Новый маршрут stages/[stageId] создан и рендерит PatientInstanceStageBody; back-link рабочий.
 5) patientTreatmentProgramStage(instanceId, stageId) добавлен в paths.ts; все новые ссылки используют его.
 6) PatientTreatmentProgramDetailClient.test.tsx зелёный (обновлён под новую структуру если нужно).
-7) [instanceId]/page.nudgeResilience.test.tsx зелёный.
+7) [instanceId]/page.nudgeResilience.test.tsx и page.templateDescription.test.tsx зелёные.
 8) Нет DB/port изменений.
 
 Сохрани: docs/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/AUDIT_STAGE_C.md
@@ -239,12 +239,12 @@ Pre-flight таблица в STAGE_A.md. Смотри раздел «Pre-flight:
 
 Проверь:
 1) Список соответствует STAGE_D.md и ROADMAP_2 §1.1.
-2) Hero активной программы корректен: current_stage_title, planUpdatedLabel, CTA.
+2) Список: при активной программе — серверный `redirect` на detail; иначе empty state + архив завершённых; hero в клиенте передаётся как `null` в этой ветке.
 3) Архив завершённых программ под <details> и свёрнут по умолчанию.
 4) Empty state корректен, ссылка на /messages есть, нет несогласованных CTA.
 5) Нет процентной аналитики.
 6) PatientTreatmentProgramsListClient.test.tsx зелёный.
-7) page.nudgeResilience.test.tsx зелёный.
+7) page.nudgeResilience.test.tsx зелёный (список: без активной программы — empty state; с активной — redirect).
 
 Сохрани: docs/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/AUDIT_STAGE_D.md
 Добавь MANDATORY FIX INSTRUCTIONS.

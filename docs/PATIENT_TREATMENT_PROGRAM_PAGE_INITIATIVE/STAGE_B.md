@@ -20,7 +20,8 @@
 | `apps/webapp/src/app/app/patient/treatment-programs/[instanceId]/page.tsx` | RSC, основной loader |
 | `apps/webapp/src/app/app/patient/treatment-programs/PatientTreatmentProgramDetailClient.tsx` | client-компонент, основной UI |
 | `apps/webapp/src/app/app/patient/treatment-programs/PatientTreatmentProgramDetailClient.test.tsx` | тесты — **должны оставаться зелёными** |
-| `apps/webapp/src/app/app/patient/treatment-programs/[instanceId]/page.nudgeResilience.test.tsx` | тест SSR resilience — **должен оставаться зелёным** |
+| `apps/webapp/src/app/app/patient/treatment-programs/[instanceId]/page.nudgeResilience.test.tsx` | тест SSR resilience (nudge на detail) — **должен оставаться зелёным** |
+| `apps/webapp/src/app/app/patient/treatment-programs/[instanceId]/page.templateDescription.test.tsx` | RSC: `getTemplate` + описание — **должен оставаться зелёным** |
 | `apps/webapp/src/modules/treatment-program/stage-semantics.ts` | точечные правки только при необходимости отбора текущего/архивного этапов |
 
 ## Out of scope (запрещено)

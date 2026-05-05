@@ -212,4 +212,86 @@ describe("PatientTreatmentProgramDetailClient", () => {
     );
     expect(screen.getByText("План обновлён 1 янв.")).toBeInTheDocument();
   });
+
+  it("renders template programDescription under title when provided", () => {
+    render(
+      <PatientTreatmentProgramDetailClient
+        initial={makeInstance()}
+        initialTestResults={[]}
+        {...detailShellProps}
+        programDescription="Описание из шаблона для пациента."
+      />,
+    );
+    expect(screen.getByText("Описание из шаблона для пациента.")).toBeInTheDocument();
+  });
+
+  it("renders Активный этап timeline for non-zero stages", () => {
+    render(
+      <PatientTreatmentProgramDetailClient
+        initial={makeInstance({
+          stages: [
+            {
+              id: "22222222-2222-4222-8222-222222222222",
+              instanceId: "11111111-1111-4111-8111-111111111111",
+              sourceStageId: null,
+              title: "Рекомендации",
+              description: null,
+              sortOrder: 0,
+              localComment: null,
+              skipReason: null,
+              status: "available",
+              startedAt: null,
+              goals: null,
+              objectives: null,
+              expectedDurationDays: null,
+              expectedDurationText: null,
+              groups: [],
+              items: [],
+            },
+            {
+              id: "33333333-3333-4333-8333-333333333333",
+              instanceId: "11111111-1111-4111-8111-111111111111",
+              sourceStageId: null,
+              title: "Острая фаза",
+              description: null,
+              sortOrder: 1,
+              localComment: null,
+              skipReason: null,
+              status: "in_progress",
+              startedAt: now,
+              goals: null,
+              objectives: null,
+              expectedDurationDays: 14,
+              expectedDurationText: null,
+              groups: [],
+              items: [],
+            },
+            {
+              id: "44444444-4444-4444-8444-444444444444",
+              instanceId: "11111111-1111-4111-8111-111111111111",
+              sourceStageId: null,
+              title: "Восстановление",
+              description: null,
+              sortOrder: 2,
+              localComment: null,
+              skipReason: null,
+              status: "locked",
+              startedAt: null,
+              goals: null,
+              objectives: null,
+              expectedDurationDays: null,
+              expectedDurationText: null,
+              groups: [],
+              items: [],
+            },
+          ],
+        })}
+        initialTestResults={[]}
+        {...detailShellProps}
+      />,
+    );
+    expect(screen.getByRole("heading", { name: "Активный этап" })).toBeInTheDocument();
+    expect(screen.getByText("Острая фаза")).toBeInTheDocument();
+    expect(screen.getByText("Восстановление")).toBeInTheDocument();
+  });
 });
