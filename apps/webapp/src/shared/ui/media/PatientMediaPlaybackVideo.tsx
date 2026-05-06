@@ -374,13 +374,17 @@ export function PatientMediaPlaybackVideo({
 
   useEffect(() => {
     if (initialPlayback) {
-      setPayload(initialPlayback);
-      setPhase("ready");
-      return;
+      // Defer setState out of the effect body (react-hooks/set-state-in-effect).
+      // Lazy `useState` init already matches on first paint when SSR passes JSON.
+      const t = window.setTimeout(() => {
+        setPayload(initialPlayback);
+        setPhase("ready");
+      }, 0);
+      return () => window.clearTimeout(t);
     }
     let cancelled = false;
-    setPhase("loading");
     void (async () => {
+      setPhase("loading");
       const p = await fetchPlaybackJson();
       if (cancelled) return;
       if (p) {
