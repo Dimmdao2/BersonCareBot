@@ -65,9 +65,11 @@ require_sudo_rule "systemd daemon-reload (bootstrap)" /bin/systemctl daemon-relo
 bash deploy/host/bootstrap-systemd-prod.sh
 
 require_file "${ENV_FILE}" "Production environment file"
+require_file "${WEBAPP_ENV_FILE}" "Production webapp environment file"
 require_file "${BACKUP_SCRIPT}" "Backup script"
 require_unit_file "${API_SERVICE}"
 require_unit_file "${WORKER_SERVICE}"
+require_unit_file "${WEBAPP_SERVICE}"
 
 require_sudo_rule "backup script" "${BACKUP_SCRIPT}" pre-migrations
 require_sudo_rule "API restart" /bin/systemctl restart "${API_SERVICE}"
@@ -98,6 +100,7 @@ sample_chunk="$(find "${WEBAPP_STANDALONE_CHUNKS}" -maxdepth 1 -type f -name "*.
 
 set -a
 source "${ENV_FILE}"
+source "${WEBAPP_ENV_FILE}"
 set +a
 
 # Конвенция: прод API слушает 3200 (dev 4200). Иначе health check и nginx не совпадут с процессом.
@@ -109,39 +112,29 @@ fi
 # Script must support first arg "pre-migrations" and write to /opt/backups/postgres/pre-migrations/
 sudo -n "${BACKUP_SCRIPT}" pre-migrations
 
-pnpm --dir apps/integrator run db:migrate:prod
-
-# Webapp migrations (use webapp DB from WEBAPP_ENV_FILE)
-if [ -e "/etc/systemd/system/${WEBAPP_SERVICE}" ] && [ -f "${WEBAPP_ENV_FILE}" ]; then
-  set -a
-  source "${WEBAPP_ENV_FILE}"
-  set +a
-  pnpm --dir apps/webapp run migrate
-fi
+pnpm migrate
 
 sudo -n /bin/systemctl restart "${API_SERVICE}"
 sudo -n /bin/systemctl restart "${WORKER_SERVICE}"
 
-if [ -e "/etc/systemd/system/${WEBAPP_SERVICE}" ] && [ -f "${WEBAPP_ENV_FILE}" ]; then
-  sudo -n /bin/systemctl restart "${WEBAPP_SERVICE}"
-  # Next may not listen on 6200 immediately; curl exits 7 on connection refused — retry like /health below.
-  chunk_url="http://127.0.0.1:6200/_next/static/chunks/${sample_chunk}"
-  chunk_http_code=""
-  chunk_ok=0
-  for i in 1 2 3 4 5 6 7 8 9 10; do
-    chunk_http_code="$(curl -s -o /dev/null -w "%{http_code}" "${chunk_url}" 2>/dev/null)" || true
-    if [ "${chunk_http_code}" = "200" ]; then
-      chunk_ok=1
-      break
-    fi
-    if [ "$i" -eq 10 ]; then
-      break
-    fi
-    sleep 2
-  done
-  if [ "${chunk_ok}" != "1" ]; then
-    fail "Chunk is not served after webapp restart: /_next/static/chunks/${sample_chunk} (last HTTP ${chunk_http_code:-<none>})"
+sudo -n /bin/systemctl restart "${WEBAPP_SERVICE}"
+# Next may not listen on 6200 immediately; curl exits 7 on connection refused — retry like /health below.
+chunk_url="http://127.0.0.1:6200/_next/static/chunks/${sample_chunk}"
+chunk_http_code=""
+chunk_ok=0
+for i in 1 2 3 4 5 6 7 8 9 10; do
+  chunk_http_code="$(curl -s -o /dev/null -w "%{http_code}" "${chunk_url}" 2>/dev/null)" || true
+  if [ "${chunk_http_code}" = "200" ]; then
+    chunk_ok=1
+    break
   fi
+  if [ "$i" -eq 10 ]; then
+    break
+  fi
+  sleep 2
+done
+if [ "${chunk_ok}" != "1" ]; then
+  fail "Chunk is not served after webapp restart: /_next/static/chunks/${sample_chunk} (last HTTP ${chunk_http_code:-<none>})"
 fi
 
 if [ -e "/etc/systemd/system/${MEDIA_WORKER_SERVICE}" ] && [ -f "${WEBAPP_ENV_FILE}" ]; then
