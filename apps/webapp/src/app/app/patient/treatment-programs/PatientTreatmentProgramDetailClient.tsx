@@ -338,11 +338,7 @@ function PatientCompositionItemProgressAside(props: {
     doneTodayCountByItemId,
   } = props;
   const completedAtForMerge = activityKey === parentItem.id ? parentItem.completedAt : null;
-  const isoFromLog =
-    lastDoneAtIsoByActivityKey[activityKey] ??
-    (activityKey.startsWith(`${parentItem.id}:ex:`)
-      ? lastDoneAtIsoByActivityKey[parentItem.id]
-      : undefined);
+  const isoFromLog = lastDoneAtIsoByActivityKey[activityKey];
   const lastIso = mergeLastActivityDisplayedIso(isoFromLog, completedAtForMerge);
   const todayCount = compositionModalTodayDoneCount({
     parentItem,
@@ -379,7 +375,7 @@ function PatientCompositionItemProgressAside(props: {
               {Array.from({ length: dotCount }, (_, i) => (
                 <span
                   key={i}
-                  className="size-2 shrink-0 rounded-full bg-[var(--patient-color-success)]"
+                  className="size-2 shrink-0 rounded-full bg-[#16a34a]"
                   aria-hidden
                 />
               ))}
