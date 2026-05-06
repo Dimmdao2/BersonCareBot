@@ -11,14 +11,23 @@ alwaysApply: true
 
 1. `docs/ARCHITECTURE/PATIENT_APP_UI_STYLE_GUIDE.md`
 2. `apps/webapp/src/shared/ui/patientVisual.ts`
-3. `apps/webapp/src/components/ui/*` (shadcn/base-ui)
-4. `apps/webapp/src/app/globals.css` (`#app-shell-patient` токены)
+3. `apps/webapp/src/shared/ui/patient/PatientCatalogMediaStaticThumb.tsx` (превью каталожного медиа в списках/модалках)
+4. `apps/webapp/src/components/ui/*` (shadcn/base-ui)
+5. `apps/webapp/src/app/globals.css` (`#app-shell-patient` токены)
 
 ## Обязательные правила
 
 - Не писать новый локальный custom UI для карточек/кнопок/бейджей/accordion-like/form controls, если уже есть shared/shadcn решение.
 - Не переносить home-specific geometry из `app/app/patient/home/patientHomeCardStyles.ts` на внутренние страницы.
 - Для новых page-redesign/style-pass задач переиспользовать patient primitives и shadcn base, а не создавать “одноразовый chrome” внутри route-компонента.
+
+## Медиа: превью только картинка (кабинет пациента)
+
+Для **всех** страниц и блоков `apps/webapp/src/app/app/patient/**`:
+
+- **Миниатюры и строки списков** (карточки, модалки, таймлайны): только **статичное изображение** — `PatientCatalogMediaStaticThumb` (`apps/webapp/src/shared/ui/patient/PatientCatalogMediaStaticThumb.tsx`) + `MediaThumb` (`apps/webapp/src/shared/ui/media/MediaThumb.tsx`) и модели из `mediaPreviewUiModel` (превью воркера `previewSmUrl` для видео, исходный URL для image/gif). Обложки ЛФК — по-прежнему `lfkCoverToPreviewUi` + `MediaThumb`.
+- **Запрещено** на превью: тег `<video>`, иконка «кино» (Film) или декоративный оверлей плеера **вместо** картинки. Воспроизведение видео — **только** на целевой странице контента / в компоненте с полноценным плеером (например `PatientContentAdaptiveVideo`).
+- **Иконка плеера на кнопке/ссылке** («Начать разминку», «Начать занятие») допустима как **призыв к действию**, не как замена превью медиа.
 
 ## Когда кастом допустим
 

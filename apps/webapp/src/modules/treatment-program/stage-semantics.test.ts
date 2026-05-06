@@ -198,6 +198,22 @@ describe("patientStageSectionShouldRender", () => {
       ),
     ).toBe(true);
   });
+
+  it("does not count test_set as a program-surface item (tests only on testing page)", () => {
+    expect(
+      patientStageSectionShouldRender(
+        {
+          status: "available",
+          items: [{ itemType: "test_set", isActionable: true, status: "active" }],
+          goals: null,
+          objectives: null,
+          expectedDurationDays: null,
+          expectedDurationText: null,
+        },
+        false,
+      ),
+    ).toBe(false);
+  });
 });
 
 describe("stage-semantics (A5 new badge)", () => {

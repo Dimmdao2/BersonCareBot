@@ -33,7 +33,6 @@ import {
   Lock,
   CornerDownRight,
   Info,
-  ImageIcon,
 } from "lucide-react";
 import type {
   NormalizedTestDecision,
@@ -48,7 +47,7 @@ import {
   formatTreatmentProgramStageStatusRu,
 } from "@/modules/treatment-program/types";
 import {
-  isInstanceStageItemActiveForPatient,
+  isInstanceStageItemShownOnPatientProgramSurfaces,
   isPersistentRecommendation,
   patientStageItemShowsNewBadge,
   patientStageSectionShouldRender,
@@ -61,6 +60,7 @@ import { scoringAllowsNumericDecisionInference } from "@/modules/treatment-progr
 import { parseTestSetSnapshotTests } from "@/modules/treatment-program/testSetSnapshotView";
 import { type PatientProgramChecklistRow } from "@/modules/treatment-program/patient-program-actions";
 import type { RecommendationMediaItem } from "@/modules/recommendations/types";
+import { PatientCatalogMediaStaticThumb } from "@/shared/ui/patient/PatientCatalogMediaStaticThumb";
 import { routePaths } from "@/app-layer/routes/paths";
 import {
   patientHomeCardHeroClass,
@@ -82,7 +82,6 @@ import {
   patientPillClass,
   patientFormSurfaceClass,
   patientSurfaceWarningClass,
-  patientSecondaryActionClass,
   patientButtonSuccessClass,
   patientButtonWarningOutlineClass,
   patientLineClamp2Class,
@@ -161,23 +160,47 @@ function recommendationBodyMdPreviewPlain(bodyMd: unknown): string {
   return s;
 }
 
-function parseRecommendationMediaFromSnapshot(snapshot: Record<string, unknown>): RecommendationMediaItem[] {
+/** Разбор `snapshot.media` для превью строки: рекомендация (`mediaUrl`), упражнение ЛФК (`url` + `type`). */
+function parseSnapshotMediaForRowThumb(snapshot: Record<string, unknown>): RecommendationMediaItem[] {
   const raw = snapshot.media;
   if (!Array.isArray(raw)) return [];
   const items: RecommendationMediaItem[] = [];
   for (const row of raw) {
     if (!row || typeof row !== "object" || Array.isArray(row)) continue;
     const o = row as Record<string, unknown>;
-    const mediaUrl = typeof o.mediaUrl === "string" ? o.mediaUrl.trim() : "";
+    const mediaUrl =
+      typeof o.mediaUrl === "string"
+        ? o.mediaUrl.trim()
+        : typeof o.url === "string"
+          ? o.url.trim()
+          : "";
     if (!mediaUrl) continue;
-    const mt = o.mediaType;
+    const mt = o.mediaType ?? o.type;
     const mediaType: RecommendationMediaItem["mediaType"] =
       mt === "video" || mt === "gif" || mt === "image" ? mt : "image";
     const sortOrder = typeof o.sortOrder === "number" && Number.isFinite(o.sortOrder) ? o.sortOrder : 0;
-    items.push({ mediaUrl, mediaType, sortOrder });
+    const previewSmUrl =
+      typeof o.previewSmUrl === "string" && o.previewSmUrl.trim() ? o.previewSmUrl.trim() : null;
+    const previewMdUrl =
+      typeof o.previewMdUrl === "string" && o.previewMdUrl.trim() ? o.previewMdUrl.trim() : null;
+    const ps = o.previewStatus;
+    const previewStatus =
+      ps === "pending" || ps === "ready" || ps === "failed" || ps === "skipped" ? ps : null;
+    items.push({
+      mediaUrl,
+      mediaType,
+      sortOrder,
+      ...(previewSmUrl ? { previewSmUrl } : {}),
+      ...(previewMdUrl ? { previewMdUrl } : {}),
+      ...(previewStatus ? { previewStatus } : {}),
+    });
   }
   items.sort((a, b) => a.sortOrder - b.sortOrder || a.mediaUrl.localeCompare(b.mediaUrl));
   return items;
+}
+
+function parseRecommendationMediaFromSnapshot(snapshot: Record<string, unknown>): RecommendationMediaItem[] {
+  return parseSnapshotMediaForRowThumb(snapshot);
 }
 
 /** Статичное превью в строке списка: сначала картинка/GIF, иначе первое медиа (видео). */
@@ -185,41 +208,6 @@ function pickRecommendationRowPreviewMedia(items: RecommendationMediaItem[]): Re
   if (items.length === 0) return null;
   const still = items.find((m) => m.mediaType === "image" || m.mediaType === "gif");
   return still ?? items[0] ?? null;
-}
-
-function PatientRecommendationRowThumb({ media }: { media: RecommendationMediaItem | null }) {
-  const frame = "size-12 shrink-0 overflow-hidden rounded-md border border-[var(--patient-border)]/70";
-  if (!media) {
-    return (
-      <div className={cn(frame, "flex items-center justify-center bg-muted/25")} aria-hidden>
-        <ImageIcon className="size-5 text-muted-foreground" />
-      </div>
-    );
-  }
-  if (media.mediaType === "video") {
-    return (
-      <div className={cn(frame, "relative isolate bg-black/10")}>
-        <video
-          src={media.mediaUrl}
-          muted
-          playsInline
-          preload="metadata"
-          className="pointer-events-none h-full w-full object-cover"
-          aria-hidden
-        />
-        <div
-          className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/25"
-          aria-hidden
-        >
-          <PlayCircle className="size-6 text-white/95 drop-shadow" strokeWidth={2} aria-hidden />
-        </div>
-      </div>
-    );
-  }
-  return (
-    // eslint-disable-next-line @next/next/no-img-element -- URL каталога / CDN; превью фиксированного размера
-    <img src={media.mediaUrl} alt="" className={cn(frame, "bg-muted/20 object-cover")} />
-  );
 }
 
 type InstanceStageRow = TreatmentProgramInstanceDetail["stages"][number];
@@ -311,6 +299,65 @@ function PatientProgramHeroHistoryPopover(props: {
     </div>
   );
 }
+
+/** Строки модалки «Состав этапа»: ЛФК разворачивается в упражнения; у рекомендации/упражнения — колонка превью. */
+type CompositionModalRow = {
+  key: string;
+  text: string;
+  showThumb: boolean;
+  thumbMedia: RecommendationMediaItem | null;
+};
+
+function compositionModalRowsForStageItem(item: InstanceStageRow["items"][number]): CompositionModalRow[] {
+  const showThumb = item.itemType === "recommendation" || item.itemType === "exercise";
+  const thumbMedia = showThumb
+    ? pickRecommendationRowPreviewMedia(parseSnapshotMediaForRowThumb(item.snapshot))
+    : null;
+
+  if (item.itemType === "lfk_complex") {
+    const raw = item.snapshot.exercises;
+    if (!Array.isArray(raw) || raw.length === 0) {
+      const t = snapshotTitle(item.snapshot, item.itemType);
+      return t.trim() !== ""
+        ? [{ key: item.id, text: t, showThumb: false, thumbMedia: null }]
+        : [];
+    }
+    const rows: { sortOrder: number; title: string }[] = [];
+    for (const row of raw) {
+      if (!row || typeof row !== "object" || Array.isArray(row)) continue;
+      const o = row as Record<string, unknown>;
+      const sortOrder =
+        typeof o.sortOrder === "number" && Number.isFinite(o.sortOrder) ? o.sortOrder : 0;
+      const title = typeof o.title === "string" ? o.title.trim() : "";
+      if (title) rows.push({ sortOrder, title });
+    }
+    rows.sort((a, b) => a.sortOrder - b.sortOrder || a.title.localeCompare(b.title, "ru"));
+    if (rows.length === 0) {
+      const t = snapshotTitle(item.snapshot, item.itemType);
+      return t.trim() !== ""
+        ? [{ key: item.id, text: t, showThumb: false, thumbMedia: null }]
+        : [];
+    }
+    return rows.map((r, idx) => ({
+      key: `${item.id}:${idx}`,
+      text: r.title,
+      showThumb: false,
+      thumbMedia: null,
+    }));
+  }
+  return [
+    {
+      key: item.id,
+      text: snapshotTitle(item.snapshot, item.itemType),
+      showThumb,
+      thumbMedia,
+    },
+  ];
+}
+
+/** Модалка в portal: тема shadcn; строки пункта — тёмно-серый текст #444. */
+const stageCompositionModalRowClass =
+  "rounded-md border border-border/60 bg-card text-xs font-normal leading-snug";
 
 function PatientProgramStagesTimeline(props: {
   stages: InstanceStageRow[];
@@ -448,29 +495,91 @@ function PatientProgramStagesTimeline(props: {
       <Dialog open={itemsModalStage !== null} onOpenChange={(open) => !open && setItemsModalStage(null)}>
         <DialogContent className="max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Состав этапа</DialogTitle>
+            <DialogTitle className="font-normal">Состав этапа</DialogTitle>
           </DialogHeader>
           {itemsModalStage ? (
             <>
-              <p className={cn(patientMutedTextClass, "text-sm")}>{itemsModalStage.title}</p>
-              <ul className="m-0 mt-2 max-h-[50vh] list-none space-y-2 overflow-y-auto p-0">
+              <p className="mt-1 text-sm font-normal text-muted-foreground">{itemsModalStage.title}</p>
+              <div className="mt-2 max-h-[50vh] space-y-3 overflow-y-auto pr-0.5">
                 {(() => {
-                  const vis = sortByOrderThenId(
-                    itemsModalStage.items.filter((it) => isInstanceStageItemActiveForPatient(it)),
+                  const visibleItems = sortByOrderThenId(
+                    itemsModalStage.items.filter((it) => isInstanceStageItemShownOnPatientProgramSurfaces(it)),
                   );
-                  if (vis.length === 0) {
-                    return (
-                      <li className={cn(patientMutedTextClass, "text-sm")}>Нет элементов для отображения.</li>
-                    );
+                  if (visibleItems.length === 0) {
+                    return <p className="text-sm font-normal text-muted-foreground">Нет элементов для отображения.</p>;
                   }
-                  return vis.map((it) => (
-                    <li key={it.id} className={cn(patientListItemClass, "text-sm")}>
-                      <span className="font-medium text-foreground">{snapshotTitle(it.snapshot, it.itemType)}</span>
-                      <span className={cn(patientMutedTextClass, "ml-1 text-xs")}>({it.itemType})</span>
-                    </li>
-                  ));
+                  const sortedGroups = sortByOrderThenId(itemsModalStage.groups).filter((g) =>
+                    visibleItems.some((it) => it.groupId === g.id),
+                  );
+                  const ungroupedItems = sortByOrderThenId(
+                    visibleItems.filter((it) => !it.groupId),
+                  );
+
+                  const renderItemLines = (it: (typeof visibleItems)[number]) =>
+                    compositionModalRowsForStageItem(it).map((row) => (
+                      <li
+                        key={row.key}
+                        className={cn(
+                          stageCompositionModalRowClass,
+                          row.showThumb
+                            ? "flex items-stretch gap-2 py-0 pr-2 pl-0"
+                            : "px-2 py-2",
+                        )}
+                      >
+                        {row.showThumb ? (
+                          <PatientCatalogMediaStaticThumb
+                            media={row.thumbMedia}
+                            frameClassName="w-10 min-h-10 shrink-0 self-stretch rounded border border-border/40 bg-muted/30"
+                            sizes="40px"
+                            iconClassName="size-4"
+                          />
+                        ) : null}
+                        <span
+                          className={cn(
+                            "text-[#444444]",
+                            row.showThumb ? "min-w-0 flex-1 py-2" : "block",
+                          )}
+                        >
+                          {row.text}
+                        </span>
+                      </li>
+                    ));
+
+                  return (
+                    <>
+                      {ungroupedItems.length > 0 ? (
+                        <ul
+                          className={cn(
+                            "m-0 list-none space-y-1.5 p-0",
+                            sortedGroups.length > 0 && "mb-3",
+                          )}
+                        >
+                          {ungroupedItems.flatMap(renderItemLines)}
+                        </ul>
+                      ) : null}
+                      {sortedGroups.map((g) => {
+                        const gItems = sortByOrderThenId(
+                          visibleItems.filter((it) => it.groupId === g.id),
+                        );
+                        if (gItems.length === 0) return null;
+                        return (
+                          <section key={g.id} className="space-y-1">
+                            <div>
+                              <span className="text-sm font-medium text-[#284da0]">{g.title}</span>
+                              {g.scheduleText?.trim() ? (
+                                <span className="mt-1 block text-xs font-normal text-muted-foreground">
+                                  {g.scheduleText.trim()}
+                                </span>
+                              ) : null}
+                            </div>
+                            <ul className="m-0 list-none space-y-1.5 p-0">{gItems.flatMap(renderItemLines)}</ul>
+                          </section>
+                        );
+                      })}
+                    </>
+                  );
                 })()}
-              </ul>
+              </div>
             </>
           ) : null}
         </DialogContent>
@@ -594,6 +703,8 @@ function PatientInstanceStageItemCard(props: {
   contentBlocked: boolean;
   doneItemIds: string[];
   onDoneItemIds: (ids: string[]) => void;
+  /** Нейтральный фон карточки (белый) на тонированной панели — блок рекомендаций на detail. */
+  neutralItemChrome?: boolean;
 }) {
   const {
     instanceId,
@@ -608,6 +719,7 @@ function PatientInstanceStageItemCard(props: {
     contentBlocked,
     doneItemIds,
     onDoneItemIds,
+    neutralItemChrome = false,
   } = props;
   const [markingViewed, setMarkingViewed] = useState(false);
   const showsNew = patientStageItemShowsNewBadge(item, contentBlocked);
@@ -643,12 +755,19 @@ function PatientInstanceStageItemCard(props: {
       ref={markRef}
       className={cn(
         patientListItemClass,
-        "border-[var(--patient-border)]/80 bg-[var(--patient-color-primary-soft)]/10",
+        "border-[var(--patient-border)]/80",
+        neutralItemChrome
+          ? "bg-[var(--patient-card-bg)]"
+          : "bg-[var(--patient-color-primary-soft)]/10",
         item.itemType === "recommendation" && "flex gap-3",
       )}
     >
       {item.itemType === "recommendation" ? (
-        <PatientRecommendationRowThumb media={recommendationPreviewMedia} />
+        <PatientCatalogMediaStaticThumb
+          media={recommendationPreviewMedia}
+          frameClassName="size-12 rounded-md border border-[var(--patient-border)]/70"
+          sizes="48px"
+        />
       ) : null}
       <div className={cn(item.itemType === "recommendation" && "min-w-0 flex-1")}>
       <p className="flex flex-wrap items-center gap-2 text-sm font-medium">
@@ -800,7 +919,7 @@ export function PatientInstanceStageBody(props: {
   const likeStages = stackVariant === "likeStagesTimeline";
   const contentBlocked =
     !ignoreStageLockForContent && (stage.status === "locked" || stage.status === "skipped");
-  const visibleItems = stage.items.filter(isInstanceStageItemActiveForPatient);
+  const visibleItems = stage.items.filter(isInstanceStageItemShownOnPatientProgramSurfaces);
   const sortedGroups = sortByOrderThenId(stage.groups).filter((g) =>
     visibleItems.some((it) => it.groupId === g.id),
   );
@@ -823,7 +942,8 @@ export function PatientInstanceStageBody(props: {
               key={g.id}
               className={cn(
                 patientListItemClass,
-                "border-[var(--patient-border)]/80 bg-[var(--patient-color-primary-soft)]/5",
+                "border-[var(--patient-border)]/80",
+                likeStages ? "bg-[var(--patient-card-bg)]" : "bg-[var(--patient-color-primary-soft)]/5",
               )}
               open
             >
@@ -854,6 +974,7 @@ export function PatientInstanceStageBody(props: {
                     contentBlocked={contentBlocked}
                     doneItemIds={doneItemIds}
                     onDoneItemIds={onDoneItemIds}
+                    neutralItemChrome={likeStages}
                   />
                 ))}
               </ul>
@@ -881,6 +1002,7 @@ export function PatientInstanceStageBody(props: {
                   contentBlocked={contentBlocked}
                   doneItemIds={doneItemIds}
                   onDoneItemIds={onDoneItemIds}
+                  neutralItemChrome={likeStages}
                 />
               ))}
             </ul>
@@ -1184,7 +1306,7 @@ export function PatientTreatmentProgramDetailClient(props: {
           <CollapsibleTrigger
             className={cn(
               "flex w-full items-center px-3 py-4 text-left lg:px-4 lg:py-[18px]",
-              "bg-[var(--patient-surface-success-bg)] text-[var(--patient-surface-success-text)]",
+              "bg-[#cff1dc] text-[var(--patient-surface-success-text)]",
             )}
           >
             <PatientProgramBlockHeading
@@ -1201,7 +1323,10 @@ export function PatientTreatmentProgramDetailClient(props: {
               }
             />
           </CollapsibleTrigger>
-          <CollapsibleContent className="border-t border-[var(--patient-border)] bg-[var(--patient-card-bg)]">
+          <CollapsibleContent
+            className={cn("border-t border-[var(--patient-border)]")}
+            style={{ backgroundColor: "rgba(241, 249, 244, 0.99)" }}
+          >
             <PatientInstanceStageBody
               instanceId={detail.id}
               stage={stage}
@@ -1240,12 +1365,6 @@ export function PatientTreatmentProgramDetailClient(props: {
           <p className={cn(patientMutedTextClass, "text-xs")}>
             Результаты тестов за все этапы программы.
           </p>
-          <Link
-            href={routePaths.patientTreatmentProgramStage(detail.id, currentWorkingStage.id)}
-            className={cn(patientSecondaryActionClass, "mt-3")}
-          >
-            Открыть текущий этап
-          </Link>
         </section>
       ) : null}
 

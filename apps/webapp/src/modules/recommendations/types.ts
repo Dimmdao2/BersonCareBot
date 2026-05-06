@@ -1,9 +1,14 @@
+import type { MediaPreviewStatus } from "@/modules/media/types";
 import type { RecommendationDomain } from "./recommendationDomain";
 
 export type RecommendationMediaItem = {
   mediaUrl: string;
   mediaType: "image" | "video" | "gif";
   sortOrder: number;
+  /** Превью воркера (`/api/media/:id/preview/sm`); в JSON рекомендации в БД может отсутствовать — подставляется при `buildSnapshot`. */
+  previewSmUrl?: string | null;
+  previewMdUrl?: string | null;
+  previewStatus?: MediaPreviewStatus | null;
 };
 
 export type Recommendation = {

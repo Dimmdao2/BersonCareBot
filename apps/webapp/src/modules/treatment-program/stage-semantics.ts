@@ -35,6 +35,17 @@ export function isInstanceStageItemActiveForPatient(item: ItemSemanticsFields): 
 }
 
 /**
+ * Элементы набора тестов (`test_set`) на экранах программы (detail, страница этапа, модалка состава) не показываются;
+ * прохождение — в сценарии страницы тестирования.
+ */
+export function isInstanceStageItemShownOnPatientProgramSurfaces(
+  item: Pick<TreatmentProgramInstanceStageItemRow, "itemType" | "status" | "isActionable">,
+): boolean {
+  if (!isInstanceStageItemActiveForPatient(item)) return false;
+  return item.itemType !== "test_set";
+}
+
+/**
  * Пациентский экран плана: не рендерить секцию этапа целиком, если нет видимых пунктов и нет
  * сообщения о недоступности этапа (locked/skipped для не–этапа-0), и нет блока A1 (цель/задачи/срок).
  */
@@ -62,7 +73,7 @@ export function patientStageSectionShouldRender(
   ) {
     return true;
   }
-  return stage.items.some((it) => isInstanceStageItemActiveForPatient(it));
+  return stage.items.some((it) => isInstanceStageItemShownOnPatientProgramSurfaces(it));
 }
 
 /** A5: бейдж «Новое» — только активный элемент, `last_viewed_at` ещё null, этап не заблокирован для контента. */

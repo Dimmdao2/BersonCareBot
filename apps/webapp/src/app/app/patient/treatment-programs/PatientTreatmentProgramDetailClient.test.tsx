@@ -133,8 +133,7 @@ describe("PatientTreatmentProgramDetailClient", () => {
     expect(planOpenedCalls).toHaveLength(0);
   });
 
-  it("shows test_set per-test catalog comment from snapshot (B7 FIX)", () => {
-    // Stage 0 (sortOrder=0) is inside a Collapsible (C3); open it before asserting item content.
+  it("does not show test_set on program surfaces (only on testing page)", () => {
     const testSetItem = {
       id: "33333333-3333-4333-8333-333333333333",
       stageId: "22222222-2222-4222-8222-222222222222",
@@ -149,6 +148,24 @@ describe("PatientTreatmentProgramDetailClient", () => {
         title: "Набор А",
         tests: [{ testId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", title: "Тест один", comment: "Пейте воду" }],
       },
+      completedAt: null,
+      isActionable: true,
+      status: "active" as const,
+      groupId: null,
+      createdAt: now,
+      lastViewedAt: now,
+      effectiveComment: null,
+    };
+    const recommendationItem = {
+      id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      stageId: "22222222-2222-4222-8222-222222222222",
+      itemType: "recommendation" as const,
+      itemRefId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+      sortOrder: 1,
+      comment: null,
+      localComment: null,
+      settings: null,
+      snapshot: { title: "Только рекомендация в списке", bodyMd: "" },
       completedAt: null,
       isActionable: true,
       status: "active" as const,
@@ -177,7 +194,7 @@ describe("PatientTreatmentProgramDetailClient", () => {
               expectedDurationDays: null,
               expectedDurationText: null,
               groups: [],
-              items: [testSetItem],
+              items: [testSetItem, recommendationItem],
             },
           ],
         })}
@@ -186,8 +203,9 @@ describe("PatientTreatmentProgramDetailClient", () => {
       />,
     );
     fireEvent.click(screen.getByText("Рекомендации"));
-    expect(screen.getByText("Набор А")).toBeInTheDocument();
-    expect(screen.getByText("Пейте воду")).toBeInTheDocument();
+    expect(screen.getByText("Только рекомендация в списке")).toBeInTheDocument();
+    expect(screen.queryByText("Набор А")).not.toBeInTheDocument();
+    expect(screen.queryByText("Пейте воду")).not.toBeInTheDocument();
   });
 
   it("renders recommendation row with left image preview from snapshot media", () => {
@@ -367,5 +385,140 @@ describe("PatientTreatmentProgramDetailClient", () => {
     expect(stagesSection).toBeTruthy();
     expect(within(stagesSection as HTMLElement).getByText("Острая фаза")).toBeInTheDocument();
     expect(within(stagesSection as HTMLElement).getByText("Восстановление")).toBeInTheDocument();
+  });
+
+  it("stage composition modal: groups, schedule, LFK exercises expanded, no itemType in parentheses", () => {
+    const groupId = "gggggggg-gggg-4ggg-8ggg-gggggggggggg";
+    const stageId = "33333333-3333-4333-8333-333333333333";
+    render(
+      <PatientTreatmentProgramDetailClient
+        initial={makeInstance({
+          stages: [
+            {
+              id: "22222222-2222-4222-8222-222222222222",
+              instanceId: "11111111-1111-4111-8111-111111111111",
+              sourceStageId: null,
+              title: "Рекомендации",
+              description: null,
+              sortOrder: 0,
+              localComment: null,
+              skipReason: null,
+              status: "available",
+              startedAt: null,
+              goals: null,
+              objectives: null,
+              expectedDurationDays: null,
+              expectedDurationText: null,
+              groups: [],
+              items: [],
+            },
+            {
+              id: stageId,
+              instanceId: "11111111-1111-4111-8111-111111111111",
+              sourceStageId: null,
+              title: "Острая фаза",
+              description: null,
+              sortOrder: 1,
+              localComment: null,
+              skipReason: null,
+              status: "in_progress",
+              startedAt: now,
+              goals: null,
+              objectives: null,
+              expectedDurationDays: null,
+              expectedDurationText: null,
+              groups: [
+                {
+                  id: groupId,
+                  stageId,
+                  sourceGroupId: null,
+                  title: "Блок утро",
+                  description: null,
+                  scheduleText: "  2 раза в день  ",
+                  sortOrder: 0,
+                },
+              ],
+              items: [
+                {
+                  id: "aaaaaaaa-1111-4111-8111-111111111111",
+                  stageId,
+                  itemType: "lfk_complex",
+                  itemRefId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+                  sortOrder: 0,
+                  comment: null,
+                  localComment: null,
+                  settings: null,
+                  snapshot: {
+                    title: "Шаблон комплекса",
+                    exercises: [
+                      { exerciseId: "e2222222-2222-4222-8222-222222222222", title: "Второе", sortOrder: 1 },
+                      { exerciseId: "e1111111-1111-4111-8111-111111111111", title: "Первое", sortOrder: 0 },
+                    ],
+                  },
+                  completedAt: null,
+                  isActionable: true,
+                  status: "active",
+                  groupId,
+                  createdAt: now,
+                  lastViewedAt: null,
+                  effectiveComment: null,
+                },
+                {
+                  id: "aaaaaaaa-2222-4222-8222-222222222222",
+                  stageId,
+                  itemType: "recommendation",
+                  itemRefId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+                  sortOrder: 1,
+                  comment: null,
+                  localComment: null,
+                  settings: null,
+                  snapshot: { title: "Рекомендация в блоке", bodyMd: "" },
+                  completedAt: null,
+                  isActionable: true,
+                  status: "active",
+                  groupId,
+                  createdAt: now,
+                  lastViewedAt: null,
+                  effectiveComment: null,
+                },
+                {
+                  id: "aaaaaaaa-3333-4333-8333-333333333333",
+                  stageId,
+                  itemType: "recommendation",
+                  itemRefId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+                  sortOrder: 0,
+                  comment: null,
+                  localComment: null,
+                  settings: null,
+                  snapshot: { title: "Вне группы пункт", bodyMd: "" },
+                  completedAt: null,
+                  isActionable: true,
+                  status: "active",
+                  groupId: null,
+                  createdAt: now,
+                  lastViewedAt: null,
+                  effectiveComment: null,
+                },
+              ],
+            },
+          ],
+        })}
+        initialTestResults={[]}
+        {...detailShellProps}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Состав этапа: Острая фаза" }));
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByText("Блок утро")).toBeInTheDocument();
+    expect(within(dialog).getByText("2 раза в день")).toBeInTheDocument();
+    expect(within(dialog).getByText("Первое")).toBeInTheDocument();
+    expect(within(dialog).getByText("Второе")).toBeInTheDocument();
+    expect(within(dialog).getByText("Рекомендация в блоке")).toBeInTheDocument();
+    expect(within(dialog).getByText("Вне группы пункт")).toBeInTheDocument();
+    expect(within(dialog).queryByText("Без группы")).not.toBeInTheDocument();
+    const dialogText = dialog.textContent ?? "";
+    expect(dialogText.indexOf("Вне группы пункт")).toBeLessThan(dialogText.indexOf("Блок утро"));
+    expect(within(dialog).queryByText("(lfk_complex)", { exact: false })).not.toBeInTheDocument();
+    expect(within(dialog).queryByText("(recommendation)", { exact: false })).not.toBeInTheDocument();
   });
 });
