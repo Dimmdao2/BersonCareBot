@@ -157,6 +157,28 @@ export function createInMemoryProgramActionLogPort(): ProgramActionLogPort {
       return out;
     },
 
+    async countCompletionEventsByItemForInstance(params) {
+      const byItem: Record<string, Set<string>> = {};
+      for (const r of rows) {
+        if (
+          r.instanceId !== params.instanceId ||
+          r.patientUserId !== params.patientUserId ||
+          r.actionType !== "done"
+        ) {
+          continue;
+        }
+        const dedupeKey = r.sessionId ?? r.id;
+        const itemId = r.instanceStageItemId;
+        if (!byItem[itemId]) byItem[itemId] = new Set();
+        byItem[itemId]!.add(dedupeKey);
+      }
+      const out: Record<string, number> = {};
+      for (const [itemId, set] of Object.entries(byItem)) {
+        out[itemId] = set.size;
+      }
+      return out;
+    },
+
     async listForInstance(params) {
       const limit = Math.min(Math.max(params.limit ?? 200, 1), 500);
       const filtered = rows.filter((r) => r.instanceId === params.instanceId);

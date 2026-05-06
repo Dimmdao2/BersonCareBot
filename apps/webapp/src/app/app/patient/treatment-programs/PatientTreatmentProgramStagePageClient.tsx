@@ -1,6 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { ChevronDown, ScrollText } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import type { TreatmentProgramInstanceDetail } from "@/modules/treatment-program/types";
 import { formatTreatmentProgramStageStatusRu } from "@/modules/treatment-program/types";
 import {
@@ -9,14 +11,14 @@ import {
   latestCompletedAtIsoAmongStageItems,
   patientTreatmentProgramStageScreenVariant,
 } from "@/modules/treatment-program/stage-semantics";
+import { PatientInstanceStageBody, PatientStageHeaderFields, patientStageHasHeaderFields } from "./PatientTreatmentProgramDetailClient";
+import { PatientTreatmentProgramStagePageProgramSection } from "./PatientTreatmentProgramStagePageProgramSection";
+import { PatientTreatmentProgramStageRecommendationsCollapsible } from "./PatientTreatmentProgramStageRecommendationsCollapsible";
 import {
-  PatientInstanceStageBody,
-  PatientStageHeaderFields,
-  patientStageHasHeaderFields,
-} from "./PatientTreatmentProgramDetailClient";
-import { normalizeChecklistCountMap } from "@/app/app/patient/treatment-programs/normalizeTreatmentProgramChecklistMaps";
+  normalizeChecklistCountMap,
+  normalizeChecklistLastMap,
+} from "@/app/app/patient/treatment-programs/normalizeTreatmentProgramChecklistMaps";
 import {
-  patientCardClass,
   patientCardListSectionClass,
   patientMutedTextClass,
   patientSectionTitleClass,
@@ -24,6 +26,7 @@ import {
   patientInnerPageStackClass,
   patientPillClass,
   patientSurfaceWarningClass,
+  patientBodyTextClass,
 } from "@/shared/ui/patientVisual";
 import { patientHomeCardHeroClass } from "@/app/app/patient/home/patientHomeCardStyles";
 import { cn } from "@/lib/utils";
@@ -73,6 +76,69 @@ function blockingStagesCopy(allStages: Stage[], target: Stage): string {
   return `Для открытия этапа необходимо завершить ещё ${n} ${ruStageWord(n)}.`;
 }
 
+function StageDescriptionBlock(props: { text: string | null | undefined }) {
+  const raw = (props.text ?? "").trim();
+  const [expanded, setExpanded] = useState(false);
+  const [clampedOverflow, setClampedOverflow] = useState(false);
+  const pRef = useRef<HTMLParagraphElement>(null);
+
+  const measureClampedOverflow = useCallback(() => {
+    const el = pRef.current;
+    if (!el || expanded) return;
+    setClampedOverflow(el.scrollHeight > el.clientHeight + 1);
+  }, [expanded]);
+
+  useLayoutEffect(() => {
+    if (!raw || expanded) return;
+    let raf1 = 0;
+    let raf2 = 0;
+    raf1 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(() => measureClampedOverflow());
+    });
+    return () => {
+      cancelAnimationFrame(raf1);
+      cancelAnimationFrame(raf2);
+    };
+  }, [expanded, measureClampedOverflow, raw]);
+
+  useEffect(() => {
+    const el = pRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => measureClampedOverflow());
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [measureClampedOverflow, raw]);
+
+  if (!raw) return null;
+
+  const showToggle = clampedOverflow;
+
+  return (
+    <div className="mt-2">
+      <p
+        ref={pRef}
+        className={cn(!expanded && "line-clamp-3", patientMutedTextClass, "whitespace-pre-wrap text-sm leading-snug")}
+      >
+        {raw}
+      </p>
+      {showToggle ? (
+        <div className="mt-1 flex justify-end">
+          <button
+            type="button"
+            className={cn(
+              patientMutedTextClass,
+              "text-xs underline-offset-2 hover:underline focus-visible:rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-primary)]",
+            )}
+            onClick={() => setExpanded((e) => !e)}
+          >
+            {expanded ? "свернуть" : "развернуть"}
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export function PatientTreatmentProgramStagePageClient(props: {
   instanceId: string;
   stage: Stage;
@@ -86,6 +152,8 @@ export function PatientTreatmentProgramStagePageClient(props: {
   const [busy, setBusy] = useState<string | null>(null);
   const [doneItemIds, setDoneItemIds] = useState<string[]>([]);
   const [doneTodayCountByItemId, setDoneTodayCountByItemId] = useState<Record<string, number>>({});
+  const [lastDoneAtIsoByItemId, setLastDoneAtIsoByItemId] = useState<Record<string, string>>({});
+  const [totalCompletionEventsByItemId, setTotalCompletionEventsByItemId] = useState<Record<string, number>>({});
 
   const variant = useMemo(
     () => patientTreatmentProgramStageScreenVariant(currentStage),
@@ -104,10 +172,14 @@ export function PatientTreatmentProgramStagePageClient(props: {
         ok?: boolean;
         doneItemIds?: string[];
         doneTodayCountByItemId?: unknown;
+        lastDoneAtIsoByItemId?: unknown;
+        totalCompletionEventsByItemId?: unknown;
       };
       if (!res.ok || !data?.ok || !Array.isArray(data.doneItemIds)) return;
       setDoneItemIds(data.doneItemIds);
       setDoneTodayCountByItemId(normalizeChecklistCountMap(data.doneTodayCountByItemId));
+      setLastDoneAtIsoByItemId(normalizeChecklistLastMap(data.lastDoneAtIsoByItemId));
+      setTotalCompletionEventsByItemId(normalizeChecklistCountMap(data.totalCompletionEventsByItemId));
     })();
   }, [instanceId, variant]);
 
@@ -136,17 +208,77 @@ export function PatientTreatmentProgramStagePageClient(props: {
       ok?: boolean;
       doneItemIds?: string[];
       doneTodayCountByItemId?: unknown;
+      lastDoneAtIsoByItemId?: unknown;
+      totalCompletionEventsByItemId?: unknown;
     };
     if (data.item.status !== "active") {
       setDoneItemIds([]);
       setDoneTodayCountByItemId({});
+      setLastDoneAtIsoByItemId({});
+      setTotalCompletionEventsByItemId({});
     } else if (chRes.ok && chData?.ok === true && Array.isArray(chData.doneItemIds)) {
       setDoneItemIds(chData.doneItemIds);
       setDoneTodayCountByItemId(normalizeChecklistCountMap(chData.doneTodayCountByItemId));
+      setLastDoneAtIsoByItemId(normalizeChecklistLastMap(chData.lastDoneAtIsoByItemId));
+      setTotalCompletionEventsByItemId(normalizeChecklistCountMap(chData.totalCompletionEventsByItemId));
     }
   }, [instanceId, props.stage.id, variant]);
 
   const isStageZero = currentStage.sortOrder === 0;
+  const contentBlocked =
+    !isStageZero && (currentStage.status === "locked" || currentStage.status === "skipped");
+
+  const goalsObjectivesBlock =
+    Boolean(currentStage.goals?.trim()) || Boolean(currentStage.objectives?.trim()) ? (
+      <Collapsible className={cn(patientCardListSectionClass, "overflow-hidden p-0 lg:p-0")}>
+        <CollapsibleTrigger
+          className={cn(
+            "flex w-full items-center px-3 py-4 text-left lg:px-4 lg:py-[18px]",
+            "bg-[var(--patient-surface-success-border)] text-[var(--patient-surface-success-text)]",
+          )}
+        >
+          <div className="mb-0 flex min-w-0 w-full items-center justify-between gap-2">
+            <div className="flex min-w-0 flex-1 items-center gap-2">
+              <ScrollText className="size-4 shrink-0 text-[var(--patient-surface-success-accent)]" aria-hidden />
+              <span className={patientSectionTitleClass}>Цели и задачи</span>
+            </div>
+            <ChevronDown
+              className="size-4 shrink-0 transition-transform group-data-[open]/collapsible:rotate-180"
+              aria-hidden
+            />
+          </div>
+        </CollapsibleTrigger>
+        <CollapsibleContent
+          className={cn("border-t border-[var(--patient-border)] bg-[var(--patient-surface-success-bg)] px-3 py-3 lg:px-4")}
+        >
+          {currentStage.goals?.trim() ? (
+            <div>
+              <h3 className={patientSectionTitleClass}>Цель</h3>
+              <p className={cn(patientBodyTextClass, "mt-1 whitespace-pre-wrap text-sm")}>{currentStage.goals.trim()}</p>
+            </div>
+          ) : null}
+          {currentStage.objectives?.trim() ? (
+            <div className={currentStage.goals?.trim() ? "mt-3" : ""}>
+              <h3 className={patientSectionTitleClass}>Задачи</h3>
+              <p className={cn(patientBodyTextClass, "mt-1 whitespace-pre-wrap text-sm")}>
+                {currentStage.objectives.trim()}
+              </p>
+            </div>
+          ) : null}
+        </CollapsibleContent>
+      </Collapsible>
+    ) : null;
+
+  const controlBadge =
+    currentStage.expectedDurationDays != null &&
+    currentStage.expectedDurationDays > 0 &&
+    Number.isFinite(currentStage.expectedDurationDays) ? (
+      <div className={cn(patientCardListSectionClass, "px-3 py-2 lg:px-4")}>
+        <p className="text-sm font-medium text-foreground">
+          Контроль через {currentStage.expectedDurationDays} {ruDayWord(currentStage.expectedDurationDays)}
+        </p>
+      </div>
+    ) : null;
 
   if (variant === "futureLocked" && !isStageZero) {
     const planBlock = patientStageHasHeaderFields({
@@ -166,13 +298,15 @@ export function PatientTreatmentProgramStagePageClient(props: {
         ) : null}
 
         <div className={cn(patientHomeCardHeroClass, "relative isolate overflow-hidden p-4 pt-3 lg:p-5")}>
-          <p className={cn(patientMutedTextClass, "text-xs uppercase tracking-wide")}>
+          <span className={cn(patientPillClass, "absolute right-3 top-3 lg:right-4 lg:top-4")}>Запланирован</span>
+          <p className={cn(patientMutedTextClass, "pr-24 text-xs uppercase tracking-wide")}>
             Этап {currentStage.sortOrder} из {pipelineLength}
           </p>
-          <h2 className={cn(patientStageTitleClass, "mt-1")}>{currentStage.title}</h2>
-          <p className="mt-3">
-            <span className={patientPillClass}>Запланирован</span>
-          </p>
+          <h2 className={cn(patientStageTitleClass, "mt-1 pr-24")}>{currentStage.title}</h2>
+          <StageDescriptionBlock
+            key={`${currentStage.id}:${currentStage.description ?? ""}`}
+            text={currentStage.description}
+          />
         </div>
 
         {planBlock ? (
@@ -201,13 +335,22 @@ export function PatientTreatmentProgramStagePageClient(props: {
         ) : null}
 
         <div className={cn(patientHomeCardHeroClass, "relative isolate overflow-hidden p-4 pt-3 lg:p-5")}>
-          <p className={cn(patientMutedTextClass, "text-xs uppercase tracking-wide")}>
+          <span
+            className={cn(
+              patientPillClass,
+              "absolute right-3 top-3 max-w-[min(12rem,calc(100%-1rem))] truncate text-right lg:right-4 lg:top-4",
+            )}
+          >
+            {pastStageHeroBadge(currentStage, appDisplayTimeZone)}
+          </span>
+          <p className={cn(patientMutedTextClass, "pr-28 text-xs uppercase tracking-wide")}>
             Этап {currentStage.sortOrder} из {pipelineLength}
           </p>
-          <h2 className={cn(patientStageTitleClass, "mt-1")}>{currentStage.title}</h2>
-          <p className="mt-3">
-            <span className={patientPillClass}>{pastStageHeroBadge(currentStage, appDisplayTimeZone)}</span>
-          </p>
+          <h2 className={cn(patientStageTitleClass, "mt-1 pr-28")}>{currentStage.title}</h2>
+          <StageDescriptionBlock
+            key={`${currentStage.id}:${currentStage.description ?? ""}`}
+            text={currentStage.description}
+          />
         </div>
 
         <PatientInstanceStageBody
@@ -238,54 +381,66 @@ export function PatientTreatmentProgramStagePageClient(props: {
         </p>
       ) : null}
 
-      <div className={patientCardClass}>
+      <div className={cn(patientHomeCardHeroClass, "relative isolate overflow-hidden p-4 pt-3 lg:p-5")}>
+        <span
+          className={cn(
+            patientPillClass,
+            "absolute right-3 top-3 max-w-[min(10rem,calc(100%-1rem))] truncate text-right text-xs lg:right-4 lg:top-4",
+          )}
+        >
+          {formatTreatmentProgramStageStatusRu(currentStage.status)}
+        </span>
         {isStageZero ? (
-          <>
-            <h2 className={patientStageTitleClass}>Общие рекомендации</h2>
-            <p className={cn(patientMutedTextClass, "mt-1 text-xs")}>
-              {formatTreatmentProgramStageStatusRu(currentStage.status)}
-            </p>
-          </>
+          <h2 className={cn(patientStageTitleClass, "pr-24")}>Общие рекомендации</h2>
         ) : (
           <>
-            <p className={cn(patientMutedTextClass, "text-xs uppercase tracking-wide")}>
+            <p className={cn(patientMutedTextClass, "pr-24 text-xs uppercase tracking-wide")}>
               Этап {currentStage.sortOrder} из {pipelineLength}
             </p>
-            <h2 className={cn(patientStageTitleClass, "mt-1")}>{currentStage.title}</h2>
-            <p className={cn(patientMutedTextClass, "mt-1 text-xs")}>
-              {formatTreatmentProgramStageStatusRu(currentStage.status)}
-            </p>
+            <h2 className={cn(patientStageTitleClass, "mt-1 pr-24")}>{currentStage.title}</h2>
           </>
         )}
+        {!isStageZero ? (
+          <StageDescriptionBlock
+            key={`${currentStage.id}:${currentStage.description ?? ""}`}
+            text={currentStage.description}
+          />
+        ) : null}
+        {isStageZero && currentStage.description?.trim() ? (
+          <StageDescriptionBlock
+            key={`${currentStage.id}:${currentStage.description ?? ""}`}
+            text={currentStage.description}
+          />
+        ) : null}
       </div>
 
-      <PatientInstanceStageBody
-        instanceId={instanceId}
+      {goalsObjectivesBlock}
+      {controlBadge}
+
+      <PatientTreatmentProgramStageRecommendationsCollapsible
         stage={currentStage}
         base={base}
         busy={busy}
         setBusy={setBusy}
         setError={setError}
         refresh={refresh}
-        ignoreStageLockForContent={isStageZero}
-        surfaceClass={cn(patientCardListSectionClass, "flex flex-col gap-4")}
+        contentBlocked={contentBlocked}
+      />
+
+      <PatientTreatmentProgramStagePageProgramSection
+        stage={currentStage}
+        base={base}
+        busy={busy}
+        setBusy={setBusy}
+        setError={setError}
+        refresh={refresh}
+        contentBlocked={contentBlocked}
         itemInteraction="full"
         doneItemIds={doneItemIds}
         onDoneItemIds={setDoneItemIds}
-        todayCountByStageItemId={doneTodayCountByItemId}
-        hideStageDescription={isStageZero}
-        heading={
-          isStageZero ? (
-            <h3 className={patientSectionTitleClass}>Назначения этапа</h3>
-          ) : (
-            <>
-              <h3 className={patientSectionTitleClass}>Назначения этапа</h3>
-              <span className={cn(patientMutedTextClass, "text-xs uppercase tracking-wide")}>
-                {formatTreatmentProgramStageStatusRu(currentStage.status)}
-              </span>
-            </>
-          )
-        }
+        lastDoneAtIsoByItemId={lastDoneAtIsoByItemId}
+        totalCompletionEventsByItemId={totalCompletionEventsByItemId}
+        appDisplayTimeZone={appDisplayTimeZone}
       />
     </div>
   );

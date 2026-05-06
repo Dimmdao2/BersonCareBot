@@ -346,4 +346,58 @@ describe("patient-program-actions", () => {
       }),
     );
   });
+
+  it("listChecklistDoneToday includes totalCompletionEventsByItemId with LFK session dedupe", async () => {
+    const tplPort = createInMemoryTreatmentProgramPort();
+    const instPort = createInMemoryTreatmentProgramInstancePort();
+    const itemRefs: TreatmentProgramItemRefValidationPort = { assertItemRefExists: vi.fn(async () => {}) };
+    const tplSvc = createTreatmentProgramService(tplPort, itemRefs);
+    const instSvc = createTreatmentProgramInstanceService({
+      instances: instPort,
+      templates: tplSvc,
+      snapshots: createInMemoryTreatmentProgramItemSnapshotPort(),
+      itemRefs,
+    });
+    const actionLog = createInMemoryProgramActionLogPort();
+    const actions = createTreatmentProgramPatientActionService({
+      instances: instPort,
+      actionLog,
+      now: () => new Date("2026-05-03T21:30:00.000Z"),
+      getAppDefaultTimezoneIana: async () => "UTC",
+      getPatientCalendarTimezoneIana: async () => null,
+    });
+
+    const tpl = await tplSvc.createTemplate({ title: "План", status: "published" }, null);
+    const s1 = await tplSvc.createStage(tpl.id, { title: "Этап 1", sortOrder: 1 });
+    await tplSvc.addStageItem(s1.id, { itemType: "lesson", itemRefId: refA, comment: null });
+    const inst = await instSvc.assignTemplateToPatient({
+      templateId: tpl.id,
+      patientUserId: patient,
+      assignedBy: null,
+    });
+    const itemId = inst.stages[0]!.items[0]!.id;
+    const sessionId = crypto.randomUUID();
+    const ex1 = "33333333-3333-4333-8333-333333333333";
+    const ex2 = "44444444-4444-4444-8444-444444444444";
+    await actionLog.insertAction({
+      instanceId: inst.id,
+      instanceStageItemId: itemId,
+      patientUserId: patient,
+      actionType: "done",
+      sessionId,
+      payload: { source: "lfk_exercise_done", exerciseId: ex1 },
+      note: null,
+    });
+    await actionLog.insertAction({
+      instanceId: inst.id,
+      instanceStageItemId: itemId,
+      patientUserId: patient,
+      actionType: "done",
+      sessionId,
+      payload: { source: "lfk_exercise_done", exerciseId: ex2 },
+      note: null,
+    });
+    const snap = await actions.listChecklistDoneToday(patient, inst.id);
+    expect(snap.totalCompletionEventsByItemId[itemId]).toBe(1);
+  });
 });

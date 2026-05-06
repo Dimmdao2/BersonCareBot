@@ -95,6 +95,8 @@ export type ChecklistTodaySnapshot = {
   doneItemIds: string[];
   doneTodayCountByItemId: Record<string, number>;
   lastDoneAtIsoByItemId: Record<string, string>;
+  /** События `done` за всё время экземпляра по элементу (DISTINCT session|row). */
+  totalCompletionEventsByItemId: Record<string, number>;
   doneTodayCountByActivityKey: Record<string, number>;
   lastDoneAtIsoByActivityKey: Record<string, string>;
 };
@@ -148,6 +150,7 @@ export function createTreatmentProgramPatientActionService(deps: {
           doneItemIds: [],
           doneTodayCountByItemId: {},
           lastDoneAtIsoByItemId: {},
+          totalCompletionEventsByItemId: {},
           doneTodayCountByActivityKey: {},
           lastDoneAtIsoByActivityKey: {},
         };
@@ -163,12 +166,14 @@ export function createTreatmentProgramPatientActionService(deps: {
         doneItemIds,
         doneTodayCountByItemId,
         lastDoneAtIsoByItemId,
+        totalCompletionEventsByItemId,
         doneTodayCountByActivityKey,
         lastDoneAtIsoByActivityKey,
       ] = await Promise.all([
         deps.actionLog.listDoneItemIdsInWindow(params),
         deps.actionLog.countDoneByItemInWindow(params),
         deps.actionLog.lastDoneAtIsoByItemForInstance({ instanceId, patientUserId }),
+        deps.actionLog.countCompletionEventsByItemForInstance({ instanceId, patientUserId }),
         deps.actionLog.countDoneByActivityKeyInWindow(params),
         deps.actionLog.lastDoneAtIsoByActivityKeyForInstance({ instanceId, patientUserId }),
       ]);
@@ -176,6 +181,7 @@ export function createTreatmentProgramPatientActionService(deps: {
         doneItemIds,
         doneTodayCountByItemId,
         lastDoneAtIsoByItemId,
+        totalCompletionEventsByItemId,
         doneTodayCountByActivityKey,
         lastDoneAtIsoByActivityKey,
       };

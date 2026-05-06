@@ -66,6 +66,12 @@ import {
   normalizeChecklistCountMap,
   normalizeChecklistLastMap,
 } from "@/app/app/patient/treatment-programs/normalizeTreatmentProgramChecklistMaps";
+import {
+  mergeLastActivityDisplayedIso,
+  parseSnapshotMediaForRowThumb,
+  pickRecommendationRowPreviewMedia,
+  parseRecommendationMediaFromSnapshot,
+} from "@/app/app/patient/treatment-programs/stageItemSnapshot";
 import type { RecommendationMediaItem } from "@/modules/recommendations/types";
 import { PatientCatalogMediaStaticThumb } from "@/shared/ui/patient/PatientCatalogMediaStaticThumb";
 import { routePaths } from "@/app-layer/routes/paths";
@@ -212,69 +218,10 @@ function recommendationBodyMdPreviewPlain(bodyMd: unknown): string {
   return s;
 }
 
-/** Разбор `snapshot.media` для превью строки: рекомендация (`mediaUrl`), упражнение ЛФК (`url` + `type`). */
-function parseSnapshotMediaForRowThumb(snapshot: Record<string, unknown>): RecommendationMediaItem[] {
-  const raw = snapshot.media;
-  if (!Array.isArray(raw)) return [];
-  const items: RecommendationMediaItem[] = [];
-  for (const row of raw) {
-    if (!row || typeof row !== "object" || Array.isArray(row)) continue;
-    const o = row as Record<string, unknown>;
-    const mediaUrl =
-      typeof o.mediaUrl === "string"
-        ? o.mediaUrl.trim()
-        : typeof o.url === "string"
-          ? o.url.trim()
-          : "";
-    if (!mediaUrl) continue;
-    const mt = o.mediaType ?? o.type;
-    const mediaType: RecommendationMediaItem["mediaType"] =
-      mt === "video" || mt === "gif" || mt === "image" ? mt : "image";
-    const sortOrder = typeof o.sortOrder === "number" && Number.isFinite(o.sortOrder) ? o.sortOrder : 0;
-    const previewSmUrl =
-      typeof o.previewSmUrl === "string" && o.previewSmUrl.trim() ? o.previewSmUrl.trim() : null;
-    const previewMdUrl =
-      typeof o.previewMdUrl === "string" && o.previewMdUrl.trim() ? o.previewMdUrl.trim() : null;
-    const ps = o.previewStatus;
-    const previewStatus =
-      ps === "pending" || ps === "ready" || ps === "failed" || ps === "skipped" ? ps : null;
-    items.push({
-      mediaUrl,
-      mediaType,
-      sortOrder,
-      ...(previewSmUrl ? { previewSmUrl } : {}),
-      ...(previewMdUrl ? { previewMdUrl } : {}),
-      ...(previewStatus ? { previewStatus } : {}),
-    });
-  }
-  items.sort((a, b) => a.sortOrder - b.sortOrder || a.mediaUrl.localeCompare(b.mediaUrl));
-  return items;
-}
-
-function parseRecommendationMediaFromSnapshot(snapshot: Record<string, unknown>): RecommendationMediaItem[] {
-  return parseSnapshotMediaForRowThumb(snapshot);
-}
-
-/** Статичное превью в строке списка: сначала картинка/GIF, иначе первое медиа (видео). */
-function pickRecommendationRowPreviewMedia(items: RecommendationMediaItem[]): RecommendationMediaItem | null {
-  if (items.length === 0) return null;
-  const still = items.find((m) => m.mediaType === "image" || m.mediaType === "gif");
-  return still ?? items[0] ?? null;
-}
-
 type InstanceStageRow = TreatmentProgramInstanceDetail["stages"][number];
 
 /** Макс. зелёных точек «сегодня» в модалке — остаток числом (а11y через aria-label). */
 const MAX_COMPOSITION_TODAY_DOTS = 24;
-
-function mergeLastActivityDisplayedIso(logIso: string | undefined, completedAt: string | null): string | null {
-  const tLog = logIso?.trim() ? Date.parse(logIso) : NaN;
-  const tDone = completedAt?.trim() ? Date.parse(completedAt) : NaN;
-  if (!Number.isFinite(tLog) && !Number.isFinite(tDone)) return null;
-  if (!Number.isFinite(tLog)) return completedAt!.trim();
-  if (!Number.isFinite(tDone)) return logIso!.trim();
-  return tLog >= tDone ? logIso!.trim() : completedAt!.trim();
-}
 
 /** Число отметок «сегодня» для строки модалки: по ключу активности и с распределением агрегата элемента ЛФК по упражнениям. */
 function compositionModalTodayDoneCount(params: {

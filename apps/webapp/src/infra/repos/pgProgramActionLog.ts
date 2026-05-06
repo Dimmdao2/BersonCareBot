@@ -155,6 +155,29 @@ export function createPgProgramActionLogPort(): ProgramActionLogPort {
       return out;
     },
 
+    async countCompletionEventsByItemForInstance(params) {
+      const db = getDrizzle();
+      const rows = await db
+        .select({
+          itemId: logTable.instanceStageItemId,
+          c: sql<number>`count(distinct coalesce(${logTable.sessionId}, ${logTable.id}))`.mapWith(Number),
+        })
+        .from(logTable)
+        .where(
+          and(
+            eq(logTable.instanceId, params.instanceId),
+            eq(logTable.patientUserId, params.patientUserId),
+            eq(logTable.actionType, "done"),
+          ),
+        )
+        .groupBy(logTable.instanceStageItemId);
+      const out: Record<string, number> = {};
+      for (const r of rows) {
+        out[r.itemId] = Number(r.c);
+      }
+      return out;
+    },
+
     async lastDoneAtIsoByActivityKeyForInstance(params) {
       const db = getDrizzle();
       const rows = await db

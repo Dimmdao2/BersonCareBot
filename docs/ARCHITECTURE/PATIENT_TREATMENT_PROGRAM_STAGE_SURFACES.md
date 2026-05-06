@@ -13,6 +13,14 @@
 
 Инвариант: исключение `test_set` из composition modal **не** означает, что наборы тестов «только на отдельной странице» — они перечисляются в контенте этапа и открываются в универсальной модалке пункта.
 
+## Страница этапа `stages/[stageId]` (интерактивный режим)
+
+Маршрут `apps/webapp/src/app/app/patient/treatment-programs/[instanceId]/stages/[stageId]/page.tsx` → `PatientTreatmentProgramStagePageClient.tsx`. Для **активного** этапа (`patientTreatmentProgramStageScreenVariant` → `interactive`) блок **«Программа этапа»** (`PatientTreatmentProgramStagePageProgramSection.tsx`) показывает только **`exercise`** и **исполняемые** `recommendation` (не `isPersistentRecommendation`), плюс фильтр `isInstanceStageItemShownOnPatientProgramSurfaces`. Постоянные рекомендации вынесены в отдельный коллапс «Рекомендации этапа».
+
+В ветках **`pastReadOnly`** / **`futureLocked`** по-прежнему используется полный список/тело из `PatientInstanceStageBody` там, где это задано планом (архив и замок); узкий состав «только упражнения + actionable recommendation» относится **только** к интерактивной секции «Программа этапа».
+
+Общие хелперы превью и «последней активности» по элементу: `apps/webapp/src/app/app/patient/treatment-programs/stageItemSnapshot.ts` (импортируются и с дашборда программы, и со страницы этапа).
+
 ## Снимок `test_set` и идентификаторы тестов
 
 Разбор JSON-снимка элемента типа `test_set` и список `testId` для навигации к прохождению тестов:

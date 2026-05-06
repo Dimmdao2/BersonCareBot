@@ -292,6 +292,14 @@ export type ProgramActionLogPort = {
     instanceId: string;
     patientUserId: string;
   }): Promise<Record<string, string>>;
+  /**
+   * Число «событий выполнения» по каждому элементу за всё время экземпляра:
+   * COUNT(DISTINCT COALESCE(session_id, id)) среди action_type = done (одна ЛФК-сессия = один раз).
+   */
+  countCompletionEventsByItemForInstance(params: {
+    instanceId: string;
+    patientUserId: string;
+  }): Promise<Record<string, number>>;
   /** Число `done` за окно по ключу активности (см. `programActionDoneActivityKey`). */
   countDoneByActivityKeyInWindow(params: {
     instanceId: string;

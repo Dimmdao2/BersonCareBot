@@ -36,6 +36,11 @@ import { MarkdownContent } from "@/shared/ui/markdown/MarkdownContent";
 import { PatientMediaPlaybackVideo } from "@/shared/ui/media/PatientMediaPlaybackVideo";
 import { parseApiMediaIdFromPlayableUrl } from "@/shared/lib/parseApiMediaIdFromPlayableUrl";
 import {
+  parseSnapshotMediaForRowThumb,
+  pickRecommendationRowPreviewMedia,
+  primaryMediaForStageItem,
+} from "@/app/app/patient/treatment-programs/stageItemSnapshot";
+import {
   patientButtonPrimaryClass,
   patientButtonSkipClass,
   patientButtonSuccessClass,
@@ -68,69 +73,6 @@ function modalSnapshotTitle(snapshot: Record<string, unknown>, itemType: string)
   const t = snapshot.title;
   if (typeof t === "string" && t.trim() !== "") return t;
   return itemType;
-}
-
-/** Разбор `snapshot.media` для превью и модалки: рекомендация (`mediaUrl`), упражнение ЛФК (`url` + `type`). */
-function parseSnapshotMediaForRowThumb(snapshot: Record<string, unknown>): RecommendationMediaItem[] {
-  const raw = snapshot.media;
-  if (!Array.isArray(raw)) return [];
-  const items: RecommendationMediaItem[] = [];
-  for (const row of raw) {
-    if (!row || typeof row !== "object" || Array.isArray(row)) continue;
-    const o = row as Record<string, unknown>;
-    const mediaUrl =
-      typeof o.mediaUrl === "string"
-        ? o.mediaUrl.trim()
-        : typeof o.url === "string"
-          ? o.url.trim()
-          : "";
-    if (!mediaUrl) continue;
-    const mt = o.mediaType ?? o.type;
-    const mediaType: RecommendationMediaItem["mediaType"] =
-      mt === "video" || mt === "gif" || mt === "image" ? mt : "image";
-    const sortOrder = typeof o.sortOrder === "number" && Number.isFinite(o.sortOrder) ? o.sortOrder : 0;
-    const previewSmUrl =
-      typeof o.previewSmUrl === "string" && o.previewSmUrl.trim() ? o.previewSmUrl.trim() : null;
-    const previewMdUrl =
-      typeof o.previewMdUrl === "string" && o.previewMdUrl.trim() ? o.previewMdUrl.trim() : null;
-    const ps = o.previewStatus;
-    const previewStatus =
-      ps === "pending" || ps === "ready" || ps === "failed" || ps === "skipped" ? ps : null;
-    items.push({
-      mediaUrl,
-      mediaType,
-      sortOrder,
-      ...(previewSmUrl ? { previewSmUrl } : {}),
-      ...(previewMdUrl ? { previewMdUrl } : {}),
-      ...(previewStatus ? { previewStatus } : {}),
-    });
-  }
-  items.sort((a, b) => a.sortOrder - b.sortOrder || a.mediaUrl.localeCompare(b.mediaUrl));
-  return items;
-}
-
-function pickRecommendationRowPreviewMedia(items: RecommendationMediaItem[]): RecommendationMediaItem | null {
-  if (items.length === 0) return null;
-  const still = items.find((m) => m.mediaType === "image" || m.mediaType === "gif");
-  return still ?? items[0] ?? null;
-}
-
-function primaryMediaForStageItem(item: StageItem): RecommendationMediaItem | null {
-  const snap = item.snapshot as Record<string, unknown>;
-  if (item.itemType === "lfk_complex") {
-    const lines = listLfkSnapshotExerciseLines(snap);
-    for (const line of lines) {
-      if (line.media != null && Array.isArray(line.media)) {
-        const thumbItems = parseSnapshotMediaForRowThumb({ media: line.media } as Record<string, unknown>);
-        const picked = pickRecommendationRowPreviewMedia(thumbItems);
-        if (picked) return picked;
-      }
-    }
-    return null;
-  }
-  const all = parseSnapshotMediaForRowThumb(snap);
-  const video = all.find((m) => m.mediaType === "video");
-  return video ?? all[0] ?? null;
 }
 
 function formatCharacteristics(item: StageItem): string[] {

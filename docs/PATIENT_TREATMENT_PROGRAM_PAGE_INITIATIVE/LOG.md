@@ -1,5 +1,12 @@
 # LOG — PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE
 
+## 2026-05-07 — экран этапа: аудит-фиксы и док-синхронизация
+
+- **Описание в hero:** переключатель «развернуть / свернуть» показывается при фактическом переполнении трёх строк (`line-clamp-3`): измерение `scrollHeight` vs `clientHeight` + `ResizeObserver`; при смене текста/этапа — `key` на `StageDescriptionBlock` вместо сброса состояния в `useEffect`.
+- **`mergeLastActivityDisplayedIso`:** одна реализация в `stageItemSnapshot.ts`; `PatientTreatmentProgramDetailClient.tsx` импортирует её (без дублирования тела функции).
+- **Док:** `ARCHITECTURE/PATIENT_TREATMENT_PROGRAM_STAGE_SURFACES.md` — раздел про маршрут `stages/[stageId]` и отличие фильтра «Программа этапа» от архива; `docs/README.md` — уточнение ссылки; план Cursor `patient_stage_screen_ui_2a5ac8a6.plan.md` — статус реализации и уточнение scope по `DetailClient`.
+- **Проверки:** `pnpm install --frozen-lockfile && pnpm run ci` в корне репозитория — зелёный; точечно `eslint`/`vitest` на затронутых путях.
+
 ## 2026-05-06 — follow-up аудита снимков ЛФК (пустой `media`, парсер, тесты)
 
 - **Контекст чата:** после аудита превью упражнений ЛФК в модалке «Состав этапа» закрыты пункты про сериализацию и покрытие парсера без отдельного PG-контракта на БД.
