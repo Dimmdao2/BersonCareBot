@@ -34,7 +34,7 @@
     "check": "pnpm ci",
     "audit": "node scripts/registry-prod-audit.mjs",
     "format": "prettier -w .",
-    "migrate": "pnpm --dir apps/integrator run migrate",
+    "migrate": "pnpm --dir apps/integrator run migrate && pnpm --dir apps/webapp run migrate",
     "migrate:webapp": "pnpm --dir apps/webapp run migrate",
     "db:migrate": "pnpm --dir apps/integrator run db:migrate",
     "db:migrate:prod": "pnpm --dir apps/integrator run db:migrate:prod",

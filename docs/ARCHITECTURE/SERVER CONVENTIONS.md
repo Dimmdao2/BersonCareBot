@@ -363,13 +363,13 @@
 ### Миграции: webapp Drizzle (`public`) vs integrator
 
 - **Симптом:** в логах webapp `column "…" does not exist` (например `publication_status` в `test_sets`) при открытии каталогов врача — **не накатили Drizzle-миграции webapp** на ту БД, что в `webapp.prod` (`DATABASE_URL`, схема **`public`**). Новый билд webapp без миграций оставляет схему старой.
-- **`pnpm migrate` в корне репозитория** — это **`pnpm --dir apps/integrator run migrate`**. Нужен загруженный **`/opt/env/bersoncarebot/api.prod`** (`DATABASE_URL`, `BOOKING_URL` и пр.). Это **не** миграции из `apps/webapp/db/drizzle-migrations`.
-- **Webapp (Drizzle):** каталог проекта на хосте + `webapp.prod`, затем при необходимости перезапуск webapp:
+- **`pnpm migrate` в корне репозитория** — по очереди: **integrator** (`pnpm --dir apps/integrator run migrate`), затем **webapp Drizzle** (`pnpm --dir apps/webapp run migrate`, каталог `apps/webapp/db/drizzle-migrations`). Для integrator в env нужны как минимум **`DATABASE_URL`** и **`BOOKING_URL`** (канон: загрузить **`/opt/env/bersoncarebot/api.prod`**). Для webapp Drizzle нужен **`DATABASE_URL`** (после unification тот же URL — достаточно `api.prod`, либо дополнительно подгрузить `webapp.prod` для полного набора webapp-переменных). Только webapp без integrator: **`pnpm migrate:webapp`**.
+- **Пример на production-хосте** (из каталога проекта; затем при необходимости перезапуск webapp):
 
 ```bash
 cd /opt/projects/bersoncarebot
-set -a && source /opt/env/bersoncarebot/webapp.prod && set +a
-pnpm --dir apps/webapp run migrate
+set -a && source /opt/env/bersoncarebot/api.prod && source /opt/env/bersoncarebot/webapp.prod && set +a
+pnpm migrate
 # при необходимости:
 # sudo systemctl restart bersoncarebot-webapp-prod.service
 ```
