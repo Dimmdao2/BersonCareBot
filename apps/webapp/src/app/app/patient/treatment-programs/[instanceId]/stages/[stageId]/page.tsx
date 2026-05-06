@@ -8,6 +8,7 @@ import { routePaths } from "@/app-layer/routes/paths";
 import { AppShell } from "@/shared/ui/AppShell";
 import { patientMutedTextClass } from "@/shared/ui/patientVisual";
 import { omitDisabledInstanceStageItemsForPatientApi } from "@/modules/treatment-program/stage-semantics";
+import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
 import { PatientTreatmentProgramStagePageClient } from "../../../PatientTreatmentProgramStagePageClient";
 
 type Props = { params: Promise<{ instanceId: string; stageId: string }> };
@@ -46,6 +47,8 @@ export default async function PatientTreatmentProgramStagePage({ params }: Props
   const { instanceId, stageId } = await params;
   const deps = buildAppDeps();
 
+  const appTz = await getAppDisplayTimeZone();
+
   let detail: Awaited<ReturnType<typeof deps.treatmentProgramInstance.getInstanceForPatient>>;
   try {
     const rawDetail = await deps.treatmentProgramInstance.getInstanceForPatient(
@@ -82,6 +85,8 @@ export default async function PatientTreatmentProgramStagePage({ params }: Props
         instanceId={instanceId}
         stage={stage}
         pipelineLength={pipelineLength}
+        allStages={resolvedDetail.stages}
+        appDisplayTimeZone={appTz}
       />
     </AppShell>
   );

@@ -8,6 +8,10 @@ import {
   splitPatientProgramStagesForDetailUi,
   selectCurrentWorkingStageForPatientDetail,
   expectedStageControlDateIso,
+  patientTreatmentProgramStageScreenVariant,
+  countBlockingStagesBeforePatientStage,
+  latestCompletedAtIsoAmongStageItems,
+  calendarDaysFromUtcIsoToNowInZone,
 } from "./stage-semantics";
 import type { TreatmentProgramInstanceDetail } from "./types";
 
@@ -337,5 +341,42 @@ describe("stage-semantics (1.1a detail split)", () => {
       expectedDurationDays: 7,
     });
     expect(iso).toMatch(/^2026-01-08T/);
+  });
+
+  it("patientTreatmentProgramStageScreenVariant: zero stage is always interactive", () => {
+    expect(patientTreatmentProgramStageScreenVariant({ sortOrder: 0, status: "locked" })).toBe("interactive");
+    expect(patientTreatmentProgramStageScreenVariant({ sortOrder: 0, status: "completed" })).toBe("interactive");
+  });
+
+  it("patientTreatmentProgramStageScreenVariant maps pipeline statuses", () => {
+    expect(patientTreatmentProgramStageScreenVariant({ sortOrder: 1, status: "completed" })).toBe("pastReadOnly");
+    expect(patientTreatmentProgramStageScreenVariant({ sortOrder: 1, status: "skipped" })).toBe("pastReadOnly");
+    expect(patientTreatmentProgramStageScreenVariant({ sortOrder: 1, status: "locked" })).toBe("futureLocked");
+    expect(patientTreatmentProgramStageScreenVariant({ sortOrder: 1, status: "in_progress" })).toBe("interactive");
+    expect(patientTreatmentProgramStageScreenVariant({ sortOrder: 1, status: "available" })).toBe("interactive");
+  });
+
+  it("countBlockingStagesBeforePatientStage counts non-terminal predecessors", () => {
+    const stages = [
+      mk("a", 1, "completed"),
+      mk("b", 2, "in_progress"),
+      mk("c", 3, "locked"),
+    ];
+    expect(countBlockingStagesBeforePatientStage(stages, { id: "c", sortOrder: 3 })).toBe(1);
+    expect(countBlockingStagesBeforePatientStage(stages, { id: "b", sortOrder: 2 })).toBe(0);
+  });
+
+  it("latestCompletedAtIsoAmongStageItems picks max completedAt", () => {
+    const stage = {
+      items: [
+        { completedAt: "2026-01-02T12:00:00.000Z" as string | null },
+        { completedAt: "2026-01-05T08:00:00.000Z" as string | null },
+      ],
+    };
+    expect(latestCompletedAtIsoAmongStageItems(stage)).toBe("2026-01-05T08:00:00.000Z");
+  });
+
+  it("calendarDaysFromUtcIsoToNowInZone is non-negative", () => {
+    expect(calendarDaysFromUtcIsoToNowInZone("2026-01-01T00:00:00.000Z", "Europe/Moscow")).toBeGreaterThanOrEqual(0);
   });
 });

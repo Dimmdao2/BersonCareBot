@@ -22,7 +22,6 @@ import {
   ChevronDown,
   CheckCircle2,
   CalendarCheck,
-  ClipboardList,
   PlayCircle,
   Play,
   List,
@@ -31,6 +30,7 @@ import {
   Info,
   Dumbbell,
   ScrollText,
+  TrendingUp,
 } from "lucide-react";
 import type {
   NormalizedTestDecision,
@@ -45,6 +45,7 @@ import {
   formatTreatmentProgramStageStatusRu,
 } from "@/modules/treatment-program/types";
 import {
+  isInstanceStageItemActiveForPatient,
   isInstanceStageItemShownInPatientCompositionModal,
   isInstanceStageItemShownOnPatientProgramSurfaces,
   isPersistentRecommendation,
@@ -96,6 +97,12 @@ import {
 import { DateTime } from "luxon";
 import { formatBookingDateLongRu, formatBookingDateTimeShortStyleRu } from "@/shared/lib/formatBusinessDateTime";
 
+/**
+ * Строки списков на странице программы лечения и на странице этапа (тот же клиентский модуль).
+ * Плотнее {@link patientListItemClass}, чтобы не менять глобальный примитив для других экранов пациента.
+ */
+const patientTreatmentProgramListItemClass = cn(patientListItemClass, "p-2 lg:p-2.5");
+
 /** Склонение «N дней» для строки занятости в hero. */
 function ruProgramEngagementDaysWord(n: number): string {
   const mod100 = n % 100;
@@ -140,13 +147,21 @@ function PatientProgramBlockHeading(props: {
   iconClassName?: string;
   trailing?: ReactNode;
   className?: string;
+  /** Выравнивание строки: для высокого `trailing` (колонка кнопок) обычно `start`. */
+  rowAlign?: "center" | "start";
   /** Внутри `button` (коллапс) — без `h3`. */
   titleAs?: "h3" | "span";
 }) {
-  const { id, title, Icon, iconClassName, trailing, className, titleAs = "h3" } = props;
+  const { id, title, Icon, iconClassName, trailing, className, titleAs = "h3", rowAlign = "center" } = props;
   const titleClass = patientSectionTitleClass;
   return (
-    <div className={cn("mb-3 flex min-w-0 items-center justify-between gap-2", className)}>
+    <div
+      className={cn(
+        "mb-3 flex min-w-0 justify-between gap-2",
+        rowAlign === "start" ? "items-start" : "items-center",
+        className,
+      )}
+    >
       <div className="flex min-w-0 flex-1 items-center gap-2">
         {Icon ? (
           <Icon className={cn("size-4 shrink-0", iconClassName)} aria-hidden />
@@ -548,7 +563,7 @@ function PatientProgramStagesTimeline(props: {
           Icon={List}
           iconClassName="text-[var(--patient-color-primary)]"
         />
-        <ul className="m-0 flex list-none flex-col gap-2 p-0">
+        <ul className="m-0 flex list-none flex-col gap-1.5 p-0">
           {stages.map((stage) => {
             const isActive = currentWorkingStage?.id === stage.id;
             const isPast = stage.status === "completed" || stage.status === "skipped";
@@ -556,12 +571,12 @@ function PatientProgramStagesTimeline(props: {
             const isStale =
               !isActive && !isPast && (stage.status === "available" || stage.status === "in_progress");
 
-            let rowClass = patientListItemClass;
+            let rowClass = patientTreatmentProgramListItemClass;
             let leftIcon: ReactNode;
             if (isActive) {
               rowClass = cn(
-                patientListItemClass,
-                "border-l-4 border-l-[var(--patient-color-primary)] bg-[var(--patient-color-primary-soft)]/15",
+                patientTreatmentProgramListItemClass,
+                "border-l-4 border-l-[var(--patient-color-primary)] bg-[var(--patient-color-primary-soft)]",
               );
               leftIcon = (
                 <Play
@@ -571,7 +586,7 @@ function PatientProgramStagesTimeline(props: {
                 />
               );
             } else if (isPast) {
-              rowClass = cn(patientListItemClass, "bg-muted/20 opacity-70");
+              rowClass = cn(patientTreatmentProgramListItemClass, "bg-muted/20 opacity-70");
               leftIcon =
                 stage.status === "skipped" ? (
                   <CornerDownRight className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
@@ -582,17 +597,19 @@ function PatientProgramStagesTimeline(props: {
                   />
                 );
             } else {
-              rowClass = cn(patientListItemClass, "opacity-50");
-              leftIcon = <Lock className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />;
+              rowClass = patientTreatmentProgramListItemClass;
+              leftIcon = (
+                <Lock className="mt-0.5 size-4 shrink-0 text-[var(--patient-color-primary)]/45" aria-hidden />
+              );
             }
-
-            rowClass = cn(rowClass, "pb-2");
 
             const titleClass = isActive
               ? "text-sm font-bold text-[var(--patient-color-primary)]"
               : isPast
                 ? "text-sm font-medium text-foreground"
-                : "text-sm font-medium text-muted-foreground";
+                : isFuture
+                  ? "text-sm font-medium text-[var(--patient-color-primary)]/58"
+                  : "text-sm font-medium text-[var(--patient-color-primary)]/52";
 
             const titleBlock = (
               <div className="flex min-w-0 flex-1 flex-col gap-1">
@@ -643,8 +660,10 @@ function PatientProgramStagesTimeline(props: {
                     type="button"
                     className={cn(
                       rowClass,
-                      "w-full cursor-pointer text-left transition-colors hover:bg-[var(--patient-color-primary-soft)]/20",
-                      "outline-none focus-visible:ring-2 focus-visible:ring-[var(--patient-color-primary)] focus-visible:ring-offset-2",
+                      "w-full cursor-pointer text-left outline-none focus-visible:ring-2 focus-visible:ring-[var(--patient-color-primary)] focus-visible:ring-offset-2",
+                      isActive
+                        ? "transition-[filter] hover:brightness-[0.985]"
+                        : "transition-colors hover:bg-[var(--patient-color-primary-soft)]/25",
                     )}
                     aria-label={`Состав этапа: ${stage.title}`}
                     onClick={() => setItemsModalStage(stage)}
@@ -698,11 +717,14 @@ function PatientProgramStagesTimeline(props: {
                       return (
                       <li
                         key={row.key}
-                        className={cn(stageCompositionModalRowClass, "flex items-stretch gap-2 px-2 py-2")}
+                        className={cn(
+                          stageCompositionModalRowClass,
+                          "flex items-stretch gap-1.5 px-1.5 py-1.5",
+                        )}
                       >
                         <div
                           className={cn(
-                            "min-w-0 flex-1 flex gap-2",
+                            "flex min-w-0 flex-1 gap-1.5",
                             showMediaCol ? "items-stretch" : "items-start",
                           )}
                         >
@@ -713,7 +735,7 @@ function PatientProgramStagesTimeline(props: {
                           <span
                             className={cn(
                               "text-[#444444]",
-                              showMediaCol ? "min-w-0 flex-1 py-0.5" : "block min-w-0",
+                              showMediaCol ? "min-w-0 flex-1 py-0" : "block min-w-0",
                             )}
                           >
                             {row.text}
@@ -736,8 +758,8 @@ function PatientProgramStagesTimeline(props: {
                       {ungroupedItems.length > 0 ? (
                         <ul
                           className={cn(
-                            "m-0 list-none space-y-1.5 p-0",
-                            sortedGroups.length > 0 && "mb-3",
+                            "m-0 list-none space-y-1 p-0",
+                            sortedGroups.length > 0 && "mb-2",
                           )}
                         >
                           {ungroupedItems.flatMap(renderCompositionItem)}
@@ -758,7 +780,7 @@ function PatientProgramStagesTimeline(props: {
                                 </span>
                               ) : null}
                             </div>
-                            <ul className="m-0 list-none space-y-1.5 p-0">{gItems.flatMap(renderCompositionItem)}</ul>
+                            <ul className="m-0 list-none space-y-1 p-0">{gItems.flatMap(renderCompositionItem)}</ul>
                           </section>
                         );
                       })}
@@ -773,22 +795,25 @@ function PatientProgramStagesTimeline(props: {
   );
 }
 
-function patientStageHasHeaderFields(stage: {
+export function patientStageHasHeaderFields(stage: {
+  description?: string | null;
   goals: string | null;
   objectives: string | null;
   expectedDurationDays: number | null;
   expectedDurationText: string | null;
 }): boolean {
   return Boolean(
-    stage.goals?.trim() ||
+    stage.description?.trim() ||
+      stage.goals?.trim() ||
       stage.objectives?.trim() ||
       stage.expectedDurationDays != null ||
       Boolean(stage.expectedDurationText?.trim()),
   );
 }
 
-function PatientStageHeaderFields(props: {
+export function PatientStageHeaderFields(props: {
   stage: {
+    description?: string | null;
     goals: string | null;
     objectives: string | null;
     expectedDurationDays: number | null;
@@ -796,15 +821,27 @@ function PatientStageHeaderFields(props: {
   };
   /** Узкие отступы — как у списка этапов на странице программы. */
   compactSpacing?: boolean;
+  /** Без блока «ожидаемый срок» (экран запланированного этапа). */
+  planPreview?: boolean;
+  /** Скрыть блок описания (например этап 0 «Рекомендации» — без «Описание этапа» и текста из поля). */
+  hideDescription?: boolean;
 }) {
-  const { stage, compactSpacing } = props;
-  if (!patientStageHasHeaderFields(stage)) return null;
+  const { stage, compactSpacing, planPreview = false, hideDescription = false } = props;
   const durationLine = [
     stage.expectedDurationDays != null ? `${stage.expectedDurationDays} дн.` : null,
     stage.expectedDurationText?.trim() || null,
   ]
     .filter(Boolean)
     .join(" · ");
+
+  const showDescription = !hideDescription && Boolean(stage.description?.trim());
+  const hasRenderableFields =
+    showDescription ||
+    Boolean(stage.goals?.trim()) ||
+    Boolean(stage.objectives?.trim()) ||
+    (!planPreview && Boolean(durationLine));
+
+  if (!hasRenderableFields) return null;
 
   return (
     <div
@@ -814,6 +851,12 @@ function PatientStageHeaderFields(props: {
         compactSpacing ? "mb-3" : "mb-4",
       )}
     >
+      {showDescription ? (
+        <div>
+          <h3 className={patientSectionTitleClass}>Описание этапа</h3>
+          <p className={cn(patientBodyTextClass, "mt-1 whitespace-pre-wrap")}>{(stage.description ?? "").trim()}</p>
+        </div>
+      ) : null}
       {stage.goals?.trim() ? (
         <div>
           <h3 className={patientSectionTitleClass}>Цель</h3>
@@ -826,7 +869,7 @@ function PatientStageHeaderFields(props: {
           <p className={cn(patientBodyTextClass, "mt-1 whitespace-pre-wrap")}>{stage.objectives.trim()}</p>
         </div>
       ) : null}
-      {durationLine ? (
+      {!planPreview && durationLine ? (
         <div>
           <h3 className={patientSectionTitleClass}>Ожидаемый срок</h3>
           <p className={cn(patientMutedTextClass, "mt-1 text-sm")}>{durationLine}</p>
@@ -886,6 +929,8 @@ function PatientInstanceStageItemCard(props: {
   setError: (v: string | null) => void;
   refresh: () => Promise<void>;
   contentBlocked: boolean;
+  /** Только просмотр: без отметок, чек-листов и полей ввода. */
+  itemInteraction: "full" | "readOnly";
   doneItemIds: string[];
   onDoneItemIds: (ids: string[]) => void;
   /** Сколько строк `done` за сегодня по этому элементу (GET checklist-today). */
@@ -904,13 +949,16 @@ function PatientInstanceStageItemCard(props: {
     setError,
     refresh,
     contentBlocked,
+    itemInteraction,
     doneItemIds,
     onDoneItemIds,
     todayChecklistDoneCount,
     neutralItemChrome = false,
   } = props;
+  const readOnly = itemInteraction === "readOnly";
   const [markingViewed, setMarkingViewed] = useState(false);
-  const showsNew = patientStageItemShowsNewBadge(item, contentBlocked);
+  const showsNew =
+    !readOnly && patientStageItemShowsNewBadge(item, contentBlocked);
   const lfkRow = useMemo(
     (): PatientProgramChecklistRow => ({
       stageId: stage.id,
@@ -942,7 +990,7 @@ function PatientInstanceStageItemCard(props: {
     <li
       ref={markRef}
       className={cn(
-        patientListItemClass,
+        patientTreatmentProgramListItemClass,
         "border-[var(--patient-border)]/80",
         neutralItemChrome
           ? "bg-[var(--patient-card-bg)]"
@@ -1012,14 +1060,14 @@ function PatientInstanceStageItemCard(props: {
           )}
         </p>
       ) : null}
-      {todayChecklistDoneCount != null && todayChecklistDoneCount > 0 ? (
+      {!readOnly && todayChecklistDoneCount != null && todayChecklistDoneCount > 0 ? (
         <p className={cn(patientMutedTextClass, "mt-0.5 text-[11px] leading-snug")}>
           Отметок в журнале за сегодня:{" "}
           <span className="font-medium text-foreground">{todayChecklistDoneCount}</span>
         </p>
       ) : null}
 
-      {!contentBlocked ? (
+      {!contentBlocked && !readOnly ? (
         item.itemType === "test_set" ? (
           <TestSetBlock
             itemId={item.id}
@@ -1071,6 +1119,11 @@ function PatientInstanceStageItemCard(props: {
           </div>
         ) : null
       ) : null}
+      {!contentBlocked && readOnly && item.itemType === "test_set" ? (
+        <p className="mt-2 text-xs text-emerald-600 dark:text-emerald-400">
+          {item.completedAt ? "Набор тестов пройден." : "Набор тестов не выполнялся."}
+        </p>
+      ) : null}
       </div>
     </li>
   );
@@ -1096,6 +1149,10 @@ export function PatientInstanceStageBody(props: {
    * Вертикальный ритм как у блока «Этапы программы» (рекомендации в коллапсе на detail).
    */
   stackVariant?: "default" | "likeStagesTimeline";
+  /** Архив этапа: только список без действий. */
+  itemInteraction?: "full" | "readOnly";
+  /** Не показывать «Описание этапа» и текст описания этапа (этап 0 / рекомендации). */
+  hideStageDescription?: boolean;
 }) {
   const {
     instanceId,
@@ -1112,11 +1169,17 @@ export function PatientInstanceStageBody(props: {
     onDoneItemIds,
     todayCountByStageItemId,
     stackVariant = "default",
+    itemInteraction = "full",
+    hideStageDescription = false,
   } = props;
   const likeStages = stackVariant === "likeStagesTimeline";
   const contentBlocked =
     !ignoreStageLockForContent && (stage.status === "locked" || stage.status === "skipped");
-  const visibleItems = stage.items.filter(isInstanceStageItemShownOnPatientProgramSurfaces);
+  const visibleItems = stage.items.filter((it) =>
+    itemInteraction === "readOnly"
+      ? isInstanceStageItemActiveForPatient(it)
+      : isInstanceStageItemShownOnPatientProgramSurfaces(it),
+  );
   const sortedGroups = sortByOrderThenId(stage.groups).filter((g) =>
     visibleItems.some((it) => it.groupId === g.id),
   );
@@ -1127,18 +1190,22 @@ export function PatientInstanceStageBody(props: {
       {heading != null ? (
         <div className="mb-3 flex flex-wrap items-baseline gap-2">{heading}</div>
       ) : null}
-      <PatientStageHeaderFields stage={stage} compactSpacing={likeStages} />
+      <PatientStageHeaderFields
+        stage={stage}
+        compactSpacing={likeStages}
+        hideDescription={hideStageDescription}
+      />
       {contentBlocked ? (
         <p className={patientMutedTextClass}>Этап откроется после завершения предыдущего или по решению врача.</p>
       ) : null}
-      <div className={cn("m-0 p-0", likeStages ? "space-y-2" : "space-y-4")}>
+      <div className={cn("m-0 p-0", likeStages ? "space-y-1.5" : "space-y-3")}>
         {sortedGroups.map((g) => {
           const gItems = sortByOrderThenId(visibleItems.filter((it) => it.groupId === g.id));
           return (
             <details
               key={g.id}
               className={cn(
-                patientListItemClass,
+                patientTreatmentProgramListItemClass,
                 "border-[var(--patient-border)]/80",
                 likeStages ? "bg-[var(--patient-card-bg)]" : "bg-[var(--patient-color-primary-soft)]/5",
               )}
@@ -1155,7 +1222,7 @@ export function PatientInstanceStageBody(props: {
               {g.description?.trim() ? (
                 <p className={cn(patientBodyTextClass, "mt-2 whitespace-pre-wrap text-sm")}>{g.description.trim()}</p>
               ) : null}
-              <ul className={cn("m-0 list-none p-0", likeStages ? "mt-2 space-y-2" : "mt-3 space-y-4")}>
+              <ul className={cn("m-0 list-none p-0", likeStages ? "mt-1.5 space-y-1.5" : "mt-2 space-y-3")}>
                 {gItems.map((item) => (
                   <PatientInstanceStageItemCard
                     key={item.id}
@@ -1169,6 +1236,7 @@ export function PatientInstanceStageBody(props: {
                     setError={setError}
                     refresh={refresh}
                     contentBlocked={contentBlocked}
+                    itemInteraction={itemInteraction}
                     doneItemIds={doneItemIds}
                     onDoneItemIds={onDoneItemIds}
                     todayChecklistDoneCount={todayCountByStageItemId?.[item.id]}
@@ -1180,11 +1248,11 @@ export function PatientInstanceStageBody(props: {
           );
         })}
         {ungroupedItems.length > 0 ? (
-          <div className={likeStages ? "space-y-2" : "space-y-3"}>
+          <div className={likeStages ? "space-y-1.5" : "space-y-3"}>
             {sortedGroups.length > 0 ? (
               <h3 className={cn(patientSectionTitleClass, "text-sm")}>Без группы</h3>
             ) : null}
-            <ul className={cn("m-0 list-none p-0", likeStages ? "space-y-2" : "space-y-4")}>
+            <ul className={cn("m-0 list-none p-0", likeStages ? "space-y-1.5" : "space-y-3")}>
               {ungroupedItems.map((item) => (
                 <PatientInstanceStageItemCard
                   key={item.id}
@@ -1198,6 +1266,7 @@ export function PatientInstanceStageBody(props: {
                   setError={setError}
                   refresh={refresh}
                   contentBlocked={contentBlocked}
+                  itemInteraction={itemInteraction}
                   doneItemIds={doneItemIds}
                   onDoneItemIds={onDoneItemIds}
                   todayChecklistDoneCount={todayCountByStageItemId?.[item.id]}
@@ -1227,7 +1296,7 @@ function PatientLfkChecklistRow(props: {
   const [pending, setPending] = useState(false);
 
   return (
-    <div className={cn(patientFormSurfaceClass, "border border-[var(--patient-border)]/70")}>
+    <div className={cn(patientFormSurfaceClass, "gap-3 border border-[var(--patient-border)]/70 p-3")}>
       <p className="text-sm font-medium">{snapshotTitle(row.item.snapshot, row.item.itemType)}</p>
       {row.groupTitle ? <p className={cn(patientMutedTextClass, "text-xs")}>{row.groupTitle}</p> : null}
       {done ? (
@@ -1315,28 +1384,43 @@ function PatientProgramControlCard(props: {
   return (
     <section className={patientSurfaceWarningClass} aria-label="Следующий контроль">
       <PatientProgramBlockHeading
+        className="mb-2"
+        rowAlign="start"
         title="Следующий контроль"
         Icon={CalendarCheck}
         iconClassName="text-[var(--patient-color-warning)]"
+        trailing={
+          <div className="flex flex-col items-end gap-1.5">
+            {currentStageId ? (
+              <Link
+                href={routePaths.patientTreatmentProgramStage(instanceId, currentStageId)}
+                className={cn(
+                  patientButtonWarningOutlineClass,
+                  "w-auto min-h-8 shrink-0 px-2.5 py-1.5 text-xs font-semibold leading-tight sm:min-h-8",
+                )}
+              >
+                Выполнить тесты
+              </Link>
+            ) : null}
+            <Link
+              href={routePaths.cabinet}
+              className={cn(
+                patientButtonSuccessClass,
+                "w-auto min-h-8 shrink-0 px-2.5 py-1.5 text-xs font-semibold leading-tight sm:min-h-8",
+              )}
+            >
+              Запись на приём
+            </Link>
+          </div>
+        }
       />
-      {dateLine ? (
-        <p className="text-2xl font-bold">{dateLine}</p>
-      ) : (
-        <p className={cn(patientMutedTextClass, "text-base font-semibold leading-snug")}>{fallbackMessage}</p>
-      )}
-      <p className={cn(patientMutedTextClass, "mt-0.5 text-xs")}>Консультация со специалистом</p>
-      <div className="mt-3 flex flex-row gap-2">
-        {currentStageId ? (
-          <Link
-            href={routePaths.patientTreatmentProgramStage(instanceId, currentStageId)}
-            className={cn(patientButtonWarningOutlineClass, "flex-1")}
-          >
-            Выполнить тесты
-          </Link>
-        ) : null}
-        <Link href={routePaths.cabinet} className={cn(patientButtonSuccessClass, "flex-1")}>
-          Записаться на приём
-        </Link>
+      <div className="min-w-0">
+        {dateLine ? (
+          <p className="text-2xl font-bold leading-none">{dateLine}</p>
+        ) : (
+          <p className={cn(patientMutedTextClass, "text-base font-semibold leading-snug")}>{fallbackMessage}</p>
+        )}
+        <p className={cn(patientMutedTextClass, "mt-0 text-xs leading-tight")}>Консультация со специалистом</p>
       </div>
     </section>
   );
@@ -1594,6 +1678,7 @@ export function PatientTreatmentProgramDetailClient(props: {
               onDoneItemIds={setDoneItemIds}
               todayCountByStageItemId={doneTodayCountByItemId}
               heading={null}
+              hideStageDescription
             />
           </CollapsibleContent>
         </Collapsible>
@@ -1611,19 +1696,14 @@ export function PatientTreatmentProgramDetailClient(props: {
         />
       ) : null}
 
-      {/* C5: Test history entry point */}
-      {detail.status === "active" && currentWorkingStage ? (
-        <section className={patientCardClass} aria-label="История тестирования">
-          <PatientProgramBlockHeading
-            title="История тестирования"
-            Icon={ClipboardList}
-            iconClassName="text-[var(--patient-color-primary)]"
-          />
-          <p className={cn(patientMutedTextClass, "text-xs")}>
-            Результаты тестов за все этапы программы.
-          </p>
-        </section>
-      ) : null}
+      {/* Статистика прохождения — наполнение будет добавлено позже */}
+      <section className={patientCardClass} aria-label="Статистика прохождения">
+        <PatientProgramBlockHeading
+          title="Статистика прохождения"
+          Icon={TrendingUp}
+          iconClassName="text-[var(--patient-color-primary)]"
+        />
+      </section>
 
     </div>
   );
@@ -1678,7 +1758,7 @@ function TestSetBlock(props: {
           return (
             <div
               key={t.testId}
-              className="flex flex-col gap-1 rounded-lg border border-[var(--patient-border)]/60 bg-[var(--patient-card-bg)] p-2"
+              className="flex flex-col gap-1 rounded-lg border border-[var(--patient-border)]/60 bg-[var(--patient-card-bg)] px-2 py-1.5"
             >
               <span className="text-xs font-medium">{t.title ?? t.testId}</span>
               {t.comment ? (

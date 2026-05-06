@@ -400,7 +400,7 @@ describe("PatientTreatmentProgramDetailClient", () => {
     );
     const controlRegion = screen.getByRole("region", { name: "Следующий контроль" });
     expect(within(controlRegion).getByText("Срок консультации уточняется у врача.")).toBeInTheDocument();
-    expect(within(controlRegion).getByRole("link", { name: /Записаться на приём/i })).toBeInTheDocument();
+    expect(within(controlRegion).getByRole("link", { name: /Запись на приём/i })).toBeInTheDocument();
   });
 
   it("next control region uses expectedDurationText when control date cannot be computed", () => {

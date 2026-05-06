@@ -157,3 +157,68 @@ export function omitDisabledInstanceStageItemsForPatientApi(
     }),
   };
 }
+
+/** Разметка экрана конкретного этапа (`/stages/[stageId]`): интерактив / архив / запланированный. */
+export type PatientTreatmentProgramStageScreenVariant = "interactive" | "pastReadOnly" | "futureLocked";
+
+/**
+ * Этап 0 всегда интерактивный контент (общие рекомендации).
+ * Архив: завершённые и пропущенные этапы pipeline (`sort_order > 0`).
+ * Запланированный: `locked` в pipeline.
+ */
+export function patientTreatmentProgramStageScreenVariant(
+  stage: Pick<TreatmentProgramInstanceStageRow, "sortOrder" | "status">,
+): PatientTreatmentProgramStageScreenVariant {
+  if (isStageZero(stage)) return "interactive";
+  if (stage.status === "completed" || stage.status === "skipped") return "pastReadOnly";
+  if (stage.status === "locked") return "futureLocked";
+  return "interactive";
+}
+
+/**
+ * Сколько этапов pipeline перед целевым ещё не в терминальном состоянии (`completed`/`skipped`).
+ * Для подсказки «завершите активный этап / ещё N этапов» на заблокированном этапе.
+ */
+export function countBlockingStagesBeforePatientStage(
+  stages: TreatmentProgramInstanceDetailStageRow[],
+  target: Pick<TreatmentProgramInstanceDetailStageRow, "id" | "sortOrder">,
+): number {
+  if (target.sortOrder <= 0) return 0;
+  const nonZero = stages
+    .filter((s) => s.sortOrder > 0)
+    .sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id));
+  const idx = nonZero.findIndex((s) => s.id === target.id);
+  if (idx <= 0) return 0;
+  let n = 0;
+  for (let i = 0; i < idx; i++) {
+    const s = nonZero[i];
+    if (s.status !== "completed" && s.status !== "skipped") n += 1;
+  }
+  return n;
+}
+
+/** Последняя по времени отметка `completed_at` среди элементов этапа (для бейджа «завершён N дней назад»). */
+export function latestCompletedAtIsoAmongStageItems(
+  stage: Pick<TreatmentProgramInstanceDetailStageRow, "items">,
+): string | null {
+  let best: string | null = null;
+  for (const it of stage.items) {
+    const c = it.completedAt;
+    if (c == null || String(c).trim() === "") continue;
+    const cs = String(c);
+    if (!best || cs > best) best = cs;
+  }
+  return best;
+}
+
+/** Календарные сутки от UTC-moment до «сегодня» в зоне отображения (минимум 0). */
+export function calendarDaysFromUtcIsoToNowInZone(
+  iso: string,
+  zone: string,
+  now: DateTime = DateTime.now(),
+): number {
+  const start = DateTime.fromISO(iso, { zone: "utc" }).setZone(zone).startOf("day");
+  const end = now.setZone(zone).startOf("day");
+  if (!start.isValid) return 0;
+  return Math.max(0, Math.floor(end.diff(start, "days").days));
+}
