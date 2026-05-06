@@ -272,6 +272,30 @@ export type ProgramActionLogPort = {
     windowStartIso: string;
     windowEndIso: string;
   }): Promise<string[]>;
+  /** Число записей `done` за окно по каждому элементу (для UI «сколько раз сегодня»). */
+  countDoneByItemInWindow(params: {
+    instanceId: string;
+    patientUserId: string;
+    windowStartIso: string;
+    windowEndIso: string;
+  }): Promise<Record<string, number>>;
+  /** Последний `created_at` отметки `done` по каждому элементу экземпляра (все сроки). */
+  lastDoneAtIsoByItemForInstance(params: {
+    instanceId: string;
+    patientUserId: string;
+  }): Promise<Record<string, string>>;
+  /** Число `done` за окно по ключу активности (см. `programActionDoneActivityKey`). */
+  countDoneByActivityKeyInWindow(params: {
+    instanceId: string;
+    patientUserId: string;
+    windowStartIso: string;
+    windowEndIso: string;
+  }): Promise<Record<string, number>>;
+  /** Последний `created_at` по ключу активности за всё время экземпляра. */
+  lastDoneAtIsoByActivityKeyForInstance(params: {
+    instanceId: string;
+    patientUserId: string;
+  }): Promise<Record<string, string>>;
   /** Журнал действий пациента по экземпляру (новые сверху), для UI врача (UX-02). */
   listForInstance(params: { instanceId: string; limit?: number }): Promise<ProgramActionLogListRow[]>;
 };

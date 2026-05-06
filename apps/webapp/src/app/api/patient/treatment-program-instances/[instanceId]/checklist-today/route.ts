@@ -18,11 +18,11 @@ export async function GET(
 
   const deps = buildAppDeps();
   try {
-    const doneItemIds = await deps.treatmentProgramPatientActions.listChecklistDoneToday(
+    const snapshot = await deps.treatmentProgramPatientActions.listChecklistDoneToday(
       gate.session.user.userId,
       instanceId,
     );
-    return NextResponse.json({ ok: true, doneItemIds });
+    return NextResponse.json({ ok: true, ...snapshot });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "error";
     const status = msg.includes("не найден") ? 404 : 400;

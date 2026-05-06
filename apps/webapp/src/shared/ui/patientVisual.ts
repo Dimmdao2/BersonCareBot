@@ -279,11 +279,26 @@ export const patientInnerCardGridClass = cn(
 export const patientPageSectionGapClass = "mt-4 lg:mt-6";
 
 /**
- * Базовая типографика заголовка в patient hero-карточке (главная «Сегодня», деталь/список программ и т.д.):
- * вес **400**, цвет `--patient-block-heading`. Размеры и отступы задавайте в `cn(..., "text-lg", …)` под экран.
+ * Базовая типографика заголовка в patient hero-карточке:
+ * вес **400**, цвет `--patient-block-heading`. Конкретные **размеры** задаются отдельно
+ * (главная — `patientHomeCardStyles` / `patientHomeHeroTitleClampClass`; внутренние страницы — {@link patientInnerHeroTitleTypographyClass}).
  */
 export const patientHeroTitleBaseClass =
   "font-normal tracking-tight text-[var(--patient-block-heading)]";
+
+/**
+ * Размеры заголовка hero на **внутренних** patient-страницах (деталь программы и т.п. с градиентной шапкой).
+ * Не для главной `/app/patient` — там свои размеры (`patientHomeHeroTitleClampClass` в `patientHomeCardStyles`).
+ */
+export const patientInnerHeroTitleTypographyClass = cn(
+  "text-[17px] leading-snug min-[380px]:text-[19px] lg:text-[26px] lg:leading-8 xl:text-[28px] xl:leading-9",
+);
+
+/** Заголовок hero списка программ при наличии активной программы. */
+export const patientInnerHeroListPrimaryTitleClass = "text-[22px] leading-snug lg:text-2xl lg:leading-snug";
+
+/** Заголовок hero списка программ в пустом состоянии. */
+export const patientInnerHeroListEmptyTitleClass = "text-xl leading-snug lg:text-[22px] lg:leading-snug";
 
 /**
  * Заголовок текущего этапа программы на detail-странице: primary-тон, жирный, крупный.
@@ -298,3 +313,36 @@ export const patientStageTitleClass = cn(
  * Заголовок в gradient hero — {@link patientHeroTitleBaseClass}; CTA — {@link patientHeroPrimaryActionClass}; оболочка детали — {@link patientHomeCardHeroClass} в `patientHomeCardStyles`.
  */
 export const patientSurfaceProgramClass = patientSurfaceInfoClass;
+
+/**
+ * Вертикальный скролл без видимого ползунка (Firefox / WebKit / legacy Edge).
+ * Скролл колесом/тачем сохраняется. Компоновать с `overflow-y-auto` / `min-h-0` по месту.
+ */
+export const patientScrollbarHiddenClass = cn(
+  "[scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden",
+);
+
+/**
+ * Оболочка `DialogContent` для patient-модалок с синей шапкой и белым крестиком:
+ * колонка, ограничение высоты, без двойного скролла у края окна.
+ */
+export const patientModalDialogContentShellClass = cn(
+  "flex max-h-[85vh] flex-col gap-0 overflow-hidden",
+  "[&_[data-slot=dialog-close]]:text-white [&_[data-slot=dialog-close]]:hover:bg-white/15 [&_[data-slot=dialog-close]]:focus-visible:ring-white/40",
+);
+
+/** Синяя полоса заголовка модалки пациента (крестик — `absolute` из `DialogContent`, нужен `pr-12`). */
+export const patientModalHeaderBarClass = cn(
+  "-mx-4 -mt-4 rounded-t-xl bg-[rgb(126,161,209)] px-4 pt-3 pb-3 pr-12 text-white",
+);
+
+/** `DialogTitle` внутри {@link patientModalHeaderBarClass}. */
+export const patientModalDialogTitleClass = cn(
+  "font-sans text-base font-normal leading-snug text-white",
+);
+
+/** Прокручиваемое тело под шапкой: скрытый scrollbar, съедает оставшуюся высоту во flex-колонке. Отступ сверху — в {@link PatientModalDialogContent}. */
+export const patientModalBodyScrollClass = cn(
+  "min-h-0 flex-1 space-y-3 overflow-y-auto",
+  patientScrollbarHiddenClass,
+);

@@ -320,7 +320,11 @@ export function createTreatmentProgramProgressService(deps: {
           patientUserId: input.patientUserId,
           actionType: "done",
           sessionId: null,
-          payload: { source: "test_submitted", testResultId: resultRow.id },
+          payload: {
+            source: "test_submitted",
+            testResultId: resultRow.id,
+            testId: input.testId,
+          },
           note: null,
         });
       }

@@ -12,6 +12,7 @@ import {
   isPersistentRecommendation,
   isStageZero,
 } from "./stage-semantics";
+import { listLfkSnapshotExerciseLines } from "./programActionActivityKey";
 
 export function utcDayWindowIso(now = new Date()): { start: string; end: string } {
   const y = now.getUTCFullYear();
@@ -89,6 +90,15 @@ export function buildPatientProgramChecklistRows(detail: TreatmentProgramInstanc
   return out;
 }
 
+/** Снимок для GET checklist-today: уникальные id с отметкой за день + счётчики и последняя отметка по журналу. */
+export type ChecklistTodaySnapshot = {
+  doneItemIds: string[];
+  doneTodayCountByItemId: Record<string, number>;
+  lastDoneAtIsoByItemId: Record<string, string>;
+  doneTodayCountByActivityKey: Record<string, number>;
+  lastDoneAtIsoByActivityKey: Record<string, string>;
+};
+
 export function createTreatmentProgramPatientActionService(deps: {
   instances: TreatmentProgramInstancePort;
   actionLog: ProgramActionLogPort;
@@ -128,19 +138,47 @@ export function createTreatmentProgramPatientActionService(deps: {
     utcDayWindowIso,
     localDayWindowIso,
 
-    async listChecklistDoneToday(patientUserId: string, instanceId: string): Promise<string[]> {
+    async listChecklistDoneToday(patientUserId: string, instanceId: string): Promise<ChecklistTodaySnapshot> {
       assertUuid(patientUserId);
       assertUuid(instanceId);
       const detail = await deps.instances.getInstanceForPatient(patientUserId, instanceId);
       if (!detail) throw new Error("Программа не найдена");
-      if (detail.status !== "active") return [];
+      if (detail.status !== "active") {
+        return {
+          doneItemIds: [],
+          doneTodayCountByItemId: {},
+          lastDoneAtIsoByItemId: {},
+          doneTodayCountByActivityKey: {},
+          lastDoneAtIsoByActivityKey: {},
+        };
+      }
       const win = await checklistDayWindow(patientUserId);
-      return deps.actionLog.listDoneItemIdsInWindow({
+      const params = {
         instanceId,
         patientUserId,
         windowStartIso: win.start,
         windowEndIso: win.end,
-      });
+      };
+      const [
+        doneItemIds,
+        doneTodayCountByItemId,
+        lastDoneAtIsoByItemId,
+        doneTodayCountByActivityKey,
+        lastDoneAtIsoByActivityKey,
+      ] = await Promise.all([
+        deps.actionLog.listDoneItemIdsInWindow(params),
+        deps.actionLog.countDoneByItemInWindow(params),
+        deps.actionLog.lastDoneAtIsoByItemForInstance({ instanceId, patientUserId }),
+        deps.actionLog.countDoneByActivityKeyInWindow(params),
+        deps.actionLog.lastDoneAtIsoByActivityKeyForInstance({ instanceId, patientUserId }),
+      ]);
+      return {
+        doneItemIds,
+        doneTodayCountByItemId,
+        lastDoneAtIsoByItemId,
+        doneTodayCountByActivityKey,
+        lastDoneAtIsoByActivityKey,
+      };
     },
 
     async patientToggleChecklistItem(input: {
@@ -198,12 +236,37 @@ export function createTreatmentProgramPatientActionService(deps: {
       stageItemId: string;
       difficulty: LfkPostSessionDifficulty;
       note?: string | null;
+      /** Подмножество упражнений снимка; если не задано — отмечаются все упражнения комплекса. */
+      completedExerciseIds?: string[] | null;
     }): Promise<string[]> {
       assertUuid(input.patientUserId);
       assertUuid(input.instanceId);
       assertUuid(input.stageItemId);
-      const { item } = await assertItemAccessible(input.patientUserId, input.instanceId, input.stageItemId);
+      const detail = await deps.instances.getInstanceForPatient(input.patientUserId, input.instanceId);
+      if (!detail) throw new Error("Программа не найдена");
+      const item = detail.stages.flatMap((s) => s.items).find((i) => i.id === input.stageItemId);
+      if (!item) throw new Error("Элемент не найден");
+      const stage = detail.stages.find((s) => s.id === item.stageId);
+      if (!stage) throw new Error("Этап не найден");
+      if (!isStageZero(stage) && (stage.status === "locked" || stage.status === "skipped")) {
+        throw new Error("Этап недоступен");
+      }
+      if (!isInstanceStageItemActiveForPatient(item)) {
+        throw new Error("Элемент отключён");
+      }
       if (item.itemType !== "lfk_complex") throw new Error("Только для ЛФК-комплекса");
+      const allowed = listLfkSnapshotExerciseLines(item.snapshot as Record<string, unknown>).map((l) => l.exerciseId);
+      const allowedSet = new Set(allowed);
+      let toMark = allowed;
+      if (input.completedExerciseIds != null && input.completedExerciseIds.length > 0) {
+        for (const id of input.completedExerciseIds) {
+          assertUuid(id);
+          if (!allowedSet.has(id)) throw new Error("Упражнение не входит в назначенный комплекс");
+        }
+        toMark = [...new Set(input.completedExerciseIds)];
+      }
+      if (toMark.length === 0) throw new Error("В комплексе нет упражнений для отметки");
+
       const win = await checklistDayWindow(input.patientUserId);
       await deps.actionLog.deleteAllDoneInWindow({
         instanceId: input.instanceId,
@@ -214,15 +277,22 @@ export function createTreatmentProgramPatientActionService(deps: {
       });
       const noteTrim = input.note?.trim() ? input.note.trim().slice(0, 4000) : null;
       const sessionId = crypto.randomUUID();
-      await deps.actionLog.insertAction({
-        instanceId: input.instanceId,
-        instanceStageItemId: input.stageItemId,
-        patientUserId: input.patientUserId,
-        actionType: "done",
-        sessionId,
-        payload: { difficulty: input.difficulty, source: "lfk_session" },
-        note: noteTrim,
-      });
+      for (let i = 0; i < toMark.length; i++) {
+        const exerciseId = toMark[i]!;
+        await deps.actionLog.insertAction({
+          instanceId: input.instanceId,
+          instanceStageItemId: input.stageItemId,
+          patientUserId: input.patientUserId,
+          actionType: "done",
+          sessionId,
+          payload: {
+            source: "lfk_exercise_done",
+            exerciseId,
+            difficulty: input.difficulty,
+          },
+          note: i === 0 ? noteTrim : null,
+        });
+      }
       return deps.actionLog.listDoneItemIdsInWindow({
         instanceId: input.instanceId,
         patientUserId: input.patientUserId,

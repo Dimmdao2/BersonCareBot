@@ -80,11 +80,11 @@ export function PatientHomeNextReminderCard({
                 : "Добавьте время практики."}
               </p>
             </div>
-            <Link href={remindersHref} prefetch={false} className={cn(patientButtonWarningOutlineClass, reminderCtaMobileClass)}>
+            <Link href={remindersHref} prefetch={false} className={reminderCtaMobileClass}>
               {ctaLabel}
             </Link>
           </div>
-          <Link href={remindersHref} prefetch={false} className={cn(patientButtonWarningOutlineClass, reminderCtaDesktopClass)}>
+          <Link href={remindersHref} prefetch={false} className={reminderCtaDesktopClass}>
             {ctaLabel}
           </Link>
         </article>
@@ -108,11 +108,11 @@ export function PatientHomeNextReminderCard({
               {ruleLabel}
             </p>
           </div>
-          <Link href={routePaths.patientReminders} prefetch={false} className={cn(patientButtonWarningOutlineClass, reminderCtaMobileClass)}>
+          <Link href={routePaths.patientReminders} prefetch={false} className={reminderCtaMobileClass}>
             Изменить
           </Link>
         </div>
-        <Link href={routePaths.patientReminders} prefetch={false} className={cn(patientButtonWarningOutlineClass, reminderCtaDesktopClass)}>
+        <Link href={routePaths.patientReminders} prefetch={false} className={reminderCtaDesktopClass}>
           Изменить
         </Link>
       </article>

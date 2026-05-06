@@ -7,6 +7,8 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 const bodySchema = z.object({
   difficulty: z.enum(["easy", "medium", "hard"]),
   note: z.string().max(4000).optional().nullable(),
+  /** Подмножество `exerciseId` из снимка; если не передано — отмечаются все упражнения назначения. */
+  completedExerciseIds: z.array(z.string().uuid()).optional().nullable(),
 });
 
 export async function POST(
@@ -37,6 +39,7 @@ export async function POST(
       stageItemId: itemId,
       difficulty: body.difficulty,
       note: body.note ?? null,
+      completedExerciseIds: body.completedExerciseIds ?? null,
     });
     return NextResponse.json({ ok: true, doneItemIds });
   } catch (e) {

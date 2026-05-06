@@ -10,7 +10,6 @@ import { AppShell } from "@/shared/ui/AppShell";
 import { patientMutedTextClass } from "@/shared/ui/patientVisual";
 import { omitDisabledInstanceStageItemsForPatientApi } from "@/modules/treatment-program/stage-semantics";
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
-import { formatBookingDateLongRu } from "@/shared/lib/formatBusinessDateTime";
 import { PatientTreatmentProgramDetailClient } from "../PatientTreatmentProgramDetailClient";
 
 type Props = { params: Promise<{ instanceId: string }> };
@@ -49,22 +48,6 @@ export default async function PatientTreatmentProgramDetailPage({ params }: Prop
     notFound();
   }
 
-  /** Ошибка nudge не должна превращать страницу в 404 при валидном экземпляре. */
-  let planUpdatedLabel: string | null = null;
-  try {
-    const nudge = await deps.treatmentProgramInstance.patientPlanUpdatedBadgeForInstance({
-      patientUserId: session.user.userId,
-      instanceId,
-    });
-    if (nudge.show && nudge.eventIso) {
-      planUpdatedLabel = `План обновлён ${formatBookingDateLongRu(nudge.eventIso, appTz)}`;
-    } else if (nudge.show) {
-      planUpdatedLabel = "План обновлён";
-    }
-  } catch {
-    planUpdatedLabel = null;
-  }
-
   const initialTestResults = await deps.treatmentProgramProgress.listTestResultsForInstance(instanceId);
   const initialProgramEvents = await deps.treatmentProgramInstance.listProgramEvents(instanceId);
 
@@ -93,7 +76,6 @@ export default async function PatientTreatmentProgramDetailPage({ params }: Prop
         initialTestResults={initialTestResults}
         initialProgramEvents={initialProgramEvents}
         appDisplayTimeZone={appTz}
-        planUpdatedLabel={planUpdatedLabel}
         programDescription={programDescription}
       />
     </AppShell>

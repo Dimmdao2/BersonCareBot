@@ -594,6 +594,7 @@ describe("treatment-program progress-service", () => {
         payload: expect.objectContaining({
           source: "test_submitted",
           testResultId: expect.any(String),
+          testId,
         }),
       }),
     );

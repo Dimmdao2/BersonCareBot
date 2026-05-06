@@ -13,12 +13,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog } from "@/components/ui/dialog";
+import { PatientModalDialogContent } from "@/shared/ui/patient/PatientModalDialogContent";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
@@ -47,6 +43,7 @@ import {
   formatTreatmentProgramStageStatusRu,
 } from "@/modules/treatment-program/types";
 import {
+  isInstanceStageItemShownInPatientCompositionModal,
   isInstanceStageItemShownOnPatientProgramSurfaces,
   isPersistentRecommendation,
   patientStageItemShowsNewBadge,
@@ -55,6 +52,7 @@ import {
   selectCurrentWorkingStageForPatientDetail,
   expectedStageControlDateIso,
 } from "@/modules/treatment-program/stage-semantics";
+import { listLfkSnapshotExerciseLines } from "@/modules/treatment-program/programActionActivityKey";
 import { testIdsFromTestSetSnapshot } from "@/modules/treatment-program/progress-service";
 import { scoringAllowsNumericDecisionInference } from "@/modules/treatment-program/progress-scoring";
 import { parseTestSetSnapshotTests } from "@/modules/treatment-program/testSetSnapshotView";
@@ -82,12 +80,50 @@ import {
   patientButtonWarningOutlineClass,
   patientLineClamp2Class,
   patientHeroTitleBaseClass,
+  patientInnerHeroTitleTypographyClass,
   patientBadgeDangerClass,
   patientBadgePrimaryClass,
   patientInnerPageStackClass,
   patientCompactActionClass,
 } from "@/shared/ui/patientVisual";
+import { DateTime } from "luxon";
 import { formatBookingDateLongRu, formatBookingDateTimeShortStyleRu } from "@/shared/lib/formatBusinessDateTime";
+
+/** Склонение «N дней» для строки занятости в hero. */
+function ruProgramEngagementDaysWord(n: number): string {
+  const mod100 = n % 100;
+  if (mod100 >= 11 && mod100 <= 14) return "дней";
+  const mod10 = n % 10;
+  if (mod10 === 1) return "день";
+  if (mod10 >= 2 && mod10 <= 4) return "дня";
+  return "дней";
+}
+
+/** Минимальный `started_at` среди этапов с `sortOrder > 0`; иначе дата назначения экземпляра. */
+function patientProgramHeroEngagementStartIso(detail: TreatmentProgramInstanceDetail): string {
+  const started: string[] = [];
+  for (const s of detail.stages) {
+    if (s.sortOrder <= 0) continue;
+    const st = s.startedAt;
+    if (st == null || String(st).trim() === "") continue;
+    started.push(String(st));
+  }
+  if (started.length === 0) return detail.createdAt;
+  return started.reduce((a, b) => (a < b ? a : b));
+}
+
+/** Календарные дни от начала до «сегодня» в таймзоне приложения, включительно (минимум 1). */
+function patientProgramHeroInclusiveEngagementDayCount(
+  startIso: string,
+  appDisplayTimeZone: string,
+  now: DateTime = DateTime.now(),
+): number {
+  const startDay = DateTime.fromISO(startIso, { zone: appDisplayTimeZone }).startOf("day");
+  const today = now.setZone(appDisplayTimeZone).startOf("day");
+  if (!startDay.isValid) return 1;
+  const raw = Math.floor(today.diff(startDay, "days").days);
+  return Math.max(1, raw + 1);
+}
 
 /** Единый заголовок секции (после hero): иконка слева, заголовок, опционально действие справа. */
 function PatientProgramBlockHeading(props: {
@@ -212,6 +248,80 @@ function pickRecommendationRowPreviewMedia(items: RecommendationMediaItem[]): Re
 
 type InstanceStageRow = TreatmentProgramInstanceDetail["stages"][number];
 
+function normalizeChecklistCountMap(raw: unknown): Record<string, number> {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const out: Record<string, number> = {};
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    const n = typeof v === "number" ? v : Number(v);
+    if (!Number.isNaN(n) && n >= 0) out[k] = Math.floor(n);
+  }
+  return out;
+}
+
+function normalizeChecklistLastMap(raw: unknown): Record<string, string> {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof v === "string" && v.trim()) out[k] = v.trim();
+  }
+  return out;
+}
+
+/** Показ «последнее выполнение»: максимум из журнала `done` и `completed_at` строки элемента. */
+function mergeLastActivityDisplayedIso(logIso: string | undefined, completedAt: string | null): string | null {
+  const tLog = logIso?.trim() ? Date.parse(logIso) : NaN;
+  const tDone = completedAt?.trim() ? Date.parse(completedAt) : NaN;
+  if (!Number.isFinite(tLog) && !Number.isFinite(tDone)) return null;
+  if (!Number.isFinite(tLog)) return completedAt!.trim();
+  if (!Number.isFinite(tDone)) return logIso!.trim();
+  return tLog >= tDone ? logIso!.trim() : completedAt!.trim();
+}
+
+function PatientCompositionItemProgressAside(props: {
+  parentItem: InstanceStageRow["items"][number];
+  activityKey: string;
+  appDisplayTimeZone: string;
+  doneTodayCountByActivityKey: Readonly<Record<string, number>>;
+  lastDoneAtIsoByActivityKey: Readonly<Record<string, string>>;
+}) {
+  const { parentItem, activityKey, appDisplayTimeZone, doneTodayCountByActivityKey, lastDoneAtIsoByActivityKey } =
+    props;
+  const completedAtForMerge = activityKey === parentItem.id ? parentItem.completedAt : null;
+  const lastIso = mergeLastActivityDisplayedIso(
+    lastDoneAtIsoByActivityKey[activityKey],
+    completedAtForMerge,
+  );
+  const todayCount = doneTodayCountByActivityKey[activityKey] ?? 0;
+  const line1 = lastIso
+    ? `Выполнялось ${formatBookingDateTimeShortStyleRu(lastIso, appDisplayTimeZone)}`
+    : "Пока без отметок";
+
+  return (
+    <div className="flex shrink-0 flex-col items-end justify-center gap-0.5 text-right">
+      <span className="max-w-[9.5rem] text-[10px] font-normal leading-tight text-muted-foreground">{line1}</span>
+      <div className="flex items-center gap-1.5">
+        <span className="text-[10px] font-normal leading-tight text-muted-foreground">Сегодня:</span>
+        <div
+          className="flex min-h-[10px] items-center gap-0.5"
+          aria-label={todayCount === 0 ? "Сегодня не отмечено" : `Сегодня отмечено ${todayCount} раз`}
+        >
+          {todayCount === 0 ? (
+            <span className="size-2 shrink-0 rounded-full bg-muted-foreground/35" aria-hidden />
+          ) : (
+            Array.from({ length: todayCount }, (_, i) => (
+              <span
+                key={i}
+                className="size-2 shrink-0 rounded-full bg-[var(--patient-color-success)]"
+                aria-hidden
+              />
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function buildProgramHistoryNarrative(detail: TreatmentProgramInstanceDetail, tz: string): string[] {
   const lines: string[] = [];
   lines.push(`Назначена — ${formatBookingDateLongRu(detail.createdAt, tz)}`);
@@ -300,9 +410,10 @@ function PatientProgramHeroHistoryPopover(props: {
   );
 }
 
-/** Строки модалки «Состав этапа»: ЛФК разворачивается в упражнения; у рекомендации/упражнения — колонка превью. */
+/** Строки модалки «Состав этапа»: ЛФК и набор тестов — отдельные исполнимые единицы; ключ активности для отметок в журнале. */
 type CompositionModalRow = {
   key: string;
+  activityKey: string;
   text: string;
   showThumb: boolean;
   thumbMedia: RecommendationMediaItem | null;
@@ -315,39 +426,48 @@ function compositionModalRowsForStageItem(item: InstanceStageRow["items"][number
     : null;
 
   if (item.itemType === "lfk_complex") {
-    const raw = item.snapshot.exercises;
-    if (!Array.isArray(raw) || raw.length === 0) {
+    const lines = listLfkSnapshotExerciseLines(item.snapshot as Record<string, unknown>);
+    if (lines.length === 0) {
       const t = snapshotTitle(item.snapshot, item.itemType);
       return t.trim() !== ""
-        ? [{ key: item.id, text: t, showThumb: false, thumbMedia: null }]
+        ? [{ key: item.id, activityKey: item.id, text: t, showThumb: false, thumbMedia: null }]
         : [];
     }
-    const rows: { sortOrder: number; title: string }[] = [];
-    for (const row of raw) {
-      if (!row || typeof row !== "object" || Array.isArray(row)) continue;
-      const o = row as Record<string, unknown>;
-      const sortOrder =
-        typeof o.sortOrder === "number" && Number.isFinite(o.sortOrder) ? o.sortOrder : 0;
-      const title = typeof o.title === "string" ? o.title.trim() : "";
-      if (title) rows.push({ sortOrder, title });
-    }
-    rows.sort((a, b) => a.sortOrder - b.sortOrder || a.title.localeCompare(b.title, "ru"));
-    if (rows.length === 0) {
-      const t = snapshotTitle(item.snapshot, item.itemType);
-      return t.trim() !== ""
-        ? [{ key: item.id, text: t, showThumb: false, thumbMedia: null }]
-        : [];
-    }
-    return rows.map((r, idx) => ({
-      key: `${item.id}:${idx}`,
-      text: r.title,
+    return lines.map((line) => ({
+      key: `${item.id}:ex:${line.exerciseId}`,
+      activityKey: `${item.id}:ex:${line.exerciseId}`,
+      text: line.title,
       showThumb: false,
       thumbMedia: null,
     }));
   }
+
+  if (item.itemType === "test_set") {
+    const tLines = parseTestSetSnapshotTests(item.snapshot as Record<string, unknown>);
+    if (tLines.length === 0) {
+      const t = snapshotTitle(item.snapshot, item.itemType);
+      return t.trim() !== ""
+        ? [{ key: item.id, activityKey: item.id, text: t, showThumb: false, thumbMedia: null }]
+        : [];
+    }
+    return tLines.map((t) => {
+      const title = (t.title?.trim() || "Тест").trim();
+      const comment = t.comment?.trim();
+      const text = comment ? `${title} · ${comment}` : title;
+      return {
+        key: `${item.id}:test:${t.testId}`,
+        activityKey: `${item.id}:test:${t.testId}`,
+        text,
+        showThumb: false,
+        thumbMedia: null,
+      };
+    });
+  }
+
   return [
     {
       key: item.id,
+      activityKey: item.id,
       text: snapshotTitle(item.snapshot, item.itemType),
       showThumb,
       thumbMedia,
@@ -363,9 +483,25 @@ function PatientProgramStagesTimeline(props: {
   stages: InstanceStageRow[];
   currentWorkingStage: InstanceStageRow | null;
   stageCountNonZero: number;
+  detail: TreatmentProgramInstanceDetail;
+  appDisplayTimeZone: string;
+  doneTodayCountByActivityKey: Readonly<Record<string, number>>;
+  lastDoneAtIsoByActivityKey: Readonly<Record<string, string>>;
 }) {
-  const { stages, currentWorkingStage, stageCountNonZero } = props;
+  const {
+    stages,
+    currentWorkingStage,
+    stageCountNonZero,
+    detail,
+    appDisplayTimeZone,
+    doneTodayCountByActivityKey,
+    lastDoneAtIsoByActivityKey,
+  } = props;
   const [itemsModalStage, setItemsModalStage] = useState<InstanceStageRow | null>(null);
+  const stageForModal = useMemo(() => {
+    if (!itemsModalStage) return null;
+    return detail.stages.find((s) => s.id === itemsModalStage.id) ?? itemsModalStage;
+  }, [itemsModalStage, detail.stages]);
 
   return (
     <>
@@ -493,57 +629,79 @@ function PatientProgramStagesTimeline(props: {
       </section>
 
       <Dialog open={itemsModalStage !== null} onOpenChange={(open) => !open && setItemsModalStage(null)}>
-        <DialogContent className="max-h-[85vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="font-normal">Состав этапа</DialogTitle>
-          </DialogHeader>
-          {itemsModalStage ? (
+        <PatientModalDialogContent
+          title={stageForModal?.title ?? ""}
+          topSlot={
+            detail.status === "active" && currentWorkingStage ? (
+              <Link
+                href={routePaths.patientTreatmentProgramStage(detail.id, currentWorkingStage.id)}
+                className={cn(
+                  patientHeroPrimaryActionClass,
+                  "flex min-h-11 w-full items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm shadow-[0_6px_14px_rgba(40,77,160,0.24)] lg:min-h-12 lg:text-base",
+                )}
+              >
+                <PlayCircle className="size-5 shrink-0 lg:size-6" aria-hidden />
+                Начать занятие
+              </Link>
+            ) : null
+          }
+        >
+          {stageForModal ? (
             <>
-              <p className="mt-1 text-sm font-normal text-muted-foreground">{itemsModalStage.title}</p>
-              <div className="mt-2 max-h-[50vh] space-y-3 overflow-y-auto pr-0.5">
-                {(() => {
+              {(() => {
                   const visibleItems = sortByOrderThenId(
-                    itemsModalStage.items.filter((it) => isInstanceStageItemShownOnPatientProgramSurfaces(it)),
+                    stageForModal.items.filter((it) => isInstanceStageItemShownInPatientCompositionModal(it)),
                   );
                   if (visibleItems.length === 0) {
                     return <p className="text-sm font-normal text-muted-foreground">Нет элементов для отображения.</p>;
                   }
-                  const sortedGroups = sortByOrderThenId(itemsModalStage.groups).filter((g) =>
+                  const sortedGroups = sortByOrderThenId(stageForModal.groups).filter((g) =>
                     visibleItems.some((it) => it.groupId === g.id),
                   );
                   const ungroupedItems = sortByOrderThenId(
                     visibleItems.filter((it) => !it.groupId),
                   );
 
-                  const renderItemLines = (it: (typeof visibleItems)[number]) =>
-                    compositionModalRowsForStageItem(it).map((row) => (
+                  const renderCompositionItem = (it: (typeof visibleItems)[number]) => {
+                    const rows = compositionModalRowsForStageItem(it);
+                    return rows.map((row) => (
                       <li
                         key={row.key}
-                        className={cn(
-                          stageCompositionModalRowClass,
-                          row.showThumb
-                            ? "flex items-stretch gap-2 py-0 pr-2 pl-0"
-                            : "px-2 py-2",
-                        )}
+                        className={cn(stageCompositionModalRowClass, "flex items-stretch gap-2 px-2 py-2")}
                       >
-                        {row.showThumb ? (
-                          <PatientCatalogMediaStaticThumb
-                            media={row.thumbMedia}
-                            frameClassName="w-10 min-h-10 shrink-0 self-stretch rounded border border-border/40 bg-muted/30"
-                            sizes="40px"
-                            iconClassName="size-4"
-                          />
-                        ) : null}
-                        <span
+                        <div
                           className={cn(
-                            "text-[#444444]",
-                            row.showThumb ? "min-w-0 flex-1 py-2" : "block",
+                            "min-w-0 flex-1 flex gap-2",
+                            row.showThumb ? "items-stretch" : "items-start",
                           )}
                         >
-                          {row.text}
-                        </span>
+                          {row.showThumb ? (
+                            <PatientCatalogMediaStaticThumb
+                              media={row.thumbMedia}
+                              frameClassName="w-10 min-h-10 shrink-0 self-stretch rounded border border-border/40 bg-muted/30"
+                              sizes="40px"
+                              iconClassName="size-4"
+                            />
+                          ) : null}
+                          <span
+                            className={cn(
+                              "text-[#444444]",
+                              row.showThumb ? "min-w-0 flex-1 py-0.5" : "block min-w-0",
+                            )}
+                          >
+                            {row.text}
+                          </span>
+                        </div>
+                        <PatientCompositionItemProgressAside
+                          parentItem={it}
+                          activityKey={row.activityKey}
+                          appDisplayTimeZone={appDisplayTimeZone}
+                          doneTodayCountByActivityKey={doneTodayCountByActivityKey}
+                          lastDoneAtIsoByActivityKey={lastDoneAtIsoByActivityKey}
+                        />
                       </li>
                     ));
+                  };
 
                   return (
                     <>
@@ -554,7 +712,7 @@ function PatientProgramStagesTimeline(props: {
                             sortedGroups.length > 0 && "mb-3",
                           )}
                         >
-                          {ungroupedItems.flatMap(renderItemLines)}
+                          {ungroupedItems.flatMap(renderCompositionItem)}
                         </ul>
                       ) : null}
                       {sortedGroups.map((g) => {
@@ -572,17 +730,16 @@ function PatientProgramStagesTimeline(props: {
                                 </span>
                               ) : null}
                             </div>
-                            <ul className="m-0 list-none space-y-1.5 p-0">{gItems.flatMap(renderItemLines)}</ul>
+                            <ul className="m-0 list-none space-y-1.5 p-0">{gItems.flatMap(renderCompositionItem)}</ul>
                           </section>
                         );
                       })}
                     </>
                   );
                 })()}
-              </div>
             </>
           ) : null}
-        </DialogContent>
+        </PatientModalDialogContent>
       </Dialog>
     </>
   );
@@ -1082,7 +1239,13 @@ function PatientLfkChecklistRow(props: {
             const res = await fetch(`${itemBaseUrl}/${encodeURIComponent(row.item.id)}/progress/lfk-session`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ difficulty, note: note.trim() || null }),
+              body: JSON.stringify({
+                difficulty,
+                note: note.trim() || null,
+                completedExerciseIds: listLfkSnapshotExerciseLines(
+                  row.item.snapshot as Record<string, unknown>,
+                ).map((l) => l.exerciseId),
+              }),
             });
             const data = (await res.json().catch(() => null)) as { ok?: boolean; doneItemIds?: string[]; error?: string };
             if (!res.ok || !data.ok) {
@@ -1102,11 +1265,13 @@ function PatientLfkChecklistRow(props: {
 }
 
 function PatientProgramControlCard(props: {
-  controlLabel: string;
+  /** Дата контроля (крупная строка); если null — показывается {@link fallbackMessage}. */
+  dateLine: string | null;
+  fallbackMessage: string;
   instanceId: string;
   currentStageId: string | null;
 }) {
-  const { controlLabel, instanceId, currentStageId } = props;
+  const { dateLine, fallbackMessage, instanceId, currentStageId } = props;
   return (
     <section className={patientSurfaceWarningClass} aria-label="Следующий контроль">
       <PatientProgramBlockHeading
@@ -1114,7 +1279,11 @@ function PatientProgramControlCard(props: {
         Icon={CalendarCheck}
         iconClassName="text-[var(--patient-color-warning)]"
       />
-      <p className="text-2xl font-bold">{controlLabel}</p>
+      {dateLine ? (
+        <p className="text-2xl font-bold">{dateLine}</p>
+      ) : (
+        <p className={cn(patientMutedTextClass, "text-base font-semibold leading-snug")}>{fallbackMessage}</p>
+      )}
       <p className={cn(patientMutedTextClass, "mt-0.5 text-xs")}>Консультация со специалистом</p>
       <div className="mt-3 flex flex-row gap-2">
         {currentStageId ? (
@@ -1138,12 +1307,10 @@ export function PatientTreatmentProgramDetailClient(props: {
   initialTestResults: TreatmentProgramTestResultDetailRow[];
   initialProgramEvents?: TreatmentProgramEventRow[];
   appDisplayTimeZone: string;
-  planUpdatedLabel: string | null;
   programDescription?: string | null;
 }) {
   const {
     appDisplayTimeZone,
-    planUpdatedLabel,
     programDescription = null,
     initialProgramEvents = [],
   } = props;
@@ -1153,6 +1320,8 @@ export function PatientTreatmentProgramDetailClient(props: {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [doneItemIds, setDoneItemIds] = useState<string[]>([]);
+  const [doneTodayCountByActivityKey, setDoneTodayCountByActivityKey] = useState<Record<string, number>>({});
+  const [lastDoneAtIsoByActivityKey, setLastDoneAtIsoByActivityKey] = useState<Record<string, string>>({});
 
   const refresh = useCallback(async () => {
     setError(null);
@@ -1173,11 +1342,20 @@ export function PatientTreatmentProgramDetailClient(props: {
     if (trRes.ok && trData.ok && trData.results) setTestResults(trData.results);
     const evData = (await evRes.json().catch(() => null)) as { ok?: boolean; events?: TreatmentProgramEventRow[] };
     if (evRes.ok && evData.ok && Array.isArray(evData.events)) setProgramEvents(evData.events);
-    const chData = (await checklistRes.json().catch(() => null)) as { ok?: boolean; doneItemIds?: string[] };
-    if (data.item.status === "active" && checklistRes.ok && chData.ok && Array.isArray(chData.doneItemIds)) {
-      setDoneItemIds(chData.doneItemIds);
-    } else {
+    const chData = (await checklistRes.json().catch(() => null)) as {
+      ok?: boolean;
+      doneItemIds?: string[];
+      doneTodayCountByActivityKey?: unknown;
+      lastDoneAtIsoByActivityKey?: unknown;
+    };
+    if (data.item.status !== "active") {
       setDoneItemIds([]);
+      setDoneTodayCountByActivityKey({});
+      setLastDoneAtIsoByActivityKey({});
+    } else if (checklistRes.ok && chData?.ok === true && Array.isArray(chData.doneItemIds)) {
+      setDoneItemIds(chData.doneItemIds);
+      setDoneTodayCountByActivityKey(normalizeChecklistCountMap(chData.doneTodayCountByActivityKey));
+      setLastDoneAtIsoByActivityKey(normalizeChecklistLastMap(chData.lastDoneAtIsoByActivityKey));
     }
   }, [detail.id]);
 
@@ -1187,13 +1365,24 @@ export function PatientTreatmentProgramDetailClient(props: {
     void (async () => {
       if (detail.status !== "active") {
         setDoneItemIds([]);
+        setDoneTodayCountByActivityKey({});
+        setLastDoneAtIsoByActivityKey({});
         return;
       }
       const res = await fetch(
         `/api/patient/treatment-program-instances/${encodeURIComponent(detail.id)}/checklist-today`,
       );
-      const data = (await res.json().catch(() => null)) as { ok?: boolean; doneItemIds?: string[] };
-      if (res.ok && data?.ok && Array.isArray(data.doneItemIds)) setDoneItemIds(data.doneItemIds);
+      const data = (await res.json().catch(() => null)) as {
+        ok?: boolean;
+        doneItemIds?: string[];
+        doneTodayCountByActivityKey?: unknown;
+        lastDoneAtIsoByActivityKey?: unknown;
+      };
+      if (res.ok && data?.ok && Array.isArray(data.doneItemIds)) {
+        setDoneItemIds(data.doneItemIds);
+        setDoneTodayCountByActivityKey(normalizeChecklistCountMap(data.doneTodayCountByActivityKey));
+        setLastDoneAtIsoByActivityKey(normalizeChecklistLastMap(data.lastDoneAtIsoByActivityKey));
+      }
     })();
   }, [detail.id, detail.status]);
 
@@ -1227,9 +1416,20 @@ export function PatientTreatmentProgramDetailClient(props: {
     currentWorkingStage != null &&
     currentWorkingStage.status === "available";
 
+  const heroEngagementDayCount = useMemo(() => {
+    if (detail.status !== "active" || awaitsStart) return null;
+    const startIso = patientProgramHeroEngagementStartIso(detail);
+    return patientProgramHeroInclusiveEngagementDayCount(startIso, appDisplayTimeZone);
+  }, [detail, awaitsStart, appDisplayTimeZone]);
+
   const controlIso = currentWorkingStage ? expectedStageControlDateIso(currentWorkingStage) : null;
-  const controlLabel =
+  const controlDateLine =
     controlIso && appDisplayTimeZone ? formatBookingDateLongRu(controlIso, appDisplayTimeZone) : null;
+  const controlFallbackMessage =
+    currentWorkingStage?.expectedDurationText?.trim() || "Срок консультации уточняется у врача.";
+  /** Карточка контроля: после старта этапа (не «ожидает старта»), даже если нет срока в днях для расчёта даты. */
+  const showNextControlCard =
+    detail.status === "active" && currentWorkingStage != null && !awaitsStart;
 
   return (
     <div className={patientInnerPageStackClass}>
@@ -1250,7 +1450,8 @@ export function PatientTreatmentProgramDetailClient(props: {
           className={cn(
             patientLineClamp2Class,
             patientHeroTitleBaseClass,
-            "mt-0.5 pr-11 text-[15px] leading-snug min-[380px]:text-[17px] lg:pr-12 lg:text-[22px] lg:leading-7 xl:text-2xl xl:leading-8",
+            patientInnerHeroTitleTypographyClass,
+            "mt-0.5 pr-11 lg:pr-12",
           )}
         >
           {detail.title}
@@ -1260,10 +1461,16 @@ export function PatientTreatmentProgramDetailClient(props: {
             {programDescription.trim()}
           </p>
         ) : null}
-        {planUpdatedLabel?.trim() ? (
-          <p className="mt-2 flex items-center gap-1.5 text-sm font-medium" role="status">
-            <span className="text-destructive" aria-hidden="true">●</span>
-            {planUpdatedLabel.trim()}
+        {heroEngagementDayCount != null ? (
+          <p
+            className="mt-2 flex items-center gap-1.5 text-sm font-medium text-[var(--patient-text-primary)]"
+            role="status"
+          >
+            <span
+              className="size-2 shrink-0 rounded-full bg-[var(--patient-color-success)]"
+              aria-hidden
+            />
+            {`Вы занимаетесь ${heroEngagementDayCount} ${ruProgramEngagementDaysWord(heroEngagementDayCount)}`}
           </p>
         ) : null}
         {awaitsStart ? (
@@ -1289,12 +1496,13 @@ export function PatientTreatmentProgramDetailClient(props: {
         )}
       </div>
 
-      {/* C2: Control card */}
-      {controlLabel ? (
+      {/* C2: Control card — после старта этапа; дата только при startedAt + expectedDurationDays */}
+      {showNextControlCard ? (
         <PatientProgramControlCard
-          controlLabel={controlLabel}
+          dateLine={controlDateLine}
+          fallbackMessage={controlFallbackMessage}
           instanceId={detail.id}
-          currentStageId={currentWorkingStage?.id ?? null}
+          currentStageId={currentWorkingStage.id}
         />
       ) : null}
 
@@ -1348,6 +1556,10 @@ export function PatientTreatmentProgramDetailClient(props: {
           stages={stagesTimeline}
           currentWorkingStage={currentWorkingStage}
           stageCountNonZero={stageCountNonZero}
+          detail={detail}
+          appDisplayTimeZone={appDisplayTimeZone}
+          doneTodayCountByActivityKey={doneTodayCountByActivityKey}
+          lastDoneAtIsoByActivityKey={lastDoneAtIsoByActivityKey}
         />
       ) : null}
 

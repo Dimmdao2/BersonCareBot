@@ -1,6 +1,7 @@
 import type { ProgramActionLogPort } from "@/modules/treatment-program/ports";
 import type { ProgramActionLogInsert, ProgramActionLogListRow, ProgramActionType } from "@/modules/treatment-program/types";
 import { PROGRAM_ACTION_TYPES } from "@/modules/treatment-program/types";
+import { programActionDoneActivityKey } from "@/modules/treatment-program/programActionActivityKey";
 
 type Row = ProgramActionLogInsert & { id: string; createdAt: string };
 
@@ -78,6 +79,78 @@ export function createInMemoryProgramActionLogPort(): ProgramActionLogPort {
         }
       }
       return [...set];
+    },
+
+    async countDoneByItemInWindow(params) {
+      const out: Record<string, number> = {};
+      for (const r of rows) {
+        if (
+          r.instanceId === params.instanceId &&
+          r.patientUserId === params.patientUserId &&
+          r.actionType === "done" &&
+          r.createdAt >= params.windowStartIso &&
+          r.createdAt < params.windowEndIso
+        ) {
+          out[r.instanceStageItemId] = (out[r.instanceStageItemId] ?? 0) + 1;
+        }
+      }
+      return out;
+    },
+
+    async countDoneByActivityKeyInWindow(params) {
+      const out: Record<string, number> = {};
+      for (const r of rows) {
+        if (
+          r.instanceId === params.instanceId &&
+          r.patientUserId === params.patientUserId &&
+          r.actionType === "done" &&
+          r.createdAt >= params.windowStartIso &&
+          r.createdAt < params.windowEndIso
+        ) {
+          const key = programActionDoneActivityKey(
+            r.instanceStageItemId,
+            r.payload as Record<string, unknown> | null,
+          );
+          out[key] = (out[key] ?? 0) + 1;
+        }
+      }
+      return out;
+    },
+
+    async lastDoneAtIsoByItemForInstance(params) {
+      const out: Record<string, string> = {};
+      for (const r of rows) {
+        if (
+          r.instanceId !== params.instanceId ||
+          r.patientUserId !== params.patientUserId ||
+          r.actionType !== "done"
+        ) {
+          continue;
+        }
+        const prev = out[r.instanceStageItemId];
+        if (!prev || r.createdAt > prev) out[r.instanceStageItemId] = r.createdAt;
+      }
+      return out;
+    },
+
+    async lastDoneAtIsoByActivityKeyForInstance(params) {
+      const out: Record<string, string> = {};
+      for (const r of rows) {
+        if (
+          r.instanceId !== params.instanceId ||
+          r.patientUserId !== params.patientUserId ||
+          r.actionType !== "done"
+        ) {
+          continue;
+        }
+        const key = programActionDoneActivityKey(
+          r.instanceStageItemId,
+          r.payload as Record<string, unknown> | null,
+        );
+        const prev = out[key];
+        if (!prev || r.createdAt > prev) out[key] = r.createdAt;
+      }
+      return out;
     },
 
     async listForInstance(params) {

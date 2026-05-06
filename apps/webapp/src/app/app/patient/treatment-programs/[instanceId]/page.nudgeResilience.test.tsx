@@ -41,7 +41,6 @@ vi.mock("@/app-layer/guards/requireRole", () => ({
 }));
 
 const getInstanceForPatientMock = vi.hoisted(() => vi.fn());
-const patientPlanUpdatedBadgeForInstanceMock = vi.hoisted(() => vi.fn());
 const listTestResultsForInstanceMock = vi.hoisted(() => vi.fn());
 const listProgramEventsMock = vi.hoisted(() => vi.fn());
 
@@ -49,7 +48,6 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
     treatmentProgramInstance: {
       getInstanceForPatient: getInstanceForPatientMock,
-      patientPlanUpdatedBadgeForInstance: patientPlanUpdatedBadgeForInstanceMock,
       listProgramEvents: listProgramEventsMock,
     },
     treatmentProgramProgress: {
@@ -63,16 +61,9 @@ vi.mock("@/modules/system-settings/appDisplayTimezone", () => ({
 }));
 
 vi.mock("../PatientTreatmentProgramDetailClient", () => ({
-  PatientTreatmentProgramDetailClient: ({
-    planUpdatedLabel,
-    initial,
-  }: {
-    planUpdatedLabel: string | null;
-    initial: { title: string };
-  }) => (
+  PatientTreatmentProgramDetailClient: ({ initial }: { initial: { title: string } }) => (
     <div data-testid="detail-client">
       <span data-testid="detail-title">{initial.title}</span>
-      {planUpdatedLabel ? <span data-testid="plan-nudge">{planUpdatedLabel}</span> : <span data-testid="no-plan-nudge" />}
     </div>
   ),
 }));
@@ -143,19 +134,17 @@ describe("PatientTreatmentProgramDetailPage / nudge resilience", () => {
     listTestResultsForInstanceMock.mockResolvedValue([]);
   });
 
-  it("renders detail when patientPlanUpdatedBadgeForInstance throws (no 404, no plan badge)", async () => {
-    patientPlanUpdatedBadgeForInstanceMock.mockRejectedValue(new Error("nudge failed"));
+  it("renders detail for valid instance (detail page без nudge)", async () => {
     const ui = await PatientTreatmentProgramDetailPage({
       params: Promise.resolve({ instanceId: "11111111-1111-4111-8111-111111111111" }),
     });
     render(ui);
     expect(screen.getByTestId("detail-title")).toHaveTextContent("Программа деталь");
-    expect(screen.getByTestId("no-plan-nudge")).toBeInTheDocument();
+    expect(screen.getByTestId("detail-client")).toBeInTheDocument();
     expect(notFoundMock).not.toHaveBeenCalled();
   });
 
   it("calls notFound when instance is missing", async () => {
-    patientPlanUpdatedBadgeForInstanceMock.mockResolvedValue({ show: false });
     getInstanceForPatientMock.mockResolvedValue(null);
     await expect(
       PatientTreatmentProgramDetailPage({

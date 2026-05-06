@@ -35,14 +35,22 @@ export function isInstanceStageItemActiveForPatient(item: ItemSemanticsFields): 
 }
 
 /**
- * Элементы набора тестов (`test_set`) на экранах программы (detail, страница этапа, модалка состава) не показываются;
- * прохождение — в сценарии страницы тестирования.
+ * Элементы набора тестов (`test_set`) на списках программы у пациента (detail, страница этапа) не показываются;
+ * прохождение — на странице тестирования. В **модалке «Состав этапа»** набор разворачивается в отдельные тесты —
+ * см. `isInstanceStageItemShownInPatientCompositionModal`.
  */
 export function isInstanceStageItemShownOnPatientProgramSurfaces(
   item: Pick<TreatmentProgramInstanceStageItemRow, "itemType" | "status" | "isActionable">,
 ): boolean {
   if (!isInstanceStageItemActiveForPatient(item)) return false;
   return item.itemType !== "test_set";
+}
+
+/** Модалка «Состав этапа» (timeline): все активные типы, включая `test_set` (строки — отдельные тесты снимка). */
+export function isInstanceStageItemShownInPatientCompositionModal(
+  item: Pick<TreatmentProgramInstanceStageItemRow, "itemType" | "status" | "isActionable">,
+): boolean {
+  return isInstanceStageItemActiveForPatient(item);
 }
 
 /**

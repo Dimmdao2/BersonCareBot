@@ -9,14 +9,21 @@ const now = "2026-01-01T00:00:00.000Z";
 
 const detailShellProps = {
   appDisplayTimeZone: "Europe/Moscow",
-  planUpdatedLabel: null as string | null,
 };
 
 beforeEach(() => {
   global.fetch = vi.fn(async (input: RequestInfo | URL) => {
     const url = typeof input === "string" ? input : input.toString();
     if (url.includes("/checklist-today")) {
-      return new Response(JSON.stringify({ ok: true, doneItemIds: [] }), { status: 200 });
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          doneItemIds: [],
+          doneTodayCountByActivityKey: {},
+          lastDoneAtIsoByActivityKey: {},
+        }),
+        { status: 200 },
+      );
     }
     if (url.includes("/plan-opened")) {
       return new Response(JSON.stringify({ ok: true }), { status: 200 });
@@ -287,16 +294,164 @@ describe("PatientTreatmentProgramDetailClient", () => {
     expect(screen.queryByText("Чек-лист на сегодня")).not.toBeInTheDocument();
   });
 
-  it("shows plan updated label when provided (1.1a)", () => {
+  it("hero shows engagement days with green indicator when program active and not awaiting start (1.1a)", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-01-10T12:00:00.000Z"));
+    try {
+      render(
+        <PatientTreatmentProgramDetailClient
+          initial={makeInstance({
+            stages: [
+              {
+                id: "22222222-2222-4222-8222-222222222222",
+                instanceId: "11111111-1111-4111-8111-111111111111",
+                sourceStageId: null,
+                title: "Рекомендации",
+                description: null,
+                sortOrder: 0,
+                localComment: null,
+                skipReason: null,
+                status: "available",
+                startedAt: null,
+                goals: null,
+                objectives: null,
+                expectedDurationDays: null,
+                expectedDurationText: null,
+                groups: [],
+                items: [],
+              },
+              {
+                id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+                instanceId: "11111111-1111-4111-8111-111111111111",
+                sourceStageId: null,
+                title: "Этап 1",
+                description: null,
+                sortOrder: 1,
+                localComment: null,
+                skipReason: null,
+                status: "in_progress",
+                startedAt: "2026-01-06T00:00:00.000Z",
+                goals: null,
+                objectives: null,
+                expectedDurationDays: null,
+                expectedDurationText: null,
+                groups: [],
+                items: [],
+              },
+            ],
+          })}
+          initialTestResults={[]}
+          {...detailShellProps}
+        />,
+      );
+      expect(screen.getByText("Вы занимаетесь 5 дней")).toBeInTheDocument();
+      expect(screen.queryByText(/План обновлён/)).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("shows next control region with booking when stage is in progress but control date cannot be computed", () => {
     render(
       <PatientTreatmentProgramDetailClient
-        initial={makeInstance()}
+        initial={makeInstance({
+          stages: [
+            {
+              id: "22222222-2222-4222-8222-222222222222",
+              instanceId: "11111111-1111-4111-8111-111111111111",
+              sourceStageId: null,
+              title: "Рекомендации",
+              description: null,
+              sortOrder: 0,
+              localComment: null,
+              skipReason: null,
+              status: "available",
+              startedAt: null,
+              goals: null,
+              objectives: null,
+              expectedDurationDays: null,
+              expectedDurationText: null,
+              groups: [],
+              items: [],
+            },
+            {
+              id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+              instanceId: "11111111-1111-4111-8111-111111111111",
+              sourceStageId: null,
+              title: "Этап 1",
+              description: null,
+              sortOrder: 1,
+              localComment: null,
+              skipReason: null,
+              status: "in_progress",
+              startedAt: now,
+              goals: null,
+              objectives: null,
+              expectedDurationDays: null,
+              expectedDurationText: null,
+              groups: [],
+              items: [],
+            },
+          ],
+        })}
         initialTestResults={[]}
-        appDisplayTimeZone="Europe/Moscow"
-        planUpdatedLabel="План обновлён 1 янв."
+        {...detailShellProps}
       />,
     );
-    expect(screen.getByText("План обновлён 1 янв.")).toBeInTheDocument();
+    const controlRegion = screen.getByRole("region", { name: "Следующий контроль" });
+    expect(within(controlRegion).getByText("Срок консультации уточняется у врача.")).toBeInTheDocument();
+    expect(within(controlRegion).getByRole("link", { name: /Записаться на приём/i })).toBeInTheDocument();
+  });
+
+  it("next control region uses expectedDurationText when control date cannot be computed", () => {
+    render(
+      <PatientTreatmentProgramDetailClient
+        initial={makeInstance({
+          stages: [
+            {
+              id: "22222222-2222-4222-8222-222222222222",
+              instanceId: "11111111-1111-4111-8111-111111111111",
+              sourceStageId: null,
+              title: "Рекомендации",
+              description: null,
+              sortOrder: 0,
+              localComment: null,
+              skipReason: null,
+              status: "available",
+              startedAt: null,
+              goals: null,
+              objectives: null,
+              expectedDurationDays: null,
+              expectedDurationText: null,
+              groups: [],
+              items: [],
+            },
+            {
+              id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+              instanceId: "11111111-1111-4111-8111-111111111111",
+              sourceStageId: null,
+              title: "Этап 1",
+              description: null,
+              sortOrder: 1,
+              localComment: null,
+              skipReason: null,
+              status: "in_progress",
+              startedAt: now,
+              goals: null,
+              objectives: null,
+              expectedDurationDays: null,
+              expectedDurationText: "  по согласованию с врачом  ",
+              groups: [],
+              items: [],
+            },
+          ],
+        })}
+        initialTestResults={[]}
+        {...detailShellProps}
+      />,
+    );
+    const controlRegion = screen.getByRole("region", { name: "Следующий контроль" });
+    expect(within(controlRegion).getByText("по согласованию с врачом")).toBeInTheDocument();
   });
 
   it("renders template programDescription under title when provided", () => {
@@ -379,7 +534,8 @@ describe("PatientTreatmentProgramDetailClient", () => {
     expect(screen.getByRole("heading", { name: "Этапы программы" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Состав этапа: Острая фаза" }));
     expect(screen.getByRole("dialog")).toBeInTheDocument();
-    expect(screen.getByText("Состав этапа")).toBeInTheDocument();
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByText("Острая фаза")).toBeInTheDocument();
     expect(screen.getByText("Активный этап")).toBeInTheDocument();
     const stagesSection = document.getElementById("patient-program-current-stage");
     expect(stagesSection).toBeTruthy();
@@ -509,6 +665,9 @@ describe("PatientTreatmentProgramDetailClient", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: "Состав этапа: Острая фаза" }));
     const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByRole("link", { name: /Начать занятие/i })).toBeInTheDocument();
+    expect(within(dialog).getAllByText("Сегодня:")).toHaveLength(4);
+    expect(within(dialog).queryByRole("checkbox")).not.toBeInTheDocument();
     expect(within(dialog).getByText("Блок утро")).toBeInTheDocument();
     expect(within(dialog).getByText("2 раза в день")).toBeInTheDocument();
     expect(within(dialog).getByText("Первое")).toBeInTheDocument();

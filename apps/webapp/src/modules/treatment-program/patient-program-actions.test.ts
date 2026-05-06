@@ -13,7 +13,7 @@ import {
 import { createInMemoryProgramActionLogPort } from "@/infra/repos/inMemoryProgramActionLog";
 import { createTreatmentProgramService } from "./service";
 import { createTreatmentProgramInstanceService } from "./instance-service";
-import type { TreatmentProgramItemRefValidationPort } from "./ports";
+import type { TreatmentProgramItemRefValidationPort, TreatmentProgramItemSnapshotPort } from "./ports";
 
 const refA = "11111111-1111-4111-8111-111111111111";
 const refB = "22222222-2222-4222-8222-222222222222";
@@ -177,15 +177,31 @@ describe("patient-program-actions", () => {
     }
   });
 
-  it("LFK post-session writes note and difficulty payload (O2/O3)", async () => {
+  it("LFK post-session writes one done per exercise with shared session (note on first)", async () => {
     const tplPort = createInMemoryTreatmentProgramPort();
     const instPort = createInMemoryTreatmentProgramInstancePort();
     const itemRefs: TreatmentProgramItemRefValidationPort = { assertItemRefExists: vi.fn(async () => {}) };
+    const baseSnapshots = createInMemoryTreatmentProgramItemSnapshotPort();
+    const snapshots: TreatmentProgramItemSnapshotPort = {
+      async buildSnapshot(type, itemRefId) {
+        if (type === "lfk_complex") {
+          return {
+            itemType: "lfk_complex",
+            title: "Комплекс",
+            exercises: [
+              { exerciseId: "e1111111-1111-4111-8111-111111111111", title: "Упр 1", sortOrder: 0 },
+              { exerciseId: "e2222222-2222-4222-8222-222222222222", title: "Упр 2", sortOrder: 1 },
+            ],
+          };
+        }
+        return baseSnapshots.buildSnapshot(type, itemRefId);
+      },
+    };
     const tplSvc = createTreatmentProgramService(tplPort, itemRefs);
     const instSvc = createTreatmentProgramInstanceService({
       instances: instPort,
       templates: tplSvc,
-      snapshots: createInMemoryTreatmentProgramItemSnapshotPort(),
+      snapshots,
       itemRefs,
     });
     const actionLog = createInMemoryProgramActionLogPort();
@@ -218,13 +234,28 @@ describe("patient-program-actions", () => {
       difficulty: "hard",
       note: "Устал",
     });
-    expect(insertSpy).toHaveBeenCalledWith(
-      expect.objectContaining({
-        actionType: "done",
-        note: "Устал",
-        payload: expect.objectContaining({ difficulty: "hard", source: "lfk_session" }),
-      }),
-    );
+    expect(insertSpy).toHaveBeenCalledTimes(2);
+    const calls = insertSpy.mock.calls.map((c) => c[0]);
+    expect(calls[0]).toMatchObject({
+      actionType: "done",
+      note: "Устал",
+      sessionId: expect.any(String),
+      payload: {
+        source: "lfk_exercise_done",
+        exerciseId: "e1111111-1111-4111-8111-111111111111",
+        difficulty: "hard",
+      },
+    });
+    expect(calls[1]).toMatchObject({
+      actionType: "done",
+      note: null,
+      sessionId: (calls[0] as { sessionId?: string }).sessionId,
+      payload: {
+        source: "lfk_exercise_done",
+        exerciseId: "e2222222-2222-4222-8222-222222222222",
+        difficulty: "hard",
+      },
+    });
   });
 
   it("localDayWindowIso uses Europe/Helsinki local midnight boundaries", () => {

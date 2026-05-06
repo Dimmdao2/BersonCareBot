@@ -18,6 +18,8 @@ import {
   patientCardListSectionClass,
   patientHeroPrimaryActionClass,
   patientHeroTitleBaseClass,
+  patientInnerHeroListEmptyTitleClass,
+  patientInnerHeroListPrimaryTitleClass,
   patientInlineLinkClass,
   patientMutedTextClass,
   patientSurfaceInfoClass,
@@ -54,7 +56,7 @@ export function PatientTreatmentProgramsListClient(props: {
           className={cn(patientHomeCardHeroClass, "relative isolate overflow-hidden p-4 lg:p-5")}
           aria-labelledby="patient-tp-list-hero-title"
         >
-          <h2 id="patient-tp-list-hero-title" className={cn(patientHeroTitleBaseClass, "text-lg")}>
+          <h2 id="patient-tp-list-hero-title" className={cn(patientHeroTitleBaseClass, patientInnerHeroListPrimaryTitleClass)}>
             {hero.title}
           </h2>
           <p className={cn(patientMutedTextClass, "mt-2 text-sm")}>
@@ -90,7 +92,7 @@ export function PatientTreatmentProgramsListClient(props: {
           className={cn(patientSurfaceInfoClass, "flex flex-col gap-3")}
           aria-labelledby="patient-tp-list-empty-heading"
         >
-          <h2 id="patient-tp-list-empty-heading" className={cn(patientHeroTitleBaseClass, "text-base")}>
+          <h2 id="patient-tp-list-empty-heading" className={cn(patientHeroTitleBaseClass, patientInnerHeroListEmptyTitleClass)}>
             Нет активной программы
           </h2>
           <p className="text-sm text-[var(--patient-surface-info-text)]">

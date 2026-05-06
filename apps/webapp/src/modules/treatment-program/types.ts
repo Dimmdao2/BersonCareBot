@@ -503,7 +503,8 @@ export function formatProgramActionLogSummaryRu(row: ProgramActionLogListRow): s
   if (row.actionType === "viewed") return "Просмотр элемента";
   if (row.actionType === "note") return "Заметка";
   const src = row.payload && typeof row.payload.source === "string" ? row.payload.source : null;
-  if (src === "lfk_session") return "ЛФК: занятие";
+  if (src === "lfk_exercise_done") return "ЛФК: упражнение";
+  if (src === "lfk_session") return "ЛФК: занятие (старый формат журнала)";
   if (src === "test_submitted") return "Тест отправлен";
   return "Отметка выполнения";
 }
