@@ -118,6 +118,27 @@ sudo -n "${BACKUP_SCRIPT}" pre-migrations
 
 pnpm migrate
 
+# Guardrail: fail deploy if critical webapp columns are still missing after migrations.
+missing_columns="$(
+  psql "$DATABASE_URL" -At -v ON_ERROR_STOP=1 -c "
+    WITH required(table_name, column_name) AS (
+      VALUES
+        ('test_sets', 'publication_status'),
+        ('recommendations', 'domain')
+    )
+    SELECT required.table_name || '.' || required.column_name
+    FROM required
+    LEFT JOIN information_schema.columns c
+      ON c.table_schema = 'public'
+     AND c.table_name = required.table_name
+     AND c.column_name = required.column_name
+    WHERE c.column_name IS NULL
+  "
+)"
+if [ -n "${missing_columns}" ]; then
+  fail "Post-migrate schema check failed. Missing columns: ${missing_columns}"
+fi
+
 sudo -n /bin/systemctl restart "${API_SERVICE}"
 sudo -n /bin/systemctl restart "${WORKER_SERVICE}"
 
