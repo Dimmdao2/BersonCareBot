@@ -4,6 +4,9 @@ import type {
   CreateTreatmentProgramStageItemInput,
   CreateTreatmentProgramTemplateInput,
   CreateTreatmentProgramTemplateStageGroupInput,
+  LfkComplexExpandPreview,
+  ExpandLfkComplexIntoStageItemsPortInput,
+  ExpandLfkComplexIntoStageItemsResult,
   TreatmentProgramStage,
   TreatmentProgramStageItem,
   TreatmentProgramTemplate,
@@ -18,6 +21,7 @@ import type {
   UpdateTreatmentProgramTemplateStageGroupInput,
 } from "@/modules/treatment-program/types";
 import { EMPTY_TREATMENT_PROGRAM_TEMPLATE_USAGE_SNAPSHOT } from "@/modules/treatment-program/types";
+import { TreatmentProgramTemplateAlreadyArchivedError, TreatmentProgramExpandNotFoundError } from "@/modules/treatment-program/errors";
 
 const templateUsageSnapshots = new Map<string, TreatmentProgramTemplateUsageSnapshot>();
 
@@ -51,6 +55,8 @@ export function createInMemoryTreatmentProgramPort(seed?: {
   stages?: TreatmentProgramStage[];
   items?: TreatmentProgramStageItem[];
   groups?: TreatmentProgramTemplateStageGroup[];
+  /** Ключ — id шаблона комплекса ЛФК (каталог); только для тестов expand. */
+  lfkComplexExpandPreview?: Record<string, LfkComplexExpandPreview>;
 }): TreatmentProgramPort {
   const templates = new Map<string, TreatmentProgramTemplate>();
   const stages = new Map<string, TreatmentProgramStage>();
@@ -69,8 +75,14 @@ export function createInMemoryTreatmentProgramPort(seed?: {
   for (const i of seed?.items ?? []) items.set(i.id, { ...i });
   for (const g of seed?.groups ?? []) tplGroups.set(g.id, { ...g });
 
-  function nextTemplateSort(): number {
-    return templates.size;
+  const lfkComplexExpandPreview = seed?.lfkComplexExpandPreview ?? {};
+
+  function sameUuidOrder(a: string[], b: string[]): boolean {
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) {
+      if (a[i] !== b[i]) return false;
+    }
+    return true;
   }
 
   function nextStageOrder(templateId: string): number {
@@ -324,6 +336,102 @@ export function createInMemoryTreatmentProgramPort(seed?: {
       }
       tplGroups.delete(groupId);
       return true;
+    },
+
+    async getLfkComplexExpandPreview(complexTemplateId: string): Promise<LfkComplexExpandPreview | null> {
+      const row = lfkComplexExpandPreview[complexTemplateId];
+      if (!row) return null;
+      return {
+        exerciseIds: [...row.exerciseIds],
+        complexDescription: row.complexDescription,
+      };
+    },
+
+    async expandLfkComplexIntoStageItems(
+      input: ExpandLfkComplexIntoStageItemsPortInput,
+    ): Promise<ExpandLfkComplexIntoStageItemsResult> {
+      const stageRow = stages.get(input.stageId);
+      if (!stageRow) throw new TreatmentProgramExpandNotFoundError("Этап не найден");
+      if (stageRow.templateId !== input.templateId) {
+        throw new TreatmentProgramExpandNotFoundError("Этап не принадлежит шаблону");
+      }
+
+      const tplRow = templates.get(input.templateId);
+      if (!tplRow) throw new TreatmentProgramExpandNotFoundError("Шаблон программы не найден");
+      if (tplRow.status === "archived") throw new TreatmentProgramTemplateAlreadyArchivedError();
+
+      const preview = lfkComplexExpandPreview[input.complexTemplateId];
+      if (!preview) throw new TreatmentProgramExpandNotFoundError("Комплекс ЛФК не найден или в архиве");
+
+      const idsFromDb = [...preview.exerciseIds];
+      if (idsFromDb.length === 0) throw new Error("В комплексе нет упражнений");
+      if (!sameUuidOrder(idsFromDb, input.expectedExerciseIds)) {
+        throw new Error("Комплекс ЛФК был изменён; обновите страницу и повторите попытку");
+      }
+
+      const complexDescription = preview.complexDescription;
+
+      let targetGroupId: string | null = null;
+      let createdGroup: TreatmentProgramTemplateStageGroup | undefined;
+
+      if (input.mode === "ungrouped") {
+        targetGroupId = null;
+      } else if (input.mode === "new_group") {
+        const title = input.newGroupTitle?.trim() ?? "";
+        if (!title) throw new Error("Название группы обязательно");
+        let groupDescription: string | null = null;
+        if (input.copyComplexDescriptionToGroup && complexDescription) {
+          groupDescription = complexDescription;
+        }
+        const id = crypto.randomUUID();
+        const sortOrder = nextTplGroupOrder(input.stageId);
+        const row: TreatmentProgramTemplateStageGroup = {
+          id,
+          stageId: input.stageId,
+          title,
+          description: groupDescription,
+          scheduleText: null,
+          sortOrder,
+        };
+        tplGroups.set(id, row);
+        createdGroup = { ...row };
+        targetGroupId = id;
+      } else {
+        const gRow = tplGroups.get(input.existingGroupId!);
+        if (!gRow || gRow.stageId !== input.stageId) {
+          throw new TreatmentProgramExpandNotFoundError("Группа не найдена или не принадлежит этапу");
+        }
+        targetGroupId = gRow.id;
+        if (input.copyComplexDescriptionToGroup && complexDescription) {
+          tplGroups.set(gRow.id, { ...gRow, description: complexDescription });
+        }
+      }
+
+      let m = -1;
+      for (const it of items.values()) {
+        if (it.stageId === input.stageId) m = Math.max(m, it.sortOrder);
+      }
+      const base = m + 1;
+
+      const insertedItems: TreatmentProgramStageItem[] = [];
+      for (let i = 0; i < idsFromDb.length; i++) {
+        const exerciseId = idsFromDb[i]!;
+        const id = crypto.randomUUID();
+        const row: TreatmentProgramStageItem = {
+          id,
+          stageId: input.stageId,
+          itemType: "exercise",
+          itemRefId: exerciseId,
+          sortOrder: base + i,
+          comment: null,
+          settings: null,
+          groupId: targetGroupId,
+        };
+        items.set(id, row);
+        insertedItems.push({ ...row });
+      }
+
+      return { items: insertedItems, createdGroup };
     },
 
     async reorderTemplateStageGroups(stageId: string, orderedGroupIds: string[]) {

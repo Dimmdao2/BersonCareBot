@@ -5,7 +5,7 @@ export type RecommendationMediaItem = {
   mediaUrl: string;
   mediaType: "image" | "video" | "gif";
   sortOrder: number;
-  /** Превью воркера (`/api/media/:id/preview/sm`); в JSON рекомендации в БД может отсутствовать — подставляется при `buildSnapshot`. */
+  /** Превью воркера для малого размера; в JSON рекомендации в БД может отсутствовать — подставляется при `buildSnapshot`. */
   previewSmUrl?: string | null;
   previewMdUrl?: string | null;
   previewStatus?: MediaPreviewStatus | null;

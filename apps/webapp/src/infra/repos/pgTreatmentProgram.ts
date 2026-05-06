@@ -1,6 +1,7 @@
 import { and, asc, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import { getPool } from "@/infra/db/client";
+import { lfkComplexTemplateExercises, lfkComplexTemplates } from "../../../db/schema/schema";
 import {
   treatmentProgramTemplates as tplTable,
   treatmentProgramTemplateStages as stageTable,
@@ -28,11 +29,15 @@ import type {
   TreatmentProgramTemplateUsageRef,
   TreatmentProgramTemplateUsageSnapshot,
   TreatmentProgramTemplateListPreviewMedia,
+  LfkComplexExpandPreview,
+  ExpandLfkComplexIntoStageItemsPortInput,
+  ExpandLfkComplexIntoStageItemsResult,
 } from "@/modules/treatment-program/types";
 import {
   EMPTY_TREATMENT_PROGRAM_TEMPLATE_USAGE_SNAPSHOT,
   TREATMENT_PROGRAM_TEMPLATE_USAGE_DETAIL_LIMIT,
 } from "@/modules/treatment-program/types";
+import { TreatmentProgramTemplateAlreadyArchivedError, TreatmentProgramExpandNotFoundError } from "@/modules/treatment-program/errors";
 
 function mapTemplate(
   row: typeof tplTable.$inferSelect,
@@ -380,6 +385,14 @@ async function loadTreatmentProgramTemplateUsageSummary(
   };
 }
 
+function sameUuidOrder(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
+}
+
 export function createPgTreatmentProgramPort(): TreatmentProgramPort {
   return {
     async createTemplate(input: CreateTreatmentProgramTemplateInput, createdBy: string | null) {
@@ -659,6 +672,140 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
             .where(eq(tplGroupTable.id, orderedGroupIds[i]!));
         }
         return true;
+      });
+    },
+
+    async getLfkComplexExpandPreview(complexTemplateId: string): Promise<LfkComplexExpandPreview | null> {
+      const db = getDrizzle();
+      const row = await db.query.lfkComplexTemplates.findFirst({
+        where: and(eq(lfkComplexTemplates.id, complexTemplateId), ne(lfkComplexTemplates.status, "archived")),
+      });
+      if (!row) return null;
+      const exerciseRows = await db
+        .select({ exerciseId: lfkComplexTemplateExercises.exerciseId })
+        .from(lfkComplexTemplateExercises)
+        .where(eq(lfkComplexTemplateExercises.templateId, complexTemplateId))
+        .orderBy(asc(lfkComplexTemplateExercises.sortOrder), asc(lfkComplexTemplateExercises.id));
+      const d = row.description?.trim() ?? "";
+      return {
+        exerciseIds: exerciseRows.map((r) => r.exerciseId),
+        complexDescription: d ? d : null,
+      };
+    },
+
+    async expandLfkComplexIntoStageItems(
+      input: ExpandLfkComplexIntoStageItemsPortInput,
+    ): Promise<ExpandLfkComplexIntoStageItemsResult> {
+      const db = getDrizzle();
+      return db.transaction(async (tx) => {
+        const stageRow = await tx.query.treatmentProgramTemplateStages.findFirst({
+          where: eq(stageTable.id, input.stageId),
+        });
+        if (!stageRow) throw new TreatmentProgramExpandNotFoundError("Этап не найден");
+        if (stageRow.templateId !== input.templateId) {
+          throw new TreatmentProgramExpandNotFoundError("Этап не принадлежит шаблону");
+        }
+
+        const tplRow = await tx.query.treatmentProgramTemplates.findFirst({
+          where: eq(tplTable.id, input.templateId),
+        });
+        if (!tplRow) throw new TreatmentProgramExpandNotFoundError("Шаблон программы не найден");
+        if (tplRow.status === "archived") throw new TreatmentProgramTemplateAlreadyArchivedError();
+
+        const complexRow = await tx.query.lfkComplexTemplates.findFirst({
+          where: and(eq(lfkComplexTemplates.id, input.complexTemplateId), ne(lfkComplexTemplates.status, "archived")),
+        });
+        if (!complexRow) throw new TreatmentProgramExpandNotFoundError("Комплекс ЛФК не найден или в архиве");
+
+        const exerciseRows = await tx
+          .select({ exerciseId: lfkComplexTemplateExercises.exerciseId })
+          .from(lfkComplexTemplateExercises)
+          .where(eq(lfkComplexTemplateExercises.templateId, input.complexTemplateId))
+          .orderBy(asc(lfkComplexTemplateExercises.sortOrder), asc(lfkComplexTemplateExercises.id));
+
+        if (exerciseRows.length === 0) throw new Error("В комплексе нет упражнений");
+
+        const idsFromDb = exerciseRows.map((r) => r.exerciseId);
+        if (!sameUuidOrder(idsFromDb, input.expectedExerciseIds)) {
+          throw new Error("Комплекс ЛФК был изменён; обновите страницу и повторите попытку");
+        }
+
+        const complexDescriptionRaw = complexRow.description?.trim() ?? "";
+        const complexDescription = complexDescriptionRaw ? complexDescriptionRaw : null;
+
+        let targetGroupId: string | null = null;
+        let createdGroup: TreatmentProgramTemplateStageGroup | undefined;
+
+        if (input.mode === "ungrouped") {
+          targetGroupId = null;
+        } else if (input.mode === "new_group") {
+          const title = input.newGroupTitle?.trim() ?? "";
+          if (!title) throw new Error("Название группы обязательно");
+          let groupDescription: string | null = null;
+          if (input.copyComplexDescriptionToGroup && complexDescription) {
+            groupDescription = complexDescription;
+          }
+          const [{ max }] = await tx
+            .select({ max: sql<number>`coalesce(max(${tplGroupTable.sortOrder}), -1)` })
+            .from(tplGroupTable)
+            .where(eq(tplGroupTable.stageId, input.stageId));
+          const sortOrder = max + 1;
+          const [gRow] = await tx
+            .insert(tplGroupTable)
+            .values({
+              stageId: input.stageId,
+              title,
+              description: groupDescription,
+              scheduleText: null,
+              sortOrder,
+            })
+            .returning();
+          if (!gRow) throw new Error("insert group failed");
+          createdGroup = mapTemplateGroup(gRow);
+          targetGroupId = gRow.id;
+        } else {
+          const [gRow] = await tx
+            .select()
+            .from(tplGroupTable)
+            .where(eq(tplGroupTable.id, input.existingGroupId!))
+            .limit(1);
+          if (!gRow || gRow.stageId !== input.stageId) {
+            throw new TreatmentProgramExpandNotFoundError("Группа не найдена или не принадлежит этапу");
+          }
+          targetGroupId = gRow.id;
+          if (input.copyComplexDescriptionToGroup && complexDescription) {
+            await tx
+              .update(tplGroupTable)
+              .set({ description: complexDescription })
+              .where(eq(tplGroupTable.id, gRow.id));
+          }
+        }
+
+        const [{ max: itemMax }] = await tx
+          .select({ max: sql<number>`coalesce(max(${itemTable.sortOrder}), -1)` })
+          .from(itemTable)
+          .where(eq(itemTable.stageId, input.stageId));
+
+        const base = itemMax + 1;
+        const insertedItems: TreatmentProgramStageItem[] = [];
+        for (let i = 0; i < idsFromDb.length; i++) {
+          const exerciseId = idsFromDb[i]!;
+          const [row] = await tx
+            .insert(itemTable)
+            .values({
+              stageId: input.stageId,
+              itemType: "exercise",
+              itemRefId: exerciseId,
+              sortOrder: base + i,
+              comment: null,
+              groupId: targetGroupId,
+            })
+            .returning();
+          if (!row) throw new Error("insert failed");
+          insertedItems.push(mapItem(row));
+        }
+
+        return { items: insertedItems, createdGroup };
       });
     },
   };

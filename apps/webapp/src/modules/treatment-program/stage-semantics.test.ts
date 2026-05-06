@@ -14,6 +14,7 @@ import {
   latestCompletedAtIsoAmongStageItems,
   calendarDaysFromUtcIsoToNowInZone,
   formatRelativePatientCalendarDayRu,
+  type TreatmentProgramInstanceDetailStageRow,
 } from "./stage-semantics";
 import type { TreatmentProgramInstanceDetail } from "./types";
 
@@ -374,7 +375,7 @@ describe("stage-semantics (1.1a detail split)", () => {
         { completedAt: "2026-01-02T12:00:00.000Z" as string | null },
         { completedAt: "2026-01-05T08:00:00.000Z" as string | null },
       ],
-    };
+    } as Pick<TreatmentProgramInstanceDetailStageRow, "items">;
     expect(latestCompletedAtIsoAmongStageItems(stage)).toBe("2026-01-05T08:00:00.000Z");
   });
 

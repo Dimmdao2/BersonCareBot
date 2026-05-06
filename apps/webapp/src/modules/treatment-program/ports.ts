@@ -32,6 +32,9 @@ import type {
   TreatmentProgramTestResultRow,
   NormalizedTestDecision,
   PendingProgramTestEvaluationRow,
+  LfkComplexExpandPreview,
+  ExpandLfkComplexIntoStageItemsPortInput,
+  ExpandLfkComplexIntoStageItemsResult,
   ProgramActionLogInsert,
   ProgramActionLogListRow,
   UpdateTreatmentProgramStageInput,
@@ -77,6 +80,11 @@ export type TreatmentProgramPort = {
   ): Promise<TreatmentProgramTemplateStageGroup | null>;
   deleteTemplateStageGroup(groupId: string): Promise<boolean>;
   reorderTemplateStageGroups(stageId: string, orderedGroupIds: string[]): Promise<boolean>;
+
+  /** Каталожный шаблон комплекса ЛФК: порядок упражнений для развёртывания; `null`, если нет или в архиве. */
+  getLfkComplexExpandPreview(complexTemplateId: string): Promise<LfkComplexExpandPreview | null>;
+  /** Одна транзакция: группа (опционально) + вставка строк `exercise`. */
+  expandLfkComplexIntoStageItems(input: ExpandLfkComplexIntoStageItemsPortInput): Promise<ExpandLfkComplexIntoStageItemsResult>;
 };
 
 /** Проверка полиморфной ссылки без FK на уровне БД — только в сервисе. */

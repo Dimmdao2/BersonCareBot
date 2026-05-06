@@ -185,6 +185,52 @@ export type CreateTreatmentProgramStageItemInput = {
   groupId?: string | null;
 };
 
+/** Разворачивание каталожного шаблона комплекса ЛФК в строки `exercise` этапа шаблона программы (без `lfk_complex`). */
+export type ExpandLfkComplexIntoStageItemsMode = "new_group" | "ungrouped" | "existing_group";
+
+export type ExpandLfkComplexIntoStageItemsBody =
+  | {
+      templateId: string;
+      complexTemplateId: string;
+      copyComplexDescriptionToGroup: boolean;
+      mode: "new_group";
+      newGroupTitle: string;
+    }
+  | {
+      templateId: string;
+      complexTemplateId: string;
+      copyComplexDescriptionToGroup: boolean;
+      mode: "ungrouped";
+    }
+  | {
+      templateId: string;
+      complexTemplateId: string;
+      copyComplexDescriptionToGroup: boolean;
+      mode: "existing_group";
+      existingGroupId: string;
+    };
+
+export type LfkComplexExpandPreview = {
+  exerciseIds: string[];
+  complexDescription: string | null;
+};
+
+export type ExpandLfkComplexIntoStageItemsPortInput = {
+  templateId: string;
+  stageId: string;
+  complexTemplateId: string;
+  mode: ExpandLfkComplexIntoStageItemsMode;
+  newGroupTitle?: string;
+  existingGroupId?: string;
+  copyComplexDescriptionToGroup: boolean;
+  expectedExerciseIds: string[];
+};
+
+export type ExpandLfkComplexIntoStageItemsResult = {
+  items: TreatmentProgramStageItem[];
+  createdGroup?: TreatmentProgramTemplateStageGroup;
+};
+
 export type UpdateTreatmentProgramStageItemInput = {
   itemType?: TreatmentProgramItemType;
   itemRefId?: string;

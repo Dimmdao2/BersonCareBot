@@ -3,6 +3,8 @@ import {
   TreatmentProgramTemplateAlreadyArchivedError,
   TreatmentProgramTemplateArchiveNotFoundError,
   TreatmentProgramTemplateUsageConfirmationRequiredError,
+  TreatmentProgramTemplateGroupDescriptionConflictError,
+  TreatmentProgramExpandNotFoundError,
 } from "./errors";
 import type {
   ArchiveTreatmentProgramTemplateOptions,
@@ -10,6 +12,7 @@ import type {
   CreateTreatmentProgramStageItemInput,
   CreateTreatmentProgramTemplateInput,
   CreateTreatmentProgramTemplateStageGroupInput,
+  ExpandLfkComplexIntoStageItemsBody,
   TreatmentProgramItemType,
   TreatmentProgramTemplateFilter,
   UpdateTreatmentProgramStageInput,
@@ -278,6 +281,55 @@ export function createTreatmentProgramService(
       for (const id of orderedGroupIds) assertUuid(id);
       const ok = await port.reorderTemplateStageGroups(stageId, orderedGroupIds);
       if (!ok) throw new Error("Некорректный порядок групп этапа");
+    },
+
+    async expandLfkComplexIntoTemplateStageItems(
+      templateId: string,
+      stageId: string,
+      body: ExpandLfkComplexIntoStageItemsBody,
+    ) {
+      assertUuid(templateId);
+      assertUuid(stageId);
+      assertUuid(body.complexTemplateId);
+
+      const detail = await port.getTemplateById(templateId);
+      if (!detail) throw new TreatmentProgramExpandNotFoundError("Шаблон программы не найден");
+      if (detail.status === "archived") throw new TreatmentProgramTemplateAlreadyArchivedError();
+
+      const stage = detail.stages.find((s) => s.id === stageId);
+      if (!stage) throw new TreatmentProgramExpandNotFoundError("Этап не найден");
+
+      if (body.mode === "new_group") {
+        const title = body.newGroupTitle.trim();
+        if (!title) throw new Error("Название группы обязательно");
+      }
+      if (body.mode === "existing_group") {
+        assertUuid(body.existingGroupId);
+        const grp = stage.groups.find((g) => g.id === body.existingGroupId);
+        if (!grp) throw new TreatmentProgramExpandNotFoundError("Группа не найдена или не принадлежит этапу");
+        if (body.copyComplexDescriptionToGroup && (grp.description?.trim() ?? "")) {
+          throw new TreatmentProgramTemplateGroupDescriptionConflictError();
+        }
+      }
+
+      const preview = await port.getLfkComplexExpandPreview(body.complexTemplateId.trim());
+      if (!preview) throw new TreatmentProgramExpandNotFoundError("Комплекс ЛФК не найден или в архиве");
+      if (preview.exerciseIds.length === 0) throw new Error("В комплексе нет упражнений");
+
+      for (const id of preview.exerciseIds) {
+        await itemRefs.assertItemRefExists("exercise", id);
+      }
+
+      return port.expandLfkComplexIntoStageItems({
+        templateId,
+        stageId,
+        complexTemplateId: body.complexTemplateId.trim(),
+        mode: body.mode,
+        newGroupTitle: body.mode === "new_group" ? body.newGroupTitle.trim() : undefined,
+        existingGroupId: body.mode === "existing_group" ? body.existingGroupId : undefined,
+        copyComplexDescriptionToGroup: body.copyComplexDescriptionToGroup,
+        expectedExerciseIds: preview.exerciseIds,
+      });
     },
   };
 }

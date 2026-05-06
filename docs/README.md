@@ -3,6 +3,7 @@
 - **Backlog (security, rate limit, observability, URL/UUID в адресах):** [`TODO.md`](TODO.md)
 - **Архив (завершённые инициативы и разовые журналы):** [`archive/README.md`](archive/README.md)
 - **Операционные отчёты / runbook:** [`REPORTS/README.md`](REPORTS/README.md)
+- **Шаблон программы: развёртывание комплекса ЛФК в упражнения** — журнал исполнения [`TREATMENT_PROGRAM_LFK_TEMPLATE_EXPAND/LOG.md`](TREATMENT_PROGRAM_LFK_TEMPLATE_EXPAND/LOG.md); post-prod legacy [`TREATMENT_PROGRAM_LFK_TEMPLATE_LEGACY_TODO.md`](TREATMENT_PROGRAM_LFK_TEMPLATE_LEGACY_TODO.md).
 
 ## Архитектура и эксплуатация
 

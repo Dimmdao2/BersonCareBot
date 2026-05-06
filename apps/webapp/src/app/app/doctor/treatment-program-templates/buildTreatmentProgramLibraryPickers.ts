@@ -53,13 +53,17 @@ export function buildTreatmentProgramLibraryPickers(params: {
       subtitle: e.loadType ? LOAD_SUBTITLE[e.loadType] : null,
       thumbUrl: exerciseThumbUrl(e.media[0]),
     })),
-    lfkComplexes: lfkTemplates.map((t) => ({
-      id: t.id,
-      title: t.title,
-      subtitle:
-        typeof t.exerciseCount === "number" ? `${t.exerciseCount} упражнений в комплексе` : null,
-      thumbUrl: lfkTemplateThumb(t),
-    })),
+    lfkComplexes: lfkTemplates.map((t) => {
+      const desc = t.description?.trim();
+      return {
+        id: t.id,
+        title: t.title,
+        subtitle:
+          typeof t.exerciseCount === "number" ? `${t.exerciseCount} упражнений в комплексе` : null,
+        thumbUrl: lfkTemplateThumb(t),
+        description: desc ? desc : null,
+      };
+    }),
     testSets: testSets.map((ts) => {
       const firstPreview = ts.items[0]?.test.previewMedia;
       const thumb =

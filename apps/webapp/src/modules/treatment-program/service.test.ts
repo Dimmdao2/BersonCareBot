@@ -1,5 +1,10 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { TreatmentProgramTemplateUsageConfirmationRequiredError } from "./errors";
+import {
+  TreatmentProgramTemplateUsageConfirmationRequiredError,
+  TreatmentProgramTemplateGroupDescriptionConflictError,
+  TreatmentProgramExpandNotFoundError,
+  TreatmentProgramTemplateAlreadyArchivedError,
+} from "./errors";
 import { createTreatmentProgramService } from "./service";
 import {
   clearInMemoryTreatmentProgramTemplateUsageSnapshots,
@@ -148,5 +153,179 @@ describe("treatment-program service", () => {
     await svc.updateTemplate(tpl.id, { status: "archived" }, { acknowledgeUsageWarning: true });
     const archived = await svc.getTemplate(tpl.id);
     expect(archived.status).toBe("archived");
+  });
+
+  describe("expandLfkComplexIntoTemplateStageItems", () => {
+    const complexId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    const ex1 = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+    const ex2 = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+
+    it("inserts exercise rows ungrouped", async () => {
+      port = createInMemoryTreatmentProgramPort({
+        lfkComplexExpandPreview: {
+          [complexId]: { exerciseIds: [ex1, ex2], complexDescription: "D1" },
+        },
+      });
+      const svc = createTreatmentProgramService(port, itemRefs);
+      const tpl = await svc.createTemplate({ title: "P" }, null);
+      const stage = await svc.createStage(tpl.id, { title: "S1" });
+      const out = await svc.expandLfkComplexIntoTemplateStageItems(tpl.id, stage.id, {
+        templateId: tpl.id,
+        complexTemplateId: complexId,
+        copyComplexDescriptionToGroup: false,
+        mode: "ungrouped",
+      });
+      expect(out.items).toHaveLength(2);
+      expect(out.items.every((i) => i.itemType === "exercise" && i.groupId == null)).toBe(true);
+      expect(out.items.map((i) => i.itemRefId)).toEqual([ex1, ex2]);
+      expect(out.createdGroup).toBeUndefined();
+    });
+
+    it("rejects empty complex", async () => {
+      port = createInMemoryTreatmentProgramPort({
+        lfkComplexExpandPreview: {
+          [complexId]: { exerciseIds: [], complexDescription: null },
+        },
+      });
+      const svc = createTreatmentProgramService(port, itemRefs);
+      const tpl = await svc.createTemplate({ title: "P" }, null);
+      const stage = await svc.createStage(tpl.id, { title: "S1" });
+      await expect(
+        svc.expandLfkComplexIntoTemplateStageItems(tpl.id, stage.id, {
+          templateId: tpl.id,
+          complexTemplateId: complexId,
+          copyComplexDescriptionToGroup: false,
+          mode: "ungrouped",
+        }),
+      ).rejects.toThrow(/нет упражнений/);
+    });
+
+    it("rejects wrong stage for template", async () => {
+      port = createInMemoryTreatmentProgramPort({
+        lfkComplexExpandPreview: {
+          [complexId]: { exerciseIds: [ex1], complexDescription: null },
+        },
+      });
+      const svc = createTreatmentProgramService(port, itemRefs);
+      const tpl = await svc.createTemplate({ title: "P" }, null);
+      const tpl2 = await svc.createTemplate({ title: "Q" }, null);
+      const stage = await svc.createStage(tpl2.id, { title: "Other" });
+      await expect(
+        svc.expandLfkComplexIntoTemplateStageItems(tpl.id, stage.id, {
+          templateId: tpl.id,
+          complexTemplateId: complexId,
+          copyComplexDescriptionToGroup: false,
+          mode: "ungrouped",
+        }),
+      ).rejects.toBeInstanceOf(TreatmentProgramExpandNotFoundError);
+    });
+
+    it("rejects existing_group when group belongs to another stage of the same template", async () => {
+      port = createInMemoryTreatmentProgramPort({
+        lfkComplexExpandPreview: {
+          [complexId]: { exerciseIds: [ex1], complexDescription: null },
+        },
+      });
+      const svc = createTreatmentProgramService(port, itemRefs);
+      const tpl = await svc.createTemplate({ title: "P" }, null);
+      const stage1 = await svc.createStage(tpl.id, { title: "S1" });
+      const stage2 = await svc.createStage(tpl.id, { title: "S2" });
+      const g = await svc.createTemplateStageGroup(stage1.id, { title: "G1" });
+      await expect(
+        svc.expandLfkComplexIntoTemplateStageItems(tpl.id, stage2.id, {
+          templateId: tpl.id,
+          complexTemplateId: complexId,
+          copyComplexDescriptionToGroup: false,
+          mode: "existing_group",
+          existingGroupId: g.id,
+        }),
+      ).rejects.toBeInstanceOf(TreatmentProgramExpandNotFoundError);
+      expect(itemRefs.assertItemRefExists).not.toHaveBeenCalled();
+    });
+
+    it("rejects expand when template is archived", async () => {
+      port = createInMemoryTreatmentProgramPort({
+        lfkComplexExpandPreview: {
+          [complexId]: { exerciseIds: [ex1], complexDescription: null },
+        },
+      });
+      const svc = createTreatmentProgramService(port, itemRefs);
+      const tpl = await svc.createTemplate({ title: "P" }, null);
+      const stage = await svc.createStage(tpl.id, { title: "S1" });
+      await svc.updateTemplate(tpl.id, { status: "archived" });
+      await expect(
+        svc.expandLfkComplexIntoTemplateStageItems(tpl.id, stage.id, {
+          templateId: tpl.id,
+          complexTemplateId: complexId,
+          copyComplexDescriptionToGroup: false,
+          mode: "ungrouped",
+        }),
+      ).rejects.toBeInstanceOf(TreatmentProgramTemplateAlreadyArchivedError);
+    });
+
+    it("port rejects when expectedExerciseIds diverge from catalog order (TOCTOU guard)", async () => {
+      port = createInMemoryTreatmentProgramPort({
+        lfkComplexExpandPreview: {
+          [complexId]: { exerciseIds: [ex1, ex2], complexDescription: null },
+        },
+      });
+      const svc = createTreatmentProgramService(port, itemRefs);
+      const tpl = await svc.createTemplate({ title: "P" }, null);
+      const stage = await svc.createStage(tpl.id, { title: "S1" });
+      await expect(
+        port.expandLfkComplexIntoStageItems({
+          templateId: tpl.id,
+          stageId: stage.id,
+          complexTemplateId: complexId,
+          mode: "ungrouped",
+          copyComplexDescriptionToGroup: false,
+          expectedExerciseIds: [ex2, ex1],
+        }),
+      ).rejects.toThrow(/Комплекс ЛФК был изменён/);
+    });
+
+    it("409 path: existing group with description and copy requested", async () => {
+      port = createInMemoryTreatmentProgramPort({
+        lfkComplexExpandPreview: {
+          [complexId]: { exerciseIds: [ex1], complexDescription: "From complex" },
+        },
+      });
+      const svc = createTreatmentProgramService(port, itemRefs);
+      const tpl = await svc.createTemplate({ title: "P" }, null);
+      const stage = await svc.createStage(tpl.id, { title: "S1" });
+      const g = await svc.createTemplateStageGroup(stage.id, {
+        title: "G1",
+        description: "Already here",
+      });
+      await expect(
+        svc.expandLfkComplexIntoTemplateStageItems(tpl.id, stage.id, {
+          templateId: tpl.id,
+          complexTemplateId: complexId,
+          copyComplexDescriptionToGroup: true,
+          mode: "existing_group",
+          existingGroupId: g.id,
+        }),
+      ).rejects.toBeInstanceOf(TreatmentProgramTemplateGroupDescriptionConflictError);
+      expect(itemRefs.assertItemRefExists).not.toHaveBeenCalled();
+    });
+
+    it("new_group copies complex description when checkbox true", async () => {
+      port = createInMemoryTreatmentProgramPort({
+        lfkComplexExpandPreview: {
+          [complexId]: { exerciseIds: [ex1], complexDescription: "Catalog text" },
+        },
+      });
+      const svc = createTreatmentProgramService(port, itemRefs);
+      const tpl = await svc.createTemplate({ title: "P" }, null);
+      const stage = await svc.createStage(tpl.id, { title: "S1" });
+      const out = await svc.expandLfkComplexIntoTemplateStageItems(tpl.id, stage.id, {
+        templateId: tpl.id,
+        complexTemplateId: complexId,
+        copyComplexDescriptionToGroup: true,
+        mode: "new_group",
+        newGroupTitle: "My group",
+      });
+      expect(out.createdGroup?.description).toBe("Catalog text");
+    });
   });
 });

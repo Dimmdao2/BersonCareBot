@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { USAGE_CONFIRMATION_REQUIRED } from "@/modules/treatment-program/errors";
 import {
@@ -237,5 +237,69 @@ describe("TreatmentProgramConstructorClient", () => {
       expect(refreshMock).toHaveBeenCalled();
     });
     expect(onArchived).not.toHaveBeenCalled();
+  });
+
+  it("opens LFK expand modal when picking a complex from the library", async () => {
+    const stageId = "22222222-2222-4222-8222-222222222222";
+    const complexId = "33333333-3333-4333-8333-333333333333";
+    const detail = makeDetail({
+      stages: [
+        {
+          id: stageId,
+          templateId: TEMPLATE_ID,
+          title: "Этап 1",
+          description: null,
+          sortOrder: 0,
+          goals: null,
+          objectives: null,
+          expectedDurationDays: null,
+          expectedDurationText: null,
+          groups: [],
+          items: [],
+        },
+      ],
+    });
+    const library: TreatmentProgramLibraryPickers = {
+      ...emptyLibrary,
+      lfkComplexes: [
+        {
+          id: complexId,
+          title: "Комплекс А",
+          subtitle: "2 упражнений",
+          thumbUrl: null,
+          description: "Описание из каталога",
+        },
+      ],
+    };
+
+    fetchMock.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = requestUrl(input);
+      const method = init?.method ?? "GET";
+      if (method === "GET" && url.endsWith("/usage")) {
+        return Promise.resolve(jsonResponse({ ok: true, usage: EMPTY_TREATMENT_PROGRAM_TEMPLATE_USAGE_SNAPSHOT }));
+      }
+      if (method === "GET" && url.includes(TEMPLATE_ID) && !url.endsWith("/usage")) {
+        return Promise.resolve(jsonResponse({ ok: true, item: detail }));
+      }
+      return Promise.resolve(new Response("unexpected", { status: 500 }));
+    });
+
+    const user = userEvent.setup();
+    render(<TreatmentProgramConstructorClient templateId={TEMPLATE_ID} initialDetail={detail} library={library} />);
+
+    await user.click(screen.getByRole("button", { name: /добавить из библиотеки/i }));
+
+    const pickerDialog = await screen.findByRole("dialog", { name: /элемент из библиотеки/i });
+    const picker = within(pickerDialog);
+    const typeCombo = picker.getAllByRole("combobox")[0]!;
+    await user.click(typeCombo);
+    await user.click(await screen.findByRole("option", { name: /Комплекс ЛФК/i }));
+
+    await user.click(picker.getByRole("button", { name: /Комплекс А/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: /Комплекс ЛФК в этапе/i })).toBeInTheDocument();
+    });
+    expect(screen.getByText(/Описание из каталога/)).toBeInTheDocument();
   });
 });
