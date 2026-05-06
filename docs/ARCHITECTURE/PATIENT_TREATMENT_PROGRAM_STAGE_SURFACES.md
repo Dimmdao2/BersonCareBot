@@ -2,6 +2,8 @@
 
 Каноническая логика видимости элементов этапа находится в модуле `apps/webapp/src/modules/treatment-program/stage-semantics.ts`.
 
+**Видео и медиа по UUID:** UI программы показывает только данные, полученные через `getInstanceForPatient` (инстанс привязан к `userId`). Это **не** заменяет проверку прав на уровне `GET /api/media/[id]` / `/playback`: при прямом запросе с валидной сессией действует общая модель из [`MEDIA_HTTP_ACCESS_AUTHORIZATION.md`](MEDIA_HTTP_ACCESS_AUTHORIZATION.md).
+
 ## Два фильтра
 
 | Функция | Назначение |

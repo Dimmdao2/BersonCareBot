@@ -19,6 +19,7 @@
 - [`ARCHITECTURE/PATIENT_APP_UI_STYLE_GUIDE.md`](ARCHITECTURE/PATIENT_APP_UI_STYLE_GUIDE.md) — стандарт patient UI: shared primitives, shadcn base, запрет лишнего custom chrome.
 - [`ARCHITECTURE/PATIENT_TREATMENT_PROGRAM_STAGE_SURFACES.md`](ARCHITECTURE/PATIENT_TREATMENT_PROGRAM_STAGE_SURFACES.md) — программа лечения (пациент): видимость пунктов этапа, composition modal vs основные поверхности, `test_set`, модалка пункта.
 - [`ARCHITECTURE/PATIENT_MEDIA_PLAYBACK_VIDEO.md`](ARCHITECTURE/PATIENT_MEDIA_PLAYBACK_VIDEO.md) — пациентское файловое видео: единый плеер `PatientMediaPlaybackVideo`, playback JSON, HLS vs MP4 без выбора пользователем.
+- [`ARCHITECTURE/MEDIA_HTTP_ACCESS_AUTHORIZATION.md`](ARCHITECTURE/MEDIA_HTTP_ACCESS_AUTHORIZATION.md) — кто может дергать `/api/media/*` и playback: сессия и строка в БД; отсутствие per-patient ACL; связь с экранами контента и программы лечения.
 - [`ARCHITECTURE/DOCTOR_CMS_AND_RUNTIME.md`](ARCHITECTURE/DOCTOR_CMS_AND_RUNTIME.md) — CMS врача, `MediaPickerShell`, мягкая деградация UI.
 - [`ARCHITECTURE/EXERCISES_CATALOG_PERFORMANCE_PRIMITIVES.md`](ARCHITECTURE/EXERCISES_CATALOG_PERFORMANCE_PRIMITIVES.md) — переиспользуемые примитивы каталогов (`CatalogSplitLayout`, `VirtualizedItemGrid`).
 - [`ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md`](ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md) — вебхук, `rubitime_events`, статусы 0–7, throttle 5500ms; Google Calendar: описание события (комментарии клиента/админа).
