@@ -35,6 +35,7 @@
     "audit": "node scripts/registry-prod-audit.mjs",
     "format": "prettier -w .",
     "migrate": "pnpm --dir apps/integrator run migrate && pnpm --dir apps/webapp run migrate",
+    "migrate:prod:host": "bash scripts/migrate-prod-host.sh",
     "migrate:webapp": "pnpm --dir apps/webapp run migrate",
     "db:migrate": "pnpm --dir apps/integrator run db:migrate",
     "db:migrate:prod": "pnpm --dir apps/integrator run db:migrate:prod",

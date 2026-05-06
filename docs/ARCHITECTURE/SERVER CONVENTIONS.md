@@ -363,15 +363,22 @@
 ### Миграции: webapp Drizzle (`public`) vs integrator
 
 - **Симптом:** в логах webapp `column "…" does not exist` (например `publication_status` в `test_sets`) при открытии каталогов врача — **не накатили Drizzle-миграции webapp** на ту БД, что в `webapp.prod` (`DATABASE_URL`, схема **`public`**). Новый билд webapp без миграций оставляет схему старой.
-- **`pnpm migrate` в корне репозитория** — по очереди: **integrator** (`pnpm --dir apps/integrator run migrate`), затем **webapp Drizzle** (`pnpm --dir apps/webapp run migrate`, каталог `apps/webapp/db/drizzle-migrations`). Для integrator в env нужны как минимум **`DATABASE_URL`** и **`BOOKING_URL`** (канон: загрузить **`/opt/env/bersoncarebot/api.prod`**). Для webapp Drizzle нужен **`DATABASE_URL`** (после unification тот же URL — достаточно `api.prod`, либо дополнительно подгрузить `webapp.prod` для полного набора webapp-переменных). Только webapp без integrator: **`pnpm migrate:webapp`**.
-- **Пример на production-хосте** (из каталога проекта; затем при необходимости перезапуск webapp):
+- **`pnpm migrate` в корне репозитория** — по очереди: **integrator** (`pnpm --dir apps/integrator run migrate`), затем **webapp Drizzle** (`pnpm --dir apps/webapp run migrate`, каталог `apps/webapp/db/drizzle-migrations`). **Без предварительного `source` env** integrator упадёт на `DATABASE_URL` / `BOOKING_URL` (Zod). На **production-хосте** из каталога проекта удобнее одной командой: **`pnpm migrate:prod:host`** — скрипт подгружает **`/opt/env/bersoncarebot/api.prod`** и **`/opt/env/bersoncarebot/webapp.prod`**, затем вызывает `pnpm migrate` (пути переопределяются через `API_ENV_FILE` / `WEBAPP_ENV_FILE`). Вручную то же самое: `set -a && source …/api.prod && source …/webapp.prod && set +a` и затем `pnpm migrate`. Только webapp без integrator: **`pnpm migrate:webapp`**.
+- **Пример на production-хосте** (из каталога проекта, пользователь **`deploy`**; затем при необходимости перезапуск webapp):
+
+```bash
+cd /opt/projects/bersoncarebot
+pnpm migrate:prod:host
+# при необходимости:
+# sudo systemctl restart bersoncarebot-webapp-prod.service
+```
+
+Эквивалент вручную (если не вызывать `migrate:prod:host`):
 
 ```bash
 cd /opt/projects/bersoncarebot
 set -a && source /opt/env/bersoncarebot/api.prod && source /opt/env/bersoncarebot/webapp.prod && set +a
 pnpm migrate
-# при необходимости:
-# sudo systemctl restart bersoncarebot-webapp-prod.service
 ```
 
 Канон и backup перед миграциями: [`deploy/HOST_DEPLOY_README.md`](../../deploy/HOST_DEPLOY_README.md) (pre-migrations, состав `deploy-prod`).
