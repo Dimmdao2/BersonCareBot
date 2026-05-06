@@ -222,3 +222,24 @@ export function calendarDaysFromUtcIsoToNowInZone(
   if (!start.isValid) return 0;
   return Math.max(0, Math.floor(end.diff(start, "days").days));
 }
+
+function ruDayWordNazad(n: number): string {
+  const mod100 = n % 100;
+  if (mod100 >= 11 && mod100 <= 14) return "дней";
+  const mod10 = n % 10;
+  if (mod10 === 1) return "день";
+  if (mod10 >= 2 && mod10 <= 4) return "дня";
+  return "дней";
+}
+
+/** Относительный календарный день в зоне пациента без времени: «Сегодня», «Вчера», «N дней назад». */
+export function formatRelativePatientCalendarDayRu(
+  iso: string,
+  zone: string,
+  now: DateTime = DateTime.now(),
+): string {
+  const d = calendarDaysFromUtcIsoToNowInZone(iso, zone, now);
+  if (d === 0) return "Сегодня";
+  if (d === 1) return "Вчера";
+  return `${d} ${ruDayWordNazad(d)} назад`;
+}

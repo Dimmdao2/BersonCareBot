@@ -7,8 +7,11 @@ export function programActionDoneActivityKey(
   payload: Record<string, unknown> | null | undefined,
 ): string {
   const p = payload ?? null;
-  const ex = typeof p?.exerciseId === "string" ? p.exerciseId.trim() : "";
-  const tid = typeof p?.testId === "string" ? p.testId.trim() : "";
+  const exRaw = typeof p?.exerciseId === "string" ? p.exerciseId.trim() : "";
+  const tidRaw = typeof p?.testId === "string" ? p.testId.trim() : "";
+  /** UUID в payload и снимке могут различаться по регистру; ключ должен совпадать с агрегацией в журнале. */
+  const ex = exRaw.toLowerCase();
+  const tid = tidRaw.toLowerCase();
   if (ex) return `${instanceStageItemId}:ex:${ex}`;
   if (tid) return `${instanceStageItemId}:test:${tid}`;
   return instanceStageItemId;

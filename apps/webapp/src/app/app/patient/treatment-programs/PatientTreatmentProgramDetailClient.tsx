@@ -54,8 +54,9 @@ import {
   splitPatientProgramStagesForDetailUi,
   selectCurrentWorkingStageForPatientDetail,
   expectedStageControlDateIso,
+  formatRelativePatientCalendarDayRu,
 } from "@/modules/treatment-program/stage-semantics";
-import { listLfkSnapshotExerciseLines } from "@/modules/treatment-program/programActionActivityKey";
+import { listLfkSnapshotExerciseLines, programActionDoneActivityKey } from "@/modules/treatment-program/programActionActivityKey";
 import { testIdsFromTestSetSnapshot } from "@/modules/treatment-program/progress-service";
 import { scoringAllowsNumericDecisionInference } from "@/modules/treatment-program/progress-scoring";
 import { parseTestSetSnapshotTests } from "@/modules/treatment-program/testSetSnapshotView";
@@ -147,21 +148,13 @@ function PatientProgramBlockHeading(props: {
   iconClassName?: string;
   trailing?: ReactNode;
   className?: string;
-  /** Выравнивание строки: для высокого `trailing` (колонка кнопок) обычно `start`. */
-  rowAlign?: "center" | "start";
   /** Внутри `button` (коллапс) — без `h3`. */
   titleAs?: "h3" | "span";
 }) {
-  const { id, title, Icon, iconClassName, trailing, className, titleAs = "h3", rowAlign = "center" } = props;
+  const { id, title, Icon, iconClassName, trailing, className, titleAs = "h3" } = props;
   const titleClass = patientSectionTitleClass;
   return (
-    <div
-      className={cn(
-        "mb-3 flex min-w-0 justify-between gap-2",
-        rowAlign === "start" ? "items-start" : "items-center",
-        className,
-      )}
-    >
+    <div className={cn("mb-3 flex min-w-0 items-center justify-between gap-2", className)}>
       <div className="flex min-w-0 flex-1 items-center gap-2">
         {Icon ? (
           <Icon className={cn("size-4 shrink-0", iconClassName)} aria-hidden />
@@ -282,30 +275,97 @@ function mergeLastActivityDisplayedIso(logIso: string | undefined, completedAt: 
   return tLog >= tDone ? logIso!.trim() : completedAt!.trim();
 }
 
+/** Число отметок «сегодня» для строки модалки: по ключу активности и с распределением агрегата элемента ЛФК по упражнениям. */
+function compositionModalTodayDoneCount(params: {
+  parentItem: InstanceStageRow["items"][number];
+  activityKey: string;
+  doneTodayCountByActivityKey: Readonly<Record<string, number>>;
+  doneTodayCountByItemId: Readonly<Record<string, number>>;
+}): number {
+  const { parentItem, activityKey, doneTodayCountByActivityKey, doneTodayCountByItemId } = params;
+  const direct = doneTodayCountByActivityKey[activityKey] ?? 0;
+  if (direct > 0) return direct;
+
+  if (parentItem.itemType !== "lfk_complex") return 0;
+
+  const lines = listLfkSnapshotExerciseLines(parentItem.snapshot as Record<string, unknown>);
+  const id = parentItem.id;
+
+  if (lines.length === 0) {
+    return doneTodayCountByItemId[id] ?? doneTodayCountByActivityKey[id] ?? 0;
+  }
+
+  const siblingsSum = lines.reduce(
+    (acc, l) =>
+      acc + (doneTodayCountByActivityKey[programActionDoneActivityKey(id, { exerciseId: l.exerciseId })] ?? 0),
+    0,
+  );
+  const itemTotal = doneTodayCountByItemId[id] ?? 0;
+  const slack = itemTotal - siblingsSum;
+  if (slack <= 0) return 0;
+
+  const zeroLines = lines.filter(
+    (l) =>
+      (doneTodayCountByActivityKey[programActionDoneActivityKey(id, { exerciseId: l.exerciseId })] ?? 0) === 0,
+  );
+  if (zeroLines.length === 0) return 0;
+
+  const idxInZero = zeroLines.findIndex(
+    (l) => programActionDoneActivityKey(id, { exerciseId: l.exerciseId }) === activityKey,
+  );
+  if (idxInZero < 0) return 0;
+
+  const z = zeroLines.length;
+  const base = Math.floor(slack / z);
+  const rem = slack % z;
+  return base + (idxInZero < rem ? 1 : 0);
+}
+
 function PatientCompositionItemProgressAside(props: {
   parentItem: InstanceStageRow["items"][number];
   activityKey: string;
   appDisplayTimeZone: string;
   doneTodayCountByActivityKey: Readonly<Record<string, number>>;
   lastDoneAtIsoByActivityKey: Readonly<Record<string, string>>;
+  doneTodayCountByItemId: Readonly<Record<string, number>>;
 }) {
-  const { parentItem, activityKey, appDisplayTimeZone, doneTodayCountByActivityKey, lastDoneAtIsoByActivityKey } =
-    props;
+  const {
+    parentItem,
+    activityKey,
+    appDisplayTimeZone,
+    doneTodayCountByActivityKey,
+    lastDoneAtIsoByActivityKey,
+    doneTodayCountByItemId,
+  } = props;
   const completedAtForMerge = activityKey === parentItem.id ? parentItem.completedAt : null;
-  const lastIso = mergeLastActivityDisplayedIso(
-    lastDoneAtIsoByActivityKey[activityKey],
-    completedAtForMerge,
-  );
-  const todayCount = doneTodayCountByActivityKey[activityKey] ?? 0;
+  const isoFromLog =
+    lastDoneAtIsoByActivityKey[activityKey] ??
+    (activityKey.startsWith(`${parentItem.id}:ex:`)
+      ? lastDoneAtIsoByActivityKey[parentItem.id]
+      : undefined);
+  const lastIso = mergeLastActivityDisplayedIso(isoFromLog, completedAtForMerge);
+  const todayCount = compositionModalTodayDoneCount({
+    parentItem,
+    activityKey,
+    doneTodayCountByActivityKey,
+    doneTodayCountByItemId,
+  });
   const dotCount = Math.min(todayCount, MAX_COMPOSITION_TODAY_DOTS);
   const dotOverflow = todayCount > MAX_COMPOSITION_TODAY_DOTS ? todayCount - MAX_COMPOSITION_TODAY_DOTS : 0;
-  const line1 = lastIso
-    ? `Выполнялось ${formatBookingDateTimeShortStyleRu(lastIso, appDisplayTimeZone)}`
-    : "Пока без отметок";
+  const relativeWhenDone = lastIso
+    ? formatRelativePatientCalendarDayRu(lastIso, appDisplayTimeZone)
+    : null;
+  /** «Сегодня» в этой строке не дублируем — ниже уже «Сегодня:» и отметки. */
+  const doneSummaryLine =
+    relativeWhenDone == null
+      ? "Пока без отметок"
+      : relativeWhenDone === "Сегодня"
+        ? "Выполнено"
+        : `Выполнено ${relativeWhenDone}`;
 
   return (
-    <div className="flex shrink-0 flex-col items-end justify-center gap-0.5 text-right">
-      <span className="max-w-[9.5rem] text-[10px] font-normal leading-tight text-muted-foreground">{line1}</span>
+    <div className="flex max-w-[11rem] shrink-0 flex-col items-end justify-center gap-0.5 text-right">
+      <span className="w-full text-[10px] font-normal leading-tight text-muted-foreground">{doneSummaryLine}</span>
       <div className="flex items-center gap-1.5">
         <span className="text-[10px] font-normal leading-tight text-muted-foreground">Сегодня:</span>
         <div
@@ -466,9 +526,10 @@ function compositionModalRowsForStageItem(item: InstanceStageRow["items"][number
               parseSnapshotMediaForRowThumb({ media: line.media } as Record<string, unknown>),
             )
           : null;
+      const rowKey = programActionDoneActivityKey(item.id, { exerciseId: line.exerciseId });
       return {
-        key: `${item.id}:ex:${line.exerciseId}`,
-        activityKey: `${item.id}:ex:${line.exerciseId}`,
+        key: rowKey,
+        activityKey: rowKey,
         text: line.title,
         thumbMedia,
         emptyMediaSlotKind: "exercise" as const,
@@ -534,6 +595,7 @@ function PatientProgramStagesTimeline(props: {
   appDisplayTimeZone: string;
   doneTodayCountByActivityKey: Readonly<Record<string, number>>;
   lastDoneAtIsoByActivityKey: Readonly<Record<string, string>>;
+  doneTodayCountByItemId: Readonly<Record<string, number>>;
 }) {
   const {
     stages,
@@ -543,6 +605,7 @@ function PatientProgramStagesTimeline(props: {
     appDisplayTimeZone,
     doneTodayCountByActivityKey,
     lastDoneAtIsoByActivityKey,
+    doneTodayCountByItemId,
   } = props;
   const [itemsModalStage, setItemsModalStage] = useState<InstanceStageRow | null>(null);
   const stageForModal = useMemo(() => {
@@ -642,7 +705,7 @@ function PatientProgramStagesTimeline(props: {
                   <span
                     className={cn(
                       patientBadgePrimaryClass,
-                      "h-6 max-w-full shrink-0 truncate px-2 text-[10px]",
+                      "h-6 max-w-full shrink-0 truncate border border-[var(--patient-color-primary)]/18 bg-[color-mix(in_srgb,var(--patient-card-bg)_92%,var(--patient-color-primary-soft)_8%)] px-2 text-[10px]",
                     )}
                   >
                     {stage.sortOrder} из {stageCountNonZero}
@@ -724,7 +787,7 @@ function PatientProgramStagesTimeline(props: {
                       >
                         <div
                           className={cn(
-                            "flex min-w-0 flex-1 gap-1.5",
+                            "flex min-w-0 flex-1 basis-0 gap-1.5",
                             showMediaCol ? "items-stretch" : "items-start",
                           )}
                         >
@@ -734,8 +797,8 @@ function PatientProgramStagesTimeline(props: {
                           />
                           <span
                             className={cn(
-                              "text-[#444444]",
-                              showMediaCol ? "min-w-0 flex-1 py-0" : "block min-w-0",
+                              "min-w-0 break-words text-[#444444]",
+                              showMediaCol ? "flex-1 py-0" : "block flex-1",
                             )}
                           >
                             {row.text}
@@ -747,6 +810,7 @@ function PatientProgramStagesTimeline(props: {
                           appDisplayTimeZone={appDisplayTimeZone}
                           doneTodayCountByActivityKey={doneTodayCountByActivityKey}
                           lastDoneAtIsoByActivityKey={lastDoneAtIsoByActivityKey}
+                          doneTodayCountByItemId={doneTodayCountByItemId}
                         />
                       </li>
                     );
@@ -995,19 +1059,34 @@ function PatientInstanceStageItemCard(props: {
         neutralItemChrome
           ? "bg-[var(--patient-card-bg)]"
           : "bg-[var(--patient-color-primary-soft)]/10",
-        item.itemType === "recommendation" && "flex gap-3",
+        item.itemType === "recommendation" &&
+          cn("flex h-14 items-center gap-3 overflow-hidden py-0 pl-0 pr-2 lg:pr-2.5"),
       )}
     >
       {item.itemType === "recommendation" ? (
         <PatientCatalogMediaStaticThumb
           media={recommendationPreviewMedia}
-          frameClassName="size-12 rounded-md border border-[var(--patient-border)]/70"
-          sizes="48px"
+          frameClassName="size-14 shrink-0 rounded-l-lg rounded-r-none border-y border-r border-[var(--patient-border)]/70"
+          sizes="56px"
         />
       ) : null}
-      <div className={cn(item.itemType === "recommendation" && "min-w-0 flex-1")}>
-      <p className="flex flex-wrap items-center gap-2 text-sm font-medium">
-        <span>{snapshotTitle(item.snapshot, item.itemType)}</span>
+      <div
+        className={cn(
+          item.itemType === "recommendation" &&
+            "flex min-h-0 min-w-0 flex-1 flex-col justify-center gap-0.5 overflow-hidden py-0 pr-0",
+        )}
+      >
+      <p
+        className={cn(
+          "text-sm font-medium",
+          item.itemType === "recommendation"
+            ? "flex min-w-0 items-center gap-2 leading-tight"
+            : "flex flex-wrap items-center gap-2",
+        )}
+      >
+        <span className={cn(item.itemType === "recommendation" && "min-w-0 truncate")}>
+          {snapshotTitle(item.snapshot, item.itemType)}
+        </span>
         {showsNew ? (
           <span className="flex flex-wrap items-center gap-2">
             <span className={patientPillClass}>Новое</span>
@@ -1040,11 +1119,16 @@ function PatientInstanceStageItemCard(props: {
         ) : null}
       </p>
       {item.itemType === "recommendation" && recommendationBodyPreview ? (
-        <p className={cn(patientLineClamp2Class, patientMutedTextClass, "mt-1 text-xs leading-snug")}>
+        <p
+          className={cn(
+            patientMutedTextClass,
+            "line-clamp-1 min-w-0 text-xs leading-tight",
+          )}
+        >
           {recommendationBodyPreview}
         </p>
       ) : null}
-      {effectiveInstanceStageItemComment(item) ? (
+      {effectiveInstanceStageItemComment(item) && item.itemType !== "recommendation" ? (
         <p className={cn(patientMutedTextClass, "mt-1 text-xs")}>
           Комментарий:{" "}
           <span className="text-foreground">{effectiveInstanceStageItemComment(item)}</span>
@@ -1060,7 +1144,10 @@ function PatientInstanceStageItemCard(props: {
           )}
         </p>
       ) : null}
-      {!readOnly && todayChecklistDoneCount != null && todayChecklistDoneCount > 0 ? (
+      {!readOnly &&
+      todayChecklistDoneCount != null &&
+      todayChecklistDoneCount > 0 &&
+      item.itemType !== "recommendation" ? (
         <p className={cn(patientMutedTextClass, "mt-0.5 text-[11px] leading-snug")}>
           Отметок в журнале за сегодня:{" "}
           <span className="font-medium text-foreground">{todayChecklistDoneCount}</span>
@@ -1383,44 +1470,48 @@ function PatientProgramControlCard(props: {
   const { dateLine, fallbackMessage, instanceId, currentStageId } = props;
   return (
     <section className={patientSurfaceWarningClass} aria-label="Следующий контроль">
-      <PatientProgramBlockHeading
-        className="mb-2"
-        rowAlign="start"
-        title="Следующий контроль"
-        Icon={CalendarCheck}
-        iconClassName="text-[var(--patient-color-warning)]"
-        trailing={
-          <div className="flex flex-col items-end gap-1.5">
-            {currentStageId ? (
-              <Link
-                href={routePaths.patientTreatmentProgramStage(instanceId, currentStageId)}
-                className={cn(
-                  patientButtonWarningOutlineClass,
-                  "w-auto min-h-8 shrink-0 px-2.5 py-1.5 text-xs font-semibold leading-tight sm:min-h-8",
-                )}
-              >
-                Выполнить тесты
-              </Link>
-            ) : null}
+      <div className="flex min-w-0 flex-row items-start justify-between gap-3">
+        <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+          <div className="flex min-w-0 items-center gap-2">
+            <CalendarCheck
+              className="size-4 shrink-0 text-[var(--patient-color-warning)]"
+              aria-hidden
+            />
+            <h3 className={cn(patientSectionTitleClass, "mb-0 leading-tight")}>Следующий контроль</h3>
+          </div>
+          {dateLine ? (
+            <p className="mt-0 text-2xl font-bold leading-[1.05] tracking-tight">{dateLine}</p>
+          ) : (
+            <p className={cn(patientMutedTextClass, "mt-0 text-base font-semibold leading-snug")}>
+              {fallbackMessage}
+            </p>
+          )}
+          <p className={cn(patientMutedTextClass, "mt-0 text-xs leading-[1.15]")}>
+            Консультация со специалистом
+          </p>
+        </div>
+        <div className="flex shrink-0 flex-col items-end gap-1.5">
+          {currentStageId ? (
             <Link
-              href={routePaths.cabinet}
+              href={routePaths.patientTreatmentProgramStage(instanceId, currentStageId)}
               className={cn(
-                patientButtonSuccessClass,
+                patientButtonWarningOutlineClass,
                 "w-auto min-h-8 shrink-0 px-2.5 py-1.5 text-xs font-semibold leading-tight sm:min-h-8",
               )}
             >
-              Запись на приём
+              Выполнить тесты
             </Link>
-          </div>
-        }
-      />
-      <div className="min-w-0">
-        {dateLine ? (
-          <p className="text-2xl font-bold leading-none">{dateLine}</p>
-        ) : (
-          <p className={cn(patientMutedTextClass, "text-base font-semibold leading-snug")}>{fallbackMessage}</p>
-        )}
-        <p className={cn(patientMutedTextClass, "mt-0 text-xs leading-tight")}>Консультация со специалистом</p>
+          ) : null}
+          <Link
+            href={routePaths.cabinet}
+            className={cn(
+              patientButtonSuccessClass,
+              "w-auto min-h-8 shrink-0 px-2.5 py-1.5 text-xs font-semibold leading-tight sm:min-h-8",
+            )}
+          >
+            Запись на приём
+          </Link>
+        </div>
       </div>
     </section>
   );
@@ -1627,16 +1718,6 @@ export function PatientTreatmentProgramDetailClient(props: {
         )}
       </div>
 
-      {/* C2: Control card — после старта этапа; дата только при startedAt + expectedDurationDays */}
-      {showNextControlCard ? (
-        <PatientProgramControlCard
-          dateLine={controlDateLine}
-          fallbackMessage={controlFallbackMessage}
-          instanceId={detail.id}
-          currentStageId={currentWorkingStage.id}
-        />
-      ) : null}
-
       {/* C3: Stage 0 in Collapsible (closed by default) */}
       {stageZeroStages.map((stage) => (
         <Collapsible key={stage.id} className={cn(patientCardListSectionClass, "overflow-hidden p-0 lg:p-0")}>
@@ -1672,7 +1753,7 @@ export function PatientTreatmentProgramDetailClient(props: {
               setError={setError}
               refresh={refresh}
               ignoreStageLockForContent
-              surfaceClass="flex flex-col gap-2 px-3 py-4 lg:gap-2 lg:px-4 lg:py-[18px]"
+              surfaceClass="flex flex-col gap-2 px-3 py-2 lg:gap-2 lg:px-4 lg:py-3"
               stackVariant="likeStagesTimeline"
               doneItemIds={doneItemIds}
               onDoneItemIds={setDoneItemIds}
@@ -1693,6 +1774,17 @@ export function PatientTreatmentProgramDetailClient(props: {
           appDisplayTimeZone={appDisplayTimeZone}
           doneTodayCountByActivityKey={doneTodayCountByActivityKey}
           lastDoneAtIsoByActivityKey={lastDoneAtIsoByActivityKey}
+          doneTodayCountByItemId={doneTodayCountByItemId}
+        />
+      ) : null}
+
+      {/* Следующий контроль — под блоком «Этапы программы» */}
+      {showNextControlCard ? (
+        <PatientProgramControlCard
+          dateLine={controlDateLine}
+          fallbackMessage={controlFallbackMessage}
+          instanceId={detail.id}
+          currentStageId={currentWorkingStage.id}
         />
       ) : null}
 

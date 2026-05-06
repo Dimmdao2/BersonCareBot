@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { DateTime } from "luxon";
 import {
   isInstanceStageItemActiveForPatient,
   isInstanceStageItemShownInPatientCompositionModal,
@@ -12,6 +13,7 @@ import {
   countBlockingStagesBeforePatientStage,
   latestCompletedAtIsoAmongStageItems,
   calendarDaysFromUtcIsoToNowInZone,
+  formatRelativePatientCalendarDayRu,
 } from "./stage-semantics";
 import type { TreatmentProgramInstanceDetail } from "./types";
 
@@ -378,5 +380,13 @@ describe("stage-semantics (1.1a detail split)", () => {
 
   it("calendarDaysFromUtcIsoToNowInZone is non-negative", () => {
     expect(calendarDaysFromUtcIsoToNowInZone("2026-01-01T00:00:00.000Z", "Europe/Moscow")).toBeGreaterThanOrEqual(0);
+  });
+
+  it("formatRelativePatientCalendarDayRu omits clock time (today / yesterday / N days ago)", () => {
+    const now = DateTime.fromISO("2026-05-06T15:00:00.000+03:00");
+    expect(formatRelativePatientCalendarDayRu("2026-05-06T02:00:00.000Z", "Europe/Moscow", now)).toBe("Сегодня");
+    expect(formatRelativePatientCalendarDayRu("2026-05-05T12:00:00.000Z", "Europe/Moscow", now)).toBe("Вчера");
+    expect(formatRelativePatientCalendarDayRu("2026-05-03T12:00:00.000Z", "Europe/Moscow", now)).toBe("3 дня назад");
+    expect(formatRelativePatientCalendarDayRu("2026-04-26T12:00:00.000Z", "Europe/Moscow", now)).toBe("10 дней назад");
   });
 });
