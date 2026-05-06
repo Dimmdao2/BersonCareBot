@@ -20,6 +20,7 @@ import { ContentHeroImage } from "@/shared/ui/media/ContentHeroImage";
 import { patientMutedTextClass, patientPrimaryActionClass, patientSectionSurfaceClass } from "@/shared/ui/patientVisual";
 import { getConfigBool } from "@/modules/system-settings/configAdapter";
 import type { MediaPlaybackPayload } from "@/modules/media/playbackPayloadTypes";
+import { parseApiMediaIdFromPlayableUrl } from "@/shared/lib/parseApiMediaIdFromPlayableUrl";
 import { PatientContentAdaptiveVideo } from "./PatientContentAdaptiveVideo";
 import { PatientContentPracticeComplete } from "./PatientContentPracticeComplete";
 
@@ -51,15 +52,6 @@ function toYoutubeEmbedSrc(url: string): string | null {
   } catch {
     return null;
   }
-}
-
-const PATIENT_VIDEO_MEDIA_ID_RE =
-  /^\/api\/media\/([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i;
-
-function parseApiMediaIdFromPlayableUrl(path: string): string | null {
-  const base = path.trim().split("?")[0] ?? "";
-  const m = PATIENT_VIDEO_MEDIA_ID_RE.exec(base);
-  return m?.[1] ?? null;
 }
 
 /** Загружает материал по slug из каталога и рендерит статью. Доступно без входа. */

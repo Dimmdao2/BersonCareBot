@@ -1,6 +1,6 @@
 import type { MediaPlaybackPayload } from "@/modules/media/playbackPayloadTypes";
 
-/** Начальный режим источника для dual-mode плеера (согласован с phase-05). */
+/** Режим источника внутри {@link PatientMediaPlaybackVideo} (согласован с ответом `GET /api/media/[id]/playback`). */
 export function initialPlaybackSourceKind(payload: MediaPlaybackPayload): "hls" | "mp4" {
   return payload.delivery === "hls" && Boolean(payload.hls?.masterUrl) ? "hls" : "mp4";
 }

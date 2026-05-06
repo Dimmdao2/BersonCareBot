@@ -33,7 +33,8 @@ import { testIdsFromTestSetSnapshot } from "@/modules/treatment-program/testSetS
 import { scoringAllowsNumericDecisionInference } from "@/modules/treatment-program/progress-scoring";
 import { isPersistentRecommendation } from "@/modules/treatment-program/stage-semantics";
 import { MarkdownContent } from "@/shared/ui/markdown/MarkdownContent";
-import { NoContextMenuVideo } from "@/shared/ui/media/NoContextMenuVideo";
+import { PatientMediaPlaybackVideo } from "@/shared/ui/media/PatientMediaPlaybackVideo";
+import { parseApiMediaIdFromPlayableUrl } from "@/shared/lib/parseApiMediaIdFromPlayableUrl";
 import {
   patientButtonPrimaryClass,
   patientButtonSkipClass,
@@ -181,24 +182,25 @@ function ModalMediaBlock(props: { media: RecommendationMediaItem | null; title: 
   if (!media) return null;
 
   if (media.mediaType === "video") {
+    const mediaId = parseApiMediaIdFromPlayableUrl(media.mediaUrl);
+    if (!mediaId) {
+      return (
+        <div className="relative flex aspect-video w-full shrink-0 items-center justify-center bg-muted/30 px-3">
+          <p className={cn(patientMutedTextClass, "text-center text-sm")}>
+            Видео без привязки к медиатеке нельзя воспроизвести здесь.
+          </p>
+        </div>
+      );
+    }
+    const mp4Url = `/api/media/${encodeURIComponent(mediaId)}`;
     return (
-      <div
-        className="relative aspect-video w-full shrink-0 bg-black"
-        onContextMenu={(e) => {
-          e.preventDefault();
-        }}
-      >
-        <NoContextMenuVideo
-          controls
-          controlsList="nodownload"
-          preload="metadata"
-          playsInline
-          className="h-full w-full object-contain"
-          title={title}
-        >
-          <source src={media.mediaUrl} />
-        </NoContextMenuVideo>
-      </div>
+      <PatientMediaPlaybackVideo
+        mediaId={mediaId}
+        mp4Url={mp4Url}
+        title={title}
+        initialPlayback={null}
+        shellClassName="relative aspect-video w-full shrink-0 overflow-hidden bg-black"
+      />
     );
   }
 

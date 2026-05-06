@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { initialPlaybackSourceKind } from "./patientPlaybackSourceKind";
+import { initialPlaybackSourceKind } from "@/shared/ui/media/patientPlaybackSourceKind";
 import type { MediaPlaybackPayload } from "@/modules/media/playbackPayloadTypes";
 
 const base = (): MediaPlaybackPayload => ({

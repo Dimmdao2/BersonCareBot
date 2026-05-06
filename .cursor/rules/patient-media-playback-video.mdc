@@ -1,0 +1,16 @@
+---
+description: Пациентское файловое видео — только PatientMediaPlaybackVideo и playback API
+globs: apps/webapp/src/app/app/patient/**/*,apps/webapp/src/shared/ui/media/PatientMediaPlaybackVideo.tsx,apps/webapp/src/shared/ui/media/MediaPickerQuickPreviewDialog.tsx
+alwaysApply: false
+---
+
+# Patient media playback (HLS / MP4)
+
+- Для **файлового** видео в `apps/webapp/src/app/app/patient/**` используй **`PatientMediaPlaybackVideo`** (`@/shared/ui/media/PatientMediaPlaybackVideo`). Не добавляй «голый» `<video>` с прямым URL или отдельный progressive-only плеер вне этого компонента.
+- **Миниатюры** в списках пациента — по-прежнему только картинка (`PatientCatalogMediaStaticThumb`); воспроизведение — только в полноценном плеере.
+- **Быстрый превью видео** в `MediaPickerQuickPreviewDialog` использует тот же `PatientMediaPlaybackVideo` (единый стек с кабинетом пациента).
+- Режим доставки задаёт только **`GET /api/media/[id]/playback`** и внутренняя логика fallback при сбое HLS; **нет** UI для выбора формата пользователем.
+- Если на сервере JSON не резолвили — передай `initialPlayback={null}`; компонент сам запросит `/playback` на клиенте (сессия обязательна для успешного ответа).
+- Для извлечения `mediaId` из пути каталога: **`parseApiMediaIdFromPlayableUrl`** (`@/shared/lib/parseApiMediaIdFromPlayableUrl`).
+
+Документация: `docs/ARCHITECTURE/PATIENT_MEDIA_PLAYBACK_VIDEO.md`.

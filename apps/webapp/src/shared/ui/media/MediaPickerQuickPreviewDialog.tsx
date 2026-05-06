@@ -3,7 +3,7 @@
 import { ImageOff } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { NoContextMenuVideo } from "@/shared/ui/media/NoContextMenuVideo";
+import { PatientMediaPlaybackVideo } from "@/shared/ui/media/PatientMediaPlaybackVideo";
 import type { MediaListItem } from "@/shared/ui/media/MediaPickerList";
 
 function canRenderInlineImage(mimeType: string): boolean {
@@ -18,7 +18,8 @@ type Props = {
 };
 
 /**
- * Быстрый просмотр строки библиотеки в пикере: md/sm для картинок, оригинал для видео/аудио только после открытия модалки.
+ * Быстрый просмотр строки библиотеки в пикере: md/sm для картинок; для видео — тот же
+ * {@link PatientMediaPlaybackVideo}, что и в кабинете пациента (playback JSON, HLS / внутренний MP4).
  * Выбор файла — отдельно кнопкой «Выбрать» на карточке.
  */
 export function MediaPickerQuickPreviewDialog({ item, open, onOpenChange }: Props) {
@@ -65,16 +66,13 @@ export function MediaPickerQuickPreviewDialog({ item, open, onOpenChange }: Prop
                   <div className="h-[45vh] max-h-[65vh] w-full animate-pulse rounded-md bg-muted/50" aria-hidden />
                 )
               ) : item.kind === "video" ? (
-                <div className="flex w-full min-w-0 justify-center rounded-md bg-muted/40">
-                  <NoContextMenuVideo
-                    className="max-h-[65vh] max-w-full object-contain"
-                    controls
-                    preload="metadata"
-                    playsInline
-                  >
-                    <source src={item.url} />
-                  </NoContextMenuVideo>
-                </div>
+                <PatientMediaPlaybackVideo
+                  mediaId={item.id}
+                  mp4Url={`/api/media/${encodeURIComponent(item.id)}`}
+                  title={title}
+                  initialPlayback={null}
+                  shellClassName="relative aspect-video w-full max-h-[65vh] overflow-hidden rounded-md bg-black"
+                />
               ) : item.kind === "audio" ? (
                 <audio controls preload="metadata" className="w-full">
                   <source src={item.url} />
