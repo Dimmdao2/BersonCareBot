@@ -140,7 +140,7 @@ describe("PatientTreatmentProgramDetailClient", () => {
     expect(planOpenedCalls).toHaveLength(0);
   });
 
-  it("does not show test_set on program surfaces (only on testing page)", () => {
+  it("shows test_set on program surfaces alongside recommendations", () => {
     const testSetItem = {
       id: "33333333-3333-4333-8333-333333333333",
       stageId: "22222222-2222-4222-8222-222222222222",
@@ -211,8 +211,7 @@ describe("PatientTreatmentProgramDetailClient", () => {
     );
     fireEvent.click(screen.getByText("Рекомендации"));
     expect(screen.getByText("Только рекомендация в списке")).toBeInTheDocument();
-    expect(screen.queryByText("Набор А")).not.toBeInTheDocument();
-    expect(screen.queryByText("Пейте воду")).not.toBeInTheDocument();
+    expect(screen.getByText("Набор А")).toBeInTheDocument();
   });
 
   it("renders recommendation row with left image preview from snapshot media", () => {

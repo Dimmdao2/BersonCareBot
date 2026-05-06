@@ -17,6 +17,7 @@
 - [`ARCHITECTURE/PLATFORM_USER_MERGE.md`](ARCHITECTURE/PLATFORM_USER_MERGE.md) — canonical user, logical merge, миграции 061-064.
 - [`ARCHITECTURE/SPECIALIST_CABINET_STRUCTURE.md`](ARCHITECTURE/SPECIALIST_CABINET_STRUCTURE.md) — кабинет специалиста (header, layout, карточка клиента, вкладки settings).
 - [`ARCHITECTURE/PATIENT_APP_UI_STYLE_GUIDE.md`](ARCHITECTURE/PATIENT_APP_UI_STYLE_GUIDE.md) — стандарт patient UI: shared primitives, shadcn base, запрет лишнего custom chrome.
+- [`ARCHITECTURE/PATIENT_TREATMENT_PROGRAM_STAGE_SURFACES.md`](ARCHITECTURE/PATIENT_TREATMENT_PROGRAM_STAGE_SURFACES.md) — программа лечения (пациент): видимость пунктов этапа, composition modal vs основные поверхности, `test_set`, модалка пункта.
 - [`ARCHITECTURE/DOCTOR_CMS_AND_RUNTIME.md`](ARCHITECTURE/DOCTOR_CMS_AND_RUNTIME.md) — CMS врача, `MediaPickerShell`, мягкая деградация UI.
 - [`ARCHITECTURE/EXERCISES_CATALOG_PERFORMANCE_PRIMITIVES.md`](ARCHITECTURE/EXERCISES_CATALOG_PERFORMANCE_PRIMITIVES.md) — переиспользуемые примитивы каталогов (`CatalogSplitLayout`, `VirtualizedItemGrid`).
 - [`ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md`](ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md) — вебхук, `rubitime_events`, статусы 0–7, throttle 5500ms; Google Calendar: описание события (комментарии клиента/админа).

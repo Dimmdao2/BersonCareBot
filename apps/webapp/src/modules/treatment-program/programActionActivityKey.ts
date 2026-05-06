@@ -22,6 +22,10 @@ export type LfkSnapshotExerciseLine = {
   exerciseId: string;
   title: string;
   sortOrder: number;
+  reps: number | null;
+  sets: number | null;
+  /** При наличии в JSON снимка (например `maxPain` из шаблона). */
+  maxPain: number | null;
   /** Как в снимке `exercise`: массив `{ url, type, sortOrder, previewSmUrl?, … }`; у старых инстансов может отсутствовать. */
   media?: unknown;
 };
@@ -44,6 +48,9 @@ export function listLfkSnapshotExerciseLines(snapshot: Record<string, unknown>):
       exerciseId,
       title: titleRaw || "Упражнение",
       sortOrder,
+      reps: typeof o.reps === "number" && Number.isFinite(o.reps) ? o.reps : null,
+      sets: typeof o.sets === "number" && Number.isFinite(o.sets) ? o.sets : null,
+      maxPain: typeof o.maxPain === "number" && Number.isFinite(o.maxPain) ? o.maxPain : null,
     };
     if (Array.isArray(media) && media.length > 0 && media.every((e) => e != null && typeof e === "object" && !Array.isArray(e))) {
       line.media = media;

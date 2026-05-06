@@ -207,7 +207,7 @@ describe("patientStageSectionShouldRender", () => {
     ).toBe(true);
   });
 
-  it("does not count test_set as a program-surface item (tests only on testing page)", () => {
+  it("counts active test_set as a program-surface item", () => {
     expect(
       patientStageSectionShouldRender(
         {
@@ -220,7 +220,7 @@ describe("patientStageSectionShouldRender", () => {
         },
         false,
       ),
-    ).toBe(false);
+    ).toBe(true);
   });
 
   it("excludes test_set from composition modal item list", () => {
@@ -375,7 +375,7 @@ describe("stage-semantics (1.1a detail split)", () => {
         { completedAt: "2026-01-02T12:00:00.000Z" as string | null },
         { completedAt: "2026-01-05T08:00:00.000Z" as string | null },
       ],
-    } as Pick<TreatmentProgramInstanceDetailStageRow, "items">;
+    } as unknown as Pick<TreatmentProgramInstanceDetailStageRow, "items">;
     expect(latestCompletedAtIsoAmongStageItems(stage)).toBe("2026-01-05T08:00:00.000Z");
   });
 

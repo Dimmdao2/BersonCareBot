@@ -22,19 +22,9 @@ import type {
   TreatmentProgramInstanceStageStatus,
   TreatmentProgramTestResultDetailRow,
 } from "./types";
+import { testIdsFromTestSetSnapshot } from "./testSetSnapshotView";
 
-export function testIdsFromTestSetSnapshot(snapshot: Record<string, unknown>): string[] {
-  const tests = snapshot.tests;
-  if (!Array.isArray(tests)) return [];
-  const ids: string[] = [];
-  for (const t of tests) {
-    if (t && typeof t === "object" && "testId" in t) {
-      const tid = (t as { testId: unknown }).testId;
-      if (typeof tid === "string" && tid.trim()) ids.push(tid.trim());
-    }
-  }
-  return ids;
-}
+export { testIdsFromTestSetSnapshot };
 
 function scoringConfigForTestInSnapshot(
   snapshot: Record<string, unknown>,

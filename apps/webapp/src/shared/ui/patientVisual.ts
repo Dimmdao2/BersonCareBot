@@ -159,15 +159,16 @@ export const patientLineClamp2Class = "line-clamp-2 min-w-0";
 export const patientLineClamp3Class = "line-clamp-3 min-w-0";
 
 export const patientButtonPrimaryClass = cn(
-  "inline-flex min-h-[var(--patient-touch)] w-full min-w-0 items-center justify-center gap-2 rounded-lg px-4 text-base font-bold text-white transition-colors",
-  "bg-[var(--patient-color-primary)] hover:bg-[#1f3d82] active:bg-[#1f3d82]",
-  "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-primary)]",
+  "inline-flex min-h-[var(--patient-touch)] w-full min-w-0 items-center justify-center gap-2 rounded-lg px-4 text-sm font-semibold text-white transition-colors",
+  // Fallback hex: Dialog/portal вне `#app-shell-patient`, там `--patient-color-primary` не задан.
+  "bg-[var(--patient-color-primary,#284da0)] hover:bg-[#1f3d82] active:bg-[#1f3d82]",
+  "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-primary,#284da0)]",
 );
 
 export const patientButtonSuccessClass = cn(
-  "inline-flex min-h-11 w-full min-w-0 items-center justify-center gap-2 rounded-lg px-4 text-base font-bold text-white transition-colors sm:min-h-12",
-  "bg-[var(--patient-color-success)] hover:bg-[#15803d] active:bg-[#15803d]",
-  "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-success)]",
+  "inline-flex min-h-11 w-full min-w-0 items-center justify-center gap-2 rounded-lg px-4 text-sm font-semibold text-white transition-colors sm:min-h-12",
+  "bg-[var(--patient-color-success,#16a34a)] hover:bg-[#15803d] active:bg-[#15803d]",
+  "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-success,#16a34a)]",
 );
 
 export const patientButtonSecondaryClass = cn(
@@ -185,6 +186,16 @@ export const patientButtonDangerOutlineClass = cn(
   "inline-flex min-h-10 min-w-0 items-center justify-center gap-2 rounded-md border border-[var(--patient-color-danger)] bg-[var(--patient-card-bg)] px-4 text-sm font-bold text-[#dc2626] transition-colors",
   "hover:bg-[var(--patient-color-danger-soft)] active:bg-[var(--patient-color-danger-soft)]",
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-danger)]",
+);
+
+/**
+ * Кнопка «Пропустить» в модалке элемента программы — кирпичный/терракотовый тон.
+ */
+export const patientButtonSkipClass = cn(
+  "inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg border border-[#c2410c]/40 bg-[#fff7ed] px-3 font-semibold text-[#c2410c] transition-colors",
+  "min-h-[var(--patient-touch)] text-sm",
+  "hover:bg-[#ffedd5] active:bg-[#fed7aa]",
+  "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#c2410c]",
 );
 
 /** Warning-toned button-like link (напоминания, §10.6). */
@@ -229,19 +240,19 @@ export const patientBadgeDurationClass = cn(
  * а не полноширинная CTA. Размер (`h-8`, `h-9`, `w-auto`) задаётся в месте использования.
  */
 export const patientCompactActionClass = cn(
-  "inline-flex min-w-0 items-center justify-center gap-2 rounded-lg px-3 font-bold text-white transition-colors",
-  "bg-[var(--patient-color-primary)] hover:bg-[#1f3d82] active:bg-[#1f3d82]",
-  "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-primary)]",
+  "inline-flex min-w-0 items-center justify-center gap-2 rounded-lg px-3 text-sm font-semibold text-white transition-colors",
+  "bg-[var(--patient-color-primary,#284da0)] hover:bg-[#1f3d82] active:bg-[#1f3d82]",
+  "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-primary,#284da0)]",
 );
 
 /** Семантические алиасы действий (`MASTER_PLAN.md` — patient Primary/Secondary/Danger action). */
 export const patientPrimaryActionClass = patientButtonPrimaryClass;
 
 /**
- * Основная CTA в patient hero (разминка, программы; рядом с {@link patientHeroTitleBaseClass}): те же цвета и фокус, что {@link patientButtonPrimaryClass},
- * но **font-semibold (600)** — единый тон hero, без `font-bold`.
+ * Синоним {@link patientButtonPrimaryClass} для hero-CTA (главная, список программ, карточка детали):
+ * один класс, без второго слоя типографики.
  */
-export const patientHeroPrimaryActionClass = cn(patientButtonPrimaryClass, "font-semibold");
+export const patientHeroPrimaryActionClass = patientButtonPrimaryClass;
 
 export const patientSecondaryActionClass = patientButtonSecondaryClass;
 
@@ -343,9 +354,8 @@ export const patientModalDialogTitleClass = cn(
 
 /**
  * Primary CTA внутри patient `Dialog` portal (вне `#app-shell-patient`):
- * {@link patientButtonPrimaryClass} / {@link patientHeroPrimaryActionClass} используют `var(--patient-color-primary)`,
- * который задан только под `#app-shell-patient` — в портале фон не резолвится, остаётся белый `bg-background`
- * модалки, а `text-white` не виден до hover (когда срабатывает литерал `hover:bg-[#1f3d82]`).
+ * {@link patientButtonPrimaryClass} использует `var(--patient-color-primary)` с fallback hex — иначе в портале
+ * фон не резолвится, остаётся белый `bg-background` модалки, а `text-white` не виден до hover.
  */
 export const patientModalPortalPrimaryCtaClass = cn(
   "inline-flex min-h-11 w-full min-w-0 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white transition-colors lg:min-h-12 lg:text-base",

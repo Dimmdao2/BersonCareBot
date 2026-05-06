@@ -38,3 +38,8 @@ export function parseTestSetSnapshotTests(snapshot: Record<string, unknown>): Te
   }
   return out;
 }
+
+/** Идентификаторы тестов из `snapshot.tests[]` (порядок как в снимке). */
+export function testIdsFromTestSetSnapshot(snapshot: Record<string, unknown>): string[] {
+  return parseTestSetSnapshotTests(snapshot).map((line) => line.testId);
+}

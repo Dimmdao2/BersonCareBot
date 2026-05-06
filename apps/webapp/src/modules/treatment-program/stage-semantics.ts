@@ -34,19 +34,17 @@ export function isInstanceStageItemActiveForPatient(item: ItemSemanticsFields): 
   return item.status !== "disabled";
 }
 
-/**
- * Элементы набора тестов (`test_set`) на списках программы у пациента (detail, страница этапа) **и в модалке «Состав этапа»**
- * не показываются; прохождение — на странице тестирования. См. `isInstanceStageItemShownOnPatientProgramSurfaces` и
- * `isInstanceStageItemShownInPatientCompositionModal`.
- */
+/** Видимые элементы этапа на экранах программы пациента (detail, страница этапа). Скрыты только `disabled`. */
 export function isInstanceStageItemShownOnPatientProgramSurfaces(
   item: Pick<TreatmentProgramInstanceStageItemRow, "itemType" | "status" | "isActionable">,
 ): boolean {
-  if (!isInstanceStageItemActiveForPatient(item)) return false;
-  return item.itemType !== "test_set";
+  return isInstanceStageItemActiveForPatient(item);
 }
 
-/** Модалка «Состав этапа» (timeline): активные элементы, **без** `test_set` (наборы тестов — только на странице тестирования). */
+/**
+ * Модалка «Состав этапа» (timeline): активные элементы, **без** `test_set`.
+ * Наборы тестов при этом видны на экранах программы (список этапа, карточка элемента, модалка пункта), см. `isInstanceStageItemShownOnPatientProgramSurfaces`.
+ */
 export function isInstanceStageItemShownInPatientCompositionModal(
   item: Pick<TreatmentProgramInstanceStageItemRow, "itemType" | "status" | "isActionable">,
 ): boolean {

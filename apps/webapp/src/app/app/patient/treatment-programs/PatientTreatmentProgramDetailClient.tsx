@@ -14,6 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Dialog } from "@/components/ui/dialog";
+import { PatientProgramStageItemModal } from "@/app/app/patient/treatment-programs/PatientProgramStageItemModal";
 import { PatientModalDialogContent } from "@/shared/ui/patient/PatientModalDialogContent";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -57,7 +58,7 @@ import {
   formatRelativePatientCalendarDayRu,
 } from "@/modules/treatment-program/stage-semantics";
 import { listLfkSnapshotExerciseLines, programActionDoneActivityKey } from "@/modules/treatment-program/programActionActivityKey";
-import { testIdsFromTestSetSnapshot } from "@/modules/treatment-program/progress-service";
+import { testIdsFromTestSetSnapshot } from "@/modules/treatment-program/testSetSnapshotView";
 import { scoringAllowsNumericDecisionInference } from "@/modules/treatment-program/progress-scoring";
 import { parseTestSetSnapshotTests } from "@/modules/treatment-program/testSetSnapshotView";
 import { type PatientProgramChecklistRow } from "@/modules/treatment-program/patient-program-actions";
@@ -997,6 +998,7 @@ function PatientInstanceStageItemCard(props: {
   todayChecklistDoneCount?: number;
   /** Нейтральный фон карточки (белый) на тонированной панели — блок рекомендаций на detail. */
   neutralItemChrome?: boolean;
+  onOpenModal: () => void;
 }) {
   const {
     instanceId,
@@ -1014,6 +1016,7 @@ function PatientInstanceStageItemCard(props: {
     onDoneItemIds,
     todayChecklistDoneCount,
     neutralItemChrome = false,
+    onOpenModal,
   } = props;
   const readOnly = itemInteraction === "readOnly";
   const [markingViewed, setMarkingViewed] = useState(false);
@@ -1046,18 +1049,37 @@ function PatientInstanceStageItemCard(props: {
       void refresh();
     },
   });
+  const openModalButton = (
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      className={cn(
+        "shrink-0",
+        item.itemType === "recommendation" ? "h-8 px-2.5 text-xs" : "h-8",
+      )}
+      onClick={(e) => {
+        e.stopPropagation();
+        onOpenModal();
+      }}
+    >
+      Открыть
+    </Button>
+  );
+
   return (
     <li
       ref={markRef}
       className={cn(
         patientTreatmentProgramListItemClass,
-        "border-[var(--patient-border)]/80",
+        "cursor-pointer border-[var(--patient-border)]/80 transition-[filter] hover:brightness-[0.97] active:brightness-[0.95]",
         neutralItemChrome
           ? "bg-[var(--patient-card-bg)]"
           : "bg-[var(--patient-color-primary-soft)]/10",
         item.itemType === "recommendation" &&
-          cn("flex h-14 items-center gap-3 overflow-hidden py-0 pl-0 pr-2 lg:pr-2.5"),
+          cn("flex h-14 items-center gap-2 overflow-hidden py-0 pl-0 pr-2 lg:gap-2.5 lg:pr-2.5"),
       )}
+      onClick={onOpenModal}
     >
       {item.itemType === "recommendation" ? (
         <PatientCatalogMediaStaticThumb
@@ -1092,7 +1114,8 @@ function PatientInstanceStageItemCard(props: {
               size="sm"
               className="h-7 px-2 text-xs text-muted-foreground underline-offset-2 hover:underline"
               disabled={markingViewed}
-              onClick={async () => {
+              onClick={async (e) => {
+                e.stopPropagation();
                 setMarkingViewed(true);
                 setError(null);
                 try {
@@ -1114,6 +1137,9 @@ function PatientInstanceStageItemCard(props: {
           <span className={cn(patientMutedTextClass, "font-normal")}>({item.itemType})</span>
         ) : null}
       </p>
+      {item.itemType !== "recommendation" ? (
+        <div className="mt-1 flex justify-end">{openModalButton}</div>
+      ) : null}
       {item.itemType === "recommendation" && recommendationBodyPreview ? (
         <p
           className={cn(
@@ -1152,18 +1178,24 @@ function PatientInstanceStageItemCard(props: {
 
       {!contentBlocked && !readOnly ? (
         item.itemType === "test_set" ? (
-          <TestSetBlock
-            itemId={item.id}
-            snapshot={item.snapshot}
-            completed={Boolean(item.completedAt)}
-            baseUrl={base}
-            busy={busy}
-            setBusy={setBusy}
-            setError={setError}
-            onDone={refresh}
-          />
+          <div className="mt-2" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+            <TestSetBlock
+              itemId={item.id}
+              snapshot={item.snapshot}
+              completed={Boolean(item.completedAt)}
+              baseUrl={base}
+              busy={busy}
+              setBusy={setBusy}
+              setError={setError}
+              onDone={refresh}
+            />
+          </div>
         ) : item.itemType === "lfk_complex" && !isPersistentRecommendation(item) ? (
-          <div className="mt-2">
+          <div
+            className="mt-2"
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => e.stopPropagation()}
+          >
             <PatientLfkChecklistRow
               row={lfkRow}
               itemBaseUrl={base}
@@ -1179,7 +1211,8 @@ function PatientInstanceStageItemCard(props: {
               type="button"
               className={cn(patientCompactActionClass, "h-9 w-auto text-sm")}
               disabled={busy !== null}
-              onClick={async () => {
+              onClick={async (e) => {
+                e.stopPropagation();
                 setBusy(item.id);
                 setError(null);
                 try {
@@ -1208,6 +1241,7 @@ function PatientInstanceStageItemCard(props: {
         </p>
       ) : null}
       </div>
+      {item.itemType === "recommendation" ? openModalButton : null}
     </li>
   );
 }
@@ -1268,6 +1302,22 @@ export function PatientInstanceStageBody(props: {
   );
   const ungroupedItems = sortByOrderThenId(visibleItems.filter((it) => !it.groupId));
 
+  const [openItemId, setOpenItemId] = useState<string | null>(null);
+  const flatOrderedIds = useMemo(() => {
+    const ids: string[] = [];
+    for (const g of sortedGroups) {
+      const gItems = sortByOrderThenId(visibleItems.filter((it) => it.groupId === g.id));
+      for (const it of gItems) ids.push(it.id);
+    }
+    for (const it of ungroupedItems) ids.push(it.id);
+    return ids;
+  }, [sortedGroups, visibleItems, ungroupedItems]);
+
+  const openModalItem = useMemo(
+    () => (openItemId ? (visibleItems.find((it) => it.id === openItemId) ?? null) : null),
+    [openItemId, visibleItems],
+  );
+
   return (
     <section className={surfaceClass}>
       {heading != null ? (
@@ -1324,6 +1374,7 @@ export function PatientInstanceStageBody(props: {
                     onDoneItemIds={onDoneItemIds}
                     todayChecklistDoneCount={todayCountByStageItemId?.[item.id]}
                     neutralItemChrome={likeStages}
+                    onOpenModal={() => setOpenItemId(item.id)}
                   />
                 ))}
               </ul>
@@ -1354,12 +1405,30 @@ export function PatientInstanceStageBody(props: {
                   onDoneItemIds={onDoneItemIds}
                   todayChecklistDoneCount={todayCountByStageItemId?.[item.id]}
                   neutralItemChrome={likeStages}
+                  onOpenModal={() => setOpenItemId(item.id)}
                 />
               ))}
             </ul>
           </div>
         ) : null}
       </div>
+
+      <PatientProgramStageItemModal
+        stage={stage}
+        base={base}
+        item={openModalItem}
+        flatOrderedIds={flatOrderedIds}
+        onClose={() => setOpenItemId(null)}
+        onNavigate={(id) => setOpenItemId(id)}
+        busy={busy}
+        setBusy={setBusy}
+        setError={setError}
+        refresh={refresh}
+        itemInteraction={itemInteraction}
+        doneItemIds={doneItemIds}
+        onDoneItemIds={onDoneItemIds}
+        contentBlocked={contentBlocked}
+      />
     </section>
   );
 }

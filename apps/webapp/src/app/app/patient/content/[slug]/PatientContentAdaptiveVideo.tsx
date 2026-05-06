@@ -79,7 +79,12 @@ function LegacyInlineVideo({ mp4Url, title }: Pick<Props, "mp4Url" | "title">) {
   const [error, setError] = useState<string | null>(null);
 
   return (
-    <div className="relative aspect-video w-full overflow-hidden rounded-lg bg-muted/30">
+    <div
+      className="relative aspect-video w-full overflow-hidden rounded-lg bg-muted/30"
+      onContextMenu={(e) => {
+        e.preventDefault();
+      }}
+    >
       {error ? (
         <div
           className={cn(
@@ -354,7 +359,12 @@ function DualModePatientVideo({
   }, [fetchPlaybackJson, mediaId]);
 
   return (
-    <div className="relative aspect-video w-full overflow-hidden rounded-lg bg-muted/30">
+    <div
+      className="relative aspect-video w-full overflow-hidden rounded-lg bg-muted/30"
+      onContextMenu={(e) => {
+        e.preventDefault();
+      }}
+    >
       {error ? (
         <div
           className={cn(
