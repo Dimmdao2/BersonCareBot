@@ -62,11 +62,7 @@ import { type PatientProgramChecklistRow } from "@/modules/treatment-program/pat
 import type { RecommendationMediaItem } from "@/modules/recommendations/types";
 import { PatientCatalogMediaStaticThumb } from "@/shared/ui/patient/PatientCatalogMediaStaticThumb";
 import { routePaths } from "@/app-layer/routes/paths";
-import {
-  patientHomeCardHeroClass,
-  patientBadgeDangerClass,
-  patientBadgePrimaryClass,
-} from "@/app/app/patient/home/patientHomeCardStyles";
+import { patientHomeCardHeroClass } from "@/app/app/patient/home/patientHomeCardStyles";
 import { cn } from "@/lib/utils";
 import {
   patientCardClass,
@@ -86,6 +82,10 @@ import {
   patientButtonWarningOutlineClass,
   patientLineClamp2Class,
   patientHeroTitleBaseClass,
+  patientBadgeDangerClass,
+  patientBadgePrimaryClass,
+  patientInnerPageStackClass,
+  patientCompactActionClass,
 } from "@/shared/ui/patientVisual";
 import { formatBookingDateLongRu, formatBookingDateTimeShortStyleRu } from "@/shared/lib/formatBusinessDateTime";
 
@@ -849,10 +849,9 @@ function PatientInstanceStageItemCard(props: {
           </div>
         ) : !isPersistentRecommendation(item) ? (
           <div className="mt-2">
-            <Button
+            <button
               type="button"
-              size="sm"
-              className={cn(patientPrimaryActionClass, "!h-9 !min-h-0 w-auto px-3 text-sm")}
+              className={cn(patientCompactActionClass, "h-9 w-auto text-sm")}
               disabled={Boolean(item.completedAt) || busy !== null}
               onClick={async () => {
                 setBusy(item.id);
@@ -873,7 +872,7 @@ function PatientInstanceStageItemCard(props: {
               }}
             >
               {item.completedAt ? "Готово" : "Отметить выполненным"}
-            </Button>
+            </button>
           </div>
         ) : null
       ) : null}
@@ -1072,10 +1071,9 @@ function PatientLfkChecklistRow(props: {
           maxLength={4000}
         />
       </div>
-      <Button
+      <button
         type="button"
-        size="sm"
-        className={cn(patientPrimaryActionClass, "!h-9 w-fit")}
+        className={cn(patientCompactActionClass, "h-9 w-fit text-sm")}
         disabled={pending}
         onClick={async () => {
           setPending(true);
@@ -1098,7 +1096,7 @@ function PatientLfkChecklistRow(props: {
         }}
       >
         {pending ? "Сохраняю…" : "Сохранить"}
-      </Button>
+      </button>
     </div>
   );
 }
@@ -1234,7 +1232,7 @@ export function PatientTreatmentProgramDetailClient(props: {
     controlIso && appDisplayTimeZone ? formatBookingDateLongRu(controlIso, appDisplayTimeZone) : null;
 
   return (
-    <div className="flex flex-col gap-3 lg:gap-4">
+    <div className={patientInnerPageStackClass}>
       {error ? (
         <p className="text-sm text-destructive" role="alert">
           {error}
@@ -1306,7 +1304,7 @@ export function PatientTreatmentProgramDetailClient(props: {
           <CollapsibleTrigger
             className={cn(
               "flex w-full items-center px-3 py-4 text-left lg:px-4 lg:py-[18px]",
-              "bg-[#cff1dc] text-[var(--patient-surface-success-text)]",
+              "bg-[var(--patient-surface-success-border)] text-[var(--patient-surface-success-text)]",
             )}
           >
             <PatientProgramBlockHeading
@@ -1324,8 +1322,7 @@ export function PatientTreatmentProgramDetailClient(props: {
             />
           </CollapsibleTrigger>
           <CollapsibleContent
-            className={cn("border-t border-[var(--patient-border)]")}
-            style={{ backgroundColor: "rgba(241, 249, 244, 0.99)" }}
+            className={cn("border-t border-[var(--patient-border)] bg-[var(--patient-surface-success-bg)]")}
           >
             <PatientInstanceStageBody
               instanceId={detail.id}
@@ -1439,10 +1436,9 @@ function TestSetBlock(props: {
                     onChange={(e) => setScores((s) => ({ ...s, [t.testId]: e.target.value }))}
                     disabled={busy !== null}
                   />
-                  <Button
+                  <button
                     type="button"
-                    size="sm"
-                    className={cn(patientPrimaryActionClass, "!h-8 !min-h-0 w-auto px-3 text-sm")}
+                    className={cn(patientCompactActionClass, "h-8 w-auto text-sm")}
                     disabled={busy !== null}
                     onClick={async () => {
                       setBusy(itemId + t.testId);
@@ -1475,7 +1471,7 @@ function TestSetBlock(props: {
                     }}
                   >
                     Сохранить
-                  </Button>
+                  </button>
                 </div>
               ) : (
                 <div className="mt-1 flex flex-col gap-2">
@@ -1508,10 +1504,9 @@ function TestSetBlock(props: {
                       rows={3}
                     />
                   </div>
-                  <Button
+                  <button
                     type="button"
-                    size="sm"
-                    className={cn(patientPrimaryActionClass, "!h-8 !min-h-0 w-auto px-3 text-sm")}
+                    className={cn(patientCompactActionClass, "h-8 w-auto text-sm")}
                     disabled={busy !== null}
                     onClick={async () => {
                       setBusy(itemId + t.testId);
@@ -1545,7 +1540,7 @@ function TestSetBlock(props: {
                     }}
                   >
                     Сохранить
-                  </Button>
+                  </button>
                 </div>
               )}
             </div>

@@ -1,5 +1,15 @@
 import { cn } from "@/lib/utils";
-import { patientLineClamp2Class, patientLineClamp3Class, patientHeroTitleBaseClass, patientSectionTitleClass } from "@/shared/ui/patientVisual";
+import {
+  patientLineClamp2Class,
+  patientLineClamp3Class,
+  patientHeroTitleBaseClass,
+  patientSectionTitleClass,
+  patientBadgePrimaryClass,
+  patientBadgeSuccessClass,
+  patientBadgeWarningClass,
+  patientBadgeDangerClass,
+  patientBadgeDurationClass,
+} from "@/shared/ui/patientVisual";
 
 /**
  * Стили карточек главной пациента «Сегодня» по `VISUAL_SYSTEM_SPEC.md` §10.x.
@@ -107,11 +117,13 @@ export const patientHomeUsefulPostCoverBadgeClass = cn(
   "bg-[#c0392b] ring-1 ring-inset ring-white/40",
 );
 
-/** Primary pill badge. */
-export const patientBadgePrimaryClass = cn(
-  "inline-flex h-7 min-w-0 max-w-full items-center justify-center rounded-[var(--patient-pill-radius)] px-2.5 text-xs font-medium leading-none",
-  "bg-[var(--patient-color-primary-soft)] text-[#3730a3]",
-);
+export {
+  patientBadgePrimaryClass,
+  patientBadgeSuccessClass,
+  patientBadgeWarningClass,
+  patientBadgeDangerClass,
+  patientBadgeDurationClass,
+} from "@/shared/ui/patientVisual";
 
 /** `ring-inset` (а не `border`) — чтобы pill совпадал по внешнему размеру с cover-badge useful_post. */
 export const patientHomeHeroBadgeClass = cn(
@@ -126,25 +138,6 @@ export const patientHomeHeroDurationBadgeClass = cn(
   "ring-1 ring-inset ring-[#e0e7ff]",
 );
 
-export const patientBadgeSuccessClass = cn(
-  "inline-flex h-7 items-center justify-center rounded-[var(--patient-pill-radius)] px-2.5 text-xs font-medium leading-none",
-  "bg-[#dcfce7] text-[#166534]",
-);
-
-export const patientBadgeWarningClass = cn(
-  "inline-flex h-7 items-center justify-center rounded-[var(--patient-pill-radius)] px-2.5 text-xs font-medium leading-none",
-  "bg-[#fef3c7] text-[#92400e]",
-);
-
-export const patientBadgeDangerClass = cn(
-  "inline-flex h-7 items-center justify-center rounded-[var(--patient-pill-radius)] px-2.5 text-xs font-medium leading-none",
-  "bg-[#fee2e2] text-[#b91c1c]",
-);
-
-/** Нейтральный duration-бейдж на hero — белый фон, primary текст. */
-export const patientBadgeDurationClass = cn(
-  "inline-flex h-7 items-center justify-center rounded-[var(--patient-pill-radius)] border border-[#e0e7ff] bg-[var(--patient-card-bg)] px-2.5 text-xs font-medium leading-none text-[var(--patient-color-primary)]",
-);
 
 /** Ведущая иконка в карточке — tap area ≥44px (`§9.4` / `§12`). */
 export const patientIconLeadingClass = cn(

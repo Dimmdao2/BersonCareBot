@@ -21,6 +21,7 @@ import {
   patientInlineLinkClass,
   patientMutedTextClass,
   patientSurfaceInfoClass,
+  patientInnerPageStackClass,
 } from "@/shared/ui/patientVisual";
 
 /** Текущий этап для hero списка: та же семантика, что на detail (`pipeline` без этапа 0). */
@@ -47,7 +48,7 @@ export function PatientTreatmentProgramsListClient(props: {
   const { hero, archived, messagesHref } = props;
 
   return (
-    <div className="flex flex-col gap-3 lg:gap-4">
+    <div className={patientInnerPageStackClass}>
       {hero ? (
         <section
           className={cn(patientHomeCardHeroClass, "relative isolate overflow-hidden p-4 lg:p-5")}

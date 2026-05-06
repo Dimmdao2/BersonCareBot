@@ -94,7 +94,7 @@ export function PatientHomePlanCard({
             <h3 id="patient-home-plan-heading" className={cn(patientHomeBlockHeadingClass, "shrink-0")}>
               Мой план реабилитации
             </h3>
-            <h2 className={patientHomePlanTitleClampClass}>{instance.title}</h2>
+            <p className={patientHomePlanTitleClampClass}>{instance.title}</p>
             <p className={patientHomePlanSubtitleClampClass}>Активная программа</p>
             {planUpdatedLabel?.trim() ? (
               <p className={cn(patientMutedTextClass, "mt-1 text-xs font-medium text-foreground")}>{planUpdatedLabel.trim()}</p>

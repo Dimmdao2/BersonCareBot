@@ -85,7 +85,7 @@ export function PatientHomeProgressBlock({
                   aria-label="Прогресс за сегодня"
                 >
                   <div
-                    className="h-full rounded-full bg-[#5b2fd6] transition-[width] duration-300"
+                    className="h-full rounded-full bg-[var(--patient-color-primary)] transition-[width] duration-300"
                     style={{ width: `${pct}%` }}
                   />
                 </div>

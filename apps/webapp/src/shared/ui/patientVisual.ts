@@ -194,6 +194,46 @@ export const patientButtonWarningOutlineClass = cn(
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#f59e0b]",
 );
 
+/** Primary badge — синий тон, мягкий фон. */
+export const patientBadgePrimaryClass = cn(
+  "inline-flex h-7 min-w-0 max-w-full items-center justify-center rounded-[var(--patient-pill-radius)] px-2.5 text-xs font-medium leading-none",
+  "bg-[var(--patient-color-primary-soft)] text-[#3730a3]",
+);
+
+/** Success badge — зелёный тон. */
+export const patientBadgeSuccessClass = cn(
+  "inline-flex h-7 items-center justify-center rounded-[var(--patient-pill-radius)] px-2.5 text-xs font-medium leading-none",
+  "bg-[#dcfce7] text-[#166534]",
+);
+
+/** Warning badge — жёлтый тон. */
+export const patientBadgeWarningClass = cn(
+  "inline-flex h-7 items-center justify-center rounded-[var(--patient-pill-radius)] px-2.5 text-xs font-medium leading-none",
+  "bg-[#fef3c7] text-[#92400e]",
+);
+
+/** Danger badge — красный тон. */
+export const patientBadgeDangerClass = cn(
+  "inline-flex h-7 items-center justify-center rounded-[var(--patient-pill-radius)] px-2.5 text-xs font-medium leading-none",
+  "bg-[#fee2e2] text-[#b91c1c]",
+);
+
+/** Duration badge — нейтральный, primary текст (hero-слот, карточки курсов). */
+export const patientBadgeDurationClass = cn(
+  "inline-flex h-7 items-center justify-center rounded-[var(--patient-pill-radius)] border border-[#e0e7ff] bg-[var(--patient-card-bg)] px-2.5 text-xs font-medium leading-none text-[var(--patient-color-primary)]",
+);
+
+/**
+ * Компактная primary-кнопка по ширине контента (без `w-full` и без `min-h` touch-target).
+ * Используется там, где нужна кнопка-действие фиксированного малого размера внутри карточки,
+ * а не полноширинная CTA. Размер (`h-8`, `h-9`, `w-auto`) задаётся в месте использования.
+ */
+export const patientCompactActionClass = cn(
+  "inline-flex min-w-0 items-center justify-center gap-2 rounded-lg px-3 font-bold text-white transition-colors",
+  "bg-[var(--patient-color-primary)] hover:bg-[#1f3d82] active:bg-[#1f3d82]",
+  "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-primary)]",
+);
+
 /** Семантические алиасы действий (`MASTER_PLAN.md` — patient Primary/Secondary/Danger action). */
 export const patientPrimaryActionClass = patientButtonPrimaryClass;
 

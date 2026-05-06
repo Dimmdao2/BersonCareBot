@@ -10,13 +10,20 @@ import {
 } from "./patientHomeCardStyles";
 import { appLoginWithNextHref } from "./patientHomeGuestNav";
 import { PatientHomeSafeImage } from "./PatientHomeSafeImage";
-import { patientButtonWarningOutlineClass } from "@/shared/ui/patientVisual";
 import { cn } from "@/lib/utils";
 
-const reminderCtaMobileClass =
-  "!min-h-10 !w-auto min-w-[6.75rem] self-end px-3 text-[13px] lg:hidden";
-const reminderCtaDesktopClass =
-  "!w-auto min-w-[8rem] self-end px-4 text-sm max-lg:hidden";
+/**
+ * Warning-кнопка по ширине контента (reminder CTA).
+ * `patientButtonWarningOutlineClass` содержит `w-full`, что здесь не нужно —
+ * классы собраны вручную без него.
+ */
+const reminderCtaBaseClass = cn(
+  "inline-flex min-w-0 items-center justify-center gap-2 rounded-md border border-[#fde68a] bg-[#fffbeb] font-bold text-[#d97706] transition-colors",
+  "hover:bg-[#fef3c7]/80 active:bg-[#fef3c7]",
+  "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#f59e0b]",
+);
+const reminderCtaMobileClass = cn(reminderCtaBaseClass, "min-h-10 min-w-[6.75rem] self-end px-3 text-[13px] lg:hidden");
+const reminderCtaDesktopClass = cn(reminderCtaBaseClass, "min-h-10 min-w-[8rem] self-end px-4 text-sm max-lg:hidden");
 
 type Props = {
   rule: ReminderRule | null;
@@ -62,9 +69,9 @@ export function PatientHomeNextReminderCard({
               <h3 id="patient-home-reminder-heading" className={cn(patientHomeBlockHeadingClass, "whitespace-nowrap")}>
                 Следующее напоминание
               </h3>
-              <h2 className={cn(patientHomeCardTitleClampSmClass, "mt-1")}>
+              <p className={cn(patientHomeCardTitleClampSmClass, "mt-1")}>
                 Пока нет ближайших
-              </h2>
+              </p>
               <p className={cn(patientHomeBlockCaptionSmClamp2Mt1Class, "lg:hidden")}>
                 {anonymousGuest ?
                   "Чтобы настроить напоминания."
@@ -96,7 +103,7 @@ export function PatientHomeNextReminderCard({
             <h3 id="patient-home-reminder-heading" className={cn(patientHomeBlockHeadingClass, "whitespace-nowrap")}>
               Следующее напоминание
             </h3>
-            <h2 className={cn(patientHomeCardTitleClampSmClass, "mt-1")}>{scheduleLabel}</h2>
+            <p className={cn(patientHomeCardTitleClampSmClass, "mt-1")}>{scheduleLabel}</p>
             <p className={cn(patientHomeBlockCaptionSmClamp2Mt1Class, "lg:hidden")}>
               {ruleLabel}
             </p>

@@ -12,6 +12,7 @@ import {
   patientMutedTextClass,
   patientSectionTitleClass,
   patientStageTitleClass,
+  patientInnerPageStackClass,
 } from "@/shared/ui/patientVisual";
 import { cn } from "@/lib/utils";
 
@@ -63,7 +64,7 @@ export function PatientTreatmentProgramStagePageClient(props: {
   const isStageZero = currentStage.sortOrder === 0;
 
   return (
-    <div className="flex flex-col gap-3 lg:gap-4">
+    <div className={patientInnerPageStackClass}>
       {error ? (
         <p className="text-sm text-destructive" role="alert">
           {error}
