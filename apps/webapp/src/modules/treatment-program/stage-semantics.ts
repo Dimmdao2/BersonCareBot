@@ -35,9 +35,9 @@ export function isInstanceStageItemActiveForPatient(item: ItemSemanticsFields): 
 }
 
 /**
- * Элементы набора тестов (`test_set`) на списках программы у пациента (detail, страница этапа) не показываются;
- * прохождение — на странице тестирования. В **модалке «Состав этапа»** набор разворачивается в отдельные тесты —
- * см. `isInstanceStageItemShownInPatientCompositionModal`.
+ * Элементы набора тестов (`test_set`) на списках программы у пациента (detail, страница этапа) **и в модалке «Состав этапа»**
+ * не показываются; прохождение — на странице тестирования. См. `isInstanceStageItemShownOnPatientProgramSurfaces` и
+ * `isInstanceStageItemShownInPatientCompositionModal`.
  */
 export function isInstanceStageItemShownOnPatientProgramSurfaces(
   item: Pick<TreatmentProgramInstanceStageItemRow, "itemType" | "status" | "isActionable">,
@@ -46,11 +46,12 @@ export function isInstanceStageItemShownOnPatientProgramSurfaces(
   return item.itemType !== "test_set";
 }
 
-/** Модалка «Состав этапа» (timeline): все активные типы, включая `test_set` (строки — отдельные тесты снимка). */
+/** Модалка «Состав этапа» (timeline): активные элементы, **без** `test_set` (наборы тестов — только на странице тестирования). */
 export function isInstanceStageItemShownInPatientCompositionModal(
   item: Pick<TreatmentProgramInstanceStageItemRow, "itemType" | "status" | "isActionable">,
 ): boolean {
-  return isInstanceStageItemActiveForPatient(item);
+  if (!isInstanceStageItemActiveForPatient(item)) return false;
+  return item.itemType !== "test_set";
 }
 
 /**

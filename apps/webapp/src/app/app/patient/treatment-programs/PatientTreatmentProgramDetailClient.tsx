@@ -75,6 +75,7 @@ import {
   patientListItemClass,
   patientMutedTextClass,
   patientHeroPrimaryActionClass,
+  patientModalPortalPrimaryCtaClass,
   patientPrimaryActionClass,
   patientSectionSurfaceClass,
   patientSectionTitleClass,
@@ -460,28 +461,6 @@ function compositionModalRowsForStageItem(item: InstanceStageRow["items"][number
     });
   }
 
-  if (item.itemType === "test_set") {
-    const tLines = parseTestSetSnapshotTests(item.snapshot as Record<string, unknown>);
-    if (tLines.length === 0) {
-      const t = snapshotTitle(item.snapshot, item.itemType);
-      return t.trim() !== ""
-        ? [{ key: item.id, activityKey: item.id, text: t, thumbMedia: null, emptyMediaSlotKind: null }]
-        : [];
-    }
-    return tLines.map((t) => {
-      const title = (t.title?.trim() || "Тест").trim();
-      const comment = t.comment?.trim();
-      const text = comment ? `${title} · ${comment}` : title;
-      return {
-        key: `${item.id}:test:${t.testId}`,
-        activityKey: `${item.id}:test:${t.testId}`,
-        text,
-        thumbMedia: null,
-        emptyMediaSlotKind: null,
-      };
-    });
-  }
-
   return [
     {
       key: item.id,
@@ -688,10 +667,7 @@ function PatientProgramStagesTimeline(props: {
             detail.status === "active" && currentWorkingStage ? (
               <Link
                 href={routePaths.patientTreatmentProgramStage(detail.id, currentWorkingStage.id)}
-                className={cn(
-                  patientHeroPrimaryActionClass,
-                  "flex min-h-11 w-full items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm shadow-[0_6px_14px_rgba(40,77,160,0.24)] lg:min-h-12 lg:text-base",
-                )}
+                className={patientModalPortalPrimaryCtaClass}
               >
                 <PlayCircle className="size-5 shrink-0 lg:size-6" aria-hidden />
                 Начать занятие

@@ -11,9 +11,11 @@
 
 ## 2026-05-06 — модалка «Состав этапа»: иконки при пустом медиа
 
-- **`PatientTreatmentProgramDetailClient.tsx`:** в слоте превью строки — `PatientCatalogMediaStaticThumb`, если есть выбранное медиа; иначе для упражнения (строка ЛФК, элемент `exercise`) — `Dumbbell`, для `recommendation` — `ScrollText`; строки `test_set` без слота превью (как раньше).
+- **`PatientTreatmentProgramDetailClient.tsx`:** в слоте превью строки — `PatientCatalogMediaStaticThumb`, если есть выбранное медиа; иначе для упражнения (строка ЛФК, элемент `exercise`) — `Dumbbell`, для `recommendation` — `ScrollText`; наборы тестов в модалке не перечисляются (см. `stage-semantics`).
 - **Тесты:** расширен сценарий модалки в `PatientTreatmentProgramDetailClient.test.tsx` (вторая строка ЛФК без `img`, рекомендация без медиа — `svg`).
-- **Док:** уточнён абзац в `BLOCK_LAYOUT_REFERENCE.md` §3 (превью vs иконка).
+- **`stage-semantics.ts`:** `isInstanceStageItemShownInPatientCompositionModal` исключает `test_set` (как поверхности программы).
+- **Тесты:** расширен `stage-semantics.test.ts`.
+- **Док:** `BLOCK_LAYOUT_REFERENCE.md` §3 — модалка без наборов тестов.
 
 ## 2026-05-05 — follow-up: токены плана «Мой план», RSC-тест, док-синхронизация
 

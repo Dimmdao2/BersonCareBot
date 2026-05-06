@@ -12,7 +12,7 @@ import {
 
 export type PatientModalDialogContentProps = Omit<ComponentProps<typeof DialogContent>, "children"> & {
   title: ReactNode;
-  /** Блок между синей шапкой и прокручиваемым телом (например CTA). */
+  /** Блок между синей шапкой и прокручиваемым телом (например CTA). Для primary-кнопок — `patientModalPortalPrimaryCtaClass` из `patientVisual` (portal вне `#app-shell-patient`, иначе `var(--patient-color-primary)` не задан). */
   topSlot?: ReactNode;
   children?: ReactNode;
   /** Доп. классы на прокручиваемую область под заголовком */

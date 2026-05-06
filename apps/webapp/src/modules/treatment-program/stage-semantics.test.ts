@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   isInstanceStageItemActiveForPatient,
+  isInstanceStageItemShownInPatientCompositionModal,
   omitDisabledInstanceStageItemsForPatientApi,
   patientStageItemShowsNewBadge,
   patientStageSectionShouldRender,
@@ -213,6 +214,26 @@ describe("patientStageSectionShouldRender", () => {
         false,
       ),
     ).toBe(false);
+  });
+
+  it("excludes test_set from composition modal item list", () => {
+    expect(
+      isInstanceStageItemShownInPatientCompositionModal({
+        itemType: "test_set",
+        status: "active",
+        isActionable: true,
+      }),
+    ).toBe(false);
+  });
+
+  it("includes lfk_complex in composition modal when active", () => {
+    expect(
+      isInstanceStageItemShownInPatientCompositionModal({
+        itemType: "lfk_complex",
+        status: "active",
+        isActionable: true,
+      }),
+    ).toBe(true);
   });
 });
 

@@ -341,6 +341,19 @@ export const patientModalDialogTitleClass = cn(
   "font-sans text-base font-normal leading-snug text-white",
 );
 
+/**
+ * Primary CTA внутри patient `Dialog` portal (вне `#app-shell-patient`):
+ * {@link patientButtonPrimaryClass} / {@link patientHeroPrimaryActionClass} используют `var(--patient-color-primary)`,
+ * который задан только под `#app-shell-patient` — в портале фон не резолвится, остаётся белый `bg-background`
+ * модалки, а `text-white` не виден до hover (когда срабатывает литерал `hover:bg-[#1f3d82]`).
+ */
+export const patientModalPortalPrimaryCtaClass = cn(
+  "inline-flex min-h-11 w-full min-w-0 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white transition-colors lg:min-h-12 lg:text-base",
+  "bg-[#284da0] hover:bg-[#1f3d82] active:bg-[#1f3d82]",
+  "shadow-[0_6px_14px_rgba(40,77,160,0.24)]",
+  "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#284da0]",
+);
+
 /** Прокручиваемое тело под шапкой: скрытый scrollbar, съедает оставшуюся высоту во flex-колонке. Отступ сверху — в {@link PatientModalDialogContent}. */
 export const patientModalBodyScrollClass = cn(
   "min-h-0 flex-1 space-y-3 overflow-y-auto",
