@@ -608,7 +608,14 @@ describe("PatientTreatmentProgramDetailClient", () => {
                     title: "Шаблон комплекса",
                     exercises: [
                       { exerciseId: "e2222222-2222-4222-8222-222222222222", title: "Второе", sortOrder: 1 },
-                      { exerciseId: "e1111111-1111-4111-8111-111111111111", title: "Первое", sortOrder: 0 },
+                      {
+                        exerciseId: "e1111111-1111-4111-8111-111111111111",
+                        title: "Первое",
+                        sortOrder: 0,
+                        media: [
+                          { url: "https://example.com/lfk-exercise-preview.jpg", type: "image", sortOrder: 0 },
+                        ],
+                      },
                     ],
                   },
                   completedAt: null,
@@ -679,5 +686,14 @@ describe("PatientTreatmentProgramDetailClient", () => {
     expect(dialogText.indexOf("Вне группы пункт")).toBeLessThan(dialogText.indexOf("Блок утро"));
     expect(within(dialog).queryByText("(lfk_complex)", { exact: false })).not.toBeInTheDocument();
     expect(within(dialog).queryByText("(recommendation)", { exact: false })).not.toBeInTheDocument();
+    const firstExerciseRow = within(dialog).getByText("Первое").closest("li");
+    expect(firstExerciseRow?.querySelector("img")).toBeTruthy();
+    expect(firstExerciseRow?.querySelector("img")?.getAttribute("src")).toContain("lfk-exercise-preview");
+    const secondExerciseRow = within(dialog).getByText("Второе").closest("li");
+    expect(secondExerciseRow?.querySelector("img")).toBeFalsy();
+    expect(secondExerciseRow?.querySelector("svg")).toBeTruthy();
+    const recInBlockRow = within(dialog).getByText("Рекомендация в блоке").closest("li");
+    expect(recInBlockRow?.querySelector("img")).toBeFalsy();
+    expect(recInBlockRow?.querySelector("svg")).toBeTruthy();
   });
 });

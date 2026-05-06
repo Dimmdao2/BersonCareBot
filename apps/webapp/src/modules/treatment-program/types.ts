@@ -506,6 +506,8 @@ export function formatProgramActionLogSummaryRu(row: ProgramActionLogListRow): s
   if (src === "lfk_exercise_done") return "ЛФК: упражнение";
   if (src === "lfk_session") return "ЛФК: занятие (старый формат журнала)";
   if (src === "test_submitted") return "Тест отправлен";
+  if (src === "simple_item_complete") return "Отметка выполнения (элемент)";
+  if (src === "checklist_toggle") return "Чек-лист";
   return "Отметка выполнения";
 }
 

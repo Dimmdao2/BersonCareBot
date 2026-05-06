@@ -250,7 +250,7 @@ export type TreatmentProgramTestAttemptsPort = {
 
 export type ProgramActionLogPort = {
   insertAction(input: ProgramActionLogInsert): Promise<{ id: string; createdAt: string }>;
-  /** Удаляет «простые» `done` за окно (без `payload.source`, чтобы не трогать маркеры теста). */
+  /** Удаляет «простые» `done` за окно (не трогает `test_submitted` / `lfk_exercise_done`). */
   deleteSimpleDoneInWindow(params: {
     instanceId: string;
     patientUserId: string;

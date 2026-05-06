@@ -14,15 +14,20 @@ export function programActionDoneActivityKey(
   return instanceStageItemId;
 }
 
-/** Строки упражнений из снимка элемента `lfk_complex` (пациентский UI и отметки по `exerciseId`). */
-export function listLfkSnapshotExerciseLines(snapshot: Record<string, unknown>): {
+/** Строка `exercises[]` в снимке элемента `lfk_complex` (PG-снимок). */
+export type LfkSnapshotExerciseLine = {
   exerciseId: string;
   title: string;
   sortOrder: number;
-}[] {
+  /** Как в снимке `exercise`: массив `{ url, type, sortOrder, previewSmUrl?, … }`; у старых инстансов может отсутствовать. */
+  media?: unknown;
+};
+
+/** Строки упражнений из снимка элемента `lfk_complex` (пациентский UI и отметки по `exerciseId`). */
+export function listLfkSnapshotExerciseLines(snapshot: Record<string, unknown>): LfkSnapshotExerciseLine[] {
   const raw = snapshot.exercises;
   if (!Array.isArray(raw) || raw.length === 0) return [];
-  const rows: { exerciseId: string; title: string; sortOrder: number }[] = [];
+  const rows: LfkSnapshotExerciseLine[] = [];
   for (const row of raw) {
     if (!row || typeof row !== "object" || Array.isArray(row)) continue;
     const o = row as Record<string, unknown>;
@@ -31,7 +36,16 @@ export function listLfkSnapshotExerciseLines(snapshot: Record<string, unknown>):
     const titleRaw = typeof o.title === "string" ? o.title.trim() : "";
     const sortOrder =
       typeof o.sortOrder === "number" && Number.isFinite(o.sortOrder) ? o.sortOrder : 0;
-    rows.push({ exerciseId, title: titleRaw || "Упражнение", sortOrder });
+    const media = o.media;
+    const line: LfkSnapshotExerciseLine = {
+      exerciseId,
+      title: titleRaw || "Упражнение",
+      sortOrder,
+    };
+    if (Array.isArray(media) && media.length > 0 && media.every((e) => e != null && typeof e === "object" && !Array.isArray(e))) {
+      line.media = media;
+    }
+    rows.push(line);
   }
   rows.sort((a, b) => a.sortOrder - b.sortOrder || a.title.localeCompare(b.title, "ru"));
   return rows;

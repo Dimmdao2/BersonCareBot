@@ -104,6 +104,17 @@ export function createPgTreatmentProgramItemSnapshotPort(): TreatmentProgramItem
             sortOrder: m.sortOrder,
           }));
           const enriched = await catalogMediaRowsWithWorkerPreviews(pool, base);
+          const media =
+            enriched.length > 0
+              ? enriched.map((m) => ({
+                  url: m.mediaUrl,
+                  type: m.mediaType,
+                  sortOrder: m.sortOrder,
+                  previewSmUrl: m.previewSmUrl,
+                  previewMdUrl: m.previewMdUrl,
+                  previewStatus: m.previewStatus,
+                }))
+              : null;
           return {
             itemType: type,
             id: row.id,
@@ -111,17 +122,11 @@ export function createPgTreatmentProgramItemSnapshotPort(): TreatmentProgramItem
             description: row.description ?? null,
             difficulty: row.difficulty110 ?? null,
             loadType: row.loadType ?? null,
-            media: enriched.map((m) => ({
-              url: m.mediaUrl,
-              type: m.mediaType,
-              sortOrder: m.sortOrder,
-              previewSmUrl: m.previewSmUrl,
-              previewMdUrl: m.previewMdUrl,
-              previewStatus: m.previewStatus,
-            })),
+            ...(media ? { media } : {}),
           };
         }
         case "lfk_complex": {
+          /** `exercises[].media` — как у `case "exercise"` (превью в модалке состава без клиентских join). */
           const tpl = await db.query.lfkComplexTemplates.findFirst({
             where: and(eq(lfkComplexTemplates.id, itemRefId), ne(lfkComplexTemplates.status, "archived")),
           });
@@ -140,20 +145,57 @@ export function createPgTreatmentProgramItemSnapshotPort(): TreatmentProgramItem
                   .from(lfkExercises)
                   .where(inArray(lfkExercises.id, exIds));
           const exTitle = new Map(exRows.map((e) => [e.id, e.title]));
+          const pool = getPool();
+          const mediaByExerciseId = new Map<string, CatalogMediaSnapshotRow[]>();
+          if (exIds.length > 0) {
+            const mediaRows = await db
+              .select()
+              .from(lfkExerciseMedia)
+              .where(inArray(lfkExerciseMedia.exerciseId, exIds))
+              .orderBy(asc(lfkExerciseMedia.exerciseId), asc(lfkExerciseMedia.sortOrder), asc(lfkExerciseMedia.id));
+            const baseInputs: CatalogMediaRowInput[] = mediaRows.map((m) => ({
+              mediaUrl: m.mediaUrl,
+              mediaType: m.mediaType,
+              sortOrder: m.sortOrder,
+            }));
+            const enriched = await catalogMediaRowsWithWorkerPreviews(pool, baseInputs);
+            for (let i = 0; i < mediaRows.length; i++) {
+              const mrow = mediaRows[i]!;
+              const erow = enriched[i];
+              if (!erow) continue;
+              const eid = mrow.exerciseId;
+              const list = mediaByExerciseId.get(eid) ?? [];
+              list.push(erow);
+              mediaByExerciseId.set(eid, list);
+            }
+          }
+          const exerciseMediaToSnapshot = (rows: CatalogMediaSnapshotRow[]) =>
+            rows.map((m) => ({
+              url: m.mediaUrl,
+              type: m.mediaType,
+              sortOrder: m.sortOrder,
+              previewSmUrl: m.previewSmUrl,
+              previewMdUrl: m.previewMdUrl,
+              previewStatus: m.previewStatus,
+            }));
           return {
             itemType: type,
             id: tpl.id,
             title: tpl.title,
             description: tpl.description ?? null,
-            exercises: lines.map((l) => ({
-              exerciseId: l.exerciseId,
-              title: exTitle.get(l.exerciseId) ?? null,
-              sortOrder: l.sortOrder,
-              reps: l.reps ?? null,
-              sets: l.sets ?? null,
-              side: l.side ?? null,
-              comment: l.comment ?? null,
-            })),
+            exercises: lines.map((l) => {
+              const media = exerciseMediaToSnapshot(mediaByExerciseId.get(l.exerciseId) ?? []);
+              return {
+                exerciseId: l.exerciseId,
+                title: exTitle.get(l.exerciseId) ?? null,
+                sortOrder: l.sortOrder,
+                reps: l.reps ?? null,
+                sets: l.sets ?? null,
+                side: l.side ?? null,
+                comment: l.comment ?? null,
+                ...(media.length > 0 ? { media } : {}),
+              };
+            }),
           };
         }
         case "test_set": {
@@ -200,19 +242,23 @@ export function createPgTreatmentProgramItemSnapshotPort(): TreatmentProgramItem
           const rawMedia = (row.media ?? []) as CatalogMediaRowInput[];
           const pool = getPool();
           const enriched = await catalogMediaRowsWithWorkerPreviews(pool, rawMedia);
+          const media =
+            enriched.length > 0
+              ? enriched.map((m) => ({
+                  mediaUrl: m.mediaUrl,
+                  mediaType: m.mediaType,
+                  sortOrder: m.sortOrder,
+                  previewSmUrl: m.previewSmUrl,
+                  previewMdUrl: m.previewMdUrl,
+                  previewStatus: m.previewStatus,
+                }))
+              : null;
           return {
             itemType: type,
             id: row.id,
             title: row.title,
             bodyMd: row.bodyMd ?? "",
-            media: enriched.map((m) => ({
-              mediaUrl: m.mediaUrl,
-              mediaType: m.mediaType,
-              sortOrder: m.sortOrder,
-              previewSmUrl: m.previewSmUrl,
-              previewMdUrl: m.previewMdUrl,
-              previewStatus: m.previewStatus,
-            })),
+            ...(media ? { media } : {}),
           };
         }
         case "lesson": {

@@ -14,15 +14,17 @@ const tplStage2Id = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 
 describe("treatment-program progress-service", () => {
   let persistence: ReturnType<typeof createInMemoryTreatmentProgramPersistence>;
+  let actionLog: ReturnType<typeof createInMemoryProgramActionLogPort>;
   let progress: ReturnType<typeof createTreatmentProgramProgressService>;
 
   beforeEach(() => {
     persistence = createInMemoryTreatmentProgramPersistence();
+    actionLog = createInMemoryProgramActionLogPort();
     progress = createTreatmentProgramProgressService({
       instances: persistence.instancePort,
       tests: persistence.testAttemptsPort,
       events: persistence.eventsPort,
-      actionLog: createInMemoryProgramActionLogPort(),
+      actionLog,
     });
   });
 
@@ -209,6 +211,62 @@ describe("treatment-program progress-service", () => {
     const after = await persistence.instancePort.getInstanceForPatient(patient, inst.id);
     expect(after!.stages[0]!.status).toBe("completed");
     expect(after!.stages[1]!.status).toBe("available");
+  });
+
+  it("patientCompleteSimpleItem writes program_action_log done on each completion", async () => {
+    const insertSpy = vi.spyOn(actionLog, "insertAction");
+    const inst = await persistence.instancePort.createInstanceTree({
+      templateId: "00000000-0000-4000-8000-000000000001",
+      patientUserId: patient,
+      assignedBy: null,
+      title: "Программа",
+      stages: [
+        {
+          sourceStageId: tplStageId,
+          title: "Этап 1",
+          description: null,
+          sortOrder: 1,
+          status: "available",
+          goals: null,
+          objectives: null,
+          expectedDurationDays: null,
+          expectedDurationText: null,
+          items: [
+            {
+              itemType: "lesson",
+              itemRefId: "11111111-1111-4111-8111-111111111111",
+              sortOrder: 0,
+              comment: null,
+              settings: null,
+              snapshot: { title: "Урок" },
+            },
+          ],
+        },
+      ],
+    });
+    const itemId = inst.stages[0]!.items[0]!.id;
+    await progress.patientCompleteSimpleItem({
+      patientUserId: patient,
+      instanceId: inst.id,
+      stageItemId: itemId,
+    });
+    await progress.patientCompleteSimpleItem({
+      patientUserId: patient,
+      instanceId: inst.id,
+      stageItemId: itemId,
+    });
+    const simpleDoneCalls = insertSpy.mock.calls.filter(
+      (c) => (c[0] as { payload?: { source?: string } }).payload?.source === "simple_item_complete",
+    );
+    expect(simpleDoneCalls).toHaveLength(2);
+    expect(simpleDoneCalls[0]![0]).toMatchObject({
+      actionType: "done",
+      payload: { source: "simple_item_complete", itemType: "lesson" },
+    });
+    expect(simpleDoneCalls[1]![0]).toMatchObject({
+      actionType: "done",
+      payload: { source: "simple_item_complete", itemType: "lesson" },
+    });
   });
 
   it("test_results: scoring passIfGte and stage completion after all tests", async () => {

@@ -196,23 +196,15 @@ export function createTreatmentProgramPatientActionService(deps: {
       }
       const win = await checklistDayWindow(input.patientUserId);
       if (input.checked) {
-        const existing = await deps.actionLog.listDoneItemIdsInWindow({
+        await deps.actionLog.insertAction({
           instanceId: input.instanceId,
+          instanceStageItemId: input.stageItemId,
           patientUserId: input.patientUserId,
-          windowStartIso: win.start,
-          windowEndIso: win.end,
+          actionType: "done",
+          sessionId: null,
+          payload: { source: "checklist_toggle" },
+          note: null,
         });
-        if (!existing.includes(input.stageItemId)) {
-          await deps.actionLog.insertAction({
-            instanceId: input.instanceId,
-            instanceStageItemId: input.stageItemId,
-            patientUserId: input.patientUserId,
-            actionType: "done",
-            sessionId: null,
-            payload: null,
-            note: null,
-          });
-        }
       } else {
         await deps.actionLog.deleteSimpleDoneInWindow({
           instanceId: input.instanceId,
@@ -268,13 +260,6 @@ export function createTreatmentProgramPatientActionService(deps: {
       if (toMark.length === 0) throw new Error("В комплексе нет упражнений для отметки");
 
       const win = await checklistDayWindow(input.patientUserId);
-      await deps.actionLog.deleteAllDoneInWindow({
-        instanceId: input.instanceId,
-        patientUserId: input.patientUserId,
-        instanceStageItemId: input.stageItemId,
-        windowStartIso: win.start,
-        windowEndIso: win.end,
-      });
       const noteTrim = input.note?.trim() ? input.note.trim().slice(0, 4000) : null;
       const sessionId = crypto.randomUUID();
       for (let i = 0; i < toMark.length; i++) {

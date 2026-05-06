@@ -9,9 +9,13 @@ function isoNow(): string {
   return new Date().toISOString();
 }
 
+/** Строки, которые нельзя снимать через «простое» снятие чек-листа за день. */
 function isSimpleDonePayload(payload: Record<string, unknown> | null | undefined): boolean {
   if (payload == null) return true;
-  return payload.source == null;
+  const src = payload.source;
+  if (src == null) return true;
+  if (src === "test_submitted" || src === "lfk_exercise_done") return false;
+  return true;
 }
 
 export function createInMemoryProgramActionLogPort(): ProgramActionLogPort {

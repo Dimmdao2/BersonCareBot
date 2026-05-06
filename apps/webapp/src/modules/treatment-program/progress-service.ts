@@ -54,7 +54,7 @@ export function createTreatmentProgramProgressService(deps: {
   instances: TreatmentProgramInstancePort;
   tests: TreatmentProgramTestAttemptsPort;
   events?: TreatmentProgramEventsPort;
-  actionLog?: ProgramActionLogPort;
+  actionLog: ProgramActionLogPort;
   now?: () => string;
 }) {
   const { instances, tests } = deps;
@@ -216,6 +216,15 @@ export function createTreatmentProgramProgressService(deps: {
       const ts = nowIso();
       const row = await instances.setStageItemCompletedAt(input.instanceId, item.id, ts);
       if (!row) throw new Error("Не удалось сохранить");
+      await actionLog.insertAction({
+        instanceId: input.instanceId,
+        instanceStageItemId: item.id,
+        patientUserId: input.patientUserId,
+        actionType: "done",
+        sessionId: null,
+        payload: { source: "simple_item_complete", itemType: item.itemType },
+        note: null,
+      });
       if (!hadCompleted) {
         await appendEv({
           instanceId: input.instanceId,
@@ -313,21 +322,19 @@ export function createTreatmentProgramProgressService(deps: {
         decidedBy: null,
       });
 
-      if (actionLog) {
-        await actionLog.insertAction({
-          instanceId: input.instanceId,
-          instanceStageItemId: input.stageItemId,
-          patientUserId: input.patientUserId,
-          actionType: "done",
-          sessionId: null,
-          payload: {
-            source: "test_submitted",
-            testResultId: resultRow.id,
-            testId: input.testId,
-          },
-          note: null,
-        });
-      }
+      await actionLog.insertAction({
+        instanceId: input.instanceId,
+        instanceStageItemId: input.stageItemId,
+        patientUserId: input.patientUserId,
+        actionType: "done",
+        sessionId: null,
+        payload: {
+          source: "test_submitted",
+          testResultId: resultRow.id,
+          testId: input.testId,
+        },
+        note: null,
+      });
 
       await appendEv({
         instanceId: input.instanceId,
@@ -435,7 +442,6 @@ export function createTreatmentProgramProgressService(deps: {
 
     listProgramActionLogForInstance(instanceId: string): Promise<ProgramActionLogListRow[]> {
       assertUuid(instanceId);
-      if (!actionLog) return Promise.resolve([]);
       return actionLog.listForInstance({ instanceId, limit: 200 });
     },
 

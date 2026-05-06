@@ -41,7 +41,7 @@ describe("PatientHomeNextReminderCard", () => {
     const [mobileCta, desktopCta] = screen.getAllByRole("link", { name: /Изменить/i });
     expect(mobileCta).toHaveAttribute("href", "/app/patient/reminders");
     expect(mobileCta).toHaveClass("self-end");
-    expect(mobileCta).toHaveClass("!min-h-10");
+    expect(mobileCta).toHaveClass("min-h-10");
     expect(mobileCta).toHaveClass("lg:hidden");
     expect(desktopCta).toHaveClass("self-end");
     expect(desktopCta).toHaveClass("max-lg:hidden");

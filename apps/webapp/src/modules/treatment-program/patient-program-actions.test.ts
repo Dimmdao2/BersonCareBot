@@ -119,7 +119,7 @@ describe("patient-program-actions", () => {
     expect(ids).not.toContain("55555555-5555-4555-8555-555555555555");
   });
 
-  it("toggle checklist inserts done once per local calendar day", async () => {
+  it("toggle checklist inserts done on each checked true; checked false clears day", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-05-03T12:00:00.000Z"));
     try {
@@ -134,6 +134,7 @@ describe("patient-program-actions", () => {
       itemRefs,
     });
     const actionLog = createInMemoryProgramActionLogPort();
+    const insertSpy = vi.spyOn(actionLog, "insertAction");
     const actions = createTreatmentProgramPatientActionService({
       instances: instPort,
       actionLog,
@@ -158,6 +159,11 @@ describe("patient-program-actions", () => {
       checked: true,
     });
     expect(first).toContain(itemId);
+    expect(insertSpy).toHaveBeenCalledTimes(1);
+    expect(insertSpy.mock.calls[0]![0]).toMatchObject({
+      actionType: "done",
+      payload: { source: "checklist_toggle" },
+    });
     const second = await actions.patientToggleChecklistItem({
       patientUserId: patient,
       instanceId: inst.id,
@@ -165,6 +171,7 @@ describe("patient-program-actions", () => {
       checked: true,
     });
     expect(second).toContain(itemId);
+    expect(insertSpy).toHaveBeenCalledTimes(2);
     const third = await actions.patientToggleChecklistItem({
       patientUserId: patient,
       instanceId: inst.id,
@@ -177,7 +184,7 @@ describe("patient-program-actions", () => {
     }
   });
 
-  it("LFK post-session writes one done per exercise with shared session (note on first)", async () => {
+  it("LFK post-session twice same day appends two sessions (four exercise done rows)", async () => {
     const tplPort = createInMemoryTreatmentProgramPort();
     const instPort = createInMemoryTreatmentProgramInstancePort();
     const itemRefs: TreatmentProgramItemRefValidationPort = { assertItemRefExists: vi.fn(async () => {}) };
@@ -235,6 +242,14 @@ describe("patient-program-actions", () => {
       note: "Устал",
     });
     expect(insertSpy).toHaveBeenCalledTimes(2);
+    await actions.patientSubmitLfkPostSession({
+      patientUserId: patient,
+      instanceId: inst.id,
+      stageItemId: itemId,
+      difficulty: "easy",
+      note: "Второй раз",
+    });
+    expect(insertSpy).toHaveBeenCalledTimes(4);
     const calls = insertSpy.mock.calls.map((c) => c[0]);
     expect(calls[0]).toMatchObject({
       actionType: "done",
@@ -254,6 +269,28 @@ describe("patient-program-actions", () => {
         source: "lfk_exercise_done",
         exerciseId: "e2222222-2222-4222-8222-222222222222",
         difficulty: "hard",
+      },
+    });
+    const session2First = calls[2] as { sessionId?: string };
+    expect(session2First).toMatchObject({
+      actionType: "done",
+      note: "Второй раз",
+      sessionId: expect.any(String),
+      payload: {
+        source: "lfk_exercise_done",
+        exerciseId: "e1111111-1111-4111-8111-111111111111",
+        difficulty: "easy",
+      },
+    });
+    expect(session2First.sessionId).not.toBe((calls[0] as { sessionId?: string }).sessionId);
+    expect(calls[3]).toMatchObject({
+      actionType: "done",
+      note: null,
+      sessionId: session2First.sessionId,
+      payload: {
+        source: "lfk_exercise_done",
+        exerciseId: "e2222222-2222-4222-8222-222222222222",
+        difficulty: "easy",
       },
     });
   });

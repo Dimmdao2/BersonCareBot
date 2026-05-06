@@ -38,7 +38,10 @@ export function createPgProgramActionLogPort(): ProgramActionLogPort {
             eq(logTable.actionType, "done"),
             gte(logTable.createdAt, params.windowStartIso),
             lt(logTable.createdAt, params.windowEndIso),
-            or(isNull(logTable.payload), sql`(${logTable.payload}->>'source') is null`),
+            or(
+              isNull(logTable.payload),
+              sql`coalesce(${logTable.payload}->>'source', '') not in ('test_submitted', 'lfk_exercise_done')`,
+            ),
           ),
         );
     },

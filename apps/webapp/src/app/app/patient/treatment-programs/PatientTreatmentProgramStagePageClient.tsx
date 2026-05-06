@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { TreatmentProgramInstanceDetail } from "@/modules/treatment-program/types";
-import {
-  formatTreatmentProgramStageStatusRu,
-} from "@/modules/treatment-program/types";
+import { formatTreatmentProgramStageStatusRu } from "@/modules/treatment-program/types";
 import { PatientInstanceStageBody } from "./PatientTreatmentProgramDetailClient";
+import {
+  normalizeChecklistCountMap,
+} from "@/app/app/patient/treatment-programs/normalizeTreatmentProgramChecklistMaps";
 import {
   patientCardClass,
   patientCardListSectionClass,
@@ -28,6 +29,7 @@ export function PatientTreatmentProgramStagePageClient(props: {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [doneItemIds, setDoneItemIds] = useState<string[]>([]);
+  const [doneTodayCountByItemId, setDoneTodayCountByItemId] = useState<Record<string, number>>({});
 
   const base = `/api/patient/treatment-program-instances/${encodeURIComponent(instanceId)}/items`;
 
@@ -36,8 +38,14 @@ export function PatientTreatmentProgramStagePageClient(props: {
       const res = await fetch(
         `/api/patient/treatment-program-instances/${encodeURIComponent(instanceId)}/checklist-today`,
       );
-      const data = (await res.json().catch(() => null)) as { ok?: boolean; doneItemIds?: string[] };
-      if (res.ok && data?.ok && Array.isArray(data.doneItemIds)) setDoneItemIds(data.doneItemIds);
+      const data = (await res.json().catch(() => null)) as {
+        ok?: boolean;
+        doneItemIds?: string[];
+        doneTodayCountByItemId?: unknown;
+      };
+      if (!res.ok || !data?.ok || !Array.isArray(data.doneItemIds)) return;
+      setDoneItemIds(data.doneItemIds);
+      setDoneTodayCountByItemId(normalizeChecklistCountMap(data.doneTodayCountByItemId));
     })();
   }, [instanceId]);
 
@@ -57,8 +65,18 @@ export function PatientTreatmentProgramStagePageClient(props: {
     }
     const updated = data.item.stages.find((s) => s.id === props.stage.id);
     if (updated) setCurrentStage(updated);
-    const chData = (await chRes.json().catch(() => null)) as { ok?: boolean; doneItemIds?: string[] };
-    if (chRes.ok && chData?.ok && Array.isArray(chData.doneItemIds)) setDoneItemIds(chData.doneItemIds);
+    const chData = (await chRes.json().catch(() => null)) as {
+      ok?: boolean;
+      doneItemIds?: string[];
+      doneTodayCountByItemId?: unknown;
+    };
+    if (data.item.status !== "active") {
+      setDoneItemIds([]);
+      setDoneTodayCountByItemId({});
+    } else if (chRes.ok && chData?.ok === true && Array.isArray(chData.doneItemIds)) {
+      setDoneItemIds(chData.doneItemIds);
+      setDoneTodayCountByItemId(normalizeChecklistCountMap(chData.doneTodayCountByItemId));
+    }
   }, [instanceId, props.stage.id]);
 
   const isStageZero = currentStage.sortOrder === 0;
@@ -104,6 +122,7 @@ export function PatientTreatmentProgramStagePageClient(props: {
         surfaceClass={cn(patientCardListSectionClass, "flex flex-col gap-4")}
         doneItemIds={doneItemIds}
         onDoneItemIds={setDoneItemIds}
+        todayCountByStageItemId={doneTodayCountByItemId}
         heading={
           isStageZero ? (
             <h3 className={patientSectionTitleClass}>Назначения этапа</h3>

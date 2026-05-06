@@ -1,5 +1,20 @@
 # LOG — PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE
 
+## 2026-05-06 — follow-up аудита снимков ЛФК (пустой `media`, парсер, тесты)
+
+- **Контекст чата:** после аудита превью упражнений ЛФК в модалке «Состав этапа» закрыты пункты про сериализацию и покрытие парсера без отдельного PG-контракта на БД.
+- **`pgTreatmentProgramItemSnapshot.ts`:** для `lfk_complex` у каждой строки `exercises[]` ключ `media` добавляется только при непустом списке; для `exercise` и `recommendation` ключ верхнего уровня `media` опускается при отсутствии каталожных медиа.
+- **`programActionActivityKey.ts`:** `listLfkSnapshotExerciseLines` выставляет `line.media` только для непустого массива объектов (не массивов), чтобы битые/старые значения не протекали в UI.
+- **Тесты:** добавлен `src/modules/treatment-program/programActionActivityKey.test.ts`; регрессия модалки — `PatientTreatmentProgramDetailClient.test.tsx`.
+- **Проверки:** `pnpm --dir apps/webapp exec vitest run src/modules/treatment-program/programActionActivityKey.test.ts src/app/app/patient/treatment-programs/PatientTreatmentProgramDetailClient.test.tsx` и `pnpm --dir apps/webapp exec vitest run src/modules/treatment-program/` — зелёные.
+- **Док:** обновлён `BLOCK_LAYOUT_REFERENCE.md` §3 (абзац про превью ЛФК и ссылки на код/тесты).
+
+## 2026-05-06 — модалка «Состав этапа»: иконки при пустом медиа
+
+- **`PatientTreatmentProgramDetailClient.tsx`:** в слоте превью строки — `PatientCatalogMediaStaticThumb`, если есть выбранное медиа; иначе для упражнения (строка ЛФК, элемент `exercise`) — `Dumbbell`, для `recommendation` — `ScrollText`; строки `test_set` без слота превью (как раньше).
+- **Тесты:** расширен сценарий модалки в `PatientTreatmentProgramDetailClient.test.tsx` (вторая строка ЛФК без `img`, рекомендация без медиа — `svg`).
+- **Док:** уточнён абзац в `BLOCK_LAYOUT_REFERENCE.md` §3 (превью vs иконка).
+
 ## 2026-05-05 — follow-up: токены плана «Мой план», RSC-тест, док-синхронизация
 
 - **UI (detail):** строки timeline — прошлые этапы `bg-muted/20 opacity-70`, заблокированные будущие `opacity-50` (как в плане); описание шаблона под заголовком — `line-clamp-3`; на `<section>` timeline добавлен `id="patient-program-current-stage"` для якоря из roadmap.
