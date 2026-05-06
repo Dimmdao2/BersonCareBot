@@ -100,13 +100,17 @@ sample_chunk="$(find "${WEBAPP_STANDALONE_CHUNKS}" -maxdepth 1 -type f -name "*.
 
 set -a
 source "${ENV_FILE}"
-source "${WEBAPP_ENV_FILE}"
 set +a
 
 # Конвенция: прод API слушает 3200 (dev 4200). Иначе health check и nginx не совпадут с процессом.
 if [ "${PORT:-}" != "3200" ]; then
   fail "api.prod must set PORT=3200 for production. Current: PORT=${PORT:-<unset>}. See SERVER CONVENTIONS.md and deploy/env/README.md."
 fi
+
+# Load webapp env after API PORT validation.
+set -a
+source "${WEBAPP_ENV_FILE}"
+set +a
 
 # Backup before migrations: write to pre-migrations folder (run as root).
 # Script must support first arg "pre-migrations" and write to /opt/backups/postgres/pre-migrations/
