@@ -707,6 +707,21 @@ curl -sI -H "Host: bersoncare.ru" "http://127.0.0.1:6200/_next/static/chunks/$(b
 
 Дальше: полный деплой через **`bash deploy/host/deploy-prod.sh`** (CI) или **`bash deploy/host/deploy-webapp-prod.sh`**; либо после каждого production build вручную повторять те же `rm -rf` + `cp` из блока выше.
 
+### 4. `pnpm install` в CI / SSH: `EACCES … rmdir … node_modules`
+
+**Симптом:** при деплое `Recreating node_modules` и **`EACCES: permission denied, rmdir '…/node_modules/.bin'`** (часто под `packages/booking-rubitime-sync`).
+
+**Причина:** дерево репозитория или `node_modules` частично принадлежит **root** (например, ранее запускали `sudo pnpm install` или сборку от root в `/opt/projects/bersoncarebot`), а деплой идёт от **`deploy`** — не может удалить чужие каталоги.
+
+**Разовое исправление от root** (пользователь деплоя — **`deploy`**, путь проекта — из `SERVER CONVENTIONS.md`):
+
+```bash
+sudo systemctl stop bersoncarebot-webapp-prod.service bersoncarebot-api-prod.service bersoncarebot-worker-prod.service bersoncarebot-media-worker-prod.service 2>/dev/null || true
+sudo chown -R deploy:deploy /opt/projects/bersoncarebot
+```
+
+Дальше снова прогнать деплой **от `deploy`**. В каталоге проекта на проде **не** вызывать `pnpm`/`npm` от root.
+
 ---
 
 ## Source of truth
