@@ -360,6 +360,22 @@
 
 Файл **`cutover.prod`** и переменные `INTEGRATOR_DATABASE_URL` / `SOURCE_DATABASE_URL` остаются для **legacy** cutover/backfill-скриптов и dev-симметрии; на проде после unification они могут указывать на **ту же** строку, что и `DATABASE_URL` (или быть не нужны — см. конкретный скрипт).
 
+### Миграции: webapp Drizzle (`public`) vs integrator
+
+- **Симптом:** в логах webapp `column "…" does not exist` (например `publication_status` в `test_sets`) при открытии каталогов врача — **не накатили Drizzle-миграции webapp** на ту БД, что в `webapp.prod` (`DATABASE_URL`, схема **`public`**). Новый билд webapp без миграций оставляет схему старой.
+- **`pnpm migrate` в корне репозитория** — это **`pnpm --dir apps/integrator run migrate`**. Нужен загруженный **`/opt/env/bersoncarebot/api.prod`** (`DATABASE_URL`, `BOOKING_URL` и пр.). Это **не** миграции из `apps/webapp/db/drizzle-migrations`.
+- **Webapp (Drizzle):** каталог проекта на хосте + `webapp.prod`, затем при необходимости перезапуск webapp:
+
+```bash
+cd /opt/projects/bersoncarebot
+set -a && source /opt/env/bersoncarebot/webapp.prod && set +a
+pnpm --dir apps/webapp run migrate
+# при необходимости:
+# sudo systemctl restart bersoncarebot-webapp-prod.service
+```
+
+Канон и backup перед миграциями: [`deploy/HOST_DEPLOY_README.md`](../../deploy/HOST_DEPLOY_README.md) (pre-migrations, состав `deploy-prod`).
+
 **Исторические имена БД** (до unification, для старых отчётов; не считать текущим обязательным состоянием):
 
 | Назначение (legacy) | Было (пример) |
