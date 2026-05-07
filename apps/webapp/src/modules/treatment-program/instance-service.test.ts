@@ -44,10 +44,12 @@ describe("treatment-program instance service", () => {
       itemRefId: refA,
       comment: "Из шаблона",
     });
+    const g2 = await tplSvc.createTemplateStageGroup(s2.id, { title: "Г" });
     await tplSvc.addStageItem(s2.id, {
       itemType: "exercise",
       itemRefId: refB,
       comment: null,
+      groupId: g2.id,
     });
 
     const patient = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -71,6 +73,34 @@ describe("treatment-program instance service", () => {
     expect(it0.status).toBe("active");
   });
 
+  it("assign creates system groups and maps ungrouped recommendation and test_set", async () => {
+    const tpl = await tplSvc.createTemplate({ title: "План", status: "published" }, null);
+    const s1 = await tplSvc.createStage(tpl.id, { title: "Этап 1" });
+    const grp = await tplSvc.createTemplateStageGroup(s1.id, { title: "Упр" });
+    await tplSvc.addStageItem(s1.id, { itemType: "recommendation", itemRefId: refA });
+    await tplSvc.addStageItem(s1.id, { itemType: "test_set", itemRefId: refB });
+    await tplSvc.addStageItem(s1.id, { itemType: "exercise", itemRefId: refB, groupId: grp.id });
+
+    const inst = await instSvc.assignTemplateToPatient({
+      templateId: tpl.id,
+      patientUserId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      assignedBy: null,
+    });
+    const stage = inst.stages[0]!;
+    const sysRec = stage.groups.find((x) => x.systemKind === "recommendations");
+    const sysTests = stage.groups.find((x) => x.systemKind === "tests");
+    expect(sysRec).toBeDefined();
+    expect(sysTests).toBeDefined();
+    expect(stage.groups.filter((x) => !x.systemKind)).toHaveLength(1);
+
+    const recItem = stage.items.find((i) => i.itemType === "recommendation");
+    const testItem = stage.items.find((i) => i.itemType === "test_set");
+    const exItem = stage.items.find((i) => i.itemType === "exercise");
+    expect(recItem?.groupId).toBe(sysRec?.id);
+    expect(testItem?.groupId).toBe(sysTests?.id);
+    expect(exItem?.groupId).toBe(stage.groups.find((gr) => gr.title === "Упр")?.id);
+  });
+
   it("deep copy: goals, objectives, expected duration from template stages (A1)", async () => {
     const tpl = await tplSvc.createTemplate({ title: "План", status: "published" }, null);
     const s1 = await tplSvc.createStage(tpl.id, {
@@ -88,7 +118,8 @@ describe("treatment-program instance service", () => {
       expectedDurationDays: null,
       expectedDurationText: null,
     });
-    await tplSvc.addStageItem(s2.id, { itemType: "exercise", itemRefId: refB });
+    const g2 = await tplSvc.createTemplateStageGroup(s2.id, { title: "Г2" });
+    await tplSvc.addStageItem(s2.id, { itemType: "exercise", itemRefId: refB, groupId: g2.id });
 
     const inst = await instSvc.assignTemplateToPatient({
       templateId: tpl.id,
@@ -128,10 +159,12 @@ describe("treatment-program instance service", () => {
   it("instance item comment and snapshot are independent of template edits after assign (§5)", async () => {
     const tpl = await tplSvc.createTemplate({ title: "План", status: "published" }, null);
     const s1 = await tplSvc.createStage(tpl.id, { title: "Этап 1" });
+    const grp = await tplSvc.createTemplateStageGroup(s1.id, { title: "G" });
     const tItem = await tplSvc.addStageItem(s1.id, {
       itemType: "lesson",
       itemRefId: refA,
       comment: "original",
+      groupId: grp.id,
     });
     const patient = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
     const inst = await instSvc.assignTemplateToPatient({
@@ -206,10 +239,12 @@ describe("treatment-program instance service", () => {
   it("§6 effectiveComment: local overrides template copy", async () => {
     const tpl = await tplSvc.createTemplate({ title: "План", status: "published" }, null);
     const s1 = await tplSvc.createStage(tpl.id, { title: "Этап 1" });
+    const grp = await tplSvc.createTemplateStageGroup(s1.id, { title: "G" });
     await tplSvc.addStageItem(s1.id, {
       itemType: "lesson",
       itemRefId: refA,
       comment: "Шаблонный текст",
+      groupId: grp.id,
     });
     const patient = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
     const inst = await instSvc.assignTemplateToPatient({
@@ -279,10 +314,10 @@ describe("treatment-program instance service", () => {
       assignedBy: null,
     });
     const stage = inst.stages[0]!;
-    expect(stage.groups).toHaveLength(1);
-    expect(stage.groups[0]!.title).toBe("Неделя 1");
-    expect(stage.groups[0]!.sourceGroupId).toBe(g.id);
+    expect(stage.groups).toHaveLength(3);
+    const userGroup = stage.groups.find((gr) => gr.sourceGroupId === g.id);
+    expect(userGroup?.title).toBe("Неделя 1");
     const it0 = stage.items[0]!;
-    expect(it0.groupId).toBe(stage.groups[0]!.id);
+    expect(it0.groupId).toBe(userGroup?.id);
   });
 });

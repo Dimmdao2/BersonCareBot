@@ -50,6 +50,13 @@
 
 ---
 
+## 2026-05-07 — Системные группы экземпляра и документация
+
+- Реализованы/зафиксированы: `system_kind` на `treatment_program_instance_stage_groups` (Drizzle + миграции `0044`, `0045` — уникальность одной rec/tests на этап), автоподстановка системных групп в `createInstanceTree` при ungrouped `recommendation`/`test_set` без строк в `groups` (`instance-tree-system-groups.ts`).
+- Обновлены: `PROGRAM_PATIENT_SHAPE_PLAN.md` §1.1 / §1.1a, `ROADMAP.md` §4, `PATIENT_TREATMENT_PROGRAM_STAGE_SURFACES.md` (таблица фильтров), JSDoc в `types.ts` для дерева экземпляра.
+
+---
+
 ## 2026-05-05 — Аудит выполнения и закрытие документации
 
 - Проведён полный аудит против `MASTER_PLAN.md` §Definition of Done и `DECOMPOSITION.md` этапы A–E.

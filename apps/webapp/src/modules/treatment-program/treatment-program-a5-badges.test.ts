@@ -51,13 +51,13 @@ describe("PROGRAM_PATIENT_SHAPE A5 badges + mark viewed", () => {
     });
     const stageId = detail.stages[0]!.id;
     const added = await persistence.instancePort.addInstanceStageItem(detail.id, stageId, {
-      itemType: "lesson",
+      itemType: "recommendation",
       itemRefId: "11111111-1111-4111-8111-111111111111",
       sortOrder: 0,
       comment: null,
       settings: null,
-      snapshot: { title: "L" },
-      isActionable: null,
+      snapshot: { title: "R" },
+      isActionable: true,
       status: "active",
       groupId: null,
     });
@@ -93,16 +93,33 @@ describe("PROGRAM_PATIENT_SHAPE A5 badges + mark viewed", () => {
           objectives: null,
           expectedDurationDays: null,
           expectedDurationText: null,
-          groups: [],
+          groups: [
+            {
+              sourceGroupId: null,
+              title: "Рекомендации",
+              description: null,
+              scheduleText: null,
+              sortOrder: 101,
+              systemKind: "recommendations",
+            },
+            {
+              sourceGroupId: null,
+              title: "Тесты",
+              description: null,
+              scheduleText: null,
+              sortOrder: 102,
+              systemKind: "tests",
+            },
+          ],
           items: [
             {
-              itemType: "lesson",
+              itemType: "recommendation",
               itemRefId: "11111111-1111-4111-8111-111111111111",
               sortOrder: 0,
               comment: null,
               settings: null,
-              snapshot: { title: "L" },
-              isActionable: null,
+              snapshot: { title: "R" },
+              isActionable: true,
               status: "active",
               templateGroupId: null,
             },

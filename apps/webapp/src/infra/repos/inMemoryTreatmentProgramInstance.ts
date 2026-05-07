@@ -29,6 +29,7 @@ import type {
   PendingProgramTestEvaluationRow,
 } from "@/modules/treatment-program/types";
 import { effectiveInstanceStageItemComment, TREATMENT_PROGRAM_PLAN_MUTATION_EVENT_TYPES } from "@/modules/treatment-program/types";
+import { withDefaultSystemGroupsIfNeededForTreeStage } from "@/modules/treatment-program/instance-tree-system-groups";
 
 function sameIdSet(ordered: string[], expected: Set<string>): boolean {
   if (ordered.length !== expected.size) return false;
@@ -155,27 +156,38 @@ export function createInMemoryTreatmentProgramPersistence(): InMemoryTreatmentPr
       instances.set(id, inst);
 
       for (const st of input.stages) {
+        const stResolved = withDefaultSystemGroupsIfNeededForTreeStage(st);
         const sid = crypto.randomUUID();
         const stageRow: StageRow = {
           id: sid,
           instanceId: id,
-          sourceStageId: st.sourceStageId,
-          title: st.title,
-          description: st.description,
-          sortOrder: st.sortOrder,
+          sourceStageId: stResolved.sourceStageId,
+          title: stResolved.title,
+          description: stResolved.description,
+          sortOrder: stResolved.sortOrder,
           localComment: null,
           skipReason: null,
-          status: st.status,
-          startedAt: st.status === "in_progress" ? now : null,
-          goals: st.goals,
-          objectives: st.objectives,
-          expectedDurationDays: st.expectedDurationDays,
-          expectedDurationText: st.expectedDurationText,
+          status: stResolved.status,
+          startedAt: stResolved.status === "in_progress" ? now : null,
+          goals: stResolved.goals,
+          objectives: stResolved.objectives,
+          expectedDurationDays: stResolved.expectedDurationDays,
+          expectedDurationText: stResolved.expectedDurationText,
         };
         stages.set(sid, stageRow);
-        const sortedGroups = [...(st.groups ?? [])].sort(
-          (a, b) => a.sortOrder - b.sortOrder || a.sourceGroupId.localeCompare(b.sourceGroupId),
-        );
+        const INTERNAL_REC = "__tp_instance_sys_recommendations__";
+        const INTERNAL_TESTS = "__tp_instance_sys_tests__";
+        const rawGroups = [...(stResolved.groups ?? [])];
+        const systemRec = rawGroups.find((g) => g.systemKind === "recommendations");
+        const systemTests = rawGroups.find((g) => g.systemKind === "tests");
+        const templateGroups = rawGroups
+          .filter((g) => !g.systemKind)
+          .sort(
+            (a, b) =>
+              a.sortOrder - b.sortOrder ||
+              String(a.sourceGroupId ?? "").localeCompare(String(b.sourceGroupId ?? "")),
+          );
+        const sortedGroups = [...(systemRec ? [systemRec] : []), ...(systemTests ? [systemTests] : []), ...templateGroups];
         const tplToInst = new Map<string, string>();
         for (const g of sortedGroups) {
           const gid = crypto.randomUUID();
@@ -187,15 +199,36 @@ export function createInMemoryTreatmentProgramPersistence(): InMemoryTreatmentPr
             description: g.description,
             scheduleText: g.scheduleText,
             sortOrder: g.sortOrder,
+            systemKind: g.systemKind ?? null,
           };
           instGroups.set(gid, gr);
-          tplToInst.set(g.sourceGroupId, gid);
+          if (g.sourceGroupId) {
+            tplToInst.set(g.sourceGroupId, gid);
+          }
+          if (g.systemKind === "recommendations") {
+            tplToInst.set(INTERNAL_REC, gid);
+          }
+          if (g.systemKind === "tests") {
+            tplToInst.set(INTERNAL_TESTS, gid);
+          }
         }
-        const sortedItems = [...st.items].sort(
+        const sortedItems = [...stResolved.items].sort(
           (a, b) => a.sortOrder - b.sortOrder || a.itemRefId.localeCompare(b.itemRefId),
         );
         for (const it of sortedItems) {
           const iid = crypto.randomUUID();
+          let groupId: string | null = null;
+          if (it.templateGroupId != null) {
+            groupId = tplToInst.get(it.templateGroupId) ?? null;
+          } else if (it.itemType === "recommendation") {
+            groupId = tplToInst.get(INTERNAL_REC) ?? null;
+          } else if (it.itemType === "test_set") {
+            groupId = tplToInst.get(INTERNAL_TESTS) ?? null;
+          } else {
+            throw new Error(
+              "Назначение: элемент без группы в шаблоне должен быть только рекомендацией или набором тестов",
+            );
+          }
           const itemRow: ItemRow = {
             id: iid,
             stageId: sid,
@@ -209,7 +242,7 @@ export function createInMemoryTreatmentProgramPersistence(): InMemoryTreatmentPr
             completedAt: null,
             isActionable: it.isActionable ?? null,
             status: it.status ?? "active",
-            groupId: it.templateGroupId ? tplToInst.get(it.templateGroupId) ?? null : null,
+            groupId,
             createdAt: now,
             lastViewedAt: now,
           };
@@ -556,6 +589,7 @@ export function createInMemoryTreatmentProgramPersistence(): InMemoryTreatmentPr
         description: input.description?.trim() ?? null,
         scheduleText: input.scheduleText?.trim() ?? null,
         sortOrder: input.sortOrder ?? nextGroupOrder(stageId),
+        systemKind: null,
       };
       instGroups.set(gid, gr);
       touchInstance(instanceId);
@@ -571,8 +605,9 @@ export function createInMemoryTreatmentProgramPersistence(): InMemoryTreatmentPr
       if (!cur) return null;
       const st = stages.get(cur.stageId);
       if (!st || st.instanceId !== instanceId) return null;
+      const isSystem = cur.systemKind === "recommendations" || cur.systemKind === "tests";
       let title = cur.title;
-      if (input.title !== undefined) {
+      if (input.title !== undefined && !isSystem) {
         const t = input.title.trim();
         if (!t) return null;
         title = t;
@@ -582,7 +617,7 @@ export function createInMemoryTreatmentProgramPersistence(): InMemoryTreatmentPr
         title,
         ...(input.description !== undefined ? { description: input.description?.trim() ?? null } : {}),
         ...(input.scheduleText !== undefined ? { scheduleText: input.scheduleText?.trim() ?? null } : {}),
-        ...(input.sortOrder !== undefined ? { sortOrder: input.sortOrder } : {}),
+        ...(input.sortOrder !== undefined && !isSystem ? { sortOrder: input.sortOrder } : {}),
       };
       instGroups.set(groupId, next);
       touchInstance(instanceId);
@@ -592,6 +627,7 @@ export function createInMemoryTreatmentProgramPersistence(): InMemoryTreatmentPr
     async deleteInstanceStageGroup(instanceId: string, groupId: string) {
       const cur = instGroups.get(groupId);
       if (!cur) return false;
+      if (cur.systemKind === "recommendations" || cur.systemKind === "tests") return false;
       const st = stages.get(cur.stageId);
       if (!st || st.instanceId !== instanceId) return false;
       for (const [iid, it] of items) {
@@ -610,7 +646,10 @@ export function createInMemoryTreatmentProgramPersistence(): InMemoryTreatmentPr
       const st = stages.get(stageId);
       if (!st || st.instanceId !== instanceId) return false;
       const groupList = [...instGroups.values()].filter((g) => g.stageId === stageId);
-      const idSet = new Set(groupList.map((g) => g.id));
+      const userIds = groupList
+        .filter((g) => g.systemKind !== "recommendations" && g.systemKind !== "tests")
+        .map((g) => g.id);
+      const idSet = new Set(userIds);
       if (!sameIdSet(orderedGroupIds, idSet)) return false;
       for (let i = 0; i < orderedGroupIds.length; i++) {
         const gid = orderedGroupIds[i]!;

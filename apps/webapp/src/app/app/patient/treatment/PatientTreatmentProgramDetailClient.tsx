@@ -667,7 +667,9 @@ function PatientProgramStagesTimeline(props: {
             <>
               {(() => {
                   const visibleItems = sortByOrderThenId(
-                    stageForModal.items.filter((it) => isInstanceStageItemShownInPatientCompositionModal(it)),
+                    stageForModal.items.filter((it) =>
+                      isInstanceStageItemShownInPatientCompositionModal(it, stageForModal.groups),
+                    ),
                   );
                   if (visibleItems.length === 0) {
                     return <p className="text-sm font-normal text-muted-foreground">Нет элементов для отображения.</p>;

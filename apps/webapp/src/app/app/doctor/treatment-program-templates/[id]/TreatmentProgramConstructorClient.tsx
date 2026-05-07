@@ -606,6 +606,24 @@ export function TreatmentProgramConstructorClient({
     return st ? sortByOrderThenId(st.groups) : [];
   }, [detail.stages, itemDialogStageId]);
 
+  const allowUngroupedItemAdd = itemType === "recommendation" || itemType === "test_set";
+
+  useEffect(() => {
+    if (!itemDialogOpen || !itemDialogStageId) return;
+    if (!allowUngroupedItemAdd && itemPickerGroupsOrdered.length > 0) {
+      const cur = itemAddGroupId && itemAddGroupId !== "__none__" ? itemAddGroupId : "";
+      if (!cur || !itemPickerGroupsOrdered.some((g) => g.id === cur)) {
+        setItemAddGroupId(itemPickerGroupsOrdered[0]!.id);
+      }
+    }
+  }, [
+    itemDialogOpen,
+    itemDialogStageId,
+    allowUngroupedItemAdd,
+    itemPickerGroupsOrdered,
+    itemAddGroupId,
+  ]);
+
   const lfkExpandGroupsOrdered = useMemo(() => {
     if (!lfkExpand) return [];
     const st = detail.stages.find((s) => s.id === lfkExpand.stageId);
@@ -976,13 +994,18 @@ export function TreatmentProgramConstructorClient({
     setBusy(true);
     setError(null);
     try {
+      const gid = itemAddGroupId && itemAddGroupId !== "__none__" ? itemAddGroupId : null;
+      if (!gid && itemType !== "recommendation" && itemType !== "test_set") {
+        setError("Для этого типа выберите группу");
+        return;
+      }
       const res = await fetch(`/api/doctor/treatment-program-templates/stages/${itemDialogStageId}/items`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           itemType,
           itemRefId: refId,
-          groupId: itemAddGroupId && itemAddGroupId !== "__none__" ? itemAddGroupId : null,
+          groupId: gid,
         }),
       });
       const json = (await res.json()) as { ok?: boolean; error?: string };
@@ -1542,6 +1565,14 @@ export function TreatmentProgramConstructorClient({
                     onValueChange={(v) => {
                       void (async () => {
                         const next = v === "__none__" ? null : v;
+                        if (
+                          next === null &&
+                          itemSettingsContext.item.itemType !== "recommendation" &&
+                          itemSettingsContext.item.itemType !== "test_set"
+                        ) {
+                          setError("Без группы допустимы только рекомендации и наборы тестов");
+                          return;
+                        }
                         setBusy(true);
                         setError(null);
                         try {
@@ -1559,7 +1590,10 @@ export function TreatmentProgramConstructorClient({
                       <SelectValue placeholder="Группа" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="__none__">Без группы</SelectItem>
+                      {itemSettingsContext.item.itemType === "recommendation" ||
+                      itemSettingsContext.item.itemType === "test_set" ? (
+                        <SelectItem value="__none__">Без группы</SelectItem>
+                      ) : null}
                       {sortByOrderThenId(itemSettingsContext.stage.groups).map((g) => (
                         <SelectItem key={g.id} value={g.id}>
                           {g.title}
@@ -1715,7 +1749,7 @@ export function TreatmentProgramConstructorClient({
                   <SelectValue placeholder="Без группы" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__none__">Без группы</SelectItem>
+                  {allowUngroupedItemAdd ? <SelectItem value="__none__">Без группы</SelectItem> : null}
                   {(itemPickerGroupsOrdered).map((g) => (
                     <SelectItem key={g.id} value={g.id}>
                       {g.title}

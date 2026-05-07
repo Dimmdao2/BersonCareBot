@@ -85,7 +85,13 @@ describe("treatment-program events (§8)", () => {
   it("comment_changed при смене localComment", async () => {
     const tpl = await tplSvc.createTemplate({ title: "П", status: "published" }, null);
     const s1 = await tplSvc.createStage(tpl.id, { title: "Э1" });
-    await tplSvc.addStageItem(s1.id, { itemType: "lesson", itemRefId: refA, comment: "Шаблон" });
+    const g1 = await tplSvc.createTemplateStageGroup(s1.id, { title: "G" });
+    await tplSvc.addStageItem(s1.id, {
+      itemType: "lesson",
+      itemRefId: refA,
+      comment: "Шаблон",
+      groupId: g1.id,
+    });
     const inst = await instSvc.assignTemplateToPatient({
       templateId: tpl.id,
       patientUserId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
@@ -352,7 +358,12 @@ describe("treatment-program events (§8)", () => {
     });
     const tpl = await tplSvc.createTemplate({ title: "П", status: "published" }, null);
     const s1 = await tplSvc.createStage(tpl.id, { title: "Э1" });
-    await tplSvc.addStageItem(s1.id, { itemType: "lfk_complex", itemRefId: refA });
+    const g1 = await tplSvc.createTemplateStageGroup(s1.id, { title: "ЛФК" });
+    await tplSvc.addStageItem(s1.id, {
+      itemType: "lfk_complex",
+      itemRefId: refA,
+      groupId: g1.id,
+    });
     const inst = await localInstSvc.assignTemplateToPatient({
       templateId: tpl.id,
       patientUserId: "60606060-6060-4060-8060-606060606060",

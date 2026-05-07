@@ -42,11 +42,26 @@ describe("treatment-program service", () => {
     const svc = createTreatmentProgramService(port, itemRefs);
     const tpl = await svc.createTemplate({ title: "P" }, null);
     const stage = await svc.createStage(tpl.id, { title: "S1" });
+    const grp = await svc.createTemplateStageGroup(stage.id, { title: "G" });
     await svc.addStageItem(stage.id, {
       itemType: "exercise",
       itemRefId: validRef,
+      groupId: grp.id,
     });
     expect(itemRefs.assertItemRefExists).toHaveBeenCalledWith("exercise", validRef);
+  });
+
+  it("addStageItem rejects exercise without group", async () => {
+    const svc = createTreatmentProgramService(port, itemRefs);
+    const tpl = await svc.createTemplate({ title: "P" }, null);
+    const stage = await svc.createStage(tpl.id, { title: "S1" });
+    await expect(
+      svc.addStageItem(stage.id, {
+        itemType: "exercise",
+        itemRefId: validRef,
+      }),
+    ).rejects.toThrow(/рекомендацию|набор тестов/i);
+    expect(itemRefs.assertItemRefExists).not.toHaveBeenCalled();
   });
 
   it("addStageItem rejects invalid UUID for ref", async () => {
@@ -66,9 +81,11 @@ describe("treatment-program service", () => {
     const svc = createTreatmentProgramService(port, itemRefs);
     const tpl = await svc.createTemplate({ title: "P" }, null);
     const stage = await svc.createStage(tpl.id, { title: "S1" });
+    const grp = await svc.createTemplateStageGroup(stage.id, { title: "G" });
     const item = await svc.addStageItem(stage.id, {
       itemType: "lesson",
       itemRefId: validRef,
+      groupId: grp.id,
     });
     const nextRef = "22222222-2222-4222-8222-222222222222";
     await svc.updateStageItem(item.id, { itemRefId: nextRef });

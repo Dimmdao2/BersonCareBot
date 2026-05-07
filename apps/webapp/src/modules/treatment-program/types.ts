@@ -46,6 +46,15 @@ export type TreatmentProgramTemplateStageGroup = {
   sortOrder: number;
 };
 
+/** Системные группы экземпляра этапа (назначение с шаблона). */
+export type TreatmentProgramInstanceStageSystemKind = "recommendations" | "tests";
+
+export const TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_SORT_RECOMMENDATIONS = 101;
+export const TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_SORT_TESTS = 102;
+
+export const TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_TITLE_RECOMMENDATIONS = "Рекомендации";
+export const TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_TITLE_TESTS = "Тесты";
+
 export type TreatmentProgramInstanceStageGroup = {
   id: string;
   stageId: string;
@@ -55,6 +64,8 @@ export type TreatmentProgramInstanceStageGroup = {
   description: string | null;
   scheduleText: string | null;
   sortOrder: number;
+  /** `NULL` — пользовательская группа; иначе системный блок врача. */
+  systemKind: TreatmentProgramInstanceStageSystemKind | null;
 };
 
 export type TreatmentProgramStage = {
@@ -425,13 +436,15 @@ export type TreatmentProgramInstanceStageInput = {
     /** A3: id группы **шаблона**; при копировании маппится в группу экземпляра. */
     templateGroupId?: string | null;
   }>;
-  /** A3: группы шаблона для копирования (порядок по `sortOrder`). */
+  /** A3: группы шаблона для копирования; при назначении первыми вставляются системные (`systemKind`). Для прямого вызова `createInstanceTree` без системных строк: при ungrouped `recommendation`/`test_set` недостающие системные группы подставляются автоматически (`instance-tree-system-groups.ts`). */
   groups?: Array<{
-    sourceGroupId: string;
+    /** Для групп с шаблона — id группы шаблона; для системных групп — `null`. */
+    sourceGroupId: string | null;
     title: string;
     description: string | null;
     scheduleText: string | null;
     sortOrder: number;
+    systemKind?: TreatmentProgramInstanceStageSystemKind | null;
   }>;
 };
 

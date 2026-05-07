@@ -1,7 +1,7 @@
 # PROGRAM_PATIENT_SHAPE_PLAN — план лечения пациента и каталоги назначений
 
 **Статус:** живой план (документация). Доменные этапы A1…A5 реализованы в webapp; журнал execution и этапные аудиты — [`PROGRAM_PATIENT_SHAPE_INITIATIVE/README.md`](../archive/2026-05-initiatives/PROGRAM_PATIENT_SHAPE_INITIATIVE/README.md). Этот файл остаётся источником продуктовых решений и backlog.
-**Дата:** 2026-05-03 (обновление статуса: 2026-05-03).
+**Дата:** 2026-05-03 (обновление: 2026-05-07 — системные группы экземпляра §1.1a, миграции 0044/0045).
 **Назначение:** зафиксированные продуктовые решения по «Плану лечения» пациента и сопутствующим каталогам назначений врача (тесты, рекомендации, группы внутри этапа, цели/задачи/срок этапа, лог действий, бейджи обновления). Изначально использовался как ТЗ для рабочих инициатив A1…A5 (см. §6); исполнение см. [`../archive/2026-05-initiatives/PROGRAM_PATIENT_SHAPE_INITIATIVE/README.md`](../archive/2026-05-initiatives/PROGRAM_PATIENT_SHAPE_INITIATIVE/README.md).
 
 **Связанные документы:**
@@ -37,8 +37,14 @@ treatment_program_instance
 ```
 
 Этап содержит **две оси организации**:
-- **Группы** (NEW) — смысловой контейнер («Разминка», «Силовые для кора», «Шея»). У группы есть `title`, `description`, `schedule_text` (фристайл — «3 раза в неделю»), `sort_order`. Группа не управляет статусом, не имеет FSM. Items могут быть «вне группы» (`group_id = NULL`).
+- **Группы** (NEW) — смысловой контейнер («Разминка», «Силовые для кора», «Шея»). У группы есть `title`, `description`, `schedule_text` (фристайл — «3 раза в неделю»), `sort_order`. Группа не управляет статусом, не имеет FSM. На **шаблоне** элементы иных типов, чем `recommendation` / `test_set`, должны иметь `group_id` на группу шаблона; без группы допустимы только рекомендация и набор тестов. На **экземпляре** при назначении для каждого этапа создаются две **системные** группы (`system_kind`: `recommendations`, `tests`; `sort_order` 101/102; без `source_group_id`); ungrouped в шаблоне рекомендации/тесты попадают туда (см. §1.1a).
 - **Items** — упражнение / комплекс / тест / набор / рекомендация / урок. У instance_stage_item — `status` (`active` | `disabled`), `is_actionable` (для рекомендаций), `last_viewed_at`, `local_comment`, `snapshot`.
+
+### 1.1a Системные группы на экземпляре этапа
+
+- **Назначение с шаблона:** `assignTemplateToPatient` передаёт в `createInstanceTree` две системные группы на этап + пользовательские группы с шаблона; элементы с `group_id = null` в шаблоне типов `recommendation` / `test_set` получают `group_id` соответствующей системной группы.
+- **Прямой ввод дерева** (тесты, скрипты): если в `groups` нет строк с `systemKind`, но есть ungrouped `recommendation` и/или `test_set`, репозиторий **дописывает** те же системные группы перед вставкой (`withDefaultSystemGroupsIfNeededForTreeStage`).
+- **БД:** колонка `system_kind` на `treatment_program_instance_stage_groups` (миграция `0044_instance_stage_groups_system_kind.sql`, CHECK `NULL | recommendations | tests`); не более одной системной группы каждого вида на этап — частичные уникальные индексы (`0045_instance_stage_groups_system_kind_unique.sql`).
 
 ### 1.2 Особый этап «Общие рекомендации» (Этап 0)
 

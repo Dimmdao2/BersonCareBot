@@ -36,6 +36,10 @@ import { cn } from "@/lib/utils";
 import { formatBookingDateTimeShortStyleRu } from "@/shared/lib/formatBusinessDateTime";
 import { CommentBlock } from "@/components/comments/CommentBlock";
 import { parseTestSetSnapshotTests } from "@/modules/treatment-program/testSetSnapshotView";
+import {
+  isTreatmentProgramInstanceSystemStageGroup,
+  sortDoctorInstanceStageGroupsForDisplay,
+} from "@/modules/treatment-program/stage-semantics";
 
 function snapshotTitle(snapshot: Record<string, unknown>, itemType: string): string {
   const t = snapshot.title;
@@ -514,16 +518,20 @@ function InstanceStageGroupsPanel(props: {
   } | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
-  const sortedGroups = sortByOrderThenId(stage.groups);
+  const sortedGroups = sortDoctorInstanceStageGroupsForDisplay(stage.groups);
+  const userGroupsOrdered = sortedGroups.filter((g) => !g.systemKind);
   const ungrouped = sortByOrderThenId(stage.items.filter((it) => !it.groupId));
   const hasUngrouped = ungrouped.length > 0;
   const hasGroups = sortedGroups.length > 0;
 
+  const editingGroupMeta = groupEdit ? stage.groups.find((g) => g.id === groupEdit.id) : null;
+  const editingIsSystem = editingGroupMeta ? isTreatmentProgramInstanceSystemStageGroup(editingGroupMeta) : false;
+
   const reorder = async (groupId: string, dir: -1 | 1) => {
-    const idx = sortedGroups.findIndex((g) => g.id === groupId);
+    const idx = userGroupsOrdered.findIndex((g) => g.id === groupId);
     const j = idx + dir;
-    if (idx < 0 || j < 0 || j >= sortedGroups.length) return;
-    const newOrder = sortedGroups.map((g) => g.id);
+    if (idx < 0 || j < 0 || j >= userGroupsOrdered.length) return;
+    const newOrder = userGroupsOrdered.map((g) => g.id);
     const a = newOrder[idx]!;
     const b = newOrder[j]!;
     newOrder[idx] = b;
@@ -606,24 +614,32 @@ function InstanceStageGroupsPanel(props: {
 
   const saveGroupEdit = async () => {
     if (!groupEdit) return;
+    const gMeta = stage.groups.find((g) => g.id === groupEdit.id);
+    const isSys = gMeta ? isTreatmentProgramInstanceSystemStageGroup(gMeta) : false;
     const t = groupEdit.title.trim();
-    if (!t) {
+    if (!isSys && !t) {
       setMsg("Название группы не может быть пустым");
       return;
     }
     setBusy(true);
     setMsg(null);
     try {
+      const body: Record<string, unknown> = isSys
+        ? {
+            description: groupEdit.description.trim() || null,
+            scheduleText: groupEdit.scheduleText.trim() || null,
+          }
+        : {
+            title: t,
+            description: groupEdit.description.trim() || null,
+            scheduleText: groupEdit.scheduleText.trim() || null,
+          };
       const res = await fetch(
         `/api/doctor/treatment-program-instances/${encodeURIComponent(instanceId)}/stage-groups/${encodeURIComponent(groupEdit.id)}`,
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            title: t,
-            description: groupEdit.description.trim() || null,
-            scheduleText: groupEdit.scheduleText.trim() || null,
-          }),
+          body: JSON.stringify(body),
         },
       );
       const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
@@ -674,15 +690,22 @@ function InstanceStageGroupsPanel(props: {
               </div>
             </li>
           ) : null}
-          {sortedGroups.map((g, gi) => (
+          {sortedGroups.map((g) => {
+            const isSys = isTreatmentProgramInstanceSystemStageGroup(g);
+            const userIdx = userGroupsOrdered.findIndex((x) => x.id === g.id);
+            return (
             <li key={g.id} className="flex flex-wrap items-center gap-2 rounded-md border border-border/60 bg-card/40 px-2 py-2 text-sm">
               <div className="flex shrink-0 flex-col gap-0.5">
+                {isSys ? (
+                  <div className="flex w-7 shrink-0 flex-col gap-0.5" aria-hidden />
+                ) : (
+                  <>
                 <Button
                   type="button"
                   size="icon"
                   variant="ghost"
                   className="size-7"
-                  disabled={busy || gi === 0}
+                  disabled={busy || userIdx <= 0}
                   aria-label="Группа выше"
                   onClick={() => void reorder(g.id, -1)}
                 >
@@ -693,12 +716,14 @@ function InstanceStageGroupsPanel(props: {
                   size="icon"
                   variant="ghost"
                   className="size-7"
-                  disabled={busy || gi >= sortedGroups.length - 1}
+                  disabled={busy || userIdx < 0 || userIdx >= userGroupsOrdered.length - 1}
                   aria-label="Группа ниже"
                   onClick={() => void reorder(g.id, 1)}
                 >
                   ↓
                 </Button>
+                  </>
+                )}
               </div>
               <div className="min-w-0 flex-1">
                 <span className="font-medium">{g.title}</span>
@@ -726,7 +751,8 @@ function InstanceStageGroupsPanel(props: {
                 Изменить
               </Button>
             </li>
-          ))}
+            );
+          })}
         </ul>
       ) : (
         <p className="mt-1 text-xs text-muted-foreground">Групп нет — элементы можно оставить вне групп.</p>
@@ -773,7 +799,7 @@ function InstanceStageGroupsPanel(props: {
                   value={groupEdit.title}
                   onChange={(e) => setGroupEdit((prev) => (prev ? { ...prev, title: e.target.value } : prev))}
                   maxLength={2000}
-                  disabled={busy}
+                  disabled={busy || editingIsSystem}
                 />
               </div>
               <div className="flex flex-col gap-1.5">
@@ -830,12 +856,14 @@ function InstanceStageGroupsPanel(props: {
               <Button type="button" variant="outline" disabled={busy} onClick={() => setGroupEdit(null)}>
                 Отмена
               </Button>
+              {editingIsSystem ? null : (
               <Button type="button" variant="destructive" disabled={busy} onClick={() => void hideGroupFromModal()}>
                 Скрыть
               </Button>
+              )}
               <Button
                 type="button"
-                disabled={busy || !groupEdit.title.trim()}
+                disabled={busy || (!editingIsSystem && !groupEdit.title.trim())}
                 onClick={() => void saveGroupEdit()}
               >
                 Сохранить

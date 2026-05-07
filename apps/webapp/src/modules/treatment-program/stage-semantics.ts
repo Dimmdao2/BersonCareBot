@@ -2,12 +2,33 @@ import { DateTime } from "luxon";
 import { parseBusinessInstant } from "@/shared/lib/formatBusinessDateTime";
 import type {
   TreatmentProgramInstanceDetail,
+  TreatmentProgramInstanceStageGroup,
   TreatmentProgramInstanceStageItemRow,
   TreatmentProgramInstanceStageRow,
 } from "./types";
 
 /** Этап экземпляра в read-model detail (группы + элементы). */
 export type TreatmentProgramInstanceDetailStageRow = TreatmentProgramInstanceDetail["stages"][number];
+
+/** Системная группа экземпляра («Рекомендации» / «Тесты»). */
+export function isTreatmentProgramInstanceSystemStageGroup(
+  g: Pick<TreatmentProgramInstanceStageGroup, "systemKind">,
+): boolean {
+  return g.systemKind === "recommendations" || g.systemKind === "tests";
+}
+
+/**
+ * Порядок групп на экране врача: рекомендации → пользовательские → тесты.
+ */
+export function sortDoctorInstanceStageGroupsForDisplay<
+  T extends Pick<TreatmentProgramInstanceStageGroup, "id" | "sortOrder" | "systemKind">,
+>(groups: readonly T[]): T[] {
+  const rec = groups.filter((g) => g.systemKind === "recommendations");
+  const tests = groups.filter((g) => g.systemKind === "tests");
+  const user = groups.filter((g) => !g.systemKind);
+  const userSorted = [...user].sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id));
+  return [...rec, ...userSorted, ...tests];
+}
 
 /** Этап 0 «Общие рекомендации»: `sort_order = 0` на этапе экземпляра, вне FSM автозавершения. */
 export function isStageZero(stage: Pick<TreatmentProgramInstanceStageRow, "sortOrder">): boolean {
@@ -45,12 +66,20 @@ export function isInstanceStageItemShownOnPatientProgramSurfaces(
 /**
  * Модалка «Состав этапа» (timeline): активные элементы, **без** `test_set`.
  * Наборы тестов при этом видны на экранах программы (список этапа, карточка элемента, модалка пункта), см. `isInstanceStageItemShownOnPatientProgramSurfaces`.
+ * Элементы в системных группах «Рекомендации» / «Тесты» не входят в компактный состав «упражнений» — у них отдельные блоки UI.
  */
 export function isInstanceStageItemShownInPatientCompositionModal(
-  item: Pick<TreatmentProgramInstanceStageItemRow, "itemType" | "status" | "isActionable">,
+  item: Pick<TreatmentProgramInstanceStageItemRow, "itemType" | "status" | "isActionable"> &
+    Partial<Pick<TreatmentProgramInstanceStageItemRow, "groupId">>,
+  groups?: ReadonlyArray<Pick<TreatmentProgramInstanceStageGroup, "id" | "systemKind">>,
 ): boolean {
   if (!isInstanceStageItemActiveForPatient(item)) return false;
-  return item.itemType !== "test_set";
+  if (item.itemType === "test_set") return false;
+  if (groups && item.groupId) {
+    const g = groups.find((x) => x.id === item.groupId);
+    if (g && isTreatmentProgramInstanceSystemStageGroup(g)) return false;
+  }
+  return true;
 }
 
 /**

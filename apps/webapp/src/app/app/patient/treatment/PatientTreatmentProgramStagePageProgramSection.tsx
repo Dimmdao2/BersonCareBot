@@ -34,8 +34,8 @@ function sortByOrderThenId<T extends { sortOrder: number; id: string }>(rows: T[
  * Состав «Программа этапа» — тот же набор, что модалка «Состав этапа» на прогрессе
  * ({@link isInstanceStageItemShownInPatientCompositionModal}): без `test_set`.
  */
-function isProgramCompositionItem(item: InstanceStageItem): boolean {
-  return isInstanceStageItemShownInPatientCompositionModal(item);
+function isProgramCompositionItem(item: InstanceStageItem, stage: Stage): boolean {
+  return isInstanceStageItemShownInPatientCompositionModal(item, stage.groups);
 }
 
 /** Кнопка `progress/complete` на плитке — только для типов, которые реально поддерживают simple complete. */
@@ -87,7 +87,7 @@ function buildProgramCompositionSegments(
 
 /** Порядок id элементов «программы этапа» (как в {@link PatientTreatmentProgramStagePageProgramSection}). */
 export function flatOrderedProgramCompositionItemIds(stage: Stage): string[] {
-  const visibleProgramItems = sortByOrderThenId(stage.items.filter(isProgramCompositionItem));
+  const visibleProgramItems = sortByOrderThenId(stage.items.filter((it) => isProgramCompositionItem(it, stage)));
   const segments = buildProgramCompositionSegments(stage, visibleProgramItems);
   const ids: string[] = [];
   for (const seg of segments) {
@@ -166,8 +166,8 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
 
   const readOnly = itemInteraction === "readOnly";
   const visibleProgramItems = useMemo(
-    () => sortByOrderThenId(stage.items.filter(isProgramCompositionItem)),
-    [stage.items],
+    () => sortByOrderThenId(stage.items.filter((it) => isProgramCompositionItem(it, stage))),
+    [stage.items, stage.groups],
   );
 
   const orderedSegments = useMemo(

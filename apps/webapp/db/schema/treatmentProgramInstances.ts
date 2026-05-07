@@ -10,6 +10,7 @@ import {
   index,
   foreignKey,
   check,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { platformUsers } from "./schema";
 import {
@@ -124,6 +125,8 @@ export const treatmentProgramInstanceStageGroups = pgTable(
     description: text(),
     scheduleText: text("schedule_text"),
     sortOrder: integer("sort_order").default(0).notNull(),
+    /** Системные блоки «Рекомендации» / «Тесты» на экземпляре; `NULL` — обычная пользовательская группа. */
+    systemKind: text("system_kind"),
   },
   (table) => [
     index("idx_treatment_program_inst_stage_groups_stage_order").using(
@@ -141,6 +144,16 @@ export const treatmentProgramInstanceStageGroups = pgTable(
       foreignColumns: [treatmentProgramTemplateStageGroups.id],
       name: "treatment_program_instance_stage_groups_source_group_id_fkey",
     }).onDelete("set null"),
+    check(
+      "treatment_program_instance_stage_groups_system_kind_check",
+      sql`system_kind IS NULL OR system_kind = ANY (ARRAY['recommendations'::text, 'tests'::text])`,
+    ),
+    uniqueIndex("treatment_program_instance_stage_groups_one_rec_per_stage")
+      .on(table.stageId)
+      .where(sql`system_kind = 'recommendations'`),
+    uniqueIndex("treatment_program_instance_stage_groups_one_tests_per_stage")
+      .on(table.stageId)
+      .where(sql`system_kind = 'tests'`),
   ],
 );
 
@@ -165,7 +178,7 @@ export const treatmentProgramInstanceStageItems = pgTable(
     isActionable: boolean("is_actionable"),
     /** `disabled` — скрыто у пациента; строка не удаляется (A2). */
     status: text().default("active").notNull(),
-    /** A3: ссылка на группу внутри этапа экземпляра; NULL — вне группы. */
+    /** A3: FK на группу этапа экземпляра; NULL — вне группы (в т.ч. данные до появления системных групп). */
     groupId: uuid("group_id"),
     /** A5: время появления строки элемента (миграция — из экземпляра; новые — default now). */
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),

@@ -127,7 +127,7 @@ export function PatientTreatmentTabRecommendations(props: {
       {generalItems.length > 0 ? (
         <section aria-labelledby="patient-tp-rec-general-heading">
           <h3 id="patient-tp-rec-general-heading" className={patientSectionTitleClass}>
-            Общие
+            Общие рекомендации
           </h3>
           <ul className="m-0 mt-2 flex list-none flex-col gap-2 p-0">{generalItems.map((item) => renderRow(item))}</ul>
         </section>

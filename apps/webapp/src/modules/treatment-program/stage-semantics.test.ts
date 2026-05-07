@@ -6,6 +6,7 @@ import {
   omitDisabledInstanceStageItemsForPatientApi,
   patientStageItemShowsNewBadge,
   patientStageSectionShouldRender,
+  sortDoctorInstanceStageGroupsForDisplay,
   splitPatientProgramStagesForDetailUi,
   selectCurrentWorkingStageForPatientDetail,
   expectedStageControlDateIso,
@@ -117,6 +118,7 @@ describe("stage-semantics (A2 patient read model)", () => {
         description: null,
         scheduleText: null,
         sortOrder: 0,
+        systemKind: null,
       },
     ];
     st.items[0]!.groupId = "g1";
@@ -234,6 +236,30 @@ describe("patientStageSectionShouldRender", () => {
         isActionable: true,
       }),
     ).toBe(false);
+  });
+
+  it("excludes items in system groups from composition modal list", () => {
+    const groupId = "gggggggg-1111-4111-8111-111111111111";
+    expect(
+      isInstanceStageItemShownInPatientCompositionModal(
+        {
+          itemType: "recommendation",
+          status: "active",
+          isActionable: true,
+          groupId,
+        },
+        [{ id: groupId, systemKind: "recommendations" }],
+      ),
+    ).toBe(false);
+  });
+
+  it("sortDoctorInstanceStageGroupsForDisplay orders rec, user, tests", () => {
+    const a = { id: "a", sortOrder: 5, systemKind: null as null, title: "U1" };
+    const b = { id: "b", sortOrder: 101, systemKind: "recommendations" as const, title: "R" };
+    const c = { id: "c", sortOrder: 0, systemKind: null as null, title: "U0" };
+    const d = { id: "d", sortOrder: 102, systemKind: "tests" as const, title: "T" };
+    const out = sortDoctorInstanceStageGroupsForDisplay([a, b, c, d]);
+    expect(out.map((x) => x.id)).toEqual(["b", "c", "a", "d"]);
   });
 
   it("includes lfk_complex in composition modal when active", () => {

@@ -47,7 +47,18 @@ function makeDetail(over: Partial<TreatmentProgramInstanceDetail> = {}): Treatme
         objectives: null,
         expectedDurationDays: null,
         expectedDurationText: null,
-        groups: [],
+        groups: [
+          {
+            id: "gggggggg-1111-4111-8111-111111111111",
+            stageId: "22222222-2222-4222-8222-222222222222",
+            sourceGroupId: null,
+            title: "G",
+            description: null,
+            scheduleText: null,
+            sortOrder: 0,
+            systemKind: null,
+          },
+        ],
         items: [
           {
             id: "33333333-3333-4333-8333-333333333333",
@@ -98,7 +109,7 @@ function makeDetail(over: Partial<TreatmentProgramInstanceDetail> = {}): Treatme
             completedAt: null,
             isActionable: null,
             status: "disabled",
-            groupId: null,
+            groupId: "gggggggg-1111-4111-8111-111111111111",
             createdAt: now,
             lastViewedAt: now,
             effectiveComment: null,
@@ -145,7 +156,8 @@ describe("patient-program-actions", () => {
 
     const tpl = await tplSvc.createTemplate({ title: "План", status: "published" }, null);
     const s1 = await tplSvc.createStage(tpl.id, { title: "Этап 1", sortOrder: 1 });
-    await tplSvc.addStageItem(s1.id, { itemType: "lesson", itemRefId: refA, comment: null });
+    const g1 = await tplSvc.createTemplateStageGroup(s1.id, { title: "G" });
+    await tplSvc.addStageItem(s1.id, { itemType: "lesson", itemRefId: refA, comment: null, groupId: g1.id });
     const inst = await instSvc.assignTemplateToPatient({
       templateId: tpl.id,
       patientUserId: patient,
@@ -223,10 +235,12 @@ describe("patient-program-actions", () => {
 
     const tpl = await tplSvc.createTemplate({ title: "План", status: "published" }, null);
     const s1 = await tplSvc.createStage(tpl.id, { title: "Этап 1", sortOrder: 1 });
+    const g1 = await tplSvc.createTemplateStageGroup(s1.id, { title: "G" });
     await tplSvc.addStageItem(s1.id, {
       itemType: "lfk_complex",
       itemRefId: refB,
       comment: null,
+      groupId: g1.id,
     });
     const inst = await instSvc.assignTemplateToPatient({
       templateId: tpl.id,
@@ -324,7 +338,8 @@ describe("patient-program-actions", () => {
 
     const tpl = await tplSvc.createTemplate({ title: "План", status: "published" }, null);
     const s1 = await tplSvc.createStage(tpl.id, { title: "Этап 1", sortOrder: 1 });
-    await tplSvc.addStageItem(s1.id, { itemType: "lesson", itemRefId: refA, comment: null });
+    const g1 = await tplSvc.createTemplateStageGroup(s1.id, { title: "G" });
+    await tplSvc.addStageItem(s1.id, { itemType: "lesson", itemRefId: refA, comment: null, groupId: g1.id });
     const inst = await instSvc.assignTemplateToPatient({
       templateId: tpl.id,
       patientUserId: patient,
@@ -369,7 +384,8 @@ describe("patient-program-actions", () => {
 
     const tpl = await tplSvc.createTemplate({ title: "План", status: "published" }, null);
     const s1 = await tplSvc.createStage(tpl.id, { title: "Этап 1", sortOrder: 1 });
-    await tplSvc.addStageItem(s1.id, { itemType: "lesson", itemRefId: refA, comment: null });
+    const g1 = await tplSvc.createTemplateStageGroup(s1.id, { title: "G" });
+    await tplSvc.addStageItem(s1.id, { itemType: "lesson", itemRefId: refA, comment: null, groupId: g1.id });
     const inst = await instSvc.assignTemplateToPatient({
       templateId: tpl.id,
       patientUserId: patient,

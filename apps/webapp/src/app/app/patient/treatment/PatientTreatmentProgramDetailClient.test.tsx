@@ -276,6 +276,7 @@ describe("PatientTreatmentProgramDetailClient", () => {
                   description: null,
                   scheduleText: null,
                   sortOrder: 0,
+                  systemKind: null,
                 },
               ],
               items: [
@@ -706,6 +707,7 @@ describe("PatientTreatmentProgramDetailClient", () => {
                   description: null,
                   scheduleText: "  2 раза в день  ",
                   sortOrder: 0,
+                  systemKind: null,
                 },
               ],
               items: [

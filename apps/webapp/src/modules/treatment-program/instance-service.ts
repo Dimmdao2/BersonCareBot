@@ -8,7 +8,7 @@ import type {
 import { buildAppendEventInput } from "./event-recording";
 import type { TreatmentProgramService } from "./service";
 import { assertUuid } from "./service";
-import type { TreatmentProgramInstanceStageStatus } from "./types";
+import type { TreatmentProgramInstanceStageGroup, TreatmentProgramInstanceStageStatus } from "./types";
 import {
   effectiveInstanceStageItemComment,
   type CreateTreatmentProgramInstanceStageGroupInput,
@@ -17,8 +17,25 @@ import {
   type TreatmentProgramItemType,
   type UpdateTreatmentProgramInstanceStageGroupInput,
   type UpdateTreatmentProgramInstanceStageMetadataInput,
+  TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_SORT_RECOMMENDATIONS,
+  TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_SORT_TESTS,
+  TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_TITLE_RECOMMENDATIONS,
+  TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_TITLE_TESTS,
 } from "./types";
 import { isStageZero } from "./stage-semantics";
+
+function assertInstanceStageItemFitsSystemGroup(
+  group: Pick<TreatmentProgramInstanceStageGroup, "systemKind"> | undefined,
+  itemType: TreatmentProgramItemType,
+): void {
+  if (!group) return;
+  if (group.systemKind === "recommendations" && itemType !== "recommendation") {
+    throw new Error("В группу «Рекомендации» можно помещать только рекомендации");
+  }
+  if (group.systemKind === "tests" && itemType !== "test_set") {
+    throw new Error("В группу «Тесты» можно помещать только наборы тестов");
+  }
+}
 
 /** Второй экземпляр со `status: active` для того же пациента запрещён (POST назначения). */
 export const SECOND_ACTIVE_TREATMENT_PROGRAM_MESSAGE =
@@ -98,13 +115,31 @@ export function createTreatmentProgramInstanceService(deps: {
         const groupRows = [...(st.groups ?? [])].sort(
           (a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id),
         );
-        const groupInputs = groupRows.map((g) => ({
-          sourceGroupId: g.id,
-          title: g.title,
-          description: g.description,
-          scheduleText: g.scheduleText,
-          sortOrder: g.sortOrder,
-        }));
+        const groupInputs = [
+          {
+            sourceGroupId: null,
+            title: TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_TITLE_RECOMMENDATIONS,
+            description: null,
+            scheduleText: null,
+            sortOrder: TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_SORT_RECOMMENDATIONS,
+            systemKind: "recommendations" as const,
+          },
+          {
+            sourceGroupId: null,
+            title: TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_TITLE_TESTS,
+            description: null,
+            scheduleText: null,
+            sortOrder: TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_SORT_TESTS,
+            systemKind: "tests" as const,
+          },
+          ...groupRows.map((g) => ({
+            sourceGroupId: g.id,
+            title: g.title,
+            description: g.description,
+            scheduleText: g.scheduleText,
+            sortOrder: g.sortOrder,
+          })),
+        ];
         const itemInputs = [];
         for (const it of itemRows) {
           await itemRefs.assertItemRefExists(it.itemType, it.itemRefId);
@@ -380,6 +415,20 @@ export function createTreatmentProgramInstanceService(deps: {
       if (!detail) throw new Error("Программа не найдена");
       const stage = detail.stages.find((s) => s.id === input.stageId);
       if (!stage) throw new Error("Этап не найден");
+      let resolvedGroupId = input.groupId ?? null;
+      if (!resolvedGroupId) {
+        if (input.itemType === "recommendation" || input.itemType === "test_set") {
+          const want = input.itemType === "recommendation" ? "recommendations" : "tests";
+          const sg = stage.groups.find((g) => g.systemKind === want);
+          if (!sg) throw new Error("Системная группа этапа не найдена");
+          resolvedGroupId = sg.id;
+        } else {
+          throw new Error("Выберите группу для этого типа элемента");
+        }
+      } else {
+        const g = stage.groups.find((gr) => gr.id === resolvedGroupId);
+        assertInstanceStageItemFitsSystemGroup(g, input.itemType);
+      }
       const maxOrder = stage.items.reduce((m, i) => Math.max(m, i.sortOrder), -1);
       const sortOrder = input.sortOrder ?? maxOrder + 1;
       const row = await instances.addInstanceStageItem(input.instanceId, input.stageId, {
@@ -391,7 +440,7 @@ export function createTreatmentProgramInstanceService(deps: {
         snapshot,
         isActionable: input.itemType === "recommendation" ? true : null,
         status: "active",
-        groupId: input.groupId ?? null,
+        groupId: resolvedGroupId,
       });
       if (!row) throw new Error("Не удалось добавить элемент");
       await appendEvent({
@@ -653,8 +702,18 @@ export function createTreatmentProgramInstanceService(deps: {
       assertUuid(input.instanceId);
       assertUuid(input.groupId);
       if (input.actorId) assertUuid(input.actorId);
+      const detailGuard = await instances.getInstanceById(input.instanceId);
+      const grpGuard = detailGuard?.stages.flatMap((s) => s.groups).find((gr) => gr.id === input.groupId);
+      const isSystemGroup =
+        grpGuard?.systemKind === "recommendations" || grpGuard?.systemKind === "tests";
+      if (isSystemGroup && input.patch.title !== undefined) {
+        throw new Error("Нельзя менять название системной группы");
+      }
+      if (isSystemGroup && input.patch.sortOrder !== undefined) {
+        throw new Error("Нельзя менять порядок системной группы");
+      }
       const norm: UpdateTreatmentProgramInstanceStageGroupInput = {};
-      if (input.patch.title !== undefined) {
+      if (input.patch.title !== undefined && !isSystemGroup) {
         const t = input.patch.title.trim();
         if (!t) throw new Error("Название группы не может быть пустым");
         norm.title = t;
@@ -666,7 +725,7 @@ export function createTreatmentProgramInstanceService(deps: {
         norm.scheduleText =
           input.patch.scheduleText === null ? null : input.patch.scheduleText.trim() || null;
       }
-      if (input.patch.sortOrder !== undefined) norm.sortOrder = input.patch.sortOrder;
+      if (input.patch.sortOrder !== undefined && !isSystemGroup) norm.sortOrder = input.patch.sortOrder;
       if (Object.keys(norm).length === 0) {
         const d = await instances.getInstanceById(input.instanceId);
         const g = d?.stages.flatMap((s) => s.groups).find((gr) => gr.id === input.groupId);
@@ -697,6 +756,9 @@ export function createTreatmentProgramInstanceService(deps: {
       const detail = await instances.getInstanceById(input.instanceId);
       const gr = detail?.stages.flatMap((s) => s.groups).find((g) => g.id === input.groupId);
       if (!gr) throw new Error("Группа не найдена");
+      if (gr.systemKind === "recommendations" || gr.systemKind === "tests") {
+        throw new Error("Системную группу нельзя удалить");
+      }
       const ok = await instances.deleteInstanceStageGroup(input.instanceId, input.groupId);
       if (!ok) throw new Error("Группа не найдена");
       await appendEvent({
@@ -730,6 +792,9 @@ export function createTreatmentProgramInstanceService(deps: {
       const detail = await instances.getInstanceById(input.instanceId);
       const gr = detail?.stages.flatMap((s) => s.groups).find((g) => g.id === input.groupId);
       if (!gr) throw new Error("Группа не найдена");
+      if (gr.systemKind === "recommendations" || gr.systemKind === "tests") {
+        throw new Error("Системную группу нельзя скрыть");
+      }
       const itemsInGroup = detail!.stages.flatMap((s) => s.items).filter((it) => it.groupId === input.groupId);
       for (const it of itemsInGroup) {
         if (it.status === "active") {
@@ -791,12 +856,22 @@ export function createTreatmentProgramInstanceService(deps: {
       if (!item) throw new Error("Элемент не найден");
       const stage = detail!.stages.find((s) => s.id === item.stageId);
       if (!stage) throw new Error("Этап не найден");
-      if (input.groupId) {
-        const g = stage.groups.find((gr) => gr.id === input.groupId);
-        if (!g) throw new Error("Группа не найдена");
+      let nextGroupId: string | null = input.groupId ?? null;
+      if (!nextGroupId) {
+        if (item.itemType === "recommendation" || item.itemType === "test_set") {
+          const want = item.itemType === "recommendation" ? "recommendations" : "tests";
+          const sg = stage.groups.find((g) => g.systemKind === want);
+          if (!sg) throw new Error("Системная группа этапа не найдена");
+          nextGroupId = sg.id;
+        } else {
+          throw new Error("Выберите группу для этого типа элемента");
+        }
+      } else {
+        const g = stage.groups.find((gr) => gr.id === nextGroupId);
+        assertInstanceStageItemFitsSystemGroup(g, item.itemType);
       }
       const row = await instances.patchInstanceStageItem(input.instanceId, input.itemId, {
-        groupId: input.groupId,
+        groupId: nextGroupId,
       });
       if (!row) throw new Error("Элемент не найден");
       await appendEvent({
@@ -808,7 +883,7 @@ export function createTreatmentProgramInstanceService(deps: {
         payload: {
           scope: "stage_item_group_changed",
           stageId: item.stageId,
-          groupId: input.groupId,
+          groupId: nextGroupId,
         },
       });
       return row;

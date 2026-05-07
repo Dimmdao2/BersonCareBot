@@ -28,6 +28,7 @@ import type {
   TreatmentProgramItemType,
 } from "@/modules/treatment-program/types";
 import { effectiveInstanceStageItemComment } from "@/modules/treatment-program/types";
+import { withDefaultSystemGroupsIfNeededForTreeStage } from "@/modules/treatment-program/instance-tree-system-groups";
 
 function sameIdSet(ordered: string[], expected: Set<string>): boolean {
   if (ordered.length !== expected.size) return false;
@@ -93,6 +94,7 @@ function mapItem(row: typeof itemTable.$inferSelect): TreatmentProgramInstanceSt
 }
 
 function mapInstanceGroup(row: typeof instGroupTable.$inferSelect): TreatmentProgramInstanceStageGroup {
+  const sk = row.systemKind;
   return {
     id: row.id,
     stageId: row.stageId,
@@ -101,6 +103,8 @@ function mapInstanceGroup(row: typeof instGroupTable.$inferSelect): TreatmentPro
     description: row.description ?? null,
     scheduleText: row.scheduleText ?? null,
     sortOrder: row.sortOrder,
+    systemKind:
+      sk === "recommendations" || sk === "tests" ? (sk as TreatmentProgramInstanceStageGroup["systemKind"]) : null,
   };
 }
 
@@ -169,52 +173,88 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
         const treeItemTs = new Date().toISOString();
 
         for (const st of input.stages) {
+          const stResolved = withDefaultSystemGroupsIfNeededForTreeStage(st);
           const [srow] = await tx
             .insert(stageTable)
             .values({
               instanceId: inst.id,
-              sourceStageId: st.sourceStageId,
-              title: st.title,
-              description: st.description,
-              sortOrder: st.sortOrder,
+              sourceStageId: stResolved.sourceStageId,
+              title: stResolved.title,
+              description: stResolved.description,
+              sortOrder: stResolved.sortOrder,
               localComment: null,
               skipReason: null,
-              status: st.status,
-              startedAt: st.status === "in_progress" ? treeItemTs : null,
-              goals: st.goals,
-              objectives: st.objectives,
-              expectedDurationDays: st.expectedDurationDays,
-              expectedDurationText: st.expectedDurationText,
+              status: stResolved.status,
+              startedAt: stResolved.status === "in_progress" ? treeItemTs : null,
+              goals: stResolved.goals,
+              objectives: stResolved.objectives,
+              expectedDurationDays: stResolved.expectedDurationDays,
+              expectedDurationText: stResolved.expectedDurationText,
             })
             .returning();
           if (!srow) throw new Error("insert stage failed");
 
-          const sortedGroups = [...(st.groups ?? [])].sort(
-            (a, b) => a.sortOrder - b.sortOrder || a.sourceGroupId.localeCompare(b.sourceGroupId),
-          );
+          const INTERNAL_REC = "__tp_instance_sys_recommendations__";
+          const INTERNAL_TESTS = "__tp_instance_sys_tests__";
+
+          const rawGroups = [...(stResolved.groups ?? [])];
+          const systemRec = rawGroups.find((g) => g.systemKind === "recommendations");
+          const systemTests = rawGroups.find((g) => g.systemKind === "tests");
+          const templateGroups = rawGroups
+            .filter((g) => !g.systemKind)
+            .sort(
+              (a, b) =>
+                a.sortOrder - b.sortOrder ||
+                String(a.sourceGroupId ?? "").localeCompare(String(b.sourceGroupId ?? "")),
+            );
+          const sortedGroups = [
+            ...(systemRec ? [systemRec] : []),
+            ...(systemTests ? [systemTests] : []),
+            ...templateGroups,
+          ];
+
           const templateGroupIdToInstance = new Map<string, string>();
           for (const g of sortedGroups) {
             const [grow] = await tx
               .insert(instGroupTable)
               .values({
                 stageId: srow.id,
-                sourceGroupId: g.sourceGroupId,
+                sourceGroupId: g.sourceGroupId ?? null,
                 title: g.title,
                 description: g.description,
                 scheduleText: g.scheduleText,
                 sortOrder: g.sortOrder,
+                systemKind: g.systemKind ?? null,
               })
               .returning();
             if (!grow) throw new Error("insert instance stage group failed");
-            templateGroupIdToInstance.set(g.sourceGroupId, grow.id);
+            if (g.sourceGroupId) {
+              templateGroupIdToInstance.set(g.sourceGroupId, grow.id);
+            }
+            if (g.systemKind === "recommendations") {
+              templateGroupIdToInstance.set(INTERNAL_REC, grow.id);
+            }
+            if (g.systemKind === "tests") {
+              templateGroupIdToInstance.set(INTERNAL_TESTS, grow.id);
+            }
           }
 
-          const sortedItems = [...st.items].sort(
+          const sortedItems = [...stResolved.items].sort(
             (a, b) => a.sortOrder - b.sortOrder || a.itemRefId.localeCompare(b.itemRefId),
           );
           for (const it of sortedItems) {
-            const gid =
-              it.templateGroupId == null ? null : templateGroupIdToInstance.get(it.templateGroupId) ?? null;
+            let gid: string | null = null;
+            if (it.templateGroupId != null) {
+              gid = templateGroupIdToInstance.get(it.templateGroupId) ?? null;
+            } else if (it.itemType === "recommendation") {
+              gid = templateGroupIdToInstance.get(INTERNAL_REC) ?? null;
+            } else if (it.itemType === "test_set") {
+              gid = templateGroupIdToInstance.get(INTERNAL_TESTS) ?? null;
+            } else {
+              throw new Error(
+                "Назначение: элемент без группы в шаблоне должен быть только рекомендацией или набором тестов",
+              );
+            }
             await tx.insert(itemTable).values({
               stageId: srow.id,
               itemType: it.itemType,
@@ -806,6 +846,7 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
           description: input.description?.trim() ?? null,
           scheduleText: input.scheduleText?.trim() ?? null,
           sortOrder,
+          systemKind: null,
         })
         .returning();
       if (!row) return null;
@@ -827,14 +868,15 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
       });
       if (!stRow || stRow.instanceId !== instanceId) return null;
       const patch: Partial<typeof instGroupTable.$inferInsert> = {};
-      if (input.title !== undefined) {
+      const isSystem = gr.systemKind === "recommendations" || gr.systemKind === "tests";
+      if (input.title !== undefined && !isSystem) {
         const t = input.title.trim();
         if (!t) return null;
         patch.title = t;
       }
       if (input.description !== undefined) patch.description = input.description?.trim() ?? null;
       if (input.scheduleText !== undefined) patch.scheduleText = input.scheduleText?.trim() ?? null;
-      if (input.sortOrder !== undefined) patch.sortOrder = input.sortOrder;
+      if (input.sortOrder !== undefined && !isSystem) patch.sortOrder = input.sortOrder;
       if (Object.keys(patch).length === 0) return mapInstanceGroup(gr);
       const [row] = await db.update(instGroupTable).set(patch).where(eq(instGroupTable.id, groupId)).returning();
       if (!row) return null;
@@ -851,6 +893,7 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
         where: eq(stageTable.id, gr.stageId),
       });
       if (!stRow || stRow.instanceId !== instanceId) return false;
+      if (gr.systemKind === "recommendations" || gr.systemKind === "tests") return false;
       await db.update(itemTable).set({ groupId: null }).where(eq(itemTable.groupId, groupId));
       const res = await db.delete(instGroupTable).where(eq(instGroupTable.id, groupId)).returning({ id: instGroupTable.id });
       if (res.length > 0) await touchInstanceUpdatedAt(db, instanceId);
@@ -865,11 +908,14 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
         });
         if (!stRow || stRow.instanceId !== instanceId) return false;
         const rows = await tx
-          .select({ id: instGroupTable.id })
+          .select({ id: instGroupTable.id, systemKind: instGroupTable.systemKind })
           .from(instGroupTable)
           .where(eq(instGroupTable.stageId, stageId));
-        const idSet = new Set(rows.map((r) => r.id));
-        if (!sameIdSet(orderedGroupIds, idSet)) return false;
+        const userIds = rows
+          .filter((r) => r.systemKind !== "recommendations" && r.systemKind !== "tests")
+          .map((r) => r.id);
+        const userSet = new Set(userIds);
+        if (!sameIdSet(orderedGroupIds, userSet)) return false;
         for (let i = 0; i < orderedGroupIds.length; i++) {
           await tx
             .update(instGroupTable)

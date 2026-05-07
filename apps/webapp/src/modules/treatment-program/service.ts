@@ -194,6 +194,10 @@ export function createTreatmentProgramService(
       assertItemType(input.itemType);
       assertUuid(input.itemRefId);
       if (input.groupId) assertUuid(input.groupId);
+      const hasGroup = Boolean(input.groupId);
+      if (!hasGroup && input.itemType !== "recommendation" && input.itemType !== "test_set") {
+        throw new Error("Без группы можно добавить только рекомендацию или набор тестов");
+      }
       await itemRefs.assertItemRefExists(input.itemType, input.itemRefId.trim());
       return port.addStageItem(stageId, {
         ...input,
@@ -228,6 +232,14 @@ export function createTreatmentProgramService(
         const nextType = patch.itemType ?? current.itemType;
         const nextRef = patch.itemRefId ?? current.itemRefId;
         await itemRefs.assertItemRefExists(nextType, nextRef);
+      }
+
+      const currentRow = await port.getStageItemById(itemId);
+      if (!currentRow) throw new Error("Элемент этапа не найден");
+      const nextGroupId = patch.groupId !== undefined ? patch.groupId : currentRow.groupId;
+      const nextType = patch.itemType ?? currentRow.itemType;
+      if (!nextGroupId && nextType !== "recommendation" && nextType !== "test_set") {
+        throw new Error("Без группы можно оставить только рекомендацию или набор тестов");
       }
 
       const row = await port.updateStageItem(itemId, patch);

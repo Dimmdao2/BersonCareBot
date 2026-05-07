@@ -11,6 +11,7 @@ const testId = "33333333-3333-4333-8333-333333333333";
 const testIdQual2 = "44444444-4444-4444-8444-444444444444";
 const tplStageId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const tplStage2Id = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+const tplGroupMain = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
 
 describe("treatment-program progress-service", () => {
   let persistence: ReturnType<typeof createInMemoryTreatmentProgramPersistence>;
@@ -231,6 +232,15 @@ describe("treatment-program progress-service", () => {
           objectives: null,
           expectedDurationDays: null,
           expectedDurationText: null,
+          groups: [
+            {
+              sourceGroupId: tplGroupMain,
+              title: "G",
+              description: null,
+              scheduleText: null,
+              sortOrder: 0,
+            },
+          ],
           items: [
             {
               itemType: "lesson",
@@ -239,6 +249,7 @@ describe("treatment-program progress-service", () => {
               comment: null,
               settings: null,
               snapshot: { title: "Урок" },
+              templateGroupId: tplGroupMain,
             },
           ],
         },
