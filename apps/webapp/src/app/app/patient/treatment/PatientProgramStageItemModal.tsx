@@ -19,6 +19,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  patientLfkDifficultySelectItems,
+  patientTestQualDecisionSelectItems,
+} from "@/shared/ui/selectOpaqueValueLabels";
 import { ArrowRight, Check, ClipboardList, XIcon } from "lucide-react";
 import type { RecommendationMediaItem } from "@/modules/recommendations/types";
 import type {
@@ -247,6 +251,7 @@ function ModalLfkInlineForm(props: {
           value={difficulty}
           onValueChange={(v) => setDifficulty(v as "easy" | "medium" | "hard")}
           disabled={pending}
+          items={patientLfkDifficultySelectItems}
         >
           <SelectTrigger className="h-10 w-full max-w-xs">
             <SelectValue />
@@ -427,6 +432,7 @@ function ModalTestSetInline(props: {
                         setQualDecisions((s) => ({ ...s, [t.testId]: v as NormalizedTestDecision }))
                       }
                       disabled={busy !== null}
+                      items={patientTestQualDecisionSelectItems}
                     >
                       <SelectTrigger className="h-9 max-w-[280px] text-sm">
                         <SelectValue placeholder="Выберите итог" />

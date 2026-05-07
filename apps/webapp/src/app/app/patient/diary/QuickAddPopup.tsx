@@ -47,6 +47,15 @@ export function QuickAddPopup({ trackings, complexes }: Props) {
     return complexes[0]!.id;
   }, [complexes, pickedLfkComplexId]);
 
+  const quickAddSymptomTrackingSelectItems = useMemo(
+    () => Object.fromEntries(trackings.map((t) => [t.id, t.title])),
+    [trackings],
+  );
+  const quickAddLfkComplexSelectItems = useMemo(
+    () => Object.fromEntries(complexes.map((c) => [c.id, c.title])),
+    [complexes],
+  );
+
   if (trackings.length === 0 && complexes.length === 0) {
     return null;
   }
@@ -113,7 +122,11 @@ export function QuickAddPopup({ trackings, complexes }: Props) {
                   ) : (
                     <>
                       <input type="hidden" name="trackingId" value={symTrackingId} />
-                      <Select value={symTrackingId} onValueChange={(v) => v != null && setPickedSymTrackingId(v)}>
+                      <Select
+                        value={symTrackingId}
+                        onValueChange={(v) => v != null && setPickedSymTrackingId(v)}
+                        items={quickAddSymptomTrackingSelectItems}
+                      >
                         <SelectTrigger className="h-10 w-full rounded-xl border border-input bg-background px-3 text-base shadow-none focus-visible:ring-2 focus-visible:ring-ring">
                           <SelectValue />
                         </SelectTrigger>
@@ -163,7 +176,11 @@ export function QuickAddPopup({ trackings, complexes }: Props) {
                   ) : (
                     <>
                       <input type="hidden" name="complexId" value={lfkComplexId} />
-                      <Select value={lfkComplexId} onValueChange={(v) => v != null && setPickedLfkComplexId(v)}>
+                      <Select
+                        value={lfkComplexId}
+                        onValueChange={(v) => v != null && setPickedLfkComplexId(v)}
+                        items={quickAddLfkComplexSelectItems}
+                      >
                         <SelectTrigger className="h-10 w-full rounded-xl border border-input bg-background px-3 text-base shadow-none focus-visible:ring-2 focus-visible:ring-ring">
                           <SelectValue />
                         </SelectTrigger>

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { BookOpen, ChevronDown, ChevronUp, ClipboardList, ImageIcon, Settings } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -27,6 +27,10 @@ import {
 } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { USAGE_CONFIRMATION_REQUIRED } from "@/modules/treatment-program/errors";
+import {
+  treatmentProgramGroupSelectNoneItemValue,
+  treatmentProgramGroupSelectNoneLabel,
+} from "@/shared/ui/selectOpaqueValueLabels";
 import type {
   TreatmentProgramItemType,
   TreatmentProgramStageItem,
@@ -1141,6 +1145,37 @@ export function TreatmentProgramConstructorClient({
     return findItemAndStage(detail, itemSettingsItemId);
   }, [detail, itemSettingsItemId]);
 
+  const itemSettingsGroupSelectItems = useMemo(() => {
+    if (!itemSettingsContext) return {};
+    const m: Record<string, ReactNode> = {};
+    if (
+      itemSettingsContext.item.itemType === "recommendation" ||
+      itemSettingsContext.item.itemType === "test_set"
+    ) {
+      m[treatmentProgramGroupSelectNoneItemValue] = treatmentProgramGroupSelectNoneLabel;
+    }
+    for (const g of sortByOrderThenId(itemSettingsContext.stage.groups)) {
+      m[g.id] = g.title;
+    }
+    return m;
+  }, [itemSettingsContext]);
+
+  const itemAddGroupSelectItems = useMemo(() => {
+    const m: Record<string, ReactNode> = {};
+    if (allowUngroupedItemAdd) {
+      m[treatmentProgramGroupSelectNoneItemValue] = treatmentProgramGroupSelectNoneLabel;
+    }
+    for (const g of itemPickerGroupsOrdered) {
+      m[g.id] = g.title;
+    }
+    return m;
+  }, [allowUngroupedItemAdd, itemPickerGroupsOrdered]);
+
+  const lfkExpandGroupSelectItems = useMemo(
+    () => Object.fromEntries(lfkExpandGroupsOrdered.map((g) => [g.id, g.title])),
+    [lfkExpandGroupsOrdered],
+  );
+
   return (
     <div className="flex w-full min-w-0 flex-col gap-4">
       {error ? (
@@ -1585,6 +1620,7 @@ export function TreatmentProgramConstructorClient({
                       })();
                     }}
                     disabled={editLocked}
+                    items={itemSettingsGroupSelectItems}
                   >
                     <SelectTrigger className="w-full text-sm">
                       <SelectValue placeholder="Группа" />
@@ -1744,6 +1780,7 @@ export function TreatmentProgramConstructorClient({
               <Select
                 value={itemAddGroupId && itemAddGroupId !== "" ? itemAddGroupId : "__none__"}
                 onValueChange={(v) => setItemAddGroupId(v === "__none__" ? "" : (v ?? ""))}
+                items={itemAddGroupSelectItems}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Без группы" />
@@ -1887,6 +1924,7 @@ export function TreatmentProgramConstructorClient({
                       value={lfkExpandExistingGroupId || undefined}
                       onValueChange={(v) => setLfkExpandExistingGroupId(v ?? "")}
                       disabled={lfkExpandBusy || isArchived}
+                      items={lfkExpandGroupSelectItems}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Выберите группу" />

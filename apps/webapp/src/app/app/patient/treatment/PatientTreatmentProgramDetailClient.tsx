@@ -18,6 +18,10 @@ import { PatientProgramStageItemModal } from "@/app/app/patient/treatment/Patien
 import { PatientModalDialogContent } from "@/shared/ui/patient/PatientModalDialogContent";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
+  patientLfkDifficultySelectItems,
+  patientTestQualDecisionSelectItems,
+} from "@/shared/ui/selectOpaqueValueLabels";
+import {
   CheckCircle2,
   CalendarCheck,
   PlayCircle,
@@ -1373,6 +1377,7 @@ function PatientLfkChecklistRow(props: {
           value={difficulty}
           onValueChange={(v) => setDifficulty(v as "easy" | "medium" | "hard")}
           disabled={pending}
+          items={patientLfkDifficultySelectItems}
         >
           <SelectTrigger className="h-10 w-full max-w-xs">
             <SelectValue />
@@ -2065,6 +2070,7 @@ function TestSetBlock(props: {
                         setQualDecisions((s) => ({ ...s, [t.testId]: v as NormalizedTestDecision }))
                       }
                       disabled={busy !== null}
+                      items={patientTestQualDecisionSelectItems}
                     >
                       <SelectTrigger className="h-9 max-w-[280px] text-sm">
                         <SelectValue placeholder="Выберите итог" />

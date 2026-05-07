@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useState, useTransition, useMemo } from "react";
 import toast from "react-hot-toast";
 import Link from "next/link";
 import { MoreHorizontal } from "lucide-react";
@@ -59,6 +59,11 @@ export function SymptomsJournalClient(props: {
   const [editEntry, setEditEntry] = useState<SymptomEntry | null>(null);
   const [pending, startTransition] = useTransition();
 
+  const symptomJournalTrackingSelectItems = useMemo(
+    () => Object.fromEntries(trackings.map((t) => [t.id, t.symptomTitle])),
+    [trackings],
+  );
+
   const trackingHref = (id: string) => {
     const p = new URLSearchParams();
     p.set("trackingId", id);
@@ -87,6 +92,7 @@ export function SymptomsJournalClient(props: {
             onValueChange={(id) => {
               if (id != null) router.push(trackingHref(id));
             }}
+            items={symptomJournalTrackingSelectItems}
           >
             <SelectTrigger className="h-10 w-full min-w-[200px] rounded-xl border border-input bg-background px-3 text-base shadow-none focus-visible:ring-2 focus-visible:ring-ring">
               <SelectValue />

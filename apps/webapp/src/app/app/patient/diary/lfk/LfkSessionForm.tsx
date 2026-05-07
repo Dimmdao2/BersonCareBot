@@ -74,6 +74,11 @@ export function LfkSessionForm({ complexes }: { complexes: Complex[] }) {
     return complexes[0]!.id;
   }, [complexes, pickedComplexId]);
 
+  const lfkSessionComplexSelectItems = useMemo(
+    () => Object.fromEntries(complexes.map((c) => [c.id, c.title ?? "—"])),
+    [complexes],
+  );
+
   if (complexes.length === 0) return null;
 
   const single = complexes.length === 1;
@@ -93,7 +98,11 @@ export function LfkSessionForm({ complexes }: { complexes: Complex[] }) {
         <div className="flex flex-col gap-1">
           <span className={cn(patientMutedTextClass, "text-xs font-medium uppercase tracking-wide")}>Комплекс</span>
           <input type="hidden" name="complexId" value={selectedComplexId} />
-          <Select value={selectedComplexId} onValueChange={(v) => v != null && setPickedComplexId(v)}>
+          <Select
+            value={selectedComplexId}
+            onValueChange={(v) => v != null && setPickedComplexId(v)}
+            items={lfkSessionComplexSelectItems}
+          >
             <SelectTrigger
               className="h-10 w-full min-w-0 rounded-xl border border-input bg-background px-3 text-base shadow-none focus-visible:ring-2 focus-visible:ring-ring"
               size="default"

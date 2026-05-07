@@ -1,5 +1,17 @@
 "use client"
 
+/**
+ * Выпадающий список на `@base-ui/react/select` (`Select` = `SelectPrimitive.Root`).
+ *
+ * **Подпись выбранного значения в триггере:** пока список не смонтирован, пустой
+ * `<SelectValue />` может показывать сырое `value` (uuid, ключ enum, `__none__`).
+ * Если это неприемлемо, задайте одно из:
+ * - `items` на `<Select>` — `Record<string, React.ReactNode>` или массив `{ value, label }`
+ *   (см. тип `SelectRootProps["items"]` в `@base-ui/react/select`);
+ * - явные дети `<SelectValue>…</SelectValue>`;
+ * - при необходимости `label` на `<SelectItem>` (пробрасывается в Base UI).
+ */
+
 import * as React from "react"
 import { Select as SelectPrimitive } from "@base-ui/react/select"
 

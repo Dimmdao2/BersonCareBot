@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -33,6 +34,11 @@ import {
   summarizeTreatmentProgramEventForDoctorRu,
 } from "@/modules/treatment-program/types";
 import { cn } from "@/lib/utils";
+import {
+  doctorRecommendationActionabilitySelectItems,
+  treatmentProgramGroupSelectNoneItemValue,
+  treatmentProgramGroupSelectNoneLabel,
+} from "@/shared/ui/selectOpaqueValueLabels";
 import { formatBookingDateTimeShortStyleRu } from "@/shared/lib/formatBusinessDateTime";
 import { CommentBlock } from "@/components/comments/CommentBlock";
 import { parseTestSetSnapshotTests } from "@/modules/treatment-program/testSetSnapshotView";
@@ -891,6 +897,17 @@ function InstanceStageItemDoctorRow(props: {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const hasHistory = Boolean(item.completedAt) || testResults.some((r) => r.instanceStageItemId === item.id);
 
+  const groupSelectItems = useMemo(() => {
+    const sorted = sortByOrderThenId(groups);
+    const m: Record<string, ReactNode> = {
+      [treatmentProgramGroupSelectNoneItemValue]: treatmentProgramGroupSelectNoneLabel,
+    };
+    for (const g of sorted) {
+      m[g.id] = g.title;
+    }
+    return m;
+  }, [groups]);
+
   const patchItem = async (body: Record<string, unknown>) => {
     setSaving(true);
     setMsg(null);
@@ -925,6 +942,7 @@ function InstanceStageItemDoctorRow(props: {
             value={item.isActionable === false ? "persistent" : "actionable"}
             onValueChange={(v) => void patchItem({ isActionable: v === "actionable" })}
             disabled={saving}
+            items={doctorRecommendationActionabilitySelectItems}
           >
             <SelectTrigger className="h-8 w-[220px] text-xs" size="sm">
               <SelectValue />
@@ -940,6 +958,7 @@ function InstanceStageItemDoctorRow(props: {
             value={item.groupId ?? "__none__"}
             onValueChange={(v) => void patchItem({ groupId: v === "__none__" ? null : v })}
             disabled={saving}
+            items={groupSelectItems}
           >
             <SelectTrigger className="h-8 w-[min(100%,12rem)] text-xs" size="sm">
               <SelectValue placeholder="Группа" />

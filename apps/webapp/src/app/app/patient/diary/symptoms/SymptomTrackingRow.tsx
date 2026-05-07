@@ -34,6 +34,7 @@ import { shouldConfirmInstantDuplicate, type LastSymptomSaveMeta } from "./sympt
 import { addSymptomEntry, archiveSymptomTracking, renameSymptomTracking } from "./actions";
 import { cn } from "@/lib/utils";
 import { patientListItemClass, patientMutedTextClass } from "@/shared/ui/patientVisual";
+import { symptomTrackingEntryTypeSelectItems } from "@/shared/ui/selectOpaqueValueLabels";
 
 export function SymptomTrackingRow({ id, title }: { id: string; title: string }) {
   const router = useRouter();
@@ -151,6 +152,7 @@ export function SymptomTrackingRow({ id, title }: { id: string; title: string })
               <Select
                 value={entryType}
                 onValueChange={(v) => v != null && setEntryType(v === "daily" ? "daily" : "instant")}
+                items={symptomTrackingEntryTypeSelectItems}
               >
                 <SelectTrigger className="h-10 w-full rounded-xl border border-input bg-background px-3 text-base shadow-none focus-visible:ring-2 focus-visible:ring-ring">
                   <SelectValue />

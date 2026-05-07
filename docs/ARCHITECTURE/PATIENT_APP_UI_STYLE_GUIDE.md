@@ -52,6 +52,8 @@
 - Patient layer отвечает за product-specific визуальный язык пациента.
 - Допустим смешанный подход: `Card`/`Badge`/`Button` + patient classes/tokens.
 
+**`Select` (выпадающий список):** если `value` — нечитаемый ключ (id, enum), а в закрытом поле нужна русская подпись, см. `.cursor/rules/ui-select-trigger-display-label.mdc` и комментарий в `components/ui/select.tsx` (`items` / явный `SelectValue`).
+
 Нельзя менять глобальные doctor/admin-паттерны ради локального patient-эксперимента.
 
 ## 6. Правило Для Редизайн-Этапов
