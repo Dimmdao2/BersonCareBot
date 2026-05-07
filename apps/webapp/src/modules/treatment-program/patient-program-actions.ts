@@ -13,6 +13,9 @@ import {
   isStageZero,
 } from "./stage-semantics";
 import { listLfkSnapshotExerciseLines } from "./programActionActivityKey";
+import { resolvePatientPlanPassageWindowUtc, type PatientPlanPassageStats } from "./patient-plan-passage-stats";
+
+export type { PatientPlanPassageStats } from "./patient-plan-passage-stats";
 
 export function utcDayWindowIso(now = new Date()): { start: string; end: string } {
   const y = now.getUTCFullYear();
@@ -184,6 +187,57 @@ export function createTreatmentProgramPatientActionService(deps: {
         totalCompletionEventsByItemId,
         doneTodayCountByActivityKey,
         lastDoneAtIsoByActivityKey,
+      };
+    },
+
+    async getPatientPlanPassageStats(patientUserId: string, instanceId: string): Promise<PatientPlanPassageStats> {
+      assertUuid(patientUserId);
+      assertUuid(instanceId);
+      const detail = await deps.instances.getInstanceForPatient(patientUserId, instanceId);
+      if (!detail) throw new Error("Программа не найдена");
+
+      const appDefault = await deps.getAppDefaultTimezoneIana();
+      const personal = await getPersonalTz(patientUserId);
+      const iana = resolveCalendarDayIanaForPatient(personal, appDefault);
+      const zoneProbe = DateTime.now().setZone(iana);
+      if (!zoneProbe.isValid) throw new Error("Некорректная временная зона");
+
+      const endAnchorIso = detail.status === "completed" ? detail.updatedAt : nowFn().toISOString();
+      const { windowStartUtcIso, windowEndUtcExclusiveIso, calendarDaysInWindow } =
+        resolvePatientPlanPassageWindowUtc({
+          createdAtIso: detail.createdAt,
+          endAnchorIso,
+          displayIana: iana,
+        });
+
+      const [daysWithActivity, totalByItem] = await Promise.all([
+        deps.actionLog.countDistinctLocalCalendarDaysWithDoneInWindow({
+          instanceId,
+          patientUserId,
+          windowStartUtcIso,
+          windowEndUtcExclusiveIso,
+          displayIana: iana,
+        }),
+        deps.actionLog.countCompletionEventsByItemForInstance({ instanceId, patientUserId }),
+      ]);
+
+      const totalCompletions = Object.values(totalByItem).reduce((sum, n) => sum + n, 0);
+      const avgCompletionsPerDay = Math.round((totalCompletions / calendarDaysInWindow) * 10) / 10;
+
+      const missedDays = Math.max(0, calendarDaysInWindow - daysWithActivity);
+
+      const checklistRows = buildPatientProgramChecklistRows(detail);
+      let neverCompletedChecklistItemCount = 0;
+      for (const row of checklistRows) {
+        if ((totalByItem[row.item.id] ?? 0) === 0) neverCompletedChecklistItemCount++;
+      }
+
+      return {
+        calendarDaysInWindow,
+        daysWithActivity,
+        missedDays,
+        avgCompletionsPerDay,
+        neverCompletedChecklistItemCount,
       };
     },
 

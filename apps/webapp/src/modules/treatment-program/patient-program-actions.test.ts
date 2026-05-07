@@ -17,6 +17,7 @@ import type { TreatmentProgramItemRefValidationPort, TreatmentProgramItemSnapsho
 
 const refA = "11111111-1111-4111-8111-111111111111";
 const refB = "22222222-2222-4222-8222-222222222222";
+const refC = "55555555-5555-4555-8555-555555555555";
 const patient = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 
 function instStageForTpl(inst: TreatmentProgramInstanceDetail, templateStageId: string) {
@@ -421,5 +422,101 @@ describe("patient-program-actions", () => {
     });
     const snap = await actions.listChecklistDoneToday(patient, inst.id);
     expect(snap.totalCompletionEventsByItemId[itemId]).toBe(1);
+  });
+
+  it("getPatientPlanPassageStats aggregates window, activity days, and never-completed checklist items", async () => {
+    const tplPort = createInMemoryTreatmentProgramPort();
+    const instPort = createInMemoryTreatmentProgramInstancePort();
+    const itemRefs: TreatmentProgramItemRefValidationPort = { assertItemRefExists: vi.fn(async () => {}) };
+    const tplSvc = createTreatmentProgramService(tplPort, itemRefs);
+    const instSvc = createTreatmentProgramInstanceService({
+      instances: instPort,
+      templates: tplSvc,
+      snapshots: createInMemoryTreatmentProgramItemSnapshotPort(),
+      itemRefs,
+    });
+    const actionLog = createInMemoryProgramActionLogPort();
+    const actions = createTreatmentProgramPatientActionService({
+      instances: instPort,
+      actionLog,
+      now: () => new Date("2026-05-05T15:00:00.000Z"),
+      getAppDefaultTimezoneIana: async () => "UTC",
+      getPatientCalendarTimezoneIana: async () => null,
+    });
+
+    const tpl = await tplSvc.createTemplate({ title: "План", status: "published" }, null);
+    const s1 = await tplSvc.createStage(tpl.id, { title: "Этап 1" });
+    const g1 = await tplSvc.createTemplateStageGroup(s1.id, { title: "G" });
+    await tplSvc.addStageItem(s1.id, { itemType: "lesson", itemRefId: refA, comment: null, groupId: g1.id });
+    await tplSvc.addStageItem(s1.id, { itemType: "lesson", itemRefId: refB, comment: null, groupId: g1.id });
+    const inst = await instSvc.assignTemplateToPatient({
+      templateId: tpl.id,
+      patientUserId: patient,
+      assignedBy: null,
+    });
+    const stage = instStageForTpl(inst, s1.id);
+    const itemDone = stage.items[0]!;
+    await actionLog.insertAction({
+      instanceId: inst.id,
+      instanceStageItemId: itemDone.id,
+      patientUserId: patient,
+      actionType: "done",
+      sessionId: null,
+      payload: { source: "checklist_toggle" },
+      note: null,
+    });
+
+    const stats = await actions.getPatientPlanPassageStats(patient, inst.id);
+    expect(stats.daysWithActivity).toBe(1);
+    expect(stats.neverCompletedChecklistItemCount).toBe(1);
+    expect(stats.calendarDaysInWindow).toBeGreaterThanOrEqual(1);
+    expect(stats.avgCompletionsPerDay).toBeGreaterThan(0);
+  });
+
+  it("getPatientPlanPassageStats neverCompleted counts only patient-visible checklist rows (skips locked stages)", async () => {
+    const tplPort = createInMemoryTreatmentProgramPort();
+    const instPort = createInMemoryTreatmentProgramInstancePort();
+    const itemRefs: TreatmentProgramItemRefValidationPort = { assertItemRefExists: vi.fn(async () => {}) };
+    const tplSvc = createTreatmentProgramService(tplPort, itemRefs);
+    const instSvc = createTreatmentProgramInstanceService({
+      instances: instPort,
+      templates: tplSvc,
+      snapshots: createInMemoryTreatmentProgramItemSnapshotPort(),
+      itemRefs,
+    });
+    const actionLog = createInMemoryProgramActionLogPort();
+    const actions = createTreatmentProgramPatientActionService({
+      instances: instPort,
+      actionLog,
+      now: () => new Date("2026-05-05T15:00:00.000Z"),
+      getAppDefaultTimezoneIana: async () => "UTC",
+      getPatientCalendarTimezoneIana: async () => null,
+    });
+
+    const tpl = await tplSvc.createTemplate({ title: "План", status: "published" }, null);
+    const s1 = await tplSvc.createStage(tpl.id, { title: "Этап 1" });
+    const s2 = await tplSvc.createStage(tpl.id, { title: "Этап 2" });
+    const g1 = await tplSvc.createTemplateStageGroup(s1.id, { title: "G1" });
+    const g2 = await tplSvc.createTemplateStageGroup(s2.id, { title: "G2" });
+    await tplSvc.addStageItem(s1.id, { itemType: "lesson", itemRefId: refA, comment: null, groupId: g1.id });
+    await tplSvc.addStageItem(s2.id, { itemType: "lesson", itemRefId: refC, comment: null, groupId: g2.id });
+    const inst = await instSvc.assignTemplateToPatient({
+      templateId: tpl.id,
+      patientUserId: patient,
+      assignedBy: null,
+    });
+    const stage1 = instStageForTpl(inst, s1.id);
+    await actionLog.insertAction({
+      instanceId: inst.id,
+      instanceStageItemId: stage1.items[0]!.id,
+      patientUserId: patient,
+      actionType: "done",
+      sessionId: null,
+      payload: { source: "checklist_toggle" },
+      note: null,
+    });
+
+    const stats = await actions.getPatientPlanPassageStats(patient, inst.id);
+    expect(stats.neverCompletedChecklistItemCount).toBe(0);
   });
 });

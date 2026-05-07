@@ -1,3 +1,4 @@
+import { DateTime } from "luxon";
 import type { ProgramActionLogPort } from "@/modules/treatment-program/ports";
 import type { ProgramActionLogInsert, ProgramActionLogListRow, ProgramActionType } from "@/modules/treatment-program/types";
 import { PROGRAM_ACTION_TYPES } from "@/modules/treatment-program/types";
@@ -177,6 +178,27 @@ export function createInMemoryProgramActionLogPort(): ProgramActionLogPort {
         out[itemId] = set.size;
       }
       return out;
+    },
+
+    async countDistinctLocalCalendarDaysWithDoneInWindow(params) {
+      const iana = params.displayIana;
+      const days = new Set<string>();
+      for (const r of rows) {
+        if (
+          r.instanceId !== params.instanceId ||
+          r.patientUserId !== params.patientUserId ||
+          r.actionType !== "done" ||
+          r.createdAt < params.windowStartUtcIso ||
+          r.createdAt >= params.windowEndUtcExclusiveIso
+        ) {
+          continue;
+        }
+        const d = DateTime.fromISO(r.createdAt, { zone: "utc" }).setZone(iana);
+        if (!d.isValid) continue;
+        const isoDate = d.toISODate();
+        if (isoDate) days.add(isoDate);
+      }
+      return days.size;
     },
 
     async listForInstance(params) {

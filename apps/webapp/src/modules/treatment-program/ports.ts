@@ -324,6 +324,18 @@ export type ProgramActionLogPort = {
     instanceId: string;
     patientUserId: string;
   }): Promise<Record<string, string>>;
+  /**
+   * Число различных календарных дней в зоне {@link params.displayIana}, в которых есть хотя бы одна отметка `done`
+   * в полуинтервале {@link params.windowStartUtcIso} ≤ created_at &lt; {@link params.windowEndUtcExclusiveIso}.
+   */
+  countDistinctLocalCalendarDaysWithDoneInWindow(params: {
+    instanceId: string;
+    patientUserId: string;
+    windowStartUtcIso: string;
+    windowEndUtcExclusiveIso: string;
+    /** IANA, уже проверенная вызывающим кодом (Luxon `isValid`). */
+    displayIana: string;
+  }): Promise<number>;
   /** Журнал действий пациента по экземпляру (новые сверху), для UI врача (UX-02). */
   listForInstance(params: { instanceId: string; limit?: number }): Promise<ProgramActionLogListRow[]>;
 };

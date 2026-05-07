@@ -21,6 +21,21 @@ function clickPatientTreatmentTab(which: "program" | "recommendations" | "progre
 beforeEach(() => {
   global.fetch = vi.fn(async (input: RequestInfo | URL) => {
     const url = typeof input === "string" ? input : input.toString();
+    if (url.includes("/passage-stats")) {
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          stats: {
+            calendarDaysInWindow: 10,
+            daysWithActivity: 2,
+            missedDays: 8,
+            avgCompletionsPerDay: 1.2,
+            neverCompletedChecklistItemCount: 3,
+          },
+        }),
+        { status: 200 },
+      );
+    }
     if (url.includes("/checklist-today")) {
       return new Response(
         JSON.stringify({
@@ -28,6 +43,8 @@ beforeEach(() => {
           doneItemIds: [],
           doneTodayCountByActivityKey: {},
           lastDoneAtIsoByActivityKey: {},
+          doneTodayCountByItemId: {},
+          lastDoneAtIsoByItemId: {},
         }),
         { status: 200 },
       );
@@ -154,6 +171,48 @@ describe("PatientTreatmentProgramDetailClient", () => {
       const tablist = screen.getByRole("tablist", { name: "Разделы программы" });
       const progressTab = within(tablist).getAllByRole("tab")[2]!;
       expect(progressTab.textContent).toMatch(/\d+ (день|дня|дней)/);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("progress tab shows statistics collecting copy within first three calendar days", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-01-03T12:00:00.000Z"));
+    try {
+      render(
+        <PatientTreatmentProgramDetailClient
+          initial={makeInstance({
+            createdAt: "2026-01-01T08:00:00.000Z",
+            stages: [
+              makeInstance().stages[0]!,
+              {
+                id: "44444444-4444-4444-8444-444444444444",
+                instanceId: "11111111-1111-4111-8111-111111111111",
+                sourceStageId: null,
+                title: "Этап pipeline",
+                description: null,
+                sortOrder: 1,
+                localComment: null,
+                skipReason: null,
+                status: "in_progress",
+                startedAt: "2026-01-01T00:00:00.000Z",
+                goals: null,
+                objectives: null,
+                expectedDurationDays: 14,
+                expectedDurationText: null,
+                groups: [],
+                items: [],
+              },
+            ],
+          })}
+          initialTestResults={[]}
+          {...detailShellProps}
+        />,
+      );
+      clickPatientTreatmentTab("progress");
+      expect(screen.getByText("Статистика пока собирается.")).toBeInTheDocument();
+      expect(screen.getByText(/Регулярность в занятиях/)).toBeInTheDocument();
     } finally {
       vi.useRealTimers();
     }

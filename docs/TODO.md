@@ -42,6 +42,12 @@
 - **TODO 2:** добавить комментарий пациента к факту выполнения `exercise` / `lesson` / actionable `recommendation` (сейчас заметка есть только в LFK post-session).
 - **Ссылки:** `docs/APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md` (§1.0, §1.1a, §8), `docs/BACKLOG_TAILS.md` («Хвосты по Плану лечения / Курсам»).
 
+## Patient plan detail client decomposition (webapp)
+
+- **Контекст:** экран **`/app/patient/treatment/[instanceId]`** — клиент **`apps/webapp/src/app/app/patient/treatment/program-detail/PatientTreatmentProgramDetailClient.tsx`** остаётся крупным монолитом; уже вынесены **`PatientProgramBlockHeading`**, **`PatientProgramPassageStatisticsSection`** и реэкспорт из **`treatment/PatientTreatmentProgramDetailClient.tsx`**.
+- **TODO:** декомпозировать **без изменения поведения**: отдельные модули под **`program-detail/`** — hero завершённой/активной программы, sticky tab strip, timeline этапов (+ модалка состава), панель «Прогресс» (timeline + контроль + статистика), **`PatientInstanceStageBody`** и связанные блоки (**`TestSetBlock`** и др. по месту); сохранить публичные импорты (**`PatientInstanceStageBody`**, **`PatientStageHeaderFields`**, **`patientStageHasHeaderFields`**, корневой **`PatientTreatmentProgramDetailClient`**).
+- **Ссылки:** [`docs/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/BLOCK_LAYOUT_REFERENCE.md`](PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/BLOCK_LAYOUT_REFERENCE.md) §3; журнал [`docs/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/LOG.md`](PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/LOG.md).
+
 ## Security / Auth
 
 - **Видео / медиа по UUID (post-prod):** верхний раздел этого файла («Медиа / видео — авторизация и права на поток») и `docs/ARCHITECTURE/MEDIA_HTTP_ACCESS_AUTHORIZATION.md`.

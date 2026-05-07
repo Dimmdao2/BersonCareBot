@@ -207,6 +207,32 @@ export function createPgProgramActionLogPort(): ProgramActionLogPort {
       return out;
     },
 
+    async countDistinctLocalCalendarDaysWithDoneInWindow(params) {
+      const iana = params.displayIana;
+      if (!/^[-+/_0-9a-zA-Z]+$/.test(iana)) {
+        throw new Error("invalid_timezone");
+      }
+      const zoneSql = sql.raw(`'${iana.replace(/'/g, "''")}'`);
+      const db = getDrizzle();
+      const [row] = await db
+        .select({
+          c: sql<number>`count(distinct ((${logTable.createdAt} AT TIME ZONE ${zoneSql})::date))::int`.mapWith(
+            Number,
+          ),
+        })
+        .from(logTable)
+        .where(
+          and(
+            eq(logTable.instanceId, params.instanceId),
+            eq(logTable.patientUserId, params.patientUserId),
+            eq(logTable.actionType, "done"),
+            gte(logTable.createdAt, params.windowStartUtcIso),
+            lt(logTable.createdAt, params.windowEndUtcExclusiveIso),
+          ),
+        );
+      return row?.c ?? 0;
+    },
+
     async listForInstance(params) {
       const db = getDrizzle();
       const limit = Math.min(Math.max(params.limit ?? 200, 1), 500);

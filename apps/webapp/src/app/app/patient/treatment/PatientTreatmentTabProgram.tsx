@@ -12,8 +12,22 @@ export function PatientTreatmentTabProgram(props: {
   pipelineLength: number;
   allStages: Stage[];
   appDisplayTimeZone: string;
+  embeddedChecklist: {
+    doneItemIds: string[];
+    doneTodayCountByItemId: Record<string, number>;
+    lastDoneAtIsoByItemId: Record<string, string>;
+  };
+  onRefreshDetail: () => Promise<void>;
 }) {
-  const { instanceId, currentWorkingStage, pipelineLength, allStages, appDisplayTimeZone } = props;
+  const {
+    instanceId,
+    currentWorkingStage,
+    pipelineLength,
+    allStages,
+    appDisplayTimeZone,
+    embeddedChecklist,
+    onRefreshDetail,
+  } = props;
 
   if (!currentWorkingStage) {
     return (
@@ -31,6 +45,8 @@ export function PatientTreatmentTabProgram(props: {
       allStages={allStages}
       appDisplayTimeZone={appDisplayTimeZone}
       embedded
+      embeddedChecklist={embeddedChecklist}
+      onRefreshDetail={onRefreshDetail}
     />
   );
 }

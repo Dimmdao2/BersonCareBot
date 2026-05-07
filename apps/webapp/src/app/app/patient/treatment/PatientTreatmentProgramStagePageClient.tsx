@@ -149,9 +149,26 @@ export function PatientTreatmentProgramStagePageClient(props: {
   appDisplayTimeZone: string;
   /** Внутри вкладки «Программа» на detail: без hero, без рекомендаций и «контроль через». */
   embedded?: boolean;
+  /** Чеклист с родительской страницы программы (убирает второй GET checklist-today). */
+  embeddedChecklist?: {
+    doneItemIds: string[];
+    doneTodayCountByItemId: Record<string, number>;
+    lastDoneAtIsoByItemId: Record<string, string>;
+  };
+  /** Полное обновление экземпляра и чеклиста на родителе после действий пациента. */
+  onRefreshDetail?: () => Promise<void>;
 }) {
-  const { instanceId, pipelineLength, allStages, appDisplayTimeZone, embedded = false } = props;
-  const [currentStage, setCurrentStage] = useState<Stage>(props.stage);
+  const {
+    instanceId,
+    pipelineLength,
+    allStages,
+    appDisplayTimeZone,
+    embedded = false,
+    embeddedChecklist,
+    onRefreshDetail,
+  } = props;
+  const [detachedStage, setDetachedStage] = useState<Stage>(props.stage);
+  const stageForUi = embedded ? props.stage : detachedStage;
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [doneItemIds, setDoneItemIds] = useState<string[]>([]);
@@ -159,13 +176,14 @@ export function PatientTreatmentProgramStagePageClient(props: {
   const [lastDoneAtIsoByItemId, setLastDoneAtIsoByItemId] = useState<Record<string, string>>({});
 
   const variant = useMemo(
-    () => patientTreatmentProgramStageScreenVariant(currentStage),
-    [currentStage],
+    () => patientTreatmentProgramStageScreenVariant(stageForUi),
+    [stageForUi],
   );
 
   const base = `/api/patient/treatment-program-instances/${encodeURIComponent(instanceId)}/items`;
 
   useEffect(() => {
+    if (embedded && embeddedChecklist) return;
     if (variant !== "interactive") return;
     void (async () => {
       const res = await fetch(
@@ -182,10 +200,14 @@ export function PatientTreatmentProgramStagePageClient(props: {
       setDoneTodayCountByItemId(normalizeChecklistCountMap(data.doneTodayCountByItemId));
       setLastDoneAtIsoByItemId(normalizeChecklistLastMap(data.lastDoneAtIsoByItemId));
     })();
-  }, [instanceId, variant]);
+  }, [instanceId, variant, embedded, embeddedChecklist]);
 
   const refresh = useCallback(async () => {
     setError(null);
+    if (embedded && onRefreshDetail) {
+      await onRefreshDetail();
+      return;
+    }
     const [instRes, chRes] = await Promise.all([
       fetch(`/api/patient/treatment-program-instances/${encodeURIComponent(instanceId)}`),
       variant === "interactive"
@@ -201,7 +223,7 @@ export function PatientTreatmentProgramStagePageClient(props: {
       return;
     }
     const updated = data.item.stages.find((s) => s.id === props.stage.id);
-    if (updated) setCurrentStage(updated);
+    if (updated) setDetachedStage(updated);
     if (variant !== "interactive" || chRes == null) {
       return;
     }
@@ -220,14 +242,21 @@ export function PatientTreatmentProgramStagePageClient(props: {
       setDoneTodayCountByItemId(normalizeChecklistCountMap(chData.doneTodayCountByItemId));
       setLastDoneAtIsoByItemId(normalizeChecklistLastMap(chData.lastDoneAtIsoByItemId));
     }
-  }, [instanceId, props.stage.id, variant]);
+  }, [instanceId, props.stage.id, variant, embedded, onRefreshDetail]);
 
-  const isStageZero = currentStage.sortOrder === 0;
+  const effectiveDoneItemIds =
+    embedded && embeddedChecklist ? embeddedChecklist.doneItemIds : doneItemIds;
+  const effectiveDoneTodayCountByItemId =
+    embedded && embeddedChecklist ? embeddedChecklist.doneTodayCountByItemId : doneTodayCountByItemId;
+  const effectiveLastDoneAtIsoByItemId =
+    embedded && embeddedChecklist ? embeddedChecklist.lastDoneAtIsoByItemId : lastDoneAtIsoByItemId;
+
+  const isStageZero = stageForUi.sortOrder === 0;
   const contentBlocked =
-    !isStageZero && (currentStage.status === "locked" || currentStage.status === "skipped");
+    !isStageZero && (stageForUi.status === "locked" || stageForUi.status === "skipped");
 
   const hasGoalsCollapsible =
-    Boolean(currentStage.goals?.trim()) || Boolean(currentStage.objectives?.trim());
+    Boolean(stageForUi.goals?.trim()) || Boolean(stageForUi.objectives?.trim());
 
   const goalsObjectivesBlock = hasGoalsCollapsible ? (
     <Collapsible
@@ -255,19 +284,19 @@ export function PatientTreatmentProgramStagePageClient(props: {
           </div>
         </CollapsibleTrigger>
         <CollapsibleContent className={patientStageGoalsCollapsiblePanelClass}>
-          {currentStage.goals?.trim() ? (
+          {stageForUi.goals?.trim() ? (
             <div>
               <h3 className="text-xs font-semibold text-[#444444]">Цель</h3>
               <p className="mt-1 whitespace-pre-wrap text-[13px] leading-snug text-[#444444]">
-                {currentStage.goals.trim()}
+                {stageForUi.goals.trim()}
               </p>
             </div>
           ) : null}
-          {currentStage.objectives?.trim() ? (
-            <div className={currentStage.goals?.trim() ? "mt-3" : ""}>
+          {stageForUi.objectives?.trim() ? (
+            <div className={stageForUi.goals?.trim() ? "mt-3" : ""}>
               <h3 className="text-xs font-semibold text-[#444444]">Задачи</h3>
               <p className="mt-1 whitespace-pre-wrap text-[13px] leading-snug text-[#444444]">
-                {currentStage.objectives.trim()}
+                {stageForUi.objectives.trim()}
               </p>
             </div>
           ) : null}
@@ -276,9 +305,9 @@ export function PatientTreatmentProgramStagePageClient(props: {
     ) : null;
 
   const controlBadge =
-    currentStage.expectedDurationDays != null &&
-    currentStage.expectedDurationDays > 0 &&
-    Number.isFinite(currentStage.expectedDurationDays) ? (
+    stageForUi.expectedDurationDays != null &&
+    stageForUi.expectedDurationDays > 0 &&
+    Number.isFinite(stageForUi.expectedDurationDays) ? (
       <div
         className={cn(
           "rounded-[var(--patient-card-radius-mobile)] border border-[var(--patient-border)] px-3 py-2 shadow-[var(--patient-shadow-card-mobile)] lg:rounded-[var(--patient-card-radius-desktop)] lg:px-4 lg:shadow-[var(--patient-shadow-card-desktop)]",
@@ -286,18 +315,18 @@ export function PatientTreatmentProgramStagePageClient(props: {
         )}
       >
         <p className="m-0 text-sm font-medium text-[#444444]">
-          Контроль через {currentStage.expectedDurationDays} {ruDayWord(currentStage.expectedDurationDays)}
+          Контроль через {stageForUi.expectedDurationDays} {ruDayWord(stageForUi.expectedDurationDays)}
         </p>
       </div>
     ) : null;
 
   if (variant === "futureLocked" && !isStageZero) {
     const planBlock = patientStageHasHeaderFields({
-      description: currentStage.description,
-      goals: currentStage.goals,
-      objectives: currentStage.objectives,
-      expectedDurationDays: currentStage.expectedDurationDays,
-      expectedDurationText: currentStage.expectedDurationText,
+      description: stageForUi.description,
+      goals: stageForUi.goals,
+      objectives: stageForUi.objectives,
+      expectedDurationDays: stageForUi.expectedDurationDays,
+      expectedDurationText: stageForUi.expectedDurationText,
     });
 
     return (
@@ -312,18 +341,18 @@ export function PatientTreatmentProgramStagePageClient(props: {
           <div className={cn(patientHomeCardHeroClass, "relative isolate overflow-hidden p-4 pt-3 lg:p-5")}>
             <span className={cn(patientPillClass, "absolute right-3 top-3 lg:right-4 lg:top-4")}>Запланирован</span>
             <p className={cn(patientMutedTextClass, "pr-24 text-xs uppercase tracking-wide")}>
-              Этап {currentStage.sortOrder} из {pipelineLength}
+              Этап {stageForUi.sortOrder} из {pipelineLength}
             </p>
-            <h2 className={cn(patientStageTitleClass, "mt-1 pr-24")}>{currentStage.title}</h2>
+            <h2 className={cn(patientStageTitleClass, "mt-1 pr-24")}>{stageForUi.title}</h2>
             <StageDescriptionBlock
-              key={`${currentStage.id}:${currentStage.description ?? ""}`}
-              text={currentStage.description}
+              key={`${stageForUi.id}:${stageForUi.description ?? ""}`}
+              text={stageForUi.description}
             />
           </div>
         ) : null}
 
         {planBlock ? (
-          <PatientStageHeaderFields stage={currentStage} planPreview />
+          <PatientStageHeaderFields stage={stageForUi} planPreview />
         ) : null}
 
         <section
@@ -331,7 +360,7 @@ export function PatientTreatmentProgramStagePageClient(props: {
           aria-live="polite"
         >
           <p className={cn(patientMutedTextClass, "text-sm leading-snug")}>
-            {blockingStagesCopy(allStages, currentStage)}
+            {blockingStagesCopy(allStages, stageForUi)}
           </p>
         </section>
       </div>
@@ -355,22 +384,22 @@ export function PatientTreatmentProgramStagePageClient(props: {
                 "absolute right-3 top-3 max-w-[min(12rem,calc(100%-1rem))] truncate text-right lg:right-4 lg:top-4",
               )}
             >
-              {pastStageHeroBadge(currentStage, appDisplayTimeZone)}
+              {pastStageHeroBadge(stageForUi, appDisplayTimeZone)}
             </span>
             <p className={cn(patientMutedTextClass, "pr-28 text-xs uppercase tracking-wide")}>
-              Этап {currentStage.sortOrder} из {pipelineLength}
+              Этап {stageForUi.sortOrder} из {pipelineLength}
             </p>
-            <h2 className={cn(patientStageTitleClass, "mt-1 pr-28")}>{currentStage.title}</h2>
+            <h2 className={cn(patientStageTitleClass, "mt-1 pr-28")}>{stageForUi.title}</h2>
             <StageDescriptionBlock
-              key={`${currentStage.id}:${currentStage.description ?? ""}`}
-              text={currentStage.description}
+              key={`${stageForUi.id}:${stageForUi.description ?? ""}`}
+              text={stageForUi.description}
             />
           </div>
         ) : null}
 
         <PatientInstanceStageBody
           instanceId={instanceId}
-          stage={currentStage}
+          stage={stageForUi}
           base={base}
           busy={busy}
           setBusy={setBusy}
@@ -412,28 +441,28 @@ export function PatientTreatmentProgramStagePageClient(props: {
                 "absolute right-3 top-3 max-w-[min(10rem,calc(100%-1rem))] truncate text-right text-xs lg:right-4 lg:top-4",
               )}
             >
-              {formatTreatmentProgramStageStatusRu(currentStage.status)}
+              {formatTreatmentProgramStageStatusRu(stageForUi.status)}
             </span>
             {isStageZero ? (
               <h2 className={cn(patientStageTitleClass, "pr-24")}>Общие рекомендации</h2>
             ) : (
               <>
                 <p className={cn(patientMutedTextClass, "pr-24 text-xs uppercase tracking-wide")}>
-                  Этап {currentStage.sortOrder} из {pipelineLength}
+                  Этап {stageForUi.sortOrder} из {pipelineLength}
                 </p>
-                <h2 className={cn(patientStageTitleClass, "mt-1 pr-24")}>{currentStage.title}</h2>
+                <h2 className={cn(patientStageTitleClass, "mt-1 pr-24")}>{stageForUi.title}</h2>
               </>
             )}
             {!isStageZero ? (
               <StageDescriptionBlock
-                key={`${currentStage.id}:${currentStage.description ?? ""}`}
-                text={currentStage.description}
+                key={`${stageForUi.id}:${stageForUi.description ?? ""}`}
+                text={stageForUi.description}
               />
             ) : null}
-            {isStageZero && currentStage.description?.trim() ? (
+            {isStageZero && stageForUi.description?.trim() ? (
               <StageDescriptionBlock
-                key={`${currentStage.id}:${currentStage.description ?? ""}`}
-                text={currentStage.description}
+                key={`${stageForUi.id}:${stageForUi.description ?? ""}`}
+                text={stageForUi.description}
               />
             ) : null}
           </div>
@@ -446,16 +475,16 @@ export function PatientTreatmentProgramStagePageClient(props: {
         description: null,
         goals: null,
         objectives: null,
-        expectedDurationDays: currentStage.expectedDurationDays,
-        expectedDurationText: currentStage.expectedDurationText,
+        expectedDurationDays: stageForUi.expectedDurationDays,
+        expectedDurationText: stageForUi.expectedDurationText,
       }) ? (
         <PatientStageHeaderFields
           stage={{
             description: null,
             goals: null,
             objectives: null,
-            expectedDurationDays: currentStage.expectedDurationDays,
-            expectedDurationText: currentStage.expectedDurationText,
+            expectedDurationDays: stageForUi.expectedDurationDays,
+            expectedDurationText: stageForUi.expectedDurationText,
           }}
           compactSpacing={embedded}
           planPreview={embedded}
@@ -465,7 +494,7 @@ export function PatientTreatmentProgramStagePageClient(props: {
 
       {!embedded ? (
         <PatientTreatmentProgramStageRecommendationsCollapsible
-          stage={currentStage}
+          stage={stageForUi}
           base={base}
           busy={busy}
           setBusy={setBusy}
@@ -477,7 +506,7 @@ export function PatientTreatmentProgramStagePageClient(props: {
 
       <PatientTreatmentProgramStagePageProgramSection
         className={cn(hasGoalsCollapsible && "mt-2")}
-        stage={currentStage}
+        stage={stageForUi}
         base={base}
         busy={busy}
         setBusy={setBusy}
@@ -485,10 +514,10 @@ export function PatientTreatmentProgramStagePageClient(props: {
         refresh={refresh}
         contentBlocked={contentBlocked}
         itemInteraction="full"
-        doneItemIds={doneItemIds}
-        onDoneItemIds={setDoneItemIds}
-        lastDoneAtIsoByItemId={lastDoneAtIsoByItemId}
-        doneTodayCountByItemId={doneTodayCountByItemId}
+        doneItemIds={effectiveDoneItemIds}
+        onDoneItemIds={embedded && embeddedChecklist ? () => {} : setDoneItemIds}
+        lastDoneAtIsoByItemId={effectiveLastDoneAtIsoByItemId}
+        doneTodayCountByItemId={effectiveDoneTodayCountByItemId}
         appDisplayTimeZone={appDisplayTimeZone}
       />
     </div>

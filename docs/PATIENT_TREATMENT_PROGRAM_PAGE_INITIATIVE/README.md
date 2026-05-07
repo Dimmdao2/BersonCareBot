@@ -10,6 +10,10 @@
 
 **Статус:** пайплайн этапов A→D закрыт (см. [`LOG.md`](LOG.md)); актуальная блок-схема detail после редизайна «Мой план» — [`BLOCK_LAYOUT_REFERENCE.md`](BLOCK_LAYOUT_REFERENCE.md) §3.
 
+## Ближайшие TODO
+
+- **Декомпозиция detail-клиента** (hero, вкладки, timeline, прогресс, тело этапа) — см. [`docs/TODO.md` § Patient plan detail client decomposition (webapp)](../TODO.md#patient-plan-detail-client-decomposition-webapp).
+
 ---
 
 ## Main plan — этапы и модели агентов
