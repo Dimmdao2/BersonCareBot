@@ -24,7 +24,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { USAGE_CONFIRMATION_REQUIRED } from "@/modules/treatment-program/errors";
 import {
   treatmentProgramGroupSelectNoneItemValue,
@@ -362,16 +361,6 @@ export function TreatmentProgramConstructorClient({
   const [groupEditSchedule, setGroupEditSchedule] = useState("");
   const [groupEditDescription, setGroupEditDescription] = useState("");
   const [itemAddGroupId, setItemAddGroupId] = useState<string>("");
-  const [lfkExpand, setLfkExpand] = useState<{
-    stageId: string;
-    row: TreatmentProgramLibraryRow;
-  } | null>(null);
-  const [lfkExpandMode, setLfkExpandMode] = useState<"ungrouped" | "new_group" | "existing_group">("ungrouped");
-  const [lfkExpandNewGroupTitle, setLfkExpandNewGroupTitle] = useState("");
-  const [lfkExpandExistingGroupId, setLfkExpandExistingGroupId] = useState<string>("");
-  const [lfkExpandCopyDesc, setLfkExpandCopyDesc] = useState(false);
-  const [lfkExpandBusy, setLfkExpandBusy] = useState(false);
-  const [lfkExpandMsg, setLfkExpandMsg] = useState<string | null>(null);
 
   useEffect(() => {
     setDetail(initialDetail);
@@ -626,7 +615,8 @@ export function TreatmentProgramConstructorClient({
 
   useEffect(() => {
     if (!itemDialogOpen || !itemDialogStageId) return;
-    if (!allowUngroupedItemAdd && itemPickerGroupsOrdered.length > 0) {
+    /** Для комплекса ЛФК целевую группу выбирает врач вручную (в т.ч. «Без группы»). */
+    if (!allowUngroupedItemAdd && itemType !== "lfk_complex" && itemPickerGroupsOrdered.length > 0) {
       const cur = itemAddGroupId && itemAddGroupId !== "__none__" ? itemAddGroupId : "";
       if (!cur || !itemPickerGroupsOrdered.some((g) => g.id === cur)) {
         setItemAddGroupId(itemPickerGroupsOrdered[0]!.id);
@@ -635,34 +625,11 @@ export function TreatmentProgramConstructorClient({
   }, [
     itemDialogOpen,
     itemDialogStageId,
+    itemType,
     allowUngroupedItemAdd,
     itemPickerGroupsOrdered,
     itemAddGroupId,
   ]);
-
-  const lfkExpandGroupsOrdered = useMemo(() => {
-    if (!lfkExpand) return [];
-    const st = detail.stages.find((s) => s.id === lfkExpand.stageId);
-    if (!st) return [];
-    return sortDoctorTemplateStageGroupsForDisplay(st.groups).filter((g) => !g.systemKind);
-  }, [detail.stages, lfkExpand]);
-
-  const lfkExpandCopyCheckboxBlocked = useMemo(() => {
-    if (lfkExpandMode !== "existing_group") return false;
-    const g = lfkExpandGroupsOrdered.find((x) => x.id === lfkExpandExistingGroupId);
-    return !!(g?.description?.trim());
-  }, [lfkExpandMode, lfkExpandGroupsOrdered, lfkExpandExistingGroupId]);
-
-  useEffect(() => {
-    if (lfkExpandCopyCheckboxBlocked) setLfkExpandCopyDesc(false);
-  }, [lfkExpandCopyCheckboxBlocked]);
-
-  useEffect(() => {
-    if (lfkExpandMode !== "existing_group" || lfkExpandGroupsOrdered.length === 0) return;
-    if (!lfkExpandGroupsOrdered.some((g) => g.id === lfkExpandExistingGroupId)) {
-      setLfkExpandExistingGroupId(lfkExpandGroupsOrdered[0]!.id);
-    }
-  }, [lfkExpandMode, lfkExpandGroupsOrdered, lfkExpandExistingGroupId]);
 
   const pickerList = useMemo(() => {
     const q = itemSearch.trim().toLowerCase();
@@ -1059,89 +1026,61 @@ export function TreatmentProgramConstructorClient({
     }
   }
 
-  function openLfkExpandModal(row: TreatmentProgramLibraryRow) {
+  /** Разворачивает комплекс ЛФК сразу по выбору группы в модалке «Элемент из библиотеки». */
+  async function handleAddLfkComplexFromLibrary(row: TreatmentProgramLibraryRow) {
     if (!itemDialogStageId || isArchived || busy) return;
-    setLfkExpandMsg(null);
-    setLfkExpand({ stageId: itemDialogStageId, row });
-    setLfkExpandMode("ungrouped");
-    setLfkExpandNewGroupTitle(row.title.trim());
-    setLfkExpandExistingGroupId("");
-    setLfkExpandCopyDesc(false);
-    setItemDialogOpen(false);
-  }
-
-  async function handleLfkExpandSubmit() {
-    if (!lfkExpand) return;
-    const titleTrim = lfkExpandNewGroupTitle.trim();
-    if (lfkExpandMode === "new_group" && !titleTrim) {
-      setLfkExpandMsg("Укажите название новой группы");
+    const st = detail.stages.find((s) => s.id === itemDialogStageId);
+    if (!st) return;
+    if (st.sortOrder === 0) {
+      setError("На этапе «Общие рекомендации» нельзя разворачивать комплекс ЛФК");
       return;
     }
-    if (lfkExpandMode === "existing_group") {
-      if (lfkExpandGroupsOrdered.length === 0) {
-        setLfkExpandMsg("На этапе нет групп — выберите другой режим");
-        return;
-      }
-      if (!lfkExpandExistingGroupId) {
-        setLfkExpandMsg("Выберите группу");
-        return;
-      }
+
+    const rawGid = itemAddGroupId && itemAddGroupId !== "__none__" ? itemAddGroupId.trim() : "";
+    let body: Record<string, unknown>;
+    if (!rawGid) {
+      body = {
+        templateId,
+        complexTemplateId: row.id,
+        copyComplexDescriptionToGroup: false,
+        mode: "ungrouped",
+      };
+    } else if (itemPickerGroupsOrdered.some((g) => g.id === rawGid)) {
+      body = {
+        templateId,
+        complexTemplateId: row.id,
+        copyComplexDescriptionToGroup: false,
+        mode: "existing_group",
+        existingGroupId: rawGid,
+      };
+    } else {
+      setError("Выберите группу из списка");
+      return;
     }
 
-    setLfkExpandBusy(true);
-    setLfkExpandMsg(null);
+    setBusy(true);
+    setError(null);
     try {
-      const copyFlag =
-        lfkExpandMode === "ungrouped" ? false : lfkExpandCopyDesc && !lfkExpandCopyCheckboxBlocked;
-      let body: Record<string, unknown>;
-      if (lfkExpandMode === "ungrouped") {
-        body = {
-          templateId,
-          complexTemplateId: lfkExpand.row.id,
-          copyComplexDescriptionToGroup: false,
-          mode: "ungrouped",
-        };
-      } else if (lfkExpandMode === "new_group") {
-        body = {
-          templateId,
-          complexTemplateId: lfkExpand.row.id,
-          copyComplexDescriptionToGroup: copyFlag,
-          mode: "new_group",
-          newGroupTitle: titleTrim,
-        };
-      } else {
-        body = {
-          templateId,
-          complexTemplateId: lfkExpand.row.id,
-          copyComplexDescriptionToGroup: copyFlag,
-          mode: "existing_group",
-          existingGroupId: lfkExpandExistingGroupId,
-        };
-      }
       const res = await fetch(
-        `/api/doctor/treatment-program-templates/stages/${lfkExpand.stageId}/items/from-lfk-complex`,
+        `/api/doctor/treatment-program-templates/stages/${itemDialogStageId}/items/from-lfk-complex`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
         },
       );
-      const json = (await res.json()) as {
-        ok?: boolean;
-        error?: string;
-        code?: string;
-      };
+      const json = (await res.json()) as { ok?: boolean; error?: string; code?: string };
       if (!res.ok || !json.ok) {
-        setLfkExpandMsg(json.error ?? "Не удалось добавить упражнения из комплекса");
+        setError(json.error ?? "Не удалось добавить упражнения из комплекса");
         return;
       }
-      setLfkExpand(null);
+      setItemDialogOpen(false);
       setItemDialogStageId(null);
       setItemSearch("");
       setItemAddGroupId("");
       await reload();
     } finally {
-      setLfkExpandBusy(false);
+      setBusy(false);
     }
   }
 
@@ -1196,19 +1135,14 @@ export function TreatmentProgramConstructorClient({
 
   const itemAddGroupSelectItems = useMemo(() => {
     const m: Record<string, ReactNode> = {};
-    if (allowUngroupedItemAdd) {
+    if (allowUngroupedItemAdd || itemType === "lfk_complex") {
       m[treatmentProgramGroupSelectNoneItemValue] = treatmentProgramGroupSelectNoneLabel;
     }
     for (const g of itemPickerGroupsOrdered) {
       m[g.id] = g.title;
     }
     return m;
-  }, [allowUngroupedItemAdd, itemPickerGroupsOrdered]);
-
-  const lfkExpandGroupSelectItems = useMemo(
-    () => Object.fromEntries(lfkExpandGroupsOrdered.map((g) => [g.id, g.title])),
-    [lfkExpandGroupsOrdered],
-  );
+  }, [allowUngroupedItemAdd, itemType, itemPickerGroupsOrdered]);
 
   return (
     <div className="flex w-full min-w-0 flex-col gap-4">
@@ -1871,7 +1805,7 @@ export function TreatmentProgramConstructorClient({
                       disabled={editLocked}
                       onClick={() =>
                         itemType === "lfk_complex"
-                          ? openLfkExpandModal(row)
+                          ? void handleAddLfkComplexFromLibrary(row)
                           : void handleAddItem(row.id)
                       }
                       className="flex w-full items-start gap-3 rounded-md border border-border/50 bg-card/20 px-2 py-2 text-left text-sm shadow-sm transition-colors hover:border-border hover:bg-muted/50 disabled:pointer-events-none disabled:opacity-50"
@@ -1896,160 +1830,6 @@ export function TreatmentProgramConstructorClient({
               Закрыть
             </Button>
           </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog
-        open={lfkExpand != null}
-        onOpenChange={(open) => {
-          if (!open) {
-            setLfkExpand(null);
-            setLfkExpandMsg(null);
-          }
-        }}
-      >
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Комплекс ЛФК в этапе</DialogTitle>
-            <DialogDescription>
-              Упражнения из шаблона комплекса будут добавлены отдельными элементами этапа (тип «Упражнение ЛФК»). Новая строка «Комплекс ЛФК» в шаблоне не создаётся.
-            </DialogDescription>
-          </DialogHeader>
-          {lfkExpand ? (
-            <div className="flex flex-col gap-4">
-              <div className="rounded-md border border-border/50 bg-muted/20 p-3">
-                <p className="text-sm font-medium">{lfkExpand.row.title}</p>
-                {lfkExpand.row.description?.trim() ? (
-                  <p className="mt-2 whitespace-pre-wrap text-xs text-muted-foreground">
-                    {lfkExpand.row.description.trim()}
-                  </p>
-                ) : (
-                  <p className="mt-1 text-xs text-muted-foreground">Описание комплекса в каталоге не заполнено.</p>
-                )}
-              </div>
-
-              <RadioGroup
-                value={lfkExpandMode}
-                onValueChange={(v) => setLfkExpandMode(v as "ungrouped" | "new_group" | "existing_group")}
-                disabled={lfkExpandBusy || isArchived}
-                className="flex flex-col gap-2 border-0 p-0"
-                aria-label="Как разместить упражнения из комплекса"
-              >
-                <div className="flex items-start gap-2">
-                  <RadioGroupItem value="ungrouped" id="lfk-exp-ungrouped" />
-                  <Label htmlFor="lfk-exp-ungrouped" className="cursor-pointer font-normal leading-snug">
-                    Без группы (в конец списка этапа)
-                  </Label>
-                </div>
-                <div className="flex items-start gap-2">
-                  <RadioGroupItem value="new_group" id="lfk-exp-new" />
-                  <Label htmlFor="lfk-exp-new" className="cursor-pointer font-normal leading-snug">
-                    Новая группа
-                  </Label>
-                </div>
-                <div className="flex items-start gap-2">
-                  <RadioGroupItem value="existing_group" id="lfk-exp-existing" />
-                  <Label htmlFor="lfk-exp-existing" className="cursor-pointer font-normal leading-snug">
-                    Существующая группа этапа
-                  </Label>
-                </div>
-              </RadioGroup>
-
-              {lfkExpandMode === "new_group" ? (
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="lfk-exp-new-title">Название группы</Label>
-                  <Input
-                    id="lfk-exp-new-title"
-                    value={lfkExpandNewGroupTitle}
-                    onChange={(e) => setLfkExpandNewGroupTitle(e.target.value)}
-                    disabled={lfkExpandBusy || isArchived}
-                    maxLength={2000}
-                  />
-                </div>
-              ) : null}
-
-              {lfkExpandMode === "existing_group" ? (
-                <div className="flex flex-col gap-1.5">
-                  <Label>Группа</Label>
-                  {lfkExpandGroupsOrdered.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">На этапе пока нет групп.</p>
-                  ) : (
-                    <Select
-                      value={lfkExpandExistingGroupId || undefined}
-                      onValueChange={(v) => setLfkExpandExistingGroupId(v ?? "")}
-                      disabled={lfkExpandBusy || isArchived}
-                      items={lfkExpandGroupSelectItems}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Выберите группу" />
-                      </SelectTrigger>
-                      <SelectContent className="z-[100]">
-                        {lfkExpandGroupsOrdered.map((g) => (
-                          <SelectItem key={g.id} value={g.id}>
-                            {g.title}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                  {lfkExpandExistingGroupId ? (
-                    <p className="text-xs text-muted-foreground">
-                      Текущее описание группы:{" "}
-                      {lfkExpandGroupsOrdered.find((g) => g.id === lfkExpandExistingGroupId)?.description?.trim() ||
-                        "пусто"}
-                    </p>
-                  ) : null}
-                </div>
-              ) : null}
-
-              {lfkExpandMode !== "ungrouped" ? (
-                <label className="flex items-start gap-2">
-                  <input
-                    type="checkbox"
-                    className="mt-1"
-                    checked={lfkExpandCopyDesc && !lfkExpandCopyCheckboxBlocked}
-                    disabled={
-                      lfkExpandBusy ||
-                      isArchived ||
-                      lfkExpandCopyCheckboxBlocked ||
-                      !lfkExpand.row.description?.trim()
-                    }
-                    onChange={(e) => setLfkExpandCopyDesc(e.target.checked)}
-                    aria-describedby="lfk-exp-copy-hint"
-                  />
-                  <span className="text-sm leading-snug">
-                    Скопировать описание комплекса в описание группы
-                    <span id="lfk-exp-copy-hint" className="mt-1 block text-xs text-muted-foreground">
-                      {lfkExpandCopyCheckboxBlocked
-                        ? "У выбранной группы уже есть описание — очистите его в настройках группы или выключите копирование."
-                        : !lfkExpand.row.description?.trim()
-                          ? "В каталоге у комплекса нет описания."
-                          : null}
-                    </span>
-                  </span>
-                </label>
-              ) : null}
-
-              {lfkExpandMsg ? (
-                <p role="alert" className="text-sm text-destructive">
-                  {lfkExpandMsg}
-                </p>
-              ) : null}
-
-              <DialogFooter className="gap-2 sm:gap-0">
-                <Button type="button" variant="outline" disabled={lfkExpandBusy} onClick={() => setLfkExpand(null)}>
-                  Отмена
-                </Button>
-                <Button
-                  type="button"
-                  disabled={lfkExpandBusy || isArchived}
-                  onClick={() => void handleLfkExpandSubmit()}
-                >
-                  {lfkExpandBusy ? "Добавление…" : "Добавить упражнения"}
-                </Button>
-              </DialogFooter>
-            </div>
-          ) : null}
         </DialogContent>
       </Dialog>
 
