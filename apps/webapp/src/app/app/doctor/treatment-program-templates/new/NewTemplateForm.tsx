@@ -11,7 +11,6 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { TREATMENT_PROGRAM_TEMPLATES_PATH } from "../paths";
@@ -87,6 +86,7 @@ export function NewTemplateForm({
         <Label htmlFor={titleInputId}>Название шаблона</Label>
         <Input
           id={titleInputId}
+          className="text-sm"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           maxLength={2000}
@@ -97,10 +97,21 @@ export function NewTemplateForm({
       {showStatusField ? (
         <div className="flex flex-col gap-2">
           <Label htmlFor={`${titleInputId}-status`}>Статус</Label>
-          <Select value={status} onValueChange={(v) => setStatus(v as typeof status)}>
-            <SelectTrigger id={`${titleInputId}-status`} size="sm" className="w-full max-w-md text-left">
-              <SelectValue>{TEMPLATE_STATUS_LABEL[status]}</SelectValue>
-            </SelectTrigger>
+          <Select
+            value={status}
+            onValueChange={(v) => setStatus(v as typeof status)}
+            items={{
+              draft: TEMPLATE_STATUS_LABEL.draft,
+              published: TEMPLATE_STATUS_LABEL.published,
+              archived: TEMPLATE_STATUS_LABEL.archived,
+            }}
+          >
+            <SelectTrigger
+              id={`${titleInputId}-status`}
+              size="sm"
+              className="w-full max-w-md justify-between text-left"
+              displayLabel={TEMPLATE_STATUS_LABEL[status]}
+            />
             <SelectContent>
               <SelectItem value="draft">Черновик</SelectItem>
               <SelectItem value="published">Опубликован</SelectItem>

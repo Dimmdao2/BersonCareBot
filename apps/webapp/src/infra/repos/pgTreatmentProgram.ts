@@ -42,6 +42,7 @@ import {
   TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_TITLE_RECOMMENDATIONS,
   TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_TITLE_TESTS,
   TREATMENT_PROGRAM_TEMPLATE_STAGE_ZERO_TITLE,
+  treatmentProgramTemplateStageCountForList,
 } from "@/modules/treatment-program/types";
 import { TreatmentProgramTemplateAlreadyArchivedError, TreatmentProgramExpandNotFoundError } from "@/modules/treatment-program/errors";
 
@@ -106,7 +107,7 @@ async function templateListCounts(
       c: sql<number>`count(*)::int`.mapWith(Number),
     })
     .from(stageTable)
-    .where(inArray(stageTable.templateId, templateIds))
+    .where(and(inArray(stageTable.templateId, templateIds), ne(stageTable.sortOrder, 0)))
     .groupBy(stageTable.templateId);
   for (const row of stageAgg) {
     const cur = out.get(row.templateId);
@@ -464,7 +465,7 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
           })
           .returning();
         if (!stRow) throw new Error("insert stage zero failed");
-        return mapTemplate(row, { stageCount: 1, itemCount: 0 });
+        return mapTemplate(row, { stageCount: 0, itemCount: 0 });
       });
     },
 
@@ -529,7 +530,7 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
       }));
       const itemCount = stages.reduce((n, st) => n + st.items.length, 0);
       return {
-        ...mapTemplate(tplRow, { stageCount: stages.length, itemCount }),
+        ...mapTemplate(tplRow, { stageCount: treatmentProgramTemplateStageCountForList(stages), itemCount }),
         stages,
       };
     },

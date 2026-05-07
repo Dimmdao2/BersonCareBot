@@ -15,9 +15,14 @@ alwaysApply: true
 
 Если `value` **не совпадает** с тем, что должен видеть пользователь (русская подпись):
 
-1. Предпочтительно: передать **`items`** на `<Select>` — карта `value → подпись` или массив `{ value, label }` (см. JSDoc в `select.tsx` и тип `SelectRootProps["items"]` в Base UI).
-2. Либо: явные дети **`<SelectValue>…</SelectValue>`**, вычисленные из текущего `value`.
-3. Дополнительно при сложных опциях: **`label`** на `<SelectItem>` (пробрасывается в Base UI).
+1. **Предпочтительно (рекомендуемый паттерн):** проп **`displayLabel`** на `<SelectTrigger>` —
+   автоматически оборачивает подпись в `<SelectValue>`, `children` при этом не нужны:
+   ```tsx
+   <SelectTrigger displayLabel={options.find(o => o.value === val)?.label}>
+   ```
+2. Либо: передать **`items`** на `<Select>` — карта `value → подпись` или массив `{ value, label }` (см. JSDoc в `select.tsx` и тип `SelectRootProps["items"]` в Base UI).
+3. Либо: явные дети **`<SelectValue>…</SelectValue>`**, вычисленные из текущего `value`.
+4. Дополнительно при сложных опциях: **`label`** на `<SelectItem>` (пробрасывается в Base UI).
 
 ## Ограничения
 

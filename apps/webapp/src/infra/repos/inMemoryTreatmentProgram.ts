@@ -20,13 +20,14 @@ import type {
   UpdateTreatmentProgramTemplateInput,
   UpdateTreatmentProgramTemplateStageGroupInput,
 } from "@/modules/treatment-program/types";
-import { EMPTY_TREATMENT_PROGRAM_TEMPLATE_USAGE_SNAPSHOT } from "@/modules/treatment-program/types";
 import {
+  EMPTY_TREATMENT_PROGRAM_TEMPLATE_USAGE_SNAPSHOT,
   TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_SORT_RECOMMENDATIONS,
   TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_SORT_TESTS,
   TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_TITLE_RECOMMENDATIONS,
   TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_TITLE_TESTS,
   TREATMENT_PROGRAM_TEMPLATE_STAGE_ZERO_TITLE,
+  treatmentProgramTemplateStageCountForList,
 } from "@/modules/treatment-program/types";
 import { TreatmentProgramTemplateAlreadyArchivedError, TreatmentProgramExpandNotFoundError } from "@/modules/treatment-program/errors";
 
@@ -136,7 +137,12 @@ export function createInMemoryTreatmentProgramPort(seed?: {
       };
     });
     const itemCount = outStages.reduce((n, st) => n + st.items.length, 0);
-    return { ...tpl, stageCount: outStages.length, itemCount, stages: outStages };
+    return {
+      ...tpl,
+      stageCount: treatmentProgramTemplateStageCountForList(outStages),
+      itemCount,
+      stages: outStages,
+    };
   }
 
   return {
@@ -148,7 +154,7 @@ export function createInMemoryTreatmentProgramPort(seed?: {
         title: input.title,
         description: input.description ?? null,
         status: (input.status ?? "draft") as TreatmentProgramTemplateStatus,
-        stageCount: 1,
+        stageCount: 0,
         itemCount: 0,
         listPreviewMedia: null,
         createdBy,
@@ -184,7 +190,7 @@ export function createInMemoryTreatmentProgramPort(seed?: {
       if (!d) return null;
       const withCounts: TreatmentProgramTemplate = {
         ...next,
-        stageCount: d.stages.length,
+        stageCount: treatmentProgramTemplateStageCountForList(d.stages),
         itemCount: d.stages.reduce((n, st) => n + st.items.length, 0),
       };
       templates.set(id, withCounts);
@@ -225,7 +231,7 @@ export function createInMemoryTreatmentProgramPort(seed?: {
           if (!d) return t;
           return {
             ...t,
-            stageCount: d.stages.length,
+            stageCount: treatmentProgramTemplateStageCountForList(d.stages),
             itemCount: d.stages.reduce((n, s) => n + s.items.length, 0),
             listPreviewMedia: t.listPreviewMedia ?? null,
           };

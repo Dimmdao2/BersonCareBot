@@ -7,6 +7,7 @@ import userEvent from "@testing-library/user-event";
 import { USAGE_CONFIRMATION_REQUIRED } from "@/modules/treatment-program/errors";
 import {
   EMPTY_TREATMENT_PROGRAM_TEMPLATE_USAGE_SNAPSHOT,
+  treatmentProgramTemplateStageCountForList,
   type TreatmentProgramTemplateDetail,
 } from "@/modules/treatment-program/types";
 import {
@@ -57,7 +58,7 @@ function makeDetail(over: Partial<TreatmentProgramTemplateDetail> = {}): Treatme
   const itemCount = merged.stages.reduce((n, st) => n + st.items.length, 0);
   return {
     ...merged,
-    stageCount: merged.stages.length,
+    stageCount: treatmentProgramTemplateStageCountForList(merged.stages),
     itemCount,
     listPreviewMedia: merged.listPreviewMedia ?? null,
   };
@@ -252,9 +253,10 @@ describe("TreatmentProgramConstructorClient", () => {
     expect(onArchived).not.toHaveBeenCalled();
   });
 
-  it("opens LFK expand modal when picking a complex from the library", async () => {
+  it("добавляет комплекс ЛФК из модалки «Элемент из библиотеки» (POST from-lfk-complex, без второй модалки)", async () => {
     const stageId = "22222222-2222-4222-8222-222222222222";
     const complexId = "33333333-3333-4333-8333-333333333333";
+    const groupId = "44444444-4444-4444-8444-444444444444";
     const detail = makeDetail({
       stages: [
         {
@@ -280,7 +282,17 @@ describe("TreatmentProgramConstructorClient", () => {
           objectives: null,
           expectedDurationDays: null,
           expectedDurationText: null,
-          groups: [],
+          groups: [
+            {
+              id: groupId,
+              stageId,
+              title: "Моя группа",
+              description: null,
+              scheduleText: null,
+              sortOrder: 1,
+              systemKind: null,
+            },
+          ],
           items: [],
         },
       ],
@@ -307,26 +319,33 @@ describe("TreatmentProgramConstructorClient", () => {
       if (method === "GET" && url.includes(TEMPLATE_ID) && !url.endsWith("/usage")) {
         return Promise.resolve(jsonResponse({ ok: true, item: detail }));
       }
+      if (method === "POST" && url.includes("/items/from-lfk-complex")) {
+        return Promise.resolve(jsonResponse({ ok: true }));
+      }
       return Promise.resolve(new Response("unexpected", { status: 500 }));
     });
 
     const user = userEvent.setup();
     render(<TreatmentProgramConstructorClient templateId={TEMPLATE_ID} initialDetail={detail} library={library} />);
 
-    const addBtns = screen.getAllByRole("button", { name: /добавить из библиотеки/i });
-    await user.click(addBtns[addBtns.length - 1]!);
+    const addBtns = screen.getAllByRole("button", { name: /добавить элемент/i });
+    await user.click(addBtns[1]!);
 
     const pickerDialog = await screen.findByRole("dialog", { name: /элемент из библиотеки/i });
     const picker = within(pickerDialog);
-    const typeCombo = picker.getAllByRole("combobox")[0]!;
-    await user.click(typeCombo);
-    await user.click(await screen.findByRole("option", { name: /Комплекс ЛФК/i }));
+    await user.click(picker.getByRole("radio", { name: /Комплекс ЛФК/i }));
+
+    expect(picker.getByText(/2 упражнений/)).toBeInTheDocument();
 
     await user.click(picker.getByRole("button", { name: /Комплекс А/i }));
 
     await waitFor(() => {
-      expect(screen.getByRole("heading", { name: /Комплекс ЛФК в этапе/i })).toBeInTheDocument();
+      expect(screen.queryByRole("dialog", { name: /элемент из библиотеки/i })).not.toBeInTheDocument();
     });
-    expect(screen.getByText(/Описание из каталога/)).toBeInTheDocument();
+    const postFromLfk = fetchMock.mock.calls.some(([input, init]) => {
+      const u = requestUrl(input as RequestInfo);
+      return u.includes("from-lfk-complex") && (init as RequestInit | undefined)?.method === "POST";
+    });
+    expect(postFromLfk).toBe(true);
   });
 });

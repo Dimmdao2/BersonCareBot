@@ -27,7 +27,7 @@ export type TreatmentProgramTemplate = {
   title: string;
   description: string | null;
   status: TreatmentProgramTemplateStatus;
-  /** Агрегаты для списка врача (этапы / элементы по всем этапам). */
+  /** Агрегаты для списка врача: этапы лечения без этапа 0 (общие рекомендации); элементы по всем этапам. */
   stageCount: number;
   itemCount: number;
   /** Превью первого элемента по порядку этапов (B6); иначе `null` — в UI остаётся иконка-заглушка. */
@@ -59,6 +59,13 @@ export const TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_TITLE_TESTS = "Тестир
 
 /** Этап шаблона с `sort_order = 0` создаётся при создании шаблона. */
 export const TREATMENT_PROGRAM_TEMPLATE_STAGE_ZERO_TITLE = "Общие рекомендации";
+
+/** Счётчик этапов для списка и поля `TreatmentProgramTemplate.stageCount`: без этапа 0 (общие рекомендации). */
+export function treatmentProgramTemplateStageCountForList(
+  stages: readonly { sortOrder: number }[],
+): number {
+  return stages.reduce((n, s) => n + (s.sortOrder !== 0 ? 1 : 0), 0);
+}
 
 /** Группа внутри этапа экземпляра программы. */
 export type TreatmentProgramInstanceStageGroup = {

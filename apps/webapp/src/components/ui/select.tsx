@@ -3,13 +3,22 @@
 /**
  * Выпадающий список на `@base-ui/react/select` (`Select` = `SelectPrimitive.Root`).
  *
- * **Подпись выбранного значения в триггере:** пока список не смонтирован, пустой
- * `<SelectValue />` может показывать сырое `value` (uuid, ключ enum, `__none__`).
- * Если это неприемлемо, задайте одно из:
+ * **Подпись выбранного значения в триггере:**
+ * Рекомендуемый способ — проп `displayLabel` на `SelectTrigger`:
+ * ```tsx
+ * <SelectTrigger displayLabel={options.find(o => o.value === val)?.label}>
+ * ```
+ * Он автоматически оборачивает подпись в `<SelectValue>` и решает проблему
+ * «сырого ключа/uuid до первого открытия списка».
+ *
+ * Альтернативы (обратная совместимость):
  * - `items` на `<Select>` — `Record<string, React.ReactNode>` или массив `{ value, label }`
  *   (см. тип `SelectRootProps["items"]` в `@base-ui/react/select`);
  * - явные дети `<SelectValue>…</SelectValue>`;
- * - при необходимости `label` на `<SelectItem>` (пробрасывается в Base UI).
+ * - `label` на `<SelectItem>` (пробрасывается в Base UI).
+ *
+ * ⚠️ Пустой `<SelectValue />` без `displayLabel`/`items`/детей
+ * может отображать сырой `value` пока список ещё не смонтирован.
  */
 
 import * as React from "react"
@@ -44,9 +53,20 @@ function SelectTrigger({
   className,
   size = "default",
   children,
+  displayLabel,
   ...props
 }: SelectPrimitive.Trigger.Props & {
   size?: "sm" | "default"
+  /**
+   * Человекочитаемая подпись выбранного значения.
+   * Когда задана — автоматически оборачивается в `<SelectValue>`,
+   * что устраняет отображение сырого ключа/uuid до первого открытия списка.
+   * Если не задана — рендерится `children` как прежде (обратная совместимость).
+   *
+   * @example
+   * <SelectTrigger displayLabel={options.find(o => o.value === val)?.label}>
+   */
+  displayLabel?: React.ReactNode
 }) {
   return (
     <SelectPrimitive.Trigger
@@ -58,7 +78,9 @@ function SelectTrigger({
       )}
       {...props}
     >
-      {children}
+      {displayLabel !== undefined
+        ? <SelectValue>{displayLabel}</SelectValue>
+        : children}
       <SelectPrimitive.Icon
         render={
           <ChevronDownIcon className="pointer-events-none size-4 text-muted-foreground" />
