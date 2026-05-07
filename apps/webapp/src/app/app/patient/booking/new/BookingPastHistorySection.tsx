@@ -3,7 +3,6 @@
 import { type ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -14,7 +13,7 @@ import {
 import { cn } from "@/lib/utils";
 import type { PatientBookingRecord } from "@/modules/patient-booking/types";
 import { formatBookingDateTimeMediumRu } from "@/shared/lib/formatBusinessDateTime";
-import { patientCardClass, patientListItemClass, patientMutedTextClass } from "@/shared/ui/patientVisual";
+import { patientListItemClass, patientMutedTextClass, patientSectionSurfaceClass, patientSectionTitleClass } from "@/shared/ui/patientVisual";
 import type { CabinetPastRow } from "@/app/app/patient/cabinet/cabinetPastBookingsMerge";
 import { bookingProvenancePrefix, nativeBookingSubtitle } from "@/app/app/patient/cabinet/patientBookingLabels";
 
@@ -90,25 +89,21 @@ function PastList({ items, appDisplayTimeZone }: Props) {
 
 export function BookingPastHistorySection({ items, appDisplayTimeZone }: Props) {
   return (
-    <Card className={cn(patientCardClass, "ring-0")}>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-base">История посещений</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <Dialog>
-          <DialogTrigger render={<Button type="button" variant="outline" className="w-full" />}>
-            Открыть историю
-          </DialogTrigger>
-          <DialogContent className="flex max-h-[min(80vh,560px)] flex-col gap-0 overflow-hidden p-0 sm:max-w-lg">
-            <DialogHeader className="shrink-0 border-b px-4 py-3 text-left">
-              <DialogTitle>История посещений</DialogTitle>
-            </DialogHeader>
-            <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4 pt-3">
-              <PastList items={items} appDisplayTimeZone={appDisplayTimeZone} />
-            </div>
-          </DialogContent>
-        </Dialog>
-      </CardContent>
-    </Card>
+    <div className={patientSectionSurfaceClass}>
+      <h3 className={patientSectionTitleClass}>История посещений</h3>
+      <Dialog>
+        <DialogTrigger render={<Button type="button" variant="outline" className="w-full" />}>
+          Открыть историю
+        </DialogTrigger>
+        <DialogContent className="flex max-h-[min(80vh,560px)] flex-col gap-0 overflow-hidden p-0 sm:max-w-lg">
+          <DialogHeader className="shrink-0 border-b px-4 py-3 text-left">
+            <DialogTitle>История посещений</DialogTitle>
+          </DialogHeader>
+          <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4 pt-3">
+            <PastList items={items} appDisplayTimeZone={appDisplayTimeZone} />
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 }

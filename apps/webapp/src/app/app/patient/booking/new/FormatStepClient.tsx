@@ -3,13 +3,12 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { routePaths } from "@/app-layer/routes/paths";
 import type { BookingCity } from "@/modules/booking-catalog/types";
 import {
-  patientCardClass,
   patientInfoLinkTileClass,
   patientMutedTextClass,
+  patientSectionSurfaceClass,
   patientSectionTitleClass,
 } from "@/shared/ui/patientVisual";
 import { cn } from "@/lib/utils";
@@ -31,11 +30,9 @@ export function FormatStepClient({ cities, catalogError }: FormatStepClientProps
   const sortedCities = sortCitiesForDisplay(cities);
 
   return (
-    <Card className={cn(patientCardClass, "ring-0")}>
-      <CardHeader className="pb-2">
-        <h3 className={patientSectionTitleClass}>Запись</h3>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-4">
+    <div className={patientSectionSurfaceClass}>
+      <h3 className={patientSectionTitleClass}>Запись</h3>
+      <div className="flex flex-col gap-4">
         <div className="flex flex-col gap-2">
           <p className={cn(patientMutedTextClass, "text-xs font-medium uppercase tracking-wide")}>Очный приём</p>
           {catalogError ? (
@@ -79,7 +76,7 @@ export function FormatStepClient({ cities, catalogError }: FormatStepClientProps
             Нутрициология онлайн
           </button>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }

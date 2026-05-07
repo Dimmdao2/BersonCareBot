@@ -2,7 +2,6 @@
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { isSafeExternalHref } from "@/lib/url/isSafeExternalHref";
 import type { PatientBookingRecord } from "@/modules/patient-booking/types";
 import { formatBookingDateTimeMediumRu } from "@/shared/lib/formatBusinessDateTime";
@@ -10,10 +9,11 @@ import { openExternalLinkInMessenger } from "@/shared/lib/openExternalLinkInMess
 import { bookingProvenancePrefix, nativeBookingSubtitle } from "@/app/app/patient/cabinet/patientBookingLabels";
 import { cn } from "@/lib/utils";
 import {
-  patientCardClass,
   patientInlineLinkClass,
   patientListItemClass,
   patientMutedTextClass,
+  patientSectionSurfaceClass,
+  patientSectionTitleClass,
 } from "@/shared/ui/patientVisual";
 
 type Props = {
@@ -53,11 +53,9 @@ export function BookingUpcomingSection({ bookings, appDisplayTimeZone }: Props) 
   if (bookings.length === 0) return null;
 
   return (
-    <Card className={cn(patientCardClass, "ring-0")}>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-base">Предстоящие записи</CardTitle>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-2">
+    <div className={patientSectionSurfaceClass}>
+      <h3 className={patientSectionTitleClass}>Предстоящие записи</h3>
+      <div className="flex flex-col gap-2">
         {bookings.map((row) => {
           const rubitimeUrl = row.rubitimeManageUrl?.trim() ?? "";
           const safeRubitime = rubitimeUrl !== "" && isSafeExternalHref(rubitimeUrl);
@@ -101,7 +99,7 @@ export function BookingUpcomingSection({ bookings, appDisplayTimeZone }: Props) 
             </div>
           );
         })}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }

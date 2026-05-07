@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { routePaths } from "@/app-layer/routes/paths";
 import type { BookingBranchService } from "@/modules/booking-catalog/types";
-import { patientMutedTextClass } from "@/shared/ui/patientVisual";
+import { patientInfoLinkTileClass, patientMutedTextClass, patientSectionSurfaceClass } from "@/shared/ui/patientVisual";
 
 export type ServiceStepClientProps = {
   cityCode: string;
@@ -18,7 +18,7 @@ export function ServiceStepClient({ cityCode, cityTitle, services, catalogError 
   const router = useRouter();
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className={patientSectionSurfaceClass}>
       {catalogError ? (
         <div className="flex flex-col gap-2">
           <p className="text-sm text-destructive">{catalogError}</p>
@@ -36,11 +36,10 @@ export function ServiceStepClient({ cityCode, cityTitle, services, catalogError 
             const label = dur != null ? `${title} (${dur} мин.)` : title;
             const desc = s.service?.description?.trim();
             return (
-              <Button
+              <button
                 key={s.id}
                 type="button"
-                variant="outline"
-                className="h-auto min-h-11 flex-col items-stretch justify-center gap-1 whitespace-normal py-3 text-left"
+                className={cn(patientInfoLinkTileClass, "flex-col items-start justify-center gap-1 py-3 text-left")}
                 onClick={() =>
                   router.push(
                     `${routePaths.bookingNewSlot}?type=in_person` +
@@ -53,7 +52,7 @@ export function ServiceStepClient({ cityCode, cityTitle, services, catalogError 
               >
                 <span className="font-medium">{label}</span>
                 {desc ? <span className={cn(patientMutedTextClass, "text-xs font-normal")}>{desc}</span> : null}
-              </Button>
+              </button>
             );
           })}
         </div>

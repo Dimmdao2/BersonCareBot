@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { routePaths } from "@/app-layer/routes/paths";
-import { patientMutedTextClass } from "@/shared/ui/patientVisual";
+import { patientButtonPrimaryClass, patientMutedTextClass } from "@/shared/ui/patientVisual";
 import type { BookingCategory, BookingSlot } from "@/modules/patient-booking/types";
 import { BookingCalendar } from "../../../cabinet/BookingCalendar";
 import { BookingSlotList } from "../../../cabinet/BookingSlotList";
@@ -106,8 +106,9 @@ export function SlotStepClient(props: Props) {
         />
       ) : null}
 
-      <Button
+      <button
         type="button"
+        className={patientButtonPrimaryClass}
         disabled={!canContinue || !effectiveDate || !selectedSlot}
         onClick={() => {
           if (!effectiveDate || !selectedSlot) return;
@@ -116,7 +117,7 @@ export function SlotStepClient(props: Props) {
         }}
       >
         Продолжить
-      </Button>
+      </button>
     </div>
   );
 }

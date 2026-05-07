@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { AppShell } from "@/shared/ui/AppShell";
 import type { SessionUser } from "@/shared/types/session";
 import { cn } from "@/lib/utils";
-import { patientMutedTextClass } from "@/shared/ui/patientVisual";
+import { patientMutedTextClass, patientInnerPageStackClass } from "@/shared/ui/patientVisual";
 
 type Props = {
   title: string;
@@ -31,7 +31,7 @@ export function BookingWizardShell({
       variant="patient"
     >
       <p className={cn(patientMutedTextClass, "text-xs")}>Шаг {step} из {totalSteps}</p>
-      <div className="mt-3 flex flex-col gap-[var(--patient-gap)]">{children}</div>
+      <div className={patientInnerPageStackClass}>{children}</div>
     </AppShell>
   );
 }

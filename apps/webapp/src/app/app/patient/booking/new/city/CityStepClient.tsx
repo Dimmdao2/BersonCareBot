@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { routePaths } from "@/app-layer/routes/paths";
 import type { BookingCity } from "@/modules/booking-catalog/types";
-import { patientMutedTextClass } from "@/shared/ui/patientVisual";
+import { patientInfoLinkTileClass, patientMutedTextClass, patientSectionSurfaceClass } from "@/shared/ui/patientVisual";
 
 function sortCitiesForDisplay(cities: BookingCity[]): BookingCity[] {
   return [...cities].sort(
@@ -22,7 +22,7 @@ export function CityStepClient({ cities, catalogError }: CityStepClientProps) {
   const sorted = sortCitiesForDisplay(cities);
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className={patientSectionSurfaceClass}>
       {catalogError ? (
         <div className="flex flex-col gap-2">
           <p className="text-sm text-destructive">{catalogError}</p>
@@ -32,13 +32,12 @@ export function CityStepClient({ cities, catalogError }: CityStepClientProps) {
         </div>
       ) : null}
       {!catalogError ? (
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-col gap-2">
           {sorted.map((c) => (
-            <Button
+            <button
               key={c.id}
               type="button"
-              variant="outline"
-              size="sm"
+              className={patientInfoLinkTileClass}
               onClick={() =>
                 router.push(
                   `${routePaths.bookingNewService}?cityCode=${encodeURIComponent(c.code)}&cityTitle=${encodeURIComponent(c.title)}`,
@@ -46,7 +45,7 @@ export function CityStepClient({ cities, catalogError }: CityStepClientProps) {
               }
             >
               {c.title}
-            </Button>
+            </button>
           ))}
         </div>
       ) : null}

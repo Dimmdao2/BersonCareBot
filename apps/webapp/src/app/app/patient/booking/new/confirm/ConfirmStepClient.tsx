@@ -2,8 +2,6 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { routePaths } from "@/app-layer/routes/paths";
 import type { BookingCategory } from "@/modules/patient-booking/types";
@@ -16,7 +14,7 @@ import {
 } from "@/shared/lib/formatBusinessDateTime";
 import toast from "react-hot-toast";
 import { cn } from "@/lib/utils";
-import { patientCardClass, patientMutedTextClass } from "@/shared/ui/patientVisual";
+import { patientButtonPrimaryClass, patientCardClass, patientFormSurfaceClass, patientMutedTextClass, patientSectionTitleClass } from "@/shared/ui/patientVisual";
 
 type Props = {
   type: "in_person" | "online";
@@ -99,7 +97,7 @@ export function ConfirmStepClient({
       </div>
 
       <form
-        className="flex flex-col gap-3"
+        className={cn(patientFormSurfaceClass, "gap-3")}
         onSubmit={(event) => {
           event.preventDefault();
           if (!selection) return;
@@ -117,10 +115,7 @@ export function ConfirmStepClient({
           });
         }}
       >
-        <div className="flex items-center gap-2">
-          <h2 className="text-sm font-semibold">Контакты</h2>
-          <Badge variant="outline">Шаг 4</Badge>
-        </div>
+        <h2 className={patientSectionTitleClass}>Контакты</h2>
 
         <label className="flex flex-col gap-1">
           <span className={cn(patientMutedTextClass, "text-xs")}>Имя</span>
@@ -135,9 +130,9 @@ export function ConfirmStepClient({
           <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
         </label>
         {error ? <p className="text-sm text-destructive">{error}</p> : null}
-        <Button type="submit" disabled={!canSubmit}>
+        <button type="submit" className={patientButtonPrimaryClass} disabled={!canSubmit}>
           {submitting ? "Создаём запись..." : "Подтвердить запись"}
-        </Button>
+        </button>
       </form>
     </div>
   );
