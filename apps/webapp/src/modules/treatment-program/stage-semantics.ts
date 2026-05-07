@@ -227,45 +227,58 @@ export function calendarWholeDaysRemainingUntilUtcIso(
 }
 
 /**
- * Ожидаемая дата контроля этапа: `started_at` + `expected_duration_days` (календарные сутки от момента старта этапа).
- * Только если оба поля заданы и дни неотрицательны.
+ * Начало календарного дня дедлайна контроля: **дата** старта этапа в зоне пациента (без времени суток)
+ * + `expected_duration_days` календарных дней.
+ * Если `started_at` нет — якорь «сегодня» в зоне пациента (`available` / `in_progress` без старта).
  */
+export function patientStageControlEndCalendarDayStart(
+  stage: Pick<TreatmentProgramInstanceStageRow, "status" | "startedAt" | "expectedDurationDays">,
+  now: DateTime,
+  patientCalendarIana: string,
+): DateTime | null {
+  const days = stage.expectedDurationDays;
+  if (days == null || !Number.isFinite(days) || days < 0) return null;
+
+  const startedRaw = stage.startedAt;
+  if (startedRaw != null && String(startedRaw).trim() !== "") {
+    const dt = DateTime.fromISO(startedRaw, { zone: "utc" });
+    if (dt.isValid) {
+      const startDay = dt.setZone(patientCalendarIana).startOf("day");
+      return startDay.plus({ days });
+    }
+  }
+
+  if (stage.status === "available" || stage.status === "in_progress") {
+    return now.setZone(patientCalendarIana).startOf("day").plus({ days });
+  }
+  return null;
+}
+
+/**
+ * ISO-момент для отображения даты контроля пациенту (дедлайн = календарный день после «дата старта + N дней»).
+ */
+export function expectedStageControlDeadlineIsoForPatientUi(
+  stage: Pick<TreatmentProgramInstanceStageRow, "status" | "startedAt" | "expectedDurationDays">,
+  now: DateTime,
+  patientCalendarIana: string,
+): string | null {
+  const endDay = patientStageControlEndCalendarDayStart(stage, now, patientCalendarIana);
+  if (!endDay) return null;
+  return endDay.toUTC().toISO();
+}
+
+/** Ожидаемая дата контроля для вызовов без зоны (тесты / совместимость): только при `started_at` и днях; календарный день UTC. */
 export function expectedStageControlDateIso(
   stage: Pick<TreatmentProgramInstanceStageRow, "startedAt" | "expectedDurationDays">,
 ): string | null {
   if (stage.startedAt == null || stage.expectedDurationDays == null) return null;
   const days = stage.expectedDurationDays;
   if (!Number.isFinite(days) || days < 0) return null;
-  const dt = DateTime.fromISO(stage.startedAt, { zone: "utc" });
-  if (!dt.isValid) return null;
-  return dt.plus({ days }).toISO();
-}
-
-/**
- * UTC-момент ожидаемого конца окна этапа для подсчёта «остатка дней» на вкладке «Прогресс».
- * Сначала {@link expectedStageControlDateIso} (`started_at` + дни).
- * Если этап уже открыт (`available`), но старт ещё не зафиксирован — от начала локальных суток «сегодня» пациента + дни.
- * Аномалия `in_progress` без `started_at` — тот же запасной якорь.
- */
-export function resolvePatientStageControlUtcIsoForRemainderUi(
-  stage: Pick<TreatmentProgramInstanceStageRow, "status" | "startedAt" | "expectedDurationDays">,
-  now: DateTime,
-  patientCalendarIana: string,
-): string | null {
-  const primary = expectedStageControlDateIso(stage);
-  if (primary) return primary;
-
-  const days = stage.expectedDurationDays;
-  if (days == null || !Number.isFinite(days) || days < 0) return null;
-
-  const anchorTodayLocalStart = now.setZone(patientCalendarIana).startOf("day");
-  if (stage.status === "available") {
-    return anchorTodayLocalStart.plus({ days }).toUTC().toISO();
-  }
-  if (stage.status === "in_progress" && stage.startedAt == null) {
-    return anchorTodayLocalStart.plus({ days }).toUTC().toISO();
-  }
-  return null;
+  return expectedStageControlDeadlineIsoForPatientUi(
+    { ...stage, status: "in_progress" },
+    DateTime.now(),
+    "UTC",
+  );
 }
 
 /**
@@ -285,9 +298,11 @@ export function resolvePatientProgramControlRemainderDaysForPatientUi(
     stageForControl = stageZero.find((s) => s.status === "in_progress") ?? stageZero.find((s) => s.status === "available") ?? null;
   }
   if (!stageForControl) return null;
-  const controlIso = resolvePatientStageControlUtcIsoForRemainderUi(stageForControl, now, patientCalendarIana);
-  if (!controlIso) return null;
-  return calendarWholeDaysRemainingUntilUtcIso(now, patientCalendarIana, controlIso);
+  const endDayStart = patientStageControlEndCalendarDayStart(stageForControl, now, patientCalendarIana);
+  if (!endDayStart) return null;
+  const todayStart = now.setZone(patientCalendarIana).startOf("day");
+  const diff = endDayStart.diff(todayStart, "days").days;
+  return Math.max(0, Math.floor(diff));
 }
 
 /**
@@ -401,21 +416,27 @@ export function formatRelativePatientCalendarDayRu(
 
 /**
  * Момент начала отсчёта «дней в программе»: **самый ранний** непустой `started_at`
- * среди этапов pipeline (`sort_order > 0`). Так отражается фактический старт программы,
- * даже если у первого по порядку этапа дата старта ещё не проставлена, а следующий уже в работе.
- * Если ни один этап не стартовал — `created_at` экземпляра (назначение до первого входа).
+ * среди этапов pipeline (`sort_order > 0`). Если pipeline ещё ни разу не стартовал — берём ранний
+ * старт этапа 0 (программа только из «нулевого» этапа). Иначе `created_at` экземпляра.
  */
 export function patientProgramElapsedDaysAnchorIso(
   detail: Pick<TreatmentProgramInstanceDetail, "createdAt" | "stages">,
 ): string {
-  const started: string[] = [];
+  const pipelineStarts: string[] = [];
+  const zeroStarts: string[] = [];
   for (const s of detail.stages) {
-    if (s.sortOrder <= 0) continue;
     const st = s.startedAt;
-    if (st != null && String(st).trim() !== "") started.push(String(st));
+    if (st == null || String(st).trim() === "") continue;
+    if (s.sortOrder > 0) pipelineStarts.push(String(st));
+    else if (s.sortOrder === 0) zeroStarts.push(String(st));
   }
-  if (started.length === 0) return detail.createdAt;
-  return started.reduce((a, b) => (a < b ? a : b));
+  if (pipelineStarts.length > 0) {
+    return pipelineStarts.reduce((a, b) => (a < b ? a : b));
+  }
+  if (zeroStarts.length > 0) {
+    return zeroStarts.reduce((a, b) => (a < b ? a : b));
+  }
+  return detail.createdAt;
 }
 
 /**
@@ -447,8 +468,12 @@ export function resolvePatientProgramProgressDaysForPatientUi(
   appDisplayTimeZoneForAnchorIso: string,
 ): number | null {
   if (detail.status !== "active") return null;
-  const { pipeline } = splitPatientProgramStagesForDetailUi(detail.stages);
-  const currentWorkingStage = selectCurrentWorkingStageForPatientDetail(pipeline);
+  const { stageZero, pipeline } = splitPatientProgramStagesForDetailUi(detail.stages);
+  let currentWorkingStage = selectCurrentWorkingStageForPatientDetail(pipeline);
+  if (!currentWorkingStage && pipeline.length === 0) {
+    currentWorkingStage =
+      stageZero.find((s) => s.status === "in_progress") ?? stageZero.find((s) => s.status === "available") ?? null;
+  }
   if (!currentWorkingStage) return null;
   const awaitsStart = currentWorkingStage.status === "available";
   if (awaitsStart) return null;

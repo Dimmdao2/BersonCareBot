@@ -118,7 +118,7 @@ describe("PatientTreatmentProgramDetailClient", () => {
     expect(screen.getByText(/Пройдено 1 этап/)).toBeInTheDocument();
   });
 
-  it("progress tab subtitle shows computed control remainder from detail", () => {
+  it("progress tab subtitle shows program elapsed day count", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-01-10T12:00:00.000Z"));
     try {
@@ -151,7 +151,9 @@ describe("PatientTreatmentProgramDetailClient", () => {
           {...detailShellProps}
         />,
       );
-      expect(screen.getByText("Контроль через 5 дней")).toBeInTheDocument();
+      const tablist = screen.getByRole("tablist", { name: "Разделы программы" });
+      const progressTab = within(tablist).getAllByRole("tab")[2]!;
+      expect(progressTab.textContent).toMatch(/\d+ (день|дня|дней)/);
     } finally {
       vi.useRealTimers();
     }
@@ -864,7 +866,7 @@ describe("PatientTreatmentProgramDetailClient", () => {
     clickPatientTreatmentTab("progress");
     fireEvent.click(screen.getByRole("button", { name: "Состав этапа: Острая фаза" }));
     const dialog = screen.getByRole("dialog");
-    expect(within(dialog).getByRole("button", { name: /Начать занятие/i })).toBeInTheDocument();
+    expect(within(dialog).queryByRole("button", { name: /Начать занятие/i })).not.toBeInTheDocument();
     expect(within(dialog).getAllByText("Сегодня:")).toHaveLength(4);
     expect(within(dialog).queryByRole("checkbox")).not.toBeInTheDocument();
     expect(within(dialog).getByText("Блок утро")).toBeInTheDocument();

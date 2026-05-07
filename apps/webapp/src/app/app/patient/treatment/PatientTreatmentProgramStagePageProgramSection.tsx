@@ -17,6 +17,7 @@ import {
   recommendationBodyMdPreviewPlain,
   type InstanceStageItem,
 } from "@/app/app/patient/treatment/stageItemSnapshot";
+import { listLfkSnapshotExerciseLines } from "@/modules/treatment-program/programActionActivityKey";
 import {
   patientBodyTextClass,
   patientCardClass,
@@ -96,6 +97,42 @@ function tileTitle(snapshot: Record<string, unknown>, itemType: string): string 
   const t = snapshot.title;
   if (typeof t === "string" && t.trim() !== "") return t;
   return itemType;
+}
+
+function finiteSnapNum(v: unknown): number | null {
+  return typeof v === "number" && Number.isFinite(v) ? v : null;
+}
+
+/** Бейджи нагрузки справа от заголовка плитки: повторы×подходы и макс. боль (из снимка). */
+function programTileLoadBadgeLabels(item: InstanceStageItem): {
+  repsSetsLabel: string | null;
+  painLabel: string | null;
+} {
+  const snap = item.snapshot as Record<string, unknown>;
+  if (item.itemType === "lfk_complex") {
+    const lines = listLfkSnapshotExerciseLines(snap);
+    if (lines.length === 0) return { repsSetsLabel: null, painLabel: null };
+    const first = lines[0]!;
+    const repsSetsLabel =
+      first.reps != null && first.sets != null ? `${first.reps}×${first.sets}` : null;
+    let maxPain: number | null = null;
+    for (const line of lines) {
+      if (line.maxPain != null) {
+        maxPain = maxPain == null ? line.maxPain : Math.max(maxPain, line.maxPain);
+      }
+    }
+    const painLabel = maxPain != null ? `Боль ${maxPain} max` : null;
+    return { repsSetsLabel, painLabel };
+  }
+  if (item.itemType === "exercise") {
+    const reps = finiteSnapNum(snap.reps);
+    const sets = finiteSnapNum(snap.sets);
+    const maxPain = finiteSnapNum(snap.maxPain);
+    const repsSetsLabel = reps != null && sets != null ? `${reps}×${sets}` : null;
+    const painLabel = maxPain != null ? `Боль ${maxPain} max` : null;
+    return { repsSetsLabel, painLabel };
+  }
+  return { repsSetsLabel: null, painLabel: null };
 }
 
 function programTileDescriptionRaw(item: InstanceStageItem): { markdown: string | null; plain: string } {
@@ -267,6 +304,8 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
     const contrText = programTileContraindicationsPlain(item);
     const doctorComment = item.effectiveComment?.trim() ?? "";
     const hasHintRow = hasDescription || Boolean(contrText) || Boolean(doctorComment);
+    const badgeLabels = programTileLoadBadgeLabels(item);
+    const showLoadBadges = Boolean(badgeLabels.repsSetsLabel || badgeLabels.painLabel);
 
     return (
       <li
@@ -306,16 +345,30 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
             </div>
           </button>
           <div className="flex min-h-[72px] min-w-0 flex-1 flex-col self-stretch">
-            <div className="h-[33px] shrink-0 overflow-hidden">
+            <div className="flex min-h-[33px] shrink-0 gap-2 overflow-hidden">
               <button
                 type="button"
-                className="flex h-full w-full cursor-pointer items-start border-0 bg-transparent p-0 text-left"
+                className="flex min-w-0 flex-1 cursor-pointer items-start border-0 bg-transparent p-0 text-left"
                 onClick={() => openProgramModal(item.id)}
               >
                 <span className="line-clamp-2 break-words text-[13px] font-normal leading-tight text-foreground">
                   {tileTitle(item.snapshot as Record<string, unknown>, item.itemType)}
                 </span>
               </button>
+              {showLoadBadges ? (
+                <div className="flex shrink-0 flex-col items-end justify-end gap-1 self-end">
+                  {badgeLabels.repsSetsLabel ? (
+                    <span className="rounded-md border border-neutral-300 bg-white px-1.5 py-0.5 text-[10px] font-medium leading-none tabular-nums text-neutral-800">
+                      {badgeLabels.repsSetsLabel}
+                    </span>
+                  ) : null}
+                  {badgeLabels.painLabel ? (
+                    <span className="rounded-md border border-neutral-300 bg-white px-1.5 py-0.5 text-[10px] font-medium leading-none tabular-nums text-neutral-800">
+                      {badgeLabels.painLabel}
+                    </span>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
 
             <div className="mt-auto flex w-full min-w-0 shrink-0 items-start justify-between gap-2">

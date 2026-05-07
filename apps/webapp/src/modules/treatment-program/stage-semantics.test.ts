@@ -472,6 +472,27 @@ describe("stage-semantics (1.1a detail split)", () => {
     expect(patientProgramElapsedDaysAnchorIso(base)).toBe("2026-01-08T12:00:00.000Z");
   });
 
+  it("patientProgramElapsedDaysAnchorIso: prefers pipeline starts over stage zero", () => {
+    const d = minimalDetail([{ id: "i1", status: "active" }]);
+    d.stages[0].sortOrder = 0;
+    d.stages[0].startedAt = "2026-01-20T00:00:00.000Z";
+    d.stages.push({
+      ...d.stages[0]!,
+      id: "stage-pipeline-1",
+      sortOrder: 1,
+      startedAt: "2026-01-10T00:00:00.000Z",
+      status: "in_progress",
+    });
+    expect(patientProgramElapsedDaysAnchorIso(d)).toBe("2026-01-10T00:00:00.000Z");
+  });
+
+  it("patientProgramElapsedDaysAnchorIso: uses stage zero when pipeline never started", () => {
+    const d = minimalDetail([{ id: "i1", status: "active" }]);
+    d.stages[0].sortOrder = 0;
+    d.stages[0].startedAt = "2026-01-20T00:00:00.000Z";
+    expect(patientProgramElapsedDaysAnchorIso(d)).toBe("2026-01-20T00:00:00.000Z");
+  });
+
   it("patientProgramElapsedDaysAnchorIso: createdAt when no pipeline stage has startedAt", () => {
     const d = minimalDetail([{ id: "i1", status: "active" }]);
     d.stages[0].startedAt = null;

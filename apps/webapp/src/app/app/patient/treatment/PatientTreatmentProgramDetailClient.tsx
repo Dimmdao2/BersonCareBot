@@ -58,10 +58,11 @@ import {
   splitPatientProgramStagesForDetailUi,
   selectCurrentWorkingStageForPatientDetail,
   countPatientCompletedPipelineStages,
-  expectedStageControlDateIso,
   formatRelativePatientCalendarDayRu,
   sortDoctorInstanceStageGroupsForDisplay,
   resolvePatientProgramControlRemainderDaysForPatientUi,
+  resolvePatientProgramProgressDaysForPatientUi,
+  expectedStageControlDeadlineIsoForPatientUi,
 } from "@/modules/treatment-program/stage-semantics";
 import { listLfkSnapshotExerciseLines, programActionDoneActivityKey } from "@/modules/treatment-program/programActionActivityKey";
 import { testIdsFromTestSetSnapshot } from "@/modules/treatment-program/testSetSnapshotView";
@@ -91,7 +92,6 @@ import {
   patientListItemClass,
   patientMutedTextClass,
   patientHeroPrimaryActionClass,
-  patientModalPortalPrimaryCtaClass,
   patientPrimaryActionClass,
   patientSectionSurfaceClass,
   patientSectionTitleClass,
@@ -304,6 +304,30 @@ function PatientCompositionItemProgressAside(props: {
   );
 }
 
+function ruDaysWordN(n: number): string {
+  const mod100 = n % 100;
+  if (mod100 >= 11 && mod100 <= 14) return "дней";
+  const mod10 = n % 10;
+  if (mod10 === 1) return "день";
+  if (mod10 >= 2 && mod10 <= 4) return "дня";
+  return "дней";
+}
+
+function buildProgressTabProgramDaysLabel(
+  detail: TreatmentProgramInstanceDetail,
+  patientCalendarDayIana: string,
+  appDisplayTimeZone: string,
+): string {
+  const n = resolvePatientProgramProgressDaysForPatientUi(
+    detail,
+    DateTime.now(),
+    patientCalendarDayIana,
+    appDisplayTimeZone,
+  );
+  if (n == null) return "—";
+  return `${n} ${ruDaysWordN(n)}`;
+}
+
 function ruPassedStagesWord(n: number): string {
   const mod100 = n % 100;
   if (mod100 >= 11 && mod100 <= 14) return "этапов";
@@ -513,8 +537,6 @@ function PatientProgramStagesTimeline(props: {
   doneTodayCountByActivityKey: Readonly<Record<string, number>>;
   lastDoneAtIsoByActivityKey: Readonly<Record<string, string>>;
   doneTodayCountByItemId: Readonly<Record<string, number>>;
-  /** Вместо ссылки на страницу этапа — открыть занятие (модалка на родителе). */
-  onStartLesson?: () => void;
 }) {
   const {
     stages,
@@ -525,7 +547,6 @@ function PatientProgramStagesTimeline(props: {
     doneTodayCountByActivityKey,
     lastDoneAtIsoByActivityKey,
     doneTodayCountByItemId,
-    onStartLesson,
   } = props;
   const [itemsModalStage, setItemsModalStage] = useState<InstanceStageRow | null>(null);
   const stageForModal = useMemo(() => {
@@ -663,24 +684,7 @@ function PatientProgramStagesTimeline(props: {
       </section>
 
       <Dialog open={itemsModalStage !== null} onOpenChange={(open) => !open && setItemsModalStage(null)}>
-        <PatientModalDialogContent
-          title={stageForModal?.title ?? ""}
-          topSlot={
-            detail.status === "active" && currentWorkingStage && onStartLesson ? (
-              <button
-                type="button"
-                onClick={() => {
-                  setItemsModalStage(null);
-                  onStartLesson();
-                }}
-                className={patientModalPortalPrimaryCtaClass}
-              >
-                <PlayCircle className="size-5 shrink-0 lg:size-6" aria-hidden />
-                Начать занятие
-              </button>
-            ) : null
-          }
-        >
+        <PatientModalDialogContent title={stageForModal?.title ?? ""}>
           {stageForModal ? (
             <>
               {(() => {
@@ -1459,15 +1463,17 @@ function PatientLfkChecklistRow(props: {
 }
 
 function PatientProgramControlCard(props: {
-  /** Дата контроля (крупная строка); если null — показывается {@link fallbackMessage}. */
+  /** Дата контроля; если null — показывается {@link fallbackMessage}. */
   dateLine: string | null;
+  /** Остаток календарных дней до контроля — строка «(через N дней)». */
+  remainderDays: number | null;
   fallbackMessage: string;
   instanceId: string;
   currentStageId: string | null;
   /** Вместо перехода на страницу этапа — переключить вкладку «Программа». */
   onProgramTests?: () => void;
 }) {
-  const { dateLine, fallbackMessage, instanceId, currentStageId, onProgramTests } = props;
+  const { dateLine, remainderDays, fallbackMessage, instanceId, currentStageId, onProgramTests } = props;
   return (
     <section className={patientSurfaceWarningClass} aria-label="Следующий контроль">
       <div className="flex min-w-0 flex-row items-start justify-between gap-3">
@@ -1480,7 +1486,15 @@ function PatientProgramControlCard(props: {
             <h3 className={cn(patientSectionTitleClass, "mb-0 leading-tight")}>Следующий контроль</h3>
           </div>
           {dateLine ? (
-            <p className="mt-0 text-2xl font-bold leading-[1.05] tracking-tight">{dateLine}</p>
+            <p className="mt-0 text-sm font-semibold leading-snug text-foreground">
+              <span>{dateLine}</span>
+              {remainderDays != null ? (
+                <span className="text-[11px] font-normal leading-snug text-neutral-700 dark:text-neutral-400">
+                  {" "}
+                  (через {remainderDays} {ruDaysWordN(remainderDays)})
+                </span>
+              ) : null}
+            </p>
           ) : (
             <p className={cn(patientMutedTextClass, "mt-0 text-base font-semibold leading-snug")}>
               {fallbackMessage}
@@ -1526,7 +1540,7 @@ export function PatientTreatmentProgramDetailClient(props: {
   initialProgramEvents?: TreatmentProgramEventRow[];
   appDisplayTimeZone: string;
   programDescription?: string | null;
-  /** IANA для календарных суток пациента (остаток «Контроль через» пересчитывается из актуального `detail` на клиенте). */
+  /** IANA для календарных суток пациента. */
   patientCalendarDayIana: string;
 }) {
   const {
@@ -1703,30 +1717,18 @@ export function PatientTreatmentProgramDetailClient(props: {
     [programTabStage],
   );
 
-  const progressTabControlRemainderDays = useMemo(
-    () =>
-      resolvePatientProgramControlRemainderDaysForPatientUi(detail, DateTime.now(), patientCalendarDayIana),
-    [detail, patientCalendarDayIana],
+  const progressTabProgramDaysLabel = buildProgressTabProgramDaysLabel(detail, patientCalendarDayIana, appDisplayTimeZone);
+
+  const controlRemainderDaysForCard = resolvePatientProgramControlRemainderDaysForPatientUi(
+    detail,
+    DateTime.now(),
+    patientCalendarDayIana,
   );
-
-  /** Подпись вкладки «Прогресс»: остаток календарных дней до ожидаемого конца этапа (контроль). */
-  const progressTabControlThroughLabel = useMemo(() => {
-    if (progressTabControlRemainderDays == null) return "—";
-    const n = progressTabControlRemainderDays;
-    const mod100 = n % 100;
-    let w = "дней";
-    if (mod100 >= 11 && mod100 <= 14) w = "дней";
-    else {
-      const mod10 = n % 10;
-      if (mod10 === 1) w = "день";
-      else if (mod10 >= 2 && mod10 <= 4) w = "дня";
-    }
-    return `Контроль через ${n} ${w}`;
-  }, [progressTabControlRemainderDays]);
-
-  const controlIso = currentWorkingStage ? expectedStageControlDateIso(currentWorkingStage) : null;
+  const controlDeadlineIso = currentWorkingStage
+    ? expectedStageControlDeadlineIsoForPatientUi(currentWorkingStage, DateTime.now(), patientCalendarDayIana)
+    : null;
   const controlDateLine =
-    controlIso && appDisplayTimeZone ? formatBookingDateLongRu(controlIso, appDisplayTimeZone) : null;
+    controlDeadlineIso && appDisplayTimeZone ? formatBookingDateLongRu(controlDeadlineIso, appDisplayTimeZone) : null;
   const controlFallbackMessage =
     currentWorkingStage?.expectedDurationText?.trim() || "Срок консультации уточняется у врача.";
   /** Карточка контроля: после старта этапа (не «ожидает старта»), даже если нет срока в днях для расчёта даты. */
@@ -1925,7 +1927,7 @@ export function PatientTreatmentProgramDetailClient(props: {
                 activeTab === "progress" ? "text-[#1e3a5f]" : "text-[#555555]",
               )}
             >
-              {progressTabControlThroughLabel}
+              {progressTabProgramDaysLabel}
             </span>
           </button>
         </div>
@@ -1970,13 +1972,13 @@ export function PatientTreatmentProgramDetailClient(props: {
                 doneTodayCountByActivityKey={doneTodayCountByActivityKey}
                 lastDoneAtIsoByActivityKey={lastDoneAtIsoByActivityKey}
                 doneTodayCountByItemId={doneTodayCountByItemId}
-                onStartLesson={openHeroLesson}
               />
             </div>
           ) : null}
           {showNextControlCard && currentWorkingStage ? (
             <PatientProgramControlCard
               dateLine={controlDateLine}
+              remainderDays={controlRemainderDaysForCard}
               fallbackMessage={controlFallbackMessage}
               instanceId={detail.id}
               currentStageId={currentWorkingStage.id}
