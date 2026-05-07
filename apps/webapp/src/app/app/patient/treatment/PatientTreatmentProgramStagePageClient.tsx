@@ -129,7 +129,7 @@ function StageDescriptionBlock(props: { text: string | null | undefined }) {
             type="button"
             className={cn(
               patientMutedTextClass,
-              "text-xs underline-offset-2 hover:underline focus-visible:rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-primary)]",
+              "cursor-pointer text-xs underline-offset-2 hover:underline focus-visible:rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-primary)]",
             )}
             onClick={() => setExpanded((e) => !e)}
           >

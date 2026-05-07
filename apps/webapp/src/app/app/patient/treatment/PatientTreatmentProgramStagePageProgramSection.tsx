@@ -222,7 +222,7 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
         <button
           type="button"
           className={cn(
-            "relative block w-full overflow-hidden border-0 p-0 text-left",
+            "relative block w-full cursor-pointer overflow-hidden border-0 p-0 text-left",
             "rounded-t-[var(--patient-card-radius-mobile)] lg:rounded-t-[var(--patient-card-radius-desktop)]",
           )}
           onClick={() => openProgramModal(item.id)}

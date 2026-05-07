@@ -92,7 +92,7 @@ export function PatientTreatmentTabRecommendations(props: {
       <li key={item.id} className="list-none">
         <button
           type="button"
-          className="flex w-full min-h-0 items-center gap-1.5 rounded-lg border border-[var(--patient-border)] bg-[var(--patient-card-bg)] px-1 py-1 text-left lg:gap-2 lg:px-1.5 lg:py-1.5"
+          className="flex w-full min-h-0 cursor-pointer items-center gap-1.5 rounded-lg border border-[var(--patient-border)] bg-[var(--patient-card-bg)] px-1 py-1 text-left lg:gap-2 lg:px-1.5 lg:py-1.5"
           onClick={() => setOpenItemId(item.id)}
         >
           <PatientCatalogMediaStaticThumb

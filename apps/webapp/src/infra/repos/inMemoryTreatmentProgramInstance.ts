@@ -299,8 +299,14 @@ export function createInMemoryTreatmentProgramPersistence(): InMemoryTreatmentPr
     ) {
       const st = stages.get(stageId);
       if (!st || st.instanceId !== instanceId) return null;
+      if (patch.title !== undefined) {
+        const t = patch.title.trim();
+        if (!t) return null;
+      }
       const next: StageRow = {
         ...st,
+        ...(patch.title !== undefined ? { title: patch.title.trim() } : {}),
+        ...(patch.description !== undefined ? { description: patch.description } : {}),
         ...(patch.goals !== undefined ? { goals: patch.goals } : {}),
         ...(patch.objectives !== undefined ? { objectives: patch.objectives } : {}),
         ...(patch.expectedDurationDays !== undefined

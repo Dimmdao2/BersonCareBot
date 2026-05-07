@@ -8,6 +8,8 @@ const patchBodySchema = z
   .object({
     status: z.enum(["locked", "available", "in_progress", "completed", "skipped"]).optional(),
     reason: z.string().max(20000).optional().nullable(),
+    title: z.string().min(1).max(2000).optional(),
+    description: z.string().max(200000).optional().nullable(),
     goals: z.string().max(200000).optional().nullable(),
     objectives: z.string().max(200000).optional().nullable(),
     expectedDurationDays: z.number().int().min(0).max(36500).optional().nullable(),
@@ -15,6 +17,8 @@ const patchBodySchema = z
   })
   .superRefine((data, ctx) => {
     const hasMeta =
+      data.title !== undefined ||
+      data.description !== undefined ||
       data.goals !== undefined ||
       data.objectives !== undefined ||
       data.expectedDurationDays !== undefined ||
@@ -22,7 +26,7 @@ const patchBodySchema = z
     if (data.status === undefined && !hasMeta) {
       ctx.addIssue({
         code: "custom",
-        message: "Укажите status и/или поля целей этапа",
+        message: "Укажите status и/или поля настроек этапа",
         path: [],
       });
     }
@@ -84,6 +88,8 @@ export async function PATCH(
     }
 
     const hasMeta =
+      d.title !== undefined ||
+      d.description !== undefined ||
       d.goals !== undefined ||
       d.objectives !== undefined ||
       d.expectedDurationDays !== undefined ||
@@ -95,10 +101,12 @@ export async function PATCH(
         stageId,
         actorId: session.user.userId,
         patch: {
-          goals: d.goals,
-          objectives: d.objectives,
-          expectedDurationDays: d.expectedDurationDays,
-          expectedDurationText: d.expectedDurationText,
+          ...(d.title !== undefined ? { title: d.title } : {}),
+          ...(d.description !== undefined ? { description: d.description } : {}),
+          ...(d.goals !== undefined ? { goals: d.goals } : {}),
+          ...(d.objectives !== undefined ? { objectives: d.objectives } : {}),
+          ...(d.expectedDurationDays !== undefined ? { expectedDurationDays: d.expectedDurationDays } : {}),
+          ...(d.expectedDurationText !== undefined ? { expectedDurationText: d.expectedDurationText } : {}),
         },
       });
     }

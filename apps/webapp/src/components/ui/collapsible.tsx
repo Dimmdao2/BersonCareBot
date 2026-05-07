@@ -22,7 +22,7 @@ function CollapsibleTrigger({
     <CollapsiblePrimitive.Trigger
       data-slot="collapsible-trigger"
       className={cn(
-        "focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-ring",
+        "cursor-pointer focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-ring",
         className
       )}
       {...props}

@@ -224,6 +224,15 @@ export function createTreatmentProgramInstanceService(deps: {
       if (!detail.stages.some((s) => s.id === input.stageId)) throw new Error("Этап не найден");
 
       const norm: UpdateTreatmentProgramInstanceStageMetadataInput = {};
+      if (input.patch.title !== undefined) {
+        const t = input.patch.title.trim();
+        if (!t) throw new Error("Название этапа не может быть пустым");
+        norm.title = t;
+      }
+      if (input.patch.description !== undefined) {
+        norm.description =
+          input.patch.description === null ? null : input.patch.description.trim() || null;
+      }
       if (input.patch.goals !== undefined) {
         norm.goals = input.patch.goals === null ? null : input.patch.goals.trim() || null;
       }
@@ -697,6 +706,44 @@ export function createTreatmentProgramInstanceService(deps: {
         targetType: "stage",
         targetId: gr.stageId,
         payload: { scope: "stage_group_removed", groupId: input.groupId, title: gr.title },
+      });
+    },
+
+    async doctorHideInstanceStageGroup(
+      this: {
+        doctorDisableInstanceStageItem: (input: {
+          instanceId: string;
+          itemId: string;
+          actorId: string | null;
+        }) => Promise<TreatmentProgramInstanceStageItemRow>;
+        doctorDeleteInstanceStageGroup: (input: {
+          instanceId: string;
+          groupId: string;
+          actorId: string | null;
+        }) => Promise<void>;
+      },
+      input: { instanceId: string; groupId: string; actorId: string | null },
+    ) {
+      assertUuid(input.instanceId);
+      assertUuid(input.groupId);
+      if (input.actorId) assertUuid(input.actorId);
+      const detail = await instances.getInstanceById(input.instanceId);
+      const gr = detail?.stages.flatMap((s) => s.groups).find((g) => g.id === input.groupId);
+      if (!gr) throw new Error("Группа не найдена");
+      const itemsInGroup = detail!.stages.flatMap((s) => s.items).filter((it) => it.groupId === input.groupId);
+      for (const it of itemsInGroup) {
+        if (it.status === "active") {
+          await this.doctorDisableInstanceStageItem({
+            instanceId: input.instanceId,
+            itemId: it.id,
+            actorId: input.actorId,
+          });
+        }
+      }
+      await this.doctorDeleteInstanceStageGroup({
+        instanceId: input.instanceId,
+        groupId: input.groupId,
+        actorId: input.actorId,
       });
     },
 

@@ -157,16 +157,6 @@ export function CommentBlock({
       <h3 id={`comment-block-title-${targetId}`} className="text-base font-semibold tracking-tight">
         {title}
       </h3>
-      <p className="mt-1 text-xs text-muted-foreground">
-        Единая таблица <code className="text-[11px]">comments</code> (§ 7):{" "}
-        <span className="font-mono text-[11px]" translate="no">
-          {targetType}
-        </span>{" "}
-        /{" "}
-        <span className="font-mono text-[11px]" translate="no">
-          {targetId}
-        </span>
-      </p>
 
       {error ? (
         <p className="mt-2 text-sm text-destructive" role="alert">

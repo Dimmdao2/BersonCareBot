@@ -373,8 +373,10 @@ export type TreatmentProgramInstanceStageRow = {
   expectedDurationText: string | null;
 };
 
-/** PATCH метаданных этапа экземпляра (цели/срок); статус этапа — отдельным вызовом. */
+/** PATCH метаданных этапа экземпляра (название, описание, цели/срок); статус этапа — отдельным вызовом. */
 export type UpdateTreatmentProgramInstanceStageMetadataInput = {
+  title?: string;
+  description?: string | null;
   goals?: string | null;
   objectives?: string | null;
   expectedDurationDays?: number | null;

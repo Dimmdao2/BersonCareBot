@@ -84,7 +84,7 @@ export function PatientTreatmentProgramStageRecommendationsCollapsible(props: {
                 <li key={item.id}>
                   <button
                     type="button"
-                    className="flex w-full items-center gap-2 px-3 py-2 text-left lg:px-4"
+                    className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left lg:px-4"
                     onClick={() => setOpenItemId(item.id)}
                   >
                     <PatientCatalogMediaStaticThumb

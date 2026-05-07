@@ -342,7 +342,7 @@ function PatientProgramHeroHistoryPopover(props: {
         <PopoverTrigger
           type="button"
           className={cn(
-            "inline-flex size-9 shrink-0 items-center justify-center rounded-full border-0 bg-transparent text-[var(--patient-color-primary)] outline-none transition-opacity touch-manipulation",
+            "inline-flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent text-[var(--patient-color-primary)] outline-none transition-opacity touch-manipulation",
             "hover:opacity-80 active:opacity-60 focus-visible:ring-2 focus-visible:ring-[var(--patient-color-primary)] focus-visible:ring-offset-2",
           )}
           aria-label="История программы"
@@ -1776,7 +1776,7 @@ export function PatientTreatmentProgramDetailClient(props: {
               "relative flex min-h-[3.25rem] cursor-pointer flex-col items-center justify-center gap-0.5 px-1 py-2 text-center outline-none transition-colors duration-200 lg:min-h-[3.5rem] lg:px-2",
               activeTab === "program" &&
                 "after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:z-[1] after:h-0.5 after:bg-[var(--patient-color-primary,#284da0)]",
-              activeTab === "program" ? "bg-[#dde6f0]" : "bg-[#eef2f7]",
+              activeTab === "program" ? "bg-[#e4e2ff]" : "bg-[#f8f3fd]",
               "focus-visible:ring-2 focus-visible:ring-[var(--patient-color-primary)] focus-visible:ring-offset-0",
             )}
             onClick={() => setActiveTab("program")}
@@ -1806,7 +1806,7 @@ export function PatientTreatmentProgramDetailClient(props: {
               "relative flex min-h-[3.25rem] cursor-pointer flex-col items-center justify-center gap-0.5 px-1 py-2 text-center outline-none transition-colors duration-200 lg:min-h-[3.5rem] lg:px-2",
               activeTab === "recommendations" &&
                 "after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:z-[1] after:h-0.5 after:bg-[var(--patient-color-primary,#284da0)]",
-              activeTab === "recommendations" ? "bg-[#dffeca]" : "bg-[#f2f8eb]",
+              activeTab === "recommendations" ? "bg-[#e4e2ff]" : "bg-[#f8f3fd]",
               "focus-visible:ring-2 focus-visible:ring-[var(--patient-color-primary)] focus-visible:ring-offset-0",
             )}
             onClick={() => setActiveTab("recommendations")}
@@ -1836,7 +1836,7 @@ export function PatientTreatmentProgramDetailClient(props: {
               "relative flex min-h-[3.25rem] cursor-pointer flex-col items-center justify-center gap-0.5 px-1 py-2 text-center outline-none transition-colors duration-200 lg:min-h-[3.5rem] lg:px-2",
               activeTab === "progress" &&
                 "after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:z-[1] after:h-0.5 after:bg-[var(--patient-color-primary,#284da0)]",
-              activeTab === "progress" ? "bg-[var(--patient-surface-warning-bg)]" : "bg-[#fdfbf6]",
+              activeTab === "progress" ? "bg-[#e4e2ff]" : "bg-[#f8f3fd]",
               "focus-visible:ring-2 focus-visible:ring-[var(--patient-color-primary)] focus-visible:ring-offset-0",
             )}
             onClick={() => setActiveTab("progress")}

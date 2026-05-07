@@ -25,7 +25,6 @@ import type { TreatmentProgramTestResultDetailRow } from "@/modules/treatment-pr
 import type { TreatmentProgramEventRow } from "@/modules/treatment-program/types";
 import type { ProgramActionLogListRow } from "@/modules/treatment-program/types";
 import {
-  effectiveInstanceStageItemComment,
   formatNormalizedTestDecisionRu,
   formatTreatmentProgramStageStatusRu,
   formatProgramActionLogSummaryRu,
@@ -93,6 +92,49 @@ function TestSetCatalogSnapshotLines({ snapshot }: { snapshot: Record<string, un
 
 function sortByOrderThenId<T extends { sortOrder: number; id: string }>(rows: T[]): T[] {
   return [...rows].sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id));
+}
+
+type InstanceStageT = TreatmentProgramInstanceDetail["stages"][number];
+type InstanceStageItemT = InstanceStageT["items"][number];
+
+function DoctorProgramInstanceItemCard(props: {
+  instanceId: string;
+  stage: InstanceStageT;
+  item: InstanceStageItemT;
+  testResults: TreatmentProgramTestResultDetailRow[];
+  onSaved: () => Promise<void>;
+  /** Левая колонка «Рекомендации (этап 0)»: без суффикса типа и без выбора группы. */
+  phaseZeroRecommendation?: boolean;
+}) {
+  const { instanceId, stage, item, testResults, onSaved, phaseZeroRecommendation = false } = props;
+  const recPhase0 = phaseZeroRecommendation && item.itemType === "recommendation";
+  return (
+    <div className="rounded-lg border border-border/80 bg-muted/20 p-3">
+      <p className="text-sm font-medium">
+        {snapshotTitle(item.snapshot, item.itemType)}{" "}
+        {recPhase0 ? null : (
+          <span className="font-normal text-muted-foreground">({item.itemType})</span>
+        )}
+      </p>
+      {item.itemType === "test_set" ? <TestSetCatalogSnapshotLines snapshot={item.snapshot} /> : null}
+      <ItemLocalCommentForm
+        key={`${item.id}:${item.localComment ?? ""}`}
+        instanceId={instanceId}
+        itemId={item.id}
+        initialDraft={item.localComment ?? ""}
+        placeholder={item.comment?.trim() ? `Из шаблона: ${item.comment.trim()}` : "Из шаблона: —"}
+        onSaved={onSaved}
+      />
+      <InstanceStageItemDoctorRow
+        instanceId={instanceId}
+        item={item}
+        groups={stage.groups}
+        testResults={testResults}
+        onSaved={onSaved}
+        hideGroupSelect={recPhase0}
+      />
+    </div>
+  );
 }
 
 /** Завершение экземпляра программы (не путать с «Завершить этап» у отдельного этапа). */
@@ -164,133 +206,6 @@ function ProgramInstanceCompleteControl(props: {
   );
 }
 
-function InstanceStageMetadataForm(props: {
-  instanceId: string;
-  stage: TreatmentProgramInstanceDetail["stages"][number];
-  onSaved: () => Promise<void>;
-}) {
-  const { instanceId, stage, onSaved } = props;
-  const [goalsDraft, setGoalsDraft] = useState(stage.goals ?? "");
-  const [objectivesDraft, setObjectivesDraft] = useState(stage.objectives ?? "");
-  const [daysDraft, setDaysDraft] = useState(
-    stage.expectedDurationDays != null ? String(stage.expectedDurationDays) : "",
-  );
-  const [textDraft, setTextDraft] = useState(stage.expectedDurationText ?? "");
-  const [saving, setSaving] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
-
-  useEffect(() => {
-    setGoalsDraft(stage.goals ?? "");
-    setObjectivesDraft(stage.objectives ?? "");
-    setDaysDraft(stage.expectedDurationDays != null ? String(stage.expectedDurationDays) : "");
-    setTextDraft(stage.expectedDurationText ?? "");
-    setMsg(null);
-  }, [
-    stage.id,
-    stage.goals,
-    stage.objectives,
-    stage.expectedDurationDays,
-    stage.expectedDurationText,
-  ]);
-
-  const save = async () => {
-    const daysTrim = daysDraft.trim();
-    let expectedDurationDays: number | null = null;
-    if (daysTrim !== "") {
-      const n = Number.parseInt(daysTrim, 10);
-      if (!Number.isFinite(n) || n < 0 || String(n) !== daysTrim) {
-        setMsg("Срок в днях: неотрицательное целое число");
-        return;
-      }
-      expectedDurationDays = n;
-    }
-    setSaving(true);
-    setMsg(null);
-    try {
-      const res = await fetch(
-        `/api/doctor/treatment-program-instances/${encodeURIComponent(instanceId)}/stages/${encodeURIComponent(stage.id)}`,
-        {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            goals: goalsDraft.trim() || null,
-            objectives: objectivesDraft.trim() || null,
-            expectedDurationDays,
-            expectedDurationText: textDraft.trim() || null,
-          }),
-        },
-      );
-      const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
-      if (!res.ok || !data.ok) {
-        setMsg(data.error ?? "Ошибка");
-        return;
-      }
-      await onSaved();
-      setMsg("Сохранено");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <div className="rounded-md border border-border/60 bg-muted/20 p-3">
-      <div className="flex flex-col gap-3">
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor={`inst-goals-${stage.id}`}>Цель этапа</Label>
-          <Textarea
-            id={`inst-goals-${stage.id}`}
-            rows={3}
-            className="text-sm"
-            value={goalsDraft}
-            onChange={(e) => setGoalsDraft(e.target.value)}
-            disabled={saving}
-          />
-          <p className="text-xs text-muted-foreground">Markdown; для пациента в шапке этапа.</p>
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor={`inst-obj-${stage.id}`}>Задачи этапа</Label>
-          <Textarea
-            id={`inst-obj-${stage.id}`}
-            rows={3}
-            className="text-sm"
-            value={objectivesDraft}
-            onChange={(e) => setObjectivesDraft(e.target.value)}
-            disabled={saving}
-          />
-          <p className="text-xs text-muted-foreground">Только текст/markdown (O1), не чеклист в БД.</p>
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor={`inst-days-${stage.id}`}>Ожидаемый срок, дней</Label>
-          <Input
-            id={`inst-days-${stage.id}`}
-            className="max-w-[12rem] text-sm"
-            inputMode="numeric"
-            value={daysDraft}
-            onChange={(e) => setDaysDraft(e.target.value)}
-            disabled={saving}
-          />
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor={`inst-dur-${stage.id}`}>Ожидаемый срок, текстом</Label>
-          <Input
-            id={`inst-dur-${stage.id}`}
-            className="text-sm"
-            value={textDraft}
-            onChange={(e) => setTextDraft(e.target.value)}
-            disabled={saving}
-          />
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button type="button" size="sm" disabled={saving} onClick={() => void save()}>
-            {saving ? "Сохранение…" : "Сохранить цели этапа"}
-          </Button>
-          {msg ? <span className="text-xs text-muted-foreground">{msg}</span> : null}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export function TreatmentProgramInstanceDetailClient(props: {
   patientDisplayName: string;
   initial: TreatmentProgramInstanceDetail;
@@ -335,6 +250,22 @@ export function TreatmentProgramInstanceDetailClient(props: {
     [detail.assignedBy, detail.patientUserId, currentUserId],
   );
 
+  const sortedStages = useMemo(
+    () => [...detail.stages].sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id)),
+    [detail.stages],
+  );
+  const stageZero = useMemo(
+    () => sortedStages.find((s) => s.sortOrder === 0) ?? null,
+    [sortedStages],
+  );
+  const phaseZeroRecommendations = useMemo(
+    () =>
+      stageZero
+        ? sortByOrderThenId(stageZero.items.filter((it) => it.itemType === "recommendation"))
+        : [],
+    [stageZero],
+  );
+
   const refresh = useCallback(async () => {
     setError(null);
     const res = await fetch(`/api/doctor/treatment-program-instances/${encodeURIComponent(detail.id)}`);
@@ -362,296 +293,206 @@ export function TreatmentProgramInstanceDetailClient(props: {
   }, [detail.id]);
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-4">
       {error ? (
         <p className="text-sm text-destructive" role="alert">
           {error}
         </p>
       ) : null}
 
-      <section className="rounded-xl border border-border bg-card p-4">
-        <h3 className="text-base font-semibold">Дневник занятий</h3>
-        {actionLog.length === 0 ? (
-          <p className="mt-3 text-sm text-muted-foreground">Пока нет записей в журнале.</p>
-        ) : (
-          <ul className="mt-3 max-h-80 list-none space-y-2 overflow-y-auto pl-0 text-sm">
-            {actionLog.map((row) => {
-              const itemLabel = itemTitles.get(row.instanceStageItemId) ?? "Элемент";
-              const diffRu = formatLfkPostSessionDifficultyRu(row.payload?.difficulty);
-              return (
-                <li key={row.id} className="rounded-md border border-border/60 bg-muted/10 px-2 py-1.5">
-                  <span className="text-xs text-muted-foreground">
-                    {formatBookingDateTimeShortStyleRu(row.createdAt, appDisplayTimeZone)}
-                  </span>
-                  <span className="ml-2 font-medium">{formatProgramActionLogSummaryRu(row)}</span>
-                  <span className="ml-1 text-xs text-muted-foreground">· {itemLabel}</span>
-                  {row.actionType === "done" && diffRu ? (
-                    <span className="mt-0.5 block text-xs text-foreground/90">Как прошло: {diffRu}</span>
-                  ) : null}
-                  {row.note?.trim() ? (
-                    <span className="mt-0.5 block text-xs text-foreground/90">Заметка пациента: {row.note}</span>
-                  ) : null}
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </section>
+      <div className="grid gap-4 lg:grid-cols-2 lg:items-start xl:grid-cols-[minmax(0,380px)_minmax(0,1fr)]">
+        <div className="flex min-w-0 flex-col gap-4" id="doctor-program-instance-left">
+          <section className="rounded-xl border border-border bg-card p-4" id="doctor-program-instance-summary">
+            <h2 className="text-lg font-semibold tracking-tight">{detail.title}</h2>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Пациент: <span className="font-medium text-foreground">{patientDisplayName}</span>
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Статус программы: {detail.status === "completed" ? "завершена" : "активна"}
+            </p>
+            <ProgramInstanceCompleteControl instanceId={detail.id} status={detail.status} onPatched={refresh} />
+          </section>
 
-      <section className="rounded-xl border border-border bg-card p-4">
-        <h3 className="text-base font-semibold">История изменений программы</h3>
-        <ul className="mt-3 max-h-80 list-none space-y-2 overflow-y-auto pl-0 text-sm">
-          <li className="rounded-md border border-border/60 bg-muted/10 px-2 py-1.5">
-            <span className="text-xs text-muted-foreground">
-              {formatBookingDateTimeShortStyleRu(detail.createdAt, appDisplayTimeZone)}
-            </span>
-            <span className="ml-2 font-medium">Программа назначена</span>
-            {assignedByLabel ? (
-              <span className="ml-1 text-xs text-muted-foreground">· {assignedByLabel}</span>
-            ) : null}
-          </li>
-          {doctorTimelineEvents.length === 0 ? (
-            <li className="rounded-md border border-dashed border-border/70 px-2 py-2 text-sm text-muted-foreground">
-              Дальше появятся изменения плана и прохождение этапов (отметки выполнения пунктов — в «Дневнике
-              занятий»).
-            </li>
-          ) : (
-            doctorTimelineEvents.map((e) => {
-              const who = doctorTimelineWhoRu(e.actorId, {
-                currentUserId,
-                patientUserId: detail.patientUserId,
-              });
-              return (
-                <li key={e.id} className="rounded-md border border-border/60 bg-muted/10 px-2 py-1.5">
-                  <span className="text-xs text-muted-foreground">
-                    {formatBookingDateTimeShortStyleRu(e.createdAt, appDisplayTimeZone)}
-                  </span>
-                  <span className="ml-2 font-medium">{summarizeTreatmentProgramEventForDoctorRu(e, eventLabels)}</span>
-                  {who ? <span className="ml-1 text-xs text-muted-foreground">· {who}</span> : null}
-                  {e.reason ? (
-                    <span className="mt-0.5 block text-xs text-foreground/90">Комментарий: {e.reason}</span>
-                  ) : null}
-                </li>
-              );
-            })
-          )}
-        </ul>
-      </section>
-
-      <div className="rounded-xl border border-border bg-card p-4">
-        <h2 className="text-lg font-semibold tracking-tight">{detail.title}</h2>
-        <p className="mt-1 text-xs text-muted-foreground">
-          Пациент: <span className="font-medium text-foreground">{patientDisplayName}</span>
-        </p>
-        <p className="mt-1 text-xs text-muted-foreground">
-          Статус программы: {detail.status === "completed" ? "завершена" : "активна"}
-        </p>
-        <ProgramInstanceCompleteControl instanceId={detail.id} status={detail.status} onPatched={refresh} />
-      </div>
-
-      {testResults.length > 0 ? (
-        <section className="rounded-xl border border-border bg-card p-4">
-          <h3 className="text-base font-semibold">Результаты тестов</h3>
-          <ul className="mt-3 space-y-2 text-sm">
-            {testResults.map((r) => (
-              <li key={r.id} className="rounded-lg border border-border/70 bg-muted/15 p-2">
-                <p className="font-medium">
-                  {r.testTitle ?? r.testId}{" "}
-                  <span className="text-xs font-normal text-muted-foreground">
-                    ({r.stageTitle}) · {formatNormalizedTestDecisionRu(r.normalizedDecision)} ({r.normalizedDecision})
-                  </span>
-                  {r.decidedBy ? (
-                    <span className="ml-1 rounded-md bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium text-amber-900 dark:text-amber-100">
-                      переопределено врачом
-                    </span>
-                  ) : null}
-                </p>
-                <pre className="mt-1 max-h-24 overflow-auto text-[11px] text-muted-foreground">
-                  {JSON.stringify(r.rawValue, null, 0)}
-                </pre>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {(["passed", "failed", "partial"] as const).map((d) => (
-                    <Button
-                      key={d}
-                      type="button"
-                      size="sm"
-                      variant={r.normalizedDecision === d ? "default" : "outline"}
-                      onClick={async () => {
-                        const res = await fetch(
-                          `/api/doctor/treatment-program-instances/${encodeURIComponent(detail.id)}/test-results/${encodeURIComponent(r.id)}`,
-                          {
-                            method: "PATCH",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ normalizedDecision: d }),
-                          },
-                        );
-                        if (res.ok) void refreshResults();
-                      }}
-                    >
-                      {d}
-                    </Button>
-                  ))}
-                </div>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
-
-      {detail.stages.map((stage) => (
-        <section key={stage.id} className="rounded-xl border border-border bg-card p-4">
-          <div className="mb-3 flex flex-wrap items-baseline gap-2">
-            <h3 className="text-base font-semibold">{stage.title}</h3>
-            <span className="text-xs uppercase tracking-wide text-muted-foreground">
-              {formatTreatmentProgramStageStatusRu(stage.status)}
-            </span>
-            {stage.skipReason ? (
-              <span className="text-xs text-muted-foreground">Причина пропуска: {stage.skipReason}</span>
-            ) : null}
-          </div>
-          <StageDoctorControls
-            instanceId={detail.id}
-            stageId={stage.id}
-            status={stage.status}
-            onPatched={refresh}
+          <CommentBlock
+            targetType="program_instance"
+            targetId={detail.id}
+            currentUserId={currentUserId}
+            isAdmin={isAdmin}
+            title="Комментарии к программе"
           />
-          <div className="mb-4">
-            <InstanceStageMetadataForm instanceId={detail.id} stage={stage} onSaved={refresh} />
-          </div>
-          <InstanceStageGroupsPanel instanceId={detail.id} stage={stage} onSaved={refresh} />
-          <div className="space-y-4">
-            {sortByOrderThenId(stage.groups).map((g) => {
-              const gItems = sortByOrderThenId(stage.items.filter((it) => it.groupId === g.id));
-              if (gItems.length === 0) return null;
-              return (
-                <div key={g.id} className="rounded-lg border border-border/70 bg-muted/10 p-3">
-                  <p className="text-sm font-semibold">{g.title}</p>
-                  {g.scheduleText?.trim() ? (
-                    <p className="text-xs text-muted-foreground">{g.scheduleText.trim()}</p>
-                  ) : null}
-                  <ul className="m-0 mt-3 list-none space-y-4 p-0">
-                    {gItems.map((item) => (
-                      <li key={item.id} className="rounded-lg border border-border/80 bg-muted/20 p-3">
-                        <p className="text-sm font-medium">
-                          {snapshotTitle(item.snapshot, item.itemType)}{" "}
-                          <span className="font-normal text-muted-foreground">({item.itemType})</span>
-                        </p>
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          Комментарий для пациента:{" "}
-                          <span className="text-foreground">
-                            {effectiveInstanceStageItemComment(item) ?? "—"}
-                          </span>
-                        </p>
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          Из шаблона (заморожено): {item.comment?.trim() ? item.comment : "—"}
-                        </p>
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          Выполнение элемента:{" "}
-                          {item.completedAt ? (
-                            <span className="text-foreground">да ({item.completedAt})</span>
-                          ) : (
-                            <span>нет</span>
-                          )}
-                        </p>
-                        {item.itemType === "test_set" ? (
-                          <TestSetCatalogSnapshotLines snapshot={item.snapshot} />
-                        ) : null}
-                        <ItemLocalCommentForm
-                          key={`${item.id}:${item.localComment ?? ""}`}
-                          instanceId={detail.id}
-                          itemId={item.id}
-                          initialDraft={item.localComment ?? ""}
-                          placeholder={
-                            item.comment?.trim()
-                              ? `Из шаблона: ${item.comment.trim()}`
-                              : "Из шаблона: —"
-                          }
-                          onSaved={refresh}
-                        />
-                        <InstanceStageItemDoctorRow
-                          instanceId={detail.id}
-                          item={item}
-                          groups={stage.groups}
-                          testResults={testResults}
-                          onSaved={refresh}
-                        />
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              );
-            })}
-            {(() => {
-              const ungrouped = sortByOrderThenId(stage.items.filter((it) => !it.groupId));
-              if (ungrouped.length === 0) return null;
-              return (
-                <div>
-                  {stage.groups.length > 0 ? (
-                    <p className="mb-2 text-sm font-medium text-muted-foreground">Без группы</p>
-                  ) : null}
-                  <ul className="m-0 list-none space-y-4 p-0">
-                    {ungrouped.map((item) => (
-                      <li key={item.id} className="rounded-lg border border-border/80 bg-muted/20 p-3">
-                        <p className="text-sm font-medium">
-                          {snapshotTitle(item.snapshot, item.itemType)}{" "}
-                          <span className="font-normal text-muted-foreground">({item.itemType})</span>
-                        </p>
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          Комментарий для пациента:{" "}
-                          <span className="text-foreground">
-                            {effectiveInstanceStageItemComment(item) ?? "—"}
-                          </span>
-                        </p>
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          Из шаблона (заморожено): {item.comment?.trim() ? item.comment : "—"}
-                        </p>
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          Выполнение элемента:{" "}
-                          {item.completedAt ? (
-                            <span className="text-foreground">да ({item.completedAt})</span>
-                          ) : (
-                            <span>нет</span>
-                          )}
-                        </p>
-                        {item.itemType === "test_set" ? (
-                          <TestSetCatalogSnapshotLines snapshot={item.snapshot} />
-                        ) : null}
-                        <ItemLocalCommentForm
-                          key={`${item.id}:${item.localComment ?? ""}`}
-                          instanceId={detail.id}
-                          itemId={item.id}
-                          initialDraft={item.localComment ?? ""}
-                          placeholder={
-                            item.comment?.trim()
-                              ? `Из шаблона: ${item.comment.trim()}`
-                              : "Из шаблона: —"
-                          }
-                          onSaved={refresh}
-                        />
-                        <InstanceStageItemDoctorRow
-                          instanceId={detail.id}
-                          item={item}
-                          groups={stage.groups}
-                          testResults={testResults}
-                          onSaved={refresh}
-                        />
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              );
-            })()}
-          </div>
-        </section>
-      ))}
 
-      <CommentBlock
-        targetType="program_instance"
-        targetId={detail.id}
-        currentUserId={currentUserId}
-        isAdmin={isAdmin}
-        title="Комментарии к программе"
-      />
+          <section
+            className="rounded-xl border border-border bg-card p-4"
+            id="doctor-program-instance-phase0-recommendations"
+          >
+            <h3 className="text-base font-semibold">Рекомендации (этап 0)</h3>
+            {!stageZero ? (
+              <p className="mt-3 text-sm text-muted-foreground">В программе нет этапа с номером 0.</p>
+            ) : phaseZeroRecommendations.length === 0 ? (
+              <p className="mt-3 text-sm text-muted-foreground">Нет рекомендаций на этапе 0.</p>
+            ) : (
+              <div className="mt-3 flex flex-col gap-4">
+                {phaseZeroRecommendations.map((item) => (
+                  <DoctorProgramInstanceItemCard
+                    key={item.id}
+                    instanceId={detail.id}
+                    stage={stageZero}
+                    item={item}
+                    testResults={testResults}
+                    onSaved={refresh}
+                    phaseZeroRecommendation
+                  />
+                ))}
+              </div>
+            )}
+          </section>
+
+          <section className="rounded-xl border border-border bg-card p-4" id="doctor-program-instance-action-log">
+            <h3 className="text-base font-semibold">Журнал выполнения</h3>
+            {actionLog.length === 0 ? (
+              <p className="mt-3 text-sm text-muted-foreground">Пока нет записей в журнале.</p>
+            ) : (
+              <ul className="mt-3 max-h-80 list-none space-y-2 overflow-y-auto pl-0 text-sm">
+                {actionLog.map((row) => {
+                  const itemLabel = itemTitles.get(row.instanceStageItemId) ?? "Элемент";
+                  const diffRu = formatLfkPostSessionDifficultyRu(row.payload?.difficulty);
+                  return (
+                    <li key={row.id} className="rounded-md border border-border/60 bg-muted/10 px-2 py-1.5">
+                      <span className="text-xs text-muted-foreground">
+                        {formatBookingDateTimeShortStyleRu(row.createdAt, appDisplayTimeZone)}
+                      </span>
+                      <span className="ml-2 font-medium">{formatProgramActionLogSummaryRu(row)}</span>
+                      <span className="ml-1 text-xs text-muted-foreground">· {itemLabel}</span>
+                      {row.actionType === "done" && diffRu ? (
+                        <span className="mt-0.5 block text-xs text-foreground/90">Как прошло: {diffRu}</span>
+                      ) : null}
+                      {row.note?.trim() ? (
+                        <span className="mt-0.5 block text-xs text-foreground/90">Заметка пациента: {row.note}</span>
+                      ) : null}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </section>
+
+          <section className="rounded-xl border border-border bg-card p-4" id="doctor-program-instance-events">
+            <h3 className="text-base font-semibold">История правок программы</h3>
+            <ul className="mt-3 max-h-80 list-none space-y-2 overflow-y-auto pl-0 text-sm">
+              <li className="rounded-md border border-border/60 bg-muted/10 px-2 py-1.5">
+                <span className="text-xs text-muted-foreground">
+                  {formatBookingDateTimeShortStyleRu(detail.createdAt, appDisplayTimeZone)}
+                </span>
+                <span className="ml-2 font-medium">Программа назначена</span>
+                {assignedByLabel ? (
+                  <span className="ml-1 text-xs text-muted-foreground">· {assignedByLabel}</span>
+                ) : null}
+              </li>
+              {doctorTimelineEvents.length === 0 ? (
+                <li className="rounded-md border border-dashed border-border/70 px-2 py-2 text-sm text-muted-foreground">
+                  Дальше появятся изменения плана и прохождение этапов (отметки выполнения пунктов — в «Журнале
+                  выполнения»).
+                </li>
+              ) : (
+                doctorTimelineEvents.map((e) => {
+                  const who = doctorTimelineWhoRu(e.actorId, {
+                    currentUserId,
+                    patientUserId: detail.patientUserId,
+                  });
+                  return (
+                    <li key={e.id} className="rounded-md border border-border/60 bg-muted/10 px-2 py-1.5">
+                      <span className="text-xs text-muted-foreground">
+                        {formatBookingDateTimeShortStyleRu(e.createdAt, appDisplayTimeZone)}
+                      </span>
+                      <span className="ml-2 font-medium">{summarizeTreatmentProgramEventForDoctorRu(e, eventLabels)}</span>
+                      {who ? <span className="ml-1 text-xs text-muted-foreground">· {who}</span> : null}
+                      {e.reason ? (
+                        <span className="mt-0.5 block text-xs text-foreground/90">Комментарий: {e.reason}</span>
+                      ) : null}
+                    </li>
+                  );
+                })
+              )}
+            </ul>
+          </section>
+
+          {testResults.length > 0 ? (
+            <section className="rounded-xl border border-border bg-card p-4" id="doctor-program-instance-test-results">
+              <h3 className="text-base font-semibold">Результаты тестов</h3>
+              <ul className="mt-3 space-y-2 text-sm">
+                {testResults.map((r) => (
+                  <li key={r.id} className="rounded-lg border border-border/70 bg-muted/15 p-2">
+                    <p className="font-medium">
+                      {r.testTitle ?? r.testId}{" "}
+                      <span className="text-xs font-normal text-muted-foreground">
+                        ({r.stageTitle}) · {formatNormalizedTestDecisionRu(r.normalizedDecision)} ({r.normalizedDecision})
+                      </span>
+                      {r.decidedBy ? (
+                        <span className="ml-1 rounded-md bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium text-amber-900 dark:text-amber-100">
+                          переопределено врачом
+                        </span>
+                      ) : null}
+                    </p>
+                    <pre className="mt-1 max-h-24 overflow-auto text-[11px] text-muted-foreground">
+                      {JSON.stringify(r.rawValue, null, 0)}
+                    </pre>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {(["passed", "failed", "partial"] as const).map((d) => (
+                        <Button
+                          key={d}
+                          type="button"
+                          size="sm"
+                          variant={r.normalizedDecision === d ? "default" : "outline"}
+                          onClick={async () => {
+                            const res = await fetch(
+                              `/api/doctor/treatment-program-instances/${encodeURIComponent(detail.id)}/test-results/${encodeURIComponent(r.id)}`,
+                              {
+                                method: "PATCH",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ normalizedDecision: d }),
+                              },
+                            );
+                            if (res.ok) void refreshResults();
+                          }}
+                        >
+                          {d}
+                        </Button>
+                      ))}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+        </div>
+
+        <div className="flex min-w-0 flex-col gap-4" id="doctor-program-instance-right">
+          {sortedStages
+            .filter((s) => s.sortOrder > 0)
+            .map((stage) => {
+            return (
+              <section key={stage.id} className="rounded-xl border border-border bg-card p-4">
+                <div className="mb-3 flex flex-wrap items-baseline gap-2">
+                  <h3 className="text-base font-semibold">{stage.title}</h3>
+                  <span className="text-xs uppercase tracking-wide text-muted-foreground">
+                    {formatTreatmentProgramStageStatusRu(stage.status)}
+                  </span>
+                  {stage.skipReason ? (
+                    <span className="text-xs text-muted-foreground">Причина пропуска: {stage.skipReason}</span>
+                  ) : null}
+                </div>
+                <StageDoctorControls instanceId={detail.id} stage={stage} onPatched={refresh} />
+                <InstanceStageGroupsPanel
+                  instanceId={detail.id}
+                  stage={stage}
+                  onSaved={refresh}
+                  testResults={testResults}
+                />
+              </section>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }
@@ -660,8 +501,9 @@ function InstanceStageGroupsPanel(props: {
   instanceId: string;
   stage: TreatmentProgramInstanceDetail["stages"][number];
   onSaved: () => Promise<void>;
+  testResults: TreatmentProgramTestResultDetailRow[];
 }) {
-  const { instanceId, stage, onSaved } = props;
+  const { instanceId, stage, onSaved, testResults } = props;
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [groupEdit, setGroupEdit] = useState<{
@@ -673,6 +515,9 @@ function InstanceStageGroupsPanel(props: {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const sortedGroups = sortByOrderThenId(stage.groups);
+  const ungrouped = sortByOrderThenId(stage.items.filter((it) => !it.groupId));
+  const hasUngrouped = ungrouped.length > 0;
+  const hasGroups = sortedGroups.length > 0;
 
   const reorder = async (groupId: string, dir: -1 | 1) => {
     const idx = sortedGroups.findIndex((g) => g.id === groupId);
@@ -705,20 +550,27 @@ function InstanceStageGroupsPanel(props: {
     }
   };
 
-  const removeGroup = async (groupId: string) => {
-    if (!globalThis.confirm("Удалить группу? Элементы останутся без группы.")) return;
+  const hideGroupFromModal = async () => {
+    if (!groupEdit) return;
+    if (
+      !globalThis.confirm(
+        "Элементы группы будут скрыты у пациента, сама группа удалена. Продолжить?",
+      )
+    )
+      return;
     setBusy(true);
     setMsg(null);
     try {
       const res = await fetch(
-        `/api/doctor/treatment-program-instances/${encodeURIComponent(instanceId)}/stage-groups/${encodeURIComponent(groupId)}`,
-        { method: "DELETE" },
+        `/api/doctor/treatment-program-instances/${encodeURIComponent(instanceId)}/stage-groups/${encodeURIComponent(groupEdit.id)}/hide`,
+        { method: "POST" },
       );
       const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
       if (!res.ok || !data.ok) {
         setMsg(data.error ?? "Ошибка");
         return;
       }
+      setGroupEdit(null);
       await onSaved();
     } finally {
       setBusy(false);
@@ -794,8 +646,34 @@ function InstanceStageGroupsPanel(props: {
           + Группа
         </Button>
       </div>
-      {sortedGroups.length > 0 ? (
+      {hasUngrouped || hasGroups ? (
         <ul className="mt-2 list-none space-y-2 p-0">
+          {hasUngrouped ? (
+            <li key="__ungrouped__" className="rounded-md border border-border/60 bg-card/40 px-2 py-2 text-sm">
+              <div className="flex flex-wrap items-start gap-2">
+                <div className="flex w-7 shrink-0 flex-col gap-0.5" aria-hidden />
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-baseline gap-2">
+                    <span className="font-medium">Без группы</span>
+                    <span className="text-xs tabular-nums text-muted-foreground">{ungrouped.length}</span>
+                  </div>
+                  <ul className="m-0 mt-3 list-none space-y-3 border-t border-border/50 p-0 pt-3">
+                    {ungrouped.map((item) => (
+                      <li key={item.id} className="list-none">
+                        <DoctorProgramInstanceItemCard
+                          instanceId={instanceId}
+                          stage={stage}
+                          item={item}
+                          testResults={testResults}
+                          onSaved={onSaved}
+                        />
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </li>
+          ) : null}
           {sortedGroups.map((g, gi) => (
             <li key={g.id} className="flex flex-wrap items-center gap-2 rounded-md border border-border/60 bg-card/40 px-2 py-2 text-sm">
               <div className="flex shrink-0 flex-col gap-0.5">
@@ -824,6 +702,9 @@ function InstanceStageGroupsPanel(props: {
               </div>
               <div className="min-w-0 flex-1">
                 <span className="font-medium">{g.title}</span>
+                <span className="ml-2 text-xs tabular-nums text-muted-foreground">
+                  {stage.items.filter((it) => it.groupId === g.id).length}
+                </span>
                 {g.scheduleText?.trim() ? (
                   <span className="ml-2 text-xs text-muted-foreground">{g.scheduleText.trim()}</span>
                 ) : null}
@@ -844,9 +725,6 @@ function InstanceStageGroupsPanel(props: {
               >
                 Изменить
               </Button>
-              <Button type="button" size="sm" variant="ghost" className="text-destructive" disabled={busy} onClick={() => void removeGroup(g.id)}>
-                Удалить
-              </Button>
             </li>
           ))}
         </ul>
@@ -854,7 +732,7 @@ function InstanceStageGroupsPanel(props: {
         <p className="mt-1 text-xs text-muted-foreground">Групп нет — элементы можно оставить вне групп.</p>
       )}
       {msg ? <p className="mt-2 text-xs text-destructive">{msg}</p> : null}
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} modal={false} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Новая группа</DialogTitle>
@@ -874,17 +752,19 @@ function InstanceStageGroupsPanel(props: {
         </DialogContent>
       </Dialog>
 
-      <Dialog
-        open={groupEdit !== null}
-        onOpenChange={(v) => {
-          if (!v) setGroupEdit(null);
-        }}
-      >
-        <DialogContent className="max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Группа этапа</DialogTitle>
-          </DialogHeader>
-          {groupEdit ? (
+      {groupEdit ? (
+        <Dialog
+          key={groupEdit.id}
+          open={true}
+          modal={false}
+          onOpenChange={(nextOpen) => {
+            if (!nextOpen) setGroupEdit(null);
+          }}
+        >
+          <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Группа этапа</DialogTitle>
+            </DialogHeader>
             <div className="flex flex-col gap-3">
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor={`eg-title-${groupEdit.id}`}>Название</Label>
@@ -920,22 +800,50 @@ function InstanceStageGroupsPanel(props: {
                   disabled={busy}
                 />
               </div>
+              <div className="border-t border-border pt-3">
+                <p className="text-xs font-medium text-muted-foreground">Состав группы</p>
+                {(() => {
+                  const groupItems = sortByOrderThenId(
+                    stage.items.filter((it) => it.groupId === groupEdit.id),
+                  );
+                  if (groupItems.length === 0) {
+                    return <p className="mt-2 text-sm text-muted-foreground">Нет элементов в группе.</p>;
+                  }
+                  return (
+                    <div className="mt-2 flex max-h-[min(50vh,28rem)] flex-col gap-3 overflow-y-auto pr-1">
+                      {groupItems.map((item) => (
+                        <DoctorProgramInstanceItemCard
+                          key={item.id}
+                          instanceId={instanceId}
+                          stage={stage}
+                          item={item}
+                          testResults={testResults}
+                          onSaved={onSaved}
+                        />
+                      ))}
+                    </div>
+                  );
+                })()}
+              </div>
             </div>
-          ) : null}
-          <DialogFooter>
-            <Button type="button" variant="outline" disabled={busy} onClick={() => setGroupEdit(null)}>
-              Отмена
-            </Button>
-            <Button
-              type="button"
-              disabled={busy || !groupEdit?.title.trim()}
-              onClick={() => void saveGroupEdit()}
-            >
-              Сохранить
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            <DialogFooter className="gap-2 sm:flex-wrap sm:justify-end">
+              <Button type="button" variant="outline" disabled={busy} onClick={() => setGroupEdit(null)}>
+                Отмена
+              </Button>
+              <Button type="button" variant="destructive" disabled={busy} onClick={() => void hideGroupFromModal()}>
+                Скрыть
+              </Button>
+              <Button
+                type="button"
+                disabled={busy || !groupEdit.title.trim()}
+                onClick={() => void saveGroupEdit()}
+              >
+                Сохранить
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      ) : null}
     </div>
   );
 }
@@ -946,8 +854,10 @@ function InstanceStageItemDoctorRow(props: {
   groups: TreatmentProgramInstanceDetail["stages"][number]["groups"];
   testResults: TreatmentProgramTestResultDetailRow[];
   onSaved: () => Promise<void>;
+  /** Скрыть выбор группы (блок рекомендаций этапа 0). */
+  hideGroupSelect?: boolean;
 }) {
-  const { instanceId, item, groups, testResults, onSaved } = props;
+  const { instanceId, item, groups, testResults, onSaved, hideGroupSelect = false } = props;
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -997,23 +907,25 @@ function InstanceStageItemDoctorRow(props: {
             </SelectContent>
           </Select>
         ) : null}
-        <Select
-          value={item.groupId ?? "__none__"}
-          onValueChange={(v) => void patchItem({ groupId: v === "__none__" ? null : v })}
-          disabled={saving}
-        >
-          <SelectTrigger className="h-8 w-[min(100%,12rem)] text-xs" size="sm">
-            <SelectValue placeholder="Группа" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="__none__">Без группы</SelectItem>
-            {sortByOrderThenId(groups).map((g) => (
-              <SelectItem key={g.id} value={g.id}>
-                {g.title}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {!hideGroupSelect ? (
+          <Select
+            value={item.groupId ?? "__none__"}
+            onValueChange={(v) => void patchItem({ groupId: v === "__none__" ? null : v })}
+            disabled={saving}
+          >
+            <SelectTrigger className="h-8 w-[min(100%,12rem)] text-xs" size="sm">
+              <SelectValue placeholder="Группа" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__none__">Без группы</SelectItem>
+              {sortByOrderThenId(groups).map((g) => (
+                <SelectItem key={g.id} value={g.id}>
+                  {g.title}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : null}
         {item.status === "active" ? (
           <Button
             type="button"
@@ -1040,9 +952,6 @@ function InstanceStageItemDoctorRow(props: {
         )}
       </div>
       {msg ? <p className="text-xs text-destructive">{msg}</p> : null}
-      <p className="text-xs text-muted-foreground">
-        Отключённый элемент скрывается у пациента; запись в базе сохраняется (без DELETE).
-      </p>
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <DialogContent>
           <DialogHeader>
@@ -1073,14 +982,50 @@ function InstanceStageItemDoctorRow(props: {
 
 function StageDoctorControls(props: {
   instanceId: string;
-  stageId: string;
-  status: string;
+  stage: TreatmentProgramInstanceDetail["stages"][number];
   onPatched: () => Promise<void>;
 }) {
-  const { instanceId, stageId, status, onPatched } = props;
-  const [skipReason, setSkipReason] = useState("");
+  const { instanceId, stage, onPatched } = props;
+  const stageId = stage.id;
+  const status = stage.status;
+
+  const [skipDialogOpen, setSkipDialogOpen] = useState(false);
+  const [skipReasonDraft, setSkipReasonDraft] = useState("");
+  const [skipDialogError, setSkipDialogError] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  const [stageSettingsOpen, setStageSettingsOpen] = useState(false);
+  const [titleDraft, setTitleDraft] = useState(stage.title);
+  const [descriptionDraft, setDescriptionDraft] = useState(stage.description ?? "");
+  const [goalsDraft, setGoalsDraft] = useState(stage.goals ?? "");
+  const [objectivesDraft, setObjectivesDraft] = useState(stage.objectives ?? "");
+  const [daysDraft, setDaysDraft] = useState(
+    stage.expectedDurationDays != null ? String(stage.expectedDurationDays) : "",
+  );
+  const [textDraft, setTextDraft] = useState(stage.expectedDurationText ?? "");
+  const [settingsSaving, setSettingsSaving] = useState(false);
+  const [settingsMsg, setSettingsMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!stageSettingsOpen) return;
+    setTitleDraft(stage.title);
+    setDescriptionDraft(stage.description ?? "");
+    setGoalsDraft(stage.goals ?? "");
+    setObjectivesDraft(stage.objectives ?? "");
+    setDaysDraft(stage.expectedDurationDays != null ? String(stage.expectedDurationDays) : "");
+    setTextDraft(stage.expectedDurationText ?? "");
+    setSettingsMsg(null);
+  }, [
+    stageSettingsOpen,
+    stage.id,
+    stage.title,
+    stage.description,
+    stage.goals,
+    stage.objectives,
+    stage.expectedDurationDays,
+    stage.expectedDurationText,
+  ]);
 
   const patch = async (body: { status: string; reason?: string | null }) => {
     setSaving(true);
@@ -1106,12 +1051,92 @@ function StageDoctorControls(props: {
     }
   };
 
+  const stageActionsLocked = status === "completed" || status === "skipped";
+
+  const submitSkip = async () => {
+    const reason = skipReasonDraft.trim();
+    if (!reason) {
+      setSkipDialogError("Укажите причину пропуска");
+      return;
+    }
+    setSkipDialogError(null);
+    setSaving(true);
+    setMsg(null);
+    try {
+      const res = await fetch(
+        `/api/doctor/treatment-program-instances/${encodeURIComponent(instanceId)}/stages/${encodeURIComponent(stageId)}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: "skipped", reason }),
+        },
+      );
+      const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
+      if (!res.ok || !data.ok) {
+        setSkipDialogError(data.error ?? "Ошибка");
+        return;
+      }
+      await onPatched();
+      setSkipDialogOpen(false);
+      setSkipReasonDraft("");
+      setMsg("Сохранено");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const saveStageSettings = async () => {
+    const titleTrim = titleDraft.trim();
+    if (!titleTrim) {
+      setSettingsMsg("Укажите название этапа");
+      return;
+    }
+    const daysTrim = daysDraft.trim();
+    let expectedDurationDays: number | null = null;
+    if (daysTrim !== "") {
+      const n = Number.parseInt(daysTrim, 10);
+      if (!Number.isFinite(n) || n < 0 || String(n) !== daysTrim) {
+        setSettingsMsg("Срок в днях: неотрицательное целое число");
+        return;
+      }
+      expectedDurationDays = n;
+    }
+    setSettingsSaving(true);
+    setSettingsMsg(null);
+    try {
+      const res = await fetch(
+        `/api/doctor/treatment-program-instances/${encodeURIComponent(instanceId)}/stages/${encodeURIComponent(stageId)}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: titleTrim,
+            description: descriptionDraft.trim() || null,
+            goals: goalsDraft.trim() || null,
+            objectives: objectivesDraft.trim() || null,
+            expectedDurationDays,
+            expectedDurationText: textDraft.trim() || null,
+          }),
+        },
+      );
+      const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
+      if (!res.ok || !data.ok) {
+        setSettingsMsg(data.error ?? "Ошибка");
+        return;
+      }
+      setStageSettingsOpen(false);
+      await onPatched();
+    } finally {
+      setSettingsSaving(false);
+    }
+  };
+
   return (
     <div className="mb-4 flex flex-col gap-2 rounded-lg border border-dashed border-border/80 bg-muted/10 p-3">
       <p className="text-xs font-medium text-muted-foreground">Управление этапом (врач)</p>
-      <div className="flex flex-wrap gap-2">
+      <div className="flex w-full flex-wrap items-center gap-2">
         {status === "locked" ? (
-          <Button type="button" size="sm" variant="secondary" disabled={saving} onClick={() => patch({ status: "available" })}>
+          <Button type="button" size="sm" variant="secondary" disabled={saving} onClick={() => void patch({ status: "available" })}>
             Открыть этап
           </Button>
         ) : null}
@@ -1126,39 +1151,176 @@ function StageDoctorControls(props: {
             Старт этапа
           </Button>
         ) : null}
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          disabled={saving || status === "completed" || status === "skipped"}
-          onClick={() => patch({ status: "completed" })}
-        >
-          Завершить этап
-        </Button>
-      </div>
-      <div className="flex flex-col gap-1">
-        <label className="text-xs text-muted-foreground" htmlFor={`skip-${stageId}`}>
-          Пропуск этапа (обязательна причина)
-        </label>
-        <Textarea
-          id={`skip-${stageId}`}
-          rows={2}
-          className="text-sm"
-          value={skipReason}
-          onChange={(e) => setSkipReason(e.target.value)}
-          disabled={saving || status === "skipped"}
-        />
-        <Button
-          type="button"
-          size="sm"
-          variant="destructive"
-          disabled={saving || status === "skipped"}
-          onClick={() => patch({ status: "skipped", reason: skipReason.trim() || undefined })}
-        >
-          Пропустить этап
-        </Button>
+        <div className="flex flex-nowrap items-center gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={saving || stageActionsLocked}
+            onClick={() => void patch({ status: "completed" })}
+          >
+            Завершить этап
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            disabled={saving || settingsSaving}
+            onClick={() => setStageSettingsOpen(true)}
+          >
+            Изменить
+          </Button>
+        </div>
+        <div className="ml-auto flex flex-nowrap items-center gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant="destructive"
+            disabled={saving || stageActionsLocked}
+            onClick={() => {
+              setSkipReasonDraft("");
+              setSkipDialogError(null);
+              setSkipDialogOpen(true);
+            }}
+          >
+            Пропустить этап
+          </Button>
+        </div>
       </div>
       {msg ? <p className="text-xs text-muted-foreground">{msg}</p> : null}
+      <Dialog
+        open={stageSettingsOpen}
+        onOpenChange={(open) => {
+          setStageSettingsOpen(open);
+          if (!open) setSettingsMsg(null);
+        }}
+      >
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Настройки этапа</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor={`st-title-${stageId}`}>Название</Label>
+              <Input
+                id={`st-title-${stageId}`}
+                value={titleDraft}
+                onChange={(e) => setTitleDraft(e.target.value)}
+                maxLength={2000}
+                disabled={settingsSaving}
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor={`st-desc-${stageId}`}>Описание</Label>
+              <Textarea
+                id={`st-desc-${stageId}`}
+                rows={3}
+                className="text-sm"
+                value={descriptionDraft}
+                onChange={(e) => setDescriptionDraft(e.target.value)}
+                disabled={settingsSaving}
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor={`st-goals-${stageId}`}>Цель этапа</Label>
+              <Textarea
+                id={`st-goals-${stageId}`}
+                rows={3}
+                className="text-sm"
+                value={goalsDraft}
+                onChange={(e) => setGoalsDraft(e.target.value)}
+                disabled={settingsSaving}
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor={`st-obj-${stageId}`}>Задачи этапа</Label>
+              <Textarea
+                id={`st-obj-${stageId}`}
+                rows={3}
+                className="text-sm"
+                value={objectivesDraft}
+                onChange={(e) => setObjectivesDraft(e.target.value)}
+                disabled={settingsSaving}
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor={`st-days-${stageId}`}>Ожидаемый срок, дней</Label>
+              <Input
+                id={`st-days-${stageId}`}
+                className="max-w-[12rem] text-sm"
+                inputMode="numeric"
+                value={daysDraft}
+                onChange={(e) => setDaysDraft(e.target.value)}
+                disabled={settingsSaving}
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor={`st-dur-${stageId}`}>Ожидаемый срок, текстом</Label>
+              <Input
+                id={`st-dur-${stageId}`}
+                className="text-sm"
+                value={textDraft}
+                onChange={(e) => setTextDraft(e.target.value)}
+                disabled={settingsSaving}
+              />
+            </div>
+            {settingsMsg ? <p className="text-xs text-destructive">{settingsMsg}</p> : null}
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" disabled={settingsSaving} onClick={() => setStageSettingsOpen(false)}>
+              Отмена
+            </Button>
+            <Button type="button" disabled={settingsSaving || !titleDraft.trim()} onClick={() => void saveStageSettings()}>
+              {settingsSaving ? "Сохранение…" : "Сохранить настройки этапа"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog
+        open={skipDialogOpen}
+        onOpenChange={(open) => {
+          setSkipDialogOpen(open);
+          if (!open) {
+            setSkipReasonDraft("");
+            setSkipDialogError(null);
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Пропустить этап</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col gap-2">
+            <label className="text-xs font-medium text-muted-foreground" htmlFor={`skip-reason-${stageId}`}>
+              Причина пропуска
+            </label>
+            <Textarea
+              id={`skip-reason-${stageId}`}
+              rows={3}
+              className="text-sm"
+              value={skipReasonDraft}
+              onChange={(e) => setSkipReasonDraft(e.target.value)}
+              disabled={saving}
+            />
+            {skipDialogError ? <p className="text-xs text-destructive">{skipDialogError}</p> : null}
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={saving}
+              onClick={() => {
+                setSkipDialogOpen(false);
+              }}
+            >
+              Отмена
+            </Button>
+            <Button type="button" variant="destructive" disabled={saving} onClick={() => void submitSkip()}>
+              {saving ? "Сохранение…" : "Пропустить"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -1182,7 +1344,7 @@ function ItemLocalCommentForm(props: {
   return (
     <div className="mt-2 flex flex-col gap-2">
       <label className="text-xs font-medium text-muted-foreground" htmlFor={`lc-${itemId}`}>
-        Индивидуальный комментарий (override)
+        Индивидуальный комментарий
       </label>
       <Textarea
         id={`lc-${itemId}`}
@@ -1225,40 +1387,6 @@ function ItemLocalCommentForm(props: {
           }}
         >
           {saving ? "Сохранение…" : "Сохранить"}
-        </Button>
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          disabled={saving}
-          onClick={async () => {
-            setDraft("");
-            setSaving(true);
-            setMsg(null);
-            try {
-              const res = await fetch(
-                `/api/doctor/treatment-program-instances/${encodeURIComponent(instanceId)}/stage-items/${encodeURIComponent(itemId)}`,
-                {
-                  method: "PATCH",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ localComment: null }),
-                },
-              );
-              const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
-              if (!res.ok || !data.ok) {
-                setMsg(data.error ?? "Ошибка");
-                return;
-              }
-              await onSaved();
-              setMsg("Сброшено к шаблону");
-            } catch {
-              setMsg("Ошибка");
-            } finally {
-              setSaving(false);
-            }
-          }}
-        >
-          Сбросить override
         </Button>
       </div>
       {msg ? <p className="text-xs text-muted-foreground">{msg}</p> : null}

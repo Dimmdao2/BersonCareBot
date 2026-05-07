@@ -454,6 +454,12 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
       if (!stRow || stRow.instanceId !== instanceId) return null;
 
       const rowPatch: Partial<typeof stageTable.$inferInsert> = {};
+      if (patch.title !== undefined) {
+        const t = patch.title.trim();
+        if (!t) return null;
+        rowPatch.title = t;
+      }
+      if (patch.description !== undefined) rowPatch.description = patch.description;
       if (patch.goals !== undefined) rowPatch.goals = patch.goals;
       if (patch.objectives !== undefined) rowPatch.objectives = patch.objectives;
       if (patch.expectedDurationDays !== undefined) {

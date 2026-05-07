@@ -120,7 +120,7 @@ export function PatientTreatmentProgramsListClient(props: {
                   prefetch={false}
                   className={cn(
                     patientCardCompactClass,
-                    "block text-sm font-medium transition-colors hover:border-primary/30",
+                    "block cursor-pointer text-sm font-medium transition-colors hover:border-primary/30",
                   )}
                 >
                   {p.title}
