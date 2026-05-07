@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { PATIENT_PRIMARY_NAV_ITEMS, patientNavByPlatform } from "@/app-layer/routes/navigation";
+import {
+  getPatientPrimaryNavActiveId,
+  PATIENT_PRIMARY_NAV_ITEMS,
+  patientNavByPlatform,
+} from "@/app-layer/routes/navigation";
 import type { PlatformMode } from "@/shared/lib/platform";
 
 const modes: PlatformMode[] = ["bot", "mobile", "desktop"];
@@ -37,5 +41,22 @@ describe("PATIENT_PRIMARY_NAV_ITEMS", () => {
       "План",
       "Профиль",
     ]);
+  });
+});
+
+describe("getPatientPrimaryNavActiveId", () => {
+  it("marks plan active on /app/patient/treatment and instance subpaths", () => {
+    expect(getPatientPrimaryNavActiveId("/app/patient/treatment")).toBe("plan");
+    expect(getPatientPrimaryNavActiveId("/app/patient/treatment/")).toBe("plan");
+    expect(getPatientPrimaryNavActiveId("/app/patient/treatment/11111111-1111-4111-8111-111111111111")).toBe(
+      "plan",
+    );
+  });
+
+  it("does not mark plan active on legacy /treatment-programs path (prefix collision)", () => {
+    expect(getPatientPrimaryNavActiveId("/app/patient/treatment-programs")).toBe(null);
+    expect(getPatientPrimaryNavActiveId("/app/patient/treatment-programs/11111111-1111-4111-8111-111111111111")).toBe(
+      null,
+    );
   });
 });

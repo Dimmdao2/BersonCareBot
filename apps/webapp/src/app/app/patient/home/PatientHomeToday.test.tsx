@@ -10,6 +10,10 @@ import { routePaths } from "@/app-layer/routes/paths";
 
 const listRulesByUser = vi.fn();
 const listForPatient = vi.fn();
+const getInstanceForPatient = vi.fn();
+const patientPlanUpdatedBadgeForInstance = vi.fn();
+const patientCalendarGetIanaForUser = vi.fn();
+const listChecklistDoneToday = vi.fn();
 const listBlocksWithItems = vi.fn();
 const contentSectionsGetBySlug = vi.fn();
 const contentPagesGetBySlug = vi.fn();
@@ -29,7 +33,13 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
     contentPages: { getBySlug: contentPagesGetBySlug },
     courses: { getCourseForDoctor: coursesGetCourseForDoctor },
     reminders: { listRulesByUser },
-    treatmentProgramInstance: { listForPatient },
+    treatmentProgramInstance: {
+      listForPatient,
+      getInstanceForPatient,
+      patientPlanUpdatedBadgeForInstance,
+    },
+    patientCalendarTimezone: { getIanaForUser: patientCalendarGetIanaForUser },
+    treatmentProgramPatientActions: { listChecklistDoneToday },
     systemSettings: { getSetting: vi.fn().mockResolvedValue(null) },
     patientPractice: { getProgress },
     patientMood: { getToday: getTodayMood },
@@ -43,6 +53,17 @@ vi.mock("@/modules/system-settings/appDisplayTimezone", () => ({
 vi.mock("@/modules/patient-home/todayConfig", () => ({
   getPatientHomeTodayConfig: vi.fn(),
 }));
+
+function emptyChecklistTodaySnapshot() {
+  return {
+    doneItemIds: [] as string[],
+    doneTodayCountByItemId: {} as Record<string, number>,
+    lastDoneAtIsoByItemId: {} as Record<string, string>,
+    totalCompletionEventsByItemId: {} as Record<string, number>,
+    doneTodayCountByActivityKey: {} as Record<string, number>,
+    lastDoneAtIsoByActivityKey: {} as Record<string, string>,
+  };
+}
 
 function homeItem(
   id: string,
@@ -163,6 +184,10 @@ describe("PatientHomeToday", () => {
     coursesGetCourseForDoctor.mockResolvedValue(null);
     listRulesByUser.mockResolvedValue([]);
     listForPatient.mockResolvedValue([]);
+    getInstanceForPatient.mockResolvedValue(null);
+    patientPlanUpdatedBadgeForInstance.mockResolvedValue({ show: false });
+    patientCalendarGetIanaForUser.mockResolvedValue(null);
+    listChecklistDoneToday.mockResolvedValue(emptyChecklistTodaySnapshot());
     getProgress.mockResolvedValue({ todayDone: 1, todayTarget: 3, streak: 2 });
     getTodayMood.mockResolvedValue({ moodDate: "2026-04-28", score: 4 });
   });

@@ -13,13 +13,15 @@
 
 Инвариант: исключение `test_set` из composition modal **не** означает, что наборы тестов «только на отдельной странице» — они перечисляются в контенте этапа и открываются в универсальной модалке пункта.
 
-## Страница этапа `stages/[stageId]` (интерактивный режим)
+## Страница инстанса `/app/patient/treatment/[instanceId]` (вкладка «Программа»)
 
-Маршрут `apps/webapp/src/app/app/patient/treatment-programs/[instanceId]/stages/[stageId]/page.tsx` → `PatientTreatmentProgramStagePageClient.tsx`. Для **активного** этапа (`patientTreatmentProgramStageScreenVariant` → `interactive`) блок **«Программа этапа»** (`PatientTreatmentProgramStagePageProgramSection.tsx`) показывает только **`exercise`** и **исполняемые** `recommendation` (не `isPersistentRecommendation`), плюс фильтр `isInstanceStageItemShownOnPatientProgramSurfaces`. Постоянные рекомендации вынесены в отдельный коллапс «Рекомендации этапа».
+Контент этапа рендерится через **`PatientTreatmentProgramStagePageClient`** в режиме **`embedded`** (вкладка «Программа» на детали программы). Отдельного пациентского маршрута **`…/stages/[stageId]`** нет: старые URL **`/app/patient/treatment-programs/...`** перенаправляются на **`/app/patient/treatment/...`** (`next.config.ts`).
+
+Для **активного** этапа (`patientTreatmentProgramStageScreenVariant` → `interactive`) блок **«Программа этапа»** (`PatientTreatmentProgramStagePageProgramSection.tsx`) показывает только **`exercise`** и **исполняемые** `recommendation` (не `isPersistentRecommendation`), плюс фильтр `isInstanceStageItemShownOnPatientProgramSurfaces`. Постоянные рекомендации — во вкладке **«Рекомендации»** (`PatientTreatmentTabRecommendations.tsx`).
 
 В ветках **`pastReadOnly`** / **`futureLocked`** по-прежнему используется полный список/тело из `PatientInstanceStageBody` там, где это задано планом (архив и замок); узкий состав «только упражнения + actionable recommendation» относится **только** к интерактивной секции «Программа этапа».
 
-Общие хелперы превью и «последней активности» по элементу: `apps/webapp/src/app/app/patient/treatment-programs/stageItemSnapshot.ts` (импортируются и с дашборда программы, и со страницы этапа).
+Общие хелперы превью и «последней активности» по элементу: `apps/webapp/src/app/app/patient/treatment/stageItemSnapshot.ts` (импортируются с экрана программы пациента).
 
 ## Снимок `test_set` и идентификаторы тестов
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense, type ComponentType, type ReactNode } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,13 +14,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Dialog } from "@/components/ui/dialog";
-import { PatientProgramStageItemModal } from "@/app/app/patient/treatment-programs/PatientProgramStageItemModal";
+import { PatientProgramStageItemModal } from "@/app/app/patient/treatment/PatientProgramStageItemModal";
 import { PatientModalDialogContent } from "@/shared/ui/patient/PatientModalDialogContent";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
-  Shield,
-  ChevronDown,
   CheckCircle2,
   CalendarCheck,
   PlayCircle,
@@ -65,13 +62,13 @@ import { type PatientProgramChecklistRow } from "@/modules/treatment-program/pat
 import {
   normalizeChecklistCountMap,
   normalizeChecklistLastMap,
-} from "@/app/app/patient/treatment-programs/normalizeTreatmentProgramChecklistMaps";
+} from "@/app/app/patient/treatment/normalizeTreatmentProgramChecklistMaps";
 import {
   mergeLastActivityDisplayedIso,
   parseSnapshotMediaForRowThumb,
   pickRecommendationRowPreviewMedia,
   parseRecommendationMediaFromSnapshot,
-} from "@/app/app/patient/treatment-programs/stageItemSnapshot";
+} from "@/app/app/patient/treatment/stageItemSnapshot";
 import type { RecommendationMediaItem } from "@/modules/recommendations/types";
 import { PatientCatalogMediaStaticThumb } from "@/shared/ui/patient/PatientCatalogMediaStaticThumb";
 import { routePaths } from "@/app-layer/routes/paths";
@@ -101,53 +98,25 @@ import {
   patientBadgePrimaryClass,
   patientInnerPageStackClass,
   patientCompactActionClass,
-  patientRecommendationCollapsiblePanelClass,
-  patientRecommendationCollapsibleTriggerClass,
 } from "@/shared/ui/patientVisual";
 import { DateTime } from "luxon";
 import { formatBookingDateLongRu, formatBookingDateTimeShortStyleRu } from "@/shared/lib/formatBusinessDateTime";
+import { flatOrderedProgramCompositionItemIds } from "@/app/app/patient/treatment/PatientTreatmentProgramStagePageProgramSection";
+
+const PatientTreatmentTabProgramLazy = lazy(() =>
+  import("@/app/app/patient/treatment/PatientTreatmentTabProgram").then((m) => ({ default: m.PatientTreatmentTabProgram })),
+);
+const PatientTreatmentTabRecommendationsLazy = lazy(() =>
+  import("@/app/app/patient/treatment/PatientTreatmentTabRecommendations").then((m) => ({
+    default: m.PatientTreatmentTabRecommendations,
+  })),
+);
 
 /**
  * Строки списков на странице программы лечения и на странице этапа (тот же клиентский модуль).
  * Плотнее {@link patientListItemClass}, чтобы не менять глобальный примитив для других экранов пациента.
  */
 const patientTreatmentProgramListItemClass = cn(patientListItemClass, "p-2 lg:p-2.5");
-
-/** Склонение «N дней» для строки занятости в hero. */
-function ruProgramEngagementDaysWord(n: number): string {
-  const mod100 = n % 100;
-  if (mod100 >= 11 && mod100 <= 14) return "дней";
-  const mod10 = n % 10;
-  if (mod10 === 1) return "день";
-  if (mod10 >= 2 && mod10 <= 4) return "дня";
-  return "дней";
-}
-
-/** Минимальный `started_at` среди этапов с `sortOrder > 0`; иначе дата назначения экземпляра. */
-function patientProgramHeroEngagementStartIso(detail: TreatmentProgramInstanceDetail): string {
-  const started: string[] = [];
-  for (const s of detail.stages) {
-    if (s.sortOrder <= 0) continue;
-    const st = s.startedAt;
-    if (st == null || String(st).trim() === "") continue;
-    started.push(String(st));
-  }
-  if (started.length === 0) return detail.createdAt;
-  return started.reduce((a, b) => (a < b ? a : b));
-}
-
-/** Календарные дни от начала до «сегодня» в таймзоне приложения, включительно (минимум 1). */
-function patientProgramHeroInclusiveEngagementDayCount(
-  startIso: string,
-  appDisplayTimeZone: string,
-  now: DateTime = DateTime.now(),
-): number {
-  const startDay = DateTime.fromISO(startIso, { zone: appDisplayTimeZone }).startOf("day");
-  const today = now.setZone(appDisplayTimeZone).startOf("day");
-  if (!startDay.isValid) return 1;
-  const raw = Math.floor(today.diff(startDay, "days").days);
-  return Math.max(1, raw + 1);
-}
 
 /** Единый заголовок секции (после hero): иконка слева, заголовок, опционально действие справа. */
 function PatientProgramBlockHeading(props: {
@@ -542,6 +511,8 @@ function PatientProgramStagesTimeline(props: {
   doneTodayCountByActivityKey: Readonly<Record<string, number>>;
   lastDoneAtIsoByActivityKey: Readonly<Record<string, string>>;
   doneTodayCountByItemId: Readonly<Record<string, number>>;
+  /** Вместо ссылки на страницу этапа — открыть занятие (модалка на родителе). */
+  onStartLesson?: () => void;
 }) {
   const {
     stages,
@@ -552,6 +523,7 @@ function PatientProgramStagesTimeline(props: {
     doneTodayCountByActivityKey,
     lastDoneAtIsoByActivityKey,
     doneTodayCountByItemId,
+    onStartLesson,
   } = props;
   const [itemsModalStage, setItemsModalStage] = useState<InstanceStageRow | null>(null);
   const stageForModal = useMemo(() => {
@@ -692,14 +664,18 @@ function PatientProgramStagesTimeline(props: {
         <PatientModalDialogContent
           title={stageForModal?.title ?? ""}
           topSlot={
-            detail.status === "active" && currentWorkingStage ? (
-              <Link
-                href={routePaths.patientTreatmentProgramStage(detail.id, currentWorkingStage.id)}
+            detail.status === "active" && currentWorkingStage && onStartLesson ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setItemsModalStage(null);
+                  onStartLesson();
+                }}
                 className={patientModalPortalPrimaryCtaClass}
               >
                 <PlayCircle className="size-5 shrink-0 lg:size-6" aria-hidden />
                 Начать занятие
-              </Link>
+              </button>
             ) : null
           }
         >
@@ -1480,8 +1456,10 @@ function PatientProgramControlCard(props: {
   fallbackMessage: string;
   instanceId: string;
   currentStageId: string | null;
+  /** Вместо перехода на страницу этапа — переключить вкладку «Программа». */
+  onProgramTests?: () => void;
 }) {
-  const { dateLine, fallbackMessage, instanceId, currentStageId } = props;
+  const { dateLine, fallbackMessage, instanceId, currentStageId, onProgramTests } = props;
   return (
     <section className={patientSurfaceWarningClass} aria-label="Следующий контроль">
       <div className="flex min-w-0 flex-row items-start justify-between gap-3">
@@ -1506,15 +1484,18 @@ function PatientProgramControlCard(props: {
         </div>
         <div className="flex shrink-0 flex-col items-end gap-1.5">
           {currentStageId ? (
-            <Link
-              href={routePaths.patientTreatmentProgramStage(instanceId, currentStageId)}
-              className={cn(
-                patientButtonWarningOutlineClass,
-                "w-auto min-h-8 shrink-0 px-2.5 py-1.5 text-xs font-semibold leading-tight sm:min-h-8",
-              )}
-            >
-              Выполнить тесты
-            </Link>
+            onProgramTests ? (
+              <button
+                type="button"
+                onClick={onProgramTests}
+                className={cn(
+                  patientButtonWarningOutlineClass,
+                  "w-auto min-h-8 shrink-0 px-2.5 py-1.5 text-xs font-semibold leading-tight sm:min-h-8",
+                )}
+              >
+                Выполнить тесты
+              </button>
+            ) : null
           ) : null}
           <Link
             href={routePaths.cabinet}
@@ -1537,13 +1518,23 @@ export function PatientTreatmentProgramDetailClient(props: {
   initialProgramEvents?: TreatmentProgramEventRow[];
   appDisplayTimeZone: string;
   programDescription?: string | null;
+  /** Дни программы с рубежом 03:00 (RSC); null если «ожидает старта» или неактивна. */
+  progressDays: number | null;
 }) {
   const {
     appDisplayTimeZone,
     programDescription = null,
     initialProgramEvents = [],
+    progressDays,
   } = props;
+  const [activeTab, setActiveTab] = useState<"program" | "recommendations" | "progress">("program");
+  const [heroModalItemId, setHeroModalItemId] = useState<string | null>(null);
   const [detail, setDetail] = useState(props.initial);
+
+  useEffect(() => {
+    void import("@/app/app/patient/treatment/PatientTreatmentTabProgram");
+    void import("@/app/app/patient/treatment/PatientTreatmentTabRecommendations");
+  }, []);
   const [testResults, setTestResults] = useState(props.initialTestResults);
   const [programEvents, setProgramEvents] = useState(initialProgramEvents);
   const [error, setError] = useState<string | null>(null);
@@ -1639,6 +1630,14 @@ export function PatientTreatmentProgramDetailClient(props: {
     };
   }, [detail.stages]);
 
+  /** Этап для вкладки «Программа»: pipeline-этап или единственный «нулевой», если других этапов нет. */
+  const programTabStage = useMemo(() => {
+    if (currentWorkingStage) return currentWorkingStage;
+    const hasPipeline = detail.stages.some((s) => s.sortOrder > 0);
+    if (!hasPipeline && stageZeroStages[0]) return stageZeroStages[0];
+    return null;
+  }, [currentWorkingStage, detail.stages, stageZeroStages]);
+
   const stagesTimeline = useMemo(() => {
     const { archive, pipeline } = splitPatientProgramStagesForDetailUi(detail.stages);
     const merged = [...archive, ...pipeline].filter((s) => s.sortOrder > 0);
@@ -1652,11 +1651,62 @@ export function PatientTreatmentProgramDetailClient(props: {
     currentWorkingStage != null &&
     currentWorkingStage.status === "available";
 
-  const heroEngagementDayCount = useMemo(() => {
-    if (detail.status !== "active" || awaitsStart) return null;
-    const startIso = patientProgramHeroEngagementStartIso(detail);
-    return patientProgramHeroInclusiveEngagementDayCount(startIso, appDisplayTimeZone);
-  }, [detail, awaitsStart, appDisplayTimeZone]);
+  const pipelineLength = useMemo(
+    () => detail.stages.filter((s) => s.sortOrder > 0).length,
+    [detail.stages],
+  );
+
+  const firstPendingProgramItemId = useMemo(() => {
+    if (!programTabStage || detail.status !== "active") return null;
+    const ordered = flatOrderedProgramCompositionItemIds(programTabStage);
+    const pending = ordered.find((id) => !doneItemIds.includes(id));
+    return pending ?? ordered[0] ?? null;
+  }, [programTabStage, doneItemIds, detail.status]);
+
+  const openHeroLesson = useCallback(() => {
+    if (!firstPendingProgramItemId) return;
+    setHeroModalItemId(firstPendingProgramItemId);
+  }, [firstPendingProgramItemId]);
+
+  const recommendationListCount = useMemo(() => {
+    let n = 0;
+    if (currentWorkingStage) {
+      n += currentWorkingStage.items.filter((it) => isPersistentRecommendation(it)).length;
+    }
+    for (const st of stageZeroStages) {
+      n += st.items.filter((it) => isInstanceStageItemShownOnPatientProgramSurfaces(it)).length;
+    }
+    return n;
+  }, [currentWorkingStage, stageZeroStages]);
+
+  const programTabSubtitle = useMemo(() => {
+    if (!programTabStage) return "—";
+    if (programTabStage.sortOrder === 0) return "Общие рекомендации";
+    return `Этап ${programTabStage.sortOrder} из ${pipelineLength}`;
+  }, [programTabStage, pipelineLength]);
+
+  const heroModalItem = useMemo(() => {
+    if (!heroModalItemId || !programTabStage) return null;
+    return programTabStage.items.find((it) => it.id === heroModalItemId) ?? null;
+  }, [heroModalItemId, programTabStage]);
+
+  const heroModalFlatIds = useMemo(
+    () => (programTabStage ? flatOrderedProgramCompositionItemIds(programTabStage) : []),
+    [programTabStage],
+  );
+
+  const progressTabDaysLabel = useMemo(() => {
+    if (progressDays == null) return "—";
+    const mod100 = progressDays % 100;
+    let w = "дней";
+    if (mod100 >= 11 && mod100 <= 14) w = "дней";
+    else {
+      const mod10 = progressDays % 10;
+      if (mod10 === 1) w = "день";
+      else if (mod10 >= 2 && mod10 <= 4) w = "дня";
+    }
+    return `${progressDays} ${w}`;
+  }, [progressDays]);
 
   const controlIso = currentWorkingStage ? expectedStageControlDateIso(currentWorkingStage) : null;
   const controlDateLine =
@@ -1676,7 +1726,12 @@ export function PatientTreatmentProgramDetailClient(props: {
       ) : null}
 
       {/* C1: Hero — компактный заголовок; история по (i) */}
-      <div className={cn(patientHomeCardHeroClass, "relative isolate overflow-hidden p-4 pt-3 lg:p-5")}>
+      <div
+        className={cn(
+          patientHomeCardHeroClass,
+          "relative isolate overflow-hidden rounded-b-none p-4 pt-3 lg:rounded-b-none lg:p-5",
+        )}
+      >
         <PatientProgramHeroHistoryPopover
           detail={detail}
           appDisplayTimeZone={appDisplayTimeZone}
@@ -1697,119 +1752,160 @@ export function PatientTreatmentProgramDetailClient(props: {
             {programDescription.trim()}
           </p>
         ) : null}
-        {heroEngagementDayCount != null ? (
-          <p
-            className="mt-2 flex items-center gap-1.5 text-sm font-medium text-[var(--patient-text-primary)]"
-            role="status"
-          >
-            <span
-              className="size-2 shrink-0 rounded-full bg-[var(--patient-color-success)]"
-              aria-hidden
-            />
-            {`Вы занимаетесь ${heroEngagementDayCount} ${ruProgramEngagementDaysWord(heroEngagementDayCount)}`}
-          </p>
-        ) : null}
         {awaitsStart ? (
           <p className="mt-2" role="status">
             <span className={patientBadgeDangerClass}>Ожидает старта</span>
           </p>
         ) : null}
-        {currentWorkingStage ? (
-          <Link
-            href={routePaths.patientTreatmentProgramStage(detail.id, currentWorkingStage.id)}
+        {programTabStage && firstPendingProgramItemId ? (
+          <button
+            type="button"
+            onClick={openHeroLesson}
             className={cn(
               patientHeroPrimaryActionClass,
-              "mt-3 flex min-h-11 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm shadow-[0_6px_14px_rgba(40,77,160,0.24)] lg:min-h-12 lg:text-base",
+              "mt-3 flex min-h-11 w-full items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm shadow-[0_6px_14px_rgba(40,77,160,0.24)] lg:min-h-12 lg:text-base",
             )}
           >
             <PlayCircle className="size-5 shrink-0 lg:size-6" aria-hidden />
             Начать занятие
-          </Link>
+          </button>
         ) : detail.status !== "active" ? (
           <p className={cn(patientMutedTextClass, "mt-2 text-sm")}>Программа завершена.</p>
-        ) : (
+        ) : programTabStage ? null : (
           <p className={cn(patientMutedTextClass, "mt-2 text-sm")}>Нет активного этапа.</p>
         )}
       </div>
 
-      {/* C3: Stage 0 in Collapsible (closed by default) */}
-      {stageZeroStages.map((stage) => (
-        <Collapsible key={stage.id} className={cn(patientCardListSectionClass, "overflow-hidden p-0 lg:p-0")}>
-          <CollapsibleTrigger
-            className={cn(
-              "flex w-full items-center px-3 py-4 text-left lg:px-4 lg:py-[18px]",
-              patientRecommendationCollapsibleTriggerClass,
-            )}
-          >
-            <PatientProgramBlockHeading
-              className="mb-0 w-full items-center"
-              Icon={Shield}
-              iconClassName="text-emerald-800/85"
-              title="Рекомендации"
-              titleAs="span"
-              trailing={
-                <ChevronDown
-                  className="size-4 shrink-0 transition-transform group-data-[open]/collapsible:rotate-180"
-                  aria-hidden="true"
-                />
-              }
-            />
-          </CollapsibleTrigger>
-          <CollapsibleContent
-            className={cn("border-t border-[var(--patient-border)]", patientRecommendationCollapsiblePanelClass)}
-          >
-            <PatientInstanceStageBody
-              instanceId={detail.id}
-              stage={stage}
-              base={base}
-              busy={busy}
-              setBusy={setBusy}
-              setError={setError}
-              refresh={refresh}
-              ignoreStageLockForContent
-              surfaceClass="flex flex-col gap-2 px-3 py-2 lg:gap-2 lg:px-4 lg:py-3"
-              stackVariant="likeStagesTimeline"
-              doneItemIds={doneItemIds}
-              onDoneItemIds={setDoneItemIds}
-              todayCountByStageItemId={doneTodayCountByItemId}
-              heading={null}
-              hideStageDescription
-            />
-          </CollapsibleContent>
-        </Collapsible>
-      ))}
+      <div
+        className="sticky top-0 z-[5] grid grid-cols-3 gap-px border border-[var(--patient-border)] bg-[var(--patient-border)] shadow-sm"
+        role="tablist"
+        aria-label="Разделы программы"
+      >
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === "program"}
+          className={cn(
+            "flex min-h-[3.25rem] flex-col items-center justify-center gap-0.5 px-1 py-2 text-center outline-none transition-opacity lg:min-h-[3.5rem] lg:px-2",
+            activeTab === "program" ? "opacity-100" : "opacity-75",
+            "bg-[#dde6f0] focus-visible:ring-2 focus-visible:ring-[var(--patient-color-primary)]",
+          )}
+          onClick={() => setActiveTab("program")}
+        >
+          <span className="text-xs font-semibold text-[#444444] lg:text-sm">Программа</span>
+          <span className="text-[10px] leading-tight text-[#555555] lg:text-xs">{programTabSubtitle}</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === "recommendations"}
+          className={cn(
+            "flex min-h-[3.25rem] flex-col items-center justify-center gap-0.5 px-1 py-2 text-center outline-none transition-opacity lg:min-h-[3.5rem] lg:px-2",
+            activeTab === "recommendations" ? "opacity-100" : "opacity-75",
+            "bg-[#dffeca] focus-visible:ring-2 focus-visible:ring-[var(--patient-color-primary)]",
+          )}
+          onClick={() => setActiveTab("recommendations")}
+        >
+          <span className="text-xs font-semibold text-[#444444] lg:text-sm">Рекомендации</span>
+          <span className="text-[10px] leading-tight text-[#555555] lg:text-xs">
+            {recommendationListCount} рекомендаций
+          </span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === "progress"}
+          className={cn(
+            "flex min-h-[3.25rem] flex-col items-center justify-center gap-0.5 px-1 py-2 text-center outline-none transition-opacity lg:min-h-[3.5rem] lg:px-2",
+            activeTab === "progress" ? "opacity-100" : "opacity-75",
+            "border-0 bg-[var(--patient-surface-warning-bg)] text-[var(--patient-surface-warning-text)] focus-visible:ring-2 focus-visible:ring-[var(--patient-color-primary)]",
+          )}
+          onClick={() => setActiveTab("progress")}
+        >
+          <span className="text-xs font-semibold lg:text-sm">Прогресс</span>
+          <span className="text-[10px] leading-tight opacity-90 lg:text-xs">{progressTabDaysLabel}</span>
+        </button>
+      </div>
 
-      {stagesTimeline.length > 0 ? (
-        <PatientProgramStagesTimeline
-          stages={stagesTimeline}
-          currentWorkingStage={currentWorkingStage}
-          stageCountNonZero={stageCountNonZero}
-          detail={detail}
-          appDisplayTimeZone={appDisplayTimeZone}
-          doneTodayCountByActivityKey={doneTodayCountByActivityKey}
-          lastDoneAtIsoByActivityKey={lastDoneAtIsoByActivityKey}
-          doneTodayCountByItemId={doneTodayCountByItemId}
+      <div className={cn(activeTab !== "program" && "hidden")} role="tabpanel" aria-label="Программа">
+        <Suspense fallback={<p className={patientMutedTextClass}>Загрузка…</p>}>
+          <PatientTreatmentTabProgramLazy
+            instanceId={detail.id}
+            currentWorkingStage={programTabStage}
+            pipelineLength={pipelineLength}
+            allStages={detail.stages}
+            appDisplayTimeZone={appDisplayTimeZone}
+          />
+        </Suspense>
+      </div>
+
+      <div className={cn(activeTab !== "recommendations" && "hidden")} role="tabpanel" aria-label="Рекомендации">
+        <Suspense fallback={<p className={patientMutedTextClass}>Загрузка…</p>}>
+          <PatientTreatmentTabRecommendationsLazy
+            currentWorkingStage={currentWorkingStage}
+            stageZeroStages={stageZeroStages}
+            base={base}
+            busy={busy}
+            setBusy={setBusy}
+            setError={setError}
+            refresh={refresh}
+          />
+        </Suspense>
+      </div>
+
+      <div className={cn(activeTab !== "progress" && "hidden")} role="tabpanel" aria-label="Прогресс">
+        {stagesTimeline.length > 0 ? (
+          <PatientProgramStagesTimeline
+            stages={stagesTimeline}
+            currentWorkingStage={currentWorkingStage}
+            stageCountNonZero={stageCountNonZero}
+            detail={detail}
+            appDisplayTimeZone={appDisplayTimeZone}
+            doneTodayCountByActivityKey={doneTodayCountByActivityKey}
+            lastDoneAtIsoByActivityKey={lastDoneAtIsoByActivityKey}
+            doneTodayCountByItemId={doneTodayCountByItemId}
+            onStartLesson={openHeroLesson}
+          />
+        ) : null}
+        {showNextControlCard && currentWorkingStage ? (
+          <PatientProgramControlCard
+            dateLine={controlDateLine}
+            fallbackMessage={controlFallbackMessage}
+            instanceId={detail.id}
+            currentStageId={currentWorkingStage.id}
+            onProgramTests={() => setActiveTab("program")}
+          />
+        ) : null}
+        <section className={patientCardClass} aria-label="Статистика прохождения">
+          <PatientProgramBlockHeading
+            title="Статистика прохождения"
+            Icon={TrendingUp}
+            iconClassName="text-[var(--patient-color-primary)]"
+          />
+        </section>
+      </div>
+
+      {heroModalItemId && programTabStage ? (
+        <PatientProgramStageItemModal
+          stage={programTabStage}
+          base={base}
+          item={heroModalItem}
+          flatOrderedIds={heroModalFlatIds}
+          onClose={() => setHeroModalItemId(null)}
+          onNavigate={(id) => setHeroModalItemId(id)}
+          busy={busy}
+          setBusy={setBusy}
+          setError={setError}
+          refresh={refresh}
+          itemInteraction="full"
+          doneItemIds={doneItemIds}
+          onDoneItemIds={setDoneItemIds}
+          contentBlocked={
+            programTabStage.sortOrder > 0 &&
+            (programTabStage.status === "locked" || programTabStage.status === "skipped")
+          }
         />
       ) : null}
-
-      {/* Следующий контроль — под блоком «Этапы программы» */}
-      {showNextControlCard ? (
-        <PatientProgramControlCard
-          dateLine={controlDateLine}
-          fallbackMessage={controlFallbackMessage}
-          instanceId={detail.id}
-          currentStageId={currentWorkingStage.id}
-        />
-      ) : null}
-
-      {/* Статистика прохождения — наполнение будет добавлено позже */}
-      <section className={patientCardClass} aria-label="Статистика прохождения">
-        <PatientProgramBlockHeading
-          title="Статистика прохождения"
-          Icon={TrendingUp}
-          iconClassName="text-[var(--patient-color-primary)]"
-        />
-      </section>
 
     </div>
   );

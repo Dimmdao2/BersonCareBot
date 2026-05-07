@@ -2,8 +2,7 @@
 
 import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { PlayCircle } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { PatientProgramStageItemModal } from "@/app/app/patient/treatment-programs/PatientProgramStageItemModal";
+import { PatientProgramStageItemModal } from "@/app/app/patient/treatment/PatientProgramStageItemModal";
 import { PatientCatalogMediaStaticThumb } from "@/shared/ui/patient/PatientCatalogMediaStaticThumb";
 import type { TreatmentProgramInstanceDetail } from "@/modules/treatment-program/types";
 import {
@@ -15,7 +14,7 @@ import {
   formatRelativeTimeRu,
   primaryMediaForStageItem,
   type InstanceStageItem,
-} from "@/app/app/patient/treatment-programs/stageItemSnapshot";
+} from "@/app/app/patient/treatment/stageItemSnapshot";
 import {
   patientBodyTextClass,
   patientCardClass,
@@ -31,10 +30,62 @@ function sortByOrderThenId<T extends { sortOrder: number; id: string }>(rows: T[
   return [...rows].sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id));
 }
 
+/** Состав программы этапа: упражнения и «действующие» рекомендации; без test_set (тесты — отдельный поток / модалка). */
 function isProgramCompositionItem(item: InstanceStageItem): boolean {
   if (!isInstanceStageItemShownOnPatientProgramSurfaces(item)) return false;
   if (item.itemType === "exercise") return true;
   return item.itemType === "recommendation" && !isPersistentRecommendation(item);
+}
+
+type ProgramCompositionSegment =
+  | { kind: "item"; item: InstanceStageItem }
+  | { kind: "group"; group: Stage["groups"][number]; items: InstanceStageItem[] };
+
+/**
+ * Порядок блоков как в шаблоне: по `sort_order` элементов группа участвует на позиции минимального
+ * `sort_order` среди своих пунктов (не «все без группы сверху, потом все группы»).
+ */
+function buildProgramCompositionSegments(
+  stage: Stage,
+  visibleProgramItems: InstanceStageItem[],
+): ProgramCompositionSegment[] {
+  const sortedItems = sortByOrderThenId(visibleProgramItems);
+  const usedGroupIds = new Set<string>();
+  for (const it of sortedItems) {
+    if (it.groupId) usedGroupIds.add(it.groupId);
+  }
+  const groupsById = new Map(stage.groups.map((g) => [g.id, g] as const));
+
+  const keyed: Array<{ sortKey: number; tie: string; segment: ProgramCompositionSegment }> = [];
+
+  for (const it of sortedItems) {
+    if (!it.groupId) {
+      keyed.push({ sortKey: it.sortOrder, tie: it.id, segment: { kind: "item", item: it } });
+    }
+  }
+  for (const gid of usedGroupIds) {
+    const g = groupsById.get(gid);
+    if (!g) continue;
+    const gItems = sortByOrderThenId(sortedItems.filter((x) => x.groupId === gid));
+    if (gItems.length === 0) continue;
+    const minOrder = Math.min(...gItems.map((x) => x.sortOrder));
+    keyed.push({ sortKey: minOrder, tie: gid, segment: { kind: "group", group: g, items: gItems } });
+  }
+
+  keyed.sort((a, b) => a.sortKey - b.sortKey || a.tie.localeCompare(b.tie));
+  return keyed.map((k) => k.segment);
+}
+
+/** Порядок id элементов «программы этапа» (как в {@link PatientTreatmentProgramStagePageProgramSection}). */
+export function flatOrderedProgramCompositionItemIds(stage: Stage): string[] {
+  const visibleProgramItems = sortByOrderThenId(stage.items.filter(isProgramCompositionItem));
+  const segments = buildProgramCompositionSegments(stage, visibleProgramItems);
+  const ids: string[] = [];
+  for (const seg of segments) {
+    if (seg.kind === "item") ids.push(seg.item.id);
+    else for (const it of seg.items) ids.push(it.id);
+  }
+  return ids;
 }
 
 function tileTitle(snapshot: Record<string, unknown>, itemType: string): string {
@@ -110,30 +161,17 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
     [stage.items],
   );
 
-  const sortedGroups = useMemo(
-    () =>
-      sortByOrderThenId(stage.groups).filter((g) =>
-        visibleProgramItems.some((it) => it.groupId === g.id),
-      ),
-    [stage.groups, visibleProgramItems],
-  );
-
-  const ungroupedItems = useMemo(
-    () => sortByOrderThenId(visibleProgramItems.filter((it) => !it.groupId)),
-    [visibleProgramItems],
+  const orderedSegments = useMemo(
+    () => buildProgramCompositionSegments(stage, visibleProgramItems),
+    [stage, visibleProgramItems],
   );
 
   const [openItemId, setOpenItemId] = useState<string | null>(null);
 
-  const flatOrderedProgramIds = useMemo(() => {
-    const ids: string[] = [];
-    for (const it of ungroupedItems) ids.push(it.id);
-    for (const g of sortedGroups) {
-      const gItems = sortByOrderThenId(visibleProgramItems.filter((x) => x.groupId === g.id));
-      for (const it of gItems) ids.push(it.id);
-    }
-    return ids;
-  }, [ungroupedItems, sortedGroups, visibleProgramItems]);
+  const flatOrderedProgramIds = useMemo(
+    () => flatOrderedProgramCompositionItemIds(stage),
+    [stage],
+  );
 
   const openModalItem = useMemo(
     () => (openItemId ? (visibleProgramItems.find((it) => it.id === openItemId) ?? null) : null),
@@ -266,22 +304,26 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
         Программа этапа
       </h3>
       <ul className="m-0 flex list-none flex-col gap-4 p-0">
-        {ungroupedItems.map((item) => renderTile(item))}
-        {sortedGroups.map((g) => {
-          const gItems = sortByOrderThenId(visibleProgramItems.filter((it) => it.groupId === g.id));
-          return (
-            <li key={g.id} className="list-none">
-              <p className="text-sm font-semibold text-foreground">{g.title}</p>
-              {g.scheduleText?.trim() ? (
-                <p className={cn(patientMutedTextClass, "mt-1 text-xs")}>{g.scheduleText.trim()}</p>
+        {orderedSegments.map((seg) =>
+          seg.kind === "item" ? (
+            renderTile(seg.item)
+          ) : (
+            <li key={seg.group.id} className="list-none">
+              <p className="text-sm font-semibold text-foreground">{seg.group.title}</p>
+              {seg.group.scheduleText?.trim() ? (
+                <p className={cn(patientMutedTextClass, "mt-1 text-xs")}>{seg.group.scheduleText.trim()}</p>
               ) : null}
-              {g.description?.trim() ? (
-                <p className={cn(patientBodyTextClass, "mt-2 whitespace-pre-wrap text-sm")}>{g.description.trim()}</p>
+              {seg.group.description?.trim() ? (
+                <p className={cn(patientBodyTextClass, "mt-2 whitespace-pre-wrap text-sm")}>
+                  {seg.group.description.trim()}
+                </p>
               ) : null}
-              <ul className="m-0 mt-2 flex list-none flex-col gap-3 p-0">{gItems.map((item) => renderTile(item))}</ul>
+              <ul className="m-0 mt-2 flex list-none flex-col gap-3 p-0">
+                {seg.items.map((item) => renderTile(item))}
+              </ul>
             </li>
-          );
-        })}
+          ),
+        )}
       </ul>
 
       {openItemId ? (

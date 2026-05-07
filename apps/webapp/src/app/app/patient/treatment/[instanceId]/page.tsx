@@ -1,5 +1,5 @@
 /**
- * Прохождение программы лечения (`/app/patient/treatment-programs/[instanceId]`).
+ * Прохождение программы лечения (`/app/patient/treatment/[instanceId]`).
  */
 import { notFound } from "next/navigation";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
@@ -8,8 +8,13 @@ import { getOptionalPatientSession, patientRscPersonalDataGate } from "@/app-lay
 import { routePaths } from "@/app-layer/routes/paths";
 import { AppShell } from "@/shared/ui/AppShell";
 import { patientMutedTextClass } from "@/shared/ui/patientVisual";
-import { omitDisabledInstanceStageItemsForPatientApi } from "@/modules/treatment-program/stage-semantics";
+import {
+  omitDisabledInstanceStageItemsForPatientApi,
+  resolvePatientProgramProgressDaysForPatientUi,
+} from "@/modules/treatment-program/stage-semantics";
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
+import { resolveCalendarDayIanaForPatient } from "@/modules/system-settings/calendarIana";
+import { DateTime } from "luxon";
 import { PatientTreatmentProgramDetailClient } from "../PatientTreatmentProgramDetailClient";
 
 type Props = { params: Promise<{ instanceId: string }> };
@@ -62,6 +67,10 @@ export default async function PatientTreatmentProgramDetailPage({ params }: Prop
     }
   }
 
+  const patientIana = await deps.patientCalendarTimezone.getIanaForUser(session.user.userId);
+  const resolvedIana = resolveCalendarDayIanaForPatient(patientIana, appTz);
+  const progressDays = resolvePatientProgramProgressDaysForPatientUi(detail, DateTime.now(), resolvedIana, appTz);
+
   return (
     <AppShell
       title={detail.title}
@@ -77,6 +86,7 @@ export default async function PatientTreatmentProgramDetailPage({ params }: Prop
         initialProgramEvents={initialProgramEvents}
         appDisplayTimeZone={appTz}
         programDescription={programDescription}
+        progressDays={progressDays}
       />
     </AppShell>
   );

@@ -58,11 +58,12 @@ export const routePaths = {
   /** Каталог курсов (продажа → тот же экземпляр программы, что и назначение врача). */
   patientCourses: "/app/patient/courses",
   /** Программы лечения (назначенные экземпляры). */
-  patientTreatmentPrograms: "/app/patient/treatment-programs",
+  patientTreatmentPrograms: "/app/patient/treatment",
   patientTreatmentProgram: (instanceId: string) =>
-    `/app/patient/treatment-programs/${encodeURIComponent(instanceId)}`,
+    `/app/patient/treatment/${encodeURIComponent(instanceId)}`,
+  /** @internal Редирект со старых закладок; не использовать в новом UI. */
   patientTreatmentProgramStage: (instanceId: string, stageId: string) =>
-    `/app/patient/treatment-programs/${encodeURIComponent(instanceId)}/stages/${encodeURIComponent(stageId)}`,
+    `/app/patient/treatment/${encodeURIComponent(instanceId)}`,
   /** Раздел CMS «Разминки» (канонический slug — см. `warmupsSection.ts`). */
   patientWarmups: patientWarmupsSectionHref(),
   /** Online intake — Nutrition questionnaire. */

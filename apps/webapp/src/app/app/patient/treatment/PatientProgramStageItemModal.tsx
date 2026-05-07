@@ -39,7 +39,7 @@ import {
   parseSnapshotMediaForRowThumb,
   pickRecommendationRowPreviewMedia,
   primaryMediaForStageItem,
-} from "@/app/app/patient/treatment-programs/stageItemSnapshot";
+} from "@/app/app/patient/treatment/stageItemSnapshot";
 import {
   patientButtonPrimaryClass,
   patientButtonSkipClass,

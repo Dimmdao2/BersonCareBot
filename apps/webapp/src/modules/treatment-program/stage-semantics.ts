@@ -1,4 +1,5 @@
 import { DateTime } from "luxon";
+import { parseBusinessInstant } from "@/shared/lib/formatBusinessDateTime";
 import type {
   TreatmentProgramInstanceDetail,
   TreatmentProgramInstanceStageItemRow,
@@ -156,7 +157,10 @@ export function omitDisabledInstanceStageItemsForPatientApi(
   };
 }
 
-/** Разметка экрана конкретного этапа (`/stages/[stageId]`): интерактив / архив / запланированный. */
+/**
+ * Разметка тела этапа (интерактив / архив / запланированный) в `PatientTreatmentProgramStagePageClient`.
+ * У пациента отдельного маршрута `/stages/[stageId]` нет — контент встроен во вкладку «Программа» на `/app/patient/treatment/[instanceId]`.
+ */
 export type PatientTreatmentProgramStageScreenVariant = "interactive" | "pastReadOnly" | "futureLocked";
 
 /**
@@ -240,4 +244,91 @@ export function formatRelativePatientCalendarDayRu(
   if (d === 0) return "Сегодня";
   if (d === 1) return "Вчера";
   return `${d} ${ruDayWordNazad(d)} назад`;
+}
+
+/**
+ * Момент начала отсчёта «дней в программе»: **самый ранний** непустой `started_at`
+ * среди этапов pipeline (`sort_order > 0`). Так отражается фактический старт программы,
+ * даже если у первого по порядку этапа дата старта ещё не проставлена, а следующий уже в работе.
+ * Если ни один этап не стартовал — `created_at` экземпляра (назначение до первого входа).
+ */
+export function patientProgramElapsedDaysAnchorIso(
+  detail: Pick<TreatmentProgramInstanceDetail, "createdAt" | "stages">,
+): string {
+  const started: string[] = [];
+  for (const s of detail.stages) {
+    if (s.sortOrder <= 0) continue;
+    const st = s.startedAt;
+    if (st != null && String(st).trim() !== "") started.push(String(st));
+  }
+  if (started.length === 0) return detail.createdAt;
+  return started.reduce((a, b) => (a < b ? a : b));
+}
+
+/**
+ * Сколько полных «дней программы» прошло на текущий момент.
+ * Граница суток — **03:00** локального времени пациента (`patientCalendarIana`):
+ * до 03:00 относится к предыдущему логическому дню, после — к следующему.
+ * Отсчёт от {@link patientProgramElapsedDaysAnchorIso} (старт первого этапа или назначение).
+ */
+export function computePatientProgramElapsedDayCount(
+  detail: Pick<TreatmentProgramInstanceDetail, "createdAt" | "stages">,
+  now: DateTime,
+  patientCalendarIana: string,
+  /** Как в шапке программы / `formatBookingDateLongRu` — для строк без `Z` и оффсета. */
+  appDisplayTimeZoneForAnchorIso: string,
+): number {
+  const startIso = patientProgramElapsedDaysAnchorIso(detail);
+  return computeProgressDaysAt0300(startIso, now, patientCalendarIana, appDisplayTimeZoneForAnchorIso);
+}
+
+/**
+ * Число «День N» для пациентского UI: только при активной программе и после того,
+ * как текущий рабочий этап вышел из состояния «только доступен» (ожидание первого входа).
+ * Иначе `null` (как hero до старта на экране программы).
+ */
+export function resolvePatientProgramProgressDaysForPatientUi(
+  detail: Pick<TreatmentProgramInstanceDetail, "createdAt" | "stages" | "status">,
+  now: DateTime,
+  patientCalendarIana: string,
+  appDisplayTimeZoneForAnchorIso: string,
+): number | null {
+  if (detail.status !== "active") return null;
+  const { pipeline } = splitPatientProgramStagesForDetailUi(detail.stages);
+  const currentWorkingStage = selectCurrentWorkingStageForPatientDetail(pipeline);
+  const awaitsStart =
+    currentWorkingStage != null && currentWorkingStage.status === "available";
+  if (awaitsStart) return null;
+  return computePatientProgramElapsedDayCount(detail, now, patientCalendarIana, appDisplayTimeZoneForAnchorIso);
+}
+
+/**
+ * Число дней программы: каждый переход локальной границы 03:00 увеличивает счётчик.
+ * «День» = `dt.setZone(iana).minus({ hours: 3 }).startOf('day')` (включительно от старта, минимум 1).
+ *
+ * Разбор `startIso`: как у экранов с датами записей — {@link parseBusinessInstant} в `isoParsingTimeZone`
+ * (обычно таймзона приложения из настроек), чтобы наивные ISO без `Z` совпадали с текстом в шапке программы.
+ * Граница 03:00 считается в `patientCalendarIana` (локальные сутки пациента).
+ */
+export function computeProgressDaysAt0300(
+  startIso: string,
+  now: DateTime,
+  patientCalendarIana: string,
+  isoParsingTimeZone: string = patientCalendarIana,
+): number {
+  const trimmed = startIso.trim();
+  const parsedJs = parseBusinessInstant(trimmed, isoParsingTimeZone);
+  const startInstant =
+    Number.isNaN(parsedJs.getTime()) ? DateTime.fromISO(trimmed, { zone: "utc" }) : DateTime.fromMillis(parsedJs.getTime());
+
+  const shift = (dt: DateTime) => {
+    const z = dt.setZone(patientCalendarIana);
+    if (!z.isValid) return dt.toUTC().minus({ hours: 3 }).startOf("day");
+    return z.minus({ hours: 3 }).startOf("day");
+  };
+  const start = shift(startInstant);
+  const today = shift(now);
+  if (!start.isValid || !today.isValid) return 1;
+  const raw = Math.floor(today.diff(start, "days").days);
+  return Math.max(1, raw + 1);
 }

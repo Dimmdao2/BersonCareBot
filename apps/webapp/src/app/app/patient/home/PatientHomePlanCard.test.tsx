@@ -14,6 +14,30 @@ describe("PatientHomePlanCard", () => {
     expect(cta).toHaveAttribute("href", routePaths.patientTreatmentPrograms);
   });
 
+  it("renders «День N» и строку «Сегодня» с точкой", () => {
+    render(
+      <PatientHomePlanCard
+        instance={{ id: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee", title: "Plan title" }}
+        progressDay={12}
+        todayPracticeDone={false}
+      />,
+    );
+    expect(screen.getByText(/День 12/)).toBeInTheDocument();
+    expect(screen.getByText("Сегодня:")).toBeInTheDocument();
+    expect(screen.getByLabelText(/Сегодня занятий по программе не отмечено/i)).toBeInTheDocument();
+  });
+
+  it("при отметках за сегодня — доступное описание для точки", () => {
+    render(
+      <PatientHomePlanCard
+        instance={{ id: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee", title: "Plan title" }}
+        progressDay={3}
+        todayPracticeDone
+      />,
+    );
+    expect(screen.getByLabelText(/Сегодня занятие отмечено/i)).toBeInTheDocument();
+  });
+
   it("renders custom leading icon when blockIconImageUrl is set", () => {
     const { container } = render(
       <PatientHomePlanCard

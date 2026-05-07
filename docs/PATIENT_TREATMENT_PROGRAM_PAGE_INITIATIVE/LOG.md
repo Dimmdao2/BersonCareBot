@@ -1,5 +1,13 @@
 # LOG — PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE
 
+## 2026-05-07 — канон пациентского «Плана»: `/treatment`, вкладки, навигация
+
+- **Маршруты:** пациентский раздел программ — **`/app/patient/treatment`** и **`/app/patient/treatment/[instanceId]`**; код под `apps/webapp/src/app/app/patient/treatment/**`. Постоянные редиректы с **`/app/patient/treatment-programs`** — `next.config.ts`.
+- **Навигация:** `getPatientPrimaryNavActiveId` — только точное совпадение или префикс с **`/`** после базы (`/treatment/...`), чтобы не подсвечивать «План» на устаревшем **`…/treatment-programs`** (ложный префикс `…/treatment`).
+- **Тесты:** `navigation.test.ts` (юнит на `getPatientPrimaryNavActiveId`); `PatientTopNav.test.tsx` — канонический путь и негатив на legacy.
+- **Док:** `BLOCK_LAYOUT_REFERENCE.md` (§1, §3–§6 сводка), `ARCHITECTURE/PATIENT_TREATMENT_PROGRAM_STAGE_SURFACES.md`, корневой `docs/README.md`; комментарии в `treatment/page.tsx`, `stage-semantics.ts`.
+- **Проверки:** `pnpm --dir apps/webapp exec vitest run src/app-layer/routes/navigation.test.ts src/shared/ui/PatientTopNav.test.tsx`.
+
 ## 2026-05-07 — экран этапа: аудит-фиксы и док-синхронизация
 
 - **Описание в hero:** переключатель «развернуть / свернуть» показывается при фактическом переполнении трёх строк (`line-clamp-3`): измерение `scrollHeight` vs `clientHeight` + `ResizeObserver`; при смене текста/этапа — `key` на `StageDescriptionBlock` вместо сброса состояния в `useEffect`.
@@ -28,7 +36,7 @@
 
 - **UI (detail):** строки timeline — прошлые этапы `bg-muted/20 opacity-70`, заблокированные будущие `opacity-50` (как в плане); описание шаблона под заголовком — `line-clamp-3`; на `<section>` timeline добавлен `id="patient-program-current-stage"` для якоря из roadmap.
 - **Тесты:** добавлен `[instanceId]/page.templateDescription.test.tsx` — загрузка описания через `getTemplate` при `templateId`, `patientSuppressShellTitle`, отсутствие 404 при падении `getTemplate`. Обновлён `page.nudgeResilience.test.tsx` у **списка** программ: мок `redirect`, сценарий empty state без активной программы и сценарий редиректа при активной (страница списка больше не вызывает nudge).
-- **Док:** `BLOCK_LAYOUT_REFERENCE.md` §3–§7 приведены к текущему коду; `STAGE_C.md` — примечание про объединение C4/C6 в timeline; `README.md` — статус и описание `BLOCK_LAYOUT_REFERENCE`.
+- **Док:** `BLOCK_LAYOUT_REFERENCE.md` §3–§6 приведены к текущему коду; `STAGE_C.md` — примечание про объединение C4/C6 в timeline; `README.md` — статус и описание `BLOCK_LAYOUT_REFERENCE`.
 
 ## 2026-05-05
 

@@ -3,13 +3,12 @@ import { ClipboardList } from "lucide-react";
 import { routePaths } from "@/app-layer/routes/paths";
 import {
   patientHomeBlockHeadingClass,
-  patientHomeCardClass,
+  patientHomePlanCardClass,
+  patientHomeCardTitleClampSmClass,
   patientHomeSecondaryCardTallHeightClass,
   patientIconLeadingClass,
-  patientHomePlanSubtitleClampClass,
-  patientHomePlanTitleClampClass,
 } from "./patientHomeCardStyles";
-import { patientButtonGhostLinkClass, patientMutedTextClass } from "@/shared/ui/patientVisual";
+import { patientMutedTextClass } from "@/shared/ui/patientVisual";
 import { PatientHomeSafeImage } from "./PatientHomeSafeImage";
 import { cn } from "@/lib/utils";
 
@@ -20,6 +19,10 @@ export type PatientHomePlanCardInstance = {
 
 type Props = {
   instance: PatientHomePlanCardInstance;
+  /** «День N» слева от CTA; `null` — не показывать (как на экране программы до старта). */
+  progressDay?: number | null;
+  /** Были ли отметки по программе сегодня (чек-лист / активность за день). */
+  todayPracticeDone?: boolean;
   blockIconImageUrl?: string | null;
   /** A5: одна строка для Today («План обновлён …»), если есть неснятые изменения. */
   planUpdatedLabel?: string | null;
@@ -40,12 +43,18 @@ function LeadingPlanIcon({ blockIconImageUrl }: { blockIconImageUrl?: string | n
 }
 
 /** Карточка «Мой план» на главной — только при активном назначении (см. `PatientHomeToday`). */
-export function PatientHomePlanCard({ instance, blockIconImageUrl, planUpdatedLabel = null }: Props) {
+export function PatientHomePlanCard({
+  instance,
+  progressDay = null,
+  todayPracticeDone = false,
+  blockIconImageUrl,
+  planUpdatedLabel = null,
+}: Props) {
   return (
     <section aria-labelledby="patient-home-plan-heading">
       <article
         id="patient-home-plan-card"
-        className={cn(patientHomeCardClass, patientHomeSecondaryCardTallHeightClass)}
+        className={cn(patientHomePlanCardClass, patientHomeSecondaryCardTallHeightClass)}
       >
         <div className="flex min-h-0 gap-3">
           <LeadingPlanIcon blockIconImageUrl={blockIconImageUrl} />
@@ -53,20 +62,50 @@ export function PatientHomePlanCard({ instance, blockIconImageUrl, planUpdatedLa
             <h3 id="patient-home-plan-heading" className={cn(patientHomeBlockHeadingClass, "shrink-0")}>
               Мой план реабилитации
             </h3>
-            <p className={patientHomePlanTitleClampClass}>{instance.title}</p>
-            <p className={patientHomePlanSubtitleClampClass}>Активная программа</p>
+            <p className={cn(patientHomeCardTitleClampSmClass, "mt-0.5")}>{instance.title}</p>
             {planUpdatedLabel?.trim() ? (
               <p className={cn(patientMutedTextClass, "mt-1 text-xs font-medium text-foreground")}>{planUpdatedLabel.trim()}</p>
             ) : null}
           </div>
         </div>
-        <Link
-          href={routePaths.patientTreatmentPrograms}
-          prefetch={false}
-          className={cn(patientButtonGhostLinkClass, "mt-auto -mb-1 min-h-9 min-w-[8rem] shrink-0 self-end px-5 lg:px-6")}
+        <div
+          className={cn(
+            "mt-auto flex min-h-9 flex-wrap items-center gap-x-3 gap-y-2 -mb-1",
+            progressDay != null ? "justify-between" : "justify-end",
+          )}
         >
-          Начать занятие
-        </Link>
+          {progressDay != null ?
+            <div
+              className="flex min-w-0 flex-col gap-0.5"
+              aria-label={todayPracticeDone ? "Сегодня занятие отмечено" : "Сегодня занятий по программе не отмечено"}
+            >
+              <p className="text-[11px] font-normal tabular-nums leading-snug text-[var(--patient-text-muted)]">
+                День {progressDay}
+              </p>
+              <div className="flex items-center gap-1.5 text-[11px] font-normal leading-snug text-[var(--patient-text-muted)]">
+                <span>Сегодня:</span>
+                <span
+                  className={cn(
+                    "inline-block size-[7px] shrink-0 rounded-full",
+                    todayPracticeDone ? "bg-[var(--patient-color-success)]" : "bg-[var(--patient-border)]",
+                  )}
+                  aria-hidden
+                />
+              </div>
+            </div>
+          : null}
+          <Link
+            href={routePaths.patientTreatmentPrograms}
+            prefetch={false}
+            className={cn(
+              "inline-flex min-h-9 min-w-[8rem] shrink-0 items-center justify-center rounded-lg border border-[var(--patient-color-primary)] bg-[var(--patient-card-bg)] px-5 text-sm font-semibold text-[var(--patient-color-primary)] transition-colors lg:px-6",
+              "hover:bg-[var(--patient-color-primary-soft)]/40 active:bg-[var(--patient-color-primary-soft)]/60",
+              "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-primary)]",
+            )}
+          >
+            Начать занятие
+          </Link>
+        </div>
       </article>
     </section>
   );

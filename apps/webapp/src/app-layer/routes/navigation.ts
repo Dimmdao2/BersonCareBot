@@ -41,7 +41,9 @@ export function getPatientPrimaryNavActiveId(pathname: string | null): PatientPr
   if (normalized === root) return "today";
   if (normalized.startsWith(routePaths.profile)) return "profile";
   if (normalized.startsWith(routePaths.diary)) return "diary";
-  if (normalized.startsWith(routePaths.patientTreatmentPrograms)) return "plan";
+  /** «План»: только `/app/patient/treatment` или подпути (`/treatment/[instanceId]`), без ложного префикса на `…/treatment-programs`. */
+  const treatmentPrograms = routePaths.patientTreatmentPrograms;
+  if (normalized === treatmentPrograms || normalized.startsWith(`${treatmentPrograms}/`)) return "plan";
   if (normalized.startsWith(routePaths.patientBooking)) return "booking";
   return null;
 }

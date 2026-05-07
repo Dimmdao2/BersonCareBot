@@ -9,7 +9,14 @@ const now = "2026-01-01T00:00:00.000Z";
 
 const detailShellProps = {
   appDisplayTimeZone: "Europe/Moscow",
+  progressDays: 5 as number | null,
 };
+
+function clickPatientTreatmentTab(which: "program" | "recommendations" | "progress") {
+  const tablist = screen.getByRole("tablist", { name: "Разделы программы" });
+  const idx = which === "program" ? 0 : which === "recommendations" ? 1 : 2;
+  fireEvent.click(within(tablist).getAllByRole("tab")[idx]!);
+}
 
 beforeEach(() => {
   global.fetch = vi.fn(async (input: RequestInfo | URL) => {
@@ -75,7 +82,7 @@ function makeInstance(over: Partial<TreatmentProgramInstanceDetail> = {}): Treat
 }
 
 describe("PatientTreatmentProgramDetailClient", () => {
-  it("renders stage goals/objectives/duration when set (A1)", () => {
+  it("renders stage goals/objectives/duration when set (A1)", async () => {
     render(
       <PatientTreatmentProgramDetailClient
         initial={makeInstance()}
@@ -83,11 +90,10 @@ describe("PatientTreatmentProgramDetailClient", () => {
         {...detailShellProps}
       />,
     );
-    // Stage 0 (sortOrder=0) is now in a Collapsible (closed by default in C3); open it first.
-    fireEvent.click(screen.getByText("Рекомендации"));
+    expect(await screen.findByText("7 дн. · неделя")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("Цели и задачи"));
     expect(screen.getByText("Снять отёк")).toBeInTheDocument();
     expect(screen.getByText("- 3 раза в неделю")).toBeInTheDocument();
-    expect(screen.getByText("7 дн. · неделя")).toBeInTheDocument();
   });
 
   it("does not render empty A1 stage header block", () => {
@@ -140,7 +146,7 @@ describe("PatientTreatmentProgramDetailClient", () => {
     expect(planOpenedCalls).toHaveLength(0);
   });
 
-  it("shows test_set on program surfaces alongside recommendations", () => {
+  it("does not list test_set under Программа tab; recommendations tab still lists actionable recs", async () => {
     const testSetItem = {
       id: "33333333-3333-4333-8333-333333333333",
       stageId: "22222222-2222-4222-8222-222222222222",
@@ -209,12 +215,118 @@ describe("PatientTreatmentProgramDetailClient", () => {
         {...detailShellProps}
       />,
     );
-    fireEvent.click(screen.getByText("Рекомендации"));
-    expect(screen.getByText("Только рекомендация в списке")).toBeInTheDocument();
-    expect(screen.getByText("Набор А")).toBeInTheDocument();
+    clickPatientTreatmentTab("recommendations");
+    const recPanel = screen.getByRole("tabpanel", { name: "Рекомендации" });
+    expect(
+      await within(recPanel).findByRole("button", { name: "Только рекомендация в списке" }),
+    ).toBeInTheDocument();
+    const programPanel = screen.getByRole("tabpanel", { name: "Программа" });
+    expect(programPanel.textContent).not.toContain("Набор А");
   });
 
-  it("renders recommendation row with left image preview from snapshot media", () => {
+  it("program tab interleaves groups by min item sortOrder (group before later ungrouped item)", async () => {
+    const groupId = "gggggggg-gggg-4ggg-8ggg-gggggggggggg";
+    const stageId = "33333333-3333-4333-8333-333333333333";
+    render(
+      <PatientTreatmentProgramDetailClient
+        initial={makeInstance({
+          stages: [
+            {
+              id: "22222222-2222-4222-8222-222222222222",
+              instanceId: "11111111-1111-4111-8111-111111111111",
+              sourceStageId: null,
+              title: "Этап 0",
+              description: null,
+              sortOrder: 0,
+              localComment: null,
+              skipReason: null,
+              status: "available",
+              startedAt: null,
+              goals: null,
+              objectives: null,
+              expectedDurationDays: null,
+              expectedDurationText: null,
+              groups: [],
+              items: [],
+            },
+            {
+              id: stageId,
+              instanceId: "11111111-1111-4111-8111-111111111111",
+              sourceStageId: null,
+              title: "Острая фаза",
+              description: null,
+              sortOrder: 1,
+              localComment: null,
+              skipReason: null,
+              status: "in_progress",
+              startedAt: now,
+              goals: null,
+              objectives: null,
+              expectedDurationDays: null,
+              expectedDurationText: null,
+              groups: [
+                {
+                  id: groupId,
+                  stageId,
+                  sourceGroupId: null,
+                  title: "Группа А",
+                  description: null,
+                  scheduleText: null,
+                  sortOrder: 0,
+                },
+              ],
+              items: [
+                {
+                  id: "aaaaaaaa-1111-4111-8111-111111111111",
+                  stageId,
+                  itemType: "recommendation" as const,
+                  itemRefId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+                  sortOrder: 0,
+                  comment: null,
+                  localComment: null,
+                  settings: null,
+                  snapshot: { title: "В группе", bodyMd: "" },
+                  completedAt: null,
+                  isActionable: true,
+                  status: "active" as const,
+                  groupId,
+                  createdAt: now,
+                  lastViewedAt: now,
+                  effectiveComment: null,
+                },
+                {
+                  id: "aaaaaaaa-2222-4222-8222-222222222222",
+                  stageId,
+                  itemType: "recommendation" as const,
+                  itemRefId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+                  sortOrder: 10,
+                  comment: null,
+                  localComment: null,
+                  settings: null,
+                  snapshot: { title: "Соло после группы", bodyMd: "" },
+                  completedAt: null,
+                  isActionable: true,
+                  status: "active" as const,
+                  groupId: null,
+                  createdAt: now,
+                  lastViewedAt: now,
+                  effectiveComment: null,
+                },
+              ],
+            },
+          ],
+        })}
+        initialTestResults={[]}
+        {...detailShellProps}
+      />,
+    );
+    const programPanel = await screen.findByRole("tabpanel", { name: "Программа" });
+    const groupHeading = within(programPanel).getByText("Группа А");
+    const soloTitle = within(programPanel).getByText("Соло после группы");
+    expect(groupHeading.compareDocumentPosition(soloTitle) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+  });
+
+  it("renders recommendation row with left image preview from snapshot media", async () => {
     const recommendationItem = {
       id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
       stageId: "22222222-2222-4222-8222-222222222222",
@@ -268,14 +380,11 @@ describe("PatientTreatmentProgramDetailClient", () => {
         {...detailShellProps}
       />,
     );
-    fireEvent.click(screen.getByText("Рекомендации"));
-    expect(screen.getByText("Пить воду")).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        /Пейте не меньше двух литров в день\. Дополнительный длинный текст для проверки обрезки превью под заголовком рекомендации\./,
-      ),
-    ).toBeInTheDocument();
-    const row = screen.getByText("Пить воду").closest("li");
+    clickPatientTreatmentTab("recommendations");
+    const recPanel = screen.getByRole("tabpanel", { name: "Рекомендации" });
+    const rowBtn = await within(recPanel).findByRole("button", { name: "Пить воду" });
+    expect(rowBtn).toBeInTheDocument();
+    const row = rowBtn.closest("li");
     expect(row).toBeTruthy();
     const img = (row as HTMLElement).querySelector("img");
     expect(img).toBeTruthy();
@@ -293,7 +402,7 @@ describe("PatientTreatmentProgramDetailClient", () => {
     expect(screen.queryByText("Чек-лист на сегодня")).not.toBeInTheDocument();
   });
 
-  it("hero shows engagement days with green indicator when program active and not awaiting start (1.1a)", () => {
+  it("hero does not show engagement days line (1.1a)", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-01-10T12:00:00.000Z"));
     try {
@@ -343,7 +452,7 @@ describe("PatientTreatmentProgramDetailClient", () => {
           {...detailShellProps}
         />,
       );
-      expect(screen.getByText("Вы занимаетесь 5 дней")).toBeInTheDocument();
+      expect(screen.queryByText(/Вы занимаетесь/i)).not.toBeInTheDocument();
       expect(screen.queryByText(/План обновлён/)).not.toBeInTheDocument();
     } finally {
       vi.useRealTimers();
@@ -397,6 +506,7 @@ describe("PatientTreatmentProgramDetailClient", () => {
         {...detailShellProps}
       />,
     );
+    clickPatientTreatmentTab("progress");
     const controlRegion = screen.getByRole("region", { name: "Следующий контроль" });
     expect(within(controlRegion).getByText("Срок консультации уточняется у врача.")).toBeInTheDocument();
     expect(within(controlRegion).getByRole("link", { name: /Запись на приём/i })).toBeInTheDocument();
@@ -449,6 +559,7 @@ describe("PatientTreatmentProgramDetailClient", () => {
         {...detailShellProps}
       />,
     );
+    clickPatientTreatmentTab("progress");
     const controlRegion = screen.getByRole("region", { name: "Следующий контроль" });
     expect(within(controlRegion).getByText("по согласованию с врачом")).toBeInTheDocument();
   });
@@ -530,6 +641,7 @@ describe("PatientTreatmentProgramDetailClient", () => {
         {...detailShellProps}
       />,
     );
+    clickPatientTreatmentTab("progress");
     expect(screen.getByRole("heading", { name: "Этапы программы" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Состав этапа: Острая фаза" }));
     expect(screen.getByRole("dialog")).toBeInTheDocument();
@@ -669,9 +781,10 @@ describe("PatientTreatmentProgramDetailClient", () => {
         {...detailShellProps}
       />,
     );
+    clickPatientTreatmentTab("progress");
     fireEvent.click(screen.getByRole("button", { name: "Состав этапа: Острая фаза" }));
     const dialog = screen.getByRole("dialog");
-    expect(within(dialog).getByRole("link", { name: /Начать занятие/i })).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: /Начать занятие/i })).toBeInTheDocument();
     expect(within(dialog).getAllByText("Сегодня:")).toHaveLength(4);
     expect(within(dialog).queryByRole("checkbox")).not.toBeInTheDocument();
     expect(within(dialog).getByText("Блок утро")).toBeInTheDocument();

@@ -33,6 +33,18 @@ export const patientHomeCardClass = cn(
   "shadow-[var(--patient-shadow-card-mobile)] lg:shadow-[var(--patient-shadow-card-desktop)]",
 );
 
+/**
+ * Карточка «Мой план» на главной: мягкий primary-градиент (токены `--patient-color-primary-soft` / white).
+ */
+export const patientHomePlanCardClass = cn(
+  "border border-[color-mix(in_srgb,var(--patient-color-primary)_28%,var(--patient-border))]",
+  patientCardPaddingClass,
+  "rounded-[var(--patient-card-radius-mobile)] lg:rounded-[var(--patient-card-radius-desktop)]",
+  "shadow-[var(--patient-shadow-card-mobile)] lg:shadow-[var(--patient-shadow-card-desktop)]",
+  "bg-[linear-gradient(168deg,color-mix(in_srgb,var(--patient-color-primary)_30%,var(--patient-color-primary-soft))_0%,color-mix(in_srgb,var(--patient-color-primary-soft)_52%,#ffffff)_48%,color-mix(in_srgb,var(--patient-color-primary)_24%,var(--patient-color-primary-soft))_100%)]",
+  "text-[var(--patient-text-primary)]",
+);
+
 /** Полезный пост: только border/radius/shadow без padding/bg текста базовой карточки (full-bleed cover). */
 export const patientHomeUsefulPostCardShellClass = cn(
   patientCardBorder,

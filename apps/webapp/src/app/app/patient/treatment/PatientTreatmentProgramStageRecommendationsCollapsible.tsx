@@ -3,14 +3,14 @@
 import { useMemo, useState } from "react";
 import { ChevronDown, Shield } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { PatientProgramStageItemModal } from "@/app/app/patient/treatment-programs/PatientProgramStageItemModal";
+import { PatientProgramStageItemModal } from "@/app/app/patient/treatment/PatientProgramStageItemModal";
 import { PatientCatalogMediaStaticThumb } from "@/shared/ui/patient/PatientCatalogMediaStaticThumb";
 import type { TreatmentProgramInstanceDetail } from "@/modules/treatment-program/types";
 import { isPersistentRecommendation } from "@/modules/treatment-program/stage-semantics";
 import {
   parseRecommendationMediaFromSnapshot,
   pickRecommendationRowPreviewMedia,
-} from "@/app/app/patient/treatment-programs/stageItemSnapshot";
+} from "@/app/app/patient/treatment/stageItemSnapshot";
 import {
   patientCardListSectionClass,
   patientRecommendationCollapsiblePanelClass,

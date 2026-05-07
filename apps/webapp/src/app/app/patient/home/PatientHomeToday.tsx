@@ -43,6 +43,12 @@ import { hrefForPatientHomeDrilldown, stripApiMediaForAnonymousGuest } from "./p
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
 import { DateTime } from "luxon";
 import { parsePatientHomeMoodIcons } from "@/modules/patient-home/patientHomeMoodIcons";
+import type { ChecklistTodaySnapshot } from "@/modules/treatment-program/patient-program-actions";
+import {
+  omitDisabledInstanceStageItemsForPatientApi,
+  resolvePatientProgramProgressDaysForPatientUi,
+} from "@/modules/treatment-program/stage-semantics";
+import { resolveCalendarDayIanaForPatient } from "@/modules/system-settings/calendarIana";
 
 type Props = {
   session: AppSession | null;
@@ -145,6 +151,8 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
 
   let homeReminder: { rule: ReminderRule; nextAt: Date } | null = null;
   let planInstance: { id: string; title: string } | null = null;
+  let planProgressDay: number | null = null;
+  let planTodayPracticeDone = false;
   let planUpdatedLabel: string | null = null;
   let progress: { todayDone: number; streak: number } | null = null;
   let initialMood: PatientMoodToday | null = null;
@@ -161,14 +169,30 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
     planInstance = active[0] ? { id: active[0].id, title: active[0].title } : null;
     if (planInstance) {
-      const nudge = await deps.treatmentProgramInstance.patientPlanUpdatedBadgeForInstance({
-        patientUserId: session.user.userId,
-        instanceId: planInstance.id,
-      });
+      const [nudge, rawDetail] = await Promise.all([
+        deps.treatmentProgramInstance.patientPlanUpdatedBadgeForInstance({
+          patientUserId: session.user.userId,
+          instanceId: planInstance.id,
+        }),
+        deps.treatmentProgramInstance.getInstanceForPatient(session.user.userId, planInstance.id),
+      ]);
       if (nudge.show) {
         planUpdatedLabel = nudge.eventIso
           ? `План обновлён ${formatBookingDateLongRu(nudge.eventIso, appTz)}`
           : "План обновлён";
+      }
+      if (rawDetail) {
+        const detail = omitDisabledInstanceStageItemsForPatientApi(rawDetail);
+        const patientIana = await deps.patientCalendarTimezone.getIanaForUser(session.user.userId);
+        const resolvedIana = resolveCalendarDayIanaForPatient(patientIana, appTz);
+        planProgressDay = resolvePatientProgramProgressDaysForPatientUi(detail, DateTime.now(), resolvedIana, appTz);
+        if (planProgressDay != null) {
+          const snap = await deps.treatmentProgramPatientActions.listChecklistDoneToday(
+            session.user.userId,
+            planInstance.id,
+          );
+          planTodayPracticeDone = checklistHadAnyCompletionToday(snap);
+        }
       }
     }
     progress = { todayDone: p.todayDone, streak: p.streak };
@@ -247,6 +271,8 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
         return (
           <PatientHomePlanCard
             instance={planInstance}
+            progressDay={planProgressDay}
+            todayPracticeDone={planTodayPracticeDone}
             planUpdatedLabel={planUpdatedLabel}
             blockIconImageUrl={blockLeadingIconFor("plan")}
           />
@@ -283,4 +309,11 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
   return (
     <PatientHomeTodayLayout personalizedName={personalizedName} timeOfDayPrefix={timeOfDayPrefix} blocks={layoutBlocks} />
   );
+}
+
+function checklistHadAnyCompletionToday(snap: ChecklistTodaySnapshot): boolean {
+  if (snap.doneItemIds.length > 0) return true;
+  if (Object.values(snap.doneTodayCountByItemId).some((n) => n > 0)) return true;
+  if (Object.values(snap.doneTodayCountByActivityKey).some((n) => n > 0)) return true;
+  return false;
 }

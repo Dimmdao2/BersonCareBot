@@ -14,6 +14,9 @@ import {
   latestCompletedAtIsoAmongStageItems,
   calendarDaysFromUtcIsoToNowInZone,
   formatRelativePatientCalendarDayRu,
+  computeProgressDaysAt0300,
+  patientProgramElapsedDaysAnchorIso,
+  resolvePatientProgramProgressDaysForPatientUi,
   type TreatmentProgramInstanceDetailStageRow,
 } from "./stage-semantics";
 import type { TreatmentProgramInstanceDetail } from "./types";
@@ -389,5 +392,87 @@ describe("stage-semantics (1.1a detail split)", () => {
     expect(formatRelativePatientCalendarDayRu("2026-05-05T12:00:00.000Z", "Europe/Moscow", now)).toBe("Вчера");
     expect(formatRelativePatientCalendarDayRu("2026-05-03T12:00:00.000Z", "Europe/Moscow", now)).toBe("3 дня назад");
     expect(formatRelativePatientCalendarDayRu("2026-04-26T12:00:00.000Z", "Europe/Moscow", now)).toBe("10 дней назад");
+  });
+
+  it("computeProgressDaysAt0300: naive ISO без Z трактуется как местное время приложения (как в шапке программы)", () => {
+    const iana = "Europe/Moscow";
+    const naiveStartNoZ = "2026-05-06T14:00:00";
+    const nowDayAfter = DateTime.fromISO("2026-05-07T14:00:00", { zone: iana });
+    expect(computeProgressDaysAt0300(naiveStartNoZ, nowDayAfter, iana, iana)).toBe(2);
+  });
+
+  it("computeProgressDaysAt0300: before 03:00 local counts previous logical day vs start", () => {
+    const iana = "Europe/Moscow";
+    const startIso = "2026-01-05T21:00:00.000Z";
+    const beforeBoundary = DateTime.fromISO("2026-01-07T02:59:00.000+03:00");
+    const atBoundary = DateTime.fromISO("2026-01-07T03:00:00.000+03:00");
+    const afterBoundary = DateTime.fromISO("2026-01-07T03:01:00.000+03:00");
+    expect(computeProgressDaysAt0300(startIso, beforeBoundary, iana)).toBe(2);
+    expect(computeProgressDaysAt0300(startIso, atBoundary, iana)).toBe(3);
+    expect(computeProgressDaysAt0300(startIso, afterBoundary, iana)).toBe(3);
+  });
+
+  it("computeProgressDaysAt0300: inclusive from same shifted day returns 1", () => {
+    const iana = "Europe/Moscow";
+    const startIso = "2026-01-10T12:00:00.000Z";
+    const now = DateTime.fromISO("2026-01-10T15:00:00.000+03:00");
+    expect(computeProgressDaysAt0300(startIso, now, iana)).toBe(1);
+  });
+
+  it("patientProgramElapsedDaysAnchorIso: earliest pipeline stage startedAt wins", () => {
+    const d = minimalDetail([{ id: "i1", status: "active" }]);
+    d.stages[0].startedAt = "2026-01-15T00:00:00.000Z";
+    expect(patientProgramElapsedDaysAnchorIso(d)).toBe("2026-01-15T00:00:00.000Z");
+  });
+
+  it("patientProgramElapsedDaysAnchorIso: minimum startedAt among pipeline stages", () => {
+    const base = minimalDetail([{ id: "i1", status: "active" }]);
+    const stage1 = base.stages[0]!;
+    stage1.startedAt = "2026-01-15T00:00:00.000Z";
+    base.stages.push({
+      ...stage1,
+      id: "stage-2",
+      sortOrder: 2,
+      startedAt: "2026-01-08T12:00:00.000Z",
+      status: "locked",
+    });
+    expect(patientProgramElapsedDaysAnchorIso(base)).toBe("2026-01-08T12:00:00.000Z");
+  });
+
+  it("patientProgramElapsedDaysAnchorIso: createdAt when no pipeline stage has startedAt", () => {
+    const d = minimalDetail([{ id: "i1", status: "active" }]);
+    d.stages[0].startedAt = null;
+    expect(patientProgramElapsedDaysAnchorIso(d)).toBe(d.createdAt);
+  });
+
+  it("resolvePatientProgramProgressDaysForPatientUi is null while awaiting first engagement (available)", () => {
+    const d = minimalDetail([{ id: "i1", status: "active" }]);
+    d.stages[0].status = "available";
+    d.stages[0].startedAt = null;
+    expect(
+      resolvePatientProgramProgressDaysForPatientUi(d, DateTime.fromISO("2026-01-10T12:00:00Z"), "Europe/Moscow", "Europe/Moscow"),
+    ).toBeNull();
+  });
+
+  it("resolvePatientProgramProgressDaysForPatientUi is null when program completed", () => {
+    const d = minimalDetail([{ id: "i1", status: "active" }]);
+    d.status = "completed";
+    d.stages[0].status = "completed";
+    d.stages[0].startedAt = "2026-01-01T00:00:00.000Z";
+    expect(resolvePatientProgramProgressDaysForPatientUi(d, DateTime.fromISO("2026-02-01T12:00:00Z"), "Europe/Moscow", "Europe/Moscow")).toBeNull();
+  });
+
+  it("resolvePatientProgramProgressDaysForPatientUi returns day count when stage in progress", () => {
+    const d = minimalDetail([{ id: "i1", status: "active" }]);
+    d.stages[0].status = "in_progress";
+    d.stages[0].startedAt = "2026-01-01T08:00:00.000Z";
+    const n = resolvePatientProgramProgressDaysForPatientUi(
+      d,
+      DateTime.fromISO("2026-01-03T12:00:00Z"),
+      "Europe/Moscow",
+      "Europe/Moscow",
+    );
+    expect(n).toBeGreaterThanOrEqual(1);
+    expect(n).not.toBeNull();
   });
 });

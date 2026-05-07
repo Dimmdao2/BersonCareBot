@@ -16,14 +16,9 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("@/shared/ui/AppShell", () => ({
-  AppShell: ({
-    children,
-    patientSuppressShellTitle,
-  }: {
-    children: React.ReactNode;
-    patientSuppressShellTitle?: boolean;
-  }) => (
-    <div data-testid="app-shell" data-suppress-shell-title={patientSuppressShellTitle ? "1" : "0"}>
+  AppShell: ({ children, title }: { children: React.ReactNode; title: string }) => (
+    <div>
+      <span data-testid="shell-title">{title}</span>
       {children}
     </div>
   ),
@@ -46,23 +41,20 @@ vi.mock("@/app-layer/guards/requireRole", () => ({
 }));
 
 const getInstanceForPatientMock = vi.hoisted(() => vi.fn());
-const patientPlanUpdatedBadgeForInstanceMock = vi.hoisted(() => vi.fn());
 const listTestResultsForInstanceMock = vi.hoisted(() => vi.fn());
-const getTemplateMock = vi.hoisted(() => vi.fn());
 const listProgramEventsMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
     treatmentProgramInstance: {
       getInstanceForPatient: getInstanceForPatientMock,
-      patientPlanUpdatedBadgeForInstance: patientPlanUpdatedBadgeForInstanceMock,
       listProgramEvents: listProgramEventsMock,
     },
     treatmentProgramProgress: {
       listTestResultsForInstance: listTestResultsForInstanceMock,
     },
-    treatmentProgram: {
-      getTemplate: getTemplateMock,
+    patientCalendarTimezone: {
+      getIanaForUser: vi.fn(async () => null),
     },
   }),
 }));
@@ -72,29 +64,21 @@ vi.mock("@/modules/system-settings/appDisplayTimezone", () => ({
 }));
 
 vi.mock("../PatientTreatmentProgramDetailClient", () => ({
-  PatientTreatmentProgramDetailClient: ({
-    programDescription,
-    initial,
-  }: {
-    programDescription?: string | null;
-    initial: { title: string };
-  }) => (
+  PatientTreatmentProgramDetailClient: ({ initial }: { initial: { title: string } }) => (
     <div data-testid="detail-client">
       <span data-testid="detail-title">{initial.title}</span>
-      {programDescription ? <span data-testid="program-description">{programDescription}</span> : null}
     </div>
   ),
 }));
 
 const now = "2026-01-01T00:00:00.000Z";
-const templateUuid = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 
-function minimalActiveDetail(templateId: string | null): TreatmentProgramInstanceDetail {
+function minimalActiveDetail(): TreatmentProgramInstanceDetail {
   const stageId = "22222222-2222-4222-8222-222222222222";
   return {
     id: "11111111-1111-4111-8111-111111111111",
     patientUserId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-    templateId,
+    templateId: null,
     assignedBy: null,
     title: "Программа деталь",
     status: "active",
@@ -145,55 +129,31 @@ function minimalActiveDetail(templateId: string | null): TreatmentProgramInstanc
 
 import PatientTreatmentProgramDetailPage from "./page";
 
-describe("PatientTreatmentProgramDetailPage / template description (RSC)", () => {
+describe("PatientTreatmentProgramDetailPage / nudge resilience", () => {
   beforeEach(() => {
     notFoundMock.mockClear();
-    getTemplateMock.mockReset();
+    getInstanceForPatientMock.mockResolvedValue(minimalActiveDetail());
     listProgramEventsMock.mockResolvedValue([]);
-    getInstanceForPatientMock.mockResolvedValue(minimalActiveDetail(templateUuid));
-    patientPlanUpdatedBadgeForInstanceMock.mockResolvedValue({ show: false });
     listTestResultsForInstanceMock.mockResolvedValue([]);
   });
 
-  it("loads template description via getTemplate when templateId is set and passes trimmed text to client", async () => {
-    getTemplateMock.mockResolvedValue({
-      id: templateUuid,
-      description: "  Текст описания шаблона  ",
-    });
-
+  it("renders detail for valid instance (detail page без nudge)", async () => {
     const ui = await PatientTreatmentProgramDetailPage({
       params: Promise.resolve({ instanceId: "11111111-1111-4111-8111-111111111111" }),
     });
     render(ui);
-
-    expect(getTemplateMock).toHaveBeenCalledWith(templateUuid);
-    expect(screen.getByTestId("program-description")).toHaveTextContent("Текст описания шаблона");
-    expect(screen.getByTestId("app-shell")).toHaveAttribute("data-suppress-shell-title", "1");
+    expect(screen.getByTestId("detail-title")).toHaveTextContent("Программа деталь");
+    expect(screen.getByTestId("detail-client")).toBeInTheDocument();
     expect(notFoundMock).not.toHaveBeenCalled();
   });
 
-  it("does not call getTemplate when templateId is null", async () => {
-    getInstanceForPatientMock.mockResolvedValue(minimalActiveDetail(null));
-
-    const ui = await PatientTreatmentProgramDetailPage({
-      params: Promise.resolve({ instanceId: "11111111-1111-4111-8111-111111111111" }),
-    });
-    render(ui);
-
-    expect(getTemplateMock).not.toHaveBeenCalled();
-    expect(screen.queryByTestId("program-description")).not.toBeInTheDocument();
-  });
-
-  it("survives getTemplate failure without 404 and passes null description", async () => {
-    getTemplateMock.mockRejectedValue(new Error("template load failed"));
-
-    const ui = await PatientTreatmentProgramDetailPage({
-      params: Promise.resolve({ instanceId: "11111111-1111-4111-8111-111111111111" }),
-    });
-    render(ui);
-
-    expect(getTemplateMock).toHaveBeenCalled();
-    expect(screen.queryByTestId("program-description")).not.toBeInTheDocument();
-    expect(notFoundMock).not.toHaveBeenCalled();
+  it("calls notFound when instance is missing", async () => {
+    getInstanceForPatientMock.mockResolvedValue(null);
+    await expect(
+      PatientTreatmentProgramDetailPage({
+        params: Promise.resolve({ instanceId: "missing-id" }),
+      }),
+    ).rejects.toThrow("NEXT_NOT_FOUND");
+    expect(notFoundMock).toHaveBeenCalled();
   });
 });

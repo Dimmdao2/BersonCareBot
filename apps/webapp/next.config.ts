@@ -23,6 +23,13 @@ const nextConfig: NextConfig = {
       { source: "/app/patient/diary/symptoms/", destination: diarySymptomsDest, permanent: true },
       { source: "/app/patient/diary/lfk", destination: diaryLfkDest, permanent: true },
       { source: "/app/patient/diary/lfk/", destination: diaryLfkDest, permanent: true },
+      { source: "/app/patient/treatment-programs", destination: "/app/patient/treatment", permanent: true },
+      { source: "/app/patient/treatment-programs/", destination: "/app/patient/treatment", permanent: true },
+      {
+        source: "/app/patient/treatment-programs/:path*",
+        destination: "/app/patient/treatment/:path*",
+        permanent: true,
+      },
     ];
   },
   /** Native / dynamic-require deps: do not bundle for Turbopack (media preview worker). */

@@ -1,5 +1,6 @@
 /**
- * Список назначенных программ лечения (`/app/patient/treatment-programs`).
+ * Список назначенных программ лечения (`/app/patient/treatment`).
+ * Старый путь `/app/patient/treatment-programs` → редирект в `next.config.ts`.
  */
 import { redirect } from "next/navigation";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
