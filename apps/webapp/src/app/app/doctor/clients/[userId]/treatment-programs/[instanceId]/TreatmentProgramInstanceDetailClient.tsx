@@ -25,6 +25,7 @@ import {
 import type {
   TreatmentProgramInstanceDetail,
   TreatmentProgramInstanceStatus,
+  TreatmentProgramItemType,
 } from "@/modules/treatment-program/types";
 import type { TreatmentProgramTestResultDetailRow } from "@/modules/treatment-program/types";
 import type { TreatmentProgramEventRow } from "@/modules/treatment-program/types";
@@ -140,25 +141,29 @@ function pickFirstFiniteNum(...vals: unknown[]): number | null {
   return null;
 }
 
-function effectiveLoadTripleForDoctorItem(item: InstanceStageItemT): {
+/** Разбор «нагрузки» без ссылки на целый `item` — чтобы `useEffect` мог иметь точные зависимости (exhaustive-deps). */
+function effectiveLoadTripleFromParts(
+  itemType: TreatmentProgramItemType,
+  settings: Record<string, unknown> | null,
+  snapshot: Record<string, unknown>,
+): {
   reps: number | null;
   sets: number | null;
   maxPain: number | null;
 } {
-  const snap = item.snapshot as Record<string, unknown>;
   const ov =
-    item.settings != null && typeof item.settings === "object" && !Array.isArray(item.settings)
-      ? (item.settings as Record<string, unknown>)
+    settings != null && typeof settings === "object" && !Array.isArray(settings)
+      ? (settings as Record<string, unknown>)
       : {};
-  if (item.itemType === "exercise") {
+  if (itemType === "exercise") {
     return {
-      reps: pickFirstFiniteNum(ov.reps, snap.reps),
-      sets: pickFirstFiniteNum(ov.sets, snap.sets),
-      maxPain: pickFirstFiniteNum(ov.maxPain, snap.maxPain, snap.difficulty),
+      reps: pickFirstFiniteNum(ov.reps, snapshot.reps),
+      sets: pickFirstFiniteNum(ov.sets, snapshot.sets),
+      maxPain: pickFirstFiniteNum(ov.maxPain, snapshot.maxPain, snapshot.difficulty),
     };
   }
-  if (item.itemType === "lfk_complex") {
-    const lines = listLfkSnapshotExerciseLines(snap);
+  if (itemType === "lfk_complex") {
+    const lines = listLfkSnapshotExerciseLines(snapshot);
     const L = lines[0];
     return {
       reps: pickFirstFiniteNum(ov.reps, L?.reps),
@@ -199,7 +204,7 @@ function DoctorInstanceStageItemLoadForm(props: {
   const [msg, setMsg] = useState<string | null>(null);
 
   useEffect(() => {
-    const e = effectiveLoadTripleForDoctorItem(item);
+    const e = effectiveLoadTripleFromParts(item.itemType, item.settings, item.snapshot);
     setReps(e.reps != null ? String(e.reps) : "");
     setSets(e.sets != null ? String(e.sets) : "");
     setMaxPain(e.maxPain != null ? String(e.maxPain) : "");
