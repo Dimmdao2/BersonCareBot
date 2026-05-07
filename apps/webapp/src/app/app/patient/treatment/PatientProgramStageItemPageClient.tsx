@@ -62,6 +62,8 @@ import {
 } from "@/shared/ui/patientVisual";
 import { cn } from "@/lib/utils";
 
+const EMPTY_ORDERED_ITEM_IDS: string[] = [];
+
 export type PatientProgramStageItemPageClientProps = {
   instanceId: string;
   itemId: string;
@@ -585,7 +587,7 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
 
   const stage = resolved?.stage;
   const item = resolved?.item;
-  const flatOrderedIds = resolved?.flatOrderedIds ?? [];
+  const flatOrderedIds = resolved?.flatOrderedIds ?? EMPTY_ORDERED_ITEM_IDS;
   const contentBlocked = resolved?.contentBlocked ?? false;
   const itemInteraction = resolved?.itemInteraction ?? "readOnly";
   const readOnly = itemInteraction === "readOnly";

@@ -8,7 +8,7 @@ import {
   sortDoctorInstanceStageGroupsForDisplay,
   splitPatientProgramStagesForDetailUi,
 } from "@/modules/treatment-program/stage-semantics";
-import { flatOrderedProgramCompositionItemIds } from "@/app/app/patient/treatment/PatientTreatmentProgramStagePageProgramSection";
+import { flatOrderedProgramCompositionItemIds } from "@/app/app/patient/treatment/programCompositionOrder";
 
 type Stage = TreatmentProgramInstanceDetail["stages"][number];
 type StageItem = Stage["items"][number];

@@ -7,8 +7,8 @@ import { routePaths } from "@/app-layer/routes/paths";
 import { getOptionalPatientSession, patientRscPersonalDataGate } from "@/app-layer/guards/requireRole";
 import { AppShell } from "@/shared/ui/AppShell";
 import { patientMutedTextClass } from "@/shared/ui/patientVisual";
-import { omitDisabledInstanceStageItemsForPatientApi } from "@/modules/treatment-program/stage-semantics";
 import {
+  omitDisabledInstanceStageItemsForPatientApi,
   selectCurrentWorkingStageForPatientDetail,
   splitPatientProgramStagesForDetailUi,
 } from "@/modules/treatment-program/stage-semantics";

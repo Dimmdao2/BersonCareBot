@@ -109,7 +109,7 @@ import {
 } from "@/shared/ui/patientVisual";
 import { DateTime } from "luxon";
 import { formatBookingDateLongRu, formatBookingDateTimeShortStyleRu } from "@/shared/lib/formatBusinessDateTime";
-import { flatOrderedProgramCompositionItemIds } from "@/app/app/patient/treatment/PatientTreatmentProgramStagePageProgramSection";
+import { flatOrderedProgramCompositionItemIds } from "@/app/app/patient/treatment/programCompositionOrder";
 import { PatientProgramBlockHeading } from "@/app/app/patient/treatment/program-detail/PatientProgramBlockHeading";
 import { PatientProgramPassageStatisticsSection } from "@/app/app/patient/treatment/program-detail/PatientProgramPassageStatisticsSection";
 
