@@ -270,7 +270,8 @@ export function resolvePatientStageControlUtcIsoForRemainderUi(
 
 /**
  * Подпись вкладки «Прогресс»: сколько календарных дней осталось до ожидаемого контроля текущего открытого этапа.
- * `null` — нет открытого этапа в pipeline или не задан `expected_duration_days` для расчёта.
+ * Если pipeline-этапов нет, используем этап 0 (`in_progress`/`available`) как fallback.
+ * `null` — нет открытого этапа для расчёта или не задан `expected_duration_days`.
  */
 export function resolvePatientProgramControlRemainderDaysForPatientUi(
   detail: Pick<TreatmentProgramInstanceDetail, "stages" | "status">,
@@ -278,10 +279,13 @@ export function resolvePatientProgramControlRemainderDaysForPatientUi(
   patientCalendarIana: string,
 ): number | null {
   if (detail.status !== "active") return null;
-  const { pipeline } = splitPatientProgramStagesForDetailUi(detail.stages);
-  const currentWorkingStage = selectCurrentWorkingStageForPatientDetail(pipeline);
-  if (!currentWorkingStage) return null;
-  const controlIso = resolvePatientStageControlUtcIsoForRemainderUi(currentWorkingStage, now, patientCalendarIana);
+  const { stageZero, pipeline } = splitPatientProgramStagesForDetailUi(detail.stages);
+  let stageForControl = selectCurrentWorkingStageForPatientDetail(pipeline);
+  if (!stageForControl && pipeline.length === 0) {
+    stageForControl = stageZero.find((s) => s.status === "in_progress") ?? stageZero.find((s) => s.status === "available") ?? null;
+  }
+  if (!stageForControl) return null;
+  const controlIso = resolvePatientStageControlUtcIsoForRemainderUi(stageForControl, now, patientCalendarIana);
   if (!controlIso) return null;
   return calendarWholeDaysRemainingUntilUtcIso(now, patientCalendarIana, controlIso);
 }

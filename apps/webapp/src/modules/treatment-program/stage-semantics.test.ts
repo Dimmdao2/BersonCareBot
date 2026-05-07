@@ -564,6 +564,20 @@ describe("stage-semantics (1.1a detail split)", () => {
     expect(n).toBe(7);
   });
 
+  it("resolvePatientProgramControlRemainderDaysForPatientUi uses stage zero when no pipeline exists", () => {
+    const d = minimalDetail([{ id: "i1", status: "active" }]);
+    d.stages[0].sortOrder = 0;
+    d.stages[0].status = "available";
+    d.stages[0].startedAt = null;
+    d.stages[0].expectedDurationDays = 7;
+    const n = resolvePatientProgramControlRemainderDaysForPatientUi(
+      d,
+      DateTime.fromISO("2026-01-15T18:00:00.000Z"),
+      "Europe/Moscow",
+    );
+    expect(n).toBe(7);
+  });
+
   it("patientInstanceSystemGroupHasVisibleItems is false for empty system groups", () => {
     const recGroup = { id: "g-rec", systemKind: "recommendations" as const };
     const testsGroup = { id: "g-tests", systemKind: "tests" as const };
