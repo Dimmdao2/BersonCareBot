@@ -62,7 +62,7 @@ export function PatientHomePlanCard({
             <h3 id="patient-home-plan-heading" className={cn(patientHomeBlockHeadingClass, "shrink-0")}>
               Мой план реабилитации
             </h3>
-            <p className={cn(patientHomeCardTitleClampSmClass, "mt-0.5")}>{instance.title}</p>
+            <p className={cn(patientHomeCardTitleClampSmClass, "mt-0.5 text-[#33637d]")}>{instance.title}</p>
             {planUpdatedLabel?.trim() ? (
               <p className={cn(patientMutedTextClass, "mt-1 text-xs font-medium text-foreground")}>{planUpdatedLabel.trim()}</p>
             ) : null}
@@ -79,10 +79,10 @@ export function PatientHomePlanCard({
               className="flex min-w-0 flex-col gap-0.5"
               aria-label={todayPracticeDone ? "Сегодня занятие отмечено" : "Сегодня занятий по программе не отмечено"}
             >
-              <p className="text-[11px] font-normal tabular-nums leading-snug text-[var(--patient-text-muted)]">
+              <p className="text-[11px] font-normal tabular-nums leading-snug text-[var(--patient-block-heading)]">
                 День {progressDay}
               </p>
-              <div className="flex items-center gap-1.5 text-[11px] font-normal leading-snug text-[var(--patient-text-muted)]">
+              <div className="flex items-center gap-1.5 text-[11px] font-normal leading-snug text-[var(--patient-block-heading)]">
                 <span>Сегодня:</span>
                 <span
                   className={cn(
