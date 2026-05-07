@@ -18,6 +18,13 @@ const patchBodySchema = z
     status: z.enum(["active", "disabled"]).optional(),
     isActionable: z.boolean().optional(),
     groupId: z.string().uuid().nullable().optional(),
+    loadSettings: z
+      .object({
+        reps: z.union([z.number(), z.null()]),
+        sets: z.union([z.number(), z.null()]),
+        maxPain: z.union([z.number(), z.null()]),
+      })
+      .optional(),
   })
   .refine(
     (b) =>
@@ -25,7 +32,8 @@ const patchBodySchema = z
       b.replace !== undefined ||
       b.status !== undefined ||
       b.isActionable !== undefined ||
-      b.groupId !== undefined,
+      b.groupId !== undefined ||
+      b.loadSettings !== undefined,
     { message: "empty_patch" },
   );
 
@@ -107,6 +115,19 @@ export async function PATCH(
         itemId,
         actorId: session.user.userId,
         groupId: parsed.data.groupId,
+      });
+      revalidatePatientTreatmentProgramUi();
+      return NextResponse.json({ ok: true, item: row });
+    }
+
+    if (parsed.data.loadSettings !== undefined) {
+      const row = await deps.treatmentProgramInstance.doctorMergeInstanceStageItemLoadSettings({
+        instanceId,
+        itemId,
+        actorId: session.user.userId,
+        reps: parsed.data.loadSettings.reps,
+        sets: parsed.data.loadSettings.sets,
+        maxPain: parsed.data.loadSettings.maxPain,
       });
       revalidatePatientTreatmentProgramUi();
       return NextResponse.json({ ok: true, item: row });

@@ -934,6 +934,81 @@ export function createTreatmentProgramInstanceService(deps: {
       return row;
     },
 
+    async doctorMergeInstanceStageItemLoadSettings(input: {
+      instanceId: string;
+      itemId: string;
+      actorId: string | null;
+      reps?: number | null;
+      sets?: number | null;
+      maxPain?: number | null;
+    }) {
+      assertUuid(input.instanceId);
+      assertUuid(input.itemId);
+      if (input.actorId) assertUuid(input.actorId);
+
+      const hasAny =
+        input.reps !== undefined || input.sets !== undefined || input.maxPain !== undefined;
+      if (!hasAny) throw new Error("Пустой запрос настроек нагрузки");
+
+      const detail = await instances.getInstanceById(input.instanceId);
+      const item = detail?.stages.flatMap((s) => s.items).find((i) => i.id === input.itemId);
+      if (!item) throw new Error("Элемент не найден");
+      if (item.itemType !== "exercise" && item.itemType !== "lfk_complex") {
+        throw new Error("Нагрузку можно менять только для упражнений и ЛФК-комплексов");
+      }
+
+      const prevRaw = item.settings;
+      const prev =
+        prevRaw != null && typeof prevRaw === "object" && !Array.isArray(prevRaw)
+          ? { ...(prevRaw as Record<string, unknown>) }
+          : {};
+
+      const applyInt = (
+        key: "reps" | "sets" | "maxPain",
+        incoming: number | null | undefined,
+        min: number,
+        max: number,
+        label: string,
+      ) => {
+        if (incoming === undefined) return;
+        if (incoming === null) {
+          delete prev[key];
+          return;
+        }
+        const n = Math.round(incoming);
+        if (!Number.isFinite(n) || n < min || n > max) {
+          throw new Error(`${label}: целое число от ${min} до ${max}`);
+        }
+        prev[key] = n;
+      };
+
+      applyInt("reps", input.reps, 1, 999, "Повторы");
+      applyInt("sets", input.sets, 1, 99, "Подходы");
+      applyInt("maxPain", input.maxPain, 0, 10, "Макс. боль");
+
+      const nextSettings: Record<string, unknown> | null =
+        Object.keys(prev).length === 0 ? null : prev;
+
+      const row = await instances.patchInstanceStageItem(input.instanceId, input.itemId, {
+        settings: nextSettings,
+      });
+      if (!row) throw new Error("Элемент не найден");
+      await appendEvent({
+        instanceId: input.instanceId,
+        actorId: input.actorId,
+        eventType: "status_changed",
+        targetType: "stage_item",
+        targetId: input.itemId,
+        payload: {
+          scope: "stage_item",
+          field: "loadSettings",
+          stageId: item.stageId,
+          settings: nextSettings,
+        },
+      });
+      return row;
+    },
+
     async patientRecordPlanOpened(input: {
       patientUserId: string;
       instanceId: string;

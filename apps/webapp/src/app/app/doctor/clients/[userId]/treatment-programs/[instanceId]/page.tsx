@@ -6,6 +6,7 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { AppShell } from "@/shared/ui/AppShell";
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
+import { buildTreatmentProgramLibraryPickers } from "@/app/app/doctor/treatment-program-templates/buildTreatmentProgramLibraryPickers";
 import { TreatmentProgramInstanceDetailClient } from "./TreatmentProgramInstanceDetailClient";
 
 type Props = {
@@ -26,14 +27,37 @@ export default async function DoctorPatientTreatmentProgramPage({ params, search
     notFound();
   }
 
-  const [testResults, programEvents, programActionLog, appDisplayTimeZone, clientProfile] =
-    await Promise.all([
-      deps.treatmentProgramProgress.listTestResultsForInstance(instanceId),
-      deps.treatmentProgramInstance.listProgramEvents(instanceId),
-      deps.treatmentProgramProgress.listProgramActionLogForInstance(instanceId),
-      getAppDisplayTimeZone(),
-      deps.doctorClients.getClientProfile(userId),
-    ]);
+  const [
+    testResults,
+    programEvents,
+    programActionLog,
+    appDisplayTimeZone,
+    clientProfile,
+    exercises,
+    lfkTemplates,
+    testSets,
+    recommendations,
+    contentPagesAll,
+  ] = await Promise.all([
+    deps.treatmentProgramProgress.listTestResultsForInstance(instanceId),
+    deps.treatmentProgramInstance.listProgramEvents(instanceId),
+    deps.treatmentProgramProgress.listProgramActionLogForInstance(instanceId),
+    getAppDisplayTimeZone(),
+    deps.doctorClients.getClientProfile(userId),
+    deps.lfkExercises.listExercises({ includeArchived: false }),
+    deps.lfkTemplates.listTemplates({ statusIn: ["draft", "published"] }),
+    deps.testSets.listTestSets({ includeArchived: false }),
+    deps.recommendations.listRecommendations({ includeArchived: false }),
+    deps.contentPages.listAll(),
+  ]);
+
+  const treatmentProgramLibrary = buildTreatmentProgramLibraryPickers({
+    exercises,
+    lfkTemplates,
+    testSets,
+    recommendations,
+    contentPagesAll,
+  });
 
   const patientDisplayNameRaw = clientProfile?.identity.displayName?.trim() ?? "";
   const patientDisplayName = patientDisplayNameRaw !== "" ? patientDisplayNameRaw : "Имя не указано";
@@ -58,6 +82,7 @@ export default async function DoctorPatientTreatmentProgramPage({ params, search
         currentUserId={session.user.userId}
         isAdmin={session.user.role === "admin"}
         appDisplayTimeZone={appDisplayTimeZone}
+        treatmentProgramLibrary={treatmentProgramLibrary}
       />
     </AppShell>
   );

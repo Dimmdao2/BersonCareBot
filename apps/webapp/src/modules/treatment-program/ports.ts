@@ -151,6 +151,8 @@ export type TreatmentProgramInstancePort = {
       status?: TreatmentProgramInstanceStageItemStatus;
       isActionable?: boolean | null;
       groupId?: string | null;
+      /** Полная замена JSON `settings` (`null` — очистить колонку). */
+      settings?: Record<string, unknown> | null;
     },
   ): Promise<TreatmentProgramInstanceStageItemRow | null>;
 
@@ -165,6 +167,7 @@ export type TreatmentProgramInstancePort = {
       status?: TreatmentProgramInstanceStageItemStatus;
       isActionable?: boolean | null;
       groupId?: string | null;
+      settings?: Record<string, unknown> | null;
     },
     eventInput: AppendTreatmentProgramEventInput,
   ): Promise<TreatmentProgramInstanceStageItemRow | null>;

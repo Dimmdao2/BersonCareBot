@@ -63,6 +63,15 @@ import {
   tplToolbarTextBtnClass,
 } from "@/app/app/doctor/treatment-program-shared/treatmentProgramConstructorShellStyles";
 import { TemplateReorderChevrons } from "@/shared/ui/doctor/TemplateReorderChevrons";
+import {
+  InstanceAddLibraryItemDialog,
+  TreatmentProgramAddItemSquareButton,
+  type InstanceAddLibraryItemSpec,
+} from "@/app/app/doctor/treatment-program-shared/InstanceAddLibraryItemDialog";
+import type { TreatmentProgramLibraryPickers } from "@/app/app/doctor/treatment-program-shared/treatmentProgramLibraryTypes";
+import { PatientCatalogMediaStaticThumb } from "@/shared/ui/patient/PatientCatalogMediaStaticThumb";
+import { primaryMediaForStageItem } from "@/app/app/patient/treatment/stageItemSnapshot";
+import { listLfkSnapshotExerciseLines } from "@/modules/treatment-program/programActionActivityKey";
 
 function snapshotTitle(snapshot: Record<string, unknown>, itemType: string): string {
   const t = snapshot.title;
@@ -124,6 +133,189 @@ function sortByOrderThenId<T extends { sortOrder: number; id: string }>(rows: T[
 type InstanceStageT = TreatmentProgramInstanceDetail["stages"][number];
 type InstanceStageItemT = InstanceStageT["items"][number];
 
+function pickFirstFiniteNum(...vals: unknown[]): number | null {
+  for (const v of vals) {
+    if (typeof v === "number" && Number.isFinite(v)) return v;
+  }
+  return null;
+}
+
+function effectiveLoadTripleForDoctorItem(item: InstanceStageItemT): {
+  reps: number | null;
+  sets: number | null;
+  maxPain: number | null;
+} {
+  const snap = item.snapshot as Record<string, unknown>;
+  const ov =
+    item.settings != null && typeof item.settings === "object" && !Array.isArray(item.settings)
+      ? (item.settings as Record<string, unknown>)
+      : {};
+  if (item.itemType === "exercise") {
+    return {
+      reps: pickFirstFiniteNum(ov.reps, snap.reps),
+      sets: pickFirstFiniteNum(ov.sets, snap.sets),
+      maxPain: pickFirstFiniteNum(ov.maxPain, snap.maxPain, snap.difficulty),
+    };
+  }
+  if (item.itemType === "lfk_complex") {
+    const lines = listLfkSnapshotExerciseLines(snap);
+    const L = lines[0];
+    return {
+      reps: pickFirstFiniteNum(ov.reps, L?.reps),
+      sets: pickFirstFiniteNum(ov.sets, L?.sets),
+      maxPain: pickFirstFiniteNum(ov.maxPain, L?.maxPain),
+    };
+  }
+  return { reps: null, sets: null, maxPain: null };
+}
+
+function DoctorInstanceStageItemPreviewBlock(props: { item: InstanceStageItemT }) {
+  const { item } = props;
+  const media = useMemo(
+    () => primaryMediaForStageItem(item as Parameters<typeof primaryMediaForStageItem>[0]),
+    [item],
+  );
+  return (
+    <PatientCatalogMediaStaticThumb
+      media={media}
+      frameClassName="aspect-square w-full max-w-[13rem] rounded-md border border-border/60 bg-muted/15"
+      sizes="(max-width: 768px) 45vw, 13rem"
+    />
+  );
+}
+
+function DoctorInstanceStageItemLoadForm(props: {
+  instanceId: string;
+  item: InstanceStageItemT;
+  programStatus: TreatmentProgramInstanceStatus;
+  editLocked: boolean;
+  onSaved: () => Promise<void>;
+}) {
+  const { instanceId, item, programStatus, editLocked, onSaved } = props;
+  const [reps, setReps] = useState("");
+  const [sets, setSets] = useState("");
+  const [maxPain, setMaxPain] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    const e = effectiveLoadTripleForDoctorItem(item);
+    setReps(e.reps != null ? String(e.reps) : "");
+    setSets(e.sets != null ? String(e.sets) : "");
+    setMaxPain(e.maxPain != null ? String(e.maxPain) : "");
+    setMsg(null);
+  }, [item.id, item.itemType, item.settings, item.snapshot]);
+
+  const save = async () => {
+    if (editLocked) return;
+    const parseField = (raw: string, label: string): number | null => {
+      const t = raw.trim();
+      if (t === "") return null;
+      const n = Number.parseInt(t, 10);
+      if (!Number.isFinite(n) || String(n) !== t.trim()) {
+        throw new Error(`${label}: целое число или пусто`);
+      }
+      return n;
+    };
+
+    await runIfProgramInstanceMutationAllowed(programStatus, async () => {
+      setSaving(true);
+      setMsg(null);
+      try {
+        let repsV: number | null;
+        let setsV: number | null;
+        let maxPV: number | null;
+        try {
+          repsV = parseField(reps, "Повторы");
+          setsV = parseField(sets, "Подходы");
+          maxPV = parseField(maxPain, "Макс. боль");
+        } catch (err) {
+          setMsg(err instanceof Error ? err.message : "Ошибка");
+          return;
+        }
+
+        const res = await fetch(
+          `/api/doctor/treatment-program-instances/${encodeURIComponent(instanceId)}/stage-items/${encodeURIComponent(item.id)}`,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              loadSettings: {
+                reps: repsV,
+                sets: setsV,
+                maxPain: maxPV,
+              },
+            }),
+          },
+        );
+        const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
+        if (!res.ok || !data.ok) {
+          setMsg(data.error ?? "Ошибка сохранения");
+          return;
+        }
+        await onSaved();
+        setMsg("Сохранено");
+      } finally {
+        setSaving(false);
+      }
+    });
+  };
+
+  return (
+    <div className="flex min-w-0 flex-col gap-2 rounded-md border border-border/50 bg-muted/10 p-2">
+      <p className="text-xs font-medium text-muted-foreground">Нагрузка</p>
+      <div className="grid grid-cols-3 gap-2">
+        <div className="flex flex-col gap-1">
+          <Label className="text-[10px] text-muted-foreground" htmlFor={`reps-${item.id}`}>
+            Повторы
+          </Label>
+          <Input
+            id={`reps-${item.id}`}
+            type="text"
+            inputMode="numeric"
+            className="h-8 text-xs"
+            disabled={saving || editLocked}
+            value={reps}
+            onChange={(e) => setReps(e.target.value)}
+          />
+        </div>
+        <div className="flex flex-col gap-1">
+          <Label className="text-[10px] text-muted-foreground" htmlFor={`sets-${item.id}`}>
+            Подходы
+          </Label>
+          <Input
+            id={`sets-${item.id}`}
+            type="text"
+            inputMode="numeric"
+            className="h-8 text-xs"
+            disabled={saving || editLocked}
+            value={sets}
+            onChange={(e) => setSets(e.target.value)}
+          />
+        </div>
+        <div className="flex flex-col gap-1">
+          <Label className="text-[10px] text-muted-foreground" htmlFor={`mp-${item.id}`}>
+            Макс. боль
+          </Label>
+          <Input
+            id={`mp-${item.id}`}
+            type="text"
+            inputMode="numeric"
+            className="h-8 text-xs"
+            disabled={saving || editLocked}
+            value={maxPain}
+            onChange={(e) => setMaxPain(e.target.value)}
+          />
+        </div>
+      </div>
+      <Button type="button" size="sm" variant="secondary" disabled={saving || editLocked} onClick={() => void save()}>
+        {saving ? "Сохранение…" : "Сохранить"}
+      </Button>
+      {msg ? <p className="text-xs text-muted-foreground">{msg}</p> : null}
+    </div>
+  );
+}
+
 function DoctorProgramInstanceItemCard(props: {
   instanceId: string;
   stage: InstanceStageT;
@@ -164,27 +356,43 @@ function DoctorProgramInstanceItemCard(props: {
         <span className="hidden shrink-0 text-xs text-muted-foreground group-open:inline">Свернуть</span>
       </summary>
       <div className="border-t border-border/50 px-3 pb-3 pt-1">
-        {item.itemType === "test_set" ? <TestSetCatalogSnapshotLines snapshot={item.snapshot} /> : null}
-        <ItemLocalCommentForm
-          key={`${item.id}:${item.localComment ?? ""}`}
-          instanceId={instanceId}
-          itemId={item.id}
-          programStatus={programStatus}
-          editLocked={editLocked}
-          initialDraft={item.localComment ?? ""}
-          placeholder={item.comment?.trim() ? `Из шаблона: ${item.comment.trim()}` : "Из шаблона: —"}
-          onSaved={onSaved}
-        />
-        <InstanceStageItemDoctorRow
-          instanceId={instanceId}
-          item={item}
-          programStatus={programStatus}
-          editLocked={editLocked}
-          groups={stage.groups}
-          testResults={testResults}
-          onSaved={onSaved}
-          hideGroupSelect={recPhase0}
-        />
+        <div className="mt-2 grid gap-4 md:grid-cols-[minmax(0,13rem)_1fr] md:items-start md:gap-6">
+          <div className="flex min-w-0 flex-col gap-3">
+            <DoctorInstanceStageItemPreviewBlock item={item} />
+            {item.itemType === "exercise" || item.itemType === "lfk_complex" ? (
+              <DoctorInstanceStageItemLoadForm
+                instanceId={instanceId}
+                item={item}
+                programStatus={programStatus}
+                editLocked={editLocked}
+                onSaved={onSaved}
+              />
+            ) : null}
+          </div>
+          <div className="min-w-0 flex flex-col gap-2">
+            {item.itemType === "test_set" ? <TestSetCatalogSnapshotLines snapshot={item.snapshot} /> : null}
+            <ItemLocalCommentForm
+              key={`${item.id}:${item.localComment ?? ""}`}
+              instanceId={instanceId}
+              itemId={item.id}
+              programStatus={programStatus}
+              editLocked={editLocked}
+              initialDraft={item.localComment ?? ""}
+              placeholder={item.comment?.trim() ? `Из шаблона: ${item.comment.trim()}` : "Из шаблона: —"}
+              onSaved={onSaved}
+            />
+            <InstanceStageItemDoctorRow
+              instanceId={instanceId}
+              item={item}
+              programStatus={programStatus}
+              editLocked={editLocked}
+              groups={stage.groups}
+              testResults={testResults}
+              onSaved={onSaved}
+              hideGroupSelect={recPhase0}
+            />
+          </div>
+        </div>
       </div>
     </details>
   );
@@ -265,8 +473,9 @@ function DoctorInstancePipelineStageBlock(props: {
   programStatus: TreatmentProgramInstanceStatus;
   testResults: TreatmentProgramTestResultDetailRow[];
   onSaved: () => Promise<void>;
+  onRequestAddLibraryItem: (spec: InstanceAddLibraryItemSpec) => void;
 }) {
-  const { instanceId, stage, programStatus, testResults, onSaved } = props;
+  const { instanceId, stage, programStatus, testResults, onSaved, onRequestAddLibraryItem } = props;
   const [newGroupOpen, setNewGroupOpen] = useState(false);
   const editLocked = isProgramInstanceEditLocked(programStatus);
 
@@ -319,6 +528,7 @@ function DoctorInstancePipelineStageBlock(props: {
           programStatus={programStatus}
           newGroupOpen={newGroupOpen}
           onNewGroupOpenChange={setNewGroupOpen}
+          onRequestAddLibraryItem={onRequestAddLibraryItem}
         />
       </div>
     </section>
@@ -334,6 +544,7 @@ export function TreatmentProgramInstanceDetailClient(props: {
   currentUserId: string;
   isAdmin?: boolean;
   appDisplayTimeZone: string;
+  treatmentProgramLibrary: TreatmentProgramLibraryPickers;
 }) {
   const {
     patientDisplayName,
@@ -344,12 +555,14 @@ export function TreatmentProgramInstanceDetailClient(props: {
     currentUserId,
     isAdmin = false,
     appDisplayTimeZone,
+    treatmentProgramLibrary,
   } = props;
   const [detail, setDetail] = useState(initial);
   const [error, setError] = useState<string | null>(null);
   const [testResults, setTestResults] = useState<TreatmentProgramTestResultDetailRow[]>(initialTestResults);
   const [programEvents, setProgramEvents] = useState<TreatmentProgramEventRow[]>(initialEvents);
   const [actionLog, setActionLog] = useState<ProgramActionLogListRow[]>(initialActionLog);
+  const [addLibrarySpec, setAddLibrarySpec] = useState<InstanceAddLibraryItemSpec | null>(null);
 
   const itemTitles = useMemo(() => itemTitleById(detail), [detail]);
   const stageTitles = useMemo(() => stageTitleById(detail), [detail]);
@@ -446,10 +659,22 @@ export function TreatmentProgramInstanceDetailClient(props: {
             id="doctor-program-instance-phase0-recommendations"
           >
             <div
-              className="border-b border-border/25 px-2 py-2"
+              className="flex items-center justify-between gap-2 border-b border-border/25 px-2 py-2"
               style={{ background: TPL_HEADER_BG_RECOMMENDATIONS }}
             >
               <h3 className="text-sm font-semibold leading-tight text-foreground">Общие рекомендации (этап 0)</h3>
+              {stageZero ? (
+                <TreatmentProgramAddItemSquareButton
+                  disabled={isProgramInstanceEditLocked(detail.status)}
+                  onClick={() =>
+                    setAddLibrarySpec({
+                      stageId: stageZero.id,
+                      context: "phase_zero_recommendations",
+                      customGroupId: null,
+                    })
+                  }
+                />
+              ) : null}
             </div>
             <div className="p-3">
             {!stageZero ? (
@@ -608,10 +833,23 @@ export function TreatmentProgramInstanceDetailClient(props: {
                 programStatus={detail.status}
                 testResults={testResults}
                 onSaved={refresh}
+                onRequestAddLibraryItem={(spec) => setAddLibrarySpec(spec)}
               />
             ))}
         </div>
       </div>
+      <InstanceAddLibraryItemDialog
+        open={addLibrarySpec !== null}
+        onOpenChange={(o) => {
+          if (!o) setAddLibrarySpec(null);
+        }}
+        instanceId={detail.id}
+        spec={addLibrarySpec}
+        library={treatmentProgramLibrary}
+        programStatus={detail.status}
+        editLocked={isProgramInstanceEditLocked(detail.status)}
+        onAdded={refresh}
+      />
     </div>
   );
 }
@@ -624,8 +862,9 @@ function InstanceStageGroupsPanel(props: {
   programStatus: TreatmentProgramInstanceStatus;
   newGroupOpen: boolean;
   onNewGroupOpenChange: (open: boolean) => void;
+  onRequestAddLibraryItem: (spec: InstanceAddLibraryItemSpec) => void;
 }) {
-  const { instanceId, stage, onSaved, testResults, programStatus, newGroupOpen, onNewGroupOpenChange } =
+  const { instanceId, stage, onSaved, testResults, programStatus, newGroupOpen, onNewGroupOpenChange, onRequestAddLibraryItem } =
     props;
   const editLocked = isProgramInstanceEditLocked(programStatus);
   const [title, setTitle] = useState("");
@@ -811,6 +1050,32 @@ function InstanceStageGroupsPanel(props: {
                     </p>
                   </div>
                   <div className="flex shrink-0 flex-wrap items-start justify-end gap-1">
+                    <TreatmentProgramAddItemSquareButton
+                      disabled={busy || editLocked}
+                      onClick={() => {
+                        if (isSys) {
+                          if (g.systemKind === "recommendations") {
+                            onRequestAddLibraryItem({
+                              stageId: stage.id,
+                              context: "stage_system_recommendations",
+                              customGroupId: null,
+                            });
+                          } else {
+                            onRequestAddLibraryItem({
+                              stageId: stage.id,
+                              context: "stage_system_tests",
+                              customGroupId: null,
+                            });
+                          }
+                        } else {
+                          onRequestAddLibraryItem({
+                            stageId: stage.id,
+                            context: "custom_group",
+                            customGroupId: g.id,
+                          });
+                        }
+                      }}
+                    />
                     {!isSys ? (
                       <>
                         <Button
@@ -1049,6 +1314,16 @@ function InstanceStageItemDoctorRow(props: {
     return m;
   }, [groups]);
 
+  const itemGroup = useMemo(
+    () => (item.groupId ? groups.find((g) => g.id === item.groupId) : undefined),
+    [groups, item.groupId],
+  );
+
+  /** Системные группы этапа — группа зафиксирована, перенос через выпадающий список не показываем. */
+  const showGroupSelect =
+    !hideGroupSelect &&
+    !(itemGroup !== undefined && isTreatmentProgramInstanceSystemStageGroup(itemGroup));
+
   const patchItem = async (body: Record<string, unknown>) => {
     if (editLocked) return;
     await runIfProgramInstanceMutationAllowed(programStatus, async () => {
@@ -1076,7 +1351,7 @@ function InstanceStageItemDoctorRow(props: {
   };
 
   return (
-    <div className={cn("mt-3 flex flex-col gap-2", item.status === "disabled" && "opacity-60")}>
+    <div className={cn("flex flex-col gap-2", item.status === "disabled" && "opacity-60")}>
       <div className="flex flex-wrap items-center gap-2">
         <Badge variant={item.status === "disabled" ? "secondary" : "default"}>
           {item.status === "disabled" ? "Отключено" : "Активно"}
@@ -1097,7 +1372,7 @@ function InstanceStageItemDoctorRow(props: {
             </SelectContent>
           </Select>
         ) : null}
-        {!hideGroupSelect ? (
+        {showGroupSelect ? (
           <Select
             value={item.groupId ?? "__none__"}
             onValueChange={(v) => void patchItem({ groupId: v === "__none__" ? null : v })}
@@ -1359,15 +1634,17 @@ function StageDoctorControls(props: {
           </Button>
         ) : null}
         <div className="flex flex-nowrap items-center gap-2">
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            disabled={saving || stageActionsLocked}
-            onClick={() => void patch({ status: "completed" })}
-          >
-            Завершить этап
-          </Button>
+          {status === "available" || status === "in_progress" ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={saving || stageActionsLocked}
+              onClick={() => void patch({ status: "completed" })}
+            >
+              Завершить этап
+            </Button>
+          ) : null}
           <Button
             type="button"
             size="sm"

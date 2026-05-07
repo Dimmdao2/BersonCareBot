@@ -8,7 +8,7 @@ import {
   LESSON_CONTENT_SECTION,
   LESSON_CONTENT_SECTION_LEGACY,
 } from "@/modules/treatment-program/types";
-import type { TreatmentProgramLibraryPickers } from "./[id]/TreatmentProgramConstructorClient";
+import type { TreatmentProgramLibraryPickers } from "@/app/app/doctor/treatment-program-shared/treatmentProgramLibraryTypes";
 
 function exerciseThumbUrl(m: ExerciseMedia | undefined): string | null {
   if (!m) return null;

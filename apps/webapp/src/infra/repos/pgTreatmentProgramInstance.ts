@@ -629,6 +629,7 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
         status?: TreatmentProgramInstanceStageItemStatus;
         isActionable?: boolean | null;
         groupId?: string | null;
+        settings?: Record<string, unknown> | null;
       },
     ) {
       const db = getDrizzle();
@@ -655,6 +656,7 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
       if (patch.status !== undefined) rowPatch.status = patch.status;
       if (patch.isActionable !== undefined) rowPatch.isActionable = patch.isActionable;
       if (patch.groupId !== undefined) rowPatch.groupId = patch.groupId;
+      if (patch.settings !== undefined) rowPatch.settings = patch.settings;
 
       if (Object.keys(rowPatch).length === 0) return mapItem(itemRow);
 
@@ -674,6 +676,7 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
         status?: TreatmentProgramInstanceStageItemStatus;
         isActionable?: boolean | null;
         groupId?: string | null;
+        settings?: Record<string, unknown> | null;
       },
       eventInput: AppendTreatmentProgramEventInput,
     ) {
@@ -684,6 +687,7 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
       if (patch.status !== undefined) rowPatch.status = patch.status;
       if (patch.isActionable !== undefined) rowPatch.isActionable = patch.isActionable;
       if (patch.groupId !== undefined) rowPatch.groupId = patch.groupId;
+      if (patch.settings !== undefined) rowPatch.settings = patch.settings;
       if (Object.keys(rowPatch).length === 0) return null;
 
       const db = getDrizzle();

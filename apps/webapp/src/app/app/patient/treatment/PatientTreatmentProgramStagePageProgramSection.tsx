@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useMemo, useState, type ReactNode } from "react";
-import { PlayCircle } from "lucide-react";
 import { PatientProgramStageItemModal } from "@/app/app/patient/treatment/PatientProgramStageItemModal";
 import { PatientCatalogMediaStaticThumb } from "@/shared/ui/patient/PatientCatalogMediaStaticThumb";
 import type { TreatmentProgramInstanceDetail } from "@/modules/treatment-program/types";
@@ -18,8 +17,8 @@ import {
 import {
   patientBodyTextClass,
   patientCardClass,
-  patientCompactActionClass,
   patientMutedTextClass,
+  patientSecondaryActionClass,
   patientSectionTitleClass,
 } from "@/shared/ui/patientVisual";
 import { cn } from "@/lib/utils";
@@ -103,27 +102,6 @@ function tileTitle(snapshot: Record<string, unknown>, itemType: string): string 
   return itemType;
 }
 
-function formatTileCharacteristics(item: InstanceStageItem): string {
-  const snap = item.snapshot as Record<string, unknown>;
-  const parts: string[] = [];
-  if (item.itemType === "exercise") {
-    const d = snap.difficulty;
-    if (typeof d === "number" && Number.isFinite(d)) parts.push(`Сложность: ${d}/10`);
-    else if (typeof d === "string" && d.trim()) parts.push(`Сложность: ${d.trim()}`);
-    if (typeof snap.loadType === "string" && snap.loadType.trim()) parts.push(`Нагрузка: ${snap.loadType.trim()}`);
-    const reps = typeof snap.reps === "number" && Number.isFinite(snap.reps) ? snap.reps : null;
-    const sets = typeof snap.sets === "number" && Number.isFinite(snap.sets) ? snap.sets : null;
-    if (sets != null) parts.push(`Подходов: ${sets}`);
-    if (reps != null) parts.push(`Повторений: ${reps}`);
-  }
-  if (item.itemType === "recommendation") {
-    if (typeof snap.quantityText === "string" && snap.quantityText.trim()) parts.push(snap.quantityText.trim());
-    if (typeof snap.frequencyText === "string" && snap.frequencyText.trim()) parts.push(snap.frequencyText.trim());
-    if (typeof snap.durationText === "string" && snap.durationText.trim()) parts.push(snap.durationText.trim());
-  }
-  return parts.join(" · ");
-}
-
 function ruDoneTimesWord(n: number): string {
   const mod100 = n % 100;
   if (mod100 >= 11 && mod100 <= 14) return "раз";
@@ -201,10 +179,14 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
 
   if (visibleProgramItems.length === 0) return null;
 
+  const programTileActionButtonClass = cn(
+    patientSecondaryActionClass,
+    "h-8 min-h-0 text-xs font-medium",
+  );
+
   const renderTile = (item: InstanceStageItem): ReactNode => {
     const media = primaryMediaForStageItem(item);
-    const isVideo = media?.mediaType === "video";
-    const metricsLine = formatTileCharacteristics(item);
+    const instructions = item.effectiveComment?.trim() ?? "";
     const n = totalCompletionEventsByItemId[item.id] ?? 0;
     const lastIso = mergeLastActivityDisplayedIso(lastDoneAtIsoByItemId[item.id], item.completedAt);
     const showActivityLine = n > 0 || Boolean(lastIso);
@@ -219,92 +201,104 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
           "list-none overflow-hidden p-0 shadow-sm",
         )}
       >
-        <button
-          type="button"
-          className={cn(
-            "relative block w-full cursor-pointer overflow-hidden border-0 p-0 text-left",
-            "rounded-t-[var(--patient-card-radius-mobile)] lg:rounded-t-[var(--patient-card-radius-desktop)]",
-          )}
-          onClick={() => openProgramModal(item.id)}
-        >
-          <div className="relative aspect-video w-full bg-muted/20">
+        <div className="flex gap-3 p-3">
+          <button
+            type="button"
+            className={cn(
+              "relative size-[72px] shrink-0 cursor-pointer overflow-hidden rounded-md border-0 bg-muted/20 p-0 text-left",
+              "ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--patient-border)] focus-visible:ring-offset-2",
+            )}
+            onClick={() => openProgramModal(item.id)}
+            aria-label={`Открыть: ${tileTitle(item.snapshot as Record<string, unknown>, item.itemType)}`}
+          >
             <PatientCatalogMediaStaticThumb
               media={media}
               frameClassName="h-full w-full rounded-none"
-              sizes="100vw"
+              sizes="72px"
             />
-            <div
-              className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/20"
-              aria-hidden
+          </button>
+          <div className="flex min-w-0 flex-1 flex-col gap-0">
+            <button
+              type="button"
+              className="w-full cursor-pointer border-0 bg-transparent p-0 text-left"
+              onClick={() => openProgramModal(item.id)}
             >
-              {isVideo ? (
-                <PlayCircle className="size-12 text-white drop-shadow-md" />
-              ) : (
-                <span className="rounded-md bg-black/55 px-2 py-1 text-xs font-medium text-white">Открыть</span>
-              )}
-            </div>
+              <span className="text-sm font-medium text-foreground">
+                {tileTitle(item.snapshot as Record<string, unknown>, item.itemType)}
+              </span>
+            </button>
+
+            {instructions ? (
+              <>
+                <div className="my-2 border-t border-[var(--patient-border)]" role="presentation" />
+                <p className={cn(patientBodyTextClass, "whitespace-pre-wrap text-xs leading-snug")}>{instructions}</p>
+              </>
+            ) : null}
+
+            <div className="my-2 border-t border-[var(--patient-border)]" role="presentation" />
+            <p className={cn(patientMutedTextClass, "text-xs font-semibold text-muted-foreground")}>Выполнялось</p>
+            {showActivityLine ? (
+              <p className={cn(patientMutedTextClass, "mt-0.5 text-xs leading-snug")}>
+                {n > 0 ? (
+                  <>
+                    {n} {ruDoneTimesWord(n)}.
+                  </>
+                ) : null}
+                {lastIso ? (
+                  <>
+                    {n > 0 ? " " : null}
+                    Последнее: {formatRelativeTimeRu(lastIso, appDisplayTimeZone)}
+                  </>
+                ) : null}
+              </p>
+            ) : null}
+
+            {!readOnlyTile ? (
+              <>
+                <div className="my-2 border-t border-[var(--patient-border)]" role="presentation" />
+                <div className="flex w-full max-w-full flex-col gap-2">
+                  {showSimpleCompleteFooter ? (
+                    <button
+                      type="button"
+                      className={programTileActionButtonClass}
+                      disabled={busy !== null}
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        setBusy(item.id);
+                        setError(null);
+                        try {
+                          const res = await fetch(`${base}/${encodeURIComponent(item.id)}/progress/complete`, {
+                            method: "POST",
+                          });
+                          const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
+                          if (!res.ok || !data?.ok) {
+                            setError(data?.error ?? "Ошибка");
+                            return;
+                          }
+                          await refresh();
+                        } finally {
+                          setBusy(null);
+                        }
+                      }}
+                    >
+                      {item.completedAt ? "Отметить ещё раз" : "Отметить выполнение"}
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    className={programTileActionButtonClass}
+                    disabled={busy !== null}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openProgramModal(item.id);
+                    }}
+                  >
+                    Добавить комментарий
+                  </button>
+                </div>
+              </>
+            ) : null}
           </div>
-        </button>
-        <div className="space-y-2 px-3 py-3">
-          <p className="text-sm font-medium text-foreground">{tileTitle(item.snapshot as Record<string, unknown>, item.itemType)}</p>
-          {metricsLine ? <p className={cn(patientMutedTextClass, "text-xs")}>{metricsLine}</p> : null}
-          {showActivityLine ? (
-            <p className={cn(patientMutedTextClass, "text-xs leading-snug")}>
-              {n > 0 ? (
-                <>
-                  Выполнялось {n} {ruDoneTimesWord(n)}.
-                </>
-              ) : null}
-              {lastIso ? (
-                <>
-                  {n > 0 ? " " : null}
-                  Последнее: {formatRelativeTimeRu(lastIso, appDisplayTimeZone)}
-                </>
-              ) : null}
-            </p>
-          ) : null}
-          {!readOnlyTile ? (
-            <div className="flex flex-wrap gap-2">
-              {showSimpleCompleteFooter ? (
-                <button
-                  type="button"
-                  className={cn(patientCompactActionClass, "h-8 px-2 text-xs")}
-                  disabled={busy !== null}
-                  onClick={async (e) => {
-                    e.stopPropagation();
-                    setBusy(item.id);
-                    setError(null);
-                    try {
-                      const res = await fetch(`${base}/${encodeURIComponent(item.id)}/progress/complete`, {
-                        method: "POST",
-                      });
-                      const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
-                      if (!res.ok || !data?.ok) {
-                        setError(data?.error ?? "Ошибка");
-                        return;
-                      }
-                      await refresh();
-                    } finally {
-                      setBusy(null);
-                    }
-                  }}
-                >
-                  {item.completedAt ? "Отметить ещё раз" : "Отметить выполнение"}
-                </button>
-              ) : null}
-              <button
-                type="button"
-                className={cn(patientCompactActionClass, "h-8 px-2 text-xs")}
-                disabled={busy !== null}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  openProgramModal(item.id);
-                }}
-              >
-                Добавить комментарий
-              </button>
-            </div>
-          ) : null}
         </div>
       </li>
     );

@@ -53,6 +53,10 @@ import {
   TPL_HEADER_BG_STAGE_EDITABLE,
   tplToolbarTextBtnClass,
 } from "@/app/app/doctor/treatment-program-shared/treatmentProgramConstructorShellStyles";
+import type {
+  TreatmentProgramLibraryPickers,
+  TreatmentProgramLibraryRow,
+} from "@/app/app/doctor/treatment-program-shared/treatmentProgramLibraryTypes";
 
 const ITEM_TYPE_LABEL: Record<TreatmentProgramItemType, string> = {
   exercise: "Упражнение ЛФК",
@@ -93,22 +97,7 @@ type ItemDialogAddContext =
   | "stage_system_tests"
   | "custom_group";
 
-export type TreatmentProgramLibraryRow = {
-  id: string;
-  title: string;
-  subtitle?: string | null;
-  thumbUrl?: string | null;
-  /** Описание шаблона комплекса ЛФК из каталога (для модалки развёртывания в упражнения). */
-  description?: string | null;
-};
-
-export type TreatmentProgramLibraryPickers = {
-  exercises: TreatmentProgramLibraryRow[];
-  lfkComplexes: TreatmentProgramLibraryRow[];
-  testSets: TreatmentProgramLibraryRow[];
-  recommendations: TreatmentProgramLibraryRow[];
-  lessons: TreatmentProgramLibraryRow[];
-};
+export type { TreatmentProgramLibraryPickers, TreatmentProgramLibraryRow } from "@/app/app/doctor/treatment-program-shared/treatmentProgramLibraryTypes";
 
 type Props = {
   templateId: string;

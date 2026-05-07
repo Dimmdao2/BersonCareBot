@@ -448,6 +448,7 @@ export function createInMemoryTreatmentProgramPersistence(): InMemoryTreatmentPr
         status?: TreatmentProgramInstanceStageItemStatus;
         isActionable?: boolean | null;
         groupId?: string | null;
+        settings?: Record<string, unknown> | null;
       },
     ) {
       const inst = instances.get(instanceId);
@@ -465,6 +466,9 @@ export function createInMemoryTreatmentProgramPersistence(): InMemoryTreatmentPr
         ...(patch.status !== undefined ? { status: patch.status } : {}),
         ...(patch.isActionable !== undefined ? { isActionable: patch.isActionable } : {}),
         ...(patch.groupId !== undefined ? { groupId: patch.groupId } : {}),
+        ...(patch.settings !== undefined
+          ? { settings: patch.settings === null ? null : patch.settings }
+          : {}),
       };
       items.set(itemId, next);
       touchInstance(instanceId);
@@ -478,13 +482,19 @@ export function createInMemoryTreatmentProgramPersistence(): InMemoryTreatmentPr
         status?: TreatmentProgramInstanceStageItemStatus;
         isActionable?: boolean | null;
         groupId?: string | null;
+        settings?: Record<string, unknown> | null;
       },
       eventInput: AppendTreatmentProgramEventInput,
     ) {
       if (eventInput.instanceId !== instanceId) {
         throw new Error("patchInstanceStageItemWithEvent: event instanceId mismatch");
       }
-      if (patch.status === undefined && patch.isActionable === undefined && patch.groupId === undefined) {
+      if (
+        patch.status === undefined &&
+        patch.isActionable === undefined &&
+        patch.groupId === undefined &&
+        patch.settings === undefined
+      ) {
         return null;
       }
       const inst = instances.get(instanceId);
@@ -502,6 +512,9 @@ export function createInMemoryTreatmentProgramPersistence(): InMemoryTreatmentPr
         ...(patch.status !== undefined ? { status: patch.status } : {}),
         ...(patch.isActionable !== undefined ? { isActionable: patch.isActionable } : {}),
         ...(patch.groupId !== undefined ? { groupId: patch.groupId } : {}),
+        ...(patch.settings !== undefined
+          ? { settings: patch.settings === null ? null : patch.settings }
+          : {}),
       };
       items.set(itemId, next);
       touchInstance(instanceId);
