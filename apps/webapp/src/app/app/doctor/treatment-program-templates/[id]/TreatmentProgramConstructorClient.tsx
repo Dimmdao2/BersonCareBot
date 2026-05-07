@@ -1390,7 +1390,7 @@ export function TreatmentProgramConstructorClient({
                         </span>
                         <h3 className="mt-0.5 text-sm font-semibold leading-tight text-foreground">{s.title}</h3>
                         {s.description?.trim() ? (
-                          <p className="mt-1 text-xs leading-snug text-muted-foreground whitespace-pre-wrap">
+                          <p className="mt-1 line-clamp-2 text-xs leading-snug text-muted-foreground">
                             {s.description.trim()}
                           </p>
                         ) : null}
@@ -1452,58 +1452,63 @@ export function TreatmentProgramConstructorClient({
                             >
                               {sys ? (
                                 <div
-                                  className="flex items-center justify-between gap-2 border-b border-border/25 px-2 py-1.5"
+                                  className="flex items-start justify-between gap-2 border-b border-border/25 px-2 py-1.5"
                                   style={templateGroupHeaderSurfaceStyle(g)}
                                 >
-                                  <p className="min-w-0 flex-1 text-sm font-semibold leading-tight text-foreground">
-                                    {g.title}
-                                  </p>
+                                  <div className="min-w-0 flex-1">
+                                    <p className="text-sm font-semibold leading-tight text-foreground">{g.title}</p>
+                                    {g.scheduleText?.trim() ? (
+                                      <p className="mt-0.5 line-clamp-2 text-xs leading-snug text-muted-foreground">
+                                        {g.scheduleText.trim()}
+                                      </p>
+                                    ) : null}
+                                  </div>
                                   <TplAddItemSquareButton
                                     disabled={editLocked}
                                     onClick={() => openItemDialogFromGroup(s.id, g)}
                                   />
                                 </div>
                               ) : (
-                                <>
-                                  <div
-                                    className="flex items-start justify-between gap-2 border-b border-border/25 px-2 py-1.5"
-                                    style={templateGroupHeaderSurfaceStyle(g)}
-                                  >
-                                    <p className="min-w-0 flex-1 pt-0.5 text-sm font-semibold leading-snug">{g.title}</p>
-                                    <div className="flex shrink-0 items-start gap-1 self-start">
-                                      <Button
-                                        type="button"
-                                        size="sm"
-                                        variant="outline"
-                                        className={tplToolbarTextBtnClass}
-                                        disabled={editLocked}
-                                        onClick={() => openEditGroup(g)}
-                                      >
-                                        Изменить
-                                      </Button>
-                                      <TplAddItemSquareButton
-                                        disabled={editLocked}
-                                        onClick={() => openItemDialogFromGroup(s.id, g)}
-                                      />
-                                      <TemplateReorderChevrons
-                                        compact
-                                        className="-mt-px shrink-0"
-                                        disabled={editLocked}
-                                        disableUp={groupIndex === 0}
-                                        disableDown={groupIndex >= groupsOrd.length - 1}
-                                        ariaLabelUp="Группа выше"
-                                        ariaLabelDown="Группа ниже"
-                                        onUp={() => void handleReorderGroup(s, g.id, -1)}
-                                        onDown={() => void handleReorderGroup(s, g.id, 1)}
-                                      />
-                                    </div>
+                                <div
+                                  className="flex items-start justify-between gap-2 border-b border-border/25 px-2 py-1.5"
+                                  style={templateGroupHeaderSurfaceStyle(g)}
+                                >
+                                  <div className="min-w-0 flex-1 pt-0.5">
+                                    <p className="text-sm font-semibold leading-snug text-foreground">{g.title}</p>
+                                    {g.scheduleText?.trim() ? (
+                                      <p className="mt-0.5 line-clamp-2 text-xs leading-snug text-muted-foreground">
+                                        {g.scheduleText.trim()}
+                                      </p>
+                                    ) : null}
                                   </div>
-                                  {g.scheduleText?.trim() ? (
-                                    <div className="border-b border-border/15 px-2 py-1">
-                                      <p className="text-xs text-muted-foreground">{g.scheduleText.trim()}</p>
-                                    </div>
-                                  ) : null}
-                                </>
+                                  <div className="flex shrink-0 items-start gap-1 self-start">
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant="outline"
+                                      className={tplToolbarTextBtnClass}
+                                      disabled={editLocked}
+                                      onClick={() => openEditGroup(g)}
+                                    >
+                                      Изменить
+                                    </Button>
+                                    <TplAddItemSquareButton
+                                      disabled={editLocked}
+                                      onClick={() => openItemDialogFromGroup(s.id, g)}
+                                    />
+                                    <TemplateReorderChevrons
+                                      compact
+                                      className="-mt-px shrink-0"
+                                      disabled={editLocked}
+                                      disableUp={groupIndex === 0}
+                                      disableDown={groupIndex >= groupsOrd.length - 1}
+                                      ariaLabelUp="Группа выше"
+                                      ariaLabelDown="Группа ниже"
+                                      onUp={() => void handleReorderGroup(s, g.id, -1)}
+                                      onDown={() => void handleReorderGroup(s, g.id, 1)}
+                                    />
+                                  </div>
+                                </div>
                               )}
                               <div className="p-2">
                                 {gItems.length === 0 ? (
