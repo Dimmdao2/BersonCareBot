@@ -37,6 +37,7 @@ import { PatientHomePlanCard } from "./PatientHomePlanCard";
 import { PatientHomeSubscriptionCarousel } from "./PatientHomeSubscriptionCarousel";
 import { PatientHomeCoursesRow } from "./PatientHomeCoursesRow";
 import { PatientHomeTodayLayout } from "./PatientHomeTodayLayout";
+import { reorderPatientHomeLayoutBlocks } from "./patientHomeTodayLayoutOrder";
 import { PatientHomeUsefulPostCard } from "./PatientHomeUsefulPostCard";
 import { hrefForPatientHomeDrilldown, stripApiMediaForAnonymousGuest } from "./patientHomeGuestNav";
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
@@ -242,13 +243,12 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
         if (!sosCard) return null;
         return <PatientHomeSosCard sos={sosCard} blockIconImageUrl={blockLeadingIconFor("sos")} />;
       case "plan":
+        if (!planInstance) return null;
         return (
           <PatientHomePlanCard
             instance={planInstance}
             planUpdatedLabel={planUpdatedLabel}
             blockIconImageUrl={blockLeadingIconFor("plan")}
-            anonymousGuest={anonymousGuest}
-            personalTierOk={personalTierOk}
           />
         );
       case "subscription_carousel":
@@ -272,11 +272,13 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
     }
   };
 
-  const layoutBlocks = sorted
-    .map((block) => ({ code: block.code, node: renderBlock(block.code) }))
-    .filter((block): block is { code: PatientHomeBlockCode; node: Exclude<ReactNode, null | undefined | false> } =>
-      block.node !== null && block.node !== undefined && block.node !== false,
-    );
+  const layoutBlocks = reorderPatientHomeLayoutBlocks(
+    sorted
+      .map((block) => ({ code: block.code, node: renderBlock(block.code) }))
+      .filter((block): block is { code: PatientHomeBlockCode; node: Exclude<ReactNode, null | undefined | false> } =>
+        block.node !== null && block.node !== undefined && block.node !== false,
+      ),
+  );
 
   return (
     <PatientHomeTodayLayout personalizedName={personalizedName} timeOfDayPrefix={timeOfDayPrefix} blocks={layoutBlocks} />

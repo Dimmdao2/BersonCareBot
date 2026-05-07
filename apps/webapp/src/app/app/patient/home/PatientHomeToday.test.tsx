@@ -180,7 +180,6 @@ describe("PatientHomeToday", () => {
     expect(screen.getByRole("heading", { name: /Сегодня выполнено/i })).toBeInTheDocument();
     expect(screen.getByText(/Как вы себя чувствуете/i)).toHaveProperty("tagName", "H3");
     expect(screen.getByText(/Пока нет ближайших/i)).toBeInTheDocument();
-    expect(screen.getByText(/Назначит специалист или выберите готовую программу/i)).toBeInTheDocument();
     expect(screen.queryByText(/Пока нет курсов на главной/i)).toBeNull();
 
     const start = screen.getByRole("link", { name: /Начать разминку/i });
@@ -193,9 +192,6 @@ describe("PatientHomeToday", () => {
       .getAllByRole("link", { name: /^Войти$/i })
       .find((link) => link.getAttribute("href")?.includes(encodeURIComponent(routePaths.patientReminders)));
     expect(loginReminder?.getAttribute("href")).toContain(encodeURIComponent(routePaths.patientReminders));
-
-    const loginPlan = screen.getByRole("link", { name: /Выбрать курс/i });
-    expect(loginPlan.getAttribute("href")).toContain(encodeURIComponent(routePaths.patientTreatmentPrograms));
   });
 
   it("authorized without tier: no personal API, activation copy, no name in greeting", async () => {
@@ -218,7 +214,6 @@ describe("PatientHomeToday", () => {
     for (const link of screen.getAllByRole("link", { name: /Настроить/i })) {
       expect(link).toHaveAttribute("href", routePaths.patientReminders);
     }
-    expect(screen.getByRole("link", { name: /Выбрать курс/i })).toHaveAttribute("href", routePaths.patientTreatmentPrograms);
     expect(screen.queryByRole("link", { name: /К каталогу курсов/i })).toBeNull();
   });
 

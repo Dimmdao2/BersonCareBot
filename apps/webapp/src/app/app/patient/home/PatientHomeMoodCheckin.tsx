@@ -110,7 +110,7 @@ export function PatientHomeMoodCheckin({
     : null;
 
   const renderMoodScale = (disabled: boolean) => (
-    <div className="grid min-h-[3.5rem] flex-1 grid-cols-5 items-start gap-1.5" role="group" aria-label="Оценка самочувствия">
+    <div className="grid min-h-[3rem] flex-1 grid-cols-5 items-center gap-1.5" role="group" aria-label="Оценка самочувствия">
       {moodOptions.map((option) => {
         const active = selectedScore === option.score;
         const MoodIcon = MOOD_SCORE_ICONS[option.score];
@@ -142,7 +142,6 @@ export function PatientHomeMoodCheckin({
                 }
               />
             </button>
-            <span className="mt-1.5 text-xs font-semibold leading-none text-[var(--patient-text-primary)]">{option.score}</span>
           </div>
         );
       })}

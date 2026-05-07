@@ -10,7 +10,6 @@ import {
   patientHomePlanTitleClampClass,
 } from "./patientHomeCardStyles";
 import { patientButtonGhostLinkClass, patientMutedTextClass } from "@/shared/ui/patientVisual";
-import { appLoginWithNextHref } from "./patientHomeGuestNav";
 import { PatientHomeSafeImage } from "./PatientHomeSafeImage";
 import { cn } from "@/lib/utils";
 
@@ -20,20 +19,15 @@ export type PatientHomePlanCardInstance = {
 };
 
 type Props = {
-  instance: PatientHomePlanCardInstance | null;
+  instance: PatientHomePlanCardInstance;
   blockIconImageUrl?: string | null;
-  anonymousGuest?: boolean;
-  personalTierOk?: boolean;
   /** A5: одна строка для Today («План обновлён …»), если есть неснятые изменения. */
   planUpdatedLabel?: string | null;
 };
 
-function LeadingPlanIcon({ blockIconImageUrl, emphasized = false }: { blockIconImageUrl?: string | null; emphasized?: boolean }) {
+function LeadingPlanIcon({ blockIconImageUrl }: { blockIconImageUrl?: string | null }) {
   return (
-    <div
-      className={cn(patientIconLeadingClass, emphasized && "bg-[var(--patient-color-primary-soft)]/60")}
-      aria-hidden
-    >
+    <div className={patientIconLeadingClass} aria-hidden>
       <PatientHomeSafeImage
         src={blockIconImageUrl}
         alt=""
@@ -45,43 +39,8 @@ function LeadingPlanIcon({ blockIconImageUrl, emphasized = false }: { blockIconI
   );
 }
 
-export function PatientHomePlanCard({
-  instance,
-  blockIconImageUrl,
-  anonymousGuest = false,
-  planUpdatedLabel = null,
-}: Props) {
-  if (!instance) {
-    const programsHref = anonymousGuest ? appLoginWithNextHref(routePaths.patientTreatmentPrograms) : routePaths.patientTreatmentPrograms;
-    return (
-      <section aria-labelledby="patient-home-plan-heading" data-plan-empty>
-        <article
-          id="patient-home-plan-card"
-          className={cn(patientHomeCardClass, patientHomeSecondaryCardTallHeightClass)}
-        >
-          <div className="flex min-h-0 gap-3">
-            <LeadingPlanIcon blockIconImageUrl={blockIconImageUrl} emphasized />
-            <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-              <h3 id="patient-home-plan-heading" className={cn(patientHomeBlockHeadingClass, "shrink-0")}>
-                Мой план реабилитации
-              </h3>
-              <p className={cn(patientHomePlanSubtitleClampClass, "line-clamp-none")}>
-                Назначит специалист или выберите готовую программу
-              </p>
-            </div>
-          </div>
-          <Link
-            href={programsHref}
-            prefetch={false}
-            className={cn(patientButtonGhostLinkClass, "mt-auto -mb-1 min-h-9 min-w-[8rem] shrink-0 self-end px-5 lg:px-6")}
-          >
-            Выбрать курс
-          </Link>
-        </article>
-      </section>
-    );
-  }
-
+/** Карточка «Мой план» на главной — только при активном назначении (см. `PatientHomeToday`). */
+export function PatientHomePlanCard({ instance, blockIconImageUrl, planUpdatedLabel = null }: Props) {
   return (
     <section aria-labelledby="patient-home-plan-heading">
       <article
@@ -102,11 +61,11 @@ export function PatientHomePlanCard({
           </div>
         </div>
         <Link
-          href={routePaths.patientTreatmentProgram(instance.id)}
+          href={routePaths.patientTreatmentPrograms}
           prefetch={false}
           className={cn(patientButtonGhostLinkClass, "mt-auto -mb-1 min-h-9 min-w-[8rem] shrink-0 self-end px-5 lg:px-6")}
         >
-          Смотреть план
+          Начать занятие
         </Link>
       </article>
     </section>

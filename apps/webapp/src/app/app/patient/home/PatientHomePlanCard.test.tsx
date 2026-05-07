@@ -6,13 +6,12 @@ import { PatientHomePlanCard } from "./PatientHomePlanCard";
 import { routePaths } from "@/app-layer/routes/paths";
 
 describe("PatientHomePlanCard", () => {
-  it("renders empty state when instance is null (guest CTA uses login+next)", () => {
-    render(<PatientHomePlanCard instance={null} anonymousGuest personalTierOk={false} />);
-    expect(screen.getByText("Мой план реабилитации")).toBeInTheDocument();
-    expect(screen.getByText("Назначит специалист или выберите готовую программу")).toBeInTheDocument();
-    const cta = screen.getByRole("link", { name: /Выбрать курс/i });
-    expect(cta.getAttribute("href")).toContain(`${routePaths.root}?next=`);
-    expect(cta.getAttribute("href")).toContain(encodeURIComponent(routePaths.patientTreatmentPrograms));
+  it("links «Начать занятие» to treatment programs (как пункт «План» в навигации)", () => {
+    render(
+      <PatientHomePlanCard instance={{ id: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee", title: "Plan title" }} />,
+    );
+    const cta = screen.getByRole("link", { name: /Начать занятие/i });
+    expect(cta).toHaveAttribute("href", routePaths.patientTreatmentPrograms);
   });
 
   it("renders custom leading icon when blockIconImageUrl is set", () => {
