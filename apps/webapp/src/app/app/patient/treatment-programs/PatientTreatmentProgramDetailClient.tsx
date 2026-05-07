@@ -101,6 +101,8 @@ import {
   patientBadgePrimaryClass,
   patientInnerPageStackClass,
   patientCompactActionClass,
+  patientRecommendationCollapsiblePanelClass,
+  patientRecommendationCollapsibleTriggerClass,
 } from "@/shared/ui/patientVisual";
 import { DateTime } from "luxon";
 import { formatBookingDateLongRu, formatBookingDateTimeShortStyleRu } from "@/shared/lib/formatBusinessDateTime";
@@ -1736,13 +1738,13 @@ export function PatientTreatmentProgramDetailClient(props: {
           <CollapsibleTrigger
             className={cn(
               "flex w-full items-center px-3 py-4 text-left lg:px-4 lg:py-[18px]",
-              "bg-[var(--patient-surface-success-border)] text-[var(--patient-surface-success-text)]",
+              patientRecommendationCollapsibleTriggerClass,
             )}
           >
             <PatientProgramBlockHeading
               className="mb-0 w-full items-center"
               Icon={Shield}
-              iconClassName="text-[var(--patient-surface-success-accent)]"
+              iconClassName="text-emerald-800/85"
               title="Рекомендации"
               titleAs="span"
               trailing={
@@ -1754,7 +1756,7 @@ export function PatientTreatmentProgramDetailClient(props: {
             />
           </CollapsibleTrigger>
           <CollapsibleContent
-            className={cn("border-t border-[var(--patient-border)] bg-[var(--patient-surface-success-bg)]")}
+            className={cn("border-t border-[var(--patient-border)]", patientRecommendationCollapsiblePanelClass)}
           >
             <PatientInstanceStageBody
               instanceId={detail.id}

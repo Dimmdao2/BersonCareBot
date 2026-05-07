@@ -93,16 +93,57 @@ function ruHourWord(n: number): string {
   return "часов";
 }
 
-/** Относительное время для строки активности на плитке этапа. */
-export function formatRelativeTimeRu(iso: string, zone: string, now: DateTime = DateTime.now()): string {
-  const t = DateTime.fromISO(iso, { zone: "utc" }).setZone(zone);
-  if (!t.isValid) return formatRelativePatientCalendarDayRu(iso, zone, now);
-  const diffMs = now.diff(t).as("milliseconds");
-  if (diffMs < 0) return formatRelativePatientCalendarDayRu(iso, zone, now);
-  if (diffMs < 60 * 60 * 1000) return "менее часа назад";
-  if (diffMs < 24 * 60 * 60 * 1000) {
+/** Сутки с 03:00 до 03:00 следующего календарного дня (в переданной зоне, напр. локаль клиента). */
+function startOfLogicalDayAtThree(dt: DateTime): DateTime {
+  const d = dt.startOf("day");
+  const at03 = d.set({ hour: 3, minute: 0, second: 0, millisecond: 0 });
+  if (dt < at03) {
+    return d.minus({ days: 1 }).set({ hour: 3, minute: 0, second: 0, millisecond: 0 });
+  }
+  return at03;
+}
+
+function ruDayWordAgo(n: number): string {
+  const mod100 = n % 100;
+  if (mod100 >= 11 && mod100 <= 14) return "дней";
+  const mod10 = n % 10;
+  if (mod10 === 1) return "день";
+  if (mod10 >= 2 && mod10 <= 4) return "дня";
+  return "дней";
+}
+
+/**
+ * «Последнее: …» на плитке этапа: сутки с **03:00** по **локальному времени клиента** (Luxon `local`).
+ * Внутри текущих суток — «менее часа назад» / «N часов назад»; предыдущие сутки (03:00–03:00) — «вчера»;
+ * раньше — «N дней назад» (число полных таких суток между отметкой и «сейчас»).
+ * Второй аргумент `fallbackIana` используется только при невалидном ISO (календарная подпись как раньше).
+ */
+export function formatRelativeTimeRu(
+  iso: string,
+  fallbackIana: string,
+  now: DateTime = DateTime.now(),
+): string {
+  const t = DateTime.fromISO(iso, { setZone: true });
+  if (!t.isValid) return formatRelativePatientCalendarDayRu(iso, fallbackIana, now);
+  const tLocal = t.setZone("local");
+  const nowLocal = now.setZone("local");
+  if (!tLocal.isValid || !nowLocal.isValid) {
+    return formatRelativePatientCalendarDayRu(iso, fallbackIana, now);
+  }
+  const diffMs = nowLocal.diff(tLocal).as("milliseconds");
+  if (diffMs < 0) return formatRelativePatientCalendarDayRu(iso, fallbackIana, now);
+
+  const startEvent = startOfLogicalDayAtThree(tLocal);
+  const startNow = startOfLogicalDayAtThree(nowLocal);
+  const slotDiffMs = startNow.toMillis() - startEvent.toMillis();
+  const oneDayMs = 24 * 60 * 60 * 1000;
+  const slotDiffDays = Math.round(slotDiffMs / oneDayMs);
+
+  if (slotDiffDays === 0) {
+    if (diffMs < 60 * 60 * 1000) return "менее часа назад";
     const h = Math.max(1, Math.floor(diffMs / (60 * 60 * 1000)));
     return `${h} ${ruHourWord(h)} назад`;
   }
-  return formatRelativePatientCalendarDayRu(iso, zone, now);
+  if (slotDiffDays === 1) return "вчера";
+  return `${slotDiffDays} ${ruDayWordAgo(slotDiffDays)} назад`;
 }

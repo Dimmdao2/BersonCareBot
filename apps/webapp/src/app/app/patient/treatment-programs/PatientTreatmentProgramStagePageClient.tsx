@@ -22,11 +22,13 @@ import {
   patientCardListSectionClass,
   patientMutedTextClass,
   patientSectionTitleClass,
+  patientStageControlDaysBadgeClass,
+  patientStageGoalsCollapsiblePanelClass,
+  patientStageGoalsCollapsibleTriggerClass,
   patientStageTitleClass,
   patientInnerPageStackClass,
   patientPillClass,
   patientSurfaceWarningClass,
-  patientBodyTextClass,
 } from "@/shared/ui/patientVisual";
 import { patientHomeCardHeroClass } from "@/app/app/patient/home/patientHomeCardStyles";
 import { cn } from "@/lib/utils";
@@ -228,39 +230,43 @@ export function PatientTreatmentProgramStagePageClient(props: {
   const contentBlocked =
     !isStageZero && (currentStage.status === "locked" || currentStage.status === "skipped");
 
-  const goalsObjectivesBlock =
-    Boolean(currentStage.goals?.trim()) || Boolean(currentStage.objectives?.trim()) ? (
-      <Collapsible className={cn(patientCardListSectionClass, "overflow-hidden p-0 lg:p-0")}>
-        <CollapsibleTrigger
-          className={cn(
-            "flex w-full items-center px-3 py-4 text-left lg:px-4 lg:py-[18px]",
-            "bg-[var(--patient-surface-success-border)] text-[var(--patient-surface-success-text)]",
-          )}
-        >
+  const hasGoalsCollapsible =
+    Boolean(currentStage.goals?.trim()) || Boolean(currentStage.objectives?.trim());
+
+  const goalsObjectivesBlock = hasGoalsCollapsible ? (
+    <Collapsible
+      className={cn(
+        patientCardListSectionClass,
+        "overflow-hidden bg-white p-0 lg:p-0",
+        "rounded-t-none border-t-0",
+        "rounded-b-[var(--patient-card-radius-mobile)] lg:rounded-b-[var(--patient-card-radius-desktop)]",
+      )}
+    >
+        <CollapsibleTrigger className={patientStageGoalsCollapsibleTriggerClass}>
           <div className="mb-0 flex min-w-0 w-full items-center justify-between gap-2">
             <div className="flex min-w-0 flex-1 items-center gap-2">
-              <ScrollText className="size-4 shrink-0 text-[var(--patient-surface-success-accent)]" aria-hidden />
-              <span className={patientSectionTitleClass}>Цели и задачи</span>
+              <ScrollText className="size-3.5 shrink-0 text-neutral-400" aria-hidden />
+              <span className="truncate">Цели и задачи</span>
             </div>
             <ChevronDown
-              className="size-4 shrink-0 transition-transform group-data-[open]/collapsible:rotate-180"
+              className="size-3.5 shrink-0 text-neutral-400 transition-transform group-data-[open]/collapsible:rotate-180"
               aria-hidden
             />
           </div>
         </CollapsibleTrigger>
-        <CollapsibleContent
-          className={cn("border-t border-[var(--patient-border)] bg-[var(--patient-surface-success-bg)] px-3 py-3 lg:px-4")}
-        >
+        <CollapsibleContent className={patientStageGoalsCollapsiblePanelClass}>
           {currentStage.goals?.trim() ? (
             <div>
-              <h3 className={patientSectionTitleClass}>Цель</h3>
-              <p className={cn(patientBodyTextClass, "mt-1 whitespace-pre-wrap text-sm")}>{currentStage.goals.trim()}</p>
+              <h3 className="text-xs font-semibold text-[#444444]">Цель</h3>
+              <p className="mt-1 whitespace-pre-wrap text-[13px] leading-snug text-[#444444]">
+                {currentStage.goals.trim()}
+              </p>
             </div>
           ) : null}
           {currentStage.objectives?.trim() ? (
             <div className={currentStage.goals?.trim() ? "mt-3" : ""}>
-              <h3 className={patientSectionTitleClass}>Задачи</h3>
-              <p className={cn(patientBodyTextClass, "mt-1 whitespace-pre-wrap text-sm")}>
+              <h3 className="text-xs font-semibold text-[#444444]">Задачи</h3>
+              <p className="mt-1 whitespace-pre-wrap text-[13px] leading-snug text-[#444444]">
                 {currentStage.objectives.trim()}
               </p>
             </div>
@@ -273,8 +279,13 @@ export function PatientTreatmentProgramStagePageClient(props: {
     currentStage.expectedDurationDays != null &&
     currentStage.expectedDurationDays > 0 &&
     Number.isFinite(currentStage.expectedDurationDays) ? (
-      <div className={cn(patientCardListSectionClass, "px-3 py-2 lg:px-4")}>
-        <p className="text-sm font-medium text-foreground">
+      <div
+        className={cn(
+          "rounded-[var(--patient-card-radius-mobile)] border border-[var(--patient-border)] px-3 py-2 shadow-[var(--patient-shadow-card-mobile)] lg:rounded-[var(--patient-card-radius-desktop)] lg:px-4 lg:shadow-[var(--patient-shadow-card-desktop)]",
+          patientStageControlDaysBadgeClass,
+        )}
+      >
+        <p className="m-0 text-sm font-medium text-[#444444]">
           Контроль через {currentStage.expectedDurationDays} {ruDayWord(currentStage.expectedDurationDays)}
         </p>
       </div>
@@ -381,40 +392,48 @@ export function PatientTreatmentProgramStagePageClient(props: {
         </p>
       ) : null}
 
-      <div className={cn(patientHomeCardHeroClass, "relative isolate overflow-hidden p-4 pt-3 lg:p-5")}>
-        <span
+      <div className={cn(hasGoalsCollapsible && "flex flex-col gap-0")}>
+        <div
           className={cn(
-            patientPillClass,
-            "absolute right-3 top-3 max-w-[min(10rem,calc(100%-1rem))] truncate text-right text-xs lg:right-4 lg:top-4",
+            patientHomeCardHeroClass,
+            "relative isolate overflow-hidden p-4 pt-3 lg:p-5",
+            hasGoalsCollapsible &&
+              "rounded-b-none rounded-t-[var(--patient-hero-radius-mobile)] lg:rounded-b-none lg:rounded-t-[var(--patient-hero-radius-desktop)]",
           )}
         >
-          {formatTreatmentProgramStageStatusRu(currentStage.status)}
-        </span>
-        {isStageZero ? (
-          <h2 className={cn(patientStageTitleClass, "pr-24")}>Общие рекомендации</h2>
-        ) : (
-          <>
-            <p className={cn(patientMutedTextClass, "pr-24 text-xs uppercase tracking-wide")}>
-              Этап {currentStage.sortOrder} из {pipelineLength}
-            </p>
-            <h2 className={cn(patientStageTitleClass, "mt-1 pr-24")}>{currentStage.title}</h2>
-          </>
-        )}
-        {!isStageZero ? (
-          <StageDescriptionBlock
-            key={`${currentStage.id}:${currentStage.description ?? ""}`}
-            text={currentStage.description}
-          />
-        ) : null}
-        {isStageZero && currentStage.description?.trim() ? (
-          <StageDescriptionBlock
-            key={`${currentStage.id}:${currentStage.description ?? ""}`}
-            text={currentStage.description}
-          />
-        ) : null}
+          <span
+            className={cn(
+              patientPillClass,
+              "absolute right-3 top-3 max-w-[min(10rem,calc(100%-1rem))] truncate text-right text-xs lg:right-4 lg:top-4",
+            )}
+          >
+            {formatTreatmentProgramStageStatusRu(currentStage.status)}
+          </span>
+          {isStageZero ? (
+            <h2 className={cn(patientStageTitleClass, "pr-24")}>Общие рекомендации</h2>
+          ) : (
+            <>
+              <p className={cn(patientMutedTextClass, "pr-24 text-xs uppercase tracking-wide")}>
+                Этап {currentStage.sortOrder} из {pipelineLength}
+              </p>
+              <h2 className={cn(patientStageTitleClass, "mt-1 pr-24")}>{currentStage.title}</h2>
+            </>
+          )}
+          {!isStageZero ? (
+            <StageDescriptionBlock
+              key={`${currentStage.id}:${currentStage.description ?? ""}`}
+              text={currentStage.description}
+            />
+          ) : null}
+          {isStageZero && currentStage.description?.trim() ? (
+            <StageDescriptionBlock
+              key={`${currentStage.id}:${currentStage.description ?? ""}`}
+              text={currentStage.description}
+            />
+          ) : null}
+        </div>
+        {goalsObjectivesBlock}
       </div>
-
-      {goalsObjectivesBlock}
       {controlBadge}
 
       <PatientTreatmentProgramStageRecommendationsCollapsible

@@ -13,6 +13,8 @@ import {
 } from "@/app/app/patient/treatment-programs/stageItemSnapshot";
 import {
   patientCardListSectionClass,
+  patientRecommendationCollapsiblePanelClass,
+  patientRecommendationCollapsibleTriggerClass,
   patientSectionTitleClass,
 } from "@/shared/ui/patientVisual";
 import { cn } from "@/lib/utils";
@@ -58,12 +60,12 @@ export function PatientTreatmentProgramStageRecommendationsCollapsible(props: {
         <CollapsibleTrigger
           className={cn(
             "flex w-full items-center px-3 py-4 text-left lg:px-4 lg:py-[18px]",
-            "bg-[var(--patient-surface-success-border)] text-[var(--patient-surface-success-text)]",
+            patientRecommendationCollapsibleTriggerClass,
           )}
         >
           <div className="mb-0 flex min-w-0 w-full items-center justify-between gap-2">
             <div className="flex min-w-0 flex-1 items-center gap-2">
-              <Shield className="size-4 shrink-0 text-[var(--patient-surface-success-accent)]" aria-hidden />
+              <Shield className="size-4 shrink-0 text-emerald-800/85" aria-hidden />
               <span className={patientSectionTitleClass}>Рекомендации этапа</span>
             </div>
             <ChevronDown
@@ -73,7 +75,7 @@ export function PatientTreatmentProgramStageRecommendationsCollapsible(props: {
           </div>
         </CollapsibleTrigger>
         <CollapsibleContent
-          className={cn("border-t border-[var(--patient-border)] bg-[var(--patient-surface-success-bg)]")}
+          className={cn("border-t border-[var(--patient-border)]", patientRecommendationCollapsiblePanelClass)}
         >
           <ul className="m-0 list-none divide-y divide-[var(--patient-border)]/40 p-0">
             {persistent.map((item) => {

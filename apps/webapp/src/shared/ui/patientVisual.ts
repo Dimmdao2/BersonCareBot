@@ -86,6 +86,38 @@ export const patientCardListSectionClass = cn(
 );
 
 /**
+ * Шапка коллапса «Рекомендации» (этап 0 на дашборде программы) и «Рекомендации этапа»:
+ * лёгкий вертикальный градиент на основе #dffeca.
+ */
+export const patientRecommendationCollapsibleTriggerClass = cn(
+  "bg-gradient-to-b from-[#dffeca] via-[#e8fcd3] to-[#f2fee8]",
+  "text-[var(--patient-text-primary)]",
+);
+
+/** Раскрываемая панель тех же коллапсов (фон по макету). */
+export const patientRecommendationCollapsiblePanelClass = "bg-[rgba(228,251,213,0.49)]";
+
+/**
+ * Шапка коллапса «Цели и задачи» (страница этапа программы): белый фон, компактная высота, тёмно-серый текст.
+ */
+export const patientStageGoalsCollapsibleTriggerClass = cn(
+  "flex w-full items-center px-3 py-2.5 text-left lg:px-4 lg:py-3",
+  "bg-white text-[13px] font-semibold leading-tight text-[#444444]",
+);
+
+/** Раскрытый блок «Цели и задачи». */
+export const patientStageGoalsCollapsiblePanelClass = cn(
+  "border-t border-[var(--patient-border)] bg-white px-3 py-3 lg:px-4",
+);
+
+/**
+ * Плашка «Контроль через N дней» на странице этапа: почти плоский градиент на основе rgba(207, 140, 74, 0.36),
+ * низ чуть темнее верха (без ухода в светлый персик).
+ */
+export const patientStageControlDaysBadgeClass =
+  "bg-gradient-to-b from-[rgba(207,140,74,0.36)] via-[rgba(202,132,68,0.37)] to-[rgba(188,115,52,0.40)]";
+
+/**
  * Вложенная подложка (цель/задачи/срок) внутри list-секции — компактные поля.
  */
 export const patientCardNestedListSurfaceClass = cn(
