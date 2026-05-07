@@ -82,7 +82,7 @@ function makeInstance(over: Partial<TreatmentProgramInstanceDetail> = {}): Treat
 }
 
 describe("PatientTreatmentProgramDetailClient", () => {
-  it("renders stage goals/objectives/duration when set (A1)", async () => {
+  it("renders stage goals/objectives when set (A1); program tab omits expected duration block", async () => {
     render(
       <PatientTreatmentProgramDetailClient
         initial={makeInstance()}
@@ -90,8 +90,11 @@ describe("PatientTreatmentProgramDetailClient", () => {
         {...detailShellProps}
       />,
     );
-    expect(await screen.findByText("7 дн. · неделя")).toBeInTheDocument();
-    fireEvent.click(screen.getByText("Цели и задачи"));
+    const programPanel = await screen.findByRole("tabpanel", { name: "Программа" });
+    await within(programPanel).findByText("Цели и задачи");
+    expect(within(programPanel).queryByText("Ожидаемый срок")).not.toBeInTheDocument();
+    expect(within(programPanel).queryByText(/7 дн\./)).not.toBeInTheDocument();
+    fireEvent.click(within(programPanel).getByText("Цели и задачи"));
     expect(screen.getByText("Снять отёк")).toBeInTheDocument();
     expect(screen.getByText("- 3 раза в неделю")).toBeInTheDocument();
   });
@@ -321,8 +324,8 @@ describe("PatientTreatmentProgramDetailClient", () => {
       />,
     );
     const programPanel = await screen.findByRole("tabpanel", { name: "Программа" });
-    const groupHeading = within(programPanel).getByText("Группа А");
-    const soloTitle = within(programPanel).getByText("Соло после группы");
+    const groupHeading = await within(programPanel).findByText("Группа А");
+    const soloTitle = await within(programPanel).findByText("Соло после группы");
     expect(groupHeading.compareDocumentPosition(soloTitle) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
   });
 

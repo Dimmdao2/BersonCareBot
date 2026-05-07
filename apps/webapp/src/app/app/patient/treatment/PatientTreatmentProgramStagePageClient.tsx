@@ -464,6 +464,7 @@ export function PatientTreatmentProgramStagePageClient(props: {
             expectedDurationText: currentStage.expectedDurationText,
           }}
           compactSpacing={embedded}
+          planPreview={embedded}
         />
       ) : null}
       {!embedded ? controlBadge : null}

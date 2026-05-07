@@ -73,14 +73,14 @@ export function PatientHomeBookingCard({ personalTierOk, anonymousGuest, blockIc
             <Link
               href={bookingHref}
               prefetch={false}
-              className={cn(patientButtonSuccessClass, "min-h-10 flex-1 rounded-lg px-3 text-sm")}
+              className={cn(patientButtonSuccessClass, "min-h-10 flex-1 px-3 text-sm")}
             >
               Записаться
             </Link>
             <Link
               href={cabinetHref}
               prefetch={false}
-              className={cn(patientButtonSecondaryClass, "min-h-10 flex-1 rounded-lg px-3 text-sm")}
+              className={cn(patientButtonSecondaryClass, "min-h-10 flex-1 px-3 text-sm")}
             >
               Мои приёмы
             </Link>

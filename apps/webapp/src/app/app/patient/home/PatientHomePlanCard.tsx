@@ -98,7 +98,7 @@ export function PatientHomePlanCard({
             href={routePaths.patientTreatmentPrograms}
             prefetch={false}
             className={cn(
-              "inline-flex min-h-9 min-w-[8rem] shrink-0 items-center justify-center rounded-lg border border-[var(--patient-color-primary)] bg-[var(--patient-card-bg)] px-5 text-sm font-semibold text-[var(--patient-color-primary)] transition-colors lg:px-6",
+              "inline-flex min-h-9 min-w-[8rem] shrink-0 items-center justify-center rounded-md border border-[var(--patient-color-primary)] bg-[var(--patient-card-bg)] px-5 text-sm font-semibold text-[var(--patient-color-primary)] transition-colors lg:px-6",
               "hover:bg-[var(--patient-color-primary-soft)]/40 active:bg-[var(--patient-color-primary-soft)]/60",
               "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-primary)]",
             )}

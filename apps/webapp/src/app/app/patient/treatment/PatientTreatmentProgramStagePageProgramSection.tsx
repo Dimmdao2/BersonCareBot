@@ -6,7 +6,7 @@ import { PatientProgramStageItemModal } from "@/app/app/patient/treatment/Patien
 import { PatientCatalogMediaStaticThumb } from "@/shared/ui/patient/PatientCatalogMediaStaticThumb";
 import type { TreatmentProgramInstanceDetail } from "@/modules/treatment-program/types";
 import {
-  isInstanceStageItemShownOnPatientProgramSurfaces,
+  isInstanceStageItemShownInPatientCompositionModal,
   isPersistentRecommendation,
 } from "@/modules/treatment-program/stage-semantics";
 import {
@@ -30,11 +30,20 @@ function sortByOrderThenId<T extends { sortOrder: number; id: string }>(rows: T[
   return [...rows].sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id));
 }
 
-/** Состав программы этапа: упражнения и «действующие» рекомендации; без test_set (тесты — отдельный поток / модалка). */
+/**
+ * Состав «Программа этапа» — тот же набор, что модалка «Состав этапа» на прогрессе
+ * ({@link isInstanceStageItemShownInPatientCompositionModal}): без `test_set`.
+ */
 function isProgramCompositionItem(item: InstanceStageItem): boolean {
-  if (!isInstanceStageItemShownOnPatientProgramSurfaces(item)) return false;
-  if (item.itemType === "exercise") return true;
-  return item.itemType === "recommendation" && !isPersistentRecommendation(item);
+  return isInstanceStageItemShownInPatientCompositionModal(item);
+}
+
+/** Кнопка `progress/complete` на плитке — только для типов, которые реально поддерживают simple complete. */
+function programTileShowsSimpleCompleteActions(item: InstanceStageItem): boolean {
+  if (isPersistentRecommendation(item)) return false;
+  if (item.itemType === "lfk_complex") return false;
+  if (item.itemType === "test_set") return false;
+  return true;
 }
 
 type ProgramCompositionSegment =
@@ -200,6 +209,7 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
     const lastIso = mergeLastActivityDisplayedIso(lastDoneAtIsoByItemId[item.id], item.completedAt);
     const showActivityLine = n > 0 || Boolean(lastIso);
     const readOnlyTile = readOnly || contentBlocked;
+    const showSimpleCompleteFooter = !readOnlyTile && programTileShowsSimpleCompleteActions(item);
 
     return (
       <li
@@ -255,31 +265,33 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
           ) : null}
           {!readOnlyTile ? (
             <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                className={cn(patientCompactActionClass, "h-8 px-2 text-xs")}
-                disabled={busy !== null}
-                onClick={async (e) => {
-                  e.stopPropagation();
-                  setBusy(item.id);
-                  setError(null);
-                  try {
-                    const res = await fetch(`${base}/${encodeURIComponent(item.id)}/progress/complete`, {
-                      method: "POST",
-                    });
-                    const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
-                    if (!res.ok || !data?.ok) {
-                      setError(data?.error ?? "Ошибка");
-                      return;
+              {showSimpleCompleteFooter ? (
+                <button
+                  type="button"
+                  className={cn(patientCompactActionClass, "h-8 px-2 text-xs")}
+                  disabled={busy !== null}
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    setBusy(item.id);
+                    setError(null);
+                    try {
+                      const res = await fetch(`${base}/${encodeURIComponent(item.id)}/progress/complete`, {
+                        method: "POST",
+                      });
+                      const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
+                      if (!res.ok || !data?.ok) {
+                        setError(data?.error ?? "Ошибка");
+                        return;
+                      }
+                      await refresh();
+                    } finally {
+                      setBusy(null);
                     }
-                    await refresh();
-                  } finally {
-                    setBusy(null);
-                  }
-                }}
-              >
-                {item.completedAt ? "Отметить ещё раз" : "Отметить выполнение"}
-              </button>
+                  }}
+                >
+                  {item.completedAt ? "Отметить ещё раз" : "Отметить выполнение"}
+                </button>
+              ) : null}
               <button
                 type="button"
                 className={cn(patientCompactActionClass, "h-8 px-2 text-xs")}

@@ -191,31 +191,31 @@ export const patientLineClamp2Class = "line-clamp-2 min-w-0";
 export const patientLineClamp3Class = "line-clamp-3 min-w-0";
 
 export const patientButtonPrimaryClass = cn(
-  "inline-flex min-h-[var(--patient-touch)] w-full min-w-0 items-center justify-center gap-2 rounded-lg px-4 text-sm font-semibold text-white transition-colors",
+  "inline-flex min-h-[var(--patient-touch)] w-full min-w-0 items-center justify-center gap-2 rounded-md px-4 text-sm font-semibold text-white transition-colors",
   // Fallback hex: Dialog/portal вне `#app-shell-patient`, там `--patient-color-primary` не задан.
   "bg-[var(--patient-color-primary,#284da0)] hover:bg-[#1f3d82] active:bg-[#1f3d82]",
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-primary,#284da0)]",
 );
 
 export const patientButtonSuccessClass = cn(
-  "inline-flex min-h-11 w-full min-w-0 items-center justify-center gap-2 rounded-lg px-4 text-sm font-semibold text-white transition-colors sm:min-h-12",
+  "inline-flex min-h-11 w-full min-w-0 items-center justify-center gap-2 rounded-md px-4 text-sm font-semibold text-white transition-colors sm:min-h-12",
   "bg-[var(--patient-color-success,#16a34a)] hover:bg-[#15803d] active:bg-[#15803d]",
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-success,#16a34a)]",
 );
 
 export const patientButtonSecondaryClass = cn(
-  "inline-flex min-h-10 w-full min-w-0 items-center justify-center gap-2 rounded-lg border border-[var(--patient-border)] bg-[var(--patient-card-bg)] px-4 text-sm font-semibold text-[var(--patient-text-primary)] transition-colors",
+  "inline-flex min-h-10 w-full min-w-0 items-center justify-center gap-2 rounded-md border border-[var(--patient-border)] bg-[var(--patient-card-bg)] px-4 text-sm font-semibold text-[var(--patient-text-primary)] transition-colors",
   "hover:bg-[var(--patient-color-primary-soft)]/40 active:bg-[var(--patient-color-primary-soft)]/60",
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-border)]",
 );
 
 export const patientButtonGhostLinkClass = cn(
-  "inline-flex min-h-10 min-w-0 items-center justify-center gap-2 rounded-md px-3 text-sm font-semibold text-[var(--patient-color-primary)] transition-colors",
+  "inline-flex min-h-10 min-w-0 items-center justify-center gap-2 rounded-sm px-3 text-sm font-semibold text-[var(--patient-color-primary)] transition-colors",
   "hover:bg-[var(--patient-color-primary-soft)]/50 active:bg-[var(--patient-color-primary-soft)]",
 );
 
 export const patientButtonDangerOutlineClass = cn(
-  "inline-flex min-h-10 min-w-0 items-center justify-center gap-2 rounded-md border border-[var(--patient-color-danger)] bg-[var(--patient-card-bg)] px-4 text-sm font-bold text-[#dc2626] transition-colors",
+  "inline-flex min-h-10 min-w-0 items-center justify-center gap-2 rounded-sm border border-[var(--patient-color-danger)] bg-[var(--patient-card-bg)] px-4 text-sm font-bold text-[#dc2626] transition-colors",
   "hover:bg-[var(--patient-color-danger-soft)] active:bg-[var(--patient-color-danger-soft)]",
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-danger)]",
 );
@@ -224,7 +224,7 @@ export const patientButtonDangerOutlineClass = cn(
  * Кнопка «Пропустить» в модалке элемента программы — кирпичный/терракотовый тон.
  */
 export const patientButtonSkipClass = cn(
-  "inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg border border-[#c2410c]/40 bg-[#fff7ed] px-3 font-semibold text-[#c2410c] transition-colors",
+  "inline-flex shrink-0 items-center justify-center gap-1.5 rounded-md border border-[#c2410c]/40 bg-[#fff7ed] px-3 font-semibold text-[#c2410c] transition-colors",
   "min-h-[var(--patient-touch)] text-sm",
   "hover:bg-[#ffedd5] active:bg-[#fed7aa]",
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#c2410c]",
@@ -232,7 +232,7 @@ export const patientButtonSkipClass = cn(
 
 /** Warning-toned button-like link (напоминания, §10.6). */
 export const patientButtonWarningOutlineClass = cn(
-  "inline-flex min-h-10 w-full min-w-0 items-center justify-center gap-2 rounded-md border border-[#fde68a] bg-[#fffbeb] px-4 text-sm font-bold text-[#d97706] transition-colors",
+  "inline-flex min-h-10 w-full min-w-0 items-center justify-center gap-2 rounded-sm border border-[#fde68a] bg-[#fffbeb] px-4 text-sm font-bold text-[#d97706] transition-colors",
   "hover:bg-[#fef3c7]/80 active:bg-[#fef3c7]",
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#f59e0b]",
 );
@@ -272,7 +272,7 @@ export const patientBadgeDurationClass = cn(
  * а не полноширинная CTA. Размер (`h-8`, `h-9`, `w-auto`) задаётся в месте использования.
  */
 export const patientCompactActionClass = cn(
-  "inline-flex min-w-0 items-center justify-center gap-2 rounded-lg px-3 text-sm font-semibold text-white transition-colors",
+  "inline-flex min-w-0 items-center justify-center gap-2 rounded-md px-3 text-sm font-semibold text-white transition-colors",
   "bg-[var(--patient-color-primary,#284da0)] hover:bg-[#1f3d82] active:bg-[#1f3d82]",
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-primary,#284da0)]",
 );
@@ -390,7 +390,7 @@ export const patientModalDialogTitleClass = cn(
  * фон не резолвится, остаётся белый `bg-background` модалки, а `text-white` не виден до hover.
  */
 export const patientModalPortalPrimaryCtaClass = cn(
-  "inline-flex min-h-11 w-full min-w-0 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white transition-colors lg:min-h-12 lg:text-base",
+  "inline-flex min-h-11 w-full min-w-0 items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-semibold text-white transition-colors lg:min-h-12 lg:text-base",
   "bg-[#284da0] hover:bg-[#1f3d82] active:bg-[#1f3d82]",
   "shadow-[0_6px_14px_rgba(40,77,160,0.24)]",
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#284da0]",

@@ -1695,17 +1695,19 @@ export function PatientTreatmentProgramDetailClient(props: {
     [programTabStage],
   );
 
-  const progressTabDaysLabel = useMemo(() => {
+  /** Подпись вкладки «Прогресс»: контроль через N календарных дней программы (не «День N»). */
+  const progressTabControlThroughLabel = useMemo(() => {
     if (progressDays == null) return "—";
-    const mod100 = progressDays % 100;
+    const n = progressDays;
+    const mod100 = n % 100;
     let w = "дней";
     if (mod100 >= 11 && mod100 <= 14) w = "дней";
     else {
-      const mod10 = progressDays % 10;
+      const mod10 = n % 10;
       if (mod10 === 1) w = "день";
       else if (mod10 >= 2 && mod10 <= 4) w = "дня";
     }
-    return `${progressDays} ${w}`;
+    return `Контроль через ${n} ${w}`;
   }, [progressDays]);
 
   const controlIso = currentWorkingStage ? expectedStageControlDateIso(currentWorkingStage) : null;
@@ -1725,106 +1727,151 @@ export function PatientTreatmentProgramDetailClient(props: {
         </p>
       ) : null}
 
-      {/* C1: Hero — компактный заголовок; история по (i) */}
-      <div
-        className={cn(
-          patientHomeCardHeroClass,
-          "relative isolate overflow-hidden rounded-b-none p-4 pt-3 lg:rounded-b-none lg:p-5",
-        )}
-      >
-        <PatientProgramHeroHistoryPopover
-          detail={detail}
-          appDisplayTimeZone={appDisplayTimeZone}
-          programEvents={programEvents}
-        />
-        <h2
+      <div className="flex flex-col">
+        {/* C1: Hero — компактный заголовок; история по (i) */}
+        <div
           className={cn(
-            patientLineClamp2Class,
-            patientHeroTitleBaseClass,
-            patientInnerHeroTitleTypographyClass,
-            "mt-0.5 pr-11 lg:pr-12",
+            patientHomeCardHeroClass,
+            "relative isolate overflow-hidden rounded-b-none p-4 pt-3 lg:rounded-b-none lg:p-5",
           )}
         >
-          {detail.title}
-        </h2>
-        {programDescription?.trim() ? (
-          <p className={cn(patientMutedTextClass, "mt-2 line-clamp-3 text-sm leading-snug")}>
-            {programDescription.trim()}
-          </p>
-        ) : null}
-        {awaitsStart ? (
-          <p className="mt-2" role="status">
-            <span className={patientBadgeDangerClass}>Ожидает старта</span>
-          </p>
-        ) : null}
-        {programTabStage && firstPendingProgramItemId ? (
-          <button
-            type="button"
-            onClick={openHeroLesson}
+          <PatientProgramHeroHistoryPopover
+            detail={detail}
+            appDisplayTimeZone={appDisplayTimeZone}
+            programEvents={programEvents}
+          />
+          <h2
             className={cn(
-              patientHeroPrimaryActionClass,
-              "mt-3 flex min-h-11 w-full items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm shadow-[0_6px_14px_rgba(40,77,160,0.24)] lg:min-h-12 lg:text-base",
+              patientLineClamp2Class,
+              patientHeroTitleBaseClass,
+              patientInnerHeroTitleTypographyClass,
+              "mt-0.5 pr-11 lg:pr-12",
             )}
           >
-            <PlayCircle className="size-5 shrink-0 lg:size-6" aria-hidden />
-            Начать занятие
-          </button>
-        ) : detail.status !== "active" ? (
-          <p className={cn(patientMutedTextClass, "mt-2 text-sm")}>Программа завершена.</p>
-        ) : programTabStage ? null : (
-          <p className={cn(patientMutedTextClass, "mt-2 text-sm")}>Нет активного этапа.</p>
-        )}
-      </div>
+            {detail.title}
+          </h2>
+          {programDescription?.trim() ? (
+            <p className={cn(patientMutedTextClass, "mt-2 line-clamp-3 text-sm leading-snug")}>
+              {programDescription.trim()}
+            </p>
+          ) : null}
+          {awaitsStart ? (
+            <p className="mt-2" role="status">
+              <span className={patientBadgeDangerClass}>Ожидает старта</span>
+            </p>
+          ) : null}
+          {programTabStage && firstPendingProgramItemId ? (
+            <button
+              type="button"
+              onClick={openHeroLesson}
+              className={cn(
+                patientHeroPrimaryActionClass,
+                "mt-3 flex min-h-11 w-full items-center justify-center gap-2 px-4 py-2 text-sm shadow-[0_6px_14px_rgba(40,77,160,0.24)] lg:min-h-12 lg:text-base",
+              )}
+            >
+              <PlayCircle className="size-5 shrink-0 lg:size-6" aria-hidden />
+              Начать занятие
+            </button>
+          ) : detail.status !== "active" ? (
+            <p className={cn(patientMutedTextClass, "mt-2 text-sm")}>Программа завершена.</p>
+          ) : programTabStage ? null : (
+            <p className={cn(patientMutedTextClass, "mt-2 text-sm")}>Нет активного этапа.</p>
+          )}
+        </div>
 
-      <div
-        className="sticky top-0 z-[5] grid grid-cols-3 gap-px border border-[var(--patient-border)] bg-[var(--patient-border)] shadow-sm"
-        role="tablist"
-        aria-label="Разделы программы"
-      >
-        <button
-          type="button"
-          role="tab"
-          aria-selected={activeTab === "program"}
-          className={cn(
-            "flex min-h-[3.25rem] flex-col items-center justify-center gap-0.5 px-1 py-2 text-center outline-none transition-opacity lg:min-h-[3.5rem] lg:px-2",
-            activeTab === "program" ? "opacity-100" : "opacity-75",
-            "bg-[#dde6f0] focus-visible:ring-2 focus-visible:ring-[var(--patient-color-primary)]",
-          )}
-          onClick={() => setActiveTab("program")}
+        <div
+          className="sticky top-0 z-[5] grid grid-cols-3 gap-px border-x border-b border-[var(--patient-border)] bg-[var(--patient-border)] shadow-sm"
+          role="tablist"
+          aria-label="Разделы программы"
         >
-          <span className="text-xs font-semibold text-[#444444] lg:text-sm">Программа</span>
-          <span className="text-[10px] leading-tight text-[#555555] lg:text-xs">{programTabSubtitle}</span>
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={activeTab === "recommendations"}
-          className={cn(
-            "flex min-h-[3.25rem] flex-col items-center justify-center gap-0.5 px-1 py-2 text-center outline-none transition-opacity lg:min-h-[3.5rem] lg:px-2",
-            activeTab === "recommendations" ? "opacity-100" : "opacity-75",
-            "bg-[#dffeca] focus-visible:ring-2 focus-visible:ring-[var(--patient-color-primary)]",
-          )}
-          onClick={() => setActiveTab("recommendations")}
-        >
-          <span className="text-xs font-semibold text-[#444444] lg:text-sm">Рекомендации</span>
-          <span className="text-[10px] leading-tight text-[#555555] lg:text-xs">
-            {recommendationListCount} рекомендаций
-          </span>
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={activeTab === "progress"}
-          className={cn(
-            "flex min-h-[3.25rem] flex-col items-center justify-center gap-0.5 px-1 py-2 text-center outline-none transition-opacity lg:min-h-[3.5rem] lg:px-2",
-            activeTab === "progress" ? "opacity-100" : "opacity-75",
-            "border-0 bg-[var(--patient-surface-warning-bg)] text-[var(--patient-surface-warning-text)] focus-visible:ring-2 focus-visible:ring-[var(--patient-color-primary)]",
-          )}
-          onClick={() => setActiveTab("progress")}
-        >
-          <span className="text-xs font-semibold lg:text-sm">Прогресс</span>
-          <span className="text-[10px] leading-tight opacity-90 lg:text-xs">{progressTabDaysLabel}</span>
-        </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === "program"}
+            className={cn(
+              "relative flex min-h-[3.25rem] cursor-pointer flex-col items-center justify-center gap-0.5 px-1 py-2 text-center outline-none transition-colors duration-200 lg:min-h-[3.5rem] lg:px-2",
+              activeTab === "program" &&
+                "after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:z-[1] after:h-0.5 after:bg-[var(--patient-color-primary,#284da0)]",
+              "bg-[#dde6f0] focus-visible:ring-2 focus-visible:ring-[var(--patient-color-primary)] focus-visible:ring-offset-0",
+            )}
+            onClick={() => setActiveTab("program")}
+          >
+            <span
+              className={cn(
+                "text-xs font-semibold lg:text-sm",
+                activeTab === "program" ? "text-[var(--patient-color-primary,#284da0)]" : "text-[#444444]",
+              )}
+            >
+              Программа
+            </span>
+            <span
+              className={cn(
+                "text-[10px] leading-tight lg:text-xs",
+                activeTab === "program" ? "text-[#1e3a5f]" : "text-[#555555]",
+              )}
+            >
+              {programTabSubtitle}
+            </span>
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === "recommendations"}
+            className={cn(
+              "relative flex min-h-[3.25rem] cursor-pointer flex-col items-center justify-center gap-0.5 px-1 py-2 text-center outline-none transition-colors duration-200 lg:min-h-[3.5rem] lg:px-2",
+              activeTab === "recommendations" &&
+                "after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:z-[1] after:h-0.5 after:bg-[var(--patient-color-primary,#284da0)]",
+              "bg-[#dffeca] focus-visible:ring-2 focus-visible:ring-[var(--patient-color-primary)] focus-visible:ring-offset-0",
+            )}
+            onClick={() => setActiveTab("recommendations")}
+          >
+            <span
+              className={cn(
+                "text-xs font-semibold lg:text-sm",
+                activeTab === "recommendations" ? "text-[var(--patient-color-primary,#284da0)]" : "text-[#444444]",
+              )}
+            >
+              Рекомендации
+            </span>
+            <span
+              className={cn(
+                "text-[10px] leading-tight lg:text-xs",
+                activeTab === "recommendations" ? "text-[#1e3a5f]" : "text-[#555555]",
+              )}
+            >
+              {recommendationListCount} рекомендаций
+            </span>
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === "progress"}
+            className={cn(
+              "relative flex min-h-[3.25rem] cursor-pointer flex-col items-center justify-center gap-0.5 px-1 py-2 text-center outline-none transition-colors duration-200 lg:min-h-[3.5rem] lg:px-2",
+              activeTab === "progress" &&
+                "after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:z-[1] after:h-0.5 after:bg-[var(--patient-color-primary,#284da0)]",
+              "bg-[var(--patient-surface-warning-bg)] focus-visible:ring-2 focus-visible:ring-[var(--patient-color-primary)] focus-visible:ring-offset-0",
+            )}
+            onClick={() => setActiveTab("progress")}
+          >
+            <span
+              className={cn(
+                "text-xs font-semibold lg:text-sm",
+                activeTab === "progress" ? "text-[var(--patient-color-primary,#284da0)]" : "text-[#444444]",
+              )}
+            >
+              Прогресс
+            </span>
+            <span
+              className={cn(
+                "text-[10px] leading-tight lg:text-xs",
+                activeTab === "progress" ? "text-[#1e3a5f]" : "text-[#555555]",
+              )}
+            >
+              {progressTabControlThroughLabel}
+            </span>
+          </button>
+        </div>
       </div>
 
       <div className={cn(activeTab !== "program" && "hidden")} role="tabpanel" aria-label="Программа">
