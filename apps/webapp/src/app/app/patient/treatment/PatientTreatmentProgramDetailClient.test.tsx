@@ -9,7 +9,7 @@ const now = "2026-01-01T00:00:00.000Z";
 
 const detailShellProps = {
   appDisplayTimeZone: "Europe/Moscow",
-  controlRemainderDays: 5 as number | null,
+  patientCalendarDayIana: "Europe/Moscow",
 };
 
 function clickPatientTreatmentTab(which: "program" | "recommendations" | "progress") {
@@ -118,11 +118,43 @@ describe("PatientTreatmentProgramDetailClient", () => {
     expect(screen.getByText(/Пройдено 1 этап/)).toBeInTheDocument();
   });
 
-  it("progress tab subtitle uses control remainder days from props", () => {
-    render(
-      <PatientTreatmentProgramDetailClient initial={makeInstance()} initialTestResults={[]} {...detailShellProps} />,
-    );
-    expect(screen.getByText("Контроль через 5 дней")).toBeInTheDocument();
+  it("progress tab subtitle shows computed control remainder from detail", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-01-10T12:00:00.000Z"));
+    try {
+      render(
+        <PatientTreatmentProgramDetailClient
+          initial={makeInstance({
+            stages: [
+              makeInstance().stages[0]!,
+              {
+                id: "44444444-4444-4444-8444-444444444444",
+                instanceId: "11111111-1111-4111-8111-111111111111",
+                sourceStageId: null,
+                title: "Этап pipeline",
+                description: null,
+                sortOrder: 1,
+                localComment: null,
+                skipReason: null,
+                status: "in_progress",
+                startedAt: "2026-01-01T00:00:00.000Z",
+                goals: null,
+                objectives: null,
+                expectedDurationDays: 14,
+                expectedDurationText: null,
+                groups: [],
+                items: [],
+              },
+            ],
+          })}
+          initialTestResults={[]}
+          {...detailShellProps}
+        />,
+      );
+      expect(screen.getByText("Контроль через 5 дней")).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("renders stage goals/objectives when set (A1); program tab omits expected duration block", async () => {

@@ -551,6 +551,19 @@ describe("stage-semantics (1.1a detail split)", () => {
     ).toBeNull();
   });
 
+  it("resolvePatientProgramControlRemainderDaysForPatientUi includes full window when stage started today", () => {
+    const d = minimalDetail([{ id: "i1", status: "active" }]);
+    d.stages[0].status = "in_progress";
+    d.stages[0].startedAt = "2026-01-15T15:00:00.000Z";
+    d.stages[0].expectedDurationDays = 7;
+    const n = resolvePatientProgramControlRemainderDaysForPatientUi(
+      d,
+      DateTime.fromISO("2026-01-15T18:00:00.000Z"),
+      "Europe/Moscow",
+    );
+    expect(n).toBe(7);
+  });
+
   it("patientInstanceSystemGroupHasVisibleItems is false for empty system groups", () => {
     const recGroup = { id: "g-rec", systemKind: "recommendations" as const };
     const testsGroup = { id: "g-tests", systemKind: "tests" as const };

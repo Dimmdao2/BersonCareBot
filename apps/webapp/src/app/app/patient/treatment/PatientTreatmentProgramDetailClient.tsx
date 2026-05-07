@@ -61,6 +61,7 @@ import {
   expectedStageControlDateIso,
   formatRelativePatientCalendarDayRu,
   sortDoctorInstanceStageGroupsForDisplay,
+  resolvePatientProgramControlRemainderDaysForPatientUi,
 } from "@/modules/treatment-program/stage-semantics";
 import { listLfkSnapshotExerciseLines, programActionDoneActivityKey } from "@/modules/treatment-program/programActionActivityKey";
 import { testIdsFromTestSetSnapshot } from "@/modules/treatment-program/testSetSnapshotView";
@@ -1525,14 +1526,14 @@ export function PatientTreatmentProgramDetailClient(props: {
   initialProgramEvents?: TreatmentProgramEventRow[];
   appDisplayTimeZone: string;
   programDescription?: string | null;
-  /** Календарные дни до ожидаемого конца текущего этапа (контроль); null если нет этапа в работе или нет срока. */
-  controlRemainderDays: number | null;
+  /** IANA для календарных суток пациента (остаток «Контроль через» пересчитывается из актуального `detail` на клиенте). */
+  patientCalendarDayIana: string;
 }) {
   const {
     appDisplayTimeZone,
     programDescription = null,
     initialProgramEvents = [],
-    controlRemainderDays,
+    patientCalendarDayIana,
   } = props;
   const [activeTab, setActiveTab] = useState<"program" | "recommendations" | "progress">("program");
   const [heroModalItemId, setHeroModalItemId] = useState<string | null>(null);
@@ -1702,10 +1703,16 @@ export function PatientTreatmentProgramDetailClient(props: {
     [programTabStage],
   );
 
+  const progressTabControlRemainderDays = useMemo(
+    () =>
+      resolvePatientProgramControlRemainderDaysForPatientUi(detail, DateTime.now(), patientCalendarDayIana),
+    [detail, patientCalendarDayIana],
+  );
+
   /** Подпись вкладки «Прогресс»: остаток календарных дней до ожидаемого конца этапа (контроль). */
   const progressTabControlThroughLabel = useMemo(() => {
-    if (controlRemainderDays == null) return "—";
-    const n = controlRemainderDays;
+    if (progressTabControlRemainderDays == null) return "—";
+    const n = progressTabControlRemainderDays;
     const mod100 = n % 100;
     let w = "дней";
     if (mod100 >= 11 && mod100 <= 14) w = "дней";
@@ -1715,7 +1722,7 @@ export function PatientTreatmentProgramDetailClient(props: {
       else if (mod10 >= 2 && mod10 <= 4) w = "дня";
     }
     return `Контроль через ${n} ${w}`;
-  }, [controlRemainderDays]);
+  }, [progressTabControlRemainderDays]);
 
   const controlIso = currentWorkingStage ? expectedStageControlDateIso(currentWorkingStage) : null;
   const controlDateLine =
