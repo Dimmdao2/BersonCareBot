@@ -173,7 +173,10 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
       >
         <button
           type="button"
-          className="relative block w-full overflow-hidden rounded-t-lg border-0 p-0 text-left"
+          className={cn(
+            "relative block w-full overflow-hidden border-0 p-0 text-left",
+            "rounded-t-[var(--patient-card-radius-mobile)] lg:rounded-t-[var(--patient-card-radius-desktop)]",
+          )}
           onClick={() => openProgramModal(item.id)}
         >
           <div className="relative aspect-video w-full bg-muted/20">

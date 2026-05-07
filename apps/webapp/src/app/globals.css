@@ -68,11 +68,11 @@
   --patient-page-bg: #ffffff;
   --patient-card-bg: #ffffff;
   --patient-border: #e5e7eb;
-  --patient-card-radius-mobile: 10px;
-  --patient-card-radius-desktop: 12px;
-  --patient-hero-radius-mobile: 12px;
-  --patient-hero-radius-desktop: 14px;
-  --patient-pill-radius: 10px;
+  --patient-card-radius-mobile: 6px;
+  --patient-card-radius-desktop: 8px;
+  --patient-hero-radius-mobile: 8px;
+  --patient-hero-radius-desktop: 10px;
+  --patient-pill-radius: 6px;
   --patient-shadow-card-mobile: 0 4px 14px rgba(15, 23, 42, 0.04);
   --patient-shadow-card-desktop: 0 8px 24px rgba(15, 23, 42, 0.05);
   --patient-shadow-nav: 0 -4px 16px rgba(15, 23, 42, 0.04);
