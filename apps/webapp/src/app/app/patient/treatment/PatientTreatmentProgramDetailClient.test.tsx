@@ -9,7 +9,7 @@ const now = "2026-01-01T00:00:00.000Z";
 
 const detailShellProps = {
   appDisplayTimeZone: "Europe/Moscow",
-  progressDays: 5 as number | null,
+  controlRemainderDays: 5 as number | null,
 };
 
 function clickPatientTreatmentTab(which: "program" | "recommendations" | "progress") {
@@ -82,6 +82,49 @@ function makeInstance(over: Partial<TreatmentProgramInstanceDetail> = {}): Treat
 }
 
 describe("PatientTreatmentProgramDetailClient", () => {
+  it("completed program shows summary without tabs", () => {
+    const pipelineCompleted = {
+      id: "33333333-3333-4333-8333-333333333333",
+      instanceId: "11111111-1111-4111-8111-111111111111",
+      sourceStageId: null,
+      title: "Пайплайн 1",
+      description: null,
+      sortOrder: 1,
+      localComment: null,
+      skipReason: null,
+      status: "completed" as const,
+      startedAt: "2026-01-10T00:00:00.000Z",
+      goals: null,
+      objectives: null,
+      expectedDurationDays: 7,
+      expectedDurationText: null,
+      groups: [],
+      items: [],
+    };
+    render(
+      <PatientTreatmentProgramDetailClient
+        initial={makeInstance({
+          status: "completed",
+          updatedAt: "2026-06-01T15:00:00.000Z",
+          stages: [makeInstance().stages[0]!, pipelineCompleted],
+        })}
+        initialTestResults={[]}
+        {...detailShellProps}
+      />,
+    );
+    expect(screen.queryByRole("tablist", { name: "Разделы программы" })).not.toBeInTheDocument();
+    expect(screen.getByText("Программа реабилитации завершена")).toBeInTheDocument();
+    expect(screen.getByText(/Дата завершения:/)).toBeInTheDocument();
+    expect(screen.getByText(/Пройдено 1 этап/)).toBeInTheDocument();
+  });
+
+  it("progress tab subtitle uses control remainder days from props", () => {
+    render(
+      <PatientTreatmentProgramDetailClient initial={makeInstance()} initialTestResults={[]} {...detailShellProps} />,
+    );
+    expect(screen.getByText("Контроль через 5 дней")).toBeInTheDocument();
+  });
+
   it("renders stage goals/objectives when set (A1); program tab omits expected duration block", async () => {
     render(
       <PatientTreatmentProgramDetailClient

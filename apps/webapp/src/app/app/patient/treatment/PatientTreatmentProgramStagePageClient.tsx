@@ -157,7 +157,6 @@ export function PatientTreatmentProgramStagePageClient(props: {
   const [doneItemIds, setDoneItemIds] = useState<string[]>([]);
   const [doneTodayCountByItemId, setDoneTodayCountByItemId] = useState<Record<string, number>>({});
   const [lastDoneAtIsoByItemId, setLastDoneAtIsoByItemId] = useState<Record<string, string>>({});
-  const [totalCompletionEventsByItemId, setTotalCompletionEventsByItemId] = useState<Record<string, number>>({});
 
   const variant = useMemo(
     () => patientTreatmentProgramStageScreenVariant(currentStage),
@@ -177,13 +176,11 @@ export function PatientTreatmentProgramStagePageClient(props: {
         doneItemIds?: string[];
         doneTodayCountByItemId?: unknown;
         lastDoneAtIsoByItemId?: unknown;
-        totalCompletionEventsByItemId?: unknown;
       };
       if (!res.ok || !data?.ok || !Array.isArray(data.doneItemIds)) return;
       setDoneItemIds(data.doneItemIds);
       setDoneTodayCountByItemId(normalizeChecklistCountMap(data.doneTodayCountByItemId));
       setLastDoneAtIsoByItemId(normalizeChecklistLastMap(data.lastDoneAtIsoByItemId));
-      setTotalCompletionEventsByItemId(normalizeChecklistCountMap(data.totalCompletionEventsByItemId));
     })();
   }, [instanceId, variant]);
 
@@ -213,18 +210,15 @@ export function PatientTreatmentProgramStagePageClient(props: {
       doneItemIds?: string[];
       doneTodayCountByItemId?: unknown;
       lastDoneAtIsoByItemId?: unknown;
-      totalCompletionEventsByItemId?: unknown;
     };
     if (data.item.status !== "active") {
       setDoneItemIds([]);
       setDoneTodayCountByItemId({});
       setLastDoneAtIsoByItemId({});
-      setTotalCompletionEventsByItemId({});
     } else if (chRes.ok && chData?.ok === true && Array.isArray(chData.doneItemIds)) {
       setDoneItemIds(chData.doneItemIds);
       setDoneTodayCountByItemId(normalizeChecklistCountMap(chData.doneTodayCountByItemId));
       setLastDoneAtIsoByItemId(normalizeChecklistLastMap(chData.lastDoneAtIsoByItemId));
-      setTotalCompletionEventsByItemId(normalizeChecklistCountMap(chData.totalCompletionEventsByItemId));
     }
   }, [instanceId, props.stage.id, variant]);
 
@@ -482,6 +476,7 @@ export function PatientTreatmentProgramStagePageClient(props: {
       ) : null}
 
       <PatientTreatmentProgramStagePageProgramSection
+        className={cn(hasGoalsCollapsible && "mt-2")}
         stage={currentStage}
         base={base}
         busy={busy}
@@ -493,7 +488,7 @@ export function PatientTreatmentProgramStagePageClient(props: {
         doneItemIds={doneItemIds}
         onDoneItemIds={setDoneItemIds}
         lastDoneAtIsoByItemId={lastDoneAtIsoByItemId}
-        totalCompletionEventsByItemId={totalCompletionEventsByItemId}
+        doneTodayCountByItemId={doneTodayCountByItemId}
         appDisplayTimeZone={appDisplayTimeZone}
       />
     </div>

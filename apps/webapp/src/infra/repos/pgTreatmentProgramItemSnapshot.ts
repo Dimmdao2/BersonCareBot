@@ -120,6 +120,7 @@ export function createPgTreatmentProgramItemSnapshotPort(): TreatmentProgramItem
             id: row.id,
             title: row.title,
             description: row.description ?? null,
+            contraindications: row.contraindications ?? null,
             difficulty: row.difficulty110 ?? null,
             loadType: row.loadType ?? null,
             ...(media ? { media } : {}),

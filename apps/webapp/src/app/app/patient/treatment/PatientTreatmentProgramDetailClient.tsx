@@ -57,6 +57,7 @@ import {
   patientStageSectionShouldRender,
   splitPatientProgramStagesForDetailUi,
   selectCurrentWorkingStageForPatientDetail,
+  countPatientCompletedPipelineStages,
   expectedStageControlDateIso,
   formatRelativePatientCalendarDayRu,
   sortDoctorInstanceStageGroupsForDisplay,
@@ -300,6 +301,15 @@ function PatientCompositionItemProgressAside(props: {
       </div>
     </div>
   );
+}
+
+function ruPassedStagesWord(n: number): string {
+  const mod100 = n % 100;
+  if (mod100 >= 11 && mod100 <= 14) return "этапов";
+  const mod10 = n % 10;
+  if (mod10 === 1) return "этап";
+  if (mod10 >= 2 && mod10 <= 4) return "этапа";
+  return "этапов";
 }
 
 function buildProgramHistoryNarrative(detail: TreatmentProgramInstanceDetail, tz: string): string[] {
@@ -1515,14 +1525,14 @@ export function PatientTreatmentProgramDetailClient(props: {
   initialProgramEvents?: TreatmentProgramEventRow[];
   appDisplayTimeZone: string;
   programDescription?: string | null;
-  /** Дни программы с рубежом 03:00 (RSC); null если «ожидает старта» или неактивна. */
-  progressDays: number | null;
+  /** Календарные дни до ожидаемого конца текущего этапа (контроль); null если нет этапа в работе или нет срока. */
+  controlRemainderDays: number | null;
 }) {
   const {
     appDisplayTimeZone,
     programDescription = null,
     initialProgramEvents = [],
-    progressDays,
+    controlRemainderDays,
   } = props;
   const [activeTab, setActiveTab] = useState<"program" | "recommendations" | "progress">("program");
   const [heroModalItemId, setHeroModalItemId] = useState<string | null>(null);
@@ -1692,10 +1702,10 @@ export function PatientTreatmentProgramDetailClient(props: {
     [programTabStage],
   );
 
-  /** Подпись вкладки «Прогресс»: контроль через N календарных дней программы (не «День N»). */
+  /** Подпись вкладки «Прогресс»: остаток календарных дней до ожидаемого конца этапа (контроль). */
   const progressTabControlThroughLabel = useMemo(() => {
-    if (progressDays == null) return "—";
-    const n = progressDays;
+    if (controlRemainderDays == null) return "—";
+    const n = controlRemainderDays;
     const mod100 = n % 100;
     let w = "дней";
     if (mod100 >= 11 && mod100 <= 14) w = "дней";
@@ -1705,7 +1715,7 @@ export function PatientTreatmentProgramDetailClient(props: {
       else if (mod10 >= 2 && mod10 <= 4) w = "дня";
     }
     return `Контроль через ${n} ${w}`;
-  }, [progressDays]);
+  }, [controlRemainderDays]);
 
   const controlIso = currentWorkingStage ? expectedStageControlDateIso(currentWorkingStage) : null;
   const controlDateLine =
@@ -1715,6 +1725,48 @@ export function PatientTreatmentProgramDetailClient(props: {
   /** Карточка контроля: после старта этапа (не «ожидает старта»), даже если нет срока в днях для расчёта даты. */
   const showNextControlCard =
     detail.status === "active" && currentWorkingStage != null && !awaitsStart;
+
+  if (detail.status === "completed") {
+    const passedStages = countPatientCompletedPipelineStages(detail.stages);
+    return (
+      <div className={patientInnerPageStackClass}>
+        {error ? (
+          <p className="text-sm text-destructive" role="alert">
+            {error}
+          </p>
+        ) : null}
+        <div
+          className={cn(
+            patientHomeCardHeroClass,
+            "relative isolate overflow-hidden rounded-b-none p-4 pt-3 lg:rounded-b-none lg:p-5",
+          )}
+        >
+          <PatientProgramHeroHistoryPopover
+            detail={detail}
+            appDisplayTimeZone={appDisplayTimeZone}
+            programEvents={programEvents}
+          />
+          <h2
+            className={cn(
+              patientLineClamp2Class,
+              patientHeroTitleBaseClass,
+              patientInnerHeroTitleTypographyClass,
+              "mt-0.5 pr-11 lg:pr-12",
+            )}
+          >
+            {detail.title}
+          </h2>
+          <p className={cn(patientBodyTextClass, "mt-3 text-sm leading-snug")}>Программа реабилитации завершена</p>
+          <p className={cn(patientMutedTextClass, "mt-2 text-sm")}>
+            Дата завершения: {formatBookingDateLongRu(detail.updatedAt, appDisplayTimeZone)}
+          </p>
+          <p className={cn(patientMutedTextClass, "mt-1 text-sm")}>
+            Пройдено {passedStages} {ruPassedStagesWord(passedStages)}
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={patientInnerPageStackClass}>
@@ -1769,10 +1821,8 @@ export function PatientTreatmentProgramDetailClient(props: {
               <PlayCircle className="size-5 shrink-0 lg:size-6" aria-hidden />
               Начать занятие
             </button>
-          ) : detail.status !== "active" ? (
-            <p className={cn(patientMutedTextClass, "mt-2 text-sm")}>Программа завершена.</p>
           ) : programTabStage ? null : (
-            <p className={cn(patientMutedTextClass, "mt-2 text-sm")}>Нет активного этапа.</p>
+            <p className={cn(patientMutedTextClass, "mt-2 text-sm")}>Нет открытых этапов.</p>
           )}
         </div>
 

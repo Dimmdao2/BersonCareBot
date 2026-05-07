@@ -18,7 +18,7 @@ export function PatientTreatmentTabProgram(props: {
   if (!currentWorkingStage) {
     return (
       <div className={patientInnerPageStackClass}>
-        <p className={patientMutedTextClass}>Нет активного этапа.</p>
+        <p className={patientMutedTextClass}>Нет открытых этапов.</p>
       </div>
     );
   }

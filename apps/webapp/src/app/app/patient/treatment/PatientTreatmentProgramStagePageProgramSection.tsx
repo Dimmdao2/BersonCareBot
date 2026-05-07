@@ -1,26 +1,32 @@
 "use client";
 
 import { useCallback, useMemo, useState, type ReactNode } from "react";
+import { AlertTriangle, MessageCircle, NotebookText, PlayCircle } from "lucide-react";
 import { PatientProgramStageItemModal } from "@/app/app/patient/treatment/PatientProgramStageItemModal";
 import { PatientCatalogMediaStaticThumb } from "@/shared/ui/patient/PatientCatalogMediaStaticThumb";
 import type { TreatmentProgramInstanceDetail } from "@/modules/treatment-program/types";
 import {
+  formatRelativePatientCalendarDayRu,
   isInstanceStageItemShownInPatientCompositionModal,
   isPersistentRecommendation,
+  sortDoctorInstanceStageGroupsForDisplay,
 } from "@/modules/treatment-program/stage-semantics";
 import {
   mergeLastActivityDisplayedIso,
-  formatRelativeTimeRu,
   primaryMediaForStageItem,
+  recommendationBodyMdPreviewPlain,
   type InstanceStageItem,
 } from "@/app/app/patient/treatment/stageItemSnapshot";
 import {
   patientBodyTextClass,
   patientCardClass,
+  patientCompactActionClass,
   patientMutedTextClass,
   patientSecondaryActionClass,
   patientSectionTitleClass,
 } from "@/shared/ui/patientVisual";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { MarkdownContent } from "@/shared/ui/markdown/MarkdownContent";
 import { cn } from "@/lib/utils";
 
 type Stage = TreatmentProgramInstanceDetail["stages"][number];
@@ -50,38 +56,28 @@ type ProgramCompositionSegment =
   | { kind: "group"; group: Stage["groups"][number]; items: InstanceStageItem[] };
 
 /**
- * Порядок блоков как в шаблоне: по `sort_order` элементов группа участвует на позиции минимального
- * `sort_order` среди своих пунктов (не «все без группы сверху, потом все группы»).
+ * Порядок как в назначении / {@link PatientInstanceStageBody}: группы через
+ * {@link sortDoctorInstanceStageGroupsForDisplay}, затем все пункты без группы по `sort_order`.
+ * (Ранее группы и «без группы» чередовались по глобальному `sort_order` пунктов — расходилось с экраном врача.)
  */
 function buildProgramCompositionSegments(
   stage: Stage,
   visibleProgramItems: InstanceStageItem[],
 ): ProgramCompositionSegment[] {
-  const sortedItems = sortByOrderThenId(visibleProgramItems);
-  const usedGroupIds = new Set<string>();
-  for (const it of sortedItems) {
-    if (it.groupId) usedGroupIds.add(it.groupId);
-  }
-  const groupsById = new Map(stage.groups.map((g) => [g.id, g] as const));
-
-  const keyed: Array<{ sortKey: number; tie: string; segment: ProgramCompositionSegment }> = [];
-
-  for (const it of sortedItems) {
-    if (!it.groupId) {
-      keyed.push({ sortKey: it.sortOrder, tie: it.id, segment: { kind: "item", item: it } });
-    }
-  }
-  for (const gid of usedGroupIds) {
-    const g = groupsById.get(gid);
-    if (!g) continue;
-    const gItems = sortByOrderThenId(sortedItems.filter((x) => x.groupId === gid));
+  const sortedGroups = sortDoctorInstanceStageGroupsForDisplay(stage.groups).filter((g) =>
+    visibleProgramItems.some((it) => it.groupId === g.id),
+  );
+  const ungrouped = sortByOrderThenId(visibleProgramItems.filter((it) => !it.groupId));
+  const out: ProgramCompositionSegment[] = [];
+  for (const g of sortedGroups) {
+    const gItems = sortByOrderThenId(visibleProgramItems.filter((it) => it.groupId === g.id));
     if (gItems.length === 0) continue;
-    const minOrder = Math.min(...gItems.map((x) => x.sortOrder));
-    keyed.push({ sortKey: minOrder, tie: gid, segment: { kind: "group", group: g, items: gItems } });
+    out.push({ kind: "group", group: g, items: gItems });
   }
-
-  keyed.sort((a, b) => a.sortKey - b.sortKey || a.tie.localeCompare(b.tie));
-  return keyed.map((k) => k.segment);
+  for (const it of ungrouped) {
+    out.push({ kind: "item", item: it });
+  }
+  return out;
 }
 
 /** Порядок id элементов «программы этапа» (как в {@link PatientTreatmentProgramStagePageProgramSection}). */
@@ -102,13 +98,89 @@ function tileTitle(snapshot: Record<string, unknown>, itemType: string): string 
   return itemType;
 }
 
-function ruDoneTimesWord(n: number): string {
-  const mod100 = n % 100;
-  if (mod100 >= 11 && mod100 <= 14) return "раз";
-  const mod10 = n % 10;
-  if (mod10 === 1) return "раз";
-  if (mod10 >= 2 && mod10 <= 4) return "раза";
-  return "раз";
+function programTileDescriptionRaw(item: InstanceStageItem): { markdown: string | null; plain: string } {
+  const snap = item.snapshot as Record<string, unknown>;
+  if (item.itemType === "recommendation") {
+    const bodyMd = typeof snap.bodyMd === "string" ? snap.bodyMd.trim() : "";
+    if (!bodyMd) return { markdown: null, plain: "" };
+    return { markdown: bodyMd, plain: recommendationBodyMdPreviewPlain(bodyMd) };
+  }
+  if (item.itemType === "lesson") {
+    const p =
+      (typeof snap.bodyPreview === "string" && snap.bodyPreview.trim()
+        ? snap.bodyPreview.trim()
+        : typeof snap.summary === "string" && snap.summary.trim()
+          ? snap.summary.trim()
+          : "") || "";
+    return { markdown: null, plain: p };
+  }
+  const desc =
+    typeof snap.description === "string" && snap.description.trim() ? snap.description.trim() : "";
+  return { markdown: null, plain: desc };
+}
+
+function programTileContraindicationsPlain(item: InstanceStageItem): string {
+  if (item.itemType !== "exercise") return "";
+  const snap = item.snapshot as Record<string, unknown>;
+  const c = typeof snap.contraindications === "string" ? snap.contraindications.trim() : "";
+  return c;
+}
+
+function ProgramTileHintButton(props: { ariaLabel: string; icon: ReactNode; children: ReactNode }) {
+  const { ariaLabel, icon, children } = props;
+  return (
+    <Popover>
+      <PopoverTrigger
+        type="button"
+        className={cn(
+          "inline-flex size-9 min-h-[40px] min-w-[40px] shrink-0 cursor-pointer touch-manipulation items-center justify-center rounded-md border-0 bg-transparent text-muted-foreground outline-none transition-colors",
+          "hover:bg-muted/50 active:bg-muted/70",
+          "focus-visible:ring-2 focus-visible:ring-[var(--patient-border)] focus-visible:ring-offset-2",
+        )}
+        aria-label={ariaLabel}
+      >
+        {icon}
+      </PopoverTrigger>
+      <PopoverContent
+        side="top"
+        align="start"
+        sideOffset={6}
+        className="max-h-[min(50vh,22rem)] w-[min(calc(100vw-2rem),20rem)] overflow-y-auto p-3 text-xs leading-relaxed text-foreground"
+      >
+        {children}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+/** Как в модалке «Состав этапа» (`PatientTreatmentProgramDetailClient` — `MAX_COMPOSITION_TODAY_DOTS`). */
+const MAX_TODAY_DOTS = 24;
+
+function PatientProgramTileTodayDots(props: { todayCount: number }) {
+  const { todayCount } = props;
+  const dotCount = Math.min(todayCount, MAX_TODAY_DOTS);
+  const dotOverflow = todayCount > MAX_TODAY_DOTS ? todayCount - MAX_TODAY_DOTS : 0;
+  return (
+    <div
+      className="flex min-h-[10px] shrink-0 flex-wrap items-center justify-start gap-0.5"
+      aria-label={todayCount === 0 ? "Сегодня не отмечено" : `Сегодня отмечено ${todayCount} раз`}
+    >
+      {todayCount === 0 ? (
+        <span className="size-2 shrink-0 rounded-full bg-muted-foreground/35" aria-hidden />
+      ) : (
+        <>
+          {Array.from({ length: dotCount }, (_, i) => (
+            <span key={i} className="size-2 shrink-0 rounded-full bg-[#16a34a]" aria-hidden />
+          ))}
+          {dotOverflow > 0 ? (
+            <span className="text-[10px] font-medium leading-none text-muted-foreground" aria-hidden>
+              +{dotOverflow}
+            </span>
+          ) : null}
+        </>
+      )}
+    </div>
+  );
 }
 
 export function PatientTreatmentProgramStagePageProgramSection(props: {
@@ -123,8 +195,10 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
   doneItemIds: string[];
   onDoneItemIds: (ids: string[]) => void;
   lastDoneAtIsoByItemId: Readonly<Record<string, string>>;
-  totalCompletionEventsByItemId: Readonly<Record<string, number>>;
+  /** Отметки за сегодня по `stage_item_id` (checklist-today), для точек «сегодня». */
+  doneTodayCountByItemId: Readonly<Record<string, number>>;
   appDisplayTimeZone: string;
+  className?: string;
 }) {
   const {
     stage,
@@ -138,8 +212,9 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
     doneItemIds,
     onDoneItemIds,
     lastDoneAtIsoByItemId,
-    totalCompletionEventsByItemId,
+    doneTodayCountByItemId,
     appDisplayTimeZone,
+    className,
   } = props;
 
   const readOnly = itemInteraction === "readOnly";
@@ -179,19 +254,19 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
 
   if (visibleProgramItems.length === 0) return null;
 
-  const programTileActionButtonClass = cn(
-    patientSecondaryActionClass,
-    "h-8 min-h-0 text-xs font-medium",
-  );
-
   const renderTile = (item: InstanceStageItem): ReactNode => {
     const media = primaryMediaForStageItem(item);
-    const instructions = item.effectiveComment?.trim() ?? "";
-    const n = totalCompletionEventsByItemId[item.id] ?? 0;
+    const isVideo = media?.mediaType === "video";
     const lastIso = mergeLastActivityDisplayedIso(lastDoneAtIsoByItemId[item.id], item.completedAt);
-    const showActivityLine = n > 0 || Boolean(lastIso);
+    const todayCount = doneTodayCountByItemId[item.id] ?? 0;
     const readOnlyTile = readOnly || contentBlocked;
     const showSimpleCompleteFooter = !readOnlyTile && programTileShowsSimpleCompleteActions(item);
+
+    const descRaw = programTileDescriptionRaw(item);
+    const hasDescription = Boolean(descRaw.markdown?.trim()) || Boolean(descRaw.plain.trim());
+    const contrText = programTileContraindicationsPlain(item);
+    const doctorComment = item.effectiveComment?.trim() ?? "";
+    const hasHintRow = hasDescription || Boolean(contrText) || Boolean(doctorComment);
 
     return (
       <li
@@ -201,7 +276,8 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
           "list-none overflow-hidden p-0 shadow-sm",
         )}
       >
-        <div className="flex gap-3 p-3">
+        <div className="flex flex-col p-2.5">
+          <div className="flex items-stretch gap-2.5">
           <button
             type="button"
             className={cn(
@@ -216,115 +292,161 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
               frameClassName="h-full w-full rounded-none"
               sizes="72px"
             />
-          </button>
-          <div className="flex min-w-0 flex-1 flex-col gap-0">
-            <button
-              type="button"
-              className="w-full cursor-pointer border-0 bg-transparent p-0 text-left"
-              onClick={() => openProgramModal(item.id)}
+            <div
+              className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/20"
+              aria-hidden
             >
-              <span className="text-sm font-medium text-foreground">
-                {tileTitle(item.snapshot as Record<string, unknown>, item.itemType)}
-              </span>
-            </button>
+              {isVideo ? (
+                <PlayCircle className="size-8 text-white/45 drop-shadow-md" />
+              ) : (
+                <span className="rounded-md bg-black/55 px-1.5 py-0.5 text-[10px] font-medium text-white">
+                  Открыть
+                </span>
+              )}
+            </div>
+          </button>
+          <div className="flex min-h-[72px] min-w-0 flex-1 flex-col self-stretch">
+            <div className="h-[33px] shrink-0 overflow-hidden">
+              <button
+                type="button"
+                className="flex h-full w-full cursor-pointer items-start border-0 bg-transparent p-0 text-left"
+                onClick={() => openProgramModal(item.id)}
+              >
+                <span className="line-clamp-2 break-words text-[13px] font-normal leading-tight text-foreground">
+                  {tileTitle(item.snapshot as Record<string, unknown>, item.itemType)}
+                </span>
+              </button>
+            </div>
 
-            {instructions ? (
-              <>
-                <div className="my-2 border-t border-[var(--patient-border)]" role="presentation" />
-                <p className={cn(patientBodyTextClass, "whitespace-pre-wrap text-xs leading-snug")}>{instructions}</p>
-              </>
-            ) : null}
-
-            <div className="my-2 border-t border-[var(--patient-border)]" role="presentation" />
-            <p className={cn(patientMutedTextClass, "text-xs font-semibold text-muted-foreground")}>Выполнялось</p>
-            {showActivityLine ? (
-              <p className={cn(patientMutedTextClass, "mt-0.5 text-xs leading-snug")}>
-                {n > 0 ? (
-                  <>
-                    {n} {ruDoneTimesWord(n)}.
-                  </>
-                ) : null}
-                {lastIso ? (
-                  <>
-                    {n > 0 ? " " : null}
-                    Последнее: {formatRelativeTimeRu(lastIso, appDisplayTimeZone)}
-                  </>
-                ) : null}
-              </p>
-            ) : null}
-
-            {!readOnlyTile ? (
-              <>
-                <div className="my-2 border-t border-[var(--patient-border)]" role="presentation" />
-                <div className="flex w-full max-w-full flex-col gap-2">
-                  {showSimpleCompleteFooter ? (
-                    <button
-                      type="button"
-                      className={programTileActionButtonClass}
-                      disabled={busy !== null}
-                      onClick={async (e) => {
-                        e.stopPropagation();
-                        setBusy(item.id);
-                        setError(null);
-                        try {
-                          const res = await fetch(`${base}/${encodeURIComponent(item.id)}/progress/complete`, {
-                            method: "POST",
-                          });
-                          const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
-                          if (!res.ok || !data?.ok) {
-                            setError(data?.error ?? "Ошибка");
-                            return;
-                          }
-                          await refresh();
-                        } finally {
-                          setBusy(null);
-                        }
-                      }}
-                    >
-                      {item.completedAt ? "Отметить ещё раз" : "Отметить выполнение"}
-                    </button>
-                  ) : null}
-                  <button
-                    type="button"
-                    className={programTileActionButtonClass}
-                    disabled={busy !== null}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      openProgramModal(item.id);
-                    }}
-                  >
-                    Добавить комментарий
-                  </button>
+            <div className="mt-auto flex w-full min-w-0 shrink-0 items-start justify-between gap-2">
+              <div className="flex min-w-0 flex-1 flex-col gap-0">
+                <p className={cn(patientMutedTextClass, "text-xs leading-tight")}>Выполнялось</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className={cn(patientMutedTextClass, "shrink-0 text-xs leading-tight")}>
+                    {lastIso ? formatRelativePatientCalendarDayRu(lastIso, appDisplayTimeZone) : "Никогда"}
+                  </p>
+                  <PatientProgramTileTodayDots todayCount={todayCount} />
                 </div>
-              </>
-            ) : null}
+              </div>
+              {hasHintRow ? (
+                <div className="flex shrink-0 flex-wrap items-start justify-end gap-0.5">
+                  {hasDescription ? (
+                    <ProgramTileHintButton
+                      ariaLabel="Описание"
+                      icon={<NotebookText className="size-4 shrink-0" aria-hidden />}
+                    >
+                      {descRaw.markdown?.trim() ? (
+                        <MarkdownContent
+                          text={descRaw.markdown.trim()}
+                          bodyFormat="markdown"
+                          className="markdown-preview text-[var(--patient-text-primary)] [&_p]:my-1 [&_p]:text-xs [&_p]:leading-relaxed"
+                        />
+                      ) : (
+                        <p className="m-0 whitespace-pre-wrap text-xs leading-relaxed">{descRaw.plain}</p>
+                      )}
+                    </ProgramTileHintButton>
+                  ) : null}
+                  {contrText ? (
+                    <ProgramTileHintButton
+                      ariaLabel="Противопоказания"
+                      icon={<AlertTriangle className="size-4 shrink-0" aria-hidden />}
+                    >
+                      <p className="m-0 whitespace-pre-wrap text-xs leading-relaxed">{contrText}</p>
+                    </ProgramTileHintButton>
+                  ) : null}
+                  {doctorComment ? (
+                    <ProgramTileHintButton
+                      ariaLabel="Комментарий врача"
+                      icon={<MessageCircle className="size-4 shrink-0" aria-hidden />}
+                    >
+                      <p className="m-0 whitespace-pre-wrap text-xs leading-relaxed">{doctorComment}</p>
+                    </ProgramTileHintButton>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
           </div>
+          </div>
+
+          {!readOnlyTile ? (
+            <div className="mt-1.5 flex w-full min-w-0 gap-2 border-t border-[var(--patient-border)] pt-2">
+              <button
+                type="button"
+                className={cn(
+                  patientSecondaryActionClass,
+                  "!w-auto h-8 min-h-0 min-w-0 flex-1 basis-0 text-xs font-medium",
+                )}
+                disabled={busy !== null}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openProgramModal(item.id);
+                }}
+              >
+                Добавить комментарий
+              </button>
+              {showSimpleCompleteFooter ? (
+                <button
+                  type="button"
+                  className={cn(patientCompactActionClass, "min-h-0 min-w-0 flex-1 basis-0 px-2 text-xs font-medium")}
+                  disabled={busy !== null}
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    setBusy(item.id);
+                    setError(null);
+                    try {
+                      const res = await fetch(`${base}/${encodeURIComponent(item.id)}/progress/complete`, {
+                        method: "POST",
+                      });
+                      const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
+                      if (!res.ok || !data?.ok) {
+                        setError(data?.error ?? "Ошибка");
+                        return;
+                      }
+                      await refresh();
+                    } finally {
+                      setBusy(null);
+                    }
+                  }}
+                >
+                  {item.completedAt ? "Отметить ещё раз" : "Отметить выполнение"}
+                </button>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       </li>
     );
   };
 
   return (
-    <section className="flex flex-col gap-3" aria-labelledby="stage-program-heading">
+    <section className={cn("flex flex-col gap-5", className)} aria-labelledby="stage-program-heading">
       <h3 id="stage-program-heading" className={patientSectionTitleClass}>
         Программа этапа
       </h3>
-      <ul className="m-0 flex list-none flex-col gap-4 p-0">
-        {orderedSegments.map((seg) =>
+      <ul className="m-0 flex list-none flex-col gap-3 p-0">
+        {orderedSegments.map((seg, index) =>
           seg.kind === "item" ? (
             renderTile(seg.item)
           ) : (
-            <li key={seg.group.id} className="list-none">
+            <li
+              key={seg.group.id}
+              className={cn(
+                "list-none",
+                index > 0 && "mt-3 border-t border-[var(--patient-border)]/25 pt-3",
+              )}
+            >
               <p className="text-sm font-semibold text-foreground">{seg.group.title}</p>
               {seg.group.scheduleText?.trim() ? (
-                <p className={cn(patientMutedTextClass, "mt-1 text-xs")}>{seg.group.scheduleText.trim()}</p>
+                <p className="mt-1 text-[13px] leading-snug text-[#444444]">
+                  {seg.group.scheduleText.trim()}
+                </p>
               ) : null}
               {seg.group.description?.trim() ? (
-                <p className={cn(patientBodyTextClass, "mt-2 whitespace-pre-wrap text-sm")}>
+                <p className="mt-2 whitespace-pre-wrap text-xs leading-snug text-[#1e3a78]">
                   {seg.group.description.trim()}
                 </p>
               ) : null}
-              <ul className="m-0 mt-2 flex list-none flex-col gap-3 p-0">
+              <ul className="m-0 mt-2.5 flex list-none flex-col gap-2 p-0">
                 {seg.items.map((item) => renderTile(item))}
               </ul>
             </li>

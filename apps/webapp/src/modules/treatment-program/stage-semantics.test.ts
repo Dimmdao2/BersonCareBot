@@ -18,6 +18,7 @@ import {
   computeProgressDaysAt0300,
   patientProgramElapsedDaysAnchorIso,
   resolvePatientProgramProgressDaysForPatientUi,
+  resolvePatientProgramControlRemainderDaysForPatientUi,
   patientInstanceSystemGroupHasVisibleItems,
   type TreatmentProgramInstanceDetailStageRow,
 } from "./stage-semantics";
@@ -363,6 +364,11 @@ describe("stage-semantics (1.1a detail split)", () => {
     expect(selectCurrentWorkingStageForPatientDetail(pipeline)?.id).toBe("c");
   });
 
+  it("selectCurrentWorkingStageForPatientDetail returns null when pipeline has only locked stages", () => {
+    const pipeline = [mk("b", 2, "locked"), mk("c", 3, "locked")];
+    expect(selectCurrentWorkingStageForPatientDetail(pipeline)).toBeNull();
+  });
+
   it("expectedStageControlDateIso returns null without both fields", () => {
     expect(expectedStageControlDateIso({ startedAt: null, expectedDurationDays: 7 })).toBeNull();
     expect(expectedStageControlDateIso({ startedAt: "2026-01-01T00:00:00.000Z", expectedDurationDays: null })).toBeNull();
@@ -501,6 +507,48 @@ describe("stage-semantics (1.1a detail split)", () => {
     );
     expect(n).toBeGreaterThanOrEqual(1);
     expect(n).not.toBeNull();
+  });
+
+  it("resolvePatientProgramProgressDaysForPatientUi is null when pipeline has only locked stages", () => {
+    const d = minimalDetail([{ id: "i1", status: "active" }]);
+    d.stages[0].status = "locked";
+    expect(
+      resolvePatientProgramProgressDaysForPatientUi(d, DateTime.fromISO("2026-01-10T12:00:00Z"), "Europe/Moscow", "Europe/Moscow"),
+    ).toBeNull();
+  });
+
+  it("resolvePatientProgramControlRemainderDaysForPatientUi returns whole days until expected control date", () => {
+    const d = minimalDetail([{ id: "i1", status: "active" }]);
+    d.stages[0].status = "in_progress";
+    d.stages[0].startedAt = "2026-01-01T00:00:00.000Z";
+    d.stages[0].expectedDurationDays = 10;
+    const n = resolvePatientProgramControlRemainderDaysForPatientUi(
+      d,
+      DateTime.fromISO("2026-01-05T12:00:00.000Z"),
+      "Europe/Moscow",
+    );
+    expect(n).toBe(6);
+  });
+
+  it("resolvePatientProgramControlRemainderDaysForPatientUi uses today anchor when stage is available without startedAt", () => {
+    const d = minimalDetail([{ id: "i1", status: "active" }]);
+    d.stages[0].status = "available";
+    d.stages[0].startedAt = null;
+    d.stages[0].expectedDurationDays = 10;
+    const n = resolvePatientProgramControlRemainderDaysForPatientUi(
+      d,
+      DateTime.fromISO("2026-01-05T12:00:00.000Z"),
+      "Europe/Moscow",
+    );
+    expect(n).toBe(10);
+  });
+
+  it("resolvePatientProgramControlRemainderDaysForPatientUi is null when current stage is only locked", () => {
+    const d = minimalDetail([{ id: "i1", status: "active" }]);
+    d.stages[0].status = "locked";
+    expect(
+      resolvePatientProgramControlRemainderDaysForPatientUi(d, DateTime.fromISO("2026-01-10T12:00:00Z"), "Europe/Moscow"),
+    ).toBeNull();
   });
 
   it("patientInstanceSystemGroupHasVisibleItems is false for empty system groups", () => {
