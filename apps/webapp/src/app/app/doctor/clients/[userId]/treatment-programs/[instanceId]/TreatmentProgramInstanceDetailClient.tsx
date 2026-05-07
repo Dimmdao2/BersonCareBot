@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -21,7 +22,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { TreatmentProgramInstanceDetail } from "@/modules/treatment-program/types";
+import type {
+  TreatmentProgramInstanceDetail,
+  TreatmentProgramInstanceStatus,
+} from "@/modules/treatment-program/types";
 import type { TreatmentProgramTestResultDetailRow } from "@/modules/treatment-program/types";
 import type { TreatmentProgramEventRow } from "@/modules/treatment-program/types";
 import type { ProgramActionLogListRow } from "@/modules/treatment-program/types";
@@ -46,6 +50,19 @@ import {
   isTreatmentProgramInstanceSystemStageGroup,
   sortDoctorInstanceStageGroupsForDisplay,
 } from "@/modules/treatment-program/stage-semantics";
+import {
+  isProgramInstanceEditLocked,
+  runIfProgramInstanceMutationAllowed,
+} from "@/app/app/doctor/treatment-program-shared/programInstanceMutationGuard";
+import {
+  INSTANCE_CONSTRUCTOR_GLOBAL_RECOMMENDATIONS_CARD_CLASS,
+  INSTANCE_CONSTRUCTOR_LEARNING_STAGE_CARD_CLASS,
+  INSTANCE_HEADER_BG_STAGE_EDITABLE,
+  TPL_HEADER_BG_RECOMMENDATIONS,
+  instanceGroupHeaderSurfaceStyle,
+  tplToolbarTextBtnClass,
+} from "@/app/app/doctor/treatment-program-shared/treatmentProgramConstructorShellStyles";
+import { TemplateReorderChevrons } from "@/shared/ui/doctor/TemplateReorderChevrons";
 
 function snapshotTitle(snapshot: Record<string, unknown>, itemType: string): string {
   const t = snapshot.title;
@@ -113,37 +130,63 @@ function DoctorProgramInstanceItemCard(props: {
   item: InstanceStageItemT;
   testResults: TreatmentProgramTestResultDetailRow[];
   onSaved: () => Promise<void>;
+  programStatus: TreatmentProgramInstanceStatus;
   /** Левая колонка «Рекомендации (этап 0)»: без суффикса типа и без выбора группы. */
   phaseZeroRecommendation?: boolean;
 }) {
-  const { instanceId, stage, item, testResults, onSaved, phaseZeroRecommendation = false } = props;
+  const {
+    instanceId,
+    stage,
+    item,
+    testResults,
+    onSaved,
+    programStatus,
+    phaseZeroRecommendation = false,
+  } = props;
   const recPhase0 = phaseZeroRecommendation && item.itemType === "recommendation";
+  const editLocked = isProgramInstanceEditLocked(programStatus);
+  const hasLocalCommentOverride = Boolean(item.localComment?.trim());
   return (
-    <div className="rounded-lg border border-border/80 bg-muted/20 p-3">
-      <p className="text-sm font-medium">
-        {snapshotTitle(item.snapshot, item.itemType)}{" "}
-        {recPhase0 ? null : (
-          <span className="font-normal text-muted-foreground">({item.itemType})</span>
-        )}
-      </p>
-      {item.itemType === "test_set" ? <TestSetCatalogSnapshotLines snapshot={item.snapshot} /> : null}
-      <ItemLocalCommentForm
-        key={`${item.id}:${item.localComment ?? ""}`}
-        instanceId={instanceId}
-        itemId={item.id}
-        initialDraft={item.localComment ?? ""}
-        placeholder={item.comment?.trim() ? `Из шаблона: ${item.comment.trim()}` : "Из шаблона: —"}
-        onSaved={onSaved}
-      />
-      <InstanceStageItemDoctorRow
-        instanceId={instanceId}
-        item={item}
-        groups={stage.groups}
-        testResults={testResults}
-        onSaved={onSaved}
-        hideGroupSelect={recPhase0}
-      />
-    </div>
+    <details className="group rounded-lg border border-border/80 bg-muted/20 open:shadow-sm">
+      <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 marker:content-none [&::-webkit-details-marker]:hidden">
+        <p className="min-w-0 flex-1 text-sm font-medium">
+          <span className="truncate">{snapshotTitle(item.snapshot, item.itemType)}</span>{" "}
+          {recPhase0 ? null : (
+            <span className="font-normal text-muted-foreground">({item.itemType})</span>
+          )}
+        </p>
+        {hasLocalCommentOverride ? (
+          <Badge variant="secondary" className="shrink-0 text-[10px] font-normal">
+            Комментарий: своё
+          </Badge>
+        ) : null}
+        <span className="shrink-0 text-xs text-muted-foreground group-open:hidden">Развернуть</span>
+        <span className="hidden shrink-0 text-xs text-muted-foreground group-open:inline">Свернуть</span>
+      </summary>
+      <div className="border-t border-border/50 px-3 pb-3 pt-1">
+        {item.itemType === "test_set" ? <TestSetCatalogSnapshotLines snapshot={item.snapshot} /> : null}
+        <ItemLocalCommentForm
+          key={`${item.id}:${item.localComment ?? ""}`}
+          instanceId={instanceId}
+          itemId={item.id}
+          programStatus={programStatus}
+          editLocked={editLocked}
+          initialDraft={item.localComment ?? ""}
+          placeholder={item.comment?.trim() ? `Из шаблона: ${item.comment.trim()}` : "Из шаблона: —"}
+          onSaved={onSaved}
+        />
+        <InstanceStageItemDoctorRow
+          instanceId={instanceId}
+          item={item}
+          programStatus={programStatus}
+          editLocked={editLocked}
+          groups={stage.groups}
+          testResults={testResults}
+          onSaved={onSaved}
+          hideGroupSelect={recPhase0}
+        />
+      </div>
+    </details>
   );
 }
 
@@ -197,11 +240,11 @@ function ProgramInstanceCompleteControl(props: {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Завершить программу лечения?</DialogTitle>
+            <DialogDescription>
+              У пациента программа будет отмечена как завершённая. После этого при необходимости можно назначить новую
+              активную программу.
+            </DialogDescription>
           </DialogHeader>
-          <p className="text-sm text-muted-foreground">
-            У пациента программа будет отмечена как завершённая. После этого при необходимости можно назначить новую
-            активную программу.
-          </p>
           <DialogFooter>
             <Button type="button" variant="outline" disabled={saving} onClick={() => setOpen(false)}>
               Отмена
@@ -213,6 +256,72 @@ function ProgramInstanceCompleteControl(props: {
         </DialogContent>
       </Dialog>
     </>
+  );
+}
+
+function DoctorInstancePipelineStageBlock(props: {
+  instanceId: string;
+  stage: TreatmentProgramInstanceDetail["stages"][number];
+  programStatus: TreatmentProgramInstanceStatus;
+  testResults: TreatmentProgramTestResultDetailRow[];
+  onSaved: () => Promise<void>;
+}) {
+  const { instanceId, stage, programStatus, testResults, onSaved } = props;
+  const [newGroupOpen, setNewGroupOpen] = useState(false);
+  const editLocked = isProgramInstanceEditLocked(programStatus);
+
+  return (
+    <section className={INSTANCE_CONSTRUCTOR_LEARNING_STAGE_CARD_CLASS}>
+      <div
+        className="border-b border-border/40 px-2 py-1.5"
+        style={{ background: INSTANCE_HEADER_BG_STAGE_EDITABLE }}
+      >
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div className="min-w-0 flex-1 pt-0.5">
+            <span className="text-xs font-medium tabular-nums text-muted-foreground">
+              Этап {stage.sortOrder}
+            </span>
+            <h3 className="mt-0.5 text-sm font-semibold leading-tight text-foreground">{stage.title}</h3>
+            {stage.description?.trim() ? (
+              <p className="mt-1 text-xs leading-snug whitespace-pre-wrap text-muted-foreground">
+                {stage.description.trim()}
+              </p>
+            ) : null}
+            <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+              <span className="uppercase tracking-wide">{formatTreatmentProgramStageStatusRu(stage.status)}</span>
+              {stage.skipReason ? <span>Причина пропуска: {stage.skipReason}</span> : null}
+            </div>
+          </div>
+          <div className="flex shrink-0 flex-wrap items-start justify-end gap-1">
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              className={tplToolbarTextBtnClass}
+              disabled={editLocked}
+              onClick={() => {
+                if (editLocked) return;
+                setNewGroupOpen(true);
+              }}
+            >
+              + Группа
+            </Button>
+          </div>
+        </div>
+      </div>
+      <div className="p-3">
+        <StageDoctorControls instanceId={instanceId} stage={stage} programStatus={programStatus} onPatched={onSaved} />
+        <InstanceStageGroupsPanel
+          instanceId={instanceId}
+          stage={stage}
+          onSaved={onSaved}
+          testResults={testResults}
+          programStatus={programStatus}
+          newGroupOpen={newGroupOpen}
+          onNewGroupOpenChange={setNewGroupOpen}
+        />
+      </div>
+    </section>
   );
 }
 
@@ -328,20 +437,27 @@ export function TreatmentProgramInstanceDetailClient(props: {
             targetId={detail.id}
             currentUserId={currentUserId}
             isAdmin={isAdmin}
+            mutationsDisabled={detail.status === "completed"}
             title="Комментарии к программе"
           />
 
           <section
-            className="rounded-xl border border-border bg-card p-4"
+            className={INSTANCE_CONSTRUCTOR_GLOBAL_RECOMMENDATIONS_CARD_CLASS}
             id="doctor-program-instance-phase0-recommendations"
           >
-            <h3 className="text-base font-semibold">Рекомендации (этап 0)</h3>
+            <div
+              className="border-b border-border/25 px-2 py-2"
+              style={{ background: TPL_HEADER_BG_RECOMMENDATIONS }}
+            >
+              <h3 className="text-sm font-semibold leading-tight text-foreground">Общие рекомендации (этап 0)</h3>
+            </div>
+            <div className="p-3">
             {!stageZero ? (
-              <p className="mt-3 text-sm text-muted-foreground">В программе нет этапа с номером 0.</p>
+              <p className="text-sm text-muted-foreground">В программе нет этапа с номером 0.</p>
             ) : phaseZeroRecommendations.length === 0 ? (
-              <p className="mt-3 text-sm text-muted-foreground">Нет рекомендаций на этапе 0.</p>
+              <p className="text-sm text-muted-foreground">Нет рекомендаций на этапе 0.</p>
             ) : (
-              <div className="mt-3 flex flex-col gap-4">
+              <div className="flex flex-col gap-3">
                 {phaseZeroRecommendations.map((item) => (
                   <DoctorProgramInstanceItemCard
                     key={item.id}
@@ -350,11 +466,13 @@ export function TreatmentProgramInstanceDetailClient(props: {
                     item={item}
                     testResults={testResults}
                     onSaved={refresh}
+                    programStatus={detail.status}
                     phaseZeroRecommendation
                   />
                 ))}
               </div>
             )}
+            </div>
           </section>
 
           <section className="rounded-xl border border-border bg-card p-4" id="doctor-program-instance-action-log">
@@ -453,16 +571,19 @@ export function TreatmentProgramInstanceDetailClient(props: {
                           type="button"
                           size="sm"
                           variant={r.normalizedDecision === d ? "default" : "outline"}
+                          disabled={detail.status === "completed"}
                           onClick={async () => {
-                            const res = await fetch(
-                              `/api/doctor/treatment-program-instances/${encodeURIComponent(detail.id)}/test-results/${encodeURIComponent(r.id)}`,
-                              {
-                                method: "PATCH",
-                                headers: { "Content-Type": "application/json" },
-                                body: JSON.stringify({ normalizedDecision: d }),
-                              },
-                            );
-                            if (res.ok) void refreshResults();
+                            await runIfProgramInstanceMutationAllowed(detail.status, async () => {
+                              const res = await fetch(
+                                `/api/doctor/treatment-program-instances/${encodeURIComponent(detail.id)}/test-results/${encodeURIComponent(r.id)}`,
+                                {
+                                  method: "PATCH",
+                                  headers: { "Content-Type": "application/json" },
+                                  body: JSON.stringify({ normalizedDecision: d }),
+                                },
+                              );
+                              if (res.ok) void refreshResults();
+                            });
                           }}
                         >
                           {d}
@@ -479,28 +600,16 @@ export function TreatmentProgramInstanceDetailClient(props: {
         <div className="flex min-w-0 flex-col gap-4" id="doctor-program-instance-right">
           {sortedStages
             .filter((s) => s.sortOrder > 0)
-            .map((stage) => {
-            return (
-              <section key={stage.id} className="rounded-xl border border-border bg-card p-4">
-                <div className="mb-3 flex flex-wrap items-baseline gap-2">
-                  <h3 className="text-base font-semibold">{stage.title}</h3>
-                  <span className="text-xs uppercase tracking-wide text-muted-foreground">
-                    {formatTreatmentProgramStageStatusRu(stage.status)}
-                  </span>
-                  {stage.skipReason ? (
-                    <span className="text-xs text-muted-foreground">Причина пропуска: {stage.skipReason}</span>
-                  ) : null}
-                </div>
-                <StageDoctorControls instanceId={detail.id} stage={stage} onPatched={refresh} />
-                <InstanceStageGroupsPanel
-                  instanceId={detail.id}
-                  stage={stage}
-                  onSaved={refresh}
-                  testResults={testResults}
-                />
-              </section>
-            );
-          })}
+            .map((stage) => (
+              <DoctorInstancePipelineStageBlock
+                key={stage.id}
+                instanceId={detail.id}
+                stage={stage}
+                programStatus={detail.status}
+                testResults={testResults}
+                onSaved={refresh}
+              />
+            ))}
         </div>
       </div>
     </div>
@@ -512,9 +621,13 @@ function InstanceStageGroupsPanel(props: {
   stage: TreatmentProgramInstanceDetail["stages"][number];
   onSaved: () => Promise<void>;
   testResults: TreatmentProgramTestResultDetailRow[];
+  programStatus: TreatmentProgramInstanceStatus;
+  newGroupOpen: boolean;
+  onNewGroupOpenChange: (open: boolean) => void;
 }) {
-  const { instanceId, stage, onSaved, testResults } = props;
-  const [open, setOpen] = useState(false);
+  const { instanceId, stage, onSaved, testResults, programStatus, newGroupOpen, onNewGroupOpenChange } =
+    props;
+  const editLocked = isProgramInstanceEditLocked(programStatus);
   const [title, setTitle] = useState("");
   const [groupEdit, setGroupEdit] = useState<{
     id: string;
@@ -529,49 +642,53 @@ function InstanceStageGroupsPanel(props: {
   const ungrouped = sortByOrderThenId(stage.items.filter((it) => !it.groupId));
   const hasUngrouped = ungrouped.length > 0;
   const hasGroups = sortedGroups.length > 0;
+  const isEmptyStage = !hasUngrouped && !hasGroups && stage.items.length === 0;
 
   const editingGroupMeta = groupEdit ? stage.groups.find((g) => g.id === groupEdit.id) : null;
   const editingIsSystem = editingGroupMeta ? isTreatmentProgramInstanceSystemStageGroup(editingGroupMeta) : false;
 
   const reorder = async (groupId: string, dir: -1 | 1) => {
-    const idx = userGroupsOrdered.findIndex((g) => g.id === groupId);
-    const j = idx + dir;
-    if (idx < 0 || j < 0 || j >= userGroupsOrdered.length) return;
-    const newOrder = userGroupsOrdered.map((g) => g.id);
-    const a = newOrder[idx]!;
-    const b = newOrder[j]!;
-    newOrder[idx] = b;
-    newOrder[j] = a;
-    setBusy(true);
-    setMsg(null);
-    try {
-      const res = await fetch(
-        `/api/doctor/treatment-program-instances/${encodeURIComponent(instanceId)}/stages/${encodeURIComponent(stage.id)}/groups/reorder`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ orderedGroupIds: newOrder }),
-        },
-      );
-      const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
-      if (!res.ok || !data.ok) {
-        setMsg(data.error ?? "Ошибка порядка групп");
-        return;
+    if (editLocked) return;
+    await runIfProgramInstanceMutationAllowed(programStatus, async () => {
+      const idx = userGroupsOrdered.findIndex((g) => g.id === groupId);
+      const j = idx + dir;
+      if (idx < 0 || j < 0 || j >= userGroupsOrdered.length) return;
+      const newOrder = userGroupsOrdered.map((g) => g.id);
+      const a = newOrder[idx]!;
+      const b = newOrder[j]!;
+      newOrder[idx] = b;
+      newOrder[j] = a;
+      setBusy(true);
+      setMsg(null);
+      try {
+        const res = await fetch(
+          `/api/doctor/treatment-program-instances/${encodeURIComponent(instanceId)}/stages/${encodeURIComponent(stage.id)}/groups/reorder`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ orderedGroupIds: newOrder }),
+          },
+        );
+        const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
+        if (!res.ok || !data.ok) {
+          setMsg(data.error ?? "Ошибка порядка групп");
+          return;
+        }
+        await onSaved();
+      } finally {
+        setBusy(false);
       }
-      await onSaved();
-    } finally {
-      setBusy(false);
-    }
+    });
   };
 
   const hideGroupFromModal = async () => {
     if (!groupEdit) return;
-    if (
-      !globalThis.confirm(
-        "Элементы группы будут скрыты у пациента, сама группа удалена. Продолжить?",
-      )
-    )
-      return;
+    if (editLocked) return;
+    const merged =
+      programStatus === "active"
+        ? "Применить к активной программе пациента? Элементы группы будут скрыты у пациента, группа удалена. Продолжить?"
+        : "Элементы группы будут скрыты у пациента, сама группа удалена. Продолжить?";
+    if (!globalThis.confirm(merged)) return;
     setBusy(true);
     setMsg(null);
     try {
@@ -592,189 +709,233 @@ function InstanceStageGroupsPanel(props: {
   };
 
   const addGroup = async () => {
+    if (editLocked) return;
     const t = title.trim();
     if (!t) return;
-    setBusy(true);
-    setMsg(null);
-    try {
-      const res = await fetch(
-        `/api/doctor/treatment-program-instances/${encodeURIComponent(instanceId)}/stages/${encodeURIComponent(stage.id)}/groups`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ title: t }),
-        },
-      );
-      const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
-      if (!res.ok || !data.ok) {
-        setMsg(data.error ?? "Ошибка");
-        return;
+    await runIfProgramInstanceMutationAllowed(programStatus, async () => {
+      setBusy(true);
+      setMsg(null);
+      try {
+        const res = await fetch(
+          `/api/doctor/treatment-program-instances/${encodeURIComponent(instanceId)}/stages/${encodeURIComponent(stage.id)}/groups`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ title: t }),
+          },
+        );
+        const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
+        if (!res.ok || !data.ok) {
+          setMsg(data.error ?? "Ошибка");
+          return;
+        }
+        setTitle("");
+        onNewGroupOpenChange(false);
+        await onSaved();
+      } finally {
+        setBusy(false);
       }
-      setTitle("");
-      setOpen(false);
-      await onSaved();
-    } finally {
-      setBusy(false);
-    }
+    });
   };
 
   const saveGroupEdit = async () => {
     if (!groupEdit) return;
+    if (editLocked) return;
     const gMeta = stage.groups.find((g) => g.id === groupEdit.id);
-    if (gMeta && isTreatmentProgramInstanceSystemStageGroup(gMeta)) return;
-    const t = groupEdit.title.trim();
-    if (!t) {
-      setMsg("Название группы не может быть пустым");
-      return;
-    }
-    setBusy(true);
-    setMsg(null);
-    try {
-      const body: Record<string, unknown> = {
-        title: t,
-        description: groupEdit.description.trim() || null,
-        scheduleText: groupEdit.scheduleText.trim() || null,
-      };
-      const res = await fetch(
-        `/api/doctor/treatment-program-instances/${encodeURIComponent(instanceId)}/stage-groups/${encodeURIComponent(groupEdit.id)}`,
-        {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        },
-      );
-      const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
-      if (!res.ok || !data.ok) {
-        setMsg(data.error ?? "Ошибка");
+    const isSysGroup = gMeta ? isTreatmentProgramInstanceSystemStageGroup(gMeta) : false;
+    if (!isSysGroup) {
+      const t = groupEdit.title.trim();
+      if (!t) {
+        setMsg("Название группы не может быть пустым");
         return;
       }
-      setGroupEdit(null);
-      await onSaved();
-    } finally {
-      setBusy(false);
     }
+    await runIfProgramInstanceMutationAllowed(programStatus, async () => {
+      setBusy(true);
+      setMsg(null);
+      try {
+        const body: Record<string, unknown> = isSysGroup
+          ? {
+              description: groupEdit.description.trim() || null,
+              scheduleText: groupEdit.scheduleText.trim() || null,
+            }
+          : {
+              title: groupEdit.title.trim(),
+              description: groupEdit.description.trim() || null,
+              scheduleText: groupEdit.scheduleText.trim() || null,
+            };
+        const res = await fetch(
+          `/api/doctor/treatment-program-instances/${encodeURIComponent(instanceId)}/stage-groups/${encodeURIComponent(groupEdit.id)}`,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          },
+        );
+        const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
+        if (!res.ok || !data.ok) {
+          setMsg(data.error ?? "Ошибка");
+          return;
+        }
+        setGroupEdit(null);
+        await onSaved();
+      } finally {
+        setBusy(false);
+      }
+    });
   };
 
   return (
-    <div className="mb-4 rounded-lg border border-border/70 bg-muted/10 p-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-xs font-medium text-muted-foreground">Группы внутри этапа</p>
-        <Button type="button" size="sm" variant="secondary" disabled={busy} onClick={() => setOpen(true)}>
-          + Группа
-        </Button>
-      </div>
-      {hasUngrouped || hasGroups ? (
-        <ul className="mt-2 list-none space-y-2 p-0">
-          {hasUngrouped ? (
-            <li key="__ungrouped__" className="rounded-md border border-border/60 bg-card/40 px-2 py-2 text-sm">
-              <div className="flex flex-wrap items-start gap-2">
-                <div className="flex w-7 shrink-0 flex-col gap-0.5" aria-hidden />
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-baseline gap-2">
-                    <span className="font-medium">Без группы</span>
-                    <span className="text-xs tabular-nums text-muted-foreground">{ungrouped.length}</span>
-                  </div>
-                  <ul className="m-0 mt-3 list-none space-y-3 border-t border-border/50 p-0 pt-3">
-                    {ungrouped.map((item) => (
-                      <li key={item.id} className="list-none">
-                        <DoctorProgramInstanceItemCard
-                          instanceId={instanceId}
-                          stage={stage}
-                          item={item}
-                          testResults={testResults}
-                          onSaved={onSaved}
-                        />
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-            </li>
-          ) : null}
+    <div className="min-w-0">
+      {isEmptyStage ? (
+        <p className="text-sm text-muted-foreground">В этапе пока нет элементов и групп.</p>
+      ) : (
+        <div className="mt-1 space-y-3">
           {sortedGroups.map((g) => {
+            const gItems = sortByOrderThenId(stage.items.filter((it) => it.groupId === g.id));
             const isSys = isTreatmentProgramInstanceSystemStageGroup(g);
             const userIdx = userGroupsOrdered.findIndex((x) => x.id === g.id);
             return (
-            <li key={g.id} className="flex flex-wrap items-center gap-2 rounded-md border border-border/60 bg-card/40 px-2 py-2 text-sm">
-              <div className="flex shrink-0 flex-col gap-0.5">
-                {isSys ? (
-                  <div className="flex w-7 shrink-0 flex-col gap-0.5" aria-hidden />
-                ) : (
-                  <>
-                <Button
-                  type="button"
-                  size="icon"
-                  variant="ghost"
-                  className="size-7"
-                  disabled={busy || userIdx <= 0}
-                  aria-label="Группа выше"
-                  onClick={() => void reorder(g.id, -1)}
-                >
-                  ↑
-                </Button>
-                <Button
-                  type="button"
-                  size="icon"
-                  variant="ghost"
-                  className="size-7"
-                  disabled={busy || userIdx < 0 || userIdx >= userGroupsOrdered.length - 1}
-                  aria-label="Группа ниже"
-                  onClick={() => void reorder(g.id, 1)}
-                >
-                  ↓
-                </Button>
-                  </>
-                )}
-              </div>
-              <div className="min-w-0 flex-1">
-                <span className="font-medium">{g.title}</span>
-                <span className="ml-2 text-xs tabular-nums text-muted-foreground">
-                  {stage.items.filter((it) => it.groupId === g.id).length}
-                </span>
-                {g.scheduleText?.trim() ? (
-                  <span className="ml-2 text-xs text-muted-foreground">{g.scheduleText.trim()}</span>
-                ) : null}
-              </div>
-              {!isSys ? (
-              <Button
-                type="button"
-                size="sm"
-                variant="secondary"
-                disabled={busy}
-                onClick={() =>
-                  setGroupEdit({
-                    id: g.id,
-                    title: g.title,
-                    description: g.description ?? "",
-                    scheduleText: g.scheduleText ?? "",
-                  })
-                }
+              <div
+                key={g.id}
+                className="overflow-hidden rounded-md border border-border/50 bg-background/60 shadow-sm"
               >
-                Изменить
-              </Button>
-              ) : null}
-            </li>
+                <div
+                  className="flex items-start justify-between gap-2 border-b border-border/25 px-2 py-1.5"
+                  style={instanceGroupHeaderSurfaceStyle(g)}
+                >
+                  <div className="min-w-0 flex-1 pt-0.5">
+                    <p className="text-sm font-semibold leading-snug text-foreground">{g.title}</p>
+                    <p className="mt-0.5 text-xs tabular-nums text-muted-foreground">
+                      Элементов: {gItems.length}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 flex-wrap items-start justify-end gap-1">
+                    {!isSys ? (
+                      <>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className={tplToolbarTextBtnClass}
+                          disabled={busy || editLocked}
+                          onClick={() =>
+                            setGroupEdit({
+                              id: g.id,
+                              title: g.title,
+                              description: g.description ?? "",
+                              scheduleText: g.scheduleText ?? "",
+                            })
+                          }
+                        >
+                          Изменить
+                        </Button>
+                        <TemplateReorderChevrons
+                          compact
+                          className="-mt-px shrink-0"
+                          disabled={busy || editLocked}
+                          disableUp={userIdx <= 0}
+                          disableDown={userIdx < 0 || userIdx >= userGroupsOrdered.length - 1}
+                          ariaLabelUp="Группа выше"
+                          ariaLabelDown="Группа ниже"
+                          onUp={() => void reorder(g.id, -1)}
+                          onDown={() => void reorder(g.id, 1)}
+                        />
+                      </>
+                    ) : (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className={tplToolbarTextBtnClass}
+                        disabled={busy || editLocked}
+                        onClick={() =>
+                          setGroupEdit({
+                            id: g.id,
+                            title: g.title,
+                            description: g.description ?? "",
+                            scheduleText: g.scheduleText ?? "",
+                          })
+                        }
+                      >
+                        Изменить
+                      </Button>
+                    )}
+                  </div>
+                </div>
+                {g.scheduleText?.trim() ? (
+                  <div className="border-b border-border/15 px-2 py-1">
+                    <p className="text-xs text-muted-foreground">{g.scheduleText.trim()}</p>
+                  </div>
+                ) : null}
+                <div className="p-2">
+                  {gItems.length === 0 ? (
+                    <p className="py-2 text-xs text-muted-foreground">В группе пока нет элементов.</p>
+                  ) : (
+                    <ul className="divide-y rounded-md border border-border/30">
+                      {gItems.map((item) => (
+                        <li key={item.id} className="list-none px-1 py-2">
+                          <DoctorProgramInstanceItemCard
+                            instanceId={instanceId}
+                            stage={stage}
+                            item={item}
+                            testResults={testResults}
+                            programStatus={programStatus}
+                            onSaved={onSaved}
+                          />
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </div>
             );
           })}
-        </ul>
-      ) : (
-        <p className="mt-1 text-xs text-muted-foreground">Групп нет — элементы можно оставить вне групп.</p>
+          {hasUngrouped ? (
+            <div className="overflow-hidden rounded-md border-2 border-destructive bg-background/60">
+              <div className="border-b border-destructive/50 bg-destructive/20 px-2 py-2 dark:bg-destructive/30">
+                <p className="text-sm font-semibold text-foreground">Без группы</p>
+              </div>
+              <div className="p-2">
+                <ul className="divide-y rounded-md border border-border/50">
+                  {ungrouped.map((item) => (
+                    <li key={item.id} className="list-none px-1 py-2">
+                      <DoctorProgramInstanceItemCard
+                        instanceId={instanceId}
+                        stage={stage}
+                        item={item}
+                        testResults={testResults}
+                        programStatus={programStatus}
+                        onSaved={onSaved}
+                      />
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          ) : null}
+        </div>
       )}
       {msg ? <p className="mt-2 text-xs text-destructive">{msg}</p> : null}
-      <Dialog open={open} modal={false} onOpenChange={setOpen}>
+      <Dialog open={newGroupOpen} modal={false} onOpenChange={onNewGroupOpenChange}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Новая группа</DialogTitle>
+            <DialogDescription>Группа для объединения пунктов внутри этапа.</DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-2">
             <Label htmlFor={`ng-${stage.id}`}>Название</Label>
             <Input id={`ng-${stage.id}`} value={title} onChange={(e) => setTitle(e.target.value)} maxLength={2000} />
           </div>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+            <Button type="button" variant="outline" onClick={() => onNewGroupOpenChange(false)}>
               Отмена
             </Button>
-            <Button type="button" disabled={busy || !title.trim()} onClick={() => void addGroup()}>
+            <Button
+              type="button"
+              disabled={busy || editLocked || !title.trim()}
+              onClick={() => void addGroup()}
+            >
               Добавить
             </Button>
           </DialogFooter>
@@ -793,6 +954,11 @@ function InstanceStageGroupsPanel(props: {
           <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
             <DialogHeader>
               <DialogTitle>Группа этапа</DialogTitle>
+              <DialogDescription>
+                {editingIsSystem
+                  ? "Поля описания и расписания; название системной группы фиксировано."
+                  : "Название, описание и расписание группы."}
+              </DialogDescription>
             </DialogHeader>
             <div className="flex flex-col gap-3">
               <div className="flex flex-col gap-1.5">
@@ -829,44 +995,19 @@ function InstanceStageGroupsPanel(props: {
                   disabled={busy}
                 />
               </div>
-              <div className="border-t border-border pt-3">
-                <p className="text-xs font-medium text-muted-foreground">Состав группы</p>
-                {(() => {
-                  const groupItems = sortByOrderThenId(
-                    stage.items.filter((it) => it.groupId === groupEdit.id),
-                  );
-                  if (groupItems.length === 0) {
-                    return <p className="mt-2 text-sm text-muted-foreground">Нет элементов в группе.</p>;
-                  }
-                  return (
-                    <div className="mt-2 flex max-h-[min(50vh,28rem)] flex-col gap-3 overflow-y-auto pr-1">
-                      {groupItems.map((item) => (
-                        <DoctorProgramInstanceItemCard
-                          key={item.id}
-                          instanceId={instanceId}
-                          stage={stage}
-                          item={item}
-                          testResults={testResults}
-                          onSaved={onSaved}
-                        />
-                      ))}
-                    </div>
-                  );
-                })()}
-              </div>
             </div>
             <DialogFooter className="gap-2 sm:flex-wrap sm:justify-end">
               <Button type="button" variant="outline" disabled={busy} onClick={() => setGroupEdit(null)}>
                 Отмена
               </Button>
               {editingIsSystem ? null : (
-              <Button type="button" variant="destructive" disabled={busy} onClick={() => void hideGroupFromModal()}>
-                Скрыть
-              </Button>
+                <Button type="button" variant="destructive" disabled={busy || editLocked} onClick={() => void hideGroupFromModal()}>
+                  Скрыть
+                </Button>
               )}
               <Button
                 type="button"
-                disabled={busy || (!editingIsSystem && !groupEdit.title.trim())}
+                disabled={busy || editLocked || (!editingIsSystem && !groupEdit.title.trim())}
                 onClick={() => void saveGroupEdit()}
               >
                 Сохранить
@@ -885,10 +1026,13 @@ function InstanceStageItemDoctorRow(props: {
   groups: TreatmentProgramInstanceDetail["stages"][number]["groups"];
   testResults: TreatmentProgramTestResultDetailRow[];
   onSaved: () => Promise<void>;
+  programStatus: TreatmentProgramInstanceStatus;
+  editLocked: boolean;
   /** Скрыть выбор группы (блок рекомендаций этапа 0). */
   hideGroupSelect?: boolean;
 }) {
-  const { instanceId, item, groups, testResults, onSaved, hideGroupSelect = false } = props;
+  const { instanceId, item, groups, testResults, onSaved, programStatus, editLocked, hideGroupSelect = false } =
+    props;
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -906,26 +1050,29 @@ function InstanceStageItemDoctorRow(props: {
   }, [groups]);
 
   const patchItem = async (body: Record<string, unknown>) => {
-    setSaving(true);
-    setMsg(null);
-    try {
-      const res = await fetch(
-        `/api/doctor/treatment-program-instances/${encodeURIComponent(instanceId)}/stage-items/${encodeURIComponent(item.id)}`,
-        {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        },
-      );
-      const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
-      if (!res.ok || !data.ok) {
-        setMsg(data.error ?? "Ошибка");
-        return;
+    if (editLocked) return;
+    await runIfProgramInstanceMutationAllowed(programStatus, async () => {
+      setSaving(true);
+      setMsg(null);
+      try {
+        const res = await fetch(
+          `/api/doctor/treatment-program-instances/${encodeURIComponent(instanceId)}/stage-items/${encodeURIComponent(item.id)}`,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          },
+        );
+        const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
+        if (!res.ok || !data.ok) {
+          setMsg(data.error ?? "Ошибка");
+          return;
+        }
+        await onSaved();
+      } finally {
+        setSaving(false);
       }
-      await onSaved();
-    } finally {
-      setSaving(false);
-    }
+    });
   };
 
   return (
@@ -938,7 +1085,7 @@ function InstanceStageItemDoctorRow(props: {
           <Select
             value={item.isActionable === false ? "persistent" : "actionable"}
             onValueChange={(v) => void patchItem({ isActionable: v === "actionable" })}
-            disabled={saving}
+            disabled={saving || editLocked}
             items={doctorRecommendationActionabilitySelectItems}
           >
             <SelectTrigger className="h-8 w-[220px] text-xs" size="sm">
@@ -954,7 +1101,7 @@ function InstanceStageItemDoctorRow(props: {
           <Select
             value={item.groupId ?? "__none__"}
             onValueChange={(v) => void patchItem({ groupId: v === "__none__" ? null : v })}
-            disabled={saving}
+            disabled={saving || editLocked}
             items={groupSelectItems}
           >
             <SelectTrigger className="h-8 w-[min(100%,12rem)] text-xs" size="sm">
@@ -975,7 +1122,7 @@ function InstanceStageItemDoctorRow(props: {
             type="button"
             variant="outline"
             size="sm"
-            disabled={saving}
+            disabled={saving || editLocked}
             onClick={() => {
               if (hasHistory) setConfirmOpen(true);
               else void patchItem({ status: "disabled" });
@@ -988,7 +1135,7 @@ function InstanceStageItemDoctorRow(props: {
             type="button"
             variant="secondary"
             size="sm"
-            disabled={saving}
+            disabled={saving || editLocked}
             onClick={() => void patchItem({ status: "active" })}
           >
             Включить
@@ -1000,10 +1147,10 @@ function InstanceStageItemDoctorRow(props: {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Отключить элемент?</DialogTitle>
+            <DialogDescription>
+              У элемента уже есть выполнение или результат теста. Он будет скрыт у пациента, история сохранится.
+            </DialogDescription>
           </DialogHeader>
-          <p className="text-sm text-muted-foreground">
-            У элемента уже есть выполнение или результат теста. Он будет скрыт у пациента, история сохранится.
-          </p>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setConfirmOpen(false)}>
               Отмена
@@ -1027,11 +1174,13 @@ function InstanceStageItemDoctorRow(props: {
 function StageDoctorControls(props: {
   instanceId: string;
   stage: TreatmentProgramInstanceDetail["stages"][number];
+  programStatus: TreatmentProgramInstanceStatus;
   onPatched: () => Promise<void>;
 }) {
-  const { instanceId, stage, onPatched } = props;
+  const { instanceId, stage, programStatus, onPatched } = props;
   const stageId = stage.id;
   const status = stage.status;
+  const editLocked = isProgramInstanceEditLocked(programStatus);
 
   const [skipDialogOpen, setSkipDialogOpen] = useState(false);
   const [skipReasonDraft, setSkipReasonDraft] = useState("");
@@ -1072,64 +1221,71 @@ function StageDoctorControls(props: {
   ]);
 
   const patch = async (body: { status: string; reason?: string | null }) => {
-    setSaving(true);
-    setMsg(null);
-    try {
-      const res = await fetch(
-        `/api/doctor/treatment-program-instances/${encodeURIComponent(instanceId)}/stages/${encodeURIComponent(stageId)}`,
-        {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        },
-      );
-      const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
-      if (!res.ok || !data.ok) {
-        setMsg(data.error ?? "Ошибка");
-        return;
+    if (editLocked) return;
+    await runIfProgramInstanceMutationAllowed(programStatus, async () => {
+      setSaving(true);
+      setMsg(null);
+      try {
+        const res = await fetch(
+          `/api/doctor/treatment-program-instances/${encodeURIComponent(instanceId)}/stages/${encodeURIComponent(stageId)}`,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          },
+        );
+        const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
+        if (!res.ok || !data.ok) {
+          setMsg(data.error ?? "Ошибка");
+          return;
+        }
+        await onPatched();
+        setMsg("Сохранено");
+      } finally {
+        setSaving(false);
       }
-      await onPatched();
-      setMsg("Сохранено");
-    } finally {
-      setSaving(false);
-    }
+    });
   };
 
-  const stageActionsLocked = status === "completed" || status === "skipped";
+  const stageActionsLocked = status === "completed" || status === "skipped" || editLocked;
 
   const submitSkip = async () => {
+    if (editLocked) return;
     const reason = skipReasonDraft.trim();
     if (!reason) {
       setSkipDialogError("Укажите причину пропуска");
       return;
     }
-    setSkipDialogError(null);
-    setSaving(true);
-    setMsg(null);
-    try {
-      const res = await fetch(
-        `/api/doctor/treatment-program-instances/${encodeURIComponent(instanceId)}/stages/${encodeURIComponent(stageId)}`,
-        {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ status: "skipped", reason }),
-        },
-      );
-      const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
-      if (!res.ok || !data.ok) {
-        setSkipDialogError(data.error ?? "Ошибка");
-        return;
+    await runIfProgramInstanceMutationAllowed(programStatus, async () => {
+      setSkipDialogError(null);
+      setSaving(true);
+      setMsg(null);
+      try {
+        const res = await fetch(
+          `/api/doctor/treatment-program-instances/${encodeURIComponent(instanceId)}/stages/${encodeURIComponent(stageId)}`,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ status: "skipped", reason }),
+          },
+        );
+        const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
+        if (!res.ok || !data.ok) {
+          setSkipDialogError(data.error ?? "Ошибка");
+          return;
+        }
+        await onPatched();
+        setSkipDialogOpen(false);
+        setSkipReasonDraft("");
+        setMsg("Сохранено");
+      } finally {
+        setSaving(false);
       }
-      await onPatched();
-      setSkipDialogOpen(false);
-      setSkipReasonDraft("");
-      setMsg("Сохранено");
-    } finally {
-      setSaving(false);
-    }
+    });
   };
 
   const saveStageSettings = async () => {
+    if (editLocked) return;
     const titleTrim = titleDraft.trim();
     if (!titleTrim) {
       setSettingsMsg("Укажите название этапа");
@@ -1145,42 +1301,49 @@ function StageDoctorControls(props: {
       }
       expectedDurationDays = n;
     }
-    setSettingsSaving(true);
-    setSettingsMsg(null);
-    try {
-      const res = await fetch(
-        `/api/doctor/treatment-program-instances/${encodeURIComponent(instanceId)}/stages/${encodeURIComponent(stageId)}`,
-        {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            title: titleTrim,
-            description: descriptionDraft.trim() || null,
-            goals: goalsDraft.trim() || null,
-            objectives: objectivesDraft.trim() || null,
-            expectedDurationDays,
-            expectedDurationText: textDraft.trim() || null,
-          }),
-        },
-      );
-      const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
-      if (!res.ok || !data.ok) {
-        setSettingsMsg(data.error ?? "Ошибка");
-        return;
+    await runIfProgramInstanceMutationAllowed(programStatus, async () => {
+      setSettingsSaving(true);
+      setSettingsMsg(null);
+      try {
+        const res = await fetch(
+          `/api/doctor/treatment-program-instances/${encodeURIComponent(instanceId)}/stages/${encodeURIComponent(stageId)}`,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              title: titleTrim,
+              description: descriptionDraft.trim() || null,
+              goals: goalsDraft.trim() || null,
+              objectives: objectivesDraft.trim() || null,
+              expectedDurationDays,
+              expectedDurationText: textDraft.trim() || null,
+            }),
+          },
+        );
+        const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
+        if (!res.ok || !data.ok) {
+          setSettingsMsg(data.error ?? "Ошибка");
+          return;
+        }
+        setStageSettingsOpen(false);
+        await onPatched();
+      } finally {
+        setSettingsSaving(false);
       }
-      setStageSettingsOpen(false);
-      await onPatched();
-    } finally {
-      setSettingsSaving(false);
-    }
+    });
   };
 
   return (
-    <div className="mb-4 flex flex-col gap-2 rounded-lg border border-dashed border-border/80 bg-muted/10 p-3">
-      <p className="text-xs font-medium text-muted-foreground">Управление этапом (врач)</p>
+    <div className="mb-4 flex flex-col gap-2">
       <div className="flex w-full flex-wrap items-center gap-2">
         {status === "locked" ? (
-          <Button type="button" size="sm" variant="secondary" disabled={saving} onClick={() => void patch({ status: "available" })}>
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            disabled={saving || editLocked}
+            onClick={() => void patch({ status: "available" })}
+          >
             Открыть этап
           </Button>
         ) : null}
@@ -1189,7 +1352,7 @@ function StageDoctorControls(props: {
             type="button"
             size="sm"
             variant="secondary"
-            disabled={saving}
+            disabled={saving || editLocked}
             onClick={() => void patch({ status: "in_progress" })}
           >
             Старт этапа
@@ -1209,7 +1372,7 @@ function StageDoctorControls(props: {
             type="button"
             size="sm"
             variant="secondary"
-            disabled={saving || settingsSaving}
+            disabled={saving || settingsSaving || editLocked}
             onClick={() => setStageSettingsOpen(true)}
           >
             Изменить
@@ -1242,6 +1405,10 @@ function StageDoctorControls(props: {
         <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Настройки этапа</DialogTitle>
+            <DialogDescription>
+              Название, описание, цели и сроки этапа программы пациента. Значения скопированы из шаблона при назначении;
+              изменения для этого пациента.
+            </DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-3">
             <div className="flex flex-col gap-1.5">
@@ -1333,6 +1500,7 @@ function StageDoctorControls(props: {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Пропустить этап</DialogTitle>
+            <DialogDescription>Этап будет отмечен как пропущенный; укажите причину для журнала.</DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-2">
             <label className="text-xs font-medium text-muted-foreground" htmlFor={`skip-reason-${stageId}`}>
@@ -1375,8 +1543,10 @@ function ItemLocalCommentForm(props: {
   initialDraft: string;
   placeholder?: string;
   onSaved: () => Promise<void>;
+  programStatus: TreatmentProgramInstanceStatus;
+  editLocked: boolean;
 }) {
-  const { instanceId, itemId, initialDraft, placeholder, onSaved } = props;
+  const { instanceId, itemId, initialDraft, placeholder, onSaved, programStatus, editLocked } = props;
   const [draft, setDraft] = useState(initialDraft);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -1396,38 +1566,41 @@ function ItemLocalCommentForm(props: {
         onChange={(e) => setDraft(e.target.value)}
         rows={3}
         className="text-sm"
-        disabled={saving}
+        disabled={saving || editLocked}
         placeholder={placeholder ?? "Из шаблона: —"}
       />
       <div className="flex flex-wrap gap-2">
         <Button
           type="button"
           size="sm"
-          disabled={saving}
+          disabled={saving || editLocked}
           onClick={async () => {
-            setSaving(true);
-            setMsg(null);
-            try {
-              const res = await fetch(
-                `/api/doctor/treatment-program-instances/${encodeURIComponent(instanceId)}/stage-items/${encodeURIComponent(itemId)}`,
-                {
-                  method: "PATCH",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ localComment: draft.trim() === "" ? null : draft.trim() }),
-                },
-              );
-              const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
-              if (!res.ok || !data.ok) {
-                setMsg(data.error ?? "Ошибка сохранения");
-                return;
+            if (editLocked) return;
+            await runIfProgramInstanceMutationAllowed(programStatus, async () => {
+              setSaving(true);
+              setMsg(null);
+              try {
+                const res = await fetch(
+                  `/api/doctor/treatment-program-instances/${encodeURIComponent(instanceId)}/stage-items/${encodeURIComponent(itemId)}`,
+                  {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ localComment: draft.trim() === "" ? null : draft.trim() }),
+                  },
+                );
+                const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
+                if (!res.ok || !data.ok) {
+                  setMsg(data.error ?? "Ошибка сохранения");
+                  return;
+                }
+                await onSaved();
+                setMsg("Сохранено");
+              } catch {
+                setMsg("Ошибка сохранения");
+              } finally {
+                setSaving(false);
               }
-              await onSaved();
-              setMsg("Сохранено");
-            } catch {
-              setMsg("Ошибка сохранения");
-            } finally {
-              setSaving(false);
-            }
+            });
           }}
         >
           {saving ? "Сохранение…" : "Сохранить"}

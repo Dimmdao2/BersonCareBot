@@ -37,6 +37,8 @@ export type CommentBlockProps = {
   /** Админ может править/удалять чужие комментарии (как в API). */
   isAdmin?: boolean;
   title?: string;
+  /** Запретить добавление и правки существующих (например, завершённая программа). */
+  mutationsDisabled?: boolean;
 };
 
 /**
@@ -49,6 +51,7 @@ export function CommentBlock({
   currentUserId,
   isAdmin = false,
   title = "Комментарии",
+  mutationsDisabled = false,
 }: CommentBlockProps) {
   const [items, setItems] = useState<EntityComment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -88,6 +91,7 @@ export function CommentBlock({
   }, [load]);
 
   function canMutate(c: EntityComment): boolean {
+    if (mutationsDisabled) return false;
     return c.authorId === currentUserId || isAdmin;
   }
 
@@ -164,36 +168,38 @@ export function CommentBlock({
         </p>
       ) : null}
 
-      <div className="mt-4 flex flex-col gap-3 border-t border-border pt-4">
-        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Новый комментарий</p>
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <Select value={newType} onValueChange={(v) => setNewType(v as CommentType)}>
-            <SelectTrigger className="w-full sm:w-[200px]" aria-label="Тип комментария">
-              <SelectValue>{COMMENT_TYPE_LABEL[newType]}</SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              {COMMENT_TYPES.map((t) => (
-                <SelectItem key={t} value={t}>
-                  {COMMENT_TYPE_LABEL[t]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+      {mutationsDisabled ? null : (
+        <div className="mt-4 flex flex-col gap-3 border-t border-border pt-4">
+          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Новый комментарий</p>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <Select value={newType} onValueChange={(v) => setNewType(v as CommentType)}>
+              <SelectTrigger className="w-full sm:w-[200px]" aria-label="Тип комментария">
+                <SelectValue>{COMMENT_TYPE_LABEL[newType]}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {COMMENT_TYPES.map((t) => (
+                  <SelectItem key={t} value={t}>
+                    {COMMENT_TYPE_LABEL[t]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <Textarea
+            value={newBody}
+            onChange={(e) => setNewBody(e.target.value)}
+            rows={3}
+            placeholder="Текст…"
+            disabled={submitting}
+            className="text-sm"
+          />
+          <Button type="button" onClick={() => void submitNew()} disabled={submitting || !newBody.trim()}>
+            {submitting ? "Отправка…" : "Добавить"}
+          </Button>
         </div>
-        <Textarea
-          value={newBody}
-          onChange={(e) => setNewBody(e.target.value)}
-          rows={3}
-          placeholder="Текст…"
-          disabled={submitting}
-          className="text-sm"
-        />
-        <Button type="button" onClick={() => void submitNew()} disabled={submitting || !newBody.trim()}>
-          {submitting ? "Отправка…" : "Добавить"}
-        </Button>
-      </div>
+      )}
 
-      <div className="mt-6">
+      <div className={mutationsDisabled ? "mt-4" : "mt-6"}>
         <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">Список</p>
         {loading ? (
           <p className="text-sm text-muted-foreground">Загрузка…</p>

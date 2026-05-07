@@ -44,6 +44,15 @@ import {
 import { TreatmentProgramTemplateStatusBadge } from "../TreatmentProgramTemplateStatusBadge";
 import { TemplateReorderChevrons } from "@/shared/ui/doctor/TemplateReorderChevrons";
 import { cn } from "@/lib/utils";
+import {
+  TPL_CONSTRUCTOR_GLOBAL_RECOMMENDATIONS_CARD_CLASS,
+  TPL_CONSTRUCTOR_LEARNING_STAGE_CARD_CLASS,
+  TPL_HEADER_BG_GROUP_CUSTOM,
+  TPL_HEADER_BG_GROUP_TESTS,
+  TPL_HEADER_BG_RECOMMENDATIONS,
+  TPL_HEADER_BG_STAGE_EDITABLE,
+  tplToolbarTextBtnClass,
+} from "@/app/app/doctor/treatment-program-shared/treatmentProgramConstructorShellStyles";
 
 const ITEM_TYPE_LABEL: Record<TreatmentProgramItemType, string> = {
   exercise: "Упражнение ЛФК",
@@ -52,9 +61,6 @@ const ITEM_TYPE_LABEL: Record<TreatmentProgramItemType, string> = {
   lesson: "Урок (страница контента)",
   test_set: "Набор тестов",
 };
-
-/** Компактные кнопки в шапке этапа / группы шаблона программы. */
-const tplToolbarTextBtnClass = "h-7 min-h-7 px-2 text-xs";
 
 /** Квадратная кнопка «+»: открыть выбор элемента из каталога. */
 function TplAddItemSquareButton({
@@ -264,25 +270,6 @@ function ungroupedItemsForStage(stage: StageWithChildren) {
 function itemsInGroupForStage(stage: StageWithChildren, groupId: string) {
   return sortByOrderThenId(stage.items.filter((i) => i.groupId === groupId));
 }
-
-/** Фон шапки: блок общих рекомендаций шаблона и системная группа «Рекомендации этапа». */
-const TPL_HEADER_BG_RECOMMENDATIONS =
-  "color-mix(in oklab, oklch(0.79 0.2 113.21) 25%, transparent)";
-/** Фон шапки лечебных этапов (`sort_order > 0`). */
-const TPL_HEADER_BG_STAGE_EDITABLE =
-  "color-mix(in oklab, hsl(0deg 0% 95.9%) 50%, transparent)";
-/** Фон шапки обычной (пользовательской) группы. */
-const TPL_HEADER_BG_GROUP_CUSTOM =
-  "color-mix(in oklab, oklch(0.53 0.18 247.27) 9%, transparent)";
-/** Фон шапки группы «Тестирование». */
-const TPL_HEADER_BG_GROUP_TESTS =
-  "color-mix(in oklab, oklch(0.71 0.19 58.95 / 0.47) 55%, transparent)";
-
-/** Карточка общих рекомендаций — отдельно от карточки лечебного этапа (`TPL_CONSTRUCTOR_LEARNING_STAGE_CARD_CLASS`). */
-const TPL_CONSTRUCTOR_GLOBAL_RECOMMENDATIONS_CARD_CLASS =
-  "w-full min-w-0 overflow-hidden rounded-md border border-border/50 bg-muted/10 shadow-sm";
-const TPL_CONSTRUCTOR_LEARNING_STAGE_CARD_CLASS =
-  "w-full min-w-0 overflow-hidden rounded-md border border-border/60 bg-card/20 shadow-sm";
 
 function templateGroupHeaderSurfaceStyle(g: TreatmentProgramTemplateStageGroup): CSSProperties {
   if (g.systemKind === "recommendations") {

@@ -50,10 +50,51 @@
 
 ---
 
+## 2026-05-07 — Parity UI: конструктор шаблона → экран назначенной программы
+
+Краткая матрица (template constructor vs doctor instance editor):
+
+| Блок | Шаблон (`TreatmentProgramConstructorClient`) | Инстанс (до работ) | Инстанс (цель) |
+|------|----------------------------------------------|--------------------|----------------|
+| Карточка этапа | `TPL_CONSTRUCTOR_LEARNING_STAGE_CARD_CLASS`, цветная шапка | Простая `section` + текст | Тот же shell + цветная шапка этапа |
+| Toolbar этапа | `+ Группа`, настройки этапа, reorder этапов | `StageDoctorControls` отдельным блоком | `+ Группа` в шапке карточки; управление этапом в теле |
+| Группа | Карточка с цветной шапкой, элементы inline в `ul` | Строка группы; элементы только в модалке «Изменить» | Карточка как в шаблоне; элементы inline под группой |
+| Элемент | Компактная строка + модалка настроек | Развёрнутая карточка | Компактный `<details>` + детали при раскрытии |
+| Мутации | Черновик/публикация | Без единого guard | `requestProgramInstanceDataMutation` для `active`; lock при `completed` |
+
+Общий код: `@/app/app/doctor/treatment-program-shared/*` (shell styles + guard).
+
+---
+
+## 2026-05-07 — Реализация Constructor-style UI для экземпляра программы
+
+- Shell как у конструктора шаблона: `INSTANCE_CONSTRUCTOR_LEARNING_STAGE_CARD_CLASS`, цветные шапки этапа/групп, группы с inline-элементами; этап 0 «Общие рекомендации» — карточка с шапкой в левой колонке.
+- Мутации: `requestProgramInstanceDataMutation` / `isProgramInstanceEditLocked` (`programInstanceMutationGuard.ts`); для `active` — `confirm` перед PATCH/POST; для `completed` — кнопки отключены.
+- Элементы: `<details>` + бейдж «Комментарий: своё» при непустом `localComment`.
+- Файлы: `TreatmentProgramInstanceDetailClient.tsx`, `treatment-program-shared/*`.
+- Проверки: `pnpm --dir apps/webapp exec tsc --noEmit`, `pnpm exec eslint` по затронутым путям.
+- Не делали: полноценный «добавить элемент из каталога» как в шаблоне (отдельный picker / POST items из UI).
+
+---
+
 ## 2026-05-07 — Системные группы экземпляра и документация
 
 - Реализованы/зафиксированы: `system_kind` на `treatment_program_instance_stage_groups` (Drizzle + миграции `0044`, `0045` — уникальность одной rec/tests на этап), автоподстановка системных групп в `createInstanceTree` при ungrouped `recommendation`/`test_set` без строк в `groups` (`instance-tree-system-groups.ts`).
 - Обновлены: `PROGRAM_PATIENT_SHAPE_PLAN.md` §1.1 / §1.1a, `ROADMAP.md` §4, `PATIENT_TREATMENT_PROGRAM_STAGE_SURFACES.md` (таблица фильтров), JSDoc в `types.ts` для дерева экземпляра.
+
+---
+
+## 2026-05-07 — Правки по пост-реализационному аудиту (UX/a11y/DRY)
+
+- **Guard:** добавлен `runIfProgramInstanceMutationAllowed`; мутации инстанса в `TreatmentProgramInstanceDetailClient` переведены на него (единая точка после sync `requestProgramInstanceDataMutation`).
+- **Скрыть группу:** одно подтверждение — текст для `active` включает предупреждение об активной программе и последствия hide (раньше было guard + второй `confirm`).
+- **Дубль «Отключено»:** убран бейдж в свёрнутой строке `<details>` карточки элемента; статус остаётся в строке действий (`InstanceStageItemDoctorRow`).
+- **a11y:** `DialogDescription` для завершения программы, отключения элемента с историей; расширено описание модалки «Настройки этапа» (шаблон → правки только для пациента).
+- **`CommentBlock`:** опциональный `mutationsDisabled` — при завершённой программе скрыта форма нового комментария и недоступны правки/удаление существующих.
+- **DRY shell:** константы шапок/карточек конструктора шаблона импортируются из `treatment-program-shared/treatmentProgramConstructorShellStyles.ts` (алиасы `TPL_*`).
+- **Не делали:** UI «добавить элемент из каталога» на экране инстанса — по-прежнему бэклог parity с шаблоном.
+
+Проверки: `pnpm --dir apps/webapp exec tsc --noEmit` → OK; `pnpm --dir apps/webapp exec eslint` по путям `TreatmentProgramInstanceDetailClient`, `TreatmentProgramConstructorClient`, `treatment-program-shared/*`, `CommentBlock` → OK.
 
 ---
 
