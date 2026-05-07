@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useMemo, useState, type ReactNode } from "react";
+import Link from "next/link";
+import { useCallback, useMemo, type ReactNode } from "react";
 import { AlertTriangle, MessageCircle, NotebookText, PlayCircle } from "lucide-react";
-import { PatientProgramStageItemModal } from "@/app/app/patient/treatment/PatientProgramStageItemModal";
+import { routePaths } from "@/app-layer/routes/paths";
 import { PatientCatalogMediaStaticThumb } from "@/shared/ui/patient/PatientCatalogMediaStaticThumb";
 import type { TreatmentProgramInstanceDetail } from "@/modules/treatment-program/types";
 import {
@@ -208,6 +209,7 @@ function PatientProgramTileTodayDots(props: { todayCount: number }) {
 }
 
 export function PatientTreatmentProgramStagePageProgramSection(props: {
+  instanceId: string;
   stage: Stage;
   base: string;
   busy: string | null;
@@ -225,6 +227,7 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
   className?: string;
 }) {
   const {
+    instanceId,
     stage,
     base,
     busy,
@@ -252,31 +255,10 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
     [stage, visibleProgramItems],
   );
 
-  const [openItemId, setOpenItemId] = useState<string | null>(null);
-
-  const flatOrderedProgramIds = useMemo(
-    () => flatOrderedProgramCompositionItemIds(stage),
-    [stage],
-  );
-
-  const openModalItem = useMemo(
-    () => (openItemId ? (visibleProgramItems.find((it) => it.id === openItemId) ?? null) : null),
-    [openItemId, visibleProgramItems],
-  );
-
-  const openProgramModal = useCallback((id: string) => {
-    setOpenItemId(id);
-  }, []);
-
-  const closeModal = useCallback(() => {
-    setOpenItemId(null);
-  }, []);
-
-  const navigateModal = useCallback((id: string) => {
-    setOpenItemId(id);
-  }, []);
-
   if (visibleProgramItems.length === 0) return null;
+
+  const itemProgramHref = (itemId: string) =>
+    routePaths.patientTreatmentProgramItem(instanceId, itemId, "program");
 
   const renderTile = (item: InstanceStageItem): ReactNode => {
     const media = primaryMediaForStageItem(item);
@@ -303,50 +285,51 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
       >
         <div className="flex flex-col p-2.5">
           <div className="flex items-stretch gap-2.5">
-          <button
-            type="button"
-            className={cn(
-              "relative size-[72px] shrink-0 cursor-pointer overflow-hidden rounded-md border-0 bg-muted/20 p-0 text-left",
-              "ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--patient-border)] focus-visible:ring-offset-2",
-            )}
-            onClick={() => openProgramModal(item.id)}
-            aria-label={`Открыть: ${tileTitle(item.snapshot as Record<string, unknown>, item.itemType)}`}
-          >
-            <PatientCatalogMediaStaticThumb
-              media={media}
-              frameClassName="h-full w-full rounded-none"
-              sizes="72px"
-            />
-            <div
-              className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/20"
-              aria-hidden
-            >
-              {isVideo ? (
-                <PlayCircle className="size-8 text-white/45 drop-shadow-md" />
-              ) : (
-                <span className="rounded-md bg-black/55 px-1.5 py-0.5 text-[10px] font-medium text-white">
-                  Открыть
-                </span>
+            <Link
+              href={itemProgramHref(item.id)}
+              className={cn(
+                "relative size-[72px] shrink-0 cursor-pointer overflow-hidden rounded-md border-0 bg-muted/20 p-0 text-left no-underline outline-none",
+                "ring-offset-background focus-visible:ring-2 focus-visible:ring-[var(--patient-border)] focus-visible:ring-offset-2",
               )}
-            </div>
-          </button>
-          <div className="flex min-h-[72px] min-w-0 flex-1 flex-col self-stretch">
-            <div className="flex min-h-[33px] shrink-0 gap-2 overflow-hidden">
-              <button
-                type="button"
-                className="flex min-w-0 flex-1 cursor-pointer items-start border-0 bg-transparent p-0 text-left"
-                onClick={() => openProgramModal(item.id)}
+              aria-label={`Открыть: ${tileTitle(item.snapshot as Record<string, unknown>, item.itemType)}`}
+            >
+              <PatientCatalogMediaStaticThumb
+                media={media}
+                frameClassName="h-full w-full rounded-none"
+                sizes="72px"
+              />
+              <div
+                className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/20"
+                aria-hidden
               >
-                <span className="line-clamp-2 break-words text-[13px] font-normal leading-tight text-foreground">
-                  {tileTitle(item.snapshot as Record<string, unknown>, item.itemType)}
+                {isVideo ? (
+                  <PlayCircle className="size-8 text-white/45 drop-shadow-md" />
+                ) : (
+                  <span className="rounded-md bg-black/55 px-1.5 py-0.5 text-[10px] font-medium text-white">
+                    Открыть
+                  </span>
+                )}
+              </div>
+            </Link>
+            <div className="flex min-h-[72px] min-w-0 flex-1 flex-col self-stretch">
+              <Link
+                href={itemProgramHref(item.id)}
+                className={cn(
+                  "flex min-h-[33px] shrink-0 gap-2 overflow-hidden no-underline outline-none",
+                  "ring-offset-background focus-visible:rounded-md focus-visible:ring-2 focus-visible:ring-[var(--patient-border)] focus-visible:ring-offset-2",
+                )}
+              >
+                <span className="flex min-w-0 flex-1 items-start text-left">
+                  <span className="line-clamp-2 break-words text-[13px] font-normal leading-tight text-foreground">
+                    {tileTitle(item.snapshot as Record<string, unknown>, item.itemType)}
+                  </span>
                 </span>
-              </button>
-              {repsSetsBadge ? (
-                <span className="shrink-0 self-end rounded-md border border-neutral-300 bg-white px-1.5 py-0.5 text-[10px] font-medium leading-none tabular-nums text-neutral-800">
-                  {repsSetsBadge}
-                </span>
-              ) : null}
-            </div>
+                {repsSetsBadge ? (
+                  <span className="shrink-0 self-end rounded-md border border-neutral-300 bg-white px-1.5 py-0.5 text-[10px] font-medium leading-none tabular-nums text-neutral-800">
+                    {repsSetsBadge}
+                  </span>
+                ) : null}
+              </Link>
 
             <div className="mt-auto flex w-full min-w-0 shrink-0 items-start justify-between gap-2">
               <div className="flex min-w-0 flex-1 flex-col gap-0">
@@ -400,20 +383,16 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
 
           {!readOnlyTile ? (
             <div className="mt-1.5 flex w-full min-w-0 gap-2 border-t border-[var(--patient-border)] pt-2">
-              <button
-                type="button"
+              <Link
+                href={itemProgramHref(item.id)}
                 className={cn(
                   patientSecondaryActionClass,
                   "!w-auto h-8 min-h-0 min-w-0 flex-1 basis-0 text-xs font-medium",
+                  "inline-flex items-center justify-center gap-1.5 no-underline",
                 )}
-                disabled={busy !== null}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  openProgramModal(item.id);
-                }}
               >
                 Добавить комментарий
-              </button>
+              </Link>
               {showSimpleCompleteFooter ? (
                 <button
                   type="button"
@@ -483,25 +462,6 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
           ),
         )}
       </ul>
-
-      {openItemId ? (
-        <PatientProgramStageItemModal
-          stage={stage}
-          base={base}
-          item={openModalItem}
-          flatOrderedIds={flatOrderedProgramIds}
-          onClose={closeModal}
-          onNavigate={navigateModal}
-          busy={busy}
-          setBusy={setBusy}
-          setError={setError}
-          refresh={refresh}
-          itemInteraction={readOnly ? "readOnly" : "full"}
-          doneItemIds={doneItemIds}
-          onDoneItemIds={onDoneItemIds}
-          contentBlocked={contentBlocked}
-        />
-      ) : null}
     </section>
   );
 }

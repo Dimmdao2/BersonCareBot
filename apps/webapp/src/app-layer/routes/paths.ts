@@ -61,6 +61,12 @@ export const routePaths = {
   patientTreatmentPrograms: "/app/patient/treatment",
   patientTreatmentProgram: (instanceId: string) =>
     `/app/patient/treatment/${encodeURIComponent(instanceId)}`,
+  /** Детальный просмотр пункта программы (не модалка). `nav` — см. `parsePatientProgramItemNavMode`. */
+  patientTreatmentProgramItem: (instanceId: string, itemId: string, nav?: string) => {
+    const base = `/app/patient/treatment/${encodeURIComponent(instanceId)}/item/${encodeURIComponent(itemId)}`;
+    if (nav && nav !== "default") return `${base}?nav=${encodeURIComponent(nav)}`;
+    return base;
+  },
   /** @internal Редирект со старых закладок; не использовать в новом UI. */
   patientTreatmentProgramStage: (instanceId: string, stageId: string) =>
     `/app/patient/treatment/${encodeURIComponent(instanceId)}`,

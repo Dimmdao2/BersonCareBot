@@ -1,14 +1,8 @@
 "use client";
 
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
-import {
-  Dialog,
-  DialogClose,
-  DialogOverlay,
-  DialogPortal,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -23,7 +17,7 @@ import {
   patientLfkDifficultySelectItems,
   patientTestQualDecisionSelectItems,
 } from "@/shared/ui/selectOpaqueValueLabels";
-import { ArrowRight, Check, ClipboardList, XIcon } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, ChevronLeft, ChevronRight, ClipboardList } from "lucide-react";
 import type { RecommendationMediaItem } from "@/modules/recommendations/types";
 import type {
   NormalizedTestDecision,
@@ -35,7 +29,14 @@ import { listLfkSnapshotExerciseLines } from "@/modules/treatment-program/progra
 import { parseTestSetSnapshotTests } from "@/modules/treatment-program/testSetSnapshotView";
 import { testIdsFromTestSetSnapshot } from "@/modules/treatment-program/testSetSnapshotView";
 import { scoringAllowsNumericDecisionInference } from "@/modules/treatment-program/progress-scoring";
-import { isPersistentRecommendation } from "@/modules/treatment-program/stage-semantics";
+import {
+  isPersistentRecommendation,
+  selectCurrentWorkingStageForPatientDetail,
+  splitPatientProgramStagesForDetailUi,
+} from "@/modules/treatment-program/stage-semantics";
+import { routePaths } from "@/app-layer/routes/paths";
+import type { PatientProgramItemNavMode } from "@/app/app/patient/treatment/patientProgramItemPageResolve";
+import { resolvePatientProgramItemPage } from "@/app/app/patient/treatment/patientProgramItemPageResolve";
 import { MarkdownContent } from "@/shared/ui/markdown/MarkdownContent";
 import { PatientMediaPlaybackVideo } from "@/shared/ui/media/PatientMediaPlaybackVideo";
 import { parseApiMediaIdFromPlayableUrl } from "@/shared/lib/parseApiMediaIdFromPlayableUrl";
@@ -44,31 +45,29 @@ import {
   pickRecommendationRowPreviewMedia,
   primaryMediaForStageItem,
 } from "@/app/app/patient/treatment/stageItemSnapshot";
+import { patientHomeCardHeroClass } from "@/app/app/patient/home/patientHomeCardStyles";
 import {
+  patientBodyTextClass,
   patientButtonPrimaryClass,
   patientButtonSkipClass,
   patientButtonSuccessClass,
   patientCompactActionClass,
   patientFormSurfaceClass,
+  patientHeroTitleBaseClass,
+  patientInnerHeroTitleTypographyClass,
+  patientInnerPageStackClass,
   patientMutedTextClass,
+  patientScrollbarHiddenClass,
+  patientSectionTitleClass,
 } from "@/shared/ui/patientVisual";
 import { cn } from "@/lib/utils";
 
-export type PatientProgramStageItemModalProps = {
-  stage: TreatmentProgramInstanceDetail["stages"][number];
-  base: string;
-  item: TreatmentProgramInstanceDetail["stages"][number]["items"][number] | null;
-  flatOrderedIds: string[];
-  onClose: () => void;
-  onNavigate: (itemId: string) => void;
-  busy: string | null;
-  setBusy: (v: string | null) => void;
-  setError: (v: string | null) => void;
-  refresh: () => Promise<void>;
-  itemInteraction: "full" | "readOnly";
-  doneItemIds: string[];
-  onDoneItemIds: (ids: string[]) => void;
-  contentBlocked: boolean;
+export type PatientProgramStageItemPageClientProps = {
+  instanceId: string;
+  itemId: string;
+  navMode: PatientProgramItemNavMode;
+  backHref: string;
+  initialDetail: TreatmentProgramInstanceDetail;
 };
 
 type StageItem = TreatmentProgramInstanceDetail["stages"][number]["items"][number];
@@ -161,7 +160,7 @@ function ModalMediaBlock(props: { media: RecommendationMediaItem | null; title: 
 
 function ModalDescriptionSection(props: { item: StageItem }) {
   const { item } = props;
-  const [expanded, setExpanded] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
   const snap = item.snapshot as Record<string, unknown>;
 
   let text = "";
@@ -184,16 +183,20 @@ function ModalDescriptionSection(props: { item: StageItem }) {
   if (!text) return null;
 
   return (
-    <div className="flex flex-col gap-1">
-      <div className={cn(!expanded && "line-clamp-3")}>
+    <div className="flex flex-col gap-2">
+      <h3 className={patientSectionTitleClass}>Описание</h3>
+      <div className={cn(collapsed && "line-clamp-6")}>
         {isMarkdown ? (
           <MarkdownContent
             text={text}
             bodyFormat="markdown"
-            className="markdown-preview text-sm text-[var(--patient-text-primary)] [&_p]:leading-relaxed"
+            className={cn(
+              "markdown-preview text-sm [&_p]:leading-relaxed",
+              "text-[var(--patient-text-primary,#1a1a2e)]",
+            )}
           />
         ) : (
-          <p className="whitespace-pre-wrap text-sm leading-relaxed text-[var(--patient-text-primary)]">{text}</p>
+          <p className={cn(patientBodyTextClass, "whitespace-pre-wrap leading-relaxed")}>{text}</p>
         )}
       </div>
       <div className="flex justify-end">
@@ -202,17 +205,17 @@ function ModalDescriptionSection(props: { item: StageItem }) {
           tabIndex={0}
           className={cn(
             patientMutedTextClass,
-            "cursor-pointer select-none text-xs hover:underline focus-visible:rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-primary)]",
+            "cursor-pointer select-none text-xs hover:underline focus-visible:rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-primary,#284da0)]",
           )}
-          onClick={() => setExpanded((e) => !e)}
+          onClick={() => setCollapsed((c) => !c)}
           onKeyDown={(e) => {
             if (e.key === "Enter" || e.key === " ") {
               e.preventDefault();
-              setExpanded((x) => !x);
+              setCollapsed((c) => !c);
             }
           }}
         >
-          {expanded ? "свернуть" : "развернуть"}
+          {collapsed ? "развернуть" : "свернуть"}
         </span>
       </div>
     </div>
@@ -264,11 +267,11 @@ function ModalLfkInlineForm(props: {
         </Select>
       </div>
       <div className="mt-2 flex flex-col gap-2">
-        <Label htmlFor={`lfk-modal-note-${row.item.id}`} className={cn(patientMutedTextClass, "text-xs")}>
+        <Label htmlFor={`lfk-item-page-note-${row.item.id}`} className={cn(patientMutedTextClass, "text-xs")}>
           Заметка для врача
         </Label>
         <Textarea
-          id={`lfk-modal-note-${row.item.id}`}
+          id={`lfk-item-page-note-${row.item.id}`}
           value={note}
           onChange={(e) => setNote(e.target.value)}
           disabled={pending}
@@ -504,30 +507,88 @@ function ModalTestSetInline(props: {
   );
 }
 
-export function PatientProgramStageItemModal(props: PatientProgramStageItemModalProps) {
-  const {
-    stage,
-    base,
-    item,
-    flatOrderedIds,
-    onClose,
-    onNavigate,
-    busy,
-    setBusy,
-    setError,
-    refresh,
-    itemInteraction,
-    doneItemIds,
-    onDoneItemIds,
-    contentBlocked,
-  } = props;
-
-  const readOnly = itemInteraction === "readOnly";
+export function PatientProgramStageItemPageClient(props: PatientProgramStageItemPageClientProps) {
+  const { instanceId, itemId, navMode, backHref, initialDetail } = props;
+  const router = useRouter();
+  const [detail, setDetail] = useState(initialDetail);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [doneItemIds, setDoneItemIds] = useState<string[]>([]);
   const [testFormOpen, setTestFormOpen] = useState(false);
+
+  const base = `/api/patient/treatment-program-instances/${encodeURIComponent(instanceId)}/items`;
+
+  const navForPath = navMode === "default" ? undefined : navMode;
+
+  const itemLink = useCallback(
+    (id: string) => routePaths.patientTreatmentProgramItem(instanceId, id, navForPath),
+    [instanceId, navForPath],
+  );
+
+  const currentWorkingStage = useMemo(() => {
+    const { pipeline } = splitPatientProgramStagesForDetailUi(detail.stages);
+    return selectCurrentWorkingStageForPatientDetail(pipeline);
+  }, [detail.stages]);
+
+  const resolved = useMemo(
+    () =>
+      resolvePatientProgramItemPage({
+        detail,
+        itemId,
+        nav: navMode,
+        currentWorkingStage,
+      }),
+    [detail, itemId, navMode, currentWorkingStage],
+  );
+
+  useEffect(() => {
+    if (!resolved) router.replace(backHref);
+  }, [resolved, router, backHref]);
+
+  const refresh = useCallback(async () => {
+    setError(null);
+    const instRes = await fetch(`/api/patient/treatment-program-instances/${encodeURIComponent(instanceId)}`);
+    const data = (await instRes.json().catch(() => null)) as { ok?: boolean; item?: TreatmentProgramInstanceDetail };
+    if (!instRes.ok || !data.ok || !data.item) {
+      setError("Не удалось обновить данные");
+      return;
+    }
+    setDetail(data.item);
+    if (data.item.status === "active") {
+      const chRes = await fetch(
+        `/api/patient/treatment-program-instances/${encodeURIComponent(instanceId)}/checklist-today`,
+      );
+      const chData = (await chRes.json().catch(() => null)) as { ok?: boolean; doneItemIds?: string[] };
+      if (chRes.ok && chData?.ok && Array.isArray(chData.doneItemIds)) setDoneItemIds(chData.doneItemIds);
+    } else {
+      setDoneItemIds([]);
+    }
+  }, [instanceId]);
+
+  useEffect(() => {
+    if (detail.status !== "active") {
+      setDoneItemIds([]);
+      return;
+    }
+    void (async () => {
+      const chRes = await fetch(
+        `/api/patient/treatment-program-instances/${encodeURIComponent(instanceId)}/checklist-today`,
+      );
+      const chData = (await chRes.json().catch(() => null)) as { ok?: boolean; doneItemIds?: string[] };
+      if (chRes.ok && chData?.ok && Array.isArray(chData.doneItemIds)) setDoneItemIds(chData.doneItemIds);
+    })();
+  }, [detail.id, detail.status, instanceId]);
 
   useEffect(() => {
     setTestFormOpen(false);
-  }, [item?.id]);
+  }, [itemId]);
+
+  const stage = resolved?.stage;
+  const item = resolved?.item;
+  const flatOrderedIds = resolved?.flatOrderedIds ?? [];
+  const contentBlocked = resolved?.contentBlocked ?? false;
+  const itemInteraction = resolved?.itemInteraction ?? "readOnly";
+  const readOnly = itemInteraction === "readOnly";
 
   const nextId = useMemo(() => {
     if (!item) return null;
@@ -538,7 +599,7 @@ export function PatientProgramStageItemModal(props: PatientProgramStageItemModal
   const primaryMedia = useMemo(() => (item ? primaryMediaForStageItem(item) : null), [item]);
 
   const lfkRow = useMemo((): PatientProgramChecklistRow | null => {
-    if (!item || item.itemType !== "lfk_complex") return null;
+    if (!item || !stage || item.itemType !== "lfk_complex") return null;
     const groupTitle =
       item.groupId == null ? null : stage.groups.find((g) => g.id === item.groupId)?.title ?? null;
     return {
@@ -565,158 +626,235 @@ export function PatientProgramStageItemModal(props: PatientProgramStageItemModal
         return;
       }
       await refresh();
-      if (nextId) onNavigate(nextId);
-      else onClose();
+      if (nextId) router.push(itemLink(nextId));
+      else router.push(backHref);
     } finally {
       setBusy(null);
     }
   };
 
+  const currentIdx = flatOrderedIds.indexOf(item?.id ?? "");
+  const prevId = item && currentIdx > 0 ? flatOrderedIds[currentIdx - 1]! : null;
+  const positionLabel =
+    item && flatOrderedIds.length > 1 ? `${currentIdx + 1} / ${flatOrderedIds.length}` : null;
+
+  if (!resolved || !item || !stage) return null;
+
+  const backLinkClass = cn(
+    "inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-md px-2 py-1.5 text-sm font-semibold no-underline",
+    "text-[var(--patient-color-primary,#284da0)] transition-colors",
+    "hover:bg-[var(--patient-color-primary-soft,#e4e2ff)]/60 active:bg-[var(--patient-color-primary-soft,#e4e2ff)]",
+    "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-primary,#284da0)]",
+  );
+
+  const navButtonClass = (enabled: boolean) =>
+    cn(
+      "flex min-h-[2.75rem] flex-1 items-center justify-center gap-1.5 px-3 py-2 text-sm font-semibold outline-none transition-colors duration-150 no-underline",
+      "bg-[#f8f3fd] text-[#444444]",
+      enabled && "cursor-pointer hover:bg-[#ede8f8] active:bg-[#e4e2ff]",
+      enabled && "focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--patient-color-primary,#284da0)]",
+      !enabled && "pointer-events-none opacity-40",
+    );
+
   return (
-    <Dialog
-      open={item !== null}
-      onOpenChange={(open) => {
-        if (!open) onClose();
-      }}
-    >
-      <DialogPortal>
-        {item ? (
-          <>
-            <DialogOverlay className="bg-black/70 backdrop-blur-sm" />
-            <DialogPrimitive.Popup
-              className={cn(
-                "fixed inset-0 z-50 flex flex-col bg-background outline-none",
-                "lg:inset-auto lg:left-1/2 lg:top-1/2 lg:h-[min(92dvh,860px)] lg:w-[min(96vw,680px)] lg:-translate-x-1/2 lg:-translate-y-1/2 lg:rounded-2xl lg:shadow-2xl lg:ring-1 lg:ring-foreground/10",
-                "duration-100 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
-              )}
-            >
-            <div className="flex shrink-0 items-center gap-3 border-b border-[var(--patient-border)] px-4 py-3 lg:px-5">
-              <DialogTitle className="flex-1 text-base font-semibold leading-tight text-[var(--patient-text-primary)] line-clamp-2">
-                {title}
-              </DialogTitle>
-              <DialogClose
-                render={
+    <div id="app-shell-patient" className="flex min-h-[100dvh] flex-col bg-[var(--patient-card-bg,#fff)]">
+      {error ? (
+        <p className="px-4 pt-2 text-sm text-destructive" role="alert">
+          {error}
+        </p>
+      ) : null}
+
+      <div
+        className={cn(
+          patientHomeCardHeroClass,
+          "relative shrink-0 overflow-visible rounded-none px-4 pb-4 pt-3 lg:px-5 lg:pb-5",
+        )}
+      >
+        <div className="flex items-center gap-2">
+          <Link href={backHref} className={backLinkClass} aria-label="Назад к плану">
+            <ArrowLeft className="size-4 shrink-0" aria-hidden />
+            <span className="sr-only sm:not-sr-only">Назад</span>
+          </Link>
+          <div className="min-w-0 flex-1" />
+        </div>
+
+        <h1
+          className={cn(
+            patientHeroTitleBaseClass,
+            patientInnerHeroTitleTypographyClass,
+            "mt-2 line-clamp-3 pr-2",
+          )}
+        >
+          {title}
+        </h1>
+
+        {(() => {
+          const parts = formatCharacteristics(item);
+          if (parts.length === 0) return null;
+          return (
+            <p className={cn(patientMutedTextClass, "mt-2 text-sm leading-snug")}>{parts.join(" · ")}</p>
+          );
+        })()}
+      </div>
+
+      <div
+        className="sticky top-0 z-[5] flex shrink-0 items-stretch gap-px border-b border-[var(--patient-border,#ddd6fe)] bg-[var(--patient-border,#ddd6fe)] shadow-sm"
+        aria-label="Навигация по элементам"
+      >
+        {prevId ? (
+          <Link href={itemLink(prevId)} className={navButtonClass(true)} aria-label="Предыдущий элемент">
+            <ChevronLeft className="size-4 shrink-0" aria-hidden />
+            <span className="sr-only sm:not-sr-only text-xs">Пред.</span>
+          </Link>
+        ) : (
+          <span className={navButtonClass(false)} aria-hidden>
+            <ChevronLeft className="size-4 shrink-0 opacity-50" aria-hidden />
+            <span className="sr-only sm:not-sr-only text-xs">Пред.</span>
+          </span>
+        )}
+
+        {positionLabel ? (
+          <div className="flex min-h-[2.75rem] items-center justify-center bg-[#f8f3fd] px-3 py-2 text-xs font-medium text-[#555555]">
+            {positionLabel}
+          </div>
+        ) : null}
+
+        {nextId ? (
+          <Link href={itemLink(nextId)} className={navButtonClass(true)} aria-label="Следующий элемент">
+            <span className="sr-only sm:not-sr-only text-xs">След.</span>
+            <ChevronRight className="size-4 shrink-0" aria-hidden />
+          </Link>
+        ) : (
+          <span className={navButtonClass(false)} aria-hidden>
+            <span className="sr-only sm:not-sr-only text-xs">След.</span>
+            <ChevronRight className="size-4 shrink-0 opacity-50" aria-hidden />
+          </span>
+        )}
+      </div>
+
+      <div
+        className={cn("flex min-h-0 flex-1 flex-col overflow-y-auto", patientScrollbarHiddenClass)}
+      >
+        <ModalMediaBlock media={primaryMedia} title={title} />
+
+        <div className={cn(patientInnerPageStackClass, "p-4 lg:p-5")}>
+          {item.itemType === "lfk_complex" ? (
+            <div>
+              <h2 className={cn(patientSectionTitleClass, "mb-2")}>Состав комплекса</h2>
+              <ul className={cn(patientMutedTextClass, "m-0 list-none space-y-1 p-0 text-sm")}>
+                {listLfkSnapshotExerciseLines(item.snapshot as Record<string, unknown>).map((line) => (
+                  <li key={line.exerciseId} className="flex items-start gap-2">
+                    <span
+                      className="mt-1.5 size-1.5 shrink-0 rounded-full bg-[var(--patient-color-primary,#284da0)]/40"
+                      aria-hidden
+                    />
+                    {line.title}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+
+          {!contentBlocked && !readOnly ? (
+            <div className="flex flex-wrap items-center gap-2">
+              {isPersistentRecommendation(item) ? (
+                nextId ? (
+                  <Link
+                    href={itemLink(nextId)}
+                    className={cn(patientButtonSuccessClass, "min-h-[var(--patient-touch,44px)] flex-1 no-underline")}
+                  >
+                    Следующая рекомендация
+                  </Link>
+                ) : (
+                  <Link
+                    href={backHref}
+                    className={cn(patientButtonSuccessClass, "min-h-[var(--patient-touch,44px)] flex-1 no-underline")}
+                  >
+                    Следующая рекомендация
+                  </Link>
+                )
+              ) : item.itemType === "test_set" ? (
+                <button
+                  type="button"
+                  className={cn(patientButtonPrimaryClass, "min-h-[var(--patient-touch,44px)] flex-1")}
+                  onClick={() => setTestFormOpen(true)}
+                  disabled={testFormOpen || Boolean(item.completedAt)}
+                >
+                  <ClipboardList className="size-4 shrink-0" aria-hidden />
+                  Записать результаты теста
+                </button>
+              ) : item.itemType === "lfk_complex" && !isPersistentRecommendation(item) ? (
+                nextId ? (
+                  <Link
+                    href={itemLink(nextId)}
+                    className={cn(
+                      patientButtonSkipClass,
+                      "inline-flex min-h-[var(--patient-touch,44px)] w-full items-center justify-center no-underline sm:w-auto",
+                    )}
+                  >
+                    <ArrowRight className="size-4 shrink-0" aria-hidden />
+                    Пропустить
+                  </Link>
+                ) : null
+              ) : (
+                <>
                   <button
                     type="button"
-                    className="shrink-0 rounded-md p-1.5 text-muted-foreground hover:bg-muted/50 hover:text-foreground"
-                    aria-label="Закрыть"
-                  />
-                }
-              >
-                <XIcon className="size-5" aria-hidden />
-              </DialogClose>
+                    className={cn(patientButtonPrimaryClass, "min-h-[var(--patient-touch,44px)] flex-1")}
+                    disabled={busy !== null}
+                    onClick={() => void handleComplete()}
+                  >
+                    <Check className="size-4 shrink-0" aria-hidden />
+                    {item.completedAt ? "Отметить ещё раз" : "Отметить выполнение"}
+                  </button>
+                  {nextId ? (
+                    <Link
+                      href={itemLink(nextId)}
+                      className={cn(
+                        patientButtonSkipClass,
+                        "inline-flex min-h-[var(--patient-touch,44px)] shrink-0 items-center justify-center gap-1.5 no-underline",
+                      )}
+                    >
+                      <ArrowRight className="size-4 shrink-0" aria-hidden />
+                      Пропустить
+                    </Link>
+                  ) : null}
+                </>
+              )}
             </div>
+          ) : null}
 
-            <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-              <ModalMediaBlock media={primaryMedia} title={title} />
+          <ModalDescriptionSection item={item} />
 
-              <div className="flex flex-col gap-4 p-4 lg:p-5">
-                {item.itemType === "lfk_complex" ? (
-                  <ul className={cn(patientMutedTextClass, "m-0 list-none space-y-1 p-0 text-sm")}>
-                    {listLfkSnapshotExerciseLines(item.snapshot as Record<string, unknown>).map((line) => (
-                      <li key={line.exerciseId}>{line.title}</li>
-                    ))}
-                  </ul>
-                ) : null}
+          {item.itemType === "lfk_complex" &&
+          lfkRow &&
+          !isPersistentRecommendation(item) &&
+          !contentBlocked &&
+          !readOnly ? (
+            <ModalLfkInlineForm
+              row={lfkRow}
+              itemBaseUrl={base}
+              done={doneItemIds.includes(item.id)}
+              onUpdated={(ids) => setDoneItemIds(ids)}
+              onAfterSave={refresh}
+              setError={setError}
+            />
+          ) : null}
 
-                {(() => {
-                  const parts = formatCharacteristics(item);
-                  if (parts.length === 0) return null;
-                  return (
-                    <p className={cn(patientMutedTextClass, "text-sm leading-snug")}>{parts.join(" · ")}</p>
-                  );
-                })()}
-
-                {!contentBlocked && !readOnly ? (
-                  <div className="flex flex-wrap items-center gap-2">
-                    {isPersistentRecommendation(item) ? (
-                      <button
-                        type="button"
-                        className={cn(patientButtonSuccessClass, "min-h-[var(--patient-touch)] flex-1")}
-                        onClick={() => (nextId ? onNavigate(nextId) : onClose())}
-                      >
-                        Следующая рекомендация
-                      </button>
-                    ) : item.itemType === "test_set" ? (
-                      <button
-                        type="button"
-                        className={cn(patientButtonPrimaryClass, "min-h-[var(--patient-touch)] flex-1")}
-                        onClick={() => setTestFormOpen(true)}
-                        disabled={testFormOpen || Boolean(item.completedAt)}
-                      >
-                        <ClipboardList className="size-4 shrink-0" aria-hidden />
-                        Записать результаты теста
-                      </button>
-                    ) : item.itemType === "lfk_complex" && !isPersistentRecommendation(item) ? (
-                      nextId ? (
-                        <button
-                          type="button"
-                          className={cn(patientButtonSkipClass, "min-h-[var(--patient-touch)] w-full sm:w-auto")}
-                          disabled={busy !== null}
-                          onClick={() => onNavigate(nextId)}
-                        >
-                          <ArrowRight className="size-4 shrink-0" aria-hidden />
-                          Пропустить
-                        </button>
-                      ) : null
-                    ) : (
-                      <>
-                        <button
-                          type="button"
-                          className={cn(patientButtonPrimaryClass, "min-h-[var(--patient-touch)] flex-1")}
-                          disabled={busy !== null}
-                          onClick={() => void handleComplete()}
-                        >
-                          <Check className="size-4 shrink-0" aria-hidden />
-                          {item.completedAt ? "Отметить ещё раз" : "Отметить выполнение"}
-                        </button>
-                        {nextId ? (
-                          <button
-                            type="button"
-                            className={cn(patientButtonSkipClass, "min-h-[var(--patient-touch)] shrink-0")}
-                            disabled={busy !== null}
-                            onClick={() => onNavigate(nextId)}
-                          >
-                            <ArrowRight className="size-4 shrink-0" aria-hidden />
-                            Пропустить
-                          </button>
-                        ) : null}
-                      </>
-                    )}
-                  </div>
-                ) : null}
-
-                <ModalDescriptionSection item={item} />
-
-                {item.itemType === "lfk_complex" && lfkRow && !isPersistentRecommendation(item) && !contentBlocked && !readOnly ? (
-                  <ModalLfkInlineForm
-                    row={lfkRow}
-                    itemBaseUrl={base}
-                    done={doneItemIds.includes(item.id)}
-                    onUpdated={onDoneItemIds}
-                    onAfterSave={refresh}
-                    setError={setError}
-                  />
-                ) : null}
-
-                {item.itemType === "test_set" && testFormOpen && !contentBlocked && !readOnly ? (
-                  <ModalTestSetInline
-                    itemId={item.id}
-                    snapshot={item.snapshot as Record<string, unknown>}
-                    completed={Boolean(item.completedAt)}
-                    baseUrl={base}
-                    busy={busy}
-                    setBusy={setBusy}
-                    setError={setError}
-                    onDone={refresh}
-                  />
-                ) : null}
-              </div>
-            </div>
-            </DialogPrimitive.Popup>
-          </>
-        ) : null}
-      </DialogPortal>
-    </Dialog>
+          {item.itemType === "test_set" && testFormOpen && !contentBlocked && !readOnly ? (
+            <ModalTestSetInline
+              itemId={item.id}
+              snapshot={item.snapshot as Record<string, unknown>}
+              completed={Boolean(item.completedAt)}
+              baseUrl={base}
+              busy={busy}
+              setBusy={setBusy}
+              setError={setError}
+              onDone={refresh}
+            />
+          ) : null}
+        </div>
+      </div>
+    </div>
   );
 }

@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense, type ReactNode } from "react";
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
+import { useRouter } from "next/navigation";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -14,7 +15,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Dialog } from "@/components/ui/dialog";
-import { PatientProgramStageItemModal } from "@/app/app/patient/treatment/PatientProgramStageItemModal";
 import { PatientModalDialogContent } from "@/shared/ui/patient/PatientModalDialogContent";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
@@ -899,7 +899,8 @@ function PatientInstanceStageItemCard(props: {
   todayChecklistDoneCount?: number;
   /** Нейтральный фон карточки (белый) на тонированной панели — блок рекомендаций на detail. */
   neutralItemChrome?: boolean;
-  onOpenModal: () => void;
+  /** Ссылка на страницу детального просмотра пункта (вместо модалки). */
+  itemDetailHref: string;
 }) {
   const {
     instanceId,
@@ -917,8 +918,9 @@ function PatientInstanceStageItemCard(props: {
     onDoneItemIds,
     todayChecklistDoneCount,
     neutralItemChrome = false,
-    onOpenModal,
+    itemDetailHref,
   } = props;
+  const router = useRouter();
   const readOnly = itemInteraction === "readOnly";
   const [markingViewed, setMarkingViewed] = useState(false);
   const showsNew =
@@ -950,38 +952,47 @@ function PatientInstanceStageItemCard(props: {
       void refresh();
     },
   });
-  const openModalButton = (
-    <Button
-      type="button"
-      variant="outline"
-      size="sm"
+  const openDetailLink = (
+    <Link
+      href={itemDetailHref}
       className={cn(
-        "shrink-0",
+        buttonVariants({ variant: "outline", size: "sm" }),
+        "inline-flex shrink-0 items-center justify-center",
         item.itemType === "recommendation" ? "h-8 px-2.5 text-xs" : "h-8",
       )}
-      onClick={(e) => {
-        e.stopPropagation();
-        onOpenModal();
-      }}
     >
       Открыть
-    </Button>
+    </Link>
   );
 
   return (
-    <li
-      ref={markRef}
-      className={cn(
-        patientTreatmentProgramListItemClass,
-        "cursor-pointer border-[var(--patient-border)]/80 transition-[filter] hover:brightness-[0.97] active:brightness-[0.95]",
-        neutralItemChrome
-          ? "bg-[var(--patient-card-bg)]"
-          : "bg-[var(--patient-color-primary-soft)]/10",
-        item.itemType === "recommendation" &&
-          cn("flex h-14 items-center gap-2 overflow-hidden py-0 pl-0 pr-2 lg:gap-2.5 lg:pr-2.5"),
-      )}
-      onClick={onOpenModal}
-    >
+    <li ref={markRef} className="list-none">
+      <div
+        className={cn(
+          patientTreatmentProgramListItemClass,
+          "cursor-pointer border-[var(--patient-border)]/80 transition-[filter] hover:brightness-[0.97] active:brightness-[0.95]",
+          neutralItemChrome
+            ? "bg-[var(--patient-card-bg)]"
+            : "bg-[var(--patient-color-primary-soft)]/10",
+          item.itemType === "recommendation" &&
+            cn("flex h-14 items-center gap-2 overflow-hidden py-0 pl-0 pr-2 lg:gap-2.5 lg:pr-2.5"),
+        )}
+        onClick={(e) => {
+          const el = e.target as HTMLElement;
+          if (el.closest("button,a,[data-radix-collection-item]")) return;
+          router.push(itemDetailHref);
+        }}
+        onKeyDown={(e) => {
+          if (e.target !== e.currentTarget) return;
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            router.push(itemDetailHref);
+          }
+        }}
+        role="button"
+        tabIndex={0}
+        aria-label={`Открыть: ${snapshotTitle(item.snapshot, item.itemType)}`}
+      >
       {item.itemType === "recommendation" ? (
         <PatientCatalogMediaStaticThumb
           media={recommendationPreviewMedia}
@@ -1039,7 +1050,7 @@ function PatientInstanceStageItemCard(props: {
         ) : null}
       </p>
       {item.itemType !== "recommendation" ? (
-        <div className="mt-1 flex justify-end">{openModalButton}</div>
+        <div className="mt-1 flex justify-end">{openDetailLink}</div>
       ) : null}
       {item.itemType === "recommendation" && recommendationBodyPreview ? (
         <p
@@ -1142,7 +1153,8 @@ function PatientInstanceStageItemCard(props: {
         </p>
       ) : null}
       </div>
-      {item.itemType === "recommendation" ? openModalButton : null}
+      {item.itemType === "recommendation" ? openDetailLink : null}
+    </div>
     </li>
   );
 }
@@ -1206,22 +1218,6 @@ export function PatientInstanceStageBody(props: {
   });
   const ungroupedItems = sortByOrderThenId(visibleItems.filter((it) => !it.groupId));
 
-  const [openItemId, setOpenItemId] = useState<string | null>(null);
-  const flatOrderedIds = useMemo(() => {
-    const ids: string[] = [];
-    for (const g of sortedGroups) {
-      const gItems = sortByOrderThenId(visibleItems.filter((it) => it.groupId === g.id));
-      for (const it of gItems) ids.push(it.id);
-    }
-    for (const it of ungroupedItems) ids.push(it.id);
-    return ids;
-  }, [sortedGroups, visibleItems, ungroupedItems]);
-
-  const openModalItem = useMemo(
-    () => (openItemId ? (visibleItems.find((it) => it.id === openItemId) ?? null) : null),
-    [openItemId, visibleItems],
-  );
-
   return (
     <section className={surfaceClass}>
       {heading != null ? (
@@ -1278,7 +1274,7 @@ export function PatientInstanceStageBody(props: {
                     onDoneItemIds={onDoneItemIds}
                     todayChecklistDoneCount={todayCountByStageItemId?.[item.id]}
                     neutralItemChrome={likeStages}
-                    onOpenModal={() => setOpenItemId(item.id)}
+                    itemDetailHref={routePaths.patientTreatmentProgramItem(instanceId, item.id)}
                   />
                 ))}
               </ul>
@@ -1309,7 +1305,7 @@ export function PatientInstanceStageBody(props: {
                   onDoneItemIds={onDoneItemIds}
                   todayChecklistDoneCount={todayCountByStageItemId?.[item.id]}
                   neutralItemChrome={likeStages}
-                  onOpenModal={() => setOpenItemId(item.id)}
+                  itemDetailHref={routePaths.patientTreatmentProgramItem(instanceId, item.id)}
                 />
               ))}
             </ul>
@@ -1317,22 +1313,6 @@ export function PatientInstanceStageBody(props: {
         ) : null}
       </div>
 
-      <PatientProgramStageItemModal
-        stage={stage}
-        base={base}
-        item={openModalItem}
-        flatOrderedIds={flatOrderedIds}
-        onClose={() => setOpenItemId(null)}
-        onNavigate={(id) => setOpenItemId(id)}
-        busy={busy}
-        setBusy={setBusy}
-        setError={setError}
-        refresh={refresh}
-        itemInteraction={itemInteraction}
-        doneItemIds={doneItemIds}
-        onDoneItemIds={onDoneItemIds}
-        contentBlocked={contentBlocked}
-      />
     </section>
   );
 }
@@ -1518,7 +1498,6 @@ export function PatientTreatmentProgramDetailClient(props: {
     patientCalendarDayIana,
   } = props;
   const [activeTab, setActiveTab] = useState<"program" | "recommendations" | "progress">("program");
-  const [heroModalItemId, setHeroModalItemId] = useState<string | null>(null);
   const [detail, setDetail] = useState(props.initial);
 
   useEffect(() => {
@@ -1662,11 +1641,6 @@ export function PatientTreatmentProgramDetailClient(props: {
     return pending ?? ordered[0] ?? null;
   }, [programTabStage, doneItemIds, detail.status]);
 
-  const openHeroLesson = useCallback(() => {
-    if (!firstPendingProgramItemId) return;
-    setHeroModalItemId(firstPendingProgramItemId);
-  }, [firstPendingProgramItemId]);
-
   const recommendationListCount = useMemo(() => {
     let n = 0;
     if (currentWorkingStage) {
@@ -1683,16 +1657,6 @@ export function PatientTreatmentProgramDetailClient(props: {
     if (programTabStage.sortOrder === 0) return "Общие рекомендации";
     return `Этап ${programTabStage.sortOrder} из ${pipelineLength}`;
   }, [programTabStage, pipelineLength]);
-
-  const heroModalItem = useMemo(() => {
-    if (!heroModalItemId || !programTabStage) return null;
-    return programTabStage.items.find((it) => it.id === heroModalItemId) ?? null;
-  }, [heroModalItemId, programTabStage]);
-
-  const heroModalFlatIds = useMemo(
-    () => (programTabStage ? flatOrderedProgramCompositionItemIds(programTabStage) : []),
-    [programTabStage],
-  );
 
   const progressTabProgramDaysLabel = buildProgressTabProgramDaysLabel(detail, patientCalendarDayIana, appDisplayTimeZone);
 
@@ -1796,17 +1760,16 @@ export function PatientTreatmentProgramDetailClient(props: {
             </p>
           ) : null}
           {programTabStage && firstPendingProgramItemId ? (
-            <button
-              type="button"
-              onClick={openHeroLesson}
+            <Link
+              href={routePaths.patientTreatmentProgramItem(detail.id, firstPendingProgramItemId, "program")}
               className={cn(
                 patientHeroPrimaryActionClass,
-                "mt-5 mb-3 flex min-h-11 w-full items-center justify-center gap-2 px-4 py-2 text-sm shadow-[0_6px_14px_rgba(40,77,160,0.24)] lg:mt-6 lg:mb-4 lg:min-h-12 lg:text-base",
+                "mt-5 mb-3 flex min-h-11 w-full items-center justify-center gap-2 px-4 py-2 text-sm shadow-[0_6px_14px_rgba(40,77,160,0.24)] no-underline lg:mt-6 lg:mb-4 lg:min-h-12 lg:text-base",
               )}
             >
               <PlayCircle className="size-5 shrink-0 lg:size-6" aria-hidden />
               Начать занятие
-            </button>
+            </Link>
           ) : programTabStage ? null : (
             <p className={cn(patientMutedTextClass, "mt-2 text-sm")}>Нет открытых этапов.</p>
           )}
@@ -1931,13 +1894,9 @@ export function PatientTreatmentProgramDetailClient(props: {
       <div className={cn(activeTab !== "recommendations" && "hidden")} role="tabpanel" aria-label="Рекомендации">
         <Suspense fallback={<p className={patientMutedTextClass}>Загрузка…</p>}>
           <PatientTreatmentTabRecommendationsLazy
+            instanceId={detail.id}
             currentWorkingStage={currentWorkingStage}
             stageZeroStages={stageZeroStages}
-            base={base}
-            busy={busy}
-            setBusy={setBusy}
-            setError={setError}
-            refresh={refresh}
           />
         </Suspense>
       </div>
@@ -1977,28 +1936,6 @@ export function PatientTreatmentProgramDetailClient(props: {
           />
         </div>
       </div>
-
-      {heroModalItemId && programTabStage ? (
-        <PatientProgramStageItemModal
-          stage={programTabStage}
-          base={base}
-          item={heroModalItem}
-          flatOrderedIds={heroModalFlatIds}
-          onClose={() => setHeroModalItemId(null)}
-          onNavigate={(id) => setHeroModalItemId(id)}
-          busy={busy}
-          setBusy={setBusy}
-          setError={setError}
-          refresh={refresh}
-          itemInteraction="full"
-          doneItemIds={doneItemIds}
-          onDoneItemIds={setDoneItemIds}
-          contentBlocked={
-            programTabStage.sortOrder > 0 &&
-            (programTabStage.status === "locked" || programTabStage.status === "skipped")
-          }
-        />
-      ) : null}
 
     </div>
   );

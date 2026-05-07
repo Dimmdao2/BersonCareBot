@@ -493,19 +493,12 @@ export function PatientTreatmentProgramStagePageClient(props: {
       {!embedded ? controlBadge : null}
 
       {!embedded ? (
-        <PatientTreatmentProgramStageRecommendationsCollapsible
-          stage={stageForUi}
-          base={base}
-          busy={busy}
-          setBusy={setBusy}
-          setError={setError}
-          refresh={refresh}
-          contentBlocked={contentBlocked}
-        />
+        <PatientTreatmentProgramStageRecommendationsCollapsible instanceId={instanceId} stage={stageForUi} />
       ) : null}
 
       <PatientTreatmentProgramStagePageProgramSection
         className={cn(hasGoalsCollapsible && "mt-2")}
+        instanceId={instanceId}
         stage={stageForUi}
         base={base}
         busy={busy}
