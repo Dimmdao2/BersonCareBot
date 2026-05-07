@@ -6,12 +6,11 @@ import { PatientHomePlanCard } from "./PatientHomePlanCard";
 import { routePaths } from "@/app-layer/routes/paths";
 
 describe("PatientHomePlanCard", () => {
-  it("links «Начать занятие» to treatment programs (как пункт «План» в навигации)", () => {
-    render(
-      <PatientHomePlanCard instance={{ id: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee", title: "Plan title" }} />,
-    );
+  it("links «Начать занятие» directly to active program (skip hub redirect)", () => {
+    const id = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee";
+    render(<PatientHomePlanCard instance={{ id, title: "Plan title" }} />);
     const cta = screen.getByRole("link", { name: /Начать занятие/i });
-    expect(cta).toHaveAttribute("href", routePaths.patientTreatmentPrograms);
+    expect(cta).toHaveAttribute("href", routePaths.patientTreatmentProgram(id));
   });
 
   it("renders «День N» и строку «Сегодня» с точкой", () => {

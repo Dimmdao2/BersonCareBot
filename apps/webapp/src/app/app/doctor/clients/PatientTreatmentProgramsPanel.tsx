@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import toast from "react-hot-toast";
+import type { TreatmentProgramInstanceSummary } from "@/modules/treatment-program/types";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -14,25 +15,26 @@ import {
 
 type TemplateOption = { id: string; title: string };
 
-type InstanceSummary = {
-  id: string;
-  title: string;
-  status: string;
-  updatedAt: string;
-};
-
 export function PatientTreatmentProgramsPanel(props: {
   patientUserId: string;
   templates: TemplateOption[];
   disabled?: boolean;
   profileListScope?: string;
+  /**
+   * Список с RSC — без второго round-trip и «Загрузка…», пока не сработает клиентский fetch.
+   * После назначения программы панель по-прежнему обновляется через API.
+   */
+  initialInstances?: TreatmentProgramInstanceSummary[];
 }) {
-  const { patientUserId, templates, disabled, profileListScope } = props;
+  const { patientUserId, templates, disabled, profileListScope, initialInstances } = props;
+  const serverProvidedList = initialInstances !== undefined;
   const scopeQs = profileListScope
     ? `?scope=${encodeURIComponent(profileListScope)}`
     : "";
-  const [items, setItems] = useState<InstanceSummary[] | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [items, setItems] = useState<TreatmentProgramInstanceSummary[] | null>(() =>
+    serverProvidedList ? initialInstances : null,
+  );
+  const [loading, setLoading] = useState(!serverProvidedList);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const [open, setOpen] = useState(false);
@@ -48,7 +50,10 @@ export function PatientTreatmentProgramsPanel(props: {
       const res = await fetch(
         `/api/doctor/clients/${encodeURIComponent(patientUserId)}/treatment-program-instances`,
       );
-      const data = (await res.json().catch(() => null)) as { ok?: boolean; items?: InstanceSummary[] };
+      const data = (await res.json().catch(() => null)) as {
+        ok?: boolean;
+        items?: TreatmentProgramInstanceSummary[];
+      };
       if (!res.ok || !data.ok || !data.items) {
         setLoadError("Не удалось загрузить программы");
         setItems([]);
@@ -64,8 +69,9 @@ export function PatientTreatmentProgramsPanel(props: {
   }, [patientUserId]);
 
   useEffect(() => {
+    if (serverProvidedList) return;
     void load();
-  }, [load]);
+  }, [load, serverProvidedList]);
 
   function openModal() {
     setSearch("");

@@ -17,7 +17,10 @@ import type { SerializedSupportMessage } from "@/modules/messaging/serializeSupp
 import { cn } from "@/lib/utils";
 import type { MessageLogEntry } from "@/modules/doctor-messaging/ports";
 import type { LfkComplexExerciseLine } from "@/modules/diaries/types";
-import type { PendingProgramTestEvaluationRow } from "@/modules/treatment-program/types";
+import type {
+  PendingProgramTestEvaluationRow,
+  TreatmentProgramInstanceSummary,
+} from "@/modules/treatment-program/types";
 import { phoneToTelHref } from "@/shared/lib/phoneLinks";
 import { DoctorLfkComplexExerciseOverridesPanel } from "./DoctorLfkComplexExerciseOverridesPanel";
 import { PatientTreatmentProgramsPanel } from "./PatientTreatmentProgramsPanel";
@@ -43,6 +46,8 @@ type ClientProfileCardProps = {
   assignTreatmentProgramEnabled?: boolean;
   /** A4: тесты программ без `decided_by` у активных экземпляров пациента. */
   pendingProgramTestEvaluations?: PendingProgramTestEvaluationRow[];
+  /** Список экземпляров программ с RSC — без задержки на клиентском GET. */
+  treatmentProgramInstancesInitial?: TreatmentProgramInstanceSummary[];
   /** B7: строки упражнений по комплексам (read с сервера). */
   lfkExerciseLinesByComplexId?: Record<string, LfkComplexExerciseLine[]>;
 };
@@ -77,6 +82,7 @@ function ClientProfileCardInner({
   publishedTreatmentProgramTemplates = [],
   assignTreatmentProgramEnabled = false,
   pendingProgramTestEvaluations = [],
+  treatmentProgramInstancesInitial,
   lfkExerciseLinesByComplexId = {},
 }: ClientProfileCardProps) {
   const scopeQs = profileListScope ? `?scope=${encodeURIComponent(profileListScope)}` : "";
@@ -287,6 +293,7 @@ function ClientProfileCardInner({
             templates={publishedTreatmentProgramTemplates}
             disabled={!assignTreatmentProgramEnabled}
             profileListScope={profileListScope}
+            initialInstances={treatmentProgramInstancesInitial}
           />
         </section>
 

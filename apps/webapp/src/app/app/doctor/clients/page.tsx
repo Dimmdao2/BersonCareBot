@@ -56,20 +56,26 @@ export default async function DoctorClientsPage({ searchParams }: Props) {
           deps.doctorMessaging.listMessageHistory({ userId: selected, pageSize: 10 }),
           deps.treatmentProgram.listTemplates({ includeArchived: false, status: "published" }),
           deps.treatmentProgramProgress.listPendingTestEvaluationsForPatient(selected),
-        ]).then(([profile, messageHistory, publishedTreatmentTemplates, pendingProgramTests]) =>
-          profile
-            ? {
-                profile,
-                messageHistory: messageHistory.items,
-                publishedTreatmentTemplates,
-                pendingProgramTests,
-              }
-            : null,
+          Boolean(env.DATABASE_URL)
+            ? deps.treatmentProgramInstance.listForPatient(selected)
+            : Promise.resolve([]),
+        ]).then(
+          ([profile, messageHistory, publishedTreatmentTemplates, pendingProgramTests, treatmentProgramInstances]) =>
+            profile
+              ? {
+                  profile,
+                  messageHistory: messageHistory.items,
+                  publishedTreatmentTemplates,
+                  pendingProgramTests,
+                  treatmentProgramInstances,
+                }
+              : null,
         )
       : Promise.resolve(null),
   ]);
 
   const selectedProfile = selectedData?.profile ?? null;
+  const selectedTreatmentProgramInstances = selectedData?.treatmentProgramInstances ?? [];
   const selectedMessageHistory = selectedData?.messageHistory ?? [];
   const selectedPublishedTreatmentTemplates =
     selectedData?.publishedTreatmentTemplates?.map((t) => ({ id: t.id, title: t.title })) ?? [];
@@ -111,6 +117,9 @@ export default async function DoctorClientsPage({ searchParams }: Props) {
               assignTreatmentProgramEnabled={Boolean(env.DATABASE_URL)}
               profileListScope={scope}
               pendingProgramTestEvaluations={selectedPendingProgramTests}
+              treatmentProgramInstancesInitial={
+                Boolean(env.DATABASE_URL) ? selectedTreatmentProgramInstances : undefined
+              }
             />
           </div>
         ) : null}
