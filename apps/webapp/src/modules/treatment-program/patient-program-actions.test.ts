@@ -19,6 +19,12 @@ const refA = "11111111-1111-4111-8111-111111111111";
 const refB = "22222222-2222-4222-8222-222222222222";
 const patient = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 
+function instStageForTpl(inst: TreatmentProgramInstanceDetail, templateStageId: string) {
+  const s = inst.stages.find((x) => x.sourceStageId === templateStageId);
+  if (!s) throw new Error("instance stage not found");
+  return s;
+}
+
 function makeDetail(over: Partial<TreatmentProgramInstanceDetail> = {}): TreatmentProgramInstanceDetail {
   const now = "2026-01-01T00:00:00.000Z";
   return {
@@ -155,7 +161,7 @@ describe("patient-program-actions", () => {
     });
 
     const tpl = await tplSvc.createTemplate({ title: "План", status: "published" }, null);
-    const s1 = await tplSvc.createStage(tpl.id, { title: "Этап 1", sortOrder: 1 });
+    const s1 = await tplSvc.createStage(tpl.id, { title: "Этап 1" });
     const g1 = await tplSvc.createTemplateStageGroup(s1.id, { title: "G" });
     await tplSvc.addStageItem(s1.id, { itemType: "lesson", itemRefId: refA, comment: null, groupId: g1.id });
     const inst = await instSvc.assignTemplateToPatient({
@@ -163,7 +169,7 @@ describe("patient-program-actions", () => {
       patientUserId: patient,
       assignedBy: null,
     });
-    const itemId = inst.stages[0]!.items[0]!.id;
+    const itemId = instStageForTpl(inst, s1.id).items[0]!.id;
     const first = await actions.patientToggleChecklistItem({
       patientUserId: patient,
       instanceId: inst.id,
@@ -234,7 +240,7 @@ describe("patient-program-actions", () => {
     });
 
     const tpl = await tplSvc.createTemplate({ title: "План", status: "published" }, null);
-    const s1 = await tplSvc.createStage(tpl.id, { title: "Этап 1", sortOrder: 1 });
+    const s1 = await tplSvc.createStage(tpl.id, { title: "Этап 1" });
     const g1 = await tplSvc.createTemplateStageGroup(s1.id, { title: "G" });
     await tplSvc.addStageItem(s1.id, {
       itemType: "lfk_complex",
@@ -247,7 +253,7 @@ describe("patient-program-actions", () => {
       patientUserId: patient,
       assignedBy: null,
     });
-    const itemId = inst.stages[0]!.items[0]!.id;
+    const itemId = instStageForTpl(inst, s1.id).items[0]!.id;
     await actions.patientSubmitLfkPostSession({
       patientUserId: patient,
       instanceId: inst.id,
@@ -337,7 +343,7 @@ describe("patient-program-actions", () => {
     });
 
     const tpl = await tplSvc.createTemplate({ title: "План", status: "published" }, null);
-    const s1 = await tplSvc.createStage(tpl.id, { title: "Этап 1", sortOrder: 1 });
+    const s1 = await tplSvc.createStage(tpl.id, { title: "Этап 1" });
     const g1 = await tplSvc.createTemplateStageGroup(s1.id, { title: "G" });
     await tplSvc.addStageItem(s1.id, { itemType: "lesson", itemRefId: refA, comment: null, groupId: g1.id });
     const inst = await instSvc.assignTemplateToPatient({
@@ -345,7 +351,7 @@ describe("patient-program-actions", () => {
       patientUserId: patient,
       assignedBy: null,
     });
-    const itemId = inst.stages[0]!.items[0]!.id;
+    const itemId = instStageForTpl(inst, s1.id).items[0]!.id;
     await actions.patientToggleChecklistItem({
       patientUserId: patient,
       instanceId: inst.id,
@@ -383,7 +389,7 @@ describe("patient-program-actions", () => {
     });
 
     const tpl = await tplSvc.createTemplate({ title: "План", status: "published" }, null);
-    const s1 = await tplSvc.createStage(tpl.id, { title: "Этап 1", sortOrder: 1 });
+    const s1 = await tplSvc.createStage(tpl.id, { title: "Этап 1" });
     const g1 = await tplSvc.createTemplateStageGroup(s1.id, { title: "G" });
     await tplSvc.addStageItem(s1.id, { itemType: "lesson", itemRefId: refA, comment: null, groupId: g1.id });
     const inst = await instSvc.assignTemplateToPatient({
@@ -391,7 +397,7 @@ describe("patient-program-actions", () => {
       patientUserId: patient,
       assignedBy: null,
     });
-    const itemId = inst.stages[0]!.items[0]!.id;
+    const itemId = instStageForTpl(inst, s1.id).items[0]!.id;
     const sessionId = crypto.randomUUID();
     const ex1 = "33333333-3333-4333-8333-333333333333";
     const ex2 = "44444444-4444-4444-8444-444444444444";

@@ -18,6 +18,7 @@ import {
   computeProgressDaysAt0300,
   patientProgramElapsedDaysAnchorIso,
   resolvePatientProgramProgressDaysForPatientUi,
+  patientInstanceSystemGroupHasVisibleItems,
   type TreatmentProgramInstanceDetailStageRow,
 } from "./stage-semantics";
 import type { TreatmentProgramInstanceDetail } from "./types";
@@ -500,5 +501,28 @@ describe("stage-semantics (1.1a detail split)", () => {
     );
     expect(n).toBeGreaterThanOrEqual(1);
     expect(n).not.toBeNull();
+  });
+
+  it("patientInstanceSystemGroupHasVisibleItems is false for empty system groups", () => {
+    const recGroup = { id: "g-rec", systemKind: "recommendations" as const };
+    const testsGroup = { id: "g-tests", systemKind: "tests" as const };
+    expect(
+      patientInstanceSystemGroupHasVisibleItems({
+        group: recGroup,
+        items: [{ groupId: "g-rec", itemType: "recommendation", status: "active", isActionable: true }],
+      }),
+    ).toBe(true);
+    expect(
+      patientInstanceSystemGroupHasVisibleItems({
+        group: recGroup,
+        items: [],
+      }),
+    ).toBe(false);
+    expect(
+      patientInstanceSystemGroupHasVisibleItems({
+        group: testsGroup,
+        items: [{ groupId: "g-tests", itemType: "test_set", status: "active", isActionable: null }],
+      }),
+    ).toBe(true);
   });
 });

@@ -125,7 +125,7 @@ export const treatmentProgramInstanceStageGroups = pgTable(
     description: text(),
     scheduleText: text("schedule_text"),
     sortOrder: integer("sort_order").default(0).notNull(),
-    /** Системные блоки «Рекомендации» / «Тесты» на экземпляре; `NULL` — обычная пользовательская группа. */
+    /** Системные блоки «Рекомендации» / «Тестирование» на экземпляре; `NULL` — обычная пользовательская группа. */
     systemKind: text("system_kind"),
   },
   (table) => [

@@ -27,18 +27,22 @@ import {
 } from "@/modules/patient-home/patientHomeResolvers";
 import { greetingPrefixFromHour } from "./PatientHomeGreeting";
 import { PatientHomeDailyWarmupCard } from "./PatientHomeDailyWarmupCard";
-import { PatientHomeBookingCard } from "./PatientHomeBookingCard";
 import { PatientHomeSituationsRow } from "./PatientHomeSituationsRow";
 import { PatientHomeProgressBlock } from "./PatientHomeProgressBlock";
 import { PatientHomeNextReminderCard } from "./PatientHomeNextReminderCard";
 import { PatientHomeMoodCheckin } from "./PatientHomeMoodCheckin";
-import { PatientHomeSosCard } from "./PatientHomeSosCard";
+import { PatientHomeSosBookingSplitCard } from "./PatientHomeSosBookingSplitCard";
 import { PatientHomePlanCard } from "./PatientHomePlanCard";
 import { PatientHomeSubscriptionCarousel } from "./PatientHomeSubscriptionCarousel";
 import { PatientHomeCoursesRow } from "./PatientHomeCoursesRow";
 import { PatientHomeTodayLayout } from "./PatientHomeTodayLayout";
-import { reorderPatientHomeLayoutBlocks } from "./patientHomeTodayLayoutOrder";
+import {
+  insertSosBookingSplitAfterMood,
+  reorderPatientHomeLayoutBlocks,
+} from "./patientHomeTodayLayoutOrder";
 import { PatientHomeUsefulPostCard } from "./PatientHomeUsefulPostCard";
+import { PatientHomeBookingCard } from "./PatientHomeBookingCard";
+import { PatientHomeSosCard } from "./PatientHomeSosCard";
 import { hrefForPatientHomeDrilldown, stripApiMediaForAnonymousGuest } from "./patientHomeGuestNav";
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
 import { DateTime } from "luxon";
@@ -298,13 +302,37 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
     }
   };
 
-  const layoutBlocks = reorderPatientHomeLayoutBlocks(
-    sorted
+  const hasBookingBlock = sorted.some((b) => b.code === "booking");
+  const hasSosBlock = sorted.some((b) => b.code === "sos");
+  const mergedStripHasContent = hasBookingBlock || (hasSosBlock && sosCard !== null);
+
+  const sortedForRender =
+    mergedStripHasContent ? sorted.filter((b) => b.code !== "sos" && b.code !== "booking") : sorted;
+
+  let layoutBlocks = reorderPatientHomeLayoutBlocks(
+    sortedForRender
       .map((block) => ({ code: block.code, node: renderBlock(block.code) }))
       .filter((block): block is { code: PatientHomeBlockCode; node: Exclude<ReactNode, null | undefined | false> } =>
         block.node !== null && block.node !== undefined && block.node !== false,
       ),
   );
+
+  if (mergedStripHasContent) {
+    layoutBlocks = insertSosBookingSplitAfterMood(layoutBlocks, {
+      code: "sos_booking_split",
+      node: (
+        <PatientHomeSosBookingSplitCard
+          sos={sosCard}
+          showSosHalf={Boolean(hasSosBlock && sosCard)}
+          showBookingHalf={hasBookingBlock}
+          personalTierOk={personalTierOk}
+          anonymousGuest={anonymousGuest}
+          sosIconUrl={blockLeadingIconFor("sos")}
+          bookingIconUrl={blockLeadingIconFor("booking")}
+        />
+      ),
+    });
+  }
 
   return (
     <PatientHomeTodayLayout personalizedName={personalizedName} timeOfDayPrefix={timeOfDayPrefix} blocks={layoutBlocks} />

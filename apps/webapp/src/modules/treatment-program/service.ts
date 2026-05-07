@@ -6,6 +6,7 @@ import {
   TreatmentProgramTemplateGroupDescriptionConflictError,
   TreatmentProgramExpandNotFoundError,
 } from "./errors";
+import { assertTreatmentProgramStageItemFitsSystemGroup } from "./stage-semantics";
 import type {
   ArchiveTreatmentProgramTemplateOptions,
   CreateTreatmentProgramStageInput,
@@ -194,6 +195,20 @@ export function createTreatmentProgramService(
       assertItemType(input.itemType);
       assertUuid(input.itemRefId);
       if (input.groupId) assertUuid(input.groupId);
+      const ctx = await port.getTemplateStageValidationContext(stageId);
+      if (!ctx) throw new Error("Этап не найден");
+      if (ctx.sortOrder === 0) {
+        if (input.groupId) {
+          throw new Error("На этапе «Общие рекомендации» элементы не привязываются к группам");
+        }
+        if (input.itemType !== "recommendation") {
+          throw new Error("На этапе «Общие рекомендации» разрешены только рекомендации");
+        }
+      } else if (input.groupId) {
+        const g = ctx.groups.find((x) => x.id === input.groupId);
+        if (!g) throw new Error("Группа не найдена или не принадлежит этапу");
+        assertTreatmentProgramStageItemFitsSystemGroup(g, input.itemType);
+      }
       const hasGroup = Boolean(input.groupId);
       if (!hasGroup && input.itemType !== "recommendation" && input.itemType !== "test_set") {
         throw new Error("Без группы можно добавить только рекомендацию или набор тестов");
@@ -209,11 +224,9 @@ export function createTreatmentProgramService(
     async updateStageItem(itemId: string, input: UpdateTreatmentProgramStageItemInput) {
       assertUuid(itemId);
       const patch: UpdateTreatmentProgramStageItemInput = { ...input };
-      let typeForRef: TreatmentProgramItemType | undefined;
       if (input.itemType !== undefined) {
         assertItemType(input.itemType);
         patch.itemType = input.itemType;
-        typeForRef = input.itemType;
       }
       if (input.itemRefId !== undefined) {
         assertUuid(input.itemRefId);
@@ -226,20 +239,35 @@ export function createTreatmentProgramService(
         assertUuid(input.groupId);
       }
 
+      const currentRow = await port.getStageItemById(itemId);
+      if (!currentRow) throw new Error("Элемент этапа не найден");
+
       if (patch.itemRefId !== undefined || patch.itemType !== undefined) {
-        const current = await port.getStageItemById(itemId);
-        if (!current) throw new Error("Элемент этапа не найден");
-        const nextType = patch.itemType ?? current.itemType;
-        const nextRef = patch.itemRefId ?? current.itemRefId;
+        const nextType = patch.itemType ?? currentRow.itemType;
+        const nextRef = patch.itemRefId ?? currentRow.itemRefId;
         await itemRefs.assertItemRefExists(nextType, nextRef);
       }
 
-      const currentRow = await port.getStageItemById(itemId);
-      if (!currentRow) throw new Error("Элемент этапа не найден");
+      const ctx = await port.getTemplateStageValidationContext(currentRow.stageId);
+      if (!ctx) throw new Error("Этап не найден");
       const nextGroupId = patch.groupId !== undefined ? patch.groupId : currentRow.groupId;
       const nextType = patch.itemType ?? currentRow.itemType;
-      if (!nextGroupId && nextType !== "recommendation" && nextType !== "test_set") {
-        throw new Error("Без группы можно оставить только рекомендацию или набор тестов");
+      if (ctx.sortOrder === 0) {
+        if (nextType !== "recommendation") {
+          throw new Error("На этапе «Общие рекомендации» разрешены только рекомендации");
+        }
+        if (nextGroupId != null) {
+          throw new Error("На этапе «Общие рекомендации» элементы не привязываются к группам");
+        }
+      } else {
+        if (nextGroupId) {
+          const g = ctx.groups.find((x) => x.id === nextGroupId);
+          if (!g) throw new Error("Группа не найдена или не принадлежит этапу");
+          assertTreatmentProgramStageItemFitsSystemGroup(g, nextType);
+        }
+        if (!nextGroupId && nextType !== "recommendation" && nextType !== "test_set") {
+          throw new Error("Без группы можно оставить только рекомендацию или набор тестов");
+        }
       }
 
       const row = await port.updateStageItem(itemId, patch);

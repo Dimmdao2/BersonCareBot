@@ -10,10 +10,16 @@ import {
   createInMemoryTreatmentProgramItemSnapshotPort,
 } from "@/app-layer/testing/treatmentProgramInstanceInMemory";
 import type { TreatmentProgramItemRefValidationPort } from "./ports";
-import { effectiveInstanceStageItemComment } from "./types";
+import { effectiveInstanceStageItemComment, type TreatmentProgramInstanceDetail } from "./types";
 
 const refA = "11111111-1111-4111-8111-111111111111";
 const refB = "22222222-2222-4222-8222-222222222222";
+
+function instStageForTpl(inst: TreatmentProgramInstanceDetail, templateStageId: string) {
+  const s = inst.stages.find((x) => x.sourceStageId === templateStageId);
+  if (!s) throw new Error("instance stage not found for template stage");
+  return s;
+}
 
 describe("treatment-program instance service", () => {
   let tplPort: ReturnType<typeof createInMemoryTreatmentProgramPort>;
@@ -59,12 +65,14 @@ describe("treatment-program instance service", () => {
       assignedBy: null,
     });
 
-    expect(inst.stages).toHaveLength(2);
-    expect(inst.stages[0]!.status).toBe("available");
-    expect(inst.stages[1]!.status).toBe("available");
-    expect(inst.stages[0]!.sourceStageId).toBe(s1.id);
-    expect(inst.stages[0]!.items).toHaveLength(1);
-    const it0 = inst.stages[0]!.items[0]!;
+    expect(inst.stages).toHaveLength(3);
+    const stS1 = instStageForTpl(inst, s1.id);
+    const stS2 = instStageForTpl(inst, s2.id);
+    expect(stS1.status).toBe("available");
+    expect(stS2.status).toBe("locked");
+    expect(stS1.sourceStageId).toBe(s1.id);
+    expect(stS1.items).toHaveLength(1);
+    const it0 = stS1.items[0]!;
     expect(it0.comment).toBe("Из шаблона");
     expect(it0.localComment).toBeNull();
     expect(it0.snapshot).toMatchObject({ itemType: "recommendation", id: refA, stub: true });
@@ -86,7 +94,7 @@ describe("treatment-program instance service", () => {
       patientUserId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
       assignedBy: null,
     });
-    const stage = inst.stages[0]!;
+    const stage = instStageForTpl(inst, s1.id);
     const sysRec = stage.groups.find((x) => x.systemKind === "recommendations");
     const sysTests = stage.groups.find((x) => x.systemKind === "tests");
     expect(sysRec).toBeDefined();
@@ -99,6 +107,46 @@ describe("treatment-program instance service", () => {
     expect(recItem?.groupId).toBe(sysRec?.id);
     expect(testItem?.groupId).toBe(sysTests?.id);
     expect(exItem?.groupId).toBe(stage.groups.find((gr) => gr.title === "Упр")?.id);
+  });
+
+  it("doctorAddStageItem on instance stage zero stores recommendation without group", async () => {
+    const tpl = await tplSvc.createTemplate({ title: "П", status: "published" }, null);
+    const d = await tplSvc.getTemplate(tpl.id);
+    const s0Tpl = d.stages.find((s) => s.sortOrder === 0)!;
+    await tplSvc.addStageItem(s0Tpl.id, { itemType: "recommendation", itemRefId: refA });
+    const inst = await instSvc.assignTemplateToPatient({
+      templateId: tpl.id,
+      patientUserId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      assignedBy: null,
+    });
+    const s0Inst = inst.stages.find((s) => s.sortOrder === 0)!;
+    const added = await instSvc.doctorAddStageItem({
+      instanceId: inst.id,
+      stageId: s0Inst.id,
+      actorId: null,
+      itemType: "recommendation",
+      itemRefId: refB,
+    });
+    expect(added.groupId).toBeNull();
+  });
+
+  it("doctorAddStageItem rejects test_set on instance stage zero", async () => {
+    const tpl = await tplSvc.createTemplate({ title: "П", status: "published" }, null);
+    const inst = await instSvc.assignTemplateToPatient({
+      templateId: tpl.id,
+      patientUserId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+      assignedBy: null,
+    });
+    const s0Inst = inst.stages.find((s) => s.sortOrder === 0)!;
+    await expect(
+      instSvc.doctorAddStageItem({
+        instanceId: inst.id,
+        stageId: s0Inst.id,
+        actorId: null,
+        itemType: "test_set",
+        itemRefId: refA,
+      }),
+    ).rejects.toThrow(/Общие рекомендации|только рекомендации/);
   });
 
   it("deep copy: goals, objectives, expected duration from template stages (A1)", async () => {
@@ -127,15 +175,15 @@ describe("treatment-program instance service", () => {
       assignedBy: null,
     });
 
-    expect(inst.stages[0]!.goals).toBe("Снять боль");
-    expect(inst.stages[0]!.objectives).toBe("- 3 раза в неделю\n- без отёка");
-    expect(inst.stages[0]!.expectedDurationDays).toBe(14);
-    expect(inst.stages[0]!.expectedDurationText).toBe("2 недели");
+    expect(instStageForTpl(inst, s1.id).goals).toBe("Снять боль");
+    expect(instStageForTpl(inst, s1.id).objectives).toBe("- 3 раза в неделю\n- без отёка");
+    expect(instStageForTpl(inst, s1.id).expectedDurationDays).toBe(14);
+    expect(instStageForTpl(inst, s1.id).expectedDurationText).toBe("2 недели");
 
-    expect(inst.stages[1]!.goals).toBeNull();
-    expect(inst.stages[1]!.objectives).toBeNull();
-    expect(inst.stages[1]!.expectedDurationDays).toBeNull();
-    expect(inst.stages[1]!.expectedDurationText).toBeNull();
+    expect(instStageForTpl(inst, s2.id).goals).toBeNull();
+    expect(instStageForTpl(inst, s2.id).objectives).toBeNull();
+    expect(instStageForTpl(inst, s2.id).expectedDurationDays).toBeNull();
+    expect(instStageForTpl(inst, s2.id).expectedDurationText).toBeNull();
   });
 
   it("deep copy preserves settings from template stage item (§5)", async () => {
@@ -153,7 +201,7 @@ describe("treatment-program instance service", () => {
       patientUserId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
       assignedBy: null,
     });
-    expect(inst.stages[0]!.items[0]!.settings).toEqual(settings);
+    expect(instStageForTpl(inst, s1.id).items[0]!.settings).toEqual(settings);
   });
 
   it("instance item comment and snapshot are independent of template edits after assign (§5)", async () => {
@@ -172,12 +220,12 @@ describe("treatment-program instance service", () => {
       patientUserId: patient,
       assignedBy: null,
     });
-    const snapBefore = { ...inst.stages[0]!.items[0]!.snapshot };
+    const snapBefore = { ...instStageForTpl(inst, s1.id).items[0]!.snapshot };
 
     await tplSvc.updateStageItem(tItem.id, { comment: "mutated-in-template" });
 
     const after = await instSvc.getInstanceForPatient(patient, inst.id);
-    const row = after.stages[0]!.items[0]!;
+    const row = instStageForTpl(after, s1.id).items[0]!;
     expect(row.comment).toBe("original");
     expect(row.snapshot).toEqual(snapBefore);
   });
@@ -252,9 +300,9 @@ describe("treatment-program instance service", () => {
       patientUserId: patient,
       assignedBy: null,
     });
-    const itemId = inst.stages[0]!.items[0]!.id;
+    const itemId = instStageForTpl(inst, s1.id).items[0]!.id;
 
-    expect(effectiveInstanceStageItemComment(inst.stages[0]!.items[0]!)).toBe("Шаблонный текст");
+    expect(effectiveInstanceStageItemComment(instStageForTpl(inst, s1.id).items[0]!)).toBe("Шаблонный текст");
 
     await instSvc.updateStageItemLocalComment({
       instanceId: inst.id,
@@ -263,7 +311,7 @@ describe("treatment-program instance service", () => {
       actorId: null,
     });
     const after = await instSvc.getInstanceForPatient(patient, inst.id);
-    const row = after.stages[0]!.items[0]!;
+    const row = instStageForTpl(after, s1.id).items[0]!;
     expect(row.localComment).toBe("Для Иванова");
     expect(row.comment).toBe("Шаблонный текст");
     expect(row.effectiveComment).toBe("Для Иванова");
@@ -284,7 +332,7 @@ describe("treatment-program instance service", () => {
       patientUserId: patient,
       assignedBy: null,
     });
-    const itemId = inst.stages[0]!.items[0]!.id;
+    const itemId = instStageForTpl(inst, s1.id).items[0]!.id;
     await instSvc.updateStageItemLocalComment({
       instanceId: inst.id,
       stageItemId: itemId,
@@ -298,7 +346,7 @@ describe("treatment-program instance service", () => {
       actorId: null,
     });
     const after = await instSvc.getInstanceForPatient(patient, inst.id);
-    const row = after.stages[0]!.items[0]!;
+    const row = instStageForTpl(after, s1.id).items[0]!;
     expect(row.localComment).toBeNull();
     expect(row.effectiveComment).toBe("Оригинал");
   });
@@ -313,7 +361,7 @@ describe("treatment-program instance service", () => {
       patientUserId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
       assignedBy: null,
     });
-    const stage = inst.stages[0]!;
+    const stage = instStageForTpl(inst, s1.id);
     expect(stage.groups).toHaveLength(3);
     const userGroup = stage.groups.find((gr) => gr.sourceGroupId === g.id);
     expect(userGroup?.title).toBe("Неделя 1");

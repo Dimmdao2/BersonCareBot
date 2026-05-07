@@ -27,6 +27,19 @@ const TEMPLATE_ID = "11111111-1111-4111-8111-111111111111";
 
 function makeDetail(over: Partial<TreatmentProgramTemplateDetail> = {}): TreatmentProgramTemplateDetail {
   const now = "2026-01-01T00:00:00.000Z";
+  const stageZero = {
+    id: "00000000-0000-4000-8000-000000000001",
+    templateId: TEMPLATE_ID,
+    title: "Общие рекомендации",
+    description: null,
+    sortOrder: 0,
+    goals: null,
+    objectives: null,
+    expectedDurationDays: null,
+    expectedDurationText: null,
+    groups: [] as TreatmentProgramTemplateDetail["stages"][number]["groups"],
+    items: [] as TreatmentProgramTemplateDetail["stages"][number]["items"],
+  };
   const merged: TreatmentProgramTemplateDetail = {
     id: TEMPLATE_ID,
     title: "Шаблон",
@@ -38,7 +51,7 @@ function makeDetail(over: Partial<TreatmentProgramTemplateDetail> = {}): Treatme
     createdBy: null,
     createdAt: now,
     updatedAt: now,
-    stages: [],
+    stages: [stageZero],
     ...over,
   };
   const itemCount = merged.stages.reduce((n, st) => n + st.items.length, 0);
@@ -245,11 +258,24 @@ describe("TreatmentProgramConstructorClient", () => {
     const detail = makeDetail({
       stages: [
         {
+          id: "00000000-0000-4000-8000-000000000001",
+          templateId: TEMPLATE_ID,
+          title: "Общие рекомендации",
+          description: null,
+          sortOrder: 0,
+          goals: null,
+          objectives: null,
+          expectedDurationDays: null,
+          expectedDurationText: null,
+          groups: [],
+          items: [],
+        },
+        {
           id: stageId,
           templateId: TEMPLATE_ID,
           title: "Этап 1",
           description: null,
-          sortOrder: 0,
+          sortOrder: 1,
           goals: null,
           objectives: null,
           expectedDurationDays: null,
@@ -287,7 +313,8 @@ describe("TreatmentProgramConstructorClient", () => {
     const user = userEvent.setup();
     render(<TreatmentProgramConstructorClient templateId={TEMPLATE_ID} initialDetail={detail} library={library} />);
 
-    await user.click(screen.getByRole("button", { name: /добавить из библиотеки/i }));
+    const addBtns = screen.getAllByRole("button", { name: /добавить из библиотеки/i });
+    await user.click(addBtns[addBtns.length - 1]!);
 
     const pickerDialog = await screen.findByRole("dialog", { name: /элемент из библиотеки/i });
     const picker = within(pickerDialog);

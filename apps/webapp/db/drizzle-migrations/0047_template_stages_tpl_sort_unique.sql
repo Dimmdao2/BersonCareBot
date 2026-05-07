@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "treatment_program_template_stages_tpl_id_sort_order_uidx" ON "treatment_program_template_stages" USING btree ("template_id","sort_order");

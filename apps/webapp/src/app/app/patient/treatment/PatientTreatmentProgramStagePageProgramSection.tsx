@@ -167,7 +167,7 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
   const readOnly = itemInteraction === "readOnly";
   const visibleProgramItems = useMemo(
     () => sortByOrderThenId(stage.items.filter((it) => isProgramCompositionItem(it, stage))),
-    [stage.items, stage.groups],
+    [stage],
   );
 
   const orderedSegments = useMemo(

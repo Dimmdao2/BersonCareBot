@@ -193,7 +193,8 @@
 #### Шаблоны программ (фаза 3)
 
 - `treatment_program_templates`
-- `treatment_program_template_stages`
+- `treatment_program_template_stages` — **уникальная пара** `(template_id, sort_order)` (инвариант порядка этапов, включая этап 0 «Общие рекомендации»).
+- `treatment_program_template_stage_groups` — системные блоки `system_kind` ∈ (`recommendations`, `tests`); partial unique: одна строка «Рекомендации» и одна «Тестирование» на этап.
 - `treatment_program_template_stage_items`
 
 Связи и инварианты:
@@ -201,7 +202,7 @@
 - `treatment_program_templates.created_by` → `platform_users.id` (SET NULL)
 - `treatment_program_template_stages.template_id` → `treatment_program_templates.id` (CASCADE)
 - `treatment_program_template_stage_items.stage_id` → `treatment_program_template_stages.id` (CASCADE)
-- `treatment_program_template_stage_items.item_ref_id` — **без FK**, полиморфная ссылка; валидируется сервисным слоем
+- `treatment_program_template_stage_items.item_ref_id` — **без FK**, полиморфная ссылка; валидируется сервисным слоем (в т.ч. соответствие типа элемента системной группе и правила этапа 0).
 
 #### Экземпляры программ / назначение (фаза 4)
 

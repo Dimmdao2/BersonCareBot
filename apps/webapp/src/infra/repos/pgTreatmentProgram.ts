@@ -8,7 +8,7 @@ import {
   treatmentProgramTemplateStageItems as itemTable,
   treatmentProgramTemplateStageGroups as tplGroupTable,
 } from "../../../db/schema/treatmentProgramTemplates";
-import type { TreatmentProgramPort } from "@/modules/treatment-program/ports";
+import type { TreatmentProgramPort, TreatmentProgramTemplateStageValidationContext } from "@/modules/treatment-program/ports";
 import type {
   CreateTreatmentProgramStageInput,
   CreateTreatmentProgramStageItemInput,
@@ -32,10 +32,16 @@ import type {
   LfkComplexExpandPreview,
   ExpandLfkComplexIntoStageItemsPortInput,
   ExpandLfkComplexIntoStageItemsResult,
+  TreatmentProgramInstanceStageSystemKind,
 } from "@/modules/treatment-program/types";
 import {
   EMPTY_TREATMENT_PROGRAM_TEMPLATE_USAGE_SNAPSHOT,
   TREATMENT_PROGRAM_TEMPLATE_USAGE_DETAIL_LIMIT,
+  TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_SORT_RECOMMENDATIONS,
+  TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_SORT_TESTS,
+  TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_TITLE_RECOMMENDATIONS,
+  TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_TITLE_TESTS,
+  TREATMENT_PROGRAM_TEMPLATE_STAGE_ZERO_TITLE,
 } from "@/modules/treatment-program/types";
 import { TreatmentProgramTemplateAlreadyArchivedError, TreatmentProgramExpandNotFoundError } from "@/modules/treatment-program/errors";
 
@@ -239,6 +245,7 @@ async function templateCountsForOne(
 }
 
 function mapTemplateGroup(row: typeof tplGroupTable.$inferSelect): TreatmentProgramTemplateStageGroup {
+  const sk = row.systemKind;
   return {
     id: row.id,
     stageId: row.stageId,
@@ -246,7 +253,42 @@ function mapTemplateGroup(row: typeof tplGroupTable.$inferSelect): TreatmentProg
     description: row.description ?? null,
     scheduleText: row.scheduleText ?? null,
     sortOrder: row.sortOrder,
+    systemKind:
+      sk === "recommendations" || sk === "tests" ? (sk as TreatmentProgramInstanceStageSystemKind) : null,
   };
+}
+
+type DrizzleTx = Parameters<Parameters<ReturnType<typeof getDrizzle>["transaction"]>[0]>[0];
+
+async function ensureTemplateStageSystemGroupsInTx(tx: DrizzleTx, stageId: string, stageSortOrder: number) {
+  if (stageSortOrder <= 0) return;
+  const existing = await tx
+    .select({ systemKind: tplGroupTable.systemKind })
+    .from(tplGroupTable)
+    .where(eq(tplGroupTable.stageId, stageId));
+  const kinds = new Set(
+    existing.map((r) => r.systemKind).filter((x): x is string => x === "recommendations" || x === "tests"),
+  );
+  if (!kinds.has("recommendations")) {
+    await tx.insert(tplGroupTable).values({
+      stageId,
+      title: TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_TITLE_RECOMMENDATIONS,
+      description: null,
+      scheduleText: null,
+      sortOrder: TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_SORT_RECOMMENDATIONS,
+      systemKind: "recommendations",
+    });
+  }
+  if (!kinds.has("tests")) {
+    await tx.insert(tplGroupTable).values({
+      stageId,
+      title: TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_TITLE_TESTS,
+      description: null,
+      scheduleText: null,
+      sortOrder: TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_SORT_TESTS,
+      systemKind: "tests",
+    });
+  }
 }
 
 function parseTreatmentProgramTemplateUsageRefs(raw: unknown): TreatmentProgramTemplateUsageRef[] {
@@ -397,17 +439,33 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
   return {
     async createTemplate(input: CreateTreatmentProgramTemplateInput, createdBy: string | null) {
       const db = getDrizzle();
-      const [row] = await db
-        .insert(tplTable)
-        .values({
-          title: input.title,
-          description: input.description ?? null,
-          status: input.status ?? "draft",
-          createdBy,
-        })
-        .returning();
-      if (!row) throw new Error("insert failed");
-      return mapTemplate(row, { stageCount: 0, itemCount: 0 });
+      return db.transaction(async (tx) => {
+        const [row] = await tx
+          .insert(tplTable)
+          .values({
+            title: input.title,
+            description: input.description ?? null,
+            status: input.status ?? "draft",
+            createdBy,
+          })
+          .returning();
+        if (!row) throw new Error("insert failed");
+        const [stRow] = await tx
+          .insert(stageTable)
+          .values({
+            templateId: row.id,
+            title: TREATMENT_PROGRAM_TEMPLATE_STAGE_ZERO_TITLE,
+            description: null,
+            sortOrder: 0,
+            goals: null,
+            objectives: null,
+            expectedDurationDays: null,
+            expectedDurationText: null,
+          })
+          .returning();
+        if (!stRow) throw new Error("insert stage zero failed");
+        return mapTemplate(row, { stageCount: 1, itemCount: 0 });
+      });
     },
 
     async updateTemplate(id: string, input: UpdateTreatmentProgramTemplateInput) {
@@ -476,6 +534,30 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
       };
     },
 
+    async getTemplateStageValidationContext(
+      stageId: string,
+    ): Promise<TreatmentProgramTemplateStageValidationContext | null> {
+      const db = getDrizzle();
+      const [st] = await db
+        .select({ sortOrder: stageTable.sortOrder })
+        .from(stageTable)
+        .where(eq(stageTable.id, stageId))
+        .limit(1);
+      if (!st) return null;
+      const groupRows = await db
+        .select({ id: tplGroupTable.id, systemKind: tplGroupTable.systemKind })
+        .from(tplGroupTable)
+        .where(eq(tplGroupTable.stageId, stageId));
+      return {
+        sortOrder: st.sortOrder,
+        groups: groupRows.map((r) => ({
+          id: r.id,
+          systemKind:
+            r.systemKind === "recommendations" || r.systemKind === "tests" ? r.systemKind : null,
+        })),
+      };
+    },
+
     async listTemplates(filter: TreatmentProgramTemplateFilter): Promise<TreatmentProgramTemplate[]> {
       const db = getDrizzle();
       const conds = [];
@@ -514,30 +596,55 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
 
     async createStage(templateId: string, input: CreateTreatmentProgramStageInput) {
       const db = getDrizzle();
-      const [{ max }] = await db
-        .select({ max: sql<number>`coalesce(max(${stageTable.sortOrder}), -1)` })
-        .from(stageTable)
-        .where(eq(stageTable.templateId, templateId));
-      const sortOrder = input.sortOrder ?? max + 1;
-      const [row] = await db
-        .insert(stageTable)
-        .values({
-          templateId,
-          title: input.title,
-          description: input.description ?? null,
-          sortOrder,
-          goals: input.goals ?? null,
-          objectives: input.objectives ?? null,
-          expectedDurationDays: input.expectedDurationDays ?? null,
-          expectedDurationText: input.expectedDurationText ?? null,
-        })
-        .returning();
-      if (!row) throw new Error("insert failed");
-      return mapStage(row);
+      return db.transaction(async (tx) => {
+        const [{ max }] = await tx
+          .select({ max: sql<number>`coalesce(max(${stageTable.sortOrder}), -1)` })
+          .from(stageTable)
+          .where(eq(stageTable.templateId, templateId));
+        const sortOrder = max + 1;
+        const [row] = await tx
+          .insert(stageTable)
+          .values({
+            templateId,
+            title: input.title,
+            description: input.description ?? null,
+            sortOrder,
+            goals: input.goals ?? null,
+            objectives: input.objectives ?? null,
+            expectedDurationDays: input.expectedDurationDays ?? null,
+            expectedDurationText: input.expectedDurationText ?? null,
+          })
+          .returning();
+        if (!row) throw new Error("insert failed");
+        await ensureTemplateStageSystemGroupsInTx(tx, row.id, row.sortOrder);
+        return mapStage(row);
+      });
     },
 
     async updateStage(stageId: string, input: UpdateTreatmentProgramStageInput) {
       const db = getDrizzle();
+      const [cur] = await db.select().from(stageTable).where(eq(stageTable.id, stageId)).limit(1);
+      if (!cur) return null;
+      if (input.sortOrder !== undefined) {
+        if (cur.sortOrder === 0 && input.sortOrder !== 0) {
+          throw new Error("Этап «Общие рекомендации» (порядок 0) нельзя перевести на другой порядок");
+        }
+        if (cur.sortOrder !== 0 && input.sortOrder === 0) {
+          throw new Error("Порядок 0 зарезервирован для этапа «Общие рекомендации»");
+        }
+        if (input.sortOrder !== cur.sortOrder) {
+          const clash = await db
+            .select({ id: stageTable.id })
+            .from(stageTable)
+            .where(
+              and(eq(stageTable.templateId, cur.templateId), eq(stageTable.sortOrder, input.sortOrder)),
+            )
+            .limit(1);
+          if (clash[0] && clash[0].id !== stageId) {
+            throw new Error("Этап с таким порядком уже существует");
+          }
+        }
+      }
       const patch: Partial<typeof stageTable.$inferInsert> = {};
       if (input.title !== undefined) patch.title = input.title;
       if (input.description !== undefined) patch.description = input.description;
@@ -552,12 +659,22 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
 
     async deleteStage(stageId: string) {
       const db = getDrizzle();
+      const [cur] = await db.select().from(stageTable).where(eq(stageTable.id, stageId)).limit(1);
+      if (!cur) return false;
+      if (cur.sortOrder === 0) {
+        throw new Error("Нельзя удалить этап «Общие рекомендации»");
+      }
       const res = await db.delete(stageTable).where(eq(stageTable.id, stageId)).returning({ id: stageTable.id });
       return res.length > 0;
     },
 
     async addStageItem(stageId: string, input: CreateTreatmentProgramStageItemInput) {
       const db = getDrizzle();
+      const [st] = await db.select().from(stageTable).where(eq(stageTable.id, stageId)).limit(1);
+      if (!st) throw new Error("Этап не найден");
+      if (st.sortOrder === 0 && input.itemType !== "recommendation") {
+        throw new Error("На этапе «Общие рекомендации» разрешены только рекомендации");
+      }
       const [{ max }] = await db
         .select({ max: sql<number>`coalesce(max(${itemTable.sortOrder}), -1)` })
         .from(itemTable)
@@ -608,6 +725,11 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
 
     async createTemplateStageGroup(stageId: string, input: CreateTreatmentProgramTemplateStageGroupInput) {
       const db = getDrizzle();
+      const [st] = await db.select().from(stageTable).where(eq(stageTable.id, stageId)).limit(1);
+      if (!st) throw new Error("Этап не найден");
+      if (st.sortOrder === 0) {
+        throw new Error("На этапе «Общие рекомендации» нельзя создавать группы");
+      }
       const [{ max }] = await db
         .select({ max: sql<number>`coalesce(max(${tplGroupTable.sortOrder}), -1)` })
         .from(tplGroupTable)
@@ -623,6 +745,7 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
           description: input.description?.trim() ?? null,
           scheduleText: input.scheduleText?.trim() ?? null,
           sortOrder,
+          systemKind: null,
         })
         .returning();
       if (!row) throw new Error("insert group failed");
@@ -631,6 +754,19 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
 
     async updateTemplateStageGroup(groupId: string, input: UpdateTreatmentProgramTemplateStageGroupInput) {
       const db = getDrizzle();
+      const [cur] = await db.select().from(tplGroupTable).where(eq(tplGroupTable.id, groupId)).limit(1);
+      if (!cur) return null;
+      if (cur.systemKind === "recommendations" || cur.systemKind === "tests") {
+        if (
+          input.title !== undefined ||
+          input.sortOrder !== undefined ||
+          input.description !== undefined ||
+          input.scheduleText !== undefined
+        ) {
+          throw new Error("Системную группу нельзя редактировать");
+        }
+        return mapTemplateGroup(cur);
+      }
       const patch: Partial<typeof tplGroupTable.$inferInsert> = {};
       if (input.title !== undefined) {
         const t = input.title.trim();
@@ -646,6 +782,11 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
 
     async deleteTemplateStageGroup(groupId: string) {
       const db = getDrizzle();
+      const [cur] = await db.select().from(tplGroupTable).where(eq(tplGroupTable.id, groupId)).limit(1);
+      if (!cur) return false;
+      if (cur.systemKind === "recommendations" || cur.systemKind === "tests") {
+        throw new Error("Системную группу нельзя удалить");
+      }
       await db.update(itemTable).set({ groupId: null }).where(eq(itemTable.groupId, groupId));
       const res = await db.delete(tplGroupTable).where(eq(tplGroupTable.id, groupId)).returning({ id: tplGroupTable.id });
       return res.length > 0;
@@ -655,21 +796,23 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
       const db = getDrizzle();
       return db.transaction(async (tx) => {
         const rows = await tx
-          .select({ id: tplGroupTable.id })
+          .select({ id: tplGroupTable.id, systemKind: tplGroupTable.systemKind })
           .from(tplGroupTable)
           .where(eq(tplGroupTable.stageId, stageId));
-        const idSet = new Set(rows.map((r) => r.id));
+        const userRows = rows.filter((r) => !r.systemKind);
+        const idSet = new Set(userRows.map((r) => r.id));
         if (orderedGroupIds.length !== idSet.size) return false;
         const seen = new Set<string>();
         for (const id of orderedGroupIds) {
           if (!idSet.has(id) || seen.has(id)) return false;
           seen.add(id);
         }
-        for (let i = 0; i < orderedGroupIds.length; i++) {
+        let ord = 0;
+        for (const id of orderedGroupIds) {
           await tx
             .update(tplGroupTable)
-            .set({ sortOrder: i })
-            .where(eq(tplGroupTable.id, orderedGroupIds[i]!));
+            .set({ sortOrder: ord++ })
+            .where(eq(tplGroupTable.id, id));
         }
         return true;
       });
@@ -702,6 +845,9 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
           where: eq(stageTable.id, input.stageId),
         });
         if (!stageRow) throw new TreatmentProgramExpandNotFoundError("Этап не найден");
+        if (stageRow.sortOrder === 0) {
+          throw new Error("На этапе «Общие рекомендации» нельзя разворачивать комплекс ЛФК");
+        }
         if (stageRow.templateId !== input.templateId) {
           throw new TreatmentProgramExpandNotFoundError("Этап не принадлежит шаблону");
         }
@@ -758,6 +904,7 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
               description: groupDescription,
               scheduleText: null,
               sortOrder,
+              systemKind: null,
             })
             .returning();
           if (!gRow) throw new Error("insert group failed");
@@ -771,6 +918,9 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
             .limit(1);
           if (!gRow || gRow.stageId !== input.stageId) {
             throw new TreatmentProgramExpandNotFoundError("Группа не найдена или не принадлежит этапу");
+          }
+          if (gRow.systemKind === "recommendations" || gRow.systemKind === "tests") {
+            throw new Error("Нельзя добавить упражнения в системную группу");
           }
           targetGroupId = gRow.id;
           if (input.copyComplexDescriptionToGroup && complexDescription) {

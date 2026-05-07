@@ -51,12 +51,15 @@ import {
   isInstanceStageItemShownInPatientCompositionModal,
   isInstanceStageItemShownOnPatientProgramSurfaces,
   isPersistentRecommendation,
+  isTreatmentProgramInstanceSystemStageGroup,
+  patientInstanceSystemGroupHasVisibleItems,
   patientStageItemShowsNewBadge,
   patientStageSectionShouldRender,
   splitPatientProgramStagesForDetailUi,
   selectCurrentWorkingStageForPatientDetail,
   expectedStageControlDateIso,
   formatRelativePatientCalendarDayRu,
+  sortDoctorInstanceStageGroupsForDisplay,
 } from "@/modules/treatment-program/stage-semantics";
 import { listLfkSnapshotExerciseLines, programActionDoneActivityKey } from "@/modules/treatment-program/programActionActivityKey";
 import { testIdsFromTestSetSnapshot } from "@/modules/treatment-program/testSetSnapshotView";
@@ -678,7 +681,7 @@ function PatientProgramStagesTimeline(props: {
                   if (visibleItems.length === 0) {
                     return <p className="text-sm font-normal text-muted-foreground">Нет элементов для отображения.</p>;
                   }
-                  const sortedGroups = sortByOrderThenId(stageForModal.groups).filter((g) =>
+                  const sortedGroups = sortDoctorInstanceStageGroupsForDisplay(stageForModal.groups).filter((g) =>
                     visibleItems.some((it) => it.groupId === g.id),
                   );
                   const ungroupedItems = sortByOrderThenId(
@@ -1212,9 +1215,12 @@ export function PatientInstanceStageBody(props: {
       ? isInstanceStageItemActiveForPatient(it)
       : isInstanceStageItemShownOnPatientProgramSurfaces(it),
   );
-  const sortedGroups = sortByOrderThenId(stage.groups).filter((g) =>
-    visibleItems.some((it) => it.groupId === g.id),
-  );
+  const sortedGroups = sortDoctorInstanceStageGroupsForDisplay(stage.groups).filter((g) => {
+    if (!isTreatmentProgramInstanceSystemStageGroup(g)) {
+      return visibleItems.some((it) => it.groupId === g.id);
+    }
+    return patientInstanceSystemGroupHasVisibleItems({ group: g, items: visibleItems });
+  });
   const ungroupedItems = sortByOrderThenId(visibleItems.filter((it) => !it.groupId));
 
   const [openItemId, setOpenItemId] = useState<string | null>(null);

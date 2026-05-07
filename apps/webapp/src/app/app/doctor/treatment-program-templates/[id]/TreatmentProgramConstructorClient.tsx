@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { BookOpen, ChevronDown, ChevronUp, ClipboardList, ImageIcon, Settings } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DoctorCatalogPersistPublishBar } from "@/shared/ui/doctor/DoctorCatalogPersistPublishBar";
 import {
@@ -40,6 +39,10 @@ import type {
   TreatmentProgramTemplateUsageSnapshot,
 } from "@/modules/treatment-program/types";
 import { doctorTreatmentProgramTemplateUsageHref } from "../templateUsageDocLinks";
+import {
+  isTreatmentProgramTemplateSystemStageGroup,
+  sortDoctorTemplateStageGroupsForDisplay,
+} from "@/modules/treatment-program/stage-semantics";
 import {
   treatmentProgramTemplateUsageHasAnyReference,
   treatmentProgramTemplateUsageSections,
@@ -222,7 +225,7 @@ function sortByOrderThenId<T extends { sortOrder: number; id: string }>(rows: T[
 type StageWithChildren = TreatmentProgramTemplateDetail["stages"][number];
 
 function orderedGroupsForStage(stage: StageWithChildren) {
-  return sortByOrderThenId(stage.groups);
+  return sortDoctorTemplateStageGroupsForDisplay(stage.groups);
 }
 
 function ungroupedItemsForStage(stage: StageWithChildren) {
@@ -329,7 +332,6 @@ export function TreatmentProgramConstructorClient({
   const [newStageTitle, setNewStageTitle] = useState("");
   const [newStageGoals, setNewStageGoals] = useState("");
   const [newStageObjectives, setNewStageObjectives] = useState("");
-  const [newStageSortOrder, setNewStageSortOrder] = useState("");
   const [itemDialogOpen, setItemDialogOpen] = useState(false);
   const [itemType, setItemType] = useState<TreatmentProgramItemType>("exercise");
   const [itemSearch, setItemSearch] = useState("");
@@ -571,6 +573,15 @@ export function TreatmentProgramConstructorClient({
 
   const orderedStages = useMemo(() => sortByOrderThenId(detail.stages), [detail.stages]);
 
+  const itemDialogStage = useMemo(
+    () => (itemDialogStageId ? detail.stages.find((s) => s.id === itemDialogStageId) ?? null : null),
+    [detail.stages, itemDialogStageId],
+  );
+
+  useEffect(() => {
+    setItemAddGroupId("");
+  }, [itemDialogStageId, itemType]);
+
   useEffect(() => {
     if (stageSettingsStageId && !detail.stages.some((s) => s.id === stageSettingsStageId)) {
       setStageSettingsStageId(null);
@@ -607,7 +618,8 @@ export function TreatmentProgramConstructorClient({
   const itemPickerGroupsOrdered = useMemo(() => {
     if (!itemDialogStageId) return [];
     const st = detail.stages.find((s) => s.id === itemDialogStageId);
-    return st ? sortByOrderThenId(st.groups) : [];
+    if (!st) return [];
+    return sortDoctorTemplateStageGroupsForDisplay(st.groups).filter((g) => !g.systemKind);
   }, [detail.stages, itemDialogStageId]);
 
   const allowUngroupedItemAdd = itemType === "recommendation" || itemType === "test_set";
@@ -631,7 +643,8 @@ export function TreatmentProgramConstructorClient({
   const lfkExpandGroupsOrdered = useMemo(() => {
     if (!lfkExpand) return [];
     const st = detail.stages.find((s) => s.id === lfkExpand.stageId);
-    return st ? sortByOrderThenId(st.groups) : [];
+    if (!st) return [];
+    return sortDoctorTemplateStageGroupsForDisplay(st.groups).filter((g) => !g.systemKind);
   }, [detail.stages, lfkExpand]);
 
   const lfkExpandCopyCheckboxBlocked = useMemo(() => {
@@ -695,6 +708,8 @@ export function TreatmentProgramConstructorClient({
   async function handleSaveStageSettings() {
     const sid = stageSettingsStageId;
     if (!sid || editLocked) return;
+    const stMeta = detail.stages.find((s) => s.id === sid);
+    if (stMeta?.sortOrder === 0) return;
     const titleTrim = stageTitleDraft.trim();
     if (!titleTrim) {
       setStageMetaMsg("Укажите название этапа");
@@ -744,12 +759,7 @@ export function TreatmentProgramConstructorClient({
     if (idx < 0 || j < 0 || j >= sorted.length) return;
     const a = sorted[idx]!;
     const b = sorted[j]!;
-    if (a.sortOrder === 0 || b.sortOrder === 0) {
-      const ok = globalThis.confirm(
-        "Один из этапов имеет порядок 0 — у пациента он показывается как «Общие рекомендации». После перестановки другой этап может получить эту роль. Продолжить?",
-      );
-      if (!ok) return;
-    }
+    if (a.sortOrder === 0 || b.sortOrder === 0) return;
     setBusy(true);
     setError(null);
     try {
@@ -863,7 +873,7 @@ export function TreatmentProgramConstructorClient({
   }
 
   async function handleReorderGroup(stage: StageWithChildren, groupId: string, dir: -1 | 1) {
-    const sorted = sortByOrderThenId(stage.groups);
+    const sorted = sortDoctorTemplateStageGroupsForDisplay(stage.groups).filter((g) => !g.systemKind);
     const idx = sorted.findIndex((g) => g.id === groupId);
     const j = idx + dir;
     if (idx < 0 || j < 0 || j >= sorted.length) return;
@@ -895,6 +905,11 @@ export function TreatmentProgramConstructorClient({
   }
 
   async function handleDeleteGroup(groupId: string) {
+    const found = detail.stages.flatMap((st) => st.groups).find((g) => g.id === groupId);
+    if (found && isTreatmentProgramTemplateSystemStageGroup(found)) {
+      setError("Системную группу нельзя удалить");
+      return;
+    }
     if (!globalThis.confirm("Удалить группу? Элементы останутся вне группы.")) return;
     setBusy(true);
     setError(null);
@@ -914,6 +929,7 @@ export function TreatmentProgramConstructorClient({
   }
 
   function openEditGroup(g: TreatmentProgramTemplateStageGroup) {
+    if (isTreatmentProgramTemplateSystemStageGroup(g)) return;
     setGroupEditId(g.id);
     setGroupEditTitle(g.title);
     setGroupEditSchedule(g.scheduleText ?? "");
@@ -923,6 +939,8 @@ export function TreatmentProgramConstructorClient({
 
   async function handleSaveGroupEdit() {
     if (!groupEditId) return;
+    const found = detail.stages.flatMap((st) => st.groups).find((g) => g.id === groupEditId);
+    if (found && isTreatmentProgramTemplateSystemStageGroup(found)) return;
     const title = groupEditTitle.trim();
     if (!title) return;
     setBusy(true);
@@ -956,26 +974,14 @@ export function TreatmentProgramConstructorClient({
     setBusy(true);
     setError(null);
     try {
-      const sortTrim = newStageSortOrder.trim();
-      let sortOrder: number | undefined;
-      if (sortTrim !== "") {
-        const n = Number.parseInt(sortTrim, 10);
-        if (!Number.isFinite(n) || String(n) !== sortTrim || n < 0) {
-          setError("Порядок этапа: неотрицательное целое число или пусто для авто");
-          return;
-        }
-        sortOrder = n;
-      }
-      const postBody: Record<string, unknown> = {
-        title,
-        goals: newStageGoals.trim() || null,
-        objectives: newStageObjectives.trim() || null,
-      };
-      if (sortOrder !== undefined) postBody.sortOrder = sortOrder;
       const res = await fetch(`/api/doctor/treatment-program-templates/${templateId}/stages`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(postBody),
+        body: JSON.stringify({
+          title,
+          goals: newStageGoals.trim() || null,
+          objectives: newStageObjectives.trim() || null,
+        }),
       });
       const json = (await res.json()) as { ok?: boolean; error?: string };
       if (!res.ok || !json.ok) {
@@ -985,7 +991,6 @@ export function TreatmentProgramConstructorClient({
       setNewStageTitle("");
       setNewStageGoals("");
       setNewStageObjectives("");
-      setNewStageSortOrder("");
       setStageDialogOpen(false);
       await reload();
     } finally {
@@ -995,13 +1000,40 @@ export function TreatmentProgramConstructorClient({
 
   async function handleAddItem(refId: string) {
     if (!itemDialogStageId) return;
+    const st = detail.stages.find((s) => s.id === itemDialogStageId);
+    if (!st) return;
     setBusy(true);
     setError(null);
     try {
-      const gid = itemAddGroupId && itemAddGroupId !== "__none__" ? itemAddGroupId : null;
-      if (!gid && itemType !== "recommendation" && itemType !== "test_set") {
-        setError("Для этого типа выберите группу");
-        return;
+      let gid: string | null = null;
+      if (itemType === "recommendation") {
+        if (st.sortOrder === 0) {
+          gid = null;
+        } else {
+          const rg = st.groups.find((g) => g.systemKind === "recommendations");
+          if (!rg) {
+            setError("Не найдена системная группа «Рекомендации» для этапа");
+            return;
+          }
+          gid = rg.id;
+        }
+      } else if (itemType === "test_set") {
+        if (st.sortOrder === 0) {
+          setError("Наборы тестов нельзя добавлять на этап «Общие рекомендации»");
+          return;
+        }
+        const tg = st.groups.find((g) => g.systemKind === "tests");
+        if (!tg) {
+          setError("Не найдена системная группа «Тестирование» для этапа");
+          return;
+        }
+        gid = tg.id;
+      } else {
+        gid = itemAddGroupId && itemAddGroupId !== "__none__" ? itemAddGroupId : null;
+        if (!gid) {
+          setError("Для этого типа выберите группу");
+          return;
+        }
       }
       const res = await fetch(`/api/doctor/treatment-program-templates/stages/${itemDialogStageId}/items`, {
         method: "POST",
@@ -1154,7 +1186,9 @@ export function TreatmentProgramConstructorClient({
     ) {
       m[treatmentProgramGroupSelectNoneItemValue] = treatmentProgramGroupSelectNoneLabel;
     }
-    for (const g of sortByOrderThenId(itemSettingsContext.stage.groups)) {
+    for (const g of sortDoctorTemplateStageGroupsForDisplay(itemSettingsContext.stage.groups).filter(
+      (x) => !x.systemKind,
+    )) {
       m[g.id] = g.title;
     }
     return m;
@@ -1232,92 +1266,85 @@ export function TreatmentProgramConstructorClient({
         ) : (
           <div className="flex flex-col gap-4">
             {orderedStages.map((s, stageIndex) => {
-              const groupsOrd = orderedGroupsForStage(s);
+              const isZero = s.sortOrder === 0;
+              const groupsOrd = isZero ? [] : orderedGroupsForStage(s);
               const ungrouped = ungroupedItemsForStage(s);
+              const prevStage = stageIndex > 0 ? orderedStages[stageIndex - 1] : null;
               return (
                 <section
                   key={s.id}
                   className="w-full min-w-0 rounded-md border border-border/60 bg-card/20 p-3 shadow-sm"
                 >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-sm font-medium tabular-nums text-muted-foreground">
-                      Этап {s.sortOrder}
-                    </span>
-                    <div className="flex shrink-0 items-center gap-0.5">
-                      <Button
-                        type="button"
-                        size="icon"
-                        variant="ghost"
-                        className="size-8"
-                        disabled={editLocked}
-                        aria-label="Настройки этапа"
-                        onClick={() => setStageSettingsStageId(s.id)}
-                      >
-                        <Settings className="size-4" />
-                      </Button>
-                      <Button
-                        type="button"
-                        size="icon"
-                        variant="ghost"
-                        className="size-8"
-                        disabled={editLocked || stageIndex === 0}
-                        aria-label="Этап выше"
-                        onClick={() => void handleMoveStage(s.id, -1)}
-                      >
-                        <ChevronUp className="size-4" />
-                      </Button>
-                      <Button
-                        type="button"
-                        size="icon"
-                        variant="ghost"
-                        className="size-8"
-                        disabled={editLocked || stageIndex >= orderedStages.length - 1}
-                        aria-label="Этап ниже"
-                        onClick={() => void handleMoveStage(s.id, 1)}
-                      >
-                        <ChevronDown className="size-4" />
-                      </Button>
+                  {!isZero ? (
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-medium tabular-nums text-muted-foreground">
+                        Этап {s.sortOrder}
+                      </span>
+                      <div className="flex shrink-0 items-center gap-0.5">
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          className="size-8"
+                          disabled={editLocked}
+                          aria-label="Настройки этапа"
+                          onClick={() => setStageSettingsStageId(s.id)}
+                        >
+                          <Settings className="size-4" />
+                        </Button>
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          className="size-8"
+                          disabled={editLocked || !prevStage || prevStage.sortOrder === 0}
+                          aria-label="Этап выше"
+                          onClick={() => void handleMoveStage(s.id, -1)}
+                        >
+                          <ChevronUp className="size-4" />
+                        </Button>
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          className="size-8"
+                          disabled={editLocked || stageIndex >= orderedStages.length - 1}
+                          aria-label="Этап ниже"
+                          onClick={() => void handleMoveStage(s.id, 1)}
+                        >
+                          <ChevronDown className="size-4" />
+                        </Button>
+                      </div>
                     </div>
-                  </div>
-                  <h3 className="mt-2 text-base font-semibold leading-tight text-foreground">{s.title}</h3>
-                  {s.sortOrder === 0 ? (
-                    <Badge
-                      variant="secondary"
-                      className="mt-2 max-w-full whitespace-normal text-left text-[10px] font-normal leading-tight"
-                    >
-                      Этап 0 — «Общие рекомендации» у пациента
-                    </Badge>
                   ) : null}
-                  {s.sortOrder === 0 ? (
-                    <p className="mt-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs leading-snug text-foreground">
-                      <span className="font-medium">Этап с порядком 0.</span> У пациента он отображается в блоке
-                      «Общие рекомендации» (вне прогресса этапов, всегда доступен для чтения). Сюда логично класть
-                      постоянные рекомендации и общий режим.
-                    </p>
-                  ) : null}
+                  <h3 className={`text-base font-semibold leading-tight text-foreground ${isZero ? "" : "mt-2"}`}>
+                    {s.title}
+                  </h3>
                   <div className="mt-3 flex flex-wrap gap-2">
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="secondary"
-                      disabled={editLocked}
-                      onClick={() => {
-                        setGroupDialogStageId(s.id);
-                        setNewGroupTitle("");
-                        setNewGroupSchedule("");
-                        setNewGroupDescription("");
-                        setGroupDialogOpen(true);
-                      }}
-                    >
-                      + Группа
-                    </Button>
+                    {!isZero ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        disabled={editLocked}
+                        onClick={() => {
+                          setGroupDialogStageId(s.id);
+                          setNewGroupTitle("");
+                          setNewGroupSchedule("");
+                          setNewGroupDescription("");
+                          setGroupDialogOpen(true);
+                        }}
+                      >
+                        + Группа
+                      </Button>
+                    ) : null}
                     <Button
                       type="button"
                       size="sm"
                       disabled={editLocked}
                       onClick={() => {
                         setItemDialogStageId(s.id);
-                        setItemType("exercise");
+                        setItemType(isZero ? "recommendation" : "exercise");
                         setItemSearch("");
                         setItemAddGroupId("");
                         setItemDialogOpen(true);
@@ -1326,64 +1353,89 @@ export function TreatmentProgramConstructorClient({
                       Добавить из библиотеки
                     </Button>
                   </div>
-                  {groupsOrd.length === 0 && s.items.length === 0 ? (
+                  {isZero ? (
+                    ungrouped.length === 0 ? (
+                      <p className="mt-3 text-sm text-muted-foreground">Пока нет рекомендаций.</p>
+                    ) : (
+                      <ul className="mt-3 divide-y rounded-md border border-border/50">
+                        {ungrouped.map((it) => (
+                          <StageItemListRow
+                            key={it.id}
+                            library={library}
+                            item={it}
+                            editLocked={editLocked}
+                            onOpenSettings={() => setItemSettingsItemId(it.id)}
+                          />
+                        ))}
+                      </ul>
+                    )
+                  ) : groupsOrd.length === 0 && s.items.length === 0 ? (
                     <p className="mt-3 text-sm text-muted-foreground">В этапе пока нет элементов и групп.</p>
                   ) : (
                     <div className="mt-3 space-y-3">
                       {groupsOrd.map((g, groupIndex) => {
                         const gItems = itemsInGroupForStage(s, g.id);
+                        const sys = isTreatmentProgramTemplateSystemStageGroup(g);
                         return (
                           <div key={g.id} className="rounded-md border border-border/50 bg-background/60 p-2">
                             <div className="flex flex-wrap items-center gap-2 border-b border-border/30 pb-2">
-                              <div className="flex items-center gap-0.5">
-                                <Button
-                                  type="button"
-                                  size="icon"
-                                  variant="ghost"
-                                  className="size-8"
-                                  disabled={editLocked || groupIndex === 0}
-                                  aria-label="Группа выше"
-                                  onClick={() => void handleReorderGroup(s, g.id, -1)}
-                                >
-                                  <ChevronUp className="size-4" />
-                                </Button>
-                                <Button
-                                  type="button"
-                                  size="icon"
-                                  variant="ghost"
-                                  className="size-8"
-                                  disabled={editLocked || groupIndex >= groupsOrd.length - 1}
-                                  aria-label="Группа ниже"
-                                  onClick={() => void handleReorderGroup(s, g.id, 1)}
-                                >
-                                  <ChevronDown className="size-4" />
-                                </Button>
-                              </div>
+                              {!sys ? (
+                                <div className="flex items-center gap-0.5">
+                                  <Button
+                                    type="button"
+                                    size="icon"
+                                    variant="ghost"
+                                    className="size-8"
+                                    disabled={editLocked || groupIndex === 0}
+                                    aria-label="Группа выше"
+                                    onClick={() => void handleReorderGroup(s, g.id, -1)}
+                                  >
+                                    <ChevronUp className="size-4" />
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    size="icon"
+                                    variant="ghost"
+                                    className="size-8"
+                                    disabled={editLocked || groupIndex >= groupsOrd.length - 1}
+                                    aria-label="Группа ниже"
+                                    onClick={() => void handleReorderGroup(s, g.id, 1)}
+                                  >
+                                    <ChevronDown className="size-4" />
+                                  </Button>
+                                </div>
+                              ) : (
+                                <div className="w-8 shrink-0" aria-hidden />
+                              )}
                               <div className="min-w-0 flex-1">
                                 <p className="text-sm font-semibold">{g.title}</p>
                                 {g.scheduleText?.trim() ? (
                                   <p className="text-xs text-muted-foreground">{g.scheduleText.trim()}</p>
                                 ) : null}
                               </div>
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="outline"
-                                disabled={editLocked}
-                                onClick={() => openEditGroup(g)}
-                              >
-                                Изменить
-                              </Button>
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="ghost"
-                                className="text-destructive"
-                                disabled={editLocked}
-                                onClick={() => void handleDeleteGroup(g.id)}
-                              >
-                                Удалить
-                              </Button>
+                              {!sys ? (
+                                <>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    disabled={editLocked}
+                                    onClick={() => openEditGroup(g)}
+                                  >
+                                    Изменить
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="ghost"
+                                    className="text-destructive"
+                                    disabled={editLocked}
+                                    onClick={() => void handleDeleteGroup(g.id)}
+                                  >
+                                    Удалить
+                                  </Button>
+                                </>
+                              ) : null}
                             </div>
                             {gItems.length === 0 ? (
                               <p className="py-2 text-xs text-muted-foreground">В группе пока нет элементов.</p>
@@ -1625,12 +1677,14 @@ export function TreatmentProgramConstructorClient({
                     <SelectTrigger className="w-full text-sm">
                       <SelectValue placeholder="Группа" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="z-[100]">
                       {itemSettingsContext.item.itemType === "recommendation" ||
                       itemSettingsContext.item.itemType === "test_set" ? (
                         <SelectItem value="__none__">Без группы</SelectItem>
                       ) : null}
-                      {sortByOrderThenId(itemSettingsContext.stage.groups).map((g) => (
+                      {sortDoctorTemplateStageGroupsForDisplay(itemSettingsContext.stage.groups)
+                        .filter((g) => !g.systemKind)
+                        .map((g) => (
                         <SelectItem key={g.id} value={g.id}>
                           {g.title}
                         </SelectItem>
@@ -1690,10 +1744,7 @@ export function TreatmentProgramConstructorClient({
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Новый этап</DialogTitle>
-            <DialogDescription>
-              Порядок не указан — сервер назначит следующий номер. Первый этап в шаблоне получает порядок 0 и у
-              пациента показывается как «Общие рекомендации».
-            </DialogDescription>
+            <DialogDescription>Порядок назначит сервер автоматически (следующий номер после существующих).</DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-2">
             <Label htmlFor="stage-title">Название</Label>
@@ -1703,17 +1754,6 @@ export function TreatmentProgramConstructorClient({
               onChange={(e) => setNewStageTitle(e.target.value)}
               maxLength={2000}
             />
-            <Label htmlFor="stage-sort">Порядок (sort_order), опционально</Label>
-            <Input
-              id="stage-sort"
-              inputMode="numeric"
-              value={newStageSortOrder}
-              onChange={(e) => setNewStageSortOrder(e.target.value)}
-              placeholder="Пусто — автоматически"
-            />
-            <p className="text-xs text-muted-foreground">
-              Целое ≥ 0. Обычно 0 — только один этап «Общие рекомендации»; остальные — 1, 2, …
-            </p>
             <Label htmlFor="stage-new-goals">Цель этапа (опционально)</Label>
             <Textarea
               id="stage-new-goals"
@@ -1766,8 +1806,13 @@ export function TreatmentProgramConstructorClient({
                 <SelectTrigger>
                   <SelectValue>{ITEM_TYPE_LABEL[itemType]}</SelectValue>
                 </SelectTrigger>
-                <SelectContent>
-                  {(Object.keys(ITEM_TYPE_LABEL) as TreatmentProgramItemType[]).map((k) => (
+                <SelectContent className="z-[100]">
+                  {(Object.keys(ITEM_TYPE_LABEL) as TreatmentProgramItemType[])
+                    .filter((k) => {
+                      if (itemDialogStage?.sortOrder === 0 && k !== "recommendation") return false;
+                      return true;
+                    })
+                    .map((k) => (
                     <SelectItem key={k} value={k}>
                       {ITEM_TYPE_LABEL[k]}
                     </SelectItem>
@@ -1775,6 +1820,14 @@ export function TreatmentProgramConstructorClient({
                 </SelectContent>
               </Select>
             </div>
+            {allowUngroupedItemAdd ? (
+              <div className="flex flex-col gap-2">
+                <Label>Группа</Label>
+                <p className="text-sm text-muted-foreground">
+                  {itemType === "recommendation" ? "Рекомендация" : "Тестирование"}
+                </p>
+              </div>
+            ) : (
             <div className="flex flex-col gap-2">
               <Label>Группа для нового элемента</Label>
               <Select
@@ -1785,9 +1838,9 @@ export function TreatmentProgramConstructorClient({
                 <SelectTrigger>
                   <SelectValue placeholder="Без группы" />
                 </SelectTrigger>
-                <SelectContent>
-                  {allowUngroupedItemAdd ? <SelectItem value="__none__">Без группы</SelectItem> : null}
-                  {(itemPickerGroupsOrdered).map((g) => (
+                <SelectContent className="z-[100]">
+                  <SelectItem value="__none__">Без группы</SelectItem>
+                  {itemPickerGroupsOrdered.map((g) => (
                     <SelectItem key={g.id} value={g.id}>
                       {g.title}
                     </SelectItem>
@@ -1795,6 +1848,7 @@ export function TreatmentProgramConstructorClient({
                 </SelectContent>
               </Select>
             </div>
+            )}
             <div className="flex flex-col gap-2">
               <Label htmlFor="lib-search">Поиск</Label>
               <Input
@@ -1929,7 +1983,7 @@ export function TreatmentProgramConstructorClient({
                       <SelectTrigger>
                         <SelectValue placeholder="Выберите группу" />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="z-[100]">
                         {lfkExpandGroupsOrdered.map((g) => (
                           <SelectItem key={g.id} value={g.id}>
                             {g.title}

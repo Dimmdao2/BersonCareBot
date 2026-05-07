@@ -3,8 +3,10 @@ import type { PatientHomeBlockCode } from "@/modules/patient-home/ports";
 import { cn } from "@/lib/utils";
 import { PatientHomeGreeting, type PatientGreetingPrefix } from "./PatientHomeGreeting";
 
+export type PatientHomeTodayLayoutBlockCode = PatientHomeBlockCode | "sos_booking_split";
+
 export type PatientHomeTodayLayoutBlock = {
-  code: PatientHomeBlockCode;
+  code: PatientHomeTodayLayoutBlockCode;
   node: ReactNode;
 };
 
@@ -15,7 +17,7 @@ type Props = {
 };
 
 /** Desktop grid placement: Tailwind classes + stable `data-lg-*` for tests (avoid coupling tests to full class strings). */
-function desktopBlockLayout(code: PatientHomeBlockCode): {
+function desktopBlockLayout(code: PatientHomeTodayLayoutBlockCode): {
   className: string;
   "data-lg-order"?: string;
   "data-lg-col-start"?: string;
@@ -38,10 +40,10 @@ function desktopBlockLayout(code: PatientHomeBlockCode): {
       };
     case "situations":
       return {
-        className: "lg:col-span-8 lg:col-start-1 lg:order-[20]",
+        className: "lg:col-span-12 lg:col-start-1 lg:order-[20]",
         "data-lg-order": "20",
         "data-lg-col-start": "1",
-        "data-lg-col-span": "8",
+        "data-lg-col-span": "12",
       };
     case "booking":
       return {
@@ -71,6 +73,14 @@ function desktopBlockLayout(code: PatientHomeBlockCode): {
         "data-lg-order": "40",
         "data-lg-col-start": "5",
         "data-lg-col-span": "4",
+      };
+    /** SOS + запись — под самочувствием, полная ширина строки под парой mood | plan. */
+    case "sos_booking_split":
+      return {
+        className: "lg:col-span-12 lg:col-start-1 lg:order-[41]",
+        "data-lg-order": "41",
+        "data-lg-col-start": "1",
+        "data-lg-col-span": "12",
       };
     case "plan":
       return {

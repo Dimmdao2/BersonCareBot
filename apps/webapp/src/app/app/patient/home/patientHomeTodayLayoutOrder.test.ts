@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import type { PatientHomeTodayLayoutBlock } from "./PatientHomeTodayLayout";
 import {
   insertMoodBetweenUsefulPostAndBooking,
+  insertSosBookingSplitAfterMood,
   prependPlanBlock,
   reorderPatientHomeLayoutBlocks,
 } from "./patientHomeTodayLayoutOrder";
@@ -43,6 +44,21 @@ describe("patientHomeTodayLayoutOrder", () => {
   it("inserts mood before booking when useful_post is absent", () => {
     const out = insertMoodBetweenUsefulPostAndBooking([b("daily_warmup"), b("booking"), b("mood_checkin")]);
     expect(out.map((x) => x.code)).toEqual(["daily_warmup", "mood_checkin", "booking"]);
+  });
+
+  it("inserts sos_booking_split immediately after mood_checkin", () => {
+    const split = { code: "sos_booking_split" as const, node: null };
+    const out = insertSosBookingSplitAfterMood(
+      [b("daily_warmup"), b("mood_checkin"), b("situations")],
+      split,
+    );
+    expect(out.map((x) => x.code)).toEqual(["daily_warmup", "mood_checkin", "sos_booking_split", "situations"]);
+  });
+
+  it("inserts sos_booking_split at end when mood_checkin is absent", () => {
+    const split = { code: "sos_booking_split" as const, node: null };
+    const out = insertSosBookingSplitAfterMood([b("daily_warmup"), b("situations")], split);
+    expect(out.map((x) => x.code)).toEqual(["daily_warmup", "situations", "sos_booking_split"]);
   });
 
   it("applies plan-first then mood placement", () => {

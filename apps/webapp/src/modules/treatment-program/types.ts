@@ -37,6 +37,9 @@ export type TreatmentProgramTemplate = {
   updatedAt: string;
 };
 
+/** Системные группы этапа шаблона и экземпляра (`system_kind` в БД). */
+export type TreatmentProgramInstanceStageSystemKind = "recommendations" | "tests";
+
 export type TreatmentProgramTemplateStageGroup = {
   id: string;
   stageId: string;
@@ -44,17 +47,20 @@ export type TreatmentProgramTemplateStageGroup = {
   description: string | null;
   scheduleText: string | null;
   sortOrder: number;
+  /** `NULL` — пользовательская группа; иначе системный блок шаблона. */
+  systemKind: TreatmentProgramInstanceStageSystemKind | null;
 };
-
-/** Системные группы экземпляра этапа (назначение с шаблона). */
-export type TreatmentProgramInstanceStageSystemKind = "recommendations" | "tests";
 
 export const TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_SORT_RECOMMENDATIONS = 101;
 export const TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_SORT_TESTS = 102;
 
 export const TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_TITLE_RECOMMENDATIONS = "Рекомендации";
-export const TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_TITLE_TESTS = "Тесты";
+export const TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_TITLE_TESTS = "Тестирование";
 
+/** Этап шаблона с `sort_order = 0` создаётся при создании шаблона. */
+export const TREATMENT_PROGRAM_TEMPLATE_STAGE_ZERO_TITLE = "Общие рекомендации";
+
+/** Группа внутри этапа экземпляра программы. */
 export type TreatmentProgramInstanceStageGroup = {
   id: string;
   stageId: string;

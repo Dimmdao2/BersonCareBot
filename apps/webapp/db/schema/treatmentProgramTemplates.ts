@@ -9,6 +9,7 @@ import {
   index,
   foreignKey,
   check,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { platformUsers } from "./schema";
 
@@ -76,6 +77,10 @@ export const treatmentProgramTemplateStages = pgTable(
       foreignColumns: [treatmentProgramTemplates.id],
       name: "treatment_program_template_stages_template_id_fkey",
     }).onDelete("cascade"),
+    uniqueIndex("treatment_program_template_stages_tpl_id_sort_order_uidx").on(
+      table.templateId,
+      table.sortOrder,
+    ),
   ],
 );
 
@@ -89,6 +94,8 @@ export const treatmentProgramTemplateStageGroups = pgTable(
     description: text(),
     scheduleText: text("schedule_text"),
     sortOrder: integer("sort_order").default(0).notNull(),
+    /** Системные блоки «Рекомендации» / «Тестирование»; `NULL` — пользовательская группа. */
+    systemKind: text("system_kind"),
   },
   (table) => [
     index("idx_treatment_program_tpl_stage_groups_stage_order").using(
@@ -101,6 +108,16 @@ export const treatmentProgramTemplateStageGroups = pgTable(
       foreignColumns: [treatmentProgramTemplateStages.id],
       name: "treatment_program_template_stage_groups_stage_id_fkey",
     }).onDelete("cascade"),
+    check(
+      "treatment_program_template_stage_groups_system_kind_check",
+      sql`system_kind IS NULL OR system_kind = ANY (ARRAY['recommendations'::text, 'tests'::text])`,
+    ),
+    uniqueIndex("treatment_program_template_stage_groups_one_rec_per_stage")
+      .on(table.stageId)
+      .where(sql`system_kind = 'recommendations'`),
+    uniqueIndex("treatment_program_template_stage_groups_one_tests_per_stage")
+      .on(table.stageId)
+      .where(sql`system_kind = 'tests'`),
   ],
 );
 

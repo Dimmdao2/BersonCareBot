@@ -8,7 +8,7 @@ import type {
 import { buildAppendEventInput } from "./event-recording";
 import type { TreatmentProgramService } from "./service";
 import { assertUuid } from "./service";
-import type { TreatmentProgramInstanceStageGroup, TreatmentProgramInstanceStageStatus } from "./types";
+import type { TreatmentProgramInstanceStageStatus } from "./types";
 import {
   effectiveInstanceStageItemComment,
   type CreateTreatmentProgramInstanceStageGroupInput,
@@ -22,20 +22,7 @@ import {
   TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_TITLE_RECOMMENDATIONS,
   TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_TITLE_TESTS,
 } from "./types";
-import { isStageZero } from "./stage-semantics";
-
-function assertInstanceStageItemFitsSystemGroup(
-  group: Pick<TreatmentProgramInstanceStageGroup, "systemKind"> | undefined,
-  itemType: TreatmentProgramItemType,
-): void {
-  if (!group) return;
-  if (group.systemKind === "recommendations" && itemType !== "recommendation") {
-    throw new Error("В группу «Рекомендации» можно помещать только рекомендации");
-  }
-  if (group.systemKind === "tests" && itemType !== "test_set") {
-    throw new Error("В группу «Тесты» можно помещать только наборы тестов");
-  }
-}
+import { isStageZero, assertTreatmentProgramStageItemFitsSystemGroup } from "./stage-semantics";
 
 /** Второй экземпляр со `status: active` для того же пациента запрещён (POST назначения). */
 export const SECOND_ACTIVE_TREATMENT_PROGRAM_MESSAGE =
@@ -115,31 +102,74 @@ export function createTreatmentProgramInstanceService(deps: {
         const groupRows = [...(st.groups ?? [])].sort(
           (a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id),
         );
-        const groupInputs = [
-          {
-            sourceGroupId: null,
-            title: TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_TITLE_RECOMMENDATIONS,
-            description: null,
-            scheduleText: null,
-            sortOrder: TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_SORT_RECOMMENDATIONS,
-            systemKind: "recommendations" as const,
-          },
-          {
-            sourceGroupId: null,
-            title: TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_TITLE_TESTS,
-            description: null,
-            scheduleText: null,
-            sortOrder: TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_SORT_TESTS,
-            systemKind: "tests" as const,
-          },
-          ...groupRows.map((g) => ({
-            sourceGroupId: g.id,
-            title: g.title,
-            description: g.description,
-            scheduleText: g.scheduleText,
-            sortOrder: g.sortOrder,
-          })),
-        ];
+        const userTplGroups = groupRows.filter((g) => !g.systemKind);
+        const tplSysRec = groupRows.find((g) => g.systemKind === "recommendations");
+        const tplSysTests = groupRows.find((g) => g.systemKind === "tests");
+
+        const syntheticRec = {
+          sourceGroupId: null as string | null,
+          title: TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_TITLE_RECOMMENDATIONS,
+          description: null as string | null,
+          scheduleText: null as string | null,
+          sortOrder: TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_SORT_RECOMMENDATIONS,
+          systemKind: "recommendations" as const,
+        };
+        const syntheticTests = {
+          sourceGroupId: null as string | null,
+          title: TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_TITLE_TESTS,
+          description: null as string | null,
+          scheduleText: null as string | null,
+          sortOrder: TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_SORT_TESTS,
+          systemKind: "tests" as const,
+        };
+
+        const userGroupInputs = userTplGroups.map((g) => ({
+          sourceGroupId: g.id,
+          title: g.title,
+          description: g.description,
+          scheduleText: g.scheduleText,
+          sortOrder: g.sortOrder,
+        }));
+
+        let groupInputs: Array<{
+          sourceGroupId: string | null;
+          title: string;
+          description: string | null;
+          scheduleText: string | null;
+          sortOrder: number;
+          systemKind?: "recommendations" | "tests" | null;
+        }>;
+
+        if (isZero) {
+          groupInputs = [...userGroupInputs];
+        } else {
+          const head: typeof groupInputs = [];
+          if (tplSysRec) {
+            head.push({
+              sourceGroupId: tplSysRec.id,
+              title: tplSysRec.title,
+              description: tplSysRec.description,
+              scheduleText: tplSysRec.scheduleText,
+              sortOrder: tplSysRec.sortOrder,
+              systemKind: "recommendations",
+            });
+          } else if (itemRows.some((it) => it.itemType === "recommendation" && it.groupId == null)) {
+            head.push(syntheticRec);
+          }
+          if (tplSysTests) {
+            head.push({
+              sourceGroupId: tplSysTests.id,
+              title: tplSysTests.title,
+              description: tplSysTests.description,
+              scheduleText: tplSysTests.scheduleText,
+              sortOrder: tplSysTests.sortOrder,
+              systemKind: "tests",
+            });
+          } else if (itemRows.some((it) => it.itemType === "test_set" && it.groupId == null)) {
+            head.push(syntheticTests);
+          }
+          groupInputs = [...head, ...userGroupInputs];
+        }
         const itemInputs = [];
         for (const it of itemRows) {
           await itemRefs.assertItemRefExists(it.itemType, it.itemRefId);
@@ -416,7 +446,14 @@ export function createTreatmentProgramInstanceService(deps: {
       const stage = detail.stages.find((s) => s.id === input.stageId);
       if (!stage) throw new Error("Этап не найден");
       let resolvedGroupId = input.groupId ?? null;
-      if (!resolvedGroupId) {
+      if (isStageZero(stage)) {
+        if (input.itemType !== "recommendation") {
+          throw new Error("На этапе «Общие рекомендации» разрешены только рекомендации");
+        }
+        if (resolvedGroupId) {
+          throw new Error("На этапе «Общие рекомендации» элементы не привязываются к группам");
+        }
+      } else if (!resolvedGroupId) {
         if (input.itemType === "recommendation" || input.itemType === "test_set") {
           const want = input.itemType === "recommendation" ? "recommendations" : "tests";
           const sg = stage.groups.find((g) => g.systemKind === want);
@@ -427,7 +464,7 @@ export function createTreatmentProgramInstanceService(deps: {
         }
       } else {
         const g = stage.groups.find((gr) => gr.id === resolvedGroupId);
-        assertInstanceStageItemFitsSystemGroup(g, input.itemType);
+        assertTreatmentProgramStageItemFitsSystemGroup(g, input.itemType);
       }
       const maxOrder = stage.items.reduce((m, i) => Math.max(m, i.sortOrder), -1);
       const sortOrder = input.sortOrder ?? maxOrder + 1;
@@ -718,10 +755,10 @@ export function createTreatmentProgramInstanceService(deps: {
         if (!t) throw new Error("Название группы не может быть пустым");
         norm.title = t;
       }
-      if (input.patch.description !== undefined) {
+      if (input.patch.description !== undefined && !isSystemGroup) {
         norm.description = input.patch.description === null ? null : input.patch.description.trim() || null;
       }
-      if (input.patch.scheduleText !== undefined) {
+      if (input.patch.scheduleText !== undefined && !isSystemGroup) {
         norm.scheduleText =
           input.patch.scheduleText === null ? null : input.patch.scheduleText.trim() || null;
       }
@@ -857,7 +894,15 @@ export function createTreatmentProgramInstanceService(deps: {
       const stage = detail!.stages.find((s) => s.id === item.stageId);
       if (!stage) throw new Error("Этап не найден");
       let nextGroupId: string | null = input.groupId ?? null;
-      if (!nextGroupId) {
+      if (isStageZero(stage)) {
+        if (item.itemType !== "recommendation") {
+          throw new Error("На этапе «Общие рекомендации» разрешены только рекомендации");
+        }
+        if (input.groupId != null) {
+          throw new Error("На этапе «Общие рекомендации» элементы не привязываются к группам");
+        }
+        nextGroupId = null;
+      } else if (!nextGroupId) {
         if (item.itemType === "recommendation" || item.itemType === "test_set") {
           const want = item.itemType === "recommendation" ? "recommendations" : "tests";
           const sg = stage.groups.find((g) => g.systemKind === want);
@@ -868,7 +913,7 @@ export function createTreatmentProgramInstanceService(deps: {
         }
       } else {
         const g = stage.groups.find((gr) => gr.id === nextGroupId);
-        assertInstanceStageItemFitsSystemGroup(g, item.itemType);
+        assertTreatmentProgramStageItemFitsSystemGroup(g, item.itemType);
       }
       const row = await instances.patchInstanceStageItem(input.instanceId, input.itemId, {
         groupId: nextGroupId,

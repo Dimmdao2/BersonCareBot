@@ -621,25 +621,20 @@ function InstanceStageGroupsPanel(props: {
   const saveGroupEdit = async () => {
     if (!groupEdit) return;
     const gMeta = stage.groups.find((g) => g.id === groupEdit.id);
-    const isSys = gMeta ? isTreatmentProgramInstanceSystemStageGroup(gMeta) : false;
+    if (gMeta && isTreatmentProgramInstanceSystemStageGroup(gMeta)) return;
     const t = groupEdit.title.trim();
-    if (!isSys && !t) {
+    if (!t) {
       setMsg("Название группы не может быть пустым");
       return;
     }
     setBusy(true);
     setMsg(null);
     try {
-      const body: Record<string, unknown> = isSys
-        ? {
-            description: groupEdit.description.trim() || null,
-            scheduleText: groupEdit.scheduleText.trim() || null,
-          }
-        : {
-            title: t,
-            description: groupEdit.description.trim() || null,
-            scheduleText: groupEdit.scheduleText.trim() || null,
-          };
+      const body: Record<string, unknown> = {
+        title: t,
+        description: groupEdit.description.trim() || null,
+        scheduleText: groupEdit.scheduleText.trim() || null,
+      };
       const res = await fetch(
         `/api/doctor/treatment-program-instances/${encodeURIComponent(instanceId)}/stage-groups/${encodeURIComponent(groupEdit.id)}`,
         {
@@ -740,6 +735,7 @@ function InstanceStageGroupsPanel(props: {
                   <span className="ml-2 text-xs text-muted-foreground">{g.scheduleText.trim()}</span>
                 ) : null}
               </div>
+              {!isSys ? (
               <Button
                 type="button"
                 size="sm"
@@ -756,6 +752,7 @@ function InstanceStageGroupsPanel(props: {
               >
                 Изменить
               </Button>
+              ) : null}
             </li>
             );
           })}

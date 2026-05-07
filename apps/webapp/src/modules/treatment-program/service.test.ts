@@ -104,19 +104,52 @@ describe("treatment-program service", () => {
     expect(refs.filter((r) => r === validRef).length).toBe(2);
   });
 
-  it("swap stage sortOrder reverses display order", async () => {
+  it("addStageItem rejects exercise in system recommendations group", async () => {
+    const svc = createTreatmentProgramService(port, itemRefs);
+    const tpl = await svc.createTemplate({ title: "P" }, null);
+    const stage = await svc.createStage(tpl.id, { title: "S1" });
+    const detail = await svc.getTemplate(tpl.id);
+    const st = detail.stages.find((s) => s.id === stage.id)!;
+    const sysRec = st.groups.find((g) => g.systemKind === "recommendations");
+    expect(sysRec).toBeDefined();
+    await expect(
+      svc.addStageItem(stage.id, {
+        itemType: "exercise",
+        itemRefId: validRef,
+        groupId: sysRec!.id,
+      }),
+    ).rejects.toThrow(/В группу «Рекомендации»/);
+  });
+
+  it("updateStageItem rejects non-recommendation on template stage zero", async () => {
+    const svc = createTreatmentProgramService(port, itemRefs);
+    const tpl = await svc.createTemplate({ title: "P" }, null);
+    const d = await svc.getTemplate(tpl.id);
+    const s0 = d.stages.find((s) => s.sortOrder === 0)!;
+    const item = await svc.addStageItem(s0.id, { itemType: "recommendation", itemRefId: validRef });
+    const nextRef = "22222222-2222-4222-8222-222222222222";
+    await expect(svc.updateStageItem(item.id, { itemType: "lesson", itemRefId: nextRef })).rejects.toThrow(
+      /Общие рекомендации|только рекомендации/,
+    );
+  });
+
+  it("swap stage sortOrder reverses display order among non-zero stages", async () => {
     const svc = createTreatmentProgramService(port, itemRefs);
     const tpl = await svc.createTemplate({ title: "T" }, null);
     await svc.createStage(tpl.id, { title: "A" });
     await svc.createStage(tpl.id, { title: "B" });
     const before = await svc.getTemplate(tpl.id);
-    const [first, second] = sortByOrderThenId(before.stages);
+    const nonZero = sortByOrderThenId(before.stages.filter((s) => s.sortOrder > 0));
+    const [first, second] = nonZero;
     expect(first?.title).toBe("A");
     expect(second?.title).toBe("B");
-    await svc.updateStage(first!.id, { sortOrder: second!.sortOrder });
-    await svc.updateStage(second!.id, { sortOrder: first!.sortOrder });
+    const so1 = first!.sortOrder;
+    const so2 = second!.sortOrder;
+    await svc.updateStage(first!.id, { sortOrder: 999 });
+    await svc.updateStage(second!.id, { sortOrder: so1 });
+    await svc.updateStage(first!.id, { sortOrder: so2 });
     const after = await svc.getTemplate(tpl.id);
-    const titles = sortByOrderThenId(after.stages).map((s) => s.title);
+    const titles = sortByOrderThenId(after.stages.filter((s) => s.sortOrder > 0)).map((s) => s.title);
     expect(titles).toEqual(["B", "A"]);
   });
 

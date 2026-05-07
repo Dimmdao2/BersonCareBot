@@ -43,6 +43,12 @@ import type {
   UpdateTreatmentProgramTemplateInput,
 } from "./types";
 
+/** Контекст этапа шаблона для валидации элементов (`addStageItem` / `updateStageItem`). */
+export type TreatmentProgramTemplateStageValidationContext = {
+  sortOrder: number;
+  groups: Array<Pick<TreatmentProgramTemplateStageGroup, "id" | "systemKind">>;
+};
+
 export type TreatmentProgramPort = {
   createTemplate(
     input: CreateTreatmentProgramTemplateInput,
@@ -53,6 +59,9 @@ export type TreatmentProgramPort = {
     input: UpdateTreatmentProgramTemplateInput,
   ): Promise<TreatmentProgramTemplate | null>;
   getTemplateById(id: string): Promise<TreatmentProgramTemplateDetail | null>;
+  getTemplateStageValidationContext(
+    stageId: string,
+  ): Promise<TreatmentProgramTemplateStageValidationContext | null>;
   listTemplates(filter: TreatmentProgramTemplateFilter): Promise<TreatmentProgramTemplate[]>;
   /** Перевод шаблона в `status = archived` (не физическое удаление строки). */
   deleteTemplate(id: string): Promise<boolean>;

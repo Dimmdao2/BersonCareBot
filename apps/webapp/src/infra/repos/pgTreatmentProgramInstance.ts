@@ -874,8 +874,8 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
         if (!t) return null;
         patch.title = t;
       }
-      if (input.description !== undefined) patch.description = input.description?.trim() ?? null;
-      if (input.scheduleText !== undefined) patch.scheduleText = input.scheduleText?.trim() ?? null;
+      if (input.description !== undefined && !isSystem) patch.description = input.description?.trim() ?? null;
+      if (input.scheduleText !== undefined && !isSystem) patch.scheduleText = input.scheduleText?.trim() ?? null;
       if (input.sortOrder !== undefined && !isSystem) patch.sortOrder = input.sortOrder;
       if (Object.keys(patch).length === 0) return mapInstanceGroup(gr);
       const [row] = await db.update(instGroupTable).set(patch).where(eq(instGroupTable.id, groupId)).returning();

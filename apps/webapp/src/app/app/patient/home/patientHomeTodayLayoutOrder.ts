@@ -1,5 +1,18 @@
 import type { PatientHomeTodayLayoutBlock } from "./PatientHomeTodayLayout";
 
+/** Объединённый SOS + запись — сразу после блока самочувствия (mobile DOM order). */
+export function insertSosBookingSplitAfterMood(
+  blocks: PatientHomeTodayLayoutBlock[],
+  split: PatientHomeTodayLayoutBlock | null,
+): PatientHomeTodayLayoutBlock[] {
+  if (!split) return blocks;
+  const moodIdx = blocks.findIndex((b) => b.code === "mood_checkin");
+  const insertAt = moodIdx !== -1 ? moodIdx + 1 : blocks.length;
+  const next = [...blocks];
+  next.splice(insertAt, 0, split);
+  return next;
+}
+
 /** Mobile DOM order: «Мой план» сразу под приветствием (desktop — по `lg:order-*` в разметке). */
 export function prependPlanBlock(blocks: PatientHomeTodayLayoutBlock[]): PatientHomeTodayLayoutBlock[] {
   const idx = blocks.findIndex((b) => b.code === "plan");

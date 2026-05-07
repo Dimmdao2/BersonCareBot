@@ -5,12 +5,61 @@ import type {
   TreatmentProgramInstanceStageGroup,
   TreatmentProgramInstanceStageItemRow,
   TreatmentProgramInstanceStageRow,
+  TreatmentProgramItemType,
+  TreatmentProgramTemplateStageGroup,
 } from "./types";
 
-/** Этап экземпляра в read-model detail (группы + элементы). */
+/** Системная группа шаблона этапа («Рекомендации» / «Тестирование»). */
+export function isTreatmentProgramTemplateSystemStageGroup(
+  g: Pick<TreatmentProgramTemplateStageGroup, "systemKind">,
+): boolean {
+  return g.systemKind === "recommendations" || g.systemKind === "tests";
+}
+
+/**
+ * Тип элемента должен соответствовать системной группе (шаблон и экземпляр).
+ * Для пользовательских групп (`systemKind == null`) проверка не применяется.
+ */
+export function assertTreatmentProgramStageItemFitsSystemGroup(
+  group: Pick<TreatmentProgramTemplateStageGroup, "systemKind"> | undefined,
+  itemType: TreatmentProgramItemType,
+): void {
+  if (!group?.systemKind) return;
+  if (group.systemKind === "recommendations" && itemType !== "recommendation") {
+    throw new Error("В группу «Рекомендации» можно помещать только рекомендации");
+  }
+  if (group.systemKind === "tests" && itemType !== "test_set") {
+    throw new Error("В группу «Тестирование» можно помещать только наборы тестов");
+  }
+}
+
+/**
+ * Порядок групп шаблона на экране врача: рекомендации → пользовательские → тестирование.
+ */
+export function sortDoctorTemplateStageGroupsForDisplay<
+  T extends Pick<TreatmentProgramTemplateStageGroup, "id" | "sortOrder" | "systemKind">,
+>(groups: readonly T[]): T[] {
+  return sortDoctorInstanceStageGroupsForDisplay(groups);
+}
+
+/**
+ * Пациентский UI: есть ли в системной группе хотя бы один элемент, показываемый на поверхностях программы.
+ */
+export function patientInstanceSystemGroupHasVisibleItems(params: {
+  group: Pick<TreatmentProgramInstanceStageGroup, "id" | "systemKind">;
+  items: ReadonlyArray<
+    Pick<TreatmentProgramInstanceStageItemRow, "groupId" | "itemType" | "status" | "isActionable">
+  >;
+}): boolean {
+  const { group, items } = params;
+  if (!isTreatmentProgramInstanceSystemStageGroup(group)) return true;
+  return items.some(
+    (it) => it.groupId === group.id && isInstanceStageItemShownOnPatientProgramSurfaces(it),
+  );
+}
 export type TreatmentProgramInstanceDetailStageRow = TreatmentProgramInstanceDetail["stages"][number];
 
-/** Системная группа экземпляра («Рекомендации» / «Тесты»). */
+/** Системная группа экземпляра («Рекомендации» / «Тестирование»). */
 export function isTreatmentProgramInstanceSystemStageGroup(
   g: Pick<TreatmentProgramInstanceStageGroup, "systemKind">,
 ): boolean {
@@ -18,7 +67,7 @@ export function isTreatmentProgramInstanceSystemStageGroup(
 }
 
 /**
- * Порядок групп на экране врача: рекомендации → пользовательские → тесты.
+ * Порядок групп на экране врача: рекомендации → пользовательские → тестирование.
  */
 export function sortDoctorInstanceStageGroupsForDisplay<
   T extends Pick<TreatmentProgramInstanceStageGroup, "id" | "sortOrder" | "systemKind">,
@@ -66,7 +115,7 @@ export function isInstanceStageItemShownOnPatientProgramSurfaces(
 /**
  * Модалка «Состав этапа» (timeline): активные элементы, **без** `test_set`.
  * Наборы тестов при этом видны на экранах программы (список этапа, карточка элемента, модалка пункта), см. `isInstanceStageItemShownOnPatientProgramSurfaces`.
- * Элементы в системных группах «Рекомендации» / «Тесты» не входят в компактный состав «упражнений» — у них отдельные блоки UI.
+ * Элементы в системных группах «Рекомендации» / «Тестирование» не входят в компактный состав «упражнений» — у них отдельные блоки UI.
  */
 export function isInstanceStageItemShownInPatientCompositionModal(
   item: Pick<TreatmentProgramInstanceStageItemRow, "itemType" | "status" | "isActionable"> &

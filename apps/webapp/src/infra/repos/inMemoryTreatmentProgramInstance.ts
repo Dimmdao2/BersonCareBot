@@ -615,8 +615,8 @@ export function createInMemoryTreatmentProgramPersistence(): InMemoryTreatmentPr
       const next: TreatmentProgramInstanceStageGroup = {
         ...cur,
         title,
-        ...(input.description !== undefined ? { description: input.description?.trim() ?? null } : {}),
-        ...(input.scheduleText !== undefined ? { scheduleText: input.scheduleText?.trim() ?? null } : {}),
+        ...(input.description !== undefined && !isSystem ? { description: input.description?.trim() ?? null } : {}),
+        ...(input.scheduleText !== undefined && !isSystem ? { scheduleText: input.scheduleText?.trim() ?? null } : {}),
         ...(input.sortOrder !== undefined && !isSystem ? { sortOrder: input.sortOrder } : {}),
       };
       instGroups.set(groupId, next);
