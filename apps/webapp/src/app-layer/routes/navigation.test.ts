@@ -4,6 +4,7 @@ import {
   PATIENT_PRIMARY_NAV_ITEMS,
   patientNavByPlatform,
 } from "@/app-layer/routes/navigation";
+import { routePaths } from "@/app-layer/routes/paths";
 import type { PlatformMode } from "@/shared/lib/platform";
 
 const modes: PlatformMode[] = ["bot", "mobile", "desktop"];
@@ -42,6 +43,10 @@ describe("PATIENT_PRIMARY_NAV_ITEMS", () => {
       "Профиль",
     ]);
   });
+
+  it("Запись points at merged booking hub", () => {
+    expect(PATIENT_PRIMARY_NAV_ITEMS.find((i) => i.id === "booking")?.href).toBe(routePaths.bookingNew);
+  });
 });
 
 describe("getPatientPrimaryNavActiveId", () => {
@@ -58,5 +63,10 @@ describe("getPatientPrimaryNavActiveId", () => {
     expect(getPatientPrimaryNavActiveId("/app/patient/treatment-programs/11111111-1111-4111-8111-111111111111")).toBe(
       null,
     );
+  });
+
+  it("marks booking active on /cabinet and /booking/new", () => {
+    expect(getPatientPrimaryNavActiveId(routePaths.cabinet)).toBe("booking");
+    expect(getPatientPrimaryNavActiveId(routePaths.bookingNew)).toBe("booking");
   });
 });

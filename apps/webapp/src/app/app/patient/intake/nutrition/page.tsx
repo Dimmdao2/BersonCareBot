@@ -10,7 +10,7 @@ export default async function NutritionIntakePage() {
     <AppShell
       title="Онлайн-запрос"
       user={session.user}
-      backHref={routePaths.cabinet}
+      backHref={routePaths.bookingNew}
       backLabel="Назад"
       variant="patient"
     >

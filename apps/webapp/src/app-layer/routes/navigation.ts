@@ -26,7 +26,7 @@ export type PatientPrimaryNavItem = {
  */
 export const PATIENT_PRIMARY_NAV_ITEMS: readonly PatientPrimaryNavItem[] = [
   { id: "today", label: "Сегодня", href: routePaths.patient },
-  { id: "booking", label: "Запись", href: routePaths.patientBooking },
+  { id: "booking", label: "Запись", href: routePaths.bookingNew },
   { id: "diary", label: "Дневник", href: routePaths.diary },
   { id: "plan", label: "План", href: routePaths.patientTreatmentPrograms },
   { id: "profile", label: "Профиль", href: routePaths.profile },
@@ -44,7 +44,10 @@ export function getPatientPrimaryNavActiveId(pathname: string | null): PatientPr
   /** «План»: только `/app/patient/treatment` или подпути (`/treatment/[instanceId]`), без ложного префикса на `…/treatment-programs`. */
   const treatmentPrograms = routePaths.patientTreatmentPrograms;
   if (normalized === treatmentPrograms || normalized.startsWith(`${treatmentPrograms}/`)) return "plan";
-  if (normalized.startsWith(routePaths.patientBooking)) return "booking";
+  /** «Запись»: мастер `/booking/…`, legacy `/booking` и `/cabinet`. */
+  if (normalized.startsWith(routePaths.patientBooking) || normalized.startsWith(routePaths.cabinet)) {
+    return "booking";
+  }
   return null;
 }
 

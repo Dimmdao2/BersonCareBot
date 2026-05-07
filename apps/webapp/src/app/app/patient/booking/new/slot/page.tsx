@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getOptionalPatientSession } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
+import { BOOKING_WIZARD_TOTAL_STEPS } from "../../constants";
 import { BookingWizardShell } from "../BookingWizardShell";
 import { SlotStepClient } from "./SlotStepClient";
 
@@ -42,7 +43,7 @@ export default async function BookingNewSlotPage({ searchParams }: Props) {
       <BookingWizardShell
         title="Выберите дату и время"
         step={3}
-        totalSteps={4}
+        totalSteps={BOOKING_WIZARD_TOTAL_STEPS}
         backHref={backHref}
         user={session.user}
       >
@@ -67,7 +68,7 @@ export default async function BookingNewSlotPage({ searchParams }: Props) {
     <BookingWizardShell
       title="Выберите дату и время"
       step={3}
-      totalSteps={4}
+      totalSteps={BOOKING_WIZARD_TOTAL_STEPS}
       backHref={routePaths.bookingNew}
       user={session.user}
     >

@@ -5,62 +5,62 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { FormatStepClient } from "./FormatStepClient";
 import { routePaths } from "@/app-layer/routes/paths";
-import { useBookingCatalogCities } from "../../cabinet/useBookingCatalog";
-
-vi.mock("../../cabinet/useBookingCatalog", () => ({
-  useBookingCatalogCities: vi.fn(),
-}));
-
-const mockUseBookingCatalogCities = vi.mocked(useBookingCatalogCities);
+import type { BookingCity } from "@/modules/booking-catalog/types";
 
 const push = vi.fn();
+const refresh = vi.fn();
 
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push, replace: vi.fn(), refresh: vi.fn(), prefetch: vi.fn() }),
+  useRouter: () => ({ push, replace: vi.fn(), refresh, prefetch: vi.fn() }),
 }));
+
+function city(overrides: Partial<BookingCity> = {}): BookingCity {
+  return {
+    id: "1",
+    code: "msk",
+    title: "Москва",
+    isActive: true,
+    sortOrder: 0,
+    createdAt: "",
+    updatedAt: "",
+    ...overrides,
+  };
+}
 
 describe("FormatStepClient", () => {
   beforeEach(() => {
     push.mockClear();
-    mockUseBookingCatalogCities.mockReturnValue({
-      loading: false,
-      error: null,
-      cities: [{ id: "1", code: "msk", title: "Москва" }],
-      reload: vi.fn(),
-    });
+    refresh.mockClear();
   });
 
-  it("«Москва» navigates to service step with city params", async () => {
-    const user = userEvent.setup();
-    render(<FormatStepClient />);
-    await user.click(screen.getByRole("button", { name: "Москва" }));
-    expect(push).toHaveBeenCalledWith(
+  it("«Москва» links to service step with city params", () => {
+    render(<FormatStepClient cities={[city()]} catalogError={null} />);
+    const link = screen.getByRole("link", { name: "Москва" });
+    expect(link).toHaveAttribute(
+      "href",
       `${routePaths.bookingNewService}?cityCode=msk&cityTitle=${encodeURIComponent("Москва")}`,
     );
   });
 
-  it("«Реабилитация (ЛФК)» navigates to intake/lfk", async () => {
+  it("«Реабилитация онлайн» navigates to intake/lfk", async () => {
     const user = userEvent.setup();
-    render(<FormatStepClient />);
-    await user.click(screen.getByRole("button", { name: /ЛФК/i }));
+    render(<FormatStepClient cities={[city()]} catalogError={null} />);
+    await user.click(screen.getByRole("button", { name: /Реабилитация онлайн/i }));
     expect(push).toHaveBeenCalledWith(routePaths.intakeLfk);
   });
 
-  it("«Нутрициология (анализы)» navigates to intake/nutrition", async () => {
+  it("«Нутрициология онлайн» navigates to intake/nutrition", async () => {
     const user = userEvent.setup();
-    render(<FormatStepClient />);
-    await user.click(screen.getByRole("button", { name: /нутрициол/i }));
+    render(<FormatStepClient cities={[city()]} catalogError={null} />);
+    await user.click(screen.getByRole("button", { name: /Нутрициология онлайн/i }));
     expect(push).toHaveBeenCalledWith(routePaths.intakeNutrition);
   });
 
-  it("shows loading text while cities load", () => {
-    mockUseBookingCatalogCities.mockReturnValue({
-      loading: true,
-      error: null,
-      cities: [],
-      reload: vi.fn(),
-    });
-    render(<FormatStepClient />);
-    expect(screen.getByText("Загрузка городов…")).toBeInTheDocument();
+  it("shows catalog error and retry refreshes router", async () => {
+    const user = userEvent.setup();
+    render(<FormatStepClient cities={[]} catalogError="Ошибка каталога" />);
+    expect(screen.getByText("Ошибка каталога")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /Повторить/i }));
+    expect(refresh).toHaveBeenCalled();
   });
 });

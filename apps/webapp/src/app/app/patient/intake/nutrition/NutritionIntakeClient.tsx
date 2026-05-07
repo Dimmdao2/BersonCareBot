@@ -130,7 +130,7 @@ export function NutritionIntakeClient() {
             Нутрициолог свяжется с вами в ближайшее время.
           </p>
         </div>
-        <Button variant="outline" onClick={() => router.push(routePaths.cabinet)}>
+        <Button variant="outline" onClick={() => router.push(routePaths.bookingNew)}>
           Вернуться в кабинет
         </Button>
       </div>

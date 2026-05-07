@@ -55,7 +55,7 @@ export function LfkIntakeClient() {
             Врач свяжется с вами лично или через приложение в ближайшее время.
           </p>
         </div>
-        <Button variant="outline" onClick={() => router.push(routePaths.cabinet)}>
+        <Button variant="outline" onClick={() => router.push(routePaths.bookingNew)}>
           Вернуться в кабинет
         </Button>
       </div>

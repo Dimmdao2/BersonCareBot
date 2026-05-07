@@ -263,19 +263,11 @@ export function PatientHeader({
               {/* Блок 1: запись и визиты */}
               <Link
                 id="patient-menu-link-booking"
-                href={routePaths.patientBooking}
+                href={routePaths.bookingNew}
                 onClick={closeMenu}
                 className={SHEET_NAV_LINK_CLASS}
               >
-                Записаться на приём
-              </Link>
-              <Link
-                id="patient-menu-link-cabinet"
-                href={routePaths.cabinet}
-                onClick={closeMenu}
-                className={SHEET_NAV_LINK_CLASS}
-              >
-                Мои приёмы
+                Запись
               </Link>
               <Link
                 id="patient-menu-link-address"

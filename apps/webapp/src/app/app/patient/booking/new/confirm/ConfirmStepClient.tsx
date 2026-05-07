@@ -112,7 +112,7 @@ export function ConfirmStepClient({
           }).then((ok) => {
             if (ok) {
               toast.success("Запись подтверждена");
-              router.push(routePaths.cabinet);
+              router.push(routePaths.bookingNew);
             }
           });
         }}

@@ -12,7 +12,7 @@ const querySchema = z.object({
 });
 
 export async function GET(request: Request) {
-  const gate = await requirePatientApiBusinessAccess({ returnPath: routePaths.cabinet });
+  const gate = await requirePatientApiBusinessAccess({ returnPath: routePaths.bookingNew });
   if (!gate.ok) return gate.response;
   const session = gate.session;
 

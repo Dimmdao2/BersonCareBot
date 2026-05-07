@@ -1488,7 +1488,7 @@ function PatientProgramControlCard(props: {
             ) : null
           ) : null}
           <Link
-            href={routePaths.cabinet}
+            href={routePaths.bookingNew}
             className={cn(
               patientButtonSuccessClass,
               "w-auto min-h-8 shrink-0 px-2.5 py-1.5 text-xs font-semibold leading-tight sm:min-h-8",

@@ -3,28 +3,28 @@ import { patientSessionSnapshotHasPhone } from "@/modules/platform-access";
 import type { AppSession } from "@/shared/types/session";
 import { GuestPlaceholder } from "@/shared/ui/GuestPlaceholder";
 
-/** Блок для «Мои записи» без сессии или без телефона (EXEC I.10). Без inline-формы телефона. */
+/** Блок для страницы записи без сессии или без телефона (EXEC I.10). Без inline-формы телефона. */
 export function CabinetGuestAccess({ session }: { session: AppSession | null }) {
   if (!session) {
     return (
       <GuestPlaceholder
-        title="Мои приёмы"
+        title="Запись"
         description="Здесь отображаются ваши записи на приём и их история. Записаться можно без регистрации; чтобы видеть свои записи в списке — войдите и подтвердите номер телефона."
-        actionLabel="Записаться на приём"
-        actionHref={routePaths.patientBooking}
+        actionLabel="Запись на приём"
+        actionHref={routePaths.bookingNew}
         secondaryLabel="Войти"
-        secondaryHref={`${routePaths.root}?next=${encodeURIComponent(routePaths.cabinet)}`}
+        secondaryHref={`${routePaths.root}?next=${encodeURIComponent(routePaths.bookingNew)}`}
       />
     );
   }
   return (
     <GuestPlaceholder
-      title="Мои приёмы"
+      title="Запись"
       description="Здесь отображаются ваши записи на приём и их история. Чтобы видеть список, подтвердите номер телефона в профиле."
-      actionLabel="Записаться на приём"
-      actionHref={routePaths.patientBooking}
+      actionLabel="Запись на приём"
+      actionHref={routePaths.bookingNew}
       secondaryLabel="Подтвердить номер"
-      secondaryHref={`${routePaths.bindPhone}?next=${encodeURIComponent(routePaths.cabinet)}`}
+      secondaryHref={`${routePaths.bindPhone}?next=${encodeURIComponent(routePaths.bookingNew)}`}
     />
   );
 }

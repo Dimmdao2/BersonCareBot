@@ -1,48 +1,58 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { routePaths } from "@/app-layer/routes/paths";
+import type { BookingCity } from "@/modules/booking-catalog/types";
 import { patientMutedTextClass } from "@/shared/ui/patientVisual";
-import { useBookingCatalogCities } from "../../../cabinet/useBookingCatalog";
 
-export function CityStepClient() {
+function sortCitiesForDisplay(cities: BookingCity[]): BookingCity[] {
+  return [...cities].sort(
+    (a, b) => a.sortOrder - b.sortOrder || a.title.localeCompare(b.title, "ru"),
+  );
+}
+
+export type CityStepClientProps = {
+  cities: BookingCity[];
+  catalogError: string | null;
+};
+
+export function CityStepClient({ cities, catalogError }: CityStepClientProps) {
   const router = useRouter();
-  const catalogCities = useBookingCatalogCities(true);
+  const sorted = sortCitiesForDisplay(cities);
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex items-center gap-2">
-        <h2 className="text-sm font-semibold">Город</h2>
-        <Badge variant="outline">Шаг 2</Badge>
-      </div>
-      {catalogCities.loading ? <p className={patientMutedTextClass}>Загрузка городов…</p> : null}
-      {catalogCities.error ? (
+      {catalogError ? (
         <div className="flex flex-col gap-2">
-          <p className="text-sm text-destructive">{catalogCities.error}</p>
-          <Button type="button" variant="outline" size="sm" onClick={() => void catalogCities.reload()}>
+          <p className="text-sm text-destructive">{catalogError}</p>
+          <Button type="button" variant="outline" size="sm" onClick={() => router.refresh()}>
             Повторить
           </Button>
         </div>
       ) : null}
-      <div className="flex flex-wrap gap-2">
-        {catalogCities.cities.map((c) => (
-          <Button
-            key={c.id}
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() =>
-              router.push(
-                `${routePaths.bookingNewService}?cityCode=${encodeURIComponent(c.code)}&cityTitle=${encodeURIComponent(c.title)}`,
-              )
-            }
-          >
-            {c.title}
-          </Button>
-        ))}
-      </div>
+      {!catalogError ? (
+        <div className="flex flex-wrap gap-2">
+          {sorted.map((c) => (
+            <Button
+              key={c.id}
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                router.push(
+                  `${routePaths.bookingNewService}?cityCode=${encodeURIComponent(c.code)}&cityTitle=${encodeURIComponent(c.title)}`,
+                )
+              }
+            >
+              {c.title}
+            </Button>
+          ))}
+        </div>
+      ) : null}
+      {!catalogError && sorted.length === 0 ? (
+        <p className={patientMutedTextClass}>Нет доступных городов.</p>
+      ) : null}
     </div>
   );
 }

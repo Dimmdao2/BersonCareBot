@@ -23,8 +23,8 @@ type Props = {
 };
 
 export function PatientHomeBookingCard({ personalTierOk, anonymousGuest, blockIconImageUrl }: Props) {
-  const bookingHref = anonymousGuest ? appLoginWithNextHref(routePaths.patientBooking) : routePaths.patientBooking;
-  const cabinetHref = anonymousGuest ? appLoginWithNextHref(routePaths.cabinet) : routePaths.cabinet;
+  const bookingHref = anonymousGuest ? appLoginWithNextHref(routePaths.bookingNew) : routePaths.bookingNew;
+  const hubHref = anonymousGuest ? appLoginWithNextHref(routePaths.bookingNew) : routePaths.bookingNew;
 
   const footer =
     anonymousGuest ?
@@ -78,11 +78,11 @@ export function PatientHomeBookingCard({ personalTierOk, anonymousGuest, blockIc
               Записаться
             </Link>
             <Link
-              href={cabinetHref}
+              href={hubHref}
               prefetch={false}
               className={cn(patientButtonSecondaryClass, "min-h-10 flex-1 px-3 text-sm")}
             >
-              Мои приёмы
+              Мои записи
             </Link>
           </div>
         </div>

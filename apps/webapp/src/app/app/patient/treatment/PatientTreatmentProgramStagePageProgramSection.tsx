@@ -17,7 +17,6 @@ import {
   recommendationBodyMdPreviewPlain,
   type InstanceStageItem,
 } from "@/app/app/patient/treatment/stageItemSnapshot";
-import { listLfkSnapshotExerciseLines } from "@/modules/treatment-program/programActionActivityKey";
 import {
   patientBodyTextClass,
   patientCardClass,
@@ -99,40 +98,28 @@ function tileTitle(snapshot: Record<string, unknown>, itemType: string): string 
   return itemType;
 }
 
-function finiteSnapNum(v: unknown): number | null {
-  return typeof v === "number" && Number.isFinite(v) ? v : null;
+function pickFirstFiniteNum(...vals: unknown[]): number | null {
+  for (const v of vals) {
+    if (typeof v === "number" && Number.isFinite(v)) return v;
+  }
+  return null;
 }
 
-/** Бейджи нагрузки справа от заголовка плитки: повторы×подходы и макс. боль (из снимка). */
-function programTileLoadBadgeLabels(item: InstanceStageItem): {
-  repsSetsLabel: string | null;
-  painLabel: string | null;
-} {
+/**
+ * Бейдж «повторения×подходы» для плитки. У `exercise` нагрузка часто в `settings`, не в каталожном снимке —
+ * объединяем settings → snapshot (как на экране врача).
+ */
+function programTileRepsSetsBadgeLabel(item: InstanceStageItem): string | null {
+  if (item.itemType !== "exercise") return null;
   const snap = item.snapshot as Record<string, unknown>;
-  if (item.itemType === "lfk_complex") {
-    const lines = listLfkSnapshotExerciseLines(snap);
-    if (lines.length === 0) return { repsSetsLabel: null, painLabel: null };
-    const first = lines[0]!;
-    const repsSetsLabel =
-      first.reps != null && first.sets != null ? `${first.reps}×${first.sets}` : null;
-    let maxPain: number | null = null;
-    for (const line of lines) {
-      if (line.maxPain != null) {
-        maxPain = maxPain == null ? line.maxPain : Math.max(maxPain, line.maxPain);
-      }
-    }
-    const painLabel = maxPain != null ? `Боль ${maxPain} max` : null;
-    return { repsSetsLabel, painLabel };
-  }
-  if (item.itemType === "exercise") {
-    const reps = finiteSnapNum(snap.reps);
-    const sets = finiteSnapNum(snap.sets);
-    const maxPain = finiteSnapNum(snap.maxPain);
-    const repsSetsLabel = reps != null && sets != null ? `${reps}×${sets}` : null;
-    const painLabel = maxPain != null ? `Боль ${maxPain} max` : null;
-    return { repsSetsLabel, painLabel };
-  }
-  return { repsSetsLabel: null, painLabel: null };
+  const ov =
+    item.settings != null && typeof item.settings === "object" && !Array.isArray(item.settings)
+      ? (item.settings as Record<string, unknown>)
+      : {};
+  const reps = pickFirstFiniteNum(ov.reps, snap.reps);
+  const sets = pickFirstFiniteNum(ov.sets, snap.sets);
+  if (reps == null || sets == null) return null;
+  return `${reps}×${sets}`;
 }
 
 function programTileDescriptionRaw(item: InstanceStageItem): { markdown: string | null; plain: string } {
@@ -304,8 +291,7 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
     const contrText = programTileContraindicationsPlain(item);
     const doctorComment = item.effectiveComment?.trim() ?? "";
     const hasHintRow = hasDescription || Boolean(contrText) || Boolean(doctorComment);
-    const badgeLabels = programTileLoadBadgeLabels(item);
-    const showLoadBadges = Boolean(badgeLabels.repsSetsLabel || badgeLabels.painLabel);
+    const repsSetsBadge = programTileRepsSetsBadgeLabel(item);
 
     return (
       <li
@@ -355,19 +341,10 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
                   {tileTitle(item.snapshot as Record<string, unknown>, item.itemType)}
                 </span>
               </button>
-              {showLoadBadges ? (
-                <div className="flex shrink-0 flex-col items-end justify-end gap-1 self-end">
-                  {badgeLabels.repsSetsLabel ? (
-                    <span className="rounded-md border border-neutral-300 bg-white px-1.5 py-0.5 text-[10px] font-medium leading-none tabular-nums text-neutral-800">
-                      {badgeLabels.repsSetsLabel}
-                    </span>
-                  ) : null}
-                  {badgeLabels.painLabel ? (
-                    <span className="rounded-md border border-neutral-300 bg-white px-1.5 py-0.5 text-[10px] font-medium leading-none tabular-nums text-neutral-800">
-                      {badgeLabels.painLabel}
-                    </span>
-                  ) : null}
-                </div>
+              {repsSetsBadge ? (
+                <span className="shrink-0 self-end rounded-md border border-neutral-300 bg-white px-1.5 py-0.5 text-[10px] font-medium leading-none tabular-nums text-neutral-800">
+                  {repsSetsBadge}
+                </span>
               ) : null}
             </div>
 

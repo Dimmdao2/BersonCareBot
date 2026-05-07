@@ -30,7 +30,7 @@ export default async function PatientHelpPage() {
             </Link>
           </li>
           <li>
-            <Link href={routePaths.cabinet} className={cn(patientInlineLinkClass, "text-sm")}>
+            <Link href={routePaths.bookingNew} className={cn(patientInlineLinkClass, "text-sm")}>
               Запись на приём
             </Link>
           </li>

@@ -63,7 +63,7 @@ describe("ConfirmStepClient", () => {
     expect(submit).toBeDisabled();
   });
 
-  it("calls createBooking with correct args and navigates to cabinet on success", async () => {
+  it("calls createBooking with correct args and navigates to booking hub on success", async () => {
     const user = userEvent.setup();
     render(
       <ConfirmStepClient
@@ -101,7 +101,7 @@ describe("ConfirmStepClient", () => {
     );
 
     await waitFor(() => {
-      expect(push).toHaveBeenCalledWith(routePaths.cabinet);
+      expect(push).toHaveBeenCalledWith(routePaths.bookingNew);
     });
   });
 });

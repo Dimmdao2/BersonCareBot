@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getOptionalPatientSession } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
+import { BOOKING_WIZARD_TOTAL_STEPS } from "../../constants";
 import { BookingWizardShell } from "../BookingWizardShell";
 import { ConfirmStepClient } from "./ConfirmStepClient";
 
@@ -72,7 +73,7 @@ export default async function BookingNewConfirmPage({ searchParams }: Props) {
     <BookingWizardShell
       title="Подтверждение записи"
       step={4}
-      totalSteps={4}
+      totalSteps={BOOKING_WIZARD_TOTAL_STEPS}
       backHref={backHref}
       user={session.user}
     >
