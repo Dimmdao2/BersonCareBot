@@ -4,6 +4,8 @@ import type { ChannelBindings } from "@/shared/types/session";
 export type DoctorClientsFilters = {
   search?: string;
   hasUpcomingAppointment?: boolean;
+  /** Есть хотя бы одна активная назначенная программа лечения (`treatment_program_instances.status = 'active'`). */
+  hasActiveTreatmentProgram?: boolean;
   hasTelegram?: boolean;
   hasMax?: boolean;
   /** Только пользователи с хотя бы одной строкой в `appointment_records` (JOIN по phone). Этап 9. */
@@ -24,6 +26,10 @@ export type ClientListItem = {
   phone: string | null;
   bindings: ChannelBindings;
   nextAppointmentLabel: string | null;
+  /** Хотя бы одна строка `treatment_program_instances` со статусом `active` для этого клиента. */
+  activeTreatmentProgram: boolean;
+  /** Выбранный активный экземпляр (при нескольких — самый свежий по `updated_at`). Для ссылок врача на экран программы. */
+  activeTreatmentProgramInstanceId: string | null;
   cancellationCount30d: number;
 };
 
@@ -52,7 +58,7 @@ export type ClientIdentity = {
 export type DoctorDashboardPatientMetrics = {
   /** `COUNT(*)` WHERE `role = 'client'`. */
   totalClients: number;
-  /** Есть хотя бы одна будущая запись (created/updated, `record_at >= now()`). */
+  /** Есть хотя бы одна активная назначенная программа лечения (`treatment_program_instances.status = 'active'`). */
   onSupportCount: number;
   /** Уникальные клиенты с прошедшим слотом created/updated в текущем UTC-месяце (`record_at < now()`). */
   visitedThisCalendarMonthCount: number;

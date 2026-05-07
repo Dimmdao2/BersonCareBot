@@ -18,6 +18,8 @@ type UrlParams = {
   telegram?: string;
   max?: string;
   appointment?: string;
+  /** Сопровождение по программе лечения (плитка дашборда «На сопровождении»). */
+  treatmentProgram?: string;
   visitedMonth?: string;
   selected?: string;
   scope?: string;
@@ -33,6 +35,24 @@ type Props = {
 };
 
 const DEFAULT_BASE = "/app/doctor/clients";
+
+function clientMasterRowHref(
+  c: ClientListItem,
+  basePath: string,
+  scope: ClientsScope,
+  preferTreatmentProgramRow: boolean,
+): string {
+  const qs = `?scope=${encodeURIComponent(scope)}`;
+  if (
+    preferTreatmentProgramRow &&
+    c.activeTreatmentProgram &&
+    (c.activeTreatmentProgramInstanceId ?? "").trim() !== ""
+  ) {
+    const iid = c.activeTreatmentProgramInstanceId!.trim();
+    return `${basePath}/${encodeURIComponent(c.userId)}/treatment-programs/${encodeURIComponent(iid)}${qs}`;
+  }
+  return `${basePath}/${encodeURIComponent(c.userId)}${qs}`;
+}
 
 function matchesSearch(item: ClientListItem, query: string): boolean {
   const s = query.toLowerCase().trim();
@@ -52,6 +72,7 @@ function appendListQueryParams(params: URLSearchParams, urlParams: UrlParams): v
   if (urlParams.telegram === "1") params.set("telegram", "1");
   if (urlParams.max === "1") params.set("max", "1");
   if (urlParams.appointment === "1") params.set("appointment", "1");
+  if (urlParams.treatmentProgram === "1") params.set("treatmentProgram", "1");
   if (scope === "appointments" && urlParams.visitedMonth === "1") params.set("visitedMonth", "1");
 }
 
@@ -82,16 +103,26 @@ export function DoctorClientsPanel({
     if (urlParams.appointment === "1") {
       list = list.filter((c) => Boolean(c.nextAppointmentLabel));
     }
+    if (urlParams.treatmentProgram === "1") {
+      list = list.filter((c) => c.activeTreatmentProgram);
+    }
     return list;
-  }, [allClients, search, urlParams.telegram, urlParams.max, urlParams.appointment]);
+  }, [allClients, search, urlParams.telegram, urlParams.max, urlParams.appointment, urlParams.treatmentProgram]);
 
   const onFiltersChange = useCallback(
-    (next: { telegram: boolean; max: boolean; appointment: boolean; visitedMonth: boolean }) => {
+    (next: {
+      telegram: boolean;
+      max: boolean;
+      appointment: boolean;
+      treatmentProgram: boolean;
+      visitedMonth: boolean;
+    }) => {
       const params = new URLSearchParams();
       params.set("scope", scope);
       if (next.telegram) params.set("telegram", "1");
       if (next.max) params.set("max", "1");
       if (next.appointment) params.set("appointment", "1");
+      if (next.treatmentProgram) params.set("treatmentProgram", "1");
       if (scope === "appointments" && next.visitedMonth) params.set("visitedMonth", "1");
       if (urlParams.selected) params.set("selected", urlParams.selected);
       const query = params.toString();
@@ -108,6 +139,7 @@ export function DoctorClientsPanel({
       if (urlParams.telegram === "1") params.set("telegram", "1");
       if (urlParams.max === "1") params.set("max", "1");
       if (urlParams.appointment === "1") params.set("appointment", "1");
+      if (urlParams.treatmentProgram === "1") params.set("treatmentProgram", "1");
       if (nextScope === "appointments" && urlParams.visitedMonth === "1") params.set("visitedMonth", "1");
       if (urlParams.selected) params.set("selected", urlParams.selected);
       router.replace(`${basePath}?${params.toString()}`);
@@ -117,6 +149,7 @@ export function DoctorClientsPanel({
       router,
       scope,
       urlParams.appointment,
+      urlParams.treatmentProgram,
       urlParams.max,
       urlParams.selected,
       urlParams.telegram,
@@ -190,6 +223,7 @@ export function DoctorClientsPanel({
           telegram: urlParams.telegram === "1",
           max: urlParams.max === "1",
           appointment: urlParams.appointment === "1",
+          treatmentProgram: urlParams.treatmentProgram === "1",
           visitedMonth: urlParams.visitedMonth === "1",
         }}
         onChange={onFiltersChange}
@@ -215,7 +249,7 @@ export function DoctorClientsPanel({
             <li key={c.userId} id={`doctor-clients-item-${c.userId}`} className="rounded-lg border border-border bg-card p-0">
               <Link
                 id={`doctor-clients-card-${c.userId}`}
-                href={`${basePath}/${c.userId}?scope=${scope}`}
+                href={clientMasterRowHref(c, basePath, scope, urlParams.treatmentProgram === "1")}
                 onClick={onRowClick(c.userId)}
                 className="flex w-full items-start justify-between gap-3 rounded-lg px-3 py-2 text-left no-underline transition-colors hover:bg-muted/50 focus-visible:outline focus-visible:ring-2 focus-visible:ring-ring"
               >
@@ -223,6 +257,9 @@ export function DoctorClientsPanel({
                   <span className="text-sm font-semibold text-foreground">{c.displayName}</span>
                   {c.nextAppointmentLabel ? (
                     <span className="mt-0.5 block text-[11px] text-muted-foreground">{c.nextAppointmentLabel}</span>
+                  ) : null}
+                  {c.activeTreatmentProgram ? (
+                    <span className="mt-0.5 block text-[11px] text-muted-foreground">Программа лечения</span>
                   ) : null}
                 </div>
                 <div className="flex shrink-0 flex-wrap items-center gap-1">

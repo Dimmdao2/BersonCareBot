@@ -18,6 +18,7 @@ type Props = {
     telegram?: string;
     max?: string;
     appointment?: string;
+    treatmentProgram?: string;
     visitedMonth?: string;
     selected?: string;
     scope?: string;

@@ -385,7 +385,7 @@ describe("PatientTreatmentProgramDetailClient", () => {
     );
     clickPatientTreatmentTab("recommendations");
     const recPanel = screen.getByRole("tabpanel", { name: "Рекомендации" });
-    const rowBtn = await within(recPanel).findByRole("button", { name: "Пить воду" });
+    const rowBtn = await within(recPanel).findByRole("button", { name: /Пить воду/ });
     expect(rowBtn).toBeInTheDocument();
     const row = rowBtn.closest("li");
     expect(row).toBeTruthy();

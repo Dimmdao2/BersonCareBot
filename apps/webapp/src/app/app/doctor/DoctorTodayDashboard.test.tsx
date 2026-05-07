@@ -29,17 +29,21 @@ function emptyData(): TodayDashboardData {
     unreadConversations: [],
     unreadTotal: 0,
     upcomingAppointments: [],
+    onSupportCount: 0,
+    onSupportClients: [],
+    onSupportListTruncated: false,
   };
 }
 
 describe("DoctorTodayDashboard", () => {
-  it("renders title, stats link, and four section headings", () => {
+  it("renders title, stats link, and section headings", () => {
     render(<DoctorTodayDashboard data={emptyData()} />);
     expect(screen.getByRole("heading", { level: 1, name: "Сегодня" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Открыть статистику" })).toHaveAttribute(
       "href",
       "/app/doctor/stats",
     );
+    expect(screen.getByRole("heading", { name: "На сопровождении" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Записи сегодня" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Новые онлайн-заявки" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Непрочитанные сообщения" })).toBeInTheDocument();
@@ -48,6 +52,11 @@ describe("DoctorTodayDashboard", () => {
 
   it("shows empty states and CTAs", () => {
     render(<DoctorTodayDashboard data={emptyData()} />);
+    expect(screen.getByText("Клиентов на сопровождении нет")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Список клиентов" })).toHaveAttribute(
+      "href",
+      "/app/doctor/clients?scope=all&treatmentProgram=1",
+    );
     expect(screen.getByText("На сегодня записей нет")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Открыть записи" })).toHaveAttribute(
       "href",
@@ -119,6 +128,32 @@ describe("DoctorTodayDashboard", () => {
     expect(screen.getByRole("link", { name: "Открыть заявку" })).toHaveAttribute(
       "href",
       "/app/doctor/online-intake/int1",
+    );
+  });
+
+  it("renders on-support clients and truncated footer", () => {
+    const data: TodayDashboardData = {
+      ...emptyData(),
+      onSupportCount: 2,
+      onSupportClients: [
+        { userId: "u-a", displayName: "Анна", href: "/app/doctor/clients/u-a/treatment-programs/p-1" },
+        { userId: "u-b", displayName: "Борис", href: "/app/doctor/clients/u-b/treatment-programs/p-2" },
+      ],
+      onSupportListTruncated: true,
+    };
+    render(<DoctorTodayDashboard data={data} />);
+    expect(screen.getByText(/Клиентов: 2/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Анна" })).toHaveAttribute(
+      "href",
+      "/app/doctor/clients/u-a/treatment-programs/p-1",
+    );
+    expect(screen.getByRole("link", { name: "Борис" })).toHaveAttribute(
+      "href",
+      "/app/doctor/clients/u-b/treatment-programs/p-2",
+    );
+    expect(screen.getByRole("link", { name: "Все на сопровождении" })).toHaveAttribute(
+      "href",
+      "/app/doctor/clients?scope=all&treatmentProgram=1",
     );
   });
 

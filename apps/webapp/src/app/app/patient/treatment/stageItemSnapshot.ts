@@ -56,6 +56,23 @@ export function parseRecommendationMediaFromSnapshot(snapshot: Record<string, un
   return parseSnapshotMediaForRowThumb(snapshot);
 }
 
+/** Plain-текст из `bodyMd` снимка рекомендации для превью в списке (без рендера MD). */
+export function recommendationBodyMdPreviewPlain(bodyMd: unknown): string {
+  if (typeof bodyMd !== "string" || !bodyMd.trim()) return "";
+  let s = bodyMd.trim();
+  s = s.replace(/```[\s\S]*?```/g, " ");
+  s = s.replace(/!\[([^\]]*)\]\([^)]*\)/g, "$1 ");
+  s = s.replace(/\[([^\]]*)\]\([^)]*\)/g, "$1");
+  s = s.replace(/^#{1,6}\s+/gm, "");
+  s = s.replace(/^\s*[-*+]\s+/gm, "");
+  s = s.replace(/\*\*([^*]+)\*\*/g, "$1");
+  s = s.replace(/\*([^*\n]+)\*/g, "$1");
+  s = s.replace(/__([^_]+)__/g, "$1");
+  s = s.replace(/`([^`]+)`/g, "$1");
+  s = s.replace(/\s+/g, " ").trim();
+  return s;
+}
+
 export function primaryMediaForStageItem(item: InstanceStageItem): RecommendationMediaItem | null {
   const snap = item.snapshot as Record<string, unknown>;
   if (item.itemType === "lfk_complex") {

@@ -1,6 +1,14 @@
 import type { AppointmentRow, DoctorAppointmentsListFilter } from "@/modules/doctor-appointments/ports";
+import type {
+  ClientListItem,
+  DoctorClientsFilters,
+  DoctorDashboardPatientMetrics,
+} from "@/modules/doctor-clients/ports";
 import type { OnlineIntakeService } from "@/modules/online-intake/ports";
 import type { IntakeRequestWithPatientIdentity, IntakeType } from "@/modules/online-intake/types";
+
+/** Сколько карточек клиентов показывать на «Сегодня»; полный список — `/app/doctor/clients?scope=all&treatmentProgram=1`. */
+export const DOCTOR_TODAY_ON_SUPPORT_PREVIEW_LIMIT = 10;
 
 /** Minimal conversation row shape for «Сегодня» (matches doctorSupport.listOpenConversations output). */
 export type TodayConversationSourceRow = {
@@ -15,6 +23,10 @@ export type TodayConversationSourceRow = {
 export type DoctorTodayDashboardDeps = {
   doctorAppointments: {
     listAppointmentsForSpecialist(filter: DoctorAppointmentsListFilter): Promise<AppointmentRow[]>;
+  };
+  doctorClients: {
+    getDashboardPatientMetrics(): Promise<DoctorDashboardPatientMetrics>;
+    listClients(filters: DoctorClientsFilters): Promise<ClientListItem[]>;
   };
   messaging: {
     doctorSupport: {
@@ -62,12 +74,22 @@ export type TodayUnreadConversationItem = {
   href: string;
 };
 
+export type TodayOnSupportClientItem = {
+  userId: string;
+  displayName: string;
+  href: string;
+};
+
 export type TodayDashboardData = {
   todayAppointments: TodayAppointmentItem[];
   newIntakeRequests: TodayIntakeItem[];
   unreadConversations: TodayUnreadConversationItem[];
   unreadTotal: number;
   upcomingAppointments: TodayAppointmentItem[];
+  /** Семантика: активная назначенная программа лечения (`hasActiveTreatmentProgram`). */
+  onSupportCount: number;
+  onSupportClients: TodayOnSupportClientItem[];
+  onSupportListTruncated: boolean;
 };
 
 const INTAKE_TYPE_LABELS: Record<IntakeType, string> = {
@@ -76,6 +98,8 @@ const INTAKE_TYPE_LABELS: Record<IntakeType, string> = {
 };
 
 const MESSAGES_HREF = "/app/doctor/messages";
+
+export const ON_SUPPORT_LIST_HREF = "/app/doctor/clients?scope=all&treatmentProgram=1";
 
 const TEXT_PREVIEW_MAX = 160;
 
@@ -124,6 +148,20 @@ export function mapIntakeToTodayItem(row: IntakeRequestWithPatientIdentity): Tod
   };
 }
 
+export function mapOnSupportClientToTodayItem(row: ClientListItem): TodayOnSupportClientItem {
+  const uid = row.userId.trim();
+  const instanceId = row.activeTreatmentProgramInstanceId?.trim() ?? "";
+  const programHref =
+    instanceId !== ""
+      ? `/app/doctor/clients/${encodeURIComponent(uid)}/treatment-programs/${encodeURIComponent(instanceId)}`
+      : `/app/doctor/clients/${encodeURIComponent(uid)}`;
+  return {
+    userId: uid,
+    displayName: row.displayName.trim() || "—",
+    href: programHref,
+  };
+}
+
 export function mapConversationToTodayItem(row: TodayConversationSourceRow): TodayUnreadConversationItem {
   return {
     conversationId: row.conversationId,
@@ -161,13 +199,32 @@ export async function loadDoctorTodayDashboard(
   deps: DoctorTodayDashboardDeps,
   intakeService: OnlineIntakeService,
 ): Promise<TodayDashboardData> {
-  const [todayRaw, weekRaw, newIntake, unreadConversations, unreadTotal] = await Promise.all([
+  const [
+    todayRaw,
+    weekRaw,
+    newIntake,
+    unreadConversations,
+    unreadTotal,
+    patientMetrics,
+    onSupportListRaw,
+  ] = await Promise.all([
     deps.doctorAppointments.listAppointmentsForSpecialist({ kind: "range", range: "today" }),
     deps.doctorAppointments.listAppointmentsForSpecialist({ kind: "range", range: "week" }),
     intakeService.listForDoctor({ status: "new", limit: 3, offset: 0 }),
     deps.messaging.doctorSupport.listOpenConversations({ unreadOnly: true, limit: 3 }),
     deps.messaging.doctorSupport.unreadFromUsers(),
+    deps.doctorClients.getDashboardPatientMetrics(),
+    deps.doctorClients.listClients({ hasActiveTreatmentProgram: true }),
   ]);
+
+  const onSupportSorted = [...onSupportListRaw].sort((a, b) =>
+    a.displayName.localeCompare(b.displayName, "ru", { sensitivity: "base" }),
+  );
+  const onSupportClients = onSupportSorted
+    .slice(0, DOCTOR_TODAY_ON_SUPPORT_PREVIEW_LIMIT)
+    .map(mapOnSupportClientToTodayItem);
+  const onSupportCount = patientMetrics.onSupportCount;
+  const onSupportListTruncated = onSupportCount > onSupportClients.length;
 
   return {
     todayAppointments: todayRaw.map(mapAppointmentToTodayItem),
@@ -175,5 +232,8 @@ export async function loadDoctorTodayDashboard(
     unreadConversations: unreadConversations.map(mapConversationToTodayItem),
     unreadTotal,
     upcomingAppointments: getUpcomingAppointments(todayRaw, weekRaw, 5),
+    onSupportCount,
+    onSupportClients,
+    onSupportListTruncated,
   };
 }

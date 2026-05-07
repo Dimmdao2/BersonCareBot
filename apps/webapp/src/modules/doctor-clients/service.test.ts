@@ -24,6 +24,8 @@ describe("doctor-clients service", () => {
           phone: "+79001234567",
           bindings: { telegramId: "tg1" },
           nextAppointmentLabel: null,
+          activeTreatmentProgram: false,
+          activeTreatmentProgramInstanceId: null,
           cancellationCount30d: 0,
         },
       ];

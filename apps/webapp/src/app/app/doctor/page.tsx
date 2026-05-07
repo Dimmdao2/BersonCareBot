@@ -12,7 +12,14 @@ export default async function DoctorPage() {
   const session = await requireDoctorAccess();
   const deps = buildAppDeps();
   const intakeService = getOnlineIntakeService();
-  const data = await loadDoctorTodayDashboard(deps, intakeService);
+  const data = await loadDoctorTodayDashboard(
+    {
+      doctorAppointments: deps.doctorAppointments,
+      doctorClients: deps.doctorClientsPort,
+      messaging: deps.messaging,
+    },
+    intakeService,
+  );
 
   return (
     <AppShell title="Сегодня" user={session.user} variant="doctor">

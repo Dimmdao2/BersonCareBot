@@ -8,6 +8,7 @@ type FilterDefaults = {
   telegram?: boolean;
   max?: boolean;
   appointment?: boolean;
+  treatmentProgram?: boolean;
   visitedMonth?: boolean;
 };
 
@@ -18,6 +19,7 @@ type ClientsFiltersProps = {
     telegram: boolean;
     max: boolean;
     appointment: boolean;
+    treatmentProgram: boolean;
     visitedMonth: boolean;
   }) => void;
   /** Только на странице «Клиенты» (не подписчики): фильтр совпадает с плиткой дашборда. */
@@ -27,18 +29,20 @@ type ClientsFiltersProps = {
 export function ClientsFilters({ defaults, onChange, showVisitedMonthFilter }: ClientsFiltersProps) {
   const router = useRouter();
 
-  const toggle = (param: "telegram" | "max" | "appointment" | "visitedMonth") => {
+  const toggle = (param: "telegram" | "max" | "appointment" | "treatmentProgram" | "visitedMonth") => {
     if (onChange) {
       onChange({
         telegram: param === "telegram" ? !defaults.telegram : !!defaults.telegram,
         max: param === "max" ? !defaults.max : !!defaults.max,
         appointment: param === "appointment" ? !defaults.appointment : !!defaults.appointment,
+        treatmentProgram: param === "treatmentProgram" ? !defaults.treatmentProgram : !!defaults.treatmentProgram,
         visitedMonth: param === "visitedMonth" ? !defaults.visitedMonth : !!defaults.visitedMonth,
       });
       return;
     }
     const params = new URLSearchParams(window.location.search);
-    const key = param === "visitedMonth" ? "visitedMonth" : param;
+    const key =
+      param === "visitedMonth" ? "visitedMonth" : param === "treatmentProgram" ? "treatmentProgram" : param;
     const current = params.get(key) === "1";
     if (current) {
       params.delete(key);
@@ -83,6 +87,17 @@ export function ClientsFilters({ defaults, onChange, showVisitedMonthFilter }: C
         aria-pressed={defaults.appointment}
       >
         Есть запись
+      </Button>
+      <Button
+        type="button"
+        id="doctor-clients-filter-treatment-program"
+        size="sm"
+        variant={defaults.treatmentProgram ? "default" : "outline"}
+        className={cn(!defaults.treatmentProgram && "border-dashed")}
+        onClick={() => toggle("treatmentProgram")}
+        aria-pressed={defaults.treatmentProgram}
+      >
+        Программа лечения
       </Button>
       {showVisitedMonthFilter ? (
         <Button

@@ -27,7 +27,7 @@
 - `record_at IS NOT NULL`
 - **`record_at >= NOW()`** — согласовано с кабинетом пациента (`appointment_records` / `listActiveByPhoneNormalized`).
 
-Используется для: плитки «Активные (будущие)», режима списка `?view=future`, метрики «На сопровождении» (через join к `appointment_records`).
+Используется для: плитки «Активные (будущие)», режима списка `?view=future`.
 
 ---
 
@@ -36,10 +36,10 @@
 | Плитка | Метрика | Определение |
 |--------|---------|-------------|
 | Всего в базе | `totalClients` | `platform_users` с `role = 'client'`, не архивные. |
-| На сопровождении | `onSupportCount` | Уникальные клиенты с хотя бы одной **будущей активной** записью (предикат как выше, `record_at >= NOW()`). |
+| На сопровождении | `onSupportCount` | Уникальные клиенты с хотя бы одной **активной** записью в `treatment_program_instances` (`status = 'active'`). |
 | Были на приёме (месяц) | `visitedThisCalendarMonthCount` | Уникальные клиенты с прошедшим слотом `created`/`updated`: `record_at` в текущем календарном месяце **и** `record_at < NOW()`. |
 
-**Список по клику:** подписчики (`/app/doctor/subscribers`), сопровождение — `?appointment=1`; «Были на приёме» — клиенты с записями `?visitedMonth=1` (`listClients({ visitedThisCalendarMonth: true, onlyWithAppointmentRecords: true })`).
+**Список по клику:** подписчики (`/app/doctor/subscribers`), сопровождение — `?treatmentProgram=1`; «Были на приёме» — клиенты с записями `?visitedMonth=1` (`listClients({ visitedThisCalendarMonth: true, onlyWithAppointmentRecords: true })`).
 
 ---
 

@@ -68,6 +68,7 @@ import {
   parseSnapshotMediaForRowThumb,
   pickRecommendationRowPreviewMedia,
   parseRecommendationMediaFromSnapshot,
+  recommendationBodyMdPreviewPlain,
 } from "@/app/app/patient/treatment/stageItemSnapshot";
 import type { RecommendationMediaItem } from "@/modules/recommendations/types";
 import { PatientCatalogMediaStaticThumb } from "@/shared/ui/patient/PatientCatalogMediaStaticThumb";
@@ -170,23 +171,6 @@ function snapshotTitle(snapshot: Record<string, unknown>, itemType: string): str
   const t = snapshot.title;
   if (typeof t === "string" && t.trim() !== "") return t;
   return itemType;
-}
-
-/** Plain-текст из `bodyMd` снимка рекомендации для превью под заголовком (без рендера MD). */
-function recommendationBodyMdPreviewPlain(bodyMd: unknown): string {
-  if (typeof bodyMd !== "string" || !bodyMd.trim()) return "";
-  let s = bodyMd.trim();
-  s = s.replace(/```[\s\S]*?```/g, " ");
-  s = s.replace(/!\[([^\]]*)\]\([^)]*\)/g, "$1 ");
-  s = s.replace(/\[([^\]]*)\]\([^)]*\)/g, "$1");
-  s = s.replace(/^#{1,6}\s+/gm, "");
-  s = s.replace(/^\s*[-*+]\s+/gm, "");
-  s = s.replace(/\*\*([^*]+)\*\*/g, "$1");
-  s = s.replace(/\*([^*\n]+)\*/g, "$1");
-  s = s.replace(/__([^_]+)__/g, "$1");
-  s = s.replace(/`([^`]+)`/g, "$1");
-  s = s.replace(/\s+/g, " ").trim();
-  return s;
 }
 
 type InstanceStageRow = TreatmentProgramInstanceDetail["stages"][number];
@@ -1766,7 +1750,7 @@ export function PatientTreatmentProgramDetailClient(props: {
               onClick={openHeroLesson}
               className={cn(
                 patientHeroPrimaryActionClass,
-                "mt-3 flex min-h-11 w-full items-center justify-center gap-2 px-4 py-2 text-sm shadow-[0_6px_14px_rgba(40,77,160,0.24)] lg:min-h-12 lg:text-base",
+                "mt-5 mb-3 flex min-h-11 w-full items-center justify-center gap-2 px-4 py-2 text-sm shadow-[0_6px_14px_rgba(40,77,160,0.24)] lg:mt-6 lg:mb-4 lg:min-h-12 lg:text-base",
               )}
             >
               <PlayCircle className="size-5 shrink-0 lg:size-6" aria-hidden />
@@ -1792,7 +1776,8 @@ export function PatientTreatmentProgramDetailClient(props: {
               "relative flex min-h-[3.25rem] cursor-pointer flex-col items-center justify-center gap-0.5 px-1 py-2 text-center outline-none transition-colors duration-200 lg:min-h-[3.5rem] lg:px-2",
               activeTab === "program" &&
                 "after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:z-[1] after:h-0.5 after:bg-[var(--patient-color-primary,#284da0)]",
-              "bg-[#dde6f0] focus-visible:ring-2 focus-visible:ring-[var(--patient-color-primary)] focus-visible:ring-offset-0",
+              activeTab === "program" ? "bg-[#dde6f0]" : "bg-[#eef2f7]",
+              "focus-visible:ring-2 focus-visible:ring-[var(--patient-color-primary)] focus-visible:ring-offset-0",
             )}
             onClick={() => setActiveTab("program")}
           >
@@ -1821,7 +1806,8 @@ export function PatientTreatmentProgramDetailClient(props: {
               "relative flex min-h-[3.25rem] cursor-pointer flex-col items-center justify-center gap-0.5 px-1 py-2 text-center outline-none transition-colors duration-200 lg:min-h-[3.5rem] lg:px-2",
               activeTab === "recommendations" &&
                 "after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:z-[1] after:h-0.5 after:bg-[var(--patient-color-primary,#284da0)]",
-              "bg-[#dffeca] focus-visible:ring-2 focus-visible:ring-[var(--patient-color-primary)] focus-visible:ring-offset-0",
+              activeTab === "recommendations" ? "bg-[#dffeca]" : "bg-[#f2f8eb]",
+              "focus-visible:ring-2 focus-visible:ring-[var(--patient-color-primary)] focus-visible:ring-offset-0",
             )}
             onClick={() => setActiveTab("recommendations")}
           >
@@ -1850,7 +1836,8 @@ export function PatientTreatmentProgramDetailClient(props: {
               "relative flex min-h-[3.25rem] cursor-pointer flex-col items-center justify-center gap-0.5 px-1 py-2 text-center outline-none transition-colors duration-200 lg:min-h-[3.5rem] lg:px-2",
               activeTab === "progress" &&
                 "after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:z-[1] after:h-0.5 after:bg-[var(--patient-color-primary,#284da0)]",
-              "bg-[var(--patient-surface-warning-bg)] focus-visible:ring-2 focus-visible:ring-[var(--patient-color-primary)] focus-visible:ring-offset-0",
+              activeTab === "progress" ? "bg-[var(--patient-surface-warning-bg)]" : "bg-[#fdfbf6]",
+              "focus-visible:ring-2 focus-visible:ring-[var(--patient-color-primary)] focus-visible:ring-offset-0",
             )}
             onClick={() => setActiveTab("progress")}
           >
@@ -1901,35 +1888,39 @@ export function PatientTreatmentProgramDetailClient(props: {
       </div>
 
       <div className={cn(activeTab !== "progress" && "hidden")} role="tabpanel" aria-label="Прогресс">
-        {stagesTimeline.length > 0 ? (
-          <PatientProgramStagesTimeline
-            stages={stagesTimeline}
-            currentWorkingStage={currentWorkingStage}
-            stageCountNonZero={stageCountNonZero}
-            detail={detail}
-            appDisplayTimeZone={appDisplayTimeZone}
-            doneTodayCountByActivityKey={doneTodayCountByActivityKey}
-            lastDoneAtIsoByActivityKey={lastDoneAtIsoByActivityKey}
-            doneTodayCountByItemId={doneTodayCountByItemId}
-            onStartLesson={openHeroLesson}
-          />
-        ) : null}
-        {showNextControlCard && currentWorkingStage ? (
-          <PatientProgramControlCard
-            dateLine={controlDateLine}
-            fallbackMessage={controlFallbackMessage}
-            instanceId={detail.id}
-            currentStageId={currentWorkingStage.id}
-            onProgramTests={() => setActiveTab("program")}
-          />
-        ) : null}
-        <section className={patientCardClass} aria-label="Статистика прохождения">
-          <PatientProgramBlockHeading
-            title="Статистика прохождения"
-            Icon={TrendingUp}
-            iconClassName="text-[var(--patient-color-primary)]"
-          />
-        </section>
+        <div className={patientInnerPageStackClass}>
+          {stagesTimeline.length > 0 ? (
+            <div className="min-w-0">
+              <PatientProgramStagesTimeline
+                stages={stagesTimeline}
+                currentWorkingStage={currentWorkingStage}
+                stageCountNonZero={stageCountNonZero}
+                detail={detail}
+                appDisplayTimeZone={appDisplayTimeZone}
+                doneTodayCountByActivityKey={doneTodayCountByActivityKey}
+                lastDoneAtIsoByActivityKey={lastDoneAtIsoByActivityKey}
+                doneTodayCountByItemId={doneTodayCountByItemId}
+                onStartLesson={openHeroLesson}
+              />
+            </div>
+          ) : null}
+          {showNextControlCard && currentWorkingStage ? (
+            <PatientProgramControlCard
+              dateLine={controlDateLine}
+              fallbackMessage={controlFallbackMessage}
+              instanceId={detail.id}
+              currentStageId={currentWorkingStage.id}
+              onProgramTests={() => setActiveTab("program")}
+            />
+          ) : null}
+          <section className={patientCardClass} aria-label="Статистика прохождения">
+            <PatientProgramBlockHeading
+              title="Статистика прохождения"
+              Icon={TrendingUp}
+              iconClassName="text-[var(--patient-color-primary)]"
+            />
+          </section>
+        </div>
       </div>
 
       {heroModalItemId && programTabStage ? (

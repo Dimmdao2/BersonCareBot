@@ -11,6 +11,7 @@ import {
 import {
   parseRecommendationMediaFromSnapshot,
   pickRecommendationRowPreviewMedia,
+  recommendationBodyMdPreviewPlain,
 } from "@/app/app/patient/treatment/stageItemSnapshot";
 import {
   patientMutedTextClass,
@@ -84,22 +85,29 @@ export function PatientTreatmentTabRecommendations(props: {
   }, [openItemId, currentWorkingStage, stageZeroStages]);
 
   const renderRow = (item: Stage["items"][number]) => {
-    const media = pickRecommendationRowPreviewMedia(parseRecommendationMediaFromSnapshot(item.snapshot));
+    const snap = item.snapshot as Record<string, unknown>;
+    const media = pickRecommendationRowPreviewMedia(parseRecommendationMediaFromSnapshot(snap));
+    const bodyPreview = recommendationBodyMdPreviewPlain(snap.bodyMd);
     return (
       <li key={item.id} className="list-none">
         <button
           type="button"
-          className="flex w-full items-center gap-3 rounded-lg border border-[var(--patient-border)] bg-[var(--patient-card-bg)] px-3 py-3 text-left lg:gap-4 lg:px-4 lg:py-4"
+          className="flex w-full min-h-0 items-center gap-1.5 rounded-lg border border-[var(--patient-border)] bg-[var(--patient-card-bg)] px-1 py-1 text-left lg:gap-2 lg:px-1.5 lg:py-1.5"
           onClick={() => setOpenItemId(item.id)}
         >
           <PatientCatalogMediaStaticThumb
             media={media}
-            frameClassName="size-14 shrink-0 rounded-md border border-[var(--patient-border)]/60 lg:size-16"
-            sizes="64px"
+            frameClassName="size-[4.25rem] shrink-0 rounded-md border border-[var(--patient-border)]/60 lg:size-20"
+            sizes="(max-width: 1024px) 68px, 80px"
           />
-          <span className="min-w-0 flex-1 text-base font-semibold text-foreground lg:text-lg">
-            {rowTitle(item.snapshot as Record<string, unknown>, item.itemType)}
-          </span>
+          <div className="min-h-0 min-w-0 flex-1 flex flex-col gap-0.5 overflow-hidden">
+            <span className="line-clamp-2 text-sm font-semibold leading-snug text-foreground">
+              {rowTitle(snap, item.itemType)}
+            </span>
+            {bodyPreview ? (
+              <span className={cn(patientMutedTextClass, "line-clamp-2 text-xs leading-snug")}>{bodyPreview}</span>
+            ) : null}
+          </div>
         </button>
       </li>
     );

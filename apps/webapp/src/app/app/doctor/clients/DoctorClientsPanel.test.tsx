@@ -20,6 +20,8 @@ function baseItem(overrides: Partial<ClientListItem> = {}): ClientListItem {
     phone: null,
     bindings: {},
     nextAppointmentLabel: null,
+    activeTreatmentProgram: false,
+    activeTreatmentProgramInstanceId: null,
     cancellationCount30d: 0,
     ...overrides,
   };

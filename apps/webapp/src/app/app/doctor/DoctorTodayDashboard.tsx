@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { TodayDashboardData } from "./loadDoctorTodayDashboard";
+import { ON_SUPPORT_LIST_HREF, type TodayDashboardData } from "./loadDoctorTodayDashboard";
 
 type Props = {
   data: TodayDashboardData;
@@ -24,6 +24,51 @@ export function DoctorTodayDashboard({ data }: Props) {
           Открыть статистику
         </Link>
       </header>
+
+      <section
+        id="doctor-today-section-on-support"
+        className="rounded-xl border border-border bg-card p-3 flex flex-col gap-3"
+      >
+        <div className="flex flex-col gap-0.5">
+          <h2 className="text-sm font-semibold text-foreground">На сопровождении</h2>
+          {data.onSupportCount > 0 ? (
+            <p className="text-xs text-muted-foreground" id="doctor-today-on-support-count">
+              Клиентов: {data.onSupportCount}
+            </p>
+          ) : null}
+        </div>
+        {data.onSupportCount === 0 ? (
+          <div className="flex flex-col gap-2 text-sm text-muted-foreground">
+            <p>Клиентов на сопровождении нет</p>
+            <Link href={ON_SUPPORT_LIST_HREF} className="text-primary underline underline-offset-2 w-fit">
+              Список клиентов
+            </Link>
+          </div>
+        ) : (
+          <>
+            <ul className="m-0 list-none space-y-2 p-0">
+              {data.onSupportClients.map((c) => (
+                <li key={c.userId} id={`doctor-today-on-support-${c.userId}`} className="text-sm">
+                  <Link href={c.href} className="font-medium text-primary underline underline-offset-2">
+                    {c.displayName}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+            {data.onSupportListTruncated ? (
+              <p>
+                <Link
+                  href={ON_SUPPORT_LIST_HREF}
+                  className="text-sm text-primary underline underline-offset-2"
+                  id="doctor-today-on-support-all"
+                >
+                  Все на сопровождении
+                </Link>
+              </p>
+            ) : null}
+          </>
+        )}
+      </section>
 
       <section
         id="doctor-today-section-today-appointments"

@@ -9,7 +9,7 @@ type ClientListLinkProps = {
   userId: string;
   /** Базовый путь списка: `/app/doctor/clients` или `/app/doctor/subscribers`. */
   basePath?: string;
-  searchParams: { q?: string; telegram?: string; max?: string; appointment?: string };
+  searchParams: { q?: string; telegram?: string; max?: string; appointment?: string; treatmentProgram?: string };
   children: React.ReactNode;
 };
 
@@ -24,6 +24,7 @@ export function ClientListLink({ userId, basePath = DEFAULT_BASE, searchParams, 
       if (searchParams.telegram === "1") params.set("telegram", "1");
       if (searchParams.max === "1") params.set("max", "1");
       if (searchParams.appointment === "1") params.set("appointment", "1");
+      if (searchParams.treatmentProgram === "1") params.set("treatmentProgram", "1");
       params.set("selected", userId);
       router.push(`${basePath}?${params.toString()}`);
     }

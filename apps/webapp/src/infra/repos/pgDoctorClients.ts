@@ -47,17 +47,30 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         bindingsByUser.set(row.user_id, list);
       }
 
-      const upcomingPhones = await pool.query<{ phone_normalized: string }>(
-        `SELECT DISTINCT phone_normalized
-         FROM appointment_records ar
-         WHERE ar.phone_normalized IS NOT NULL
-           AND ar.deleted_at IS NULL
-           AND ar.status IN ('created', 'updated')
-           AND ar.record_at IS NOT NULL
-           AND ar.record_at >= NOW()`
-      );
+      const [upcomingPhones, activeProgramPatients] = await Promise.all([
+        pool.query<{ phone_normalized: string }>(
+          `SELECT DISTINCT phone_normalized
+           FROM appointment_records ar
+           WHERE ar.phone_normalized IS NOT NULL
+             AND ar.deleted_at IS NULL
+             AND ar.status IN ('created', 'updated')
+             AND ar.record_at IS NOT NULL
+             AND ar.record_at >= NOW()`
+        ),
+        pool.query<{ patient_user_id: string; instance_id: string }>(
+          `SELECT DISTINCT ON (patient_user_id)
+             patient_user_id,
+             id AS instance_id
+           FROM treatment_program_instances
+           WHERE status = 'active'
+           ORDER BY patient_user_id, updated_at DESC NULLS LAST`
+        ),
+      ]);
       const phoneHasUpcoming = new Set(
         upcomingPhones.rows.map((row) => row.phone_normalized).filter(Boolean) as string[],
+      );
+      const activeProgramInstanceByPatient = new Map<string, string>(
+        activeProgramPatients.rows.map((row) => [row.patient_user_id, row.instance_id]),
       );
 
       let list: ClientListItem[] = clientRows.rows.map(
@@ -65,12 +78,15 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
           const bindings = rowToBindings(bindingsByUser.get(r.id) ?? []);
           const phone = r.phone_normalized;
           const hasUpcoming = phone && phoneHasUpcoming.has(phone);
+          const activeInstanceId = activeProgramInstanceByPatient.get(r.id) ?? null;
           return {
             userId: r.id,
             displayName: r.display_name ?? "",
             phone,
             bindings,
             nextAppointmentLabel: hasUpcoming ? "Есть запись" : null,
+            activeTreatmentProgram: activeInstanceId != null,
+            activeTreatmentProgramInstanceId: activeInstanceId,
             cancellationCount30d: 0,
           };
         }
@@ -94,6 +110,9 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       }
       if (filters.hasUpcomingAppointment === true) {
         list = list.filter((item) => Boolean(item.nextAppointmentLabel));
+      }
+      if (filters.hasActiveTreatmentProgram === true) {
+        list = list.filter((item) => item.activeTreatmentProgram);
       }
       if (filters.onlyWithAppointmentRecords === true && !filters.archivedOnly) {
         const phones = await pool.query<{ phone_normalized: string }>(
@@ -134,14 +153,10 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         pool.query<{ c: string }>(
           `SELECT COUNT(DISTINCT pu.id)::text AS c
            FROM platform_users pu
-           INNER JOIN appointment_records ar ON pu.phone_normalized IS NOT NULL AND ar.phone_normalized = pu.phone_normalized
+           INNER JOIN treatment_program_instances tpi ON tpi.patient_user_id = pu.id AND tpi.status = 'active'
            WHERE pu.role = 'client'
              AND pu.merged_into_id IS NULL
-             AND COALESCE(pu.is_archived, false) = false
-             AND ar.record_at IS NOT NULL
-             AND ar.record_at >= NOW()
-             AND ar.status IN ('created', 'updated')
-             AND ar.deleted_at IS NULL`
+             AND COALESCE(pu.is_archived, false) = false`
         ),
         pool.query<{ c: string }>(
           `SELECT COUNT(DISTINCT pu.id)::text AS c

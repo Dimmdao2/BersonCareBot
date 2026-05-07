@@ -7,6 +7,7 @@ import {
   mapAppointmentToTodayItem,
   mapConversationToTodayItem,
   mapIntakeToTodayItem,
+  mapOnSupportClientToTodayItem,
   truncateText,
   type TodayConversationSourceRow,
 } from "./loadDoctorTodayDashboard";
@@ -124,5 +125,35 @@ describe("loadDoctorTodayDashboard helpers", () => {
 
   it("formatDateTimeRu returns iso string when invalid date", () => {
     expect(formatDateTimeRu("not-a-date")).toBe("not-a-date");
+  });
+
+  it("mapOnSupportClientToTodayItem links to active treatment program when instance id present", () => {
+    const item = mapOnSupportClientToTodayItem({
+      userId: "  uuid-1  ",
+      displayName: "  Иван  ",
+      phone: null,
+      bindings: {},
+      nextAppointmentLabel: "Есть запись",
+      activeTreatmentProgram: true,
+      activeTreatmentProgramInstanceId: "inst-1",
+      cancellationCount30d: 0,
+    });
+    expect(item.href).toBe("/app/doctor/clients/uuid-1/treatment-programs/inst-1");
+    expect(item.displayName).toBe("Иван");
+    expect(item.userId).toBe("uuid-1");
+  });
+
+  it("mapOnSupportClientToTodayItem falls back to client card without instance id", () => {
+    const item = mapOnSupportClientToTodayItem({
+      userId: "uuid-2",
+      displayName: "Пётр",
+      phone: null,
+      bindings: {},
+      nextAppointmentLabel: null,
+      activeTreatmentProgram: false,
+      activeTreatmentProgramInstanceId: null,
+      cancellationCount30d: 0,
+    });
+    expect(item.href).toBe("/app/doctor/clients/uuid-2");
   });
 });

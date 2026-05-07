@@ -38,6 +38,9 @@ export const inMemoryDoctorClientsPort: DoctorClientsPort = {
     if (filters.hasUpcomingAppointment === true) {
       list = list.filter((item) => Boolean(item.nextAppointmentLabel));
     }
+    if (filters.hasActiveTreatmentProgram === true) {
+      list = list.filter((item) => item.activeTreatmentProgram);
+    }
     if (filters.onlyWithAppointmentRecords === true) {
       list = [];
     }
