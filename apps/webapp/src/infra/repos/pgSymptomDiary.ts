@@ -3,6 +3,10 @@
  * Tables: symptom_trackings, symptom_entries (see webapp/migrations/004_symptom_trackings_and_entries.sql).
  */
 import { getPool } from "@/infra/db/client";
+import {
+  type DrizzleTxExecute,
+  upsertWarmupFeelingTrackingIdInTx as upsertWarmupFeelingTrackingSql,
+} from "@/infra/repos/warmupFeelingTrackingTx";
 import type { SymptomDiaryPort } from "@/modules/diaries/ports";
 import type { SymptomEntry, SymptomTracking } from "@/modules/diaries/types";
 
@@ -133,6 +137,31 @@ export const pgSymptomDiaryPort: SymptomDiaryPort = {
     return rowToTracking(result.rows[0]);
   },
 
+  async ensureWarmupFeelingTracking(params) {
+    const pool = getPool();
+    const now = new Date();
+    const result = await pool.query(
+      `INSERT INTO symptom_trackings (
+         user_id, platform_user_id, symptom_key, symptom_title, is_active, updated_at,
+         symptom_type_ref_id, region_ref_id, side, diagnosis_text, diagnosis_ref_id, stage_ref_id
+       )
+       VALUES ($1::text, $1::uuid, 'warmup_feeling', $2, true, $3, $4::uuid, NULL, NULL, NULL, NULL, NULL)
+       ON CONFLICT (platform_user_id) WHERE (
+         symptom_key = 'warmup_feeling'
+         AND deleted_at IS NULL
+         AND platform_user_id IS NOT NULL
+       )
+       DO UPDATE SET updated_at = symptom_trackings.updated_at
+       RETURNING ${TRACKING_SELECT}`,
+      [params.userId, params.symptomTitle, now, params.symptomTypeRefId],
+    );
+    return rowToTracking(result.rows[0]);
+  },
+
+  async upsertWarmupFeelingTrackingIdInTx(tx, params) {
+    return upsertWarmupFeelingTrackingSql(tx as DrizzleTxExecute, params);
+  },
+
   async listTrackings(userId, activeOnly = true) {
     const pool = getPool();
     const result = await pool.query(
@@ -149,25 +178,43 @@ export const pgSymptomDiaryPort: SymptomDiaryPort = {
   async addEntry(params) {
     const pool = getPool();
     const recordedAt = new Date(params.recordedAt);
-    const result = await pool.query(
-      `INSERT INTO symptom_entries (user_id, platform_user_id, tracking_id, value_0_10, entry_type, recorded_at, source, notes)
-       VALUES ($1::text, $1::uuid, $2, $3, $4, $5, $6, $7)
-       RETURNING id, user_id, platform_user_id, tracking_id, value_0_10, entry_type, recorded_at, source, notes, created_at`,
-      [
-        params.userId,
-        params.trackingId,
-        params.value0_10,
-        params.entryType,
-        recordedAt,
-        params.source,
-        params.notes ?? null,
-      ]
-    );
+    const ppcId = params.patientPracticeCompletionId ?? null;
+    const result =
+      ppcId != null && ppcId !== ""
+        ? await pool.query(
+            `INSERT INTO symptom_entries (
+               user_id, platform_user_id, tracking_id, value_0_10, entry_type, recorded_at, source, notes,
+               patient_practice_completion_id
+             )
+             VALUES ($1::text, $1::uuid, $2, $3, $4, $5, $6, $7, $8::uuid)
+             RETURNING id, user_id, platform_user_id, tracking_id, value_0_10, entry_type, recorded_at, source, notes, created_at`,
+            [
+              params.userId,
+              params.trackingId,
+              params.value0_10,
+              params.entryType,
+              recordedAt,
+              params.source,
+              params.notes ?? null,
+              ppcId,
+            ],
+          )
+        : await pool.query(
+            `INSERT INTO symptom_entries (user_id, platform_user_id, tracking_id, value_0_10, entry_type, recorded_at, source, notes)
+             VALUES ($1::text, $1::uuid, $2, $3, $4, $5, $6, $7)
+             RETURNING id, user_id, platform_user_id, tracking_id, value_0_10, entry_type, recorded_at, source, notes, created_at`,
+            [
+              params.userId,
+              params.trackingId,
+              params.value0_10,
+              params.entryType,
+              recordedAt,
+              params.source,
+              params.notes ?? null,
+            ],
+          );
     const row = result.rows[0];
-    const tracking = await pool.query(
-      `SELECT symptom_title FROM symptom_trackings WHERE id = $1`,
-      [params.trackingId]
-    );
+    const tracking = await pool.query(`SELECT symptom_title FROM symptom_trackings WHERE id = $1`, [params.trackingId]);
     return rowToEntry({
       ...row,
       symptom_title: tracking.rows[0]?.symptom_title,

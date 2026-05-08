@@ -76,5 +76,26 @@ export function createPgPatientPracticeCompletionsPort(): PatientPracticePort {
         .limit(limit);
       return rows.map(mapRow);
     },
+
+    async getByIdForUser(completionId, userId) {
+      const db = getDrizzle();
+      const rows = await db
+        .select()
+        .from(patientPracticeCompletions)
+        .where(and(eq(patientPracticeCompletions.id, completionId), eq(patientPracticeCompletions.userId, userId)))
+        .limit(1);
+      const row = rows[0];
+      return row ? mapRow(row) : null;
+    },
+
+    async updateFeelingById(completionId, userId, feeling) {
+      const db = getDrizzle();
+      const updated = await db
+        .update(patientPracticeCompletions)
+        .set({ feeling })
+        .where(and(eq(patientPracticeCompletions.id, completionId), eq(patientPracticeCompletions.userId, userId)))
+        .returning({ id: patientPracticeCompletions.id });
+      return updated.length > 0;
+    },
   };
 }

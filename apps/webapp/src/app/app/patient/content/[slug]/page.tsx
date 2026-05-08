@@ -25,13 +25,14 @@ import {
   patientSectionSurfaceClass,
 } from "@/shared/ui/patientVisual";
 import {
+  patientDailyWarmupDetailHeroGeometryClass,
+  patientDailyWarmupDetailHeroTextColumnClass,
+  patientDailyWarmupDetailHeroTitleClampClass,
+  patientDailyWarmupDetailMarkdownClass,
   patientHomeCardHeroClass,
   patientHomeHeroBadgeClass,
-  patientHomeHeroCardGeometryClass,
   patientHomeHeroDurationBadgeClass,
   patientHomeHeroSummaryClampClass,
-  patientHomeHeroTextColumnClass,
-  patientHomeHeroTitleClampClass,
 } from "@/app/app/patient/home/patientHomeCardStyles";
 import { getConfigBool } from "@/modules/system-settings/configAdapter";
 import type { MediaPlaybackPayload } from "@/modules/media/playbackPayloadTypes";
@@ -153,9 +154,9 @@ export default async function ContentSlugPage({ params, searchParams }: Props) {
     >
       <article id={`patient-content-article-${slug}`} className="flex flex-col gap-3 lg:gap-4">
 
-        {/* Hero: разминка дня — та же геометрия и слот обложки, что на главной */}
+        {/* Hero: разминка дня — компактнее экрана главной; слот обложки — PatientDailyWarmupHeroCover */}
         {showWarmupBadge ? (
-          <div className={patientHomeHeroCardGeometryClass}>
+          <div className={patientDailyWarmupDetailHeroGeometryClass}>
             <div className="relative z-20 flex h-6 shrink-0 items-start justify-start gap-1.5">
               <span className={patientHomeHeroBadgeClass}>Разминка дня</span>
               <span className={patientHomeHeroDurationBadgeClass}>
@@ -163,8 +164,8 @@ export default async function ContentSlugPage({ params, searchParams }: Props) {
                 5 мин
               </span>
             </div>
-            <div className={patientHomeHeroTextColumnClass}>
-              <h1 id={`patient-content-warmup-title-${slug}`} className={patientHomeHeroTitleClampClass}>
+            <div className={patientDailyWarmupDetailHeroTextColumnClass}>
+              <h1 id={`patient-content-warmup-title-${slug}`} className={patientDailyWarmupDetailHeroTitleClampClass}>
                 {item.title}
               </h1>
               {item.summary?.trim() ?
@@ -236,8 +237,8 @@ export default async function ContentSlugPage({ params, searchParams }: Props) {
           </section>
         )}
 
-        {/* Body text */}
-        {item.bodyText?.trim() ? (
+        {/* Body text — для разминки ниже кнопки «Я выполнил(а) практику» */}
+        {!showWarmupBadge && item.bodyText?.trim() ? (
           <div className={patientCardClass}>
             <MarkdownContent
               text={item.bodyText}
@@ -254,6 +255,15 @@ export default async function ContentSlugPage({ params, searchParams }: Props) {
           guest={session === null}
           needsActivation={session !== null && !personalTierOk}
         />
+
+        {showWarmupBadge && item.bodyText?.trim() ? (
+          <div className={cn(patientCardClass, patientDailyWarmupDetailMarkdownClass)}>
+            <MarkdownContent
+              text={item.bodyText}
+              bodyFormat={item.bodyFormat ?? "markdown"}
+            />
+          </div>
+        ) : null}
 
         {/* Course CTA */}
         {courseCta ? (

@@ -1,7 +1,13 @@
 /**
  * Ports for diary modules. Implementations live in infra (in-memory or DB).
  */
+import type { SQLWrapper } from "drizzle-orm";
 import type { LfkComplex, LfkComplexExerciseLine, LfkSession, SymptomEntry, SymptomSide, SymptomTracking } from "./types";
+
+/** Transaction session with SQL execution — PG реализация приводит к Drizzle `tx` внутри infra. */
+export type SymptomDiarySqlTx = {
+  execute: (query: string | SQLWrapper) => unknown;
+};
 
 export type SymptomDiaryPort = {
   createTracking(params: {
@@ -24,6 +30,20 @@ export type SymptomDiaryPort = {
     symptomTitle: string;
     symptomTypeRefId: string;
   }): Promise<SymptomTracking>;
+  /** Одна активная строка на platform_user_id для `symptom_key = warmup_feeling` (partial unique + upsert, см. миграцию `0051_warmup_feeling_symptom`). */
+  ensureWarmupFeelingTracking(params: {
+    userId: string;
+    symptomTitle: string;
+    symptomTypeRefId: string;
+  }): Promise<SymptomTracking>;
+  /**
+   * То же UPSERT, что {@link ensureWarmupFeelingTracking}, но на переданной сессии Drizzle-транзакции (атомарно с другими записями в том же `transaction`).
+   * Реализация PG: `infra/repos/warmupFeelingTrackingTx.ts`.
+   */
+  upsertWarmupFeelingTrackingIdInTx(
+    tx: SymptomDiarySqlTx,
+    params: { userId: string; symptomTitle: string; symptomTypeRefId: string },
+  ): Promise<string>;
   listTrackings(userId: string, activeOnly?: boolean): Promise<SymptomTracking[]>;
   addEntry(params: {
     userId: string;
@@ -33,6 +53,8 @@ export type SymptomDiaryPort = {
     recordedAt: string;
     source: "bot" | "webapp" | "import";
     notes?: string | null;
+    /** Связь с `patient_practice_completions` для разминки (`warmup_feeling`). */
+    patientPracticeCompletionId?: string | null;
   }): Promise<SymptomEntry>;
   listEntries(userId: string, limit?: number): Promise<SymptomEntry[]>;
   /** Tracking owned by user (not soft-deleted), or null. */

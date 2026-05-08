@@ -53,5 +53,17 @@ export function createInMemoryPatientPracticeCompletionsPort(): PatientPracticeP
         .sort((a, b) => (a.completedAt < b.completedAt ? 1 : -1))
         .slice(0, limit);
     },
+
+    async getByIdForUser(completionId, userId) {
+      const row = rows.find((r) => r.id === completionId && r.userId === userId);
+      return row ?? null;
+    },
+
+    async updateFeelingById(completionId, userId, feeling) {
+      const row = rows.find((r) => r.id === completionId && r.userId === userId);
+      if (!row) return false;
+      row.feeling = feeling;
+      return true;
+    },
   };
 }

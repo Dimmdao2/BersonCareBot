@@ -248,6 +248,8 @@ export const symptomEntries = pgTable("symptom_entries", {
 	notes: text(),
 	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 	platformUserId: uuid("platform_user_id").notNull(),
+	/** Dedup: одна запись симптома на completion разминки (FK в миграции `0051_warmup_feeling_symptom.sql`). */
+	patientPracticeCompletionId: uuid("patient_practice_completion_id"),
 }, (table) => [
 	index("idx_symptom_entries_platform_user_id").using("btree", table.platformUserId.asc().nullsLast().op("uuid_ops")).where(sql`(platform_user_id IS NOT NULL)`),
 	index("idx_symptom_entries_tracking_recorded").using("btree", table.trackingId.asc().nullsLast().op("timestamptz_ops"), table.recordedAt.desc().nullsFirst().op("uuid_ops")),

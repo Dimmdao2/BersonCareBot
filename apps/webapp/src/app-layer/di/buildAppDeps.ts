@@ -655,6 +655,8 @@ function _buildAppDeps() {
       listSymptomEntries: symptomDiaryService.listSymptomEntries,
       createSymptomTracking: symptomDiaryService.createTracking,
       ensureGeneralWellbeingTracking: symptomDiaryService.ensureGeneralWellbeingTracking,
+      ensureWarmupFeelingTracking: symptomDiaryService.ensureWarmupFeelingTracking,
+      upsertWarmupFeelingTrackingIdInTx: symptomDiaryService.upsertWarmupFeelingTrackingIdInTx,
       listSymptomTrackings: symptomDiaryService.listTrackings,
       addSymptomEntry: symptomDiaryService.addEntry,
       renameSymptomTracking: symptomDiaryService.renameTracking,

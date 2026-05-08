@@ -49,6 +49,23 @@ describe("symptom diary service", () => {
     expect(list.filter((x) => x.symptomKey === "general_wellbeing")).toHaveLength(1);
   });
 
+  it("ensureWarmupFeelingTracking returns same id when called twice", async () => {
+    const uid = "550e8400-e29b-41d4-a716-446655440002";
+    const t1 = await service.ensureWarmupFeelingTracking({
+      userId: uid,
+      symptomTitle: "Самочувствие после разминки",
+      symptomTypeRefId: "00000000-0000-4000-8000-000000000002",
+    });
+    const t2 = await service.ensureWarmupFeelingTracking({
+      userId: uid,
+      symptomTitle: "Самочувствие после разминки",
+      symptomTypeRefId: "00000000-0000-4000-8000-000000000002",
+    });
+    expect(t1.id).toBe(t2.id);
+    const list = await service.listTrackings(uid, false);
+    expect(list.filter((x) => x.symptomKey === "warmup_feeling")).toHaveLength(1);
+  });
+
   it("returns empty list for unknown userId", async () => {
     const list = await service.listSymptomEntries("unknown-user-999");
     expect(Array.isArray(list)).toBe(true);

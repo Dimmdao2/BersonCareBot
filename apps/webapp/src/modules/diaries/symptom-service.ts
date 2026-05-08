@@ -3,7 +3,7 @@
  * Хранение данных делегировано порту (БД или память). Используется веб-приложением и API интегратора.
  */
 
-import type { SymptomDiaryPort } from "./ports";
+import type { SymptomDiaryPort, SymptomDiarySqlTx } from "./ports";
 import type { SymptomEntry, SymptomSide, SymptomTracking } from "./types";
 
 export type { SymptomEntry, SymptomTracking } from "./types";
@@ -46,6 +46,19 @@ export function createSymptomDiaryService(port: SymptomDiaryPort) {
     }): Promise<SymptomTracking> {
       return port.ensureGeneralWellbeingTracking(params);
     },
+    async ensureWarmupFeelingTracking(params: {
+      userId: string;
+      symptomTitle: string;
+      symptomTypeRefId: string;
+    }): Promise<SymptomTracking> {
+      return port.ensureWarmupFeelingTracking(params);
+    },
+    async upsertWarmupFeelingTrackingIdInTx(
+      tx: SymptomDiarySqlTx,
+      params: { userId: string; symptomTitle: string; symptomTypeRefId: string },
+    ): Promise<string> {
+      return port.upsertWarmupFeelingTrackingIdInTx(tx, params);
+    },
     /** Возвращает список отслеживаемых симптомов пользователя. */
     async listTrackings(userId: string, activeOnly = true): Promise<SymptomTracking[]> {
       return port.listTrackings(userId, activeOnly);
@@ -59,6 +72,7 @@ export function createSymptomDiaryService(port: SymptomDiaryPort) {
       recordedAt: string;
       source: "bot" | "webapp" | "import";
       notes?: string | null;
+      patientPracticeCompletionId?: string | null;
     }): Promise<SymptomEntry> {
       const value = Math.min(VALUE_MAX, Math.max(VALUE_MIN, Math.round(params.value0_10)));
       return port.addEntry({
@@ -69,6 +83,7 @@ export function createSymptomDiaryService(port: SymptomDiaryPort) {
         recordedAt: params.recordedAt,
         source: params.source,
         notes: params.notes ?? null,
+        patientPracticeCompletionId: params.patientPracticeCompletionId ?? null,
       });
     },
     /** Возвращает список записей дневника симптомов пользователя. */

@@ -330,6 +330,32 @@ export const patientHomeHeroCardGeometryClass = cn(
   "min-h-[192px] p-4 min-[380px]:min-h-[204px] lg:h-[300px] lg:min-h-0 lg:p-5 xl:h-[300px]",
 );
 
+/** Экран материала «Разминка дня» (`from=daily_warmup`): ниже hero, уже текстовая колонка под компактный image-slot. */
+export const patientDailyWarmupDetailHeroGeometryClass = cn(
+  patientHomeCardHeroClass,
+  "relative isolate flex flex-col overflow-hidden",
+  "min-h-[132px] p-3 min-[380px]:min-h-[140px] lg:min-h-[168px] lg:p-4 xl:min-h-[176px]",
+);
+
+/** Колонка текста под {@link PatientDailyWarmupHeroCover} на странице материала разминки. */
+export const patientDailyWarmupDetailHeroTextColumnClass = cn(
+  "relative z-10 flex flex-1 flex-col lg:min-h-0",
+  "pr-[92px] min-[380px]:pr-[104px] lg:pr-[168px] xl:pr-[178px]",
+);
+
+/** Описание материала разминки: типографика по плану UX. */
+export const patientDailyWarmupDetailMarkdownClass = cn(
+  "text-[14px] leading-relaxed text-[#3a3f53]",
+  "[&_strong]:font-semibold [&_b]:font-semibold",
+);
+
+/** Заголовок hero на экране материала разминки — компактнее карточки «Разминка дня» на главной. */
+export const patientDailyWarmupDetailHeroTitleClampClass = cn(
+  "min-w-0",
+  patientHeroTitleBaseClass,
+  "mt-2 max-w-[min(100%,260px)] text-[16px] leading-[22px] min-[380px]:text-[17px] min-[380px]:leading-6 lg:mt-3 lg:max-w-[min(100%,360px)] lg:line-clamp-2 lg:text-[26px] lg:leading-8 xl:text-[28px] xl:leading-9",
+);
+
 /**
  * Hero: колонка текста с отступом под фиксированный image-slot справа.
  *

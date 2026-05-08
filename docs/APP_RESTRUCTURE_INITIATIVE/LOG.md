@@ -6,6 +6,26 @@
 
 ---
 
+## 2026-05-08 — разминка дня: самочувствие после (`warmup_feeling`) + UX экрана материала
+
+**Сделано (webapp):** миграция **`0051_warmup_feeling_symptom`**: системный `reference_items.warmup_feeling`, backfill и дедуп `symptom_trackings`, partial unique как у `general_wellbeing`; **`symptom_entries.patient_practice_completion_id`** + уникальный индекс для дедупа с completion. Порт дневника: **`ensureWarmupFeelingTracking`**, **`addEntry`** с опциональной привязкой к completion. Расширение **`PatientPracticePort`**: **`getByIdForUser`**, **`updateFeelingById`**. **`PATCH /api/patient/practice/completion/[id]/feeling`** с транзакцией Drizzle (симптом + обновление `feeling`), идемпотентность **`duplicate`**. Страница материала при **`from=daily_warmup`**: компактный hero, порядок видео → кнопка → текст; типографика описания 14px `#3a3f53`. **`PatientContentPracticeComplete`**: для разминки POST с `feeling: null` → модалка без «Пропустить» → PATCH → **`routePaths.patient`**.
+
+**Документация:** [`apps/webapp/src/modules/patient-practice/patient-practice.md`](../../apps/webapp/src/modules/patient-practice/patient-practice.md).
+
+**Проверки:** vitest `completion/[id]/feeling`, `PatientContentPracticeComplete`, `symptom-service`, `buildAppDeps`; **`pnpm run ci`** (перед merge).
+
+---
+
+## 2026-05-08 — разминка (`warmup_feeling`): правки после код-аудита
+
+**Сделано:** UPSERT трекинга `warmup_feeling` выполняется **внутри** Drizzle-транзакции PATCH (PG — [`warmupFeelingTrackingTx.ts`](../../apps/webapp/src/infra/repos/warmupFeelingTrackingTx.ts), вызов из маршрута через **`deps.diaries.upsertWarmupFeelingTrackingIdInTx`** / порт **`SymptomDiaryPort`**, без прямого импорта `infra/repos` из `route.ts`); ответ PATCH принимает только **`feeling ∈ {1,3,5}`**; при **`duplicate`** вызывается **`revalidatePath(routePaths.patient)`**; если строка симптома для completion уже есть (гонка), в той же транзакции обновляется **`feeling`** у completion при **`feeling IS NULL`**; компактный заголовок hero (**`patientDailyWarmupDetailHeroTitleClampClass`**); синхронная защита от двойного POST (**`warmupPostGuardRef`**); дополнены тесты: порт in-memory **`getByIdForUser`/`updateFeelingById`**, PATCH (400 при недопустимом feeling, 404 чужого completion, **`revalidatePath`** при duplicate), POST с **`feeling: null`** для двухшагового потока.
+
+**Намеренно не делали:** отдельный автоматизированный e2e smoke браузера для `/app/patient/content/[slug]?from=daily_warmup` — при необходимости ручная проверка или отдельная задача.
+
+**Проверки:** узкий vitest + полный **`pnpm run ci`**.
+
+---
+
 ## 2026-05-08 — самочувствие: унификация с дневником симптомов (`general_wellbeing`)
 
 **Сделано (webapp):** миграция **`0049_wellbeing_symptom_unify`**: справочник `general_wellbeing`, backfill `symptom_trackings` для клиентов, перенос `patient_daily_mood` → `symptom_entries`, `DROP patient_daily_mood` (в одном теге с остальным rollout; см. комментарий в SQL). Миграция **`0050_symptom_general_wellbeing_unique`**: дедуп + partial unique для гонки первого чек-ина. Сервис настроения переведён на **`symptom_entries`** (`wellbeingMoodService`), API mood с **`intent`** и **409 `intent_required`**, **`GET …/mood/week`** для полоски 7 дней; главная — модалка 10–60 мин и `PatientHomeWellbeingWeekStrip`. Пациентский **self-create** symptom tracking отключён (`createSymptomTracking` → **`patient_self_create_disabled`** + убран UI); операции rename/archive и журнал не трогают wellbeing-трекинг; врачебный **`POST /api/doctor/clients/[userId]/symptom-trackings`**. Дневник скрывает wellbeing-трекинг из списков пациента.

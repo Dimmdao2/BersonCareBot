@@ -10,6 +10,36 @@ const entries: SymptomEntry[] = [];
 let trackingIdCounter = 1;
 let entryIdCounter = 1;
 
+async function ensureWarmupFeelingTrackingMem(params: {
+  userId: string;
+  symptomTitle: string;
+  symptomTypeRefId: string;
+}): Promise<SymptomTracking> {
+  const existing = trackings.find(
+    (t) => t.userId === params.userId && t.symptomKey === "warmup_feeling" && !t.deletedAt,
+  );
+  if (existing) return existing;
+  const now = new Date().toISOString();
+  const tracking: SymptomTracking = {
+    id: `tr-${trackingIdCounter++}`,
+    userId: params.userId,
+    symptomKey: "warmup_feeling",
+    symptomTitle: params.symptomTitle,
+    isActive: true,
+    createdAt: now,
+    updatedAt: now,
+    symptomTypeRefId: params.symptomTypeRefId,
+    regionRefId: null,
+    side: null,
+    diagnosisText: null,
+    diagnosisRefId: null,
+    stageRefId: null,
+    deletedAt: null,
+  };
+  trackings.push(tracking);
+  return tracking;
+}
+
 export const inMemorySymptomDiaryPort: SymptomDiaryPort = {
   async createTracking(params) {
     const now = new Date().toISOString();
@@ -60,6 +90,15 @@ export const inMemorySymptomDiaryPort: SymptomDiaryPort = {
     };
     trackings.push(tracking);
     return tracking;
+  },
+
+  async ensureWarmupFeelingTracking(params) {
+    return ensureWarmupFeelingTrackingMem(params);
+  },
+
+  async upsertWarmupFeelingTrackingIdInTx(_tx, params) {
+    const t = await ensureWarmupFeelingTrackingMem(params);
+    return t.id;
   },
 
   async listTrackings(userId, activeOnly = true) {

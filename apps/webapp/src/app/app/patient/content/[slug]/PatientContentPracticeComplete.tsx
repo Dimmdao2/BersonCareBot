@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { Check, CheckCircle2 } from "lucide-react";
 import { routePaths } from "@/app-layer/routes/paths";
@@ -43,11 +43,86 @@ export function PatientContentPracticeComplete({
   needsActivation,
 }: Props) {
   const router = useRouter();
+  const isWarmup = practiceSource === "daily_warmup";
+  const warmupSubmittedRef = useRef(false);
+  /** Синхронная защита от двойного клика по CTA до установки `postingWarmup`. */
+  const warmupPostGuardRef = useRef(false);
+
   const [dialogOpen, setDialogOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [postingWarmup, setPostingWarmup] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [warmupCompletionId, setWarmupCompletionId] = useState<string | null>(null);
 
   const loginHref = appLoginWithNextHref(contentPath);
+
+  async function postWarmupCompletionThenOpenModal() {
+    if (postingWarmup || warmupPostGuardRef.current) return;
+    warmupPostGuardRef.current = true;
+    setPostingWarmup(true);
+    try {
+      const res = await fetch("/api/patient/practice/completion", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contentPageId,
+          source: practiceSource,
+          feeling: null,
+        }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        error?: string;
+        id?: string;
+      };
+      if (res.status === 401) {
+        warmupPostGuardRef.current = false;
+        toast.error("Войдите, чтобы сохранить выполнение.");
+        return;
+      }
+      if (res.status === 403 && data.error === "patient_activation_required") {
+        warmupPostGuardRef.current = false;
+        toast.error("Подтвердите профиль пациента, чтобы сохранять прогресс.");
+        return;
+      }
+      if (!res.ok || !data.ok || !data.id) {
+        warmupPostGuardRef.current = false;
+        toast.error("Не удалось сохранить. Попробуйте позже.");
+        return;
+      }
+      setWarmupCompletionId(data.id);
+      setDialogOpen(true);
+    } finally {
+      setPostingWarmup(false);
+    }
+  }
+
+  async function patchWarmupFeeling(feeling: number) {
+    if (!warmupCompletionId) return;
+    setSubmitting(true);
+    try {
+      const res = await fetch(`/api/patient/practice/completion/${warmupCompletionId}/feeling`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ feeling }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { ok?: boolean; duplicate?: boolean };
+      if (res.status === 401) {
+        toast.error("Войдите, чтобы сохранить выполнение.");
+        return;
+      }
+      if (!res.ok || !data.ok) {
+        toast.error("Не удалось сохранить. Попробуйте позже.");
+        return;
+      }
+      warmupSubmittedRef.current = true;
+      setDialogOpen(false);
+      toast.success("Записано.");
+      router.push(routePaths.patient);
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   async function submitWithFeeling(feeling: number | null) {
     setSubmitting(true);
@@ -83,6 +158,13 @@ export function PatientContentPracticeComplete({
       router.refresh();
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  function handleDialogOpenChange(open: boolean) {
+    setDialogOpen(open);
+    if (!open && isWarmup && warmupCompletionId !== null && !warmupSubmittedRef.current) {
+      setSaved(true);
     }
   }
 
@@ -128,22 +210,25 @@ export function PatientContentPracticeComplete({
     );
   }
 
+  const modalTitle = isWarmup ? "Как самочувствие после разминки?" : "Как самочувствие после?";
+
   return (
     <>
       <section id="patient-content-practice-complete" className={patientCardClass}>
         <button
           type="button"
           className={cn(patientButtonSuccessClass, "w-full")}
-          onClick={() => setDialogOpen(true)}
+          disabled={postingWarmup || submitting}
+          onClick={() => void (isWarmup ? postWarmupCompletionThenOpenModal() : setDialogOpen(true))}
         >
           <Check className="size-5 shrink-0" aria-hidden />
           Я выполнил(а) практику
         </button>
       </section>
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      <Dialog open={dialogOpen} onOpenChange={handleDialogOpenChange}>
         <DialogContent className={patientModalDialogContentShellClass}>
           <DialogHeader className={patientModalHeaderBarClass}>
-            <DialogTitle className={patientModalDialogTitleClass}>Как самочувствие после?</DialogTitle>
+            <DialogTitle className={patientModalDialogTitleClass}>{modalTitle}</DialogTitle>
           </DialogHeader>
           <div className="flex flex-col gap-2 p-4">
             <div className="flex gap-2">
@@ -151,7 +236,7 @@ export function PatientContentPracticeComplete({
                 <button
                   key={value}
                   type="button"
-                  disabled={submitting}
+                  disabled={submitting || (isWarmup && postingWarmup)}
                   className={cn(
                     "flex flex-1 flex-col items-center gap-1.5 rounded-xl border border-[var(--patient-border)] bg-[var(--patient-card-bg)] py-3 px-2 text-center transition-colors",
                     "hover:border-[var(--patient-color-primary)] hover:bg-[var(--patient-color-primary-soft)]/40",
@@ -159,26 +244,32 @@ export function PatientContentPracticeComplete({
                     "disabled:cursor-not-allowed disabled:opacity-60",
                   )}
                   aria-label={label}
-                  onClick={() => void submitWithFeeling(value)}
+                  onClick={() =>
+                    void (isWarmup ? patchWarmupFeeling(value) : submitWithFeeling(value))
+                  }
                 >
-                  <span className="text-2xl leading-none" aria-hidden>{emoji}</span>
+                  <span className="text-2xl leading-none" aria-hidden>
+                    {emoji}
+                  </span>
                   <span className="text-xs font-medium text-[var(--patient-text-primary)]">{label}</span>
                 </button>
               ))}
             </div>
-            <button
-              type="button"
-              disabled={submitting}
-              className={cn(
-                "mt-1 inline-flex w-full items-center justify-center rounded-md px-4 py-2 text-sm text-[var(--patient-text-muted)] transition-colors",
-                "hover:bg-[var(--patient-color-primary-soft)]/30",
-                "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-primary)]",
-                "disabled:cursor-not-allowed disabled:opacity-60",
-              )}
-              onClick={() => void submitWithFeeling(null)}
-            >
-              Пропустить
-            </button>
+            {!isWarmup ? (
+              <button
+                type="button"
+                disabled={submitting}
+                className={cn(
+                  "mt-1 inline-flex w-full items-center justify-center rounded-md px-4 py-2 text-sm text-[var(--patient-text-muted)] transition-colors",
+                  "hover:bg-[var(--patient-color-primary-soft)]/30",
+                  "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-primary)]",
+                  "disabled:cursor-not-allowed disabled:opacity-60",
+                )}
+                onClick={() => void submitWithFeeling(null)}
+              >
+                Пропустить
+              </button>
+            ) : null}
           </div>
         </DialogContent>
       </Dialog>

@@ -19,6 +19,14 @@ describe("pgPatientPracticeCompletions (runtime constraints)", () => {
   });
 });
 
+describe("warmupFeelingTrackingTx (runtime constraints)", () => {
+  it("uses Drizzle tx.execute only — no getPool", () => {
+    const src = readFileSync(join(__dirname, "warmupFeelingTrackingTx.ts"), "utf8");
+    expect(src).not.toMatch(/\bgetPool\b/);
+    expect(src).toContain("execute");
+  });
+});
+
 describe("patient practice completions port (in-memory harness)", () => {
   beforeEach(() => {
     resetInMemoryPatientPracticeCompletionsForTests();
@@ -54,5 +62,35 @@ describe("patient practice completions port (in-memory harness)", () => {
     });
     const s = await port.streak("u1", tz);
     expect(s).toBeGreaterThanOrEqual(1);
+  });
+
+  it("getByIdForUser returns row only for matching user", async () => {
+    const port = createInMemoryPatientPracticeCompletionsPort();
+    const { id } = await port.record({
+      userId: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+      contentPageId: "550e8400-e29b-41d4-a716-446655440010",
+      source: "daily_warmup",
+      feeling: null,
+    });
+    const own = await port.getByIdForUser(id, "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
+    expect(own?.id).toBe(id);
+    const foreign = await port.getByIdForUser(id, "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
+    expect(foreign).toBeNull();
+  });
+
+  it("updateFeelingById updates only matching completion", async () => {
+    const port = createInMemoryPatientPracticeCompletionsPort();
+    const { id } = await port.record({
+      userId: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+      contentPageId: "550e8400-e29b-41d4-a716-446655440011",
+      source: "daily_warmup",
+      feeling: null,
+    });
+    const ok = await port.updateFeelingById(id, "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", 3);
+    expect(ok).toBe(true);
+    const row = await port.getByIdForUser(id, "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
+    expect(row?.feeling).toBe(3);
+    const badUser = await port.updateFeelingById(id, "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb", 5);
+    expect(badUser).toBe(false);
   });
 });

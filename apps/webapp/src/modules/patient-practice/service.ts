@@ -1,5 +1,5 @@
 import type { PatientPracticeContentLookupPort, PatientPracticePort } from "./ports";
-import type { PracticeSource, RecordPracticeInput, RecordPracticeResult } from "./types";
+import type { PatientPracticeCompletionRow, PracticeSource, RecordPracticeInput, RecordPracticeResult } from "./types";
 
 export function createPatientPracticeService(deps: {
   completions: PatientPracticePort;
@@ -25,6 +25,14 @@ export function createPatientPracticeService(deps: {
 
     async listRecent(userId: string, limit: number) {
       return deps.completions.listRecent(userId, limit);
+    },
+
+    async getCompletionByIdForUser(completionId: string, userId: string): Promise<PatientPracticeCompletionRow | null> {
+      return deps.completions.getByIdForUser(completionId, userId);
+    },
+
+    async updateCompletionFeelingById(completionId: string, userId: string, feeling: number): Promise<boolean> {
+      return deps.completions.updateFeelingById(completionId, userId, feeling);
     },
   };
 }

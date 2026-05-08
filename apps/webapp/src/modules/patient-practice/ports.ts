@@ -19,6 +19,8 @@ export type PatientPracticePort = {
   countToday(userId: string, tz: string): Promise<number>;
   streak(userId: string, tz: string): Promise<number>;
   listRecent(userId: string, limit: number): Promise<PatientPracticeCompletionRow[]>;
+  getByIdForUser(completionId: string, userId: string): Promise<PatientPracticeCompletionRow | null>;
+  updateFeelingById(completionId: string, userId: string, feeling: number): Promise<boolean>;
 };
 
 export type { PracticeSource };

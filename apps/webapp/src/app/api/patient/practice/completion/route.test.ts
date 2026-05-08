@@ -87,4 +87,22 @@ describe("POST /api/patient/practice/completion", () => {
       }),
     );
   });
+
+  it("accepts daily_warmup with feeling null for two-step modal flow", async () => {
+    const res = await POST(
+      makeRequest({
+        contentPageId: "550e8400-e29b-41d4-a716-446655440003",
+        source: "daily_warmup",
+        feeling: null,
+      }),
+    );
+    expect(res.status).toBe(200);
+    expect(mockRecord).toHaveBeenCalledWith(
+      expect.objectContaining({
+        source: "daily_warmup",
+        feeling: null,
+        contentPageId: "550e8400-e29b-41d4-a716-446655440003",
+      }),
+    );
+  });
 });
