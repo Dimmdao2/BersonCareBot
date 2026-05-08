@@ -70,12 +70,20 @@ export const routePaths = {
    * Детальный просмотр пункта программы (не модалка).
    * `nav` — см. `parsePatientProgramItemNavMode`.
    * `planTab` — вкладка плана для ссылки «Назад» (`planTab` в query).
+   * `testId` — для `nav=tests`: uuid теста в снимке набора (`test_set`).
    */
-  patientTreatmentProgramItem: (instanceId: string, itemId: string, nav?: string, planTab?: PatientPlanTab | null) => {
+  patientTreatmentProgramItem: (
+    instanceId: string,
+    itemId: string,
+    nav?: string,
+    planTab?: PatientPlanTab | null,
+    testId?: string | null,
+  ) => {
     const base = `/app/patient/treatment/${encodeURIComponent(instanceId)}/item/${encodeURIComponent(itemId)}`;
     const sp = new URLSearchParams();
     if (nav && nav !== "default") sp.set("nav", nav);
     if (planTab && planTab !== "program") sp.set("planTab", planTab);
+    if (testId && testId.trim()) sp.set("testId", testId.trim());
     const q = sp.toString();
     return q ? `${base}?${q}` : base;
   },

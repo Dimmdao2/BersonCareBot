@@ -1,7 +1,7 @@
 /**
  * Детальный просмотр пункта программы лечения (отдельная страница, не модалка).
  */
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
 import { routePaths } from "@/app-layer/routes/paths";
@@ -17,14 +17,22 @@ import {
   parsePatientProgramItemNavMode,
   resolvePatientProgramItemPage,
 } from "@/app/app/patient/treatment/patientProgramItemPageResolve";
+import { flatTestSlots } from "@/app/app/patient/treatment/patientProgramItemNavLists";
 import { parsePatientPlanTab } from "@/app/app/patient/treatment/patientPlanTab";
 import { PatientProgramStageItemPageClient } from "@/app/app/patient/treatment/PatientProgramStageItemPageClient";
 import type { PatientTestSetPageServerSnapshot } from "@/modules/treatment-program/progress-service";
+import { testTitleFromTestSetSnapshot } from "@/app/app/patient/treatment/stageItemSnapshot";
 
 type Props = {
   params: Promise<{ instanceId: string; itemId: string }>;
-  searchParams: Promise<{ nav?: string | string[]; planTab?: string | string[] }>;
+  searchParams: Promise<{ nav?: string | string[]; planTab?: string | string[]; testId?: string | string[] }>;
 };
+
+function firstSearchParam(raw: string | string[] | undefined): string {
+  if (typeof raw === "string") return raw;
+  if (Array.isArray(raw) && raw.length > 0 && typeof raw[0] === "string") return raw[0];
+  return "";
+}
 
 export default async function PatientTreatmentProgramItemPage({ params, searchParams }: Props) {
   const session = await getOptionalPatientSession();
@@ -49,6 +57,7 @@ export default async function PatientTreatmentProgramItemPage({ params, searchPa
   const sp = await searchParams;
   const navMode = parsePatientProgramItemNavMode(sp.nav);
   const itemLinksPlanTab = parsePatientPlanTab(sp.planTab);
+  const testIdQuery = firstSearchParam(sp.testId).trim();
 
   const deps = buildAppDeps();
   const appDisplayTimeZone = await getAppDisplayTimeZone();
@@ -67,11 +76,27 @@ export default async function PatientTreatmentProgramItemPage({ params, searchPa
   const { pipeline } = splitPatientProgramStagesForDetailUi(detail.stages);
   const currentWorkingStage = selectCurrentWorkingStageForPatientDetail(pipeline);
 
+  let resolvedTestIdForResolve: string | null = null;
+
+  if (navMode === "tests") {
+    const slots = flatTestSlots(currentWorkingStage);
+    if (slots.length === 0) notFound();
+    const byTestId = testIdQuery ? slots.find((s) => s.testId === testIdQuery) : undefined;
+    const target = byTestId ?? slots[0]!;
+    if (itemId !== target.itemId || testIdQuery !== target.testId) {
+      redirect(
+        routePaths.patientTreatmentProgramItem(instanceId, target.itemId, "tests", itemLinksPlanTab, target.testId),
+      );
+    }
+    resolvedTestIdForResolve = target.testId;
+  }
+
   const resolved = resolvePatientProgramItemPage({
     detail,
     itemId,
     nav: navMode,
     currentWorkingStage,
+    testId: resolvedTestIdForResolve,
   });
   if (!resolved) notFound();
 
@@ -85,6 +110,11 @@ export default async function PatientTreatmentProgramItemPage({ params, searchPa
   }
 
   const title = (() => {
+    if (navMode === "tests" && resolvedTestIdForResolve) {
+      const snap = resolved.item.snapshot as Record<string, unknown>;
+      const tt = testTitleFromTestSetSnapshot(snap, resolvedTestIdForResolve);
+      if (tt) return tt;
+    }
     const snap = resolved.item.snapshot as Record<string, unknown>;
     const t = snap.title;
     if (typeof t === "string" && t.trim() !== "") return t.trim();
@@ -111,6 +141,7 @@ export default async function PatientTreatmentProgramItemPage({ params, searchPa
         appDisplayTimeZone={appDisplayTimeZone}
         testSetServerSnapshot={testSetServerSnapshot}
         itemLinksPlanTab={itemLinksPlanTab}
+        resolvedTestId={resolvedTestIdForResolve}
       />
     </AppShell>
   );

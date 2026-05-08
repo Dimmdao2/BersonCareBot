@@ -290,7 +290,7 @@ describe("PatientTreatmentProgramDetailClient", () => {
     expect(planOpenedCalls).toHaveLength(0);
   });
 
-  it("does not list test_set under Программа tab; recommendations tab still lists actionable recs", async () => {
+  it("does not list test_set under Программа tab; recommendations tab lists persistent recs (rec-read)", async () => {
     const testSetItem = {
       id: "33333333-3333-4333-8333-333333333333",
       stageId: "22222222-2222-4222-8222-222222222222",
@@ -322,9 +322,9 @@ describe("PatientTreatmentProgramDetailClient", () => {
       comment: null,
       localComment: null,
       settings: null,
-      snapshot: { title: "Только рекомендация в списке", bodyMd: "" },
+      snapshot: { title: "Постоянная рекомендация в списке", bodyMd: "" },
       completedAt: null,
-      isActionable: true,
+      isActionable: false,
       status: "active" as const,
       groupId: null,
       createdAt: now,
@@ -362,7 +362,7 @@ describe("PatientTreatmentProgramDetailClient", () => {
     clickPatientTreatmentTab("recommendations");
     const recPanel = screen.getByRole("tabpanel", { name: "Рекомендации" });
     expect(
-      await within(recPanel).findByRole("link", { name: "Только рекомендация в списке" }),
+      await within(recPanel).findByRole("link", { name: "Постоянная рекомендация в списке" }),
     ).toBeInTheDocument();
     const programPanel = screen.getByRole("tabpanel", { name: "Программа" });
     expect(programPanel.textContent).not.toContain("Набор А");
@@ -490,7 +490,7 @@ describe("PatientTreatmentProgramDetailClient", () => {
         ],
       },
       completedAt: null,
-      isActionable: true,
+      isActionable: false,
       status: "active" as const,
       groupId: null,
       createdAt: now,

@@ -23,6 +23,18 @@
 
 Общие хелперы превью и «последней активности» по элементу: `apps/webapp/src/app/app/patient/treatment/stageItemSnapshot.ts` (импортируются с экрана программы пациента).
 
+## Страница пункта `/app/patient/treatment/[instanceId]/item/[itemId]`
+
+Отдельная страница пункта (не модалка) использует те же правила видимости элемента, что и остальной пациентский UI программы, и задаёт **контекст навигации** через query-параметры:
+
+| Параметр | Назначение |
+|----------|------------|
+| `nav` | Режим списка для prev/next и допустимого состава: `default` (тело этапа), `program` (composition modal), **`exec`** (выполняемые пункты без `test_set` и без persistent-рекомендаций — как секция «Программа этапа»), **`rec-read`** (единый список persistent: рабочий этап, затем этап 0), `rec-stage` / `rec-zero` / `rec-persist`, **`tests`** (плоский обход тестов по всем активным `test_set` рабочего этапа). Разбор: `parsePatientProgramItemNavMode` в `patientProgramItemPageResolve.ts`. |
+| `planTab` | Вкладка детали программы при возврате (`program` / `recommendations` / …): `parsePatientPlanTab`. |
+| `testId` | Только при `nav=tests`: uuid теста из `snapshot.tests[]` снимка `test_set`. RSC при несовпадении с каноном **редиректит** на пару `(itemId набора, testId)` первого слота или найденного по `testId` (см. `item/[itemId]/page.tsx`). |
+
+Единый источник порядка id/слотов для ссылок в UI и для серверного `resolvePatientProgramItemPage`: **`patientProgramItemNavLists.ts`** — `flatExecIds`, `flatRecReadIds`, `flatTestSlots`.
+
 ## Снимок `test_set` и идентификаторы тестов
 
 Разбор JSON-снимка элемента типа `test_set` и список `testId` для навигации к прохождению тестов:

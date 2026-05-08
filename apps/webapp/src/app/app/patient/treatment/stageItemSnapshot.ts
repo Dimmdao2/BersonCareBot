@@ -25,9 +25,8 @@ export function patientExerciseLoadTypeLabelRu(raw: unknown): string | null {
 
 export type InstanceStageItem = TreatmentProgramInstanceDetail["stages"][number]["items"][number];
 
-/** Разбор `snapshot.media` для превью и модалки: рекомендация (`mediaUrl`), упражнение ЛФК (`url` + `type`). */
-export function parseSnapshotMediaForRowThumb(snapshot: Record<string, unknown>): RecommendationMediaItem[] {
-  const raw = snapshot.media;
+/** Разбор массива каталожных медиа (рекомендация, строка `tests[]` в test_set и т.п.). */
+export function parseCatalogMediaRows(raw: unknown): RecommendationMediaItem[] {
   if (!Array.isArray(raw)) return [];
   const items: RecommendationMediaItem[] = [];
   for (const row of raw) {
@@ -64,6 +63,11 @@ export function parseSnapshotMediaForRowThumb(snapshot: Record<string, unknown>)
   return items;
 }
 
+/** Разбор `snapshot.media` для превью и модалки: рекомендация (`mediaUrl`), упражнение ЛФК (`url` + `type`). */
+export function parseSnapshotMediaForRowThumb(snapshot: Record<string, unknown>): RecommendationMediaItem[] {
+  return parseCatalogMediaRows(snapshot.media);
+}
+
 /** Статичное превью в строке списка: сначала картинка/GIF, иначе первое медиа (видео). */
 export function pickRecommendationRowPreviewMedia(items: RecommendationMediaItem[]): RecommendationMediaItem | null {
   if (items.length === 0) return null;
@@ -98,7 +102,7 @@ export function primaryMediaForStageItem(item: InstanceStageItem): Recommendatio
     const lines = listLfkSnapshotExerciseLines(snap);
     for (const line of lines) {
       if (line.media != null && Array.isArray(line.media)) {
-        const thumbItems = parseSnapshotMediaForRowThumb({ media: line.media } as Record<string, unknown>);
+        const thumbItems = parseCatalogMediaRows(line.media);
         const picked = pickRecommendationRowPreviewMedia(thumbItems);
         if (picked) return picked;
       }
@@ -108,6 +112,39 @@ export function primaryMediaForStageItem(item: InstanceStageItem): Recommendatio
   const all = parseSnapshotMediaForRowThumb(snap);
   const video = all.find((m) => m.mediaType === "video");
   return video ?? all[0] ?? null;
+}
+
+/** Превью медиа для одного теста внутри снимка `test_set` (`tests[].media`). */
+export function primaryMediaForTestSnapshotLine(
+  testSetSnapshot: Record<string, unknown>,
+  testId: string,
+): RecommendationMediaItem | null {
+  const raw = testSetSnapshot.tests;
+  if (!Array.isArray(raw)) return null;
+  for (const entry of raw) {
+    if (!entry || typeof entry !== "object" || !("testId" in entry)) continue;
+    const tid = String((entry as { testId: unknown }).testId).trim();
+    if (tid !== testId) continue;
+    const mediaArr = (entry as { media?: unknown }).media;
+    const all = parseCatalogMediaRows(mediaArr);
+    const video = all.find((m) => m.mediaType === "video");
+    return video ?? all[0] ?? null;
+  }
+  return null;
+}
+
+/** Заголовок теста из снимка набора по `testId`. */
+export function testTitleFromTestSetSnapshot(testSetSnapshot: Record<string, unknown>, testId: string): string | null {
+  const raw = testSetSnapshot.tests;
+  if (!Array.isArray(raw)) return null;
+  for (const entry of raw) {
+    if (!entry || typeof entry !== "object" || !("testId" in entry)) continue;
+    const tid = String((entry as { testId: unknown }).testId).trim();
+    if (tid !== testId) continue;
+    const title = (entry as { title?: unknown }).title;
+    return typeof title === "string" && title.trim() ? title.trim() : null;
+  }
+  return null;
 }
 
 /** Максимум по времени между последней отметкой в журнале и `completed_at` элемента (общая реализация для дашборда и экрана этапа). */

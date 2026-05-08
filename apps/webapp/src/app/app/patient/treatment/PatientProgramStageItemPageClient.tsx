@@ -38,6 +38,8 @@ import {
   mergeLastActivityDisplayedIso,
   patientExerciseLoadTypeLabelRu,
   primaryMediaForStageItem,
+  primaryMediaForTestSnapshotLine,
+  testTitleFromTestSetSnapshot,
 } from "@/app/app/patient/treatment/stageItemSnapshot";
 import { patientHomeCardHeroClass } from "@/app/app/patient/home/patientHomeCardStyles";
 import {
@@ -78,6 +80,8 @@ export type PatientProgramStageItemPageClientProps = {
   testSetServerSnapshot?: PatientTestSetPageServerSnapshot | null;
   /** Вкладка плана для prev/next и `planTab` в URL пункта. */
   itemLinksPlanTab?: PatientPlanTab | null;
+  /** Для `nav=tests`: выбранный тест (канонический URL с `testId`). */
+  resolvedTestId?: string | null;
 };
 
 type StageItem = TreatmentProgramInstanceDetail["stages"][number]["items"][number];
@@ -103,7 +107,7 @@ function exerciseSnapshotDescriptionBody(snap: Record<string, unknown>): string 
 }
 
 /** Краткая строка под заголовком для типов, кроме упражнения (у exercise — отдельная вёрстка). */
-function briefNonExerciseHeroParts(item: StageItem): string[] {
+function briefNonExerciseHeroParts(item: StageItem, navMode: PatientProgramItemNavMode): string[] {
   const snap = item.snapshot as Record<string, unknown>;
   const parts: string[] = [];
   if (item.itemType === "lfk_complex") {
@@ -115,7 +119,7 @@ function briefNonExerciseHeroParts(item: StageItem): string[] {
     if (typeof snap.frequencyText === "string" && snap.frequencyText.trim()) parts.push(snap.frequencyText.trim());
     if (typeof snap.quantityText === "string" && snap.quantityText.trim()) parts.push(snap.quantityText.trim());
   }
-  if (item.itemType === "test_set") {
+  if (item.itemType === "test_set" && navMode !== "tests") {
     const tests = parseTestSetSnapshotTests(snap);
     if (tests.length > 0) parts.push(`Тестов в наборе: ${tests.length}`);
   }
@@ -276,7 +280,17 @@ function ModalDescriptionSection(props: { item: StageItem }) {
 }
 
 export function PatientProgramStageItemPageClient(props: PatientProgramStageItemPageClientProps) {
-  const { instanceId, itemId, navMode, backHref, initialDetail, appDisplayTimeZone, testSetServerSnapshot, itemLinksPlanTab = null } = props;
+  const {
+    instanceId,
+    itemId,
+    navMode,
+    backHref,
+    initialDetail,
+    appDisplayTimeZone,
+    testSetServerSnapshot,
+    itemLinksPlanTab = null,
+    resolvedTestId = null,
+  } = props;
   const router = useRouter();
   const [detail, setDetail] = useState(initialDetail);
   const [busy, setBusy] = useState<string | null>(null);
@@ -300,6 +314,12 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
     [instanceId, navForPath, itemLinksPlanTab],
   );
 
+  const itemLinkTestSlot = useCallback(
+    (slotItemId: string, testId: string) =>
+      routePaths.patientTreatmentProgramItem(instanceId, slotItemId, "tests", itemLinksPlanTab ?? null, testId),
+    [instanceId, itemLinksPlanTab],
+  );
+
   const currentWorkingStage = useMemo(() => {
     const { pipeline } = splitPatientProgramStagesForDetailUi(detail.stages);
     return selectCurrentWorkingStageForPatientDetail(pipeline);
@@ -312,8 +332,9 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
         itemId,
         nav: navMode,
         currentWorkingStage,
+        testId: navMode === "tests" ? resolvedTestId : null,
       }),
-    [detail, itemId, navMode, currentWorkingStage],
+    [detail, itemId, navMode, currentWorkingStage, resolvedTestId],
   );
 
   useEffect(() => {
@@ -396,6 +417,7 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
   const stage = resolved?.stage;
   const item = resolved?.item;
   const flatOrderedIds = resolved?.flatOrderedIds ?? EMPTY_ORDERED_ITEM_IDS;
+  const testSlots = resolved?.testSlots;
   const contentBlocked = resolved?.contentBlocked ?? false;
   const itemInteraction = resolved?.itemInteraction ?? "readOnly";
   const readOnly = itemInteraction === "readOnly";
@@ -405,9 +427,22 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
     setObservationDraft("");
   }, [commentModalOpen, itemId]);
 
-  const primaryMedia = useMemo(() => (item ? primaryMediaForStageItem(item) : null), [item]);
+  const primaryMedia = useMemo(() => {
+    if (!item) return null;
+    if (navMode === "tests" && resolvedTestId) {
+      return primaryMediaForTestSnapshotLine(item.snapshot as Record<string, unknown>, resolvedTestId);
+    }
+    return primaryMediaForStageItem(item);
+  }, [item, navMode, resolvedTestId]);
 
-  const title = item ? modalSnapshotTitle(item.snapshot as Record<string, unknown>, item.itemType) : "";
+  const title = useMemo(() => {
+    if (!item) return "";
+    if (navMode === "tests" && resolvedTestId) {
+      const tt = testTitleFromTestSetSnapshot(item.snapshot as Record<string, unknown>, resolvedTestId);
+      if (tt) return tt;
+    }
+    return modalSnapshotTitle(item.snapshot as Record<string, unknown>, item.itemType);
+  }, [item, navMode, resolvedTestId]);
 
   const handleComplete = async () => {
     if (!item) return;
@@ -478,14 +513,44 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
     }
   };
 
-  const nNav = flatOrderedIds.length;
-  const currentIdx = item ? flatOrderedIds.indexOf(item.id) : -1;
-  const prevId =
-    item && nNav > 0 && currentIdx >= 0 ? flatOrderedIds[(currentIdx - 1 + nNav) % nNav]! : null;
-  const nextId =
-    item && nNav > 0 && currentIdx >= 0 ? flatOrderedIds[(currentIdx + 1) % nNav]! : null;
-  const positionLabel =
-    item && flatOrderedIds.length > 1 ? `${currentIdx + 1} / ${flatOrderedIds.length}` : null;
+  let navPrevHref: string | null = null;
+  let navNextHref: string | null = null;
+  let navPositionLabel: string | null = null;
+  let navEnabled = false;
+
+  if (navMode === "tests" && testSlots && testSlots.length > 0 && item && resolvedTestId) {
+    const n = testSlots.length;
+    const idx = testSlots.findIndex((s) => s.itemId === item.id && s.testId === resolvedTestId);
+    if (idx >= 0) {
+      navEnabled = true;
+      const prevS = testSlots[(idx - 1 + n) % n]!;
+      const nextS = testSlots[(idx + 1) % n]!;
+      navPrevHref = itemLinkTestSlot(prevS.itemId, prevS.testId);
+      navNextHref = itemLinkTestSlot(nextS.itemId, nextS.testId);
+      navPositionLabel = n > 1 ? `${idx + 1} / ${n}` : null;
+    }
+  } else {
+    const nNav = flatOrderedIds.length;
+    const currentIdx = item ? flatOrderedIds.indexOf(item.id) : -1;
+    if (item && nNav > 0 && currentIdx >= 0) {
+      navEnabled = true;
+      const prevId = flatOrderedIds[(currentIdx - 1 + nNav) % nNav]!;
+      const nextId = flatOrderedIds[(currentIdx + 1) % nNav]!;
+      navPrevHref = itemLink(prevId);
+      navNextHref = itemLink(nextId);
+      navPositionLabel = nNav > 1 ? `${currentIdx + 1} / ${nNav}` : null;
+    }
+  }
+
+  const flatNextItemId =
+    navMode !== "tests" && item && flatOrderedIds.length > 0
+      ? (() => {
+          const nNav = flatOrderedIds.length;
+          const currentIdx = flatOrderedIds.indexOf(item.id);
+          if (currentIdx < 0) return null;
+          return flatOrderedIds[(currentIdx + 1) % nNav]!;
+        })()
+      : null;
 
   if (!resolved || !item || !stage) return null;
 
@@ -580,7 +645,7 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
           })()
         ) : (
           (() => {
-            const parts = briefNonExerciseHeroParts(item);
+            const parts = briefNonExerciseHeroParts(item, navMode);
             if (parts.length === 0) return null;
             return <p className={cn(patientMutedTextClass, "mt-2 text-sm leading-snug")}>{parts.join(" · ")}</p>;
           })()
@@ -591,8 +656,8 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
         className="sticky top-0 z-[5] flex shrink-0 items-stretch gap-px border-b border-[var(--patient-border,#ddd6fe)] bg-[var(--patient-border,#ddd6fe)] shadow-sm"
         aria-label="Навигация по элементам"
       >
-        {item && nNav > 0 && currentIdx >= 0 ? (
-          <Link href={itemLink(prevId!)} className={navButtonClass(true)} aria-label="Предыдущий элемент">
+        {item && navEnabled && navPrevHref ? (
+          <Link href={navPrevHref} className={navButtonClass(true)} aria-label="Предыдущий элемент">
             <ChevronLeft className="size-4 shrink-0" aria-hidden />
             <span className="sr-only sm:not-sr-only text-xs">Пред.</span>
           </Link>
@@ -603,14 +668,14 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
           </span>
         )}
 
-        {positionLabel ? (
+        {navPositionLabel ? (
           <div className="flex min-h-[2.75rem] items-center justify-center bg-[#f8f3fd] px-3 py-2 text-xs font-medium text-[#555555]">
-            {positionLabel}
+            {navPositionLabel}
           </div>
         ) : null}
 
-        {item && nNav > 0 && currentIdx >= 0 ? (
-          <Link href={itemLink(nextId!)} className={navButtonClass(true)} aria-label="Следующий элемент">
+        {item && navEnabled && navNextHref ? (
+          <Link href={navNextHref} className={navButtonClass(true)} aria-label="Следующий элемент">
             <span className="sr-only sm:not-sr-only text-xs">След.</span>
             <ChevronRight className="size-4 shrink-0" aria-hidden />
           </Link>
@@ -626,6 +691,23 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
         className={cn("flex min-h-0 flex-1 flex-col overflow-y-auto", patientScrollbarHiddenClass)}
       >
         <ModalMediaBlock media={primaryMedia} title={title} />
+
+        {navMode === "tests" && resolvedTestId ? (
+          (() => {
+            const line = parseTestSetSnapshotTests(item.snapshot as Record<string, unknown>).find(
+              (t) => t.testId === resolvedTestId,
+            );
+            if (!line?.comment) return null;
+            return (
+              <div className="border-b border-[var(--patient-border)]/50 bg-muted/10 px-4 py-2.5 lg:px-5">
+                <p className={cn(patientMutedTextClass, "m-0 text-xs leading-snug")}>
+                  <span className="font-medium text-foreground">Комментарий к позиции: </span>
+                  {line.comment}
+                </p>
+              </div>
+            );
+          })()
+        ) : null}
 
         <div className="flex items-center justify-between gap-3 border-b border-[var(--patient-border)]/50 bg-muted/15 px-4 py-2.5 lg:px-5">
           <span className={cn("min-w-0 flex-1 text-xs leading-snug", patientMutedTextStrongClass)}>
@@ -662,9 +744,9 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
           {!contentBlocked && !readOnly && item.itemType !== "test_set" ? (
             <div className="flex flex-wrap items-stretch gap-2">
               {isPersistentRecommendation(item) ? (
-                nextId ? (
+                flatNextItemId ? (
                   <Link
-                    href={itemLink(nextId)}
+                    href={itemLink(flatNextItemId)}
                     className={cn(
                       patientButtonSuccessClass,
                       "min-h-9 flex-1 text-xs font-medium no-underline sm:min-h-10",
@@ -753,7 +835,7 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
             </div>
           ) : null}
 
-          <ModalDescriptionSection item={item} />
+          {!(item.itemType === "test_set" && navMode === "tests") ? <ModalDescriptionSection item={item} /> : null}
 
           {item.itemType === "test_set" ? (
             <PatientTestSetProgressForm
@@ -768,6 +850,7 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
               setError={setError}
               onDone={refresh}
               serverSnapshot={testSetServerSnapshot ?? null}
+              activeTestId={navMode === "tests" && resolvedTestId ? resolvedTestId : undefined}
             />
           ) : null}
 
@@ -809,7 +892,7 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
             </DialogContent>
           </Dialog>
 
-          {navMode === "program" ? (
+          {navMode === "program" || navMode === "exec" ? (
             <PatientStageCompositionList
               instanceId={instanceId}
               stage={stage}

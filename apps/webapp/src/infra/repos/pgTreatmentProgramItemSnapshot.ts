@@ -27,6 +27,24 @@ const BODY_PREVIEW_LEN = 600;
 
 type CatalogMediaRowInput = { mediaUrl: string; mediaType: string; sortOrder: number };
 
+function clinicalTestMediaToCatalogRows(raw: unknown): CatalogMediaRowInput[] {
+  if (!Array.isArray(raw)) return [];
+  const out: CatalogMediaRowInput[] = [];
+  for (const m of raw) {
+    if (!m || typeof m !== "object") continue;
+    const mediaUrl = typeof (m as { mediaUrl?: unknown }).mediaUrl === "string" ? (m as { mediaUrl: string }).mediaUrl.trim() : "";
+    if (!mediaUrl) continue;
+    const mt = (m as { mediaType?: unknown }).mediaType;
+    const mediaType = mt === "image" || mt === "video" || mt === "gif" ? mt : "image";
+    const sortOrder =
+      typeof (m as { sortOrder?: unknown }).sortOrder === "number" && Number.isFinite((m as { sortOrder: number }).sortOrder)
+        ? (m as { sortOrder: number }).sortOrder
+        : out.length;
+    out.push({ mediaUrl, mediaType, sortOrder });
+  }
+  return out;
+}
+
 type CatalogMediaSnapshotRow = CatalogMediaRowInput & {
   previewSmUrl: string | null;
   previewMdUrl: string | null;
@@ -218,21 +236,48 @@ export function createPgTreatmentProgramItemSnapshotPort(): TreatmentProgramItem
                   .from(clinicalTests)
                   .where(inArray(clinicalTests.id, testIds));
           const byId = new Map(testsRows.map((t) => [t.id, t]));
+          const pool = getPool();
+          const perTestRaw: CatalogMediaRowInput[][] = items.map((it) => {
+            const t = byId.get(it.testId);
+            return clinicalTestMediaToCatalogRows(t?.media);
+          });
+          const flatRaw = perTestRaw.flat();
+          const enrichedFlat =
+            flatRaw.length === 0 ? [] : await catalogMediaRowsWithWorkerPreviews(pool, flatRaw);
+          let off = 0;
+          const testsOut: Record<string, unknown>[] = [];
+          for (let i = 0; i < items.length; i++) {
+            const it = items[i]!;
+            const t = byId.get(it.testId);
+            const n = perTestRaw[i]!.length;
+            const slice = enrichedFlat.slice(off, off + n);
+            off += n;
+            const media =
+              slice.length > 0
+                ? slice.map((m) => ({
+                    mediaUrl: m.mediaUrl,
+                    mediaType: m.mediaType,
+                    sortOrder: m.sortOrder,
+                    previewSmUrl: m.previewSmUrl,
+                    previewMdUrl: m.previewMdUrl,
+                    previewStatus: m.previewStatus,
+                  }))
+                : undefined;
+            testsOut.push({
+              testId: it.testId,
+              title: t?.title ?? null,
+              scoringConfig: (t?.scoring ?? null) as unknown,
+              sortOrder: it.sortOrder,
+              comment: it.comment ?? null,
+              ...(media ? { media } : {}),
+            });
+          }
           return {
             itemType: type,
             id: setRow.id,
             title: setRow.title,
             description: setRow.description ?? null,
-            tests: items.map((it) => {
-              const t = byId.get(it.testId);
-              return {
-                testId: it.testId,
-                title: t?.title ?? null,
-                scoringConfig: (t?.scoring ?? null) as unknown,
-                sortOrder: it.sortOrder,
-                comment: it.comment ?? null,
-              };
-            }),
+            tests: testsOut,
           };
         }
         case "recommendation": {

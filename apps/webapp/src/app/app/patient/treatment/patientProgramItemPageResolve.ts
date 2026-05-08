@@ -9,15 +9,38 @@ import {
   splitPatientProgramStagesForDetailUi,
 } from "@/modules/treatment-program/stage-semantics";
 import { flatOrderedProgramCompositionItemIds } from "@/app/app/patient/treatment/programCompositionOrder";
+import {
+  flatExecIds,
+  flatRecReadIds,
+  flatTestSlots,
+  type PatientProgramTestNavSlot,
+} from "@/app/app/patient/treatment/patientProgramItemNavLists";
 
 type Stage = TreatmentProgramInstanceDetail["stages"][number];
 type StageItem = Stage["items"][number];
 
-export type PatientProgramItemNavMode = "default" | "program" | "rec-stage" | "rec-zero" | "rec-persist";
+export type PatientProgramItemNavMode =
+  | "default"
+  | "program"
+  | "exec"
+  | "rec-stage"
+  | "rec-zero"
+  | "rec-persist"
+  | "rec-read"
+  | "tests";
 
 export function parsePatientProgramItemNavMode(raw: unknown): PatientProgramItemNavMode {
   const s = typeof raw === "string" ? raw : Array.isArray(raw) ? raw[0] : "";
-  if (s === "program" || s === "rec-stage" || s === "rec-zero" || s === "rec-persist") return s;
+  if (
+    s === "program" ||
+    s === "exec" ||
+    s === "rec-stage" ||
+    s === "rec-zero" ||
+    s === "rec-persist" ||
+    s === "rec-read" ||
+    s === "tests"
+  )
+    return s;
   return "default";
 }
 
@@ -65,6 +88,10 @@ export type ResolvedPatientProgramItemPage = {
   flatOrderedIds: string[];
   contentBlocked: boolean;
   itemInteraction: "full" | "readOnly";
+  /** Только для `nav=tests`: слоты (itemId набора + testId) в порядке обхода. */
+  testSlots?: PatientProgramTestNavSlot[];
+  /** Только для `nav=tests`: канонический testId для текущего URL (если передан и валиден). */
+  resolvedTestId?: string | null;
 };
 
 /**
@@ -75,10 +102,12 @@ export function resolvePatientProgramItemPage(params: {
   detail: TreatmentProgramInstanceDetail;
   itemId: string;
   nav: PatientProgramItemNavMode;
-  /** Рабочий этап (вкладка «Рекомендации» / hero) — для `rec-stage`. */
+  /** Рабочий этап (вкладка «Рекомендации» / hero) — для `rec-stage`, `rec-read`, `tests`. */
   currentWorkingStage: Stage | null;
+  /** Для `nav=tests`: uuid теста из снимка (опционально; RSC может нормализовать URL). */
+  testId?: string | null;
 }): ResolvedPatientProgramItemPage | null {
-  const { detail, itemId, nav, currentWorkingStage } = params;
+  const { detail, itemId, nav, currentWorkingStage, testId: testIdParam } = params;
   const stage = findStageContainingItem(detail, itemId);
   if (!stage) return null;
   const item = stage.items.find((it) => it.id === itemId);
@@ -90,10 +119,20 @@ export function resolvePatientProgramItemPage(params: {
 
   let flatOrderedIds: string[] = [];
   let itemInteraction: "full" | "readOnly" = itemInteractionForStage(stage);
+  let testSlots: PatientProgramTestNavSlot[] | undefined;
+  let resolvedTestId: string | null | undefined;
+
+  const { stageZero } = splitPatientProgramStagesForDetailUi(detail.stages);
 
   if (nav === "program") {
     flatOrderedIds = flatOrderedProgramCompositionItemIds(stage);
     itemInteraction = "full";
+    if (!flatOrderedIds.includes(itemId)) return null;
+  } else if (nav === "exec") {
+    flatOrderedIds = flatExecIds(stage, itemInteraction);
+    if (!flatOrderedIds.includes(itemId)) {
+      flatOrderedIds = flatExecIds(stage, itemInteraction === "readOnly" ? "full" : "readOnly");
+    }
     if (!flatOrderedIds.includes(itemId)) return null;
   } else if (nav === "rec-stage") {
     if (!currentWorkingStage) return null;
@@ -103,7 +142,6 @@ export function resolvePatientProgramItemPage(params: {
     itemInteraction = "readOnly";
     if (!flatOrderedIds.includes(itemId)) return null;
   } else if (nav === "rec-zero") {
-    const { stageZero } = splitPatientProgramStagesForDetailUi(detail.stages);
     const rows: StageItem[] = [];
     for (const st of stageZero) {
       for (const it of sortByOrderThenId(st.items)) {
@@ -117,6 +155,28 @@ export function resolvePatientProgramItemPage(params: {
     flatOrderedIds = sortByOrderThenId(stage.items.filter((it) => isPersistentRecommendation(it))).map((it) => it.id);
     itemInteraction = "readOnly";
     if (!flatOrderedIds.includes(itemId)) return null;
+  } else if (nav === "rec-read") {
+    flatOrderedIds = flatRecReadIds(currentWorkingStage, stageZero);
+    itemInteraction = "readOnly";
+    if (!flatOrderedIds.includes(itemId)) return null;
+  } else if (nav === "tests") {
+    if (!currentWorkingStage) return null;
+    testSlots = flatTestSlots(currentWorkingStage);
+    if (testSlots.length === 0) return null;
+    if (item.itemType !== "test_set") return null;
+    if (!currentWorkingStage.items.some((it) => it.id === item.id)) return null;
+    const setHasSlots = testSlots.some((s) => s.itemId === item.id);
+    if (!setHasSlots) return null;
+    const tid = typeof testIdParam === "string" ? testIdParam.trim() : "";
+    if (tid) {
+      const ok = testSlots.some((s) => s.itemId === item.id && s.testId === tid);
+      if (!ok) return null;
+      resolvedTestId = tid;
+    } else {
+      resolvedTestId = null;
+    }
+    flatOrderedIds = [];
+    itemInteraction = "full";
   } else {
     flatOrderedIds = flatIdsBodyLike(stage, itemInteraction);
     if (!flatOrderedIds.includes(itemId)) {
@@ -125,5 +185,13 @@ export function resolvePatientProgramItemPage(params: {
     if (!flatOrderedIds.includes(itemId)) flatOrderedIds = [itemId];
   }
 
-  return { stage, item, flatOrderedIds, contentBlocked, itemInteraction };
+  return {
+    stage,
+    item,
+    flatOrderedIds,
+    contentBlocked,
+    itemInteraction,
+    ...(testSlots != null ? { testSlots } : {}),
+    ...(resolvedTestId !== undefined ? { resolvedTestId } : {}),
+  };
 }

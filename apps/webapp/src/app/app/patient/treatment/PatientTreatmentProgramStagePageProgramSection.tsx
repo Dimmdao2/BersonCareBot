@@ -211,7 +211,7 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
   if (visibleProgramItems.length === 0) return null;
 
   const itemProgramHref = (itemId: string) =>
-    routePaths.patientTreatmentProgramItem(instanceId, itemId, "program", itemLinksPlanTab ?? null);
+    routePaths.patientTreatmentProgramItem(instanceId, itemId, "exec", itemLinksPlanTab ?? null);
 
   const renderTile = (item: InstanceStageItem): ReactNode => {
     const media = primaryMediaForStageItem(item);

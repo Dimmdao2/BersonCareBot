@@ -97,7 +97,7 @@ import {
 } from "@/shared/ui/patientVisual";
 import { DateTime } from "luxon";
 import { formatBookingDateLongRu, formatBookingDateTimeShortStyleRu } from "@/shared/lib/formatBusinessDateTime";
-import { flatOrderedProgramCompositionItemIds } from "@/app/app/patient/treatment/programCompositionOrder";
+import { flatExecIds, flatTestSlots } from "@/app/app/patient/treatment/patientProgramItemNavLists";
 import { PatientProgramBlockHeading } from "@/app/app/patient/treatment/program-detail/PatientProgramBlockHeading";
 import { PatientProgramPassageStatisticsSection } from "@/app/app/patient/treatment/program-detail/PatientProgramPassageStatisticsSection";
 
@@ -904,7 +904,7 @@ export function PatientInstanceStageBody(props: {
                     itemDetailHref={routePaths.patientTreatmentProgramItem(
                       instanceId,
                       item.id,
-                      undefined,
+                      "exec",
                       itemLinksPlanTab ?? null,
                     )}
                   />
@@ -940,7 +940,7 @@ export function PatientInstanceStageBody(props: {
                   itemDetailHref={routePaths.patientTreatmentProgramItem(
                     instanceId,
                     item.id,
-                    undefined,
+                    "exec",
                     itemLinksPlanTab ?? null,
                   )}
                 />
@@ -1304,33 +1304,39 @@ export function PatientTreatmentProgramDetailClient(props: {
     [detail.stages],
   );
 
+  /** Первый пункт в порядке `nav=exec` (как на странице пункта), а не только composition modal. */
   const firstPendingProgramItemId = useMemo(() => {
     if (!programTabStage || detail.status !== "active") return null;
-    const ordered = flatOrderedProgramCompositionItemIds(programTabStage);
+    const itemInteraction =
+      programTabStage.status === "completed" || programTabStage.status === "skipped" ? "readOnly" : "full";
+    let ordered = flatExecIds(programTabStage, itemInteraction);
+    if (ordered.length === 0 && itemInteraction === "full") {
+      ordered = flatExecIds(programTabStage, "readOnly");
+    }
     const pending = ordered.find((id) => !doneItemIds.includes(id));
     return pending ?? ordered[0] ?? null;
   }, [programTabStage, doneItemIds, detail.status]);
 
-  /** Вкладка «Прогресс» → страница пункта `test_set` (без `nav=program`: состав этапа без test_set). */
+  /** Вкладка «Прогресс» → первый тест в плоском списке (`nav=tests` + `testId`). */
   const progressCardTestsHref = useMemo(() => {
     if (!currentWorkingStage || detail.status !== "active") return null;
-    const tests = sortByOrderThenId(
-      currentWorkingStage.items.filter(
-        (it) => it.itemType === "test_set" && isInstanceStageItemActiveForPatient(it),
-      ),
-    );
-    if (tests.length === 0) return null;
-    const pick = tests.find((it) => !it.completedAt) ?? tests[0];
-    return routePaths.patientTreatmentProgramItem(detail.id, pick.id, undefined, "progress");
+    const slots = flatTestSlots(currentWorkingStage);
+    if (slots.length === 0) return null;
+    const first = slots[0]!;
+    return routePaths.patientTreatmentProgramItem(detail.id, first.itemId, "tests", "progress", first.testId);
   }, [currentWorkingStage, detail.status, detail.id]);
 
+  /** Согласовано с вкладкой «Рекомендации»: persistent на рабочем этапе + persistent этапа 0 с фильтром «на поверхностях программы». */
   const recommendationListCount = useMemo(() => {
     let n = 0;
     if (currentWorkingStage) {
       n += currentWorkingStage.items.filter((it) => isPersistentRecommendation(it)).length;
     }
     for (const st of stageZeroStages) {
-      n += st.items.filter((it) => isInstanceStageItemShownOnPatientProgramSurfaces(it)).length;
+      n += st.items.filter(
+        (it) =>
+          isPersistentRecommendation(it) && isInstanceStageItemShownOnPatientProgramSurfaces(it),
+      ).length;
     }
     return n;
   }, [currentWorkingStage, stageZeroStages]);
@@ -1447,7 +1453,7 @@ export function PatientTreatmentProgramDetailClient(props: {
               href={routePaths.patientTreatmentProgramItem(
                 detail.id,
                 firstPendingProgramItemId,
-                "program",
+                "exec",
                 "program",
               )}
               className={cn(

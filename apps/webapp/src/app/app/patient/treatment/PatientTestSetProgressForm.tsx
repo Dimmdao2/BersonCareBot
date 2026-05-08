@@ -32,6 +32,8 @@ export type PatientTestSetProgressFormProps = {
   setBusy: (v: string | null) => void;
   setError: (v: string | null) => void;
   onDone: () => Promise<void>;
+  /** Только один тест (страница пункта с `nav=tests`). */
+  activeTestId?: string;
 };
 
 function latestResultsByTestId(rows: TreatmentProgramTestResultDetailRow[]): Map<string, TreatmentProgramTestResultDetailRow> {
@@ -107,10 +109,15 @@ export function PatientTestSetProgressForm(props: PatientTestSetProgressFormProp
     setBusy,
     setError,
     onDone,
+    activeTestId,
   } = props;
 
   const testIds = useMemo(() => testIdsFromTestSetSnapshot(snapshot), [snapshot]);
   const testsMeta = useMemo(() => parseTestSetSnapshotTests(snapshot), [snapshot]);
+  const testsMetaToRender = useMemo(
+    () => (activeTestId ? testsMeta.filter((t) => t.testId === activeTestId) : testsMeta),
+    [testsMeta, activeTestId],
+  );
 
   const [scores, setScores] = useState<Record<string, string>>({});
   const [numericNotes, setNumericNotes] = useState<Record<string, string>>({});
@@ -298,7 +305,7 @@ export function PatientTestSetProgressForm(props: PatientTestSetProgressFormProp
         <p className="text-xs text-emerald-600 dark:text-emerald-400">Набор тестов пройден.</p>
         {anyRow ? (
           <ul className="m-0 flex list-none flex-col gap-2 p-0">
-            {testsMeta.map((t) => {
+            {testsMetaToRender.map((t) => {
               const row = savedByTestId[t.testId];
               if (!row) return null;
               return (
@@ -356,7 +363,7 @@ export function PatientTestSetProgressForm(props: PatientTestSetProgressFormProp
       {testsMeta.length === 0 ? (
         <p className="text-xs text-destructive">В снимке нет списка тестов.</p>
       ) : (
-        testsMeta.map((t) => {
+        testsMetaToRender.map((t) => {
           const autoFromScore = scoringAllowsNumericDecisionInference(t.scoringConfig);
           const saved = savedByTestId[t.testId];
           const testErr = errorByTestId[t.testId];
@@ -371,7 +378,7 @@ export function PatientTestSetProgressForm(props: PatientTestSetProgressFormProp
                   <span className={cn(patientMutedTextClass, "text-[10px]")}>Сохранено</span>
                 ) : null}
               </div>
-              {t.comment ? (
+              {!activeTestId && t.comment ? (
                 <p className={cn(patientMutedTextClass, "mt-0.5 text-[11px]")}>
                   Комментарий к позиции: <span className="text-foreground">{t.comment}</span>
                 </p>

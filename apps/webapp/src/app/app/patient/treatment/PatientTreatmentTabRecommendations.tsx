@@ -54,17 +54,17 @@ export function PatientTreatmentTabRecommendations(props: {
     const rows: Stage["items"] = [];
     for (const st of stageZeroStages) {
       for (const it of sortByOrderThenId(st.items)) {
-        if (isInstanceStageItemShownOnPatientProgramSurfaces(it)) rows.push(it);
+        if (isPersistentRecommendation(it) && isInstanceStageItemShownOnPatientProgramSurfaces(it)) rows.push(it);
       }
     }
     return rows;
   }, [stageZeroStages]);
 
-  const renderRow = (item: Stage["items"][number], nav: "rec-stage" | "rec-zero") => {
+  const renderRow = (item: Stage["items"][number]) => {
     const snap = item.snapshot as Record<string, unknown>;
     const media = pickRecommendationRowPreviewMedia(parseRecommendationMediaFromSnapshot(snap));
     const bodyPreview = recommendationBodyMdPreviewPlain(snap.bodyMd);
-    const href = routePaths.patientTreatmentProgramItem(instanceId, item.id, nav, itemLinksPlanTab ?? null);
+    const href = routePaths.patientTreatmentProgramItem(instanceId, item.id, "rec-read", itemLinksPlanTab ?? null);
     return (
       <li key={item.id} className="list-none">
         <Link
@@ -97,7 +97,7 @@ export function PatientTreatmentTabRecommendations(props: {
             Рекомендации этапа
           </h3>
           <ul className="m-0 mt-2 flex list-none flex-col gap-2 p-0">
-            {stagePersistent.map((item) => renderRow(item, "rec-stage"))}
+            {stagePersistent.map((item) => renderRow(item))}
           </ul>
         </section>
       ) : null}
@@ -108,7 +108,7 @@ export function PatientTreatmentTabRecommendations(props: {
             Общие рекомендации
           </h3>
           <ul className="m-0 mt-2 flex list-none flex-col gap-2 p-0">
-            {generalItems.map((item) => renderRow(item, "rec-zero"))}
+            {generalItems.map((item) => renderRow(item))}
           </ul>
         </section>
       ) : null}
