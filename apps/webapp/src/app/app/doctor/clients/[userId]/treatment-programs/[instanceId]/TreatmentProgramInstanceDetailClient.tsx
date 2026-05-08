@@ -16,13 +16,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import type {
   TreatmentProgramInstanceDetail,
   TreatmentProgramInstanceStatus,
@@ -112,7 +106,7 @@ function ClinicalTestCatalogSnapshotLines({ snapshot }: { snapshot: Record<strin
   const lines = parseTestSetSnapshotTests(snapshot);
   if (lines.length === 0) return null;
   return (
-    <div className="mt-2 rounded-md border border-border/50 bg-muted/10 p-2">
+    <div className="rounded-md border border-border/50 bg-muted/10 p-2">
       <p className="text-xs font-medium text-muted-foreground">Клинический тест (каталог)</p>
       <ul className="m-0 mt-1 list-none space-y-1.5 p-0">
         {lines.map((t) => (
@@ -230,20 +224,20 @@ function DoctorInstanceStageItemPreviewBlock(props: { item: InstanceStageItemT }
     [item],
   );
   const frameEmpty =
-    "flex size-[100px] shrink-0 items-center justify-center overflow-hidden rounded-md border border-border/60 bg-muted/15";
-  const frameThumb = "size-[100px] shrink-0 rounded-md border border-border/60 bg-muted/15";
+    "flex size-[70px] shrink-0 items-center justify-center overflow-hidden rounded-md border border-border/60 bg-muted/15";
+  const frameThumb = "size-[70px] shrink-0 rounded-md border border-border/60 bg-muted/15";
   if (!media) {
     const icon =
       item.itemType === "recommendation" ? (
-        <MessageSquare className="size-10 text-muted-foreground" aria-hidden />
+        <MessageSquare className="size-7 text-muted-foreground" aria-hidden />
       ) : item.itemType === "clinical_test" ? (
-        <ClipboardList className="size-10 text-muted-foreground" aria-hidden />
+        <ClipboardList className="size-7 text-muted-foreground" aria-hidden />
       ) : item.itemType === "lesson" ? (
-        <BookOpen className="size-10 text-muted-foreground" aria-hidden />
+        <BookOpen className="size-7 text-muted-foreground" aria-hidden />
       ) : item.itemType === "lfk_complex" ? (
-        <Layers className="size-10 text-muted-foreground" aria-hidden />
+        <Layers className="size-7 text-muted-foreground" aria-hidden />
       ) : (
-        <Activity className="size-10 text-muted-foreground" aria-hidden />
+        <Activity className="size-7 text-muted-foreground" aria-hidden />
       );
     return (
       <div className={frameEmpty} aria-hidden>
@@ -255,7 +249,7 @@ function DoctorInstanceStageItemPreviewBlock(props: { item: InstanceStageItemT }
     <PatientCatalogMediaStaticThumb
       media={media}
       frameClassName={frameThumb}
-      sizes="100px"
+      sizes="70px"
     />
   );
 }
@@ -338,11 +332,11 @@ function DoctorInstanceStageItemLoadForm(props: {
   };
 
   return (
-    <div className="flex min-w-0 flex-col gap-2 rounded-md border border-border/50 bg-muted/10 p-2">
+    <div className="flex min-w-0 flex-col gap-3 rounded-md border border-border/50 bg-muted/10 p-3">
       <p className="text-xs font-medium text-muted-foreground">Нагрузка</p>
-      <div className="grid grid-cols-3 gap-2">
-        <div className="flex flex-col gap-1">
-          <Label className="text-[10px] text-muted-foreground" htmlFor={`reps-${item.id}`}>
+      <div className="grid max-w-md grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="flex flex-col gap-1.5">
+          <Label className="text-xs text-muted-foreground" htmlFor={`reps-${item.id}`}>
             Повторы
           </Label>
           <Input
@@ -355,8 +349,8 @@ function DoctorInstanceStageItemLoadForm(props: {
             onChange={(e) => setReps(e.target.value)}
           />
         </div>
-        <div className="flex flex-col gap-1">
-          <Label className="text-[10px] text-muted-foreground" htmlFor={`sets-${item.id}`}>
+        <div className="flex flex-col gap-1.5">
+          <Label className="text-xs text-muted-foreground" htmlFor={`sets-${item.id}`}>
             Подходы
           </Label>
           <Input
@@ -369,8 +363,8 @@ function DoctorInstanceStageItemLoadForm(props: {
             onChange={(e) => setSets(e.target.value)}
           />
         </div>
-        <div className="flex flex-col gap-1">
-          <Label className="text-[10px] text-muted-foreground" htmlFor={`mp-${item.id}`}>
+        <div className="flex flex-col gap-1.5">
+          <Label className="text-xs text-muted-foreground" htmlFor={`mp-${item.id}`}>
             Макс. боль
           </Label>
           <Input
@@ -384,9 +378,11 @@ function DoctorInstanceStageItemLoadForm(props: {
           />
         </div>
       </div>
-      <Button type="button" size="sm" variant="secondary" disabled={saving || editLocked} onClick={() => void save()}>
-        {saving ? "Сохранение…" : "Сохранить"}
-      </Button>
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <Button type="button" size="sm" variant="secondary" disabled={saving || editLocked} onClick={() => void save()}>
+          {saving ? "Сохранение…" : "Сохранить"}
+        </Button>
+      </div>
       {msg ? <p className="text-xs text-muted-foreground">{msg}</p> : null}
     </div>
   );
@@ -460,10 +456,22 @@ function DoctorProgramInstanceItemCard(props: {
         <span className="shrink-0 text-xs text-muted-foreground group-open:hidden">Развернуть</span>
         <span className="hidden shrink-0 text-xs text-muted-foreground group-open:inline">Свернуть</span>
       </summary>
-      <div className="border-t border-border/50 px-3 pb-3 pt-1">
-        <div className="mt-2 grid gap-4 md:grid-cols-[100px_1fr] md:items-start md:gap-6">
-          <div className="flex min-w-0 flex-col gap-3">
+      <div className="border-t border-border/50 px-3 pb-4 pt-3">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:gap-4">
+          <div className="flex shrink-0 justify-center sm:block sm:w-[70px]">
             <DoctorInstanceStageItemPreviewBlock item={item} />
+          </div>
+          <div className="min-w-0 flex-1 flex flex-col gap-4">
+            <InstanceStageItemDoctorRow
+              instanceId={instanceId}
+              item={item}
+              programStatus={programStatus}
+              editLocked={editLocked}
+              groups={stage.groups}
+              testResults={testResults}
+              onSaved={onSaved}
+              hideGroupSelect={recPhase0}
+            />
             {item.itemType === "exercise" || item.itemType === "lfk_complex" ? (
               <DoctorInstanceStageItemLoadForm
                 instanceId={instanceId}
@@ -473,8 +481,6 @@ function DoctorProgramInstanceItemCard(props: {
                 onSaved={onSaved}
               />
             ) : null}
-          </div>
-          <div className="min-w-0 flex flex-col gap-2">
             {item.itemType === "clinical_test" ? <ClinicalTestCatalogSnapshotLines snapshot={item.snapshot} /> : null}
             <ItemLocalCommentForm
               key={`${item.id}:${item.localComment ?? ""}`}
@@ -485,16 +491,6 @@ function DoctorProgramInstanceItemCard(props: {
               initialDraft={item.localComment ?? ""}
               placeholder={item.comment?.trim() ? `Из шаблона: ${item.comment.trim()}` : "Из шаблона: —"}
               onSaved={onSaved}
-            />
-            <InstanceStageItemDoctorRow
-              instanceId={instanceId}
-              item={item}
-              programStatus={programStatus}
-              editLocked={editLocked}
-              groups={stage.groups}
-              testResults={testResults}
-              onSaved={onSaved}
-              hideGroupSelect={recPhase0}
             />
           </div>
         </div>
@@ -1552,38 +1548,47 @@ function InstanceStageItemDoctorRow(props: {
     });
   };
 
+  const recActionabilityValue = item.isActionable === false ? "persistent" : "actionable";
+  const groupSelectValue = item.groupId ?? treatmentProgramGroupSelectNoneItemValue;
+
   return (
-    <div className={cn("flex flex-col gap-2", item.status === "disabled" && "opacity-60")}>
+    <div className={cn("flex flex-col gap-3", item.status === "disabled" && "opacity-60")}>
       <div className="flex flex-wrap items-center gap-2">
         <Badge variant={item.status === "disabled" ? "secondary" : "default"}>
           {item.status === "disabled" ? "Отключено" : "Активно"}
         </Badge>
         {item.itemType === "recommendation" ? (
           <Select
-            value={item.isActionable === false ? "persistent" : "actionable"}
+            value={recActionabilityValue}
             onValueChange={(v) => void patchItem({ isActionable: v === "actionable" })}
             disabled={saving || editLocked}
             items={doctorRecommendationActionabilitySelectItems}
           >
-            <SelectTrigger className="h-8 w-[220px] text-xs" size="sm">
-              <SelectValue />
-            </SelectTrigger>
+            <SelectTrigger
+              className="h-8 w-full min-w-0 max-w-xs text-xs sm:w-[220px]"
+              size="sm"
+              displayLabel={doctorRecommendationActionabilitySelectItems[recActionabilityValue]}
+            />
             <SelectContent>
               <SelectItem value="actionable">Требует выполнения</SelectItem>
               <SelectItem value="persistent">Постоянная рекомендация</SelectItem>
             </SelectContent>
           </Select>
         ) : null}
-        {showGroupSelect ? (
+      </div>
+      {showGroupSelect ? (
+        <div className="w-full max-w-md">
           <Select
-            value={item.groupId ?? "__none__"}
+            value={groupSelectValue}
             onValueChange={(v) => void patchItem({ groupId: v === "__none__" ? null : v })}
             disabled={saving || editLocked}
             items={groupSelectItems}
           >
-            <SelectTrigger className="h-8 w-[min(100%,12rem)] text-xs" size="sm">
-              <SelectValue placeholder="Группа" />
-            </SelectTrigger>
+            <SelectTrigger
+              className="h-8 w-full text-xs"
+              size="sm"
+              displayLabel={groupSelectItems[groupSelectValue]}
+            />
             <SelectContent>
               <SelectItem value="__none__">Без группы</SelectItem>
               {sortByOrderThenId(groups).map((g) => (
@@ -1593,7 +1598,9 @@ function InstanceStageItemDoctorRow(props: {
               ))}
             </SelectContent>
           </Select>
-        ) : null}
+        </div>
+      ) : null}
+      <div className="flex flex-wrap gap-2">
         {item.status === "active" ? (
           <Button
             type="button"
@@ -2064,7 +2071,7 @@ function ItemLocalCommentForm(props: {
   }, [itemId, initialDraft]);
 
   return (
-    <div className="mt-2 flex flex-col gap-2">
+    <div className="flex flex-col gap-2">
       <label className="text-xs font-medium text-muted-foreground" htmlFor={`lc-${itemId}`}>
         Индивидуальный комментарий
       </label>

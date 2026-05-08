@@ -53,20 +53,20 @@ function LibraryMediaThumb({
   itemType: TreatmentProgramItemType;
 }) {
   const shell =
-    "flex size-[100px] shrink-0 items-center justify-center overflow-hidden rounded-md border border-border/60 bg-muted/40";
+    "flex size-[70px] shrink-0 items-center justify-center overflow-hidden rounded-md border border-border/60 bg-muted/40";
   const icon =
     itemType === "recommendation" ? (
-      <MessageSquare className="size-10 text-muted-foreground" aria-hidden />
+      <MessageSquare className="size-7 text-muted-foreground" aria-hidden />
     ) : itemType === "clinical_test" ? (
-      <ClipboardList className="size-10 text-muted-foreground" aria-hidden />
+      <ClipboardList className="size-7 text-muted-foreground" aria-hidden />
     ) : itemType === "lesson" ? (
-      <BookOpen className="size-10 text-muted-foreground" aria-hidden />
+      <BookOpen className="size-7 text-muted-foreground" aria-hidden />
     ) : itemType === "lfk_complex" ? (
-      <Layers className="size-10 text-muted-foreground" aria-hidden />
+      <Layers className="size-7 text-muted-foreground" aria-hidden />
     ) : itemType === "exercise" ? (
-      <Activity className="size-10 text-muted-foreground" aria-hidden />
+      <Activity className="size-7 text-muted-foreground" aria-hidden />
     ) : (
-      <ImageIcon className="size-10 text-muted-foreground" aria-hidden />
+      <ImageIcon className="size-7 text-muted-foreground" aria-hidden />
     );
   if (src?.trim()) {
     return (
@@ -74,7 +74,7 @@ function LibraryMediaThumb({
       <img
         src={src.trim()}
         alt=""
-        className="size-[100px] shrink-0 rounded-md border border-border/60 object-cover"
+        className="size-[70px] shrink-0 rounded-md border border-border/60 object-cover"
       />
     );
   }
