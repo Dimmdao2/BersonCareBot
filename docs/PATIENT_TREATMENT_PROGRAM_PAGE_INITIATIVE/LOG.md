@@ -1,5 +1,11 @@
 # LOG — PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE
 
+## 2026-05-08 — аудит декомпозиции detail: чистка оркестратора, документация
+
+- **Код:** в `apps/webapp/src/app/app/patient/treatment/program-detail/PatientTreatmentProgramDetailClient.tsx` удалены неиспользуемые `busy`, неиспользуемая переменная `base`, состояние для полей **`doneTodayCountByActivityKey`** / **`lastDoneAtIsoByActivityKey`** из ответа checklist (на экране detail они не потреблялись; ответ API по-прежнему может содержать поля; экран пункта `PatientProgramStageItemPageClient` по-прежнему ведёт полный чеклист при необходимости). Восстановлена **`formatPatientTestResultRawValue`** в `patientPlanDetailFormatters.ts`.
+- **Док:** добавлен `apps/webapp/src/app/app/patient/treatment/program-detail/README.md`; обновлены `docs/TODO.md`, `README.md` инициативы, `docs/archive/2026-05-initiatives/TREATMENT_PROGRAM_INITIATIVE/LOG.md`.
+- **Проверки:** `pnpm --dir apps/webapp exec tsc --noEmit`; eslint на затронутых файлах webapp; vitest на `PatientTreatmentProgramDetailClient.test.tsx`, `[instanceId]/page.nudgeResilience.test.tsx`, `[instanceId]/page.templateDescription.test.tsx`.
+
 ## 2026-05-08 — статистика прохождения, единый чеклист вкладки «Программа», декомпозиция detail
 
 - **Статистика:** вкладка «Прогресс» — секция «Статистика прохождения»: календарные дни **0–2** от `createdAt` в зоне пациента — тексты «Статистика пока собирается» / «Регулярность в занятиях…»; с **4-го календарного дня** — метрики через **`GET /api/patient/treatment-program-instances/[instanceId]/passage-stats`** (`calendarDaysInWindow`, `daysWithActivity`, `missedDays`, `avgCompletionsPerDay`, `neverCompletedChecklistItemCount`). Окно для метрик: от начала дня назначения до «сегодня» (активная) или до дня `updatedAt` (завершённая), IANA из `resolveCalendarDayIanaForPatient`; агрегации по `program_action_log` — `ProgramActionLogPort.countDistinctLocalCalendarDaysWithDoneInWindow`, плюс сумма completion-events; **`neverCompletedChecklistItemCount`** — только пункты из **`buildPatientProgramChecklistRows(detail)`** (видимый пациенту чеклист), без заблокированных этапов. На клиенте граница «первые три дня» пересчитывается при **`refresh`** родителя и раз в минуту (`PatientProgramPassageStatisticsSection`), чтобы не зависеть только от времени монтирования.

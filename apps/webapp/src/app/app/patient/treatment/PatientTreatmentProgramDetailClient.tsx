@@ -1,6 +1,6 @@
+export { PatientTreatmentProgramDetailClient } from "./program-detail/PatientTreatmentProgramDetailClient";
+export { PatientInstanceStageBody } from "./program-detail/PatientInstanceStageBody";
 export {
-  PatientTreatmentProgramDetailClient,
-  PatientInstanceStageBody,
   PatientStageHeaderFields,
   patientStageHasHeaderFields,
-} from "./program-detail/PatientTreatmentProgramDetailClient";
+} from "./program-detail/PatientStageHeaderFields";

@@ -867,3 +867,29 @@
 - `DB_STRUCTURE.md` и `LOG.md` синхронизированы с финальным состоянием инициативы
 
 **Gate verdict (FINAL AUDIT FIX):** **PASS** — все пункты финального аудита закрыты: phase-gates формализованы в `LOG.md`, `DB_STRUCTURE.md` обновлён, `pnpm run ci` green.
+
+---
+
+## 2026-05-08 — follow-up аудита декомпозиции UI detail (пациентский план)
+
+**По результатам пост-ревью:** удалены мёртвые **`busy`/`base`** и неиспользуемое состояние activity-key из оркестратора detail; восстановлена **`formatPatientTestResultRawValue`** в форматтерах; добавлен **`apps/webapp/src/app/app/patient/treatment/program-detail/README.md`**; синхронизированы **`docs/TODO.md`**, **`docs/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/{README,LOG}.md`**.
+
+**Проверки:** `pnpm --dir apps/webapp exec tsc --noEmit`; eslint на изменённых ts/tsx; vitest на трёх файлах treatment detail/page.
+
+---
+
+## 2026-05-08 — декомпозиция шаблона «План пациента» (patient treatment program detail UI)
+
+**Сделано:**
+
+- Монолит `program-detail/PatientTreatmentProgramDetailClient.tsx` разбит на модули под `apps/webapp/src/app/app/patient/treatment/program-detail/`: форматтеры (`patientPlanDetailFormatters.ts`), hero/tab strip/tab panels, timeline, control card, этап/пункт (`PatientInstanceStageItemCard`, `PatientInstanceStageBody`), LFK-строка, хук `usePostMarkItemViewedWhenVisible`, `PatientStageHeaderFields`, общий класс списка `patientTreatmentProgramListItemClass.ts`.
+- Публичный API сохранён: `apps/webapp/src/app/app/patient/treatment/PatientTreatmentProgramDetailClient.tsx` реэкспортирует `PatientTreatmentProgramDetailClient`, `PatientInstanceStageBody`, `PatientStageHeaderFields`, `patientStageHasHeaderFields` из соответствующих файлов в `program-detail/`.
+- Границы `lazy()` вкладок «Программа»/«Рекомендации», prefetch и клиентский корень состояния — без нового route `layout.tsx`.
+
+**Проверки:**
+
+- `pnpm --dir apps/webapp exec tsc --noEmit` — **PASS**
+- `pnpm --dir apps/webapp exec eslint` (изменённые файлы treatment/program-detail) — **PASS**
+- `vitest --run` — `PatientTreatmentProgramDetailClient.test.tsx`, `[instanceId]/page.nudgeResilience.test.tsx`, `[instanceId]/page.templateDescription.test.tsx` — **PASS** (21 tests)
+
+**Намеренно не делали:** полный `pnpm run ci` репозитория.
