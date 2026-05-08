@@ -1,5 +1,8 @@
 -- Unify patient mood check-in with symptom diary (general_wellbeing tracking + symptom_entries).
 -- Rollback (ops): restore patient_daily_mood from backup; delete wellbeing trackings/entries manually — not automated.
+--
+-- Note: legacy `patient_daily_mood` DROP is bundled here (not a separate migration tag) because this file
+-- shipped as one atomic rollout; dedupe + partial unique index for concurrent-safe wellbeing inserts follow in `0050_symptom_general_wellbeing_unique.sql`.
 
 -- 1) System symptom type for general wellbeing
 INSERT INTO reference_items (category_id, code, title, sort_order, is_active, meta_json)

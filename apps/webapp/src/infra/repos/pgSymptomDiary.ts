@@ -112,6 +112,27 @@ export const pgSymptomDiaryPort: SymptomDiaryPort = {
     return rowToTracking(result.rows[0]);
   },
 
+  async ensureGeneralWellbeingTracking(params) {
+    const pool = getPool();
+    const now = new Date();
+    const result = await pool.query(
+      `INSERT INTO symptom_trackings (
+         user_id, platform_user_id, symptom_key, symptom_title, is_active, updated_at,
+         symptom_type_ref_id, region_ref_id, side, diagnosis_text, diagnosis_ref_id, stage_ref_id
+       )
+       VALUES ($1::text, $1::uuid, 'general_wellbeing', $2, true, $3, $4::uuid, NULL, NULL, NULL, NULL, NULL)
+       ON CONFLICT (platform_user_id) WHERE (
+         symptom_key = 'general_wellbeing'
+         AND deleted_at IS NULL
+         AND platform_user_id IS NOT NULL
+       )
+       DO UPDATE SET updated_at = symptom_trackings.updated_at
+       RETURNING ${TRACKING_SELECT}`,
+      [params.userId, params.symptomTitle, now, params.symptomTypeRefId],
+    );
+    return rowToTracking(result.rows[0]);
+  },
+
   async listTrackings(userId, activeOnly = true) {
     const pool = getPool();
     const result = await pool.query(

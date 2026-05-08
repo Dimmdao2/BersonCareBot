@@ -654,6 +654,7 @@ function _buildAppDeps() {
     diaries: {
       listSymptomEntries: symptomDiaryService.listSymptomEntries,
       createSymptomTracking: symptomDiaryService.createTracking,
+      ensureGeneralWellbeingTracking: symptomDiaryService.ensureGeneralWellbeingTracking,
       listSymptomTrackings: symptomDiaryService.listTrackings,
       addSymptomEntry: symptomDiaryService.addEntry,
       renameSymptomTracking: symptomDiaryService.renameTracking,

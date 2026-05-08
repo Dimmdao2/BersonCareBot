@@ -52,13 +52,9 @@ export function createPatientMoodService(deps: PatientWellbeingMoodDeps) {
   }
 
   async function ensureWellbeingTracking(userId: string): Promise<string> {
-    const trackings = await deps.diaries.listTrackings(userId, false);
-    const existing = trackings.find((t) => t.symptomKey === GENERAL_WELLBEING_SYMPTOM_KEY);
-    if (existing) return existing.id;
     const refId = await wellbeingTypeRefId();
-    const t = await deps.diaries.createTracking({
+    const t = await deps.diaries.ensureGeneralWellbeingTracking({
       userId,
-      symptomKey: GENERAL_WELLBEING_SYMPTOM_KEY,
       symptomTitle: GENERAL_WELLBEING_TITLE,
       symptomTypeRefId: refId,
     });
@@ -232,6 +228,7 @@ export function createPatientMoodService(deps: PatientWellbeingMoodDeps) {
       date: d,
       score: best.get(d)?.score ?? null,
       warmupHint: null,
+      diaryNoteHint: null,
     }));
   }
 

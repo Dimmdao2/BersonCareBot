@@ -15,6 +15,15 @@ export type SymptomDiaryPort = {
     diagnosisRefId?: string | null;
     stageRefId?: string | null;
   }): Promise<SymptomTracking>;
+  /**
+   * Idempotent row for home wellbeing (`symptom_key = general_wellbeing`): one active tracking per
+   * `platform_user_id`. PostgreSQL uses partial unique index + upsert (see migration `0050_symptom_general_wellbeing_unique`).
+   */
+  ensureGeneralWellbeingTracking(params: {
+    userId: string;
+    symptomTitle: string;
+    symptomTypeRefId: string;
+  }): Promise<SymptomTracking>;
   listTrackings(userId: string, activeOnly?: boolean): Promise<SymptomTracking[]>;
   addEntry(params: {
     userId: string;

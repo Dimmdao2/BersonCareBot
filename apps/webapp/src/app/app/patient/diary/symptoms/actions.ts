@@ -107,12 +107,12 @@ export async function addSymptomEntry(
 }
 
 export type CreateSymptomTrackingResult =
-  | { ok: false }
+  | { ok: false; reason: "patient_self_create_disabled" }
   | { ok: true; tracking: { id: string; symptomTitle: string } };
 
 export async function createSymptomTracking(_formData: FormData): Promise<CreateSymptomTrackingResult> {
   await requirePatientAccessWithPhone(routePaths.diary);
-  return { ok: false };
+  return { ok: false, reason: "patient_self_create_disabled" };
 }
 
 export async function renameSymptomTracking(formData: FormData): Promise<{ ok: boolean }> {

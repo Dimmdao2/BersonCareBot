@@ -39,6 +39,13 @@ export function createSymptomDiaryService(port: SymptomDiaryPort) {
         stageRefId: params.stageRefId ?? null,
       });
     },
+    async ensureGeneralWellbeingTracking(params: {
+      userId: string;
+      symptomTitle: string;
+      symptomTypeRefId: string;
+    }): Promise<SymptomTracking> {
+      return port.ensureGeneralWellbeingTracking(params);
+    },
     /** Возвращает список отслеживаемых симптомов пользователя. */
     async listTrackings(userId: string, activeOnly = true): Promise<SymptomTracking[]> {
       return port.listTrackings(userId, activeOnly);

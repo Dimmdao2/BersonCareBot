@@ -24,7 +24,7 @@ const SESSION = {
   user: { userId: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", role: "client" as const, phone: "+79990001122" },
 };
 
-const fixtureDays = [{ date: "2026-05-02", score: 3 as const, warmupHint: null }];
+const fixtureDays = [{ date: "2026-05-02", score: 3 as const, warmupHint: null, diaryNoteHint: null }];
 
 describe("GET /api/patient/mood/week", () => {
   beforeEach(() => {

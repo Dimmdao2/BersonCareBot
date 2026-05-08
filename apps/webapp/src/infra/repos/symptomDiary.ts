@@ -33,6 +33,35 @@ export const inMemorySymptomDiaryPort: SymptomDiaryPort = {
     return tracking;
   },
 
+  async ensureGeneralWellbeingTracking(params) {
+    const existing = trackings.find(
+      (t) =>
+        t.userId === params.userId &&
+        t.symptomKey === "general_wellbeing" &&
+        !t.deletedAt,
+    );
+    if (existing) return existing;
+    const now = new Date().toISOString();
+    const tracking: SymptomTracking = {
+      id: `tr-${trackingIdCounter++}`,
+      userId: params.userId,
+      symptomKey: "general_wellbeing",
+      symptomTitle: params.symptomTitle,
+      isActive: true,
+      createdAt: now,
+      updatedAt: now,
+      symptomTypeRefId: params.symptomTypeRefId,
+      regionRefId: null,
+      side: null,
+      diagnosisText: null,
+      diagnosisRefId: null,
+      stageRefId: null,
+      deletedAt: null,
+    };
+    trackings.push(tracking);
+    return tracking;
+  },
+
   async listTrackings(userId, activeOnly = true) {
     return trackings
       .filter(

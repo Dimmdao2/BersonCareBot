@@ -177,10 +177,11 @@ describe("buildAppDeps", () => {
     expect(items.length).toBeGreaterThan(0);
   });
 
-  it("diaries exposes listSymptomEntries, createSymptomTracking, listSymptomTrackings, addSymptomEntry, createLfkComplex, listLfkComplexes, listLfkSessions, addLfkSession, stats helpers", () => {
+  it("diaries exposes listSymptomEntries, createSymptomTracking, ensureGeneralWellbeingTracking, listSymptomTrackings, addSymptomEntry, createLfkComplex, listLfkComplexes, listLfkSessions, addLfkSession, stats helpers", () => {
     const deps = buildAppDeps();
     expect(deps.diaries).toHaveProperty("listSymptomEntries");
     expect(deps.diaries).toHaveProperty("createSymptomTracking");
+    expect(deps.diaries).toHaveProperty("ensureGeneralWellbeingTracking");
     expect(deps.diaries).toHaveProperty("listSymptomTrackings");
     expect(deps.diaries).toHaveProperty("addSymptomEntry");
     expect(deps.diaries).toHaveProperty("createLfkComplex");
@@ -194,6 +195,7 @@ describe("buildAppDeps", () => {
     expect(deps.diaries).toHaveProperty("purgeAllDiaryDataForUser");
     expect(typeof deps.diaries.listSymptomEntries).toBe("function");
     expect(typeof deps.diaries.createSymptomTracking).toBe("function");
+    expect(typeof deps.diaries.ensureGeneralWellbeingTracking).toBe("function");
     expect(typeof deps.diaries.listSymptomTrackings).toBe("function");
     expect(typeof deps.diaries.addSymptomEntry).toBe("function");
     expect(typeof deps.diaries.createLfkComplex).toBe("function");

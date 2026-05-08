@@ -32,6 +32,8 @@ export type PatientMoodWeekDay = {
   score: PatientMoodScore | null;
   /** Reserved for correlation with daily warmup / practice (future). */
   warmupHint: null;
+  /** Reserved for diary-notes annotations on the strip (future). */
+  diaryNoteHint: null;
 };
 
 export function isPatientMoodScore(value: number): value is PatientMoodScore {
