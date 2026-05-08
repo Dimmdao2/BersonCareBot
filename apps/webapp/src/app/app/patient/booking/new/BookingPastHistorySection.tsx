@@ -1,6 +1,7 @@
 "use client";
 
 import { type ReactNode } from "react";
+import { History } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -90,7 +91,10 @@ function PastList({ items, appDisplayTimeZone }: Props) {
 export function BookingPastHistorySection({ items, appDisplayTimeZone }: Props) {
   return (
     <div className={patientSectionSurfaceClass}>
-      <h3 className={patientSectionTitleClass}>История посещений</h3>
+      <div className="flex min-w-0 items-center gap-3">
+        <History className="size-5 shrink-0 text-[var(--patient-color-primary)]" aria-hidden />
+        <h3 className={cn(patientSectionTitleClass, "min-w-0")}>История посещений</h3>
+      </div>
       <Dialog>
         <DialogTrigger render={<Button type="button" variant="outline" className="w-full" />}>
           Открыть историю

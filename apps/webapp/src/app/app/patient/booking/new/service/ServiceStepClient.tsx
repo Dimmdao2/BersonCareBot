@@ -1,11 +1,61 @@
 "use client";
 
+import DOMPurify from "isomorphic-dompurify";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { routePaths } from "@/app-layer/routes/paths";
 import type { BookingBranchService } from "@/modules/booking-catalog/types";
-import { patientInfoLinkTileClass, patientMutedTextClass, patientSectionSurfaceClass } from "@/shared/ui/patientVisual";
+import { MarkdownContent } from "@/shared/ui/markdown/MarkdownContent";
+import { patientMutedTextClass } from "@/shared/ui/patientVisual";
+import { bookingChoiceRowClass, bookingChoiceSectionClass } from "../bookingChoiceStyles";
+
+function looksLikeHtmlMarkup(s: string): boolean {
+  return /<[a-z][\s\S]*>/i.test(s.trim());
+}
+
+/** Описание услуги под названием: HTML из каталога (санитизация) или Markdown (списки, абзацы). */
+function BookingServiceDescription({ text }: { text: string }) {
+  const trimmed = text.trim();
+  if (!trimmed) return null;
+
+  const inheritedDescWrap = cn(
+    "mt-1 w-full min-w-0 font-normal text-sm leading-snug text-[var(--patient-text-secondary,#475569)] transition-colors",
+    /* при hover/active/focus строки: заголовок белый, описание — светло-серое (#eee) */
+    "group-hover:text-[#eee] group-active:text-[#eee] group-focus-visible:text-[#eee]",
+    "group-hover:[&_.markdown-preview]:!text-[#eee] group-focus-visible:[&_.markdown-preview]:!text-[#eee] group-active:[&_.markdown-preview]:!text-[#eee]",
+    "group-hover:[&_*]:!text-[#eee] group-focus-visible:[&_*]:!text-[#eee] group-active:[&_*]:!text-[#eee]",
+    "[&_a]:underline",
+  );
+
+  const richContentClass = cn(
+    "[&_p]:my-1 [&_ul]:my-1 [&_ol]:my-1 [&_li]:my-0.5 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5",
+  );
+
+  if (looksLikeHtmlMarkup(trimmed)) {
+    const safe = DOMPurify.sanitize(trimmed, { USE_PROFILES: { html: true } });
+    return (
+      <div
+        className={cn(inheritedDescWrap, richContentClass, "[&_*]:text-current")}
+        // eslint-disable-next-line react/no-danger -- DOMPurify как в MarkdownContent (legacy-html)
+        dangerouslySetInnerHTML={{ __html: safe }}
+      />
+    );
+  }
+
+  return (
+    <div className={inheritedDescWrap}>
+      <MarkdownContent
+        text={trimmed}
+        bodyFormat="markdown"
+        className={cn(
+          "markdown-preview !m-0 border-0 bg-transparent !p-0 !text-current shadow-none [&_*]:!text-current",
+          richContentClass,
+        )}
+      />
+    </div>
+  );
+}
 
 export type ServiceStepClientProps = {
   cityCode: string;
@@ -18,7 +68,7 @@ export function ServiceStepClient({ cityCode, cityTitle, services, catalogError 
   const router = useRouter();
 
   return (
-    <div className={patientSectionSurfaceClass}>
+    <div className={bookingChoiceSectionClass}>
       {catalogError ? (
         <div className="flex flex-col gap-2">
           <p className="text-sm text-destructive">{catalogError}</p>
@@ -39,7 +89,11 @@ export function ServiceStepClient({ cityCode, cityTitle, services, catalogError 
               <button
                 key={s.id}
                 type="button"
-                className={cn(patientInfoLinkTileClass, "flex-col items-start justify-center gap-1 py-3 text-left")}
+                className={cn(
+                  bookingChoiceRowClass,
+                  /* строка — font-medium из bookingChoiceRowClass; описание — обычная жирность */
+                  "min-h-0 flex-col items-stretch justify-start gap-1 py-3 text-left font-normal",
+                )}
                 onClick={() =>
                   router.push(
                     `${routePaths.bookingNewSlot}?type=in_person` +
@@ -51,7 +105,7 @@ export function ServiceStepClient({ cityCode, cityTitle, services, catalogError 
                 }
               >
                 <span className="font-medium">{label}</span>
-                {desc ? <span className={cn(patientMutedTextClass, "text-xs font-normal")}>{desc}</span> : null}
+                {desc ? <BookingServiceDescription text={desc} /> : null}
               </button>
             );
           })}

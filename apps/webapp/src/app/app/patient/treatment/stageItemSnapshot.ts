@@ -3,6 +3,25 @@ import type { RecommendationMediaItem } from "@/modules/recommendations/types";
 import type { TreatmentProgramInstanceDetail } from "@/modules/treatment-program/types";
 import { listLfkSnapshotExerciseLines } from "@/modules/treatment-program/programActionActivityKey";
 import { formatRelativePatientCalendarDayRu } from "@/modules/treatment-program/stage-semantics";
+import type { ExerciseLoadType } from "@/modules/lfk-exercises/types";
+
+const PATIENT_EXERCISE_LOAD_LABEL_RU: Record<ExerciseLoadType, string> = {
+  strength: "Сила / укрепление",
+  stretch: "Растяжка",
+  balance: "Равновесие",
+  cardio: "Кардио",
+  other: "Другое",
+};
+
+/** Подпись типа нагрузки для кабинета пациента (значение, не сырой ключ). */
+export function patientExerciseLoadTypeLabelRu(raw: unknown): string | null {
+  if (typeof raw !== "string" || !raw.trim()) return null;
+  const k = raw.trim() as ExerciseLoadType;
+  if (Object.prototype.hasOwnProperty.call(PATIENT_EXERCISE_LOAD_LABEL_RU, k)) {
+    return PATIENT_EXERCISE_LOAD_LABEL_RU[k];
+  }
+  return raw.trim();
+}
 
 export type InstanceStageItem = TreatmentProgramInstanceDetail["stages"][number]["items"][number];
 

@@ -3,6 +3,7 @@
  */
 import { notFound } from "next/navigation";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
 import { routePaths } from "@/app-layer/routes/paths";
 import { getOptionalPatientSession, patientRscPersonalDataGate } from "@/app-layer/guards/requireRole";
 import { AppShell } from "@/shared/ui/AppShell";
@@ -47,6 +48,7 @@ export default async function PatientTreatmentProgramItemPage({ params, searchPa
   const navMode = parsePatientProgramItemNavMode(sp.nav);
 
   const deps = buildAppDeps();
+  const appDisplayTimeZone = await getAppDisplayTimeZone();
   let detail;
   try {
     const rawDetail = await deps.treatmentProgramInstance.getInstanceForPatient(
@@ -94,6 +96,7 @@ export default async function PatientTreatmentProgramItemPage({ params, searchPa
         navMode={navMode}
         backHref={backHref}
         initialDetail={detail}
+        appDisplayTimeZone={appDisplayTimeZone}
       />
     </AppShell>
   );

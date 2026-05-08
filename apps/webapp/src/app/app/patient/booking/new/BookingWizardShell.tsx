@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import Link from "next/link";
 import { AppShell } from "@/shared/ui/AppShell";
 import type { SessionUser } from "@/shared/types/session";
 import { cn } from "@/lib/utils";
@@ -11,6 +12,10 @@ type Props = {
   backHref: string | null;
   children: ReactNode;
   user: SessionUser | null;
+  /** Скрыть полоску заголовка под верхней навигацией (как главная «Сегодня»). */
+  suppressShellTitle?: boolean;
+  /** Кастомная полоска заголовка (например иконка + «Запись» на первом шаге). */
+  shellTitleSlot?: ReactNode;
 };
 
 /** Общая оболочка шагов wizard записи (layout-only). */
@@ -21,6 +26,8 @@ export function BookingWizardShell({
   backHref,
   children,
   user,
+  suppressShellTitle = false,
+  shellTitleSlot,
 }: Props) {
   return (
     <AppShell
@@ -29,8 +36,28 @@ export function BookingWizardShell({
       backHref={backHref ?? undefined}
       backLabel="Назад"
       variant="patient"
+      patientSuppressShellTitle={suppressShellTitle}
+      patientShellTitleSlot={shellTitleSlot}
     >
-      <p className={cn(patientMutedTextClass, "text-xs")}>Шаг {step} из {totalSteps}</p>
+      <div
+        className={cn(
+          "flex min-h-[1.25rem] flex-wrap items-center gap-x-3 gap-y-1",
+          backHref ? "justify-between" : "justify-center",
+        )}
+      >
+        {backHref ?
+          <Link
+            href={backHref}
+            prefetch={false}
+            className="shrink-0 text-sm font-medium text-[var(--patient-color-primary)] underline-offset-2 hover:underline"
+          >
+            Назад
+          </Link>
+        : null}
+        <p className={cn(patientMutedTextClass, "text-xs", !backHref && "w-full text-center")}>
+          Шаг {step} из {totalSteps}
+        </p>
+      </div>
       <div className={patientInnerPageStackClass}>{children}</div>
     </AppShell>
   );

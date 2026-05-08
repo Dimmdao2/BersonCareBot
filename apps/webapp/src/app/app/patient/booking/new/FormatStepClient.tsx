@@ -2,16 +2,17 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { Building2, Dna, Dumbbell } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { routePaths } from "@/app-layer/routes/paths";
 import type { BookingCity } from "@/modules/booking-catalog/types";
-import {
-  patientInfoLinkTileClass,
-  patientMutedTextClass,
-  patientSectionSurfaceClass,
-  patientSectionTitleClass,
-} from "@/shared/ui/patientVisual";
+import { patientMutedTextClass } from "@/shared/ui/patientVisual";
 import { cn } from "@/lib/utils";
+import {
+  bookingChoiceRowClass,
+  bookingChoiceRowIconClass,
+  bookingChoiceSectionClass,
+} from "./bookingChoiceStyles";
 
 function sortCitiesForDisplay(cities: BookingCity[]): BookingCity[] {
   return [...cities].sort(
@@ -30,52 +31,52 @@ export function FormatStepClient({ cities, catalogError }: FormatStepClientProps
   const sortedCities = sortCitiesForDisplay(cities);
 
   return (
-    <div className={patientSectionSurfaceClass}>
-      <h3 className={patientSectionTitleClass}>Запись</h3>
-      <div className="flex flex-col gap-4">
-        <div className="flex flex-col gap-2">
-          <p className={cn(patientMutedTextClass, "text-xs font-medium uppercase tracking-wide")}>Очный приём</p>
-          {catalogError ? (
-            <div className="flex flex-col gap-2">
-              <p className="text-sm text-destructive">{catalogError}</p>
-              <Button type="button" variant="outline" size="sm" onClick={() => router.refresh()}>
-                Повторить
-              </Button>
-            </div>
-          ) : null}
-          {!catalogError ? (
-            <div className="flex flex-col gap-2">
-              {sortedCities.map((c) => (
-                <Link
-                  key={c.id}
-                  href={`${routePaths.bookingNewService}?cityCode=${encodeURIComponent(c.code)}&cityTitle=${encodeURIComponent(c.title)}`}
-                  prefetch={false}
-                  className={patientInfoLinkTileClass}
-                >
-                  {c.title}
-                </Link>
-              ))}
-            </div>
-          ) : null}
-        </div>
+    <div className={bookingChoiceSectionClass}>
+      <div className="flex flex-col gap-2">
+        <p className={cn(patientMutedTextClass, "text-xs font-medium uppercase tracking-wide")}>Очный приём</p>
+        {catalogError ? (
+          <div className="flex flex-col gap-2">
+            <p className="text-sm text-destructive">{catalogError}</p>
+            <Button type="button" variant="outline" size="sm" onClick={() => router.refresh()}>
+              Повторить
+            </Button>
+          </div>
+        ) : null}
+        {!catalogError ? (
+          <div className="flex flex-col gap-2">
+            {sortedCities.map((c) => (
+              <Link
+                key={c.id}
+                href={`${routePaths.bookingNewService}?cityCode=${encodeURIComponent(c.code)}&cityTitle=${encodeURIComponent(c.title)}`}
+                prefetch={false}
+                className={bookingChoiceRowClass}
+              >
+                <Building2 className={bookingChoiceRowIconClass} aria-hidden />
+                {c.title}
+              </Link>
+            ))}
+          </div>
+        ) : null}
+      </div>
 
-        <div className="flex flex-col gap-2">
-          <p className={cn(patientMutedTextClass, "text-xs font-medium uppercase tracking-wide")}>Онлайн</p>
-          <button
-            type="button"
-            className={cn(patientInfoLinkTileClass, "w-full text-left")}
-            onClick={() => router.push(routePaths.intakeLfk)}
-          >
-            Реабилитация онлайн
-          </button>
-          <button
-            type="button"
-            className={cn(patientInfoLinkTileClass, "w-full text-left")}
-            onClick={() => router.push(routePaths.intakeNutrition)}
-          >
-            Нутрициология онлайн
-          </button>
-        </div>
+      <div className="flex flex-col gap-2">
+        <p className={cn(patientMutedTextClass, "text-xs font-medium uppercase tracking-wide")}>Онлайн</p>
+        <button
+          type="button"
+          className={cn(bookingChoiceRowClass, "text-left")}
+          onClick={() => router.push(routePaths.intakeLfk)}
+        >
+          <Dumbbell className={bookingChoiceRowIconClass} aria-hidden />
+          Реабилитация онлайн
+        </button>
+        <button
+          type="button"
+          className={cn(bookingChoiceRowClass, "text-left")}
+          onClick={() => router.push(routePaths.intakeNutrition)}
+        >
+          <Dna className={bookingChoiceRowIconClass} aria-hidden />
+          Нутрициология онлайн
+        </button>
       </div>
     </div>
   );

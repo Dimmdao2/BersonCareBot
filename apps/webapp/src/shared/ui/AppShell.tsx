@@ -14,6 +14,7 @@ import { PatientGatedHeader } from "@/shared/ui/PatientGatedHeader";
 import { PatientTopNav } from "@/shared/ui/PatientTopNav";
 import { SectionHeading } from "@/components/common/typography/SectionHeading";
 import { cn } from "@/lib/utils";
+import { patientSectionTitleClass } from "@/shared/ui/patientVisual";
 import { DOCTOR_PAGE_CONTAINER_CLASS } from "@/shared/ui/doctorWorkspaceLayout";
 
 type AppShellProps = {
@@ -51,6 +52,11 @@ type AppShellProps = {
   patientHideBottomNav?: boolean;
   /** Не показывать полоску заголовка под {@link PatientTopNav} (главная «Сегодня»). */
   patientSuppressShellTitle?: boolean;
+  /**
+   * Кастомная полоска заголовка под {@link PatientTopNav} (иконка + текст и т.п.).
+   * Если задано — рендерится вместо строки `title` / бейджа.
+   */
+  patientShellTitleSlot?: ReactNode;
 };
 
 /** Рендерит контейнер приложения, шапку с заголовком и действиями и основной контент. */
@@ -70,13 +76,16 @@ export function AppShell({
   patientTitleBadge,
   patientHideBottomNav = false,
   patientSuppressShellTitle = false,
+  patientShellTitleSlot,
 }: AppShellProps) {
   if (variant === "patient" || variant === "patient-wide") {
     const showPatientShellNav = !patientEmbedMain && !patientHideBottomNav && !patientBrandTitleBar;
     const shellTitleBadge = patientTitleBadge?.trim() ?? "";
     const shellTitle = title?.trim() ?? "";
     const showShellTitleStrip =
-      showPatientShellNav && !patientSuppressShellTitle && (Boolean(shellTitleBadge) || Boolean(shellTitle));
+      showPatientShellNav &&
+      (patientShellTitleSlot != null ||
+        (!patientSuppressShellTitle && (Boolean(shellTitleBadge) || Boolean(shellTitle))));
     return (
       <div
         id="app-shell-patient"
@@ -97,27 +106,33 @@ export function AppShell({
             {showShellTitleStrip ?
               <div
                 data-testid="patient-shell-page-title-wrap"
-                className="shrink-0 border-b border-[var(--patient-border)] bg-[var(--patient-surface)] px-4 py-2.5"
+                className="shrink-0 border-b border-[var(--patient-border)] bg-[var(--patient-page-bg)] px-4 py-3"
               >
-                {shellTitleBadge ?
-                  <span
-                    data-testid="patient-header-title-badge"
-                    className="inline-block max-w-full truncate rounded-full border border-border bg-muted/70 px-2 py-0.5 text-[10px] font-medium text-foreground"
-                    title={shellTitleBadge}
-                  >
-                    {shellTitleBadge}
-                  </span>
-                : null}
-                {shellTitle ?
-                  <h1
-                    className={cn(
-                      "text-base font-semibold tracking-tight text-[var(--patient-text-primary)]",
-                      shellTitleBadge && "mt-1.5",
-                    )}
-                  >
-                    {shellTitle}
-                  </h1>
-                : null}
+                {patientShellTitleSlot ?
+                  patientShellTitleSlot
+                : <>
+                    {shellTitleBadge ?
+                      <span
+                        data-testid="patient-header-title-badge"
+                        className="inline-block max-w-full truncate rounded-full border border-border bg-muted/70 px-2 py-0.5 text-[10px] font-medium text-foreground"
+                        title={shellTitleBadge}
+                      >
+                        {shellTitleBadge}
+                      </span>
+                    : null}
+                    {shellTitle ?
+                      <h1
+                        className={cn(
+                          patientSectionTitleClass,
+                          "min-w-0",
+                          shellTitleBadge && "mt-2",
+                        )}
+                      >
+                        {shellTitle}
+                      </h1>
+                    : null}
+                  </>
+                }
               </div>
             : null}
           </>

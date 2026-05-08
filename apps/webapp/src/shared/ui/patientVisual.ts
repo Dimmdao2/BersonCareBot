@@ -145,10 +145,19 @@ export const patientSectionSurfaceClass = cn(
 /** Визуальная оболочка формы (контейнер полей), без изменения инпутов внутри. */
 export const patientFormSurfaceClass = cn(patientCardSurfaceTokens, "flex flex-col gap-4 p-4");
 
-/** Заголовок секции блока на страницах пациента: `font-sans` и токены `--patient-block-heading-*` под `#app-shell-patient` (16px / 1.5 line-height). Рендер как `<h3>`. */
+/** Заголовок секции блока на страницах пациента: `font-sans` и токены `--patient-block-heading-*` под `#app-shell-patient` (16px / 1.5 line-height). Рендер как `<h3>` в карточках главной; та же типографика для `<h1>` в полоске заголовка patient shell (`AppShell`). */
 export const patientSectionTitleClass = cn(
   "font-sans",
   "text-[length:var(--patient-block-heading-font-size)] font-[var(--patient-block-heading-font-weight)] leading-[var(--patient-block-heading-line-height)] text-[var(--patient-block-heading)]",
+);
+
+/**
+ * Заголовок секции без полужирного веса: те же размер/интерлиньяж/цвет, что {@link patientSectionTitleClass},
+ * но `font-normal` — для «Описание» и других вторичных заголовков на детальных экранах.
+ */
+export const patientSectionTitleNormalClass = cn(
+  "font-sans font-normal",
+  "text-[length:var(--patient-block-heading-font-size)] leading-[var(--patient-block-heading-line-height)] text-[var(--patient-block-heading)]",
 );
 
 /** Основной текст абзаца внутри patient shell. */
@@ -156,6 +165,12 @@ export const patientBodyTextClass = "text-sm text-[var(--patient-text-primary)]"
 
 /** Приглушённый текст (подписи, вторичные строки). */
 export const patientMutedTextClass = "text-sm text-[var(--patient-text-muted)]";
+
+/**
+ * Текст чуть темнее {@link patientMutedTextClass}: токен `--patient-text-muted-strong` под `#app-shell-patient`.
+ * Размер (`text-xs` и т.п.) задаётся в месте использования.
+ */
+export const patientMutedTextStrongClass = "text-[var(--patient-text-muted-strong)]";
 
 /** Контейнер пустого состояния (центрирование + типичный вертикальный ритм). */
 export const patientEmptyStateClass = cn(
@@ -344,6 +359,35 @@ export const patientHeroTitleBaseClass =
 export const patientInnerHeroTitleTypographyClass = cn(
   "text-[17px] leading-snug min-[380px]:text-[19px] lg:text-[26px] lg:leading-8 xl:text-[28px] xl:leading-9",
 );
+
+/**
+ * Заголовок пункта программы в hero (страница пункта): чуть компактнее {@link patientInnerHeroTitleTypographyClass}.
+ */
+export const patientProgramItemHeroTitleClass = cn(
+  patientHeroTitleBaseClass,
+  "text-[16px] leading-snug min-[380px]:text-[17px] lg:text-[22px] lg:leading-7 xl:text-[24px] xl:leading-8",
+);
+
+/**
+ * Строка «N повторений × M подходов» на странице пункта: палитра `--patient-color-primary`, без холодного tailwind-blue.
+ */
+export const patientProgramItemPrimaryStatTextClass = cn(
+  "text-sm font-normal text-[var(--patient-color-primary,#284da0)] opacity-90",
+);
+
+/**
+ * Заголовок группы в «Состав этапа»: чуть теплее холодного `#284da0` (индиго-синий).
+ */
+export const patientCompositionGroupTitleClass = "text-sm font-medium text-[#2c4c8c]";
+
+/**
+ * Выбранная строка состава этапа: тонкое кольцо, тёмный синий, лёгкий нейтральный фон.
+ */
+export const patientCompositionCurrentRowChromeClass = cn("bg-muted/40 ring-1 ring-[#1e3a5f]");
+
+/** Квадратный слот превью/плейсхолдера в строках «Состав этапа». */
+export const patientCompositionListThumbSlotClass =
+  "size-10 shrink-0 rounded border border-border/40 bg-muted/30";
 
 /** Заголовок hero списка программ при наличии активной программы. */
 export const patientInnerHeroListPrimaryTitleClass = "text-[22px] leading-snug lg:text-2xl lg:leading-snug";

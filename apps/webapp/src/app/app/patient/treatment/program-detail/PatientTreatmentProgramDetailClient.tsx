@@ -14,8 +14,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Dialog } from "@/components/ui/dialog";
-import { PatientModalDialogContent } from "@/shared/ui/patient/PatientModalDialogContent";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   patientLfkDifficultySelectItems,
@@ -30,8 +28,6 @@ import {
   Lock,
   CornerDownRight,
   Info,
-  Dumbbell,
-  ScrollText,
 } from "lucide-react";
 import type {
   NormalizedTestDecision,
@@ -47,7 +43,6 @@ import {
 } from "@/modules/treatment-program/types";
 import {
   isInstanceStageItemActiveForPatient,
-  isInstanceStageItemShownInPatientCompositionModal,
   isInstanceStageItemShownOnPatientProgramSurfaces,
   isPersistentRecommendation,
   isTreatmentProgramInstanceSystemStageGroup,
@@ -63,7 +58,7 @@ import {
   resolvePatientProgramProgressDaysForPatientUi,
   expectedStageControlDeadlineIsoForPatientUi,
 } from "@/modules/treatment-program/stage-semantics";
-import { listLfkSnapshotExerciseLines, programActionDoneActivityKey } from "@/modules/treatment-program/programActionActivityKey";
+import { listLfkSnapshotExerciseLines } from "@/modules/treatment-program/programActionActivityKey";
 import { testIdsFromTestSetSnapshot } from "@/modules/treatment-program/testSetSnapshotView";
 import { scoringAllowsNumericDecisionInference } from "@/modules/treatment-program/progress-scoring";
 import { parseTestSetSnapshotTests } from "@/modules/treatment-program/testSetSnapshotView";
@@ -73,13 +68,10 @@ import {
   normalizeChecklistLastMap,
 } from "@/app/app/patient/treatment/normalizeTreatmentProgramChecklistMaps";
 import {
-  mergeLastActivityDisplayedIso,
-  parseSnapshotMediaForRowThumb,
   pickRecommendationRowPreviewMedia,
   parseRecommendationMediaFromSnapshot,
   recommendationBodyMdPreviewPlain,
 } from "@/app/app/patient/treatment/stageItemSnapshot";
-import type { RecommendationMediaItem } from "@/modules/recommendations/types";
 import { PatientCatalogMediaStaticThumb } from "@/shared/ui/patient/PatientCatalogMediaStaticThumb";
 import { routePaths } from "@/app-layer/routes/paths";
 import { patientHomeCardHeroClass } from "@/app/app/patient/home/patientHomeCardStyles";
@@ -151,126 +143,6 @@ function snapshotTitle(snapshot: Record<string, unknown>, itemType: string): str
 }
 
 type InstanceStageRow = TreatmentProgramInstanceDetail["stages"][number];
-
-/** Макс. зелёных точек «сегодня» в модалке — остаток числом (а11y через aria-label). */
-const MAX_COMPOSITION_TODAY_DOTS = 24;
-
-/** Число отметок «сегодня» для строки модалки: по ключу активности и с распределением агрегата элемента ЛФК по упражнениям. */
-function compositionModalTodayDoneCount(params: {
-  parentItem: InstanceStageRow["items"][number];
-  activityKey: string;
-  doneTodayCountByActivityKey: Readonly<Record<string, number>>;
-  doneTodayCountByItemId: Readonly<Record<string, number>>;
-}): number {
-  const { parentItem, activityKey, doneTodayCountByActivityKey, doneTodayCountByItemId } = params;
-  const direct = doneTodayCountByActivityKey[activityKey] ?? 0;
-  if (direct > 0) return direct;
-
-  if (parentItem.itemType !== "lfk_complex") return 0;
-
-  const lines = listLfkSnapshotExerciseLines(parentItem.snapshot as Record<string, unknown>);
-  const id = parentItem.id;
-
-  if (lines.length === 0) {
-    return doneTodayCountByItemId[id] ?? doneTodayCountByActivityKey[id] ?? 0;
-  }
-
-  const siblingsSum = lines.reduce(
-    (acc, l) =>
-      acc + (doneTodayCountByActivityKey[programActionDoneActivityKey(id, { exerciseId: l.exerciseId })] ?? 0),
-    0,
-  );
-  const itemTotal = doneTodayCountByItemId[id] ?? 0;
-  const slack = itemTotal - siblingsSum;
-  if (slack <= 0) return 0;
-
-  const zeroLines = lines.filter(
-    (l) =>
-      (doneTodayCountByActivityKey[programActionDoneActivityKey(id, { exerciseId: l.exerciseId })] ?? 0) === 0,
-  );
-  if (zeroLines.length === 0) return 0;
-
-  const idxInZero = zeroLines.findIndex(
-    (l) => programActionDoneActivityKey(id, { exerciseId: l.exerciseId }) === activityKey,
-  );
-  if (idxInZero < 0) return 0;
-
-  const z = zeroLines.length;
-  const base = Math.floor(slack / z);
-  const rem = slack % z;
-  return base + (idxInZero < rem ? 1 : 0);
-}
-
-function PatientCompositionItemProgressAside(props: {
-  parentItem: InstanceStageRow["items"][number];
-  activityKey: string;
-  appDisplayTimeZone: string;
-  doneTodayCountByActivityKey: Readonly<Record<string, number>>;
-  lastDoneAtIsoByActivityKey: Readonly<Record<string, string>>;
-  doneTodayCountByItemId: Readonly<Record<string, number>>;
-}) {
-  const {
-    parentItem,
-    activityKey,
-    appDisplayTimeZone,
-    doneTodayCountByActivityKey,
-    lastDoneAtIsoByActivityKey,
-    doneTodayCountByItemId,
-  } = props;
-  const completedAtForMerge = activityKey === parentItem.id ? parentItem.completedAt : null;
-  const isoFromLog = lastDoneAtIsoByActivityKey[activityKey];
-  const lastIso = mergeLastActivityDisplayedIso(isoFromLog, completedAtForMerge);
-  const todayCount = compositionModalTodayDoneCount({
-    parentItem,
-    activityKey,
-    doneTodayCountByActivityKey,
-    doneTodayCountByItemId,
-  });
-  const dotCount = Math.min(todayCount, MAX_COMPOSITION_TODAY_DOTS);
-  const dotOverflow = todayCount > MAX_COMPOSITION_TODAY_DOTS ? todayCount - MAX_COMPOSITION_TODAY_DOTS : 0;
-  const relativeWhenDone = lastIso
-    ? formatRelativePatientCalendarDayRu(lastIso, appDisplayTimeZone)
-    : null;
-  /** «Сегодня» в этой строке не дублируем — ниже уже «Сегодня:» и отметки. */
-  const doneSummaryLine =
-    relativeWhenDone == null
-      ? "Пока без отметок"
-      : relativeWhenDone === "Сегодня"
-        ? "Выполнено"
-        : `Выполнено ${relativeWhenDone}`;
-
-  return (
-    <div className="flex max-w-[11rem] shrink-0 flex-col items-end justify-center gap-0.5 text-right">
-      <span className="w-full text-[10px] font-normal leading-tight text-muted-foreground">{doneSummaryLine}</span>
-      <div className="flex items-center gap-1.5">
-        <span className="text-[10px] font-normal leading-tight text-muted-foreground">Сегодня:</span>
-        <div
-          className="flex min-h-[10px] flex-wrap items-center justify-end gap-0.5"
-          aria-label={todayCount === 0 ? "Сегодня не отмечено" : `Сегодня отмечено ${todayCount} раз`}
-        >
-          {todayCount === 0 ? (
-            <span className="size-2 shrink-0 rounded-full bg-muted-foreground/35" aria-hidden />
-          ) : (
-            <>
-              {Array.from({ length: dotCount }, (_, i) => (
-                <span
-                  key={i}
-                  className="size-2 shrink-0 rounded-full bg-[#16a34a]"
-                  aria-hidden
-                />
-              ))}
-              {dotOverflow > 0 ? (
-                <span className="text-[10px] font-medium leading-none text-muted-foreground" aria-hidden>
-                  +{dotOverflow}
-                </span>
-              ) : null}
-            </>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function ruDaysWordN(n: number): string {
   const mod100 = n % 100;
@@ -393,138 +265,15 @@ function PatientProgramHeroHistoryPopover(props: {
   );
 }
 
-/** Строки модалки «Состав этапа»: ЛФК и набор тестов — отдельные исполнимые единицы; ключ активности для отметок в журнале. */
-type CompositionModalEmptyMediaIcon = "exercise" | "recommendation";
-
-type CompositionModalRow = {
-  key: string;
-  activityKey: string;
-  text: string;
-  thumbMedia: RecommendationMediaItem | null;
-  /** Иконка в слоте превью, если в снимке нет выбранного медиа (при наличии медиа — только {@link PatientCatalogMediaStaticThumb}). */
-  emptyMediaSlotKind: CompositionModalEmptyMediaIcon | null;
-};
-
-function compositionModalRowShowsMediaColumn(row: CompositionModalRow): boolean {
-  return row.thumbMedia != null || row.emptyMediaSlotKind != null;
-}
-
-function compositionModalRowsForStageItem(item: InstanceStageRow["items"][number]): CompositionModalRow[] {
-  const isExerciseOrRec = item.itemType === "recommendation" || item.itemType === "exercise";
-  const thumbMedia = isExerciseOrRec
-    ? pickRecommendationRowPreviewMedia(parseSnapshotMediaForRowThumb(item.snapshot))
-    : null;
-  const emptyMediaSlotKind: CompositionModalRow["emptyMediaSlotKind"] = isExerciseOrRec
-    ? item.itemType === "exercise"
-      ? "exercise"
-      : "recommendation"
-    : null;
-
-  if (item.itemType === "lfk_complex") {
-    const lines = listLfkSnapshotExerciseLines(item.snapshot as Record<string, unknown>);
-    if (lines.length === 0) {
-      const t = snapshotTitle(item.snapshot, item.itemType);
-      return t.trim() !== ""
-        ? [{ key: item.id, activityKey: item.id, text: t, thumbMedia: null, emptyMediaSlotKind: null }]
-        : [];
-    }
-    return lines.map((line) => {
-      const thumbMedia =
-        line.media != null && Array.isArray(line.media)
-          ? pickRecommendationRowPreviewMedia(
-              parseSnapshotMediaForRowThumb({ media: line.media } as Record<string, unknown>),
-            )
-          : null;
-      const rowKey = programActionDoneActivityKey(item.id, { exerciseId: line.exerciseId });
-      return {
-        key: rowKey,
-        activityKey: rowKey,
-        text: line.title,
-        thumbMedia,
-        emptyMediaSlotKind: "exercise" as const,
-      };
-    });
-  }
-
-  return [
-    {
-      key: item.id,
-      activityKey: item.id,
-      text: snapshotTitle(item.snapshot, item.itemType),
-      thumbMedia,
-      emptyMediaSlotKind,
-    },
-  ];
-}
-
-const compositionModalMediaSlotClass =
-  "w-10 min-h-10 shrink-0 self-stretch rounded border border-border/40 bg-muted/30";
-
-function PatientCompositionModalMediaLeading(props: {
-  thumbMedia: RecommendationMediaItem | null;
-  emptyMediaSlotKind: CompositionModalRow["emptyMediaSlotKind"];
-}) {
-  const { thumbMedia, emptyMediaSlotKind } = props;
-  if (thumbMedia) {
-    return (
-      <PatientCatalogMediaStaticThumb
-        media={thumbMedia}
-        frameClassName={compositionModalMediaSlotClass}
-        sizes="40px"
-        iconClassName="size-4"
-      />
-    );
-  }
-  if (emptyMediaSlotKind === "exercise") {
-    return (
-      <div className={cn(compositionModalMediaSlotClass, "flex items-center justify-center")} aria-hidden>
-        <Dumbbell className="size-4 text-muted-foreground" strokeWidth={2} />
-      </div>
-    );
-  }
-  if (emptyMediaSlotKind === "recommendation") {
-    return (
-      <div className={cn(compositionModalMediaSlotClass, "flex items-center justify-center")} aria-hidden>
-        <ScrollText className="size-4 text-muted-foreground" strokeWidth={2} />
-      </div>
-    );
-  }
-  return null;
-}
-
-/** Модалка в portal: тема shadcn; строки пункта — тёмно-серый текст #444. */
-const stageCompositionModalRowClass =
-  "rounded-md border border-border/60 bg-card text-xs font-normal leading-snug";
-
 function PatientProgramStagesTimeline(props: {
   stages: InstanceStageRow[];
   currentWorkingStage: InstanceStageRow | null;
   stageCountNonZero: number;
-  detail: TreatmentProgramInstanceDetail;
-  appDisplayTimeZone: string;
-  doneTodayCountByActivityKey: Readonly<Record<string, number>>;
-  lastDoneAtIsoByActivityKey: Readonly<Record<string, string>>;
-  doneTodayCountByItemId: Readonly<Record<string, number>>;
 }) {
-  const {
-    stages,
-    currentWorkingStage,
-    stageCountNonZero,
-    detail,
-    appDisplayTimeZone,
-    doneTodayCountByActivityKey,
-    lastDoneAtIsoByActivityKey,
-    doneTodayCountByItemId,
-  } = props;
-  const [itemsModalStage, setItemsModalStage] = useState<InstanceStageRow | null>(null);
-  const stageForModal = useMemo(() => {
-    if (!itemsModalStage) return null;
-    return detail.stages.find((s) => s.id === itemsModalStage.id) ?? itemsModalStage;
-  }, [itemsModalStage, detail.stages]);
+  const { stages, currentWorkingStage, stageCountNonZero } = props;
 
   return (
-    <>
-      <section
+    <section
         id="patient-program-current-stage"
         className={patientCardListSectionClass}
         aria-labelledby="patient-program-stages-heading"
@@ -623,137 +372,14 @@ function PatientProgramStagesTimeline(props: {
               </div>
             );
 
-            const openComposition = isActive || isPast;
-
             return (
               <li key={stage.id}>
-                {openComposition ? (
-                  <button
-                    type="button"
-                    className={cn(
-                      rowClass,
-                      "w-full cursor-pointer text-left outline-none focus-visible:ring-2 focus-visible:ring-[var(--patient-color-primary)] focus-visible:ring-offset-2",
-                      isActive
-                        ? "transition-[filter] hover:brightness-[0.985]"
-                        : "transition-colors hover:bg-[var(--patient-color-primary-soft)]/25",
-                    )}
-                    aria-label={`Состав этапа: ${stage.title}`}
-                    onClick={() => setItemsModalStage(stage)}
-                  >
-                    {rowInnerStatic}
-                  </button>
-                ) : (
-                  <div className={rowClass}>{rowInnerStatic}</div>
-                )}
+                <div className={rowClass}>{rowInnerStatic}</div>
               </li>
             );
           })}
         </ul>
       </section>
-
-      <Dialog open={itemsModalStage !== null} onOpenChange={(open) => !open && setItemsModalStage(null)}>
-        <PatientModalDialogContent title={stageForModal?.title ?? ""}>
-          {stageForModal ? (
-            <>
-              {(() => {
-                  const visibleItems = sortByOrderThenId(
-                    stageForModal.items.filter((it) =>
-                      isInstanceStageItemShownInPatientCompositionModal(it, stageForModal.groups),
-                    ),
-                  );
-                  if (visibleItems.length === 0) {
-                    return <p className="text-sm font-normal text-muted-foreground">Нет элементов для отображения.</p>;
-                  }
-                  const sortedGroups = sortDoctorInstanceStageGroupsForDisplay(stageForModal.groups).filter((g) =>
-                    visibleItems.some((it) => it.groupId === g.id),
-                  );
-                  const ungroupedItems = sortByOrderThenId(
-                    visibleItems.filter((it) => !it.groupId),
-                  );
-
-                  const renderCompositionItem = (it: (typeof visibleItems)[number]) => {
-                    const rows = compositionModalRowsForStageItem(it);
-                    return rows.map((row) => {
-                      const showMediaCol = compositionModalRowShowsMediaColumn(row);
-                      return (
-                      <li
-                        key={row.key}
-                        className={cn(
-                          stageCompositionModalRowClass,
-                          "flex items-stretch gap-1.5 px-1.5 py-1.5",
-                        )}
-                      >
-                        <div
-                          className={cn(
-                            "flex min-w-0 flex-1 basis-0 gap-1.5",
-                            showMediaCol ? "items-stretch" : "items-start",
-                          )}
-                        >
-                          <PatientCompositionModalMediaLeading
-                            thumbMedia={row.thumbMedia}
-                            emptyMediaSlotKind={row.emptyMediaSlotKind}
-                          />
-                          <span
-                            className={cn(
-                              "min-w-0 break-words text-[#444444]",
-                              showMediaCol ? "flex-1 py-0" : "block flex-1",
-                            )}
-                          >
-                            {row.text}
-                          </span>
-                        </div>
-                        <PatientCompositionItemProgressAside
-                          parentItem={it}
-                          activityKey={row.activityKey}
-                          appDisplayTimeZone={appDisplayTimeZone}
-                          doneTodayCountByActivityKey={doneTodayCountByActivityKey}
-                          lastDoneAtIsoByActivityKey={lastDoneAtIsoByActivityKey}
-                          doneTodayCountByItemId={doneTodayCountByItemId}
-                        />
-                      </li>
-                    );
-                    });
-                  };
-
-                  return (
-                    <>
-                      {ungroupedItems.length > 0 ? (
-                        <ul
-                          className={cn(
-                            "m-0 list-none space-y-1 p-0",
-                            sortedGroups.length > 0 && "mb-2",
-                          )}
-                        >
-                          {ungroupedItems.flatMap(renderCompositionItem)}
-                        </ul>
-                      ) : null}
-                      {sortedGroups.map((g) => {
-                        const gItems = sortByOrderThenId(
-                          visibleItems.filter((it) => it.groupId === g.id),
-                        );
-                        if (gItems.length === 0) return null;
-                        return (
-                          <section key={g.id} className="space-y-1">
-                            <div>
-                              <span className="text-sm font-medium text-[#284da0]">{g.title}</span>
-                              {g.scheduleText?.trim() ? (
-                                <span className="mt-1 block text-xs font-normal text-muted-foreground">
-                                  {g.scheduleText.trim()}
-                                </span>
-                              ) : null}
-                            </div>
-                            <ul className="m-0 list-none space-y-1 p-0">{gItems.flatMap(renderCompositionItem)}</ul>
-                          </section>
-                        );
-                      })}
-                    </>
-                  );
-                })()}
-            </>
-          ) : null}
-        </PatientModalDialogContent>
-      </Dialog>
-    </>
   );
 }
 
@@ -1909,11 +1535,6 @@ export function PatientTreatmentProgramDetailClient(props: {
                 stages={stagesTimeline}
                 currentWorkingStage={currentWorkingStage}
                 stageCountNonZero={stageCountNonZero}
-                detail={detail}
-                appDisplayTimeZone={appDisplayTimeZone}
-                doneTodayCountByActivityKey={doneTodayCountByActivityKey}
-                lastDoneAtIsoByActivityKey={lastDoneAtIsoByActivityKey}
-                doneTodayCountByItemId={doneTodayCountByItemId}
               />
             </div>
           ) : null}

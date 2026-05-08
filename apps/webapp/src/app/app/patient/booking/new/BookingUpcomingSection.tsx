@@ -1,20 +1,27 @@
 "use client";
 
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { isSafeExternalHref } from "@/lib/url/isSafeExternalHref";
 import type { PatientBookingRecord } from "@/modules/patient-booking/types";
 import { formatBookingDateTimeMediumRu } from "@/shared/lib/formatBusinessDateTime";
 import { openExternalLinkInMessenger } from "@/shared/lib/openExternalLinkInMessenger";
 import { bookingProvenancePrefix, nativeBookingSubtitle } from "@/app/app/patient/cabinet/patientBookingLabels";
 import { cn } from "@/lib/utils";
-import {
-  patientInlineLinkClass,
-  patientListItemClass,
-  patientMutedTextClass,
-  patientSectionSurfaceClass,
-  patientSectionTitleClass,
-} from "@/shared/ui/patientVisual";
+import { patientListItemClass, patientMutedTextClass, patientSectionTitleClass } from "@/shared/ui/patientVisual";
+
+/** Тон карточки «Следующее напоминание» на главной — без фиксированной высоты (список записей). */
+const bookingReminderSectionSurfaceClass = cn(
+  "flex flex-col gap-3 overflow-hidden rounded-[var(--patient-card-radius-mobile)] border border-[#fde68a]",
+  "bg-[linear-gradient(135deg,#fffaf0_0%,#fff7df_100%)]",
+  "p-4 lg:rounded-[var(--patient-card-radius-desktop)] lg:p-5",
+);
+
+/** CTA как у напоминания на главной (`PatientHomeNextReminderCard` — `reminderCtaBaseClass`). */
+const bookingReminderManageCtaClass = cn(
+  "inline-flex min-h-10 shrink-0 cursor-pointer items-center justify-center gap-2 rounded-md border border-[#fde68a] bg-[#fffbeb] px-3 text-[13px] font-bold text-[#d97706] transition-colors sm:text-sm",
+  "hover:bg-[#fef3c7]/80 active:bg-[#fef3c7]",
+  "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#f59e0b]",
+);
 
 type Props = {
   bookings: PatientBookingRecord[];
@@ -53,7 +60,7 @@ export function BookingUpcomingSection({ bookings, appDisplayTimeZone }: Props) 
   if (bookings.length === 0) return null;
 
   return (
-    <div className={patientSectionSurfaceClass}>
+    <div className={bookingReminderSectionSurfaceClass}>
       <h3 className={patientSectionTitleClass}>Предстоящие записи</h3>
       <div className="flex flex-col gap-2">
         {bookings.map((row) => {
@@ -86,14 +93,9 @@ export function BookingUpcomingSection({ bookings, appDisplayTimeZone }: Props) 
               <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
                 <Badge variant={statusToBadgeVariant(row.status)}>{statusLabel(row.status)}</Badge>
                 {canManage ? (
-                  <Button
-                    type="button"
-                    variant="link"
-                    className={cn(patientInlineLinkClass, "h-auto min-h-0 px-0 py-0 text-sm font-medium")}
-                    onClick={openRubitime}
-                  >
+                  <button type="button" className={bookingReminderManageCtaClass} onClick={openRubitime}>
                     Управлять
-                  </Button>
+                  </button>
                 ) : null}
               </div>
             </div>

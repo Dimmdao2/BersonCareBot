@@ -87,6 +87,8 @@
   --patient-text-primary: #111827;
   --patient-text-secondary: #667085;
   --patient-text-muted: #98a2b3;
+  /** Чуть темнее `--patient-text-muted`: вторичные статус-строки (напр. «Выполнялось» на странице пункта). */
+  --patient-text-muted-strong: #6d7789;
   --patient-block-heading: #172f62;
   --patient-block-heading-font-size: 1rem;
   --patient-block-heading-line-height: 1.5rem;
@@ -126,6 +128,15 @@
   --patient-surface-danger-border: #fecaca;
   --patient-surface-danger-text: var(--patient-text-primary);
   --patient-surface-danger-accent: var(--patient-color-danger);
+}
+
+/** Явный pointer для интерактива в кабинете пациента (кнопки, ссылки). */
+#app-shell-patient :where(a[href]) {
+  cursor: pointer;
+}
+
+#app-shell-patient :where(button:not(:disabled)) {
+  cursor: pointer;
 }
 
 /*---break---
