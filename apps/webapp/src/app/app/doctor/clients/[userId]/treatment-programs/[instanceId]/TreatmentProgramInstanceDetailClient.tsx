@@ -132,6 +132,9 @@ function sortByOrderThenId<T extends { sortOrder: number; id: string }>(rows: T[
   return [...rows].sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id));
 }
 
+type InstanceStageT = TreatmentProgramInstanceDetail["stages"][number];
+type InstanceStageItemT = InstanceStageT["items"][number];
+
 function sameInstanceItemGroupKey(
   item: { groupId: string | null | undefined },
   groupId: string | null,
@@ -141,15 +144,20 @@ function sameInstanceItemGroupKey(
 
 /**
  * Полный список id элементов этапа после перестановки соседей внутри одной группы
- * (`groupId === null` — только элементы без группы).
+ * (`groupId === null` — только элементы без группы). Опционально **`itemInReorderBand`** —
+ * подмножество внутри группы (например только `recommendation` на этапе 0).
  */
 function computeOrderedItemIdsAfterGroupItemAdjacentSwap(
   stage: TreatmentProgramInstanceDetail["stages"][number],
   groupId: string | null,
   itemId: string,
   dir: -1 | 1,
+  opts?: { itemInReorderBand?: (it: InstanceStageItemT) => boolean },
 ): string[] | null {
-  const groupItems = sortByOrderThenId(stage.items.filter((it) => sameInstanceItemGroupKey(it, groupId)));
+  const inBand = opts?.itemInReorderBand ?? (() => true);
+  const groupItems = sortByOrderThenId(
+    stage.items.filter((it) => sameInstanceItemGroupKey(it, groupId) && inBand(it)),
+  );
   const idx = groupItems.findIndex((it) => it.id === itemId);
   if (idx < 0) return null;
   const j = idx + dir;
@@ -163,7 +171,7 @@ function computeOrderedItemIdsAfterGroupItemAdjacentSwap(
   const allSorted = sortByOrderThenId(stage.items);
   const out: string[] = [];
   for (const it of allSorted) {
-    if (sameInstanceItemGroupKey(it, groupId)) {
+    if (sameInstanceItemGroupKey(it, groupId) && inBand(it)) {
       const nextId = queue.shift();
       if (!nextId) return null;
       out.push(nextId);
@@ -174,9 +182,6 @@ function computeOrderedItemIdsAfterGroupItemAdjacentSwap(
   if (queue.length !== 0) return null;
   return out;
 }
-
-type InstanceStageT = TreatmentProgramInstanceDetail["stages"][number];
-type InstanceStageItemT = InstanceStageT["items"][number];
 
 function pickFirstFiniteNum(...vals: unknown[]): number | null {
   for (const v of vals) {
@@ -727,7 +732,9 @@ export function TreatmentProgramInstanceDetailClient(props: {
   const reorderPhaseZeroItem = useCallback(
     async (itemId: string, dir: -1 | 1) => {
       if (!stageZero) return;
-      const ordered = computeOrderedItemIdsAfterGroupItemAdjacentSwap(stageZero, null, itemId, dir);
+      const ordered = computeOrderedItemIdsAfterGroupItemAdjacentSwap(stageZero, null, itemId, dir, {
+        itemInReorderBand: (it) => it.itemType === "recommendation",
+      });
       if (!ordered) return;
       await runIfProgramInstanceMutationAllowed(detail.status, async () => {
         const res = await fetch(
@@ -757,7 +764,7 @@ export function TreatmentProgramInstanceDetailClient(props: {
         </p>
       ) : null}
 
-      <div className="grid gap-4 lg:grid-cols-2 lg:items-start xl:grid-cols-[minmax(0,380px)_minmax(0,1fr)]">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] lg:items-start">
         <div className="flex min-w-0 flex-col gap-4" id="doctor-program-instance-left">
           <section className="rounded-xl border border-border bg-card p-4" id="doctor-program-instance-summary">
             <h2 className="text-lg font-semibold tracking-tight">{detail.title}</h2>

@@ -6,24 +6,6 @@ import userEvent from "@testing-library/user-event";
 import type { TreatmentProgramLibraryPickers } from "./treatmentProgramLibraryTypes";
 import { InstanceAddLibraryItemDialog } from "./InstanceAddLibraryItemDialog";
 
-vi.mock("@/shared/ui/markdown/MarkdownEditorToastUi", () => ({
-  MarkdownEditorToastUi: (props: {
-    name: string;
-    defaultValue?: string;
-    maxLength?: number;
-    onValueChange?: (md: string) => void;
-  }) => (
-    <textarea
-      aria-label="Текст markdown"
-      name={props.name}
-      defaultValue={props.defaultValue ?? ""}
-      maxLength={props.maxLength}
-      className="min-h-[120px] text-sm"
-      onChange={(e) => props.onValueChange?.(e.target.value)}
-    />
-  ),
-}));
-
 vi.mock("./programInstanceMutationGuard", () => ({
   runIfProgramInstanceMutationAllowed: async (_status: string, action: () => Promise<void>) => {
     await action();
@@ -76,7 +58,7 @@ describe("InstanceAddLibraryItemDialog", () => {
 
     await user.type(screen.getByLabelText(/заголовок/i), "Заголовок из приёма");
 
-    await user.type(screen.getByLabelText(/текст markdown/i), "Текст **markdown**");
+    await user.type(screen.getByLabelText(/^Текст$/i), "Текст **markdown**");
 
     await user.click(screen.getByRole("button", { name: /^добавить$/i }));
 

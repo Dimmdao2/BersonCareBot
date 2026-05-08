@@ -161,6 +161,13 @@
 ### Доработка после аудита (тот же день)
 
 - Пустой план: в модалке назначения — необязательное поле названия инстанса → `POST { kind: "blank", title? }`; guard «Назначение…» покрыт тестом «кнопка disabled на время POST».
-- Этап 0 «Свой текст»: редактор **`MarkdownEditorToastUi`** вместо голого `Textarea`; тест `InstanceAddLibraryItemDialog.test.tsx`.
+- Этап 0 «Свой текст»: в модалке — **`Textarea`** для тела (в **`bodyMd`**); тест `InstanceAddLibraryItemDialog.test.tsx`.
 - API-тесты **`from-freeform-recommendation`**: `401`, `403`, `404` (инстанс / пациент), `400` для не-этапа 0 (в route-тесте — **другой `stageId` в URL** + mock сервиса, зеркало отказа); **`clients/.../treatment-program-instances`**: `kind: "blank"` с `title`.
 - Проверка: полный **`pnpm run ci`** после правок.
+
+---
+
+## 2026-05-09 — Аудит экрана инстанса (порядок этапа 0, контракт API)
+
+- **Порядок элементов на этапе 0:** перестановка стрелками учитывает только **`item_type === "recommendation"`** внутри «ленты» этапа 0, чтобы не смешивать с другими строками с `group_id = null` (если они появятся).
+- **Документация:** `apps/webapp/src/app/api/api.md` — **`DELETE .../stage-items/[itemId]`**, актуальный ввод freeform через **`Textarea`**; `ROADMAP.md` §4 — удаление строки инстанса при отсутствии истории.
