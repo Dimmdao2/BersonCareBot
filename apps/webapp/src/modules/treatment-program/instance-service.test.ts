@@ -11,7 +11,12 @@ import {
   createInMemoryTreatmentProgramItemSnapshotPort,
 } from "@/app-layer/testing/treatmentProgramInstanceInMemory";
 import type { TreatmentProgramItemRefValidationPort } from "./ports";
-import { effectiveInstanceStageItemComment, type TreatmentProgramInstanceDetail } from "./types";
+import {
+  BLANK_INDIVIDUAL_PLAN_DEFAULT_TITLE,
+  effectiveInstanceStageItemComment,
+  TREATMENT_PROGRAM_TEMPLATE_STAGE_ZERO_TITLE,
+  type TreatmentProgramInstanceDetail,
+} from "./types";
 
 const refA = "11111111-1111-4111-8111-111111111111";
 const refB = "22222222-2222-4222-8222-222222222222";
@@ -271,6 +276,74 @@ describe("treatment-program instance service", () => {
     });
     expect(second.id).not.toBe(first.id);
     expect(second.status).toBe("active");
+  });
+
+  it("createBlankIndividualPlan sets templateId null and single stage zero", async () => {
+    const patient = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+    const inst = await instSvc.createBlankIndividualPlan({
+      patientUserId: patient,
+      assignedBy: null,
+    });
+    expect(inst.templateId).toBeNull();
+    expect(inst.title).toBe(BLANK_INDIVIDUAL_PLAN_DEFAULT_TITLE);
+    expect(inst.stages).toHaveLength(1);
+    expect(inst.stages[0].sortOrder).toBe(0);
+    expect(inst.stages[0].title).toBe(TREATMENT_PROGRAM_TEMPLATE_STAGE_ZERO_TITLE);
+    expect(inst.stages[0].items).toHaveLength(0);
+    expect(inst.stages[0].sourceStageId).toBeNull();
+  });
+
+  it("createBlankIndividualPlan rejects second active program", async () => {
+    const patient = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+    await instSvc.createBlankIndividualPlan({ patientUserId: patient, assignedBy: null });
+    await expect(
+      instSvc.createBlankIndividualPlan({ patientUserId: patient, assignedBy: null }),
+    ).rejects.toThrow(SECOND_ACTIVE_TREATMENT_PROGRAM_MESSAGE);
+  });
+
+  it("doctorAddFreeformRecommendationToStageZero adds item with snapshot", async () => {
+    const patient = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+    const inst = await instSvc.createBlankIndividualPlan({ patientUserId: patient, assignedBy: null });
+    const s0 = inst.stages.find((s) => s.sortOrder === 0)!;
+    const doctor = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
+    const out = await instSvc.doctorAddFreeformRecommendationToStageZero({
+      instanceId: inst.id,
+      stageId: s0.id,
+      actorId: doctor,
+      title: "После приёма",
+      bodyMd: "## Отдых\n\n1 день",
+    });
+    expect(out.item.itemType).toBe("recommendation");
+    expect(out.item.snapshot).toMatchObject({
+      title: "После приёма",
+      bodyMd: "## Отдых\n\n1 день",
+    });
+    const again = await instPort.getInstanceById(inst.id);
+    expect(again?.stages.find((s) => s.id === s0.id)?.items).toHaveLength(1);
+  });
+
+  it("doctorAddFreeformRecommendationToStageZero rejects non-zero stage", async () => {
+    const tpl = await tplSvc.createTemplate({ title: "План", status: "published" }, null);
+    await tplSvc.createStage(tpl.id, { title: "Общие" });
+    const s1 = await tplSvc.createStage(tpl.id, { title: "Этап 1" });
+    await tplSvc.addStageItem(s1.id, { itemType: "recommendation", itemRefId: refA });
+    const patient = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    const inst = await instSvc.assignTemplateToPatient({
+      templateId: tpl.id,
+      patientUserId: patient,
+      assignedBy: null,
+    });
+    const st1 = inst.stages.find((s) => s.sortOrder === 1);
+    expect(st1).toBeDefined();
+    await expect(
+      instSvc.doctorAddFreeformRecommendationToStageZero({
+        instanceId: inst.id,
+        stageId: st1!.id,
+        actorId: null,
+        title: "X",
+        bodyMd: "y",
+      }),
+    ).rejects.toThrow(/Общие рекомендации/);
   });
 
   it("rejects draft template assignment", async () => {

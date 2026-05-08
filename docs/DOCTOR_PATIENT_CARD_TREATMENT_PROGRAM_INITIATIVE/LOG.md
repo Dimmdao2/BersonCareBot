@@ -124,3 +124,43 @@
   - `DECOMPOSITION.md`: таблица этапов A–E обновлена статусами.
   - `ROADMAP.md`: заголовок и §6 Этап 2 отражают факт завершения.
 - Оставшаяся работа по инициативе (этапы 3–6 из `ROADMAP.md`): правка инстанса из карточки, inbox «К проверке», каталоги — **отдельная задача**, не блокируется текущим состоянием.
+
+---
+
+## 2026-05-08 — Пустой индивидуальный план и свободный текст рекомендаций (этап 0)
+
+### Сделано
+
+- **`template_id` nullable на дереве создания:** `CreateTreatmentProgramInstanceTreeInput.templateId: string | null`, `TreatmentProgramInstanceStageInput.sourceStageId: string | null` (уже совпадало с БД).
+- **`createBlankIndividualPlan`** в `instance-service`: один этап с `sort_order = 0`, заголовок этапа `TREATMENT_PROGRAM_TEMPLATE_STAGE_ZERO_TITLE`, заголовок инстанса по умолчанию `BLANK_INDIVIDUAL_PLAN_DEFAULT_TITLE`.
+- **POST** `/api/doctor/clients/[userId]/treatment-program-instances`: тело `kind: "from_template" | "blank"` + **legacy** `{ templateId }` → трактуется как `from_template`.
+- **Атомарное добавление свободного текста:** порт `createFreeformRecommendationAndStageItem` (PG транзакция: `recommendations` + `instance_stage_item`), сервис `doctorAddFreeformRecommendationToStageZero`, route `POST .../items/from-freeform-recommendation`. Тег строки каталога: `tp_instance_freeform`.
+- **UI:** `PatientTreatmentProgramsPanel` — режим «Пустой план», метка «без шаблона» в списке; `InstanceAddLibraryItemDialog` — вкладки «Каталог» / «Свой текст» только для этапа 0.
+
+### Проверки
+
+- `pnpm --dir apps/webapp exec vitest run` (таргет): `instance-service.test.ts`, `PatientTreatmentProgramsPanel.test.tsx`, `InstanceAddLibraryItemDialog.test.tsx`, `treatment-program-instances/route.test.ts`, `from-freeform-recommendation/route.test.ts`.
+- Ручной интеграционный сценарий — см. блок **«Ручной smoke»** ниже (не заменяет CI).
+- Документация API: `apps/webapp/src/app/api/api.md` — строка про **`POST .../items/from-freeform-recommendation`**.
+- Полный **`pnpm run ci`** (корень монорепо): после фикса импорта константы тега в `pgTreatmentProgramInstance.ts` (value-import вместо `import type`).
+
+### Не делали
+
+- Сущность «Приём», журнал посещений, FK приём → элемент.
+
+### Ручной smoke (перед релизом или после деплоя)
+
+1. Карточка пациента → «Назначить программу лечения» → «Пустой план» → создать; в списке инстансов есть суффикс «без шаблона».
+2. То же с заполненным необязательным названием — заголовок инстанса в списке совпадает с вводом.
+3. Открыть экземпляр → этап «Общие рекомендации» → добавить «Свой текст» (Markdown) → элемент появляется в списке этапа.
+4. Войти как пациент этого пользователя → план лечения → рекомендация этапа 0 отображается.
+5. Повторное назначение при уже активной программе → **409** и сообщение о второй активной программе.
+
+Дублирование автоматических проверок: доменная логика этапа 0 для freeform — **`instance-service.test.ts`** (`doctorAddFreeformRecommendationToStageZero`); HTTP-маршрут — **`from-freeform-recommendation/route.test.ts`** (в т.ч. чужой **`stageId`** в URL).
+
+### Доработка после аудита (тот же день)
+
+- Пустой план: в модалке назначения — необязательное поле названия инстанса → `POST { kind: "blank", title? }`; guard «Назначение…» покрыт тестом «кнопка disabled на время POST».
+- Этап 0 «Свой текст»: редактор **`MarkdownEditorToastUi`** вместо голого `Textarea`; тест `InstanceAddLibraryItemDialog.test.tsx`.
+- API-тесты **`from-freeform-recommendation`**: `401`, `403`, `404` (инстанс / пациент), `400` для не-этапа 0 (в route-тесте — **другой `stageId` в URL** + mock сервиса, зеркало отказа); **`clients/.../treatment-program-instances`**: `kind: "blank"` с `title`.
+- Проверка: полный **`pnpm run ci`** после правок.

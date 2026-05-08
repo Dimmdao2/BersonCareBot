@@ -10,6 +10,7 @@ import type { TreatmentProgramService } from "./service";
 import { assertUuid } from "./service";
 import type { TreatmentProgramInstanceStageStatus } from "./types";
 import {
+  BLANK_INDIVIDUAL_PLAN_DEFAULT_TITLE,
   effectiveInstanceStageItemComment,
   type CreateTreatmentProgramInstanceStageGroupInput,
   type TreatmentProgramInstanceStageItemRow,
@@ -21,6 +22,7 @@ import {
   TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_SORT_TESTS,
   TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_TITLE_RECOMMENDATIONS,
   TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_TITLE_TESTS,
+  TREATMENT_PROGRAM_TEMPLATE_STAGE_ZERO_TITLE,
 } from "./types";
 import { isStageZero, assertTreatmentProgramStageItemFitsSystemGroup } from "./stage-semantics";
 
@@ -207,6 +209,46 @@ export function createTreatmentProgramInstanceService(deps: {
         assignedBy: input.assignedBy,
         title: tpl.title,
         stages: stageInputs,
+      });
+    },
+
+    async createBlankIndividualPlan(input: {
+      patientUserId: string;
+      assignedBy: string | null;
+      title?: string | null;
+    }) {
+      assertUuid(input.patientUserId);
+      if (input.assignedBy) assertUuid(input.assignedBy);
+
+      const existing = await instances.listInstancesForPatient(input.patientUserId.trim());
+      if (existing.some((i) => i.status === "active")) {
+        throw new Error(SECOND_ACTIVE_TREATMENT_PROGRAM_MESSAGE);
+      }
+
+      const rawTitle = input.title?.trim();
+      const title =
+        rawTitle && rawTitle.length > 0 ? rawTitle : BLANK_INDIVIDUAL_PLAN_DEFAULT_TITLE;
+
+      return instances.createInstanceTree({
+        templateId: null,
+        patientUserId: input.patientUserId.trim(),
+        assignedBy: input.assignedBy,
+        title,
+        stages: [
+          {
+            sourceStageId: null,
+            title: TREATMENT_PROGRAM_TEMPLATE_STAGE_ZERO_TITLE,
+            description: null,
+            sortOrder: 0,
+            status: "available",
+            goals: null,
+            objectives: null,
+            expectedDurationDays: null,
+            expectedDurationText: null,
+            items: [],
+            groups: [],
+          },
+        ],
       });
     },
 
@@ -494,6 +536,57 @@ export function createTreatmentProgramInstanceService(deps: {
         },
       });
       return row;
+    },
+
+    async doctorAddFreeformRecommendationToStageZero(input: {
+      instanceId: string;
+      stageId: string;
+      actorId: string | null;
+      title: string;
+      bodyMd: string;
+    }) {
+      assertUuid(input.instanceId);
+      assertUuid(input.stageId);
+      if (input.actorId) assertUuid(input.actorId);
+
+      const title = input.title.trim();
+      if (!title) throw new Error("Название рекомендации обязательно");
+
+      const detail = await instances.getInstanceById(input.instanceId);
+      if (!detail) throw new Error("Программа не найдена");
+      const stage = detail.stages.find((s) => s.id === input.stageId);
+      if (!stage) throw new Error("Этап не найден");
+      if (!isStageZero(stage)) {
+        throw new Error("Свободный текст можно добавить только на этап «Общие рекомендации»");
+      }
+
+      const bodyMd = input.bodyMd.trim();
+
+      const result = await instances.createFreeformRecommendationAndStageItem({
+        instanceId: input.instanceId,
+        stageId: input.stageId,
+        title,
+        bodyMd,
+        createdBy: input.actorId,
+      });
+      if (!result) throw new Error("Не удалось добавить рекомендацию");
+
+      await appendEvent({
+        instanceId: input.instanceId,
+        actorId: input.actorId,
+        eventType: "item_added",
+        targetType: "stage_item",
+        targetId: result.item.id,
+        payload: {
+          stageId: input.stageId,
+          itemType: result.item.itemType,
+          itemRefId: result.item.itemRefId,
+          sortOrder: result.item.sortOrder,
+          source: "freeform_recommendation",
+        },
+      });
+
+      return result;
     },
 
     async doctorExpandTestSetIntoStage(input: {

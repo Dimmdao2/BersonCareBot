@@ -60,6 +60,12 @@ export const TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_TITLE_TESTS = "Тестир
 /** Этап шаблона с `sort_order = 0` создаётся при создании шаблона. */
 export const TREATMENT_PROGRAM_TEMPLATE_STAGE_ZERO_TITLE = "Общие рекомендации";
 
+/** Заголовок инстанса при создании пустого индивидуального плана без шаблона. */
+export const BLANK_INDIVIDUAL_PLAN_DEFAULT_TITLE = "Индивидуальный план";
+
+/** Тег строки `recommendations`, созданной из экземпляра программы (свободный текст этапа 0). */
+export const TREATMENT_PROGRAM_INSTANCE_FREEFORM_RECOMMENDATION_TAG = "tp_instance_freeform";
+
 /** Счётчик этапов для списка и поля `TreatmentProgramTemplate.stageCount`: без этапа 0 (общие рекомендации). */
 export function treatmentProgramTemplateStageCountForList(
   stages: readonly { sortOrder: number }[],
@@ -453,7 +459,7 @@ export type TreatmentProgramIntegratorLfkBlock = {
 };
 
 export type TreatmentProgramInstanceStageInput = {
-  sourceStageId: string;
+  sourceStageId: string | null;
   title: string;
   description: string | null;
   sortOrder: number;
@@ -487,7 +493,7 @@ export type TreatmentProgramInstanceStageInput = {
 };
 
 export type CreateTreatmentProgramInstanceTreeInput = {
-  templateId: string;
+  templateId: string | null;
   patientUserId: string;
   assignedBy: string | null;
   title: string;

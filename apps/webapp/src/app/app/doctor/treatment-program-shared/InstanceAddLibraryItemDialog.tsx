@@ -14,6 +14,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import { MarkdownEditorToastUi } from "@/shared/ui/markdown/MarkdownEditorToastUi";
 import type {
   TreatmentProgramInstanceStatus,
   TreatmentProgramItemType,
@@ -104,6 +105,11 @@ export function InstanceAddLibraryItemDialog(props: {
   const [testsAddMode, setTestsAddMode] = useState<"expand_set" | "single_test">("expand_set");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [phaseZeroSource, setPhaseZeroSource] = useState<"catalog" | "freeform">("catalog");
+  const [freeformTitle, setFreeformTitle] = useState("");
+  const [freeformBody, setFreeformBody] = useState("");
+  /** Сбрасывает Toast UI Editor при повторном входе в режим «Свой текст». */
+  const [freeformEditorMountId, setFreeformEditorMountId] = useState(0);
 
   useEffect(() => {
     if (!open) {
@@ -111,6 +117,10 @@ export function InstanceAddLibraryItemDialog(props: {
       setCustomKind("exercise");
       setTestsAddMode("expand_set");
       setError(null);
+      setPhaseZeroSource("catalog");
+      setFreeformTitle("");
+      setFreeformBody("");
+      setFreeformEditorMountId(0);
     }
   }, [open]);
 
@@ -210,21 +220,134 @@ export function InstanceAddLibraryItemDialog(props: {
     });
   }
 
+  async function submitFreeform() {
+    if (!spec || editLocked || busy) return;
+    if (spec.context !== "phase_zero_recommendations") return;
+    const title = freeformTitle.trim();
+    if (!title) {
+      setError("Укажите заголовок");
+      return;
+    }
+    setError(null);
+    await runIfProgramInstanceMutationAllowed(programStatus, async () => {
+      setBusy(true);
+      try {
+        const res = await fetch(
+          `/api/doctor/treatment-program-instances/${encodeURIComponent(instanceId)}/stages/${encodeURIComponent(spec.stageId)}/items/from-freeform-recommendation`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ title, bodyMd: freeformBody.trim() }),
+          },
+        );
+        const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
+        if (!res.ok || !data.ok) {
+          setError(data.error ?? "Не удалось добавить рекомендацию");
+          return;
+        }
+        onOpenChange(false);
+        await onAdded();
+      } finally {
+        setBusy(false);
+      }
+    });
+  }
+
   const showCustomKindToggle = spec?.context === "custom_group";
+  const isPhaseZero = spec?.context === "phase_zero_recommendations";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-xl">
         <DialogHeader>
-          <DialogTitle>Элемент из библиотеки</DialogTitle>
-          <DialogDescription>Выберите позицию каталога для добавления в программу пациента.</DialogDescription>
+          <DialogTitle>{isPhaseZero ? "Рекомендация" : "Элемент из библиотеки"}</DialogTitle>
+          {!isPhaseZero ? (
+            <DialogDescription>
+              Выберите позицию каталога для добавления в программу пациента.
+            </DialogDescription>
+          ) : null}
         </DialogHeader>
         {error ? (
           <p className="text-sm text-destructive" role="alert">
             {error}
           </p>
         ) : null}
-        <div className="flex flex-col gap-3">
+        {isPhaseZero ? (
+          <div
+            className="grid h-9 grid-cols-2 overflow-hidden rounded-md border border-input p-px"
+            role="radiogroup"
+            aria-label="Способ добавления"
+          >
+            <button
+              type="button"
+              role="radio"
+              aria-checked={phaseZeroSource === "catalog"}
+              className={cn(
+                "text-xs font-medium transition-colors",
+                phaseZeroSource === "catalog"
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-transparent text-foreground hover:bg-muted/60",
+              )}
+              onClick={() => {
+                setPhaseZeroSource("catalog");
+                setError(null);
+              }}
+            >
+              Каталог
+            </button>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={phaseZeroSource === "freeform"}
+              className={cn(
+                "text-xs font-medium transition-colors",
+                phaseZeroSource === "freeform"
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-transparent text-foreground hover:bg-muted/60",
+              )}
+              onClick={() => {
+                setPhaseZeroSource("freeform");
+                setFreeformTitle("");
+                setFreeformBody("");
+                setFreeformEditorMountId((n) => n + 1);
+                setError(null);
+              }}
+            >
+              Свой текст
+            </button>
+          </div>
+        ) : null}
+        {isPhaseZero && phaseZeroSource === "freeform" ? (
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="tp-freeform-title">Заголовок</Label>
+              <Input
+                id="tp-freeform-title"
+                className="text-sm"
+                value={freeformTitle}
+                onChange={(e) => setFreeformTitle(e.target.value)}
+                disabled={busy || editLocked}
+              />
+            </div>
+            <MarkdownEditorToastUi
+              key={`tp-instance-freeform-${freeformEditorMountId}`}
+              name="tpInstanceFreeformBodyMd"
+              defaultValue=""
+              maxLength={100_000}
+              label={<span className="text-sm font-medium text-foreground">Текст</span>}
+              helpText={null}
+              onValueChange={setFreeformBody}
+            />
+            <Button
+              type="button"
+              disabled={editLocked || busy}
+              onClick={() => void submitFreeform()}
+            >
+              Добавить
+            </Button>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-3">
           {showCustomKindToggle ? (
             <div className="flex flex-col gap-2">
               <Label>Тип элемента</Label>
@@ -362,6 +485,7 @@ export function InstanceAddLibraryItemDialog(props: {
             )}
           </ul>
         </div>
+        )}
         <DialogFooter>
           <Button type="button" variant="outline" disabled={busy} onClick={() => onOpenChange(false)}>
             Закрыть

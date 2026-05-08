@@ -6,6 +6,7 @@ import {
   treatmentProgramInstanceStages as stageTable,
   treatmentProgramInstances as instTable,
 } from "../../../db/schema/treatmentProgramInstances";
+import { recommendations as recommendationsTable } from "../../../db/schema/recommendations";
 import { treatmentProgramEvents as eventTable } from "../../../db/schema/treatmentProgramEvents";
 import type { TreatmentProgramInstancePort } from "@/modules/treatment-program/ports";
 import type {
@@ -29,7 +30,10 @@ import type {
   TreatmentProgramInstanceStageItemStatus,
   TreatmentProgramItemType,
 } from "@/modules/treatment-program/types";
-import { effectiveInstanceStageItemComment } from "@/modules/treatment-program/types";
+import {
+  effectiveInstanceStageItemComment,
+  TREATMENT_PROGRAM_INSTANCE_FREEFORM_RECOMMENDATION_TAG,
+} from "@/modules/treatment-program/types";
 import { withDefaultSystemGroupsIfNeededForTreeStage } from "@/modules/treatment-program/instance-tree-system-groups";
 import { createPgTreatmentProgramItemSnapshotPort } from "@/infra/repos/pgTreatmentProgramItemSnapshot";
 import { testSetItems, testSets } from "../../../db/schema/clinicalTests";
@@ -151,7 +155,10 @@ function toDetail(
   };
 }
 
-async function touchInstanceUpdatedAt(db: ReturnType<typeof getDrizzle>, instanceId: string): Promise<void> {
+async function touchInstanceUpdatedAt(
+  db: Pick<ReturnType<typeof getDrizzle>, "update">,
+  instanceId: string,
+): Promise<void> {
   await db
     .update(instTable)
     .set({ updatedAt: new Date().toISOString() })
@@ -624,6 +631,75 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
       if (!irow) return null;
       await touchInstanceUpdatedAt(db, instanceId);
       return mapItem(irow);
+    },
+
+    async createFreeformRecommendationAndStageItem(input: {
+      instanceId: string;
+      stageId: string;
+      title: string;
+      bodyMd: string;
+      createdBy: string | null;
+    }): Promise<{ item: TreatmentProgramInstanceStageItemRow; recommendationId: string } | null> {
+      const db = getDrizzle();
+      return db.transaction(async (tx) => {
+        const stRow = await tx.query.treatmentProgramInstanceStages.findFirst({
+          where: eq(stageTable.id, input.stageId),
+        });
+        if (!stRow || stRow.instanceId !== input.instanceId || stRow.sortOrder !== 0) {
+          return null;
+        }
+
+        const title = input.title.trim();
+        const bodyMd = input.bodyMd.trim();
+        const [rec] = await tx
+          .insert(recommendationsTable)
+          .values({
+            title,
+            bodyMd,
+            tags: [TREATMENT_PROGRAM_INSTANCE_FREEFORM_RECOMMENDATION_TAG],
+            domain: null,
+            createdBy: input.createdBy,
+          })
+          .returning();
+        if (!rec) throw new Error("insert recommendation failed");
+
+        const snapshot: Record<string, unknown> = {
+          itemType: "recommendation" as const,
+          id: rec.id,
+          title: rec.title,
+          bodyMd: rec.bodyMd ?? "",
+        };
+
+        const [{ max: itemMax }] = await tx
+          .select({ max: sql<number>`coalesce(max(${itemTable.sortOrder}), -1)` })
+          .from(itemTable)
+          .where(eq(itemTable.stageId, input.stageId));
+
+        const sortOrder = itemMax + 1;
+
+        const [irow] = await tx
+          .insert(itemTable)
+          .values({
+            stageId: input.stageId,
+            itemType: "recommendation",
+            itemRefId: rec.id,
+            sortOrder,
+            comment: null,
+            localComment: null,
+            settings: undefined,
+            snapshot,
+            completedAt: null,
+            isActionable: false,
+            status: "active",
+            groupId: null,
+            lastViewedAt: null,
+          })
+          .returning();
+        if (!irow) throw new Error("insert instance stage item failed");
+
+        await touchInstanceUpdatedAt(tx, input.instanceId);
+        return { item: mapItem(irow), recommendationId: rec.id };
+      });
     },
 
     async expandTestSetIntoInstanceStageItems(

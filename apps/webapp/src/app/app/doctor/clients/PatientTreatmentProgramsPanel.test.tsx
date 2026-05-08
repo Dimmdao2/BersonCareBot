@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { PatientTreatmentProgramsPanel } from "./PatientTreatmentProgramsPanel";
 
@@ -23,8 +23,8 @@ vi.mock("react-hot-toast", () => ({
 }));
 
 const PATIENT_ID = "00000000-0000-4000-8000-000000000001";
-const TEMPLATE_A = { id: "tpl-a", title: "Программа Альфа" };
-const TEMPLATE_B = { id: "tpl-b", title: "Программа Бета" };
+const TEMPLATE_A = { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", title: "Программа Альфа" };
+const TEMPLATE_B = { id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", title: "Программа Бета" };
 
 function makeInstancesResponse(instances: unknown[] = []) {
   return new Response(JSON.stringify({ ok: true, items: instances }), { status: 200 });
@@ -53,7 +53,10 @@ describe("PatientTreatmentProgramsPanel", () => {
     await user.click(cta);
 
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
-    expect(screen.getByText("Выберите шаблон программы лечения")).toBeInTheDocument();
+    const dlg = screen.getByRole("dialog");
+    expect(
+      within(dlg).getByRole("heading", { name: /назначить программу лечения/i }),
+    ).toBeInTheDocument();
     expect(screen.getByPlaceholderText(/поиск по названию/i)).toBeInTheDocument();
     expect(screen.getByText(TEMPLATE_A.title)).toBeInTheDocument();
     expect(screen.getByText(TEMPLATE_B.title)).toBeInTheDocument();
@@ -98,6 +101,7 @@ describe("PatientTreatmentProgramsPanel", () => {
     );
     expect(postCall).toBeDefined();
     expect(JSON.parse((postCall![1] as RequestInit).body as string)).toEqual({
+      kind: "from_template",
       templateId: TEMPLATE_A.id,
     });
   });
@@ -129,5 +133,116 @@ describe("PatientTreatmentProgramsPanel", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(errorMsg);
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(toastSuccessMock).not.toHaveBeenCalled();
+  });
+
+  it("пустой план: POST с kind blank и успех", async () => {
+    const user = userEvent.setup();
+
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(makeInstancesResponse())
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ ok: true, item: { id: "inst-blank" } }), { status: 200 }),
+      )
+      .mockResolvedValueOnce(makeInstancesResponse());
+
+    render(
+      <PatientTreatmentProgramsPanel patientUserId={PATIENT_ID} templates={[TEMPLATE_A, TEMPLATE_B]} />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /назначить программу лечения/i }));
+    await screen.findByRole("dialog");
+
+    await user.click(screen.getByRole("radio", { name: /пустой план/i }));
+
+    await user.click(screen.getByRole("button", { name: /создать пустой план/i }));
+
+    await waitFor(() => {
+      expect(toastSuccessMock).toHaveBeenCalledWith("Программа лечения назначена");
+    });
+
+    const calls = vi.mocked(globalThis.fetch).mock.calls;
+    const postCall = calls.find(([, init]) => (init as RequestInit)?.method === "POST");
+    expect(postCall).toBeDefined();
+    expect(JSON.parse((postCall![1] as RequestInit).body as string)).toEqual({ kind: "blank" });
+  });
+
+  it("пустой план: необязательный title передаётся в POST", async () => {
+    const user = userEvent.setup();
+
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(makeInstancesResponse())
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ ok: true, item: { id: "inst-titled" } }), { status: 200 }),
+      )
+      .mockResolvedValueOnce(makeInstancesResponse());
+
+    render(
+      <PatientTreatmentProgramsPanel patientUserId={PATIENT_ID} templates={[TEMPLATE_A, TEMPLATE_B]} />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /назначить программу лечения/i }));
+    await screen.findByRole("dialog");
+
+    await user.click(screen.getByRole("radio", { name: /пустой план/i }));
+
+    await user.type(screen.getByLabelText(/название программы/i), "План после осмотра");
+
+    await user.click(screen.getByRole("button", { name: /создать пустой план/i }));
+
+    await waitFor(() => {
+      expect(toastSuccessMock).toHaveBeenCalledWith("Программа лечения назначена");
+    });
+
+    const calls = vi.mocked(globalThis.fetch).mock.calls;
+    const postCall = calls.find(([, init]) => (init as RequestInit)?.method === "POST");
+    expect(postCall).toBeDefined();
+    expect(JSON.parse((postCall![1] as RequestInit).body as string)).toEqual({
+      kind: "blank",
+      title: "План после осмотра",
+    });
+  });
+
+  it("пустой план: кнопка назначения disabled на время ответа POST", async () => {
+    const user = userEvent.setup();
+
+    let resolvePost!: (r: Response) => void;
+    const postHang = new Promise<Response>((res) => {
+      resolvePost = res;
+    });
+
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(makeInstancesResponse())
+      .mockImplementation((url, init) => {
+        if (
+          String(url).includes(`/clients/${PATIENT_ID}/treatment-program-instances`) &&
+          (init as RequestInit)?.method === "POST"
+        ) {
+          return postHang;
+        }
+        return Promise.resolve(makeInstancesResponse());
+      });
+
+    render(
+      <PatientTreatmentProgramsPanel patientUserId={PATIENT_ID} templates={[TEMPLATE_A, TEMPLATE_B]} />,
+    );
+
+    await waitFor(() => {
+      expect(vi.mocked(globalThis.fetch)).toHaveBeenCalled();
+    });
+
+    await user.click(screen.getByRole("button", { name: /назначить программу лечения/i }));
+    await screen.findByRole("dialog");
+    await user.click(screen.getByRole("radio", { name: /пустой план/i }));
+
+    const assignBtn = screen.getByRole("button", { name: /создать пустой план/i });
+    await user.click(assignBtn);
+
+    expect(assignBtn).toBeDisabled();
+
+    resolvePost!(new Response(JSON.stringify({ ok: true, item: { id: "inst-x" } }), { status: 200 }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
   });
 });

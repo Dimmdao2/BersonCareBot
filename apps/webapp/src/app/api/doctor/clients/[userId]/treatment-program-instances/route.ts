@@ -6,9 +6,24 @@ import { canAccessDoctor } from "@/modules/roles/service";
 import { revalidatePatientTreatmentProgramUi } from "@/app-layer/cache/revalidatePatientTreatmentProgramUi";
 import { SECOND_ACTIVE_TREATMENT_PROGRAM_MESSAGE } from "@/modules/treatment-program/instance-service";
 
-const postBodySchema = z.object({
-  templateId: z.string().uuid(),
-});
+const postBodySchema = z.preprocess(
+  (raw) => {
+    if (raw && typeof raw === "object" && raw !== null && !("kind" in raw) && "templateId" in raw) {
+      const t = (raw as { templateId?: unknown }).templateId;
+      if (typeof t === "string" && z.string().uuid().safeParse(t).success) {
+        return { kind: "from_template" as const, templateId: t };
+      }
+    }
+    return raw;
+  },
+  z.discriminatedUnion("kind", [
+    z.object({ kind: z.literal("from_template"), templateId: z.string().uuid() }),
+    z.object({
+      kind: z.literal("blank"),
+      title: z.string().min(1).max(2000).optional(),
+    }),
+  ]),
+);
 
 export async function GET(
   _request: Request,
@@ -65,11 +80,18 @@ export async function POST(
   }
 
   try {
-    const item = await deps.treatmentProgramInstance.assignTemplateToPatient({
-      templateId: parsed.data.templateId,
-      patientUserId: userId,
-      assignedBy: session.user.userId,
-    });
+    const item =
+      parsed.data.kind === "from_template"
+        ? await deps.treatmentProgramInstance.assignTemplateToPatient({
+            templateId: parsed.data.templateId,
+            patientUserId: userId,
+            assignedBy: session.user.userId,
+          })
+        : await deps.treatmentProgramInstance.createBlankIndividualPlan({
+            patientUserId: userId,
+            assignedBy: session.user.userId,
+            title: parsed.data.title,
+          });
     revalidatePatientTreatmentProgramUi();
     return NextResponse.json({ ok: true, item });
   } catch (e) {

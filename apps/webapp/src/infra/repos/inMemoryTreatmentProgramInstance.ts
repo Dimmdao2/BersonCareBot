@@ -30,7 +30,10 @@ import type {
   NormalizedTestDecision,
   PendingProgramTestEvaluationRow,
 } from "@/modules/treatment-program/types";
-import { effectiveInstanceStageItemComment, TREATMENT_PROGRAM_PLAN_MUTATION_EVENT_TYPES } from "@/modules/treatment-program/types";
+import {
+  effectiveInstanceStageItemComment,
+  TREATMENT_PROGRAM_PLAN_MUTATION_EVENT_TYPES,
+} from "@/modules/treatment-program/types";
 import { withDefaultSystemGroupsIfNeededForTreeStage } from "@/modules/treatment-program/instance-tree-system-groups";
 
 function sameIdSet(ordered: string[], expected: Set<string>): boolean {
@@ -444,6 +447,54 @@ export function createInMemoryTreatmentProgramPersistence(seed?: {
       items.set(iid, itemRow);
       touchInstance(instanceId);
       return itemRow;
+    },
+
+    async createFreeformRecommendationAndStageItem(input: {
+      instanceId: string;
+      stageId: string;
+      title: string;
+      bodyMd: string;
+      createdBy: string | null;
+    }): Promise<{ item: TreatmentProgramInstanceStageItemRow; recommendationId: string } | null> {
+      void input.createdBy;
+      const st = stages.get(input.stageId);
+      if (!st || st.instanceId !== input.instanceId || st.sortOrder !== 0) return null;
+      const recId = crypto.randomUUID();
+      const title = input.title.trim();
+      const bodyMd = input.bodyMd.trim();
+      const snapshot: Record<string, unknown> = {
+        itemType: "recommendation",
+        id: recId,
+        title,
+        bodyMd,
+      };
+      const itemMax = Math.max(
+        -1,
+        ...[...items.values()].filter((it) => it.stageId === input.stageId).map((it) => it.sortOrder),
+      );
+      const sortOrder = itemMax + 1;
+      const iid = crypto.randomUUID();
+      const t = isoNow();
+      const itemRow: ItemRow = {
+        id: iid,
+        stageId: input.stageId,
+        itemType: "recommendation",
+        itemRefId: recId,
+        sortOrder,
+        comment: null,
+        localComment: null,
+        settings: null,
+        snapshot,
+        completedAt: null,
+        isActionable: false,
+        status: "active",
+        groupId: null,
+        createdAt: t,
+        lastViewedAt: null,
+      };
+      items.set(iid, itemRow);
+      touchInstance(input.instanceId);
+      return { item: itemRow, recommendationId: recId };
     },
 
     async expandTestSetIntoInstanceStageItems(

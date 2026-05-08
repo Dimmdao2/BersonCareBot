@@ -192,6 +192,19 @@ export type TreatmentProgramInstancePort = {
     stageId: string,
     input: AddTreatmentProgramInstanceStageItemInput,
   ): Promise<TreatmentProgramInstanceStageItemRow | null>;
+
+  /**
+   * Одна транзакция БД: создаёт строку `recommendations` и элемент этапа 0 экземпляра (без медиа в snapshot).
+   * Только для этапа с `sort_order = 0`.
+   */
+  createFreeformRecommendationAndStageItem(input: {
+    instanceId: string;
+    stageId: string;
+    title: string;
+    bodyMd: string;
+    createdBy: string | null;
+  }): Promise<{ item: TreatmentProgramInstanceStageItemRow; recommendationId: string } | null>;
+
   /** Развёртывание набора в строки `clinical_test` (снимок на каждую строку). */
   expandTestSetIntoInstanceStageItems(
     input: ExpandTestSetIntoInstanceStageItemsPortInput,
