@@ -9,12 +9,20 @@ type TabKey = "symptoms" | "lfk";
 export function DiaryTabsClient({
   symptomsPanel,
   lfkPanel,
+  /** MVP дневника: один столбец без вкладок ЛФК/симптомы (TODO восстановить вкладки). */
+  wellbeingMvpSingle,
 }: {
   symptomsPanel: ReactNode;
   lfkPanel: ReactNode;
+  wellbeingMvpSingle?: ReactNode;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
+
+  if (wellbeingMvpSingle != null) {
+    return <div className="flex flex-col gap-4">{wellbeingMvpSingle}</div>;
+  }
+
   const tab: TabKey = searchParams.get("tab") === "lfk" ? "lfk" : "symptoms";
 
   return (

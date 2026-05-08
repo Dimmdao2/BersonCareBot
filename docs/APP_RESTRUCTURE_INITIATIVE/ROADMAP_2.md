@@ -345,6 +345,8 @@ pnpm --dir apps/webapp exec vitest run src/app/app/patient/treatment-programs
 
 **Тех. согласованность (2026-05-04, до полного UX-прохода):** legacy URL `/app/patient/diary/symptoms` и `/app/patient/diary/lfk` (включая вариант со слэшем) → permanent-редиректы в [`apps/webapp/next.config.ts`](../../apps/webapp/next.config.ts); server action `createLfkComplex` — no-op; на единой [`diary/page.tsx`](../../apps/webapp/src/app/app/patient/diary/page.tsx) убрана форма самосоздания комплекса, empty state и CTA ведут на программы лечения и сообщения. Детали — [`LOG.md`](LOG.md) записи 2026-05-04.
 
+**Промежуточный MVP (2026-05-09):** на `/app/patient/diary` показывается недельный график самочувствия (Recharts `ComposedChart`); вкладки «Симптомы»/«ЛФК» и связанный UI на странице не монтируются. Источник правды по поведению и TODO — [`apps/webapp/src/app/app/patient/diary/diary.md`](../../apps/webapp/src/app/app/patient/diary/diary.md).
+
 **Цель.** Открыть страницу как «давай отметим занятие за сегодня», а не как дашборд. Пациентское создание ЛФК-комплекса убрать (противоречит модели «комплексы из назначений врача»).
 
 **Что делать.**

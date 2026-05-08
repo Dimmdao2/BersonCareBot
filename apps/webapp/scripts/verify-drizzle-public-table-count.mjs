@@ -23,6 +23,7 @@ const SCHEMA_FILES = [
   "db/schema/treatmentProgramInstances.ts",
   "db/schema/treatmentProgramTestAttempts.ts",
   "db/schema/treatmentProgramEvents.ts",
+  "db/schema/programActionLog.ts",
   "db/schema/entityComments.ts",
   "db/schema/courses.ts",
   "db/schema/patientPractice.ts",
