@@ -24,10 +24,11 @@ export default async function TreatmentProgramTemplateEditorPage(props: PageProp
     notFound();
   }
 
-  const [exercises, lfkTemplates, testSets, recommendations, contentPagesAll] = await Promise.all([
+  const [exercises, lfkTemplates, testSets, clinicalTests, recommendations, contentPagesAll] = await Promise.all([
     deps.lfkExercises.listExercises({ includeArchived: false }),
     deps.lfkTemplates.listTemplates({ statusIn: ["draft", "published"] }),
     deps.testSets.listTestSets({ includeArchived: false }),
+    deps.clinicalTests.listClinicalTests({ archiveScope: "active" }),
     deps.recommendations.listRecommendations({ includeArchived: false }),
     deps.contentPages.listAll(),
   ]);
@@ -36,6 +37,7 @@ export default async function TreatmentProgramTemplateEditorPage(props: PageProp
     exercises,
     lfkTemplates,
     testSets,
+    clinicalTests,
     recommendations,
     contentPagesAll,
   });

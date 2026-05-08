@@ -67,7 +67,7 @@ describe("createPgClinicalTestsPort usage summary", () => {
     expect(queryMock).toHaveBeenCalledTimes(1);
     const sql = String(queryMock.mock.calls[0]?.[0] ?? "");
     expect(sql).toContain("test_set_items");
-    expect(sql).toContain("item_type = 'test_set'");
+    expect(sql).toContain("item_type = 'clinical_test'");
     expect(sql).toContain("test_results");
     expect(sql).toContain("t.status = 'archived'");
   });

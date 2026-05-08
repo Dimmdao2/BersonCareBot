@@ -119,9 +119,9 @@ function briefNonExerciseHeroParts(item: StageItem, navMode: PatientProgramItemN
     if (typeof snap.frequencyText === "string" && snap.frequencyText.trim()) parts.push(snap.frequencyText.trim());
     if (typeof snap.quantityText === "string" && snap.quantityText.trim()) parts.push(snap.quantityText.trim());
   }
-  if (item.itemType === "test_set" && navMode !== "tests") {
+  if (item.itemType === "clinical_test" && navMode !== "tests") {
     const tests = parseTestSetSnapshotTests(snap);
-    if (tests.length > 0) parts.push(`Тестов в наборе: ${tests.length}`);
+    if (tests.length > 0) parts.push(`Тестов в пункте: ${tests.length}`);
   }
   if (item.itemType === "lesson") {
     if (typeof snap.summary === "string" && snap.summary.trim()) parts.push(snap.summary.trim());
@@ -741,7 +741,7 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
             </div>
           ) : null}
 
-          {!contentBlocked && !readOnly && item.itemType !== "test_set" ? (
+          {!contentBlocked && !readOnly && item.itemType !== "clinical_test" ? (
             <div className="flex flex-wrap items-stretch gap-2">
               {isPersistentRecommendation(item) ? (
                 flatNextItemId ? (
@@ -835,9 +835,9 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
             </div>
           ) : null}
 
-          {!(item.itemType === "test_set" && navMode === "tests") ? <ModalDescriptionSection item={item} /> : null}
+          {!(item.itemType === "clinical_test" && navMode === "tests") ? <ModalDescriptionSection item={item} /> : null}
 
-          {item.itemType === "test_set" ? (
+          {item.itemType === "clinical_test" ? (
             <PatientTestSetProgressForm
               instanceId={instanceId}
               itemId={item.id}

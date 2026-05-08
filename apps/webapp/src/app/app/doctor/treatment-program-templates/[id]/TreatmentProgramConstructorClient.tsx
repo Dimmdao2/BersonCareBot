@@ -63,7 +63,7 @@ const ITEM_TYPE_LABEL: Record<TreatmentProgramItemType, string> = {
   lfk_complex: "Комплекс ЛФК",
   recommendation: "Рекомендация",
   lesson: "Урок (страница контента)",
-  test_set: "Набор тестов",
+  clinical_test: "Клинический тест",
 };
 
 /** Квадратная кнопка «+»: открыть выбор элемента из каталога. */
@@ -158,7 +158,7 @@ function LibraryMediaThumb({
   const icon =
     itemType === "lesson" ? (
       <BookOpen className={`${iconSz} text-muted-foreground`} aria-hidden />
-    ) : itemType === "test_set" ? (
+    ) : itemType === "clinical_test" ? (
       <ClipboardList className={`${iconSz} text-muted-foreground`} aria-hidden />
     ) : (
       <ImageIcon className={`${iconSz} text-muted-foreground`} aria-hidden />
@@ -194,8 +194,8 @@ function findLibraryRow(
         return lib.exercises;
       case "lfk_complex":
         return lib.lfkComplexes;
-      case "test_set":
-        return lib.testSets;
+      case "clinical_test":
+        return lib.clinicalTests;
       case "recommendation":
         return lib.recommendations;
       case "lesson":
@@ -399,6 +399,8 @@ export function TreatmentProgramConstructorClient({
   /** Требуется явная пользовательская группа (не рек./тесты, не ЛФК «без группы») — показать подсветку селекта. */
   const [itemAddGroupShowInvalid, setItemAddGroupShowInvalid] = useState(false);
   const [itemDialogAddContext, setItemDialogAddContext] = useState<ItemDialogAddContext>("default");
+  /** В системной группе «Тестирование»: развернуть набор или добавить один тест. */
+  const [testsAddMode, setTestsAddMode] = useState<"expand_set" | "single_test">("expand_set");
 
   useEffect(() => {
     setDetail(initialDetail);
@@ -672,7 +674,8 @@ export function TreatmentProgramConstructorClient({
       setItemAddGroupId("");
     } else if (g.systemKind === "tests") {
       setItemDialogAddContext("stage_system_tests");
-      setItemType("test_set");
+      setTestsAddMode("expand_set");
+      setItemType("clinical_test");
       setItemAddGroupId("");
     } else {
       setItemDialogAddContext("custom_group");
@@ -682,7 +685,7 @@ export function TreatmentProgramConstructorClient({
     setItemDialogOpen(true);
   }, []);
 
-  const allowUngroupedItemAdd = itemType === "recommendation" || itemType === "test_set";
+  const allowUngroupedItemAdd = itemType === "recommendation" || itemType === "clinical_test";
   const itemAddNeedsPickableGroup = !allowUngroupedItemAdd && itemType !== "lfk_complex";
 
   useEffect(() => {
@@ -722,13 +725,18 @@ export function TreatmentProgramConstructorClient({
     const filter = <T extends { title: string }>(rows: T[]) =>
       q ? rows.filter((r) => r.title.toLowerCase().includes(q)) : rows;
 
+    if (itemDialogAddContext === "stage_system_tests") {
+      if (testsAddMode === "expand_set") return filter(library.testSets);
+      return filter(library.clinicalTests);
+    }
+
     switch (itemType) {
       case "exercise":
         return filter(library.exercises);
       case "lfk_complex":
         return filter(library.lfkComplexes);
-      case "test_set":
-        return filter(library.testSets);
+      case "clinical_test":
+        return filter(library.clinicalTests);
       case "recommendation":
         return filter(library.recommendations);
       case "lesson":
@@ -736,7 +744,7 @@ export function TreatmentProgramConstructorClient({
       default:
         return [];
     }
-  }, [itemSearch, itemType, library]);
+  }, [itemSearch, itemType, library, itemDialogAddContext, testsAddMode]);
 
   async function patchStageSortOrder(stageId: string, sortOrder: number): Promise<boolean> {
     const res = await fetch(`/api/doctor/treatment-program-templates/stages/${stageId}`, {
@@ -1073,9 +1081,9 @@ export function TreatmentProgramConstructorClient({
         }
         gid = rg.id;
       }
-    } else if (itemType === "test_set") {
+    } else if (itemType === "clinical_test") {
       if (st.sortOrder === 0) {
-        setError("Наборы тестов нельзя добавлять на этап «Общие рекомендации»");
+        setError("Клинические тесты нельзя добавлять на этап «Общие рекомендации»");
         return;
       }
       const tg = st.groups.find((g) => g.systemKind === "tests");
@@ -1118,6 +1126,45 @@ export function TreatmentProgramConstructorClient({
       setItemDialogOpen(false);
       setItemDialogStageId(null);
       setItemDialogAddContext("default");
+      setTestsAddMode("expand_set");
+      setItemSearch("");
+      setItemAddGroupId("");
+      await reload();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleExpandTestSetFromLibrary(testSetId: string) {
+    if (!itemDialogStageId || isArchived || busy) return;
+    const st = detail.stages.find((s) => s.id === itemDialogStageId);
+    if (!st) return;
+    if (st.sortOrder === 0) {
+      setError("Наборы тестов нельзя добавлять на этап «Общие рекомендации»");
+      return;
+    }
+
+    setBusy(true);
+    setError(null);
+    setItemAddGroupShowInvalid(false);
+    try {
+      const res = await fetch(
+        `/api/doctor/treatment-program-templates/stages/${itemDialogStageId}/items/from-test-set`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ templateId, testSetId }),
+        },
+      );
+      const json = (await res.json()) as { ok?: boolean; error?: string };
+      if (!res.ok || !json.ok) {
+        setError(json.error ?? "Не удалось добавить тесты из набора");
+        return;
+      }
+      setItemDialogOpen(false);
+      setItemDialogStageId(null);
+      setItemDialogAddContext("default");
+      setTestsAddMode("expand_set");
       setItemSearch("");
       setItemAddGroupId("");
       await reload();
@@ -1222,7 +1269,7 @@ export function TreatmentProgramConstructorClient({
     const m: Record<string, ReactNode> = {};
     if (
       itemSettingsContext.item.itemType === "recommendation" ||
-      itemSettingsContext.item.itemType === "test_set"
+      itemSettingsContext.item.itemType === "clinical_test"
     ) {
       m[treatmentProgramGroupSelectNoneItemValue] = treatmentProgramGroupSelectNoneLabel;
     }
@@ -1740,9 +1787,9 @@ export function TreatmentProgramConstructorClient({
                         if (
                           next === null &&
                           itemSettingsContext.item.itemType !== "recommendation" &&
-                          itemSettingsContext.item.itemType !== "test_set"
+                          itemSettingsContext.item.itemType !== "clinical_test"
                         ) {
-                          setError("Без группы допустимы только рекомендации и наборы тестов");
+                          setError("Без группы допустимы только рекомендации и клинические тесты");
                           return;
                         }
                         setBusy(true);
@@ -1765,7 +1812,7 @@ export function TreatmentProgramConstructorClient({
                     />
                     <SelectContent className="z-[100]">
                       {itemSettingsContext.item.itemType === "recommendation" ||
-                      itemSettingsContext.item.itemType === "test_set" ? (
+                      itemSettingsContext.item.itemType === "clinical_test" ? (
                         <SelectItem value="__none__">Без группы</SelectItem>
                       ) : null}
                       {sortDoctorTemplateStageGroupsForDisplay(itemSettingsContext.stage.groups)
@@ -1852,6 +1899,7 @@ export function TreatmentProgramConstructorClient({
             setItemDialogAddContext("default");
             setItemAddGroupId("");
             setItemSearch("");
+            setTestsAddMode("expand_set");
           }
         }}
       >
@@ -1907,6 +1955,52 @@ export function TreatmentProgramConstructorClient({
                 </div>
               </div>
             ) : null}
+            {itemDialogAddContext === "stage_system_tests" ? (
+              <div className="flex flex-col gap-2">
+                <Label>Добавить</Label>
+                <div
+                  className="grid h-9 grid-cols-2 overflow-hidden rounded-md border border-input p-px"
+                  role="radiogroup"
+                  aria-label="Режим добавления тестов"
+                >
+                  <button
+                    type="button"
+                    role="radio"
+                    aria-checked={testsAddMode === "expand_set"}
+                    className={cn(
+                      "text-xs font-medium transition-colors",
+                      testsAddMode === "expand_set"
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-transparent text-foreground hover:bg-muted/60",
+                    )}
+                    onClick={() => {
+                      setTestsAddMode("expand_set");
+                      setItemSearch("");
+                    }}
+                  >
+                    Набор тестов
+                  </button>
+                  <button
+                    type="button"
+                    role="radio"
+                    aria-checked={testsAddMode === "single_test"}
+                    className={cn(
+                      "text-xs font-medium transition-colors",
+                      testsAddMode === "single_test"
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-transparent text-foreground hover:bg-muted/60",
+                    )}
+                    onClick={() => {
+                      setTestsAddMode("single_test");
+                      setItemType("clinical_test");
+                      setItemSearch("");
+                    }}
+                  >
+                    Один тест
+                  </button>
+                </div>
+              </div>
+            ) : null}
             <div className="flex flex-col gap-2">
               <Label htmlFor="lib-search">Поиск</Label>
               <Input
@@ -1929,13 +2023,22 @@ export function TreatmentProgramConstructorClient({
                       type="button"
                       disabled={editLocked}
                       onClick={() =>
-                        itemType === "lfk_complex"
-                          ? void handleAddLfkComplexFromLibrary(row)
-                          : void handleAddItem(row.id)
+                        itemDialogAddContext === "stage_system_tests" && testsAddMode === "expand_set"
+                          ? void handleExpandTestSetFromLibrary(row.id)
+                          : itemType === "lfk_complex"
+                            ? void handleAddLfkComplexFromLibrary(row)
+                            : void handleAddItem(row.id)
                       }
                       className="flex w-full items-start gap-3 rounded-md border border-border/50 bg-card/20 px-2 py-2 text-left text-sm shadow-sm transition-colors hover:border-border hover:bg-muted/50 disabled:pointer-events-none disabled:opacity-50"
                     >
-                      <LibraryMediaThumb src={row.thumbUrl} itemType={itemType} />
+                      <LibraryMediaThumb
+                        src={row.thumbUrl}
+                        itemType={
+                          itemDialogAddContext === "stage_system_tests" && testsAddMode === "expand_set"
+                            ? "clinical_test"
+                            : itemType
+                        }
+                      />
                       <span className="min-w-0 flex-1">
                         <span className="block font-medium leading-snug">{row.title}</span>
                         {row.subtitle?.trim() ? (

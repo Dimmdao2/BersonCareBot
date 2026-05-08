@@ -1,6 +1,7 @@
 /**
- * B7 FIX: чтение строк `tests[]` в снимке элемента программы типа `test_set`
- * (в т.ч. `comment` из `test_set_items` в PG-снимке; legacy JSON без ключа — без комментария).
+ * B7 FIX: чтение строк `tests[]` в снимке элемента программы (тип элемента **`clinical_test`**
+ * после разворота из набора; legacy **`test_set`** в старых данных).
+ * Комментарии позиций — из каталога `test_set_items` в PG-снимке; legacy JSON без ключа — без комментария.
  */
 
 export type TestSetSnapshotTestLine = {

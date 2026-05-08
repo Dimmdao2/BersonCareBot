@@ -35,6 +35,10 @@ import type {
   LfkComplexExpandPreview,
   ExpandLfkComplexIntoStageItemsPortInput,
   ExpandLfkComplexIntoStageItemsResult,
+  ExpandTestSetIntoTemplateStageItemsPortInput,
+  ExpandTestSetIntoTemplateStageItemsResult,
+  ExpandTestSetIntoInstanceStageItemsPortInput,
+  ExpandTestSetIntoInstanceStageItemsResult,
   ProgramActionLogInsert,
   ProgramActionLogListRow,
   UpdateTreatmentProgramStageInput,
@@ -93,7 +97,13 @@ export type TreatmentProgramPort = {
   /** Каталожный шаблон комплекса ЛФК: порядок упражнений для развёртывания; `null`, если нет или в архиве. */
   getLfkComplexExpandPreview(complexTemplateId: string): Promise<LfkComplexExpandPreview | null>;
   /** Одна транзакция: группа (опционально) + вставка строк `exercise`. */
-  expandLfkComplexIntoStageItems(input: ExpandLfkComplexIntoStageItemsPortInput): Promise<ExpandLfkComplexIntoStageItemsResult>;
+  expandLfkComplexIntoStageItems(
+    input: ExpandLfkComplexIntoStageItemsPortInput,
+  ): Promise<ExpandLfkComplexIntoStageItemsResult>;
+  /** Развёртывание набора тестов в плоские `clinical_test` в системной группе «Тестирование». */
+  expandTestSetIntoTemplateStageItems(
+    input: ExpandTestSetIntoTemplateStageItemsPortInput,
+  ): Promise<ExpandTestSetIntoTemplateStageItemsResult>;
 };
 
 /** Проверка полиморфной ссылки без FK на уровне БД — только в сервисе. */
@@ -182,6 +192,10 @@ export type TreatmentProgramInstancePort = {
     stageId: string,
     input: AddTreatmentProgramInstanceStageItemInput,
   ): Promise<TreatmentProgramInstanceStageItemRow | null>;
+  /** Развёртывание набора в строки `clinical_test` (снимок на каждую строку). */
+  expandTestSetIntoInstanceStageItems(
+    input: ExpandTestSetIntoInstanceStageItemsPortInput,
+  ): Promise<ExpandTestSetIntoInstanceStageItemsResult | null>;
   replaceInstanceStageItem(
     instanceId: string,
     itemId: string,

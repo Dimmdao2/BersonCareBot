@@ -2,6 +2,7 @@ import { and, asc, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import { getPool } from "@/infra/db/client";
 import { lfkComplexTemplateExercises, lfkComplexTemplates } from "../../../db/schema/schema";
+import { testSetItems, testSets } from "../../../db/schema/clinicalTests";
 import {
   treatmentProgramTemplates as tplTable,
   treatmentProgramTemplateStages as stageTable,
@@ -32,6 +33,8 @@ import type {
   LfkComplexExpandPreview,
   ExpandLfkComplexIntoStageItemsPortInput,
   ExpandLfkComplexIntoStageItemsResult,
+  ExpandTestSetIntoTemplateStageItemsPortInput,
+  ExpandTestSetIntoTemplateStageItemsResult,
   TreatmentProgramInstanceStageSystemKind,
 } from "@/modules/treatment-program/types";
 import {
@@ -171,12 +174,10 @@ async function templateListFirstItemPreviewByTemplateId(
             AND jsonb_typeof(r.media) = 'array' AND COALESCE(jsonb_array_length(r.media), 0) > 0
           LIMIT 1
         )
-        WHEN 'test_set' THEN (
+        WHEN 'clinical_test' THEN (
           SELECT (t.media->0->>'mediaUrl')
-          FROM test_set_items tsi
-          INNER JOIN tests t ON t.id = tsi.test_id
-          WHERE tsi.test_set_id = fi.item_ref_id
-          ORDER BY tsi.sort_order ASC, tsi.id ASC
+          FROM tests t
+          WHERE t.id = fi.item_ref_id
           LIMIT 1
         )
         WHEN 'lfk_complex' THEN (
@@ -202,12 +203,10 @@ async function templateListFirstItemPreviewByTemplateId(
             AND jsonb_typeof(r.media) = 'array' AND COALESCE(jsonb_array_length(r.media), 0) > 0
           LIMIT 1
         )
-        WHEN 'test_set' THEN (
+        WHEN 'clinical_test' THEN (
           SELECT (t.media->0->>'mediaType')
-          FROM test_set_items tsi
-          INNER JOIN tests t ON t.id = tsi.test_id
-          WHERE tsi.test_set_id = fi.item_ref_id
-          ORDER BY tsi.sort_order ASC, tsi.id ASC
+          FROM tests t
+          WHERE t.id = fi.item_ref_id
           LIMIT 1
         )
         WHEN 'lfk_complex' THEN (
@@ -957,6 +956,94 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
         }
 
         return { items: insertedItems, createdGroup };
+      });
+    },
+
+    async expandTestSetIntoTemplateStageItems(
+      input: ExpandTestSetIntoTemplateStageItemsPortInput,
+    ): Promise<ExpandTestSetIntoTemplateStageItemsResult> {
+      const db = getDrizzle();
+      return db.transaction(async (tx) => {
+        const stageRow = await tx.query.treatmentProgramTemplateStages.findFirst({
+          where: eq(stageTable.id, input.stageId),
+        });
+        if (!stageRow) throw new TreatmentProgramExpandNotFoundError("Этап не найден");
+        if (stageRow.sortOrder === 0) {
+          throw new Error("На этапе «Общие рекомендации» нельзя разворачивать набор тестов");
+        }
+        if (stageRow.templateId !== input.templateId) {
+          throw new TreatmentProgramExpandNotFoundError("Этап не принадлежит шаблону");
+        }
+
+        const tplRow = await tx.query.treatmentProgramTemplates.findFirst({
+          where: eq(tplTable.id, input.templateId),
+        });
+        if (!tplRow) throw new TreatmentProgramExpandNotFoundError("Шаблон программы не найден");
+        if (tplRow.status === "archived") throw new TreatmentProgramTemplateAlreadyArchivedError();
+
+        const setRow = await tx.query.testSets.findFirst({
+          where: and(eq(testSets.id, input.testSetId), eq(testSets.isArchived, false)),
+        });
+        if (!setRow) throw new TreatmentProgramExpandNotFoundError("Набор тестов не найден или в архиве");
+
+        const [testsGroup] = await tx
+          .select()
+          .from(tplGroupTable)
+          .where(and(eq(tplGroupTable.stageId, input.stageId), eq(tplGroupTable.systemKind, "tests")))
+          .limit(1);
+        if (!testsGroup) {
+          throw new Error("Не найдена системная группа «Тестирование» для этапа");
+        }
+
+        const lines = await tx
+          .select()
+          .from(testSetItems)
+          .where(eq(testSetItems.testSetId, input.testSetId))
+          .orderBy(asc(testSetItems.sortOrder), asc(testSetItems.id));
+
+        const existingRows = await tx
+          .select({ refId: itemTable.itemRefId })
+          .from(itemTable)
+          .where(
+            and(
+              eq(itemTable.stageId, input.stageId),
+              eq(itemTable.groupId, testsGroup.id),
+              eq(itemTable.itemType, "clinical_test"),
+            ),
+          );
+        const existing = new Set(existingRows.map((r) => r.refId));
+
+        const [{ max: itemMax }] = await tx
+          .select({ max: sql<number>`coalesce(max(${itemTable.sortOrder}), -1)` })
+          .from(itemTable)
+          .where(eq(itemTable.stageId, input.stageId));
+
+        let pos = itemMax + 1;
+        let added = 0;
+        let skipped = 0;
+        const inserted: TreatmentProgramStageItem[] = [];
+        for (const line of lines) {
+          if (existing.has(line.testId)) {
+            skipped += 1;
+            continue;
+          }
+          existing.add(line.testId);
+          const [row] = await tx
+            .insert(itemTable)
+            .values({
+              stageId: input.stageId,
+              itemType: "clinical_test",
+              itemRefId: line.testId,
+              sortOrder: pos++,
+              comment: line.comment ?? null,
+              groupId: testsGroup.id,
+            })
+            .returning();
+          if (!row) throw new Error("insert failed");
+          inserted.push(mapItem(row));
+          added += 1;
+        }
+        return { added, skipped, items: inserted };
       });
     },
   };

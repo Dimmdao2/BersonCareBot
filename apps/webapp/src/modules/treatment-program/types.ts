@@ -4,7 +4,7 @@ export const TREATMENT_PROGRAM_ITEM_TYPES = [
   "lfk_complex",
   "recommendation",
   "lesson",
-  "test_set",
+  "clinical_test",
 ] as const;
 
 /** Основная секция каталога уроков в CMS webapp (`content_pages.section`). */
@@ -255,6 +255,31 @@ export type ExpandLfkComplexIntoStageItemsResult = {
   createdGroup?: TreatmentProgramTemplateStageGroup;
 };
 
+/** Развёртывание каталожного набора тестов в строки `clinical_test` в системной группе «Тестирование». */
+export type ExpandTestSetIntoTemplateStageItemsPortInput = {
+  templateId: string;
+  stageId: string;
+  testSetId: string;
+};
+
+export type ExpandTestSetIntoTemplateStageItemsResult = {
+  added: number;
+  skipped: number;
+  items: TreatmentProgramStageItem[];
+};
+
+export type ExpandTestSetIntoInstanceStageItemsPortInput = {
+  instanceId: string;
+  stageId: string;
+  testSetId: string;
+};
+
+export type ExpandTestSetIntoInstanceStageItemsResult = {
+  added: number;
+  skipped: number;
+  items: TreatmentProgramInstanceStageItemRow[];
+};
+
 export type UpdateTreatmentProgramStageItemInput = {
   itemType?: TreatmentProgramItemType;
   itemRefId?: string;
@@ -449,7 +474,7 @@ export type TreatmentProgramInstanceStageInput = {
     /** A3: id группы **шаблона**; при копировании маппится в группу экземпляра. */
     templateGroupId?: string | null;
   }>;
-  /** A3: группы шаблона для копирования; при назначении первыми вставляются системные (`systemKind`). Для прямого вызова `createInstanceTree` без системных строк: при ungrouped `recommendation`/`test_set` недостающие системные группы подставляются автоматически (`instance-tree-system-groups.ts`). */
+  /** A3: группы шаблона для копирования; при назначении первыми вставляются системные (`systemKind`). Для прямого вызова `createInstanceTree` без системных строк: при ungrouped `recommendation`/`clinical_test` недостающие системные группы подставляются автоматически (`instance-tree-system-groups.ts`). */
   groups?: Array<{
     /** Для групп с шаблона — id группы шаблона; для системных групп — `null`. */
     sourceGroupId: string | null;

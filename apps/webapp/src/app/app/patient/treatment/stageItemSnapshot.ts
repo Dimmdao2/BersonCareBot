@@ -25,7 +25,7 @@ export function patientExerciseLoadTypeLabelRu(raw: unknown): string | null {
 
 export type InstanceStageItem = TreatmentProgramInstanceDetail["stages"][number]["items"][number];
 
-/** Разбор массива каталожных медиа (рекомендация, строка `tests[]` в test_set и т.п.). */
+/** Разбор массива каталожных медиа (рекомендация, строка `tests[]` в снимке тестов / clinical_test и т.п.). */
 export function parseCatalogMediaRows(raw: unknown): RecommendationMediaItem[] {
   if (!Array.isArray(raw)) return [];
   const items: RecommendationMediaItem[] = [];
@@ -114,7 +114,7 @@ export function primaryMediaForStageItem(item: InstanceStageItem): Recommendatio
   return video ?? all[0] ?? null;
 }
 
-/** Превью медиа для одного теста внутри снимка `test_set` (`tests[].media`). */
+/** Превью медиа для одного теста внутри снимка с массивом `tests[]` (clinical_test / legacy test_set; `tests[].media`). */
 export function primaryMediaForTestSnapshotLine(
   testSetSnapshot: Record<string, unknown>,
   testId: string,

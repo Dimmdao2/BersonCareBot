@@ -10,7 +10,7 @@ type InstanceTreeStageGroupInput = NonNullable<TreatmentProgramInstanceStageInpu
 
 /**
  * Для `createInstanceTree`: если в дереве есть элементы без `templateGroupId` типов
- * `recommendation` / `test_set`, а соответствующих строк с `systemKind` в `groups` нет —
+ * `recommendation` / `clinical_test`, а соответствующих строк с `systemKind` в `groups` нет —
  * добавляет канонические системные группы (как при `assignTemplateToPatient`).
  * Идемпотентно при уже переданных системных группах.
  */
@@ -20,7 +20,7 @@ export function withDefaultSystemGroupsIfNeededForTreeStage(
   const existing = st.groups ?? [];
   const { items } = st;
   const needRec = items.some((it) => it.templateGroupId == null && it.itemType === "recommendation");
-  const needTests = items.some((it) => it.templateGroupId == null && it.itemType === "test_set");
+  const needTests = items.some((it) => it.templateGroupId == null && it.itemType === "clinical_test");
   const hasRec = existing.some((g) => g.systemKind === "recommendations");
   const hasTests = existing.some((g) => g.systemKind === "tests");
   const prepend: InstanceTreeStageGroupInput[] = [];

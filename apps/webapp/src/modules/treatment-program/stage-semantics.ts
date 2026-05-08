@@ -28,8 +28,8 @@ export function assertTreatmentProgramStageItemFitsSystemGroup(
   if (group.systemKind === "recommendations" && itemType !== "recommendation") {
     throw new Error("В группу «Рекомендации» можно помещать только рекомендации");
   }
-  if (group.systemKind === "tests" && itemType !== "test_set") {
-    throw new Error("В группу «Тестирование» можно помещать только наборы тестов");
+  if (group.systemKind === "tests" && itemType !== "clinical_test") {
+    throw new Error("В группу «Тестирование» можно помещать только клинические тесты");
   }
 }
 
@@ -113,8 +113,8 @@ export function isInstanceStageItemShownOnPatientProgramSurfaces(
 }
 
 /**
- * Модалка «Состав этапа» (timeline): активные элементы, **без** `test_set`.
- * Наборы тестов при этом видны на экранах программы (список этапа, карточка элемента, модалка пункта), см. `isInstanceStageItemShownOnPatientProgramSurfaces`.
+ * Модалка «Состав этапа» (timeline): активные элементы, **без** `clinical_test`.
+ * Клинические тесты при этом видны на экранах программы (список этапа, карточка элемента, модалка пункта), см. `isInstanceStageItemShownOnPatientProgramSurfaces`.
  * Элементы в системных группах «Рекомендации» / «Тестирование» не входят в компактный состав «упражнений» — у них отдельные блоки UI.
  */
 export function isInstanceStageItemShownInPatientCompositionModal(
@@ -123,7 +123,7 @@ export function isInstanceStageItemShownInPatientCompositionModal(
   groups?: ReadonlyArray<Pick<TreatmentProgramInstanceStageGroup, "id" | "systemKind">>,
 ): boolean {
   if (!isInstanceStageItemActiveForPatient(item)) return false;
-  if (item.itemType === "test_set") return false;
+  if (item.itemType === "clinical_test") return false;
   if (groups && item.groupId) {
     const g = groups.find((x) => x.id === item.groupId);
     if (g && isTreatmentProgramInstanceSystemStageGroup(g)) return false;

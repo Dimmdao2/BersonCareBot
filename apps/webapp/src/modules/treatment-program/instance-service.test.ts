@@ -7,6 +7,7 @@ import {
 import { createInMemoryTreatmentProgramPort } from "@/app-layer/testing/treatmentProgramInMemory";
 import {
   createInMemoryTreatmentProgramInstancePort,
+  createInMemoryTreatmentProgramPersistence,
   createInMemoryTreatmentProgramItemSnapshotPort,
 } from "@/app-layer/testing/treatmentProgramInstanceInMemory";
 import type { TreatmentProgramItemRefValidationPort } from "./ports";
@@ -81,12 +82,12 @@ describe("treatment-program instance service", () => {
     expect(it0.status).toBe("active");
   });
 
-  it("assign creates system groups and maps ungrouped recommendation and test_set", async () => {
+  it("assign creates system groups and maps ungrouped recommendation and clinical_test", async () => {
     const tpl = await tplSvc.createTemplate({ title: "План", status: "published" }, null);
     const s1 = await tplSvc.createStage(tpl.id, { title: "Этап 1" });
     const grp = await tplSvc.createTemplateStageGroup(s1.id, { title: "Упр" });
     await tplSvc.addStageItem(s1.id, { itemType: "recommendation", itemRefId: refA });
-    await tplSvc.addStageItem(s1.id, { itemType: "test_set", itemRefId: refB });
+    await tplSvc.addStageItem(s1.id, { itemType: "clinical_test", itemRefId: refB });
     await tplSvc.addStageItem(s1.id, { itemType: "exercise", itemRefId: refB, groupId: grp.id });
 
     const inst = await instSvc.assignTemplateToPatient({
@@ -102,7 +103,7 @@ describe("treatment-program instance service", () => {
     expect(stage.groups.filter((x) => !x.systemKind)).toHaveLength(1);
 
     const recItem = stage.items.find((i) => i.itemType === "recommendation");
-    const testItem = stage.items.find((i) => i.itemType === "test_set");
+    const testItem = stage.items.find((i) => i.itemType === "clinical_test");
     const exItem = stage.items.find((i) => i.itemType === "exercise");
     expect(recItem?.groupId).toBe(sysRec?.id);
     expect(testItem?.groupId).toBe(sysTests?.id);
@@ -130,7 +131,7 @@ describe("treatment-program instance service", () => {
     expect(added.groupId).toBeNull();
   });
 
-  it("doctorAddStageItem rejects test_set on instance stage zero", async () => {
+  it("doctorAddStageItem rejects clinical_test on instance stage zero", async () => {
     const tpl = await tplSvc.createTemplate({ title: "П", status: "published" }, null);
     const inst = await instSvc.assignTemplateToPatient({
       templateId: tpl.id,
@@ -143,7 +144,7 @@ describe("treatment-program instance service", () => {
         instanceId: inst.id,
         stageId: s0Inst.id,
         actorId: null,
-        itemType: "test_set",
+        itemType: "clinical_test",
         itemRefId: refA,
       }),
     ).rejects.toThrow(/Общие рекомендации|только рекомендации/);
@@ -322,7 +323,7 @@ describe("treatment-program instance service", () => {
     const tpl = await tplSvc.createTemplate({ title: "План", status: "published" }, null);
     const s1 = await tplSvc.createStage(tpl.id, { title: "Этап 1" });
     await tplSvc.addStageItem(s1.id, {
-      itemType: "test_set",
+      itemType: "clinical_test",
       itemRefId: refA,
       comment: "Оригинал",
     });
@@ -367,5 +368,171 @@ describe("treatment-program instance service", () => {
     expect(userGroup?.title).toBe("Неделя 1");
     const it0 = stage.items[0]!;
     expect(it0.groupId).toBe(userGroup?.id);
+  });
+
+  describe("doctorExpandTestSetIntoStage", () => {
+    const testSetId = "99999999-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    const t3 = "33333333-3333-4333-8333-333333333333";
+
+    it("expands set into instance: order, tests group, snapshots, item_added events", async () => {
+      const tplPortLocal = createInMemoryTreatmentProgramPort({
+        testSetExpandLines: { [testSetId]: [refA, refB, t3] },
+      });
+      const tplSvcLocal = createTreatmentProgramService(tplPortLocal, itemRefs);
+      const { instancePort, eventsPort } = createInMemoryTreatmentProgramPersistence({
+        testSetExpandLines: { [testSetId]: [refA, refB, t3] },
+      });
+      const instSvcLocal = createTreatmentProgramInstanceService({
+        instances: instancePort,
+        templates: tplSvcLocal,
+        snapshots: createInMemoryTreatmentProgramItemSnapshotPort(),
+        itemRefs,
+        events: eventsPort,
+      });
+      const tpl = await tplSvcLocal.createTemplate({ title: "П", status: "published" }, null);
+      const s1 = await tplSvcLocal.createStage(tpl.id, { title: "E1" });
+      const inst = await instSvcLocal.assignTemplateToPatient({
+        templateId: tpl.id,
+        patientUserId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        assignedBy: null,
+      });
+      const st = instStageForTpl(inst, s1.id);
+      const testsG = st.groups.find((g) => g.systemKind === "tests")!;
+      const out = await instSvcLocal.doctorExpandTestSetIntoStage({
+        instanceId: inst.id,
+        stageId: st.id,
+        testSetId,
+        actorId: null,
+      });
+      expect(out.added).toBe(3);
+      expect(out.skipped).toBe(0);
+      const after = await instSvcLocal.getInstanceForPatient("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", inst.id);
+      expect(after).not.toBeNull();
+      const st2 = instStageForTpl(after!, s1.id);
+      const clinical = st2.items
+        .filter((i) => i.itemType === "clinical_test" && i.groupId === testsG.id)
+        .sort((a, b) => a.sortOrder - b.sortOrder);
+      expect(clinical.map((i) => i.itemRefId)).toEqual([refA, refB, t3]);
+      expect(
+        clinical.every((i) => {
+          const snap = i.snapshot as { itemType?: string } | null;
+          return snap?.itemType === "clinical_test";
+        }),
+      ).toBe(true);
+      const evs = await eventsPort.listEventsForInstance(inst.id);
+      const expandEvs = evs.filter(
+        (e) =>
+          e.eventType === "item_added" &&
+          (e.payload as { source?: string }).source === "expand_test_set_into_clinical_tests",
+      );
+      expect(expandEvs).toHaveLength(3);
+    });
+
+    it("skips instance rows already present in tests group", async () => {
+      const tplPortLocal = createInMemoryTreatmentProgramPort({
+        testSetExpandLines: { [testSetId]: [refA, refB, t3] },
+      });
+      const tplSvcLocal = createTreatmentProgramService(tplPortLocal, itemRefs);
+      const { instancePort, eventsPort } = createInMemoryTreatmentProgramPersistence({
+        testSetExpandLines: { [testSetId]: [refA, refB, t3] },
+      });
+      const instSvcLocal = createTreatmentProgramInstanceService({
+        instances: instancePort,
+        templates: tplSvcLocal,
+        snapshots: createInMemoryTreatmentProgramItemSnapshotPort(),
+        itemRefs,
+        events: eventsPort,
+      });
+      const tpl = await tplSvcLocal.createTemplate({ title: "П", status: "published" }, null);
+      const s1 = await tplSvcLocal.createStage(tpl.id, { title: "E1" });
+      await tplSvcLocal.addStageItem(s1.id, { itemType: "clinical_test", itemRefId: refA });
+      const inst = await instSvcLocal.assignTemplateToPatient({
+        templateId: tpl.id,
+        patientUserId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        assignedBy: null,
+      });
+      const st = instStageForTpl(inst, s1.id);
+      const out = await instSvcLocal.doctorExpandTestSetIntoStage({
+        instanceId: inst.id,
+        stageId: st.id,
+        testSetId,
+        actorId: null,
+      });
+      expect(out.added).toBe(2);
+      expect(out.skipped).toBe(1);
+      const evs = await eventsPort.listEventsForInstance(inst.id);
+      const expandEvs = evs.filter(
+        (e) =>
+          e.eventType === "item_added" &&
+          (e.payload as { source?: string }).source === "expand_test_set_into_clinical_tests",
+      );
+      expect(expandEvs).toHaveLength(2);
+    });
+
+    it("rejects expand on instance stage zero", async () => {
+      const tplPortLocal = createInMemoryTreatmentProgramPort({
+        testSetExpandLines: { [testSetId]: [refA] },
+      });
+      const tplSvcLocal = createTreatmentProgramService(tplPortLocal, itemRefs);
+      const { instancePort, eventsPort } = createInMemoryTreatmentProgramPersistence({
+        testSetExpandLines: { [testSetId]: [refA] },
+      });
+      const instSvcLocal = createTreatmentProgramInstanceService({
+        instances: instancePort,
+        templates: tplSvcLocal,
+        snapshots: createInMemoryTreatmentProgramItemSnapshotPort(),
+        itemRefs,
+        events: eventsPort,
+      });
+      const tpl = await tplSvcLocal.createTemplate({ title: "П", status: "published" }, null);
+      await tplSvcLocal.createStage(tpl.id, { title: "E1" });
+      const inst = await instSvcLocal.assignTemplateToPatient({
+        templateId: tpl.id,
+        patientUserId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        assignedBy: null,
+      });
+      const s0 = inst.stages.find((s) => s.sortOrder === 0)!;
+      await expect(
+        instSvcLocal.doctorExpandTestSetIntoStage({
+          instanceId: inst.id,
+          stageId: s0.id,
+          testSetId,
+          actorId: null,
+        }),
+      ).rejects.toThrow(/Общие рекомендации/);
+    });
+
+    it("rejects unknown test set id", async () => {
+      const tplPortLocal = createInMemoryTreatmentProgramPort({
+        testSetExpandLines: { [testSetId]: [refA] },
+      });
+      const tplSvcLocal = createTreatmentProgramService(tplPortLocal, itemRefs);
+      const { instancePort, eventsPort } = createInMemoryTreatmentProgramPersistence({
+        testSetExpandLines: { [testSetId]: [refA] },
+      });
+      const instSvcLocal = createTreatmentProgramInstanceService({
+        instances: instancePort,
+        templates: tplSvcLocal,
+        snapshots: createInMemoryTreatmentProgramItemSnapshotPort(),
+        itemRefs,
+        events: eventsPort,
+      });
+      const tpl = await tplSvcLocal.createTemplate({ title: "П", status: "published" }, null);
+      const s1 = await tplSvcLocal.createStage(tpl.id, { title: "E1" });
+      const inst = await instSvcLocal.assignTemplateToPatient({
+        templateId: tpl.id,
+        patientUserId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+        assignedBy: null,
+      });
+      const st = instStageForTpl(inst, s1.id);
+      await expect(
+        instSvcLocal.doctorExpandTestSetIntoStage({
+          instanceId: inst.id,
+          stageId: st.id,
+          testSetId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+          actorId: null,
+        }),
+      ).rejects.toThrow(/Набор тестов не найден/);
+    });
   });
 });

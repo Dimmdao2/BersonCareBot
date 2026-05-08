@@ -28,19 +28,22 @@ export default async function TreatmentProgramTemplatesPage({ searchParams }: Pa
   const listPubArch = parseDoctorCatalogPubArchQuery(sp);
   const tplListFilter = treatmentProgramTemplateFilterFromPubArch(listPubArch);
 
-  const [items, exercises, lfkTemplates, testSets, recommendations, contentPagesAll] = await Promise.all([
-    deps.treatmentProgram.listTemplates(tplListFilter),
-    deps.lfkExercises.listExercises({ includeArchived: false }),
-    deps.lfkTemplates.listTemplates({ statusIn: ["draft", "published"] }),
-    deps.testSets.listTestSets({ archiveScope: "active", publicationScope: "published" }),
-    deps.recommendations.listRecommendations({ includeArchived: false }),
-    deps.contentPages.listAll(),
-  ]);
+  const [items, exercises, lfkTemplates, testSets, clinicalTests, recommendations, contentPagesAll] =
+    await Promise.all([
+      deps.treatmentProgram.listTemplates(tplListFilter),
+      deps.lfkExercises.listExercises({ includeArchived: false }),
+      deps.lfkTemplates.listTemplates({ statusIn: ["draft", "published"] }),
+      deps.testSets.listTestSets({ archiveScope: "active", publicationScope: "published" }),
+      deps.clinicalTests.listClinicalTests({ archiveScope: "active" }),
+      deps.recommendations.listRecommendations({ includeArchived: false }),
+      deps.contentPages.listAll(),
+    ]);
 
   const library = buildTreatmentProgramLibraryPickers({
     exercises,
     lfkTemplates,
     testSets,
+    clinicalTests,
     recommendations,
     contentPagesAll,
   });

@@ -40,7 +40,7 @@ type Stage = TreatmentProgramInstanceDetail["stages"][number];
 function programTileShowsSimpleCompleteActions(item: InstanceStageItem): boolean {
   if (isPersistentRecommendation(item)) return false;
   if (item.itemType === "lfk_complex") return false;
-  if (item.itemType === "test_set") return false;
+  if (item.itemType === "clinical_test") return false;
   return true;
 }
 

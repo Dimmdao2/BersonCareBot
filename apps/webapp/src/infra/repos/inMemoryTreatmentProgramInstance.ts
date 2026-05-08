@@ -9,6 +9,8 @@ import type {
   AppendTreatmentProgramEventInput,
   CreateTreatmentProgramInstanceStageGroupInput,
   CreateTreatmentProgramInstanceTreeInput,
+  ExpandTestSetIntoInstanceStageItemsPortInput,
+  ExpandTestSetIntoInstanceStageItemsResult,
   ReplaceTreatmentProgramInstanceStageItemInput,
   TreatmentProgramInstanceStageGroup,
   UpdateTreatmentProgramInstanceStageGroupInput,
@@ -55,7 +57,10 @@ export type InMemoryTreatmentProgramPersistence = {
   eventsPort: TreatmentProgramEventsPort;
 };
 
-export function createInMemoryTreatmentProgramPersistence(): InMemoryTreatmentProgramPersistence {
+export function createInMemoryTreatmentProgramPersistence(seed?: {
+  /** testSetId -> ordered test ids (для `expandTestSetIntoInstanceStageItems` в Vitest). */
+  testSetExpandLines?: Record<string, string[]>;
+}): InMemoryTreatmentProgramPersistence {
   const instances = new Map<string, InstRow>();
   const stages = new Map<string, StageRow>();
   const items = new Map<string, ItemRow>();
@@ -222,11 +227,11 @@ export function createInMemoryTreatmentProgramPersistence(): InMemoryTreatmentPr
             groupId = tplToInst.get(it.templateGroupId) ?? null;
           } else if (it.itemType === "recommendation") {
             groupId = tplToInst.get(INTERNAL_REC) ?? null;
-          } else if (it.itemType === "test_set") {
+          } else if (it.itemType === "clinical_test") {
             groupId = tplToInst.get(INTERNAL_TESTS) ?? null;
           } else {
             throw new Error(
-              "Назначение: элемент без группы в шаблоне должен быть только рекомендацией или набором тестов",
+              "Назначение: элемент без группы в шаблоне должен быть только рекомендацией или клиническим тестом",
             );
           }
           const itemRow: ItemRow = {
@@ -439,6 +444,81 @@ export function createInMemoryTreatmentProgramPersistence(): InMemoryTreatmentPr
       items.set(iid, itemRow);
       touchInstance(instanceId);
       return itemRow;
+    },
+
+    async expandTestSetIntoInstanceStageItems(
+      input: ExpandTestSetIntoInstanceStageItemsPortInput,
+    ): Promise<ExpandTestSetIntoInstanceStageItemsResult | null> {
+      const st = stages.get(input.stageId);
+      if (!st || st.instanceId !== input.instanceId) return null;
+      if (st.sortOrder === 0) {
+        throw new Error("На этапе «Общие рекомендации» нельзя разворачивать набор тестов");
+      }
+      const lines = seed?.testSetExpandLines?.[input.testSetId];
+      if (!lines || lines.length === 0) {
+        throw new Error("Набор тестов не найден или в архиве");
+      }
+      const testsGroup = [...instGroups.values()].find(
+        (g) => g.stageId === input.stageId && g.systemKind === "tests",
+      );
+      if (!testsGroup) {
+        throw new Error("Не найдена системная группа «Тестирование» для этапа");
+      }
+      const existing = new Set(
+        [...items.values()]
+          .filter(
+            (it) =>
+              it.stageId === input.stageId &&
+              it.groupId === testsGroup.id &&
+              it.itemType === "clinical_test",
+          )
+          .map((it) => it.itemRefId),
+      );
+      const itemMax = Math.max(
+        -1,
+        ...[...items.values()].filter((it) => it.stageId === input.stageId).map((it) => it.sortOrder),
+      );
+      let pos = itemMax + 1;
+      let added = 0;
+      let skipped = 0;
+      const inserted: TreatmentProgramInstanceStageItemRow[] = [];
+      const t = isoNow();
+      for (const testId of lines) {
+        if (existing.has(testId)) {
+          skipped += 1;
+          continue;
+        }
+        existing.add(testId);
+        const iid = crypto.randomUUID();
+        const snapshot: Record<string, unknown> = {
+          itemType: "clinical_test",
+          id: testId,
+          title: null,
+          tests: [{ testId, title: null, sortOrder: 0, scoringConfig: null, comment: null }],
+        };
+        const itemRow: ItemRow = {
+          id: iid,
+          stageId: input.stageId,
+          itemType: "clinical_test",
+          itemRefId: testId,
+          sortOrder: pos++,
+          comment: null,
+          localComment: null,
+          settings: null,
+          snapshot,
+          completedAt: null,
+          isActionable: null,
+          status: "active",
+          groupId: testsGroup.id,
+          createdAt: t,
+          lastViewedAt: t,
+        };
+        items.set(iid, itemRow);
+        inserted.push(itemRow);
+        added += 1;
+      }
+      touchInstance(input.instanceId);
+      return { added, skipped, items: inserted };
     },
 
     async patchInstanceStageItem(

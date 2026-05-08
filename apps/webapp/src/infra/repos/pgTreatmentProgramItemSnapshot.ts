@@ -1,7 +1,7 @@
 import { and, asc, eq, inArray, isNull, ne, or } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import { getPool } from "@/infra/db/client";
-import { clinicalTests, testSetItems, testSets } from "../../../db/schema/clinicalTests";
+import { clinicalTests } from "../../../db/schema/clinicalTests";
 import { recommendations } from "../../../db/schema/recommendations";
 import {
   contentPages,
@@ -217,67 +217,38 @@ export function createPgTreatmentProgramItemSnapshotPort(): TreatmentProgramItem
             }),
           };
         }
-        case "test_set": {
-          const setRow = await db.query.testSets.findFirst({
-            where: and(eq(testSets.id, itemRefId), eq(testSets.isArchived, false)),
+        case "clinical_test": {
+          const t = await db.query.clinicalTests.findFirst({
+            where: and(eq(clinicalTests.id, itemRefId), eq(clinicalTests.isArchived, false)),
           });
-          if (!setRow) throw notFound(type);
-          const items = await db
-            .select()
-            .from(testSetItems)
-            .where(eq(testSetItems.testSetId, itemRefId))
-            .orderBy(asc(testSetItems.sortOrder), asc(testSetItems.id));
-          const testIds = items.map((i) => i.testId);
-          const testsRows =
-            testIds.length === 0
-              ? []
-              : await db
-                  .select()
-                  .from(clinicalTests)
-                  .where(inArray(clinicalTests.id, testIds));
-          const byId = new Map(testsRows.map((t) => [t.id, t]));
+          if (!t) throw notFound(type);
           const pool = getPool();
-          const perTestRaw: CatalogMediaRowInput[][] = items.map((it) => {
-            const t = byId.get(it.testId);
-            return clinicalTestMediaToCatalogRows(t?.media);
-          });
-          const flatRaw = perTestRaw.flat();
-          const enrichedFlat =
-            flatRaw.length === 0 ? [] : await catalogMediaRowsWithWorkerPreviews(pool, flatRaw);
-          let off = 0;
-          const testsOut: Record<string, unknown>[] = [];
-          for (let i = 0; i < items.length; i++) {
-            const it = items[i]!;
-            const t = byId.get(it.testId);
-            const n = perTestRaw[i]!.length;
-            const slice = enrichedFlat.slice(off, off + n);
-            off += n;
-            const media =
-              slice.length > 0
-                ? slice.map((m) => ({
-                    mediaUrl: m.mediaUrl,
-                    mediaType: m.mediaType,
-                    sortOrder: m.sortOrder,
-                    previewSmUrl: m.previewSmUrl,
-                    previewMdUrl: m.previewMdUrl,
-                    previewStatus: m.previewStatus,
-                  }))
-                : undefined;
-            testsOut.push({
-              testId: it.testId,
-              title: t?.title ?? null,
-              scoringConfig: (t?.scoring ?? null) as unknown,
-              sortOrder: it.sortOrder,
-              comment: it.comment ?? null,
-              ...(media ? { media } : {}),
-            });
-          }
+          const rawMedia = clinicalTestMediaToCatalogRows(t.media);
+          const enriched = rawMedia.length === 0 ? [] : await catalogMediaRowsWithWorkerPreviews(pool, rawMedia);
+          const media =
+            enriched.length > 0
+              ? enriched.map((m) => ({
+                  mediaUrl: m.mediaUrl,
+                  mediaType: m.mediaType,
+                  sortOrder: m.sortOrder,
+                  previewSmUrl: m.previewSmUrl,
+                  previewMdUrl: m.previewMdUrl,
+                  previewStatus: m.previewStatus,
+                }))
+              : undefined;
+          const line: Record<string, unknown> = {
+            testId: t.id,
+            title: t.title,
+            scoringConfig: (t.scoring ?? null) as unknown,
+            sortOrder: 0,
+            comment: null,
+            ...(media ? { media } : {}),
+          };
           return {
             itemType: type,
-            id: setRow.id,
-            title: setRow.title,
-            description: setRow.description ?? null,
-            tests: testsOut,
+            id: t.id,
+            title: t.title,
+            tests: [line],
           };
         }
         case "recommendation": {

@@ -21,7 +21,7 @@ export function PatientProgramControlCard(props: {
   fallbackMessage: string;
   instanceId: string;
   currentStageId: string | null;
-  /** Прямая ссылка на прохождение тестов текущего этапа (пункт `test_set`). */
+  /** Прямая ссылка на прохождение тестов текущего этапа (пункт `clinical_test`). */
   testsHref?: string | null;
   /** Если `testsHref` нет — переключить вкладку «Программа». */
   onProgramTests?: () => void;

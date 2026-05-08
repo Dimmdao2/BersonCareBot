@@ -165,7 +165,7 @@ export function createTreatmentProgramInstanceService(deps: {
               sortOrder: tplSysTests.sortOrder,
               systemKind: "tests",
             });
-          } else if (itemRows.some((it) => it.itemType === "test_set" && it.groupId == null)) {
+          } else if (itemRows.some((it) => it.itemType === "clinical_test" && it.groupId == null)) {
             head.push(syntheticTests);
           }
           groupInputs = [...head, ...userGroupInputs];
@@ -454,7 +454,7 @@ export function createTreatmentProgramInstanceService(deps: {
           throw new Error("На этапе «Общие рекомендации» элементы не привязываются к группам");
         }
       } else if (!resolvedGroupId) {
-        if (input.itemType === "recommendation" || input.itemType === "test_set") {
+        if (input.itemType === "recommendation" || input.itemType === "clinical_test") {
           const want = input.itemType === "recommendation" ? "recommendations" : "tests";
           const sg = stage.groups.find((g) => g.systemKind === want);
           if (!sg) throw new Error("Системная группа этапа не найдена");
@@ -494,6 +494,41 @@ export function createTreatmentProgramInstanceService(deps: {
         },
       });
       return row;
+    },
+
+    async doctorExpandTestSetIntoStage(input: {
+      instanceId: string;
+      stageId: string;
+      testSetId: string;
+      actorId: string | null;
+    }) {
+      assertUuid(input.instanceId);
+      assertUuid(input.stageId);
+      assertUuid(input.testSetId);
+      if (input.actorId) assertUuid(input.actorId);
+      const out = await instances.expandTestSetIntoInstanceStageItems({
+        instanceId: input.instanceId,
+        stageId: input.stageId,
+        testSetId: input.testSetId.trim(),
+      });
+      if (!out) throw new Error("Этап не найден");
+      for (const row of out.items) {
+        await appendEvent({
+          instanceId: input.instanceId,
+          actorId: input.actorId,
+          eventType: "item_added",
+          targetType: "stage_item",
+          targetId: row.id,
+          payload: {
+            stageId: input.stageId,
+            itemType: row.itemType,
+            itemRefId: row.itemRefId,
+            sortOrder: row.sortOrder,
+            source: "expand_test_set_into_clinical_tests",
+          },
+        });
+      }
+      return out;
     },
 
     async doctorDisableInstanceStageItem(input: {
@@ -903,7 +938,7 @@ export function createTreatmentProgramInstanceService(deps: {
         }
         nextGroupId = null;
       } else if (!nextGroupId) {
-        if (item.itemType === "recommendation" || item.itemType === "test_set") {
+        if (item.itemType === "recommendation" || item.itemType === "clinical_test") {
           const want = item.itemType === "recommendation" ? "recommendations" : "tests";
           const sg = stage.groups.find((g) => g.systemKind === want);
           if (!sg) throw new Error("Системная группа этапа не найдена");

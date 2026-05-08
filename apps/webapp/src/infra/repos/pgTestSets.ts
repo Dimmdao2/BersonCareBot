@@ -132,31 +132,31 @@ async function loadTestSetUsageSummary(
           FROM treatment_program_template_stage_items si
           INNER JOIN treatment_program_template_stages st ON st.id = si.stage_id
           INNER JOIN treatment_program_templates t ON t.id = st.template_id
-         WHERE si.item_type = 'test_set' AND si.item_ref_id = $1::uuid AND t.status = 'published') AS published_tp_templates,
+         WHERE si.item_type = 'clinical_test' AND si.item_ref_id IN (SELECT tsi.test_id FROM test_set_items tsi WHERE tsi.test_set_id = $1::uuid) AND t.status = 'published') AS published_tp_templates,
        (SELECT COUNT(DISTINCT t.id)::int
           FROM treatment_program_template_stage_items si
           INNER JOIN treatment_program_template_stages st ON st.id = si.stage_id
           INNER JOIN treatment_program_templates t ON t.id = st.template_id
-         WHERE si.item_type = 'test_set' AND si.item_ref_id = $1::uuid AND t.status = 'draft') AS draft_tp_templates,
+         WHERE si.item_type = 'clinical_test' AND si.item_ref_id IN (SELECT tsi.test_id FROM test_set_items tsi WHERE tsi.test_set_id = $1::uuid) AND t.status = 'draft') AS draft_tp_templates,
        (SELECT COUNT(DISTINCT t.id)::int
           FROM treatment_program_template_stage_items si
           INNER JOIN treatment_program_template_stages st ON st.id = si.stage_id
           INNER JOIN treatment_program_templates t ON t.id = st.template_id
-         WHERE si.item_type = 'test_set' AND si.item_ref_id = $1::uuid AND t.status = 'archived') AS archived_tp_templates,
+         WHERE si.item_type = 'clinical_test' AND si.item_ref_id IN (SELECT tsi.test_id FROM test_set_items tsi WHERE tsi.test_set_id = $1::uuid) AND t.status = 'archived') AS archived_tp_templates,
        (SELECT COUNT(DISTINCT i.id)::int
           FROM treatment_program_instance_stage_items sii
           INNER JOIN treatment_program_instance_stages ist ON ist.id = sii.stage_id
           INNER JOIN treatment_program_instances i ON i.id = ist.instance_id
-         WHERE sii.item_type = 'test_set' AND sii.item_ref_id = $1::uuid AND i.status = 'active') AS active_tp_instances,
+         WHERE sii.item_type = 'clinical_test' AND sii.item_ref_id IN (SELECT tsi.test_id FROM test_set_items tsi WHERE tsi.test_set_id = $1::uuid) AND i.status = 'active') AS active_tp_instances,
        (SELECT COUNT(DISTINCT i.id)::int
           FROM treatment_program_instance_stage_items sii
           INNER JOIN treatment_program_instance_stages ist ON ist.id = sii.stage_id
           INNER JOIN treatment_program_instances i ON i.id = ist.instance_id
-         WHERE sii.item_type = 'test_set' AND sii.item_ref_id = $1::uuid AND i.status = 'completed') AS completed_tp_instances,
+         WHERE sii.item_type = 'clinical_test' AND sii.item_ref_id IN (SELECT tsi.test_id FROM test_set_items tsi WHERE tsi.test_set_id = $1::uuid) AND i.status = 'completed') AS completed_tp_instances,
        (SELECT COUNT(*)::int
           FROM test_attempts ta
           INNER JOIN treatment_program_instance_stage_items sii ON sii.id = ta.instance_stage_item_id
-         WHERE sii.item_type = 'test_set' AND sii.item_ref_id = $1::uuid) AS test_attempts_recorded,
+         WHERE sii.item_type = 'clinical_test' AND sii.item_ref_id IN (SELECT tsi.test_id FROM test_set_items tsi WHERE tsi.test_set_id = $1::uuid)) AS test_attempts_recorded,
        (SELECT COALESCE(jsonb_agg(q.obj), '[]'::jsonb)
           FROM (
             SELECT DISTINCT ON (t.id)
@@ -168,7 +168,7 @@ async function loadTestSetUsageSummary(
             FROM treatment_program_template_stage_items si
             INNER JOIN treatment_program_template_stages st ON st.id = si.stage_id
             INNER JOIN treatment_program_templates t ON t.id = st.template_id
-            WHERE si.item_type = 'test_set' AND si.item_ref_id = $1::uuid AND t.status = 'published'
+            WHERE si.item_type = 'clinical_test' AND si.item_ref_id IN (SELECT tsi.test_id FROM test_set_items tsi WHERE tsi.test_set_id = $1::uuid) AND t.status = 'published'
             ORDER BY t.id, t.title ASC
             LIMIT ${lim}
           ) q) AS published_tp_template_refs,
@@ -183,7 +183,7 @@ async function loadTestSetUsageSummary(
             FROM treatment_program_template_stage_items si
             INNER JOIN treatment_program_template_stages st ON st.id = si.stage_id
             INNER JOIN treatment_program_templates t ON t.id = st.template_id
-            WHERE si.item_type = 'test_set' AND si.item_ref_id = $1::uuid AND t.status = 'draft'
+            WHERE si.item_type = 'clinical_test' AND si.item_ref_id IN (SELECT tsi.test_id FROM test_set_items tsi WHERE tsi.test_set_id = $1::uuid) AND t.status = 'draft'
             ORDER BY t.id, t.title ASC
             LIMIT ${lim}
           ) q) AS draft_tp_template_refs,
@@ -198,7 +198,7 @@ async function loadTestSetUsageSummary(
             FROM treatment_program_template_stage_items si
             INNER JOIN treatment_program_template_stages st ON st.id = si.stage_id
             INNER JOIN treatment_program_templates t ON t.id = st.template_id
-            WHERE si.item_type = 'test_set' AND si.item_ref_id = $1::uuid AND t.status = 'archived'
+            WHERE si.item_type = 'clinical_test' AND si.item_ref_id IN (SELECT tsi.test_id FROM test_set_items tsi WHERE tsi.test_set_id = $1::uuid) AND t.status = 'archived'
             ORDER BY t.id, t.title ASC
             LIMIT ${lim}
           ) q) AS archived_tp_template_refs,
@@ -215,7 +215,7 @@ async function loadTestSetUsageSummary(
             INNER JOIN treatment_program_instance_stages ist ON ist.id = sii.stage_id
             INNER JOIN treatment_program_instances i ON i.id = ist.instance_id
             LEFT JOIN treatment_program_templates tpl ON tpl.id = i.template_id
-            WHERE sii.item_type = 'test_set' AND sii.item_ref_id = $1::uuid AND i.status = 'active'
+            WHERE sii.item_type = 'clinical_test' AND sii.item_ref_id IN (SELECT tsi.test_id FROM test_set_items tsi WHERE tsi.test_set_id = $1::uuid) AND i.status = 'active'
             ORDER BY i.id, i.title ASC
             LIMIT ${lim}
           ) q) AS active_tp_instance_refs,
@@ -232,7 +232,7 @@ async function loadTestSetUsageSummary(
             INNER JOIN treatment_program_instance_stages ist ON ist.id = sii.stage_id
             INNER JOIN treatment_program_instances i ON i.id = ist.instance_id
             LEFT JOIN treatment_program_templates tpl ON tpl.id = i.template_id
-            WHERE sii.item_type = 'test_set' AND sii.item_ref_id = $1::uuid AND i.status = 'completed'
+            WHERE sii.item_type = 'clinical_test' AND sii.item_ref_id IN (SELECT tsi.test_id FROM test_set_items tsi WHERE tsi.test_set_id = $1::uuid) AND i.status = 'completed'
             ORDER BY i.id, i.title ASC
             LIMIT ${lim}
           ) q) AS completed_tp_instance_refs`,

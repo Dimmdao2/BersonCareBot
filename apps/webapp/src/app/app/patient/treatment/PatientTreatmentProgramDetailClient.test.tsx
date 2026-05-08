@@ -290,18 +290,18 @@ describe("PatientTreatmentProgramDetailClient", () => {
     expect(planOpenedCalls).toHaveLength(0);
   });
 
-  it("does not list test_set under Программа tab; recommendations tab lists persistent recs (rec-read)", async () => {
+  it("does not list clinical_test under Программа tab; recommendations tab lists persistent recs (rec-read)", async () => {
     const testSetItem = {
       id: "33333333-3333-4333-8333-333333333333",
       stageId: "22222222-2222-4222-8222-222222222222",
-      itemType: "test_set" as const,
+      itemType: "clinical_test" as const,
       itemRefId: "99999999-9999-4999-8999-999999999999",
       sortOrder: 0,
       comment: null,
       localComment: null,
       settings: null,
       snapshot: {
-        itemType: "test_set",
+        itemType: "clinical_test",
         title: "Набор А",
         tests: [{ testId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", title: "Тест один", comment: "Пейте воду" }],
       },

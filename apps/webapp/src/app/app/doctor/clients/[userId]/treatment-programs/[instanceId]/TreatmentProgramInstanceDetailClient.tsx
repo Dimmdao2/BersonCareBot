@@ -106,13 +106,13 @@ function doctorTimelineWhoRu(actorId: string | null, opts: { currentUserId: stri
   return "Врач";
 }
 
-/** B7 FIX: комментарии строк набора из снимка `test_set` (каталог). */
-function TestSetCatalogSnapshotLines({ snapshot }: { snapshot: Record<string, unknown> }) {
+/** Строки тестов из снимка элемента этапа (`tests[]` в JSON снимка). */
+function ClinicalTestCatalogSnapshotLines({ snapshot }: { snapshot: Record<string, unknown> }) {
   const lines = parseTestSetSnapshotTests(snapshot);
   if (lines.length === 0) return null;
   return (
     <div className="mt-2 rounded-md border border-border/50 bg-muted/10 p-2">
-      <p className="text-xs font-medium text-muted-foreground">Набор тестов (каталог)</p>
+      <p className="text-xs font-medium text-muted-foreground">Клинический тест (каталог)</p>
       <ul className="m-0 mt-1 list-none space-y-1.5 p-0">
         {lines.map((t) => (
           <li key={t.testId} className="text-xs">
@@ -375,7 +375,7 @@ function DoctorProgramInstanceItemCard(props: {
             ) : null}
           </div>
           <div className="min-w-0 flex flex-col gap-2">
-            {item.itemType === "test_set" ? <TestSetCatalogSnapshotLines snapshot={item.snapshot} /> : null}
+            {item.itemType === "clinical_test" ? <ClinicalTestCatalogSnapshotLines snapshot={item.snapshot} /> : null}
             <ItemLocalCommentForm
               key={`${item.id}:${item.localComment ?? ""}`}
               instanceId={instanceId}

@@ -12,7 +12,7 @@ import {
   seedInMemoryTreatmentProgramTemplateUsageSnapshot,
 } from "@/app-layer/testing/treatmentProgramInMemory";
 import type { TreatmentProgramItemRefValidationPort } from "./ports";
-import { EMPTY_TREATMENT_PROGRAM_TEMPLATE_USAGE_SNAPSHOT } from "./types";
+import { EMPTY_TREATMENT_PROGRAM_TEMPLATE_USAGE_SNAPSHOT, type TreatmentProgramStageItem } from "./types";
 
 const validRef = "11111111-1111-4111-8111-111111111111";
 
@@ -97,8 +97,8 @@ describe("treatment-program service", () => {
     const tpl = await svc.createTemplate({ title: "T" }, null);
     const s1 = await svc.createStage(tpl.id, { title: "E1" });
     const s2 = await svc.createStage(tpl.id, { title: "E2" });
-    await svc.addStageItem(s1.id, { itemType: "test_set", itemRefId: validRef });
-    await svc.addStageItem(s2.id, { itemType: "test_set", itemRefId: validRef });
+    await svc.addStageItem(s1.id, { itemType: "clinical_test", itemRefId: validRef });
+    await svc.addStageItem(s2.id, { itemType: "clinical_test", itemRefId: validRef });
     const full = await svc.getTemplate(tpl.id);
     const refs = full.stages.flatMap((st) => st.items.map((i) => i.itemRefId));
     expect(refs.filter((r) => r === validRef).length).toBe(2);
@@ -226,8 +226,10 @@ describe("treatment-program service", () => {
         mode: "ungrouped",
       });
       expect(out.items).toHaveLength(2);
-      expect(out.items.every((i) => i.itemType === "exercise" && i.groupId == null)).toBe(true);
-      expect(out.items.map((i) => i.itemRefId)).toEqual([ex1, ex2]);
+      expect(out.items.every((i: TreatmentProgramStageItem) => i.itemType === "exercise" && i.groupId == null)).toBe(
+        true,
+      );
+      expect(out.items.map((i: TreatmentProgramStageItem) => i.itemRefId)).toEqual([ex1, ex2]);
       expect(out.createdGroup).toBeUndefined();
     });
 
@@ -376,6 +378,90 @@ describe("treatment-program service", () => {
         newGroupTitle: "My group",
       });
       expect(out.createdGroup?.description).toBe("Catalog text");
+    });
+  });
+
+  describe("expandTestSetIntoTemplateStageItems", () => {
+    const testSetId = "99999999-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    const t1 = "11111111-1111-4111-8111-111111111111";
+    const t2 = "22222222-2222-4222-8222-222222222222";
+    const t3 = "33333333-3333-4333-8333-333333333333";
+
+    it("inserts clinical_test rows in set order under system tests group", async () => {
+      port = createInMemoryTreatmentProgramPort({
+        testSetExpandLines: { [testSetId]: [t1, t2, t3] },
+      });
+      const svc = createTreatmentProgramService(port, itemRefs);
+      const tpl = await svc.createTemplate({ title: "P" }, null);
+      const stage = await svc.createStage(tpl.id, { title: "S1" });
+      const detail = await svc.getTemplate(tpl.id);
+      const st = detail.stages.find((s) => s.id === stage.id)!;
+      const testsGroup = st.groups.find((g) => g.systemKind === "tests")!;
+      const out = await svc.expandTestSetIntoTemplateStageItems(tpl.id, stage.id, testSetId);
+      expect(out.added).toBe(3);
+      expect(out.skipped).toBe(0);
+      expect(out.items.map((i) => i.itemRefId)).toEqual([t1, t2, t3]);
+      expect(out.items.every((i) => i.itemType === "clinical_test" && i.groupId === testsGroup.id)).toBe(true);
+    });
+
+    it("skips tests already present in the system tests group", async () => {
+      port = createInMemoryTreatmentProgramPort({
+        testSetExpandLines: { [testSetId]: [t1, t2, t3] },
+      });
+      const svc = createTreatmentProgramService(port, itemRefs);
+      const tpl = await svc.createTemplate({ title: "P" }, null);
+      const stage = await svc.createStage(tpl.id, { title: "S1" });
+      const beforeAdd = await svc.getTemplate(tpl.id);
+      const testsGroup = beforeAdd.stages.find((s) => s.id === stage.id)!.groups.find((g) => g.systemKind === "tests")!;
+      await svc.addStageItem(stage.id, { itemType: "clinical_test", itemRefId: t1, groupId: testsGroup.id });
+      const out = await svc.expandTestSetIntoTemplateStageItems(tpl.id, stage.id, testSetId);
+      expect(out.added).toBe(2);
+      expect(out.skipped).toBe(1);
+      const detail = await svc.getTemplate(tpl.id);
+      const clinical = detail.stages
+        .find((s) => s.id === stage.id)!
+        .items.filter((i) => i.itemType === "clinical_test")
+        .sort((a, b) => a.sortOrder - b.sortOrder);
+      expect(clinical.map((i) => i.itemRefId)).toEqual([t1, t2, t3]);
+    });
+
+    it("rejects expand on template stage zero", async () => {
+      port = createInMemoryTreatmentProgramPort({
+        testSetExpandLines: { [testSetId]: [t1] },
+      });
+      const svc = createTreatmentProgramService(port, itemRefs);
+      const tpl = await svc.createTemplate({ title: "P" }, null);
+      const d = await svc.getTemplate(tpl.id);
+      const s0 = d.stages.find((s) => s.sortOrder === 0)!;
+      await expect(svc.expandTestSetIntoTemplateStageItems(tpl.id, s0.id, testSetId)).rejects.toThrow(
+        /Общие рекомендации/,
+      );
+    });
+
+    it("rejects expand when template is archived", async () => {
+      port = createInMemoryTreatmentProgramPort({
+        testSetExpandLines: { [testSetId]: [t1] },
+      });
+      const svc = createTreatmentProgramService(port, itemRefs);
+      const tpl = await svc.createTemplate({ title: "P" }, null);
+      const stage = await svc.createStage(tpl.id, { title: "S1" });
+      await svc.updateTemplate(tpl.id, { status: "archived" });
+      await expect(svc.expandTestSetIntoTemplateStageItems(tpl.id, stage.id, testSetId)).rejects.toBeInstanceOf(
+        TreatmentProgramTemplateAlreadyArchivedError,
+      );
+    });
+
+    it("rejects unknown test set (no lines in catalog fixture)", async () => {
+      port = createInMemoryTreatmentProgramPort({
+        testSetExpandLines: { [testSetId]: [t1] },
+      });
+      const svc = createTreatmentProgramService(port, itemRefs);
+      const tpl = await svc.createTemplate({ title: "P" }, null);
+      const stage = await svc.createStage(tpl.id, { title: "S1" });
+      const missingSet = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
+      await expect(svc.expandTestSetIntoTemplateStageItems(tpl.id, stage.id, missingSet)).rejects.toBeInstanceOf(
+        TreatmentProgramExpandNotFoundError,
+      );
     });
   });
 });

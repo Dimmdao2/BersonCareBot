@@ -79,7 +79,7 @@
 
 ## 2026-05-07 — Системные группы экземпляра и документация
 
-- Реализованы/зафиксированы: `system_kind` на `treatment_program_instance_stage_groups` (Drizzle + миграции `0044`, `0045` — уникальность одной rec/tests на этап), автоподстановка системных групп в `createInstanceTree` при ungrouped `recommendation`/`test_set` без строк в `groups` (`instance-tree-system-groups.ts`).
+- Реализованы/зафиксированы: `system_kind` на `treatment_program_instance_stage_groups` (Drizzle + миграции `0044`, `0045` — уникальность одной rec/tests на этап), автоподстановка системных групп в `createInstanceTree` при ungrouped `recommendation`/`clinical_test` без строк в `groups` (`instance-tree-system-groups.ts`).
 - Обновлены: `PROGRAM_PATIENT_SHAPE_PLAN.md` §1.1 / §1.1a, `ROADMAP.md` §4, `PATIENT_TREATMENT_PROGRAM_STAGE_SURFACES.md` (таблица фильтров), JSDoc в `types.ts` для дерева экземпляра.
 
 ---
@@ -95,6 +95,14 @@
 - **Не делали:** UI «добавить элемент из каталога» на экране инстанса — по-прежнему бэклог parity с шаблоном.
 
 Проверки: `pnpm --dir apps/webapp exec tsc --noEmit` → OK; `pnpm --dir apps/webapp exec eslint` по путям `TreatmentProgramInstanceDetailClient`, `TreatmentProgramConstructorClient`, `treatment-program-shared/*`, `CommentBlock` → OK.
+
+---
+
+## 2026-05-08 — Плоские тесты в программе (`clinical_test`) и синхронизация доков
+
+- Продуктовый тип элемента этапа для одного клинического теста: **`clinical_test`**; развёртывание каталожного набора — **`POST .../items/from-test-set`** (шаблон и инстанс). Снимок элемента по-прежнему несёт массив **`tests[]`** там, где нужен состав (например после разворота из набора).
+- Документация: `ROADMAP.md` §4, `apps/webapp/src/app/api/api.md`, `docs/README.md`, `ARCHITECTURE/PATIENT_TREATMENT_PROGRAM_STAGE_SURFACES.md`, `PROGRAM_PATIENT_SHAPE_PLAN.md` §1 / §1.1a / таблица completion, `PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/{LOG,BLOCK_LAYOUT_REFERENCE}.md`, JSDoc в `testSetSnapshotView.ts` и `stageItemSnapshot.ts`, лог событий `item_added` при expand — `source: "expand_test_set_into_clinical_tests"`.
+- Миграция `0048`: конвертация legacy `test_set` → строки `clinical_test` по строкам каталога **`test_set_items`** (не по JSON snapshot).
 
 ---
 

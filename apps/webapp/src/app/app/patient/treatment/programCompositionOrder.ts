@@ -17,7 +17,7 @@ export function sortProgramCompositionItemsByOrderThenId<T extends { sortOrder: 
 
 /**
  * Состав «Программа этапа» — тот же набор, что «Состав этапа» на прогрессе
- * ({@link isInstanceStageItemShownInPatientCompositionModal}): без `test_set`.
+ * ({@link isInstanceStageItemShownInPatientCompositionModal}): без `clinical_test`.
  */
 export function isProgramCompositionItem(item: InstanceStageItem, stage: Stage): boolean {
   return isInstanceStageItemShownInPatientCompositionModal(item, stage.groups);

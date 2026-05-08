@@ -330,6 +330,13 @@
       "when": 1779000000000,
       "tag": "0047_template_stages_tpl_sort_unique",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1779100000000,
+      "tag": "0048_treatment_program_clinical_test_items",
+      "breakpoints": true
     }
   ]
 }

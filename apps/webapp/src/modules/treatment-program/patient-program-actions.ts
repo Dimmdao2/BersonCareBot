@@ -42,7 +42,7 @@ export function isProgramChecklistItem(
 ): boolean {
   if (!isInstanceStageItemActiveForPatient(item)) return false;
   if (isPersistentRecommendation(item)) return false;
-  if (item.itemType === "test_set") return false;
+  if (item.itemType === "clinical_test") return false;
   if (item.itemType === "recommendation" && item.isActionable === false) return false;
   return (
     item.itemType === "exercise" ||
@@ -373,8 +373,8 @@ export function createTreatmentProgramPatientActionService(deps: {
       if (item.itemType === "lfk_complex") {
         throw new Error("Для ЛФК используйте отметку занятия");
       }
-      if (item.itemType === "test_set") {
-        throw new Error("Для набора тестов используйте запись результатов");
+      if (item.itemType === "clinical_test") {
+        throw new Error("Для клинического теста используйте запись результатов");
       }
       await deps.actionLog.insertAction({
         instanceId: input.instanceId,

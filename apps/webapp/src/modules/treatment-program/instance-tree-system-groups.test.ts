@@ -40,7 +40,7 @@ describe("withDefaultSystemGroupsIfNeededForTreeStage", () => {
     });
   });
 
-  it("prepends both system groups when ungrouped rec and test_set without systems", () => {
+  it("prepends both system groups when ungrouped rec and clinical_test without systems", () => {
     const out = withDefaultSystemGroupsIfNeededForTreeStage({
       ...baseStage,
       items: [
@@ -53,7 +53,7 @@ describe("withDefaultSystemGroupsIfNeededForTreeStage", () => {
           snapshot: {},
         },
         {
-          itemType: "test_set" as const,
+          itemType: "clinical_test" as const,
           itemRefId: "22222222-2222-4222-8222-222222222222",
           sortOrder: 1,
           comment: null,

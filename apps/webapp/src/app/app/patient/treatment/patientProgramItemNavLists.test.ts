@@ -29,7 +29,7 @@ function stageStub(
 }
 
 describe("patientProgramItemNavLists", () => {
-  it("flatExecIds excludes test_set and persistent recommendations", () => {
+  it("flatExecIds excludes clinical_test and persistent recommendations", () => {
     const stage = stageStub("s1", 1, [
       {
         id: "e1",
@@ -52,7 +52,7 @@ describe("patientProgramItemNavLists", () => {
       {
         id: "ts1",
         stageId: "s1",
-        itemType: "test_set",
+        itemType: "clinical_test",
         itemRefId: "x",
         sortOrder: 1,
         comment: null,
@@ -155,12 +155,12 @@ describe("patientProgramItemNavLists", () => {
     expect(flatRecReadIds(working, [zero])).toEqual(["p1", "p2"]);
   });
 
-  it("flatTestSlots orders test_sets then tests in snapshot order", () => {
+  it("flatTestSlots orders clinical_test items then tests in snapshot order", () => {
     const stage = stageStub("s1", 1, [
       {
         id: "set-b",
         stageId: "s1",
-        itemType: "test_set",
+        itemType: "clinical_test",
         itemRefId: "x",
         sortOrder: 10,
         comment: null,
@@ -184,7 +184,7 @@ describe("patientProgramItemNavLists", () => {
       {
         id: "set-a",
         stageId: "s1",
-        itemType: "test_set",
+        itemType: "clinical_test",
         itemRefId: "x",
         sortOrder: 0,
         comment: null,

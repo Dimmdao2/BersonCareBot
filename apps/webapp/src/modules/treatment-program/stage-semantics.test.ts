@@ -214,12 +214,12 @@ describe("patientStageSectionShouldRender", () => {
     ).toBe(true);
   });
 
-  it("counts active test_set as a program-surface item", () => {
+  it("counts active clinical_test as a program-surface item", () => {
     expect(
       patientStageSectionShouldRender(
         {
           status: "available",
-          items: [{ itemType: "test_set", isActionable: true, status: "active" }],
+          items: [{ itemType: "clinical_test", isActionable: true, status: "active" }],
           goals: null,
           objectives: null,
           expectedDurationDays: null,
@@ -230,10 +230,10 @@ describe("patientStageSectionShouldRender", () => {
     ).toBe(true);
   });
 
-  it("excludes test_set from composition modal item list", () => {
+  it("excludes clinical_test from composition modal item list", () => {
     expect(
       isInstanceStageItemShownInPatientCompositionModal({
-        itemType: "test_set",
+        itemType: "clinical_test",
         status: "active",
         isActionable: true,
       }),
@@ -617,7 +617,7 @@ describe("stage-semantics (1.1a detail split)", () => {
     expect(
       patientInstanceSystemGroupHasVisibleItems({
         group: testsGroup,
-        items: [{ groupId: "g-tests", itemType: "test_set", status: "active", isActionable: null }],
+        items: [{ groupId: "g-tests", itemType: "clinical_test", status: "active", isActionable: null }],
       }),
     ).toBe(true);
   });

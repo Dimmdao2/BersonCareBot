@@ -88,7 +88,7 @@ export type ResolvedPatientProgramItemPage = {
   flatOrderedIds: string[];
   contentBlocked: boolean;
   itemInteraction: "full" | "readOnly";
-  /** Только для `nav=tests`: слоты (itemId набора + testId) в порядке обхода. */
+  /** Только для `nav=tests`: слоты (itemId пункта + testId) в порядке обхода. */
   testSlots?: PatientProgramTestNavSlot[];
   /** Только для `nav=tests`: канонический testId для текущего URL (если передан и валиден). */
   resolvedTestId?: string | null;
@@ -163,7 +163,7 @@ export function resolvePatientProgramItemPage(params: {
     if (!currentWorkingStage) return null;
     testSlots = flatTestSlots(currentWorkingStage);
     if (testSlots.length === 0) return null;
-    if (item.itemType !== "test_set") return null;
+    if (item.itemType !== "clinical_test") return null;
     if (!currentWorkingStage.items.some((it) => it.id === item.id)) return null;
     const setHasSlots = testSlots.some((s) => s.itemId === item.id);
     if (!setHasSlots) return null;

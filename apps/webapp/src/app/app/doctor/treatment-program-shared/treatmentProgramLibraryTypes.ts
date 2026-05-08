@@ -12,6 +12,8 @@ export type TreatmentProgramLibraryPickers = {
   exercises: TreatmentProgramLibraryRow[];
   lfkComplexes: TreatmentProgramLibraryRow[];
   testSets: TreatmentProgramLibraryRow[];
+  /** Клинические тесты каталога — добавление одной строкой этапа (`clinical_test`). */
+  clinicalTests: TreatmentProgramLibraryRow[];
   recommendations: TreatmentProgramLibraryRow[];
   lessons: TreatmentProgramLibraryRow[];
 };

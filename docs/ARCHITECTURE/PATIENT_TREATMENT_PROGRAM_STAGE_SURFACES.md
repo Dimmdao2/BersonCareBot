@@ -8,10 +8,10 @@
 
 | Функция | Назначение |
 |--------|------------|
-| `isInstanceStageItemShownOnPatientProgramSurfaces` | Экраны программы пациента: карточка плана, список пунктов этапа, модалка выбранного пункта (`PatientProgramStageItemModal`). Показываются все активные типы элементов, включая `test_set`. Скрыты только элементы со статусом `disabled`. |
-| `isInstanceStageItemShownInPatientCompositionModal` | Модалка «Состав этапа» (timeline): активные элементы, но **без** `test_set`, чтобы не дублировать набор тестов в компактном таймлайне. Дополнительно **исключаются** элементы, чей `group_id` указывает на системную группу экземпляра (`system_kind` «Рекомендации» / «Тесты»), чтобы не смешивать их с блоком «упражнения» — у рекомендаций и тестов отдельные блоки UI. Наборы тестов остаются доступны на основных поверхностях программы (см. строку выше). |
+| `isInstanceStageItemShownOnPatientProgramSurfaces` | Экраны программы пациента: карточка плана, список пунктов этапа, модалка выбранного пункта (`PatientProgramStageItemModal`). Показываются все активные типы элементов, включая **`clinical_test`**. Скрыты только элементы со статусом `disabled`. |
+| `isInstanceStageItemShownInPatientCompositionModal` | Модалка «Состав этапа» (timeline): активные элементы, но **без** **`clinical_test`**, чтобы не дублировать тесты в компактном таймлайне. Дополнительно **исключаются** элементы, чей `group_id` указывает на системную группу экземпляра (`system_kind` «Рекомендации» / «Тесты»), чтобы не смешивать их с блоком «упражнения» — у рекомендаций и тестов отдельные блоки UI. Пункты **`clinical_test`** остаются на основных поверхностях программы (см. строку выше). |
 
-Инвариант: исключение `test_set` из composition modal **не** означает, что наборы тестов «только на отдельной странице» — они перечисляются в контенте этапа и открываются в универсальной модалке пункта.
+Инвариант: исключение **`clinical_test`** из composition modal **не** означает, что тесты «только на отдельной странице» — они перечисляются в контенте этапа и открываются в универсальной модалке пункта / на странице прохождения.
 
 ## Страница инстанса `/app/patient/treatment/[instanceId]` (вкладка «Программа»)
 
@@ -29,15 +29,15 @@
 
 | Параметр | Назначение |
 |----------|------------|
-| `nav` | Режим списка для prev/next и допустимого состава: `default` (тело этапа), `program` (composition modal), **`exec`** (выполняемые пункты без `test_set` и без persistent-рекомендаций — как секция «Программа этапа»), **`rec-read`** (единый список persistent: рабочий этап, затем этап 0), `rec-stage` / `rec-zero` / `rec-persist`, **`tests`** (плоский обход тестов по всем активным `test_set` рабочего этапа). Разбор: `parsePatientProgramItemNavMode` в `patientProgramItemPageResolve.ts`. |
+| `nav` | Режим списка для prev/next и допустимого состава: `default` (тело этапа), `program` (composition modal), **`exec`** (выполняемые пункты без **`clinical_test`** и без persistent-рекомендаций — как секция «Программа этапа»), **`rec-read`** (единый список persistent: рабочий этап, затем этап 0), `rec-stage` / `rec-zero` / `rec-persist`, **`tests`** (плоский обход тестов по всем активным **`clinical_test`** рабочего этапа). Разбор: `parsePatientProgramItemNavMode` в `patientProgramItemPageResolve.ts`. |
 | `planTab` | Вкладка детали программы при возврате (`program` / `recommendations` / …): `parsePatientPlanTab`. |
-| `testId` | Только при `nav=tests`: uuid теста из `snapshot.tests[]` снимка `test_set`. RSC при несовпадении с каноном **редиректит** на пару `(itemId набора, testId)` первого слота или найденного по `testId` (см. `item/[itemId]/page.tsx`). |
+| `testId` | Только при `nav=tests`: uuid теста из `snapshot.tests[]` снимка элемента **`clinical_test`** (один ожидаемый тест; при необходимости массив `tests[]` совместим с legacy). RSC при несовпадении с каноном **редиректит** на пару `(itemId, testId)` первого слота или найденного по `testId` (см. `item/[itemId]/page.tsx`). |
 
 Единый источник порядка id/слотов для ссылок в UI и для серверного `resolvePatientProgramItemPage`: **`patientProgramItemNavLists.ts`** — `flatExecIds`, `flatRecReadIds`, `flatTestSlots`.
 
-## Снимок `test_set` и идентификаторы тестов
+## Снимок теста (`clinical_test`) и идентификаторы тестов
 
-Разбор JSON-снимка элемента типа `test_set` и список `testId` для навигации к прохождению тестов:
+Разбор JSON-снимка элемента типа **`clinical_test`** (и список `testId` для навигации к прохождению тестов):
 
 - `parseTestSetSnapshotTests`, `testIdsFromTestSetSnapshot` — `apps/webapp/src/modules/treatment-program/testSetSnapshotView.ts`.
 

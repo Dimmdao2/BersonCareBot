@@ -64,7 +64,7 @@ function testSetItem(
   return {
     id,
     stageId,
-    itemType: "test_set",
+    itemType: "clinical_test",
     itemRefId: "ref-ts",
     sortOrder,
     comment: null,
@@ -102,7 +102,7 @@ describe("patientProgramItemPageResolve", () => {
     expect(parsePatientProgramItemNavMode(undefined)).toBe("default");
   });
 
-  it("resolve exec rejects test_set itemId", () => {
+  it("resolve exec rejects clinical_test itemId", () => {
     const sWork = stageStub("s1", 1, "in_progress", [
       exerciseItem("e1", "s1", 0),
       testSetItem("ts1", "s1", 1, [{ testId: "t1" }]),
@@ -136,7 +136,7 @@ describe("patientProgramItemPageResolve", () => {
     expect(r!.itemInteraction).toBe("full");
   });
 
-  it("resolve tests requires test_set on working stage and valid testId", () => {
+  it("resolve tests requires clinical_test on working stage and valid testId", () => {
     const sWork = stageStub("s1", 1, "in_progress", [
       exerciseItem("e1", "s1", 0),
       testSetItem("ts1", "s1", 1, [

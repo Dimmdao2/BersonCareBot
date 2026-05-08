@@ -210,8 +210,8 @@ export function createTreatmentProgramService(
         assertTreatmentProgramStageItemFitsSystemGroup(g, input.itemType);
       }
       const hasGroup = Boolean(input.groupId);
-      if (!hasGroup && input.itemType !== "recommendation" && input.itemType !== "test_set") {
-        throw new Error("Без группы можно добавить только рекомендацию или набор тестов");
+      if (!hasGroup && input.itemType !== "recommendation" && input.itemType !== "clinical_test") {
+        throw new Error("Без группы можно добавить только рекомендацию или клинический тест");
       }
       await itemRefs.assertItemRefExists(input.itemType, input.itemRefId.trim());
       return port.addStageItem(stageId, {
@@ -265,8 +265,8 @@ export function createTreatmentProgramService(
           if (!g) throw new Error("Группа не найдена или не принадлежит этапу");
           assertTreatmentProgramStageItemFitsSystemGroup(g, nextType);
         }
-        if (!nextGroupId && nextType !== "recommendation" && nextType !== "test_set") {
-          throw new Error("Без группы можно оставить только рекомендацию или набор тестов");
+        if (!nextGroupId && nextType !== "recommendation" && nextType !== "clinical_test") {
+          throw new Error("Без группы можно оставить только рекомендацию или клинический тест");
         }
       }
 
@@ -370,6 +370,18 @@ export function createTreatmentProgramService(
         copyComplexDescriptionToGroup: body.copyComplexDescriptionToGroup,
         expectedExerciseIds: preview.exerciseIds,
       });
+    },
+
+    async expandTestSetIntoTemplateStageItems(templateId: string, stageId: string, testSetId: string) {
+      assertUuid(templateId);
+      assertUuid(stageId);
+      assertUuid(testSetId);
+      const detail = await port.getTemplateById(templateId);
+      if (!detail) throw new TreatmentProgramExpandNotFoundError("Шаблон программы не найден");
+      if (detail.status === "archived") throw new TreatmentProgramTemplateAlreadyArchivedError();
+      const stage = detail.stages.find((s) => s.id === stageId);
+      if (!stage) throw new TreatmentProgramExpandNotFoundError("Этап не найден");
+      return port.expandTestSetIntoTemplateStageItems({ templateId, stageId, testSetId: testSetId.trim() });
     },
   };
 }

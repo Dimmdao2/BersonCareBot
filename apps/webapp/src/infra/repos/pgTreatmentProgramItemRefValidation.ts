@@ -1,6 +1,6 @@
 import { and, eq, isNull, ne, or } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
-import { testSets } from "../../../db/schema/clinicalTests";
+import { clinicalTests } from "../../../db/schema/clinicalTests";
 import { recommendations } from "../../../db/schema/recommendations";
 import {
   contentPages,
@@ -38,9 +38,9 @@ export function createPgTreatmentProgramItemRefValidationPort(): TreatmentProgra
           if (!row) throw notFound(type);
           return;
         }
-        case "test_set": {
-          const row = await db.query.testSets.findFirst({
-            where: and(eq(testSets.id, itemRefId), eq(testSets.isArchived, false)),
+        case "clinical_test": {
+          const row = await db.query.clinicalTests.findFirst({
+            where: and(eq(clinicalTests.id, itemRefId), eq(clinicalTests.isArchived, false)),
           });
           if (!row) throw notFound(type);
           return;

@@ -42,7 +42,7 @@
 
 - **`PatientTreatmentProgramDetailClient.tsx`:** в слоте превью строки — `PatientCatalogMediaStaticThumb`, если есть выбранное медиа; иначе для упражнения (строка ЛФК, элемент `exercise`) — `Dumbbell`, для `recommendation` — `ScrollText`; наборы тестов в модалке не перечисляются (см. `stage-semantics`).
 - **Тесты:** расширен сценарий модалки в `PatientTreatmentProgramDetailClient.test.tsx` (вторая строка ЛФК без `img`, рекомендация без медиа — `svg`).
-- **`stage-semantics.ts`:** `isInstanceStageItemShownInPatientCompositionModal` исключает `test_set` (как поверхности программы).
+- **`stage-semantics.ts`:** `isInstanceStageItemShownInPatientCompositionModal` исключает **`clinical_test`** (как поверхности программы).
 - **Тесты:** расширен `stage-semantics.test.ts`.
 - **Док:** `BLOCK_LAYOUT_REFERENCE.md` §3 — модалка без наборов тестов.
 

@@ -234,7 +234,7 @@ export function PatientInstanceStageItemCard(props: {
           ) : null}
 
           {!contentBlocked && !readOnly ? (
-            item.itemType === "test_set" ? (
+            item.itemType === "clinical_test" ? (
               <div className="mt-2" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
                 <PatientTestSetProgressForm
                   instanceId={instanceId}
@@ -294,9 +294,9 @@ export function PatientInstanceStageItemCard(props: {
               </div>
             ) : null
           ) : null}
-          {!contentBlocked && readOnly && item.itemType === "test_set" ? (
+          {!contentBlocked && readOnly && item.itemType === "clinical_test" ? (
             <p className="mt-2 text-xs text-emerald-600 dark:text-emerald-400">
-              {item.completedAt ? "Набор тестов пройден." : "Набор тестов не выполнялся."}
+              {item.completedAt ? "Тест пройден." : "Тест не выполнялся."}
             </p>
           ) : null}
         </div>

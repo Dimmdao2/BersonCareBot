@@ -20,7 +20,7 @@ function sortByOrderThenId<T extends { sortOrder: number; id: string }>(rows: T[
   return [...rows].sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id));
 }
 
-/** Выполняемые пункты: без test_set и без невыполняемых (persistent) рекомендаций; порядок как у «тела этапа». */
+/** Выполняемые пункты: без клинических тестов (отдельная навигация) и без невыполняемых (persistent) рекомендаций; порядок как у «тела этапа». */
 export function flatExecIds(stage: Stage, itemInteraction: "full" | "readOnly"): string[] {
   const visibleItems = stage.items.filter((it) =>
     itemInteraction === "readOnly"
@@ -36,7 +36,7 @@ export function flatExecIds(stage: Stage, itemInteraction: "full" | "readOnly"):
   const ungroupedItems = sortByOrderThenId(visibleItems.filter((it) => !it.groupId));
   const ids: string[] = [];
   const include = (it: StageItem) =>
-    it.itemType !== "test_set" && !isPersistentRecommendation(it);
+    it.itemType !== "clinical_test" && !isPersistentRecommendation(it);
   for (const g of sortedGroups) {
     const gItems = sortByOrderThenId(visibleItems.filter((it) => it.groupId === g.id));
     for (const it of gItems) {
@@ -78,17 +78,19 @@ export function flatRecReadIds(currentWorkingStage: Stage | null, stageZeroStage
 
 export type PatientProgramTestNavSlot = { itemId: string; testId: string };
 
-/** Плоский список тестов: все активные test_set рабочего этапа × тесты снимка по порядку. */
+/** Плоский список тестов: активные `clinical_test` рабочего этапа; по одному слоту на тест из снимка. */
 export function flatTestSlots(currentWorkingStage: Stage | null): PatientProgramTestNavSlot[] {
   if (!currentWorkingStage) return [];
-  const sets = sortByOrderThenId(
-    currentWorkingStage.items.filter((it) => it.itemType === "test_set" && isInstanceStageItemActiveForPatient(it)),
+  const testItems = sortByOrderThenId(
+    currentWorkingStage.items.filter(
+      (it) => it.itemType === "clinical_test" && isInstanceStageItemActiveForPatient(it),
+    ),
   );
   const out: PatientProgramTestNavSlot[] = [];
-  for (const setItem of sets) {
-    const snap = setItem.snapshot as Record<string, unknown>;
+  for (const it of testItems) {
+    const snap = it.snapshot as Record<string, unknown>;
     for (const line of parseTestSetSnapshotTests(snap)) {
-      out.push({ itemId: setItem.id, testId: line.testId });
+      out.push({ itemId: it.id, testId: line.testId });
     }
   }
   return out;

@@ -44,7 +44,7 @@ describe("createPgTestSetsPort usage summary", () => {
     queryMock.mockReset();
   });
 
-  it("getTestSetUsageSummary runs aggregate query for test_set refs", async () => {
+  it("getTestSetUsageSummary runs aggregate query for clinical_test refs via test_set_items", async () => {
     queryMock.mockResolvedValueOnce({
       rows: [
         {
@@ -66,8 +66,8 @@ describe("createPgTestSetsPort usage summary", () => {
     await port.getTestSetUsageSummary("00000000-0000-4000-8000-000000000088");
     expect(queryMock).toHaveBeenCalledTimes(1);
     const sql = String(queryMock.mock.calls[0]?.[0] ?? "");
-    expect(sql).toContain("si.item_ref_id = $1::uuid");
-    expect(sql).toContain("item_type = 'test_set'");
+    expect(sql).toContain("tsi.test_set_id = $1::uuid");
+    expect(sql).toContain("item_type = 'clinical_test'");
     expect(sql).toContain("test_attempts");
   });
 });

@@ -101,7 +101,7 @@ export default async function PatientTreatmentProgramItemPage({ params, searchPa
   if (!resolved) notFound();
 
   let testSetServerSnapshot: PatientTestSetPageServerSnapshot = { variant: "none" };
-  if (resolved.item.itemType === "test_set") {
+  if (resolved.item.itemType === "clinical_test") {
     testSetServerSnapshot = await deps.treatmentProgramProgress.getPatientTestSetPageServerSnapshot({
       patientUserId: session.user.userId,
       instanceId,

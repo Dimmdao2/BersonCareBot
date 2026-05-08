@@ -37,13 +37,13 @@ treatment_program_instance
 ```
 
 Этап содержит **две оси организации**:
-- **Группы** (NEW) — смысловой контейнер («Разминка», «Силовые для кора», «Шея»). У группы есть `title`, `description`, `schedule_text` (фристайл — «3 раза в неделю»), `sort_order`. Группа не управляет статусом, не имеет FSM. На **шаблоне** элементы иных типов, чем `recommendation` / `test_set`, должны иметь `group_id` на группу шаблона; без группы допустимы только рекомендация и набор тестов. На **экземпляре** при назначении для каждого этапа создаются две **системные** группы (`system_kind`: `recommendations`, `tests`; `sort_order` 101/102; без `source_group_id`); ungrouped в шаблоне рекомендации/тесты попадают туда (см. §1.1a).
-- **Items** — упражнение / комплекс / тест / набор / рекомендация / урок. У instance_stage_item — `status` (`active` | `disabled`), `is_actionable` (для рекомендаций), `last_viewed_at`, `local_comment`, `snapshot`.
+- **Группы** (NEW) — смысловой контейнер («Разминка», «Силовые для кора», «Шея»). У группы есть `title`, `description`, `schedule_text` (фристайл — «3 раза в неделю»), `sort_order`. Группа не управляет статусом, не имеет FSM. На **шаблоне** элементы иных типов, чем `recommendation` / **`clinical_test`** (плоская строка теста; разворот каталожного набора — отдельный API `from-test-set`), должны иметь `group_id` на группу шаблона; без группы допустимы только рекомендация и клинический тест. На **экземпляре** при назначении для каждого этапа создаются две **системные** группы (`system_kind`: `recommendations`, `tests`; `sort_order` 101/102; без `source_group_id`); ungrouped в шаблоне рекомендации/**клинические тесты** попадают туда (см. §1.1a).
+- **Items** — упражнение / комплекс / клинический тест / рекомендация / урок. У instance_stage_item — `status` (`active` | `disabled`), `is_actionable` (для рекомендаций), `last_viewed_at`, `local_comment`, `snapshot`.
 
 ### 1.1a Системные группы на экземпляре этапа
 
-- **Назначение с шаблона:** `assignTemplateToPatient` передаёт в `createInstanceTree` две системные группы на этап + пользовательские группы с шаблона; элементы с `group_id = null` в шаблоне типов `recommendation` / `test_set` получают `group_id` соответствующей системной группы.
-- **Прямой ввод дерева** (тесты, скрипты): если в `groups` нет строк с `systemKind`, но есть ungrouped `recommendation` и/или `test_set`, репозиторий **дописывает** те же системные группы перед вставкой (`withDefaultSystemGroupsIfNeededForTreeStage`).
+- **Назначение с шаблона:** `assignTemplateToPatient` передаёт в `createInstanceTree` две системные группы на этап + пользовательские группы с шаблона; элементы с `group_id = null` в шаблоне типов `recommendation` / **`clinical_test`** получают `group_id` соответствующей системной группы.
+- **Прямой ввод дерева** (тесты, скрипты): если в `groups` нет строк с `systemKind`, но есть ungrouped `recommendation` и/или **`clinical_test`**, репозиторий **дописывает** те же системные группы перед вставкой (`withDefaultSystemGroupsIfNeededForTreeStage`).
 - **БД:** колонка `system_kind` на `treatment_program_instance_stage_groups` (миграция `0044_instance_stage_groups_system_kind.sql`, CHECK `NULL | recommendations | tests`); не более одной системной группы каждого вида на этап — частичные уникальные индексы (`0045_instance_stage_groups_system_kind_unique.sql`).
 
 ### 1.2 Особый этап «Общие рекомендации» (Этап 0)
@@ -71,7 +71,7 @@ treatment_program_instance
 | `exercise` | да | галочка в чек-листе сессии (см. §1.5) |
 | `lfk_complex` | да | галочка / окончание run-screen комплекса |
 | `lesson` | да | пациент открыл и нажал «Изучил» / открытие |
-| `test_set` | да | все тесты набора отправлены пациентом |
+| `clinical_test` | да | по снимку/попытке зафиксирован результат ожидаемого теста (legacy `test_set` в старых данных — см. миграция `0048`) |
 | `recommendation` (actionable) | да | галочка в чек-листе |
 | `recommendation` (persistent) | **нет** | элемент не имеет completion-логики, не считается в прогрессе этапа |
 

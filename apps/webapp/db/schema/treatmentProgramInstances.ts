@@ -206,7 +206,7 @@ export const treatmentProgramInstanceStageItems = pgTable(
     }).onDelete("set null"),
     check(
       "treatment_program_instance_stage_items_item_type_check",
-      sql`item_type = ANY (ARRAY['exercise'::text, 'lfk_complex'::text, 'recommendation'::text, 'lesson'::text, 'test_set'::text])`,
+      sql`item_type = ANY (ARRAY['exercise'::text, 'lfk_complex'::text, 'recommendation'::text, 'lesson'::text, 'clinical_test'::text])`,
     ),
     check(
       "treatment_program_instance_stage_items_status_check",

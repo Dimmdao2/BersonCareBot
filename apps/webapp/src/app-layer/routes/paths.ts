@@ -70,7 +70,7 @@ export const routePaths = {
    * Детальный просмотр пункта программы (не модалка).
    * `nav` — см. `parsePatientProgramItemNavMode`.
    * `planTab` — вкладка плана для ссылки «Назад» (`planTab` в query).
-   * `testId` — для `nav=tests`: uuid теста в снимке набора (`test_set`).
+   * `testId` — для `nav=tests`: uuid теста в снимке пункта (`clinical_test`).
    */
   patientTreatmentProgramItem: (
     instanceId: string,

@@ -299,13 +299,13 @@ describe("treatment-program progress-service", () => {
           expectedDurationText: null,
           items: [
             {
-              itemType: "test_set",
+              itemType: "clinical_test",
               itemRefId: "44444444-4444-4444-8444-444444444444",
               sortOrder: 0,
               comment: null,
               settings: null,
               snapshot: {
-                itemType: "test_set",
+                itemType: "clinical_test",
                 title: "Набор",
                 tests: [{ testId, title: "T1", scoringConfig: { passIfGte: 5 } }],
               },
@@ -346,7 +346,7 @@ describe("treatment-program progress-service", () => {
     expect(ev.some((e) => e.eventType === "stage_completed")).toBe(true);
   });
 
-  it("D4/Q2: qualitative test_set — explicit normalizedDecision completes item and stage (no special branch)", async () => {
+  it("D4/Q2: qualitative clinical_test — explicit normalizedDecision completes item and stage (no special branch)", async () => {
     const inst = await persistence.instancePort.createInstanceTree({
       templateId: "00000000-0000-4000-8000-000000000001",
       patientUserId: patient,
@@ -365,13 +365,13 @@ describe("treatment-program progress-service", () => {
           expectedDurationText: null,
           items: [
             {
-              itemType: "test_set",
+              itemType: "clinical_test",
               itemRefId: "44444444-4444-4444-8444-444444444444",
               sortOrder: 0,
               comment: null,
               settings: null,
               snapshot: {
-                itemType: "test_set",
+                itemType: "clinical_test",
                 title: "Набор",
                 tests: [
                   {
@@ -434,13 +434,13 @@ describe("treatment-program progress-service", () => {
           expectedDurationText: null,
           items: [
             {
-              itemType: "test_set",
+              itemType: "clinical_test",
               itemRefId: "55555555-5555-4555-8555-555555555555",
               sortOrder: 0,
               comment: null,
               settings: null,
               snapshot: {
-                itemType: "test_set",
+                itemType: "clinical_test",
                 tests: [
                   {
                     testId,
@@ -514,7 +514,7 @@ describe("treatment-program progress-service", () => {
           expectedDurationText: null,
           items: [
             {
-              itemType: "test_set",
+              itemType: "clinical_test",
               itemRefId: "66666666-6666-4666-8666-666666666666",
               sortOrder: 0,
               comment: null,
@@ -564,7 +564,7 @@ describe("treatment-program progress-service", () => {
           expectedDurationText: null,
           items: [
             {
-              itemType: "test_set",
+              itemType: "clinical_test",
               itemRefId: "77777777-7777-4777-8777-777777777777",
               sortOrder: 0,
               comment: null,
@@ -622,13 +622,13 @@ describe("treatment-program progress-service", () => {
           expectedDurationText: null,
           items: [
             {
-              itemType: "test_set",
+              itemType: "clinical_test",
               itemRefId: "44444444-4444-4444-8444-444444444444",
               sortOrder: 0,
               comment: null,
               settings: null,
               snapshot: {
-                itemType: "test_set",
+                itemType: "clinical_test",
                 title: "Набор",
                 tests: [{ testId, title: "T1", scoringConfig: { passIfGte: 5 } }],
               },
@@ -846,7 +846,7 @@ describe("treatment-program progress-service", () => {
           expectedDurationText: null,
           items: [
             {
-              itemType: "test_set",
+              itemType: "clinical_test",
               itemRefId: "44444444-4444-4444-8444-444444444444",
               sortOrder: 0,
               comment: null,

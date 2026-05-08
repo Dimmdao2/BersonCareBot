@@ -215,8 +215,8 @@ export function createTreatmentProgramProgressService(deps: {
       if (isPersistentRecommendation(item)) {
         throw new Error("Постоянная рекомендация не отмечается выполненной");
       }
-      if (item.itemType === "test_set") {
-        throw new Error("Для набора тестов используйте отправку результатов");
+      if (item.itemType === "clinical_test") {
+        throw new Error("Для клинического теста используйте отправку результатов");
       }
       const hadCompleted = item.completedAt != null;
       const ts = nowIso();
@@ -263,8 +263,8 @@ export function createTreatmentProgramProgressService(deps: {
       if (!isInstanceStageItemActiveForPatient(item)) {
         throw new Error("Элемент отключён");
       }
-      if (item.itemType !== "test_set") throw new Error("Элемент не является набором тестов");
-      if (item.completedAt) throw new Error("Набор тестов уже завершён");
+      if (item.itemType !== "clinical_test") throw new Error("Элемент не является клиническим тестом");
+      if (item.completedAt) throw new Error("Тест уже завершён");
       return tests.createAttempt({ stageItemId: item.id, patientUserId: input.patientUserId });
     },
 
@@ -292,12 +292,12 @@ export function createTreatmentProgramProgressService(deps: {
       if (!isInstanceStageItemActiveForPatient(item)) {
         throw new Error("Элемент отключён");
       }
-      if (item.itemType !== "test_set") throw new Error("Элемент не является набором тестов");
-      if (item.completedAt) throw new Error("Набор тестов уже завершён");
+      if (item.itemType !== "clinical_test") throw new Error("Элемент не является клиническим тестом");
+      if (item.completedAt) throw new Error("Тест уже завершён");
 
       const expectedTests = testIdsFromTestSetSnapshot(item.snapshot);
       if (!expectedTests.includes(input.testId)) {
-        throw new Error("Тест не входит в набор");
+        throw new Error("Тест не соответствует пункту программы");
       }
 
       const attempt = await tests.createAttempt({
@@ -373,7 +373,7 @@ export function createTreatmentProgramProgressService(deps: {
             field: "completedAt",
             value: nowIso(),
             stageId: stage.id,
-            context: "test_set_all_tests_done",
+            context: "clinical_test_done",
           },
         });
         await maybeCompleteStageFromItems(input.instanceId, stage.id);
@@ -472,7 +472,7 @@ export function createTreatmentProgramProgressService(deps: {
       } catch {
         return { variant: "none" };
       }
-      if (item.itemType !== "test_set") return { variant: "none" };
+      if (item.itemType !== "clinical_test") return { variant: "none" };
 
       if (item.completedAt) {
         const all = await tests.listResultDetailsForInstance(input.instanceId);

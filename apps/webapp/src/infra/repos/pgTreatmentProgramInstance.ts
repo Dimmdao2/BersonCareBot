@@ -14,6 +14,8 @@ import type {
   AppendTreatmentProgramEventInput,
   CreateTreatmentProgramInstanceStageGroupInput,
   CreateTreatmentProgramInstanceTreeInput,
+  ExpandTestSetIntoInstanceStageItemsPortInput,
+  ExpandTestSetIntoInstanceStageItemsResult,
   ReplaceTreatmentProgramInstanceStageItemInput,
   TreatmentProgramInstanceDetail,
   TreatmentProgramInstanceStageGroup,
@@ -29,6 +31,8 @@ import type {
 } from "@/modules/treatment-program/types";
 import { effectiveInstanceStageItemComment } from "@/modules/treatment-program/types";
 import { withDefaultSystemGroupsIfNeededForTreeStage } from "@/modules/treatment-program/instance-tree-system-groups";
+import { createPgTreatmentProgramItemSnapshotPort } from "@/infra/repos/pgTreatmentProgramItemSnapshot";
+import { testSetItems, testSets } from "../../../db/schema/clinicalTests";
 
 function sameIdSet(ordered: string[], expected: Set<string>): boolean {
   if (ordered.length !== expected.size) return false;
@@ -248,11 +252,11 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
               gid = templateGroupIdToInstance.get(it.templateGroupId) ?? null;
             } else if (it.itemType === "recommendation") {
               gid = templateGroupIdToInstance.get(INTERNAL_REC) ?? null;
-            } else if (it.itemType === "test_set") {
+            } else if (it.itemType === "clinical_test") {
               gid = templateGroupIdToInstance.get(INTERNAL_TESTS) ?? null;
             } else {
               throw new Error(
-                "Назначение: элемент без группы в шаблоне должен быть только рекомендацией или набором тестов",
+                "Назначение: элемент без группы в шаблоне должен быть только рекомендацией или клиническим тестом",
               );
             }
             await tx.insert(itemTable).values({
@@ -620,6 +624,101 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
       if (!irow) return null;
       await touchInstanceUpdatedAt(db, instanceId);
       return mapItem(irow);
+    },
+
+    async expandTestSetIntoInstanceStageItems(
+      input: ExpandTestSetIntoInstanceStageItemsPortInput,
+    ): Promise<ExpandTestSetIntoInstanceStageItemsResult | null> {
+      const db = getDrizzle();
+      const snapshots = createPgTreatmentProgramItemSnapshotPort();
+      return db.transaction(async (tx) => {
+        const stRow = await tx.query.treatmentProgramInstanceStages.findFirst({
+          where: eq(stageTable.id, input.stageId),
+        });
+        if (!stRow || stRow.instanceId !== input.instanceId) return null;
+        if (stRow.sortOrder === 0) {
+          throw new Error("На этапе «Общие рекомендации» нельзя разворачивать набор тестов");
+        }
+
+        const [setRow] = await tx
+          .select()
+          .from(testSets)
+          .where(and(eq(testSets.id, input.testSetId), eq(testSets.isArchived, false)))
+          .limit(1);
+        if (!setRow) {
+          throw new Error("Набор тестов не найден или в архиве");
+        }
+
+        const [testsGroup] = await tx
+          .select()
+          .from(instGroupTable)
+          .where(and(eq(instGroupTable.stageId, input.stageId), eq(instGroupTable.systemKind, "tests")))
+          .limit(1);
+        if (!testsGroup) {
+          throw new Error("Не найдена системная группа «Тестирование» для этапа");
+        }
+
+        const lines = await tx
+          .select()
+          .from(testSetItems)
+          .where(eq(testSetItems.testSetId, input.testSetId))
+          .orderBy(asc(testSetItems.sortOrder), asc(testSetItems.id));
+
+        const existingRows = await tx
+          .select({ refId: itemTable.itemRefId })
+          .from(itemTable)
+          .where(
+            and(
+              eq(itemTable.stageId, input.stageId),
+              eq(itemTable.groupId, testsGroup.id),
+              eq(itemTable.itemType, "clinical_test"),
+            ),
+          );
+        const existing = new Set(existingRows.map((r) => r.refId));
+
+        const [{ max: itemMax }] = await tx
+          .select({ max: sql<number>`coalesce(max(${itemTable.sortOrder}), -1)` })
+          .from(itemTable)
+          .where(eq(itemTable.stageId, input.stageId));
+
+        let pos = itemMax + 1;
+        let added = 0;
+        let skipped = 0;
+        const inserted: TreatmentProgramInstanceStageItemRow[] = [];
+        const nowIso = new Date().toISOString();
+        for (const line of lines) {
+          if (existing.has(line.testId)) {
+            skipped += 1;
+            continue;
+          }
+          existing.add(line.testId);
+          const snapshot = await snapshots.buildSnapshot("clinical_test", line.testId);
+          const [irow] = await tx
+            .insert(itemTable)
+            .values({
+              stageId: input.stageId,
+              itemType: "clinical_test",
+              itemRefId: line.testId,
+              sortOrder: pos++,
+              comment: line.comment ?? null,
+              localComment: null,
+              settings: null,
+              snapshot,
+              completedAt: null,
+              isActionable: null,
+              status: "active",
+              groupId: testsGroup.id,
+              createdAt: nowIso,
+              lastViewedAt: nowIso,
+            })
+            .returning();
+          if (!irow) throw new Error("insert failed");
+          inserted.push(mapItem(irow));
+          added += 1;
+        }
+        await touchInstanceUpdatedAt(db, input.instanceId);
+        return { added, skipped, items: inserted };
+      });
     },
 
     async patchInstanceStageItem(

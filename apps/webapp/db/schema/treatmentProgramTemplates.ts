@@ -20,7 +20,7 @@ export const TREATMENT_PROGRAM_ITEM_TYPES = [
   "lfk_complex",
   "recommendation",
   "lesson",
-  "test_set",
+  "clinical_test",
 ] as const;
 
 export const treatmentProgramTemplates = pgTable(
@@ -152,7 +152,7 @@ export const treatmentProgramTemplateStageItems = pgTable(
     }).onDelete("set null"),
     check(
       "treatment_program_template_stage_items_item_type_check",
-      sql`item_type = ANY (ARRAY['exercise'::text, 'lfk_complex'::text, 'recommendation'::text, 'lesson'::text, 'test_set'::text])`,
+      sql`item_type = ANY (ARRAY['exercise'::text, 'lfk_complex'::text, 'recommendation'::text, 'lesson'::text, 'clinical_test'::text])`,
     ),
   ],
 );

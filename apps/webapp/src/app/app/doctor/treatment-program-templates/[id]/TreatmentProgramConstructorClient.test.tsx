@@ -68,6 +68,7 @@ const emptyLibrary: TreatmentProgramLibraryPickers = {
   exercises: [],
   lfkComplexes: [],
   testSets: [],
+  clinicalTests: [],
   recommendations: [],
   lessons: [],
 };

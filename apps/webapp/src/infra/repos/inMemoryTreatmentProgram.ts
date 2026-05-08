@@ -7,6 +7,8 @@ import type {
   LfkComplexExpandPreview,
   ExpandLfkComplexIntoStageItemsPortInput,
   ExpandLfkComplexIntoStageItemsResult,
+  ExpandTestSetIntoTemplateStageItemsPortInput,
+  ExpandTestSetIntoTemplateStageItemsResult,
   TreatmentProgramStage,
   TreatmentProgramStageItem,
   TreatmentProgramTemplate,
@@ -65,6 +67,8 @@ export function createInMemoryTreatmentProgramPort(seed?: {
   groups?: TreatmentProgramTemplateStageGroup[];
   /** Ключ — id шаблона комплекса ЛФК (каталог); только для тестов expand. */
   lfkComplexExpandPreview?: Record<string, LfkComplexExpandPreview>;
+  /** Ключ — id набора тестов; порядок test_id для expand в шаблон. */
+  testSetExpandLines?: Record<string, string[]>;
 }): TreatmentProgramPort {
   const templates = new Map<string, TreatmentProgramTemplate>();
   const stages = new Map<string, TreatmentProgramStage>();
@@ -546,6 +550,76 @@ export function createInMemoryTreatmentProgramPort(seed?: {
       }
 
       return { items: insertedItems, createdGroup };
+    },
+
+    async expandTestSetIntoTemplateStageItems(
+      input: ExpandTestSetIntoTemplateStageItemsPortInput,
+    ): Promise<ExpandTestSetIntoTemplateStageItemsResult> {
+      const stageRow = stages.get(input.stageId);
+      if (!stageRow) throw new TreatmentProgramExpandNotFoundError("Этап не найден");
+      if (stageRow.sortOrder === 0) {
+        throw new Error("На этапе «Общие рекомендации» нельзя разворачивать набор тестов");
+      }
+      if (stageRow.templateId !== input.templateId) {
+        throw new TreatmentProgramExpandNotFoundError("Этап не принадлежит шаблону");
+      }
+      const tplRow = templates.get(input.templateId);
+      if (!tplRow) throw new TreatmentProgramExpandNotFoundError("Шаблон программы не найден");
+      if (tplRow.status === "archived") throw new TreatmentProgramTemplateAlreadyArchivedError();
+
+      const lines = seed?.testSetExpandLines?.[input.testSetId];
+      if (!lines || lines.length === 0) {
+        throw new TreatmentProgramExpandNotFoundError("Набор тестов не найден или в архиве");
+      }
+
+      const testsGroup = [...tplGroups.values()].find(
+        (g) => g.stageId === input.stageId && g.systemKind === "tests",
+      );
+      if (!testsGroup) {
+        throw new Error("Не найдена системная группа «Тестирование» для этапа");
+      }
+
+      const existing = new Set(
+        [...items.values()]
+          .filter(
+            (it) =>
+              it.stageId === input.stageId &&
+              it.groupId === testsGroup.id &&
+              it.itemType === "clinical_test",
+          )
+          .map((it) => it.itemRefId),
+      );
+
+      const itemMax = Math.max(
+        -1,
+        ...[...items.values()].filter((it) => it.stageId === input.stageId).map((it) => it.sortOrder),
+      );
+      let pos = itemMax + 1;
+      let added = 0;
+      let skipped = 0;
+      const inserted: TreatmentProgramStageItem[] = [];
+      for (const testId of lines) {
+        if (existing.has(testId)) {
+          skipped += 1;
+          continue;
+        }
+        existing.add(testId);
+        const id = crypto.randomUUID();
+        const row: TreatmentProgramStageItem = {
+          id,
+          stageId: input.stageId,
+          itemType: "clinical_test",
+          itemRefId: testId,
+          sortOrder: pos++,
+          comment: null,
+          settings: null,
+          groupId: testsGroup.id,
+        };
+        items.set(id, row);
+        inserted.push({ ...row });
+        added += 1;
+      }
+      return { added, skipped, items: inserted };
     },
 
     async reorderTemplateStageGroups(stageId: string, orderedGroupIds: string[]) {

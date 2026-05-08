@@ -3,7 +3,7 @@ import type { Exercise, ExerciseMedia } from "@/modules/lfk-exercises/types";
 import type { Template } from "@/modules/lfk-templates/types";
 import { recommendationDomainTitle } from "@/modules/recommendations/recommendationDomain";
 import type { Recommendation } from "@/modules/recommendations/types";
-import type { TestSet } from "@/modules/tests/types";
+import type { ClinicalTest, TestSet } from "@/modules/tests/types";
 import {
   LESSON_CONTENT_SECTION,
   LESSON_CONTENT_SECTION_LEGACY,
@@ -38,14 +38,21 @@ function lessonMeta(p: ContentPageRow): { subtitle: string; thumbUrl: string | n
   return { subtitle: sec, thumbUrl: p.imageUrl?.trim() || null };
 }
 
+function clinicalTestThumbUrl(t: ClinicalTest): string | null {
+  const m = t.media[0];
+  if (!m?.mediaUrl?.trim()) return null;
+  return m.mediaUrl.trim();
+}
+
 export function buildTreatmentProgramLibraryPickers(params: {
   exercises: Exercise[];
   lfkTemplates: Template[];
   testSets: TestSet[];
+  clinicalTests: ClinicalTest[];
   recommendations: Recommendation[];
   contentPagesAll: ContentPageRow[];
 }): TreatmentProgramLibraryPickers {
-  const { exercises, lfkTemplates, testSets, recommendations, contentPagesAll } = params;
+  const { exercises, lfkTemplates, testSets, clinicalTests, recommendations, contentPagesAll } = params;
   return {
     exercises: exercises.map((e) => ({
       id: e.id,
@@ -78,6 +85,14 @@ export function buildTreatmentProgramLibraryPickers(params: {
         thumbUrl: thumb,
       };
     }),
+    clinicalTests: clinicalTests
+      .filter((ct) => !ct.isArchived)
+      .map((ct) => ({
+        id: ct.id,
+        title: ct.title,
+        subtitle: ct.testType?.trim() || null,
+        thumbUrl: clinicalTestThumbUrl(ct),
+      })),
     recommendations: recommendations.map((r) => ({
       id: r.id,
       title: r.title,
