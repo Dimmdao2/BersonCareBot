@@ -7,11 +7,10 @@ import { FormatStepClient } from "./FormatStepClient";
 import { routePaths } from "@/app-layer/routes/paths";
 import type { BookingCity } from "@/modules/booking-catalog/types";
 
-const push = vi.fn();
 const refresh = vi.fn();
 
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push, replace: vi.fn(), refresh, prefetch: vi.fn() }),
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh, prefetch: vi.fn() }),
 }));
 
 function city(overrides: Partial<BookingCity> = {}): BookingCity {
@@ -29,7 +28,6 @@ function city(overrides: Partial<BookingCity> = {}): BookingCity {
 
 describe("FormatStepClient", () => {
   beforeEach(() => {
-    push.mockClear();
     refresh.mockClear();
   });
 
@@ -42,18 +40,16 @@ describe("FormatStepClient", () => {
     );
   });
 
-  it("«Реабилитация онлайн» navigates to intake/lfk", async () => {
-    const user = userEvent.setup();
+  it("«Реабилитация онлайн» ведёт на шаг выбора слота (онлайн ЛФК)", () => {
     render(<FormatStepClient cities={[city()]} catalogError={null} />);
-    await user.click(screen.getByRole("button", { name: /Реабилитация онлайн/i }));
-    expect(push).toHaveBeenCalledWith(routePaths.intakeLfk);
+    const link = screen.getByRole("link", { name: /Реабилитация онлайн/i });
+    expect(link).toHaveAttribute("href", `${routePaths.bookingNewSlot}?type=online&category=rehab_lfk`);
   });
 
-  it("«Нутрициология онлайн» navigates to intake/nutrition", async () => {
-    const user = userEvent.setup();
+  it("«Нутрициология онлайн» ведёт на шаг выбора слота (онлайн нутрициология)", () => {
     render(<FormatStepClient cities={[city()]} catalogError={null} />);
-    await user.click(screen.getByRole("button", { name: /Нутрициология онлайн/i }));
-    expect(push).toHaveBeenCalledWith(routePaths.intakeNutrition);
+    const link = screen.getByRole("link", { name: /Нутрициология онлайн/i });
+    expect(link).toHaveAttribute("href", `${routePaths.bookingNewSlot}?type=online&category=nutrition`);
   });
 
   it("shows catalog error and retry refreshes router", async () => {

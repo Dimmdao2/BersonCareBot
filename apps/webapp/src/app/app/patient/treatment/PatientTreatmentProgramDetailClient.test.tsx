@@ -357,7 +357,7 @@ describe("PatientTreatmentProgramDetailClient", () => {
     clickPatientTreatmentTab("recommendations");
     const recPanel = screen.getByRole("tabpanel", { name: "Рекомендации" });
     expect(
-      await within(recPanel).findByRole("button", { name: "Только рекомендация в списке" }),
+      await within(recPanel).findByRole("link", { name: "Только рекомендация в списке" }),
     ).toBeInTheDocument();
     const programPanel = screen.getByRole("tabpanel", { name: "Программа" });
     expect(programPanel.textContent).not.toContain("Набор А");
@@ -522,7 +522,7 @@ describe("PatientTreatmentProgramDetailClient", () => {
     );
     clickPatientTreatmentTab("recommendations");
     const recPanel = screen.getByRole("tabpanel", { name: "Рекомендации" });
-    const rowBtn = await within(recPanel).findByRole("button", { name: /Пить воду/ });
+    const rowBtn = await within(recPanel).findByRole("link", { name: /Пить воду/ });
     expect(rowBtn).toBeInTheDocument();
     const row = rowBtn.closest("li");
     expect(row).toBeTruthy();
@@ -783,10 +783,8 @@ describe("PatientTreatmentProgramDetailClient", () => {
     );
     clickPatientTreatmentTab("progress");
     expect(screen.getByRole("heading", { name: "Этапы программы" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Состав этапа: Острая фаза" }));
-    expect(screen.getByRole("dialog")).toBeInTheDocument();
-    const dialog = screen.getByRole("dialog");
-    expect(within(dialog).getByText("Острая фаза")).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByText("Острая фаза")).toBeInTheDocument();
     expect(screen.getByText("Активный этап")).toBeInTheDocument();
     const stagesSection = document.getElementById("patient-program-current-stage");
     expect(stagesSection).toBeTruthy();
@@ -794,7 +792,7 @@ describe("PatientTreatmentProgramDetailClient", () => {
     expect(within(stagesSection as HTMLElement).getByText("Восстановление")).toBeInTheDocument();
   });
 
-  it("stage composition modal: groups, schedule, LFK exercises expanded, no itemType in parentheses", () => {
+  it("program tab: composition groups, schedule, LFK preview thumb, no itemType in parentheses", async () => {
     const groupId = "gggggggg-gggg-4ggg-8ggg-gggggggggggg";
     const stageId = "33333333-3333-4333-8333-333333333333";
     render(
@@ -922,30 +920,35 @@ describe("PatientTreatmentProgramDetailClient", () => {
         {...detailShellProps}
       />,
     );
-    clickPatientTreatmentTab("progress");
-    fireEvent.click(screen.getByRole("button", { name: "Состав этапа: Острая фаза" }));
-    const dialog = screen.getByRole("dialog");
-    expect(within(dialog).queryByRole("button", { name: /Начать занятие/i })).not.toBeInTheDocument();
-    expect(within(dialog).getAllByText("Сегодня:")).toHaveLength(4);
-    expect(within(dialog).queryByRole("checkbox")).not.toBeInTheDocument();
-    expect(within(dialog).getByText("Блок утро")).toBeInTheDocument();
-    expect(within(dialog).getByText("2 раза в день")).toBeInTheDocument();
-    expect(within(dialog).getByText("Первое")).toBeInTheDocument();
-    expect(within(dialog).getByText("Второе")).toBeInTheDocument();
-    expect(within(dialog).getByText("Рекомендация в блоке")).toBeInTheDocument();
-    expect(within(dialog).getByText("Вне группы пункт")).toBeInTheDocument();
-    expect(within(dialog).queryByText("Без группы")).not.toBeInTheDocument();
-    const dialogText = dialog.textContent ?? "";
-    expect(dialogText.indexOf("Вне группы пункт")).toBeLessThan(dialogText.indexOf("Блок утро"));
-    expect(within(dialog).queryByText("(lfk_complex)", { exact: false })).not.toBeInTheDocument();
-    expect(within(dialog).queryByText("(recommendation)", { exact: false })).not.toBeInTheDocument();
-    const firstExerciseRow = within(dialog).getByText("Первое").closest("li");
-    expect(firstExerciseRow?.querySelector("img")).toBeTruthy();
-    expect(firstExerciseRow?.querySelector("img")?.getAttribute("src")).toContain("lfk-exercise-preview");
-    const secondExerciseRow = within(dialog).getByText("Второе").closest("li");
-    expect(secondExerciseRow?.querySelector("img")).toBeFalsy();
-    expect(secondExerciseRow?.querySelector("svg")).toBeTruthy();
-    const recInBlockRow = within(dialog).getByText("Рекомендация в блоке").closest("li");
+    clickPatientTreatmentTab("program");
+    const programPanel = await screen.findByRole("tabpanel", { name: "Программа" });
+
+    expect(within(programPanel).queryByRole("button", { name: /Начать занятие/i })).not.toBeInTheDocument();
+    expect(within(programPanel).getAllByText("Выполнялось")).toHaveLength(3);
+    expect(within(programPanel).queryByRole("checkbox")).not.toBeInTheDocument();
+
+    expect(within(programPanel).getByRole("heading", { name: "Программа этапа" })).toBeInTheDocument();
+    expect(within(programPanel).getByText("Блок утро")).toBeInTheDocument();
+    expect(within(programPanel).getByText("2 раза в день")).toBeInTheDocument();
+    expect(within(programPanel).getByText("Шаблон комплекса")).toBeInTheDocument();
+    expect(within(programPanel).getByText("Рекомендация в блоке")).toBeInTheDocument();
+    expect(within(programPanel).getByText("Вне группы пункт")).toBeInTheDocument();
+    expect(within(programPanel).queryByText("Без группы")).not.toBeInTheDocument();
+
+    const ungroupedTitle = within(programPanel).getByText("Вне группы пункт");
+    const groupTitle = within(programPanel).getByText("Блок утро");
+    /* buildProgramCompositionSegments: группы, затем без группы */
+    expect(groupTitle.compareDocumentPosition(ungroupedTitle) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+
+    expect(within(programPanel).queryByText("(lfk_complex)", { exact: false })).not.toBeInTheDocument();
+    expect(within(programPanel).queryByText("(recommendation)", { exact: false })).not.toBeInTheDocument();
+
+    const lfkOpen = within(programPanel).getAllByRole("link", { name: /Открыть: Шаблон комплекса/ })[0]!;
+    const lfkTile = lfkOpen.closest("li");
+    expect(lfkTile?.querySelector("img")).toBeTruthy();
+    expect(lfkTile?.querySelector("img")?.getAttribute("src")).toContain("lfk-exercise-preview");
+
+    const recInBlockRow = within(programPanel).getByText("Рекомендация в блоке").closest("li");
     expect(recInBlockRow?.querySelector("img")).toBeFalsy();
     expect(recInBlockRow?.querySelector("svg")).toBeTruthy();
   });

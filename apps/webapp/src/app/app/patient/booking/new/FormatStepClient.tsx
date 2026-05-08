@@ -61,22 +61,22 @@ export function FormatStepClient({ cities, catalogError }: FormatStepClientProps
 
       <div className="flex flex-col gap-2">
         <p className={cn(patientMutedTextClass, "text-xs font-medium uppercase tracking-wide")}>Онлайн</p>
-        <button
-          type="button"
+        <Link
+          href={`${routePaths.bookingNewSlot}?type=online&category=rehab_lfk`}
+          prefetch={false}
           className={cn(bookingChoiceRowClass, "text-left")}
-          onClick={() => router.push(routePaths.intakeLfk)}
         >
           <Dumbbell className={bookingChoiceRowIconClass} aria-hidden />
           Реабилитация онлайн
-        </button>
-        <button
-          type="button"
+        </Link>
+        <Link
+          href={`${routePaths.bookingNewSlot}?type=online&category=nutrition`}
+          prefetch={false}
           className={cn(bookingChoiceRowClass, "text-left")}
-          onClick={() => router.push(routePaths.intakeNutrition)}
         >
           <Dna className={bookingChoiceRowIconClass} aria-hidden />
           Нутрициология онлайн
-        </button>
+        </Link>
       </div>
     </div>
   );

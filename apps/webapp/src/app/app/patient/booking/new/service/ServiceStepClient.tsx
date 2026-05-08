@@ -37,7 +37,6 @@ function BookingServiceDescription({ text }: { text: string }) {
     return (
       <div
         className={cn(inheritedDescWrap, richContentClass, "[&_*]:text-current")}
-        // eslint-disable-next-line react/no-danger -- DOMPurify как в MarkdownContent (legacy-html)
         dangerouslySetInnerHTML={{ __html: safe }}
       />
     );

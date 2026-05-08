@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getOptionalPatientSession } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
+import type { BookingCategory } from "@/modules/patient-booking/types";
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
 import { BOOKING_WIZARD_TOTAL_STEPS } from "../../constants";
 import { BookingWizardShell } from "../BookingWizardShell";
@@ -13,6 +14,12 @@ type Props = {
 function first(v: string | string[] | undefined): string | undefined {
   if (v === undefined) return undefined;
   return Array.isArray(v) ? v[0] : v;
+}
+
+const ONLINE_BOOKING_CATEGORIES: readonly BookingCategory[] = ["rehab_lfk", "nutrition", "general"];
+
+function isOnlineBookingCategory(s: string): s is BookingCategory {
+  return (ONLINE_BOOKING_CATEGORIES as readonly string[]).includes(s);
 }
 
 export default async function BookingNewSlotPage({ searchParams }: Props) {
@@ -59,10 +66,11 @@ export default async function BookingNewSlotPage({ searchParams }: Props) {
     );
   }
 
-  const category = first(raw.category)?.trim();
-  if (!category) {
+  const categoryRaw = first(raw.category)?.trim();
+  if (!categoryRaw || !isOnlineBookingCategory(categoryRaw)) {
     redirect(routePaths.bookingNew);
   }
+  const category = categoryRaw;
 
   return (
     <BookingWizardShell

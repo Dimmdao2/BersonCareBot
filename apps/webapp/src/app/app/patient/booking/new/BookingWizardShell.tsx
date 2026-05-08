@@ -29,7 +29,8 @@ export function BookingWizardShell({
   suppressShellTitle = false,
   shellTitleSlot,
 }: Props) {
-  const showWizardBack = Boolean(backHref && step > 1 && step < totalSteps);
+  /** На последнем шаге тоже показываем «Назад», если передан `backHref` (например к выбору слота). */
+  const showWizardBack = Boolean(backHref && step > 1);
   return (
     <AppShell
       title={title}

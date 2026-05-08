@@ -90,6 +90,20 @@ function modalSnapshotTitle(snapshot: Record<string, unknown>, itemType: string)
   return itemType;
 }
 
+function trimSnapshotString(v: unknown): string {
+  return typeof v === "string" ? v.trim() : "";
+}
+
+/** Текст описания пункта «упражнение»: каталог и снимок дают `description`; остальное — запасные поля / старые снимки. */
+function exerciseSnapshotDescriptionBody(snap: Record<string, unknown>): string {
+  return (
+    trimSnapshotString(snap.description) ||
+    trimSnapshotString(snap.bodyMd) ||
+    trimSnapshotString(snap.bodyPreview) ||
+    trimSnapshotString(snap.summary)
+  );
+}
+
 /** Краткая строка под заголовком для типов, кроме упражнения (у exercise — отдельная вёрстка). */
 function briefNonExerciseHeroParts(item: StageItem): string[] {
   const snap = item.snapshot as Record<string, unknown>;
@@ -188,6 +202,40 @@ function ModalMediaBlock(props: { media: RecommendationMediaItem | null; title: 
 function ModalDescriptionSection(props: { item: StageItem }) {
   const { item } = props;
   const snap = item.snapshot as Record<string, unknown>;
+
+  if (item.itemType === "exercise") {
+    const body = exerciseSnapshotDescriptionBody(snap);
+    const contraindications = trimSnapshotString(snap.contraindications);
+    if (!body && !contraindications) return null;
+    if (!body && contraindications) {
+      return (
+        <div className="flex flex-col gap-2">
+          <h3 className={patientSectionTitleNormalClass}>Противопоказания</h3>
+          <p className={cn(patientBodyTextClass, "m-0 whitespace-pre-wrap leading-relaxed")}>
+            {contraindications}
+          </p>
+        </div>
+      );
+    }
+    return (
+      <div className="flex flex-col gap-2">
+        <h3 className={patientSectionTitleNormalClass}>Описание</h3>
+        <div className="flex flex-col gap-3">
+          {body ? (
+            <p className={cn(patientBodyTextClass, "m-0 whitespace-pre-wrap leading-relaxed")}>{body}</p>
+          ) : null}
+          {contraindications ? (
+            <div className="flex flex-col gap-1">
+              <span className={cn(patientMutedTextClass, "text-xs font-medium")}>Противопоказания</span>
+              <p className={cn(patientBodyTextClass, "m-0 whitespace-pre-wrap leading-relaxed")}>
+                {contraindications}
+              </p>
+            </div>
+          ) : null}
+        </div>
+      </div>
+    );
+  }
 
   let text = "";
   let isMarkdown = false;
@@ -672,12 +720,12 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
           {title}
         </h1>
 
-        <p className="mt-1.5 text-sm font-normal text-muted-foreground">
-          Группа:{" "}
-          {item.groupId
-            ? (stage.groups.find((g) => g.id === item.groupId)?.title?.trim() ?? "—")
-            : "—"}
-        </p>
+        {item.groupId ? (
+          <p className="mt-1.5 text-sm font-normal text-muted-foreground">
+            Группа:{" "}
+            {stage.groups.find((g) => g.id === item.groupId)?.title?.trim() ?? "—"}
+          </p>
+        ) : null}
 
         {item.itemType === "exercise" ? (
           (() => {
