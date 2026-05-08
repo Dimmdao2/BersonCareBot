@@ -51,19 +51,20 @@ export default async function BookingNewFormatPage() {
       <div className={patientInnerPageStackClass}>
         <BookingUpcomingSection bookings={records.upcoming} appDisplayTimeZone={appDisplayTimeZone} />
         <FormatStepClient cities={catalogCities} catalogError={catalogCitiesError} />
-        <p className="mt-10 mb-10 text-center text-sm">
+        <div className="mt-10 mb-10 flex justify-center">
           <Link
             href={routePaths.patientMessages}
             prefetch={false}
             className={cn(
-              "font-normal underline-offset-2 hover:underline",
-              "text-[#5c6ba8] hover:text-[#4a5690]",
-              "focus-visible:rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#a5b4ea]",
+              "inline-flex min-h-10 shrink-0 cursor-pointer items-center justify-center rounded-lg border px-5 text-sm font-semibold transition-colors",
+              "border-[#aeb8d8] bg-[var(--patient-card-bg)] text-[#394574]",
+              "hover:border-[#98a6cf] hover:bg-[var(--patient-color-primary-soft)]/45 hover:text-[var(--patient-color-primary)]",
+              "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-primary)]",
             )}
           >
             Задать вопрос
           </Link>
-        </p>
+        </div>
         <BookingPastHistorySection items={pastItems} appDisplayTimeZone={appDisplayTimeZone} />
         <LegalFooterLinks className="mt-6 pb-8" />
       </div>

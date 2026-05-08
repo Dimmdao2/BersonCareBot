@@ -87,7 +87,7 @@ export function SlotStepClient(props: Props) {
         }}
       />
 
-      {slotsState.loading ? <p className={patientMutedTextClass}>Загрузка слотов...</p> : null}
+      {slotsState.loading ? <p className={patientMutedTextClass}>Загрузка расписания…</p> : null}
       {slotsState.error ? (
         <div className="flex flex-col gap-2">
           <p className="text-sm text-destructive">{slotsState.error}</p>

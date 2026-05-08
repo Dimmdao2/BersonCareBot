@@ -26,7 +26,6 @@ import type {
   TreatmentProgramInstanceDetail,
 } from "@/modules/treatment-program/types";
 import { formatNormalizedTestDecisionRu } from "@/modules/treatment-program/types";
-import { type PatientProgramChecklistRow } from "@/modules/treatment-program/patient-program-actions";
 import { listLfkSnapshotExerciseLines } from "@/modules/treatment-program/programActionActivityKey";
 import { parseTestSetSnapshotTests } from "@/modules/treatment-program/testSetSnapshotView";
 import { testIdsFromTestSetSnapshot } from "@/modules/treatment-program/testSetSnapshotView";
@@ -230,106 +229,6 @@ function ModalDescriptionSection(props: { item: StageItem }) {
   );
 }
 
-function ModalLfkInlineForm(props: {
-  row: PatientProgramChecklistRow;
-  itemBaseUrl: string;
-  done: boolean;
-  onUpdated: (ids: string[]) => void;
-  onAfterSave: () => void | Promise<void>;
-  setError: (e: string | null) => void;
-}) {
-  const { row, itemBaseUrl, done, onUpdated, onAfterSave, setError } = props;
-  const [difficulty, setDifficulty] = useState<"easy" | "medium" | "hard">("medium");
-  const [note, setNote] = useState("");
-  const [pending, setPending] = useState(false);
-
-  return (
-    <div
-      className={cn(patientFormSurfaceClass, "gap-3 border border-[var(--patient-border)]/70 p-3")}
-      onClick={(e) => e.stopPropagation()}
-      onKeyDown={(e) => e.stopPropagation()}
-    >
-      <p className="text-sm font-medium">{modalSnapshotTitle(row.item.snapshot, row.item.itemType)}</p>
-      {row.groupTitle ? <p className={cn(patientMutedTextClass, "text-xs")}>{row.groupTitle}</p> : null}
-      {done ? (
-        <p className="mt-1 text-xs text-emerald-600 dark:text-emerald-400">
-          Сегодня занятие уже отмечено — при необходимости добавьте ещё одну отметку ниже.
-        </p>
-      ) : null}
-      <div className="mt-2 flex flex-col gap-2">
-        <Label className={cn(patientMutedTextClass, "text-xs")}>Как прошло занятие?</Label>
-        <Select
-          value={difficulty}
-          onValueChange={(v) => setDifficulty(v as "easy" | "medium" | "hard")}
-          disabled={pending}
-          items={patientLfkDifficultySelectItems}
-        >
-          <SelectTrigger className="h-10 w-full max-w-xs">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="easy">Легко</SelectItem>
-            <SelectItem value="medium">Средне</SelectItem>
-            <SelectItem value="hard">Тяжело</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-      <div className="mt-2 flex flex-col gap-2">
-        <Label htmlFor={`lfk-item-page-note-${row.item.id}`} className={cn(patientMutedTextClass, "text-xs")}>
-          Заметка для врача
-        </Label>
-        <Textarea
-          id={`lfk-item-page-note-${row.item.id}`}
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
-          disabled={pending}
-          rows={3}
-          className="min-h-[72px] resize-y text-sm"
-          maxLength={4000}
-        />
-      </div>
-      <button
-        type="button"
-        className={cn(patientCompactActionClass, "mt-2 h-9 w-fit text-sm")}
-        disabled={pending}
-        onClick={async () => {
-          setPending(true);
-          setError(null);
-          try {
-            const res = await fetch(`${itemBaseUrl}/${encodeURIComponent(row.item.id)}/progress/lfk-session`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                difficulty,
-                note: note.trim() || null,
-                completedExerciseIds: listLfkSnapshotExerciseLines(
-                  row.item.snapshot as Record<string, unknown>,
-                ).map((l) => l.exerciseId),
-              }),
-            });
-            const data = (await res.json().catch(() => null)) as {
-              ok?: boolean;
-              doneItemIds?: string[];
-              error?: string;
-            };
-            if (!res.ok || !data.ok) {
-              setError(data.error ?? "Ошибка сохранения");
-              return;
-            }
-            if (data.doneItemIds) onUpdated(data.doneItemIds);
-            setNote("");
-            await onAfterSave();
-          } finally {
-            setPending(false);
-          }
-        }}
-      >
-        {pending ? "Сохраняю…" : done ? "Добавить отметку" : "Сохранить"}
-      </button>
-    </div>
-  );
-}
-
 function ModalTestSetInline(props: {
   itemId: string;
   snapshot: Record<string, unknown>;
@@ -528,8 +427,9 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
   const [lastDoneAtIsoByActivityKey, setLastDoneAtIsoByActivityKey] = useState<Record<string, string>>({});
   const [testFormOpen, setTestFormOpen] = useState(false);
   const [commentModalOpen, setCommentModalOpen] = useState(false);
-  const [localCommentDraft, setLocalCommentDraft] = useState("");
-  const [localCommentSaving, setLocalCommentSaving] = useState(false);
+  const [observationDraft, setObservationDraft] = useState("");
+  const [observationSaving, setObservationSaving] = useState(false);
+  const [lfkFeeling, setLfkFeeling] = useState<"easy" | "medium" | "hard">("medium");
 
   const base = `/api/patient/treatment-program-instances/${encodeURIComponent(instanceId)}/items`;
 
@@ -631,6 +531,7 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
   useEffect(() => {
     setTestFormOpen(false);
     setCommentModalOpen(false);
+    setLfkFeeling("medium");
   }, [itemId]);
 
   const stage = resolved?.stage;
@@ -641,25 +542,11 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
   const readOnly = itemInteraction === "readOnly";
 
   useEffect(() => {
-    if (!commentModalOpen || !item || item.itemType === "lfk_complex") return;
-    setLocalCommentDraft(item.localComment ?? "");
-  }, [commentModalOpen, item]);
+    if (!commentModalOpen) return;
+    setObservationDraft("");
+  }, [commentModalOpen, itemId]);
 
   const primaryMedia = useMemo(() => (item ? primaryMediaForStageItem(item) : null), [item]);
-
-  const lfkRow = useMemo((): PatientProgramChecklistRow | null => {
-    if (!item || !stage || item.itemType !== "lfk_complex") return null;
-    const groupTitle =
-      item.groupId == null ? null : stage.groups.find((g) => g.id === item.groupId)?.title ?? null;
-    return {
-      stageId: stage.id,
-      stageTitle: stage.title,
-      stageSortOrder: stage.sortOrder,
-      groupId: item.groupId,
-      groupTitle,
-      item,
-    };
-  }, [item, stage]);
 
   const title = item ? modalSnapshotTitle(item.snapshot as Record<string, unknown>, item.itemType) : "";
 
@@ -680,26 +567,55 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
     }
   };
 
-  const saveLocalCommentFromModal = async () => {
-    if (!item || item.itemType === "lfk_complex") return;
-    setLocalCommentSaving(true);
+  const submitObservationFromModal = async () => {
+    if (!item) return;
+    const noteTrim = observationDraft.trim();
+    if (item.itemType !== "lfk_complex" && noteTrim === "") {
+      setError("Введите текст наблюдения");
+      return;
+    }
+    setObservationSaving(true);
     setError(null);
     try {
-      const trimmed = localCommentDraft.trim();
-      const res = await fetch(`${base}/${encodeURIComponent(item.id)}/local-comment`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ localComment: trimmed === "" ? null : trimmed }),
-      });
-      const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
-      if (!res.ok || !data?.ok) {
-        setError(data?.error ?? "Ошибка сохранения");
-        return;
+      if (item.itemType === "lfk_complex") {
+        const res = await fetch(`${base}/${encodeURIComponent(item.id)}/progress/lfk-session`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            difficulty: lfkFeeling,
+            note: noteTrim === "" ? null : noteTrim,
+            completedExerciseIds: listLfkSnapshotExerciseLines(item.snapshot as Record<string, unknown>).map(
+              (l) => l.exerciseId,
+            ),
+          }),
+        });
+        const data = (await res.json().catch(() => null)) as {
+          ok?: boolean;
+          doneItemIds?: string[];
+          error?: string;
+        };
+        if (!res.ok || !data.ok) {
+          setError(data.error ?? "Ошибка сохранения");
+          return;
+        }
+        if (data.doneItemIds) setDoneItemIds(data.doneItemIds);
+      } else {
+        const res = await fetch(`${base}/${encodeURIComponent(item.id)}/progress/observation-note`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ note: noteTrim }),
+        });
+        const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
+        if (!res.ok || !data.ok) {
+          setError(data.error ?? "Ошибка сохранения");
+          return;
+        }
       }
+      setObservationDraft("");
       setCommentModalOpen(false);
       await refresh();
     } finally {
-      setLocalCommentSaving(false);
+      setObservationSaving(false);
     }
   };
 
@@ -946,61 +862,85 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
             </div>
           ) : null}
 
+          {!contentBlocked && !readOnly && item.itemType === "lfk_complex" && !isPersistentRecommendation(item) ? (
+            <div
+              className={cn(
+                patientFormSurfaceClass,
+                "flex flex-col gap-2 border border-[var(--patient-border)]/70 p-3",
+              )}
+            >
+              {doneItemIds.includes(item.id) ? (
+                <p className="text-xs text-emerald-600 dark:text-emerald-400">
+                  Сегодня занятие уже отмечено — при необходимости добавьте ещё одну отметку.
+                </p>
+              ) : null}
+              <Label className={cn(patientMutedTextClass, "text-xs")}>Как прошло занятие?</Label>
+              <Select
+                value={lfkFeeling}
+                onValueChange={(v) => setLfkFeeling(v as "easy" | "medium" | "hard")}
+                items={patientLfkDifficultySelectItems}
+              >
+                <SelectTrigger
+                  className="h-10 w-full max-w-xs"
+                  displayLabel={patientLfkDifficultySelectItems[lfkFeeling]}
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="easy">Легко</SelectItem>
+                  <SelectItem value="medium">Средне</SelectItem>
+                  <SelectItem value="hard">Тяжело</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          ) : null}
+
+          {item.effectiveComment?.trim() ? (
+            <div className="flex flex-col gap-1.5 rounded-lg border border-[var(--patient-border)]/60 bg-muted/10 px-3 py-2.5">
+              <span className={cn(patientMutedTextClass, "text-xs")}>От врача</span>
+              <p className={cn(patientBodyTextClass, "m-0 whitespace-pre-wrap text-sm leading-relaxed")}>
+                {item.effectiveComment.trim()}
+              </p>
+            </div>
+          ) : null}
+
           <ModalDescriptionSection item={item} />
 
           <Dialog open={commentModalOpen} onOpenChange={setCommentModalOpen}>
             <DialogContent
               className="rounded-lg border border-[var(--patient-border)] shadow-md sm:max-w-md"
               initialFocus={() => {
-                if (item.itemType === "lfk_complex" && lfkRow) {
-                  const el = document.getElementById(`lfk-item-page-note-${item.id}`);
-                  return el instanceof HTMLTextAreaElement ? el : true;
-                }
-                const el = document.getElementById(`patient-local-comment-${item.id}`);
+                const el = document.getElementById(`patient-observation-note-${item.id}`);
                 return el instanceof HTMLTextAreaElement ? el : true;
               }}
             >
               <DialogHeader>
-                <DialogTitle>Комментарий</DialogTitle>
+                <DialogTitle>Наблюдение</DialogTitle>
               </DialogHeader>
-              {item.itemType === "lfk_complex" && lfkRow ? (
-                <ModalLfkInlineForm
-                  row={lfkRow}
-                  itemBaseUrl={base}
-                  done={doneItemIds.includes(item.id)}
-                  onUpdated={(ids) => setDoneItemIds(ids)}
-                  onAfterSave={async () => {
-                    setCommentModalOpen(false);
-                    await refresh();
-                  }}
-                  setError={setError}
-                />
-              ) : (
-                <div className="flex flex-col gap-3">
-                  <div className="flex flex-col gap-2">
-                    <Label htmlFor={`patient-local-comment-${item.id}`} className={cn(patientMutedTextClass, "text-xs")}>
-                      Комментарий для врача
-                    </Label>
-                    <Textarea
-                      id={`patient-local-comment-${item.id}`}
-                      value={localCommentDraft}
-                      onChange={(e) => setLocalCommentDraft(e.target.value)}
-                      disabled={localCommentSaving}
-                      rows={5}
-                      maxLength={20000}
-                      className={cn(patientFormSurfaceClass, "min-h-[120px] resize-y text-sm")}
-                    />
-                  </div>
-                  <Button
-                    type="button"
-                    className={cn(patientButtonPrimaryClass, "w-full sm:w-auto")}
-                    disabled={localCommentSaving}
-                    onClick={() => void saveLocalCommentFromModal()}
-                  >
-                    {localCommentSaving ? "Сохраняю…" : "Сохранить"}
-                  </Button>
+              <div className="flex flex-col gap-3">
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor={`patient-observation-note-${item.id}`} className={cn(patientMutedTextClass, "text-xs")}>
+                    Ваше наблюдение
+                  </Label>
+                  <Textarea
+                    id={`patient-observation-note-${item.id}`}
+                    value={observationDraft}
+                    onChange={(e) => setObservationDraft(e.target.value)}
+                    disabled={observationSaving}
+                    rows={5}
+                    maxLength={4000}
+                    className={cn(patientFormSurfaceClass, "min-h-[120px] resize-y text-sm")}
+                  />
                 </div>
-              )}
+                <Button
+                  type="button"
+                  className={cn(patientButtonPrimaryClass, "w-full sm:w-auto")}
+                  disabled={observationSaving}
+                  onClick={() => void submitObservationFromModal()}
+                >
+                  {observationSaving ? "Отправляю…" : "Отправить"}
+                </Button>
+              </div>
             </DialogContent>
           </Dialog>
 

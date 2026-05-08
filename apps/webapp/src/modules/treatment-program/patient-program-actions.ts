@@ -345,6 +345,47 @@ export function createTreatmentProgramPatientActionService(deps: {
         windowEndIso: win.end,
       });
     },
+
+    /** Свободное наблюдение пациента по пункту (журнал `program_action_log`, `action_type = note`). Не для ЛФК и не для набора тестов. */
+    async patientAppendObservationNote(input: {
+      patientUserId: string;
+      instanceId: string;
+      stageItemId: string;
+      note: string;
+    }): Promise<void> {
+      assertUuid(input.patientUserId);
+      assertUuid(input.instanceId);
+      assertUuid(input.stageItemId);
+      const noteTrim = input.note.trim();
+      if (!noteTrim) throw new Error("Введите текст наблюдения");
+      const detail = await deps.instances.getInstanceForPatient(input.patientUserId, input.instanceId);
+      if (!detail) throw new Error("Программа не найдена");
+      const item = detail.stages.flatMap((s) => s.items).find((i) => i.id === input.stageItemId);
+      if (!item) throw new Error("Элемент не найден");
+      const stage = detail.stages.find((s) => s.id === item.stageId);
+      if (!stage) throw new Error("Этап не найден");
+      if (!isStageZero(stage) && (stage.status === "locked" || stage.status === "skipped")) {
+        throw new Error("Этап недоступен");
+      }
+      if (!isInstanceStageItemActiveForPatient(item)) {
+        throw new Error("Элемент отключён");
+      }
+      if (item.itemType === "lfk_complex") {
+        throw new Error("Для ЛФК используйте отметку занятия");
+      }
+      if (item.itemType === "test_set") {
+        throw new Error("Для набора тестов используйте запись результатов");
+      }
+      await deps.actionLog.insertAction({
+        instanceId: input.instanceId,
+        instanceStageItemId: input.stageItemId,
+        patientUserId: input.patientUserId,
+        actionType: "note",
+        sessionId: null,
+        payload: { source: "patient_observation" },
+        note: noteTrim.slice(0, 4000),
+      });
+    },
   };
 }
 

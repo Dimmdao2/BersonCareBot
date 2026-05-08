@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { redirectIfPatientActivationRequired } from "./bookingPatientActivation";
 import type { BookingSelection } from "./useBookingSelection";
 import type { BookingSlot, BookingSlotsByDate } from "@/modules/patient-booking/types";
+import { mapBookingSlotsErrorCodeToRu } from "./bookingSlotsErrorMessages";
 
 type State = {
   loading: boolean;
@@ -57,7 +58,7 @@ export function useBookingSlots(selection: BookingSelection | null) {
           setState({ loading: false, error: null, data: [] });
           return;
         }
-        setState({ loading: false, error: json.error ?? "Не удалось загрузить слоты", data: [] });
+        setState({ loading: false, error: mapBookingSlotsErrorCodeToRu(json.error), data: [] });
         return;
       }
       setState({
@@ -66,7 +67,7 @@ export function useBookingSlots(selection: BookingSelection | null) {
         data: Array.isArray(json.slots) ? json.slots : [],
       });
     } catch {
-      setState({ loading: false, error: "Ошибка сети при загрузке слотов", data: [] });
+      setState({ loading: false, error: "Ошибка сети при загрузке расписания.", data: [] });
     }
   }, [query, router]);
 

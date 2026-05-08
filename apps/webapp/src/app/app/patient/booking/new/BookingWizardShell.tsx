@@ -29,6 +29,7 @@ export function BookingWizardShell({
   suppressShellTitle = false,
   shellTitleSlot,
 }: Props) {
+  const showWizardBack = Boolean(backHref && step > 1 && step < totalSteps);
   return (
     <AppShell
       title={title}
@@ -42,10 +43,10 @@ export function BookingWizardShell({
       <div
         className={cn(
           "flex min-h-[1.25rem] flex-wrap items-center gap-x-3 gap-y-1",
-          backHref ? "justify-between" : "justify-center",
+          showWizardBack ? "justify-between" : "justify-center",
         )}
       >
-        {backHref ?
+        {showWizardBack && backHref ?
           <Link
             href={backHref}
             prefetch={false}
@@ -54,7 +55,7 @@ export function BookingWizardShell({
             Назад
           </Link>
         : null}
-        <p className={cn(patientMutedTextClass, "text-xs", !backHref && "w-full text-center")}>
+        <p className={cn(patientMutedTextClass, "text-xs", !showWizardBack && "w-full text-center")}>
           Шаг {step} из {totalSteps}
         </p>
       </div>

@@ -6,10 +6,10 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { revalidatePatientTreatmentProgramUi } from "@/app-layer/cache/revalidatePatientTreatmentProgramUi";
 
 const bodySchema = z.object({
-  localComment: z.union([z.string().max(20000), z.null()]),
+  note: z.string().min(1).max(4000),
 });
 
-export async function PATCH(
+export async function POST(
   request: Request,
   context: { params: Promise<{ instanceId: string; itemId: string }> },
 ) {
@@ -31,31 +31,24 @@ export async function PATCH(
 
   const deps = buildAppDeps();
   try {
-    let detail;
-    try {
-      detail = await deps.treatmentProgramInstance.getInstanceForPatient(
-        gate.session.user.userId,
-        instanceId,
-      );
-    } catch {
-      return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
-    }
-    const exists = detail.stages.some((s) => s.items.some((it) => it.id === itemId));
-    if (!exists) {
-      return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
-    }
-
-    const row = await deps.treatmentProgramInstance.updateStageItemLocalComment({
+    await deps.treatmentProgramPatientActions.patientAppendObservationNote({
+      patientUserId: gate.session.user.userId,
       instanceId,
       stageItemId: itemId,
-      localComment: body.localComment,
-      actorId: gate.session.user.userId,
+      note: body.note,
     });
     revalidatePatientTreatmentProgramUi();
-    return NextResponse.json({ ok: true, item: row });
+    return NextResponse.json({ ok: true });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "error";
-    const status = msg.includes("не найден") ? 404 : 400;
+    const status =
+      msg.includes("не найден") ||
+      msg.includes("не найдена") ||
+      msg.includes("Элемент не найден") ||
+      msg.includes("Этап не найден") ||
+      msg.includes("Программа не найдена")
+        ? 404
+        : 400;
     return NextResponse.json({ ok: false, error: msg }, { status });
   }
 }
