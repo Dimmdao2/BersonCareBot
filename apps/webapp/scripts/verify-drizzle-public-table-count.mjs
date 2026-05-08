@@ -26,7 +26,6 @@ const SCHEMA_FILES = [
   "db/schema/entityComments.ts",
   "db/schema/courses.ts",
   "db/schema/patientPractice.ts",
-  "db/schema/patientDailyMood.ts",
 ];
 
 const url = process.env.DATABASE_URL?.trim();

@@ -229,7 +229,7 @@ export function calendarWholeDaysRemainingUntilUtcIso(
 /**
  * Начало календарного дня дедлайна контроля: **дата** старта этапа в зоне пациента (без времени суток)
  * + `expected_duration_days` календарных дней.
- * Если `started_at` нет — якорь «сегодня» в зоне пациента (`available` / `in_progress` без старта).
+ * Если `started_at` нет — только для статуса `available`: якорь «сегодня» в зоне пациента.
  */
 export function patientStageControlEndCalendarDayStart(
   stage: Pick<TreatmentProgramInstanceStageRow, "status" | "startedAt" | "expectedDurationDays">,
@@ -248,7 +248,8 @@ export function patientStageControlEndCalendarDayStart(
     }
   }
 
-  if (stage.status === "available" || stage.status === "in_progress") {
+  /** Без `started_at` только этап «доступен»: окно «от сегодня». Для `in_progress` без метки старта якорь «сегодня+N» даёт один и тот же остаток каждый календарный день — не используем. */
+  if (stage.status === "available") {
     return now.setZone(patientCalendarIana).startOf("day").plus({ days });
   }
   return null;
@@ -282,9 +283,24 @@ export function expectedStageControlDateIso(
 }
 
 /**
- * Подпись вкладки «Прогресс»: сколько календарных дней осталось до ожидаемого контроля текущего открытого этапа.
+ * Остаток календарных дней до даты контроля для одного этапа (карточка «Следующий контроль», плашка «Контроль через …»).
+ */
+export function resolveStageControlRemainderDaysForPatientUi(
+  stage: Pick<TreatmentProgramInstanceStageRow, "status" | "startedAt" | "expectedDurationDays">,
+  now: DateTime,
+  patientCalendarIana: string,
+): number | null {
+  const endDayStart = patientStageControlEndCalendarDayStart(stage, now, patientCalendarIana);
+  if (!endDayStart) return null;
+  const todayStart = now.setZone(patientCalendarIana).startOf("day");
+  const diff = endDayStart.diff(todayStart, "days").days;
+  return Math.max(0, Math.floor(diff));
+}
+
+/**
+ * Остаток календарных дней до контроля по текущему этапу программы (detail → рабочий этап).
  * Если pipeline-этапов нет, используем этап 0 (`in_progress`/`available`) как fallback.
- * `null` — нет открытого этапа для расчёта или не задан `expected_duration_days`.
+ * `null` — нет открытого этапа для расчёта или не задан срок / дата контроля.
  */
 export function resolvePatientProgramControlRemainderDaysForPatientUi(
   detail: Pick<TreatmentProgramInstanceDetail, "stages" | "status">,
@@ -298,11 +314,7 @@ export function resolvePatientProgramControlRemainderDaysForPatientUi(
     stageForControl = stageZero.find((s) => s.status === "in_progress") ?? stageZero.find((s) => s.status === "available") ?? null;
   }
   if (!stageForControl) return null;
-  const endDayStart = patientStageControlEndCalendarDayStart(stageForControl, now, patientCalendarIana);
-  if (!endDayStart) return null;
-  const todayStart = now.setZone(patientCalendarIana).startOf("day");
-  const diff = endDayStart.diff(todayStart, "days").days;
-  return Math.max(0, Math.floor(diff));
+  return resolveStageControlRemainderDaysForPatientUi(stageForControl, now, patientCalendarIana);
 }
 
 /**

@@ -551,6 +551,16 @@ describe("stage-semantics (1.1a detail split)", () => {
     expect(n).toBe(6);
   });
 
+  it("resolvePatientProgramControlRemainderDaysForPatientUi is null for in_progress without startedAt (no sliding today anchor)", () => {
+    const d = minimalDetail([{ id: "i1", status: "active" }]);
+    d.stages[0].status = "in_progress";
+    d.stages[0].startedAt = null;
+    d.stages[0].expectedDurationDays = 15;
+    expect(
+      resolvePatientProgramControlRemainderDaysForPatientUi(d, DateTime.fromISO("2026-01-10T12:00:00Z"), "Europe/Moscow"),
+    ).toBeNull();
+  });
+
   it("resolvePatientProgramControlRemainderDaysForPatientUi uses today anchor when stage is available without startedAt", () => {
     const d = minimalDetail([{ id: "i1", status: "active" }]);
     d.stages[0].status = "available";

@@ -6,10 +6,10 @@ vi.mock("@/app-layer/guards/requireRole", () => ({
   requirePatientApiBusinessAccess: mockRequirePatientApiBusinessAccess,
 }));
 
-const mockGetCheckinState = vi.hoisted(() => vi.fn());
+const mockGetWeekSparkline = vi.hoisted(() => vi.fn());
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
-    patientMood: { getCheckinState: mockGetCheckinState },
+    patientMood: { getWeekSparkline: mockGetWeekSparkline },
   }),
 }));
 
@@ -24,14 +24,13 @@ const SESSION = {
   user: { userId: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", role: "client" as const, phone: "+79990001122" },
 };
 
-describe("GET /api/patient/mood/today", () => {
+const fixtureDays = [{ date: "2026-05-02", score: 3 as const, warmupHint: null }];
+
+describe("GET /api/patient/mood/week", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockRequirePatientApiBusinessAccess.mockResolvedValue({ ok: true, session: SESSION });
-    mockGetCheckinState.mockResolvedValue({
-      mood: { moodDate: "2026-04-28", score: 5 },
-      lastEntry: { id: "e1", recordedAt: "2026-04-28T08:00:00.000Z", score: 5 },
-    });
+    mockGetWeekSparkline.mockResolvedValue(fixtureDays);
   });
 
   it("returns 401 when not authenticated", async () => {
@@ -43,24 +42,10 @@ describe("GET /api/patient/mood/today", () => {
     expect(res.status).toBe(401);
   });
 
-  it("returns today's mood", async () => {
+  it("returns week sparkline", async () => {
     const res = await GET();
     expect(res.status).toBe(200);
-    const json = await res.json();
-    expect(json).toEqual({
-      ok: true,
-      mood: { moodDate: "2026-04-28", score: 5 },
-      lastEntry: { id: "e1", recordedAt: "2026-04-28T08:00:00.000Z", score: 5 },
-    });
-    expect(mockGetAppDisplayTimeZone).toHaveBeenCalled();
-    expect(mockGetCheckinState).toHaveBeenCalledWith(SESSION.user.userId, "Europe/Moscow");
-  });
-
-  it("returns null mood when nothing is saved today", async () => {
-    mockGetCheckinState.mockResolvedValue({ mood: null, lastEntry: null });
-    const res = await GET();
-    expect(res.status).toBe(200);
-    const json = await res.json();
-    expect(json).toEqual({ ok: true, mood: null, lastEntry: null });
+    expect(await res.json()).toEqual({ ok: true, days: fixtureDays });
+    expect(mockGetWeekSparkline).toHaveBeenCalledWith(SESSION.user.userId, "Europe/Moscow");
   });
 });

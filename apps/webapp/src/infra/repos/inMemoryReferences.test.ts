@@ -6,22 +6,32 @@ describe.sequential("inMemoryReferencesPort", () => {
   it("returns seeded symptom_type items in sort order", async () => {
     const items = await inMemoryReferencesPort.listActiveItemsByCategoryCode("symptom_type");
     expect(items.length).toBeGreaterThan(0);
-    expect(items[0].title).toBe("Боль");
+    expect(items[0]?.code).toBe("general_wellbeing");
+    expect(items[0]?.title).toBe("Общее самочувствие");
+    const pain = items.find((i) => i.code === "pain");
+    expect(pain?.title).toBe("Боль");
   });
 
   it("inserts item only for extensible category", async () => {
     const added = await inMemoryReferencesPort.insertItem({
-      categoryCode: "symptom_type",
+      categoryCode: "diagnosis",
       code: "doc_test",
       title: "Тест врача",
     });
     expect(added.title).toBe("Тест врача");
     await expect(
       inMemoryReferencesPort.insertItem({
+        categoryCode: "symptom_type",
+        code: "patient_forbidden",
+        title: "Нельзя",
+      }),
+    ).rejects.toThrow("category_not_extensible");
+    await expect(
+      inMemoryReferencesPort.insertItem({
         categoryCode: "body_region",
         code: "x",
         title: "bad",
-      })
+      }),
     ).rejects.toThrow("category_not_extensible");
   });
 

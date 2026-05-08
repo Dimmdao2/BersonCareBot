@@ -329,10 +329,6 @@ export function PatientTreatmentProgramDetailClient(props: {
         progressCardTestsHref={progressCardTestsHref}
         patientCalendarDayIana={patientCalendarDayIana}
         statsRefreshToken={statsRefreshToken}
-        onProgramTests={() => {
-          setActiveTab("program");
-          replacePlanTabInUrl("program");
-        }}
       />
     </div>
   );

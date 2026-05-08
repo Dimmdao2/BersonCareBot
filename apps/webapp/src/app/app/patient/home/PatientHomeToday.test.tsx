@@ -19,7 +19,8 @@ const contentSectionsGetBySlug = vi.fn();
 const contentPagesGetBySlug = vi.fn();
 const coursesGetCourseForDoctor = vi.fn();
 const getProgress = vi.fn();
-const getTodayMood = vi.fn();
+const getCheckinState = vi.fn();
+const getWeekSparkline = vi.fn();
 const refresh = vi.fn();
 
 vi.mock("next/navigation", () => ({
@@ -42,7 +43,7 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
     treatmentProgramPatientActions: { listChecklistDoneToday },
     systemSettings: { getSetting: vi.fn().mockResolvedValue(null) },
     patientPractice: { getProgress },
-    patientMood: { getToday: getTodayMood },
+    patientMood: { getCheckinState, getWeekSparkline },
   }),
 }));
 
@@ -189,7 +190,11 @@ describe("PatientHomeToday", () => {
     patientCalendarGetIanaForUser.mockResolvedValue(null);
     listChecklistDoneToday.mockResolvedValue(emptyChecklistTodaySnapshot());
     getProgress.mockResolvedValue({ todayDone: 1, todayTarget: 3, streak: 2 });
-    getTodayMood.mockResolvedValue({ moodDate: "2026-04-28", score: 4 });
+    getCheckinState.mockResolvedValue({
+      mood: { moodDate: "2026-04-28", score: 4 },
+      lastEntry: { id: "e1", recordedAt: "2026-04-28T10:00:00.000Z", score: 4 },
+    });
+    getWeekSparkline.mockResolvedValue([]);
   });
 
   it("anonymous guest: no personal API, login drilldown on warmup, shows personal blocks with guest CTAs", async () => {
@@ -199,7 +204,7 @@ describe("PatientHomeToday", () => {
     expect(listRulesByUser).not.toHaveBeenCalled();
     expect(listForPatient).not.toHaveBeenCalled();
     expect(getProgress).not.toHaveBeenCalled();
-    expect(getTodayMood).not.toHaveBeenCalled();
+    expect(getCheckinState).not.toHaveBeenCalled();
 
     expect(screen.queryByText(/Fixture User/i)).toBeNull();
     expect(screen.getByRole("heading", { name: /Сегодня выполнено/i })).toBeInTheDocument();
@@ -230,7 +235,7 @@ describe("PatientHomeToday", () => {
     expect(listRulesByUser).not.toHaveBeenCalled();
     expect(listForPatient).not.toHaveBeenCalled();
     expect(getProgress).not.toHaveBeenCalled();
-    expect(getTodayMood).not.toHaveBeenCalled();
+    expect(getCheckinState).not.toHaveBeenCalled();
 
     expect(screen.queryByText(/Fixture User/i)).toBeNull();
     expect(screen.getByRole("link", { name: /Активировать профиль/i })).toBeInTheDocument();
@@ -253,7 +258,8 @@ describe("PatientHomeToday", () => {
     expect(listRulesByUser).toHaveBeenCalledWith(fixtureSession.user.userId);
     expect(listForPatient).toHaveBeenCalledWith(fixtureSession.user.userId);
     expect(getProgress).toHaveBeenCalled();
-    expect(getTodayMood).toHaveBeenCalledWith(fixtureSession.user.userId, "Europe/Moscow");
+    expect(getCheckinState).toHaveBeenCalledWith(fixtureSession.user.userId, "Europe/Moscow");
+    expect(getWeekSparkline).toHaveBeenCalledWith(fixtureSession.user.userId, "Europe/Moscow");
 
     expect(screen.getByRole("heading", { name: /Fixture User!/i })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: /Сегодня выполнено/i })).toBeInTheDocument();

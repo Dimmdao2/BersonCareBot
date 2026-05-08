@@ -35,6 +35,11 @@
 - **TODO:** если черновики понадобятся как продуктовый сценарий, переделать модель на две независимые оси: `is_archived` / archive scope отдельно и readiness/publication status отдельно. После этого добавить отдельный фильтр черновиков/публикации, миграцию данных, сервисные инварианты, UI и тесты.
 - **Ссылка:** `docs/APP_RESTRUCTURE_INITIATIVE/done/ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md` (§ «Примечание (archive-фильтр и черновики, 2026-05-02)»).
 
+## Treatment program — дефолт actionable/persistent из каталога и строки шаблона
+
+- **Сейчас (2026-05-08):** при назначении шаблона и при добавлении рекомендации в инстанс новые строки получают **`is_actionable = false`** (постоянная). Врач включает «Требует выполнения» в карточке элемента программы. В таблице **`recommendations`** и в **`treatment_program_template_stage_items`** отдельного поля режима нет.
+- **TODO:** хранить предпочтение в каталоге рекомендаций и/или в строке шаблона (`settings` или колонка), прокидывать при создании строки экземпляра; явно зафиксировать политику при смене справочника (обновлять ли уже назначенные программы). См. обсуждение O4 в [`PROGRAM_PATIENT_SHAPE_PLAN.md`](APP_RESTRUCTURE_INITIATIVE/PROGRAM_PATIENT_SHAPE_PLAN.md) (каталог без `default_is_actionable` в A2).
+
 ## Treatment program — post-MVP controls and completion feedback
 
 - **Контекст:** в MVP по страницам `treatment-programs` принято не показывать ложную процентную аналитику и считать дату ожидаемого контроля от старта этапа (`started_at + expected_duration_days`).

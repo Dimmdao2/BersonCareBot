@@ -19,6 +19,7 @@ import { reminderRuleToPatientJson } from "@/app/api/patient/reminders/reminderP
 import { LfkDiarySectionClient } from "./lfk/LfkDiarySectionClient";
 import { SymptomChart } from "@/modules/diaries/components/SymptomChart";
 import { LfkStatsTable } from "@/modules/diaries/components/LfkStatsTable";
+import { isGeneralWellbeingTracking } from "@/modules/patient-mood/wellbeingConstants";
 
 const EMPTY_STATS =
   "Скоро здесь будет ваша статистика. Для добавления записей в дневник воспользуйтесь кнопкой в меню бота.";
@@ -41,7 +42,9 @@ export default async function PatientDiaryPage() {
   }
   const s = session!;
   const deps = buildAppDeps();
-  const trackings = await deps.diaries.listSymptomTrackings(s.user.userId);
+  const trackings = (await deps.diaries.listSymptomTrackings(s.user.userId)).filter(
+    (t) => !isGeneralWellbeingTracking(t.symptomKey),
+  );
   const [complexes, reminderRules] = await Promise.all([
     deps.diaries.listLfkComplexes(s.user.userId),
     deps.reminders.listRulesByUser(s.user.userId),

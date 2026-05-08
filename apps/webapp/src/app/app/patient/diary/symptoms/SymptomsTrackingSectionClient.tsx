@@ -1,9 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { CreateTrackingForm } from "./CreateTrackingForm";
 import { SymptomTrackingRow } from "./SymptomTrackingRow";
 import { patientMutedTextClass, patientSectionSurfaceClass } from "@/shared/ui/patientVisual";
 
@@ -12,8 +9,6 @@ export function SymptomsTrackingSectionClient({
 }: {
   trackings: { id: string; symptomTitle: string | null }[];
 }) {
-  const router = useRouter();
-  const [addOpen, setAddOpen] = useState(false);
   const [rows, setRows] = useState(trackings);
 
   useEffect(() => {
@@ -26,34 +21,13 @@ export function SymptomsTrackingSectionClient({
       className={patientSectionSurfaceClass}
     >
       <h2 className="text-lg font-semibold">Отслеживаемые симптомы</h2>
-      {rows.length > 0 ? (
+      {rows.length > 0 ?
         <ul id="patient-symptoms-tracking-list" className="m-0 list-none space-y-3 p-0">
           {rows.map((t) => (
             <SymptomTrackingRow key={t.id} id={t.id} title={t.symptomTitle ?? "—"} />
           ))}
         </ul>
-      ) : (
-        <p className={patientMutedTextClass}>Пока нет отслеживаний — добавьте симптом ниже.</p>
-      )}
-
-      {addOpen ? (
-        <div className="flex flex-col gap-3 border-t border-[var(--patient-border)] pt-4">
-          <CreateTrackingForm
-            onSuccess={(t) => {
-              setAddOpen(false);
-              setRows((prev) => (prev.some((x) => x.id === t.id) ? prev : [...prev, t]));
-              router.refresh();
-            }}
-          />
-          <Button type="button" variant="ghost" className="self-start" onClick={() => setAddOpen(false)}>
-            Отмена
-          </Button>
-        </div>
-      ) : (
-        <Button type="button" variant="outline" className="w-full sm:w-auto" onClick={() => setAddOpen(true)}>
-          Добавить отслеживание
-        </Button>
-      )}
+      : <p className={patientMutedTextClass}>Отслеживания симптомов назначает врач.</p>}
     </section>
   );
 }

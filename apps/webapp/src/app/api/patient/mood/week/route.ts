@@ -10,10 +10,6 @@ export async function GET() {
 
   const deps = buildAppDeps();
   const tz = await getAppDisplayTimeZone();
-  const state = await deps.patientMood.getCheckinState(gate.session.user.userId, tz);
-  return NextResponse.json({
-    ok: true,
-    mood: state.mood,
-    lastEntry: state.lastEntry,
-  });
+  const days = await deps.patientMood.getWeekSparkline(gate.session.user.userId, tz);
+  return NextResponse.json({ ok: true, days });
 }

@@ -181,7 +181,7 @@ export function createTreatmentProgramInstanceService(deps: {
             comment: it.comment,
             settings: it.settings,
             snapshot,
-            isActionable: it.itemType === "recommendation" ? true : null,
+            isActionable: it.itemType === "recommendation" ? false : null,
             status: "active" as const,
             templateGroupId: it.groupId,
           });
@@ -475,7 +475,7 @@ export function createTreatmentProgramInstanceService(deps: {
         comment: input.comment ?? null,
         settings: input.settings ?? null,
         snapshot,
-        isActionable: input.itemType === "recommendation" ? true : null,
+        isActionable: input.itemType === "recommendation" ? false : null,
         status: "active",
         groupId: resolvedGroupId,
       });

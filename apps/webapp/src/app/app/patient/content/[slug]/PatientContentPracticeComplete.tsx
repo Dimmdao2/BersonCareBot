@@ -4,18 +4,21 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import toast from "react-hot-toast";
+import { Check, CheckCircle2 } from "lucide-react";
 import { routePaths } from "@/app-layer/routes/paths";
 import { appLoginWithNextHref } from "@/app/app/patient/home/patientHomeGuestNav";
-import { PageSection } from "@/components/common/layout/PageSection";
-import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { PracticeSource } from "@/modules/patient-practice/types";
 import { cn } from "@/lib/utils";
 import {
+  patientButtonSuccessClass,
   patientCardClass,
   patientInlineLinkClass,
+  patientModalDialogContentShellClass,
+  patientModalHeaderBarClass,
+  patientModalDialogTitleClass,
   patientMutedTextClass,
-  patientPrimaryActionClass,
+  patientSurfaceSuccessClass,
 } from "@/shared/ui/patientVisual";
 
 type Props = {
@@ -25,6 +28,12 @@ type Props = {
   guest: boolean;
   needsActivation: boolean;
 };
+
+const FEELING_OPTIONS: { label: string; emoji: string; value: number }[] = [
+  { label: "Отлично", emoji: "😊", value: 5 },
+  { label: "Нормально", emoji: "😐", value: 3 },
+  { label: "Тяжело", emoji: "😕", value: 1 },
+];
 
 export function PatientContentPracticeComplete({
   contentPageId,
@@ -79,81 +88,98 @@ export function PatientContentPracticeComplete({
 
   if (guest) {
     return (
-      <PageSection as="section" id="patient-content-practice-complete" className="mt-4">
-        <div className={patientCardClass}>
-          <p className={patientMutedTextClass}>
-            <Link href={loginHref} className={patientInlineLinkClass}>
-              Войдите
-            </Link>
-            , чтобы отмечать выполнение практики.
-          </p>
-        </div>
-      </PageSection>
+      <section id="patient-content-practice-complete" className={patientCardClass}>
+        <p className={patientMutedTextClass}>
+          <Link href={loginHref} className={patientInlineLinkClass}>
+            Войдите
+          </Link>
+          , чтобы отмечать выполнение практики.
+        </p>
+      </section>
     );
   }
 
   if (needsActivation) {
     return (
-      <PageSection as="section" id="patient-content-practice-complete" className="mt-4">
-        <div className={patientCardClass}>
-          <p className={patientMutedTextClass}>
-            Активируйте профиль пациента, чтобы отмечать прогресс.{" "}
-            <Link
-              href={`${routePaths.bindPhone}?next=${encodeURIComponent(contentPath)}`}
-              className={patientInlineLinkClass}
-            >
-              Подтвердить телефон
-            </Link>
-          </p>
-        </div>
-      </PageSection>
+      <section id="patient-content-practice-complete" className={patientCardClass}>
+        <p className={patientMutedTextClass}>
+          Активируйте профиль пациента, чтобы отмечать прогресс.{" "}
+          <Link
+            href={`${routePaths.bindPhone}?next=${encodeURIComponent(contentPath)}`}
+            className={patientInlineLinkClass}
+          >
+            Подтвердить телефон
+          </Link>
+        </p>
+      </section>
     );
   }
 
   if (saved) {
     return (
-      <PageSection as="section" id="patient-content-practice-complete" className="mt-4">
-        <div className={patientCardClass}>
-          <p className={patientMutedTextClass}>Практика отмечена выполненной.</p>
+      <section id="patient-content-practice-complete" className={patientSurfaceSuccessClass}>
+        <div className="flex items-center gap-2">
+          <CheckCircle2 className="size-5 shrink-0 text-[var(--patient-color-success,#16a34a)]" aria-hidden />
+          <p className="text-sm font-medium text-[var(--patient-surface-success-text)]">
+            Практика отмечена выполненной.
+          </p>
         </div>
-      </PageSection>
+      </section>
     );
   }
 
   return (
     <>
-      <PageSection as="section" id="patient-content-practice-complete" className="mt-4">
-        <div className={patientCardClass}>
-          <Button type="button" className={cn(patientPrimaryActionClass, "w-full sm:w-auto")} onClick={() => setDialogOpen(true)}>
-            Я выполнил(а) практику
-          </Button>
-        </div>
-      </PageSection>
+      <section id="patient-content-practice-complete" className={patientCardClass}>
+        <button
+          type="button"
+          className={cn(patientButtonSuccessClass, "w-full")}
+          onClick={() => setDialogOpen(true)}
+        >
+          <Check className="size-5 shrink-0" aria-hidden />
+          Я выполнил(а) практику
+        </button>
+      </section>
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Как самочувствие после?</DialogTitle>
+        <DialogContent className={patientModalDialogContentShellClass}>
+          <DialogHeader className={patientModalHeaderBarClass}>
+            <DialogTitle className={patientModalDialogTitleClass}>Как самочувствие после?</DialogTitle>
           </DialogHeader>
-          <div className="flex flex-wrap gap-2">
-            {[1, 2, 3, 4, 5].map((n) => (
-              <Button
-                key={n}
-                type="button"
-                variant="outline"
-                disabled={submitting}
-                className="min-w-12"
-                aria-label={`Оценка ${n} из 5`}
-                onClick={() => void submitWithFeeling(n)}
-              >
-                {n}
-              </Button>
-            ))}
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="ghost" disabled={submitting} onClick={() => void submitWithFeeling(null)}>
+          <div className="flex flex-col gap-2 p-4">
+            <div className="flex gap-2">
+              {FEELING_OPTIONS.map(({ label, emoji, value }) => (
+                <button
+                  key={value}
+                  type="button"
+                  disabled={submitting}
+                  className={cn(
+                    "flex flex-1 flex-col items-center gap-1.5 rounded-xl border border-[var(--patient-border)] bg-[var(--patient-card-bg)] py-3 px-2 text-center transition-colors",
+                    "hover:border-[var(--patient-color-primary)] hover:bg-[var(--patient-color-primary-soft)]/40",
+                    "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-primary)]",
+                    "disabled:cursor-not-allowed disabled:opacity-60",
+                  )}
+                  aria-label={label}
+                  onClick={() => void submitWithFeeling(value)}
+                >
+                  <span className="text-2xl leading-none" aria-hidden>{emoji}</span>
+                  <span className="text-xs font-medium text-[var(--patient-text-primary)]">{label}</span>
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              disabled={submitting}
+              className={cn(
+                "mt-1 inline-flex w-full items-center justify-center rounded-md px-4 py-2 text-sm text-[var(--patient-text-muted)] transition-colors",
+                "hover:bg-[var(--patient-color-primary-soft)]/30",
+                "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-primary)]",
+                "disabled:cursor-not-allowed disabled:opacity-60",
+              )}
+              onClick={() => void submitWithFeeling(null)}
+            >
               Пропустить
-            </Button>
-          </DialogFooter>
+            </button>
+          </div>
         </DialogContent>
       </Dialog>
     </>

@@ -9,7 +9,7 @@ const categories: ReferenceCategory[] = [
     id: "rc-symptom_type",
     code: "symptom_type",
     title: "Тип симптома",
-    isUserExtensible: true,
+    isUserExtensible: false,
     tenantId: null,
   },
   {
@@ -57,6 +57,16 @@ const categories: ReferenceCategory[] = [
 ];
 
 const items: ReferenceItem[] = [
+  {
+    id: "ri-general_wellbeing",
+    categoryId: "rc-symptom_type",
+    code: "general_wellbeing",
+    title: "Общее самочувствие",
+    sortOrder: 0,
+    isActive: true,
+    deletedAt: null,
+    metaJson: { system: true },
+  },
   {
     id: "ri-pain",
     categoryId: "rc-symptom_type",

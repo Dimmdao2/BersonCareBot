@@ -13,6 +13,7 @@ export function PatientTreatmentTabProgram(props: {
   pipelineLength: number;
   allStages: Stage[];
   appDisplayTimeZone: string;
+  patientCalendarDayIana: string;
   embeddedChecklist: {
     doneItemIds: string[];
     doneTodayCountByItemId: Record<string, number>;
@@ -28,6 +29,7 @@ export function PatientTreatmentTabProgram(props: {
     pipelineLength,
     allStages,
     appDisplayTimeZone,
+    patientCalendarDayIana,
     embeddedChecklist,
     onRefreshDetail,
     itemLinksPlanTab = "program",
@@ -48,6 +50,7 @@ export function PatientTreatmentTabProgram(props: {
       pipelineLength={pipelineLength}
       allStages={allStages}
       appDisplayTimeZone={appDisplayTimeZone}
+      patientCalendarDayIana={patientCalendarDayIana}
       embedded
       embeddedChecklist={embeddedChecklist}
       onRefreshDetail={onRefreshDetail}

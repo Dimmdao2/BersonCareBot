@@ -10,16 +10,12 @@ import {
   SYMPTOM_INSTANT_DEDUP_MS,
 } from "./symptomEntryDedup";
 import { isSymptomJournalEntryEditable } from "./symptomJournalEditWindow";
+import { isGeneralWellbeingTracking } from "@/modules/patient-mood/wellbeingConstants";
 
 function parseOptionalId(raw: unknown): string | null {
   if (typeof raw !== "string") return null;
   const t = raw.trim();
   return t.length > 0 ? t : null;
-}
-
-function parseSide(raw: unknown): "left" | "right" | "both" | null {
-  if (raw !== "left" && raw !== "right" && raw !== "both") return null;
-  return raw;
 }
 
 export async function addSymptomEntry(
@@ -48,7 +44,11 @@ export async function addSymptomEntry(
 
   const trackings = await deps.diaries.listSymptomTrackings(session.user.userId);
   const trackingId = trackingIdRaw.trim();
-  if (!trackings.some((t) => t.id === trackingId)) {
+  const tMeta = trackings.find((t) => t.id === trackingId);
+  if (!tMeta) {
+    return { ok: false };
+  }
+  if (isGeneralWellbeingTracking(tMeta.symptomKey)) {
     return { ok: false };
   }
 
@@ -110,57 +110,9 @@ export type CreateSymptomTrackingResult =
   | { ok: false }
   | { ok: true; tracking: { id: string; symptomTitle: string } };
 
-export async function createSymptomTracking(formData: FormData): Promise<CreateSymptomTrackingResult> {
-  const session = await requirePatientAccessWithPhone(routePaths.diary);
-  const deps = buildAppDeps();
-
-  const symptomTitleRaw = formData.get("symptomTitle");
-  const title =
-    typeof symptomTitleRaw === "string" ? symptomTitleRaw.trim() : "";
-  if (title.length > 200) return { ok: false };
-
-  const symptomTypeRefId = parseOptionalId(formData.get("symptomTypeRefId"));
-  const regionRefId = parseOptionalId(formData.get("regionRefId"));
-  const diagnosisRefId = parseOptionalId(formData.get("diagnosisRefId"));
-  const stageRefId = parseOptionalId(formData.get("stageRefId"));
-  const side = parseSide(formData.get("side"));
-  const diagnosisTextRaw = formData.get("diagnosisText");
-  const diagnosisText =
-    typeof diagnosisTextRaw === "string" && diagnosisTextRaw.trim()
-      ? diagnosisTextRaw.trim().slice(0, 500)
-      : null;
-
-  if (!title && !symptomTypeRefId) {
-    return { ok: false };
-  }
-
-  let resolvedTitle = title;
-  if (!resolvedTitle && symptomTypeRefId) {
-    const item = await deps.references.findItemById(symptomTypeRefId);
-    resolvedTitle = item?.title?.trim() ?? "—";
-  }
-  if (!resolvedTitle) resolvedTitle = "—";
-
-  try {
-    const created = await deps.diaries.createSymptomTracking({
-      userId: session.user.userId,
-      symptomTitle: resolvedTitle,
-      symptomTypeRefId,
-      regionRefId,
-      side,
-      diagnosisText,
-      diagnosisRefId,
-      stageRefId,
-    });
-    revalidatePath(routePaths.diary);
-    return {
-      ok: true,
-      tracking: { id: created.id, symptomTitle: created.symptomTitle ?? "—" },
-    };
-  } catch (err) {
-    console.error("createSymptomTracking failed:", err);
-    return { ok: false };
-  }
+export async function createSymptomTracking(_formData: FormData): Promise<CreateSymptomTrackingResult> {
+  await requirePatientAccessWithPhone(routePaths.diary);
+  return { ok: false };
 }
 
 export async function renameSymptomTracking(formData: FormData): Promise<{ ok: boolean }> {
@@ -174,6 +126,7 @@ export async function renameSymptomTracking(formData: FormData): Promise<{ ok: b
   const trackings = await deps.diaries.listSymptomTrackings(session.user.userId, false);
   const t = trackings.find((x) => x.id === trackingId);
   if (!t || t.deletedAt) return { ok: false };
+  if (isGeneralWellbeingTracking(t.symptomKey)) return { ok: false };
   try {
     await deps.diaries.renameSymptomTracking({
       userId: session.user.userId,
@@ -196,6 +149,7 @@ export async function archiveSymptomTracking(formData: FormData): Promise<{ ok: 
   const trackings = await deps.diaries.listSymptomTrackings(session.user.userId, false);
   const t = trackings.find((x) => x.id === trackingId);
   if (!t || t.deletedAt) return { ok: false };
+  if (isGeneralWellbeingTracking(t.symptomKey)) return { ok: false };
   try {
     await deps.diaries.archiveSymptomTracking({
       userId: session.user.userId,
@@ -231,6 +185,11 @@ export async function updateSymptomJournalEntry(formData: FormData): Promise<{ o
   const userId = session.user.userId;
   const existing = await deps.diaries.getSymptomEntryForUser({ userId, entryId });
   if (!existing) return { ok: false };
+  const tracking = await deps.diaries.getSymptomTrackingForUser({
+    userId,
+    trackingId: existing.trackingId,
+  });
+  if (tracking && isGeneralWellbeingTracking(tracking.symptomKey)) return { ok: false };
   if (!isSymptomJournalEntryEditable(existing.recordedAt)) return { ok: false };
 
   try {
@@ -260,6 +219,11 @@ export async function deleteSymptomJournalEntry(formData: FormData): Promise<{ o
   const userId = session.user.userId;
   const existing = await deps.diaries.getSymptomEntryForUser({ userId, entryId });
   if (!existing) return { ok: false };
+  const tracking = await deps.diaries.getSymptomTrackingForUser({
+    userId,
+    trackingId: existing.trackingId,
+  });
+  if (tracking && isGeneralWellbeingTracking(tracking.symptomKey)) return { ok: false };
   try {
     await deps.diaries.deleteSymptomEntry({ userId, entryId });
   } catch (e) {

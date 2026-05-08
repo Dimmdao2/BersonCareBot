@@ -15,6 +15,7 @@ import {
   utcMonthRangeIso,
 } from "@/modules/diaries/journal/resolveJournalMonthYm";
 import { SymptomsJournalClient } from "./SymptomsJournalClient";
+import { isGeneralWellbeingTracking } from "@/modules/patient-mood/wellbeingConstants";
 
 export default async function SymptomsJournalPage({
   searchParams,
@@ -51,7 +52,9 @@ export default async function SymptomsJournalPage({
   const deps = buildAppDeps();
   const userId = s.user.userId;
 
-  const trackings = await deps.diaries.listSymptomTrackings(userId);
+  const trackings = (await deps.diaries.listSymptomTrackings(userId)).filter(
+    (t) => !isGeneralWellbeingTracking(t.symptomKey),
+  );
   const tid =
     trackingIdRaw && trackings.some((t) => t.id === trackingIdRaw) ? trackingIdRaw : trackings[0]?.id ?? "";
 
@@ -76,7 +79,7 @@ export default async function SymptomsJournalPage({
         backLabel="Дневник"
         variant="patient"
       >
-        <p className={patientMutedTextClass}>Добавьте симптом, чтобы вести журнал.</p>
+        <p className={patientMutedTextClass}>Отслеживания симптомов для журнала назначает врач.</p>
         <Link
           href={`${routePaths.diary}?tab=symptoms`}
           className={cn(buttonVariants({ variant: "outline", size: "sm" }), "mt-4 inline-flex")}

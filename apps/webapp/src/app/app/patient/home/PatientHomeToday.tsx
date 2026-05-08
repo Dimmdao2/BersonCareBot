@@ -10,7 +10,7 @@ import {
 } from "@/modules/patient-home/nextReminderOccurrence";
 import { formatBookingDateLongRu } from "@/shared/lib/formatBusinessDateTime";
 import type { PatientHomeBlockCode } from "@/modules/patient-home/ports";
-import type { PatientMoodToday } from "@/modules/patient-mood/types";
+import type { PatientMoodCheckinState, PatientMoodWeekDay } from "@/modules/patient-mood/types";
 import type {
   ResolvedCarouselCard,
   ResolvedCourseCard,
@@ -159,13 +159,15 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
   let planTodayPracticeDone = false;
   let planUpdatedLabel: string | null = null;
   let progress: { todayDone: number; streak: number } | null = null;
-  let initialMood: PatientMoodToday | null = null;
+  let initialMoodCheckin: PatientMoodCheckinState | null = null;
+  let moodWeekDays: PatientMoodWeekDay[] = [];
   if (personalTierOk && session) {
-    const [rules, instances, p, mood] = await Promise.all([
+    const [rules, instances, p, moodState, week] = await Promise.all([
       deps.reminders.listRulesByUser(session.user.userId),
       deps.treatmentProgramInstance.listForPatient(session.user.userId),
       deps.patientPractice.getProgress(session.user.userId, appTz, todayCfg.practiceTarget),
-      deps.patientMood.getToday(session.user.userId, appTz),
+      deps.patientMood.getCheckinState(session.user.userId, appTz),
+      deps.patientMood.getWeekSparkline(session.user.userId, appTz),
     ]);
     homeReminder = pickNextHomeReminder(rules, new Date(), appTz);
     const active = instances
@@ -200,7 +202,8 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
       }
     }
     progress = { todayDone: p.todayDone, streak: p.streak };
-    initialMood = mood;
+    initialMoodCheckin = moodState;
+    moodWeekDays = week;
   }
 
   const sorted = filterAndSortPatientHomeBlocks(homeBlocks);
@@ -264,7 +267,9 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
             moodOptions={moodIconOptions}
             personalTierOk={personalTierOk}
             anonymousGuest={anonymousGuest}
-            initialMood={initialMood}
+            initialMood={initialMoodCheckin?.mood ?? null}
+            initialLastEntry={initialMoodCheckin?.lastEntry ?? null}
+            moodWeekDays={moodWeekDays}
           />
         );
       case "sos":

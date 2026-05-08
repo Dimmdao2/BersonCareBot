@@ -44,7 +44,6 @@ export function PatientPlanTabPanels(props: {
   progressCardTestsHref: string | null;
   patientCalendarDayIana: string;
   statsRefreshToken: number;
-  onProgramTests: () => void;
 }) {
   const {
     activeTab,
@@ -65,7 +64,6 @@ export function PatientPlanTabPanels(props: {
     progressCardTestsHref,
     patientCalendarDayIana,
     statsRefreshToken,
-    onProgramTests,
   } = props;
 
   return (
@@ -78,6 +76,7 @@ export function PatientPlanTabPanels(props: {
             pipelineLength={pipelineLength}
             allStages={detail.stages}
             appDisplayTimeZone={appDisplayTimeZone}
+            patientCalendarDayIana={patientCalendarDayIana}
             embeddedChecklist={embeddedChecklist}
             onRefreshDetail={onRefreshDetail}
             itemLinksPlanTab="program"
@@ -115,7 +114,6 @@ export function PatientPlanTabPanels(props: {
               instanceId={detail.id}
               currentStageId={currentWorkingStage.id}
               testsHref={progressCardTestsHref}
-              onProgramTests={onProgramTests}
             />
           ) : null}
           <PatientProgramPassageStatisticsSection

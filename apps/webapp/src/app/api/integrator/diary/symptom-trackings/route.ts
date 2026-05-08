@@ -2,11 +2,13 @@
  * API для интегратора бота: список отслеживаемых симптомов пользователя.
  * Вызывается ботом при необходимости показать список симптомов или найти только что созданный.
  * Доступ по подписи запроса (общий секрет с ботом). Параметр userId обязателен.
+ * Трекинг **`general_wellbeing`** (чек-ин самочувствия на главной) из ответа **исключается**.
  */
 
 import { NextResponse } from "next/server";
 import { assertIntegratorGetRequest } from "@/app-layer/integrator/assertIntegratorGetRequest";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { isGeneralWellbeingTracking } from "@/modules/patient-mood/wellbeingConstants";
 
 /** Возвращает список активных отслеживаний симптомов для указанного пользователя после проверки подписи. */
 export async function GET(request: Request) {
@@ -20,6 +22,8 @@ export async function GET(request: Request) {
   }
 
   const deps = buildAppDeps();
-  const trackings = await deps.diaries.listSymptomTrackings(userId.trim(), true);
+  const trackings = (await deps.diaries.listSymptomTrackings(userId.trim(), true)).filter(
+    (t) => !isGeneralWellbeingTracking(t.symptomKey),
+  );
   return NextResponse.json({ ok: true, trackings });
 }

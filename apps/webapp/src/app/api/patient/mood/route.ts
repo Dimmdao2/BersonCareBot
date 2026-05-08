@@ -8,6 +8,7 @@ import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimez
 
 const bodySchema = z.object({
   score: z.number().int().min(1).max(5),
+  intent: z.enum(["auto", "replace_last", "new_instant"]).default("auto"),
 });
 
 export async function POST(req: Request) {
@@ -28,7 +29,30 @@ export async function POST(req: Request) {
 
   const deps = buildAppDeps();
   const tz = await getAppDisplayTimeZone();
-  const mood = await deps.patientMood.upsertToday(gate.session.user.userId, tz, parsed.data.score);
+  const result = await deps.patientMood.submitScore(
+    gate.session.user.userId,
+    tz,
+    parsed.data.score,
+    parsed.data.intent,
+  );
+
+  if (!result.ok) {
+    if (result.error === "intent_required") {
+      return NextResponse.json(
+        { ok: false, error: result.error, lastEntry: result.lastEntry },
+        { status: 409 },
+      );
+    }
+    if (result.error === "replace_too_old") {
+      return NextResponse.json({ ok: false, error: result.error }, { status: 400 });
+    }
+    return NextResponse.json({ ok: false, error: result.error }, { status: 400 });
+  }
+
   revalidatePath(routePaths.patient);
-  return NextResponse.json({ ok: true, mood });
+  return NextResponse.json({
+    ok: true,
+    mood: result.mood,
+    lastEntry: result.lastEntry,
+  });
 }

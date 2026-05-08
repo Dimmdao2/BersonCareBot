@@ -10,6 +10,7 @@ import {
   countBlockingStagesBeforePatientStage,
   latestCompletedAtIsoAmongStageItems,
   patientTreatmentProgramStageScreenVariant,
+  resolveStageControlRemainderDaysForPatientUi,
 } from "@/modules/treatment-program/stage-semantics";
 import { PatientInstanceStageBody, PatientStageHeaderFields, patientStageHasHeaderFields } from "./PatientTreatmentProgramDetailClient";
 import type { PatientPlanTab } from "@/app/app/patient/treatment/patientPlanTab";
@@ -33,6 +34,7 @@ import {
 } from "@/shared/ui/patientVisual";
 import { patientHomeCardHeroClass } from "@/app/app/patient/home/patientHomeCardStyles";
 import { cn } from "@/lib/utils";
+import { DateTime } from "luxon";
 
 type Stage = TreatmentProgramInstanceDetail["stages"][number];
 
@@ -148,6 +150,8 @@ export function PatientTreatmentProgramStagePageClient(props: {
   pipelineLength: number;
   allStages: Stage[];
   appDisplayTimeZone: string;
+  /** IANA календарных суток пациента — остаток дней до контроля на плашке «Контроль через …». */
+  patientCalendarDayIana: string;
   /** Внутри вкладки «Программа» на detail: без hero, без рекомендаций и «контроль через». */
   embedded?: boolean;
   /** Чеклист с родительской страницы программы (убирает второй GET checklist-today). */
@@ -170,6 +174,7 @@ export function PatientTreatmentProgramStagePageClient(props: {
     embeddedChecklist,
     onRefreshDetail,
     itemLinksPlanTab = null,
+    patientCalendarDayIana,
   } = props;
   const [detachedStage, setDetachedStage] = useState<Stage>(props.stage);
   const stageForUi = embedded ? props.stage : detachedStage;
@@ -182,6 +187,11 @@ export function PatientTreatmentProgramStagePageClient(props: {
   const variant = useMemo(
     () => patientTreatmentProgramStageScreenVariant(stageForUi),
     [stageForUi],
+  );
+
+  const controlRemainderDaysForBadge = useMemo(
+    () => resolveStageControlRemainderDaysForPatientUi(stageForUi, DateTime.now(), patientCalendarDayIana),
+    [stageForUi, patientCalendarDayIana],
   );
 
   const base = `/api/patient/treatment-program-instances/${encodeURIComponent(instanceId)}/items`;
@@ -311,7 +321,8 @@ export function PatientTreatmentProgramStagePageClient(props: {
   const controlBadge =
     stageForUi.expectedDurationDays != null &&
     stageForUi.expectedDurationDays > 0 &&
-    Number.isFinite(stageForUi.expectedDurationDays) ? (
+    Number.isFinite(stageForUi.expectedDurationDays) &&
+    controlRemainderDaysForBadge != null ? (
       <div
         className={cn(
           "rounded-[var(--patient-card-radius-mobile)] border border-[var(--patient-border)] px-3 py-2 shadow-[var(--patient-shadow-card-mobile)] lg:rounded-[var(--patient-card-radius-desktop)] lg:px-4 lg:shadow-[var(--patient-shadow-card-desktop)]",
@@ -319,7 +330,7 @@ export function PatientTreatmentProgramStagePageClient(props: {
         )}
       >
         <p className="m-0 text-sm font-medium text-[#444444]">
-          Контроль через {stageForUi.expectedDurationDays} {ruDayWord(stageForUi.expectedDurationDays)}
+          Контроль через {controlRemainderDaysForBadge} {ruDayWord(controlRemainderDaysForBadge)}
         </p>
       </div>
     ) : null;

@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi, afterEach } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { parsePatientHomeMoodIcons } from "@/modules/patient-home/patientHomeMoodIcons";
 import { PatientHomeMoodCheckin } from "./PatientHomeMoodCheckin";
@@ -18,6 +18,9 @@ vi.mock("react-hot-toast", () => ({
 }));
 
 describe("PatientHomeMoodCheckin", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
   beforeEach(() => {
     vi.clearAllMocks();
     global.fetch = vi.fn();
@@ -77,7 +80,7 @@ describe("PatientHomeMoodCheckin", () => {
     });
     const call = vi.mocked(global.fetch).mock.calls[0];
     const body = JSON.parse((call[1] as { body: string }).body);
-    expect(body).toEqual({ score: 5 });
+    expect(body).toEqual({ score: 5, intent: "auto" });
     expect(refresh).toHaveBeenCalled();
   });
 
@@ -103,5 +106,23 @@ describe("PatientHomeMoodCheckin", () => {
       expect(screen.getByRole("button", { name: /Самочувствие 4 из 5/i })).toHaveAttribute("aria-pressed", "true");
     });
     expect(toastError).toHaveBeenCalledWith("Не удалось сохранить, попробуйте позже.");
+  });
+
+  it("opens choice dialog in 10–60 min window without posting first", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(Date.parse("2026-05-08T12:00:00.000Z"));
+    render(
+      <PatientHomeMoodCheckin
+        moodOptions={defaultMoodOptions}
+        personalTierOk
+        anonymousGuest={false}
+        initialMood={{ moodDate: "2026-05-08", score: 3 }}
+        initialLastEntry={{ id: "e-prev", score: 3, recordedAt: "2026-05-08T11:35:00.000Z" }}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Самочувствие 5 из 5/i }));
+    expect(global.fetch).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Новая запись" })).toBeInTheDocument();
   });
 });

@@ -23,10 +23,11 @@ export function PatientProgramControlCard(props: {
   currentStageId: string | null;
   /** Прямая ссылка на прохождение тестов текущего этапа (пункт `clinical_test`). */
   testsHref?: string | null;
-  /** Если `testsHref` нет — переключить вкладку «Программа». */
-  onProgramTests?: () => void;
 }) {
-  const { dateLine, remainderDays, fallbackMessage, currentStageId, testsHref, onProgramTests } = props;
+  const { dateLine, remainderDays, fallbackMessage, currentStageId, testsHref } = props;
+  /** Нет пунктов `clinical_test` у текущего этапа — самостоятельное прохождение недоступно. */
+  const noSelfServiceTests = Boolean(currentStageId && !testsHref);
+
   return (
     <section className={patientSurfaceWarningClass} aria-label="Следующий контроль">
       <div className="flex min-w-0 flex-row items-start justify-between gap-3">
@@ -53,8 +54,16 @@ export function PatientProgramControlCard(props: {
               {fallbackMessage}
             </p>
           )}
-          <p className={cn(patientMutedTextClass, "mt-0 text-xs leading-[1.15]")}>
-            Консультация со специалистом
+          <p
+            className={cn(
+              patientMutedTextClass,
+              "mt-0 text-xs leading-[1.15]",
+              noSelfServiceTests && "text-[#8b5348] dark:text-[#c9a399]",
+            )}
+          >
+            {noSelfServiceTests
+              ? "В этапе нет самостоятельных тестов, оценка производится специалистом."
+              : "Консультация со специалистом"}
           </p>
         </div>
         <div className="flex shrink-0 flex-col items-end gap-1.5">
@@ -69,18 +78,18 @@ export function PatientProgramControlCard(props: {
               >
                 Выполнить тесты
               </Link>
-            ) : onProgramTests ? (
+            ) : (
               <button
                 type="button"
-                onClick={onProgramTests}
+                disabled
                 className={cn(
                   patientButtonWarningOutlineClass,
-                  "w-auto min-h-8 shrink-0 px-2.5 py-1.5 text-xs font-semibold leading-tight sm:min-h-8",
+                  "inline-flex w-auto min-h-8 shrink-0 px-2.5 py-1.5 text-xs font-semibold leading-tight sm:min-h-8",
                 )}
               >
                 Выполнить тесты
               </button>
-            ) : null
+            )
           ) : null}
           <Link
             href={routePaths.bookingNew}

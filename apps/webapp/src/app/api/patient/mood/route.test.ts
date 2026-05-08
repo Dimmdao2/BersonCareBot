@@ -6,10 +6,10 @@ vi.mock("@/app-layer/guards/requireRole", () => ({
   requirePatientApiBusinessAccess: mockRequirePatientApiBusinessAccess,
 }));
 
-const mockUpsertToday = vi.hoisted(() => vi.fn());
+const mockSubmitScore = vi.hoisted(() => vi.fn());
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
-    patientMood: { upsertToday: mockUpsertToday },
+    patientMood: { submitScore: mockSubmitScore },
   }),
 }));
 
@@ -40,7 +40,11 @@ describe("POST /api/patient/mood", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockRequirePatientApiBusinessAccess.mockResolvedValue({ ok: true, session: SESSION });
-    mockUpsertToday.mockResolvedValue({ moodDate: "2026-04-28", score: 4 });
+    mockSubmitScore.mockResolvedValue({
+      ok: true,
+      mood: { moodDate: "2026-04-28", score: 4 },
+      lastEntry: { id: "e1", recordedAt: "2026-04-28T10:00:00.000Z", score: 4 },
+    });
   });
 
   it("returns 401 when not authenticated", async () => {
@@ -55,15 +59,34 @@ describe("POST /api/patient/mood", () => {
   it("returns 400 for invalid score", async () => {
     const res = await POST(makeRequest({ score: 6 }));
     expect(res.status).toBe(400);
-    expect(mockUpsertToday).not.toHaveBeenCalled();
+    expect(mockSubmitScore).not.toHaveBeenCalled();
   });
 
-  it("upserts today's mood using app display timezone", async () => {
+  it("submits mood with default intent auto", async () => {
     const res = await POST(makeRequest({ score: 4 }));
     expect(res.status).toBe(200);
     const json = await res.json();
-    expect(json).toEqual({ ok: true, mood: { moodDate: "2026-04-28", score: 4 } });
+    expect(json).toEqual({
+      ok: true,
+      mood: { moodDate: "2026-04-28", score: 4 },
+      lastEntry: { id: "e1", recordedAt: "2026-04-28T10:00:00.000Z", score: 4 },
+    });
     expect(mockGetAppDisplayTimeZone).toHaveBeenCalled();
-    expect(mockUpsertToday).toHaveBeenCalledWith(SESSION.user.userId, "Europe/Moscow", 4);
+    expect(mockSubmitScore).toHaveBeenCalledWith(SESSION.user.userId, "Europe/Moscow", 4, "auto");
+  });
+
+  it("returns 409 when intent_required", async () => {
+    mockSubmitScore.mockResolvedValue({
+      ok: false,
+      error: "intent_required",
+      lastEntry: { id: "e0", recordedAt: "2026-04-28T10:00:00.000Z", score: 3 },
+    });
+    const res = await POST(makeRequest({ score: 4, intent: "auto" }));
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({
+      ok: false,
+      error: "intent_required",
+      lastEntry: { id: "e0", recordedAt: "2026-04-28T10:00:00.000Z", score: 3 },
+    });
   });
 });

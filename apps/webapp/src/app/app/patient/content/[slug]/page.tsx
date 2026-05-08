@@ -6,23 +6,39 @@
  */
 
 import Link from "next/link";
+import { Clock3 } from "lucide-react";
 import { notFound } from "next/navigation";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { getOptionalPatientSession, patientRscPersonalDataGate } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
 import { resolvePatientCanViewAuthOnlyContent } from "@/modules/platform-access";
-import { PageSection } from "@/components/common/layout/PageSection";
 import { AppShell } from "@/shared/ui/AppShell";
 import { cn } from "@/lib/utils";
 import { MarkdownContent } from "@/shared/ui/markdown/MarkdownContent";
 import { resolveMediaPlaybackPayload } from "@/app-layer/media/resolveMediaPlaybackPayload";
 import { ContentHeroImage } from "@/shared/ui/media/ContentHeroImage";
-import { patientMutedTextClass, patientPrimaryActionClass, patientSectionSurfaceClass } from "@/shared/ui/patientVisual";
+import {
+  patientCardClass,
+  patientMutedTextClass,
+  patientPrimaryActionClass,
+  patientProgramItemHeroTitleClass,
+  patientSectionSurfaceClass,
+} from "@/shared/ui/patientVisual";
+import {
+  patientHomeCardHeroClass,
+  patientHomeHeroBadgeClass,
+  patientHomeHeroCardGeometryClass,
+  patientHomeHeroDurationBadgeClass,
+  patientHomeHeroSummaryClampClass,
+  patientHomeHeroTextColumnClass,
+  patientHomeHeroTitleClampClass,
+} from "@/app/app/patient/home/patientHomeCardStyles";
 import { getConfigBool } from "@/modules/system-settings/configAdapter";
 import type { MediaPlaybackPayload } from "@/modules/media/playbackPayloadTypes";
 import { parseApiMediaIdFromPlayableUrl } from "@/shared/lib/parseApiMediaIdFromPlayableUrl";
 import { PatientContentAdaptiveVideo } from "./PatientContentAdaptiveVideo";
 import { PatientContentPracticeComplete } from "./PatientContentPracticeComplete";
+import { PatientDailyWarmupHeroCover } from "./PatientDailyWarmupHeroCover";
 
 type Props = {
   params: Promise<{ slug: string }>;
@@ -122,21 +138,81 @@ export default async function ContentSlugPage({ params, searchParams }: Props) {
   }
 
   const backHref = "/app/patient";
+  const showWarmupBadge = practiceSource === "daily_warmup";
+  const hasDecorImage = Boolean(item.imageUrl);
+  const anonymousGuest = session === null;
+
   return (
-    <AppShell title={item.title} user={session?.user ?? null} backHref={backHref} backLabel="Назад" variant="patient">
-      <article id={`patient-content-article-${slug}`} className="flex flex-col gap-4">
-        {item.imageUrl ? (
-          <ContentHeroImage imageUrl={item.imageUrl} imageLibraryMedia={item.imageLibraryMedia} />
-        ) : null}
-        <MarkdownContent
-          text={item.bodyText}
-          bodyFormat={item.bodyFormat ?? "markdown"}
-        />
+    <AppShell
+      title={item.title}
+      user={session?.user ?? null}
+      backHref={backHref}
+      backLabel="Назад"
+      variant="patient"
+      patientSuppressShellTitle
+    >
+      <article id={`patient-content-article-${slug}`} className="flex flex-col gap-3 lg:gap-4">
+
+        {/* Hero: разминка дня — та же геометрия и слот обложки, что на главной */}
+        {showWarmupBadge ? (
+          <div className={patientHomeHeroCardGeometryClass}>
+            <div className="relative z-20 flex h-6 shrink-0 items-start justify-start gap-1.5">
+              <span className={patientHomeHeroBadgeClass}>Разминка дня</span>
+              <span className={patientHomeHeroDurationBadgeClass}>
+                <Clock3 className="size-3.5 shrink-0" aria-hidden />
+                5 мин
+              </span>
+            </div>
+            <div className={patientHomeHeroTextColumnClass}>
+              <h1 id={`patient-content-warmup-title-${slug}`} className={patientHomeHeroTitleClampClass}>
+                {item.title}
+              </h1>
+              {item.summary?.trim() ?
+                <p className={patientHomeHeroSummaryClampClass}>{item.summary.trim()}</p>
+              : <div className="mt-1 min-h-8 shrink-0 md:mt-2 md:min-h-[3rem]" aria-hidden />}
+            </div>
+            <PatientDailyWarmupHeroCover imageUrl={item.imageUrl} anonymousGuest={anonymousGuest} />
+          </div>
+        ) : (
+          <div
+            className={cn(
+              patientHomeCardHeroClass,
+              "relative isolate overflow-hidden p-4 pt-3 lg:p-5",
+              hasDecorImage && "min-h-[160px] min-[380px]:min-h-[172px] lg:min-h-[200px]",
+            )}
+          >
+            <h1
+              className={cn(
+                patientProgramItemHeroTitleClass,
+                "relative z-10 mt-2 line-clamp-3",
+                hasDecorImage && "pr-[108px] min-[380px]:pr-[124px] lg:pr-[180px]",
+              )}
+            >
+              {item.title}
+            </h1>
+            {hasDecorImage ? (
+              <div
+                className="pointer-events-none absolute inset-y-0 right-0 z-[1] flex w-[96px] items-end overflow-hidden min-[380px]:w-[112px] lg:w-[164px]"
+                aria-hidden
+              >
+                <ContentHeroImage
+                  imageUrl={item.imageUrl}
+                  imageLibraryMedia={item.imageLibraryMedia}
+                  imgClassName="h-full w-full object-contain object-right-bottom drop-shadow-lg"
+                />
+              </div>
+            ) : null}
+          </div>
+        )}
+
+        {/* Video */}
         {videoPlayableUrl ? (
-          <PageSection as="section" id={`patient-content-video-section-${slug}`} className="mt-4 flex flex-col gap-2">
-            <h3 className="text-base font-medium">Видео</h3>
+          <section
+            id={`patient-content-video-section-${slug}`}
+            className="overflow-hidden rounded-[var(--patient-card-radius-mobile)] shadow-[var(--patient-shadow-card-mobile)] lg:rounded-[var(--patient-card-radius-desktop)] lg:shadow-[var(--patient-shadow-card-desktop)]"
+          >
             {youtubeEmbedSrc ? (
-              <div className="relative aspect-video overflow-hidden rounded-lg">
+              <div className="relative aspect-video">
                 <iframe
                   src={youtubeEmbedSrc}
                   className="absolute inset-0 size-full border-0"
@@ -153,12 +229,24 @@ export default async function ContentSlugPage({ params, searchParams }: Props) {
                 initialPlayback={patientPlaybackInitial}
               />
             )}
-          </PageSection>
+          </section>
         ) : (
-          <PageSection as="section" id={`patient-content-video-section-${slug}`} className="mt-4 flex flex-col gap-2">
+          <section id={`patient-content-video-section-${slug}`} className={cn(patientCardClass, "py-3")}>
             <p className={patientMutedTextClass}>Видео будет добавлено в ближайшее время.</p>
-          </PageSection>
+          </section>
         )}
+
+        {/* Body text */}
+        {item.bodyText?.trim() ? (
+          <div className={patientCardClass}>
+            <MarkdownContent
+              text={item.bodyText}
+              bodyFormat={item.bodyFormat ?? "markdown"}
+            />
+          </div>
+        ) : null}
+
+        {/* Practice complete */}
         <PatientContentPracticeComplete
           contentPageId={dbRow.id}
           contentPath={contentPath}
@@ -166,11 +254,12 @@ export default async function ContentSlugPage({ params, searchParams }: Props) {
           guest={session === null}
           needsActivation={session !== null && !personalTierOk}
         />
+
+        {/* Course CTA */}
         {courseCta ? (
-          <PageSection
-            as="section"
+          <section
             id={`patient-content-course-cta-${slug}`}
-            className={cn(patientSectionSurfaceClass, "mt-4")}
+            className={cn(patientSectionSurfaceClass)}
           >
             <p className="text-sm font-medium">
               Это часть курса «{courseCta.courseTitle}»
@@ -181,7 +270,7 @@ export default async function ContentSlugPage({ params, searchParams }: Props) {
             >
               Открыть курс
             </Link>
-          </PageSection>
+          </section>
         ) : null}
       </article>
     </AppShell>

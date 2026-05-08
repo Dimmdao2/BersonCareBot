@@ -46,7 +46,7 @@ describe("PatientContentPracticeComplete", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: /Я выполнил\(а\) практику/i }));
-    fireEvent.click(screen.getByRole("button", { name: /Оценка 3 из 5/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^Нормально$/i }));
 
     await waitFor(() => {
       expect(global.fetch).toHaveBeenCalledWith(

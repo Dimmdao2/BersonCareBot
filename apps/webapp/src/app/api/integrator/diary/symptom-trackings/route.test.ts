@@ -1,8 +1,16 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
+const listSymptomTrackings = vi.hoisted(() => vi.fn());
+
 const assertMock = vi.hoisted(() => vi.fn());
 vi.mock("@/app-layer/integrator/assertIntegratorGetRequest", () => ({
   assertIntegratorGetRequest: assertMock,
+}));
+
+vi.mock("@/app-layer/di/buildAppDeps", () => ({
+  buildAppDeps: () => ({
+    diaries: { listSymptomTrackings },
+  }),
 }));
 
 import { GET } from "./route";
@@ -14,6 +22,7 @@ import {
 describe("GET /api/integrator/diary/symptom-trackings", () => {
   beforeEach(() => {
     wireDefaultAssertIntegratorGetForRouteTests(assertMock);
+    listSymptomTrackings.mockResolvedValue([]);
   });
 
   it("returns 400 when headers missing", async () => {
@@ -57,5 +66,37 @@ describe("GET /api/integrator/diary/symptom-trackings", () => {
     const data = await res.json();
     expect(data).toMatchObject({ ok: true });
     expect(Array.isArray(data.trackings)).toBe(true);
+  });
+
+  it("excludes general_wellbeing from trackings for bot", async () => {
+    listSymptomTrackings.mockResolvedValue([
+      {
+        id: "gw",
+        userId: "u1",
+        symptomKey: "general_wellbeing",
+        symptomTitle: "Общее самочувствие",
+        isActive: true,
+        createdAt: "",
+        updatedAt: "",
+      },
+      {
+        id: "other",
+        userId: "u1",
+        symptomKey: "custom",
+        symptomTitle: "Другое",
+        isActive: true,
+        createdAt: "",
+        updatedAt: "",
+      },
+    ]);
+    const res = await GET(
+      new Request("https://localhost/api/integrator/diary/symptom-trackings?userId=u1", {
+        headers: integratorGetSignedHeadersOk,
+      })
+    );
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as { ok: boolean; trackings: { id: string }[] };
+    expect(data.trackings).toHaveLength(1);
+    expect(data.trackings[0]!.id).toBe("other");
   });
 });

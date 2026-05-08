@@ -6,6 +6,18 @@
 
 ---
 
+## 2026-05-08 — самочувствие: унификация с дневником симптомов (`general_wellbeing`)
+
+**Сделано (webapp):** миграция **`0049_wellbeing_symptom_unify`**: справочник `general_wellbeing`, backfill `symptom_trackings` для клиентов, перенос `patient_daily_mood` → `symptom_entries`, `DROP patient_daily_mood`. Сервис настроения переведён на **`symptom_entries`** (`wellbeingMoodService`), API mood с **`intent`** и **409 `intent_required`**, **`GET …/mood/week`** для полоски 7 дней; главная — модалка 10–60 мин и `PatientHomeWellbeingWeekStrip`. Пациентский **self-create** symptom tracking отключён (`createSymptomTracking` no-op + убран UI); операции rename/archive и журнал не трогают wellbeing-трекинг; врачебный **`POST /api/doctor/clients/[userId]/symptom-trackings`**. Дневник скрывает wellbeing-трекинг из списков пациента.
+
+**Документация:** [`apps/webapp/src/modules/patient-mood/patient-mood.md`](../../apps/webapp/src/modules/patient-mood/patient-mood.md), [`TARGET_STRUCTURE_PATIENT.md`](TARGET_STRUCTURE_PATIENT.md) §10 п.4.
+
+**Проверки:** `pnpm --dir apps/webapp exec vitest run` по затронутым тестам patient-mood / mood API / `PatientHomeToday` / `PatientHomeMoodCheckin`.
+
+**Доработка после аудита (тот же релизный контур):** границы **10 / 60 мин** приведены к плану (**включительно** ≤10 тихая замена; ≤60 модалка); `lastEntry.score` допускает **`null`** при невалидном `value_0_10`, логика времени — по последней строке; `ensureWellbeingTracking` учитывает **неактивные** трекинги; **`GET /api/integrator/diary/symptom-trackings`** исключает `general_wellbeing`; обновлены `api.md`, `symptoms.md`, тесты (в т.ч. doctor `symptom-trackings`, integrator filter).
+
+---
+
 ## 2026-05-06 — программа лечения: многократные отметки за день (`program_action_log`)
 
 **Сделано (webapp):** снято ограничение «одна отметка за календарный день» для чек-листа и ЛФК-сессий; каждое выполнение — отдельная строка **`program_action_log`** с **`created_at`**. **`POST …/progress/complete`** дополнительно пишет **`done`** с `payload.source: "simple_item_complete"` (и `itemType`). Чек-лист **`POST …/progress/checklist`** при `checked: true` всегда вставляет строку с `payload.source: "checklist_toggle"`; при `checked: false` **`deleteSimpleDoneInWindow`** удаляет все «простые» `done` за локальные сутки по элементу, **кроме** строк с `source` в `test_submitted` / `lfk_exercise_done`. ЛФК **`lfk-session`**: убрана предварительная очистка окна — несколько сессий в один день накапливаются (новый **`session_id`** на сабмит). Пациентский UI: повторная кнопка «Отметить ещё раз», форма ЛФК после первой отметки; на карточках этапа — строка «Отметок в журнале за сегодня» из **`doneTodayCountByItemId`** (detail + страница этапа); модалка «Состав этапа» — не более **24** зелёных точек, остаток как **`+N`** (полное число в **`aria-label`**). Утилита парсинга ответа checklist: [`apps/webapp/src/app/app/patient/treatment-programs/normalizeTreatmentProgramChecklistMaps.ts`](../../apps/webapp/src/app/app/patient/treatment-programs/normalizeTreatmentProgramChecklistMaps.ts). **`createTreatmentProgramProgressService`**: параметр **`actionLog`** обязателен.

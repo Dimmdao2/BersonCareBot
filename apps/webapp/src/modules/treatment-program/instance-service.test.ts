@@ -78,7 +78,7 @@ describe("treatment-program instance service", () => {
     expect(it0.localComment).toBeNull();
     expect(it0.snapshot).toMatchObject({ itemType: "recommendation", id: refA, stub: true });
     expect(it0.effectiveComment).toBe("Из шаблона");
-    expect(it0.isActionable).toBe(true);
+    expect(it0.isActionable).toBe(false);
     expect(it0.status).toBe("active");
   });
 

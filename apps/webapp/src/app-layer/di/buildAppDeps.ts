@@ -181,8 +181,6 @@ import { createPgPatientHomeLegacyContentPort } from "@/infra/repos/pgPatientHom
 import { createInMemoryPatientHomeLegacyContentPort } from "@/infra/repos/inMemoryPatientHomeLegacyContent";
 import { createPgPatientPracticeCompletionsPort } from "@/infra/repos/pgPatientPracticeCompletions";
 import { createInMemoryPatientPracticeCompletionsPort } from "@/infra/repos/inMemoryPatientPracticeCompletions";
-import { createPgPatientDailyMoodPort } from "@/infra/repos/pgPatientDailyMood";
-import { createInMemoryPatientDailyMoodPort } from "@/infra/repos/inMemoryPatientDailyMood";
 import { createPatientHomeBlocksService } from "@/modules/patient-home/service";
 import { createPatientPracticeService } from "@/modules/patient-practice/service";
 import { createPatientMoodService } from "@/modules/patient-mood/service";
@@ -339,10 +337,6 @@ const patientPracticeService = createPatientPracticeService({
   completions: patientPracticeCompletionsPort,
   contentPages: contentPagesPort,
 });
-const patientMoodPort = !inMemoryRepos
-  ? createPgPatientDailyMoodPort()
-  : createInMemoryPatientDailyMoodPort();
-const patientMoodService = createPatientMoodService(patientMoodPort);
 const treatmentProgramProgressService = createTreatmentProgramProgressService({
   instances: treatmentProgramInstancePort,
   tests: treatmentProgramTestAttemptsPort,
@@ -466,6 +460,10 @@ const getPastAppointments: (userId: string) => Promise<PastAppointmentSummary[]>
     : async () => [];
 
 const symptomDiaryService = createSymptomDiaryService(symptomDiaryPort);
+const patientMoodService = createPatientMoodService({
+  diaries: symptomDiaryService,
+  references: referencesPort,
+});
 const lfkDiaryService = createLfkDiaryService(lfkDiaryPort);
 const channelPreferencesService = createChannelPreferencesService(channelPreferencesPort);
 const mediaService = createMediaService(mediaStoragePort);
