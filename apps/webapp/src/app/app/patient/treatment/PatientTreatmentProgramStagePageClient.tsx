@@ -12,6 +12,7 @@ import {
   patientTreatmentProgramStageScreenVariant,
 } from "@/modules/treatment-program/stage-semantics";
 import { PatientInstanceStageBody, PatientStageHeaderFields, patientStageHasHeaderFields } from "./PatientTreatmentProgramDetailClient";
+import type { PatientPlanTab } from "@/app/app/patient/treatment/patientPlanTab";
 import { PatientTreatmentProgramStagePageProgramSection } from "./PatientTreatmentProgramStagePageProgramSection";
 import { PatientTreatmentProgramStageRecommendationsCollapsible } from "./PatientTreatmentProgramStageRecommendationsCollapsible";
 import {
@@ -157,6 +158,8 @@ export function PatientTreatmentProgramStagePageClient(props: {
   };
   /** Полное обновление экземпляра и чеклиста на родителе после действий пациента. */
   onRefreshDetail?: () => Promise<void>;
+  /** Вкладка плана для ссылок на пункты (`planTab` в URL). */
+  itemLinksPlanTab?: PatientPlanTab | null;
 }) {
   const {
     instanceId,
@@ -166,6 +169,7 @@ export function PatientTreatmentProgramStagePageClient(props: {
     embedded = false,
     embeddedChecklist,
     onRefreshDetail,
+    itemLinksPlanTab = null,
   } = props;
   const [detachedStage, setDetachedStage] = useState<Stage>(props.stage);
   const stageForUi = embedded ? props.stage : detachedStage;
@@ -412,6 +416,7 @@ export function PatientTreatmentProgramStagePageClient(props: {
           onDoneItemIds={() => {}}
           todayCountByStageItemId={undefined}
           heading={<h3 className={patientSectionTitleClass}>Назначения этапа</h3>}
+          itemLinksPlanTab={itemLinksPlanTab ?? null}
         />
       </div>
     );
@@ -512,6 +517,7 @@ export function PatientTreatmentProgramStagePageClient(props: {
         lastDoneAtIsoByItemId={effectiveLastDoneAtIsoByItemId}
         doneTodayCountByItemId={effectiveDoneTodayCountByItemId}
         appDisplayTimeZone={appDisplayTimeZone}
+        itemLinksPlanTab={itemLinksPlanTab ?? null}
       />
     </div>
   );

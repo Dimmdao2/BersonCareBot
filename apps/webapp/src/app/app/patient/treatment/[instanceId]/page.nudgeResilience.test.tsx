@@ -140,6 +140,7 @@ describe("PatientTreatmentProgramDetailPage / nudge resilience", () => {
   it("renders detail for valid instance (detail page без nudge)", async () => {
     const ui = await PatientTreatmentProgramDetailPage({
       params: Promise.resolve({ instanceId: "11111111-1111-4111-8111-111111111111" }),
+      searchParams: Promise.resolve({}),
     });
     render(ui);
     expect(screen.getByTestId("detail-title")).toHaveTextContent("Программа деталь");
@@ -152,6 +153,7 @@ describe("PatientTreatmentProgramDetailPage / nudge resilience", () => {
     await expect(
       PatientTreatmentProgramDetailPage({
         params: Promise.resolve({ instanceId: "missing-id" }),
+        searchParams: Promise.resolve({}),
       }),
     ).rejects.toThrow("NEXT_NOT_FOUND");
     expect(notFoundMock).toHaveBeenCalled();

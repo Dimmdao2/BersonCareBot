@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, type ReactNode } from "react";
 import { AlertTriangle, MessageCircle, NotebookText, PlayCircle } from "lucide-react";
 import { routePaths } from "@/app-layer/routes/paths";
+import type { PatientPlanTab } from "@/app/app/patient/treatment/patientPlanTab";
 import { PatientCatalogMediaStaticThumb } from "@/shared/ui/patient/PatientCatalogMediaStaticThumb";
 import type { TreatmentProgramInstanceDetail } from "@/modules/treatment-program/types";
 import {
@@ -175,6 +176,7 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
   doneTodayCountByItemId: Readonly<Record<string, number>>;
   appDisplayTimeZone: string;
   className?: string;
+  itemLinksPlanTab?: PatientPlanTab | null;
 }) {
   const {
     instanceId,
@@ -192,6 +194,7 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
     doneTodayCountByItemId,
     appDisplayTimeZone,
     className,
+    itemLinksPlanTab = null,
   } = props;
 
   const readOnly = itemInteraction === "readOnly";
@@ -208,7 +211,7 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
   if (visibleProgramItems.length === 0) return null;
 
   const itemProgramHref = (itemId: string) =>
-    routePaths.patientTreatmentProgramItem(instanceId, itemId, "program");
+    routePaths.patientTreatmentProgramItem(instanceId, itemId, "program", itemLinksPlanTab ?? null);
 
   const renderTile = (item: InstanceStageItem): ReactNode => {
     const media = primaryMediaForStageItem(item);

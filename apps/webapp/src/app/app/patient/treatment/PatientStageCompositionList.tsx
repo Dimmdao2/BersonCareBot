@@ -18,6 +18,7 @@ import {
 import type { RecommendationMediaItem } from "@/modules/recommendations/types";
 import { PatientCatalogMediaStaticThumb } from "@/shared/ui/patient/PatientCatalogMediaStaticThumb";
 import { routePaths } from "@/app-layer/routes/paths";
+import type { PatientPlanTab } from "@/app/app/patient/treatment/patientPlanTab";
 import { cn } from "@/lib/utils";
 import {
   patientCompositionCurrentRowChromeClass,
@@ -254,6 +255,8 @@ export function PatientStageCompositionList(props: {
   lastDoneAtIsoByActivityKey: Readonly<Record<string, string>>;
   doneTodayCountByItemId: Readonly<Record<string, number>>;
   className?: string;
+  /** Вкладка плана для ссылки «Назад» на плане. */
+  itemLinksPlanTab?: PatientPlanTab | null;
 }) {
   const {
     instanceId,
@@ -265,10 +268,12 @@ export function PatientStageCompositionList(props: {
     lastDoneAtIsoByActivityKey,
     doneTodayCountByItemId,
     className,
+    itemLinksPlanTab = null,
   } = props;
 
   const navForPath = navMode === "default" ? undefined : navMode;
-  const itemHref = (id: string) => routePaths.patientTreatmentProgramItem(instanceId, id, navForPath);
+  const itemHref = (id: string) =>
+    routePaths.patientTreatmentProgramItem(instanceId, id, navForPath, itemLinksPlanTab ?? null);
 
   const visibleItems = useMemo(
     () =>

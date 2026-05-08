@@ -166,6 +166,7 @@ describe("PatientTreatmentProgramDetailPage / template description (RSC)", () =>
 
     const ui = await PatientTreatmentProgramDetailPage({
       params: Promise.resolve({ instanceId: "11111111-1111-4111-8111-111111111111" }),
+      searchParams: Promise.resolve({}),
     });
     render(ui);
 
@@ -180,6 +181,7 @@ describe("PatientTreatmentProgramDetailPage / template description (RSC)", () =>
 
     const ui = await PatientTreatmentProgramDetailPage({
       params: Promise.resolve({ instanceId: "11111111-1111-4111-8111-111111111111" }),
+      searchParams: Promise.resolve({}),
     });
     render(ui);
 
@@ -192,6 +194,7 @@ describe("PatientTreatmentProgramDetailPage / template description (RSC)", () =>
 
     const ui = await PatientTreatmentProgramDetailPage({
       params: Promise.resolve({ instanceId: "11111111-1111-4111-8111-111111111111" }),
+      searchParams: Promise.resolve({}),
     });
     render(ui);
 

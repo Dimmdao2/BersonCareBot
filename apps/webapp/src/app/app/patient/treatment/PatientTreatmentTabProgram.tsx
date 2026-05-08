@@ -2,6 +2,7 @@
 
 import type { TreatmentProgramInstanceDetail } from "@/modules/treatment-program/types";
 import { patientMutedTextClass, patientInnerPageStackClass } from "@/shared/ui/patientVisual";
+import type { PatientPlanTab } from "@/app/app/patient/treatment/patientPlanTab";
 import { PatientTreatmentProgramStagePageClient } from "@/app/app/patient/treatment/PatientTreatmentProgramStagePageClient";
 
 type Stage = TreatmentProgramInstanceDetail["stages"][number];
@@ -18,6 +19,8 @@ export function PatientTreatmentTabProgram(props: {
     lastDoneAtIsoByItemId: Record<string, string>;
   };
   onRefreshDetail: () => Promise<void>;
+  /** `planTab` в ссылках на пункты (вкладка «Программа»). */
+  itemLinksPlanTab?: PatientPlanTab | null;
 }) {
   const {
     instanceId,
@@ -27,6 +30,7 @@ export function PatientTreatmentTabProgram(props: {
     appDisplayTimeZone,
     embeddedChecklist,
     onRefreshDetail,
+    itemLinksPlanTab = "program",
   } = props;
 
   if (!currentWorkingStage) {
@@ -47,6 +51,7 @@ export function PatientTreatmentTabProgram(props: {
       embedded
       embeddedChecklist={embeddedChecklist}
       onRefreshDetail={onRefreshDetail}
+      itemLinksPlanTab={itemLinksPlanTab ?? null}
     />
   );
 }

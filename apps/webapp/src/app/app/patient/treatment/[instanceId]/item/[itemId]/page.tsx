@@ -17,11 +17,13 @@ import {
   parsePatientProgramItemNavMode,
   resolvePatientProgramItemPage,
 } from "@/app/app/patient/treatment/patientProgramItemPageResolve";
+import { parsePatientPlanTab } from "@/app/app/patient/treatment/patientPlanTab";
 import { PatientProgramStageItemPageClient } from "@/app/app/patient/treatment/PatientProgramStageItemPageClient";
+import type { PatientTestSetPageServerSnapshot } from "@/modules/treatment-program/progress-service";
 
 type Props = {
   params: Promise<{ instanceId: string; itemId: string }>;
-  searchParams: Promise<{ nav?: string | string[] }>;
+  searchParams: Promise<{ nav?: string | string[]; planTab?: string | string[] }>;
 };
 
 export default async function PatientTreatmentProgramItemPage({ params, searchParams }: Props) {
@@ -46,6 +48,7 @@ export default async function PatientTreatmentProgramItemPage({ params, searchPa
   const { instanceId, itemId } = await params;
   const sp = await searchParams;
   const navMode = parsePatientProgramItemNavMode(sp.nav);
+  const itemLinksPlanTab = parsePatientPlanTab(sp.planTab);
 
   const deps = buildAppDeps();
   const appDisplayTimeZone = await getAppDisplayTimeZone();
@@ -72,6 +75,15 @@ export default async function PatientTreatmentProgramItemPage({ params, searchPa
   });
   if (!resolved) notFound();
 
+  let testSetServerSnapshot: PatientTestSetPageServerSnapshot = { variant: "none" };
+  if (resolved.item.itemType === "test_set") {
+    testSetServerSnapshot = await deps.treatmentProgramProgress.getPatientTestSetPageServerSnapshot({
+      patientUserId: session.user.userId,
+      instanceId,
+      stageItemId: itemId,
+    });
+  }
+
   const title = (() => {
     const snap = resolved.item.snapshot as Record<string, unknown>;
     const t = snap.title;
@@ -79,7 +91,7 @@ export default async function PatientTreatmentProgramItemPage({ params, searchPa
     return resolved.item.itemType;
   })();
 
-  const backHref = routePaths.patientTreatmentProgram(instanceId);
+  const backHref = routePaths.patientTreatmentProgram(instanceId, itemLinksPlanTab);
 
   return (
     <AppShell
@@ -97,6 +109,8 @@ export default async function PatientTreatmentProgramItemPage({ params, searchPa
         backHref={backHref}
         initialDetail={detail}
         appDisplayTimeZone={appDisplayTimeZone}
+        testSetServerSnapshot={testSetServerSnapshot}
+        itemLinksPlanTab={itemLinksPlanTab}
       />
     </AppShell>
   );

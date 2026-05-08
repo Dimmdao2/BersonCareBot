@@ -21,10 +21,26 @@ import type {
   TreatmentProgramInstanceStageRow,
   TreatmentProgramInstanceStageStatus,
   TreatmentProgramTestResultDetailRow,
+  TreatmentProgramTestResultRow,
 } from "./types";
 import { testIdsFromTestSetSnapshot } from "./testSetSnapshotView";
 
 export { testIdsFromTestSetSnapshot };
+
+/** RSC: начальное состояние формы набора тестов без клиентских fetch. */
+export type PatientTestSetPageServerSnapshot =
+  | { variant: "none" }
+  | { variant: "open_attempt"; attemptId: string | null; results: TreatmentProgramTestResultRow[] }
+  | { variant: "completed"; latestByTest: TreatmentProgramTestResultDetailRow[] };
+
+function latestDetailResultsByTestId(rows: TreatmentProgramTestResultDetailRow[]): TreatmentProgramTestResultDetailRow[] {
+  const sorted = [...rows].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  const m = new Map<string, TreatmentProgramTestResultDetailRow>();
+  for (const r of sorted) {
+    m.set(r.testId, r);
+  }
+  return [...m.values()];
+}
 
 function scoringConfigForTestInSnapshot(
   snapshot: Record<string, unknown>,
@@ -438,6 +454,38 @@ export function createTreatmentProgramProgressService(deps: {
     async listPendingTestEvaluationsForPatient(patientUserId: string): Promise<PendingProgramTestEvaluationRow[]> {
       assertUuid(patientUserId);
       return tests.listPendingEvaluationResultsForPatient(patientUserId);
+    },
+
+    async getPatientTestSetPageServerSnapshot(input: {
+      patientUserId: string;
+      instanceId: string;
+      stageItemId: string;
+    }): Promise<PatientTestSetPageServerSnapshot> {
+      assertUuid(input.patientUserId);
+      assertUuid(input.instanceId);
+      assertUuid(input.stageItemId);
+      const detail = await instances.getInstanceForPatient(input.patientUserId, input.instanceId);
+      if (!detail) return { variant: "none" };
+      let item: ReturnType<typeof resolveItemAndStage>["item"];
+      try {
+        item = resolveItemAndStage(detail, input.stageItemId).item;
+      } catch {
+        return { variant: "none" };
+      }
+      if (item.itemType !== "test_set") return { variant: "none" };
+
+      if (item.completedAt) {
+        const all = await tests.listResultDetailsForInstance(input.instanceId);
+        const forItem = all.filter((r) => r.instanceStageItemId === input.stageItemId);
+        return { variant: "completed", latestByTest: latestDetailResultsByTestId(forItem) };
+      }
+
+      const attempt = await tests.findOpenAttempt(input.stageItemId, input.patientUserId);
+      if (!attempt) {
+        return { variant: "open_attempt", attemptId: null, results: [] };
+      }
+      const results = await tests.listResultsForAttempt(attempt.id);
+      return { variant: "open_attempt", attemptId: attempt.id, results };
     },
   };
 }

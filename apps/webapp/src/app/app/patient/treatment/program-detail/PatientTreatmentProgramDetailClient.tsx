@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense, type ReactNode } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,7 +17,6 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   patientLfkDifficultySelectItems,
-  patientTestQualDecisionSelectItems,
 } from "@/shared/ui/selectOpaqueValueLabels";
 import {
   CheckCircle2,
@@ -30,14 +29,12 @@ import {
   Info,
 } from "lucide-react";
 import type {
-  NormalizedTestDecision,
   TreatmentProgramInstanceDetail,
   TreatmentProgramEventRow,
   TreatmentProgramTestResultDetailRow,
 } from "@/modules/treatment-program/types";
 import {
   effectiveInstanceStageItemComment,
-  formatNormalizedTestDecisionRu,
   formatTreatmentProgramEventTypeRu,
   formatTreatmentProgramStageStatusRu,
 } from "@/modules/treatment-program/types";
@@ -59,14 +56,12 @@ import {
   expectedStageControlDeadlineIsoForPatientUi,
 } from "@/modules/treatment-program/stage-semantics";
 import { listLfkSnapshotExerciseLines } from "@/modules/treatment-program/programActionActivityKey";
-import { testIdsFromTestSetSnapshot } from "@/modules/treatment-program/testSetSnapshotView";
-import { scoringAllowsNumericDecisionInference } from "@/modules/treatment-program/progress-scoring";
-import { parseTestSetSnapshotTests } from "@/modules/treatment-program/testSetSnapshotView";
 import { type PatientProgramChecklistRow } from "@/modules/treatment-program/patient-program-actions";
 import {
   normalizeChecklistCountMap,
   normalizeChecklistLastMap,
 } from "@/app/app/patient/treatment/normalizeTreatmentProgramChecklistMaps";
+import { PatientTestSetProgressForm } from "@/app/app/patient/treatment/PatientTestSetProgressForm";
 import {
   pickRecommendationRowPreviewMedia,
   parseRecommendationMediaFromSnapshot,
@@ -74,6 +69,7 @@ import {
 } from "@/app/app/patient/treatment/stageItemSnapshot";
 import { PatientCatalogMediaStaticThumb } from "@/shared/ui/patient/PatientCatalogMediaStaticThumb";
 import { routePaths } from "@/app-layer/routes/paths";
+import { parsePatientPlanTab, type PatientPlanTab } from "@/app/app/patient/treatment/patientPlanTab";
 import { patientHomeCardHeroClass } from "@/app/app/patient/home/patientHomeCardStyles";
 import { cn } from "@/lib/utils";
 import {
@@ -717,10 +713,12 @@ function PatientInstanceStageItemCard(props: {
       {!contentBlocked && !readOnly ? (
         item.itemType === "test_set" ? (
           <div className="mt-2" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
-            <TestSetBlock
+            <PatientTestSetProgressForm
+              instanceId={instanceId}
               itemId={item.id}
-              snapshot={item.snapshot}
+              snapshot={item.snapshot as Record<string, unknown>}
               completed={Boolean(item.completedAt)}
+              interactionDisabled={false}
               baseUrl={base}
               busy={busy}
               setBusy={setBusy}
@@ -809,6 +807,8 @@ export function PatientInstanceStageBody(props: {
   itemInteraction?: "full" | "readOnly";
   /** Не показывать «Описание этапа» и текст описания этапа (этап 0 / рекомендации). */
   hideStageDescription?: boolean;
+  /** Вкладка плана для `planTab` в ссылках на пункт (`/item/...`). */
+  itemLinksPlanTab?: PatientPlanTab | null;
 }) {
   const {
     instanceId,
@@ -827,6 +827,7 @@ export function PatientInstanceStageBody(props: {
     stackVariant = "default",
     itemInteraction = "full",
     hideStageDescription = false,
+    itemLinksPlanTab = null,
   } = props;
   const likeStages = stackVariant === "likeStagesTimeline";
   const contentBlocked =
@@ -900,7 +901,12 @@ export function PatientInstanceStageBody(props: {
                     onDoneItemIds={onDoneItemIds}
                     todayChecklistDoneCount={todayCountByStageItemId?.[item.id]}
                     neutralItemChrome={likeStages}
-                    itemDetailHref={routePaths.patientTreatmentProgramItem(instanceId, item.id)}
+                    itemDetailHref={routePaths.patientTreatmentProgramItem(
+                      instanceId,
+                      item.id,
+                      undefined,
+                      itemLinksPlanTab ?? null,
+                    )}
                   />
                 ))}
               </ul>
@@ -931,7 +937,12 @@ export function PatientInstanceStageBody(props: {
                   onDoneItemIds={onDoneItemIds}
                   todayChecklistDoneCount={todayCountByStageItemId?.[item.id]}
                   neutralItemChrome={likeStages}
-                  itemDetailHref={routePaths.patientTreatmentProgramItem(instanceId, item.id)}
+                  itemDetailHref={routePaths.patientTreatmentProgramItem(
+                    instanceId,
+                    item.id,
+                    undefined,
+                    itemLinksPlanTab ?? null,
+                  )}
                 />
               ))}
             </ul>
@@ -1044,10 +1055,12 @@ function PatientProgramControlCard(props: {
   fallbackMessage: string;
   instanceId: string;
   currentStageId: string | null;
-  /** Вместо перехода на страницу этапа — переключить вкладку «Программа». */
+  /** Прямая ссылка на прохождение тестов текущего этапа (пункт `test_set`). */
+  testsHref?: string | null;
+  /** Если `testsHref` нет — переключить вкладку «Программа». */
   onProgramTests?: () => void;
 }) {
-  const { dateLine, remainderDays, fallbackMessage, instanceId, currentStageId, onProgramTests } = props;
+  const { dateLine, remainderDays, fallbackMessage, instanceId, currentStageId, testsHref, onProgramTests } = props;
   return (
     <section className={patientSurfaceWarningClass} aria-label="Следующий контроль">
       <div className="flex min-w-0 flex-row items-start justify-between gap-3">
@@ -1080,7 +1093,17 @@ function PatientProgramControlCard(props: {
         </div>
         <div className="flex shrink-0 flex-col items-end gap-1.5">
           {currentStageId ? (
-            onProgramTests ? (
+            testsHref ? (
+              <Link
+                href={testsHref}
+                className={cn(
+                  patientButtonWarningOutlineClass,
+                  "inline-flex w-auto min-h-8 shrink-0 items-center justify-center px-2.5 py-1.5 text-xs font-semibold leading-tight no-underline sm:min-h-8",
+                )}
+              >
+                Выполнить тесты
+              </Link>
+            ) : onProgramTests ? (
               <button
                 type="button"
                 onClick={onProgramTests}
@@ -1116,15 +1139,36 @@ export function PatientTreatmentProgramDetailClient(props: {
   programDescription?: string | null;
   /** IANA для календарных суток пациента. */
   patientCalendarDayIana: string;
+  /** Вкладка из `?tab=` (серверный первый рендер). */
+  initialPlanTab?: PatientPlanTab;
 }) {
   const {
     appDisplayTimeZone,
     programDescription = null,
     initialProgramEvents = [],
     patientCalendarDayIana,
+    initialPlanTab = "program",
   } = props;
-  const [activeTab, setActiveTab] = useState<"program" | "recommendations" | "progress">("program");
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [activeTab, setActiveTab] = useState<PatientPlanTab>(() => initialPlanTab);
   const [detail, setDetail] = useState(props.initial);
+
+  const planTabQs = searchParams.get("tab");
+  useEffect(() => {
+    if (detail.status !== "active") return;
+    /** Без `?tab=` канонически «Программа»; не подставлять `initialPlanTab` — после replace он устаревает. */
+    const next =
+      planTabQs != null && planTabQs !== "" ? parsePatientPlanTab(planTabQs) : "program";
+    setActiveTab(next);
+  }, [planTabQs, detail.status, detail.id]);
+
+  const replacePlanTabInUrl = useCallback(
+    (tab: PatientPlanTab) => {
+      router.replace(routePaths.patientTreatmentProgram(detail.id, tab));
+    },
+    [router, detail.id],
+  );
 
   useEffect(() => {
     void import("@/app/app/patient/treatment/PatientTreatmentTabProgram");
@@ -1267,6 +1311,19 @@ export function PatientTreatmentProgramDetailClient(props: {
     return pending ?? ordered[0] ?? null;
   }, [programTabStage, doneItemIds, detail.status]);
 
+  /** Вкладка «Прогресс» → страница пункта `test_set` (без `nav=program`: состав этапа без test_set). */
+  const progressCardTestsHref = useMemo(() => {
+    if (!currentWorkingStage || detail.status !== "active") return null;
+    const tests = sortByOrderThenId(
+      currentWorkingStage.items.filter(
+        (it) => it.itemType === "test_set" && isInstanceStageItemActiveForPatient(it),
+      ),
+    );
+    if (tests.length === 0) return null;
+    const pick = tests.find((it) => !it.completedAt) ?? tests[0];
+    return routePaths.patientTreatmentProgramItem(detail.id, pick.id, undefined, "progress");
+  }, [currentWorkingStage, detail.status, detail.id]);
+
   const recommendationListCount = useMemo(() => {
     let n = 0;
     if (currentWorkingStage) {
@@ -1387,7 +1444,12 @@ export function PatientTreatmentProgramDetailClient(props: {
           ) : null}
           {programTabStage && firstPendingProgramItemId ? (
             <Link
-              href={routePaths.patientTreatmentProgramItem(detail.id, firstPendingProgramItemId, "program")}
+              href={routePaths.patientTreatmentProgramItem(
+                detail.id,
+                firstPendingProgramItemId,
+                "program",
+                "program",
+              )}
               className={cn(
                 patientHeroPrimaryActionClass,
                 "mt-5 mb-3 flex min-h-11 w-full items-center justify-center gap-2 px-4 py-2 text-sm shadow-[0_6px_14px_rgba(40,77,160,0.24)] no-underline lg:mt-6 lg:mb-4 lg:min-h-12 lg:text-base",
@@ -1417,7 +1479,10 @@ export function PatientTreatmentProgramDetailClient(props: {
               activeTab === "program" ? "bg-[#e4e2ff]" : "bg-[#f8f3fd]",
               "focus-visible:ring-2 focus-visible:ring-[var(--patient-color-primary)] focus-visible:ring-offset-0",
             )}
-            onClick={() => setActiveTab("program")}
+            onClick={() => {
+              setActiveTab("program");
+              replacePlanTabInUrl("program");
+            }}
           >
             <span
               className={cn(
@@ -1447,7 +1512,10 @@ export function PatientTreatmentProgramDetailClient(props: {
               activeTab === "recommendations" ? "bg-[#e4e2ff]" : "bg-[#f8f3fd]",
               "focus-visible:ring-2 focus-visible:ring-[var(--patient-color-primary)] focus-visible:ring-offset-0",
             )}
-            onClick={() => setActiveTab("recommendations")}
+            onClick={() => {
+              setActiveTab("recommendations");
+              replacePlanTabInUrl("recommendations");
+            }}
           >
             <span
               className={cn(
@@ -1477,7 +1545,10 @@ export function PatientTreatmentProgramDetailClient(props: {
               activeTab === "progress" ? "bg-[#e4e2ff]" : "bg-[#f8f3fd]",
               "focus-visible:ring-2 focus-visible:ring-[var(--patient-color-primary)] focus-visible:ring-offset-0",
             )}
-            onClick={() => setActiveTab("progress")}
+            onClick={() => {
+              setActiveTab("progress");
+              replacePlanTabInUrl("progress");
+            }}
           >
             <span
               className={cn(
@@ -1513,6 +1584,7 @@ export function PatientTreatmentProgramDetailClient(props: {
               lastDoneAtIsoByItemId,
             }}
             onRefreshDetail={refresh}
+            itemLinksPlanTab="program"
           />
         </Suspense>
       </div>
@@ -1523,6 +1595,7 @@ export function PatientTreatmentProgramDetailClient(props: {
             instanceId={detail.id}
             currentWorkingStage={currentWorkingStage}
             stageZeroStages={stageZeroStages}
+            itemLinksPlanTab="recommendations"
           />
         </Suspense>
       </div>
@@ -1545,7 +1618,11 @@ export function PatientTreatmentProgramDetailClient(props: {
               fallbackMessage={controlFallbackMessage}
               instanceId={detail.id}
               currentStageId={currentWorkingStage.id}
-              onProgramTests={() => setActiveTab("program")}
+              testsHref={progressCardTestsHref}
+              onProgramTests={() => {
+                setActiveTab("program");
+                replacePlanTabInUrl("program");
+              }}
             />
           ) : null}
           <PatientProgramPassageStatisticsSection
@@ -1558,192 +1635,6 @@ export function PatientTreatmentProgramDetailClient(props: {
         </div>
       </div>
 
-    </div>
-  );
-}
-
-function TestSetBlock(props: {
-  itemId: string;
-  snapshot: Record<string, unknown>;
-  completed: boolean;
-  baseUrl: string;
-  busy: string | null;
-  setBusy: (v: string | null) => void;
-  setError: (v: string | null) => void;
-  onDone: () => Promise<void>;
-}) {
-  const { itemId, snapshot, completed, baseUrl, busy, setBusy, setError, onDone } = props;
-  const testIds = useMemo(() => testIdsFromTestSetSnapshot(snapshot), [snapshot]);
-  const testsMeta = useMemo(() => parseTestSetSnapshotTests(snapshot), [snapshot]);
-
-  const [scores, setScores] = useState<Record<string, string>>({});
-  const [qualDecisions, setQualDecisions] = useState<Record<string, NormalizedTestDecision | "">>({});
-  const [qualNotes, setQualNotes] = useState<Record<string, string>>({});
-
-  const ensureAttempt = useCallback(async () => {
-    const res = await fetch(`${baseUrl}/${encodeURIComponent(itemId)}/progress/test-attempt`, {
-      method: "POST",
-    });
-    const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
-    if (!res.ok || !data.ok) {
-      setError(data.error ?? "Не удалось начать попытку");
-      return false;
-    }
-    return true;
-  }, [baseUrl, itemId, setError]);
-
-  if (completed) {
-    return <p className="mt-2 text-xs text-emerald-600 dark:text-emerald-400">Набор тестов пройден.</p>;
-  }
-
-  return (
-    <div className="mt-3 flex flex-col gap-3">
-      <p className={cn(patientMutedTextClass, "text-xs")}>
-        Если у теста в программе заданы числовые пороги — введите балл (score), итог подставится автоматически. Для
-        качественной оценки и прочих случаев без порогов выберите итог (зачтено / не зачтено / частично); при
-        необходимости добавьте текст в поле комментария.
-      </p>
-      {testsMeta.length === 0 ? (
-        <p className="text-xs text-destructive">В снимке нет списка тестов.</p>
-      ) : (
-        testsMeta.map((t) => {
-          const autoFromScore = scoringAllowsNumericDecisionInference(t.scoringConfig);
-          return (
-            <div
-              key={t.testId}
-              className="flex flex-col gap-1 rounded-lg border border-[var(--patient-border)]/60 bg-[var(--patient-card-bg)] px-2 py-1.5"
-            >
-              <span className="text-xs font-medium">{t.title ?? t.testId}</span>
-              {t.comment ? (
-                <p className={cn(patientMutedTextClass, "mt-0.5 text-[11px]")}>
-                  Комментарий к позиции: <span className="text-foreground">{t.comment}</span>
-                </p>
-              ) : null}
-              {autoFromScore ? (
-                <div className="flex flex-wrap items-center gap-2">
-                  <Input
-                    type="number"
-                    className="h-8 max-w-[120px] text-sm"
-                    placeholder="score"
-                    value={scores[t.testId] ?? ""}
-                    onChange={(e) => setScores((s) => ({ ...s, [t.testId]: e.target.value }))}
-                    disabled={busy !== null}
-                  />
-                  <button
-                    type="button"
-                    className={cn(patientCompactActionClass, "h-8 w-auto text-sm")}
-                    disabled={busy !== null}
-                    onClick={async () => {
-                      setBusy(itemId + t.testId);
-                      setError(null);
-                      try {
-                        if (!(await ensureAttempt())) return;
-                        const raw = scores[t.testId]?.trim();
-                        const num = raw === "" || raw === undefined ? NaN : Number(raw);
-                        const body: Record<string, unknown> = {
-                          testId: t.testId,
-                          rawValue: Number.isFinite(num) ? { score: num } : { value: raw ?? "" },
-                        };
-                        if (!Number.isFinite(num)) {
-                          body.normalizedDecision = "partial";
-                        }
-                        const res = await fetch(`${baseUrl}/${encodeURIComponent(itemId)}/progress/test-result`, {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify(body),
-                        });
-                        const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
-                        if (!res.ok || !data.ok) {
-                          setError(data.error ?? "Ошибка сохранения");
-                          return;
-                        }
-                        await onDone();
-                      } finally {
-                        setBusy(null);
-                      }
-                    }}
-                  >
-                    Сохранить
-                  </button>
-                </div>
-              ) : (
-                <div className="mt-1 flex flex-col gap-2">
-                  <div className="flex flex-col gap-1">
-                    <Label className={cn(patientMutedTextClass, "text-[11px]")}>Итог</Label>
-                    <Select
-                      value={qualDecisions[t.testId] || undefined}
-                      onValueChange={(v) =>
-                        setQualDecisions((s) => ({ ...s, [t.testId]: v as NormalizedTestDecision }))
-                      }
-                      disabled={busy !== null}
-                      items={patientTestQualDecisionSelectItems}
-                    >
-                      <SelectTrigger className="h-9 max-w-[280px] text-sm">
-                        <SelectValue placeholder="Выберите итог" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="passed">{formatNormalizedTestDecisionRu("passed")}</SelectItem>
-                        <SelectItem value="failed">{formatNormalizedTestDecisionRu("failed")}</SelectItem>
-                        <SelectItem value="partial">{formatNormalizedTestDecisionRu("partial")}</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <Label className={cn(patientMutedTextClass, "text-[11px]")}>Комментарий (необязательно)</Label>
-                    <Textarea
-                      className={cn(patientFormSurfaceClass, "min-h-[72px] text-sm")}
-                      value={qualNotes[t.testId] ?? ""}
-                      onChange={(e) => setQualNotes((s) => ({ ...s, [t.testId]: e.target.value }))}
-                      disabled={busy !== null}
-                      rows={3}
-                    />
-                  </div>
-                  <button
-                    type="button"
-                    className={cn(patientCompactActionClass, "h-8 w-auto text-sm")}
-                    disabled={busy !== null}
-                    onClick={async () => {
-                      setBusy(itemId + t.testId);
-                      setError(null);
-                      try {
-                        if (!(await ensureAttempt())) return;
-                        const d = qualDecisions[t.testId];
-                        if (d !== "passed" && d !== "failed" && d !== "partial") {
-                          setError("Выберите итог: зачтено, не зачтено или частично.");
-                          return;
-                        }
-                        const note = qualNotes[t.testId]?.trim() ?? "";
-                        const res = await fetch(`${baseUrl}/${encodeURIComponent(itemId)}/progress/test-result`, {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({
-                            testId: t.testId,
-                            rawValue: note ? { note } : {},
-                            normalizedDecision: d,
-                          }),
-                        });
-                        const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
-                        if (!res.ok || !data.ok) {
-                          setError(data.error ?? "Ошибка сохранения");
-                          return;
-                        }
-                        await onDone();
-                      } finally {
-                        setBusy(null);
-                      }
-                    }}
-                  >
-                    Сохранить
-                  </button>
-                </div>
-              )}
-            </div>
-          );
-        })
-      )}
-      {testIds.length > 0 ? (
-        <p className={cn(patientMutedTextClass, "text-[11px]")}>Тестов в наборе: {testIds.length}</p>
-      ) : null}
     </div>
   );
 }

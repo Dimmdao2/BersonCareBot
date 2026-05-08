@@ -3,6 +3,7 @@ import {
   LOGIN_CONTACT_SUPPORT_PATH,
 } from "@/modules/system-settings/supportContactConstants";
 import { patientWarmupsSectionHref } from "@/modules/patient-home/warmupsSection";
+import type { PatientPlanTab } from "@/app/app/patient/treatment/patientPlanTab";
 
 export const routePaths = {
   root: "/app",
@@ -59,13 +60,24 @@ export const routePaths = {
   patientCourses: "/app/patient/courses",
   /** Программы лечения (назначенные экземпляры). */
   patientTreatmentPrograms: "/app/patient/treatment",
-  patientTreatmentProgram: (instanceId: string) =>
-    `/app/patient/treatment/${encodeURIComponent(instanceId)}`,
-  /** Детальный просмотр пункта программы (не модалка). `nav` — см. `parsePatientProgramItemNavMode`. */
-  patientTreatmentProgramItem: (instanceId: string, itemId: string, nav?: string) => {
+  /** `planTab` — вкладка плана при возврате (`?tab=`). Для `program` query не добавляется. */
+  patientTreatmentProgram: (instanceId: string, planTab?: PatientPlanTab | null) => {
+    const base = `/app/patient/treatment/${encodeURIComponent(instanceId)}`;
+    if (!planTab || planTab === "program") return base;
+    return `${base}?tab=${encodeURIComponent(planTab)}`;
+  },
+  /**
+   * Детальный просмотр пункта программы (не модалка).
+   * `nav` — см. `parsePatientProgramItemNavMode`.
+   * `planTab` — вкладка плана для ссылки «Назад» (`planTab` в query).
+   */
+  patientTreatmentProgramItem: (instanceId: string, itemId: string, nav?: string, planTab?: PatientPlanTab | null) => {
     const base = `/app/patient/treatment/${encodeURIComponent(instanceId)}/item/${encodeURIComponent(itemId)}`;
-    if (nav && nav !== "default") return `${base}?nav=${encodeURIComponent(nav)}`;
-    return base;
+    const sp = new URLSearchParams();
+    if (nav && nav !== "default") sp.set("nav", nav);
+    if (planTab && planTab !== "program") sp.set("planTab", planTab);
+    const q = sp.toString();
+    return q ? `${base}?${q}` : base;
   },
   /** @internal Редирект со старых закладок; не использовать в новом UI. */
   patientTreatmentProgramStage: (instanceId: string, stageId: string) =>

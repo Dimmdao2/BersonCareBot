@@ -9,6 +9,7 @@ import {
   isPersistentRecommendation,
 } from "@/modules/treatment-program/stage-semantics";
 import { routePaths } from "@/app-layer/routes/paths";
+import type { PatientPlanTab } from "@/app/app/patient/treatment/patientPlanTab";
 import {
   parseRecommendationMediaFromSnapshot,
   pickRecommendationRowPreviewMedia,
@@ -37,8 +38,9 @@ export function PatientTreatmentTabRecommendations(props: {
   instanceId: string;
   currentWorkingStage: Stage | null;
   stageZeroStages: Stage[];
+  itemLinksPlanTab?: PatientPlanTab | null;
 }) {
-  const { instanceId, currentWorkingStage, stageZeroStages } = props;
+  const { instanceId, currentWorkingStage, stageZeroStages, itemLinksPlanTab = "recommendations" } = props;
 
   const stagePersistent = useMemo(
     () =>
@@ -62,7 +64,7 @@ export function PatientTreatmentTabRecommendations(props: {
     const snap = item.snapshot as Record<string, unknown>;
     const media = pickRecommendationRowPreviewMedia(parseRecommendationMediaFromSnapshot(snap));
     const bodyPreview = recommendationBodyMdPreviewPlain(snap.bodyMd);
-    const href = routePaths.patientTreatmentProgramItem(instanceId, item.id, nav);
+    const href = routePaths.patientTreatmentProgramItem(instanceId, item.id, nav, itemLinksPlanTab ?? null);
     return (
       <li key={item.id} className="list-none">
         <Link

@@ -2,6 +2,7 @@
  * Прохождение программы лечения (`/app/patient/treatment/[instanceId]`).
  */
 import { notFound } from "next/navigation";
+import { Suspense } from "react";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import type { TreatmentProgramInstanceDetail } from "@/modules/treatment-program/types";
 import { getOptionalPatientSession, patientRscPersonalDataGate } from "@/app-layer/guards/requireRole";
@@ -12,10 +13,11 @@ import { omitDisabledInstanceStageItemsForPatientApi } from "@/modules/treatment
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
 import { resolveCalendarDayIanaForPatient } from "@/modules/system-settings/calendarIana";
 import { PatientTreatmentProgramDetailClient } from "../PatientTreatmentProgramDetailClient";
+import { parsePatientPlanTab } from "@/app/app/patient/treatment/patientPlanTab";
 
-type Props = { params: Promise<{ instanceId: string }> };
+type Props = { params: Promise<{ instanceId: string }>; searchParams: Promise<{ tab?: string | string[] }> };
 
-export default async function PatientTreatmentProgramDetailPage({ params }: Props) {
+export default async function PatientTreatmentProgramDetailPage({ params, searchParams }: Props) {
   const session = await getOptionalPatientSession();
   if (!session) {
     return (
@@ -35,6 +37,8 @@ export default async function PatientTreatmentProgramDetailPage({ params }: Prop
   }
 
   const { instanceId } = await params;
+  const sp = await searchParams;
+  const initialPlanTab = parsePatientPlanTab(sp.tab);
   const deps = buildAppDeps();
   const appTz = await getAppDisplayTimeZone();
   let detail: TreatmentProgramInstanceDetail;
@@ -75,14 +79,17 @@ export default async function PatientTreatmentProgramDetailPage({ params }: Prop
       variant="patient"
       patientSuppressShellTitle
     >
-      <PatientTreatmentProgramDetailClient
-        initial={detail}
-        initialTestResults={initialTestResults}
-        initialProgramEvents={initialProgramEvents}
-        appDisplayTimeZone={appTz}
-        programDescription={programDescription}
-        patientCalendarDayIana={resolvedIana}
-      />
+      <Suspense fallback={<p className={patientMutedTextClass}>Загрузка…</p>}>
+        <PatientTreatmentProgramDetailClient
+          initial={detail}
+          initialTestResults={initialTestResults}
+          initialProgramEvents={initialProgramEvents}
+          appDisplayTimeZone={appTz}
+          programDescription={programDescription}
+          patientCalendarDayIana={resolvedIana}
+          initialPlanTab={initialPlanTab}
+        />
+      </Suspense>
     </AppShell>
   );
 }

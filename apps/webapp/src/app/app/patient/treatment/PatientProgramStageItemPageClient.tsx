@@ -15,21 +15,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  patientLfkDifficultySelectItems,
-  patientTestQualDecisionSelectItems,
-} from "@/shared/ui/selectOpaqueValueLabels";
-import { ArrowLeft, Check, ChevronLeft, ChevronRight, ClipboardList } from "lucide-react";
+import { patientLfkDifficultySelectItems } from "@/shared/ui/selectOpaqueValueLabels";
+import { ArrowLeft, Check, ChevronLeft, ChevronRight } from "lucide-react";
 import type { RecommendationMediaItem } from "@/modules/recommendations/types";
-import type {
-  NormalizedTestDecision,
-  TreatmentProgramInstanceDetail,
-} from "@/modules/treatment-program/types";
-import { formatNormalizedTestDecisionRu } from "@/modules/treatment-program/types";
+import type { TreatmentProgramInstanceDetail } from "@/modules/treatment-program/types";
 import { listLfkSnapshotExerciseLines } from "@/modules/treatment-program/programActionActivityKey";
 import { parseTestSetSnapshotTests } from "@/modules/treatment-program/testSetSnapshotView";
-import { testIdsFromTestSetSnapshot } from "@/modules/treatment-program/testSetSnapshotView";
-import { scoringAllowsNumericDecisionInference } from "@/modules/treatment-program/progress-scoring";
 import {
   isPersistentRecommendation,
   formatRelativePatientCalendarDayRu,
@@ -38,6 +29,7 @@ import {
 } from "@/modules/treatment-program/stage-semantics";
 import { routePaths } from "@/app-layer/routes/paths";
 import type { PatientProgramItemNavMode } from "@/app/app/patient/treatment/patientProgramItemPageResolve";
+import type { PatientPlanTab } from "@/app/app/patient/treatment/patientPlanTab";
 import { resolvePatientProgramItemPage } from "@/app/app/patient/treatment/patientProgramItemPageResolve";
 import { MarkdownContent } from "@/shared/ui/markdown/MarkdownContent";
 import { PatientMediaPlaybackVideo } from "@/shared/ui/media/PatientMediaPlaybackVideo";
@@ -70,6 +62,8 @@ import {
   normalizeChecklistLastMap,
 } from "@/app/app/patient/treatment/normalizeTreatmentProgramChecklistMaps";
 import { PatientStageCompositionList } from "@/app/app/patient/treatment/PatientStageCompositionList";
+import { PatientTestSetProgressForm } from "@/app/app/patient/treatment/PatientTestSetProgressForm";
+import type { PatientTestSetPageServerSnapshot } from "@/modules/treatment-program/progress-service";
 
 const EMPTY_ORDERED_ITEM_IDS: string[] = [];
 
@@ -80,6 +74,10 @@ export type PatientProgramStageItemPageClientProps = {
   backHref: string;
   initialDetail: TreatmentProgramInstanceDetail;
   appDisplayTimeZone: string;
+  /** RSC: начальные данные тест-набора без лишнего round-trip. */
+  testSetServerSnapshot?: PatientTestSetPageServerSnapshot | null;
+  /** Вкладка плана для prev/next и `planTab` в URL пункта. */
+  itemLinksPlanTab?: PatientPlanTab | null;
 };
 
 type StageItem = TreatmentProgramInstanceDetail["stages"][number]["items"][number];
@@ -277,193 +275,8 @@ function ModalDescriptionSection(props: { item: StageItem }) {
   );
 }
 
-function ModalTestSetInline(props: {
-  itemId: string;
-  snapshot: Record<string, unknown>;
-  completed: boolean;
-  baseUrl: string;
-  busy: string | null;
-  setBusy: (v: string | null) => void;
-  setError: (v: string | null) => void;
-  onDone: () => Promise<void>;
-}) {
-  const { itemId, snapshot, completed, baseUrl, busy, setBusy, setError, onDone } = props;
-  const testIds = useMemo(() => testIdsFromTestSetSnapshot(snapshot), [snapshot]);
-  const testsMeta = useMemo(() => parseTestSetSnapshotTests(snapshot), [snapshot]);
-
-  const [scores, setScores] = useState<Record<string, string>>({});
-  const [qualDecisions, setQualDecisions] = useState<Record<string, NormalizedTestDecision | "">>({});
-  const [qualNotes, setQualNotes] = useState<Record<string, string>>({});
-
-  const ensureAttempt = useCallback(async () => {
-    const res = await fetch(`${baseUrl}/${encodeURIComponent(itemId)}/progress/test-attempt`, {
-      method: "POST",
-    });
-    const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
-    if (!res.ok || !data.ok) {
-      setError(data.error ?? "Не удалось начать попытку");
-      return false;
-    }
-    return true;
-  }, [baseUrl, itemId, setError]);
-
-  if (completed) {
-    return <p className="text-xs text-emerald-600 dark:text-emerald-400">Набор тестов пройден.</p>;
-  }
-
-  return (
-    <div
-      className="mt-3 flex flex-col gap-3"
-      onClick={(e) => e.stopPropagation()}
-      onKeyDown={(e) => e.stopPropagation()}
-    >
-      {testsMeta.length === 0 ? (
-        <p className="text-xs text-destructive">В снимке нет списка тестов.</p>
-      ) : (
-        testsMeta.map((t) => {
-          const autoFromScore = scoringAllowsNumericDecisionInference(t.scoringConfig);
-          return (
-            <div
-              key={t.testId}
-              className="flex flex-col gap-1 rounded-lg border border-[var(--patient-border)]/60 bg-[var(--patient-card-bg)] px-2 py-1.5"
-            >
-              <span className="text-xs font-medium">{t.title ?? t.testId}</span>
-              {t.comment ? (
-                <p className={cn(patientMutedTextClass, "mt-0.5 text-[11px]")}>
-                  Комментарий к позиции: <span className="text-foreground">{t.comment}</span>
-                </p>
-              ) : null}
-              {autoFromScore ? (
-                <div className="flex flex-wrap items-center gap-2">
-                  <Input
-                    type="number"
-                    className="h-8 max-w-[120px] text-sm"
-                    placeholder="score"
-                    value={scores[t.testId] ?? ""}
-                    onChange={(e) => setScores((s) => ({ ...s, [t.testId]: e.target.value }))}
-                    disabled={busy !== null}
-                  />
-                  <button
-                    type="button"
-                    className={cn(patientCompactActionClass, "h-8 w-auto text-sm")}
-                    disabled={busy !== null}
-                    onClick={async () => {
-                      setBusy(itemId + t.testId);
-                      setError(null);
-                      try {
-                        if (!(await ensureAttempt())) return;
-                        const raw = scores[t.testId]?.trim();
-                        const num = raw === "" || raw === undefined ? NaN : Number(raw);
-                        const body: Record<string, unknown> = {
-                          testId: t.testId,
-                          rawValue: Number.isFinite(num) ? { score: num } : { value: raw ?? "" },
-                        };
-                        if (!Number.isFinite(num)) {
-                          body.normalizedDecision = "partial";
-                        }
-                        const res = await fetch(`${baseUrl}/${encodeURIComponent(itemId)}/progress/test-result`, {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify(body),
-                        });
-                        const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
-                        if (!res.ok || !data.ok) {
-                          setError(data.error ?? "Ошибка сохранения");
-                          return;
-                        }
-                        await onDone();
-                      } finally {
-                        setBusy(null);
-                      }
-                    }}
-                  >
-                    Сохранить
-                  </button>
-                </div>
-              ) : (
-                <div className="mt-1 flex flex-col gap-2">
-                  <div className="flex flex-col gap-1">
-                    <Label className={cn(patientMutedTextClass, "text-[11px]")}>Итог</Label>
-                    <Select
-                      value={qualDecisions[t.testId] || undefined}
-                      onValueChange={(v) =>
-                        setQualDecisions((s) => ({ ...s, [t.testId]: v as NormalizedTestDecision }))
-                      }
-                      disabled={busy !== null}
-                      items={patientTestQualDecisionSelectItems}
-                    >
-                      <SelectTrigger className="h-9 max-w-[280px] text-sm">
-                        <SelectValue placeholder="Выберите итог" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="passed">{formatNormalizedTestDecisionRu("passed")}</SelectItem>
-                        <SelectItem value="failed">{formatNormalizedTestDecisionRu("failed")}</SelectItem>
-                        <SelectItem value="partial">{formatNormalizedTestDecisionRu("partial")}</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <Label className={cn(patientMutedTextClass, "text-[11px]")}>Комментарий (необязательно)</Label>
-                    <Textarea
-                      className={cn(patientFormSurfaceClass, "min-h-[72px] text-sm")}
-                      value={qualNotes[t.testId] ?? ""}
-                      onChange={(e) => setQualNotes((s) => ({ ...s, [t.testId]: e.target.value }))}
-                      disabled={busy !== null}
-                      rows={3}
-                    />
-                  </div>
-                  <button
-                    type="button"
-                    className={cn(patientCompactActionClass, "h-8 w-auto text-sm")}
-                    disabled={busy !== null}
-                    onClick={async () => {
-                      setBusy(itemId + t.testId);
-                      setError(null);
-                      try {
-                        if (!(await ensureAttempt())) return;
-                        const d = qualDecisions[t.testId];
-                        if (d !== "passed" && d !== "failed" && d !== "partial") {
-                          setError("Выберите итог: зачтено, не зачтено или частично.");
-                          return;
-                        }
-                        const note = qualNotes[t.testId]?.trim() ?? "";
-                        const res = await fetch(`${baseUrl}/${encodeURIComponent(itemId)}/progress/test-result`, {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({
-                            testId: t.testId,
-                            rawValue: note ? { note } : {},
-                            normalizedDecision: d,
-                          }),
-                        });
-                        const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
-                        if (!res.ok || !data.ok) {
-                          setError(data.error ?? "Ошибка сохранения");
-                          return;
-                        }
-                        await onDone();
-                      } finally {
-                        setBusy(null);
-                      }
-                    }}
-                  >
-                    Сохранить
-                  </button>
-                </div>
-              )}
-            </div>
-          );
-        })
-      )}
-      {testIds.length > 0 ? (
-        <p className={cn(patientMutedTextClass, "text-[11px]")}>Тестов в наборе: {testIds.length}</p>
-      ) : null}
-    </div>
-  );
-}
-
 export function PatientProgramStageItemPageClient(props: PatientProgramStageItemPageClientProps) {
-  const { instanceId, itemId, navMode, backHref, initialDetail, appDisplayTimeZone } = props;
+  const { instanceId, itemId, navMode, backHref, initialDetail, appDisplayTimeZone, testSetServerSnapshot, itemLinksPlanTab = null } = props;
   const router = useRouter();
   const [detail, setDetail] = useState(initialDetail);
   const [busy, setBusy] = useState<string | null>(null);
@@ -473,7 +286,6 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
   const [lastDoneAtIsoByItemId, setLastDoneAtIsoByItemId] = useState<Record<string, string>>({});
   const [doneTodayCountByActivityKey, setDoneTodayCountByActivityKey] = useState<Record<string, number>>({});
   const [lastDoneAtIsoByActivityKey, setLastDoneAtIsoByActivityKey] = useState<Record<string, string>>({});
-  const [testFormOpen, setTestFormOpen] = useState(false);
   const [commentModalOpen, setCommentModalOpen] = useState(false);
   const [observationDraft, setObservationDraft] = useState("");
   const [observationSaving, setObservationSaving] = useState(false);
@@ -484,8 +296,8 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
   const navForPath = navMode === "default" ? undefined : navMode;
 
   const itemLink = useCallback(
-    (id: string) => routePaths.patientTreatmentProgramItem(instanceId, id, navForPath),
-    [instanceId, navForPath],
+    (id: string) => routePaths.patientTreatmentProgramItem(instanceId, id, navForPath, itemLinksPlanTab ?? null),
+    [instanceId, navForPath, itemLinksPlanTab],
   );
 
   const currentWorkingStage = useMemo(() => {
@@ -577,7 +389,6 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
   }, [detail.id, detail.status, instanceId]);
 
   useEffect(() => {
-    setTestFormOpen(false);
     setCommentModalOpen(false);
     setLfkFeeling("medium");
   }, [itemId]);
@@ -848,7 +659,7 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
             </div>
           ) : null}
 
-          {!contentBlocked && !readOnly ? (
+          {!contentBlocked && !readOnly && item.itemType !== "test_set" ? (
             <div className="flex flex-wrap items-stretch gap-2">
               {isPersistentRecommendation(item) ? (
                 nextId ? (
@@ -872,16 +683,6 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
                     Следующая рекомендация
                   </Link>
                 )
-              ) : item.itemType === "test_set" ? (
-                <button
-                  type="button"
-                  className={cn(patientButtonPrimaryClass, "min-h-9 flex-1 text-xs font-medium sm:min-h-10")}
-                  onClick={() => setTestFormOpen(true)}
-                  disabled={testFormOpen || Boolean(item.completedAt)}
-                >
-                  <ClipboardList className="size-4 shrink-0" aria-hidden />
-                  Записать результаты теста
-                </button>
               ) : (
                 <div className="flex w-full min-w-0 flex-wrap items-stretch gap-2">
                   {!(item.itemType === "lfk_complex" && !isPersistentRecommendation(item)) ? (
@@ -954,6 +755,22 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
 
           <ModalDescriptionSection item={item} />
 
+          {item.itemType === "test_set" ? (
+            <PatientTestSetProgressForm
+              instanceId={instanceId}
+              itemId={item.id}
+              snapshot={item.snapshot as Record<string, unknown>}
+              completed={Boolean(item.completedAt)}
+              interactionDisabled={contentBlocked || readOnly}
+              baseUrl={base}
+              busy={busy}
+              setBusy={setBusy}
+              setError={setError}
+              onDone={refresh}
+              serverSnapshot={testSetServerSnapshot ?? null}
+            />
+          ) : null}
+
           <Dialog open={commentModalOpen} onOpenChange={setCommentModalOpen}>
             <DialogContent
               className="rounded-lg border border-[var(--patient-border)] shadow-md sm:max-w-md"
@@ -992,19 +809,6 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
             </DialogContent>
           </Dialog>
 
-          {item.itemType === "test_set" && testFormOpen && !contentBlocked && !readOnly ? (
-            <ModalTestSetInline
-              itemId={item.id}
-              snapshot={item.snapshot as Record<string, unknown>}
-              completed={Boolean(item.completedAt)}
-              baseUrl={base}
-              busy={busy}
-              setBusy={setBusy}
-              setError={setError}
-              onDone={refresh}
-            />
-          ) : null}
-
           {navMode === "program" ? (
             <PatientStageCompositionList
               instanceId={instanceId}
@@ -1015,6 +819,7 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
               doneTodayCountByActivityKey={doneTodayCountByActivityKey}
               lastDoneAtIsoByActivityKey={lastDoneAtIsoByActivityKey}
               doneTodayCountByItemId={doneTodayCountByItemId}
+              itemLinksPlanTab={itemLinksPlanTab ?? null}
             />
           ) : null}
         </div>

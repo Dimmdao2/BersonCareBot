@@ -5,6 +5,11 @@ import { render, screen, act, fireEvent, within } from "@testing-library/react";
 import type { TreatmentProgramInstanceDetail } from "@/modules/treatment-program/types";
 import { PatientTreatmentProgramDetailClient } from "./PatientTreatmentProgramDetailClient";
 
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ replace: vi.fn(), push: vi.fn(), prefetch: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(),
+}));
+
 const now = "2026-01-01T00:00:00.000Z";
 
 const detailShellProps = {
