@@ -10,10 +10,10 @@ todos:
     status: completed
   - id: db-warmup
     content: "Миграция по образцу 0049_wellbeing_symptom_unify.sql: reference_items warmup_feeling + backfill symptom_trackings; дедуп completion↔symptom"
-    status: pending
+    status: completed
   - id: port-api
     content: Расширить PatientPracticePort (updateFeelingById/getByIdForUser) + PATCH route + оркестрация ensure tracking + symptom insert в транзакции
-    status: pending
+    status: completed
   - id: tests-docs
     content: Тесты (UI/API/repo), docs + LOG; финальный pnpm run ci перед merge
     status: completed

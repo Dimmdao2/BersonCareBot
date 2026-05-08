@@ -22,6 +22,8 @@ describe("buildAppDeps", () => {
     expect(deps).toHaveProperty("contentCatalog");
     expect(deps).toHaveProperty("contentSections");
     expect(deps).toHaveProperty("patientHomeLegacy");
+    expect(deps).toHaveProperty("warmupFeelingCompletion");
+    expect(typeof deps.warmupFeelingCompletion.applyDailyWarmupFeeling).toBe("function");
   });
 
   it("contentCatalog.getBySlug resolves known slug", async () => {

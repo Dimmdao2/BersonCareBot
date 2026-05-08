@@ -7,35 +7,25 @@ vi.mock("@/app-layer/guards/requireRole", () => ({
 }));
 
 const mockGetCompletion = vi.hoisted(() => vi.fn());
-const mockUpdateFeeling = vi.hoisted(() => vi.fn());
 const mockListRefItems = vi.hoisted(() => vi.fn());
-const mockUpsertWarmupFeelingTrackingIdInTx = vi.hoisted(() => vi.fn());
+const mockApplyDailyWarmupFeeling = vi.hoisted(() => vi.fn());
 
 const mockRevalidatePath = vi.hoisted(() => vi.fn());
 vi.mock("next/cache", () => ({
   revalidatePath: mockRevalidatePath,
 }));
 
-const mockTransaction = vi.hoisted(() => vi.fn());
-
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
     patientPractice: {
       getCompletionByIdForUser: mockGetCompletion,
-      updateCompletionFeelingById: mockUpdateFeeling,
     },
     references: {
       listActiveItemsByCategoryCode: mockListRefItems,
     },
-    diaries: {
-      upsertWarmupFeelingTrackingIdInTx: mockUpsertWarmupFeelingTrackingIdInTx,
+    warmupFeelingCompletion: {
+      applyDailyWarmupFeeling: mockApplyDailyWarmupFeeling,
     },
-  }),
-}));
-
-vi.mock("@/app-layer/db/drizzle", () => ({
-  getDrizzle: () => ({
-    transaction: mockTransaction,
   }),
 }));
 
@@ -47,43 +37,17 @@ const SESSION = {
 
 const WARMUP_REF = { id: "11111111-1111-4111-8111-111111111111", code: "warmup_feeling", title: "Самочувствие после разминки" };
 
-function mockTx() {
-  return {
-    execute: vi.fn().mockResolvedValue({ rows: [{ id: "tr-warmup-tx-1" }] }),
-    select: vi.fn().mockReturnValue({
-      from: vi.fn().mockReturnValue({
-        where: vi.fn().mockReturnValue({
-          limit: vi.fn().mockResolvedValue([]),
-        }),
-      }),
-    }),
-    insert: vi.fn().mockReturnValue({
-      values: vi.fn().mockResolvedValue(undefined),
-    }),
-    update: vi.fn().mockReturnValue({
-      set: vi.fn().mockReturnValue({
-        where: vi.fn().mockResolvedValue(undefined),
-      }),
-    }),
-  };
-}
-
 describe("PATCH /api/patient/practice/completion/[id]/feeling", () => {
   beforeEach(() => {
     mockRequirePatientApiBusinessAccess.mockReset();
     mockGetCompletion.mockReset();
-    mockUpdateFeeling.mockReset();
     mockListRefItems.mockReset();
-    mockUpsertWarmupFeelingTrackingIdInTx.mockReset();
-    mockTransaction.mockReset();
+    mockApplyDailyWarmupFeeling.mockReset();
     mockRevalidatePath.mockReset();
 
     mockRequirePatientApiBusinessAccess.mockResolvedValue({ ok: true, session: SESSION });
     mockListRefItems.mockResolvedValue([WARMUP_REF]);
-    mockUpsertWarmupFeelingTrackingIdInTx.mockResolvedValue("tr-warmup-tx-1");
-    mockTransaction.mockImplementation(async (fn: (tx: ReturnType<typeof mockTx>) => Promise<void>) => {
-      await fn(mockTx());
-    });
+    mockApplyDailyWarmupFeeling.mockResolvedValue({ duplicate: false });
   });
 
   function makeRequest(body: unknown, id = "550e8400-e29b-41d4-a716-446655440099") {
@@ -156,10 +120,10 @@ describe("PATCH /api/patient/practice/completion/[id]/feeling", () => {
     const json = (await res.json()) as { ok?: boolean; duplicate?: boolean };
     expect(json.ok).toBe(true);
     expect(json.duplicate).toBe(true);
-    expect(mockTransaction).not.toHaveBeenCalled();
+    expect(mockApplyDailyWarmupFeeling).not.toHaveBeenCalled();
   });
 
-  it("runs transaction for daily_warmup when feeling null", async () => {
+  it("calls applyDailyWarmupFeeling for daily_warmup when feeling null", async () => {
     mockGetCompletion.mockResolvedValue(completionWarmupNull);
     const res = await PATCH(makeRequest({ feeling: 3 }), {
       params: Promise.resolve({ id: "550e8400-e29b-41d4-a716-446655440099" }),
@@ -167,23 +131,20 @@ describe("PATCH /api/patient/practice/completion/[id]/feeling", () => {
     expect(res.status).toBe(200);
     const json = (await res.json()) as { ok?: boolean };
     expect(json.ok).toBe(true);
-    expect(mockTransaction).toHaveBeenCalled();
+    expect(mockApplyDailyWarmupFeeling).toHaveBeenCalledWith({
+      userId: SESSION.user.userId,
+      completionId: completionWarmupNull.id,
+      feeling: 3,
+      completedAtIso: completionWarmupNull.completedAt,
+      symptomTypeRefId: WARMUP_REF.id,
+      symptomTitle: WARMUP_REF.title,
+    });
     expect(mockRevalidatePath).toHaveBeenCalled();
   });
 
-  it("revalidates when returning duplicate after tx", async () => {
+  it("revalidates when applyDailyWarmupFeeling returns duplicate", async () => {
     mockGetCompletion.mockResolvedValue(completionWarmupNull);
-    mockTransaction.mockImplementation(async (fn: (tx: ReturnType<typeof mockTx>) => Promise<void>) => {
-      const tx = mockTx();
-      tx.select = vi.fn().mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue([{ id: "existing-entry" }]),
-          }),
-        }),
-      });
-      await fn(tx);
-    });
+    mockApplyDailyWarmupFeeling.mockResolvedValue({ duplicate: true });
     const res = await PATCH(makeRequest({ feeling: 1 }), {
       params: Promise.resolve({ id: completionWarmupNull.id }),
     });

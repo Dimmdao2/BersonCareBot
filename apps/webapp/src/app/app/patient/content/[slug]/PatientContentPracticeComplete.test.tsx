@@ -113,6 +113,37 @@ describe("PatientContentPracticeComplete", () => {
     expect(patchUrl).toContain("/api/patient/practice/completion/warmup-completion-1/feeling");
   });
 
+  it("daily_warmup: clears POST guard when fetch throws so a second click retries", async () => {
+    vi.mocked(global.fetch)
+      .mockRejectedValueOnce(new Error("network"))
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ ok: true, id: "warmup-after-retry" }),
+      } as Response);
+
+    render(
+      <PatientContentPracticeComplete
+        contentPageId="aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+        contentPath="/app/patient/content/x"
+        practiceSource="daily_warmup"
+        guest={false}
+        needsActivation={false}
+      />,
+    );
+
+    const cta = screen.getByRole("button", { name: /Я выполнил\(а\) практику/i });
+    fireEvent.click(cta);
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledTimes(1);
+    });
+
+    fireEvent.click(cta);
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledTimes(2);
+    });
+  });
+
   it("daily_warmup: no skip button in modal", async () => {
     vi.mocked(global.fetch).mockResolvedValue({
       ok: true,

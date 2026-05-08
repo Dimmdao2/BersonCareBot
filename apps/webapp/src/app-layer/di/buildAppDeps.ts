@@ -181,6 +181,8 @@ import { createPgPatientHomeLegacyContentPort } from "@/infra/repos/pgPatientHom
 import { createInMemoryPatientHomeLegacyContentPort } from "@/infra/repos/inMemoryPatientHomeLegacyContent";
 import { createPgPatientPracticeCompletionsPort } from "@/infra/repos/pgPatientPracticeCompletions";
 import { createInMemoryPatientPracticeCompletionsPort } from "@/infra/repos/inMemoryPatientPracticeCompletions";
+import { createPgWarmupFeelingCompletionPort } from "@/infra/repos/pgWarmupFeelingCompletion";
+import { createInMemoryWarmupFeelingCompletionPort } from "@/infra/repos/inMemoryWarmupFeelingCompletion";
 import { createPatientHomeBlocksService } from "@/modules/patient-home/service";
 import { createPatientPracticeService } from "@/modules/patient-practice/service";
 import { createPatientMoodService } from "@/modules/patient-mood/service";
@@ -333,6 +335,14 @@ const patientHomeLegacyContentPort = !inMemoryRepos
 const patientPracticeCompletionsPort = !inMemoryRepos
   ? createPgPatientPracticeCompletionsPort()
   : createInMemoryPatientPracticeCompletionsPort();
+const warmupFeelingCompletionPort = !inMemoryRepos
+  ? createPgWarmupFeelingCompletionPort({
+      diaries: symptomDiaryPort,
+      completions: patientPracticeCompletionsPort,
+    })
+  : createInMemoryWarmupFeelingCompletionPort({
+      completions: patientPracticeCompletionsPort,
+    });
 const patientPracticeService = createPatientPracticeService({
   completions: patientPracticeCompletionsPort,
   contentPages: contentPagesPort,
@@ -751,6 +761,7 @@ function _buildAppDeps() {
     /** Legacy новости / рассылки / цитаты главной пациента (Drizzle или in-memory в Vitest). */
     patientHomeLegacy: patientHomeLegacyContentPort,
     patientPractice: patientPracticeService,
+    warmupFeelingCompletion: warmupFeelingCompletionPort,
     patientMood: patientMoodService,
     treatmentProgramProgress: treatmentProgramProgressService,
     treatmentProgramPatientActions,

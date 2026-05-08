@@ -92,6 +92,9 @@ export function PatientContentPracticeComplete({
       }
       setWarmupCompletionId(data.id);
       setDialogOpen(true);
+    } catch {
+      warmupPostGuardRef.current = false;
+      toast.error("Не удалось сохранить. Попробуйте позже.");
     } finally {
       setPostingWarmup(false);
     }
