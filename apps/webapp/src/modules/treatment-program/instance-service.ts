@@ -731,6 +731,38 @@ export function createTreatmentProgramInstanceService(deps: {
       return row;
     },
 
+    async doctorDeleteInstanceStageItem(input: {
+      instanceId: string;
+      itemId: string;
+      actorId: string | null;
+      reason?: string | null;
+    }) {
+      assertUuid(input.instanceId);
+      assertUuid(input.itemId);
+      if (input.actorId) assertUuid(input.actorId);
+      const detail = await instances.getInstanceById(input.instanceId);
+      const item = detail?.stages.flatMap((s) => s.items).find((i) => i.id === input.itemId);
+      if (!item) throw new Error("Элемент не найден");
+      await assertStageItemAllowsStructuralChange(item);
+      const ok = await instances.deleteInstanceStageItem(input.instanceId, input.itemId);
+      if (!ok) throw new Error("Элемент не найден");
+      const reasonTrim = input.reason?.trim();
+      const reason = reasonTrim && reasonTrim.length > 0 ? reasonTrim : "Удаление врачом из программы пациента";
+      await appendEvent({
+        instanceId: input.instanceId,
+        actorId: input.actorId,
+        eventType: "item_removed",
+        targetType: "stage_item",
+        targetId: input.itemId,
+        reason,
+        payload: {
+          stageId: item.stageId,
+          itemType: item.itemType,
+          itemRefId: item.itemRefId,
+        },
+      });
+    },
+
     async doctorReplaceStageItem(input: {
       instanceId: string;
       itemId: string;

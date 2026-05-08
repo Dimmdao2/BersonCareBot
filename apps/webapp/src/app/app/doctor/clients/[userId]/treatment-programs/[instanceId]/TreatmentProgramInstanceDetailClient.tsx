@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Activity, BookOpen, ClipboardList, Layers, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -131,6 +132,49 @@ function sortByOrderThenId<T extends { sortOrder: number; id: string }>(rows: T[
   return [...rows].sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id));
 }
 
+function sameInstanceItemGroupKey(
+  item: { groupId: string | null | undefined },
+  groupId: string | null,
+): boolean {
+  return (item.groupId ?? null) === (groupId ?? null);
+}
+
+/**
+ * Полный список id элементов этапа после перестановки соседей внутри одной группы
+ * (`groupId === null` — только элементы без группы).
+ */
+function computeOrderedItemIdsAfterGroupItemAdjacentSwap(
+  stage: TreatmentProgramInstanceDetail["stages"][number],
+  groupId: string | null,
+  itemId: string,
+  dir: -1 | 1,
+): string[] | null {
+  const groupItems = sortByOrderThenId(stage.items.filter((it) => sameInstanceItemGroupKey(it, groupId)));
+  const idx = groupItems.findIndex((it) => it.id === itemId);
+  if (idx < 0) return null;
+  const j = idx + dir;
+  if (j < 0 || j >= groupItems.length) return null;
+  const nextGroupOrder = [...groupItems];
+  const a = nextGroupOrder[idx]!;
+  const b = nextGroupOrder[j]!;
+  nextGroupOrder[idx] = b;
+  nextGroupOrder[j] = a;
+  const queue = nextGroupOrder.map((it) => it.id);
+  const allSorted = sortByOrderThenId(stage.items);
+  const out: string[] = [];
+  for (const it of allSorted) {
+    if (sameInstanceItemGroupKey(it, groupId)) {
+      const nextId = queue.shift();
+      if (!nextId) return null;
+      out.push(nextId);
+    } else {
+      out.push(it.id);
+    }
+  }
+  if (queue.length !== 0) return null;
+  return out;
+}
+
 type InstanceStageT = TreatmentProgramInstanceDetail["stages"][number];
 type InstanceStageItemT = InstanceStageT["items"][number];
 
@@ -180,11 +224,33 @@ function DoctorInstanceStageItemPreviewBlock(props: { item: InstanceStageItemT }
     () => primaryMediaForStageItem(item as Parameters<typeof primaryMediaForStageItem>[0]),
     [item],
   );
+  const frameEmpty =
+    "flex size-[100px] shrink-0 items-center justify-center overflow-hidden rounded-md border border-border/60 bg-muted/15";
+  const frameThumb = "size-[100px] shrink-0 rounded-md border border-border/60 bg-muted/15";
+  if (!media) {
+    const icon =
+      item.itemType === "recommendation" ? (
+        <MessageSquare className="size-10 text-muted-foreground" aria-hidden />
+      ) : item.itemType === "clinical_test" ? (
+        <ClipboardList className="size-10 text-muted-foreground" aria-hidden />
+      ) : item.itemType === "lesson" ? (
+        <BookOpen className="size-10 text-muted-foreground" aria-hidden />
+      ) : item.itemType === "lfk_complex" ? (
+        <Layers className="size-10 text-muted-foreground" aria-hidden />
+      ) : (
+        <Activity className="size-10 text-muted-foreground" aria-hidden />
+      );
+    return (
+      <div className={frameEmpty} aria-hidden>
+        {icon}
+      </div>
+    );
+  }
   return (
     <PatientCatalogMediaStaticThumb
       media={media}
-      frameClassName="aspect-square w-full max-w-[13rem] rounded-md border border-border/60 bg-muted/15"
-      sizes="(max-width: 768px) 45vw, 13rem"
+      frameClassName={frameThumb}
+      sizes="100px"
     />
   );
 }
@@ -330,6 +396,13 @@ function DoctorProgramInstanceItemCard(props: {
   programStatus: TreatmentProgramInstanceStatus;
   /** Левая колонка «Рекомендации (этап 0)»: без суффикса типа и без выбора группы. */
   phaseZeroRecommendation?: boolean;
+  /** Стрелки порядка внутри группы (или этап 0 — `null`-группа). */
+  reorderInGroup?: {
+    disableAll: boolean;
+    disableUp: boolean;
+    disableDown: boolean;
+    onMove: (dir: -1 | 1) => void | Promise<void>;
+  };
 }) {
   const {
     instanceId,
@@ -339,6 +412,7 @@ function DoctorProgramInstanceItemCard(props: {
     onSaved,
     programStatus,
     phaseZeroRecommendation = false,
+    reorderInGroup,
   } = props;
   const recPhase0 = phaseZeroRecommendation && item.itemType === "recommendation";
   const editLocked = isProgramInstanceEditLocked(programStatus);
@@ -346,6 +420,27 @@ function DoctorProgramInstanceItemCard(props: {
   return (
     <details className="group rounded-lg border border-border/80 bg-muted/20 open:shadow-sm">
       <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 marker:content-none [&::-webkit-details-marker]:hidden">
+        {reorderInGroup ? (
+          <div
+            className="shrink-0"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+            }}
+          >
+            <TemplateReorderChevrons
+              compact
+              className="-my-0.5"
+              disabled={reorderInGroup.disableAll}
+              disableUp={reorderInGroup.disableUp}
+              disableDown={reorderInGroup.disableDown}
+              ariaLabelUp="Выше в группе"
+              ariaLabelDown="Ниже в группе"
+              onUp={() => void reorderInGroup.onMove(-1)}
+              onDown={() => void reorderInGroup.onMove(1)}
+            />
+          </div>
+        ) : null}
         <p className="min-w-0 flex-1 text-sm font-medium">
           <span className="truncate">{snapshotTitle(item.snapshot, item.itemType)}</span>{" "}
           {recPhase0 ? null : (
@@ -361,7 +456,7 @@ function DoctorProgramInstanceItemCard(props: {
         <span className="hidden shrink-0 text-xs text-muted-foreground group-open:inline">Свернуть</span>
       </summary>
       <div className="border-t border-border/50 px-3 pb-3 pt-1">
-        <div className="mt-2 grid gap-4 md:grid-cols-[minmax(0,13rem)_1fr] md:items-start md:gap-6">
+        <div className="mt-2 grid gap-4 md:grid-cols-[100px_1fr] md:items-start md:gap-6">
           <div className="flex min-w-0 flex-col gap-3">
             <DoctorInstanceStageItemPreviewBlock item={item} />
             {item.itemType === "exercise" || item.itemType === "lfk_complex" ? (
@@ -629,6 +724,31 @@ export function TreatmentProgramInstanceDetailClient(props: {
     if (res.ok && data.ok && data.results) setTestResults(data.results);
   }, [detail.id]);
 
+  const reorderPhaseZeroItem = useCallback(
+    async (itemId: string, dir: -1 | 1) => {
+      if (!stageZero) return;
+      const ordered = computeOrderedItemIdsAfterGroupItemAdjacentSwap(stageZero, null, itemId, dir);
+      if (!ordered) return;
+      await runIfProgramInstanceMutationAllowed(detail.status, async () => {
+        const res = await fetch(
+          `/api/doctor/treatment-program-instances/${encodeURIComponent(detail.id)}/stages/${encodeURIComponent(stageZero.id)}/items/reorder`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ orderedItemIds: ordered }),
+          },
+        );
+        const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
+        if (!res.ok || !data.ok) {
+          setError(data.error ?? "Не удалось изменить порядок");
+          return;
+        }
+        await refresh();
+      });
+    },
+    [detail.id, detail.status, stageZero, refresh],
+  );
+
   return (
     <div className="flex flex-col gap-4">
       {error ? (
@@ -688,7 +808,7 @@ export function TreatmentProgramInstanceDetailClient(props: {
               <p className="text-sm text-muted-foreground">Нет рекомендаций на этапе 0.</p>
             ) : (
               <div className="flex flex-col gap-3">
-                {phaseZeroRecommendations.map((item) => (
+                {phaseZeroRecommendations.map((item, idx) => (
                   <DoctorProgramInstanceItemCard
                     key={item.id}
                     instanceId={detail.id}
@@ -698,6 +818,12 @@ export function TreatmentProgramInstanceDetailClient(props: {
                     onSaved={refresh}
                     programStatus={detail.status}
                     phaseZeroRecommendation
+                    reorderInGroup={{
+                      disableAll: isProgramInstanceEditLocked(detail.status),
+                      disableUp: idx <= 0,
+                      disableDown: idx >= phaseZeroRecommendations.length - 1,
+                      onMove: (dir) => void reorderPhaseZeroItem(item.id, dir),
+                    }}
                   />
                 ))}
               </div>
@@ -925,6 +1051,34 @@ function InstanceStageGroupsPanel(props: {
     });
   };
 
+  const reorderItemInStageGroup = async (groupId: string | null, itemId: string, dir: -1 | 1) => {
+    if (editLocked) return;
+    const ordered = computeOrderedItemIdsAfterGroupItemAdjacentSwap(stage, groupId, itemId, dir);
+    if (!ordered) return;
+    await runIfProgramInstanceMutationAllowed(programStatus, async () => {
+      setBusy(true);
+      setMsg(null);
+      try {
+        const res = await fetch(
+          `/api/doctor/treatment-program-instances/${encodeURIComponent(instanceId)}/stages/${encodeURIComponent(stage.id)}/items/reorder`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ orderedItemIds: ordered }),
+          },
+        );
+        const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
+        if (!res.ok || !data.ok) {
+          setMsg(data.error ?? "Ошибка порядка элементов");
+          return;
+        }
+        await onSaved();
+      } finally {
+        setBusy(false);
+      }
+    });
+  };
+
   const hideGroupFromModal = async () => {
     if (!groupEdit) return;
     if (editLocked) return;
@@ -1143,7 +1297,7 @@ function InstanceStageGroupsPanel(props: {
                     <p className="py-2 text-xs text-muted-foreground">В группе пока нет элементов.</p>
                   ) : (
                     <ul className="divide-y rounded-md border border-border/30">
-                      {gItems.map((item) => (
+                      {gItems.map((item, idx) => (
                         <li key={item.id} className="list-none px-1 py-2">
                           <DoctorProgramInstanceItemCard
                             instanceId={instanceId}
@@ -1152,6 +1306,12 @@ function InstanceStageGroupsPanel(props: {
                             testResults={testResults}
                             programStatus={programStatus}
                             onSaved={onSaved}
+                            reorderInGroup={{
+                              disableAll: busy || editLocked,
+                              disableUp: idx <= 0,
+                              disableDown: idx >= gItems.length - 1,
+                              onMove: (dir) => void reorderItemInStageGroup(g.id, item.id, dir),
+                            }}
                           />
                         </li>
                       ))}
@@ -1168,7 +1328,7 @@ function InstanceStageGroupsPanel(props: {
               </div>
               <div className="p-2">
                 <ul className="divide-y rounded-md border border-border/50">
-                  {ungrouped.map((item) => (
+                  {ungrouped.map((item, idx) => (
                     <li key={item.id} className="list-none px-1 py-2">
                       <DoctorProgramInstanceItemCard
                         instanceId={instanceId}
@@ -1177,6 +1337,12 @@ function InstanceStageGroupsPanel(props: {
                         testResults={testResults}
                         programStatus={programStatus}
                         onSaved={onSaved}
+                        reorderInGroup={{
+                          disableAll: busy || editLocked,
+                          disableUp: idx <= 0,
+                          disableDown: idx >= ungrouped.length - 1,
+                          onMove: (dir) => void reorderItemInStageGroup(null, item.id, dir),
+                        }}
                       />
                     </li>
                   ))}
@@ -1306,6 +1472,7 @@ function InstanceStageItemDoctorRow(props: {
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const hasHistory = Boolean(item.completedAt) || testResults.some((r) => r.instanceStageItemId === item.id);
 
   const groupSelectItems = useMemo(() => {
@@ -1348,6 +1515,29 @@ function InstanceStageItemDoctorRow(props: {
           setMsg(data.error ?? "Ошибка");
           return;
         }
+        await onSaved();
+      } finally {
+        setSaving(false);
+      }
+    });
+  };
+
+  const deleteItem = async () => {
+    if (editLocked) return;
+    await runIfProgramInstanceMutationAllowed(programStatus, async () => {
+      setSaving(true);
+      setMsg(null);
+      try {
+        const res = await fetch(
+          `/api/doctor/treatment-program-instances/${encodeURIComponent(instanceId)}/stage-items/${encodeURIComponent(item.id)}`,
+          { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) },
+        );
+        const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
+        if (!res.ok || !data.ok) {
+          setMsg(data.error ?? "Ошибка удаления");
+          return;
+        }
+        setDeleteConfirmOpen(false);
         await onSaved();
       } finally {
         setSaving(false);
@@ -1421,6 +1611,16 @@ function InstanceStageItemDoctorRow(props: {
             Включить
           </Button>
         )}
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="border-destructive/40 text-destructive hover:bg-destructive/10"
+          disabled={saving || editLocked}
+          onClick={() => setDeleteConfirmOpen(true)}
+        >
+          Удалить
+        </Button>
       </div>
       {msg ? <p className="text-xs text-destructive">{msg}</p> : null}
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
@@ -1443,6 +1643,25 @@ function InstanceStageItemDoctorRow(props: {
               }}
             >
               Отключить
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Удалить элемент?</DialogTitle>
+            <DialogDescription>
+              Строка будет удалена из программы пациента без возможности восстановления. Если у элемента есть
+              выполнение или попытка теста, удаление будет отклонено.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button type="button" variant="outline" disabled={saving} onClick={() => setDeleteConfirmOpen(false)}>
+              Отмена
+            </Button>
+            <Button type="button" variant="destructive" disabled={saving || editLocked} onClick={() => void deleteItem()}>
+              {saving ? "Удаление…" : "Удалить"}
             </Button>
           </DialogFooter>
         </DialogContent>

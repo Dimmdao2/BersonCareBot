@@ -300,6 +300,16 @@ export const patientCompactActionClass = cn(
   "disabled:cursor-not-allowed disabled:opacity-60",
 );
 
+/**
+ * Заблокированная кнопка «Выполнено» после simple complete.
+ * Цвета задаются в `#app-shell-patient`: `--patient-simple-complete-done-bg`, `--patient-simple-complete-done-text`.
+ */
+export const patientSimpleCompleteDoneButtonToneClass = cn(
+  "!bg-[var(--patient-simple-complete-done-bg)] !text-[var(--patient-simple-complete-done-text)]",
+  "hover:!bg-[var(--patient-simple-complete-done-bg)] active:!bg-[var(--patient-simple-complete-done-bg)]",
+  "disabled:!opacity-100",
+);
+
 /** Семантические алиасы действий (`MASTER_PLAN.md` — patient Primary/Secondary/Danger action). */
 export const patientPrimaryActionClass = patientButtonPrimaryClass;
 
@@ -346,11 +356,10 @@ export const patientPageSectionGapClass = "mt-4 lg:mt-6";
 
 /**
  * Базовая типографика заголовка в patient hero-карточке:
- * вес **400**, цвет `--patient-block-heading`. Конкретные **размеры** задаются отдельно
+ * Размер и цвет задаются здесь; вес — `--patient-shell-heading-font-weight` из `#app-shell-patient` (`@layer base` для h1–h3). Конкретные **размеры** задаются отдельно
  * (главная — `patientHomeCardStyles` / `patientHomeHeroTitleClampClass`; внутренние страницы — {@link patientInnerHeroTitleTypographyClass}).
  */
-export const patientHeroTitleBaseClass =
-  "font-normal tracking-tight text-[var(--patient-block-heading)]";
+export const patientHeroTitleBaseClass = "tracking-tight text-[var(--patient-block-heading)]";
 
 /**
  * Размеры заголовка hero на **внутренних** patient-страницах (деталь программы и т.п. с градиентной шапкой).
@@ -369,11 +378,9 @@ export const patientProgramItemHeroTitleClass = cn(
 );
 
 /**
- * Строка «N повторений × M подходов» на странице пункта: палитра `--patient-color-primary`, без холодного tailwind-blue.
+ * Строка «N повторений × M подходов» на странице пункта (hero): размер задаётся родителем (`text-[0.8rem]`).
  */
-export const patientProgramItemPrimaryStatTextClass = cn(
-  "text-sm font-normal text-[var(--patient-color-primary,#284da0)] opacity-90",
-);
+export const patientProgramItemPrimaryStatTextClass = cn("font-normal text-[#435370]");
 
 /**
  * Заголовок группы в «Состав этапа»: чуть теплее холодного `#284da0` (индиго-синий).

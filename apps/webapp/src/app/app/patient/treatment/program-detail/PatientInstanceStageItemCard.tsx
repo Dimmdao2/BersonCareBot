@@ -19,7 +19,7 @@ import {
 } from "@/app/app/patient/treatment/stageItemSnapshot";
 import { PatientCatalogMediaStaticThumb } from "@/shared/ui/patient/PatientCatalogMediaStaticThumb";
 import { cn } from "@/lib/utils";
-import { patientCompactActionClass, patientMutedTextClass, patientPillClass } from "@/shared/ui/patientVisual";
+import { patientCompactActionClass, patientMutedTextClass, patientPillClass, patientSimpleCompleteDoneButtonToneClass } from "@/shared/ui/patientVisual";
 import { patientTreatmentProgramListItemClass } from "@/app/app/patient/treatment/program-detail/patientTreatmentProgramListItemClass";
 import { snapshotTitle } from "@/app/app/patient/treatment/program-detail/patientPlanDetailFormatters";
 import { usePostMarkItemViewedWhenVisible } from "@/app/app/patient/treatment/program-detail/usePostMarkItemViewedWhenVisible";
@@ -65,6 +65,7 @@ export function PatientInstanceStageItemCard(props: {
     neutralItemChrome = false,
     itemDetailHref,
   } = props;
+  const simpleCompleteDoneFrozen = Boolean(item.completedAt?.trim());
   const router = useRouter();
   const readOnly = itemInteraction === "readOnly";
   const [markingViewed, setMarkingViewed] = useState(false);
@@ -268,8 +269,12 @@ export function PatientInstanceStageItemCard(props: {
               <div className="mt-2">
                 <button
                   type="button"
-                  className={cn(patientCompactActionClass, "h-9 w-auto text-sm")}
-                  disabled={busy !== null}
+                  className={cn(
+                    patientCompactActionClass,
+                    "h-9 w-auto text-sm",
+                    simpleCompleteDoneFrozen && patientSimpleCompleteDoneButtonToneClass,
+                  )}
+                  disabled={busy !== null || simpleCompleteDoneFrozen}
                   onClick={async (e) => {
                     e.stopPropagation();
                     setBusy(item.id);
@@ -289,7 +294,7 @@ export function PatientInstanceStageItemCard(props: {
                     }
                   }}
                 >
-                  {item.completedAt ? "Отметить ещё раз" : "Отметить выполненным"}
+                  {simpleCompleteDoneFrozen ? "Выполнено" : "Отметить выполненным"}
                 </button>
               </div>
             ) : null

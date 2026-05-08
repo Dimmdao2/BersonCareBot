@@ -715,6 +715,16 @@ export function createInMemoryTreatmentProgramPersistence(seed?: {
       return true;
     },
 
+    async deleteInstanceStageItem(instanceId: string, itemId: string): Promise<boolean> {
+      const row = items.get(itemId);
+      if (!row) return false;
+      const st = stages.get(row.stageId);
+      if (!st || st.instanceId !== instanceId) return false;
+      items.delete(itemId);
+      touchInstance(instanceId);
+      return true;
+    },
+
     async createInstanceStageGroup(
       instanceId: string,
       stageId: string,

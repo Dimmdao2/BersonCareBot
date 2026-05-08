@@ -24,6 +24,7 @@ import {
   patientMutedTextClass,
   patientSecondaryActionClass,
   patientSectionTitleClass,
+  patientSimpleCompleteDoneButtonToneClass,
 } from "@/shared/ui/patientVisual";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { MarkdownContent } from "@/shared/ui/markdown/MarkdownContent";
@@ -131,6 +132,52 @@ function ProgramTileHintButton(props: { ariaLabel: string; icon: ReactNode; chil
 
 /** Как в модалке «Состав этапа» (`PatientTreatmentProgramDetailClient` — `MAX_COMPOSITION_TODAY_DOTS`). */
 const MAX_TODAY_DOTS = 24;
+
+function PatientProgramTileSimpleCompleteButton(props: {
+  itemId: string;
+  completedAt: string | null;
+  busy: string | null;
+  base: string;
+  refresh: () => Promise<void>;
+  setBusy: (v: string | null) => void;
+  setError: (v: string | null) => void;
+}) {
+  const { itemId, completedAt, busy, base, refresh, setBusy, setError } = props;
+  /** Есть `completed_at` у элемента — без повторной отметки через эту кнопку (журнал может накапливать done отдельно). */
+  const doneFrozen = Boolean(completedAt?.trim());
+
+  return (
+    <button
+      type="button"
+      className={cn(
+        patientCompactActionClass,
+        "min-h-0 min-w-0 flex-1 basis-0 px-2 text-xs font-medium",
+        doneFrozen && patientSimpleCompleteDoneButtonToneClass,
+      )}
+      disabled={busy !== null || doneFrozen}
+      onClick={async (e) => {
+        e.stopPropagation();
+        setBusy(itemId);
+        setError(null);
+        try {
+          const res = await fetch(`${base}/${encodeURIComponent(itemId)}/progress/complete`, {
+            method: "POST",
+          });
+          const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
+          if (!res.ok || !data?.ok) {
+            setError(data?.error ?? "Ошибка");
+            return;
+          }
+          await refresh();
+        } finally {
+          setBusy(null);
+        }
+      }}
+    >
+      {doneFrozen ? "Выполнено" : "Отметить выполнение"}
+    </button>
+  );
+}
 
 function PatientProgramTileTodayDots(props: { todayCount: number }) {
   const { todayCount } = props;
@@ -347,31 +394,15 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
                 Добавить комментарий
               </Link>
               {showSimpleCompleteFooter ? (
-                <button
-                  type="button"
-                  className={cn(patientCompactActionClass, "min-h-0 min-w-0 flex-1 basis-0 px-2 text-xs font-medium")}
-                  disabled={busy !== null}
-                  onClick={async (e) => {
-                    e.stopPropagation();
-                    setBusy(item.id);
-                    setError(null);
-                    try {
-                      const res = await fetch(`${base}/${encodeURIComponent(item.id)}/progress/complete`, {
-                        method: "POST",
-                      });
-                      const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
-                      if (!res.ok || !data?.ok) {
-                        setError(data?.error ?? "Ошибка");
-                        return;
-                      }
-                      await refresh();
-                    } finally {
-                      setBusy(null);
-                    }
-                  }}
-                >
-                  {item.completedAt ? "Отметить ещё раз" : "Отметить выполнение"}
-                </button>
+                <PatientProgramTileSimpleCompleteButton
+                  itemId={item.id}
+                  completedAt={item.completedAt}
+                  busy={busy}
+                  base={base}
+                  refresh={refresh}
+                  setBusy={setBusy}
+                  setError={setError}
+                />
               ) : null}
             </div>
           ) : null}

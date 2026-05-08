@@ -215,6 +215,9 @@ export type TreatmentProgramInstancePort = {
     input: ReplaceTreatmentProgramInstanceStageItemInput,
   ): Promise<TreatmentProgramInstanceStageItemRow | null>;
 
+  /** Физическое удаление строки элемента этапа (каскад по БД для попыток тестов и т.п.). */
+  deleteInstanceStageItem(instanceId: string, itemId: string): Promise<boolean>;
+
   /** Перенумерация `sort_order` этапов (0..n-1) в заданном порядке; множество id должно совпадать с этапами экземпляра. */
   reorderInstanceStages(instanceId: string, orderedStageIds: string[]): Promise<boolean>;
   /** Перенумерация элементов этапа. */

@@ -16,7 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { patientLfkDifficultySelectItems } from "@/shared/ui/selectOpaqueValueLabels";
-import { ArrowLeft, Check, ChevronLeft, ChevronRight } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight } from "lucide-react";
 import type { RecommendationMediaItem } from "@/modules/recommendations/types";
 import type { TreatmentProgramInstanceDetail } from "@/modules/treatment-program/types";
 import { listLfkSnapshotExerciseLines } from "@/modules/treatment-program/programActionActivityKey";
@@ -57,6 +57,7 @@ import {
   patientSecondaryActionClass,
   patientSectionTitleClass,
   patientSectionTitleNormalClass,
+  patientSimpleCompleteDoneButtonToneClass,
 } from "@/shared/ui/patientVisual";
 import { cn } from "@/lib/utils";
 import {
@@ -427,6 +428,8 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
     setObservationDraft("");
   }, [commentModalOpen, itemId]);
 
+  const simpleCompleteDoneFrozen = Boolean(item?.completedAt?.trim());
+
   const primaryMedia = useMemo(() => {
     if (!item) return null;
     if (navMode === "tests" && resolvedTestId) {
@@ -445,7 +448,7 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
   }, [item, navMode, resolvedTestId]);
 
   const handleComplete = async () => {
-    if (!item) return;
+    if (!item || simpleCompleteDoneFrozen) return;
     setBusy(item.id);
     setError(null);
     try {
@@ -554,11 +557,11 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
 
   if (!resolved || !item || !stage) return null;
 
-  const backLinkClass = cn(
-    "inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-md px-2 py-1.5 text-sm font-semibold no-underline",
-    "text-[var(--patient-color-primary,#284da0)] transition-colors",
-    "hover:bg-[var(--patient-color-primary-soft,#e4e2ff)]/60 active:bg-[var(--patient-color-primary-soft,#e4e2ff)]",
-    "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-primary,#284da0)]",
+  const heroCloseLinkClass = cn(
+    "inline-flex shrink-0 cursor-pointer items-center justify-center rounded-md border border-[#94a3b8]/28",
+    "bg-[rgba(157,177,226,0.21)] px-3 py-1 text-xs font-normal leading-tight text-[#334155] no-underline transition-colors",
+    "hover:border-[#94a3b8]/42 hover:bg-[rgba(157,177,226,0.30)] active:bg-[rgba(157,177,226,0.34)]",
+    "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#94a3b8]/40",
   );
 
   const navButtonClass = (enabled: boolean) =>
@@ -581,27 +584,27 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
       <div
         className={cn(
           patientHomeCardHeroClass,
-          "relative shrink-0 overflow-visible rounded-none px-4 pb-4 pt-3 lg:px-5 lg:pb-5",
+          "relative shrink-0 overflow-visible rounded-none px-4 pt-3 lg:px-5",
+          item.itemType === "exercise" ? "pb-1.5 lg:pb-[10px]" : "pb-4 lg:pb-5",
         )}
       >
-        <div className="flex items-center gap-2">
-          <Link href={backHref} className={backLinkClass} aria-label="Назад к плану">
-            <ArrowLeft className="size-4 shrink-0" aria-hidden />
-            <span className="sr-only sm:not-sr-only">Назад</span>
+        <div className="flex min-h-0 items-center justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            {item.groupId ? (
+              <p className="m-0 truncate text-xs font-normal leading-snug text-muted-foreground">
+                Группа:{" "}
+                {stage.groups.find((g) => g.id === item.groupId)?.title?.trim() ?? "—"}
+              </p>
+            ) : null}
+          </div>
+          <Link href={backHref} className={heroCloseLinkClass} aria-label="Закрыть экран элемента">
+            Закрыть
           </Link>
-          <div className="min-w-0 flex-1" />
         </div>
 
-        <h1 className={cn(patientProgramItemHeroTitleClass, "mt-2 line-clamp-3 pr-2")}>
+        <h1 className={cn(patientProgramItemHeroTitleClass, "mt-[18px] line-clamp-3")}>
           {title}
         </h1>
-
-        {item.groupId ? (
-          <p className="mt-1.5 text-sm font-normal text-muted-foreground">
-            Группа:{" "}
-            {stage.groups.find((g) => g.id === item.groupId)?.title?.trim() ?? "—"}
-          </p>
-        ) : null}
 
         {item.itemType === "exercise" ? (
           (() => {
@@ -629,16 +632,18 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
                   <p className="mt-2 text-[13px] font-normal leading-snug text-neutral-700">{metaLine}</p>
                 ) : null}
                 {reps != null && sets != null ? (
-                  <div className="mt-2 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                  <div className="mt-[28px] flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 text-[0.8rem]">
                     <span className={patientProgramItemPrimaryStatTextClass}>
                       {reps} повторений × {sets} подходов
                     </span>
                     {maxPain != null ? (
-                      <span className="text-sm font-medium text-[#b45309]">Боль {maxPain} max</span>
+                      <span className="font-normal text-[#7d4128]">Боль {maxPain} max</span>
                     ) : null}
                   </div>
                 ) : maxPain != null ? (
-                  <p className="mt-2 text-sm font-medium text-[#b45309]">Боль {maxPain} max</p>
+                  <p className="mt-[28px] text-[0.8rem] font-normal leading-snug text-[#7d4128]">
+                    Боль {maxPain} max
+                  </p>
                 ) : null}
               </>
             );
@@ -770,12 +775,24 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
                   {!(item.itemType === "lfk_complex" && !isPersistentRecommendation(item)) ? (
                     <button
                       type="button"
-                      className={cn(patientButtonPrimaryClass, "min-h-9 flex-1 text-xs font-medium sm:min-h-10")}
-                      disabled={busy !== null}
+                      className={cn(
+                        patientButtonPrimaryClass,
+                        "min-h-9 flex-1 text-xs font-medium sm:min-h-10",
+                        simpleCompleteDoneFrozen &&
+                          cn(patientSimpleCompleteDoneButtonToneClass, "gap-1 disabled:cursor-default"),
+                        !simpleCompleteDoneFrozen && "gap-0",
+                      )}
+                      disabled={busy !== null || simpleCompleteDoneFrozen}
                       onClick={() => void handleComplete()}
                     >
-                      <Check className="size-4 shrink-0" aria-hidden />
-                      {item.completedAt ? "Отметить ещё раз" : "Отметить"}
+                      {simpleCompleteDoneFrozen ? (
+                        <>
+                          <Check className="mr-[-20px] size-4 shrink-0 stroke-[2.75] text-current" aria-hidden />
+                          <span className="min-w-0 flex-1 text-center font-semibold">Выполнено</span>
+                        </>
+                      ) : (
+                        <span className="w-full text-center">Отметить выполнение</span>
+                      )}
                     </button>
                   ) : null}
                   <button

@@ -1,6 +1,6 @@
 "use client";
 
-import { BookOpen, ClipboardList, ImageIcon, Plus } from "lucide-react";
+import { Activity, BookOpen, ClipboardList, ImageIcon, Layers, MessageSquare, Plus } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,7 +14,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
-import { MarkdownEditorToastUi } from "@/shared/ui/markdown/MarkdownEditorToastUi";
+import { Textarea } from "@/components/ui/textarea";
 import type {
   TreatmentProgramInstanceStatus,
   TreatmentProgramItemType,
@@ -52,25 +52,34 @@ function LibraryMediaThumb({
   src: string | null | undefined;
   itemType: TreatmentProgramItemType;
 }) {
+  const shell =
+    "flex size-[100px] shrink-0 items-center justify-center overflow-hidden rounded-md border border-border/60 bg-muted/40";
   const icon =
-    itemType === "lesson" ? (
-      <BookOpen className="size-5 text-muted-foreground" aria-hidden />
+    itemType === "recommendation" ? (
+      <MessageSquare className="size-10 text-muted-foreground" aria-hidden />
     ) : itemType === "clinical_test" ? (
-      <ClipboardList className="size-5 text-muted-foreground" aria-hidden />
+      <ClipboardList className="size-10 text-muted-foreground" aria-hidden />
+    ) : itemType === "lesson" ? (
+      <BookOpen className="size-10 text-muted-foreground" aria-hidden />
+    ) : itemType === "lfk_complex" ? (
+      <Layers className="size-10 text-muted-foreground" aria-hidden />
+    ) : itemType === "exercise" ? (
+      <Activity className="size-10 text-muted-foreground" aria-hidden />
     ) : (
-      <ImageIcon className="size-5 text-muted-foreground" aria-hidden />
+      <ImageIcon className="size-10 text-muted-foreground" aria-hidden />
     );
   if (src?.trim()) {
     return (
       // eslint-disable-next-line @next/next/no-img-element -- превью каталога врача
-      <img src={src.trim()} alt="" className="size-12 shrink-0 rounded-md border border-border/60 object-cover" />
+      <img
+        src={src.trim()}
+        alt=""
+        className="size-[100px] shrink-0 rounded-md border border-border/60 object-cover"
+      />
     );
   }
   return (
-    <div
-      className="flex size-12 shrink-0 items-center justify-center rounded-md border border-border/60 bg-muted/40"
-      aria-hidden
-    >
+    <div className={shell} aria-hidden>
       {icon}
     </div>
   );
@@ -108,8 +117,6 @@ export function InstanceAddLibraryItemDialog(props: {
   const [phaseZeroSource, setPhaseZeroSource] = useState<"catalog" | "freeform">("catalog");
   const [freeformTitle, setFreeformTitle] = useState("");
   const [freeformBody, setFreeformBody] = useState("");
-  /** Сбрасывает Toast UI Editor при повторном входе в режим «Свой текст». */
-  const [freeformEditorMountId, setFreeformEditorMountId] = useState(0);
 
   useEffect(() => {
     if (!open) {
@@ -120,7 +127,6 @@ export function InstanceAddLibraryItemDialog(props: {
       setPhaseZeroSource("catalog");
       setFreeformTitle("");
       setFreeformBody("");
-      setFreeformEditorMountId(0);
     }
   }, [open]);
 
@@ -309,7 +315,6 @@ export function InstanceAddLibraryItemDialog(props: {
                 setPhaseZeroSource("freeform");
                 setFreeformTitle("");
                 setFreeformBody("");
-                setFreeformEditorMountId((n) => n + 1);
                 setError(null);
               }}
             >
@@ -329,15 +334,18 @@ export function InstanceAddLibraryItemDialog(props: {
                 disabled={busy || editLocked}
               />
             </div>
-            <MarkdownEditorToastUi
-              key={`tp-instance-freeform-${freeformEditorMountId}`}
-              name="tpInstanceFreeformBodyMd"
-              defaultValue=""
-              maxLength={100_000}
-              label={<span className="text-sm font-medium text-foreground">Текст</span>}
-              helpText={null}
-              onValueChange={setFreeformBody}
-            />
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="tp-freeform-body">Текст</Label>
+              <Textarea
+                id="tp-freeform-body"
+                className="min-h-[200px] resize-y text-sm"
+                value={freeformBody}
+                onChange={(e) => setFreeformBody(e.target.value)}
+                disabled={busy || editLocked}
+                maxLength={100_000}
+                spellCheck
+              />
+            </div>
             <Button
               type="button"
               disabled={editLocked || busy}

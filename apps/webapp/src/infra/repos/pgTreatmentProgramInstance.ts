@@ -912,6 +912,44 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
       });
     },
 
+    async deleteInstanceStageItem(instanceId: string, itemId: string): Promise<boolean> {
+      const db = getDrizzle();
+      return db.transaction(async (tx) => {
+        const joined = await tx
+          .select({
+            item: itemTable,
+            instanceIdCol: stageTable.instanceId,
+          })
+          .from(itemTable)
+          .innerJoin(stageTable, eq(itemTable.stageId, stageTable.id))
+          .where(eq(itemTable.id, itemId))
+          .limit(1);
+        const row0 = joined[0];
+        if (!row0 || row0.instanceIdCol !== instanceId) return false;
+        const it = row0.item;
+
+        await tx.delete(itemTable).where(eq(itemTable.id, itemId));
+
+        if (it.itemType === "recommendation") {
+          const [rec] = await tx
+            .select({ tags: recommendationsTable.tags })
+            .from(recommendationsTable)
+            .where(eq(recommendationsTable.id, it.itemRefId))
+            .limit(1);
+          const tags = rec?.tags;
+          if (
+            Array.isArray(tags) &&
+            tags.includes(TREATMENT_PROGRAM_INSTANCE_FREEFORM_RECOMMENDATION_TAG)
+          ) {
+            await tx.delete(recommendationsTable).where(eq(recommendationsTable.id, it.itemRefId));
+          }
+        }
+
+        await touchInstanceUpdatedAt(tx, instanceId);
+        return true;
+      });
+    },
+
     async replaceInstanceStageItem(
       instanceId: string,
       itemId: string,
