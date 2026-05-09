@@ -43,7 +43,7 @@ function bannerCopy(summary: WarmupWeekImpactSummary): string {
     case "insufficient_pairs":
       return "Рядом по времени с разминками пока мало отметок самочувствия — сложно оценить их влияние. Когда отметок станет больше, здесь появится среднее изменение.";
     case "improved":
-      return `Разминки улучшали ваше состояние на этой неделе в среднем на ${ballPhrase(summary.avgDelta!)}.`;
+      return `Разминка улучшала ваше самочувствие — в среднем на ${ballPhrase(summary.avgDelta!)} за эту неделю.`;
     case "worse":
       return `По отметкам недели после разминок самочувствие в среднем снижалось на ${ballPhrase(summary.avgDelta!)}. Имеет смысл разобраться в причинах самочувствия и при необходимости скорректировать нагрузку.`;
     case "neutral":
@@ -65,7 +65,21 @@ function bannerSurfaceClass(summary: WarmupWeekImpactSummary): string {
 }
 
 export function PatientWarmupWeekImpactBanner({ summary }: { summary: WarmupWeekImpactSummary }) {
+  const isImproved = summary.kind === "improved";
   return (
-    <p className={cn(bannerSurfaceClass(summary), "text-[13px] leading-snug")}>{bannerCopy(summary)}</p>
+    <p
+      className={cn(
+        bannerSurfaceClass(summary),
+        "text-[13px] leading-snug",
+        isImproved && "py-2.5 text-[#222]",
+      )}
+      style={
+        isImproved
+          ? { background: "linear-gradient(135deg, #d9f99d 0%, #bbf7d0 55%, #dcfce7 100%)" }
+          : undefined
+      }
+    >
+      {bannerCopy(summary)}
+    </p>
   );
 }
