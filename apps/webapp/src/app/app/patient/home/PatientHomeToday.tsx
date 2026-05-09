@@ -64,6 +64,8 @@ import {
   resolvePatientProgramProgressDaysForPatientUi,
 } from "@/modules/treatment-program/stage-semantics";
 import { resolveCalendarDayIanaForPatient } from "@/modules/system-settings/calendarIana";
+import { routePaths } from "@/app-layer/routes/paths";
+import { resolveFirstPendingProgramTabItemId } from "./resolveFirstPendingProgramTabItemId";
 
 type Props = {
   session: AppSession | null;
@@ -169,6 +171,7 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
   let planProgressDay: number | null = null;
   let planTodayPracticeDone = false;
   let planUpdatedLabel: string | null = null;
+  let planStartLessonHref: string | null = null;
   let progress: { todayDone: number; streak: number } | null = null;
   let initialMoodCheckin: PatientMoodCheckinState | null = null;
   let moodWeekDays: PatientMoodWeekDay[] = [];
@@ -247,6 +250,7 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
     const picked = pickActivePlanInstance(instances);
     planInstance = picked ? { id: picked.id, title: picked.title } : null;
     if (planInstance) {
+      planStartLessonHref = routePaths.patientTreatmentProgram(planInstance.id);
       const [nudge, rawDetail, snap] = await Promise.all([
         deps.treatmentProgramInstance.patientPlanUpdatedBadgeForInstance({
           patientUserId: session.user.userId,
@@ -269,6 +273,15 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
         const patientIana = await deps.patientCalendarTimezone.getIanaForUser(session.user.userId);
         const resolvedIana = resolveCalendarDayIanaForPatient(patientIana, appTz);
         planProgressDay = resolvePatientProgramProgressDaysForPatientUi(detail, DateTime.now(), resolvedIana, appTz);
+        const firstItemId = resolveFirstPendingProgramTabItemId(detail, snap.doneItemIds);
+        if (firstItemId) {
+          planStartLessonHref = routePaths.patientTreatmentProgramItem(
+            planInstance.id,
+            firstItemId,
+            "exec",
+            "program",
+          );
+        }
       }
     }
     initialMoodCheckin = moodState;
@@ -375,6 +388,7 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
         return (
           <PatientHomePlanCard
             instance={planInstance}
+            startLessonHref={planStartLessonHref ?? routePaths.patientTreatmentProgram(planInstance.id)}
             progressDay={planProgressDay}
             todayPracticeDone={planTodayPracticeDone}
             planUpdatedLabel={planUpdatedLabel}

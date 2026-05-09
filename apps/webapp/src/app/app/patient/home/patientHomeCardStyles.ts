@@ -197,10 +197,10 @@ export const patientHomeSecondaryCardShortHeightClass = cn(
   "h-[152px] sm:h-[160px] lg:h-[168px]",
 );
 
-/** Фиксированная компактная высота secondary-карточки «Мой план». */
+/** Минимальная высота secondary-карточки «Мой план» (заголовок до 3 строк без overflow-hidden обрезки). */
 export const patientHomeSecondaryCardTallHeightClass = cn(
   patientHomeSecondaryCardShellClass,
-  "h-[136px] sm:h-[136px] lg:h-[136px]",
+  "min-h-[156px] sm:min-h-[156px] lg:min-h-[156px]",
 );
 
 /**
@@ -227,6 +227,12 @@ export const patientHomeCardMediaSlotClass = cn(
 /** Заголовок карточки — до 2 строк, sm. */
 export const patientHomeCardTitleClampSmClass = cn(
   patientLineClamp2Class,
+  "text-sm font-medium leading-5 text-[var(--patient-text-primary)]",
+);
+
+/** Заголовок карточки «Мой план» — до 3 строк (название программы). */
+export const patientHomePlanCardTitleClampSmClass = cn(
+  patientLineClamp3Class,
   "text-sm font-medium leading-5 text-[var(--patient-text-primary)]",
 );
 

@@ -39,7 +39,7 @@ function ballPhrase(deltaAbs: number): string {
 function bannerCopy(summary: WarmupWeekImpactSummary): string {
   switch (summary.kind) {
     case "no_warmups":
-      return "На этой неделе не было отметок после разминок.";
+      return "Выполняйте разминки и отмечайте самочувствие одним касанием - вы сами удивитесь, как быстро почувствуете позитивный эффект!";
     case "insufficient_pairs":
       return "Рядом по времени с разминками пока мало отметок самочувствия — сложно оценить их влияние. Когда отметок станет больше, здесь появится среднее изменение.";
     case "improved":

@@ -6,17 +6,22 @@ import { PatientHomePlanCard } from "./PatientHomePlanCard";
 import { routePaths } from "@/app-layer/routes/paths";
 
 describe("PatientHomePlanCard", () => {
-  it("links «Начать занятие» directly to active program (skip hub redirect)", () => {
+  it("«Начать занятие» ведёт на переданный startLessonHref", () => {
     const id = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee";
-    render(<PatientHomePlanCard instance={{ id, title: "Plan title" }} />);
+    const itemId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+    const href = routePaths.patientTreatmentProgramItem(id, itemId, "exec", "program");
+    render(
+      <PatientHomePlanCard instance={{ id, title: "Plan title" }} startLessonHref={href} />,
+    );
     const cta = screen.getByRole("link", { name: /Начать занятие/i });
-    expect(cta).toHaveAttribute("href", routePaths.patientTreatmentProgram(id));
+    expect(cta).toHaveAttribute("href", href);
   });
 
   it("renders «День N» и строку «Сегодня» с точкой", () => {
     render(
       <PatientHomePlanCard
         instance={{ id: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee", title: "Plan title" }}
+        startLessonHref={routePaths.patientTreatmentProgram("aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee")}
         progressDay={12}
         todayPracticeDone={false}
       />,
@@ -30,6 +35,7 @@ describe("PatientHomePlanCard", () => {
     render(
       <PatientHomePlanCard
         instance={{ id: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee", title: "Plan title" }}
+        startLessonHref={routePaths.patientTreatmentProgram("aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee")}
         progressDay={3}
         todayPracticeDone
       />,
@@ -41,6 +47,7 @@ describe("PatientHomePlanCard", () => {
     const { container } = render(
       <PatientHomePlanCard
         instance={{ id: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee", title: "Plan title" }}
+        startLessonHref={routePaths.patientTreatmentProgram("aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee")}
         blockIconImageUrl="/api/media/ffffffff-ffff-4fff-8fff-ffffffffffff"
       />,
     );

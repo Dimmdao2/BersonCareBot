@@ -1,10 +1,9 @@
 import Link from "next/link";
 import { ClipboardList } from "lucide-react";
-import { routePaths } from "@/app-layer/routes/paths";
 import {
   patientHomeBlockHeadingClass,
   patientHomePlanCardClass,
-  patientHomeCardTitleClampSmClass,
+  patientHomePlanCardTitleClampSmClass,
   patientHomeSecondaryCardTallHeightClass,
   patientIconLeadingClass,
 } from "./patientHomeCardStyles";
@@ -19,6 +18,8 @@ export type PatientHomePlanCardInstance = {
 
 type Props = {
   instance: PatientHomePlanCardInstance;
+  /** Цель ссылки «Начать занятие» — пункт программы (exec) или обзор программы. */
+  startLessonHref: string;
   /** «День N» слева от CTA; `null` — не показывать (как на экране программы до старта). */
   progressDay?: number | null;
   /** Были ли отметки по программе сегодня (чек-лист / активность за день). */
@@ -45,6 +46,7 @@ function LeadingPlanIcon({ blockIconImageUrl }: { blockIconImageUrl?: string | n
 /** Карточка «Мой план» на главной — только при активном назначении (см. `PatientHomeToday`). */
 export function PatientHomePlanCard({
   instance,
+  startLessonHref,
   progressDay = null,
   todayPracticeDone = false,
   blockIconImageUrl,
@@ -62,7 +64,7 @@ export function PatientHomePlanCard({
             <h3 id="patient-home-plan-heading" className={cn(patientHomeBlockHeadingClass, "shrink-0")}>
               Мой план реабилитации
             </h3>
-            <p className={cn(patientHomeCardTitleClampSmClass, "mt-0.5 text-[#33637d]")}>{instance.title}</p>
+            <p className={cn(patientHomePlanCardTitleClampSmClass, "mt-0.5 text-[#33637d]")}>{instance.title}</p>
             {planUpdatedLabel?.trim() ? (
               <p className={cn(patientMutedTextClass, "mt-1 text-xs font-medium text-foreground")}>{planUpdatedLabel.trim()}</p>
             ) : null}
@@ -95,7 +97,7 @@ export function PatientHomePlanCard({
             </div>
           : null}
           <Link
-            href={routePaths.patientTreatmentProgram(instance.id)}
+            href={startLessonHref}
             prefetch={false}
             className={cn(
               "inline-flex min-h-9 min-w-[8rem] shrink-0 items-center justify-center rounded-md border border-[var(--patient-color-primary)] bg-[var(--patient-card-bg)] px-5 text-sm font-semibold text-[var(--patient-color-primary)] transition-colors lg:px-6",
