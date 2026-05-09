@@ -16,7 +16,7 @@ export default async function RemindersPage() {
       backLabel="Меню"
       variant="patient"
     >
-      <Suspense fallback={<PatientLoadingPatternBody pattern="formRows" />}>
+      <Suspense fallback={<PatientLoadingPatternBody pattern="cardBlocks" />}>
         <RemindersPageBody session={session} />
       </Suspense>
     </AppShell>

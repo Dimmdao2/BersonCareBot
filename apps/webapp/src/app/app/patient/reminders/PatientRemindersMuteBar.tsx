@@ -4,9 +4,12 @@ import { useTransition } from "react";
 import toast from "react-hot-toast";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { patientCardClass, patientMutedTextClass } from "@/shared/ui/patientVisual";
+import {
+  patientMutedTextClass,
+  PatientShimmerLine,
+  patientSurfaceWarningClass,
+} from "@/shared/ui/patientVisual";
 
 function tomorrowMorningIso(hour = 8): string {
   const d = new Date();
@@ -50,25 +53,28 @@ export function PatientRemindersMuteBar({
   const muted = Boolean(muteUntilLabel?.trim());
 
   return (
-    <div className="mb-4 space-y-3">
+    <div className="mb-4 space-y-3" aria-busy={pending}>
       {muted ? (
-        <Card className={cn(patientCardClass, "border-[#fde68a] bg-[#fffbeb]")}>
-          <CardContent className="flex flex-col gap-3 pb-3 pt-3 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm font-medium text-[#92400e]">
-              Уведомления на паузе до {muteUntilLabel}
-            </p>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="shrink-0 border-[#92400e]/40 text-[#92400e] hover:bg-[#fff7ed]"
-              disabled={pending}
-              onClick={() => callMute({ mutedUntilIso: null })}
-            >
-              Снять паузу
-            </Button>
-          </CardContent>
-        </Card>
+        <div
+          className={cn(
+            patientSurfaceWarningClass,
+            "flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between",
+          )}
+        >
+          <p className="text-sm font-medium">
+            Уведомления на паузе до {muteUntilLabel}
+          </p>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="shrink-0 border-[var(--patient-surface-warning-border)] bg-[var(--patient-card-bg)] text-[var(--patient-surface-warning-accent)] hover:bg-[var(--patient-surface-warning-bg)]"
+            disabled={pending}
+            onClick={() => callMute({ mutedUntilIso: null })}
+          >
+            Снять паузу
+          </Button>
+        </div>
       ) : null}
 
       {!muted ? (
@@ -100,6 +106,12 @@ export function PatientRemindersMuteBar({
               7 дней
             </Button>
           </div>
+        </div>
+      ) : null}
+
+      {pending ? (
+        <div aria-hidden className="pt-0.5">
+          <PatientShimmerLine className="h-1.5 w-full max-w-sm rounded-sm" />
         </div>
       ) : null}
     </div>

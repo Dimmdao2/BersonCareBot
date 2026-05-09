@@ -37,7 +37,7 @@ import { LegacyReminderScheduleDialog } from "./LegacyReminderScheduleDialog";
 
 const CATEGORY_LABELS: Record<ReminderCategory, string> = {
   appointment: "Запись на приём",
-  lfk: "Сообщения врача (занятия)",
+  lfk: "Уведомления по занятиям",
   chat: "Чат",
   important: "Важные сообщения",
   broadcast: "Рассылки по темам",
@@ -189,14 +189,17 @@ function PersonalReminderCard({
 
   const confirmDelete = () => {
     setError(null);
-    setDeleteOpen(false);
     startTransition(async () => {
       const res = await fetch(`/api/patient/reminders/${encodeURIComponent(rule.id)}`, {
         method: "DELETE",
       });
       const data = (await res.json()) as { ok?: boolean };
-      if (!res.ok || !data.ok) setError("Не удалось удалить");
-      else onPatched();
+      if (!res.ok || !data.ok) {
+        setError("Не удалось удалить");
+        return;
+      }
+      setDeleteOpen(false);
+      onPatched();
     });
   };
 
@@ -242,7 +245,7 @@ function PersonalReminderCard({
                   "h-auto min-h-8 px-2 py-1 text-primary",
                 )}
               >
-                Полный журнал
+                Журнал
               </Link>
               <Button
                 type="button"
@@ -373,9 +376,12 @@ export function ReminderRulesClient({
     startBlock(async () => {
       const res = await fetch(`/api/patient/reminders/${encodeURIComponent(id)}`, { method: "DELETE" });
       const data = (await res.json()) as { ok?: boolean };
+      if (!res.ok || !data.ok) {
+        toast.error("Не удалось удалить");
+        return;
+      }
       setBlockDeleteTarget(null);
-      if (!res.ok || !data.ok) toast.error("Не удалось удалить");
-      else refresh();
+      refresh();
     });
   };
 
@@ -555,7 +561,10 @@ export function ReminderRulesClient({
               <div className="flex flex-wrap gap-2">
                 <Link
                   href={routePaths.patientReminderJournal(rehabRuleForBlock.id)}
-                  className={cn(buttonVariants({ variant: "outline", size: "sm" }), "inline-flex")}
+                  className={cn(
+                    buttonVariants({ variant: "link", size: "sm" }),
+                    "h-auto min-h-8 px-2 py-1 text-primary",
+                  )}
                 >
                   Журнал
                 </Link>
@@ -625,9 +634,15 @@ export function ReminderRulesClient({
                 />
               </div>
               <div className="flex flex-wrap gap-2">
-                <Button type="button" variant="outline" size="sm" asChild>
-                  <Link href={routePaths.patientReminderJournal(warmupRuleForBlock.id)}>Журнал</Link>
-                </Button>
+                <Link
+                  href={routePaths.patientReminderJournal(warmupRuleForBlock.id)}
+                  className={cn(
+                    buttonVariants({ variant: "link", size: "sm" }),
+                    "h-auto min-h-8 px-2 py-1 text-primary",
+                  )}
+                >
+                  Журнал
+                </Link>
                 <Button
                   type="button"
                   variant="ghost"
@@ -663,7 +678,12 @@ export function ReminderRulesClient({
 
       {personalRowsMain.length > 0 ? (
         <>
-          <h2 className="mb-2 text-sm font-semibold text-[var(--patient-text-primary)]">Мои напоминания</h2>
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <h2 className={patientSectionTitleNormalClass}>Мои напоминания</h2>
+            <Button type="button" size="sm" variant="outline" className="shrink-0" onClick={() => setCustomOpen(true)}>
+              Создать
+            </Button>
+          </div>
           {personalRowsMain.map((row) => (
             <PersonalReminderCard
               key={row.rule.id}
@@ -675,11 +695,13 @@ export function ReminderRulesClient({
         </>
       ) : null}
 
-      <div className="mb-4 mt-2">
-        <Button type="button" className="w-full sm:w-auto" onClick={() => setCustomOpen(true)}>
-          Создать напоминание
-        </Button>
-      </div>
+      {personalRowsMain.length === 0 ? (
+        <div className="mb-4 mt-2">
+          <Button type="button" className="w-full sm:w-auto" onClick={() => setCustomOpen(true)}>
+            Создать напоминание
+          </Button>
+        </div>
+      ) : null}
 
       <ReminderCreateDialog
         open={customOpen}
@@ -696,21 +718,47 @@ export function ReminderRulesClient({
 
       {showEmptyHint ? (
         <p className={cn(patientMutedTextClass, "py-4 text-center")}>
-          Пока нет напоминаний. Добавьте своё или дождитесь настроек от врача.
+          Пока нет напоминаний. Добавьте своё или дождитесь настроек клиники.
         </p>
       ) : null}
 
       {legacyRules.length > 0 ? (
         <>
-          <h2 className="mb-2 mt-4 text-sm font-semibold text-[var(--patient-text-primary)]">Категории от врача</h2>
+          <h2 className="mb-2 mt-4 text-sm font-semibold text-[var(--patient-text-primary)]">Системные уведомления</h2>
           <p className={cn(patientMutedTextClass, "mb-3 text-xs")}>
-            Общие напоминания по типам сообщений. Управляются врачом и синхронизируются с ботом.
+            Напоминания по типам сообщений клиники. Расписание можно настроить под себя.
           </p>
           {legacyRules.map((r) => (
             <LegacyCategoryRuleCard key={r.id} rule={r} />
           ))}
         </>
       ) : null}
+
+      <Dialog
+        open={blockDeleteTarget != null}
+        onOpenChange={(o) => {
+          if (!o) setBlockDeleteTarget(null);
+        }}
+      >
+        <DialogContent className="border-[var(--patient-border)] bg-[var(--patient-card-bg)] sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Удалить напоминание?</DialogTitle>
+            <DialogDescription>
+              {blockDeleteTarget?.title
+                ? `«${blockDeleteTarget.title}» — это действие нельзя отменить.`
+                : "Это действие нельзя отменить."}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button type="button" variant="outline" onClick={() => setBlockDeleteTarget(null)} disabled={blockPending}>
+              Отмена
+            </Button>
+            <Button type="button" variant="destructive" onClick={confirmBlockDelete} disabled={blockPending}>
+              Удалить
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {renderEditDialog()}
     </div>

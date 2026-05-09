@@ -31,7 +31,7 @@ export function PatientShimmerCard({ className }: { className?: string }) {
   );
 }
 
-export type PatientLoadingPattern = "gridCards" | "heroList" | "formRows";
+export type PatientLoadingPattern = "gridCards" | "heroList" | "formRows" | "cardBlocks";
 
 /** Контентная часть skeleton без оболочки shell (для Suspense внутри уже смонтированного `AppShell`). */
 export function PatientLoadingPatternBody({ pattern }: { pattern: PatientLoadingPattern }) {
@@ -68,6 +68,19 @@ export function PatientLoadingPatternBody({ pattern }: { pattern: PatientLoading
               <PatientShimmerLine className="h-10 w-full rounded-lg" />
             </div>
           ))}
+        </div>
+      );
+    case "cardBlocks":
+      return (
+        <div className="flex flex-col gap-[var(--patient-gap)]">
+          <PatientShimmerCard className="min-h-[7rem]" />
+          <PatientShimmerCard className="min-h-[7rem]" />
+          <div className="flex flex-col gap-2 px-0.5">
+            <PatientShimmerLine className="w-2/3" />
+            <PatientShimmerLine className="w-full" />
+            <PatientShimmerLine className="w-4/5" />
+            <PatientShimmerLine className="w-3/5" />
+          </div>
         </div>
       );
     default:

@@ -14,6 +14,7 @@ import {
   REMINDER_INTERVAL_WINDOW_MIN_MINUTES,
 } from "@/modules/reminders/reminderIntervalBounds";
 import { patientSectionSurfaceClass, patientSectionTitleNormalClass } from "@/shared/ui/patientVisual";
+import type { ReminderScheduleFieldInvalid } from "@/modules/reminders/reminderFormAria";
 
 const WEEKDAY_LABELS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"] as const;
 
@@ -51,6 +52,8 @@ export type ReminderScheduleFormProps = {
   previewText: string;
   error: string | null;
   syncWarning: string | null;
+  /** Подсветка полей после ошибки валидации (см. scheduleInvalidFromError). */
+  fieldInvalid?: Partial<ReminderScheduleFieldInvalid>;
 };
 
 export function ReminderScheduleForm({
@@ -80,7 +83,15 @@ export function ReminderScheduleForm({
   previewText,
   error,
   syncWarning,
+  fieldInvalid,
 }: ReminderScheduleFormProps) {
+  const fi: ReminderScheduleFieldInvalid = {
+    daysMask: fieldInvalid?.daysMask ?? false,
+    quietHours: fieldInvalid?.quietHours ?? false,
+    intervalWindow: fieldInvalid?.intervalWindow ?? false,
+    slotTimes: fieldInvalid?.slotTimes ?? false,
+  };
+
   const hideWeekdayMaskRow = scheduleMode === "slots_v1" && slotsDayFilter === "weekdays";
 
   const applyWeekdayPreset = (preset: "all" | "weekdays" | "clear") => {
@@ -108,8 +119,8 @@ export function ReminderScheduleForm({
         <h3 className={patientSectionTitleNormalClass}>Тип расписания</h3>
         <p className="text-xs text-muted-foreground">
           {scheduleMode === "slots_v1"
-            ? "Несколько_push в выбранные часы."
-            : "Напоминания каждые N минут в окне от и до."}
+            ? "Напоминать несколько раз в день в выбранное время."
+            : "Напоминать каждые N минут в выбранном окне времени."}
         </p>
         <div className="flex flex-wrap gap-2">
           <Button
@@ -145,6 +156,7 @@ export function ReminderScheduleForm({
                 value={startTime}
                 onChange={(e) => setStartTime(e.target.value)}
                 disabled={submitting}
+                aria-invalid={fi.intervalWindow || undefined}
               />
             </div>
             <div className="space-y-1.5">
@@ -155,12 +167,18 @@ export function ReminderScheduleForm({
                 value={endTime}
                 onChange={(e) => setEndTime(e.target.value)}
                 disabled={submitting}
+                aria-invalid={fi.intervalWindow || undefined}
               />
             </div>
           </div>
           <div className="space-y-2">
             <Label>Интервал</Label>
-            <PatientDurationHmWheels value={intervalMinutes} onChange={setIntervalMinutes} disabled={submitting} />
+            <PatientDurationHmWheels
+              value={intervalMinutes}
+              onChange={setIntervalMinutes}
+              disabled={submitting}
+              ariaInvalid={fi.intervalWindow}
+            />
             <div className="flex flex-wrap gap-2">
               {[60, 120, 180].map((m) => (
                 <Button
@@ -227,6 +245,7 @@ export function ReminderScheduleForm({
                   disabled={submitting}
                   className="min-w-[8rem] flex-1"
                   aria-label={`Время ${idx + 1}`}
+                  aria-invalid={fi.slotTimes || undefined}
                 />
                 <Button
                   type="button"
@@ -302,6 +321,7 @@ export function ReminderScheduleForm({
                 className={cn("min-w-11", !on && "text-muted-foreground")}
                 onClick={() => setDaysMask((m) => toggleDayMaskReminder(m, i))}
                 disabled={submitting}
+                aria-invalid={fi.daysMask && i === 0 ? true : undefined}
               >
                 {label}
               </Button>
@@ -337,6 +357,7 @@ export function ReminderScheduleForm({
               value={quietStart}
               onChange={(e) => setQuietStart(e.target.value)}
               disabled={submitting}
+              aria-invalid={fi.quietHours || undefined}
             />
           </div>
           <div className="space-y-1.5">
@@ -347,6 +368,7 @@ export function ReminderScheduleForm({
               value={quietEnd}
               onChange={(e) => setQuietEnd(e.target.value)}
               disabled={submitting}
+              aria-invalid={fi.quietHours || undefined}
             />
           </div>
         </div>
@@ -373,7 +395,11 @@ export function ReminderScheduleForm({
         </CardContent>
       </Card>
 
-      {error ? <p className="text-sm text-destructive">{error}</p> : null}
+      {error ? (
+        <p role="alert" className="text-sm text-destructive">
+          {error}
+        </p>
+      ) : null}
       {syncWarning && !error ? (
         <p className="text-sm text-amber-700 dark:text-amber-400">{syncWarning}</p>
       ) : null}

@@ -17,6 +17,8 @@ export type PatientDurationHmWheelsProps = {
   onChange: (totalMinutes: number) => void;
   disabled?: boolean;
   className?: string;
+  /** Передаётся на оба `<select>` как `aria-invalid`. */
+  ariaInvalid?: boolean;
 };
 
 function minuteOptionsForHour(hour: number): number[] {
@@ -29,7 +31,7 @@ function minuteOptionsForHour(hour: number): number[] {
  * Two side-by-side native selects (mobile often shows scroll-wheel picker).
  * Interval total: {@link REMINDER_INTERVAL_WINDOW_MIN_MINUTES}…{@link REMINDER_INTERVAL_WINDOW_MAX_MINUTES}.
  */
-export function PatientDurationHmWheels({ value, onChange, disabled, className }: PatientDurationHmWheelsProps) {
+export function PatientDurationHmWheels({ value, onChange, disabled, className, ariaInvalid }: PatientDurationHmWheelsProps) {
   const baseId = useId();
   const hourId = `${baseId}-h`;
   const minId = `${baseId}-m`;
@@ -64,6 +66,7 @@ export function PatientDurationHmWheels({ value, onChange, disabled, className }
           )}
           disabled={disabled}
           value={hour}
+          aria-invalid={ariaInvalid || undefined}
           aria-label="Часы интервала"
           onChange={(e) => setHour(Number(e.target.value))}
         >
@@ -86,6 +89,7 @@ export function PatientDurationHmWheels({ value, onChange, disabled, className }
           )}
           disabled={disabled}
           value={minuteVal}
+          aria-invalid={ariaInvalid || undefined}
           aria-label="Минуты интервала"
           onChange={(e) => setMinute(Number(e.target.value))}
         >

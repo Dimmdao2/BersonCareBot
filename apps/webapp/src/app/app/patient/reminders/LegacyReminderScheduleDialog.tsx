@@ -18,7 +18,9 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import type { UpdateRuleData } from "@/modules/reminders/service";
 import type { ReminderRule } from "@/modules/reminders/types";
+import { scheduleInvalidFromError } from "@/modules/reminders/reminderFormAria";
 import type { ReminderDayFilter, SlotsV1ScheduleData } from "@/modules/reminders/scheduleSlots";
 import { DEFAULT_REHAB_WEEKDAY_SLOTS, normalizeSlotsV1ScheduleData } from "@/modules/reminders/scheduleSlots";
 import { validateQuietHoursPair } from "@/modules/reminders/quietHours";
@@ -79,8 +81,6 @@ export function LegacyReminderScheduleDialog({
   onSaved: () => void;
 }) {
   const isMobileViewport = useSyncExternalStore(subscribeMobileViewport, getMobileViewportSnapshot, () => false);
-
-  const existingRule = useMemo(() => reminderRuleToPatientJson(rule), [rule]);
 
   const [intervalMinutes, setIntervalMinutes] = useState(DEFAULT_INTERVAL);
   const [startTime, setStartTime] = useState(minutesToTimeInput(DEFAULT_START));
@@ -144,6 +144,8 @@ export function LegacyReminderScheduleDialog({
     if (ws == null || we == null) return "Проверьте время.";
     return `${startTime}–${endTime}, каждые ${intervalMinutes} мин. Дни: ${daysOn || "не выбраны"}.${quietBit}`;
   }, [scheduleMode, slotTimeRows, slotsDayFilter, startTime, endTime, intervalMinutes, daysMask, quietStart, quietEnd]);
+
+  const scheduleFieldInvalid = useMemo(() => scheduleInvalidFromError(error), [error]);
 
   const scrollToError = () => {
     requestAnimationFrame(() => errorAnchorRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }));
@@ -249,7 +251,7 @@ export function LegacyReminderScheduleDialog({
     try {
       const res = await patchPatientReminderScheduleBundle({
         ruleId: rule.id,
-        schedule: schedule as Parameters<typeof patchPatientReminderScheduleBundle>[0]["schedule"],
+        schedule: schedule as NonNullable<UpdateRuleData["schedule"]>,
       });
       if (!res.ok) {
         setError(res.error);
@@ -295,6 +297,7 @@ export function LegacyReminderScheduleDialog({
         previewText={previewText}
         error={error}
         syncWarning={syncWarning}
+        fieldInvalid={scheduleFieldInvalid}
       />
     </div>
   );

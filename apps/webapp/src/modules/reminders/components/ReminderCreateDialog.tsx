@@ -30,6 +30,7 @@ import {
   parseQuietEndMinute,
 } from "@/modules/reminders/reminderTimeInputs";
 import { ReminderScheduleForm } from "@/modules/reminders/components/ReminderScheduleForm";
+import { customReminderFieldsInvalid, scheduleInvalidFromError } from "@/modules/reminders/reminderFormAria";
 
 function subscribeMobileViewport(onStoreChange: () => void) {
   if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
@@ -167,6 +168,9 @@ export function ReminderCreateDialog({
     if (ws == null || we == null) return "Проверьте время.";
     return `${startTime}–${endTime}, каждые ${intervalMinutes} мин. Дни: ${daysOn || "не выбраны"}.${quietBit}`;
   }, [scheduleMode, slotTimeRows, slotsDayFilter, startTime, endTime, intervalMinutes, daysMask, quietStart, quietEnd]);
+
+  const scheduleFieldInvalid = useMemo(() => scheduleInvalidFromError(error), [error]);
+  const customFieldInvalid = useMemo(() => customReminderFieldsInvalid(error), [error]);
 
   const scrollToError = () => {
     requestAnimationFrame(() => errorAnchorRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }));
@@ -386,6 +390,7 @@ export function ReminderCreateDialog({
       previewText={previewText}
       error={error}
       syncWarning={syncWarning}
+      fieldInvalid={scheduleFieldInvalid}
     />
   );
 
@@ -400,6 +405,7 @@ export function ReminderCreateDialog({
           maxLength={140}
           disabled={submitting}
           placeholder="Например: Выпить воду"
+          aria-invalid={customFieldInvalid.title || undefined}
         />
       </div>
       <div className="space-y-1.5">
@@ -412,6 +418,7 @@ export function ReminderCreateDialog({
           disabled={submitting}
           rows={3}
           placeholder="Короткое напоминание"
+          aria-invalid={customFieldInvalid.text || undefined}
         />
       </div>
     </div>
