@@ -2,19 +2,18 @@
  * Прохождение программы лечения (`/app/patient/treatment/[instanceId]`).
  */
 import { notFound } from "next/navigation";
-import { Suspense } from "react";
+import { DateTime } from "luxon";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import type { TreatmentProgramInstanceDetail } from "@/modules/treatment-program/types";
 import { getOptionalPatientSession, patientRscPersonalDataGate } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
 import { AppShell } from "@/shared/ui/AppShell";
 import { patientMutedTextClass } from "@/shared/ui/patientVisual";
+import type { TreatmentProgramInstanceDetail } from "@/modules/treatment-program/types";
 import { omitDisabledInstanceStageItemsForPatientApi } from "@/modules/treatment-program/stage-semantics";
+import { parsePatientPlanTab } from "@/app/app/patient/treatment/patientPlanTab";
+import { PatientTreatmentProgramDetailClient } from "../PatientTreatmentProgramDetailClient";
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
 import { resolveCalendarDayIanaForPatient } from "@/modules/system-settings/calendarIana";
-import { PatientTreatmentProgramDetailClient } from "../PatientTreatmentProgramDetailClient";
-import { parsePatientPlanTab } from "@/app/app/patient/treatment/patientPlanTab";
-import { DateTime } from "luxon";
 import { resolvePatientContentSectionSlug } from "@/infra/repos/resolvePatientContentSectionSlug";
 import { DEFAULT_WARMUPS_SECTION_SLUG } from "@/modules/patient-home/warmupsSection";
 import { resolvePatientCanViewAuthOnlyContent } from "@/modules/platform-access";
@@ -45,7 +44,6 @@ export default async function PatientTreatmentProgramDetailPage({ params, search
   const sp = await searchParams;
   const initialPlanTab = parsePatientPlanTab(sp.tab);
   const deps = buildAppDeps();
-  const appTz = await getAppDisplayTimeZone();
   let detail: TreatmentProgramInstanceDetail;
   try {
     const rawDetail = await deps.treatmentProgramInstance.getInstanceForPatient(
@@ -58,8 +56,22 @@ export default async function PatientTreatmentProgramDetailPage({ params, search
     notFound();
   }
 
-  const initialTestResults = await deps.treatmentProgramProgress.listTestResultsForInstance(instanceId);
-  const initialProgramEvents = await deps.treatmentProgramInstance.listProgramEvents(instanceId);
+  const appTz = await getAppDisplayTimeZone();
+
+  const [initialTestResults, initialProgramEvents, patientIana, rules, canViewAuth, warmRes] = await Promise.all([
+    deps.treatmentProgramProgress.listTestResultsForInstance(instanceId),
+    deps.treatmentProgramInstance.listProgramEvents(instanceId),
+    deps.patientCalendarTimezone.getIanaForUser(session.user.userId),
+    deps.reminders.listRulesByUser(session.user.userId),
+    resolvePatientCanViewAuthOnlyContent(session),
+    resolvePatientContentSectionSlug(
+      {
+        getBySlug: (s) => deps.contentSections.getBySlug(s),
+        getRedirectNewSlugForOldSlug: (s) => deps.contentSections.getRedirectNewSlugForOldSlug(s),
+      },
+      DEFAULT_WARMUPS_SECTION_SLUG,
+    ),
+  ]);
 
   let programDescription: string | null = null;
   if (detail.templateId) {
@@ -72,20 +84,7 @@ export default async function PatientTreatmentProgramDetailPage({ params, search
     }
   }
 
-  const patientIana = await deps.patientCalendarTimezone.getIanaForUser(session.user.userId);
   const resolvedIana = resolveCalendarDayIanaForPatient(patientIana, appTz);
-
-  const [rules, canViewAuth, warmRes] = await Promise.all([
-    deps.reminders.listRulesByUser(session.user.userId),
-    resolvePatientCanViewAuthOnlyContent(session),
-    resolvePatientContentSectionSlug(
-      {
-        getBySlug: (s) => deps.contentSections.getBySlug(s),
-        getRedirectNewSlugForOldSlug: (s) => deps.contentSections.getRedirectNewSlugForOldSlug(s),
-      },
-      DEFAULT_WARMUPS_SECTION_SLUG,
-    ),
-  ]);
   const warmupsSectionAvailable = Boolean(
     warmRes && (!warmRes.section.requiresAuth || canViewAuth),
   );
@@ -127,18 +126,16 @@ export default async function PatientTreatmentProgramDetailPage({ params, search
       variant="patient"
       patientSuppressShellTitle
     >
-      <Suspense fallback={<p className={patientMutedTextClass}>Загрузка…</p>}>
-        <PatientTreatmentProgramDetailClient
-          initial={detail}
-          initialTestResults={initialTestResults}
-          initialProgramEvents={initialProgramEvents}
-          appDisplayTimeZone={appTz}
-          programDescription={programDescription}
-          patientCalendarDayIana={resolvedIana}
-          initialPlanTab={initialPlanTab}
-          planReminderStrip={planReminderStrip}
-        />
-      </Suspense>
+      <PatientTreatmentProgramDetailClient
+        initial={detail}
+        initialTestResults={initialTestResults}
+        initialProgramEvents={initialProgramEvents}
+        appDisplayTimeZone={appTz}
+        programDescription={programDescription}
+        patientCalendarDayIana={resolvedIana}
+        initialPlanTab={initialPlanTab}
+        planReminderStrip={planReminderStrip}
+      />
     </AppShell>
   );
 }

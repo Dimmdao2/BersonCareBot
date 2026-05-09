@@ -21,18 +21,22 @@ import type {
   TreatmentProgramInstanceDetail,
   TreatmentProgramInstanceStageGroup,
   TreatmentProgramInstanceStageItemRow,
-  UpdateTreatmentProgramInstanceStageGroupInput,
-  UpdateTreatmentProgramInstanceStageMetadataInput,
+  TreatmentProgramInstanceStageItemStatus,
   TreatmentProgramInstanceStageRow,
+  TreatmentProgramInstanceStageStatus,
   TreatmentProgramInstanceStatus,
   TreatmentProgramInstanceSummary,
-  TreatmentProgramInstanceStageStatus,
-  TreatmentProgramInstanceStageItemStatus,
   TreatmentProgramItemType,
+  UpdateTreatmentProgramInstanceStageGroupInput,
+  UpdateTreatmentProgramInstanceStageMetadataInput,
 } from "@/modules/treatment-program/types";
 import {
   effectiveInstanceStageItemComment,
   TREATMENT_PROGRAM_INSTANCE_FREEFORM_RECOMMENDATION_TAG,
+  TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_SORT_RECOMMENDATIONS,
+  TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_SORT_TESTS,
+  TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_TITLE_RECOMMENDATIONS,
+  TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_TITLE_TESTS,
 } from "@/modules/treatment-program/types";
 import { withDefaultSystemGroupsIfNeededForTreeStage } from "@/modules/treatment-program/instance-tree-system-groups";
 import { createPgTreatmentProgramItemSnapshotPort } from "@/infra/repos/pgTreatmentProgramItemSnapshot";
@@ -557,31 +561,53 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
 
     async addInstanceStage(instanceId: string, input: AddTreatmentProgramInstanceStageInput) {
       const db = getDrizzle();
-      const inst = await db.query.treatmentProgramInstances.findFirst({
-        where: eq(instTable.id, instanceId),
+      return db.transaction(async (tx) => {
+        const inst = await tx.query.treatmentProgramInstances.findFirst({
+          where: eq(instTable.id, instanceId),
+        });
+        if (!inst) return null;
+        const [srow] = await tx
+          .insert(stageTable)
+          .values({
+            instanceId,
+            sourceStageId: input.sourceStageId ?? null,
+            title: input.title,
+            description: input.description ?? null,
+            sortOrder: input.sortOrder,
+            localComment: null,
+            skipReason: null,
+            status: input.status,
+            startedAt: input.status === "in_progress" ? new Date().toISOString() : null,
+            goals: input.goals ?? null,
+            objectives: input.objectives ?? null,
+            expectedDurationDays: input.expectedDurationDays ?? null,
+            expectedDurationText: input.expectedDurationText ?? null,
+          })
+          .returning();
+        if (!srow) return null;
+        if (input.sortOrder > 0) {
+          await tx.insert(instGroupTable).values({
+            stageId: srow.id,
+            sourceGroupId: null,
+            title: TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_TITLE_RECOMMENDATIONS,
+            description: null,
+            scheduleText: null,
+            sortOrder: TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_SORT_RECOMMENDATIONS,
+            systemKind: "recommendations",
+          });
+          await tx.insert(instGroupTable).values({
+            stageId: srow.id,
+            sourceGroupId: null,
+            title: TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_TITLE_TESTS,
+            description: null,
+            scheduleText: null,
+            sortOrder: TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_SORT_TESTS,
+            systemKind: "tests",
+          });
+        }
+        await touchInstanceUpdatedAt(tx, instanceId);
+        return mapStage(srow);
       });
-      if (!inst) return null;
-      const [srow] = await db
-        .insert(stageTable)
-        .values({
-          instanceId,
-          sourceStageId: input.sourceStageId ?? null,
-          title: input.title,
-          description: input.description ?? null,
-          sortOrder: input.sortOrder,
-          localComment: null,
-          skipReason: null,
-          status: input.status,
-          startedAt: input.status === "in_progress" ? new Date().toISOString() : null,
-          goals: input.goals ?? null,
-          objectives: input.objectives ?? null,
-          expectedDurationDays: input.expectedDurationDays ?? null,
-          expectedDurationText: input.expectedDurationText ?? null,
-        })
-        .returning();
-      if (!srow) return null;
-      await touchInstanceUpdatedAt(db, instanceId);
-      return mapStage(srow);
     },
 
     async removeInstanceStage(instanceId: string, stageId: string) {

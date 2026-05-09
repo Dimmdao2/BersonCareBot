@@ -64,7 +64,7 @@ export function PatientHomePlanCard({
             <h3 id="patient-home-plan-heading" className={cn(patientHomeBlockHeadingClass, "shrink-0")}>
               Мой план реабилитации
             </h3>
-            <p className={cn(patientHomePlanCardTitleClampSmClass, "mt-0.5 text-[#33637d]")}>{instance.title}</p>
+            <p className={cn(patientHomePlanCardTitleClampSmClass, "mt-0.5")}>{instance.title}</p>
             {planUpdatedLabel?.trim() ? (
               <p className={cn(patientMutedTextClass, "mt-1 text-xs font-medium text-foreground")}>{planUpdatedLabel.trim()}</p>
             ) : null}
@@ -100,9 +100,9 @@ export function PatientHomePlanCard({
             href={startLessonHref}
             prefetch={false}
             className={cn(
-              "inline-flex min-h-9 min-w-[8rem] shrink-0 items-center justify-center rounded-md border border-[#b4bae4] bg-[#e9e0ff] px-5 text-sm font-medium text-[#1b3185] shadow-[0_6px_14px_rgba(40,77,160,0.24)] transition-colors lg:px-6",
+              "inline-flex min-h-9 min-w-[8rem] shrink-0 items-center justify-center rounded-md border border-[#b4bae4] bg-[#e2e2fa] px-5 text-sm font-medium text-[#1b4585] shadow-[0_3px_10px_rgba(40,77,160,0.12)] transition-colors lg:px-6",
               "hover:bg-[#ddd2f5] active:bg-[#d1c4ef]",
-              "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1b3185]/35",
+              "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1b4585]/35",
             )}
           >
             Начать занятие

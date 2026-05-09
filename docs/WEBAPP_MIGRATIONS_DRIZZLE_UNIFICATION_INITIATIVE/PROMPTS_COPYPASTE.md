@@ -27,7 +27,7 @@
 Сделай:
 1) Полную инвентаризацию apps/webapp/migrations/*.sql и apps/webapp/db/drizzle-migrations/*.sql.
 2) Таблицу соответствия: legacy -> drizzle equivalent / missing / risk.
-3) Отдельный список runtime-critical DDL.
+3) Отдельный список runtime-critical объектов (DDL, журналы миграций, ops/backfill — см. STAGE_A.md и таблицу в LOG).
 4) Запиши результат в LOG.md.
 
 Классификация:
@@ -49,7 +49,7 @@
 
 Проверь:
 1) Полнота инвентаризации legacy/drizzle.
-2) Корректность списка runtime-critical DDL.
+2) Корректность списка runtime-critical объектов (DDL, журналы миграций, ops/backfill — см. LOG).
 3) Наличие actionable рисков для Stage B.
 
 Запиши вывод в LOG.md блоком "Stage A audit" с severity: critical / major / minor / unknown.
@@ -87,8 +87,8 @@
 Проведи аудит STAGE_B.
 
 Проверь:
-1) Все runtime-critical изменения действительно покрыты Drizzle.
-2) Нет рискованного повторного применения DDL.
+1) Фактическое закрытие Stage B согласовано с LOG (узкий приём: приоритетные пробелы канонического пути, не «весь runtime-critical слой перенесён в Drizzle» без оговорок).
+2) Нет рискованного повторного применения DDL для добавленных шагов.
 3) LOG.md содержит прозрачные проверки и результаты.
 
 Запиши findings в LOG.md блоком "Stage B audit" с severity: critical / major / minor / unknown.

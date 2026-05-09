@@ -32,6 +32,10 @@ import type {
 } from "@/modules/treatment-program/types";
 import {
   effectiveInstanceStageItemComment,
+  TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_SORT_RECOMMENDATIONS,
+  TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_SORT_TESTS,
+  TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_TITLE_RECOMMENDATIONS,
+  TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_TITLE_TESTS,
   TREATMENT_PROGRAM_PLAN_MUTATION_EVENT_TYPES,
 } from "@/modules/treatment-program/types";
 import { withDefaultSystemGroupsIfNeededForTreeStage } from "@/modules/treatment-program/instance-tree-system-groups";
@@ -396,6 +400,30 @@ export function createInMemoryTreatmentProgramPersistence(seed?: {
         expectedDurationText: input.expectedDurationText ?? null,
       };
       stages.set(sid, stageRow);
+      if (input.sortOrder > 0) {
+        const recId = crypto.randomUUID();
+        instGroups.set(recId, {
+          id: recId,
+          stageId: sid,
+          sourceGroupId: null,
+          title: TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_TITLE_RECOMMENDATIONS,
+          description: null,
+          scheduleText: null,
+          sortOrder: TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_SORT_RECOMMENDATIONS,
+          systemKind: "recommendations",
+        });
+        const testsId = crypto.randomUUID();
+        instGroups.set(testsId, {
+          id: testsId,
+          stageId: sid,
+          sourceGroupId: null,
+          title: TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_TITLE_TESTS,
+          description: null,
+          scheduleText: null,
+          sortOrder: TREATMENT_PROGRAM_INSTANCE_SYSTEM_GROUP_SORT_TESTS,
+          systemKind: "tests",
+        });
+      }
       touchInstance(instanceId);
       return stageRow;
     },

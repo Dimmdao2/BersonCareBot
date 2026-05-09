@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { Activity, BookOpen, ClipboardList, Layers, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -636,6 +636,124 @@ function DoctorInstancePipelineStageBlock(props: {
   );
 }
 
+function DoctorInstanceAddPipelineStageControls(props: {
+  instanceId: string;
+  programStatus: TreatmentProgramInstanceStatus;
+  onSaved: () => Promise<void>;
+  /** Заметная плашка, когда пайплайн-этапов ещё нет (только этап 0). */
+  prominentEmpty: boolean;
+}) {
+  const { instanceId, programStatus, onSaved, prominentEmpty } = props;
+  const titleFieldId = useId();
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [titleDraft, setTitleDraft] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [dialogError, setDialogError] = useState<string | null>(null);
+  const editLocked = isProgramInstanceEditLocked(programStatus);
+
+  const submit = async () => {
+    const t = titleDraft.trim();
+    if (!t) return;
+    await runIfProgramInstanceMutationAllowed(programStatus, async () => {
+      setSaving(true);
+      setDialogError(null);
+      try {
+        const res = await fetch(
+          `/api/doctor/treatment-program-instances/${encodeURIComponent(instanceId)}/stages`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ title: t }),
+          },
+        );
+        const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
+        if (!res.ok || !data.ok) {
+          setDialogError(data.error ?? "Не удалось добавить этап");
+          return;
+        }
+        setTitleDraft("");
+        setDialogOpen(false);
+        await onSaved();
+      } finally {
+        setSaving(false);
+      }
+    });
+  };
+
+  const openButton = (
+    <Button
+      type="button"
+      variant={prominentEmpty ? "default" : "outline"}
+      size="sm"
+      disabled={editLocked}
+      onClick={() => {
+        setDialogError(null);
+        setDialogOpen(true);
+      }}
+    >
+      Добавить этап
+    </Button>
+  );
+
+  return (
+    <>
+      {prominentEmpty ? (
+        <section className="flex min-h-[7rem] flex-col justify-center rounded-xl border border-dashed border-border/80 bg-muted/10 px-4 py-6">
+          {openButton}
+        </section>
+      ) : (
+        <div className="flex shrink-0">{openButton}</div>
+      )}
+      <Dialog
+        open={dialogOpen}
+        onOpenChange={(open) => {
+          setDialogOpen(open);
+          if (!open) setDialogError(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Новый этап</DialogTitle>
+            <DialogDescription>
+              Порядок назначит сервер автоматически (следующий номер после существующих).
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor={titleFieldId}>Название</Label>
+            <Input
+              id={titleFieldId}
+              className="text-sm"
+              value={titleDraft}
+              onChange={(e) => setTitleDraft(e.target.value)}
+              maxLength={2000}
+              disabled={saving || editLocked}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  void submit();
+                }
+              }}
+            />
+            {dialogError ? <p className="text-xs text-destructive">{dialogError}</p> : null}
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" disabled={saving} onClick={() => setDialogOpen(false)}>
+              Отмена
+            </Button>
+            <Button
+              type="button"
+              disabled={editLocked || saving || !titleDraft.trim()}
+              onClick={() => void submit()}
+            >
+              {saving ? "Добавление…" : "Добавить"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
 export function TreatmentProgramInstanceDetailClient(props: {
   patientDisplayName: string;
   initial: TreatmentProgramInstanceDetail;
@@ -687,6 +805,7 @@ export function TreatmentProgramInstanceDetailClient(props: {
     () => [...detail.stages].sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id)),
     [detail.stages],
   );
+  const pipelineStages = useMemo(() => sortedStages.filter((s) => s.sortOrder > 0), [sortedStages]);
   const stageZero = useMemo(
     () => sortedStages.find((s) => s.sortOrder === 0) ?? null,
     [sortedStages],
@@ -957,19 +1076,23 @@ export function TreatmentProgramInstanceDetailClient(props: {
         </div>
 
         <div className="flex min-w-0 flex-col gap-4" id="doctor-program-instance-right">
-          {sortedStages
-            .filter((s) => s.sortOrder > 0)
-            .map((stage) => (
-              <DoctorInstancePipelineStageBlock
-                key={stage.id}
-                instanceId={detail.id}
-                stage={stage}
-                programStatus={detail.status}
-                testResults={testResults}
-                onSaved={refresh}
-                onRequestAddLibraryItem={(spec) => setAddLibrarySpec(spec)}
-              />
-            ))}
+          {pipelineStages.map((stage) => (
+            <DoctorInstancePipelineStageBlock
+              key={stage.id}
+              instanceId={detail.id}
+              stage={stage}
+              programStatus={detail.status}
+              testResults={testResults}
+              onSaved={refresh}
+              onRequestAddLibraryItem={(spec) => setAddLibrarySpec(spec)}
+            />
+          ))}
+          <DoctorInstanceAddPipelineStageControls
+            instanceId={detail.id}
+            programStatus={detail.status}
+            onSaved={refresh}
+            prominentEmpty={pipelineStages.length === 0}
+          />
         </div>
       </div>
       <InstanceAddLibraryItemDialog

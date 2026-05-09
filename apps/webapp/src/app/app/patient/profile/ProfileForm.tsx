@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 import { PatientBindPhoneClient } from "@/app/app/patient/bind-phone/PatientBindPhoneClient";
 import { EmailAccountPanel } from "@/shared/ui/EmailAccountPanel";
 import { InlineEditField } from "@/shared/ui/InlineEditField";
-import { patientMutedTextClass } from "@/shared/ui/patientVisual";
+import { patientMutedTextClass, PatientShimmerPanel } from "@/shared/ui/patientVisual";
 import { updateDisplayName } from "./actions";
 
 type Props = {
@@ -97,7 +97,7 @@ export function ProfileForm({
         ) : null}
         {phone && editingPhone ? (
           <div className="flex flex-col gap-2 sm:max-w-md">
-            <Suspense fallback={<p className={patientMutedTextClass}>Загрузка…</p>}>
+            <Suspense fallback={<PatientShimmerPanel />}>
               <PatientBindPhoneClient
                 telegramId={telegramId}
                 maxId={maxId}

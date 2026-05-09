@@ -27,6 +27,7 @@ export const recommendations = pgTable(
   },
   (table) => [
     index("idx_recommendations_archived").using("btree", table.isArchived.asc().nullsLast().op("bool_ops")),
+    index("idx_recommendations_domain").using("btree", table.domain.asc().nullsLast().op("text_ops")),
     index("idx_recommendations_body_region").using("btree", table.bodyRegionId.asc().nullsLast().op("uuid_ops")),
     foreignKey({
       columns: [table.createdBy],

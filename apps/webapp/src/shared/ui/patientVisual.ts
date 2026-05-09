@@ -470,3 +470,14 @@ export const patientModalBodyScrollClass = cn(
   "min-h-0 flex-1 space-y-3 overflow-y-auto",
   patientScrollbarHiddenClass,
 );
+
+/** Shimmer для загрузки patient-роутов (`@keyframes` только в `globals.css`). */
+export {
+  patientShimmerSheenClass,
+  PatientShimmerLine,
+  PatientShimmerCard,
+  PatientLoadingPatternBody,
+  PatientRouteLoadingShell,
+  PatientShimmerPanel,
+} from "@/shared/ui/patient/PatientLoadingShimmer";
+export type { PatientLoadingPattern } from "@/shared/ui/patient/PatientLoadingShimmer";

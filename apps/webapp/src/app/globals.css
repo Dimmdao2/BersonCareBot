@@ -441,3 +441,39 @@
     z-index: 50;
   }
 }
+
+/**
+ * Patient loading shimmer — один источник keyframes; работает только под `#app-shell-patient`
+ * (токены `--patient-*`). Для `prefers-reduced-motion: reduce` анимация отключается.
+ */
+@keyframes patientShimmerSheen {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+#app-shell-patient .patient-shimmer-sheen {
+  background-image: linear-gradient(
+    105deg,
+    color-mix(in srgb, var(--patient-border) 55%, var(--patient-card-bg)) 0%,
+    var(--patient-color-primary-soft) 38%,
+    var(--patient-card-bg) 52%,
+    var(--patient-color-primary-soft) 68%,
+    color-mix(in srgb, var(--patient-border) 55%, var(--patient-card-bg)) 100%
+  );
+  background-size: 220% 100%;
+  background-repeat: no-repeat;
+}
+
+#app-shell-patient .patient-shimmer-sheen-motion {
+  animation: patientShimmerSheen 2.5s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #app-shell-patient .patient-shimmer-sheen-motion {
+    animation: none;
+  }
+}

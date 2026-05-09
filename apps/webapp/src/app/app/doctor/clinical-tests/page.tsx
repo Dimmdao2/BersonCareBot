@@ -1,5 +1,4 @@
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { AppShell } from "@/shared/ui/AppShell";
 import { doctorCatalogViewFromSearchParams } from "@/shared/lib/doctorCatalogViewPreference";
 import {
@@ -12,7 +11,7 @@ import {
   assessmentKindWriteAllowSet,
   referenceItemsToAssessmentKindFilterDto,
 } from "@/modules/tests/clinicalTestAssessmentKind";
-import { ClinicalTestsPageClient, type ClinicalTestTitleSort } from "./ClinicalTestsPageClient";
+import type { ClinicalTestTitleSort } from "./ClinicalTestsPageClient";
 
 type PageProps = {
   searchParams?: Promise<{
@@ -28,7 +27,10 @@ type PageProps = {
 
 export default async function DoctorClinicalTestsPage({ searchParams }: PageProps) {
   const session = await requireDoctorAccess();
+  const { buildAppDeps } = await import("@/app-layer/di/buildAppDeps");
   const deps = buildAppDeps();
+  /** Параллельно с запросами данных подтягиваем клиентский чанк каталога. */
+  const clinicalTestsClientPromise = import("./ClinicalTestsPageClient");
   const sp = (await searchParams) ?? {};
   const q = typeof sp.q === "string" ? sp.q : "";
   const regionParsed = parseDoctorCatalogRegionQueryParam(sp.region);
@@ -64,6 +66,8 @@ export default async function DoctorClinicalTestsPage({ searchParams }: PageProp
   );
 
   const assessmentKindFilterItems = referenceItemsToAssessmentKindFilterDto(assessmentRefItems);
+
+  const { ClinicalTestsPageClient } = await clinicalTestsClientPromise;
 
   return (
     <AppShell title="Клинические тесты" user={session.user} variant="doctor" backHref="/app/doctor">

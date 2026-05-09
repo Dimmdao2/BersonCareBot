@@ -8,6 +8,8 @@ import { routePaths } from "@/app-layer/routes/paths";
 import { resolvePatientCanViewAuthOnlyContent } from "@/modules/platform-access";
 import { AppShell } from "@/shared/ui/AppShell";
 import { LegalFooterLinks } from "@/shared/ui/LegalFooterLinks";
+import { Suspense } from "react";
+import { PatientLoadingPatternBody } from "@/shared/ui/patientVisual";
 import { PatientHomeToday } from "./home/PatientHomeToday";
 
 export default async function PatientHomePage() {
@@ -22,7 +24,9 @@ export default async function PatientHomePage() {
         patientHideRightIcons
         patientHideHome
       >
-        <PatientHomeToday session={null} personalTierOk={false} canViewAuthOnlyContent={false} />
+        <Suspense fallback={<PatientLoadingPatternBody pattern="heroList" />}>
+          <PatientHomeToday session={null} personalTierOk={false} canViewAuthOnlyContent={false} />
+        </Suspense>
         <LegalFooterLinks className="mt-3 pb-2" />
       </AppShell>
     );
@@ -33,11 +37,13 @@ export default async function PatientHomePage() {
 
   return (
     <AppShell title="Сегодня" user={session.user} variant="patient-wide" patientSuppressShellTitle>
-      <PatientHomeToday
-        session={session}
-        personalTierOk={personalTierOk}
-        canViewAuthOnlyContent={canViewAuthOnlyContent}
-      />
+      <Suspense fallback={<PatientLoadingPatternBody pattern="heroList" />}>
+        <PatientHomeToday
+          session={session}
+          personalTierOk={personalTierOk}
+          canViewAuthOnlyContent={canViewAuthOnlyContent}
+        />
+      </Suspense>
       <LegalFooterLinks className="mt-3 pb-2" />
     </AppShell>
   );

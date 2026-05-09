@@ -88,6 +88,9 @@ sudo -n "${BACKUP_SCRIPT}" pre-migrations
 
 pnpm --dir apps/webapp run migrate
 
+# Same guardrail as deploy/host/deploy-prod.sh (shared script; fail before webapp restart).
+bash "${PROJECT_ROOT}/deploy/host/webapp-post-migrate-schema-check.sh"
+
 sudo -n /bin/systemctl restart "${WEBAPP_SERVICE}"
 sleep 3
 sudo -n /bin/systemctl is-active --quiet "${WEBAPP_SERVICE}"

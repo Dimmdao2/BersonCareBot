@@ -179,9 +179,12 @@
 **После миграций:**
 
 - [ ] Миграции завершились без ошибок (код выхода 0).
+- [ ] **Post-migrate schema guardrail** прошёл (в production — автоматически из `deploy/host/deploy-prod.sh` / `deploy/host/deploy-webapp-prod.sh` через `deploy/host/webapp-post-migrate-schema-check.sh`; при ручном прогоне можно вызвать тот же скрипт при экспортированном `DATABASE_URL`).
 - [ ] Сервисы перезапущены и в статусе active.
 - [ ] Health check возвращает ok (API и webapp).
 - [ ] При необходимости: запуск backfill/reconcile по [DATA_MIGRATION_CHECKLIST.md](DATA_MIGRATION_CHECKLIST.md) (при первом деплое или cutover).
+
+**Post-migrate schema guardrail (production):** после успешного migrate каждый из deploy-скриптов вызывает **`deploy/host/webapp-post-migrate-schema-check.sh`** (тот же файл в обоих путях). **`deploy-prod.sh`** — после **`pnpm migrate`** (integrator + webapp Drizzle); **`deploy-webapp-prod.sh`** — после **`pnpm --dir apps/webapp run migrate`** (только webapp Drizzle, без integrator). Проверяется набор критичных колонок в `public` (список в комментарии в начале скрипта: treatment-program guardrails, media pipeline, integrator outbox, `system_settings`, `platform_users.calendar_timezone`). При отсутствии любой колонки процесс завершается с ошибкой **до** `systemctl restart` — чтобы не поднять сервисы на рассинхронизированной схеме.
 
 **Webapp Drizzle и порядок относительно билда:** канонический прогон — `pnpm --dir apps/webapp run migrate` с `DATABASE_URL` из `webapp.prod`. Для ручного прогона integrator + webapp на host достаточно **`pnpm migrate`**: скрипт `scripts/migrate-all.sh` автоматически подгружает `api.prod` и `webapp.prod` (если файлы существуют). Если новый билд webapp расширяет `SELECT` по `media_files` новыми колонками (например VIDEO_HLS_DELIVERY, миграция `0018_media_files_hls_foundation`), **применить миграции до или в одном окне с первым запуском этого билда**, иначе возможна ошибка PostgreSQL `column does not exist`.
 
@@ -471,8 +474,9 @@ bash deploy/host/deploy-prod.sh
 - `pnpm --dir apps/webapp build`
 - bootstrap/reinstall systemd units
 - pre-migrations DB backup
-- integrator migrations
-- restart API / worker / webapp
+- `pnpm migrate` (integrator + webapp Drizzle через `scripts/migrate-all.sh`)
+- **post-migrate schema guardrail:** `bash deploy/host/webapp-post-migrate-schema-check.sh` (набор колонок в `public`; см. файл — при ошибке деплой **останавливается до** рестарта сервисов)
+- restart API / worker / webapp (и media-worker при наличии unit)
 - health check API
 
 ### Отдельный webapp deploy
@@ -489,7 +493,8 @@ bash deploy/host/deploy-webapp-prod.sh
 - `pnpm install --frozen-lockfile`
 - `pnpm --dir apps/webapp build`
 - перед миграциями: вызов backup (`BACKUP_SCRIPT` pre-migrations). Требуется наличие скрипта и sudo-прав (см. Sudoers). Скрипт backup должен быть тем же, что в full prod deploy (`/opt/backups/scripts/postgres-backup.sh`), или эквивалентным; контракт аргумента и каталога см. в разделе «Backup contract (pre-migrations)» ниже.
-- `pnpm --dir apps/webapp run migrate` (канонически: Drizzle-миграции из `apps/webapp/db/drizzle-migrations`; legacy SQL из `apps/webapp/migrations` при необходимости — отдельно `pnpm --dir apps/webapp run migrate:legacy`)
+- `pnpm --dir apps/webapp run migrate` (канонически: **только** Drizzle из `apps/webapp/db/drizzle-migrations`). **Обычный production deploy не выполняет legacy-SQL.** Каталог `apps/webapp/migrations/*.sql` применяется вручную только вне цикла `deploy-prod.sh` / `deploy-webapp-prod.sh`: `pnpm --dir apps/webapp run migrate:legacy` — **аварийный / исторический / bootstrap** путь (новая БД без baseline, восстановление после частично применённого DDL, локальная отладка). См. `docs/WEBAPP_MIGRATIONS_DRIZZLE_UNIFICATION_INITIATIVE/LOG.md` (Stage D).
+- после migrate: **`deploy/host/webapp-post-migrate-schema-check.sh`** (тот же вызов, что и в full prod — расширенный список колонок в комментарии скрипта); при отсутствии колонок деплой падает **до** `systemctl restart` webapp
 - restart webapp
 - health check `http://127.0.0.1:6200/api/health`
 

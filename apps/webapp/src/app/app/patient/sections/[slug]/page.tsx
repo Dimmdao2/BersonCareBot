@@ -11,12 +11,8 @@ import { resolvePatientContentSectionSlug } from "@/infra/repos/resolvePatientCo
 import { getSubscriptionCarouselSectionPresentation } from "@/modules/patient-home/patientHomeResolvers";
 import { DEFAULT_WARMUPS_SECTION_SLUG } from "@/modules/patient-home/warmupsSection";
 import { resolvePatientCanViewAuthOnlyContent } from "@/modules/platform-access";
-import { cn } from "@/lib/utils";
 import { AppShell } from "@/shared/ui/AppShell";
-import { FeatureCard } from "@/shared/ui/FeatureCard";
-import { patientMutedTextClass } from "@/shared/ui/patientVisual";
-import { PatientSectionSubscriptionCallout } from "../PatientSectionSubscriptionCallout";
-import { SectionWarmupsReminderBar } from "../SectionWarmupsReminderBar";
+import { PatientSectionPageBody } from "./PatientSectionPageBody";
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -43,11 +39,10 @@ export default async function PatientSectionPage({ params }: Props) {
   const canViewAuth = await resolvePatientCanViewAuthOnlyContent(session);
   if (section.requiresAuth && !canViewAuth) notFound();
 
-  const [pages, homeBlocks] = await Promise.all([
-    deps.contentPages.listBySection(canonicalSlug, { viewAuthOnlyPages: canViewAuth }),
-    deps.patientHomeBlocks.listBlocksWithItems(),
-  ]);
+  const homeBlocks = await deps.patientHomeBlocks.listBlocksWithItems();
   const subscriptionSectionPresentation = getSubscriptionCarouselSectionPresentation(homeBlocks, canonicalSlug);
+
+  const pages = await deps.contentPages.listBySection(canonicalSlug, { viewAuthOnlyPages: canViewAuth });
 
   const linkedCourseIds = [
     ...new Set(
@@ -68,6 +63,7 @@ export default async function PatientSectionPage({ params }: Props) {
       }
     }
   }
+
   let warmupsReminderJson: ReturnType<typeof reminderRuleToPatientJson> | null = null;
   let warmupsPersonalBar = false;
   if (canonicalSlug === DEFAULT_WARMUPS_SECTION_SLUG && session) {
@@ -96,31 +92,15 @@ export default async function PatientSectionPage({ params }: Props) {
       variant="patient"
       patientTitleBadge={subscriptionSectionPresentation?.badgeLabel}
     >
-      {warmupsPersonalBar ? (
-        <SectionWarmupsReminderBar
-          sectionTitle={section.title}
-          existingRule={warmupsReminderJson}
-          linkedObjectId={DEFAULT_WARMUPS_SECTION_SLUG}
-        />
-      ) : null}
-      {subscriptionSectionPresentation ? <PatientSectionSubscriptionCallout /> : null}
-      <section id={`patient-section-${canonicalSlug}-grid`} className="grid gap-4 md:grid-cols-2">
-        {pages.map((p) => (
-          <FeatureCard
-            key={p.id}
-            containerId={`patient-section-${canonicalSlug}-card-${p.slug}`}
-            title={p.title}
-            href={`/app/patient/content/${p.slug}`}
-            compact
-            secondaryHref={
-              p.linkedCourseId?.trim() ? courseHighlightByLinkedId.get(p.linkedCourseId.trim()) : undefined
-            }
-          />
-        ))}
-      </section>
-      {pages.length === 0 ? (
-        <p className={cn(patientMutedTextClass, "mt-4")}>В этом разделе пока нет материалов.</p>
-      ) : null}
+      <PatientSectionPageBody
+        canonicalSlug={canonicalSlug}
+        sectionTitle={section.title}
+        subscriptionSectionPresentation={subscriptionSectionPresentation}
+        pages={pages}
+        courseHighlightByLinkedId={courseHighlightByLinkedId}
+        warmupsReminderJson={warmupsReminderJson}
+        warmupsPersonalBar={warmupsPersonalBar}
+      />
     </AppShell>
   );
 }

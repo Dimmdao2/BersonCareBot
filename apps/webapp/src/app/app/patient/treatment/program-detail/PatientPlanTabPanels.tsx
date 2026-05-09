@@ -6,7 +6,7 @@ import type { InstanceStageRow } from "@/app/app/patient/treatment/program-detai
 import { PatientProgramStagesTimeline } from "@/app/app/patient/treatment/program-detail/PatientProgramStagesTimeline";
 import { PatientProgramPassageStatisticsSection } from "@/app/app/patient/treatment/program-detail/PatientProgramPassageStatisticsSection";
 import { PatientProgramControlCard } from "@/app/app/patient/treatment/program-detail/PatientProgramControlCard";
-import { patientMutedTextClass, patientInnerPageStackClass } from "@/shared/ui/patientVisual";
+import { PatientLoadingPatternBody, patientInnerPageStackClass } from "@/shared/ui/patientVisual";
 import { cn } from "@/lib/utils";
 import type { PatientPlanTab } from "@/app/app/patient/treatment/patientPlanTab";
 
@@ -69,7 +69,7 @@ export function PatientPlanTabPanels(props: {
   return (
     <>
       <div className={cn(activeTab !== "program" && "hidden")} role="tabpanel" aria-label="Программа">
-        <Suspense fallback={<p className={patientMutedTextClass}>Загрузка…</p>}>
+        <Suspense fallback={<PatientLoadingPatternBody pattern="heroList" />}>
           <PatientTreatmentTabProgramLazy
             instanceId={detail.id}
             currentWorkingStage={programTabStage}
@@ -85,7 +85,7 @@ export function PatientPlanTabPanels(props: {
       </div>
 
       <div className={cn(activeTab !== "recommendations" && "hidden")} role="tabpanel" aria-label="Рекомендации">
-        <Suspense fallback={<p className={patientMutedTextClass}>Загрузка…</p>}>
+        <Suspense fallback={<PatientLoadingPatternBody pattern="heroList" />}>
           <PatientTreatmentTabRecommendationsLazy
             instanceId={detail.id}
             currentWorkingStage={currentWorkingStage}

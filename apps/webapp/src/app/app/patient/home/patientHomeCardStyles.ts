@@ -34,14 +34,14 @@ export const patientHomeCardClass = cn(
 );
 
 /**
- * Карточка «Мой план» на главной: фиксированный лавандовый градиент (205°, три стопа rgba).
+ * Карточка «Мой план» на главной: лавандовый градиент 205° (три rgba-стопа).
  */
 export const patientHomePlanCardClass = cn(
   "border border-[color-mix(in_srgb,var(--patient-color-primary)_28%,var(--patient-border))]",
   patientCardPaddingClass,
   "rounded-[var(--patient-card-radius-mobile)] lg:rounded-[var(--patient-card-radius-desktop)]",
   "shadow-[var(--patient-shadow-card-mobile)] lg:shadow-[var(--patient-shadow-card-desktop)]",
-  "bg-[linear-gradient(205deg,rgba(160,158,255,0.81)_2.94%,rgba(180,180,254,0.4)_57.98%,rgba(219,222,254,0.75)_93.28%)]",
+  "bg-[linear-gradient(205deg,rgba(196,195,255,0.81)_2.94%,rgba(208,208,255,0.4)_57.98%,rgba(219,222,254,0.75)_93.28%)]",
   "text-[var(--patient-text-primary)]",
 );
 
@@ -233,7 +233,7 @@ export const patientHomeCardTitleClampSmClass = cn(
 /** Заголовок карточки «Мой план» — до 3 строк (название программы). */
 export const patientHomePlanCardTitleClampSmClass = cn(
   patientLineClamp3Class,
-  "text-sm font-medium leading-5 text-[var(--patient-text-primary)]",
+  "text-sm font-normal leading-5 text-[#626160]",
 );
 
 /** Заголовок карточки — до 2 строк, lg (напоминание). */

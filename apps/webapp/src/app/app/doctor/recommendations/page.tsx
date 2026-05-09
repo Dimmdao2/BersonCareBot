@@ -1,5 +1,4 @@
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import type { RecommendationUsageSnapshot } from "@/modules/recommendations/types";
 import { parseRecommendationCatalogSsrQuery } from "@/modules/recommendations/recommendationCatalogSsrQuery";
 import {
@@ -28,6 +27,7 @@ type PageProps = {
 
 export default async function DoctorRecommendationsPage({ searchParams }: PageProps) {
   const session = await requireDoctorAccess();
+  const { buildAppDeps } = await import("@/app-layer/di/buildAppDeps");
   const deps = buildAppDeps();
   const sp = (await searchParams) ?? {};
   const q = typeof sp.q === "string" ? sp.q : "";

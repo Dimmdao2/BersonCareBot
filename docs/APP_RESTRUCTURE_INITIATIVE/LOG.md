@@ -6,6 +6,16 @@
 
 ---
 
+## 2026-05-09 — patient menu: route `loading.tsx` + gradient shimmer + Suspense streaming
+
+**Сделано (webapp):** единый shimmer под `#app-shell-patient` в [`globals.css`](../../apps/webapp/src/app/globals.css) (`@keyframes patientShimmerSheen`, reduced-motion); примитивы [`PatientLoadingShimmer.tsx`](../../apps/webapp/src/shared/ui/patient/PatientLoadingShimmer.tsx) + реэкспорт из [`patientVisual.ts`](../../apps/webapp/src/shared/ui/patientVisual.ts). `loading.tsx` для Wave 1: `sections/[slug]`, `content/[slug]`, `diary`, `treatment/[instanceId]`, `reminders`. Тяжёлый контент вынесен под `Suspense` с `PatientLoadingPatternBody`: главная [`page.tsx`](../../apps/webapp/src/app/app/patient/page.tsx), раздел [`sections/[slug]/page.tsx`](../../apps/webapp/src/app/app/patient/sections/[slug]/page.tsx) + [`PatientSectionPageBody.tsx`](../../apps/webapp/src/app/app/patient/sections/[slug]/PatientSectionPageBody.tsx), материал [`content/[slug]/page.tsx`](../../apps/webapp/src/app/app/patient/content/[slug]/page.tsx) + [`PatientContentSlugArticle.tsx`](../../apps/webapp/src/app/app/patient/content/[slug]/PatientContentSlugArticle.tsx), дневник [`diary/PatientDiaryAuthenticatedMain.tsx`](../../apps/webapp/src/app/app/patient/diary/PatientDiaryAuthenticatedMain.tsx), напоминания [`RemindersPageBody.tsx`](../../apps/webapp/src/app/app/patient/reminders/RemindersPageBody.tsx), программа [`PatientTreatmentProgramDetailPayload.tsx`](../../apps/webapp/src/app/app/patient/treatment/[instanceId]/PatientTreatmentProgramDetailPayload.tsx). Текстовые fallback «Загрузка…» в `Suspense` заменены на shimmer в [`PatientPlanTabPanels.tsx`](../../apps/webapp/src/app/app/patient/treatment/program-detail/PatientPlanTabPanels.tsx), [`ProfileForm.tsx`](../../apps/webapp/src/app/app/patient/profile/ProfileForm.tsx).
+
+**Намеренно не делали:** doctor/admin `loading.tsx`; правки `patient/layout.tsx` (gates).
+
+**Проверки:** `pnpm --filter webapp typecheck`, `pnpm --filter webapp lint`.
+
+---
+
 ## 2026-05-08 — разминка дня: самочувствие после (`warmup_feeling`) + UX экрана материала
 
 **Сделано (webapp):** миграция **`0051_warmup_feeling_symptom`**: системный `reference_items.warmup_feeling`, backfill и дедуп `symptom_trackings`, partial unique как у `general_wellbeing`; **`symptom_entries.patient_practice_completion_id`** + уникальный индекс для дедупа с completion. Порт дневника: **`ensureWarmupFeelingTracking`**, **`addEntry`** с опциональной привязкой к completion. Расширение **`PatientPracticePort`**: **`getByIdForUser`**, **`updateFeelingById`**. **`PATCH /api/patient/practice/completion/[id]/feeling`** с транзакцией Drizzle (симптом + обновление `feeling`), идемпотентность **`duplicate`**. Страница материала при **`from=daily_warmup`**: компактный hero, порядок видео → кнопка → текст; типографика описания 14px `#3a3f53`. **`PatientContentPracticeComplete`**: для разминки POST с `feeling: null` → модалка без «Пропустить» → PATCH → **`routePaths.patient`**.

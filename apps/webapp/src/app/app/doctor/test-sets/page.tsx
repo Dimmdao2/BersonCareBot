@@ -1,5 +1,4 @@
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { AppShell } from "@/shared/ui/AppShell";
 import {
   parseDoctorCatalogPubArchQuery,
@@ -23,6 +22,7 @@ type PageProps = {
 
 export default async function DoctorTestSetsPage({ searchParams }: PageProps) {
   const session = await requireDoctorAccess();
+  const { buildAppDeps } = await import("@/app-layer/di/buildAppDeps");
   const deps = buildAppDeps();
 
   const sp = (await searchParams) ?? {};
