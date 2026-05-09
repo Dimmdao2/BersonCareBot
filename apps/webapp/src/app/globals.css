@@ -65,6 +65,20 @@
   --patient-block-heading-font-size: 1rem;
   --patient-block-heading-line-height: 1.5rem;
   --patient-block-heading-font-weight: 400;
+  /**
+   * Порталы (модалки/sheet вне `#app-shell-patient`): те же несекретные значения, что под shell,
+   * чтобы `patientSectionSurfaceClass` и соседние примитивы не теряли фон/рамку.
+   */
+  --patient-card-bg: #ffffff;
+  --patient-border: #e5e7eb;
+  --patient-text-primary: #111827;
+  --patient-text-muted: #98a2b3;
+  --patient-card-radius-mobile: 6px;
+  --patient-card-radius-desktop: 8px;
+  --patient-hero-radius-mobile: 8px;
+  --patient-hero-radius-desktop: 10px;
+  --patient-shadow-card-mobile: 0 4px 14px rgba(15, 23, 42, 0.04);
+  --patient-shadow-card-desktop: 0 8px 24px rgba(15, 23, 42, 0.05);
 }
 
 /**

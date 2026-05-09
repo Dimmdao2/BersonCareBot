@@ -31,6 +31,8 @@ import {
 } from "@/modules/reminders/reminderTimeInputs";
 import { ReminderScheduleForm } from "@/modules/reminders/components/ReminderScheduleForm";
 import { customReminderFieldsInvalid, scheduleInvalidFromError } from "@/modules/reminders/reminderFormAria";
+import { cn } from "@/lib/utils";
+import { patientPortalModalSurfaceClass } from "@/shared/ui/patientVisual";
 
 function subscribeMobileViewport(onStoreChange: () => void) {
   if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
@@ -449,7 +451,10 @@ export function ReminderCreateDialog({
       <Sheet open={open} onOpenChange={onOpenChange}>
         <SheetContent
           side="bottom"
-          className="max-h-[92vh] overflow-y-auto rounded-t-2xl border-t border-[var(--patient-border)] bg-[var(--patient-card-bg)] px-4 pb-6"
+          className={cn(
+            patientPortalModalSurfaceClass,
+            "max-h-[92vh] overflow-y-auto rounded-t-2xl border-t border-[var(--patient-border)] px-4 pb-6",
+          )}
         >
           <SheetHeader className="px-0 text-left">
             <SheetTitle>{title}</SheetTitle>
@@ -463,7 +468,12 @@ export function ReminderCreateDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] max-w-md overflow-y-auto border-[var(--patient-border)] bg-[var(--patient-card-bg)] sm:max-w-md">
+      <DialogContent
+        className={cn(
+          patientPortalModalSurfaceClass,
+          "max-h-[90vh] max-w-md overflow-y-auto border-[var(--patient-border)] sm:max-w-md",
+        )}
+      >
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>

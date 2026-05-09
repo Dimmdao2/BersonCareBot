@@ -13,7 +13,11 @@ import {
   REMINDER_INTERVAL_WINDOW_MAX_MINUTES,
   REMINDER_INTERVAL_WINDOW_MIN_MINUTES,
 } from "@/modules/reminders/reminderIntervalBounds";
-import { patientSectionSurfaceClass, patientSectionTitleNormalClass } from "@/shared/ui/patientVisual";
+import {
+  patientHeroBookingSectionClass,
+  patientSectionSurfaceClass,
+  patientSectionTitleNormalClass,
+} from "@/shared/ui/patientVisual";
 import type { ReminderScheduleFieldInvalid } from "@/modules/reminders/reminderFormAria";
 
 const WEEKDAY_LABELS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"] as const;
@@ -114,7 +118,7 @@ export function ReminderScheduleForm({
     linkedObjectTypeForDefaults === "rehab_program" ? DEFAULT_REHAB_WEEKDAY_SLOTS.timesLocal[0] ?? "09:00" : "09:00";
 
   return (
-    <div className="flex flex-col gap-4 px-1 pb-1">
+    <div className={patientHeroBookingSectionClass}>
       <div className={cn(patientSectionSurfaceClass, "!gap-3")}>
         <h3 className={patientSectionTitleNormalClass}>Тип расписания</h3>
         <p className="text-xs text-muted-foreground">

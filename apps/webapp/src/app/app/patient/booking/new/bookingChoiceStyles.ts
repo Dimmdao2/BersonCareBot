@@ -1,11 +1,8 @@
-import { patientHomeCardHeroClass } from "@/app/app/patient/home/patientHomeCardStyles";
 import { cn } from "@/lib/utils";
+import { patientHeroBookingSectionClass } from "@/shared/ui/patientVisual";
 
-/** Обёртка блока выбора (город/онлайн, услуги): градиент и обводка как у hero на главной. */
-export const bookingChoiceSectionClass = cn(
-  patientHomeCardHeroClass,
-  "flex flex-col gap-4 p-4 lg:p-[18px]",
-);
+/** Обёртка блока выбора (город/онлайн, услуги): см. {@link patientHeroBookingSectionClass}. */
+export const bookingChoiceSectionClass = patientHeroBookingSectionClass;
 
 /** Ряд выбора: белый фон, синий hover/active по всей площади; без иконок — только класс строки. */
 export const bookingChoiceRowClass = cn(

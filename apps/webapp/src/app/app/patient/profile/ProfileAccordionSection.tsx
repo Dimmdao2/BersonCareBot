@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
-import { patientCardClass } from "@/shared/ui/patientVisual";
+import { patientCardClass, patientHeroBookingGradientFillClass } from "@/shared/ui/patientVisual";
 
 type Props = {
   id?: string;
@@ -35,7 +35,12 @@ export function ProfileAccordionSection({ id, title, statusIcon, children, defau
           aria-hidden
         />
       </CollapsibleTrigger>
-      <CollapsibleContent className="flex flex-col gap-4 border-t border-[var(--patient-border)]/50 px-4 pb-4 pt-4">
+      <CollapsibleContent
+        className={cn(
+          "flex flex-col gap-4 border-t border-[var(--patient-border)]/50 px-4 pb-4 pt-4",
+          patientHeroBookingGradientFillClass,
+        )}
+      >
         {children}
       </CollapsibleContent>
     </Collapsible>

@@ -20,6 +20,38 @@ const patientCardSurfaceTokens = cn(
 );
 
 /**
+ * Hero-блок выбора на записи (город / формат): градиент и типографика как `patientHomeCardHeroClass` в home.
+ * Для вложенных панелей без второй «карточной» рамки — только заливка и цвет текста.
+ */
+export const patientHeroBookingGradientFillClass =
+  "bg-[linear-gradient(205deg,#f1ecf1_10%,#f9f4ff_52%,#fafaf5_80%)] text-[var(--patient-text-primary)]";
+
+/**
+ * Полная оболочка hero-секции записи (рамка, радиус hero, тень, градиент) — без flex/padding;
+ * {@link patientHeroBookingSectionClass} добавляет типичный layout блока выбора.
+ */
+export const patientHeroBookingCardChromeClass = cn(
+  "overflow-hidden border border-[#ddd6fe]",
+  "rounded-[var(--patient-hero-radius-mobile)] lg:rounded-[var(--patient-hero-radius-desktop)]",
+  patientHeroBookingGradientFillClass,
+  "shadow-[var(--patient-shadow-card-mobile)] lg:shadow-[var(--patient-shadow-card-desktop)]",
+);
+
+/**
+ * Секция как блок выбора города/услуг на `/app/patient/booking/new` — общий примитив для расписания, профиля и т.д.
+ */
+export const patientHeroBookingSectionClass = cn(
+  patientHeroBookingCardChromeClass,
+  "flex flex-col gap-4 p-4 lg:p-[18px]",
+);
+
+/**
+ * Фон модалки/шита пациента в портале (вне `#app-shell-patient` CSS vars недоступны) — белый 90%.
+ */
+export const patientPortalModalSurfaceClass =
+  "bg-[rgba(255,255,255,0.9)] supports-backdrop-filter:backdrop-blur-sm";
+
+/**
  * Общая «карточная» оболочка semantic surface: радиус и тень как у обычной patient-карточки, без home-геометрии.
  * Цвета задаются отдельно через `--patient-surface-<tone>-*`.
  */

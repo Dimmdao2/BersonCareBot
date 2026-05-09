@@ -3,6 +3,7 @@ import {
   patientLineClamp2Class,
   patientLineClamp3Class,
   patientHeroTitleBaseClass,
+  patientHeroBookingCardChromeClass,
   patientSectionTitleClass,
   patientBadgePrimaryClass,
   patientBadgeSuccessClass,
@@ -60,13 +61,8 @@ export const patientHomeCardCompactClass = cn(
   "shadow-[var(--patient-shadow-card-mobile)] lg:shadow-[var(--patient-shadow-card-desktop)]",
 );
 
-/** Hero «Разминка дня» — градиент и радиус по spec §10.2. */
-export const patientHomeCardHeroClass = cn(
-  "overflow-hidden border border-[#ddd6fe]",
-  "rounded-[var(--patient-hero-radius-mobile)] lg:rounded-[var(--patient-hero-radius-desktop)]",
-  "bg-[linear-gradient(205deg,#f1ecf1_10%,#f9f4ff_52%,#fafaf5_80%)] text-[var(--patient-text-primary)]",
-  "shadow-[var(--patient-shadow-card-mobile)] lg:shadow-[var(--patient-shadow-card-desktop)]",
-);
+/** Hero «Разминка дня» / блок выбора на записи — градиент и радиус по spec §10.2 (канон в `patientHeroBookingCardChromeClass`). */
+export const patientHomeCardHeroClass = patientHeroBookingCardChromeClass;
 
 /** Карточка записи / success tone (`VISUAL_SYSTEM_SPEC §10.3`). */
 export const patientHomeCardSuccessClass = cn(
