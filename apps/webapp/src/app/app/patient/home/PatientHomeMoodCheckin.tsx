@@ -62,6 +62,8 @@ type Props = {
   initialMood?: PatientMoodToday | null;
   initialLastEntry?: PatientMoodLastEntry | null;
   moodWeekDays?: readonly PatientMoodWeekDay[];
+  /** IANA TZ главной (для полосы недели). */
+  appDisplayTimeZone?: string;
 };
 
 export function PatientHomeMoodCheckin({
@@ -71,6 +73,7 @@ export function PatientHomeMoodCheckin({
   initialMood = null,
   initialLastEntry = null,
   moodWeekDays = [],
+  appDisplayTimeZone = "UTC",
 }: Props) {
   const router = useRouter();
   const [selectedScore, setSelectedScore] = useState<number | null>(initialMood?.score ?? null);
@@ -243,7 +246,7 @@ export function PatientHomeMoodCheckin({
                   {statusLine}
                 </p>
               : null}
-              <PatientHomeWellbeingWeekStrip days={moodWeekDays} />
+              <PatientHomeWellbeingWeekStrip days={moodWeekDays} timeZone={appDisplayTimeZone} />
             </div>}
         </div>
       </section>

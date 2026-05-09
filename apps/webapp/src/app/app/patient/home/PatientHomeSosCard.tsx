@@ -47,7 +47,7 @@ export function PatientHomeSosCard({ sos, blockIconImageUrl }: Props) {
             "lg:mt-auto lg:-mb-1 lg:min-w-[8rem] lg:self-end lg:px-6 lg:text-sm",
           )}
         >
-          Быстрая помощь
+          Посмотреть
         </Link>
       </article>
     </section>

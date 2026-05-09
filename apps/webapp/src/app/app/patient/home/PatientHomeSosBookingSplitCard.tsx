@@ -103,7 +103,7 @@ export function PatientHomeSosBookingSplitCard({
           </div>
         </div>
         <Link href={sos.href} prefetch={false} className={cn(sosButtonClass, "w-full")}>
-          Быстрая помощь
+          Посмотреть
         </Link>
       </section>
     );
@@ -129,9 +129,12 @@ export function PatientHomeSosBookingSplitCard({
               fallback={<Calendar className="size-[22px] lg:size-6" aria-hidden />}
             />
           </div>
-          <h3 id="patient-home-booking-heading" className={cn(splitHeadingClass, "min-w-0 flex-1 pt-0.5")}>
-            Записаться
-          </h3>
+          <div className="min-w-0 flex-1">
+            <h3 id="patient-home-booking-heading" className={cn(splitHeadingClass, "pt-0.5")}>
+              Записаться
+            </h3>
+            <p className={cn(patientHomeSosSubtitleClampClass, "mt-0.5 text-xs leading-snug")}>Очно или онлайн</p>
+          </div>
         </div>
         <div className="flex min-h-0 flex-col gap-1.5">
           <Link href={bookingHref} prefetch={false} className={cn(bookingButtonClass, "w-full")}>

@@ -24,7 +24,7 @@ describe("PatientHomeSosCard", () => {
     );
     expect(screen.getByText(/Если болит сейчас/i)).toBeInTheDocument();
     expect(screen.getByText("Рекомендации по облегчению боли")).toBeInTheDocument();
-    const cta = screen.getByRole("link", { name: /Быстрая помощь/i });
+    const cta = screen.getByRole("link", { name: /Посмотреть/i });
     expect(cta).toHaveAttribute("href", "/app/patient/content/sos-page");
     expect(cta).toHaveClass("self-end");
     expect(cta).toHaveClass("!min-h-10");

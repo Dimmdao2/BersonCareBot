@@ -314,6 +314,7 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
             initialMood={initialMoodCheckin?.mood ?? null}
             initialLastEntry={initialMoodCheckin?.lastEntry ?? null}
             moodWeekDays={moodWeekDays}
+            appDisplayTimeZone={appTz}
           />
         );
       case "sos":
