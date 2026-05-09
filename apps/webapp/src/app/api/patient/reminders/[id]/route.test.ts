@@ -41,6 +41,11 @@ const sampleRule = (): ReminderRule => ({
   linkedObjectId: null,
   customTitle: null,
   customText: null,
+  scheduleType: "interval_window",
+  scheduleData: null,
+  reminderIntent: "generic",
+  displayTitle: null,
+  displayDescription: null,
   updatedAt: "2026-04-02T12:00:00.000Z",
 });
 

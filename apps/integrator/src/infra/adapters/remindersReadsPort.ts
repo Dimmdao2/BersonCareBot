@@ -42,6 +42,10 @@ type WebappRuleRow = {
   deepLink?: string | null;
   createdAt?: string;
   updatedAt?: string;
+  scheduleData?: unknown;
+  reminderIntent?: string | null;
+  displayTitle?: string | null;
+  displayDescription?: string | null;
 };
 
 type WebappHistoryRow = {
@@ -100,6 +104,10 @@ function mapRule(row: WebappRuleRow, fallbackTz: string): ReminderRuleListItem {
     ...(row.customTitle != null ? { customTitle: row.customTitle } : {}),
     ...(row.customText != null ? { customText: row.customText } : {}),
     ...(typeof row.deepLink === 'string' && row.deepLink.trim().length > 0 ? { deepLink: row.deepLink.trim() } : {}),
+    ...(typeof row.scheduleData !== 'undefined' ? { scheduleData: row.scheduleData } : {}),
+    ...(typeof row.reminderIntent !== 'undefined' ? { reminderIntent: row.reminderIntent } : {}),
+    ...(typeof row.displayTitle !== 'undefined' ? { displayTitle: row.displayTitle } : {}),
+    ...(typeof row.displayDescription !== 'undefined' ? { displayDescription: row.displayDescription } : {}),
   };
 }
 

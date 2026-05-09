@@ -26,6 +26,11 @@ export type ReminderRuleListItem = {
   customText: string | null;
   /** Absolute HTTPS (or dev) URL for bot open-in-webapp (S2.T08). */
   deepLink: string;
+  /** `slots_v1` payload; null for `interval_window`. */
+  scheduleData: Record<string, unknown> | null;
+  reminderIntent: string | null;
+  displayTitle: string | null;
+  displayDescription: string | null;
   createdAt?: string;
   updatedAt?: string;
 };
@@ -125,6 +130,12 @@ function resolvePlatformUserId(
 ): Promise<string | null> {
   if (integratorUserId === "") return Promise.resolve(null);
   return findCanonicalUserIdByIntegratorId(pool, integratorUserId);
+}
+
+function mapScheduleDataColumn(raw: unknown): Record<string, unknown> | null {
+  if (raw == null) return null;
+  if (typeof raw === "object" && !Array.isArray(raw)) return raw as Record<string, unknown>;
+  return null;
 }
 
 export function createPgReminderProjectionPort(): ReminderProjectionPort {
@@ -262,12 +273,17 @@ export function createPgReminderProjectionPort(): ReminderProjectionPort {
         linked_object_id: string | null;
         custom_title: string | null;
         custom_text: string | null;
+        schedule_data: unknown;
+        reminder_intent: string | null;
+        display_title: string | null;
+        display_description: string | null;
         created_at: string;
         updated_at: string;
       }>(
         `SELECT integrator_rule_id, integrator_user_id::text, category, is_enabled, schedule_type,
                 timezone, interval_minutes, window_start_minute, window_end_minute, days_mask, content_mode,
                 linked_object_type, linked_object_id, custom_title, custom_text,
+                schedule_data, reminder_intent, display_title, display_description,
                 created_at, updated_at
          FROM reminder_rules WHERE integrator_user_id = $1::bigint ORDER BY category`,
         [integratorUserId]
@@ -289,6 +305,10 @@ export function createPgReminderProjectionPort(): ReminderProjectionPort {
           linkedObjectId: row.linked_object_id,
           customTitle: row.custom_title,
           customText: row.custom_text,
+          scheduleData: mapScheduleDataColumn(row.schedule_data),
+          reminderIntent: row.reminder_intent,
+          displayTitle: row.display_title,
+          displayDescription: row.display_description,
           deepLink: buildReminderDeepLink({
             linkedObjectType: row.linked_object_type,
             linkedObjectId: row.linked_object_id,
@@ -317,12 +337,17 @@ export function createPgReminderProjectionPort(): ReminderProjectionPort {
         linked_object_id: string | null;
         custom_title: string | null;
         custom_text: string | null;
+        schedule_data: unknown;
+        reminder_intent: string | null;
+        display_title: string | null;
+        display_description: string | null;
         created_at: string;
         updated_at: string;
       }>(
         `SELECT integrator_rule_id, integrator_user_id::text, category, is_enabled, schedule_type,
                 timezone, interval_minutes, window_start_minute, window_end_minute, days_mask, content_mode,
                 linked_object_type, linked_object_id, custom_title, custom_text,
+                schedule_data, reminder_intent, display_title, display_description,
                 created_at, updated_at
          FROM reminder_rules WHERE integrator_user_id = $1::bigint AND category = $2`,
         [integratorUserId, category]
@@ -345,6 +370,10 @@ export function createPgReminderProjectionPort(): ReminderProjectionPort {
         linkedObjectId: row.linked_object_id,
         customTitle: row.custom_title,
         customText: row.custom_text,
+        scheduleData: mapScheduleDataColumn(row.schedule_data),
+        reminderIntent: row.reminder_intent,
+        displayTitle: row.display_title,
+        displayDescription: row.display_description,
         deepLink: buildReminderDeepLink({
           linkedObjectType: row.linked_object_type,
           linkedObjectId: row.linked_object_id,

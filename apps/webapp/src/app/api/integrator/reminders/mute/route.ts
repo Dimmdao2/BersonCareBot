@@ -4,18 +4,9 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { getPool } from "@/app-layer/db/client";
 import { findCanonicalUserIdByIntegratorId } from "@/app-layer/platform-user/canonicalPlatformUser";
 
-function parseMinutes(raw: unknown): number | null {
-  if (typeof raw !== "number" || !Number.isFinite(raw)) return null;
-  const m = Math.trunc(raw);
-  if (m !== raw) return null;
-  if (m < 1 || m > 720) return null;
-  return m;
-}
-
 type Body = {
   integratorUserId?: unknown;
-  occurrenceId?: unknown;
-  minutes?: unknown;
+  mutedUntilIso?: unknown;
 };
 
 function parseBody(raw: unknown): { ok: true; data: Body } | { ok: false; error: string } {
@@ -25,14 +16,14 @@ function parseBody(raw: unknown): { ok: true; data: Body } | { ok: false; error:
     typeof o.integratorUserId === "string" && o.integratorUserId.trim().length > 0
       ? o.integratorUserId.trim()
       : null;
-  const occurrenceId =
-    typeof o.occurrenceId === "string" && o.occurrenceId.trim().length > 0
-      ? o.occurrenceId.trim()
-      : null;
-  const minutes = parseMinutes(o.minutes);
-  if (!integratorUserId || !occurrenceId) return { ok: false, error: "integratorUserId and occurrenceId required" };
-  if (minutes === null) return { ok: false, error: "minutes must be integer 1–720" };
-  return { ok: true, data: { integratorUserId, occurrenceId, minutes } };
+  if (!integratorUserId) return { ok: false, error: "integratorUserId required" };
+  if (!("mutedUntilIso" in o)) return { ok: false, error: "mutedUntilIso required" };
+  if (o.mutedUntilIso !== null && (typeof o.mutedUntilIso !== "string" || !o.mutedUntilIso.trim())) {
+    return { ok: false, error: "mutedUntilIso must be null or non-empty ISO string" };
+  }
+  const mutedUntilIso =
+    o.mutedUntilIso === null ? null : typeof o.mutedUntilIso === "string" ? o.mutedUntilIso.trim() : null;
+  return { ok: true, data: { integratorUserId, mutedUntilIso } };
 }
 
 export async function POST(request: Request) {
@@ -60,10 +51,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: parsed.error }, { status: 400 });
   }
 
-  const { integratorUserId, occurrenceId, minutes } = parsed.data as {
+  const { integratorUserId, mutedUntilIso } = parsed.data as {
     integratorUserId: string;
-    occurrenceId: string;
-    minutes: number;
+    mutedUntilIso: string | null;
   };
 
   const deps = buildAppDeps();
@@ -73,17 +63,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
   }
 
-  const res = await deps.reminders.snoozeOccurrence(platformUserId, occurrenceId, minutes);
-  if (!res.ok) {
-    return NextResponse.json({ ok: false, error: res.error }, { status: 404 });
-  }
+  await deps.reminders.setReminderMutedUntil(platformUserId, mutedUntilIso);
 
-  return NextResponse.json(
-    {
-      ok: true,
-      occurrenceId: res.data.occurrenceId,
-      snoozedUntil: res.data.snoozedUntil,
-    },
-    { status: 200 },
-  );
+  return NextResponse.json({ ok: true }, { status: 200 });
 }

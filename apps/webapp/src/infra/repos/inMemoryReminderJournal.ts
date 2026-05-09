@@ -57,6 +57,16 @@ export function createInMemoryReminderJournalPort(): ReminderJournalPort {
       return out;
     },
 
+    async countDoneSkippedInUtcRange(_platformUserId, rangeStart, rangeEnd) {
+      const rs = rangeStart.getTime();
+      const re = rangeEnd.getTime();
+      return journal.filter((e) => {
+        if (e.action !== "done" && e.action !== "skipped") return false;
+        const t = new Date(e.createdAt).getTime();
+        return t >= rs && t < re;
+      }).length;
+    },
+
     async recordSnooze(platformUserId, integratorOccurrenceId, minutes) {
       const key = `${platformUserId}:${integratorOccurrenceId}`;
       if (!occById.has(key)) {
@@ -86,6 +96,34 @@ export function createInMemoryReminderJournalPort(): ReminderJournalPort {
         createdAt: new Date().toISOString(),
       });
       return { ok: true, occurrenceId: integratorOccurrenceId, snoozedUntil: until };
+    },
+
+    async recordDone(platformUserId, integratorOccurrenceId) {
+      const key = `${platformUserId}:${integratorOccurrenceId}`;
+      if (!occById.has(key)) {
+        occById.set(key, {
+          snoozedUntil: null,
+          skippedAt: null,
+          skipReason: null,
+          journalRuleIntegratorId: `inmem-rule-${integratorOccurrenceId}`,
+        });
+      }
+      const st = occById.get(key)!;
+      const existingDone = journal.find((e) => e.occurrenceId === integratorOccurrenceId && e.action === "done");
+      if (existingDone) {
+        return { ok: true, occurrenceId: integratorOccurrenceId, doneAt: existingDone.createdAt };
+      }
+      const doneAt = new Date().toISOString();
+      journal.unshift({
+        id: `j-${journal.length}`,
+        ruleId: st.journalRuleIntegratorId,
+        occurrenceId: integratorOccurrenceId,
+        action: "done",
+        snoozeUntil: null,
+        skipReason: null,
+        createdAt: doneAt,
+      });
+      return { ok: true, occurrenceId: integratorOccurrenceId, doneAt };
     },
 
     async recordSkip(platformUserId, integratorOccurrenceId, reason) {

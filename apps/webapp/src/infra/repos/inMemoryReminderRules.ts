@@ -8,11 +8,13 @@
 import { randomUUID } from "node:crypto";
 import type { ReminderRulesPort } from "@/modules/reminders/ports";
 import type { ReminderCategory, ReminderLinkedObjectType, ReminderRule, ReminderUpdateSchedule } from "@/modules/reminders/types";
+import type { SlotsV1ScheduleData } from "@/modules/reminders/scheduleSlots";
+import { DEFAULT_REHAB_WEEKDAY_SLOTS } from "@/modules/reminders/scheduleSlots";
 
 const FALLBACK_CATEGORIES = new Set(["appointment", "lfk", "chat", "important"]);
 
 function mapLinkedTypeToCategory(linked: ReminderLinkedObjectType): ReminderCategory {
-  if (linked === "lfk_complex" || linked === "content_section") return "lfk";
+  if (linked === "lfk_complex" || linked === "content_section" || linked === "rehab_program") return "lfk";
   return "important";
 }
 
@@ -20,6 +22,7 @@ export function createInMemoryReminderRulesPort(
   initial: ReminderRule[] = [],
 ): ReminderRulesPort {
   const store: Map<string, ReminderRule> = new Map(initial.map((r) => [r.id, r]));
+  const muteUntilByPlatformUser = new Map<string, string | null>();
 
   const getRulesForUser = (platformUserId: string): ReminderRule[] =>
     Array.from(store.values()).filter((r) => r.integratorUserId === platformUserId);
@@ -50,12 +53,17 @@ export function createInMemoryReminderRulesPort(
     async create(input) {
       const id = `wp-${randomUUID()}`;
       const category = mapLinkedTypeToCategory(input.linkedObjectType);
+      const scheduleType = input.scheduleType ?? "interval_window";
+      let scheduleData: SlotsV1ScheduleData | null = input.scheduleData ?? null;
+      if (input.linkedObjectType === "rehab_program" && scheduleType === "slots_v1" && !scheduleData) {
+        scheduleData = DEFAULT_REHAB_WEEKDAY_SLOTS;
+      }
       const rule: ReminderRule = {
         id,
         integratorUserId: input.integratorUserId,
         category,
         enabled: input.enabled,
-        timezone: "Europe/Moscow",
+        timezone: input.timezone?.trim() || "Europe/Moscow",
         intervalMinutes: input.schedule.intervalMinutes,
         windowStartMinute: input.schedule.windowStartMinute,
         windowEndMinute: input.schedule.windowEndMinute,
@@ -65,6 +73,11 @@ export function createInMemoryReminderRulesPort(
         linkedObjectId: input.linkedObjectId,
         customTitle: input.customTitle,
         customText: input.customText,
+        scheduleType,
+        scheduleData,
+        reminderIntent: input.reminderIntent ?? "generic",
+        displayTitle: input.displayTitle ?? null,
+        displayDescription: input.displayDescription ?? null,
         updatedAt: new Date().toISOString(),
       };
       store.set(id, rule);
@@ -97,6 +110,22 @@ export function createInMemoryReminderRulesPort(
       }
     },
 
+    async updateScheduleAndType(ruleIntegratorId, params) {
+      const rule = store.get(ruleIntegratorId);
+      if (rule) {
+        store.set(ruleIntegratorId, {
+          ...rule,
+          scheduleType: params.scheduleType,
+          intervalMinutes: params.intervalMinutes,
+          windowStartMinute: params.windowStartMinute,
+          windowEndMinute: params.windowEndMinute,
+          daysMask: params.daysMask,
+          scheduleData: params.scheduleData as SlotsV1ScheduleData | null,
+          updatedAt: new Date().toISOString(),
+        });
+      }
+    },
+
     async updateCustomTexts(ruleIntegratorId, customTitle, customText) {
       const rule = store.get(ruleIntegratorId);
       if (rule) {
@@ -107,6 +136,28 @@ export function createInMemoryReminderRulesPort(
           updatedAt: new Date().toISOString(),
         });
       }
+    },
+
+    async updateDisplayTexts(ruleIntegratorId, displayTitle, displayDescription) {
+      const rule = store.get(ruleIntegratorId);
+      if (rule) {
+        store.set(ruleIntegratorId, {
+          ...rule,
+          displayTitle,
+          displayDescription,
+          updatedAt: new Date().toISOString(),
+        });
+      }
+    },
+
+    async setReminderMutedUntil(platformUserId, untilIso) {
+      muteUntilByPlatformUser.set(platformUserId, untilIso);
+    },
+
+    async getReminderMutedUntil(platformUserId) {
+      return muteUntilByPlatformUser.has(platformUserId)
+        ? muteUntilByPlatformUser.get(platformUserId) ?? null
+        : null;
     },
 
     async retargetContentPageLinkedSlug(_contentPageId: string, oldSlug: string, newSlug: string) {

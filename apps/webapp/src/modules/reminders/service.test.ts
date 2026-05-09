@@ -23,6 +23,11 @@ const makeRule = (overrides: Partial<ReminderRule> = {}): ReminderRule => ({
   linkedObjectId: null,
   customTitle: null,
   customText: null,
+  scheduleType: "interval_window",
+  scheduleData: null,
+  reminderIntent: "generic",
+  displayTitle: null,
+  displayDescription: null,
   updatedAt: new Date().toISOString(),
   ...overrides,
 });

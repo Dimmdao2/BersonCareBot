@@ -17,26 +17,50 @@ export type InlineKeyboardButton =
   | { text: string; url: string }
   | { text: string; callback_data: string };
 
+/** Primary CTA label from webapp `reminder_intent`. */
+export function reminderIntentPrimaryLabel(intent: string | null | undefined): string {
+  if (intent === 'warmup') return 'Начать разминку';
+  if (intent === 'exercises' || intent === 'stretch') return 'Выполнить упражнения';
+  return 'Открыть программу';
+}
+
 export function buildReminderDispatchInlineKeyboard(params: {
+  primaryLabel: string;
   openUrl: string;
   occurrenceId: string;
+  /** Deeplink to patient reminders UI («Своя настройка» snooze path). */
+  remindersEditUrl?: string;
 }): { inline_keyboard: InlineKeyboardButton[][] } {
-  const { openUrl, occurrenceId } = params;
-  const rowOpen: InlineKeyboardButton[] = [{ text: 'Открыть видео', url: openUrl }];
-  const snoozeRow: InlineKeyboardButton[] = [
-    { text: 'Отложить 30м', callback_data: `rem_snooze:${occurrenceId}:30` },
-    { text: 'Отложить 60м', callback_data: `rem_snooze:${occurrenceId}:60` },
-    { text: 'Отложить 120м', callback_data: `rem_snooze:${occurrenceId}:120` },
-  ];
-  const skipRow: InlineKeyboardButton[] = [{ text: 'Пропущу сегодня', callback_data: `rem_skip:${occurrenceId}` }];
+  const { primaryLabel, openUrl, occurrenceId, remindersEditUrl } = params;
+  const rows: InlineKeyboardButton[][] = [[{ text: primaryLabel, url: openUrl }]];
+  if (remindersEditUrl?.trim()) {
+    rows.push([{ text: 'Своя настройка', url: remindersEditUrl.trim() }]);
+  }
 
-  const rows: InlineKeyboardButton[][] = [rowOpen];
+  const snoozeRow: InlineKeyboardButton[] = [
+    { text: '15м', callback_data: `rem_snooze:${occurrenceId}:15` },
+    { text: '30м', callback_data: `rem_snooze:${occurrenceId}:30` },
+  ];
   if (snoozeRow.every((b) => 'callback_data' in b && isTelegramCallbackDataWithinLimit(b.callback_data))) {
     rows.push(snoozeRow);
   }
-  if (skipRow.every((b) => 'callback_data' in b && isTelegramCallbackDataWithinLimit(b.callback_data))) {
-    rows.push(skipRow);
+
+  const doneSkipRow: InlineKeyboardButton[] = [
+    { text: 'Уже выполнено', callback_data: `rem_done:${occurrenceId}` },
+    { text: 'Пропущу сегодня', callback_data: `rem_skip:${occurrenceId}` },
+  ];
+  if (doneSkipRow.every((b) => 'callback_data' in b && isTelegramCallbackDataWithinLimit(b.callback_data))) {
+    rows.push(doneSkipRow);
   }
+
+  const muteRow: InlineKeyboardButton[] = [
+    { text: 'Тишина 2ч', callback_data: 'rem_mute:120' },
+    { text: 'Тишина 8ч', callback_data: 'rem_mute:480' },
+  ];
+  if (muteRow.every((b) => 'callback_data' in b && isTelegramCallbackDataWithinLimit(b.callback_data))) {
+    rows.push(muteRow);
+  }
+
   return { inline_keyboard: rows };
 }
 

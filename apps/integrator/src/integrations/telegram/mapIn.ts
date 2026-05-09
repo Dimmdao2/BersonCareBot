@@ -82,6 +82,7 @@ type DynamicActionResult = {
   complexId?: string;
   reminderOccurrenceId?: string;
   reminderSnoozeMinutes?: number;
+  reminderMuteMinutes?: number;
   skipReasonCode?: string;
   questionConfirm?: 'yes' | 'no';
 };
@@ -139,12 +140,27 @@ export function normalizeChannelCallbackPayload(value: string): DynamicActionRes
     if (lastColon <= 0) return { action: trimmed };
     const occurrenceId = rest.slice(0, lastColon).trim();
     const minutes = Math.round(Number(rest.slice(lastColon + 1)));
-    if (!occurrenceId || (minutes !== 30 && minutes !== 60 && minutes !== 120)) return { action: trimmed };
+    if (
+      !occurrenceId
+      || !Number.isFinite(minutes)
+      || minutes < 1
+      || minutes > 720
+    ) return { action: trimmed };
     return {
       action: 'rem_snooze',
       reminderOccurrenceId: occurrenceId,
       reminderSnoozeMinutes: minutes,
     };
+  }
+  if (trimmed.startsWith('rem_done:')) {
+    const occurrenceId = trimmed.slice('rem_done:'.length).trim();
+    if (!occurrenceId) return { action: trimmed };
+    return { action: 'rem_done', reminderOccurrenceId: occurrenceId };
+  }
+  if (trimmed.startsWith('rem_mute:')) {
+    const minutes = Math.round(Number(trimmed.slice('rem_mute:'.length)));
+    if (!Number.isFinite(minutes) || minutes < 1 || minutes > 1440) return { action: trimmed };
+    return { action: 'rem_mute', reminderMuteMinutes: minutes };
   }
   if (trimmed.startsWith('rem_skip_r:')) {
     const rest = trimmed.slice('rem_skip_r:'.length);
@@ -229,6 +245,7 @@ export function fromTelegram(
       ...(typeof normalized.complexId === 'string' ? { complexId: normalized.complexId } : {}),
       ...(typeof normalized.reminderOccurrenceId === 'string' ? { reminderOccurrenceId: normalized.reminderOccurrenceId } : {}),
       ...(typeof normalized.reminderSnoozeMinutes === 'number' ? { reminderSnoozeMinutes: normalized.reminderSnoozeMinutes } : {}),
+      ...(typeof normalized.reminderMuteMinutes === 'number' ? { reminderMuteMinutes: normalized.reminderMuteMinutes } : {}),
       ...(typeof normalized.skipReasonCode === 'string' ? { skipReasonCode: normalized.skipReasonCode } : {}),
       ...(normalized.questionConfirm === 'yes' || normalized.questionConfirm === 'no'
         ? { questionConfirm: normalized.questionConfirm }

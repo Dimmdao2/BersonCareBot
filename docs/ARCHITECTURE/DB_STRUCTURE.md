@@ -134,12 +134,14 @@
 
 ### 2.5 Reminders / content access (проекция из integrator)
 
-Таблицы (миграции 010, backfill-reminders-domain):
+Таблицы (миграции 010, backfill-reminders-domain; webapp **`084_reminder_rehab_slots_mute.sql`** — `schedule_data`, `reminder_intent`, rehab/mute; integrator **`20260509_0001_reminder_rules_multi_and_enrichment.sql`** — multi-rule / enrichment):
 
-- `reminder_rules`
+- `reminder_rules` — **канонические продуктовые правила** (webapp SoT); integrator хранит зеркало для dispatch после M2M upsert.
 - `reminder_occurrence_history`
 - `reminder_delivery_events`
 - `content_access_grants_webapp`
+
+Колонка **`platform_users.reminder_muted_until`** — user-level mute для цепочки dispatch (см. [`PATIENT_REMINDER_UX_INITIATIVE/README.md`](../PATIENT_REMINDER_UX_INITIATIVE/README.md)).
 
 Источник в integrator: `user_reminder_rules`, `user_reminder_occurrences`, `user_reminder_delivery_logs`, `content_access_grants`.
 

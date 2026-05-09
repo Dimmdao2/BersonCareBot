@@ -38,6 +38,13 @@ export type ReminderRuleRecord = {
   customTitle?: string | null;
   customText?: string | null;
   deepLink?: string | null;
+  /** Webapp `slots_v1` JSON; null for `interval_window`. */
+  scheduleData?: unknown;
+  /** Webapp `reminder_intent` (warmup | exercises | stretch | generic). */
+  reminderIntent?: string | null;
+  /** Webapp rehab-only display strings from projection. */
+  displayTitle?: string | null;
+  displayDescription?: string | null;
 };
 
 export type ReminderOccurrenceStatus =

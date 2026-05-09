@@ -21,6 +21,11 @@ const baseRule = (): ReminderRule => ({
   linkedObjectId: "p1",
   customTitle: null,
   customText: null,
+  scheduleType: "interval_window",
+  scheduleData: null,
+  reminderIntent: "generic",
+  displayTitle: null,
+  displayDescription: null,
   updatedAt: "2026-01-01T00:00:00.000Z",
 });
 
@@ -57,5 +62,38 @@ describe("PatientHomeNextReminderCard", () => {
     );
     const img = container.querySelector("img");
     expect(img).toHaveAttribute("src", "/api/media/cccccccc-cccc-4ccc-8ccc-cccccccccccc");
+  });
+
+  it("shows n/N when reminderDaySummary has plannedTotal > 0", () => {
+    render(
+      <PatientHomeNextReminderCard
+        rule={baseRule()}
+        scheduleLabel="ср, 10:15"
+        reminderDaySummary={{ done: 2, plannedTotal: 5, muted: false }}
+      />,
+    );
+    expect(screen.getByLabelText(/Сегодня: 2 из 5/i)).toBeInTheDocument();
+  });
+
+  it("shows empty copy when plannedTotal is 0", () => {
+    render(
+      <PatientHomeNextReminderCard
+        rule={baseRule()}
+        scheduleLabel="ср, 10:15"
+        reminderDaySummary={{ done: 0, plannedTotal: 0, muted: false }}
+      />,
+    );
+    expect(screen.getByText("На сегодня напоминаний нет")).toBeInTheDocument();
+  });
+
+  it("shows mute copy when summary.muted", () => {
+    render(
+      <PatientHomeNextReminderCard
+        rule={baseRule()}
+        scheduleLabel="ср, 10:15"
+        reminderDaySummary={{ done: 0, plannedTotal: 0, muted: true }}
+      />,
+    );
+    expect(screen.getByText("Уведомления на паузе")).toBeInTheDocument();
   });
 });

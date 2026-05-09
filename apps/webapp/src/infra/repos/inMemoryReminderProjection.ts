@@ -51,6 +51,10 @@ export const inMemoryReminderProjectionPort: ReminderProjectionPort = {
       customTitle: null,
       customText: null,
       deepLink: buildReminderDeepLink({ linkedObjectType: null, linkedObjectId: null }),
+      scheduleData: null,
+      reminderIntent: null,
+      displayTitle: null,
+      displayDescription: null,
       updatedAt: params.updatedAt,
     };
     rulesByIntegratorRuleId.set(params.integratorRuleId, item);

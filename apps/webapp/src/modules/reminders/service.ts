@@ -80,6 +80,13 @@ function validateLinkedFields(
   return null;
 }
 
+function validateSnoozeMinutes(minutes: number): string | null {
+  const m = Math.trunc(minutes);
+  if (!Number.isFinite(minutes) || m !== minutes) return "validation_error: minutes";
+  if (m < 1 || m > 720) return "validation_error: minutes range";
+  return null;
+}
+
 async function reloadRule(port: ReminderRulesPort, platformUserId: string, ruleId: string) {
   const rules = await port.listByPlatformUserWithObjects(platformUserId);
   return rules.find((r) => r.id === ruleId) ?? null;
@@ -280,12 +287,28 @@ export function createRemindersService(port: ReminderRulesPort, deps?: Reminders
     async snoozeOccurrence(
       platformUserId: string,
       integratorOccurrenceId: string,
-      minutes: 30 | 60 | 120,
+      minutes: number,
     ): Promise<ServiceResult<{ occurrenceId: string; snoozedUntil: string }>> {
+      const v = validateSnoozeMinutes(minutes);
+      if (v) return { ok: false, error: v };
       if (!deps?.journal) return { ok: false, error: "not_available" };
-      const res = await deps.journal.recordSnooze(platformUserId, integratorOccurrenceId, minutes);
+      const m = Math.trunc(minutes);
+      const res = await deps.journal.recordSnooze(platformUserId, integratorOccurrenceId, m);
       if (!res.ok) return { ok: false, error: "not_found" };
       return { ok: true, data: { occurrenceId: res.occurrenceId, snoozedUntil: res.snoozedUntil } };
+    },
+
+    async doneOccurrence(
+      platformUserId: string,
+      integratorOccurrenceId: string,
+    ): Promise<ServiceResult<{ occurrenceId: string; doneAt: string }>> {
+      if (!deps?.journal) return { ok: false, error: "not_available" };
+      const res = await deps.journal.recordDone(platformUserId, integratorOccurrenceId);
+      if (!res.ok) {
+        if (res.error === "conflict") return { ok: false, error: "conflict" };
+        return { ok: false, error: "not_found" };
+      }
+      return { ok: true, data: { occurrenceId: res.occurrenceId, doneAt: res.doneAt } };
     },
 
     async skipOccurrence(
@@ -294,9 +317,23 @@ export function createRemindersService(port: ReminderRulesPort, deps?: Reminders
       reason: string | null,
     ): Promise<ServiceResult<{ occurrenceId: string; skippedAt: string }>> {
       if (!deps?.journal) return { ok: false, error: "not_available" };
-      const res = await deps.journal.recordSkip(platformUserId, integratorOccurrenceId, reason);
+      const normalizedReason =
+        reason === null || reason === undefined
+          ? null
+          : typeof reason === "string" && reason.trim() === ""
+            ? null
+            : reason;
+      const res = await deps.journal.recordSkip(platformUserId, integratorOccurrenceId, normalizedReason);
       if (!res.ok) return { ok: false, error: "not_found" };
       return { ok: true, data: { occurrenceId: res.occurrenceId, skippedAt: res.skippedAt } };
+    },
+
+    async setReminderMutedUntil(platformUserId: string, mutedUntilIso: string | null): Promise<void> {
+      await port.setReminderMutedUntil(platformUserId, mutedUntilIso);
+    },
+
+    async getReminderMutedUntil(platformUserId: string): Promise<string | null> {
+      return port.getReminderMutedUntil(platformUserId);
     },
   };
 }

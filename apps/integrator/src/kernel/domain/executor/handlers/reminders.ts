@@ -12,18 +12,21 @@ import {
   readIncoming,
   readIncomingText,
 } from '../helpers.js';
+import { randomUUID } from 'node:crypto';
 import { createDbPort } from '../../../../infra/db/client.js';
 import { getAppDisplayTimezone } from '../../../../config/appTimezone.js';
 import {
   buildDefaultReminderRule,
   cycleReminderPreset,
   detectReminderPreset,
+  planDueReminderOccurrences,
   reminderPresetConfig,
 } from '../../reminders/policy.js';
 import { buildPatientReminderDeepLink } from '../../reminders/buildPatientReminderDeepLink.js';
 import {
   buildReminderDispatchInlineKeyboard,
   buildReminderSkipReasonInlineKeyboard,
+  reminderIntentPrimaryLabel,
 } from '../../reminders/reminderInlineKeyboard.js';
 import { REMINDER_BY_CATEGORY } from '../templateKeys.js';
 
@@ -194,6 +197,40 @@ export async function handleReminders(
     return { actionId: action.id, status: 'success', writes, values: { reminderPreset: nextPreset } };
   }
 
+  if (action.type === 'reminders.planDue') {
+    if (!deps.readPort || !deps.writePort) {
+      return { actionId: action.id, status: 'skipped', error: 'reminders.planDue: missing port' };
+    }
+    const nowPlanIso = asString(action.params.nowIso) ?? nowIso(ctx);
+    const enabledRules = await deps.readPort.readDb<ReminderRuleRecord[]>({
+      type: 'reminders.rules.enabled',
+      params: {},
+    });
+    const rules = Array.isArray(enabledRules) ? enabledRules : [];
+    const writes: import('../../../contracts/index.js').DbWriteMutation[] = [];
+    for (const rule of rules) {
+      const drafts = planDueReminderOccurrences(rule, nowPlanIso);
+      for (const d of drafts) {
+        writes.push({
+          type: 'reminders.occurrence.upsertPlanned',
+          params: {
+            id: randomUUID(),
+            ruleId: rule.id,
+            occurrenceKey: d.occurrenceKey,
+            plannedAt: d.plannedAt,
+          },
+        });
+      }
+    }
+    await persistWrites(deps.writePort, writes);
+    return {
+      actionId: action.id,
+      status: 'success',
+      writes,
+      values: { plannedOccurrenceUpserts: writes.length },
+    };
+  }
+
   if (action.type === 'reminders.dispatchDue') {
     if (!deps.readPort || !deps.writePort) return { actionId: action.id, status: 'skipped', error: 'reminders.dispatchDue: missing port' };
     const dueNowIso = asString(action.params.nowIso) ?? nowIso(ctx);
@@ -303,9 +340,19 @@ export async function handleReminders(
             linkedObjectId: rule?.linkedObjectId ?? null,
           })) || buildPatientReminderDeepLink({ linkedObjectType: null, linkedObjectId: null });
 
+      let remindersEditUrl: string | undefined;
+      try {
+        const u = new URL(openUrl);
+        remindersEditUrl = `${u.origin}/app/patient/reminders?from=reminder`;
+      } catch {
+        remindersEditUrl = undefined;
+      }
+
       const replyMarkup = buildReminderDispatchInlineKeyboard({
+        primaryLabel: reminderIntentPrimaryLabel(rule?.reminderIntent ?? null),
         openUrl,
         occurrenceId: occ.id,
+        ...(remindersEditUrl ? { remindersEditUrl } : {}),
       });
 
       type ChannelIdentity = { resource: string; externalId: string; chatId: number };
@@ -388,9 +435,16 @@ export async function handleReminders(
     if (!occurrenceId || !channelUserId) {
       return { actionId: action.id, status: 'failed', error: 'reminders.snooze.callback: missing ids' };
     }
-    const minutes =
-      minutesParsed === 30 || minutesParsed === 60 || minutesParsed === 120 ? minutesParsed : null;
-    if (minutes === null) return { actionId: action.id, status: 'failed', error: 'reminders.snooze.callback: bad minutes' };
+    const minutesRounded = Math.round(minutesParsed);
+    if (
+      !Number.isFinite(minutesRounded)
+      || minutesRounded < 1
+      || minutesRounded > 720
+      || minutesRounded !== minutesParsed
+    ) {
+      return { actionId: action.id, status: 'failed', error: 'reminders.snooze.callback: bad minutes' };
+    }
+    const minutes = minutesRounded;
     const userId = await resolveIntegratorUserId(deps.readPort, channelUserId, resource);
     if (!userId || !(await assertOccurrenceOwnedByUser(deps.readPort, occurrenceId, userId))) {
       return { actionId: action.id, status: 'failed', error: 'reminders.snooze.callback: forbidden' };
@@ -627,6 +681,111 @@ export async function handleReminders(
         },
       }],
       values: { conversationState: 'idle' },
+    };
+  }
+
+  if (action.type === 'reminders.done.callback') {
+    if (!deps.readPort) {
+      return { actionId: action.id, status: 'skipped', error: 'reminders.done.callback: missing readPort' };
+    }
+    const occurrenceId = asString(action.params.occurrenceId);
+    const channelUserId = asNumericString(action.params.channelUserId) ?? readExternalActorId(ctx);
+    const resource = asString(action.params.resource) ?? ctx.event.meta.source ?? 'telegram';
+    const chatId = asNumber(action.params.chatId) ?? asNumber(readIncoming(ctx).chatId);
+    if (!occurrenceId || !channelUserId || chatId === null) {
+      return { actionId: action.id, status: 'failed', error: 'reminders.done.callback: missing params' };
+    }
+    const userId = await resolveIntegratorUserId(deps.readPort, channelUserId, resource);
+    if (!userId || !(await assertOccurrenceOwnedByUser(deps.readPort, occurrenceId, userId))) {
+      return { actionId: action.id, status: 'failed', error: 'reminders.done.callback: forbidden' };
+    }
+    if (deps.remindersWebappWritesPort) {
+      await deps.remindersWebappWritesPort.postOccurrenceDone({
+        integratorUserId: userId,
+        occurrenceId,
+      });
+    }
+    const tplSrc = resource === 'max' ? 'max' : 'telegram';
+    const ack = deps.templatePort
+      ? (await deps.templatePort.renderTemplate({
+          source: tplSrc,
+          templateId: 'reminder.done.saved',
+          vars: {},
+          audience: 'user',
+        })).text
+      : 'Отмечено выполненным.';
+    const src = resource === 'max' ? 'max' : 'telegram';
+    return {
+      actionId: action.id,
+      status: 'success',
+      intents: [{
+        type: 'message.send',
+        meta: buildIntentMeta(action, ctx),
+        payload: {
+          recipient: { chatId },
+          message: { text: ack },
+          delivery: { channels: [src], maxAttempts: 1 },
+        },
+      }],
+    };
+  }
+
+  if (action.type === 'reminders.mute.callback') {
+    if (!deps.readPort) {
+      return { actionId: action.id, status: 'skipped', error: 'reminders.mute.callback: missing readPort' };
+    }
+    const mp = action.params.minutes;
+    const minutesParsed = Number(
+      typeof mp === 'number' && Number.isFinite(mp) ? mp : (typeof mp === 'string' ? mp.trim() : ''),
+    );
+    const channelUserId = asNumericString(action.params.channelUserId) ?? readExternalActorId(ctx);
+    const resource = asString(action.params.resource) ?? ctx.event.meta.source ?? 'telegram';
+    const chatId = asNumber(action.params.chatId) ?? asNumber(readIncoming(ctx).chatId);
+    if (!channelUserId || chatId === null) {
+      return { actionId: action.id, status: 'failed', error: 'reminders.mute.callback: missing params' };
+    }
+    const minutesRounded = Math.round(minutesParsed);
+    if (
+      !Number.isFinite(minutesRounded)
+      || minutesRounded < 1
+      || minutesRounded > 1440
+      || minutesRounded !== minutesParsed
+    ) {
+      return { actionId: action.id, status: 'failed', error: 'reminders.mute.callback: bad minutes' };
+    }
+    const userId = await resolveIntegratorUserId(deps.readPort, channelUserId, resource);
+    if (!userId) {
+      return { actionId: action.id, status: 'failed', error: 'reminders.mute.callback: no user' };
+    }
+    const mutedUntilIso = new Date(Date.now() + minutesRounded * 60_000).toISOString();
+    if (deps.remindersWebappWritesPort) {
+      await deps.remindersWebappWritesPort.postReminderMuteUntil({
+        integratorUserId: userId,
+        mutedUntilIso,
+      });
+    }
+    const tplMs = resource === 'max' ? 'max' : 'telegram';
+    const ack = deps.templatePort
+      ? (await deps.templatePort.renderTemplate({
+          source: tplMs,
+          templateId: 'reminder.mute.saved',
+          vars: { minutes: String(minutesRounded) },
+          audience: 'user',
+        })).text
+      : `Напоминания отключены на ${minutesRounded} мин.`;
+    const src = resource === 'max' ? 'max' : 'telegram';
+    return {
+      actionId: action.id,
+      status: 'success',
+      intents: [{
+        type: 'message.send',
+        meta: buildIntentMeta(action, ctx),
+        payload: {
+          recipient: { chatId },
+          message: { text: ack },
+          delivery: { channels: [src], maxAttempts: 1 },
+        },
+      }],
     };
   }
 

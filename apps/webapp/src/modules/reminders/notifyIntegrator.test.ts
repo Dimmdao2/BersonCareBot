@@ -7,6 +7,7 @@ const runtimeConfig = vi.hoisted(() => ({
 vi.mock("@/modules/system-settings/integrationRuntime", () => ({
   getIntegratorApiUrl: async () => runtimeConfig.baseUrl,
   getIntegratorWebhookSecret: async () => runtimeConfig.secret,
+  getAppBaseUrlSync: () => "https://app.example.com",
 }));
 
 // Mock fetch
@@ -40,6 +41,11 @@ const baseRule: ReminderRule = {
   linkedObjectId: null,
   customTitle: null,
   customText: null,
+  scheduleType: "interval_window",
+  scheduleData: null,
+  reminderIntent: "generic",
+  displayTitle: null,
+  displayDescription: null,
   updatedAt: "2025-01-01T00:00:00.000Z",
 };
 

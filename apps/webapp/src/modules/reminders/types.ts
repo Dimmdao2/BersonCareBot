@@ -1,3 +1,5 @@
+import type { SlotsV1ScheduleData } from "./scheduleSlots";
+
 export type ReminderCategory =
   | "appointment"
   | "lfk"
@@ -5,8 +7,15 @@ export type ReminderCategory =
   | "important"
   | "broadcast";
 
-/** Non-null variants for new object-linked rules; null = legacy category-only rule. */
-export type ReminderLinkedObjectType = "lfk_complex" | "content_section" | "content_page" | "custom";
+/** Non-null variants for object-linked rules; null = legacy category-only rule. */
+export type ReminderLinkedObjectType =
+  | "lfk_complex"
+  | "content_section"
+  | "content_page"
+  | "custom"
+  | "rehab_program";
+
+export type ReminderIntent = "warmup" | "exercises" | "stretch" | "generic";
 
 export type ReminderRule = {
   /** integrator_rule_id (string, managed by integrator / webapp create) */
@@ -27,6 +36,12 @@ export type ReminderRule = {
   linkedObjectId: string | null;
   customTitle: string | null;
   customText: string | null;
+  /** interval_window | slots_v1 */
+  scheduleType: string;
+  scheduleData: SlotsV1ScheduleData | null;
+  reminderIntent: ReminderIntent;
+  displayTitle: string | null;
+  displayDescription: string | null;
   updatedAt: string;
 };
 
@@ -36,3 +51,7 @@ export type ReminderUpdateSchedule = {
   windowEndMinute: number;
   daysMask: string;
 };
+
+export type ReminderUpdateScheduleExtended =
+  | ({ scheduleType: "interval_window" } & ReminderUpdateSchedule)
+  | { scheduleType: "slots_v1"; scheduleData: SlotsV1ScheduleData; timezone?: string };

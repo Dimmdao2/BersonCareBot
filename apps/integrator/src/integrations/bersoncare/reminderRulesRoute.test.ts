@@ -73,6 +73,13 @@ describe('POST /api/integrator/reminders/rules', () => {
         windowEndMinute: 1200,
         daysMask: '1111100',
         contentMode: 'none',
+        customTitle: null,
+        customText: null,
+        deepLink: null,
+        linkedObjectId: null,
+        linkedObjectType: null,
+        reminderIntent: null,
+        scheduleData: undefined,
       },
     });
   });

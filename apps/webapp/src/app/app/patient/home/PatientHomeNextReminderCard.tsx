@@ -31,6 +31,8 @@ type Props = {
   blockIconImageUrl?: string | null;
   anonymousGuest?: boolean;
   personalTierOk?: boolean;
+  /** Local app-day progress; omitted for guests / builds without journal. */
+  reminderDaySummary?: { done: number; plannedTotal: number; muted: boolean } | null;
 };
 
 function LeadingIcon({ blockIconImageUrl }: { blockIconImageUrl?: string | null }) {
@@ -50,12 +52,37 @@ function LeadingIcon({ blockIconImageUrl }: { blockIconImageUrl?: string | null 
   );
 }
 
+function ReminderDaySummaryLines({
+  summary,
+}: {
+  summary: { done: number; plannedTotal: number; muted: boolean };
+}) {
+  if (summary.muted) {
+    return (
+      <p className={cn(patientHomeBlockCaptionSmClamp2Mt1Class, "text-muted-foreground")}>Уведомления на паузе</p>
+    );
+  }
+  if (summary.plannedTotal > 0) {
+    return (
+      <p
+        className={patientHomeBlockCaptionSmClamp2Mt1Class}
+        aria-label={`Сегодня: ${summary.done} из ${summary.plannedTotal}`}
+      >
+        <span className="font-medium tabular-nums">{summary.done}</span>
+        <span> из {summary.plannedTotal}</span>
+      </p>
+    );
+  }
+  return <p className={patientHomeBlockCaptionSmClamp2Mt1Class}>На сегодня напоминаний нет</p>;
+}
+
 export function PatientHomeNextReminderCard({
   rule,
   scheduleLabel,
   blockIconImageUrl,
   anonymousGuest = false,
   personalTierOk = true,
+  reminderDaySummary = null,
 }: Props) {
   if (!rule) {
     const remindersHref = anonymousGuest ? appLoginWithNextHref(routePaths.patientReminders) : routePaths.patientReminders;
@@ -72,6 +99,7 @@ export function PatientHomeNextReminderCard({
               <p className={cn(patientHomeCardTitleClampSmClass, "mt-1")}>
                 Пока нет ближайших
               </p>
+              {reminderDaySummary ? <ReminderDaySummaryLines summary={reminderDaySummary} /> : null}
               <p className={cn(patientHomeBlockCaptionSmClamp2Mt1Class, "lg:hidden")}>
                 {anonymousGuest ?
                   "Чтобы настроить напоминания."
@@ -104,6 +132,7 @@ export function PatientHomeNextReminderCard({
               Следующее напоминание
             </h3>
             <p className={cn(patientHomeCardTitleClampSmClass, "mt-1")}>{scheduleLabel}</p>
+            {reminderDaySummary ? <ReminderDaySummaryLines summary={reminderDaySummary} /> : null}
             <p className={cn(patientHomeBlockCaptionSmClamp2Mt1Class, "lg:hidden")}>
               {ruleLabel}
             </p>

@@ -207,11 +207,100 @@ export function buildDefaultReminderRule(input: {
   };
 }
 
+type SlotsV1Data = {
+  timesLocal: string[];
+  dayFilter: 'weekdays' | 'weekly_mask' | 'every_n_days';
+  daysMask?: string;
+  everyNDays?: number;
+  anchorDate?: string;
+};
+
+function parseSlotsV1Data(raw: unknown): SlotsV1Data | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const o = raw as Record<string, unknown>;
+  if (!Array.isArray(o.timesLocal) || typeof o.dayFilter !== 'string') return null;
+  return raw as SlotsV1Data;
+}
+
+function parseHhMmToMinuteOfDay(s: string): number | null {
+  const t = s.trim();
+  const m = /^(\d{1,2}):(\d{2})$/.exec(t);
+  if (!m) return null;
+  const h = Number(m[1]);
+  const min = Number(m[2]);
+  if (!Number.isFinite(h) || !Number.isFinite(min) || h > 23 || min > 59) return null;
+  return h * 60 + min;
+}
+
+function isDayActiveForSlots(
+  data: SlotsV1Data,
+  rule: ReminderRuleRecord,
+  weekdayIndex: number,
+  zonedNow: ReturnType<typeof getZonedParts>,
+): boolean {
+  if (data.dayFilter === 'weekdays') {
+    return weekdayIndex >= 0 && weekdayIndex <= 4;
+  }
+  if (data.dayFilter === 'weekly_mask') {
+    const mask = (data.daysMask ?? rule.daysMask ?? '1111111').padStart(7, '0').slice(0, 7);
+    return mask[weekdayIndex] === '1';
+  }
+  if (data.dayFilter === 'every_n_days') {
+    const n = data.everyNDays ?? 1;
+    const anchor = (data.anchorDate ?? '').trim();
+    if (!anchor || n < 1) return false;
+    const todayKey = localDateKey(zonedNow);
+    let diff: number;
+    try {
+      const b = new Date(`${todayKey}T12:00:00`);
+      const a = new Date(`${anchor}T12:00:00`);
+      diff = Math.round((b.getTime() - a.getTime()) / 86400000);
+    } catch {
+      return false;
+    }
+    if (diff < 0) return false;
+    return diff % n === 0;
+  }
+  return false;
+}
+
+function planSlotsV1DueOccurrences(rule: ReminderRuleRecord, nowIso: string): ReminderOccurrenceDraft[] {
+  const data = parseSlotsV1Data(rule.scheduleData);
+  if (!data) return [];
+  const now = new Date(nowIso);
+  const zonedNow = getZonedParts(now, rule.timezone);
+  const weekdayIndex = weekdayMaskIndex(zonedNow.weekdayShort);
+  if (!isDayActiveForSlots(data, rule, weekdayIndex, zonedNow)) return [];
+
+  const results: ReminderOccurrenceDraft[] = [];
+  for (const tl of data.timesLocal) {
+    const minuteOfDay = parseHhMmToMinuteOfDay(typeof tl === 'string' ? tl : '');
+    if (minuteOfDay === null) continue;
+    const slotUtc = zonedLocalDateTimeToUtc({
+      year: zonedNow.year,
+      month: zonedNow.month,
+      day: zonedNow.day,
+      hour: Math.floor(minuteOfDay / 60),
+      minute: minuteOfDay % 60,
+      timeZone: rule.timezone,
+    });
+    if (slotUtc.getTime() > now.getTime()) continue;
+    results.push({
+      occurrenceKey: `${rule.id}:${localDateKey(zonedNow)}:slot:${minuteOfDay}`,
+      plannedAt: slotUtc.toISOString(),
+    });
+  }
+  return results;
+}
+
 export function planDueReminderOccurrences(
   rule: ReminderRuleRecord,
   nowIso: string,
 ): ReminderOccurrenceDraft[] {
   if (!rule.isEnabled) return [];
+  if (rule.scheduleType === 'slots_v1') {
+    return planSlotsV1DueOccurrences(rule, nowIso);
+  }
   const now = new Date(nowIso);
   const zonedNow = getZonedParts(now, rule.timezone);
   const weekdayIndex = weekdayMaskIndex(zonedNow.weekdayShort);

@@ -1897,6 +1897,64 @@
 		]
 	},
 	{
+		"id": "max.reminder.done",
+		"source": "max",
+		"event": "callback.received",
+		"match": {
+			"input": {
+				"action": "rem_done"
+			}
+		},
+		"steps": [
+			{
+				"action": "reminders.done.callback",
+				"mode": "sync",
+				"params": {
+					"occurrenceId": "{{input.reminderOccurrenceId}}",
+					"channelUserId": "{{actor.channelUserId}}",
+					"resource": "max",
+					"chatId": "{{actor.chatId}}"
+				}
+			},
+			{
+				"action": "callback.answer",
+				"mode": "async",
+				"params": {
+					"callbackQueryId": "{{input.callbackQueryId}}"
+				}
+			}
+		]
+	},
+	{
+		"id": "max.reminder.mute",
+		"source": "max",
+		"event": "callback.received",
+		"match": {
+			"input": {
+				"action": "rem_mute"
+			}
+		},
+		"steps": [
+			{
+				"action": "reminders.mute.callback",
+				"mode": "sync",
+				"params": {
+					"minutes": "{{input.reminderMuteMinutes}}",
+					"channelUserId": "{{actor.channelUserId}}",
+					"resource": "max",
+					"chatId": "{{actor.chatId}}"
+				}
+			},
+			{
+				"action": "callback.answer",
+				"mode": "async",
+				"params": {
+					"callbackQueryId": "{{input.callbackQueryId}}"
+				}
+			}
+		]
+	},
+	{
 		"id": "max.reminder.skip.open",
 		"source": "max",
 		"event": "callback.received",

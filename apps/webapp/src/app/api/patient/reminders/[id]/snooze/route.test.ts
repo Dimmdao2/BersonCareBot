@@ -55,7 +55,7 @@ describe("POST /api/patient/reminders/[id]/snooze", () => {
   });
 
   it("returns 400 for disallowed minutes", async () => {
-    const res = await POST(post("occ-1", { minutes: 15 }), await params("occ-1"));
+    const res = await POST(post("occ-1", { minutes: 721 }), await params("occ-1"));
     expect(res.status).toBe(400);
     expect(mockSnooze).not.toHaveBeenCalled();
   });

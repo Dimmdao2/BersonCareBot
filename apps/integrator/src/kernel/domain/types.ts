@@ -76,6 +76,7 @@ export type IncomingCallbackUpdate = {
   complexId?: string;
   reminderOccurrenceId?: string;
   reminderSnoozeMinutes?: number;
+  reminderMuteMinutes?: number;
   skipReasonCode?: string;
   questionConfirm?: 'yes' | 'no';
 };

@@ -864,6 +864,15 @@ export function createDbWritePort(input: {
               windowEndMinute,
               daysMask,
               contentMode: contentMode as never,
+              linkedObjectType: asNullableString(mutation.params.linkedObjectType),
+              linkedObjectId: asNullableString(mutation.params.linkedObjectId),
+              customTitle: asNullableString(mutation.params.customTitle),
+              customText: asNullableString(mutation.params.customText),
+              deepLink: asNullableString(mutation.params.deepLink),
+              reminderIntent: asNullableString(mutation.params.reminderIntent),
+              ...(typeof mutation.params.scheduleData !== 'undefined'
+                ? { scheduleData: mutation.params.scheduleData }
+                : {}),
             });
             const keyPayload = {
               integratorRuleId: id,

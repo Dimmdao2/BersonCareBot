@@ -7,6 +7,7 @@ import type { ReminderRule } from "@/modules/reminders/types";
 import {
   formatNextReminderLabel,
   pickNextHomeReminder,
+  countPlannedHomeReminderOccurrencesInUtcRange,
 } from "@/modules/patient-home/nextReminderOccurrence";
 import { formatBookingDateLongRu } from "@/shared/lib/formatBusinessDateTime";
 import type { PatientHomeBlockCode } from "@/modules/patient-home/ports";
@@ -161,6 +162,7 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
   let progress: { todayDone: number; streak: number } | null = null;
   let initialMoodCheckin: PatientMoodCheckinState | null = null;
   let moodWeekDays: PatientMoodWeekDay[] = [];
+  let reminderDaySummary: { done: number; plannedTotal: number; muted: boolean } | null = null;
   if (personalTierOk && session) {
     const [rules, instances, p, moodState, week] = await Promise.all([
       deps.reminders.listRulesByUser(session.user.userId),
@@ -204,6 +206,22 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
     progress = { todayDone: p.todayDone, streak: p.streak };
     initialMoodCheckin = moodState;
     moodWeekDays = week;
+    if (deps.reminderJournal) {
+      const dayStart = DateTime.now().setZone(appTz).startOf("day");
+      const dayEnd = dayStart.plus({ days: 1 });
+      const rangeStart = dayStart.toUTC().toJSDate();
+      const rangeEnd = dayEnd.toUTC().toJSDate();
+      const mutedUntil = await deps.reminders.getReminderMutedUntil(session.user.userId);
+      const compareNow = new Date();
+      const muted = !!(mutedUntil && new Date(mutedUntil).getTime() > compareNow.getTime());
+      const plannedTotal = muted ? 0 : countPlannedHomeReminderOccurrencesInUtcRange(rules, rangeStart, rangeEnd);
+      const done = await deps.reminderJournal.countDoneSkippedInUtcRange(
+        session.user.userId,
+        rangeStart,
+        rangeEnd,
+      );
+      reminderDaySummary = { done, plannedTotal, muted };
+    }
   }
 
   const sorted = filterAndSortPatientHomeBlocks(homeBlocks);
@@ -259,6 +277,7 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
             blockIconImageUrl={blockLeadingIconFor("next_reminder")}
             anonymousGuest={anonymousGuest}
             personalTierOk={personalTierOk}
+            reminderDaySummary={reminderDaySummary}
           />
         );
       case "mood_checkin":

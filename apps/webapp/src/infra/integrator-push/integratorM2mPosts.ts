@@ -4,6 +4,7 @@
  */
 import { createHmac } from "node:crypto";
 import { getIntegratorApiUrl, getIntegratorWebhookSecret } from "@/modules/system-settings/integrationRuntime";
+import { buildReminderDeepLink } from "@/modules/reminders/buildReminderDeepLink";
 import type { ReminderRule } from "@/modules/reminders/types";
 
 function signPayload(timestamp: string, rawBody: string, secret: string): string {
@@ -52,25 +53,49 @@ export async function postSystemSettingsSyncToIntegrator(input: SystemSettingsSy
   }
 }
 
+/** Maps webapp `ReminderRule` store/representation to integrator `user_reminder_rules.category` / templates. */
+function integratorCategoryFromRule(rule: ReminderRule): string {
+  if (rule.linkedObjectType === "rehab_program") return "exercise";
+  if (rule.category === "lfk") return "exercise";
+  if (rule.category === "appointment") return "supplements_medication";
+  if (rule.category === "chat") return "breathing";
+  if (rule.category === "important") return "water";
+  return "exercise";
+}
+
 export async function postReminderRuleUpsertToIntegrator(rule: ReminderRule): Promise<void> {
   const { baseUrl, secret } = await requireM2m();
   const timestamp = String(Math.floor(Date.now() / 1000));
   const idempotencyKey = `rule_${rule.id}_${timestamp}`;
+  const customTitleForIntegrator =
+    rule.customTitle?.trim() ||
+    (rule.linkedObjectType === "rehab_program" ? rule.displayTitle?.trim() || null : null) ||
+    null;
   const body = JSON.stringify({
     eventType: "reminder.rule.upserted",
     idempotencyKey,
     payload: {
       integratorRuleId: rule.id,
       integratorUserId: rule.integratorUserId,
-      category: rule.category,
+      category: integratorCategoryFromRule(rule),
       isEnabled: rule.enabled,
-      scheduleType: "interval_window",
-      timezone: "Europe/Moscow",
+      scheduleType: rule.scheduleType ?? "interval_window",
+      timezone: rule.timezone?.trim() || "Europe/Moscow",
       intervalMinutes: rule.intervalMinutes ?? 60,
       windowStartMinute: rule.windowStartMinute,
       windowEndMinute: rule.windowEndMinute,
       daysMask: rule.daysMask,
       contentMode: "none",
+      linkedObjectType: rule.linkedObjectType,
+      linkedObjectId: rule.linkedObjectId,
+      customTitle: customTitleForIntegrator,
+      customText: rule.customText?.trim() || null,
+      deepLink: buildReminderDeepLink({
+        linkedObjectType: rule.linkedObjectType,
+        linkedObjectId: rule.linkedObjectId,
+      }),
+      scheduleData: rule.scheduleData,
+      reminderIntent: rule.reminderIntent ?? "generic",
     },
   });
   const signature = signPayload(timestamp, body, secret);

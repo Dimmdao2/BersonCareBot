@@ -15,9 +15,17 @@ describe('normalizeChannelCallbackPayload (reminders + question confirm)', () =>
     });
   });
 
-  it('returns raw action for rem_snooze when minutes are not 30/60/120', () => {
+  it('parses rem_snooze for minutes in 1–720', () => {
     expect(normalizeChannelCallbackPayload('rem_snooze:occ-1:15')).toEqual({
-      action: 'rem_snooze:occ-1:15',
+      action: 'rem_snooze',
+      reminderOccurrenceId: 'occ-1',
+      reminderSnoozeMinutes: 15,
+    });
+  });
+
+  it('returns raw action for rem_snooze when minutes out of range', () => {
+    expect(normalizeChannelCallbackPayload('rem_snooze:occ-1:999')).toEqual({
+      action: 'rem_snooze:occ-1:999',
     });
   });
 

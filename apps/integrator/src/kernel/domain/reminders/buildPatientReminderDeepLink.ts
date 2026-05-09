@@ -4,7 +4,7 @@
  */
 import { getAppBaseUrlSync } from '../../../config/appBaseUrl.js';
 
-const KNOWN = new Set(['lfk_complex', 'content_section', 'content_page', 'custom']);
+const KNOWN = new Set(['lfk_complex', 'content_section', 'content_page', 'custom', 'rehab_program']);
 
 export function buildPatientReminderDeepLink(params: {
   linkedObjectType: string | null | undefined;
@@ -26,6 +26,8 @@ export function buildPatientReminderDeepLink(params: {
       return `${base}/app/patient/sections/${id}?from=reminder`;
     case 'content_page':
       return `${base}/app/patient/content/${id}?from=reminder`;
+    case 'rehab_program':
+      return `${base}/app/patient/treatment/${id}?from=reminder`;
     default:
       return `${base}/app/patient/reminders?from=reminder`;
   }

@@ -18,6 +18,13 @@ function normalizeRuleRow(row: {
   window_end_minute: number;
   days_mask: string;
   content_mode: string;
+  linked_object_type?: string | null;
+  linked_object_id?: string | null;
+  custom_title?: string | null;
+  custom_text?: string | null;
+  deep_link?: string | null;
+  schedule_data?: unknown;
+  reminder_intent?: string | null;
   created_at?: string;
   updated_at?: string;
 }): ReminderRuleRecord {
@@ -35,6 +42,13 @@ function normalizeRuleRow(row: {
     contentMode: row.content_mode as ReminderRuleRecord['contentMode'],
     ...(row.created_at ? { createdAt: row.created_at } : {}),
     ...(row.updated_at ? { updatedAt: row.updated_at } : {}),
+    ...(row.linked_object_type != null ? { linkedObjectType: row.linked_object_type } : {}),
+    ...(row.linked_object_id != null ? { linkedObjectId: row.linked_object_id } : {}),
+    ...(row.custom_title != null ? { customTitle: row.custom_title } : {}),
+    ...(row.custom_text != null ? { customText: row.custom_text } : {}),
+    ...(row.deep_link != null ? { deepLink: row.deep_link } : {}),
+    ...(row.schedule_data != null ? { scheduleData: row.schedule_data } : {}),
+    ...(row.reminder_intent != null ? { reminderIntent: row.reminder_intent } : {}),
   };
 }
 
@@ -83,6 +97,13 @@ export async function getReminderRulesForUser(db: DbPort, userId: string): Promi
     window_end_minute: number;
     days_mask: string;
     content_mode: string;
+    linked_object_type: string | null;
+    linked_object_id: string | null;
+    custom_title: string | null;
+    custom_text: string | null;
+    deep_link: string | null;
+    schedule_data: unknown | null;
+    reminder_intent: string | null;
     created_at: string;
     updated_at: string;
   }>(
@@ -98,6 +119,13 @@ export async function getReminderRulesForUser(db: DbPort, userId: string): Promi
        window_end_minute,
        days_mask,
        content_mode,
+       linked_object_type,
+       linked_object_id,
+       custom_title,
+       custom_text,
+       deep_link,
+       schedule_data,
+       reminder_intent,
        created_at::text,
        updated_at::text
      FROM user_reminder_rules
@@ -125,6 +153,13 @@ export async function getReminderRuleForUserAndCategory(
     window_end_minute: number;
     days_mask: string;
     content_mode: string;
+    linked_object_type: string | null;
+    linked_object_id: string | null;
+    custom_title: string | null;
+    custom_text: string | null;
+    deep_link: string | null;
+    schedule_data: unknown | null;
+    reminder_intent: string | null;
     created_at: string;
     updated_at: string;
   }>(
@@ -140,6 +175,13 @@ export async function getReminderRuleForUserAndCategory(
        window_end_minute,
        days_mask,
        content_mode,
+       linked_object_type,
+       linked_object_id,
+       custom_title,
+       custom_text,
+       deep_link,
+       schedule_data,
+       reminder_intent,
        created_at::text,
        updated_at::text
      FROM user_reminder_rules
@@ -163,6 +205,13 @@ export async function getEnabledReminderRules(db: DbPort): Promise<ReminderRuleR
     window_end_minute: number;
     days_mask: string;
     content_mode: string;
+    linked_object_type: string | null;
+    linked_object_id: string | null;
+    custom_title: string | null;
+    custom_text: string | null;
+    deep_link: string | null;
+    schedule_data: unknown | null;
+    reminder_intent: string | null;
     created_at: string;
     updated_at: string;
   }>(
@@ -178,6 +227,13 @@ export async function getEnabledReminderRules(db: DbPort): Promise<ReminderRuleR
        window_end_minute,
        days_mask,
        content_mode,
+       linked_object_type,
+       linked_object_id,
+       custom_title,
+       custom_text,
+       deep_link,
+       schedule_data,
+       reminder_intent,
        created_at::text,
        updated_at::text
      FROM user_reminder_rules
@@ -277,9 +333,11 @@ export async function getDueReminderOccurrences(
      FROM user_reminder_occurrences o
      JOIN user_reminder_rules r ON r.id = o.rule_id
      JOIN identities i ON i.user_id = r.user_id AND i.resource = 'telegram'
+     LEFT JOIN public.platform_users pu ON pu.integrator_user_id = r.user_id
      WHERE o.status = 'planned'
        AND o.planned_at <= $1::timestamptz
        AND r.is_enabled = true
+       AND (pu.reminder_muted_until IS NULL OR pu.reminder_muted_until <= $1::timestamptz)
      ORDER BY o.planned_at ASC
      LIMIT $2`,
     [nowIso, Math.max(1, Math.trunc(limit))],
@@ -298,11 +356,15 @@ export async function getDueReminderOccurrences(
   }).filter((row) => row.chatId > 0);
 }
 
-/** Upserts rule; returns DB `updated_at` for deterministic projection payloads. */
+/** Upserts rule by `id` (webapp integrator_rule_id PK); returns DB `updated_at`. */
 export async function upsertReminderRule(
   db: DbPort,
   input: ReminderRuleRecord,
 ): Promise<string> {
+  const scheduleJson =
+    input.scheduleData !== undefined && input.scheduleData !== null
+      ? JSON.stringify(input.scheduleData as Record<string, unknown>)
+      : null;
   const res = await db.query<{ updated_at: string }>(
     `INSERT INTO user_reminder_rules (
        id,
@@ -316,13 +378,23 @@ export async function upsertReminderRule(
        window_end_minute,
        days_mask,
        content_mode,
+       linked_object_type,
+       linked_object_id,
+       custom_title,
+       custom_text,
+       deep_link,
+       schedule_data,
+       reminder_intent,
        created_at,
        updated_at
      ) VALUES (
-       $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, now(), now()
+       $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
+       $12, $13, $14, $15, $16, $17::jsonb, $18,
+       now(), now()
      )
-     ON CONFLICT (user_id, category)
-     DO UPDATE SET
+     ON CONFLICT (id) DO UPDATE SET
+       user_id = EXCLUDED.user_id,
+       category = EXCLUDED.category,
        is_enabled = EXCLUDED.is_enabled,
        schedule_type = EXCLUDED.schedule_type,
        timezone = EXCLUDED.timezone,
@@ -331,6 +403,13 @@ export async function upsertReminderRule(
        window_end_minute = EXCLUDED.window_end_minute,
        days_mask = EXCLUDED.days_mask,
        content_mode = EXCLUDED.content_mode,
+       linked_object_type = EXCLUDED.linked_object_type,
+       linked_object_id = EXCLUDED.linked_object_id,
+       custom_title = EXCLUDED.custom_title,
+       custom_text = EXCLUDED.custom_text,
+       deep_link = EXCLUDED.deep_link,
+       schedule_data = EXCLUDED.schedule_data,
+       reminder_intent = EXCLUDED.reminder_intent,
        updated_at = now()
      RETURNING updated_at::text`,
     [
@@ -345,6 +424,13 @@ export async function upsertReminderRule(
       input.windowEndMinute,
       input.daysMask,
       input.contentMode,
+      input.linkedObjectType ?? null,
+      input.linkedObjectId ?? null,
+      input.customTitle ?? null,
+      input.customText ?? null,
+      input.deepLink ?? null,
+      scheduleJson,
+      input.reminderIntent ?? null,
     ],
   );
   return res.rows[0]?.updated_at ?? new Date().toISOString();

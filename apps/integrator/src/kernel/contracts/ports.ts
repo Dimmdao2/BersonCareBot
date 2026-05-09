@@ -465,13 +465,21 @@ export type RemindersWebappWritesPort = {
   postOccurrenceSnooze(input: {
     integratorUserId: string;
     occurrenceId: string;
-    minutes: 30 | 60 | 120;
+    minutes: number;
   }): Promise<{ ok: true; snoozedUntil: string } | { ok: false; error: string }>;
   postOccurrenceSkip(input: {
     integratorUserId: string;
     occurrenceId: string;
     reason: string | null;
   }): Promise<{ ok: true; skippedAt: string } | { ok: false; error: string }>;
+  postOccurrenceDone(input: {
+    integratorUserId: string;
+    occurrenceId: string;
+  }): Promise<{ ok: true; doneAt: string } | { ok: false; error: string }>;
+  postReminderMuteUntil(input: {
+    integratorUserId: string;
+    mutedUntilIso: string | null;
+  }): Promise<{ ok: true } | { ok: false; error: string }>;
 };
 
 /** Port to read reminder product data from webapp (projection). Used with fallback to local DB. */

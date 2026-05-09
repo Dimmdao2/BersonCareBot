@@ -1,7 +1,13 @@
 import { getAppBaseUrlSync } from "@/modules/system-settings/integrationRuntime";
 import type { ReminderLinkedObjectType } from "./types";
 
-const KNOWN: ReminderLinkedObjectType[] = ["lfk_complex", "content_section", "content_page", "custom"];
+const KNOWN: ReminderLinkedObjectType[] = [
+  "lfk_complex",
+  "content_section",
+  "content_page",
+  "custom",
+  "rehab_program",
+];
 
 function narrowLinkedType(raw: string | null): ReminderLinkedObjectType | null {
   if (!raw) return null;
@@ -32,6 +38,8 @@ export function buildReminderDeepLink(params: {
       return `${base}/app/patient/sections/${id}?from=reminder`;
     case "content_page":
       return `${base}/app/patient/content/${id}?from=reminder`;
+    case "rehab_program":
+      return `${base}/app/patient/treatment/${id}?from=reminder`;
     case "custom":
     default:
       return `${base}/app/patient/reminders?from=reminder`;

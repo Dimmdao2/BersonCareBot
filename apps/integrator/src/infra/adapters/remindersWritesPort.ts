@@ -91,5 +91,80 @@ export function createRemindersWritesPort(deps: { db: DbPort }): RemindersWebapp
         return { ok: false, error: message };
       }
     },
+
+    async postOccurrenceDone(input) {
+      const baseUrl = await getAppBaseUrl(db);
+      const secret = integratorWebhookSecret();
+      if (!baseUrl || !secret) {
+        return { ok: false, error: 'APP_BASE_URL or webhook secret not set' };
+      }
+      const body = JSON.stringify({
+        integratorUserId: input.integratorUserId,
+        occurrenceId: input.occurrenceId,
+      });
+      const timestamp = String(Math.floor(Date.now() / 1000));
+      const signature = sign(timestamp, body, secret);
+      const url = `${baseUrl.replace(/\/$/, '')}/api/integrator/reminders/occurrences/done`;
+      try {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Bersoncare-Timestamp': timestamp,
+            'X-Bersoncare-Signature': signature,
+          },
+          body,
+        });
+        const data = (await res.json().catch(() => ({}))) as {
+          ok?: boolean;
+          doneAt?: string;
+          error?: string;
+        };
+        if (!res.ok || data.ok !== true || typeof data.doneAt !== 'string') {
+          return { ok: false, error: data.error ?? res.statusText };
+        }
+        return { ok: true, doneAt: data.doneAt };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        return { ok: false, error: message };
+      }
+    },
+
+    async postReminderMuteUntil(input) {
+      const baseUrl = await getAppBaseUrl(db);
+      const secret = integratorWebhookSecret();
+      if (!baseUrl || !secret) {
+        return { ok: false, error: 'APP_BASE_URL or webhook secret not set' };
+      }
+      const body = JSON.stringify({
+        integratorUserId: input.integratorUserId,
+        mutedUntilIso: input.mutedUntilIso,
+      });
+      const timestamp = String(Math.floor(Date.now() / 1000));
+      const signature = sign(timestamp, body, secret);
+      const url = `${baseUrl.replace(/\/$/, '')}/api/integrator/reminders/mute`;
+      try {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Bersoncare-Timestamp': timestamp,
+            'X-Bersoncare-Signature': signature,
+          },
+          body,
+        });
+        const data = (await res.json().catch(() => ({}))) as {
+          ok?: boolean;
+          error?: string;
+        };
+        if (!res.ok || data.ok !== true) {
+          return { ok: false, error: data.error ?? res.statusText };
+        }
+        return { ok: true };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        return { ok: false, error: message };
+      }
+    },
   };
 }

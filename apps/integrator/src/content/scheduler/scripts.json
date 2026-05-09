@@ -6,6 +6,11 @@
     "match": {},
     "steps": [
       {
+        "action": "reminders.planDue",
+        "mode": "sync",
+        "params": {}
+      },
+      {
         "action": "reminders.dispatchDue",
         "mode": "sync",
         "params": {

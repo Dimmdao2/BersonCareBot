@@ -127,6 +127,80 @@ export function createPgReminderJournalPort(): ReminderJournalPort {
       return out;
     },
 
+    async countDoneSkippedInUtcRange(platformUserId, rangeStart, rangeEnd) {
+      const pool = getPool();
+      const r = await pool.query<{ cnt: string }>(
+        `SELECT COUNT(*)::text AS cnt
+         FROM reminder_journal rj
+         INNER JOIN reminder_rules rr ON rr.id = rj.rule_id
+         LEFT JOIN platform_users pu ON pu.integrator_user_id = rr.integrator_user_id
+         WHERE (rr.platform_user_id = $1::uuid OR pu.id = $1::uuid)
+           AND rj.created_at >= $2::timestamptz
+           AND rj.created_at < $3::timestamptz
+           AND rj.action IN ('done','skipped')`,
+        [platformUserId, rangeStart.toISOString(), rangeEnd.toISOString()],
+      );
+      const row = r.rows[0];
+      return row ? parseInt(row.cnt, 10) : 0;
+    },
+
+    async recordDone(platformUserId, integratorOccurrenceId) {
+      const pool = getPool();
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
+        const own = await client.query<{ rule_pk: string }>(
+          `SELECT rr.id AS rule_pk
+           FROM reminder_occurrence_history roh
+           INNER JOIN platform_users pu ON pu.integrator_user_id = roh.integrator_user_id
+           INNER JOIN reminder_rules rr ON rr.integrator_rule_id = roh.integrator_rule_id
+           WHERE roh.integrator_occurrence_id = $1 AND pu.id = $2::uuid`,
+          [integratorOccurrenceId, platformUserId],
+        );
+        if (own.rows.length === 0) {
+          await client.query("ROLLBACK");
+          return { ok: false, error: "not_found" };
+        }
+        const rulePk = own.rows[0].rule_pk;
+        const ins = await client.query<{ created_at: string }>(
+          `INSERT INTO reminder_journal (rule_id, occurrence_id, action)
+           SELECT $1::uuid, $2, 'done'
+           WHERE NOT EXISTS (
+             SELECT 1 FROM reminder_journal
+             WHERE occurrence_id = $2 AND action = 'done'
+           )
+           RETURNING created_at::text`,
+          [rulePk, integratorOccurrenceId],
+        );
+        if ((ins.rowCount ?? 0) === 0) {
+          const existing = await client.query<{ created_at: string }>(
+            `SELECT created_at::text FROM reminder_journal
+             WHERE occurrence_id = $1 AND action = 'done'
+             ORDER BY created_at DESC LIMIT 1`,
+            [integratorOccurrenceId],
+          );
+          const doneAt = existing.rows[0]?.created_at;
+          await client.query("COMMIT");
+          if (!doneAt) return { ok: false, error: "conflict" };
+          return { ok: true, occurrenceId: integratorOccurrenceId, doneAt };
+        }
+        const doneAt = ins.rows[0]?.created_at;
+        await client.query("COMMIT");
+        if (!doneAt) return { ok: false, error: "not_found" };
+        return { ok: true, occurrenceId: integratorOccurrenceId, doneAt };
+      } catch (err) {
+        try {
+          await client.query("ROLLBACK");
+        } catch {
+          /* ignore */
+        }
+        console.warn("[pgReminderJournal.recordDone]", err);
+        return { ok: false, error: "not_found" };
+      } finally {
+        client.release();
+      }
+    },
+
     async recordSnooze(platformUserId, integratorOccurrenceId, minutes) {
       const pool = getPool();
       const client = await pool.connect();

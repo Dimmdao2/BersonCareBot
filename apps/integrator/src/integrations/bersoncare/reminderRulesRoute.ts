@@ -6,22 +6,31 @@ import { logger } from '../../infra/observability/logger.js';
 
 const WINDOW_SECONDS = 300;
 
+const payloadSchema = z.object({
+  integratorRuleId: z.string().min(1),
+  integratorUserId: z.union([z.string().min(1), z.number().int()]).transform((value) => String(value)),
+  category: z.string().min(1),
+  isEnabled: z.boolean(),
+  scheduleType: z.string().min(1),
+  timezone: z.string().min(1),
+  intervalMinutes: z.number().int().positive(),
+  windowStartMinute: z.number().int().min(0).max(1439),
+  windowEndMinute: z.number().int().min(1).max(1440),
+  daysMask: z.string().regex(/^[01]{7}$/),
+  contentMode: z.string().min(1),
+  linkedObjectType: z.string().nullable().optional(),
+  linkedObjectId: z.string().nullable().optional(),
+  customTitle: z.string().nullable().optional(),
+  customText: z.string().nullable().optional(),
+  deepLink: z.string().nullable().optional(),
+  scheduleData: z.unknown().optional(),
+  reminderIntent: z.string().nullable().optional(),
+});
+
 const bodySchema = z.object({
   eventType: z.literal('reminder.rule.upserted'),
   idempotencyKey: z.string().min(1).optional(),
-  payload: z.object({
-    integratorRuleId: z.string().min(1),
-    integratorUserId: z.union([z.string().min(1), z.number().int()]).transform((value) => String(value)),
-    category: z.string().min(1),
-    isEnabled: z.boolean(),
-    scheduleType: z.string().min(1),
-    timezone: z.string().min(1),
-    intervalMinutes: z.number().int().positive(),
-    windowStartMinute: z.number().int().min(0).max(1439),
-    windowEndMinute: z.number().int().min(1).max(1440),
-    daysMask: z.string().regex(/^[01]{7}$/),
-    contentMode: z.string().min(1),
-  }),
+  payload: payloadSchema,
 });
 
 type ReminderRuleUpsertBody = z.infer<typeof bodySchema>;
@@ -85,7 +94,7 @@ export async function registerBersoncareReminderRulesRoute(
     }
 
     const payload = parsed.data.payload;
-    if (payload.windowStartMinute >= payload.windowEndMinute) {
+    if (payload.scheduleType !== 'slots_v1' && payload.windowStartMinute >= payload.windowEndMinute) {
       return reply.code(400).send({ ok: false, error: 'invalid_window' });
     }
 
@@ -104,6 +113,13 @@ export async function registerBersoncareReminderRulesRoute(
           windowEndMinute: payload.windowEndMinute,
           daysMask: payload.daysMask,
           contentMode: payload.contentMode,
+          linkedObjectType: payload.linkedObjectType ?? null,
+          linkedObjectId: payload.linkedObjectId ?? null,
+          customTitle: payload.customTitle ?? null,
+          customText: payload.customText ?? null,
+          deepLink: payload.deepLink ?? null,
+          scheduleData: payload.scheduleData,
+          reminderIntent: payload.reminderIntent ?? null,
         },
       });
       return reply.code(200).send({ ok: true });

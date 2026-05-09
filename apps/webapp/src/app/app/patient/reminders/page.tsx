@@ -6,6 +6,8 @@ import { AppShell } from "@/shared/ui/AppShell";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { patientCardClass, patientMutedTextClass } from "@/shared/ui/patientVisual";
+import { formatBookingDateTimeMediumRu } from "@/shared/lib/formatBusinessDateTime";
+import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
 import { ReminderRulesClient, type PersonalReminderRowVM } from "./ReminderRulesClient";
 
 function mapIconKind(linked: NonNullable<ReminderRule["linkedObjectType"]>): PersonalReminderRowVM["iconKind"] {
@@ -59,11 +61,20 @@ export default async function RemindersPage() {
   const deps = buildAppDeps();
   const userId = session.user.userId;
 
-  const [rules, projectionStats, complexes] = await Promise.all([
+  const [rules, projectionStats, complexes, appTz] = await Promise.all([
     deps.reminders.listRulesByUser(userId),
     deps.reminderProjection.getStats(userId, 30),
     deps.diaries.listLfkComplexes(userId),
+    getAppDisplayTimeZone(),
   ]);
+
+  const mutedUntil = await deps.reminders.getReminderMutedUntil(userId);
+  const compareNow = new Date();
+  const muteActive = Boolean(
+    mutedUntil?.trim() && new Date(mutedUntil).getTime() > compareNow.getTime(),
+  );
+  const muteUntilLabel =
+    muteActive && mutedUntil?.trim() ? formatBookingDateTimeMediumRu(mutedUntil.trim(), appTz) : null;
 
   const journalStats = deps.reminderJournal
     ? await deps.reminderJournal.statsPerRuleForUser(userId, 30)
@@ -97,6 +108,16 @@ export default async function RemindersPage() {
       <p className={cn(patientMutedTextClass, "mb-4")}>
         Свои напоминания (ЛФК, разминки, текст) и категории от врача. Изменения синхронизируются с ботом.
       </p>
+
+      {muteUntilLabel ? (
+        <Card className={cn(patientCardClass, "mb-4 border-[#fde68a] bg-[#fffbeb]")}>
+          <CardContent className="pb-3 pt-3">
+            <p className="text-sm font-medium text-[#92400e]">
+              Уведомления на паузе до {muteUntilLabel}
+            </p>
+          </CardContent>
+        </Card>
+      ) : null}
 
       {projectionStats.total > 0 && (
         <Card className={cn(patientCardClass, "mb-4")}>

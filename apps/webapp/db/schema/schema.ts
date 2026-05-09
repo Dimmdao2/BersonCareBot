@@ -69,6 +69,8 @@ export const platformUsers = pgTable("platform_users", {
 	patientPhoneTrustAt: timestamp("patient_phone_trust_at", { withTimezone: true, mode: 'string' }),
 	/** IANA zone for patient-local calendar day (чек-лист программы и т.п.); null → `app_display_timezone`. */
 	calendarTimezone: text("calendar_timezone"),
+	/** When set, reminder push dispatch is suppressed until this instant (user-level mute). */
+	reminderMutedUntil: timestamp("reminder_muted_until", { withTimezone: true, mode: 'string' }),
 }, (table) => [
 	index("idx_platform_users_integrator_uid").using("btree", table.integratorUserId.asc().nullsLast().op("int8_ops")).where(sql`(integrator_user_id IS NOT NULL)`),
 	index("idx_platform_users_merged_into").using("btree", table.mergedIntoId.asc().nullsLast().op("uuid_ops")).where(sql`(merged_into_id IS NOT NULL)`),
@@ -1450,6 +1452,10 @@ export const reminderRules = pgTable("reminder_rules", {
 	linkedObjectId: text("linked_object_id"),
 	customTitle: text("custom_title"),
 	customText: text("custom_text"),
+	reminderIntent: text("reminder_intent").default('generic'),
+	scheduleData: jsonb("schedule_data").$type<Record<string, unknown> | null>(),
+	displayTitle: text("display_title"),
+	displayDescription: text("display_description"),
 }, (table) => [
 	uniqueIndex("idx_reminder_rules_integrator_rule_id").using("btree", table.integratorRuleId.asc().nullsLast().op("text_ops")),
 	index("idx_reminder_rules_integrator_user_id").using("btree", table.integratorUserId.asc().nullsLast().op("int8_ops")),
@@ -1466,8 +1472,9 @@ export const reminderRules = pgTable("reminder_rules", {
 	unique("reminder_rules_integrator_rule_id_key").on(table.integratorRuleId),
 	check("chk_reminder_rules_custom_only_for_custom_type", sql`(linked_object_type = 'custom'::text) OR ((custom_title IS NULL) AND (custom_text IS NULL))`),
 	check("chk_reminder_rules_custom_required", sql`(linked_object_type IS DISTINCT FROM 'custom'::text) OR ((custom_title IS NOT NULL) AND (btrim(custom_title) <> ''::text))`),
-	check("chk_reminder_rules_linked_object_type", sql`(linked_object_type IS NULL) OR (linked_object_type = ANY (ARRAY['lfk_complex'::text, 'content_section'::text, 'content_page'::text, 'custom'::text]))`),
+	check("chk_reminder_rules_linked_object_type", sql`(linked_object_type IS NULL) OR (linked_object_type = ANY (ARRAY['lfk_complex'::text, 'content_section'::text, 'content_page'::text, 'custom'::text, 'rehab_program'::text]))`),
 	check("chk_reminder_rules_object_id_required", sql`(linked_object_type IS NULL) OR (linked_object_type = 'custom'::text) OR ((linked_object_id IS NOT NULL) AND (btrim(linked_object_id) <> ''::text))`),
+	check("chk_reminder_rules_display_rehab_only", sql`(linked_object_type = 'rehab_program'::text) OR ((display_title IS NULL) AND (display_description IS NULL))`),
 ]);
 
 export const reminderJournal = pgTable("reminder_journal", {

@@ -58,7 +58,7 @@ describe("POST /api/integrator/reminders/occurrences/snooze", () => {
           "x-bersoncare-signature": "sig",
           "content-type": "application/json",
         },
-        body: JSON.stringify({ integratorUserId: "1", occurrenceId: "occ-1", minutes: 99 }),
+        body: JSON.stringify({ integratorUserId: "1", occurrenceId: "occ-1", minutes: 721 }),
       })
     );
     expect(res.status).toBe(400);

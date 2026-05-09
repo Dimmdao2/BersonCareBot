@@ -35,12 +35,21 @@ export type ReminderJournalPort = {
     platformUserId: string,
     days: number,
   ): Promise<Record<string, ReminderJournalRuleStats>>;
+  /** Done + skipped rows with `created_at` in `[rangeStart, rangeEnd)` (half-open). */
+  countDoneSkippedInUtcRange(platformUserId: string, rangeStart: Date, rangeEnd: Date): Promise<number>;
   recordSnooze(
     platformUserId: string,
     integratorOccurrenceId: string,
-    minutes: 30 | 60 | 120,
+    minutes: number,
   ): Promise<
     | { ok: true; occurrenceId: string; snoozedUntil: string }
+    | { ok: false; error: "not_found" | "conflict" }
+  >;
+  recordDone(
+    platformUserId: string,
+    integratorOccurrenceId: string,
+  ): Promise<
+    | { ok: true; occurrenceId: string; doneAt: string }
     | { ok: false; error: "not_found" | "conflict" }
   >;
   recordSkip(

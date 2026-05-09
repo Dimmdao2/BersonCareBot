@@ -4,6 +4,7 @@ import {
   computeNextOccurrenceUtcForRule,
   formatNextReminderLabel,
   pickNextHomeReminder,
+  countPlannedHomeReminderOccurrencesInUtcRange,
 } from "./nextReminderOccurrence";
 import type { ReminderRule } from "@/modules/reminders/types";
 
@@ -22,6 +23,11 @@ function rule(partial: Partial<ReminderRule> & Pick<ReminderRule, "id">): Remind
     linkedObjectId: "slug-a",
     customTitle: null,
     customText: null,
+    scheduleType: "interval_window",
+    scheduleData: null,
+    reminderIntent: "generic",
+    displayTitle: null,
+    displayDescription: null,
     updatedAt: "2026-01-01T00:00:00.000Z",
     ...partial,
   };
@@ -81,6 +87,23 @@ describe("pickNextHomeReminder", () => {
       intervalMinutes: 1440,
     });
     expect(pickNextHomeReminder([a, b], now, "Europe/Moscow")?.rule.id).toBe("b");
+  });
+
+  it("includes rehab_program with slots_v1", () => {
+    const now = DateTime.fromObject(
+      { year: 2026, month: 4, day: 28, hour: 10, minute: 0, second: 0 },
+      { zone: "Europe/Moscow" },
+    ).toJSDate();
+    const r = rule({
+      id: "rehab",
+      linkedObjectType: "rehab_program",
+      linkedObjectId: "p1",
+      scheduleType: "slots_v1",
+      scheduleData: { timesLocal: ["12:00", "15:00", "17:00"], dayFilter: "weekdays" },
+    });
+    const next = pickNextHomeReminder([r], now, "Europe/Moscow");
+    expect(next?.rule.id).toBe("rehab");
+    expect(formatNextReminderLabel(next!.nextAt, "Europe/Moscow")).toMatch(/12:00/);
   });
 });
 
@@ -160,5 +183,24 @@ describe("computeNextOccurrenceUtcForRule", () => {
     expect(local.weekday).toBe(2);
     expect(local.hour).toBe(9);
     expect(local.minute).toBe(0);
+  });
+});
+
+describe("countPlannedHomeReminderOccurrencesInUtcRange", () => {
+  it("counts slots_v1 times on a weekday within app-day range", () => {
+    const dayStart = DateTime.fromObject(
+      { year: 2026, month: 4, day: 28, hour: 0, minute: 0, second: 0 },
+      { zone: "Europe/Moscow" },
+    );
+    const rangeStart = dayStart.toUTC().toJSDate();
+    const rangeEnd = dayStart.plus({ days: 1 }).toUTC().toJSDate();
+    const r = rule({
+      id: "s",
+      linkedObjectType: "rehab_program",
+      linkedObjectId: "p1",
+      scheduleType: "slots_v1",
+      scheduleData: { timesLocal: ["09:00", "12:00", "15:00"], dayFilter: "weekdays" },
+    });
+    expect(countPlannedHomeReminderOccurrencesInUtcRange([r], rangeStart, rangeEnd)).toBe(3);
   });
 });
