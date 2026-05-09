@@ -19,8 +19,10 @@ import { SettingsForm } from "./SettingsForm";
 import { AdminModeToggle } from "./AdminModeToggle";
 import { AdminSettingsTabsClient } from "./AdminSettingsTabsClient";
 import { AdminSettingsSection, type IntegratorLinkedPhoneSource } from "./AdminSettingsSection";
-import { VideoPrivateMediaSettingsSection } from "./VideoPrivateMediaSettingsSection";
-import { VideoHlsWatermarkSettingsSection } from "./VideoHlsWatermarkSettingsSection";
+import {
+  VideoSystemSettingsSection,
+  type VideoDefaultDeliveryUi,
+} from "./VideoSystemSettingsSection";
 import { AppParametersSection } from "./AppParametersSection";
 import { NotificationsTopicsSection } from "./NotificationsTopicsSection";
 import { AuthProvidersSection } from "./AuthProvidersSection";
@@ -47,6 +49,29 @@ function firstAdminSlotFromSettings(settings: Array<{ key: string; valueJson: un
     return typeof s === "string" ? s.trim() : "";
   }
   return parseIdTokens(raw)[0] ?? "";
+}
+
+function parseVideoBoolSetting(valueJson: unknown): boolean {
+  const raw = getValueJson<unknown>(valueJson, false);
+  return raw === true || raw === "true";
+}
+
+function parseVideoDefaultDeliverySetting(valueJson: unknown): VideoDefaultDeliveryUi {
+  const raw = getValueJson<unknown>(valueJson, "auto");
+  const s = typeof raw === "string" ? raw.trim().toLowerCase() : "";
+  if (s === "mp4" || s === "hls" || s === "auto") return s;
+  return "auto";
+}
+
+function parseVideoPresignTtlSeconds(valueJson: unknown): number {
+  const raw = getValueJson<unknown>(valueJson, 3600);
+  const n =
+    typeof raw === "number" && Number.isFinite(raw)
+      ? raw
+      : typeof raw === "string" && /^\d+$/.test(raw.trim())
+        ? Number.parseInt(raw.trim(), 10)
+        : 3600;
+  return Math.min(VIDEO_PRESIGN_TTL_MAX_SEC, Math.max(VIDEO_PRESIGN_TTL_MIN_SEC, Math.round(n)));
 }
 
 export default async function SettingsPage() {
@@ -133,34 +158,29 @@ export default async function SettingsPage() {
       }
     : null;
 
-  const videoPresignTtlInitial =
+  const videoSystemSettingsProps =
     isAdmin && adminMode
-      ? (() => {
-          const raw = getValueJson<unknown>(
-            adminSettingsList.find((x) => x.key === "video_presign_ttl_seconds")?.valueJson,
-            3600,
-          );
-          const n =
-            typeof raw === "number" && Number.isFinite(raw)
-              ? raw
-              : typeof raw === "string" && /^\d+$/.test(raw.trim())
-                ? Number.parseInt(raw.trim(), 10)
-                : 3600;
-          const clamped = Math.min(VIDEO_PRESIGN_TTL_MAX_SEC, Math.max(VIDEO_PRESIGN_TTL_MIN_SEC, Math.round(n)));
-          return clamped;
-        })()
-      : 3600;
-
-  const videoWatermarkInitial =
-    isAdmin && adminMode
-      ? (() => {
-          const raw = getValueJson<unknown>(
+      ? {
+          initialPlaybackApiEnabled: parseVideoBoolSetting(
+            adminSettingsList.find((x) => x.key === "video_playback_api_enabled")?.valueJson,
+          ),
+          initialDefaultDelivery: parseVideoDefaultDeliverySetting(
+            adminSettingsList.find((x) => x.key === "video_default_delivery")?.valueJson,
+          ),
+          initialHlsPipelineEnabled: parseVideoBoolSetting(
+            adminSettingsList.find((x) => x.key === "video_hls_pipeline_enabled")?.valueJson,
+          ),
+          initialNewUploadsAutoTranscode: parseVideoBoolSetting(
+            adminSettingsList.find((x) => x.key === "video_hls_new_uploads_auto_transcode")?.valueJson,
+          ),
+          initialWatermarkEnabled: parseVideoBoolSetting(
             adminSettingsList.find((x) => x.key === "video_watermark_enabled")?.valueJson,
-            false,
-          );
-          return raw === true || raw === "true";
-        })()
-      : false;
+          ),
+          initialPresignTtlSeconds: parseVideoPresignTtlSeconds(
+            adminSettingsList.find((x) => x.key === "video_presign_ttl_seconds")?.valueJson,
+          ),
+        }
+      : null;
 
   const appParametersConfig = isAdmin && adminMode
     ? {
@@ -291,11 +311,10 @@ export default async function SettingsPage() {
             }
             systemHealth={<SystemHealthSection />}
             appParams={
-              appParametersConfig ? (
+              appParametersConfig && videoSystemSettingsProps ? (
                 <>
                   <AppParametersSection {...appParametersConfig} />
-                  <VideoPrivateMediaSettingsSection initialTtlSeconds={videoPresignTtlInitial} />
-                  <VideoHlsWatermarkSettingsSection initialEnabled={videoWatermarkInitial} />
+                  <VideoSystemSettingsSection {...videoSystemSettingsProps} />
                   <NotificationsTopicsSection initialRows={notificationsTopicsRows} />
                 </>
               ) : null

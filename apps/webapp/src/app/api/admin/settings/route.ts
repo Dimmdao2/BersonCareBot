@@ -17,6 +17,16 @@ import {
 } from "@/modules/system-settings/adminSettingsPatchNormalize";
 import { isModesFormKey, MODES_FORM_KEYS } from "@/modules/system-settings/modesFormKeys";
 import { VIDEO_PRESIGN_TTL_MAX_SEC, VIDEO_PRESIGN_TTL_MIN_SEC } from "@/modules/media/videoPresignTtlConstants";
+import { coerceAdminBooleanSetting } from "@/modules/system-settings/coerceAdminBooleanSetting";
+
+/** Single-key PATCH: boolean keys normalized like `video_watermark_enabled`. */
+const ADMIN_BOOLEAN_SETTING_KEYS = new Set<string>([
+  "video_watermark_enabled",
+  "video_playback_api_enabled",
+  "video_hls_pipeline_enabled",
+  "video_hls_new_uploads_auto_transcode",
+  "patient_home_morning_ping_enabled",
+]);
 
 const ADMIN_SCOPE_KEYS = [
   "sms_fallback_enabled",
@@ -219,16 +229,8 @@ export async function PATCH(request: Request) {
     normalizedValue = { value: raw };
   }
 
-  if (parsed.data.key === "video_watermark_enabled") {
-    const inner = normalizedValue.value;
-    const b =
-      typeof inner === "boolean"
-        ? inner
-        : inner === "true" || inner === 1
-          ? true
-          : inner === "false" || inner === 0
-            ? false
-            : null;
+  if (ADMIN_BOOLEAN_SETTING_KEYS.has(parsed.data.key)) {
+    const b = coerceAdminBooleanSetting(normalizedValue.value);
     if (b === null) {
       return NextResponse.json({ ok: false, error: "invalid_value" }, { status: 400 });
     }
@@ -261,22 +263,6 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ ok: false, error: "invalid_value" }, { status: 400 });
     }
     normalizedValue = { value: n };
-  }
-
-  if (parsed.data.key === "patient_home_morning_ping_enabled") {
-    const inner = normalizedValue.value;
-    const b =
-      typeof inner === "boolean"
-        ? inner
-        : inner === "true" || inner === 1
-          ? true
-          : inner === "false" || inner === 0
-            ? false
-            : null;
-    if (b === null) {
-      return NextResponse.json({ ok: false, error: "invalid_value" }, { status: 400 });
-    }
-    normalizedValue = { value: b };
   }
 
   if (parsed.data.key === "patient_home_morning_ping_local_time") {

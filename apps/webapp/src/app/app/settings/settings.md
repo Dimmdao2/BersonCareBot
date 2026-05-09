@@ -7,4 +7,6 @@
 
 Секреты и операционные значения для интеграций по правилам репозитория хранятся в `system_settings` (scope admin), а не в новых env-переменных для интеграций.
 
+Вкладка **«Параметры приложения»** (при admin mode): URL приложения, таймзона, **все флаги `video_*`** (playback API, стратегия HLS/MP4, пайплайн транскода, автотранскод новых загрузок, watermark, TTL presigned), темы уведомлений.
+
 Вкладка **«Режимы»** (`AdminSettingsSection`): админский телефон / Telegram ID / Max ID (первый слот массивов в БД), **тестовые аккаунты** (`test_account_identifiers`), режим техработ patient app, `dev_mode` и связанные флаги. Отдельный экран вайтлистов ролей (ранее отдельная вкладка настроек) **не показывается**; вайтлисты `allowed_*` / `doctor_*` остаются в `ALLOWED_KEYS` и `PATCH /api/admin/settings` для совместимости. Свой числовой id в боте: команда **`/show_my_id`**. См. `docs/ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md`.

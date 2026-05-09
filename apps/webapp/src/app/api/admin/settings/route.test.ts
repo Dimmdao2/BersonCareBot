@@ -844,6 +844,76 @@ describe("PATCH /api/admin/settings", () => {
     expect(updateSettingMock).toHaveBeenCalledWith("video_default_delivery", "admin", { value: "hls" }, "a1");
   });
 
+  it.each([
+    ["video_playback_api_enabled", true],
+    ["video_hls_pipeline_enabled", false],
+    ["video_hls_new_uploads_auto_transcode", true],
+  ] as const)("returns 200 for %s boolean PATCH", async (key, val) => {
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSettingMock.mockResolvedValue(null);
+    updateSettingMock.mockResolvedValue({
+      key,
+      scope: "admin",
+      valueJson: { value: val },
+      updatedAt: "",
+      updatedBy: "a1",
+    });
+    const res = await PATCH(
+      new Request("http://localhost/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key, value: { value: val } }),
+      }),
+    );
+    expect(res.status).toBe(200);
+    expect(updateSettingMock).toHaveBeenCalledWith(key, "admin", { value: val }, "a1");
+  });
+
+  it("returns 400 for video_playback_api_enabled invalid value", async () => {
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    const res = await PATCH(
+      new Request("http://localhost/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          key: "video_playback_api_enabled",
+          value: { value: "maybe" },
+        }),
+      }),
+    );
+    expect(res.status).toBe(400);
+    expect(updateSettingMock).not.toHaveBeenCalled();
+  });
+
+  it("returns 200 for patient_home_morning_ping_enabled via coerce helper", async () => {
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSettingMock.mockResolvedValue(null);
+    updateSettingMock.mockResolvedValue({
+      key: "patient_home_morning_ping_enabled",
+      scope: "admin",
+      valueJson: { value: true },
+      updatedAt: "",
+      updatedBy: "a1",
+    });
+    const res = await PATCH(
+      new Request("http://localhost/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          key: "patient_home_morning_ping_enabled",
+          value: { value: 1 },
+        }),
+      }),
+    );
+    expect(res.status).toBe(200);
+    expect(updateSettingMock).toHaveBeenCalledWith(
+      "patient_home_morning_ping_enabled",
+      "admin",
+      { value: true },
+      "a1",
+    );
+  });
+
   it("returns 200 for patient_booking_url https", async () => {
     getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
     getSettingMock.mockResolvedValue(null);
