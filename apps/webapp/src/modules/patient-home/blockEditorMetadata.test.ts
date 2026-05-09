@@ -23,7 +23,8 @@ describe("getPatientHomeBlockEditorMetadata", () => {
     expect(meta.allowedTargetTypes).toEqual(["content_section"]);
     expect(meta.inlineCreate.contentSection).toBe(true);
     expect(meta.itemNoun).toBe("раздел");
-    expect(meta.addLabel).toBe("Добавить раздел");
+    expect(meta.pickExistingLabel).toBe("Выбрать существующий раздел");
+    expect(meta.inlineCreate.sectionMenuLabel).toBe("Создать новый раздел здесь");
     expect(meta.displayTitle).toBe("Быстрые ситуации (разделы)");
   });
 
@@ -31,14 +32,14 @@ describe("getPatientHomeBlockEditorMetadata", () => {
     const meta = getPatientHomeBlockEditorMetadata("daily_warmup");
     expect(meta.allowedTargetTypes).toEqual(["content_page"]);
     expect(meta.itemNoun).toBe("материал");
-    expect(meta.addLabel).toBe("Добавить материал");
+    expect(meta.pickExistingLabel).toBe("Выбрать страницу разминки");
   });
 
   it("useful_post: only content_page", () => {
     const meta = getPatientHomeBlockEditorMetadata("useful_post");
     expect(meta.allowedTargetTypes).toEqual(["content_page"]);
     expect(meta.itemNoun).toBe("материал");
-    expect(meta.addLabel).toBe("Выбрать материал");
+    expect(meta.pickExistingLabel).toBe("Выбрать страницу для блока");
     expect(meta.displayTitle).toBe("Полезный пост");
     expect(meta.inlineCreate.contentSection).toBe(false);
   });
@@ -55,7 +56,7 @@ describe("getPatientHomeBlockEditorMetadata", () => {
       const meta = getPatientHomeBlockEditorMetadata(code);
       expect(meta.canManageItems, code).toBe(false);
       expect(meta.itemNoun, code).toBeNull();
-      expect(meta.addLabel, code).toBeNull();
+      expect(meta.pickExistingLabel, code).toBeNull();
       expect(meta.inlineCreate.contentSection, code).toBe(false);
     }
   });

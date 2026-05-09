@@ -64,7 +64,8 @@ export function PatientHomeBlockSettingsCard({
   const repairOnlyHiddenBroken =
     canManageItems && visibleUnresolved.length === 0 && hiddenUnresolved.length > 0;
   const blockMeta = getPatientHomeBlockEditorMetadata(block.code);
-  const canInlineCreateSection = blockMeta.inlineCreate.contentSection;
+  const canInlineCreateSection =
+    blockMeta.inlineCreate.contentSection && Boolean(blockMeta.inlineCreate.sectionMenuLabel);
 
   const handleToggle = () => {
     setError(null);
@@ -107,30 +108,38 @@ export function PatientHomeBlockSettingsCard({
           >
             <EllipsisVertical className="size-4" />
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="min-w-44">
+          <DropdownMenuContent align="end" className="min-w-52">
             <DropdownMenuGroup>
-              <DropdownMenuLabel>Действия</DropdownMenuLabel>
-              <DropdownMenuSeparator />
+              <DropdownMenuLabel>Блок на главной</DropdownMenuLabel>
               <DropdownMenuItem onClick={handleToggle} disabled={isPending}>
-                {block.isVisible ? "Скрыть" : "Показать"}
+                {block.isVisible ? "Скрыть у пациентов" : "Показать пациентам"}
               </DropdownMenuItem>
-              {canManageItems && canInlineCreateSection ? (
-                <DropdownMenuItem onClick={() => setCreateSectionOpen(true)}>Создать раздел и добавить</DropdownMenuItem>
-              ) : null}
-              {canManageItems && blockMeta.addLabel ?
-                <DropdownMenuItem onClick={() => setAddOpen(true)}>{blockMeta.addLabel}</DropdownMenuItem>
-              : null}
-              {canManageItems ? (
-                <DropdownMenuItem onClick={() => setEditOpen(true)}>
-                  Изменить
-                </DropdownMenuItem>
-              ) : null}
-              {canManageItems && unresolved.length > 0 ? (
-                <DropdownMenuItem onClick={() => setRepairOpen(true)}>
-                  Исправить связи CMS…
-                </DropdownMenuItem>
-              ) : null}
             </DropdownMenuGroup>
+            {canManageItems ? (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuGroup>
+                  <DropdownMenuLabel>Содержимое блока</DropdownMenuLabel>
+                  {blockMeta.pickExistingLabel ? (
+                    <DropdownMenuItem onClick={() => setAddOpen(true)}>{blockMeta.pickExistingLabel}</DropdownMenuItem>
+                  ) : null}
+                  {canInlineCreateSection ? (
+                    <DropdownMenuItem onClick={() => setCreateSectionOpen(true)}>
+                      {blockMeta.inlineCreate.sectionMenuLabel}
+                    </DropdownMenuItem>
+                  ) : null}
+                  <DropdownMenuItem onClick={() => setEditOpen(true)}>Порядок, видимость и удаление</DropdownMenuItem>
+                </DropdownMenuGroup>
+              </>
+            ) : null}
+            {canManageItems && unresolved.length > 0 ? (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuGroup>
+                  <DropdownMenuItem onClick={() => setRepairOpen(true)}>Исправить связи CMS…</DropdownMenuItem>
+                </DropdownMenuGroup>
+              </>
+            ) : null}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>

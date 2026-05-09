@@ -17,6 +17,8 @@ import {
 } from "@/components/ui/dialog";
 import type { PatientHomeBlockItem } from "@/modules/patient-home/ports";
 import type { PatientHomeRefDisplayTitles } from "@/modules/patient-home/patientHomeBlockItemDisplayTitle";
+import { getPatientHomeBlockEditorMetadata } from "@/modules/patient-home/blockEditorMetadata";
+import { isPatientHomeBlockCode } from "@/modules/patient-home/blocks";
 import {
   patientHomeBlockItemDisplayTitle,
   patientHomeBlockItemTargetTypeLabelRu,
@@ -178,6 +180,11 @@ export function PatientHomeBlockItemsDialog({
 
   const ids = useMemo(() => items.map((item) => item.id), [items]);
 
+  const blockEditorMeta = useMemo(
+    () => (isPatientHomeBlockCode(blockCode) ? getPatientHomeBlockEditorMetadata(blockCode) : null),
+    [blockCode],
+  );
+
   const onDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
@@ -244,9 +251,14 @@ export function PatientHomeBlockItemsDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Изменить элементы блока</DialogTitle>
+          <DialogTitle>
+            {blockEditorMeta ?
+              `Порядок и карточки: ${blockEditorMeta.displayTitle}`
+            : "Порядок и карточки блока"}
+          </DialogTitle>
           <DialogDescription>
-            Перетащите элементы, измените видимость или удалите лишние. Удаление из списка применяется по кнопке «Сохранить».
+            Перетащите за ручку слева, скройте элемент для пациентов или удалите лишний. Кнопка «Сохранить» записывает
+            порядок и удаления.
             {blockCode === "useful_post" ?
               " Для «Полезного поста»: порядок сверху вниз — приоритет показа карточки; доступны бейдж «Новый пост» и подпись заголовка на обложке."
             : null}

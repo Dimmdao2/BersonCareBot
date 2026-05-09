@@ -87,7 +87,7 @@ describe("PatientHomeBlocksSettingsPageClient", () => {
     expect(screen.getByRole("button", { name: "Поменять порядок блоков" })).toBeInTheDocument();
 
     expect(screen.getAllByText(/Скрыть|Показать/).length).toBeGreaterThan(0);
-    expect(screen.getByText("Добавить материал")).toBeInTheDocument();
-    expect(screen.getAllByText("Изменить").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText("Выбрать страницу разминки")).toBeInTheDocument();
+    expect(screen.getAllByText("Порядок, видимость и удаление").length).toBeGreaterThanOrEqual(1);
   });
 });

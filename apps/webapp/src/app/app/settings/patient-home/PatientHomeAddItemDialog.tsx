@@ -13,8 +13,14 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { getPatientHomeBlockEditorMetadata } from "@/modules/patient-home/blockEditorMetadata";
 import { patientHomeBlockItemTargetTypeLabelRu } from "@/modules/patient-home/patientHomeBlockItemDisplayTitle";
-import { canManageItemsForBlock, isPatientHomeBlockCode, type PatientHomeCmsBlockCode } from "@/modules/patient-home/blocks";
+import {
+  allowedTargetTypesForBlock,
+  canManageItemsForBlock,
+  isPatientHomeBlockCode,
+  type PatientHomeCmsBlockCode,
+} from "@/modules/patient-home/blocks";
 import {
   assertPatientHomeCmsBlockCode,
   buildPatientHomeContentNewUrl,
@@ -96,6 +102,19 @@ export function PatientHomeAddItemDialog({
     cmsNavBlock !== null && items.length === 0 && error === null && !isPending;
   const usefulPostMaterialOnly = blockCode === "useful_post";
 
+  const pickMeta =
+    isPatientHomeBlockCode(blockCode) && canManageItemsForBlock(blockCode) ?
+      getPatientHomeBlockEditorMetadata(blockCode)
+    : null;
+  const dialogTitle = pickMeta?.pickExistingLabel ?? "Добавить из CMS";
+  const dialogDescription =
+    pickMeta?.pickExistingDialogDescription ?? "Выберите элемент в списке ниже — он будет привязан к блоку главной.";
+
+  const allowedForShortcuts = isPatientHomeBlockCode(blockCode) ? [...allowedTargetTypesForBlock(blockCode)] : [];
+  const showSectionCreateShortcut = allowedForShortcuts.includes("content_section");
+  const showPageCreateShortcut = allowedForShortcuts.includes("content_page");
+  const showCourseCreateShortcut = allowedForShortcuts.includes("course");
+
   return (
     <Dialog
       open={open}
@@ -104,8 +123,8 @@ export function PatientHomeAddItemDialog({
     >
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Добавить материал</DialogTitle>
-          <DialogDescription>Выберите элемент для блока.</DialogDescription>
+          <DialogTitle>{dialogTitle}</DialogTitle>
+          <DialogDescription>{dialogDescription}</DialogDescription>
         </DialogHeader>
         <Input
           placeholder="Поиск по названию"
@@ -144,31 +163,33 @@ export function PatientHomeAddItemDialog({
                   : "Нет готовых элементов в списке. Создайте новый объект в CMS:"}
                 </p>
                 <ul className="flex flex-col gap-2">
-                  {!usefulPostMaterialOnly ?
+                  {!usefulPostMaterialOnly && showSectionCreateShortcut ?
                     <li>
                       <Link
                         className="text-primary underline underline-offset-2"
                         href={buildPatientHomeSectionsNewUrl({ returnTo, patientHomeBlock: cmsNavBlock! })}
                       >
-                        Создать раздел
+                        Открыть создание раздела в CMS
                       </Link>
                     </li>
                   : null}
-                  <li>
-                    <Link
-                      className="text-primary underline underline-offset-2"
-                      href={buildPatientHomeContentNewUrl({ returnTo, patientHomeBlock: cmsNavBlock! })}
-                    >
-                      Создать материал
-                    </Link>
-                  </li>
-                  {!usefulPostMaterialOnly ?
+                  {showPageCreateShortcut ?
+                    <li>
+                      <Link
+                        className="text-primary underline underline-offset-2"
+                        href={buildPatientHomeContentNewUrl({ returnTo, patientHomeBlock: cmsNavBlock! })}
+                      >
+                        Открыть создание страницы в CMS
+                      </Link>
+                    </li>
+                  : null}
+                  {!usefulPostMaterialOnly && showCourseCreateShortcut ?
                     <li>
                       <Link
                         className="text-primary underline underline-offset-2"
                         href={buildPatientHomeCourseNewUrl({ returnTo, patientHomeBlock: cmsNavBlock! })}
                       >
-                        Создать курс
+                        Открыть создание курса в CMS
                       </Link>
                     </li>
                   : null}

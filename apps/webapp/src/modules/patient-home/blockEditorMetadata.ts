@@ -9,13 +9,20 @@ export type PatientHomeBlockEditorMetadata = {
   code: PatientHomeBlockCode;
   displayTitle: string;
   itemNoun: string | null;
-  addLabel: string | null;
+  /** Пункт меню: подключить уже существующий объект из CMS к блоку. */
+  pickExistingLabel: string | null;
+  /** Подзаголовок диалога выбора из списка (когда `pickExistingLabel` задан). */
+  pickExistingDialogDescription: string | null;
   canManageItems: boolean;
   allowedTargetTypes: readonly PatientHomeBlockItemTargetType[];
   allowedTargetTypeLabels: Record<PatientHomeBlockItemTargetType, string>;
   emptyPreviewText: string;
   emptyRuntimeText: string;
-  inlineCreate: { contentSection: boolean };
+  inlineCreate: {
+    contentSection: boolean;
+    /** Пункт меню: мастер нового раздела на этом экране; только если `contentSection`. */
+    sectionMenuLabel: string | null;
+  };
 };
 
 const TARGET_LABELS_RU: Record<PatientHomeBlockItemTargetType, string> = {
@@ -33,26 +40,33 @@ function cloneTargetLabels(): Record<PatientHomeBlockItemTargetType, string> {
   return { ...TARGET_LABELS_RU };
 }
 
+const DEFAULT_INLINE_SECTION_MENU = "Новый раздел (создать здесь)";
+
 function cmsBlockBase(
   code: PatientHomeBlockCode,
   displayTitle: string,
   itemNoun: string,
-  addLabel: string,
+  pickExistingLabel: string,
+  pickExistingDialogDescription: string,
   emptyRuntimeText: string,
+  opts?: { inlineSectionMenuLabel?: string },
 ): PatientHomeBlockEditorMetadata {
   const allowedTargetTypes = allowedTargetTypesForBlock(code);
+  const contentSection = allowedTargetTypes.includes("content_section");
   return {
     code,
     displayTitle,
     itemNoun,
-    addLabel,
+    pickExistingLabel,
+    pickExistingDialogDescription,
     canManageItems: canManageItemsForBlock(code),
     allowedTargetTypes,
     allowedTargetTypeLabels: cloneTargetLabels(),
     emptyPreviewText: CMS_EMPTY_PREVIEW,
     emptyRuntimeText,
     inlineCreate: {
-      contentSection: allowedTargetTypes.includes("content_section"),
+      contentSection,
+      sectionMenuLabel: contentSection ? (opts?.inlineSectionMenuLabel ?? DEFAULT_INLINE_SECTION_MENU) : null,
     },
   };
 }
@@ -68,13 +82,14 @@ function nonCmsBlock(
     code,
     displayTitle,
     itemNoun: null,
-    addLabel: null,
+    pickExistingLabel: null,
+    pickExistingDialogDescription: null,
     canManageItems: canManageItemsForBlock(code),
     allowedTargetTypes,
     allowedTargetTypeLabels: cloneTargetLabels(),
     emptyPreviewText,
     emptyRuntimeText,
-    inlineCreate: { contentSection: false },
+    inlineCreate: { contentSection: false, sectionMenuLabel: null },
   };
 }
 
@@ -83,42 +98,51 @@ const METADATA_BY_CODE: Record<PatientHomeBlockCode, PatientHomeBlockEditorMetad
     "situations",
     "Быстрые ситуации (разделы)",
     "раздел",
-    "Добавить раздел",
+    "Выбрать существующий раздел",
+    "В списке только разделы из системной папки «Ситуации» в CMS. Так вы подключаете к блоку уже созданный раздел.",
     "При нуле резолвящихся элементов блок на главной пациента обычно не показывается.",
+    { inlineSectionMenuLabel: "Создать новый раздел здесь" },
   ),
   daily_warmup: cmsBlockBase(
     "daily_warmup",
     "Разминка дня (hero)",
     "материал",
-    "Добавить материал",
+    "Выбрать страницу разминки",
+    "В списке только опубликованные страницы из системной папки «Разминки». Одна подключённая страница — одна карточка в ротации блока.",
     "Исключение: на главной пациента сохраняется пустое состояние hero-разминки, даже если материал не выбран (блок не скрывается полностью).",
   ),
   useful_post: cmsBlockBase(
     "useful_post",
     "Полезный пост",
     "материал",
-    "Выбрать материал",
+    "Выбрать страницу для блока",
+    "В списке материалы из каталога статей и из системных папок CMS, кроме зон «Разминки» и SOS.",
     "Без валидной CMS-страницы блок на главной пациента не отображается.",
   ),
   subscription_carousel: cmsBlockBase(
     "subscription_carousel",
     "Подписки и уведомления",
     "раздел / материал / курс",
-    "Добавить раздел / материал / курс",
+    "Выбрать из CMS: раздел, страницу или курс",
+    "Подключение не создаёт контент — только добавляет ссылку на уже существующий раздел, страницу или курс в карусель.",
     "Без резолвящихся элементов карусель на главной пациента может не отображаться.",
+    { inlineSectionMenuLabel: "Новый раздел каталога (создать здесь)" },
   ),
   sos: cmsBlockBase(
     "sos",
     "Если болит сейчас",
     "раздел или материал",
-    "Добавить раздел или материал",
+    "Выбрать раздел или страницу SOS",
+    "В списке только контент из системной папки SOS в CMS.",
     "Без валидных целей блок на главной пациента может не показываться.",
+    { inlineSectionMenuLabel: "Новый раздел SOS (создать здесь)" },
   ),
   courses: cmsBlockBase(
     "courses",
     "Курсы",
     "курс",
-    "Добавить курс",
+    "Выбрать курс из каталога",
+    "Подключается уже созданный курс; порядок и видимость настраиваются отдельно.",
     "Если в блоке нет опубликованных и видимых курсов, ряд курсов на главной пациента не показывается.",
   ),
   booking: nonCmsBlock(

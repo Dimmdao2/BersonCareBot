@@ -196,7 +196,7 @@ export function PatientHomeCreateSectionInlineDialog({
             disabled={pending || !title.trim() || !slug.trim()}
             onClick={submit}
           >
-            {pending ? "Создание…" : "Создать раздел и добавить"}
+            {pending ? "Создание…" : "Создать и подключить к блоку"}
           </Button>
         </DialogFooter>
       </DialogContent>

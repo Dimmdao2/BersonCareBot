@@ -109,7 +109,7 @@ describe("PatientHomeBlockSettingsCard", () => {
     render(
       <PatientHomeBlockSettingsCard block={block} knownRefs={knownRefs} refDisplayTitles={emptyPatientHomeRefDisplayTitles} runtimeStatus={runtimeStatus} onChanged={vi.fn()} />,
     );
-    expect(screen.getByText("Создать раздел и добавить")).toBeInTheDocument();
+    expect(screen.getByText("Создать новый раздел здесь")).toBeInTheDocument();
   });
 
   it("hides create section action for daily_warmup block", () => {
@@ -126,7 +126,7 @@ describe("PatientHomeBlockSettingsCard", () => {
     render(
       <PatientHomeBlockSettingsCard block={block} knownRefs={knownRefs} refDisplayTitles={emptyPatientHomeRefDisplayTitles} runtimeStatus={runtimeStatus} onChanged={vi.fn()} />,
     );
-    expect(screen.queryByText("Создать раздел и добавить")).toBeNull();
+    expect(screen.queryByText("Создать новый раздел здесь")).toBeNull();
     expect(screen.queryByText("Иконка блока")).toBeNull();
   });
 
@@ -144,9 +144,9 @@ describe("PatientHomeBlockSettingsCard", () => {
     render(
       <PatientHomeBlockSettingsCard block={block} knownRefs={knownRefs} refDisplayTitles={emptyPatientHomeRefDisplayTitles} runtimeStatus={runtimeStatus} onChanged={vi.fn()} />,
     );
-    expect(screen.queryByText("Создать раздел и добавить")).toBeNull();
+    expect(screen.queryByText("Создать новый раздел здесь")).toBeNull();
     expect(screen.queryByText("Иконка блока")).toBeNull();
-    expect(screen.getByText("Выбрать материал")).toBeInTheDocument();
+    expect(screen.getByText("Выбрать страницу для блока")).toBeInTheDocument();
   });
 
   it("shows block icon section for booking whitelist block", () => {
