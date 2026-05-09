@@ -89,12 +89,23 @@ describe("PATCH /api/patient/practice/completion/[id]/feeling", () => {
     expect(json.error).toBe("not_found");
   });
 
-  it("returns 400 for feeling outside 1/3/5", async () => {
+  it("returns 400 for feeling outside 1–5", async () => {
+    mockGetCompletion.mockResolvedValue(completionWarmupNull);
+    const res = await PATCH(makeRequest({ feeling: 6 }), {
+      params: Promise.resolve({ id: completionWarmupNull.id }),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("accepts feeling 2 (same scale as home mood check-in)", async () => {
     mockGetCompletion.mockResolvedValue(completionWarmupNull);
     const res = await PATCH(makeRequest({ feeling: 2 }), {
       params: Promise.resolve({ id: completionWarmupNull.id }),
     });
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(200);
+    expect(mockApplyDailyWarmupFeeling).toHaveBeenCalledWith(
+      expect.objectContaining({ feeling: 2 }),
+    );
   });
 
   it("returns 403 when source is not daily_warmup", async () => {

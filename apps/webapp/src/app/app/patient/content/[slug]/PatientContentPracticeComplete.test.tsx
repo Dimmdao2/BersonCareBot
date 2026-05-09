@@ -3,7 +3,10 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { routePaths } from "@/app-layer/routes/paths";
+import { parsePatientHomeMoodIcons } from "@/modules/patient-home/patientHomeMoodIcons";
 import { PatientContentPracticeComplete } from "./PatientContentPracticeComplete";
+
+const DEFAULT_MOOD_ICONS = parsePatientHomeMoodIcons(null);
 
 const refresh = vi.fn();
 const push = vi.fn();
@@ -25,6 +28,7 @@ describe("PatientContentPracticeComplete", () => {
         practiceSource="section_page"
         guest
         needsActivation={false}
+        moodIconOptions={DEFAULT_MOOD_ICONS}
       />,
     );
     expect(screen.getByRole("link", { name: /Войдите/i })).toBeInTheDocument();
@@ -44,11 +48,12 @@ describe("PatientContentPracticeComplete", () => {
         practiceSource="section_page"
         guest={false}
         needsActivation={false}
+        moodIconOptions={DEFAULT_MOOD_ICONS}
       />,
     );
 
     fireEvent.click(screen.getByRole("button", { name: /Я выполнил\(а\) практику/i }));
-    fireEvent.click(screen.getByRole("button", { name: /^Нормально$/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Самочувствие 3 из 5/ }));
 
     await waitFor(() => {
       expect(global.fetch).toHaveBeenCalledWith(
@@ -88,6 +93,7 @@ describe("PatientContentPracticeComplete", () => {
         practiceSource="daily_warmup"
         guest={false}
         needsActivation={false}
+        moodIconOptions={DEFAULT_MOOD_ICONS}
       />,
     );
 
@@ -103,7 +109,7 @@ describe("PatientContentPracticeComplete", () => {
       source: "daily_warmup",
     });
 
-    fireEvent.click(screen.getByRole("button", { name: /^Отлично$/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Самочувствие 5 из 5/ }));
 
     await waitFor(() => {
       expect(global.fetch).toHaveBeenCalledTimes(2);
@@ -129,6 +135,7 @@ describe("PatientContentPracticeComplete", () => {
         practiceSource="daily_warmup"
         guest={false}
         needsActivation={false}
+        moodIconOptions={DEFAULT_MOOD_ICONS}
       />,
     );
 
@@ -158,6 +165,7 @@ describe("PatientContentPracticeComplete", () => {
         practiceSource="daily_warmup"
         guest={false}
         needsActivation={false}
+        moodIconOptions={DEFAULT_MOOD_ICONS}
       />,
     );
 

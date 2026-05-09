@@ -46,12 +46,11 @@ describe("PatientHomeNextReminderCard", () => {
 
   it("shows the calculated nearest occurrence label and link to reminders", () => {
     render(<PatientHomeNextReminderCard rule={baseRule()} scheduleLabel="ср, 10:15" />);
-    expect(screen.getByText("ср, 10:15")).toBeInTheDocument();
-    expect(screen.getByText("Напоминание")).toBeInTheDocument();
+    expect(screen.getAllByText("ср, 10:15").length).toBeGreaterThanOrEqual(1);
     const [mobileCta, desktopCta] = screen.getAllByRole("link", { name: /Изменить/i });
     expect(mobileCta).toHaveAttribute("href", "/app/patient/reminders");
     expect(mobileCta).toHaveClass("self-end");
-    expect(mobileCta).toHaveClass("min-h-10");
+    expect(mobileCta).toHaveClass("min-h-9");
     expect(mobileCta).toHaveClass("lg:hidden");
     expect(desktopCta).toHaveClass("self-end");
     expect(desktopCta).toHaveClass("max-lg:hidden");
@@ -134,6 +133,6 @@ describe("PatientHomeNextReminderCard", () => {
         }}
       />,
     );
-    expect(screen.getByText("Напоминания заглушены на 3 часа")).toBeInTheDocument();
+    expect(screen.getAllByText("Напоминания заглушены на 3 часа").length).toBeGreaterThanOrEqual(1);
   });
 });

@@ -23,7 +23,7 @@ export function prependPlanBlock(blocks: PatientHomeTodayLayoutBlock[]): Patient
 }
 
 /**
- * Mobile DOM order: «Как вы себя чувствуете» между постом дня и записью.
+ * Mobile DOM order: «Как ваше сегодня?» между постом дня и записью.
  * Desktop порядок карточек задаётся `PatientHomeTodayLayout` (`lg:order`), не DOM.
  */
 export function insertMoodBetweenUsefulPostAndBooking(

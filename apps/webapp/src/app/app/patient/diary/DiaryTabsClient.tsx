@@ -3,6 +3,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import type { ReactNode } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { patientInnerPageStackClass } from "@/shared/ui/patientVisual";
 
 type TabKey = "symptoms" | "lfk";
 
@@ -20,7 +21,7 @@ export function DiaryTabsClient({
   const searchParams = useSearchParams();
 
   if (wellbeingMvpSingle != null) {
-    return <div className="flex flex-col gap-4">{wellbeingMvpSingle}</div>;
+    return <div className={patientInnerPageStackClass}>{wellbeingMvpSingle}</div>;
   }
 
   const tab: TabKey = searchParams.get("tab") === "lfk" ? "lfk" : "symptoms";
@@ -32,7 +33,7 @@ export function DiaryTabsClient({
         const next = v === "lfk" ? "lfk" : "symptoms";
         router.replace(`/app/patient/diary?tab=${next}`, { scroll: false });
       }}
-      className="flex flex-col gap-4"
+      className={patientInnerPageStackClass}
     >
       {/* top-14 (3.5rem) ≈ высота PatientHeader (py-2 + ряд иконок size-10) */}
       <div
@@ -57,10 +58,10 @@ export function DiaryTabsClient({
           </TabsTrigger>
         </TabsList>
       </div>
-      <TabsContent value="symptoms" className="flex flex-col gap-4">
+      <TabsContent value="symptoms" className={patientInnerPageStackClass}>
         {symptomsPanel}
       </TabsContent>
-      <TabsContent value="lfk" className="flex flex-col gap-4">
+      <TabsContent value="lfk" className={patientInnerPageStackClass}>
         {lfkPanel}
       </TabsContent>
     </Tabs>

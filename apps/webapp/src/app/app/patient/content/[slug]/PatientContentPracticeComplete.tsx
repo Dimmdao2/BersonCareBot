@@ -7,7 +7,15 @@ import toast from "react-hot-toast";
 import { Check, CheckCircle2 } from "lucide-react";
 import { routePaths } from "@/app-layer/routes/paths";
 import { appLoginWithNextHref } from "@/app/app/patient/home/patientHomeGuestNav";
+import {
+  PATIENT_HOME_MOOD_SCORE_CONTAINER_HOVER,
+  PATIENT_HOME_MOOD_SCORE_ICON_CLASS,
+  PATIENT_HOME_MOOD_SCORE_ICONS,
+} from "@/app/app/patient/home/patientHomeMoodScaleVisual";
+import { patientHomeMoodOptionButtonClass } from "@/app/app/patient/home/patientHomeCardStyles";
+import { PatientHomeSafeImage } from "@/app/app/patient/home/PatientHomeSafeImage";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import type { PatientHomeMoodIconOption } from "@/modules/patient-home/patientHomeMoodIcons";
 import type { PracticeSource } from "@/modules/patient-practice/types";
 import { cn } from "@/lib/utils";
 import {
@@ -27,13 +35,9 @@ type Props = {
   practiceSource: PracticeSource;
   guest: boolean;
   needsActivation: boolean;
+  /** Те же 5 опций, что блок самочувствия на главной (`patient_home_mood_icons`). */
+  moodIconOptions: readonly PatientHomeMoodIconOption[];
 };
-
-const FEELING_OPTIONS: { label: string; emoji: string; value: number }[] = [
-  { label: "Отлично", emoji: "😊", value: 5 },
-  { label: "Нормально", emoji: "😐", value: 3 },
-  { label: "Тяжело", emoji: "😕", value: 1 },
-];
 
 export function PatientContentPracticeComplete({
   contentPageId,
@@ -41,6 +45,7 @@ export function PatientContentPracticeComplete({
   practiceSource,
   guest,
   needsActivation,
+  moodIconOptions,
 }: Props) {
   const router = useRouter();
   const isWarmup = practiceSource === "daily_warmup";
@@ -214,6 +219,7 @@ export function PatientContentPracticeComplete({
   }
 
   const modalTitle = isWarmup ? "Как самочувствие после разминки?" : "Как самочувствие после?";
+  const modalBusy = submitting || (isWarmup && postingWarmup);
 
   return (
     <>
@@ -233,37 +239,56 @@ export function PatientContentPracticeComplete({
           <DialogHeader className={patientModalHeaderBarClass}>
             <DialogTitle className={patientModalDialogTitleClass}>{modalTitle}</DialogTitle>
           </DialogHeader>
-          <div className="flex flex-col gap-2 p-4">
-            <div className="flex gap-2">
-              {FEELING_OPTIONS.map(({ label, emoji, value }) => (
-                <button
-                  key={value}
-                  type="button"
-                  disabled={submitting || (isWarmup && postingWarmup)}
-                  className={cn(
-                    "flex flex-1 flex-col items-center gap-1.5 rounded-xl border border-[var(--patient-border)] bg-[var(--patient-card-bg)] py-3 px-2 text-center transition-colors",
-                    "hover:border-[var(--patient-color-primary)] hover:bg-[var(--patient-color-primary-soft)]/40",
-                    "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-primary)]",
-                    "disabled:cursor-not-allowed disabled:opacity-60",
-                  )}
-                  aria-label={label}
-                  onClick={() =>
-                    void (isWarmup ? patchWarmupFeeling(value) : submitWithFeeling(value))
-                  }
-                >
-                  <span className="text-2xl leading-none" aria-hidden>
-                    {emoji}
-                  </span>
-                  <span className="text-xs font-medium text-[var(--patient-text-primary)]">{label}</span>
-                </button>
-              ))}
+          <div className="flex flex-col gap-3 p-4 pt-0">
+            <div
+              className="grid min-h-0 grid-cols-5 items-center gap-1"
+              role="group"
+              aria-label="Оценка самочувствия"
+            >
+              {moodIconOptions.map((option) => {
+                const MoodIcon = PATIENT_HOME_MOOD_SCORE_ICONS[option.score];
+                return (
+                  <div key={option.score} className="flex min-w-0 flex-col items-center">
+                    <button
+                      type="button"
+                      disabled={modalBusy}
+                      className={cn(
+                        patientHomeMoodOptionButtonClass,
+                        PATIENT_HOME_MOOD_SCORE_CONTAINER_HOVER[option.score],
+                        modalBusy && "cursor-not-allowed opacity-70",
+                      )}
+                      aria-label={`Самочувствие ${option.score} из 5: ${option.label}`}
+                      onClick={() =>
+                        void (isWarmup ? patchWarmupFeeling(option.score) : submitWithFeeling(option.score))
+                      }
+                    >
+                      <PatientHomeSafeImage
+                        src={modalBusy ? null : option.imageUrl}
+                        alt=""
+                        className="size-full rounded-full object-cover"
+                        loading="lazy"
+                        fallback={
+                          <MoodIcon
+                            aria-hidden
+                            className={cn(
+                              "size-8 shrink-0 sm:size-9",
+                              PATIENT_HOME_MOOD_SCORE_ICON_CLASS[option.score],
+                            )}
+                            strokeWidth={1.15}
+                          />
+                        }
+                      />
+                    </button>
+                  </div>
+                );
+              })}
             </div>
             {!isWarmup ? (
               <button
                 type="button"
                 disabled={submitting}
                 className={cn(
-                  "mt-1 inline-flex w-full items-center justify-center rounded-md px-4 py-2 text-sm text-[var(--patient-text-muted)] transition-colors",
+                  "inline-flex w-full items-center justify-center rounded-md px-4 py-2 text-sm text-[var(--patient-text-muted)] transition-colors",
                   "hover:bg-[var(--patient-color-primary-soft)]/30",
                   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-primary)]",
                   "disabled:cursor-not-allowed disabled:opacity-60",

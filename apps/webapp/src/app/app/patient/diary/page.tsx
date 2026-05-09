@@ -61,7 +61,11 @@ export default async function PatientDiaryPage() {
       <h2 className={patientSectionTitleClass}>Самочувствие за неделю</h2>
       {!wellbeing.hasAnyInstant ?
         <p className={patientMutedTextClass}>{EMPTY_STATS}</p>
-      : <PatientWellbeingWeekChart model={wellbeing.chart} iana={wellbeing.iana} />}
+      : <PatientWellbeingWeekChart
+          model={wellbeing.chart}
+          iana={wellbeing.iana}
+          warmupImpactSummary={wellbeing.warmupImpactSummary}
+        />}
     </section>
   );
 

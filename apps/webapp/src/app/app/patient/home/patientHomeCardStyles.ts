@@ -34,14 +34,14 @@ export const patientHomeCardClass = cn(
 );
 
 /**
- * Карточка «Мой план» на главной: мягкий primary-градиент (токены `--patient-color-primary-soft` / white).
+ * Карточка «Мой план» на главной: простой primary-градиент (как hero: 205°, три стопа; только primary/soft/white).
  */
 export const patientHomePlanCardClass = cn(
   "border border-[color-mix(in_srgb,var(--patient-color-primary)_28%,var(--patient-border))]",
   patientCardPaddingClass,
   "rounded-[var(--patient-card-radius-mobile)] lg:rounded-[var(--patient-card-radius-desktop)]",
   "shadow-[var(--patient-shadow-card-mobile)] lg:shadow-[var(--patient-shadow-card-desktop)]",
-  "bg-[linear-gradient(168deg,color-mix(in_srgb,var(--patient-color-primary)_30%,var(--patient-color-primary-soft))_0%,color-mix(in_srgb,var(--patient-color-primary-soft)_52%,#ffffff)_48%,color-mix(in_srgb,var(--patient-color-primary)_24%,var(--patient-color-primary-soft))_100%)]",
+  "bg-[linear-gradient(205deg,var(--patient-color-primary-soft)_10%,color-mix(in_srgb,var(--patient-color-primary-soft)_68%,#ffffff)_52%,color-mix(in_srgb,var(--patient-color-primary)_10%,#ffffff)_80%)]",
   "text-[var(--patient-text-primary)]",
 );
 
@@ -102,7 +102,7 @@ export const patientHomeCardGradientWarmClass = cn(
 );
 
 /**
- * Оболочка блока «Как вы себя чувствуете?»:
+ * Оболочка блока настроения (график недели + шкала «сегодня»):
  * mobile — без фона/бордера/тени и без вертикальных отступов карточки;
  * lg+ — почти белый с холодным подтоном, лёгкая рамка.
  */
@@ -457,11 +457,18 @@ export const patientHomeProgressValueSuffixClass =
 export const patientHomeProgressStreakValueClass =
   "text-[22px] font-semibold leading-7 text-[var(--patient-text-primary)]";
 
-/** Mood: на mobile высота по контенту; на desktop — фиксированная строка дашборда. */
+/** Двухколоночный блок настроения: подзаголовки как у блоков главной (цвет), чуть компактнее и `font-medium`. */
+export const patientHomeMoodColumnHeadingClass = cn(
+  "font-sans font-medium",
+  "text-[13px] leading-snug text-[var(--patient-block-heading)]",
+  "mb-2",
+);
+
+/** Mood: на mobile высота по контенту; на desktop — фиксированная строка дашборда (чуть выше под график недели). */
 export const patientHomeMoodCardGeometryClass = cn(
   "flex flex-col overflow-hidden",
   "max-lg:my-1 max-lg:h-auto max-lg:min-h-0",
-  "lg:h-[136px]",
+  "lg:h-[132px]",
 );
 
 export const patientHomeMoodStatusSlotClass = cn(
@@ -470,7 +477,7 @@ export const patientHomeMoodStatusSlotClass = cn(
 );
 
 export const patientHomeMoodOptionButtonClass = cn(
-  "mx-auto flex size-11 max-w-full shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-full border border-transparent bg-white/45 p-0 transition-colors sm:size-12",
+  "mx-auto flex size-9 max-w-full shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-full border border-transparent bg-white/45 p-0 transition-colors sm:size-10",
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-primary)]",
   "disabled:cursor-not-allowed",
 );
@@ -496,13 +503,25 @@ export const patientHomeSosSubtitleClampClass = cn(
   "mt-1 text-sm leading-5 text-[var(--patient-block-caption)]",
 );
 
+/** Заголовок блока напоминания на mobile — компактнее стандартного секционного. */
+export const patientHomeReminderMobileHeadingClass = cn(
+  patientHomeBlockHeadingClass,
+  "max-lg:text-[13px] max-lg:leading-snug max-lg:font-medium",
+);
+
+/** Одна подпись под заголовком напоминания (mobile): как caption блоков «Сегодня». */
+export const patientHomeReminderMobileSubtitleClass = cn(
+  patientLineClamp2Class,
+  "mt-0.5 text-xs leading-snug text-[var(--patient-block-caption)]",
+);
+
 /** Next reminder: compact warning card (отдельно от других secondary-карточек). */
 export const patientHomeReminderCardGeometryClass = cn(
-  "flex min-h-[112px] flex-col justify-center gap-3 overflow-hidden",
-  "rounded-[var(--patient-card-radius-mobile)] border border-[#fde68a] bg-[linear-gradient(135deg,#fffaf0_0%,#fff7df_100%)] p-4",
-  /** Mobile: на 6px уже полотна (3px с каждой стороны), без верхней рамки/скругления, вплотную к блоку над собой (ожидается «Прогресс» в потоке колонки). */
-  "max-lg:-mt-4 max-lg:mx-[3px] max-lg:rounded-t-none max-lg:border-t-0",
-  "lg:mx-0 lg:mt-0 lg:h-[150px] lg:min-h-0 lg:justify-between lg:rounded-[var(--patient-card-radius-desktop)] lg:p-5",
+  "flex min-h-[88px] flex-col justify-center gap-2 overflow-hidden",
+  "rounded-[var(--patient-card-radius-mobile)] border border-[#fde68a] bg-[linear-gradient(135deg,#fffaf0_0%,#fff7df_100%)] p-3",
+  /** Mobile: уже полотно (~10px с каждой стороны), без верхней рамки/скругления, вплотную к блоку над собой (ожидается «Прогресс» в потоке колонки). */
+  "max-lg:-mt-4 max-lg:mx-2.5 max-lg:rounded-t-none max-lg:border-t-0",
+  "lg:mx-0 lg:mt-0 lg:h-[150px] lg:min-h-0 lg:justify-between lg:gap-3 lg:rounded-[var(--patient-card-radius-desktop)] lg:p-5",
 );
 
 export const patientHomeSosThumbSlotClass = cn(

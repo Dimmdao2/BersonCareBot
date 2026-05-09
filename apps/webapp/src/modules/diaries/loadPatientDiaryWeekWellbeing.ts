@@ -2,6 +2,7 @@ import { DateTime } from "luxon";
 import { resolveCalendarDayIanaForPatient } from "@/modules/system-settings/calendarIana";
 import type { ReferencesPort } from "@/modules/references/ports";
 import type { SymptomEntry } from "@/modules/diaries/types";
+import { buildWarmupWeekImpactSummary, type WarmupWeekImpactSummary } from "./buildWarmupWeekImpactSummary";
 import { buildWellbeingWeekChartData, type WellbeingWeekChartModel } from "./buildWellbeingWeekChartData";
 
 /** Совпадает с {@link GENERAL_WELLBEING_SYMPTOM_KEY} в patient-mood (без импорта — избегаем цикла diaries ↔ patient-mood). */
@@ -39,6 +40,7 @@ export type PatientDiaryWeekWellbeingLoadResult = {
   iana: string;
   chart: WellbeingWeekChartModel;
   hasAnyInstant: boolean;
+  warmupImpactSummary: WarmupWeekImpactSummary;
 };
 
 async function symptomTypeRefId(references: ReferencesPort, code: string): Promise<{ id: string; title: string }> {
@@ -103,6 +105,7 @@ export async function loadPatientDiaryWeekWellbeing(
     weekEndMs: weekEnd.toMillis(),
   });
   const hasAnyInstant = chart.instantSeries.length > 0;
+  const warmupImpactSummary = buildWarmupWeekImpactSummary(chart.instantSeries, chart.warmupScatter);
 
-  return { iana, chart, hasAnyInstant };
+  return { iana, chart, hasAnyInstant, warmupImpactSummary };
 }

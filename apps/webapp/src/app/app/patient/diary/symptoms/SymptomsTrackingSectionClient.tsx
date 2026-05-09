@@ -2,7 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { SymptomTrackingRow } from "./SymptomTrackingRow";
-import { patientMutedTextClass, patientSectionSurfaceClass } from "@/shared/ui/patientVisual";
+import {
+  patientMutedTextClass,
+  patientSectionSurfaceClass,
+  patientSectionTitleClass,
+} from "@/shared/ui/patientVisual";
 
 export function SymptomsTrackingSectionClient({
   trackings,
@@ -20,7 +24,7 @@ export function SymptomsTrackingSectionClient({
       id="patient-symptoms-tracking-section"
       className={patientSectionSurfaceClass}
     >
-      <h2 className="text-lg font-semibold">Отслеживаемые симптомы</h2>
+      <h2 className={patientSectionTitleClass}>Отслеживаемые симптомы</h2>
       {rows.length > 0 ?
         <ul id="patient-symptoms-tracking-list" className="m-0 list-none space-y-3 p-0">
           {rows.map((t) => (

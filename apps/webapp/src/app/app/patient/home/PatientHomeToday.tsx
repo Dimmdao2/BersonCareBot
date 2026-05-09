@@ -175,15 +175,18 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
   } | null = null;
   /** Единый «сейчас» для заголовка и mute; pick учитывает глобальную заглушку. */
   let patientHomeReminderEvaluatedAt: Date | null = null;
+  let moodWeekTz = appTz;
   if (personalTierOk && session) {
-    const [rules, instances, p, moodState, week, mutedUntilIso] = await Promise.all([
+    const [rules, instances, p, moodState, mutedUntilIso, patientCalTz] = await Promise.all([
       deps.reminders.listRulesByUser(session.user.userId),
       deps.treatmentProgramInstance.listForPatient(session.user.userId),
       deps.patientPractice.getProgress(session.user.userId, appTz, todayCfg.practiceTarget),
       deps.patientMood.getCheckinState(session.user.userId, appTz),
-      deps.patientMood.getWeekSparkline(session.user.userId, appTz),
       deps.reminders.getReminderMutedUntil(session.user.userId),
+      deps.patientCalendarTimezone.getIanaForUser(session.user.userId),
     ]);
+    moodWeekTz = resolveCalendarDayIanaForPatient(patientCalTz, appTz);
+    const week = await deps.patientMood.getWeekSparkline(session.user.userId, moodWeekTz);
     patientHomeReminderEvaluatedAt = new Date();
     const scheduleInstant = reminderScheduleEvaluationInstant(patientHomeReminderEvaluatedAt, mutedUntilIso);
     hasConfiguredSchedule = hasConfiguredHomeLinkedReminders(rules);
@@ -314,7 +317,7 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
             initialMood={initialMoodCheckin?.mood ?? null}
             initialLastEntry={initialMoodCheckin?.lastEntry ?? null}
             moodWeekDays={moodWeekDays}
-            appDisplayTimeZone={appTz}
+            wellbeingWeekTimeZone={moodWeekTz}
           />
         );
       case "sos":

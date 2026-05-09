@@ -31,14 +31,9 @@ function warmupValueToBand(value: number): WarmupScatterBand | null {
   return null;
 }
 
-function noonMillisForLocalDay(localYmd: string, iana: string): number {
-  const dt = DateTime.fromISO(localYmd, { zone: iana }).set({
-    hour: 12,
-    minute: 0,
-    second: 0,
-    millisecond: 0,
-  });
-  return dt.toMillis();
+/** Локальная полночь календарного дня — чтобы график «Среднее за день» начинался у левой границы дня и совпадал с осью (не полдень). */
+function startOfLocalDayMillis(localYmd: string, iana: string): number {
+  return DateTime.fromISO(localYmd, { zone: iana }).startOf("day").toMillis();
 }
 
 /**
@@ -86,7 +81,7 @@ export function buildWellbeingWeekChartData(
     .map(([localYmd, vals]) => {
       const sum = vals.reduce((a, b) => a + b, 0);
       const v = sum / vals.length;
-      return { t: noonMillisForLocalDay(localYmd, iana), v };
+      return { t: startOfLocalDayMillis(localYmd, iana), v };
     })
     .filter((p) => p.t >= weekStartMs && p.t < weekEndMs)
     .sort((a, b) => a.t - b.t);

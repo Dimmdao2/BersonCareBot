@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { Angry, Frown, Laugh, Meh, Smile } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
@@ -10,9 +9,9 @@ import type { PatientMoodIntent, PatientMoodLastEntry, PatientMoodToday, Patient
 import type { PatientHomeMoodIconOption } from "@/modules/patient-home/patientHomeMoodIcons";
 import { wellbeingResubmitKind } from "@/modules/patient-mood/wellbeingConstants";
 import {
-  patientHomeBlockHeadingClass,
   patientHomeMoodCardGeometryClass,
   patientHomeMoodCheckinShellClass,
+  patientHomeMoodColumnHeadingClass,
   patientHomeMoodOptionButtonClass,
   patientHomeMoodStatusSlotClass,
 } from "./patientHomeCardStyles";
@@ -22,38 +21,12 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { PatientHomeWellbeingWeekStrip } from "./PatientHomeWellbeingWeekStrip";
-
-const MOOD_SCORE_ICONS = {
-  1: Angry,
-  2: Frown,
-  3: Meh,
-  4: Smile,
-  5: Laugh,
-} as const;
-
-const MOOD_SCORE_ICON_CLASS: Record<1 | 2 | 3 | 4 | 5, string> = {
-  1: "text-red-600",
-  2: "text-orange-600",
-  3: "text-amber-500",
-  4: "text-lime-600",
-  5: "text-green-600",
-};
-
-const MOOD_SCORE_CONTAINER_ACTIVE: Record<1 | 2 | 3 | 4 | 5, string> = {
-  1: "border-red-300 bg-red-50/70 ring-1 ring-red-200/50",
-  2: "border-orange-300 bg-orange-50/70 ring-1 ring-orange-200/50",
-  3: "border-amber-300 bg-amber-50/70 ring-1 ring-amber-200/50",
-  4: "border-lime-300 bg-lime-50/70 ring-1 ring-lime-200/50",
-  5: "border-green-300 bg-green-50/70 ring-1 ring-green-200/50",
-};
-
-const MOOD_SCORE_CONTAINER_HOVER: Record<1 | 2 | 3 | 4 | 5, string> = {
-  1: "border-red-200 hover:border-red-400 hover:bg-red-50/40",
-  2: "border-orange-200 hover:border-orange-400 hover:bg-orange-50/40",
-  3: "border-amber-200 hover:border-amber-400 hover:bg-amber-50/40",
-  4: "border-lime-200 hover:border-lime-400 hover:bg-lime-50/40",
-  5: "border-green-200 hover:border-green-400 hover:bg-green-50/40",
-};
+import {
+  PATIENT_HOME_MOOD_SCORE_CONTAINER_ACTIVE as MOOD_SCORE_CONTAINER_ACTIVE,
+  PATIENT_HOME_MOOD_SCORE_CONTAINER_HOVER as MOOD_SCORE_CONTAINER_HOVER,
+  PATIENT_HOME_MOOD_SCORE_ICON_CLASS as MOOD_SCORE_ICON_CLASS,
+  PATIENT_HOME_MOOD_SCORE_ICONS as MOOD_SCORE_ICONS,
+} from "./patientHomeMoodScaleVisual";
 
 type Props = {
   moodOptions: readonly PatientHomeMoodIconOption[];
@@ -62,8 +35,8 @@ type Props = {
   initialMood?: PatientMoodToday | null;
   initialLastEntry?: PatientMoodLastEntry | null;
   moodWeekDays?: readonly PatientMoodWeekDay[];
-  /** IANA TZ главной (для полосы недели). */
-  appDisplayTimeZone?: string;
+  /** IANA для полосы «Ваша неделя» — те же календарные сутки, что график самочувствия в дневнике. */
+  wellbeingWeekTimeZone?: string;
 };
 
 export function PatientHomeMoodCheckin({
@@ -73,7 +46,7 @@ export function PatientHomeMoodCheckin({
   initialMood = null,
   initialLastEntry = null,
   moodWeekDays = [],
-  appDisplayTimeZone = "UTC",
+  wellbeingWeekTimeZone = "UTC",
 }: Props) {
   const router = useRouter();
   const [selectedScore, setSelectedScore] = useState<number | null>(initialMood?.score ?? null);
@@ -173,7 +146,7 @@ export function PatientHomeMoodCheckin({
     : null;
 
   const renderMoodScale = (disabled: boolean) => (
-    <div className="grid min-h-[3rem] flex-1 grid-cols-5 items-center gap-1.5" role="group" aria-label="Оценка самочувствия">
+    <div className="grid min-h-0 flex-1 grid-cols-5 items-center gap-1" role="group" aria-label="Оценка самочувствия">
       {moodOptions.map((option) => {
         const active = selectedScore === option.score;
         const MoodIcon = MOOD_SCORE_ICONS[option.score];
@@ -199,8 +172,8 @@ export function PatientHomeMoodCheckin({
                 fallback={
                   <MoodIcon
                     aria-hidden
-                    className={cn("size-10 shrink-0 sm:size-11", MOOD_SCORE_ICON_CLASS[option.score])}
-                    strokeWidth={1.25}
+                    className={cn("size-8 shrink-0 sm:size-9", MOOD_SCORE_ICON_CLASS[option.score])}
+                    strokeWidth={1.15}
                   />
                 }
               />
@@ -216,16 +189,18 @@ export function PatientHomeMoodCheckin({
       <section
         id="patient-home-mood-checkin"
         className={cn(patientHomeMoodCheckinShellClass, patientHomeMoodCardGeometryClass)}
-        aria-labelledby="patient-home-mood-heading"
+        aria-labelledby={
+          personalTierOk && !anonymousGuest ?
+            "patient-home-mood-week-heading patient-home-mood-heading"
+          : "patient-home-mood-heading"
+        }
       >
         <div className="relative z-[1] flex h-full min-h-0 flex-col">
-          <div className="shrink-0">
-            <h3 id="patient-home-mood-heading" className={cn(patientHomeBlockHeadingClass, "px-4 lg:px-0")}>
-              Как вы себя чувствуете?
-            </h3>
-          </div>
           {anonymousGuest ?
             <div className="flex min-h-0 flex-1 flex-col justify-between gap-1.5 max-lg:pt-2 lg:pt-2.5">
+              <h3 id="patient-home-mood-heading" className={cn(patientHomeMoodColumnHeadingClass, "shrink-0 px-4 lg:px-0")}>
+                Как ваше сегодня?
+              </h3>
               {renderMoodScale(true)}
               <p className={patientHomeMoodStatusSlotClass}>
                 <Link href={appLoginWithNextHref(routePaths.patient)} className="font-medium text-primary underline-offset-4 hover:underline">
@@ -236,17 +211,32 @@ export function PatientHomeMoodCheckin({
             </div>
           : !personalTierOk ?
             <div className="flex min-h-0 flex-1 flex-col justify-between gap-1.5 max-lg:pt-2 lg:pt-2.5">
+              <h3 id="patient-home-mood-heading" className={cn(patientHomeMoodColumnHeadingClass, "shrink-0 px-4 lg:px-0")}>
+                Как ваше сегодня?
+              </h3>
               {renderMoodScale(true)}
               <p className={patientHomeMoodStatusSlotClass}>Чек-ин самочувствия будет доступен после активации профиля.</p>
             </div>
-          : <div className="flex min-h-0 flex-1 flex-col justify-between gap-1.5 max-lg:pt-2 lg:pt-2.5">
-              {renderMoodScale(false)}
+          : <div className="flex min-h-0 flex-1 flex-col gap-1.5 px-4 max-lg:pt-2 lg:px-0 lg:pt-2">
+              <div className="flex min-h-0 flex-1 flex-col gap-2 sm:flex-row sm:items-stretch sm:gap-3">
+                <div className="flex min-h-0 w-full min-w-0 flex-col sm:w-[35%] sm:max-w-[35%] sm:shrink-0">
+                  <h3 id="patient-home-mood-week-heading" className={patientHomeMoodColumnHeadingClass}>
+                    Ваша неделя
+                  </h3>
+                  <PatientHomeWellbeingWeekStrip days={moodWeekDays} timeZone={wellbeingWeekTimeZone} />
+                </div>
+                <div className="flex min-h-0 min-w-0 flex-1 flex-col sm:basis-[65%] sm:min-w-0">
+                  <h3 id="patient-home-mood-heading" className={patientHomeMoodColumnHeadingClass}>
+                    Как ваше сегодня?
+                  </h3>
+                  <div className="flex min-h-0 flex-1 flex-col justify-end">{renderMoodScale(false)}</div>
+                </div>
+              </div>
               {statusLine ?
                 <p className={patientHomeMoodStatusSlotClass} aria-live="polite">
                   {statusLine}
                 </p>
               : null}
-              <PatientHomeWellbeingWeekStrip days={moodWeekDays} timeZone={appDisplayTimeZone} />
             </div>}
         </div>
       </section>

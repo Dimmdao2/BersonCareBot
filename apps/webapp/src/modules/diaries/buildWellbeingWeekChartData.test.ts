@@ -22,7 +22,7 @@ describe("buildWellbeingWeekChartData", () => {
   /** 2026-05-09 — суббота; неделя Пн 2026-05-04 … вс 2026-05-10 в локальной зоне */
   const anchor = DateTime.fromISO("2026-05-09T12:00:00", { zone: iana });
 
-  it("усредняет instant general_wellbeing по дням и ставит t на полдень", () => {
+  it("усредняет instant general_wellbeing по дням и ставит t на начало локальных суток", () => {
     const general: SymptomEntry[] = [
       baseEntry({
         recordedAt: "2026-05-06T08:00:00.000Z",
@@ -38,13 +38,8 @@ describe("buildWellbeingWeekChartData", () => {
     const model = buildWellbeingWeekChartData(general, [], iana, { anchor });
     expect(model.aggregateSeries).toHaveLength(1);
     expect(model.aggregateSeries[0]!.v).toBe(3);
-    const noon = DateTime.fromISO("2026-05-06", { zone: iana }).set({
-      hour: 12,
-      minute: 0,
-      second: 0,
-      millisecond: 0,
-    });
-    expect(model.aggregateSeries[0]!.t).toBe(noon.toMillis());
+    const startDay = DateTime.fromISO("2026-05-06", { zone: iana }).startOf("day");
+    expect(model.aggregateSeries[0]!.t).toBe(startDay.toMillis());
   });
 
   it("instantSeries содержит только instant-записи general_wellbeing", () => {

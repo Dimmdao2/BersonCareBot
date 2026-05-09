@@ -35,6 +35,7 @@ import {
   patientHomeHeroSummaryClampClass,
 } from "@/app/app/patient/home/patientHomeCardStyles";
 import { getConfigBool } from "@/modules/system-settings/configAdapter";
+import { parsePatientHomeMoodIcons } from "@/modules/patient-home/patientHomeMoodIcons";
 import type { MediaPlaybackPayload } from "@/modules/media/playbackPayloadTypes";
 import { parseApiMediaIdFromPlayableUrl } from "@/shared/lib/parseApiMediaIdFromPlayableUrl";
 import { PatientContentAdaptiveVideo } from "./PatientContentAdaptiveVideo";
@@ -120,6 +121,9 @@ export default async function ContentSlugPage({ params, searchParams }: Props) {
       }
     }
   }
+
+  const moodSetting = await deps.systemSettings.getSetting("patient_home_mood_icons", "admin");
+  const moodIconOptions = parsePatientHomeMoodIcons(moodSetting?.valueJson ?? null);
 
   let courseCta: { courseTitle: string; href: string } | null = null;
   if (dbRow?.linkedCourseId) {
@@ -254,6 +258,7 @@ export default async function ContentSlugPage({ params, searchParams }: Props) {
           practiceSource={practiceSource}
           guest={session === null}
           needsActivation={session !== null && !personalTierOk}
+          moodIconOptions={moodIconOptions}
         />
 
         {showWarmupBadge && item.bodyText?.trim() ? (

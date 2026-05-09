@@ -5,9 +5,9 @@ import { requirePatientApiBusinessAccess } from "@/app-layer/guards/requireRole"
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { routePaths } from "@/app-layer/routes/paths";
 
-/** Значения совпадают с тремя иконками на экране разминки (не произвольный 1–5). */
+/** Та же шкала 1–5, что чек-ин на главной и `POST /api/patient/practice/completion` (симптом `warmup_feeling`). */
 const bodySchema = z.object({
-  feeling: z.union([z.literal(1), z.literal(3), z.literal(5)]),
+  feeling: z.number().int().min(1).max(5),
 });
 
 export async function PATCH(req: Request, context: { params: Promise<{ id: string }> }) {

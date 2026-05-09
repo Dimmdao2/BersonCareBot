@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { patientBodyTextClass, patientSecondaryActionClass } from "@/shared/ui/patientVisual";
 import type { StatsPeriod } from "@/modules/diaries/stats/periodWindow";
 
 function shiftMonthYm(monthYm: string, delta: number): string {
@@ -48,15 +48,21 @@ export function JournalMonthNav(props: {
       <Link
         href={href(prevYm)}
         aria-label="Предыдущий месяц"
-        className={cn(buttonVariants({ variant: "outline", size: "sm" }), "text-xs")}
+        className={cn(
+          patientSecondaryActionClass,
+          "!w-auto shrink-0 min-h-9 px-3 py-2 text-xs no-underline",
+        )}
       >
         ← Месяц
       </Link>
-      <span className="text-sm font-medium capitalize">{monthTitleRu(monthYm)}</span>
+      <span className={cn(patientBodyTextClass, "font-medium capitalize")}>{monthTitleRu(monthYm)}</span>
       <Link
         href={href(nextYm)}
         aria-label="Следующий месяц"
-        className={cn(buttonVariants({ variant: "outline", size: "sm" }), "text-xs")}
+        className={cn(
+          patientSecondaryActionClass,
+          "!w-auto shrink-0 min-h-9 px-3 py-2 text-xs no-underline",
+        )}
       >
         Месяц →
       </Link>

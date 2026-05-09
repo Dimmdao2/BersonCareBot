@@ -196,15 +196,16 @@ export function createPatientMoodService(deps: PatientWellbeingMoodDeps) {
 
   async function getWeekSparkline(userId: string, tz: string): Promise<PatientMoodWeekDay[]> {
     const trackingId = await ensureWellbeingTracking(userId);
-    const todayStart = DateTime.now().setZone(tz).startOf("day");
+    const today = DateTime.now().setZone(tz);
+    const monday = today.minus({ days: today.weekday - 1 }).startOf("day");
     const dayKeys: string[] = [];
-    for (let i = 6; i >= 0; i -= 1) {
-      const d = todayStart.minus({ days: i }).toISODate();
+    for (let i = 0; i < 7; i += 1) {
+      const d = monday.plus({ days: i }).toISODate();
       if (d) dayKeys.push(d);
     }
     if (dayKeys.length === 0) return [];
     const from = localDayRangeUtcIso(tz, dayKeys[0]!).from;
-    const toExclusive = localDayRangeUtcIso(tz, dayKeys[dayKeys.length - 1]!).toExclusive;
+    const toExclusive = localDayRangeUtcIso(tz, dayKeys[6]!).toExclusive;
     const entries = await deps.diaries.listSymptomEntriesForTrackingInRange({
       userId,
       trackingId,
@@ -212,24 +213,33 @@ export function createPatientMoodService(deps: PatientWellbeingMoodDeps) {
       toRecordedAtExclusive: toExclusive,
     });
 
-    const best = new Map<string, { recordedAt: string; score: PatientMoodScore }>();
+    const dayKeySet = new Set(dayKeys);
+    const byDay = new Map<string, PatientMoodScore[]>();
     for (const e of entries) {
+      if (e.entryType !== "instant") continue;
       const localD = DateTime.fromISO(e.recordedAt, { zone: "utc" }).setZone(tz).toISODate();
-      if (!localD) continue;
+      if (!localD || !dayKeySet.has(localD)) continue;
       const score = toMoodScore(e.value0_10);
       if (score == null) continue;
-      const cur = best.get(localD);
-      if (!cur || new Date(e.recordedAt) > new Date(cur.recordedAt)) {
-        best.set(localD, { recordedAt: e.recordedAt, score });
-      }
+      const arr = byDay.get(localD) ?? [];
+      arr.push(score);
+      byDay.set(localD, arr);
     }
 
-    return dayKeys.map((d) => ({
-      date: d,
-      score: best.get(d)?.score ?? null,
-      warmupHint: null,
-      diaryNoteHint: null,
-    }));
+    return dayKeys.map((d) => {
+      const vals = byDay.get(d);
+      if (!vals || vals.length === 0) {
+        return { date: d, score: null, warmupHint: null, diaryNoteHint: null };
+      }
+      const sum = vals.reduce((a, b) => a + b, 0);
+      const rounded = Math.min(5, Math.max(1, Math.round(sum / vals.length)));
+      return {
+        date: d,
+        score: rounded as PatientMoodScore,
+        warmupHint: null,
+        diaryNoteHint: null,
+      };
+    });
   }
 
   return {

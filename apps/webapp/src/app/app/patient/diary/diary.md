@@ -6,7 +6,7 @@
 
 - Одна секция **«Самочувствие за неделю»**: Recharts `ComposedChart` — среднее за день (`general_wellbeing`, только **instant**), линия отметок в течение дня (**только instant**; записи `daily` на линию не попадают), точки «после разминки» (`warmup_feeling`, значения 1/3/5).
 - Данные: `loadPatientDiaryWeekWellbeing` → `buildWellbeingWeekChartData`; границы недели в ms передаются из лоадера в хелпер (**одинаковое окно** с SQL `fromRecordedAt` / `toRecordedAtExclusive`).
-- TZ календарного дня — как у программы лечения (`resolveCalendarDayIanaForPatient` + `patientCalendarTimezone`), не как `GET /api/patient/mood/week` (там только системная TZ приложения).
+- TZ календарного дня — `resolveCalendarDayIanaForPatient` + `patientCalendarTimezone` (**тот же выбор IANA**, что `GET /api/patient/mood/week` и полоса «Ваша неделя» на главной).
 - Ось Y: **0–5**, если все наблюдаемые значения ≤ 5; иначе **0–10**.
 - Вкладки **«Симптомы»** и **«ЛФК»**, форма «Отметить занятие», `QuickAddPopup` — **временно не монтируются** (код компонентов сохранён в репозитории). На странице есть TODO-блок с путями для восстановления.
 

@@ -10,6 +10,7 @@ const mockGetWeekSparkline = vi.hoisted(() => vi.fn());
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
     patientMood: { getWeekSparkline: mockGetWeekSparkline },
+    patientCalendarTimezone: { getIanaForUser: vi.fn().mockResolvedValue(null) },
   }),
 }));
 

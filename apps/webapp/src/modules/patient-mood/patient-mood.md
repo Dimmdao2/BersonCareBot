@@ -13,7 +13,7 @@
 
 - `POST /api/patient/mood` — тело: `score` (1–5), `intent` (по умолчанию `auto`). Ответ: `mood`, `lastEntry`; **409** + `intent_required`, если нужен явный выбор в окне 10–60 мин.
 - `GET /api/patient/mood/today` — `mood` за локальный день + **`lastEntry`** (для правил и модалки).
-- `GET /api/patient/mood/week` — семь локальных дней «сегодня минус 6…сегодня» для полоски на главной (`warmupHint`, `diaryNoteHint` зарезервированы).
+- `GET /api/patient/mood/week` — календарная неделя пн–вс в **том же IANA, что дневник самочувствия** (`resolveCalendarDayIanaForPatient` + сохранённый пояс пациента или TZ приложения); по каждому дню **среднее** instant `general_wellbeing` (1–5, округление до целого), как агрегат «Среднее за день» в дневнике (`warmupHint`, `diaryNoteHint` зарезервированы).
 - `PatientHomeMoodCheckin` — пять кнопок, модалка 10–60 мин, `PatientHomeWellbeingWeekStrip` под шкалой.
 
 Route handlers остаются тонкими: auth, parse/validate, timezone, вызов сервиса, JSON response.
