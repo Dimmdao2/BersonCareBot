@@ -146,7 +146,9 @@ export function VideoSystemSettingsSection({
           ) : (
             <p className="text-xs text-muted-foreground">
               Очередь <code className="rounded bg-muted px-1">media_transcode_jobs</code>, процесс{" "}
-              <code className="rounded bg-muted px-1">apps/media-worker</code>.
+              <code className="rounded bg-muted px-1">apps/media-worker</code> (на хосте обычно unit{" "}
+              <code className="rounded bg-muted px-1">bersoncarebot-media-worker-prod.service</code> — см. документацию
+              деплоя).
             </p>
           )}
         </CardHeader>

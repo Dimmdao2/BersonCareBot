@@ -869,19 +869,25 @@ describe("PATCH /api/admin/settings", () => {
     expect(updateSettingMock).toHaveBeenCalledWith(key, "admin", { value: val }, "a1");
   });
 
-  it("returns 400 for video_playback_api_enabled invalid value", async () => {
+  it.each([
+    ["video_playback_api_enabled"],
+    ["video_hls_pipeline_enabled"],
+    ["video_hls_new_uploads_auto_transcode"],
+  ] as const)("returns 400 for %s invalid boolean value", async (key) => {
     getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
     const res = await PATCH(
       new Request("http://localhost/api/admin/settings", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          key: "video_playback_api_enabled",
+          key,
           value: { value: "maybe" },
         }),
       }),
     );
     expect(res.status).toBe(400);
+    const body = (await res.json()) as { ok: boolean; error?: string };
+    expect(body.error).toBe("invalid_value");
     expect(updateSettingMock).not.toHaveBeenCalled();
   });
 
