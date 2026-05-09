@@ -32,7 +32,12 @@ const baseRule = (): ReminderRule => ({
 describe("PatientHomeNextReminderCard", () => {
   it("empty guest state links to login with next to reminders", () => {
     render(
-      <PatientHomeNextReminderCard rule={null} scheduleLabel="" anonymousGuest personalTierOk={false} />,
+      <PatientHomeNextReminderCard
+        rule={null}
+        scheduleLabel="Напоминания не настроены"
+        anonymousGuest
+        personalTierOk={false}
+      />,
     );
     const ctas = screen.getAllByRole("link", { name: /Войти/i });
     expect(ctas[0]?.getAttribute("href")).toContain(`${routePaths.root}?next=`);
@@ -69,31 +74,66 @@ describe("PatientHomeNextReminderCard", () => {
       <PatientHomeNextReminderCard
         rule={baseRule()}
         scheduleLabel="ср, 10:15"
-        reminderDaySummary={{ done: 2, plannedTotal: 5, muted: false }}
+        reminderDaySummary={{
+          done: 2,
+          plannedTotal: 5,
+          muted: false,
+          muteRemainingLabel: null,
+          hasConfiguredSchedule: true,
+        }}
       />,
     );
     expect(screen.getByLabelText(/Сегодня: 2 из 5/i)).toBeInTheDocument();
   });
 
-  it("shows empty copy when plannedTotal is 0", () => {
+  it("shows empty copy when plannedTotal is 0 and schedule is configured", () => {
     render(
       <PatientHomeNextReminderCard
         rule={baseRule()}
         scheduleLabel="ср, 10:15"
-        reminderDaySummary={{ done: 0, plannedTotal: 0, muted: false }}
+        reminderDaySummary={{
+          done: 0,
+          plannedTotal: 0,
+          muted: false,
+          muteRemainingLabel: null,
+          hasConfiguredSchedule: true,
+        }}
       />,
     );
     expect(screen.getByText("На сегодня напоминаний нет")).toBeInTheDocument();
   });
 
-  it("shows mute copy when summary.muted", () => {
+  it("omits empty-today line when schedule is not configured", () => {
     render(
       <PatientHomeNextReminderCard
         rule={baseRule()}
         scheduleLabel="ср, 10:15"
-        reminderDaySummary={{ done: 0, plannedTotal: 0, muted: true }}
+        reminderDaySummary={{
+          done: 0,
+          plannedTotal: 0,
+          muted: false,
+          muteRemainingLabel: null,
+          hasConfiguredSchedule: false,
+        }}
       />,
     );
-    expect(screen.getByText("Уведомления на паузе")).toBeInTheDocument();
+    expect(screen.queryByText("На сегодня напоминаний нет")).toBeNull();
+  });
+
+  it("shows mute copy with remaining duration", () => {
+    render(
+      <PatientHomeNextReminderCard
+        rule={baseRule()}
+        scheduleLabel="ср, 10:15"
+        reminderDaySummary={{
+          done: 0,
+          plannedTotal: 0,
+          muted: true,
+          muteRemainingLabel: "3 часа",
+          hasConfiguredSchedule: true,
+        }}
+      />,
+    );
+    expect(screen.getByText("Напоминания заглушены на 3 часа")).toBeInTheDocument();
   });
 });

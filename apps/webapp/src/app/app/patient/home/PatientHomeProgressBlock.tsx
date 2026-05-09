@@ -12,7 +12,6 @@ import {
   patientHomeProgressValueSuffixClass,
   patientHomeBlockBodySmClamp2Mt2Class,
   patientHomeBlockBodySmClass,
-  patientHomeBlockBodySmMt2Class,
 } from "./patientHomeCardStyles";
 import { appLoginWithNextHref } from "./patientHomeGuestNav";
 import { PatientHomeSafeImage } from "./PatientHomeSafeImage";
@@ -38,7 +37,6 @@ export function PatientHomeProgressBlock({
     progress && practiceTarget > 0 ? Math.min(progress.todayDone, practiceTarget) : progress?.todayDone ?? 0;
   const pct =
     practiceTarget > 0 ? Math.min(100, Math.round((displayDone / practiceTarget) * 100)) : 0;
-  const remainingPractices = Math.max(practiceTarget - displayDone, 0);
 
   const guestCopy = anonymousGuest ?
     <>
@@ -53,14 +51,12 @@ export function PatientHomeProgressBlock({
 
   const streakLabel = (n: number) =>
     n === 1 ? "день" : n > 1 && n < 5 ? "дня" : "дней";
-  const shortPracticeLabel = (n: number) =>
-    n === 1 ? "короткая практика" : n > 1 && n < 5 ? "короткие практики" : "коротких практик";
 
   return (
     <section aria-labelledby="patient-home-progress-heading">
       <article
         id="patient-home-progress-block"
-        className={cn(patientHomeCardClass, patientHomeProgressCardGeometryClass, "w-[calc(100vw-4rem)] min-w-0 max-w-full lg:w-full")}
+        className={cn(patientHomeCardClass, patientHomeProgressCardGeometryClass, "w-full min-w-0 max-w-full")}
       >
         <div className={patientHomeProgressGridClass}>
           <div className="flex min-h-0 flex-col justify-center pr-3 lg:pr-0">
@@ -72,12 +68,12 @@ export function PatientHomeProgressBlock({
               <p className={patientHomeBlockBodySmClamp2Mt2Class}>{guestCopy}</p>
             : progress ?
               <>
-                <p className="mt-1" aria-label={`Выполнено практик сегодня: ${progress.todayDone}, цель ${practiceTarget}`}>
+                <p className="mt-0.5" aria-label={`Выполнено практик сегодня: ${progress.todayDone}, цель ${practiceTarget}`}>
                   <span className={patientHomeProgressValueClass}>{displayDone}</span>
                   <span className={patientHomeProgressValueSuffixClass}> из {practiceTarget}</span>
                 </p>
                 <div
-                  className="mt-2.5 h-2 w-full overflow-hidden rounded-full bg-[#e5e7eb]"
+                  className="mt-2 h-2 w-full overflow-hidden rounded-full bg-[#e5e7eb]"
                   role="progressbar"
                   aria-valuenow={displayDone}
                   aria-valuemin={0}
@@ -89,11 +85,6 @@ export function PatientHomeProgressBlock({
                     style={{ width: `${pct}%` }}
                   />
                 </div>
-                <p className={patientHomeBlockBodySmMt2Class}>
-                  {remainingPractices > 0 ?
-                    `Ещё ${remainingPractices} ${shortPracticeLabel(remainingPractices)} на сегодня.`
-                  : "Цель на сегодня выполнена."}
-                </p>
               </>
             :
               <div className="mt-2 space-y-2" aria-busy="true">

@@ -1,6 +1,9 @@
 ---
 name: Reminder UX Full
-overview: "Единый план Reminder UX + синхронизация с главной пациента: зафиксированные архитектурные решения, поэтапная реализация (docs → схема/домен → расписание → snooze/skip/done → mute-all → home n/N → проверки и docs)."
+overview: "Reminder UX — закрыт (2026-05-09): rehab slots_v1, mute, integrator-проекция, главная n/N; документы в docs/PATIENT_REMINDER_UX_INITIATIVE/; план ниже — нормативный слепок решений и этапов."
+status: completed
+completedAt: "2026-05-09"
+mergeRef: "677a18d0"
 todos:
   - id: docs-initiative-and-decisions
     content: Создать docs/PATIENT_REMINDER_UX_INITIATIVE (README/ROADMAP/LOG), cross-links в docs/README; зафиксировать ADR с Locked Decisions.
@@ -27,6 +30,15 @@ isProject: false
 ---
 
 # Reminder UX — полный план (решения + этапы)
+
+## Статус выполнения
+
+- **Состояние:** все YAML-todos — `completed`; инициатива закрыта (**2026-05-09**).
+- **Код / merge:** ветка `main`, коммит `677a18d0` (после него — только правки docs при необходимости).
+- **Документы:** [`docs/PATIENT_REMINDER_UX_INITIATIVE/README.md`](../../docs/PATIENT_REMINDER_UX_INITIATIVE/README.md) (ADR), [`ROADMAP`](../../docs/PATIENT_REMINDER_UX_INITIATIVE/ROADMAP.md), [`LOG`](../../docs/PATIENT_REMINDER_UX_INITIATIVE/LOG.md); оглавление — [`docs/README.md`](../../docs/README.md) §Архив.
+- **Миграции (факт):** webapp SQL `084_reminder_rehab_slots_mute.sql`; integrator `20260509_0001_reminder_rules_multi_and_enrichment.sql`.
+
+---
 
 ## Цель
 
@@ -57,7 +69,7 @@ isProject: false
 
 ### 2) Семантика `n из N` на главной
 
-- `N` — число запланированных occurrence на текущий локальный день пациента (активные правила, после учёта mute). Источник TZ: `rule.timezone` каждого правила (совпадает с patient TZ на момент создания). Граница дня = midnight в этой TZ.
+- `N` — число запланированных occurrence на текущий календарный **день приложения** (активные правила, после учёта mute). Слоты каждого правила считаются в его **`timezone`**; для границы дня и агрегата `n` используется **часовой пояс отображения приложения** (как на главной) — см. ADR в README инициативы.
 - `n` — число occurrence за день с финальным действием пользователя: **`done` или `skipped`**.
 - `snoozed` не увеличивает `n`.
 - При `N = 0` — явный empty-state («На сегодня напоминаний нет»), не «0 из 0».
@@ -90,7 +102,7 @@ isProject: false
 
 ### 7) Mute all
 
-- User-level mute: колонка `reminder_muted_until TIMESTAMPTZ` на таблице `platform_users` (или, если нежелательно расширять `platform_users`, отдельная таблица `user_reminder_preferences(platform_user_id PK, muted_until TIMESTAMPTZ)`). **Выбрать при старте Этапа 1** и зафиксировать в LOG.
+- User-level mute: колонка **`platform_users.reminder_muted_until`** (`TIMESTAMPTZ`, nullable). Альтернатива из черновика плана — отдельная таблица — **не использовалась**.
 - Проверка `muted_until > NOW()` в dispatch pipeline до отправки; те же данные в UI reminders/home.
 
 ### 8) Дефолт новых пользователей (rehab-поток)
@@ -102,7 +114,7 @@ isProject: false
 ## Архитектурные ограничения (применяются на всех этапах)
 
 - **Clean Architecture:** новые файлы в `modules/*` не импортируют `@/infra/db/*` или `@/infra/repos/*` напрямую — только через порты.
-- **Drizzle-миграции:** любые изменения схемы — `drizzle-kit generate` → SQL-файл в `apps/webapp/migrations/` с порядковым номером (следующий после `050_*`), затем `drizzle-kit migrate`. Типы из `schema.$inferSelect`.
+- **Drizzle / SQL:** изменения схемы webapp — `drizzle-kit generate` → SQL в `apps/webapp/migrations/` с порядковым номером (в этой инициативе — **`084_reminder_rehab_slots_mute.sql`**), затем `pnpm --dir apps/webapp run migrate`. Типы из `schema.$inferSelect`.
 - **`handleReminderDispatch` (webapp):** текущий stub (`accepted: false`) **не реализовывать** в рамках этой инициативы — dispatch идёт только через integrator-планировщик. Stub можно задокументировать, но не расширять, чтобы не создавать двойной путь.
 
 ---
@@ -217,6 +229,8 @@ Gate: component tests home reminder block; edge cases: N=0, all done, partially 
 ---
 
 ## Definition of Done
+
+**Выполнено** (2026-05-09, CI зелёный на merge-коммите).
 
 - Документы инициативы и ADR отражают Locked Decisions.
 - Доступны: `rehab_program`, intent/CTA, правила с названием/описанием где задумано; расписание slots + легаси; дефолт 12/15/17 по будням при первичной инициализации rehab.

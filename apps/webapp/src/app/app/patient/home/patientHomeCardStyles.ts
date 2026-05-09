@@ -436,11 +436,11 @@ export const patientHomeSituationsCardMobileChromeClass =
 
 /** Progress block geometry (patient home reference row). */
 export const patientHomeProgressCardGeometryClass = cn(
-  "flex min-h-[132px] flex-col overflow-hidden sm:min-h-[140px] lg:h-[150px] lg:min-h-0",
+  "flex min-h-[108px] flex-col overflow-hidden sm:min-h-[116px] lg:h-[128px] lg:min-h-0",
 );
 
 export const patientHomeProgressGridClass = cn(
-  "grid min-h-[100px] min-w-0 grid-cols-[minmax(0,1fr)_4.5rem] items-center gap-1 sm:min-h-[108px] lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_7.5rem] lg:gap-4",
+  "grid min-h-[84px] min-w-0 grid-cols-[minmax(0,1fr)_4.5rem] items-center gap-1 sm:min-h-[92px] lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_7.5rem] lg:gap-4",
 );
 
 /** Mobile keeps the compact divider; desktop returns the progress circle with more breathing room. */
@@ -449,13 +449,13 @@ export const patientHomeProgressStreakColClass = cn(
 );
 
 export const patientHomeProgressValueClass =
-  "mt-1 text-[26px] font-semibold leading-8 text-[var(--patient-color-primary)]";
+  "text-[22px] font-semibold leading-7 text-[var(--patient-color-primary)]";
 
 export const patientHomeProgressValueSuffixClass =
-  "text-[22px] font-semibold leading-8 text-[var(--patient-color-primary)]";
+  "text-[17px] font-semibold leading-7 text-[var(--patient-color-primary)]";
 
 export const patientHomeProgressStreakValueClass =
-  "text-[28px] font-semibold leading-8 text-[var(--patient-text-primary)]";
+  "text-[22px] font-semibold leading-7 text-[var(--patient-text-primary)]";
 
 /** Mood: на mobile высота по контенту; на desktop — фиксированная строка дашборда. */
 export const patientHomeMoodCardGeometryClass = cn(
@@ -498,7 +498,11 @@ export const patientHomeSosSubtitleClampClass = cn(
 
 /** Next reminder: compact warning card (отдельно от других secondary-карточек). */
 export const patientHomeReminderCardGeometryClass = cn(
-  "flex min-h-[112px] flex-col justify-center gap-3 overflow-hidden rounded-[var(--patient-card-radius-mobile)] border border-[#fde68a] bg-[linear-gradient(135deg,#fffaf0_0%,#fff7df_100%)] p-4 lg:h-[150px] lg:min-h-0 lg:justify-between lg:rounded-[var(--patient-card-radius-desktop)] lg:p-5",
+  "flex min-h-[112px] flex-col justify-center gap-3 overflow-hidden",
+  "rounded-[var(--patient-card-radius-mobile)] border border-[#fde68a] bg-[linear-gradient(135deg,#fffaf0_0%,#fff7df_100%)] p-4",
+  /** Mobile: на 6px уже полотна (3px с каждой стороны), без верхней рамки/скругления, вплотную к блоку над собой (ожидается «Прогресс» в потоке колонки). */
+  "max-lg:-mt-4 max-lg:mx-[3px] max-lg:rounded-t-none max-lg:border-t-0",
+  "lg:mx-0 lg:mt-0 lg:h-[150px] lg:min-h-0 lg:justify-between lg:rounded-[var(--patient-card-radius-desktop)] lg:p-5",
 );
 
 export const patientHomeSosThumbSlotClass = cn(

@@ -3,7 +3,11 @@ import { DateTime } from "luxon";
 import {
   computeNextOccurrenceUtcForRule,
   formatNextReminderLabel,
+  formatPatientHomeNextReminderHeadline,
+  formatReminderMuteRemainingRu,
+  hasConfiguredHomeLinkedReminders,
   pickNextHomeReminder,
+  reminderScheduleEvaluationInstant,
   countPlannedHomeReminderOccurrencesInUtcRange,
 } from "./nextReminderOccurrence";
 import type { ReminderRule } from "@/modules/reminders/types";
@@ -32,6 +36,21 @@ function rule(partial: Partial<ReminderRule> & Pick<ReminderRule, "id">): Remind
     ...partial,
   };
 }
+
+describe("reminderScheduleEvaluationInstant", () => {
+  it("returns now when mute is absent or expired", () => {
+    const now = new Date("2026-05-09T12:00:00.000Z");
+    expect(reminderScheduleEvaluationInstant(now, null).getTime()).toBe(now.getTime());
+    expect(reminderScheduleEvaluationInstant(now, "").getTime()).toBe(now.getTime());
+    expect(reminderScheduleEvaluationInstant(now, "2026-05-09T11:00:00.000Z").getTime()).toBe(now.getTime());
+  });
+
+  it("returns muted-until when it is after now", () => {
+    const now = new Date("2026-05-09T12:00:00.000Z");
+    const until = new Date("2026-05-09T18:00:00.000Z");
+    expect(reminderScheduleEvaluationInstant(now, until.toISOString()).getTime()).toBe(until.getTime());
+  });
+});
 
 describe("pickNextHomeReminder", () => {
   it("returns null when no eligible rules", () => {
@@ -183,6 +202,114 @@ describe("computeNextOccurrenceUtcForRule", () => {
     expect(local.weekday).toBe(2);
     expect(local.hour).toBe(9);
     expect(local.minute).toBe(0);
+  });
+});
+
+describe("formatPatientHomeNextReminderHeadline", () => {
+  const zone = "Europe/Moscow";
+
+  it("uses minutes when same day under one hour", () => {
+    const now = DateTime.fromObject(
+      { year: 2026, month: 5, day: 9, hour: 10, minute: 0, second: 0 },
+      { zone },
+    ).toJSDate();
+    const next = DateTime.fromObject(
+      { year: 2026, month: 5, day: 9, hour: 10, minute: 25, second: 0 },
+      { zone },
+    ).toJSDate();
+    expect(formatPatientHomeNextReminderHeadline(next, now, zone)).toBe("Через 25 минут");
+  });
+
+  it("uses hours when same day one hour or more", () => {
+    const now = DateTime.fromObject(
+      { year: 2026, month: 5, day: 9, hour: 8, minute: 0, second: 0 },
+      { zone },
+    ).toJSDate();
+    const next = DateTime.fromObject(
+      { year: 2026, month: 5, day: 9, hour: 11, minute: 10, second: 0 },
+      { zone },
+    ).toJSDate();
+    expect(formatPatientHomeNextReminderHeadline(next, now, zone)).toBe("Через 4 часа");
+  });
+
+  it("returns Завтра for next calendar day", () => {
+    const now = DateTime.fromObject(
+      { year: 2026, month: 5, day: 9, hour: 22, minute: 0, second: 0 },
+      { zone },
+    ).toJSDate();
+    const next = DateTime.fromObject(
+      { year: 2026, month: 5, day: 10, hour: 9, minute: 15, second: 0 },
+      { zone },
+    ).toJSDate();
+    expect(formatPatientHomeNextReminderHeadline(next, now, zone)).toBe("Завтра в 09:15");
+  });
+
+  it("uses accusative weekday after tomorrow", () => {
+    const now = DateTime.fromObject(
+      { year: 2026, month: 5, day: 9, hour: 10, minute: 0, second: 0 },
+      { zone },
+    ).toJSDate(); // Sat
+    const next = DateTime.fromObject(
+      { year: 2026, month: 5, day: 11, hour: 12, minute: 0, second: 0 },
+      { zone },
+    ).toJSDate(); // Mon
+    expect(formatPatientHomeNextReminderHeadline(next, now, zone)).toBe("В понедельник в 12:00");
+  });
+
+  it("uses Во вторник", () => {
+    const now = DateTime.fromObject(
+      { year: 2026, month: 5, day: 9, hour: 10, minute: 0, second: 0 },
+      { zone },
+    ).toJSDate();
+    const next = DateTime.fromObject(
+      { year: 2026, month: 5, day: 12, hour: 8, minute: 0, second: 0 },
+      { zone },
+    ).toJSDate(); // Tue
+    expect(formatPatientHomeNextReminderHeadline(next, now, zone)).toBe("Во вторник в 08:00");
+  });
+});
+
+describe("formatReminderMuteRemainingRu", () => {
+  it("formats minutes under one hour", () => {
+    const now = new Date("2026-05-09T10:00:00.000Z");
+    const until = new Date("2026-05-09T10:44:00.000Z");
+    expect(formatReminderMuteRemainingRu(until.toISOString(), now)).toBe("44 минуты");
+  });
+
+  it("formats hours under one day", () => {
+    const now = new Date("2026-05-09T10:00:00.000Z");
+    const until = new Date("2026-05-09T15:00:00.000Z");
+    expect(formatReminderMuteRemainingRu(until.toISOString(), now)).toBe("5 часов");
+  });
+
+  it("formats days when 24h or more", () => {
+    const now = new Date("2026-05-09T10:00:00.000Z");
+    const until = new Date("2026-05-11T10:00:00.000Z");
+    expect(formatReminderMuteRemainingRu(until.toISOString(), now)).toBe("2 дня");
+  });
+});
+
+describe("hasConfiguredHomeLinkedReminders", () => {
+  it("is false without linked enabled rules", () => {
+    expect(hasConfiguredHomeLinkedReminders([])).toBe(false);
+    expect(
+      hasConfiguredHomeLinkedReminders([
+        rule({
+          id: "x",
+          enabled: false,
+          linkedObjectType: "content_page",
+          linkedObjectId: "a",
+        }),
+      ]),
+    ).toBe(false);
+  });
+
+  it("is true with enabled home-linked rule", () => {
+    expect(
+      hasConfiguredHomeLinkedReminders([
+        rule({ id: "x", linkedObjectType: "content_page", linkedObjectId: "a" }),
+      ]),
+    ).toBe(true);
   });
 });
 

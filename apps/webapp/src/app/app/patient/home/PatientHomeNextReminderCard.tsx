@@ -32,7 +32,13 @@ type Props = {
   anonymousGuest?: boolean;
   personalTierOk?: boolean;
   /** Local app-day progress; omitted for guests / builds without journal. */
-  reminderDaySummary?: { done: number; plannedTotal: number; muted: boolean } | null;
+  reminderDaySummary?: {
+    done: number;
+    plannedTotal: number;
+    muted: boolean;
+    muteRemainingLabel: string | null;
+    hasConfiguredSchedule: boolean;
+  } | null;
 };
 
 function LeadingIcon({ blockIconImageUrl }: { blockIconImageUrl?: string | null }) {
@@ -55,11 +61,20 @@ function LeadingIcon({ blockIconImageUrl }: { blockIconImageUrl?: string | null 
 function ReminderDaySummaryLines({
   summary,
 }: {
-  summary: { done: number; plannedTotal: number; muted: boolean };
+  summary: {
+    done: number;
+    plannedTotal: number;
+    muted: boolean;
+    muteRemainingLabel: string | null;
+    hasConfiguredSchedule: boolean;
+  };
 }) {
   if (summary.muted) {
+    const tail = summary.muteRemainingLabel?.trim();
     return (
-      <p className={cn(patientHomeBlockCaptionSmClamp2Mt1Class, "text-muted-foreground")}>Уведомления на паузе</p>
+      <p className={cn(patientHomeBlockCaptionSmClamp2Mt1Class, "text-muted-foreground")}>
+        {tail ? `Напоминания заглушены на ${tail}` : "Напоминания заглушены"}
+      </p>
     );
   }
   if (summary.plannedTotal > 0) {
@@ -73,7 +88,10 @@ function ReminderDaySummaryLines({
       </p>
     );
   }
-  return <p className={patientHomeBlockCaptionSmClamp2Mt1Class}>На сегодня напоминаний нет</p>;
+  if (summary.hasConfiguredSchedule) {
+    return <p className={patientHomeBlockCaptionSmClamp2Mt1Class}>На сегодня напоминаний нет</p>;
+  }
+  return null;
 }
 
 export function PatientHomeNextReminderCard({
@@ -96,17 +114,13 @@ export function PatientHomeNextReminderCard({
               <h3 id="patient-home-reminder-heading" className={cn(patientHomeBlockHeadingClass, "whitespace-nowrap")}>
                 Следующее напоминание
               </h3>
-              <p className={cn(patientHomeCardTitleClampSmClass, "mt-1")}>
-                Пока нет ближайших
-              </p>
+              <p className={cn(patientHomeCardTitleClampSmClass, "mt-1")}>{scheduleLabel}</p>
               {reminderDaySummary ? <ReminderDaySummaryLines summary={reminderDaySummary} /> : null}
-              <p className={cn(patientHomeBlockCaptionSmClamp2Mt1Class, "lg:hidden")}>
-                {anonymousGuest ?
-                  "Чтобы настроить напоминания."
-                : !personalTierOk ?
-                  "После активации профиля."
-                : "Добавьте время практики."}
-              </p>
+              {(anonymousGuest || !personalTierOk) && (
+                <p className={cn(patientHomeBlockCaptionSmClamp2Mt1Class, "lg:hidden")}>
+                  {anonymousGuest ? "Чтобы настроить напоминания." : "После активации профиля."}
+                </p>
+              )}
             </div>
             <Link href={remindersHref} prefetch={false} className={reminderCtaMobileClass}>
               {ctaLabel}

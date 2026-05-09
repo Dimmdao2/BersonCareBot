@@ -211,6 +211,19 @@ export function computeNextOccurrenceUtcForRule(
   return null;
 }
 
+/**
+ * Момент, с которого считаем «следующее по расписанию», если глобально заглушены push:
+ * не раньше окончания `reminder_muted_until`, иначе показывали бы слот во время паузы.
+ */
+export function reminderScheduleEvaluationInstant(now: Date, mutedUntilIso: string | null | undefined): Date {
+  const trimmed = mutedUntilIso?.trim();
+  if (!trimmed) return now;
+  const until = new Date(trimmed);
+  if (!Number.isFinite(until.getTime())) return now;
+  if (until.getTime() <= now.getTime()) return now;
+  return until;
+}
+
 export function pickNextHomeReminder(
   rules: ReminderRule[],
   now: Date,
@@ -235,4 +248,100 @@ export function formatNextReminderLabel(nextAt: Date, displayTimeZone: string): 
   const dt = DateTime.fromMillis(nextAt.getTime()).setZone(displayTimeZone);
   if (!dt.isValid) return "";
   return dt.setLocale("ru").toFormat("ccc, HH:mm");
+}
+
+function ruMinuteWord(n: number): string {
+  const mod100 = n % 100;
+  if (mod100 >= 11 && mod100 <= 14) return "минут";
+  const mod10 = n % 10;
+  if (mod10 === 1) return "минуту";
+  if (mod10 >= 2 && mod10 <= 4) return "минуты";
+  return "минут";
+}
+
+function ruHourWordHeadline(n: number): string {
+  const mod100 = n % 100;
+  if (mod100 >= 11 && mod100 <= 14) return "часов";
+  const mod10 = n % 10;
+  if (mod10 === 1) return "час";
+  if (mod10 >= 2 && mod10 <= 4) return "часа";
+  return "часов";
+}
+
+function ruDayWordMute(n: number): string {
+  const mod100 = n % 100;
+  if (mod100 >= 11 && mod100 <= 14) return "дней";
+  const mod10 = n % 10;
+  if (mod10 === 1) return "день";
+  if (mod10 >= 2 && mod10 <= 4) return "дня";
+  return "дней";
+}
+
+/**
+ * Главная строка карточки «Следующее напоминание»: относительное время сегодня,
+ * «Завтра в …», либо «В …» с днём недели.
+ */
+export function formatPatientHomeNextReminderHeadline(nextAt: Date, now: Date, displayTimeZone: string): string {
+  const dtNext = DateTime.fromMillis(nextAt.getTime()).setZone(displayTimeZone);
+  const dtNow = DateTime.fromMillis(now.getTime()).setZone(displayTimeZone);
+  if (!dtNext.isValid || !dtNow.isValid) return formatNextReminderLabel(nextAt, displayTimeZone);
+
+  const diffMinutes = Math.max(0, Math.ceil(dtNext.diff(dtNow, "minutes").minutes));
+
+  const tomorrowStart = dtNow.plus({ days: 1 }).startOf("day");
+  const isTomorrow = dtNext >= tomorrowStart && dtNext < tomorrowStart.plus({ days: 1 });
+
+  if (dtNext.hasSame(dtNow, "day")) {
+    if (diffMinutes < 1) return "Скоро";
+    if (diffMinutes < 60) {
+      return `Через ${diffMinutes} ${ruMinuteWord(diffMinutes)}`;
+    }
+    const hours = Math.ceil(diffMinutes / 60);
+    return `Через ${hours} ${ruHourWordHeadline(hours)}`;
+  }
+
+  if (isTomorrow) {
+    return `Завтра в ${dtNext.toFormat("HH:mm")}`;
+  }
+
+  /** «В понедельник» / «Во вторник» / «В среду» … (предложный падеж после «в/во»). */
+  const accusativeWeekday: Record<number, string> = {
+    1: "понедельник",
+    2: "вторник",
+    3: "среду",
+    4: "четверг",
+    5: "пятницу",
+    6: "субботу",
+    7: "воскресенье",
+  };
+  const w = dtNext.weekday;
+  const dayRu = accusativeWeekday[w] ?? dtNext.setLocale("ru").toFormat("cccc");
+  const prep = w === 2 ? "Во" : "В";
+  return `${prep} ${dayRu} в ${dtNext.toFormat("HH:mm")}`;
+}
+
+/**
+ * Хвост для «Напоминания заглушены на …» (только число + слово).
+ */
+export function formatReminderMuteRemainingRu(mutedUntilIso: string, now: Date): string {
+  const endMs = Date.parse(mutedUntilIso.trim());
+  if (!Number.isFinite(endMs)) return "";
+  const minsTotal = Math.max(0, Math.ceil((endMs - now.getTime()) / 60_000));
+  if (minsTotal < 1) return "меньше минуты";
+  if (minsTotal < 60) {
+    return `${minsTotal} ${ruMinuteWord(minsTotal)}`;
+  }
+  const hoursTotal = Math.ceil(minsTotal / 60);
+  if (hoursTotal < 24) {
+    return `${hoursTotal} ${ruHourWordHeadline(hoursTotal)}`;
+  }
+  const daysTotal = Math.ceil(minsTotal / (60 * 24));
+  return `${daysTotal} ${ruDayWordMute(daysTotal)}`;
+}
+
+/** Есть ли хотя бы одно включённое домашнее напоминание (тип из LINKED_TYPES). */
+export function hasConfiguredHomeLinkedReminders(rules: ReminderRule[]): boolean {
+  return rules.some(
+    (r) => r.enabled && r.linkedObjectType != null && LINKED_TYPES.includes(r.linkedObjectType),
+  );
 }

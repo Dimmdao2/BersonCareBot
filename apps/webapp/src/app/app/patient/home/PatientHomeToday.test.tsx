@@ -33,7 +33,7 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
     contentSections: { getBySlug: contentSectionsGetBySlug },
     contentPages: { getBySlug: contentPagesGetBySlug },
     courses: { getCourseForDoctor: coursesGetCourseForDoctor },
-    reminders: { listRulesByUser },
+    reminders: { listRulesByUser, getReminderMutedUntil: vi.fn().mockResolvedValue(null) },
     treatmentProgramInstance: {
       listForPatient,
       getInstanceForPatient,
@@ -209,7 +209,7 @@ describe("PatientHomeToday", () => {
     expect(screen.queryByText(/Fixture User/i)).toBeNull();
     expect(screen.getByRole("heading", { name: /Сегодня выполнено/i })).toBeInTheDocument();
     expect(screen.getByText(/Как вы себя чувствуете/i)).toHaveProperty("tagName", "H3");
-    expect(screen.getByText(/Пока нет ближайших/i)).toBeInTheDocument();
+    expect(screen.getByText(/Напоминания не настроены/i)).toBeInTheDocument();
     expect(screen.queryByText(/Пока нет курсов на главной/i)).toBeNull();
 
     const start = screen.getByRole("link", { name: /Начать разминку/i });

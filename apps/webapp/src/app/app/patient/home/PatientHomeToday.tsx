@@ -5,8 +5,11 @@ import { getPatientHomeTodayConfig } from "@/modules/patient-home/todayConfig";
 import { filterAndSortPatientHomeBlocks } from "@/modules/patient-home/patientHomeBlockPolicy";
 import type { ReminderRule } from "@/modules/reminders/types";
 import {
-  formatNextReminderLabel,
+  formatPatientHomeNextReminderHeadline,
+  formatReminderMuteRemainingRu,
+  hasConfiguredHomeLinkedReminders,
   pickNextHomeReminder,
+  reminderScheduleEvaluationInstant,
   countPlannedHomeReminderOccurrencesInUtcRange,
 } from "@/modules/patient-home/nextReminderOccurrence";
 import { formatBookingDateLongRu } from "@/shared/lib/formatBusinessDateTime";
@@ -162,16 +165,29 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
   let progress: { todayDone: number; streak: number } | null = null;
   let initialMoodCheckin: PatientMoodCheckinState | null = null;
   let moodWeekDays: PatientMoodWeekDay[] = [];
-  let reminderDaySummary: { done: number; plannedTotal: number; muted: boolean } | null = null;
+  let hasConfiguredSchedule = false;
+  let reminderDaySummary: {
+    done: number;
+    plannedTotal: number;
+    muted: boolean;
+    muteRemainingLabel: string | null;
+    hasConfiguredSchedule: boolean;
+  } | null = null;
+  /** Единый «сейчас» для заголовка и mute; pick учитывает глобальную заглушку. */
+  let patientHomeReminderEvaluatedAt: Date | null = null;
   if (personalTierOk && session) {
-    const [rules, instances, p, moodState, week] = await Promise.all([
+    const [rules, instances, p, moodState, week, mutedUntilIso] = await Promise.all([
       deps.reminders.listRulesByUser(session.user.userId),
       deps.treatmentProgramInstance.listForPatient(session.user.userId),
       deps.patientPractice.getProgress(session.user.userId, appTz, todayCfg.practiceTarget),
       deps.patientMood.getCheckinState(session.user.userId, appTz),
       deps.patientMood.getWeekSparkline(session.user.userId, appTz),
+      deps.reminders.getReminderMutedUntil(session.user.userId),
     ]);
-    homeReminder = pickNextHomeReminder(rules, new Date(), appTz);
+    patientHomeReminderEvaluatedAt = new Date();
+    const scheduleInstant = reminderScheduleEvaluationInstant(patientHomeReminderEvaluatedAt, mutedUntilIso);
+    hasConfiguredSchedule = hasConfiguredHomeLinkedReminders(rules);
+    homeReminder = pickNextHomeReminder(rules, scheduleInstant, appTz);
     const active = instances
       .filter((i) => i.status === "active")
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
@@ -211,8 +227,8 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
       const dayEnd = dayStart.plus({ days: 1 });
       const rangeStart = dayStart.toUTC().toJSDate();
       const rangeEnd = dayEnd.toUTC().toJSDate();
-      const mutedUntil = await deps.reminders.getReminderMutedUntil(session.user.userId);
-      const compareNow = new Date();
+      const compareNow = patientHomeReminderEvaluatedAt ?? new Date();
+      const mutedUntil = mutedUntilIso;
       const muted = !!(mutedUntil && new Date(mutedUntil).getTime() > compareNow.getTime());
       const plannedTotal = muted ? 0 : countPlannedHomeReminderOccurrencesInUtcRange(rules, rangeStart, rangeEnd);
       const done = await deps.reminderJournal.countDoneSkippedInUtcRange(
@@ -220,14 +236,23 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
         rangeStart,
         rangeEnd,
       );
-      reminderDaySummary = { done, plannedTotal, muted };
+      const muteRemainingLabel =
+        muted && mutedUntil?.trim() ? formatReminderMuteRemainingRu(mutedUntil.trim(), compareNow) : null;
+      reminderDaySummary = { done, plannedTotal, muted, muteRemainingLabel, hasConfiguredSchedule };
     }
   }
 
   const sorted = filterAndSortPatientHomeBlocks(homeBlocks);
 
-  const nextReminderScheduleLabel =
-    homeReminder ? formatNextReminderLabel(homeReminder.nextAt, appTz) : "";
+  const nextReminderScheduleLabel = homeReminder
+    ? formatPatientHomeNextReminderHeadline(
+        homeReminder.nextAt,
+        patientHomeReminderEvaluatedAt ?? new Date(),
+        appTz,
+      )
+    : hasConfiguredSchedule
+      ? "Ближайших напоминаний нет"
+      : "Напоминания не настроены";
 
   const personalizedName = personalTierOk && session ? session.user.displayName?.trim() || null : null;
   const timeOfDayPrefix = greetingPrefixFromHour(DateTime.now().setZone(appTz).hour);
