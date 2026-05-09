@@ -25,8 +25,8 @@ export function PatientDiaryWarmupWeekBars({ weekDayLabels, days }: PatientDiary
                 {label}
               </span>
               {d == null ?
-                <div className="mt-auto h-16 w-full max-w-[2.5rem] rounded-sm bg-[var(--patient-border)]/50" aria-hidden />
-              : <div className="relative mt-auto flex h-16 w-full max-w-[2.5rem] flex-col justify-end rounded-sm bg-[var(--patient-border)]/35">
+                <div className="mt-auto h-16 w-full max-w-[2.5rem] rounded-sm bg-[var(--patient-border)]/58" aria-hidden />
+              : <div className="relative mt-auto flex h-16 w-full max-w-[2.5rem] flex-col justify-end rounded-sm bg-[var(--patient-border)]/44">
                   {d.allDone ?
                     <span className="absolute -top-5 left-1/2 -translate-x-1/2" aria-label="Все слоты дня закрыты">
                       <Flame className="size-4 text-orange-500" strokeWidth={2} aria-hidden />
@@ -49,6 +49,19 @@ export function PatientDiaryWarmupWeekBars({ weekDayLabels, days }: PatientDiary
             </div>
           );
         })}
+      </div>
+      <div
+        className={cn(
+          "mt-3 flex flex-wrap items-center gap-x-2 gap-y-1.5",
+          patientMutedTextClass,
+          "text-[11px] leading-snug",
+        )}
+      >
+        <span>Серый столбик — слоты дня; зелёная часть — выполненные разминки.</span>
+        <span className="inline-flex items-center gap-1">
+          <Flame className="size-3.5 shrink-0 text-orange-500" strokeWidth={2} aria-hidden />
+          <span>— все слоты дня закрыты.</span>
+        </span>
       </div>
     </section>
   );

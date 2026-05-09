@@ -47,6 +47,9 @@ export function PatientDiaryPlanWeekStripes({ weekDayLabels, days }: PatientDiar
           );
         })}
       </div>
+      <p className={cn("mt-3", patientMutedTextClass, "text-[11px] leading-snug")}>
+        Полоски сверху вниз — порядок пунктов плана; зелёная — выполнено, серая — ещё нет.
+      </p>
     </section>
   );
 }

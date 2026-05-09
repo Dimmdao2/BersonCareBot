@@ -3,6 +3,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import type { ReactNode } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { cn } from "@/lib/utils";
 import { patientInnerPageStackClass } from "@/shared/ui/patientVisual";
 
 type TabKey = "symptoms" | "lfk";
@@ -21,7 +22,9 @@ export function DiaryTabsClient({
   const searchParams = useSearchParams();
 
   if (wellbeingMvpSingle != null) {
-    return <div className={patientInnerPageStackClass}>{wellbeingMvpSingle}</div>;
+    return (
+      <div className={cn(patientInnerPageStackClass, "pb-8 lg:pb-12")}>{wellbeingMvpSingle}</div>
+    );
   }
 
   const tab: TabKey = searchParams.get("tab") === "lfk" ? "lfk" : "symptoms";
