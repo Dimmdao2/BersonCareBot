@@ -28,6 +28,8 @@ const makeRule = (overrides: Partial<ReminderRule> = {}): ReminderRule => ({
   reminderIntent: "generic",
   displayTitle: null,
   displayDescription: null,
+  quietHoursStartMinute: null,
+  quietHoursEndMinute: null,
   updatedAt: new Date().toISOString(),
   ...overrides,
 });
@@ -133,6 +135,58 @@ describe("reminders service", () => {
       const res = await svc.updateRule("user-1", "rule-1", { intervalMinutes: 90 });
       expect(res.ok).toBe(true);
       if (res.ok) expect(res.syncWarning).toBe(REMINDER_INTEGRATOR_SYNC_WARNING);
+    });
+
+    it("applies full interval_window schedule bundle with quiet hours", async () => {
+      const port = createInMemoryReminderRulesPort([makeRule()]);
+      const svc = createRemindersService(port);
+      const res = await svc.updateRule("user-1", "rule-1", {
+        schedule: {
+          scheduleType: "interval_window",
+          intervalMinutes: 90,
+          windowStartMinute: 480,
+          windowEndMinute: 1320,
+          daysMask: "1111100",
+          quietHoursStartMinute: 1320,
+          quietHoursEndMinute: 360,
+        },
+      });
+      expect(res.ok).toBe(true);
+      if (res.ok) {
+        expect(res.data.intervalMinutes).toBe(90);
+        expect(res.data.quietHoursStartMinute).toBe(1320);
+        expect(res.data.quietHoursEndMinute).toBe(360);
+      }
+    });
+
+    it("applies slots_v1 schedule bundle", async () => {
+      const port = createInMemoryReminderRulesPort([
+        makeRule({
+          scheduleType: "interval_window",
+          scheduleData: null,
+        }),
+      ]);
+      const svc = createRemindersService(port);
+      const res = await svc.updateRule("user-1", "rule-1", {
+        schedule: {
+          scheduleType: "slots_v1",
+          intervalMinutes: 60,
+          windowStartMinute: 0,
+          windowEndMinute: 1440,
+          daysMask: "1111111",
+          scheduleData: {
+            timesLocal: ["10:00", "14:00"],
+            dayFilter: "weekdays",
+          },
+          quietHoursStartMinute: null,
+          quietHoursEndMinute: null,
+        },
+      });
+      expect(res.ok).toBe(true);
+      if (res.ok) {
+        expect(res.data.scheduleType).toBe("slots_v1");
+        expect(res.data.scheduleData?.timesLocal?.length).toBe(2);
+      }
     });
   });
 

@@ -1,6 +1,18 @@
 import type { ReminderJournalPort } from "./reminderJournalPort";
 import type { ReminderRulesPort } from "./ports";
-import type { ReminderCategory, ReminderLinkedObjectType, ReminderRule, ReminderUpdateSchedule } from "./types";
+import type {
+  ReminderCategory,
+  ReminderLinkedObjectType,
+  ReminderRule,
+  ReminderUpdateSchedule,
+} from "./types";
+import type { SlotsV1ScheduleData } from "./scheduleSlots";
+import {
+  DEFAULT_REHAB_WEEKDAY_SLOTS,
+  SLOTS_V1_DB_PLACEHOLDER,
+  normalizeSlotsV1ScheduleData,
+} from "./scheduleSlots";
+import { validateQuietHoursPair } from "./quietHours";
 
 export type { ReminderCategory, ReminderRule } from "./types";
 
@@ -38,6 +50,17 @@ export type UpdateRuleData = Partial<ReminderUpdateSchedule> & {
   enabled?: boolean;
   customTitle?: string | null;
   customText?: string | null;
+  /** Full schedule + quiet replacement (preferred). */
+  schedule?: {
+    scheduleType: "interval_window" | "slots_v1";
+    intervalMinutes: number;
+    windowStartMinute: number;
+    windowEndMinute: number;
+    daysMask: string;
+    scheduleData?: SlotsV1ScheduleData | null;
+    quietHoursStartMinute?: number | null;
+    quietHoursEndMinute?: number | null;
+  };
 };
 
 /** Показываем пользователю, если БД обновлена, а relay к integrator не удался (D.3). */
@@ -136,17 +159,6 @@ export function createRemindersService(port: ReminderRulesPort, deps?: Reminders
       const target = rules.find((r) => r.id === ruleId);
       if (!target) return { ok: false, error: "not_found" };
 
-      const newWindow = {
-        windowStartMinute: data.windowStartMinute ?? target.windowStartMinute,
-        windowEndMinute: data.windowEndMinute ?? target.windowEndMinute,
-      };
-      if (newWindow.windowStartMinute >= newWindow.windowEndMinute) {
-        return { ok: false, error: "invalid_window: windowStart must be < windowEnd" };
-      }
-      if (data.intervalMinutes !== undefined && data.intervalMinutes <= 0) {
-        return { ok: false, error: "invalid_interval: intervalMinutes must be > 0" };
-      }
-
       if (data.customTitle !== undefined || data.customText !== undefined) {
         if (target.linkedObjectType !== "custom") {
           return { ok: false, error: "validation_error: custom fields only for custom reminders" };
@@ -167,19 +179,91 @@ export function createRemindersService(port: ReminderRulesPort, deps?: Reminders
         await port.updateEnabled(ruleId, data.enabled);
       }
 
-      const hasScheduleChange =
+      const hasPartialScheduleChange =
         data.intervalMinutes !== undefined ||
         data.windowStartMinute !== undefined ||
         data.windowEndMinute !== undefined ||
         data.daysMask !== undefined;
 
-      if (hasScheduleChange) {
-        await port.updateSchedule(ruleId, {
-          intervalMinutes: data.intervalMinutes ?? target.intervalMinutes ?? 60,
-          windowStartMinute: data.windowStartMinute ?? target.windowStartMinute,
-          windowEndMinute: data.windowEndMinute ?? target.windowEndMinute,
-          daysMask: data.daysMask ?? target.daysMask,
-        });
+      if (data.schedule) {
+        const qErr = validateQuietHoursPair(
+          data.schedule.quietHoursStartMinute,
+          data.schedule.quietHoursEndMinute,
+        );
+        if (qErr) return { ok: false, error: qErr };
+
+        if (data.schedule.scheduleType === "slots_v1") {
+          const raw = data.schedule.scheduleData;
+          if (!raw) return { ok: false, error: "validation_error: scheduleData" };
+          const norm = normalizeSlotsV1ScheduleData(raw);
+          if (!norm.ok) return { ok: false, error: norm.error };
+          await port.updateScheduleAndType(ruleId, {
+            scheduleType: "slots_v1",
+            intervalMinutes: SLOTS_V1_DB_PLACEHOLDER.intervalMinutes,
+            windowStartMinute: SLOTS_V1_DB_PLACEHOLDER.windowStartMinute,
+            windowEndMinute: SLOTS_V1_DB_PLACEHOLDER.windowEndMinute,
+            daysMask: data.schedule.daysMask,
+            scheduleData: norm.data as unknown as Record<string, unknown>,
+            quietHoursStartMinute: data.schedule.quietHoursStartMinute ?? null,
+            quietHoursEndMinute: data.schedule.quietHoursEndMinute ?? null,
+          });
+        } else {
+          const sched: ReminderUpdateSchedule = {
+            intervalMinutes: data.schedule.intervalMinutes,
+            windowStartMinute: data.schedule.windowStartMinute,
+            windowEndMinute: data.schedule.windowEndMinute,
+            daysMask: data.schedule.daysMask,
+          };
+          const err = validateSchedule(sched);
+          if (err) return { ok: false, error: err };
+          await port.updateScheduleAndType(ruleId, {
+            scheduleType: "interval_window",
+            intervalMinutes: sched.intervalMinutes,
+            windowStartMinute: sched.windowStartMinute,
+            windowEndMinute: sched.windowEndMinute,
+            daysMask: sched.daysMask,
+            scheduleData: null,
+            quietHoursStartMinute: data.schedule.quietHoursStartMinute ?? null,
+            quietHoursEndMinute: data.schedule.quietHoursEndMinute ?? null,
+          });
+        }
+      } else if (hasPartialScheduleChange) {
+        if (target.scheduleType === "slots_v1") {
+          const daysMask = data.daysMask ?? target.daysMask;
+          if (!/^[01]{7}$/.test(daysMask)) return { ok: false, error: "validation_error: daysMask" };
+          const baseData = target.scheduleData ?? DEFAULT_REHAB_WEEKDAY_SLOTS;
+          const norm = normalizeSlotsV1ScheduleData(baseData);
+          if (!norm.ok) return { ok: false, error: norm.error };
+          await port.updateScheduleAndType(ruleId, {
+            scheduleType: "slots_v1",
+            intervalMinutes: SLOTS_V1_DB_PLACEHOLDER.intervalMinutes,
+            windowStartMinute: SLOTS_V1_DB_PLACEHOLDER.windowStartMinute,
+            windowEndMinute: SLOTS_V1_DB_PLACEHOLDER.windowEndMinute,
+            daysMask,
+            scheduleData: norm.data as unknown as Record<string, unknown>,
+            quietHoursStartMinute: target.quietHoursStartMinute ?? null,
+            quietHoursEndMinute: target.quietHoursEndMinute ?? null,
+          });
+        } else {
+          const merged: ReminderUpdateSchedule = {
+            intervalMinutes: data.intervalMinutes ?? target.intervalMinutes ?? 60,
+            windowStartMinute: data.windowStartMinute ?? target.windowStartMinute,
+            windowEndMinute: data.windowEndMinute ?? target.windowEndMinute,
+            daysMask: data.daysMask ?? target.daysMask,
+          };
+          const err = validateSchedule(merged);
+          if (err) return { ok: false, error: err };
+          await port.updateScheduleAndType(ruleId, {
+            scheduleType: "interval_window",
+            intervalMinutes: merged.intervalMinutes,
+            windowStartMinute: merged.windowStartMinute,
+            windowEndMinute: merged.windowEndMinute,
+            daysMask: merged.daysMask,
+            scheduleData: null,
+            quietHoursStartMinute: target.quietHoursStartMinute ?? null,
+            quietHoursEndMinute: target.quietHoursEndMinute ?? null,
+          });
+        }
       }
 
       const refreshed = await reloadRule(port, platformUserId, ruleId);
@@ -200,6 +284,10 @@ export function createRemindersService(port: ReminderRulesPort, deps?: Reminders
         linkedObjectId: string;
         schedule: ReminderUpdateSchedule;
         enabled?: boolean;
+        scheduleType?: "interval_window" | "slots_v1";
+        scheduleData?: SlotsV1ScheduleData | null;
+        quietHoursStartMinute?: number | null;
+        quietHoursEndMinute?: number | null;
       },
     ): Promise<ServiceResult<ReminderRule>> {
       const err = validateLinkedFields(
@@ -210,11 +298,51 @@ export function createRemindersService(port: ReminderRulesPort, deps?: Reminders
       );
       if (err) return { ok: false, error: err };
 
-      const schedErr = validateSchedule(params.schedule);
-      if (schedErr) return { ok: false, error: schedErr };
+      const scheduleType = params.scheduleType ?? "interval_window";
+      const qErr = validateQuietHoursPair(params.quietHoursStartMinute, params.quietHoursEndMinute);
+      if (qErr) return { ok: false, error: qErr };
 
       const integratorUserId = await port.resolveIntegratorUserId(platformUserId);
       if (!integratorUserId) return { ok: false, error: "not_found" };
+
+      if (scheduleType === "slots_v1") {
+        let sdInput: SlotsV1ScheduleData | null | undefined = params.scheduleData ?? null;
+        if (!sdInput && params.linkedObjectType === "rehab_program") {
+          sdInput = DEFAULT_REHAB_WEEKDAY_SLOTS;
+        }
+        if (!sdInput) return { ok: false, error: "validation_error: scheduleData" };
+        const norm = normalizeSlotsV1ScheduleData(sdInput);
+        if (!norm.ok) return { ok: false, error: norm.error };
+
+        const rule = await port.create({
+          platformUserId,
+          integratorUserId,
+          linkedObjectType: params.linkedObjectType,
+          linkedObjectId: params.linkedObjectId.trim(),
+          customTitle: null,
+          customText: null,
+          enabled: params.enabled ?? true,
+          schedule: {
+            intervalMinutes: SLOTS_V1_DB_PLACEHOLDER.intervalMinutes,
+            windowStartMinute: SLOTS_V1_DB_PLACEHOLDER.windowStartMinute,
+            windowEndMinute: SLOTS_V1_DB_PLACEHOLDER.windowEndMinute,
+            daysMask: params.schedule.daysMask,
+          },
+          scheduleType: "slots_v1",
+          scheduleData: norm.data,
+          quietHoursStartMinute: params.quietHoursStartMinute ?? null,
+          quietHoursEndMinute: params.quietHoursEndMinute ?? null,
+        });
+        const syncOk = await tryNotifyIntegrator(rule);
+        return {
+          ok: true,
+          data: rule,
+          ...(syncOk ? {} : { syncWarning: REMINDER_INTEGRATOR_SYNC_WARNING }),
+        };
+      }
+
+      const schedErr = validateSchedule(params.schedule);
+      if (schedErr) return { ok: false, error: schedErr };
 
       const rule = await port.create({
         platformUserId,
@@ -225,6 +353,10 @@ export function createRemindersService(port: ReminderRulesPort, deps?: Reminders
         customText: null,
         enabled: params.enabled ?? true,
         schedule: params.schedule,
+        scheduleType: "interval_window",
+        scheduleData: null,
+        quietHoursStartMinute: params.quietHoursStartMinute ?? null,
+        quietHoursEndMinute: params.quietHoursEndMinute ?? null,
       });
       const syncOk = await tryNotifyIntegrator(rule);
       return {
@@ -241,16 +373,56 @@ export function createRemindersService(port: ReminderRulesPort, deps?: Reminders
         customText?: string | null;
         schedule: ReminderUpdateSchedule;
         enabled?: boolean;
+        scheduleType?: "interval_window" | "slots_v1";
+        scheduleData?: SlotsV1ScheduleData | null;
+        quietHoursStartMinute?: number | null;
+        quietHoursEndMinute?: number | null;
       },
     ): Promise<ServiceResult<ReminderRule>> {
       const err = validateLinkedFields("custom", null, params.customTitle, params.customText ?? null);
       if (err) return { ok: false, error: err };
 
-      const schedErr = validateSchedule(params.schedule);
-      if (schedErr) return { ok: false, error: schedErr };
+      const scheduleType = params.scheduleType ?? "interval_window";
+      const qErr = validateQuietHoursPair(params.quietHoursStartMinute, params.quietHoursEndMinute);
+      if (qErr) return { ok: false, error: qErr };
 
       const integratorUserId = await port.resolveIntegratorUserId(platformUserId);
       if (!integratorUserId) return { ok: false, error: "not_found" };
+
+      if (scheduleType === "slots_v1") {
+        if (!params.scheduleData) return { ok: false, error: "validation_error: scheduleData" };
+        const norm = normalizeSlotsV1ScheduleData(params.scheduleData);
+        if (!norm.ok) return { ok: false, error: norm.error };
+
+        const rule = await port.create({
+          platformUserId,
+          integratorUserId,
+          linkedObjectType: "custom",
+          linkedObjectId: null,
+          customTitle: params.customTitle.trim(),
+          customText: params.customText?.trim() ? params.customText.trim() : null,
+          enabled: params.enabled ?? true,
+          schedule: {
+            intervalMinutes: SLOTS_V1_DB_PLACEHOLDER.intervalMinutes,
+            windowStartMinute: SLOTS_V1_DB_PLACEHOLDER.windowStartMinute,
+            windowEndMinute: SLOTS_V1_DB_PLACEHOLDER.windowEndMinute,
+            daysMask: params.schedule.daysMask,
+          },
+          scheduleType: "slots_v1",
+          scheduleData: norm.data,
+          quietHoursStartMinute: params.quietHoursStartMinute ?? null,
+          quietHoursEndMinute: params.quietHoursEndMinute ?? null,
+        });
+        const syncOk = await tryNotifyIntegrator(rule);
+        return {
+          ok: true,
+          data: rule,
+          ...(syncOk ? {} : { syncWarning: REMINDER_INTEGRATOR_SYNC_WARNING }),
+        };
+      }
+
+      const schedErr = validateSchedule(params.schedule);
+      if (schedErr) return { ok: false, error: schedErr };
 
       const rule = await port.create({
         platformUserId,
@@ -261,6 +433,10 @@ export function createRemindersService(port: ReminderRulesPort, deps?: Reminders
         customText: params.customText?.trim() ? params.customText.trim() : null,
         enabled: params.enabled ?? true,
         schedule: params.schedule,
+        scheduleType: "interval_window",
+        scheduleData: null,
+        quietHoursStartMinute: params.quietHoursStartMinute ?? null,
+        quietHoursEndMinute: params.quietHoursEndMinute ?? null,
       });
       const syncOk = await tryNotifyIntegrator(rule);
       return {

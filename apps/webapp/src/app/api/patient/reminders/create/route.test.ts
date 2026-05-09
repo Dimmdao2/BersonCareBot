@@ -53,6 +53,8 @@ const sampleObjectRule = (): ReminderRule => ({
   reminderIntent: "generic",
   displayTitle: null,
   displayDescription: null,
+  quietHoursStartMinute: null,
+  quietHoursEndMinute: null,
   updatedAt: "2026-04-02T12:00:00.000Z",
 });
 
@@ -141,6 +143,10 @@ describe("POST /api/patient/reminders/create", () => {
       linkedObjectId: "550e8400-e29b-41d4-a716-446655440000",
       schedule,
       enabled: true,
+      scheduleType: "interval_window",
+      scheduleData: null,
+      quietHoursStartMinute: null,
+      quietHoursEndMinute: null,
     });
   });
 
@@ -157,15 +163,28 @@ describe("POST /api/patient/reminders/create", () => {
     expect(mockCreateCustom).toHaveBeenCalled();
   });
 
-  it("returns 404 when service reports not_found", async () => {
-    mockCreateObject.mockResolvedValue({ ok: false, error: "not_found" });
+  it("returns 201 for slots_v1 schedule", async () => {
     const res = await POST(
       req({
-        linkedObjectType: "content_section",
-        linkedObjectId: "warmups",
-        schedule,
+        linkedObjectType: "lfk_complex",
+        linkedObjectId: "550e8400-e29b-41d4-a716-446655440000",
+        schedule: {
+          scheduleType: "slots_v1",
+          daysMask: "1111111",
+          scheduleData: { timesLocal: ["09:00"], dayFilter: "weekdays" },
+        },
       }),
     );
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(201);
+    expect(mockCreateObject).toHaveBeenCalledWith(
+      "platform-user-1",
+      expect.objectContaining({
+        scheduleType: "slots_v1",
+        scheduleData: expect.objectContaining({
+          timesLocal: ["09:00"],
+          dayFilter: "weekdays",
+        }),
+      }),
+    );
   });
 });

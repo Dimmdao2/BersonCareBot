@@ -55,6 +55,8 @@ export const inMemoryReminderProjectionPort: ReminderProjectionPort = {
       reminderIntent: null,
       displayTitle: null,
       displayDescription: null,
+      quietHoursStartMinute: null,
+      quietHoursEndMinute: null,
       updatedAt: params.updatedAt,
     };
     rulesByIntegratorRuleId.set(params.integratorRuleId, item);

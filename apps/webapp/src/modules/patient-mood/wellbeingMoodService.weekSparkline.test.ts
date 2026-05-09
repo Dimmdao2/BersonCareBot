@@ -8,7 +8,7 @@ describe("createPatientMoodService getWeekSparkline", () => {
   const tz = "Europe/Moscow";
 
   const listSymptomEntriesForTrackingInRange = vi.fn();
-  const deps: PatientWellbeingMoodDeps = {
+  const deps = {
     diaries: {
       ensureGeneralWellbeingTracking: vi.fn().mockResolvedValue({ id: trackingId }),
       listSymptomEntriesForTrackingInRange,
@@ -21,7 +21,7 @@ describe("createPatientMoodService getWeekSparkline", () => {
         { id: "ref-gw", code: "general_wellbeing", title: "Общее самочувствие" },
       ]),
     },
-  };
+  } as unknown as PatientWellbeingMoodDeps;
 
   beforeEach(() => {
     vi.useFakeTimers();

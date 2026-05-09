@@ -97,6 +97,12 @@ function asNullableString(value: unknown): string | null {
   return typeof value === 'string' ? value : null;
 }
 
+function asNullableIntegerMinute(value: unknown): number | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value === 'number' && Number.isInteger(value)) return value;
+  return null;
+}
+
 /**
  * Split name into first/last only when unambiguous (exactly 2 words).
  * With 3+ words (e.g. Russian ФИО with patronymic, or swapped order)
@@ -870,6 +876,8 @@ export function createDbWritePort(input: {
               customText: asNullableString(mutation.params.customText),
               deepLink: asNullableString(mutation.params.deepLink),
               reminderIntent: asNullableString(mutation.params.reminderIntent),
+              quietHoursStartMinute: asNullableIntegerMinute(mutation.params.quietHoursStartMinute),
+              quietHoursEndMinute: asNullableIntegerMinute(mutation.params.quietHoursEndMinute),
               ...(typeof mutation.params.scheduleData !== 'undefined'
                 ? { scheduleData: mutation.params.scheduleData }
                 : {}),

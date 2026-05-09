@@ -31,6 +31,8 @@ export type ReminderRuleListItem = {
   reminderIntent: string | null;
   displayTitle: string | null;
   displayDescription: string | null;
+  quietHoursStartMinute: number | null;
+  quietHoursEndMinute: number | null;
   createdAt?: string;
   updatedAt?: string;
 };
@@ -277,6 +279,8 @@ export function createPgReminderProjectionPort(): ReminderProjectionPort {
         reminder_intent: string | null;
         display_title: string | null;
         display_description: string | null;
+        quiet_hours_start_minute: number | null;
+        quiet_hours_end_minute: number | null;
         created_at: string;
         updated_at: string;
       }>(
@@ -284,6 +288,7 @@ export function createPgReminderProjectionPort(): ReminderProjectionPort {
                 timezone, interval_minutes, window_start_minute, window_end_minute, days_mask, content_mode,
                 linked_object_type, linked_object_id, custom_title, custom_text,
                 schedule_data, reminder_intent, display_title, display_description,
+                quiet_hours_start_minute, quiet_hours_end_minute,
                 created_at, updated_at
          FROM reminder_rules WHERE integrator_user_id = $1::bigint ORDER BY category`,
         [integratorUserId]
@@ -309,6 +314,8 @@ export function createPgReminderProjectionPort(): ReminderProjectionPort {
           reminderIntent: row.reminder_intent,
           displayTitle: row.display_title,
           displayDescription: row.display_description,
+          quietHoursStartMinute: row.quiet_hours_start_minute ?? null,
+          quietHoursEndMinute: row.quiet_hours_end_minute ?? null,
           deepLink: buildReminderDeepLink({
             linkedObjectType: row.linked_object_type,
             linkedObjectId: row.linked_object_id,
@@ -341,6 +348,8 @@ export function createPgReminderProjectionPort(): ReminderProjectionPort {
         reminder_intent: string | null;
         display_title: string | null;
         display_description: string | null;
+        quiet_hours_start_minute: number | null;
+        quiet_hours_end_minute: number | null;
         created_at: string;
         updated_at: string;
       }>(
@@ -348,6 +357,7 @@ export function createPgReminderProjectionPort(): ReminderProjectionPort {
                 timezone, interval_minutes, window_start_minute, window_end_minute, days_mask, content_mode,
                 linked_object_type, linked_object_id, custom_title, custom_text,
                 schedule_data, reminder_intent, display_title, display_description,
+                quiet_hours_start_minute, quiet_hours_end_minute,
                 created_at, updated_at
          FROM reminder_rules WHERE integrator_user_id = $1::bigint AND category = $2`,
         [integratorUserId, category]
@@ -374,6 +384,8 @@ export function createPgReminderProjectionPort(): ReminderProjectionPort {
         reminderIntent: row.reminder_intent,
         displayTitle: row.display_title,
         displayDescription: row.display_description,
+        quietHoursStartMinute: row.quiet_hours_start_minute ?? null,
+        quietHoursEndMinute: row.quiet_hours_end_minute ?? null,
         deepLink: buildReminderDeepLink({
           linkedObjectType: row.linked_object_type,
           linkedObjectId: row.linked_object_id,

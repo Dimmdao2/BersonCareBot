@@ -13,6 +13,7 @@ import {
   Tooltip,
   XAxis,
   YAxis,
+  type YAxisTickContentProps,
 } from "recharts";
 import type { WellbeingWeekChartModel } from "@/modules/diaries/buildWellbeingWeekChartData";
 import { wellbeingValue10ToRgb } from "@/modules/diaries/wellbeingWeekChartMoodColors";
@@ -219,6 +220,21 @@ const Y_AXIS_MIN = 1;
 const Y_AXIS_MAX = 5;
 const Y_AXIS_TICKS = [1, 5] as const;
 
+/** Отступ слева: подписи 1/5 у левого края контейнера, вертикаль сетки — чуть правее. */
+const Y_AXIS_LABEL_GUTTER_PX = 14;
+
+/** Подписи 1/5 у левого края области графика (внутри {@link Y_AXIS_LABEL_GUTTER_PX}). */
+function wellbeingYAxisTick(props: YAxisTickContentProps) {
+  const y = Number(props.y);
+  const v = props.payload?.value;
+  if (v == null) return null;
+  return (
+    <text x={4} y={y} dy={4} textAnchor="start" fill={TICK_FILL} fontSize={10}>
+      {String(v)}
+    </text>
+  );
+}
+
 /** Плавная полилиния через отметки (Catmull–Rom); y в пределах шкалы графика. */
 function smoothInstantPolyline(sortedInput: AggPt[], stepsPerSpan: number): AggPt[] {
   const sorted = [...sortedInput].sort((a, b) => a.x - b.x);
@@ -280,9 +296,9 @@ export default function PatientWellbeingWeekComposedChart({ model, iana }: Patie
     DateTime.fromMillis(ms, { zone: iana }).setLocale("ru").toFormat("ccc d MMM, HH:mm");
 
   return (
-    <div className="h-[220px] w-full min-w-0 pb-2">
+    <div className="h-[220px] w-full min-w-0 overflow-x-visible pb-2 [&_.recharts-wrapper]:overflow-visible">
       <ResponsiveContainer width="100%" height="100%">
-        <ComposedChart margin={{ top: 8, right: 0, left: 0, bottom: 8 }}>
+        <ComposedChart margin={{ top: 8, right: 0, left: Y_AXIS_LABEL_GUTTER_PX, bottom: 8 }}>
           <defs>
             {aggregateSegments.map((seg, idx) => (
               <linearGradient
@@ -328,9 +344,9 @@ export default function PatientWellbeingWeekComposedChart({ model, iana }: Patie
           />
           <YAxis
             domain={[Y_AXIS_MIN, Y_AXIS_MAX]}
-            width={22}
+            width={0}
             ticks={[...Y_AXIS_TICKS]}
-            tick={{ fontSize: 10, fill: TICK_FILL }}
+            tick={wellbeingYAxisTick}
             tickLine={false}
             axisLine={false}
           />
@@ -384,7 +400,7 @@ export default function PatientWellbeingWeekComposedChart({ model, iana }: Patie
             layout="horizontal"
             wrapperStyle={{
               paddingTop: 8,
-              paddingLeft: 24,
+              paddingLeft: Y_AXIS_LABEL_GUTTER_PX,
               width: "100%",
             }}
             content={PatientWellbeingWeekLegendContent}

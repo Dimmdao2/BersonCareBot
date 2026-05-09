@@ -1456,6 +1456,8 @@ export const reminderRules = pgTable("reminder_rules", {
 	scheduleData: jsonb("schedule_data").$type<Record<string, unknown> | null>(),
 	displayTitle: text("display_title"),
 	displayDescription: text("display_description"),
+	quietHoursStartMinute: integer("quiet_hours_start_minute"),
+	quietHoursEndMinute: integer("quiet_hours_end_minute"),
 }, (table) => [
 	uniqueIndex("idx_reminder_rules_integrator_rule_id").using("btree", table.integratorRuleId.asc().nullsLast().op("text_ops")),
 	index("idx_reminder_rules_integrator_user_id").using("btree", table.integratorUserId.asc().nullsLast().op("int8_ops")),

@@ -75,7 +75,10 @@ export function PatientWarmupWeekImpactBanner({ summary }: { summary: WarmupWeek
       )}
       style={
         isImproved
-          ? { background: "linear-gradient(135deg, #d9f99d 0%, #bbf7d0 55%, #dcfce7 100%)" }
+          ? {
+              background:
+                "linear-gradient(to bottom left, #9bb94f 0%, #c5e17a 42%, #e6f0c4 100%)",
+            }
           : undefined
       }
     >

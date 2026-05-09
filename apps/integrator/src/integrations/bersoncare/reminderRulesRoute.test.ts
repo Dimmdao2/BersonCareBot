@@ -79,6 +79,8 @@ describe('POST /api/integrator/reminders/rules', () => {
         linkedObjectId: null,
         linkedObjectType: null,
         reminderIntent: null,
+        quietHoursStartMinute: null,
+        quietHoursEndMinute: null,
         scheduleData: undefined,
       },
     });

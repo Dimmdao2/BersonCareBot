@@ -25,6 +25,8 @@ function normalizeRuleRow(row: {
   deep_link?: string | null;
   schedule_data?: unknown;
   reminder_intent?: string | null;
+  quiet_hours_start_minute?: number | null;
+  quiet_hours_end_minute?: number | null;
   created_at?: string;
   updated_at?: string;
 }): ReminderRuleRecord {
@@ -40,6 +42,8 @@ function normalizeRuleRow(row: {
     windowEndMinute: row.window_end_minute,
     daysMask: row.days_mask,
     contentMode: row.content_mode as ReminderRuleRecord['contentMode'],
+    quietHoursStartMinute: row.quiet_hours_start_minute ?? null,
+    quietHoursEndMinute: row.quiet_hours_end_minute ?? null,
     ...(row.created_at ? { createdAt: row.created_at } : {}),
     ...(row.updated_at ? { updatedAt: row.updated_at } : {}),
     ...(row.linked_object_type != null ? { linkedObjectType: row.linked_object_type } : {}),
@@ -104,6 +108,8 @@ export async function getReminderRulesForUser(db: DbPort, userId: string): Promi
     deep_link: string | null;
     schedule_data: unknown | null;
     reminder_intent: string | null;
+    quiet_hours_start_minute: number | null;
+    quiet_hours_end_minute: number | null;
     created_at: string;
     updated_at: string;
   }>(
@@ -126,6 +132,8 @@ export async function getReminderRulesForUser(db: DbPort, userId: string): Promi
        deep_link,
        schedule_data,
        reminder_intent,
+       quiet_hours_start_minute,
+       quiet_hours_end_minute,
        created_at::text,
        updated_at::text
      FROM user_reminder_rules
@@ -160,6 +168,8 @@ export async function getReminderRuleForUserAndCategory(
     deep_link: string | null;
     schedule_data: unknown | null;
     reminder_intent: string | null;
+    quiet_hours_start_minute: number | null;
+    quiet_hours_end_minute: number | null;
     created_at: string;
     updated_at: string;
   }>(
@@ -182,6 +192,8 @@ export async function getReminderRuleForUserAndCategory(
        deep_link,
        schedule_data,
        reminder_intent,
+       quiet_hours_start_minute,
+       quiet_hours_end_minute,
        created_at::text,
        updated_at::text
      FROM user_reminder_rules
@@ -212,6 +224,8 @@ export async function getEnabledReminderRules(db: DbPort): Promise<ReminderRuleR
     deep_link: string | null;
     schedule_data: unknown | null;
     reminder_intent: string | null;
+    quiet_hours_start_minute: number | null;
+    quiet_hours_end_minute: number | null;
     created_at: string;
     updated_at: string;
   }>(
@@ -234,6 +248,8 @@ export async function getEnabledReminderRules(db: DbPort): Promise<ReminderRuleR
        deep_link,
        schedule_data,
        reminder_intent,
+       quiet_hours_start_minute,
+       quiet_hours_end_minute,
        created_at::text,
        updated_at::text
      FROM user_reminder_rules
@@ -385,11 +401,14 @@ export async function upsertReminderRule(
        deep_link,
        schedule_data,
        reminder_intent,
+       quiet_hours_start_minute,
+       quiet_hours_end_minute,
        created_at,
        updated_at
      ) VALUES (
        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
        $12, $13, $14, $15, $16, $17::jsonb, $18,
+       $19, $20,
        now(), now()
      )
      ON CONFLICT (id) DO UPDATE SET
@@ -410,6 +429,8 @@ export async function upsertReminderRule(
        deep_link = EXCLUDED.deep_link,
        schedule_data = EXCLUDED.schedule_data,
        reminder_intent = EXCLUDED.reminder_intent,
+       quiet_hours_start_minute = EXCLUDED.quiet_hours_start_minute,
+       quiet_hours_end_minute = EXCLUDED.quiet_hours_end_minute,
        updated_at = now()
      RETURNING updated_at::text`,
     [
@@ -431,6 +452,8 @@ export async function upsertReminderRule(
       input.deepLink ?? null,
       scheduleJson,
       input.reminderIntent ?? null,
+      input.quietHoursStartMinute ?? null,
+      input.quietHoursEndMinute ?? null,
     ],
   );
   return res.rows[0]?.updated_at ?? new Date().toISOString();

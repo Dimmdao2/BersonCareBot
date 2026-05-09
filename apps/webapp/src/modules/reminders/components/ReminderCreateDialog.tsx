@@ -19,6 +19,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import type { PatientReminderRuleJson } from "@/app/api/patient/reminders/reminderPatientJson";
 import type { ReminderLinkedObjectType } from "@/modules/reminders/types";
+import type { ReminderDayFilter, SlotsV1ScheduleData } from "@/modules/reminders/scheduleSlots";
+import { DEFAULT_REHAB_WEEKDAY_SLOTS, normalizeSlotsV1ScheduleData } from "@/modules/reminders/scheduleSlots";
+import { validateQuietHoursPair } from "@/modules/reminders/quietHours";
+import {
+  minutesToTimeInput,
+  timeInputToMinutes,
+  parseQuietStartMinute,
+  parseQuietEndMinute,
+} from "@/modules/reminders/reminderTimeInputs";
 
 const CHANNEL_STORAGE_KEY = "bc_patient_reminder_delivery_pref";
 
@@ -36,25 +45,6 @@ function subscribeMobileViewport(onStoreChange: () => void) {
 function getMobileViewportSnapshot(): boolean {
   if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
   return window.matchMedia("(max-width: 767px), (pointer: coarse)").matches;
-}
-
-function minutesToTimeInput(m: number): string {
-  const h = Math.floor(m / 60)
-    .toString()
-    .padStart(2, "0");
-  const min = (m % 60).toString().padStart(2, "0");
-  return `${h}:${min}`;
-}
-
-function timeInputToMinutes(value: string): number | null {
-  const m = /^(\d{1,2}):(\d{2})$/.exec(value.trim());
-  if (!m) return null;
-  const h = Number(m[1]);
-  const min = Number(m[2]);
-  if (!Number.isFinite(h) || !Number.isFinite(min) || h < 0 || h > 23 || min < 0 || min > 59) {
-    return null;
-  }
-  return h * 60 + min;
 }
 
 const WEEKDAY_LABELS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"] as const;
@@ -117,6 +107,11 @@ export function ReminderCreateDialog({
   const [startTime, setStartTime] = useState(minutesToTimeInput(DEFAULT_START));
   const [endTime, setEndTime] = useState(minutesToTimeInput(DEFAULT_END));
   const [daysMask, setDaysMask] = useState(DEFAULT_MASK);
+  const [scheduleMode, setScheduleMode] = useState<"interval_window" | "slots_v1">("interval_window");
+  const [slotTimesText, setSlotTimesText] = useState(DEFAULT_REHAB_WEEKDAY_SLOTS.timesLocal.join("\n"));
+  const [slotsDayFilter, setSlotsDayFilter] = useState<ReminderDayFilter>("weekdays");
+  const [quietStart, setQuietStart] = useState("");
+  const [quietEnd, setQuietEnd] = useState("");
   const [enabled, setEnabled] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -133,6 +128,8 @@ export function ReminderCreateDialog({
     setSyncWarning(null);
     setChannel(readChannelPref());
     if (existingRule) {
+      const isSlots = existingRule.scheduleType === "slots_v1";
+      setScheduleMode(isSlots ? "slots_v1" : "interval_window");
       setIntervalMinutes(existingRule.intervalMinutes ?? DEFAULT_INTERVAL);
       setStartTime(minutesToTimeInput(existingRule.windowStartMinute));
       setEndTime(minutesToTimeInput(existingRule.windowEndMinute));
@@ -140,7 +137,25 @@ export function ReminderCreateDialog({
       setEnabled(existingRule.enabled);
       setCustomTitle(existingRule.customTitle?.trim() ?? "");
       setCustomText(existingRule.customText?.trim() ?? "");
+      if (isSlots && existingRule.scheduleData?.timesLocal?.length) {
+        setSlotTimesText(existingRule.scheduleData.timesLocal.join("\n"));
+        setSlotsDayFilter(existingRule.scheduleData.dayFilter ?? "weekdays");
+      } else {
+        setSlotTimesText(DEFAULT_REHAB_WEEKDAY_SLOTS.timesLocal.join("\n"));
+        setSlotsDayFilter("weekdays");
+      }
+      if (
+        existingRule.quietHoursStartMinute != null &&
+        existingRule.quietHoursEndMinute != null
+      ) {
+        setQuietStart(minutesToTimeInput(existingRule.quietHoursStartMinute));
+        setQuietEnd(minutesToTimeInput(existingRule.quietHoursEndMinute));
+      } else {
+        setQuietStart("");
+        setQuietEnd("");
+      }
     } else {
+      setScheduleMode(linkedObjectType === "rehab_program" ? "slots_v1" : "interval_window");
       setIntervalMinutes(DEFAULT_INTERVAL);
       setStartTime(minutesToTimeInput(DEFAULT_START));
       setEndTime(minutesToTimeInput(DEFAULT_END));
@@ -148,22 +163,56 @@ export function ReminderCreateDialog({
       setEnabled(true);
       setCustomTitle("");
       setCustomText("");
+      setSlotTimesText(DEFAULT_REHAB_WEEKDAY_SLOTS.timesLocal.join("\n"));
+      setSlotsDayFilter("weekdays");
+      setQuietStart("");
+      setQuietEnd("");
     }
-  }, [open, existingRule]);
+  }, [open, existingRule, linkedObjectType]);
 
   const previewText = useMemo(() => {
-    const ws = timeInputToMinutes(startTime);
-    const we = timeInputToMinutes(endTime);
-    if (ws == null || we == null) return "Проверьте время.";
     const daysOn = daysMask
       .split("")
       .map((c, i) => (c === "1" ? WEEKDAY_LABELS[i] : null))
       .filter(Boolean)
       .join(", ");
-    return `${startTime}–${endTime}, каждые ${intervalMinutes} мин. Дни: ${daysOn || "не выбраны"}. Канал: ${
+    const quietBit =
+      quietStart.trim() && quietEnd.trim()
+        ? ` Тихие часы: ${quietStart}–${quietEnd}.`
+        : "";
+    if (scheduleMode === "slots_v1") {
+      const lines = slotTimesText
+        .split(/[\n,]+/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+      const df =
+        slotsDayFilter === "weekly_mask"
+          ? "маска ниже"
+          : slotsDayFilter === "weekdays"
+            ? "Пн–Пт"
+            : slotsDayFilter;
+      return `Времена: ${lines.join(", ") || "—"}. Дни: ${df}; ${daysOn || "—"}.${quietBit} Канал: ${
+        channel === "telegram" ? "Telegram" : "MAX"
+      }.`;
+    }
+    const ws = timeInputToMinutes(startTime);
+    const we = timeInputToMinutes(endTime);
+    if (ws == null || we == null) return "Проверьте время.";
+    return `${startTime}–${endTime}, каждые ${intervalMinutes} мин. Дни: ${daysOn || "не выбраны"}.${quietBit} Канал: ${
       channel === "telegram" ? "Telegram" : "MAX"
     }.`;
-  }, [startTime, endTime, intervalMinutes, daysMask, channel]);
+  }, [
+    scheduleMode,
+    slotTimesText,
+    slotsDayFilter,
+    startTime,
+    endTime,
+    intervalMinutes,
+    daysMask,
+    channel,
+    quietStart,
+    quietEnd,
+  ]);
 
   const handleChannel = useCallback((next: ReminderDeliveryChannelPref) => {
     setChannel(next);
@@ -173,16 +222,7 @@ export function ReminderCreateDialog({
   const handleSubmit = async () => {
     setError(null);
     setSyncWarning(null);
-    const ws = timeInputToMinutes(startTime);
-    const we = timeInputToMinutes(endTime);
-    if (ws == null || we == null) {
-      setError("Укажите время в формате ЧЧ:ММ.");
-      return;
-    }
-    if (ws >= we) {
-      setError("Начало окна должно быть раньше конца.");
-      return;
-    }
+
     if (!/^[01]{7}$/.test(daysMask)) {
       setError("Неверная маска дней.");
       return;
@@ -191,9 +231,24 @@ export function ReminderCreateDialog({
       setError("Выберите хотя бы один день недели.");
       return;
     }
-    if (!Number.isFinite(intervalMinutes) || intervalMinutes < 1 || intervalMinutes > 1440) {
-      setError("Интервал от 1 до 1440 минут.");
-      return;
+
+    let quietHoursStartMinute: number | null = null;
+    let quietHoursEndMinute: number | null = null;
+    const hasQuiet = quietStart.trim().length > 0 || quietEnd.trim().length > 0;
+    if (hasQuiet) {
+      const qs = parseQuietStartMinute(quietStart);
+      const qe = parseQuietEndMinute(quietEnd);
+      if (qs === null || qe === null) {
+        setError("Тихие часы: укажите начало и конец (ЧЧ:ММ, конец может быть 24:00) или очистите оба поля.");
+        return;
+      }
+      const qv = validateQuietHoursPair(qs, qe);
+      if (qv) {
+        setError(qv === "validation_error: quiet hours both or none" ? "Задайте оба времени тихих часов." : qv);
+        return;
+      }
+      quietHoursStartMinute = qs;
+      quietHoursEndMinute = qe;
     }
 
     if (isCustom) {
@@ -208,12 +263,62 @@ export function ReminderCreateDialog({
       }
     }
 
-    const schedule = {
-      intervalMinutes,
-      windowStartMinute: ws,
-      windowEndMinute: we,
-      daysMask,
-    };
+    let schedule: Record<string, unknown>;
+
+    if (scheduleMode === "interval_window") {
+      const ws = timeInputToMinutes(startTime);
+      const we = timeInputToMinutes(endTime);
+      if (ws == null || we == null) {
+        setError("Укажите время в формате ЧЧ:ММ.");
+        return;
+      }
+      if (ws >= we) {
+        setError("Начало окна должно быть раньше конца.");
+        return;
+      }
+      if (!Number.isFinite(intervalMinutes) || intervalMinutes < 1 || intervalMinutes > 1440) {
+        setError("Интервал от 1 до 1440 минут.");
+        return;
+      }
+      schedule = {
+        scheduleType: "interval_window",
+        intervalMinutes,
+        windowStartMinute: ws,
+        windowEndMinute: we,
+        daysMask,
+        quietHoursStartMinute,
+        quietHoursEndMinute,
+      };
+    } else {
+      const rawTimes = slotTimesText
+        .split(/[\n,]+/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+      const scheduleDataRaw = {
+        timesLocal: rawTimes,
+        dayFilter: slotsDayFilter,
+        ...(slotsDayFilter === "weekly_mask" ? { daysMask } : {}),
+      };
+      const norm = normalizeSlotsV1ScheduleData(scheduleDataRaw as SlotsV1ScheduleData);
+      if (!norm.ok) {
+        setError(
+          norm.error.startsWith("validation_error:")
+            ? "Проверьте времена слотов (ЧЧ:ММ, по одному на строку или через запятую)."
+            : norm.error,
+        );
+        return;
+      }
+      schedule = {
+        scheduleType: "slots_v1",
+        intervalMinutes: 60,
+        windowStartMinute: 0,
+        windowEndMinute: 1440,
+        daysMask,
+        scheduleData: norm.data,
+        quietHoursStartMinute,
+        quietHoursEndMinute,
+      };
+    }
 
     setSubmitting(true);
     try {
@@ -337,44 +442,110 @@ export function ReminderCreateDialog({
         </div>
       ) : null}
 
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div className="space-y-1.5">
-          <Label htmlFor={`${formId}-start`}>Окно: с</Label>
-          <Input
-            id={`${formId}-start`}
-            type="time"
-            value={startTime}
-            onChange={(e) => setStartTime(e.target.value)}
+      <div className="space-y-2">
+        <Label>Тип расписания</Label>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            variant={scheduleMode === "interval_window" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setScheduleMode("interval_window")}
             disabled={submitting}
-          />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor={`${formId}-end`}>до</Label>
-          <Input
-            id={`${formId}-end`}
-            type="time"
-            value={endTime}
-            onChange={(e) => setEndTime(e.target.value)}
+          >
+            Интервал в окне
+          </Button>
+          <Button
+            type="button"
+            variant={scheduleMode === "slots_v1" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setScheduleMode("slots_v1")}
             disabled={submitting}
-          />
+          >
+            Фиксированные времена
+          </Button>
         </div>
       </div>
 
-      <div className="space-y-1.5">
-        <Label htmlFor={`${formId}-interval`}>Интервал (минуты)</Label>
-        <Input
-          id={`${formId}-interval`}
-          type="number"
-          min={1}
-          max={1440}
-          value={intervalMinutes}
-          onChange={(e) => setIntervalMinutes(Number(e.target.value))}
-          disabled={submitting}
-        />
-      </div>
+      {scheduleMode === "interval_window" ? (
+        <>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label htmlFor={`${formId}-start`}>Окно: с</Label>
+              <Input
+                id={`${formId}-start`}
+                type="time"
+                value={startTime}
+                onChange={(e) => setStartTime(e.target.value)}
+                disabled={submitting}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor={`${formId}-end`}>до</Label>
+              <Input
+                id={`${formId}-end`}
+                type="time"
+                value={endTime}
+                onChange={(e) => setEndTime(e.target.value)}
+                disabled={submitting}
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor={`${formId}-interval`}>Интервал (минуты)</Label>
+            <Input
+              id={`${formId}-interval`}
+              type="number"
+              min={1}
+              max={1440}
+              value={intervalMinutes}
+              onChange={(e) => setIntervalMinutes(Number(e.target.value))}
+              disabled={submitting}
+            />
+          </div>
+        </>
+      ) : (
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <Label htmlFor={`${formId}-slots`}>Времена (ЧЧ:ММ), строка или через запятую</Label>
+            <Textarea
+              id={`${formId}-slots`}
+              value={slotTimesText}
+              onChange={(e) => setSlotTimesText(e.target.value)}
+              disabled={submitting}
+              rows={4}
+              placeholder={"09:00\n12:30\n18:00"}
+              className="font-mono text-sm"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Дни слотов</Label>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant={slotsDayFilter === "weekdays" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setSlotsDayFilter("weekdays")}
+                disabled={submitting}
+              >
+                Пн–Пт
+              </Button>
+              <Button
+                type="button"
+                variant={slotsDayFilter === "weekly_mask" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setSlotsDayFilter("weekly_mask")}
+                disabled={submitting}
+              >
+                По маске ниже
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="space-y-2">
-        <Label>Дни недели</Label>
+        <Label>Дни недели {scheduleMode === "slots_v1" && slotsDayFilter === "weekdays" ? "(маска хранится для календаря; фильтр слотов — Пн–Пт)" : ""}</Label>
         <div className="flex flex-wrap gap-2">
           {WEEKDAY_LABELS.map((label, i) => {
             const on = daysMask[i] === "1";
@@ -392,6 +563,35 @@ export function ReminderCreateDialog({
               </Button>
             );
           })}
+        </div>
+      </div>
+
+      <div className="space-y-3 rounded-lg border border-border/60 bg-muted/30 px-3 py-3">
+        <Label className="text-sm">Тихие часы (необязательно)</Label>
+        <p className="text-xs text-muted-foreground">
+          Локальное время в вашей зоне напоминания. Оставьте поля пустыми, чтобы отключить.
+        </p>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <Label htmlFor={`${formId}-quiet-s`}>С</Label>
+            <Input
+              id={`${formId}-quiet-s`}
+              type="time"
+              value={quietStart}
+              onChange={(e) => setQuietStart(e.target.value)}
+              disabled={submitting}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor={`${formId}-quiet-e`}>До (можно 24:00)</Label>
+            <Input
+              id={`${formId}-quiet-e`}
+              type="time"
+              value={quietEnd}
+              onChange={(e) => setQuietEnd(e.target.value)}
+              disabled={submitting}
+            />
+          </div>
         </div>
       </div>
 

@@ -16,7 +16,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { ReminderCreateDialog } from "@/modules/reminders/components/ReminderCreateDialog";
 import type { ReminderRule, ReminderCategory } from "@/modules/reminders/types";
-import { toggleReminderCategory, updateReminderRule } from "./actions";
+import { toggleReminderCategory, patchPatientReminderScheduleBundle } from "./actions";
 
 const CATEGORY_LABELS: Record<ReminderCategory, string> = {
   appointment: "Запись на приём",
@@ -36,9 +36,49 @@ export type PersonalReminderRowVM = {
 };
 
 function minutesToTime(m: number): string {
-  const h = Math.floor(m / 60).toString().padStart(2, "0");
-  const min = (m % 60).toString().padStart(2, "0");
+  const capped = Math.min(Math.max(0, m), 1440);
+  const h = Math.floor(capped / 60)
+    .toString()
+    .padStart(2, "0");
+  const min = (capped % 60).toString().padStart(2, "0");
   return `${h}:${min}`;
+}
+
+function formatScheduleSummary(rule: ReminderRule): string {
+  if (rule.scheduleType === "slots_v1" && rule.scheduleData?.timesLocal?.length) {
+    const times = rule.scheduleData.timesLocal.join(", ");
+    const q =
+      rule.quietHoursStartMinute != null && rule.quietHoursEndMinute != null
+        ? ` Тихие часы: ${minutesToTime(rule.quietHoursStartMinute)}–${minutesToTime(rule.quietHoursEndMinute)}.`
+        : "";
+    return `Слоты: ${times}.${q}`;
+  }
+  const q =
+    rule.quietHoursStartMinute != null && rule.quietHoursEndMinute != null
+      ? ` Тихие часы: ${minutesToTime(rule.quietHoursStartMinute)}–${minutesToTime(rule.quietHoursEndMinute)}.`
+      : "";
+  return `${minutesToTime(rule.windowStartMinute)}–${minutesToTime(rule.windowEndMinute)}, каждые ${rule.intervalMinutes ?? "—"} мин.${q}`;
+}
+
+const WEEKDAY_TOGGLE_LABELS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"] as const;
+
+function toggleDayMaskStr(mask: string, index: number): string {
+  const chars = mask.padEnd(7, "0").slice(0, 7).split("");
+  chars[index] = chars[index] === "1" ? "0" : "1";
+  return chars.join("");
+}
+
+function legacyEditFormFromRule(rule: ReminderRule) {
+  return {
+    intervalMinutes: rule.intervalMinutes ?? 60,
+    windowStartMinute: rule.windowStartMinute,
+    windowEndMinute: rule.windowEndMinute,
+    daysMask: /^[01]{7}$/.test(rule.daysMask) ? rule.daysMask : "1111111",
+    quietEnabled:
+      rule.quietHoursStartMinute != null && rule.quietHoursEndMinute != null,
+    quietStart: rule.quietHoursStartMinute ?? 0,
+    quietEnd: rule.quietHoursEndMinute ?? 1320,
+  };
 }
 
 function TypeIcon({ kind }: { kind: PersonalReminderIconKind }) {
@@ -60,12 +100,12 @@ function LegacyCategoryRuleCard({ rule }: { rule: ReminderRule }) {
   const [error, setError] = useState<string | null>(null);
   const [syncWarning, setSyncWarning] = useState<string | null>(null);
   const [editOpen, setEditOpen] = useState(false);
-  const [form, setForm] = useState({
-    intervalMinutes: rule.intervalMinutes ?? 60,
-    windowStartMinute: rule.windowStartMinute,
-    windowEndMinute: rule.windowEndMinute,
-    daysMask: rule.daysMask,
-  });
+  const [form, setForm] = useState(() => legacyEditFormFromRule(rule));
+
+  const openEdit = () => {
+    setForm(legacyEditFormFromRule(rule));
+    setEditOpen(true);
+  };
 
   const handleToggle = (checked: boolean) => {
     setError(null);
@@ -80,13 +120,26 @@ function LegacyCategoryRuleCard({ rule }: { rule: ReminderRule }) {
   const handleSave = () => {
     setError(null);
     setSyncWarning(null);
+    if (form.windowStartMinute >= form.windowEndMinute) {
+      setError("Начало окна должно быть меньше конца.");
+      return;
+    }
+    if (!/^[01]{7}$/.test(form.daysMask) || !form.daysMask.includes("1")) {
+      setError("Выберите дни недели.");
+      return;
+    }
     startTransition(async () => {
-      const res = await updateReminderRule({
+      const res = await patchPatientReminderScheduleBundle({
         ruleId: rule.id,
-        intervalMinutes: form.intervalMinutes,
-        windowStartMinute: form.windowStartMinute,
-        windowEndMinute: form.windowEndMinute,
-        daysMask: form.daysMask,
+        schedule: {
+          scheduleType: "interval_window",
+          intervalMinutes: form.intervalMinutes,
+          windowStartMinute: form.windowStartMinute,
+          windowEndMinute: form.windowEndMinute,
+          daysMask: form.daysMask,
+          quietHoursStartMinute: form.quietEnabled ? form.quietStart : null,
+          quietHoursEndMinute: form.quietEnabled ? form.quietEnd : null,
+        },
       });
       if (!res.ok) setError(res.error);
       else {
@@ -115,19 +168,18 @@ function LegacyCategoryRuleCard({ rule }: { rule: ReminderRule }) {
       {rule.enabled && (
         <CardContent className="px-4 pb-4 pt-0">
           <p className={cn(patientMutedTextClass, "mb-2 text-xs")}>
-            Расписание: {minutesToTime(rule.windowStartMinute)}–{minutesToTime(rule.windowEndMinute)}, каждые{" "}
-            {rule.intervalMinutes ?? "—"} мин.
+            Расписание: {formatScheduleSummary(rule)}
           </p>
 
           {!editOpen ? (
-            <Button variant="outline" size="sm" onClick={() => setEditOpen(true)} disabled={isPending}>
+            <Button variant="outline" size="sm" onClick={openEdit} disabled={isPending}>
               Изменить расписание
             </Button>
           ) : (
             <div className="mt-2 flex flex-col gap-3">
-              <div className="flex items-center gap-2">
-                <div className="flex-1">
-                  <Label className="mb-1 block text-xs">Тихие часы: начало (мин. от полуночи)</Label>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <div>
+                  <Label className="mb-1 block text-xs">Окно: начало (мин от полуночи)</Label>
                   <Input
                     type="number"
                     min={0}
@@ -138,8 +190,8 @@ function LegacyCategoryRuleCard({ rule }: { rule: ReminderRule }) {
                     }
                   />
                 </div>
-                <div className="flex-1">
-                  <Label className="mb-1 block text-xs">Тихие часы: конец</Label>
+                <div>
+                  <Label className="mb-1 block text-xs">Окно: конец (мин 1–1440)</Label>
                   <Input
                     type="number"
                     min={1}
@@ -156,12 +208,80 @@ function LegacyCategoryRuleCard({ rule }: { rule: ReminderRule }) {
                 <Input
                   type="number"
                   min={1}
+                  max={1440}
                   value={form.intervalMinutes}
                   onChange={(e) =>
                     setForm((f) => ({ ...f, intervalMinutes: Number(e.target.value) }))
                   }
                 />
               </div>
+              <div className="space-y-2">
+                <Label className="text-xs">Дни недели</Label>
+                <div className="flex flex-wrap gap-2">
+                  {WEEKDAY_TOGGLE_LABELS.map((label, i) => {
+                    const on = form.daysMask[i] === "1";
+                    return (
+                      <Button
+                        key={label}
+                        type="button"
+                        size="sm"
+                        variant={on ? "default" : "outline"}
+                        className={cn("min-w-11", !on && "text-muted-foreground")}
+                        onClick={() =>
+                          setForm((f) => ({
+                            ...f,
+                            daysMask: toggleDayMaskStr(f.daysMask, i),
+                          }))
+                        }
+                        disabled={isPending}
+                      >
+                        {label}
+                      </Button>
+                    );
+                  })}
+                </div>
+              </div>
+              <div className="flex items-center gap-2 rounded-md border border-border/80 px-3 py-2">
+                <Switch
+                  id={`quiet-${rule.id}`}
+                  checked={form.quietEnabled}
+                  onCheckedChange={(checked) =>
+                    setForm((f) => ({ ...f, quietEnabled: checked }))
+                  }
+                  disabled={isPending}
+                />
+                <Label htmlFor={`quiet-${rule.id}`} className="text-xs font-normal">
+                  Тихие часы
+                </Label>
+              </div>
+              {form.quietEnabled ? (
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <div>
+                    <Label className="mb-1 block text-xs">Тихие: с (мин)</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      max={1439}
+                      value={form.quietStart}
+                      onChange={(e) =>
+                        setForm((f) => ({ ...f, quietStart: Number(e.target.value) }))
+                      }
+                    />
+                  </div>
+                  <div>
+                    <Label className="mb-1 block text-xs">Тихие: до (мин)</Label>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={1440}
+                      value={form.quietEnd}
+                      onChange={(e) =>
+                        setForm((f) => ({ ...f, quietEnd: Number(e.target.value) }))
+                      }
+                    />
+                  </div>
+                </div>
+              ) : null}
               <div className="flex gap-2">
                 <Button size="sm" onClick={handleSave} disabled={isPending}>
                   Сохранить
@@ -246,10 +366,7 @@ function PersonalReminderCard({
                 aria-label={`Включить: ${label}`}
               />
             </div>
-            <p className={cn(patientMutedTextClass, "mt-1 text-xs")}>
-              {minutesToTime(rule.windowStartMinute)}–{minutesToTime(rule.windowEndMinute)}, каждые{" "}
-              {rule.intervalMinutes ?? "—"} мин.
-            </p>
+            <p className={cn(patientMutedTextClass, "mt-1 text-xs")}>{formatScheduleSummary(rule)}</p>
             <div className={cn(patientMutedTextClass, "mt-2 flex flex-wrap gap-2 text-xs")}>
               <span>
                 <span className="font-medium text-[var(--patient-text-primary)]">{stats.done}</span> выполнено
@@ -395,6 +512,24 @@ export function ReminderRulesClient({
             if (!o) setEditRow(null);
           }}
           linkedObjectType="content_page"
+          linkedObjectId={r.linkedObjectId}
+          contextTitle={editRow.label}
+          existingRule={json}
+          onSaved={() => {
+            setEditRow(null);
+            refresh();
+          }}
+        />
+      );
+    }
+    if (lt === "rehab_program" && r.linkedObjectId) {
+      return (
+        <ReminderCreateDialog
+          open={Boolean(editRow)}
+          onOpenChange={(o) => {
+            if (!o) setEditRow(null);
+          }}
+          linkedObjectType="rehab_program"
           linkedObjectId={r.linkedObjectId}
           contextTitle={editRow.label}
           existingRule={json}

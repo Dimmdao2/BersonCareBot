@@ -25,6 +25,8 @@ const payloadSchema = z.object({
   deepLink: z.string().nullable().optional(),
   scheduleData: z.unknown().optional(),
   reminderIntent: z.string().nullable().optional(),
+  quietHoursStartMinute: z.union([z.number().int().min(0).max(1439), z.null()]).optional(),
+  quietHoursEndMinute: z.union([z.number().int().min(1).max(1440), z.null()]).optional(),
 });
 
 const bodySchema = z.object({
@@ -120,6 +122,8 @@ export async function registerBersoncareReminderRulesRoute(
           deepLink: payload.deepLink ?? null,
           scheduleData: payload.scheduleData,
           reminderIntent: payload.reminderIntent ?? null,
+          quietHoursStartMinute: payload.quietHoursStartMinute ?? null,
+          quietHoursEndMinute: payload.quietHoursEndMinute ?? null,
         },
       });
       return reply.code(200).send({ ok: true });

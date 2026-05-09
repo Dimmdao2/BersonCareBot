@@ -46,6 +46,8 @@ const sampleRule = (): ReminderRule => ({
   reminderIntent: "generic",
   displayTitle: null,
   displayDescription: null,
+  quietHoursStartMinute: null,
+  quietHoursEndMinute: null,
   updatedAt: "2026-04-02T12:00:00.000Z",
 });
 

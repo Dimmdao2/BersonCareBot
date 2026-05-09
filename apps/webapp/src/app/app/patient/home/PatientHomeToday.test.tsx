@@ -366,6 +366,8 @@ describe("PatientHomeToday", () => {
         reminderIntent: "warmup",
         displayTitle: null,
         displayDescription: null,
+        quietHoursStartMinute: null,
+        quietHoursEndMinute: null,
         updatedAt: "2026-04-28T00:00:00.000Z",
       },
       {
@@ -388,6 +390,8 @@ describe("PatientHomeToday", () => {
         reminderIntent: "exercises",
         displayTitle: null,
         displayDescription: null,
+        quietHoursStartMinute: null,
+        quietHoursEndMinute: null,
         updatedAt: "2026-04-28T00:00:00.000Z",
       },
       {
@@ -410,6 +414,8 @@ describe("PatientHomeToday", () => {
         reminderIntent: "generic",
         displayTitle: null,
         displayDescription: null,
+        quietHoursStartMinute: null,
+        quietHoursEndMinute: null,
         updatedAt: "2026-04-28T00:00:00.000Z",
       },
     ]);

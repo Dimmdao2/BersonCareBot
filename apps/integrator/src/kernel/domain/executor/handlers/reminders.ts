@@ -136,6 +136,8 @@ export async function handleReminders(
         windowEndMinute: record.windowEndMinute,
         daysMask: record.daysMask,
         contentMode: record.contentMode,
+        quietHoursStartMinute: record.quietHoursStartMinute ?? null,
+        quietHoursEndMinute: record.quietHoursEndMinute ?? null,
       },
     }];
     await persistWrites(deps.writePort, writes);
@@ -191,6 +193,8 @@ export async function handleReminders(
         windowEndMinute: config.windowEndMinute,
         daysMask: record.daysMask,
         contentMode: record.contentMode,
+        quietHoursStartMinute: record.quietHoursStartMinute ?? null,
+        quietHoursEndMinute: record.quietHoursEndMinute ?? null,
       },
     }];
     await persistWrites(deps.writePort, writes);

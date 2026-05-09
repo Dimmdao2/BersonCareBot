@@ -67,6 +67,8 @@ function toRule(row: {
   custom_text: string | null;
   display_title: string | null;
   display_description: string | null;
+  quiet_hours_start_minute: number | null;
+  quiet_hours_end_minute: number | null;
   updated_at: string;
 }): ReminderRule {
   return {
@@ -89,6 +91,8 @@ function toRule(row: {
     reminderIntent: parseIntent(row.reminder_intent),
     displayTitle: row.display_title ?? null,
     displayDescription: row.display_description ?? null,
+    quietHoursStartMinute: row.quiet_hours_start_minute ?? null,
+    quietHoursEndMinute: row.quiet_hours_end_minute ?? null,
     updatedAt: row.updated_at,
   };
 }
@@ -112,6 +116,8 @@ const SELECT_COLS = `
   rr.custom_text,
   rr.display_title,
   rr.display_description,
+  rr.quiet_hours_start_minute,
+  rr.quiet_hours_end_minute,
   rr.updated_at
 `;
 
@@ -185,12 +191,14 @@ export function createPgReminderRulesPort(): ReminderRulesPort {
           days_mask, content_mode,
           linked_object_type, linked_object_id, custom_title, custom_text,
           schedule_data, reminder_intent, display_title, display_description,
+          quiet_hours_start_minute, quiet_hours_end_minute,
           updated_at
         ) VALUES (
           $1, $2::uuid, $3::bigint, $4, $5,
           $6, $7, $8, $9, $10, $11, 'none',
           $12, $13, $14, $15,
           $16::jsonb, $17, $18, $19,
+          $20, $21,
           now()
         )
         RETURNING
@@ -212,6 +220,8 @@ export function createPgReminderRulesPort(): ReminderRulesPort {
           custom_text,
           display_title,
           display_description,
+          quiet_hours_start_minute,
+          quiet_hours_end_minute,
           updated_at`,
         [
           integratorRuleId,
@@ -233,6 +243,8 @@ export function createPgReminderRulesPort(): ReminderRulesPort {
           reminderIntent,
           input.displayTitle ?? null,
           input.displayDescription ?? null,
+          input.quietHoursStartMinute ?? null,
+          input.quietHoursEndMinute ?? null,
         ],
       );
       const row = r.rows[0];
@@ -323,6 +335,8 @@ export function createPgReminderRulesPort(): ReminderRulesPort {
              window_end_minute = $5,
              days_mask = $6,
              schedule_data = $7::jsonb,
+             quiet_hours_start_minute = $8,
+             quiet_hours_end_minute = $9,
              updated_at = now()
          WHERE integrator_rule_id = $1`,
         [
@@ -333,6 +347,8 @@ export function createPgReminderRulesPort(): ReminderRulesPort {
           params.windowEndMinute,
           params.daysMask,
           params.scheduleData ? JSON.stringify(params.scheduleData) : null,
+          params.quietHoursStartMinute,
+          params.quietHoursEndMinute,
         ],
       );
     },

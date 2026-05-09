@@ -22,6 +22,8 @@ export type ReminderRuleCreateInput = {
   displayDescription?: string | null;
   /** Defaults to Europe/Moscow in repo when omitted */
   timezone?: string;
+  quietHoursStartMinute?: number | null;
+  quietHoursEndMinute?: number | null;
 };
 
 export type ReminderRulesPort = {
@@ -45,6 +47,8 @@ export type ReminderRulesPort = {
       windowEndMinute: number;
       daysMask: string;
       scheduleData: Record<string, unknown> | null;
+      quietHoursStartMinute: number | null;
+      quietHoursEndMinute: number | null;
     },
   ): Promise<void>;
   updateCustomTexts(

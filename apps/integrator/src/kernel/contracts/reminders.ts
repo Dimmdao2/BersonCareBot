@@ -45,6 +45,9 @@ export type ReminderRuleRecord = {
   /** Webapp rehab-only display strings from projection. */
   displayTitle?: string | null;
   displayDescription?: string | null;
+  /** Local minute-of-day quiet window (same semantics as webapp); both null = disabled. */
+  quietHoursStartMinute?: number | null;
+  quietHoursEndMinute?: number | null;
 };
 
 export type ReminderOccurrenceStatus =

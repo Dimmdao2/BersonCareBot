@@ -42,6 +42,10 @@ export type ReminderRule = {
   reminderIntent: ReminderIntent;
   displayTitle: string | null;
   displayDescription: string | null;
+  /** Minute 0-1439; both null = quiet hours off */
+  quietHoursStartMinute: number | null;
+  /** Minute 1-1440 end-exclusive style; both null = quiet hours off */
+  quietHoursEndMinute: number | null;
   updatedAt: string;
 };
 

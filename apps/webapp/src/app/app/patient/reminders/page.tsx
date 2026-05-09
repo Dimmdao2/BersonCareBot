@@ -14,6 +14,8 @@ function mapIconKind(linked: NonNullable<ReminderRule["linkedObjectType"]>): Per
   switch (linked) {
     case "lfk_complex":
       return "lfk";
+    case "rehab_program":
+      return "lfk";
     case "content_section":
       return "warmup";
     case "content_page":
@@ -52,6 +54,9 @@ async function resolvePersonalReminderLabel(
   }
   if (lo === "custom") {
     return rule.customTitle?.trim() || "Своё напоминание";
+  }
+  if (lo === "rehab_program") {
+    return rule.displayTitle?.trim() || "Программа реабилитации";
   }
   return "Напоминание";
 }

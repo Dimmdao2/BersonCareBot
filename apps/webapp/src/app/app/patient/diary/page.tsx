@@ -20,6 +20,7 @@ import {
   patientSectionTitleClass,
 } from "@/shared/ui/patientVisual";
 import { DiaryTabsClient } from "./DiaryTabsClient";
+import { PatientWarmupWeekImpactBanner } from "@/modules/diaries/components/PatientWarmupWeekImpactBanner";
 import { PatientWellbeingWeekChart } from "@/modules/diaries/components/PatientWellbeingWeekChart";
 import { loadPatientDiaryWeekWellbeing } from "@/modules/diaries/loadPatientDiaryWeekWellbeing";
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
@@ -57,15 +58,17 @@ export default async function PatientDiaryPage() {
   );
 
   const wellbeingMvpSingle = (
-    <section id="patient-diary-wellbeing-week-section" className={patientSectionSurfaceClass}>
+    <section
+      id="patient-diary-wellbeing-week-section"
+      className={cn(patientSectionSurfaceClass, "overflow-x-visible border-0 shadow-none")}
+    >
       <h2 className={patientSectionTitleClass}>Самочувствие за неделю</h2>
       {!wellbeing.hasAnyInstant ?
         <p className={patientMutedTextClass}>{EMPTY_STATS}</p>
-      : <PatientWellbeingWeekChart
-          model={wellbeing.chart}
-          iana={wellbeing.iana}
-          warmupImpactSummary={wellbeing.warmupImpactSummary}
-        />}
+      : <>
+          <PatientWarmupWeekImpactBanner summary={wellbeing.warmupImpactSummary} />
+          <PatientWellbeingWeekChart model={wellbeing.chart} iana={wellbeing.iana} />
+        </>}
     </section>
   );
 

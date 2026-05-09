@@ -78,6 +78,8 @@ export function createInMemoryReminderRulesPort(
         reminderIntent: input.reminderIntent ?? "generic",
         displayTitle: input.displayTitle ?? null,
         displayDescription: input.displayDescription ?? null,
+        quietHoursStartMinute: input.quietHoursStartMinute ?? null,
+        quietHoursEndMinute: input.quietHoursEndMinute ?? null,
         updatedAt: new Date().toISOString(),
       };
       store.set(id, rule);
@@ -121,6 +123,8 @@ export function createInMemoryReminderRulesPort(
           windowEndMinute: params.windowEndMinute,
           daysMask: params.daysMask,
           scheduleData: params.scheduleData as SlotsV1ScheduleData | null,
+          quietHoursStartMinute: params.quietHoursStartMinute,
+          quietHoursEndMinute: params.quietHoursEndMinute,
           updatedAt: new Date().toISOString(),
         });
       }

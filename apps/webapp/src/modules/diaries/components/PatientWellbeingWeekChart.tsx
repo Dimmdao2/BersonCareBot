@@ -1,9 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import type { WarmupWeekImpactSummary } from "@/modules/diaries/buildWarmupWeekImpactSummary";
 import type { PatientWellbeingWeekComposedChartProps } from "./PatientWellbeingWeekComposedChart";
-import { PatientWarmupWeekImpactBanner } from "./PatientWarmupWeekImpactBanner";
 
 const Inner = dynamic(() => import("./PatientWellbeingWeekComposedChart"), {
   ssr: false,
@@ -12,18 +10,13 @@ const Inner = dynamic(() => import("./PatientWellbeingWeekComposedChart"), {
   ),
 });
 
-export type PatientWellbeingWeekChartProps = PatientWellbeingWeekComposedChartProps & {
-  warmupImpactSummary: WarmupWeekImpactSummary;
-};
+export type PatientWellbeingWeekChartProps = PatientWellbeingWeekComposedChartProps;
 
-export function PatientWellbeingWeekChart({ warmupImpactSummary, ...chartProps }: PatientWellbeingWeekChartProps) {
-  /** График вытесняет горизонтальный padding секции; блок выше — в обычной колонке секции. */
+/** График вытесняет горизонтальный padding секции. */
+export function PatientWellbeingWeekChart(chartProps: PatientWellbeingWeekChartProps) {
   return (
-    <div className="min-w-0 space-y-3">
-      <PatientWarmupWeekImpactBanner summary={warmupImpactSummary} />
-      <div className="-mx-4 min-w-0">
-        <Inner {...chartProps} />
-      </div>
+    <div className="-mx-4 min-w-0 overflow-x-visible">
+      <Inner {...chartProps} />
     </div>
   );
 }

@@ -6,6 +6,7 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requirePatientAccessWithPhone } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
 import type { ReminderCategory } from "@/modules/reminders/types";
+import type { UpdateRuleData } from "@/modules/reminders/service";
 
 const DAYS_MASK_RE = /^[01]{7}$/;
 
@@ -70,5 +71,26 @@ export async function updateReminderRule(
   if (!result.ok) return { ok: false, error: result.error };
 
   revalidatePath(routePaths.patientReminders);
+  return { ok: true, ...(result.syncWarning ? { syncWarning: result.syncWarning } : {}) };
+}
+
+/** Полная замена расписания (interval_window / slots_v1, quiet hours) — как в REST PATCH с `schedule`. */
+export async function patchPatientReminderScheduleBundle(input: {
+  ruleId: string;
+  schedule: NonNullable<UpdateRuleData["schedule"]>;
+}): Promise<UpdateScheduleResult> {
+  const session = await requirePatientAccessWithPhone(routePaths.patientReminders);
+  if (!input.ruleId?.trim()) {
+    return { ok: false, error: "Неверные данные" };
+  }
+
+  const deps = buildAppDeps();
+  const result = await deps.reminders.updateRule(session.user.userId, input.ruleId, {
+    schedule: input.schedule,
+  });
+  if (!result.ok) return { ok: false, error: result.error };
+
+  revalidatePath(routePaths.patientReminders);
+  revalidatePath(routePaths.patient);
   return { ok: true, ...(result.syncWarning ? { syncWarning: result.syncWarning } : {}) };
 }
