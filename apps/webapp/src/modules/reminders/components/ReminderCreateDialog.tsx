@@ -161,9 +161,9 @@ export function ReminderCreateDialog({
     if (scheduleMode === "slots_v1") {
       const lines = dedupeSortTimes(slotTimeRows.map((s) => s.trim()).filter(Boolean));
       if (slotsDayFilter === "weekdays") {
-        return `Времена: ${lines.join(", ") || "—"}. Дни: Пн–Пт.${quietBit}`;
+        return `Напоминания: ${lines.join(", ") || "—"}. Дни: Пн–Пт.${quietBit}`;
       }
-      return `Времена: ${lines.join(", ") || "—"}. Дни: ${daysOn || "не выбраны"}.${quietBit}`;
+      return `Напоминания: ${lines.join(", ") || "—"}. Дни: ${daysOn || "не выбраны"}.${quietBit}`;
     }
     const ws = timeInputToMinutes(startTime);
     const we = timeInputToMinutes(endTime);
@@ -272,7 +272,7 @@ export function ReminderCreateDialog({
       };
       const norm = normalizeSlotsV1ScheduleData(scheduleDataRaw as SlotsV1ScheduleData);
       if (!norm.ok) {
-        setError(norm.error.startsWith("validation_error:") ? "Проверьте времена слотов (ЧЧ:ММ)." : norm.error);
+        setError(norm.error.startsWith("validation_error:") ? "Проверьте время напоминаний (ЧЧ:ММ)." : norm.error);
         scrollToError();
         return;
       }
@@ -397,7 +397,7 @@ export function ReminderCreateDialog({
   );
 
   const customFields = isCustom ? (
-    <div className="space-y-3 px-1">
+    <div className="space-y-3">
       <div className="space-y-1.5">
         <Label htmlFor={`${formId}-ctitle`}>Заголовок</Label>
         <Input
@@ -427,7 +427,7 @@ export function ReminderCreateDialog({
   ) : null;
 
   const body = (
-    <div ref={errorAnchorRef} className="flex flex-col gap-4 px-1 pb-1">
+    <div ref={errorAnchorRef} className="flex flex-col gap-4">
       {customFields}
       {scheduleBlock}
     </div>
@@ -471,7 +471,7 @@ export function ReminderCreateDialog({
       <DialogContent
         className={cn(
           patientPortalModalSurfaceClass,
-          "max-h-[90vh] max-w-md overflow-y-auto border-[var(--patient-border)] sm:max-w-md",
+          "max-h-[90vh] max-w-lg overflow-y-auto border-[var(--patient-border)] sm:max-w-lg",
         )}
       >
         <DialogHeader>

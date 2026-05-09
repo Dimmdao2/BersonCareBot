@@ -1,7 +1,6 @@
 import type { Dispatch, SetStateAction } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { PatientDurationHmWheels } from "@/shared/ui/patient/PatientDurationHmWheels";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,13 +13,18 @@ import {
   REMINDER_INTERVAL_WINDOW_MIN_MINUTES,
 } from "@/modules/reminders/reminderIntervalBounds";
 import {
-  patientHeroBookingSectionClass,
-  patientSectionSurfaceClass,
+  patientHeroBookingCardChromeClass,
   patientSectionTitleNormalClass,
 } from "@/shared/ui/patientVisual";
 import type { ReminderScheduleFieldInvalid } from "@/modules/reminders/reminderFormAria";
 
 const WEEKDAY_LABELS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"] as const;
+
+/** Панель настроек в модалке: градиент записи на каждом блоке, без общей «коробки вокруг коробок». */
+const reminderScheduleSettingPanelClass = cn(
+  patientHeroBookingCardChromeClass,
+  "flex flex-col gap-3 p-4 md:p-[18px]",
+);
 
 export function toggleDayMaskReminder(mask: string, index: number): string {
   const chars = mask.padEnd(7, "0").slice(0, 7).split("");
@@ -118,8 +122,8 @@ export function ReminderScheduleForm({
     linkedObjectTypeForDefaults === "rehab_program" ? DEFAULT_REHAB_WEEKDAY_SLOTS.timesLocal[0] ?? "09:00" : "09:00";
 
   return (
-    <div className={patientHeroBookingSectionClass}>
-      <div className={cn(patientSectionSurfaceClass, "!gap-3")}>
+    <div className="flex flex-col gap-3">
+      <div className={reminderScheduleSettingPanelClass}>
         <h3 className={patientSectionTitleNormalClass}>Тип расписания</h3>
         <p className="text-xs text-muted-foreground">
           {scheduleMode === "slots_v1"
@@ -143,13 +147,13 @@ export function ReminderScheduleForm({
             onClick={() => setScheduleMode("slots_v1")}
             disabled={submitting}
           >
-            Фиксированные времена
+            Фиксированные напоминания
           </Button>
         </div>
       </div>
 
       {scheduleMode === "interval_window" ? (
-        <div className={cn(patientSectionSurfaceClass, "!gap-3")}>
+        <div className={reminderScheduleSettingPanelClass}>
           <h3 className={patientSectionTitleNormalClass}>Окно и интервал</h3>
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
@@ -200,8 +204,8 @@ export function ReminderScheduleForm({
           </div>
         </div>
       ) : (
-        <div className={cn(patientSectionSurfaceClass, "!gap-3")}>
-          <h3 className={patientSectionTitleNormalClass}>Времена</h3>
+        <div className={reminderScheduleSettingPanelClass}>
+          <h3 className={patientSectionTitleNormalClass}>Напоминания</h3>
           <div className="flex flex-wrap gap-2">
             <Button
               type="button"
@@ -300,7 +304,7 @@ export function ReminderScheduleForm({
       )}
 
       {!hideWeekdayMaskRow ? (
-      <div className={cn(patientSectionSurfaceClass, "!gap-3")}>
+      <div className={reminderScheduleSettingPanelClass}>
         <Label>Дни недели</Label>
         <div className="flex flex-wrap gap-2">
           <Button type="button" size="sm" variant="secondary" disabled={submitting} onClick={() => applyWeekdayPreset("weekdays")}>
@@ -333,16 +337,18 @@ export function ReminderScheduleForm({
           })}
         </div>
         {scheduleMode === "slots_v1" && slotsDayFilter === "weekly_mask" ? (
-          <p className="text-xs text-muted-foreground">Выберите дни для фиксированных времён.</p>
+          <p className="text-xs text-muted-foreground">Выберите дни для фиксированных напоминаний.</p>
         ) : null}
       </div>
       ) : (
-        <p className="text-xs text-muted-foreground px-1">
-          Дни слотов: понедельник–пятница (маска ниже не используется для этого режима).
-        </p>
+        <div className={reminderScheduleSettingPanelClass}>
+          <p className="text-xs text-muted-foreground">
+            Дни слотов: понедельник–пятница (маска ниже не используется для этого режима).
+          </p>
+        </div>
       )}
 
-      <div className={cn(patientSectionSurfaceClass, "!gap-3")}>
+      <div className={reminderScheduleSettingPanelClass}>
         <Label className="text-sm">Тихие часы (необязательно)</Label>
         <div className="flex flex-wrap gap-2">
           <Button type="button" size="sm" variant="outline" disabled={submitting} onClick={applyQuietPresetNight}>
@@ -382,22 +388,20 @@ export function ReminderScheduleForm({
       </div>
 
       {deliveryNote ? (
-        <div className={cn(patientSectionSurfaceClass, "!gap-2")}>
+        <div className={cn(reminderScheduleSettingPanelClass, "gap-2")}>
           <p className="text-sm text-muted-foreground">{deliveryNote}</p>
         </div>
       ) : null}
 
-      <Card className="border-dashed">
-        <CardContent className="space-y-2 p-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Предпросмотр</span>
-            <Badge variant="secondary" className="font-normal">
-              {previewBadgeLabel}
-            </Badge>
-          </div>
-          <p className="text-sm text-foreground">{previewText}</p>
-        </CardContent>
-      </Card>
+      <div className={reminderScheduleSettingPanelClass}>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Предпросмотр</span>
+          <Badge variant="secondary" className="font-normal">
+            {previewBadgeLabel}
+          </Badge>
+        </div>
+        <p className="text-sm text-foreground">{previewText}</p>
+      </div>
 
       {error ? (
         <p role="alert" className="text-sm text-destructive">

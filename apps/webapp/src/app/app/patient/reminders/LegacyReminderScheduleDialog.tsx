@@ -137,9 +137,9 @@ export function LegacyReminderScheduleDialog({
     if (scheduleMode === "slots_v1") {
       const lines = dedupeSortTimes(slotTimeRows.map((s) => s.trim()).filter(Boolean));
       if (slotsDayFilter === "weekdays") {
-        return `Времена: ${lines.join(", ") || "—"}. Дни: Пн–Пт.${quietBit}`;
+        return `Напоминания: ${lines.join(", ") || "—"}. Дни: Пн–Пт.${quietBit}`;
       }
-      return `Времена: ${lines.join(", ") || "—"}. Дни: ${daysOn || "не выбраны"}.${quietBit}`;
+      return `Напоминания: ${lines.join(", ") || "—"}. Дни: ${daysOn || "не выбраны"}.${quietBit}`;
     }
     const ws = timeInputToMinutes(startTime);
     const we = timeInputToMinutes(endTime);
@@ -233,7 +233,7 @@ export function LegacyReminderScheduleDialog({
       };
       const norm = normalizeSlotsV1ScheduleData(scheduleDataRaw as SlotsV1ScheduleData);
       if (!norm.ok) {
-        setError(norm.error.startsWith("validation_error:") ? "Проверьте времена слотов (ЧЧ:ММ)." : norm.error);
+        setError(norm.error.startsWith("validation_error:") ? "Проверьте время напоминаний (ЧЧ:ММ)." : norm.error);
         scrollToError();
         return;
       }
@@ -271,7 +271,7 @@ export function LegacyReminderScheduleDialog({
   const formId = `legacy-reminder-schedule-${rule.id}`;
 
   const body = (
-    <div ref={errorAnchorRef} className="flex flex-col gap-4 px-1 pb-1">
+    <div ref={errorAnchorRef} className="flex flex-col gap-4">
       <ReminderScheduleForm
         formId={formId}
         submitting={submitting}
@@ -342,7 +342,7 @@ export function LegacyReminderScheduleDialog({
       <DialogContent
         className={cn(
           patientPortalModalSurfaceClass,
-          "max-h-[90vh] max-w-md overflow-y-auto border-[var(--patient-border)] sm:max-w-md",
+          "max-h-[90vh] max-w-lg overflow-y-auto border-[var(--patient-border)] sm:max-w-lg",
         )}
       >
         <DialogHeader>

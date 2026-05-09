@@ -11,10 +11,10 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
+  patientHeroBookingSectionClass,
   patientListItemClass,
   patientMutedTextClass,
   patientSectionTitleNormalClass,
-  patientSurfaceInfoClass,
 } from "@/shared/ui/patientVisual";
 import { Switch } from "@/components/ui/switch";
 import toast from "react-hot-toast";
@@ -526,7 +526,7 @@ export function ReminderRulesClient({
       )}
 
       {activeProgram ? (
-        <section id="patient-reminders-rehab" className={cn(patientSurfaceInfoClass, "mb-4 !gap-3")}>
+        <section id="patient-reminders-rehab" className={cn(patientHeroBookingSectionClass, "mb-4 !gap-3")}>
           <h2 className={patientSectionTitleNormalClass}>Программа реабилитации</h2>
           <p className={cn(patientMutedTextClass, "text-sm")}>Активная программа: {activeProgram.title}</p>
           <p className={cn(patientMutedTextClass, "text-sm")}>Сегодня: {rehabCalendarLine}</p>
@@ -602,7 +602,7 @@ export function ReminderRulesClient({
       ) : null}
 
       {warmupsSectionAvailable ? (
-        <section id="patient-reminders-warmups" className={cn(patientSurfaceInfoClass, "mb-4 !gap-3")}>
+        <section id="patient-reminders-warmups" className={cn(patientHeroBookingSectionClass, "mb-4 !gap-3")}>
           <h2 className={patientSectionTitleNormalClass}>{warmupsSectionTitle}</h2>
           <p className={cn(patientMutedTextClass, "text-sm")}>Сегодня: {warmupCalendarLine}</p>
           {warmupRuleForBlock ? (
