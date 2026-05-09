@@ -426,9 +426,15 @@ export function SystemHealthSection() {
                 }
               />
               {playbackApiDisabled ? (
-                <p className="pt-1 font-medium text-foreground">
-                  Показатели ниже недоступны: playback JSON API выключен.
-                </p>
+                <>
+                  <p className="pt-1 font-medium text-foreground">
+                    Показатели ниже недоступны: playback JSON API выключен.
+                  </p>
+                  <p className="pt-2 text-sm text-muted-foreground">
+                    Чтобы включить: вкладка «Параметры приложения» (слева в админских настройках) → блок «Воспроизведение видео»
+                    → переключатель «Включить playback API».
+                  </p>
+                </>
               ) : (
                 <>
                   <DetailRow label="Всего резолвов API" value={String(data?.videoPlayback?.totalResolutions ?? 0)} />
