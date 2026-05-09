@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { finishChannelLinkNavigation } from "@/shared/lib/telegramChannelLinkOpen";
 import { SupportContactLink } from "@/shared/ui/SupportContactLink";
 import { cn } from "@/lib/utils";
-import { patientInlineLinkClass, patientMutedTextClass } from "@/shared/ui/patientVisual";
+import { patientInlineLinkClass, patientMutedTextClass, PatientShimmerLine } from "@/shared/ui/patientVisual";
 
 const POLL_MS = 4000;
 
@@ -115,18 +115,34 @@ export function PatientBrowserMessengerBindPanel({ hint, supportContactHref }: P
           variant="outline"
           className="flex-1"
           disabled={loading !== null}
+          aria-busy={loading === "telegram"}
           onClick={() => void startLink("telegram")}
         >
-          {loading === "telegram" ? "Загрузка…" : "Телеграм"}
+          {loading === "telegram" ?
+            <>
+              <span className="sr-only">Загрузка</span>
+              <span className="inline-flex w-full justify-center py-0.5" aria-hidden>
+                <PatientShimmerLine className="h-4 w-24" />
+              </span>
+            </>
+          : "Телеграм"}
         </Button>
         <Button
           type="button"
           variant="outline"
           className="flex-1"
           disabled={loading !== null}
+          aria-busy={loading === "max"}
           onClick={() => void startLink("max")}
         >
-          {loading === "max" ? "Загрузка…" : "Макс"}
+          {loading === "max" ?
+            <>
+              <span className="sr-only">Загрузка</span>
+              <span className="inline-flex w-full justify-center py-0.5" aria-hidden>
+                <PatientShimmerLine className="h-4 w-20" />
+              </span>
+            </>
+          : "Макс"}
         </Button>
       </div>
       {telegramUrl ? (

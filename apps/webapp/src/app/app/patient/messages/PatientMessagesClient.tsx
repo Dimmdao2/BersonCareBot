@@ -6,6 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ChatView } from "@/modules/messaging/components/ChatView";
 import { useMessagePolling } from "@/modules/messaging/hooks/useMessagePolling";
 import type { SerializedSupportMessage } from "@/modules/messaging/serializeSupportMessage";
+import { PatientShimmerPanel } from "@/shared/ui/patientVisual";
 
 export function PatientMessagesClient() {
   const [conversationId, setConversationId] = useState<string | null>(null);
@@ -111,7 +112,11 @@ export function PatientMessagesClient() {
   };
 
   if (loading) {
-    return <p className="text-muted-foreground">Загрузка…</p>;
+    return (
+      <div className="py-6" aria-busy="true" aria-label="Загрузка">
+        <PatientShimmerPanel />
+      </div>
+    );
   }
 
   return (

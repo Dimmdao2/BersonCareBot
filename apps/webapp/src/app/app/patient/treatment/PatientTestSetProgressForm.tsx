@@ -15,7 +15,12 @@ import type {
 import { formatNormalizedTestDecisionRu } from "@/modules/treatment-program/types";
 import { parseTestSetSnapshotTests, testIdsFromTestSetSnapshot } from "@/modules/treatment-program/testSetSnapshotView";
 import { scoringAllowsNumericDecisionInference } from "@/modules/treatment-program/progress-scoring";
-import { patientCompactActionClass, patientFormSurfaceClass, patientMutedTextClass } from "@/shared/ui/patientVisual";
+import {
+  patientCompactActionClass,
+  patientFormSurfaceClass,
+  patientMutedTextClass,
+  PatientShimmerPanel,
+} from "@/shared/ui/patientVisual";
 import { cn } from "@/lib/utils";
 
 export type PatientTestSetProgressFormProps = {
@@ -342,8 +347,9 @@ export function PatientTestSetProgressForm(props: PatientTestSetProgressFormProp
       <div
         className={cn(patientFormSurfaceClass, "mt-3 border border-[var(--patient-border)]/70 p-3")}
         aria-busy="true"
+        aria-label="Загрузка"
       >
-        <p className={cn(patientMutedTextClass, "m-0 text-xs")}>Загрузка…</p>
+        <PatientShimmerPanel />
       </div>
     );
   }
