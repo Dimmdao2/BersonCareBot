@@ -8,6 +8,7 @@ describe("createPatientPracticeService", () => {
       countToday: vi.fn(),
       streak: vi.fn(),
       listRecent: vi.fn(),
+      listByUserInUtcRange: vi.fn(),
       getLatestDailyWarmupCompletionCompletedAt: vi.fn(),
     };
     const contentPages = {
@@ -33,6 +34,7 @@ describe("createPatientPracticeService", () => {
       countToday: vi.fn(),
       streak: vi.fn(),
       listRecent: vi.fn(),
+      listByUserInUtcRange: vi.fn(),
       getLatestDailyWarmupCompletionCompletedAt: vi.fn(),
     };
     const contentPages = {
@@ -62,6 +64,7 @@ describe("createPatientPracticeService", () => {
       countToday: vi.fn().mockResolvedValue(2),
       streak: vi.fn().mockResolvedValue(5),
       listRecent: vi.fn(),
+      listByUserInUtcRange: vi.fn(),
       getLatestDailyWarmupCompletionCompletedAt: vi.fn(),
     };
     const contentPages = { getById: vi.fn() };
@@ -85,6 +88,7 @@ describe("createPatientPracticeService", () => {
         countToday: vi.fn(),
         streak: vi.fn(),
         listRecent: vi.fn(),
+        listByUserInUtcRange: vi.fn(),
         getLatestDailyWarmupCompletionCompletedAt: vi.fn().mockResolvedValue(null),
       };
       const svc = createPatientPracticeService({ completions: completions as never, contentPages: { getById: vi.fn() } });
@@ -100,6 +104,7 @@ describe("createPatientPracticeService", () => {
         countToday: vi.fn(),
         streak: vi.fn(),
         listRecent: vi.fn(),
+        listByUserInUtcRange: vi.fn(),
         getLatestDailyWarmupCompletionCompletedAt: vi.fn().mockResolvedValue(completedAt),
       };
       const svc = createPatientPracticeService({ completions: completions as never, contentPages: { getById: vi.fn() } });
@@ -117,6 +122,7 @@ describe("createPatientPracticeService", () => {
         countToday: vi.fn(),
         streak: vi.fn(),
         listRecent: vi.fn(),
+        listByUserInUtcRange: vi.fn(),
         getLatestDailyWarmupCompletionCompletedAt: vi.fn().mockResolvedValue(completedAt),
       };
       const svc = createPatientPracticeService({ completions: completions as never, contentPages: { getById: vi.fn() } });

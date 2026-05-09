@@ -153,6 +153,8 @@ import {
 import { createPgTreatmentProgramTestAttemptsPort } from "@/infra/repos/pgTreatmentProgramTestAttempts";
 import { createPgProgramActionLogPort } from "@/infra/repos/pgProgramActionLog";
 import { createInMemoryProgramActionLogPort } from "@/infra/repos/inMemoryProgramActionLog";
+import { createPgPatientDiarySnapshotsPort } from "@/infra/repos/pgPatientDiarySnapshots";
+import { createInMemoryPatientDiarySnapshotsPort } from "@/infra/repos/inMemoryPatientDiarySnapshots";
 import { createPgTreatmentProgramEventsPort } from "@/infra/repos/pgTreatmentProgramEvents";
 import { createPgTreatmentProgramItemSnapshotPort } from "@/infra/repos/pgTreatmentProgramItemSnapshot";
 import { createInMemoryTreatmentProgramItemSnapshotPort } from "@/infra/repos/inMemoryTreatmentProgramItemSnapshot";
@@ -291,6 +293,9 @@ const treatmentProgramEventsPort = treatmentProgramInMemoryPersistence
   ? treatmentProgramInMemoryPersistence.eventsPort
   : createPgTreatmentProgramEventsPort();
 const programActionLogPort = !inMemoryRepos ? createPgProgramActionLogPort() : createInMemoryProgramActionLogPort();
+const patientDiarySnapshotsPort = !inMemoryRepos
+  ? createPgPatientDiarySnapshotsPort()
+  : createInMemoryPatientDiarySnapshotsPort();
 const patientCalendarTimezoneGet = inMemoryRepos
   ? async (_userId: string) => null as string | null
   : getPatientCalendarTimezoneIana;
@@ -765,6 +770,9 @@ function _buildAppDeps() {
     patientMood: patientMoodService,
     treatmentProgramProgress: treatmentProgramProgressService,
     treatmentProgramPatientActions,
+    /** Журнал действий пациента по программе (дневник недели и др.). */
+    programActionLog: programActionLogPort,
+    patientDiarySnapshots: patientDiarySnapshotsPort,
     patientCalendarTimezone: {
       getIanaForUser: patientCalendarTimezoneGet,
       setIanaForPatient: patientCalendarTimezoneSet,

@@ -19,6 +19,12 @@ export type PatientPracticePort = {
   countToday(userId: string, tz: string): Promise<number>;
   streak(userId: string, tz: string): Promise<number>;
   listRecent(userId: string, limit: number): Promise<PatientPracticeCompletionRow[]>;
+  /** Строки `completed_at` в полуинтервале `[fromUtcIso, toUtcExclusiveIso)` (ISO UTC). */
+  listByUserInUtcRange(
+    userId: string,
+    fromUtcIso: string,
+    toUtcExclusiveIso: string,
+  ): Promise<PatientPracticeCompletionRow[]>;
   getByIdForUser(completionId: string, userId: string): Promise<PatientPracticeCompletionRow | null>;
   updateFeelingById(completionId: string, userId: string, feeling: number): Promise<boolean>;
   /** Последнее `completed_at` для разминки дня по странице, либо `null`. */

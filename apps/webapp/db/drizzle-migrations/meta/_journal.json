@@ -365,6 +365,13 @@
       "when": 1779400000000,
       "tag": "0051_warmup_feeling_symptom",
       "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1779500000000,
+      "tag": "0052_patient_diary_day_snapshots",
+      "breakpoints": true
     }
   ]
 }

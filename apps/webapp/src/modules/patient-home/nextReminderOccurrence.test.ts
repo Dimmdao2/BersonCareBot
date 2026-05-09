@@ -9,6 +9,7 @@ import {
   pickNextHomeReminder,
   reminderScheduleEvaluationInstant,
   countPlannedHomeReminderOccurrencesInUtcRange,
+  countWarmupReminderSlotsInUtcRange,
 } from "./nextReminderOccurrence";
 import type { ReminderRule } from "@/modules/reminders/types";
 
@@ -358,5 +359,80 @@ describe("countPlannedHomeReminderOccurrencesInUtcRange", () => {
       scheduleData: null,
     });
     expect(countPlannedHomeReminderOccurrencesInUtcRange([r], rangeStart, rangeEnd)).toBe(3);
+  });
+});
+
+describe("countWarmupReminderSlotsInUtcRange", () => {
+  it("returns 3 when no warmup rules match", () => {
+    const dayStart = DateTime.fromObject(
+      { year: 2026, month: 4, day: 28, hour: 0, minute: 0, second: 0 },
+      { zone: "Europe/Moscow" },
+    );
+    const rangeStart = dayStart.toUTC().toJSDate();
+    const rangeEnd = dayStart.plus({ days: 1 }).toUTC().toJSDate();
+    expect(countWarmupReminderSlotsInUtcRange([], rangeStart, rangeEnd)).toBe(3);
+    expect(
+      countWarmupReminderSlotsInUtcRange(
+        [rule({ id: "g", reminderIntent: "generic", scheduleType: "slots_v1", scheduleData: { timesLocal: ["09:00"], dayFilter: "weekdays" } })],
+        rangeStart,
+        rangeEnd,
+      ),
+    ).toBe(3);
+  });
+
+  it("counts warmup slots_v1 on a weekday (no linkedObject required)", () => {
+    const dayStart = DateTime.fromObject(
+      { year: 2026, month: 4, day: 28, hour: 0, minute: 0, second: 0 },
+      { zone: "Europe/Moscow" },
+    );
+    const rangeStart = dayStart.toUTC().toJSDate();
+    const rangeEnd = dayStart.plus({ days: 1 }).toUTC().toJSDate();
+    const r = rule({
+      id: "w",
+      linkedObjectType: null,
+      linkedObjectId: null,
+      reminderIntent: "warmup",
+      scheduleType: "slots_v1",
+      scheduleData: { timesLocal: ["09:00", "12:00", "15:00"], dayFilter: "weekdays" },
+    });
+    expect(countWarmupReminderSlotsInUtcRange([r], rangeStart, rangeEnd)).toBe(3);
+  });
+
+  it("counts warmup interval_window fires in range", () => {
+    const dayStart = DateTime.fromObject(
+      { year: 2026, month: 4, day: 28, hour: 0, minute: 0, second: 0 },
+      { zone: "Europe/Moscow" },
+    );
+    const rangeStart = dayStart.toUTC().toJSDate();
+    const rangeEnd = dayStart.plus({ days: 1 }).toUTC().toJSDate();
+    const r = rule({
+      id: "wi",
+      linkedObjectType: null,
+      linkedObjectId: null,
+      reminderIntent: "warmup",
+      scheduleType: "interval_window",
+      scheduleData: null,
+      windowStartMinute: 9 * 60,
+      windowEndMinute: 11 * 60,
+      intervalMinutes: 60,
+    });
+    expect(countWarmupReminderSlotsInUtcRange([r], rangeStart, rangeEnd)).toBe(3);
+  });
+
+  it("ignores disabled warmup rules", () => {
+    const dayStart = DateTime.fromObject(
+      { year: 2026, month: 4, day: 28, hour: 0, minute: 0, second: 0 },
+      { zone: "Europe/Moscow" },
+    );
+    const rangeStart = dayStart.toUTC().toJSDate();
+    const rangeEnd = dayStart.plus({ days: 1 }).toUTC().toJSDate();
+    const r = rule({
+      id: "off",
+      enabled: false,
+      reminderIntent: "warmup",
+      scheduleType: "slots_v1",
+      scheduleData: { timesLocal: ["09:00", "12:00"], dayFilter: "weekdays" },
+    });
+    expect(countWarmupReminderSlotsInUtcRange([r], rangeStart, rangeEnd)).toBe(3);
   });
 });

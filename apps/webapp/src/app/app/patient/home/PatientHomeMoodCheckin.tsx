@@ -183,7 +183,7 @@ export function PatientHomeMoodCheckin({
               <p className={patientHomeMoodStatusSlotClass}>Чек-ин самочувствия будет доступен после активации профиля.</p>
             </div>
           : <div className="flex min-h-0 flex-1 flex-col gap-1.5 px-4 max-lg:pt-2 lg:px-0 lg:pt-2">
-              <div className="flex min-h-0 flex-1 flex-col gap-2 sm:flex-row sm:items-stretch sm:gap-3">
+              <div className="flex min-h-0 flex-1 flex-col gap-5 sm:flex-row sm:items-stretch sm:gap-3">
                 <div className="flex min-h-0 w-full min-w-0 flex-col sm:w-[35%] sm:max-w-[35%] sm:shrink-0">
                   <h3 id="patient-home-mood-week-heading" className={patientHomeMoodColumnHeadingClass}>
                     Ваша неделя
@@ -197,10 +197,10 @@ export function PatientHomeMoodCheckin({
                   <div className="flex min-h-0 flex-1 flex-col justify-end">{renderMoodScale(false)}</div>
                 </div>
               </div>
-              <div className="mt-1 flex shrink-0 justify-start">
+              <div className="mt-3 flex shrink-0 justify-start">
                 <Link
                   href={routePaths.diary}
-                  className="text-xs font-medium text-[var(--patient-color-primary)] underline-offset-2 hover:underline"
+                  className="text-xs font-normal text-[var(--patient-block-heading)] underline-offset-2 hover:underline"
                 >
                   Подробная история в дневнике
                 </Link>

@@ -12,6 +12,7 @@ import { buttonVariants } from "@/components/ui/button-variants";
 import type { SessionUser } from "@/shared/types/session";
 import { PatientGatedHeader } from "@/shared/ui/PatientGatedHeader";
 import { PatientTopNav } from "@/shared/ui/PatientTopNav";
+import { PatientShellPageTitleStrip } from "@/shared/ui/PatientShellPageTitleStrip";
 import { SectionHeading } from "@/components/common/typography/SectionHeading";
 import { cn } from "@/lib/utils";
 import { patientSectionTitleClass } from "@/shared/ui/patientVisual";
@@ -104,10 +105,7 @@ export function AppShell({
               <PatientTopNav backHref={backHref} backLabel={backLabel} />
             </div>
             {showShellTitleStrip ?
-              <div
-                data-testid="patient-shell-page-title-wrap"
-                className="shrink-0 border-b border-[var(--patient-border)] bg-[var(--patient-page-bg)] px-4 py-3"
-              >
+              <PatientShellPageTitleStrip>
                 {patientShellTitleSlot ?
                   patientShellTitleSlot
                 : <>
@@ -133,7 +131,7 @@ export function AppShell({
                     : null}
                   </>
                 }
-              </div>
+              </PatientShellPageTitleStrip>
             : null}
           </>
         : null}

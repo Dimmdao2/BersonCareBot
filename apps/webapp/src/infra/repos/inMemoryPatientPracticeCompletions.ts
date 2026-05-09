@@ -63,6 +63,15 @@ export function createInMemoryPatientPracticeCompletionsPort(): PatientPracticeP
         .slice(0, limit);
     },
 
+    async listByUserInUtcRange(userId, fromUtcIso, toUtcExclusiveIso) {
+      return rows
+        .filter(
+          (r) =>
+            r.userId === userId && r.completedAt >= fromUtcIso && r.completedAt < toUtcExclusiveIso,
+        )
+        .sort((a, b) => (a.completedAt < b.completedAt ? 1 : -1));
+    },
+
     async getByIdForUser(completionId, userId) {
       const row = rows.find((r) => r.id === completionId && r.userId === userId);
       return row ?? null;

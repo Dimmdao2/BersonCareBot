@@ -122,6 +122,26 @@ function countSlotsV1OccurrencesInRange(rule: ReminderRule, rangeStart: Date, ra
 }
 
 /**
+ * Число «плановых» срабатываний напоминаний с {@link ReminderRule.reminderIntent} `warmup` в полуинтервале
+ * `[rangeStart, rangeEnd)` (UTC). Учитывает `slots_v1` и `interval_window` так же, как подсчёт на главной,
+ * но **без** фильтра по `linkedObjectType` — разминка может быть без привязки к объекту.
+ *
+ * Если подходящих слотов нет (`0`), возвращает **3** — минимальная шкала делений по спеке дневника пациента (`diary.md`).
+ */
+export function countWarmupReminderSlotsInUtcRange(rules: ReminderRule[], rangeStart: Date, rangeEnd: Date): number {
+  let n = 0;
+  for (const rule of rules) {
+    if (!rule.enabled || rule.reminderIntent !== "warmup") continue;
+    if (rule.scheduleType === "slots_v1" && rule.scheduleData) {
+      n += countSlotsV1OccurrencesInRange(rule, rangeStart, rangeEnd);
+    } else {
+      n += countIntervalWindowOccurrencesInRange(rule, rangeStart, rangeEnd);
+    }
+  }
+  return n === 0 ? 3 : n;
+}
+
+/**
  * Planned home-linked reminder fires (interval_window or slots_v1) whose instant falls in `[rangeStart, rangeEnd)`.
  * Used for «n из N» on patient home; evaluate each rule in its own `timezone`.
  */

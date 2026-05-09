@@ -374,6 +374,17 @@ export type ProgramActionLogPort = {
     /** IANA, уже проверенная вызывающим кодом (Luxon `isValid`). */
     displayIana: string;
   }): Promise<string[]>;
+  /**
+   * Пары (локальная дата в {@link params.displayIana}, id элемента этапа) с хотя бы одной отметкой `done`
+   * в полуинтервале UTC-окна для данного экземпляра.
+   */
+  listDoneItemsByLocalDateInWindow(params: {
+    instanceId: string;
+    patientUserId: string;
+    windowStartUtcIso: string;
+    windowEndUtcExclusiveIso: string;
+    displayIana: string;
+  }): Promise<Array<{ localDate: string; itemId: string }>>;
   /** Журнал действий пациента по экземпляру (новые сверху), для UI врача (UX-02). */
   listForInstance(params: { instanceId: string; limit?: number }): Promise<ProgramActionLogListRow[]>;
 };

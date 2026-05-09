@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useLayoutEffect, useRef, type RefObject } from "react";
 import {
   Bell,
   BookOpen,
@@ -25,6 +25,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useReminderUnreadCount } from "@/shared/hooks/useReminderUnread";
 import { NAV_STRIP_ICON_STROKE } from "@/shared/ui/navChrome";
+import { usePatientShellScrollCompact } from "@/shared/hooks/usePatientShellScrollCompact";
 
 const NAV_ICONS: Record<PatientPrimaryNavItemId, typeof LayoutGrid> = {
   today: Home,
@@ -45,18 +46,31 @@ const DESKTOP_NAV_ICONS: Record<PatientPrimaryNavItemId, typeof LayoutGrid> = {
 const TOP_ICON_BTN =
   "inline-flex size-10 shrink-0 items-center justify-center rounded-md text-[var(--patient-text-primary)] hover:bg-[var(--patient-color-primary-soft)]/50";
 
-/** После небольшого скролла шапка и иконки чуть компактнее. */
-const SCROLL_COMPACT_AFTER_PX = 10;
+const PATIENT_TOP_NAV_HEIGHT_VAR = "--patient-top-nav-height";
 
-function useScrollCompactNav(): boolean {
-  const [compact, setCompact] = useState(false);
-  useEffect(() => {
-    const onScroll = () => setCompact(window.scrollY > SCROLL_COMPACT_AFTER_PX);
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
-  return compact;
+/** Плавное переключение размеров при скролле (общий с подложкой под fixed-меню). */
+const NAV_COMPACT_EASE = "duration-300 ease-in-out";
+
+function useReportPatientTopNavHeight(ref: RefObject<HTMLDivElement | null>): void {
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const setVar = () => {
+      document.documentElement.style.setProperty(PATIENT_TOP_NAV_HEIGHT_VAR, `${el.offsetHeight}px`);
+    };
+    setVar();
+    if (typeof ResizeObserver === "undefined") {
+      return () => {
+        document.documentElement.style.removeProperty(PATIENT_TOP_NAV_HEIGHT_VAR);
+      };
+    }
+    const ro = new ResizeObserver(setVar);
+    ro.observe(el);
+    return () => {
+      ro.disconnect();
+      document.documentElement.style.removeProperty(PATIENT_TOP_NAV_HEIGHT_VAR);
+    };
+  }, [ref]);
 }
 
 export type PatientTopNavProps = {
@@ -64,12 +78,14 @@ export type PatientTopNavProps = {
   backLabel?: string;
 };
 
-/** Верхняя primary-навигация пациента: mobile — бывший bottom nav, desktop — широкая шапка. Липкая при прокрутке; после скролла — компактнее. */
+/** Верхняя primary-навигация пациента: при скролле подписи скрываются, высота строки плавно уменьшается вместе с текстом; размеры иконок не меняются. */
 export function PatientTopNav(_props: PatientTopNavProps) {
   const pathname = usePathname() ?? "";
   const activeId = getPatientPrimaryNavActiveId(pathname);
   const reminderUnread = useReminderUnreadCount(true);
-  const compact = useScrollCompactNav();
+  const compact = usePatientShellScrollCompact();
+  const navRootRef = useRef<HTMLDivElement>(null);
+  useReportPatientTopNavHeight(navRootRef);
 
   const renderMobileNavLink = (item: PatientPrimaryNavItem) => {
     const Icon = NAV_ICONS[item.id];
@@ -82,26 +98,36 @@ export function PatientTopNav(_props: PatientTopNavProps) {
         aria-label={item.label}
         aria-current={isActive ? "page" : undefined}
         className={cn(
-          "flex min-w-0 flex-1 flex-col items-center justify-center px-1 transition-[min-height,gap,padding,font-size] duration-200 ease-out",
-          compact ?
-            "min-h-[52px] gap-0.5 py-0.5 text-[10px] leading-3"
-          : "min-h-16 gap-1 py-1 text-[11px] leading-4",
+          "group flex min-h-0 min-w-0 flex-1 flex-col items-center justify-center px-0.5",
+          "transition-[gap,padding-block] [transition-property:gap,padding-block]",
+          NAV_COMPACT_EASE,
+          compact ? "gap-0 py-2.5" : "gap-1 py-1.5",
           isActive ?
-            "font-semibold text-[var(--patient-color-primary)]"
-          : "font-normal text-[var(--patient-text-secondary)] hover:text-[var(--patient-text-primary)]",
+            "font-medium text-[var(--patient-color-primary)]"
+          : "font-normal text-[var(--patient-text-secondary)] hover:font-normal hover:text-[var(--patient-color-primary)]",
         )}
       >
         <Icon
           className={cn(
-            "shrink-0 transition-[width,height] duration-200 ease-out",
-            compact ? "size-5" : "size-6",
-            isActive && !compact && "size-[26px]",
-            isActive && compact && "size-[22px]",
+            "size-5 shrink-0 transition-colors duration-200 ease-out",
+            isActive ?
+              "size-[22px] text-[var(--patient-color-primary)]"
+            : "text-[var(--patient-text-secondary)] group-hover:text-[var(--patient-color-primary)]",
           )}
           strokeWidth={NAV_STRIP_ICON_STROKE}
           aria-hidden
         />
-        <span className="truncate">{item.label}</span>
+        <span
+          className={cn(
+            "w-full truncate text-center text-[10px] leading-3 transition-[opacity,max-height] [transition-property:opacity,max-height]",
+            NAV_COMPACT_EASE,
+            compact ?
+              "pointer-events-none max-h-0 overflow-hidden opacity-0"
+            : "max-h-8 opacity-100",
+          )}
+        >
+          {item.label}
+        </span>
       </Link>
     );
   };
@@ -114,71 +140,94 @@ export function PatientTopNav(_props: PatientTopNavProps) {
         key={item.id}
         href={item.href}
         prefetch={false}
+        aria-label={item.label}
         aria-current={isActive ? "page" : undefined}
         className={cn(
-          "inline-flex items-center gap-1.5 rounded-lg px-2.5 font-normal transition-[min-height,padding,font-size] duration-200 ease-out",
-          compact ? "min-h-9 py-1.5 text-[13px]" : "min-h-10 py-2 text-sm",
+          "inline-flex min-h-0 items-center gap-1.5 rounded-lg px-2.5 font-normal text-sm",
+          "transition-[gap,padding-block] [transition-property:gap,padding-block]",
+          NAV_COMPACT_EASE,
+          compact ? "gap-0 py-2" : "gap-1.5 py-2",
           "text-[var(--patient-text-muted)] transition-colors",
           isActive && "bg-[var(--patient-color-primary-soft)]/50 text-[var(--patient-color-primary)]",
           !isActive && "hover:bg-muted/60",
         )}
       >
-        <Icon
+        <Icon className="size-[18px] shrink-0" strokeWidth={NAV_STRIP_ICON_STROKE} aria-hidden />
+        <span
           className={cn(
-            "shrink-0 transition-[width,height] duration-200 ease-out",
-            compact ? "size-4" : "size-[18px]",
+            "whitespace-nowrap transition-[opacity,max-height] [transition-property:opacity,max-height]",
+            NAV_COMPACT_EASE,
+            compact ? "pointer-events-none inline-block max-h-0 overflow-hidden opacity-0" : "max-h-10 opacity-100",
           )}
-          strokeWidth={NAV_STRIP_ICON_STROKE}
-          aria-hidden
-        />
-        <span>{item.label}</span>
+        >
+          {item.label}
+        </span>
       </Link>
     );
   };
 
   return (
-    <div
-      id="patient-top-nav"
-      style={{ top: "env(safe-area-inset-top, 0px)" }}
-      className={cn(
-        "sticky z-50 transition-shadow duration-200 ease-out",
-        "relative left-1/2 w-screen -translate-x-1/2 border-b border-[var(--patient-border)] bg-[rgba(255,255,255,0.96)] backdrop-blur-md lg:bg-[var(--patient-surface)]",
-        compact ? "shadow-md lg:shadow-sm" : "shadow-[var(--patient-shadow-nav)] lg:shadow-sm",
-      )}
-    >
-      <nav
-        aria-label="Основная навигация пациента"
-        data-testid="patient-mobile-top-nav"
-        className="mx-auto flex max-w-[430px] items-stretch justify-around px-1 lg:hidden"
-      >
-        {PATIENT_PRIMARY_NAV_ITEMS.map(renderMobileNavLink)}
-      </nav>
-
+    <>
+      {/*
+        На узкой ширине шапка position:fixed к верху окна — sticky здесь часто ломается (предки,
+        breakout margin). Резерв высоты только mobile: desktop остаётся в потоке (`lg:sticky`).
+      */}
       <div
-        data-testid="patient-desktop-top-nav"
+        aria-hidden
+        className="shrink-0 lg:hidden"
+        style={{ height: `var(${PATIENT_TOP_NAV_HEIGHT_VAR}, 3.5rem)` }}
+      />
+      <div
+        ref={navRootRef}
+        id="patient-top-nav"
         className={cn(
-          "mx-auto hidden w-full max-w-[min(1180px,calc(100vw-2rem))] items-center gap-4 px-4 transition-[height] duration-200 ease-out lg:flex",
-          compact ? "h-12" : "h-16",
+          "z-50 w-full transition-shadow",
+          NAV_COMPACT_EASE,
+          /* mobile: к краю окна */
+          "max-lg:fixed max-lg:left-0 max-lg:right-0 max-lg:top-[env(safe-area-inset-top,0px)]",
+          /* desktop: липкая полоска в колонке shell */
+          "lg:sticky lg:top-[env(safe-area-inset-top,0px)]",
+          "border-b border-[var(--patient-border)] bg-[rgba(255,255,255,0.96)] backdrop-blur-md lg:bg-[var(--patient-surface)]",
+          compact ? "shadow-md lg:shadow-sm" : "shadow-[var(--patient-shadow-nav)] lg:shadow-sm",
         )}
       >
+        <nav
+          aria-label="Основная навигация пациента"
+          data-testid="patient-mobile-top-nav"
+          className="mx-auto flex max-w-[430px] items-stretch justify-around px-1 py-1 lg:hidden"
+        >
+          {PATIENT_PRIMARY_NAV_ITEMS.map(renderMobileNavLink)}
+        </nav>
+
+        <div
+          data-testid="patient-desktop-top-nav"
+          className={cn(
+            "mx-auto hidden w-full max-w-[min(1180px,calc(100vw-2rem))] items-center gap-4 px-4 lg:flex",
+            "transition-[padding-block] [transition-property:padding-block]",
+            NAV_COMPACT_EASE,
+            compact ? "py-3" : "py-2.5",
+          )}
+        >
         <div className="flex min-w-0 shrink-0 items-center gap-1">
           <Link
             href={routePaths.patient}
             prefetch={false}
-            className="flex shrink-0 items-center gap-2 text-[var(--patient-text-primary)]"
+            className={cn(
+              "flex shrink-0 items-center text-[var(--patient-text-primary)] transition-[gap] [transition-property:gap]",
+              NAV_COMPACT_EASE,
+              compact ? "gap-0" : "gap-2",
+            )}
           >
             <Stethoscope
-              className={cn(
-                "shrink-0 text-[var(--patient-color-primary)] transition-[width,height] duration-200 ease-out",
-                compact ? "size-5" : "size-6",
-              )}
+              className="size-6 shrink-0 text-[var(--patient-color-primary)]"
               strokeWidth={NAV_STRIP_ICON_STROKE}
               aria-hidden
             />
             <span
               className={cn(
-                "font-semibold tracking-tight transition-[font-size] duration-200 ease-out",
-                compact ? "text-base" : "text-lg",
+                "font-semibold tracking-tight text-lg transition-[opacity,max-height] [transition-property:opacity,max-height]",
+                NAV_COMPACT_EASE,
+                compact ? "inline-block max-h-0 overflow-hidden opacity-0" : "max-h-8 opacity-100",
               )}
             >
               BersonCare
@@ -196,13 +245,9 @@ export function PatientTopNav(_props: PatientTopNavProps) {
             href={routePaths.patientReminders}
             prefetch={false}
             aria-label="Напоминания"
-            className={cn(TOP_ICON_BTN, "relative transition-[width,height,min-width] duration-200 ease-out", compact && "size-9 min-w-9")}
+            className={cn(TOP_ICON_BTN, "relative")}
           >
-            <Bell
-              className={cn("transition-[width,height] duration-200 ease-out", compact ? "size-[18px]" : "size-[22px]")}
-              strokeWidth={NAV_STRIP_ICON_STROKE}
-              aria-hidden
-            />
+            <Bell className="size-[22px]" strokeWidth={NAV_STRIP_ICON_STROKE} aria-hidden />
             {reminderUnread > 0 ? (
               <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-medium text-destructive-foreground">
                 {reminderUnread > 99 ? "99+" : reminderUnread}
@@ -213,16 +258,13 @@ export function PatientTopNav(_props: PatientTopNavProps) {
             href={routePaths.patientMessages}
             prefetch={false}
             aria-label="Сообщения"
-            className={cn(TOP_ICON_BTN, "transition-[width,height,min-width] duration-200 ease-out", compact && "size-9 min-w-9")}
+            className={cn(TOP_ICON_BTN, "relative")}
           >
-            <MessageCircle
-              className={cn("transition-[width,height] duration-200 ease-out", compact ? "size-[18px]" : "size-[22px]")}
-              strokeWidth={NAV_STRIP_ICON_STROKE}
-              aria-hidden
-            />
+            <MessageCircle className="size-[22px]" strokeWidth={NAV_STRIP_ICON_STROKE} aria-hidden />
           </Link>
         </div>
+        </div>
       </div>
-    </div>
+    </>
   );
 }

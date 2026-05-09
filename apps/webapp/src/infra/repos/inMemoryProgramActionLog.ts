@@ -221,6 +221,32 @@ export function createInMemoryProgramActionLogPort(): ProgramActionLogPort {
       return [...days];
     },
 
+    async listDoneItemsByLocalDateInWindow(params) {
+      const iana = params.displayIana;
+      const seen = new Set<string>();
+      const out: Array<{ localDate: string; itemId: string }> = [];
+      for (const r of rows) {
+        if (
+          r.instanceId !== params.instanceId ||
+          r.patientUserId !== params.patientUserId ||
+          r.actionType !== "done" ||
+          r.createdAt < params.windowStartUtcIso ||
+          r.createdAt >= params.windowEndUtcExclusiveIso
+        ) {
+          continue;
+        }
+        const d = DateTime.fromISO(r.createdAt, { zone: "utc" }).setZone(iana);
+        if (!d.isValid) continue;
+        const localDate = d.toISODate();
+        if (!localDate) continue;
+        const k = `${localDate}\0${r.instanceStageItemId}`;
+        if (seen.has(k)) continue;
+        seen.add(k);
+        out.push({ localDate, itemId: r.instanceStageItemId });
+      }
+      return out;
+    },
+
     async listForInstance(params) {
       const limit = Math.min(Math.max(params.limit ?? 200, 1), 500);
       const filtered = rows.filter((r) => r.instanceId === params.instanceId);

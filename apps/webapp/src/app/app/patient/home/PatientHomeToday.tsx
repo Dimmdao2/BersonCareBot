@@ -16,6 +16,7 @@ import {
   reminderScheduleEvaluationInstant,
   countPlannedHomeReminderOccurrencesInUtcRange,
 } from "@/modules/patient-home/nextReminderOccurrence";
+import { pickActivePlanInstance } from "@/modules/treatment-program/pickActivePlanInstance";
 import { formatBookingDateLongRu } from "@/shared/lib/formatBusinessDateTime";
 import type { PatientHomeBlockCode } from "@/modules/patient-home/ports";
 import type { PatientMoodCheckinState, PatientMoodWeekDay } from "@/modules/patient-mood/types";
@@ -243,10 +244,8 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
     if (hasConfiguredSchedule) {
       practiceTarget = plannedTotal;
     }
-    const active = instances
-      .filter((i) => i.status === "active")
-      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
-    planInstance = active[0] ? { id: active[0].id, title: active[0].title } : null;
+    const picked = pickActivePlanInstance(instances);
+    planInstance = picked ? { id: picked.id, title: picked.title } : null;
     if (planInstance) {
       const [nudge, rawDetail, snap] = await Promise.all([
         deps.treatmentProgramInstance.patientPlanUpdatedBadgeForInstance({

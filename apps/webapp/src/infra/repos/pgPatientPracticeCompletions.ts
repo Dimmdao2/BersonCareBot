@@ -1,4 +1,4 @@
-import { and, desc, eq, gte } from "drizzle-orm";
+import { and, desc, eq, gte, lt } from "drizzle-orm";
 import { DateTime } from "luxon";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import { patientPracticeCompletions } from "../../../db/schema";
@@ -91,6 +91,22 @@ export function createPgPatientPracticeCompletionsPort(): PatientPracticePort {
         .where(eq(patientPracticeCompletions.userId, userId))
         .orderBy(desc(patientPracticeCompletions.completedAt))
         .limit(limit);
+      return rows.map(mapRow);
+    },
+
+    async listByUserInUtcRange(userId, fromUtcIso, toUtcExclusiveIso) {
+      const db = getDrizzle();
+      const rows = await db
+        .select()
+        .from(patientPracticeCompletions)
+        .where(
+          and(
+            eq(patientPracticeCompletions.userId, userId),
+            gte(patientPracticeCompletions.completedAt, fromUtcIso),
+            lt(patientPracticeCompletions.completedAt, toUtcExclusiveIso),
+          ),
+        )
+        .orderBy(desc(patientPracticeCompletions.completedAt));
       return rows.map(mapRow);
     },
 

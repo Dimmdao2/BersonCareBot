@@ -41,7 +41,7 @@ export function PatientHomeMoodScoreRow({
 
   return (
     <div
-      className={cn("grid min-h-0 grid-cols-5 items-center gap-1", gridClassName)}
+      className={cn("grid min-h-0 grid-cols-5 items-center gap-1.5", gridClassName)}
       role="group"
       aria-label="Оценка самочувствия"
     >
