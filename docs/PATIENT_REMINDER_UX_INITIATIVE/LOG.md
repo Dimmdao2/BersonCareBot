@@ -1,8 +1,11 @@
 # LOG — Patient Reminder UX
 
-## 2026-05-09
+## 2026-05-09 — Аудит «усиленного» плана (пациентские блоки + план + интервал)
 
-- Инициатива создана; реализация по `.cursor/plans/reminder_ux_full.plan.md`.
+- **Pre-audit (rg):** `updateRule` только `service.ts`, `patient/reminders/actions.ts`, `api/patient/reminders/[id]/route.ts`; интервал `interval_window` валидируется в `validateSchedule` (30…659), Zod в `actions.ts`, дубли в REST create/PATCH не вводились.
+- **Хвосты после ревью:** общий `formatReminderMinuteOfDayToHhMm` в `modules/reminders/reminderScheduleFormat.ts` для `summarizeReminderForCalendarDay` и `formatScheduleSummary` в `ReminderRulesClient`; в строке «сегодня» для `interval_window` интервал через `clampIntervalMinutes`; порядок UI: блоки rehab/разминки → «Мои напоминания» → «Создать напоминание»; `RemindersHashScroll` — двойной rAF + повтор через 320 ms для стабильного скролла к якорю; тесты `weekly_mask` и успешный `every_n_days` в `summarizeReminderForCalendarDay.test.ts`.
+
+## 2026-05-09 — Закрытие инициативы (базовый план) реализация по `.cursor/plans/reminder_ux_full.plan.md`.
 - Решения: mute на `platform_users.reminder_muted_until`; label rehab через `display_title`/`display_description`; integrator — drop `UNIQUE(user_id,category)`, upsert по PK `id`.
 - Главная пациента: `slots_v1` + `rehab_program` в `nextReminderOccurrence`, счётчик «n из N» за локальный день приложения + `countDoneSkippedInUtcRange` в журнале; карточка — пауза / прогресс / «На сегодня напоминаний нет».
 - Экран `/app/patient/reminders`: баннер при активном `reminder_muted_until`; HTTP-проекция integrator GET правил включает `schedule_data`, `reminder_intent`, `display_*`.

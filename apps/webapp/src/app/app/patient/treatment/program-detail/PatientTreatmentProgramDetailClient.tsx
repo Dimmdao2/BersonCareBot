@@ -34,6 +34,8 @@ import {
 import { PatientPlanHeroActive, PatientPlanHeroCompleted } from "@/app/app/patient/treatment/program-detail/PatientPlanHero";
 import { PatientPlanTabStrip } from "@/app/app/patient/treatment/program-detail/PatientPlanTabStrip";
 import { PatientPlanTabPanels } from "@/app/app/patient/treatment/program-detail/PatientPlanTabPanels";
+import type { PatientPlanTodayRemindersCardProps } from "@/app/app/patient/treatment/program-detail/PatientPlanTodayRemindersCard";
+import { PatientPlanTodayRemindersCard } from "@/app/app/patient/treatment/program-detail/PatientPlanTodayRemindersCard";
 
 export function PatientTreatmentProgramDetailClient(props: {
   initial: TreatmentProgramInstanceDetail;
@@ -45,6 +47,8 @@ export function PatientTreatmentProgramDetailClient(props: {
   patientCalendarDayIana: string;
   /** Вкладка из `?tab=` (серверный первый рендер). */
   initialPlanTab?: PatientPlanTab;
+  /** Верхняя карточка «напоминания сегодня» (только active). */
+  planReminderStrip?: PatientPlanTodayRemindersCardProps | null;
 }) {
   const {
     appDisplayTimeZone,
@@ -52,6 +56,7 @@ export function PatientTreatmentProgramDetailClient(props: {
     initialProgramEvents = [],
     patientCalendarDayIana,
     initialPlanTab = "program",
+    planReminderStrip = null,
   } = props;
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -287,6 +292,9 @@ export function PatientTreatmentProgramDetailClient(props: {
       ) : null}
 
       <div className="flex flex-col">
+        {detail.status === "active" && planReminderStrip ? (
+          <PatientPlanTodayRemindersCard {...planReminderStrip} />
+        ) : null}
         <PatientPlanHeroActive
           detail={detail}
           appDisplayTimeZone={appDisplayTimeZone}

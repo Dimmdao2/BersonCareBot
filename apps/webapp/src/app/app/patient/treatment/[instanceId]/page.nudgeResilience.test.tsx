@@ -56,6 +56,13 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
     patientCalendarTimezone: {
       getIanaForUser: vi.fn(async () => null),
     },
+    reminders: {
+      listRulesByUser: vi.fn(async () => []),
+    },
+    contentSections: {
+      getBySlug: vi.fn(async () => null),
+      getRedirectNewSlugForOldSlug: vi.fn(async () => null),
+    },
   }),
 }));
 

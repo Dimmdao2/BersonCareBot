@@ -18,6 +18,7 @@
 | `patientTreatmentProgramListItemClass.ts` | Общий класс плотной строки списка (программа + экран этапа). |
 | `PatientProgramHeroHistoryPopover.tsx` | Popover «История программы» в hero (`z-20`). |
 | `PatientPlanHero.tsx` | Hero завершённой (`PatientPlanHeroCompleted`) и активной (`PatientPlanHeroActive`) программы. |
+| `PatientPlanTodayRemindersCard.tsx` | Для **активной** программы: краткая сводка напоминаний «сегодня» (реабилитация + разминки при доступности раздела) и ссылка «Настроить расписание» → `/app/patient/reminders#patient-reminders-rehab`. Данные и строки сводки собираются в RSC `[instanceId]/page.tsx` (`planReminderStrip`). |
 | `PatientPlanTabStrip.tsx` | Липкая полоска вкладок (`sticky`, `z-[5]`). |
 | `PatientPlanTabPanels.tsx` | Панели вкладок: `lazy` + `Suspense` для «Программа»/«Рекомендации», блок «Прогресс». |
 | `PatientProgramStagesTimeline.tsx` | Timeline этапов на вкладке «Прогресс». |

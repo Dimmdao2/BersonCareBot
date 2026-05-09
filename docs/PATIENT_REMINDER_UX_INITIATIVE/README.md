@@ -4,6 +4,8 @@
 
 Напоминания для программы реабилитации: расписание `slots_v1`, intent/CTA, snooze 15/30, done, mute-all, синхронизация главной (`n из N`).
 
+**Пациентский UX (после усиленного плана, 2026-05-09):** на `/app/patient/reminders` — блоки «Программа реабилитации» и «Разминки» (якоря `#patient-reminders-rehab`, `#patient-reminders-warmups`), сводка «Сегодня» через `summarizeReminderForCalendarDay`; модалка — слоты построчно (`type=time`), интервал 30…659 мин с колёсами `PatientDurationHmWheels`; на активном плане лечения — карточка «Напоминания сегодня» над hero со ссылкой на напоминания с hash. Общее форматирование минут суток: `modules/reminders/reminderScheduleFormat.ts`.
+
 ## Документы
 
 - [ROADMAP.md](./ROADMAP.md) — этапы и статус
@@ -21,5 +23,6 @@
 
 ## Cross-links
 
-- План реализации: `.cursor/plans/reminder_ux_full.plan.md` (не редактировать здесь)
+- План реализации (базовый): `.cursor/plans/reminder_ux_full.plan.md` (не редактировать здесь)
+- Усиленный UX-план (блоки, план, интервал): см. выполнение в [LOG.md](./LOG.md) §2026-05-09 — аудит
 - Оглавление docs: [docs/README.md](../README.md)

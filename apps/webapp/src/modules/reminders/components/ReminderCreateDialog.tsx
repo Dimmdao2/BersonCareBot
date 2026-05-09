@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { PatientDurationHmWheels } from "@/shared/ui/patient/PatientDurationHmWheels";
 import {
   Dialog,
   DialogContent,
@@ -23,11 +24,17 @@ import type { ReminderDayFilter, SlotsV1ScheduleData } from "@/modules/reminders
 import { DEFAULT_REHAB_WEEKDAY_SLOTS, normalizeSlotsV1ScheduleData } from "@/modules/reminders/scheduleSlots";
 import { validateQuietHoursPair } from "@/modules/reminders/quietHours";
 import {
+  REMINDER_INTERVAL_WINDOW_MAX_MINUTES,
+  REMINDER_INTERVAL_WINDOW_MIN_MINUTES,
+  clampIntervalMinutes,
+} from "@/modules/reminders/reminderIntervalBounds";
+import {
   minutesToTimeInput,
   timeInputToMinutes,
   parseQuietStartMinute,
   parseQuietEndMinute,
 } from "@/modules/reminders/reminderTimeInputs";
+import { patientSectionSurfaceClass, patientSectionTitleNormalClass } from "@/shared/ui/patientVisual";
 
 const CHANNEL_STORAGE_KEY = "bc_patient_reminder_delivery_pref";
 
@@ -108,7 +115,7 @@ export function ReminderCreateDialog({
   const [endTime, setEndTime] = useState(minutesToTimeInput(DEFAULT_END));
   const [daysMask, setDaysMask] = useState(DEFAULT_MASK);
   const [scheduleMode, setScheduleMode] = useState<"interval_window" | "slots_v1">("interval_window");
-  const [slotTimesText, setSlotTimesText] = useState(DEFAULT_REHAB_WEEKDAY_SLOTS.timesLocal.join("\n"));
+  const [slotTimeRows, setSlotTimeRows] = useState<string[]>(() => [...DEFAULT_REHAB_WEEKDAY_SLOTS.timesLocal]);
   const [slotsDayFilter, setSlotsDayFilter] = useState<ReminderDayFilter>("weekdays");
   const [quietStart, setQuietStart] = useState("");
   const [quietEnd, setQuietEnd] = useState("");
@@ -130,7 +137,7 @@ export function ReminderCreateDialog({
     if (existingRule) {
       const isSlots = existingRule.scheduleType === "slots_v1";
       setScheduleMode(isSlots ? "slots_v1" : "interval_window");
-      setIntervalMinutes(existingRule.intervalMinutes ?? DEFAULT_INTERVAL);
+      setIntervalMinutes(clampIntervalMinutes(existingRule.intervalMinutes ?? DEFAULT_INTERVAL));
       setStartTime(minutesToTimeInput(existingRule.windowStartMinute));
       setEndTime(minutesToTimeInput(existingRule.windowEndMinute));
       setDaysMask(/^[01]{7}$/.test(existingRule.daysMask) ? existingRule.daysMask : DEFAULT_MASK);
@@ -138,10 +145,10 @@ export function ReminderCreateDialog({
       setCustomTitle(existingRule.customTitle?.trim() ?? "");
       setCustomText(existingRule.customText?.trim() ?? "");
       if (isSlots && existingRule.scheduleData?.timesLocal?.length) {
-        setSlotTimesText(existingRule.scheduleData.timesLocal.join("\n"));
+        setSlotTimeRows([...existingRule.scheduleData.timesLocal]);
         setSlotsDayFilter(existingRule.scheduleData.dayFilter ?? "weekdays");
       } else {
-        setSlotTimesText(DEFAULT_REHAB_WEEKDAY_SLOTS.timesLocal.join("\n"));
+        setSlotTimeRows([...DEFAULT_REHAB_WEEKDAY_SLOTS.timesLocal]);
         setSlotsDayFilter("weekdays");
       }
       if (
@@ -163,7 +170,7 @@ export function ReminderCreateDialog({
       setEnabled(true);
       setCustomTitle("");
       setCustomText("");
-      setSlotTimesText(DEFAULT_REHAB_WEEKDAY_SLOTS.timesLocal.join("\n"));
+      setSlotTimeRows([...DEFAULT_REHAB_WEEKDAY_SLOTS.timesLocal]);
       setSlotsDayFilter("weekdays");
       setQuietStart("");
       setQuietEnd("");
@@ -181,10 +188,7 @@ export function ReminderCreateDialog({
         ? ` Тихие часы: ${quietStart}–${quietEnd}.`
         : "";
     if (scheduleMode === "slots_v1") {
-      const lines = slotTimesText
-        .split(/[\n,]+/)
-        .map((s) => s.trim())
-        .filter(Boolean);
+      const lines = slotTimeRows.map((s) => s.trim()).filter(Boolean);
       const df =
         slotsDayFilter === "weekly_mask"
           ? "маска ниже"
@@ -203,7 +207,7 @@ export function ReminderCreateDialog({
     }.`;
   }, [
     scheduleMode,
-    slotTimesText,
+    slotTimeRows,
     slotsDayFilter,
     startTime,
     endTime,
@@ -276,8 +280,10 @@ export function ReminderCreateDialog({
         setError("Начало окна должно быть раньше конца.");
         return;
       }
-      if (!Number.isFinite(intervalMinutes) || intervalMinutes < 1 || intervalMinutes > 1440) {
-        setError("Интервал от 1 до 1440 минут.");
+      if (!Number.isFinite(intervalMinutes) || intervalMinutes < REMINDER_INTERVAL_WINDOW_MIN_MINUTES || intervalMinutes > REMINDER_INTERVAL_WINDOW_MAX_MINUTES) {
+        setError(
+          `Интервал от ${REMINDER_INTERVAL_WINDOW_MIN_MINUTES} до ${REMINDER_INTERVAL_WINDOW_MAX_MINUTES} минут (до 10 ч 59 мин).`,
+        );
         return;
       }
       schedule = {
@@ -290,10 +296,7 @@ export function ReminderCreateDialog({
         quietHoursEndMinute,
       };
     } else {
-      const rawTimes = slotTimesText
-        .split(/[\n,]+/)
-        .map((s) => s.trim())
-        .filter(Boolean);
+      const rawTimes = slotTimeRows.map((s) => s.trim()).filter(Boolean);
       const scheduleDataRaw = {
         timesLocal: rawTimes,
         dayFilter: slotsDayFilter,
@@ -303,7 +306,7 @@ export function ReminderCreateDialog({
       if (!norm.ok) {
         setError(
           norm.error.startsWith("validation_error:")
-            ? "Проверьте времена слотов (ЧЧ:ММ, по одному на строку или через запятую)."
+            ? "Проверьте времена слотов (ЧЧ:ММ)."
             : norm.error,
         );
         return;
@@ -427,12 +430,9 @@ export function ReminderCreateDialog({
 
       {isEdit ? (
         <div className="flex items-center justify-between gap-3 rounded-lg border border-border/80 bg-muted/40 px-3 py-2">
-          <div className="space-y-0.5">
-            <Label htmlFor="reminder-enabled" className="text-sm">
-              Напоминание включено
-            </Label>
-            <p className="text-xs text-muted-foreground">Можно временно отключить без удаления.</p>
-          </div>
+          <Label htmlFor="reminder-enabled" className="text-sm">
+            Напоминание включено
+          </Label>
           <Switch
             id="reminder-enabled"
             checked={enabled}
@@ -442,8 +442,8 @@ export function ReminderCreateDialog({
         </div>
       ) : null}
 
-      <div className="space-y-2">
-        <Label>Тип расписания</Label>
+      <div className={cn(patientSectionSurfaceClass, "!gap-3")}>
+        <h3 className={patientSectionTitleNormalClass}>Тип расписания</h3>
         <div className="flex flex-wrap gap-2">
           <Button
             type="button"
@@ -467,10 +467,11 @@ export function ReminderCreateDialog({
       </div>
 
       {scheduleMode === "interval_window" ? (
-        <>
+        <div className={cn(patientSectionSurfaceClass, "!gap-3")}>
+          <h3 className={patientSectionTitleNormalClass}>Окно и интервал</h3>
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label htmlFor={`${formId}-start`}>Окно: с</Label>
+              <Label htmlFor={`${formId}-start`}>С</Label>
               <Input
                 id={`${formId}-start`}
                 type="time"
@@ -480,7 +481,7 @@ export function ReminderCreateDialog({
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor={`${formId}-end`}>до</Label>
+              <Label htmlFor={`${formId}-end`}>До</Label>
               <Input
                 id={`${formId}-end`}
                 type="time"
@@ -490,33 +491,53 @@ export function ReminderCreateDialog({
               />
             </div>
           </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor={`${formId}-interval`}>Интервал (минуты)</Label>
-            <Input
-              id={`${formId}-interval`}
-              type="number"
-              min={1}
-              max={1440}
+          <div className="space-y-2">
+            <Label>Интервал</Label>
+            <PatientDurationHmWheels
               value={intervalMinutes}
-              onChange={(e) => setIntervalMinutes(Number(e.target.value))}
+              onChange={setIntervalMinutes}
               disabled={submitting}
             />
           </div>
-        </>
+        </div>
       ) : (
-        <div className="space-y-3">
-          <div className="space-y-1.5">
-            <Label htmlFor={`${formId}-slots`}>Времена (ЧЧ:ММ), строка или через запятую</Label>
-            <Textarea
-              id={`${formId}-slots`}
-              value={slotTimesText}
-              onChange={(e) => setSlotTimesText(e.target.value)}
+        <div className={cn(patientSectionSurfaceClass, "!gap-3")}>
+          <h3 className={patientSectionTitleNormalClass}>Времена</h3>
+          <div className="flex flex-col gap-2">
+            {slotTimeRows.map((row, idx) => (
+              <div key={idx} className="flex flex-wrap items-center gap-2">
+                <Input
+                  type="time"
+                  value={row}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setSlotTimeRows((rows) => rows.map((r, i) => (i === idx ? v : r)));
+                  }}
+                  disabled={submitting}
+                  className="min-w-[8rem] flex-1"
+                  aria-label={`Время ${idx + 1}`}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={submitting || slotTimeRows.length <= 1}
+                  onClick={() => setSlotTimeRows((rows) => rows.filter((_, i) => i !== idx))}
+                >
+                  Удалить
+                </Button>
+              </div>
+            ))}
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              className="w-fit"
               disabled={submitting}
-              rows={4}
-              placeholder={"09:00\n12:30\n18:00"}
-              className="font-mono text-sm"
-            />
+              onClick={() => setSlotTimeRows((rows) => [...rows, "09:00"])}
+            >
+              Добавить время
+            </Button>
           </div>
           <div className="space-y-2">
             <Label>Дни слотов</Label>
@@ -544,8 +565,13 @@ export function ReminderCreateDialog({
         </div>
       )}
 
-      <div className="space-y-2">
-        <Label>Дни недели {scheduleMode === "slots_v1" && slotsDayFilter === "weekdays" ? "(маска хранится для календаря; фильтр слотов — Пн–Пт)" : ""}</Label>
+      <div className={cn(patientSectionSurfaceClass, "!gap-3")}>
+        <Label>
+          Дни недели{" "}
+          {scheduleMode === "slots_v1" && slotsDayFilter === "weekdays" ?
+            "(маска для календаря; слоты — Пн–Пт)"
+          : ""}
+        </Label>
         <div className="flex flex-wrap gap-2">
           {WEEKDAY_LABELS.map((label, i) => {
             const on = daysMask[i] === "1";
@@ -566,11 +592,8 @@ export function ReminderCreateDialog({
         </div>
       </div>
 
-      <div className="space-y-3 rounded-lg border border-border/60 bg-muted/30 px-3 py-3">
+      <div className={cn(patientSectionSurfaceClass, "!gap-3")}>
         <Label className="text-sm">Тихие часы (необязательно)</Label>
-        <p className="text-xs text-muted-foreground">
-          Локальное время в вашей зоне напоминания. Оставьте поля пустыми, чтобы отключить.
-        </p>
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-1.5">
             <Label htmlFor={`${formId}-quiet-s`}>С</Label>
@@ -595,11 +618,8 @@ export function ReminderCreateDialog({
         </div>
       </div>
 
-      <div className="space-y-2">
+      <div className={cn(patientSectionSurfaceClass, "!gap-2")}>
         <Label>Канал</Label>
-        <p className="text-xs text-muted-foreground">
-          Выбор сохраняется на этом устройстве. Уведомления уходят в мессенджер, с которым связан ваш аккаунт.
-        </p>
         <div className="flex flex-wrap gap-2">
           <Button
             type="button"
@@ -663,7 +683,10 @@ export function ReminderCreateDialog({
   if (isMobileViewport) {
     return (
       <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent side="bottom" className="max-h-[92vh] overflow-y-auto rounded-t-2xl px-4 pb-6">
+        <SheetContent
+          side="bottom"
+          className="max-h-[92vh] overflow-y-auto rounded-t-2xl border-t border-[var(--patient-border)] bg-[var(--patient-card-bg)] px-4 pb-6"
+        >
           <SheetHeader className="px-0 text-left">
             <SheetTitle>{title}</SheetTitle>
           </SheetHeader>
@@ -676,7 +699,7 @@ export function ReminderCreateDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] max-w-md overflow-y-auto sm:max-w-md">
+      <DialogContent className="max-h-[90vh] max-w-md overflow-y-auto border-[var(--patient-border)] bg-[var(--patient-card-bg)] sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>

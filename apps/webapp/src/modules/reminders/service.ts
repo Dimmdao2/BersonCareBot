@@ -13,6 +13,10 @@ import {
   normalizeSlotsV1ScheduleData,
 } from "./scheduleSlots";
 import { validateQuietHoursPair } from "./quietHours";
+import {
+  REMINDER_INTERVAL_WINDOW_MAX_MINUTES,
+  REMINDER_INTERVAL_WINDOW_MIN_MINUTES,
+} from "./reminderIntervalBounds";
 
 export type { ReminderCategory, ReminderRule } from "./types";
 
@@ -80,7 +84,12 @@ function validateSchedule(s: ReminderUpdateSchedule): string | null {
   if (s.windowStartMinute < 0 || s.windowStartMinute > 1439) return "validation_error: windowStartMinute";
   if (s.windowEndMinute < 1 || s.windowEndMinute > 1440) return "validation_error: windowEndMinute";
   if (s.windowStartMinute >= s.windowEndMinute) return "invalid_window";
-  if (s.intervalMinutes < 1 || s.intervalMinutes > 1440) return "invalid_interval";
+  if (
+    s.intervalMinutes < REMINDER_INTERVAL_WINDOW_MIN_MINUTES ||
+    s.intervalMinutes > REMINDER_INTERVAL_WINDOW_MAX_MINUTES
+  ) {
+    return "invalid_interval";
+  }
   if (!/^[01]{7}$/.test(s.daysMask)) return "validation_error: daysMask";
   return null;
 }

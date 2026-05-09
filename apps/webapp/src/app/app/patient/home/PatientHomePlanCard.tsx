@@ -100,9 +100,9 @@ export function PatientHomePlanCard({
             href={startLessonHref}
             prefetch={false}
             className={cn(
-              "inline-flex min-h-9 min-w-[8rem] shrink-0 items-center justify-center rounded-md border border-[var(--patient-color-primary)] bg-[var(--patient-card-bg)] px-5 text-sm font-semibold text-[var(--patient-color-primary)] transition-colors lg:px-6",
-              "hover:bg-[var(--patient-color-primary-soft)]/40 active:bg-[var(--patient-color-primary-soft)]/60",
-              "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-primary)]",
+              "inline-flex min-h-9 min-w-[8rem] shrink-0 items-center justify-center rounded-md border border-[#b4bae4] bg-[#e9e0ff] px-5 text-sm font-medium text-[#1b3185] shadow-[0_6px_14px_rgba(40,77,160,0.24)] transition-colors lg:px-6",
+              "hover:bg-[#ddd2f5] active:bg-[#d1c4ef]",
+              "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1b3185]/35",
             )}
           >
             Начать занятие

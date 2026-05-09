@@ -17,7 +17,11 @@ const toggleSchema = z.object({
 
 const updateScheduleSchema = z.object({
   ruleId: z.string().min(1),
-  intervalMinutes: z.number().int().min(1, "Минимум 1 минута"),
+  intervalMinutes: z
+    .number()
+    .int()
+    .min(30, "Интервал от 30 минут")
+    .max(659, "Интервал не более 10 ч 59 мин"),
   windowStartMinute: z.number().int().min(0).max(1439),
   windowEndMinute: z.number().int().min(1).max(1440),
   daysMask: z.string().regex(DAYS_MASK_RE, "Неверный формат маски дней"),

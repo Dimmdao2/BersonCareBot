@@ -1,3 +1,4 @@
+import { DateTime } from "luxon";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requirePatientAccessWithPhone } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
@@ -8,7 +9,12 @@ import { cn } from "@/lib/utils";
 import { patientCardClass, patientMutedTextClass } from "@/shared/ui/patientVisual";
 import { formatBookingDateTimeMediumRu } from "@/shared/lib/formatBusinessDateTime";
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
+import { resolveCalendarDayIanaForPatient } from "@/modules/system-settings/calendarIana";
 import { ReminderRulesClient, type PersonalReminderRowVM } from "./ReminderRulesClient";
+import { resolvePatientContentSectionSlug } from "@/infra/repos/resolvePatientContentSectionSlug";
+import { DEFAULT_WARMUPS_SECTION_SLUG } from "@/modules/patient-home/warmupsSection";
+import { resolvePatientCanViewAuthOnlyContent } from "@/modules/platform-access";
+import { RemindersHashScroll } from "./RemindersHashScroll";
 
 function mapIconKind(linked: NonNullable<ReminderRule["linkedObjectType"]>): PersonalReminderRowVM["iconKind"] {
   switch (linked) {
@@ -30,13 +36,12 @@ function mapIconKind(linked: NonNullable<ReminderRule["linkedObjectType"]>): Per
 async function resolvePersonalReminderLabel(
   deps: ReturnType<typeof buildAppDeps>,
   rule: ReminderRule,
-  complexTitleById: Record<string, string>,
 ): Promise<string> {
   const lo = rule.linkedObjectType;
   const id = rule.linkedObjectId;
   if (!lo) return "";
   if (lo === "lfk_complex") {
-    return (id && complexTitleById[id]) || "Комплекс ЛФК";
+    return "Напоминание";
   }
   if (lo === "content_section") {
     if (id) {
@@ -66,12 +71,46 @@ export default async function RemindersPage() {
   const deps = buildAppDeps();
   const userId = session.user.userId;
 
-  const [rules, projectionStats, complexes, appTz] = await Promise.all([
+  const [rules, projectionStats, appTz, patientIanaRaw, programList, canViewAuth] = await Promise.all([
     deps.reminders.listRulesByUser(userId),
     deps.reminderProjection.getStats(userId, 30),
-    deps.diaries.listLfkComplexes(userId),
     getAppDisplayTimeZone(),
+    deps.patientCalendarTimezone.getIanaForUser(userId),
+    deps.treatmentProgramInstance.listForPatient(userId),
+    resolvePatientCanViewAuthOnlyContent(session),
   ]);
+
+  const patientCalendarDayIana = resolveCalendarDayIanaForPatient(patientIanaRaw, appTz);
+  const calendarDateKey = DateTime.now().setZone(patientCalendarDayIana).toISODate()!;
+
+  const warmRes = await resolvePatientContentSectionSlug(
+    {
+      getBySlug: (s) => deps.contentSections.getBySlug(s),
+      getRedirectNewSlugForOldSlug: (s) => deps.contentSections.getRedirectNewSlugForOldSlug(s),
+    },
+    DEFAULT_WARMUPS_SECTION_SLUG,
+  );
+  const warmupsSectionAvailable = Boolean(
+    warmRes && (!warmRes.section.requiresAuth || canViewAuth),
+  );
+  const warmupsSectionTitle = warmRes?.section.title?.trim() || "Разминки";
+
+  const activeCandidates = programList
+    .filter((p) => p.status === "active")
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || b.id.localeCompare(a.id));
+  const activeProgram = activeCandidates[0] ?? null;
+
+  const rehabMatches = activeProgram
+    ? rules.filter((r) => r.linkedObjectType === "rehab_program" && r.linkedObjectId === activeProgram.id)
+    : [];
+  rehabMatches.sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
+  const rehabRuleForBlock = rehabMatches[0] ?? null;
+
+  const warmMatches = rules.filter(
+    (r) => r.linkedObjectType === "content_section" && r.linkedObjectId === DEFAULT_WARMUPS_SECTION_SLUG,
+  );
+  warmMatches.sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
+  const warmupRuleForBlock = warmMatches[0] ?? null;
 
   const mutedUntil = await deps.reminders.getReminderMutedUntil(userId);
   const compareNow = new Date();
@@ -90,13 +129,9 @@ export default async function RemindersPage() {
 
   const legacyRules = rules.filter((r) => r.linkedObjectType == null);
 
-  const complexTitleById = Object.fromEntries(
-    complexes.map((c) => [c.id, c.title?.trim() || "—"]),
-  );
-
   const personalRows: PersonalReminderRowVM[] = [];
   for (const r of personalRules) {
-    const label = await resolvePersonalReminderLabel(deps, r, complexTitleById);
+    const label = await resolvePersonalReminderLabel(deps, r);
     const iconKind = mapIconKind(r.linkedObjectType!);
     const st = journalStats[r.id] ?? { done: 0, skipped: 0, snoozed: 0 };
     personalRows.push({ rule: r, label, iconKind, stats: st });
@@ -110,8 +145,9 @@ export default async function RemindersPage() {
       backLabel="Меню"
       variant="patient"
     >
+      <RemindersHashScroll />
       <p className={cn(patientMutedTextClass, "mb-4")}>
-        Свои напоминания (ЛФК, разминки, текст) и категории от врача. Изменения синхронизируются с ботом.
+        Программа реабилитации, разминки, свои напоминания и категории от врача. Изменения синхронизируются с ботом.
       </p>
 
       {muteUntilLabel ? (
@@ -157,6 +193,15 @@ export default async function RemindersPage() {
         personalRows={personalRows}
         legacyRules={legacyRules}
         unseenCount={projectionStats.unseen}
+        activeProgram={
+          activeProgram ? { id: activeProgram.id, title: activeProgram.title?.trim() || "Программа" } : null
+        }
+        warmupsSectionAvailable={warmupsSectionAvailable}
+        warmupsSectionTitle={warmupsSectionTitle}
+        rehabRuleForBlock={rehabRuleForBlock}
+        warmupRuleForBlock={warmupRuleForBlock}
+        calendarDateKey={calendarDateKey}
+        patientCalendarDayIana={patientCalendarDayIana}
       />
     </AppShell>
   );

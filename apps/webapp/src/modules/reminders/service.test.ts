@@ -120,6 +120,31 @@ describe("reminders service", () => {
       if (!res.ok) expect(res.error).toContain("invalid_window");
     });
 
+    it("rejects intervalMinutes below 30", async () => {
+      const port = createInMemoryReminderRulesPort([makeRule()]);
+      const svc = createRemindersService(port);
+      const res = await svc.updateRule("user-1", "rule-1", { intervalMinutes: 29 });
+      expect(res.ok).toBe(false);
+      if (!res.ok) expect(res.error).toContain("invalid_interval");
+    });
+
+    it("rejects intervalMinutes above 659", async () => {
+      const port = createInMemoryReminderRulesPort([makeRule()]);
+      const svc = createRemindersService(port);
+      const res = await svc.updateRule("user-1", "rule-1", { intervalMinutes: 660 });
+      expect(res.ok).toBe(false);
+      if (!res.ok) expect(res.error).toContain("invalid_interval");
+    });
+
+    it("accepts intervalMinutes 30 and 659", async () => {
+      const port = createInMemoryReminderRulesPort([makeRule()]);
+      const svc = createRemindersService(port);
+      const a = await svc.updateRule("user-1", "rule-1", { intervalMinutes: 30 });
+      expect(a.ok).toBe(true);
+      const b = await svc.updateRule("user-1", "rule-1", { intervalMinutes: 659 });
+      expect(b.ok).toBe(true);
+    });
+
     it("rejects intervalMinutes <= 0", async () => {
       const port = createInMemoryReminderRulesPort([makeRule()]);
       const svc = createRemindersService(port);

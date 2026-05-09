@@ -14,6 +14,11 @@ import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimez
 import { resolveCalendarDayIanaForPatient } from "@/modules/system-settings/calendarIana";
 import { PatientTreatmentProgramDetailClient } from "../PatientTreatmentProgramDetailClient";
 import { parsePatientPlanTab } from "@/app/app/patient/treatment/patientPlanTab";
+import { DateTime } from "luxon";
+import { resolvePatientContentSectionSlug } from "@/infra/repos/resolvePatientContentSectionSlug";
+import { DEFAULT_WARMUPS_SECTION_SLUG } from "@/modules/patient-home/warmupsSection";
+import { resolvePatientCanViewAuthOnlyContent } from "@/modules/platform-access";
+import { summarizeReminderForCalendarDay } from "@/modules/reminders/summarizeReminderForCalendarDay";
 
 type Props = { params: Promise<{ instanceId: string }>; searchParams: Promise<{ tab?: string | string[] }> };
 
@@ -70,6 +75,49 @@ export default async function PatientTreatmentProgramDetailPage({ params, search
   const patientIana = await deps.patientCalendarTimezone.getIanaForUser(session.user.userId);
   const resolvedIana = resolveCalendarDayIanaForPatient(patientIana, appTz);
 
+  const [rules, canViewAuth, warmRes] = await Promise.all([
+    deps.reminders.listRulesByUser(session.user.userId),
+    resolvePatientCanViewAuthOnlyContent(session),
+    resolvePatientContentSectionSlug(
+      {
+        getBySlug: (s) => deps.contentSections.getBySlug(s),
+        getRedirectNewSlugForOldSlug: (s) => deps.contentSections.getRedirectNewSlugForOldSlug(s),
+      },
+      DEFAULT_WARMUPS_SECTION_SLUG,
+    ),
+  ]);
+  const warmupsSectionAvailable = Boolean(
+    warmRes && (!warmRes.section.requiresAuth || canViewAuth),
+  );
+  const calendarDateKey = DateTime.now().setZone(resolvedIana).toISODate()!;
+
+  const rehabMatches = rules.filter(
+    (r) => r.linkedObjectType === "rehab_program" && r.linkedObjectId === instanceId,
+  );
+  rehabMatches.sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
+  const rehabRuleForStrip = rehabMatches[0] ?? null;
+
+  const warmMatches = rules.filter(
+    (r) => r.linkedObjectType === "content_section" && r.linkedObjectId === DEFAULT_WARMUPS_SECTION_SLUG,
+  );
+  warmMatches.sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
+  const warmupRuleForStrip = warmMatches[0] ?? null;
+
+  const planReminderStrip =
+    detail.status === "active" ?
+      {
+        rehabTodayLine: rehabRuleForStrip
+          ? summarizeReminderForCalendarDay(rehabRuleForStrip, calendarDateKey, resolvedIana)
+          : "не настроено",
+        warmupTodayLine: warmupsSectionAvailable
+          ? warmupRuleForStrip
+            ? summarizeReminderForCalendarDay(warmupRuleForStrip, calendarDateKey, resolvedIana)
+            : "не настроено"
+          : null,
+        remindersHref: `${routePaths.patientReminders}#patient-reminders-rehab`,
+      }
+    : null;
+
   return (
     <AppShell
       title={detail.title}
@@ -88,6 +136,7 @@ export default async function PatientTreatmentProgramDetailPage({ params, search
           programDescription={programDescription}
           patientCalendarDayIana={resolvedIana}
           initialPlanTab={initialPlanTab}
+          planReminderStrip={planReminderStrip}
         />
       </Suspense>
     </AppShell>

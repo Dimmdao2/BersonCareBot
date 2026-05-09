@@ -10,17 +10,26 @@ import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { patientCardClass, patientMutedTextClass } from "@/shared/ui/patientVisual";
+import {
+  patientListItemClass,
+  patientMutedTextClass,
+  patientSectionTitleNormalClass,
+  patientSurfaceInfoClass,
+} from "@/shared/ui/patientVisual";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { ReminderCreateDialog } from "@/modules/reminders/components/ReminderCreateDialog";
 import type { ReminderRule, ReminderCategory } from "@/modules/reminders/types";
+import { clampIntervalMinutes } from "@/modules/reminders/reminderIntervalBounds";
+import { formatReminderMinuteOfDayToHhMm } from "@/modules/reminders/reminderScheduleFormat";
+import { summarizeReminderForCalendarDay } from "@/modules/reminders/summarizeReminderForCalendarDay";
+import { DEFAULT_WARMUPS_SECTION_SLUG } from "@/modules/patient-home/warmupsSection";
 import { toggleReminderCategory, patchPatientReminderScheduleBundle } from "./actions";
 
 const CATEGORY_LABELS: Record<ReminderCategory, string> = {
   appointment: "Запись на приём",
-  lfk: "ЛФК",
+  lfk: "Сообщения врача (занятия)",
   chat: "Чат",
   important: "Важные сообщения",
   broadcast: "Рассылки по темам",
@@ -35,29 +44,21 @@ export type PersonalReminderRowVM = {
   stats: { done: number; skipped: number; snoozed: number };
 };
 
-function minutesToTime(m: number): string {
-  const capped = Math.min(Math.max(0, m), 1440);
-  const h = Math.floor(capped / 60)
-    .toString()
-    .padStart(2, "0");
-  const min = (capped % 60).toString().padStart(2, "0");
-  return `${h}:${min}`;
-}
-
 function formatScheduleSummary(rule: ReminderRule): string {
   if (rule.scheduleType === "slots_v1" && rule.scheduleData?.timesLocal?.length) {
     const times = rule.scheduleData.timesLocal.join(", ");
     const q =
       rule.quietHoursStartMinute != null && rule.quietHoursEndMinute != null
-        ? ` Тихие часы: ${minutesToTime(rule.quietHoursStartMinute)}–${minutesToTime(rule.quietHoursEndMinute)}.`
+        ? ` Тихие часы: ${formatReminderMinuteOfDayToHhMm(rule.quietHoursStartMinute)}–${formatReminderMinuteOfDayToHhMm(rule.quietHoursEndMinute)}.`
         : "";
     return `Слоты: ${times}.${q}`;
   }
   const q =
     rule.quietHoursStartMinute != null && rule.quietHoursEndMinute != null
-      ? ` Тихие часы: ${minutesToTime(rule.quietHoursStartMinute)}–${minutesToTime(rule.quietHoursEndMinute)}.`
+      ? ` Тихие часы: ${formatReminderMinuteOfDayToHhMm(rule.quietHoursStartMinute)}–${formatReminderMinuteOfDayToHhMm(rule.quietHoursEndMinute)}.`
       : "";
-  return `${minutesToTime(rule.windowStartMinute)}–${minutesToTime(rule.windowEndMinute)}, каждые ${rule.intervalMinutes ?? "—"} мин.${q}`;
+  const interval = clampIntervalMinutes(rule.intervalMinutes ?? 60);
+  return `${formatReminderMinuteOfDayToHhMm(rule.windowStartMinute)}–${formatReminderMinuteOfDayToHhMm(rule.windowEndMinute)}, каждые ${interval} мин.${q}`;
 }
 
 const WEEKDAY_TOGGLE_LABELS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"] as const;
@@ -70,7 +71,7 @@ function toggleDayMaskStr(mask: string, index: number): string {
 
 function legacyEditFormFromRule(rule: ReminderRule) {
   return {
-    intervalMinutes: rule.intervalMinutes ?? 60,
+    intervalMinutes: clampIntervalMinutes(rule.intervalMinutes ?? 60),
     windowStartMinute: rule.windowStartMinute,
     windowEndMinute: rule.windowEndMinute,
     daysMask: /^[01]{7}$/.test(rule.daysMask) ? rule.daysMask : "1111111",
@@ -124,6 +125,10 @@ function LegacyCategoryRuleCard({ rule }: { rule: ReminderRule }) {
       setError("Начало окна должно быть меньше конца.");
       return;
     }
+    if (form.intervalMinutes < 30 || form.intervalMinutes > 659) {
+      setError("Интервал от 30 минут до 10 ч 59 мин.");
+      return;
+    }
     if (!/^[01]{7}$/.test(form.daysMask) || !form.daysMask.includes("1")) {
       setError("Выберите дни недели.");
       return;
@@ -150,7 +155,7 @@ function LegacyCategoryRuleCard({ rule }: { rule: ReminderRule }) {
   };
 
   return (
-    <Card className={cn(patientCardClass, "mb-3")}>
+    <Card className={cn(patientListItemClass, "mb-3")}>
       <CardHeader className="px-4 pb-2 pt-4">
         <div className="flex items-center justify-between gap-3">
           <CardTitle className="text-base font-medium leading-tight">
@@ -207,8 +212,8 @@ function LegacyCategoryRuleCard({ rule }: { rule: ReminderRule }) {
                 <Label className="mb-1 block text-xs">Интервал (минуты)</Label>
                 <Input
                   type="number"
-                  min={1}
-                  max={1440}
+                  min={30}
+                  max={659}
                   value={form.intervalMinutes}
                   onChange={(e) =>
                     setForm((f) => ({ ...f, intervalMinutes: Number(e.target.value) }))
@@ -352,7 +357,7 @@ function PersonalReminderCard({
   };
 
   return (
-    <Card className={cn(patientCardClass, "mb-3 overflow-hidden")}>
+    <Card className={cn(patientListItemClass, "mb-3 overflow-hidden")}>
       <CardHeader className="space-y-0 px-4 pb-2 pt-4">
         <div className="flex items-start gap-3">
           <TypeIcon kind={iconKind} />
@@ -415,17 +420,52 @@ export function ReminderRulesClient({
   personalRows,
   legacyRules,
   unseenCount = 0,
+  activeProgram = null,
+  warmupsSectionAvailable = false,
+  warmupsSectionTitle = "Разминки",
+  rehabRuleForBlock = null,
+  warmupRuleForBlock = null,
+  calendarDateKey = "",
+  patientCalendarDayIana = "Europe/Moscow",
 }: {
   personalRows: PersonalReminderRowVM[];
   legacyRules: ReminderRule[];
   unseenCount?: number;
+  activeProgram?: { id: string; title: string } | null;
+  warmupsSectionAvailable?: boolean;
+  warmupsSectionTitle?: string;
+  rehabRuleForBlock?: ReminderRule | null;
+  warmupRuleForBlock?: ReminderRule | null;
+  calendarDateKey?: string;
+  patientCalendarDayIana?: string;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [customOpen, setCustomOpen] = useState(false);
   const [editRow, setEditRow] = useState<PersonalReminderRowVM | null>(null);
+  const [rehabDialogOpen, setRehabDialogOpen] = useState(false);
+  const [warmupDialogOpen, setWarmupDialogOpen] = useState(false);
 
   const refresh = () => router.refresh();
+
+  const hiddenIds = new Set<string>();
+  if (rehabRuleForBlock) hiddenIds.add(rehabRuleForBlock.id);
+  if (warmupRuleForBlock) hiddenIds.add(warmupRuleForBlock.id);
+  const personalRowsMain = personalRows.filter((row) => !hiddenIds.has(row.rule.id));
+
+  const rehabSummary =
+    activeProgram ?
+      rehabRuleForBlock ?
+        summarizeReminderForCalendarDay(rehabRuleForBlock, calendarDateKey, patientCalendarDayIana)
+      : "не настроено"
+    : "";
+
+  const warmupSummary =
+    warmupsSectionAvailable ?
+      warmupRuleForBlock ?
+        summarizeReminderForCalendarDay(warmupRuleForBlock, calendarDateKey, patientCalendarDayIana)
+      : "не настроено"
+    : "";
 
   const handleMarkAllSeen = () => {
     startTransition(async () => {
@@ -543,7 +583,11 @@ export function ReminderRulesClient({
     return null;
   };
 
-  const isEmpty = personalRows.length === 0 && legacyRules.length === 0;
+  const showEmptyHint =
+    personalRowsMain.length === 0 &&
+    legacyRules.length === 0 &&
+    !activeProgram &&
+    !warmupsSectionAvailable;
 
   return (
     <div>
@@ -556,7 +600,65 @@ export function ReminderRulesClient({
         </div>
       )}
 
-      <div className="mb-4">
+      {activeProgram ? (
+        <section id="patient-reminders-rehab" className={cn(patientSurfaceInfoClass, "mb-4 !gap-3")}>
+          <h2 className={patientSectionTitleNormalClass}>Программа реабилитации</h2>
+          <p className={cn(patientMutedTextClass, "text-sm")}>Сегодня: {rehabSummary}</p>
+          <Button type="button" size="sm" variant="outline" onClick={() => setRehabDialogOpen(true)}>
+            Настроить
+          </Button>
+          <ReminderCreateDialog
+            open={rehabDialogOpen}
+            onOpenChange={setRehabDialogOpen}
+            linkedObjectType="rehab_program"
+            linkedObjectId={activeProgram.id}
+            contextTitle={activeProgram.title}
+            existingRule={rehabRuleForBlock ? reminderRuleToPatientJson(rehabRuleForBlock) : null}
+            onSaved={() => {
+              setRehabDialogOpen(false);
+              refresh();
+            }}
+          />
+        </section>
+      ) : null}
+
+      {warmupsSectionAvailable ? (
+        <section id="patient-reminders-warmups" className={cn(patientSurfaceInfoClass, "mb-4 !gap-3")}>
+          <h2 className={patientSectionTitleNormalClass}>{warmupsSectionTitle}</h2>
+          <p className={cn(patientMutedTextClass, "text-sm")}>Сегодня: {warmupSummary}</p>
+          <Button type="button" size="sm" variant="outline" onClick={() => setWarmupDialogOpen(true)}>
+            Настроить
+          </Button>
+          <ReminderCreateDialog
+            open={warmupDialogOpen}
+            onOpenChange={setWarmupDialogOpen}
+            linkedObjectType="content_section"
+            linkedObjectId={DEFAULT_WARMUPS_SECTION_SLUG}
+            contextTitle={warmupsSectionTitle}
+            existingRule={warmupRuleForBlock ? reminderRuleToPatientJson(warmupRuleForBlock) : null}
+            onSaved={() => {
+              setWarmupDialogOpen(false);
+              refresh();
+            }}
+          />
+        </section>
+      ) : null}
+
+      {personalRowsMain.length > 0 ? (
+        <>
+          <h2 className="mb-2 text-sm font-semibold text-[var(--patient-text-primary)]">Мои напоминания</h2>
+          {personalRowsMain.map((row) => (
+            <PersonalReminderCard
+              key={row.rule.id}
+              row={row}
+              onEdit={() => openEditForRow(row)}
+              onPatched={refresh}
+            />
+          ))}
+        </>
+      ) : null}
+
+      <div className="mb-4 mt-2">
         <Button type="button" className="w-full sm:w-auto" onClick={() => setCustomOpen(true)}>
           Создать напоминание
         </Button>
@@ -575,24 +677,10 @@ export function ReminderRulesClient({
         }}
       />
 
-      {isEmpty ? (
+      {showEmptyHint ? (
         <p className={cn(patientMutedTextClass, "py-4 text-center")}>
           Пока нет напоминаний. Добавьте своё или дождитесь настроек от врача.
         </p>
-      ) : null}
-
-      {personalRows.length > 0 ? (
-        <>
-          <h2 className="mb-2 text-sm font-semibold text-[var(--patient-text-primary)]">Мои напоминания</h2>
-          {personalRows.map((row) => (
-            <PersonalReminderCard
-              key={row.rule.id}
-              row={row}
-              onEdit={() => openEditForRow(row)}
-              onPatched={refresh}
-            />
-          ))}
-        </>
       ) : null}
 
       {legacyRules.length > 0 ? (

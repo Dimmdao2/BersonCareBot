@@ -11,3 +11,4 @@
 | Mute в dispatch | done |
 | Home n/N | done |
 | Tests / CI | done |
+| Усиленный patient UX: блоки rehab/разминки, карточка на плане, интервал 30–659, summarize + тесты | done (2026-05-09) |
