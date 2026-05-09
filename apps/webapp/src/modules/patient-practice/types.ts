@@ -21,3 +21,8 @@ export type RecordPracticeInput = {
 export type RecordPracticeResult =
   | { ok: true; id: string }
   | { ok: false; error: "invalid_content_page" };
+
+/** Мета cooldown разминки дня на главной (hero «Разминка выполнена»). */
+export type DailyWarmupHeroCooldownMeta =
+  | { active: false }
+  | { active: true; minutesAgo: number; minutesRemaining: number };

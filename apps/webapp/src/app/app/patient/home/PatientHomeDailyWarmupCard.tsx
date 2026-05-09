@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { Clock3, PlayCircle, Sparkles } from "lucide-react";
+import { CheckCircle2, Clock3, PlayCircle, Sparkles } from "lucide-react";
 import type { ResolvedPatientHomeBlockItem } from "@/modules/patient-home/todayConfig";
 import {
   patientHomeHeroCardGeometryClass,
@@ -14,13 +14,24 @@ import {
 } from "./patientHomeCardStyles";
 import { appLoginWithNextHref, stripApiMediaForAnonymousGuest } from "./patientHomeGuestNav";
 import { PatientHomeSafeImage } from "./PatientHomeSafeImage";
-import { patientHeroPrimaryActionClass } from "@/shared/ui/patientVisual";
+import {
+  patientHeroPrimaryActionClass,
+  patientHeroWarmupDoneCtaClass,
+  patientMutedTextClass,
+} from "@/shared/ui/patientVisual";
 import { cn } from "@/lib/utils";
 
 type Props = {
   warmup: ResolvedPatientHomeBlockItem | null;
   personalTierOk: boolean;
   anonymousGuest: boolean;
+  /**
+   * Недавняя отметка разминки дня для текущего материала — на главной показываем статус вместо CTA.
+   * Задаётся только при `personalTierOk` (см. `PatientHomeToday`).
+   */
+  warmupRecentlyCompletedHero?: boolean;
+  /** Подпись под «Разминка выполнена» (cooldown). */
+  warmupCooldownCaption?: string | null;
 };
 
 const FALLBACK_DURATION_BADGE_LABEL = "5 мин";
@@ -47,7 +58,13 @@ function HeroImageSlotDecor({ children }: { children: ReactNode }) {
   );
 }
 
-export function PatientHomeDailyWarmupCard({ warmup, personalTierOk, anonymousGuest }: Props) {
+export function PatientHomeDailyWarmupCard({
+  warmup,
+  personalTierOk,
+  anonymousGuest,
+  warmupRecentlyCompletedHero = false,
+  warmupCooldownCaption = null,
+}: Props) {
   const page = warmup?.page;
 
   if (!page) {
@@ -76,6 +93,8 @@ export function PatientHomeDailyWarmupCard({ warmup, personalTierOk, anonymousGu
   const heroImageUrl = stripApiMediaForAnonymousGuest(page.imageUrl, anonymousGuest);
   const warmupHref = `/app/patient/content/${encodeURIComponent(page.slug)}?from=daily_warmup`;
   const warmupLinkHref = anonymousGuest ? appLoginWithNextHref(warmupHref) : warmupHref;
+  const showWarmupDoneHero =
+    personalTierOk && !anonymousGuest && warmupRecentlyCompletedHero;
 
   return (
     <section aria-labelledby="patient-home-warmup-heading">
@@ -89,17 +108,32 @@ export function PatientHomeDailyWarmupCard({ warmup, personalTierOk, anonymousGu
             <p className={patientHomeHeroSummaryClampClass}>{page.summary.trim()}</p>
           : <div className="mt-1 min-h-8 shrink-0 md:mt-2 md:min-h-[3rem]" aria-hidden />}
           <div className="mt-auto flex shrink-0 flex-col gap-2 pb-3 pt-6 lg:pb-[34px]">
-            <Link
-              href={warmupLinkHref}
-              prefetch={false}
-              className={cn(
-                patientHeroPrimaryActionClass,
-                "min-h-11 w-fit shrink-0 px-4 py-2 text-sm shadow-[0_6px_14px_rgba(40,77,160,0.24)] lg:min-h-12 lg:w-[22rem] lg:pr-5 lg:text-base xl:w-[24rem]",
-              )}
-            >
-              <PlayCircle className="size-5 shrink-0 lg:size-6" aria-hidden />
-              Начать разминку
-            </Link>
+            {showWarmupDoneHero ?
+              <div className="flex min-w-0 flex-col gap-1">
+                <span
+                  role="status"
+                  className={cn(patientHeroWarmupDoneCtaClass, "select-none")}
+                  aria-label="Разминка дня уже отмечена выполненной"
+                >
+                  <CheckCircle2 className="size-4 shrink-0 sm:size-[18px] lg:size-5" aria-hidden />
+                  Разминка выполнена
+                </span>
+                {warmupCooldownCaption?.trim() ?
+                  <p className={cn(patientMutedTextClass, "max-w-full text-xs leading-snug")}>{warmupCooldownCaption.trim()}</p>
+                : null}
+              </div>
+            : <Link
+                href={warmupLinkHref}
+                prefetch={false}
+                className={cn(
+                  patientHeroPrimaryActionClass,
+                  "min-h-11 w-fit shrink-0 px-4 py-2 text-sm shadow-[0_6px_14px_rgba(40,77,160,0.24)] lg:min-h-12 lg:w-[22rem] lg:pr-5 lg:text-base xl:w-[24rem]",
+                )}
+              >
+                <PlayCircle className="size-5 shrink-0 lg:size-6" aria-hidden />
+                Начать разминку
+              </Link>
+            }
             {anonymousGuest || !personalTierOk ?
               <div className="hidden h-[2.75rem] shrink-0 overflow-hidden lg:block">
                 {anonymousGuest ?

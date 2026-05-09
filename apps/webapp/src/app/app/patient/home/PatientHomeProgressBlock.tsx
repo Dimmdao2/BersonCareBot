@@ -15,11 +15,11 @@ import {
 } from "./patientHomeCardStyles";
 import { appLoginWithNextHref } from "./patientHomeGuestNav";
 import { PatientHomeSafeImage } from "./PatientHomeSafeImage";
+import { streakFlameOpacity } from "./patientHomeStreakFlameOpacity";
 import { cn } from "@/lib/utils";
 
 type Props = {
   practiceTarget: number;
-  personalTierOk: boolean;
   anonymousGuest: boolean;
   progress: { todayDone: number; streak: number } | null;
   /** CMS media URL for streak leading icon; Lucide fallback when null/empty. */
@@ -28,7 +28,6 @@ type Props = {
 
 export function PatientHomeProgressBlock({
   practiceTarget,
-  personalTierOk,
   anonymousGuest,
   progress,
   blockIconImageUrl,
@@ -45,12 +44,13 @@ export function PatientHomeProgressBlock({
       </Link>
       , чтобы видеть прогресс.
     </>
-  : (
-    "Прогресс появится после активации профиля."
-  );
+  : null;
 
   const streakLabel = (n: number) =>
     n === 1 ? "день" : n > 1 && n < 5 ? "дня" : "дней";
+
+  const flameOpacity =
+    anonymousGuest || !progress ? streakFlameOpacity(0) : streakFlameOpacity(progress.streak);
 
   return (
     <section aria-labelledby="patient-home-progress-heading">
@@ -64,10 +64,17 @@ export function PatientHomeProgressBlock({
               Сегодня выполнено
               <Info className="size-3.5 text-[var(--patient-text-muted)]" aria-hidden />
             </h3>
-            {anonymousGuest || !personalTierOk ?
+            {anonymousGuest ?
               <p className={patientHomeBlockBodySmClamp2Mt2Class}>{guestCopy}</p>
-            : progress ?
-              <>
+            : !progress ?
+              <div className="mt-2 space-y-2" aria-busy="true">
+                <div className="h-9 min-h-[36px] w-24 animate-pulse rounded-lg bg-muted/80 sm:h-10 sm:min-h-[40px]" />
+                <div className="h-2 w-full overflow-hidden rounded-full bg-[#e5e7eb]">
+                  <div className="h-full w-1/3 rounded-full bg-muted/90" />
+                </div>
+                <p className={patientHomeBlockBodySmClass}>Загрузка прогресса…</p>
+              </div>
+            : <>
                 <p className="mt-0.5" aria-label={`Выполнено практик сегодня: ${progress.todayDone}, цель ${practiceTarget}`}>
                   <span className={patientHomeProgressValueClass}>{displayDone}</span>
                   <span className={patientHomeProgressValueSuffixClass}> из {practiceTarget}</span>
@@ -86,19 +93,15 @@ export function PatientHomeProgressBlock({
                   />
                 </div>
               </>
-            :
-              <div className="mt-2 space-y-2" aria-busy="true">
-                <div className="h-9 min-h-[36px] w-24 animate-pulse rounded-lg bg-muted/80 sm:h-10 sm:min-h-[40px]" />
-                <div className="h-2 w-full overflow-hidden rounded-full bg-[#e5e7eb]">
-                  <div className="h-full w-1/3 rounded-full bg-muted/90" />
-                </div>
-                <p className={patientHomeBlockBodySmClass}>Загрузка прогресса…</p>
-              </div>
             }
           </div>
           <div className={patientHomeProgressStreakColClass}>
             <div className="flex min-h-0 flex-col items-center justify-center gap-0 lg:size-24 lg:justify-start lg:rounded-full lg:bg-white lg:pt-2 lg:ring-[8px] lg:ring-[#f3f4f6]">
-              <span className="inline-flex shrink-0 lg:-mt-1" aria-hidden>
+              <span
+                className="inline-flex shrink-0 transition-[opacity] duration-300 ease-out lg:-mt-1"
+                style={{ opacity: flameOpacity }}
+                aria-hidden
+              >
                 <PatientHomeSafeImage
                   src={blockIconImageUrl}
                   alt=""
@@ -111,14 +114,14 @@ export function PatientHomeProgressBlock({
                   }
                 />
               </span>
-              {progress && personalTierOk && !anonymousGuest ?
+              {progress && !anonymousGuest ?
                 <span className={patientHomeProgressStreakValueClass}>{progress.streak}</span>
               :
                 <span className={patientHomeProgressStreakValueClass} aria-hidden>
                   <span className="text-[var(--patient-text-muted)]">—</span>
                 </span>
               }
-              {progress && personalTierOk && !anonymousGuest ?
+              {progress && !anonymousGuest ?
                 <span className="-mt-0.5 block max-w-[3.5rem] text-center text-[10px] font-semibold leading-[11px] text-[var(--patient-block-caption)] lg:max-w-[4.75rem] lg:leading-3 lg:text-[11px]">
                   <span className="block">{streakLabel(progress.streak)}</span>
                   <span className="block">подряд</span>

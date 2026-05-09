@@ -4,6 +4,8 @@ import { isPatientHomeContentPageCandidateForBlock } from "@/modules/patient-hom
 import type { SystemSetting, SystemSettingKey, SystemSettingScope } from "@/modules/system-settings/types";
 
 export type ResolvedWarmupPage = {
+  /** `content_pages.id` — для проверок вроде cooldown после разминки на главной. */
+  contentPageId: string;
   slug: string;
   title: string;
   summary: string;
@@ -18,7 +20,7 @@ export type ResolvedPatientHomeBlockItem = {
 export type PatientHomeTodayConfigDeps = {
   patientHomeBlocks: { listBlocksWithItems(): Promise<PatientHomeBlock[]> };
   contentPages: {
-    getBySlug(slug: string): Promise<(ResolvedWarmupPage & { section: string }) | null>;
+    getBySlug(slug: string): Promise<(Pick<ResolvedWarmupPage, "slug" | "title" | "summary" | "imageUrl"> & { id: string; section: string }) | null>;
   };
   contentSections: {
     getBySlug(slug: string): Promise<{
@@ -49,12 +51,14 @@ export function parsePatientHomeDailyPracticeTarget(valueJson: unknown): number 
 }
 
 function mapPage(row: {
+  id: string;
   slug: string;
   title: string;
   summary: string;
   imageUrl: string | null;
 }): ResolvedWarmupPage {
   return {
+    contentPageId: row.id,
     slug: row.slug,
     title: row.title,
     summary: row.summary,

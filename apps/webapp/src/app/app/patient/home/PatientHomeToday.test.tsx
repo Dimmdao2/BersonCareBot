@@ -7,6 +7,7 @@ import type { PatientHomeBlock, PatientHomeBlockItem } from "@/modules/patient-h
 import { getPatientHomeTodayConfig } from "@/modules/patient-home/todayConfig";
 import { PatientHomeToday } from "./PatientHomeToday";
 import { routePaths } from "@/app-layer/routes/paths";
+import { PATIENT_HOME_DAILY_WARMUP_HERO_COOLDOWN_MINUTES } from "@/modules/patient-home/dailyWarmupHeroCooldown";
 
 const listRulesByUser = vi.fn();
 const listForPatient = vi.fn();
@@ -19,6 +20,7 @@ const contentSectionsGetBySlug = vi.fn();
 const contentPagesGetBySlug = vi.fn();
 const coursesGetCourseForDoctor = vi.fn();
 const getProgress = vi.fn();
+const getDailyWarmupHeroCooldownMeta = vi.fn();
 const getCheckinState = vi.fn();
 const getWeekSparkline = vi.fn();
 const refresh = vi.fn();
@@ -42,7 +44,7 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
     patientCalendarTimezone: { getIanaForUser: patientCalendarGetIanaForUser },
     treatmentProgramPatientActions: { listChecklistDoneToday },
     systemSettings: { getSetting: vi.fn().mockResolvedValue(null) },
-    patientPractice: { getProgress },
+    patientPractice: { getProgress, getDailyWarmupHeroCooldownMeta },
     patientMood: { getCheckinState, getWeekSparkline },
   }),
 }));
@@ -117,6 +119,7 @@ describe("PatientHomeToday", () => {
       dailyWarmupItem: {
         blockItem: homeItem("i-w", "daily_warmup", "content_page", "fixture-warmup-page", 0),
         page: {
+          contentPageId: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
           slug: "fixture-warmup-page",
           title: "Fixture warmup",
           summary: "Summary",
@@ -141,6 +144,7 @@ describe("PatientHomeToday", () => {
     contentPagesGetBySlug.mockImplementation(async (slug: string) => {
       if (slug === "fixture-warmup-page") {
         return {
+          id: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
           slug,
           title: "Fixture warmup",
           summary: "Summary",
@@ -190,6 +194,7 @@ describe("PatientHomeToday", () => {
     patientCalendarGetIanaForUser.mockResolvedValue(null);
     listChecklistDoneToday.mockResolvedValue(emptyChecklistTodaySnapshot());
     getProgress.mockResolvedValue({ todayDone: 1, todayTarget: 3, streak: 2 });
+    getDailyWarmupHeroCooldownMeta.mockResolvedValue({ active: false });
     getCheckinState.mockResolvedValue({
       mood: { moodDate: "2026-04-28", score: 4 },
       lastEntry: { id: "e1", recordedAt: "2026-04-28T10:00:00.000Z", score: 4 },
@@ -204,6 +209,7 @@ describe("PatientHomeToday", () => {
     expect(listRulesByUser).not.toHaveBeenCalled();
     expect(listForPatient).not.toHaveBeenCalled();
     expect(getProgress).not.toHaveBeenCalled();
+    expect(getDailyWarmupHeroCooldownMeta).not.toHaveBeenCalled();
     expect(getCheckinState).not.toHaveBeenCalled();
 
     expect(screen.queryByText(/Fixture User/i)).toBeNull();
@@ -234,12 +240,14 @@ describe("PatientHomeToday", () => {
 
     expect(listRulesByUser).not.toHaveBeenCalled();
     expect(listForPatient).not.toHaveBeenCalled();
-    expect(getProgress).not.toHaveBeenCalled();
+    expect(getProgress).toHaveBeenCalled();
+    expect(getDailyWarmupHeroCooldownMeta).not.toHaveBeenCalled();
     expect(getCheckinState).not.toHaveBeenCalled();
 
     expect(screen.queryByText(/Fixture User/i)).toBeNull();
     expect(screen.getByRole("link", { name: /Активировать профиль/i })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: /Сегодня выполнено/i })).toBeInTheDocument();
+    expect(screen.getByLabelText(/Выполнено практик сегодня: 1, цель 3/)).toBeInTheDocument();
     expect(screen.getByText(/Как ваше сегодня/i)).toHaveProperty("tagName", "H3");
     for (const link of screen.getAllByRole("link", { name: /Настроить/i })) {
       expect(link).toHaveAttribute("href", routePaths.patientReminders);
@@ -260,10 +268,29 @@ describe("PatientHomeToday", () => {
     expect(getProgress).toHaveBeenCalled();
     expect(getCheckinState).toHaveBeenCalledWith(fixtureSession.user.userId, "Europe/Moscow");
     expect(getWeekSparkline).toHaveBeenCalledWith(fixtureSession.user.userId, "Europe/Moscow");
+    expect(getDailyWarmupHeroCooldownMeta).toHaveBeenCalledWith(
+      fixtureSession.user.userId,
+      "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+      PATIENT_HOME_DAILY_WARMUP_HERO_COOLDOWN_MINUTES,
+    );
 
     expect(screen.getByRole("heading", { name: /Fixture User!/i })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: /Сегодня выполнено/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Самочувствие 4 из 5/i })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("patient tier: warmup hero shows «Разминка выполнена» and cooldown caption when cooldown active", async () => {
+    getDailyWarmupHeroCooldownMeta.mockResolvedValueOnce({ active: true, minutesAgo: 3, minutesRemaining: 17 });
+    const tree = await PatientHomeToday({
+      session: fixtureSession,
+      personalTierOk: true,
+      canViewAuthOnlyContent: true,
+    });
+    render(tree);
+
+    expect(screen.getByRole("status", { name: /Разминка дня уже отмечена выполненной/i })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Начать разминку/i })).toBeNull();
+    expect(screen.getByText(/Разминка будет доступна через 17 минут\./i)).toBeInTheDocument();
   });
 
   it("patient tier: week sparkline uses saved calendar IANA when set", async () => {
@@ -294,6 +321,7 @@ describe("PatientHomeToday", () => {
     contentPagesGetBySlug.mockImplementation(async (slug: string) => {
       if (slug === "fixture-warmup-page") {
         return {
+          id: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
           slug,
           title: "Fixture warmup",
           summary: "Summary",
@@ -304,6 +332,7 @@ describe("PatientHomeToday", () => {
       }
       if (slug === "fixture-useful-post") {
         return {
+          id: "33333333-3333-4333-8333-333333333333",
           slug,
           title: "Статья для главной",
           summary: "",

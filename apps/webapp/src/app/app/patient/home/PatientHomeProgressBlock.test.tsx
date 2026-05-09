@@ -7,23 +7,23 @@ import { PatientHomeProgressBlock } from "./PatientHomeProgressBlock";
 describe("PatientHomeProgressBlock", () => {
   it("shows login hint for anonymous guest", () => {
     render(
-      <PatientHomeProgressBlock practiceTarget={3} personalTierOk={false} anonymousGuest progress={null} />,
+      <PatientHomeProgressBlock practiceTarget={3} anonymousGuest progress={null} />,
     );
     expect(screen.getByRole("link", { name: /Войдите/i })).toBeInTheDocument();
   });
 
-  it("shows activation hint without tier", () => {
+  it("shows counters when logged in with progress data", () => {
     render(
-      <PatientHomeProgressBlock practiceTarget={3} personalTierOk={false} anonymousGuest={false} progress={null} />,
+      <PatientHomeProgressBlock practiceTarget={3} anonymousGuest={false} progress={{ todayDone: 1, streak: 2 }} />,
     );
-    expect(screen.getByText(/Прогресс появится после активации профиля/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Выполнено практик сегодня: 1, цель 3/)).toBeInTheDocument();
+    expect(screen.getByText(/2/)).toBeInTheDocument();
   });
 
   it("shows counters for patient with progress", () => {
     render(
       <PatientHomeProgressBlock
         practiceTarget={3}
-        personalTierOk
         anonymousGuest={false}
         progress={{ todayDone: 2, streak: 4 }}
       />,
@@ -38,7 +38,6 @@ describe("PatientHomeProgressBlock", () => {
     const { container } = render(
       <PatientHomeProgressBlock
         practiceTarget={3}
-        personalTierOk
         anonymousGuest={false}
         progress={{ todayDone: 2, streak: 4 }}
         blockIconImageUrl="/api/media/eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee"

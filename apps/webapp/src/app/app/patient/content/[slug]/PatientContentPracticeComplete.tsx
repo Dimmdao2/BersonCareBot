@@ -7,13 +7,7 @@ import toast from "react-hot-toast";
 import { Check, CheckCircle2 } from "lucide-react";
 import { routePaths } from "@/app-layer/routes/paths";
 import { appLoginWithNextHref } from "@/app/app/patient/home/patientHomeGuestNav";
-import {
-  PATIENT_HOME_MOOD_SCORE_CONTAINER_HOVER,
-  PATIENT_HOME_MOOD_SCORE_ICON_CLASS,
-  PATIENT_HOME_MOOD_SCORE_ICONS,
-} from "@/app/app/patient/home/patientHomeMoodScaleVisual";
-import { patientHomeMoodOptionButtonClass } from "@/app/app/patient/home/patientHomeCardStyles";
-import { PatientHomeSafeImage } from "@/app/app/patient/home/PatientHomeSafeImage";
+import { PatientHomeMoodScoreRow } from "@/app/app/patient/home/PatientHomeMoodScoreRow";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { PatientHomeMoodIconOption } from "@/modules/patient-home/patientHomeMoodIcons";
 import type { PracticeSource } from "@/modules/patient-practice/types";
@@ -22,10 +16,8 @@ import {
   patientButtonSuccessClass,
   patientCardClass,
   patientInlineLinkClass,
-  patientModalDialogContentShellClass,
-  patientModalHeaderBarClass,
-  patientModalDialogTitleClass,
   patientMutedTextClass,
+  patientSectionTitleClass,
   patientSurfaceSuccessClass,
 } from "@/shared/ui/patientVisual";
 
@@ -58,6 +50,8 @@ export function PatientContentPracticeComplete({
   const [postingWarmup, setPostingWarmup] = useState(false);
   const [saved, setSaved] = useState(false);
   const [warmupCompletionId, setWarmupCompletionId] = useState<string | null>(null);
+  /** Выбранный балл в модалке — подсветка как на главной; сбрасываем при открытии/ошибке. */
+  const [pickedMoodScore, setPickedMoodScore] = useState<number | null>(null);
 
   const loginHref = appLoginWithNextHref(contentPath);
 
@@ -116,10 +110,12 @@ export function PatientContentPracticeComplete({
       });
       const data = (await res.json().catch(() => ({}))) as { ok?: boolean; duplicate?: boolean };
       if (res.status === 401) {
+        setPickedMoodScore(null);
         toast.error("Войдите, чтобы сохранить выполнение.");
         return;
       }
       if (!res.ok || !data.ok) {
+        setPickedMoodScore(null);
         toast.error("Не удалось сохранить. Попробуйте позже.");
         return;
       }
@@ -127,6 +123,9 @@ export function PatientContentPracticeComplete({
       setDialogOpen(false);
       toast.success("Записано.");
       router.push(routePaths.patient);
+    } catch {
+      setPickedMoodScore(null);
+      toast.error("Не удалось сохранить. Попробуйте позже.");
     } finally {
       setSubmitting(false);
     }
@@ -149,14 +148,17 @@ export function PatientContentPracticeComplete({
         error?: string;
       };
       if (res.status === 401) {
+        setPickedMoodScore(null);
         toast.error("Войдите, чтобы сохранить выполнение.");
         return;
       }
       if (res.status === 403 && data.error === "patient_activation_required") {
+        setPickedMoodScore(null);
         toast.error("Подтвердите профиль пациента, чтобы сохранять прогресс.");
         return;
       }
       if (!res.ok || !data.ok) {
+        setPickedMoodScore(null);
         toast.error("Не удалось сохранить. Попробуйте позже.");
         return;
       }
@@ -164,13 +166,25 @@ export function PatientContentPracticeComplete({
       setDialogOpen(false);
       toast.success("Записано.");
       router.refresh();
+    } catch {
+      setPickedMoodScore(null);
+      toast.error("Не удалось сохранить. Попробуйте позже.");
     } finally {
       setSubmitting(false);
     }
   }
 
+  function handleModalPickScore(score: number) {
+    setPickedMoodScore(score);
+    if (isWarmup) void patchWarmupFeeling(score);
+    else void submitWithFeeling(score);
+  }
+
   function handleDialogOpenChange(open: boolean) {
     setDialogOpen(open);
+    if (open) {
+      setPickedMoodScore(null);
+    }
     if (!open && isWarmup && warmupCompletionId !== null && !warmupSubmittedRef.current) {
       setSaved(true);
     }
@@ -235,54 +249,25 @@ export function PatientContentPracticeComplete({
         </button>
       </section>
       <Dialog open={dialogOpen} onOpenChange={handleDialogOpenChange}>
-        <DialogContent className={patientModalDialogContentShellClass}>
-          <DialogHeader className={patientModalHeaderBarClass}>
-            <DialogTitle className={patientModalDialogTitleClass}>{modalTitle}</DialogTitle>
+        <DialogContent
+          className={cn(
+            "flex max-h-[85vh] flex-col gap-0 overflow-hidden p-0",
+            "[&_[data-slot=dialog-close]]:text-[var(--patient-text-muted)] [&_[data-slot=dialog-close]]:hover:bg-black/[0.06] [&_[data-slot=dialog-close]]:focus-visible:ring-[var(--patient-border)]",
+          )}
+        >
+          <DialogHeader className="shrink-0 gap-0 px-4 pb-2 pt-4 pr-12">
+            <DialogTitle className={cn(patientSectionTitleClass, "text-sm leading-snug")}>
+              {modalTitle}
+            </DialogTitle>
           </DialogHeader>
-          <div className="flex flex-col gap-3 p-4 pt-0">
-            <div
-              className="grid min-h-0 grid-cols-5 items-center gap-1"
-              role="group"
-              aria-label="Оценка самочувствия"
-            >
-              {moodIconOptions.map((option) => {
-                const MoodIcon = PATIENT_HOME_MOOD_SCORE_ICONS[option.score];
-                return (
-                  <div key={option.score} className="flex min-w-0 flex-col items-center">
-                    <button
-                      type="button"
-                      disabled={modalBusy}
-                      className={cn(
-                        patientHomeMoodOptionButtonClass,
-                        PATIENT_HOME_MOOD_SCORE_CONTAINER_HOVER[option.score],
-                        modalBusy && "cursor-not-allowed opacity-70",
-                      )}
-                      aria-label={`Самочувствие ${option.score} из 5: ${option.label}`}
-                      onClick={() =>
-                        void (isWarmup ? patchWarmupFeeling(option.score) : submitWithFeeling(option.score))
-                      }
-                    >
-                      <PatientHomeSafeImage
-                        src={modalBusy ? null : option.imageUrl}
-                        alt=""
-                        className="size-full rounded-full object-cover"
-                        loading="lazy"
-                        fallback={
-                          <MoodIcon
-                            aria-hidden
-                            className={cn(
-                              "size-8 shrink-0 sm:size-9",
-                              PATIENT_HOME_MOOD_SCORE_ICON_CLASS[option.score],
-                            )}
-                            strokeWidth={1.15}
-                          />
-                        }
-                      />
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
+          <div className="flex flex-col gap-3 px-4 pb-4">
+            <PatientHomeMoodScoreRow
+              moodOptions={moodIconOptions}
+              frozenDisabled={false}
+              selectedScore={pickedMoodScore}
+              busy={modalBusy}
+              onPickScore={handleModalPickScore}
+            />
             {!isWarmup ? (
               <button
                 type="button"

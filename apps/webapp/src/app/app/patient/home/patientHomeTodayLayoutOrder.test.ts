@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import type { PatientHomeTodayLayoutBlock } from "./PatientHomeTodayLayout";
 import {
   insertMoodBetweenUsefulPostAndBooking,
-  insertSosBookingSplitAfterMood,
+  insertProgressThenSosBookingSplitAfterMood,
   prependPlanBlock,
   reorderPatientHomeLayoutBlocks,
 } from "./patientHomeTodayLayoutOrder";
@@ -46,9 +46,24 @@ describe("patientHomeTodayLayoutOrder", () => {
     expect(out.map((x) => x.code)).toEqual(["daily_warmup", "mood_checkin", "booking"]);
   });
 
-  it("inserts sos_booking_split immediately after mood_checkin", () => {
+  it("inserts progress then sos_booking_split after mood_checkin", () => {
     const split = { code: "sos_booking_split" as const, node: null };
-    const out = insertSosBookingSplitAfterMood(
+    const out = insertProgressThenSosBookingSplitAfterMood(
+      [b("daily_warmup"), b("mood_checkin"), b("progress"), b("situations")],
+      split,
+    );
+    expect(out.map((x) => x.code)).toEqual([
+      "daily_warmup",
+      "mood_checkin",
+      "progress",
+      "sos_booking_split",
+      "situations",
+    ]);
+  });
+
+  it("inserts sos_booking_split after mood when progress block absent", () => {
+    const split = { code: "sos_booking_split" as const, node: null };
+    const out = insertProgressThenSosBookingSplitAfterMood(
       [b("daily_warmup"), b("mood_checkin"), b("situations")],
       split,
     );
@@ -57,7 +72,7 @@ describe("patientHomeTodayLayoutOrder", () => {
 
   it("inserts sos_booking_split at end when mood_checkin is absent", () => {
     const split = { code: "sos_booking_split" as const, node: null };
-    const out = insertSosBookingSplitAfterMood([b("daily_warmup"), b("situations")], split);
+    const out = insertProgressThenSosBookingSplitAfterMood([b("daily_warmup"), b("situations")], split);
     expect(out.map((x) => x.code)).toEqual(["daily_warmup", "situations", "sos_booking_split"]);
   });
 

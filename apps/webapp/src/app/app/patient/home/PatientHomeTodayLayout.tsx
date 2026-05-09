@@ -52,19 +52,13 @@ function desktopBlockLayout(code: PatientHomeTodayLayoutBlockCode): {
         "data-lg-col-start": "9",
         "data-lg-col-span": "4",
       };
-    case "progress":
-      return {
-        className: "lg:col-span-8 lg:col-start-1 lg:order-[30]",
-        "data-lg-order": "30",
-        "data-lg-col-start": "1",
-        "data-lg-col-span": "8",
-      };
+    /** Полная ширина строки напоминаний (пару с прогрессом убрали — прогресс под самочувствием). */
     case "next_reminder":
       return {
-        className: "lg:col-span-4 lg:col-start-9 lg:order-[30]",
+        className: "lg:col-span-12 lg:col-start-1 lg:order-[30]",
         "data-lg-order": "30",
-        "data-lg-col-start": "9",
-        "data-lg-col-span": "4",
+        "data-lg-col-start": "1",
+        "data-lg-col-span": "12",
       };
     /** Compact desktop row: mood / SOS / rehab plan. */
     case "sos":
@@ -74,11 +68,19 @@ function desktopBlockLayout(code: PatientHomeTodayLayoutBlockCode): {
         "data-lg-col-start": "5",
         "data-lg-col-span": "4",
       };
-    /** SOS + запись — под самочувствием, полная ширина строки под парой mood | plan. */
-    case "sos_booking_split":
+    /** «Сегодня выполнено» — под строкой mood | plan, полная ширина, перед SOS+запись. */
+    case "progress":
       return {
         className: "lg:col-span-12 lg:col-start-1 lg:order-[41]",
         "data-lg-order": "41",
+        "data-lg-col-start": "1",
+        "data-lg-col-span": "12",
+      };
+    /** SOS + запись — под прогрессом (DOM: после mood и progress). */
+    case "sos_booking_split":
+      return {
+        className: "lg:col-span-12 lg:col-start-1 lg:order-[42]",
+        "data-lg-order": "42",
         "data-lg-col-start": "1",
         "data-lg-col-span": "12",
       };
@@ -117,7 +119,7 @@ export function PatientHomeTodayLayout({ personalizedName, timeOfDayPrefix, bloc
   return (
     <div
       id="patient-home-today-layout"
-      className="flex min-w-0 flex-col gap-3 overflow-x-hidden pb-6 lg:gap-4"
+      className="flex min-w-0 flex-col gap-3 overflow-x-hidden pb-4 lg:gap-4"
     >
       <PatientHomeGreeting personalizedName={personalizedName} timeOfDayPrefix={timeOfDayPrefix} />
 
@@ -137,6 +139,8 @@ export function PatientHomeTodayLayout({ personalizedName, timeOfDayPrefix, bloc
               className={cn(
                 "min-w-0",
                 block.code === "situations" && "max-lg:my-1",
+                /** Чуть больше воздуха между блоком прогресса и SOS+запись. */
+                block.code === "sos_booking_split" && "mt-2 lg:mt-3",
                 layout.className,
               )}
               data-patient-home-block={block.code}

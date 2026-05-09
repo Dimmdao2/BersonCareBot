@@ -93,4 +93,18 @@ describe("patient practice completions port (in-memory harness)", () => {
     const badUser = await port.updateFeelingById(id, "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb", 5);
     expect(badUser).toBe(false);
   });
+
+  it("getLatestDailyWarmupCompletionCompletedAt returns latest daily_warmup for page", async () => {
+    const port = createInMemoryPatientPracticeCompletionsPort();
+    const userId = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
+    const pageId = "550e8400-e29b-41d4-a716-446655440020";
+    await port.record({ userId, contentPageId: pageId, source: "daily_warmup", feeling: null });
+    const first = await port.getLatestDailyWarmupCompletionCompletedAt(userId, pageId);
+    expect(first).toBeTruthy();
+    await port.record({ userId, contentPageId: pageId, source: "daily_warmup", feeling: null });
+    const second = await port.getLatestDailyWarmupCompletionCompletedAt(userId, pageId);
+    expect(second).toBeTruthy();
+    expect(new Date(second!).getTime()).toBeGreaterThanOrEqual(new Date(first!).getTime());
+    expect(await port.getLatestDailyWarmupCompletionCompletedAt(userId, "550e8400-e29b-41d4-a716-446655440099")).toBeNull();
+  });
 });

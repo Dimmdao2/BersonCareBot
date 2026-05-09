@@ -23,7 +23,7 @@ export default async function PatientHomePage() {
         patientHideHome
       >
         <PatientHomeToday session={null} personalTierOk={false} canViewAuthOnlyContent={false} />
-        <LegalFooterLinks className="mt-4 pb-2" />
+        <LegalFooterLinks className="mt-3 pb-2" />
       </AppShell>
     );
   }
@@ -38,7 +38,7 @@ export default async function PatientHomePage() {
         personalTierOk={personalTierOk}
         canViewAuthOnlyContent={canViewAuthOnlyContent}
       />
-      <LegalFooterLinks className="mt-4 pb-2" />
+      <LegalFooterLinks className="mt-3 pb-2" />
     </AppShell>
   );
 }

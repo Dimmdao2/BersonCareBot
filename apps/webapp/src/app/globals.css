@@ -57,6 +57,14 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+  /**
+   * Заголовки блоков пациента (`patientSectionTitleClass` / главная «Сегодня»): те же переменные,
+   * что под `#app-shell-patient`, но на `:root` — чтобы порталы модалок (вне shell) получали цвет #172f62.
+   */
+  --patient-block-heading: #172f62;
+  --patient-block-heading-font-size: 1rem;
+  --patient-block-heading-line-height: 1.5rem;
+  --patient-block-heading-font-weight: 400;
 }
 
 /**

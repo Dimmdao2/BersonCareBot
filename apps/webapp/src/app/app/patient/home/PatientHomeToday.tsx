@@ -2,6 +2,10 @@ import type { ReactNode } from "react";
 import type { AppSession } from "@/shared/types/session";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { getPatientHomeTodayConfig } from "@/modules/patient-home/todayConfig";
+import {
+  PATIENT_HOME_DAILY_WARMUP_HERO_COOLDOWN_MINUTES,
+  formatPatientHomeWarmupCooldownCaption,
+} from "@/modules/patient-home/dailyWarmupHeroCooldown";
 import { filterAndSortPatientHomeBlocks } from "@/modules/patient-home/patientHomeBlockPolicy";
 import type { ReminderRule } from "@/modules/reminders/types";
 import {
@@ -41,7 +45,7 @@ import { PatientHomeSubscriptionCarousel } from "./PatientHomeSubscriptionCarous
 import { PatientHomeCoursesRow } from "./PatientHomeCoursesRow";
 import { PatientHomeTodayLayout } from "./PatientHomeTodayLayout";
 import {
-  insertSosBookingSplitAfterMood,
+  insertProgressThenSosBookingSplitAfterMood,
   reorderPatientHomeLayoutBlocks,
 } from "./patientHomeTodayLayoutOrder";
 import { PatientHomeUsefulPostCard } from "./PatientHomeUsefulPostCard";
@@ -176,15 +180,34 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
   /** Единый «сейчас» для заголовка и mute; pick учитывает глобальную заглушку. */
   let patientHomeReminderEvaluatedAt: Date | null = null;
   let moodWeekTz = appTz;
+  let dailyWarmupHeroCooldownActive = false;
+  let warmupCooldownCaption: string | null = null;
+
+  if (session) {
+    const p = await deps.patientPractice.getProgress(session.user.userId, appTz, todayCfg.practiceTarget);
+    progress = { todayDone: p.todayDone, streak: p.streak };
+  }
+
   if (personalTierOk && session) {
-    const [rules, instances, p, moodState, mutedUntilIso, patientCalTz] = await Promise.all([
+    const warmupPageId = todayCfg.dailyWarmupItem?.page?.contentPageId;
+    const [rules, instances, moodState, mutedUntilIso, patientCalTz, warmupCooldownMeta] = await Promise.all([
       deps.reminders.listRulesByUser(session.user.userId),
       deps.treatmentProgramInstance.listForPatient(session.user.userId),
-      deps.patientPractice.getProgress(session.user.userId, appTz, todayCfg.practiceTarget),
       deps.patientMood.getCheckinState(session.user.userId, appTz),
       deps.reminders.getReminderMutedUntil(session.user.userId),
       deps.patientCalendarTimezone.getIanaForUser(session.user.userId),
+      warmupPageId ?
+        deps.patientPractice.getDailyWarmupHeroCooldownMeta(
+          session.user.userId,
+          warmupPageId,
+          PATIENT_HOME_DAILY_WARMUP_HERO_COOLDOWN_MINUTES,
+        )
+      : Promise.resolve({ active: false as const }),
     ]);
+    if (warmupCooldownMeta.active) {
+      dailyWarmupHeroCooldownActive = true;
+      warmupCooldownCaption = formatPatientHomeWarmupCooldownCaption(warmupCooldownMeta.minutesRemaining);
+    }
     moodWeekTz = resolveCalendarDayIanaForPatient(patientCalTz, appTz);
     const week = await deps.patientMood.getWeekSparkline(session.user.userId, moodWeekTz);
     patientHomeReminderEvaluatedAt = new Date();
@@ -222,7 +245,6 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
         }
       }
     }
-    progress = { todayDone: p.todayDone, streak: p.streak };
     initialMoodCheckin = moodState;
     moodWeekDays = week;
     if (deps.reminderJournal) {
@@ -271,6 +293,8 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
             warmup={todayCfg.dailyWarmupItem}
             personalTierOk={personalTierOk}
             anonymousGuest={anonymousGuest}
+            warmupRecentlyCompletedHero={dailyWarmupHeroCooldownActive}
+            warmupCooldownCaption={warmupCooldownCaption}
           />
         );
       case "useful_post":
@@ -291,7 +315,6 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
         return (
           <PatientHomeProgressBlock
             practiceTarget={todayCfg.practiceTarget}
-            personalTierOk={personalTierOk}
             anonymousGuest={anonymousGuest}
             progress={progress}
             blockIconImageUrl={blockLeadingIconFor("progress")}
@@ -370,22 +393,25 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
       ),
   );
 
-  if (mergedStripHasContent) {
-    layoutBlocks = insertSosBookingSplitAfterMood(layoutBlocks, {
-      code: "sos_booking_split",
-      node: (
-        <PatientHomeSosBookingSplitCard
-          sos={sosCard}
-          showSosHalf={Boolean(hasSosBlock && sosCard)}
-          showBookingHalf={hasBookingBlock}
-          personalTierOk={personalTierOk}
-          anonymousGuest={anonymousGuest}
-          sosIconUrl={blockLeadingIconFor("sos")}
-          bookingIconUrl={blockLeadingIconFor("booking")}
-        />
-      ),
-    });
-  }
+  layoutBlocks = insertProgressThenSosBookingSplitAfterMood(
+    layoutBlocks,
+    mergedStripHasContent ?
+      {
+        code: "sos_booking_split",
+        node: (
+          <PatientHomeSosBookingSplitCard
+            sos={sosCard}
+            showSosHalf={Boolean(hasSosBlock && sosCard)}
+            showBookingHalf={hasBookingBlock}
+            personalTierOk={personalTierOk}
+            anonymousGuest={anonymousGuest}
+            sosIconUrl={blockLeadingIconFor("sos")}
+            bookingIconUrl={blockLeadingIconFor("booking")}
+          />
+        ),
+      }
+    : null,
+  );
 
   return (
     <PatientHomeTodayLayout personalizedName={personalizedName} timeOfDayPrefix={timeOfDayPrefix} blocks={layoutBlocks} />

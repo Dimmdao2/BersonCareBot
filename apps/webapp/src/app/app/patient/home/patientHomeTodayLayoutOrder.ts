@@ -1,15 +1,34 @@
 import type { PatientHomeTodayLayoutBlock } from "./PatientHomeTodayLayout";
 
-/** Объединённый SOS + запись — сразу после блока самочувствия (mobile DOM order). */
-export function insertSosBookingSplitAfterMood(
+/**
+ * Блок «Сегодня выполнено» сразу под самочувствием, затем объединённый SOS + запись.
+ * Без `progress` в массиве ведёт себя как вставка split только после mood.
+ */
+export function insertProgressThenSosBookingSplitAfterMood(
   blocks: PatientHomeTodayLayoutBlock[],
   split: PatientHomeTodayLayoutBlock | null,
 ): PatientHomeTodayLayoutBlock[] {
-  if (!split) return blocks;
-  const moodIdx = blocks.findIndex((b) => b.code === "mood_checkin");
-  const insertAt = moodIdx !== -1 ? moodIdx + 1 : blocks.length;
-  const next = [...blocks];
-  next.splice(insertAt, 0, split);
+  let next = [...blocks];
+
+  const progressIdx = next.findIndex((b) => b.code === "progress");
+  const progressBlock = progressIdx !== -1 ? next.splice(progressIdx, 1)[0] : null;
+
+  const moodIdx = next.findIndex((b) => b.code === "mood_checkin");
+  if (progressBlock && moodIdx !== -1) {
+    next.splice(moodIdx + 1, 0, progressBlock);
+  } else if (progressBlock) {
+    next.push(progressBlock);
+  }
+
+  if (!split) return next;
+
+  const moodIdx2 = next.findIndex((b) => b.code === "mood_checkin");
+  const insertSplit =
+    moodIdx2 === -1 ? next.length
+    : next[moodIdx2 + 1]?.code === "progress" ? moodIdx2 + 2
+    : moodIdx2 + 1;
+
+  next.splice(insertSplit, 0, split);
   return next;
 }
 

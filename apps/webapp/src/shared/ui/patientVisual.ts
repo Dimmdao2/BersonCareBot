@@ -319,6 +319,15 @@ export const patientPrimaryActionClass = patientButtonPrimaryClass;
  */
 export const patientHeroPrimaryActionClass = patientButtonPrimaryClass;
 
+/**
+ * Статус на главной после недавней разминки дня: бледно-зелёная «кнопка» без навигации (не CTA).
+ */
+export const patientHeroWarmupDoneCtaClass = cn(
+  "inline-flex max-w-full min-h-9 min-w-0 shrink-0 cursor-default items-center justify-center gap-1.5 rounded-md border border-[#bbf7d0] bg-[#ecfdf5] px-3 py-1.5",
+  "text-xs font-medium leading-tight tracking-tight text-[#166534] whitespace-nowrap sm:min-h-10 sm:gap-2 sm:px-3.5 sm:py-2 sm:text-sm",
+  "lg:min-h-11 lg:w-[22rem] lg:justify-start lg:px-4 xl:w-[24rem]",
+);
+
 export const patientSecondaryActionClass = patientButtonSecondaryClass;
 
 export const patientDangerActionClass = patientButtonDangerOutlineClass;

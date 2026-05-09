@@ -3,6 +3,7 @@
 import { beforeEach, describe, expect, it, vi, afterEach } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { parsePatientHomeMoodIcons } from "@/modules/patient-home/patientHomeMoodIcons";
+import { routePaths } from "@/app-layer/routes/paths";
 import { PatientHomeMoodCheckin } from "./PatientHomeMoodCheckin";
 
 const defaultMoodOptions = parsePatientHomeMoodIcons(null);
@@ -52,6 +53,10 @@ describe("PatientHomeMoodCheckin", () => {
 
     expect(screen.getAllByRole("button", { name: /Самочувствие/i })).toHaveLength(5);
     expect(screen.getByRole("button", { name: /Самочувствие 4 из 5/i })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("link", { name: /Подробная история в дневнике/i })).toHaveAttribute(
+      "href",
+      routePaths.diary,
+    );
     expect(screen.queryByText(/Записано/i)).toBeNull();
     expect(screen.queryByRole("button", { name: /Изменить/i })).toBeNull();
   });

@@ -27,6 +27,7 @@ describe("PatientHomeDailyWarmupCard", () => {
         warmup={{
           blockItem,
           page: {
+            contentPageId: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
             slug: "fixture-warmup",
             title: "Warmup",
             summary: "",
@@ -38,5 +39,31 @@ describe("PatientHomeDailyWarmupCard", () => {
     const link = screen.getByRole("link", { name: /Начать разминку/i });
     expect(link.getAttribute("href")).toContain("from=daily_warmup");
     expect(link.getAttribute("href")).toContain("/app/patient/content/");
+  });
+
+  it("shows pale green completed label and optional cooldown caption instead of link when warmupRecentlyCompletedHero", () => {
+    render(
+      <PatientHomeDailyWarmupCard
+        personalTierOk
+        anonymousGuest={false}
+        warmupRecentlyCompletedHero
+        warmupCooldownCaption="Разминка будет доступна через 19 минут."
+        warmup={{
+          blockItem,
+          page: {
+            contentPageId: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+            slug: "fixture-warmup",
+            title: "Warmup",
+            summary: "",
+            imageUrl: null,
+          },
+        }}
+      />,
+    );
+    expect(screen.getByRole("status", { name: /Разминка дня уже отмечена выполненной/i })).toHaveTextContent(
+      /Разминка выполнена/i,
+    );
+    expect(screen.getByText(/Разминка будет доступна через 19 минут\./i)).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Начать разминку/i })).toBeNull();
   });
 });

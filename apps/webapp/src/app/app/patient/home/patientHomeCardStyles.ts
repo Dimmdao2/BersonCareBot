@@ -518,10 +518,10 @@ export const patientHomeReminderMobileSubtitleClass = cn(
 /** Next reminder: compact warning card (отдельно от других secondary-карточек). */
 export const patientHomeReminderCardGeometryClass = cn(
   "flex min-h-[88px] flex-col justify-center gap-2 overflow-hidden",
-  "rounded-[var(--patient-card-radius-mobile)] border border-[#fde68a] bg-[linear-gradient(135deg,#fffaf0_0%,#fff7df_100%)] p-3",
-  /** Mobile: уже полотно (~10px с каждой стороны), без верхней рамки/скругления, вплотную к блоку над собой (ожидается «Прогресс» в потоке колонки). */
-  "max-lg:-mt-4 max-lg:mx-2.5 max-lg:rounded-t-none max-lg:border-t-0",
-  "lg:mx-0 lg:mt-0 lg:h-[150px] lg:min-h-0 lg:justify-between lg:gap-3 lg:rounded-[var(--patient-card-radius-desktop)] lg:p-5",
+  "rounded-[var(--patient-card-radius-mobile)] border border-[#fde68a] bg-[linear-gradient(135deg,#fffaf0_0%,#fff7df_100%)] px-3 py-2.5",
+  /** Mobile: отступы между 3px и 10px (~середина), без верхней рамки/скругления; снизу скругление чуть больше базового `patient-card-radius-mobile`. */
+  "max-lg:-mt-4 max-lg:mx-[7px] max-lg:rounded-t-none max-lg:rounded-b-[10px] max-lg:border-t-0",
+  "lg:mx-0 lg:mt-0 lg:h-[150px] lg:min-h-0 lg:justify-between lg:gap-3 lg:rounded-[var(--patient-card-radius-desktop)] lg:px-5 lg:py-4",
 );
 
 export const patientHomeSosThumbSlotClass = cn(

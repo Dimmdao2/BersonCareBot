@@ -58,6 +58,7 @@ describe("getPatientHomeTodayConfig", () => {
 
   it("resolves first visible warmup item to published page", async () => {
     const getBySlug = vi.fn().mockResolvedValue({
+      id: "11111111-1111-4111-8111-111111111111",
       slug: "warm-1",
       title: "Warm",
       summary: "S",
@@ -98,6 +99,7 @@ describe("getPatientHomeTodayConfig", () => {
     const out = await getPatientHomeTodayConfig(deps);
     expect(out.practiceTarget).toBe(4);
     expect(out.dailyWarmupItem?.page?.slug).toBe("warm-1");
+    expect(out.dailyWarmupItem?.page?.contentPageId).toBe("11111111-1111-4111-8111-111111111111");
     expect(getBySlug).toHaveBeenCalledWith("warm-1");
   });
 
@@ -139,7 +141,16 @@ describe("getPatientHomeTodayConfig", () => {
       systemSettings: { getSetting: async () => null },
     };
     getBySlug.mockImplementation(async (slug: string) =>
-      slug === "ok" ? { slug: "ok", title: "OK", summary: "", imageUrl: null, section: "warmups" } : null,
+      slug === "ok" ?
+        {
+          id: "22222222-2222-4222-8222-222222222222",
+          slug: "ok",
+          title: "OK",
+          summary: "",
+          imageUrl: null,
+          section: "warmups",
+        }
+      : null,
     );
     const out = await getPatientHomeTodayConfig(deps);
     expect(out.dailyWarmupItem?.page?.slug).toBe("ok");
@@ -148,7 +159,14 @@ describe("getPatientHomeTodayConfig", () => {
   it("rotates visible warmup items by weekday index", async () => {
     const getBySlug = vi.fn(async (slug: string) =>
       slug === "warm-a" || slug === "warm-b" ?
-        { slug, title: slug, summary: "", imageUrl: null, section: "warmups" }
+        {
+          id: slug === "warm-a" ? "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" : "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          slug,
+          title: slug,
+          summary: "",
+          imageUrl: null,
+          section: "warmups",
+        }
       : null,
     );
     const deps = {

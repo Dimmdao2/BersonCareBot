@@ -1,5 +1,27 @@
 import type { PatientPracticeContentLookupPort, PatientPracticePort } from "./ports";
-import type { PatientPracticeCompletionRow, PracticeSource, RecordPracticeInput, RecordPracticeResult } from "./types";
+import type {
+  DailyWarmupHeroCooldownMeta,
+  PatientPracticeCompletionRow,
+  RecordPracticeInput,
+  RecordPracticeResult,
+} from "./types";
+
+function buildDailyWarmupHeroCooldownMeta(
+  latestIso: string | null,
+  cooldownMinutes: number,
+  nowMs: number,
+): DailyWarmupHeroCooldownMeta {
+  if (!latestIso) return { active: false };
+  const t = new Date(latestIso).getTime();
+  if (!Number.isFinite(t)) return { active: false };
+  const elapsed = nowMs - t;
+  const cooldownMs = cooldownMinutes * 60 * 1000;
+  if (elapsed < 0 || elapsed >= cooldownMs) return { active: false };
+  const minutesAgo = Math.floor(elapsed / 60_000);
+  const remMs = cooldownMs - elapsed;
+  const minutesRemaining = Math.max(1, Math.ceil(remMs / 60_000));
+  return { active: true, minutesAgo, minutesRemaining };
+}
 
 export function createPatientPracticeService(deps: {
   completions: PatientPracticePort;
@@ -21,6 +43,18 @@ export function createPatientPracticeService(deps: {
         deps.completions.streak(userId, tz),
       ]);
       return { todayDone, todayTarget, streak };
+    },
+
+    /**
+     * Главная «Сегодня»: cooldown после `daily_warmup` для текущей страницы разминки (hero + подпись).
+     */
+    async getDailyWarmupHeroCooldownMeta(
+      userId: string,
+      contentPageId: string,
+      cooldownMinutes: number,
+    ): Promise<DailyWarmupHeroCooldownMeta> {
+      const latestIso = await deps.completions.getLatestDailyWarmupCompletionCompletedAt(userId, contentPageId);
+      return buildDailyWarmupHeroCooldownMeta(latestIso, cooldownMinutes, Date.now());
     },
 
     async listRecent(userId: string, limit: number) {

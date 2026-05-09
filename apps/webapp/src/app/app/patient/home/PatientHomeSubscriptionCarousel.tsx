@@ -27,7 +27,11 @@ export function PatientHomeSubscriptionCarousel({ cards, sectionTitle }: Props) 
   const heading = sectionTitle?.trim() || DEFAULT_SECTION_TITLE;
 
   return (
-    <section id="patient-home-subscription-carousel" className={patientHomeTodaySectionStackClass} aria-labelledby="patient-home-subscription-heading">
+    <section
+      id="patient-home-subscription-carousel"
+      className={cn(patientHomeTodaySectionStackClass, "mt-3 lg:mt-4")}
+      aria-labelledby="patient-home-subscription-heading"
+    >
       <h3 id="patient-home-subscription-heading" className={cn(patientHomeBlockHeadingClass, "px-4 lg:px-[18px]")}>
         {heading}
       </h3>
