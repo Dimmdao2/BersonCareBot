@@ -37,66 +37,66 @@ describe("PatientHomeTodayLayout", () => {
     expect(layoutGrid.children).toHaveLength(11);
 
     const warmup = container.querySelector('[data-patient-home-block="daily_warmup"]');
-    expect(warmup).toHaveAttribute("data-lg-order", "10");
-    expect(warmup).toHaveAttribute("data-lg-col-start", "1");
-    expect(warmup).toHaveAttribute("data-lg-col-span", "8");
+    expect(warmup).toHaveAttribute("data-md-order", "10");
+    expect(warmup).toHaveAttribute("data-md-col-start", "1");
+    expect(warmup).toHaveAttribute("data-md-col-span", "8");
 
     const usefulPost = container.querySelector('[data-patient-home-block="useful_post"]');
-    expect(usefulPost).toHaveAttribute("data-lg-order", "10");
-    expect(usefulPost).toHaveAttribute("data-lg-col-start", "9");
-    expect(usefulPost).toHaveAttribute("data-lg-col-span", "4");
+    expect(usefulPost).toHaveAttribute("data-md-order", "10");
+    expect(usefulPost).toHaveAttribute("data-md-col-start", "9");
+    expect(usefulPost).toHaveAttribute("data-md-col-span", "4");
 
     const booking = container.querySelector('[data-patient-home-block="booking"]');
-    expect(booking).toHaveAttribute("data-lg-order", "20");
-    expect(booking).toHaveAttribute("data-lg-col-start", "9");
-    expect(booking).toHaveAttribute("data-lg-col-span", "4");
+    expect(booking).toHaveAttribute("data-md-order", "20");
+    expect(booking).toHaveAttribute("data-md-col-start", "9");
+    expect(booking).toHaveAttribute("data-md-col-span", "4");
 
     const situations = container.querySelector('[data-patient-home-block="situations"]');
-    expect(situations).toHaveAttribute("data-lg-order", "20");
-    expect(situations).toHaveAttribute("data-lg-col-start", "1");
-    expect(situations).toHaveAttribute("data-lg-col-span", "12");
+    expect(situations).toHaveAttribute("data-md-order", "20");
+    expect(situations).toHaveAttribute("data-md-col-start", "1");
+    expect(situations).toHaveAttribute("data-md-col-span", "12");
 
     const nextReminder = container.querySelector('[data-patient-home-block="next_reminder"]');
-    expect(nextReminder).toHaveAttribute("data-lg-order", "42");
-    expect(nextReminder).toHaveAttribute("data-lg-col-start", "1");
-    expect(nextReminder).toHaveAttribute("data-lg-col-span", "12");
-    expect(nextReminder).toHaveClass("lg:order-[42]");
+    expect(nextReminder).toHaveAttribute("data-md-order", "42");
+    expect(nextReminder).toHaveAttribute("data-md-col-start", "1");
+    expect(nextReminder).toHaveAttribute("data-md-col-span", "12");
+    expect(nextReminder).toHaveClass("md:order-[42]");
 
     const progressEl = container.querySelector('[data-patient-home-block="progress"]');
-    expect(progressEl).toHaveAttribute("data-lg-order", "41");
-    expect(progressEl).toHaveAttribute("data-lg-col-start", "1");
-    expect(progressEl).toHaveAttribute("data-lg-col-span", "12");
+    expect(progressEl).toHaveAttribute("data-md-order", "41");
+    expect(progressEl).toHaveAttribute("data-md-col-start", "1");
+    expect(progressEl).toHaveAttribute("data-md-col-span", "12");
 
     const sos = container.querySelector('[data-patient-home-block="sos"]');
-    expect(sos).toHaveAttribute("data-lg-order", "40");
-    expect(sos).toHaveAttribute("data-lg-col-start", "5");
-    expect(sos).toHaveAttribute("data-lg-col-span", "4");
-    expect(sos).toHaveClass("lg:order-[40]");
+    expect(sos).toHaveAttribute("data-md-order", "40");
+    expect(sos).toHaveAttribute("data-md-col-start", "5");
+    expect(sos).toHaveAttribute("data-md-col-span", "4");
+    expect(sos).toHaveClass("md:order-[40]");
 
     const plan = container.querySelector('[data-patient-home-block="plan"]');
-    expect(plan).toHaveAttribute("data-lg-order", "40");
-    expect(plan).toHaveAttribute("data-lg-col-start", "9");
-    expect(plan).toHaveAttribute("data-lg-col-span", "4");
-    expect(plan).toHaveClass("lg:order-[40]");
+    expect(plan).toHaveAttribute("data-md-order", "40");
+    expect(plan).toHaveAttribute("data-md-col-start", "9");
+    expect(plan).toHaveAttribute("data-md-col-span", "4");
+    expect(plan).toHaveClass("md:order-[40]");
 
     const mood = container.querySelector('[data-patient-home-block="mood_checkin"]');
-    expect(mood).toHaveAttribute("data-lg-order", "40");
-    expect(mood).toHaveAttribute("data-lg-col-start", "1");
-    expect(mood).toHaveAttribute("data-lg-col-span", "4");
-    expect(mood).toHaveClass("lg:order-[40]");
+    expect(mood).toHaveAttribute("data-md-order", "40");
+    expect(mood).toHaveAttribute("data-md-col-start", "1");
+    expect(mood).toHaveAttribute("data-md-col-span", "4");
+    expect(mood).toHaveClass("md:order-[40]");
 
     const subscription = container.querySelector('[data-patient-home-block="subscription_carousel"]');
-    expect(subscription).toHaveAttribute("data-lg-order", "50");
-    expect(subscription).toHaveAttribute("data-lg-col-start", "1");
-    expect(subscription).toHaveAttribute("data-lg-col-span", "12");
-    expect(subscription).toHaveClass("lg:order-[50]");
+    expect(subscription).toHaveAttribute("data-md-order", "50");
+    expect(subscription).toHaveAttribute("data-md-col-start", "1");
+    expect(subscription).toHaveAttribute("data-md-col-span", "12");
+    expect(subscription).toHaveClass("md:order-[50]");
     expect(within(subscription as HTMLElement).getByText("Subscription")).toBeInTheDocument();
 
     const courses = container.querySelector('[data-patient-home-block="courses"]');
-    expect(courses).toHaveAttribute("data-lg-order", "60");
-    expect(courses).toHaveAttribute("data-lg-col-start", "1");
-    expect(courses).toHaveAttribute("data-lg-col-span", "12");
-    expect(courses).toHaveClass("lg:order-[60]");
+    expect(courses).toHaveAttribute("data-md-order", "60");
+    expect(courses).toHaveAttribute("data-md-col-start", "1");
+    expect(courses).toHaveAttribute("data-md-col-span", "12");
+    expect(courses).toHaveClass("md:order-[60]");
   });
 
   it("places sos_booking_split full width below next reminder row (order 43)", () => {
@@ -104,10 +104,10 @@ describe("PatientHomeTodayLayout", () => {
       <PatientHomeTodayLayout personalizedName={null} blocks={[block("sos_booking_split", "Split")]} />,
     );
     const split = container.querySelector('[data-patient-home-block="sos_booking_split"]');
-    expect(split).toHaveAttribute("data-lg-order", "43");
-    expect(split).toHaveAttribute("data-lg-col-start", "1");
-    expect(split).toHaveAttribute("data-lg-col-span", "12");
-    expect(split).toHaveClass("lg:order-[43]");
+    expect(split).toHaveAttribute("data-md-order", "43");
+    expect(split).toHaveAttribute("data-md-col-start", "1");
+    expect(split).toHaveAttribute("data-md-col-span", "12");
+    expect(split).toHaveClass("md:order-[43]");
   });
 
   it("does not render full-width carousel wrapper when carousel block is absent", () => {

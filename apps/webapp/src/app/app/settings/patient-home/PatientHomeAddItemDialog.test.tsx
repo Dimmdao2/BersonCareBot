@@ -4,8 +4,6 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import {
-  buildPatientHomeContentNewUrl,
-  buildPatientHomeCourseNewUrl,
   buildPatientHomeSectionsNewUrl,
   PATIENT_HOME_CMS_DEFAULT_RETURN_PATH,
 } from "@/modules/patient-home/patientHomeCmsReturnUrls";
@@ -50,8 +48,6 @@ describe("PatientHomeAddItemDialog", () => {
     const links = screen.getAllByRole("link");
     expect(links.map((l) => l.getAttribute("href"))).toEqual([
       buildPatientHomeSectionsNewUrl({ returnTo, patientHomeBlock: block }),
-      buildPatientHomeContentNewUrl({ returnTo, patientHomeBlock: block }),
-      buildPatientHomeCourseNewUrl({ returnTo, patientHomeBlock: block }),
     ]);
   });
 

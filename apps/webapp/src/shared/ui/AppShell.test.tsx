@@ -21,7 +21,7 @@ vi.mock("@/shared/hooks/useReminderUnread", () => ({
 }));
 
 describe("AppShell patient width variants", () => {
-  it("keeps patient variant in mobile shell width and widens on lg+ (VISUAL_SYSTEM_SPEC §3 / §5)", () => {
+  it("keeps patient variant in mobile shell width and widens on md+ (VISUAL_SYSTEM_SPEC baseline)", () => {
     const { container } = render(
       <AppShell title="Сегодня" user={null} variant="patient">
         <div>Content</div>
@@ -30,7 +30,7 @@ describe("AppShell patient width variants", () => {
 
     const shell = container.querySelector("#app-shell-patient");
     expect(shell).toHaveClass("max-w-[430px]");
-    expect(shell).toHaveClass("lg:max-w-[min(1180px,calc(100vw-2rem))]");
+    expect(shell).toHaveClass("md:max-w-[min(1180px,calc(100vw-2rem))]");
   });
 
   it("treats patient-wide as alias for patient (legacy back-compat)", () => {
@@ -42,7 +42,7 @@ describe("AppShell patient width variants", () => {
 
     const shell = container.querySelector("#app-shell-patient");
     expect(shell).toHaveClass("max-w-[430px]");
-    expect(shell).toHaveClass("lg:max-w-[min(1180px,calc(100vw-2rem))]");
+    expect(shell).toHaveClass("md:max-w-[min(1180px,calc(100vw-2rem))]");
   });
 
   it("uses patient page background token", () => {
@@ -86,6 +86,6 @@ describe("AppShell patient width variants", () => {
 
     expect(screen.queryByRole("navigation", { name: /Основная навигация/i })).toBeNull();
     const headerWrap = screen.getByTestId("patient-gated-header-wrap");
-    expect(headerWrap).not.toHaveClass("lg:hidden");
+    expect(headerWrap).not.toHaveClass("md:hidden");
   });
 });

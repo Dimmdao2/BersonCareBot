@@ -24,7 +24,7 @@ describe("PatientTopNav", () => {
     render(<PatientTopNav />);
 
     const mobileNav = screen.getByTestId("patient-mobile-top-nav");
-    expect(mobileNav).toHaveClass("lg:hidden");
+    expect(mobileNav).toHaveClass("md:hidden");
     expect(within(mobileNav).getAllByRole("link").map((link) => link.textContent)).toEqual([
       "Сегодня",
       "Запись",
@@ -65,13 +65,13 @@ describe("PatientTopNav", () => {
     expect(within(mobileNav).getByRole("link", { name: "План" })).not.toHaveAttribute("aria-current", "page");
   });
 
-  it("keeps desktop nav as a separate lg branch", () => {
+  it("keeps desktop nav as a separate md branch", () => {
     pathnameRef.value = "/app/patient";
     render(<PatientTopNav />);
 
     const desktopNav = screen.getByTestId("patient-desktop-top-nav");
     expect(desktopNav).toHaveClass("hidden");
-    expect(desktopNav).toHaveClass("lg:flex");
+    expect(desktopNav).toHaveClass("md:flex");
     expect(within(desktopNav).getByText("BersonCare")).toBeInTheDocument();
     expect(within(desktopNav).getByRole("link", { name: "Напоминания" })).toBeInTheDocument();
     expect(within(desktopNav).getByRole("link", { name: "Сообщения" })).toBeInTheDocument();

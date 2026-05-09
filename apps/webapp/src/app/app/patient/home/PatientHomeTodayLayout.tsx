@@ -16,101 +16,101 @@ type Props = {
   blocks: PatientHomeTodayLayoutBlock[];
 };
 
-/** Desktop grid placement: Tailwind classes + stable `data-lg-*` for tests (avoid coupling tests to full class strings). */
+/** Wide-viewport grid placement (`md+`): Tailwind classes + stable `data-md-*` for tests (avoid coupling tests to full class strings). */
 function desktopBlockLayout(code: PatientHomeTodayLayoutBlockCode): {
   className: string;
-  "data-lg-order"?: string;
-  "data-lg-col-start"?: string;
-  "data-lg-col-span"?: string;
+  "data-md-order"?: string;
+  "data-md-col-start"?: string;
+  "data-md-col-span"?: string;
 } {
   switch (code) {
     case "daily_warmup":
       return {
-        className: "lg:col-span-8 lg:col-start-1 lg:order-[10]",
-        "data-lg-order": "10",
-        "data-lg-col-start": "1",
-        "data-lg-col-span": "8",
+        className: "md:col-span-8 md:col-start-1 md:order-[10]",
+        "data-md-order": "10",
+        "data-md-col-start": "1",
+        "data-md-col-span": "8",
       };
     case "useful_post":
       return {
-        className: "lg:col-span-4 lg:col-start-9 lg:order-[10]",
-        "data-lg-order": "10",
-        "data-lg-col-start": "9",
-        "data-lg-col-span": "4",
+        className: "md:col-span-4 md:col-start-9 md:order-[10]",
+        "data-md-order": "10",
+        "data-md-col-start": "9",
+        "data-md-col-span": "4",
       };
     case "situations":
       return {
-        className: "lg:col-span-12 lg:col-start-1 lg:order-[20]",
-        "data-lg-order": "20",
-        "data-lg-col-start": "1",
-        "data-lg-col-span": "12",
+        className: "md:col-span-12 md:col-start-1 md:order-[20]",
+        "data-md-order": "20",
+        "data-md-col-start": "1",
+        "data-md-col-span": "12",
       };
     case "booking":
       return {
-        className: "lg:col-span-4 lg:col-start-9 lg:order-[20]",
-        "data-lg-order": "20",
-        "data-lg-col-start": "9",
-        "data-lg-col-span": "4",
+        className: "md:col-span-4 md:col-start-9 md:order-[20]",
+        "data-md-order": "20",
+        "data-md-col-start": "9",
+        "data-md-col-span": "4",
       };
-    /** Полная ширина: напоминание сразу под «Сегодня выполнено» (lg:order после progress). */
+    /** Полная ширина: напоминание сразу под «Сегодня выполнено» (md:order после progress). */
     case "next_reminder":
       return {
-        className: "lg:col-span-12 lg:col-start-1 lg:order-[42]",
-        "data-lg-order": "42",
-        "data-lg-col-start": "1",
-        "data-lg-col-span": "12",
+        className: "md:col-span-12 md:col-start-1 md:order-[42]",
+        "data-md-order": "42",
+        "data-md-col-start": "1",
+        "data-md-col-span": "12",
       };
     /** Compact desktop row: mood / SOS / rehab plan. */
     case "sos":
       return {
-        className: "lg:col-span-4 lg:col-start-5 lg:order-[40]",
-        "data-lg-order": "40",
-        "data-lg-col-start": "5",
-        "data-lg-col-span": "4",
+        className: "md:col-span-4 md:col-start-5 md:order-[40]",
+        "data-md-order": "40",
+        "data-md-col-start": "5",
+        "data-md-col-span": "4",
       };
     /** «Сегодня выполнено» — под строкой mood | plan, полная ширина, перед SOS+запись. */
     case "progress":
       return {
-        className: "lg:col-span-12 lg:col-start-1 lg:order-[41]",
-        "data-lg-order": "41",
-        "data-lg-col-start": "1",
-        "data-lg-col-span": "12",
+        className: "md:col-span-12 md:col-start-1 md:order-[41]",
+        "data-md-order": "41",
+        "data-md-col-start": "1",
+        "data-md-col-span": "12",
       };
-    /** SOS + запись — под напоминанием (lg:order после next_reminder). */
+    /** SOS + запись — под напоминанием (md:order после next_reminder). */
     case "sos_booking_split":
       return {
-        className: "lg:col-span-12 lg:col-start-1 lg:order-[43]",
-        "data-lg-order": "43",
-        "data-lg-col-start": "1",
-        "data-lg-col-span": "12",
+        className: "md:col-span-12 md:col-start-1 md:order-[43]",
+        "data-md-order": "43",
+        "data-md-col-start": "1",
+        "data-md-col-span": "12",
       };
     case "plan":
       return {
-        className: "lg:col-span-4 lg:col-start-9 lg:order-[40]",
-        "data-lg-order": "40",
-        "data-lg-col-start": "9",
-        "data-lg-col-span": "4",
+        className: "md:col-span-4 md:col-start-9 md:order-[40]",
+        "data-md-order": "40",
+        "data-md-col-start": "9",
+        "data-md-col-span": "4",
       };
     case "mood_checkin":
       return {
-        className: "lg:col-span-4 lg:col-start-1 lg:order-[40]",
-        "data-lg-order": "40",
-        "data-lg-col-start": "1",
-        "data-lg-col-span": "4",
+        className: "md:col-span-4 md:col-start-1 md:order-[40]",
+        "data-md-order": "40",
+        "data-md-col-start": "1",
+        "data-md-col-span": "4",
       };
     case "courses":
       return {
-        className: "lg:col-span-12 lg:col-start-1 lg:order-[60]",
-        "data-lg-order": "60",
-        "data-lg-col-start": "1",
-        "data-lg-col-span": "12",
+        className: "md:col-span-12 md:col-start-1 md:order-[60]",
+        "data-md-order": "60",
+        "data-md-col-start": "1",
+        "data-md-col-span": "12",
       };
     case "subscription_carousel":
       return {
-        className: "lg:col-span-12 lg:col-start-1 lg:order-[50]",
-        "data-lg-order": "50",
-        "data-lg-col-start": "1",
-        "data-lg-col-span": "12",
+        className: "md:col-span-12 md:col-start-1 md:order-[50]",
+        "data-md-order": "50",
+        "data-md-col-start": "1",
+        "data-md-col-span": "12",
       };
   }
 }
@@ -119,16 +119,16 @@ export function PatientHomeTodayLayout({ personalizedName, timeOfDayPrefix, bloc
   return (
     <div
       id="patient-home-today-layout"
-      className="flex min-w-0 flex-col gap-4 overflow-x-hidden pb-4 lg:gap-5"
+      className="flex min-w-0 flex-col gap-4 overflow-x-hidden pb-4 md:gap-5"
     >
       <PatientHomeGreeting personalizedName={personalizedName} timeOfDayPrefix={timeOfDayPrefix} />
 
       <div
         /**
-         * `lg:grid-flow-row-dense` — чтобы пары (col-span-8 + col-span-4) держались на одной строке
+         * `md:grid-flow-row-dense` — чтобы пары (col-span-8 + col-span-4) держались на одной строке
          * вне зависимости от DOM-порядка (`sort_order` в БД может ставить правый col перед левым).
          */
-        className="grid w-full min-w-0 gap-5 lg:grid-cols-12 lg:grid-flow-row-dense lg:items-stretch lg:gap-6 xl:gap-7"
+        className="grid w-full min-w-0 gap-5 md:grid-cols-12 md:grid-flow-row-dense md:items-stretch md:gap-6 xl:gap-7"
         data-testid="patient-home-layout-grid"
       >
         {blocks.map((block) => {
@@ -139,13 +139,13 @@ export function PatientHomeTodayLayout({ personalizedName, timeOfDayPrefix, bloc
               className={cn(
                 "min-w-0",
                 /** Визуально плотнее к нижнему краю блока «Сегодня выполнено» (сеточный gap компенсируется). */
-                block.code === "next_reminder" && "-mt-1 lg:-mt-1.5",
+                block.code === "next_reminder" && "-mt-1 md:-mt-1.5",
                 layout.className,
               )}
               data-patient-home-block={block.code}
-              data-lg-order={layout["data-lg-order"]}
-              data-lg-col-start={layout["data-lg-col-start"]}
-              data-lg-col-span={layout["data-lg-col-span"]}
+              data-md-order={layout["data-md-order"]}
+              data-md-col-start={layout["data-md-col-start"]}
+              data-md-col-span={layout["data-md-col-span"]}
             >
               {block.node}
             </div>

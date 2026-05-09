@@ -42,7 +42,7 @@ export function PatientHomeSituationsRow({ chips }: Props) {
           aria-hidden="true"
           className={cn(
             patientHomeBlockHeadingClass,
-            "hidden shrink-0 lg:block",
+            "hidden shrink-0 md:block",
           )}
         >
           Выберите пользу для себя:

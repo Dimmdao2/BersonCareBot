@@ -170,11 +170,11 @@ export function PatientTopNav(_props: PatientTopNavProps) {
     <>
       {/*
         На узкой ширине шапка position:fixed к верху окна — sticky здесь часто ломается (предки,
-        breakout margin). Резерв высоты только mobile: desktop остаётся в потоке (`lg:sticky`).
+        breakout margin). Резерв высоты только mobile: desktop остаётся в потоке (`md:sticky`).
       */}
       <div
         aria-hidden
-        className="shrink-0 lg:hidden"
+        className="shrink-0 md:hidden"
         style={{ height: `var(${PATIENT_TOP_NAV_HEIGHT_VAR}, 3.5rem)` }}
       />
       <div
@@ -184,17 +184,17 @@ export function PatientTopNav(_props: PatientTopNavProps) {
           "z-50 w-full transition-shadow",
           NAV_COMPACT_EASE,
           /* mobile: к краю окна */
-          "max-lg:fixed max-lg:left-0 max-lg:right-0 max-lg:top-[env(safe-area-inset-top,0px)]",
+          "max-md:fixed max-md:left-0 max-md:right-0 max-md:top-[env(safe-area-inset-top,0px)]",
           /* desktop: липкая полоска в колонке shell */
-          "lg:sticky lg:top-[env(safe-area-inset-top,0px)]",
-          "border-b border-[var(--patient-border)] bg-[rgba(255,255,255,0.96)] backdrop-blur-md lg:bg-[var(--patient-surface)]",
-          compact ? "shadow-md lg:shadow-sm" : "shadow-[var(--patient-shadow-nav)] lg:shadow-sm",
+          "md:sticky md:top-[env(safe-area-inset-top,0px)]",
+          "border-b border-[var(--patient-border)] bg-[rgba(255,255,255,0.96)] backdrop-blur-md md:bg-[var(--patient-surface)]",
+          compact ? "shadow-md md:shadow-sm" : "shadow-[var(--patient-shadow-nav)] md:shadow-sm",
         )}
       >
         <nav
           aria-label="Основная навигация пациента"
           data-testid="patient-mobile-top-nav"
-          className="mx-auto flex max-w-[430px] items-stretch justify-around px-1 py-1 lg:hidden"
+          className="mx-auto flex max-w-[430px] items-stretch justify-around px-1 py-1 md:hidden"
         >
           {PATIENT_PRIMARY_NAV_ITEMS.map(renderMobileNavLink)}
         </nav>
@@ -202,7 +202,7 @@ export function PatientTopNav(_props: PatientTopNavProps) {
         <div
           data-testid="patient-desktop-top-nav"
           className={cn(
-            "mx-auto hidden w-full max-w-[min(1180px,calc(100vw-2rem))] items-center gap-4 px-4 lg:flex",
+            "mx-auto hidden w-full max-w-[min(1180px,calc(100vw-2rem))] items-center gap-4 px-4 md:flex",
             "transition-[padding-block] [transition-property:padding-block]",
             NAV_COMPACT_EASE,
             compact ? "py-3" : "py-2.5",

@@ -28,7 +28,7 @@ export function PatientHomeBookingCard({ personalTierOk, anonymousGuest, blockIc
 
   const footer =
     anonymousGuest ?
-      <p className="line-clamp-1 text-[11px] lg:text-xs">
+      <p className="line-clamp-1 text-[11px] md:text-xs">
         Запись откроется после входа
         <Link href={appLoginWithNextHref(routePaths.patient)} className="sr-only">
           Войти
@@ -48,10 +48,10 @@ export function PatientHomeBookingCard({ personalTierOk, anonymousGuest, blockIc
         id="patient-home-booking-card"
         className={cn(patientHomeCardSuccessClass, patientHomeBookingCardGeometryClass)}
       >
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col justify-between gap-4 lg:gap-3">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col justify-between gap-4 md:gap-3">
           <div className="flex min-w-0 items-start gap-3">
             <div
-              className="inline-flex size-11 shrink-0 items-center justify-center rounded-full bg-[#dcfce7] text-[var(--patient-color-success)] lg:size-14"
+              className="inline-flex size-11 shrink-0 items-center justify-center rounded-full bg-[#dcfce7] text-[var(--patient-color-success)] md:size-14"
               aria-hidden
             >
               <PatientHomeSafeImage

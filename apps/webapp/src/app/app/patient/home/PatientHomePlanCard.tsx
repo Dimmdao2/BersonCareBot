@@ -100,7 +100,7 @@ export function PatientHomePlanCard({
             href={startLessonHref}
             prefetch={false}
             className={cn(
-              "inline-flex min-h-9 min-w-[8rem] shrink-0 items-center justify-center rounded-md border border-[#b4bae4] bg-[#e2e2fa] px-5 text-sm font-medium text-[#1b4585] shadow-[0_3px_10px_rgba(40,77,160,0.12)] transition-colors lg:px-6",
+              "inline-flex min-h-9 min-w-[8rem] shrink-0 items-center justify-center rounded-md border border-[#b4bae4] bg-[#e2e2fa] px-5 text-sm font-medium text-[#1b4585] shadow-[0_3px_10px_rgba(40,77,160,0.12)] transition-colors md:px-6",
               "hover:bg-[#ddd2f5] active:bg-[#d1c4ef]",
               "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1b4585]/35",
             )}

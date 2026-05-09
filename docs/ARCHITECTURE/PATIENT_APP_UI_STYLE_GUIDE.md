@@ -16,6 +16,16 @@
 
 `apps/webapp/src/app/app/patient/home/patientHomeCardStyles.ts` — это отдельный home-specific слой. Его fixed geometry, hero-обвязку и dashboard-позиционирование нельзя механически переносить на внутренние страницы.
 
+## 1a. Responsive: patient shell (`md`)
+
+- **Порог широкой колонки:** Tailwind **`md`** (768px). У `#app-shell-patient` (`AppShell` с `variant="patient"` / `patient-wide`): ниже `md` — узкая колонка `max-w-[430px]`; с **`md`** — до **`max-w-[min(1180px,calc(100vw-2rem))]`** (как в коде `AppShell`).
+- **`PatientTopNav`:** до `md` — мобильная полоска primary nav; с **`md`** — desktop-ветка (ширина и sticky-согласование с колонкой shell).
+- **Главная «Сегодня»:** двенадцатиколоночная сетка и grid-placement блоков в `PatientHomeTodayLayout` включаются с **`md`** (атрибуты отладки на блоках — `data-md-*`).
+- **`patientVisual.ts` (внутренние страницы и общие карточки):** радиус/тень/padding карточных токенов (`patientCardSurfaceTokens`, `patientSemanticSurfaceCardChrome`, `patientCardClass`, semantic surfaces), типовые отступы списков/коллапсов, вертикальный rhythm (`patientInnerPageStackClass`, `patientInnerCardGridClass`, `patientPageSectionGapClass`), крупная типографика inner-hero и связанные CTA переключаются с **`md`**, в одну линию с широким shell — без отдельного «скачка» на `lg` (1024px). Ступени только **`xl:`** (и узкие `min-[380px]:`) сохраняются там, где нужна третья ступень масштаба.
+- **`patientHomeCardStyles.ts`:** семантические оболочки карточек главной (базовая/plan/success/warning/danger/compact/useful post shell, ведущие иконки) используют **`md:`** для desktop radius/shadow/padding вместе с shell; отдельные **трёхступенчатые высоты** слотов (`md` + `lg` для min-height строк) остаются осознанно — это вертикальная сетка, не порог оболочки.
+- **Правило для правок:** интервал **ниже `md`** трактуется как мобильный режим оболочки; менять там базовые классы без префикса ради ширины/layout — только по отдельной задаче. Для переключений «узкий shell / широкий shell» на главной и в shell предпочитать пары **`max-md:` / `md:`**, а не вводить промежуточные брейкпоинты между мобильным и `md`.
+- **Журнал и контекст задачи:** [`docs/PATIENT_SHELL_MD_BREAKPOINT/`](../PATIENT_SHELL_MD_BREAKPOINT/README.md).
+
 ## 2. Reuse-First Policy
 
 Перед добавлением любого нового UI на patient-страницах:

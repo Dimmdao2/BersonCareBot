@@ -162,8 +162,8 @@ export function PatientHomeMoodCheckin({
       >
         <div className="relative z-[1] flex h-full min-h-0 flex-col">
           {anonymousGuest ?
-            <div className="flex min-h-0 flex-1 flex-col justify-between gap-1.5 max-lg:pt-2 lg:pt-2.5">
-              <h3 id="patient-home-mood-heading" className={cn(patientHomeMoodColumnHeadingClass, "shrink-0 px-4 lg:px-0")}>
+            <div className="flex min-h-0 flex-1 flex-col justify-between gap-1.5 max-md:pt-2 md:pt-2.5">
+              <h3 id="patient-home-mood-heading" className={cn(patientHomeMoodColumnHeadingClass, "shrink-0 px-4 md:px-0")}>
                 Как ваше сегодня?
               </h3>
               {renderMoodScale(true)}
@@ -175,14 +175,14 @@ export function PatientHomeMoodCheckin({
               </p>
             </div>
           : !personalTierOk ?
-            <div className="flex min-h-0 flex-1 flex-col justify-between gap-1.5 max-lg:pt-2 lg:pt-2.5">
-              <h3 id="patient-home-mood-heading" className={cn(patientHomeMoodColumnHeadingClass, "shrink-0 px-4 lg:px-0")}>
+            <div className="flex min-h-0 flex-1 flex-col justify-between gap-1.5 max-md:pt-2 md:pt-2.5">
+              <h3 id="patient-home-mood-heading" className={cn(patientHomeMoodColumnHeadingClass, "shrink-0 px-4 md:px-0")}>
                 Как ваше сегодня?
               </h3>
               {renderMoodScale(true)}
               <p className={patientHomeMoodStatusSlotClass}>Чек-ин самочувствия будет доступен после активации профиля.</p>
             </div>
-          : <div className="flex min-h-0 flex-1 flex-col gap-1.5 px-4 max-lg:pt-2 lg:px-0 lg:pt-2">
+          : <div className="flex min-h-0 flex-1 flex-col gap-1.5 px-4 max-md:pt-2 md:px-0 md:pt-2">
               <div className="flex min-h-0 flex-1 flex-col gap-5 sm:flex-row sm:items-stretch sm:gap-3">
                 <div className="flex min-h-0 w-full min-w-0 flex-col sm:w-[35%] sm:max-w-[35%] sm:shrink-0">
                   <h3 id="patient-home-mood-week-heading" className={patientHomeMoodColumnHeadingClass}>

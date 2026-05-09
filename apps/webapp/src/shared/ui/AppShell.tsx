@@ -29,7 +29,7 @@ type AppShellProps = {
   titleSmall?: boolean;
   /**
    * Вариант оболочки.
-   * - `patient` — patient shell (`max-w-[430px]`, `lg+` до `~1180px`), сверху {@link PatientTopNav} (primary nav).
+   * - `patient` — patient shell (`max-w-[430px]`, с `md+` до `~1180px`), сверху {@link PatientTopNav} (primary nav).
    *   `patient-wide` — тот же layout (legacy alias).
    * - `doctor` — кабинет специалиста (широкий workspace).
    */
@@ -95,8 +95,8 @@ export function AppShell({
           patientEmbedMain
             ? "max-w-[480px] gap-0 pl-[max(1.25rem,env(safe-area-inset-left,0px))] pr-[max(1.25rem,env(safe-area-inset-right,0px))] pb-[max(0.75rem,env(safe-area-inset-bottom,0px))]"
             : patientHideBottomNav
-              ? "max-w-[430px] gap-3 pl-[max(1.25rem,env(safe-area-inset-left,0px))] pr-[max(1.25rem,env(safe-area-inset-right,0px))] pb-[max(1.25rem,env(safe-area-inset-bottom,0px))] lg:max-w-[min(1180px,calc(100vw-2rem))]"
-              : "max-w-[430px] safe-padding-patient gap-3 lg:max-w-[min(1180px,calc(100vw-2rem))]",
+              ? "max-w-[430px] gap-3 pl-[max(1.25rem,env(safe-area-inset-left,0px))] pr-[max(1.25rem,env(safe-area-inset-right,0px))] pb-[max(1.25rem,env(safe-area-inset-bottom,0px))] md:max-w-[min(1180px,calc(100vw-2rem))]"
+              : "max-w-[430px] safe-padding-patient gap-3 md:max-w-[min(1180px,calc(100vw-2rem))]",
         )}
       >
         {showPatientShellNav ?

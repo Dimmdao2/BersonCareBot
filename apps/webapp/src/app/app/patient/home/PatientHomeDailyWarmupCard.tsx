@@ -81,8 +81,8 @@ export function PatientHomeDailyWarmupCard({
             </p>
           </div>
           <HeroImageSlotDecor>
-            <div className="mb-2 mr-2 flex size-[118px] items-center justify-center rounded-[42%] bg-white/50 ring-1 ring-[#e0e7ff] min-[380px]:size-[132px] lg:mb-3 lg:size-[220px] xl:size-[240px]">
-              <Sparkles className="size-12 text-[var(--patient-color-primary)] opacity-80 lg:size-20" />
+            <div className="mb-2 mr-2 flex size-[118px] items-center justify-center rounded-[42%] bg-white/50 ring-1 ring-[#e0e7ff] min-[380px]:size-[132px] md:mb-3 md:size-[220px] xl:size-[240px]">
+              <Sparkles className="size-12 text-[var(--patient-color-primary)] opacity-80 md:size-20" />
             </div>
           </HeroImageSlotDecor>
         </article>
@@ -107,7 +107,7 @@ export function PatientHomeDailyWarmupCard({
           {page.summary?.trim() ?
             <p className={patientHomeHeroSummaryClampClass}>{page.summary.trim()}</p>
           : <div className="mt-1 min-h-8 shrink-0 md:mt-2 md:min-h-[3rem]" aria-hidden />}
-          <div className="mt-auto flex shrink-0 flex-col gap-2 pb-3 pt-6 lg:pb-[34px]">
+          <div className="mt-auto flex shrink-0 flex-col gap-2 pb-3 pt-6 md:pb-[34px]">
             {showWarmupDoneHero ?
               <div className="flex min-w-0 flex-col gap-1">
                 <span
@@ -115,14 +115,14 @@ export function PatientHomeDailyWarmupCard({
                   className={cn(patientHeroWarmupDoneCtaClass, "select-none")}
                   aria-label="Разминка дня уже отмечена выполненной"
                 >
-                  <CheckCircle2 className="size-4 shrink-0 sm:size-[18px] lg:size-5" aria-hidden />
+                  <CheckCircle2 className="size-4 shrink-0 sm:size-[18px] md:size-5" aria-hidden />
                   Разминка выполнена
                 </span>
                 {warmupCooldownCaption?.trim() ?
                   <p
                     className={cn(
                       patientMutedTextClass,
-                      "max-w-full text-xs leading-snug -mb-2 lg:-mb-3",
+                      "max-w-full text-xs leading-snug -mb-2 md:-mb-3",
                     )}
                   >
                     {warmupCooldownCaption.trim()}
@@ -134,15 +134,15 @@ export function PatientHomeDailyWarmupCard({
                 prefetch={false}
                 className={cn(
                   patientHeroPrimaryActionClass,
-                  "min-h-11 w-fit shrink-0 px-4 py-2 text-sm shadow-[0_6px_14px_rgba(40,77,160,0.24)] lg:min-h-12 lg:w-[22rem] lg:pr-5 lg:text-base xl:w-[24rem]",
+                  "min-h-11 w-fit shrink-0 px-4 py-2 text-sm shadow-[0_6px_14px_rgba(40,77,160,0.24)] md:min-h-12 md:w-[22rem] md:pr-5 md:text-base xl:w-[24rem]",
                 )}
               >
-                <PlayCircle className="size-5 shrink-0 lg:size-6" aria-hidden />
+                <PlayCircle className="size-5 shrink-0 md:size-6" aria-hidden />
                 Начать разминку
               </Link>
             }
             {anonymousGuest || !personalTierOk ?
-              <div className="hidden h-[2.75rem] shrink-0 overflow-hidden lg:block">
+              <div className="hidden h-[2.75rem] shrink-0 overflow-hidden md:block">
                 {anonymousGuest ?
                   <p className={patientHomeCardSubtitleClampXsClass}>
                     Войдите, чтобы открыть материал и отмечать прогресс выполнения.
@@ -163,8 +163,8 @@ export function PatientHomeDailyWarmupCard({
             className="h-full w-full object-contain object-right-bottom drop-shadow-lg"
             loading="lazy"
             fallback={
-              <div className="mb-2 mr-2 flex size-[118px] items-center justify-center rounded-[42%] bg-white/50 ring-1 ring-[#e0e7ff] min-[380px]:size-[132px] lg:mb-3 lg:size-[220px] xl:size-[240px]">
-                <Sparkles className="size-12 text-[var(--patient-color-primary)] opacity-80 lg:size-20" />
+              <div className="mb-2 mr-2 flex size-[118px] items-center justify-center rounded-[42%] bg-white/50 ring-1 ring-[#e0e7ff] min-[380px]:size-[132px] md:mb-3 md:size-[220px] xl:size-[240px]">
+                <Sparkles className="size-12 text-[var(--patient-color-primary)] opacity-80 md:size-20" />
               </div>
             }
           />

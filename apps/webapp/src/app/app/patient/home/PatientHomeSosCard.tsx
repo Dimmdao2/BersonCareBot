@@ -21,7 +21,7 @@ export function PatientHomeSosCard({ sos, blockIconImageUrl }: Props) {
   return (
     <section aria-labelledby="patient-home-sos-heading">
       <article id="patient-home-sos-card" className={cn(patientHomeCardDangerClass, patientHomeSosCardGeometryClass)}>
-        <div className="relative z-[1] flex min-h-0 flex-1 items-center gap-3 lg:items-start">
+        <div className="relative z-[1] flex min-h-0 flex-1 items-center gap-3 md:items-start">
           <div className={patientIconLeadingDangerClass} aria-hidden>
             <PatientHomeSafeImage
               src={blockIconImageUrl}
@@ -44,7 +44,7 @@ export function PatientHomeSosCard({ sos, blockIconImageUrl }: Props) {
           className={cn(
             patientButtonDangerOutlineClass,
             "relative z-[1] !min-h-10 shrink-0 self-end whitespace-nowrap border-[#d8a3a3] px-3 text-[13px] text-[#8a3a3a] hover:bg-[#fff1f1]/80 active:bg-[#fee7e7]/80",
-            "lg:mt-auto lg:-mb-1 lg:min-w-[8rem] lg:self-end lg:px-6 lg:text-sm",
+            "md:mt-auto md:-mb-1 md:min-w-[8rem] md:self-end md:px-6 md:text-sm",
           )}
         >
           Посмотреть

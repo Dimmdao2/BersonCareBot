@@ -23,15 +23,15 @@ import {
  */
 
 const patientCardBorder = "border border-[var(--patient-border)]";
-const patientCardPaddingClass = "p-4 lg:p-[18px]";
+const patientCardPaddingClass = "p-4 md:p-[18px]";
 
 /** Базовая белая карточка (по умолчанию). */
 export const patientHomeCardClass = cn(
   patientCardBorder,
   "bg-[var(--patient-card-bg)] text-[var(--patient-text-primary)]",
   patientCardPaddingClass,
-  "rounded-[var(--patient-card-radius-mobile)] lg:rounded-[var(--patient-card-radius-desktop)]",
-  "shadow-[var(--patient-shadow-card-mobile)] lg:shadow-[var(--patient-shadow-card-desktop)]",
+  "rounded-[var(--patient-card-radius-mobile)] md:rounded-[var(--patient-card-radius-desktop)]",
+  "shadow-[var(--patient-shadow-card-mobile)] md:shadow-[var(--patient-shadow-card-desktop)]",
 );
 
 /**
@@ -40,8 +40,8 @@ export const patientHomeCardClass = cn(
 export const patientHomePlanCardClass = cn(
   "border border-[color-mix(in_srgb,var(--patient-color-primary)_28%,var(--patient-border))]",
   patientCardPaddingClass,
-  "rounded-[var(--patient-card-radius-mobile)] lg:rounded-[var(--patient-card-radius-desktop)]",
-  "shadow-[var(--patient-shadow-card-mobile)] lg:shadow-[var(--patient-shadow-card-desktop)]",
+  "rounded-[var(--patient-card-radius-mobile)] md:rounded-[var(--patient-card-radius-desktop)]",
+  "shadow-[var(--patient-shadow-card-mobile)] md:shadow-[var(--patient-shadow-card-desktop)]",
   "bg-[linear-gradient(205deg,rgba(196,195,255,0.81)_2.94%,rgba(208,208,255,0.4)_57.98%,rgba(219,222,254,0.75)_93.28%)]",
   "text-[var(--patient-text-primary)]",
 );
@@ -49,16 +49,16 @@ export const patientHomePlanCardClass = cn(
 /** Полезный пост: только border/radius/shadow без padding/bg текста базовой карточки (full-bleed cover). */
 export const patientHomeUsefulPostCardShellClass = cn(
   patientCardBorder,
-  "overflow-hidden rounded-[var(--patient-card-radius-mobile)] lg:rounded-[var(--patient-card-radius-desktop)]",
-  "shadow-[var(--patient-shadow-card-mobile)] lg:shadow-[var(--patient-shadow-card-desktop)]",
+  "overflow-hidden rounded-[var(--patient-card-radius-mobile)] md:rounded-[var(--patient-card-radius-desktop)]",
+  "shadow-[var(--patient-shadow-card-mobile)] md:shadow-[var(--patient-shadow-card-desktop)]",
 );
 
 /** Компактная карточка — меньше padding, те же токены радиуса/тени. */
 export const patientHomeCardCompactClass = cn(
   patientCardBorder,
-  "bg-[var(--patient-card-bg)] p-3 text-[var(--patient-text-primary)] lg:p-4",
-  "rounded-[var(--patient-card-radius-mobile)] lg:rounded-[var(--patient-card-radius-desktop)]",
-  "shadow-[var(--patient-shadow-card-mobile)] lg:shadow-[var(--patient-shadow-card-desktop)]",
+  "bg-[var(--patient-card-bg)] p-3 text-[var(--patient-text-primary)] md:p-4",
+  "rounded-[var(--patient-card-radius-mobile)] md:rounded-[var(--patient-card-radius-desktop)]",
+  "shadow-[var(--patient-shadow-card-mobile)] md:shadow-[var(--patient-shadow-card-desktop)]",
 );
 
 /** Hero «Разминка дня» / блок выбора на записи — градиент и радиус по spec §10.2 (канон в `patientHeroBookingCardChromeClass`). */
@@ -68,45 +68,45 @@ export const patientHomeCardHeroClass = patientHeroBookingCardChromeClass;
 export const patientHomeCardSuccessClass = cn(
   "border border-[#bbf7d0] bg-[var(--patient-color-success-soft)] text-[var(--patient-text-primary)]",
   patientCardPaddingClass,
-  "rounded-[var(--patient-card-radius-mobile)] lg:rounded-[var(--patient-card-radius-desktop)]",
-  "shadow-[var(--patient-shadow-card-mobile)] lg:shadow-[var(--patient-shadow-card-desktop)]",
+  "rounded-[var(--patient-card-radius-mobile)] md:rounded-[var(--patient-card-radius-desktop)]",
+  "shadow-[var(--patient-shadow-card-mobile)] md:shadow-[var(--patient-shadow-card-desktop)]",
 );
 
 /** Напоминание / warning tone (`§10.6`). */
 export const patientHomeCardWarningClass = cn(
   "border border-[#fde68a] bg-[var(--patient-color-warning-soft)] text-[var(--patient-text-primary)]",
   patientCardPaddingClass,
-  "rounded-[var(--patient-card-radius-mobile)] lg:rounded-[var(--patient-card-radius-desktop)]",
-  "shadow-[var(--patient-shadow-card-mobile)] lg:shadow-[var(--patient-shadow-card-desktop)]",
+  "rounded-[var(--patient-card-radius-mobile)] md:rounded-[var(--patient-card-radius-desktop)]",
+  "shadow-[var(--patient-shadow-card-mobile)] md:shadow-[var(--patient-shadow-card-desktop)]",
 );
 
 /** SOS / danger tone (`§10.8`). */
 export const patientHomeCardDangerClass = cn(
   "border border-[#fecaca] bg-[var(--patient-color-danger-soft)] text-[var(--patient-text-primary)]",
   patientCardPaddingClass,
-  "rounded-[var(--patient-card-radius-mobile)] lg:rounded-[var(--patient-card-radius-desktop)]",
-  "shadow-[var(--patient-shadow-card-mobile)] lg:shadow-[var(--patient-shadow-card-desktop)]",
+  "rounded-[var(--patient-card-radius-mobile)] md:rounded-[var(--patient-card-radius-desktop)]",
+  "shadow-[var(--patient-shadow-card-mobile)] md:shadow-[var(--patient-shadow-card-desktop)]",
 );
 
 /** Mood / pastel warm gradient (`§10.7`) — legacy; блок самочувствия использует {@link patientHomeMoodCheckinShellClass}. */
 export const patientHomeCardGradientWarmClass = cn(
   "overflow-hidden border border-[#fed7aa]",
-  "rounded-[var(--patient-card-radius-mobile)] lg:rounded-[var(--patient-card-radius-desktop)]",
+  "rounded-[var(--patient-card-radius-mobile)] md:rounded-[var(--patient-card-radius-desktop)]",
   "bg-gradient-to-br from-[#fff7ed] to-[#fff1f2] text-[var(--patient-text-primary)]",
   patientCardPaddingClass,
-  "shadow-[var(--patient-shadow-card-mobile)] lg:shadow-[var(--patient-shadow-card-desktop)]",
+  "shadow-[var(--patient-shadow-card-mobile)] md:shadow-[var(--patient-shadow-card-desktop)]",
 );
 
 /**
  * Оболочка блока настроения (график недели + шкала «сегодня»):
  * mobile — без фона/бордера/тени и без вертикальных отступов карточки;
- * lg+ — почти белый с холодным подтоном, лёгкая рамка.
+ * md+ — почти белый с холодным подтоном, лёгкая рамка.
  */
 export const patientHomeMoodCheckinShellClass = cn(
   "relative overflow-hidden text-[var(--patient-text-primary)]",
-  "max-lg:border-0 max-lg:bg-transparent max-lg:shadow-none max-lg:rounded-none max-lg:p-0 max-lg:py-0",
-  "lg:rounded-[var(--patient-card-radius-desktop)] lg:border lg:border-[#e2e8f0]/90",
-  "lg:bg-[#f4f7fb] lg:p-[18px] lg:shadow-[0_1px_2px_rgba(15,23,42,0.04)]",
+  "max-md:border-0 max-md:bg-transparent max-md:shadow-none max-md:rounded-none max-md:p-0 max-md:py-0",
+  "md:rounded-[var(--patient-card-radius-desktop)] md:border md:border-[#e2e8f0]/90",
+  "md:bg-[#f4f7fb] md:p-[18px] md:shadow-[0_1px_2px_rgba(15,23,42,0.04)]",
 );
 
 /** Shared 24px pill metrics for top-card labels (hero / useful post). */
@@ -149,17 +149,17 @@ export const patientHomeHeroDurationBadgeClass = cn(
 
 /** Ведущая иконка в карточке — tap area ≥44px (`§9.4` / `§12`). */
 export const patientIconLeadingClass = cn(
-  "inline-flex size-11 shrink-0 items-center justify-center rounded-full lg:size-14",
+  "inline-flex size-11 shrink-0 items-center justify-center rounded-full md:size-14",
   "bg-[var(--patient-color-primary-soft)] text-[var(--patient-color-primary)]",
 );
 
 export const patientIconLeadingWarningClass = cn(
-  "inline-flex size-11 shrink-0 items-center justify-center rounded-full lg:size-14",
+  "inline-flex size-11 shrink-0 items-center justify-center rounded-full md:size-14",
   "bg-[#fef3c7] text-[var(--patient-color-warning)]",
 );
 
 export const patientIconLeadingDangerClass = cn(
-  "inline-flex size-11 shrink-0 items-center justify-center rounded-full lg:size-14",
+  "inline-flex size-11 shrink-0 items-center justify-center rounded-full md:size-14",
   "bg-[var(--patient-color-danger)] text-white",
 );
 
@@ -286,7 +286,7 @@ export const patientHomeTodayCardSectionStackClass = "flex min-w-0 flex-col gap-
  */
 export const patientHomeTodayCardScrollRowBleedClass = cn(
   /**
-   * Mobile/lg: `py-3` обязателен — `overflow-x-auto` по CSS-спеке принудительно делает `overflow-y` clipped
+   * Mobile / до md: `py-3` обязателен — `overflow-x-auto` по CSS-спеке принудительно делает `overflow-y` clipped
    * (нельзя иметь scroll по одной оси и visible по другой). Без вертикального padding hover-эффект
    * плитки (`-translate-y-0.5 + shadow-md + ring-2`) обрезается у верхнего/нижнего края scroll row,
    * хотя сама карточка `overflow-visible`. `py-3` (12px) даёт запас под lift (2px) + ring (2px) + shadow (~6px).
@@ -295,8 +295,8 @@ export const patientHomeTodayCardScrollRowBleedClass = cn(
   "mt-0 flex min-h-0 min-w-0 flex-1 gap-3 overflow-x-auto py-3 -my-3 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
   /* `-mx-4` компенсирует card `px-4`; `pl-[11px]` подобран так, чтобы media первой плитки (60px в 72px tile, items-center) визуально выровнялась с левым краем контента других карточек (border 1 + padding 16). `pr-2` оставляет правый peek, не вынося плитку за визуальный край шелла. */
   "-mx-4 scroll-pl-[11px] pl-[11px] pr-2",
-  /* Не использовать repeat(...,minmax(...)) в одном arbitrary grid-cols — запятая ломает класс в Tailwind → одна колонка и вертикальный столбик на lg */
-  "lg:mx-0 lg:mt-2 lg:grid lg:grid-cols-6 lg:content-start lg:items-start lg:gap-3 lg:overflow-x-auto lg:px-0 lg:pr-0 lg:scroll-pl-0",
+  /* Не использовать repeat(...,minmax(...)) в одном arbitrary grid-cols — запятая ломает класс в Tailwind → одна колонка и вертикальный столбик на md+ */
+  "md:mx-0 md:mt-2 md:grid md:grid-cols-6 md:content-start md:items-start md:gap-3 md:overflow-x-auto md:px-0 md:pr-0 md:scroll-pl-0",
 );
 
 /** Мелкая подпись (caption) — общий токен `--patient-block-caption`. */
@@ -329,20 +329,20 @@ export const patientHomePlanSubtitleClampClass = cn(
 export const patientHomeHeroCardGeometryClass = cn(
   patientHomeCardHeroClass,
   "relative isolate flex flex-col overflow-hidden",
-  "min-h-[192px] p-4 min-[380px]:min-h-[204px] lg:h-[300px] lg:min-h-0 lg:p-5 xl:h-[300px]",
+  "min-h-[192px] p-4 min-[380px]:min-h-[204px] md:h-[300px] md:min-h-0 md:p-5 xl:h-[300px]",
 );
 
 /** Экран материала «Разминка дня» (`from=daily_warmup`): ниже hero, уже текстовая колонка под компактный image-slot. */
 export const patientDailyWarmupDetailHeroGeometryClass = cn(
   patientHomeCardHeroClass,
   "relative isolate flex flex-col overflow-hidden",
-  "min-h-[132px] p-3 min-[380px]:min-h-[140px] lg:min-h-[168px] lg:p-4 xl:min-h-[176px]",
+  "min-h-[132px] p-3 min-[380px]:min-h-[140px] md:min-h-[168px] md:p-4 xl:min-h-[176px]",
 );
 
 /** Колонка текста под {@link PatientDailyWarmupHeroCover} на странице материала разминки. */
 export const patientDailyWarmupDetailHeroTextColumnClass = cn(
-  "relative z-10 flex flex-1 flex-col lg:min-h-0",
-  "pr-[92px] min-[380px]:pr-[104px] lg:pr-[168px] xl:pr-[178px]",
+  "relative z-10 flex flex-1 flex-col md:min-h-0",
+  "pr-[92px] min-[380px]:pr-[104px] md:pr-[168px] xl:pr-[178px]",
 );
 
 /** Описание материала разминки: типографика по плану UX. */
@@ -355,7 +355,7 @@ export const patientDailyWarmupDetailMarkdownClass = cn(
 export const patientDailyWarmupDetailHeroTitleClampClass = cn(
   "min-w-0",
   patientHeroTitleBaseClass,
-  "mt-2 max-w-[min(100%,260px)] text-[16px] leading-[22px] min-[380px]:text-[17px] min-[380px]:leading-6 lg:mt-3 lg:max-w-[min(100%,360px)] lg:line-clamp-2 lg:text-[26px] lg:leading-8 xl:text-[28px] xl:leading-9",
+  "mt-2 max-w-[min(100%,260px)] text-[16px] leading-[22px] min-[380px]:text-[17px] min-[380px]:leading-6 md:mt-3 md:max-w-[min(100%,360px)] md:line-clamp-2 md:text-[26px] md:leading-8 xl:text-[28px] xl:leading-9",
 );
 
 /**
@@ -366,38 +366,38 @@ export const patientDailyWarmupDetailHeroTitleClampClass = cn(
  * за text-column (z-1 vs z-10), поэтому небольшой визуальный нахлёст безопасен.
  */
 export const patientHomeHeroTextColumnClass = cn(
-  "relative z-10 flex flex-1 flex-col lg:min-h-0",
-  "pr-[100px] min-[380px]:pr-[124px] min-[415px]:pr-[160px] lg:pr-[244px] xl:pr-[268px]",
+  "relative z-10 flex flex-1 flex-col md:min-h-0",
+  "pr-[100px] min-[380px]:pr-[124px] min-[415px]:pr-[160px] md:pr-[244px] xl:pr-[268px]",
 );
 
 /** Hero: заголовок (крупнее на mobile), line-clamp-2 — база {@link patientHeroTitleBaseClass}, адаптивные размеры под макет главной. */
 export const patientHomeHeroTitleClampClass = cn(
   "min-w-0",
   patientHeroTitleBaseClass,
-  "mt-2 max-w-[min(100%,240px)] text-[18px] leading-6 min-[380px]:text-[20px] min-[380px]:leading-[26px] lg:mt-4 lg:max-w-[min(100%,390px)] lg:line-clamp-2 lg:text-[34px] lg:leading-10 xl:text-[36px] xl:leading-[42px]",
+  "mt-2 max-w-[min(100%,240px)] text-[18px] leading-6 min-[380px]:text-[20px] min-[380px]:leading-[26px] md:mt-4 md:max-w-[min(100%,390px)] md:line-clamp-2 md:text-[34px] md:leading-10 xl:text-[36px] xl:leading-[42px]",
 );
 
 /** Hero: summary, line-clamp-2. */
 export const patientHomeHeroSummaryClampClass = cn(
   "min-w-0",
-  "mt-1 max-w-[min(100%,235px)] text-[12px] leading-4 text-[var(--patient-text-secondary)] min-[380px]:max-w-[min(100%,240px)] min-[380px]:text-[13px] min-[380px]:leading-[18px] lg:mt-4 lg:max-w-[min(100%,330px)] lg:line-clamp-2 lg:text-[15px] lg:leading-[22px]",
+  "mt-1 max-w-[min(100%,235px)] text-[12px] leading-4 text-[var(--patient-text-secondary)] min-[380px]:max-w-[min(100%,240px)] min-[380px]:text-[13px] min-[380px]:leading-[18px] md:mt-4 md:max-w-[min(100%,330px)] md:line-clamp-2 md:text-[15px] md:leading-[22px]",
 );
 
 /** Hero: фиксированный слот картинки / декора справа снизу. */
 export const patientHomeHeroImageSlotClass = cn(
-  "pointer-events-none absolute bottom-0 right-4 z-[1] flex items-end justify-end overflow-hidden min-[380px]:right-6 lg:right-10",
-  "h-[156px] w-[132px] min-[380px]:h-[168px] min-[380px]:w-[148px] lg:h-[262px] lg:w-[224px] xl:h-[274px] xl:w-[248px]",
+  "pointer-events-none absolute bottom-0 right-4 z-[1] flex items-end justify-end overflow-hidden min-[380px]:right-6 md:right-10",
+  "h-[156px] w-[132px] min-[380px]:h-[168px] min-[380px]:w-[148px] md:h-[262px] md:w-[224px] xl:h-[274px] xl:w-[248px]",
 );
 
 /** Booking: compact beside situations on desktop (VISUAL_SYSTEM_SPEC refresh). */
 export const patientHomeBookingCardGeometryClass = cn(
   "flex min-h-[128px] flex-col gap-3 overflow-hidden",
-  "lg:h-[176px] lg:min-h-0 lg:gap-3",
+  "md:h-[176px] md:min-h-0 md:gap-3",
 );
 
 export const patientHomeBookingCopyClampClass = cn(
   patientLineClamp2Class,
-  "mt-1 lg:line-clamp-2",
+  "mt-1 md:line-clamp-2",
   patientHomeBlockBodySmClass,
 );
 
@@ -406,23 +406,23 @@ export const patientHomeBookingFooterSlotClass =
   "flex min-h-5 shrink-0 flex-col justify-end overflow-hidden text-xs leading-5 text-[var(--patient-block-caption)]";
 
 export const patientHomeBookingActionsClass = cn(
-  "flex w-full shrink-0 flex-row gap-3 lg:max-w-none lg:flex-row",
+  "flex w-full shrink-0 flex-row gap-3 md:max-w-none md:flex-row",
 );
 
 /** Situations row: tile shells (reference — без отдельной «карточки-плитки»). */
 export const patientHomeSituationTileShellClass = cn(
-  "flex w-[4.5rem] shrink-0 flex-col items-center bg-transparent p-0 text-center lg:min-h-0 lg:w-[4.75rem] lg:min-w-[4.75rem] lg:max-w-full lg:shrink-0 lg:justify-self-start",
+  "flex w-[4.5rem] shrink-0 flex-col items-center bg-transparent p-0 text-center md:min-h-0 md:w-[4.75rem] md:min-w-[4.75rem] md:max-w-full md:shrink-0 md:justify-self-start",
 );
 
 /** Медиа-плитка ситуации: чуть компактнее на mobile, 64×64 px на desktop. */
 export const patientHomeSituationTileMediaClass = cn(
-  "flex size-[3.75rem] shrink-0 items-center justify-center overflow-hidden rounded-[1.4rem] bg-[var(--patient-color-primary-soft)]/45 ring-1 ring-[var(--patient-border)]/50 lg:size-16",
+  "flex size-[3.75rem] shrink-0 items-center justify-center overflow-hidden rounded-[1.4rem] bg-[var(--patient-color-primary-soft)]/45 ring-1 ring-[var(--patient-border)]/50 md:size-16",
 );
 
 /** Подпись под иконкой ситуации — `patientHomeBlockCaptionTypographyClass` + выравнивание под плитку. */
 export const patientHomeSituationTileTitleClass = cn(
   patientHomeBlockCaptionTypographyClass,
-  "mx-auto mt-1.5 flex min-h-[2rem] min-w-0 max-w-[5.25rem] items-start justify-center whitespace-normal break-words text-center lg:mt-2 lg:min-h-[2.25rem] lg:max-w-[5.5rem]",
+  "mx-auto mt-1.5 flex min-h-[2rem] min-w-0 max-w-[5.25rem] items-start justify-center whitespace-normal break-words text-center md:mt-2 md:min-h-[2.25rem] md:max-w-[5.5rem]",
 );
 
 /**
@@ -430,24 +430,24 @@ export const patientHomeSituationTileTitleClass = cn(
  * `overflow-visible` на всех breakpoints — иначе hover ring/shadow и translate-y плиток
  * обрезаются по краю карточки (и на lg, и при увеличении на mobile).
  */
-export const patientHomeSituationsCardGeometryClass = cn("overflow-visible lg:h-[176px] lg:min-h-0");
+export const patientHomeSituationsCardGeometryClass = cn("overflow-visible md:h-[176px] md:min-h-0");
 
 /** Mobile: секция «ситуации» без рамки/тени карточки и без вертикального padding оболочки. */
 export const patientHomeSituationsCardMobileChromeClass =
-  "max-lg:border-0 max-lg:shadow-none max-lg:py-0";
+  "max-md:border-0 max-md:shadow-none max-md:py-0";
 
 /** Progress block geometry (patient home reference row). */
 export const patientHomeProgressCardGeometryClass = cn(
-  "flex min-h-[108px] flex-col overflow-hidden sm:min-h-[116px] lg:h-[128px] lg:min-h-0",
+  "flex min-h-[108px] flex-col overflow-hidden sm:min-h-[116px] md:h-[128px] md:min-h-0",
 );
 
 export const patientHomeProgressGridClass = cn(
-  "grid min-h-[84px] min-w-0 grid-cols-[minmax(0,1fr)_4.5rem] items-center gap-1 sm:min-h-[92px] lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_7.5rem] lg:gap-4",
+  "grid min-h-[84px] min-w-0 grid-cols-[minmax(0,1fr)_4.5rem] items-center gap-1 sm:min-h-[92px] md:min-h-0 md:flex-1 md:grid-cols-[minmax(0,1fr)_7.5rem] md:gap-4",
 );
 
 /** Mobile keeps the compact divider; desktop returns the progress circle with more breathing room. */
 export const patientHomeProgressStreakColClass = cn(
-  "flex min-h-0 max-w-full flex-col items-center justify-center border-l border-[#e5e7eb] pl-2 pr-1 text-center lg:border-l-0 lg:pl-0 lg:pr-0",
+  "flex min-h-0 max-w-full flex-col items-center justify-center border-l border-[#e5e7eb] pl-2 pr-1 text-center md:border-l-0 md:pl-0 md:pr-0",
 );
 
 export const patientHomeProgressValueClass =
@@ -469,8 +469,8 @@ export const patientHomeMoodColumnHeadingClass = cn(
 /** Mood: на mobile высота по контенту; на desktop — фиксированная строка дашборда (чуть выше под график недели). */
 export const patientHomeMoodCardGeometryClass = cn(
   "flex flex-col overflow-hidden",
-  "max-lg:my-1 max-lg:h-auto max-lg:min-h-0",
-  "lg:h-[132px]",
+  "max-md:my-1 max-md:h-auto max-md:min-h-0",
+  "md:h-[132px]",
 );
 
 export const patientHomeMoodStatusSlotClass = cn(
@@ -486,13 +486,13 @@ export const patientHomeMoodOptionButtonClass = cn(
 
 /**
  * SOS: на mobile — горизонтальный ряд (icon | text | CTA), как в референсе;
- * на lg — вертикальная карточка (icon+text сверху, CTA снизу).
+ * на md+ — вертикальная карточка (icon+text сверху, CTA снизу).
  * Mobile high-enough min-h, без жёсткой `h-[104px]` (с ним subtitle и CTA не помещались внутри `overflow-hidden`).
  */
 export const patientHomeSosCardGeometryClass = cn(
   "flex flex-row items-center gap-3 overflow-hidden",
   "min-h-[88px]",
-  "lg:h-[136px] lg:min-h-0 lg:flex-col lg:items-stretch lg:justify-between lg:gap-2",
+  "md:h-[136px] md:min-h-0 md:flex-col md:items-stretch md:justify-between md:gap-2",
 );
 
 export const patientHomeSosTitleClampClass = cn(
@@ -508,7 +508,7 @@ export const patientHomeSosSubtitleClampClass = cn(
 /** Заголовок блока напоминания на mobile — компактнее стандартного секционного. */
 export const patientHomeReminderMobileHeadingClass = cn(
   patientHomeBlockHeadingClass,
-  "max-lg:text-[13px] max-lg:leading-snug max-lg:font-medium",
+  "max-md:text-[13px] max-md:leading-snug max-md:font-medium",
 );
 
 /** Одна подпись под заголовком напоминания (mobile): как caption блоков «Сегодня». */
@@ -522,8 +522,8 @@ export const patientHomeReminderCardGeometryClass = cn(
   "flex min-h-[72px] flex-col justify-center gap-1 overflow-hidden",
   "rounded-[var(--patient-card-radius-mobile)] border border-[#fef3c7] bg-[linear-gradient(135deg,#fff9f0_0%,#fff6e8_48%,#fffbeb_100%)] px-2.5 py-1",
   /** Mobile: отступы между 3px и 10px (~середина), без верхней рамки/скругления; снизу скругление чуть больше базового `patient-card-radius-mobile`. */
-  "max-lg:-mt-4 max-lg:mx-[7px] max-lg:rounded-t-none max-lg:rounded-b-[10px] max-lg:border-t-0",
-  "lg:mx-0 lg:mt-0 lg:h-[124px] lg:min-h-0 lg:justify-between lg:gap-1.5 lg:rounded-[var(--patient-card-radius-desktop)] lg:px-4 lg:py-2",
+  "max-md:-mt-4 max-md:mx-[7px] max-md:rounded-t-none max-md:rounded-b-[10px] max-md:border-t-0",
+  "md:mx-0 md:mt-0 md:h-[124px] md:min-h-0 md:justify-between md:gap-1.5 md:rounded-[var(--patient-card-radius-desktop)] md:px-4 md:py-2",
 );
 
 export const patientHomeSosThumbSlotClass = cn(

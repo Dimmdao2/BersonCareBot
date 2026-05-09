@@ -15,8 +15,8 @@ import { cn } from "@/lib/utils";
 /** Общая обводка и фон карточки пациента (не hero / не mood-shell — home-only стили остаются в `app/patient/home/`, без импорта сюда). */
 const patientCardSurfaceTokens = cn(
   "border border-[var(--patient-border)] bg-[var(--patient-card-bg)] text-[var(--patient-text-primary)]",
-  "rounded-[var(--patient-card-radius-mobile)] lg:rounded-[var(--patient-card-radius-desktop)]",
-  "shadow-[var(--patient-shadow-card-mobile)] lg:shadow-[var(--patient-shadow-card-desktop)]",
+  "rounded-[var(--patient-card-radius-mobile)] md:rounded-[var(--patient-card-radius-desktop)]",
+  "shadow-[var(--patient-shadow-card-mobile)] md:shadow-[var(--patient-shadow-card-desktop)]",
 );
 
 /**
@@ -32,9 +32,9 @@ export const patientHeroBookingGradientFillClass =
  */
 export const patientHeroBookingCardChromeClass = cn(
   "overflow-hidden border border-[#ddd6fe]",
-  "rounded-[var(--patient-hero-radius-mobile)] lg:rounded-[var(--patient-hero-radius-desktop)]",
+  "rounded-[var(--patient-hero-radius-mobile)] md:rounded-[var(--patient-hero-radius-desktop)]",
   patientHeroBookingGradientFillClass,
-  "shadow-[var(--patient-shadow-card-mobile)] lg:shadow-[var(--patient-shadow-card-desktop)]",
+  "shadow-[var(--patient-shadow-card-mobile)] md:shadow-[var(--patient-shadow-card-desktop)]",
 );
 
 /**
@@ -42,7 +42,7 @@ export const patientHeroBookingCardChromeClass = cn(
  */
 export const patientHeroBookingSectionClass = cn(
   patientHeroBookingCardChromeClass,
-  "flex flex-col gap-4 p-4 lg:p-[18px]",
+  "flex flex-col gap-4 p-4 md:p-[18px]",
 );
 
 /**
@@ -56,9 +56,9 @@ export const patientPortalModalSurfaceClass =
  * Цвета задаются отдельно через `--patient-surface-<tone>-*`.
  */
 const patientSemanticSurfaceCardChrome = cn(
-  "rounded-[var(--patient-card-radius-mobile)] lg:rounded-[var(--patient-card-radius-desktop)]",
-  "shadow-[var(--patient-shadow-card-mobile)] lg:shadow-[var(--patient-shadow-card-desktop)]",
-  "p-4 lg:p-[18px]",
+  "rounded-[var(--patient-card-radius-mobile)] md:rounded-[var(--patient-card-radius-desktop)]",
+  "shadow-[var(--patient-shadow-card-mobile)] md:shadow-[var(--patient-shadow-card-desktop)]",
+  "p-4 md:p-[18px]",
 );
 
 /**
@@ -107,14 +107,14 @@ export const patientSurfaceDangerClass = cn(
 );
 
 /** Базовая карточка (секции каталога, списки и т.д.). */
-export const patientCardClass = cn(patientCardSurfaceTokens, "p-4 lg:p-[18px]");
+export const patientCardClass = cn(patientCardSurfaceTokens, "p-4 md:p-[18px]");
 
 /**
  * Секция со списком на внутренних страницах: уже по горизонтали, вертикаль как у {@link patientCardClass}.
  */
 export const patientCardListSectionClass = cn(
   patientCardSurfaceTokens,
-  "py-4 px-3 lg:py-[18px] lg:px-4",
+  "py-4 px-3 md:py-[18px] md:px-4",
 );
 
 /**
@@ -133,13 +133,13 @@ export const patientRecommendationCollapsiblePanelClass = "bg-[rgba(228,251,213,
  * Шапка коллапса «Цели и задачи» (страница этапа программы): белый фон, компактная высота, тёмно-серый текст.
  */
 export const patientStageGoalsCollapsibleTriggerClass = cn(
-  "flex w-full cursor-pointer items-center px-3 py-2.5 text-left lg:px-4 lg:py-3",
+  "flex w-full cursor-pointer items-center px-3 py-2.5 text-left md:px-4 md:py-3",
   "bg-white text-[13px] font-semibold leading-tight text-[#444444]",
 );
 
 /** Раскрытый блок «Цели и задачи». */
 export const patientStageGoalsCollapsiblePanelClass = cn(
-  "border-t border-[var(--patient-border)] bg-white px-3 py-3 lg:px-4",
+  "border-t border-[var(--patient-border)] bg-white px-3 py-3 md:px-4",
 );
 
 /**
@@ -160,7 +160,7 @@ export const patientCardNestedListSurfaceClass = cn(
 /** Компактная карточка (плотные списки). */
 export const patientCardCompactClass = cn(
   patientCardSurfaceTokens,
-  "p-3 text-[var(--patient-text-primary)] lg:p-4",
+  "p-3 text-[var(--patient-text-primary)] md:p-4",
 );
 
 /** Строка списка / узкая карточка-блок без тени карточки «полного» размера. */
@@ -357,7 +357,7 @@ export const patientHeroPrimaryActionClass = patientButtonPrimaryClass;
 export const patientHeroWarmupDoneCtaClass = cn(
   "inline-flex max-w-full min-h-9 min-w-0 shrink-0 cursor-default items-center justify-center gap-1.5 rounded-md border border-[#bbf7d0] bg-[#ecfdf5] px-3 py-1.5",
   "text-xs font-medium leading-tight tracking-tight text-[#166534] whitespace-nowrap sm:min-h-10 sm:gap-2 sm:px-3.5 sm:py-2 sm:text-sm",
-  "lg:min-h-11 lg:w-[22rem] lg:justify-start lg:px-4 xl:w-[24rem]",
+  "md:min-h-11 md:w-[22rem] md:justify-start md:px-4 xl:w-[24rem]",
 );
 
 export const patientSecondaryActionClass = patientButtonSecondaryClass;
@@ -379,21 +379,21 @@ export const patientPageSubtitleClass = cn(
 export const patientPageHeaderClass = cn("mb-3 flex flex-col gap-2 md:mb-4");
 
 /**
- * Базовая вертикальная стопка контента внутренней страницы (`gap` 12px → 16px на lg).
+ * Базовая вертикальная стопка контента внутренней страницы (`gap` 12px → 16px с `md`).
  * Ширину задаёт shell — без max-width здесь.
  */
-export const patientInnerPageStackClass = cn("flex flex-col gap-3 lg:gap-4");
+export const patientInnerPageStackClass = cn("flex flex-col gap-3 md:gap-4");
 
 /** Типовая сетка карточек: одна колонка на мобиле, две от `md`; те же промежутки, что у `patientInnerPageStackClass`. */
 export const patientInnerCardGridClass = cn(
-  "grid grid-cols-1 gap-3 md:grid-cols-2 lg:gap-4",
+  "grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4",
 );
 
 /**
  * Дополнительный вертикальный отступ между логическими блоками (если уже есть своя стопка и нужен только rhythm).
  * Обычно — верхний отступ у следующего сиблинга-секции.
  */
-export const patientPageSectionGapClass = "mt-4 lg:mt-6";
+export const patientPageSectionGapClass = "mt-4 md:mt-6";
 
 /**
  * Базовая типографика заголовка в patient hero-карточке:
@@ -407,7 +407,7 @@ export const patientHeroTitleBaseClass = "tracking-tight text-[var(--patient-blo
  * Не для главной `/app/patient` — там свои размеры (`patientHomeHeroTitleClampClass` в `patientHomeCardStyles`).
  */
 export const patientInnerHeroTitleTypographyClass = cn(
-  "text-[17px] leading-snug min-[380px]:text-[19px] lg:text-[26px] lg:leading-8 xl:text-[28px] xl:leading-9",
+  "text-[17px] leading-snug min-[380px]:text-[19px] md:text-[26px] md:leading-8 xl:text-[28px] xl:leading-9",
 );
 
 /**
@@ -415,7 +415,7 @@ export const patientInnerHeroTitleTypographyClass = cn(
  */
 export const patientProgramItemHeroTitleClass = cn(
   patientHeroTitleBaseClass,
-  "text-[16px] leading-snug min-[380px]:text-[17px] lg:text-[22px] lg:leading-7 xl:text-[24px] xl:leading-8",
+  "text-[16px] leading-snug min-[380px]:text-[17px] md:text-[22px] md:leading-7 xl:text-[24px] xl:leading-8",
 );
 
 /**
@@ -438,10 +438,10 @@ export const patientCompositionListThumbSlotClass =
   "size-10 shrink-0 rounded border border-border/40 bg-muted/30";
 
 /** Заголовок hero списка программ при наличии активной программы. */
-export const patientInnerHeroListPrimaryTitleClass = "text-[22px] leading-snug lg:text-2xl lg:leading-snug";
+export const patientInnerHeroListPrimaryTitleClass = "text-[22px] leading-snug md:text-2xl md:leading-snug";
 
 /** Заголовок hero списка программ в пустом состоянии. */
-export const patientInnerHeroListEmptyTitleClass = "text-xl leading-snug lg:text-[22px] lg:leading-snug";
+export const patientInnerHeroListEmptyTitleClass = "text-xl leading-snug md:text-[22px] md:leading-snug";
 
 /**
  * Заголовок текущего этапа программы на detail-странице: primary-тон, жирный, крупный.
@@ -490,7 +490,7 @@ export const patientModalDialogTitleClass = cn(
  * фон не резолвится, остаётся белый `bg-background` модалки, а `text-white` не виден до hover.
  */
 export const patientModalPortalPrimaryCtaClass = cn(
-  "inline-flex min-h-11 w-full min-w-0 cursor-pointer items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-semibold text-white transition-colors lg:min-h-12 lg:text-base",
+  "inline-flex min-h-11 w-full min-w-0 cursor-pointer items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-semibold text-white transition-colors md:min-h-12 md:text-base",
   "bg-[#284da0] hover:bg-[#1f3d82] active:bg-[#1f3d82]",
   "shadow-[0_6px_14px_rgba(40,77,160,0.24)]",
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#284da0]",

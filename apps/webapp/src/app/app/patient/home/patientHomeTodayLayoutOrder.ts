@@ -32,7 +32,7 @@ export function insertProgressThenSosBookingSplitAfterMood(
   return next;
 }
 
-/** Mobile DOM order: «Мой план» сразу под приветствием (desktop — по `lg:order-*` в разметке). */
+/** Mobile DOM order: «Мой план» сразу под приветствием (wide viewport — по `md:order-*` в разметке). */
 export function prependPlanBlock(blocks: PatientHomeTodayLayoutBlock[]): PatientHomeTodayLayoutBlock[] {
   const idx = blocks.findIndex((b) => b.code === "plan");
   if (idx <= 0) return blocks;
@@ -43,7 +43,7 @@ export function prependPlanBlock(blocks: PatientHomeTodayLayoutBlock[]): Patient
 
 /**
  * Mobile DOM order: «Как ваше сегодня?» между постом дня и записью.
- * Desktop порядок карточек задаётся `PatientHomeTodayLayout` (`lg:order`), не DOM.
+ * Desktop порядок карточек задаётся `PatientHomeTodayLayout` (`md:order`), не DOM.
  */
 export function insertMoodBetweenUsefulPostAndBooking(
   blocks: PatientHomeTodayLayoutBlock[],

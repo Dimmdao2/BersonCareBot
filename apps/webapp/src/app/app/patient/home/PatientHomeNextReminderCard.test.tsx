@@ -53,9 +53,9 @@ describe("PatientHomeNextReminderCard", () => {
     expect(mobileCta).toHaveAttribute("href", "/app/patient/reminders");
     expect(mobileCta).toHaveClass("self-end");
     expect(mobileCta).toHaveClass("min-h-8");
-    expect(mobileCta).toHaveClass("lg:hidden");
+    expect(mobileCta).toHaveClass("md:hidden");
     expect(desktopCta).toHaveClass("self-end");
-    expect(desktopCta).toHaveClass("max-lg:hidden");
+    expect(desktopCta).toHaveClass("max-md:hidden");
   });
 
   it("renders custom leading icon when blockIconImageUrl is set", () => {

@@ -127,13 +127,18 @@ export default async function DoctorContentPage({ searchParams }: Props) {
     mainHeading = sectionTitleBySlug.get(activeSectionSlug) ?? activeSectionSlug;
   }
 
-  /** На корне системной папки (?systemParentCode без ?section) страницу не создаём — только разделы. */
+  /** На корне системной папки (?systemParentCode без ?section) страницу не создаём — только дочерние CMS-разделы (страница всегда привязана к slug раздела). */
   const isSystemFolderRoot = validSystemParent !== undefined && activeSectionSlug === null;
   const showCreatePageButton = !isSystemFolderRoot;
 
   let createPageHref = "/app/doctor/content/new";
   if (activeSectionSlug !== null) {
-    createPageHref = `/app/doctor/content/new?section=${encodeURIComponent(activeSectionSlug)}`;
+    const q = new URLSearchParams();
+    q.set("section", activeSectionSlug);
+    if (sectionRowForActive?.kind === "system" && sectionRowForActive.systemParentCode) {
+      q.set("systemParentCode", sectionRowForActive.systemParentCode);
+    }
+    createPageHref = `/app/doctor/content/new?${q.toString()}`;
   }
 
   const isDev = process.env.NODE_ENV === "development";
@@ -179,7 +184,7 @@ export default async function DoctorContentPage({ searchParams }: Props) {
                       href={`/app/doctor/content/sections/new?systemParentCode=${encodeURIComponent(validSystemParent)}`}
                       className={buttonVariants({ variant: "outline", size: "default" })}
                     >
-                      Создать раздел
+                      Создать подраздел
                     </Link>
                     <AttachExistingSectionsModal
                       folderCode={validSystemParent}
@@ -197,7 +202,11 @@ export default async function DoctorContentPage({ searchParams }: Props) {
 
             {validSystemParent !== undefined && activeSectionSlug === null ? (
               folderChildSections.length === 0 ? (
-                <p className="text-muted-foreground">В этой папке пока нет разделов. Создайте раздел, затем страницы.</p>
+                <p className="text-muted-foreground">
+                  Страницу нельзя повесить прямо на корень этой папки: в CMS у страницы всегда есть раздел. Создайте
+                  подраздел (достаточно одного, например «Каталог») — внутри него будут страницы и кнопка «Создать
+                  страницу».
+                </p>
               ) : (
                 <div className="flex flex-col gap-8">
                   {folderChildSections.map((sec) => {
@@ -208,6 +217,8 @@ export default async function DoctorContentPage({ searchParams }: Props) {
                         sectionSlug={sec.slug}
                         sectionTitle={sec.title}
                         initialPages={rows.map(toListRow)}
+                        newPageSystemParentCode={validSystemParent}
+                        sectionSettingsHref={`/app/doctor/content/sections/edit/${encodeURIComponent(sec.slug)}`}
                       />
                     );
                   })}
@@ -219,6 +230,16 @@ export default async function DoctorContentPage({ searchParams }: Props) {
                 sectionTitle={sectionTitleBySlug.get(activeSectionSlug) ?? activeSectionSlug}
                 initialPages={(grouped.get(activeSectionSlug) ?? []).map(toListRow)}
                 showSectionHeading={false}
+                newPageSystemParentCode={
+                  sectionRowForActive?.kind === "system" && sectionRowForActive.systemParentCode ?
+                    sectionRowForActive.systemParentCode
+                  : undefined
+                }
+                sectionSettingsHref={
+                  sectionRowForActive?.kind === "system" ?
+                    `/app/doctor/content/sections/edit/${encodeURIComponent(activeSectionSlug)}`
+                  : undefined
+                }
               />
             ) : articlePages.length === 0 ? (
               <p className="text-muted-foreground">Нет страниц контента.</p>

@@ -59,7 +59,7 @@ export function PatientHomeProgressBlock({
         className={cn(patientHomeCardClass, patientHomeProgressCardGeometryClass, "w-full min-w-0 max-w-full")}
       >
         <div className={patientHomeProgressGridClass}>
-          <div className="flex min-h-0 flex-col justify-center pr-3 lg:pr-0">
+          <div className="flex min-h-0 flex-col justify-center pr-3 md:pr-0">
             <h3 id="patient-home-progress-heading" className={cn(patientHomeBlockHeadingClass, "inline-flex items-center gap-1.5")}>
               Сегодня выполнено
               <Info className="size-3.5 text-[var(--patient-text-muted)]" aria-hidden />
@@ -96,9 +96,9 @@ export function PatientHomeProgressBlock({
             }
           </div>
           <div className={patientHomeProgressStreakColClass}>
-            <div className="flex min-h-0 flex-col items-center justify-center gap-0 lg:size-24 lg:justify-start lg:rounded-full lg:bg-white lg:pt-2 lg:ring-[8px] lg:ring-[#f3f4f6]">
+            <div className="flex min-h-0 flex-col items-center justify-center gap-0 md:size-24 md:justify-start md:rounded-full md:bg-white md:pt-2 md:ring-[8px] md:ring-[#f3f4f6]">
               <span
-                className="inline-flex shrink-0 transition-[opacity] duration-300 ease-out lg:-mt-1"
+                className="inline-flex shrink-0 transition-[opacity] duration-300 ease-out md:-mt-1"
                 style={{ opacity: flameOpacity }}
                 aria-hidden
               >
@@ -109,7 +109,7 @@ export function PatientHomeProgressBlock({
                   loading="lazy"
                   fallback={
                     <span className="inline-flex size-8 items-center justify-center rounded-full bg-[#fff7ed]">
-                      <Flame className="size-4 shrink-0 text-[#f97316] lg:size-5" />
+                      <Flame className="size-4 shrink-0 text-[#f97316] md:size-5" />
                     </span>
                   }
                 />
@@ -122,12 +122,12 @@ export function PatientHomeProgressBlock({
                 </span>
               }
               {progress && !anonymousGuest ?
-                <span className="-mt-0.5 block max-w-[3.5rem] text-center text-[10px] font-semibold leading-[11px] text-[var(--patient-block-caption)] lg:max-w-[4.75rem] lg:leading-3 lg:text-[11px]">
+                <span className="-mt-0.5 block max-w-[3.5rem] text-center text-[10px] font-semibold leading-[11px] text-[var(--patient-block-caption)] md:max-w-[4.75rem] md:leading-3 md:text-[11px]">
                   <span className="block">{streakLabel(progress.streak)}</span>
                   <span className="block">подряд</span>
                 </span>
               :
-                <span className="-mt-0.5 block max-w-[3.5rem] text-center text-[10px] font-semibold leading-[11px] text-[var(--patient-text-muted)] lg:max-w-[4.75rem] lg:leading-3 lg:text-[11px]">
+                <span className="-mt-0.5 block max-w-[3.5rem] text-center text-[10px] font-semibold leading-[11px] text-[var(--patient-text-muted)] md:max-w-[4.75rem] md:leading-3 md:text-[11px]">
                   <span className="block">дней</span>
                   <span className="block">подряд</span>
                 </span>

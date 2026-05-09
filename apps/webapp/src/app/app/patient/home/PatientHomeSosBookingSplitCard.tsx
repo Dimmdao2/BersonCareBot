@@ -19,14 +19,14 @@ const dangerHalfBgClass = "bg-[var(--patient-color-danger-soft)]";
 const successHalfBgClass = "bg-[var(--patient-color-success-soft)]";
 
 const outerChromeClass = cn(
-  "overflow-hidden rounded-[var(--patient-card-radius-mobile)] lg:rounded-[var(--patient-card-radius-desktop)]",
-  "border border-[var(--patient-border)] shadow-[var(--patient-shadow-card-mobile)] lg:shadow-[var(--patient-shadow-card-desktop)]",
+  "overflow-hidden rounded-[var(--patient-card-radius-mobile)] md:rounded-[var(--patient-card-radius-desktop)]",
+  "border border-[var(--patient-border)] shadow-[var(--patient-shadow-card-mobile)] md:shadow-[var(--patient-shadow-card-desktop)]",
 );
 
 const sosIconShellClass =
-  "inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-[var(--patient-color-danger)] text-white lg:size-10";
+  "inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-[var(--patient-color-danger)] text-white md:size-10";
 const bookingIconShellClass =
-  "inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-[#dcfce7] text-[var(--patient-color-success)] lg:size-10";
+  "inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-[#dcfce7] text-[var(--patient-color-success)] md:size-10";
 
 const sosButtonClass = cn(
   patientButtonDangerOutlineClass,
@@ -81,7 +81,7 @@ export function PatientHomeSosBookingSplitCard({
       <section
         aria-labelledby="patient-home-sos-heading"
         className={cn(
-          "flex min-h-[88px] min-w-0 flex-1 flex-col justify-between gap-2 p-3 lg:min-h-[120px] lg:gap-2 lg:p-[14px]",
+          "flex min-h-[88px] min-w-0 flex-1 flex-col justify-between gap-2 p-3 md:min-h-[120px] md:gap-2 md:p-[14px]",
           dangerHalfBgClass,
         )}
       >
@@ -90,9 +90,9 @@ export function PatientHomeSosBookingSplitCard({
             <PatientHomeSafeImage
               src={sosIconUrl}
               alt=""
-              className="size-6 rounded-full object-cover lg:size-[26px]"
+              className="size-6 rounded-full object-cover md:size-[26px]"
               loading="lazy"
-              fallback={<Zap className="size-[22px] lg:size-6" aria-hidden />}
+              fallback={<Zap className="size-[22px] md:size-6" aria-hidden />}
             />
           </div>
           <div className="min-w-0 flex-1">
@@ -115,7 +115,7 @@ export function PatientHomeSosBookingSplitCard({
       <section
         aria-labelledby="patient-home-booking-heading"
         className={cn(
-          "flex min-h-[88px] min-w-0 flex-1 flex-col justify-between gap-2 p-3 lg:min-h-[120px] lg:gap-2 lg:p-[14px]",
+          "flex min-h-[88px] min-w-0 flex-1 flex-col justify-between gap-2 p-3 md:min-h-[120px] md:gap-2 md:p-[14px]",
           successHalfBgClass,
         )}
       >
@@ -124,9 +124,9 @@ export function PatientHomeSosBookingSplitCard({
             <PatientHomeSafeImage
               src={bookingIconUrl}
               alt=""
-              className="size-6 rounded-full object-cover lg:size-[26px]"
+              className="size-6 rounded-full object-cover md:size-[26px]"
               loading="lazy"
-              fallback={<Calendar className="size-[22px] lg:size-6" aria-hidden />}
+              fallback={<Calendar className="size-[22px] md:size-6" aria-hidden />}
             />
           </div>
           <div className="min-w-0 flex-1">

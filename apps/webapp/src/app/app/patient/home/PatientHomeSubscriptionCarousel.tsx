@@ -32,13 +32,13 @@ export function PatientHomeSubscriptionCarousel({ cards, sectionTitle }: Props) 
       className={patientHomeTodaySectionStackClass}
       aria-labelledby="patient-home-subscription-heading"
     >
-      <h3 id="patient-home-subscription-heading" className={cn(patientHomeBlockHeadingClass, "px-4 lg:px-[18px]")}>
+      <h3 id="patient-home-subscription-heading" className={cn(patientHomeBlockHeadingClass, "px-4 md:px-[18px]")}>
         {heading}
       </h3>
       <div
         className={cn(
           "-mx-1 flex snap-x snap-mandatory gap-3 overflow-x-auto px-1 pb-1 [scrollbar-width:thin]",
-          "lg:mx-0 lg:grid lg:grid-cols-3 lg:overflow-visible lg:px-0",
+          "md:mx-0 md:grid md:grid-cols-3 md:overflow-visible md:px-0",
         )}
         style={{ WebkitOverflowScrolling: "touch" }}
       >
@@ -51,8 +51,8 @@ export function PatientHomeSubscriptionCarousel({ cards, sectionTitle }: Props) 
             className={cn(
               patientHomeCardCompactClass,
               patientHomeCarouselItemLayoutClass,
-              "lg:w-full lg:max-w-none lg:min-w-0",
-              cards.length === 1 && "lg:col-span-full",
+              "md:w-full md:max-w-none md:min-w-0",
+              cards.length === 1 && "md:col-span-full",
             )}
           >
             <div className="flex min-h-0 flex-1 gap-3">

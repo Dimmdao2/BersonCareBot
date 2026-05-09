@@ -23,7 +23,7 @@ export function PatientHomeCoursesRow({ cards }: Props) {
 
   return (
     <section id="patient-home-courses-row" className={patientHomeTodaySectionStackClass} aria-labelledby="patient-home-courses-heading">
-      <h3 id="patient-home-courses-heading" className={cn(patientHomeBlockHeadingClass, "px-4 lg:px-[18px]")}>
+      <h3 id="patient-home-courses-heading" className={cn(patientHomeBlockHeadingClass, "px-4 md:px-[18px]")}>
         Курсы
       </h3>
       <ul className="m-0 flex list-none flex-col gap-3 p-0">

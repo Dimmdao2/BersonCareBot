@@ -37,6 +37,15 @@ export type ContentPageListRow = {
   deletedAt: string | null;
 };
 
+function buildNewPageHref(sectionSlug: string, systemParentCode?: string) {
+  const p = new URLSearchParams();
+  p.set("section", sectionSlug);
+  if (systemParentCode?.trim()) {
+    p.set("systemParentCode", systemParentCode.trim());
+  }
+  return `/app/doctor/content/new?${p.toString()}`;
+}
+
 function DragHandle({ listeners, attributes }: { listeners: Record<string, unknown>; attributes: Record<string, unknown> }) {
   return (
     <Button
@@ -115,12 +124,18 @@ export function ContentPagesSectionList({
   sectionTitle,
   initialPages,
   showSectionHeading = true,
+  /** Для подразделов внутри системной папки — иначе `/content/new` отфильтрует только `article` и список будет пустым. */
+  newPageSystemParentCode,
+  /** Ссылка на редактирование CMS-раздела (подразделы системной папки не в списке `/content/sections`). */
+  sectionSettingsHref,
 }: {
   sectionSlug: string;
   sectionTitle: string;
   initialPages: ContentPageListRow[];
   /** Если false — заголовок раздела не дублируется (родитель уже показал h2). */
   showSectionHeading?: boolean;
+  newPageSystemParentCode?: string;
+  sectionSettingsHref?: string;
 }) {
   const [items, setItems] = useState(initialPages);
   const [pending, startTransition] = useTransition();
@@ -172,11 +187,31 @@ export function ContentPagesSectionList({
   if (items.length === 0) {
     return (
       <div className="flex flex-col gap-2">
+        {!showSectionHeading && sectionSettingsHref ?
+          <div className="flex flex-wrap justify-end">
+            <Link
+              href={sectionSettingsHref}
+              className="text-sm font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+            >
+              Редактировать раздел
+            </Link>
+          </div>
+        : null}
         {showSectionHeading ? (
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h3 className="m-0 text-base font-semibold">{sectionTitle}</h3>
+            <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+              <h3 className="m-0 text-base font-semibold">{sectionTitle}</h3>
+              {sectionSettingsHref ?
+                <Link
+                  href={sectionSettingsHref}
+                  className="shrink-0 text-sm font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+                >
+                  Редактировать раздел
+                </Link>
+              : null}
+            </div>
             <Link
-              href={`/app/doctor/content/new?section=${encodeURIComponent(sectionSlug)}`}
+              href={buildNewPageHref(sectionSlug, newPageSystemParentCode)}
               className="text-sm font-medium text-primary underline-offset-4 hover:underline"
             >
               Создать страницу
@@ -190,11 +225,31 @@ export function ContentPagesSectionList({
 
   return (
     <div className="flex flex-col gap-2">
+      {!showSectionHeading && sectionSettingsHref ?
+        <div className="flex flex-wrap justify-end">
+          <Link
+            href={sectionSettingsHref}
+            className="text-sm font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+          >
+            Редактировать раздел
+          </Link>
+        </div>
+      : null}
       {showSectionHeading ? (
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h3 className="m-0 text-base font-semibold">{sectionTitle}</h3>
+          <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+            <h3 className="m-0 text-base font-semibold">{sectionTitle}</h3>
+            {sectionSettingsHref ?
+              <Link
+                href={sectionSettingsHref}
+                className="shrink-0 text-sm font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+              >
+                Редактировать раздел
+              </Link>
+            : null}
+          </div>
           <Link
-            href={`/app/doctor/content/new?section=${encodeURIComponent(sectionSlug)}`}
+            href={buildNewPageHref(sectionSlug, newPageSystemParentCode)}
             className="text-sm font-medium text-primary underline-offset-4 hover:underline"
           >
             Создать страницу
