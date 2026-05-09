@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
+import Link from "next/link";
 import { Activity, BookOpen, ClipboardList, Layers, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -755,6 +756,8 @@ function DoctorInstanceAddPipelineStageControls(props: {
 }
 
 export function TreatmentProgramInstanceDetailClient(props: {
+  /** Карточка клиента (с тем же `scope`, что и «Назад» в шапке). */
+  patientProfileHref: string;
   patientDisplayName: string;
   initial: TreatmentProgramInstanceDetail;
   initialTestResults: TreatmentProgramTestResultDetailRow[];
@@ -766,6 +769,7 @@ export function TreatmentProgramInstanceDetailClient(props: {
   treatmentProgramLibrary: TreatmentProgramLibraryPickers;
 }) {
   const {
+    patientProfileHref,
     patientDisplayName,
     initial,
     initialTestResults,
@@ -884,7 +888,13 @@ export function TreatmentProgramInstanceDetailClient(props: {
           <section className="rounded-xl border border-border bg-card p-4" id="doctor-program-instance-summary">
             <h2 className="text-lg font-semibold tracking-tight">{detail.title}</h2>
             <p className="mt-1 text-xs text-muted-foreground">
-              Пациент: <span className="font-medium text-foreground">{patientDisplayName}</span>
+              Пациент:{" "}
+              <Link
+                href={patientProfileHref}
+                className="font-medium text-foreground underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              >
+                {patientDisplayName}
+              </Link>
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
               Статус программы: {detail.status === "completed" ? "завершена" : "активна"}

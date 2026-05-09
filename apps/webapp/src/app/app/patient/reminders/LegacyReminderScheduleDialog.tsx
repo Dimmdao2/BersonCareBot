@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { reminderRuleToPatientJson } from "@/app/api/patient/reminders/reminderPatientJson";
+import type { PatientReminderRuleJson } from "@/app/api/patient/reminders/reminderPatientJson";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -9,12 +11,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Sheet, SheetContent, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { Textarea } from "@/components/ui/textarea";
-import type { PatientReminderRuleJson } from "@/app/api/patient/reminders/reminderPatientJson";
-import type { ReminderLinkedObjectType } from "@/modules/reminders/types";
+import {
+  Sheet,
+  SheetContent,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import type { ReminderRule } from "@/modules/reminders/types";
 import type { ReminderDayFilter, SlotsV1ScheduleData } from "@/modules/reminders/scheduleSlots";
 import { DEFAULT_REHAB_WEEKDAY_SLOTS, normalizeSlotsV1ScheduleData } from "@/modules/reminders/scheduleSlots";
 import { validateQuietHoursPair } from "@/modules/reminders/quietHours";
@@ -30,6 +34,7 @@ import {
   parseQuietEndMinute,
 } from "@/modules/reminders/reminderTimeInputs";
 import { ReminderScheduleForm } from "@/modules/reminders/components/ReminderScheduleForm";
+import { patchPatientReminderScheduleBundle } from "@/app/app/patient/reminders/actions";
 
 function subscribeMobileViewport(onStoreChange: () => void) {
   if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
@@ -47,16 +52,6 @@ function getMobileViewportSnapshot(): boolean {
 
 const WEEKDAY_LABELS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"] as const;
 
-export type ReminderCreateDialogProps = {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  linkedObjectType: ReminderLinkedObjectType;
-  linkedObjectId: string;
-  contextTitle: string;
-  existingRule: PatientReminderRuleJson | null;
-  onSaved: () => void;
-};
-
 const DEFAULT_INTERVAL = 60;
 const DEFAULT_START = 9 * 60;
 const DEFAULT_END = 21 * 60;
@@ -70,16 +65,22 @@ function dedupeSortTimes(times: string[]): string[] {
   return [...set].sort((a, b) => a.localeCompare(b, "en"));
 }
 
-export function ReminderCreateDialog({
+export function LegacyReminderScheduleDialog({
+  rule,
+  categoryLabel,
   open,
   onOpenChange,
-  linkedObjectType,
-  linkedObjectId,
-  contextTitle,
-  existingRule,
   onSaved,
-}: ReminderCreateDialogProps) {
+}: {
+  rule: ReminderRule;
+  categoryLabel: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSaved: () => void;
+}) {
   const isMobileViewport = useSyncExternalStore(subscribeMobileViewport, getMobileViewportSnapshot, () => false);
+
+  const existingRule = useMemo(() => reminderRuleToPatientJson(rule), [rule]);
 
   const [intervalMinutes, setIntervalMinutes] = useState(DEFAULT_INTERVAL);
   const [startTime, setStartTime] = useState(minutesToTimeInput(DEFAULT_START));
@@ -93,59 +94,35 @@ export function ReminderCreateDialog({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [syncWarning, setSyncWarning] = useState<string | null>(null);
-  const [customTitle, setCustomTitle] = useState("");
-  const [customText, setCustomText] = useState("");
 
-  const errorAnchorRef = useRef<HTMLParagraphElement | null>(null);
-
-  const isEdit = Boolean(existingRule);
-  const isCustom = linkedObjectType === "custom";
+  const errorAnchorRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!open) return;
     setError(null);
     setSyncWarning(null);
-    if (existingRule) {
-      const isSlots = existingRule.scheduleType === "slots_v1";
-      setScheduleMode(isSlots ? "slots_v1" : "interval_window");
-      setIntervalMinutes(clampIntervalMinutes(existingRule.intervalMinutes ?? DEFAULT_INTERVAL));
-      setStartTime(minutesToTimeInput(existingRule.windowStartMinute));
-      setEndTime(minutesToTimeInput(existingRule.windowEndMinute));
-      setDaysMask(/^[01]{7}$/.test(existingRule.daysMask) ? existingRule.daysMask : DEFAULT_MASK);
-      setCustomTitle(existingRule.customTitle?.trim() ?? "");
-      setCustomText(existingRule.customText?.trim() ?? "");
-      if (isSlots && existingRule.scheduleData?.timesLocal?.length) {
-        setSlotTimeRows(dedupeSortTimes([...existingRule.scheduleData.timesLocal]));
-        setSlotsDayFilter(existingRule.scheduleData.dayFilter ?? "weekdays");
-      } else {
-        setSlotTimeRows([...DEFAULT_REHAB_WEEKDAY_SLOTS.timesLocal]);
-        setSlotsDayFilter("weekdays");
-      }
-      if (existingRule.quietHoursStartMinute != null && existingRule.quietHoursEndMinute != null) {
-        setQuietStart(minutesToTimeInput(existingRule.quietHoursStartMinute));
-        setQuietEnd(minutesToTimeInput(existingRule.quietHoursEndMinute));
-      } else {
-        setQuietStart("");
-        setQuietEnd("");
-      }
+    const json: PatientReminderRuleJson = reminderRuleToPatientJson(rule);
+    const isSlots = json.scheduleType === "slots_v1";
+    setScheduleMode(isSlots ? "slots_v1" : "interval_window");
+    setIntervalMinutes(clampIntervalMinutes(json.intervalMinutes ?? DEFAULT_INTERVAL));
+    setStartTime(minutesToTimeInput(json.windowStartMinute));
+    setEndTime(minutesToTimeInput(json.windowEndMinute));
+    setDaysMask(/^[01]{7}$/.test(json.daysMask) ? json.daysMask : DEFAULT_MASK);
+    if (isSlots && json.scheduleData?.timesLocal?.length) {
+      setSlotTimeRows(dedupeSortTimes([...json.scheduleData.timesLocal]));
+      setSlotsDayFilter(json.scheduleData.dayFilter ?? "weekdays");
     } else {
-      setScheduleMode(linkedObjectType === "rehab_program" ? "slots_v1" : "interval_window");
-      setIntervalMinutes(DEFAULT_INTERVAL);
-      setStartTime(minutesToTimeInput(DEFAULT_START));
-      setEndTime(minutesToTimeInput(DEFAULT_END));
-      setDaysMask(DEFAULT_MASK);
-      setCustomTitle("");
-      setCustomText("");
-      setSlotTimeRows(
-        linkedObjectType === "rehab_program"
-          ? [...DEFAULT_REHAB_WEEKDAY_SLOTS.timesLocal]
-          : [minutesToTimeInput(DEFAULT_START)],
-      );
+      setSlotTimeRows([...DEFAULT_REHAB_WEEKDAY_SLOTS.timesLocal]);
       setSlotsDayFilter("weekdays");
+    }
+    if (json.quietHoursStartMinute != null && json.quietHoursEndMinute != null) {
+      setQuietStart(minutesToTimeInput(json.quietHoursStartMinute));
+      setQuietEnd(minutesToTimeInput(json.quietHoursEndMinute));
+    } else {
       setQuietStart("");
       setQuietEnd("");
     }
-  }, [open, existingRule, linkedObjectType]);
+  }, [open, rule]);
 
   const previewText = useMemo(() => {
     const daysOn = daysMask
@@ -208,20 +185,6 @@ export function ReminderCreateDialog({
       quietHoursEndMinute = qe;
     }
 
-    if (isCustom) {
-      const t = customTitle.trim();
-      if (t.length < 1 || t.length > 140) {
-        setError("Заголовок: от 1 до 140 символов.");
-        scrollToError();
-        return;
-      }
-      if (customText.length > 2000) {
-        setError("Текст не длиннее 2000 символов.");
-        scrollToError();
-        return;
-      }
-    }
-
     let schedule: Record<string, unknown>;
 
     if (scheduleMode === "interval_window") {
@@ -243,7 +206,7 @@ export function ReminderCreateDialog({
         intervalMinutes > REMINDER_INTERVAL_WINDOW_MAX_MINUTES
       ) {
         setError(
-          `Интервал от ${REMINDER_INTERVAL_WINDOW_MIN_MINUTES} до ${REMINDER_INTERVAL_WINDOW_MAX_MINUTES} минут (до 10 ч 59 мин).`,
+          `Интервал от ${REMINDER_INTERVAL_WINDOW_MIN_MINUTES} до ${REMINDER_INTERVAL_WINDOW_MAX_MINUTES} минут.`,
         );
         scrollToError();
         return;
@@ -284,147 +247,57 @@ export function ReminderCreateDialog({
 
     setSubmitting(true);
     try {
-      if (existingRule) {
-        const body: Record<string, unknown> = {
-          schedule,
-          enabled: existingRule.enabled,
-        };
-        if (isCustom) {
-          body.customTitle = customTitle.trim();
-          body.customText = customText.trim() ? customText.trim() : null;
-        }
-        const res = await fetch(`/api/patient/reminders/${encodeURIComponent(existingRule.id)}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        });
-        const data = (await res.json()) as {
-          ok?: boolean;
-          error?: string;
-          syncWarning?: string;
-        };
-        if (!res.ok || !data.ok) {
-          setError(data.error === "not_found" ? "Правило не найдено." : "Не удалось сохранить.");
-          scrollToError();
-          return;
-        }
-        if (data.syncWarning) setSyncWarning(data.syncWarning);
-      } else {
-        const body: Record<string, unknown> =
-          linkedObjectType === "custom"
-            ? {
-                linkedObjectType: "custom",
-                customTitle: customTitle.trim(),
-                customText: customText.trim() ? customText.trim() : null,
-                enabled: true,
-                schedule,
-              }
-            : {
-                linkedObjectType,
-                linkedObjectId,
-                enabled: true,
-                schedule,
-              };
-        const res = await fetch("/api/patient/reminders/create", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        });
-        const data = (await res.json()) as {
-          ok?: boolean;
-          error?: string;
-          syncWarning?: string;
-        };
-        if (!res.ok || !data.ok) {
-          if (data.error === "not_found") {
-            setError("Свяжите аккаунт с ботом, чтобы создавать напоминания.");
-          } else {
-            setError("Не удалось создать напоминание.");
-          }
-          scrollToError();
-          return;
-        }
-        if (data.syncWarning) setSyncWarning(data.syncWarning);
+      const res = await patchPatientReminderScheduleBundle({
+        ruleId: rule.id,
+        schedule: schedule as Parameters<typeof patchPatientReminderScheduleBundle>[0]["schedule"],
+      });
+      if (!res.ok) {
+        setError(res.error);
+        scrollToError();
+        return;
       }
+      if (res.syncWarning) setSyncWarning(res.syncWarning);
       onOpenChange(false);
       onSaved();
-    } catch {
-      setError("Сеть недоступна. Попробуйте ещё раз.");
-      scrollToError();
     } finally {
       setSubmitting(false);
     }
   };
 
-  const formId = "reminder-create-form";
-
-  const scheduleBlock = (
-    <ReminderScheduleForm
-      formId={formId}
-      submitting={submitting}
-      linkedObjectTypeForDefaults={linkedObjectType}
-      scheduleMode={scheduleMode}
-      setScheduleMode={setScheduleMode}
-      intervalMinutes={intervalMinutes}
-      setIntervalMinutes={(n) => setIntervalMinutes(clampIntervalMinutes(n))}
-      startTime={startTime}
-      setStartTime={setStartTime}
-      endTime={endTime}
-      setEndTime={setEndTime}
-      daysMask={daysMask}
-      setDaysMask={setDaysMask}
-      slotTimeRows={slotTimeRows}
-      setSlotTimeRows={setSlotTimeRows}
-      slotsDayFilter={slotsDayFilter}
-      setSlotsDayFilter={setSlotsDayFilter}
-      quietStart={quietStart}
-      setQuietStart={setQuietStart}
-      quietEnd={quietEnd}
-      setQuietEnd={setQuietEnd}
-      deliveryNote={DELIVERY_NOTE}
-      previewBadgeLabel={isCustom ? customTitle.trim() || "Заголовок" : contextTitle}
-      previewText={previewText}
-      error={error}
-      syncWarning={syncWarning}
-    />
-  );
-
-  const customFields = isCustom ? (
-    <div className="space-y-3 px-1">
-      <div className="space-y-1.5">
-        <Label htmlFor={`${formId}-ctitle`}>Заголовок</Label>
-        <Input
-          id={`${formId}-ctitle`}
-          value={customTitle}
-          onChange={(e) => setCustomTitle(e.target.value)}
-          maxLength={140}
-          disabled={submitting}
-          placeholder="Например: Выпить воду"
-        />
-      </div>
-      <div className="space-y-1.5">
-        <Label htmlFor={`${formId}-ctext`}>Текст (необязательно)</Label>
-        <Textarea
-          id={`${formId}-ctext`}
-          value={customText}
-          onChange={(e) => setCustomText(e.target.value)}
-          maxLength={2000}
-          disabled={submitting}
-          rows={3}
-          placeholder="Короткое напоминание"
-        />
-      </div>
-    </div>
-  ) : null;
+  const formId = `legacy-reminder-schedule-${rule.id}`;
 
   const body = (
     <div ref={errorAnchorRef} className="flex flex-col gap-4 px-1 pb-1">
-      {customFields}
-      {scheduleBlock}
+      <ReminderScheduleForm
+        formId={formId}
+        submitting={submitting}
+        linkedObjectTypeForDefaults="custom"
+        scheduleMode={scheduleMode}
+        setScheduleMode={setScheduleMode}
+        intervalMinutes={intervalMinutes}
+        setIntervalMinutes={(n) => setIntervalMinutes(clampIntervalMinutes(n))}
+        startTime={startTime}
+        setStartTime={setStartTime}
+        endTime={endTime}
+        setEndTime={setEndTime}
+        daysMask={daysMask}
+        setDaysMask={setDaysMask}
+        slotTimeRows={slotTimeRows}
+        setSlotTimeRows={setSlotTimeRows}
+        slotsDayFilter={slotsDayFilter}
+        setSlotsDayFilter={setSlotsDayFilter}
+        quietStart={quietStart}
+        setQuietStart={setQuietStart}
+        quietEnd={quietEnd}
+        setQuietEnd={setQuietEnd}
+        deliveryNote={DELIVERY_NOTE}
+        previewBadgeLabel={categoryLabel}
+        previewText={previewText}
+        error={error}
+        syncWarning={syncWarning}
+      />
     </div>
   );
-
-  const title = isEdit ? "Изменить напоминание" : isCustom ? "Своё напоминание" : "Напоминание";
 
   const footer = (
     <div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end">
@@ -432,10 +305,12 @@ export function ReminderCreateDialog({
         Отмена
       </Button>
       <Button type="button" onClick={() => void handleSubmit()} disabled={submitting}>
-        {submitting ? "Сохранение…" : isEdit ? "Сохранить" : "Создать"}
+        {submitting ? "Сохранение…" : "Сохранить"}
       </Button>
     </div>
   );
+
+  const title = `Расписание: ${categoryLabel}`;
 
   if (isMobileViewport) {
     return (

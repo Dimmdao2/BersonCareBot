@@ -77,6 +77,7 @@ export default async function DoctorPatientTreatmentProgramPage({ params, search
       variant="doctor"
     >
       <TreatmentProgramInstanceDetailClient
+        patientProfileHref={backHref}
         patientDisplayName={patientDisplayName}
         initial={detail}
         initialTestResults={testResults}

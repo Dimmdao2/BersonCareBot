@@ -12,6 +12,7 @@ import { resolvePatientContentSectionSlug } from "@/infra/repos/resolvePatientCo
 import { DEFAULT_WARMUPS_SECTION_SLUG } from "@/modules/patient-home/warmupsSection";
 import { resolvePatientCanViewAuthOnlyContent } from "@/modules/platform-access";
 import { RemindersHashScroll } from "./RemindersHashScroll";
+import { PatientRemindersMuteBar } from "./PatientRemindersMuteBar";
 import type { AppSession } from "@/shared/types/session";
 
 function mapIconKind(linked: NonNullable<ReminderRule["linkedObjectType"]>): PersonalReminderRowVM["iconKind"] {
@@ -19,7 +20,7 @@ function mapIconKind(linked: NonNullable<ReminderRule["linkedObjectType"]>): Per
     case "lfk_complex":
       return "lfk";
     case "rehab_program":
-      return "lfk";
+      return "rehab";
     case "content_section":
       return "warmup";
     case "content_page":
@@ -33,13 +34,18 @@ function mapIconKind(linked: NonNullable<ReminderRule["linkedObjectType"]>): Per
 
 async function resolvePersonalReminderLabel(
   deps: ReturnType<typeof buildAppDeps>,
+  userId: string,
   rule: ReminderRule,
 ): Promise<string> {
   const lo = rule.linkedObjectType;
   const id = rule.linkedObjectId;
   if (!lo) return "";
   if (lo === "lfk_complex") {
-    return "Напоминание";
+    if (id) {
+      const cx = await deps.diaries.getLfkComplexForUser({ userId, complexId: id });
+      return cx?.title?.trim() || "Занятие";
+    }
+    return "Занятие";
   }
   if (lo === "content_section") {
     if (id) {
@@ -128,7 +134,7 @@ export async function RemindersPageBody({ session }: { session: AppSession }) {
 
   const personalRows: PersonalReminderRowVM[] = [];
   for (const r of personalRules) {
-    const label = await resolvePersonalReminderLabel(deps, r);
+    const label = await resolvePersonalReminderLabel(deps, userId, r);
     const iconKind = mapIconKind(r.linkedObjectType!);
     const st = journalStats[r.id] ?? { done: 0, skipped: 0, snoozed: 0 };
     personalRows.push({ rule: r, label, iconKind, stats: st });
@@ -141,44 +147,37 @@ export async function RemindersPageBody({ session }: { session: AppSession }) {
         Программа реабилитации, разминки, свои напоминания и категории от врача. Изменения синхронизируются с ботом.
       </p>
 
-      {muteUntilLabel ? (
-        <Card className={cn(patientCardClass, "mb-4 border-[#fde68a] bg-[#fffbeb]")}>
-          <CardContent className="pb-3 pt-3">
-            <p className="text-sm font-medium text-[#92400e]">
-              Уведомления на паузе до {muteUntilLabel}
-            </p>
-          </CardContent>
-        </Card>
-      ) : null}
+      <PatientRemindersMuteBar muteUntilLabel={muteUntilLabel} />
 
-      {projectionStats.total > 0 && (
-        <Card className={cn(patientCardClass, "mb-4")}>
-          <CardContent className="pb-4 pt-4">
-            <p
-              className={cn(
-                patientMutedTextClass,
-                "mb-2 text-xs font-semibold uppercase tracking-wide",
-              )}
-            >
-              Уведомления за 30 дней
-            </p>
-            <div className="flex flex-wrap gap-4 text-sm">
-              <span>
-                <span className="font-medium">{projectionStats.total}</span>{" "}
-                <span className={patientMutedTextClass}>отправлено</span>
-              </span>
-              <span>
-                <span className="font-medium">{projectionStats.seen}</span>{" "}
-                <span className={patientMutedTextClass}>просмотрено</span>
-              </span>
-              <span>
-                <span className="font-medium">{projectionStats.unseen}</span>{" "}
-                <span className={patientMutedTextClass}>пропущено</span>
-              </span>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      <Card className={cn(patientCardClass, "mb-4")}>
+        <CardContent className="pb-4 pt-4">
+          <p
+            className={cn(
+              patientMutedTextClass,
+              "mb-2 text-xs font-semibold uppercase tracking-wide",
+            )}
+          >
+            Уведомления за 30 дней
+          </p>
+          <p className={cn(patientMutedTextClass, "mb-3 text-xs")}>
+            По напоминаниям из бота и приложения.
+          </p>
+          <div className="flex flex-wrap gap-4 text-sm">
+            <span>
+              <span className="font-medium">{projectionStats.total}</span>{" "}
+              <span className={patientMutedTextClass}>отправлено</span>
+            </span>
+            <span>
+              <span className="font-medium">{projectionStats.seen}</span>{" "}
+              <span className={patientMutedTextClass}>просмотрено</span>
+            </span>
+            <span>
+              <span className="font-medium">{projectionStats.unseen}</span>{" "}
+              <span className={patientMutedTextClass}>без открытия</span>
+            </span>
+          </div>
+        </CardContent>
+      </Card>
 
       <ReminderRulesClient
         personalRows={personalRows}

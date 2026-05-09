@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { Dumbbell, FileText, Flame, Sparkles, Trash2 } from "lucide-react";
+import { Activity, Dumbbell, FileText, Flame, Sparkles, Trash2 } from "lucide-react";
 import { reminderRuleToPatientJson } from "@/app/api/patient/reminders/reminderPatientJson";
 import { routePaths } from "@/app-layer/routes/paths";
 import { Badge } from "@/components/ui/badge";
@@ -16,16 +16,24 @@ import {
   patientSectionTitleNormalClass,
   patientSurfaceInfoClass,
 } from "@/shared/ui/patientVisual";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import toast from "react-hot-toast";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { ReminderCreateDialog } from "@/modules/reminders/components/ReminderCreateDialog";
 import type { ReminderRule, ReminderCategory } from "@/modules/reminders/types";
 import { clampIntervalMinutes } from "@/modules/reminders/reminderIntervalBounds";
 import { formatReminderMinuteOfDayToHhMm } from "@/modules/reminders/reminderScheduleFormat";
 import { summarizeReminderForCalendarDay } from "@/modules/reminders/summarizeReminderForCalendarDay";
 import { DEFAULT_WARMUPS_SECTION_SLUG } from "@/modules/patient-home/warmupsSection";
-import { toggleReminderCategory, patchPatientReminderScheduleBundle } from "./actions";
+import { toggleReminderCategory } from "./actions";
+import { LegacyReminderScheduleDialog } from "./LegacyReminderScheduleDialog";
 
 const CATEGORY_LABELS: Record<ReminderCategory, string> = {
   appointment: "Запись на приём",
@@ -35,7 +43,7 @@ const CATEGORY_LABELS: Record<ReminderCategory, string> = {
   broadcast: "Рассылки по темам",
 };
 
-export type PersonalReminderIconKind = "lfk" | "warmup" | "page" | "custom";
+export type PersonalReminderIconKind = "lfk" | "rehab" | "warmup" | "page" | "custom";
 
 export type PersonalReminderRowVM = {
   rule: ReminderRule;
@@ -47,11 +55,20 @@ export type PersonalReminderRowVM = {
 function formatScheduleSummary(rule: ReminderRule): string {
   if (rule.scheduleType === "slots_v1" && rule.scheduleData?.timesLocal?.length) {
     const times = rule.scheduleData.timesLocal.join(", ");
+    const df = rule.scheduleData.dayFilter;
+    const dayHint =
+      df === "weekdays"
+        ? "Пн–Пт"
+        : df === "weekly_mask"
+          ? "по выбранным дням"
+          : df === "every_n_days"
+            ? "по графику «раз в N дней»"
+            : "";
     const q =
       rule.quietHoursStartMinute != null && rule.quietHoursEndMinute != null
         ? ` Тихие часы: ${formatReminderMinuteOfDayToHhMm(rule.quietHoursStartMinute)}–${formatReminderMinuteOfDayToHhMm(rule.quietHoursEndMinute)}.`
         : "";
-    return `Слоты: ${times}.${q}`;
+    return `Слоты: ${times}${dayHint ? `. ${dayHint}` : ""}.${q}`;
   }
   const q =
     rule.quietHoursStartMinute != null && rule.quietHoursEndMinute != null
@@ -61,32 +78,13 @@ function formatScheduleSummary(rule: ReminderRule): string {
   return `${formatReminderMinuteOfDayToHhMm(rule.windowStartMinute)}–${formatReminderMinuteOfDayToHhMm(rule.windowEndMinute)}, каждые ${interval} мин.${q}`;
 }
 
-const WEEKDAY_TOGGLE_LABELS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"] as const;
-
-function toggleDayMaskStr(mask: string, index: number): string {
-  const chars = mask.padEnd(7, "0").slice(0, 7).split("");
-  chars[index] = chars[index] === "1" ? "0" : "1";
-  return chars.join("");
-}
-
-function legacyEditFormFromRule(rule: ReminderRule) {
-  return {
-    intervalMinutes: clampIntervalMinutes(rule.intervalMinutes ?? 60),
-    windowStartMinute: rule.windowStartMinute,
-    windowEndMinute: rule.windowEndMinute,
-    daysMask: /^[01]{7}$/.test(rule.daysMask) ? rule.daysMask : "1111111",
-    quietEnabled:
-      rule.quietHoursStartMinute != null && rule.quietHoursEndMinute != null,
-    quietStart: rule.quietHoursStartMinute ?? 0,
-    quietEnd: rule.quietHoursEndMinute ?? 1320,
-  };
-}
-
 function TypeIcon({ kind }: { kind: PersonalReminderIconKind }) {
   const cls = "size-5 shrink-0 text-primary";
   switch (kind) {
     case "lfk":
       return <Dumbbell className={cls} aria-hidden />;
+    case "rehab":
+      return <Activity className={cls} aria-hidden />;
     case "warmup":
       return <Flame className={cls} aria-hidden />;
     case "page":
@@ -97,16 +95,12 @@ function TypeIcon({ kind }: { kind: PersonalReminderIconKind }) {
 }
 
 function LegacyCategoryRuleCard({ rule }: { rule: ReminderRule }) {
+  const router = useRouter();
+  const refresh = () => router.refresh();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [syncWarning, setSyncWarning] = useState<string | null>(null);
-  const [editOpen, setEditOpen] = useState(false);
-  const [form, setForm] = useState(() => legacyEditFormFromRule(rule));
-
-  const openEdit = () => {
-    setForm(legacyEditFormFromRule(rule));
-    setEditOpen(true);
-  };
+  const [scheduleOpen, setScheduleOpen] = useState(false);
 
   const handleToggle = (checked: boolean) => {
     setError(null);
@@ -115,42 +109,6 @@ function LegacyCategoryRuleCard({ rule }: { rule: ReminderRule }) {
       const res = await toggleReminderCategory(rule.category, checked);
       if (!res.ok) setError(res.error);
       else if (res.syncWarning) setSyncWarning(res.syncWarning);
-    });
-  };
-
-  const handleSave = () => {
-    setError(null);
-    setSyncWarning(null);
-    if (form.windowStartMinute >= form.windowEndMinute) {
-      setError("Начало окна должно быть меньше конца.");
-      return;
-    }
-    if (form.intervalMinutes < 30 || form.intervalMinutes > 659) {
-      setError("Интервал от 30 минут до 10 ч 59 мин.");
-      return;
-    }
-    if (!/^[01]{7}$/.test(form.daysMask) || !form.daysMask.includes("1")) {
-      setError("Выберите дни недели.");
-      return;
-    }
-    startTransition(async () => {
-      const res = await patchPatientReminderScheduleBundle({
-        ruleId: rule.id,
-        schedule: {
-          scheduleType: "interval_window",
-          intervalMinutes: form.intervalMinutes,
-          windowStartMinute: form.windowStartMinute,
-          windowEndMinute: form.windowEndMinute,
-          daysMask: form.daysMask,
-          quietHoursStartMinute: form.quietEnabled ? form.quietStart : null,
-          quietHoursEndMinute: form.quietEnabled ? form.quietEnd : null,
-        },
-      });
-      if (!res.ok) setError(res.error);
-      else {
-        if (res.syncWarning) setSyncWarning(res.syncWarning);
-        setEditOpen(false);
-      }
     });
   };
 
@@ -176,135 +134,20 @@ function LegacyCategoryRuleCard({ rule }: { rule: ReminderRule }) {
             Расписание: {formatScheduleSummary(rule)}
           </p>
 
-          {!editOpen ? (
-            <Button variant="outline" size="sm" onClick={openEdit} disabled={isPending}>
-              Изменить расписание
-            </Button>
-          ) : (
-            <div className="mt-2 flex flex-col gap-3">
-              <div className="grid gap-2 sm:grid-cols-2">
-                <div>
-                  <Label className="mb-1 block text-xs">Окно: начало (мин от полуночи)</Label>
-                  <Input
-                    type="number"
-                    min={0}
-                    max={1439}
-                    value={form.windowStartMinute}
-                    onChange={(e) =>
-                      setForm((f) => ({ ...f, windowStartMinute: Number(e.target.value) }))
-                    }
-                  />
-                </div>
-                <div>
-                  <Label className="mb-1 block text-xs">Окно: конец (мин 1–1440)</Label>
-                  <Input
-                    type="number"
-                    min={1}
-                    max={1440}
-                    value={form.windowEndMinute}
-                    onChange={(e) =>
-                      setForm((f) => ({ ...f, windowEndMinute: Number(e.target.value) }))
-                    }
-                  />
-                </div>
-              </div>
-              <div>
-                <Label className="mb-1 block text-xs">Интервал (минуты)</Label>
-                <Input
-                  type="number"
-                  min={30}
-                  max={659}
-                  value={form.intervalMinutes}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, intervalMinutes: Number(e.target.value) }))
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <Label className="text-xs">Дни недели</Label>
-                <div className="flex flex-wrap gap-2">
-                  {WEEKDAY_TOGGLE_LABELS.map((label, i) => {
-                    const on = form.daysMask[i] === "1";
-                    return (
-                      <Button
-                        key={label}
-                        type="button"
-                        size="sm"
-                        variant={on ? "default" : "outline"}
-                        className={cn("min-w-11", !on && "text-muted-foreground")}
-                        onClick={() =>
-                          setForm((f) => ({
-                            ...f,
-                            daysMask: toggleDayMaskStr(f.daysMask, i),
-                          }))
-                        }
-                        disabled={isPending}
-                      >
-                        {label}
-                      </Button>
-                    );
-                  })}
-                </div>
-              </div>
-              <div className="flex items-center gap-2 rounded-md border border-border/80 px-3 py-2">
-                <Switch
-                  id={`quiet-${rule.id}`}
-                  checked={form.quietEnabled}
-                  onCheckedChange={(checked) =>
-                    setForm((f) => ({ ...f, quietEnabled: checked }))
-                  }
-                  disabled={isPending}
-                />
-                <Label htmlFor={`quiet-${rule.id}`} className="text-xs font-normal">
-                  Тихие часы
-                </Label>
-              </div>
-              {form.quietEnabled ? (
-                <div className="grid gap-2 sm:grid-cols-2">
-                  <div>
-                    <Label className="mb-1 block text-xs">Тихие: с (мин)</Label>
-                    <Input
-                      type="number"
-                      min={0}
-                      max={1439}
-                      value={form.quietStart}
-                      onChange={(e) =>
-                        setForm((f) => ({ ...f, quietStart: Number(e.target.value) }))
-                      }
-                    />
-                  </div>
-                  <div>
-                    <Label className="mb-1 block text-xs">Тихие: до (мин)</Label>
-                    <Input
-                      type="number"
-                      min={1}
-                      max={1440}
-                      value={form.quietEnd}
-                      onChange={(e) =>
-                        setForm((f) => ({ ...f, quietEnd: Number(e.target.value) }))
-                      }
-                    />
-                  </div>
-                </div>
-              ) : null}
-              <div className="flex gap-2">
-                <Button size="sm" onClick={handleSave} disabled={isPending}>
-                  Сохранить
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => {
-                    setEditOpen(false);
-                    setError(null);
-                  }}
-                  disabled={isPending}
-                >
-                  Отмена
-                </Button>
-              </div>
-            </div>
-          )}
+          <Button variant="outline" size="sm" onClick={() => setScheduleOpen(true)} disabled={isPending}>
+            Изменить расписание
+          </Button>
+
+          <LegacyReminderScheduleDialog
+            rule={rule}
+            categoryLabel={CATEGORY_LABELS[rule.category] ?? rule.category}
+            open={scheduleOpen}
+            onOpenChange={setScheduleOpen}
+            onSaved={() => {
+              setScheduleOpen(false);
+              refresh();
+            }}
+          />
 
           {error && <p className="mt-2 text-xs text-destructive">{error}</p>}
           {syncWarning && !error && (
@@ -328,6 +171,7 @@ function PersonalReminderCard({
   const { rule, label, iconKind, stats } = row;
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   const patchEnabled = (checked: boolean) => {
     setError(null);
@@ -343,9 +187,9 @@ function PersonalReminderCard({
     });
   };
 
-  const handleDelete = () => {
-    if (!window.confirm("Удалить это напоминание?")) return;
+  const confirmDelete = () => {
     setError(null);
+    setDeleteOpen(false);
     startTransition(async () => {
       const res = await fetch(`/api/patient/reminders/${encodeURIComponent(rule.id)}`, {
         method: "DELETE",
@@ -357,6 +201,7 @@ function PersonalReminderCard({
   };
 
   return (
+    <>
     <Card className={cn(patientListItemClass, "mb-3 overflow-hidden")}>
       <CardHeader className="space-y-0 px-4 pb-2 pt-4">
         <div className="flex items-start gap-3">
@@ -392,7 +237,10 @@ function PersonalReminderCard({
               </Button>
               <Link
                 href={routePaths.patientReminderJournal(rule.id)}
-                className="inline-flex h-8 items-center justify-center rounded-md px-2 text-sm font-medium text-primary underline-offset-4 hover:underline"
+                className={cn(
+                  buttonVariants({ variant: "link", size: "sm" }),
+                  "h-auto min-h-8 px-2 py-1 text-primary",
+                )}
               >
                 Полный журнал
               </Link>
@@ -401,7 +249,7 @@ function PersonalReminderCard({
                 variant="ghost"
                 size="sm"
                 className="text-destructive hover:text-destructive"
-                onClick={handleDelete}
+                onClick={() => setDeleteOpen(true)}
                 disabled={isPending}
               >
                 <Trash2 className="mr-1 size-4" aria-hidden />
@@ -413,6 +261,24 @@ function PersonalReminderCard({
         </div>
       </CardHeader>
     </Card>
+
+    <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+      <DialogContent className="border-[var(--patient-border)] bg-[var(--patient-card-bg)] sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Удалить напоминание?</DialogTitle>
+          <DialogDescription>Это действие нельзя отменить.</DialogDescription>
+        </DialogHeader>
+        <DialogFooter className="gap-2 sm:gap-0">
+          <Button type="button" variant="outline" onClick={() => setDeleteOpen(false)} disabled={isPending}>
+            Отмена
+          </Button>
+          <Button type="button" variant="destructive" onClick={confirmDelete} disabled={isPending}>
+            Удалить
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }
 
@@ -425,6 +291,8 @@ export function ReminderRulesClient({
   warmupsSectionTitle = "Разминки",
   rehabRuleForBlock = null,
   warmupRuleForBlock = null,
+  rehabBlockStats = null,
+  warmupBlockStats = null,
   calendarDateKey = "",
   patientCalendarDayIana = "Europe/Moscow",
 }: {
@@ -436,6 +304,8 @@ export function ReminderRulesClient({
   warmupsSectionTitle?: string;
   rehabRuleForBlock?: ReminderRule | null;
   warmupRuleForBlock?: ReminderRule | null;
+  rehabBlockStats?: { done: number; skipped: number; snoozed: number } | null;
+  warmupBlockStats?: { done: number; skipped: number; snoozed: number } | null;
   calendarDateKey?: string;
   patientCalendarDayIana?: string;
 }) {
@@ -445,6 +315,7 @@ export function ReminderRulesClient({
   const [editRow, setEditRow] = useState<PersonalReminderRowVM | null>(null);
   const [rehabDialogOpen, setRehabDialogOpen] = useState(false);
   const [warmupDialogOpen, setWarmupDialogOpen] = useState(false);
+  const [blockDeleteTarget, setBlockDeleteTarget] = useState<{ id: string; title: string } | null>(null);
 
   const refresh = () => router.refresh();
 
@@ -457,26 +328,74 @@ export function ReminderRulesClient({
     activeProgram ?
       rehabRuleForBlock ?
         summarizeReminderForCalendarDay(rehabRuleForBlock, calendarDateKey, patientCalendarDayIana)
-      : "не настроено"
+      : ""
+    : "";
+
+  const rehabCalendarLine =
+    activeProgram ?
+      rehabRuleForBlock ?
+        rehabSummary
+      : "Настройте время, и бот напомнит"
     : "";
 
   const warmupSummary =
     warmupsSectionAvailable ?
       warmupRuleForBlock ?
         summarizeReminderForCalendarDay(warmupRuleForBlock, calendarDateKey, patientCalendarDayIana)
-      : "не настроено"
+      : ""
     : "";
+
+  const warmupCalendarLine =
+    warmupsSectionAvailable ?
+      warmupRuleForBlock ?
+        warmupSummary
+      : "Настройте время, и бот напомнит"
+    : "";
+
+  const [blockPending, startBlock] = useTransition();
+
+  const patchRuleEnabled = (ruleId: string, checked: boolean) => {
+    startBlock(async () => {
+      const res = await fetch(`/api/patient/reminders/${encodeURIComponent(ruleId)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled: checked }),
+      });
+      const data = (await res.json()) as { ok?: boolean };
+      if (!res.ok || !data.ok) toast.error("Не удалось обновить");
+      else refresh();
+    });
+  };
+
+  const confirmBlockDelete = () => {
+    if (!blockDeleteTarget) return;
+    const id = blockDeleteTarget.id;
+    startBlock(async () => {
+      const res = await fetch(`/api/patient/reminders/${encodeURIComponent(id)}`, { method: "DELETE" });
+      const data = (await res.json()) as { ok?: boolean };
+      setBlockDeleteTarget(null);
+      if (!res.ok || !data.ok) toast.error("Не удалось удалить");
+      else refresh();
+    });
+  };
 
   const handleMarkAllSeen = () => {
     startTransition(async () => {
       try {
-        await fetch("/api/patient/reminders/mark-seen", {
+        const res = await fetch("/api/patient/reminders/mark-seen", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ all: true }),
         });
+        const data = (await res.json()) as { ok?: boolean };
+        if (!res.ok || !data.ok) {
+          toast.error("Не удалось обновить статус.");
+          return;
+        }
+        toast.success("Отмечено как просмотренные.");
+        refresh();
       } catch {
-        /* ignore */
+        toast.error("Сеть недоступна.");
       }
     });
   };
@@ -603,9 +522,60 @@ export function ReminderRulesClient({
       {activeProgram ? (
         <section id="patient-reminders-rehab" className={cn(patientSurfaceInfoClass, "mb-4 !gap-3")}>
           <h2 className={patientSectionTitleNormalClass}>Программа реабилитации</h2>
-          <p className={cn(patientMutedTextClass, "text-sm")}>Сегодня: {rehabSummary}</p>
+          <p className={cn(patientMutedTextClass, "text-sm")}>Активная программа: {activeProgram.title}</p>
+          <p className={cn(patientMutedTextClass, "text-sm")}>Сегодня: {rehabCalendarLine}</p>
+          {rehabRuleForBlock ? (
+            <div className="space-y-2">
+              <p className="text-xs text-[var(--patient-text-primary)]">{formatScheduleSummary(rehabRuleForBlock)}</p>
+              {rehabBlockStats ? (
+                <div className={cn(patientMutedTextClass, "flex flex-wrap gap-2 text-xs")}>
+                  <span>
+                    <span className="font-medium text-[var(--patient-text-primary)]">{rehabBlockStats.done}</span> выполнено
+                  </span>
+                  <span>
+                    <span className="font-medium text-[var(--patient-text-primary)]">{rehabBlockStats.skipped}</span> пропущено
+                  </span>
+                  <span>
+                    <span className="font-medium text-[var(--patient-text-primary)]">{rehabBlockStats.snoozed}</span> отложено
+                  </span>
+                  <Badge variant="outline" className="font-normal">
+                    за 30 дней
+                  </Badge>
+                </div>
+              ) : null}
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-sm text-[var(--patient-text-primary)]">Включено</span>
+                <Switch
+                  checked={rehabRuleForBlock.enabled}
+                  onCheckedChange={(c) => patchRuleEnabled(rehabRuleForBlock.id, c)}
+                  disabled={blockPending}
+                  aria-label="Включить напоминание программы"
+                />
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Link
+                  href={routePaths.patientReminderJournal(rehabRuleForBlock.id)}
+                  className={cn(buttonVariants({ variant: "outline", size: "sm" }), "inline-flex")}
+                >
+                  Журнал
+                </Link>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="text-destructive hover:text-destructive"
+                  disabled={blockPending}
+                  onClick={() =>
+                    setBlockDeleteTarget({ id: rehabRuleForBlock.id, title: activeProgram.title })
+                  }
+                >
+                  Удалить
+                </Button>
+              </div>
+            </div>
+          ) : null}
           <Button type="button" size="sm" variant="outline" onClick={() => setRehabDialogOpen(true)}>
-            Настроить
+            {rehabRuleForBlock ? "Изменить" : "Создать напоминание"}
           </Button>
           <ReminderCreateDialog
             open={rehabDialogOpen}
@@ -625,9 +595,56 @@ export function ReminderRulesClient({
       {warmupsSectionAvailable ? (
         <section id="patient-reminders-warmups" className={cn(patientSurfaceInfoClass, "mb-4 !gap-3")}>
           <h2 className={patientSectionTitleNormalClass}>{warmupsSectionTitle}</h2>
-          <p className={cn(patientMutedTextClass, "text-sm")}>Сегодня: {warmupSummary}</p>
+          <p className={cn(patientMutedTextClass, "text-sm")}>Сегодня: {warmupCalendarLine}</p>
+          {warmupRuleForBlock ? (
+            <div className="space-y-2">
+              <p className="text-xs text-[var(--patient-text-primary)]">{formatScheduleSummary(warmupRuleForBlock)}</p>
+              {warmupBlockStats ? (
+                <div className={cn(patientMutedTextClass, "flex flex-wrap gap-2 text-xs")}>
+                  <span>
+                    <span className="font-medium text-[var(--patient-text-primary)]">{warmupBlockStats.done}</span> выполнено
+                  </span>
+                  <span>
+                    <span className="font-medium text-[var(--patient-text-primary)]">{warmupBlockStats.skipped}</span> пропущено
+                  </span>
+                  <span>
+                    <span className="font-medium text-[var(--patient-text-primary)]">{warmupBlockStats.snoozed}</span> отложено
+                  </span>
+                  <Badge variant="outline" className="font-normal">
+                    за 30 дней
+                  </Badge>
+                </div>
+              ) : null}
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-sm text-[var(--patient-text-primary)]">Включено</span>
+                <Switch
+                  checked={warmupRuleForBlock.enabled}
+                  onCheckedChange={(c) => patchRuleEnabled(warmupRuleForBlock.id, c)}
+                  disabled={blockPending}
+                  aria-label={`Включить: ${warmupsSectionTitle}`}
+                />
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" variant="outline" size="sm" asChild>
+                  <Link href={routePaths.patientReminderJournal(warmupRuleForBlock.id)}>Журнал</Link>
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="text-destructive hover:text-destructive"
+                  disabled={blockPending}
+                  onClick={() =>
+                    setBlockDeleteTarget({ id: warmupRuleForBlock.id, title: warmupsSectionTitle })
+                  }
+                >
+                  Удалить
+                </Button>
+              </div>
+            </div>
+          ) : null}
           <Button type="button" size="sm" variant="outline" onClick={() => setWarmupDialogOpen(true)}>
-            Настроить
+            {warmupRuleForBlock ? "Изменить" : "Создать напоминание"}
           </Button>
           <ReminderCreateDialog
             open={warmupDialogOpen}
