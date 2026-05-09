@@ -337,7 +337,7 @@ function PlaybackEngine({
             controlsList="nodownload"
             preload="metadata"
             playsInline
-            className="max-h-full w-full object-contain"
+            className="absolute inset-0 z-0 h-full w-full object-contain"
             title={title}
           />
         </>
