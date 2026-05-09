@@ -52,11 +52,11 @@ function desktopBlockLayout(code: PatientHomeTodayLayoutBlockCode): {
         "data-lg-col-start": "9",
         "data-lg-col-span": "4",
       };
-    /** Полная ширина строки напоминаний (пару с прогрессом убрали — прогресс под самочувствием). */
+    /** Полная ширина: напоминание сразу под «Сегодня выполнено» (lg:order после progress). */
     case "next_reminder":
       return {
-        className: "lg:col-span-12 lg:col-start-1 lg:order-[30]",
-        "data-lg-order": "30",
+        className: "lg:col-span-12 lg:col-start-1 lg:order-[42]",
+        "data-lg-order": "42",
         "data-lg-col-start": "1",
         "data-lg-col-span": "12",
       };
@@ -76,11 +76,11 @@ function desktopBlockLayout(code: PatientHomeTodayLayoutBlockCode): {
         "data-lg-col-start": "1",
         "data-lg-col-span": "12",
       };
-    /** SOS + запись — под прогрессом (DOM: после mood и progress). */
+    /** SOS + запись — под напоминанием (lg:order после next_reminder). */
     case "sos_booking_split":
       return {
-        className: "lg:col-span-12 lg:col-start-1 lg:order-[42]",
-        "data-lg-order": "42",
+        className: "lg:col-span-12 lg:col-start-1 lg:order-[43]",
+        "data-lg-order": "43",
         "data-lg-col-start": "1",
         "data-lg-col-span": "12",
       };
@@ -119,7 +119,7 @@ export function PatientHomeTodayLayout({ personalizedName, timeOfDayPrefix, bloc
   return (
     <div
       id="patient-home-today-layout"
-      className="flex min-w-0 flex-col gap-3 overflow-x-hidden pb-4 lg:gap-4"
+      className="flex min-w-0 flex-col gap-4 overflow-x-hidden pb-4 lg:gap-5"
     >
       <PatientHomeGreeting personalizedName={personalizedName} timeOfDayPrefix={timeOfDayPrefix} />
 
@@ -128,7 +128,7 @@ export function PatientHomeTodayLayout({ personalizedName, timeOfDayPrefix, bloc
          * `lg:grid-flow-row-dense` — чтобы пары (col-span-8 + col-span-4) держались на одной строке
          * вне зависимости от DOM-порядка (`sort_order` в БД может ставить правый col перед левым).
          */
-        className="grid w-full min-w-0 gap-4 lg:grid-cols-12 lg:grid-flow-row-dense lg:items-stretch lg:gap-5 xl:gap-6"
+        className="grid w-full min-w-0 gap-5 lg:grid-cols-12 lg:grid-flow-row-dense lg:items-stretch lg:gap-6 xl:gap-7"
         data-testid="patient-home-layout-grid"
       >
         {blocks.map((block) => {
@@ -138,9 +138,8 @@ export function PatientHomeTodayLayout({ personalizedName, timeOfDayPrefix, bloc
               key={block.code}
               className={cn(
                 "min-w-0",
-                block.code === "situations" && "max-lg:my-1",
-                /** Чуть больше воздуха между блоком прогресса и SOS+запись. */
-                block.code === "sos_booking_split" && "mt-2 lg:mt-3",
+                /** Визуально плотнее к нижнему краю блока «Сегодня выполнено» (сеточный gap компенсируется). */
+                block.code === "next_reminder" && "-mt-1 lg:-mt-1.5",
                 layout.className,
               )}
               data-patient-home-block={block.code}

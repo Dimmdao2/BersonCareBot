@@ -233,6 +233,30 @@ export function createPgProgramActionLogPort(): ProgramActionLogPort {
       return row?.c ?? 0;
     },
 
+    async listDistinctLocalDoneDateKeysInWindowForPatient(params) {
+      const iana = params.displayIana;
+      if (!/^[-+/_0-9a-zA-Z]+$/.test(iana)) {
+        throw new Error("invalid_timezone");
+      }
+      const zoneSql = sql.raw(`'${iana.replace(/'/g, "''")}'`);
+      const db = getDrizzle();
+      const rows = await db
+        .select({
+          dayKey: sql<string>`((${logTable.createdAt} AT TIME ZONE ${zoneSql})::date)::text`,
+        })
+        .from(logTable)
+        .where(
+          and(
+            eq(logTable.patientUserId, params.patientUserId),
+            eq(logTable.actionType, "done"),
+            gte(logTable.createdAt, params.windowStartUtcIso),
+            lt(logTable.createdAt, params.windowEndUtcExclusiveIso),
+          ),
+        )
+        .groupBy(sql`((${logTable.createdAt} AT TIME ZONE ${zoneSql})::date)::text`);
+      return rows.map((r) => r.dayKey).filter((v): v is string => typeof v === "string" && v.length > 0);
+    },
+
     async listForInstance(params) {
       const db = getDrizzle();
       const limit = Math.min(Math.max(params.limit ?? 200, 1), 500);

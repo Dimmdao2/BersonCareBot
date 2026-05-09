@@ -23,8 +23,8 @@ const reminderCtaBaseClass = cn(
   "hover:bg-[#fef3c7]/80 active:bg-[#fef3c7]",
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#f59e0b]",
 );
-const reminderCtaMobileClass = cn(reminderCtaBaseClass, "min-h-9 min-w-[5.5rem] self-end px-2.5 text-[12px] lg:hidden");
-const reminderCtaDesktopClass = cn(reminderCtaBaseClass, "min-h-10 min-w-[8rem] self-end px-4 text-sm max-lg:hidden");
+const reminderCtaMobileClass = cn(reminderCtaBaseClass, "min-h-8 min-w-[5rem] self-end px-2 text-[12px] lg:hidden");
+const reminderCtaDesktopClass = cn(reminderCtaBaseClass, "min-h-9 min-w-[7.5rem] self-end px-3 text-sm max-lg:hidden");
 
 type Props = {
   rule: ReminderRule | null;
@@ -45,15 +45,15 @@ type Props = {
 function LeadingIcon({ blockIconImageUrl }: { blockIconImageUrl?: string | null }) {
   return (
     <div
-      className="inline-flex size-10 shrink-0 items-center justify-center rounded-full bg-[#fef3c7] text-[var(--patient-color-warning)] lg:size-14"
+      className="inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-[#fffbeb] text-[var(--patient-color-warning)] lg:size-12"
       aria-hidden
     >
       <PatientHomeSafeImage
         src={blockIconImageUrl}
         alt=""
-        className="size-6 rounded-full object-cover lg:size-7"
+        className="size-5 rounded-full object-cover lg:size-6"
         loading="lazy"
-        fallback={<Bell className="size-6 lg:size-7" />}
+        fallback={<Bell className="size-5 lg:size-6" />}
       />
     </div>
   );
@@ -120,7 +120,7 @@ export function PatientHomeNextReminderCard({
     return (
       <section aria-labelledby="patient-home-reminder-heading" data-reminder-empty>
         <article id="patient-home-next-reminder-card" className={patientHomeReminderCardGeometryClass}>
-          <div className="flex min-h-0 gap-2 max-lg:items-center lg:gap-3">
+          <div className="flex min-h-0 gap-2 max-lg:items-center lg:gap-2.5">
             <LeadingIcon blockIconImageUrl={blockIconImageUrl} />
             <div className="flex min-h-0 min-w-0 flex-1 flex-col">
               <h3 id="patient-home-reminder-heading" className={cn(patientHomeReminderMobileHeadingClass, "lg:whitespace-nowrap")}>
@@ -152,7 +152,7 @@ export function PatientHomeNextReminderCard({
   return (
     <section aria-labelledby="patient-home-reminder-heading" data-reminder-rule-id={rule.id}>
       <article id="patient-home-next-reminder-card" className={patientHomeReminderCardGeometryClass}>
-        <div className="flex min-h-0 gap-2 max-lg:items-center lg:gap-3">
+        <div className="flex min-h-0 gap-2 max-lg:items-center lg:gap-2.5">
           <LeadingIcon blockIconImageUrl={blockIconImageUrl} />
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
             <h3 id="patient-home-reminder-heading" className={cn(patientHomeReminderMobileHeadingClass, "lg:whitespace-nowrap")}>

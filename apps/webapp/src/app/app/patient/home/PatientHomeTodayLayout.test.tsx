@@ -57,9 +57,10 @@ describe("PatientHomeTodayLayout", () => {
     expect(situations).toHaveAttribute("data-lg-col-span", "12");
 
     const nextReminder = container.querySelector('[data-patient-home-block="next_reminder"]');
-    expect(nextReminder).toHaveAttribute("data-lg-order", "30");
+    expect(nextReminder).toHaveAttribute("data-lg-order", "42");
     expect(nextReminder).toHaveAttribute("data-lg-col-start", "1");
     expect(nextReminder).toHaveAttribute("data-lg-col-span", "12");
+    expect(nextReminder).toHaveClass("lg:order-[42]");
 
     const progressEl = container.querySelector('[data-patient-home-block="progress"]');
     expect(progressEl).toHaveAttribute("data-lg-order", "41");
@@ -98,15 +99,15 @@ describe("PatientHomeTodayLayout", () => {
     expect(courses).toHaveClass("lg:order-[60]");
   });
 
-  it("places sos_booking_split full width below progress row (order 42)", () => {
+  it("places sos_booking_split full width below next reminder row (order 43)", () => {
     const { container } = render(
       <PatientHomeTodayLayout personalizedName={null} blocks={[block("sos_booking_split", "Split")]} />,
     );
     const split = container.querySelector('[data-patient-home-block="sos_booking_split"]');
-    expect(split).toHaveAttribute("data-lg-order", "42");
+    expect(split).toHaveAttribute("data-lg-order", "43");
     expect(split).toHaveAttribute("data-lg-col-start", "1");
     expect(split).toHaveAttribute("data-lg-col-span", "12");
-    expect(split).toHaveClass("lg:order-[42]");
+    expect(split).toHaveClass("lg:order-[43]");
   });
 
   it("does not render full-width carousel wrapper when carousel block is absent", () => {

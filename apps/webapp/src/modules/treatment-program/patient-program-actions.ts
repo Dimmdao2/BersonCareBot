@@ -241,6 +241,31 @@ export function createTreatmentProgramPatientActionService(deps: {
       };
     },
 
+    /** Локальные даты `done` за последние N дней по всем программам пациента (для агрегатов главной). */
+    async listLocalDoneDateKeysForRecentDays(
+      patientUserId: string,
+      days: number,
+    ): Promise<{ iana: string; dateKeys: string[] }> {
+      assertUuid(patientUserId);
+      const appDefault = await deps.getAppDefaultTimezoneIana();
+      const personal = await getPersonalTz(patientUserId);
+      const iana = resolveCalendarDayIanaForPatient(personal, appDefault);
+      const nowLocal = DateTime.fromJSDate(nowFn()).setZone(iana);
+      if (!nowLocal.isValid) {
+        throw new Error("Некорректная временная зона");
+      }
+      const daysClamped = Math.min(Math.max(Math.trunc(days), 1), 400);
+      const startLocal = nowLocal.startOf("day").minus({ days: daysClamped - 1 });
+      const endLocalExclusive = nowLocal.startOf("day").plus({ days: 1 });
+      const dateKeys = await deps.actionLog.listDistinctLocalDoneDateKeysInWindowForPatient({
+        patientUserId,
+        windowStartUtcIso: startLocal.toUTC().toISO()!,
+        windowEndUtcExclusiveIso: endLocalExclusive.toUTC().toISO()!,
+        displayIana: iana,
+      });
+      return { iana, dateKeys };
+    },
+
     async patientToggleChecklistItem(input: {
       patientUserId: string;
       instanceId: string;

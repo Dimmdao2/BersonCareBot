@@ -5,6 +5,7 @@ import type { PatientHomeTodayLayoutBlock } from "./PatientHomeTodayLayout";
 import {
   insertMoodBetweenUsefulPostAndBooking,
   insertProgressThenSosBookingSplitAfterMood,
+  moveNextReminderAfterProgress,
   prependPlanBlock,
   reorderPatientHomeLayoutBlocks,
 } from "./patientHomeTodayLayoutOrder";
@@ -93,5 +94,30 @@ describe("patientHomeTodayLayoutOrder", () => {
       "booking",
       "situations",
     ]);
+  });
+
+  it("moves next_reminder immediately after progress", () => {
+    const out = moveNextReminderAfterProgress([
+      b("next_reminder"),
+      b("mood_checkin"),
+      b("progress"),
+      b("situations"),
+    ]);
+    expect(out.map((x) => x.code)).toEqual(["mood_checkin", "progress", "next_reminder", "situations"]);
+  });
+
+  it("moveNextReminderAfterProgress yields mood → progress → reminder → split after pipeline", () => {
+    const split = { code: "sos_booking_split" as const, node: null };
+    const afterSplit = insertProgressThenSosBookingSplitAfterMood(
+      [b("mood_checkin"), b("progress"), b("next_reminder")],
+      split,
+    );
+    const out = moveNextReminderAfterProgress(afterSplit);
+    expect(out.map((x) => x.code)).toEqual(["mood_checkin", "progress", "next_reminder", "sos_booking_split"]);
+  });
+
+  it("moveNextReminderAfterProgress is no-op without progress", () => {
+    const out = moveNextReminderAfterProgress([b("next_reminder"), b("daily_warmup")]);
+    expect(out.map((x) => x.code)).toEqual(["next_reminder", "daily_warmup"]);
   });
 });

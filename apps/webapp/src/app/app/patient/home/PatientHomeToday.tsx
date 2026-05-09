@@ -46,6 +46,7 @@ import { PatientHomeCoursesRow } from "./PatientHomeCoursesRow";
 import { PatientHomeTodayLayout } from "./PatientHomeTodayLayout";
 import {
   insertProgressThenSosBookingSplitAfterMood,
+  moveNextReminderAfterProgress,
   reorderPatientHomeLayoutBlocks,
 } from "./patientHomeTodayLayoutOrder";
 import { PatientHomeUsefulPostCard } from "./PatientHomeUsefulPostCard";
@@ -56,6 +57,7 @@ import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimez
 import { DateTime } from "luxon";
 import { parsePatientHomeMoodIcons } from "@/modules/patient-home/patientHomeMoodIcons";
 import type { ChecklistTodaySnapshot } from "@/modules/treatment-program/patient-program-actions";
+import { computePracticeStreak } from "@/modules/patient-practice/streakLogic";
 import {
   omitDisabledInstanceStageItemsForPatientApi,
   resolvePatientProgramProgressDaysForPatientUi,
@@ -177,6 +179,7 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
     muteRemainingLabel: string | null;
     hasConfiguredSchedule: boolean;
   } | null = null;
+  let practiceTarget = todayCfg.practiceTarget;
   /** Единый «сейчас» для заголовка и mute; pick учитывает глобальную заглушку. */
   let patientHomeReminderEvaluatedAt: Date | null = null;
   let moodWeekTz = appTz;
@@ -190,7 +193,8 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
 
   if (personalTierOk && session) {
     const warmupPageId = todayCfg.dailyWarmupItem?.page?.contentPageId;
-    const [rules, instances, moodState, mutedUntilIso, patientCalTz, warmupCooldownMeta] = await Promise.all([
+    const [rules, instances, moodState, mutedUntilIso, patientCalTz, warmupCooldownMeta, recentPracticeRows, lfkRecentDays] =
+      await Promise.all([
       deps.reminders.listRulesByUser(session.user.userId),
       deps.treatmentProgramInstance.listForPatient(session.user.userId),
       deps.patientMood.getCheckinState(session.user.userId, appTz),
@@ -203,7 +207,22 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
           PATIENT_HOME_DAILY_WARMUP_HERO_COOLDOWN_MINUTES,
         )
       : Promise.resolve({ active: false as const }),
+      deps.patientPractice.listRecent(session.user.userId, 1500),
+      deps.treatmentProgramPatientActions.listLocalDoneDateKeysForRecentDays(session.user.userId, 120),
     ]);
+    if (progress) {
+      const mergedDates = new Set<string>();
+      for (const row of recentPracticeRows) {
+        const d = DateTime.fromISO(row.completedAt, { setZone: true }).setZone(lfkRecentDays.iana).toISODate();
+        if (d) mergedDates.add(d);
+      }
+      for (const key of lfkRecentDays.dateKeys) {
+        const normalized = key.trim();
+        if (normalized) mergedDates.add(normalized);
+      }
+      const mergedStreak = computePracticeStreak(mergedDates, lfkRecentDays.iana);
+      progress = { ...progress, streak: Math.max(progress.streak, mergedStreak) };
+    }
     if (warmupCooldownMeta.active) {
       dailyWarmupHeroCooldownActive = true;
       warmupCooldownCaption = formatPatientHomeWarmupCooldownCaption(warmupCooldownMeta.minutesRemaining);
@@ -214,18 +233,33 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
     const scheduleInstant = reminderScheduleEvaluationInstant(patientHomeReminderEvaluatedAt, mutedUntilIso);
     hasConfiguredSchedule = hasConfiguredHomeLinkedReminders(rules);
     homeReminder = pickNextHomeReminder(rules, scheduleInstant, appTz);
+    const dayStart = DateTime.now().setZone(appTz).startOf("day");
+    const dayEnd = dayStart.plus({ days: 1 });
+    const rangeStart = dayStart.toUTC().toJSDate();
+    const rangeEnd = dayEnd.toUTC().toJSDate();
+    const compareNow = patientHomeReminderEvaluatedAt ?? new Date();
+    const muted = !!(mutedUntilIso && new Date(mutedUntilIso).getTime() > compareNow.getTime());
+    const plannedTotal = muted ? 0 : countPlannedHomeReminderOccurrencesInUtcRange(rules, rangeStart, rangeEnd);
+    if (hasConfiguredSchedule) {
+      practiceTarget = plannedTotal;
+    }
     const active = instances
       .filter((i) => i.status === "active")
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
     planInstance = active[0] ? { id: active[0].id, title: active[0].title } : null;
     if (planInstance) {
-      const [nudge, rawDetail] = await Promise.all([
+      const [nudge, rawDetail, snap] = await Promise.all([
         deps.treatmentProgramInstance.patientPlanUpdatedBadgeForInstance({
           patientUserId: session.user.userId,
           instanceId: planInstance.id,
         }),
         deps.treatmentProgramInstance.getInstanceForPatient(session.user.userId, planInstance.id),
+        deps.treatmentProgramPatientActions.listChecklistDoneToday(
+          session.user.userId,
+          planInstance.id,
+        ),
       ]);
+      planTodayPracticeDone = checklistHadAnyCompletionToday(snap);
       if (nudge.show) {
         planUpdatedLabel = nudge.eventIso
           ? `План обновлён ${formatBookingDateLongRu(nudge.eventIso, appTz)}`
@@ -236,38 +270,29 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
         const patientIana = await deps.patientCalendarTimezone.getIanaForUser(session.user.userId);
         const resolvedIana = resolveCalendarDayIanaForPatient(patientIana, appTz);
         planProgressDay = resolvePatientProgramProgressDaysForPatientUi(detail, DateTime.now(), resolvedIana, appTz);
-        if (planProgressDay != null) {
-          const snap = await deps.treatmentProgramPatientActions.listChecklistDoneToday(
-            session.user.userId,
-            planInstance.id,
-          );
-          planTodayPracticeDone = checklistHadAnyCompletionToday(snap);
-        }
       }
     }
     initialMoodCheckin = moodState;
     moodWeekDays = week;
     if (deps.reminderJournal) {
-      const dayStart = DateTime.now().setZone(appTz).startOf("day");
-      const dayEnd = dayStart.plus({ days: 1 });
-      const rangeStart = dayStart.toUTC().toJSDate();
-      const rangeEnd = dayEnd.toUTC().toJSDate();
-      const compareNow = patientHomeReminderEvaluatedAt ?? new Date();
-      const mutedUntil = mutedUntilIso;
-      const muted = !!(mutedUntil && new Date(mutedUntil).getTime() > compareNow.getTime());
-      const plannedTotal = muted ? 0 : countPlannedHomeReminderOccurrencesInUtcRange(rules, rangeStart, rangeEnd);
+      const muteRemainingLabel =
+        muted && mutedUntilIso?.trim() ? formatReminderMuteRemainingRu(mutedUntilIso.trim(), compareNow) : null;
       const done = await deps.reminderJournal.countDoneSkippedInUtcRange(
         session.user.userId,
         rangeStart,
         rangeEnd,
       );
-      const muteRemainingLabel =
-        muted && mutedUntil?.trim() ? formatReminderMuteRemainingRu(mutedUntil.trim(), compareNow) : null;
       reminderDaySummary = { done, plannedTotal, muted, muteRemainingLabel, hasConfiguredSchedule };
     }
   }
 
   const sorted = filterAndSortPatientHomeBlocks(homeBlocks);
+  if (progress && planTodayPracticeDone) {
+    progress = {
+      todayDone: Math.max(progress.todayDone, 1),
+      streak: Math.max(progress.streak, 1),
+    };
+  }
 
   const nextReminderScheduleLabel = homeReminder
     ? formatPatientHomeNextReminderHeadline(
@@ -314,7 +339,7 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
       case "progress":
         return (
           <PatientHomeProgressBlock
-            practiceTarget={todayCfg.practiceTarget}
+            practiceTarget={practiceTarget}
             anonymousGuest={anonymousGuest}
             progress={progress}
             blockIconImageUrl={blockLeadingIconFor("progress")}
@@ -412,6 +437,8 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
       }
     : null,
   );
+
+  layoutBlocks = moveNextReminderAfterProgress(layoutBlocks);
 
   return (
     <PatientHomeTodayLayout personalizedName={personalizedName} timeOfDayPrefix={timeOfDayPrefix} blocks={layoutBlocks} />

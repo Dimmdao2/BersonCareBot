@@ -119,7 +119,14 @@ export function PatientHomeDailyWarmupCard({
                   Разминка выполнена
                 </span>
                 {warmupCooldownCaption?.trim() ?
-                  <p className={cn(patientMutedTextClass, "max-w-full text-xs leading-snug")}>{warmupCooldownCaption.trim()}</p>
+                  <p
+                    className={cn(
+                      patientMutedTextClass,
+                      "max-w-full text-xs leading-snug -mb-2 lg:-mb-3",
+                    )}
+                  >
+                    {warmupCooldownCaption.trim()}
+                  </p>
                 : null}
               </div>
             : <Link

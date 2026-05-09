@@ -8,6 +8,7 @@ import { getPatientHomeTodayConfig } from "@/modules/patient-home/todayConfig";
 import { PatientHomeToday } from "./PatientHomeToday";
 import { routePaths } from "@/app-layer/routes/paths";
 import { PATIENT_HOME_DAILY_WARMUP_HERO_COOLDOWN_MINUTES } from "@/modules/patient-home/dailyWarmupHeroCooldown";
+import { DateTime } from "luxon";
 
 const listRulesByUser = vi.fn();
 const listForPatient = vi.fn();
@@ -15,12 +16,14 @@ const getInstanceForPatient = vi.fn();
 const patientPlanUpdatedBadgeForInstance = vi.fn();
 const patientCalendarGetIanaForUser = vi.fn();
 const listChecklistDoneToday = vi.fn();
+const listLocalDoneDateKeysForRecentDays = vi.fn();
 const listBlocksWithItems = vi.fn();
 const contentSectionsGetBySlug = vi.fn();
 const contentPagesGetBySlug = vi.fn();
 const coursesGetCourseForDoctor = vi.fn();
 const getProgress = vi.fn();
 const getDailyWarmupHeroCooldownMeta = vi.fn();
+const listRecent = vi.fn();
 const getCheckinState = vi.fn();
 const getWeekSparkline = vi.fn();
 const refresh = vi.fn();
@@ -42,9 +45,9 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
       patientPlanUpdatedBadgeForInstance,
     },
     patientCalendarTimezone: { getIanaForUser: patientCalendarGetIanaForUser },
-    treatmentProgramPatientActions: { listChecklistDoneToday },
+    treatmentProgramPatientActions: { listChecklistDoneToday, listLocalDoneDateKeysForRecentDays },
     systemSettings: { getSetting: vi.fn().mockResolvedValue(null) },
-    patientPractice: { getProgress, getDailyWarmupHeroCooldownMeta },
+    patientPractice: { getProgress, getDailyWarmupHeroCooldownMeta, listRecent },
     patientMood: { getCheckinState, getWeekSparkline },
   }),
 }));
@@ -193,8 +196,10 @@ describe("PatientHomeToday", () => {
     patientPlanUpdatedBadgeForInstance.mockResolvedValue({ show: false });
     patientCalendarGetIanaForUser.mockResolvedValue(null);
     listChecklistDoneToday.mockResolvedValue(emptyChecklistTodaySnapshot());
+    listLocalDoneDateKeysForRecentDays.mockResolvedValue({ iana: "Europe/Moscow", dateKeys: [] });
     getProgress.mockResolvedValue({ todayDone: 1, todayTarget: 3, streak: 2 });
     getDailyWarmupHeroCooldownMeta.mockResolvedValue({ active: false });
+    listRecent.mockResolvedValue([]);
     getCheckinState.mockResolvedValue({
       mood: { moodDate: "2026-04-28", score: 4 },
       lastEntry: { id: "e1", recordedAt: "2026-04-28T10:00:00.000Z", score: 4 },
@@ -291,6 +296,133 @@ describe("PatientHomeToday", () => {
     expect(screen.getByRole("status", { name: /Разминка дня уже отмечена выполненной/i })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /Начать разминку/i })).toBeNull();
     expect(screen.getByText(/Разминка будет доступна через 17 минут\./i)).toBeInTheDocument();
+  });
+
+  it("patient tier: progress reflects checklist completion even when practice progress is zero", async () => {
+    getProgress.mockResolvedValueOnce({ todayDone: 0, todayTarget: 3, streak: 0 });
+    listForPatient.mockResolvedValueOnce([
+      {
+        id: "inst-active-1",
+        title: "Активный план",
+        status: "active",
+        updatedAt: "2026-04-28T10:00:00.000Z",
+      },
+    ]);
+    getInstanceForPatient.mockResolvedValueOnce(null);
+    listChecklistDoneToday.mockResolvedValueOnce({
+      doneItemIds: ["item-1"],
+      doneTodayCountByItemId: {},
+      lastDoneAtIsoByItemId: {},
+      totalCompletionEventsByItemId: {},
+      doneTodayCountByActivityKey: {},
+      lastDoneAtIsoByActivityKey: {},
+    });
+
+    const tree = await PatientHomeToday({
+      session: fixtureSession,
+      personalTierOk: true,
+      canViewAuthOnlyContent: true,
+    });
+    render(tree);
+
+    expect(screen.getByLabelText(/Выполнено практик сегодня: 1, цель 3/)).toBeInTheDocument();
+    expect(listChecklistDoneToday).toHaveBeenCalledWith(fixtureSession.user.userId, "inst-active-1");
+  });
+
+  it("patient tier: streak is boosted by LFK completion dates", async () => {
+    const today = DateTime.now().setZone("Europe/Moscow").toISODate()!;
+    getProgress.mockResolvedValueOnce({ todayDone: 0, todayTarget: 3, streak: 0 });
+    listLocalDoneDateKeysForRecentDays.mockResolvedValueOnce({ iana: "Europe/Moscow", dateKeys: [today] });
+
+    const tree = await PatientHomeToday({
+      session: fixtureSession,
+      personalTierOk: true,
+      canViewAuthOnlyContent: true,
+    });
+    render(tree);
+
+    expect(screen.getByText(/^день$/)).toBeInTheDocument();
+  });
+
+  it("patient tier: progress target uses planned reminder total (warmup + rehab + custom)", async () => {
+    listRulesByUser.mockResolvedValueOnce([
+      {
+        id: "warmup-rule",
+        integratorUserId: "i1",
+        category: "lfk",
+        enabled: true,
+        intervalMinutes: 60,
+        windowStartMinute: 9 * 60,
+        windowEndMinute: 10 * 60,
+        daysMask: "1111111",
+        timezone: "Europe/Moscow",
+        fallbackEnabled: true,
+        linkedObjectType: "content_page",
+        linkedObjectId: "warmup-page",
+        customTitle: null,
+        customText: null,
+        scheduleType: "interval_window",
+        scheduleData: null,
+        reminderIntent: "warmup",
+        displayTitle: null,
+        displayDescription: null,
+        updatedAt: "2026-04-28T00:00:00.000Z",
+      },
+      {
+        id: "rehab-rule",
+        integratorUserId: "i1",
+        category: "lfk",
+        enabled: true,
+        intervalMinutes: null,
+        windowStartMinute: 0,
+        windowEndMinute: 0,
+        daysMask: "1111111",
+        timezone: "Europe/Moscow",
+        fallbackEnabled: true,
+        linkedObjectType: "rehab_program",
+        linkedObjectId: "program-1",
+        customTitle: null,
+        customText: null,
+        scheduleType: "slots_v1",
+        scheduleData: { timesLocal: ["12:00"], dayFilter: "weekly_mask", daysMask: "1111111" },
+        reminderIntent: "exercises",
+        displayTitle: null,
+        displayDescription: null,
+        updatedAt: "2026-04-28T00:00:00.000Z",
+      },
+      {
+        id: "custom-rule",
+        integratorUserId: "i1",
+        category: "important",
+        enabled: true,
+        intervalMinutes: 60,
+        windowStartMinute: 20 * 60,
+        windowEndMinute: 20 * 60,
+        daysMask: "1111111",
+        timezone: "Europe/Moscow",
+        fallbackEnabled: true,
+        linkedObjectType: "custom",
+        linkedObjectId: null,
+        customTitle: "После прогулки",
+        customText: null,
+        scheduleType: "interval_window",
+        scheduleData: null,
+        reminderIntent: "generic",
+        displayTitle: null,
+        displayDescription: null,
+        updatedAt: "2026-04-28T00:00:00.000Z",
+      },
+    ]);
+    getProgress.mockResolvedValueOnce({ todayDone: 1, todayTarget: 3, streak: 2 });
+
+    const tree = await PatientHomeToday({
+      session: fixtureSession,
+      personalTierOk: true,
+      canViewAuthOnlyContent: true,
+    });
+    render(tree);
+
+    expect(screen.getByLabelText(/Выполнено практик сегодня: 1, цель 4/)).toBeInTheDocument();
   });
 
   it("patient tier: week sparkline uses saved calendar IANA when set", async () => {

@@ -71,21 +71,27 @@ describe("pickNextHomeReminder", () => {
     ).toBeNull();
   });
 
-  it("ignores custom linked type", () => {
-    expect(
-      pickNextHomeReminder(
-        [
-          rule({
-            id: "c",
-            linkedObjectType: "custom",
-            linkedObjectId: null,
-            customTitle: "T",
-          }),
-        ],
-        new Date(),
-        "Europe/Moscow",
-      ),
-    ).toBeNull();
+  it("includes custom linked type", () => {
+    const now = DateTime.fromObject(
+      { year: 2026, month: 4, day: 28, hour: 10, minute: 0, second: 0 },
+      { zone: "Europe/Moscow" },
+    ).toJSDate();
+    const next = pickNextHomeReminder(
+      [
+        rule({
+          id: "c",
+          linkedObjectType: "custom",
+          linkedObjectId: null,
+          customTitle: "T",
+          windowStartMinute: 12 * 60,
+          windowEndMinute: 12 * 60,
+          intervalMinutes: 1440,
+        }),
+      ],
+      now,
+      "Europe/Moscow",
+    );
+    expect(next?.rule.id).toBe("c");
   });
 
   it("picks the earliest next occurrence among rules", () => {
@@ -327,6 +333,27 @@ describe("countPlannedHomeReminderOccurrencesInUtcRange", () => {
       linkedObjectId: "p1",
       scheduleType: "slots_v1",
       scheduleData: { timesLocal: ["09:00", "12:00", "15:00"], dayFilter: "weekdays" },
+    });
+    expect(countPlannedHomeReminderOccurrencesInUtcRange([r], rangeStart, rangeEnd)).toBe(3);
+  });
+
+  it("counts custom reminders in planned total", () => {
+    const dayStart = DateTime.fromObject(
+      { year: 2026, month: 4, day: 28, hour: 0, minute: 0, second: 0 },
+      { zone: "Europe/Moscow" },
+    );
+    const rangeStart = dayStart.toUTC().toJSDate();
+    const rangeEnd = dayStart.plus({ days: 1 }).toUTC().toJSDate();
+    const r = rule({
+      id: "custom-day",
+      linkedObjectType: "custom",
+      linkedObjectId: null,
+      customTitle: "Свой текст",
+      windowStartMinute: 9 * 60,
+      windowEndMinute: 11 * 60,
+      intervalMinutes: 60,
+      scheduleType: "interval_window",
+      scheduleData: null,
     });
     expect(countPlannedHomeReminderOccurrencesInUtcRange([r], rangeStart, rangeEnd)).toBe(3);
   });

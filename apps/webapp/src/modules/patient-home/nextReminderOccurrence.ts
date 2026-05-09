@@ -7,6 +7,7 @@ const LINKED_TYPES: ReminderLinkedObjectType[] = [
   "lfk_complex",
   "content_section",
   "content_page",
+  "custom",
   "rehab_program",
 ];
 

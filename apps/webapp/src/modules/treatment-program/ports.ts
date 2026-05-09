@@ -366,6 +366,14 @@ export type ProgramActionLogPort = {
     /** IANA, уже проверенная вызывающим кодом (Luxon `isValid`). */
     displayIana: string;
   }): Promise<number>;
+  /** Уникальные локальные календарные даты (yyyy-MM-dd) с `done` в окне для пользователя по всем экземплярам. */
+  listDistinctLocalDoneDateKeysInWindowForPatient(params: {
+    patientUserId: string;
+    windowStartUtcIso: string;
+    windowEndUtcExclusiveIso: string;
+    /** IANA, уже проверенная вызывающим кодом (Luxon `isValid`). */
+    displayIana: string;
+  }): Promise<string[]>;
   /** Журнал действий пациента по экземпляру (новые сверху), для UI врача (UX-02). */
   listForInstance(params: { instanceId: string; limit?: number }): Promise<ProgramActionLogListRow[]>;
 };

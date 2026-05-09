@@ -517,11 +517,11 @@ export const patientHomeReminderMobileSubtitleClass = cn(
 
 /** Next reminder: compact warning card (отдельно от других secondary-карточек). */
 export const patientHomeReminderCardGeometryClass = cn(
-  "flex min-h-[88px] flex-col justify-center gap-2 overflow-hidden",
-  "rounded-[var(--patient-card-radius-mobile)] border border-[#fde68a] bg-[linear-gradient(135deg,#fffaf0_0%,#fff7df_100%)] px-3 py-2.5",
+  "flex min-h-[72px] flex-col justify-center gap-1 overflow-hidden",
+  "rounded-[var(--patient-card-radius-mobile)] border border-[#fef3c7] bg-[linear-gradient(135deg,#fff9f0_0%,#fff6e8_48%,#fffbeb_100%)] px-2.5 py-1",
   /** Mobile: отступы между 3px и 10px (~середина), без верхней рамки/скругления; снизу скругление чуть больше базового `patient-card-radius-mobile`. */
   "max-lg:-mt-4 max-lg:mx-[7px] max-lg:rounded-t-none max-lg:rounded-b-[10px] max-lg:border-t-0",
-  "lg:mx-0 lg:mt-0 lg:h-[150px] lg:min-h-0 lg:justify-between lg:gap-3 lg:rounded-[var(--patient-card-radius-desktop)] lg:px-5 lg:py-4",
+  "lg:mx-0 lg:mt-0 lg:h-[124px] lg:min-h-0 lg:justify-between lg:gap-1.5 lg:rounded-[var(--patient-card-radius-desktop)] lg:px-4 lg:py-2",
 );
 
 export const patientHomeSosThumbSlotClass = cn(

@@ -69,3 +69,24 @@ export function insertMoodBetweenUsefulPostAndBooking(
 export function reorderPatientHomeLayoutBlocks(blocks: PatientHomeTodayLayoutBlock[]): PatientHomeTodayLayoutBlock[] {
   return insertMoodBetweenUsefulPostAndBooking(prependPlanBlock(blocks));
 }
+
+/**
+ * Блок «Следующее напоминание» сразу под «Сегодня выполнено» (DOM для mobile; на lg см. `desktopBlockLayout`).
+ * Без `progress` в массиве порядок не меняется.
+ */
+export function moveNextReminderAfterProgress(blocks: PatientHomeTodayLayoutBlock[]): PatientHomeTodayLayoutBlock[] {
+  const reminderIdx = blocks.findIndex((b) => b.code === "next_reminder");
+  if (reminderIdx === -1) return blocks;
+  const progressIdx = blocks.findIndex((b) => b.code === "progress");
+  if (progressIdx === -1) return blocks;
+
+  const next = [...blocks];
+  const [reminder] = next.splice(reminderIdx, 1);
+  const progressIdxAfter = next.findIndex((b) => b.code === "progress");
+  if (progressIdxAfter === -1) {
+    next.splice(Math.min(reminderIdx, next.length), 0, reminder);
+    return next;
+  }
+  next.splice(progressIdxAfter + 1, 0, reminder);
+  return next;
+}

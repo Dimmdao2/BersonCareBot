@@ -201,6 +201,26 @@ export function createInMemoryProgramActionLogPort(): ProgramActionLogPort {
       return days.size;
     },
 
+    async listDistinctLocalDoneDateKeysInWindowForPatient(params) {
+      const iana = params.displayIana;
+      const days = new Set<string>();
+      for (const r of rows) {
+        if (
+          r.patientUserId !== params.patientUserId ||
+          r.actionType !== "done" ||
+          r.createdAt < params.windowStartUtcIso ||
+          r.createdAt >= params.windowEndUtcExclusiveIso
+        ) {
+          continue;
+        }
+        const d = DateTime.fromISO(r.createdAt, { zone: "utc" }).setZone(iana);
+        if (!d.isValid) continue;
+        const isoDate = d.toISODate();
+        if (isoDate) days.add(isoDate);
+      }
+      return [...days];
+    },
+
     async listForInstance(params) {
       const limit = Math.min(Math.max(params.limit ?? 200, 1), 500);
       const filtered = rows.filter((r) => r.instanceId === params.instanceId);
