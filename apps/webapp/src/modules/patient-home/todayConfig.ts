@@ -34,6 +34,26 @@ export type PatientHomeTodayConfigDeps = {
   };
 };
 
+/** Пропускать в ротации страницы разминки, по которым ещё действует hero-cooldown на главной. */
+export type PatientHomeWarmupPickContext = {
+  userId: string;
+  getDailyWarmupHeroCooldownMeta: (
+    userId: string,
+    contentPageId: string,
+    cooldownMinutes: number,
+  ) => Promise<{ active: boolean; minutesRemaining?: number }>;
+  cooldownMinutes: number;
+};
+
+export type PatientHomeTodayConfigResult = {
+  dailyWarmupItem: ResolvedPatientHomeBlockItem | null;
+  practiceTarget: number;
+  /** Все видимые разминки дня сейчас в cooldown — показываем финальный hero «выполнено». */
+  allDailyWarmupsInCooldown: boolean;
+  /** Минимум из `minutesRemaining` по страницам, если `allDailyWarmupsInCooldown`. */
+  allDailyWarmupsCooldownMinutesRemaining: number | null;
+};
+
 /** Парсит `patient_home_daily_practice_target` из `value_json` (обёртка `{ value }` или число). Default 3, clamp 1–10. */
 export function parsePatientHomeDailyPracticeTarget(valueJson: unknown): number {
   let inner: unknown = valueJson;
@@ -74,14 +94,20 @@ function mapPage(row: {
 export async function getPatientHomeTodayConfig(
   deps: PatientHomeTodayConfigDeps,
   warmupWeekdayMonday0 = 0,
-): Promise<{ dailyWarmupItem: ResolvedPatientHomeBlockItem | null; practiceTarget: number }> {
+  warmupPick?: PatientHomeWarmupPickContext,
+): Promise<PatientHomeTodayConfigResult> {
   const setting = await deps.systemSettings.getSetting("patient_home_daily_practice_target", "admin");
   const practiceTarget = parsePatientHomeDailyPracticeTarget(setting?.valueJson ?? null);
 
   const blocks = await deps.patientHomeBlocks.listBlocksWithItems();
   const warmupBlock = blocks.find((b) => b.code === "daily_warmup");
   if (!warmupBlock?.isVisible) {
-    return { dailyWarmupItem: null, practiceTarget };
+    return {
+      dailyWarmupItem: null,
+      practiceTarget,
+      allDailyWarmupsInCooldown: false,
+      allDailyWarmupsCooldownMinutesRemaining: null,
+    };
   }
 
   const items = [...warmupBlock.items]
@@ -90,10 +116,18 @@ export async function getPatientHomeTodayConfig(
 
   const n = items.length;
   if (n === 0) {
-    return { dailyWarmupItem: null, practiceTarget };
+    return {
+      dailyWarmupItem: null,
+      practiceTarget,
+      allDailyWarmupsInCooldown: false,
+      allDailyWarmupsCooldownMinutesRemaining: null,
+    };
   }
 
   const start = ((warmupWeekdayMonday0 % n) + n) % n;
+  let minMinutesWhenAllInCooldown: number | null = null;
+  let sawAnyValidCandidate = false;
+
   for (let step = 0; step < n; step++) {
     const blockItem = items[(start + step) % n]!;
     const slug = blockItem.targetRef.trim();
@@ -119,11 +153,38 @@ export async function getPatientHomeTodayConfig(
     ) {
       continue;
     }
+    sawAnyValidCandidate = true;
+
+    if (warmupPick) {
+      const meta = await warmupPick.getDailyWarmupHeroCooldownMeta(
+        warmupPick.userId,
+        row.id,
+        warmupPick.cooldownMinutes,
+      );
+      if (meta.active) {
+        const rem =
+          typeof meta.minutesRemaining === "number" && Number.isFinite(meta.minutesRemaining) ?
+            meta.minutesRemaining
+          : 1;
+        minMinutesWhenAllInCooldown =
+          minMinutesWhenAllInCooldown === null ? rem : Math.min(minMinutesWhenAllInCooldown, rem);
+        continue;
+      }
+    }
+
     return {
       dailyWarmupItem: { blockItem, page: mapPage(row) },
       practiceTarget,
+      allDailyWarmupsInCooldown: false,
+      allDailyWarmupsCooldownMinutesRemaining: null,
     };
   }
 
-  return { dailyWarmupItem: null, practiceTarget };
+  const allDailyWarmupsInCooldown = Boolean(warmupPick && sawAnyValidCandidate);
+  return {
+    dailyWarmupItem: null,
+    practiceTarget,
+    allDailyWarmupsInCooldown,
+    allDailyWarmupsCooldownMinutesRemaining: allDailyWarmupsInCooldown ? minMinutesWhenAllInCooldown : null,
+  };
 }

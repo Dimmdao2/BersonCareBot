@@ -26,6 +26,8 @@ describe("PatientProfileHero", () => {
         maxId=""
         supportContactHref="https://support.example"
         fallbackDisplayName="."
+        initialEmail={null}
+        emailVerified={false}
       />,
     );
 

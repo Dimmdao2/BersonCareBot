@@ -41,6 +41,11 @@ import {
   primaryMediaForTestSnapshotLine,
   testTitleFromTestSetSnapshot,
 } from "@/app/app/patient/treatment/stageItemSnapshot";
+import {
+  formatPlanItemDoneCooldownCaption,
+  isItemDoneCooldownActive,
+  itemDoneCooldownMinutesRemaining,
+} from "@/modules/treatment-program/itemDoneCooldown";
 import { patientHomeCardHeroClass } from "@/app/app/patient/home/patientHomeCardStyles";
 import {
   patientBodyTextClass,
@@ -428,7 +433,10 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
     setObservationDraft("");
   }, [commentModalOpen, itemId]);
 
-  const simpleCompleteDoneFrozen = Boolean(item?.completedAt?.trim());
+  const lastIsoForSimpleComplete =
+    item ? mergeLastActivityDisplayedIso(lastDoneAtIsoByItemId[item.id], item.completedAt) : null;
+  const simpleCompleteDoneFrozen = isItemDoneCooldownActive(lastIsoForSimpleComplete);
+  const simpleCompleteCooldownMinutes = itemDoneCooldownMinutesRemaining(lastIsoForSimpleComplete);
 
   const primaryMedia = useMemo(() => {
     if (!item) return null;
@@ -773,27 +781,39 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
               ) : (
                 <div className="flex w-full min-w-0 flex-wrap items-stretch gap-2">
                   {!(item.itemType === "lfk_complex" && !isPersistentRecommendation(item)) ? (
-                    <button
-                      type="button"
-                      className={cn(
-                        patientButtonPrimaryClass,
-                        "min-h-9 flex-1 text-xs font-medium sm:min-h-10",
-                        simpleCompleteDoneFrozen &&
-                          cn(patientSimpleCompleteDoneButtonToneClass, "gap-1 disabled:cursor-default"),
-                        !simpleCompleteDoneFrozen && "gap-0",
-                      )}
-                      disabled={busy !== null || simpleCompleteDoneFrozen}
-                      onClick={() => void handleComplete()}
-                    >
-                      {simpleCompleteDoneFrozen ? (
-                        <>
-                          <Check className="mr-[-20px] size-4 shrink-0 stroke-[2.75] text-current" aria-hidden />
-                          <span className="min-w-0 flex-1 text-center font-semibold">Выполнено</span>
-                        </>
-                      ) : (
-                        <span className="w-full text-center">Отметить выполнение</span>
-                      )}
-                    </button>
+                    <>
+                      <button
+                        type="button"
+                        className={cn(
+                          patientButtonPrimaryClass,
+                          "min-h-9 flex-1 text-xs font-medium sm:min-h-10",
+                          simpleCompleteDoneFrozen &&
+                            cn(patientSimpleCompleteDoneButtonToneClass, "gap-1 disabled:cursor-default"),
+                          !simpleCompleteDoneFrozen && "gap-0",
+                        )}
+                        disabled={busy !== null || simpleCompleteDoneFrozen}
+                        onClick={() => void handleComplete()}
+                      >
+                        {simpleCompleteDoneFrozen ? (
+                          <>
+                            <Check className="mr-[-20px] size-4 shrink-0 stroke-[2.75] text-current" aria-hidden />
+                            <span className="min-w-0 flex-1 text-center font-semibold">Выполнено</span>
+                          </>
+                        ) : (
+                          <span className="w-full text-center">Отметить выполнение</span>
+                        )}
+                      </button>
+                      {simpleCompleteDoneFrozen && simpleCompleteCooldownMinutes != null ? (
+                        <p
+                          className={cn(
+                            patientMutedTextClass,
+                            "w-full basis-full text-center text-[11px] leading-tight",
+                          )}
+                        >
+                          {formatPlanItemDoneCooldownCaption(simpleCompleteCooldownMinutes)}
+                        </p>
+                      ) : null}
+                    </>
                   ) : null}
                   <button
                     type="button"

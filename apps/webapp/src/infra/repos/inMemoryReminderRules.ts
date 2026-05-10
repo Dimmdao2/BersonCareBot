@@ -14,7 +14,14 @@ import { DEFAULT_REHAB_WEEKDAY_SLOTS } from "@/modules/reminders/scheduleSlots";
 const FALLBACK_CATEGORIES = new Set(["appointment", "lfk", "chat", "important"]);
 
 function mapLinkedTypeToCategory(linked: ReminderLinkedObjectType): ReminderCategory {
-  if (linked === "lfk_complex" || linked === "content_section" || linked === "rehab_program") return "lfk";
+  if (
+    linked === "lfk_complex" ||
+    linked === "content_section" ||
+    linked === "rehab_program" ||
+    linked === "treatment_program_item"
+  ) {
+    return "lfk";
+  }
   return "important";
 }
 

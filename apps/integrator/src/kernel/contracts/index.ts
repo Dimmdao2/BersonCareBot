@@ -113,6 +113,7 @@ export type {
   WebappSymptomTracking,
   WebappLfkComplex,
   DeliveryTargetsPort,
+  DeliveryTargetsFetchOptions,
   DeliveryTargetsChannelBindings,
   CommunicationReadsPort,
   CommunicationConversationListItem,

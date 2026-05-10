@@ -16,10 +16,21 @@ import {
   pickRecommendationRowPreviewMedia,
   parseRecommendationMediaFromSnapshot,
   recommendationBodyMdPreviewPlain,
+  mergeLastActivityDisplayedIso,
 } from "@/app/app/patient/treatment/stageItemSnapshot";
+import {
+  formatPlanItemDoneCooldownCaption,
+  isItemDoneCooldownActive,
+  itemDoneCooldownMinutesRemaining,
+} from "@/modules/treatment-program/itemDoneCooldown";
 import { PatientCatalogMediaStaticThumb } from "@/shared/ui/patient/PatientCatalogMediaStaticThumb";
 import { cn } from "@/lib/utils";
-import { patientCompactActionClass, patientMutedTextClass, patientPillClass, patientSimpleCompleteDoneButtonToneClass } from "@/shared/ui/patientVisual";
+import {
+  patientCompactActionClass,
+  patientMutedTextClass,
+  patientPillClass,
+  patientSimpleCompleteDoneButtonToneClass,
+} from "@/shared/ui/patientVisual";
 import { patientTreatmentProgramListItemClass } from "@/app/app/patient/treatment/program-detail/patientTreatmentProgramListItemClass";
 import { snapshotTitle } from "@/app/app/patient/treatment/program-detail/patientPlanDetailFormatters";
 import { usePostMarkItemViewedWhenVisible } from "@/app/app/patient/treatment/program-detail/usePostMarkItemViewedWhenVisible";
@@ -44,6 +55,8 @@ export function PatientInstanceStageItemCard(props: {
   todayChecklistDoneCount?: number;
   /** Нейтральный фон карточки (белый) на тонированной панели — блок рекомендаций на detail. */
   neutralItemChrome?: boolean;
+  /** Время последней отметки из checklist-today (для cooldown повтора «Выполнено»). */
+  lastDoneAtIsoByItemId?: Readonly<Record<string, string>>;
   /** Ссылка на страницу детального просмотра пункта (вместо модалки). */
   itemDetailHref: string;
 }) {
@@ -64,8 +77,11 @@ export function PatientInstanceStageItemCard(props: {
     todayChecklistDoneCount,
     neutralItemChrome = false,
     itemDetailHref,
+    lastDoneAtIsoByItemId = {},
   } = props;
-  const simpleCompleteDoneFrozen = Boolean(item.completedAt?.trim());
+  const mergedDoneIso = mergeLastActivityDisplayedIso(lastDoneAtIsoByItemId[item.id], item.completedAt);
+  const simpleCompleteDoneFrozen = isItemDoneCooldownActive(mergedDoneIso);
+  const simpleCooldownMinutes = itemDoneCooldownMinutesRemaining(mergedDoneIso);
   const router = useRouter();
   const readOnly = itemInteraction === "readOnly";
   const [markingViewed, setMarkingViewed] = useState(false);
@@ -266,7 +282,7 @@ export function PatientInstanceStageItemCard(props: {
                 />
               </div>
             ) : !isPersistentRecommendation(item) ? (
-              <div className="mt-2">
+              <div className="mt-2 flex flex-col gap-0.5">
                 <button
                   type="button"
                   className={cn(
@@ -296,6 +312,11 @@ export function PatientInstanceStageItemCard(props: {
                 >
                   {simpleCompleteDoneFrozen ? "Выполнено" : "Отметить выполненным"}
                 </button>
+                {simpleCompleteDoneFrozen && simpleCooldownMinutes != null ? (
+                  <p className={cn(patientMutedTextClass, "text-[10px] leading-tight")}>
+                    {formatPlanItemDoneCooldownCaption(simpleCooldownMinutes)}
+                  </p>
+                ) : null}
               </div>
             ) : null
           ) : null}

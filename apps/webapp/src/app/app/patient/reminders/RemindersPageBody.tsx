@@ -25,6 +25,8 @@ function mapIconKind(linked: NonNullable<ReminderRule["linkedObjectType"]>): Per
       return "warmup";
     case "content_page":
       return "page";
+    case "treatment_program_item":
+      return "rehab";
     case "custom":
       return "custom";
     default:
@@ -66,6 +68,9 @@ async function resolvePersonalReminderLabel(
   }
   if (lo === "rehab_program") {
     return rule.displayTitle?.trim() || "Программа реабилитации";
+  }
+  if (lo === "treatment_program_item") {
+    return rule.displayTitle?.trim() || "Пункт программы";
   }
   return "Напоминание";
 }

@@ -18,10 +18,12 @@ export async function GET(request: Request) {
   }
 
   const deps = buildAppDeps();
+  const topic = url.searchParams.get("topic")?.trim();
   const result = await deps.deliveryTargetsApi.getTargets({
     ...(phone ? { phone } : {}),
     ...(telegramId ? { telegramId } : {}),
     ...(maxId ? { maxId } : {}),
+    ...(topic ? { topic } : {}),
   });
   if (!result) {
     return NextResponse.json({ ok: true, channelBindings: {} }, { status: 200 });

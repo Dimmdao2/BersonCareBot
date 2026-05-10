@@ -18,6 +18,11 @@ import {
   type InstanceStageItem,
 } from "@/app/app/patient/treatment/stageItemSnapshot";
 import {
+  formatPlanItemDoneCooldownCaption,
+  isItemDoneCooldownActive,
+  itemDoneCooldownMinutesRemaining,
+} from "@/modules/treatment-program/itemDoneCooldown";
+import {
   patientBodyTextClass,
   patientCardClass,
   patientCompactActionClass,
@@ -136,46 +141,55 @@ const MAX_TODAY_DOTS = 24;
 function PatientProgramTileSimpleCompleteButton(props: {
   itemId: string;
   completedAt: string | null;
+  lastDoneAtIso: string | undefined;
   busy: string | null;
   base: string;
   refresh: () => Promise<void>;
   setBusy: (v: string | null) => void;
   setError: (v: string | null) => void;
 }) {
-  const { itemId, completedAt, busy, base, refresh, setBusy, setError } = props;
-  /** Есть `completed_at` у элемента — без повторной отметки через эту кнопку (журнал может накапливать done отдельно). */
-  const doneFrozen = Boolean(completedAt?.trim());
+  const { itemId, completedAt, lastDoneAtIso, busy, base, refresh, setBusy, setError } = props;
+  const merged = mergeLastActivityDisplayedIso(lastDoneAtIso, completedAt);
+  const doneFrozen = isItemDoneCooldownActive(merged);
+  const cooldownMinutes = itemDoneCooldownMinutesRemaining(merged);
 
   return (
-    <button
-      type="button"
-      className={cn(
-        patientCompactActionClass,
-        "min-h-0 min-w-0 flex-1 basis-0 px-2 text-xs font-medium",
-        doneFrozen && patientSimpleCompleteDoneButtonToneClass,
-      )}
-      disabled={busy !== null || doneFrozen}
-      onClick={async (e) => {
-        e.stopPropagation();
-        setBusy(itemId);
-        setError(null);
-        try {
-          const res = await fetch(`${base}/${encodeURIComponent(itemId)}/progress/complete`, {
-            method: "POST",
-          });
-          const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
-          if (!res.ok || !data?.ok) {
-            setError(data?.error ?? "Ошибка");
-            return;
+    <div className="flex min-w-0 flex-1 basis-0 flex-col gap-0.5">
+      <button
+        type="button"
+        className={cn(
+          patientCompactActionClass,
+          "min-h-0 min-w-0 flex-1 basis-0 px-2 text-xs font-medium",
+          doneFrozen && patientSimpleCompleteDoneButtonToneClass,
+        )}
+        disabled={busy !== null || doneFrozen}
+        onClick={async (e) => {
+          e.stopPropagation();
+          setBusy(itemId);
+          setError(null);
+          try {
+            const res = await fetch(`${base}/${encodeURIComponent(itemId)}/progress/complete`, {
+              method: "POST",
+            });
+            const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
+            if (!res.ok || !data?.ok) {
+              setError(data?.error ?? "Ошибка");
+              return;
+            }
+            await refresh();
+          } finally {
+            setBusy(null);
           }
-          await refresh();
-        } finally {
-          setBusy(null);
-        }
-      }}
-    >
-      {doneFrozen ? "Выполнено" : "Отметить выполнение"}
-    </button>
+        }}
+      >
+        {doneFrozen ? "Выполнено" : "Отметить выполнение"}
+      </button>
+      {doneFrozen && cooldownMinutes != null ? (
+        <p className={cn(patientMutedTextClass, "text-center text-[10px] leading-tight")}>
+          {formatPlanItemDoneCooldownCaption(cooldownMinutes)}
+        </p>
+      ) : null}
+    </div>
   );
 }
 
@@ -397,6 +411,7 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
                 <PatientProgramTileSimpleCompleteButton
                   itemId={item.id}
                   completedAt={item.completedAt}
+                  lastDoneAtIso={lastDoneAtIsoByItemId[item.id]}
                   busy={busy}
                   base={base}
                   refresh={refresh}

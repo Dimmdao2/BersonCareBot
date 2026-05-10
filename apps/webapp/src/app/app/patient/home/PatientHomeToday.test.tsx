@@ -130,6 +130,8 @@ describe("PatientHomeToday", () => {
         },
       },
       practiceTarget: 3,
+      allDailyWarmupsInCooldown: false,
+      allDailyWarmupsCooldownMinutesRemaining: null,
     });
 
     listBlocksWithItems.mockResolvedValue([

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { OtpCodeForm } from "@/shared/ui/auth/OtpCodeForm";
 import { cn } from "@/lib/utils";
+import { patientMutedTextClass } from "@/shared/ui/patientVisual";
 
 const PATIENT_EMAIL_INPUT_ID = "patient-email-panel-address";
 
@@ -18,6 +19,8 @@ type Props = {
    * внутри панели (профиль, уведомления).
    */
   embeddedInTitledSection?: boolean;
+  /** Строка как телефон в объединённом hero профиля (градиентный блок). */
+  layout?: "default" | "profileHero";
 };
 
 /**
@@ -28,6 +31,7 @@ export function EmailAccountPanel({
   emailVerified,
   supportContactHref,
   embeddedInTitledSection = false,
+  layout = "default",
 }: Props) {
   const router = useRouter();
   const [emailStep, setEmailStep] = useState<"view" | "enter" | "code">("view");
@@ -66,10 +70,39 @@ export function EmailAccountPanel({
     <div
       className={cn(
         "flex flex-col gap-2",
-        !embeddedInTitledSection && "border-t border-border pt-4",
+        layout === "default" && !embeddedInTitledSection && "border-t border-border pt-4",
       )}
     >
-      {emailStep === "view" ? (
+      {emailStep === "view" && layout === "profileHero" ? (
+        <div className="flex flex-col gap-1 border-t border-[var(--patient-border)] pt-4">
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <span className={cn(patientMutedTextClass, "text-xs font-normal uppercase tracking-wide")}>Email</span>
+            <Button
+              type="button"
+              variant="link"
+              size="sm"
+              className="text-primary h-auto min-h-0 px-0 py-0 text-sm font-normal"
+              onClick={() => {
+                setEmailStep("enter");
+                setEmailDraft(initialEmail ?? "");
+                setEmailStartError(null);
+              }}
+            >
+              {initialEmail ? "Изменить" : "Привязать"}
+            </Button>
+          </div>
+          {initialEmail ? (
+            <p className="text-sm text-[var(--patient-text-primary)]">
+              {initialEmail}
+              {emailVerified ?
+                <span className="text-muted-foreground ml-2 text-xs">(подтверждён)</span>
+              : <span className="text-muted-foreground ml-2 text-xs">(подтверждение по коду)</span>}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+
+      {emailStep === "view" && layout !== "profileHero" ? (
         <div
           className={cn(
             "flex flex-wrap items-start gap-2",
@@ -95,7 +128,7 @@ export function EmailAccountPanel({
         </div>
       ) : null}
 
-      {emailStep === "view" && initialEmail ? (
+      {emailStep === "view" && layout !== "profileHero" && initialEmail ? (
         <p className="text-sm">
           {initialEmail}
           {emailVerified ? (
@@ -106,12 +139,17 @@ export function EmailAccountPanel({
         </p>
       ) : null}
 
-      {emailStep === "view" && !initialEmail ? (
+      {emailStep === "view" && layout !== "profileHero" && !initialEmail ? (
         <p className="text-muted-foreground text-sm">не указано — добавьте email для уведомлений.</p>
       ) : null}
 
       {emailStep === "enter" ? (
-        <div className="flex max-w-md flex-col gap-2">
+        <div
+          className={cn(
+            "flex max-w-md flex-col gap-2",
+            layout === "profileHero" && "border-t border-[var(--patient-border)] pt-4",
+          )}
+        >
           <label
             className="text-muted-foreground text-xs font-normal uppercase tracking-wide"
             htmlFor={PATIENT_EMAIL_INPUT_ID}
@@ -147,67 +185,69 @@ export function EmailAccountPanel({
       ) : null}
 
       {emailStep === "code" && emailChallengeId ? (
-        <OtpCodeForm
-          challengeId={emailChallengeId}
-          retryAfterSeconds={emailRetrySec}
-          supportContactHref={supportContactHref}
-          description="Код отправлен (в dev смотрите лог сервера). Введите его ниже."
-          submitLabel="Подтвердить email"
-          onConfirm={async (code) => {
-            const res = await fetch("/api/auth/email/confirm", {
-              method: "POST",
-              headers: { "content-type": "application/json" },
-              body: JSON.stringify({ challengeId: emailChallengeId, code }),
-            });
-            const data = (await res.json().catch(() => ({}))) as {
-              ok?: boolean;
-              message?: string;
-              error?: string;
-              retryAfterSeconds?: number;
-            };
-            if (data.ok) {
-              setEmailStep("view");
+        <div className={layout === "profileHero" ? "border-t border-[var(--patient-border)] pt-4" : ""}>
+          <OtpCodeForm
+            challengeId={emailChallengeId}
+            retryAfterSeconds={emailRetrySec}
+            supportContactHref={supportContactHref}
+            description="Код отправлен (в dev смотрите лог сервера). Введите его ниже."
+            submitLabel="Подтвердить email"
+            onConfirm={async (code) => {
+              const res = await fetch("/api/auth/email/confirm", {
+                method: "POST",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify({ challengeId: emailChallengeId, code }),
+              });
+              const data = (await res.json().catch(() => ({}))) as {
+                ok?: boolean;
+                message?: string;
+                error?: string;
+                retryAfterSeconds?: number;
+              };
+              if (data.ok) {
+                setEmailStep("view");
+                setEmailChallengeId(null);
+                refresh();
+                return { ok: true as const };
+              }
+              return {
+                ok: false as const,
+                message: data.message ?? "Ошибка",
+                code: data.error,
+                retryAfterSeconds: data.retryAfterSeconds,
+              };
+            }}
+            onResend={async () => {
+              const res = await fetch("/api/auth/email/start", {
+                method: "POST",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify({ email: emailDraft.trim() }),
+              });
+              const data = (await res.json().catch(() => ({}))) as {
+                ok?: boolean;
+                challengeId?: string;
+                retryAfterSeconds?: number;
+                error?: string;
+                message?: string;
+              };
+              if (data.ok && data.challengeId) {
+                setEmailChallengeId(data.challengeId);
+                setEmailRetrySec(data.retryAfterSeconds ?? 60);
+                return { kind: "ok" as const };
+              }
+              if (res.status === 429 || data.error === "rate_limited") {
+                const sec = Math.max(1, Math.ceil(data.retryAfterSeconds ?? 60));
+                setEmailRetrySec(sec);
+                return { kind: "rate_limited" as const, retryAfterSeconds: sec };
+              }
+              return { kind: "error" as const, message: data.message ?? "Не удалось отправить код" };
+            }}
+            onBack={() => {
+              setEmailStep("enter");
               setEmailChallengeId(null);
-              refresh();
-              return { ok: true as const };
-            }
-            return {
-              ok: false as const,
-              message: data.message ?? "Ошибка",
-              code: data.error,
-              retryAfterSeconds: data.retryAfterSeconds,
-            };
-          }}
-          onResend={async () => {
-            const res = await fetch("/api/auth/email/start", {
-              method: "POST",
-              headers: { "content-type": "application/json" },
-              body: JSON.stringify({ email: emailDraft.trim() }),
-            });
-            const data = (await res.json().catch(() => ({}))) as {
-              ok?: boolean;
-              challengeId?: string;
-              retryAfterSeconds?: number;
-              error?: string;
-              message?: string;
-            };
-            if (data.ok && data.challengeId) {
-              setEmailChallengeId(data.challengeId);
-              setEmailRetrySec(data.retryAfterSeconds ?? 60);
-              return { kind: "ok" as const };
-            }
-            if (res.status === 429 || data.error === "rate_limited") {
-              const sec = Math.max(1, Math.ceil(data.retryAfterSeconds ?? 60));
-              setEmailRetrySec(sec);
-              return { kind: "rate_limited" as const, retryAfterSeconds: sec };
-            }
-            return { kind: "error" as const, message: data.message ?? "Не удалось отправить код" };
-          }}
-          onBack={() => {
-            setEmailStep("enter");
-            setEmailChallengeId(null);
-          }}
-        />
+            }}
+          />
+        </div>
       ) : null}
     </div>
   );

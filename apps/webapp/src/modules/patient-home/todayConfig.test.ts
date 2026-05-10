@@ -53,6 +53,8 @@ describe("getPatientHomeTodayConfig", () => {
     const out = await getPatientHomeTodayConfig(deps);
     expect(out.dailyWarmupItem).toBeNull();
     expect(out.practiceTarget).toBe(3);
+    expect(out.allDailyWarmupsInCooldown).toBe(false);
+    expect(out.allDailyWarmupsCooldownMinutesRemaining).toBeNull();
     expect(deps.contentPages.getBySlug).not.toHaveBeenCalled();
   });
 
@@ -98,6 +100,7 @@ describe("getPatientHomeTodayConfig", () => {
     };
     const out = await getPatientHomeTodayConfig(deps);
     expect(out.practiceTarget).toBe(4);
+    expect(out.allDailyWarmupsInCooldown).toBe(false);
     expect(out.dailyWarmupItem?.page?.slug).toBe("warm-1");
     expect(out.dailyWarmupItem?.page?.contentPageId).toBe("11111111-1111-4111-8111-111111111111");
     expect(getBySlug).toHaveBeenCalledWith("warm-1");
@@ -153,6 +156,7 @@ describe("getPatientHomeTodayConfig", () => {
       : null,
     );
     const out = await getPatientHomeTodayConfig(deps);
+    expect(out.allDailyWarmupsInCooldown).toBe(false);
     expect(out.dailyWarmupItem?.page?.slug).toBe("ok");
   });
 
@@ -205,8 +209,10 @@ describe("getPatientHomeTodayConfig", () => {
       systemSettings: { getSetting: async () => null },
     };
     const monday = await getPatientHomeTodayConfig(deps, 0);
+    expect(monday.allDailyWarmupsInCooldown).toBe(false);
     expect(monday.dailyWarmupItem?.page?.slug).toBe("warm-a");
     const tuesday = await getPatientHomeTodayConfig(deps, 1);
+    expect(tuesday.allDailyWarmupsInCooldown).toBe(false);
     expect(tuesday.dailyWarmupItem?.page?.slug).toBe("warm-b");
   });
 
@@ -240,5 +246,141 @@ describe("getPatientHomeTodayConfig", () => {
     };
     const out = await getPatientHomeTodayConfig(deps);
     expect(out.dailyWarmupItem).toBeNull();
+    expect(out.allDailyWarmupsInCooldown).toBe(false);
+    expect(out.allDailyWarmupsCooldownMinutesRemaining).toBeNull();
+  });
+
+  it("warmupPick skips items in hero cooldown and returns next available", async () => {
+    const getBySlug = vi.fn(async (slug: string) => {
+      if (slug === "warm-a") {
+        return {
+          id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          slug: "warm-a",
+          title: "A",
+          summary: "",
+          imageUrl: null,
+          section: "warmups",
+        };
+      }
+      if (slug === "warm-b") {
+        return {
+          id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          slug: "warm-b",
+          title: "B",
+          summary: "",
+          imageUrl: null,
+          section: "warmups",
+        };
+      }
+      return null;
+    });
+    const getDailyWarmupHeroCooldownMeta = vi.fn(async (_userId: string, contentPageId: string) => {
+      if (contentPageId === "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa") {
+        return { active: true, minutesRemaining: 12 };
+      }
+      return { active: false };
+    });
+    const deps = {
+      patientHomeBlocks: {
+        listBlocksWithItems: async () => [
+          block("daily_warmup", [
+            {
+              id: "i1",
+              blockCode: "daily_warmup",
+              targetType: "content_page",
+              targetRef: "warm-a",
+              titleOverride: null,
+              subtitleOverride: null,
+              imageUrlOverride: null,
+              badgeLabel: null,
+              isVisible: true,
+              sortOrder: 0,
+            },
+            {
+              id: "i2",
+              blockCode: "daily_warmup",
+              targetType: "content_page",
+              targetRef: "warm-b",
+              titleOverride: null,
+              subtitleOverride: null,
+              imageUrlOverride: null,
+              badgeLabel: null,
+              isVisible: true,
+              sortOrder: 1,
+            },
+          ]),
+        ],
+      },
+      contentPages: { getBySlug },
+      contentSections: warmSection,
+      systemSettings: { getSetting: async () => null },
+    };
+    const out = await getPatientHomeTodayConfig(deps, 0, {
+      userId: "user-1",
+      getDailyWarmupHeroCooldownMeta,
+      cooldownMinutes: 60,
+    });
+    expect(out.dailyWarmupItem?.page?.slug).toBe("warm-b");
+    expect(out.allDailyWarmupsInCooldown).toBe(false);
+  });
+
+  it("warmupPick when every candidate is in cooldown returns null and aggregate minutes", async () => {
+    const getBySlug = vi.fn(async (slug: string) => ({
+      id: slug === "warm-a" ? "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" : "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      slug,
+      title: slug,
+      summary: "",
+      imageUrl: null,
+      section: "warmups",
+    }));
+    const getDailyWarmupHeroCooldownMeta = vi.fn(async (_userId: string, contentPageId: string) => {
+      if (contentPageId === "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa") {
+        return { active: true, minutesRemaining: 10 };
+      }
+      return { active: true, minutesRemaining: 5 };
+    });
+    const deps = {
+      patientHomeBlocks: {
+        listBlocksWithItems: async () => [
+          block("daily_warmup", [
+            {
+              id: "i1",
+              blockCode: "daily_warmup",
+              targetType: "content_page",
+              targetRef: "warm-a",
+              titleOverride: null,
+              subtitleOverride: null,
+              imageUrlOverride: null,
+              badgeLabel: null,
+              isVisible: true,
+              sortOrder: 0,
+            },
+            {
+              id: "i2",
+              blockCode: "daily_warmup",
+              targetType: "content_page",
+              targetRef: "warm-b",
+              titleOverride: null,
+              subtitleOverride: null,
+              imageUrlOverride: null,
+              badgeLabel: null,
+              isVisible: true,
+              sortOrder: 1,
+            },
+          ]),
+        ],
+      },
+      contentPages: { getBySlug },
+      contentSections: warmSection,
+      systemSettings: { getSetting: async () => null },
+    };
+    const out = await getPatientHomeTodayConfig(deps, 0, {
+      userId: "user-1",
+      getDailyWarmupHeroCooldownMeta,
+      cooldownMinutes: 60,
+    });
+    expect(out.dailyWarmupItem).toBeNull();
+    expect(out.allDailyWarmupsInCooldown).toBe(true);
+    expect(out.allDailyWarmupsCooldownMinutesRemaining).toBe(5);
   });
 });

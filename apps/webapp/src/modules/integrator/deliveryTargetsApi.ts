@@ -7,6 +7,7 @@ import type { ChannelBindings } from "@/shared/types/session";
 import type { UserByPhonePort } from "@/modules/auth/userByPhonePort";
 import type { IdentityResolutionPort } from "@/modules/auth/identityResolutionPort";
 import type { ChannelPreferencesPort } from "@/modules/channel-preferences/ports";
+import type { TopicChannelPrefsPort } from "@/modules/patient-notifications/topicChannelPrefsPort";
 import { getDeliveryTargetsForUser } from "@/modules/channel-preferences/deliveryTargets";
 import { normalizeRuPhoneE164 } from "@/shared/phone/normalizeRuPhoneE164";
 
@@ -14,12 +15,15 @@ export type DeliveryTargetsApiParams = {
   phone?: string;
   telegramId?: string;
   maxId?: string;
+  /** When set, filters telegram/max by per-topic channel prefs (`user_notification_topic_channels`). */
+  topic?: string;
 };
 
 export type DeliveryTargetsApiDeps = {
   userByPhonePort: UserByPhonePort;
   identityResolutionPort: IdentityResolutionPort;
   preferencesPort: ChannelPreferencesPort;
+  topicChannelPrefsPort: TopicChannelPrefsPort;
 };
 
 /**
@@ -30,7 +34,7 @@ export async function getDeliveryTargetsForIntegrator(
   params: DeliveryTargetsApiParams,
   deps: DeliveryTargetsApiDeps
 ): Promise<{ channelBindings: ChannelBindings } | null> {
-  const { userByPhonePort, identityResolutionPort, preferencesPort } = deps;
+  const { userByPhonePort, identityResolutionPort, preferencesPort, topicChannelPrefsPort } = deps;
 
   let userId: string;
   let bindings: ChannelBindings;
@@ -61,6 +65,17 @@ export async function getDeliveryTargetsForIntegrator(
     return null;
   }
 
-  const { channelBindings } = await getDeliveryTargetsForUser(userId, bindings, preferencesPort);
+  const topicTrimmed = params.topic?.trim();
+  const topicOptions =
+    topicTrimmed && topicTrimmed.length > 0 ?
+      { topicCode: topicTrimmed, topicChannelPrefsPort }
+    : undefined;
+
+  const { channelBindings } = await getDeliveryTargetsForUser(
+    userId,
+    bindings,
+    preferencesPort,
+    topicOptions,
+  );
   return { channelBindings };
 }

@@ -1,13 +1,11 @@
-import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requirePatientAccess } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
 import { getPlatformEntry } from "@/shared/lib/platformCookie.server";
-import { cn } from "@/lib/utils";
+import { shareCabinetLink } from "@/shared/lib/shareCabinetLink";
 import { AppShell } from "@/shared/ui/AppShell";
 import { ConnectMessengersBlock } from "@/shared/ui/ConnectMessengersBlock";
-import { EmailAccountPanel } from "@/shared/ui/EmailAccountPanel";
 import {
   patientInfoLinkTileClass,
   patientInnerPageStackClass,
@@ -15,17 +13,13 @@ import {
   patientSectionTitleClass,
 } from "@/shared/ui/patientVisual";
 import { getSupportContactUrl } from "@/modules/system-settings/supportContactUrl";
-import { DiaryDataPurgeSection } from "./DiaryDataPurgeSection";
+import { parseNotificationsTopics } from "@/modules/patient-notifications/notificationsTopics";
+import { buildProfileNotificationTopicModels } from "@/modules/patient-notifications/profileTopicChannelsModel";
+import { cn } from "@/lib/utils";
 import { LogoutSection } from "./LogoutSection";
 import { PatientProfileHero } from "./PatientProfileHero";
 import { ProfileExtraSection } from "./ProfileExtraSection";
-
-function maskPhoneTail(phone: string | null | undefined): string | null {
-  if (!phone?.trim()) return null;
-  const digits = phone.replace(/\D/g, "");
-  const tail = digits.slice(-4);
-  return tail ? `•••• ${tail}` : phone;
-}
+import { ProfileNotificationsSection } from "./ProfileNotificationsSection";
 
 /** Профиль в onboarding-allowlist: `requirePatientAccess`, не `WithPhone` — см. `patientRouteApiPolicy.ts` (`patientPageMinAccessTier` → onboarding). */
 export default async function PatientProfilePage() {
@@ -34,12 +28,13 @@ export default async function PatientProfilePage() {
   const deps = buildAppDeps();
   const supportContactHref = await getSupportContactUrl();
   const emailFields = await deps.userProjection.getProfileEmailFields(session.user.userId);
+  const emailVerified = Boolean(emailFields.emailVerifiedAt);
   const channelCards = await deps.channelPreferences.getChannelCards(
     session.user.userId,
     session.user.bindings,
     {
       phone: session.user.phone,
-      emailVerified: Boolean(emailFields.emailVerifiedAt),
+      emailVerified,
     },
   );
   const telegramId = session.user.bindings.telegramId ?? "";
@@ -49,6 +44,15 @@ export default async function PatientProfilePage() {
     (emailFields.email && emailFields.email.trim()) ||
     (session.user.phone && session.user.phone.trim()) ||
     ".";
+
+  const notificationsTopicsSetting = await deps.systemSettings.getSetting("notifications_topics", "admin");
+  const subscriptionTopics = parseNotificationsTopics(notificationsTopicsSetting?.valueJson ?? null);
+  const prefRows = await deps.topicChannelPrefs.listByUserId(session.user.userId);
+  const notificationModels = buildProfileNotificationTopicModels(subscriptionTopics, prefRows, {
+    hasTelegram: Boolean(telegramId.trim()),
+    hasMax: Boolean(maxId.trim()),
+    emailVerified,
+  });
 
   return (
     <AppShell title="Мой профиль" user={session.user} backHref={routePaths.patient} backLabel="Меню" variant="patient">
@@ -60,37 +64,27 @@ export default async function PatientProfilePage() {
           maxId={maxId}
           supportContactHref={supportContactHref}
           fallbackDisplayName={fallbackDisplayName}
+          initialEmail={emailFields.email}
+          emailVerified={emailVerified}
         />
-
-        <section className={patientSectionSurfaceClass}>
-          <h2 className={patientSectionTitleClass}>Email</h2>
-          <EmailAccountPanel
-            initialEmail={emailFields.email}
-            emailVerified={Boolean(emailFields.emailVerifiedAt)}
-            supportContactHref={supportContactHref}
-            embeddedInTitledSection
-          />
-        </section>
 
         <section className={patientSectionSurfaceClass}>
           <h2 className={patientSectionTitleClass}>Мессенджеры</h2>
           <ConnectMessengersBlock channelCards={channelCards} showHeading={false} />
         </section>
 
-        <Link
-          href={routePaths.notifications}
-          className={cn(patientInfoLinkTileClass, "flex items-center justify-between min-h-11")}
-        >
-          <span>Подписки на уведомления</span>
-          <ChevronRight className="size-4 shrink-0 text-[var(--patient-text-muted)]" aria-hidden />
-        </Link>
+        <ProfileNotificationsSection initialTopics={notificationModels} />
 
         <ProfileExtraSection />
 
-        <section className={patientSectionSurfaceClass}>
-          <h2 className={patientSectionTitleClass}>Удаление данных дневника</h2>
-          <DiaryDataPurgeSection phoneMasked={maskPhoneTail(session.user.phone)} />
-        </section>
+        <button
+          type="button"
+          className={cn(patientInfoLinkTileClass, "flex min-h-11 w-full items-center justify-between text-left")}
+          onClick={() => void shareCabinetLink()}
+        >
+          <span>Поделиться с другом</span>
+          <ChevronRight className="size-4 shrink-0 text-[var(--patient-text-muted)]" aria-hidden />
+        </button>
 
         {platformEntry !== "bot" ? <LogoutSection /> : null}
       </div>

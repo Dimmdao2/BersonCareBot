@@ -3,8 +3,19 @@ import {
   buildReminderDispatchInlineKeyboard,
   buildReminderSkipReasonInlineKeyboard,
   isTelegramCallbackDataWithinLimit,
+  reminderIntentPrimaryLabel,
   telegramCallbackDataUtf8Bytes,
 } from './reminderInlineKeyboard.js';
+
+describe('reminderIntentPrimaryLabel', () => {
+  it('maps intents to product CTA copy', () => {
+    expect(reminderIntentPrimaryLabel('warmup')).toBe('Выполнить разминку');
+    expect(reminderIntentPrimaryLabel('exercises')).toBe('Начать занятие');
+    expect(reminderIntentPrimaryLabel('stretch')).toBe('Начать занятие');
+    expect(reminderIntentPrimaryLabel('generic')).toBe('Начать занятие');
+    expect(reminderIntentPrimaryLabel(null)).toBe('Начать занятие');
+  });
+});
 
 describe('reminderInlineKeyboard', () => {
   it('keeps dispatch rows when occurrence id is a typical UUID', () => {

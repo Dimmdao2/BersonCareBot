@@ -216,6 +216,20 @@ export async function mergePlatformUsersInTransaction(
   await client.query(`DELETE FROM user_notification_topics WHERE user_id = $1::uuid`, [duplicateId]);
 
   await client.query(
+    `INSERT INTO user_notification_topic_channels (user_id, topic_code, channel_code, is_enabled, updated_at)
+     SELECT $1::uuid, topic_code, channel_code, is_enabled, updated_at
+     FROM user_notification_topic_channels WHERE user_id = $2::uuid
+     ON CONFLICT (user_id, topic_code, channel_code) DO UPDATE SET
+       is_enabled = CASE
+         WHEN EXCLUDED.updated_at >= user_notification_topic_channels.updated_at THEN EXCLUDED.is_enabled
+         ELSE user_notification_topic_channels.is_enabled
+       END,
+       updated_at = GREATEST(user_notification_topic_channels.updated_at, EXCLUDED.updated_at)`,
+    [targetId, duplicateId],
+  );
+  await client.query(`DELETE FROM user_notification_topic_channels WHERE user_id = $1::uuid`, [duplicateId]);
+
+  await client.query(
     `UPDATE support_conversations SET platform_user_id = $1::uuid WHERE platform_user_id = $2::uuid`,
     [targetId, duplicateId],
   );

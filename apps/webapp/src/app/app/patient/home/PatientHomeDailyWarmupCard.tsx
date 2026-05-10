@@ -32,6 +32,8 @@ type Props = {
   warmupRecentlyCompletedHero?: boolean;
   /** Подпись под «Разминка выполнена» (cooldown). */
   warmupCooldownCaption?: string | null;
+  /** Все слоты разминок дня в cooldown — hero «выполнено» без конкретной страницы. */
+  allDailyWarmupsInCooldown?: boolean;
 };
 
 const FALLBACK_DURATION_BADGE_LABEL = "5 мин";
@@ -64,10 +66,55 @@ export function PatientHomeDailyWarmupCard({
   anonymousGuest,
   warmupRecentlyCompletedHero = false,
   warmupCooldownCaption = null,
+  allDailyWarmupsInCooldown = false,
 }: Props) {
   const page = warmup?.page;
 
   if (!page) {
+    if (allDailyWarmupsInCooldown && personalTierOk && !anonymousGuest) {
+      const showWarmupDoneHero = warmupRecentlyCompletedHero;
+      return (
+        <section aria-labelledby="patient-home-warmup-heading">
+          <article className={patientHomeHeroCardGeometryClass}>
+            <HeroBadgeRow />
+            <div className={patientHomeHeroTextColumnClass}>
+              <h2 id="patient-home-warmup-heading" className={patientHomeHeroTitleClampClass}>
+                Разминка дня
+              </h2>
+              <div className="mt-auto flex shrink-0 flex-col gap-2 pb-3 pt-6 md:pb-[34px]">
+                {showWarmupDoneHero ?
+                  <div className="flex min-w-0 flex-col gap-1">
+                    <span
+                      role="status"
+                      className={cn(patientHeroWarmupDoneCtaClass, "select-none")}
+                      aria-label="Разминка дня уже отмечена выполненной"
+                    >
+                      <CheckCircle2 className="size-4 shrink-0 sm:size-[18px] md:size-5" aria-hidden />
+                      Разминка выполнена
+                    </span>
+                    {warmupCooldownCaption?.trim() ?
+                      <p
+                        className={cn(
+                          patientMutedTextClass,
+                          "max-w-full text-xs leading-snug -mb-2 md:-mb-3",
+                        )}
+                      >
+                        {warmupCooldownCaption.trim()}
+                      </p>
+                    : null}
+                  </div>
+                : null}
+              </div>
+            </div>
+            <HeroImageSlotDecor>
+              <div className="mb-2 mr-2 flex size-[118px] items-center justify-center rounded-[42%] bg-white/50 ring-1 ring-[#e0e7ff] min-[380px]:size-[132px] md:mb-3 md:size-[220px] xl:size-[240px]">
+                <Sparkles className="size-12 text-[var(--patient-color-primary)] opacity-80 md:size-20" />
+              </div>
+            </HeroImageSlotDecor>
+          </article>
+        </section>
+      );
+    }
     return (
       <section aria-labelledby="patient-home-warmup-heading">
         <article className={patientHomeHeroCardGeometryClass}>

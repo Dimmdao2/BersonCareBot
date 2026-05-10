@@ -2164,6 +2164,33 @@ export const userNotificationTopics = pgTable("user_notification_topics", {
 	primaryKey({ columns: [table.userId, table.topicCode], name: "user_notification_topics_pkey"}),
 ]);
 
+export const userNotificationTopicChannels = pgTable(
+	"user_notification_topic_channels",
+	{
+		userId: uuid("user_id").notNull(),
+		topicCode: text("topic_code").notNull(),
+		channelCode: text("channel_code").notNull(),
+		isEnabled: boolean("is_enabled").default(true).notNull(),
+		updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+	},
+	(table) => [
+		index("idx_user_notification_topic_channels_user").using("btree", table.userId.asc().nullsLast().op("uuid_ops")),
+		foreignKey({
+			columns: [table.userId],
+			foreignColumns: [platformUsers.id],
+			name: "user_notification_topic_channels_user_id_fkey",
+		}).onDelete("cascade"),
+		primaryKey({
+			columns: [table.userId, table.topicCode, table.channelCode],
+			name: "user_notification_topic_channels_pkey",
+		}),
+		check(
+			"user_notification_topic_channels_channel_check",
+			sql`${table.channelCode} = ANY (ARRAY['telegram'::text, 'max'::text, 'email'::text])`,
+		),
+	],
+);
+
 export const userSubscriptions = pgTable("user_subscriptions", {
 	// You can use { mode: "bigint" } if numbers are exceeding js number limitations
 	userId: bigint("user_id", { mode: "number" }).notNull(),

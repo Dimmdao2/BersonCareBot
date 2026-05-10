@@ -13,7 +13,8 @@ export type ReminderLinkedObjectType =
   | "content_section"
   | "content_page"
   | "custom"
-  | "rehab_program";
+  | "rehab_program"
+  | "treatment_program_item";
 
 export type ReminderIntent = "warmup" | "exercises" | "stretch" | "generic";
 

@@ -36,6 +36,7 @@ describe('contextQueryPort', () => {
 
   it('uses deliveryTargetsPort for subscriptions.forUser and does not call readPort user.lookup', async () => {
     const { readPort, readDb } = createReadPortMock();
+    readDb.mockResolvedValue(null);
     const getTargetsByPhone = vi.fn().mockResolvedValue({ telegramId: '999', maxId: 'max-2' });
     const deliveryTargetsPort: DeliveryTargetsPort = { getTargetsByPhone, getTargetsByChannelBinding: vi.fn() };
 
@@ -53,8 +54,36 @@ describe('contextQueryPort', () => {
     expect(result.type).toBe('subscriptions.forUser');
     expect(result.items).toHaveLength(2);
     expect((result.items as Array<{ channelId: string }>).map((i) => i.channelId)).toContain('999');
+    expect(readDb).toHaveBeenCalledWith({
+      type: 'user.phoneForDeliveryLookup',
+      params: { userKey: '+79990001122' },
+    });
     expect(getTargetsByPhone).toHaveBeenCalledWith('+79990001122');
-    expect(readDb).not.toHaveBeenCalled();
+  });
+
+  it('subscriptions.forUser resolves platform user id to phone via readPort then deliveryTargetsPort', async () => {
+    const { readPort, readDb } = createReadPortMock();
+    readDb.mockResolvedValue('+78887776655');
+    const getTargetsByPhone = vi.fn().mockResolvedValue({ telegramId: '111', maxId: 'max-9' });
+    const deliveryTargetsPort: DeliveryTargetsPort = { getTargetsByPhone, getTargetsByChannelBinding: vi.fn() };
+
+    const port = createContextQueryPort({
+      readPort,
+      getWebappBaseUrl: async () => null,
+      deliveryTargetsPort,
+    });
+
+    const result = await port.request({
+      type: 'subscriptions.forUser',
+      userId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+    }) as { type: string; items: unknown[] };
+
+    expect(result.items).toHaveLength(2);
+    expect(readDb).toHaveBeenCalledWith({
+      type: 'user.phoneForDeliveryLookup',
+      params: { userKey: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890' },
+    });
+    expect(getTargetsByPhone).toHaveBeenCalledWith('+78887776655');
   });
 
   it('returns item null for channel.lookupByPhone when deliveryTargetsPort is missing (no legacy read)', async () => {

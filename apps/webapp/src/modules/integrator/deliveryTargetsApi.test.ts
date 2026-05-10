@@ -45,6 +45,10 @@ describe("deliveryTargetsApi", () => {
       getPreferredAuthChannelCode: vi.fn().mockResolvedValue(null),
       setPreferredAuthChannel: vi.fn(),
     },
+    topicChannelPrefsPort: {
+      listByUserId: vi.fn().mockResolvedValue([]),
+      upsert: vi.fn(),
+    },
   };
 
   it("returns null when no phone, telegramId, or maxId", async () => {
@@ -64,8 +68,23 @@ describe("deliveryTargetsApi", () => {
     expect(result!.channelBindings).toHaveProperty("maxId", "max456");
   });
 
-  it("returns null for unknown telegramId", async () => {
-    const result = await getDeliveryTargetsForIntegrator({ telegramId: "unknown" }, deps);
-    expect(result).toBeNull();
+  it("applies topic filter: drops telegram when topic prefs exclude it", async () => {
+    const depsTopic: DeliveryTargetsApiDeps = {
+      ...deps,
+      topicChannelPrefsPort: {
+        listByUserId: vi.fn().mockResolvedValue([
+          { topicCode: "exercise_reminders", channelCode: "telegram" as const, isEnabled: false },
+          { topicCode: "exercise_reminders", channelCode: "max" as const, isEnabled: true },
+        ]),
+        upsert: vi.fn(),
+      },
+    };
+    const result = await getDeliveryTargetsForIntegrator(
+      { telegramId: "tg123", topic: "exercise_reminders" },
+      depsTopic,
+    );
+    expect(result).not.toBeNull();
+    expect(result!.channelBindings).not.toHaveProperty("telegramId");
+    expect(result!.channelBindings).toHaveProperty("maxId", "max456");
   });
 });

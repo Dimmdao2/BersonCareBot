@@ -24,6 +24,7 @@ import {
   listUnansweredQuestions,
   getQuestionByConversationId,
 } from './repos/messageThreads.js';
+import { getPhoneNormalizedForDeliveryLookup } from './repos/platformUserDeliveryPhone.js';
 import { findUserByChannelId, findUserByPhone, lookupUser } from './repos/userLookup.js';
 
 function asNonEmptyString(value: unknown): string | null {
@@ -69,6 +70,11 @@ export function createDbReadPort(input: {
           const phone = asNonEmptyString(query.params.phoneNormalized);
           if (!phone) return null as T;
           return (await findUserByPhone(db, phone)) as T;
+        }
+        case 'user.phoneForDeliveryLookup': {
+          const userKey = asNonEmptyString(query.params.userKey);
+          if (!userKey) return null as T;
+          return (await getPhoneNormalizedForDeliveryLookup(db, userKey)) as T;
         }
         case 'user.byChannelId': {
           const channelId = asNonEmptyString(query.params.channelId);

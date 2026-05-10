@@ -121,19 +121,30 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
   let appTz = await getAppDisplayTimeZone();
   const weekdayMonday0 = DateTime.now().setZone(appTz).weekday - 1;
 
-  const [homeBlocks, todayCfg, moodSetting] = await Promise.all([
+  const [homeBlocks, moodSetting] = await Promise.all([
     deps.patientHomeBlocks.listBlocksWithItems(),
-    getPatientHomeTodayConfig(
-      {
-        patientHomeBlocks: deps.patientHomeBlocks,
-        contentPages: deps.contentPages,
-        contentSections: deps.contentSections,
-        systemSettings: deps.systemSettings,
-      },
-      weekdayMonday0,
-    ),
     deps.systemSettings.getSetting("patient_home_mood_icons", "admin"),
   ]);
+
+  const warmupPick =
+    session && personalTierOk ?
+      {
+        userId: session.user.userId,
+        getDailyWarmupHeroCooldownMeta: deps.patientPractice.getDailyWarmupHeroCooldownMeta.bind(deps.patientPractice),
+        cooldownMinutes: PATIENT_HOME_DAILY_WARMUP_HERO_COOLDOWN_MINUTES,
+      }
+    : undefined;
+
+  const todayCfg = await getPatientHomeTodayConfig(
+    {
+      patientHomeBlocks: deps.patientHomeBlocks,
+      contentPages: deps.contentPages,
+      contentSections: deps.contentSections,
+      systemSettings: deps.systemSettings,
+    },
+    weekdayMonday0,
+    warmupPick,
+  );
   const moodIconOptions = parsePatientHomeMoodIcons(moodSetting?.valueJson ?? null);
 
   const resolverDeps = {
@@ -230,6 +241,14 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
     if (warmupCooldownMeta.active) {
       dailyWarmupHeroCooldownActive = true;
       warmupCooldownCaption = formatPatientHomeWarmupCooldownCaption(warmupCooldownMeta.minutesRemaining);
+    } else if (
+      todayCfg.allDailyWarmupsInCooldown &&
+      todayCfg.allDailyWarmupsCooldownMinutesRemaining != null
+    ) {
+      dailyWarmupHeroCooldownActive = true;
+      warmupCooldownCaption = formatPatientHomeWarmupCooldownCaption(
+        todayCfg.allDailyWarmupsCooldownMinutesRemaining,
+      );
     }
     moodWeekTz = resolveCalendarDayIanaForPatient(patientCalTz, appTz);
     const week = await deps.patientMood.getWeekSparkline(session.user.userId, moodWeekTz);
@@ -332,6 +351,7 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
             anonymousGuest={anonymousGuest}
             warmupRecentlyCompletedHero={dailyWarmupHeroCooldownActive}
             warmupCooldownCaption={warmupCooldownCaption}
+            allDailyWarmupsInCooldown={todayCfg.allDailyWarmupsInCooldown}
           />
         );
       case "useful_post":

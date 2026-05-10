@@ -1,5 +1,10 @@
 "use client";
 
+/**
+ * Composition modal: read-only overview of stage items. Per plan D.2, «Выполнено» / cooldown UX lives on the
+ * item page and program tiles (`PatientProgramStageItemPageClient`, `PatientInstanceStageItemCard`), not here.
+ */
+
 import Link from "next/link";
 import { useMemo } from "react";
 import { Dumbbell, ScrollText } from "lucide-react";

@@ -6,7 +6,12 @@ import { startTransition, Suspense, useEffect, useRef, useState } from "react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { PatientBindPhoneClient } from "@/app/app/patient/bind-phone/PatientBindPhoneClient";
 import { InlineEditField } from "@/shared/ui/InlineEditField";
-import { patientMutedTextClass, patientSectionSurfaceClass, PatientShimmerPanel } from "@/shared/ui/patientVisual";
+import { EmailAccountPanel } from "@/shared/ui/EmailAccountPanel";
+import {
+  patientHeroBookingSectionClass,
+  patientMutedTextClass,
+  PatientShimmerPanel,
+} from "@/shared/ui/patientVisual";
 import { cn } from "@/lib/utils";
 import { updateDisplayName } from "./actions";
 
@@ -17,6 +22,8 @@ type Props = {
   maxId: string;
   supportContactHref: string;
   fallbackDisplayName: string;
+  initialEmail: string | null;
+  emailVerified: boolean;
 };
 
 export function PatientProfileHero({
@@ -26,6 +33,8 @@ export function PatientProfileHero({
   maxId,
   supportContactHref,
   fallbackDisplayName,
+  initialEmail,
+  emailVerified,
 }: Props) {
   const router = useRouter();
   const [editingPhone, setEditingPhone] = useState(false);
@@ -55,7 +64,7 @@ export function PatientProfileHero({
   };
 
   return (
-    <section className={patientSectionSurfaceClass}>
+    <section className={patientHeroBookingSectionClass}>
       <div className="flex flex-col gap-4">
         <InlineEditField
           label="ФИО"
@@ -117,6 +126,13 @@ export function PatientProfileHero({
             </div>
           ) : null}
         </div>
+
+        <EmailAccountPanel
+          initialEmail={initialEmail}
+          emailVerified={emailVerified}
+          supportContactHref={supportContactHref}
+          layout="profileHero"
+        />
       </div>
     </section>
   );

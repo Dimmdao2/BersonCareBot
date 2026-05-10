@@ -5,12 +5,15 @@ import type {
   ContentSectionsListFilter,
   ContentSectionsPort,
   ContentSectionUpsertInput,
+  DeleteSectionWithPageReassignResult,
   ListVisibleContentSectionsOpts,
   RenameSectionSlugResult,
 } from "@/modules/content-sections/ports";
 import {
+  CMS_UNASSIGNED_SECTION_SLUG,
   isImmutableSystemSectionSlug,
   isContentSectionKind,
+  isSectionSlugProtectedFromDelete,
   isSystemParentCode,
   isValidSectionTaxonomy,
 } from "@/modules/content-sections/types";
@@ -22,6 +25,7 @@ export type {
   ContentSectionsListFilter,
   ContentSectionsPort,
   ContentSectionUpsertInput,
+  DeleteSectionWithPageReassignResult,
   ListVisibleContentSectionsOpts,
   RenameSectionSlugResult,
 } from "@/modules/content-sections/ports";
@@ -50,6 +54,15 @@ function mapRow(row: typeof contentSections.$inferSelect): ContentSectionRow {
     kind,
     systemParentCode: kind === "article" ? null : systemParentCode,
   };
+}
+
+function safePageSlugSuffixFromSection(sectionSlug: string): string {
+  const x = sectionSlug
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return x.length > 0 ? x : "section";
 }
 
 function taxonomyFilterConditions(filter?: ContentSectionsListFilter) {
@@ -275,6 +288,86 @@ export function createPgContentSectionsPort(): ContentSectionsPort {
         return { ok: false, error: "Не удалось переименовать slug. Попробуйте ещё раз." };
       }
     },
+    async deleteSectionWithPageReassign(sectionSlug, unassignedSectionSlug = CMS_UNASSIGNED_SECTION_SLUG) {
+      const slug = sectionSlug.trim();
+      const bucketSlug = (unassignedSectionSlug ?? CMS_UNASSIGNED_SECTION_SLUG).trim();
+      if (!slug) return { ok: false, error: "Пустой slug раздела" };
+      if (isSectionSlugProtectedFromDelete(slug)) {
+        return { ok: false, error: "Этот раздел нельзя удалить" };
+      }
+      if (slug === bucketSlug) {
+        return { ok: false, error: "Нельзя удалить служебный раздел «Без раздела»" };
+      }
+
+      const db = getDrizzle();
+      try {
+        return await db.transaction(async (tx): Promise<DeleteSectionWithPageReassignResult> => {
+          const bucketRows = await tx.select().from(contentSections).where(eq(contentSections.slug, bucketSlug)).limit(1);
+          if (bucketRows.length === 0) {
+            return {
+              ok: false,
+              error: "Служебный раздел CMS не найден. Выполните миграции базы данных.",
+            };
+          }
+
+          const sectionRows = await tx.select().from(contentSections).where(eq(contentSections.slug, slug)).limit(1);
+          if (sectionRows.length === 0) {
+            return { ok: false, error: "Раздел не найден" };
+          }
+
+          const pages = await tx.select().from(contentPages).where(eq(contentPages.section, slug));
+
+          async function allocatePageSlugInSection(
+            section: string,
+            baseSlug: string,
+            fromSection: string,
+          ): Promise<string> {
+            let candidate = baseSlug;
+            const suffixBase = safePageSlugSuffixFromSection(fromSection);
+            for (let n = 0; n < 500; n += 1) {
+              const clash = await tx
+                .select({ id: contentPages.id })
+                .from(contentPages)
+                .where(and(eq(contentPages.section, section), eq(contentPages.slug, candidate)))
+                .limit(1);
+              if (clash.length === 0) return candidate;
+              candidate =
+                n === 0 ? `${baseSlug}-moved-from-${suffixBase}` : `${baseSlug}-moved-from-${suffixBase}-${n}`;
+            }
+            throw new Error("page_slug_collision");
+          }
+
+          for (const p of pages) {
+            const nextSlug = await allocatePageSlugInSection(bucketSlug, p.slug, slug);
+            await tx
+              .update(contentPages)
+              .set({
+                section: bucketSlug,
+                slug: nextSlug,
+                updatedAt: sql`now()` as unknown as string,
+              })
+              .where(eq(contentPages.id, p.id));
+          }
+
+          await tx
+            .update(patientHomeBlockItems)
+            .set({ targetRef: bucketSlug, updatedAt: sql`now()` as unknown as string })
+            .where(
+              and(
+                eq(patientHomeBlockItems.targetType, "content_section"),
+                eq(patientHomeBlockItems.targetRef, slug),
+              ),
+            );
+
+          await tx.delete(contentSections).where(eq(contentSections.slug, slug));
+
+          return { ok: true, movedPageCount: pages.length };
+        });
+      } catch (err) {
+        console.error("deleteSectionWithPageReassign failed:", err);
+        return { ok: false, error: "Не удалось удалить раздел. Попробуйте ещё раз." };
+      }
+    },
   };
 }
 
@@ -291,6 +384,10 @@ export const inMemoryContentSectionsPort: ContentSectionsPort = {
     error: "Переименование slug недоступно в режиме без БД",
   }),
   getRedirectNewSlugForOldSlug: async () => null,
+  deleteSectionWithPageReassign: async () => ({
+    ok: false,
+    error: "Удаление раздела недоступно в режиме без БД",
+  }),
 };
 
 /** Изолированный in-memory порт для unit-тестов. */
@@ -412,6 +509,15 @@ export function createInMemoryContentSectionsPort(): ContentSectionsPort {
       memory.set(n, { ...cur, slug: n });
       slugRedirects.set(o, n);
       return { ok: true, newSlug: n };
+    },
+    async deleteSectionWithPageReassign(sectionSlug) {
+      const slug = sectionSlug.trim();
+      if (isSectionSlugProtectedFromDelete(slug)) {
+        return { ok: false, error: "Этот раздел нельзя удалить" };
+      }
+      if (!memory.has(slug)) return { ok: false, error: "Раздел не найден" };
+      memory.delete(slug);
+      return { ok: true, movedPageCount: 0 };
     },
   };
 }

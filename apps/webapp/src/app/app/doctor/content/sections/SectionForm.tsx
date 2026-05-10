@@ -11,6 +11,7 @@ import {
   type ContentSectionKind,
   type SystemParentCode,
   isImmutableSystemSectionSlug,
+  isSectionSlugProtectedFromDelete,
   isSystemParentCode,
   placementFromTaxonomy,
 } from "@/modules/content-sections/types";
@@ -18,6 +19,7 @@ import type { PatientHomeCmsReturnQuery } from "@/modules/patient-home/patientHo
 import { fallbackSlug, slugFromTitle } from "@/shared/lib/slugify";
 import { MediaLibraryPickerDialog } from "../MediaLibraryPickerDialog";
 import { saveContentSection, type SaveContentSectionState } from "./actions";
+import { SectionDeleteDialog } from "./SectionDeleteDialog";
 import { SectionSlugRenameDialog } from "./SectionSlugRenameDialog";
 
 const FOLDER_LABELS: Record<SystemParentCode, string> = {
@@ -77,7 +79,8 @@ export function SectionForm({
   const [iconImageUrlValue, setIconImageUrlValue] = useState(section?.iconImageUrl ?? "");
   const slugManualRef = useRef(initialCreateSlug.length > 0);
 
-  const placementLocked = isEdit && section != null && isImmutableSystemSectionSlug(section.slug);
+  const placementLocked =
+    isEdit && section != null && (isImmutableSystemSectionSlug(section.slug) || isSectionSlugProtectedFromDelete(section.slug));
 
   const defaultCreatePlacement = useMemo(() => {
     const raw = initialSystemParentCode?.trim() ?? "";
@@ -122,8 +125,8 @@ export function SectionForm({
             <SectionSlugRenameDialog
               oldSlug={section!.slug}
               pagesAffectedCount={pagesInSection}
-              disabled={isImmutableSystemSectionSlug(section!.slug)}
-              disabledReason="Встроенные разделы приложения используются в пациентском интерфейсе; slug нельзя изменить."
+              disabled={isSectionSlugProtectedFromDelete(section!.slug)}
+              disabledReason="Slug этого раздела нельзя изменить."
             />
           </div>
         </div>
@@ -296,9 +299,18 @@ export function SectionForm({
         </span>
       </label>
 
-      <Button type="submit" disabled={pending}>
-        {pending ? "Сохранение…" : "Сохранить"}
-      </Button>
+      <div className="flex flex-wrap items-center gap-3">
+        <Button type="submit" disabled={pending}>
+          {pending ? "Сохранение…" : "Сохранить"}
+        </Button>
+        {isEdit && section != null && !isSectionSlugProtectedFromDelete(section.slug) ? (
+          <SectionDeleteDialog
+            sectionSlug={section.slug}
+            sectionTitle={section.title}
+            pagesInSection={pagesInSection}
+          />
+        ) : null}
+      </div>
     </form>
   );
 }

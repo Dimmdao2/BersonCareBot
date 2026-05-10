@@ -1,6 +1,8 @@
 ---
 name: Patient tablet breakpoint md
-overview: Сдвинуть порог «широкого» patient-shell и верхней навигации с `lg` (1024px) на `md` (768px), синхронизировав сетку главной «Сегодня» и связанные home-компоненты, без изменения поведения ниже `md`; обновить доки и вести LOG для последующего разбора регрессий.
+overview: "ЗАКРЫТО в коде. Порог patient shell / PatientTopNav / главная «Сегодня» и home — `md`; доки/JSDoc/LOG по плану. Дубликаты в Cursor Plan Store (имена вида patient_tablet_breakpoint_md_*.plan.md) закрыть вручную, если мешают."
+status: completed
+completed_at: 2026-05-10
 todos:
   - id: shell-nav-shimmer
     content: "AppShell patient + PatientTopNav + PatientLoadingShimmer: только ветки lg/max-lg → md/max-md (база без префикса не трогать)"
@@ -20,7 +22,11 @@ todos:
 isProject: false
 ---
 
-**Единственный актуальный план:** этот файл в репозитории ([`.cursor/plans/patient_shell_md_breakpoint.plan.md`](patient_shell_md_breakpoint.plan.md)). Ранее тот же текст дублировался в Cursor Plan Store как `patient_tablet_breakpoint_md_7f8cbf88.plan.md` — дубликат на диске профиля удалён; если в списке планов IDE всё ещё виден второй пункт с тем же содержанием, закройте или удалите его вручную.
+## Статус исполнения
+
+**Закрыто в репозитории** (порог `md` для shell, `PatientTopNav`, `PatientHomeTodayLayout`, home-карточки, тесты). Во фронтматтере: `status: completed`, все todos — `completed`.
+
+**Единственный актуальный план:** этот файл в репозитории ([`.cursor/plans/patient_shell_md_breakpoint.plan.md`](patient_shell_md_breakpoint.plan.md)). Ранее тот же текст дублировался в Cursor Plan Store как `patient_tablet_breakpoint_md_7f8cbf88.plan.md` / `patient_tablet_breakpoint_md_19732437.plan.md` — дубликаты на диске профиля удалите или закройте вручную, если IDE всё ещё предлагает для них «Выполнить».
 
 # Patient UI: планшетный режим с `md` вместо `lg`
 

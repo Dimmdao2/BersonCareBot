@@ -172,6 +172,28 @@ describe("saveContentSection", () => {
     expect(renameSectionSlugMock).not.toHaveBeenCalled();
   });
 
+  it("rejects rename from CMS unassigned bucket slug", async () => {
+    const fd = formWith({
+      old_slug: "_cms_unassigned",
+      new_slug: "other-sec",
+      confirm_rename: "on",
+    });
+    const res = await renameContentSectionSlug(null, fd);
+    expect(res?.ok).toBe(false);
+    expect(renameSectionSlugMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects rename target CMS unassigned bucket slug", async () => {
+    const fd = formWith({
+      old_slug: "old-sec",
+      new_slug: "_cms_unassigned",
+      confirm_rename: "on",
+    });
+    const res = await renameContentSectionSlug(null, fd);
+    expect(res?.ok).toBe(false);
+    expect(renameSectionSlugMock).not.toHaveBeenCalled();
+  });
+
   it("rejects rename without explicit confirmation", async () => {
     const fd = formWith({
       old_slug: "old-sec",

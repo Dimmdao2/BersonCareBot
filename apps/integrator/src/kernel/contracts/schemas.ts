@@ -169,6 +169,7 @@ export const dbReadQuerySchema = z.object({
     'user.byChannelId',
     'user.byIdentity',
     'user.byPhone',
+    'user.phoneForDeliveryLookup',
     'draft.activeByIdentity',
     'conversation.openByIdentity',
     'conversation.byId',

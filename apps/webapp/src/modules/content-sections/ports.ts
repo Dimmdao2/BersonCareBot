@@ -41,6 +41,10 @@ export type ContentSectionUpsertInput = Omit<ContentSectionRow, "id" | "kind" | 
 
 export type RenameSectionSlugResult = { ok: true; newSlug: string } | { ok: false; error: string };
 
+export type DeleteSectionWithPageReassignResult =
+  | { ok: true; movedPageCount: number }
+  | { ok: false; error: string };
+
 export type ContentSectionsPort = {
   listVisible: (opts?: ListVisibleContentSectionsOpts) => Promise<ContentSectionRow[]>;
   listAll: (filter?: ContentSectionsListFilter) => Promise<ContentSectionRow[]>;
@@ -73,4 +77,12 @@ export type ContentSectionsPort = {
   ) => Promise<RenameSectionSlugResult>;
   /** Один шаг цепочки редиректа: куда вести URL с устаревшим slug. */
   getRedirectNewSlugForOldSlug: (oldSlug: string) => Promise<string | null>;
+  /**
+   * Удалить раздел: все страницы переносятся в служебный раздел `unassignedSectionSlug` (коллизии slug — суффикс `-moved-from-…`).
+   * Ссылки patient-home на раздел (`content_section`) обновляются на тот же sentinel.
+   */
+  deleteSectionWithPageReassign: (
+    sectionSlug: string,
+    unassignedSectionSlug?: string,
+  ) => Promise<DeleteSectionWithPageReassignResult>;
 };

@@ -88,6 +88,7 @@ import { purgeInMemoryLfkDiaryForUser } from "@/infra/repos/lfkDiary";
 import { purgeInMemorySymptomDiaryForUser } from "@/infra/repos/symptomDiary";
 import { inMemoryChannelPreferencesPort } from "@/infra/repos/inMemoryChannelPreferences";
 import { pgChannelPreferencesPort } from "@/infra/repos/pgChannelPreferences";
+import { createPgTopicChannelPrefsPort, inMemoryTopicChannelPrefsPort } from "@/infra/repos/pgTopicChannelPrefs";
 import { pgUserProjectionPort, inMemoryUserProjectionPort } from "@/infra/repos/pgUserProjection";
 import { pgUserPinsPort } from "@/infra/repos/pgUserPins";
 import { inMemoryUserPinsPort } from "@/infra/repos/inMemoryUserPins";
@@ -194,6 +195,7 @@ const inMemoryRepos = webappReposAreInMemory();
 const symptomDiaryPort = !inMemoryRepos ? pgSymptomDiaryPort : inMemorySymptomDiaryPort;
 const lfkDiaryPort = !inMemoryRepos ? pgLfkDiaryPort : inMemoryLfkDiaryPort;
 const channelPreferencesPort = !inMemoryRepos ? pgChannelPreferencesPort : inMemoryChannelPreferencesPort;
+const topicChannelPrefsPort = !inMemoryRepos ? createPgTopicChannelPrefsPort() : inMemoryTopicChannelPrefsPort;
 const userByPhonePort = !inMemoryRepos ? pgUserByPhonePort : inMemoryUserByPhonePort;
 const userPinsPort = !inMemoryRepos ? pgUserPinsPort : inMemoryUserPinsPort;
 const oauthBindingsPort = !inMemoryRepos ? pgOAuthBindingsPort : inMemoryOAuthBindingsPort;
@@ -608,6 +610,7 @@ function _buildAppDeps() {
           userByPhonePort,
           identityResolutionPort,
           preferencesPort: channelPreferencesPort,
+          topicChannelPrefsPort,
         }),
       messageLogPort,
     }),
@@ -713,13 +716,15 @@ function _buildAppDeps() {
     channelPreferences: channelPreferencesService,
     contentCatalog,
     deliveryTargetsApi: {
-      getTargets: (params: { phone?: string; telegramId?: string; maxId?: string }) =>
+      getTargets: (params: { phone?: string; telegramId?: string; maxId?: string; topic?: string }) =>
         getDeliveryTargetsForIntegrator(params, {
           userByPhonePort,
           identityResolutionPort,
           preferencesPort: channelPreferencesPort,
+          topicChannelPrefsPort,
         }),
     },
+    topicChannelPrefs: topicChannelPrefsPort,
     userProjection: {
       upsertFromProjection: userProjectionPort.upsertFromProjection,
       ensureClientFromAppointmentProjection: userProjectionPort.ensureClientFromAppointmentProjection,

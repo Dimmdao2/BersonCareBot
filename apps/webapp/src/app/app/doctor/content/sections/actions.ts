@@ -4,7 +4,9 @@ import { revalidatePath } from "next/cache";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import {
+  CMS_UNASSIGNED_SECTION_SLUG,
   isImmutableSystemSectionSlug,
+  isSectionSlugProtectedFromDelete,
   isSystemParentCode,
   isValidSectionTaxonomy,
   taxonomyFromPlacement,
@@ -45,11 +47,10 @@ export async function saveContentSection(
   if (!slug || !title) {
     return { ok: false, error: "Заполните slug и заголовок" };
   }
-  if (!/^[a-z0-9-]+$/.test(slug)) {
+  const slugFormatOk =
+    slug === CMS_UNASSIGNED_SECTION_SLUG || (/^[a-z0-9-]+$/.test(slug) && !/^-+$/.test(slug));
+  if (!slugFormatOk) {
     return { ok: false, error: "Slug: только латиница, цифры и дефис" };
-  }
-  if (/^-+$/.test(slug)) {
-    return { ok: false, error: "Slug не может состоять только из дефисов" };
   }
   if (title.length > 500) return { ok: false, error: "Заголовок слишком длинный" };
   if (description.length > 2000) return { ok: false, error: "Описание слишком длинное" };
@@ -65,6 +66,10 @@ export async function saveContentSection(
     existing = await deps.contentSections.getBySlug(slug);
   } catch {
     /* ignore — upsert path will surface errors */
+  }
+
+  if (!existing && slug === CMS_UNASSIGNED_SECTION_SLUG) {
+    return { ok: false, error: "Этот slug зарезервирован для служебного раздела CMS" };
   }
 
   if (!existing && isImmutableSystemSectionSlug(slug)) {
@@ -195,8 +200,11 @@ export async function renameContentSectionSlug(
   if (oldParsed.slug === newParsed.slug) {
     return { ok: false, error: "Новый slug совпадает с текущим" };
   }
-  if (isImmutableSystemSectionSlug(oldParsed.slug)) {
-    return { ok: false, error: "Slug встроенного раздела нельзя переименовать" };
+  if (isSectionSlugProtectedFromDelete(oldParsed.slug)) {
+    return { ok: false, error: "Этот раздел нельзя переименовать" };
+  }
+  if (isSectionSlugProtectedFromDelete(newParsed.slug)) {
+    return { ok: false, error: "Зарезервированный slug недопустим" };
   }
 
   const result = await deps.contentSections.renameSectionSlug(oldParsed.slug, newParsed.slug, {
@@ -212,4 +220,35 @@ export async function renameContentSectionSlug(
   revalidatePath(`/app/patient/sections/${encodeURIComponent(result.newSlug)}`);
   revalidatePath("/app/patient/sections", "layout");
   return { ok: true, newSlug: result.newSlug };
+}
+
+export type DeleteContentSectionState = { ok: boolean; error?: string; movedPageCount?: number };
+
+export async function deleteContentSection(
+  _prev: DeleteContentSectionState | null,
+  formData: FormData,
+): Promise<DeleteContentSectionState> {
+  await requireDoctorAccess();
+  const deps = buildAppDeps();
+
+  if (formData.get("confirm_delete") !== "on") {
+    return { ok: false, error: "Подтвердите удаление раздела" };
+  }
+
+  const slug = ((formData.get("section_slug") as string) ?? "").trim();
+  if (!slug) {
+    return { ok: false, error: "Не указан раздел" };
+  }
+
+  const result = await deps.contentSections.deleteSectionWithPageReassign(slug);
+  if (!result.ok) {
+    return { ok: false, error: result.error };
+  }
+
+  revalidatePath("/app/doctor/content/sections");
+  revalidatePath("/app/doctor/content");
+  revalidatePath("/app/patient");
+  revalidatePath("/app/patient/sections", "layout");
+  revalidatePath("/app/settings/patient-home");
+  return { ok: true, movedPageCount: result.movedPageCount };
 }

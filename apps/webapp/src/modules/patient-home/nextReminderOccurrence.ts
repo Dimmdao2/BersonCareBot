@@ -10,6 +10,7 @@ const LINKED_TYPES: ReminderLinkedObjectType[] = [
   "content_page",
   "custom",
   "rehab_program",
+  "treatment_program_item",
 ];
 
 function parseHhMmToMinuteOfDay(s: string): number | null {

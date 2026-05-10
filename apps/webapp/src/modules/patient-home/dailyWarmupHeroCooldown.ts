@@ -3,7 +3,7 @@
  * вместо CTA «Начать разминку» показываем статус «Разминка выполнена» (бледно-зелёный),
  * чтобы не подталкивать к повторному прохождению сразу после выполнения.
  */
-export const PATIENT_HOME_DAILY_WARMUP_HERO_COOLDOWN_MINUTES = 20;
+export const PATIENT_HOME_DAILY_WARMUP_HERO_COOLDOWN_MINUTES = 60;
 
 function ruMinutesAccusativeForThrough(n: number): string {
   const mod100 = n % 100;

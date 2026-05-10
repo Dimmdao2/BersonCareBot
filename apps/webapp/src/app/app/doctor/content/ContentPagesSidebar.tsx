@@ -30,10 +30,13 @@ const CONTENT_BASE = "/app/doctor/content";
 /** Левое меню хаба CMS: мотивации, разделы, статьи / системные папки. */
 export function ContentPagesSidebar({
   articleSections,
+  unassignedSectionNav,
   highlightArticleSlug,
   highlightSystemFolderCode,
 }: {
   articleSections: ContentPagesSidebarSection[];
+  /** Ссылка «Без раздела» для служебного раздела с перенесёнными страницами. */
+  unassignedSectionNav?: { slug: string; title: string; pageCount: number } | null;
   /** Slug из `?section=` когда раздел — статья (`kind=article`). */
   highlightArticleSlug: string | null;
   /** Кластер из `?systemParentCode=` или выведенный из открытого системного раздела. */
@@ -75,6 +78,21 @@ export function ContentPagesSidebar({
           </Link>
         );
       })}
+      {unassignedSectionNav && unassignedSectionNav.pageCount > 0 ? (
+        <Link
+          href={`${CONTENT_BASE}?section=${encodeURIComponent(unassignedSectionNav.slug)}`}
+          className={filterBtnClass(
+            highlightArticleSlug === unassignedSectionNav.slug && highlightSystemFolderCode === null,
+          )}
+          aria-current={
+            highlightArticleSlug === unassignedSectionNav.slug && highlightSystemFolderCode === null ?
+              "page"
+            : undefined
+          }
+        >
+          {unassignedSectionNav.title}
+        </Link>
+      ) : null}
       <Separator className="my-1" />
       <p className="px-1 text-xs font-medium text-muted-foreground">Системные папки</p>
       {SYSTEM_PARENT_CODES.map((code) => {

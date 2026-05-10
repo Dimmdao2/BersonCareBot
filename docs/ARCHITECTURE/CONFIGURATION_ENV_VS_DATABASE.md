@@ -78,6 +78,10 @@
 
 **Файлы:** `apps/webapp/src/modules/system-settings/service.ts`, `syncToIntegrator.ts`; integrator: `apps/integrator/src/integrations/bersoncare/settingsSyncRoute.ts`, миграция `apps/integrator/src/infra/db/migrations/core/20260406_0002_create_system_settings.sql`.
 
+### Уведомления: тема × канал (webapp) и integrator
+
+Per-channel предпочтения по темам (`user_notification_topic_channels` в `public`) — источник истины для **webapp** при расчёте доставки с учётом темы. **Integrator** продолжает зеркалить агрегат `user_notification_topics` (`topic_code`, `is_enabled`) из событий `preferences.updated`; детализация «тема × канал» в схеме integrator **не синхронизируется** автоматически. Для исходящих напоминаний integrator вызывает подписанный **`GET /api/integrator/delivery-targets`** с опциональным query-параметром **`topic`** (id из `notifications_topics`, например `exercise_reminders`): webapp возвращает `channelBindings`, уже отфильтрованные через `getDeliveryTargetsForUser` и per-topic prefs. Обработчик **`reminders.dispatchDue`** сопоставляет правило/категорию напоминания с темой и отбрасывает канал, если webapp не вернул соответствующий `telegramId`/`maxId`. В **`contextQueryPort`** для **`subscriptions.forUser`** сначала по `public.platform_users` (uuid или `integrator_user_id`) выясняется `phone_normalized`, затем тот же delivery API по телефону; если в БД нет строки, используется переданная строка как телефон (обратная совместимость). Новые env-переменные для этого не используются.
+
 ### Legacy: две отдельные БД
 
 До unification на проде могли быть **две** базы (`tgcarebot` / `bcb_webapp_prod` и т.п.). Cutover/backfill-скрипты и `cutover.prod` с `INTEGRATOR_DATABASE_URL` описывают этот **исторический** режим. Новые фичи не проектировать под «две БД + HTTP как единственный способ записи канона».

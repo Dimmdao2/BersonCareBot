@@ -23,6 +23,7 @@ import {
   reminderPresetConfig,
 } from '../../reminders/policy.js';
 import { buildPatientReminderDeepLink } from '../../reminders/buildPatientReminderDeepLink.js';
+import { reminderOccurrenceTopicCode } from '../../reminders/reminderNotificationTopicCode.js';
 import {
   buildReminderDispatchInlineKeyboard,
   buildReminderSkipReasonInlineKeyboard,
@@ -347,7 +348,7 @@ export async function handleReminders(
       let remindersEditUrl: string | undefined;
       try {
         const u = new URL(openUrl);
-        remindersEditUrl = `${u.origin}/app/patient/reminders?from=reminder`;
+        remindersEditUrl = `${u.origin}/app/patient/profile?from=reminder`;
       } catch {
         remindersEditUrl = undefined;
       }
@@ -377,7 +378,25 @@ export async function handleReminders(
         }
       }
 
-      for (const { channel, chatId, externalId } of channelsToSend) {
+      const topicCode = reminderOccurrenceTopicCode(rule, occ.category);
+      let sendChannels = channelsToSend;
+      if (topicCode && deps.deliveryTargetsPort) {
+        const tg = channelsToSend.find((c) => c.channel === 'telegram');
+        const maxCh = channelsToSend.find((c) => c.channel === 'max');
+        const bindingParams: { telegramId?: string; maxId?: string; topic: string } = { topic: topicCode };
+        if (tg && tg.chatId > 0) bindingParams.telegramId = String(tg.chatId);
+        if (maxCh?.externalId) bindingParams.maxId = maxCh.externalId;
+        const bindings = await deps.deliveryTargetsPort.getTargetsByChannelBinding(bindingParams);
+        if (bindings) {
+          sendChannels = channelsToSend.filter((ch) => {
+            if (ch.channel === 'telegram') return Boolean(bindings.telegramId?.trim());
+            if (ch.channel === 'max') return Boolean(bindings.maxId?.trim());
+            return true;
+          });
+        }
+      }
+
+      for (const { channel, chatId, externalId } of sendChannels) {
         const text = deps.templatePort
           ? (
             await deps.templatePort.renderTemplate({

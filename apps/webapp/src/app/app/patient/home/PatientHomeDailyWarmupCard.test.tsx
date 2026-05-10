@@ -66,4 +66,20 @@ describe("PatientHomeDailyWarmupCard", () => {
     expect(screen.getByText(/Разминка будет доступна через 19 минут\./i)).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /Начать разминку/i })).toBeNull();
   });
+
+  it("shows aggregate completed hero when all daily warmups are in cooldown", () => {
+    render(
+      <PatientHomeDailyWarmupCard
+        personalTierOk
+        anonymousGuest={false}
+        warmup={null}
+        warmupRecentlyCompletedHero
+        warmupCooldownCaption="Разминка будет доступна через 5 минут."
+        allDailyWarmupsInCooldown
+      />,
+    );
+    expect(screen.getByRole("heading", { name: /Разминка дня/i })).toBeInTheDocument();
+    expect(screen.getByRole("status", { name: /Разминка дня уже отмечена выполненной/i })).toBeInTheDocument();
+    expect(screen.getByText(/Разминка будет доступна через 5 минут\./i)).toBeInTheDocument();
+  });
 });

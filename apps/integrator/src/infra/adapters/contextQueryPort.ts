@@ -92,7 +92,21 @@ export function createContextQueryPort(input: ContextQueryPortInput): ContextQue
           const userId = query.userId;
           if (!userId) return { type: 'subscriptions.forUser', items: [] };
           if (deliveryTargetsPort) {
-            const bindings = await deliveryTargetsPort.getTargetsByPhone(userId.trim());
+            const trimmed = userId.trim();
+            const fromDb = await input.readPort.readDb<string | null>({
+              type: 'user.phoneForDeliveryLookup',
+              params: { userKey: trimmed },
+            });
+            let phoneForTargets: string | null = null;
+            if (typeof fromDb === 'string' && fromDb.trim().length > 0) {
+              phoneForTargets = normalizePhoneForLookup(fromDb.trim());
+            } else {
+              const asPhone = normalizePhoneForLookup(trimmed);
+              const digits = asPhone.replace(/\D/g, '');
+              if (digits.length >= 10) phoneForTargets = asPhone;
+            }
+            if (!phoneForTargets) return { type: 'subscriptions.forUser', items: [] };
+            const bindings = await deliveryTargetsPort.getTargetsByPhone(phoneForTargets);
             const items: Array<{ kind: string; chatId: number; channelId: string; username: string | null; notificationsEnabled: boolean }> = [];
             if (bindings?.telegramId) {
               const tid = bindings.telegramId.trim();

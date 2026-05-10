@@ -21,9 +21,11 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { Shield, ShieldOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { CMS_UNASSIGNED_SECTION_SLUG } from "@/modules/content-sections/types";
 import { ContentLifecycleDropdown } from "./ContentLifecycleDropdown";
 import { setContentPageRequiresAuth } from "./contentPageAuthActions";
 import { reorderContentPagesInSection } from "./reorderContentPages";
+import { SectionDeleteDialog } from "./sections/SectionDeleteDialog";
 
 export type ContentPageListRow = {
   id: string;
@@ -128,6 +130,8 @@ export function ContentPagesSectionList({
   newPageSystemParentCode,
   /** Ссылка на редактирование CMS-раздела (подразделы системной папки не в списке `/content/sections`). */
   sectionSettingsHref,
+  allowDeleteSection = false,
+  pagesInSectionCount,
 }: {
   sectionSlug: string;
   sectionTitle: string;
@@ -136,14 +140,20 @@ export function ContentPagesSectionList({
   showSectionHeading?: boolean;
   newPageSystemParentCode?: string;
   sectionSettingsHref?: string;
+  allowDeleteSection?: boolean;
+  pagesInSectionCount?: number;
 }) {
   const [items, setItems] = useState(initialPages);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const [pending, startTransition] = useTransition();
   const [authPending, startAuthTransition] = useTransition();
 
   useEffect(() => {
     setItems(initialPages);
   }, [initialPages]);
+
+  const pagesCount = pagesInSectionCount ?? items.length;
+  const showInnerCreatePageLink = sectionSlug !== CMS_UNASSIGNED_SECTION_SLUG;
 
   const sortIds = useMemo(() => items.map((p) => p.id), [items]);
   /** Stable per-mount id so @dnd-kit a11y ids match SSR and client (avoids hydration mismatch on DndDescribedBy-*). */
@@ -187,14 +197,35 @@ export function ContentPagesSectionList({
   if (items.length === 0) {
     return (
       <div className="flex flex-col gap-2">
+        {allowDeleteSection ? (
+          <SectionDeleteDialog
+            showTriggerButton={false}
+            open={deleteOpen}
+            onOpenChange={setDeleteOpen}
+            sectionSlug={sectionSlug}
+            sectionTitle={sectionTitle}
+            pagesInSection={pagesCount}
+            afterDeleteHref="/app/doctor/content"
+          />
+        ) : null}
         {!showSectionHeading && sectionSettingsHref ?
-          <div className="flex flex-wrap justify-end">
+          <div className="flex flex-wrap items-center justify-end gap-3">
             <Link
               href={sectionSettingsHref}
               className="text-sm font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
             >
               Редактировать раздел
             </Link>
+            {allowDeleteSection ? (
+              <Button
+                type="button"
+                variant="link"
+                className="h-auto shrink-0 p-0 text-sm text-destructive"
+                onClick={() => setDeleteOpen(true)}
+              >
+                Удалить раздел…
+              </Button>
+            ) : null}
           </div>
         : null}
         {showSectionHeading ? (
@@ -210,12 +241,26 @@ export function ContentPagesSectionList({
                 </Link>
               : null}
             </div>
-            <Link
-              href={buildNewPageHref(sectionSlug, newPageSystemParentCode)}
-              className="text-sm font-medium text-primary underline-offset-4 hover:underline"
-            >
-              Создать страницу
-            </Link>
+            <div className="flex flex-wrap items-center gap-3">
+              {showInnerCreatePageLink ? (
+                <Link
+                  href={buildNewPageHref(sectionSlug, newPageSystemParentCode)}
+                  className="text-sm font-medium text-primary underline-offset-4 hover:underline"
+                >
+                  Создать страницу
+                </Link>
+              ) : null}
+              {allowDeleteSection ? (
+                <Button
+                  type="button"
+                  variant="link"
+                  className="h-auto shrink-0 p-0 text-sm text-destructive"
+                  onClick={() => setDeleteOpen(true)}
+                >
+                  Удалить раздел…
+                </Button>
+              ) : null}
+            </div>
           </div>
         ) : null}
         <p className="text-sm text-muted-foreground">Нет страниц в этом разделе.</p>
@@ -225,14 +270,35 @@ export function ContentPagesSectionList({
 
   return (
     <div className="flex flex-col gap-2">
+      {allowDeleteSection ? (
+        <SectionDeleteDialog
+          showTriggerButton={false}
+          open={deleteOpen}
+          onOpenChange={setDeleteOpen}
+          sectionSlug={sectionSlug}
+          sectionTitle={sectionTitle}
+          pagesInSection={pagesCount}
+          afterDeleteHref="/app/doctor/content"
+        />
+      ) : null}
       {!showSectionHeading && sectionSettingsHref ?
-        <div className="flex flex-wrap justify-end">
+        <div className="flex flex-wrap items-center justify-end gap-3">
           <Link
             href={sectionSettingsHref}
             className="text-sm font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
           >
             Редактировать раздел
           </Link>
+          {allowDeleteSection ? (
+            <Button
+              type="button"
+              variant="link"
+              className="h-auto shrink-0 p-0 text-sm text-destructive"
+              onClick={() => setDeleteOpen(true)}
+            >
+              Удалить раздел…
+            </Button>
+          ) : null}
         </div>
       : null}
       {showSectionHeading ? (
@@ -248,12 +314,26 @@ export function ContentPagesSectionList({
               </Link>
             : null}
           </div>
-          <Link
-            href={buildNewPageHref(sectionSlug, newPageSystemParentCode)}
-            className="text-sm font-medium text-primary underline-offset-4 hover:underline"
-          >
-            Создать страницу
-          </Link>
+          <div className="flex flex-wrap items-center gap-3">
+            {showInnerCreatePageLink ? (
+              <Link
+                href={buildNewPageHref(sectionSlug, newPageSystemParentCode)}
+                className="text-sm font-medium text-primary underline-offset-4 hover:underline"
+              >
+                Создать страницу
+              </Link>
+            ) : null}
+            {allowDeleteSection ? (
+              <Button
+                type="button"
+                variant="link"
+                className="h-auto shrink-0 p-0 text-sm text-destructive"
+                onClick={() => setDeleteOpen(true)}
+              >
+                Удалить раздел…
+              </Button>
+            ) : null}
+          </div>
         </div>
       ) : null}
       <DndContext id={dndContextId} sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>

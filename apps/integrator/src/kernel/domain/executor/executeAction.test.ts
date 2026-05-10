@@ -2754,6 +2754,72 @@ describe('executeAction', () => {
       });
     });
   });
+
+  describe('reminders.dispatchDue', () => {
+    const baseRule = {
+      id: 'rule-1',
+      userId: 'user-1',
+      category: 'exercise' as const,
+      isEnabled: true,
+      scheduleType: 'daily',
+      timezone: 'Europe/Moscow',
+      intervalMinutes: 1440,
+      windowStartMinute: 0,
+      windowEndMinute: 1440,
+      daysMask: '127',
+      contentMode: 'none' as const,
+      reminderIntent: 'warmup' as const,
+    };
+    const dueOcc = {
+      id: 'occ-1',
+      ruleId: 'rule-1',
+      userId: 'user-1',
+      category: 'exercise' as const,
+      timezone: 'Europe/Moscow',
+      channelId: 'telegram',
+      chatId: 42,
+      occurrenceKey: 'k1',
+      plannedAt: '2026-03-05T10:00:00.000Z',
+      status: 'planned' as const,
+    };
+
+    it('calls deliveryTargetsPort with topic and drops telegram when bindings omit telegramId', async () => {
+      const readDb = vi.fn().mockImplementation(async (q: { type: string }) => {
+        if (q.type === 'reminders.occurrences.due') return [dueOcc];
+        if (q.type === 'reminders.rules.forUser') return [baseRule];
+        if (q.type === 'identities.allByUserId') {
+          return [{ resource: 'max', externalId: 'max-ext-1', chatId: 7 }];
+        }
+        return null;
+      });
+      const writeDb = vi.fn().mockResolvedValue(undefined);
+      const getTargetsByChannelBinding = vi.fn().mockResolvedValue({ maxId: 'max-ext-1' });
+      const deliveryTargetsPort = {
+        getTargetsByPhone: vi.fn(),
+        getTargetsByChannelBinding,
+      };
+      const action: Action = {
+        id: 'rd1',
+        type: 'reminders.dispatchDue',
+        mode: 'async',
+        params: { nowIso: '2026-03-05T12:00:00.000Z', limit: 10 },
+      };
+      const result = await executeAction(action, ctx, {
+        readPort: { readDb },
+        writePort: { writeDb },
+        deliveryTargetsPort,
+      });
+      expect(result.status).toBe('success');
+      expect(getTargetsByChannelBinding).toHaveBeenCalledWith({
+        telegramId: '42',
+        maxId: 'max-ext-1',
+        topic: 'exercise_reminders',
+      });
+      const sends = result.intents?.filter((i) => i.type === 'message.send') ?? [];
+      expect(sends).toHaveLength(1);
+      expect((sends[0]?.meta as { source?: string }).source).toBe('max');
+    });
+  });
 });
 
 describe('resolveTargets guardrail: webapp-backed resolution', () => {

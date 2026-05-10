@@ -462,4 +462,29 @@ describe('createDbReadPort', () => {
       expect(db.query).not.toHaveBeenCalled();
     });
   });
+
+  describe('user.phoneForDeliveryLookup', () => {
+    it('returns phone_normalized when DB finds integrator_user_id', async () => {
+      const db = createMockDb();
+      db.query.mockResolvedValue({ rows: [{ phone_normalized: '+79991112233' }] });
+      const port = createDbReadPort({ db });
+      const result = await port.readDb({
+        type: 'user.phoneForDeliveryLookup',
+        params: { userKey: '1001' },
+      });
+      expect(result).toBe('+79991112233');
+      expect(db.query).toHaveBeenCalledTimes(1);
+    });
+
+    it('returns null for empty userKey without querying', async () => {
+      const db = createMockDb();
+      const port = createDbReadPort({ db });
+      const result = await port.readDb({
+        type: 'user.phoneForDeliveryLookup',
+        params: { userKey: '' },
+      });
+      expect(result).toBeNull();
+      expect(db.query).not.toHaveBeenCalled();
+    });
+  });
 });

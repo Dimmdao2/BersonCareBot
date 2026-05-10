@@ -36,7 +36,12 @@ import {
 import { reorderContentSections } from "./reorderContentSections";
 import { setSectionRequiresAuth, setSectionVisibility } from "./sectionVisibilityActions";
 import type { ContentSectionKind, SystemParentCode } from "@/modules/content-sections/types";
-import { isImmutableSystemSectionSlug } from "@/modules/content-sections/types";
+import {
+  CMS_UNASSIGNED_SECTION_SLUG,
+  isImmutableSystemSectionSlug,
+  isSectionSlugProtectedFromDelete,
+} from "@/modules/content-sections/types";
+import { SectionDeleteDialog } from "./SectionDeleteDialog";
 
 export type SectionListRow = {
   id: string;
@@ -49,6 +54,7 @@ export type SectionListRow = {
   iconImageUrl: string | null;
   kind: ContentSectionKind;
   systemParentCode: SystemParentCode | null;
+  pagesInSection: number;
 };
 
 function DragHandle({ listeners, attributes }: { listeners: Record<string, unknown>; attributes: Record<string, unknown> }) {
@@ -77,12 +83,14 @@ function SortableSectionRow({
   authPending,
   onToggleVisible,
   onToggleRequiresAuth,
+  onRequestDelete,
 }: {
   row: SectionListRow;
   visPending: boolean;
   authPending: boolean;
   onToggleVisible: (slug: string, next: boolean) => void;
   onToggleRequiresAuth: (slug: string, next: boolean) => void;
+  onRequestDelete: (row: SectionListRow) => void;
 }) {
   const router = useRouter();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: row.slug });
@@ -149,6 +157,11 @@ function SortableSectionRow({
           {isImmutableSystemSectionSlug(row.slug) ? (
             <Badge variant="secondary" className="text-[10px]">
               встроенный
+            </Badge>
+          ) : null}
+          {row.slug === CMS_UNASSIGNED_SECTION_SLUG ? (
+            <Badge variant="outline" className="text-[10px]">
+              служебный
             </Badge>
           ) : null}
         </div>
@@ -222,6 +235,16 @@ function SortableSectionRow({
               >
                 Редактировать
               </DropdownMenuItem>
+              {!isSectionSlugProtectedFromDelete(row.slug) ? (
+                <DropdownMenuItem
+                  variant="destructive"
+                  onClick={() => {
+                    onRequestDelete(row);
+                  }}
+                >
+                  Удалить раздел…
+                </DropdownMenuItem>
+              ) : null}
             </DropdownMenuGroup>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -232,6 +255,7 @@ function SortableSectionRow({
 
 export function ContentSectionsListClient({ initialSections }: { initialSections: SectionListRow[] }) {
   const [items, setItems] = useState(initialSections);
+  const [deletingFor, setDeletingFor] = useState<SectionListRow | null>(null);
   const [pending, startTransition] = useTransition();
   const [visPending, startVisTransition] = useTransition();
   const [authPending, startAuthTransition] = useTransition();
@@ -286,26 +310,45 @@ export function ContentSectionsListClient({ initialSections }: { initialSections
     });
   }, []);
 
+  const onRequestDelete = useCallback((row: SectionListRow) => {
+    setDeletingFor(row);
+  }, []);
+
   if (items.length === 0) {
     return <p className="text-sm text-muted-foreground">Нет разделов. Создайте первый раздел или проверьте подключение к БД.</p>;
   }
 
   return (
-    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
-      <SortableContext items={sortIds} strategy={verticalListSortingStrategy}>
-        <ul className="flex flex-col gap-2" aria-busy={pending}>
-          {items.map((row) => (
-            <SortableSectionRow
-              key={row.slug}
-              row={row}
-              visPending={visPending}
-              authPending={authPending}
-              onToggleVisible={onToggleVisible}
-              onToggleRequiresAuth={onToggleRequiresAuth}
-            />
-          ))}
-        </ul>
-      </SortableContext>
-    </DndContext>
+    <>
+      {deletingFor ? (
+        <SectionDeleteDialog
+          showTriggerButton={false}
+          open
+          onOpenChange={(open) => {
+            if (!open) setDeletingFor(null);
+          }}
+          sectionSlug={deletingFor.slug}
+          sectionTitle={deletingFor.title}
+          pagesInSection={deletingFor.pagesInSection}
+        />
+      ) : null}
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+        <SortableContext items={sortIds} strategy={verticalListSortingStrategy}>
+          <ul className="flex flex-col gap-2" aria-busy={pending}>
+            {items.map((row) => (
+              <SortableSectionRow
+                key={row.slug}
+                row={row}
+                visPending={visPending}
+                authPending={authPending}
+                onToggleVisible={onToggleVisible}
+                onToggleRequiresAuth={onToggleRequiresAuth}
+                onRequestDelete={onRequestDelete}
+              />
+            ))}
+          </ul>
+        </SortableContext>
+      </DndContext>
+    </>
   );
 }

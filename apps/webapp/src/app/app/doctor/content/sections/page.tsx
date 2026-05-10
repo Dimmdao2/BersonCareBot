@@ -15,14 +15,20 @@ export default async function DoctorContentSectionsPage() {
   const deps = buildAppDeps();
 
   let sections: Awaited<ReturnType<typeof deps.contentSections.listAll>> = [];
+  let pages: Awaited<ReturnType<typeof deps.contentPages.listAll>> = [];
   let loadError: ReturnType<typeof logServerRuntimeError> | null = null;
   try {
-    sections = await deps.contentSections.listAll();
+    [sections, pages] = await Promise.all([deps.contentSections.listAll(), deps.contentPages.listAll()]);
   } catch (err) {
     loadError = logServerRuntimeError("app/doctor/content/sections", err);
   }
 
   const isDev = process.env.NODE_ENV === "development";
+
+  const pageCountBySection = new Map<string, number>();
+  for (const p of pages) {
+    pageCountBySection.set(p.section, (pageCountBySection.get(p.section) ?? 0) + 1);
+  }
 
   /** Только каталог статей: разделы, перенесённые в системную папку CMS (`kind=system`), не показываем — они в дереве «Контент». */
   const catalogSections = sections.filter((s) => s.kind === "article");
@@ -38,6 +44,7 @@ export default async function DoctorContentSectionsPage() {
     iconImageUrl: s.iconImageUrl,
     kind: s.kind,
     systemParentCode: s.systemParentCode,
+    pagesInSection: pageCountBySection.get(s.slug) ?? 0,
   }));
 
   return (

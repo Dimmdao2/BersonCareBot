@@ -21,6 +21,14 @@ export function isImmutableSystemSectionSlug(slug: string): boolean {
   return (IMMUTABLE_SYSTEM_SECTION_SLUGS as readonly string[]).includes(slug.trim());
 }
 
+/** Sentinel CMS section for pages left without a folder after section delete (DB + migration only; not a patient nav target). */
+export const CMS_UNASSIGNED_SECTION_SLUG = "_cms_unassigned" as const;
+
+export function isSectionSlugProtectedFromDelete(slug: string): boolean {
+  const s = slug.trim();
+  return isImmutableSystemSectionSlug(s) || s === CMS_UNASSIGNED_SECTION_SLUG;
+}
+
 export function isSystemParentCode(value: string | null | undefined): value is SystemParentCode {
   if (value == null || value === "") return false;
   return (SYSTEM_PARENT_CODES as readonly string[]).includes(value);

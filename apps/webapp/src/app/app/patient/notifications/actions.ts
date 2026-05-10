@@ -40,6 +40,7 @@ export async function setChannelNotificationEnabled(
       isEnabledForNotifications: nextEnabled,
     });
     revalidatePath(routePaths.notifications);
+    revalidatePath(routePaths.profile);
     revalidatePath(routePaths.patient);
     return { ok: true };
   } catch {

@@ -9,6 +9,11 @@ const saveContentSectionMock = vi.hoisted(() => vi.fn());
 vi.mock("./actions", () => ({
   saveContentSection: saveContentSectionMock,
   renameContentSectionSlug: vi.fn(),
+  deleteContentSection: vi.fn(),
+}));
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
 }));
 
 vi.mock("../MediaLibraryPickerDialog", () => ({
@@ -74,7 +79,7 @@ describe("SectionForm", () => {
       />,
     );
     expect(screen.queryByRole("button", { name: "Переименовать slug…" })).toBeNull();
-    expect(screen.getByText(/Встроенные разделы приложения/)).toBeInTheDocument();
+    expect(screen.getByText(/Slug этого раздела нельзя изменить/)).toBeInTheDocument();
   });
 
   it("prefills slug from initialSuggestedSlug", () => {

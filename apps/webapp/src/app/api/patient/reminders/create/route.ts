@@ -13,6 +13,7 @@ const LINKED_TYPES = new Set<ReminderLinkedObjectType>([
   "content_section",
   "content_page",
   "rehab_program",
+  "treatment_program_item",
   "custom",
 ]);
 

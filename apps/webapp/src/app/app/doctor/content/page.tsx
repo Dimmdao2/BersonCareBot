@@ -7,7 +7,7 @@ import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { AppShell } from "@/shared/ui/AppShell";
 import { DataLoadFailureNotice } from "@/shared/ui/DataLoadFailureNotice";
 import type { ContentSectionRow } from "@/modules/content-sections/ports";
-import { isSystemParentCode, SYSTEM_PARENT_CODES } from "@/modules/content-sections/types";
+import { CMS_UNASSIGNED_SECTION_SLUG, isSectionSlugProtectedFromDelete, isSystemParentCode, SYSTEM_PARENT_CODES } from "@/modules/content-sections/types";
 import { AttachExistingSectionsModal } from "./AttachExistingSectionsModal";
 import { ContentPagesSectionList, type ContentPageListRow } from "./ContentPagesSectionList";
 import { ContentPagesSidebar } from "./ContentPagesSidebar";
@@ -82,12 +82,19 @@ export default async function DoctorContentPage({ searchParams }: Props) {
       : null);
 
   const articleSections = sections.filter((s) => s.kind === "article").map((s) => ({ slug: s.slug, title: s.title }));
-  const freeSectionsSortedForAttach = [...articleSections].sort((a, b) =>
+  const articleSectionsForSidebar = articleSections.filter((s) => s.slug !== CMS_UNASSIGNED_SECTION_SLUG);
+  const unassignedRow = sections.find((s) => s.slug === CMS_UNASSIGNED_SECTION_SLUG);
+  const freeSectionsSortedForAttach = [...articleSectionsForSidebar].sort((a, b) =>
     a.title.localeCompare(b.title, "ru"),
   );
 
   const articlePages = pages.filter((p) => isArticlePage(p, sections));
   const groupedArticle = groupBySection(articlePages);
+  const unassignedPages = groupedArticle.get(CMS_UNASSIGNED_SECTION_SLUG);
+  const unassignedSectionNav =
+    unassignedRow && unassignedPages && unassignedPages.length > 0 ?
+      { slug: unassignedRow.slug, title: unassignedRow.title, pageCount: unassignedPages.length }
+    : null;
   const articleSectionSlugsOrdered = sections.filter((s) => s.kind === "article").map((s) => s.slug);
 
   const orderedArticleSectionSlugs: string[] = [];
@@ -129,7 +136,8 @@ export default async function DoctorContentPage({ searchParams }: Props) {
 
   /** На корне системной папки (?systemParentCode без ?section) страницу не создаём — только дочерние CMS-разделы (страница всегда привязана к slug раздела). */
   const isSystemFolderRoot = validSystemParent !== undefined && activeSectionSlug === null;
-  const showCreatePageButton = !isSystemFolderRoot;
+  const isUnassignedBucket = activeSectionSlug === CMS_UNASSIGNED_SECTION_SLUG;
+  const showCreatePageButton = !isSystemFolderRoot && !isUnassignedBucket;
 
   let createPageHref = "/app/doctor/content/new";
   if (activeSectionSlug !== null) {
@@ -150,6 +158,7 @@ export default async function DoctorContentPage({ searchParams }: Props) {
           <div className="flex flex-col gap-4 md:flex-row md:items-start md:gap-4">
             <ContentPagesSidebar
               articleSections={[]}
+              unassignedSectionNav={null}
               highlightArticleSlug={null}
               highlightSystemFolderCode={null}
             />
@@ -170,7 +179,8 @@ export default async function DoctorContentPage({ searchParams }: Props) {
       <PageSection id="doctor-content-section" as="section" className="flex flex-col gap-4">
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:gap-4">
           <ContentPagesSidebar
-            articleSections={articleSections}
+            articleSections={articleSectionsForSidebar}
+            unassignedSectionNav={unassignedSectionNav}
             highlightArticleSlug={highlightArticleSlug}
             highlightSystemFolderCode={highlightSystemFolderCode}
           />
@@ -219,6 +229,8 @@ export default async function DoctorContentPage({ searchParams }: Props) {
                         initialPages={rows.map(toListRow)}
                         newPageSystemParentCode={validSystemParent}
                         sectionSettingsHref={`/app/doctor/content/sections/edit/${encodeURIComponent(sec.slug)}`}
+                        allowDeleteSection={!isSectionSlugProtectedFromDelete(sec.slug)}
+                        pagesInSectionCount={rows.length}
                       />
                     );
                   })}
@@ -235,11 +247,9 @@ export default async function DoctorContentPage({ searchParams }: Props) {
                     sectionRowForActive.systemParentCode
                   : undefined
                 }
-                sectionSettingsHref={
-                  sectionRowForActive?.kind === "system" ?
-                    `/app/doctor/content/sections/edit/${encodeURIComponent(activeSectionSlug)}`
-                  : undefined
-                }
+                sectionSettingsHref={`/app/doctor/content/sections/edit/${encodeURIComponent(activeSectionSlug)}`}
+                allowDeleteSection={!isSectionSlugProtectedFromDelete(activeSectionSlug)}
+                pagesInSectionCount={(grouped.get(activeSectionSlug) ?? []).length}
               />
             ) : articlePages.length === 0 ? (
               <p className="text-muted-foreground">Нет страниц контента.</p>
@@ -254,6 +264,9 @@ export default async function DoctorContentPage({ searchParams }: Props) {
                       sectionSlug={sectionSlug}
                       sectionTitle={sectionTitleBySlug.get(sectionSlug) ?? sectionSlug}
                       initialPages={rows.map(toListRow)}
+                      sectionSettingsHref={`/app/doctor/content/sections/edit/${encodeURIComponent(sectionSlug)}`}
+                      allowDeleteSection={!isSectionSlugProtectedFromDelete(sectionSlug)}
+                      pagesInSectionCount={rows.length}
                     />
                   );
                 })}
