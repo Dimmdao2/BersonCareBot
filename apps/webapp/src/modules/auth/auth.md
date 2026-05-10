@@ -102,7 +102,7 @@
 
 `AuthFlowV2`: при включённых OAuth — экран `oauth_first` (Яндекс, Google, при необходимости только-Apple, Telegram Login, ссылка на бота **Max** из `GET /api/auth/login/alternatives-config`, «Войти по номеру телефона»); иначе порядок **Telegram `landing`** или сразу телефон. Отдельного экрана «Другие способы входа» нет. Публичный конфиг `alternatives-config` по-прежнему может отдавать `vkWebLoginUrl` — кнопка VK на входе подключается в UI отдельно, когда будет нужна. `ChannelPicker` и альтернативы в `OtpCodeForm` **не предлагают SMS** (`OTP_PUBLIC_OTHER_CHANNELS_ORDER` без `sms`). На экранах «иностранный номер» / «нет OTP-канала» — компактные OAuth / Apple (fallback) / Max и при необходимости Telegram.
 
-**Профиль (`ProfileForm`):** смена номера — тот же сценарий, что на `/app/patient/bind-phone` (`PatientBindPhoneClient`, без SMS и без удалённых `BindPhoneBlock` / `PhoneAuthForm`).
+**Профиль (`PatientProfileHero`):** смена номера — тот же сценарий, что на `/app/patient/bind-phone` (`PatientBindPhoneClient`, без SMS и без удалённых `BindPhoneBlock` / `PhoneAuthForm`).
 
 ### Ошибки и операции
 

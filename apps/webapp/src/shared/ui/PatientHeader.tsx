@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
-import toast from "react-hot-toast";
 import {
   Bell,
   ChevronLeft,
@@ -29,6 +28,7 @@ import { cn } from "@/lib/utils";
 import { usePlatform } from "@/shared/hooks/usePlatform";
 import { useReminderUnreadCount } from "@/shared/hooks/useReminderUnread";
 import { NAV_STRIP_ICON_STROKE } from "@/shared/ui/navChrome";
+import { shareCabinetLink } from "@/shared/lib/shareCabinetLink";
 
 /** Единый стиль пунктов бокового меню (Sheet). */
 const SHEET_NAV_LINK_CLASS = cn(
@@ -85,13 +85,7 @@ export function PatientHeader({
   }, [router, backHref]);
 
   const shareWithFriend = useCallback(async () => {
-    const url = `${typeof window !== "undefined" ? window.location.origin : ""}/app/patient`;
-    try {
-      await navigator.clipboard.writeText(url);
-      toast.success("Ссылка скопирована");
-    } catch {
-      toast.error("Не удалось скопировать ссылку");
-    }
+    await shareCabinetLink();
     closeMenu();
   }, [closeMenu]);
 

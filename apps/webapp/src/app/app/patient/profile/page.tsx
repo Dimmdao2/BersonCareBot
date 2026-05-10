@@ -1,27 +1,24 @@
 import Link from "next/link";
-import { AlertCircle, CheckCircle2 } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requirePatientAccess } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
-import type { OtpUiChannel } from "@/modules/auth/otpChannelUi";
 import { getPlatformEntry } from "@/shared/lib/platformCookie.server";
 import { cn } from "@/lib/utils";
 import { AppShell } from "@/shared/ui/AppShell";
 import { ConnectMessengersBlock } from "@/shared/ui/ConnectMessengersBlock";
+import { EmailAccountPanel } from "@/shared/ui/EmailAccountPanel";
 import {
+  patientInfoLinkTileClass,
   patientInnerPageStackClass,
-  patientMutedTextClass,
-  patientSecondaryActionClass,
+  patientSectionSurfaceClass,
+  patientSectionTitleClass,
 } from "@/shared/ui/patientVisual";
-import { AuthOtpChannelPreference } from "./AuthOtpChannelPreference";
+import { getSupportContactUrl } from "@/modules/system-settings/supportContactUrl";
 import { DiaryDataPurgeSection } from "./DiaryDataPurgeSection";
 import { LogoutSection } from "./LogoutSection";
-import { PinSection } from "./PinSection";
-import { ProfileAccordionSection } from "./ProfileAccordionSection";
-import { ProfileForm } from "./ProfileForm";
-import { getSupportContactUrl } from "@/modules/system-settings/supportContactUrl";
-
-const AUTH_OTP_ORDER: OtpUiChannel[] = ["telegram", "max", "email", "sms"];
+import { PatientProfileHero } from "./PatientProfileHero";
+import { ProfileExtraSection } from "./ProfileExtraSection";
 
 function maskPhoneTail(phone: string | null | undefined): string | null {
   if (!phone?.trim()) return null;
@@ -34,11 +31,8 @@ function maskPhoneTail(phone: string | null | undefined): string | null {
 export default async function PatientProfilePage() {
   const session = await requirePatientAccess(routePaths.profile);
   const platformEntry = await getPlatformEntry();
-  const showPinSection = platformEntry !== "bot";
   const deps = buildAppDeps();
   const supportContactHref = await getSupportContactUrl();
-  const pinRow = await deps.userPins.getByUserId(session.user.userId);
-  const hasPin = pinRow != null;
   const emailFields = await deps.userProjection.getProfileEmailFields(session.user.userId);
   const channelCards = await deps.channelPreferences.getChannelCards(
     session.user.userId,
@@ -46,90 +40,57 @@ export default async function PatientProfilePage() {
     {
       phone: session.user.phone,
       emailVerified: Boolean(emailFields.emailVerifiedAt),
-    }
+    },
   );
   const telegramId = session.user.bindings.telegramId ?? "";
   const maxId = session.user.bindings.maxId ?? "";
 
-  const authOtpOptions = AUTH_OTP_ORDER.flatMap((code) => {
-    const card = channelCards.find((c) => c.code === code);
-    if (!card?.isLinked || !card.isImplemented) return [];
-    const label =
-      code === "telegram" ? "Telegram" : code === "max" ? "MAX" : code === "email" ? "Email" : "SMS";
-    return [{ code, label }];
-  });
-
-  const savedPreferred = await deps.channelPreferences.getPreferredAuthOtpChannel(session.user.userId);
-  const initialAuthOtpSelection: "auto" | OtpUiChannel =
-    savedPreferred && authOtpOptions.some((o) => o.code === savedPreferred) ? savedPreferred : "auto";
-  const showAuthOtpBindHint = !authOtpOptions.some((o) => o.code !== "sms");
-
-  const pinStatusIcon = hasPin ? (
-    <CheckCircle2 className="size-4 shrink-0 text-green-500" aria-label="PIN создан" />
-  ) : (
-    <AlertCircle className="size-4 shrink-0 text-destructive" aria-label="PIN не задан" />
-  );
+  const fallbackDisplayName =
+    (emailFields.email && emailFields.email.trim()) ||
+    (session.user.phone && session.user.phone.trim()) ||
+    ".";
 
   return (
-    <AppShell
-      title="Мой профиль"
-      user={session.user}
-      backHref={routePaths.patient}
-      backLabel="Меню"
-      variant="patient"
-    >
+    <AppShell title="Мой профиль" user={session.user} backHref={routePaths.patient} backLabel="Меню" variant="patient">
       <div className={patientInnerPageStackClass}>
-        <ProfileAccordionSection id="patient-profile-personal" title="Личные данные">
-          <ProfileForm
-            displayName={session.user.displayName}
-            phone={session.user.phone ?? null}
-            telegramId={telegramId}
-            maxId={maxId}
-            supportContactHref={supportContactHref}
+        <PatientProfileHero
+          displayName={session.user.displayName ?? ""}
+          phone={session.user.phone ?? null}
+          telegramId={telegramId}
+          maxId={maxId}
+          supportContactHref={supportContactHref}
+          fallbackDisplayName={fallbackDisplayName}
+        />
+
+        <section className={patientSectionSurfaceClass}>
+          <h2 className={patientSectionTitleClass}>Email</h2>
+          <EmailAccountPanel
             initialEmail={emailFields.email}
             emailVerified={Boolean(emailFields.emailVerifiedAt)}
+            supportContactHref={supportContactHref}
+            embeddedInTitledSection
           />
-        </ProfileAccordionSection>
+        </section>
 
-        {showPinSection ? (
-          <ProfileAccordionSection
-            id="patient-profile-pin"
-            title="PIN для входа"
-            statusIcon={pinStatusIcon}
-          >
-            <PinSection hasPin={hasPin} />
-          </ProfileAccordionSection>
-        ) : null}
-
-        <ProfileAccordionSection id="patient-profile-otp" title="Подтверждение входа">
-          <AuthOtpChannelPreference
-            options={authOtpOptions}
-            initialSelection={initialAuthOtpSelection}
-            showBindHint={showAuthOtpBindHint}
-          />
-        </ProfileAccordionSection>
-
-        <ProfileAccordionSection id="patient-profile-channels" title="Привязанные каналы">
+        <section className={patientSectionSurfaceClass}>
+          <h2 className={patientSectionTitleClass}>Мессенджеры</h2>
           <ConnectMessengersBlock channelCards={channelCards} showHeading={false} />
-        </ProfileAccordionSection>
+        </section>
 
-        <ProfileAccordionSection id="patient-profile-notifications" title="Уведомления">
-          <p className={patientMutedTextClass}>
-            Настройте каналы доставки и темы рассылок: напоминания о приёме, упражнениях, симптомах и новостях.
-          </p>
-          <Link
-            href={routePaths.notifications}
-            className={cn(patientSecondaryActionClass, "!min-h-9 !w-auto text-sm")}
-          >
-            Настройки уведомлений
-          </Link>
-        </ProfileAccordionSection>
+        <Link
+          href={routePaths.notifications}
+          className={cn(patientInfoLinkTileClass, "flex items-center justify-between min-h-11")}
+        >
+          <span>Подписки на уведомления</span>
+          <ChevronRight className="size-4 shrink-0 text-[var(--patient-text-muted)]" aria-hidden />
+        </Link>
 
-        {showPinSection ? (
-          <ProfileAccordionSection id="patient-profile-diary-purge" title="Данные дневника">
-            <DiaryDataPurgeSection hasPin={hasPin} phoneMasked={maskPhoneTail(session.user.phone)} />
-          </ProfileAccordionSection>
-        ) : null}
+        <ProfileExtraSection />
+
+        <section className={patientSectionSurfaceClass}>
+          <h2 className={patientSectionTitleClass}>Удаление данных дневника</h2>
+          <DiaryDataPurgeSection phoneMasked={maskPhoneTail(session.user.phone)} />
+        </section>
 
         {platformEntry !== "bot" ? <LogoutSection /> : null}
       </div>

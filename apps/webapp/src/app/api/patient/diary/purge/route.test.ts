@@ -42,7 +42,6 @@ describe("POST /api/patient/diary/purge", () => {
         },
         issuedAt: 0,
         expiresAt: 9999999999,
-        reauth: { diaryPurgePinVerifiedUntil: Math.floor(Date.now() / 1000) + 600 },
       },
     });
     vi.spyOn(authService, "clearDiaryPurgeReauth").mockResolvedValue(undefined);

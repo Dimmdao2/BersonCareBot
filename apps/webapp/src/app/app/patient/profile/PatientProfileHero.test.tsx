@@ -1,21 +1,9 @@
 /** @vitest-environment jsdom */
 
-import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { ProfileForm } from "./ProfileForm";
-
-beforeEach(() => {
-  global.fetch = vi
-    .fn()
-    .mockResolvedValue(
-      new Response(JSON.stringify({ ok: true, calendarTimezone: null }), { status: 200 }),
-    ) as typeof fetch;
-});
-
-afterEach(() => {
-  vi.restoreAllMocks();
-});
+import { PatientProfileHero } from "./PatientProfileHero";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: vi.fn(), replace: vi.fn() }),
@@ -27,18 +15,17 @@ vi.mock("@/app/app/patient/bind-phone/PatientBindPhoneClient", () => ({
   ),
 }));
 
-describe("ProfileForm", () => {
+describe("PatientProfileHero", () => {
   it("shows messenger bind flow when editing phone (no SMS / BindPhoneBlock)", async () => {
     const user = userEvent.setup();
     render(
-      <ProfileForm
+      <PatientProfileHero
         displayName="Test"
         phone="+79991234567"
         telegramId=""
         maxId=""
         supportContactHref="https://support.example"
-        initialEmail={null}
-        emailVerified={false}
+        fallbackDisplayName="."
       />,
     );
 

@@ -3,24 +3,19 @@ import { NextResponse } from "next/server";
 import { requirePatientApiBusinessAccess } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { isDiaryPurgePinReauthValid } from "@/modules/auth/service";
 
+// SECURITY: PIN re-auth temporarily disabled with patient profile PIN UI removal (2026-05-10).
+// Destructive purge is protected by single-factor OTP only (SMS challenge).
+// When restoring PIN/2FA UI: reinstate isDiaryPurgePinReauthValid(session) before OTP send and before finalize purge;
+// see modules/auth/service.ts and apps/webapp/src/app/app/patient/profile/profile.md (TODO «Возврат PIN UI»).
 /**
  * Отправка OTP на привязанный номер для удаления дневниковых данных.
- * Требует предварительного POST /api/auth/pin/verify.
  */
 export async function POST() {
   const gate = await requirePatientApiBusinessAccess({ returnPath: routePaths.diary });
   if (!gate.ok) return gate.response;
   const session = gate.session;
   const phone = session.user.phone!.trim();
-  if (!isDiaryPurgePinReauthValid(session)) {
-    return NextResponse.json(
-      { ok: false, error: "pin_reauth_required", message: "Сначала подтвердите PIN" },
-      { status: 403 }
-    );
-  }
-
   const deps = buildAppDeps();
   const result = await deps.auth.startPhoneAuth(phone, { channel: "web", chatId: randomUUID() }, { delivery: { channel: "sms" } });
 

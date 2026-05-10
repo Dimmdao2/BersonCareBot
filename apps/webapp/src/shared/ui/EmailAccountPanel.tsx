@@ -5,17 +5,30 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { OtpCodeForm } from "@/shared/ui/auth/OtpCodeForm";
+import { cn } from "@/lib/utils";
+
+const PATIENT_EMAIL_INPUT_ID = "patient-email-panel-address";
 
 type Props = {
   initialEmail: string | null;
   emailVerified: boolean;
   supportContactHref?: string;
+  /**
+   * Секция страницы уже имеет заголовок «Email» — не дублировать подпись и верхний разделитель
+   * внутри панели (профиль, уведомления).
+   */
+  embeddedInTitledSection?: boolean;
 };
 
 /**
  * Блок привязки / смены email (OTP). Переиспользуется в профиле и на странице уведомлений.
  */
-export function EmailAccountPanel({ initialEmail, emailVerified, supportContactHref }: Props) {
+export function EmailAccountPanel({
+  initialEmail,
+  emailVerified,
+  supportContactHref,
+  embeddedInTitledSection = false,
+}: Props) {
   const router = useRouter();
   const [emailStep, setEmailStep] = useState<"view" | "enter" | "code">("view");
   const [emailDraft, setEmailDraft] = useState("");
@@ -50,15 +63,27 @@ export function EmailAccountPanel({ initialEmail, emailVerified, supportContactH
   };
 
   return (
-    <div className="flex flex-col gap-2 border-t border-border pt-4">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <span className="text-muted-foreground text-xs font-medium uppercase tracking-wide">Email</span>
-        {emailStep === "view" ? (
+    <div
+      className={cn(
+        "flex flex-col gap-2",
+        !embeddedInTitledSection && "border-t border-border pt-4",
+      )}
+    >
+      {emailStep === "view" ? (
+        <div
+          className={cn(
+            "flex flex-wrap items-start gap-2",
+            embeddedInTitledSection ? "justify-end" : "justify-between",
+          )}
+        >
+          {!embeddedInTitledSection ? (
+            <span className="text-muted-foreground text-xs font-normal uppercase tracking-wide">Email</span>
+          ) : null}
           <Button
             type="button"
             variant="link"
             size="sm"
-            className="text-primary h-auto min-h-0 px-0 py-0 text-sm font-medium"
+            className="text-primary h-auto min-h-0 px-0 py-0 text-sm font-normal"
             onClick={() => {
               setEmailStep("enter");
               setEmailDraft(initialEmail ?? "");
@@ -67,8 +92,8 @@ export function EmailAccountPanel({ initialEmail, emailVerified, supportContactH
           >
             {initialEmail ? "Изменить" : "Добавить"}
           </Button>
-        ) : null}
-      </div>
+        </div>
+      ) : null}
 
       {emailStep === "view" && initialEmail ? (
         <p className="text-sm">
@@ -87,11 +112,14 @@ export function EmailAccountPanel({ initialEmail, emailVerified, supportContactH
 
       {emailStep === "enter" ? (
         <div className="flex max-w-md flex-col gap-2">
-          <label className="text-muted-foreground text-xs font-medium uppercase tracking-wide" htmlFor="email-rounded-2xl border border-border bg-card p-4 shadow-sm">
+          <label
+            className="text-muted-foreground text-xs font-normal uppercase tracking-wide"
+            htmlFor={PATIENT_EMAIL_INPUT_ID}
+          >
             Email
           </label>
           <Input
-            id="email-rounded-2xl border border-border bg-card p-4 shadow-sm"
+            id={PATIENT_EMAIL_INPUT_ID}
             type="email"
             autoComplete="email"
             value={emailDraft}

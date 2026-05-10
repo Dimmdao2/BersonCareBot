@@ -4,29 +4,26 @@ import { logger } from "@/app-layer/logging/logger";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { routePaths } from "@/app-layer/routes/paths";
-import { clearDiaryPurgeReauth, isDiaryPurgePinReauthValid } from "@/modules/auth/service";
+import { clearDiaryPurgeReauth } from "@/modules/auth/service";
 import { normalizePhone } from "@/modules/auth/phoneNormalize";
 import { requirePatientApiBusinessAccess } from "@/app-layer/guards/requireRole";
 
+// SECURITY: PIN re-auth temporarily disabled with patient profile PIN UI removal (2026-05-10).
+// Destructive purge is protected by single-factor OTP only (SMS challenge).
+// When restoring PIN/2FA UI: reinstate isDiaryPurgePinReauthValid(session) before OTP send and before finalize purge;
+// see modules/auth/service.ts and apps/webapp/src/app/app/patient/profile/profile.md (TODO «Возврат PIN UI»).
 const bodySchema = z.object({
   challengeId: z.string().trim().min(1),
   code: z.string().trim().min(1),
 });
 
 /**
- * Финальное удаление всех дневниковых данных после PIN + OTP.
+ * Финальное удаление всех дневниковых данных после OTP.
  */
 export async function POST(request: Request) {
   const gate = await requirePatientApiBusinessAccess({ returnPath: routePaths.diary });
   if (!gate.ok) return gate.response;
   const session = gate.session;
-  if (!isDiaryPurgePinReauthValid(session)) {
-    return NextResponse.json(
-      { ok: false, error: "pin_reauth_required", message: "Сначала подтвердите PIN" },
-      { status: 403 }
-    );
-  }
-
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = bodySchema.safeParse(raw);
   if (!parsed.success) {

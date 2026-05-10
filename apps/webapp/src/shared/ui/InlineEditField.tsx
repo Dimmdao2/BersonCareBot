@@ -17,6 +17,10 @@ export type InlineEditFieldProps = {
   onSave: (next: string) => void | Promise<void>;
   className?: string;
   disabled?: boolean;
+  /** Доп. классы для подписи поля (например `font-normal` в профиле пациента). */
+  labelClassName?: string;
+  /** Доп. классы для ссылки «Изменить» / «Добавить». */
+  editLinkClassName?: string;
 };
 
 export function InlineEditField({
@@ -28,6 +32,8 @@ export function InlineEditField({
   onSave,
   className,
   disabled = false,
+  labelClassName,
+  editLinkClassName,
 }: InlineEditFieldProps) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
@@ -65,13 +71,23 @@ export function InlineEditField({
   return (
     <div className={cn("flex flex-col gap-1", className)}>
       <div className="flex flex-wrap items-start justify-between gap-2">
-        <span className="text-muted-foreground text-xs font-medium uppercase tracking-wide">{label}</span>
+        <span
+          className={cn(
+            "text-muted-foreground text-xs font-medium uppercase tracking-wide",
+            labelClassName,
+          )}
+        >
+          {label}
+        </span>
         {!editing ? (
           <Button
             type="button"
             variant="link"
             size="sm"
-            className="text-primary h-auto min-h-0 px-0 py-0 text-sm font-medium"
+            className={cn(
+              "text-primary h-auto min-h-0 px-0 py-0 text-sm font-medium",
+              editLinkClassName,
+            )}
             disabled={disabled}
             onClick={() => {
               setEditing(true);

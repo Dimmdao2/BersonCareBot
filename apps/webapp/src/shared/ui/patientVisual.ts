@@ -171,7 +171,7 @@ export const patientListItemClass = cn(
 /** Обёртка секции страницы (типичный блок с отступами и тенью карточки). */
 export const patientSectionSurfaceClass = cn(
   patientCardSurfaceTokens,
-  "flex flex-col gap-4 p-4",
+  "flex flex-col gap-4 p-4 md:p-[18px]",
 );
 
 /** Визуальная оболочка формы (контейнер полей), без изменения инпутов внутри. */
@@ -226,7 +226,7 @@ export const patientInlineLinkClass = cn(
 
 /** Плитка-ссылка внутри patient карточек (например, блок «Полезная информация» в cabinet). */
 export const patientInfoLinkTileClass = cn(
-  "cursor-pointer rounded-lg border border-[var(--patient-border)] px-3 py-2 text-sm font-medium text-[var(--patient-text-primary)] transition-colors",
+  "cursor-pointer rounded-lg border border-[var(--patient-border)] px-3 py-2 text-sm font-normal text-[var(--patient-text-primary)] transition-colors",
   "hover:bg-[var(--patient-color-primary-soft)]/40",
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-primary)]",
 );

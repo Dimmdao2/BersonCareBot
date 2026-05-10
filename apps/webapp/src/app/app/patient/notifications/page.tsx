@@ -8,7 +8,7 @@ import { NotificationsGuestAccess } from "@/shared/ui/patient/guestAccess";
 import { ChannelNotificationToggles } from "./ChannelNotificationToggles";
 import { SubscriptionsList } from "./SubscriptionsList";
 import { getSupportContactUrl } from "@/modules/system-settings/supportContactUrl";
-import { patientSectionSurfaceClass } from "@/shared/ui/patientVisual";
+import { patientSectionSurfaceClass, patientSectionTitleClass } from "@/shared/ui/patientVisual";
 import { parseNotificationsTopics } from "@/modules/patient-notifications/notificationsTopics";
 
 export default async function NotificationsPage() {
@@ -55,23 +55,24 @@ export default async function NotificationsPage() {
     >
       <div className="flex flex-col gap-8">
         <section className={patientSectionSurfaceClass}>
-          <h2 className="text-base font-semibold">Каналы доставки</h2>
+          <h2 className={patientSectionTitleClass}>Каналы доставки</h2>
           <ChannelNotificationToggles cards={channelCards} />
         </section>
 
         <section className={patientSectionSurfaceClass}>
-          <h2 className="text-base font-semibold">Темы рассылок</h2>
+          <h2 className={patientSectionTitleClass}>Темы рассылок</h2>
           <SubscriptionsList subscriptions={subscriptionTopics} />
         </section>
 
         <ConnectMessengersBlock channelCards={channelCards} implementedOnly />
 
         <section className={patientSectionSurfaceClass}>
-          <h2 className="text-base font-semibold">Email</h2>
+          <h2 className={patientSectionTitleClass}>Email</h2>
           <EmailAccountPanel
             initialEmail={emailFields.email}
             emailVerified={emailVerified}
             supportContactHref={supportContactHref}
+            embeddedInTitledSection
           />
         </section>
       </div>

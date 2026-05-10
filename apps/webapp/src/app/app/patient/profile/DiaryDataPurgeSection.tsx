@@ -6,22 +6,20 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { PinInput } from "@/shared/ui/auth/PinInput";
 import { SmsCodeForm } from "@/shared/ui/auth/SmsCodeForm";
 import { cn } from "@/lib/utils";
 import { patientMutedTextClass } from "@/shared/ui/patientVisual";
 
 type Props = {
-  hasPin: boolean;
   phoneMasked: string | null;
 };
 
 /**
- * Удаление всех дневниковых данных: явное согласие → PIN → код на телефон.
+ * Удаление всех дневниковых данных: явное согласие → код на телефон.
  */
-export function DiaryDataPurgeSection({ hasPin, phoneMasked }: Props) {
+export function DiaryDataPurgeSection({ phoneMasked }: Props) {
   const router = useRouter();
-  const [step, setStep] = useState<"intro" | "pin" | "otp">("intro");
+  const [step, setStep] = useState<"intro" | "otp">("intro");
   const [accepted, setAccepted] = useState(false);
   const [challengeId, setChallengeId] = useState<string | null>(null);
   const [retryAfterSeconds, setRetryAfterSeconds] = useState(60);
@@ -48,24 +46,16 @@ export function DiaryDataPurgeSection({ hasPin, phoneMasked }: Props) {
           setRetryAfterSeconds(data.retryAfterSeconds ?? 60);
         } else {
           toast.error(data.message ?? "Не удалось отправить код");
-          setStep("pin");
+          setStep("intro");
         }
       } catch {
         toast.error("Сеть недоступна");
-        setStep("pin");
+        setStep("intro");
       } finally {
         setOtpLoading(false);
       }
     })();
   }, [step, challengeId, otpLoading]);
-
-  if (!hasPin) {
-    return (
-      <div className={cn(patientMutedTextClass, "flex flex-col gap-2")}>
-        <p>Чтобы удалить данные дневников, сначала задайте PIN в разделе «PIN для входа» выше.</p>
-      </div>
-    );
-  }
 
   if (!phoneMasked) {
     return (
@@ -98,40 +88,11 @@ export function DiaryDataPurgeSection({ hasPin, phoneMasked }: Props) {
             variant="destructive"
             className="w-full"
             disabled={!accepted}
-            onClick={() => setStep("pin")}
+            onClick={() => setStep("otp")}
           >
             Удалить данные дневников
           </Button>
         </>
-      ) : null}
-
-      {step === "pin" ? (
-        <div className="flex flex-col gap-3">
-          <p className={patientMutedTextClass}>Введите PIN для подтверждения.</p>
-          <PinInput
-            submitLabel="Далее"
-            forgotHidden
-            onForgot={() => {}}
-            onSubmit={async (pin) => {
-              const res = await fetch("/api/auth/pin/verify", {
-                method: "POST",
-                headers: { "content-type": "application/json" },
-                credentials: "include",
-                body: JSON.stringify({ pin }),
-              });
-              const data = (await res.json().catch(() => ({}))) as { ok?: boolean; message?: string };
-              if (!res.ok) {
-                toast.error(data.message ?? "Неверный PIN");
-                return;
-              }
-              toast.success("PIN подтверждён");
-              setStep("otp");
-            }}
-          />
-          <Button type="button" variant="ghost" size="sm" className="self-start" onClick={() => setStep("intro")}>
-            Назад
-          </Button>
-        </div>
       ) : null}
 
       {step === "otp" ? (
@@ -193,7 +154,7 @@ export function DiaryDataPurgeSection({ hasPin, phoneMasked }: Props) {
                 return { kind: "error" as const, message: "Не удалось отправить код" };
               }}
               onBack={() => {
-                setStep("pin");
+                setStep("intro");
                 setChallengeId(null);
               }}
             />
