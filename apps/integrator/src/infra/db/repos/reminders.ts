@@ -27,6 +27,7 @@ function normalizeRuleRow(row: {
   reminder_intent?: string | null;
   quiet_hours_start_minute?: number | null;
   quiet_hours_end_minute?: number | null;
+  notification_topic_code?: string | null;
   created_at?: string;
   updated_at?: string;
 }): ReminderRuleRecord {
@@ -53,6 +54,9 @@ function normalizeRuleRow(row: {
     ...(row.deep_link != null ? { deepLink: row.deep_link } : {}),
     ...(row.schedule_data != null ? { scheduleData: row.schedule_data } : {}),
     ...(row.reminder_intent != null ? { reminderIntent: row.reminder_intent } : {}),
+    ...(typeof row.notification_topic_code === 'string' && row.notification_topic_code.trim()
+      ? { notificationTopicCode: row.notification_topic_code.trim() }
+      : {}),
   };
 }
 
@@ -110,6 +114,7 @@ export async function getReminderRulesForUser(db: DbPort, userId: string): Promi
     reminder_intent: string | null;
     quiet_hours_start_minute: number | null;
     quiet_hours_end_minute: number | null;
+    notification_topic_code: string | null;
     created_at: string;
     updated_at: string;
   }>(
@@ -134,6 +139,7 @@ export async function getReminderRulesForUser(db: DbPort, userId: string): Promi
        reminder_intent,
        quiet_hours_start_minute,
        quiet_hours_end_minute,
+       notification_topic_code,
        created_at::text,
        updated_at::text
      FROM user_reminder_rules
@@ -170,6 +176,7 @@ export async function getReminderRuleForUserAndCategory(
     reminder_intent: string | null;
     quiet_hours_start_minute: number | null;
     quiet_hours_end_minute: number | null;
+    notification_topic_code: string | null;
     created_at: string;
     updated_at: string;
   }>(
@@ -194,6 +201,7 @@ export async function getReminderRuleForUserAndCategory(
        reminder_intent,
        quiet_hours_start_minute,
        quiet_hours_end_minute,
+       notification_topic_code,
        created_at::text,
        updated_at::text
      FROM user_reminder_rules
@@ -226,6 +234,7 @@ export async function getEnabledReminderRules(db: DbPort): Promise<ReminderRuleR
     reminder_intent: string | null;
     quiet_hours_start_minute: number | null;
     quiet_hours_end_minute: number | null;
+    notification_topic_code: string | null;
     created_at: string;
     updated_at: string;
   }>(
@@ -250,6 +259,7 @@ export async function getEnabledReminderRules(db: DbPort): Promise<ReminderRuleR
        reminder_intent,
        quiet_hours_start_minute,
        quiet_hours_end_minute,
+       notification_topic_code,
        created_at::text,
        updated_at::text
      FROM user_reminder_rules
@@ -381,6 +391,20 @@ export async function upsertReminderRule(
     input.scheduleData !== undefined && input.scheduleData !== null
       ? JSON.stringify(input.scheduleData as Record<string, unknown>)
       : null;
+
+  let notificationTopicForSql: string | null;
+  if (Object.prototype.hasOwnProperty.call(input, 'notificationTopicCode')) {
+    const v = input.notificationTopicCode;
+    notificationTopicForSql =
+      v === null || v === undefined ? null : typeof v === 'string' ? v.trim() || null : null;
+  } else {
+    const prev = await db.query<{ notification_topic_code: string | null }>(
+      `SELECT notification_topic_code FROM user_reminder_rules WHERE id = $1`,
+      [input.id],
+    );
+    notificationTopicForSql = prev.rows[0]?.notification_topic_code ?? null;
+  }
+
   const res = await db.query<{ updated_at: string }>(
     `INSERT INTO user_reminder_rules (
        id,
@@ -403,12 +427,13 @@ export async function upsertReminderRule(
        reminder_intent,
        quiet_hours_start_minute,
        quiet_hours_end_minute,
+       notification_topic_code,
        created_at,
        updated_at
      ) VALUES (
        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
        $12, $13, $14, $15, $16, $17::jsonb, $18,
-       $19, $20,
+       $19, $20, $21,
        now(), now()
      )
      ON CONFLICT (id) DO UPDATE SET
@@ -431,6 +456,7 @@ export async function upsertReminderRule(
        reminder_intent = EXCLUDED.reminder_intent,
        quiet_hours_start_minute = EXCLUDED.quiet_hours_start_minute,
        quiet_hours_end_minute = EXCLUDED.quiet_hours_end_minute,
+       notification_topic_code = EXCLUDED.notification_topic_code,
        updated_at = now()
      RETURNING updated_at::text`,
     [
@@ -454,6 +480,7 @@ export async function upsertReminderRule(
       input.reminderIntent ?? null,
       input.quietHoursStartMinute ?? null,
       input.quietHoursEndMinute ?? null,
+      notificationTopicForSql,
     ],
   );
   return res.rows[0]?.updated_at ?? new Date().toISOString();

@@ -13,6 +13,7 @@
     "test": "bash ../../scripts/ensure-booking-sync-built.sh && vitest --run",
     "test:e2e": "bash ../../scripts/ensure-booking-sync-built.sh && RUN_E2E_TESTS=true vitest --run e2e/*.test.ts",
     "typecheck": "bash ../../scripts/ensure-booking-sync-built.sh && tsc --noEmit",
+    "lint": "eslint src",
     "migrate": "tsx src/infra/db/migrate.ts",
     "db:migrate": "tsx src/infra/db/migrate.ts",
     "db:migrate:prod": "node dist/infra/db/migrate.js",

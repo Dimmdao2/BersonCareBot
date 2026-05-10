@@ -46,6 +46,7 @@ type WebappRuleRow = {
   reminderIntent?: string | null;
   displayTitle?: string | null;
   displayDescription?: string | null;
+  notificationTopicCode?: string | null;
 };
 
 type WebappHistoryRow = {
@@ -108,6 +109,11 @@ function mapRule(row: WebappRuleRow, fallbackTz: string): ReminderRuleListItem {
     ...(typeof row.reminderIntent !== 'undefined' ? { reminderIntent: row.reminderIntent } : {}),
     ...(typeof row.displayTitle !== 'undefined' ? { displayTitle: row.displayTitle } : {}),
     ...(typeof row.displayDescription !== 'undefined' ? { displayDescription: row.displayDescription } : {}),
+    ...(typeof row.notificationTopicCode === 'string'
+      ? { notificationTopicCode: row.notificationTopicCode.trim() || null }
+      : row.notificationTopicCode === null
+        ? { notificationTopicCode: null }
+        : {}),
   };
 }
 

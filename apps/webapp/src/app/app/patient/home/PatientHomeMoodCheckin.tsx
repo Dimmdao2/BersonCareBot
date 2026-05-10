@@ -16,8 +16,14 @@ import {
 } from "./patientHomeCardStyles";
 import { appLoginWithNextHref } from "./patientHomeGuestNav";
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  patientButtonPrimaryClass,
+  patientButtonSecondaryClass,
+  patientMutedTextClass,
+  patientPortalModalSurfaceClass,
+  patientSectionTitleClass,
+} from "@/shared/ui/patientVisual";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { PatientHomeWellbeingWeekStrip } from "./PatientHomeWellbeingWeekStrip";
 import { PatientHomeMoodScoreRow } from "./PatientHomeMoodScoreRow";
 
@@ -55,6 +61,11 @@ export function PatientHomeMoodCheckin({
     setSavedScore(initialMood?.score ?? null);
     setLastEntry(initialLastEntry);
   }, [initialMood, initialLastEntry]);
+
+  function toastAfterSuccessfulSave(intent: PatientMoodIntent, hadPreviousLastEntry: boolean) {
+    const added = intent === "new_instant" || (intent === "auto" && !hadPreviousLastEntry);
+    toast.success(added ? "Запись добавлена" : "Запись обновлена");
+  }
 
   async function postMood(score: number, intent: PatientMoodIntent): Promise<boolean> {
     const previousSelected = selectedScore;
@@ -95,6 +106,7 @@ export function PatientHomeMoodCheckin({
       if ("lastEntry" in data && data.lastEntry !== undefined) {
         setLastEntry(data.lastEntry);
       }
+      toastAfterSuccessfulSave(intent, previousLast != null);
       router.refresh();
       return true;
     } catch {
@@ -225,30 +237,34 @@ export function PatientHomeMoodCheckin({
           }
         }}
       >
-        <DialogContent className="sm:max-w-sm" showCloseButton>
-          <DialogHeader>
-            <DialogTitle>Самочувствие</DialogTitle>
-          </DialogHeader>
-          <p className="text-sm text-muted-foreground">
+        <DialogContent
+          showCloseButton
+          className={cn(
+            patientPortalModalSurfaceClass,
+            "flex max-h-[85vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-[min(92vw,22rem)]",
+            "rounded-2xl border border-[var(--patient-border)] shadow-lg",
+            "[&_[data-slot=dialog-close]]:text-[var(--patient-text-muted)] [&_[data-slot=dialog-close]]:hover:bg-black/[0.06] [&_[data-slot=dialog-close]]:focus-visible:ring-[var(--patient-border)]",
+          )}
+        >
+          <DialogHeader className="shrink-0 gap-1.5 px-4 pb-0 pt-4 pr-12 text-left">
+            <DialogTitle className={cn(patientSectionTitleClass, "text-base leading-snug")}>Заменить или добавить</DialogTitle>
             {choicePrevLast != null && choicePrevLast.score != null ?
-              <>
-                Новая запись или изменить прошлую оценку{" "}
-                <span className="font-medium text-foreground">{choicePrevLast.score}</span>?
-              </>
+              <p className={cn(patientMutedTextClass, "leading-snug")}>
+                Последняя — <span className="font-medium text-[var(--patient-text-primary)]">{choicePrevLast.score}</span>
+                . Обновить её или добавить строку?
+              </p>
             : choicePrevLast != null ?
-              "Новая запись или изменить прошлую?"
+              <p className={cn(patientMutedTextClass, "leading-snug")}>Обновить последнюю или добавить строку?</p>
             : null}
-          </p>
-          <DialogFooter className="border-0 bg-transparent p-0 sm:justify-stretch">
-            <div className="flex w-full flex-col gap-2 sm:flex-row">
-              <Button type="button" variant="outline" className="flex-1" onClick={() => void confirmChoice("new_instant")}>
-                Новая запись
-              </Button>
-              <Button type="button" className="flex-1" onClick={() => void confirmChoice("replace_last")}>
-                Изменить прошлую
-              </Button>
-            </div>
-          </DialogFooter>
+          </DialogHeader>
+          <div className="flex flex-col gap-2 px-4 pb-4 pt-3">
+            <button type="button" className={patientButtonSecondaryClass} onClick={() => void confirmChoice("new_instant")}>
+              Новая запись
+            </button>
+            <button type="button" className={patientButtonPrimaryClass} onClick={() => void confirmChoice("replace_last")}>
+              Изменить прошлую
+            </button>
+          </div>
         </DialogContent>
       </Dialog>
     </>

@@ -28,6 +28,7 @@ describe("ReminderProjectionPort (in-memory contract)", () => {
     const list = await port.listRulesByIntegratorUserId("42");
     expect(list.length).toBe(1);
     expect(list[0].category).toBe("exercise");
+    expect(list[0].notificationTopicCode).toBeNull();
   });
 
   it("append finalized occurrence is idempotent", async () => {

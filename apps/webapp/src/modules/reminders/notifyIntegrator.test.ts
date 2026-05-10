@@ -48,6 +48,7 @@ const baseRule: ReminderRule = {
   displayDescription: null,
   quietHoursStartMinute: null,
   quietHoursEndMinute: null,
+  notificationTopicCode: "exercise_reminders",
   updatedAt: "2025-01-01T00:00:00.000Z",
 };
 
@@ -77,6 +78,7 @@ describe("notifyIntegratorRuleUpdated", () => {
     expect(body.payload.integratorUserId).toBe("42");
     expect(body.payload.scheduleType).toBe("interval_window");
     expect(body.payload.timezone).toBe("Europe/Moscow");
+    expect(body.payload.notificationTopicCode).toBe("exercise_reminders");
     expect(body.idempotencyKey).toMatch(/^rule_rule-abc_\d+$/);
   });
 

@@ -379,6 +379,20 @@
       "when": 1779600000000,
       "tag": "0053_recommendations_domain_guardrail",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1779700000000,
+      "tag": "0054_reminder_rules_notification_topic_code",
+      "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "7",
+      "when": 1779800000000,
+      "tag": "0055_user_notification_topic_channels",
+      "breakpoints": true
     }
   ]
 }

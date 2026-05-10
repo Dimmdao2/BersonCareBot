@@ -14,6 +14,7 @@ import type {
 } from "@/modules/reminders/types";
 import type { SlotsV1ScheduleData } from "@/modules/reminders/scheduleSlots";
 import { DEFAULT_REHAB_WEEKDAY_SLOTS } from "@/modules/reminders/scheduleSlots";
+import { notificationTopicCodeFromReminderRule } from "@/modules/reminders/notificationTopicCode";
 
 const FALLBACK_CATEGORIES = new Set(["appointment", "lfk", "chat", "important"]);
 
@@ -77,6 +78,7 @@ function toRule(row: {
   display_description: string | null;
   quiet_hours_start_minute: number | null;
   quiet_hours_end_minute: number | null;
+  notification_topic_code: string | null;
   updated_at: string;
 }): ReminderRule {
   return {
@@ -101,6 +103,7 @@ function toRule(row: {
     displayDescription: row.display_description ?? null,
     quietHoursStartMinute: row.quiet_hours_start_minute ?? null,
     quietHoursEndMinute: row.quiet_hours_end_minute ?? null,
+    notificationTopicCode: row.notification_topic_code ?? null,
     updatedAt: row.updated_at,
   };
 }
@@ -126,6 +129,7 @@ const SELECT_COLS = `
   rr.display_description,
   rr.quiet_hours_start_minute,
   rr.quiet_hours_end_minute,
+  rr.notification_topic_code,
   rr.updated_at
 `;
 
@@ -192,6 +196,10 @@ export function createPgReminderRulesPort(): ReminderRulesPort {
       if (input.linkedObjectType === "rehab_program" && scheduleType === "slots_v1" && !scheduleData) {
         scheduleData = DEFAULT_REHAB_WEEKDAY_SLOTS;
       }
+      const notificationTopicCode = notificationTopicCodeFromReminderRule({
+        category,
+        linkedObjectType: input.linkedObjectType,
+      });
       const r = await pool.query<RuleRow>(
         `INSERT INTO reminder_rules (
           integrator_rule_id, platform_user_id, integrator_user_id, category, is_enabled,
@@ -200,6 +208,7 @@ export function createPgReminderRulesPort(): ReminderRulesPort {
           linked_object_type, linked_object_id, custom_title, custom_text,
           schedule_data, reminder_intent, display_title, display_description,
           quiet_hours_start_minute, quiet_hours_end_minute,
+          notification_topic_code,
           updated_at
         ) VALUES (
           $1, $2::uuid, $3::bigint, $4, $5,
@@ -207,6 +216,7 @@ export function createPgReminderRulesPort(): ReminderRulesPort {
           $12, $13, $14, $15,
           $16::jsonb, $17, $18, $19,
           $20, $21,
+          $22,
           now()
         )
         RETURNING
@@ -230,6 +240,7 @@ export function createPgReminderRulesPort(): ReminderRulesPort {
           display_description,
           quiet_hours_start_minute,
           quiet_hours_end_minute,
+          notification_topic_code,
           updated_at`,
         [
           integratorRuleId,
@@ -253,6 +264,7 @@ export function createPgReminderRulesPort(): ReminderRulesPort {
           input.displayDescription ?? null,
           input.quietHoursStartMinute ?? null,
           input.quietHoursEndMinute ?? null,
+          notificationTopicCode,
         ],
       );
       const row = r.rows[0];

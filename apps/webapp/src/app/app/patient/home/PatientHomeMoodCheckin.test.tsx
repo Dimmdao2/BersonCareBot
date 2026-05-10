@@ -14,8 +14,9 @@ vi.mock("next/navigation", () => ({
 }));
 
 const toastError = vi.hoisted(() => vi.fn());
+const toastSuccess = vi.hoisted(() => vi.fn());
 vi.mock("react-hot-toast", () => ({
-  default: { error: toastError },
+  default: { error: toastError, success: toastSuccess },
 }));
 
 describe("PatientHomeMoodCheckin", () => {
@@ -83,6 +84,7 @@ describe("PatientHomeMoodCheckin", () => {
         }),
       );
     });
+    expect(toastSuccess).toHaveBeenCalledWith("Запись добавлена");
     const call = vi.mocked(global.fetch).mock.calls[0];
     const body = JSON.parse((call[1] as { body: string }).body);
     expect(body).toEqual({ score: 5, intent: "auto" });

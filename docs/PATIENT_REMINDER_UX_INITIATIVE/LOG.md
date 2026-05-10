@@ -1,5 +1,27 @@
 # LOG — Patient Reminder UX
 
+## 2026-05-10 — Выравнивание тем рассылок и reminder-движка (`notification_topic_code`)
+
+- **Цель:** связать id тем из `notifications_topics` с доставкой integrator без расширения `REMINDER_CATEGORIES`.
+- **Хранилище:** колонка `notification_topic_code` в `public.reminder_rules` и `integrator.user_reminder_rules` (миграции webapp `0054_reminder_rules_notification_topic_code.sql`, integrator `20260510_0001_user_reminder_rules_notification_topic_code.sql`).
+- **Webapp:** маппинг `ReminderRule` → код темы в `modules/reminders/notificationTopicCode.ts`; запись при upsert правила; M2M payload расширен полем `notificationTopicCode`.
+- **Integrator:** `reminderOccurrenceTopicCode` сначала берёт `rule.notificationTopicCode`, иначе legacy-эвристика; upsert при отсутствии поля в payload сохраняет существующее значение в БД. Rubitime `scheduleBookingReminders` вызывает delivery-targets с `topic=appointment_reminders`.
+- **Тесты:** `notificationTopicCode.test.ts` (webapp), расширены integrator-тесты контрактов/dispatch/Rubitime по необходимости.
+
+## 2026-05-10 — Post-audit: важное (`water`) и topic-фильтр
+
+- **Проблема:** при пустом `notificationTopicCode` эвристика `reminderIntent === 'generic'` отдавала `exercise_reminders` для интегратор-категории `water` (webapp «важное») — нарушался bypass по теме.
+- **Исправление:** в `reminderOccurrenceTopicCode` ранний выход для `rule.category === 'water'` → `undefined` (без `getTargetsByChannelBinding` с topic). Тесты в `reminderNotificationTopicCode.test.ts`.
+- **Скрипт:** `pnpm --dir apps/integrator run lint` (`eslint src`).
+
+## 2026-05-10 — Пост-аудит (хвосты из сверки с планом)
+
+- **Rubitime:** добавлен тест `booking.created does not enqueue slot reminders when appointment_reminders yields no channel bindings` — при `null` от delivery-targets с `topic=appointment_reminders` очередь слот-напоминаний не ставится; мгновенное сообщение пациенту по-прежнему без фильтра темы (первый вызов `getTargetsByPhone`).
+- **remindersReadsPort:** в unit-тестах проверяется маппинг `notificationTopicCode` из JSON webapp (включая явный `null`).
+- **Проекция (in-memory):** контрактный тест фиксирует `notificationTopicCode === null` у правила из проекции без поля.
+- **Маппер:** задокументирован резерв `symptom_reminders` (пока нет типа правила — возвращается `null`); тест на категорию без маппинга (`broadcast`).
+- **Остаточно по продукту:** мгновенные сообщения при lifecycle записи (`sendLinkedChannelMessage`) без `topic` — осознанно; смена потребует отдельного решения.
+
 ## 2026-05-09 — Аудит «усиленного» плана (пациентские блоки + план + интервал)
 
 - **Pre-audit (rg):** `updateRule` только `service.ts`, `patient/reminders/actions.ts`, `api/patient/reminders/[id]/route.ts`; интервал `interval_window` валидируется в `validateSchedule` (30…659), Zod в `actions.ts`, дубли в REST create/PATCH не вводились.

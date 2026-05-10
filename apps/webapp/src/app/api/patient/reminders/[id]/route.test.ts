@@ -48,6 +48,7 @@ const sampleRule = (): ReminderRule => ({
   displayDescription: null,
   quietHoursStartMinute: null,
   quietHoursEndMinute: null,
+  notificationTopicCode: "exercise_reminders",
   updatedAt: "2026-04-02T12:00:00.000Z",
 });
 

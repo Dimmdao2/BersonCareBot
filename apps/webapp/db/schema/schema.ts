@@ -1458,6 +1458,8 @@ export const reminderRules = pgTable("reminder_rules", {
 	displayDescription: text("display_description"),
 	quietHoursStartMinute: integer("quiet_hours_start_minute"),
 	quietHoursEndMinute: integer("quiet_hours_end_minute"),
+	/** Patient mailing topic id (`notifications_topics.id`) for integrator delivery-targets filtering; null = no per-topic filter. */
+	notificationTopicCode: text("notification_topic_code"),
 }, (table) => [
 	uniqueIndex("idx_reminder_rules_integrator_rule_id").using("btree", table.integratorRuleId.asc().nullsLast().op("text_ops")),
 	index("idx_reminder_rules_integrator_user_id").using("btree", table.integratorUserId.asc().nullsLast().op("int8_ops")),

@@ -30,6 +30,7 @@ const makeRule = (overrides: Partial<ReminderRule> = {}): ReminderRule => ({
   displayDescription: null,
   quietHoursStartMinute: null,
   quietHoursEndMinute: null,
+  notificationTopicCode: "exercise_reminders",
   updatedAt: new Date().toISOString(),
   ...overrides,
 });

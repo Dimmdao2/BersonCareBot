@@ -13,6 +13,8 @@
 #   integrator_push_outbox.idempotency_key
 #   system_settings.key
 #   platform_users.calendar_timezone
+# Checked tables:
+#   user_notification_topic_channels
 #
 set -euo pipefail
 
@@ -51,8 +53,30 @@ missing_columns="$(
   "
 )"
 
+missing_tables="$(
+  psql "$DATABASE_URL" -At -v ON_ERROR_STOP=1 -c "
+    WITH required(table_name) AS (
+      VALUES
+        ('user_notification_topic_channels')
+    )
+    SELECT required.table_name
+    FROM required
+    LEFT JOIN information_schema.tables t
+      ON t.table_schema = 'public'
+     AND t.table_name = required.table_name
+    WHERE t.table_name IS NULL
+    ORDER BY 1
+  "
+)"
+
 if [ -n "${missing_columns}" ]; then
   echo "webapp-post-migrate-schema-check: Post-migrate schema check failed. Missing columns:" >&2
   echo "${missing_columns}" >&2
+  exit 1
+fi
+
+if [ -n "${missing_tables}" ]; then
+  echo "webapp-post-migrate-schema-check: Post-migrate schema check failed. Missing tables:" >&2
+  echo "${missing_tables}" >&2
   exit 1
 fi

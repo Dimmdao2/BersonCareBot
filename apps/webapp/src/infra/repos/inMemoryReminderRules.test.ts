@@ -24,6 +24,7 @@ const sampleRule = (): ReminderRule => ({
   displayDescription: null,
   quietHoursStartMinute: null,
   quietHoursEndMinute: null,
+  notificationTopicCode: null,
   updatedAt: "2026-01-01T00:00:00.000Z",
 });
 

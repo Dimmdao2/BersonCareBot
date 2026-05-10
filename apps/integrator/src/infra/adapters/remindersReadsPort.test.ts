@@ -50,6 +50,7 @@ describe('remindersReadsPort', () => {
             updatedAt: '2025-01-01T00:00:00.000Z',
             scheduleData: { timesLocal: ['12:00', '15:00'], dayFilter: 'weekdays' },
             reminderIntent: 'generic',
+            notificationTopicCode: 'exercise_reminders',
           },
         ],
       }),
@@ -64,6 +65,7 @@ describe('remindersReadsPort', () => {
     expect(list[0]!.id).toBe('rule-1');
     expect(list[0]!.userId).toBe('42');
     expect(list[0]!.category).toBe('exercise');
+    expect(list[0]!.notificationTopicCode).toBe('exercise_reminders');
     expect(list[0]!.scheduleData).toEqual({ timesLocal: ['12:00', '15:00'], dayFilter: 'weekdays' });
     expect(list[0]!.reminderIntent).toBe('generic');
   });
@@ -93,6 +95,7 @@ describe('remindersReadsPort', () => {
           windowEndMinute: 1440,
           daysMask: '1111111',
           contentMode: 'none',
+          notificationTopicCode: null,
         },
       }),
     });
@@ -101,6 +104,7 @@ describe('remindersReadsPort', () => {
     expect(rule).not.toBeNull();
     expect(rule!.id).toBe('rule-1');
     expect(rule!.category).toBe('exercise');
+    expect(rule!.notificationTopicCode).toBeNull();
   });
 
   it('getRuleForUserAndCategory returns null on fetch error', async () => {

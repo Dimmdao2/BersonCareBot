@@ -9,6 +9,7 @@ import { getAppBaseUrl } from '../../config/appBaseUrl.js';
 import { createDbPort } from '../../infra/db/client.js';
 import { enqueueMessageRetryJob } from '../../infra/db/repos/jobQueue.js';
 import { createDeliveryTargetsPort } from '../../infra/adapters/deliveryTargetsPort.js';
+import { PATIENT_NOTIFICATION_TOPIC_APPOINTMENT_REMINDERS } from '../../kernel/domain/reminders/patientNotificationTopics.js';
 import type { DbWritePort, DispatchPort, WebappEventsPort } from '../../kernel/contracts/index.js';
 import { createRubitimeRecord, fetchRubitimeSchedule, removeRubitimeRecord, updateRubitimeRecord } from './client.js';
 import { resolveScheduleParams } from './bookingScheduleMapping.js';
@@ -232,7 +233,9 @@ async function scheduleBookingReminders(input: {
     getAppBaseUrl: () => getAppBaseUrl(createDbPort()),
   });
   const bindings = input.phoneNormalized
-    ? await deliveryTargets.getTargetsByPhone(input.phoneNormalized)
+    ? await deliveryTargets.getTargetsByPhone(input.phoneNormalized, {
+        topic: PATIENT_NOTIFICATION_TOPIC_APPOINTMENT_REMINDERS,
+      })
     : null;
   if (!bindings) return;
 

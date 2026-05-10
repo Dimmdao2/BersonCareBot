@@ -47,6 +47,8 @@ export type ReminderRule = {
   quietHoursStartMinute: number | null;
   /** Minute 1-1440 end-exclusive style; both null = quiet hours off */
   quietHoursEndMinute: number | null;
+  /** `notifications_topics.id` for integrator topic-aware delivery; null uses fallback heuristic only. */
+  notificationTopicCode: string | null;
   updatedAt: string;
 };
 

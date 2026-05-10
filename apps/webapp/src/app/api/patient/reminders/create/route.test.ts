@@ -55,6 +55,7 @@ const sampleObjectRule = (): ReminderRule => ({
   displayDescription: null,
   quietHoursStartMinute: null,
   quietHoursEndMinute: null,
+  notificationTopicCode: "exercise_reminders",
   updatedAt: "2026-04-02T12:00:00.000Z",
 });
 
@@ -65,6 +66,7 @@ const sampleCustomRule = (): ReminderRule => ({
   linkedObjectId: null,
   customTitle: "Вода",
   customText: "Утром",
+  notificationTopicCode: null,
 });
 
 function req(body: unknown) {

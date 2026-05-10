@@ -32,6 +32,8 @@ export type ReminderRuleRecord = {
   contentMode: ReminderContentMode;
   createdAt?: string;
   updatedAt?: string;
+  /** Webapp `notifications_topics.id` for delivery-targets topic filter; null = use heuristic only. */
+  notificationTopicCode?: string | null;
   /** Webapp projection (optional): linked object + deep link for bot payloads */
   linkedObjectType?: string | null;
   linkedObjectId?: string | null;

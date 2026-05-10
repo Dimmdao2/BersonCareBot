@@ -25,4 +25,5 @@
 
 - План реализации (базовый): `.cursor/plans/reminder_ux_full.plan.md` (не редактировать здесь)
 - Усиленный UX-план (блоки, план, интервал): см. выполнение в [LOG.md](./LOG.md) §2026-05-09 — аудит
+- **Темы рассылок × reminder-движок (`notification_topic_code`):** [NOTIFICATION_TOPIC_ALIGNMENT.md](./NOTIFICATION_TOPIC_ALIGNMENT.md) и [LOG.md](./LOG.md) §2026-05-10
 - Оглавление docs: [docs/README.md](../README.md)

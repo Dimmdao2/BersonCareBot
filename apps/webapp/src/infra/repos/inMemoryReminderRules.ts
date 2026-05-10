@@ -10,6 +10,7 @@ import type { ReminderRulesPort } from "@/modules/reminders/ports";
 import type { ReminderCategory, ReminderLinkedObjectType, ReminderRule, ReminderUpdateSchedule } from "@/modules/reminders/types";
 import type { SlotsV1ScheduleData } from "@/modules/reminders/scheduleSlots";
 import { DEFAULT_REHAB_WEEKDAY_SLOTS } from "@/modules/reminders/scheduleSlots";
+import { notificationTopicCodeFromReminderRule } from "@/modules/reminders/notificationTopicCode";
 
 const FALLBACK_CATEGORIES = new Set(["appointment", "lfk", "chat", "important"]);
 
@@ -87,6 +88,10 @@ export function createInMemoryReminderRulesPort(
         displayDescription: input.displayDescription ?? null,
         quietHoursStartMinute: input.quietHoursStartMinute ?? null,
         quietHoursEndMinute: input.quietHoursEndMinute ?? null,
+        notificationTopicCode: notificationTopicCodeFromReminderRule({
+          category,
+          linkedObjectType: input.linkedObjectType,
+        }),
         updatedAt: new Date().toISOString(),
       };
       store.set(id, rule);

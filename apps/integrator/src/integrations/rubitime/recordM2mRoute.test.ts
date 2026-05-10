@@ -45,6 +45,7 @@ vi.mock('../../infra/db/branchTimezone.js', () => ({
 }));
 
 import { registerRubitimeRecordM2mRoutes } from './recordM2mRoute.js';
+import { PATIENT_NOTIFICATION_TOPIC_APPOINTMENT_REMINDERS } from '../../kernel/domain/reminders/patientNotificationTopics.js';
 
 const TEST_SECRET = 'test-shared-secret-16chars';
 
@@ -245,6 +246,53 @@ describe('POST /api/bersoncare/rubitime/booking-event', () => {
     });
     expect(res2.statusCode).toBe(200);
     expect(dispatchOutgoing.mock.calls.length).toBe(afterFirst);
+  });
+
+  it('booking.created schedules patient reminders using delivery-targets topic appointment_reminders', async () => {
+    const dispatchOutgoing = vi.fn().mockResolvedValue(undefined);
+    getTargetsByPhone
+      .mockResolvedValueOnce({ telegramId: 'tg-patient-immediate', maxId: null })
+      .mockResolvedValueOnce({ telegramId: 'tg-chat-1', maxId: null });
+    const app = await buildApp(dispatchOutgoing);
+    const slot = bookingEventBody({
+      bookingId: '6f14566f-a4de-4ab4-9336-5ddf806cd6ce',
+    });
+    const raw = JSON.stringify(slot);
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/bersoncare/rubitime/booking-event',
+      headers: makeHeaders(raw),
+      body: raw,
+    });
+    expect(res.statusCode).toBe(200);
+    expect(getTargetsByPhone).toHaveBeenNthCalledWith(1, '+79990001122');
+    expect(getTargetsByPhone).toHaveBeenNthCalledWith(2, '+79990001122', {
+      topic: PATIENT_NOTIFICATION_TOPIC_APPOINTMENT_REMINDERS,
+    });
+    expect(enqueueMessageRetryJob).toHaveBeenCalled();
+  });
+
+  it('booking.created does not enqueue slot reminders when appointment_reminders yields no channel bindings', async () => {
+    enqueueMessageRetryJob.mockClear();
+    const dispatchOutgoing = vi.fn().mockResolvedValue(undefined);
+    getTargetsByPhone
+      .mockResolvedValueOnce({ telegramId: 'tg-immediate', maxId: null })
+      .mockResolvedValueOnce(null);
+    const app = await buildApp(dispatchOutgoing);
+    const raw = JSON.stringify(
+      bookingEventBody({ bookingId: '7f14566f-a4de-4ab4-9336-5ddf806cd6ce' }),
+    );
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/bersoncare/rubitime/booking-event',
+      headers: makeHeaders(raw),
+      body: raw,
+    });
+    expect(res.statusCode).toBe(200);
+    expect(getTargetsByPhone).toHaveBeenNthCalledWith(2, '+79990001122', {
+      topic: PATIENT_NOTIFICATION_TOPIC_APPOINTMENT_REMINDERS,
+    });
+    expect(enqueueMessageRetryJob).not.toHaveBeenCalled();
   });
 
   it('sends doctor telegram when admin id is configured', async () => {

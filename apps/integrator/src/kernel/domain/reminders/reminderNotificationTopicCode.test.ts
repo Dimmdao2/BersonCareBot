@@ -22,12 +22,31 @@ describe('reminderOccurrenceTopicCode', () => {
     expect(reminderOccurrenceTopicCode(undefined, 'water')).toBeUndefined();
   });
 
-  it('maps linked treatment program to exercise topic', () => {
+  it('maps linked treatment program to exercise topic when rule category is exercise', () => {
     const rule = {
       ...baseRule,
+      category: 'exercise',
       linkedObjectType: 'treatment_program_item',
       linkedObjectId: 'a:b',
+      reminderIntent: 'generic',
     } satisfies ReminderRuleRecord;
-    expect(reminderOccurrenceTopicCode(rule, 'water')).toBe('exercise_reminders');
+    expect(reminderOccurrenceTopicCode(rule, 'exercise')).toBe('exercise_reminders');
+  });
+
+  it('does not apply exercise topic for important (water) when reminderIntent is generic', () => {
+    const rule = {
+      ...baseRule,
+      reminderIntent: 'generic',
+    } satisfies ReminderRuleRecord;
+    expect(reminderOccurrenceTopicCode(rule, 'water')).toBeUndefined();
+  });
+
+  it('uses persisted notificationTopicCode first', () => {
+    const rule = {
+      ...baseRule,
+      category: 'supplements_medication',
+      notificationTopicCode: 'appointment_reminders',
+    } satisfies ReminderRuleRecord;
+    expect(reminderOccurrenceTopicCode(rule, 'water')).toBe('appointment_reminders');
   });
 });

@@ -98,6 +98,7 @@ export async function postReminderRuleUpsertToIntegrator(rule: ReminderRule): Pr
       reminderIntent: rule.reminderIntent ?? "generic",
       quietHoursStartMinute: rule.quietHoursStartMinute ?? null,
       quietHoursEndMinute: rule.quietHoursEndMinute ?? null,
+      notificationTopicCode: rule.notificationTopicCode ?? null,
     },
   });
   const signature = signPayload(timestamp, body, secret);
