@@ -1,13 +1,10 @@
-import { ChevronRight } from "lucide-react";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requirePatientAccess } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
 import { getPlatformEntry } from "@/shared/lib/platformCookie.server";
-import { shareCabinetLink } from "@/shared/lib/shareCabinetLink";
 import { AppShell } from "@/shared/ui/AppShell";
 import { ConnectMessengersBlock } from "@/shared/ui/ConnectMessengersBlock";
 import {
-  patientInfoLinkTileClass,
   patientInnerPageStackClass,
   patientSectionSurfaceClass,
   patientSectionTitleClass,
@@ -15,9 +12,9 @@ import {
 import { getSupportContactUrl } from "@/modules/system-settings/supportContactUrl";
 import { parseNotificationsTopics } from "@/modules/patient-notifications/notificationsTopics";
 import { buildProfileNotificationTopicModels } from "@/modules/patient-notifications/profileTopicChannelsModel";
-import { cn } from "@/lib/utils";
 import { LogoutSection } from "./LogoutSection";
 import { PatientProfileHero } from "./PatientProfileHero";
+import { PatientProfileShareCabinetTile } from "./PatientProfileShareCabinetTile";
 import { ProfileExtraSection } from "./ProfileExtraSection";
 import { ProfileNotificationsSection } from "./ProfileNotificationsSection";
 
@@ -77,14 +74,7 @@ export default async function PatientProfilePage() {
 
         <ProfileExtraSection />
 
-        <button
-          type="button"
-          className={cn(patientInfoLinkTileClass, "flex min-h-11 w-full items-center justify-between text-left")}
-          onClick={() => void shareCabinetLink()}
-        >
-          <span>Поделиться с другом</span>
-          <ChevronRight className="size-4 shrink-0 text-[var(--patient-text-muted)]" aria-hidden />
-        </button>
+        <PatientProfileShareCabinetTile />
 
         {platformEntry !== "bot" ? <LogoutSection /> : null}
       </div>
