@@ -6,7 +6,13 @@
 
 ---
 
-## 2026-05-10 — patient profile: плоская страница, dormant PIN UI, purge без PIN-reauth
+## 2026-05-13 — ROADMAP_2 §1.1b: закрыт по факту, спецификация помечена устаревшей
+
+**Документация:** [`ROADMAP_2.md`](ROADMAP_2.md) — синхронизация 2026-05-13, строка §0, §2, схема 1.x, §7 DoD, §9; §1.1b заменён на статус «выполнено иначе» + `<details>` с кратким архивом; источник правды по UI — [`apps/webapp/src/app/app/patient/treatment/program-detail/README.md`](../../apps/webapp/src/app/app/patient/treatment/program-detail/README.md), [`docs/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/README.md`](../PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/README.md).
+
+**Код:** не менялись (только документ).
+
+--- плоская страница, dormant PIN UI, purge без PIN-reauth
 
 **Сделано (webapp):** переработка [`profile/page.tsx`](../../apps/webapp/src/app/app/patient/profile/page.tsx): hero [`PatientProfileHero.tsx`](../../apps/webapp/src/app/app/patient/profile/PatientProfileHero.tsx), карточки Email / Мессенджеры, строка на `/notifications`, свёрнутый [`ProfileExtraSection.tsx`](../../apps/webapp/src/app/app/patient/profile/ProfileExtraSection.tsx) (таймзона, install, share), удалённые accordion-компоненты (`ProfileAccordionSection`, `ProfileForm`). Общий helper [`shareCabinetLink.ts`](../../apps/webapp/src/shared/lib/shareCabinetLink.ts) + вызов из [`PatientHeader.tsx`](../../apps/webapp/src/shared/ui/PatientHeader.tsx). PIN/`AuthOtpChannelPreference` не удалены из репозитория — только не рендерятся. [`DiaryDataPurgeSection`](../../apps/webapp/src/app/app/patient/profile/DiaryDataPurgeSection.tsx): intro→OTP; сняты вызовы `isDiaryPurgePinReauthValid` в [`purge-otp/start/route.ts`](../../apps/webapp/src/app/api/patient/diary/purge-otp/start/route.ts) и [`purge/route.ts`](../../apps/webapp/src/app/api/patient/diary/purge/route.ts) с `// SECURITY:` маркерами. Документация [`profile.md`](../../apps/webapp/src/app/app/patient/profile/profile.md) с TODO аватар и возврат PIN.
 

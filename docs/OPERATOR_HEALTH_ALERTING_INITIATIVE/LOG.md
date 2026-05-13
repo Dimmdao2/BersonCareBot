@@ -9,4 +9,9 @@
 - Добавлены детальные планы **PHASE_A** … **PHASE_G** (шаги, checklist, scope, DoD по фазе); `MASTER_PLAN.md` §5 заменён на таблицу ссылок.
 - Код не менялся.
 
-_(дальнейшие записи — по мере реализации)_
+### 2026-05-13 — MVP implementation plan
+
+- Добавлен [`MVP_IMPLEMENTATION_PLAN.md`](MVP_IMPLEMENTATION_PLAN.md): уточнения после проверки кода (дедуп GCal **без** `recordId` в ключе, хуки в **postCreate + webhook**, таблица в **`public`**, защита probe, resolution MVP A/B, риски).
+- Обновлён Cursor plan `mvp_operator_health_alerting_9310cffe.plan.md` — ссылка на канон в репо; todos: объединён шаг GCal в оба файла.
+- План дополнительно усилен до исполняемого формата: fixed decisions, строгие scope boundaries, data contract (`public.operator_incidents`), `error_class` taxonomy, пошаговые локальные проверки и явный минимальный auto-resolve для probe-инцидентов.
+

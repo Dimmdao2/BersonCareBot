@@ -1,5 +1,9 @@
 # LOG — PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE
 
+## 2026-05-13 — выравнивание с ROADMAP_2: §1.1b закрыт здесь
+
+В [`ROADMAP_2.md`](../APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md) пункт **§1.1b** помечен **выполненным по факту** текущей реализацией этого инициативного контура (`/app/patient/treatment/[instanceId]`, вкладки, `program-detail/**`); старый текст §1.1b в ROADMAP — **устаревшая спецификация** (архив). Запись в [`APP_RESTRUCTURE_INITIATIVE/LOG.md`](../APP_RESTRUCTURE_INITIATIVE/LOG.md) 2026-05-13.
+
 ## 2026-05-08 — аудит декомпозиции detail: чистка оркестратора, документация
 
 - **Код:** в `apps/webapp/src/app/app/patient/treatment/program-detail/PatientTreatmentProgramDetailClient.tsx` удалены неиспользуемые `busy`, неиспользуемая переменная `base`, состояние для полей **`doneTodayCountByActivityKey`** / **`lastDoneAtIsoByActivityKey`** из ответа checklist (на экране detail они не потреблялись; ответ API по-прежнему может содержать поля; экран пункта `PatientProgramStageItemPageClient` по-прежнему ведёт полный чеклист при необходимости). Восстановлена **`formatPatientTestResultRawValue`** в `patientPlanDetailFormatters.ts`.

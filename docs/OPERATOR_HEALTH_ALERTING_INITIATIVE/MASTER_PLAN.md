@@ -106,7 +106,7 @@
 ## 6. Оценка трудозатрат (ориентир)
 
 - **Полный объём** (все фазы, recovery, UI, мультиканал): порядка **10–15 инженерных дней**.
-- **MVP** (инциденты + критичные хуки + TG + UI без recovery-email): **5–7 дней**.
+- **MVP** (инциденты + критичные хуки + TG + UI без recovery-email): **5–7 дней**. Детальный порядок работ, дедуп GCal, два entrypoint вебхука/post-create, защита probe — см. [`MVP_IMPLEMENTATION_PLAN.md`](MVP_IMPLEMENTATION_PLAN.md).
 
 ## 7. Definition of Done (инициатива)
 
