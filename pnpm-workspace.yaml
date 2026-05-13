@@ -4,6 +4,7 @@ packages:
   - apps/integrator
   - packages/booking-rubitime-sync
   - packages/platform-merge
+  - packages/operator-db-schema
 
 onlyBuiltDependencies:
   - esbuild

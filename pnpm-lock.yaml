@@ -59,6 +59,9 @@ importers:
       '@bersoncare/booking-rubitime-sync':
         specifier: workspace:*
         version: link:../../packages/booking-rubitime-sync
+      '@bersoncare/operator-db-schema':
+        specifier: workspace:*
+        version: link:../../packages/operator-db-schema
       '@bersoncare/platform-merge':
         specifier: workspace:*
         version: link:../../packages/platform-merge
@@ -68,6 +71,9 @@ importers:
       dotenv:
         specifier: ^17.4.1
         version: 17.4.1
+      drizzle-orm:
+        specifier: ^0.45.2
+        version: 0.45.2(@types/pg@8.20.0)(pg@8.20.0)
       fastify:
         specifier: '>=5.8.5'
         version: 5.8.5
@@ -187,6 +193,9 @@ importers:
       '@bersoncare/booking-rubitime-sync':
         specifier: workspace:*
         version: link:../../packages/booking-rubitime-sync
+      '@bersoncare/operator-db-schema':
+        specifier: workspace:*
+        version: link:../../packages/operator-db-schema
       '@bersoncare/platform-merge':
         specifier: workspace:*
         version: link:../../packages/platform-merge
@@ -368,6 +377,16 @@ importers:
       '@types/node':
         specifier: ^22.19.3
         version: 22.19.17
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  packages/operator-db-schema:
+    dependencies:
+      drizzle-orm:
+        specifier: ^0.45.2
+        version: 0.45.2(@types/pg@8.20.0)(pg@8.20.0)
+    devDependencies:
       typescript:
         specifier: ^5.9.3
         version: 5.9.3

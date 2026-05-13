@@ -3,6 +3,10 @@
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+ODS="$ROOT/packages/operator-db-schema"
+if [[ ! -f "$ODS/dist/index.js" ]]; then
+  pnpm --dir "$ODS" run build
+fi
 PKG="$ROOT/packages/booking-rubitime-sync"
 if [[ ! -f "$PKG/dist/index.js" ]]; then
   pnpm --dir "$PKG" run build

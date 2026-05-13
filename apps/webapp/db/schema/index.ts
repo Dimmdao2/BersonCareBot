@@ -10,4 +10,5 @@ export * from "./entityComments";
 export * from "./courses";
 export * from "./patientPractice";
 export * from "./patientDiarySnapshots";
+export * from "./operatorHealth";
 export * from "./relations";

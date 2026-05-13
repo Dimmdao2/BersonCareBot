@@ -47,6 +47,7 @@ const nextConfig: NextConfig = {
     "@toast-ui/editor",
     "@toast-ui/react-editor",
     "@bersoncare/booking-rubitime-sync",
+    "@bersoncare/operator-db-schema",
   ],
   experimental: {
     /** Allow importing canonical `normalizeToUtcInstant` from integrator shared (single source of truth). */
