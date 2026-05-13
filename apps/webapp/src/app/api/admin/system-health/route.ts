@@ -6,6 +6,7 @@ import {
   ADMIN_PLAYBACK_METRICS_WINDOW_HOURS,
   loadAdminPlaybackHealthMetrics,
 } from "@/app-layer/media/adminPlaybackHealthMetrics";
+import { loadAdminTranscodeHealthMetrics } from "@/app-layer/media/adminTranscodeHealthMetrics";
 import { getPool } from "@/app-layer/db/client";
 import { proxyIntegratorProjectionHealth } from "@/app-layer/health/proxyIntegratorProjectionHealth";
 import { requireAdminModeSession } from "@/modules/auth/requireAdminMode";
@@ -42,6 +43,8 @@ type VideoPlaybackHealthStatus = "ok" | "error";
 type VideoPlaybackHealthPayload = {
   status: VideoPlaybackHealthStatus;
   windowHours: number;
+  /** Rolling short window for `byDeliveryLast1h` (UTC buckets), hours. */
+  windowHoursShort: number;
   /** Matches `video_playback_api_enabled`; informational for operators. */
   playbackApiEnabled: boolean;
   byDelivery: { hls: number; mp4: number; file: number };
@@ -52,6 +55,23 @@ type VideoPlaybackHealthPayload = {
    * Отличается от `totalResolutions` (нет повторных визитов одного человека по тому же `media_id`).
    */
   uniquePlaybackPairsFirstSeenInWindow: number;
+  byDeliveryLast1h: { hls: number; mp4: number; file: number };
+  fallbackTotalLast1h: number;
+  totalResolutionsLast1h: number;
+};
+
+type VideoTranscodeHealthStatus = "ok" | "error";
+
+type VideoTranscodeHealthPayload = {
+  status: VideoTranscodeHealthStatus;
+  pipelineEnabled: boolean;
+  reconcileEnabled: boolean;
+  pendingCount: number;
+  processingCount: number;
+  doneLastHour: number;
+  failedLastHour: number;
+  avgProcessingMsDoneLastHour: number | null;
+  oldestPendingAgeSeconds: number | null;
 };
 
 type SystemHealthResponse = {
@@ -66,6 +86,8 @@ type SystemHealthResponse = {
   };
   /** VIDEO_HLS_DELIVERY: hourly aggregates of playback resolutions (UTC buckets), last `windowHours`. */
   videoPlayback: VideoPlaybackHealthPayload;
+  /** VIDEO_HLS: transcode queue metrics from DB (not systemd liveness). */
+  videoTranscode: VideoTranscodeHealthPayload;
   meta: {
     probes: {
       webappDb: { status: string; durationMs: number; errorCode?: string };
@@ -73,6 +95,7 @@ type SystemHealthResponse = {
       projection: { status: string; durationMs: number; errorCode?: string };
       mediaPreview: { status: string; durationMs: number; errorCode?: string };
       videoPlayback: { status: string; durationMs: number; errorCode?: string };
+      videoTranscode: { status: string; durationMs: number; errorCode?: string };
     };
   };
   fetchedAt: string;
@@ -281,11 +304,33 @@ function emptyVideoPlaybackPayload(
   return {
     status,
     windowHours: ADMIN_PLAYBACK_METRICS_WINDOW_HOURS,
+    windowHoursShort: 1,
     playbackApiEnabled,
     byDelivery: { hls: 0, mp4: 0, file: 0 },
     fallbackTotal: 0,
     totalResolutions: 0,
     uniquePlaybackPairsFirstSeenInWindow: 0,
+    byDeliveryLast1h: { hls: 0, mp4: 0, file: 0 },
+    fallbackTotalLast1h: 0,
+    totalResolutionsLast1h: 0,
+  };
+}
+
+function emptyVideoTranscodePayload(
+  status: VideoTranscodeHealthStatus,
+  pipelineEnabled: boolean,
+  reconcileEnabled: boolean,
+): VideoTranscodeHealthPayload {
+  return {
+    status,
+    pipelineEnabled,
+    reconcileEnabled,
+    pendingCount: 0,
+    processingCount: 0,
+    doneLastHour: 0,
+    failedLastHour: 0,
+    avgProcessingMsDoneLastHour: null,
+    oldestPendingAgeSeconds: null,
   };
 }
 
@@ -299,30 +344,41 @@ async function probeVideoPlayback(): Promise<ProbeResult<VideoPlaybackHealthPayl
         value: {
           status: "ok",
           windowHours: ADMIN_PLAYBACK_METRICS_WINDOW_HOURS,
+          windowHoursShort: 1,
           playbackApiEnabled: false,
           byDelivery: { hls: 0, mp4: 0, file: 0 },
           fallbackTotal: 0,
           totalResolutions: 0,
           uniquePlaybackPairsFirstSeenInWindow: 0,
+          byDeliveryLast1h: { hls: 0, mp4: 0, file: 0 },
+          fallbackTotalLast1h: 0,
+          totalResolutionsLast1h: 0,
         },
         durationMs: elapsedMs(startedAt),
       };
     }
 
-    const metrics = await loadAdminPlaybackHealthMetrics({
-      windowHours: ADMIN_PLAYBACK_METRICS_WINDOW_HOURS,
-    });
+    const [metrics24, metrics1] = await Promise.all([
+      loadAdminPlaybackHealthMetrics({
+        windowHours: ADMIN_PLAYBACK_METRICS_WINDOW_HOURS,
+      }),
+      loadAdminPlaybackHealthMetrics({ windowHours: 1 }),
+    ]);
 
     return {
       ok: true,
       value: {
         status: "ok",
         windowHours: ADMIN_PLAYBACK_METRICS_WINDOW_HOURS,
+        windowHoursShort: 1,
         playbackApiEnabled: true,
-        byDelivery: metrics.byDelivery,
-        fallbackTotal: metrics.fallbackTotal,
-        totalResolutions: metrics.totalResolutions,
-        uniquePlaybackPairsFirstSeenInWindow: metrics.uniquePlaybackPairsFirstSeenInWindow,
+        byDelivery: metrics24.byDelivery,
+        fallbackTotal: metrics24.fallbackTotal,
+        totalResolutions: metrics24.totalResolutions,
+        uniquePlaybackPairsFirstSeenInWindow: metrics24.uniquePlaybackPairsFirstSeenInWindow,
+        byDeliveryLast1h: metrics1.byDelivery,
+        fallbackTotalLast1h: metrics1.fallbackTotal,
+        totalResolutionsLast1h: metrics1.totalResolutions,
       },
       durationMs: elapsedMs(startedAt),
     };
@@ -336,8 +392,47 @@ async function probeVideoPlayback(): Promise<ProbeResult<VideoPlaybackHealthPayl
   }
 }
 
+async function probeVideoTranscode(): Promise<ProbeResult<VideoTranscodeHealthPayload>> {
+  const startedAt = Date.now();
+  let pipelineEnabled = false;
+  let reconcileEnabled = false;
+  try {
+    pipelineEnabled = await getConfigBool("video_hls_pipeline_enabled", false);
+    reconcileEnabled = await getConfigBool("video_hls_reconcile_enabled", false);
+    const m = await loadAdminTranscodeHealthMetrics();
+    return {
+      ok: true,
+      value: {
+        status: "ok",
+        pipelineEnabled,
+        reconcileEnabled,
+        pendingCount: m.pendingCount,
+        processingCount: m.processingCount,
+        doneLastHour: m.doneLastHour,
+        failedLastHour: m.failedLastHour,
+        avgProcessingMsDoneLastHour: m.avgProcessingMsDoneLastHour,
+        oldestPendingAgeSeconds: m.oldestPendingAgeSeconds,
+      },
+      durationMs: elapsedMs(startedAt),
+    };
+  } catch {
+    return {
+      ok: false,
+      status: "error",
+      errorCode: "video_transcode_probe_failed",
+      durationMs: elapsedMs(startedAt),
+    };
+  }
+}
+
 function logProbe(
-  probe: "webapp_db" | "integrator_api" | "projection" | "media_preview" | "video_playback",
+  probe:
+    | "webapp_db"
+    | "integrator_api"
+    | "projection"
+    | "media_preview"
+    | "video_playback"
+    | "video_transcode",
   result: ProbeResult<unknown>,
   statusOverride?: string,
 ) {
@@ -366,12 +461,22 @@ export async function GET() {
     /* ignore — videoPlayback payload will still return error shell if probe fails */
   }
 
-  const [webappDb, integratorApi, projection, mediaPreview, videoPlayback] = await Promise.allSettled([
+  let pipelineEnabledFallback = false;
+  let reconcileEnabledFallback = false;
+  try {
+    pipelineEnabledFallback = await getConfigBool("video_hls_pipeline_enabled", false);
+    reconcileEnabledFallback = await getConfigBool("video_hls_reconcile_enabled", false);
+  } catch {
+    /* ignore — videoTranscode shell uses these flags when probe fails */
+  }
+
+  const [webappDb, integratorApi, projection, mediaPreview, videoPlayback, videoTranscode] = await Promise.allSettled([
     probeWebappDb(),
     probeIntegratorApi(),
     probeProjection(),
     probeMediaPreview(),
     probeVideoPlayback(),
+    probeVideoTranscode(),
   ]);
 
   const webappDbResult: ProbeResult<DbStatus> =
@@ -406,6 +511,15 @@ export async function GET() {
     ? videoPlaybackResult.value
     : emptyVideoPlaybackPayload("error", playbackApiEnabledFallback);
 
+  const videoTranscodeResult: ProbeResult<VideoTranscodeHealthPayload> =
+    videoTranscode.status === "fulfilled"
+      ? videoTranscode.value
+      : { ok: false, status: "error", errorCode: "video_transcode_probe_rejected", durationMs: 0 };
+
+  const videoTranscodePayload: VideoTranscodeHealthPayload = videoTranscodeResult.ok
+    ? videoTranscodeResult.value
+    : emptyVideoTranscodePayload("error", pipelineEnabledFallback, reconcileEnabledFallback);
+
   const response: SystemHealthResponse = {
     webappDb: webappDbResult.ok ? webappDbResult.value : "down",
     integratorApi: integratorApiResult.ok
@@ -428,6 +542,7 @@ export async function GET() {
           byMimeAndStatus: initMediaPreviewCounters(),
         },
     videoPlayback: videoPlaybackPayload,
+    videoTranscode: videoTranscodePayload,
     meta: {
       probes: {
         webappDb: {
@@ -455,6 +570,11 @@ export async function GET() {
           durationMs: videoPlaybackResult.durationMs,
           ...(videoPlaybackResult.ok ? {} : { errorCode: videoPlaybackResult.errorCode }),
         },
+        videoTranscode: {
+          status: videoTranscodeResult.ok ? videoTranscodeResult.value.status : videoTranscodeResult.status,
+          durationMs: videoTranscodeResult.durationMs,
+          ...(videoTranscodeResult.ok ? {} : { errorCode: videoTranscodeResult.errorCode }),
+        },
       },
     },
     fetchedAt: nowIso(),
@@ -465,6 +585,7 @@ export async function GET() {
   logProbe("projection", projectionResult, response.projection.status);
   logProbe("media_preview", mediaPreviewResult, response.mediaPreview.status);
   logProbe("video_playback", videoPlaybackResult, response.videoPlayback.status);
+  logProbe("video_transcode", videoTranscodeResult, response.videoTranscode.status);
 
   return NextResponse.json(response);
 }

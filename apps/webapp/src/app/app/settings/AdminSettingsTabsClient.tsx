@@ -15,6 +15,7 @@ const ADMIN_SECTIONS = [
 ] as const;
 
 export type AdminSettingsTabsClientProps = {
+  initialTab?: string;
   diagnostics: ReactNode;
   systemHealth: ReactNode;
   appParams: ReactNode;
@@ -24,7 +25,10 @@ export type AdminSettingsTabsClientProps = {
   auditLog: ReactNode;
 };
 
+const ADMIN_TAB_IDS = new Set<string>(ADMIN_SECTIONS.map((s) => s.value));
+
 export function AdminSettingsTabsClient({
+  initialTab,
   diagnostics,
   systemHealth,
   appParams,
@@ -33,7 +37,8 @@ export function AdminSettingsTabsClient({
   catalog,
   auditLog,
 }: AdminSettingsTabsClientProps) {
-  const [value, setValue] = useState<string>("diagnostics");
+  const resolvedInitial = initialTab && ADMIN_TAB_IDS.has(initialTab) ? initialTab : "diagnostics";
+  const [value, setValue] = useState<string>(resolvedInitial);
 
   return (
     <div className="flex flex-col gap-4">

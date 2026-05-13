@@ -7,6 +7,15 @@ const zeroMetrics = {
   uniquePlaybackPairsFirstSeenInWindow: 0,
 };
 
+const zeroTranscodeMetrics = {
+  pendingCount: 0,
+  processingCount: 0,
+  doneLastHour: 0,
+  failedLastHour: 0,
+  avgProcessingMsDoneLastHour: null as number | null,
+  oldestPendingAgeSeconds: null as number | null,
+};
+
 const {
   requireAdminModeSessionMock,
   checkDbHealthMock,
@@ -18,6 +27,7 @@ const {
   poolQueryMock,
   getConfigBoolMock,
   loadAdminPlaybackHealthMetricsMock,
+  loadAdminTranscodeHealthMetricsMock,
 } = vi.hoisted(() => ({
   requireAdminModeSessionMock: vi.fn(),
   checkDbHealthMock: vi.fn(),
@@ -32,6 +42,7 @@ const {
   poolQueryMock: vi.fn(),
   getConfigBoolMock: vi.fn(),
   loadAdminPlaybackHealthMetricsMock: vi.fn(),
+  loadAdminTranscodeHealthMetricsMock: vi.fn(),
 }));
 
 /** Routes SQL by substring — media preview probes run in parallel with playback metrics; order unspecified. */
@@ -87,6 +98,10 @@ vi.mock("@/app-layer/media/adminPlaybackHealthMetrics", () => ({
   ADMIN_PLAYBACK_METRICS_WINDOW_HOURS: 24,
 }));
 
+vi.mock("@/app-layer/media/adminTranscodeHealthMetrics", () => ({
+  loadAdminTranscodeHealthMetrics: loadAdminTranscodeHealthMetricsMock,
+}));
+
 import { GET } from "./route";
 
 describe("GET /api/admin/system-health", () => {
@@ -106,6 +121,8 @@ describe("GET /api/admin/system-health", () => {
     poolQueryMock.mockReset();
     mockPoolPreviewOnly();
     loadAdminPlaybackHealthMetricsMock.mockReset();
+    loadAdminTranscodeHealthMetricsMock.mockReset();
+    loadAdminTranscodeHealthMetricsMock.mockResolvedValue(zeroTranscodeMetrics);
     globalThis.fetch = originalFetch;
   });
 
@@ -156,10 +173,15 @@ describe("GET /api/admin/system-health", () => {
         totalResolutions: number;
         uniquePlaybackPairsFirstSeenInWindow: number;
       };
+      videoTranscode: {
+        status: string;
+        pendingCount: number;
+      };
       meta?: {
         probes?: {
           projection?: { status: string; durationMs: number };
           videoPlayback?: { status: string; durationMs: number };
+          videoTranscode?: { status: string; durationMs: number };
         };
       };
       fetchedAt: string;
@@ -178,6 +200,9 @@ describe("GET /api/admin/system-health", () => {
     expect(body.videoPlayback.totalResolutions).toBe(0);
     expect(body.videoPlayback.uniquePlaybackPairsFirstSeenInWindow).toBe(0);
     expect(body.meta?.probes?.videoPlayback?.status).toBe("ok");
+    expect(body.videoTranscode.status).toBe("ok");
+    expect(body.videoTranscode.pendingCount).toBe(0);
+    expect(body.meta?.probes?.videoTranscode?.status).toBe("ok");
     expect(loggerInfoMock).toHaveBeenCalled();
   });
 
@@ -244,7 +269,7 @@ describe("GET /api/admin/system-health", () => {
       session: { user: { userId: "a1", role: "admin" }, adminMode: true },
     });
     checkDbHealthMock.mockResolvedValue(true);
-    getConfigBoolMock.mockResolvedValue(true);
+    getConfigBoolMock.mockImplementation(async (key: string) => key === "video_playback_api_enabled");
     loadAdminPlaybackHealthMetricsMock.mockResolvedValue({
       ...zeroMetrics,
       byDelivery: { hls: 3, mp4: 2, file: 1 },
@@ -282,6 +307,8 @@ describe("GET /api/admin/system-health", () => {
       };
     };
     expect(loadAdminPlaybackHealthMetricsMock).toHaveBeenCalled();
+    expect(loadAdminPlaybackHealthMetricsMock).toHaveBeenCalledWith({ windowHours: 24 });
+    expect(loadAdminPlaybackHealthMetricsMock).toHaveBeenCalledWith({ windowHours: 1 });
     expect(body.videoPlayback.playbackApiEnabled).toBe(true);
     expect(body.videoPlayback.byDelivery).toEqual({ hls: 3, mp4: 2, file: 1 });
     expect(body.videoPlayback.totalResolutions).toBe(6);
@@ -295,7 +322,7 @@ describe("GET /api/admin/system-health", () => {
       session: { user: { userId: "a1", role: "admin" }, adminMode: true },
     });
     checkDbHealthMock.mockResolvedValue(true);
-    getConfigBoolMock.mockResolvedValue(true);
+    getConfigBoolMock.mockImplementation(async (key: string) => key === "video_playback_api_enabled");
     loadAdminPlaybackHealthMetricsMock.mockRejectedValue(new Error("drizzle_down"));
     globalThis.fetch = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ ok: true, db: "up" }), {
@@ -327,6 +354,56 @@ describe("GET /api/admin/system-health", () => {
     expect(body.meta?.probes?.videoPlayback?.errorCode).toBe("video_playback_probe_failed");
     expect(loggerWarnMock).toHaveBeenCalledWith(
       expect.objectContaining({ probe: "video_playback", errorCode: "video_playback_probe_failed" }),
+      "system_health_probe",
+    );
+  });
+
+  it("returns videoTranscode error shell when transcode metrics loader fails", async () => {
+    requireAdminModeSessionMock.mockResolvedValue({
+      ok: true,
+      session: { user: { userId: "a1", role: "admin" }, adminMode: true },
+    });
+    checkDbHealthMock.mockResolvedValue(true);
+    getConfigBoolMock.mockImplementation(async (key: string) =>
+      key === "video_hls_pipeline_enabled" || key === "video_hls_reconcile_enabled" ? true : false,
+    );
+    loadAdminTranscodeHealthMetricsMock.mockRejectedValue(new Error("drizzle_transcode_down"));
+    globalThis.fetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ ok: true, db: "up" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    ) as typeof fetch;
+    proxyIntegratorProjectionHealthMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          pendingCount: 0,
+          deadCount: 0,
+          retriesOverThreshold: 0,
+          lastSuccessAt: null,
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+
+    const res = await GET();
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      videoTranscode: {
+        status: string;
+        pipelineEnabled: boolean;
+        reconcileEnabled: boolean;
+        pendingCount: number;
+      };
+      meta?: { probes?: { videoTranscode?: { status?: string; errorCode?: string } } };
+    };
+    expect(body.videoTranscode.status).toBe("error");
+    expect(body.videoTranscode.pipelineEnabled).toBe(true);
+    expect(body.videoTranscode.reconcileEnabled).toBe(true);
+    expect(body.videoTranscode.pendingCount).toBe(0);
+    expect(body.meta?.probes?.videoTranscode?.errorCode).toBe("video_transcode_probe_failed");
+    expect(loggerWarnMock).toHaveBeenCalledWith(
+      expect.objectContaining({ probe: "video_transcode", errorCode: "video_transcode_probe_failed" }),
       "system_health_probe",
     );
   });

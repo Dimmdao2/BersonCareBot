@@ -48,6 +48,8 @@ export const ALLOWED_KEYS = [
   "video_hls_pipeline_enabled",
   /** VIDEO_HLS_DELIVERY phase-06: после confirm/multipart complete для video/* ставить job в очередь (вместе с `video_hls_pipeline_enabled`). */
   "video_hls_new_uploads_auto_transcode",
+  /** VIDEO_HLS: периодический internal reconcile (cron → POST) ставит в очередь «забытые» video без HLS; вместе с `video_hls_pipeline_enabled`. */
+  "video_hls_reconcile_enabled",
   /** VIDEO_HLS_DELIVERY phase-04: включает `GET /api/media/[id]/playback` (JSON + presign HLS). Выключено по умолчанию. */
   "video_playback_api_enabled",
   /** VIDEO_HLS_DELIVERY: глобальная стратегия выдачи видео: `mp4` | `hls` | `auto` (строка в JSON value). */

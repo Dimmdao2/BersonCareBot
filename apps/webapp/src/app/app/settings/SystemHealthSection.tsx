@@ -42,12 +42,26 @@ type SystemHealthPayload = {
   videoPlayback: {
     status: "ok" | "error";
     windowHours: number;
+    windowHoursShort?: number;
     playbackApiEnabled: boolean;
     byDelivery: { hls: number; mp4: number; file: number };
     fallbackTotal: number;
     totalResolutions: number;
-    /** Первая фиксация пары пользователь+видео за rolling window см. админ-док `/api/admin/system-health`. */
     uniquePlaybackPairsFirstSeenInWindow: number;
+    byDeliveryLast1h?: { hls: number; mp4: number; file: number };
+    fallbackTotalLast1h?: number;
+    totalResolutionsLast1h?: number;
+  };
+  videoTranscode: {
+    status: "ok" | "error";
+    pipelineEnabled: boolean;
+    reconcileEnabled: boolean;
+    pendingCount: number;
+    processingCount: number;
+    doneLastHour: number;
+    failedLastHour: number;
+    avgProcessingMsDoneLastHour: number | null;
+    oldestPendingAgeSeconds: number | null;
   };
   meta?: {
     probes?: {
@@ -56,6 +70,7 @@ type SystemHealthPayload = {
       projection?: { status: string; durationMs: number; errorCode?: string };
       mediaPreview?: { status: string; durationMs: number; errorCode?: string };
       videoPlayback?: { status: string; durationMs: number; errorCode?: string };
+      videoTranscode?: { status: string; durationMs: number; errorCode?: string };
     };
   };
   fetchedAt: string;
@@ -271,6 +286,7 @@ export function SystemHealthSection() {
   const playbackAccordionStatus = playbackApiDisabled
     ? "playback_disabled"
     : (data?.videoPlayback?.status ?? "error");
+  const transcodeAccordionStatus = data?.videoTranscode?.status ?? "error";
   const projection = data?.projection.snapshot;
   const queuePending = projection?.pendingCount ?? 0;
   const queueProcessing = projection?.processingCount ?? 0;
@@ -440,26 +456,53 @@ export function SystemHealthSection() {
                   <DetailRow label="Всего резолвов API" value={String(data?.videoPlayback?.totalResolutions ?? 0)} />
                   <DetailRow label="Уник. пары (пользователь+видео, первый раз за всё время, событие в окне)" value={String(data?.videoPlayback?.uniquePlaybackPairsFirstSeenInWindow ?? 0)} />
                   <DetailRow
-                    label="HLS / MP4 / file (резолвы)"
+                    label="HLS / MP4 (legacy) / Файл"
                     value={`${data?.videoPlayback?.byDelivery.hls ?? 0} / ${data?.videoPlayback?.byDelivery.mp4 ?? 0} / ${data?.videoPlayback?.byDelivery.file ?? 0}`}
+                  />
+                  <DetailRow
+                    label="HLS / MP4 (legacy) / Файл (1 ч)"
+                    value={`${data?.videoPlayback?.byDeliveryLast1h?.hls ?? 0} / ${data?.videoPlayback?.byDeliveryLast1h?.mp4 ?? 0} / ${data?.videoPlayback?.byDeliveryLast1h?.file ?? 0}`}
                   />
                   <DetailRow
                     label="Fallback (сумма по строкам почасового агрегата)"
                     value={String(data?.videoPlayback?.fallbackTotal ?? 0)}
                   />
-                  <p className="pt-1 text-muted-foreground">
-                    «Всего резолвов» растёт на каждый успешный `resolve` (например, повторный{" "}
-                    <code className="text-foreground">GET …/playback</code> перед истечением presigned URL при длинном
-                    HLS). «Уник. пары» — не более одного события на пару платформенный пользователь + видеофайл за всё время
-                    (первое попадание в таблице дедупликации).
-                  </p>
-                  <p className="pt-1 text-muted-foreground">
-                    Счётчики ведутся с момента внедрения таблиц; полные журналы см. по сообщению{" "}
-                    <code className="text-foreground">playback_resolved</code>.
+                  <DetailRow label="Fallback (1 ч)" value={String(data?.videoPlayback?.fallbackTotalLast1h ?? 0)} />
+                  <DetailRow label="Всего резолвов (1 ч)" value={String(data?.videoPlayback?.totalResolutionsLast1h ?? 0)} />
+                  <p className="pt-1 text-xs text-muted-foreground">
+                    «Всего резолвов» — на каждый успешный resolve; «Уник. пары» — первое событие на пару пользователь+видео в
+                    таблице дедупликации.
                   </p>
                 </>
               )}
               <ProbeInfo probe={data?.meta?.probes?.videoPlayback} />
+            </HealthAccordionItem>
+
+            <HealthAccordionItem name="Транскод HLS (очередь media_transcode_jobs)" status={transcodeAccordionStatus}>
+              <DetailRow label="Источник" value="PostgreSQL (не liveness systemd media-worker)" />
+              <DetailRow
+                label="Пайплайн / reconcile"
+                value={`${data?.videoTranscode?.pipelineEnabled ? "on" : "off"} / ${data?.videoTranscode?.reconcileEnabled ? "on" : "off"}`}
+              />
+              <DetailRow label="pending / processing" value={`${data?.videoTranscode?.pendingCount ?? 0} / ${data?.videoTranscode?.processingCount ?? 0}`} />
+              <DetailRow label="done / failed (за 1 ч UTC)" value={`${data?.videoTranscode?.doneLastHour ?? 0} / ${data?.videoTranscode?.failedLastHour ?? 0}`} />
+              <DetailRow
+                label="Среднее время done (1 ч), мс"
+                value={
+                  data?.videoTranscode?.avgProcessingMsDoneLastHour == null
+                    ? "—"
+                    : String(data.videoTranscode.avgProcessingMsDoneLastHour)
+                }
+              />
+              <DetailRow
+                label="Возраст oldest pending, с"
+                value={
+                  data?.videoTranscode?.oldestPendingAgeSeconds == null
+                    ? "—"
+                    : String(data.videoTranscode.oldestPendingAgeSeconds)
+                }
+              />
+              <ProbeInfo probe={data?.meta?.probes?.videoTranscode} />
             </HealthAccordionItem>
           </div>
 

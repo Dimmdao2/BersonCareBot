@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useState, useTransition } from "react";
+import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,6 +26,7 @@ export type VideoSystemSettingsSectionProps = {
   initialDefaultDelivery: VideoDefaultDeliveryUi;
   initialHlsPipelineEnabled: boolean;
   initialNewUploadsAutoTranscode: boolean;
+  initialHlsReconcileEnabled: boolean;
   initialWatermarkEnabled: boolean;
   initialPresignTtlSeconds: number;
 };
@@ -34,6 +36,7 @@ export function VideoSystemSettingsSection({
   initialDefaultDelivery,
   initialHlsPipelineEnabled,
   initialNewUploadsAutoTranscode,
+  initialHlsReconcileEnabled,
   initialWatermarkEnabled,
   initialPresignTtlSeconds,
 }: VideoSystemSettingsSectionProps) {
@@ -41,6 +44,7 @@ export function VideoSystemSettingsSection({
   const [defaultDelivery, setDefaultDelivery] = useState<VideoDefaultDeliveryUi>(initialDefaultDelivery);
   const [pipeline, setPipeline] = useState(initialHlsPipelineEnabled);
   const [autoTranscode, setAutoTranscode] = useState(initialNewUploadsAutoTranscode);
+  const [reconcile, setReconcile] = useState(initialHlsReconcileEnabled);
   const [watermark, setWatermark] = useState(initialWatermarkEnabled);
   const [ttl, setTtl] = useState(String(initialPresignTtlSeconds));
   const [ttlSaved, setTtlSaved] = useState(false);
@@ -171,6 +175,22 @@ export function VideoSystemSettingsSection({
             }
             disabled={busyKey === "video_hls_new_uploads_auto_transcode"}
           />
+          <LabeledSwitch
+            label="Reconcile legacy (cron)"
+            hint="Разрешает POST /api/internal/media-transcode/reconcile ставить задачи для старых video без HLS."
+            checked={reconcile}
+            onCheckedChange={(next) =>
+              void runPatch("video_hls_reconcile_enabled", next, () => setReconcile(next))
+            }
+            disabled={busyKey === "video_hls_reconcile_enabled"}
+          />
+          <p className="text-xs text-muted-foreground">
+            Очередь и метрики: вкладка{" "}
+            <Link href="/app/settings?adminTab=system-health" className="underline underline-offset-2">
+              Здоровье системы
+            </Link>
+            .
+          </p>
           <div className="border-t border-border pt-4">
             <p className="mb-2 text-xs font-medium">Watermark при транскоде</p>
             <LabeledSwitch

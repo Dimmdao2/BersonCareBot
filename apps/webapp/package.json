@@ -68,7 +68,7 @@
     "libphonenumber-js": "^1.12.41",
     "lucide-react": "^1.0.1",
     "luxon": "^3.7.2",
-    "next": "^16.2.3",
+    "next": "^16.2.6",
     "pg": "^8.20.0",
     "pino": "^10.3.1",
     "react": "^19.2.4",
@@ -86,7 +86,7 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@next/bundle-analyzer": "^16.2.2",
+    "@next/bundle-analyzer": "^16.2.6",
     "@tailwindcss/postcss": "^4.2.2",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
@@ -99,7 +99,7 @@
     "@types/react-dom": "^19.2.3",
     "drizzle-kit": "^0.31.10",
     "eslint": "^9.15.0",
-    "eslint-config-next": "^16.2.2",
+    "eslint-config-next": "^16.2.6",
     "jsdom": "^26.0.0",
     "pino-pretty": "^13.0.0",
     "postcss": "^8.5.9",

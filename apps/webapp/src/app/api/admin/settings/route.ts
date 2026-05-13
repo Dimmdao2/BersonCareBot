@@ -25,6 +25,7 @@ const ADMIN_BOOLEAN_SETTING_KEYS = new Set<string>([
   "video_playback_api_enabled",
   "video_hls_pipeline_enabled",
   "video_hls_new_uploads_auto_transcode",
+  "video_hls_reconcile_enabled",
   "patient_home_morning_ping_enabled",
 ]);
 
@@ -49,6 +50,7 @@ const ADMIN_SCOPE_KEYS = [
   "patient_app_maintenance_message",
   "video_hls_pipeline_enabled",
   "video_hls_new_uploads_auto_transcode",
+  "video_hls_reconcile_enabled",
   "video_playback_api_enabled",
   "video_default_delivery",
   "video_presign_ttl_seconds",

@@ -74,7 +74,19 @@ function parseVideoPresignTtlSeconds(valueJson: unknown): number {
   return Math.min(VIDEO_PRESIGN_TTL_MAX_SEC, Math.max(VIDEO_PRESIGN_TTL_MIN_SEC, Math.round(n)));
 }
 
-export default async function SettingsPage() {
+export default async function SettingsPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ adminTab?: string | string[] }>;
+}) {
+  const sp = searchParams != null ? await searchParams : {};
+  const adminTabRaw = sp.adminTab;
+  const adminTab =
+    typeof adminTabRaw === "string"
+      ? adminTabRaw
+      : Array.isArray(adminTabRaw) && typeof adminTabRaw[0] === "string"
+        ? adminTabRaw[0]
+        : undefined;
   const session = await getCurrentSession();
   if (!session) redirect("/app");
   if (session.user.role === "client") redirect("/app/patient/profile");
@@ -172,6 +184,9 @@ export default async function SettingsPage() {
           ),
           initialNewUploadsAutoTranscode: parseVideoBoolSetting(
             adminSettingsList.find((x) => x.key === "video_hls_new_uploads_auto_transcode")?.valueJson,
+          ),
+          initialHlsReconcileEnabled: parseVideoBoolSetting(
+            adminSettingsList.find((x) => x.key === "video_hls_reconcile_enabled")?.valueJson,
           ),
           initialWatermarkEnabled: parseVideoBoolSetting(
             adminSettingsList.find((x) => x.key === "video_watermark_enabled")?.valueJson,
@@ -290,6 +305,7 @@ export default async function SettingsPage() {
       {isAdmin && adminMode && adminSettings && (
         <div className="mt-6">
           <AdminSettingsTabsClient
+            initialTab={adminTab}
             diagnostics={
               <AdminSettingsSection
                 devMode={adminSettings.devMode}

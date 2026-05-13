@@ -988,6 +988,10 @@ export const mediaTranscodeJobs = pgTable("media_transcode_jobs", {
 	lockedBy: text("locked_by"),
 	lastError: text("last_error"),
 	nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true, mode: 'string' }),
+	/** Set when job transitions to processing (with claim). Cleared when returning to pending (retry / stale reclaim). */
+	processingStartedAt: timestamp("processing_started_at", { withTimezone: true, mode: "string" }),
+	/** Terminal completion instant for done / failed (permanent). */
+	finishedAt: timestamp("finished_at", { withTimezone: true, mode: "string" }),
 	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 }, (table) => [

@@ -18,6 +18,8 @@ export async function reclaimStaleProcessing(
      SET status = 'pending',
          locked_at = NULL,
          locked_by = NULL,
+         processing_started_at = NULL,
+         finished_at = NULL,
          updated_at = now(),
          last_error = COALESCE(last_error, '') || ' [stale_lock_reclaimed]'
      WHERE status = 'processing'
@@ -62,6 +64,8 @@ export async function claimNextJob(pool: Pool, lockedBy: string): Promise<Claime
            locked_at = now(),
            locked_by = $2,
            attempts = attempts + 1,
+           processing_started_at = now(),
+           finished_at = NULL,
            updated_at = now()
        WHERE id = $1::uuid AND status = 'pending'
        RETURNING id, media_id, attempts`,

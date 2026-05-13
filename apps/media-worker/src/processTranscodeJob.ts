@@ -27,6 +27,17 @@ import {
 import { readVideoWatermarkEnabled } from "./watermarkEnabled.js";
 import { resolveWatermarkFontPath } from "./watermarkFont.js";
 
+/** Short token for structured logs (no multi-line FFmpeg stderr / URLs). */
+function compactTranscodeLogErrorCode(message: string): string {
+  const oneLine = message.trim().replace(/\s+/g, " ");
+  const ffmpegExit = /^ffmpeg_(720p|480p|poster)_exit_\d+/.exec(oneLine);
+  if (ffmpegExit) return ffmpegExit[0];
+  if (oneLine.startsWith("master_head_missing")) return "master_head_missing_after_upload";
+  const colon = oneLine.indexOf(":");
+  if (colon > 0 && colon <= 72) return oneLine.slice(0, colon);
+  return oneLine.slice(0, 80);
+}
+
 export type TranscodeContext = {
   pool: Pool;
   s3Client: S3Client;
@@ -45,6 +56,19 @@ type MediaRow = {
   video_processing_status: string | null;
 };
 
+async function fetchTerminalJobDurationMs(pool: Pool, jobId: string): Promise<number | null> {
+  const r = await pool.query<{ ms: string | null }>(
+    `SELECT (EXTRACT(EPOCH FROM (finished_at - processing_started_at)) * 1000)::bigint::text AS ms
+     FROM media_transcode_jobs
+     WHERE id = $1::uuid AND finished_at IS NOT NULL AND processing_started_at IS NOT NULL`,
+    [jobId],
+  );
+  const raw = r.rows[0]?.ms;
+  if (raw == null) return null;
+  const n = Number.parseInt(raw, 10);
+  return Number.isFinite(n) ? n : null;
+}
+
 async function loadMedia(pool: Pool, mediaId: string): Promise<MediaRow | null> {
   const r = await pool.query<MediaRow>(
     `SELECT id, mime_type, s3_key, hls_master_playlist_s3_key, video_processing_status
@@ -61,6 +85,7 @@ async function markJobDone(pool: Pool, jobId: string): Promise<void> {
          locked_at = NULL,
          locked_by = NULL,
          last_error = NULL,
+         finished_at = now(),
          updated_at = now()
      WHERE id = $1::uuid`,
     [jobId],
@@ -68,31 +93,43 @@ async function markJobDone(pool: Pool, jobId: string): Promise<void> {
 }
 
 async function permanentFail(
-  pool: Pool,
+  ctx: TranscodeContext,
   jobId: string,
   mediaId: string,
   message: string,
 ): Promise<void> {
   const err = message.slice(0, 8000);
-  await pool.query(
+  await ctx.pool.query(
     `UPDATE media_transcode_jobs
      SET status = 'failed',
          last_error = $2,
          locked_at = NULL,
          locked_by = NULL,
          next_attempt_at = NULL,
+         finished_at = now(),
          updated_at = now()
      WHERE id = $1::uuid`,
     [jobId, err],
   );
-  await pool.query(
+  await ctx.pool.query(
     `UPDATE media_files SET video_processing_status = 'failed', video_processing_error = $2 WHERE id = $1::uuid`,
     [mediaId, err],
+  );
+  const durationMs = await fetchTerminalJobDurationMs(ctx.pool, jobId);
+  ctx.log.warn(
+    {
+      jobId,
+      mediaId,
+      outcome: "failed_permanent",
+      durationMs,
+      errorCode: compactTranscodeLogErrorCode(err),
+    },
+    "transcode_job_terminal",
   );
 }
 
 async function retryableFail(
-  pool: Pool,
+  ctx: TranscodeContext,
   jobId: string,
   mediaId: string,
   attemptsAfterClaim: number,
@@ -102,25 +139,44 @@ async function retryableFail(
   const err = message.slice(0, 8000);
   const isFinal = attemptsAfterClaim >= maxAttempts;
   if (isFinal) {
-    await permanentFail(pool, jobId, mediaId, err);
+    await permanentFail(ctx, jobId, mediaId, err);
     return;
   }
+  const started = await ctx.pool.query<{ t: string | null }>(
+    `SELECT processing_started_at::text AS t FROM media_transcode_jobs WHERE id = $1::uuid`,
+    [jobId],
+  );
+  const t0 = started.rows[0]?.t ? Date.parse(started.rows[0].t) : NaN;
+  const durationMs = Number.isFinite(t0) ? Math.max(0, Date.now() - t0) : null;
   const backoff = backoffMsAfterFailure(attemptsAfterClaim);
   const nextAt = new Date(Date.now() + backoff).toISOString();
-  await pool.query(
+  await ctx.pool.query(
     `UPDATE media_transcode_jobs
      SET status = 'pending',
          last_error = $2,
          next_attempt_at = $3::timestamptz,
          locked_at = NULL,
          locked_by = NULL,
+         processing_started_at = NULL,
+         finished_at = NULL,
          updated_at = now()
      WHERE id = $1::uuid`,
     [jobId, err, nextAt],
   );
-  await pool.query(
+  await ctx.pool.query(
     `UPDATE media_files SET video_processing_status = 'pending', video_processing_error = $2 WHERE id = $1::uuid`,
     [mediaId, err],
+  );
+  ctx.log.info(
+    {
+      jobId,
+      mediaId,
+      outcome: "retry_pending",
+      durationMs,
+      attemptsAfterClaim,
+      errorCode: compactTranscodeLogErrorCode(err),
+    },
+    "transcode_job_retry",
   );
 }
 
@@ -155,11 +211,11 @@ async function uploadDirRecursive(
 export async function processTranscodeJob(ctx: TranscodeContext, job: ClaimedJob): Promise<void> {
   const media = await loadMedia(ctx.pool, job.mediaId);
   if (!media || !media.s3_key?.trim()) {
-    await permanentFail(ctx.pool, job.id, job.mediaId, "missing_media_or_s3_key");
+    await permanentFail(ctx, job.id, job.mediaId, "missing_media_or_s3_key");
     return;
   }
   if (!media.mime_type.toLowerCase().startsWith("video/")) {
-    await permanentFail(ctx.pool, job.id, job.mediaId, "not_video");
+    await permanentFail(ctx, job.id, job.mediaId, "not_video");
     return;
   }
 
@@ -168,6 +224,11 @@ export async function processTranscodeJob(ctx: TranscodeContext, job: ClaimedJob
     const exists = await headObjectExists(ctx.s3Client, ctx.bucket, masterKeyExisting);
     if (exists) {
       await markJobDone(ctx.pool, job.id);
+      const durationMs = await fetchTerminalJobDurationMs(ctx.pool, job.id);
+      ctx.log.info(
+        { jobId: job.id, mediaId: job.mediaId, outcome: "done", durationMs, skip: "already_ready" },
+        "transcode completed",
+      );
       return;
     }
   }
@@ -175,7 +236,7 @@ export async function processTranscodeJob(ctx: TranscodeContext, job: ClaimedJob
   const mediaRoot = mediaRootFromSourceS3Key(media.s3_key);
   if (!isCanonicalMediaRootForId(mediaRoot, job.mediaId)) {
     await permanentFail(
-      ctx.pool,
+      ctx,
       job.id,
       job.mediaId,
       "non_canonical_s3_key_layout_expected_media_mediaId_file",
@@ -194,7 +255,7 @@ export async function processTranscodeJob(ctx: TranscodeContext, job: ClaimedJob
     fontPath = resolveWatermarkFontPath(ctx.log);
     if (!fontPath) {
       await permanentFail(
-        ctx.pool,
+        ctx,
         job.id,
         job.mediaId,
         // eslint-disable-next-line no-secrets/no-secrets -- ops error token, not a secret
@@ -257,7 +318,7 @@ export async function processTranscodeJob(ctx: TranscodeContext, job: ClaimedJob
     );
     if (run720.code !== 0) {
       await retryableFail(
-        ctx.pool,
+        ctx,
         job.id,
         job.mediaId,
         job.attempts,
@@ -285,7 +346,7 @@ export async function processTranscodeJob(ctx: TranscodeContext, job: ClaimedJob
     );
     if (run480.code !== 0) {
       await retryableFail(
-        ctx.pool,
+        ctx,
         job.id,
         job.mediaId,
         job.attempts,
@@ -313,7 +374,7 @@ export async function processTranscodeJob(ctx: TranscodeContext, job: ClaimedJob
     });
     if (runPoster.code !== 0) {
       await retryableFail(
-        ctx.pool,
+        ctx,
         job.id,
         job.mediaId,
         job.attempts,
@@ -337,7 +398,7 @@ export async function processTranscodeJob(ctx: TranscodeContext, job: ClaimedJob
     const masterOk = await headObjectExists(ctx.s3Client, ctx.bucket, masterKey);
     if (!masterOk) {
       await retryableFail(
-        ctx.pool,
+        ctx,
         job.id,
         job.mediaId,
         job.attempts,
@@ -363,14 +424,22 @@ export async function processTranscodeJob(ctx: TranscodeContext, job: ClaimedJob
       [masterKey, hlsBaseKeyPrefix, posterKey, qualitiesJson, job.mediaId],
     );
     await markJobDone(ctx.pool, job.id);
+    const durationMs = await fetchTerminalJobDurationMs(ctx.pool, job.id);
     ctx.log.info(
-      { jobId: job.id, mediaId: job.mediaId, masterKey, watermark: Boolean(watermarkEnabled) },
+      {
+        jobId: job.id,
+        mediaId: job.mediaId,
+        outcome: "done",
+        durationMs,
+        masterKey,
+        watermark: Boolean(watermarkEnabled),
+      },
       "transcode completed",
     );
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     ctx.log.error({ err: e, jobId: job.id }, "transcode unexpected error");
-    await retryableFail(ctx.pool, job.id, job.mediaId, job.attempts, ctx.maxAttempts, msg);
+    await retryableFail(ctx, job.id, job.mediaId, job.attempts, ctx.maxAttempts, msg);
   } finally {
     await rm(tmpRoot, { recursive: true, force: true });
   }
