@@ -12,6 +12,7 @@
 - Событийная регистрация сбоев синка Google Calendar в **обоих** рубитайм-путях обработки.
 - Две регулярные пробы исходящей доступности: **MAX** (`getMyInfo`) и **Rubitime** (`get-schedule`).
 - Отображение открытых инцидентов в admin «Здоровье системы».
+- Управляемый lifecycle PostgreSQL-бэкапов: ретенция + очистка + статус выполнения по типам (`hourly`, `daily`, `weekly`, `pre-migrations`) в admin health.
 
 ---
 
@@ -26,6 +27,13 @@
 5. **Пробы:** только MAX + Rubitime.
 6. **Endpoint проб:** только защищённый (`integratorWebhookSecret`), без публичного unauthenticated доступа.
 7. **Resolution в MVP:** автоматический `resolve` **только по успешным пробам** MAX/Rubitime; без Telegram «восстановлено».
+8. **Ретенция бэкапов (фиксируем в MVP):**
+   - `hourly`: хранить **48 часов**;
+   - `daily`: хранить **35 дней**;
+   - `weekly`: хранить **12 недель**;
+   - `pre-migrations`: хранить **минимум 30 дней и не менее 20 последних** (`age <= 30d OR входит в top-20 newest`).
+9. **Реализация очистки (фиксируем):** без нового постоянного systemd-демона; использовать host cron + новый lifecycle-runner в `postgres-backup.sh` (mode `prune`) с запуском 1 раз в сутки в тихое окно.
+10. **Телеметрия запусков:** один upsert в БД на завершение джобы (`success|failure`, `duration_ms`, `last_success_at`/`last_failure_at`) для каждого класса бэкапа.
 
 ---
 
@@ -38,6 +46,7 @@
 - Хуки GCal fail в двух обработчиках Rubitime.
 - Probe runner (MAX + Rubitime) + scheduler trigger.
 - Webapp read/API/UI (блок открытых инцидентов).
+- Backup lifecycle: weekly режим, prune-логика, cron-профили запуска, и DB-тик статуса выполнения для backup jobs.
 - Тесты и док-обновления по затронутым участкам.
 
 ### Out of scope
@@ -47,6 +56,8 @@
 - Auto-merge / media-worker / projection debounce алерты.
 - Пробы Telegram, GCal-only probe, SMSC, SMTP.
 - UI-действия «закрыть инцидент».
+- Перенос бэкапов во внешнее объектное хранилище (S3/Glacier) и cross-region DR-процедуры.
+- Full event-log каждой ротации файла; в MVP храним агрегированный last-run status по job key.
 
 ---
 
@@ -80,11 +91,31 @@
 - `rubitime_get_schedule_failed`
 - fallback: `unknown_error_class`
 
+### 4.3 Таблица статуса периодических job (`public.operator_job_status`, MVP)
+
+Минимальные поля:
+
+- `job_key` text pk (`backup.hourly`, `backup.daily`, `backup.weekly`, `backup.pre_migrations`, `backup.prune`)
+- `job_family` text not null (`backup`)
+- `last_status` text not null (`success` | `failure`)
+- `last_started_at` timestamptz null
+- `last_finished_at` timestamptz null
+- `last_success_at` timestamptz null
+- `last_failure_at` timestamptz null
+- `last_duration_ms` integer null
+- `last_error` text null (truncate)
+- `meta_json` jsonb not null default `'{}'::jsonb` (например: `{"mode":"hourly","filesCreated":2}`)
+
+Индексы:
+
+- `job_family`, `job_key`
+- `last_finished_at DESC`
+
 ---
 
 ## 5. План реализации (шаги + проверки)
 
-Порядок: **A1 → A2 → B1 → B2 → C1 → C2 → D1**.
+Порядок: **A1 → A2 → B1 → B2 → C1 → C2 → D1 → E1 → E2 → E3 → E4**.
 
 ### A1 — Миграция и схема
 
@@ -217,11 +248,91 @@
 
 ---
 
+### E1 — Backup lifecycle policy + script modes
+
+Изменения:
+
+- [deploy/postgres/postgres-backup.sh](../../deploy/postgres/postgres-backup.sh):
+  - добавить mode `weekly` (выгрузка в `/opt/backups/postgres/weekly`);
+  - добавить mode `prune` (retention policy по fixed decisions);
+  - при совпадающих `DATABASE_URL` у `api.prod` и `webapp.prod` делать **один** `pg_dump` вместо двух идентичных (снижение нагрузки).
+
+Проверки:
+
+- `rg "weekly|prune" deploy/postgres/postgres-backup.sh deploy/postgres/README.md`
+- локальный dry-run prune на тестовой директории (без удаления за пределами `/opt/backups/postgres/*`).
+
+Критерий закрытия:
+
+- Скрипт стабильно создаёт weekly backup и удаляет только файлы вне retention policy.
+
+---
+
+### E2 — Backup status ticks в БД (one-row-per-job)
+
+Изменения:
+
+- `apps/webapp/db/schema/**` + migration: `public.operator_job_status`.
+- В webapp health-агрегатор добавить чтение `backup`-job status.
+- В backup lifecycle runner: после завершения `hourly/daily/weekly/pre-migrations/prune` писать upsert в `operator_job_status`.
+
+Проверки:
+
+- Unit: upsert idempotent (повтор same job_key обновляет одну запись).
+- Негатив: при fail фиксируются `last_status=failure`, `last_failure_at`, `last_error`.
+
+Критерий закрытия:
+
+- В БД по каждому backup job key всегда есть актуальный last-run статус.
+
+---
+
+### E3 — Scheduler strategy (нагрузка и классический подход)
+
+Решение:
+
+- Не поднимать новый долгоживущий node/systemd worker только ради очистки.
+- Использовать **host cron** (лёгкий и надёжный для file-retention задач):
+  - `hourly`: каждый час;
+  - `daily`: раз в сутки в тихое окно;
+  - `weekly`: раз в неделю;
+  - `prune`: 1 раз в сутки после daily (или отдельным cron в то же окно).
+
+Проверки:
+
+- `deploy/HOST_DEPLOY_README.md`: добавить каноничные cron snippets.
+- smoke: один ручной запуск каждого режима возвращает code 0 при корректном env.
+
+Критерий закрытия:
+
+- Нет нового service-unit, а очистка работает штатно по cron без заметного постоянного CPU/IO следа.
+
+---
+
+### E4 — UI/health surfaces для backup tiers
+
+Изменения:
+
+- `GET /api/admin/system-health`: добавить секцию `backupJobs` с key/value для `hourly|daily|weekly|pre-migrations|prune`.
+- `SystemHealthSection.tsx`: отдельный компактный блок статуса backup tiers (last success/failure, age, error summary).
+
+Проверки:
+
+- route test на payload `backupJobs`.
+- UI smoke: видим раздельно `hourly`, `daily`, `weekly`, `pre-migrations` (и опционально `prune`).
+
+Критерий закрытия:
+
+- Админ видит, какой именно тип backup последним прошёл/упал, без чтения syslog на хосте.
+
+---
+
 ## 6. Файлы, которые разрешено менять
 
 - `apps/webapp/db/schema/**`, `apps/webapp/db/migrations/**`
 - `apps/integrator/src/infra/**`, `apps/integrator/src/app/**`, `apps/integrator/src/integrations/rubitime/**`
 - `apps/webapp/src/modules/**` (порты/сервисы), `apps/webapp/src/infra/repos/**`, `apps/webapp/src/app/api/admin/**`, `apps/webapp/src/app/app/settings/**`
+- `deploy/postgres/**`, `deploy/HOST_DEPLOY_README.md`
 - `docs/OPERATOR_HEALTH_ALERTING_INITIATIVE/**`, `apps/webapp/src/app/api/api.md`
 
 Не менять в MVP:
@@ -238,6 +349,10 @@
 - [ ] Probe trigger защищён секретом.
 - [ ] В admin health виден список открытых инцидентов.
 - [ ] Для probe-инцидентов есть минимальный auto-resolve без recovery-нотификаций.
+- [ ] Введена и задокументирована retention policy: hourly 48h, daily 35d, weekly 12w, pre-migrations (30d + top-20).
+- [ ] Backup lifecycle выполняет prune по расписанию без отдельного нового daemon worker.
+- [ ] В admin health виден раздельный статус backup tiers: hourly/daily/weekly/pre-migrations (+ prune).
+- [ ] Для каждого backup job key пишется last-run tick в БД (`success|failure`, `duration`, timestamps).
 - [ ] Нет новых env для интеграционных ключей; параметры через `system_settings` только если нужны.
 - [ ] Перед merge: зелёный `pnpm run ci`.
 
@@ -251,12 +366,14 @@
 | MAX отключён/не настроен | `skipped_not_configured`, без открытия инцидента |
 | Рост таблицы | для MVP без retention; post-MVP добавить архив/TTL |
 | Секрет случайно не проверяется в endpoint | обязательный negative-test без секрета |
+| Лишняя нагрузка от очистки бэкапов | prune 1 раз/сутки в тихое окно, без постоянного daemon |
+| Потеря точки отката pre-migrations | политика "30d + минимум top-20 newest", а не только age-based delete |
 
 ---
 
 ## 9. Оценка
 
-**5–7 инженерных дней**, ~2.5–4.5k LOC с тестами.
+**7–10 инженерных дней**, ~3.5–6k LOC с тестами и host-runbook обновлениями.
 
 ---
 
@@ -269,4 +386,8 @@
 - [ ] C1: защищённый trigger + scheduler
 - [ ] C2: minimal auto-resolve probe incidents
 - [ ] D1: webapp read/API/UI + tests
+- [ ] E1: backup weekly+prune modes + retention policy
+- [ ] E2: `operator_job_status` schema + DB ticks for backup jobs
+- [ ] E3: cron strategy and host docs for backup lifecycle
+- [ ] E4: system-health payload/UI block for backup tiers
 - [ ] Docs: `LOG.md`, `api.md`, итоговые проверки и CI
