@@ -1,6 +1,7 @@
 ---
 name: Phase 3 Patient Home
 overview: "Переписать `/app/patient` на мобильную витрину «Сегодня»: порядок и видимость секций строго из `patient_home_blocks` / `patient_home_block_items`, данные карточек — из разрешённых items и существующих портов (`todayConfig`, CMS, курсы, напоминания, программы). Прогресс и настроение — только заглушки; без новых сущностей и без хардкода редакционных slug-ов."
+status: completed
 todos:
   - id: dto-resolvers
     content: Добавить DTO + resolvers в modules/patient-home (situations, carousel, SOS, optional courses/reminder helper) с узкими deps-типами

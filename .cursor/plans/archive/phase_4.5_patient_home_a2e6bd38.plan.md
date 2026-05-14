@@ -1,6 +1,7 @@
 ---
 name: Phase 4.5 patient home
 overview: Разрешить ровно `/app/patient` (с query, с нормализацией trailing slash) без сессии через исключение в `patient/layout.tsx`, убрать редирект из `page.tsx`, расширить `PatientHomeToday` и карточки под `session === null` + auth-on-drilldown и деградацию `/api/media` в UI, закрепить политику и сценарии тестами без хардкода slug-ов из CONTENT_PLAN.
+status: completed
 todos:
   - id: policy-helper
     content: Добавить patientLayoutAllowsUnauthenticatedAccess + JSDoc + export; расширить patientRouteApiPolicy.test.ts

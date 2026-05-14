@@ -1,33 +1,36 @@
 ---
 name: System Health Tab
 overview: Auto-agent план для вкладки «Здоровье системы» (вариант 1) и мобильного фикса вкладок админки. Сначала аудит, затем фиксы; тесты и push вынесены в отдельные задачи.
+status: completed
 todos:
   - id: audit-current-state
     content: "Аудит текущих health-источников, ограничений варианта 1 и причины мобильного бага"
-    status: pending
+    status: completed
   - id: audit-contract
     content: "Зафиксировать API-контракт /api/admin/system-health и правила статусов в UI до начала фиксов"
-    status: pending
+    status: completed
   - id: fix-mobile-tabs
     content: "Исправить мобильную навигацию вкладок: dropdown на small экранах, tabs-list на sm+"
-    status: pending
+    status: completed
   - id: fix-system-health-api
     content: "Добавить admin API-агрегатор system-health с guard, таймаутами и нормализацией ошибок"
-    status: pending
+    status: completed
   - id: fix-system-health-ui
     content: "Добавить SystemHealthSection: сервисы/БД, воркеры (косвенно), backup journal placeholder"
-    status: pending
+    status: completed
   - id: fix-wire-tab
     content: "Подключить вкладку system-health в AdminSettingsTabsClient и settings/page.tsx"
-    status: pending
+    status: completed
   - id: docs-update
     content: "Обновить docs и execution log по новой вкладке, ограничениям и мобильному фиксу"
-    status: pending
+    status: completed
   - id: handoff-no-tests-no-push
     content: "Сформировать handoff с явной пометкой: тесты не запускались, push не выполнялся"
-    status: pending
+    status: completed
 isProject: false
 ---
+
+**Архив:** реализовано в webapp — `GET /api/admin/system-health`, `SystemHealthSection`, вкладка `adminTab=system-health`, тесты `SystemHealthSection*.test.tsx`. Расширения cron/HLS/reconcile — см. архивный план `cron_and_system_health.plan.md` в этом каталоге.
 
 # Вкладка «Здоровье системы» + мобильный фикс (auto-agent ready)
 

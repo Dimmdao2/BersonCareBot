@@ -47,7 +47,7 @@
    - docs/PATIENT_APP_VISUAL_REDESIGN_INITIATIVE/LOG.md
 4. Пройдись по списку plan-файлов (00–05) и определи, какая фаза следующая по статусу `LOG.md` / AUDIT_PHASE_*.md.
 5. Подтверди, что docs/PATIENT_APP_VISUAL_REDESIGN_INITIATIVE/references/ существует. Если папка пуста — зафиксируй в LOG.md, что Phase 3/4 идут только по VISUAL_SYSTEM_SPEC.md.
-6. Запрещено исполнять PROMPT'ы из docs/PATIENT_HOME_REDESIGN_INITIATIVE/PROMPTS_PLAN_EXEC_AUDIT_FIX.md и .cursor/plans/phase_3_patient_home_*.plan.md / phase_4.5_patient_home_*.plan.md — это архив.
+6. Запрещено исполнять PROMPT'ы из docs/PATIENT_HOME_REDESIGN_INITIATIVE/PROMPTS_PLAN_EXEC_AUDIT_FIX.md и .cursor/plans/archive/phase_3_patient_home_*.plan.md / phase_4.5_patient_home_*.plan.md — это архив.
 
 Верни:
 - текущую ветку;

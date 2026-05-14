@@ -4,7 +4,7 @@
 
 После аудита расширение того же порога на **общий patient-слой**: `patientVisual.ts` (карточный chrome, rhythm внутренних страниц, inner-hero типографика) и десктопный хром карточек в `patientHomeCardStyles.ts`, чтобы на планшете (768–1023px) не оставалось «широкий shell + мобильные радиус/тень до lg».
 
-План исполнения (канонический в репозитории): `.cursor/plans/patient_shell_md_breakpoint.plan.md`.
+План исполнения (канонический в репозитории): `.cursor/plans/archive/patient_shell_md_breakpoint.plan.md`.
 
 Журнал работ и проверок: [`LOG.md`](LOG.md).
 

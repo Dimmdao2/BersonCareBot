@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -110,41 +110,55 @@ export function PatientInstanceStageItemCard(props: {
   const [clinicalTestSnap, setClinicalTestSnap] = useState<PatientTestSetPageServerSnapshot | null>(null);
   const [clinicalTestSnapLoaded, setClinicalTestSnapLoaded] = useState(false);
 
-  useEffect(() => {
-    if (item.itemType !== "clinical_test" || readOnly || contentBlocked) {
-      setClinicalTestSnap(null);
-      setClinicalTestSnapLoaded(true);
-      return;
-    }
-    setClinicalTestSnapLoaded(false);
-    let cancelled = false;
-    void (async () => {
+  const reloadClinicalTestSnap = useCallback(
+    async (signal?: AbortSignal) => {
+      if (item.itemType !== "clinical_test" || readOnly || contentBlocked) {
+        setClinicalTestSnap(null);
+        setClinicalTestSnapLoaded(true);
+        return;
+      }
+      setClinicalTestSnapLoaded(false);
       try {
         const res = await fetch(
           `/api/patient/treatment-program-instances/${encodeURIComponent(instanceId)}/items/${encodeURIComponent(item.id)}/progress/test-set-snapshot`,
+          { signal },
         );
-        const data = (await res.json().catch(() => null)) as { ok?: boolean; snapshot?: PatientTestSetPageServerSnapshot };
-        if (cancelled) return;
+        const data = (await res.json().catch(() => null)) as {
+          ok?: boolean;
+          snapshot?: PatientTestSetPageServerSnapshot;
+        };
         if (res.ok && data.ok && data.snapshot) {
           setClinicalTestSnap(data.snapshot);
         } else {
           setClinicalTestSnap(null);
         }
+      } catch (e) {
+        if (signal?.aborted) return;
+        throw e;
       } finally {
-        if (!cancelled) setClinicalTestSnapLoaded(true);
+        if (!signal?.aborted) {
+          setClinicalTestSnapLoaded(true);
+        }
       }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [instanceId, item.id, item.itemType, readOnly, contentBlocked]);
+    },
+    [instanceId, item.id, item.itemType, readOnly, contentBlocked],
+  );
+
+  useEffect(() => {
+    const ac = new AbortController();
+    void reloadClinicalTestSnap(ac.signal);
+    return () => ac.abort();
+  }, [reloadClinicalTestSnap]);
 
   const markRef = usePostMarkItemViewedWhenVisible({
     instanceId,
     itemId: item.id,
     enabled: showsNew,
     onDone: () => {
-      void refresh();
+      void (async () => {
+        await refresh();
+        await reloadClinicalTestSnap();
+      })();
     },
   });
   const openDetailLink = (
@@ -230,7 +244,10 @@ export function PatientInstanceStageItemCard(props: {
                         `/api/patient/treatment-program-instances/${encodeURIComponent(instanceId)}/items/${encodeURIComponent(item.id)}/mark-viewed`,
                         { method: "POST" },
                       );
-                      if (res.ok) void refresh();
+                      if (res.ok) {
+                        await refresh();
+                        await reloadClinicalTestSnap();
+                      }
                     } finally {
                       setMarkingViewed(false);
                     }
@@ -299,7 +316,10 @@ export function PatientInstanceStageItemCard(props: {
                     busy={busy}
                     setBusy={setBusy}
                     setError={setError}
-                    onDone={refresh}
+                    onDone={async () => {
+                      await refresh();
+                      await reloadClinicalTestSnap();
+                    }}
                     serverSnapshot={clinicalTestSnap}
                   />
                 )}

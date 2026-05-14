@@ -1,6 +1,7 @@
 ---
 name: Doctor-only stage completion
 overview: "Привести логику этапов к правилу «закрытие этапа только врачом»: убрать автозавершение этапа из пациентских путей, сохранить пациентский переход `available -> in_progress`, переписать тесты, добавить в кабинете врача кнопку «Открыть заново» для этапов `completed`/`skipped`, обновить каноническую документацию и runbook отката."
+status: completed
 todos:
   - id: preflight-and-scope
     content: Зафиксировать scope, прочитать релевантные правила/доки, проверить runtime-использование maybeCompleteStageFromItems перед удалением

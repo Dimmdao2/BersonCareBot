@@ -28,7 +28,7 @@
 | [`ASSIGNMENT_CATALOGS_REWORK_PLAN.md`](../APP_RESTRUCTURE_INITIATIVE/ASSIGNMENT_CATALOGS_REWORK_PLAN.md) | UX/данные каталогов (в т.ч. конструктор шаблонов, фильтры, universal comment pattern B7). README инициативы: по шаблонам программ оставался **«мелкий хвост»**, не блокер для [`ROADMAP_2.md`](../APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md). |
 | [`ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md`](../APP_RESTRUCTURE_INITIATIVE/done/ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md) (done) | Связь шаблон ↔ использование ↔ пациенты при архивации — контекст безопасных изменений каталога. |
 | [`../TREATMENT_PROGRAM_INITIATIVE/EXECUTION_RULES.md`](../TREATMENT_PROGRAM_INITIATIVE/EXECUTION_RULES.md) | Абсолюты: каталог ЛФК менять можно (Drizzle-миграции и постановка); не строить отдельный движок курсов; полиморфный `item_ref_id` без FK; Drizzle для новых сущностей; фазы и CI. |
-| [`PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/README.md`](../PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/README.md) | Пациентский UI программ ([`ROADMAP_2`](../APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md) §1.x) — **смежный**, не заменяет врачебный поток, но влияет на согласованность отображения после назначения/правок. |
+| [`PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/README.md`](../archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/README.md) | Пациентский UI программ ([`ROADMAP_2`](../APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md) §1.x) — **смежный**, не заменяет врачебный поток, но влияет на согласованность отображения после назначения/правок. |
 
 ---
 
@@ -109,7 +109,7 @@
 - Переключение **disabled** для items; toggle **actionable** для рекомендаций где применимо.
 - Группы: DnD и CRUD, если в данных уже есть `instStageGroups`.
 
-**Критерий:** правки отражаются у пациента в плане (согласовать с [`PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE`](../PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/README.md) при приёмке).
+**Критерий:** правки отражаются у пациента в плане (согласовать с [`PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE`](../archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/README.md) при приёмке).
 
 ### Этап 4 — Вторичный функционал карточки по TARGET / PROGRAM_PATIENT_SHAPE
 
@@ -146,7 +146,7 @@
 | Документы TARGET / PROGRAM — **частично strawman или docs-only**; код мог уйти вперёд или отстать | Этап 0 инвентаризации обязателен. |
 | Полные **tabs/hero** резко увеличивают объём | Этап 1: явное решение «минимум vs TARGET». |
 | Дублирование логики каталога и карточки | Общие компоненты selector + сервис назначения через порты. |
-| Регресс у пациента | Согласовать с [`PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE`](../PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/README.md) / smoke сценарии. |
+| Регресс у пациента | Согласовать с [`PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE`](../archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/README.md) / smoke сценарии. |
 
 ---
 

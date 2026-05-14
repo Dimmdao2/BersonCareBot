@@ -29,6 +29,7 @@ export default async function DoctorPatientTreatmentProgramPage({ params, search
 
   const [
     testResults,
+    attemptAcceptMap,
     programEvents,
     programActionLog,
     appDisplayTimeZone,
@@ -41,6 +42,7 @@ export default async function DoctorPatientTreatmentProgramPage({ params, search
     contentPagesAll,
   ] = await Promise.all([
     deps.treatmentProgramProgress.listTestResultsForInstance(instanceId),
+    deps.treatmentProgramProgress.getDoctorAttemptAcceptMap(instanceId),
     deps.treatmentProgramInstance.listProgramEvents(instanceId),
     deps.treatmentProgramProgress.listProgramActionLogForInstance(instanceId),
     getAppDisplayTimeZone(),
@@ -81,6 +83,7 @@ export default async function DoctorPatientTreatmentProgramPage({ params, search
         patientDisplayName={patientDisplayName}
         initial={detail}
         initialTestResults={testResults}
+        initialAttemptAcceptMap={attemptAcceptMap}
         initialEvents={programEvents}
         initialActionLog={programActionLog}
         currentUserId={session.user.userId}

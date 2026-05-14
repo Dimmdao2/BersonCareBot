@@ -26,8 +26,11 @@ export async function GET(
     if (!identity) {
       return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
     }
-    const results = await deps.treatmentProgramProgress.listTestResultsForInstance(instanceId);
-    return NextResponse.json({ ok: true, results });
+    const [results, attemptAcceptMap] = await Promise.all([
+      deps.treatmentProgramProgress.listTestResultsForInstance(instanceId),
+      deps.treatmentProgramProgress.getDoctorAttemptAcceptMap(instanceId),
+    ]);
+    return NextResponse.json({ ok: true, results, attemptAcceptMap });
   } catch {
     return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
   }

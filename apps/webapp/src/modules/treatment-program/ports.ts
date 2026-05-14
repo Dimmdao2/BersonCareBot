@@ -276,8 +276,8 @@ export type TreatmentProgramTestAttemptsPort = {
     stageItemId: string;
     patientUserId: string;
   }): Promise<TreatmentProgramTestAttemptRow>;
-  /** Пациент отправил полный набор тестов в рамках попытки (`submitted_at`). */
-  markAttemptSubmitted(attemptId: string): Promise<void>;
+  /** Пациент отправил полный набор тестов в рамках попытки (`submitted_at`). Идемпотентно: повтор не меняет дату. */
+  markAttemptSubmitted(attemptId: string): Promise<{ didTransitionToSubmitted: boolean }>;
   upsertResult(input: {
     attemptId: string;
     testId: string;
@@ -295,8 +295,15 @@ export type TreatmentProgramTestAttemptsPort = {
    * Врач принимает отправленную попытку: `accepted_at` / `accepted_by` и `completed_at` пункта этапа.
    */
   acceptAttempt(input: { attemptId: string; instanceId: string; doctorUserId: string }): Promise<void>;
-  /** Снять отметку приёма врачом со всех попыток по элементу (новый круг после принятой попытки). */
-  clearAcceptanceOnAllAttemptsForStageItemPatient(stageItemId: string, patientUserId: string): Promise<void>;
+  /**
+   * Атомарно: после отправленной попытки начать новый круг — сброс `completed_at` пункта и вставка open attempt.
+   * Требует отсутствия open attempt и наличия хотя бы одной submitted попытки.
+   */
+  startNewAttemptAfterSubmitted(input: {
+    instanceId: string;
+    stageItemId: string;
+    patientUserId: string;
+  }): Promise<TreatmentProgramTestAttemptRow>;
   listResultDetailsForInstance(instanceId: string): Promise<TreatmentProgramTestResultDetailRow[]>;
   overrideResultDecision(
     resultId: string,

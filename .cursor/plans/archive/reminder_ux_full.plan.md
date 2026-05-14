@@ -1,12 +1,12 @@
 ---
 name: Reminder UX Full
-overview: "Reminder UX — закрыт (2026-05-09): rehab slots_v1, mute, integrator-проекция, главная n/N; документы в docs/PATIENT_REMINDER_UX_INITIATIVE/; план ниже — нормативный слепок решений и этапов."
+overview: "Reminder UX — закрыт (2026-05-09): rehab slots_v1, mute, integrator-проекция, главная n/N; документы в docs/archive/2026-05-initiatives/PATIENT_REMINDER_UX_INITIATIVE/; план ниже — нормативный слепок решений и этапов."
 status: completed
 completedAt: "2026-05-09"
 mergeRef: "677a18d0"
 todos:
   - id: docs-initiative-and-decisions
-    content: Создать docs/PATIENT_REMINDER_UX_INITIATIVE (README/ROADMAP/LOG), cross-links в docs/README; зафиксировать ADR с Locked Decisions.
+    content: Создать docs/archive/2026-05-initiatives/PATIENT_REMINDER_UX_INITIATIVE (README/ROADMAP/LOG), cross-links в docs/README; зафиксировать ADR с Locked Decisions.
     status: completed
   - id: schema-domain-rehab-slots-mute
     content: "Миграции и контракты: rehab_program, reminder_intent, slots_v1 JSON, optional label/description, сущность mute_until."
@@ -35,7 +35,7 @@ isProject: false
 
 - **Состояние:** все YAML-todos — `completed`; инициатива закрыта (**2026-05-09**).
 - **Код / merge:** ветка `main`, коммит `677a18d0` (после него — только правки docs при необходимости).
-- **Документы:** [`docs/PATIENT_REMINDER_UX_INITIATIVE/README.md`](../../docs/PATIENT_REMINDER_UX_INITIATIVE/README.md) (ADR), [`ROADMAP`](../../docs/PATIENT_REMINDER_UX_INITIATIVE/ROADMAP.md), [`LOG`](../../docs/PATIENT_REMINDER_UX_INITIATIVE/LOG.md); оглавление — [`docs/README.md`](../../docs/README.md) §Архив.
+- **Документы:** [`docs/archive/2026-05-initiatives/PATIENT_REMINDER_UX_INITIATIVE/README.md`](../../docs/archive/2026-05-initiatives/PATIENT_REMINDER_UX_INITIATIVE/README.md) (ADR), [`ROADMAP`](../../docs/archive/2026-05-initiatives/PATIENT_REMINDER_UX_INITIATIVE/ROADMAP.md), [`LOG`](../../docs/archive/2026-05-initiatives/PATIENT_REMINDER_UX_INITIATIVE/LOG.md); оглавление — [`docs/README.md`](../../docs/README.md) §Архив.
 - **Миграции (факт):** webapp SQL `084_reminder_rehab_slots_mute.sql`; integrator `20260509_0001_reminder_rules_multi_and_enrichment.sql`.
 
 ---
@@ -156,7 +156,7 @@ isProject: false
 
 ### Этап 0: Инициатива и контракт
 
-- Создать `docs/PATIENT_REMINDER_UX_INITIATIVE/` (`README.md`, `ROADMAP.md`, `LOG.md`).
+- Создать `docs/archive/2026-05-initiatives/PATIENT_REMINDER_UX_INITIATIVE/` (`README.md`, `ROADMAP.md`, `LOG.md`).
 - Включить в README краткий **ADR** со всеми пунктами Locked Decisions.
 - Ссылки: [`docs/README.md`](docs/README.md), при необходимости кросс-ссылка из initiatives roadmap.
 
@@ -211,7 +211,7 @@ Gate: component tests home reminder block; edge cases: N=0, all done, partially 
 ### Этап 6: Закрытие
 
 - E2E-сценарии вручную: push → snooze 15/30 / skip / done / mute; home корректно показывает n/N / пустой стейт.
-- Обновить `docs/PATIENT_REMINDER_UX_INITIATIVE/ROADMAP.md` и `LOG.md`.
+- Обновить `docs/archive/2026-05-initiatives/PATIENT_REMINDER_UX_INITIATIVE/ROADMAP.md` и `LOG.md`.
 - Финальный барьер: `pnpm install --frozen-lockfile && pnpm run ci`.
 
 ---

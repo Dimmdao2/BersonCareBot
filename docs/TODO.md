@@ -2,6 +2,12 @@
 
 Краткий список отложенных задач по безопасности, лимитам и наблюдаемости. Реализация по приоритетам продукт/ops.
 
+## Cursor-планы и доки (сводка)
+
+- **Активные планы** (корень репозитория): `.cursor/plans/integrator_drizzle_migration_master.plan.md` + `integrator_drizzle_phase_*.plan.md` — см. `docs/INTEGRATOR_DRIZZLE_MIGRATION/LOG.md`.
+- **Архив закрытых планов:** `.cursor/plans/archive/` — [README](../.cursor/plans/archive/README.md).
+- **Архивные инициативы docs:** `docs/archive/2026-05-initiatives/` (в т.ч. WEBAPP Drizzle unification, Patient Reminder UX, страница программы, LFK expand — оглавление в [docs/README.md](README.md) §Архив).
+
 ## Деплой webapp — blue/green (ближайшее время, ops)
 
 - **Проблема:** при выкате новой сборки Next.js **идентификаторы Server Actions** в клиентском бандле не совпадают с картой экшенов в уже запущенном процессе. Если за балансировщиком одновременно крутятся **разные версии** webapp, один и тот же пользователь может получить HTML/JS от версии A, а следующий запрос (POST экшена) — на инстанс версии B → в логах `Failed to find Server Action "…"`, в UI — сбой после действия.
@@ -58,7 +64,7 @@
 
 - **Сделано:** монолит разбит на модули под **`apps/webapp/src/app/app/patient/treatment/program-detail/`** (hero, tab strip, панели вкладок, timeline, контроль, этап/пункт, форматтеры); публичный API сохранён через **`treatment/PatientTreatmentProgramDetailClient.tsx`**.
 - **Карта файлов:** [`apps/webapp/src/app/app/patient/treatment/program-detail/README.md`](../apps/webapp/src/app/app/patient/treatment/program-detail/README.md).
-- **Ссылки:** [`docs/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/LOG.md`](PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/LOG.md); [`docs/archive/2026-05-initiatives/TREATMENT_PROGRAM_INITIATIVE/LOG.md`](archive/2026-05-initiatives/TREATMENT_PROGRAM_INITIATIVE/LOG.md).
+- **Ссылки:** [`docs/archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/LOG.md`](archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/LOG.md); [`docs/archive/2026-05-initiatives/TREATMENT_PROGRAM_INITIATIVE/LOG.md`](archive/2026-05-initiatives/TREATMENT_PROGRAM_INITIATIVE/LOG.md).
 
 ## Security / Auth
 

@@ -630,7 +630,7 @@ describe("treatment-program progress-service", () => {
     expect(snap.submittedAttemptsDetail.length).toBeGreaterThanOrEqual(2);
   });
 
-  it("clinical_test: patientStartNewTestAttempt clears item completed_at and prior attempt acceptance", async () => {
+  it("clinical_test: patientStartNewTestAttempt clears item completed_at but preserves prior acceptance", async () => {
     const inst = await persistence.instancePort.createInstanceTree({
       templateId: "00000000-0000-4000-8000-000000000001",
       patientUserId: patient,
@@ -692,10 +692,10 @@ describe("treatment-program progress-service", () => {
     after = await persistence.instancePort.getInstanceForPatient(patient, inst.id);
     expect(after!.stages[0]!.items[0]!.completedAt).toBeNull();
     attempts = await persistence.testAttemptsPort.listAttemptsForStageItem(itemId, patient, 10);
-    expect(attempts.find((a) => a.id === attempt1)?.acceptedAt).toBeNull();
+    expect(attempts.find((a) => a.id === attempt1)?.acceptedAt).not.toBeNull();
   });
 
-  it("clinical_test: doctorAcceptTestAttempt on newer attempt clears acceptance on older attempt", async () => {
+  it("clinical_test: doctor cannot accept stale attempt; accepting head does not clear older rows", async () => {
     const inst = await persistence.instancePort.createInstanceTree({
       templateId: "00000000-0000-4000-8000-000000000001",
       patientUserId: patient,
@@ -755,13 +755,22 @@ describe("treatment-program progress-service", () => {
     const att2 = d2.find((x) => x.attemptId !== att1)?.attemptId;
     expect(att2).toBeTruthy();
 
+    await expect(
+      progress.doctorAcceptTestAttempt({
+        instanceId: inst.id,
+        attemptId: att1,
+        doctorUserId: doctor,
+      }),
+    ).rejects.toThrow(/неактуальн/i);
+
     await progress.doctorAcceptTestAttempt({
       instanceId: inst.id,
-      attemptId: att1,
+      attemptId: att2!,
       doctorUserId: doctor,
     });
     let attempts = await persistence.testAttemptsPort.listAttemptsForStageItem(itemId, patient, 10);
-    expect(attempts.find((a) => a.id === att1)?.acceptedAt).not.toBeNull();
+    expect(attempts.find((a) => a.id === att1)?.acceptedAt).toBeNull();
+    expect(attempts.find((a) => a.id === att2)?.acceptedAt).not.toBeNull();
 
     await progress.doctorAcceptTestAttempt({
       instanceId: inst.id,
@@ -769,8 +778,65 @@ describe("treatment-program progress-service", () => {
       doctorUserId: doctor,
     });
     attempts = await persistence.testAttemptsPort.listAttemptsForStageItem(itemId, patient, 10);
-    expect(attempts.find((a) => a.id === att1)?.acceptedAt).toBeNull();
     expect(attempts.find((a) => a.id === att2)?.acceptedAt).not.toBeNull();
+  });
+
+  it("clinical_test: markAttemptSubmitted after submit is idempotent (no second transition)", async () => {
+    const inst = await persistence.instancePort.createInstanceTree({
+      templateId: "00000000-0000-4000-8000-000000000001",
+      patientUserId: patient,
+      assignedBy: null,
+      title: "Программа",
+      stages: [
+        {
+          sourceStageId: tplStageId,
+          title: "Этап 1",
+          description: null,
+          sortOrder: 1,
+          status: "available",
+          goals: null,
+          objectives: null,
+          expectedDurationDays: null,
+          expectedDurationText: null,
+          items: [
+            {
+              itemType: "clinical_test",
+              itemRefId: "55555555-5555-4555-8555-555555555555",
+              sortOrder: 0,
+              comment: null,
+              settings: null,
+              snapshot: {
+                itemType: "clinical_test",
+                title: "Набор",
+                tests: [{ testId, title: "T1", scoringConfig: { passIfGte: 5 } }],
+              },
+            },
+          ],
+        },
+      ],
+    });
+    const itemId = inst.stages[0]!.items[0]!.id;
+    await progress.patientSubmitTestResult({
+      patientUserId: patient,
+      instanceId: inst.id,
+      stageItemId: itemId,
+      testId,
+      rawValue: { score: 6 },
+    });
+    const attempts = await persistence.testAttemptsPort.listAttemptsForStageItem(itemId, patient, 5);
+    const attemptId = attempts[0]!.id;
+    const submittedCtx = (e: { eventType: string; payload: unknown }) => {
+      if (e.eventType !== "status_changed") return false;
+      const p = e.payload as { context?: string };
+      return p.context === "clinical_test_attempt_submitted";
+    };
+    let ev = await persistence.eventsPort.listEventsForInstance(inst.id);
+    expect(ev.filter(submittedCtx).length).toBe(1);
+
+    const again = await persistence.testAttemptsPort.markAttemptSubmitted(attemptId);
+    expect(again.didTransitionToSubmitted).toBe(false);
+    ev = await persistence.eventsPort.listEventsForInstance(inst.id);
+    expect(ev.filter(submittedCtx).length).toBe(1);
   });
 
   it("D4/Q2: qualitative without normalizedDecision and without inferrable score — rejects", async () => {

@@ -85,4 +85,4 @@
 
 ---
 
-*Архивные PROMPT'ы `PATIENT_HOME_REDESIGN_INITIATIVE` и планы `.cursor/plans/phase_3_patient_home_*` / `phase_4.5_patient_home_*` не исполнялись.*
+*Архивные PROMPT'ы `PATIENT_HOME_REDESIGN_INITIATIVE` и планы `.cursor/plans/archive/phase_3_patient_home_*` / `phase_4.5_patient_home_*` не исполнялись.*

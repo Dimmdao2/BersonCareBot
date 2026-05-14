@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, isNotNull, isNull, ne } from "drizzle-orm";
+import { and, asc, desc, eq, isNotNull, isNull } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import { clinicalTests } from "../../../db/schema/clinicalTests";
 import {
@@ -80,10 +80,13 @@ export function createPgTreatmentProgramTestAttemptsPort(): TreatmentProgramTest
 
     async markAttemptSubmitted(attemptId: string) {
       const db = getDrizzle();
-      await db
+      const now = new Date().toISOString();
+      const updated = await db
         .update(attemptTable)
-        .set({ submittedAt: new Date().toISOString() })
-        .where(eq(attemptTable.id, attemptId));
+        .set({ submittedAt: now })
+        .where(and(eq(attemptTable.id, attemptId), isNull(attemptTable.submittedAt)))
+        .returning({ id: attemptTable.id });
+      return { didTransitionToSubmitted: updated.length > 0 };
     },
 
     async listAttemptsForStageItem(stageItemId: string, patientUserId: string, limit = 40) {
@@ -101,6 +104,7 @@ export function createPgTreatmentProgramTestAttemptsPort(): TreatmentProgramTest
     async acceptAttempt(input: { attemptId: string; instanceId: string; doctorUserId: string }) {
       const db = getDrizzle();
       const now = new Date().toISOString();
+      const errStale = "Нельзя принять неактуальную попытку";
       await db.transaction(async (tx) => {
         const rows = await tx
           .select({
@@ -117,16 +121,29 @@ export function createPgTreatmentProgramTestAttemptsPort(): TreatmentProgramTest
         if (!hit.attempt.submittedAt) {
           throw new Error("Попытка ещё не отправлена пациентом");
         }
-        await tx
-          .update(attemptTable)
-          .set({ acceptedAt: null, acceptedBy: null })
+
+        const ordered = await tx
+          .select()
+          .from(attemptTable)
           .where(
             and(
               eq(attemptTable.instanceStageItemId, hit.attempt.instanceStageItemId),
               eq(attemptTable.patientUserId, hit.attempt.patientUserId),
-              ne(attemptTable.id, input.attemptId),
             ),
-          );
+          )
+          .orderBy(desc(attemptTable.startedAt), desc(attemptTable.id));
+        const H = ordered[0];
+        if (!H) throw new Error("Попытка не найдена");
+        if (!H.submittedAt) {
+          throw new Error(errStale);
+        }
+        if (H.id !== input.attemptId) {
+          throw new Error(errStale);
+        }
+        if (hit.attempt.acceptedAt != null) {
+          return;
+        }
+
         await tx
           .update(attemptTable)
           .set({ acceptedAt: now, acceptedBy: input.doctorUserId })
@@ -135,12 +152,71 @@ export function createPgTreatmentProgramTestAttemptsPort(): TreatmentProgramTest
       });
     },
 
-    async clearAcceptanceOnAllAttemptsForStageItemPatient(stageItemId: string, patientUserId: string) {
+    async startNewAttemptAfterSubmitted(input: {
+      instanceId: string;
+      stageItemId: string;
+      patientUserId: string;
+    }): Promise<TreatmentProgramTestAttemptRow> {
       const db = getDrizzle();
-      await db
-        .update(attemptTable)
-        .set({ acceptedAt: null, acceptedBy: null })
-        .where(and(eq(attemptTable.instanceStageItemId, stageItemId), eq(attemptTable.patientUserId, patientUserId)));
+      return db.transaction(async (tx) => {
+        const meta = await tx
+          .select({ item: itemTable, inst: instanceTable })
+          .from(itemTable)
+          .innerJoin(stageTable, eq(itemTable.stageId, stageTable.id))
+          .innerJoin(instanceTable, eq(stageTable.instanceId, instanceTable.id))
+          .where(and(eq(itemTable.id, input.stageItemId), eq(instanceTable.id, input.instanceId)))
+          .limit(1);
+        const m = meta[0];
+        if (!m) throw new Error("Элемент не найден");
+        if (m.inst.patientUserId !== input.patientUserId) {
+          throw new Error("Элемент не найден");
+        }
+        if (m.item.itemType !== "clinical_test") {
+          throw new Error("Элемент не является клиническим тестом");
+        }
+
+        const openRows = await tx
+          .select({ id: attemptTable.id })
+          .from(attemptTable)
+          .where(
+            and(
+              eq(attemptTable.instanceStageItemId, input.stageItemId),
+              eq(attemptTable.patientUserId, input.patientUserId),
+              isNull(attemptTable.submittedAt),
+            ),
+          )
+          .limit(1);
+        if (openRows.length > 0) {
+          throw new Error("Сначала отправьте текущую попытку");
+        }
+
+        const anySubmitted = await tx
+          .select({ id: attemptTable.id })
+          .from(attemptTable)
+          .where(
+            and(
+              eq(attemptTable.instanceStageItemId, input.stageItemId),
+              eq(attemptTable.patientUserId, input.patientUserId),
+              isNotNull(attemptTable.submittedAt),
+            ),
+          )
+          .limit(1);
+        if (anySubmitted.length === 0) {
+          throw new Error("Сначала отправьте набор тестов");
+        }
+
+        await tx.update(itemTable).set({ completedAt: null }).where(eq(itemTable.id, input.stageItemId));
+
+        const [row] = await tx
+          .insert(attemptTable)
+          .values({
+            instanceStageItemId: input.stageItemId,
+            patientUserId: input.patientUserId,
+          })
+          .returning();
+        if (!row) throw new Error("insert attempt failed");
+        return mapAttempt(row);
+      });
     },
 
     async upsertResult(input: {

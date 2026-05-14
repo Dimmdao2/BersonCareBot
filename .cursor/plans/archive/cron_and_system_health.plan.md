@@ -1,6 +1,7 @@
 ---
 name: Cron and System Health
 overview: Cron reconcile HLS backlog, тики reconcile в operator_job_status, расширенный транскод в system-health (в т.ч. агрегатный статус ok/degraded/error), операторская панель SystemHealthSection и пост-аудит — RTL-инварианты и data-testid «Техническая диагностика» (закрыто).
+status: completed
 todos:
   - id: docs-cron-night
     content: HOST_DEPLOY_README — два режима cron (быстрый */10 и nightly 04:00 Europe/Moscow); SERVER CONVENTIONS не меняли — отдельного реестра internal cron в документе нет
@@ -178,7 +179,7 @@ flowchart LR
 
 ### 8) Вне scope
 
-- HLS из приватного бакета: [.cursor/plans/hls_private_bucket_proxy.plan.md](.cursor/plans/hls_private_bucket_proxy.plan.md).
+- HLS из приватного бакета: [.cursor/plans/archive/hls_private_bucket_proxy.plan.md](.cursor/plans/archive/hls_private_bucket_proxy.plan.md).
 - Деплой миграций client-events и плеер — только после решения rollout.
 - Выравнивание **всех** счётчиков `media_files` в метриках транскода на Drizzle (сейчас кандидаты / ready+HLS — raw SQL через pool) — отдельный рефакторинг по желанию, не блокер плана.
 

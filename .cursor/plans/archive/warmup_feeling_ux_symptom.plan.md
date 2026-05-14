@@ -1,6 +1,7 @@
 ---
 name: Warmup feeling + UX
 overview: Компактная hero и порядок блоков на экране разминки; модалка «ощущения после разминки» без кнопки «Пропустить»; двухшаговый POST completion → PATCH feeling + запись symptom_entries через системный tracking warmup_feeling (по паттерну 0049); редирект на главную; без правил 10/60 мин.
+status: completed
 todos:
   - id: ux-warmup-page
     content: "page.tsx: компактная hero + порядок видео → PatientContentPracticeComplete → описание; Markdown 14px #3a3f53 для разминки"

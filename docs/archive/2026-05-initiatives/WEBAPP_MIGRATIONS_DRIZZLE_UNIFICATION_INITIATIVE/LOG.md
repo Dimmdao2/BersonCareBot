@@ -234,7 +234,7 @@
 1. **Drizzle migration `0053_recommendations_domain_guardrail.sql`** — идемпотентный `ALTER TABLE … ADD COLUMN IF NOT EXISTS "domain"` и `CREATE INDEX IF NOT EXISTS idx_recommendations_domain` на `recommendations` (эквивалент legacy `082_recommendations_domain.sql` для канонического пути `pnpm --dir apps/webapp run migrate`). Запись в `meta/_journal.json` (`idx` 53).
 2. **Схема TypeScript** — в `db/schema/recommendations.ts` добавлен индекс `idx_recommendations_domain` в соответствии с миграцией.
 3. **Deploy parity** — в `deploy/host/deploy-webapp-prod.sh` после migrate добавлен тот же **post-migrate guardrail** (`psql` / `information_schema`), что в `deploy/host/deploy-prod.sh` для колонок `test_sets.publication_status` и `recommendations.domain`.
-4. **Документация** — `deploy/HOST_DEPLOY_README.md` (блок «Отдельный webapp deploy»); `docs/WEBAPP_MIGRATIONS_DRIZZLE_UNIFICATION_INITIATIVE/README.md` (статус этапов).
+4. **Документация** — `deploy/HOST_DEPLOY_README.md` (блок «Отдельный webapp deploy»); `docs/archive/2026-05-initiatives/WEBAPP_MIGRATIONS_DRIZZLE_UNIFICATION_INITIATIVE/README.md` (статус этапов).
 
 ### Идемпотентность и уже мигрированные БД
 
@@ -470,7 +470,7 @@ Guardrail **усиливает** прод-путь и **совпадает по 
 | Webapp-миграции идут через один **канонический** путь (**Drizzle**) в **обычном deploy-flow** | **Да.** `deploy-prod.sh` / `deploy-webapp-prod.sh` вызывают только Drizzle-migrate (через `pnpm migrate` или `pnpm --dir apps/webapp run migrate`). Legacy-SQL не входит в эти скрипты. |
 | Критичные для рантайма колонки проверяются **post-migrate guardrail** | **Да.** `deploy/host/webapp-post-migrate-schema-check.sh` после migrate, до `systemctl restart`. |
 | **Legacy path** не используется как **обязательный** шаг production deploy | **Да.** Зафиксировано в `HOST_DEPLOY_README.md`, `DB_STRUCTURE.md`, блоках Stage D в LOG; prod deploy-скрипты legacy не вызывают. |
-| Документация и **runbook** синхронизированы | **Да** в рамках scope инициативы (`HOST_DEPLOY_README.md`, `DB_STRUCTURE.md`, документы в `docs/WEBAPP_MIGRATIONS_DRIZZLE_UNIFICATION_INITIATIVE/`). Отдельные doc из таблицы residual refs для Codex — не блокер закрытия. |
+| Документация и **runbook** синхронизированы | **Да** в рамках scope инициативы (`HOST_DEPLOY_README.md`, `DB_STRUCTURE.md`, документы в `docs/archive/2026-05-initiatives/WEBAPP_MIGRATIONS_DRIZZLE_UNIFICATION_INITIATIVE/`). Отдельные doc из таблицы residual refs для Codex — не блокер закрытия. |
 | В **`LOG.md`** зафиксированы этапы, проверки и решения | **Да.** Этапы A–D, аудиты, политика, residual риски, refs. |
 
 ---

@@ -1,6 +1,7 @@
 ---
 name: Exercise UI + References
 overview: "Форма упражнения: медиа сразу под заголовком (названием), до описания. Кабинет врача: раздел «Справочники» и управление reference_categories / reference_items. Исходный текст плана ошибочно указывал «под описанием» — фактический продуктовый порядок зафиксирован ниже."
+status: completed
 todos:
   - id: exercise-form-media-order
     content: "Порядок полей в ExerciseForm — название → медиа → описание (и далее по форме)"

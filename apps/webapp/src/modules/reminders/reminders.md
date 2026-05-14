@@ -4,7 +4,7 @@
 
 ## Документация
 
-- Инициатива UX / контракты: [`docs/PATIENT_REMINDER_UX_INITIATIVE/README.md`](../../../../../docs/PATIENT_REMINDER_UX_INITIATIVE/README.md)
+- Инициатива UX / контракты: [`docs/archive/2026-05-initiatives/PATIENT_REMINDER_UX_INITIATIVE/README.md`](../../../../../docs/archive/2026-05-initiatives/PATIENT_REMINDER_UX_INITIATIVE/README.md)
 
 ## Ключевые точки кода
 

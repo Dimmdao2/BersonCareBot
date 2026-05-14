@@ -19,7 +19,7 @@
 - `deploy/host/deploy-webapp-prod.sh`
 - `deploy/HOST_DEPLOY_README.md`
 - `docs/ARCHITECTURE/DB_STRUCTURE.md` (только если нужны factual updates)
-- текущая папка инициативы в `docs/WEBAPP_MIGRATIONS_DRIZZLE_UNIFICATION_INITIATIVE/**`
+- текущая папка инициативы в `docs/archive/2026-05-initiatives/WEBAPP_MIGRATIONS_DRIZZLE_UNIFICATION_INITIATIVE/**`
 
 Для discovery можно читать и искать по всему репозиторию. Для edits Composer ограничен документацией и явно разрешенными файлами этапа; все найденные code/script refs вне scope записывать в `LOG.md` и передавать Codex.
 

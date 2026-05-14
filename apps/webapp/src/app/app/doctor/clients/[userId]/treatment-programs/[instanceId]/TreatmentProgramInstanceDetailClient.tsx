@@ -782,6 +782,8 @@ export function TreatmentProgramInstanceDetailClient(props: {
   patientDisplayName: string;
   initial: TreatmentProgramInstanceDetail;
   initialTestResults: TreatmentProgramTestResultDetailRow[];
+  /** attemptId → врач может принять эту попытку (актуальный хвост, ещё не принята). */
+  initialAttemptAcceptMap: Record<string, boolean>;
   initialEvents: TreatmentProgramEventRow[];
   initialActionLog: ProgramActionLogListRow[];
   currentUserId: string;
@@ -794,6 +796,7 @@ export function TreatmentProgramInstanceDetailClient(props: {
     patientDisplayName,
     initial,
     initialTestResults,
+    initialAttemptAcceptMap,
     initialEvents,
     initialActionLog,
     currentUserId,
@@ -804,6 +807,7 @@ export function TreatmentProgramInstanceDetailClient(props: {
   const [detail, setDetail] = useState(initial);
   const [error, setError] = useState<string | null>(null);
   const [testResults, setTestResults] = useState<TreatmentProgramTestResultDetailRow[]>(initialTestResults);
+  const [attemptAcceptMap, setAttemptAcceptMap] = useState<Record<string, boolean>>(initialAttemptAcceptMap);
   const [programEvents, setProgramEvents] = useState<TreatmentProgramEventRow[]>(initialEvents);
   const [actionLog, setActionLog] = useState<ProgramActionLogListRow[]>(initialActionLog);
   const [addLibrarySpec, setAddLibrarySpec] = useState<InstanceAddLibraryItemSpec | null>(null);
@@ -865,8 +869,15 @@ export function TreatmentProgramInstanceDetailClient(props: {
 
   const refreshResults = useCallback(async () => {
     const res = await fetch(`/api/doctor/treatment-program-instances/${encodeURIComponent(detail.id)}/test-results`);
-    const data = (await res.json().catch(() => null)) as { ok?: boolean; results?: TreatmentProgramTestResultDetailRow[] };
-    if (res.ok && data.ok && data.results) setTestResults(data.results);
+    const data = (await res.json().catch(() => null)) as {
+      ok?: boolean;
+      results?: TreatmentProgramTestResultDetailRow[];
+      attemptAcceptMap?: Record<string, boolean>;
+    };
+    if (res.ok && data.ok && data.results) {
+      setTestResults(data.results);
+      if (data.attemptAcceptMap !== undefined) setAttemptAcceptMap(data.attemptAcceptMap);
+    }
   }, [detail.id]);
 
   const reorderPhaseZeroItem = useCallback(
@@ -1069,7 +1080,10 @@ export function TreatmentProgramInstanceDetailClient(props: {
                           {g.acceptedAt ? ` · принято: ${g.acceptedAt.slice(0, 19).replace("T", " ")}` : ""}
                           {pending > 0 ? ` · без оценки: ${pending}` : ""}
                         </p>
-                        {g.submittedAt && !g.acceptedAt && detail.status !== "completed" ? (
+                        {g.submittedAt &&
+                        !g.acceptedAt &&
+                        detail.status !== "completed" &&
+                        attemptAcceptMap[g.attemptId] ? (
                           <Button
                             type="button"
                             size="sm"

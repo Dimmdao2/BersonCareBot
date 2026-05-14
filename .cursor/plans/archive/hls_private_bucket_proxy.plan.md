@@ -1,6 +1,7 @@
 ---
 name: HLS private bucket proxy
 overview: Same-origin HLS delivery через GET /api/media/[id]/hls/... (серверный GetObject в private S3), замена presigned masterUrl в playback JSON на URL прокси, rewrite абсолютных URL в m3u8, телеметрия ошибок и блок System Health для runtime HLS delivery.
+status: completed
 todos:
   - id: s3-streaming-range
     content: "infra/s3/client.ts: GetObject + Range, классификация ошибок (NoSuchKey/403/timeout), streaming для сегментов (не Buffer целиком)"
@@ -34,7 +35,7 @@ isProject: true
 ## 0. Исправления относительно черновика
 
 - В черновике была **ошибочная двойная ссылка** на `loadAdminPlaybackClientHealthMetrics` для клиентских метрик; клиентские события грузятся из [`playbackClientEvents.ts`](apps/webapp/src/app-layer/media/playbackClientEvents.ts), серверные hourly resolution — из [`adminPlaybackHealthMetrics.ts`](apps/webapp/src/app-layer/media/adminPlaybackHealthMetrics.ts). Новый блок HLS delivery — **третий** источник, отдельная функция загрузки.
-- План перенесён в репозиторий [`.cursor/plans/hls_private_bucket_proxy.plan.md`](.cursor/plans/hls_private_bucket_proxy.plan.md) как канон для команды (`isProject: true`).
+- План перенесён в репозиторий [`.cursor/plans/archive/hls_private_bucket_proxy.plan.md`](.cursor/plans/archive/hls_private_bucket_proxy.plan.md) как канон для команды (`isProject: true`).
 
 ## 1. Корневая причина (не угадывание)
 

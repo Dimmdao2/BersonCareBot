@@ -1,6 +1,6 @@
 # Лог: регионы каталога врача (doctor catalog regions)
 
-Закрытие инициативы по плану `.cursor/plans/doctor_catalog_regions_ux.plan.md`.
+Закрытие инициативы по плану `.cursor/plans/archive/doctor_catalog_regions_ux.plan.md`.
 
 ## Решения
 

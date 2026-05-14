@@ -89,6 +89,26 @@ function sortSubmittedAttemptsNewestFirst(rows: TreatmentProgramTestAttemptRow[]
   });
 }
 
+/** Для doctor UI: какие attemptId можно принять (актуальная хвостовая submitted, ещё не принята). */
+export function clinicalTestAttemptIdsEligibleForDoctorAccept(
+  attempts: TreatmentProgramTestAttemptRow[],
+): Record<string, boolean> {
+  const sorted = [...attempts].sort((a, b) => {
+    if (a.startedAt < b.startedAt) return 1;
+    if (a.startedAt > b.startedAt) return -1;
+    return b.id.localeCompare(a.id);
+  });
+  const H = sorted[0];
+  const out: Record<string, boolean> = {};
+  if (!H) return out;
+  for (const a of attempts) {
+    out[a.id] = Boolean(
+      a.submittedAt != null && a.acceptedAt == null && H.submittedAt != null && H.id === a.id,
+    );
+  }
+  return out;
+}
+
 async function loadSubmittedAttemptDetails(
   tests: TreatmentProgramTestAttemptsPort,
   submittedRows: TreatmentProgramTestAttemptRow[],
@@ -333,17 +353,11 @@ export function createTreatmentProgramProgressService(deps: {
         throw new Error("Элемент отключён");
       }
       if (item.itemType !== "clinical_test") throw new Error("Элемент не является клиническим тестом");
-      const open = await tests.findOpenAttempt(item.id, input.patientUserId);
-      if (open) throw new Error("Сначала отправьте текущую попытку");
-      const attempts = await tests.listAttemptsForStageItem(item.id, input.patientUserId, 50);
-      const submittedRows = attempts.filter((a) => a.submittedAt != null);
-      const last = sortSubmittedAttemptsNewestFirst(submittedRows)[0];
-      if (!last || !last.submittedAt) {
-        throw new Error("Сначала отправьте набор тестов");
-      }
-      await tests.clearAcceptanceOnAllAttemptsForStageItemPatient(item.id, input.patientUserId);
-      await instances.setStageItemCompletedAt(input.instanceId, item.id, null);
-      return tests.createAttempt({ stageItemId: item.id, patientUserId: input.patientUserId });
+      return tests.startNewAttemptAfterSubmitted({
+        instanceId: input.instanceId,
+        stageItemId: item.id,
+        patientUserId: input.patientUserId,
+      });
     },
 
     async patientSubmitTestResult(input: {
@@ -445,20 +459,22 @@ export function createTreatmentProgramProgressService(deps: {
       const have = new Set(existing.map((r) => r.testId));
       const allDone = expectedTests.length > 0 && expectedTests.every((tid) => have.has(tid));
       if (allDone) {
-        await tests.markAttemptSubmitted(attempt.id);
-        await appendEv({
-          instanceId: input.instanceId,
-          actorId: input.patientUserId,
-          eventType: "status_changed",
-          targetType: "stage_item",
-          targetId: item.id,
-          payload: {
-            scope: "stage_item",
-            stageId: stage.id,
-            context: "clinical_test_attempt_submitted",
-            attemptId: attempt.id,
-          },
-        });
+        const { didTransitionToSubmitted } = await tests.markAttemptSubmitted(attempt.id);
+        if (didTransitionToSubmitted) {
+          await appendEv({
+            instanceId: input.instanceId,
+            actorId: input.patientUserId,
+            eventType: "status_changed",
+            targetType: "stage_item",
+            targetId: item.id,
+            payload: {
+              scope: "stage_item",
+              stageId: stage.id,
+              context: "clinical_test_attempt_submitted",
+              attemptId: attempt.id,
+            },
+          });
+        }
       }
 
       const out = await instances.getInstanceForPatient(input.patientUserId, input.instanceId);
@@ -532,6 +548,21 @@ export function createTreatmentProgramProgressService(deps: {
         instanceId: input.instanceId,
         doctorUserId: input.doctorUserId,
       });
+    },
+
+    async getDoctorAttemptAcceptMap(instanceId: string): Promise<Record<string, boolean>> {
+      assertUuid(instanceId);
+      const detail = await instances.getInstanceById(instanceId);
+      if (!detail) return {};
+      const out: Record<string, boolean> = {};
+      for (const st of detail.stages) {
+        for (const it of st.items) {
+          if (it.itemType !== "clinical_test") continue;
+          const rows = await tests.listAttemptsForStageItem(it.id, detail.patientUserId, 100);
+          Object.assign(out, clinicalTestAttemptIdsEligibleForDoctorAccept(rows));
+        }
+      }
+      return out;
     },
 
     listTestResultsForInstance(instanceId: string): Promise<TreatmentProgramTestResultDetailRow[]> {

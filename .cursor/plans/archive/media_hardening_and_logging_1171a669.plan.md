@@ -1,6 +1,19 @@
+---
+name: Media hardening and logging
+overview: Pino и LOG_LEVEL для webapp, сессия на GET /api/media/[id], MIME allowlist и magic bytes на upload, миграция 060 + retry purge, admin delete-errors, документация и CI; блок Production actions — выполнено на хосте 2026-04-09.
+status: completed
+todos:
+  - id: implementation
+    content: Чеклист «Выполнение» и production ops в теле плана (2026-04-09)
+    status: completed
+isProject: false
+---
+
 # Plan: media hardening and logging (status)
 
 Дата обновления: 2026-04-09
+
+**Архив:** план закрыт; актуальная политика медиа — `docs/ARCHITECTURE/MEDIA_HTTP_ACCESS_AUTHORIZATION.md` и код webapp.
 
 ## Выполнение
 

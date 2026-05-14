@@ -1,6 +1,7 @@
 ---
 name: "Надёжная очередь доставки + health (аудит 2026-05)"
 overview: "Доработки по аудиту: классификация dispatch, баннер «Сегодня» = system-health, метрики очереди, retryable/permanent, ретраи enqueue напоминаний, вынесение collectAdminSystemHealthData."
+status: completed
 todos:
   - id: audit-c3-dispatch-classification
     content: "C3 — документ OUTGOING_DISPATCH_CLASSIFICATION.md"

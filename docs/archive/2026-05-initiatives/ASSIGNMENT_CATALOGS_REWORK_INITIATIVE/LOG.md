@@ -96,7 +96,7 @@
 
 ## 2026-05-04 — тип нагрузки упражнения: справочник `load_type` + пост-аудит
 
-**Контекст:** убрать хардкод пяти кодов в фильтре/форме; выровнять `reference_items` категории `load_type` с CHECK `lfk_exercises.load_type`. Канон плана и пост-аудит: [`EXERCISE_LOAD_TYPE_FROM_REFS_PLAN.md`](EXERCISE_LOAD_TYPE_FROM_REFS_PLAN.md); копия в [`.cursor/plans/exercise_load_from_refs_bb4eba2e.plan.md`](../../../../.cursor/plans/exercise_load_from_refs_bb4eba2e.plan.md).
+**Контекст:** убрать хардкод пяти кодов в фильтре/форме; выровнять `reference_items` категории `load_type` с CHECK `lfk_exercises.load_type`. Канон плана и пост-аудит: [`EXERCISE_LOAD_TYPE_FROM_REFS_PLAN.md`](EXERCISE_LOAD_TYPE_FROM_REFS_PLAN.md); копия в [`.cursor/plans/archive/exercise_load_from_refs_bb4eba2e.plan.md`](../../../../.cursor/plans/archive/exercise_load_from_refs_bb4eba2e.plan.md).
 
 **Сделано:**
 

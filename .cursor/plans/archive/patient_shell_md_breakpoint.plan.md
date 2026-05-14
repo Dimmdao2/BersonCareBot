@@ -26,7 +26,7 @@ isProject: false
 
 **Закрыто в репозитории** (порог `md` для shell, `PatientTopNav`, `PatientHomeTodayLayout`, home-карточки, тесты). Во фронтматтере: `status: completed`, все todos — `completed`.
 
-**Единственный актуальный план:** этот файл в репозитории ([`.cursor/plans/patient_shell_md_breakpoint.plan.md`](patient_shell_md_breakpoint.plan.md)). Ранее тот же текст дублировался в Cursor Plan Store как `patient_tablet_breakpoint_md_7f8cbf88.plan.md` / `patient_tablet_breakpoint_md_19732437.plan.md` — дубликаты на диске профиля удалите или закройте вручную, если IDE всё ещё предлагает для них «Выполнить».
+**Единственный актуальный план:** этот файл в репозитории ([`.cursor/plans/archive/patient_shell_md_breakpoint.plan.md`](patient_shell_md_breakpoint.plan.md)). Ранее тот же текст дублировался в Cursor Plan Store как `patient_tablet_breakpoint_md_7f8cbf88.plan.md` / `patient_tablet_breakpoint_md_19732437.plan.md` — дубликаты на диске профиля удалите или закройте вручную, если IDE всё ещё предлагает для них «Выполнить».
 
 # Patient UI: планшетный режим с `md` вместо `lg`
 
@@ -80,7 +80,7 @@ flowchart LR
 
 1. **[`docs/ARCHITECTURE/PATIENT_APP_UI_STYLE_GUIDE.md`](docs/ARCHITECTURE/PATIENT_APP_UI_STYLE_GUIDE.md)** — добавить краткий подраздел (например **«Responsive: patient shell»**): порог **`md`** для расширения колонки `#app-shell-patient` до `min(1180px, …)`, переключение веток **`PatientTopNav`**, согласование dashboard-сетки главной; явная формулировка **«ниже `md` — мобильный режим, менять только по отдельной задаче»**.
 2. **JSDoc** в [`AppShell.tsx`](apps/webapp/src/shared/ui/AppShell.tsx) (variant `patient`) — синхронизировать формулировку с фактическим порогом **`md`**.
-3. **Лог:** новая папка инициативы под задачу, например **`docs/PATIENT_SHELL_MD_BREAKPOINT/`** с файлами:
+3. **Лог:** папка инициативы **`docs/archive/2026-05-initiatives/PATIENT_SHELL_MD_BREAKPOINT/`** с файлами:
    - **`LOG.md`** — по ходу работ: дата, что сделано, какие файлы, результаты `vitest`/ручных проверок, сознательные отступления, открытые риски (формат как в `.cursor/rules/plan-authoring-execution-standard.mdc`: execution log).
    - опционально короткий **`README.md`** — одна ссылка на этот план и цель (если нужна точка входа).
 
@@ -109,5 +109,5 @@ flowchart LR
 - Ниже **`md`** поведение и ключевые классы базового слоя **не изменились** относительно baseline (проверка чек-листом + при необходимости дифф только `lg/max-lg` → `md/max-md` в затронутых файлах).
 - На **`md+`** shell, nav и **`PatientHomeTodayLayout`** согласованы по порогу.
 - **`docs/ARCHITECTURE/PATIENT_APP_UI_STYLE_GUIDE.md`** и JSDoc обновлены.
-- **`docs/PATIENT_SHELL_MD_BREAKPOINT/LOG.md`** ведётся и отражает проверки.
+- **`docs/archive/2026-05-initiatives/PATIENT_SHELL_MD_BREAKPOINT/LOG.md`** ведётся и отражает проверки.
 - Unit-тесты зелёные; CI по правилам репозитория перед merge.

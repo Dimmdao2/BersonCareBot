@@ -19,8 +19,8 @@
 - **Интегратор:** миграция **`core:20260513_0001_video_hls_reconcile_enabled.sql`** — сид **`video_hls_reconcile_enabled`** в `system_settings`.
 - **Пост-аудит UI:** блок «Техническая диагностика» маркером **`SYSTEM_HEALTH_TECH_DIAGNOSTICS_TESTID`**; RTL **`SystemHealthSection.primaryLayerInvariants.test.tsx`**; русские подписи машинных статусов на сводке и для БД integrator на карточке.
 - **Пороги транскода в health:** `videoTranscode.status` — **`ok` \| `degraded` \| `error`** через **`classifyVideoTranscodeSystemHealthStatus`** (`adminHealthThresholds.ts`); unit **`adminHealthThresholds.test.ts`**, кейсы в **`system-health/route.test.ts`**.
-- **Аудит документации:** выровнен текст **`.cursor/plans/cron_and_system_health.plan.md`** (§5/§8/DoD, фактическое состояние: webapp **0056**, `degraded`, исторический UI-аудит); **`HLS_RECONCILE_METRICS_LOG.md`** — пороги и расширенная команда vitest.
-- Трекер: **`.cursor/plans/cron_and_system_health.plan.md`**.
+- **Аудит документации:** выровнен текст **`.cursor/plans/archive/cron_and_system_health.plan.md`** (§5/§8/DoD, фактическое состояние: webapp **0056**, `degraded`, исторический UI-аудит); **`HLS_RECONCILE_METRICS_LOG.md`** — пороги и расширенная команда vitest.
+- Трекер: **`.cursor/plans/archive/cron_and_system_health.plan.md`**.
 
 ### 2026-05-14 — Общая очередь доставки (`outgoing_delivery_queue`)
 
@@ -32,7 +32,7 @@
 
 - Сбор `GET /api/admin/system-health` вынесен в `collectAdminSystemHealthData`; баннер «Сегодня» использует тот же снимок (`adminDoctorTodayHealthBannerFromSystemHealth`).
 - Метрики очереди: `dueByChannel`, `processingCount`, `lastSentAt`, `lastQueueActivityAt`; UI в `SystemHealthSection`.
-- Integrator: `isOutgoingDeliveryDispatchErrorRetryable` + ретраи `enqueueReminderDispatchBatchWithRetries`; документ `docs/ARCHITECTURE/OUTGOING_DISPATCH_CLASSIFICATION.md`; план `.cursor/plans/reliable_delivery_queue_audit_followup.plan.md`.
+- Integrator: `isOutgoingDeliveryDispatchErrorRetryable` + ретраи `enqueueReminderDispatchBatchWithRetries`; документ `docs/ARCHITECTURE/OUTGOING_DISPATCH_CLASSIFICATION.md`; план `.cursor/plans/archive/reliable_delivery_queue_audit_followup.plan.md`.
 
 ### 2026-05-03 — Декомпозиция фаз
 

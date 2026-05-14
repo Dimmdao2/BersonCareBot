@@ -9,6 +9,7 @@
 - DTO `PendingProgramTestEvaluationRow`: `attemptId`, `attemptSubmittedAt`; PG + in-memory `listPendingEvaluationResultsForPatient` заполняют поля.
 - `groupPendingProgramTestEvaluations.ts` + unit-тесты (`fast`): группы по `attempt_id`, сортировка групп по `submitted_at` ↓, tie-break по `attemptId` (лекс. убывание), внутри группы — `createdAt` ↑, затем `resultId`.
 - `ClientProfileCard`: одна карточка на попытку, бейдж «К проверке · N» (N = число неоценённых результатов), ссылка «Открыть» с `#doctor-program-instance-test-results`.
+- Экран экземпляра программы: **`GET .../test-results`** отдаёт **`attemptAcceptMap`**; кнопка «Принять попытку» только для актуального хвоста (см. `apps/webapp/src/app/api/api.md`).
 
 ---
 
@@ -109,7 +110,7 @@
 ## 2026-05-08 — Плоские тесты в программе (`clinical_test`) и синхронизация доков
 
 - Продуктовый тип элемента этапа для одного клинического теста: **`clinical_test`**; развёртывание каталожного набора — **`POST .../items/from-test-set`** (шаблон и инстанс). Снимок элемента по-прежнему несёт массив **`tests[]`** там, где нужен состав (например после разворота из набора).
-- Документация: `ROADMAP.md` §4, `apps/webapp/src/app/api/api.md`, `docs/README.md`, `ARCHITECTURE/PATIENT_TREATMENT_PROGRAM_STAGE_SURFACES.md`, `PROGRAM_PATIENT_SHAPE_PLAN.md` §1 / §1.1a / таблица completion, `PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/{LOG,BLOCK_LAYOUT_REFERENCE}.md`, JSDoc в `testSetSnapshotView.ts` и `stageItemSnapshot.ts`, лог событий `item_added` при expand — `source: "expand_test_set_into_clinical_tests"`.
+- Документация: `ROADMAP.md` §4, `apps/webapp/src/app/api/api.md`, `docs/README.md`, `ARCHITECTURE/PATIENT_TREATMENT_PROGRAM_STAGE_SURFACES.md`, `PROGRAM_PATIENT_SHAPE_PLAN.md` §1 / §1.1a / таблица completion, `docs/archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/{LOG,BLOCK_LAYOUT_REFERENCE}.md`, JSDoc в `testSetSnapshotView.ts` и `stageItemSnapshot.ts`, лог событий `item_added` при expand — `source: "expand_test_set_into_clinical_tests"`.
 - Миграция `0048`: конвертация legacy `test_set` → строки `clinical_test` по строкам каталога **`test_set_items`** (не по JSON snapshot).
 
 ---

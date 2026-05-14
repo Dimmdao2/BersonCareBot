@@ -75,6 +75,11 @@ export function createInMemoryTreatmentProgramPersistence(seed?: {
   const attempts = new Map<string, TreatmentProgramTestAttemptRow>();
   const results = new Map<string, TreatmentProgramTestResultRow>();
   const programEvents: TreatmentProgramEventRow[] = [];
+  let attemptStartedAtSeq = 0;
+  const startedAtForNewAttempt = () => {
+    attemptStartedAtSeq += 1;
+    return new Date(Date.now() + attemptStartedAtSeq).toISOString();
+  };
 
   function appendProgramEvent(input: AppendTreatmentProgramEventInput): TreatmentProgramEventRow {
     const row: TreatmentProgramEventRow = {
@@ -893,7 +898,7 @@ export function createInMemoryTreatmentProgramPersistence(seed?: {
         id,
         instanceStageItemId: input.stageItemId,
         patientUserId: input.patientUserId,
-        startedAt: isoNow(),
+        startedAt: startedAtForNewAttempt(),
         submittedAt: null,
         acceptedAt: null,
         acceptedBy: null,
@@ -904,8 +909,10 @@ export function createInMemoryTreatmentProgramPersistence(seed?: {
 
     async markAttemptSubmitted(attemptId: string) {
       const a = attempts.get(attemptId);
-      if (!a) return;
+      if (!a) return { didTransitionToSubmitted: false };
+      if (a.submittedAt != null) return { didTransitionToSubmitted: false };
       attempts.set(attemptId, { ...a, submittedAt: isoNow() });
+      return { didTransitionToSubmitted: true };
     },
 
     async listAttemptsForStageItem(stageItemId: string, patientUserId: string, limit = 40) {
@@ -913,11 +920,16 @@ export function createInMemoryTreatmentProgramPersistence(seed?: {
       const list = [...attempts.values()].filter(
         (a) => a.instanceStageItemId === stageItemId && a.patientUserId === patientUserId,
       );
-      list.sort((x, y) => (x.startedAt < y.startedAt ? 1 : x.startedAt > y.startedAt ? -1 : x.id.localeCompare(y.id)));
+      list.sort((x, y) => {
+        if (x.startedAt < y.startedAt) return 1;
+        if (x.startedAt > y.startedAt) return -1;
+        return y.id.localeCompare(x.id);
+      });
       return list.slice(0, cap).map((a) => ({ ...a }));
     },
 
     async acceptAttempt(input: { attemptId: string; instanceId: string; doctorUserId: string }) {
+      const errStale = "Нельзя принять неактуальную попытку";
       const a = attempts.get(input.attemptId);
       if (!a) throw new Error("Попытка не найдена");
       if (!a.submittedAt) throw new Error("Попытка ещё не отправлена пациентом");
@@ -925,25 +937,69 @@ export function createInMemoryTreatmentProgramPersistence(seed?: {
       if (!item) throw new Error("Попытка не найдена");
       const st = stages.get(item.stageId);
       if (!st || st.instanceId !== input.instanceId) throw new Error("Попытка не найдена");
-      const now = isoNow();
-      for (const [id, row] of attempts) {
-        if (row.instanceStageItemId !== a.instanceStageItemId || row.patientUserId !== a.patientUserId) continue;
-        if (id === input.attemptId) continue;
-        if (row.acceptedAt != null || row.acceptedBy != null) {
-          attempts.set(id, { ...row, acceptedAt: null, acceptedBy: null });
-        }
+
+      const ordered = [...attempts.values()].filter(
+        (row) => row.instanceStageItemId === a.instanceStageItemId && row.patientUserId === a.patientUserId,
+      );
+      ordered.sort((x, y) => {
+        if (x.startedAt < y.startedAt) return 1;
+        if (x.startedAt > y.startedAt) return -1;
+        return y.id.localeCompare(x.id);
+      });
+      const H = ordered[0];
+      if (!H || !H.submittedAt) {
+        throw new Error(errStale);
       }
+      if (H.id !== input.attemptId) {
+        throw new Error(errStale);
+      }
+      if (a.acceptedAt != null) {
+        return;
+      }
+
+      const now = isoNow();
       attempts.set(input.attemptId, { ...a, acceptedAt: now, acceptedBy: input.doctorUserId });
       items.set(item.id, { ...item, completedAt: now });
     },
 
-    async clearAcceptanceOnAllAttemptsForStageItemPatient(stageItemId: string, patientUserId: string) {
-      for (const [id, row] of attempts) {
-        if (row.instanceStageItemId !== stageItemId || row.patientUserId !== patientUserId) continue;
-        if (row.acceptedAt != null || row.acceptedBy != null) {
-          attempts.set(id, { ...row, acceptedAt: null, acceptedBy: null });
-        }
+    async startNewAttemptAfterSubmitted(input: {
+      instanceId: string;
+      stageItemId: string;
+      patientUserId: string;
+    }): Promise<TreatmentProgramTestAttemptRow> {
+      const item = items.get(input.stageItemId);
+      if (!item) throw new Error("Элемент не найден");
+      const st = stages.get(item.stageId);
+      if (!st || st.instanceId !== input.instanceId) throw new Error("Элемент не найден");
+      const inst = instances.get(input.instanceId);
+      if (!inst || inst.patientUserId !== input.patientUserId) {
+        throw new Error("Элемент не найден");
       }
+      if (item.itemType !== "clinical_test") {
+        throw new Error("Элемент не является клиническим тестом");
+      }
+      const open = findOpenAttemptImpl(input.stageItemId, input.patientUserId);
+      if (open) throw new Error("Сначала отправьте текущую попытку");
+      const hasSubmitted = [...attempts.values()].some(
+        (row) =>
+          row.instanceStageItemId === input.stageItemId &&
+          row.patientUserId === input.patientUserId &&
+          row.submittedAt != null,
+      );
+      if (!hasSubmitted) throw new Error("Сначала отправьте набор тестов");
+      items.set(item.id, { ...item, completedAt: null });
+      const id = crypto.randomUUID();
+      const row: TreatmentProgramTestAttemptRow = {
+        id,
+        instanceStageItemId: input.stageItemId,
+        patientUserId: input.patientUserId,
+        startedAt: startedAtForNewAttempt(),
+        submittedAt: null,
+        acceptedAt: null,
+        acceptedBy: null,
+      };
+      attempts.set(id, row);
+      return { ...row };
     },
 
     async upsertResult(input: {

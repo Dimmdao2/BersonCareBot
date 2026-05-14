@@ -1,6 +1,6 @@
 # HLS proxy delivery — execution log
 
-Канонический план: `.cursor/plans/hls_private_bucket_proxy.plan.md`.
+Канонический план: `.cursor/plans/archive/hls_private_bucket_proxy.plan.md`.
 
 ## Реализовано (webapp)
 

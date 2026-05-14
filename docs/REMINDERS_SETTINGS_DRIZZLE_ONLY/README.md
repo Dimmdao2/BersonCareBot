@@ -8,7 +8,7 @@
 
 ## Связь с каноном миграций webapp
 
-Закрытая инициатива: [`WEBAPP_MIGRATIONS_DRIZZLE_UNIFICATION_INITIATIVE`](../WEBAPP_MIGRATIONS_DRIZZLE_UNIFICATION_INITIATIVE/README.md) — production deploy вызывает только `pnpm --dir apps/webapp run migrate` (Drizzle); legacy в `apps/webapp/migrations/` — bootstrap / emergency, не обязательный шаг deploy.
+Закрытая инициатива (архив): [`WEBAPP_MIGRATIONS_DRIZZLE_UNIFICATION_INITIATIVE`](../archive/2026-05-initiatives/WEBAPP_MIGRATIONS_DRIZZLE_UNIFICATION_INITIATIVE/README.md) — production deploy вызывает только `pnpm --dir apps/webapp run migrate` (Drizzle); legacy в `apps/webapp/migrations/` — bootstrap / emergency, не обязательный шаг deploy.
 
 Guard новых legacy-файлов: [`apps/webapp/scripts/check-legacy-migrations-frozen.sh`](../../apps/webapp/scripts/check-legacy-migrations-frozen.sh) (`MAX_ALLOWED_PREFIX=86`).
 

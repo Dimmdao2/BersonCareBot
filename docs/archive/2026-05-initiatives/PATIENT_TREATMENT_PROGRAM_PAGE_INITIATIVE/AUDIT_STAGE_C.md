@@ -19,7 +19,7 @@ Files modified / created in Stage C:
 | `apps/webapp/src/app/app/patient/treatment-programs/PatientTreatmentProgramStagePageClient.tsx` | ?? (new) | client wrapper for stage page | ✅ |
 | `apps/webapp/src/app/app/patient/treatment-programs/[instanceId]/stages/[stageId]/page.tsx` | ?? (new) | RSC stage page | ✅ |
 | `apps/webapp/public/patient/ui/play.svg` | ?? (new) | static SVG asset | ✅ |
-| `docs/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/LOG.md` | M | Stage C entries | ✅ |
+| `docs/archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/LOG.md` | M | Stage C entries | ✅ |
 
 **Out-of-scope files NOT touched:** ✅  
 `db/schema/`, `src/modules/treatment-program/types.ts`, `src/modules/treatment-program/ports.ts`, `src/infra/repos/`, progress-service — confirmed clean via `git diff --stat`.

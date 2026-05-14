@@ -8,7 +8,7 @@
 
 ## 2026-05-13 — ROADMAP_2 §1.1b: закрыт по факту, спецификация помечена устаревшей
 
-**Документация:** [`ROADMAP_2.md`](ROADMAP_2.md) — синхронизация 2026-05-13, строка §0, §2, схема 1.x, §7 DoD, §9; §1.1b заменён на статус «выполнено иначе» + `<details>` с кратким архивом; источник правды по UI — [`apps/webapp/src/app/app/patient/treatment/program-detail/README.md`](../../apps/webapp/src/app/app/patient/treatment/program-detail/README.md), [`docs/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/README.md`](../PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/README.md).
+**Документация:** [`ROADMAP_2.md`](ROADMAP_2.md) — синхронизация 2026-05-13, строка §0, §2, схема 1.x, §7 DoD, §9; §1.1b заменён на статус «выполнено иначе» + `<details>` с кратким архивом; источник правды по UI — [`apps/webapp/src/app/app/patient/treatment/program-detail/README.md`](../../apps/webapp/src/app/app/patient/treatment/program-detail/README.md), [`docs/archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/README.md`](../archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/README.md).
 
 **Код:** не менялись (только документ).
 
@@ -70,7 +70,7 @@
 
 **Сделано (webapp):** снято ограничение «одна отметка за календарный день» для чек-листа и ЛФК-сессий; каждое выполнение — отдельная строка **`program_action_log`** с **`created_at`**. **`POST …/progress/complete`** дополнительно пишет **`done`** с `payload.source: "simple_item_complete"` (и `itemType`). Чек-лист **`POST …/progress/checklist`** при `checked: true` всегда вставляет строку с `payload.source: "checklist_toggle"`; при `checked: false` **`deleteSimpleDoneInWindow`** удаляет все «простые» `done` за локальные сутки по элементу, **кроме** строк с `source` в `test_submitted` / `lfk_exercise_done`. ЛФК **`lfk-session`**: убрана предварительная очистка окна — несколько сессий в один день накапливаются (новый **`session_id`** на сабмит). Пациентский UI: повторная кнопка «Отметить ещё раз», форма ЛФК после первой отметки; на карточках этапа — строка «Отметок в журнале за сегодня» из **`doneTodayCountByItemId`** (detail + страница этапа); модалка «Состав этапа» — не более **24** зелёных точек, остаток как **`+N`** (полное число в **`aria-label`**). Утилита парсинга ответа checklist: [`apps/webapp/src/app/app/patient/treatment-programs/normalizeTreatmentProgramChecklistMaps.ts`](../../apps/webapp/src/app/app/patient/treatment-programs/normalizeTreatmentProgramChecklistMaps.ts). **`createTreatmentProgramProgressService`**: параметр **`actionLog`** обязателен.
 
-**Документация:** [`apps/webapp/src/app/api/api.md`](../../apps/webapp/src/app/api/api.md), [`PROGRAM_PATIENT_SHAPE_PLAN.md`](PROGRAM_PATIENT_SHAPE_PLAN.md) §1.5, [`PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/BLOCK_LAYOUT_REFERENCE.md`](../PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/BLOCK_LAYOUT_REFERENCE.md).
+**Документация:** [`apps/webapp/src/app/api/api.md`](../../apps/webapp/src/app/api/api.md), [`PROGRAM_PATIENT_SHAPE_PLAN.md`](PROGRAM_PATIENT_SHAPE_PLAN.md) §1.5, [`PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/BLOCK_LAYOUT_REFERENCE.md`](../archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/BLOCK_LAYOUT_REFERENCE.md).
 
 **Проверки:** `pnpm --dir apps/webapp run typecheck`; `pnpm exec vitest run src/modules/treatment-program/`; узкие тесты patient treatment-programs.
 

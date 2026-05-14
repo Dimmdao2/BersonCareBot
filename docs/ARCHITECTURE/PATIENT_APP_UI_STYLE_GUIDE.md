@@ -24,7 +24,7 @@
 - **`patientVisual.ts` (внутренние страницы и общие карточки):** радиус/тень/padding карточных токенов (`patientCardSurfaceTokens`, `patientSemanticSurfaceCardChrome`, `patientCardClass`, semantic surfaces), типовые отступы списков/коллапсов, вертикальный rhythm (`patientInnerPageStackClass`, `patientInnerCardGridClass`, `patientPageSectionGapClass`), крупная типографика inner-hero и связанные CTA переключаются с **`md`**, в одну линию с широким shell — без отдельного «скачка» на `lg` (1024px). Ступени только **`xl:`** (и узкие `min-[380px]:`) сохраняются там, где нужна третья ступень масштаба.
 - **`patientHomeCardStyles.ts`:** семантические оболочки карточек главной (базовая/plan/success/warning/danger/compact/useful post shell, ведущие иконки) используют **`md:`** для desktop radius/shadow/padding вместе с shell; отдельные **трёхступенчатые высоты** слотов (`md` + `lg` для min-height строк) остаются осознанно — это вертикальная сетка, не порог оболочки.
 - **Правило для правок:** интервал **ниже `md`** трактуется как мобильный режим оболочки; менять там базовые классы без префикса ради ширины/layout — только по отдельной задаче. Для переключений «узкий shell / широкий shell» на главной и в shell предпочитать пары **`max-md:` / `md:`**, а не вводить промежуточные брейкпоинты между мобильным и `md`.
-- **Журнал и контекст задачи:** [`docs/PATIENT_SHELL_MD_BREAKPOINT/`](../PATIENT_SHELL_MD_BREAKPOINT/README.md).
+- **Журнал и контекст задачи:** [`docs/archive/2026-05-initiatives/PATIENT_SHELL_MD_BREAKPOINT/`](../archive/2026-05-initiatives/PATIENT_SHELL_MD_BREAKPOINT/README.md).
 
 ## 2. Reuse-First Policy
 

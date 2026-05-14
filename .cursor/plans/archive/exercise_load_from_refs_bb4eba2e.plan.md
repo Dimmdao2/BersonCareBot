@@ -1,6 +1,7 @@
 ---
 name: Exercise load from refs
 overview: Выровнять справочник load_type с lfk_exercises.load_type; UI и валидация через references + сид v1. Закрыто 2026-05-04; канон и пост-аудит — docs/archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/EXERCISE_LOAD_TYPE_FROM_REFS_PLAN.md
+status: completed
 todos:
   - id: migration-load-type-items
     content: "Drizzle SQL 0041 + journal"

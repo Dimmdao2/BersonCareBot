@@ -1,6 +1,7 @@
 ---
 name: Doctor inbox by attempt
 overview: "Сгруппировать секцию «Тесты, ожидающие оценки» в карточке пациента врача по попытке (attempt_id): одна карточка на попытку, счётчик неоценённых тестов в группе, одна ссылка на экземпляр программы с якорем к блоку результатов."
+status: completed
 todos:
   - id: dto-attempt-fields
     content: Расширить PendingProgramTestEvaluationRow; pg + inMemory listPendingEvaluationResultsForPatient; при необходимости — assert в progress-service.test (A4)
@@ -17,7 +18,7 @@ todos:
 isProject: false
 ---
 
-**Канон плана:** только этот файл — `.cursor/plans/doctor_inbox_by_attempt.plan.md` в корне репозитория BersonCareBot.
+**Канон плана:** только этот файл — `.cursor/plans/archive/doctor_inbox_by_attempt.plan.md` в репозитории BersonCareBot.
 
 # Группировка инбокса «К проверке» по попытке
 

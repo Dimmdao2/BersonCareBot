@@ -1,6 +1,6 @@
 # Patient Reminder UX Initiative
 
-**Статус: закрыта (2026-05-09).** Документы остаются в `docs/PATIENT_REMINDER_UX_INITIATIVE/` как нормативка по контракту напоминаний.
+**Статус: закрыта (2026-05-09).** Документы остаются в `docs/archive/2026-05-initiatives/PATIENT_REMINDER_UX_INITIATIVE/` как нормативка по контракту напоминаний.
 
 Напоминания для программы реабилитации: расписание `slots_v1`, intent/CTA, snooze 15/30, done, mute-all, синхронизация главной (`n из N`).
 
@@ -23,7 +23,7 @@
 
 ## Cross-links
 
-- План реализации (базовый): `.cursor/plans/reminder_ux_full.plan.md` (не редактировать здесь)
+- План реализации (базовый): `.cursor/plans/archive/reminder_ux_full.plan.md` (не редактировать здесь)
 - Усиленный UX-план (блоки, план, интервал): см. выполнение в [LOG.md](./LOG.md) §2026-05-09 — аудит
 - **Темы рассылок × reminder-движок (`notification_topic_code`):** [NOTIFICATION_TOPIC_ALIGNMENT.md](./NOTIFICATION_TOPIC_ALIGNMENT.md) и [LOG.md](./LOG.md) §2026-05-10
-- Оглавление docs: [docs/README.md](../README.md)
+- Оглавление docs: [docs/README.md](../../README.md)

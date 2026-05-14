@@ -10,7 +10,7 @@
 
 ## Связано (закрытие плана 2026-05)
 
-Инвентари «cron reconcile + транскод + UI health» описаны и закрыты в **`.cursor/plans/cron_and_system_health.plan.md`**; журнал инициативы операторского мониторинга — **`docs/OPERATOR_HEALTH_ALERTING_INITIATIVE/LOG.md`**. После аудита добавлен **`SYSTEM_HEALTH_TECH_DIAGNOSTICS_TESTID`** и **`SystemHealthSection.primaryLayerInvariants.test.tsx`**.
+Инвентари «cron reconcile + транскод + UI health» описаны и закрыты в **`.cursor/plans/archive/cron_and_system_health.plan.md`**; журнал инициативы операторского мониторинга — **`docs/OPERATOR_HEALTH_ALERTING_INITIATIVE/LOG.md`**. После аудита добавлен **`SYSTEM_HEALTH_TECH_DIAGNOSTICS_TESTID`** и **`SystemHealthSection.primaryLayerInvariants.test.tsx`**.
 
 ## Проверки
 

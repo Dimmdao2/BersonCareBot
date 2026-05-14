@@ -2,7 +2,7 @@
 
 ## 1. Контекст
 
-`PATIENT_HOME_REDESIGN_INITIATIVE` уже зафиксировала продуктовую модель главной "Сегодня": блоки, CMS-источники, прогресс, mood, reminders, plan, subscription carousel. Та инициатива закрыта; её PROMPTS файл и `.cursor/plans/phase_3_*` / `phase_4.5_*` помечены как архив.
+`PATIENT_HOME_REDESIGN_INITIATIVE` уже зафиксировала продуктовую модель главной "Сегодня": блоки, CMS-источники, прогресс, mood, reminders, plan, subscription carousel. Та инициатива закрыта; её PROMPTS файл и `.cursor/plans/archive/phase_3_*` / `phase_4.5_*` помечены как архив.
 
 Новая задача — не менять модель данных, а привести patient UI к единому визуальному языку из `VISUAL_SYSTEM_SPEC.md`.
 

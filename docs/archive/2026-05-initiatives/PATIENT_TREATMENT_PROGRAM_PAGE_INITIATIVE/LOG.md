@@ -1,12 +1,22 @@
 # LOG — PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE
 
+## 2026-05-14 — клинтесты: lifecycle попыток (история приёма + актуальность)
+
+- **`accepted_at` / `accepted_by`:** не сбрасываются при `patientStartNewTestAttempt` и при приёме другой попытки (audit trail по строке попытки).
+- **`acceptAttempt`:** только если попытка — актуальный «хвост» (последняя по `started_at`/`id` среди попыток пункта; если хвост открыт — принять любую более старую отправленную нельзя); идемпотентный no-op если эта же хвостовая попытка уже принята.
+- **`startNewAttemptAfterSubmitted`:** одна транзакция (проверки + сброс `completed_at` пункта + insert open attempt).
+- **`markAttemptSubmitted`:** идемпотентно по `submitted_at`; событие `clinical_test_attempt_submitted` только при первом переходе.
+- **Doctor UI:** `getDoctorAttemptAcceptMap` + `attemptAcceptMap` в `GET .../test-results`; кнопка «Принять попытку» только при `canAccept`.
+- **Patient embedded:** после submit / start new / «Снять Новое» / `mark-viewed` по видимости — `refresh` + повторный `test-set-snapshot` в `PatientInstanceStageItemCard`.
+- **Тесты:** `progress-service.test.ts` (история `accepted_*`, stale accept, idempotent submit).
+
 ## 2026-05-14 — клинтесты: неограниченные попытки, история, приём врачом (MVP-B)
 
 - **Данные:** `test_attempts` — `submitted_at`, `accepted_at`, `accepted_by` (миграция **0062**); partial unique на «одна открытая попытка» по **`submitted_at IS NULL`**; колонка **`completed_at`** у попытки удалена (семантика перенесена в **`submitted_at`**).
-- **Сервис:** `patientSubmitTestResult` ставит **`submitted_at`** при полном наборе без **`completed_at`** пункта; **`patientStartNewTestAttempt`** после отправки (сброс **`completed_at`** пункта и **`clearAcceptanceOnAllAttemptsForStageItemPatient`**); **`acceptAttempt`** — зачёт пункта и снятие приёма с **других** попыток того же пункта/пациента; снимок **`getPatientTestSetPageServerSnapshot`** — последняя отправленная по сортировке **`submitted_at`**, массив **`submittedAttemptsDetail`** (без отдельного порта `getLatestSubmittedAttemptId`).
+- **Сервис (MVP-B, далее уточнено в записи выше «lifecycle»):** `patientSubmitTestResult` ставит **`submitted_at`** при полном наборе; **`patientStartNewTestAttempt`** / **`acceptAttempt`** — см. актуальную запись в этом LOG за ту же дату блоком «lifecycle попыток».
 - **UI:** пациент — **`PatientTestSetProgressForm`**: collapsible-история по отправленным попыткам + «Новая попытка»; врач — группировка по попытке и «Принять попытку».
 - **Dev:** `pnpm --dir apps/webapp run migrate` на **`bcb_webapp_dev`** — миграции применены; `\d public.test_attempts` — ожидаемые колонки и индекс **`WHERE submitted_at IS NULL`**.
-- **Док:** `api.md`, `DB_STRUCTURE.md` (FK **`clinical_tests`**), `PATIENT_TREATMENT_PROGRAM_STAGE_SURFACES.md`; тесты `progress-service.test.ts` (две попытки, сброс приёма, смена принятой попытки).
+- **Док:** `api.md`, `DB_STRUCTURE.md` (FK **`clinical_tests`**), `PATIENT_TREATMENT_PROGRAM_STAGE_SURFACES.md`; тесты `progress-service.test.ts` (две попытки, stale accept, сохранение **`accepted_*`** в истории, идемпотентный `markAttemptSubmitted`).
 
 ## 2026-05-13 — выравнивание с ROADMAP_2: §1.1b закрыт здесь
 
@@ -66,7 +76,7 @@
 
 ## 2026-05-05
 
-- Создана папка инициативы `docs/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/` с `README.md` (main plan: таблица этапов A–D и модели агентов), `STAGE_PLAN.md`, `LOG.md`.
+- Создана папка инициативы `docs/archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/` с `README.md` (main plan: таблица этапов A–D и модели агентов), `STAGE_PLAN.md`, `LOG.md`.
 - Источник правды по scope/DoD: `docs/APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md` §1.0, §1.1, §1.1a, §1.1b.
 - Добавлена подробная декомпозиция в отдельных файлах: `STAGE_A.md`, `STAGE_B.md`, `STAGE_C.md`, `STAGE_D.md`.
 - Добавлен `PROMPTS_COPYPASTE.md` с конвейером: для каждого этапа `EXEC -> AUDIT -> FIX -> COMMIT`; в конце всей инициативы `GLOBAL AUDIT -> GLOBAL FIX -> PREPUSH -> PUSH`.

@@ -31,8 +31,8 @@ patient-app-visual-redesign-initiative
 - `docs/PATIENT_HOME_REDESIGN_INITIATIVE/PROMPTS_PLAN_EXEC_AUDIT_FIX.md`
 - `docs/PATIENT_HOME_REDESIGN_INITIATIVE/AUDIT_PHASE_*.md`
 - `docs/PATIENT_HOME_REDESIGN_INITIATIVE/GLOBAL_AUDIT.md`
-- `.cursor/plans/phase_3_patient_home_*.plan.md`
-- `.cursor/plans/phase_4.5_patient_home_*.plan.md`
+- `.cursor/plans/archive/phase_3_patient_home_*.plan.md`
+- `.cursor/plans/archive/phase_4.5_patient_home_*.plan.md`
 
 ## Главная цель
 

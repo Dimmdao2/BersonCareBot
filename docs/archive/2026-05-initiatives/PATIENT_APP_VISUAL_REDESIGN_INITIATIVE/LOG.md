@@ -31,14 +31,14 @@ Audit выявил 16 узких мест; внесены исправления
 
 - `docs/PATIENT_HOME_REDESIGN_INITIATIVE/README.md` (header с указанием статуса "ЗАВЕРШЕНА" и ссылкой на новую инициативу).
 - `docs/PATIENT_HOME_REDESIGN_INITIATIVE/PROMPTS_PLAN_EXEC_AUDIT_FIX.md` (header "АРХИВ — НЕ ИСПОЛНЯТЬ").
-- `.cursor/plans/phase_3_patient_home_1b1dc5a6.plan.md` (header "АРХИВ — НЕ ИСПОЛНЯТЬ").
-- `.cursor/plans/phase_4.5_patient_home_a2e6bd38.plan.md` (header "АРХИВ — НЕ ИСПОЛНЯТЬ").
+- `.cursor/plans/archive/phase_3_patient_home_1b1dc5a6.plan.md` (header "АРХИВ — НЕ ИСПОЛНЯТЬ").
+- `.cursor/plans/archive/phase_4.5_patient_home_a2e6bd38.plan.md` (header "АРХИВ — НЕ ИСПОЛНЯТЬ").
 
 Не помечены как архив (они не относятся к этой инициативе и сохраняют свою валидность):
 
-- `.cursor/plans/exercise_ui_+_references_03b21d8e.plan.md` — completed plan по другой задаче.
-- `.cursor/plans/media_hardening_and_logging_1171a669.plan.md` — completed plan по другой задаче.
-- `.cursor/plans/system_health_tab_b0e8ec64.plan.md` — активный план по другой задаче.
+- `.cursor/plans/archive/exercise_ui_+_references_03b21d8e.plan.md` — completed plan по другой задаче.
+- `.cursor/plans/archive/media_hardening_and_logging_1171a669.plan.md` — completed plan по другой задаче.
+- `.cursor/plans/archive/system_health_tab_b0e8ec64.plan.md` — completed plan по другой задаче (реализация в webapp).
 - `docs/PATIENT_HOME_REDESIGN_INITIATIVE/AUDIT_PHASE_*.md`, `GLOBAL_AUDIT.md` — archived контекст, упомянуты в README завершённой инициативы как архив; отдельные шапки не требуются.
 
 ## 2026-04-29 — Session sanity check (branch + references)
@@ -47,7 +47,7 @@ Audit выявил 16 узких мест; внесены исправления
 - Папка **`docs/PATIENT_APP_VISUAL_REDESIGN_INITIATIVE/references/`** существует; **файлов референс-скриншотов нет** (есть только `references/README.md`). До добавления экспортов макетов **Phase 3 и Phase 4 EXEC выполняются только по** `docs/PATIENT_HOME_REDESIGN_INITIATIVE/VISUAL_SYSTEM_SPEC.md` (как единственному визуальному источнику).
 - Доставляемый Phase 0 артефакт **`PLAN_INVENTORY.md`** в папке инициативы отсутствует; в LOG нет записи о завершённом EXEC Phase 0 — **следующая фаза: Phase 0 (Inventory)** по `00_INVENTORY_PLAN.md`.
 - В этой инициативе **нет** `AUDIT_PHASE_*.md`; порядок фаз задаётся `LOG.md` и планами `00`–`05`.
-- Архивные PROMPT'ы из `docs/PATIENT_HOME_REDESIGN_INITIATIVE/PROMPTS_PLAN_EXEC_AUDIT_FIX.md` и планы `.cursor/plans/phase_3_patient_home_*.plan.md` / `phase_4.5_patient_home_*.plan.md` **не исполняются**.
+- Архивные PROMPT'ы из `docs/PATIENT_HOME_REDESIGN_INITIATIVE/PROMPTS_PLAN_EXEC_AUDIT_FIX.md` и планы `.cursor/plans/archive/phase_3_patient_home_*.plan.md` / `phase_4.5_patient_home_*.plan.md` **не исполняются**.
 
 ## 2026-04-29 — Phase 0 / PLAN INVENTORY (readonly)
 

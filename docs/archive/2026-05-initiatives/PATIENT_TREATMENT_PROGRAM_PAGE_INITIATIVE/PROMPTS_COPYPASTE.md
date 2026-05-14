@@ -2,23 +2,23 @@
 
 Контекст инициативы:
 
-- `docs/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/README.md`
-- `docs/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/STAGE_PLAN.md`
-- `docs/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/STAGE_A.md`
-- `docs/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/STAGE_B.md`
-- `docs/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/STAGE_C.md`
-- `docs/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/STAGE_D.md`
-- `docs/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/LOG.md`
+- `docs/archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/README.md`
+- `docs/archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/STAGE_PLAN.md`
+- `docs/archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/STAGE_A.md`
+- `docs/archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/STAGE_B.md`
+- `docs/archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/STAGE_C.md`
+- `docs/archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/STAGE_D.md`
+- `docs/archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/LOG.md`
 - `docs/APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md`
 
 Файлы аудитов (создаются по ходу):
 
-- `docs/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/AUDIT_STAGE_A.md`
-- `docs/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/AUDIT_STAGE_B.md`
-- `docs/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/AUDIT_STAGE_C.md`
-- `docs/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/AUDIT_STAGE_D.md`
-- `docs/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/AUDIT_GLOBAL.md`
-- `docs/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/AUDIT_PREPUSH.md` (опционально)
+- `docs/archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/AUDIT_STAGE_A.md`
+- `docs/archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/AUDIT_STAGE_B.md`
+- `docs/archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/AUDIT_STAGE_C.md`
+- `docs/archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/AUDIT_STAGE_D.md`
+- `docs/archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/AUDIT_GLOBAL.md`
+- `docs/archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/AUDIT_PREPUSH.md` (опционально)
 
 ---
 
@@ -44,8 +44,8 @@
 Pre-flight таблица в STAGE_A.md. Смотри раздел «Pre-flight: что уже сделано».
 
 Вход:
-- docs/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/STAGE_A.md
-- docs/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/STAGE_PLAN.md
+- docs/archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/STAGE_A.md
+- docs/archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/STAGE_PLAN.md
 - docs/APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md (п. 1.0)
 
 Сделай:
@@ -68,14 +68,14 @@ Pre-flight таблица в STAGE_A.md. Смотри раздел «Pre-flight:
 5) Contract test pgTreatmentProgramInstance.startedAt.contract.test.ts зелёный и покрывает map + patch семантику.
 6) progress-service.ts не затронут (логика живёт в репо).
 
-Сохрани: docs/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/AUDIT_STAGE_A.md
+Сохрани: docs/archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/AUDIT_STAGE_A.md
 Добавь MANDATORY FIX INSTRUCTIONS (critical/major/minor).
 ```
 
 ## A — FIX
 
 ```text
-Выполни FIX по docs/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/AUDIT_STAGE_A.md.
+Выполни FIX по docs/archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/AUDIT_STAGE_A.md.
 
 1) Закрой critical и major.
 2) Minor: исправь или оформи defer с обоснованием.
@@ -102,8 +102,8 @@ Pre-flight таблица в STAGE_A.md. Смотри раздел «Pre-flight:
 Выполни stage B инициативы PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE.
 
 Вход:
-- docs/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/STAGE_B.md
-- docs/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/STAGE_PLAN.md
+- docs/archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/STAGE_B.md
+- docs/archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/STAGE_PLAN.md
 - docs/APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md (п. 1.1a)
 
 Сделай:
@@ -127,14 +127,14 @@ Pre-flight таблица в STAGE_A.md. Смотри раздел «Pre-flight:
 6) PatientTreatmentProgramDetailClient.test.tsx зелёный.
 7) [instanceId]/page.nudgeResilience.test.tsx и page.templateDescription.test.tsx зелёные.
 
-Сохрани: docs/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/AUDIT_STAGE_B.md
+Сохрани: docs/archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/AUDIT_STAGE_B.md
 Добавь MANDATORY FIX INSTRUCTIONS.
 ```
 
 ## B — FIX
 
 ```text
-Выполни FIX по docs/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/AUDIT_STAGE_B.md.
+Выполни FIX по docs/archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/AUDIT_STAGE_B.md.
 
 1) Закрой critical и major.
 2) Minor: исправь или defer с обоснованием.
@@ -161,8 +161,8 @@ Pre-flight таблица в STAGE_A.md. Смотри раздел «Pre-flight:
 Выполни stage C инициативы PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE.
 
 Вход:
-- docs/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/STAGE_C.md
-- docs/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/STAGE_PLAN.md
+- docs/archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/STAGE_C.md
+- docs/archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/STAGE_PLAN.md
 - docs/APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md (п. 1.1b)
 
 Сделай:
@@ -187,14 +187,14 @@ Pre-flight таблица в STAGE_A.md. Смотри раздел «Pre-flight:
 7) [instanceId]/page.nudgeResilience.test.tsx и page.templateDescription.test.tsx зелёные.
 8) Нет DB/port изменений.
 
-Сохрани: docs/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/AUDIT_STAGE_C.md
+Сохрани: docs/archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/AUDIT_STAGE_C.md
 Добавь MANDATORY FIX INSTRUCTIONS.
 ```
 
 ## C — FIX
 
 ```text
-Выполни FIX по docs/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/AUDIT_STAGE_C.md.
+Выполни FIX по docs/archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/AUDIT_STAGE_C.md.
 
 1) Закрой critical и major.
 2) Minor: исправь или defer с обоснованием.
@@ -221,8 +221,8 @@ Pre-flight таблица в STAGE_A.md. Смотри раздел «Pre-flight:
 Выполни stage D инициативы PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE.
 
 Вход:
-- docs/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/STAGE_D.md
-- docs/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/STAGE_PLAN.md
+- docs/archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/STAGE_D.md
+- docs/archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/STAGE_PLAN.md
 - docs/APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md (п. 1.1)
 
 Сделай:
@@ -246,14 +246,14 @@ Pre-flight таблица в STAGE_A.md. Смотри раздел «Pre-flight:
 6) PatientTreatmentProgramsListClient.test.tsx зелёный.
 7) page.nudgeResilience.test.tsx зелёный (список: без активной программы — empty state; с активной — redirect).
 
-Сохрани: docs/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/AUDIT_STAGE_D.md
+Сохрани: docs/archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/AUDIT_STAGE_D.md
 Добавь MANDATORY FIX INSTRUCTIONS.
 ```
 
 ## D — FIX
 
 ```text
-Выполни FIX по docs/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/AUDIT_STAGE_D.md.
+Выполни FIX по docs/archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/AUDIT_STAGE_D.md.
 
 1) Закрой critical и major.
 2) Minor: исправь или defer с обоснованием.
@@ -290,14 +290,14 @@ Pre-flight таблица в STAGE_A.md. Смотри раздел «Pre-flight:
 4) Scope не вышел за пределы инициативы.
 5) Документация и LOG синхронизированы.
 
-Сохрани: docs/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/AUDIT_GLOBAL.md
+Сохрани: docs/archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/AUDIT_GLOBAL.md
 Добавь MANDATORY FIX INSTRUCTIONS.
 ```
 
 ## GLOBAL FIX
 
 ```text
-Выполни global fix по docs/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/AUDIT_GLOBAL.md.
+Выполни global fix по docs/archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/AUDIT_GLOBAL.md.
 
 1) Закрой critical и major.
 2) Minor: исправь или defer с обоснованием.

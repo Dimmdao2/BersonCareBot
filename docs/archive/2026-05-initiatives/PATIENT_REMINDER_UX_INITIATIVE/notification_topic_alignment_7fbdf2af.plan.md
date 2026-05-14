@@ -1,6 +1,6 @@
 ---
 name: Notification topic alignment
-overview: "Устранить разрыв между темами рассылок webapp (`notifications_topics`) и движком напоминаний integrator (`ReminderCategory`), не расширяя `REMINDER_CATEGORIES`: явный `notification_topic_code` на правиле + `topic` в Rubitime slot reminders; «важное» без фильтра по теме. Пост-аудит 2026-05-10: хвосты тестов/доков закрыты; репозиторий: `docs/PATIENT_REMINDER_UX_INITIATIVE/NOTIFICATION_TOPIC_ALIGNMENT.md`."
+overview: "Устранить разрыв между темами рассылок webapp (`notifications_topics`) и движком напоминаний integrator (`ReminderCategory`), не расширяя `REMINDER_CATEGORIES`: явный `notification_topic_code` на правиле + `topic` в Rubitime slot reminders; «важное» без фильтра по теме. Пост-аудит 2026-05-10: хвосты тестов/доков закрыты; репозиторий: `docs/archive/2026-05-initiatives/PATIENT_REMINDER_UX_INITIATIVE/NOTIFICATION_TOPIC_ALIGNMENT.md`."
 implementationStatus: verified
 implementationVerifiedAt: "2026-05-10"
 build:
@@ -229,5 +229,5 @@ Checklist:
 ## Закрытие аудита (2026-05-10)
 
 - Добавлены тесты: Rubitime — нет постановки слот-напоминаний при `null` от `getTargetsByPhone` с `topic=appointment_reminders`; `remindersReadsPort` — маппинг `notificationTopicCode`; in-memory проекция — `notificationTopicCode` в списке правил; маппер — `broadcast` / резерв `symptom_reminders` в JSDoc.
-- Документация в репозитории: `docs/PATIENT_REMINDER_UX_INITIATIVE/NOTIFICATION_TOPIC_ALIGNMENT.md`, обновлены `LOG.md`, `README.md` инициативы, `docs/README.md`.
+- Документация в репозитории: `docs/archive/2026-05-initiatives/PATIENT_REMINDER_UX_INITIATIVE/NOTIFICATION_TOPIC_ALIGNMENT.md`, обновлены `LOG.md`, `README.md` инициативы, `docs/README.md`.
 - Состояние сборки/проверки: `implementationStatus: verified`, `build.status: completed` в YAML этого файла; полный `pnpm run ci` — по правилам репозитория перед push.

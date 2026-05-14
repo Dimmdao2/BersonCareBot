@@ -1,6 +1,7 @@
 ---
 name: Doctor catalog regions UX
-overview: КАНОН плана регионов каталога врача — только этот файл в репо (.cursor/plans/doctor_catalog_regions_ux.plan.md). Мультивыбор регионов (чипы + M2M), фильтр по региону на портах list и в useDoctorCatalogDisplayList, SSR list с regionRefId, ReferenceMultiSelect, подсказка overflow в ReferenceSelect; шаблоны ЛФК и наборы тестов. См. docs/ARCHITECTURE/DOCTOR_CATALOG_REGIONS_LOG.md.
+overview: КАНОН плана регионов каталога врача — только этот файл в репо (.cursor/plans/archive/doctor_catalog_regions_ux.plan.md), статус completed. Мультивыбор регионов (чипы + M2M), фильтр по региону на портах list и в useDoctorCatalogDisplayList, SSR list с regionRefId, ReferenceMultiSelect, подсказка overflow в ReferenceSelect; шаблоны ЛФК и наборы тестов. См. docs/ARCHITECTURE/DOCTOR_CATALOG_REGIONS_LOG.md.
+status: completed
 todos:
   - id: hotfix-reference-select
     content: "Регион в формах — ReferenceMultiSelect (снят баг схлопывания); ReferenceSelect — onFocus/showAllOnFocus/overflow hint"
@@ -29,7 +30,7 @@ todos:
 isProject: false
 ---
 
-**Канон:** единственный актуальный план задачи по регионам каталога врача — **этот файл** ([`.cursor/plans/doctor_catalog_regions_ux.plan.md`](.cursor/plans/doctor_catalog_regions_ux.plan.md)). Дубликаты вне репозитория не поддерживаются.
+**Канон:** единственный актуальный план задачи по регионам каталога врача — **этот файл** ([`.cursor/plans/archive/doctor_catalog_regions_ux.plan.md`](.cursor/plans/archive/doctor_catalog_regions_ux.plan.md)). Дубликаты вне репозитория не поддерживаются.
 
 # План: регионы в каталоге врача — проверенная и улучшенная версия
 

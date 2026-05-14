@@ -171,7 +171,7 @@ Scope выдержан строго. ✅
 
 ### Minor M2 — README.md: статус инициативы
 
-**Файл:** `docs/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/README.md`  
+**Файл:** `docs/archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/README.md`  
 **Действие:** заменить строку статуса «в работе / планирование» на отражение фактического закрытия (ссылка на `LOG.md` / дату закрытия).  
 **Блокирует PREPUSH:** нет.
 

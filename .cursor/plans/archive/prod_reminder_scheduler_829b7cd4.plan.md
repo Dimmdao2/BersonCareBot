@@ -1,29 +1,32 @@
 ---
 name: Prod reminder scheduler
 overview: Поднять на production отдельный systemd-процесс integrator scheduler (`schedule.tick` → `reminders.planDue` / `reminders.dispatchDue`), синхронизировать deploy/bootstrap/sudoers и каноническую документацию. Отдельным этапом — дыры «только MAX», пустой delivery-targets, утечки credentials в логах и ясность контракта POST reminders/dispatch.
+status: completed
 todos:
   - id: unit-scheduler
     content: "Добавить deploy/systemd/bersoncarebot-scheduler-prod.service: WorkingDirectory+api.prod+ExecStart scheduler main.js; согласовать Restart с поведением lock (см. раздел «systemd и lock»)"
-    status: pending
+    status: completed
   - id: bootstrap-deploy
     content: "bootstrap-systemd-prod.sh + deploy-prod.sh: install unit, require_unit_file, enable/restart после pnpm build+migrate, is-active+journal; не забыть stop/restart списки в HOST_DEPLOY_README где перечислены сервисы"
-    status: pending
+    status: completed
   - id: sudoers-docs
     content: "sudoers-deploy.example + SERVER CONVENTIONS + HOST_DEPLOY_README + ARCHITECTURE (убрать отклонение 3); deploy/env/README.md при перечислении prod units; INTEGRATOR_CONTRACT/api.md — канон пути напоминаний vs заглушка dispatch"
-    status: pending
+    status: completed
   - id: lock-restart-hardening
     content: "Оценить и при необходимости исправить apps/integrator scheduler: при неполучении lock сейчас process.exit(0) + Restart=always даёт spin на втором хосте; варианты — exit(1)+Restart=on-failure или документированный single-leader"
-    status: pending
+    status: completed
   - id: pkg-scripts
     content: "apps/integrator + корень package.json: scheduler:dev / scheduler:start (+ host alias), зеркально worker:*"
-    status: pending
+    status: completed
   - id: phase-b-backlog
     content: "Второй PR: getDueReminderOccurrences без обязательного telegram JOIN; логи БД без полного connectionString; продукт/доки по пустому channelBindings; судьба POST /api/integrator/reminders/dispatch"
-    status: pending
+    status: completed
 isProject: false
 ---
 
 # План: напоминания в проде (scheduler) + хвосты из разбора
+
+**Архив (репозиторий):** фиксация шагов A1–A6 и B — `docs/OPERATIONS/REMINDER_SCHEDULER_ROLLOUT_LOG.md` (2026-05-14). Оставшиеся строки **Host (ops)** — вне репозитория, в том же журнале.
 
 > Дубликат канона: `~/.cursor/plans/prod_reminder_scheduler_829b7cd4.plan.md` — держи содержимое синхронным при правках.
 

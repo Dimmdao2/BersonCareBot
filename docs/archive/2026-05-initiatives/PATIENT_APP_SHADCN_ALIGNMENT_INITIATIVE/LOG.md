@@ -45,7 +45,7 @@
 
 ## 2026-05-04 — Docs: архивы и план patient home
 
-- Синхронизированы упоминания удалённого `PatientHomeLessonsSection`: `docs/archive/2026-05-initiatives/PATIENT_HOME_REDESIGN_INITIATIVE/README.md`, `PATIENT_APP_VISUAL_REDESIGN_INITIATIVE/PLAN_INVENTORY.md`, `PATIENT_APP_VISUAL_REDESIGN_INITIATIVE/LOG.md`, `PATIENT_APP_STYLE_TRANSFER_INITIATIVE/AUDIT_PHASE_2.md`, `docs/archive/2026-04-initiatives/FULL_DEV_PLAN/PLATFORM_CONTEXT_REPORT.md`, `docs/archive/FULL_DEV_PLAN_DONE/EXEC/EXEC_H_HOTFIX_UI_AUTH.md`, `docs/archive/FULL_DEV_PLAN_DONE/PLANS/STAGE_04_HOME_AND_APPOINTMENTS/PLAN.md`, `.cursor/plans/phase_3_patient_home_1b1dc5a6.plan.md` — без битых ссылок на файл, зафиксирована дата удаления (2026-05-04).
+- Синхронизированы упоминания удалённого `PatientHomeLessonsSection`: `docs/archive/2026-05-initiatives/PATIENT_HOME_REDESIGN_INITIATIVE/README.md`, `PATIENT_APP_VISUAL_REDESIGN_INITIATIVE/PLAN_INVENTORY.md`, `PATIENT_APP_VISUAL_REDESIGN_INITIATIVE/LOG.md`, `PATIENT_APP_STYLE_TRANSFER_INITIATIVE/AUDIT_PHASE_2.md`, `docs/archive/2026-04-initiatives/FULL_DEV_PLAN/PLATFORM_CONTEXT_REPORT.md`, `docs/archive/FULL_DEV_PLAN_DONE/EXEC/EXEC_H_HOTFIX_UI_AUTH.md`, `docs/archive/FULL_DEV_PLAN_DONE/PLANS/STAGE_04_HOME_AND_APPOINTMENTS/PLAN.md`, `.cursor/plans/archive/phase_3_patient_home_1b1dc5a6.plan.md` — без битых ссылок на файл, зафиксирована дата удаления (2026-05-04).
 
 ## 2026-05-04 — Phase 3 follow-up: home «Уроки» + a11y `FeatureCard`
 

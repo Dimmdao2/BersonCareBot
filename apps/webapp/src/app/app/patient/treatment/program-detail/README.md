@@ -26,7 +26,7 @@
 | `PatientProgramPassageStatisticsSection.tsx` | Статистика прохождения (прогресс). |
 | `PatientProgramBlockHeading.tsx` | Заголовок секции с иконкой. |
 | `PatientStageHeaderFields.tsx` | Поля шапки этапа (экспорт для страницы этапа и др.). |
-| `PatientInstanceStageBody.tsx` / `PatientInstanceStageItemCard.tsx` | Тело этапа и карточка пункта (списки, действия). |
+| `PatientInstanceStageBody.tsx` / `PatientInstanceStageItemCard.tsx` | Тело этапа и карточка пункта (списки, действия). Встроенный **`clinical_test`**: после `refresh` (форма, «Снять Новое», `mark-viewed` по видимости) повторно подтягивается snapshot через `reloadClinicalTestSnap`. |
 | `PatientLfkChecklistRow.tsx` | Форма отметки ЛФК за сегодня. |
 | `usePostMarkItemViewedWhenVisible.ts` | IntersectionObserver → `mark-viewed`. |
 
@@ -36,4 +36,4 @@
 - Вкладки «Программа» и «Рекомендации» остаются на `React.lazy` + prefetch в оркестраторе.
 - Публичные импорты для [`PatientTreatmentProgramStagePageClient`](../PatientTreatmentProgramStagePageClient.tsx) не меняются (баррель выше).
 
-Документ инициативы (от корня репозитория): `docs/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/README.md`.
+Документ инициативы (от корня репозитория): `docs/archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/README.md`.
