@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 
-import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
+import { beforeAll, beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import { render, screen, act, fireEvent, within } from "@testing-library/react";
 import type { TreatmentProgramInstanceDetail } from "@/modules/treatment-program/types";
 import { PatientTreatmentProgramDetailClient } from "./PatientTreatmentProgramDetailClient";
@@ -11,6 +11,13 @@ vi.mock("next/navigation", () => ({
 }));
 
 const now = "2026-01-01T00:00:00.000Z";
+
+beforeAll(async () => {
+  await Promise.all([
+    import("@/app/app/patient/treatment/PatientTreatmentTabProgram"),
+    import("@/app/app/patient/treatment/PatientTreatmentTabRecommendations"),
+  ]);
+});
 
 const detailShellProps = {
   appDisplayTimeZone: "Europe/Moscow",

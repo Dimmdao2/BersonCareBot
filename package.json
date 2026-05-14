@@ -17,6 +17,8 @@
     "worker:start": "pnpm --dir apps/integrator worker:start",
     "test": "pnpm --dir apps/integrator test",
     "test:webapp": "pnpm --dir apps/webapp test",
+    "test:webapp:fast": "pnpm --dir apps/webapp test:fast",
+    "test:webapp:inprocess": "pnpm --dir apps/webapp test:inprocess",
     "test:media-worker": "pnpm --dir apps/media-worker test",
     "test:e2e": "pnpm --dir apps/integrator test:e2e",
     "lint": "eslint . && pnpm --dir apps/webapp run lint",

@@ -14,6 +14,8 @@
     "start": "next start -H 127.0.0.1 -p 6200",
     "typecheck": "bash ../../scripts/ensure-booking-sync-built.sh && tsc --noEmit",
     "test": "bash ../../scripts/ensure-booking-sync-built.sh && vitest --run",
+    "test:fast": "bash ../../scripts/ensure-booking-sync-built.sh && vitest --run --exclude \"**/e2e/*inprocess*.test.ts\"",
+    "test:inprocess": "bash ../../scripts/ensure-booking-sync-built.sh && vitest --run inprocess",
     "test:e2e": "bash ../../scripts/ensure-booking-sync-built.sh && vitest --run e2e/",
     "test:e2e:live": "bash ../../scripts/ensure-booking-sync-built.sh && E2E_LIVE_DEV=1 vitest --run e2e/live-dev.test.ts",
     "test:with-db": "bash ../../scripts/ensure-booking-sync-built.sh && USE_REAL_DATABASE=1 vitest --run src/app-layer/db/drizzle.smoke.test.ts src/infra/repos/pgContentSections.test.ts src/infra/repos/pgPatientHomeBlocks.test.ts src/infra/repos/pgPatientHomeLegacyContent.test.ts src/modules/patient-home/newsMotivation.test.ts",
