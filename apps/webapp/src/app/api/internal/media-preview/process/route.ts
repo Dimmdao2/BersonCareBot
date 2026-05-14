@@ -2,7 +2,6 @@ import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { env } from "@/config/env";
 import { logger } from "@/app-layer/logging/logger";
-import { processMediaPreviewBatch } from "@/app-layer/media/mediaPreviewWorker";
 
 function bearerMatchesSecret(token: string, secret: string): boolean {
   const a = Buffer.from(token, "utf8");
@@ -15,7 +14,8 @@ function bearerMatchesSecret(token: string, secret: string): boolean {
 
 /**
  * POST — generate preview JPEGs for `media_files` rows with `preview_status = 'pending'`.
- * Secured with `Authorization: Bearer <INTERNAL_JOB_SECRET>`. Configure cron to call periodically.
+ * Secured with `Authorization: Bearer <INTERNAL_JOB_SECRET>`.
+ * For production cron, prefer `pnpm run media-preview:tick` (separate process); this route stays for loopback/manual triggers.
  */
 export async function POST(request: Request) {
   const secret = env.INTERNAL_JOB_SECRET;
@@ -39,6 +39,7 @@ export async function POST(request: Request) {
   }
 
   try {
+    const { processMediaPreviewBatch } = await import("@/app-layer/media/mediaPreviewWorker");
     const { processed, errors } = await processMediaPreviewBatch(Number.isFinite(limit) ? limit : 10);
     return NextResponse.json({ ok: true, processed, errors });
   } catch (e) {

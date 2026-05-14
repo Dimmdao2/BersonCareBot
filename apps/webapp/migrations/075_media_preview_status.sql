@@ -1,5 +1,5 @@
 -- Background-generated thumbnails/posters for media library (MinIO/S3).
--- Worker: POST /api/internal/media-preview/process
+-- Worker: POST /api/internal/media-preview/process (опционально) или `pnpm run media-preview:tick` — см. docs/MEDIA_PREVIEW_PIPELINE.md
 
 ALTER TABLE media_files
   ADD COLUMN IF NOT EXISTS preview_status TEXT NOT NULL DEFAULT 'pending',

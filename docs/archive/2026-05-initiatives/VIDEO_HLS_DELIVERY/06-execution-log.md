@@ -451,7 +451,7 @@
 **Контур HLS vs webapp (phase-02)**
 
 - **`apps/webapp/src/app/api`:** нет `spawn` / `ffmpeg` / `child_process` — транскод HLS в HTTP handlers Next.js **не** выполняется; только `POST .../media-transcode/enqueue` (БД).
-- **Legacy:** FFmpeg для **превью** библиотеки по-прежнему в `apps/webapp/src/infra/repos/mediaPreviewWorker.ts`, вызываемый из **`POST /api/internal/media-preview/process`** (лёгкий батч по cron) — вне scope изоляции HLS phase-02, но не путать с `apps/media-worker`.
+- **Legacy:** FFmpeg для **превью** библиотеки в `apps/webapp/src/infra/repos/mediaPreviewWorker.ts`: на prod предпочтительно cron **`pnpm run media-preview:tick`** (см. `deploy/HOST_DEPLOY_README.md`); опционально **`POST /api/internal/media-preview/process`** с Bearer — вне scope изоляции HLS phase-02; не путать с `apps/media-worker`.
 
 **Проверки (на окружении агента)**
 

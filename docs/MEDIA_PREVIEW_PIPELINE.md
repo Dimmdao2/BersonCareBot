@@ -22,10 +22,10 @@
 
 ## Воркер
 
-- **HTTP:** `POST /api/internal/media-preview/process?limit=10`
-- **Авторизация:** `Authorization: Bearer <INTERNAL_JOB_SECRET>` (как purge удаления медиа).
+- **Host tick (рекомендуется на prod):** из каталога `apps/webapp` после загрузки того же env, что у webapp (`webapp.prod`): `pnpm run media-preview:tick -- --limit=10` (или env **`MEDIA_PREVIEW_LIMIT`**). Отдельный процесс Node/`tsx` — **без** `INTERNAL_JOB_SECRET`, без нагрузки на процесс Next standalone. Скрипт: [`apps/webapp/scripts/media-preview-process-tick.ts`](../apps/webapp/scripts/media-preview-process-tick.ts).
+- **HTTP (совместимость / ручной триггер):** `POST /api/internal/media-preview/process?limit=10` с `Authorization: Bearer <INTERNAL_JOB_SECRET>` (как purge удаления медиа). В route воркер подключается **ленивым** `import()` при обработке запроса.
 - **Логика:** `processMediaPreviewBatch` в [`apps/webapp/src/infra/repos/mediaPreviewWorker.ts`](../apps/webapp/src/infra/repos/mediaPreviewWorker.ts): выбор строк `preview_status = 'pending'` с `FOR UPDATE SKIP LOCKED`, чтение оригинала из S3, для **image** — `sharp` (sm + md) + `source_width`/`source_height` из `metadata()`, для **video** — `ffmpeg` кадр (~1 с, fallback 0 с) + `sharp` до **sm и md**, размеры источника через `ffprobe`, для **HEIC** — декод в JPEG, затем `sharp` для sm/md; размеры источника: приоритет `ffprobe` по presigned оригиналу, иначе метаданные `sharp` по декодированному кадру; при неудаче ffmpeg — magick + sharp. Загрузка в S3, `preview_status = 'ready'`. В выборке видны `source_width`/`source_height`; если оба ещё `NULL` до обработки (backfill) — **debug**-лог.
-- **Cron:** см. [`deploy/HOST_DEPLOY_README.md`](../deploy/HOST_DEPLOY_README.md) (loopback `127.0.0.1:6200`).
+- **Cron:** см. [`deploy/HOST_DEPLOY_README.md`](../deploy/HOST_DEPLOY_README.md) (предпочтительно tick через `pnpm`; альтернатива — loopback `127.0.0.1:6200` + Bearer).
 
 ### Лимиты и устойчивость (post-audit)
 

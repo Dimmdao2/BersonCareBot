@@ -313,7 +313,7 @@ mc cors set myminio/<PRIVATE_BUCKET_NAME> /path/to/cors.json
 
 **Multipart upload (очистка незавершённых сессий):** отдельный воркер — `POST /api/internal/media-multipart/cleanup` с тем же Bearer. Назначение: истёкшие строки `media_upload_sessions` → `AbortMultipartUpload` в S3 и удаление orphan `pending` в `media_files`. Рекомендуется cron на loopback (например раз в 5–15 минут или чаще), тот же `INTERNAL_JOB_SECRET` и тот же nginx `allow 127.0.0.1` для `/api/internal/`. На стороне MinIO дополнительно задайте lifecycle rule **`AbortIncompleteMultipartUpload`** (например 1–2 суток) для private-бакета как вторую линию защиты от «зависших» multipart.
 
-**Превью медиатеки (фон):** после применения миграции `075_media_preview_status.sql` воркер — `POST /api/internal/media-preview/process` с тем же `Authorization: Bearer <INTERNAL_JOB_SECRET>`. Генерирует JPEG-превью в private-бакете (`previews/sm/…`, `previews/md/…` для изображений) и обновляет `media_files.preview_*`. Отдача в браузер: `GET /api/media/:id/preview/sm|md` (сессия врача) → редирект на presigned GET с `Cache-Control: private, max-age=3500`. Рекомендуется отдельный cron на loopback с небольшим `limit` (например 10/мин), чтобы не перегружать CPU (`ffmpeg` / `sharp`).
+**Превью медиатеки (фон):** после применения миграции `075_media_preview_status.sql` логика — `processMediaPreviewBatch` (см. `apps/webapp/src/infra/repos/mediaPreviewWorker.ts`): JPEG-превью в private-бакете (`previews/sm/…`, `previews/md/…`) и обновление `media_files.preview_*`. **Рекомендуемый способ на prod** — отдельный процесс **`pnpm run media-preview:tick`** из каталога webapp после `source webapp.prod` (тот же env, что у `next start`, без нагрузки на Next standalone и без `INTERNAL_JOB_SECRET`). Отдача в браузер: `GET /api/media/:id/preview/sm|md` (сессия врача) → редирект на presigned GET с `Cache-Control: private, max-age=3500`. Рекомендуется отдельный cron с небольшим `limit` (например 10/мин), чтобы не перегружать CPU (`ffmpeg` / `sharp`). **Альтернатива (совместимость):** `POST /api/internal/media-preview/process` с `Authorization: Bearer <INTERNAL_JOB_SECRET>` на loopback — см. пример ниже в блоке cron.
 
 **Почасовая статистика playback (HOUSEKEEPING):** после миграции с таблицей **`media_playback_stats_hourly`** — `POST /api/internal/media-playback-stats/retention` с тем же Bearer: удаление старых `bucket_hour` (параметр **`?days=`**, по умолчанию **90**; **`?dryRun=1`** — только число затронутых строк). Таблица дедупа **`media_playback_user_video_first_resolve`** не затрагивается. На хосте достаточно редкого cron на loopback (например раз в неделю).
 
@@ -366,7 +366,13 @@ location /api/internal/ {
 */10 * * * * root bash -lc 'set -a && source /opt/env/bersoncarebot/webapp.prod && set +a; [ -n "$INTERNAL_JOB_SECRET" ] || exit 1; curl -fsS -X POST -H "Authorization: Bearer $INTERNAL_JOB_SECRET" "http://127.0.0.1:6200/api/internal/media-multipart/cleanup?limit=25" >/dev/null'
 ```
 
-Пример cron для генерации превью медиатеки:
+Пример cron для генерации превью медиатеки (**рекомендуется**, отдельный процесс вне Next.js; каталог и env — как в таблице путей выше):
+
+```cron
+* * * * * root bash -lc 'set -a && source /opt/env/bersoncarebot/webapp.prod && set +a; cd /opt/projects/bersoncarebot/apps/webapp && pnpm run media-preview:tick -- --limit=10 >/dev/null'
+```
+
+Альтернатива — **HTTP** на loopback с Bearer (если tick-скрипт недоступен):
 
 ```cron
 * * * * * root bash -lc 'set -a && source /opt/env/bersoncarebot/webapp.prod && set +a; [ -n "$INTERNAL_JOB_SECRET" ] || exit 1; curl -fsS -X POST -H "Authorization: Bearer $INTERNAL_JOB_SECRET" "http://127.0.0.1:6200/api/internal/media-preview/process?limit=10" >/dev/null'
