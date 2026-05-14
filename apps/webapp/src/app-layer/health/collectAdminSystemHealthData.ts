@@ -19,7 +19,10 @@ import { getPool } from "@/app-layer/db/client";
 import { proxyIntegratorProjectionHealth } from "@/app-layer/health/proxyIntegratorProjectionHealth";
 import { getConfigBool } from "@/modules/system-settings/configAdapter";
 import type { OperatorIncidentOpenRow } from "@/modules/operator-health/ports";
-import { ADMIN_DELIVERY_DUE_BACKLOG_WARNING } from "@/modules/operator-health/adminHealthThresholds";
+import {
+  ADMIN_DELIVERY_DUE_BACKLOG_WARNING,
+  classifyVideoTranscodeSystemHealthStatus,
+} from "@/modules/operator-health/adminHealthThresholds";
 
 const INTEGRATOR_TIMEOUT_MS = 8_000;
 
@@ -126,7 +129,7 @@ type VideoHlsProxyHealthPayload = {
   }>;
 };
 
-type VideoTranscodeHealthStatus = "ok" | "error";
+type VideoTranscodeHealthStatus = "ok" | "degraded" | "error";
 
 /** Снимок строки `operator_job_status` для cron reconcile (`media_transcode.reconcile`). */
 export type VideoTranscodeLastReconcileTickPayload = {
@@ -664,10 +667,19 @@ async function probeVideoTranscode(): Promise<ProbeResult<VideoTranscodeHealthPa
           metaJson: tickRow.metaJson,
         }
       : null;
+    const transcodeHealthStatus = classifyVideoTranscodeSystemHealthStatus({
+      pipelineEnabled,
+      reconcileEnabled,
+      pendingCount: m.pendingCount,
+      oldestPendingAgeSeconds: m.oldestPendingAgeSeconds,
+      failedLastHour: m.failedLastHour,
+      failedLast24h: m.failedLast24h,
+      reconcileLastStatus: tickRow?.lastStatus ?? null,
+    });
     return {
       ok: true,
       value: {
-        status: "ok",
+        status: transcodeHealthStatus,
         pipelineEnabled,
         reconcileEnabled,
         pendingCount: m.pendingCount,

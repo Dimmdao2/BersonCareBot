@@ -139,7 +139,7 @@ type SystemHealthPayload = {
     }>;
   };
   videoTranscode: {
-    status: "ok" | "error";
+    status: "ok" | "degraded" | "error";
     pipelineEnabled: boolean;
     reconcileEnabled: boolean;
     pendingCount: number;
@@ -804,7 +804,9 @@ export function SystemHealthSection() {
                 value={
                   data?.videoTranscode?.status === "error"
                     ? "Не удалось прочитать метрики"
-                    : "Состояние очереди и зрелости медиабиблиотеки по данным базы приложения"
+                    : data?.videoTranscode?.status === "degraded"
+                      ? "Есть признаки задержки или отдельных сбоев по данным базы приложения"
+                      : "Состояние очереди и зрелости медиабиблиотеки по данным базы приложения"
                 }
               />
               <DetailRow

@@ -668,4 +668,93 @@ describe("GET /api/admin/system-health", () => {
       OPERATOR_MEDIA_TRANSCODE_RECONCILE_JOB_KEY,
     );
   });
+
+  it("returns videoTranscode degraded when reconcile last tick is failure", async () => {
+    requireAdminModeSessionMock.mockResolvedValue({
+      ok: true,
+      session: { user: { userId: "a1", role: "admin" }, adminMode: true },
+    });
+    checkDbHealthMock.mockResolvedValue(true);
+    getConfigBoolMock.mockImplementation(async (key: string) =>
+      key === "video_hls_pipeline_enabled" || key === "video_hls_reconcile_enabled" ? true : false,
+    );
+    globalThis.fetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ ok: true, db: "up" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    ) as typeof fetch;
+    proxyIntegratorProjectionHealthMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          pendingCount: 0,
+          deadCount: 0,
+          retriesOverThreshold: 0,
+          lastSuccessAt: null,
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+    loadAdminTranscodeHealthMetricsMock.mockResolvedValue(zeroTranscodeMetrics);
+    getOperatorJobStatusMock.mockResolvedValue({
+      jobKey: OPERATOR_MEDIA_TRANSCODE_RECONCILE_JOB_KEY,
+      jobFamily: OPERATOR_MEDIA_JOB_FAMILY,
+      lastStatus: "failure",
+      lastStartedAt: "2026-01-01T00:00:00.000Z",
+      lastFinishedAt: "2026-01-01T00:00:05.000Z",
+      lastSuccessAt: null,
+      lastFailureAt: "2026-01-01T00:00:05.000Z",
+      lastDurationMs: 900,
+      lastError: "cron failed",
+      metaJson: {},
+    });
+
+    const res = await GET();
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      videoTranscode: { status: string };
+      meta?: { probes?: { videoTranscode?: { status: string } } };
+    };
+    expect(body.videoTranscode.status).toBe("degraded");
+    expect(body.meta?.probes?.videoTranscode?.status).toBe("degraded");
+  });
+
+  it("returns videoTranscode error when oldest pending exceeds 60 min", async () => {
+    requireAdminModeSessionMock.mockResolvedValue({
+      ok: true,
+      session: { user: { userId: "a1", role: "admin" }, adminMode: true },
+    });
+    checkDbHealthMock.mockResolvedValue(true);
+    getConfigBoolMock.mockImplementation(async (key: string) =>
+      key === "video_hls_pipeline_enabled" || key === "video_hls_reconcile_enabled" ? true : false,
+    );
+    globalThis.fetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ ok: true, db: "up" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    ) as typeof fetch;
+    proxyIntegratorProjectionHealthMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          pendingCount: 0,
+          deadCount: 0,
+          retriesOverThreshold: 0,
+          lastSuccessAt: null,
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+    loadAdminTranscodeHealthMetricsMock.mockResolvedValue({
+      ...zeroTranscodeMetrics,
+      pendingCount: 2,
+      oldestPendingAgeSeconds: 61 * 60,
+    });
+    getOperatorJobStatusMock.mockResolvedValue(null);
+
+    const res = await GET();
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { videoTranscode: { status: string } };
+    expect(body.videoTranscode.status).toBe("error");
+  });
 });

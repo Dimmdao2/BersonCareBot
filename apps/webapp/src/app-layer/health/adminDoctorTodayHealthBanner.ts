@@ -24,7 +24,7 @@ export function adminDoctorTodayHealthBannerFromSystemHealth(s: SystemHealthResp
   if (s.mediaPreview.status === "error") return BANNER_ON;
   if (s.videoPlayback.status === "error") return BANNER_ON;
   if (s.videoPlaybackClient.status !== "ok") return BANNER_ON;
-  if (s.videoTranscode.status === "error") return BANNER_ON;
+  if (s.videoTranscode.status !== "ok") return BANNER_ON;
   if (s.videoTranscode.pipelineEnabled && s.videoTranscode.failedLastHour > 0) return BANNER_ON;
   if (Object.values(s.backupJobs).some((j) => j.lastStatus === "failure")) return BANNER_ON;
   if (s.operatorIncidentsOpen.length > 0) return BANNER_ON;
