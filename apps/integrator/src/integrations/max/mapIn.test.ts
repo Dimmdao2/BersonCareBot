@@ -427,6 +427,18 @@ describe('max mapIn', () => {
     expect(fromMax(body)).toBeNull();
   });
 
+  it.each([
+    { update_type: 'bot_added' as const },
+    { update_type: 'bot_removed' as const },
+    { update_type: 'user_removed' as const },
+    { update_type: 'chat_title_changed' as const },
+    { update_type: 'message_construction_request' as const },
+    { update_type: 'message_constructed' as const },
+    { update_type: 'message_chat_created' as const },
+  ])('returns null for $update_type (no dedicated fromMax branch)', (row) => {
+    expect(fromMax({ ...row, timestamp: 1 })).toBeNull();
+  });
+
   it('maps message_created /start setrubitimerecord_recX to start.setrubitimerecord + recordId', () => {
     const body = {
       update_type: 'message_created' as const,

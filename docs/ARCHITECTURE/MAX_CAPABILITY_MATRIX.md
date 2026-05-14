@@ -6,7 +6,7 @@ Reference: [MAX API docs](https://dev.max.ru/docs-api), [Telegram Bot API](https
 
 ## Incoming / Ignored updates (MAX webhook)
 
-Типы из `MaxUpdateSchema` (`schema.ts`), для которых `fromMax` возвращает **`null`** (нет `IncomingUpdate`): `message_removed`, `message_edited`, `bot_added`, `bot_removed`, `user_removed`, `chat_title_changed`, `message_construction_request`, `message_constructed`, `message_chat_created`. Обработчик webhook отвечает клиенту **ok** и пишет в `reqLogger.info` **точное** сообщение лога `max webhook skipped (unsupported or missing chatId/userId)` — это полная строка для поиска в логах/дашбордах (см. `webhook.ts`).
+Типы из `MaxUpdateSchema` (`schema.ts`), для которых `fromMax` возвращает **`null`** (нет `IncomingUpdate`): `message_removed`, `message_edited`, `bot_added`, `bot_removed`, `user_removed`, `chat_title_changed`, `message_construction_request`, `message_constructed`, `message_chat_created`. Обработчик webhook отвечает клиенту **ok** и пишет в `reqLogger.info` **точное** сообщение лога `max webhook skipped (unsupported or missing chatId/userId)` — это полная строка для поиска в логах/дашбордах (см. `webhook.ts`). **Автопокрытие:** `webhook.test.ts` (ветка при `message_edited`), `mapIn.test.ts` (`it.each` по перечисленным типам кроме уже покрытых отдельными `it` для `message_edited` / `message_removed`); журнал — [`MAX_PREPROD_AUTOMATION_LOG.md`](MAX_PREPROD_AUTOMATION_LOG.md).
 
 ## Incoming
 

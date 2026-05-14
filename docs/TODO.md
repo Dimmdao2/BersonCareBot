@@ -4,7 +4,7 @@
 
 ## Cursor-планы и доки (сводка)
 
-- **Репозиторий** vs **домашний каталог Cursor:** планы **в монорепо** — `<репо>/.cursor/plans/` (см. ниже и [`.cursor/plans/archive/README.md`](../.cursor/plans/archive/README.md)); планы **на машине** — `~/.cursor/plans`. Не смешивать: пояснение в начале [`CURSOR_PLANS_REVIEW_2026-05-01.md`](CURSOR_PLANS_REVIEW_2026-05-01.md).
+- **Репозиторий** vs **домашний каталог Cursor:** планы **в монорепо** — `<репо>/.cursor/plans/` (см. ниже и [`.cursor/plans/archive/README.md`](../.cursor/plans/archive/README.md)); планы **на машине** — `~/.cursor/plans`. Не смешивать: пояснение в начале [`CURSOR_PLANS_REVIEW_2026-05-01.md`](CURSOR_PLANS_REVIEW_2026-05-01.md). Закрытый план MAX/TG pre-prod (integrator): [`.cursor/plans/archive/max_tg_pre-prod_automation.plan.md`](../.cursor/plans/archive/max_tg_pre-prod_automation.plan.md) · журнал [`ARCHITECTURE/MAX_PREPROD_AUTOMATION_LOG.md`](ARCHITECTURE/MAX_PREPROD_AUTOMATION_LOG.md).
 
 - **Активные планы** (корень репозитория): `.cursor/plans/integrator_drizzle_migration_master.plan.md` + `integrator_drizzle_phase_*.plan.md` — см. `docs/INTEGRATOR_DRIZZLE_MIGRATION/LOG.md`.
 - **Архив закрытых планов (репозиторий):** `.cursor/plans/archive/` — [README](../.cursor/plans/archive/README.md).

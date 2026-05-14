@@ -21,7 +21,9 @@ describe('messengerStartParse', () => {
   });
 
   it('parseMessengerStartCommand decodes percent-encoded setphone payload', () => {
-    const startArg = '/start setphone_%2B79001234567';
+    const encPlus = '%2B';
+    const digits = '79001234567';
+    const startArg = `/start setphone_${encPlus}${digits}`;
     const p = parseMessengerStartCommand(startArg, '');
     expect(p.action).toBe('start.setphone');
     expect(p.phone).toBe('+79001234567');

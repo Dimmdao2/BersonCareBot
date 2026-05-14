@@ -70,6 +70,7 @@ npx tsx scripts/check-max.ts
 - MAX client: `apps/integrator/src/integrations/max/client.ts`
 - MAX adapter: `apps/integrator/src/integrations/max/deliveryAdapter.ts`
 - MAX webhook/mapIn/schema: `apps/integrator/src/integrations/max/webhook.ts`, `apps/integrator/src/integrations/max/mapIn.ts`, `apps/integrator/src/integrations/max/schema.ts`
+- Регрессионные тесты pre-prod (webhook «тихий» skip, `fromMax` для игнорируемых типов, skip reminder + `postOccurrenceSkip`): см. [`MAX_PREPROD_AUTOMATION_LOG.md`](MAX_PREPROD_AUTOMATION_LOG.md); закрытый план — [`.cursor/plans/archive/max_tg_pre-prod_automation.plan.md`](../../.cursor/plans/archive/max_tg_pre-prod_automation.plan.md).
 
 ---
 

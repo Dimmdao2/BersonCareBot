@@ -83,4 +83,29 @@ describe('max webhook', () => {
     expect(event.payload?.incoming?.action).toBe('start.link');
     expect(event.payload?.incoming?.linkSecret).toBe('link_abC123-_');
   });
+
+  it('returns 200 ok:true and skips eventGateway when body parses but fromMax is null (message_edited)', async () => {
+    const eventGateway = { handleIncomingEvent: vi.fn() };
+    const app = Fastify();
+    await registerMaxWebhookRoutes(app, {
+      eventGateway,
+      resolveIntegratorUserIdForMessenger: async () => undefined,
+    });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/webhook/max',
+      payload: {
+        update_type: 'message_edited',
+        timestamp: 1,
+        message: {
+          recipient: { chat_id: 601 },
+          body: { mid: 'mid-ed', text: 'edited' },
+          sender: { user_id: 601 },
+        },
+      },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(res.payload)).toEqual({ ok: true });
+    expect(eventGateway.handleIncomingEvent).not.toHaveBeenCalled();
+  });
 });

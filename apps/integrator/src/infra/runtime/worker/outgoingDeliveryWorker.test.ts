@@ -30,7 +30,7 @@ function baseRow(overrides: Partial<OutgoingDeliveryQueueRow>): OutgoingDelivery
   };
 }
 
-describe('processOutgoingDeliveryRow reminder_dispatch', () => {
+describe('reminder_dispatch outgoing delivery row', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });

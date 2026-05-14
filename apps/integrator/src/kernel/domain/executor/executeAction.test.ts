@@ -20,7 +20,7 @@ vi.mock('../reminders/reminderMessengerWebAppUrls.js', () => ({
   }),
 }));
 
-import type { Action, DbReadPort, DomainContext } from '../../contracts/index.js';
+import type { Action, DbReadPort, DomainContext, RemindersWebappWritesPort } from '../../contracts/index.js';
 import { executeAction } from './executeAction.js';
 import { resolveTargets } from './helpers.js';
 
@@ -2962,6 +2962,60 @@ describe('executeAction', () => {
       const send = result.intents?.find((i) => i.type === 'message.send');
       expect(send && 'payload' in send ? (send.payload as { message?: { text?: string } }).message?.text : null).toBe(
         'ack no mid',
+      );
+    });
+
+    it('reason none: postOccurrenceSkip with reason null runs before markSkippedLocal when webapp port set', async () => {
+      const readDb = vi.fn().mockImplementation(async (q: { type: string; params?: Record<string, unknown> }) => {
+        if (q.type === 'user.byIdentity') return { userId: 'int-user-webapp-skip' };
+        if (q.type === 'reminders.occurrence.ownerUserId') {
+          expect(q.params).toMatchObject({ occurrenceId: 'occ-skip-webapp' });
+          return 'int-user-webapp-skip';
+        }
+        return null;
+      });
+      const writeDb = vi.fn().mockResolvedValue(undefined);
+      const renderTemplate = vi.fn().mockResolvedValue({ text: 'skip webapp ack' });
+      const postOccurrenceSkip = vi.fn().mockResolvedValue({
+        ok: true,
+        skippedAt: '2026-01-01T00:00:00.000Z',
+      });
+      const remindersWebappWritesPort: RemindersWebappWritesPort = {
+        postOccurrenceSnooze: vi.fn(),
+        postOccurrenceSkip,
+        postOccurrenceDone: vi.fn(),
+        postReminderMuteUntil: vi.fn(),
+      };
+      const action: Action = {
+        id: 'skip-preset-webapp',
+        type: 'reminders.skip.applyPreset',
+        mode: 'sync',
+        params: {
+          occurrenceId: 'occ-skip-webapp',
+          reasonCode: 'none',
+          channelUserId: '999',
+          resource: 'telegram',
+          chatId: 102,
+          messageId: 9002,
+          callbackQueryId: 'cb-skip-w',
+        },
+      };
+      const result = await executeAction(action, ctx, {
+        readPort: { readDb },
+        writePort: { writeDb },
+        templatePort: { renderTemplate },
+        remindersWebappWritesPort,
+      });
+      expect(result.status).toBe('success');
+      expect(postOccurrenceSkip).toHaveBeenCalledWith({
+        integratorUserId: 'int-user-webapp-skip',
+        occurrenceId: 'occ-skip-webapp',
+        reason: null,
+      });
+      const markIdx = writeDb.mock.calls.findIndex((c) => c[0]?.type === 'reminders.occurrence.markSkippedLocal');
+      expect(markIdx).toBeGreaterThanOrEqual(0);
+      expect(postOccurrenceSkip.mock.invocationCallOrder[0]).toBeLessThan(
+        writeDb.mock.invocationCallOrder[markIdx]!,
       );
     });
   });
