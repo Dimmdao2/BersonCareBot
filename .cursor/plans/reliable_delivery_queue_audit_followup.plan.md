@@ -1,3 +1,28 @@
+---
+name: "Надёжная очередь доставки + health (аудит 2026-05)"
+overview: "Доработки по аудиту: классификация dispatch, баннер «Сегодня» = system-health, метрики очереди, retryable/permanent, ретраи enqueue напоминаний, вынесение collectAdminSystemHealthData."
+todos:
+  - id: audit-c3-dispatch-classification
+    content: "C3 — документ OUTGOING_DISPATCH_CLASSIFICATION.md"
+    status: completed
+  - id: audit-d1-banner-system-health
+    content: "D1 — баннер «Сегодня» через collectAdminSystemHealthData + adminDoctorTodayHealthBannerFromSystemHealth"
+    status: completed
+  - id: audit-b2-queue-health-ui
+    content: "B2 — getOutgoingDeliveryQueueHealth (dueByChannel, processing, lastSentAt, lastQueueActivityAt) + SystemHealthSection"
+    status: completed
+  - id: audit-a1-retry-taxonomy
+    content: "A1 — isOutgoingDeliveryDispatchErrorRetryable + воркер dead для permanent"
+    status: completed
+  - id: audit-reminders-enqueue-retries
+    content: "Reminders — enqueueReminderDispatchBatchWithRetries"
+    status: completed
+  - id: audit-refactor-system-health-collect
+    content: "Рефакторинг — collectAdminSystemHealthData.ts + тонкий route.ts"
+    status: completed
+isProject: false
+---
+
 # План: надёжная очередь доставки + health для админа — доработка по аудиту (2026-05)
 
 ## Принятые решения
