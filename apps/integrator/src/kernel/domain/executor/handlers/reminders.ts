@@ -319,7 +319,6 @@ export async function handleReminders(
           `SELECT title
            FROM public.content_sections
            WHERE slug = $1
-             AND deleted_at IS NULL
            LIMIT 1`,
           [rule.linkedObjectId],
         );
