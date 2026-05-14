@@ -1,3 +1,4 @@
+import { logger } from '../../infra/observability/logger.js';
 import type { DeliveryAdapter, DeliverySendResult, OutgoingIntent } from '../../kernel/contracts/index.js';
 import type { AttachmentRequest, Button } from '@maxhub/max-bot-api/types';
 import * as maxClient from './client.js';
@@ -133,6 +134,7 @@ export function createMaxDeliveryAdapter(): DeliveryAdapter {
       if (intent.type === 'message.send') return readChannel(intent) === 'max';
       if (intent.type === 'message.edit') return intent.meta.source === 'max';
       if (intent.type === 'message.replyMarkup.edit') return intent.meta.source === 'max';
+      if (intent.type === 'message.delete') return intent.meta.source === 'max';
       if (intent.type === 'callback.answer') return intent.meta.source === 'max';
       return false;
     },
@@ -164,6 +166,24 @@ export function createMaxDeliveryAdapter(): DeliveryAdapter {
           },
         });
         if (!result) throw new Error('MAX_SEND_FAILED');
+        const mid =
+          typeof result.body?.mid === 'string' && result.body.mid.trim().length > 0
+            ? result.body.mid.trim()
+            : undefined;
+        return mid ? { maxMessageId: mid } : {};
+      }
+
+      if (intent.type === 'message.delete') {
+        const stringMessageId =
+          asNonEmptyString(messageId) ?? (typeof messageId === 'number' && Number.isFinite(messageId) ? String(messageId) : null);
+        if (!stringMessageId) {
+          logger.warn({}, 'max_reminder_delete_payload_invalid');
+          return {};
+        }
+        const ok = await maxClient.deleteMaxMessage(config, stringMessageId);
+        if (!ok) {
+          logger.warn({ messageId: stringMessageId }, 'max_reminder_stale_message_delete_soft_fail');
+        }
         return {};
       }
 

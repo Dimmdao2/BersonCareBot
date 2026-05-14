@@ -174,34 +174,59 @@ export async function processOutgoingDeliveryRow(
       return;
     }
     try {
-      const staleRaw = p.deleteBeforeSendTelegramMessageId;
-      const staleMid =
-        typeof staleRaw === 'number' && Number.isFinite(staleRaw)
-          ? Math.trunc(staleRaw)
-          : typeof staleRaw === 'string' && /^\d+$/.test(staleRaw.trim())
-            ? Number.parseInt(staleRaw.trim(), 10)
-            : NaN;
-      if (channel === 'telegram' && Number.isFinite(staleMid) && staleMid > 0) {
-        const sendPayload = intent.payload as { recipient?: { chatId?: unknown } };
-        const chatIdForDel = asChatIdFromRecipient(sendPayload.recipient);
-        if (chatIdForDel !== null) {
+      const sendPayload = intent.payload as { recipient?: { chatId?: unknown } };
+      const chatIdForDel = asChatIdFromRecipient(sendPayload.recipient);
+      const unified = p.deleteBeforeSendMessageId;
+      const legacyTg = p.deleteBeforeSendTelegramMessageId;
+      const staleStr =
+        typeof unified === 'string' && unified.trim().length > 0
+          ? unified.trim()
+          : typeof legacyTg === 'number' && Number.isFinite(legacyTg)
+            ? String(Math.trunc(legacyTg))
+            : typeof legacyTg === 'string' && /^\d+$/.test(legacyTg.trim())
+              ? legacyTg.trim()
+              : null;
+      if (staleStr && chatIdForDel !== null) {
+        if (channel === 'telegram') {
+          const staleMid = Number(staleStr);
+          if (Number.isFinite(staleMid) && staleMid > 0) {
+            try {
+              await dispatchOutgoing({
+                type: 'message.delete',
+                meta: {
+                  eventId: `${row.eventId}:stale_delete`,
+                  occurredAt: new Date().toISOString(),
+                  source: 'telegram',
+                  ...(typeof intent.meta.userId === 'string' ? { userId: intent.meta.userId } : {}),
+                },
+                payload: {
+                  recipient: { chatId: chatIdForDel },
+                  messageId: staleMid,
+                  delivery: { channels: ['telegram'], maxAttempts: 1 },
+                },
+              });
+            } catch (err) {
+              logger.warn({ err, staleMid, occurrenceId }, 'reminder_stale_message_delete_failed');
+            }
+          }
+        } else if (channel === 'max') {
           try {
             await dispatchOutgoing({
               type: 'message.delete',
               meta: {
                 eventId: `${row.eventId}:stale_delete`,
                 occurredAt: new Date().toISOString(),
-                source: 'telegram',
+                source: 'max',
                 ...(typeof intent.meta.userId === 'string' ? { userId: intent.meta.userId } : {}),
               },
               payload: {
                 recipient: { chatId: chatIdForDel },
-                messageId: staleMid,
-                delivery: { channels: ['telegram'], maxAttempts: 1 },
+                messageId: staleStr,
+                delivery: { channels: ['max'], maxAttempts: 1 },
               },
             });
           } catch (err) {
-            logger.warn({ err, staleMid, occurrenceId }, 'reminder_stale_message_delete_failed');
+            logger.warn({ err, staleMessageId: staleStr, occurrenceId }, 'max_reminder_stale_message_delete_failed');
           }
         }
       }
@@ -210,6 +235,10 @@ export async function processOutgoingDeliveryRow(
       const telegramMessageId =
         channel === 'telegram' && typeof sendResult?.telegramMessageId === 'number'
           ? sendResult.telegramMessageId
+          : undefined;
+      const maxMessageId =
+        channel === 'max' && typeof sendResult?.maxMessageId === 'string' && sendResult.maxMessageId.trim().length > 0
+          ? sendResult.maxMessageId.trim()
           : undefined;
       await writePort.writeDb({
         type: 'reminders.delivery.log',
@@ -224,6 +253,7 @@ export async function processOutgoingDeliveryRow(
             ...(telegramMessageId !== undefined
               ? { telegramMessageId: String(Math.trunc(telegramMessageId)) }
               : {}),
+            ...(maxMessageId !== undefined ? { maxMessageId } : {}),
           },
         },
       });

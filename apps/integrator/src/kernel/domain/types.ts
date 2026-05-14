@@ -37,7 +37,7 @@ export type IncomingMessageUpdate = {
   chatId: number;
   channelId: string;
   messageId?: number | string;
-  /** Telegram: `reply_to_message.message_id` when user replies to a specific bot message (e.g. skip reason prompt). */
+  /** Telegram: `reply_to_message.message_id`; MAX: `message.link` (`type: "reply"`) → `message.link.message.mid` на `message_created` / при наличии на `message_callback`. */
   replyToMessageId?: number | string;
   text: string;
   action?: string;
@@ -62,6 +62,8 @@ export type IncomingCallbackUpdate = {
   kind: 'callback';
   chatId: number;
   messageId: number | string;
+  /** MAX: `message.link` с `type: "reply"` на сообщении с кнопками (если платформа отдаёт). */
+  replyToMessageId?: number | string;
   channelUserId: number;
   action?: string;
   hasLinkedPhone?: boolean;

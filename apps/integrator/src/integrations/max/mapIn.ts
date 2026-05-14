@@ -56,6 +56,13 @@ function getMessageIdFromMessage(msg: MaxUpdateValidated['message']): string | n
   return typeof msg?.body?.mid === 'string' && msg.body.mid.trim().length > 0 ? msg.body.mid : null;
 }
 
+function getReplyToMessageIdFromMaxMessage(msg: MaxUpdateValidated['message']): string | null {
+  const link = msg?.link as { type?: string; message?: { mid?: unknown } } | null | undefined;
+  if (!link || link.type !== 'reply') return null;
+  const mid = link.message?.mid;
+  return typeof mid === 'string' && mid.trim().length > 0 ? mid.trim() : null;
+}
+
 function getCallbackMessageId(body: MaxUpdateValidated): string | null {
   const fromMessage = getMessageIdFromMessage(body.message);
   if (fromMessage) return fromMessage;
@@ -118,11 +125,13 @@ export function fromMax(body: MaxUpdateValidated): IncomingUpdate | null {
     const messageId = getCallbackMessageId(body);
     if (!callbackId || chatId === null || userId == null || !messageId) return null;
     const normalized = normalizeChannelCallbackPayload(payload);
+    const replyToMid = body.message ? getReplyToMessageIdFromMaxMessage(body.message) : null;
     const update: IncomingCallbackUpdate = {
       kind: 'callback',
       chatId,
       messageId,
       channelUserId: userId,
+      ...(replyToMid ? { replyToMessageId: replyToMid } : {}),
       action: normalized.action,
       callbackData: normalized.action,
       callbackQueryId: callbackId,
@@ -170,6 +179,7 @@ export function fromMax(body: MaxUpdateValidated): IncomingUpdate | null {
       action = getActionFromText(text);
     }
     const phoneOut = phoneFromStart ?? contactPhone ?? undefined;
+    const replyToMid = getReplyToMessageIdFromMaxMessage(msg);
     const update: IncomingMessageUpdate = {
       kind: 'message',
       chatId,
@@ -180,6 +190,7 @@ export function fromMax(body: MaxUpdateValidated): IncomingUpdate | null {
       ...(linkSecret !== undefined ? { linkSecret } : {}),
       ...(recordId !== undefined ? { recordId } : {}),
       ...(phoneOut ? { phone: phoneOut } : {}),
+      ...(replyToMid ? { replyToMessageId: replyToMid } : {}),
       ...(getRelayMessageTypeFromMaxMessage(msg) ? { relayMessageType: getRelayMessageTypeFromMaxMessage(msg) as SupportRelayMessageType } : {}),
       ...(typeof msg.sender?.username === 'string' ? { channelUsername: msg.sender.username } : {}),
       ...(typeof msg.sender?.first_name === 'string' ? { channelFirstName: msg.sender.first_name } : {}),

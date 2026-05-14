@@ -154,6 +154,33 @@ describe('max mapIn', () => {
     if (incoming?.kind === 'message') expect(incoming.relayMessageType).toBe('photo');
   });
 
+  it('maps message_callback with reply link on message to replyToMessageId', () => {
+    const body = {
+      update_type: 'message_callback' as const,
+      timestamp: 1,
+      callback: {
+        callback_id: 'cb-reply',
+        payload: 'menu.more',
+        user: { user_id: 303 },
+      },
+      message: {
+        recipient: { chat_id: 303 },
+        body: { mid: 'mid-cb-msg' },
+        sender: { user_id: 303 },
+        link: {
+          type: 'reply' as const,
+          message: { mid: 'mid-prompt-under-cb', seq: 0, text: '?', attachments: null },
+        },
+      },
+    };
+    const incoming = fromMax(body);
+    expect(incoming?.kind).toBe('callback');
+    if (incoming?.kind === 'callback') {
+      expect(incoming.messageId).toBe('mid-cb-msg');
+      expect(incoming.replyToMessageId).toBe('mid-prompt-under-cb');
+    }
+  });
+
   it('maps message_callback (real payload) to IncomingCallbackUpdate', () => {
     const body = {
       update_type: 'message_callback' as const,
@@ -272,6 +299,28 @@ describe('max mapIn', () => {
       expect(incoming.text).toBe('/start');
       expect(incoming.chatId).toBe(204);
       expect(incoming.channelId).toBe('204');
+    }
+  });
+
+  it('maps message_created with reply link to replyToMessageId', () => {
+    const body = {
+      update_type: 'message_created' as const,
+      timestamp: 1,
+      message: {
+        recipient: { chat_id: 201 },
+        body: { mid: 'mid-reply-src', text: 'skip reason text' },
+        sender: { user_id: 201 },
+        link: {
+          type: 'reply' as const,
+          message: { mid: 'mid-prompt', seq: 0, text: 'Почему?', attachments: null },
+        },
+      },
+    };
+    const incoming = fromMax(body);
+    expect(incoming?.kind).toBe('message');
+    if (incoming?.kind === 'message') {
+      expect(incoming.messageId).toBe('mid-reply-src');
+      expect(incoming.replyToMessageId).toBe('mid-prompt');
     }
   });
 

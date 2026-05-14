@@ -133,6 +133,23 @@ export async function editMaxMessage(config: MaxClientConfig, params: MaxEditMes
 }
 
 /**
+ * DELETE /messages?message_id= — remove message (best-effort; soft-fail for reminder stale-delete).
+ */
+export async function deleteMaxMessage(config: MaxClientConfig, messageId: string): Promise<boolean> {
+  const mid = typeof messageId === 'string' ? messageId.trim() : '';
+  if (!mid) return false;
+  try {
+    const bot = getBot(config);
+    await bot.api.deleteMessage(mid);
+    return true;
+  } catch (err) {
+    const { logger } = await import('../../infra/observability/logger.js');
+    logger.error({ err, messageId: mid }, 'max deleteMessage failed');
+    return false;
+  }
+}
+
+/**
  * POST /answers — answer callback (button press).
  */
 export async function answerMaxCallback(config: MaxClientConfig, params: MaxAnswerCallbackParams): Promise<boolean> {

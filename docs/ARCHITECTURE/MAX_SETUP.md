@@ -19,6 +19,51 @@ npx tsx scripts/check-max.ts
 
 ---
 
+## 1a. Ключевые методы MAX API для интегратора
+
+Ниже — рабочий минимум MAX API, который нужен интегратору для входящих событий, исходящей доставки и callback-UX.
+
+| API | Где используется в интеграторе | Назначение |
+|-----|--------------------------------|-----------|
+| `GET /me` | `scripts/check-max.ts`, `apps/integrator/src/integrations/max/client.ts` (`getMaxBotInfo`) | Проверка ключа `MAX_API_KEY`, диагностика доступности API. |
+| `POST /subscriptions` | ops/runbook, webhook setup | Регистрация webhook `POST /webhook/max`, `update_types`, `secret`. |
+| `GET /updates` | dev fallback (когда webhook не настроен) | Long polling для локальной отладки/аварийного чтения событий. |
+| `POST /messages` | `apps/integrator/src/integrations/max/client.ts` (`sendMaxMessage`) → `deliveryAdapter.ts` | Отправка сообщений пользователю (`chat_id`/`user_id`), включая inline-attachments. |
+| `PUT /messages` | `apps/integrator/src/integrations/max/client.ts` (`editMaxMessage`) → `deliveryAdapter.ts` | Редактирование текста/клавиатуры сообщения (важно для callback-ответов без лишних пузырей). |
+| `POST /answers` | `apps/integrator/src/integrations/max/client.ts` (`answerMaxCallback`) → `deliveryAdapter.ts` | Снятие «спиннера» на кнопке и пользовательская нотификация после callback. |
+| `DELETE /messages` | `apps/integrator/src/integrations/max/client.ts` (`deleteMaxMessage`) → `deliveryAdapter.ts` | Удаление сообщения по `message_id` (stale reminder перед resend). Ошибки API **не рвут** основной send: логируются / soft-fail в адаптере. |
+
+### Какие входящие события должны быть подписаны минимумом
+
+Для рабочих сценариев integrator подписка обычно включает:
+
+- `message_created` — входящий текст/команды/контент пользователя;
+- `message_callback` — нажатия inline-кнопок;
+- `bot_started` — стартовый сценарий после запуска бота;
+- `user_added` — добавление бота в чат/контекст первого контакта.
+
+### Reminders: parity с Telegram (outbound)
+
+- Перед новой отправкой `reminder_dispatch` в MAX выполняется **best-effort** `message.delete` по `maxMessageId` из прошлого успешного лога той же rule (см. `reminders.delivery.staleMessengerMessage`, `deleteBeforeSendMessageId` в очереди).
+- После успешной отправки в `user_reminder_delivery_logs.payload_json` пишется **`maxMessageId`** (строка `body.mid` от API).
+- Free-text skip (`reminders.skip.applyFreeText`): при наличии **`replyToMessageId`** (в т.ч. из MAX `message.link` с `type: "reply"` на **`message_created`** или на **`message_callback`**, если платформа отдаёт `link` на сообщении с кнопками) — **сначала** `message.edit` промпт-сообщения, иначе fallback на `message.send`.
+- Интент **`message.delete`** в MAX: при отсутствии `message_id` адаптер **не бросает** исключение (лог **`max_reminder_delete_payload_invalid`**), чтобы не срывать обработку очереди; при отказе API после валидного id — **`max deleteMessage failed`** (client) и **`max_reminder_stale_message_delete_soft_fail`** (adapter) / **`max_reminder_stale_message_delete_failed`** (worker).
+- Ограничения MAX (окно редактирования ~24h, права) могут приводить к отказу edit/delete: это **не** должно ломать enqueue следующей доставки; смотрите логи с ключами `max deleteMessage failed`, `max_reminder_delete_payload_invalid`, `max_reminder_stale_message_delete_soft_fail`, `max_reminder_stale_message_delete_failed` (worker), `max editMessage failed` (client, edit).
+
+### Важные ограничения MAX API
+
+- Редактирование (`PUT /messages`) ограничено окном времени (до 24 часов от отправки).
+- Для некоторых действий в чатах требуются права бота (роль/permissions в чате).
+- Webhook принимает только публичный HTTPS endpoint.
+
+Кодовая опора:
+
+- MAX client: `apps/integrator/src/integrations/max/client.ts`
+- MAX adapter: `apps/integrator/src/integrations/max/deliveryAdapter.ts`
+- MAX webhook/mapIn/schema: `apps/integrator/src/integrations/max/webhook.ts`, `apps/integrator/src/integrations/max/mapIn.ts`, `apps/integrator/src/integrations/max/schema.ts`
+
+---
+
 ## 2. Интегратор: переменные окружения
 
 В файле окружения **интегратора** (корень репо: `.env`; прод: `/opt/env/bersoncarebot/api.prod`) задать:

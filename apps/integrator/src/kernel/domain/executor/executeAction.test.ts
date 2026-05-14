@@ -2873,6 +2873,55 @@ describe('executeAction', () => {
       expect(channels.sort()).toEqual(['max', 'telegram']);
     });
   });
+
+  describe('reminders.skip.applyFreeText (max)', () => {
+    it('uses message.edit on reply target when replyToMessageId is present', async () => {
+      const readDb = vi.fn().mockImplementation(async (q: { type: string; params?: { occurrenceId?: string } }) => {
+        if (q.type === 'user.byIdentity') return { userId: 'user-1' };
+        if (q.type === 'reminders.occurrence.ownerUserId' && q.params?.occurrenceId === 'occ-ft') {
+          return 'user-1';
+        }
+        return null;
+      });
+      const writeDb = vi.fn().mockResolvedValue(undefined);
+      const maxCtx: DomainContext = {
+        ...ctx,
+        event: {
+          ...ctx.event,
+          meta: { ...ctx.event.meta, source: 'max' },
+          payload: {
+            incoming: {
+              kind: 'message',
+              text: 'причина пропуска',
+              chatId: 200,
+              channelId: '200',
+              replyToMessageId: 'prompt-mid-1',
+            },
+          },
+        },
+        base: { ...ctx.base, conversationState: 'waiting_skip_reason:occ-ft' },
+      };
+      const action: Action = {
+        id: 'aft-max-1',
+        type: 'reminders.skip.applyFreeText',
+        mode: 'sync',
+        params: { channelUserId: '200', resource: 'max', chatId: 200 },
+      };
+      const result = await executeAction(action, maxCtx, {
+        readPort: { readDb },
+        writePort: { writeDb },
+        templatePort: {
+          renderTemplate: vi.fn().mockResolvedValue({ text: 'saved ack' }),
+        },
+      });
+      expect(result.status).toBe('success');
+      const intent = result.intents?.[0];
+      expect(intent?.type).toBe('message.edit');
+      const pl = intent && 'payload' in intent ? (intent.payload as Record<string, unknown>) : null;
+      expect(pl?.messageId).toBe('prompt-mid-1');
+      expect(pl?.delivery).toEqual(expect.objectContaining({ channels: ['max'] }));
+    });
+  });
 });
 
 describe('resolveTargets guardrail: webapp-backed resolution', () => {

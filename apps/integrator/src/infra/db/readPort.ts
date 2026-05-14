@@ -15,7 +15,7 @@ import {
   getEnabledReminderRules,
   getReminderOccurrencesForRuleRange,
   getReminderOccurrenceOwnerUserId,
-  getStaleReminderTelegramMessageIdForResend,
+  getStaleReminderMessengerMessageIdForResend,
 } from './repos/reminders.js';
 import {
   getActiveDraftByIdentity,
@@ -207,12 +207,12 @@ export function createDbReadPort(input: {
           const owner = await getReminderOccurrenceOwnerUserId(db, occurrenceId);
           return (owner ?? null) as T;
         }
-        case 'reminders.delivery.staleTelegramMessage': {
+        case 'reminders.delivery.staleMessengerMessage': {
           const ruleId = asNonEmptyString(query.params.ruleId);
           const excludeOccurrenceId = asNonEmptyString(query.params.excludeOccurrenceId);
           const channel = asNonEmptyString(query.params.channel);
           if (!ruleId || !excludeOccurrenceId || !channel) return null as T;
-          const mid = await getStaleReminderTelegramMessageIdForResend(db, {
+          const mid = await getStaleReminderMessengerMessageIdForResend(db, {
             ruleId,
             excludeOccurrenceId,
             channel,

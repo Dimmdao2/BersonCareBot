@@ -188,7 +188,7 @@ export const dbReadQuerySchema = z.object({
     'reminders.occurrences.forRuleRange',
     'reminders.occurrences.due',
     'reminders.occurrence.ownerUserId',
-    'reminders.delivery.staleTelegramMessage',
+    'reminders.delivery.staleMessengerMessage',
     'delivery.pending',
   ]),
   params: z.record(z.string(), z.unknown()),

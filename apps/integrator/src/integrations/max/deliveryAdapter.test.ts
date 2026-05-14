@@ -3,10 +3,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const sendMaxMessageMock = vi.fn();
 const answerMaxCallbackMock = vi.fn();
 const editMaxMessageMock = vi.fn();
+const deleteMaxMessageMock = vi.fn();
 vi.mock('./client.js', () => ({
   sendMaxMessage: (...args: unknown[]) => sendMaxMessageMock(...args),
   answerMaxCallback: (...args: unknown[]) => answerMaxCallbackMock(...args),
   editMaxMessage: (...args: unknown[]) => editMaxMessageMock(...args),
+  deleteMaxMessage: (...args: unknown[]) => deleteMaxMessageMock(...args),
 }));
 vi.mock('./runtimeConfig.js', () => ({ getMaxApiKey: async () => 'test-key' }));
 
@@ -16,8 +18,12 @@ describe('max deliveryAdapter', () => {
   beforeEach(() => {
     sendMaxMessageMock.mockClear();
     sendMaxMessageMock.mockResolvedValue({});
+    answerMaxCallbackMock.mockClear();
     answerMaxCallbackMock.mockResolvedValue(true);
+    editMaxMessageMock.mockClear();
     editMaxMessageMock.mockResolvedValue(true);
+    deleteMaxMessageMock.mockClear();
+    deleteMaxMessageMock.mockResolvedValue(true);
   });
 
   it('canHandle message.send when channel is max', () => {
@@ -402,6 +408,59 @@ describe('max deliveryAdapter', () => {
         payload: { callbackQueryId: 'cb-99' },
       }),
     ).rejects.toThrow('MAX_CALLBACK_ANSWER_FAILED');
+  });
+
+  it('send message.send returns maxMessageId from API message body', async () => {
+    sendMaxMessageMock.mockResolvedValueOnce({
+      body: { mid: 'mid-out-1', seq: 1, text: 'Hello', attachments: null },
+      recipient: { chat_id: 200, chat_type: 'dialog' },
+      timestamp: 1,
+    });
+    const adapter = createMaxDeliveryAdapter();
+    const res = await adapter.send({
+      type: 'message.send',
+      meta: { eventId: 'e', occurredAt: '', source: 'max' },
+      payload: {
+        recipient: { chatId: 200 },
+        message: { text: 'Hello' },
+        delivery: { channels: ['max'] },
+      },
+    });
+    expect(res).toEqual({ maxMessageId: 'mid-out-1' });
+  });
+
+  it('canHandle message.delete when source is max', () => {
+    const adapter = createMaxDeliveryAdapter();
+    expect(
+      adapter.canHandle({
+        type: 'message.delete',
+        meta: { eventId: 'e', occurredAt: '', source: 'max' },
+        payload: { messageId: 'x', delivery: { channels: ['max'] } },
+      }),
+    ).toBe(true);
+  });
+
+  it('send message.delete skips client and returns {} when messageId missing', async () => {
+    const adapter = createMaxDeliveryAdapter();
+    const res = await adapter.send({
+      type: 'message.delete',
+      meta: { eventId: 'e', occurredAt: '', source: 'max' },
+      payload: { delivery: { channels: ['max'] } },
+    });
+    expect(res).toEqual({});
+    expect(deleteMaxMessageMock).not.toHaveBeenCalled();
+  });
+
+  it('send message.delete calls deleteMaxMessage and does not throw when client returns false', async () => {
+    deleteMaxMessageMock.mockResolvedValueOnce(false);
+    const adapter = createMaxDeliveryAdapter();
+    const res = await adapter.send({
+      type: 'message.delete',
+      meta: { eventId: 'e', occurredAt: '', source: 'max' },
+      payload: { messageId: 'stale-mid', delivery: { channels: ['max'] } },
+    });
+    expect(res).toEqual({});
+    expect(deleteMaxMessageMock).toHaveBeenCalledWith(expect.any(Object), 'stale-mid');
   });
 
   it('send message.send throws when chatId missing', async () => {

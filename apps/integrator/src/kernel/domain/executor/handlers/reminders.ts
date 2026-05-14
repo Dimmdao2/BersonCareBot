@@ -412,25 +412,19 @@ export async function handleReminders(
       const rule = ruleMap.get(occ.ruleId);
       const categoryKey = REMINDER_BY_CATEGORY[occ.category] ?? 'telegram:reminder.exercise';
       const categoryTemplateId = categoryKey.replace(/^telegram:/, '').replace(/^max:/, '');
-      let reminderTitle: string;
+      const linkedTitle = await resolveLinkedTitle(rule);
+      type ReminderTitleMode =
+        | { kind: 'fixed'; title: string }
+        | { kind: 'template' };
+      let titleMode: ReminderTitleMode;
       if (rule?.customTitle?.trim()) {
-        reminderTitle = rule.customTitle.trim();
+        titleMode = { kind: 'fixed', title: rule.customTitle.trim() };
+      } else if (linkedTitle) {
+        titleMode = { kind: 'fixed', title: linkedTitle };
+      } else if (deps.templatePort) {
+        titleMode = { kind: 'template' };
       } else {
-        const linkedTitle = await resolveLinkedTitle(rule);
-        if (linkedTitle) {
-          reminderTitle = linkedTitle;
-        } else if (deps.templatePort) {
-          reminderTitle = (
-            await deps.templatePort.renderTemplate({
-              source: 'telegram',
-              templateId: categoryTemplateId,
-              vars: {},
-              audience: 'user',
-            })
-          ).text.trim();
-        } else {
-          reminderTitle = 'Напоминание';
-        }
+        titleMode = { kind: 'fixed', title: 'Напоминание' };
       }
       const reminderBodyRaw = rule?.customText?.trim() ?? '';
       const reminderBody = reminderBodyRaw ? escapeReminderHtml(reminderBodyRaw) : '';
@@ -490,6 +484,21 @@ export async function handleReminders(
       }
 
       for (const { channel, chatId, externalId } of sendChannels) {
+        let reminderTitle: string;
+        if (titleMode.kind === 'fixed') {
+          reminderTitle = titleMode.title;
+        } else if (deps.templatePort) {
+          reminderTitle = (
+            await deps.templatePort.renderTemplate({
+              source: channel === 'max' ? 'max' : 'telegram',
+              templateId: categoryTemplateId,
+              vars: {},
+              audience: 'user',
+            })
+          ).text.trim();
+        } else {
+          reminderTitle = 'Напоминание';
+        }
         const webUrls = await buildExerciseReminderWebAppUrls({
           db: reminderAuxDb,
           channel,
@@ -542,15 +551,13 @@ export async function handleReminders(
           },
         };
         const eventId = `rem:${occ.id}:${channel}`.slice(0, 240);
-        let deleteBeforeSendTelegramMessageId: number | undefined;
-        if (channel === 'telegram') {
-          const stale = await deps.readPort.readDb<number | null>({
-            type: 'reminders.delivery.staleTelegramMessage',
-            params: { ruleId: occ.ruleId, excludeOccurrenceId: occ.id, channel: 'telegram' },
-          });
-          if (typeof stale === 'number' && Number.isFinite(stale) && stale > 0) {
-            deleteBeforeSendTelegramMessageId = Math.trunc(stale);
-          }
+        let deleteBeforeSendMessageId: string | undefined;
+        const stale = await deps.readPort.readDb<string | null>({
+          type: 'reminders.delivery.staleMessengerMessage',
+          params: { ruleId: occ.ruleId, excludeOccurrenceId: occ.id, channel },
+        });
+        if (typeof stale === 'string' && stale.trim().length > 0) {
+          deleteBeforeSendMessageId = stale.trim();
         }
         pendingEnqueues.push({
           eventId,
@@ -562,9 +569,7 @@ export async function handleReminders(
             externalId,
             logText: text,
             intent,
-            ...(deleteBeforeSendTelegramMessageId !== undefined
-              ? { deleteBeforeSendTelegramMessageId }
-              : {}),
+            ...(deleteBeforeSendMessageId !== undefined ? { deleteBeforeSendMessageId } : {}),
           },
         });
       }
@@ -878,8 +883,7 @@ export async function handleReminders(
       : 'Один пропуск - не проблема! Твое здоровье ещё может подождать...';
     const src = resourceFt === 'max' ? 'max' : 'telegram';
     const incoming = readIncoming(ctx);
-    const replyEditTarget =
-      resourceFt === 'telegram' ? asMessageId(incoming.replyToMessageId) : null;
+    const replyEditTarget = asMessageId(incoming.replyToMessageId);
     const intents =
       replyEditTarget !== null && chatId !== null
         ? buildReminderCallbackAckIntents(action, ctx, {
@@ -887,7 +891,7 @@ export async function handleReminders(
             messageId: replyEditTarget,
             callbackQueryId: null,
             text: ack,
-            channel: 'telegram',
+            channel: src,
           })
         : [{
             type: 'message.send' as const,

@@ -9,7 +9,8 @@ Reference: [MAX API docs](https://dev.max.ru/docs-api), [Telegram Bot API](https
 | Mechanic | Telegram | MAX | Notes |
 |----------|----------|-----|------|
 | Text message | full | full | `message_created` with `message.text` mapped to `message.received`. |
-| Callback (button press) | full | full | `message_callback` with `callback_id`, `payload` mapped to `callback.received`. |
+| Reply context (`reply_to` / link) | full | full | MAX: `message.link` с `type: "reply"` → `replyToMessageId` на `message_created` и на **`message_callback`** (если в `message` есть `link`); для free-text skip см. reminders. |
+| Callback (button press) | full | full | `message_callback`: `callback_id`, `payload` → `callback.received`; при наличии `message.link` (reply) дополнительно прокидывается `replyToMessageId`. |
 | Contact request | full | partial | MAX has `request_contact` button type; flow parity not yet verified. |
 | /start, bot_started | full | full | `bot_started` and `/start` text both open start flow (`max.start` / onboarding). |
 | Slash commands in bot menu | full (Telegram menu button / text) | partial | MAX `setMyCommands`: **пустой список** (на старте webhook в [`setupCommands.ts`](../../apps/integrator/src/integrations/max/setupCommands.ts)); главное меню — инлайн-кнопки. Текстовые **`/book`**, **`/diary`**, **`/menu`** по-прежнему обрабатываются в [`mapIn.ts`](../../apps/integrator/src/integrations/max/mapIn.ts) (`booking.open`, `nav.webapp.diary`, `nav.webapp.menu`) — это независимо от списка команд в UI. |
@@ -22,6 +23,7 @@ Reference: [MAX API docs](https://dev.max.ru/docs-api), [Telegram Bot API](https
 | Send text | full | full | POST `/messages?user_id=`. |
 | Send with inline keyboard | full | full | `attachments` with `inline_keyboard`: `callback`, `link`, `request_contact`, **`open_app`**. |
 | Edit message text | full | full | PUT `/messages?message_id=` (MAX allows edit within 24h). |
+| Delete message | full | full | DELETE `/messages?message_id=` — best-effort удаление «зависшего» reminder перед повторной отправкой (как у Telegram); ошибки delete не блокируют send. Пустой/невалидный `message_id` в интенте delete → no-op в адаптере (`max_reminder_delete_payload_invalid`), без исключения. |
 | Edit message reply markup | full | full | Same PUT with `attachments` (inline keyboard). |
 | Answer callback | full | full | POST `/answers` with `callback_id`. |
 | Reply keyboard (persistent) | full | unsupported | Fallback: use inline keyboard for menu. |

@@ -730,15 +730,21 @@ export async function markReminderOccurrenceSkippedLocal(db: DbPort, occurrenceI
 }
 
 /**
- * Last successfully delivered Telegram message for another occurrence of the same rule
+ * Last successfully delivered messenger message id for another occurrence of the same rule
  * that is still `sent` (user did not skip/snooze/finalize via bot) — candidate for delete-before-resend.
+ * Uses `telegramMessageId` or `maxMessageId` in `payload_json` depending on `channel`.
  */
-export async function getStaleReminderTelegramMessageIdForResend(
+export async function getStaleReminderMessengerMessageIdForResend(
   db: DbPort,
   input: { ruleId: string; excludeOccurrenceId: string; channel: string },
-): Promise<number | null> {
+): Promise<string | null> {
   const res = await db.query<{ mid: string | null }>(
-    `SELECT (l.payload_json->>'telegramMessageId') AS mid
+    `SELECT (
+       CASE WHEN $1 = 'max'
+         THEN l.payload_json->>'maxMessageId'
+         ELSE l.payload_json->>'telegramMessageId'
+       END
+     ) AS mid
      FROM user_reminder_delivery_logs l
      INNER JOIN user_reminder_occurrences o ON o.id = l.occurrence_id
      WHERE l.channel = $1
@@ -746,13 +752,20 @@ export async function getStaleReminderTelegramMessageIdForResend(
        AND o.rule_id = $2
        AND o.id <> $3
        AND o.status = 'sent'
-       AND l.payload_json ? 'telegramMessageId'
+       AND (
+         ($1 = 'max' AND (l.payload_json ? 'maxMessageId'))
+         OR ($1 <> 'max' AND (l.payload_json ? 'telegramMessageId'))
+       )
      ORDER BY l.created_at DESC
      LIMIT 1`,
     [input.channel, input.ruleId, input.excludeOccurrenceId],
   );
   const raw = res.rows[0]?.mid;
-  if (raw == null || raw === '') return null;
-  const n = Number(raw);
-  return Number.isFinite(n) && n > 0 ? Math.trunc(n) : null;
+  if (raw == null || raw.trim() === '') return null;
+  const trimmed = raw.trim();
+  if (input.channel === 'telegram') {
+    const n = Number(trimmed);
+    return Number.isFinite(n) && n > 0 ? String(Math.trunc(n)) : null;
+  }
+  return trimmed;
 }
