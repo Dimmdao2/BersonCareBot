@@ -31,7 +31,7 @@ type Props = {
 
 function LeadingPlanIcon({ blockIconImageUrl }: { blockIconImageUrl?: string | null }) {
   return (
-    <div className={patientIconLeadingClass} aria-hidden>
+    <div className={cn(patientIconLeadingClass, "bg-[#fff8f1]")} aria-hidden>
       <PatientHomeSafeImage
         src={blockIconImageUrl}
         alt=""
@@ -100,8 +100,8 @@ export function PatientHomePlanCard({
             href={startLessonHref}
             prefetch={false}
             className={cn(
-              "inline-flex min-h-9 min-w-[8rem] shrink-0 items-center justify-center rounded-md border border-[#b4bae4] bg-[#e2e2fa] px-5 text-sm font-medium text-[#1b4585] shadow-[0_3px_10px_rgba(40,77,160,0.12)] transition-colors md:px-6",
-              "hover:bg-[#ddd2f5] active:bg-[#d1c4ef]",
+              "inline-flex min-h-9 min-w-[8rem] shrink-0 items-center justify-center rounded-md border border-[#b4bae4] bg-[#ffffff] px-5 text-sm font-medium text-[#1b4585] shadow-[0_3px_10px_rgba(40,77,160,0.12)] transition-colors md:px-6",
+              "hover:bg-[#f4dcd6] active:bg-[#f4dcd6]",
               "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1b4585]/35",
             )}
           >

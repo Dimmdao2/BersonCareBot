@@ -35,14 +35,14 @@ export const patientHomeCardClass = cn(
 );
 
 /**
- * Карточка «Мой план» на главной: лавандовый градиент 205° (три rgba-стопа).
+ * Карточка «Мой план» на главной: тёплый градиент 200° (три стопа с альфой).
  */
 export const patientHomePlanCardClass = cn(
   "border border-[color-mix(in_srgb,var(--patient-color-primary)_28%,var(--patient-border))]",
   patientCardPaddingClass,
   "rounded-[var(--patient-card-radius-mobile)] md:rounded-[var(--patient-card-radius-desktop)]",
   "shadow-[var(--patient-shadow-card-mobile)] md:shadow-[var(--patient-shadow-card-desktop)]",
-  "bg-[linear-gradient(205deg,rgba(196,195,255,0.81)_2.94%,rgba(208,208,255,0.4)_57.98%,rgba(219,222,254,0.75)_93.28%)]",
+  "bg-[linear-gradient(200deg,#fed7c8c7_2.94%,#ffefddb3_34.45%,#fefaf2b5_93.28%)]",
   "text-[var(--patient-text-primary)]",
 );
 

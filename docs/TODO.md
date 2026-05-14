@@ -4,6 +4,8 @@
 
 ## Cursor-планы и доки (сводка)
 
+- **Репозиторий** vs **домашний каталог Cursor:** планы **в монорепо** — `<репо>/.cursor/plans/` (см. ниже и [`.cursor/plans/archive/README.md`](../.cursor/plans/archive/README.md)); планы **на машине** — `~/.cursor/plans`. Не смешивать: пояснение в начале [`CURSOR_PLANS_REVIEW_2026-05-01.md`](CURSOR_PLANS_REVIEW_2026-05-01.md).
+
 - **Активные планы** (корень репозитория): `.cursor/plans/integrator_drizzle_migration_master.plan.md` + `integrator_drizzle_phase_*.plan.md` — см. `docs/INTEGRATOR_DRIZZLE_MIGRATION/LOG.md`.
 - **Архив закрытых планов (репозиторий):** `.cursor/plans/archive/` — [README](../.cursor/plans/archive/README.md).
 - **Архив закрытых планов (домашний каталог Cursor):** `~/.cursor/plans/archive/2026-05-01-closed/`, `~/.cursor/plans/archive/2026-05-14-closed/` (корень `~/.cursor/plans/*.plan.md` — только открытые или без полностью закрытого набора structured `todos`).
