@@ -122,6 +122,22 @@ type SystemHealthPayload = {
       errorDetail: string | null;
     }>;
   };
+  /** Server-side errors from `/api/media/.../hls/*` proxy (DB telemetry). */
+  videoHlsProxy?: {
+    status: "ok" | "degraded" | "error";
+    windowHours: number;
+    errorsTotal24h: number;
+    errorsTotal1h: number;
+    byReason: Record<string, number>;
+    byReasonLast1h: Record<string, number>;
+    degraded: boolean;
+    recent: Array<{
+      createdAt: string;
+      mediaId: string;
+      reasonCode: string;
+      artifactKind: string;
+    }>;
+  };
   videoTranscode: {
     status: "ok" | "error";
     pipelineEnabled: boolean;
@@ -141,6 +157,7 @@ type SystemHealthPayload = {
       mediaPreview?: { status: string; durationMs: number; errorCode?: string };
       videoPlayback?: { status: string; durationMs: number; errorCode?: string };
       videoPlaybackClient?: { status: string; durationMs: number; errorCode?: string };
+      videoHlsProxy?: { status: string; durationMs: number; errorCode?: string };
       videoTranscode?: { status: string; durationMs: number; errorCode?: string };
       operatorIncidents?: { status: string; durationMs: number; errorCode?: string };
       operatorBackupJobs?: { status: string; durationMs: number; errorCode?: string };
@@ -360,6 +377,8 @@ export function SystemHealthSection() {
   const playbackAccordionStatus = playbackApiDisabled
     ? "playback_disabled"
     : (data?.videoPlayback?.status ?? "error");
+  const videoHlsProxyAccordionStatus =
+    playbackApiDisabled ? "playback_disabled" : (data?.videoHlsProxy?.status ?? "error");
   const transcodeAccordionStatus = data?.videoTranscode?.status ?? "error";
   const projection = data?.projection.snapshot;
   const queuePending = projection?.pendingCount ?? 0;
@@ -605,6 +624,38 @@ export function SystemHealthSection() {
                   </div>
                 ) : null}
               </div>
+            </HealthAccordionItem>
+
+            <HealthAccordionItem name="HLS delivery (прокси)" status={videoHlsProxyAccordionStatus}>
+              <DetailRow
+                label="Окно"
+                value={`последние ${data?.videoHlsProxy?.windowHours ?? 24} ч (ошибки ответов прокси в БД)`}
+              />
+              {playbackApiDisabled ? (
+                <p className="pt-1 text-sm text-muted-foreground">
+                  Playback API выключен — счётчики прокси не ведутся.
+                </p>
+              ) : (
+                <>
+                  <DetailRow label="Ошибок (24 ч)" value={String(data?.videoHlsProxy?.errorsTotal24h ?? 0)} />
+                  <DetailRow label="Ошибок (1 ч)" value={String(data?.videoHlsProxy?.errorsTotal1h ?? 0)} />
+                  <DetailRow label="Деградация (эвристика)" value={data?.videoHlsProxy?.degraded ? "да" : "нет"} />
+                  <ProbeInfo probe={data?.meta?.probes?.videoHlsProxy} />
+                  {data?.videoHlsProxy?.recent?.length ? (
+                    <div className="mt-2 space-y-1">
+                      <p className="font-medium text-foreground">Последние ошибки</p>
+                      {data.videoHlsProxy.recent.map((row, idx) => (
+                        <div key={`${row.createdAt}-${row.mediaId}-${idx}`} className="rounded border border-border/50 p-2">
+                          <DetailRow label="time" value={formatDateTime(row.createdAt)} />
+                          <DetailRow label="media_id" value={row.mediaId} />
+                          <DetailRow label="reason" value={row.reasonCode} />
+                          <DetailRow label="artifact" value={row.artifactKind} />
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                </>
+              )}
             </HealthAccordionItem>
 
             <HealthAccordionItem name="Транскод HLS (очередь media_transcode_jobs)" status={transcodeAccordionStatus}>

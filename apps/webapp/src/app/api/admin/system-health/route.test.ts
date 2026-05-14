@@ -38,6 +38,7 @@ const {
   getConfigBoolMock,
   loadAdminPlaybackHealthMetricsMock,
   loadAdminPlaybackClientHealthMetricsMock,
+  loadAdminHlsProxyHealthMetricsMock,
   loadAdminTranscodeHealthMetricsMock,
   listOpenIncidentsMock,
   listBackupJobStatusMock,
@@ -57,6 +58,7 @@ const {
   getConfigBoolMock: vi.fn(),
   loadAdminPlaybackHealthMetricsMock: vi.fn(),
   loadAdminPlaybackClientHealthMetricsMock: vi.fn(),
+  loadAdminHlsProxyHealthMetricsMock: vi.fn(),
   loadAdminTranscodeHealthMetricsMock: vi.fn(),
   listOpenIncidentsMock: vi.fn(),
   listBackupJobStatusMock: vi.fn(),
@@ -125,6 +127,11 @@ vi.mock("@/app-layer/media/playbackClientEvents", () => ({
   loadAdminPlaybackClientHealthMetrics: loadAdminPlaybackClientHealthMetricsMock,
 }));
 
+vi.mock("@/app-layer/media/adminHlsProxyHealthMetrics", () => ({
+  loadAdminHlsProxyHealthMetrics: loadAdminHlsProxyHealthMetricsMock,
+  ADMIN_HLS_PROXY_METRICS_WINDOW_HOURS: 24,
+}));
+
 vi.mock("@/app-layer/media/adminTranscodeHealthMetrics", () => ({
   loadAdminTranscodeHealthMetrics: loadAdminTranscodeHealthMetricsMock,
 }));
@@ -171,6 +178,16 @@ describe("GET /api/admin/system-health", () => {
       },
       byDelivery: { hls: 0, mp4: 0, file: 0 },
       likelyLooping: false,
+      recent: [],
+    });
+    loadAdminHlsProxyHealthMetricsMock.mockReset();
+    loadAdminHlsProxyHealthMetricsMock.mockResolvedValue({
+      windowHours: 24,
+      errorsTotal24h: 0,
+      errorsTotal1h: 0,
+      byReason: {},
+      byReasonLast1h: {},
+      degraded: false,
       recent: [],
     });
     loadAdminTranscodeHealthMetricsMock.mockReset();

@@ -137,12 +137,10 @@ describe("GET /api/media/[id]/playback", () => {
     expect(presignMock).not.toHaveBeenCalled();
   });
 
-  it("video HLS ready + auto default → presigns master and poster", async () => {
+  it("video HLS ready + auto default → proxy master URL + presign poster", async () => {
     getConfigValueMock.mockResolvedValue("auto");
     getRowMock.mockResolvedValue(videoRow());
-    presignMock
-      .mockResolvedValueOnce("https://signed.example/master.m3u8")
-      .mockResolvedValueOnce("https://signed.example/poster.jpg");
+    presignMock.mockResolvedValueOnce("https://signed.example/poster.jpg");
     const res = await GET(new Request(`http://localhost/api/media/${mid}/playback`), {
       params: Promise.resolve({ id: mid }),
     });
@@ -153,31 +151,27 @@ describe("GET /api/media/[id]/playback", () => {
       posterUrl?: string;
     };
     expect(b.delivery).toBe("hls");
-    expect(b.hls?.masterUrl).toBe("https://signed.example/master.m3u8");
+    expect(b.hls?.masterUrl).toBe(`/api/media/${mid}/hls/master.m3u8`);
     expect(b.posterUrl).toBe("https://signed.example/poster.jpg");
-    expect(presignMock).toHaveBeenCalledTimes(2);
+    expect(presignMock).toHaveBeenCalledTimes(1);
   });
 
-  it("presign uses TTL from getVideoPresignTtlSeconds", async () => {
+  it("presign uses TTL from getVideoPresignTtlSeconds for poster only", async () => {
     vi.mocked(getVideoPresignTtlSeconds).mockResolvedValue(7200);
     getConfigValueMock.mockResolvedValue("auto");
     getRowMock.mockResolvedValue(videoRow());
-    presignMock
-      .mockResolvedValueOnce("https://signed.example/master.m3u8")
-      .mockResolvedValueOnce("https://signed.example/poster.jpg");
+    presignMock.mockResolvedValueOnce("https://signed.example/poster.jpg");
     await GET(new Request(`http://localhost/api/media/${mid}/playback`), {
       params: Promise.resolve({ id: mid }),
     });
-    expect(presignMock).toHaveBeenCalledWith(expect.stringContaining("master"), 7200);
+    expect(presignMock).toHaveBeenCalledTimes(1);
     expect(presignMock).toHaveBeenCalledWith(expect.stringContaining("poster"), 7200);
   });
 
-  it("presign poster fails but master ok → hls with null posterUrl", async () => {
+  it("presign poster fails but HLS ready → hls with proxy master and null posterUrl", async () => {
     getConfigValueMock.mockResolvedValue("auto");
     getRowMock.mockResolvedValue(videoRow());
-    presignMock
-      .mockResolvedValueOnce("https://signed.example/master.m3u8")
-      .mockRejectedValueOnce(new Error("poster_sign_failed"));
+    presignMock.mockRejectedValueOnce(new Error("poster_sign_failed"));
     const res = await GET(new Request(`http://localhost/api/media/${mid}/playback`), {
       params: Promise.resolve({ id: mid }),
     });
@@ -188,9 +182,9 @@ describe("GET /api/media/[id]/playback", () => {
       posterUrl?: string | null;
     };
     expect(b.delivery).toBe("hls");
-    expect(b.hls?.masterUrl).toBe("https://signed.example/master.m3u8");
+    expect(b.hls?.masterUrl).toBe(`/api/media/${mid}/hls/master.m3u8`);
     expect(b.posterUrl == null).toBe(true);
-    expect(presignMock).toHaveBeenCalledTimes(2);
+    expect(presignMock).toHaveBeenCalledTimes(1);
   });
 
   it("ignores ?prefer= for non-admin", async () => {
@@ -210,7 +204,7 @@ describe("GET /api/media/[id]/playback", () => {
     getSessionMock.mockResolvedValue(adminSession);
     getConfigValueMock.mockResolvedValue("mp4");
     getRowMock.mockResolvedValue(videoRow());
-    presignMock.mockResolvedValueOnce("https://signed.example/m").mockResolvedValueOnce("https://signed.example/p");
+    presignMock.mockResolvedValueOnce("https://signed.example/p");
     const res = await GET(
       new Request(`http://localhost/api/media/${mid}/playback?prefer=hls`),
       { params: Promise.resolve({ id: mid }) },
@@ -218,19 +212,5 @@ describe("GET /api/media/[id]/playback", () => {
     expect(res.status).toBe(200);
     const b = (await res.json()) as { delivery?: string };
     expect(b.delivery).toBe("hls");
-  });
-
-  it("presign failure → mp4 fallback", async () => {
-    getConfigValueMock.mockResolvedValue("auto");
-    getRowMock.mockResolvedValue(videoRow());
-    presignMock.mockRejectedValueOnce(new Error("sign failed"));
-    const res = await GET(new Request(`http://localhost/api/media/${mid}/playback`), {
-      params: Promise.resolve({ id: mid }),
-    });
-    expect(res.status).toBe(200);
-    const b = (await res.json()) as { delivery?: string; fallbackUsed?: boolean; hls?: unknown };
-    expect(b.delivery).toBe("mp4");
-    expect(b.fallbackUsed).toBe(true);
-    expect(b.hls).toBeNull();
   });
 });

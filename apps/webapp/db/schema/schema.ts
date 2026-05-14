@@ -1108,6 +1108,63 @@ export const mediaPlaybackClientEvents = pgTable(
 	],
 );
 
+/** Server-side HLS proxy error telemetry (per failing response; not per segment success). */
+export const mediaHlsProxyErrorEvents = pgTable(
+	"media_hls_proxy_error_events",
+	{
+		id: uuid().defaultRandom().primaryKey().notNull(),
+		mediaId: uuid("media_id").notNull(),
+		userId: uuid("user_id").notNull(),
+		reasonCode: text("reason_code").notNull(),
+		httpStatus: smallint("http_status"),
+		artifactKind: text("artifact_kind").notNull(),
+		objectSuffix: text("object_suffix"),
+		createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+	},
+	(table) => [
+		index("idx_media_hls_proxy_error_events_created_at").using(
+			"btree",
+			table.createdAt.desc().nullsFirst().op("timestamptz_ops"),
+		),
+		index("idx_media_hls_proxy_error_events_reason_time").using(
+			"btree",
+			table.reasonCode.asc().nullsLast().op("text_ops"),
+			table.createdAt.desc().nullsFirst().op("timestamptz_ops"),
+		),
+		foreignKey({
+			columns: [table.userId],
+			foreignColumns: [platformUsers.id],
+			name: "media_hls_proxy_error_events_user_id_fkey",
+		}).onDelete("cascade"),
+		foreignKey({
+			columns: [table.mediaId],
+			foreignColumns: [mediaFiles.id],
+			name: "media_hls_proxy_error_events_media_id_fkey",
+		}).onDelete("cascade"),
+		check(
+			"media_hls_proxy_error_events_reason_check",
+			sql`reason_code = ANY (ARRAY[
+        'session_unauthorized'::text,
+        'feature_disabled'::text,
+        'media_not_readable'::text,
+        'forbidden_path'::text,
+        'missing_object'::text,
+        'upstream_403'::text,
+        's3_read_failed'::text,
+        'upstream_timeout'::text,
+        'range_not_satisfiable'::text,
+        'playlist_read_failed'::text,
+        'playlist_rewrite_failed'::text,
+        'internal_error'::text
+      ])`,
+		),
+		check(
+			"media_hls_proxy_error_events_artifact_check",
+			sql`artifact_kind = ANY (ARRAY['master'::text, 'variant'::text, 'segment'::text])`,
+		),
+	],
+);
+
 export const bookingBranches = pgTable("booking_branches", {
 	id: uuid().defaultRandom().primaryKey().notNull(),
 	cityId: uuid("city_id").notNull(),

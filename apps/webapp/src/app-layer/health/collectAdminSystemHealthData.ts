@@ -6,6 +6,10 @@ import {
   loadAdminPlaybackHealthMetrics,
 } from "@/app-layer/media/adminPlaybackHealthMetrics";
 import { loadAdminPlaybackClientHealthMetrics } from "@/app-layer/media/playbackClientEvents";
+import {
+  ADMIN_HLS_PROXY_METRICS_WINDOW_HOURS,
+  loadAdminHlsProxyHealthMetrics,
+} from "@/app-layer/media/adminHlsProxyHealthMetrics";
 import { loadAdminTranscodeHealthMetrics } from "@/app-layer/media/adminTranscodeHealthMetrics";
 import { getPool } from "@/app-layer/db/client";
 import { proxyIntegratorProjectionHealth } from "@/app-layer/health/proxyIntegratorProjectionHealth";
@@ -100,6 +104,24 @@ type VideoPlaybackClientHealthPayload = {
   }>;
 };
 
+type VideoHlsProxyHealthStatus = "ok" | "degraded" | "error";
+
+type VideoHlsProxyHealthPayload = {
+  status: VideoHlsProxyHealthStatus;
+  windowHours: number;
+  errorsTotal24h: number;
+  errorsTotal1h: number;
+  byReason: Record<string, number>;
+  byReasonLast1h: Record<string, number>;
+  degraded: boolean;
+  recent: Array<{
+    createdAt: string;
+    mediaId: string;
+    reasonCode: string;
+    artifactKind: string;
+  }>;
+};
+
 type VideoTranscodeHealthStatus = "ok" | "error";
 
 type VideoTranscodeHealthPayload = {
@@ -152,6 +174,8 @@ export type SystemHealthResponse = {
   videoPlayback: VideoPlaybackHealthPayload;
   /** Client-side HLS/playback runtime errors reported from browser/webview. */
   videoPlaybackClient: VideoPlaybackClientHealthPayload;
+  /** HLS artifact proxy (`GET /api/media/.../hls/...`) server-side errors from DB telemetry. */
+  videoHlsProxy: VideoHlsProxyHealthPayload;
   /** VIDEO_HLS: transcode queue metrics from DB (not systemd liveness). */
   videoTranscode: VideoTranscodeHealthPayload;
   /** Открытые строки `operator_incidents` (resolved_at IS NULL), последние по last_seen_at. */
@@ -168,6 +192,7 @@ export type SystemHealthResponse = {
       mediaPreview: { status: string; durationMs: number; errorCode?: string };
       videoPlayback: { status: string; durationMs: number; errorCode?: string };
       videoPlaybackClient: { status: string; durationMs: number; errorCode?: string };
+      videoHlsProxy: { status: string; durationMs: number; errorCode?: string };
       videoTranscode: { status: string; durationMs: number; errorCode?: string };
       operatorIncidents: { status: string; durationMs: number; errorCode?: string };
       operatorBackupJobs: { status: string; durationMs: number; errorCode?: string };
@@ -420,6 +445,19 @@ function emptyVideoPlaybackClientPayload(status: VideoPlaybackClientHealthStatus
   };
 }
 
+function emptyVideoHlsProxyPayload(status: VideoHlsProxyHealthStatus): VideoHlsProxyHealthPayload {
+  return {
+    status,
+    windowHours: ADMIN_HLS_PROXY_METRICS_WINDOW_HOURS,
+    errorsTotal24h: 0,
+    errorsTotal1h: 0,
+    byReason: {},
+    byReasonLast1h: {},
+    degraded: false,
+    recent: [],
+  };
+}
+
 function emptyVideoTranscodePayload(
   status: VideoTranscodeHealthStatus,
   pipelineEnabled: boolean,
@@ -528,6 +566,46 @@ async function probeVideoPlaybackClient(): Promise<ProbeResult<VideoPlaybackClie
   }
 }
 
+async function probeVideoHlsProxy(): Promise<ProbeResult<VideoHlsProxyHealthPayload>> {
+  const startedAt = Date.now();
+  try {
+    const playbackApiEnabled = await getConfigBool("video_playback_api_enabled", false);
+    if (!playbackApiEnabled) {
+      return {
+        ok: true,
+        value: emptyVideoHlsProxyPayload("ok"),
+        durationMs: elapsedMs(startedAt),
+      };
+    }
+
+    const m = await loadAdminHlsProxyHealthMetrics({
+      windowHours: ADMIN_HLS_PROXY_METRICS_WINDOW_HOURS,
+    });
+    const status: VideoHlsProxyHealthStatus = m.degraded ? "degraded" : "ok";
+    return {
+      ok: true,
+      value: {
+        status,
+        windowHours: m.windowHours,
+        errorsTotal24h: m.errorsTotal24h,
+        errorsTotal1h: m.errorsTotal1h,
+        byReason: m.byReason,
+        byReasonLast1h: m.byReasonLast1h,
+        degraded: m.degraded,
+        recent: m.recent,
+      },
+      durationMs: elapsedMs(startedAt),
+    };
+  } catch {
+    return {
+      ok: false,
+      status: "error",
+      errorCode: "video_hls_proxy_probe_failed",
+      durationMs: elapsedMs(startedAt),
+    };
+  }
+}
+
 async function probeVideoTranscode(): Promise<ProbeResult<VideoTranscodeHealthPayload>> {
   const startedAt = Date.now();
   let pipelineEnabled = false;
@@ -620,6 +698,7 @@ function logProbe(
     | "media_preview"
     | "video_playback"
     | "video_playback_client"
+    | "video_hls_proxy"
     | "video_transcode"
     | "operator_incidents"
     | "operator_backup_jobs"
@@ -675,6 +754,7 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
     mediaPreview,
     videoPlayback,
     videoPlaybackClient,
+    videoHlsProxy,
     videoTranscode,
     operatorHealth,
   ] =
@@ -685,6 +765,7 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
       probeMediaPreview(),
       probeVideoPlayback(),
       probeVideoPlaybackClient(),
+      probeVideoHlsProxy(),
       probeVideoTranscode(),
       probeOperatorHealthData(),
     ]);
@@ -729,6 +810,15 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
   const videoPlaybackClientPayload: VideoPlaybackClientHealthPayload = videoPlaybackClientResult.ok
     ? videoPlaybackClientResult.value
     : emptyVideoPlaybackClientPayload("error");
+
+  const videoHlsProxyResult: ProbeResult<VideoHlsProxyHealthPayload> =
+    videoHlsProxy.status === "fulfilled"
+      ? videoHlsProxy.value
+      : { ok: false, status: "error", errorCode: "video_hls_proxy_probe_rejected", durationMs: 0 };
+
+  const videoHlsProxyPayload: VideoHlsProxyHealthPayload = videoHlsProxyResult.ok
+    ? videoHlsProxyResult.value
+    : emptyVideoHlsProxyPayload("error");
 
   const videoTranscodeResult: ProbeResult<VideoTranscodeHealthPayload> =
     videoTranscode.status === "fulfilled"
@@ -796,6 +886,7 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
         },
     videoPlayback: videoPlaybackPayload,
     videoPlaybackClient: videoPlaybackClientPayload,
+    videoHlsProxy: videoHlsProxyPayload,
     videoTranscode: videoTranscodePayload,
     operatorIncidentsOpen,
     backupJobs,
@@ -834,6 +925,11 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
           durationMs: videoPlaybackClientResult.durationMs,
           ...(videoPlaybackClientResult.ok ? {} : { errorCode: videoPlaybackClientResult.errorCode }),
         },
+        videoHlsProxy: {
+          status: videoHlsProxyResult.ok ? videoHlsProxyResult.value.status : videoHlsProxyResult.status,
+          durationMs: videoHlsProxyResult.durationMs,
+          ...(videoHlsProxyResult.ok ? {} : { errorCode: videoHlsProxyResult.errorCode }),
+        },
         videoTranscode: {
           status: videoTranscodeResult.ok ? videoTranscodeResult.value.status : videoTranscodeResult.status,
           durationMs: videoTranscodeResult.durationMs,
@@ -865,6 +961,7 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
   logProbe("media_preview", mediaPreviewResult, response.mediaPreview.status);
   logProbe("video_playback", videoPlaybackResult, response.videoPlayback.status);
   logProbe("video_playback_client", videoPlaybackClientResult, response.videoPlaybackClient.status);
+  logProbe("video_hls_proxy", videoHlsProxyResult, response.videoHlsProxy.status);
   logProbe("video_transcode", videoTranscodeResult, response.videoTranscode.status);
   logProbe("operator_incidents", operatorHealthResult, operatorIncidentsProbeStatus);
   logProbe("operator_backup_jobs", operatorHealthResult, backupJobsProbeStatus);

@@ -113,23 +113,13 @@ export async function resolveMediaPlaybackPayload(input: {
   let posterUrl: string | null = null;
 
   if (resolved.useHls && trustedMaster) {
-    try {
-      masterUrl = await presignGetUrl(trustedMaster, presignExpiresSec);
-    } catch (e) {
-      logger.error(
-        { err: serializePresignFailureForLog(e), mediaId: id, presignTarget: "hls_master" },
-        "playback_presign_failed",
-      );
-      masterUrl = null;
-      delivery = "mp4";
-      fallbackUsed = true;
-    }
+    delivery = "hls";
+    masterUrl = `/api/media/${id}/hls/master.m3u8`;
   } else {
     delivery = "mp4";
   }
 
-  if (masterUrl) {
-    delivery = "hls";
+  if (delivery === "hls") {
     const rawPoster = row.poster_s3_key?.trim() ?? "";
     if (rawPoster && isTrustedPosterS3Key(id, rawPoster)) {
       try {

@@ -8,6 +8,7 @@
 |--------|----------------------|---------------|
 | `GET /api/media/[id]` | Любая валидная сессия (`getCurrentSession`) | Строка `media_files` должна быть пригодна к чтению и иметь S3-ключ (`getMediaS3KeyForRedirect` и связанные правила статуса). |
 | `GET /api/media/[id]/playback` | `assertMediaPlaybackAccess` — по сути **только непустая сессия** | Флаг `video_playback_api_enabled`; `resolveMediaPlaybackPayload` загружает строку и строит дескриптор (HLS / MP4 и т.д.). |
+| `GET /api/media/[id]/hls/[[...path]]` | Та же сессия + тот же флаг `video_playback_api_enabled` | Потоковая отдача master/variant/сегментов из private bucket через webapp; `getMediaRowForPlayback` + `isTrustedHlsArtifactS3Key`. Сегменты с **`Range`** (206). Ошибки ответов прокси — в `media_hls_proxy_error_events` (не на каждый успешный байт). Без сессии — **401** + structured **`warn`** `hls_proxy_error` (`reasonCode: session_unauthorized`); без включённого playback API — **503** — эти два случая в таблицу телеметрии **не** пишутся (политика объёма). |
 | `GET /api/media/[id]/preview/[size]` | Сессия | Превью по ключу (`getMediaPreviewS3KeyForRedirect`); при отсутствии превью — редирект на `GET /api/media/[id]`. |
 | `POST /api/media/presign` | Роль с доступом врача/кабинета врача (`canAccessDoctor`) | Создание pending-записи для загрузки, не потоковое чтение. |
 
@@ -16,11 +17,15 @@
 ## Что не проверяется на уровне этих handlers
 
 - Нет сопоставления `media_files.id` с пациентом, инстансом программы лечения, slug контента или назначением.
-- Любой **аутентифицированный** пользователь с известным UUID может запросить те же endpoints, если строка в БД в «читаемом» состоянии и объект в хранилище доступен по выданному presigned URL.
+- Любой **аутентифицированный** пользователь с известным UUID может запросить те же endpoints, если строка в БД в «читаемом» состоянии: для MP4/poster — объект доступен по выданному presigned URL; для HLS master/сегментов — по **сессии webapp** и прокси **`/api/media/{id}/hls/...`** (без наследования presign query в относительных URI плейлистов).
 
 Канонический комментарий в коде (точка расширения без размазывания проверок по роутам):
 
 - `apps/webapp/src/modules/media/assertMediaPlaybackAccess.ts` — явно указано: та же планка, что у `GET /api/media/[id]`; «любая сессия»; зарезервировано для будущих scope (patient/doctor/content).
+
+## HLS: почему master нельзя отдавать одним presigned URL
+
+Плейлист master содержит **относительные** URI вариантов (например `720p/index.m3u8`). Браузер разрешает их относительно URL master; query-параметры presigned **не** наследуются дочерними относительными путями, поэтому цепочка уходит на прямой MinIO без подписи → **403**. Same-origin **`/api/media/{id}/hls/master.m3u8`** удерживает всю цепочку за авторизованным webapp.
 
 ## Где для пациента действует другой слой (скрытие ссылки, не байты)
 

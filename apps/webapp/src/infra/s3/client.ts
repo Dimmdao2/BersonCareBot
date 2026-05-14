@@ -11,6 +11,7 @@ import {
   UploadPartCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { Readable } from "node:stream";
 import { env } from "@/config/env";
 
 const PRESIGN_PUT_EXPIRES_SEC = 900;
@@ -21,6 +22,10 @@ const S3_KEY_PREFIX = "media";
 
 let clientSingleton: S3Client | null = null;
 
+/**
+ * Shared SDK client for media buckets. Uses AWS SDK default HTTP timeouts/request handlers unless
+ * overridden upstream; classify failures via {@link classifyS3GetObjectFailure} (`upstream_timeout`, etc.).
+ */
 export function getS3Client(): S3Client {
   if (!clientSingleton) {
     clientSingleton = new S3Client({
@@ -209,8 +214,10 @@ export async function s3PutObjectBody(key: string, body: Buffer, mimeType: strin
   );
 }
 
-/** Full object bytes from private bucket (e.g. preview worker reading originals). */
-export async function s3GetObjectBody(key: string): Promise<Buffer | null> {
+/** Buffer read with typed failure reasons (small objects such as HLS playlists). */
+export async function s3GetPrivateObjectBuffer(
+  key: string,
+): Promise<{ ok: true; buf: Buffer } | { ok: false; reason: S3GetObjectStreamFailureReason }> {
   const client = getS3Client();
   try {
     const out = await client.send(
@@ -220,11 +227,91 @@ export async function s3GetObjectBody(key: string): Promise<Buffer | null> {
       }),
     );
     const body = out.Body;
-    if (!body) return null;
+    if (!body) {
+      return { ok: false, reason: "s3_read_failed" };
+    }
     const bytes = await body.transformToByteArray();
-    return Buffer.from(bytes);
-  } catch {
-    return null;
+    return { ok: true, buf: Buffer.from(bytes) };
+  } catch (e) {
+    return { ok: false, reason: classifyS3GetObjectFailure(e) };
+  }
+}
+
+/** Full object bytes from private bucket (e.g. preview worker reading originals). */
+export async function s3GetObjectBody(key: string): Promise<Buffer | null> {
+  const got = await s3GetPrivateObjectBuffer(key);
+  return got.ok ? got.buf : null;
+}
+
+/** Classify S3 GetObject failures for HLS proxy / streaming (typed reasons for metrics). */
+export function classifyS3GetObjectFailure(err: unknown): S3GetObjectStreamFailureReason {
+  if (typeof err === "object" && err !== null && "name" in err) {
+    const name = String((err as { name?: string }).name);
+    if (name === "NoSuchKey") return "missing_object";
+    if (name === "AccessDenied") return "upstream_403";
+    if (name === "InvalidRange") return "range_not_satisfiable";
+  }
+  const msg = err instanceof Error ? err.message : String(err);
+  if (/timeout|timed out|ETIMEDOUT|RequestTimeout/i.test(msg)) return "upstream_timeout";
+  return "s3_read_failed";
+}
+
+export type S3GetObjectStreamFailureReason =
+  | "missing_object"
+  | "upstream_403"
+  | "range_not_satisfiable"
+  | "s3_read_failed"
+  | "upstream_timeout";
+
+export type S3GetObjectStreamResult =
+  | {
+      ok: true;
+      httpStatus: 200 | 206;
+      stream: ReadableStream<Uint8Array>;
+      contentType?: string;
+      contentLength?: number;
+      contentRange?: string;
+      acceptRanges?: string;
+      eTag?: string;
+    }
+  | { ok: false; reason: S3GetObjectStreamFailureReason };
+
+/**
+ * Streams an object from the private bucket (for HLS segments). Optional `Range` must be a single
+ * RFC 7233 `bytes=` range already validated by the caller.
+ */
+export async function s3GetObjectStream(params: {
+  key: string;
+  range?: string | null;
+}): Promise<S3GetObjectStreamResult> {
+  const client = getS3Client();
+  try {
+    const out = await client.send(
+      new GetObjectCommand({
+        Bucket: privateBucket(),
+        Key: params.key,
+        ...(params.range ? { Range: params.range } : {}),
+      }),
+    );
+    const body = out.Body;
+    if (!body) {
+      return { ok: false, reason: "s3_read_failed" };
+    }
+    const nodeReadable = body as InstanceType<typeof Readable>;
+    const stream = Readable.toWeb(nodeReadable) as ReadableStream<Uint8Array>;
+    const httpStatus: 200 | 206 = params.range ? 206 : 200;
+    return {
+      ok: true,
+      httpStatus,
+      stream,
+      contentType: out.ContentType ?? undefined,
+      contentLength: out.ContentLength ?? undefined,
+      contentRange: out.ContentRange ?? undefined,
+      acceptRanges: out.AcceptRanges ?? undefined,
+      eTag: out.ETag ?? undefined,
+    };
+  } catch (e) {
+    return { ok: false, reason: classifyS3GetObjectFailure(e) };
   }
 }
 

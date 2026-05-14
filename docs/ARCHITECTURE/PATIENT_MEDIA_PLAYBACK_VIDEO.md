@@ -11,7 +11,11 @@
 
 1. Канонический контракт — **`GET /api/media/[id]/playback`** (включается флагом `video_playback_api_enabled` в `system_settings`, переключатель — админка `/app/settings` → «Параметры приложения» → блок «Воспроизведение видео»; см. `docs/ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md` и описание API в `apps/webapp/src/app/api/api.md`).
 2. Сервер и настройки доставки решают, что отдавать в первую очередь (**HLS** или **progressive MP4**). Клиент **не** предлагает переключатель формата и **не** может «запросить не-HLS» отдельно от API.
-3. Внутри плеера допускается **автоматический** переход на progressive MP4 при недоступности HLS в браузере (например, нет `hls.js`) или после **фатальной** ошибки HLS / истечения presigned — это защитный fallback, не пользовательский выбор.
+3. Внутри плеера допускается **автоматический** переход на progressive MP4 при недоступности HLS в браузере (например, нет `hls.js`) или после **фатальной** ошибки HLS / истечения presigned **постера или MP4** — это защитный fallback, не пользовательский выбор.
+
+## Поток HLS
+
+Master и сегменты запрашиваются с **того же origin**, что и webapp: **`GET /api/media/{id}/hls/...`** (сессионная авторизация). Presigned URL используются для **постера** (если есть) и для **progressive MP4** через **`GET /api/media/{id}`** (редирект). Детали HTTP (коды, rewrite плейлистов, Range) — в [`apps/webapp/src/app/api/api.md`](../../apps/webapp/src/app/api/api.md) (маршрут **`GET /api/media/[id]/hls/[[...path]]`**).
 
 ## Пропсы
 
