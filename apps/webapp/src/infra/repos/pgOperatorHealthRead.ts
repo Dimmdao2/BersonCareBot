@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, inArray, isNull, lte, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, isNull, lte, max, sql } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import { operatorIncidents, operatorJobStatus } from "../../../db/schema/operatorHealth";
 import { outgoingDeliveryQueue } from "../../../db/schema/outgoingDeliveryQueue";
@@ -79,17 +79,37 @@ export const pgOperatorHealthReadPort: OperatorHealthReadPort = {
       inArray(outgoingDeliveryQueue.status, ["pending", "failed_retryable"]),
       lte(outgoingDeliveryQueue.nextRetryAt, sql`now()`),
     );
-    const [dueRow] = await db.select({ c: count() }).from(outgoingDeliveryQueue).where(dueWh);
-    const [deadRow] = await db
-      .select({ c: count() })
-      .from(outgoingDeliveryQueue)
-      .where(eq(outgoingDeliveryQueue.status, "dead"));
-    const oldestRows = await db
-      .select({ createdAt: outgoingDeliveryQueue.createdAt })
-      .from(outgoingDeliveryQueue)
-      .where(dueWh)
-      .orderBy(asc(outgoingDeliveryQueue.createdAt))
-      .limit(1);
+    const [
+      dueRows,
+      deadRows,
+      oldestRows,
+      channelRows,
+      processingRows,
+      activityRows,
+      sentRows,
+    ] = await Promise.all([
+      db.select({ c: count() }).from(outgoingDeliveryQueue).where(dueWh),
+      db.select({ c: count() }).from(outgoingDeliveryQueue).where(eq(outgoingDeliveryQueue.status, "dead")),
+      db
+        .select({ createdAt: outgoingDeliveryQueue.createdAt })
+        .from(outgoingDeliveryQueue)
+        .where(dueWh)
+        .orderBy(asc(outgoingDeliveryQueue.createdAt))
+        .limit(1),
+      db
+        .select({ channel: outgoingDeliveryQueue.channel, n: count() })
+        .from(outgoingDeliveryQueue)
+        .where(dueWh)
+        .groupBy(outgoingDeliveryQueue.channel),
+      db
+        .select({ c: count() })
+        .from(outgoingDeliveryQueue)
+        .where(eq(outgoingDeliveryQueue.status, "processing")),
+      db.select({ mx: max(outgoingDeliveryQueue.updatedAt) }).from(outgoingDeliveryQueue),
+      db.select({ mx: max(outgoingDeliveryQueue.sentAt) }).from(outgoingDeliveryQueue),
+    ]);
+    const dueRow = dueRows[0];
+    const deadRow = deadRows[0];
     const oldestAt = oldestRows[0]?.createdAt;
     let oldestDueAgeSeconds: number | null = null;
     if (oldestAt) {
@@ -98,10 +118,18 @@ export const pgOperatorHealthReadPort: OperatorHealthReadPort = {
         oldestDueAgeSeconds = Math.max(0, Math.floor((Date.now() - t) / 1000));
       }
     }
+    const dueByChannel: Record<string, number> = {};
+    for (const r of channelRows) {
+      dueByChannel[r.channel] = Number(r.n ?? 0);
+    }
     return {
       dueBacklog: Number(dueRow?.c ?? 0),
       deadTotal: Number(deadRow?.c ?? 0),
       oldestDueAgeSeconds,
+      dueByChannel,
+      processingCount: Number(processingRows[0]?.c ?? 0),
+      lastSentAt: sentRows[0]?.mx ?? null,
+      lastQueueActivityAt: activityRows[0]?.mx ?? null,
     };
   },
 };

@@ -8,6 +8,14 @@ export const inMemoryOperatorHealthReadPort: OperatorHealthReadPort = {
     return [];
   },
   async getOutgoingDeliveryQueueHealth(): Promise<OutgoingDeliveryQueueHealthSnapshot> {
-    return { dueBacklog: 0, deadTotal: 0, oldestDueAgeSeconds: null };
+    return {
+      dueBacklog: 0,
+      deadTotal: 0,
+      oldestDueAgeSeconds: null,
+      dueByChannel: {},
+      processingCount: 0,
+      lastSentAt: null,
+      lastQueueActivityAt: null,
+    };
   },
 };

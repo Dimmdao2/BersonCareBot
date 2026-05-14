@@ -34,3 +34,18 @@ export function truncateDeliveryErrorMessage(message: string, maxLen = 900): str
   if (t.length <= maxLen) return t;
   return `${t.slice(0, maxLen - 1)}…`;
 }
+
+/**
+ * Ошибки конфигурации/полезной нагрузки — не ретраим бесконечно; сразу в `dead`.
+ * Сетевые/временные сбои адаптера — ретраим по backoff до `max_attempts`.
+ */
+export function isOutgoingDeliveryDispatchErrorRetryable(errorMessage: string): boolean {
+  const m = errorMessage.trim();
+  if (m.startsWith("CHANNEL_NOT_SPECIFIED")) return false;
+  if (m.startsWith("CHANNEL_NOT_SUPPORTED:")) return false;
+  if (m.startsWith("BAD_PAYLOAD")) return false;
+  if (m.startsWith("MISSING_INCIDENT_ID")) return false;
+  if (m.startsWith("MISSING_REMINDER_FIELDS")) return false;
+  if (m.startsWith("UNKNOWN_KIND:")) return false;
+  return true;
+}

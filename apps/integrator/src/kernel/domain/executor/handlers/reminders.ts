@@ -16,6 +16,7 @@ import { randomUUID } from 'node:crypto';
 import { createDbPort } from '../../../../infra/db/client.js';
 import { enqueueOutgoingDeliveryIfAbsent } from '../../../../infra/db/repos/outgoingDeliveryQueue.js';
 import { DEFAULT_REMINDER_DELIVERY_MAX_ATTEMPTS } from '../../../../infra/delivery/deliveryContract.js';
+import { logger } from '../../../../infra/observability/logger.js';
 import { getAppDisplayTimezone } from '../../../../config/appTimezone.js';
 import {
   buildDefaultReminderRule,
@@ -35,6 +36,43 @@ import { REMINDER_BY_CATEGORY } from '../templateKeys.js';
 
 function escapeReminderHtml(text: string): string {
   return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function sleepMs(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+type PendingReminderDispatchEnqueue = {
+  eventId: string;
+  channel: string;
+  payloadJson: Record<string, unknown>;
+};
+
+async function enqueueReminderDispatchBatchWithRetries(
+  enqueueDb: ReturnType<typeof createDbPort>,
+  rows: PendingReminderDispatchEnqueue[],
+): Promise<void> {
+  const maxAttempts = 3;
+  let lastErr: unknown;
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      if (attempt > 0) await sleepMs(100 * 2 ** (attempt - 1));
+      for (const row of rows) {
+        await enqueueOutgoingDeliveryIfAbsent(enqueueDb, {
+          eventId: row.eventId,
+          kind: 'reminder_dispatch',
+          channel: row.channel,
+          payloadJson: row.payloadJson,
+          maxAttempts: DEFAULT_REMINDER_DELIVERY_MAX_ATTEMPTS,
+        });
+      }
+      return;
+    } catch (err) {
+      lastErr = err;
+    }
+  }
+  logger.error({ err: lastErr, rowCount: rows.length }, 'reminders.dispatchDue.enqueue_failed');
+  throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
 }
 
 const SKIP_PRESET_REASON: Record<string, string | null> = {
@@ -452,15 +490,7 @@ export async function handleReminders(
     await persistWrites(deps.writePort, writes);
     if (pendingEnqueues.length > 0) {
       const enqueueDb = createDbPort();
-      for (const row of pendingEnqueues) {
-        await enqueueOutgoingDeliveryIfAbsent(enqueueDb, {
-          eventId: row.eventId,
-          kind: 'reminder_dispatch',
-          channel: row.channel,
-          payloadJson: row.payloadJson,
-          maxAttempts: DEFAULT_REMINDER_DELIVERY_MAX_ATTEMPTS,
-        });
-      }
+      await enqueueReminderDispatchBatchWithRetries(enqueueDb, pendingEnqueues);
     }
     return { actionId: action.id, status: 'success', writes, intents: [] };
   }

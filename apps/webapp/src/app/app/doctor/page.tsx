@@ -22,7 +22,7 @@ export default async function DoctorPage() {
     intakeService,
   );
   const adminHealthBanner =
-    session.user.role === "admin" ? await loadAdminDoctorTodayHealthBanner(deps.operatorHealthRead) : undefined;
+    session.user.role === "admin" ? await loadAdminDoctorTodayHealthBanner() : undefined;
 
   return (
     <AppShell title="Сегодня" user={session.user} variant="doctor">

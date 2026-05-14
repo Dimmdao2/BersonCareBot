@@ -14,7 +14,8 @@
 
 ## Runbook
 
-- **Dead / рост due:** админка → «Здоровье системы» — блок «Очередь доставки уведомлений» и `GET /api/admin/system-health` (`outgoingDelivery`, `meta.probes.outgoing_delivery`).
+- **Dead / рост due:** админка → «Здоровье системы» — блок «Очередь доставки уведомлений» и `GET /api/admin/system-health` (`outgoingDelivery`, `meta.probes.outgoing_delivery`). В payload: **`dueByChannel`**, **`processingCount`**, **`lastSentAt`**, **`lastQueueActivityAt`**.
+- **Постоянные ошибки доставки:** воркер помечает `dead` без длительных ретраев для известных «конфигурационных» сообщений (`CHANNEL_NOT_SUPPORTED`, `BAD_PAYLOAD`, …), см. `isOutgoingDeliveryDispatchErrorRetryable` в `deliveryContract.ts`.
 - **Строки в БД:** `public.outgoing_delivery_queue` (`status`, `last_error`, `attempt_count`).
 
 ## Связанные файлы

@@ -2,6 +2,7 @@ import type { DbPort, DbWritePort, OutgoingIntent } from '../../../kernel/contra
 import {
   retryDelaySecondsAfterFailure,
   truncateDeliveryErrorMessage,
+  isOutgoingDeliveryDispatchErrorRetryable,
 } from '../../delivery/deliveryContract.js';
 import { logger } from '../../observability/logger.js';
 import {
@@ -62,6 +63,40 @@ async function readReminderOccurrenceStatus(db: DbPort, occurrenceId: string): P
   return typeof res.rows[0]?.status === 'string' ? res.rows[0]!.status : null;
 }
 
+async function finalizeOutgoingDeliveryDead(
+  db: DbPort,
+  row: OutgoingDeliveryQueueRow,
+  safeError: string,
+  writePort: DbWritePort,
+): Promise<void> {
+  await markOutgoingDeliveryDead(db, row.id, safeError);
+  if (row.kind === 'reminder_dispatch') {
+    const p = row.payloadJson;
+    const occurrenceId = typeof p.occurrenceId === 'string' ? p.occurrenceId : null;
+    const channel = typeof p.channel === 'string' ? p.channel : null;
+    const deliveryLogId = typeof p.deliveryLogId === 'string' ? p.deliveryLogId : null;
+    const externalId = typeof p.externalId === 'string' ? p.externalId : '';
+    const text = typeof p.logText === 'string' ? p.logText : '';
+    if (occurrenceId && channel && deliveryLogId) {
+      await writePort.writeDb({
+        type: 'reminders.delivery.log',
+        params: {
+          id: deliveryLogId,
+          occurrenceId,
+          channel,
+          status: 'failed',
+          errorCode: 'DELIVERY_DEAD',
+          payloadJson: { chatId: externalId, text },
+        },
+      });
+      await writePort.writeDb({
+        type: 'reminders.occurrence.markFailed',
+        params: { occurrenceId, channel, errorCode: 'DELIVERY_DEAD' },
+      });
+    }
+  }
+}
+
 async function handleDispatchFailure(
   db: DbPort,
   row: OutgoingDeliveryQueueRow,
@@ -71,33 +106,9 @@ async function handleDispatchFailure(
   const msg = err instanceof Error ? err.message : String(err);
   const safe = truncateDeliveryErrorMessage(msg);
   const attempts = row.attemptCount;
-  if (attempts >= row.maxAttempts) {
-    await markOutgoingDeliveryDead(db, row.id, safe);
-    if (row.kind === 'reminder_dispatch') {
-      const p = row.payloadJson;
-      const occurrenceId = typeof p.occurrenceId === 'string' ? p.occurrenceId : null;
-      const channel = typeof p.channel === 'string' ? p.channel : null;
-      const deliveryLogId = typeof p.deliveryLogId === 'string' ? p.deliveryLogId : null;
-      const externalId = typeof p.externalId === 'string' ? p.externalId : '';
-      const text = typeof p.logText === 'string' ? p.logText : '';
-      if (occurrenceId && channel && deliveryLogId) {
-        await writePort.writeDb({
-          type: 'reminders.delivery.log',
-          params: {
-            id: deliveryLogId,
-            occurrenceId,
-            channel,
-            status: 'failed',
-            errorCode: 'DELIVERY_DEAD',
-            payloadJson: { chatId: externalId, text },
-          },
-        });
-        await writePort.writeDb({
-          type: 'reminders.occurrence.markFailed',
-          params: { occurrenceId, channel, errorCode: 'DELIVERY_DEAD' },
-        });
-      }
-    }
+  const retryable = isOutgoingDeliveryDispatchErrorRetryable(safe);
+  if (!retryable || attempts >= row.maxAttempts) {
+    await finalizeOutgoingDeliveryDead(db, row, safe, writePort);
     return;
   }
   const delay = retryDelaySecondsAfterFailure(attempts);

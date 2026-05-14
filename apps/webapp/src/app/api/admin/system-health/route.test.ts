@@ -16,6 +16,16 @@ const zeroTranscodeMetrics = {
   oldestPendingAgeSeconds: null as number | null,
 };
 
+const zeroOutgoingSnapshot = {
+  dueBacklog: 0,
+  deadTotal: 0,
+  oldestDueAgeSeconds: null as number | null,
+  dueByChannel: {} as Record<string, number>,
+  processingCount: 0,
+  lastSentAt: null as string | null,
+  lastQueueActivityAt: null as string | null,
+};
+
 const {
   requireAdminModeSessionMock,
   checkDbHealthMock,
@@ -170,11 +180,7 @@ describe("GET /api/admin/system-health", () => {
     getOutgoingDeliveryQueueHealthMock.mockReset();
     listOpenIncidentsMock.mockResolvedValue([]);
     listBackupJobStatusMock.mockResolvedValue([]);
-    getOutgoingDeliveryQueueHealthMock.mockResolvedValue({
-      dueBacklog: 0,
-      deadTotal: 0,
-      oldestDueAgeSeconds: null,
-    });
+    getOutgoingDeliveryQueueHealthMock.mockResolvedValue({ ...zeroOutgoingSnapshot });
     globalThis.fetch = originalFetch;
   });
 
@@ -231,7 +237,7 @@ describe("GET /api/admin/system-health", () => {
       };
       operatorIncidentsOpen: unknown[];
       backupJobs: Record<string, unknown>;
-      outgoingDelivery: { dueBacklog: number; deadTotal: number; oldestDueAgeSeconds: number | null };
+      outgoingDelivery: typeof zeroOutgoingSnapshot;
       meta?: {
         probes?: {
           projection?: { status: string; durationMs: number };
@@ -263,7 +269,7 @@ describe("GET /api/admin/system-health", () => {
     expect(body.meta?.probes?.videoTranscode?.status).toBe("ok");
     expect(body.operatorIncidentsOpen).toEqual([]);
     expect(body.backupJobs).toEqual({});
-    expect(body.outgoingDelivery).toEqual({ dueBacklog: 0, deadTotal: 0, oldestDueAgeSeconds: null });
+    expect(body.outgoingDelivery).toEqual(zeroOutgoingSnapshot);
     expect(body.meta?.probes?.operatorIncidents?.status).toBe("ok");
     expect(body.meta?.probes?.operatorBackupJobs?.status).toBe("ok");
     expect(body.meta?.probes?.outgoingDelivery?.status).toBe("ok");

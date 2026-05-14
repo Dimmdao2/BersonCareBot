@@ -10,6 +10,12 @@
 - Webapp: `OperatorHealthReadPort.getOutgoingDeliveryQueueHealth`, `GET /api/admin/system-health` (`outgoingDelivery`), UI в `SystemHealthSection`; admin-only баннер на экране врача «Сегодня»; для `role === admin` admin mode считается всегда включённым (`requireAdminModeSession`, сессия, настройки).
 - Док: `docs/ARCHITECTURE/OUTGOING_DELIVERY_QUEUE.md`.
 
+### 2026-05-14 — Аудит: доработка health, баннера и классификации dispatch
+
+- Сбор `GET /api/admin/system-health` вынесен в `collectAdminSystemHealthData`; баннер «Сегодня» использует тот же снимок (`adminDoctorTodayHealthBannerFromSystemHealth`).
+- Метрики очереди: `dueByChannel`, `processingCount`, `lastSentAt`, `lastQueueActivityAt`; UI в `SystemHealthSection`.
+- Integrator: `isOutgoingDeliveryDispatchErrorRetryable` + ретраи `enqueueReminderDispatchBatchWithRetries`; документ `docs/ARCHITECTURE/OUTGOING_DISPATCH_CLASSIFICATION.md`; план `.cursor/plans/reliable_delivery_queue_audit_followup.plan.md`.
+
 ### 2026-05-03 — Декомпозиция фаз
 
 - Добавлены детальные планы **PHASE_A** … **PHASE_G** (шаги, checklist, scope, DoD по фазе); `MASTER_PLAN.md` §5 заменён на таблицу ссылок.

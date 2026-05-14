@@ -28,6 +28,10 @@ export type OutgoingDeliveryQueueHealthSnapshot = {
   dueBacklog: number;
   deadTotal: number;
   oldestDueAgeSeconds: number | null;
+  dueByChannel: Record<string, number>;
+  processingCount: number;
+  lastSentAt: string | null;
+  lastQueueActivityAt: string | null;
 };
 
 export type OperatorHealthReadPort = {

@@ -66,6 +66,10 @@ type SystemHealthPayload = {
     dueBacklog: number;
     deadTotal: number;
     oldestDueAgeSeconds: number | null;
+    dueByChannel: Record<string, number>;
+    processingCount: number;
+    lastSentAt: string | null;
+    lastQueueActivityAt: string | null;
   };
   /** VIDEO_HLS_DELIVERY: hourly playback aggregates (UTC), rolling window. */
   videoPlayback: {
@@ -686,6 +690,27 @@ export function SystemHealthSection() {
               <ProbeInfo probe={data?.meta?.probes?.outgoingDelivery} />
               <DetailRow label="due (готово к отправке)" value={String(data?.outgoingDelivery?.dueBacklog ?? 0)} />
               <DetailRow label="dead" value={String(data?.outgoingDelivery?.deadTotal ?? 0)} />
+              <DetailRow label="processing" value={String(data?.outgoingDelivery?.processingCount ?? 0)} />
+              <DetailRow
+                label="due по каналам"
+                value={
+                  data?.outgoingDelivery?.dueByChannel &&
+                  Object.keys(data.outgoingDelivery.dueByChannel).length > 0
+                    ? Object.entries(data.outgoingDelivery.dueByChannel)
+                        .sort(([a], [b]) => a.localeCompare(b))
+                        .map(([ch, n]) => `${ch}:${n}`)
+                        .join(", ")
+                    : "—"
+                }
+              />
+              <DetailRow
+                label="last_sent_at (max)"
+                value={formatDateTime(data?.outgoingDelivery?.lastSentAt ?? null)}
+              />
+              <DetailRow
+                label="last_queue_activity (max updated_at)"
+                value={formatDateTime(data?.outgoingDelivery?.lastQueueActivityAt ?? null)}
+              />
               <DetailRow
                 label="Возраст oldest due, с"
                 value={
