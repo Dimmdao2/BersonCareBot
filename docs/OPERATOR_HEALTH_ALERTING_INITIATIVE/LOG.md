@@ -4,6 +4,10 @@
 
 ## Записи
 
+### 2026-05-14 — Док: PHASE G не блокирует закрытый MVP
+
+- **`PHASE_G_TESTS_AND_DOCS.md`**: в шапке зафиксировано, что **MVP** закрыт по `MVP_IMPLEMENTATION_PLAN.md`; чеклисты фазы G — пост-MVP полировка; G.1 помечен как **defer** с отсылкой к `LOG.md` / MVP DoD.
+
 ### 2026-05-14 — Синхронизация оглавлений документации (system-health / reconcile)
 
 - **`docs/README.md`** — хаб: reconcile cron, `collectAdminSystemHealthData`, `adminHealthThresholds`, ссылки на план и `HLS_RECONCILE_METRICS_LOG`.

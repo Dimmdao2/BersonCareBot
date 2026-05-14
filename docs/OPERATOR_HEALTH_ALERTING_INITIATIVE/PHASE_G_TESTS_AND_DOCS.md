@@ -2,6 +2,8 @@
 
 Канон: [`MASTER_PLAN.md`](MASTER_PLAN.md) §5 фаза G, §7–10, `.cursor/rules/pre-push-ci.mdc`.
 
+**Статус (2026-05-14):** **MVP** закрыт по [`MVP_IMPLEMENTATION_PLAN.md`](MVP_IMPLEMENTATION_PLAN.md) (§7–10). Этот документ описывает **расширенную** полировку после MVP; чеклисты §5 **не** являются блокером для MVP DoD. Незакрытые пункты Phase G переносятся в пост-MVP по [`MASTER_PLAN.md`](MASTER_PLAN.md).
+
 ## 1. Цель этапа
 
 Закрепить качество всей инициативы: **автотесты** на критические инварианты (dedup, open→resolved, recovery once), **документация** для операторов и разработчиков без секретов, **журнал** `LOG.md` с итогами фаз.
@@ -48,7 +50,8 @@
 
 **Checklist:**
 
-- [ ] Таблица покрытия: для каждого публичного entrypoint (`reportFailure`, `resolve…`) есть тест или явный defer в `LOG.md`.
+- [x] MVP: критичные entrypoints покрыты тестами из `LOG.md` и `MVP_IMPLEMENTATION_PLAN.md` §7.
+- [ ] Post-MVP: полная матрица G.1 («инвариант → тест») в appendix — при отдельном проходе фазы G.
 
 **Критерий закрытия:** нет критичных непокрытых веток без явного defer.
 

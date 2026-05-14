@@ -29,7 +29,7 @@
 | Домен плана лечения, deep copy, правка инстанса, inbox, §4 UX врача | [`../APP_RESTRUCTURE_INITIATIVE/PROGRAM_PATIENT_SHAPE_PLAN.md`](../APP_RESTRUCTURE_INITIATIVE/PROGRAM_PATIENT_SHAPE_PLAN.md) |
 | Сводка инициатив и статус A1–A5 / B1–B7 | [`../APP_RESTRUCTURE_INITIATIVE/README.md`](../APP_RESTRUCTURE_INITIATIVE/README.md) |
 | Каталоги «Назначений», comment pattern, хвост по шаблонам | [`../APP_RESTRUCTURE_INITIATIVE/ASSIGNMENT_CATALOGS_REWORK_PLAN.md`](../APP_RESTRUCTURE_INITIATIVE/ASSIGNMENT_CATALOGS_REWORK_PLAN.md) |
-| Пациент: страницы программы (смежный контур) | [`../archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/README.md`](../archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/README.md) · актуальные хвосты lifecycle: [`../PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/LOG.md`](../PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/LOG.md) |
+| Пациент: страницы программы (смежный контур) | [`../archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/README.md`](../archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/README.md) · [`LOG.md`](../archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/LOG.md) · указатель [`../PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/README.md`](../PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/README.md) |
 | Реестр HTTP webapp (doctor/patient, test-results + accept) | [`../../apps/webapp/src/app/api/api.md`](../../apps/webapp/src/app/api/api.md) |
 | Правила исполнения (Drizzle, LFK, фазы) | [`../TREATMENT_PROGRAM_INITIATIVE/EXECUTION_RULES.md`](../TREATMENT_PROGRAM_INITIATIVE/EXECUTION_RULES.md) |
 

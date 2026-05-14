@@ -9,6 +9,7 @@
 - **Doctor UI:** `getDoctorAttemptAcceptMap` + `attemptAcceptMap` в `GET .../test-results`; кнопка «Принять попытку» только при `canAccept`.
 - **Patient embedded:** после submit / start new / «Снять Новое» / `mark-viewed` по видимости — `refresh` + повторный `test-set-snapshot` в `PatientInstanceStageItemCard`.
 - **Тесты:** `progress-service.test.ts` — история `accepted_*`, stale accept при более новой **submitted**, **reject accept при более новой открытой** попытке, идемпотентный `markAttemptSubmitted`, ошибки `patientStartNewTestAttempt` (нет ни одной submitted / уже есть open).
+- **Доп. регрессия в том же файле (закрыто в репо, без ожидания prod-данных):** приём **submitted** при более новой **открытой** попытке — отказ; повторный `patientStartNewTestAttempt` при уже открытой (`Сначала отправьте текущую попытку`); старт новой попытки без ни одной submitted (`Сначала отправьте набор тестов`). Целевой прогон: `pnpm --dir apps/webapp exec vitest run src/modules/treatment-program/progress-service.test.ts`.
 
 ## 2026-05-14 — клинтесты: неограниченные попытки, история, приём врачом (MVP-B)
 

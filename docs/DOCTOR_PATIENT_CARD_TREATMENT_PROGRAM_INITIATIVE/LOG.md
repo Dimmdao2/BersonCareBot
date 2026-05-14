@@ -118,7 +118,7 @@
 ## 2026-05-08 — Рекомендации: дефолт «постоянная» на экземпляре
 
 - **`createTreatmentProgramInstanceService`:** при копировании шаблона в инстанс и при `doctorAddStageItem` для `recommendation` выставляется **`is_actionable = false`** (постоянная). Раньше было `true` (исполняемая). Переключение «Требует выполнения» — по-прежнему в UI карточки элемента инстанса (`PATCH` с `isActionable`).
-- Тест: `instance-service.test.ts` (ожидание после assign).
+- Тест: **`instance-service.test.ts`** — кейс дефолта «постоянная»; закрыт в репо (**не** блокируется prod-данными). Прогон: `pnpm --dir apps/webapp exec vitest run src/modules/treatment-program/instance-service.test.ts` (или полный CI).
 - Документация: [`ROADMAP.md`](ROADMAP.md) §4, [`PROGRAM_PATIENT_SHAPE_PLAN.md`](../APP_RESTRUCTURE_INITIATIVE/PROGRAM_PATIENT_SHAPE_PLAN.md) §4.1, [`TARGET_STRUCTURE_PATIENT.md`](../APP_RESTRUCTURE_INITIATIVE/TARGET_STRUCTURE_PATIENT.md) §12.3; backlog «дефолт из каталога/шаблона» — [`docs/TODO.md`](../../TODO.md).
 
 ---

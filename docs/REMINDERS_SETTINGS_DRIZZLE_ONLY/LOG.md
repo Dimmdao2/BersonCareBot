@@ -4,6 +4,28 @@
 
 ---
 
+## 2026-05-14 — Prod: dispatch напоминаний и схема `content_sections`
+
+### Контекст
+
+Scheduler (integrator) при обогащении текста напоминания резолвил заголовок раздела CMS запросом к `public.content_sections` с условием **`deleted_at IS NULL`**, хотя колонки в таблице нет (см. Drizzle `content_sections`). На проде это давало **`42703`** в журнале scheduler.
+
+### Сделано
+
+- Исходники: `apps/integrator/src/kernel/domain/executor/handlers/reminders.ts` — фильтр `deleted_at` убран только для ветки **`content_section`**.
+- Деплой: пересборка **`pnpm --dir apps/integrator run build`** и рестарт **`bersoncarebot-scheduler-prod`**; проверка `dist/.../reminders.js` и окна `journalctl` без новых ошибок.
+
+### Проверки
+
+- [x] SQL в `dist` для `content_sections` без `deleted_at`.
+- [x] `journalctl` за интервал после выката без `42703` / `column "deleted_at" does not exist` для этого запроса.
+
+### Ссылки
+
+- Журнал выката scheduler: [`docs/OPERATIONS/REMINDER_SCHEDULER_ROLLOUT_LOG.md`](../OPERATIONS/REMINDER_SCHEDULER_ROLLOUT_LOG.md) (строка **C1**).
+
+---
+
 ## 2026-05-13 — Stage 0 (bootstrap)
 
 ### Сделано
