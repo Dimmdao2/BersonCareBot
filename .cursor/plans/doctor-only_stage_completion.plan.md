@@ -1,28 +1,28 @@
 ---
 name: Doctor-only stage completion
-overview: Привести логику этапов к правилу «закрытие этапа только врачом»: убрать автозавершение этапа из пациентских путей, сохранить пациентский переход `available -> in_progress`, переписать тесты, добавить в кабинете врача кнопку «Открыть заново» для этапов `completed`/`skipped`, обновить каноническую документацию и runbook отката.
+overview: "Привести логику этапов к правилу «закрытие этапа только врачом»: убрать автозавершение этапа из пациентских путей, сохранить пациентский переход `available -> in_progress`, переписать тесты, добавить в кабинете врача кнопку «Открыть заново» для этапов `completed`/`skipped`, обновить каноническую документацию и runbook отката."
 todos:
   - id: preflight-and-scope
     content: Зафиксировать scope, прочитать релевантные правила/доки, проверить runtime-использование maybeCompleteStageFromItems перед удалением
-    status: pending
+    status: completed
   - id: remove-patient-autocomplete
     content: Удалить maybeCompleteStageFromItems и его вызовы из patientCompleteSimpleItem/patientSubmitTestResult; не менять doctorSetStageStatus
-    status: pending
+    status: completed
   - id: rewrite-tests
     content: Переписать progress-service.test.ts и смежные ожидания на модель doctor-only completion
-    status: pending
+    status: completed
   - id: module-regression
     content: Прогнать регрессию по apps/webapp/src/modules/treatment-program и целевые проверки lint/typecheck/test
-    status: pending
+    status: completed
   - id: docs-and-log
     content: Обновить docs/ARCHITECTURE и добавить execution log в профильной папке docs по выполненным шагам
-    status: pending
+    status: completed
   - id: repair-runbook
     content: Обновить runbook — после кнопки «Открыть заново» основной путь через UI; PATCH/SQL как fallback и для массовых случаев
-    status: pending
+    status: completed
   - id: doctor-reopen-stage-ui
     content: Кнопка «Открыть заново» в TreatmentProgramInstanceDetailClient для completed/skipped; PATCH status; политика по следующему этапу + тесты/ручная проверка
-    status: pending
+    status: completed
 isProject: false
 ---
 

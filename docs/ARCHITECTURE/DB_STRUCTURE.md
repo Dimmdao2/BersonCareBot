@@ -222,6 +222,7 @@
 - `treatment_program_instance_stage_items.stage_id` → `treatment_program_instance_stages.id` (CASCADE)
 - `treatment_program_instance_stage_items.item_ref_id` — **без FK**
 - `treatment_program_instance_stage_items.snapshot` — снимок блока на момент назначения
+- Статусы строки этапа экземпляра (`locked` / `available` / `in_progress` / `completed` / `skipped`): перевод в **`completed`** или **`skipped`** только действием врача; пациент не закрывает этап автоматически при отметках пунктов или тестах (см. FSM в [`PATIENT_TREATMENT_PROGRAM_STAGE_SURFACES.md`](PATIENT_TREATMENT_PROGRAM_STAGE_SURFACES.md)). Повторное открытие этапа врачом не очищает автоматически `completed_at` у пунктов — там же.
 
 #### Комментарии (фаза 5)
 

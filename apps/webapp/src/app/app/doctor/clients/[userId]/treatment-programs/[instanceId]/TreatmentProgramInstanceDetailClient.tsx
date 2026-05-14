@@ -2004,6 +2004,17 @@ function StageDoctorControls(props: {
             Старт этапа
           </Button>
         ) : null}
+        {status === "completed" || status === "skipped" ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={saving || editLocked}
+            onClick={() => void patch({ status: "in_progress" })}
+          >
+            Открыть заново
+          </Button>
+        ) : null}
         <div className="flex flex-nowrap items-center gap-2">
           {status === "available" || status === "in_progress" ? (
             <Button

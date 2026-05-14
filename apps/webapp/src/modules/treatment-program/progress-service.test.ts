@@ -152,7 +152,7 @@ describe("treatment-program progress-service", () => {
     expect(inst.stages[0]!.startedAt).toBeTruthy();
   });
 
-  it("§3: completing all items completes stage and unlocks next", async () => {
+  it("§3: patient completing all items does not close stage; doctor completed unlocks next", async () => {
     const inst = await persistence.instancePort.createInstanceTree({
       templateId: "00000000-0000-4000-8000-000000000001",
       patientUserId: patient,
@@ -210,8 +210,17 @@ describe("treatment-program progress-service", () => {
       stageItemId: item1,
     });
     const after = await persistence.instancePort.getInstanceForPatient(patient, inst.id);
-    expect(after!.stages[0]!.status).toBe("completed");
-    expect(after!.stages[1]!.status).toBe("available");
+    expect(after!.stages[0]!.status).toBe("in_progress");
+    expect(after!.stages[1]!.status).toBe("locked");
+    await progress.doctorSetStageStatus({
+      instanceId: inst.id,
+      stageId: after!.stages[0]!.id,
+      status: "completed",
+      doctorUserId: doctor,
+    });
+    const final = await persistence.instancePort.getInstanceForPatient(patient, inst.id);
+    expect(final!.stages[0]!.status).toBe("completed");
+    expect(final!.stages[1]!.status).toBe("available");
   });
 
   it("patientCompleteSimpleItem writes program_action_log done on each completion", async () => {
@@ -280,7 +289,7 @@ describe("treatment-program progress-service", () => {
     });
   });
 
-  it("test_results: scoring passIfGte and stage completion after all tests", async () => {
+  it("test_results: scoring passIfGte completes item; stage closes only after doctor completes stage", async () => {
     const inst = await persistence.instancePort.createInstanceTree({
       templateId: "00000000-0000-4000-8000-000000000001",
       patientUserId: patient,
@@ -335,18 +344,30 @@ describe("treatment-program progress-service", () => {
       rawValue: { score: 6 },
     });
     expect(out.stages[0]!.items[0]!.completedAt).not.toBeNull();
-    expect(out.stages[0]!.status).toBe("completed");
-    expect(out.stages[1]!.status).toBe("available");
+    expect(out.stages[0]!.status).toBe("in_progress");
+    expect(out.stages[1]!.status).toBe("locked");
     const details = await progress.listTestResultsForInstance(inst.id);
     expect(details).toHaveLength(1);
     expect(details[0]!.normalizedDecision).toBe("passed");
     expect(details[0]!.decidedBy).toBeNull();
+    const evAfterPatient = await persistence.eventsPort.listEventsForInstance(inst.id);
+    expect(evAfterPatient.some((e) => e.eventType === "test_completed")).toBe(true);
+    expect(evAfterPatient.some((e) => e.eventType === "stage_completed")).toBe(false);
+
+    await progress.doctorSetStageStatus({
+      instanceId: inst.id,
+      stageId: out.stages[0]!.id,
+      status: "completed",
+      doctorUserId: doctor,
+    });
+    const closed = await persistence.instancePort.getInstanceForPatient(patient, inst.id);
+    expect(closed!.stages[0]!.status).toBe("completed");
+    expect(closed!.stages[1]!.status).toBe("available");
     const ev = await persistence.eventsPort.listEventsForInstance(inst.id);
-    expect(ev.some((e) => e.eventType === "test_completed")).toBe(true);
     expect(ev.some((e) => e.eventType === "stage_completed")).toBe(true);
   });
 
-  it("D4/Q2: qualitative clinical_test — explicit normalizedDecision completes item and stage (no special branch)", async () => {
+  it("D4/Q2: qualitative clinical_test — explicit normalizedDecision completes item; doctor closes stage", async () => {
     const inst = await persistence.instancePort.createInstanceTree({
       templateId: "00000000-0000-4000-8000-000000000001",
       patientUserId: patient,
@@ -408,14 +429,23 @@ describe("treatment-program progress-service", () => {
       normalizedDecision: "passed",
     });
     expect(out.stages[0]!.items[0]!.completedAt).not.toBeNull();
-    expect(out.stages[0]!.status).toBe("completed");
-    expect(out.stages[1]!.status).toBe("available");
+    expect(out.stages[0]!.status).toBe("in_progress");
+    expect(out.stages[1]!.status).toBe("locked");
     const details = await progress.listTestResultsForInstance(inst.id);
     expect(details).toHaveLength(1);
     expect(details[0]!.normalizedDecision).toBe("passed");
+    await progress.doctorSetStageStatus({
+      instanceId: inst.id,
+      stageId: out.stages[0]!.id,
+      status: "completed",
+      doctorUserId: doctor,
+    });
+    const closed = await persistence.instancePort.getInstanceForPatient(patient, inst.id);
+    expect(closed!.stages[0]!.status).toBe("completed");
+    expect(closed!.stages[1]!.status).toBe("available");
   });
 
-  it("D4/Q2: two qualitative tests in set — both require explicit decision; then stage completes", async () => {
+  it("D4/Q2: two qualitative tests in set — both required; doctor closes stage after patient finishes tests", async () => {
     const inst = await persistence.instancePort.createInstanceTree({
       templateId: "00000000-0000-4000-8000-000000000001",
       patientUserId: patient,
@@ -491,8 +521,17 @@ describe("treatment-program progress-service", () => {
       normalizedDecision: "partial",
     });
     expect(out.stages[0]!.items[0]!.completedAt).not.toBeNull();
-    expect(out.stages[0]!.status).toBe("completed");
-    expect(out.stages[1]!.status).toBe("available");
+    expect(out.stages[0]!.status).toBe("in_progress");
+    expect(out.stages[1]!.status).toBe("locked");
+    await progress.doctorSetStageStatus({
+      instanceId: inst.id,
+      stageId: out.stages[0]!.id,
+      status: "completed",
+      doctorUserId: doctor,
+    });
+    const closed = await persistence.instancePort.getInstanceForPatient(patient, inst.id);
+    expect(closed!.stages[0]!.status).toBe("completed");
+    expect(closed!.stages[1]!.status).toBe("available");
   });
 
   it("D4/Q2: qualitative without normalizedDecision and without inferrable score — rejects", async () => {
@@ -751,6 +790,45 @@ describe("treatment-program progress-service", () => {
     expect(ok.stages[0]!.skipReason).toBe("Клинически не применимо");
   });
 
+  it("doctor reopen: skipped -> in_progress clears skipReason", async () => {
+    const inst = await persistence.instancePort.createInstanceTree({
+      templateId: "00000000-0000-4000-8000-000000000001",
+      patientUserId: patient,
+      assignedBy: null,
+      title: "Программа",
+      stages: [
+        {
+          sourceStageId: tplStageId,
+          title: "Этап 1",
+          description: null,
+          sortOrder: 1,
+          status: "available",
+          goals: null,
+          objectives: null,
+          expectedDurationDays: null,
+          expectedDurationText: null,
+          items: [],
+        },
+      ],
+    });
+    const stageId = inst.stages[0]!.id;
+    await progress.doctorSetStageStatus({
+      instanceId: inst.id,
+      stageId,
+      status: "skipped",
+      reason: "Временно не ведём",
+      doctorUserId: doctor,
+    });
+    const reopened = await progress.doctorSetStageStatus({
+      instanceId: inst.id,
+      stageId,
+      status: "in_progress",
+      doctorUserId: doctor,
+    });
+    expect(reopened.stages[0]!.status).toBe("in_progress");
+    expect(reopened.stages[0]!.skipReason).toBeNull();
+  });
+
   it("skipped current stage unlocks next locked as available (§3)", async () => {
     const inst = await persistence.instancePort.createInstanceTree({
       templateId: "00000000-0000-4000-8000-000000000001",
@@ -794,6 +872,82 @@ describe("treatment-program progress-service", () => {
     });
     expect(out.stages[0]!.status).toBe("skipped");
     expect(out.stages[1]!.status).toBe("available");
+  });
+
+  it("doctor can set completed stage back to in_progress (reopen); next stage stays available (v1)", async () => {
+    const inst = await persistence.instancePort.createInstanceTree({
+      templateId: "00000000-0000-4000-8000-000000000001",
+      patientUserId: patient,
+      assignedBy: null,
+      title: "Программа",
+      stages: [
+        {
+          sourceStageId: tplStageId,
+          title: "Этап 1",
+          description: null,
+          sortOrder: 1,
+          status: "available",
+          goals: null,
+          objectives: null,
+          expectedDurationDays: null,
+          expectedDurationText: null,
+          items: [
+            {
+              itemType: "recommendation",
+              itemRefId: "11111111-1111-4111-8111-111111111111",
+              sortOrder: 0,
+              comment: null,
+              settings: null,
+              snapshot: { title: "A" },
+            },
+          ],
+        },
+        {
+          sourceStageId: tplStage2Id,
+          title: "Этап 2",
+          description: null,
+          sortOrder: 2,
+          status: "locked",
+          goals: null,
+          objectives: null,
+          expectedDurationDays: null,
+          expectedDurationText: null,
+          items: [
+            {
+              itemType: "recommendation",
+              itemRefId: "22222222-2222-4222-8222-222222222222",
+              sortOrder: 0,
+              comment: null,
+              settings: null,
+              snapshot: { title: "B" },
+            },
+          ],
+        },
+      ],
+    });
+    const item1 = inst.stages[0]!.items[0]!.id;
+    await progress.patientCompleteSimpleItem({
+      patientUserId: patient,
+      instanceId: inst.id,
+      stageItemId: item1,
+    });
+    const s0 = inst.stages[0]!.id;
+    await progress.doctorSetStageStatus({
+      instanceId: inst.id,
+      stageId: s0,
+      status: "completed",
+      doctorUserId: doctor,
+    });
+    const mid = await persistence.instancePort.getInstanceById(inst.id);
+    expect(mid!.stages[1]!.status).toBe("available");
+    const reopened = await progress.doctorSetStageStatus({
+      instanceId: inst.id,
+      stageId: s0,
+      status: "in_progress",
+      doctorUserId: doctor,
+    });
+    expect(reopened.stages[0]!.status).toBe("in_progress");
+    expect(reopened.stages[1]!.status).toBe("available");
   });
 
   it("doctor can open locked stage", async () => {
@@ -1002,7 +1156,7 @@ describe("treatment-program progress-service", () => {
     ).rejects.toThrow(/отключён/);
   });
 
-  it("A2: постоянная рекомендация не учитывается в автозавершении этапа", async () => {
+  it("A2: only actionable recommendation counts toward completion; patient does not close stage", async () => {
     const inst = await persistence.instancePort.createInstanceTree({
       templateId: "00000000-0000-4000-8000-000000000001",
       patientUserId: patient,
@@ -1070,8 +1224,17 @@ describe("treatment-program progress-service", () => {
       stageItemId: actionableId,
     });
     const after = await persistence.instancePort.getInstanceForPatient(patient, inst.id);
-    expect(after!.stages[0]!.status).toBe("completed");
-    expect(after!.stages[1]!.status).toBe("available");
+    expect(after!.stages[0]!.status).toBe("in_progress");
+    expect(after!.stages[1]!.status).toBe("locked");
+    await progress.doctorSetStageStatus({
+      instanceId: inst.id,
+      stageId: after!.stages[0]!.id,
+      status: "completed",
+      doctorUserId: doctor,
+    });
+    const closed = await persistence.instancePort.getInstanceForPatient(patient, inst.id);
+    expect(closed!.stages[0]!.status).toBe("completed");
+    expect(closed!.stages[1]!.status).toBe("available");
   });
 });
 

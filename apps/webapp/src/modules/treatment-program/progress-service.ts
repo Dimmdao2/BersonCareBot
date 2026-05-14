@@ -8,7 +8,6 @@ import { buildAppendEventInput, normalizeEventReason } from "./event-recording";
 import { assertUuid } from "./service";
 import { inferNormalizedDecisionFromScoring, scoringConfigIsQualitative } from "./progress-scoring";
 import {
-  isCompletableForStageProgress,
   isInstanceStageItemActiveForPatient,
   isPersistentRecommendation,
   isStageZero,
@@ -118,28 +117,6 @@ export function createTreatmentProgramProgressService(deps: {
     });
   }
 
-  async function maybeCompleteStageFromItems(instanceId: string, stageId: string): Promise<void> {
-    const detail = await instances.getInstanceById(instanceId);
-    if (!detail) return;
-    const stage = detail.stages.find((s) => s.id === stageId);
-    if (!stage || stage.status === "skipped" || stage.status === "completed") return;
-    if (isStageZero(stage)) return;
-    const required = stage.items.filter((i) => isCompletableForStageProgress(i));
-    if (required.length === 0) return;
-    if (!required.every((i) => i.completedAt != null)) return;
-    const beforeStatus = stage.status;
-    const updated = await instances.updateInstanceStage(instanceId, stageId, { status: "completed" });
-    if (updated) {
-      await recordStageStatusChange({
-        instanceId,
-        stageId,
-        beforeStatus,
-        afterRow: updated,
-        actorId: null,
-      });
-    }
-  }
-
   function resolveItemAndStage(detail: TreatmentProgramInstanceDetail, stageItemId: string) {
     const item = detail.stages.flatMap((s) => s.items).find((i) => i.id === stageItemId);
     if (!item) throw new Error("Элемент не найден");
@@ -241,7 +218,6 @@ export function createTreatmentProgramProgressService(deps: {
           payload: { scope: "stage_item", field: "completedAt", value: ts, stageId: stage.id },
         });
       }
-      await maybeCompleteStageFromItems(input.instanceId, stage.id);
       const out = await instances.getInstanceForPatient(input.patientUserId, input.instanceId);
       if (!out) throw new Error("Программа не найдена");
       return out;
@@ -376,7 +352,6 @@ export function createTreatmentProgramProgressService(deps: {
             context: "clinical_test_done",
           },
         });
-        await maybeCompleteStageFromItems(input.instanceId, stage.id);
       }
 
       const out = await instances.getInstanceForPatient(input.patientUserId, input.instanceId);
