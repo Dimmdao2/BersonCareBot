@@ -2,7 +2,7 @@
  * Запись и обновление operator health таблиц через Drizzle (без сырого SQL в приложении).
  */
 import { and, eq, isNull, like, sql } from 'drizzle-orm';
-import { operatorIncidents, operatorJobStatus } from '@bersoncare/operator-db-schema';
+import { operatorIncidents } from '@bersoncare/operator-db-schema';
 import { getIntegratorDrizzle } from '../drizzle.js';
 
 const ERROR_DETAIL_MAX = 900;
@@ -86,56 +86,4 @@ export async function resolveOpenOperatorIncidentsByDedupKeyPrefix(prefix: strin
     .where(and(isNull(operatorIncidents.resolvedAt), like(operatorIncidents.dedupKey, pattern)))
     .returning({ id: operatorIncidents.id });
   return rows.length;
-}
-
-export type UpsertOperatorJobStatusInput = {
-  jobKey: string;
-  jobFamily: string;
-  lastStatus: 'success' | 'failure';
-  lastStartedAt?: string | null;
-  lastFinishedAt?: string | null;
-  lastDurationMs?: number | null;
-  lastError?: string | null;
-  metaJson?: Record<string, unknown>;
-};
-
-export async function upsertOperatorJobStatus(input: UpsertOperatorJobStatusInput): Promise<void> {
-  const db = getIntegratorDrizzle();
-  const err = truncateDetail(input.lastError ?? null);
-  const meta = input.metaJson ?? {};
-  const finishedAt = input.lastFinishedAt ?? new Date().toISOString();
-
-  const baseRow = {
-    jobKey: input.jobKey,
-    jobFamily: input.jobFamily,
-    lastStatus: input.lastStatus,
-    lastStartedAt: input.lastStartedAt ?? null,
-    lastFinishedAt: finishedAt,
-    lastDurationMs: input.lastDurationMs ?? null,
-    lastError: err,
-    metaJson: meta,
-    lastSuccessAt: null as string | null,
-    lastFailureAt: null as string | null,
-  };
-  if (input.lastStatus === 'success') {
-    baseRow.lastSuccessAt = finishedAt;
-  } else {
-    baseRow.lastFailureAt = finishedAt;
-  }
-
-  await db
-    .insert(operatorJobStatus)
-    .values(baseRow)
-    .onConflictDoUpdate({
-      target: [operatorJobStatus.jobKey],
-      set: {
-        lastStatus: input.lastStatus,
-        lastFinishedAt: finishedAt,
-        lastDurationMs: input.lastDurationMs ?? null,
-        metaJson: meta,
-        ...(input.lastStatus === 'success'
-          ? { lastSuccessAt: finishedAt, lastError: null }
-          : { lastFailureAt: finishedAt, lastError: err }),
-      },
-    });
 }

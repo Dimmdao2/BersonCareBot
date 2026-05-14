@@ -407,6 +407,13 @@
       "when": 1780000000000,
       "tag": "0057_operator_health_mvp",
       "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1780100000000,
+      "tag": "0058_operator_job_status_backup_family",
+      "breakpoints": true
     }
   ]
 }

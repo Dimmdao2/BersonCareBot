@@ -26,9 +26,9 @@ sudo /opt/backups/scripts/postgres-backup.sh manual
 sudo /opt/backups/scripts/postgres-backup.sh prune
 ```
 
-**Retention (`prune`):** hourly старше **48 ч**, daily старше **35 суток**, weekly старше **12 недель** (84 суток), pre-migrations старше **30 суток** и при этом остаётся не больше **20** файлов (лишние самые старые удаляются). Удаляются только файлы под `/opt/backups/postgres/`. Сухой прогон: `BERSONCAREBOT_PRUNE_DRY_RUN=1`.
+**Retention (`prune`):** hourly старше **48 ч**, daily старше **35 суток**, weekly старше **12 недель** (84 суток); **pre-migrations** — всегда сохраняются **20 самых новых** файлов (по mtime); среди остальных удаляются только те, что **старше 30 суток**. Удаляются только файлы под `/opt/backups/postgres/`. Сухой прогон: `BERSONCAREBOT_PRUNE_DRY_RUN=1`.
 
-После каждого режима (включая `prune`) скрипт пишет строку в `public.operator_job_status` (`job_family=postgres_backup`, `job_key` = имя режима).
+После каждого режима (включая `prune`) скрипт пишет строку в `public.operator_job_status`: **`job_family=backup`**, **`job_key`** = `backup.pre_migrations` | `backup.hourly` | `backup.daily` | `backup.weekly` | `backup.manual` | `backup.prune` (см. миграция **`0058`** для приведения старых значений `postgres_backup` / коротких ключей).
 
 **Cron (пример):**
 

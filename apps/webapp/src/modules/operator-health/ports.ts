@@ -26,5 +26,6 @@ export type OperatorBackupJobStatusRow = {
 
 export type OperatorHealthReadPort = {
   listOpenIncidents(limit: number): Promise<OperatorIncidentOpenRow[]>;
-  listPostgresBackupJobStatus(): Promise<OperatorBackupJobStatusRow[]>;
+  /** Строки `operator_job_status` с `job_family = backup` (ключи `backup.hourly`, …). */
+  listBackupJobStatus(): Promise<OperatorBackupJobStatusRow[]>;
 };

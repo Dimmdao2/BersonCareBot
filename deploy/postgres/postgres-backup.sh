@@ -9,8 +9,11 @@
 #   pre-migrations | hourly | daily | weekly | manual  → pg_dump + operator_job_status tick
 #   prune          → retention only (no dump) + tick
 #
-# Retention (MVP, fixed): hourly 48h, daily 35d, weekly 12w (84d), pre-migrations 30d + cap newest 20 files.
+# Retention (MVP, fixed): hourly 48h, daily 35d, weekly 12w (84d),
+# pre-migrations: always keep the 20 newest files; among the rest, delete only if older than 30 days.
 # Prune only touches paths under /opt/backups/postgres/.
+#
+# DB ticks: `public.operator_job_status` with job_family=backup and job_key backup.hourly | … (see MVP plan).
 #
 # Env:
 #   BERSONCAREBOT_API_ENV_FILE     default /opt/env/bersoncarebot/api.prod
@@ -23,7 +26,7 @@ API_ENV_FILE="${BERSONCAREBOT_API_ENV_FILE:-/opt/env/bersoncarebot/api.prod}"
 WEBAPP_ENV_FILE="${BERSONCAREBOT_WEBAPP_ENV_FILE:-/opt/env/bersoncarebot/webapp.prod}"
 BACKUPS_ROOT="/opt/backups/postgres"
 PRUNE_DRY_RUN="${BERSONCAREBOT_PRUNE_DRY_RUN:-0}"
-JOB_FAMILY="postgres_backup"
+JOB_FAMILY="backup"
 
 die() {
   echo "postgres-backup: $*" >&2
@@ -52,32 +55,30 @@ sql_escape_literal() {
   printf '%s' "$1" | sed "s/'/''/g" | cut -c1-2000
 }
 
-tick_job_running() {
-  local conn="$1"
-  local job_key="$2"
-  psql "$conn" -v ON_ERROR_STOP=1 -q -c \
-    "INSERT INTO public.operator_job_status (job_key, job_family, last_status, last_started_at, last_finished_at, last_success_at, last_failure_at, last_duration_ms, last_error, meta_json)
-     VALUES ('${job_key}', '${JOB_FAMILY}', 'running', now(), NULL, NULL, NULL, NULL, NULL, '{}'::jsonb)
-     ON CONFLICT (job_key) DO UPDATE SET
-       job_family = EXCLUDED.job_family,
-       last_status = 'running',
-       last_started_at = now(),
-       last_finished_at = NULL,
-       last_duration_ms = NULL,
-       last_error = NULL;" \
-    >/dev/null
+backup_job_key() {
+  case "$1" in
+    pre-migrations) echo 'backup.pre_migrations' ;;
+    hourly) echo 'backup.hourly' ;;
+    daily) echo 'backup.daily' ;;
+    weekly) echo 'backup.weekly' ;;
+    manual) echo 'backup.manual' ;;
+    prune) echo 'backup.prune' ;;
+    *) die "internal: unknown mode for job_key: $1" ;;
+  esac
 }
 
 tick_job_success() {
   local conn="$1"
   local job_key="$2"
   local duration_ms="$3"
+  local started_iso="$4"
   psql "$conn" -v ON_ERROR_STOP=1 -q -c \
     "INSERT INTO public.operator_job_status (job_key, job_family, last_status, last_started_at, last_finished_at, last_success_at, last_failure_at, last_duration_ms, last_error, meta_json)
-     VALUES ('${job_key}', '${JOB_FAMILY}', 'success', now(), now(), now(), NULL, ${duration_ms}, NULL, '{}'::jsonb)
+     VALUES ('${job_key}', '${JOB_FAMILY}', 'success', '${started_iso}'::timestamptz, now(), now(), NULL, ${duration_ms}, NULL, '{}'::jsonb)
      ON CONFLICT (job_key) DO UPDATE SET
        job_family = EXCLUDED.job_family,
        last_status = 'success',
+       last_started_at = EXCLUDED.last_started_at,
        last_finished_at = now(),
        last_success_at = now(),
        last_failure_at = NULL,
@@ -91,14 +92,16 @@ tick_job_failure() {
   local job_key="$2"
   local duration_ms="$3"
   local err_raw="$4"
+  local started_iso="$5"
   local err
   err="$(sql_escape_literal "$err_raw")"
   psql "$conn" -v ON_ERROR_STOP=1 -q -c \
     "INSERT INTO public.operator_job_status (job_key, job_family, last_status, last_started_at, last_finished_at, last_success_at, last_failure_at, last_duration_ms, last_error, meta_json)
-     VALUES ('${job_key}', '${JOB_FAMILY}', 'failure', now(), now(), NULL, now(), ${duration_ms}, '${err}', '{}'::jsonb)
+     VALUES ('${job_key}', '${JOB_FAMILY}', 'failure', '${started_iso}'::timestamptz, now(), NULL, now(), ${duration_ms}, '${err}', '{}'::jsonb)
      ON CONFLICT (job_key) DO UPDATE SET
        job_family = EXCLUDED.job_family,
        last_status = 'failure',
+       last_started_at = EXCLUDED.last_started_at,
        last_finished_at = now(),
        last_failure_at = now(),
        last_duration_ms = EXCLUDED.last_duration_ms,
@@ -164,26 +167,22 @@ prune_dir_age_days() {
   done < <(find "$dir" -type f \( -name '*.dump' -o -name '*.sql' -o -name '*.gz' \) -mtime +"$days" -print0 2>/dev/null || true)
 }
 
+# Keep the 20 newest backups regardless of age; among older ranks, delete only if mtime > 30 days.
 prune_pre_migrations_capped() {
   local dir="${BACKUPS_ROOT}/pre-migrations"
   [ -d "$dir" ] || return 0
-  # Older than 30 days
-  while IFS= read -r -d '' f; do
-    prune_delete_file "$f"
-  done < <(find "$dir" -type f \( -name '*.dump' -o -name '*.sql' -o -name '*.gz' \) -mtime +30 -print0 2>/dev/null || true)
-  # If still more than 20 backup files, drop oldest until 20 remain
-  local -a files
-  mapfile -t files < <(find "$dir" -type f \( -name '*.dump' -o -name '*.sql' -o -name '*.gz' \) -printf '%T@ %p\n' 2>/dev/null | sort -n | awk '{print $2}' || true)
-  local n="${#files[@]}"
-  if [ "$n" -le 20 ]; then
-    return 0
-  fi
-  local drop=$((n - 20))
+  local -a sorted
+  mapfile -t sorted < <(find "$dir" -type f \( -name '*.dump' -o -name '*.sql' -o -name '*.gz' \) -printf '%T@\t%p\n' 2>/dev/null | sort -t $'\t' -k1,1nr | cut -f2- || true)
   local i=0
-  for f in "${files[@]}"; do
-    [ "$i" -lt "$drop" ] || break
-    prune_delete_file "$f"
+  local f
+  for f in "${sorted[@]}"; do
     i=$((i + 1))
+    if [ "$i" -le 20 ]; then
+      continue
+    fi
+    if [ -n "$(find "$f" -mtime +30 -print -quit 2>/dev/null || true)" ]; then
+      prune_delete_file "$f"
+    fi
   done
 }
 
@@ -199,7 +198,8 @@ run_prune_retention() {
 run_mode() {
   local mode="$1"
   local outdir=""
-  local job_key="$mode"
+  local job_key
+  job_key="$(backup_job_key "$mode")"
 
   case "$mode" in
     pre-migrations)
@@ -218,7 +218,6 @@ run_mode() {
       outdir="${BACKUPS_ROOT}/manual"
       ;;
     prune)
-      job_key="prune"
       ;;
     *)
       die "unknown mode: ${mode} (use: pre-migrations | hourly | daily | weekly | manual | prune)"
@@ -230,13 +229,13 @@ run_mode() {
   webapp_url="$(load_database_url "$WEBAPP_ENV_FILE")"
 
   local started="$SECONDS"
-
-  tick_job_running "$webapp_url" "$job_key" || true
+  local run_started_iso
+  run_started_iso="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 
   if [ "$mode" = "prune" ]; then
     run_prune_retention
     local dur_ms=$(( (SECONDS - started) * 1000 ))
-    tick_job_success "$webapp_url" "$job_key" "$dur_ms" || echo "postgres-backup: warning: operator_job_status tick failed" >&2
+    tick_job_success "$webapp_url" "$job_key" "$dur_ms" "$run_started_iso" || echo "postgres-backup: warning: operator_job_status tick failed" >&2
     echo "postgres-backup: done (${mode})"
     return 0
   fi
@@ -251,10 +250,10 @@ run_mode() {
   echo "$log"
   local dur_ms=$(( (SECONDS - started) * 1000 ))
   if [ "$rc" -ne 0 ]; then
-    tick_job_failure "$webapp_url" "$job_key" "$dur_ms" "$log" || true
+    tick_job_failure "$webapp_url" "$job_key" "$dur_ms" "$log" "$run_started_iso" || true
     die "backup dump failed"
   fi
-  tick_job_success "$webapp_url" "$job_key" "$dur_ms" || echo "postgres-backup: warning: operator_job_status tick failed" >&2
+  tick_job_success "$webapp_url" "$job_key" "$dur_ms" "$run_started_iso" || echo "postgres-backup: warning: operator_job_status tick failed" >&2
 
   echo "postgres-backup: done (${mode})"
 }

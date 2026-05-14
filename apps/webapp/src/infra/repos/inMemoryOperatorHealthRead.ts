@@ -4,7 +4,7 @@ export const inMemoryOperatorHealthReadPort: OperatorHealthReadPort = {
   async listOpenIncidents() {
     return [];
   },
-  async listPostgresBackupJobStatus() {
+  async listBackupJobStatus() {
     return [];
   },
 };

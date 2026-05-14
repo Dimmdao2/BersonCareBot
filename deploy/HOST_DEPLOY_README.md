@@ -153,7 +153,7 @@
 
 Скрипт `/opt/backups/scripts/postgres-backup.sh` вызывается с первым аргументом `pre-migrations` перед миграциями в deploy-prod и в deploy-webapp-prod.
 
-**Каноническая реализация** живёт в репозитории: [`deploy/postgres/postgres-backup.sh`](../postgres/postgres-backup.sh). Установка на хост: см. [`deploy/postgres/README.md`](../postgres/README.md). Скрипт читает `DATABASE_URL` из **`api.prod`** и **`webapp.prod`**. Если URL **совпадают** (unified Postgres), выполняется **один** `pg_dump -Fc` с префиксом `unified_` в имени файла; если различаются — два дампа (`integrator_…`, `webapp_…`). Режимы **`weekly`**, **`prune`** (retention под `/opt/backups/postgres/`) и тики в **`public.operator_job_status`** (`job_family=postgres_backup`) — см. README.
+**Каноническая реализация** живёт в репозитории: [`deploy/postgres/postgres-backup.sh`](../postgres/postgres-backup.sh). Установка на хост: см. [`deploy/postgres/README.md`](../postgres/README.md). Скрипт читает `DATABASE_URL` из **`api.prod`** и **`webapp.prod`**. Если URL **совпадают** (unified Postgres), выполняется **один** `pg_dump -Fc` с префиксом `unified_` в имени файла; если различаются — два дампа (`integrator_…`, `webapp_…`). Режимы **`weekly`**, **`prune`** (retention под `/opt/backups/postgres/`) и тики в **`public.operator_job_status`** (`job_family=backup`, `job_key` вида `backup.hourly`, …) — см. README.
 
 **Ожидаемое поведение (оператор должен обеспечить на хосте):**
 
@@ -165,6 +165,24 @@
 Режимы **`hourly`**, **`daily`**, **`weekly`**, **`manual`**, **`prune`** используют те же env-файлы; каталоги и retention — [`deploy/postgres/README.md`](../postgres/README.md).
 
 **Проверка на хосте:** после установки скрипта из репо убедиться, что в `/opt/backups/postgres/pre-migrations/` появился **один** `.dump` при unified БД (или два — при двух URL) после `sudo /opt/backups/scripts/postgres-backup.sh pre-migrations`.
+
+---
+
+## Operator health probes (MVP)
+
+Интегратор: **`POST /internal/operator-health-probe`** (синтетические пробы MAX + Rubitime). Доступ **только** с подписью `x-bersoncare-timestamp` / `x-bersoncare-signature` (тот же секрет, что M2M webapp→integrator: **`INTEGRATOR_WEBHOOK_SECRET`** или **`INTEGRATOR_SHARED_SECRET`** в `api.prod`).
+
+**Канонический скрипт вызова с хоста:** [`deploy/host/operator-health-probe.sh`](../host/operator-health-probe.sh). Копируется вместе с репозиторием; на prod обычно symlink или копия под `/opt/backups/scripts/` (рядом с `postgres-backup.sh`) — путь оператор выбирает сам, важно чтобы скрипт был исполняемым (`chmod +x`).
+
+**Ручной smoke (loopback integrator):**
+
+```bash
+bash /opt/projects/bersoncarebot/deploy/host/operator-health-probe.sh
+```
+
+**Периодический запуск (пример, cron от root или от пользователя с доступом к `api.prod` и `curl` к `127.0.0.1:3200`):** раз в час — `0 * * * *` и тот же `bash …/operator-health-probe.sh`. Альтернатива — `systemd.timer` с `OnCalendar=hourly` и `ExecStart=` на этот скрипт (unit-файл в репозитории не зафиксирован — добавляется на хосте при необходимости).
+
+**Проверка:** при валидном env ответ JSON `{"ok":true,"max":"ok"|"fail"|…,"rubitime":…}`; при неверной подписи — **401** `invalid_signature`.
 
 ---
 

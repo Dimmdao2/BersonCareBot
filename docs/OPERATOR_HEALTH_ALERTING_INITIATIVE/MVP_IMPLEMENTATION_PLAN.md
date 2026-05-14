@@ -12,7 +12,7 @@
 - Событийная регистрация сбоев синка Google Calendar в **обоих** рубитайм-путях обработки.
 - Две регулярные пробы исходящей доступности: **MAX** (`getMyInfo`) и **Rubitime** (`get-schedule`).
 - Отображение открытых инцидентов в admin «Здоровье системы».
-- Управляемый lifecycle PostgreSQL-бэкапов: ретенция + очистка + статус выполнения по типам (`hourly`, `daily`, `weekly`, `pre-migrations`) в admin health.
+- Управляемый lifecycle PostgreSQL-бэкапов: ретенция + очистка + статус выполнения в admin health по **`job_key`** `backup.hourly` / `backup.daily` / `backup.weekly` / `backup.pre_migrations` / `backup.manual` / `backup.prune` и **`job_family=backup`**.
 
 ---
 
@@ -164,11 +164,11 @@
 Проверки:
 
 - `rg "google calendar sync failed" apps/integrator/src/integrations/rubitime`
-- Тест: мок `syncRubitimeWebhookBodyToGoogleCalendar` бросает ошибку -> `reportFailure` вызван.
+- Тест: мок `syncRubitimeWebhookBodyToGoogleCalendar` бросает ошибку -> `reportOperatorFailure` вызван (`webhook.operatorIncident.test.ts` и покрытие в `postCreateProjection`).
 
 Критерий закрытия:
 
-- Любой GCal fail в рубитайм-потоке открывает/обновляет один инцидент по `error_class`.
+- Любой GCal fail в рубитайм-потоке открывает/обновляет один инцидент по `error_class` (`reportOperatorFailure`).
 
 ---
 
@@ -196,8 +196,9 @@
 Изменения:
 
 - Защищённый internal endpoint (например `POST /internal/operator-health-probe`) в integrator.
-- Проверка секрета через `integratorWebhookSecret`.
-- Один механизм запуска: systemd timer **или** worker interval (выбрать и зафиксировать в [LOG.md](LOG.md)).
+- Подпись **`x-bersoncare-timestamp`** + **`x-bersoncare-signature`** (HMAC-SHA256 `timestamp + '.' + rawBody`, secret — `INTEGRATOR_WEBHOOK_SECRET` или `INTEGRATOR_SHARED_SECRET` из `api.prod`).
+- **Хост-вызов:** скрипт репозитория [`deploy/host/operator-health-probe.sh`](../../deploy/host/operator-health-probe.sh) + операционная инструкция в [`deploy/HOST_DEPLOY_README.md`](../../deploy/HOST_DEPLOY_README.md) (cron / systemd timer).
+- Один механизм запуска на проде: **cron** или **systemd timer** (выбрать и зафиксировать в [LOG.md](LOG.md)).
 
 Проверки:
 
@@ -219,7 +220,8 @@
 
 Проверки:
 
-- Unit: fail -> open, success -> resolved_at set.
+- Unit: fail -> open, success -> resolved_at set (см. `operatorHealthProbeRunner.test.ts`, моки MAX/Rubitime).
+- Unit: `resolveOpenOperatorIncidentsByDedupKeyPrefix` возвращает число обновлённых строк (`operatorHealthDrizzle.resolve.test.ts`).
 - Повторный success не меняет состояние критично (идемпотентно).
 
 Критерий закрытия:
@@ -313,13 +315,13 @@
 
 Изменения:
 
-- `GET /api/admin/system-health`: добавить секцию `backupJobs` с key/value для `hourly|daily|weekly|pre-migrations|prune`.
+- `GET /api/admin/system-health`: секция `backupJobs` с key/value по **`job_key`** (`backup.hourly`, `backup.daily`, …).
 - `SystemHealthSection.tsx`: отдельный компактный блок статуса backup tiers (last success/failure, age, error summary).
 
 Проверки:
 
-- route test на payload `backupJobs`.
-- UI smoke: видим раздельно `hourly`, `daily`, `weekly`, `pre-migrations` (и опционально `prune`).
+- route test на payload `backupJobs` (ключи `backup.*`).
+- UI smoke: видим раздельно `backup.hourly`, `backup.daily`, `backup.weekly`, `backup.pre_migrations` (и опционально `backup.prune`).
 
 Критерий закрытия:
 
@@ -343,18 +345,23 @@
 
 ## 7. Definition of Done (MVP)
 
-- [ ] Один открытый инцидент на `outbound:google_calendar:{error_class}` при множественных однотипных ошибках.
-- [ ] GCal fail учитывается из обоих путей: `postCreateProjection` и `webhook`.
-- [ ] Пробы MAX и Rubitime работают по расписанию; Rubitime `status: ok` с пустыми слотами не считается fail.
-- [ ] Probe trigger защищён секретом.
-- [ ] В admin health виден список открытых инцидентов.
-- [ ] Для probe-инцидентов есть минимальный auto-resolve без recovery-нотификаций.
-- [ ] Введена и задокументирована retention policy: hourly 48h, daily 35d, weekly 12w, pre-migrations (30d + top-20).
-- [ ] Backup lifecycle выполняет prune по расписанию без отдельного нового daemon worker.
-- [ ] В admin health виден раздельный статус backup tiers: hourly/daily/weekly/pre-migrations (+ prune).
-- [ ] Для каждого backup job key пишется last-run tick в БД (`success|failure`, `duration`, timestamps).
-- [ ] Нет новых env для интеграционных ключей; параметры через `system_settings` только если нужны.
-- [ ] Перед merge: зелёный `pnpm run ci`.
+Статус на **2026-05-14** (синхронизация с кодом в репозитории):
+
+- [x] Один открытый инцидент на `outbound:google_calendar:{error_class}` при множественных однотипных ошибках.
+- [x] GCal fail учитывается из обоих путей: `postCreateProjection` и `webhook`.
+- [x] Пробы MAX и Rubitime: раннер, защищённый `POST /internal/operator-health-probe`, таймауты; Rubitime `status: ok`, пустые слоты не fail.
+- [ ] Регулярный **запуск** проб на **прод-хосте** (cron/systemd → integrator probe): код готов, **каноничный сниппет в `deploy/HOST_DEPLOY_README.md` / SERVER CONVENTIONS не зафиксирован** — операционный хвост.
+- [x] Probe trigger защищён секретом.
+- [x] В admin health виден список открытых инцидентов.
+- [x] Для probe-инцидентов есть минимальный auto-resolve без recovery-нотификаций.
+- [x] Введена и задокументирована retention policy: hourly 48h, daily 35d, weekly 12w, pre-migrations (30d + top-20).
+- [x] Backup lifecycle выполняет prune по расписанию без отдельного нового daemon worker.
+- [x] В admin health виден раздельный статус backup tiers по ключам `backup.hourly` / `backup.daily` / `backup.weekly` / `backup.pre_migrations` (+ `backup.prune`).
+- [x] Для каждого backup job key пишется last-run tick в БД (`success|failure`, `duration`, timestamps).
+- [x] Нет новых env для интеграционных ключей; параметры через `system_settings` только если нужны.
+- [x] Перед merge: зелёный `pnpm run ci`.
+
+**Не в DoD, но в чеклисте A2 плана:** unit на конкурентный `openOrTouch` по одному dedup_key — по желанию (в БД partial unique + onConflict).
 
 ---
 
@@ -379,15 +386,18 @@
 
 ## 10. Трекинг задач (markdown)
 
-- [ ] A1: schema + migration `public.operator_incidents`
-- [ ] A2: integrator repo + `reportFailure` + concurrency tests
-- [ ] B1: GCal fail hooks в `postCreateProjection.ts` и `webhook.ts`
-- [ ] B2: probe runner (MAX + Rubitime)
-- [ ] C1: защищённый trigger + scheduler
-- [ ] C2: minimal auto-resolve probe incidents
-- [ ] D1: webapp read/API/UI + tests
-- [ ] E1: backup weekly+prune modes + retention policy
-- [ ] E2: `operator_job_status` schema + DB ticks for backup jobs
-- [ ] E3: cron strategy and host docs for backup lifecycle
-- [ ] E4: system-health payload/UI block for backup tiers
-- [ ] Docs: `LOG.md`, `api.md`, итоговые проверки и CI
+Статус на **2026-05-14**:
+
+- [x] A1: schema + migration `public.operator_incidents` (+ `operator_job_status`, 0057/0058)
+- [x] A2: integrator repo + `reportOperatorFailure` (+ опционально: concurrency unit — см. §7)
+- [x] B1: GCal fail hooks в `postCreateProjection.ts` и `webhook.ts`
+- [x] B2: probe runner (MAX + Rubitime)
+- [x] C1: защищённый endpoint + тесты для probe
+- [ ] C1b (ops): периодический вызов probe на хосте — см. §7 (не блокирует наличие кода)
+- [x] C2: minimal auto-resolve probe incidents
+- [x] D1: webapp read/API/UI + tests
+- [x] E1: backup weekly+prune modes + retention policy
+- [x] E2: `operator_job_status` schema + DB ticks for backup jobs
+- [x] E3: cron strategy and host docs for backup lifecycle (backup; probe cron — хвост)
+- [x] E4: system-health payload/UI block for backup tiers
+- [x] Docs: `LOG.md`, `api.md`, итоговые проверки и CI

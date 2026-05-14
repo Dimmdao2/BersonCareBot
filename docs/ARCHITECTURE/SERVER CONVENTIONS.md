@@ -127,6 +127,8 @@
 
 **Projection health (`projection_outbox`, integrator DB):** канонически **`GET /health/projection`** на хосте integrator (публичный пример: `https://tgcarebot.bersonservices.ru/health/projection`). На webapp добавлены прокси с тем же JSON: **`GET /api/health/projection`**, **`GET /health/projection`**, **`GET /app/health/projection`** — серверный fetch на `{INTEGRATOR_API_URL}/health/projection`; при пустом `INTEGRATOR_API_URL` ответ **503** `integrator_url_not_configured`.
 
+**Operator health probes (MVP, synthetic MAX + Rubitime):** integrator принимает **`POST /internal/operator-health-probe`** только с подписью **`x-bersoncare-timestamp`** + **`x-bersoncare-signature`** (HMAC-SHA256 от `timestamp + '.' + rawBody`, secret — **`INTEGRATOR_WEBHOOK_SECRET`** или **`INTEGRATOR_SHARED_SECRET`** из `api.prod`, длина ≥ 16). Публичного неподписанного доступа нет. Канонический вызов с хоста: скрипт репозитория [`deploy/host/operator-health-probe.sh`](../../deploy/host/operator-health-probe.sh) (по умолчанию `http://127.0.0.1:3200`, переопределение `INTEGRATOR_API_URL`). Периодический запуск — **cron** или **systemd timer** от пользователя с правом `curl` к loopback и чтением `api.prod` (частота: раз в час или реже; см. `deploy/HOST_DEPLOY_README.md`).
+
 Дополнительно в `tgcarebot` vhost есть legacy-path:
 
 - `/admin/` -> `http://127.0.0.1:8080/`

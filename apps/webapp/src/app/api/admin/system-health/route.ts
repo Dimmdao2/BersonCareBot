@@ -101,7 +101,7 @@ type SystemHealthResponse = {
   videoTranscode: VideoTranscodeHealthPayload;
   /** Открытые строки `operator_incidents` (resolved_at IS NULL), последние по last_seen_at. */
   operatorIncidentsOpen: OperatorIncidentOpenRow[];
-  /** Статусы backup job (`job_family = postgres_backup`), ключ — job_key. */
+  /** Статусы backup job (`job_family = backup`), ключи `backup.hourly`, `backup.daily`, … */
   backupJobs: Record<string, OperatorBackupJobPayload>;
   meta: {
     probes: {
@@ -448,10 +448,7 @@ async function probeOperatorHealthData(): Promise<
   const startedAt = Date.now();
   try {
     const read = buildAppDeps().operatorHealthRead;
-    const [incidents, jobRows] = await Promise.all([
-      read.listOpenIncidents(20),
-      read.listPostgresBackupJobStatus(),
-    ]);
+    const [incidents, jobRows] = await Promise.all([read.listOpenIncidents(20), read.listBackupJobStatus()]);
     const backupJobs: Record<string, OperatorBackupJobPayload> = {};
     for (const r of jobRows) {
       backupJobs[r.jobKey] = {

@@ -40,7 +40,7 @@ export const pgOperatorHealthReadPort: OperatorHealthReadPort = {
     }));
   },
 
-  async listPostgresBackupJobStatus(): Promise<OperatorBackupJobStatusRow[]> {
+  async listBackupJobStatus(): Promise<OperatorBackupJobStatusRow[]> {
     const db = getDrizzle();
     const rows = await db
       .select({
@@ -55,7 +55,7 @@ export const pgOperatorHealthReadPort: OperatorHealthReadPort = {
         lastError: operatorJobStatus.lastError,
       })
       .from(operatorJobStatus)
-      .where(eq(operatorJobStatus.jobFamily, "postgres_backup"))
+      .where(eq(operatorJobStatus.jobFamily, "backup"))
       .orderBy(operatorJobStatus.jobKey);
 
     return rows.map((r) => ({

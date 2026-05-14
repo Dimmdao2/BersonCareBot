@@ -29,7 +29,7 @@ const {
   loadAdminPlaybackHealthMetricsMock,
   loadAdminTranscodeHealthMetricsMock,
   listOpenIncidentsMock,
-  listPostgresBackupJobStatusMock,
+  listBackupJobStatusMock,
 } = vi.hoisted(() => ({
   requireAdminModeSessionMock: vi.fn(),
   checkDbHealthMock: vi.fn(),
@@ -46,7 +46,7 @@ const {
   loadAdminPlaybackHealthMetricsMock: vi.fn(),
   loadAdminTranscodeHealthMetricsMock: vi.fn(),
   listOpenIncidentsMock: vi.fn(),
-  listPostgresBackupJobStatusMock: vi.fn(),
+  listBackupJobStatusMock: vi.fn(),
 }));
 
 /** Routes SQL by substring — media preview probes run in parallel with playback metrics; order unspecified. */
@@ -70,7 +70,7 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
     },
     operatorHealthRead: {
       listOpenIncidents: listOpenIncidentsMock,
-      listPostgresBackupJobStatus: listPostgresBackupJobStatusMock,
+      listBackupJobStatus: listBackupJobStatusMock,
     },
   })),
 }));
@@ -132,9 +132,9 @@ describe("GET /api/admin/system-health", () => {
     loadAdminTranscodeHealthMetricsMock.mockReset();
     loadAdminTranscodeHealthMetricsMock.mockResolvedValue(zeroTranscodeMetrics);
     listOpenIncidentsMock.mockReset();
-    listPostgresBackupJobStatusMock.mockReset();
+    listBackupJobStatusMock.mockReset();
     listOpenIncidentsMock.mockResolvedValue([]);
-    listPostgresBackupJobStatusMock.mockResolvedValue([]);
+    listBackupJobStatusMock.mockResolvedValue([]);
     globalThis.fetch = originalFetch;
   });
 
@@ -464,10 +464,10 @@ describe("GET /api/admin/system-health", () => {
         occurrenceCount: 3,
       },
     ]);
-    listPostgresBackupJobStatusMock.mockResolvedValue([
+    listBackupJobStatusMock.mockResolvedValue([
       {
-        jobKey: "hourly",
-        jobFamily: "postgres_backup",
+        jobKey: "backup.hourly",
+        jobFamily: "backup",
         lastStatus: "failure",
         lastStartedAt: null,
         lastFinishedAt: "2026-04-16T10:00:00.000Z",
@@ -487,7 +487,7 @@ describe("GET /api/admin/system-health", () => {
     };
     expect(body.operatorIncidentsOpen).toHaveLength(1);
     expect(body.operatorIncidentsOpen[0]!.integration).toBe("max");
-    expect(body.backupJobs.hourly?.lastStatus).toBe("failure");
+    expect(body.backupJobs["backup.hourly"]?.lastStatus).toBe("failure");
     expect(body.meta?.probes?.operatorIncidents?.status).toBe("degraded");
     expect(body.meta?.probes?.operatorBackupJobs?.status).toBe("degraded");
   });
