@@ -244,8 +244,10 @@
 - `test_attempts.instance_stage_item_id` → `treatment_program_instance_stage_items.id` (CASCADE)
 - `test_attempts.patient_user_id` → `platform_users.id` (CASCADE)
 - `test_results.attempt_id` → `test_attempts.id` (CASCADE)
-- `test_results.test_id` → `tests.id` (RESTRICT)
+- `test_results.test_id` → `clinical_tests.id` (RESTRICT)
 - `test_results.decided_by` → `platform_users.id` (SET NULL)
+
+Инварианты **`test_attempts`:** **`started_at`** при создании; ровно одна **открытая** попытка на пару `(instance_stage_item_id, patient_user_id)` с **`submitted_at IS NULL`** (partial unique index); **`submitted_at`** — пациент отправил полный набор тестов снимка; **`accepted_at` / `accepted_by`** — отметка приёма **не более чем на одной** попытке на пару «элемент этапа + пациент»: при **`acceptAttempt`** снятие приёма с прочих попыток и выставление **`completed_at`** пункта; при **`patientStartNewTestAttempt`** — снятие приёма со **всех** попыток этого пункта и сброс **`completed_at`** пункта до нового приёма.
 
 Дополнения к уже существующим таблицам инициативы:
 

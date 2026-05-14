@@ -435,6 +435,13 @@
       "when": 1780400000000,
       "tag": "0061_media_hls_proxy_error_events",
       "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "7",
+      "when": 1780500000000,
+      "tag": "0062_test_attempts_submitted_accepted",
+      "breakpoints": true
     }
   ]
 }

@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, isNotNull, isNull, ne } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import { clinicalTests } from "../../../db/schema/clinicalTests";
 import {
@@ -25,7 +25,9 @@ function mapAttempt(row: typeof attemptTable.$inferSelect): TreatmentProgramTest
     instanceStageItemId: row.instanceStageItemId,
     patientUserId: row.patientUserId,
     startedAt: row.startedAt,
-    completedAt: row.completedAt ?? null,
+    submittedAt: row.submittedAt ?? null,
+    acceptedAt: row.acceptedAt ?? null,
+    acceptedBy: row.acceptedBy ?? null,
   };
 }
 
@@ -49,7 +51,7 @@ export function createPgTreatmentProgramTestAttemptsPort(): TreatmentProgramTest
         where: and(
           eq(attemptTable.instanceStageItemId, stageItemId),
           eq(attemptTable.patientUserId, patientUserId),
-          isNull(attemptTable.completedAt),
+          isNull(attemptTable.submittedAt),
         ),
       });
       return row ? mapAttempt(row) : null;
@@ -61,7 +63,7 @@ export function createPgTreatmentProgramTestAttemptsPort(): TreatmentProgramTest
         where: and(
           eq(attemptTable.instanceStageItemId, input.stageItemId),
           eq(attemptTable.patientUserId, input.patientUserId),
-          isNull(attemptTable.completedAt),
+          isNull(attemptTable.submittedAt),
         ),
       });
       if (existingRow) return mapAttempt(existingRow);
@@ -76,12 +78,69 @@ export function createPgTreatmentProgramTestAttemptsPort(): TreatmentProgramTest
       return mapAttempt(row);
     },
 
-    async completeAttempt(attemptId: string) {
+    async markAttemptSubmitted(attemptId: string) {
       const db = getDrizzle();
       await db
         .update(attemptTable)
-        .set({ completedAt: new Date().toISOString() })
+        .set({ submittedAt: new Date().toISOString() })
         .where(eq(attemptTable.id, attemptId));
+    },
+
+    async listAttemptsForStageItem(stageItemId: string, patientUserId: string, limit = 40) {
+      const db = getDrizzle();
+      const cap = Math.min(Math.max(limit, 1), 100);
+      const rows = await db
+        .select()
+        .from(attemptTable)
+        .where(and(eq(attemptTable.instanceStageItemId, stageItemId), eq(attemptTable.patientUserId, patientUserId)))
+        .orderBy(desc(attemptTable.startedAt), desc(attemptTable.id))
+        .limit(cap);
+      return rows.map(mapAttempt);
+    },
+
+    async acceptAttempt(input: { attemptId: string; instanceId: string; doctorUserId: string }) {
+      const db = getDrizzle();
+      const now = new Date().toISOString();
+      await db.transaction(async (tx) => {
+        const rows = await tx
+          .select({
+            attempt: attemptTable,
+            itemId: itemTable.id,
+          })
+          .from(attemptTable)
+          .innerJoin(itemTable, eq(attemptTable.instanceStageItemId, itemTable.id))
+          .innerJoin(stageTable, eq(itemTable.stageId, stageTable.id))
+          .where(and(eq(attemptTable.id, input.attemptId), eq(stageTable.instanceId, input.instanceId)))
+          .limit(1);
+        const hit = rows[0];
+        if (!hit) throw new Error("Попытка не найдена");
+        if (!hit.attempt.submittedAt) {
+          throw new Error("Попытка ещё не отправлена пациентом");
+        }
+        await tx
+          .update(attemptTable)
+          .set({ acceptedAt: null, acceptedBy: null })
+          .where(
+            and(
+              eq(attemptTable.instanceStageItemId, hit.attempt.instanceStageItemId),
+              eq(attemptTable.patientUserId, hit.attempt.patientUserId),
+              ne(attemptTable.id, input.attemptId),
+            ),
+          );
+        await tx
+          .update(attemptTable)
+          .set({ acceptedAt: now, acceptedBy: input.doctorUserId })
+          .where(eq(attemptTable.id, input.attemptId));
+        await tx.update(itemTable).set({ completedAt: now }).where(eq(itemTable.id, hit.itemId));
+      });
+    },
+
+    async clearAcceptanceOnAllAttemptsForStageItemPatient(stageItemId: string, patientUserId: string) {
+      const db = getDrizzle();
+      await db
+        .update(attemptTable)
+        .set({ acceptedAt: null, acceptedBy: null })
+        .where(and(eq(attemptTable.instanceStageItemId, stageItemId), eq(attemptTable.patientUserId, patientUserId)));
     },
 
     async upsertResult(input: {
@@ -141,6 +200,9 @@ export function createPgTreatmentProgramTestAttemptsPort(): TreatmentProgramTest
           stageTitle: stageTable.title,
           stageSortOrder: stageTable.sortOrder,
           testTitle: clinicalTests.title,
+          attemptStartedAt: attemptTable.startedAt,
+          attemptSubmittedAt: attemptTable.submittedAt,
+          attemptAcceptedAt: attemptTable.acceptedAt,
         })
         .from(resultTable)
         .innerJoin(attemptTable, eq(resultTable.attemptId, attemptTable.id))
@@ -157,6 +219,9 @@ export function createPgTreatmentProgramTestAttemptsPort(): TreatmentProgramTest
         stageTitle: r.stageTitle,
         stageSortOrder: r.stageSortOrder,
         testTitle: r.testTitle ?? null,
+        attemptStartedAt: r.attemptStartedAt,
+        attemptSubmittedAt: r.attemptSubmittedAt ?? null,
+        attemptAcceptedAt: r.attemptAcceptedAt ?? null,
       }));
     },
 
@@ -184,6 +249,7 @@ export function createPgTreatmentProgramTestAttemptsPort(): TreatmentProgramTest
             eq(instanceTable.patientUserId, patientUserId),
             eq(instanceTable.status, "active"),
             isNull(resultTable.decidedBy),
+            isNotNull(attemptTable.submittedAt),
           ),
         )
         .orderBy(desc(resultTable.createdAt), asc(resultTable.id));

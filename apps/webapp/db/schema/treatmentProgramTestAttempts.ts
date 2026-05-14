@@ -22,7 +22,11 @@ export const treatmentProgramTestAttempts = pgTable(
     instanceStageItemId: uuid("instance_stage_item_id").notNull(),
     patientUserId: uuid("patient_user_id").notNull(),
     startedAt: timestamp("started_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    completedAt: timestamp("completed_at", { withTimezone: true, mode: "string" }),
+    /** Пациент отправил полный набор тестов в рамках попытки. */
+    submittedAt: timestamp("submitted_at", { withTimezone: true, mode: "string" }),
+    /** Врач принял попытку для зачёта пункта в чеклисте (MVP-B). */
+    acceptedAt: timestamp("accepted_at", { withTimezone: true, mode: "string" }),
+    acceptedBy: uuid("accepted_by"),
   },
   (table) => [
     index("idx_test_attempts_stage_item").using(
@@ -40,9 +44,14 @@ export const treatmentProgramTestAttempts = pgTable(
       foreignColumns: [platformUsers.id],
       name: "test_attempts_patient_user_id_fkey",
     }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.acceptedBy],
+      foreignColumns: [platformUsers.id],
+      name: "test_attempts_accepted_by_fkey",
+    }).onDelete("set null"),
     uniqueIndex("idx_test_attempts_one_open_per_item_patient")
       .on(table.instanceStageItemId, table.patientUserId)
-      .where(sql`completed_at IS NULL`),
+      .where(sql`submitted_at IS NULL`),
   ],
 );
 

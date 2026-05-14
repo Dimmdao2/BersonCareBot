@@ -30,7 +30,7 @@ Legacy violations of the **ESLint patterns** are allowlisted in `apps/webapp/esl
 
 From `docs/TREATMENT_PROGRAM_INITIATIVE/EXECUTION_RULES.md` — same as “Абсолютные запреты” items 4–6:
 
-- **Do not change existing LFK tables** (`lfk_exercises`, `lfk_exercise_media`, `lfk_complex_templates`, `lfk_complex_template_exercises`, `lfk_complexes`, `lfk_complex_exercises`, `lfk_sessions`, `patient_lfk_assignments`). New work references them; it does not alter their schema.
+- **LFK catalog and complex templates:** a doctor-facing **complex template** groups exercises for faster inclusion in **treatment programs**; it must not sprawl into a competing domain beside assignments/programs. **Schema changes** to `lfk_exercises`, `lfk_exercise_media`, `lfk_complex_templates`, `lfk_complex_template_exercises`, `lfk_complexes`, `lfk_complex_exercises`, `lfk_sessions`, `patient_lfk_assignments` are **allowed** when justified (Drizzle migrations, rollout/compatibility plan, regression coverage). A former hard ban “do not alter these tables” was a **phase gate** and is **lifted**. **Do not** introduce a parallel “LFK engine” that replaces the programs/assignment path without an explicit product decision.
 - **Do not build a separate “course engine”** with its own stage/progress logic. A **course** is a link to a `treatment_program_template` (and instance creation reuses the same assignment path as the program feature).
 - **No database FK on `item_ref_id`** — polymorphic reference; validate only in the service layer.
 

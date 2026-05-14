@@ -276,7 +276,8 @@ export type TreatmentProgramTestAttemptsPort = {
     stageItemId: string;
     patientUserId: string;
   }): Promise<TreatmentProgramTestAttemptRow>;
-  completeAttempt(attemptId: string): Promise<void>;
+  /** Пациент отправил полный набор тестов в рамках попытки (`submitted_at`). */
+  markAttemptSubmitted(attemptId: string): Promise<void>;
   upsertResult(input: {
     attemptId: string;
     testId: string;
@@ -285,6 +286,17 @@ export type TreatmentProgramTestAttemptsPort = {
     decidedBy: string | null;
   }): Promise<TreatmentProgramTestResultRow>;
   listResultsForAttempt(attemptId: string): Promise<TreatmentProgramTestResultRow[]>;
+  listAttemptsForStageItem(
+    stageItemId: string,
+    patientUserId: string,
+    limit?: number,
+  ): Promise<TreatmentProgramTestAttemptRow[]>;
+  /**
+   * Врач принимает отправленную попытку: `accepted_at` / `accepted_by` и `completed_at` пункта этапа.
+   */
+  acceptAttempt(input: { attemptId: string; instanceId: string; doctorUserId: string }): Promise<void>;
+  /** Снять отметку приёма врачом со всех попыток по элементу (новый круг после принятой попытки). */
+  clearAcceptanceOnAllAttemptsForStageItemPatient(stageItemId: string, patientUserId: string): Promise<void>;
   listResultDetailsForInstance(instanceId: string): Promise<TreatmentProgramTestResultDetailRow[]>;
   overrideResultDecision(
     resultId: string,

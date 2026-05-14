@@ -872,7 +872,7 @@ export function createInMemoryTreatmentProgramPersistence(seed?: {
       if (
         a.instanceStageItemId === stageItemId &&
         a.patientUserId === patientUserId &&
-        a.completedAt === null
+        a.submittedAt === null
       ) {
         return { ...a };
       }
@@ -894,16 +894,56 @@ export function createInMemoryTreatmentProgramPersistence(seed?: {
         instanceStageItemId: input.stageItemId,
         patientUserId: input.patientUserId,
         startedAt: isoNow(),
-        completedAt: null,
+        submittedAt: null,
+        acceptedAt: null,
+        acceptedBy: null,
       };
       attempts.set(id, row);
       return { ...row };
     },
 
-    async completeAttempt(attemptId: string) {
+    async markAttemptSubmitted(attemptId: string) {
       const a = attempts.get(attemptId);
       if (!a) return;
-      attempts.set(attemptId, { ...a, completedAt: isoNow() });
+      attempts.set(attemptId, { ...a, submittedAt: isoNow() });
+    },
+
+    async listAttemptsForStageItem(stageItemId: string, patientUserId: string, limit = 40) {
+      const cap = Math.min(Math.max(limit, 1), 100);
+      const list = [...attempts.values()].filter(
+        (a) => a.instanceStageItemId === stageItemId && a.patientUserId === patientUserId,
+      );
+      list.sort((x, y) => (x.startedAt < y.startedAt ? 1 : x.startedAt > y.startedAt ? -1 : x.id.localeCompare(y.id)));
+      return list.slice(0, cap).map((a) => ({ ...a }));
+    },
+
+    async acceptAttempt(input: { attemptId: string; instanceId: string; doctorUserId: string }) {
+      const a = attempts.get(input.attemptId);
+      if (!a) throw new Error("Попытка не найдена");
+      if (!a.submittedAt) throw new Error("Попытка ещё не отправлена пациентом");
+      const item = items.get(a.instanceStageItemId);
+      if (!item) throw new Error("Попытка не найдена");
+      const st = stages.get(item.stageId);
+      if (!st || st.instanceId !== input.instanceId) throw new Error("Попытка не найдена");
+      const now = isoNow();
+      for (const [id, row] of attempts) {
+        if (row.instanceStageItemId !== a.instanceStageItemId || row.patientUserId !== a.patientUserId) continue;
+        if (id === input.attemptId) continue;
+        if (row.acceptedAt != null || row.acceptedBy != null) {
+          attempts.set(id, { ...row, acceptedAt: null, acceptedBy: null });
+        }
+      }
+      attempts.set(input.attemptId, { ...a, acceptedAt: now, acceptedBy: input.doctorUserId });
+      items.set(item.id, { ...item, completedAt: now });
+    },
+
+    async clearAcceptanceOnAllAttemptsForStageItemPatient(stageItemId: string, patientUserId: string) {
+      for (const [id, row] of attempts) {
+        if (row.instanceStageItemId !== stageItemId || row.patientUserId !== patientUserId) continue;
+        if (row.acceptedAt != null || row.acceptedBy != null) {
+          attempts.set(id, { ...row, acceptedAt: null, acceptedBy: null });
+        }
+      }
     },
 
     async upsertResult(input: {
@@ -962,6 +1002,9 @@ export function createInMemoryTreatmentProgramPersistence(seed?: {
           stageTitle: st.title,
           stageSortOrder: st.sortOrder,
           testTitle: null,
+          attemptStartedAt: att.startedAt,
+          attemptSubmittedAt: att.submittedAt,
+          attemptAcceptedAt: att.acceptedAt,
         });
       }
       return out.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
@@ -972,7 +1015,7 @@ export function createInMemoryTreatmentProgramPersistence(seed?: {
       for (const r of results.values()) {
         if (r.decidedBy) continue;
         const att = attempts.get(r.attemptId);
-        if (!att || att.patientUserId !== patientUserId) continue;
+        if (!att || att.patientUserId !== patientUserId || !att.submittedAt) continue;
         const item = items.get(att.instanceStageItemId);
         if (!item) continue;
         const st = stages.get(item.stageId);

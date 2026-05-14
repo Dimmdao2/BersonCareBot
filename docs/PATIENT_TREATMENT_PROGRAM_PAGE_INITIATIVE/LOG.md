@@ -1,5 +1,13 @@
 # LOG — PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE
 
+## 2026-05-14 — клинтесты: неограниченные попытки, история, приём врачом (MVP-B)
+
+- **Данные:** `test_attempts` — `submitted_at`, `accepted_at`, `accepted_by` (миграция **0062**); partial unique на «одна открытая попытка» по **`submitted_at IS NULL`**; колонка **`completed_at`** у попытки удалена (семантика перенесена в **`submitted_at`**).
+- **Сервис:** `patientSubmitTestResult` ставит **`submitted_at`** при полном наборе без **`completed_at`** пункта; **`patientStartNewTestAttempt`** после отправки (сброс **`completed_at`** пункта и **`clearAcceptanceOnAllAttemptsForStageItemPatient`**); **`acceptAttempt`** — зачёт пункта и снятие приёма с **других** попыток того же пункта/пациента; снимок **`getPatientTestSetPageServerSnapshot`** — последняя отправленная по сортировке **`submitted_at`**, массив **`submittedAttemptsDetail`** (без отдельного порта `getLatestSubmittedAttemptId`).
+- **UI:** пациент — **`PatientTestSetProgressForm`**: collapsible-история по отправленным попыткам + «Новая попытка»; врач — группировка по попытке и «Принять попытку».
+- **Dev:** `pnpm --dir apps/webapp run migrate` на **`bcb_webapp_dev`** — миграции применены; `\d public.test_attempts` — ожидаемые колонки и индекс **`WHERE submitted_at IS NULL`**.
+- **Док:** `api.md`, `DB_STRUCTURE.md` (FK **`clinical_tests`**), `PATIENT_TREATMENT_PROGRAM_STAGE_SURFACES.md`; тесты `progress-service.test.ts` (две попытки, сброс приёма, смена принятой попытки).
+
 ## 2026-05-13 — выравнивание с ROADMAP_2: §1.1b закрыт здесь
 
 В [`ROADMAP_2.md`](../APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md) пункт **§1.1b** помечен **выполненным по факту** текущей реализацией этого инициативного контура (`/app/patient/treatment/[instanceId]`, вкладки, `program-detail/**`); старый текст §1.1b в ROADMAP — **устаревшая спецификация** (архив). Запись в [`APP_RESTRUCTURE_INITIATIVE/LOG.md`](../APP_RESTRUCTURE_INITIATIVE/LOG.md) 2026-05-13.

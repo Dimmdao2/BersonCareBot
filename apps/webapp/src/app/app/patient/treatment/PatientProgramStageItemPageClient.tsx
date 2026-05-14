@@ -879,7 +879,7 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
               instanceId={instanceId}
               itemId={item.id}
               snapshot={item.snapshot as Record<string, unknown>}
-              completed={Boolean(item.completedAt)}
+              readOnlySummary={testSetServerSnapshot?.variant === "readonly_submitted"}
               interactionDisabled={contentBlocked || readOnly}
               baseUrl={base}
               busy={busy}

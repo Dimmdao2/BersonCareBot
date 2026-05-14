@@ -19,26 +19,89 @@ import type {
   TreatmentProgramInstanceDetail,
   TreatmentProgramInstanceStageRow,
   TreatmentProgramInstanceStageStatus,
+  TreatmentProgramTestAttemptBrief,
   TreatmentProgramTestResultDetailRow,
   TreatmentProgramTestResultRow,
+  TreatmentProgramTestAttemptRow,
 } from "./types";
 import { testIdsFromTestSetSnapshot } from "./testSetSnapshotView";
 
 export { testIdsFromTestSetSnapshot };
 
+/** RSC/API: детализация отправленных попыток (результаты по каждой) для истории в UI. */
+export type PatientTestSetSubmittedAttemptDetail = {
+  attemptId: string;
+  submittedAt: string | null;
+  acceptedAt: string | null;
+  results: TreatmentProgramTestResultRow[];
+};
+
 /** RSC: начальное состояние формы набора тестов без клиентских fetch. */
 export type PatientTestSetPageServerSnapshot =
   | { variant: "none" }
-  | { variant: "open_attempt"; attemptId: string | null; results: TreatmentProgramTestResultRow[] }
-  | { variant: "completed"; latestByTest: TreatmentProgramTestResultDetailRow[] };
+  | {
+      variant: "open_attempt";
+      attemptId: string | null;
+      results: TreatmentProgramTestResultRow[];
+      attemptHistory: TreatmentProgramTestAttemptBrief[];
+      /** Отправленные ранее попытки (не текущая открытая), от новой к старой. */
+      submittedAttemptsDetail: PatientTestSetSubmittedAttemptDetail[];
+    }
+  | {
+      variant: "readonly_submitted";
+      focalAttemptId: string;
+      results: TreatmentProgramTestResultRow[];
+      attemptHistory: TreatmentProgramTestAttemptBrief[];
+      /** Пункт отмечен врачом (`acceptAttempt`) — до «Новой попытки» нельзя снова редактировать. */
+      doctorAcceptedItem: boolean;
+      submittedAttemptsDetail: PatientTestSetSubmittedAttemptDetail[];
+    };
 
-function latestDetailResultsByTestId(rows: TreatmentProgramTestResultDetailRow[]): TreatmentProgramTestResultDetailRow[] {
-  const sorted = [...rows].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-  const m = new Map<string, TreatmentProgramTestResultDetailRow>();
-  for (const r of sorted) {
-    m.set(r.testId, r);
-  }
-  return [...m.values()];
+function attemptHistoryBrief(rows: TreatmentProgramTestAttemptRow[]): TreatmentProgramTestAttemptBrief[] {
+  const ordered = orderAttemptsForPatientHistory(rows);
+  return ordered.map((a) => ({
+    id: a.id,
+    startedAt: a.startedAt,
+    submittedAt: a.submittedAt,
+    acceptedAt: a.acceptedAt,
+  }));
+}
+
+/** Открытая попытка выше в списке; иначе по времени отправки / старта (новые сверху). */
+function orderAttemptsForPatientHistory(rows: TreatmentProgramTestAttemptRow[]): TreatmentProgramTestAttemptRow[] {
+  return [...rows].sort((a, b) => {
+    const aOpen = a.submittedAt == null ? 1 : 0;
+    const bOpen = b.submittedAt == null ? 1 : 0;
+    if (aOpen !== bOpen) return bOpen - aOpen;
+    const ta = a.submittedAt ?? a.startedAt;
+    const tb = b.submittedAt ?? b.startedAt;
+    const c = tb.localeCompare(ta);
+    if (c !== 0) return c;
+    return b.startedAt.localeCompare(a.startedAt);
+  });
+}
+
+function sortSubmittedAttemptsNewestFirst(rows: TreatmentProgramTestAttemptRow[]): TreatmentProgramTestAttemptRow[] {
+  return [...rows].filter((a) => a.submittedAt != null).sort((a, b) => {
+    const c = (b.submittedAt ?? "").localeCompare(a.submittedAt ?? "");
+    if (c !== 0) return c;
+    return b.startedAt.localeCompare(a.startedAt);
+  });
+}
+
+async function loadSubmittedAttemptDetails(
+  tests: TreatmentProgramTestAttemptsPort,
+  submittedRows: TreatmentProgramTestAttemptRow[],
+): Promise<PatientTestSetSubmittedAttemptDetail[]> {
+  const sorted = sortSubmittedAttemptsNewestFirst(submittedRows);
+  return Promise.all(
+    sorted.map(async (a) => ({
+      attemptId: a.id,
+      submittedAt: a.submittedAt,
+      acceptedAt: a.acceptedAt,
+      results: await tests.listResultsForAttempt(a.id),
+    })),
+  );
 }
 
 function scoringConfigForTestInSnapshot(
@@ -240,7 +303,46 @@ export function createTreatmentProgramProgressService(deps: {
         throw new Error("Элемент отключён");
       }
       if (item.itemType !== "clinical_test") throw new Error("Элемент не является клиническим тестом");
-      if (item.completedAt) throw new Error("Тест уже завершён");
+      const open = await tests.findOpenAttempt(item.id, input.patientUserId);
+      if (open) return open;
+      const prior = await tests.listAttemptsForStageItem(item.id, input.patientUserId, 5);
+      if (prior.length === 0) {
+        return tests.createAttempt({ stageItemId: item.id, patientUserId: input.patientUserId });
+      }
+      throw new Error("Сначала начните новую попытку");
+    },
+
+    async patientStartNewTestAttempt(input: {
+      patientUserId: string;
+      instanceId: string;
+      stageItemId: string;
+    }): Promise<TreatmentProgramTestAttemptRow> {
+      assertUuid(input.patientUserId);
+      assertUuid(input.instanceId);
+      assertUuid(input.stageItemId);
+      await patientTouchStageItemInner({
+        patientUserId: input.patientUserId,
+        instanceId: input.instanceId,
+        stageItemId: input.stageItemId,
+      });
+      const detail = await instances.getInstanceForPatient(input.patientUserId, input.instanceId);
+      if (!detail) throw new Error("Программа не найдена");
+      const { item, stage } = resolveItemAndStage(detail, input.stageItemId);
+      assertStageAccessibleForPatient(stage);
+      if (!isInstanceStageItemActiveForPatient(item)) {
+        throw new Error("Элемент отключён");
+      }
+      if (item.itemType !== "clinical_test") throw new Error("Элемент не является клиническим тестом");
+      const open = await tests.findOpenAttempt(item.id, input.patientUserId);
+      if (open) throw new Error("Сначала отправьте текущую попытку");
+      const attempts = await tests.listAttemptsForStageItem(item.id, input.patientUserId, 50);
+      const submittedRows = attempts.filter((a) => a.submittedAt != null);
+      const last = sortSubmittedAttemptsNewestFirst(submittedRows)[0];
+      if (!last || !last.submittedAt) {
+        throw new Error("Сначала отправьте набор тестов");
+      }
+      await tests.clearAcceptanceOnAllAttemptsForStageItemPatient(item.id, input.patientUserId);
+      await instances.setStageItemCompletedAt(input.instanceId, item.id, null);
       return tests.createAttempt({ stageItemId: item.id, patientUserId: input.patientUserId });
     },
 
@@ -269,17 +371,24 @@ export function createTreatmentProgramProgressService(deps: {
         throw new Error("Элемент отключён");
       }
       if (item.itemType !== "clinical_test") throw new Error("Элемент не является клиническим тестом");
-      if (item.completedAt) throw new Error("Тест уже завершён");
 
       const expectedTests = testIdsFromTestSetSnapshot(item.snapshot);
       if (!expectedTests.includes(input.testId)) {
         throw new Error("Тест не соответствует пункту программы");
       }
 
-      const attempt = await tests.createAttempt({
-        stageItemId: item.id,
-        patientUserId: input.patientUserId,
-      });
+      let attempt = await tests.findOpenAttempt(item.id, input.patientUserId);
+      if (!attempt) {
+        const prior = await tests.listAttemptsForStageItem(item.id, input.patientUserId, 1);
+        if (prior.length === 0) {
+          attempt = await tests.createAttempt({
+            stageItemId: item.id,
+            patientUserId: input.patientUserId,
+          });
+        } else {
+          throw new Error("Сначала начните попытку");
+        }
+      }
 
       const scoring = scoringConfigForTestInSnapshot(item.snapshot, input.testId);
       const inferred = inferNormalizedDecisionFromScoring(scoring, input.rawValue);
@@ -336,8 +445,7 @@ export function createTreatmentProgramProgressService(deps: {
       const have = new Set(existing.map((r) => r.testId));
       const allDone = expectedTests.length > 0 && expectedTests.every((tid) => have.has(tid));
       if (allDone) {
-        await tests.completeAttempt(attempt.id);
-        await instances.setStageItemCompletedAt(input.instanceId, item.id, nowIso());
+        await tests.markAttemptSubmitted(attempt.id);
         await appendEv({
           instanceId: input.instanceId,
           actorId: input.patientUserId,
@@ -346,10 +454,9 @@ export function createTreatmentProgramProgressService(deps: {
           targetId: item.id,
           payload: {
             scope: "stage_item",
-            field: "completedAt",
-            value: nowIso(),
             stageId: stage.id,
-            context: "clinical_test_done",
+            context: "clinical_test_attempt_submitted",
+            attemptId: attempt.id,
           },
         });
       }
@@ -416,6 +523,17 @@ export function createTreatmentProgramProgressService(deps: {
       return row;
     },
 
+    async doctorAcceptTestAttempt(input: { instanceId: string; attemptId: string; doctorUserId: string }) {
+      assertUuid(input.instanceId);
+      assertUuid(input.attemptId);
+      assertUuid(input.doctorUserId);
+      await tests.acceptAttempt({
+        attemptId: input.attemptId,
+        instanceId: input.instanceId,
+        doctorUserId: input.doctorUserId,
+      });
+    },
+
     listTestResultsForInstance(instanceId: string): Promise<TreatmentProgramTestResultDetailRow[]> {
       assertUuid(instanceId);
       return tests.listResultDetailsForInstance(instanceId);
@@ -449,18 +567,42 @@ export function createTreatmentProgramProgressService(deps: {
       }
       if (item.itemType !== "clinical_test") return { variant: "none" };
 
-      if (item.completedAt) {
-        const all = await tests.listResultDetailsForInstance(input.instanceId);
-        const forItem = all.filter((r) => r.instanceStageItemId === input.stageItemId);
-        return { variant: "completed", latestByTest: latestDetailResultsByTestId(forItem) };
-      }
+      const attempts = await tests.listAttemptsForStageItem(input.stageItemId, input.patientUserId, 40);
+      const history = attemptHistoryBrief(attempts);
+      const open = attempts.find((a) => a.submittedAt === null) ?? null;
+      const submittedRows = attempts.filter((a) => a.submittedAt != null);
+      const submittedAttemptsDetail = await loadSubmittedAttemptDetails(tests, submittedRows);
 
-      const attempt = await tests.findOpenAttempt(input.stageItemId, input.patientUserId);
-      if (!attempt) {
-        return { variant: "open_attempt", attemptId: null, results: [] };
+      if (open) {
+        const results = await tests.listResultsForAttempt(open.id);
+        return {
+          variant: "open_attempt",
+          attemptId: open.id,
+          results,
+          attemptHistory: history,
+          submittedAttemptsDetail,
+        };
       }
-      const results = await tests.listResultsForAttempt(attempt.id);
-      return { variant: "open_attempt", attemptId: attempt.id, results };
+      const latestRow = sortSubmittedAttemptsNewestFirst(submittedRows)[0];
+      if (!latestRow) {
+        return {
+          variant: "open_attempt",
+          attemptId: null,
+          results: [],
+          attemptHistory: history,
+          submittedAttemptsDetail: [],
+        };
+      }
+      const latestBundle = submittedAttemptsDetail.find((d) => d.attemptId === latestRow.id);
+      const results = latestBundle?.results ?? (await tests.listResultsForAttempt(latestRow.id));
+      return {
+        variant: "readonly_submitted",
+        focalAttemptId: latestRow.id,
+        results,
+        attemptHistory: history,
+        doctorAcceptedItem: item.completedAt != null,
+        submittedAttemptsDetail,
+      };
     },
   };
 }

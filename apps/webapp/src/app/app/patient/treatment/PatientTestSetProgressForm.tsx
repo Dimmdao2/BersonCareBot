@@ -6,9 +6,10 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { patientTestQualDecisionSelectItems } from "@/shared/ui/selectOpaqueValueLabels";
-import type { PatientTestSetPageServerSnapshot } from "@/modules/treatment-program/progress-service";
+import type { PatientTestSetPageServerSnapshot, PatientTestSetSubmittedAttemptDetail } from "@/modules/treatment-program/progress-service";
 import type {
   NormalizedTestDecision,
+  TreatmentProgramTestAttemptBrief,
   TreatmentProgramTestResultDetailRow,
   TreatmentProgramTestResultRow,
 } from "@/modules/treatment-program/types";
@@ -22,12 +23,68 @@ import {
   PatientShimmerPanel,
 } from "@/shared/ui/patientVisual";
 import { cn } from "@/lib/utils";
+import { ChevronDown } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+
+function AttemptHistoryCollapsibleList(props: {
+  bundles: PatientTestSetSubmittedAttemptDetail[];
+  testsMetaToRender: ReturnType<typeof parseTestSetSnapshotTests>;
+}) {
+  const { bundles, testsMetaToRender } = props;
+  return (
+    <ul className="m-0 flex list-none flex-col gap-1 p-0">
+      {bundles.map((bundle) => (
+        <li key={bundle.attemptId}>
+          <Collapsible
+            defaultOpen={false}
+            className="rounded-md border border-[var(--patient-border)]/50 bg-[var(--patient-card-bg)]/80"
+          >
+            <CollapsibleTrigger className="group flex w-full items-center justify-between gap-2 px-2 py-1.5 text-left">
+              <span className={cn(patientMutedTextClass, "text-[11px]")}>
+                {bundle.submittedAt ? `Отправлено ${bundle.submittedAt.slice(0, 10)}` : "—"}
+                {bundle.acceptedAt ? ` · принято ${bundle.acceptedAt.slice(0, 10)}` : ""}
+              </span>
+              <ChevronDown
+                className={cn(
+                  "size-3.5 shrink-0 text-[var(--patient-text-muted)] transition-transform duration-200",
+                  "group-data-[panel-open]:rotate-180",
+                )}
+                aria-hidden
+              />
+            </CollapsibleTrigger>
+            <CollapsibleContent className="border-t border-[var(--patient-border)]/40 px-2 pb-2 pt-1">
+              <ul className="m-0 list-none space-y-1.5 p-0">
+                {testsMetaToRender.map((t) => {
+                  const row = bundle.results.find((r) => r.testId === t.testId);
+                  if (!row) return null;
+                  return (
+                    <li
+                      key={`${bundle.attemptId}-${t.testId}`}
+                      className="rounded border border-[var(--patient-border)]/40 px-2 py-1"
+                    >
+                      <span className="text-xs font-medium">{t.title ?? t.testId}</span>
+                      <p className={cn(patientMutedTextClass, "mt-0.5 mb-0 text-[11px]")}>
+                        Итог: {formatNormalizedTestDecisionRu(row.normalizedDecision)}
+                        {row.decidedBy ? " (уточнено врачом)" : ""}
+                      </p>
+                    </li>
+                  );
+                })}
+              </ul>
+            </CollapsibleContent>
+          </Collapsible>
+        </li>
+      ))}
+    </ul>
+  );
+}
 
 export type PatientTestSetProgressFormProps = {
   instanceId: string;
   itemId: string;
   snapshot: Record<string, unknown>;
-  completed: boolean;
+  /** Набор отправлен или пункт принят врачом — только просмотр до «Новой попытки». */
+  readOnlySummary: boolean;
   /** Нет ввода: заблокированный этап, read-only навигация и т.п. */
   interactionDisabled: boolean;
   /** Данные с RSC: без начальных client fetch для попытки/результатов. */
@@ -53,7 +110,9 @@ function latestResultsByTestId(rows: TreatmentProgramTestResultDetailRow[]): Map
 function augmentResultRowToDetail(
   r: TreatmentProgramTestResultRow,
   instanceStageItemId: string,
+  attemptHistory?: TreatmentProgramTestAttemptBrief[],
 ): TreatmentProgramTestResultDetailRow {
+  const ta = attemptHistory?.find((a) => a.id === r.attemptId);
   return {
     ...r,
     instanceStageItemId,
@@ -61,6 +120,9 @@ function augmentResultRowToDetail(
     stageTitle: "",
     stageSortOrder: 0,
     testTitle: null,
+    attemptStartedAt: ta?.startedAt ?? r.createdAt,
+    attemptSubmittedAt: ta?.submittedAt ?? null,
+    attemptAcceptedAt: ta?.acceptedAt ?? null,
   };
 }
 
@@ -106,7 +168,7 @@ export function PatientTestSetProgressForm(props: PatientTestSetProgressFormProp
     instanceId,
     itemId,
     snapshot,
-    completed,
+    readOnlySummary,
     interactionDisabled,
     serverSnapshot = null,
     baseUrl,
@@ -164,40 +226,45 @@ export function PatientTestSetProgressForm(props: PatientTestSetProgressFormProp
     const snap = serverSnapshot ?? { variant: "none" as const };
     const lines = parseTestSetSnapshotTests(snapshot);
 
-    if (snap.variant === "completed") {
+    if (snap.variant === "readonly_submitted") {
       const nextSaved: Record<string, TreatmentProgramTestResultDetailRow> = {};
-      for (const r of snap.latestByTest) {
-        nextSaved[r.testId] = r;
+      for (const r of snap.results) {
+        nextSaved[r.testId] = augmentResultRowToDetail(r, itemId, snap.attemptHistory);
       }
       setSavedByTestId(nextSaved);
       setCompletedSummaryLoaded(true);
       return;
     }
 
-    if (interactionDisabled && !completed) {
+    if (interactionDisabled && !readOnlySummary) {
       setCompletedSummaryLoaded(true);
       return;
     }
 
     if (snap.variant === "open_attempt") {
-      const detailRows = snap.results.map((r) => augmentResultRowToDetail(r, itemId));
-      const st = buildFormStateFromInProgressRows(lines, detailRows);
-      setScores(st.nextScores);
-      setNumericNotes(st.nextNumericNotes);
-      setQualDecisions(st.nextQualDecisions);
-      setQualNotes(st.nextQualNotes);
-      setSavedByTestId(st.nextSaved);
-      setHydratedAttemptId(snap.attemptId);
-      setCompletedSummaryLoaded(true);
+      if (snap.attemptId) {
+        const detailRows = snap.results.map((r) => augmentResultRowToDetail(r, itemId, snap.attemptHistory));
+        const st = buildFormStateFromInProgressRows(lines, detailRows);
+        setScores(st.nextScores);
+        setNumericNotes(st.nextNumericNotes);
+        setQualDecisions(st.nextQualDecisions);
+        setQualNotes(st.nextQualNotes);
+        setSavedByTestId(st.nextSaved);
+        setHydratedAttemptId(snap.attemptId);
+        setCompletedSummaryLoaded(true);
+        return;
+      }
+      setCompletedSummaryLoaded(false);
       return;
     }
 
     setCompletedSummaryLoaded(false);
-  }, [serverSnapshot, itemId, snapshot, completed, interactionDisabled, setError]);
+  }, [serverSnapshot, itemId, snapshot, readOnlySummary, interactionDisabled, setError]);
 
   useEffect(() => {
     const snap = serverSnapshot ?? { variant: "none" as const };
-    if (snap.variant !== "none") return;
+    if (snap.variant === "readonly_submitted") return;
+    if (snap.variant === "open_attempt" && snap.attemptId != null) return;
 
     let cancelled = false;
 
@@ -210,7 +277,7 @@ export function PatientTestSetProgressForm(props: PatientTestSetProgressFormProp
       const lines = parseTestSetSnapshotTests(snapshot);
 
       try {
-        if (completed) {
+        if (readOnlySummary) {
           const res = await fetch(
             `/api/patient/treatment-program-instances/${encodeURIComponent(instanceId)}/test-results`,
           );
@@ -279,7 +346,7 @@ export function PatientTestSetProgressForm(props: PatientTestSetProgressFormProp
   }, [
     instanceId,
     itemId,
-    completed,
+    readOnlySummary,
     interactionDisabled,
     testIdsKey,
     snapshot,
@@ -296,19 +363,63 @@ export function PatientTestSetProgressForm(props: PatientTestSetProgressFormProp
     return set.size;
   }, [savedByTestId, testIds]);
 
-  if (completed) {
+  if (readOnlySummary) {
     if (!completedSummaryLoaded) {
       return (
         <div className="mt-3 flex flex-col gap-2">
-          <p className="text-xs text-emerald-600 dark:text-emerald-400">Набор тестов пройден.</p>
+          <p className="text-xs text-emerald-600 dark:text-emerald-400">Набор отправлен.</p>
         </div>
       );
     }
+    const snapRO = serverSnapshot?.variant === "readonly_submitted" ? serverSnapshot : null;
+    const bundles = snapRO?.submittedAttemptsDetail ?? [];
+    const hasBundles = bundles.length > 0;
     const anyRow = testIds.some((tid) => Boolean(savedByTestId[tid]));
     return (
       <div className="mt-3 flex flex-col gap-3">
-        <p className="text-xs text-emerald-600 dark:text-emerald-400">Набор тестов пройден.</p>
-        {anyRow ? (
+        <p className="text-xs text-emerald-600 dark:text-emerald-400">
+          {snapRO?.doctorAcceptedItem ? "Пункт принят врачом." : "Набор отправлен."}
+        </p>
+        {hasBundles ? (
+          <AttemptHistoryCollapsibleList bundles={bundles} testsMetaToRender={testsMetaToRender} />
+        ) : snapRO ? (
+          <ul className="m-0 flex list-none flex-col gap-1 p-0">
+            {snapRO.attemptHistory.map((a) => (
+              <li key={a.id} className={cn(patientMutedTextClass, "text-[11px]")}>
+                {a.submittedAt ? `Отправлено ${a.submittedAt.slice(0, 10)}` : `Начато ${a.startedAt.slice(0, 10)}`}
+                {a.acceptedAt ? ` · принято ${a.acceptedAt.slice(0, 10)}` : ""}
+              </li>
+            ))}
+          </ul>
+        ) : null}
+        {!interactionDisabled && snapRO ? (
+          <button
+            type="button"
+            className={cn(patientCompactActionClass, "h-8 w-auto self-start text-sm")}
+            disabled={busy !== null}
+            onClick={async () => {
+              setBusy("new-attempt");
+              setError(null);
+              try {
+                const res = await fetch(
+                  `${baseUrl}/${encodeURIComponent(itemId)}/progress/start-new-test-attempt`,
+                  { method: "POST" },
+                );
+                const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
+                if (!res.ok || !data.ok) {
+                  setError(data.error ?? "Не удалось начать попытку");
+                  return;
+                }
+                await onDone();
+              } finally {
+                setBusy(null);
+              }
+            }}
+          >
+            Новая попытка
+          </button>
+        ) : null}
+        {!hasBundles && anyRow ? (
           <ul className="m-0 flex list-none flex-col gap-2 p-0">
             {testsMetaToRender.map((t) => {
               const row = savedByTestId[t.testId];
@@ -327,9 +438,9 @@ export function PatientTestSetProgressForm(props: PatientTestSetProgressFormProp
               );
             })}
           </ul>
-        ) : (
+        ) : !hasBundles ? (
           <p className={cn(patientMutedTextClass, "text-xs")}>Детали результатов недоступны.</p>
-        )}
+        ) : null}
       </div>
     );
   }
@@ -364,6 +475,13 @@ export function PatientTestSetProgressForm(props: PatientTestSetProgressFormProp
         <p className={cn(patientMutedTextClass, "m-0 text-[11px]")}>
           Сохранено тестов: {savedCount} / {testIds.length}
         </p>
+      ) : null}
+
+      {serverSnapshot?.variant === "open_attempt" && serverSnapshot.submittedAttemptsDetail.length > 0 ? (
+        <AttemptHistoryCollapsibleList
+          bundles={serverSnapshot.submittedAttemptsDetail}
+          testsMetaToRender={testsMetaToRender}
+        />
       ) : null}
 
       {testsMeta.length === 0 ? (

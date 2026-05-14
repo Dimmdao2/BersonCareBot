@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -12,6 +12,7 @@ import {
 } from "@/modules/treatment-program/stage-semantics";
 import { type PatientProgramChecklistRow } from "@/modules/treatment-program/patient-program-actions";
 import { PatientTestSetProgressForm } from "@/app/app/patient/treatment/PatientTestSetProgressForm";
+import type { PatientTestSetPageServerSnapshot } from "@/modules/treatment-program/progress-service";
 import {
   pickRecommendationRowPreviewMedia,
   parseRecommendationMediaFromSnapshot,
@@ -106,6 +107,38 @@ export function PatientInstanceStageItemCard(props: {
     if (item.itemType !== "recommendation") return "";
     return recommendationBodyMdPreviewPlain(item.snapshot.bodyMd);
   }, [item.itemType, item.snapshot]);
+  const [clinicalTestSnap, setClinicalTestSnap] = useState<PatientTestSetPageServerSnapshot | null>(null);
+  const [clinicalTestSnapLoaded, setClinicalTestSnapLoaded] = useState(false);
+
+  useEffect(() => {
+    if (item.itemType !== "clinical_test" || readOnly || contentBlocked) {
+      setClinicalTestSnap(null);
+      setClinicalTestSnapLoaded(true);
+      return;
+    }
+    setClinicalTestSnapLoaded(false);
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch(
+          `/api/patient/treatment-program-instances/${encodeURIComponent(instanceId)}/items/${encodeURIComponent(item.id)}/progress/test-set-snapshot`,
+        );
+        const data = (await res.json().catch(() => null)) as { ok?: boolean; snapshot?: PatientTestSetPageServerSnapshot };
+        if (cancelled) return;
+        if (res.ok && data.ok && data.snapshot) {
+          setClinicalTestSnap(data.snapshot);
+        } else {
+          setClinicalTestSnap(null);
+        }
+      } finally {
+        if (!cancelled) setClinicalTestSnapLoaded(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [instanceId, item.id, item.itemType, readOnly, contentBlocked]);
+
   const markRef = usePostMarkItemViewedWhenVisible({
     instanceId,
     itemId: item.id,
@@ -253,18 +286,23 @@ export function PatientInstanceStageItemCard(props: {
           {!contentBlocked && !readOnly ? (
             item.itemType === "clinical_test" ? (
               <div className="mt-2" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
-                <PatientTestSetProgressForm
-                  instanceId={instanceId}
-                  itemId={item.id}
-                  snapshot={item.snapshot as Record<string, unknown>}
-                  completed={Boolean(item.completedAt)}
-                  interactionDisabled={false}
-                  baseUrl={base}
-                  busy={busy}
-                  setBusy={setBusy}
-                  setError={setError}
-                  onDone={refresh}
-                />
+                {!clinicalTestSnapLoaded ? (
+                  <p className={cn(patientMutedTextClass, "text-xs")}>Загрузка…</p>
+                ) : (
+                  <PatientTestSetProgressForm
+                    instanceId={instanceId}
+                    itemId={item.id}
+                    snapshot={item.snapshot as Record<string, unknown>}
+                    readOnlySummary={clinicalTestSnap?.variant === "readonly_submitted"}
+                    interactionDisabled={false}
+                    baseUrl={base}
+                    busy={busy}
+                    setBusy={setBusy}
+                    setError={setError}
+                    onDone={refresh}
+                    serverSnapshot={clinicalTestSnap}
+                  />
+                )}
               </div>
             ) : item.itemType === "lfk_complex" && !isPersistentRecommendation(item) ? (
               <div

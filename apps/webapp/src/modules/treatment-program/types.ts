@@ -554,8 +554,17 @@ export type TreatmentProgramTestAttemptRow = {
   instanceStageItemId: string;
   patientUserId: string;
   startedAt: string;
-  completedAt: string | null;
+  /** Пациент отправил полный набор (все тесты в попытке). */
+  submittedAt: string | null;
+  /** Врач принял попытку (зачёт пункта). */
+  acceptedAt: string | null;
+  acceptedBy: string | null;
 };
+
+export type TreatmentProgramTestAttemptBrief = Pick<
+  TreatmentProgramTestAttemptRow,
+  "id" | "startedAt" | "submittedAt" | "acceptedAt"
+>;
 
 export type TreatmentProgramTestResultRow = {
   id: string;
@@ -574,6 +583,9 @@ export type TreatmentProgramTestResultDetailRow = TreatmentProgramTestResultRow 
   stageTitle: string;
   stageSortOrder: number;
   testTitle: string | null;
+  attemptStartedAt: string;
+  attemptSubmittedAt: string | null;
+  attemptAcceptedAt: string | null;
 };
 
 /** A4 PROGRAM_PATIENT_SHAPE: типы строк `program_action_log`. */

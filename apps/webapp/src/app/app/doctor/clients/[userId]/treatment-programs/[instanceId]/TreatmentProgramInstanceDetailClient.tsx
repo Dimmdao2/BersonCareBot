@@ -95,6 +95,27 @@ function stageTitleById(detail: TreatmentProgramInstanceDetail): Map<string, str
   return m;
 }
 
+function groupTestResultsByAttempt(rows: TreatmentProgramTestResultDetailRow[]) {
+  const m = new Map<string, TreatmentProgramTestResultDetailRow[]>();
+  for (const r of rows) {
+    const list = m.get(r.attemptId) ?? [];
+    list.push(r);
+    m.set(r.attemptId, list);
+  }
+  const groups = [...m.entries()].map(([attemptId, results]) => {
+    const head = results[0]!;
+    return {
+      attemptId,
+      results,
+      startedAt: head.attemptStartedAt,
+      submittedAt: head.attemptSubmittedAt,
+      acceptedAt: head.attemptAcceptedAt,
+    };
+  });
+  groups.sort((a, b) => (a.startedAt < b.startedAt ? 1 : -1));
+  return groups;
+}
+
 function doctorTimelineWhoRu(actorId: string | null, opts: { currentUserId: string; patientUserId: string }): string | null {
   if (!actorId) return null;
   if (actorId === opts.currentUserId) return "Вы";
@@ -1035,51 +1056,91 @@ export function TreatmentProgramInstanceDetailClient(props: {
           {testResults.length > 0 ? (
             <section className="rounded-xl border border-border bg-card p-4" id="doctor-program-instance-test-results">
               <h3 className="text-base font-semibold">Результаты тестов</h3>
-              <ul className="mt-3 space-y-2 text-sm">
-                {testResults.map((r) => (
-                  <li key={r.id} className="rounded-lg border border-border/70 bg-muted/15 p-2">
-                    <p className="font-medium">
-                      {r.testTitle ?? r.testId}{" "}
-                      <span className="text-xs font-normal text-muted-foreground">
-                        ({r.stageTitle}) · {formatNormalizedTestDecisionRu(r.normalizedDecision)} ({r.normalizedDecision})
-                      </span>
-                      {r.decidedBy ? (
-                        <span className="ml-1 rounded-md bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium text-amber-900 dark:text-amber-100">
-                          переопределено врачом
-                        </span>
-                      ) : null}
-                    </p>
-                    <pre className="mt-1 max-h-24 overflow-auto text-[11px] text-muted-foreground">
-                      {JSON.stringify(r.rawValue, null, 0)}
-                    </pre>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {(["passed", "failed", "partial"] as const).map((d) => (
-                        <Button
-                          key={d}
-                          type="button"
-                          size="sm"
-                          variant={r.normalizedDecision === d ? "default" : "outline"}
-                          disabled={detail.status === "completed"}
-                          onClick={async () => {
-                            await runIfProgramInstanceMutationAllowed(detail.status, async () => {
-                              const res = await fetch(
-                                `/api/doctor/treatment-program-instances/${encodeURIComponent(detail.id)}/test-results/${encodeURIComponent(r.id)}`,
-                                {
-                                  method: "PATCH",
-                                  headers: { "Content-Type": "application/json" },
-                                  body: JSON.stringify({ normalizedDecision: d }),
-                                },
-                              );
-                              if (res.ok) void refreshResults();
-                            });
-                          }}
-                        >
-                          {d}
-                        </Button>
-                      ))}
-                    </div>
-                  </li>
-                ))}
+              <ul className="mt-3 space-y-3 text-sm">
+                {groupTestResultsByAttempt(testResults).map((g) => {
+                  const pending = g.results.filter((x) => !x.decidedBy).length;
+                  return (
+                    <li key={g.attemptId} className="rounded-lg border border-border/70 bg-muted/15 p-2">
+                      <div className="mb-2 flex flex-wrap items-center justify-between gap-2 border-b border-border/40 pb-2">
+                        <p className="text-xs text-muted-foreground">
+                          {g.submittedAt
+                            ? `Отправлено: ${g.submittedAt.slice(0, 19).replace("T", " ")}`
+                            : `Начато: ${g.startedAt.slice(0, 19).replace("T", " ")}`}
+                          {g.acceptedAt ? ` · принято: ${g.acceptedAt.slice(0, 19).replace("T", " ")}` : ""}
+                          {pending > 0 ? ` · без оценки: ${pending}` : ""}
+                        </p>
+                        {g.submittedAt && !g.acceptedAt && detail.status !== "completed" ? (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="secondary"
+                            onClick={async () => {
+                              await runIfProgramInstanceMutationAllowed(detail.status, async () => {
+                                const res = await fetch(
+                                  `/api/doctor/treatment-program-instances/${encodeURIComponent(detail.id)}/test-attempts/${encodeURIComponent(g.attemptId)}/accept`,
+                                  { method: "POST" },
+                                );
+                                if (res.ok) {
+                                  void refreshResults();
+                                  void refresh();
+                                }
+                              });
+                            }}
+                          >
+                            Принять попытку
+                          </Button>
+                        ) : null}
+                      </div>
+                      <ul className="m-0 list-none space-y-2 p-0">
+                        {g.results.map((r) => (
+                          <li key={r.id} className="rounded border border-border/50 bg-background/50 p-2">
+                            <p className="font-medium">
+                              {r.testTitle ?? r.testId}{" "}
+                              <span className="text-xs font-normal text-muted-foreground">
+                                ({r.stageTitle}) · {formatNormalizedTestDecisionRu(r.normalizedDecision)} (
+                                {r.normalizedDecision})
+                              </span>
+                              {r.decidedBy ? (
+                                <span className="ml-1 rounded-md bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium text-amber-900 dark:text-amber-100">
+                                  переопределено врачом
+                                </span>
+                              ) : null}
+                            </p>
+                            <pre className="mt-1 max-h-24 overflow-auto text-[11px] text-muted-foreground">
+                              {JSON.stringify(r.rawValue, null, 0)}
+                            </pre>
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              {(["passed", "failed", "partial"] as const).map((d) => (
+                                <Button
+                                  key={d}
+                                  type="button"
+                                  size="sm"
+                                  variant={r.normalizedDecision === d ? "default" : "outline"}
+                                  disabled={detail.status === "completed"}
+                                  onClick={async () => {
+                                    await runIfProgramInstanceMutationAllowed(detail.status, async () => {
+                                      const res = await fetch(
+                                        `/api/doctor/treatment-program-instances/${encodeURIComponent(detail.id)}/test-results/${encodeURIComponent(r.id)}`,
+                                        {
+                                          method: "PATCH",
+                                          headers: { "Content-Type": "application/json" },
+                                          body: JSON.stringify({ normalizedDecision: d }),
+                                        },
+                                      );
+                                      if (res.ok) void refreshResults();
+                                    });
+                                  }}
+                                >
+                                  {d}
+                                </Button>
+                              ))}
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    </li>
+                  );
+                })}
               </ul>
             </section>
           ) : null}

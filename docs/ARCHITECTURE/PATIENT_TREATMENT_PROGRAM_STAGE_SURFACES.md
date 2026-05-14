@@ -49,6 +49,8 @@
 
 - `parseTestSetSnapshotTests`, `testIdsFromTestSetSnapshot` — `apps/webapp/src/modules/treatment-program/testSetSnapshotView.ts`.
 
+Жизненный цикл попыток и чеклиста: пациент заполняет результаты в **открытой** попытке (`submitted_at` null); после полного набора — **`submitted_at`**; новая полная попытка — **`POST .../progress/start-new-test-attempt`** (после отправки предыдущей), при этом **`completed_at`** пункта сбрасывается, с **`test_attempts`** снимаются **`accepted_at` / `accepted_by`** до нового приёма врачом; **`instance_stage_item.completed_at`** для **`clinical_test`** выставляется при **`POST .../test-attempts/[attemptId]/accept`** врачом (у прочих попыток того же пункта приём снимается). Снимок для UI: **`GET .../progress/test-set-snapshot`** — фокусная попытка, **`attempt`**, **`submittedAttemptsDetail[]`** (все отправленные с полными **`results`** для раскрывающейся истории).
+
 Сервис прогресса реэкспортирует `testIdsFromTestSetSnapshot` для обратной совместимости (`progress-service.ts`); клиентские компоненты программы предпочитают импорт из `testSetSnapshotView`, чтобы не тянуть тяжёлый модуль прогресса ради одной утилиты.
 
 ## Навигация «Пропустить» в модалке пункта
