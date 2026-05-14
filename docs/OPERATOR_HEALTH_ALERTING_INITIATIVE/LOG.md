@@ -4,6 +4,12 @@
 
 ## Записи
 
+### 2026-05-14 — Общая очередь доставки (`outgoing_delivery_queue`)
+
+- Операторские TG-алерты и `reminders.dispatchDue` переведены на `public.outgoing_delivery_queue`; доставка и ретраи в integrator worker (`outgoingDeliveryWorker`).
+- Webapp: `OperatorHealthReadPort.getOutgoingDeliveryQueueHealth`, `GET /api/admin/system-health` (`outgoingDelivery`), UI в `SystemHealthSection`; admin-only баннер на экране врача «Сегодня»; для `role === admin` admin mode считается всегда включённым (`requireAdminModeSession`, сессия, настройки).
+- Док: `docs/ARCHITECTURE/OUTGOING_DELIVERY_QUEUE.md`.
+
 ### 2026-05-03 — Декомпозиция фаз
 
 - Добавлены детальные планы **PHASE_A** … **PHASE_G** (шаги, checklist, scope, DoD по фазе); `MASTER_PLAN.md` §5 заменён на таблицу ссылок.

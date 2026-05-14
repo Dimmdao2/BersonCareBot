@@ -414,6 +414,20 @@
       "when": 1780100000000,
       "tag": "0058_operator_job_status_backup_family",
       "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1780200000000,
+      "tag": "0059_media_playback_client_events",
+      "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1780300000000,
+      "tag": "0060_outgoing_delivery_queue",
+      "breakpoints": true
     }
   ]
 }

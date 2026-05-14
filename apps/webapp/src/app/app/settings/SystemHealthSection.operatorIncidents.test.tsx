@@ -49,6 +49,7 @@ const probeShell = {
   videoTranscode: { status: "ok", durationMs: 1 },
   operatorIncidents: { status: "ok", durationMs: 1 },
   operatorBackupJobs: { status: "ok", durationMs: 1 },
+  outgoingDelivery: { status: "ok", durationMs: 1 },
 };
 
 function healthJson(overrides: Record<string, unknown> = {}) {
@@ -69,6 +70,7 @@ function healthJson(overrides: Record<string, unknown> = {}) {
     videoTranscode: videoTranscodeShell,
     operatorIncidentsOpen: [],
     backupJobs: {},
+    outgoingDelivery: { dueBacklog: 0, deadTotal: 0, oldestDueAgeSeconds: null },
     meta: { probes: probeShell },
     fetchedAt: "2026-04-16T10:00:00.000Z",
     ...overrides,

@@ -27,9 +27,11 @@ const {
   poolQueryMock,
   getConfigBoolMock,
   loadAdminPlaybackHealthMetricsMock,
+  loadAdminPlaybackClientHealthMetricsMock,
   loadAdminTranscodeHealthMetricsMock,
   listOpenIncidentsMock,
   listBackupJobStatusMock,
+  getOutgoingDeliveryQueueHealthMock,
 } = vi.hoisted(() => ({
   requireAdminModeSessionMock: vi.fn(),
   checkDbHealthMock: vi.fn(),
@@ -44,9 +46,11 @@ const {
   poolQueryMock: vi.fn(),
   getConfigBoolMock: vi.fn(),
   loadAdminPlaybackHealthMetricsMock: vi.fn(),
+  loadAdminPlaybackClientHealthMetricsMock: vi.fn(),
   loadAdminTranscodeHealthMetricsMock: vi.fn(),
   listOpenIncidentsMock: vi.fn(),
   listBackupJobStatusMock: vi.fn(),
+  getOutgoingDeliveryQueueHealthMock: vi.fn(),
 }));
 
 /** Routes SQL by substring — media preview probes run in parallel with playback metrics; order unspecified. */
@@ -71,6 +75,7 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
     operatorHealthRead: {
       listOpenIncidents: listOpenIncidentsMock,
       listBackupJobStatus: listBackupJobStatusMock,
+      getOutgoingDeliveryQueueHealth: getOutgoingDeliveryQueueHealthMock,
     },
   })),
 }));
@@ -106,6 +111,10 @@ vi.mock("@/app-layer/media/adminPlaybackHealthMetrics", () => ({
   ADMIN_PLAYBACK_METRICS_WINDOW_HOURS: 24,
 }));
 
+vi.mock("@/app-layer/media/playbackClientEvents", () => ({
+  loadAdminPlaybackClientHealthMetrics: loadAdminPlaybackClientHealthMetricsMock,
+}));
+
 vi.mock("@/app-layer/media/adminTranscodeHealthMetrics", () => ({
   loadAdminTranscodeHealthMetrics: loadAdminTranscodeHealthMetricsMock,
 }));
@@ -129,12 +138,43 @@ describe("GET /api/admin/system-health", () => {
     poolQueryMock.mockReset();
     mockPoolPreviewOnly();
     loadAdminPlaybackHealthMetricsMock.mockReset();
+    loadAdminPlaybackClientHealthMetricsMock.mockReset();
+    loadAdminPlaybackClientHealthMetricsMock.mockResolvedValue({
+      windowHours: 24,
+      totalErrors: 0,
+      totalErrorsLast1h: 0,
+      byEvent: {
+        hls_fatal: 0,
+        video_error: 0,
+        hls_import_failed: 0,
+        playback_refetch_failed: 0,
+        playback_refetch_exception: 0,
+        hls_js_unsupported: 0,
+      },
+      byEventLast1h: {
+        hls_fatal: 0,
+        video_error: 0,
+        hls_import_failed: 0,
+        playback_refetch_failed: 0,
+        playback_refetch_exception: 0,
+        hls_js_unsupported: 0,
+      },
+      byDelivery: { hls: 0, mp4: 0, file: 0 },
+      likelyLooping: false,
+      recent: [],
+    });
     loadAdminTranscodeHealthMetricsMock.mockReset();
     loadAdminTranscodeHealthMetricsMock.mockResolvedValue(zeroTranscodeMetrics);
     listOpenIncidentsMock.mockReset();
     listBackupJobStatusMock.mockReset();
+    getOutgoingDeliveryQueueHealthMock.mockReset();
     listOpenIncidentsMock.mockResolvedValue([]);
     listBackupJobStatusMock.mockResolvedValue([]);
+    getOutgoingDeliveryQueueHealthMock.mockResolvedValue({
+      dueBacklog: 0,
+      deadTotal: 0,
+      oldestDueAgeSeconds: null,
+    });
     globalThis.fetch = originalFetch;
   });
 
@@ -191,6 +231,7 @@ describe("GET /api/admin/system-health", () => {
       };
       operatorIncidentsOpen: unknown[];
       backupJobs: Record<string, unknown>;
+      outgoingDelivery: { dueBacklog: number; deadTotal: number; oldestDueAgeSeconds: number | null };
       meta?: {
         probes?: {
           projection?: { status: string; durationMs: number };
@@ -198,6 +239,7 @@ describe("GET /api/admin/system-health", () => {
           videoTranscode?: { status: string; durationMs: number };
           operatorIncidents?: { status: string; durationMs: number; errorCode?: string };
           operatorBackupJobs?: { status: string; durationMs: number; errorCode?: string };
+          outgoingDelivery?: { status: string; durationMs: number; errorCode?: string };
         };
       };
       fetchedAt: string;
@@ -221,8 +263,10 @@ describe("GET /api/admin/system-health", () => {
     expect(body.meta?.probes?.videoTranscode?.status).toBe("ok");
     expect(body.operatorIncidentsOpen).toEqual([]);
     expect(body.backupJobs).toEqual({});
+    expect(body.outgoingDelivery).toEqual({ dueBacklog: 0, deadTotal: 0, oldestDueAgeSeconds: null });
     expect(body.meta?.probes?.operatorIncidents?.status).toBe("ok");
     expect(body.meta?.probes?.operatorBackupJobs?.status).toBe("ok");
+    expect(body.meta?.probes?.outgoingDelivery?.status).toBe("ok");
     expect(loggerInfoMock).toHaveBeenCalled();
   });
 

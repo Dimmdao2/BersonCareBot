@@ -24,8 +24,16 @@ export type OperatorBackupJobStatusRow = {
   lastError: string | null;
 };
 
+export type OutgoingDeliveryQueueHealthSnapshot = {
+  dueBacklog: number;
+  deadTotal: number;
+  oldestDueAgeSeconds: number | null;
+};
+
 export type OperatorHealthReadPort = {
   listOpenIncidents(limit: number): Promise<OperatorIncidentOpenRow[]>;
   /** Строки `operator_job_status` с `job_family = backup` (ключи `backup.hourly`, …). */
   listBackupJobStatus(): Promise<OperatorBackupJobStatusRow[]>;
+  /** Метрики `public.outgoing_delivery_queue` для админских health-экранов. */
+  getOutgoingDeliveryQueueHealth(): Promise<OutgoingDeliveryQueueHealthSnapshot>;
 };

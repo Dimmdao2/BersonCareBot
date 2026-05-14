@@ -4,6 +4,7 @@
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { getOnlineIntakeService } from "@/app-layer/di/onlineIntakeDeps";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
+import { loadAdminDoctorTodayHealthBanner } from "@/modules/operator-health/adminDoctorTodayHealthBanner";
 import { AppShell } from "@/shared/ui/AppShell";
 import { DoctorTodayDashboard } from "./DoctorTodayDashboard";
 import { loadDoctorTodayDashboard } from "./loadDoctorTodayDashboard";
@@ -20,10 +21,12 @@ export default async function DoctorPage() {
     },
     intakeService,
   );
+  const adminHealthBanner =
+    session.user.role === "admin" ? await loadAdminDoctorTodayHealthBanner(deps.operatorHealthRead) : undefined;
 
   return (
     <AppShell title="Сегодня" user={session.user} variant="doctor">
-      <DoctorTodayDashboard data={data} />
+      <DoctorTodayDashboard data={data} adminHealthBanner={adminHealthBanner} />
     </AppShell>
   );
 }

@@ -16,7 +16,6 @@ import {
   VIDEO_PRESIGN_TTL_MIN_SEC,
 } from "@/modules/media/videoPresignTtlConstants";
 import { SettingsForm } from "./SettingsForm";
-import { AdminModeToggle } from "./AdminModeToggle";
 import { AdminSettingsTabsClient } from "./AdminSettingsTabsClient";
 import { AdminSettingsSection, type IntegratorLinkedPhoneSource } from "./AdminSettingsSection";
 import {
@@ -100,10 +99,9 @@ export default async function SettingsPage({
     true
   );
 
-  const adminMode = session.adminMode ?? false;
   const isAdmin = session.user.role === "admin";
 
-  const adminSettingsList = isAdmin && adminMode
+  const adminSettingsList = isAdmin
     ? await deps.systemSettings.listSettingsByScope("admin")
     : [];
 
@@ -112,7 +110,7 @@ export default async function SettingsPage({
     return typeof raw === "string" ? raw.trim() : "";
   }
 
-  const adminSettings = isAdmin && adminMode
+  const adminSettings = isAdmin
     ? {
         devMode: Boolean(getValueJson(adminSettingsList.find((x) => x.key === "dev_mode")?.valueJson, false)),
         debugForwardToAdmin: Boolean(getValueJson(adminSettingsList.find((x) => x.key === "debug_forward_to_admin")?.valueJson, false)),
@@ -171,7 +169,7 @@ export default async function SettingsPage({
     : null;
 
   const videoSystemSettingsProps =
-    isAdmin && adminMode
+    isAdmin
       ? {
           initialPlaybackApiEnabled: parseVideoBoolSetting(
             adminSettingsList.find((x) => x.key === "video_playback_api_enabled")?.valueJson,
@@ -197,7 +195,7 @@ export default async function SettingsPage({
         }
       : null;
 
-  const appParametersConfig = isAdmin && adminMode
+  const appParametersConfig = isAdmin
     ? {
         appBaseUrl: (() => {
           const raw = getValueJson(adminSettingsList.find((x) => x.key === "app_base_url")?.valueJson, "");
@@ -217,7 +215,7 @@ export default async function SettingsPage({
       }
     : null;
 
-  const authProvidersConfig = isAdmin && adminMode
+  const authProvidersConfig = isAdmin
     ? {
         telegramLoginBotUsername: (() => {
           const raw = getValueJson(
@@ -270,7 +268,7 @@ export default async function SettingsPage({
       }
     : null;
 
-  const googleCalendarConfig = isAdmin && adminMode
+  const googleCalendarConfig = isAdmin
     ? {
         googleClientId: adminStr("google_client_id"),
         googleClientSecret: adminStr("google_client_secret"),
@@ -286,7 +284,7 @@ export default async function SettingsPage({
     : null;
 
   const notificationsTopicsRows =
-    isAdmin && adminMode
+    isAdmin
       ? parseNotificationsTopics(adminSettingsList.find((x) => x.key === "notifications_topics")?.valueJson ?? null)
       : [];
 
@@ -298,11 +296,9 @@ export default async function SettingsPage({
         smsFallbackEnabled={Boolean(smsFallbackEnabled)}
       />
       {isAdmin && (
-        <div className="mt-6">
-          <AdminModeToggle adminMode={adminMode} />
-        </div>
+        <p className="mt-6 text-sm text-muted-foreground">Режим администратора активен.</p>
       )}
-      {isAdmin && adminMode && adminSettings && (
+      {isAdmin && adminSettings && (
         <div className="mt-6">
           <AdminSettingsTabsClient
             initialTab={adminTab}

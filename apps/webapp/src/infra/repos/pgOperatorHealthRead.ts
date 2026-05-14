@@ -1,10 +1,12 @@
-import { desc, eq, isNull } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, isNull, lte, sql } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import { operatorIncidents, operatorJobStatus } from "../../../db/schema/operatorHealth";
+import { outgoingDeliveryQueue } from "../../../db/schema/outgoingDeliveryQueue";
 import type {
   OperatorBackupJobStatusRow,
   OperatorHealthReadPort,
   OperatorIncidentOpenRow,
+  OutgoingDeliveryQueueHealthSnapshot,
 } from "@/modules/operator-health/ports";
 
 export const pgOperatorHealthReadPort: OperatorHealthReadPort = {
@@ -69,5 +71,37 @@ export const pgOperatorHealthReadPort: OperatorHealthReadPort = {
       lastDurationMs: r.lastDurationMs ?? null,
       lastError: r.lastError ?? null,
     }));
+  },
+
+  async getOutgoingDeliveryQueueHealth(): Promise<OutgoingDeliveryQueueHealthSnapshot> {
+    const db = getDrizzle();
+    const dueWh = and(
+      inArray(outgoingDeliveryQueue.status, ["pending", "failed_retryable"]),
+      lte(outgoingDeliveryQueue.nextRetryAt, sql`now()`),
+    );
+    const [dueRow] = await db.select({ c: count() }).from(outgoingDeliveryQueue).where(dueWh);
+    const [deadRow] = await db
+      .select({ c: count() })
+      .from(outgoingDeliveryQueue)
+      .where(eq(outgoingDeliveryQueue.status, "dead"));
+    const oldestRows = await db
+      .select({ createdAt: outgoingDeliveryQueue.createdAt })
+      .from(outgoingDeliveryQueue)
+      .where(dueWh)
+      .orderBy(asc(outgoingDeliveryQueue.createdAt))
+      .limit(1);
+    const oldestAt = oldestRows[0]?.createdAt;
+    let oldestDueAgeSeconds: number | null = null;
+    if (oldestAt) {
+      const t = new Date(oldestAt).getTime();
+      if (!Number.isNaN(t)) {
+        oldestDueAgeSeconds = Math.max(0, Math.floor((Date.now() - t) / 1000));
+      }
+    }
+    return {
+      dueBacklog: Number(dueRow?.c ?? 0),
+      deadTotal: Number(deadRow?.c ?? 0),
+      oldestDueAgeSeconds,
+    };
   },
 };

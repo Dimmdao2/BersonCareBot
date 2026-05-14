@@ -1059,6 +1059,55 @@ export const mediaPlaybackUserVideoFirstResolve = pgTable(
 	],
 );
 
+/** Client-side playback error telemetry (HLS runtime failures in browsers/webviews). */
+export const mediaPlaybackClientEvents = pgTable(
+	"media_playback_client_events",
+	{
+		id: uuid().defaultRandom().primaryKey().notNull(),
+		mediaId: uuid("media_id").notNull(),
+		userId: uuid("user_id").notNull(),
+		eventClass: text("event_class").notNull(),
+		delivery: text(),
+		errorDetail: text("error_detail"),
+		userAgent: text("user_agent"),
+		createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+	},
+	(table) => [
+		index("idx_media_playback_client_events_created_at").using(
+			"btree",
+			table.createdAt.desc().nullsFirst().op("timestamptz_ops"),
+		),
+		index("idx_media_playback_client_events_event_time").using(
+			"btree",
+			table.eventClass.asc().nullsLast().op("text_ops"),
+			table.createdAt.desc().nullsFirst().op("timestamptz_ops"),
+		),
+		index("idx_media_playback_client_events_media_time").using(
+			"btree",
+			table.mediaId.asc().nullsLast().op("uuid_ops"),
+			table.createdAt.desc().nullsFirst().op("timestamptz_ops"),
+		),
+		foreignKey({
+			columns: [table.userId],
+			foreignColumns: [platformUsers.id],
+			name: "media_playback_client_events_user_id_fkey",
+		}).onDelete("cascade"),
+		foreignKey({
+			columns: [table.mediaId],
+			foreignColumns: [mediaFiles.id],
+			name: "media_playback_client_events_media_id_fkey",
+		}).onDelete("cascade"),
+		check(
+			"media_playback_client_events_event_class_check",
+			sql`event_class = ANY (ARRAY['hls_fatal'::text, 'video_error'::text, 'hls_import_failed'::text, 'playback_refetch_failed'::text, 'playback_refetch_exception'::text, 'hls_js_unsupported'::text])`,
+		),
+		check(
+			"media_playback_client_events_delivery_check",
+			sql`(delivery IS NULL) OR (delivery = ANY (ARRAY['hls'::text, 'mp4'::text, 'file'::text]))`,
+		),
+	],
+);
+
 export const bookingBranches = pgTable("booking_branches", {
 	id: uuid().defaultRandom().primaryKey().notNull(),
 	cityId: uuid("city_id").notNull(),

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../../config/appTimezone.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../../config/appTimezone.js')>();
@@ -7,6 +7,11 @@ vi.mock('../../../config/appTimezone.js', async (importOriginal) => {
     getAppDisplayTimezone: vi.fn(() => Promise.resolve('Europe/Moscow')),
   };
 });
+
+const enqueueReminderOutboxMock = vi.hoisted(() => vi.fn().mockResolvedValue(true));
+vi.mock('../../../infra/db/repos/outgoingDeliveryQueue.js', () => ({
+  enqueueOutgoingDeliveryIfAbsent: enqueueReminderOutboxMock,
+}));
 
 import type { Action, DbReadPort, DomainContext } from '../../contracts/index.js';
 import { executeAction } from './executeAction.js';
@@ -2756,6 +2761,10 @@ describe('executeAction', () => {
   });
 
   describe('reminders.dispatchDue', () => {
+    beforeEach(() => {
+      enqueueReminderOutboxMock.mockClear();
+    });
+
     const baseRule = {
       id: 'rule-1',
       userId: 'user-1',
@@ -2816,8 +2825,10 @@ describe('executeAction', () => {
         topic: 'exercise_reminders',
       });
       const sends = result.intents?.filter((i) => i.type === 'message.send') ?? [];
-      expect(sends).toHaveLength(1);
-      expect((sends[0]?.meta as { source?: string }).source).toBe('max');
+      expect(sends).toHaveLength(0);
+      expect(enqueueReminderOutboxMock).toHaveBeenCalled();
+      const firstCall = enqueueReminderOutboxMock.mock.calls[0]?.[1] as { channel?: string } | undefined;
+      expect(firstCall?.channel).toBe('max');
     });
   });
 });

@@ -1,13 +1,22 @@
 import Link from "next/link";
+import type { AdminDoctorTodayHealthBanner } from "@/modules/operator-health/adminDoctorTodayHealthBanner";
 import { ON_SUPPORT_LIST_HREF, type TodayDashboardData } from "./loadDoctorTodayDashboard";
 
 type Props = {
   data: TodayDashboardData;
+  adminHealthBanner?: AdminDoctorTodayHealthBanner;
 };
 
-export function DoctorTodayDashboard({ data }: Props) {
+export function DoctorTodayDashboard({ data, adminHealthBanner }: Props) {
   return (
     <div id="doctor-today-dashboard" className="flex flex-col gap-3">
+      {adminHealthBanner?.show ? (
+        <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm">
+          <Link href={adminHealthBanner.href} className="font-medium text-primary underline underline-offset-2">
+            {adminHealthBanner.title}
+          </Link>
+        </div>
+      ) : null}
       <header
         id="doctor-today-header"
         className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between"

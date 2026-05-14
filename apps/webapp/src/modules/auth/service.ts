@@ -66,11 +66,16 @@ function safeEqual(a: string, b: string): boolean {
 function buildSession(user: SessionUser): AppSession {
   const now = Math.floor(Date.now() / 1000);
   const ttl = user.role === "doctor" ? SESSION_TTL_DOCTOR_SECONDS : SESSION_TTL_SECONDS;
-  return {
+  const base: AppSession = {
     user,
     issuedAt: now,
     expiresAt: now + ttl,
   };
+  return user.role === "admin" ? { ...base, adminMode: true } : base;
+}
+
+function ensureAdminMode(session: AppSession): AppSession {
+  return session.user.role === "admin" ? { ...session, adminMode: true } : session;
 }
 
 function cookieMaxAgeSeconds(session: AppSession): number {
@@ -822,12 +827,12 @@ export async function getCurrentSession(): Promise<AppSession | null> {
   const phone = session.user.phone?.trim();
   const telegramId = session.user.bindings?.telegramId?.trim();
   const maxId = session.user.bindings?.maxId?.trim();
-  if (!phone && !telegramId && !maxId) return session;
+  if (!phone && !telegramId && !maxId) return ensureAdminMode(session);
 
-  if (isDevBypassSession) return session;
+  if (isDevBypassSession) return ensureAdminMode(session);
 
   const envRole = await resolveRoleAsync({ phone, telegramId, maxId });
-  if (session.user.role === envRole) return session;
+  if (session.user.role === envRole) return ensureAdminMode(session);
 
   const nextUser = { ...session.user, role: envRole };
   const nextSession: AppSession = {
@@ -849,7 +854,7 @@ export async function getCurrentSession(): Promise<AppSession | null> {
   // Cookie update skipped intentionally: mutating cookies in Server Component render
   // is forbidden by Next.js. The role is correct in the returned session object;
   // the cookie will be rewritten on the next Server Action or login.
-  return nextSession;
+  return ensureAdminMode(nextSession);
 }
 
 export async function clearSession(): Promise<void> {
@@ -870,8 +875,7 @@ export async function toggleAdminMode(): Promise<{ ok: boolean; adminMode?: bool
   const session = raw ? decodeSession(raw) : null;
   if (!session || session.user.role !== "admin") return { ok: false };
 
-  const nextAdminMode = !session.adminMode;
-  const nextSession: AppSession = { ...session, adminMode: nextAdminMode };
+  const nextSession: AppSession = ensureAdminMode({ ...session, adminMode: true });
 
   cookieStore.set(SESSION_COOKIE_NAME, encodeSession(nextSession), {
     httpOnly: true,
@@ -881,7 +885,7 @@ export async function toggleAdminMode(): Promise<{ ok: boolean; adminMode?: bool
     maxAge: cookieMaxAgeSeconds(nextSession),
   });
 
-  return { ok: true, adminMode: nextAdminMode };
+  return { ok: true, adminMode: true };
 }
 
 /**

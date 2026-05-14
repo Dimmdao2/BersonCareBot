@@ -11,4 +11,5 @@ export * from "./courses";
 export * from "./patientPractice";
 export * from "./patientDiarySnapshots";
 export * from "./operatorHealth";
+export * from "./outgoingDeliveryQueue";
 export * from "./relations";

@@ -14,6 +14,8 @@ import {
 } from '../helpers.js';
 import { randomUUID } from 'node:crypto';
 import { createDbPort } from '../../../../infra/db/client.js';
+import { enqueueOutgoingDeliveryIfAbsent } from '../../../../infra/db/repos/outgoingDeliveryQueue.js';
+import { DEFAULT_REMINDER_DELIVERY_MAX_ATTEMPTS } from '../../../../infra/delivery/deliveryContract.js';
 import { getAppDisplayTimezone } from '../../../../config/appTimezone.js';
 import {
   buildDefaultReminderRule,
@@ -246,18 +248,22 @@ export async function handleReminders(
     });
     const items = Array.isArray(dueList) ? dueList : [];
     const writes: import('../../../contracts/index.js').DbWriteMutation[] = [];
-    const intents: import('../../../contracts/index.js').OutgoingIntent[] = [];
+    const pendingEnqueues: Array<{
+      eventId: string;
+      channel: string;
+      payloadJson: Record<string, unknown>;
+    }> = [];
     const linkedTitleCache = new Map<string, string | null>();
-    const db = process.env.NODE_ENV === 'test' ? null : createDbPort();
+    const catalogDb = process.env.NODE_ENV === 'test' ? null : createDbPort();
 
     async function resolveLinkedTitle(rule: ReminderRuleRecord | undefined): Promise<string | null> {
-      if (!db || !rule?.linkedObjectType || !rule?.linkedObjectId) return null;
+      if (!catalogDb || !rule?.linkedObjectType || !rule?.linkedObjectId) return null;
       if (rule.linkedObjectType !== 'content_page' && rule.linkedObjectType !== 'content_section') return null;
       const cacheKey = `${rule.linkedObjectType}:${rule.linkedObjectId}`;
       if (linkedTitleCache.has(cacheKey)) return linkedTitleCache.get(cacheKey) ?? null;
       try {
         if (rule.linkedObjectType === 'content_page') {
-          const res = await db.query<{ title: string }>(
+          const res = await catalogDb.query<{ title: string }>(
             `SELECT title
              FROM public.content_pages
              WHERE slug = $1
@@ -271,7 +277,7 @@ export async function handleReminders(
           linkedTitleCache.set(cacheKey, val);
           return val;
         }
-        const res = await db.query<{ title: string }>(
+        const res = await catalogDb.query<{ title: string }>(
           `SELECT title
            FROM public.content_sections
            WHERE slug = $1
@@ -411,8 +417,8 @@ export async function handleReminders(
           ).text
           : `${escapeReminderHtml(reminderTitle)}${reminderBody ? `\n\n${reminderBody}` : ''}`;
         const deliveryLogId = `rdl:${occ.id}:${channel}`;
-        intents.push({
-          type: 'message.send',
+        const intent = {
+          type: 'message.send' as const,
           meta: {
             eventId: `${ctx.event.meta.eventId}:reminder:${occ.id}:${channel}`,
             occurredAt: dueNowIso,
@@ -426,22 +432,37 @@ export async function handleReminders(
             parse_mode: 'HTML',
             delivery: { channels: [channel], maxAttempts: 1 },
           },
-        });
-        writes.push({
-          type: 'reminders.delivery.log',
-          params: {
-            id: deliveryLogId,
+        };
+        const eventId = `rem:${occ.id}:${channel}`.slice(0, 240);
+        pendingEnqueues.push({
+          eventId,
+          channel,
+          payloadJson: {
             occurrenceId: occ.id,
             channel,
-            status: 'success',
-            payloadJson: { chatId: externalId, text },
+            deliveryLogId,
+            externalId,
+            logText: text,
+            intent,
           },
         });
       }
     }
 
     await persistWrites(deps.writePort, writes);
-    return { actionId: action.id, status: 'success', writes, intents };
+    if (pendingEnqueues.length > 0) {
+      const enqueueDb = createDbPort();
+      for (const row of pendingEnqueues) {
+        await enqueueOutgoingDeliveryIfAbsent(enqueueDb, {
+          eventId: row.eventId,
+          kind: 'reminder_dispatch',
+          channel: row.channel,
+          payloadJson: row.payloadJson,
+          maxAttempts: DEFAULT_REMINDER_DELIVERY_MAX_ATTEMPTS,
+        });
+      }
+    }
+    return { actionId: action.id, status: 'success', writes, intents: [] };
   }
 
   if (action.type === 'reminders.snooze.callback') {

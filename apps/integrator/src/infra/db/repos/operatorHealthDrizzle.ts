@@ -73,6 +73,20 @@ export async function markOperatorIncidentAlertSent(incidentId: string): Promise
     .where(eq(operatorIncidents.id, incidentId));
 }
 
+export async function getOperatorIncidentAlertState(
+  incidentId: string,
+): Promise<{ alertSentAt: string | null } | null> {
+  const db = getIntegratorDrizzle();
+  const rows = await db
+    .select({ alertSentAt: operatorIncidents.alertSentAt })
+    .from(operatorIncidents)
+    .where(eq(operatorIncidents.id, incidentId))
+    .limit(1);
+  const r = rows[0];
+  if (!r) return null;
+  return { alertSentAt: r.alertSentAt ?? null };
+}
+
 /**
  * Закрыть все открытые инциденты, чей dedup_key начинается с префикса (MVP: resolve проб MAX/Rubitime).
  */

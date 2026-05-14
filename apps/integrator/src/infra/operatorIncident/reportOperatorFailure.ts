@@ -1,12 +1,14 @@
 import type { DispatchPort, OutgoingIntent } from '../../kernel/contracts/index.js';
 import { telegramConfig } from '../../integrations/telegram/config.js';
 import {
-  markOperatorIncidentAlertSent,
   openOrTouchOperatorIncident,
 } from '../db/repos/operatorHealthDrizzle.js';
+import { createDbPort } from '../db/client.js';
+import { enqueueOutgoingDeliveryIfAbsent } from '../db/repos/outgoingDeliveryQueue.js';
+import { OPERATOR_ALERT_DELIVERY_MAX_ATTEMPTS } from '../delivery/deliveryContract.js';
 
 export type ReportOperatorFailureInput = {
-  /** When omitted, incident is still recorded; Telegram alert is skipped. */
+  /** @deprecated Оставлено для совместимости вызовов; доставка идёт через `outgoing_delivery_queue`. */
   dispatchPort?: DispatchPort;
   direction: string;
   integration: string;
@@ -20,7 +22,7 @@ function buildDedupKey(direction: string, integration: string, errorClass: strin
 }
 
 /**
- * Открыть/обновить операторский инцидент; при первом открытии (occurrence_count === 1) — один Telegram админу.
+ * Открыть/обновить операторский инцидент; при первом открытии (occurrence_count === 1) — поставить TG-алерт в очередь доставки.
  */
 export async function reportOperatorFailure(input: ReportOperatorFailureInput): Promise<void> {
   const dedupKey = buildDedupKey(input.direction, input.integration, input.errorClass);
@@ -33,9 +35,6 @@ export async function reportOperatorFailure(input: ReportOperatorFailureInput): 
   });
 
   if (occurrenceCount !== 1) return;
-
-  const dispatchPort = input.dispatchPort;
-  if (!dispatchPort) return;
 
   const adminId = telegramConfig.adminTelegramId;
   if (typeof adminId !== 'number' || !Number.isFinite(adminId)) return;
@@ -54,10 +53,14 @@ export async function reportOperatorFailure(input: ReportOperatorFailureInput): 
       delivery: { channels: ['telegram'], maxAttempts: 1 },
     },
   };
-  try {
-    await dispatchPort.dispatchOutgoing(intent);
-    await markOperatorIncidentAlertSent(id);
-  } catch {
-    // best-effort alert; alert_sent_at stays null — повторный dedup может не ретраить TG в MVP
-  }
+
+  const db = createDbPort();
+  const eventId = `op-alert:${id}`.slice(0, 240);
+  await enqueueOutgoingDeliveryIfAbsent(db, {
+    eventId,
+    kind: 'operator_alert',
+    channel: 'telegram',
+    payloadJson: { incidentId: id, intent },
+    maxAttempts: OPERATOR_ALERT_DELIVERY_MAX_ATTEMPTS,
+  });
 }

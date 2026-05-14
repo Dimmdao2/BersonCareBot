@@ -85,6 +85,8 @@ function PlaybackEngine({
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<{ destroy: () => void } | null>(null);
   const autoFallbackUsedRef = useRef(false);
+  const hlsRefreshAttemptedRef = useRef(false);
+  const lastIssueReportAtRef = useRef<Record<string, number>>({});
 
   const [payload, setPayload] = useState<MediaPlaybackPayload>(initialPayload);
   const [sourceKind, setSourceKind] = useState<"hls" | "mp4">(() =>
@@ -105,6 +107,32 @@ function PlaybackEngine({
       return null;
     }
   }, [mediaId]);
+
+  const reportPlaybackIssue = useCallback(
+    (input: { eventClass: string; delivery?: "hls" | "mp4" | "file"; errorDetail?: string }) => {
+      const key = `${input.eventClass}:${input.delivery ?? "na"}`;
+      const now = Date.now();
+      const prev = lastIssueReportAtRef.current[key] ?? 0;
+      // Protect backend from burst loops while still keeping diagnostic signal.
+      if (now - prev < 15_000) return;
+      lastIssueReportAtRef.current[key] = now;
+
+      void fetch(`/api/media/${encodeURIComponent(mediaId)}/playback/events`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          eventClass: input.eventClass,
+          delivery: input.delivery,
+          errorDetail: input.errorDetail,
+        }),
+        keepalive: true,
+      }).catch(() => {
+        // Diagnostics are best-effort and must never affect playback UX.
+      });
+    },
+    [mediaId],
+  );
 
   useEffect(() => {
     if (sourceKind !== "hls" || !payload.hls?.masterUrl) return;
@@ -149,6 +177,29 @@ function PlaybackEngine({
       return true;
     };
 
+    const tryRefreshHlsOnceThenFallback = async () => {
+      // One HLS refresh is enough for expired presigned URLs; repeated fatal loops should stop at MP4.
+      if (hlsRefreshAttemptedRef.current) {
+        if (!tryMp4Fallback()) {
+          reportPlaybackIssue({ eventClass: "hls_fatal", delivery: "hls", errorDetail: "refresh_exhausted" });
+          finishError("Не удалось воспроизвести видео.");
+        }
+        return;
+      }
+
+      hlsRefreshAttemptedRef.current = true;
+      const next = await fetchPlaybackJson();
+      if (next && next.hls?.masterUrl && initialPlaybackSourceKind(next) === "hls") {
+        setPayload(next);
+        setSourceKind("hls");
+        return;
+      }
+      if (!tryMp4Fallback()) {
+        reportPlaybackIssue({ eventClass: "hls_fatal", delivery: "hls", errorDetail: "refresh_no_hls_payload" });
+        finishError("Не удалось воспроизвести видео.");
+      }
+    };
+
     const finishLoadOk = () => {
       if (!cancelled) setLoading(false);
     };
@@ -178,6 +229,7 @@ function PlaybackEngine({
         if (!Hls.isSupported()) {
           attachProgressive(video, progressive, posterUrl);
           patientPlaybackDiag({ event: "hls_js_unsupported", mediaId });
+          reportPlaybackIssue({ eventClass: "hls_js_unsupported", delivery: "hls" });
           return;
         }
 
@@ -204,54 +256,32 @@ function PlaybackEngine({
             delivery: "hls",
             detail: data.type,
           });
+          reportPlaybackIssue({ eventClass: "hls_fatal", delivery: "hls", errorDetail: data.type });
           destroyHls();
-          void (async () => {
-            const next = await fetchPlaybackJson();
-            if (
-              next &&
-              next.hls?.masterUrl &&
-              initialPlaybackSourceKind(next) === "hls"
-            ) {
-              setPayload(next);
-              setSourceKind("hls");
-              autoFallbackUsedRef.current = false;
-              return;
-            }
-            if (!tryMp4Fallback()) {
-              finishError("Не удалось воспроизвести видео.");
-            }
-          })();
+          void tryRefreshHlsOnceThenFallback();
         });
       } catch (e) {
         if (cancelled) return;
         patientPlaybackDiag({ event: "hls_import_failed", mediaId, detail: String(e) });
+        reportPlaybackIssue({ eventClass: "hls_import_failed", delivery: "hls", errorDetail: String(e) });
         if (!tryMp4Fallback()) {
           finishError("Не удалось воспроизвести видео.");
         }
       }
     })();
 
-    const onLoaded = () => finishLoadOk();
+    const onLoaded = () => {
+      if (sourceKind === "hls") {
+        hlsRefreshAttemptedRef.current = false;
+      }
+      finishLoadOk();
+    };
     const onVideoError = () => {
       if (cancelled) return;
       patientPlaybackDiag({ event: "video_error", mediaId, delivery: sourceKind });
+      reportPlaybackIssue({ eventClass: "video_error", delivery: sourceKind });
       if (sourceKind === "hls") {
-        void (async () => {
-          const next = await fetchPlaybackJson();
-          if (
-            next &&
-            next.hls?.masterUrl &&
-            initialPlaybackSourceKind(next) === "hls"
-          ) {
-            setPayload(next);
-            setSourceKind("hls");
-            autoFallbackUsedRef.current = false;
-            return;
-          }
-          if (!tryMp4Fallback()) {
-            finishError("Не удалось воспроизвести видео.");
-          }
-        })();
+        void tryRefreshHlsOnceThenFallback();
         return;
       }
       if (!tryMp4Fallback()) {
@@ -272,13 +302,14 @@ function PlaybackEngine({
       while (video.firstChild) video.removeChild(video.firstChild);
       video.load();
     };
-  }, [destroyHls, fetchPlaybackJson, mediaId, mp4Url, payload, sourceKind]);
+  }, [destroyHls, fetchPlaybackJson, mediaId, mp4Url, payload, reportPlaybackIssue, sourceKind]);
 
   const onRetry = useCallback(async () => {
     setRetryBusy(true);
     setError(null);
     setLoading(true);
     autoFallbackUsedRef.current = false;
+    hlsRefreshAttemptedRef.current = false;
     try {
       const next = await fetchPlaybackJson();
       if (!next) {
@@ -286,6 +317,11 @@ function PlaybackEngine({
           event: "playback_refetch_failed",
           mediaId,
           detail: "no_body",
+        });
+        reportPlaybackIssue({
+          eventClass: "playback_refetch_failed",
+          delivery: sourceKind,
+          errorDetail: "no_body",
         });
         setError("Не удалось загрузить параметры воспроизведения.");
         setLoading(false);
@@ -295,12 +331,13 @@ function PlaybackEngine({
       setSourceKind(initialPlaybackSourceKind(next));
     } catch {
       patientPlaybackDiag({ event: "playback_refetch_exception", mediaId });
+      reportPlaybackIssue({ eventClass: "playback_refetch_exception", delivery: sourceKind });
       setError("Не удалось загрузить параметры воспроизведения.");
       setLoading(false);
     } finally {
       setRetryBusy(false);
     }
-  }, [fetchPlaybackJson, mediaId]);
+  }, [fetchPlaybackJson, mediaId, reportPlaybackIssue, sourceKind]);
 
   return (
     <div

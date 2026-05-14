@@ -5,8 +5,11 @@ import { getAppBaseUrl } from '../../../config/appBaseUrl.js';
 import { createWebappEventsPort } from '../../adapters/webappEventsClient.js';
 import { createDbPort } from '../../db/client.js';
 import { logger } from '../../observability/logger.js';
+import { createDbReadPort } from '../../db/readPort.js';
+import { createDbWritePort } from '../../db/writePort.js';
 import { runWorkerTick } from './runner.js';
 import { runProjectionWorkerTick } from './projectionWorker.js';
+import { runOutgoingDeliveryWorkerTick } from './outgoingDeliveryWorker.js';
 
 async function sleep(ms: number): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, ms));
@@ -24,6 +27,9 @@ async function startWorker(): Promise<void> {
     retryDelaySeconds: appSettings.runtime.worker.retryDelaySeconds,
   });
   const batchSize = Math.max(1, Math.trunc(appSettings.runtime.worker.batchSize));
+  const deliveryDb = createDbPort();
+  const deliveryReadPort = createDbReadPort({ db: deliveryDb });
+  const deliveryWritePort = createDbWritePort({ db: deliveryDb, readPort: deliveryReadPort });
 
   logger.info('Runtime worker started');
 
@@ -62,6 +68,21 @@ async function startWorker(): Promise<void> {
           await runProjectionWorkerTick(projectionDb, webappEvents);
         } catch (err) {
           logger.error({ err }, 'Projection worker tick failed');
+        }
+        await sleep(pollIntervalMs);
+      }
+    })(),
+    (async function outgoingDeliveryLoop(): Promise<void> {
+      while (true) {
+        try {
+          await runOutgoingDeliveryWorkerTick({
+            db: deliveryDb,
+            writePort: deliveryWritePort,
+            dispatchOutgoing: (intent) => deps.dispatchPort.dispatchOutgoing(intent),
+            batchSize,
+          });
+        } catch (err) {
+          logger.error({ err }, 'Outgoing delivery worker tick failed');
         }
         await sleep(pollIntervalMs);
       }

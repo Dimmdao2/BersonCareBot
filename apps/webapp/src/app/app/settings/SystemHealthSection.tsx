@@ -62,6 +62,11 @@ type SystemHealthPayload = {
       lastError: string | null;
     }
   >;
+  outgoingDelivery?: {
+    dueBacklog: number;
+    deadTotal: number;
+    oldestDueAgeSeconds: number | null;
+  };
   /** VIDEO_HLS_DELIVERY: hourly playback aggregates (UTC), rolling window. */
   videoPlayback: {
     status: "ok" | "error";
@@ -75,6 +80,43 @@ type SystemHealthPayload = {
     byDeliveryLast1h?: { hls: number; mp4: number; file: number };
     fallbackTotalLast1h?: number;
     totalResolutionsLast1h?: number;
+  };
+  videoPlaybackClient?: {
+    status: "ok" | "degraded" | "error";
+    windowHours: number;
+    totalErrors: number;
+    totalErrorsLast1h: number;
+    byEvent: {
+      hls_fatal: number;
+      video_error: number;
+      hls_import_failed: number;
+      playback_refetch_failed: number;
+      playback_refetch_exception: number;
+      hls_js_unsupported: number;
+    };
+    byEventLast1h: {
+      hls_fatal: number;
+      video_error: number;
+      hls_import_failed: number;
+      playback_refetch_failed: number;
+      playback_refetch_exception: number;
+      hls_js_unsupported: number;
+    };
+    byDelivery: { hls: number; mp4: number; file: number };
+    likelyLooping: boolean;
+    recent: Array<{
+      createdAt: string;
+      mediaId: string;
+      eventClass:
+        | "hls_fatal"
+        | "video_error"
+        | "hls_import_failed"
+        | "playback_refetch_failed"
+        | "playback_refetch_exception"
+        | "hls_js_unsupported";
+      delivery: "hls" | "mp4" | "file" | null;
+      errorDetail: string | null;
+    }>;
   };
   videoTranscode: {
     status: "ok" | "error";
@@ -94,9 +136,11 @@ type SystemHealthPayload = {
       projection?: { status: string; durationMs: number; errorCode?: string };
       mediaPreview?: { status: string; durationMs: number; errorCode?: string };
       videoPlayback?: { status: string; durationMs: number; errorCode?: string };
+      videoPlaybackClient?: { status: string; durationMs: number; errorCode?: string };
       videoTranscode?: { status: string; durationMs: number; errorCode?: string };
       operatorIncidents?: { status: string; durationMs: number; errorCode?: string };
       operatorBackupJobs?: { status: string; durationMs: number; errorCode?: string };
+      outgoingDelivery?: { status: string; durationMs: number; errorCode?: string };
     };
   };
   fetchedAt: string;
@@ -504,6 +548,59 @@ export function SystemHealthSection() {
                 </>
               )}
               <ProbeInfo probe={data?.meta?.probes?.videoPlayback} />
+
+              <div className="mt-2 rounded border border-border/50 p-2">
+                <p className="mb-1 font-medium text-foreground">Ошибки плеера на клиентах (HLS runtime)</p>
+                <DetailRow
+                  label="Статус"
+                  value={
+                    data?.videoPlaybackClient?.status === "ok"
+                      ? "ошибок в последний час нет"
+                      : data?.videoPlaybackClient?.status === "degraded"
+                        ? "есть ошибки в последний час"
+                        : "диагностика недоступна"
+                  }
+                />
+                <DetailRow
+                  label="Всего ошибок (24 ч)"
+                  value={String(data?.videoPlaybackClient?.totalErrors ?? 0)}
+                />
+                <DetailRow
+                  label="Ошибок (1 ч)"
+                  value={String(data?.videoPlaybackClient?.totalErrorsLast1h ?? 0)}
+                />
+                <DetailRow
+                  label="По source в ошибках (24 ч): HLS / MP4 / FILE"
+                  value={`${data?.videoPlaybackClient?.byDelivery.hls ?? 0} / ${data?.videoPlaybackClient?.byDelivery.mp4 ?? 0} / ${data?.videoPlaybackClient?.byDelivery.file ?? 0}`}
+                />
+                <DetailRow
+                  label="hls_fatal / video_error / hls_import_failed"
+                  value={`${data?.videoPlaybackClient?.byEvent.hls_fatal ?? 0} / ${data?.videoPlaybackClient?.byEvent.video_error ?? 0} / ${data?.videoPlaybackClient?.byEvent.hls_import_failed ?? 0}`}
+                />
+                <DetailRow
+                  label="playback_refetch_failed / playback_refetch_exception / hls_js_unsupported"
+                  value={`${data?.videoPlaybackClient?.byEvent.playback_refetch_failed ?? 0} / ${data?.videoPlaybackClient?.byEvent.playback_refetch_exception ?? 0} / ${data?.videoPlaybackClient?.byEvent.hls_js_unsupported ?? 0}`}
+                />
+                <DetailRow
+                  label="Признак цикла (>=3 hls_fatal в текущем UTC-часе для одного media)"
+                  value={data?.videoPlaybackClient?.likelyLooping ? "да" : "нет"}
+                />
+                <ProbeInfo probe={data?.meta?.probes?.videoPlaybackClient} />
+                {data?.videoPlaybackClient?.recent?.length ? (
+                  <div className="mt-2 space-y-1">
+                    <p className="font-medium text-foreground">Последние события</p>
+                    {data.videoPlaybackClient.recent.map((row, idx) => (
+                      <div key={`${row.createdAt}-${row.mediaId}-${idx}`} className="rounded border border-border/50 p-2">
+                        <DetailRow label="time" value={formatDateTime(row.createdAt)} />
+                        <DetailRow label="media_id" value={row.mediaId} />
+                        <DetailRow label="event" value={row.eventClass} />
+                        <DetailRow label="delivery" value={row.delivery ?? "—"} />
+                        <DetailRow label="detail" value={row.errorDetail ?? "—"} />
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
             </HealthAccordionItem>
 
             <HealthAccordionItem name="Транскод HLS (очередь media_transcode_jobs)" status={transcodeAccordionStatus}>
@@ -580,6 +677,23 @@ export function SystemHealthSection() {
                   ))}
                 </div>
               )}
+            </HealthAccordionItem>
+
+            <HealthAccordionItem
+              name="Очередь доставки уведомлений"
+              status={data?.meta?.probes?.outgoingDelivery?.status ?? "error"}
+            >
+              <ProbeInfo probe={data?.meta?.probes?.outgoingDelivery} />
+              <DetailRow label="due (готово к отправке)" value={String(data?.outgoingDelivery?.dueBacklog ?? 0)} />
+              <DetailRow label="dead" value={String(data?.outgoingDelivery?.deadTotal ?? 0)} />
+              <DetailRow
+                label="Возраст oldest due, с"
+                value={
+                  data?.outgoingDelivery?.oldestDueAgeSeconds == null
+                    ? "—"
+                    : String(data.outgoingDelivery.oldestDueAgeSeconds)
+                }
+              />
             </HealthAccordionItem>
           </div>
         </CardContent>
