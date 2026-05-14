@@ -37,6 +37,8 @@
 
 В `.github/workflows/ci.yml` — набор параллельных job на `push` и `pull_request` (`pnpm install --frozen-lockfile`, затем отдельно lint, typecheck, тесты integrator, **webapp core** по шардам `pnpm test:webapp:fast`, **webapp in-process** по шардам только на `push` в `main`, сборки integrator/webapp, audit). На **pull request** in-process job пропускается (skipped). **Deploy** — после успеха всех нужных job, только при `push` в `main`: по SSH `bash <DEPLOY_PATH>/deploy/host/deploy-prod.sh` (секреты: `DEPLOY_SSH_KEY`, `DEPLOY_USER`, `DEPLOY_HOST`, `DEPLOY_PATH`).
 
+Журнал смены версий GitHub Actions и связанных правок репозитория (в т.ч. Next `proxy`): [`docs/archive/2026-05-initiatives/DEPENDENCY_CI_UPDATE_2026-05-14/LOG.md`](../docs/archive/2026-05-initiatives/DEPENDENCY_CI_UPDATE_2026-05-14/LOG.md).
+
 Отдельный workflow `deploy-host.yml` в репозитории **нет** (ранее мог существовать; актуальный путь деплоя — job **Deploy** внутри `ci.yml`).
 
 ---
