@@ -39,9 +39,9 @@ export default defineConfig({
           environment: "node",
           include: ["e2e/*inprocess*.test.ts"],
           exclude: ["node_modules", ".next"],
-          /** Cold import больших графов App Router в CI */
-          testTimeout: 30_000,
-          hookTimeout: 120_000,
+          /** Отдельные `it` без холодного графа — как в `fast`; долгий прогрев только в `beforeAll` со своим timeout */
+          testTimeout: 20_000,
+          hookTimeout: 25_000,
         },
       },
     ],

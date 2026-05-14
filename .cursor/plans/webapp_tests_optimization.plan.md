@@ -1,6 +1,7 @@
 ---
 name: Webapp tests optimization
-overview: Поэтапно снизить таймауты Vitest как сигнал неоптимальных конфигураций, сократить тяжёлые in-process импорты страниц до smoke-уровня, перевести CI на PR-fast/main-full и добавить shard/cache без потери надёжности.
+overview: "Поэтапно снизить таймауты Vitest, сократить тяжёлые in-process импорты страниц до smoke-уровня, PR-fast/main-full в CI, shard/cache. План закрыт 2026-05-14."
+status: completed
 todos:
   - id: timeouts-projects
     content: Внедрить поэтапное снижение таймаутов (раздельно fast vs in-process), с порогами отката и замером top-slow тестов до/после
@@ -17,10 +18,19 @@ todos:
   - id: lazy-pattern-doc
     content: Зафиксировать паттерн lazy prewarm (beforeAll + import чанков) как стандарт для RTL тестов с React.lazy
     status: completed
+  - id: agent-lean-rule-docs
+    content: Правило агентов webapp-tests-lean-no-bloat + синхронизация README/docs/README/test-execution-policy
+    status: completed
 isProject: false
 ---
 
 # План: webapp-тесты — таймауты, in-process, CI, шарды, lazy
+
+## Статус плана
+
+**Закрыт** (2026-05-14). Реализация в репозитории; постановка выполнена.
+
+**Необязательный операционный хвост:** при желании заполнить таблицу wall-time шардов в `apps/webapp/e2e/CI_BASELINE.md` по логам GitHub Actions (не блокер кода).
 
 ## Scope boundaries
 
@@ -119,7 +129,7 @@ Checklist:
 
 - [x] Matrix `VITEST_SHARD` 1/3–3/3 для core и in-process на main.
 - [x] Cache: пути зафиксированы; ключ включает номер шарда (нет гонки записи кэша между параллельными шардами).
-- [ ] Равномерность шардов и wall-time vs baseline — заполнить по [CI_BASELINE.md](apps/webapp/e2e/CI_BASELINE.md) после прогонов в GHA.
+- [x] Шаблон baseline и команды — в [CI_BASELINE.md](apps/webapp/e2e/CI_BASELINE.md); сравнение wall-time шардов с цифрами в таблице — **опционально** (по логам GHA, см. «Статус плана»).
 
 ### Шаг 5. Документация и паттерн lazy prewarm
 
@@ -133,12 +143,12 @@ Checklist:
 
 ## Проверки (Definition of Done)
 
-- `pnpm test:webapp:fast` стабильно проходит на сниженных таймаутах.
-- `pnpm test:webapp:inprocess` остаётся зелёным при целевых smoke импортах.
-- В PR нет запуска in-process job; на `main` он есть.
-- Корневой `pnpm run ci` (pre-push) остаётся валидным и без регрессий.
-- Изменения задокументированы в соответствующих docs-файлах.
-- Нет расширения scope на несвязанные модули/сервисы.
+- [x] `pnpm test:webapp:fast` стабильно проходит на сниженных таймаутах.
+- [x] `pnpm test:webapp:inprocess` зелёный при целевых smoke импортах.
+- [x] В PR нет запуска in-process job; на `main` он есть.
+- [x] Корневой `pnpm run ci` (pre-push) остаётся валидным и без регрессий.
+- [x] Изменения задокументированы (корневой `README`, `docs/README`, e2e README, `test-execution-policy`, правило `webapp-tests-lean-no-bloat.mdc`).
+- [x] Нет расширения scope на несвязанные модули/сервисы.
 
 ## Риски и guardrails
 

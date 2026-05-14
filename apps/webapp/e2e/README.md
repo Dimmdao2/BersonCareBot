@@ -16,7 +16,7 @@
 
 ## Baseline / метрики CI
 
-Шаблон замеров и таблица «до/после»: [`CI_BASELINE.md`](./CI_BASELINE.md).
+Шаблон замеров и таблица «до/после»: [`CI_BASELINE.md`](./CI_BASELINE.md). Правило агентов — не раздувать тесты: [`.cursor/rules/webapp-tests-lean-no-bloat.mdc`](../../../.cursor/rules/webapp-tests-lean-no-bloat.mdc).
 
 ## RTL и `React.lazy`
 

@@ -1,6 +1,6 @@
 # Webapp tests: baseline и шарды (оператор)
 
-Цель — зафиксировать **до/после** для PR по оптимизации CI (wall-time, top-slow файлы, равномерность шардов).
+Цель — зафиксировать **до/после** для PR по оптимизации CI (wall-time, top-slow файлы, равномерность шардов). Правило агентов не раздувать тесты: [`.cursor/rules/webapp-tests-lean-no-bloat.mdc`](../../../.cursor/rules/webapp-tests-lean-no-bloat.mdc).
 
 ## Команды (локально, из корня репозитория)
 

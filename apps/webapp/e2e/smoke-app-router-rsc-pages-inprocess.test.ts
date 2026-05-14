@@ -56,7 +56,7 @@ describe("app router RSC pages smoke (in-process)", () => {
         pages[key] = await LOADERS[key]();
       }),
     );
-  }, 120_000);
+  }, 90_000);
 
   it("doctor cabinet pages export async RSC defaults", () => {
     expectAsyncRscPage(mod("doctorRoot"), "doctor/");

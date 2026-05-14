@@ -29,7 +29,7 @@ describe("doctor clients scope and subscribers redirects", () => {
     SubscribersListPage = listMod.default;
     const profileMod = await import("@/app/app/doctor/subscribers/[userId]/page");
     SubscribersProfilePage = profileMod.default;
-  }, 90_000);
+  }, 60_000);
 
   it("/app/doctor/subscribers redirects to /app/doctor/clients?scope=all", async () => {
     redirectMock.mockClear();

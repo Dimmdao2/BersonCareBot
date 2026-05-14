@@ -48,6 +48,10 @@ alwaysApply: true
 - Все тесты webapp: `pnpm test:webapp` или `pnpm --dir apps/webapp test` без аргументов
 - Узкий webapp: `pnpm test:webapp:fast` (проект Vitest `fast`) или `pnpm test:webapp:inprocess` (проект `inprocess`; в GitHub Actions только на `push` в `main`)
 
+### Webapp Vitest / e2e: не раздувать
+
+При добавлении или правке тестов в `apps/webapp` соблюдать **компактность** (импорты `page.tsx`, число файлов, таймауты): см. **`.cursor/rules/webapp-tests-lean-no-bloat.mdc`** и **`apps/webapp/e2e/README.md`**.
+
 ### Full CI (ограниченно)
 
 **Разрешено** в том числе:

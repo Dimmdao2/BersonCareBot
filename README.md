@@ -23,7 +23,7 @@ pnpm run dev
 
 **Перед пушем** запустите те же проверки, что и в CI: `pnpm run ci` (или `pnpm check`). Если `pnpm ci` проходит локально — пройдёт и в GitHub Actions.
 
-В GitHub Actions для webapp: на **pull request** гоняется только быстрый набор (`pnpm test:webapp:fast`, шардирование); полный in-process (`pnpm test:webapp:inprocess`) — на **push в `main`**. Локально перед пушем по-прежнему нужен полный `pnpm run ci` (включая `pnpm test:webapp`).
+В GitHub Actions для webapp: на **pull request** гоняется только быстрый набор (`pnpm test:webapp:fast`, шардирование); полный in-process (`pnpm test:webapp:inprocess`) — на **push в `main`**. Локально перед пушем по-прежнему нужен полный `pnpm run ci` (включая `pnpm test:webapp`). Политика для агентов и разработчиков — не раздувать webapp-тесты (импорты страниц, лишние файлы): `.cursor/rules/webapp-tests-lean-no-bloat.mdc`, подробности — `apps/webapp/e2e/README.md`.
 
 Worker локально:
 

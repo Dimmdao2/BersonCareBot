@@ -29,6 +29,7 @@
 - [`ARCHITECTURE/LOW_LEVEL_ARCHITECTURE_AUDIT_AND_REORG.md`](ARCHITECTURE/LOW_LEVEL_ARCHITECTURE_AUDIT_AND_REORG.md) — composition roots, DI, **API route import-policy** (актуальное состояние allowlist).
 - [`ARCHITECTURE/MINIAPP_AUTH_FIX_EXECUTION_LOG.md`](ARCHITECTURE/MINIAPP_AUTH_FIX_EXECUTION_LOG.md) · [`ARCHITECTURE/MINIAPP_AUTH_AUDIT_2026-04-19.md`](ARCHITECTURE/MINIAPP_AUTH_AUDIT_2026-04-19.md) — журнал исполнения и итоговый аудит server-first входа.
 - **Скрипты webapp / ops:** [`apps/webapp/scripts/README.md`](../apps/webapp/scripts/README.md) · [`apps/webapp/scripts/PLATFORM_IDENTITY_OPS.md`](../apps/webapp/scripts/PLATFORM_IDENTITY_OPS.md).
+- **Webapp in-process e2e, CI-политика fast vs main, baseline:** [`apps/webapp/e2e/README.md`](../apps/webapp/e2e/README.md) · [`apps/webapp/e2e/CI_BASELINE.md`](../apps/webapp/e2e/CI_BASELINE.md). Правило агентов «не раздувать» тесты: [`.cursor/rules/webapp-tests-lean-no-bloat.mdc`](../.cursor/rules/webapp-tests-lean-no-bloat.mdc). Уровни прогона (step / phase / CI): [`.cursor/rules/test-execution-policy.md`](../.cursor/rules/test-execution-policy.md).
 
 ## Активные инициативы
 
