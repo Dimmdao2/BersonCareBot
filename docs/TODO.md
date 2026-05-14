@@ -45,6 +45,12 @@
 - **Бэклог и спецификация (репозиторий):** [`docs/REPORTS/RUBITIME_API2_PACING_AND_PHASE2_BACKLOG.md`](REPORTS/RUBITIME_API2_PACING_AND_PHASE2_BACKLOG.md) (§ «Фаза 2 — backlog»).
 - **План Cursor (архив IDE):** `~/.cursor/plans/archive/2026-05-01-closed/rubitime_queue_+_multi-slot_ae5a569b.plan.md` — полный текст и mermaid; фаза 1 в плане помечена выполненной, фаза 2 описана в теле файла.
 
+## Integrator — один каталог записи (убрать дубль `integrator.rubitime_*`)
+
+- **Проблема:** в unified PostgreSQL интегратор всё ещё держит **параллельный справочник** `rubitime_branches`, `rubitime_services`, `rubitime_cooperators`, `rubitime_booking_profiles` (surrogate `id`, v1-профили) и **signed M2M** `POST/GET /api/bersoncare/rubitime/admin/*` (`adminM2mRoute.ts` + `bookingProfilesRepo.ts`), дублируя **канон** в webapp: `public.booking_*`, `public.branches` и админку `/api/admin/booking-catalog/*`.
+- **Уже сделано (2026-05):** разрешение IANA для слотов/ингеста — **`public.booking_branches` / `public.branches`**, не `integrator.rubitime_branches.timezone` (`apps/integrator/src/infra/db/branchTimezone.ts`).
+- **TODO (крупный рефакторинг):** перевести чтение **v1** (`resolveBookingProfile`, `pickAnyActiveRubitimeScheduleTriple`, operator health) на **каталог webapp** или зафиксировать **отказ от v1** в пользу только M2M v2; переподключить или удалить **integrator admin M2M** к записям в `public` (без второй копии данных); миграция/бэкфилл профилей; затем DDL — дроп или опустошение `integrator.rubitime_*` после cutover. Связка с Drizzle-репозиториями: `docs/INTEGRATOR_DRIZZLE_MIGRATION/LOG.md`, планы `integrator_drizzle_phase_*.plan.md`.
+
 ## Doctor catalogs — черновики отдельно от архива
 
 - **Контекст:** в doctor-каталогах назначений UI списка сейчас показывает только архивность (`Активные` / `Архив`). У шаблонов программ, комплексов ЛФК и курсов часть сущностей всё ещё хранит технический enum `draft | published | archived`, где готовность/публикация смешана с архивом.
