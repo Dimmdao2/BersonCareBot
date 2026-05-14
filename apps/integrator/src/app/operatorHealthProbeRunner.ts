@@ -10,7 +10,24 @@ import { resolveOpenOperatorIncidentsByDedupKeyPrefix } from '../infra/db/repos/
 
 export type ProbeOutcome = 'ok' | 'fail' | 'skipped_not_configured';
 
+const MAX_PROBE_TIMEOUT_MS = 15_000;
 const RUBITIME_PROBE_TIMEOUT_MS = 15_000;
+
+function withMaxProbeTimeout<T>(promise: Promise<T>): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error('max_probe_timeout')), MAX_PROBE_TIMEOUT_MS);
+    promise.then(
+      (v) => {
+        clearTimeout(t);
+        resolve(v);
+      },
+      (e) => {
+        clearTimeout(t);
+        reject(e);
+      },
+    );
+  });
+}
 
 function fetchWithTimeout(timeoutMs: number): typeof fetch {
   return (input, init) =>
@@ -37,7 +54,7 @@ export async function runOperatorHealthProbes(input: {
   let rubitime: ProbeOutcome = 'skipped_not_configured';
 
   if (maxConfig.enabled && maxConfig.apiKey.trim().length > 0) {
-    const info = await getMaxBotInfo({ apiKey: maxConfig.apiKey });
+    const info = await withMaxProbeTimeout(getMaxBotInfo({ apiKey: maxConfig.apiKey })).catch(() => null);
     if (info === null) {
       max = 'fail';
       details.max = 'getMyInfo returned null';

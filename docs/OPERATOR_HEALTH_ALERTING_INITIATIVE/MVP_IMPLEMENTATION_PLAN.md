@@ -42,7 +42,7 @@
 ### In scope
 
 - `operator_incidents` schema + migration.
-- Integrator repo/service для `reportFailure` и `resolveByPrefix`.
+- Integrator repo/service для `reportOperatorFailure` и resolve открытых инцидентов по префиксу dedup-ключа.
 - Хуки GCal fail в двух обработчиках Rubitime.
 - Probe runner (MAX + Rubitime) + scheduler trigger.
 - Webapp read/API/UI (блок открытых инцидентов).
@@ -95,7 +95,7 @@
 
 Минимальные поля:
 
-- `job_key` text pk (`backup.hourly`, `backup.daily`, `backup.weekly`, `backup.pre_migrations`, `backup.prune`)
+- `job_key` text pk (`backup.hourly`, `backup.daily`, `backup.weekly`, `backup.pre_migrations`, `backup.manual`, `backup.prune`)
 - `job_family` text not null (`backup`)
 - `last_status` text not null (`success` | `failure`)
 - `last_started_at` timestamptz null
@@ -126,7 +126,7 @@
 
 Проверки:
 
-- `rg "operator_incidents" apps/webapp/db/schema apps/webapp/db/migrations`
+- `rg "operator_incidents" apps/webapp/db/schema apps/webapp/db/drizzle-migrations`
 - Целевая проверка миграции в локальной БД.
 
 Критерий закрытия:
@@ -135,22 +135,22 @@
 
 ---
 
-### A2 — Integrator repo + reportFailure
+### A2 — Integrator repo + reportOperatorFailure
 
 Изменения:
 
-- [apps/integrator/src/infra/db/repos](../../apps/integrator/src/infra/db/repos) — repo `openOrTouchIncident`.
+- [apps/integrator/src/infra/db/repos](../../apps/integrator/src/infra/db/repos) — `openOrTouchOperatorIncident` и связанные вызовы.
 - Новый helper/service для формирования `dedup_key`, отправки TG только при первом открытии.
 - Использовать паттерн из [dataQualityIncidentAlert.ts](../../apps/integrator/src/infra/db/dataQualityIncidentAlert.ts) (`eventId` <= 240).
 
 Проверки:
 
-- Unit на гонку: 2 параллельных открытия одного ключа -> 1 открытая запись.
+- Unit на гонку (желательно): 2 параллельных открытия одного ключа → 1 открытая запись; в репозитории покрыто **схемой** (partial unique + `onConflict`) и unit **`operatorHealthDrizzle.openOrTouch.test.ts`** (мок Drizzle + последовательные touch), без отдельного интеграционного race-теста.
 - Unit на повтор: `occurrence_count` растёт, Telegram второй раз не уходит.
 
 Критерий закрытия:
 
-- `reportFailure` идемпотентен и безопасен при concurrency.
+- `reportOperatorFailure` идемпотентен и безопасен при concurrency.
 
 ---
 
@@ -183,7 +183,7 @@
 Проверки:
 
 - Nock/моки на оба probe-пути.
-- Таймауты на внешний fetch.
+- Таймауты на внешние вызовы: Rubitime — `fetch` с `AbortSignal.timeout`; MAX — верхняя граница ожидания `getMaxBotInfo` (wall-clock), симметрично Rubitime.
 
 Критерий закрытия:
 
@@ -197,8 +197,8 @@
 
 - Защищённый internal endpoint (например `POST /internal/operator-health-probe`) в integrator.
 - Подпись **`x-bersoncare-timestamp`** + **`x-bersoncare-signature`** (HMAC-SHA256 `timestamp + '.' + rawBody`, secret — `INTEGRATOR_WEBHOOK_SECRET` или `INTEGRATOR_SHARED_SECRET` из `api.prod`).
-- **Хост-вызов:** скрипт репозитория [`deploy/host/operator-health-probe.sh`](../../deploy/host/operator-health-probe.sh) + операционная инструкция в [`deploy/HOST_DEPLOY_README.md`](../../deploy/HOST_DEPLOY_README.md) (cron / systemd timer).
-- Один механизм запуска на проде: **cron** или **systemd timer** (выбрать и зафиксировать в [LOG.md](LOG.md)).
+- **Хост-вызов:** скрипт репозитория [`deploy/host/operator-health-probe.sh`](../../deploy/host/operator-health-probe.sh) + операционная инструкция в [`deploy/HOST_DEPLOY_README.md`](../../deploy/HOST_DEPLOY_README.md) (пример **cron** и альтернатива **systemd timer**).
+- Канон документации: **cron** как рекомендуемый по умолчанию способ (пример строки в `HOST_DEPLOY_README.md`; краткая отсылка в [`docs/ARCHITECTURE/SERVER CONVENTIONS.md`](../../docs/ARCHITECTURE/SERVER%20CONVENTIONS.md)). **systemd timer** — равнозначная альтернатива; unit-файл в репозитории не обязателен. На конкретном хосте оператор включает выбранный механизм.
 
 Проверки:
 
@@ -276,11 +276,11 @@
 
 - `apps/webapp/db/schema/**` + migration: `public.operator_job_status`.
 - В webapp health-агрегатор добавить чтение `backup`-job status.
-- В backup lifecycle runner: после завершения `hourly/daily/weekly/pre-migrations/prune` писать upsert в `operator_job_status`.
+- В backup lifecycle runner: после завершения `hourly/daily/weekly/pre-migrations/manual/prune` писать upsert в `operator_job_status`.
 
 Проверки:
 
-- Unit: upsert idempotent (повтор same job_key обновляет одну запись).
+- Идемпотентность upsert по `job_key`: PK таблицы + `INSERT … ON CONFLICT` в `postgres-backup.sh`; агрегация в API покрыта тестом `system-health/route.test.ts` (`backupJobs`).
 - Негатив: при fail фиксируются `last_status=failure`, `last_failure_at`, `last_error`.
 
 Критерий закрытия:
@@ -331,10 +331,11 @@
 
 ## 6. Файлы, которые разрешено менять
 
-- `apps/webapp/db/schema/**`, `apps/webapp/db/migrations/**`
+- `apps/webapp/db/schema/**`, `apps/webapp/db/drizzle-migrations/**`
+- `packages/operator-db-schema/**` (общая Drizzle-схема `operator_*` для webapp и integrator)
 - `apps/integrator/src/infra/**`, `apps/integrator/src/app/**`, `apps/integrator/src/integrations/rubitime/**`
 - `apps/webapp/src/modules/**` (порты/сервисы), `apps/webapp/src/infra/repos/**`, `apps/webapp/src/app/api/admin/**`, `apps/webapp/src/app/app/settings/**`
-- `deploy/postgres/**`, `deploy/HOST_DEPLOY_README.md`
+- `deploy/postgres/**`, `deploy/host/operator-health-probe.sh`, `deploy/HOST_DEPLOY_README.md`
 - `docs/OPERATOR_HEALTH_ALERTING_INITIATIVE/**`, `apps/webapp/src/app/api/api.md`
 
 Не менять в MVP:
@@ -349,19 +350,19 @@
 
 - [x] Один открытый инцидент на `outbound:google_calendar:{error_class}` при множественных однотипных ошибках.
 - [x] GCal fail учитывается из обоих путей: `postCreateProjection` и `webhook`.
-- [x] Пробы MAX и Rubitime: раннер, защищённый `POST /internal/operator-health-probe`, таймауты; Rubitime `status: ok`, пустые слоты не fail.
-- [ ] Регулярный **запуск** проб на **прод-хосте** (cron/systemd → integrator probe): код готов, **каноничный сниппет в `deploy/HOST_DEPLOY_README.md` / SERVER CONVENTIONS не зафиксирован** — операционный хвост.
+- [x] Пробы MAX и Rubitime: раннер, защищённый `POST /internal/operator-health-probe`, таймауты (Rubitime — `AbortSignal.timeout` на fetch; MAX — верхняя граница ожидания `getMaxBotInfo`); Rubitime `status: ok`, пустые слоты не fail.
+- [x] **Документация** периодического запуска проб на хосте: пример cron, smoke и скрипт в [`deploy/HOST_DEPLOY_README.md`](../../deploy/HOST_DEPLOY_README.md); краткий канон в [`docs/ARCHITECTURE/SERVER CONVENTIONS.md`](../../docs/ARCHITECTURE/SERVER%20CONVENTIONS.md). **Остаётся ops:** включить выбранный механизм (cron или systemd timer) на конкретном production-хосте.
 - [x] Probe trigger защищён секретом.
 - [x] В admin health виден список открытых инцидентов.
 - [x] Для probe-инцидентов есть минимальный auto-resolve без recovery-нотификаций.
 - [x] Введена и задокументирована retention policy: hourly 48h, daily 35d, weekly 12w, pre-migrations (30d + top-20).
 - [x] Backup lifecycle выполняет prune по расписанию без отдельного нового daemon worker.
-- [x] В admin health виден раздельный статус backup tiers по ключам `backup.hourly` / `backup.daily` / `backup.weekly` / `backup.pre_migrations` (+ `backup.prune`).
+- [x] В admin health виден раздельный статус backup tiers по ключам `backup.hourly` / `backup.daily` / `backup.weekly` / `backup.pre_migrations` / `backup.manual` (+ `backup.prune`).
 - [x] Для каждого backup job key пишется last-run tick в БД (`success|failure`, `duration`, timestamps).
 - [x] Нет новых env для интеграционных ключей; параметры через `system_settings` только если нужны.
 - [x] Перед merge: зелёный `pnpm run ci`.
 
-**Не в DoD, но в чеклисте A2 плана:** unit на конкурентный `openOrTouch` по одному dedup_key — по желанию (в БД partial unique + onConflict).
+**A2 / конкуренция:** параллельный DB race-тест не добавляли; идемпотентность обеспечена partial unique + `onConflict`; есть unit **`operatorHealthDrizzle.openOrTouch.test.ts`** (мок Drizzle, последовательные touch).
 
 ---
 
@@ -375,6 +376,7 @@
 | Секрет случайно не проверяется в endpoint | обязательный negative-test без секрета |
 | Лишняя нагрузка от очистки бэкапов | prune 1 раз/сутки в тихое окно, без постоянного daemon |
 | Потеря точки отката pre-migrations | политика "30d + минимум top-20 newest", а не только age-based delete |
+| Сбой `dispatchOutgoing` при первом TG-алерте | `alert_sent_at` остаётся null; повтор того же dedup_key даёт `occurrence_count > 1` и **не** ретраит TG в MVP (осознанное ограничение) |
 
 ---
 
@@ -389,15 +391,15 @@
 Статус на **2026-05-14**:
 
 - [x] A1: schema + migration `public.operator_incidents` (+ `operator_job_status`, 0057/0058)
-- [x] A2: integrator repo + `reportOperatorFailure` (+ опционально: concurrency unit — см. §7)
+- [x] A2: integrator repo + `reportOperatorFailure` (см. §7 про конкуренцию / `openOrTouch` tests)
 - [x] B1: GCal fail hooks в `postCreateProjection.ts` и `webhook.ts`
 - [x] B2: probe runner (MAX + Rubitime)
 - [x] C1: защищённый endpoint + тесты для probe
-- [ ] C1b (ops): периодический вызов probe на хосте — см. §7 (не блокирует наличие кода)
+- [x] C1b (ops): периодический вызов probe на хосте — см. §7 DoD (доки и скрипт в репо; включение на хосте — оператор)
 - [x] C2: minimal auto-resolve probe incidents
 - [x] D1: webapp read/API/UI + tests
 - [x] E1: backup weekly+prune modes + retention policy
 - [x] E2: `operator_job_status` schema + DB ticks for backup jobs
-- [x] E3: cron strategy and host docs for backup lifecycle (backup; probe cron — хвост)
+- [x] E3: cron strategy and host docs for backup lifecycle + probe (`HOST_DEPLOY_README` / `SERVER CONVENTIONS`)
 - [x] E4: system-health payload/UI block for backup tiers
 - [x] Docs: `LOG.md`, `api.md`, итоговые проверки и CI

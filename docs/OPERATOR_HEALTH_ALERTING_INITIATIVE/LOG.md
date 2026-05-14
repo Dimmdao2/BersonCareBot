@@ -15,6 +15,12 @@
 - Cursor: единый трекер `~/.cursor/plans/mvp_operator_health_alerting_9310cffe.plan.md` (дубликат `mvp_operator_health_alerting_638ba46f.plan.md` снят); канон по шагам — `MVP_IMPLEMENTATION_PLAN.md` в репо.
 - План дополнительно усилен до исполняемого формата: fixed decisions, строгие scope boundaries, data contract (`public.operator_incidents`), `error_class` taxonomy, пошаговые локальные проверки и явный минимальный auto-resolve для probe-инцидентов.
 
+### 2026-05-14 — Док-синхронизация MVP + таймаут MAX-пробы
+
+- `MVP_IMPLEMENTATION_PLAN.md`: DoD §7 и §10 выровнены с фактом наличия cron/systemd инструкций в `deploy/HOST_DEPLOY_README.md` и `docs/ARCHITECTURE/SERVER CONVENTIONS.md`; уточнены §4.3/`job_key`, scope (`drizzle-migrations`, `packages/operator-db-schema`, `deploy/host/operator-health-probe.sh`), E2 проверки, A2/C1/E3 формулировки; таблица рисков — строка про отсутствие ретрая TG при сбое dispatch.
+- Integrator: `operatorHealthProbeRunner` — верхняя граница ожидания `getMaxBotInfo` (15s wall-clock), тест на timeout.
+- Cursor-трекер `mvp_operator_health_alerting_9310cffe.plan.md`: убраны устаревшие формулировки про «нет сниппета» / «не найден concurrency unit».
+
 ### 2026-05-14 — Cursor plans: слияние
 
 - Оставлен один трекер `mvp_operator_health_alerting_9310cffe.plan.md`; удалён дубликат `638ba46f`; статусы todos и DoD в `MVP_IMPLEMENTATION_PLAN.md` синхронизированы с кодом (host cron/systemd для probe + unit `openOrTouch` закрыты в репо).

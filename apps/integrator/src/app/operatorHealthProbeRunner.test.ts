@@ -85,4 +85,24 @@ describe('runOperatorHealthProbes', () => {
     expect(r.rubitime).toBe('skipped_not_configured');
     expect(fetchRubitimeScheduleMock).not.toHaveBeenCalled();
   });
+
+  it('MAX probe fails when getMaxBotInfo exceeds timeout', async () => {
+    vi.useFakeTimers();
+    try {
+      pickTripleMock.mockResolvedValue(null);
+      getMaxBotInfoMock.mockImplementation(() => new Promise(() => {}));
+      const p = runOperatorHealthProbes({ dispatchPort });
+      await vi.advanceTimersByTimeAsync(15_000);
+      const r = await p;
+      expect(r.max).toBe('fail');
+      expect(reportOperatorFailureMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          integration: 'max',
+          errorClass: 'max_probe_failed',
+        }),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
