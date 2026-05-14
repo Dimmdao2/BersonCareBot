@@ -8,7 +8,7 @@
 - **`markAttemptSubmitted`:** идемпотентно по `submitted_at`; событие `clinical_test_attempt_submitted` только при первом переходе.
 - **Doctor UI:** `getDoctorAttemptAcceptMap` + `attemptAcceptMap` в `GET .../test-results`; кнопка «Принять попытку» только при `canAccept`.
 - **Patient embedded:** после submit / start new / «Снять Новое» / `mark-viewed` по видимости — `refresh` + повторный `test-set-snapshot` в `PatientInstanceStageItemCard`.
-- **Тесты:** `progress-service.test.ts` (история `accepted_*`, stale accept, idempotent submit).
+- **Тесты:** `progress-service.test.ts` — история `accepted_*`, stale accept при более новой **submitted**, **reject accept при более новой открытой** попытке, идемпотентный `markAttemptSubmitted`, ошибки `patientStartNewTestAttempt` (нет ни одной submitted / уже есть open).
 
 ## 2026-05-14 — клинтесты: неограниченные попытки, история, приём врачом (MVP-B)
 
@@ -16,7 +16,7 @@
 - **Сервис (MVP-B, далее уточнено в записи выше «lifecycle»):** `patientSubmitTestResult` ставит **`submitted_at`** при полном наборе; **`patientStartNewTestAttempt`** / **`acceptAttempt`** — см. актуальную запись в этом LOG за ту же дату блоком «lifecycle попыток».
 - **UI:** пациент — **`PatientTestSetProgressForm`**: collapsible-история по отправленным попыткам + «Новая попытка»; врач — группировка по попытке и «Принять попытку».
 - **Dev:** `pnpm --dir apps/webapp run migrate` на **`bcb_webapp_dev`** — миграции применены; `\d public.test_attempts` — ожидаемые колонки и индекс **`WHERE submitted_at IS NULL`**.
-- **Док:** `api.md`, `DB_STRUCTURE.md` (FK **`clinical_tests`**), `PATIENT_TREATMENT_PROGRAM_STAGE_SURFACES.md`; тесты `progress-service.test.ts` (две попытки, stale accept, сохранение **`accepted_*`** в истории, идемпотентный `markAttemptSubmitted`).
+- **Док:** `api.md`, `DB_STRUCTURE.md` (FK **`clinical_tests`**), `PATIENT_TREATMENT_PROGRAM_STAGE_SURFACES.md`; тесты `progress-service.test.ts` (две попытки, stale accept, сохранение **`accepted_*`** в истории, идемпотентный `markAttemptSubmitted`, см. также блок «lifecycle попыток» этого же дня про доп. регрессию).
 
 ## 2026-05-13 — выравнивание с ROADMAP_2: §1.1b закрыт здесь
 

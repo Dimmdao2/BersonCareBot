@@ -5,3 +5,7 @@
 ## 2026-05-14 — lifecycle клинтест-попыток (кратко)
 
 См. верхнюю запись того же дня в архивном LOG: исторический `accepted_*`, accept только актуальной хвостовой submitted-попытки, атомарный `startNewAttemptAfterSubmitted`, идемпотентный `markAttemptSubmitted`, doctor `attemptAcceptMap`, перезагрузка patient embedded snapshot после submit/start/mark-viewed/«Снять Новое».
+
+## 2026-05-14 — lifecycle: явные регрессионные тесты (доп. к записи выше)
+
+В `apps/webapp/src/modules/treatment-program/progress-service.test.ts` добавлены три кейса: приём **отправленной** попытки при более новой **открытой**; повторный `patientStartNewTestAttempt` при уже открытой попытке (`Сначала отправьте текущую попытку`); старт новой попытки без ни одной отправленной (`Сначала отправьте набор тестов`). Целевая проверка: `pnpm --dir apps/webapp exec vitest run src/modules/treatment-program/progress-service.test.ts`.

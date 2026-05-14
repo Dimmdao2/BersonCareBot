@@ -695,6 +695,177 @@ describe("treatment-program progress-service", () => {
     expect(attempts.find((a) => a.id === attempt1)?.acceptedAt).not.toBeNull();
   });
 
+  it("clinical_test: doctor cannot accept older submitted attempt while newer open attempt exists", async () => {
+    const inst = await persistence.instancePort.createInstanceTree({
+      templateId: "00000000-0000-4000-8000-000000000001",
+      patientUserId: patient,
+      assignedBy: null,
+      title: "Программа",
+      stages: [
+        {
+          sourceStageId: tplStageId,
+          title: "Этап 1",
+          description: null,
+          sortOrder: 1,
+          status: "available",
+          goals: null,
+          objectives: null,
+          expectedDurationDays: null,
+          expectedDurationText: null,
+          items: [
+            {
+              itemType: "clinical_test",
+              itemRefId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa02",
+              sortOrder: 0,
+              comment: null,
+              settings: null,
+              snapshot: {
+                itemType: "clinical_test",
+                title: "Набор",
+                tests: [{ testId, title: "T1", scoringConfig: { passIfGte: 5 } }],
+              },
+            },
+          ],
+        },
+      ],
+    });
+    const itemId = inst.stages[0]!.items[0]!.id;
+    await progress.patientSubmitTestResult({
+      patientUserId: patient,
+      instanceId: inst.id,
+      stageItemId: itemId,
+      testId,
+      rawValue: { score: 6 },
+    });
+    const d1 = await progress.listTestResultsForInstance(inst.id);
+    const attSubmitted = d1[0]!.attemptId;
+    await progress.patientStartNewTestAttempt({
+      patientUserId: patient,
+      instanceId: inst.id,
+      stageItemId: itemId,
+    });
+
+    await expect(
+      progress.doctorAcceptTestAttempt({
+        instanceId: inst.id,
+        attemptId: attSubmitted,
+        doctorUserId: doctor,
+      }),
+    ).rejects.toThrow(/неактуальн/i);
+
+    const after = await persistence.instancePort.getInstanceForPatient(patient, inst.id);
+    expect(after!.stages[0]!.items[0]!.completedAt).toBeNull();
+    const attempts = await persistence.testAttemptsPort.listAttemptsForStageItem(itemId, patient, 10);
+    expect(attempts.find((a) => a.id === attSubmitted)?.acceptedAt).toBeNull();
+  });
+
+  it("clinical_test: patientStartNewTestAttempt rejects when open attempt already exists", async () => {
+    const inst = await persistence.instancePort.createInstanceTree({
+      templateId: "00000000-0000-4000-8000-000000000001",
+      patientUserId: patient,
+      assignedBy: null,
+      title: "Программа",
+      stages: [
+        {
+          sourceStageId: tplStageId,
+          title: "Этап 1",
+          description: null,
+          sortOrder: 1,
+          status: "available",
+          goals: null,
+          objectives: null,
+          expectedDurationDays: null,
+          expectedDurationText: null,
+          items: [
+            {
+              itemType: "clinical_test",
+              itemRefId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa03",
+              sortOrder: 0,
+              comment: null,
+              settings: null,
+              snapshot: {
+                itemType: "clinical_test",
+                title: "Набор",
+                tests: [{ testId, title: "T1", scoringConfig: { passIfGte: 5 } }],
+              },
+            },
+          ],
+        },
+      ],
+    });
+    const itemId = inst.stages[0]!.items[0]!.id;
+    await progress.patientSubmitTestResult({
+      patientUserId: patient,
+      instanceId: inst.id,
+      stageItemId: itemId,
+      testId,
+      rawValue: { score: 6 },
+    });
+    await progress.patientStartNewTestAttempt({
+      patientUserId: patient,
+      instanceId: inst.id,
+      stageItemId: itemId,
+    });
+    const mid = await persistence.instancePort.getInstanceForPatient(patient, inst.id);
+    const completedBefore = mid!.stages[0]!.items[0]!.completedAt;
+
+    await expect(
+      progress.patientStartNewTestAttempt({
+        patientUserId: patient,
+        instanceId: inst.id,
+        stageItemId: itemId,
+      }),
+    ).rejects.toThrow(/Сначала отправьте текущую попытку/);
+
+    const after = await persistence.instancePort.getInstanceForPatient(patient, inst.id);
+    expect(after!.stages[0]!.items[0]!.completedAt).toEqual(completedBefore);
+  });
+
+  it("clinical_test: patientStartNewTestAttempt rejects when no submitted attempt exists", async () => {
+    const inst = await persistence.instancePort.createInstanceTree({
+      templateId: "00000000-0000-4000-8000-000000000001",
+      patientUserId: patient,
+      assignedBy: null,
+      title: "Программа",
+      stages: [
+        {
+          sourceStageId: tplStageId,
+          title: "Этап 1",
+          description: null,
+          sortOrder: 1,
+          status: "available",
+          goals: null,
+          objectives: null,
+          expectedDurationDays: null,
+          expectedDurationText: null,
+          items: [
+            {
+              itemType: "clinical_test",
+              itemRefId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa04",
+              sortOrder: 0,
+              comment: null,
+              settings: null,
+              snapshot: {
+                itemType: "clinical_test",
+                title: "Набор",
+                tests: [{ testId, title: "T1", scoringConfig: { passIfGte: 5 } }],
+              },
+            },
+          ],
+        },
+      ],
+    });
+    const itemId = inst.stages[0]!.items[0]!.id;
+
+    await expect(
+      progress.patientStartNewTestAttempt({
+        patientUserId: patient,
+        instanceId: inst.id,
+        stageItemId: itemId,
+      }),
+    ).rejects.toThrow(/Сначала отправьте набор тестов/);
+  });
+
   it("clinical_test: doctor cannot accept stale attempt; accepting head does not clear older rows", async () => {
     const inst = await persistence.instancePort.createInstanceTree({
       templateId: "00000000-0000-4000-8000-000000000001",

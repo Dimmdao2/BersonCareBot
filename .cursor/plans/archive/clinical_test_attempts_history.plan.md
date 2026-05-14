@@ -28,6 +28,8 @@ isProject: false
 ---
 
 > **Обновление 2026-05-14 (prod lifecycle):** `accepted_*` **не** сбрасываются при новой попытке и при приёме другой попытки. `clearAcceptanceOnAllAttemptsForStageItemPatient` удалён. `acceptAttempt` разрешён только для актуальной хвостовой **submitted**-попытки (см. `progress-service.ts` / репозиторий). `patientStartNewTestAttempt` → атомарный `startNewAttemptAfterSubmitted`. `markAttemptSubmitted` идемпотентен; событие `clinical_test_attempt_submitted` один раз. Doctor UI: `attemptAcceptMap` в `GET .../test-results`. Patient embedded: повторный snapshot после submit/start. Доки: `DB_STRUCTURE.md`, `PATIENT_TREATMENT_PROGRAM_STAGE_SURFACES.md`, `docs/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/LOG.md`.
+>
+> **Доп. 2026-05-14:** в `progress-service.test.ts` явно покрыты: accept старой submitted при более новой **open**; повторный `patientStartNewTestAttempt` при уже open; старт новой попытки без submitted — см. `docs/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/LOG.md` и архивный LOG инициативы за тот же день.
 
 **Канон плана:** только этот файл в репозитории (`.cursor/plans/archive/clinical_test_attempts_history.plan.md`). Дубликат вне репозитория (`~/.cursor/plans/clinical_test_attempts_history_*.plan.md`) удалён; содержимое перед удалением совпадало с этим файлом построчно.
 
