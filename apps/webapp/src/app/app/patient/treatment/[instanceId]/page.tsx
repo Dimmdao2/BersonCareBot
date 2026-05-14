@@ -18,6 +18,7 @@ import { resolvePatientContentSectionSlug } from "@/infra/repos/resolvePatientCo
 import { DEFAULT_WARMUPS_SECTION_SLUG } from "@/modules/patient-home/warmupsSection";
 import { resolvePatientCanViewAuthOnlyContent } from "@/modules/platform-access";
 import { summarizeReminderForCalendarDay } from "@/modules/reminders/summarizeReminderForCalendarDay";
+import { parsePatientTreatmentPlanItemDoneRepeatCooldownMinutes } from "@/modules/patient-home/patientHomeRepeatCooldownSettings";
 
 type Props = { params: Promise<{ instanceId: string }>; searchParams: Promise<{ tab?: string | string[] }> };
 
@@ -58,20 +59,26 @@ export default async function PatientTreatmentProgramDetailPage({ params, search
 
   const appTz = await getAppDisplayTimeZone();
 
-  const [initialTestResults, initialProgramEvents, patientIana, rules, canViewAuth, warmRes] = await Promise.all([
-    deps.treatmentProgramProgress.listTestResultsForInstance(instanceId),
-    deps.treatmentProgramInstance.listProgramEvents(instanceId),
-    deps.patientCalendarTimezone.getIanaForUser(session.user.userId),
-    deps.reminders.listRulesByUser(session.user.userId),
-    resolvePatientCanViewAuthOnlyContent(session),
-    resolvePatientContentSectionSlug(
-      {
-        getBySlug: (s) => deps.contentSections.getBySlug(s),
-        getRedirectNewSlugForOldSlug: (s) => deps.contentSections.getRedirectNewSlugForOldSlug(s),
-      },
-      DEFAULT_WARMUPS_SECTION_SLUG,
-    ),
-  ]);
+  const [initialTestResults, initialProgramEvents, patientIana, rules, canViewAuth, warmRes, planItemCooldownSetting] =
+    await Promise.all([
+      deps.treatmentProgramProgress.listTestResultsForInstance(instanceId),
+      deps.treatmentProgramInstance.listProgramEvents(instanceId),
+      deps.patientCalendarTimezone.getIanaForUser(session.user.userId),
+      deps.reminders.listRulesByUser(session.user.userId),
+      resolvePatientCanViewAuthOnlyContent(session),
+      resolvePatientContentSectionSlug(
+        {
+          getBySlug: (s) => deps.contentSections.getBySlug(s),
+          getRedirectNewSlugForOldSlug: (s) => deps.contentSections.getRedirectNewSlugForOldSlug(s),
+        },
+        DEFAULT_WARMUPS_SECTION_SLUG,
+      ),
+      deps.systemSettings.getSetting("patient_treatment_plan_item_done_repeat_cooldown_minutes", "admin"),
+    ]);
+
+  const planItemDoneRepeatCooldownMinutes = parsePatientTreatmentPlanItemDoneRepeatCooldownMinutes(
+    planItemCooldownSetting?.valueJson ?? null,
+  );
 
   let programDescription: string | null = null;
   if (detail.templateId) {
@@ -135,6 +142,7 @@ export default async function PatientTreatmentProgramDetailPage({ params, search
         patientCalendarDayIana={resolvedIana}
         initialPlanTab={initialPlanTab}
         planReminderStrip={planReminderStrip}
+        planItemDoneRepeatCooldownMinutes={planItemDoneRepeatCooldownMinutes}
       />
     </AppShell>
   );

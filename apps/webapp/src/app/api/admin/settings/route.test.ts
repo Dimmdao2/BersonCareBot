@@ -102,6 +102,12 @@ describe("ALLOWED_KEYS / ADMIN scope (Phase 2)", () => {
     expect(ALLOWED_KEYS).toContain("patient_home_morning_ping_local_time");
   });
 
+  it("includes repeat cooldown and warmup chain keys", () => {
+    expect(ALLOWED_KEYS).toContain("patient_home_daily_warmup_repeat_cooldown_minutes");
+    expect(ALLOWED_KEYS).toContain("patient_treatment_plan_item_done_repeat_cooldown_minutes");
+    expect(ALLOWED_KEYS).toContain("patient_home_warmup_skip_to_next_available_enabled");
+  });
+
   it("includes patient maintenance keys", () => {
     expect(ALLOWED_KEYS).toContain("patient_app_maintenance_enabled");
     expect(ALLOWED_KEYS).toContain("patient_app_maintenance_message");
@@ -393,6 +399,80 @@ describe("PATCH /api/admin/settings", () => {
     );
     expect(res.status).toBe(400);
     expect(updateSettingMock).not.toHaveBeenCalled();
+  });
+
+  it("returns 200 for patient_home_daily_warmup_repeat_cooldown_minutes in range", async () => {
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSettingMock.mockResolvedValue(null);
+    updateSettingMock.mockResolvedValue({
+      key: "patient_home_daily_warmup_repeat_cooldown_minutes",
+      scope: "admin",
+      valueJson: { value: 20 },
+      updatedAt: "",
+      updatedBy: "a1",
+    });
+    const res = await PATCH(
+      new Request("http://localhost/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          key: "patient_home_daily_warmup_repeat_cooldown_minutes",
+          value: { value: 20 },
+        }),
+      }),
+    );
+    expect(res.status).toBe(200);
+    expect(updateSettingMock).toHaveBeenCalledWith(
+      "patient_home_daily_warmup_repeat_cooldown_minutes",
+      "admin",
+      { value: 20 },
+      "a1",
+    );
+  });
+
+  it("returns 400 for patient_treatment_plan_item_done_repeat_cooldown_minutes out of range", async () => {
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    const res = await PATCH(
+      new Request("http://localhost/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          key: "patient_treatment_plan_item_done_repeat_cooldown_minutes",
+          value: { value: 3 },
+        }),
+      }),
+    );
+    expect(res.status).toBe(400);
+    expect(updateSettingMock).not.toHaveBeenCalled();
+  });
+
+  it("returns 200 for patient_home_warmup_skip_to_next_available_enabled boolean", async () => {
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSettingMock.mockResolvedValue(null);
+    updateSettingMock.mockResolvedValue({
+      key: "patient_home_warmup_skip_to_next_available_enabled",
+      scope: "admin",
+      valueJson: { value: false },
+      updatedAt: "",
+      updatedBy: "a1",
+    });
+    const res = await PATCH(
+      new Request("http://localhost/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          key: "patient_home_warmup_skip_to_next_available_enabled",
+          value: { value: false },
+        }),
+      }),
+    );
+    expect(res.status).toBe(200);
+    expect(updateSettingMock).toHaveBeenCalledWith(
+      "patient_home_warmup_skip_to_next_available_enabled",
+      "admin",
+      { value: false },
+      "a1",
+    );
   });
 
   it("returns 200 for patient_home_morning_ping_enabled boolean", async () => {

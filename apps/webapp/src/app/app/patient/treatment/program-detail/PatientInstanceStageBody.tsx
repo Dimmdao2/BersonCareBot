@@ -48,6 +48,8 @@ export function PatientInstanceStageBody(props: {
   hideStageDescription?: boolean;
   /** Вкладка плана для `planTab` в ссылках на пункт (`/item/...`). */
   itemLinksPlanTab?: PatientPlanTab | null;
+  /** Пауза перед повторным «Выполнено» у простых пунктов (мин), из админских настроек. */
+  planItemDoneRepeatCooldownMinutes: number;
 }) {
   const {
     instanceId,
@@ -67,6 +69,7 @@ export function PatientInstanceStageBody(props: {
     itemInteraction = "full",
     hideStageDescription = false,
     itemLinksPlanTab = null,
+    planItemDoneRepeatCooldownMinutes,
   } = props;
   const likeStages = stackVariant === "likeStagesTimeline";
   const contentBlocked =
@@ -146,6 +149,7 @@ export function PatientInstanceStageBody(props: {
                       "exec",
                       itemLinksPlanTab ?? null,
                     )}
+                    planItemDoneRepeatCooldownMinutes={planItemDoneRepeatCooldownMinutes}
                   />
                 ))}
               </ul>
@@ -182,6 +186,7 @@ export function PatientInstanceStageBody(props: {
                     "exec",
                     itemLinksPlanTab ?? null,
                   )}
+                  planItemDoneRepeatCooldownMinutes={planItemDoneRepeatCooldownMinutes}
                 />
               ))}
             </ul>

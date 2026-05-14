@@ -5,8 +5,14 @@ import { DOCTOR_PAGE_CONTAINER_CLASS } from "@/shared/ui/doctorWorkspaceLayout";
 import { PatientHomeBlocksSettingsPageClient } from "@/app/app/settings/patient-home/PatientHomeBlocksSettingsPageClient";
 import { PatientHomePracticeTargetPanel } from "@/app/app/settings/patient-home/PatientHomePracticeTargetPanel";
 import { PatientHomeMorningPingPanel } from "@/app/app/settings/patient-home/PatientHomeMorningPingPanel";
+import { PatientHomeRepeatCooldownPanel } from "@/app/app/settings/patient-home/PatientHomeRepeatCooldownPanel";
 import { PatientHomeMoodIconsPanel } from "./PatientHomeMoodIconsPanel";
 import { parsePatientHomeMoodIcons } from "@/modules/patient-home/patientHomeMoodIcons";
+import {
+  parsePatientHomeDailyWarmupRepeatCooldownMinutes,
+  parsePatientHomeWarmupSkipToNextAvailableEnabled,
+  parsePatientTreatmentPlanItemDoneRepeatCooldownMinutes,
+} from "@/modules/patient-home/patientHomeRepeatCooldownSettings";
 import {
   parsePatientHomeMorningPingEnabled,
   parsePatientHomeMorningPingLocalTime,
@@ -24,7 +30,8 @@ export default async function DoctorPatientHomeSettingsPage() {
   const isAdmin = session.user.role === "admin";
 
   const deps = buildAppDeps();
-  const [blocks, pages, sections, courses, practiceSetting, moodSetting, morningPingEn, morningPingT] = await Promise.all([
+  const [blocks, pages, sections, courses, practiceSetting, moodSetting, morningPingEn, morningPingT, warmupCd, planCd, skipNext] =
+    await Promise.all([
     deps.patientHomeBlocks.listBlocksWithItems(),
     deps.contentPages.listAll(),
     deps.contentSections.listAll(),
@@ -33,11 +40,17 @@ export default async function DoctorPatientHomeSettingsPage() {
     deps.systemSettings.getSetting("patient_home_mood_icons", "admin"),
     isAdmin ? deps.systemSettings.getSetting("patient_home_morning_ping_enabled", "admin") : Promise.resolve(null),
     isAdmin ? deps.systemSettings.getSetting("patient_home_morning_ping_local_time", "admin") : Promise.resolve(null),
+    isAdmin ? deps.systemSettings.getSetting("patient_home_daily_warmup_repeat_cooldown_minutes", "admin") : Promise.resolve(null),
+    isAdmin ? deps.systemSettings.getSetting("patient_treatment_plan_item_done_repeat_cooldown_minutes", "admin") : Promise.resolve(null),
+    isAdmin ? deps.systemSettings.getSetting("patient_home_warmup_skip_to_next_available_enabled", "admin") : Promise.resolve(null),
   ]);
   const initialPracticeTarget = parsePatientHomeDailyPracticeTarget(practiceSetting?.valueJson ?? null);
   const moodOptions = parsePatientHomeMoodIcons(moodSetting?.valueJson ?? null);
   const initialMorningPingEnabled = parsePatientHomeMorningPingEnabled(morningPingEn?.valueJson ?? null);
   const initialMorningPingTime = parsePatientHomeMorningPingLocalTime(morningPingT?.valueJson ?? null);
+  const initialWarmupRepeatMinutes = parsePatientHomeDailyWarmupRepeatCooldownMinutes(warmupCd?.valueJson ?? null);
+  const initialPlanItemRepeatMinutes = parsePatientTreatmentPlanItemDoneRepeatCooldownMinutes(planCd?.valueJson ?? null);
+  const initialSkipWarmupToNext = parsePatientHomeWarmupSkipToNextAvailableEnabled(skipNext?.valueJson ?? null);
 
   const knownRefs = {
     contentPages: [...new Set(pages.map((p) => p.slug))],
@@ -85,6 +98,15 @@ export default async function DoctorPatientHomeSettingsPage() {
       <div className="mb-6">
         <PatientHomeMoodIconsPanel initialOptions={moodOptions} />
       </div>
+      {isAdmin ? (
+        <div className="mb-6">
+          <PatientHomeRepeatCooldownPanel
+            initialWarmupMinutes={initialWarmupRepeatMinutes}
+            initialPlanItemMinutes={initialPlanItemRepeatMinutes}
+            initialSkipToNext={initialSkipWarmupToNext}
+          />
+        </div>
+      ) : null}
       {isAdmin ? (
         <div className="mb-6">
           <PatientHomeMorningPingPanel

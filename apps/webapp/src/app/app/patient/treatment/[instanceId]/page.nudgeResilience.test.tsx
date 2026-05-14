@@ -59,6 +59,9 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
     reminders: {
       listRulesByUser: vi.fn(async () => []),
     },
+    systemSettings: {
+      getSetting: vi.fn(async () => null),
+    },
     contentSections: {
       getBySlug: vi.fn(async () => null),
       getRedirectNewSlugForOldSlug: vi.fn(async () => null),

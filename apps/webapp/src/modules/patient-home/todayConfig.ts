@@ -34,7 +34,7 @@ export type PatientHomeTodayConfigDeps = {
   };
 };
 
-/** Пропускать в ротации страницы разминки, по которым ещё действует hero-cooldown на главной. */
+/** Выбор разминки дня: cooldown по минутам и (опционально) пропуск страниц в паузе. */
 export type PatientHomeWarmupPickContext = {
   userId: string;
   getDailyWarmupHeroCooldownMeta: (
@@ -43,6 +43,8 @@ export type PatientHomeWarmupPickContext = {
     cooldownMinutes: number,
   ) => Promise<{ active: boolean; minutesRemaining?: number }>;
   cooldownMinutes: number;
+  /** Если true — пропускать страницы в hero-cooldown и брать следующую доступную. */
+  skipCooldownPages: boolean;
 };
 
 export type PatientHomeTodayConfigResult = {
@@ -155,7 +157,7 @@ export async function getPatientHomeTodayConfig(
     }
     sawAnyValidCandidate = true;
 
-    if (warmupPick) {
+    if (warmupPick?.skipCooldownPages) {
       const meta = await warmupPick.getDailyWarmupHeroCooldownMeta(
         warmupPick.userId,
         row.id,
@@ -180,7 +182,7 @@ export async function getPatientHomeTodayConfig(
     };
   }
 
-  const allDailyWarmupsInCooldown = Boolean(warmupPick && sawAnyValidCandidate);
+  const allDailyWarmupsInCooldown = Boolean(warmupPick?.skipCooldownPages && warmupPick && sawAnyValidCandidate);
   return {
     dailyWarmupItem: null,
     practiceTarget,

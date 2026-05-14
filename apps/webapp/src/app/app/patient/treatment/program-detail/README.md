@@ -32,6 +32,7 @@
 
 ## Инварианты после декомпозиции
 
+- Пауза повторного «Выполнено» для **простых** пунктов плана (не ЛФК-форма): длительность из `system_settings` **`patient_treatment_plan_item_done_repeat_cooldown_minutes`** (`scope=admin`, минуты 5–180, default 60); RSC передаёт число в клиент как `planItemDoneRepeatCooldownMinutes`, на клиенте `planItemDoneRepeatCooldownMsFromMinutes` + `itemDoneCooldown.ts` (`apps/webapp/src/modules/treatment-program/itemDoneCooldown.ts`).
 - Один клиентский корень состояния на странице детали; без нового сегмента `layout.tsx` только ради разбиения.
 - Вкладки «Программа» и «Рекомендации» остаются на `React.lazy` + prefetch в оркестраторе.
 - Публичные импорты для [`PatientTreatmentProgramStagePageClient`](../PatientTreatmentProgramStagePageClient.tsx) не меняются (баррель выше).

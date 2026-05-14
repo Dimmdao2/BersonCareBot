@@ -164,6 +164,8 @@ export function PatientTreatmentProgramStagePageClient(props: {
   onRefreshDetail?: () => Promise<void>;
   /** Вкладка плана для ссылок на пункты (`planTab` в URL). */
   itemLinksPlanTab?: PatientPlanTab | null;
+  /** Пауза перед повторным «Выполнено» у простых пунктов (мин), из `system_settings`. */
+  planItemDoneRepeatCooldownMinutes: number;
 }) {
   const {
     instanceId,
@@ -175,6 +177,7 @@ export function PatientTreatmentProgramStagePageClient(props: {
     onRefreshDetail,
     itemLinksPlanTab = null,
     patientCalendarDayIana,
+    planItemDoneRepeatCooldownMinutes,
   } = props;
   const [detachedStage, setDetachedStage] = useState<Stage>(props.stage);
   const stageForUi = embedded ? props.stage : detachedStage;
@@ -428,6 +431,7 @@ export function PatientTreatmentProgramStagePageClient(props: {
           todayCountByStageItemId={undefined}
           heading={<h3 className={patientSectionTitleClass}>Назначения этапа</h3>}
           itemLinksPlanTab={itemLinksPlanTab ?? null}
+          planItemDoneRepeatCooldownMinutes={planItemDoneRepeatCooldownMinutes}
         />
       </div>
     );
@@ -529,6 +533,7 @@ export function PatientTreatmentProgramStagePageClient(props: {
         doneTodayCountByItemId={effectiveDoneTodayCountByItemId}
         appDisplayTimeZone={appDisplayTimeZone}
         itemLinksPlanTab={itemLinksPlanTab ?? null}
+        planItemDoneRepeatCooldownMinutes={planItemDoneRepeatCooldownMinutes}
       />
     </div>
   );

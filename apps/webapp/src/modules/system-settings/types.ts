@@ -60,6 +60,12 @@ export const ALLOWED_KEYS = [
   "video_watermark_enabled",
   /** Публичная ссылка записи на приём (Rubitime и т.п.), редактируется в админке. */
   "patient_booking_url",
+  /** Пауза (мин) перед повторной отметкой той же разминки дня (`daily_warmup`) на главной; default 60, clamp 5–180. */
+  "patient_home_daily_warmup_repeat_cooldown_minutes",
+  /** Пауза (мин) перед повторным «Выполнено» у простого пункта программы реабилитации; default 60, clamp 5–180. */
+  "patient_treatment_plan_item_done_repeat_cooldown_minutes",
+  /** Если true — в ротации разминок пропускать страницы в hero-cooldown и брать следующую доступную (как сейчас). */
+  "patient_home_warmup_skip_to_next_available_enabled",
   /** Иконки чек-ина настроения на главной: 5 записей score 1-5, label + imageUrl (/api/media/...). */
   "patient_home_mood_icons",
   /** Темы рассылок для экрана пациента `/notifications` (id = mailing_topics_webapp.code, title — подпись). */

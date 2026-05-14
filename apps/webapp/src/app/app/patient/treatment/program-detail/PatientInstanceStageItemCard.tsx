@@ -23,6 +23,7 @@ import {
   formatPlanItemDoneCooldownCaption,
   isItemDoneCooldownActive,
   itemDoneCooldownMinutesRemaining,
+  planItemDoneRepeatCooldownMsFromMinutes,
 } from "@/modules/treatment-program/itemDoneCooldown";
 import { PatientCatalogMediaStaticThumb } from "@/shared/ui/patient/PatientCatalogMediaStaticThumb";
 import { cn } from "@/lib/utils";
@@ -60,6 +61,8 @@ export function PatientInstanceStageItemCard(props: {
   lastDoneAtIsoByItemId?: Readonly<Record<string, string>>;
   /** Ссылка на страницу детального просмотра пункта (вместо модалки). */
   itemDetailHref: string;
+  /** Пауза перед повторным «Выполнено» (мин), из `system_settings`. */
+  planItemDoneRepeatCooldownMinutes: number;
 }) {
   const {
     instanceId,
@@ -79,10 +82,15 @@ export function PatientInstanceStageItemCard(props: {
     neutralItemChrome = false,
     itemDetailHref,
     lastDoneAtIsoByItemId = {},
+    planItemDoneRepeatCooldownMinutes,
   } = props;
+  const planItemDoneRepeatCooldownMs = useMemo(
+    () => planItemDoneRepeatCooldownMsFromMinutes(planItemDoneRepeatCooldownMinutes),
+    [planItemDoneRepeatCooldownMinutes],
+  );
   const mergedDoneIso = mergeLastActivityDisplayedIso(lastDoneAtIsoByItemId[item.id], item.completedAt);
-  const simpleCompleteDoneFrozen = isItemDoneCooldownActive(mergedDoneIso);
-  const simpleCooldownMinutes = itemDoneCooldownMinutesRemaining(mergedDoneIso);
+  const simpleCompleteDoneFrozen = isItemDoneCooldownActive(mergedDoneIso, planItemDoneRepeatCooldownMs);
+  const simpleCooldownMinutes = itemDoneCooldownMinutesRemaining(mergedDoneIso, planItemDoneRepeatCooldownMs);
   const router = useRouter();
   const readOnly = itemInteraction === "readOnly";
   const [markingViewed, setMarkingViewed] = useState(false);

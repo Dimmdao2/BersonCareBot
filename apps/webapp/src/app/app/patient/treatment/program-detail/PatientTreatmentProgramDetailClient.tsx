@@ -49,6 +49,8 @@ export function PatientTreatmentProgramDetailClient(props: {
   initialPlanTab?: PatientPlanTab;
   /** Верхняя карточка «напоминания сегодня» (только active). */
   planReminderStrip?: PatientPlanTodayRemindersCardProps | null;
+  /** Пауза перед повторным «Выполнено» у простых пунктов плана (мин). */
+  planItemDoneRepeatCooldownMinutes: number;
 }) {
   const {
     appDisplayTimeZone,
@@ -57,6 +59,7 @@ export function PatientTreatmentProgramDetailClient(props: {
     patientCalendarDayIana,
     initialPlanTab = "program",
     planReminderStrip = null,
+    planItemDoneRepeatCooldownMinutes,
   } = props;
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -337,6 +340,7 @@ export function PatientTreatmentProgramDetailClient(props: {
         progressCardTestsHref={progressCardTestsHref}
         patientCalendarDayIana={patientCalendarDayIana}
         statsRefreshToken={statsRefreshToken}
+        planItemDoneRepeatCooldownMinutes={planItemDoneRepeatCooldownMinutes}
       />
     </div>
   );

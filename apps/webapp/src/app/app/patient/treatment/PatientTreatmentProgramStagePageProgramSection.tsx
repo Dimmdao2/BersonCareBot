@@ -21,6 +21,7 @@ import {
   formatPlanItemDoneCooldownCaption,
   isItemDoneCooldownActive,
   itemDoneCooldownMinutesRemaining,
+  planItemDoneRepeatCooldownMsFromMinutes,
 } from "@/modules/treatment-program/itemDoneCooldown";
 import {
   patientBodyTextClass,
@@ -147,11 +148,13 @@ function PatientProgramTileSimpleCompleteButton(props: {
   refresh: () => Promise<void>;
   setBusy: (v: string | null) => void;
   setError: (v: string | null) => void;
+  planItemDoneRepeatCooldownMs: number;
 }) {
-  const { itemId, completedAt, lastDoneAtIso, busy, base, refresh, setBusy, setError } = props;
+  const { itemId, completedAt, lastDoneAtIso, busy, base, refresh, setBusy, setError, planItemDoneRepeatCooldownMs } =
+    props;
   const merged = mergeLastActivityDisplayedIso(lastDoneAtIso, completedAt);
-  const doneFrozen = isItemDoneCooldownActive(merged);
-  const cooldownMinutes = itemDoneCooldownMinutesRemaining(merged);
+  const doneFrozen = isItemDoneCooldownActive(merged, planItemDoneRepeatCooldownMs);
+  const cooldownMinutes = itemDoneCooldownMinutesRemaining(merged, planItemDoneRepeatCooldownMs);
 
   return (
     <div className="flex min-w-0 flex-1 basis-0 flex-col gap-0.5">
@@ -238,6 +241,7 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
   appDisplayTimeZone: string;
   className?: string;
   itemLinksPlanTab?: PatientPlanTab | null;
+  planItemDoneRepeatCooldownMinutes: number;
 }) {
   const {
     instanceId,
@@ -256,7 +260,12 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
     appDisplayTimeZone,
     className,
     itemLinksPlanTab = null,
+    planItemDoneRepeatCooldownMinutes,
   } = props;
+  const planItemDoneRepeatCooldownMs = useMemo(
+    () => planItemDoneRepeatCooldownMsFromMinutes(planItemDoneRepeatCooldownMinutes),
+    [planItemDoneRepeatCooldownMinutes],
+  );
 
   const readOnly = itemInteraction === "readOnly";
   const visibleProgramItems = useMemo(
@@ -417,6 +426,7 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
                   refresh={refresh}
                   setBusy={setBusy}
                   setError={setError}
+                  planItemDoneRepeatCooldownMs={planItemDoneRepeatCooldownMs}
                 />
               ) : null}
             </div>

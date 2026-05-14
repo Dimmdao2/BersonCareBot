@@ -18,6 +18,10 @@ import {
 import { isModesFormKey, MODES_FORM_KEYS } from "@/modules/system-settings/modesFormKeys";
 import { VIDEO_PRESIGN_TTL_MAX_SEC, VIDEO_PRESIGN_TTL_MIN_SEC } from "@/modules/media/videoPresignTtlConstants";
 import { coerceAdminBooleanSetting } from "@/modules/system-settings/coerceAdminBooleanSetting";
+import {
+  PATIENT_REPEAT_COOLDOWN_MINUTES_MAX,
+  PATIENT_REPEAT_COOLDOWN_MINUTES_MIN,
+} from "@/modules/patient-home/patientHomeRepeatCooldownSettings";
 
 /** Single-key PATCH: boolean keys normalized like `video_watermark_enabled`. */
 const ADMIN_BOOLEAN_SETTING_KEYS = new Set<string>([
@@ -27,6 +31,7 @@ const ADMIN_BOOLEAN_SETTING_KEYS = new Set<string>([
   "video_hls_new_uploads_auto_transcode",
   "video_hls_reconcile_enabled",
   "patient_home_morning_ping_enabled",
+  "patient_home_warmup_skip_to_next_available_enabled",
 ]);
 
 const ADMIN_SCOPE_KEYS = [
@@ -59,6 +64,9 @@ const ADMIN_SCOPE_KEYS = [
   "patient_home_daily_practice_target",
   "patient_home_morning_ping_enabled",
   "patient_home_morning_ping_local_time",
+  "patient_home_daily_warmup_repeat_cooldown_minutes",
+  "patient_treatment_plan_item_done_repeat_cooldown_minutes",
+  "patient_home_warmup_skip_to_next_available_enabled",
   "patient_home_mood_icons",
   "notifications_topics",
   "yandex_oauth_client_id",
@@ -262,6 +270,23 @@ export async function PATCH(request: Request) {
           ? Number.parseInt(inner.trim(), 10)
           : NaN;
     if (!Number.isFinite(n) || n < 1 || n > 10) {
+      return NextResponse.json({ ok: false, error: "invalid_value" }, { status: 400 });
+    }
+    normalizedValue = { value: n };
+  }
+
+  if (
+    parsed.data.key === "patient_home_daily_warmup_repeat_cooldown_minutes" ||
+    parsed.data.key === "patient_treatment_plan_item_done_repeat_cooldown_minutes"
+  ) {
+    const inner = normalizedValue.value;
+    const n =
+      typeof inner === "number" && Number.isInteger(inner)
+        ? inner
+        : typeof inner === "string" && /^\d+$/.test(inner.trim())
+          ? Number.parseInt(inner.trim(), 10)
+          : NaN;
+    if (!Number.isFinite(n) || n < PATIENT_REPEAT_COOLDOWN_MINUTES_MIN || n > PATIENT_REPEAT_COOLDOWN_MINUTES_MAX) {
       return NextResponse.json({ ok: false, error: "invalid_value" }, { status: 400 });
     }
     normalizedValue = { value: n };

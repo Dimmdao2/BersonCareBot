@@ -22,6 +22,7 @@ import { parsePatientPlanTab } from "@/app/app/patient/treatment/patientPlanTab"
 import { PatientProgramStageItemPageClient } from "@/app/app/patient/treatment/PatientProgramStageItemPageClient";
 import type { PatientTestSetPageServerSnapshot } from "@/modules/treatment-program/progress-service";
 import { testTitleFromTestSetSnapshot } from "@/app/app/patient/treatment/stageItemSnapshot";
+import { parsePatientTreatmentPlanItemDoneRepeatCooldownMinutes } from "@/modules/patient-home/patientHomeRepeatCooldownSettings";
 
 type Props = {
   params: Promise<{ instanceId: string; itemId: string }>;
@@ -62,13 +63,17 @@ export default async function PatientTreatmentProgramItemPage({ params, searchPa
   const deps = buildAppDeps();
   const appDisplayTimeZone = await getAppDisplayTimeZone();
   let detail;
+  let planItemDoneRepeatCooldownMinutes = parsePatientTreatmentPlanItemDoneRepeatCooldownMinutes(null);
   try {
-    const rawDetail = await deps.treatmentProgramInstance.getInstanceForPatient(
-      session.user.userId,
-      instanceId,
-    );
+    const [rawDetail, planItemCooldownSetting] = await Promise.all([
+      deps.treatmentProgramInstance.getInstanceForPatient(session.user.userId, instanceId),
+      deps.systemSettings.getSetting("patient_treatment_plan_item_done_repeat_cooldown_minutes", "admin"),
+    ]);
     if (!rawDetail) notFound();
     detail = omitDisabledInstanceStageItemsForPatientApi(rawDetail);
+    planItemDoneRepeatCooldownMinutes = parsePatientTreatmentPlanItemDoneRepeatCooldownMinutes(
+      planItemCooldownSetting?.valueJson ?? null,
+    );
   } catch {
     notFound();
   }
@@ -142,6 +147,7 @@ export default async function PatientTreatmentProgramItemPage({ params, searchPa
         testSetServerSnapshot={testSetServerSnapshot}
         itemLinksPlanTab={itemLinksPlanTab}
         resolvedTestId={resolvedTestIdForResolve}
+        planItemDoneRepeatCooldownMinutes={planItemDoneRepeatCooldownMinutes}
       />
     </AppShell>
   );

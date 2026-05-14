@@ -45,6 +45,7 @@ import {
   formatPlanItemDoneCooldownCaption,
   isItemDoneCooldownActive,
   itemDoneCooldownMinutesRemaining,
+  planItemDoneRepeatCooldownMsFromMinutes,
 } from "@/modules/treatment-program/itemDoneCooldown";
 import { patientHomeCardHeroClass } from "@/app/app/patient/home/patientHomeCardStyles";
 import {
@@ -88,6 +89,8 @@ export type PatientProgramStageItemPageClientProps = {
   itemLinksPlanTab?: PatientPlanTab | null;
   /** Для `nav=tests`: выбранный тест (канонический URL с `testId`). */
   resolvedTestId?: string | null;
+  /** Пауза перед повторным «Выполнено» у простых пунктов (мин), из `system_settings`. */
+  planItemDoneRepeatCooldownMinutes: number;
 };
 
 type StageItem = TreatmentProgramInstanceDetail["stages"][number]["items"][number];
@@ -296,8 +299,13 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
     testSetServerSnapshot,
     itemLinksPlanTab = null,
     resolvedTestId = null,
+    planItemDoneRepeatCooldownMinutes,
   } = props;
   const router = useRouter();
+  const planItemDoneRepeatCooldownMs = useMemo(
+    () => planItemDoneRepeatCooldownMsFromMinutes(planItemDoneRepeatCooldownMinutes),
+    [planItemDoneRepeatCooldownMinutes],
+  );
   const [detail, setDetail] = useState(initialDetail);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -435,8 +443,11 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
 
   const lastIsoForSimpleComplete =
     item ? mergeLastActivityDisplayedIso(lastDoneAtIsoByItemId[item.id], item.completedAt) : null;
-  const simpleCompleteDoneFrozen = isItemDoneCooldownActive(lastIsoForSimpleComplete);
-  const simpleCompleteCooldownMinutes = itemDoneCooldownMinutesRemaining(lastIsoForSimpleComplete);
+  const simpleCompleteDoneFrozen = isItemDoneCooldownActive(lastIsoForSimpleComplete, planItemDoneRepeatCooldownMs);
+  const simpleCompleteCooldownMinutes = itemDoneCooldownMinutesRemaining(
+    lastIsoForSimpleComplete,
+    planItemDoneRepeatCooldownMs,
+  );
 
   const primaryMedia = useMemo(() => {
     if (!item) return null;

@@ -44,6 +44,7 @@ export function PatientPlanTabPanels(props: {
   progressCardTestsHref: string | null;
   patientCalendarDayIana: string;
   statsRefreshToken: number;
+  planItemDoneRepeatCooldownMinutes: number;
 }) {
   const {
     activeTab,
@@ -64,6 +65,7 @@ export function PatientPlanTabPanels(props: {
     progressCardTestsHref,
     patientCalendarDayIana,
     statsRefreshToken,
+    planItemDoneRepeatCooldownMinutes,
   } = props;
 
   return (
@@ -80,6 +82,7 @@ export function PatientPlanTabPanels(props: {
             embeddedChecklist={embeddedChecklist}
             onRefreshDetail={onRefreshDetail}
             itemLinksPlanTab="program"
+            planItemDoneRepeatCooldownMinutes={planItemDoneRepeatCooldownMinutes}
           />
         </Suspense>
       </div>

@@ -5,6 +5,10 @@ import { z } from "zod";
 import { getCurrentSession } from "@/modules/auth/service";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { canAccessDoctor } from "@/modules/roles/service";
+import {
+  PATIENT_REPEAT_COOLDOWN_MINUTES_MAX,
+  PATIENT_REPEAT_COOLDOWN_MINUTES_MIN,
+} from "@/modules/patient-home/patientHomeRepeatCooldownSettings";
 
 function revalidatePatientHomePages(): void {
   revalidatePath("/app/doctor/patient-home");
@@ -15,6 +19,14 @@ function revalidatePatientHomePages(): void {
 async function requireDoctorOrThrow(): Promise<{ userId: string }> {
   const session = await getCurrentSession();
   if (!session || !canAccessDoctor(session.user.role)) {
+    throw new Error("forbidden");
+  }
+  return { userId: session.user.userId };
+}
+
+async function requireAdminOrThrow(): Promise<{ userId: string }> {
+  const session = await getCurrentSession();
+  if (!session || session.user.role !== "admin") {
     throw new Error("forbidden");
   }
   return { userId: session.user.userId };
@@ -39,6 +51,59 @@ export async function savePatientHomePracticeTargetAction(target: number): Promi
       { value: target },
       userId,
     );
+    revalidatePatientHomePages();
+    return { ok: true };
+  } catch {
+    return { ok: false, error: "forbidden" };
+  }
+}
+
+const patientHomeRepeatCooldownsSaveSchema = z.object({
+  warmupRepeatMinutes: z
+    .number()
+    .int()
+    .min(PATIENT_REPEAT_COOLDOWN_MINUTES_MIN)
+    .max(PATIENT_REPEAT_COOLDOWN_MINUTES_MAX),
+  planItemRepeatMinutes: z
+    .number()
+    .int()
+    .min(PATIENT_REPEAT_COOLDOWN_MINUTES_MIN)
+    .max(PATIENT_REPEAT_COOLDOWN_MINUTES_MAX),
+  skipWarmupToNextAvailable: z.boolean(),
+});
+
+/** Только admin: паузы повтора разминки / пунктов плана + флаг skip (как UI на `/app/doctor/patient-home`). */
+export async function savePatientHomeRepeatCooldownsAction(
+  input: z.infer<typeof patientHomeRepeatCooldownsSaveSchema>,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const { userId } = await requireAdminOrThrow();
+    const parsed = patientHomeRepeatCooldownsSaveSchema.safeParse(input);
+    if (!parsed.success) {
+      return { ok: false, error: "invalid_body" };
+    }
+    const { warmupRepeatMinutes, planItemRepeatMinutes, skipWarmupToNextAvailable } = parsed.data;
+    const deps = buildAppDeps();
+    await Promise.all([
+      deps.systemSettings.updateSetting(
+        "patient_home_daily_warmup_repeat_cooldown_minutes",
+        "admin",
+        { value: warmupRepeatMinutes },
+        userId,
+      ),
+      deps.systemSettings.updateSetting(
+        "patient_treatment_plan_item_done_repeat_cooldown_minutes",
+        "admin",
+        { value: planItemRepeatMinutes },
+        userId,
+      ),
+      deps.systemSettings.updateSetting(
+        "patient_home_warmup_skip_to_next_available_enabled",
+        "admin",
+        { value: skipWarmupToNextAvailable },
+        userId,
+      ),
+    ]);
     revalidatePatientHomePages();
     return { ok: true };
   } catch {

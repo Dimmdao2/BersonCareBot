@@ -2,10 +2,11 @@ import type { ReactNode } from "react";
 import type { AppSession } from "@/shared/types/session";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { getPatientHomeTodayConfig } from "@/modules/patient-home/todayConfig";
+import { formatPatientHomeWarmupCooldownCaption } from "@/modules/patient-home/dailyWarmupHeroCooldown";
 import {
-  PATIENT_HOME_DAILY_WARMUP_HERO_COOLDOWN_MINUTES,
-  formatPatientHomeWarmupCooldownCaption,
-} from "@/modules/patient-home/dailyWarmupHeroCooldown";
+  parsePatientHomeDailyWarmupRepeatCooldownMinutes,
+  parsePatientHomeWarmupSkipToNextAvailableEnabled,
+} from "@/modules/patient-home/patientHomeRepeatCooldownSettings";
 import { filterAndSortPatientHomeBlocks } from "@/modules/patient-home/patientHomeBlockPolicy";
 import type { ReminderRule } from "@/modules/reminders/types";
 import {
@@ -121,17 +122,27 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
   let appTz = await getAppDisplayTimeZone();
   const weekdayMonday0 = DateTime.now().setZone(appTz).weekday - 1;
 
-  const [homeBlocks, moodSetting] = await Promise.all([
+  const [homeBlocks, moodSetting, warmupRepeatSetting, warmupSkipSetting] = await Promise.all([
     deps.patientHomeBlocks.listBlocksWithItems(),
     deps.systemSettings.getSetting("patient_home_mood_icons", "admin"),
+    deps.systemSettings.getSetting("patient_home_daily_warmup_repeat_cooldown_minutes", "admin"),
+    deps.systemSettings.getSetting("patient_home_warmup_skip_to_next_available_enabled", "admin"),
   ]);
+
+  const dailyWarmupRepeatCooldownMinutes = parsePatientHomeDailyWarmupRepeatCooldownMinutes(
+    warmupRepeatSetting?.valueJson ?? null,
+  );
+  const warmupSkipCooldownPages = parsePatientHomeWarmupSkipToNextAvailableEnabled(
+    warmupSkipSetting?.valueJson ?? null,
+  );
 
   const warmupPick =
     session && personalTierOk ?
       {
         userId: session.user.userId,
         getDailyWarmupHeroCooldownMeta: deps.patientPractice.getDailyWarmupHeroCooldownMeta.bind(deps.patientPractice),
-        cooldownMinutes: PATIENT_HOME_DAILY_WARMUP_HERO_COOLDOWN_MINUTES,
+        cooldownMinutes: dailyWarmupRepeatCooldownMinutes,
+        skipCooldownPages: warmupSkipCooldownPages,
       }
     : undefined;
 
@@ -219,7 +230,7 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
         deps.patientPractice.getDailyWarmupHeroCooldownMeta(
           session.user.userId,
           warmupPageId,
-          PATIENT_HOME_DAILY_WARMUP_HERO_COOLDOWN_MINUTES,
+          dailyWarmupRepeatCooldownMinutes,
         )
       : Promise.resolve({ active: false as const }),
       deps.patientPractice.listRecent(session.user.userId, 1500),

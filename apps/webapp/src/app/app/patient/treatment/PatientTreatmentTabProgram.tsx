@@ -22,6 +22,7 @@ export function PatientTreatmentTabProgram(props: {
   onRefreshDetail: () => Promise<void>;
   /** `planTab` в ссылках на пункты (вкладка «Программа»). */
   itemLinksPlanTab?: PatientPlanTab | null;
+  planItemDoneRepeatCooldownMinutes: number;
 }) {
   const {
     instanceId,
@@ -33,6 +34,7 @@ export function PatientTreatmentTabProgram(props: {
     embeddedChecklist,
     onRefreshDetail,
     itemLinksPlanTab = "program",
+    planItemDoneRepeatCooldownMinutes,
   } = props;
 
   if (!currentWorkingStage) {
@@ -55,6 +57,7 @@ export function PatientTreatmentTabProgram(props: {
       embeddedChecklist={embeddedChecklist}
       onRefreshDetail={onRefreshDetail}
       itemLinksPlanTab={itemLinksPlanTab ?? null}
+      planItemDoneRepeatCooldownMinutes={planItemDoneRepeatCooldownMinutes}
     />
   );
 }

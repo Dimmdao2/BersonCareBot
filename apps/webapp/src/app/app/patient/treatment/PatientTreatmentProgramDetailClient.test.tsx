@@ -22,6 +22,7 @@ beforeAll(async () => {
 const detailShellProps = {
   appDisplayTimeZone: "Europe/Moscow",
   patientCalendarDayIana: "Europe/Moscow",
+  planItemDoneRepeatCooldownMinutes: 60,
 };
 
 function clickPatientTreatmentTab(which: "program" | "recommendations" | "progress") {

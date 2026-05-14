@@ -7,7 +7,6 @@ import type { PatientHomeBlock, PatientHomeBlockItem } from "@/modules/patient-h
 import { getPatientHomeTodayConfig } from "@/modules/patient-home/todayConfig";
 import { PatientHomeToday } from "./PatientHomeToday";
 import { routePaths } from "@/app-layer/routes/paths";
-import { PATIENT_HOME_DAILY_WARMUP_HERO_COOLDOWN_MINUTES } from "@/modules/patient-home/dailyWarmupHeroCooldown";
 import { DateTime } from "luxon";
 
 const listRulesByUser = vi.fn();
@@ -27,6 +26,7 @@ const listRecent = vi.fn();
 const getCheckinState = vi.fn();
 const getWeekSparkline = vi.fn();
 const refresh = vi.fn();
+const systemSettingsGetSetting = vi.hoisted(() => vi.fn().mockImplementation(async () => null));
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh }),
@@ -46,7 +46,7 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
     },
     patientCalendarTimezone: { getIanaForUser: patientCalendarGetIanaForUser },
     treatmentProgramPatientActions: { listChecklistDoneToday, listLocalDoneDateKeysForRecentDays },
-    systemSettings: { getSetting: vi.fn().mockResolvedValue(null) },
+    systemSettings: { getSetting: systemSettingsGetSetting },
     patientPractice: { getProgress, getDailyWarmupHeroCooldownMeta, listRecent },
     patientMood: { getCheckinState, getWeekSparkline },
   }),
@@ -207,6 +207,8 @@ describe("PatientHomeToday", () => {
       lastEntry: { id: "e1", recordedAt: "2026-04-28T10:00:00.000Z", score: 4 },
     });
     getWeekSparkline.mockResolvedValue([]);
+    systemSettingsGetSetting.mockReset();
+    systemSettingsGetSetting.mockImplementation(async () => null);
   });
 
   it("anonymous guest: no personal API, login drilldown on warmup, shows personal blocks with guest CTAs", async () => {
@@ -278,12 +280,36 @@ describe("PatientHomeToday", () => {
     expect(getDailyWarmupHeroCooldownMeta).toHaveBeenCalledWith(
       fixtureSession.user.userId,
       "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
-      PATIENT_HOME_DAILY_WARMUP_HERO_COOLDOWN_MINUTES,
+      60,
     );
 
     expect(screen.getByRole("heading", { name: /Fixture User!/i })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: /Сегодня выполнено/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Самочувствие 4 из 5/i })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("patient tier: passes warmup repeat cooldown minutes from system_settings into getDailyWarmupHeroCooldownMeta", async () => {
+    systemSettingsGetSetting.mockImplementation(async (key: string) => {
+      if (key === "patient_home_daily_warmup_repeat_cooldown_minutes") {
+        return { valueJson: { value: 90 } };
+      }
+      if (key === "patient_home_warmup_skip_to_next_available_enabled") {
+        return { valueJson: { value: true } };
+      }
+      return null;
+    });
+    const tree = await PatientHomeToday({
+      session: fixtureSession,
+      personalTierOk: true,
+      canViewAuthOnlyContent: true,
+    });
+    render(tree);
+
+    expect(getDailyWarmupHeroCooldownMeta).toHaveBeenCalledWith(
+      fixtureSession.user.userId,
+      "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+      90,
+    );
   });
 
   it("patient tier: warmup hero shows «Разминка выполнена» and cooldown caption when cooldown active", async () => {
