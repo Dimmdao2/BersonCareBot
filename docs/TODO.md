@@ -5,8 +5,10 @@
 ## Cursor-планы и доки (сводка)
 
 - **Активные планы** (корень репозитория): `.cursor/plans/integrator_drizzle_migration_master.plan.md` + `integrator_drizzle_phase_*.plan.md` — см. `docs/INTEGRATOR_DRIZZLE_MIGRATION/LOG.md`.
-- **Архив закрытых планов:** `.cursor/plans/archive/` — [README](../.cursor/plans/archive/README.md).
+- **Архив закрытых планов (репозиторий):** `.cursor/plans/archive/` — [README](../.cursor/plans/archive/README.md).
+- **Архив закрытых планов (домашний каталог Cursor):** `~/.cursor/plans/archive/2026-05-01-closed/`, `~/.cursor/plans/archive/2026-05-14-closed/` (корень `~/.cursor/plans/*.plan.md` — только открытые или без полностью закрытого набора structured `todos`).
 - **Архивные инициативы docs:** `docs/archive/2026-05-initiatives/` (в т.ч. WEBAPP Drizzle unification, Patient Reminder UX, страница программы, LFK expand — оглавление в [docs/README.md](README.md) §Архив).
+- **Закрытые пункты этого backlog (история):** [archive/TODO_BACKLOG_CLOSED_HISTORY.md](archive/TODO_BACKLOG_CLOSED_HISTORY.md).
 
 ## Деплой webapp — blue/green (ближайшее время, ops)
 
@@ -39,7 +41,7 @@
 
 - **Контекст:** фаза 1 (глобальный pacing 5.5s для api2) закрыта; фаза 2 — отдельная инициатива: очередь воркера, async создание записи с поллингом («выполняется запись»), мультивыбор слотов и последовательные create в воркере с тем же pacing.
 - **Бэклог и спецификация (репозиторий):** [`docs/REPORTS/RUBITIME_API2_PACING_AND_PHASE2_BACKLOG.md`](REPORTS/RUBITIME_API2_PACING_AND_PHASE2_BACKLOG.md) (§ «Фаза 2 — backlog»).
-- **План Cursor (вне репо, IDE):** `~/.cursor/plans/rubitime_queue_+_multi-slot_ae5a569b.plan.md` — полный текст и mermaid; фаза 1 в плане помечена выполненной, фаза 2 описана в теле файла.
+- **План Cursor (архив IDE):** `~/.cursor/plans/archive/2026-05-01-closed/rubitime_queue_+_multi-slot_ae5a569b.plan.md` — полный текст и mermaid; фаза 1 в плане помечена выполненной, фаза 2 описана в теле файла.
 
 ## Doctor catalogs — черновики отдельно от архива
 
@@ -59,12 +61,6 @@
 - **TODO 1:** перейти от одной вычисляемой даты к модели нескольких контролей в рамках этапа (история, перенос, следующий контроль, отметка прохождения).
 - **TODO 2:** добавить комментарий пациента к факту выполнения `exercise` / `lesson` / actionable `recommendation` (сейчас заметка есть только в LFK post-session).
 - **Ссылки:** `docs/APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md` (§1.0, §1.1a, §8), `docs/BACKLOG_TAILS.md` («Хвосты по Плану лечения / Курсам»).
-
-## Patient plan detail client decomposition (webapp) — закрыто (2026-05-08)
-
-- **Сделано:** монолит разбит на модули под **`apps/webapp/src/app/app/patient/treatment/program-detail/`** (hero, tab strip, панели вкладок, timeline, контроль, этап/пункт, форматтеры); публичный API сохранён через **`treatment/PatientTreatmentProgramDetailClient.tsx`**.
-- **Карта файлов:** [`apps/webapp/src/app/app/patient/treatment/program-detail/README.md`](../apps/webapp/src/app/app/patient/treatment/program-detail/README.md).
-- **Ссылки:** [`docs/archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/LOG.md`](archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/LOG.md); [`docs/archive/2026-05-initiatives/TREATMENT_PROGRAM_INITIATIVE/LOG.md`](archive/2026-05-initiatives/TREATMENT_PROGRAM_INITIATIVE/LOG.md).
 
 ## Security / Auth
 

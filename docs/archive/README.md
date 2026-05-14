@@ -21,3 +21,7 @@
 Разовые журналы агентов, UX-снимки и закрытый пакет аудита **TEST_AND_API_DI_OPTIMIZATION** (discovery + `AUDIT_*`): см. [`2026-04-docs-cleanup/README.md`](2026-04-docs-cleanup/README.md).
 
 Завершённые продуктовые инициативы (AUTH, phone bind, identity, merge v2, timezone, booking, …): [`2026-04-initiatives/README.md`](2026-04-initiatives/README.md).
+
+## 2026-05 — вынесенные закрытые пункты project backlog
+
+Записи, удалённые из [`../TODO.md`](../TODO.md) как история: [`TODO_BACKLOG_CLOSED_HISTORY.md`](TODO_BACKLOG_CLOSED_HISTORY.md).
