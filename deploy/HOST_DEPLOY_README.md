@@ -53,19 +53,18 @@
 - `bersoncarebot-webapp-prod.service`
 - `bersoncarebot-media-worker-prod.service` — HLS transcode (`apps/media-worker`), см. § **systemd units → HLS media-worker**
 
-### Dev services
+### Разработка на хосте (без dev systemd)
 
-На audited host dev unit'ы **не установлены**:
+В репозитории **нет** шаблонов `bersoncarebot-*-dev.service`. Production держится только на юнитах `*-prod` (список выше). Режим разработки UI/тестов — **вручную** из каталога проекта (например `pnpm webapp:dev` под `deploy`), не через systemd.
 
-- `bersoncarebot-api-dev.service` — отсутствует
-- `bersoncarebot-worker-dev.service` — отсутствует
-- `bersoncarebot-webapp-dev.service` — отсутствует
+Если на сервере остались **старые** установленные dev-юниты, снимите их однократно **от root**:
 
-Это значит:
-
-- prod живёт через `systemd`;
-- dev на этом хосте запускается вручную или не запущен;
-- dev unit templates в репозитории не являются подтверждённым runtime-state хоста.
+```bash
+systemctl disable --now bersoncarebot-webapp-dev.service bersoncarebot-api-dev.service bersoncarebot-worker-dev.service 2>/dev/null || true
+rm -f /etc/systemd/system/bersoncarebot-webapp-dev.service /etc/systemd/system/bersoncarebot-api-dev.service /etc/systemd/system/bersoncarebot-worker-dev.service
+systemctl daemon-reload
+systemctl reset-failed
+```
 
 ---
 

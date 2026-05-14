@@ -8,9 +8,11 @@ import { z } from "zod";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
 
-/** Load repo-style `.env.dev` from webapp when present (local dev). */
+/** Local dev: optional webapp `.env.dev` + `apps/media-worker/.env`. Production uses only process env (e.g. systemd `EnvironmentFile`). */
 function loadDotenv() {
-  config({ path: join(__dirname, "../../webapp/.env.dev") });
+  if (process.env.NODE_ENV !== "production") {
+    config({ path: join(__dirname, "../../webapp/.env.dev") });
+  }
   config();
 }
 

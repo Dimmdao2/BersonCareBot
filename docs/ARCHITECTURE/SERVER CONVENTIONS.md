@@ -251,31 +251,16 @@
 | Dev cutover env | `/home/dev/dev-projects/BersonCareBot/.env.cutover.dev` |
 | Legacy `webapp/.env.dev` | отсутствует |
 
-### systemd / processes
+### systemd / processes (dev)
 
-На audited host dev-юниты **не установлены**:
+Канон для **production** — только юниты `bersoncarebot-*-prod` (см. раздел Production). Шаблонов **`bersoncarebot-*-dev.service`** в репозитории **нет**; локальная разработка и dev на сервере — **процессы вручную** (`pnpm webapp:dev` и т.д.), не через установленные dev-юниты systemd. Если на хосте остались старые файлы `*-dev.service` в `/etc/systemd/system/`, их нужно **disable**, удалить и `daemon-reload` (см. [`deploy/HOST_DEPLOY_README.md`](../../deploy/HOST_DEPLOY_README.md)).
 
-- `bersoncarebot-api-dev.service` — отсутствует
-- `bersoncarebot-worker-dev.service` — отсутствует
-- `bersoncarebot-webapp-dev.service` — отсутствует
+### Dev ports (ручной запуск, не prod systemd)
 
-При этом в репозитории есть такие dev unit templates:
-
-- `deploy/systemd/bersoncarebot-api-dev.service`
-- `deploy/systemd/bersoncarebot-worker-dev.service`
-- `deploy/systemd/bersoncarebot-webapp-dev.service`
-
-### Dev ports (по факту на audit)
-
-| Сервис | Состояние |
-|--------|-----------|
-| `127.0.0.1:5200` | слушает dev webapp |
-| `127.0.0.1:4200` | не слушает в момент audit |
-
-Вывод:
-
-- dev webapp запускался вручную или другим способом, не через systemd;
-- dev integrator на `4200` в момент audit не был поднят.
+| Сервис | Типично |
+|--------|---------|
+| Webapp dev | порт из `apps/webapp/.env.dev` (часто `127.0.0.1:5200`) при `pnpm webapp:dev` |
+| Integrator dev | при необходимости отдельный процесс; URL в `INTEGRATOR_API_URL` в webapp dev |
 
 ### Webapp dev env: подтвержденные ключи
 
@@ -344,9 +329,6 @@
 - `deploy/systemd/bersoncarebot-scheduler-prod.service`
 - `deploy/systemd/bersoncarebot-webapp-prod.service`
 - `deploy/systemd/bersoncarebot-media-worker-prod.service`
-- `deploy/systemd/bersoncarebot-api-dev.service`
-- `deploy/systemd/bersoncarebot-worker-dev.service`
-- `deploy/systemd/bersoncarebot-webapp-dev.service`
 
 ### Env templates в репозитории
 
