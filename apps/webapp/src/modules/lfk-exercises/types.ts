@@ -1,6 +1,8 @@
 import type { MediaPreviewStatus } from "@/modules/media/types";
 import type { RecommendationListFilterScope } from "@/shared/lib/doctorCatalogListStatus";
 
+import { mergeCatalogBodyRegionIds } from "@/shared/lib/mergeCatalogBodyRegionIds";
+
 export type ExerciseLoadType = "strength" | "stretch" | "balance" | "cardio" | "other";
 
 export type ExerciseMediaType = "image" | "video" | "gif";
@@ -22,7 +24,10 @@ export type Exercise = {
   id: string;
   title: string;
   description: string | null;
+  /** Первый регион (legacy колонка `region_ref_id`, dual-write с M2M). */
   regionRefId: string | null;
+  /** Все регионы (M2M `lfk_exercise_regions` ∪ legacy). */
+  regionRefIds: readonly string[];
   loadType: ExerciseLoadType | null;
   difficulty1_10: number | null;
   contraindications: string | null;
@@ -46,6 +51,8 @@ export type ExerciseFilter = {
   search?: string | null;
 };
 
+export const mergeExerciseRegionRefIds = mergeCatalogBodyRegionIds;
+
 export type ExerciseMediaInput = {
   mediaUrl: string;
   mediaType: ExerciseMediaType;
@@ -56,6 +63,8 @@ export type CreateExerciseInput = {
   title: string;
   description?: string | null;
   regionRefId?: string | null;
+  /** Регионы тела (M2M); при сохранении `region_ref_id` = первый id. */
+  regionRefIds?: string[] | null;
   loadType?: ExerciseLoadType | null;
   difficulty1_10?: number | null;
   contraindications?: string | null;
@@ -67,6 +76,7 @@ export type UpdateExerciseInput = {
   title?: string;
   description?: string | null;
   regionRefId?: string | null;
+  regionRefIds?: string[] | null;
   loadType?: ExerciseLoadType | null;
   difficulty1_10?: number | null;
   contraindications?: string | null;

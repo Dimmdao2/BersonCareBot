@@ -17,8 +17,9 @@ export type ClinicalTest = {
   rawText: string | null;
   /** Код из справочника `clinical_assessment_kind` (`reference_items.code`) или произвольный legacy-код на чтении. */
   assessmentKind: string | null;
-  /** FK `reference_items.id` (категория регионов тела). */
+  /** FK `reference_items.id` (категория регионов тела); первый = legacy `tests.body_region_id`. */
   bodyRegionId: string | null;
+  bodyRegionIds: readonly string[];
   media: ClinicalTestMediaItem[];
   tags: string[] | null;
   isArchived: boolean;
@@ -46,6 +47,7 @@ export type CreateClinicalTestInput = {
   /** Код из справочника `clinical_assessment_kind` или null. */
   assessmentKind?: string | null;
   bodyRegionId?: string | null;
+  bodyRegionIds?: string[] | null;
   scoring?: ClinicalTestScoring | null;
   rawText?: string | null;
   media?: ClinicalTestMediaItem[];
@@ -58,6 +60,7 @@ export type UpdateClinicalTestInput = {
   testType?: string | null;
   assessmentKind?: string | null;
   bodyRegionId?: string | null;
+  bodyRegionIds?: string[] | null;
   scoring?: ClinicalTestScoring | null;
   rawText?: string | null;
   media?: ClinicalTestMediaItem[] | null;
@@ -85,7 +88,7 @@ export type TestSetItemWithTest = {
   testId: string;
   sortOrder: number;
   comment: string | null;
-  test: Pick<ClinicalTest, "id" | "title" | "testType" | "isArchived" | "bodyRegionId"> & {
+  test: Pick<ClinicalTest, "id" | "title" | "testType" | "isArchived" | "bodyRegionId" | "bodyRegionIds"> & {
     /** Первое медиа по `sort_order` для превью в редакторе набора. */
     previewMedia: ClinicalTestMediaItem | null;
   };

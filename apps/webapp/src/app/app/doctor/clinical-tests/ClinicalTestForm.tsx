@@ -32,6 +32,7 @@ import { buildClinicalAssessmentKindSelectOptions } from "@/modules/tests/clinic
 import { cn } from "@/lib/utils";
 import { MediaLibraryPickerDialog } from "@/app/app/doctor/content/MediaLibraryPickerDialog";
 import { ReferenceSelect } from "@/shared/ui/ReferenceSelect";
+import { ReferenceMultiSelect } from "@/shared/ui/ReferenceMultiSelect";
 import { archiveClinicalTest, fetchDoctorClinicalTestUsageSnapshot, saveClinicalTest, unarchiveClinicalTest } from "./actions";
 import type {
   ArchiveClinicalTestState,
@@ -63,7 +64,7 @@ export type ClinicalTestFormValues = {
   mediaUrl: string;
   mediaType: "" | "image" | "video" | "gif";
   assessmentKind: string;
-  bodyRegionId: string | null;
+  bodyRegionIds: string[];
   schemaType: ClinicalTestSchemaType;
   measureRows: ClinicalTestMeasureRowModel[];
   likertMin: string;
@@ -120,7 +121,7 @@ export function clinicalTestToFormValues(test: ClinicalTest | null | undefined):
     mediaUrl: initialMedia?.mediaUrl ?? "",
     mediaType: (initialMedia?.mediaType ?? "") as ClinicalTestFormValues["mediaType"],
     assessmentKind: test?.assessmentKind ?? "",
-    bodyRegionId: test?.bodyRegionId ?? null,
+    bodyRegionIds: test?.bodyRegionIds?.length ? [...test.bodyRegionIds] : test?.bodyRegionId ? [test.bodyRegionId] : [],
     schemaType,
     measureRows,
     likertMin,
@@ -492,14 +493,13 @@ export function ClinicalTestForm({
 
             <div className="flex flex-col gap-3">
               <Label htmlFor="ct-region">Регион тела</Label>
-              <ReferenceSelect
+              <ReferenceMultiSelect
                 id="ct-region"
-                name="bodyRegionId"
+                name="bodyRegionIds"
                 categoryCode="body_region"
-                value={values.bodyRegionId}
-                onChange={(refId) => setValues((v) => ({ ...v, bodyRegionId: refId }))}
-                placeholder="Не выбран"
-                clearOptionLabel="Все / не задано"
+                value={values.bodyRegionIds}
+                onChange={(ids) => setValues((v) => ({ ...v, bodyRegionIds: ids }))}
+                placeholder="Добавить регион…"
                 disabled={isArchived}
               />
             </div>

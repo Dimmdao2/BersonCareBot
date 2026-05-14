@@ -190,9 +190,11 @@ function ClinicalTestsContent({
     });
   }, [initialSelectedId, initialItems, setDesktopSelectedId, setMobileSheet]);
 
-  const getItemRegionCode = useCallback(
+  const getItemRegionCodes = useCallback(
     (t: ClinicalTest) =>
-      t.bodyRegionId ? (bodyRegionIdToCode[t.bodyRegionId] ?? null) : null,
+      t.bodyRegionIds
+        .map((id) => bodyRegionIdToCode[id])
+        .filter((c): c is string => Boolean(c)),
     [bodyRegionIdToCode],
   );
 
@@ -202,7 +204,7 @@ function ClinicalTestsContent({
     filters.titleSort === null ? "default" : filters.titleSort,
     {
       regionCode: filters.regionCode,
-      getItemRegionCode,
+      getItemRegionCodes,
       tertiaryCode: filters.invalidAssessmentQuery ? null : (filters.assessmentKind ?? null),
       getItemTertiaryCode: (t) => t.assessmentKind,
     },

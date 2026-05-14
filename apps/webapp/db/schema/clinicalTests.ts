@@ -11,6 +11,7 @@ import {
   foreignKey,
   check,
   unique,
+  primaryKey,
 } from "drizzle-orm/pg-core";
 import { platformUsers, referenceItems } from "./schema";
 
@@ -71,6 +72,29 @@ export const clinicalTests = pgTable(
       foreignColumns: [referenceItems.id],
       name: "tests_body_region_id_fkey",
     }).onDelete("set null"),
+  ],
+);
+
+/** M2M: клинический тест (`tests`) ↔ регион тела. Legacy: `tests.body_region_id` (dual-write). */
+export const clinicalTestRegions = pgTable(
+  "clinical_test_regions",
+  {
+    clinicalTestId: uuid("clinical_test_id").notNull(),
+    bodyRegionId: uuid("body_region_id").notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.clinicalTestId, table.bodyRegionId], name: "clinical_test_regions_pkey" }),
+    foreignKey({
+      columns: [table.clinicalTestId],
+      foreignColumns: [clinicalTests.id],
+      name: "clinical_test_regions_clinical_test_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.bodyRegionId],
+      foreignColumns: [referenceItems.id],
+      name: "clinical_test_regions_body_region_id_fkey",
+    }).onDelete("cascade"),
+    index("idx_clinical_test_regions_body_region").using("btree", table.bodyRegionId.asc().nullsLast().op("uuid_ops")),
   ],
 );
 

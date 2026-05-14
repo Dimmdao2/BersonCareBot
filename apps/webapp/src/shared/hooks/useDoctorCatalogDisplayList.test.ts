@@ -22,6 +22,21 @@ describe("useDoctorCatalogDisplayList", () => {
     expect(result.current.map((r) => r.id)).toEqual(["1"]);
   });
 
+  it("filters by region code when getItemRegionCodes provided (any match)", () => {
+    type RowM = { title: string; id: string; codes: string[] };
+    const rowsM: RowM[] = [
+      { id: "1", title: "А", codes: ["spine", "knee"] },
+      { id: "2", title: "Б", codes: ["hip"] },
+    ];
+    const { result } = renderHook(() =>
+      useDoctorCatalogDisplayList(rowsM, "", "default", {
+        regionCode: "knee",
+        getItemRegionCodes: (r) => r.codes,
+      }),
+    );
+    expect(result.current.map((r) => r.id)).toEqual(["1"]);
+  });
+
   it("filters by load when getItemLoadType provided", () => {
     const { result } = renderHook(() =>
       useDoctorCatalogDisplayList(rows, "", "default", {

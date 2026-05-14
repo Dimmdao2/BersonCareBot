@@ -784,6 +784,25 @@ export const lfkExercises = pgTable("lfk_exercises", {
 	check("lfk_exercises_load_type_check", sql`load_type = ANY (ARRAY['strength'::text, 'stretch'::text, 'balance'::text, 'cardio'::text, 'other'::text])`),
 ]);
 
+/** M2M: упражнение ↔ регион тела (`reference_items`, категория `body_region`). Legacy: `lfk_exercises.region_ref_id` (dual-write, первый выбранный). */
+export const lfkExerciseRegions = pgTable("lfk_exercise_regions", {
+	exerciseId: uuid("exercise_id").notNull(),
+	regionRefId: uuid("region_ref_id").notNull(),
+}, (table) => [
+	primaryKey({ columns: [table.exerciseId, table.regionRefId], name: "lfk_exercise_regions_pkey" }),
+	foreignKey({
+		columns: [table.exerciseId],
+		foreignColumns: [lfkExercises.id],
+		name: "lfk_exercise_regions_exercise_id_fkey",
+	}).onDelete("cascade"),
+	foreignKey({
+		columns: [table.regionRefId],
+		foreignColumns: [referenceItems.id],
+		name: "lfk_exercise_regions_region_ref_id_fkey",
+	}).onDelete("cascade"),
+	index("idx_lfk_exercise_regions_region_ref").using("btree", table.regionRefId.asc().nullsLast().op("uuid_ops")),
+]);
+
 export const lfkComplexTemplateExercises = pgTable("lfk_complex_template_exercises", {
 	id: uuid().defaultRandom().primaryKey().notNull(),
 	templateId: uuid("template_id").notNull(),

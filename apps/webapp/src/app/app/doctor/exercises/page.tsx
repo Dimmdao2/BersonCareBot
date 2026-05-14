@@ -3,7 +3,7 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { AppShell } from "@/shared/ui/AppShell";
 import { doctorCatalogViewFromSearchParams } from "@/shared/lib/doctorCatalogViewPreference";
 import { parseRecommendationListFilterScope } from "@/shared/lib/doctorCatalogListStatus";
-import { parseDoctorCatalogRegionQueryParam } from "@/shared/lib/doctorCatalogRegionQuery";
+import { parseDoctorCatalogRegionQueryParam, resolveBodyRegionRefIdFromCatalogCode } from "@/shared/lib/doctorCatalogRegionQuery";
 import type { Exercise, ExerciseUsageSnapshot } from "@/modules/lfk-exercises/types";
 import {
   EXERCISE_LOAD_TYPE_CATEGORY_CODE,
@@ -49,6 +49,7 @@ export default async function DoctorExercisesPage({ searchParams }: PageProps) {
 
   const listPromise = deps.lfkExercises.listExercises({
     archiveListScope: listStatus,
+    regionRefId: resolveBodyRegionRefIdFromCatalogCode(bodyRegionItems, regionParsed.regionCode),
   });
   const bodyRegionIdToCode = Object.fromEntries(bodyRegionItems.map((it) => [it.id, it.code]));
 

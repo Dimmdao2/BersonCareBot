@@ -1,7 +1,8 @@
-import { and, asc, desc, eq, ilike, or } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, inArray, or } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import { getPool } from "@/infra/db/client";
 import {
+  clinicalTestRegions,
   clinicalTests as clinicalTestsTable,
   testSets as testSetsTable,
   testSetItems as testSetItemsTable,
@@ -19,6 +20,7 @@ import type {
   TestSetUsageSnapshot,
 } from "@/modules/tests/types";
 import { EMPTY_TEST_SET_USAGE_SNAPSHOT, TEST_SET_USAGE_DETAIL_LIMIT } from "@/modules/tests/types";
+import { mergeCatalogBodyRegionIds } from "@/shared/lib/mergeCatalogBodyRegionIds";
 
 function mapMeta(row: typeof testSetsTable.$inferSelect): Omit<TestSet, "items"> {
   return {
@@ -42,13 +44,16 @@ function pickFirstClinicalMedia(media: unknown): ClinicalTestMediaItem | null {
 
 function mapTestRow(
   row: typeof clinicalTestsTable.$inferSelect,
+  m2mBodyRegionIds: readonly string[] = [],
 ): TestSetItemWithTest["test"] {
+  const merged = mergeCatalogBodyRegionIds(row.bodyRegionId, m2mBodyRegionIds);
   return {
     id: row.id,
     title: row.title,
     testType: row.testType,
     isArchived: row.isArchived,
-    bodyRegionId: row.bodyRegionId ?? null,
+    bodyRegionId: merged[0] ?? null,
+    bodyRegionIds: merged,
     previewMedia: pickFirstClinicalMedia(row.media),
   };
 }
@@ -65,13 +70,28 @@ async function loadItemsForSet(testSetId: string): Promise<TestSetItemWithTest[]
     .where(eq(testSetItemsTable.testSetId, testSetId))
     .orderBy(asc(testSetItemsTable.sortOrder), asc(testSetItemsTable.id));
 
+  const testIds = [...new Set(rows.map((r) => r.test.id))];
+  let byTest = new Map<string, string[]>();
+  if (testIds.length > 0) {
+    const crRows = await db
+      .select()
+      .from(clinicalTestRegions)
+      .where(inArray(clinicalTestRegions.clinicalTestId, testIds));
+    byTest = new Map<string, string[]>();
+    for (const cr of crRows) {
+      const cur = byTest.get(cr.clinicalTestId) ?? [];
+      cur.push(cr.bodyRegionId);
+      byTest.set(cr.clinicalTestId, cur);
+    }
+  }
+
   return rows.map((r) => ({
     id: r.item.id,
     testSetId: r.item.testSetId,
     testId: r.item.testId,
     sortOrder: r.item.sortOrder,
     comment: r.item.comment ?? null,
-    test: mapTestRow(r.test),
+    test: mapTestRow(r.test, byTest.get(r.test.id) ?? []),
   }));
 }
 

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useActionState, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DoctorDifficulty1to10Slider } from "@/shared/ui/doctor/DoctorDifficulty1to10Slider";
 import { ReferenceSelect } from "@/shared/ui/ReferenceSelect";
+import { ReferenceMultiSelect } from "@/shared/ui/ReferenceMultiSelect";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -68,7 +69,7 @@ export type ExerciseFormValues = {
   description: string;
   tags: string;
   contraindications: string;
-  regionRefId: string | null;
+  regionRefIds: string[];
   loadType: ExerciseLoadType | "";
   difficulty: number;
   mediaUrl: string;
@@ -82,7 +83,7 @@ export function exerciseToFormValues(exercise: Exercise | null | undefined): Exe
     description: exercise?.description ?? "",
     tags: exercise?.tags?.join(", ") ?? "",
     contraindications: exercise?.contraindications ?? "",
-    regionRefId: exercise?.regionRefId ?? null,
+    regionRefIds: exercise?.regionRefIds ? [...exercise.regionRefIds] : [],
     loadType: (exercise?.loadType ?? "") as ExerciseLoadType | "",
     difficulty: exercise?.difficulty1_10 ?? 5,
     mediaUrl: initialMedia?.mediaUrl ?? "",
@@ -124,7 +125,6 @@ export function ExerciseForm({
   const recordKey = exercise?.id ?? "create";
 
   const [values, setValues] = useState<ExerciseFormValues>(() => exerciseToFormValues(exercise));
-  const [regionLabel, setRegionLabel] = useState("");
   const [localError, setLocalError] = useState<string | null>(null);
   const [usage, setUsage] = useState<ExerciseUsageSnapshot | null>(null);
   const [usageLoadError, setUsageLoadError] = useState<string | null>(null);
@@ -135,7 +135,6 @@ export function ExerciseForm({
 
   useEffect(() => {
     setValues(exerciseToFormValues(exercise));
-    setRegionLabel("");
     setLocalError(null);
     setUsageLoadError(null);
     setWarnOpen(false);
@@ -243,7 +242,6 @@ export function ExerciseForm({
         {exercise ? <input type="hidden" name="id" value={exercise.id} /> : null}
         {viewHint ? <input type="hidden" name="view" value={viewHint} /> : null}
         {listArchiveScope ? <input type="hidden" name="status" value={listArchiveScope} /> : null}
-        <input type="hidden" name="regionRefId" value={values.regionRefId ?? ""} />
         <input type="hidden" name="mediaUrl" value={values.mediaUrl} />
         <input type="hidden" name="mediaType" value={values.mediaType} />
 
@@ -304,18 +302,13 @@ export function ExerciseForm({
 
             <div className="flex flex-col gap-3">
               <span className="text-sm font-medium">Регион</span>
-              <ReferenceSelect
+              <ReferenceMultiSelect
                 categoryCode="body_region"
-                value={values.regionRefId}
-                onChange={(refId, label) => {
-                  setValues((v) => ({ ...v, regionRefId: refId }));
-                  setRegionLabel(label);
-                }}
-                placeholder="Выберите регион"
+                name="regionRefIds"
+                value={values.regionRefIds}
+                onChange={(ids) => setValues((v) => ({ ...v, regionRefIds: ids }))}
+                placeholder="Добавить регион…"
               />
-              {regionLabel ? (
-                <p className="text-xs text-muted-foreground">Выбрано: {regionLabel}</p>
-              ) : null}
             </div>
 
             <div className="flex flex-col gap-3">

@@ -9,6 +9,7 @@ import type {
   TestSetArchiveScope,
 } from "@/modules/tests/types";
 import { EMPTY_CLINICAL_TEST_USAGE_SNAPSHOT } from "@/modules/tests/types";
+import { mergeCatalogBodyRegionIds } from "@/shared/lib/mergeCatalogBodyRegionIds";
 
 const store = new Map<string, ClinicalTest>();
 const usageByTestId = new Map<string, ClinicalTestUsageSnapshot>();
@@ -53,7 +54,7 @@ function matchesFilter(t: ClinicalTest, f: ClinicalTestFilter): boolean {
   if (scope === "archived" && !t.isArchived) return false;
   if (f.testType && f.testType.trim() && t.testType !== f.testType.trim()) return false;
   const region = f.regionRefId?.trim();
-  if (region && t.bodyRegionId !== region) return false;
+  if (region && !t.bodyRegionIds.includes(region)) return false;
   const ak = f.assessmentKind?.trim();
   if (ak && t.assessmentKind !== ak) return false;
   if (f.search?.trim()) {
@@ -79,6 +80,7 @@ export const inMemoryClinicalTestsPort: ClinicalTestsPort = {
   async create(input: CreateClinicalTestInput, createdBy: string | null): Promise<ClinicalTest> {
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
+    const merged = mergeCatalogBodyRegionIds(input.bodyRegionId?.trim() || null, input.bodyRegionIds ?? null);
     const row: ClinicalTest = {
       id,
       title: input.title,
@@ -87,7 +89,8 @@ export const inMemoryClinicalTestsPort: ClinicalTestsPort = {
       scoring: input.scoring ?? null,
       rawText: input.rawText ?? null,
       assessmentKind: input.assessmentKind?.trim() || null,
-      bodyRegionId: input.bodyRegionId?.trim() || null,
+      bodyRegionId: merged[0] ?? null,
+      bodyRegionIds: merged,
       media: normalizeMedia(input.media ?? []),
       tags: input.tags ?? null,
       isArchived: false,
@@ -103,6 +106,12 @@ export const inMemoryClinicalTestsPort: ClinicalTestsPort = {
     const cur = store.get(id);
     if (!cur) return null;
     const now = new Date().toISOString();
+    const regionMerged =
+      input.bodyRegionIds !== undefined || input.bodyRegionId !== undefined
+        ? input.bodyRegionIds !== undefined
+          ? mergeCatalogBodyRegionIds(null, input.bodyRegionIds)
+          : mergeCatalogBodyRegionIds(input.bodyRegionId?.trim() || null, [])
+        : null;
     const next: ClinicalTest = {
       ...cur,
       title: input.title ?? cur.title,
@@ -111,7 +120,9 @@ export const inMemoryClinicalTestsPort: ClinicalTestsPort = {
       scoring: input.scoring !== undefined ? input.scoring : cur.scoring,
       rawText: input.rawText !== undefined ? input.rawText : cur.rawText,
       assessmentKind: input.assessmentKind !== undefined ? input.assessmentKind?.trim() || null : cur.assessmentKind,
-      bodyRegionId: input.bodyRegionId !== undefined ? input.bodyRegionId?.trim() || null : cur.bodyRegionId,
+      ...(regionMerged !== null
+        ? { bodyRegionId: regionMerged[0] ?? null, bodyRegionIds: regionMerged }
+        : {}),
       tags: input.tags !== undefined ? input.tags : cur.tags,
       media: input.media !== undefined ? normalizeMedia(input.media) : cur.media,
       updatedAt: now,

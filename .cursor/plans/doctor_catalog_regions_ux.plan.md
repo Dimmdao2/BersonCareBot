@@ -1,31 +1,31 @@
 ---
 name: Doctor catalog regions UX
-overview: "КАНОН плана регионов каталога врача — только этот файл в репо (.cursor/plans/doctor_catalog_regions_ux.plan.md). Исправить баг ReferenceSelect для региона, подсказку прокрутки выпадающего списка, мультивыбор регионов (чипы + M2M в БД), фильтр по вхождению кода региона в набор на портах и в useDoctorCatalogDisplayList; шаблоны ЛФК и наборы тестов."
+overview: КАНОН плана регионов каталога врача — только этот файл в репо (.cursor/plans/doctor_catalog_regions_ux.plan.md). Мультивыбор регионов (чипы + M2M), фильтр по региону на портах list и в useDoctorCatalogDisplayList, SSR list с regionRefId, ReferenceMultiSelect, подсказка overflow в ReferenceSelect; шаблоны ЛФК и наборы тестов. См. docs/ARCHITECTURE/DOCTOR_CATALOG_REGIONS_LOG.md.
 todos:
   - id: hotfix-reference-select
-    content: "ExerciseForm + ClinicalTestForm: регион — showAllOnFocus + searchable={false} (паритет с RecommendationForm); опционально отдельный PR — смягчить ReferenceSelect onFocus глобально"
-    status: pending
+    content: "Регион в формах — ReferenceMultiSelect (снят баг схлопывания); ReferenceSelect — onFocus/showAllOnFocus/overflow hint"
+    status: completed
   - id: reference-select-scroll-hint
     content: "ReferenceSelect: overflow hint (измерение scrollHeight/clientHeight, нижний fade + иконка «ещё ниже»; скрывать у низа списка)"
-    status: pending
+    status: completed
   - id: db-m2m-migrations
-    content: "Drizzle schema + миграции M2M (lfk_exercise_regions, recommendation_regions, clinical_test_regions или согласованные имена); backfill из legacy FK; зафиксировать в PR политику legacy-колонок (dual-write vs read только M2M)"
-    status: pending
+    content: Drizzle schema + миграции M2M (lfk_exercise_regions, recommendation_regions, clinical_test_regions или согласованные имена); backfill из legacy FK; зафиксировать в PR политику legacy-колонок (dual-write vs read только M2M)
+    status: completed
   - id: ports-list-filter
     content: "pgLfkExercises + pgRecommendations + pgClinicalTests + in-memory порты + domain types: фильтр regionRefId = совпадение по M2M или deprecated колонке до удаления"
-    status: pending
+    status: completed
   - id: catalog-display-list-region
-    content: "Расширить useDoctorCatalogDisplayList (getItemRegionCodes или эквивалент), обновить Exercises/Recommendations/ClinicalTests клиенты + LfkTemplates/TestSets; тест useDoctorCatalogDisplayList.test.ts"
-    status: pending
+    content: useDoctorCatalogDisplayList (getItemRegionCodes), клиенты каталогов + LfkTemplates/TestSets; SSR list с regionRefId; тесты
+    status: completed
   - id: reference-multi-select-ui
-    content: "Shared ReferenceMultiSelect + формы (Exercise, Recommendation, ClinicalTest) + actionsShared парсинг массива UUID + скрытые поля без лишних UX-подписей"
-    status: pending
+    content: Shared ReferenceMultiSelect + формы (Exercise, Recommendation, ClinicalTest) + actionsShared парсинг массива UUID + скрытые поля без лишних UX-подписей
+    status: completed
   - id: derivative-filters-client
-    content: "LfkTemplatesPageClient exerciseMetaById и TestSetsPageClient — соответствие мультирегионам при фильтре toolbar"
-    status: pending
+    content: LfkTemplatesPageClient exerciseMetaById и TestSetsPageClient — соответствие мультирегионам при фильтре toolbar
+    status: completed
   - id: tests-ci
-    content: "Vitest (сервисы, хук, формы при наличии), полный pnpm run ci перед merge крупного PR"
-    status: pending
+    content: Vitest (сервисы, хук, формы при наличии), полный pnpm run ci перед merge крупного PR
+    status: completed
 isProject: false
 ---
 
@@ -35,17 +35,17 @@ isProject: false
 
 ## 0. Исправления относительно предыдущего черновика
 
-- **Критично:** фильтр по региону в каталогах упражнений, рекомендаций и клинических тестов сейчас выполняется **на клиенте** в [`useDoctorCatalogDisplayList`](apps/webapp/src/shared/hooks/useDoctorCatalogDisplayList.ts) (`getItemRegionCode(x) === regionCode`), при этом RSC-страницы отдают **полный список** с `regionRefId: null` в вызове list (например [`doctor/exercises/page.tsx`](apps/webapp/src/app/app/doctor/exercises/page.tsx), [`recommendations/page.tsx`](apps/webapp/src/app/app/doctor/recommendations/page.tsx), [`clinical-tests/page.tsx`](apps/webapp/src/app/app/doctor/clinical-tests/page.tsx)). Для режима «у сущности несколько регионов» **обязательно** менять контракт хука (напр. `getItemRegionCodes` и условие «код фильтра входит в набор кодов по элементу»); иначе мультивыбор в БД не совпадёт с тем, что видит пользователь.
-- Явно разделены **два слоя фильтра**: (1) данные и семантика «uuid в M2M» при серверном list (можно включить уже на этапе оптимизации); (2) клиентский хук — должен совпадать по семантике, пока SSR не передаёт `regionRefId` в list.
+- **Критично (сделано):** для мультив регионов контракт хука расширен до `getItemRegionCodes` и фильтра «код входит в набор» в [`useDoctorCatalogDisplayList`](apps/webapp/src/shared/hooks/useDoctorCatalogDisplayList.ts).
+- **SSR list (сделано):** RSC каталоги трёх сущностей передают в `list*` [`resolveBodyRegionRefIdFromCatalogCode`](apps/webapp/src/shared/lib/doctorCatalogRegionQuery.ts) по `?region=` → `regionRefId`, чтобы сузить выдачу на сервере; клиентский хук сохраняет ту же семантику.
 - Уточнён **периметр тестов**: [`useDoctorCatalogDisplayList.test.ts`](apps/webapp/src/shared/hooks/useDoctorCatalogDisplayList.test.ts) — обязательный апдейт/кейсы для множества регионов.
 - **Шаблоны программ лечения:** в [`treatment-program-templates/page.tsx`](apps/webapp/src/app/app/doctor/treatment-program-templates/page.tsx) `region` в типе `searchParams` не пробрасывается в клиент — вынести в **отдельный backlog-эпик** (агрегация по библиотеке стадий), не смешивать с этим планом без оценки.
 
 ## 1. Контекст из кода (кратко)
 
-- Баг «пропадают варианты»: [`ReferenceSelect`](apps/webapp/src/shared/ui/ReferenceSelect.tsx) + поисковый режим; в [`ExerciseForm`](apps/webapp/src/app/app/doctor/exercises/ExerciseForm.tsx) и [`ClinicalTestForm`](apps/webapp/src/app/app/doctor/clinical-tests/ClinicalTestForm.tsx) у региона нет защиты `showAllOnFocus` / `searchable={false}`; в [`RecommendationForm`](apps/webapp/src/app/app/doctor/recommendations/RecommendationForm.tsx) уже есть.
+- Баг «пропадают варианты» для **региона** снят переходом на [`ReferenceMultiSelect`](apps/webapp/src/shared/ui/ReferenceMultiSelect.tsx) в формах трёх сущностей; в [`ReferenceSelect`](apps/webapp/src/shared/ui/ReferenceSelect.tsx) остаётся улучшенный `onFocus` для `showAllOnFocus` / `searchable={false}` и подсказка overflow.
 - Toolbar: [`DoctorCatalogFiltersForm`](apps/webapp/src/shared/ui/doctor/DoctorCatalogFiltersForm.tsx) — single-select по **коду** в `?region=`; **не менять** контракт URL.
-- Порты list: [`pgLfkExercises`](apps/webapp/src/infra/repos/pgLfkExercises.ts) — `e.region_ref_id = $1`; [`pgRecommendations`](apps/webapp/src/infra/repos/pgRecommendations.ts) / [`pgClinicalTests`](apps/webapp/src/infra/repos/pgClinicalTests.ts) — `eq(bodyRegionId, regionId)`.
-- Производные: [`LfkTemplatesPageClient`](apps/webapp/src/app/app/doctor/lfk-templates/LfkTemplatesPageClient.tsx), [`TestSetsPageClient`](apps/webapp/src/app/app/doctor/test-sets/TestSetsPageClient.tsx) — своя логика по одному `regionRefId` / `bodyRegionId`.
+- Порты list: M2M `EXISTS` **или** legacy-колонка ([`pgLfkExercises`](apps/webapp/src/infra/repos/pgLfkExercises.ts), [`pgRecommendations`](apps/webapp/src/infra/repos/pgRecommendations.ts), [`pgClinicalTests`](apps/webapp/src/infra/repos/pgClinicalTests.ts)).
+- Производные: [`LfkTemplatesPageClient`](apps/webapp/src/app/app/doctor/lfk-templates/LfkTemplatesPageClient.tsx), [`TestSetsPageClient`](apps/webapp/src/app/app/doctor/test-sets/TestSetsPageClient.tsx) — фильтр по множеству регионов / `bodyRegionIds`.
 
 ## 2. Границы scope
 
@@ -86,7 +86,7 @@ isProject: false
 - Recommendations / clinical tests: Drizzle-query в соответствующих repo.
 - In-memory реализации — та же семантика для тестов модулей.
 
-**Опциональная оптимизация (после корректности):** прокидывать `regionRefId` с RSC в `listExercises` / `listRecommendations` / `listClinicalTests`, чтобы уменьшить полезную нагрузку; тогда клиентский фильтр по региону может стать избыточным — решать в том же PR или отдельным, без изменения URL.
+**Оптимизация (сделано):** `regionRefId` с RSC передаётся в `listExercises` / `listRecommendations` / `listClinicalTests` через [`resolveBodyRegionRefIdFromCatalogCode`](apps/webapp/src/shared/lib/doctorCatalogRegionQuery.ts). Клиентский фильтр по региону сохранён для согласованной семантики и `q`/остальных фильтров без изменения URL.
 
 ## 5. Клиентский каталожный хук
 
@@ -111,12 +111,12 @@ isProject: false
 
 ## 8. Definition of Done (проверяемо)
 
-- [ ] Регион в формах упражнения и клинического теста не «схлопывает» список вариантов (hotfix или глобальный ReferenceSelect).
-- [ ] У трёх сущностей в UI — мультивыбор регионов; в БД — M2M + backfill; чтение/запись согласованы с выбранной стратегией legacy-колонок.
-- [ ] Фильтр toolbar по `region` (код): элемент виден, если **выбранный регион среди связей** — на портах list и в `useDoctorCatalogDisplayList`.
-- [ ] [`LfkTemplatesPageClient`](apps/webapp/src/app/app/doctor/lfk-templates/LfkTemplatesPageClient.tsx) и [`TestSetsPageClient`](apps/webapp/src/app/app/doctor/test-sets/TestSetsPageClient.tsx) используют ту же семантику.
-- [ ] `ReferenceSelect` показывает визуальную подсказку неполного списка при вертикальном overflow.
-- [ ] Обновлены/добавлены Vitest; `pnpm run ci` зелёный перед merge основного объёма.
+- [x] Регион в формах трёх сущностей — `ReferenceMultiSelect`, список вариантов не «схлопывается»; в `ReferenceSelect` — подсказка overflow и улучшенный `onFocus` где применимо.
+- [x] У трёх сущностей: мультивыбор в UI; M2M + backfill; dual-write legacy (первая id в колонке).
+- [x] Фильтр toolbar по `region` (код): порт list (M2M ∪ legacy) + `getItemRegionCodes` в [`useDoctorCatalogDisplayList`](apps/webapp/src/shared/hooks/useDoctorCatalogDisplayList.ts); SSR передаёт `regionRefId` в list при разрешённом коде.
+- [x] [`LfkTemplatesPageClient`](apps/webapp/src/app/app/doctor/lfk-templates/LfkTemplatesPageClient.tsx) и [`TestSetsPageClient`](apps/webapp/src/app/app/doctor/test-sets/TestSetsPageClient.tsx) — семантика мультирегионов.
+- [x] `ReferenceSelect`: визуальная подсказка при вертикальном overflow.
+- [x] Vitest (в т.ч. региональный резолвер, хук); перед push в remote — `pnpm run ci` (см. `docs/ARCHITECTURE/DOCTOR_CATALOG_REGIONS_LOG.md`).
 
 ## 9. Порядок работ (рекомендуемый)
 

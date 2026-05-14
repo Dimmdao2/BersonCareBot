@@ -21,6 +21,7 @@ import type { ReferenceItem } from "@/modules/references/types";
 import type { Recommendation, RecommendationUsageSnapshot } from "@/modules/recommendations/types";
 import type { RecommendationListFilterScope } from "@/shared/lib/doctorCatalogListStatus";
 import { ReferenceSelect } from "@/shared/ui/ReferenceSelect";
+import { ReferenceMultiSelect } from "@/shared/ui/ReferenceMultiSelect";
 import { cn } from "@/lib/utils";
 import { MediaLibraryPickerDialog } from "@/app/app/doctor/content/MediaLibraryPickerDialog";
 import {
@@ -88,7 +89,7 @@ type FormValues = {
   mediaType: "" | "image" | "video" | "gif";
   /** Код типа (`recommendations.domain`); справочник `recommendation_type`. */
   domainCode: string | null;
-  bodyRegionId: string | null;
+  bodyRegionIds: string[];
   quantityText: string;
   frequencyText: string;
   durationText: string;
@@ -103,7 +104,7 @@ function toValues(r: Recommendation | null | undefined): FormValues {
     mediaUrl: m?.mediaUrl ?? "",
     mediaType: (m?.mediaType ?? "") as FormValues["mediaType"],
     domainCode: r?.domain ?? null,
-    bodyRegionId: r?.bodyRegionId ?? null,
+    bodyRegionIds: r?.bodyRegionIds?.length ? [...r.bodyRegionIds] : r?.bodyRegionId ? [r.bodyRegionId] : [],
     quantityText: r?.quantityText ?? "",
     frequencyText: r?.frequencyText ?? "",
     durationText: r?.durationText ?? "",
@@ -343,16 +344,13 @@ export function RecommendationForm({
               <Label className="text-sm font-medium text-foreground" htmlFor="rec-form-body-region">
                 Регион тела
               </Label>
-              <ReferenceSelect
+              <ReferenceMultiSelect
                 id="rec-form-body-region"
-                name="bodyRegionId"
+                name="bodyRegionIds"
                 categoryCode="body_region"
-                value={values.bodyRegionId}
-                onChange={(refId) => setValues((v) => ({ ...v, bodyRegionId: refId }))}
-                placeholder="Не задан"
-                clearOptionLabel="Без региона"
-                showAllOnFocus
-                searchable={false}
+                value={values.bodyRegionIds}
+                onChange={(ids) => setValues((v) => ({ ...v, bodyRegionIds: ids }))}
+                placeholder="Добавить регион…"
               />
             </div>
 

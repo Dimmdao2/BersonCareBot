@@ -9,6 +9,7 @@ import type {
   RecommendationUsageSnapshot,
 } from "@/modules/recommendations/types";
 import { EMPTY_RECOMMENDATION_USAGE_SNAPSHOT } from "@/modules/recommendations/types";
+import { mergeCatalogBodyRegionIds } from "@/shared/lib/mergeCatalogBodyRegionIds";
 
 const store = new Map<string, Recommendation>();
 const usageByRecommendationId = new Map<string, RecommendationUsageSnapshot>();
@@ -68,7 +69,7 @@ function matchesFilter(r: Recommendation, f: RecommendationFilter): boolean {
   }
   const regionId = f.regionRefId?.trim();
   if (regionId) {
-    if (r.bodyRegionId !== regionId) return false;
+    if (!r.bodyRegionIds.includes(regionId)) return false;
   }
   return true;
 }
@@ -87,6 +88,7 @@ export const inMemoryRecommendationsPort: RecommendationsPort = {
   async create(input: CreateRecommendationInput, createdBy: string | null): Promise<Recommendation> {
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
+    const merged = mergeCatalogBodyRegionIds(input.bodyRegionId, input.bodyRegionIds ?? null);
     const row: Recommendation = {
       id,
       title: input.title,
@@ -94,7 +96,8 @@ export const inMemoryRecommendationsPort: RecommendationsPort = {
       media: normalizeMedia(input.media ?? []),
       tags: input.tags ?? null,
       domain: input.domain ?? null,
-      bodyRegionId: input.bodyRegionId ?? null,
+      bodyRegionId: merged[0] ?? null,
+      bodyRegionIds: merged,
       quantityText: input.quantityText ?? null,
       frequencyText: input.frequencyText ?? null,
       durationText: input.durationText ?? null,
@@ -111,13 +114,21 @@ export const inMemoryRecommendationsPort: RecommendationsPort = {
     const cur = store.get(id);
     if (!cur) return null;
     const now = new Date().toISOString();
+    const regionMerged =
+      input.bodyRegionIds !== undefined || input.bodyRegionId !== undefined
+        ? input.bodyRegionIds !== undefined
+          ? mergeCatalogBodyRegionIds(null, input.bodyRegionIds)
+          : mergeCatalogBodyRegionIds(input.bodyRegionId, [])
+        : null;
     const next: Recommendation = {
       ...cur,
       title: input.title ?? cur.title,
       bodyMd: input.bodyMd !== undefined ? input.bodyMd : cur.bodyMd,
       tags: input.tags !== undefined ? input.tags : cur.tags,
       domain: input.domain !== undefined ? (input.domain ?? null) : cur.domain,
-      bodyRegionId: input.bodyRegionId !== undefined ? (input.bodyRegionId ?? null) : cur.bodyRegionId,
+      ...(regionMerged !== null
+        ? { bodyRegionId: regionMerged[0] ?? null, bodyRegionIds: regionMerged }
+        : {}),
       quantityText: input.quantityText !== undefined ? (input.quantityText ?? null) : cur.quantityText,
       frequencyText: input.frequencyText !== undefined ? (input.frequencyText ?? null) : cur.frequencyText,
       durationText: input.durationText !== undefined ? (input.durationText ?? null) : cur.durationText,

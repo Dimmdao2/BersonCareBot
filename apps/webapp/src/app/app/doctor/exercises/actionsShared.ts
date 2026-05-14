@@ -22,6 +22,20 @@ import { z } from "zod";
 
 import { EXERCISES_PATH } from "./exercisesPaths";
 
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function parseRegionRefIdsFromFormData(fd: FormData, fieldName: string): string[] {
+  const raw = fd.getAll(fieldName);
+  const out: string[] = [];
+  for (const x of raw) {
+    if (typeof x !== "string") continue;
+    const t = x.trim();
+    if (UUID_RE.test(t)) out.push(t);
+  }
+  return [...new Set(out)];
+}
+
 export type SaveDoctorExerciseState = { ok: boolean; error?: string };
 
 export type ArchiveDoctorExerciseState =
@@ -224,6 +238,10 @@ export async function saveDoctorExerciseCore(formData: FormData): Promise<SaveEx
   const deps = buildAppDeps();
   const loadRefItems = await deps.references.listActiveItemsByCategoryCode(EXERCISE_LOAD_TYPE_CATEGORY_CODE);
   const loadAllow = exerciseLoadTypeWriteAllowSet(loadRefItems);
+  const allowRegions = new Set(
+    (await deps.references.listActiveItemsByCategoryCode("body_region")).map((i) => i.id),
+  );
+  const regionRefIds = parseRegionRefIdsFromFormData(formData, "regionRefIds").filter((id) => allowRegions.has(id));
 
   const idRaw = formData.get("id");
   const id = typeof idRaw === "string" && idRaw.trim() ? idRaw.trim() : null;
@@ -234,8 +252,6 @@ export async function saveDoctorExerciseCore(formData: FormData): Promise<SaveEx
   }
 
   const description = (formData.get("description") as string)?.trim() || null;
-  const regionRefRaw = formData.get("regionRefId");
-  const regionRefId = typeof regionRefRaw === "string" && regionRefRaw.trim() ? regionRefRaw.trim() : null;
   const loadType = parseExerciseLoadFormValue(formData.get("loadType"), loadAllow);
   const diffRaw = formData.get("difficulty1_10");
   let difficulty1_10: number | null = null;
@@ -268,7 +284,7 @@ export async function saveDoctorExerciseCore(formData: FormData): Promise<SaveEx
     await deps.lfkExercises.updateExercise(id, {
       title,
       description,
-      regionRefId,
+      regionRefIds,
       loadType,
       difficulty1_10,
       contraindications,
@@ -282,7 +298,7 @@ export async function saveDoctorExerciseCore(formData: FormData): Promise<SaveEx
     {
       title,
       description,
-      regionRefId,
+      regionRefIds,
       loadType,
       difficulty1_10,
       contraindications,

@@ -5,7 +5,7 @@ import {
   clinicalTestListArchiveScopeFromRecommendationFilter,
   parseRecommendationListFilterScope,
 } from "@/shared/lib/doctorCatalogListStatus";
-import { parseDoctorCatalogRegionQueryParam } from "@/shared/lib/doctorCatalogRegionQuery";
+import { parseDoctorCatalogRegionQueryParam, resolveBodyRegionRefIdFromCatalogCode } from "@/shared/lib/doctorCatalogRegionQuery";
 import {
   CLINICAL_ASSESSMENT_KIND_CATEGORY_CODE,
   assessmentKindWriteAllowSet,
@@ -35,9 +35,10 @@ export default async function DoctorClinicalTestsPage({ searchParams }: PageProp
   const q = typeof sp.q === "string" ? sp.q : "";
   const regionParsed = parseDoctorCatalogRegionQueryParam(sp.region);
   const assessmentRaw = typeof sp.assessment === "string" ? sp.assessment.trim() : "";
-  const assessmentRefItems = await deps.references.listActiveItemsByCategoryCode(
-    CLINICAL_ASSESSMENT_KIND_CATEGORY_CODE,
-  );
+  const [assessmentRefItems, bodyRegionItems] = await Promise.all([
+    deps.references.listActiveItemsByCategoryCode(CLINICAL_ASSESSMENT_KIND_CATEGORY_CODE),
+    deps.references.listActiveItemsByCategoryCode("body_region"),
+  ]);
   const assessmentAllow = assessmentKindWriteAllowSet(assessmentRefItems);
   const assessmentKind = assessmentRaw && assessmentAllow.has(assessmentRaw) ? assessmentRaw : undefined;
   const titleSort: ClinicalTestTitleSort | null =
@@ -46,14 +47,15 @@ export default async function DoctorClinicalTestsPage({ searchParams }: PageProp
   const listStatus = parseRecommendationListFilterScope(sp, "active");
   const archiveScope = clinicalTestListArchiveScopeFromRecommendationFilter(listStatus);
 
-  const [items, bodyRegionItems] = await Promise.all([
-    deps.clinicalTests.listClinicalTests({
-      search: null,
-      archiveScope,
-      regionRefId: null,
-    }),
-    deps.references.listActiveItemsByCategoryCode("body_region"),
-  ]);
+  const regionRefIdForList = resolveBodyRegionRefIdFromCatalogCode(
+    bodyRegionItems,
+    regionParsed.regionCode,
+  );
+  const items = await deps.clinicalTests.listClinicalTests({
+    search: null,
+    archiveScope,
+    regionRefId: regionRefIdForList,
+  });
   const bodyRegionIdToCode = Object.fromEntries(bodyRegionItems.map((it) => [it.id, it.code]));
 
   const rawSelected = typeof sp.selected === "string" ? sp.selected.trim() : "";

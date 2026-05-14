@@ -19,8 +19,10 @@ export type Recommendation = {
   tags: string[] | null;
   /** Тип (колонка БД `domain`); может быть legacy-строкой вне справочника на чтении. */
   domain: RecommendationDomain | null;
-  /** Регион тела (`reference_items`, категория `body_region`). */
+  /** Регион тела (`reference_items`, категория `body_region`); первый = legacy `body_region_id`. */
   bodyRegionId: string | null;
+  /** Все регионы (M2M ∪ legacy). */
+  bodyRegionIds: readonly string[];
   quantityText: string | null;
   frequencyText: string | null;
   durationText: string | null;
@@ -52,6 +54,7 @@ export type CreateRecommendationInput = {
   tags?: string[] | null;
   domain?: RecommendationDomain | null;
   bodyRegionId?: string | null;
+  bodyRegionIds?: string[] | null;
   quantityText?: string | null;
   frequencyText?: string | null;
   durationText?: string | null;
@@ -64,6 +67,7 @@ export type UpdateRecommendationInput = {
   tags?: string[] | null;
   domain?: RecommendationDomain | null;
   bodyRegionId?: string | null;
+  bodyRegionIds?: string[] | null;
   quantityText?: string | null;
   frequencyText?: string | null;
   durationText?: string | null;

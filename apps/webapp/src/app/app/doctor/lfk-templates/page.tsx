@@ -51,9 +51,9 @@ export default async function DoctorLfkTemplatesPage({ searchParams }: PageProps
   const loadAllow = exerciseLoadTypeWriteAllowSet(loadTypeRefItems);
   const loadType = parseExerciseLoadQueryParam(typeof sp.load === "string" ? sp.load : undefined, loadAllow);
   const bodyRegionIdToCode = Object.fromEntries(bodyRegionItems.map((it) => [it.id, it.code]));
-  const exerciseMetaById: Record<string, { regionRefId: string | null; loadType: ExerciseLoadType | null }> = {};
+  const exerciseMetaById: Record<string, { regionRefIds: readonly string[]; loadType: ExerciseLoadType | null }> = {};
   for (const e of exercises) {
-    exerciseMetaById[e.id] = { regionRefId: e.regionRefId, loadType: e.loadType };
+    exerciseMetaById[e.id] = { regionRefIds: e.regionRefIds, loadType: e.loadType };
   }
 
   const exerciseCatalog = exercises.map((e) => ({

@@ -34,7 +34,7 @@ type Props = {
   templates: Template[];
   initialSelectedId?: string | null;
   exerciseCatalog: Array<{ id: string; title: string; firstMedia: ExerciseMedia | null }>;
-  exerciseMetaById: Record<string, { regionRefId: string | null; loadType: ExerciseLoadType | null }>;
+  exerciseMetaById: Record<string, { regionRefIds: readonly string[]; loadType: ExerciseLoadType | null }>;
   bodyRegionIdToCode: Record<string, string>;
   filters: {
     q: string;
@@ -93,8 +93,8 @@ export function LfkTemplatesPageClient({
       out = out.filter((tpl) =>
         tpl.exercises.some((row) => {
           const m = exerciseMetaById[row.exerciseId];
-          if (!m?.regionRefId) return false;
-          return (bodyRegionIdToCode[m.regionRefId] ?? null) === rc;
+          if (!m?.regionRefIds?.length) return false;
+          return m.regionRefIds.some((rid) => (bodyRegionIdToCode[rid] ?? null) === rc);
         }),
       );
     }

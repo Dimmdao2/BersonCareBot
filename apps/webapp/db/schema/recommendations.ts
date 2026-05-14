@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, uuid, text, boolean, jsonb, timestamp, index, foreignKey } from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, boolean, jsonb, timestamp, index, foreignKey, primaryKey } from "drizzle-orm/pg-core";
 import { platformUsers, referenceItems } from "./schema";
 
 export const recommendations = pgTable(
@@ -39,5 +39,28 @@ export const recommendations = pgTable(
       foreignColumns: [referenceItems.id],
       name: "recommendations_body_region_id_fkey",
     }).onDelete("set null"),
+  ],
+);
+
+/** M2M: рекомендация ↔ регион тела. Legacy: `recommendations.body_region_id` (dual-write). */
+export const recommendationRegions = pgTable(
+  "recommendation_regions",
+  {
+    recommendationId: uuid("recommendation_id").notNull(),
+    bodyRegionId: uuid("body_region_id").notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.recommendationId, table.bodyRegionId], name: "recommendation_regions_pkey" }),
+    foreignKey({
+      columns: [table.recommendationId],
+      foreignColumns: [recommendations.id],
+      name: "recommendation_regions_recommendation_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.bodyRegionId],
+      foreignColumns: [referenceItems.id],
+      name: "recommendation_regions_body_region_id_fkey",
+    }).onDelete("cascade"),
+    index("idx_recommendation_regions_body_region").using("btree", table.bodyRegionId.asc().nullsLast().op("uuid_ops")),
   ],
 );

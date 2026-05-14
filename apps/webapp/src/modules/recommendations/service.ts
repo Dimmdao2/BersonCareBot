@@ -72,7 +72,9 @@ export function createRecommendationsService(port: RecommendationsPort, referenc
         ...input,
         title,
         bodyMd,
-        bodyRegionId: input.bodyRegionId?.trim() || null,
+        bodyRegionIds:
+          input.bodyRegionIds ??
+          (input.bodyRegionId?.trim() ? [input.bodyRegionId.trim()] : undefined),
         quantityText: normalizeOptionalCatalogText(input.quantityText),
         frequencyText: normalizeOptionalCatalogText(input.frequencyText),
         durationText: normalizeOptionalCatalogText(input.durationText),
@@ -98,7 +100,10 @@ export function createRecommendationsService(port: RecommendationsPort, referenc
       if (input.bodyMd !== undefined) {
         patch.bodyMd = input.bodyMd.trim();
       }
-      if (input.bodyRegionId !== undefined) {
+      if (input.bodyRegionIds !== undefined) {
+        patch.bodyRegionIds = input.bodyRegionIds;
+      }
+      if (input.bodyRegionId !== undefined && input.bodyRegionIds === undefined) {
         patch.bodyRegionId = input.bodyRegionId?.trim() || null;
       }
       if (input.quantityText !== undefined) {

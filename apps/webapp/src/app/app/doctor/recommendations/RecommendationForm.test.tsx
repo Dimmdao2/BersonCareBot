@@ -10,6 +10,10 @@ import { inMemoryReferencesPort } from "@/infra/repos/inMemoryReferences";
 import { RECOMMENDATION_TYPE_CATEGORY_CODE } from "@/modules/recommendations/recommendationDomain";
 import type { ReferenceItem } from "@/modules/references/types";
 
+vi.mock("@/shared/ui/ReferenceMultiSelect", () => ({
+  ReferenceMultiSelect: () => <div data-testid="region-multi" />,
+}));
+
 let recommendationTypeItems: ReferenceItem[];
 
 beforeAll(async () => {
@@ -52,6 +56,7 @@ function makeRecommendation(over: Partial<Recommendation>): Recommendation {
     tags: null,
     domain: null,
     bodyRegionId: null,
+    bodyRegionIds: [],
     quantityText: null,
     frequencyText: null,
     durationText: null,

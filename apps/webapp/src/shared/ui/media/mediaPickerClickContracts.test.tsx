@@ -94,6 +94,7 @@ describe("Exercise catalog tile (selection zone)", () => {
       title: "Squat",
       description: null,
       regionRefId: null,
+      regionRefIds: [],
       loadType: null,
       difficulty1_10: null,
       contraindications: null,

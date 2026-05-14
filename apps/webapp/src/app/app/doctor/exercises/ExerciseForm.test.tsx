@@ -13,11 +13,22 @@ vi.mock("@/app/app/doctor/content/MediaLibraryPickerDialog", () => ({
   MediaLibraryPickerDialog: () => <div data-testid="media-picker" />,
 }));
 
+vi.mock("@/shared/ui/ReferenceMultiSelect", () => ({
+  ReferenceMultiSelect: ({ value, name }: { value: readonly string[]; name?: string }) => (
+    <>
+      {name
+        ? value.map((v) => <input key={v} type="hidden" name={name} value={v} />)
+        : null}
+      <div data-testid="region-multi">{value.join(",")}</div>
+    </>
+  ),
+}));
+
 vi.mock("@/shared/ui/ReferenceSelect", () => ({
   ReferenceSelect: ({ value, name }: { value: string | null; name?: string }) => (
     <>
       {name ? <input type="hidden" name={name} value={value ?? ""} /> : null}
-      <input type="text" data-testid={name ? `${name}-select` : "region-select"} readOnly value={value ?? ""} />
+      <input type="text" data-testid={name ? `${name}-select` : "ref-select"} readOnly value={value ?? ""} />
     </>
   ),
 }));
@@ -50,6 +61,7 @@ function makeExercise(over: Partial<Exercise>): Exercise {
     title: "Title",
     description: null,
     regionRefId: null,
+    regionRefIds: [],
     loadType: null,
     difficulty1_10: 5,
     contraindications: null,

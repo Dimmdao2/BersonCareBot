@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -57,7 +58,9 @@ export function ReferenceSelect({
   );
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
+  const [listScrollOverflowBottom, setListScrollOverflowBottom] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  const listboxRef = useRef<HTMLUListElement>(null);
 
   const blurInput = useCallback(() => {
     queueMicrotask(() => {
@@ -113,6 +116,33 @@ export function ReferenceSelect({
     return items.filter((i) => i.title.toLowerCase().includes(q) || i.code.toLowerCase().includes(q));
   }, [items, query]);
 
+  const updateListScrollOverflow = useCallback(() => {
+    const el = listboxRef.current;
+    if (!el) return;
+    const maxScrollTop = el.scrollHeight - el.clientHeight;
+    setListScrollOverflowBottom(maxScrollTop > 4 && el.scrollTop < maxScrollTop - 4);
+  }, []);
+
+  useEffect(() => {
+    if (!open) {
+      queueMicrotask(() => setListScrollOverflowBottom(false));
+      return;
+    }
+    const el = listboxRef.current;
+    if (!el) return;
+    const RO = typeof globalThis.ResizeObserver === "function" ? globalThis.ResizeObserver : null;
+    if (!RO) {
+      queueMicrotask(updateListScrollOverflow);
+      return;
+    }
+    const ro = new RO(() => {
+      queueMicrotask(updateListScrollOverflow);
+    });
+    ro.observe(el);
+    queueMicrotask(updateListScrollOverflow);
+    return () => ro.disconnect();
+  }, [open, filtered, clearOptionLabel, updateListScrollOverflow]);
+
   return (
     <div ref={rootRef} className={cn("relative", className)}>
       {name ? <input type="hidden" name={name} value={hiddenSubmitValue} /> : null}
@@ -151,47 +181,62 @@ export function ReferenceSelect({
         autoComplete="off"
       />
       {open && (clearOptionLabel || filtered.length > 0) ? (
-        <ul
-          className="absolute z-50 mt-1 max-h-48 w-full overflow-auto rounded-md border border-border bg-background shadow-md"
-          role="listbox"
-        >
-          {clearOptionLabel ? (
-            <li key="__clear">
-              <Button
-                type="button"
-                variant="ghost"
-                className="h-auto w-full justify-start rounded-none px-3 py-2 text-left text-sm font-normal"
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  onChange(null, "");
-                  setQuery("");
-                  setOpen(false);
-                  if (!searchable) blurInput();
-                }}
+        <div className="absolute left-0 right-0 top-full z-50 mt-1 w-full min-w-0">
+          <div className="relative max-h-48 overflow-hidden rounded-md border border-border bg-background shadow-md">
+            <ul
+              ref={listboxRef}
+              onScroll={updateListScrollOverflow}
+              className="max-h-48 w-full overflow-auto"
+              role="listbox"
+            >
+              {clearOptionLabel ? (
+                <li key="__clear">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="h-auto w-full justify-start rounded-none px-3 py-2 text-left text-sm font-normal"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      onChange(null, "");
+                      setQuery("");
+                      setOpen(false);
+                      if (!searchable) blurInput();
+                    }}
+                  >
+                    {clearOptionLabel}
+                  </Button>
+                </li>
+              ) : null}
+              {filtered.map((i) => (
+                <li key={i.id}>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="h-auto w-full justify-start rounded-none px-3 py-2 text-left text-sm font-normal"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      onChange(valueMatch === "code" ? i.code : i.id, i.title);
+                      setQuery("");
+                      setOpen(false);
+                      if (!searchable) blurInput();
+                    }}
+                  >
+                    {i.title}
+                  </Button>
+                </li>
+              ))}
+            </ul>
+            {listScrollOverflowBottom ? (
+              <div
+                className="pointer-events-none absolute inset-x-0 bottom-0 z-[1] flex justify-center pb-1 pt-8"
+                aria-hidden
               >
-                {clearOptionLabel}
-              </Button>
-            </li>
-          ) : null}
-          {filtered.map((i) => (
-            <li key={i.id}>
-              <Button
-                type="button"
-                variant="ghost"
-                className="h-auto w-full justify-start rounded-none px-3 py-2 text-left text-sm font-normal"
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  onChange(valueMatch === "code" ? i.code : i.id, i.title);
-                  setQuery("");
-                  setOpen(false);
-                  if (!searchable) blurInput();
-                }}
-              >
-                {i.title}
-              </Button>
-            </li>
-          ))}
-        </ul>
+                <div className="absolute inset-0 bg-gradient-to-t from-background from-25% via-background/70 to-transparent" />
+                <ChevronDown className="relative size-4 shrink-0 text-muted-foreground opacity-80" strokeWidth={2.25} />
+              </div>
+            ) : null}
+          </div>
+        </div>
       ) : null}
       {allowFreeText && !value && query.trim() ? (
         <p className="mt-1 text-xs text-muted-foreground">Свободный ввод: «{query.trim()}»</p>

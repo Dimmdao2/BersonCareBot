@@ -1,7 +1,10 @@
-import { and, desc, eq, ilike, or } from "drizzle-orm";
+import { and, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import { getPool } from "@/infra/db/client";
-import { recommendations as recommendationsTable } from "../../../db/schema/recommendations";
+import {
+  recommendationRegions,
+  recommendations as recommendationsTable,
+} from "../../../db/schema/recommendations";
 import type { RecommendationsPort } from "@/modules/recommendations/ports";
 import type {
   Recommendation,
@@ -16,6 +19,7 @@ import {
   EMPTY_RECOMMENDATION_USAGE_SNAPSHOT,
   RECOMMENDATION_USAGE_DETAIL_LIMIT,
 } from "@/modules/recommendations/types";
+import { mergeCatalogBodyRegionIds } from "@/shared/lib/mergeCatalogBodyRegionIds";
 
 function normalizeMedia(raw: unknown): RecommendationMediaItem[] {
   if (!Array.isArray(raw)) return [];
@@ -36,9 +40,10 @@ function normalizeMedia(raw: unknown): RecommendationMediaItem[] {
   return out;
 }
 
-function mapRow(row: typeof recommendationsTable.$inferSelect): Recommendation {
+function mapRow(row: typeof recommendationsTable.$inferSelect, m2mBodyRegionIds: readonly string[] = []): Recommendation {
   const domainRaw = row.domain?.trim() ?? "";
   const domain = domainRaw ? domainRaw : null;
+  const merged = mergeCatalogBodyRegionIds(row.bodyRegionId, m2mBodyRegionIds);
   return {
     id: row.id,
     title: row.title,
@@ -46,7 +51,8 @@ function mapRow(row: typeof recommendationsTable.$inferSelect): Recommendation {
     media: normalizeMedia(row.media),
     tags: row.tags ?? null,
     domain,
-    bodyRegionId: row.bodyRegionId ?? null,
+    bodyRegionId: merged[0] ?? null,
+    bodyRegionIds: merged,
     quantityText: row.quantityText?.trim() ? row.quantityText.trim() : null,
     frequencyText: row.frequencyText?.trim() ? row.frequencyText.trim() : null,
     durationText: row.durationText?.trim() ? row.durationText.trim() : null,
@@ -260,40 +266,75 @@ export function createPgRecommendationsPort(): RecommendationsPort {
       }
       const regionId = filter.regionRefId?.trim();
       if (regionId) {
-        conds.push(eq(recommendationsTable.bodyRegionId, regionId));
+        conds.push(
+          or(
+            eq(recommendationsTable.bodyRegionId, regionId),
+            sql`EXISTS (SELECT 1 FROM recommendation_regions rr WHERE rr.recommendation_id = ${recommendationsTable.id} AND rr.body_region_id = ${regionId}::uuid)`,
+          )!,
+        );
       }
       const rows = await db
         .select()
         .from(recommendationsTable)
         .where(conds.length ? and(...conds) : undefined)
         .orderBy(desc(recommendationsTable.updatedAt));
-      return rows.map(mapRow);
+      const ids = rows.map((r) => r.id);
+      if (ids.length === 0) return [];
+      const rrRows = await db
+        .select()
+        .from(recommendationRegions)
+        .where(inArray(recommendationRegions.recommendationId, ids));
+      const byRec = new Map<string, string[]>();
+      for (const rr of rrRows) {
+        const cur = byRec.get(rr.recommendationId) ?? [];
+        cur.push(rr.bodyRegionId);
+        byRec.set(rr.recommendationId, cur);
+      }
+      return rows.map((r) => mapRow(r, byRec.get(r.id) ?? []));
     },
 
     async getById(id: string): Promise<Recommendation | null> {
       const db = getDrizzle();
       const rows = await db.select().from(recommendationsTable).where(eq(recommendationsTable.id, id)).limit(1);
-      return rows[0] ? mapRow(rows[0]) : null;
+      const r0 = rows[0];
+      if (!r0) return null;
+      const rrRows = await db
+        .select()
+        .from(recommendationRegions)
+        .where(eq(recommendationRegions.recommendationId, id));
+      return mapRow(
+        r0,
+        rrRows.map((x) => x.bodyRegionId),
+      );
     },
 
     async create(input: CreateRecommendationInput, createdBy: string | null): Promise<Recommendation> {
       const db = getDrizzle();
-      const rows = await db
-        .insert(recommendationsTable)
-        .values({
-          title: input.title,
-          bodyMd: input.bodyMd,
-          media: normalizeMedia(input.media ?? []),
-          tags: input.tags ?? null,
-          domain: input.domain ?? null,
-          bodyRegionId: input.bodyRegionId ?? null,
-          quantityText: input.quantityText ?? null,
-          frequencyText: input.frequencyText ?? null,
-          durationText: input.durationText ?? null,
-          createdBy,
-        })
-        .returning();
-      return mapRow(rows[0]);
+      const merged = mergeCatalogBodyRegionIds(input.bodyRegionId, input.bodyRegionIds ?? null);
+      return await db.transaction(async (tx) => {
+        const rows = await tx
+          .insert(recommendationsTable)
+          .values({
+            title: input.title,
+            bodyMd: input.bodyMd,
+            media: normalizeMedia(input.media ?? []),
+            tags: input.tags ?? null,
+            domain: input.domain ?? null,
+            bodyRegionId: merged[0] ?? null,
+            quantityText: input.quantityText ?? null,
+            frequencyText: input.frequencyText ?? null,
+            durationText: input.durationText ?? null,
+            createdBy,
+          })
+          .returning();
+        const id = rows[0].id;
+        if (merged.length > 0) {
+          await tx.insert(recommendationRegions).values(
+            merged.map((bodyRegionId) => ({ recommendationId: id, bodyRegionId })),
+          );
+        }
+        return mapRow(rows[0], merged);
+      });
     },
 
     async update(id: string, input: UpdateRecommendationInput): Promise<Recommendation | null> {
@@ -305,18 +346,45 @@ export function createPgRecommendationsPort(): RecommendationsPort {
       if (input.bodyMd !== undefined) patch.bodyMd = input.bodyMd;
       if (input.tags !== undefined) patch.tags = input.tags ?? null;
       if (input.domain !== undefined) patch.domain = input.domain ?? null;
-      if (input.bodyRegionId !== undefined) patch.bodyRegionId = input.bodyRegionId ?? null;
       if (input.quantityText !== undefined) patch.quantityText = input.quantityText ?? null;
       if (input.frequencyText !== undefined) patch.frequencyText = input.frequencyText ?? null;
       if (input.durationText !== undefined) patch.durationText = input.durationText ?? null;
       if (input.media !== undefined) patch.media = normalizeMedia(input.media ?? []);
 
-      const rows = await db
-        .update(recommendationsTable)
-        .set(patch)
-        .where(eq(recommendationsTable.id, id))
-        .returning();
-      return rows[0] ? mapRow(rows[0]) : null;
+      const regionMerged =
+        input.bodyRegionIds !== undefined || input.bodyRegionId !== undefined
+          ? input.bodyRegionIds !== undefined
+            ? mergeCatalogBodyRegionIds(null, input.bodyRegionIds)
+            : mergeCatalogBodyRegionIds(input.bodyRegionId, [])
+          : null;
+      if (regionMerged !== null) {
+        patch.bodyRegionId = regionMerged[0] ?? null;
+      }
+
+      return await db.transaction(async (tx) => {
+        const rows = await tx
+          .update(recommendationsTable)
+          .set(patch)
+          .where(eq(recommendationsTable.id, id))
+          .returning();
+        if (!rows[0]) return null;
+        if (regionMerged !== null) {
+          await tx.delete(recommendationRegions).where(eq(recommendationRegions.recommendationId, id));
+          if (regionMerged.length > 0) {
+            await tx.insert(recommendationRegions).values(
+              regionMerged.map((bodyRegionId) => ({ recommendationId: id, bodyRegionId })),
+            );
+          }
+        }
+        const rrRows = await tx
+          .select()
+          .from(recommendationRegions)
+          .where(eq(recommendationRegions.recommendationId, id));
+        return mapRow(
+          rows[0],
+          rrRows.map((x) => x.bodyRegionId),
+        );
+      });
     },
 
     async archive(id: string): Promise<boolean> {

@@ -10,6 +10,7 @@ import type {
   UpdateExerciseInput,
 } from "@/modules/lfk-exercises/types";
 import { EMPTY_EXERCISE_USAGE_SNAPSHOT } from "@/modules/lfk-exercises/types";
+import { mergeExerciseRegionRefIds } from "@/modules/lfk-exercises/types";
 
 const exercises = new Map<string, Exercise>();
 const usageByExerciseId = new Map<string, ExerciseUsageSnapshot>();
@@ -35,7 +36,9 @@ function matchesFilter(ex: Exercise, f: ExerciseFilter): boolean {
   const scope = exerciseListArchiveScope(f);
   if (scope === "active" && ex.isArchived) return false;
   if (scope === "archived" && !ex.isArchived) return false;
-  if (f.regionRefId && ex.regionRefId !== f.regionRefId) return false;
+  if (f.regionRefId) {
+    if (!ex.regionRefIds.includes(f.regionRefId)) return false;
+  }
   if (f.loadType && ex.loadType !== f.loadType) return false;
   if (f.difficultyMin != null && (ex.difficulty1_10 == null || ex.difficulty1_10 < f.difficultyMin)) return false;
   if (f.difficultyMax != null && (ex.difficulty1_10 == null || ex.difficulty1_10 > f.difficultyMax)) return false;
@@ -73,11 +76,13 @@ export const inMemoryLfkExercisesPort: LfkExercisesPort = {
       sortOrder: m.sortOrder ?? idx,
       createdAt: now,
     }));
+    const regionRefIds = mergeExerciseRegionRefIds(input.regionRefId, input.regionRefIds ?? null);
     const ex: Exercise = {
       id,
       title: input.title,
       description: input.description ?? null,
-      regionRefId: input.regionRefId ?? null,
+      regionRefId: regionRefIds[0] ?? null,
+      regionRefIds,
       loadType: input.loadType ?? null,
       difficulty1_10: input.difficulty1_10 ?? null,
       contraindications: input.contraindications ?? null,
@@ -107,11 +112,19 @@ export const inMemoryLfkExercisesPort: LfkExercisesPort = {
         createdAt: now,
       }));
     }
+    const regionPatch =
+      input.regionRefIds !== undefined || input.regionRefId !== undefined
+        ? input.regionRefIds !== undefined
+          ? mergeExerciseRegionRefIds(null, input.regionRefIds)
+          : mergeExerciseRegionRefIds(input.regionRefId, [])
+        : null;
     const next: Exercise = {
       ...cur,
       title: input.title ?? cur.title,
       description: input.description !== undefined ? input.description : cur.description,
-      regionRefId: input.regionRefId !== undefined ? input.regionRefId : cur.regionRefId,
+      ...(regionPatch !== null
+        ? { regionRefId: regionPatch[0] ?? null, regionRefIds: regionPatch }
+        : {}),
       loadType: input.loadType !== undefined ? input.loadType : cur.loadType,
       difficulty1_10: input.difficulty1_10 !== undefined ? input.difficulty1_10 : cur.difficulty1_10,
       contraindications: input.contraindications !== undefined ? input.contraindications : cur.contraindications,

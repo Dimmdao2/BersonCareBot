@@ -53,11 +53,16 @@ const RECOMMENDATION_METRIC_TEXT_MAX = 2000;
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-function parseBodyRegionIdField(raw: FormDataEntryValue | null): string | null {
-  if (typeof raw !== "string" || !raw.trim()) return null;
-  const t = raw.trim();
-  if (!UUID_RE.test(t)) return null;
-  return t;
+function parseBodyRegionIdsFromFormData(fd: FormData, fieldName: string): string[] {
+  const raw = fd.getAll(fieldName);
+  const out: string[] = [];
+  for (const x of raw) {
+    if (typeof x !== "string") continue;
+    const t = x.trim();
+    if (!UUID_RE.test(t)) continue;
+    out.push(t);
+  }
+  return [...new Set(out)];
 }
 
 function parseOptionalMetricText(raw: FormDataEntryValue | null): string | null {
@@ -105,7 +110,13 @@ export async function saveRecommendationCore(formData: FormData): Promise<
 
   const tags = parseTags(formData.get("tags"));
   const domain = parseDomainField(formData.get("domain"));
-  const bodyRegionId = parseBodyRegionIdField(formData.get("bodyRegionId"));
+  const deps = buildAppDeps();
+  const allowRegions = new Set(
+    (await deps.references.listActiveItemsByCategoryCode("body_region")).map((i) => i.id),
+  );
+  const bodyRegionIds = parseBodyRegionIdsFromFormData(formData, "bodyRegionIds").filter((id) =>
+    allowRegions.has(id),
+  );
   const quantityTextRaw = parseOptionalMetricText(formData.get("quantityText"));
   const frequencyTextRaw = parseOptionalMetricText(formData.get("frequencyText"));
   const durationTextRaw = parseOptionalMetricText(formData.get("durationText"));
@@ -120,7 +131,6 @@ export async function saveRecommendationCore(formData: FormData): Promise<
   }
   if (!title) return { ok: false, error: "Название обязательно" };
 
-  const deps = buildAppDeps();
   const id = typeof idRaw === "string" && idRaw.trim() ? idRaw.trim() : "";
 
   try {
@@ -136,7 +146,7 @@ export async function saveRecommendationCore(formData: FormData): Promise<
         tags,
         media,
         domain,
-        bodyRegionId,
+        bodyRegionIds,
         quantityText: quantityTextRaw,
         frequencyText: frequencyTextRaw,
         durationText: durationTextRaw,
@@ -150,7 +160,7 @@ export async function saveRecommendationCore(formData: FormData): Promise<
         tags,
         media,
         domain,
-        bodyRegionId,
+        bodyRegionIds,
         quantityText: quantityTextRaw,
         frequencyText: frequencyTextRaw,
         durationText: durationTextRaw,

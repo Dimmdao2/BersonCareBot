@@ -166,9 +166,11 @@ function ExercisesContent({
   const exercises = use(listPromise);
   const selection = use(doctorExerciseSelectionPromise);
 
-  const getItemRegionCode = useCallback(
+  const getItemRegionCodes = useCallback(
     (ex: Exercise) =>
-      ex.regionRefId ? (bodyRegionIdToCode[ex.regionRefId] ?? null) : null,
+      ex.regionRefIds
+        .map((rid) => bodyRegionIdToCode[rid])
+        .filter((c): c is string => Boolean(c)),
     [bodyRegionIdToCode],
   );
   const getItemLoadType = useCallback((ex: Exercise) => ex.loadType, []);
@@ -208,7 +210,7 @@ function ExercisesContent({
     {
       regionCode: filters.regionCode,
       loadType: filters.loadType ?? null,
-      getItemRegionCode,
+      getItemRegionCodes,
       getItemLoadType,
     },
   );

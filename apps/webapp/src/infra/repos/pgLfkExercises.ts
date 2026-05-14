@@ -15,7 +15,7 @@ import type {
   ExerciseUsageSnapshot,
   UpdateExerciseInput,
 } from "@/modules/lfk-exercises/types";
-import { EMPTY_EXERCISE_USAGE_SNAPSHOT, EXERCISE_USAGE_DETAIL_LIMIT } from "@/modules/lfk-exercises/types";
+import { EMPTY_EXERCISE_USAGE_SNAPSHOT, EXERCISE_USAGE_DETAIL_LIMIT, mergeExerciseRegionRefIds } from "@/modules/lfk-exercises/types";
 
 function mapMediaRow(row: {
   id: string;
@@ -94,6 +94,7 @@ function mapExerciseRow(
     title: string;
     description: string | null;
     region_ref_id: string | null;
+    region_m2m_ids?: unknown;
     load_type: string | null;
     difficulty_1_10: number | null;
     contraindications: string | null;
@@ -105,11 +106,17 @@ function mapExerciseRow(
   },
   media: ExerciseMedia[]
 ): Exercise {
+  const m2m = Array.isArray(row.region_m2m_ids)
+    ? row.region_m2m_ids.map((x) => String(x)).filter((s) => s.length > 0)
+    : [];
+  const regionRefIds = mergeExerciseRegionRefIds(row.region_ref_id, m2m);
+  const regionRefId = regionRefIds[0] ?? null;
   return {
     id: String(row.id),
     title: row.title,
     description: row.description,
-    regionRefId: row.region_ref_id ? String(row.region_ref_id) : null,
+    regionRefId,
+    regionRefIds,
     loadType: (row.load_type as ExerciseLoadType | null) ?? null,
     difficulty1_10: row.difficulty_1_10,
     contraindications: row.contraindications,
@@ -120,6 +127,22 @@ function mapExerciseRow(
     updatedAt: row.updated_at.toISOString(),
     media,
   };
+}
+
+async function replaceLfkExerciseRegions(
+  client: { query: (text: string, values?: unknown[]) => Promise<unknown> },
+  exerciseId: string,
+  regionRefIds: readonly string[],
+) {
+  await client.query(`DELETE FROM lfk_exercise_regions WHERE exercise_id = $1`, [exerciseId]);
+  for (const rid of regionRefIds) {
+    const t = rid.trim();
+    if (!t) continue;
+    await client.query(`INSERT INTO lfk_exercise_regions (exercise_id, region_ref_id) VALUES ($1, $2::uuid)`, [
+      exerciseId,
+      t,
+    ]);
+  }
 }
 
 async function loadAllMediaForExercise(pool: ReturnType<typeof getPool>, exerciseId: string): Promise<ExerciseMedia[]> {
@@ -410,8 +433,11 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
         conds.push("e.is_archived = true");
       }
       if (filter.regionRefId) {
-        conds.push(`e.region_ref_id = $${i++}`);
+        conds.push(
+          `(EXISTS (SELECT 1 FROM lfk_exercise_regions r0 WHERE r0.exercise_id = e.id AND r0.region_ref_id = $${i}) OR e.region_ref_id = $${i})`,
+        );
         params.push(filter.regionRefId);
+        i += 1;
       }
       if (filter.loadType) {
         conds.push(`e.load_type = $${i++}`);
@@ -438,6 +464,10 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
       const sql = `
         SELECT e.id, e.title, e.description, e.region_ref_id, e.load_type, e.difficulty_1_10,
                e.contraindications, e.tags, e.is_archived, e.created_by, e.created_at, e.updated_at,
+               COALESCE((
+                 SELECT array_agg(x.region_ref_id ORDER BY x.region_ref_id)
+                 FROM lfk_exercise_regions x WHERE x.exercise_id = e.id
+               ), ARRAY[]::uuid[]) AS region_m2m_ids,
                pm.id AS pm_id, pm.media_url AS pm_url, pm.media_type AS pm_type, pm.sort_order AS pm_order,
                pm.created_at AS pm_created,
                pm.media_file_id AS pm_media_file_id,
@@ -487,6 +517,7 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
             title: row.title as string,
             description: row.description as string | null,
             region_ref_id: row.region_ref_id as string | null,
+            region_m2m_ids: row.region_m2m_ids as unknown,
             load_type: row.load_type as string | null,
             difficulty_1_10: row.difficulty_1_10 as number | null,
             contraindications: row.contraindications as string | null,
@@ -504,9 +535,13 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
     async getById(id: string): Promise<Exercise | null> {
       const pool = getPool();
       const r = await pool.query(
-        `SELECT id, title, description, region_ref_id, load_type, difficulty_1_10,
-                contraindications, tags, is_archived, created_by, created_at, updated_at
-         FROM lfk_exercises WHERE id = $1`,
+        `SELECT e.id, e.title, e.description, e.region_ref_id, e.load_type, e.difficulty_1_10,
+                e.contraindications, e.tags, e.is_archived, e.created_by, e.created_at, e.updated_at,
+                COALESCE((
+                  SELECT array_agg(x.region_ref_id ORDER BY x.region_ref_id)
+                  FROM lfk_exercise_regions x WHERE x.exercise_id = e.id
+                ), ARRAY[]::uuid[]) AS region_m2m_ids
+         FROM lfk_exercises e WHERE e.id = $1`,
         [id]
       );
       if (!r.rows[0]) return null;
@@ -519,6 +554,8 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
       const client = await pool.connect();
       try {
         await client.query("BEGIN");
+        const regionIds = mergeExerciseRegionRefIds(input.regionRefId, input.regionRefIds ?? null);
+        const legacyRegion = regionIds[0] ?? null;
         const ins = await client.query(
           `INSERT INTO lfk_exercises (
              title, description, region_ref_id, load_type, difficulty_1_10, contraindications, tags, created_by, updated_at
@@ -529,7 +566,7 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
           [
             input.title,
             input.description ?? null,
-            input.regionRefId ?? null,
+            legacyRegion,
             input.loadType ?? null,
             input.difficulty1_10 ?? null,
             input.contraindications ?? null,
@@ -539,6 +576,7 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
         );
         const row = ins.rows[0];
         const exId = row.id as string;
+        await replaceLfkExerciseRegions(client, exId, regionIds);
         if (input.media?.length) {
           let order = 0;
           for (const m of input.media) {
@@ -552,7 +590,8 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
         }
         await client.query("COMMIT");
         const media = await loadAllMediaForExercise(pool, exId);
-        return mapExerciseRow(row, media);
+        const enriched = { ...row, region_m2m_ids: regionIds };
+        return mapExerciseRow(enriched, media);
       } catch (e) {
         await client.query("ROLLBACK");
         throw e;
@@ -582,7 +621,15 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
 
         if (input.title !== undefined) add("title", input.title);
         if (input.description !== undefined) add("description", input.description);
-        if (input.regionRefId !== undefined) add("region_ref_id", input.regionRefId);
+        const regionPatch =
+          input.regionRefIds !== undefined || input.regionRefId !== undefined
+            ? input.regionRefIds !== undefined
+              ? mergeExerciseRegionRefIds(null, input.regionRefIds)
+              : mergeExerciseRegionRefIds(input.regionRefId, [])
+            : null;
+        if (regionPatch !== null) {
+          add("region_ref_id", regionPatch[0] ?? null);
+        }
         if (input.loadType !== undefined) add("load_type", input.loadType);
         if (input.difficulty1_10 !== undefined) add("difficulty_1_10", input.difficulty1_10);
         if (input.contraindications !== undefined) add("contraindications", input.contraindications);
@@ -593,6 +640,10 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
           `UPDATE lfk_exercises SET ${sets.join(", ")} WHERE id = $${n}`,
           vals
         );
+
+        if (regionPatch !== null) {
+          await replaceLfkExerciseRegions(client, id, regionPatch);
+        }
 
         if (input.media !== undefined && input.media !== null) {
           await client.query(`DELETE FROM lfk_exercise_media WHERE exercise_id = $1`, [id]);
@@ -610,9 +661,13 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
         await client.query("COMMIT");
         const media = await loadAllMediaForExercise(pool, id);
         const rowR = await pool.query(
-          `SELECT id, title, description, region_ref_id, load_type, difficulty_1_10,
-                  contraindications, tags, is_archived, created_by, created_at, updated_at
-           FROM lfk_exercises WHERE id = $1`,
+          `SELECT e.id, e.title, e.description, e.region_ref_id, e.load_type, e.difficulty_1_10,
+                  e.contraindications, e.tags, e.is_archived, e.created_by, e.created_at, e.updated_at,
+                  COALESCE((
+                    SELECT array_agg(x.region_ref_id ORDER BY x.region_ref_id)
+                    FROM lfk_exercise_regions x WHERE x.exercise_id = e.id
+                  ), ARRAY[]::uuid[]) AS region_m2m_ids
+           FROM lfk_exercises e WHERE e.id = $1`,
           [id]
         );
         return mapExerciseRow(rowR.rows[0], media);

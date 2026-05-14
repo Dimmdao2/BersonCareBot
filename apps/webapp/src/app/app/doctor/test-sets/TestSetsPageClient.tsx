@@ -84,10 +84,9 @@ export function TestSetsPageClient({
     const rc = mergedFilters.regionCode?.trim();
     if (!rc) return qSorted;
     return qSorted.filter((s) =>
-      s.items.some((it) => {
-        const bid = it.test.bodyRegionId;
-        return Boolean(bid && bodyRegionIdToCode[bid] === rc);
-      }),
+      s.items.some((it) =>
+        it.test.bodyRegionIds.some((bid) => bodyRegionIdToCode[bid] === rc),
+      ),
     );
   }, [qSorted, mergedFilters.regionCode, bodyRegionIdToCode]);
 

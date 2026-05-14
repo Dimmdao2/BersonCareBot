@@ -8,6 +8,9 @@ type WithTitle = { title: string };
 export type DoctorCatalogDisplayListOptions<T> = {
   regionCode?: string | null;
   loadType?: ExerciseLoadType | null;
+  /** Коды регионов по элементу; при заданном `regionCode` — показ, если код входит в список. */
+  getItemRegionCodes?: (item: T) => readonly string[];
+  /** @deprecated Используйте {@link getItemRegionCodes} для мультирегионов. */
   getItemRegionCode?: (item: T) => string | null;
   getItemLoadType?: (item: T) => ExerciseLoadType | null;
   /** Доп. фильтр по коду (напр. `domain` у рекомендаций, `assessmentKind` у клин. тестов). */
@@ -17,7 +20,8 @@ export type DoctorCatalogDisplayListOptions<T> = {
 
 /**
  * Клиентская фильтрация каталогов врача: поиск по названию, опционально регион (код) и тип нагрузки,
- * сортировка А→Я / Я→А. Полный список приходит с сервера без `q`/`region`/`load` в list-запросе.
+ * сортировка А→Я / Я→А. List с сервера обычно без `q`/`load` в запросе; по `region` часть
+ * каталогов уже сужает выборку на SSR (`regionRefId`), клиентский фильтр сохраняет ту же семантику.
  */
 export function useDoctorCatalogDisplayList<T extends WithTitle>(
   items: T[],
@@ -28,6 +32,7 @@ export function useDoctorCatalogDisplayList<T extends WithTitle>(
   const regionCode = options?.regionCode?.trim() ?? "";
   const loadType = options?.loadType ?? null;
   const tertiaryCode = options?.tertiaryCode?.trim() ?? "";
+  const getItemRegionCodes = options?.getItemRegionCodes;
   const getItemRegionCode = options?.getItemRegionCode;
   const getItemLoadType = options?.getItemLoadType;
   const getItemTertiaryCode = options?.getItemTertiaryCode;
@@ -39,7 +44,9 @@ export function useDoctorCatalogDisplayList<T extends WithTitle>(
       out = out.filter((x) => normalizeRuSearchString(x.title).includes(needle));
     }
 
-    if (regionCode && getItemRegionCode) {
+    if (regionCode && getItemRegionCodes) {
+      out = out.filter((x) => getItemRegionCodes(x).includes(regionCode));
+    } else if (regionCode && getItemRegionCode) {
       out = out.filter((x) => getItemRegionCode(x) === regionCode);
     }
 
@@ -65,6 +72,7 @@ export function useDoctorCatalogDisplayList<T extends WithTitle>(
     regionCode,
     loadType,
     tertiaryCode,
+    getItemRegionCodes,
     getItemRegionCode,
     getItemLoadType,
     getItemTertiaryCode,

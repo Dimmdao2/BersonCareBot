@@ -233,9 +233,11 @@ function RecommendationsContent({
     });
   }, [initialSelectedId, initialItems, setDesktopSelectedId, setMobileSheet]);
 
-  const getItemRegionCode = useCallback(
+  const getItemRegionCodes = useCallback(
     (r: Recommendation) =>
-      r.bodyRegionId ? (bodyRegionIdToCode[r.bodyRegionId] ?? null) : null,
+      r.bodyRegionIds
+        .map((id) => bodyRegionIdToCode[id])
+        .filter((c): c is string => Boolean(c)),
     [bodyRegionIdToCode],
   );
 
@@ -245,7 +247,7 @@ function RecommendationsContent({
     filters.titleSort === null ? "default" : filters.titleSort,
     {
       regionCode: filters.regionCode,
-      getItemRegionCode,
+      getItemRegionCodes,
       tertiaryCode: filters.invalidDomainQuery ? null : (filters.domain ?? null),
       getItemTertiaryCode: (r) => r.domain,
     },

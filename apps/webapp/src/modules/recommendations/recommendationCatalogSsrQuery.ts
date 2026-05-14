@@ -18,7 +18,8 @@ export type RecommendationCatalogSsrParsed = {
 
 /**
  * Парсинг query каталога рекомендаций на SSR: allowlist для `domain`;
- * `region` — только код справочника (не UUID), для UI/клиента, не для `listRecommendations`.
+ * `region` — код `body_region` (не UUID). На странице каталога uuid для `listRecommendations({ regionRefId })`
+ * выводится через {@link resolveBodyRegionRefIdFromCatalogCode} после загрузки активных `body_region`.
  */
 export function parseRecommendationCatalogSsrQuery(
   sp: {

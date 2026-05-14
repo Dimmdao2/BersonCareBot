@@ -73,6 +73,7 @@ async function buildTestSet(id: string): Promise<TestSet | null> {
         testType: test.testType,
         isArchived: test.isArchived,
         bodyRegionId: test.bodyRegionId ?? null,
+        bodyRegionIds: test.bodyRegionIds,
         previewMedia:
           test.media?.length ?
             [...test.media].sort((a, b) => a.sortOrder - b.sortOrder)[0] ?? null

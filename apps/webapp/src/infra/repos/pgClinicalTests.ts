@@ -1,7 +1,7 @@
-import { and, eq, desc, ilike, or } from "drizzle-orm";
+import { and, eq, desc, ilike, inArray, or, sql } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import { getPool } from "@/infra/db/client";
-import { clinicalTests as clinicalTestsTable } from "../../../db/schema/clinicalTests";
+import { clinicalTestRegions, clinicalTests as clinicalTestsTable } from "../../../db/schema/clinicalTests";
 import type { ClinicalTestsPort } from "@/modules/tests/ports";
 import { clinicalTestScoringSchema, normalizeClinicalTestScoringOrder } from "@/modules/tests/clinicalTestScoring";
 import type {
@@ -14,6 +14,7 @@ import type {
   UpdateClinicalTestInput,
 } from "@/modules/tests/types";
 import { CLINICAL_TEST_USAGE_DETAIL_LIMIT, EMPTY_CLINICAL_TEST_USAGE_SNAPSHOT } from "@/modules/tests/types";
+import { mergeCatalogBodyRegionIds } from "@/shared/lib/mergeCatalogBodyRegionIds";
 
 function normalizeMedia(raw: unknown): ClinicalTestMediaItem[] {
   if (!Array.isArray(raw)) return [];
@@ -47,7 +48,8 @@ function deriveRawText(row: typeof clinicalTestsTable.$inferSelect): string | nu
   return rt ?? null;
 }
 
-function mapRow(row: typeof clinicalTestsTable.$inferSelect): ClinicalTest {
+function mapRow(row: typeof clinicalTestsTable.$inferSelect, m2mBodyRegionIds: readonly string[] = []): ClinicalTest {
+  const merged = mergeCatalogBodyRegionIds(row.bodyRegionId, m2mBodyRegionIds);
   return {
     id: row.id,
     title: row.title,
@@ -56,7 +58,8 @@ function mapRow(row: typeof clinicalTestsTable.$inferSelect): ClinicalTest {
     scoring: deriveScoring(row),
     rawText: deriveRawText(row),
     assessmentKind: row.assessmentKind?.trim() || null,
-    bodyRegionId: row.bodyRegionId ?? null,
+    bodyRegionId: merged[0] ?? null,
+    bodyRegionIds: merged,
     media: normalizeMedia(row.media),
     tags: row.tags ?? null,
     isArchived: row.isArchived,
@@ -318,13 +321,18 @@ export function createPgClinicalTestsPort(): ClinicalTestsPort {
       if (filter.testType?.trim()) {
         conds.push(eq(clinicalTestsTable.testType, filter.testType.trim()));
       }
-      const region = filter.regionRefId?.trim();
-      if (region) {
-        conds.push(eq(clinicalTestsTable.bodyRegionId, region));
-      }
       const ak = filter.assessmentKind?.trim();
       if (ak) {
         conds.push(eq(clinicalTestsTable.assessmentKind, ak));
+      }
+      const region = filter.regionRefId?.trim();
+      if (region) {
+        conds.push(
+          or(
+            eq(clinicalTestsTable.bodyRegionId, region),
+            sql`EXISTS (SELECT 1 FROM clinical_test_regions cr WHERE cr.clinical_test_id = ${clinicalTestsTable.id} AND cr.body_region_id = ${region}::uuid)`,
+          )!,
+        );
       }
       const q = filter.search?.trim();
       if (q) {
@@ -338,34 +346,67 @@ export function createPgClinicalTestsPort(): ClinicalTestsPort {
         .from(clinicalTestsTable)
         .where(conds.length ? and(...conds) : undefined)
         .orderBy(desc(clinicalTestsTable.updatedAt));
-      return rows.map(mapRow);
+      const ids = rows.map((r) => r.id);
+      if (ids.length === 0) return [];
+      const crRows = await db
+        .select()
+        .from(clinicalTestRegions)
+        .where(inArray(clinicalTestRegions.clinicalTestId, ids));
+      const byTest = new Map<string, string[]>();
+      for (const cr of crRows) {
+        const cur = byTest.get(cr.clinicalTestId) ?? [];
+        cur.push(cr.bodyRegionId);
+        byTest.set(cr.clinicalTestId, cur);
+      }
+      return rows.map((r) => mapRow(r, byTest.get(r.id) ?? []));
     },
 
     async getById(id: string): Promise<ClinicalTest | null> {
       const db = getDrizzle();
       const rows = await db.select().from(clinicalTestsTable).where(eq(clinicalTestsTable.id, id)).limit(1);
-      return rows[0] ? mapRow(rows[0]) : null;
+      const r0 = rows[0];
+      if (!r0) return null;
+      const crRows = await db
+        .select()
+        .from(clinicalTestRegions)
+        .where(eq(clinicalTestRegions.clinicalTestId, id));
+      return mapRow(
+        r0,
+        crRows.map((x) => x.bodyRegionId),
+      );
     },
 
     async create(input: CreateClinicalTestInput, createdBy: string | null): Promise<ClinicalTest> {
       const db = getDrizzle();
       const media = normalizeMedia(input.media ?? []);
-      const rows = await db
-        .insert(clinicalTestsTable)
-        .values({
-          title: input.title,
-          description: input.description ?? null,
-          testType: input.testType ?? null,
-          scoring: input.scoring ?? null,
-          rawText: input.rawText ?? null,
-          assessmentKind: input.assessmentKind?.trim() || null,
-          bodyRegionId: input.bodyRegionId?.trim() || null,
-          media,
-          tags: input.tags ?? null,
-          createdBy,
-        })
-        .returning();
-      return mapRow(rows[0]);
+      const merged = mergeCatalogBodyRegionIds(
+        input.bodyRegionId?.trim() || null,
+        input.bodyRegionIds ?? null,
+      );
+      return await db.transaction(async (tx) => {
+        const rows = await tx
+          .insert(clinicalTestsTable)
+          .values({
+            title: input.title,
+            description: input.description ?? null,
+            testType: input.testType ?? null,
+            scoring: input.scoring ?? null,
+            rawText: input.rawText ?? null,
+            assessmentKind: input.assessmentKind?.trim() || null,
+            bodyRegionId: merged[0] ?? null,
+            media,
+            tags: input.tags ?? null,
+            createdBy,
+          })
+          .returning();
+        const tid = rows[0].id;
+        if (merged.length > 0) {
+          await tx.insert(clinicalTestRegions).values(
+            merged.map((bodyRegionId) => ({ clinicalTestId: tid, bodyRegionId })),
+          );
+        }
+        return mapRow(rows[0], merged);
+      });
     },
 
     async update(id: string, input: UpdateClinicalTestInput): Promise<ClinicalTest | null> {
@@ -379,16 +420,43 @@ export function createPgClinicalTestsPort(): ClinicalTestsPort {
       if (input.scoring !== undefined) patch.scoring = input.scoring ?? null;
       if (input.rawText !== undefined) patch.rawText = input.rawText ?? null;
       if (input.assessmentKind !== undefined) patch.assessmentKind = input.assessmentKind?.trim() || null;
-      if (input.bodyRegionId !== undefined) patch.bodyRegionId = input.bodyRegionId?.trim() || null;
       if (input.tags !== undefined) patch.tags = input.tags ?? null;
       if (input.media !== undefined) patch.media = normalizeMedia(input.media ?? []);
 
-      const rows = await db
-        .update(clinicalTestsTable)
-        .set(patch)
-        .where(eq(clinicalTestsTable.id, id))
-        .returning();
-      return rows[0] ? mapRow(rows[0]) : null;
+      const regionMerged =
+        input.bodyRegionIds !== undefined || input.bodyRegionId !== undefined
+          ? input.bodyRegionIds !== undefined
+            ? mergeCatalogBodyRegionIds(null, input.bodyRegionIds)
+            : mergeCatalogBodyRegionIds(input.bodyRegionId?.trim() || null, [])
+          : null;
+      if (regionMerged !== null) {
+        patch.bodyRegionId = regionMerged[0] ?? null;
+      }
+
+      return await db.transaction(async (tx) => {
+        const rows = await tx
+          .update(clinicalTestsTable)
+          .set(patch)
+          .where(eq(clinicalTestsTable.id, id))
+          .returning();
+        if (!rows[0]) return null;
+        if (regionMerged !== null) {
+          await tx.delete(clinicalTestRegions).where(eq(clinicalTestRegions.clinicalTestId, id));
+          if (regionMerged.length > 0) {
+            await tx.insert(clinicalTestRegions).values(
+              regionMerged.map((bodyRegionId) => ({ clinicalTestId: id, bodyRegionId })),
+            );
+          }
+        }
+        const crRows = await tx
+          .select()
+          .from(clinicalTestRegions)
+          .where(eq(clinicalTestRegions.clinicalTestId, id));
+        return mapRow(
+          rows[0],
+          crRows.map((x) => x.bodyRegionId),
+        );
+      });
     },
 
     async archive(id: string): Promise<boolean> {

@@ -92,7 +92,9 @@ export function createClinicalTestsService(port: ClinicalTestsPort, references: 
           description: input.description?.trim() || null,
           testType: input.testType?.trim() || null,
           assessmentKind: input.assessmentKind?.trim() || null,
-          bodyRegionId: input.bodyRegionId?.trim() || null,
+          bodyRegionIds:
+            input.bodyRegionIds ??
+            (input.bodyRegionId?.trim() ? [input.bodyRegionId.trim()] : undefined),
           rawText: input.rawText?.trim() ? input.rawText.trim() : input.rawText ?? null,
         },
         { kind: "create" },
@@ -117,7 +119,10 @@ export function createClinicalTestsService(port: ClinicalTestsPort, references: 
       if (input.assessmentKind !== undefined) {
         patch.assessmentKind = input.assessmentKind?.trim() || null;
       }
-      if (input.bodyRegionId !== undefined) {
+      if (input.bodyRegionIds !== undefined) {
+        patch.bodyRegionIds = input.bodyRegionIds;
+      }
+      if (input.bodyRegionId !== undefined && input.bodyRegionIds === undefined) {
         patch.bodyRegionId = input.bodyRegionId?.trim() || null;
       }
       if (input.rawText !== undefined) {

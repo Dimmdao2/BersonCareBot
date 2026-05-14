@@ -36,6 +36,21 @@ function parseAcknowledgeUsageWarning(fd: FormData): boolean {
 
 export { CLINICAL_TESTS_PATH } from "./paths";
 
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function parseBodyRegionIdsFromFormData(fd: FormData, fieldName: string): string[] {
+  const raw = fd.getAll(fieldName);
+  const out: string[] = [];
+  for (const x of raw) {
+    if (typeof x !== "string") continue;
+    const t = x.trim();
+    if (!UUID_RE.test(t)) continue;
+    out.push(t);
+  }
+  return [...new Set(out)];
+}
+
 function parseTags(raw: FormDataEntryValue | null): string[] | null {
   if (typeof raw !== "string" || !raw.trim()) return null;
   const parts = raw
@@ -71,9 +86,13 @@ export async function saveClinicalTestCore(formData: FormData): Promise<
   const rawTextField = formData.get("rawText");
   const rawText = typeof rawTextField === "string" ? (rawTextField.trim() ? rawTextField.trim() : null) : null;
 
-  const bodyRegionField = formData.get("bodyRegionId");
-  const bodyRegionId =
-    typeof bodyRegionField === "string" && bodyRegionField.trim() ? bodyRegionField.trim() : null;
+  const deps = buildAppDeps();
+  const allowRegions = new Set(
+    (await deps.references.listActiveItemsByCategoryCode("body_region")).map((i) => i.id),
+  );
+  const bodyRegionIds = parseBodyRegionIdsFromFormData(formData, "bodyRegionIds").filter((id) =>
+    allowRegions.has(id),
+  );
 
   const assessmentField = formData.get("assessmentKind");
   const assessmentTrim = typeof assessmentField === "string" ? assessmentField.trim() : "";
@@ -128,7 +147,6 @@ export async function saveClinicalTestCore(formData: FormData): Promise<
     media.push({ mediaUrl, mediaType, sortOrder: 0 });
   }
 
-  const deps = buildAppDeps();
   const tags = parseTags(formData.get("tags"));
 
   if (!title) return { ok: false, error: "Название обязательно" };
@@ -147,7 +165,7 @@ export async function saveClinicalTestCore(formData: FormData): Promise<
         description: description || null,
         testType: testType || null,
         assessmentKind,
-        bodyRegionId,
+        bodyRegionIds,
         scoring,
         rawText,
         tags,
@@ -161,7 +179,7 @@ export async function saveClinicalTestCore(formData: FormData): Promise<
         description: description || null,
         testType: testType || null,
         assessmentKind,
-        bodyRegionId,
+        bodyRegionIds,
         scoring,
         rawText,
         tags,

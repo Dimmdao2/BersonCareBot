@@ -11,6 +11,7 @@ import {
   parseRecommendationListFilterScope,
   recommendationArchiveScopeFromListScope,
 } from "@/shared/lib/doctorCatalogListStatus";
+import { resolveBodyRegionRefIdFromCatalogCode } from "@/shared/lib/doctorCatalogRegionQuery";
 import { RecommendationsPageClient, type RecommendationTitleSort } from "./RecommendationsPageClient";
 
 type PageProps = {
@@ -31,9 +32,10 @@ export default async function DoctorRecommendationsPage({ searchParams }: PagePr
   const deps = buildAppDeps();
   const sp = (await searchParams) ?? {};
   const q = typeof sp.q === "string" ? sp.q : "";
-  const recommendationTypeRefItems = await deps.references.listActiveItemsByCategoryCode(
-    RECOMMENDATION_TYPE_CATEGORY_CODE,
-  );
+  const [recommendationTypeRefItems, bodyRegionItems] = await Promise.all([
+    deps.references.listActiveItemsByCategoryCode(RECOMMENDATION_TYPE_CATEGORY_CODE),
+    deps.references.listActiveItemsByCategoryCode("body_region"),
+  ]);
   const domainFilterItems = referenceItemsToRecommendationDomainFilterDto(recommendationTypeRefItems);
   const catalogQuery = parseRecommendationCatalogSsrQuery(
     {
@@ -47,14 +49,15 @@ export default async function DoctorRecommendationsPage({ searchParams }: PagePr
   const listStatus = parseRecommendationListFilterScope(sp, "active");
   const archiveScope = recommendationArchiveScopeFromListScope(listStatus);
 
-  const [items, bodyRegionItems] = await Promise.all([
-    deps.recommendations.listRecommendations({
-      search: null,
-      archiveScope,
-      regionRefId: null,
-    }),
-    deps.references.listActiveItemsByCategoryCode("body_region"),
-  ]);
+  const regionRefIdForList = resolveBodyRegionRefIdFromCatalogCode(
+    bodyRegionItems,
+    catalogQuery.regionCodeForCatalog,
+  );
+  const items = await deps.recommendations.listRecommendations({
+    search: null,
+    archiveScope,
+    regionRefId: regionRefIdForList,
+  });
   const bodyRegionIdToCode = Object.fromEntries(bodyRegionItems.map((it) => [it.id, it.code]));
 
   const rawSelected = typeof sp.selected === "string" ? sp.selected.trim() : "";

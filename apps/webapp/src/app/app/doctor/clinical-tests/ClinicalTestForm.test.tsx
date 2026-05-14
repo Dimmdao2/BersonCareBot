@@ -9,6 +9,10 @@ import { EMPTY_CLINICAL_TEST_USAGE_SNAPSHOT } from "@/modules/tests/types";
 import type { ArchiveClinicalTestState, SaveClinicalTestState } from "./actionsShared";
 import { ClinicalTestForm } from "./ClinicalTestForm";
 
+vi.mock("@/shared/ui/ReferenceMultiSelect", () => ({
+  ReferenceMultiSelect: () => <div data-testid="region-multi" />,
+}));
+
 vi.mock("@/app/app/doctor/content/MediaLibraryPickerDialog", () => ({
   MediaLibraryPickerDialog: () => <div data-testid="media-picker" />,
 }));
@@ -70,6 +74,7 @@ function makeClinicalTest(over: Partial<ClinicalTest>): ClinicalTest {
     rawText: null,
     assessmentKind: null,
     bodyRegionId: null,
+    bodyRegionIds: [],
     media: [],
     tags: null,
     isArchived: false,
