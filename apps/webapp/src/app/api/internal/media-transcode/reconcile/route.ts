@@ -1,9 +1,13 @@
 import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { env } from "@/config/env";
 import { logger } from "@/app-layer/logging/logger";
-import { runVideoHlsLegacyBackfill } from "@/app-layer/media/videoHlsLegacyBackfill";
+import {
+  runVideoHlsLegacyBackfill,
+  VIDEO_HLS_LEGACY_MAX_OBJECT_BYTES,
+} from "@/app-layer/media/videoHlsLegacyBackfill";
 import { getConfigBool } from "@/modules/system-settings/configAdapter";
 
 function bearerMatchesSecret(token: string, secret: string): boolean {
@@ -16,12 +20,15 @@ function bearerMatchesSecret(token: string, secret: string): boolean {
 }
 
 /** Matches `video-hls-backfill-legacy` default max object size (3 GiB). */
-const RECONCILE_MAX_MEDIA_BYTES = 3 * 1024 * 1024 * 1024;
+const RECONCILE_MAX_MEDIA_BYTES = VIDEO_HLS_LEGACY_MAX_OBJECT_BYTES;
 const RECONCILE_SERVER_CAP = 200;
 
 const bodySchema = z.object({
   limit: z.coerce.number().int().min(1).max(RECONCILE_SERVER_CAP).optional().default(50),
 });
+
+/** Best-effort truncation for `operator_job_status.meta_json` (no long stack traces). */
+const MAX_META_ABORTED_LEN = 480;
 
 /**
  * POST — batch enqueue legacy video rows without HLS (one cron tick). Reuses phase-07 backfill logic.
@@ -65,6 +72,8 @@ export async function POST(request: Request) {
   }
 
   const cap = Math.min(parsed.data.limit, RECONCILE_SERVER_CAP);
+  const reconcileStartedAt = Date.now();
+  const startedAtIso = new Date(reconcileStartedAt).toISOString();
 
   try {
     const report = await runVideoHlsLegacyBackfill({
@@ -92,9 +101,50 @@ export async function POST(request: Request) {
       "[internal/media-transcode/reconcile] batch",
     );
 
+    const durationMs = Date.now() - reconcileStartedAt;
+    const abortedReason =
+      report.abortedReason == null
+        ? null
+        : String(report.abortedReason).slice(0, MAX_META_ABORTED_LEN);
+
+    const metaJson: Record<string, unknown> = {
+      queuedNew: report.enqueue.queuedNew,
+      candidatesScanned: report.candidatesScanned,
+      alreadyQueued: report.enqueue.alreadyQueued,
+      alreadyReady: report.enqueue.alreadyReady,
+      skippedOversized: report.skippedOversized,
+      skippedPipelineOff: report.skippedPipelineOff,
+      enqueueErrors: report.enqueue.errors,
+      abortedReason,
+      limitRequested: cap,
+      maxSizeBytes: RECONCILE_MAX_MEDIA_BYTES,
+    };
+
+    // Secondary: DB tick must not turn a successful reconcile into HTTP 500 if the row write fails.
+    try {
+      await buildAppDeps().operatorHealthWrite.recordMediaTranscodeReconcileSuccess({
+        startedAtIso,
+        durationMs,
+        metaJson,
+      });
+    } catch (tickErr) {
+      logger.warn({ err: tickErr }, "[internal/media-transcode/reconcile] operator_job_status success tick failed");
+    }
+
     return NextResponse.json({ ok: true, report });
   } catch (e) {
     logger.error({ err: e }, "[internal/media-transcode/reconcile] failed");
+    const durationMs = Date.now() - reconcileStartedAt;
+    const msg = e instanceof Error ? e.message : String(e);
+    try {
+      await buildAppDeps().operatorHealthWrite.recordMediaTranscodeReconcileFailure({
+        startedAtIso,
+        durationMs,
+        error: msg,
+      });
+    } catch (tickErr) {
+      logger.warn({ err: tickErr }, "[internal/media-transcode/reconcile] operator_job_status failure tick failed");
+    }
     return NextResponse.json({ ok: false, error: "reconcile_failed" }, { status: 500 });
   }
 }

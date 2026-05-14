@@ -36,8 +36,15 @@ const videoTranscodeShell = {
   processingCount: 0,
   doneLastHour: 0,
   failedLastHour: 0,
+  doneLast24h: 0,
+  failedLast24h: 0,
+  doneLifetime: 0,
+  failedLifetime: 0,
   avgProcessingMsDoneLastHour: null as number | null,
   oldestPendingAgeSeconds: null as number | null,
+  legacyReconcileCandidateCountWithinSizeCap: 0,
+  readableVideoReadyWithHlsCount: 0,
+  lastReconcileTick: null as null,
 };
 
 const probeShell = {
@@ -123,7 +130,7 @@ describe("SystemHealthSection operator incidents", () => {
     render(<SystemHealthSection />);
 
     await waitFor(() => {
-      expect(screen.getByText(/Операторские инциденты \(1\)/)).toBeInTheDocument();
+      expect(screen.getByText(/Открытые инциденты \(1\)/)).toBeInTheDocument();
     });
   });
 });

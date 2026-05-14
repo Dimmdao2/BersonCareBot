@@ -12,8 +12,14 @@ const zeroTranscodeMetrics = {
   processingCount: 0,
   doneLastHour: 0,
   failedLastHour: 0,
+  doneLast24h: 0,
+  failedLast24h: 0,
+  doneLifetime: 0,
+  failedLifetime: 0,
   avgProcessingMsDoneLastHour: null as number | null,
   oldestPendingAgeSeconds: null as number | null,
+  legacyReconcileCandidateCountWithinSizeCap: 0,
+  readableVideoReadyWithHlsCount: 0,
 };
 
 const zeroOutgoingSnapshot = {
@@ -43,6 +49,7 @@ const {
   listOpenIncidentsMock,
   listBackupJobStatusMock,
   getOutgoingDeliveryQueueHealthMock,
+  getOperatorJobStatusMock,
 } = vi.hoisted(() => ({
   requireAdminModeSessionMock: vi.fn(),
   checkDbHealthMock: vi.fn(),
@@ -63,6 +70,7 @@ const {
   listOpenIncidentsMock: vi.fn(),
   listBackupJobStatusMock: vi.fn(),
   getOutgoingDeliveryQueueHealthMock: vi.fn(),
+  getOperatorJobStatusMock: vi.fn(),
 }));
 
 /** Routes SQL by substring — media preview probes run in parallel with playback metrics; order unspecified. */
@@ -87,6 +95,7 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
     operatorHealthRead: {
       listOpenIncidents: listOpenIncidentsMock,
       listBackupJobStatus: listBackupJobStatusMock,
+      getOperatorJobStatus: getOperatorJobStatusMock,
       getOutgoingDeliveryQueueHealth: getOutgoingDeliveryQueueHealthMock,
     },
   })),
@@ -137,6 +146,10 @@ vi.mock("@/app-layer/media/adminTranscodeHealthMetrics", () => ({
 }));
 
 import { GET } from "./route";
+import {
+  OPERATOR_MEDIA_JOB_FAMILY,
+  OPERATOR_MEDIA_TRANSCODE_RECONCILE_JOB_KEY,
+} from "@/modules/operator-health/reconcileJobKeys";
 
 describe("GET /api/admin/system-health", () => {
   const originalFetch = globalThis.fetch;
@@ -195,9 +208,11 @@ describe("GET /api/admin/system-health", () => {
     listOpenIncidentsMock.mockReset();
     listBackupJobStatusMock.mockReset();
     getOutgoingDeliveryQueueHealthMock.mockReset();
+    getOperatorJobStatusMock.mockReset();
     listOpenIncidentsMock.mockResolvedValue([]);
     listBackupJobStatusMock.mockResolvedValue([]);
     getOutgoingDeliveryQueueHealthMock.mockResolvedValue({ ...zeroOutgoingSnapshot });
+    getOperatorJobStatusMock.mockResolvedValue(null);
     globalThis.fetch = originalFetch;
   });
 
@@ -601,5 +616,56 @@ describe("GET /api/admin/system-health", () => {
     expect(body.meta?.probes?.operatorIncidents?.status).toBe("error");
     expect(body.meta?.probes?.operatorIncidents?.errorCode).toBe("operator_health_read_failed");
     expect(body.meta?.probes?.operatorBackupJobs?.status).toBe("error");
+  });
+
+  it("includes lastReconcileTick when operator_job_status row exists", async () => {
+    requireAdminModeSessionMock.mockResolvedValue({
+      ok: true,
+      session: { user: { userId: "a1", role: "admin" }, adminMode: true },
+    });
+    checkDbHealthMock.mockResolvedValue(true);
+    globalThis.fetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ ok: true, db: "up" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    ) as typeof fetch;
+    proxyIntegratorProjectionHealthMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          pendingCount: 0,
+          deadCount: 0,
+          retriesOverThreshold: 0,
+          lastSuccessAt: null,
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+    getOperatorJobStatusMock.mockResolvedValue({
+      jobKey: OPERATOR_MEDIA_TRANSCODE_RECONCILE_JOB_KEY,
+      jobFamily: OPERATOR_MEDIA_JOB_FAMILY,
+      lastStatus: "success",
+      lastStartedAt: "2026-01-01T00:00:00.000Z",
+      lastFinishedAt: "2026-01-01T00:00:05.000Z",
+      lastSuccessAt: "2026-01-01T00:00:05.000Z",
+      lastFailureAt: null,
+      lastDurationMs: 900,
+      lastError: null,
+      metaJson: { queuedNew: 2 },
+    });
+
+    const res = await GET();
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      videoTranscode: {
+        lastReconcileTick: { metaJson: Record<string, unknown>; lastStatus: string } | null;
+      };
+    };
+    expect(body.videoTranscode.lastReconcileTick?.lastStatus).toBe("success");
+    expect(body.videoTranscode.lastReconcileTick?.metaJson?.queuedNew).toBe(2);
+    expect(getOperatorJobStatusMock).toHaveBeenCalledWith(
+      OPERATOR_MEDIA_JOB_FAMILY,
+      OPERATOR_MEDIA_TRANSCODE_RECONCILE_JOB_KEY,
+    );
   });
 });

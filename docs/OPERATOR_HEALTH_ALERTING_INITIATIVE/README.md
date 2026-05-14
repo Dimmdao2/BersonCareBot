@@ -13,5 +13,6 @@
 Связанные документы:
 
 - Текущая вкладка «Здоровье системы»: `apps/webapp/src/app/app/settings/SystemHealthSection.tsx`, `GET /api/admin/system-health`.
+- План cron reconcile HLS backlog + расширения health/UI: [`.cursor/plans/cron_and_system_health.plan.md`](../../.cursor/plans/cron_and_system_health.plan.md).
 - Рубитайм / вебхук: `docs/ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md`.
 - Конфигурация: `docs/ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md` (ключи интеграций в `system_settings`, не в env).

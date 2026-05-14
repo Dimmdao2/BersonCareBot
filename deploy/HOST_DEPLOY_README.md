@@ -316,7 +316,11 @@ mc cors set myminio/<PRIVATE_BUCKET_NAME> /path/to/cors.json
 
 **Почасовая статистика playback (HOUSEKEEPING):** после миграции с таблицей **`media_playback_stats_hourly`** — `POST /api/internal/media-playback-stats/retention` с тем же Bearer: удаление старых `bucket_hour` (параметр **`?days=`**, по умолчанию **90**; **`?dryRun=1`** — только число затронутых строк). Таблица дедупа **`media_playback_user_video_first_resolve`** не затрагивается. На хосте достаточно редкого cron на loopback (например раз в неделю).
 
-**HLS: reconcile очереди транскода (легаси-библиотека):** `POST /api/internal/media-transcode/reconcile` с тем же Bearer и JSON-телом **`{ "limit": 50 }`** (опционально; верхний cap на стороне сервера **200**). Работает только при **`video_hls_pipeline_enabled`** и **`video_hls_reconcile_enabled`** в admin **`system_settings`** (иначе **`503`** `pipeline_disabled` / `reconcile_disabled`). Один вызов = один батч постановки в **`media_transcode_jobs`** по той же логике, что скрипт phase-07 backfill (без второго SQL-селектора). Рекомендуется cron на loopback раз в **5–15 минут** с небольшим `limit`, после стабилизации деплоя webapp + media-worker.
+**HLS: reconcile очереди транскода (легаси-библиотека):** `POST /api/internal/media-transcode/reconcile` с тем же Bearer и JSON-телом **`{ "limit": 50 }`** (опционально; верхний cap на стороне сервера **200**). Работает только при **`video_hls_pipeline_enabled`** и **`video_hls_reconcile_enabled`** в admin **`system_settings`** (иначе **`503`** `pipeline_disabled` / `reconcile_disabled`). Один вызов = один батч постановки в **`media_transcode_jobs`** по той же логике, что скрипт phase-07 backfill. Успешная итерация обновляет строку **`public.operator_job_status`** (`job_family=media`, ключ **`media_transcode.reconcile`**), чтобы в админском «Здоровье системы» было видно последний тик reconcile.
+
+На хосте полезно сочетать **два** режима cron (оба используют тот же `curl`/`INTERNAL_JOB_SECRET` и loopback **`127.0.0.1:6200`):  
+1. **Частый «прогресс» большого хвоста:** например **`*/10 * * * *`** и **`limit: 50`** — быстрый догон очереди.  
+2. **Ночное окно один раз за сутки:** **`CRON_TZ=Europe/Moscow`** для файла **`/etc/cron.d/...`** (если поддерживается) или эквивалент в systemd timer, строка **`0 4 * * *`** (`04:00` по Москве) с тем же `POST`/`limit`; снимает часть фоновой нагрузки с дня, но **не** заменяет частый режим для «застывших» объектов после массовых загрузок.
 
 **Known limitations / runtime requirements:** HEIC/HEIF (`image/heic`, `image/heif`) теперь обрабатываются через `ffmpeg`, а при ошибке декодирования есть fallback через `ImageMagick` (`magick`/`convert`). На проде обязателен системный ffmpeg: `apt install ffmpeg` + `FFMPEG_PATH=/usr/bin/ffmpeg` в `/opt/env/bersoncarebot/webapp.prod`; иначе `@ffmpeg-installer` может давать `SIGSEGV` на видео. Для fallback HEIC установите `imagemagick` и при необходимости задайте `MAGICK_PATH=/usr/bin/magick` (или `/usr/bin/convert`). Скачивание HEIC во временный файл перед `magick` ограничено HTTP timeout 120 c; по timeout задача уходит в retry/backoff (не в immediate `skipped`).
 
@@ -369,10 +373,17 @@ location /api/internal/ {
 15 4 * * 1 root bash -lc 'set -a && source /opt/env/bersoncarebot/webapp.prod && set +a; [ -n "$INTERNAL_JOB_SECRET" ] || exit 1; curl -fsS -X POST -H "Authorization: Bearer $INTERNAL_JOB_SECRET" "http://127.0.0.1:6200/api/internal/media-playback-stats/retention" >/dev/null'
 ```
 
-Пример cron для reconcile HLS (интервал и `limit` подберите под размер библиотеки; флаги pipeline + reconcile должны быть включены в админке):
+Пример **частого** cron для reconcile HLS (прогресс хвоста; флаги pipeline + reconcile в админке):
 
 ```cron
 */10 * * * * root bash -lc 'set -a && source /opt/env/bersoncarebot/webapp.prod && set +a; [ -n "$INTERNAL_JOB_SECRET" ] || exit 1; curl -fsS -X POST -H "Authorization: Bearer $INTERNAL_JOB_SECRET" -H "Content-Type: application/json" --data "{\"limit\":50}" "http://127.0.0.1:6200/api/internal/media-transcode/reconcile" >/dev/null'
+```
+
+Пример **ночного** cron (раз в сутки **04:00 Europe/Moscow**; см. ваш `cron`/`CRON_TZ` на дистрибутиве):
+
+```cron
+CRON_TZ=Europe/Moscow
+0 4 * * * root bash -lc 'set -a && source /opt/env/bersoncarebot/webapp.prod && set +a; [ -n "$INTERNAL_JOB_SECRET" ] || exit 1; curl -fsS -X POST -H "Authorization: Bearer $INTERNAL_JOB_SECRET" -H "Content-Type: application/json" --data "{\"limit\":50}" "http://127.0.0.1:6200/api/internal/media-transcode/reconcile" >/dev/null'
 ```
 
 Примечание по service control: на некоторых дистрибутивах `cron.service` не поддерживает `reload` (`Job type reload is not applicable`), используйте `systemctl restart cron`.

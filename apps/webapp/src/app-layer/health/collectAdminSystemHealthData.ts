@@ -11,6 +11,10 @@ import {
   loadAdminHlsProxyHealthMetrics,
 } from "@/app-layer/media/adminHlsProxyHealthMetrics";
 import { loadAdminTranscodeHealthMetrics } from "@/app-layer/media/adminTranscodeHealthMetrics";
+import {
+  OPERATOR_MEDIA_JOB_FAMILY,
+  OPERATOR_MEDIA_TRANSCODE_RECONCILE_JOB_KEY,
+} from "@/modules/operator-health/reconcileJobKeys";
 import { getPool } from "@/app-layer/db/client";
 import { proxyIntegratorProjectionHealth } from "@/app-layer/health/proxyIntegratorProjectionHealth";
 import { getConfigBool } from "@/modules/system-settings/configAdapter";
@@ -124,6 +128,19 @@ type VideoHlsProxyHealthPayload = {
 
 type VideoTranscodeHealthStatus = "ok" | "error";
 
+/** Снимок строки `operator_job_status` для cron reconcile (`media_transcode.reconcile`). */
+export type VideoTranscodeLastReconcileTickPayload = {
+  jobKey: string;
+  jobFamily: string;
+  lastStatus: string;
+  lastFinishedAt: string | null;
+  lastSuccessAt: string | null;
+  lastFailureAt: string | null;
+  lastDurationMs: number | null;
+  lastError: string | null;
+  metaJson: Record<string, unknown>;
+};
+
 type VideoTranscodeHealthPayload = {
   status: VideoTranscodeHealthStatus;
   pipelineEnabled: boolean;
@@ -132,8 +149,17 @@ type VideoTranscodeHealthPayload = {
   processingCount: number;
   doneLastHour: number;
   failedLastHour: number;
+  doneLast24h: number;
+  failedLast24h: number;
+  doneLifetime: number;
+  failedLifetime: number;
   avgProcessingMsDoneLastHour: number | null;
   oldestPendingAgeSeconds: number | null;
+  /** Кандидаты legacy-reconcile с учётом лимита размера (как фактическая постановка в очередь). */
+  legacyReconcileCandidateCountWithinSizeCap: number;
+  /** Готовые видео в читаемой библиотеке с непустым HLS master. */
+  readableVideoReadyWithHlsCount: number;
+  lastReconcileTick: VideoTranscodeLastReconcileTickPayload | null;
 };
 
 type OperatorBackupJobPayload = {
@@ -471,8 +497,15 @@ function emptyVideoTranscodePayload(
     processingCount: 0,
     doneLastHour: 0,
     failedLastHour: 0,
+    doneLast24h: 0,
+    failedLast24h: 0,
+    doneLifetime: 0,
+    failedLifetime: 0,
     avgProcessingMsDoneLastHour: null,
     oldestPendingAgeSeconds: null,
+    legacyReconcileCandidateCountWithinSizeCap: 0,
+    readableVideoReadyWithHlsCount: 0,
+    lastReconcileTick: null,
   };
 }
 
@@ -613,7 +646,24 @@ async function probeVideoTranscode(): Promise<ProbeResult<VideoTranscodeHealthPa
   try {
     pipelineEnabled = await getConfigBool("video_hls_pipeline_enabled", false);
     reconcileEnabled = await getConfigBool("video_hls_reconcile_enabled", false);
-    const m = await loadAdminTranscodeHealthMetrics();
+    const read = buildAppDeps().operatorHealthRead;
+    const [m, tickRow] = await Promise.all([
+      loadAdminTranscodeHealthMetrics(),
+      read.getOperatorJobStatus(OPERATOR_MEDIA_JOB_FAMILY, OPERATOR_MEDIA_TRANSCODE_RECONCILE_JOB_KEY),
+    ]);
+    const lastReconcileTick: VideoTranscodeLastReconcileTickPayload | null = tickRow
+      ? {
+          jobKey: tickRow.jobKey,
+          jobFamily: tickRow.jobFamily,
+          lastStatus: tickRow.lastStatus,
+          lastFinishedAt: tickRow.lastFinishedAt,
+          lastSuccessAt: tickRow.lastSuccessAt,
+          lastFailureAt: tickRow.lastFailureAt,
+          lastDurationMs: tickRow.lastDurationMs,
+          lastError: tickRow.lastError,
+          metaJson: tickRow.metaJson,
+        }
+      : null;
     return {
       ok: true,
       value: {
@@ -624,8 +674,15 @@ async function probeVideoTranscode(): Promise<ProbeResult<VideoTranscodeHealthPa
         processingCount: m.processingCount,
         doneLastHour: m.doneLastHour,
         failedLastHour: m.failedLastHour,
+        doneLast24h: m.doneLast24h,
+        failedLast24h: m.failedLast24h,
+        doneLifetime: m.doneLifetime,
+        failedLifetime: m.failedLifetime,
         avgProcessingMsDoneLastHour: m.avgProcessingMsDoneLastHour,
         oldestPendingAgeSeconds: m.oldestPendingAgeSeconds,
+        legacyReconcileCandidateCountWithinSizeCap: m.legacyReconcileCandidateCountWithinSizeCap,
+        readableVideoReadyWithHlsCount: m.readableVideoReadyWithHlsCount,
+        lastReconcileTick,
       },
       durationMs: elapsedMs(startedAt),
     };

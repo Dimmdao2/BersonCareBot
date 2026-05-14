@@ -6,6 +6,7 @@ import type {
   OperatorBackupJobStatusRow,
   OperatorHealthReadPort,
   OperatorIncidentOpenRow,
+  OperatorJobStatusTickRow,
   OutgoingDeliveryQueueHealthSnapshot,
 } from "@/modules/operator-health/ports";
 
@@ -71,6 +72,43 @@ export const pgOperatorHealthReadPort: OperatorHealthReadPort = {
       lastDurationMs: r.lastDurationMs ?? null,
       lastError: r.lastError ?? null,
     }));
+  },
+
+  async getOperatorJobStatus(jobFamily: string, jobKey: string): Promise<OperatorJobStatusTickRow | null> {
+    const db = getDrizzle();
+    const rows = await db
+      .select({
+        jobKey: operatorJobStatus.jobKey,
+        jobFamily: operatorJobStatus.jobFamily,
+        lastStatus: operatorJobStatus.lastStatus,
+        lastStartedAt: operatorJobStatus.lastStartedAt,
+        lastFinishedAt: operatorJobStatus.lastFinishedAt,
+        lastSuccessAt: operatorJobStatus.lastSuccessAt,
+        lastFailureAt: operatorJobStatus.lastFailureAt,
+        lastDurationMs: operatorJobStatus.lastDurationMs,
+        lastError: operatorJobStatus.lastError,
+        metaJson: operatorJobStatus.metaJson,
+      })
+      .from(operatorJobStatus)
+      .where(and(eq(operatorJobStatus.jobFamily, jobFamily), eq(operatorJobStatus.jobKey, jobKey)))
+      .limit(1);
+    const r = rows[0];
+    if (!r) return null;
+    const meta = r.metaJson;
+    const metaJson =
+      meta !== null && typeof meta === "object" && !Array.isArray(meta) ? (meta as Record<string, unknown>) : {};
+    return {
+      jobKey: r.jobKey,
+      jobFamily: r.jobFamily,
+      lastStatus: r.lastStatus,
+      lastStartedAt: r.lastStartedAt ?? null,
+      lastFinishedAt: r.lastFinishedAt ?? null,
+      lastSuccessAt: r.lastSuccessAt ?? null,
+      lastFailureAt: r.lastFailureAt ?? null,
+      lastDurationMs: r.lastDurationMs ?? null,
+      lastError: r.lastError ?? null,
+      metaJson,
+    };
   },
 
   async getOutgoingDeliveryQueueHealth(): Promise<OutgoingDeliveryQueueHealthSnapshot> {

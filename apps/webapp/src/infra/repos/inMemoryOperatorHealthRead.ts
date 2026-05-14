@@ -1,4 +1,8 @@
-import type { OperatorHealthReadPort, OutgoingDeliveryQueueHealthSnapshot } from "@/modules/operator-health/ports";
+import type {
+  OperatorHealthReadPort,
+  OperatorJobStatusTickRow,
+  OutgoingDeliveryQueueHealthSnapshot,
+} from "@/modules/operator-health/ports";
 
 export const inMemoryOperatorHealthReadPort: OperatorHealthReadPort = {
   async listOpenIncidents() {
@@ -6,6 +10,9 @@ export const inMemoryOperatorHealthReadPort: OperatorHealthReadPort = {
   },
   async listBackupJobStatus() {
     return [];
+  },
+  async getOperatorJobStatus(): Promise<OperatorJobStatusTickRow | null> {
+    return null;
   },
   async getOutgoingDeliveryQueueHealth(): Promise<OutgoingDeliveryQueueHealthSnapshot> {
     return {

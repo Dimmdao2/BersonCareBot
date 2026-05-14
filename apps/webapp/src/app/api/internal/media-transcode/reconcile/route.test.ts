@@ -10,24 +10,32 @@ const reconcileTestEnv = vi.hoisted(() => ({
 
 vi.mock("@/config/env", () => ({
   env: reconcileTestEnv,
+  webappReposAreInMemory: () => true,
 }));
 
 vi.mock("@/modules/system-settings/configAdapter", () => ({
   getConfigBool: vi.fn(),
 }));
 
-vi.mock("@/app-layer/media/videoHlsLegacyBackfill", () => ({
-  runVideoHlsLegacyBackfill: (...args: unknown[]) => runBackfillMock(...args),
-}));
+vi.mock("@/app-layer/media/videoHlsLegacyBackfill", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/app-layer/media/videoHlsLegacyBackfill")>();
+  return {
+    ...actual,
+    runVideoHlsLegacyBackfill: (...args: unknown[]) => runBackfillMock(...args),
+  };
+});
 
 vi.mock("@/app-layer/logging/logger", () => ({
   logger: {
     info: vi.fn(),
     error: vi.fn(),
+    warn: vi.fn(),
   },
 }));
 
 import { getConfigBool } from "@/modules/system-settings/configAdapter";
+import { logger } from "@/app-layer/logging/logger";
+import { resetMediaTranscodeReconcileWriteLog, mediaTranscodeReconcileWriteLog, setOperatorHealthWriteReconcileSuccessThrowsForTests } from "@/infra/repos/inMemoryOperatorHealthWrite";
 import { POST } from "./route";
 
 describe("POST /api/internal/media-transcode/reconcile", () => {
@@ -35,6 +43,8 @@ describe("POST /api/internal/media-transcode/reconcile", () => {
     runBackfillMock.mockReset();
     vi.mocked(getConfigBool).mockReset();
     reconcileTestEnv.INTERNAL_JOB_SECRET = "test-internal-secret";
+    resetMediaTranscodeReconcileWriteLog();
+    setOperatorHealthWriteReconcileSuccessThrowsForTests(undefined);
   });
 
   it("returns 503 when INTERNAL_JOB_SECRET is not configured", async () => {
@@ -208,5 +218,74 @@ describe("POST /api/internal/media-transcode/reconcile", () => {
         defaultRunCap: 200,
       }),
     );
+    expect(mediaTranscodeReconcileWriteLog).toHaveLength(1);
+    expect(mediaTranscodeReconcileWriteLog[0]?.kind).toBe("success");
+    const tick = mediaTranscodeReconcileWriteLog[0] as { kind: "success"; metaJson: Record<string, unknown> };
+    expect(tick.metaJson.candidatesScanned).toBe(5);
+    expect(tick.metaJson.queuedNew).toBe(2);
+  });
+
+  it("returns 200 with report when success tick write fails (best-effort)", async () => {
+    vi.mocked(getConfigBool).mockResolvedValue(true);
+    setOperatorHealthWriteReconcileSuccessThrowsForTests(new Error("pg tick failed"));
+    runBackfillMock.mockResolvedValue({
+      dryRun: false,
+      pipelineEnabled: true,
+      abortedReason: null,
+      batches: 1,
+      candidatesScanned: 1,
+      skippedOversized: 0,
+      skippedPipelineOff: 0,
+      enqueue: {
+        queuedNew: 0,
+        alreadyQueued: 0,
+        alreadyReady: 1,
+        notVideo: 0,
+        notReadable: 0,
+        noS3Key: 0,
+        notFound: 0,
+        errors: 0,
+      },
+      lastMediaId: null,
+      statusHistogram: [],
+      failedReasons: [],
+    });
+
+    const res = await POST(
+      new Request("http://localhost/api/internal/media-transcode/reconcile", {
+        method: "POST",
+        headers: {
+          authorization: "Bearer test-internal-secret",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ limit: 10 }),
+      }),
+    );
+    expect(res.status).toBe(200);
+    const json = (await res.json()) as { ok: boolean; report?: { candidatesScanned: number } };
+    expect(json.ok).toBe(true);
+    expect(json.report?.candidatesScanned).toBe(1);
+    expect(mediaTranscodeReconcileWriteLog).toHaveLength(0);
+    expect(logger.warn).toHaveBeenCalled();
+  });
+
+  it("writes operator_job_status failure tick when reconcile throws", async () => {
+    vi.mocked(getConfigBool).mockResolvedValue(true);
+    runBackfillMock.mockRejectedValue(new Error("boom"));
+
+    const res = await POST(
+      new Request("http://localhost/api/internal/media-transcode/reconcile", {
+        method: "POST",
+        headers: {
+          authorization: "Bearer test-internal-secret",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ limit: 10 }),
+      }),
+    );
+    expect(res.status).toBe(500);
+    expect(mediaTranscodeReconcileWriteLog).toHaveLength(1);
+    expect(mediaTranscodeReconcileWriteLog[0]?.kind).toBe("failure");
+    expect((mediaTranscodeReconcileWriteLog[0] as { error: string }).error).toContain("boom");
   });
 });

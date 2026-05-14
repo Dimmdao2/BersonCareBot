@@ -4,6 +4,15 @@
 
 ## Записи
 
+### 2026-05-14 — Cron reconcile + транскод в админском health (план `cron_and_system_health`)
+
+- **Internal:** `POST /api/internal/media-transcode/reconcile` — тик в **`public.operator_job_status`** (`job_family=media`, `job_key=media_transcode.reconcile`) best-effort; **`OperatorHealthWritePort`** + DI; константы в `reconcileJobKeys.ts`.
+- **API/UI:** расширенный **`videoTranscode`** в `GET /api/admin/system-health` (24h/lifetime, backlog reconcile по DRY-предикату из `videoHlsLegacyBackfill`, **`lastReconcileTick`**); вкладка `SystemHealthSection`.
+- **Деплой:** два режима cron в **`deploy/HOST_DEPLOY_README.md`** (`*/10` + nightly Москва **`0 4 * * *`**); отдельный реестр в **`SERVER CONVENTIONS`** по плану не вводился.
+- **Интегратор:** миграция **`core:20260513_0001_video_hls_reconcile_enabled.sql`** — сид **`video_hls_reconcile_enabled`** в `system_settings`.
+- **Пост-аудит UI:** блок «Техническая диагностика» маркером **`SYSTEM_HEALTH_TECH_DIAGNOSTICS_TESTID`**; RTL **`SystemHealthSection.primaryLayerInvariants.test.tsx`**; русские подписи машинных статусов на сводке и для БД integrator на карточке.
+- Трекер: **`.cursor/plans/cron_and_system_health.plan.md`**.
+
 ### 2026-05-14 — Общая очередь доставки (`outgoing_delivery_queue`)
 
 - Операторские TG-алерты и `reminders.dispatchDue` переведены на `public.outgoing_delivery_queue`; доставка и ретраи в integrator worker (`outgoingDeliveryWorker`).

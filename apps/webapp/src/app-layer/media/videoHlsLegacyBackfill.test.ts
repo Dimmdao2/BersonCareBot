@@ -17,6 +17,7 @@ import {
   clampBackfillBatchSize,
   clampBackfillSleepMs,
   fetchLegacyBackfillBatch,
+  legacyHlsBackfillCandidateWhereClause,
   MEDIA_READABLE_SQL_M,
   runVideoHlsLegacyBackfill,
 } from "./videoHlsLegacyBackfill";
@@ -33,6 +34,13 @@ describe("clampBackfillSleepMs", () => {
   it("clamps max sleep", () => {
     expect(clampBackfillSleepMs(-1)).toBe(0);
     expect(clampBackfillSleepMs(9999999)).toBe(600_000);
+  });
+});
+
+describe("legacyHlsBackfillCandidateWhereClause", () => {
+  it("matches fetchLegacyBackfillBatch includeFailed semantics in SQL shape", () => {
+    expect(legacyHlsBackfillCandidateWhereClause("x", false)).not.toContain("x.video_processing_status = 'failed'");
+    expect(legacyHlsBackfillCandidateWhereClause("x", true)).toContain("x.video_processing_status = 'failed'");
   });
 });
 
@@ -55,9 +63,10 @@ describe("fetchLegacyBackfillBatch", () => {
     expect(params[0]).toBe("00000000-0000-4000-8000-000000000001");
     expect(params[1]).toBe("2020-01-01T00:00:00.000Z");
     expect(params[2]).toBe(5);
-    expect(params[3]).toBe(true);
+    expect(params).toHaveLength(3);
     expect(sql).toContain(MEDIA_READABLE_SQL_M);
     expect(sql).toContain("media_transcode_jobs");
+    expect(sql).toContain("video_processing_status = 'failed'");
   });
 });
 

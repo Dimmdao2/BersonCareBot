@@ -146,8 +146,25 @@ type SystemHealthPayload = {
     processingCount: number;
     doneLastHour: number;
     failedLastHour: number;
+    doneLast24h: number;
+    failedLast24h: number;
+    doneLifetime: number;
+    failedLifetime: number;
     avgProcessingMsDoneLastHour: number | null;
     oldestPendingAgeSeconds: number | null;
+    legacyReconcileCandidateCountWithinSizeCap: number;
+    readableVideoReadyWithHlsCount: number;
+    lastReconcileTick: {
+      jobKey: string;
+      jobFamily: string;
+      lastStatus: string;
+      lastFinishedAt: string | null;
+      lastSuccessAt: string | null;
+      lastFailureAt: string | null;
+      lastDurationMs: number | null;
+      lastError: string | null;
+      metaJson: Record<string, unknown>;
+    } | null;
   };
   meta?: {
     probes?: {
@@ -166,6 +183,35 @@ type SystemHealthPayload = {
   };
   fetchedAt: string;
 };
+
+/** Marker for RTL: copy outside this subtree must stay operator-friendly (plan §7). */
+export const SYSTEM_HEALTH_TECH_DIAGNOSTICS_TESTID = "system-health-tech-diagnostics";
+
+function techProbeStatusHuman(status: string): string {
+  if (status === "ok") return "успешно";
+  if (status === "degraded") return "есть признаки деградации";
+  if (status === "unreachable") return "недоступно";
+  if (status === "error") return "ошибка";
+  if (status === "up") return "доступен";
+  if (status === "down") return "недоступен";
+  if (status === "idle") return "очередь пуста";
+  if (status === "active") return "активен";
+  if (status === "unknown") return "неизвестно";
+  if (status === "no_activity") return "нет недавней активности";
+  if (status === "no_signal") return "нет последнего сигнала";
+  if (status === "configured") return "настроены";
+  if (status === "not_configured") return "не настроены";
+  if (status === "playback_disabled") return "выключено";
+  if (status === "running") return "работает";
+  if (status === "pending") return "ожидает обработки";
+  if (status === "processing") return "обрабатывается";
+  if (status === "ready") return "готово";
+  if (status === "failed") return "ошибка";
+  if (status === "success") return "успешно";
+  if (status === "failure") return "ошибка запуска";
+  if (status === "skipped") return "пропущено";
+  return status;
+}
 
 function statusBadgeVariant(status: string): "secondary" | "outline" | "destructive" {
   if (
@@ -202,11 +248,10 @@ function statusDotClass(status: string): string {
 }
 
 function statusLabel(status: string): string {
-  if (status === "idle") return "idle";
-  if (status === "playback_disabled") return "API выкл.";
-  if (status === "configured") return "сконфигурированы";
+  if (status === "playback_disabled") return "выкл.";
+  if (status === "configured") return "настроены";
   if (status === "not_configured") return "не настроены";
-  return status;
+  return techProbeStatusHuman(status);
 }
 
 function formatDateTime(value: string | null | undefined): string {
@@ -254,11 +299,11 @@ export function computeWorkerStatus(
 
 function workerLabel(status: "active" | "idle" | "no_activity" | "no_signal" | "down" | "unknown" | "running"): string {
   if (status === "active") return "активен";
-  if (status === "idle") return "idle";
-  if (status === "no_activity") return "нет активности";
-  if (status === "no_signal") return "нет сигнала";
+  if (status === "idle") return "очередь пуста";
+  if (status === "no_activity") return "нет недавней активности";
+  if (status === "no_signal") return "нет последнего сигнала";
   if (status === "down") return "недоступен";
-  if (status === "running") return "running";
+  if (status === "running") return "работает";
   return "неизвестно";
 }
 
@@ -269,10 +314,10 @@ const PREVIEW_MIME_LABEL: Record<PreviewMime, string> = {
 };
 
 const PREVIEW_STATUS_LABEL: Record<PreviewStatus, string> = {
-  ready: "ready",
-  pending: "pending",
-  failed: "failed",
-  skipped: "skipped",
+  ready: "готово",
+  pending: "в очереди",
+  failed: "ошибка",
+  skipped: "пропущено",
 };
 
 function StatusPill({ status }: { status: string }) {
@@ -299,15 +344,38 @@ function DetailRow({ label, value }: { label: string; value: ReactNode }) {
   );
 }
 
-function ProbeInfo({ probe }: { probe?: { status: string; durationMs: number; errorCode?: string } }) {
-  if (!probe) return <p className="text-muted-foreground">Тех. контекст: нет данных</p>;
+function TechDiagBlock({ children }: { children: ReactNode }) {
   return (
-    <div className="space-y-1">
-      <DetailRow label="Probe status" value={probe.status} />
-      <DetailRow label="Duration" value={`${probe.durationMs} ms`} />
-      <DetailRow label="Error code" value={probe.errorCode ?? "—"} />
+    <div data-testid={SYSTEM_HEALTH_TECH_DIAGNOSTICS_TESTID} className="mt-2 rounded border border-border/50 bg-muted/15 p-2">
+      <p className="mb-2 text-xs font-medium text-foreground">Техническая диагностика</p>
+      <div className="space-y-1">{children}</div>
     </div>
   );
+}
+
+function ProbeInfo({
+  probe,
+  bare,
+}: {
+  probe?: { status: string; durationMs: number; errorCode?: string };
+  bare?: boolean;
+}) {
+  if (!probe)
+    return bare ? (
+      <p className="text-muted-foreground">Нет данных пробы.</p>
+    ) : (
+      <TechDiagBlock>
+        <p className="text-muted-foreground">Нет данных пробы.</p>
+      </TechDiagBlock>
+    );
+  const inner = (
+    <div className="space-y-1">
+      <DetailRow label="Статус пробы" value={techProbeStatusHuman(probe.status)} />
+      <DetailRow label="Длительность" value={`${probe.durationMs} мс`} />
+      <DetailRow label="Код ошибки" value={probe.errorCode ?? "—"} />
+    </div>
+  );
+  return bare ? inner : <TechDiagBlock>{inner}</TechDiagBlock>;
 }
 
 function HealthAccordionItem({ name, status, children }: HealthAccordionItemProps) {
@@ -336,6 +404,70 @@ function HealthAccordionItem({ name, status, children }: HealthAccordionItemProp
       ) : null}
     </div>
   );
+}
+
+function operatorIncidentIntegrationHuman(code: string): string {
+  const c = code.trim().toLowerCase();
+  const m: Record<string, string> = {
+    telegram: "Telegram",
+    max: "MAX",
+    vk: "ВКонтакте",
+    rubitime: "Rubitime",
+    google_calendar: "Google Календарь",
+    gcal: "Google Календарь",
+  };
+  return m[c] ?? code;
+}
+
+/** Краткая интерпретация для оператора; сырой `error_class` — только в техническом блоке. */
+function operatorIncidentSynopsisHuman(errorClass: string): string {
+  const e = errorClass.trim();
+  const known: Record<string, string> = {
+    max_probe_failed: "проверка интеграции MAX завершилась с ошибкой",
+    rubitime_get_schedule_failed: "не удалось получить расписание Rubitime",
+    GOOGLE_EVENT_ID_MISSING: "у события нет связи с Google Calendar",
+    unknown_error_class: "ошибка без детальной классификации",
+  };
+  const direct = known[e];
+  if (direct) return direct;
+  const token = /^GOOGLE_TOKEN_HTTP_(.+)$/i.exec(e);
+  if (token) return `ошибка запроса к Google (HTTP ${token[1] ?? "?"})`;
+  const cal = /^GOOGLE_CALENDAR_HTTP_(.+)$/i.exec(e);
+  if (cal) return `ошибка API Google Calendar (HTTP ${cal[1] ?? "?"})`;
+  return "смотрите код ошибки в технической диагностике карточки";
+}
+
+function operatorIncidentDirectionHuman(direction: string): string {
+  const d = direction.trim().toLowerCase();
+  if (d === "outbound") return "исходящий запрос к интеграции";
+  if (d === "inbound") return "входящий вызов / вебхук";
+  return direction;
+}
+
+/** Подписи канала доставки в health (ключи произвольные из integrator queue). */
+function outgoingDeliveryChannelHuman(channel: string): string {
+  const c = channel.trim().toLowerCase();
+  const m: Record<string, string> = {
+    telegram_bot: "Telegram-бот",
+    telegram: "Telegram",
+    vk: "ВКонтакте",
+    email: "электронная почта",
+    sms: "SMS",
+    whatsapp: "WhatsApp",
+  };
+  return m[c] ?? channel;
+}
+
+function playbackClientEventRu(eventClass: string): string {
+  const m: Record<string, string> = {
+    hls_fatal: "плеер не смог воспроизвести HLS",
+    video_error: "браузер сообщил ошибку видео",
+    hls_import_failed: "не удалось загрузить HLS",
+    playback_refetch_failed: "не удалось повторно запросить ссылку",
+    playback_refetch_exception: "исключение при повторном запросе ссылки",
+    hls_js_unsupported: "устройство не поддержало HLS.js",
+  };
+  return m[eventClass] ?? eventClass;
 }
 
 export function SystemHealthSection() {
@@ -402,10 +534,7 @@ export function SystemHealthSection() {
               Обновить
             </Button>
           </div>
-          <CardDescription>
-            Вариант 1: используются косвенные сигналы из health endpoint-ов и projection snapshot, без прямого
-            process/systemd telemetry.
-          </CardDescription>
+          <CardDescription>Косвенные сигналы о состоянии сервисов. Раскройте карточку для деталей и блока технической диагностики.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-2 text-sm">
           {error ? <p className="text-destructive">Не удалось загрузить данные ({error}).</p> : null}
@@ -419,26 +548,32 @@ export function SystemHealthSection() {
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Сервисы и системные карточки</CardTitle>
-          <CardDescription>Каждая карточка раскрывается отдельно и показывает доступную диагностику.</CardDescription>
+          <CardDescription>Развёрнутые карточки: сначала смысл для оператора, ниже — техническая диагностика.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3 text-sm">
           <div className="space-y-2">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Платформа и API</p>
-            <HealthAccordionItem name="База webapp (bersoncarebot-webapp-prod DB)" status={data?.webappDb ?? "down"}>
-              <DetailRow label="Состояние" value={data?.webappDb === "up" ? "База webapp доступна" : "База webapp недоступна"} />
-              <DetailRow label="Диагностика" value={data?.webappDb === "up" ? "Проверка DB OK" : "Проверка DB неуспешна"} />
+            <HealthAccordionItem name="База данных веб-приложения" status={data?.webappDb ?? "down"}>
+              <DetailRow
+                label="Итог"
+                value={data?.webappDb === "up" ? "Подключение к базе в норме" : "База недоступна по проверке"}
+              />
+              <DetailRow label="Смысл" value="Если недоступна — приложение не сможет обслуживать запросы к данным." />
               <ProbeInfo probe={data?.meta?.probes?.webappDb} />
             </HealthAccordionItem>
 
-            <HealthAccordionItem name="API integrator (/health) (bersoncarebot-api-prod)" status={data?.integratorApi.status ?? "error"}>
+            <HealthAccordionItem name="Сервер интеграций" status={data?.integratorApi.status ?? "error"}>
               <DetailRow
-                label="Состояние"
-                value={data?.integratorApi.status === "ok" ? "Integrator API доступен" : "Integrator API недоступен"}
+                label="Итог"
+                value={data?.integratorApi.status === "ok" ? "Сервис отвечает" : "Сервис не отвечает или ошибка"}
               />
-              <DetailRow label="DB integrator" value={data?.integratorApi.db ?? "нет данных"} />
               <DetailRow
-                label="Диагностика"
-                value={data?.integratorApi.status === "ok" ? "Ответ /health получен" : "Проба /health завершилась ошибкой"}
+                label="Смысл"
+                value="Интеграции и фоновые сценарии, завязанные на API, могут быть затронуты."
+              />
+              <DetailRow
+                label="БД на стороне интегратора"
+                value={data?.integratorApi.db == null ? "нет данных" : techProbeStatusHuman(data.integratorApi.db)}
               />
               <ProbeInfo probe={data?.meta?.probes?.integratorApi} />
             </HealthAccordionItem>
@@ -446,64 +581,84 @@ export function SystemHealthSection() {
 
           <div className="space-y-2">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Очереди и воркеры</p>
-            <HealthAccordionItem name="Проекция outbox (projection_outbox)" status={data?.projection.status ?? "error"}>
+            <HealthAccordionItem name="Синхронизация событий" status={data?.projection.status ?? "error"}>
               <DetailRow
-                label="Состояние"
-                value={data?.projection.status === "ok" ? "Очередь projection_outbox в норме" : "Есть признаки деградации"}
+                label="Итог"
+                value={
+                  data?.projection.status === "ok"
+                    ? "Очередь в норме"
+                    : data?.projection.status === "degraded"
+                      ? "Есть отложенные или проблемные записи"
+                      : "Проба недоступна или ошибочна"
+                }
               />
-              <DetailRow label="Dead / Pending / Processing" value={`${queueDead} / ${queuePending} / ${queueProcessing}`} />
-              <DetailRow label="Cancelled / Retries>threshold" value={`${queueCancelled} / ${queueRetries}`} />
-              <DetailRow label="Последняя активность" value={formatDateTime(lastSuccess)} />
-              <DetailRow label="Oldest pending" value={formatDateTime(oldestPending)} />
               <DetailRow
-                label="Почему такой статус"
-                value={`deadCount=${queueDead}, retriesOverThreshold=${queueRetries}`}
+                label="Смысл"
+                value="Показывает, двигается ли поток событий между интегратором и веб-приложением."
               />
+              <DetailRow
+                label="Ждут обработки / обрабатываются сейчас"
+                value={
+                  queueEmpty
+                    ? "Очередь пуста"
+                    : `${queuePending} / ${queueProcessing}`
+                }
+              />
+              <DetailRow label="Ошибок без повтора (dead)" value={String(queueDead)} />
+              <DetailRow label="Отменено / повторов сверх порога" value={`${queueCancelled} / ${queueRetries}`} />
+              <DetailRow label="Последняя успешная обработка" value={formatDateTime(lastSuccess)} />
+              <DetailRow label="Самая старая задача ждёт с" value={formatDateTime(oldestPending)} />
               <ProbeInfo probe={data?.meta?.probes?.projection} />
             </HealthAccordionItem>
 
-            <HealthAccordionItem name="Worker runtime (bersoncarebot-worker-prod)" status={workers.worker}>
-              <DetailRow label="Состояние" value={workerLabel(workers.worker)} />
-              <DetailRow label="Последняя успешная обработка" value={formatDateTime(lastSuccess)} />
-              <DetailRow label="Текущая очередь (pending/processing)" value={`${queuePending}/${queueProcessing}`} />
+            <HealthAccordionItem name="Фоновая обработка интеграций" status={workers.worker}>
+              <DetailRow label="Итог" value={workerLabel(workers.worker)} />
               <DetailRow
-                label="Почему такой статус"
-                value={
-                  workers.worker === "idle"
-                    ? "queue empty -> idle"
-                    : workers.worker === "active"
-                      ? "lastSuccessAt <= 40m"
-                      : workers.worker === "no_activity"
-                        ? "queue has items but no fresh success"
-                        : "нет валидного сигнала lastSuccessAt"
-                }
+                label="Смысл"
+                value="Оценка по последнему успеху и текущей очереди outbox; не равна статусу systemd."
               />
-              <DetailRow label="Порог активности" value="40 минут" />
+              <DetailRow label="Последняя успешная обработка" value={formatDateTime(lastSuccess)} />
+              <DetailRow
+                label="Текущая очередь"
+                value={queueEmpty ? "Очередь пуста" : `ждут: ${queuePending}, в работе: ${queueProcessing}`}
+              />
+              <DetailRow label="Порог «активен»" value="успех не старше 40 минут при непустой очереди" />
             </HealthAccordionItem>
 
-            <HealthAccordionItem name="Webapp runtime (bersoncarebot-webapp-prod)" status={workers.webapp}>
-              <DetailRow label="Состояние" value="runtime status: running (вариант 1)" />
-              <DetailRow label="Источник сигнала" value="Статический runtime-маркер в UI" />
+            <HealthAccordionItem name="Сервер веб-приложения" status={workers.webapp}>
+              <DetailRow label="Итог" value="Процесс webapp отвечает (косвенно)" />
+              <DetailRow label="Смысл" value="Эта карточка не заменяет мониторинг инфраструктуры хоста." />
             </HealthAccordionItem>
           </div>
 
           <div className="space-y-2">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Медиа и фоновые задачи</p>
-            <HealthAccordionItem name="Cron задачи медиа (media cron workers)" status={data?.mediaCronWorkers.status ?? "not_configured"}>
+            <HealthAccordionItem name="Фоновая обработка медиа (по расписанию)" status={data?.mediaCronWorkers.status ?? "not_configured"}>
               <DetailRow
-                label="Состояние"
-                value={data?.mediaCronWorkers.status === "configured" ? "Конфигурация cron присутствует" : "Конфигурация cron отсутствует"}
+                label="Итог"
+                value={
+                  data?.mediaCronWorkers.status === "configured"
+                    ? "Параметры для внутренних запросов по расписанию настроены"
+                    : "Внутренние запросы по расписанию не готовы"
+                }
               />
-              <DetailRow label="Источник сигнала" value="Проверка env INTERNAL_JOB_SECRET + S3 media config" />
-              <DetailRow label="Ограничение" value="Нет прямой telemetry о фактическом runtime cron-процессов" />
+              <DetailRow
+                label="Смысл"
+                value="Проверяется только конфигурация окружения, не факт срабатывания расписания на хосте."
+              />
             </HealthAccordionItem>
 
-            <HealthAccordionItem name="Превью медиа (preview-pipeline MOV/HEIC/HEIF)" status={data?.mediaPreview.status ?? "error"}>
+            <HealthAccordionItem name="Превью файлов медиатеки" status={data?.mediaPreview.status ?? "error"}>
               <DetailRow
-                label="Состояние"
-                value={data?.mediaPreview.status === "ok" ? "Очередь preview в норме" : "Есть pending/skipped/failed или stale pending"}
+                label="Итог"
+                value={
+                  data?.mediaPreview.status === "ok"
+                    ? "Превью в норме"
+                    : "Есть ошибки, пропуски или долгие ожидания"
+                }
               />
-              <DetailRow label="Stale pending > 30m" value={data?.mediaPreview.stalePendingCount ?? 0} />
+              <DetailRow label="Смысл" value="Фоновая генерация миниатюр для тяжёлых форматов (MOV/HEIC/HEIF)." />
+              <DetailRow label="Долгий pending" value={String(data?.mediaPreview.stalePendingCount ?? 0)} />
               {(Object.keys(PREVIEW_MIME_LABEL) as PreviewMime[]).map((mime) => {
                 const counters = data?.mediaPreview.byMimeAndStatus?.[mime];
                 return (
@@ -520,105 +675,93 @@ export function SystemHealthSection() {
               <ProbeInfo probe={data?.meta?.probes?.mediaPreview} />
             </HealthAccordionItem>
 
-            <HealthAccordionItem
-              name="Воспроизведение видео (playback / HLS)"
-              status={playbackAccordionStatus}
-            >
+            <HealthAccordionItem name="Видеоплеер у пациентов" status={playbackAccordionStatus}>
               <DetailRow
-                label="Окно"
-                value={`последние ${data?.videoPlayback?.windowHours ?? 24} ч (UTC, почасовые срезы в БД)`}
-              />
-              <DetailRow
-                label="GET /api/media/.../playback"
+                label="Итог"
                 value={
                   playbackApiDisabled
-                    ? "выключен (`video_playback_api_enabled`, новые счётчики не ведутся)"
-                    : "включён (video_playback_api_enabled)"
+                    ? "Счётчики выдачи выключены настройкой"
+                    : "Сводка по выдаче ссылок на видео в кабинете"
                 }
               />
+              <DetailRow
+                label="Смысл"
+                value={`Окно ${data?.videoPlayback?.windowHours ?? 24} ч — UTC.`}
+              />
+              <DetailRow
+                label="API выдачи ссылок на видео"
+                value={playbackApiDisabled ? "выключен" : "включён"}
+              />
               {playbackApiDisabled ? (
-                <>
-                  <p className="pt-1 font-medium text-foreground">
-                    Показатели ниже недоступны: playback JSON API выключен.
-                  </p>
-                  <p className="pt-2 text-sm text-muted-foreground">
-                    Чтобы включить: вкладка «Параметры приложения» (слева в админских настройках) → блок «Воспроизведение видео»
-                    → переключатель «Включить playback API».
-                  </p>
-                </>
+                <DetailRow
+                  label="Действие"
+                  value="Включите API выдачи ссылок на видео в параметрах приложения, если нужны эти счётчики."
+                />
               ) : (
                 <>
-                  <DetailRow label="Всего резолвов API" value={String(data?.videoPlayback?.totalResolutions ?? 0)} />
-                  <DetailRow label="Уник. пары (пользователь+видео, первый раз за всё время, событие в окне)" value={String(data?.videoPlayback?.uniquePlaybackPairsFirstSeenInWindow ?? 0)} />
+                  <DetailRow label="Выдано ссылок на видео (за окно)" value={String(data?.videoPlayback?.totalResolutions ?? 0)} />
                   <DetailRow
-                    label="HLS / MP4 (legacy) / Файл"
+                    label="Формат выдачи за окно: HLS / MP4 / файл"
                     value={`${data?.videoPlayback?.byDelivery.hls ?? 0} / ${data?.videoPlayback?.byDelivery.mp4 ?? 0} / ${data?.videoPlayback?.byDelivery.file ?? 0}`}
                   />
                   <DetailRow
-                    label="HLS / MP4 (legacy) / Файл (1 ч)"
-                    value={`${data?.videoPlayback?.byDeliveryLast1h?.hls ?? 0} / ${data?.videoPlayback?.byDeliveryLast1h?.mp4 ?? 0} / ${data?.videoPlayback?.byDeliveryLast1h?.file ?? 0}`}
+                    label="За последний час (UTC)"
+                    value={`${data?.videoPlayback?.totalResolutionsLast1h ?? 0} всего · HLS ${data?.videoPlayback?.byDeliveryLast1h?.hls ?? 0} / MP4 ${data?.videoPlayback?.byDeliveryLast1h?.mp4 ?? 0} / файл ${data?.videoPlayback?.byDeliveryLast1h?.file ?? 0}`}
                   />
                   <DetailRow
-                    label="Fallback (сумма по строкам почасового агрегата)"
+                    label="Переходов на запасной вариант"
                     value={String(data?.videoPlayback?.fallbackTotal ?? 0)}
                   />
-                  <DetailRow label="Fallback (1 ч)" value={String(data?.videoPlayback?.fallbackTotalLast1h ?? 0)} />
-                  <DetailRow label="Всего резолвов (1 ч)" value={String(data?.videoPlayback?.totalResolutionsLast1h ?? 0)} />
-                  <p className="pt-1 text-xs text-muted-foreground">
-                    «Всего резолвов» — на каждый успешный resolve; «Уник. пары» — первое событие на пару пользователь+видео в
-                    таблице дедупликации.
-                  </p>
+                  <DetailRow
+                    label="Переходов на запасной вариант (1 ч UTC)"
+                    value={String(data?.videoPlayback?.fallbackTotalLast1h ?? 0)}
+                  />
+                  <DetailRow
+                    label="Уникальных пациент+видео (первое событие в окне)"
+                    value={String(data?.videoPlayback?.uniquePlaybackPairsFirstSeenInWindow ?? 0)}
+                  />
                 </>
               )}
               <ProbeInfo probe={data?.meta?.probes?.videoPlayback} />
 
               <div className="mt-2 rounded border border-border/50 p-2">
-                <p className="mb-1 font-medium text-foreground">Ошибки плеера на клиентах (HLS runtime)</p>
+                <p className="mb-1 font-medium text-foreground">Ошибки плеера на устройствах пациентов</p>
                 <DetailRow
-                  label="Статус"
+                  label="Итог"
                   value={
                     data?.videoPlaybackClient?.status === "ok"
-                      ? "ошибок в последний час нет"
+                      ? "За последний час UTC — без зафиксированных ошибок"
                       : data?.videoPlaybackClient?.status === "degraded"
-                        ? "есть ошибки в последний час"
-                        : "диагностика недоступна"
+                        ? "За последний час UTC есть ошибки"
+                        : "Диагностика недоступна"
                   }
                 />
+                <DetailRow label="Всего за 24 ч" value={String(data?.videoPlaybackClient?.totalErrors ?? 0)} />
+                <DetailRow label="За 1 ч UTC" value={String(data?.videoPlaybackClient?.totalErrorsLast1h ?? 0)} />
                 <DetailRow
-                  label="Всего ошибок (24 ч)"
-                  value={String(data?.videoPlaybackClient?.totalErrors ?? 0)}
-                />
-                <DetailRow
-                  label="Ошибок (1 ч)"
-                  value={String(data?.videoPlaybackClient?.totalErrorsLast1h ?? 0)}
-                />
-                <DetailRow
-                  label="По source в ошибках (24 ч): HLS / MP4 / FILE"
+                  label="В ошибках: HLS / MP4 / файл"
                   value={`${data?.videoPlaybackClient?.byDelivery.hls ?? 0} / ${data?.videoPlaybackClient?.byDelivery.mp4 ?? 0} / ${data?.videoPlaybackClient?.byDelivery.file ?? 0}`}
                 />
                 <DetailRow
-                  label="hls_fatal / video_error / hls_import_failed"
-                  value={`${data?.videoPlaybackClient?.byEvent.hls_fatal ?? 0} / ${data?.videoPlaybackClient?.byEvent.video_error ?? 0} / ${data?.videoPlaybackClient?.byEvent.hls_import_failed ?? 0}`}
-                />
-                <DetailRow
-                  label="playback_refetch_failed / playback_refetch_exception / hls_js_unsupported"
-                  value={`${data?.videoPlaybackClient?.byEvent.playback_refetch_failed ?? 0} / ${data?.videoPlaybackClient?.byEvent.playback_refetch_exception ?? 0} / ${data?.videoPlaybackClient?.byEvent.hls_js_unsupported ?? 0}`}
-                />
-                <DetailRow
-                  label="Признак цикла (>=3 hls_fatal в текущем UTC-часе для одного media)"
+                  label="Повторяющийся сбой HLS по одному видео (текущий UTC-час)"
                   value={data?.videoPlaybackClient?.likelyLooping ? "да" : "нет"}
                 />
-                <ProbeInfo probe={data?.meta?.probes?.videoPlaybackClient} />
+                <TechDiagBlock>
+                  <p className="text-[11px] text-muted-foreground">Числа по ключам телеметрии сервера</p>
+                  <DetailRow label="Тяжёлая ошибка HLS / видео / импорт HLS" value={`${data?.videoPlaybackClient?.byEvent.hls_fatal ?? 0} / ${data?.videoPlaybackClient?.byEvent.video_error ?? 0} / ${data?.videoPlaybackClient?.byEvent.hls_import_failed ?? 0}`} />
+                  <DetailRow label="Повторный запрос ссылки / исключение / HLS.js" value={`${data?.videoPlaybackClient?.byEvent.playback_refetch_failed ?? 0} / ${data?.videoPlaybackClient?.byEvent.playback_refetch_exception ?? 0} / ${data?.videoPlaybackClient?.byEvent.hls_js_unsupported ?? 0}`} />
+                  <ProbeInfo probe={data?.meta?.probes?.videoPlaybackClient} bare />
+                </TechDiagBlock>
                 {data?.videoPlaybackClient?.recent?.length ? (
                   <div className="mt-2 space-y-1">
                     <p className="font-medium text-foreground">Последние события</p>
                     {data.videoPlaybackClient.recent.map((row, idx) => (
-                      <div key={`${row.createdAt}-${row.mediaId}-${idx}`} className="rounded border border-border/50 p-2">
-                        <DetailRow label="time" value={formatDateTime(row.createdAt)} />
-                        <DetailRow label="media_id" value={row.mediaId} />
-                        <DetailRow label="event" value={row.eventClass} />
-                        <DetailRow label="delivery" value={row.delivery ?? "—"} />
-                        <DetailRow label="detail" value={row.errorDetail ?? "—"} />
+                      <div key={`${row.createdAt}-${row.mediaId}-${idx}`} className="rounded border border-border/50 p-2 font-mono text-[11px] leading-snug">
+                        <DetailRow label="Время" value={formatDateTime(row.createdAt)} />
+                        <DetailRow label="Видео" value={row.mediaId} />
+                        <DetailRow label="Тип" value={playbackClientEventRu(row.eventClass)} />
+                        <DetailRow label="Формат выдачи" value={row.delivery ?? "—"} />
+                        <DetailRow label="Детали" value={row.errorDetail ?? "—"} />
                       </div>
                     ))}
                   </div>
@@ -626,30 +769,26 @@ export function SystemHealthSection() {
               </div>
             </HealthAccordionItem>
 
-            <HealthAccordionItem name="HLS delivery (прокси)" status={videoHlsProxyAccordionStatus}>
-              <DetailRow
-                label="Окно"
-                value={`последние ${data?.videoHlsProxy?.windowHours ?? 24} ч (ошибки ответов прокси в БД)`}
-              />
-              {playbackApiDisabled ? (
-                <p className="pt-1 text-sm text-muted-foreground">
-                  Playback API выключен — счётчики прокси не ведутся.
-                </p>
-              ) : (
+            <HealthAccordionItem name="Потоковая выдача HLS (прокси)" status={videoHlsProxyAccordionStatus}>
+              <DetailRow label="Итог" value={playbackApiDisabled ? "Нет данных (API выдачи видео выкл.)" : "Ошибки ответов прокси из БД"} />
+              {!playbackApiDisabled ? (
+                <DetailRow label="Смысл" value={`Окно ${data?.videoHlsProxy?.windowHours ?? 24} ч.`} />
+              ) : null}
+              {playbackApiDisabled ? null : (
                 <>
-                  <DetailRow label="Ошибок (24 ч)" value={String(data?.videoHlsProxy?.errorsTotal24h ?? 0)} />
-                  <DetailRow label="Ошибок (1 ч)" value={String(data?.videoHlsProxy?.errorsTotal1h ?? 0)} />
-                  <DetailRow label="Деградация (эвристика)" value={data?.videoHlsProxy?.degraded ? "да" : "нет"} />
+                  <DetailRow label="Ошибок за 24 ч" value={String(data?.videoHlsProxy?.errorsTotal24h ?? 0)} />
+                  <DetailRow label="Ошибок за 1 ч" value={String(data?.videoHlsProxy?.errorsTotal1h ?? 0)} />
+                  <DetailRow label="Подозрение на перегруз/сбои" value={data?.videoHlsProxy?.degraded ? "да" : "нет"} />
                   <ProbeInfo probe={data?.meta?.probes?.videoHlsProxy} />
                   {data?.videoHlsProxy?.recent?.length ? (
                     <div className="mt-2 space-y-1">
-                      <p className="font-medium text-foreground">Последние ошибки</p>
+                      <p className="font-medium text-foreground">Последние записи</p>
                       {data.videoHlsProxy.recent.map((row, idx) => (
-                        <div key={`${row.createdAt}-${row.mediaId}-${idx}`} className="rounded border border-border/50 p-2">
-                          <DetailRow label="time" value={formatDateTime(row.createdAt)} />
-                          <DetailRow label="media_id" value={row.mediaId} />
-                          <DetailRow label="reason" value={row.reasonCode} />
-                          <DetailRow label="artifact" value={row.artifactKind} />
+                        <div key={`${row.createdAt}-${row.mediaId}-${idx}`} className="rounded border border-border/50 p-2 font-mono text-[11px] leading-snug">
+                          <DetailRow label="Время" value={formatDateTime(row.createdAt)} />
+                          <DetailRow label="Видео" value={row.mediaId} />
+                          <DetailRow label="Причина" value={row.reasonCode} />
+                          <DetailRow label="Объект" value={row.artifactKind} />
                         </div>
                       ))}
                     </div>
@@ -658,16 +797,41 @@ export function SystemHealthSection() {
               )}
             </HealthAccordionItem>
 
-            <HealthAccordionItem name="Транскод HLS (очередь media_transcode_jobs)" status={transcodeAccordionStatus}>
-              <DetailRow label="Источник" value="PostgreSQL (не liveness systemd media-worker)" />
+            <HealthAccordionItem name="Транскод HLS и очередь" status={transcodeAccordionStatus}>
+              <p className="text-xs text-muted-foreground">Счётчики задач за 1 ч и 24 ч — в UTC.</p>
               <DetailRow
-                label="Пайплайн / reconcile"
-                value={`${data?.videoTranscode?.pipelineEnabled ? "on" : "off"} / ${data?.videoTranscode?.reconcileEnabled ? "on" : "off"}`}
+                label="Итог"
+                value={
+                  data?.videoTranscode?.status === "error"
+                    ? "Не удалось прочитать метрики"
+                    : "Состояние очереди и зрелости медиабиблиотеки по данным базы приложения"
+                }
               />
-              <DetailRow label="pending / processing" value={`${data?.videoTranscode?.pendingCount ?? 0} / ${data?.videoTranscode?.processingCount ?? 0}`} />
-              <DetailRow label="done / failed (за 1 ч UTC)" value={`${data?.videoTranscode?.doneLastHour ?? 0} / ${data?.videoTranscode?.failedLastHour ?? 0}`} />
               <DetailRow
-                label="Среднее время done (1 ч), мс"
+                label="Пайплайн / сверка каталога"
+                value={`${data?.videoTranscode?.pipelineEnabled ? "включён" : "выключен"} / ${data?.videoTranscode?.reconcileEnabled ? "включена" : "выключена"}`}
+              />
+              <DetailRow
+                label="Ждут / обрабатываются сейчас"
+                value={
+                  (data?.videoTranscode?.pendingCount ?? 0) === 0 && (data?.videoTranscode?.processingCount ?? 0) === 0
+                    ? "Очередь пуста"
+                    : `${data?.videoTranscode?.pendingCount ?? 0} / ${data?.videoTranscode?.processingCount ?? 0}`
+                }
+              />
+              <DetailRow label="Завершено / ошибки (1 ч UTC)" value={`${data?.videoTranscode?.doneLastHour ?? 0} / ${data?.videoTranscode?.failedLastHour ?? 0}`} />
+              <DetailRow label="Завершено / ошибки (24 ч UTC)" value={`${data?.videoTranscode?.doneLast24h ?? 0} / ${data?.videoTranscode?.failedLast24h ?? 0}`} />
+              <DetailRow label="Завершено / ошибки (всего)" value={`${data?.videoTranscode?.doneLifetime ?? 0} / ${data?.videoTranscode?.failedLifetime ?? 0}`} />
+              <DetailRow
+                label="Видео без потоковой версии (кандидаты сверки, до 3 ГиБ)"
+                value={String(data?.videoTranscode?.legacyReconcileCandidateCountWithinSizeCap ?? 0)}
+              />
+              <DetailRow
+                label="Готово видео с HLS master"
+                value={String(data?.videoTranscode?.readableVideoReadyWithHlsCount ?? 0)}
+              />
+              <DetailRow
+                label="Среднее время успешной задачи (1 ч UTC), мс"
                 value={
                   data?.videoTranscode?.avgProcessingMsDoneLastHour == null
                     ? "—"
@@ -675,13 +839,32 @@ export function SystemHealthSection() {
                 }
               />
               <DetailRow
-                label="Возраст oldest pending, с"
+                label="Дольше всего ждёт обработку, сек"
                 value={
                   data?.videoTranscode?.oldestPendingAgeSeconds == null
                     ? "—"
                     : String(data.videoTranscode.oldestPendingAgeSeconds)
                 }
               />
+              {data?.videoTranscode?.lastReconcileTick ? (
+                <div className="mt-1 rounded border border-border/50 p-2">
+                  <p className="mb-1 font-medium text-foreground">Последняя сверка старых видео</p>
+                  <DetailRow label="Итог" value={techProbeStatusHuman(data.videoTranscode.lastReconcileTick.lastStatus)} />
+                  <DetailRow label="Завершено" value={formatDateTime(data.videoTranscode.lastReconcileTick.lastFinishedAt)} />
+                  <DetailRow label="Последний успех" value={formatDateTime(data.videoTranscode.lastReconcileTick.lastSuccessAt)} />
+                  <DetailRow label="Последняя ошибка" value={formatDateTime(data.videoTranscode.lastReconcileTick.lastFailureAt)} />
+                  <DetailRow label="Длительность, мс" value={String(data.videoTranscode.lastReconcileTick.lastDurationMs ?? "—")} />
+                  <DetailRow label="Текст ошибки" value={data.videoTranscode.lastReconcileTick.lastError ?? "—"} />
+                  <TechDiagBlock>
+                    <DetailRow label="Ключ задачи (БД)" value={data.videoTranscode.lastReconcileTick.jobKey} />
+                    <p className="text-[11px] text-muted-foreground break-all">
+                      meta: {JSON.stringify(data.videoTranscode.lastReconcileTick.metaJson)}
+                    </p>
+                  </TechDiagBlock>
+                </div>
+              ) : (
+                <DetailRow label="Последняя сверка старых видео" value="ещё не было записей в статусе оператора" />
+              )}
               <ProbeInfo probe={data?.meta?.probes?.videoTranscode} />
             </HealthAccordionItem>
           </div>
@@ -689,45 +872,50 @@ export function SystemHealthSection() {
           <div className="space-y-2">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Инфраструктурные источники</p>
             <HealthAccordionItem
-              name={`Операторские инциденты (${openOperatorIncidents.length})`}
+              name={`Открытые инциденты (${openOperatorIncidents.length})`}
               status={data?.meta?.probes?.operatorIncidents?.status ?? "error"}
             >
-              <ProbeInfo probe={data?.meta?.probes?.operatorIncidents} />
               {openOperatorIncidents.length === 0 ? (
-                <DetailRow label="Открытые" value="нет" />
+                <DetailRow label="Итог" value="открытых нет" />
               ) : (
+                <DetailRow label="Итог" value={`есть открытые (${openOperatorIncidents.length})`} />
+              )}
+              <ProbeInfo probe={data?.meta?.probes?.operatorIncidents} />
+              {openOperatorIncidents.length === 0 ? null : (
                 <div className="space-y-2">
                   {openOperatorIncidents.map((row) => (
-                    <div key={row.id} className="rounded border border-border/50 p-2 font-mono text-[11px] leading-snug">
-                      <DetailRow label="integration" value={row.integration} />
-                      <DetailRow label="class" value={row.errorClass} />
-                      <DetailRow label="count" value={String(row.occurrenceCount)} />
-                      <DetailRow label="last_seen" value={formatDateTime(row.lastSeenAt)} />
-                      {row.errorDetail ? (
-                        <p className="mt-1 break-all text-foreground">{row.errorDetail}</p>
-                      ) : null}
+                    <div key={row.id} className="rounded border border-border/50 p-2 text-[11px] leading-snug">
+                      <DetailRow label="Интеграция" value={operatorIncidentIntegrationHuman(row.integration)} />
+                      <DetailRow label="Тип ошибки" value={operatorIncidentSynopsisHuman(row.errorClass)} />
+                      <DetailRow label="Направление" value={operatorIncidentDirectionHuman(row.direction)} />
+                      <DetailRow label="Повторов зафиксировано" value={String(row.occurrenceCount)} />
+                      <DetailRow label="Последнее срабатывание" value={formatDateTime(row.lastSeenAt)} />
+                      {row.errorDetail ? <p className="mt-2 break-all text-muted-foreground">{row.errorDetail}</p> : null}
+                      <TechDiagBlock>
+                        <DetailRow label="Код интеграции (БД)" value={row.integration} />
+                        <DetailRow label="Класс ошибки (БД)" value={row.errorClass} />
+                        <DetailRow label="dedup_key" value={row.dedupKey} />
+                      </TechDiagBlock>
                     </div>
                   ))}
                 </div>
               )}
             </HealthAccordionItem>
 
-            <HealthAccordionItem
-              name={`Бэкапы PostgreSQL (${backupJobEntries.length})`}
-              status={data?.meta?.probes?.operatorBackupJobs?.status ?? "error"}
-            >
+            <HealthAccordionItem name="Бэкапы базы данных" status={data?.meta?.probes?.operatorBackupJobs?.status ?? "error"}>
+              <DetailRow label="Итог" value={backupJobEntries.length === 0 ? "нет строк статуса" : "есть записи о прогонах"} />
               <ProbeInfo probe={data?.meta?.probes?.operatorBackupJobs} />
               {backupJobEntries.length === 0 ? (
-                <DetailRow label="Строки job" value="нет" />
+                <DetailRow label="Подробнее" value="нет" />
               ) : (
                 <div className="space-y-2">
                   {backupJobEntries.map(([jobKey, st]) => (
                     <div key={jobKey} className="rounded border border-border/50 p-2 font-mono text-[11px] leading-snug">
-                      <DetailRow label="job_key" value={jobKey} />
-                      <DetailRow label="last_status" value={st.lastStatus} />
-                      <DetailRow label="last_success" value={formatDateTime(st.lastSuccessAt)} />
-                      <DetailRow label="last_failure" value={formatDateTime(st.lastFailureAt)} />
-                      <DetailRow label="last_error" value={st.lastError ?? "—"} />
+                      <DetailRow label="Ключ задачи (БД)" value={jobKey} />
+                      <DetailRow label="Статус" value={techProbeStatusHuman(st.lastStatus)} />
+                      <DetailRow label="Последний успешный прогон" value={formatDateTime(st.lastSuccessAt)} />
+                      <DetailRow label="Последняя ошибка" value={formatDateTime(st.lastFailureAt)} />
+                      <DetailRow label="Текст ошибки" value={st.lastError ?? "—"} />
                     </div>
                   ))}
                 </div>
@@ -738,32 +926,30 @@ export function SystemHealthSection() {
               name="Очередь доставки уведомлений"
               status={data?.meta?.probes?.outgoingDelivery?.status ?? "error"}
             >
+              <DetailRow label="Итог" value="Состояние исходящей очереди интегратора" />
               <ProbeInfo probe={data?.meta?.probes?.outgoingDelivery} />
-              <DetailRow label="due (готово к отправке)" value={String(data?.outgoingDelivery?.dueBacklog ?? 0)} />
-              <DetailRow label="dead" value={String(data?.outgoingDelivery?.deadTotal ?? 0)} />
-              <DetailRow label="processing" value={String(data?.outgoingDelivery?.processingCount ?? 0)} />
+              <DetailRow label="Ждут отправки" value={String(data?.outgoingDelivery?.dueBacklog ?? 0)} />
+              <DetailRow label="Ошибок без повтора (dead)" value={String(data?.outgoingDelivery?.deadTotal ?? 0)} />
+              <DetailRow label="Обрабатываются сейчас" value={String(data?.outgoingDelivery?.processingCount ?? 0)} />
               <DetailRow
-                label="due по каналам"
+                label="Ждущие по каналам"
                 value={
                   data?.outgoingDelivery?.dueByChannel &&
                   Object.keys(data.outgoingDelivery.dueByChannel).length > 0
                     ? Object.entries(data.outgoingDelivery.dueByChannel)
                         .sort(([a], [b]) => a.localeCompare(b))
-                        .map(([ch, n]) => `${ch}:${n}`)
+                        .map(([ch, n]) => `${outgoingDeliveryChannelHuman(ch)}: ${n}`)
                         .join(", ")
                     : "—"
                 }
               />
+              <DetailRow label="Последнее время отправки" value={formatDateTime(data?.outgoingDelivery?.lastSentAt ?? null)} />
               <DetailRow
-                label="last_sent_at (max)"
-                value={formatDateTime(data?.outgoingDelivery?.lastSentAt ?? null)}
-              />
-              <DetailRow
-                label="last_queue_activity (max updated_at)"
+                label="Последнее изменение записи в очереди"
                 value={formatDateTime(data?.outgoingDelivery?.lastQueueActivityAt ?? null)}
               />
               <DetailRow
-                label="Возраст oldest due, с"
+                label="Дольше всего ждёт (с)"
                 value={
                   data?.outgoingDelivery?.oldestDueAgeSeconds == null
                     ? "—"
@@ -778,19 +964,19 @@ export function SystemHealthSection() {
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Краткая сводка</CardTitle>
-          <CardDescription>Сигналы состояния воркеров на основе health и projection snapshot.</CardDescription>
+          <CardDescription>Сводка работы очередей и интеграций по данным этого экрана.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3 text-sm">
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border/60 p-3">
-            <span>API integrator (bersoncarebot-api-prod)</span>
+            <span>Сервер интеграций</span>
             <StatusPill status={workers.api} />
           </div>
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border/60 p-3">
-            <span>Worker runtime (bersoncarebot-worker-prod)</span>
+            <span>Фон обработки интеграций</span>
             <StatusPill status={workers.worker} />
           </div>
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border/60 p-3">
-            <span>Webapp runtime (bersoncarebot-webapp-prod)</span>
+            <span>Сервер веб-приложения</span>
             <StatusPill status={workers.webapp} />
           </div>
         </CardContent>
