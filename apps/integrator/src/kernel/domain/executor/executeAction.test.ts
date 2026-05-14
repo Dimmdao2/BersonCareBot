@@ -2874,6 +2874,98 @@ describe('executeAction', () => {
     });
   });
 
+  describe('reminders.skip.applyPreset (telegram)', () => {
+    it('reason none: marks skipped, ack via message.edit + callback.answer when messageId set', async () => {
+      const readDb = vi.fn().mockImplementation(async (q: { type: string; params?: Record<string, unknown> }) => {
+        if (q.type === 'user.byIdentity') {
+          expect(q.params).toMatchObject({ resource: 'telegram', externalId: '777' });
+          return { userId: 'int-user-1' };
+        }
+        if (q.type === 'reminders.occurrence.ownerUserId') {
+          expect(q.params).toMatchObject({ occurrenceId: 'occ-skip-none' });
+          return 'int-user-1';
+        }
+        return null;
+      });
+      const writeDb = vi.fn().mockResolvedValue(undefined);
+      const renderTemplate = vi.fn().mockResolvedValue({ text: 'skip saved ack' });
+      const action: Action = {
+        id: 'skip-preset-1',
+        type: 'reminders.skip.applyPreset',
+        mode: 'sync',
+        params: {
+          occurrenceId: 'occ-skip-none',
+          reasonCode: 'none',
+          channelUserId: '777',
+          resource: 'telegram',
+          chatId: 100,
+          messageId: 9001,
+          callbackQueryId: 'cb-skip-1',
+        },
+      };
+      const result = await executeAction(action, ctx, {
+        readPort: { readDb },
+        writePort: { writeDb },
+        templatePort: { renderTemplate },
+      });
+      expect(result.status).toBe('success');
+      expect(writeDb).toHaveBeenCalled();
+      const markSkipped = writeDb.mock.calls.find((c) => c[0]?.type === 'reminders.occurrence.markSkippedLocal');
+      expect(markSkipped?.[0]?.params).toEqual({ occurrenceId: 'occ-skip-none' });
+      expect(renderTemplate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          source: 'telegram',
+          templateId: 'reminder.skip.saved',
+        }),
+      );
+      const types = result.intents?.map((i) => i.type) ?? [];
+      expect(types).toContain('message.edit');
+      expect(types).toContain('callback.answer');
+      const edit = result.intents?.find((i) => i.type === 'message.edit');
+      expect(edit && 'payload' in edit ? (edit.payload as { messageId?: unknown }).messageId : null).toBe(9001);
+    });
+
+    it('reason none: without messageId uses message.send + callback.answer', async () => {
+      const readDb = vi.fn().mockImplementation(async (q: { type: string; params?: Record<string, unknown> }) => {
+        if (q.type === 'user.byIdentity') return { userId: 'int-user-2' };
+        if (q.type === 'reminders.occurrence.ownerUserId') {
+          expect(q.params).toMatchObject({ occurrenceId: 'occ-skip-send' });
+          return 'int-user-2';
+        }
+        return null;
+      });
+      const writeDb = vi.fn().mockResolvedValue(undefined);
+      const renderTemplate = vi.fn().mockResolvedValue({ text: 'ack no mid' });
+      const action: Action = {
+        id: 'skip-preset-2',
+        type: 'reminders.skip.applyPreset',
+        mode: 'sync',
+        params: {
+          occurrenceId: 'occ-skip-send',
+          reasonCode: 'none',
+          channelUserId: '888',
+          resource: 'telegram',
+          chatId: 101,
+          callbackQueryId: 'cb-skip-2',
+        },
+      };
+      const result = await executeAction(action, ctx, {
+        readPort: { readDb },
+        writePort: { writeDb },
+        templatePort: { renderTemplate },
+      });
+      expect(result.status).toBe('success');
+      const types = result.intents?.map((i) => i.type) ?? [];
+      expect(types).toContain('message.send');
+      expect(types).not.toContain('message.edit');
+      expect(types).toContain('callback.answer');
+      const send = result.intents?.find((i) => i.type === 'message.send');
+      expect(send && 'payload' in send ? (send.payload as { message?: { text?: string } }).message?.text : null).toBe(
+        'ack no mid',
+      );
+    });
+  });
+
   describe('reminders.skip.applyFreeText (max)', () => {
     it('uses message.edit on reply target when replyToMessageId is present', async () => {
       const readDb = vi.fn().mockImplementation(async (q: { type: string; params?: { occurrenceId?: string } }) => {

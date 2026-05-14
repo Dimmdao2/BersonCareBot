@@ -114,7 +114,7 @@ Examples:
 
 ### `POST /api/integrator/reminders/dispatch`
 
-**Канон для пациентских напоминаний по правилам:** доставка идёт через integrator **`schedule.tick`** → **`reminders.dispatchDue`** → запись в **`public.outgoing_delivery_queue`** и обработку integrator worker (см. `apps/integrator/src/content/scheduler/scripts.json`, unit **`bersoncarebot-scheduler-prod.service`** в `deploy/systemd/`).
+**Канон для пациентских напоминаний по правилам:** доставка идёт через integrator **`schedule.tick`** → **`reminders.dispatchDue`** → запись в **`public.outgoing_delivery_queue`** и обработку integrator worker (см. `apps/integrator/src/content/scheduler/scripts.json`, unit **`bersoncarebot-scheduler-prod.service`** в `deploy/systemd/`). Паритет доставки напоминаний в MAX (очередь, stale-delete, ключи логов): `docs/ARCHITECTURE/MAX_SETUP.md`.
 
 Этот HTTP-эндпоинт остаётся **legacy/контрактным**: после проверки подписи и idempotency тело валидируется и передаётся в `handleReminderDispatch`, который **не** выполняет доставку в мессенджеры (ответ **503** с `accepted: false`). Не использовать его как основной путь напоминаний в production.
 

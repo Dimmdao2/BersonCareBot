@@ -359,4 +359,124 @@ describe('max mapIn', () => {
     const incoming = fromMax(body);
     expect(incoming).toBeNull();
   });
+
+  it('maps message_created contact attachment phone_number to IncomingMessageUpdate.phone', () => {
+    const body = {
+      update_type: 'message_created' as const,
+      timestamp: 1,
+      message: {
+        recipient: { chat_id: 501 },
+        body: {
+          mid: 'mid-contact',
+          text: '',
+          attachments: [{ type: 'contact', payload: { phone_number: '+7 (900) 111-22-33' } }],
+        },
+        sender: { user_id: 501 },
+      },
+    };
+    const incoming = fromMax(body);
+    expect(incoming?.kind).toBe('message');
+    if (incoming?.kind === 'message') {
+      expect(incoming.phone).toBe('+79001112233');
+      expect(incoming.relayMessageType).toBe('contact');
+    }
+  });
+
+  it('maps message_created contact attachment phone field', () => {
+    const body = {
+      update_type: 'message_created' as const,
+      timestamp: 1,
+      message: {
+        recipient: { chat_id: 502 },
+        body: {
+          mid: 'mid-contact2',
+          text: '',
+          attachments: [{ type: 'contact', payload: { phone: '89004445566' } }],
+        },
+        sender: { user_id: 502 },
+      },
+    };
+    const incoming = fromMax(body);
+    expect(incoming?.kind).toBe('message');
+    if (incoming?.kind === 'message') expect(incoming.phone).toBe('+79004445566');
+  });
+
+  it('returns null for message_edited (no fromMax branch)', () => {
+    const body = {
+      update_type: 'message_edited' as const,
+      timestamp: 1,
+      message: {
+        recipient: { chat_id: 601 },
+        body: { mid: 'mid-ed', text: 'edited' },
+        sender: { user_id: 601 },
+      },
+    };
+    expect(fromMax(body)).toBeNull();
+  });
+
+  it('returns null for message_removed (ignored update type)', () => {
+    const body = {
+      update_type: 'message_removed' as const,
+      timestamp: 1,
+      message: {
+        recipient: { chat_id: 602 },
+        body: { mid: 'mid-rm' },
+        sender: { user_id: 602 },
+      },
+    };
+    expect(fromMax(body)).toBeNull();
+  });
+
+  it('maps message_created /start setrubitimerecord_recX to start.setrubitimerecord + recordId', () => {
+    const body = {
+      update_type: 'message_created' as const,
+      timestamp: 1,
+      message: {
+        recipient: { chat_id: 701 },
+        body: { text: '/start setrubitimerecord_recX_y-1' },
+        sender: { user_id: 701 },
+      },
+    };
+    const incoming = fromMax(body);
+    expect(incoming?.kind).toBe('message');
+    if (incoming?.kind === 'message') {
+      expect(incoming.action).toBe('start.setrubitimerecord');
+      expect(incoming.recordId).toBe('recX_y-1');
+    }
+  });
+
+  it('maps bot_started setphone_* payload to start.setphone + phone (canonicalize path)', () => {
+    const body = {
+      update_type: 'bot_started' as const,
+      timestamp: 1,
+      payload: 'setphone_%2B79005556677',
+      chat_id: 801,
+      user: { user_id: 801 },
+    };
+    const incoming = fromMax(body);
+    expect(incoming?.kind).toBe('message');
+    if (incoming?.kind === 'message') {
+      expect(incoming.action).toBe('start.setphone');
+      expect(incoming.phone).toBe('+79005556677');
+      expect(incoming.text).toMatch(/^\/start setphone_/);
+    }
+  });
+
+  it('maps message_created bare link_* text via canonicalize to start.link', () => {
+    const body = {
+      update_type: 'message_created' as const,
+      timestamp: 1,
+      message: {
+        recipient: { chat_id: 901 },
+        body: { text: 'link_deepBare99' },
+        sender: { user_id: 901 },
+      },
+    };
+    const incoming = fromMax(body);
+    expect(incoming?.kind).toBe('message');
+    if (incoming?.kind === 'message') {
+      expect(incoming.action).toBe('start.link');
+      expect(incoming.linkSecret).toBe('link_deepBare99');
+    }
+  });
 });

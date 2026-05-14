@@ -16,8 +16,16 @@ export type MessengerStartParseResult = {
 export function normalizePhoneFromSetphoneStartPayload(raw: string): string | null {
   const trimmed = raw.trim();
   if (!trimmed) return null;
-  const direct = normalizeTelegramContactPhone(trimmed);
-  if (direct) return direct;
+  let candidate = trimmed;
+  try {
+    if (/%[0-9A-Fa-f]{2}/.test(trimmed)) {
+      candidate = decodeURIComponent(trimmed.replace(/\+/g, '%2B'));
+    }
+  } catch {
+    candidate = trimmed;
+  }
+  const fromCandidate = normalizeTelegramContactPhone(candidate);
+  if (fromCandidate) return fromCandidate;
   try {
     const decoded = decodeURIComponent(trimmed.replace(/\+/g, '%2B'));
     return normalizeTelegramContactPhone(decoded);

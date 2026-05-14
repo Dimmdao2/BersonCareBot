@@ -44,11 +44,20 @@ npx tsx scripts/check-max.ts
 
 ### Reminders: parity с Telegram (outbound)
 
+| Log / message key | Где | Смысл (кратко) |
+|-------------------|-----|----------------|
+| `max deleteMessage failed` | MAX client | API отказал delete по валидному id. |
+| `max_reminder_delete_payload_invalid` | MAX adapter | Пустой/невалидный `message_id` в delete — no-op. |
+| `max_reminder_stale_message_delete_soft_fail` | Adapter | Мягкий отказ stale-delete перед resend. |
+| `max_reminder_stale_message_delete_failed` | Worker | Исключение после delete (ловится, send идёт дальше). |
+| `max editMessage failed` | MAX client | Редактирование не удалось. |
+| `reminder_stale_message_delete_failed` | Worker | Stale-delete для Telegram не удался (ловится). |
+
 - Перед новой отправкой `reminder_dispatch` в MAX выполняется **best-effort** `message.delete` по `maxMessageId` из прошлого успешного лога той же rule (см. `reminders.delivery.staleMessengerMessage`, `deleteBeforeSendMessageId` в очереди).
 - После успешной отправки в `user_reminder_delivery_logs.payload_json` пишется **`maxMessageId`** (строка `body.mid` от API).
 - Free-text skip (`reminders.skip.applyFreeText`): при наличии **`replyToMessageId`** (в т.ч. из MAX `message.link` с `type: "reply"` на **`message_created`** или на **`message_callback`**, если платформа отдаёт `link` на сообщении с кнопками) — **сначала** `message.edit` промпт-сообщения, иначе fallback на `message.send`.
-- Интент **`message.delete`** в MAX: при отсутствии `message_id` адаптер **не бросает** исключение (лог **`max_reminder_delete_payload_invalid`**), чтобы не срывать обработку очереди; при отказе API после валидного id — **`max deleteMessage failed`** (client) и **`max_reminder_stale_message_delete_soft_fail`** (adapter) / **`max_reminder_stale_message_delete_failed`** (worker).
-- Ограничения MAX (окно редактирования ~24h, права) могут приводить к отказу edit/delete: это **не** должно ломать enqueue следующей доставки; смотрите логи с ключами `max deleteMessage failed`, `max_reminder_delete_payload_invalid`, `max_reminder_stale_message_delete_soft_fail`, `max_reminder_stale_message_delete_failed` (worker), `max editMessage failed` (client, edit).
+- Интент **`message.delete`** в MAX: при отсутствии `message_id` адаптер **не бросает** исключение; при отказе API после валидного id — см. ключи в таблице выше (`max deleteMessage failed`, `max_reminder_stale_message_delete_*`).
+- Ограничения MAX (окно редактирования ~24h, права) могут приводить к отказу edit/delete: это **не** должно ломать enqueue следующей доставки; полный перечень ключей — в таблице выше.
 
 ### Важные ограничения MAX API
 

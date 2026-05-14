@@ -4,6 +4,10 @@ This document records which Telegram mechanics are **fully supported**, **partia
 
 Reference: [MAX API docs](https://dev.max.ru/docs-api), [Telegram Bot API](https://core.telegram.org/bots/api).
 
+## Incoming / Ignored updates (MAX webhook)
+
+Типы из `MaxUpdateSchema` (`schema.ts`), для которых `fromMax` возвращает **`null`** (нет `IncomingUpdate`): `message_removed`, `message_edited`, `bot_added`, `bot_removed`, `user_removed`, `chat_title_changed`, `message_construction_request`, `message_constructed`, `message_chat_created`. Обработчик webhook отвечает клиенту **ok** и пишет в `reqLogger.info` **точное** сообщение лога `max webhook skipped (unsupported or missing chatId/userId)` — это полная строка для поиска в логах/дашбордах (см. `webhook.ts`).
+
 ## Incoming
 
 | Mechanic | Telegram | MAX | Notes |
@@ -11,7 +15,7 @@ Reference: [MAX API docs](https://dev.max.ru/docs-api), [Telegram Bot API](https
 | Text message | full | full | `message_created` with `message.text` mapped to `message.received`. |
 | Reply context (`reply_to` / link) | full | full | MAX: `message.link` с `type: "reply"` → `replyToMessageId` на `message_created` и на **`message_callback`** (если в `message` есть `link`); для free-text skip см. reminders. |
 | Callback (button press) | full | full | `message_callback`: `callback_id`, `payload` → `callback.received`; при наличии `message.link` (reply) дополнительно прокидывается `replyToMessageId`. |
-| Contact request | full | partial | MAX has `request_contact` button type; flow parity not yet verified. |
+| Contact request | full | partial | MAX: `message_created` с вложением `type: "contact"` (`phone` / `phone_number`) → `IncomingMessageUpdate.phone` и `relayMessageType: "contact"` (см. unit-тесты `mapIn.test.ts`). Кнопка `request_contact` в outbox — отдельный UX-путь; контракт входящего контакта покрыт тестами, не требует ручной прод-проверки в рамках матрицы. |
 | /start, bot_started | full | full | `bot_started` and `/start` text both open start flow (`max.start` / onboarding). |
 | Slash commands in bot menu | full (Telegram menu button / text) | partial | MAX `setMyCommands`: **пустой список** (на старте webhook в [`setupCommands.ts`](../../apps/integrator/src/integrations/max/setupCommands.ts)); главное меню — инлайн-кнопки. Текстовые **`/book`**, **`/diary`**, **`/menu`** по-прежнему обрабатываются в [`mapIn.ts`](../../apps/integrator/src/integrations/max/mapIn.ts) (`booking.open`, `nav.webapp.diary`, `nav.webapp.menu`) — это независимо от списка команд в UI. |
 | Reply keyboard (persistent bottom buttons) | full | unsupported | MAX uses inline keyboard only; we use inline menu as fallback. |
@@ -55,5 +59,5 @@ Reference: [MAX API docs](https://dev.max.ru/docs-api), [Telegram Bot API](https
 
 - **Fully supported in MAX for MVP:** receive text/callback, send text, inline keyboard, edit message, answer callback, HTML/Markdown.
 - **Авто-главное меню (executor):** к `message.send` / `message.compose` в канал MAX подмешивается строка `menus.main` только при **`linkedPhone`**, числовом **`recipient.chatId`**, отсутствии своей `replyMarkup` и доставке в max (в т.ч. отдельный интент при Rubitime fan-out). Без `chatId` меню не подмешивается — иначе отправка в MAX невозможна. См. `delivery.ts`, `INTEGRATOR_CONTRACT.md`.
-- **Partial / verify in prod:** contact request parity, глубина deep link под все сценарии Telegram.
+- **Partial:** contact request **кнопка** vs полный UX Telegram; входящий контакт в сообщении — см. строку Contact request выше.
 - **Unsupported (with fallback):** reply keyboard → use inline keyboard for main menu.
