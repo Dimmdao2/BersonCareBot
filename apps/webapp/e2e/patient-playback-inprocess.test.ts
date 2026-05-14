@@ -1,5 +1,6 @@
 /**
  * Smoke: patient content playback stack (phase-05) — in-process imports, no live browser.
+ * RSC `page.tsx` — в smoke-app-router-rsc-pages-inprocess.
  */
 import { describe, expect, it } from "vitest";
 
@@ -17,10 +18,5 @@ describe("patient playback (phase-05, in-process)", () => {
   it("PatientContentAdaptiveVideo client component exists", async () => {
     const mod = await import("@/app/app/patient/content/[slug]/PatientContentAdaptiveVideo");
     expect(typeof mod.PatientContentAdaptiveVideo).toBe("function");
-  });
-
-  it("patient content slug page server component exists", async () => {
-    const mod = await import("@/app/app/patient/content/[slug]/page");
-    expect(typeof mod.default).toBe("function");
   });
 });

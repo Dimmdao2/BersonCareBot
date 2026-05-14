@@ -1,7 +1,8 @@
 /**
  * Редиректы legacy /subscribers и сохранение scope в ссылке «назад» карточки клиента.
+ * Импорты `page.tsx` — один раз в `beforeAll` (проект `fast` с жёстким testTimeout; холодный граф не дублируем в каждом `it`).
  */
-import { describe, expect, it, vi } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 
 const redirectMock = vi.fn((url: string) => {
   const e = new Error("redirect");
@@ -20,18 +21,26 @@ vi.mock("@/app-layer/guards/requireRole", () => ({
 }));
 
 describe("doctor clients scope and subscribers redirects", () => {
+  let SubscribersListPage: (typeof import("@/app/app/doctor/subscribers/page"))["default"];
+  let SubscribersProfilePage: (typeof import("@/app/app/doctor/subscribers/[userId]/page"))["default"];
+
+  beforeAll(async () => {
+    const listMod = await import("@/app/app/doctor/subscribers/page");
+    SubscribersListPage = listMod.default;
+    const profileMod = await import("@/app/app/doctor/subscribers/[userId]/page");
+    SubscribersProfilePage = profileMod.default;
+  }, 90_000);
+
   it("/app/doctor/subscribers redirects to /app/doctor/clients?scope=all", async () => {
     redirectMock.mockClear();
-    const { default: Page } = await import("@/app/app/doctor/subscribers/page");
-    await expect(Page({ searchParams: Promise.resolve({}) })).rejects.toThrow("redirect");
+    await expect(SubscribersListPage({ searchParams: Promise.resolve({}) })).rejects.toThrow("redirect");
     expect(redirectMock).toHaveBeenCalledWith("/app/doctor/clients?scope=all");
   });
 
   it("/app/doctor/subscribers preserves query params on redirect", async () => {
     redirectMock.mockClear();
-    const { default: Page } = await import("@/app/app/doctor/subscribers/page");
     await expect(
-      Page({
+      SubscribersListPage({
         searchParams: Promise.resolve({ q: "ivan", selected: "550e8400-e29b-41d4-a716-446655440000" }),
       }),
     ).rejects.toThrow("redirect");
@@ -42,9 +51,8 @@ describe("doctor clients scope and subscribers redirects", () => {
 
   it("/app/doctor/subscribers/[userId] redirects to clients profile with scope=all", async () => {
     redirectMock.mockClear();
-    const { default: Page } = await import("@/app/app/doctor/subscribers/[userId]/page");
     const uid = "550e8400-e29b-41d4-a716-446655440099";
-    await expect(Page({ params: Promise.resolve({ userId: uid }) })).rejects.toThrow("redirect");
+    await expect(SubscribersProfilePage({ params: Promise.resolve({ userId: uid }) })).rejects.toThrow("redirect");
     expect(redirectMock).toHaveBeenCalledWith(`/app/doctor/clients/${encodeURIComponent(uid)}?scope=all`);
   });
 });

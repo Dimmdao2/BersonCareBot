@@ -1,5 +1,6 @@
 /**
  * E2E (in-process): diary modules and pages load; diaries wiring via buildAppDeps.
+ * RSC-страницы дневника — в smoke-app-router-rsc-pages-inprocess.
  * Does not start a server. Requires DATABASE_URL for add/list (or use in-memory when DATABASE_URL unset).
  */
 import { describe, expect, it } from "vitest";
@@ -8,21 +9,6 @@ describe("diaries e2e (in-process)", () => {
   it("markLfkSession action is defined and callable", async () => {
     const { markLfkSession } = await import("@/app/app/patient/diary/lfk/actions");
     expect(typeof markLfkSession).toBe("function");
-  });
-
-  it("unified diary page default export is an async component", async () => {
-    const mod = await import("@/app/app/patient/diary/page");
-    expect(typeof mod.default).toBe("function");
-    expect(mod.default.constructor.name).toBe("AsyncFunction");
-  });
-
-  it("diary journal subroutes export async RSC pages", async () => {
-    const lfk = await import("@/app/app/patient/diary/lfk/journal/page");
-    const sym = await import("@/app/app/patient/diary/symptoms/journal/page");
-    expect(typeof lfk.default).toBe("function");
-    expect(typeof sym.default).toBe("function");
-    expect(lfk.default.constructor.name).toBe("AsyncFunction");
-    expect(sym.default.constructor.name).toBe("AsyncFunction");
   });
 
   it("QuickAddPopup client module loads", async () => {

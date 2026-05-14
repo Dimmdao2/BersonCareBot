@@ -46,6 +46,7 @@ alwaysApply: true
 
 - Все тесты integrator: `pnpm test` (корень) или `pnpm --dir apps/integrator test` без аргументов после Vitest
 - Все тесты webapp: `pnpm test:webapp` или `pnpm --dir apps/webapp test` без аргументов
+- Узкий webapp: `pnpm test:webapp:fast` (проект Vitest `fast`) или `pnpm test:webapp:inprocess` (проект `inprocess`; в GitHub Actions только на `push` в `main`)
 
 ### Full CI (ограниченно)
 

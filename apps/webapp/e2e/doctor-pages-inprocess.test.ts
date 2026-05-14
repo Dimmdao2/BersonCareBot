@@ -1,45 +1,9 @@
 /**
- * E2E (in-process): all doctor cabinet pages and messaging listAll.
+ * E2E (in-process): doctor cabinet wiring (без повторных import страниц — см. smoke-app-router-rsc-pages-inprocess).
  */
 import { describe, expect, it } from "vitest";
 
 describe("doctor pages e2e (in-process)", () => {
-  it("doctor overview page default export is async component", async () => {
-    const mod = await import("@/app/app/doctor/page");
-    expect(typeof mod.default).toBe("function");
-    expect(mod.default.constructor.name).toBe("AsyncFunction");
-  });
-
-  it("doctor appointments page default export is async component", async () => {
-    const mod = await import("@/app/app/doctor/appointments/page");
-    expect(typeof mod.default).toBe("function");
-    expect(mod.default.constructor.name).toBe("AsyncFunction");
-  });
-
-  it("doctor messages page default export is async component", async () => {
-    const mod = await import("@/app/app/doctor/messages/page");
-    expect(typeof mod.default).toBe("function");
-    expect(mod.default.constructor.name).toBe("AsyncFunction");
-  });
-
-  it("doctor broadcasts page default export is async component", async () => {
-    const mod = await import("@/app/app/doctor/broadcasts/page");
-    expect(typeof mod.default).toBe("function");
-    expect(mod.default.constructor.name).toBe("AsyncFunction");
-  });
-
-  it("doctor stats page default export is async component", async () => {
-    const mod = await import("@/app/app/doctor/stats/page");
-    expect(typeof mod.default).toBe("function");
-    expect(mod.default.constructor.name).toBe("AsyncFunction");
-  });
-
-  it("doctor subscribers page default export is async component (stage 9)", async () => {
-    const mod = await import("@/app/app/doctor/subscribers/page");
-    expect(typeof mod.default).toBe("function");
-    expect(mod.default.constructor.name).toBe("AsyncFunction");
-  });
-
   it("buildAppDeps doctorStats getDashboardMetrics returns patient and appointment metrics (stage 9)", async () => {
     const { buildAppDeps } = await import("@/app-layer/di/buildAppDeps");
     const deps = buildAppDeps();

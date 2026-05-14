@@ -1,15 +1,12 @@
 import { describe, expect, it, beforeEach } from "vitest";
 import { resetInMemoryLfkTemplatesStore } from "@/infra/repos/inMemoryLfkTemplates";
 
+/**
+ * RSC list page — в smoke-app-router-rsc-pages-inprocess.
+ */
 describe("lfk templates doctor e2e (in-process)", () => {
   beforeEach(() => {
     resetInMemoryLfkTemplatesStore();
-  });
-
-  it("doctor lfk-templates list page is async server component", async () => {
-    const mod = await import("@/app/app/doctor/lfk-templates/page");
-    expect(typeof mod.default).toBe("function");
-    expect(mod.default.constructor.name).toBe("AsyncFunction");
   });
 
   it("create template → add exercises → publish", async () => {

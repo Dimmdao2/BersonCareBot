@@ -1,43 +1,10 @@
 /**
  * E2E (in-process): doctor clients list and profile wiring via buildAppDeps.
+ * RSC-страницы — в smoke-app-router-rsc-pages-inprocess.
  */
 import { describe, expect, it } from "vitest";
 
 describe("doctor clients e2e (in-process)", () => {
-  // Cold `import()` of App Router pages pulls a large module graph; under full CI runs the
-  // default 5s budget can be exceeded.
-  const pageImportTimeoutMs = 20_000;
-
-  it(
-    "doctor clients list page default export is async component",
-    async () => {
-      const mod = await import("@/app/app/doctor/clients/page");
-      expect(typeof mod.default).toBe("function");
-      expect(mod.default.constructor.name).toBe("AsyncFunction");
-    },
-    pageImportTimeoutMs,
-  );
-
-  it(
-    "doctor client profile page default export is async component",
-    async () => {
-      const mod = await import("@/app/app/doctor/clients/[userId]/page");
-      expect(typeof mod.default).toBe("function");
-      expect(mod.default.constructor.name).toBe("AsyncFunction");
-    },
-    pageImportTimeoutMs,
-  );
-
-  it(
-    "doctor subscriber profile page default export is async component (stage 9)",
-    async () => {
-      const mod = await import("@/app/app/doctor/subscribers/[userId]/page");
-      expect(typeof mod.default).toBe("function");
-      expect(mod.default.constructor.name).toBe("AsyncFunction");
-    },
-    pageImportTimeoutMs,
-  );
-
   it("buildAppDeps doctorClients listClients returns array", async () => {
     const { buildAppDeps } = await import("@/app-layer/di/buildAppDeps");
     const deps = buildAppDeps();

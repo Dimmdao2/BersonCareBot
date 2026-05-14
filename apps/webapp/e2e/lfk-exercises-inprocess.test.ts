@@ -1,5 +1,6 @@
 /**
- * E2E (in-process): врачебный справочник упражнений ЛФК — страницы и CRUD через сервис.
+ * E2E (in-process): врачебный справочник упражнений ЛФК — CRUD через сервис.
+ * RSC list page — в smoke-app-router-rsc-pages-inprocess.
  */
 import { describe, expect, it, beforeEach } from "vitest";
 import { resetInMemoryLfkExercisesStore } from "@/infra/repos/inMemoryLfkExercises";
@@ -7,12 +8,6 @@ import { resetInMemoryLfkExercisesStore } from "@/infra/repos/inMemoryLfkExercis
 describe("lfk exercises doctor e2e (in-process)", () => {
   beforeEach(() => {
     resetInMemoryLfkExercisesStore();
-  });
-
-  it("doctor exercises list page is async server component", async () => {
-    const mod = await import("@/app/app/doctor/exercises/page");
-    expect(typeof mod.default).toBe("function");
-    expect(mod.default.constructor.name).toBe("AsyncFunction");
   });
 
   it("create exercise → list → archive → hidden from list (in-memory service)", async () => {

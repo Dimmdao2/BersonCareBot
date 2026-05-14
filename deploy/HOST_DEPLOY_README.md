@@ -35,10 +35,7 @@
 
 ### GitHub Actions (репозиторий)
 
-В `.github/workflows/ci.yml` задано два job:
-
-1. **Lint, typecheck & build** — на `push` (в т.ч. `main`) и на `pull_request`: `pnpm install --frozen-lockfile`, затем `pnpm run ci` (как в правилах репозитория: lint, typecheck, тесты integrator и webapp, сборки, audit).
-2. **Deploy** — только после успешного первого job, только при `push` в `ref` `main`: по SSH на хост выполняется `bash <DEPLOY_PATH>/deploy/host/deploy-prod.sh` (секреты: `DEPLOY_SSH_KEY`, `DEPLOY_USER`, `DEPLOY_HOST`, `DEPLOY_PATH`).
+В `.github/workflows/ci.yml` — набор параллельных job на `push` и `pull_request` (`pnpm install --frozen-lockfile`, затем отдельно lint, typecheck, тесты integrator, **webapp core** по шардам `pnpm test:webapp:fast`, **webapp in-process** по шардам только на `push` в `main`, сборки integrator/webapp, audit). На **pull request** in-process job пропускается (skipped). **Deploy** — после успеха всех нужных job, только при `push` в `main`: по SSH `bash <DEPLOY_PATH>/deploy/host/deploy-prod.sh` (секреты: `DEPLOY_SSH_KEY`, `DEPLOY_USER`, `DEPLOY_HOST`, `DEPLOY_PATH`).
 
 Отдельный workflow `deploy-host.yml` в репозитории **нет** (ранее мог существовать; актуальный путь деплоя — job **Deploy** внутри `ci.yml`).
 

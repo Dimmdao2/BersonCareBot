@@ -1,6 +1,6 @@
 /**
- * In-process smoke: страницы библиотеки блоков программ лечения + сервисный CRUD в памяти.
- * См. `e2e/lfk-exercises-inprocess.test.ts`, AUDIT_PHASE_2 FIX #4.
+ * In-process smoke: библиотека блоков программ лечения + сервисный CRUD в памяти.
+ * RSC-страницы doctor/* — в smoke-app-router-rsc-pages-inprocess.
  */
 import { describe, expect, it, beforeEach } from "vitest";
 import {
@@ -14,24 +14,6 @@ describe("treatment program block library (phase 2) doctor e2e (in-process)", ()
     resetInMemoryClinicalTestsStore();
     resetInMemoryTestSetsStore();
     resetInMemoryRecommendationsStore();
-  });
-
-  it("doctor clinical-tests page is async server component", async () => {
-    const mod = await import("@/app/app/doctor/clinical-tests/page");
-    expect(typeof mod.default).toBe("function");
-    expect(mod.default.constructor.name).toBe("AsyncFunction");
-  });
-
-  it("doctor test-sets page is async server component", async () => {
-    const mod = await import("@/app/app/doctor/test-sets/page");
-    expect(typeof mod.default).toBe("function");
-    expect(mod.default.constructor.name).toBe("AsyncFunction");
-  });
-
-  it("doctor recommendations page is async server component", async () => {
-    const mod = await import("@/app/app/doctor/recommendations/page");
-    expect(typeof mod.default).toBe("function");
-    expect(mod.default.constructor.name).toBe("AsyncFunction");
   });
 
   it("clinical test → archive → hidden from list (in-memory)", async () => {

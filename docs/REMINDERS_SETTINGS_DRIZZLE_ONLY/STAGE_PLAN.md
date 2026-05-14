@@ -65,7 +65,7 @@
 ### Фактическое поведение
 
 - [`apps/webapp/vitest.globalSetup.ts`](../../apps/webapp/vitest.globalSetup.ts): при заданном `DATABASE_URL` выполняется `pnpm run migrate:legacy`, затем `pnpm run migrate`.
-- GitHub Actions [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml): jobs `test-webapp-core` и `test-webapp-inprocess` запускают `pnpm test:webapp:fast` / `pnpm test:webapp:inprocess` (эквивалент полного `pnpm test:webapp`) **без** `DATABASE_URL` → globalSetup **сразу выходит**, миграции в CI не выполняются.
+- GitHub Actions [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml): job `test-webapp-core` (matrix `VITEST_SHARD` 1/3–3/3 + кэш Vitest) на **каждом** PR/push запускает `pnpm test:webapp:fast`; job `test-webapp-inprocess` с тем же шардированием — **только** на `push` в `main` и `pnpm test:webapp:inprocess`. Полный набор как у локального `pnpm test:webapp` — на `main` и при локальном `pnpm run ci`. Все webapp-тесты в CI **без** `DATABASE_URL` → globalSetup **сразу выходит**, миграции в CI не выполняются.
 
 Это **не отменяет** политику «новый DDL только Drizzle»: legacy нужен для **bootstrap / существующей** тестовой БД, а не как канал для новых штатных DDL.
 
