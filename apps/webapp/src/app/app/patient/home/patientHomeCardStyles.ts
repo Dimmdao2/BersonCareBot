@@ -469,8 +469,8 @@ export const patientHomeMoodColumnHeadingClass = cn(
 /** Mood: на mobile высота по контенту; на desktop — фиксированная строка дашборда (чуть выше под график недели). */
 export const patientHomeMoodCardGeometryClass = cn(
   "flex flex-col overflow-hidden",
-  "max-md:my-1 max-md:h-auto max-md:min-h-0",
-  "md:h-[132px]",
+  "max-md:mt-0.5 max-md:mb-1 max-md:h-auto max-md:min-h-0",
+  "md:mb-1 md:h-[132px]",
 );
 
 export const patientHomeMoodStatusSlotClass = cn(
