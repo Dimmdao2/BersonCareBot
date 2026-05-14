@@ -45,15 +45,15 @@ type Props = {
 function LeadingIcon({ blockIconImageUrl }: { blockIconImageUrl?: string | null }) {
   return (
     <div
-      className="inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-[#fffbeb] text-[var(--patient-color-warning)] md:size-12"
+      className="inline-flex size-[4.5rem] shrink-0 items-center justify-center rounded-full bg-[#fffbeb] text-[var(--patient-color-warning)] md:size-24"
       aria-hidden
     >
       <PatientHomeSafeImage
         src={blockIconImageUrl}
         alt=""
-        className="size-5 rounded-full object-cover md:size-6"
+        className="size-10 rounded-full object-cover md:size-12"
         loading="lazy"
-        fallback={<Bell className="size-5 md:size-6" />}
+        fallback={<Bell className="size-10 md:size-12" />}
       />
     </div>
   );

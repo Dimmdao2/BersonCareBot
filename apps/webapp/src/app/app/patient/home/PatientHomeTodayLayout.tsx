@@ -1,6 +1,13 @@
 import type { ReactNode } from "react";
 import type { PatientHomeBlockCode } from "@/modules/patient-home/ports";
 import { cn } from "@/lib/utils";
+import {
+  patientHomeTodayGridCellPadBorderedSymClass,
+  patientHomeTodayGridCellPadMoodTopClass,
+  patientHomeTodayGridCellPadProgressBottomClass,
+  patientHomeTodayGridCellPadSituationsClass,
+  patientHomeTodayGridCellPullNextReminderAfterProgressClass,
+} from "./patientHomeCardStyles";
 import { PatientHomeGreeting, type PatientGreetingPrefix } from "./PatientHomeGreeting";
 
 export type PatientHomeTodayLayoutBlockCode = PatientHomeBlockCode | "sos_booking_split";
@@ -138,8 +145,12 @@ export function PatientHomeTodayLayout({ personalizedName, timeOfDayPrefix, bloc
               key={block.code}
               className={cn(
                 "min-w-0",
-                /** Визуально плотнее к нижнему краю блока «Сегодня выполнено» (сеточный gap компенсируется). */
-                block.code === "next_reminder" && "-mt-1 md:-mt-1.5",
+                block.code === "next_reminder" && patientHomeTodayGridCellPullNextReminderAfterProgressClass,
+                block.code === "situations" && patientHomeTodayGridCellPadSituationsClass,
+                (block.code === "sos_booking_split" || block.code === "booking" || block.code === "sos") &&
+                  patientHomeTodayGridCellPadBorderedSymClass,
+                block.code === "mood_checkin" && patientHomeTodayGridCellPadMoodTopClass,
+                block.code === "progress" && patientHomeTodayGridCellPadProgressBottomClass,
                 layout.className,
               )}
               data-patient-home-block={block.code}

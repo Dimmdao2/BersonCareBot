@@ -469,9 +469,35 @@ export const patientHomeMoodColumnHeadingClass = cn(
 /** Mood: на mobile высота по контенту; на desktop — фиксированная строка дашборда (чуть выше под график недели). */
 export const patientHomeMoodCardGeometryClass = cn(
   "flex flex-col overflow-hidden",
-  "max-md:mt-0.5 max-md:mb-1 max-md:h-auto max-md:min-h-0",
-  "md:mb-1 md:h-[132px]",
+  "max-md:mb-1.5 max-md:h-auto max-md:min-h-0",
+  "md:mb-1.5 md:h-[132px]",
 );
+
+/**
+ * Вертикальный ритм ячеек сетки «Сегодня» поверх базового `gap` сетки
+ * (`PatientHomeTodayLayout`: `gap-5` = 20px mobile, `md:gap-6` = 24px, `xl:gap-7` = 28px).
+ *
+ * - **С рамкой** (карточка border+shadow на md+): симметричный `my-2` (8px) — рамка даёт визуальный вес.
+ * - **Без рамки на mobile** (ситуации: `patientHomeSituationsCardMobileChromeClass`): `max-md:my-2.5` (10px) — легче «тонет» без бордера.
+ * - **Настроение**: только верх (`mt`), низ остаётся на {@link patientHomeMoodCardGeometryClass}.
+ * - **Прогресс**: снизу только на `md+`; на mobile поджат к «Следующее напоминание» (ячейка `next_reminder` компенсирует `gap-5`).
+ */
+export const patientHomeTodayGridCellPadBorderedSymClass = "my-2 md:my-2";
+
+/** Ситуации: на узкой колонке без карточной рамки — чуть шире, на md с рамкой — как у bordered. */
+export const patientHomeTodayGridCellPadSituationsClass = "max-md:my-2.5 md:my-2";
+
+/** «Как ваше сегодня» / чек-ин: дополнительный отступ сверху к соседнему блоку в потоке. */
+export const patientHomeTodayGridCellPadMoodTopClass = "max-md:mt-3 md:mt-2.5";
+
+/** Прогресс: снизу только desktop; на mobile без доп. margin — склейка с напоминанием. */
+export const patientHomeTodayGridCellPadProgressBottomClass = "max-md:mb-0 md:mb-3";
+
+/**
+ * Ячейка «Следующее напоминание» сразу под прогрессом: на mobile компенсирует сеточный `gap-5`
+ * (1.25rem), чтобы визуально не было щели; на `md+` — лёгкое подтягивание к предыдущему ряду.
+ */
+export const patientHomeTodayGridCellPullNextReminderAfterProgressClass = "max-md:-mt-5 md:-mt-1.5";
 
 export const patientHomeMoodStatusSlotClass = cn(
   patientLineClamp2Class,
@@ -519,10 +545,10 @@ export const patientHomeReminderMobileSubtitleClass = cn(
 
 /** Next reminder: compact warning card (отдельно от других secondary-карточек). */
 export const patientHomeReminderCardGeometryClass = cn(
-  "flex min-h-[72px] flex-col justify-center gap-1 overflow-hidden",
+  "flex max-md:min-h-[90px] flex-col justify-center gap-1 overflow-hidden",
   "rounded-[var(--patient-card-radius-mobile)] border border-[#fef3c7] bg-[linear-gradient(135deg,#fff9f0_0%,#fff6e8_48%,#fffbeb_100%)] px-2.5 py-1",
-  /** Mobile: отступы между 3px и 10px (~середина), без верхней рамки/скругления; снизу скругление чуть больше базового `patient-card-radius-mobile`. */
-  "max-md:-mt-4 max-md:mx-[7px] max-md:rounded-t-none max-md:rounded-b-[10px] max-md:border-t-0",
+  /** Mobile: без верхней рамки/скругления (стык к «Сегодня выполнено»); снизу скругление чуть больше базового `patient-card-radius-mobile`. */
+  "max-md:mx-[7px] max-md:mt-0 max-md:rounded-t-none max-md:rounded-b-[10px] max-md:border-t-0",
   "md:mx-0 md:mt-0 md:h-[124px] md:min-h-0 md:justify-between md:gap-1.5 md:rounded-[var(--patient-card-radius-desktop)] md:px-4 md:py-2",
 );
 
