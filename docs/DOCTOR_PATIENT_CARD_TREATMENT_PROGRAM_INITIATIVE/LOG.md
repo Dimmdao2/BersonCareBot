@@ -4,6 +4,14 @@
 
 ---
 
+## 2026-05-14 — Инбокс «Тесты, ожидающие оценки» по попытке
+
+- DTO `PendingProgramTestEvaluationRow`: `attemptId`, `attemptSubmittedAt`; PG + in-memory `listPendingEvaluationResultsForPatient` заполняют поля.
+- `groupPendingProgramTestEvaluations.ts` + unit-тесты (`fast`): группы по `attempt_id`, сортировка групп по `submitted_at` ↓, tie-break по `attemptId` (лекс. убывание), внутри группы — `createdAt` ↑, затем `resultId`.
+- `ClientProfileCard`: одна карточка на попытку, бейдж «К проверке · N» (N = число неоценённых результатов), ссылка «Открыть» с `#doctor-program-instance-test-results`.
+
+---
+
 ## 2026-05-05
 
 - Созданы [`README.md`](README.md) и [`ROADMAP.md`](ROADMAP.md) — консолидация источников по задаче «шаблон → instance → правки» из карточки врача.

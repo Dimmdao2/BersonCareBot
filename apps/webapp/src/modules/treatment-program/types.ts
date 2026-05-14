@@ -640,6 +640,9 @@ export type LfkPostSessionDifficulty = "easy" | "medium" | "hard";
 
 /** A4: результат теста без оценки врача для inbox «К проверке». */
 export type PendingProgramTestEvaluationRow = {
+  attemptId: string;
+  /** ISO из `submitted_at` попытки; при текущих фильтрах выборки всегда задано. */
+  attemptSubmittedAt: string;
   resultId: string;
   testId: string;
   testTitle: string | null;

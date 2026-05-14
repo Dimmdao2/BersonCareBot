@@ -4,7 +4,7 @@
  */
 "use client";
 
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -30,6 +30,7 @@ import { AdminClientProfileEditPanel } from "./AdminClientProfileEditPanel";
 import { AdminMergeAccountsPanel } from "./AdminMergeAccountsPanel";
 import { DoctorClientLifecycleActions } from "./DoctorClientLifecycleActions";
 import { DoctorNotesPanel } from "./DoctorNotesPanel";
+import { groupPendingProgramTestEvaluations } from "./groupPendingProgramTestEvaluations";
 import { SubscriberBlockPanel } from "./SubscriberBlockPanel";
 
 type ClientProfileCardProps = {
@@ -140,6 +141,11 @@ function ClientProfileCardInner({
   useEffect(() => {
     void loadPatientUnreadCount();
   }, [loadPatientUnreadCount]);
+
+  const pendingProgramTestGroups = useMemo(
+    () => groupPendingProgramTestEvaluations(pendingProgramTestEvaluations),
+    [pendingProgramTestEvaluations],
+  );
 
   const openPatientChat = async () => {
     setChatOpen(true);
@@ -302,7 +308,7 @@ function ClientProfileCardInner({
             <h3 className="text-sm font-semibold">Тесты, ожидающие оценки</h3>
             {pendingProgramTestEvaluations.length > 0 ? (
               <Badge variant="secondary" className="text-xs">
-                К проверке
+                К проверке · {pendingProgramTestEvaluations.length}
               </Badge>
             ) : null}
           </div>
@@ -310,18 +316,17 @@ function ClientProfileCardInner({
             <p className="text-sm text-muted-foreground">Нет тестов, ожидающих оценки.</p>
           ) : (
             <ul className="m-0 list-none space-y-2 p-0">
-              {pendingProgramTestEvaluations.map((row) => (
-                <li key={row.resultId} className="rounded-lg border border-border bg-card p-3">
-                  <p className="text-sm font-medium">{row.testTitle ?? row.testId}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {row.instanceTitle} · {row.stageTitle} ·{" "}
-                    {row.createdAt.length >= 10 ? row.createdAt.slice(0, 10) : row.createdAt}
+              {pendingProgramTestGroups.map((g) => (
+                <li key={g.attemptId} className="rounded-lg border border-border bg-card p-3">
+                  <p className="text-sm font-medium">
+                    {g.instanceTitle} · {g.stageTitle}
                   </p>
+                  <p className="text-xs text-muted-foreground">Без оценки: {g.results.length}</p>
                   <Link
-                    href={`/app/doctor/clients/${encodeURIComponent(userId)}/treatment-programs/${encodeURIComponent(row.instanceId)}${scopeQs}`}
+                    href={`/app/doctor/clients/${encodeURIComponent(userId)}/treatment-programs/${encodeURIComponent(g.instanceId)}${scopeQs}#doctor-program-instance-test-results`}
                     className={cn(buttonVariants({ variant: "outline", size: "sm" }), "mt-2 inline-flex")}
                   >
-                    Открыть тест
+                    Открыть
                   </Link>
                 </li>
               ))}

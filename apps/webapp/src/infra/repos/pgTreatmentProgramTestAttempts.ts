@@ -231,6 +231,8 @@ export function createPgTreatmentProgramTestAttemptsPort(): TreatmentProgramTest
       const db = getDrizzle();
       const rows = await db
         .select({
+          attemptId: attemptTable.id,
+          attemptSubmittedAt: attemptTable.submittedAt,
           result: resultTable,
           instanceId: instanceTable.id,
           instanceTitle: instanceTable.title,
@@ -255,6 +257,8 @@ export function createPgTreatmentProgramTestAttemptsPort(): TreatmentProgramTest
         .orderBy(desc(resultTable.createdAt), asc(resultTable.id));
 
       return rows.map((r) => ({
+        attemptId: r.attemptId,
+        attemptSubmittedAt: r.attemptSubmittedAt!,
         resultId: r.result.id,
         testId: r.result.testId,
         testTitle: r.testTitle ?? null,

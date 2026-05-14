@@ -1023,6 +1023,8 @@ export function createInMemoryTreatmentProgramPersistence(seed?: {
         const inst = instances.get(st.instanceId);
         if (!inst || inst.patientUserId !== patientUserId || inst.status !== "active") continue;
         out.push({
+          attemptId: att.id,
+          attemptSubmittedAt: att.submittedAt!,
           resultId: r.id,
           testId: r.testId,
           testTitle: null,
