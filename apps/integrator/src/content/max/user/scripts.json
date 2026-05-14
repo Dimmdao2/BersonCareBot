@@ -1884,13 +1884,8 @@
 					"minutes": "{{input.reminderSnoozeMinutes}}",
 					"channelUserId": "{{actor.channelUserId}}",
 					"resource": "max",
-					"chatId": "{{actor.chatId}}"
-				}
-			},
-			{
-				"action": "callback.answer",
-				"mode": "async",
-				"params": {
+					"chatId": "{{actor.chatId}}",
+					"messageId": "{{input.messageId}}",
 					"callbackQueryId": "{{input.callbackQueryId}}"
 				}
 			}
@@ -1913,13 +1908,8 @@
 					"occurrenceId": "{{input.reminderOccurrenceId}}",
 					"channelUserId": "{{actor.channelUserId}}",
 					"resource": "max",
-					"chatId": "{{actor.chatId}}"
-				}
-			},
-			{
-				"action": "callback.answer",
-				"mode": "async",
-				"params": {
+					"chatId": "{{actor.chatId}}",
+					"messageId": "{{input.messageId}}",
 					"callbackQueryId": "{{input.callbackQueryId}}"
 				}
 			}
@@ -1940,15 +1930,11 @@
 				"mode": "sync",
 				"params": {
 					"minutes": "{{input.reminderMuteMinutes}}",
+					"mutePreset": "{{input.reminderMutePreset}}",
 					"channelUserId": "{{actor.channelUserId}}",
 					"resource": "max",
-					"chatId": "{{actor.chatId}}"
-				}
-			},
-			{
-				"action": "callback.answer",
-				"mode": "async",
-				"params": {
+					"chatId": "{{actor.chatId}}",
+					"messageId": "{{input.messageId}}",
 					"callbackQueryId": "{{input.callbackQueryId}}"
 				}
 			}
@@ -1971,13 +1957,8 @@
 					"occurrenceId": "{{input.reminderOccurrenceId}}",
 					"channelUserId": "{{actor.channelUserId}}",
 					"resource": "max",
-					"chatId": "{{actor.chatId}}"
-				}
-			},
-			{
-				"action": "callback.answer",
-				"mode": "async",
-				"params": {
+					"chatId": "{{actor.chatId}}",
+					"messageId": "{{input.messageId}}",
 					"callbackQueryId": "{{input.callbackQueryId}}"
 				}
 			}
@@ -2001,13 +1982,8 @@
 					"reasonCode": "{{input.skipReasonCode}}",
 					"channelUserId": "{{actor.channelUserId}}",
 					"resource": "max",
-					"chatId": "{{actor.chatId}}"
-				}
-			},
-			{
-				"action": "callback.answer",
-				"mode": "async",
-				"params": {
+					"chatId": "{{actor.chatId}}",
+					"messageId": "{{input.messageId}}",
 					"callbackQueryId": "{{input.callbackQueryId}}"
 				}
 			}

@@ -28,6 +28,7 @@ export type OutgoingIntentType =
   | 'message.copy'
   | 'message.edit'
   | 'message.replyMarkup.edit'
+  | 'message.delete'
   | 'callback.answer'
   | 'booking.changed'
   | 'integration.sync'

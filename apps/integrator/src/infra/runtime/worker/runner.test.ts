@@ -9,7 +9,7 @@ describe('runWorkerTick', () => {
       failJob: vi.fn().mockResolvedValue(undefined),
       rescheduleJob: vi.fn().mockResolvedValue(undefined),
       logAttempt: vi.fn().mockResolvedValue(undefined),
-      dispatchOutgoing: vi.fn().mockResolvedValue(undefined),
+      dispatchOutgoing: vi.fn().mockResolvedValue({}),
       nowIso: () => '2026-03-05T12:00:00.000Z',
       retryDelaySeconds: 60,
     });
@@ -41,7 +41,7 @@ describe('runWorkerTick', () => {
       failJob: vi.fn().mockResolvedValue(undefined),
       rescheduleJob: vi.fn().mockResolvedValue(undefined),
       logAttempt: vi.fn().mockResolvedValue(undefined),
-      dispatchOutgoing: vi.fn().mockResolvedValue(undefined),
+      dispatchOutgoing: vi.fn().mockResolvedValue({}),
       nowIso: () => '2026-03-05T12:00:00.000Z',
       retryDelaySeconds: 60,
     });

@@ -26,5 +26,10 @@ export type MessagingPort = {
     message_id: number;
     reply_markup: unknown;
   }): Promise<unknown>;
-  answerCallbackQuery(params: { callback_query_id: string }): Promise<unknown>;
+  deleteMessage(params: { chat_id: number; message_id: number }): Promise<unknown>;
+  answerCallbackQuery(params: {
+    callback_query_id: string;
+    text?: string;
+    show_alert?: boolean;
+  }): Promise<unknown>;
 };

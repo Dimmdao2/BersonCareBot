@@ -5,6 +5,7 @@ import {
   asNumber,
   asNumericString,
   asString,
+  asMessageId,
   buildIntentMeta,
   nowIso,
   persistWrites,
@@ -13,6 +14,7 @@ import {
   readIncomingText,
 } from '../helpers.js';
 import { randomUUID } from 'node:crypto';
+import { DateTime } from 'luxon';
 import { createDbPort } from '../../../../infra/db/client.js';
 import { enqueueOutgoingDeliveryIfAbsent } from '../../../../infra/db/repos/outgoingDeliveryQueue.js';
 import { DEFAULT_REMINDER_DELIVERY_MAX_ATTEMPTS } from '../../../../infra/delivery/deliveryContract.js';
@@ -32,10 +34,61 @@ import {
   buildReminderSkipReasonInlineKeyboard,
   reminderIntentPrimaryLabel,
 } from '../../reminders/reminderInlineKeyboard.js';
+import type { ReminderOpenLinkSpec } from '../../reminders/reminderInlineKeyboard.js';
+import { buildExerciseReminderWebAppUrls } from '../../reminders/reminderMessengerWebAppUrls.js';
 import { REMINDER_BY_CATEGORY } from '../templateKeys.js';
 
 function escapeReminderHtml(text: string): string {
   return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function buildReminderCallbackAckIntents(
+  action: Action,
+  ctx: DomainContext,
+  input: {
+    chatId: number;
+    messageId: unknown;
+    callbackQueryId: string | null;
+    text: string;
+    channel: 'telegram' | 'max';
+  },
+): import('../../../contracts/index.js').OutgoingIntent[] {
+  const intents: import('../../../contracts/index.js').OutgoingIntent[] = [];
+  const mid = asMessageId(input.messageId);
+  const useEdit = mid !== null;
+  if (useEdit) {
+    intents.push({
+      type: 'message.edit',
+      meta: buildIntentMeta(action, ctx),
+      payload: {
+        recipient: { chatId: input.chatId },
+        messageId: mid,
+        message: { text: input.text },
+        parse_mode: 'HTML',
+        replyMarkup: { inline_keyboard: [] },
+        delivery: { channels: [input.channel], maxAttempts: 1 },
+      },
+    });
+  } else {
+    intents.push({
+      type: 'message.send',
+      meta: buildIntentMeta(action, ctx),
+      payload: {
+        recipient: { chatId: input.chatId },
+        message: { text: input.text },
+        parse_mode: 'HTML',
+        delivery: { channels: [input.channel], maxAttempts: 1 },
+      },
+    });
+  }
+  if (input.callbackQueryId) {
+    intents.push({
+      type: 'callback.answer',
+      meta: buildIntentMeta(action, ctx),
+      payload: { callbackQueryId: input.callbackQueryId },
+    });
+  }
+  return intents;
 }
 
 function sleepMs(ms: number): Promise<void> {
@@ -293,6 +346,7 @@ export async function handleReminders(
     }> = [];
     const linkedTitleCache = new Map<string, string | null>();
     const catalogDb = process.env.NODE_ENV === 'test' ? null : createDbPort();
+    const reminderAuxDb = createDbPort();
 
     async function resolveLinkedTitle(rule: ReminderRuleRecord | undefined): Promise<string | null> {
       if (!catalogDb || !rule?.linkedObjectType || !rule?.linkedObjectId) return null;
@@ -391,17 +445,10 @@ export async function handleReminders(
       let remindersEditUrl: string | undefined;
       try {
         const u = new URL(openUrl);
-        remindersEditUrl = `${u.origin}/app/patient/profile?from=reminder`;
+        remindersEditUrl = `${u.origin}/app/patient/reminders?from=reminder`;
       } catch {
         remindersEditUrl = undefined;
       }
-
-      const replyMarkup = buildReminderDispatchInlineKeyboard({
-        primaryLabel: reminderIntentPrimaryLabel(rule?.reminderIntent ?? null),
-        openUrl,
-        occurrenceId: occ.id,
-        ...(remindersEditUrl ? { remindersEditUrl } : {}),
-      });
 
       type ChannelIdentity = { resource: string; externalId: string; chatId: number };
       const allIdentities = await deps.readPort.readDb<ChannelIdentity[]>({
@@ -443,6 +490,27 @@ export async function handleReminders(
       }
 
       for (const { channel, chatId, externalId } of sendChannels) {
+        const webUrls = await buildExerciseReminderWebAppUrls({
+          db: reminderAuxDb,
+          channel,
+          chatId,
+          externalId,
+          integratorUserId: occ.userId,
+          reminderTargetUrl: openUrl,
+        });
+        const primarySpec: ReminderOpenLinkSpec = webUrls
+          ? { kind: 'web_app', url: webUrls.primaryWebAppUrl }
+          : { kind: 'url', url: openUrl };
+        const scheduleSpec: ReminderOpenLinkSpec = webUrls
+          ? { kind: 'web_app', url: webUrls.scheduleWebAppUrl }
+          : { kind: 'url', url: remindersEditUrl ?? openUrl };
+        const replyMarkup = buildReminderDispatchInlineKeyboard({
+          primaryLabel: reminderIntentPrimaryLabel(rule?.reminderIntent ?? null),
+          primary: primarySpec,
+          schedule: scheduleSpec,
+          occurrenceId: occ.id,
+        });
+
         const text = deps.templatePort
           ? (
             await deps.templatePort.renderTemplate({
@@ -474,6 +542,16 @@ export async function handleReminders(
           },
         };
         const eventId = `rem:${occ.id}:${channel}`.slice(0, 240);
+        let deleteBeforeSendTelegramMessageId: number | undefined;
+        if (channel === 'telegram') {
+          const stale = await deps.readPort.readDb<number | null>({
+            type: 'reminders.delivery.staleTelegramMessage',
+            params: { ruleId: occ.ruleId, excludeOccurrenceId: occ.id, channel: 'telegram' },
+          });
+          if (typeof stale === 'number' && Number.isFinite(stale) && stale > 0) {
+            deleteBeforeSendTelegramMessageId = Math.trunc(stale);
+          }
+        }
         pendingEnqueues.push({
           eventId,
           channel,
@@ -484,6 +562,9 @@ export async function handleReminders(
             externalId,
             logText: text,
             intent,
+            ...(deleteBeforeSendTelegramMessageId !== undefined
+              ? { deleteBeforeSendTelegramMessageId }
+              : {}),
           },
         });
       }
@@ -547,23 +628,23 @@ export async function handleReminders(
         vars: { minutes: String(minutes) },
         audience: 'user',
       })).text
-      : `Напоминание отложено на ${minutes} мин.`;
+      : `Ок, напомню позже через ${minutes} мин.`;
     const chatId =
       asNumber(action.params.chatId)
       ?? asNumber(readIncoming(ctx).chatId);
     const src = resource === 'max' ? 'max' : 'telegram';
-    const intents: import('../../../contracts/index.js').OutgoingIntent[] = [];
-    if (chatId !== null) {
-      intents.push({
-        type: 'message.send',
-        meta: buildIntentMeta(action, ctx),
-        payload: {
-          recipient: { chatId },
-          message: { text: ack },
-          delivery: { channels: [src], maxAttempts: 1 },
-        },
-      });
+    if (chatId === null) {
+      return { actionId: action.id, status: 'failed', error: 'reminders.snooze.callback: missing chatId' };
     }
+    const messageId = action.params.messageId ?? readIncoming(ctx).messageId;
+    const callbackQueryId = asString(action.params.callbackQueryId) ?? asString(readIncoming(ctx).callbackQueryId);
+    const intents = buildReminderCallbackAckIntents(action, ctx, {
+      chatId,
+      messageId,
+      callbackQueryId,
+      text: ack,
+      channel: src,
+    });
     return { actionId: action.id, status: 'success', writes, intents };
   }
 
@@ -591,10 +672,24 @@ export async function handleReminders(
       : 'Почему пропускаете?';
     const replyMarkup = buildReminderSkipReasonInlineKeyboard(occurrenceId);
     const src = resource === 'max' ? 'max' : 'telegram';
-    return {
-      actionId: action.id,
-      status: 'success',
-      intents: [{
+    const messageId = asMessageId(action.params.messageId) ?? asMessageId(readIncoming(ctx).messageId);
+    const callbackQueryId = asString(action.params.callbackQueryId) ?? asString(readIncoming(ctx).callbackQueryId);
+    const intents: import('../../../contracts/index.js').OutgoingIntent[] = [];
+    if (messageId !== null) {
+      intents.push({
+        type: 'message.edit',
+        meta: buildIntentMeta(action, ctx),
+        payload: {
+          recipient: { chatId },
+          messageId,
+          message: { text: title },
+          ...(replyMarkup.inline_keyboard.length > 0 ? { replyMarkup } : {}),
+          parse_mode: 'HTML',
+          delivery: { channels: [src], maxAttempts: 1 },
+        },
+      });
+    } else {
+      intents.push({
         type: 'message.send',
         meta: buildIntentMeta(action, ctx),
         payload: {
@@ -603,7 +698,19 @@ export async function handleReminders(
           ...(replyMarkup.inline_keyboard.length > 0 ? { replyMarkup } : {}),
           delivery: { channels: [src], maxAttempts: 1 },
         },
-      }],
+      });
+    }
+    if (callbackQueryId) {
+      intents.push({
+        type: 'callback.answer',
+        meta: buildIntentMeta(action, ctx),
+        payload: { callbackQueryId },
+      });
+    }
+    return {
+      actionId: action.id,
+      status: 'success',
+      intents,
     };
   }
 
@@ -640,11 +747,24 @@ export async function handleReminders(
         })).text
         : 'Кратко опишите причину (одним сообщением).';
       const src = resource === 'max' ? 'max' : 'telegram';
-      return {
-        actionId: action.id,
-        status: 'success',
-        writes,
-        intents: [{
+      const messageId = asMessageId(action.params.messageId) ?? asMessageId(readIncoming(ctx).messageId);
+      const callbackQueryId = asString(action.params.callbackQueryId) ?? asString(readIncoming(ctx).callbackQueryId);
+      const intents: import('../../../contracts/index.js').OutgoingIntent[] = [];
+      if (messageId !== null) {
+        intents.push({
+          type: 'message.edit',
+          meta: buildIntentMeta(action, ctx),
+          payload: {
+            recipient: { chatId },
+            messageId,
+            message: { text: prompt },
+            replyMarkup: { inline_keyboard: [] },
+            parse_mode: 'HTML',
+            delivery: { channels: [src], maxAttempts: 1 },
+          },
+        });
+      } else {
+        intents.push({
           type: 'message.send',
           meta: buildIntentMeta(action, ctx),
           payload: {
@@ -652,7 +772,20 @@ export async function handleReminders(
             message: { text: prompt },
             delivery: { channels: [src], maxAttempts: 1 },
           },
-        }],
+        });
+      }
+      if (callbackQueryId) {
+        intents.push({
+          type: 'callback.answer',
+          meta: buildIntentMeta(action, ctx),
+          payload: { callbackQueryId },
+        });
+      }
+      return {
+        actionId: action.id,
+        status: 'success',
+        writes,
+        intents,
         values: { conversationState: `waiting_skip_reason:${occurrenceId}` },
       };
     }
@@ -681,21 +814,22 @@ export async function handleReminders(
         vars: {},
         audience: 'user',
       })).text
-      : 'Причина сохранена.';
+      : 'Один пропуск - не проблема! Твое здоровье ещё может подождать...';
     const src = resource === 'max' ? 'max' : 'telegram';
+    const messageId = action.params.messageId ?? readIncoming(ctx).messageId;
+    const callbackQueryId = asString(action.params.callbackQueryId) ?? asString(readIncoming(ctx).callbackQueryId);
+    const intents = buildReminderCallbackAckIntents(action, ctx, {
+      chatId,
+      messageId,
+      callbackQueryId,
+      text: ack,
+      channel: src,
+    });
     return {
       actionId: action.id,
       status: 'success',
       writes,
-      intents: [{
-        type: 'message.send',
-        meta: buildIntentMeta(action, ctx),
-        payload: {
-          recipient: { chatId },
-          message: { text: ack },
-          delivery: { channels: [src], maxAttempts: 1 },
-        },
-      }],
+      intents,
     };
   }
 
@@ -741,21 +875,35 @@ export async function handleReminders(
         vars: {},
         audience: 'user',
       })).text
-      : 'Причина сохранена.';
+      : 'Один пропуск - не проблема! Твое здоровье ещё может подождать...';
     const src = resourceFt === 'max' ? 'max' : 'telegram';
+    const incoming = readIncoming(ctx);
+    const replyEditTarget =
+      resourceFt === 'telegram' ? asMessageId(incoming.replyToMessageId) : null;
+    const intents =
+      replyEditTarget !== null && chatId !== null
+        ? buildReminderCallbackAckIntents(action, ctx, {
+            chatId,
+            messageId: replyEditTarget,
+            callbackQueryId: null,
+            text: ack,
+            channel: 'telegram',
+          })
+        : [{
+            type: 'message.send' as const,
+            meta: buildIntentMeta(action, ctx),
+            payload: {
+              recipient: { chatId },
+              message: { text: ack },
+              parse_mode: 'HTML' as const,
+              delivery: { channels: [src], maxAttempts: 1 },
+            },
+          }];
     return {
       actionId: action.id,
       status: 'success',
       writes,
-      intents: [{
-        type: 'message.send',
-        meta: buildIntentMeta(action, ctx),
-        payload: {
-          recipient: { chatId },
-          message: { text: ack },
-          delivery: { channels: [src], maxAttempts: 1 },
-        },
-      }],
+      intents,
       values: { conversationState: 'idle' },
     };
   }
@@ -789,27 +937,25 @@ export async function handleReminders(
           vars: {},
           audience: 'user',
         })).text
-      : 'Отмечено выполненным.';
+      : 'Так держать! Не забывай отмечать самочувствие после разминки - это классно мотивирует, а еще на графике самочувствия будут красивые точки';
     const src = resource === 'max' ? 'max' : 'telegram';
-    return {
-      actionId: action.id,
-      status: 'success',
-      intents: [{
-        type: 'message.send',
-        meta: buildIntentMeta(action, ctx),
-        payload: {
-          recipient: { chatId },
-          message: { text: ack },
-          delivery: { channels: [src], maxAttempts: 1 },
-        },
-      }],
-    };
+    const messageId = action.params.messageId ?? readIncoming(ctx).messageId;
+    const callbackQueryId = asString(action.params.callbackQueryId) ?? asString(readIncoming(ctx).callbackQueryId);
+    const intents = buildReminderCallbackAckIntents(action, ctx, {
+      chatId,
+      messageId,
+      callbackQueryId,
+      text: ack,
+      channel: src,
+    });
+    return { actionId: action.id, status: 'success', intents };
   }
 
   if (action.type === 'reminders.mute.callback') {
     if (!deps.readPort) {
       return { actionId: action.id, status: 'skipped', error: 'reminders.mute.callback: missing readPort' };
     }
+    const mutePreset = asString(action.params.mutePreset) === 'tomorrow' ? 'tomorrow' : null;
     const mp = action.params.minutes;
     const minutesParsed = Number(
       typeof mp === 'number' && Number.isFinite(mp) ? mp : (typeof mp === 'string' ? mp.trim() : ''),
@@ -820,20 +966,38 @@ export async function handleReminders(
     if (!channelUserId || chatId === null) {
       return { actionId: action.id, status: 'failed', error: 'reminders.mute.callback: missing params' };
     }
-    const minutesRounded = Math.round(minutesParsed);
-    if (
-      !Number.isFinite(minutesRounded)
-      || minutesRounded < 1
-      || minutesRounded > 1440
-      || minutesRounded !== minutesParsed
-    ) {
-      return { actionId: action.id, status: 'failed', error: 'reminders.mute.callback: bad minutes' };
-    }
     const userId = await resolveIntegratorUserId(deps.readPort, channelUserId, resource);
     if (!userId) {
       return { actionId: action.id, status: 'failed', error: 'reminders.mute.callback: no user' };
     }
-    const mutedUntilIso = new Date(Date.now() + minutesRounded * 60_000).toISOString();
+
+    let mutedUntilIso: string;
+    let templateId: 'reminder.mute.saved' | 'reminder.mute.savedTomorrow' = 'reminder.mute.saved';
+    let templateVars: Record<string, string> = {};
+
+    if (mutePreset === 'tomorrow') {
+      const dbPort = createDbPort();
+      const appTz = await getAppDisplayTimezone(
+        deps.dispatchPort
+          ? { db: dbPort, dispatchPort: deps.dispatchPort }
+          : { db: dbPort },
+      );
+      mutedUntilIso = DateTime.now().setZone(appTz).plus({ days: 1 }).startOf('day').toUTC().toISO() ?? new Date().toISOString();
+      templateId = 'reminder.mute.savedTomorrow';
+    } else {
+      const minutesRounded = Math.round(minutesParsed);
+      if (
+        !Number.isFinite(minutesRounded)
+        || minutesRounded < 1
+        || minutesRounded > 1440
+        || minutesRounded !== minutesParsed
+      ) {
+        return { actionId: action.id, status: 'failed', error: 'reminders.mute.callback: bad minutes' };
+      }
+      mutedUntilIso = new Date(Date.now() + minutesRounded * 60_000).toISOString();
+      templateVars = { minutes: String(minutesRounded) };
+    }
+
     if (deps.remindersWebappWritesPort) {
       await deps.remindersWebappWritesPort.postReminderMuteUntil({
         integratorUserId: userId,
@@ -844,24 +1008,27 @@ export async function handleReminders(
     const ack = deps.templatePort
       ? (await deps.templatePort.renderTemplate({
           source: tplMs,
-          templateId: 'reminder.mute.saved',
-          vars: { minutes: String(minutesRounded) },
+          templateId,
+          vars: templateVars,
           audience: 'user',
         })).text
-      : `Напоминания отключены на ${minutesRounded} мин.`;
+      : mutePreset === 'tomorrow'
+        ? 'Не вопрос, без напоминаний до завтра.'
+        : `Не вопрос, замолкаю на ${templateVars.minutes ?? '?'} мин.`;
     const src = resource === 'max' ? 'max' : 'telegram';
+    const messageId = action.params.messageId ?? readIncoming(ctx).messageId;
+    const callbackQueryId = asString(action.params.callbackQueryId) ?? asString(readIncoming(ctx).callbackQueryId);
+    const intents = buildReminderCallbackAckIntents(action, ctx, {
+      chatId,
+      messageId,
+      callbackQueryId,
+      text: ack,
+      channel: src,
+    });
     return {
       actionId: action.id,
       status: 'success',
-      intents: [{
-        type: 'message.send',
-        meta: buildIntentMeta(action, ctx),
-        payload: {
-          recipient: { chatId },
-          message: { text: ack },
-          delivery: { channels: [src], maxAttempts: 1 },
-        },
-      }],
+      intents,
     };
   }
 

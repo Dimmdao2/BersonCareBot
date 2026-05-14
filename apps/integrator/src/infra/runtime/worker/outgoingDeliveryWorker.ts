@@ -1,4 +1,4 @@
-import type { DbPort, DbWritePort, OutgoingIntent } from '../../../kernel/contracts/index.js';
+import type { DbPort, DbWritePort, DeliverySendResult, OutgoingIntent } from '../../../kernel/contracts/index.js';
 import {
   retryDelaySecondsAfterFailure,
   truncateDeliveryErrorMessage,
@@ -21,8 +21,19 @@ import {
 export type OutgoingDeliveryWorkerDeps = {
   db: DbPort;
   writePort: DbWritePort;
-  dispatchOutgoing: (intent: OutgoingIntent) => Promise<void>;
+  dispatchOutgoing: (intent: OutgoingIntent) => Promise<DeliverySendResult>;
 };
+
+function asChatIdFromRecipient(recipient: unknown): number | null {
+  if (!recipient || typeof recipient !== 'object') return null;
+  const c = (recipient as { chatId?: unknown }).chatId;
+  if (typeof c === 'number' && Number.isFinite(c)) return Math.trunc(c);
+  if (typeof c === 'string' && c.trim().length > 0) {
+    const n = Number(c.trim());
+    return Number.isFinite(n) ? Math.trunc(n) : null;
+  }
+  return null;
+}
 
 function parseIntentFromPayload(payload: Record<string, unknown>): OutgoingIntent | null {
   const rawIntent = payload.intent;
@@ -163,7 +174,43 @@ export async function processOutgoingDeliveryRow(
       return;
     }
     try {
-      await dispatchOutgoing(intent);
+      const staleRaw = p.deleteBeforeSendTelegramMessageId;
+      const staleMid =
+        typeof staleRaw === 'number' && Number.isFinite(staleRaw)
+          ? Math.trunc(staleRaw)
+          : typeof staleRaw === 'string' && /^\d+$/.test(staleRaw.trim())
+            ? Number.parseInt(staleRaw.trim(), 10)
+            : NaN;
+      if (channel === 'telegram' && Number.isFinite(staleMid) && staleMid > 0) {
+        const sendPayload = intent.payload as { recipient?: { chatId?: unknown } };
+        const chatIdForDel = asChatIdFromRecipient(sendPayload.recipient);
+        if (chatIdForDel !== null) {
+          try {
+            await dispatchOutgoing({
+              type: 'message.delete',
+              meta: {
+                eventId: `${row.eventId}:stale_delete`,
+                occurredAt: new Date().toISOString(),
+                source: 'telegram',
+                ...(typeof intent.meta.userId === 'string' ? { userId: intent.meta.userId } : {}),
+              },
+              payload: {
+                recipient: { chatId: chatIdForDel },
+                messageId: staleMid,
+                delivery: { channels: ['telegram'], maxAttempts: 1 },
+              },
+            });
+          } catch (err) {
+            logger.warn({ err, staleMid, occurrenceId }, 'reminder_stale_message_delete_failed');
+          }
+        }
+      }
+
+      const sendResult = await dispatchOutgoing(intent);
+      const telegramMessageId =
+        channel === 'telegram' && typeof sendResult?.telegramMessageId === 'number'
+          ? sendResult.telegramMessageId
+          : undefined;
       await writePort.writeDb({
         type: 'reminders.delivery.log',
         params: {
@@ -171,7 +218,13 @@ export async function processOutgoingDeliveryRow(
           occurrenceId,
           channel,
           status: 'success',
-          payloadJson: { chatId: externalId, text },
+          payloadJson: {
+            chatId: externalId,
+            text,
+            ...(telegramMessageId !== undefined
+              ? { telegramMessageId: String(Math.trunc(telegramMessageId)) }
+              : {}),
+          },
         },
       });
       await writePort.writeDb({
@@ -191,7 +244,7 @@ export async function processOutgoingDeliveryRow(
 export async function runOutgoingDeliveryWorkerTick(input: {
   db: DbPort;
   writePort: DbWritePort;
-  dispatchOutgoing: (intent: OutgoingIntent) => Promise<void>;
+  dispatchOutgoing: (intent: OutgoingIntent) => Promise<DeliverySendResult>;
   batchSize: number;
 }): Promise<{ claimed: number; processed: number; errors: number }> {
   await resetStaleOutgoingDeliveryProcessing(input.db, 10);

@@ -8,7 +8,7 @@
  * Сценарии без бот-UI настроек уведомлений (убран из content); уведомления — в вебаппе.
  */
 import { readdir, readFile } from 'node:fs/promises';
-import type { DeliveryJob, OutgoingIntent } from '../src/kernel/contracts/index.js';
+import type { DeliveryJob, DispatchPort } from '../src/kernel/contracts/index.js';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -206,7 +206,7 @@ describe.skipIf(!runE2E)('Webhook scenarios (e2e)', () => {
     },
   };
 
-  let dispatchPort: { dispatchOutgoing: (intent: OutgoingIntent) => Promise<void> };
+  let dispatchPort: DispatchPort;
 
   beforeAll(async () => {
     fixtures = await loadFixtures();

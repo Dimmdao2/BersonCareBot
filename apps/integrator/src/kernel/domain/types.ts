@@ -37,6 +37,8 @@ export type IncomingMessageUpdate = {
   chatId: number;
   channelId: string;
   messageId?: number | string;
+  /** Telegram: `reply_to_message.message_id` when user replies to a specific bot message (e.g. skip reason prompt). */
+  replyToMessageId?: number | string;
   text: string;
   action?: string;
   /** Rubitime deep link: `/start setrubitimerecord_<id>` → см. `mapBodyToIncoming`. */
@@ -77,6 +79,7 @@ export type IncomingCallbackUpdate = {
   reminderOccurrenceId?: string;
   reminderSnoozeMinutes?: number;
   reminderMuteMinutes?: number;
+  reminderMutePreset?: 'tomorrow';
   skipReasonCode?: string;
   questionConfirm?: 'yes' | 'no';
 };

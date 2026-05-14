@@ -83,6 +83,7 @@ type DynamicActionResult = {
   reminderOccurrenceId?: string;
   reminderSnoozeMinutes?: number;
   reminderMuteMinutes?: number;
+  reminderMutePreset?: 'tomorrow';
   skipReasonCode?: string;
   questionConfirm?: 'yes' | 'no';
 };
@@ -158,7 +159,11 @@ export function normalizeChannelCallbackPayload(value: string): DynamicActionRes
     return { action: 'rem_done', reminderOccurrenceId: occurrenceId };
   }
   if (trimmed.startsWith('rem_mute:')) {
-    const minutes = Math.round(Number(trimmed.slice('rem_mute:'.length)));
+    const rest = trimmed.slice('rem_mute:'.length).trim();
+    if (rest === 'tomorrow') {
+      return { action: 'rem_mute', reminderMutePreset: 'tomorrow' };
+    }
+    const minutes = Math.round(Number(rest));
     if (!Number.isFinite(minutes) || minutes < 1 || minutes > 1440) return { action: trimmed };
     return { action: 'rem_mute', reminderMuteMinutes: minutes };
   }
@@ -246,6 +251,7 @@ export function fromTelegram(
       ...(typeof normalized.reminderOccurrenceId === 'string' ? { reminderOccurrenceId: normalized.reminderOccurrenceId } : {}),
       ...(typeof normalized.reminderSnoozeMinutes === 'number' ? { reminderSnoozeMinutes: normalized.reminderSnoozeMinutes } : {}),
       ...(typeof normalized.reminderMuteMinutes === 'number' ? { reminderMuteMinutes: normalized.reminderMuteMinutes } : {}),
+      ...(normalized.reminderMutePreset === 'tomorrow' ? { reminderMutePreset: 'tomorrow' } : {}),
       ...(typeof normalized.skipReasonCode === 'string' ? { skipReasonCode: normalized.skipReasonCode } : {}),
       ...(normalized.questionConfirm === 'yes' || normalized.questionConfirm === 'no'
         ? { questionConfirm: normalized.questionConfirm }
@@ -274,11 +280,15 @@ export function fromTelegram(
       reqLogger.info({ adminTelegramId }, '[telegram][mapIn] admin chat diagnostics');
       reqLogger.info({ chatId: adminTelegramId, text: msg.text ?? '' }, '[telegram][mapIn] adminForward will be set');
     }
+    const replyToRaw = (msg as { reply_to_message?: { message_id?: number } }).reply_to_message;
+    const replyToMessageId =
+      replyToRaw && typeof replyToRaw.message_id === 'number' ? replyToRaw.message_id : undefined;
     const update: IncomingMessageUpdate = {
       kind: 'message',
       chatId,
       channelId: telegramId,
       ...(typeof msg.message_id === 'number' ? { messageId: msg.message_id } : {}),
+      ...(replyToMessageId !== undefined ? { replyToMessageId } : {}),
       text: msg.text ?? '',
       action: normalizeTelegramMessageAction(msg.text ?? ''),
       ...(normalizedPhone ? { phone: normalizedPhone } : {}),

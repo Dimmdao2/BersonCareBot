@@ -89,7 +89,7 @@ const REMINDER_TYPES = new Set<string>([
   'reminders.skip.applyFreeText',
 ]);
 const DELIVERY_TYPES = new Set<string>([
-  'message.compose', 'message.send', 'message.edit', 'message.replyMarkup.edit',
+  'message.compose', 'message.send', 'message.edit', 'message.replyMarkup.edit', 'message.delete',
   'callback.answer', 'message.deliver', 'message.retry.enqueue', 'intent.enqueueDelivery',
 ]);
 

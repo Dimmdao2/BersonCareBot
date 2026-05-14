@@ -1,4 +1,4 @@
-import type { DeliveryAdapter, OutgoingIntent } from '../../kernel/contracts/index.js';
+import type { DeliveryAdapter, DeliverySendResult, OutgoingIntent } from '../../kernel/contracts/index.js';
 import { createMessagingPort } from './client.js';
 
 type RequestLoggerLike = {
@@ -48,7 +48,7 @@ export function createTelegramDeliveryAdapter(): DeliveryAdapter {
 
   return {
     canHandle(intent: OutgoingIntent): boolean {
-      if (!['message.send', 'message.copy', 'message.edit', 'message.replyMarkup.edit', 'callback.answer'].includes(intent.type)) {
+      if (!['message.send', 'message.copy', 'message.edit', 'message.replyMarkup.edit', 'message.delete', 'callback.answer'].includes(intent.type)) {
         return false;
       }
       if (intent.type === 'message.send' || intent.type === 'message.copy') {
@@ -56,7 +56,7 @@ export function createTelegramDeliveryAdapter(): DeliveryAdapter {
       }
       return intent.meta.source === 'telegram';
     },
-    async send(intent: OutgoingIntent): Promise<void> {
+    async send(intent: OutgoingIntent): Promise<DeliverySendResult> {
       const payload = intent.payload as DeliveryPayload;
       const rawChatId = payload.recipient?.chatId;
       const messageId = payload.messageId;
@@ -72,13 +72,15 @@ export function createTelegramDeliveryAdapter(): DeliveryAdapter {
           (err as { code?: number }).code = 400;
           throw err;
         }
-        await getMessagingPort().sendMessage({
+        const sent = await getMessagingPort().sendMessage({
           chat_id: chatId,
           text,
           reply_markup: payload.replyMarkup as never,
           ...(payload.parse_mode ? { parse_mode: payload.parse_mode } : {}),
         });
-        return;
+        const midRaw = (sent as { message_id?: unknown })?.message_id;
+        const telegramMessageId = typeof midRaw === 'number' && Number.isFinite(midRaw) ? midRaw : undefined;
+        return telegramMessageId !== undefined ? { telegramMessageId } : {};
       }
 
       if (intent.type === 'message.copy') {
@@ -97,7 +99,7 @@ export function createTelegramDeliveryAdapter(): DeliveryAdapter {
           from_chat_id: fromChatId,
           message_id: msgId,
         });
-        return;
+        return {};
       }
 
       if (intent.type === 'message.edit') {
@@ -115,7 +117,7 @@ export function createTelegramDeliveryAdapter(): DeliveryAdapter {
           reply_markup: payload.replyMarkup as never,
           ...(payload.parse_mode ? { parse_mode: payload.parse_mode } : {}),
         });
-        return;
+        return {};
       }
 
       if (intent.type === 'message.replyMarkup.edit') {
@@ -131,7 +133,19 @@ export function createTelegramDeliveryAdapter(): DeliveryAdapter {
           message_id: numMessageId,
           reply_markup: payload.replyMarkup as never,
         });
-        return;
+        return {};
+      }
+
+      if (intent.type === 'message.delete') {
+        const chatId = asChatId(rawChatId);
+        const numMessageId = typeof messageId === 'number' && Number.isFinite(messageId) ? messageId : (typeof messageId === 'string' ? Number(messageId) : NaN);
+        if (chatId === null || !Number.isFinite(numMessageId)) {
+          const err = new Error('TELEGRAM_PAYLOAD_INVALID');
+          (err as { code?: number }).code = 400;
+          throw err;
+        }
+        await getMessagingPort().deleteMessage({ chat_id: chatId, message_id: numMessageId });
+        return {};
       }
 
       const callbackQueryId = asNonEmptyString(payload.callbackQueryId);
@@ -140,7 +154,13 @@ export function createTelegramDeliveryAdapter(): DeliveryAdapter {
         (err as { code?: number }).code = 400;
         throw err;
       }
-      await getMessagingPort().answerCallbackQuery({ callback_query_id: callbackQueryId });
+      const toast = asNonEmptyString(payload.text);
+      await getMessagingPort().answerCallbackQuery({
+        callback_query_id: callbackQueryId,
+        ...(toast ? { text: toast } : {}),
+        ...(payload.show_alert === true ? { show_alert: true } : {}),
+      });
+      return {};
     },
   };
 }

@@ -37,6 +37,7 @@ export type DbReadQueryType =
   | 'reminders.occurrences.forRuleRange'
   | 'reminders.occurrences.due'
   | 'reminders.occurrence.ownerUserId'
+  | 'reminders.delivery.staleTelegramMessage'
   | 'delivery.pending'
   | 'mailing.topics.list'
   | 'subscriptions.byUser'
@@ -135,15 +136,20 @@ export type DbWritePort = {
   writeDb(mutation: DbWriteMutation): Promise<void | DbWriteDbResult>;
 };
 
+/** Результат доставки (например, id сообщения в Telegram для логов напоминаний). */
+export type DeliverySendResult = {
+  telegramMessageId?: number;
+};
+
 /** Порт отправки исходящих намерений во внешний транспорт. */
 export type DispatchPort = {
-  dispatchOutgoing(intent: OutgoingIntent): Promise<void>;
+  dispatchOutgoing(intent: OutgoingIntent): Promise<DeliverySendResult>;
 };
 
 /** Универсальный адаптер доставки для infra dispatcher. */
 export type DeliveryAdapter = {
   canHandle(intent: OutgoingIntent): boolean;
-  send(intent: OutgoingIntent): Promise<void>;
+  send(intent: OutgoingIntent): Promise<DeliverySendResult>;
 };
 
 /** Порт постановки асинхронной задачи в очередь. */

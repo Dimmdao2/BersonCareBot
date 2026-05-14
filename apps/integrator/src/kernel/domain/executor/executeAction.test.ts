@@ -13,6 +13,13 @@ vi.mock('../../../infra/db/repos/outgoingDeliveryQueue.js', () => ({
   enqueueOutgoingDeliveryIfAbsent: enqueueReminderOutboxMock,
 }));
 
+vi.mock('../reminders/reminderMessengerWebAppUrls.js', () => ({
+  buildExerciseReminderWebAppUrls: vi.fn().mockResolvedValue({
+    primaryWebAppUrl: 'https://app.test/webapp-entry?n=1&next=%2Fpatient',
+    scheduleWebAppUrl: 'https://app.test/webapp-entry?n=1&next=%2Fprofile',
+  }),
+}));
+
 import type { Action, DbReadPort, DomainContext } from '../../contracts/index.js';
 import { executeAction } from './executeAction.js';
 import { resolveTargets } from './helpers.js';

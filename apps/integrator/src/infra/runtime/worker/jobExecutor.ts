@@ -1,7 +1,7 @@
-import type { DeliveryAttemptResult, DeliveryJob, OutgoingIntent } from '../../../kernel/contracts/index.js';
+import type { DeliveryAttemptResult, DeliveryJob, DeliverySendResult, OutgoingIntent } from '../../../kernel/contracts/index.js';
 
 export type JobExecutorDeps = {
-  dispatchOutgoing: (intent: OutgoingIntent) => Promise<void>;
+  dispatchOutgoing: (intent: OutgoingIntent) => Promise<DeliverySendResult>;
 };
 
 function asRecord(value: unknown): Record<string, unknown> {

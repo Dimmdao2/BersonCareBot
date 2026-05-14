@@ -168,11 +168,15 @@ export function mapBodyToIncoming(body: TelegramWebhookBodyValidated): IncomingU
     }
     const relayMessageType = getMessageTypeFromTelegramMessage(body.message);
     const phoneOut = phoneFromSetphoneStart ?? normalizedPhone;
+    const replyToRaw = (body.message as { reply_to_message?: { message_id?: number } }).reply_to_message;
+    const replyToMessageId =
+      replyToRaw && typeof replyToRaw.message_id === 'number' ? replyToRaw.message_id : undefined;
     return {
       kind: 'message',
       chatId: body.message.chat.id,
       channelId: String(fromId),
       ...(typeof body.message.message_id === 'number' ? { messageId: body.message.message_id } : {}),
+      ...(replyToMessageId !== undefined ? { replyToMessageId } : {}),
       text,
       action,
       ...(recordIdFromStart ? { recordId: recordIdFromStart } : {}),

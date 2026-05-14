@@ -1,4 +1,4 @@
-import type { DeliveryAdapter, OutgoingIntent } from '../../kernel/contracts/index.js';
+import type { DeliveryAdapter, DeliverySendResult, OutgoingIntent } from '../../kernel/contracts/index.js';
 import type { AttachmentRequest, Button } from '@maxhub/max-bot-api/types';
 import * as maxClient from './client.js';
 import { getMaxApiKey } from './runtimeConfig.js';
@@ -136,7 +136,7 @@ export function createMaxDeliveryAdapter(): DeliveryAdapter {
       if (intent.type === 'callback.answer') return intent.meta.source === 'max';
       return false;
     },
-    async send(intent: OutgoingIntent): Promise<void> {
+    async send(intent: OutgoingIntent): Promise<DeliverySendResult> {
       const apiKey = await getMaxApiKey();
       if (!apiKey) throw new Error('max api key missing');
       const config = { apiKey };
@@ -164,7 +164,7 @@ export function createMaxDeliveryAdapter(): DeliveryAdapter {
           },
         });
         if (!result) throw new Error('MAX_SEND_FAILED');
-        return;
+        return {};
       }
 
       if (intent.type === 'message.edit') {
@@ -186,7 +186,7 @@ export function createMaxDeliveryAdapter(): DeliveryAdapter {
           },
         });
         if (!result) throw new Error('MAX_EDIT_FAILED');
-        return;
+        return {};
       }
 
       if (intent.type === 'message.replyMarkup.edit') {
@@ -206,19 +206,22 @@ export function createMaxDeliveryAdapter(): DeliveryAdapter {
           },
         });
         if (!result) throw new Error('MAX_EDIT_FAILED');
-        return;
+        return {};
       }
 
       if (intent.type === 'callback.answer') {
         const callbackQueryId = asNonEmptyString(payload.callbackQueryId);
         if (!callbackQueryId) throw new Error('MAX_PAYLOAD_INVALID: callbackQueryId required');
-        const notification = asNonEmptyString(payload.notification) ?? 'OK';
+        const notification = asNonEmptyString(payload.notification)
+          ?? asNonEmptyString(payload.text)
+          ?? 'OK';
         const result = await maxClient.answerMaxCallback(config, {
           callbackId: callbackQueryId,
           extra: { notification },
         });
         if (!result) throw new Error('MAX_CALLBACK_ANSWER_FAILED');
       }
+      return {};
     },
   };
 }

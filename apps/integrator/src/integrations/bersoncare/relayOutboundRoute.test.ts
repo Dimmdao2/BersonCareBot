@@ -11,7 +11,7 @@ const TEST_SECRET = 'test-shared-secret-16chars';
 
 function makeDispatchPort(overrides: Partial<DispatchPort> = {}): DispatchPort {
   return {
-    dispatchOutgoing: vi.fn(async () => undefined),
+    dispatchOutgoing: vi.fn(async () => ({})),
     ...overrides,
   };
 }

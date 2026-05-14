@@ -10,7 +10,7 @@
  */
 
 import { readdir, readFile } from 'node:fs/promises';
-import type { DeliveryJob, OutgoingIntent } from '../src/kernel/contracts/index.js';
+import type { DeliveryJob, DispatchPort } from '../src/kernel/contracts/index.js';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createDefaultDispatchPort } from '../src/infra/adapters/dispatchPort.js';
@@ -206,7 +206,7 @@ const queuePort = {
   },
 };
 
-let dispatchPort: { dispatchOutgoing: (intent: OutgoingIntent) => Promise<void> };
+let dispatchPort: DispatchPort;
 
 async function main(): Promise<void> {
   idempotencyKeys.clear();

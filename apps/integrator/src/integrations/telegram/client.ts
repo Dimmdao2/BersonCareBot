@@ -31,6 +31,11 @@ export function createMessagingPort(): MessagingPort {
       api.editMessageText(p.chat_id, p.message_id, p.text, { reply_markup: p.reply_markup as never, parse_mode: p.parse_mode as never }),
     editMessageReplyMarkup: (p) =>
       api.editMessageReplyMarkup(p.chat_id, p.message_id, { reply_markup: p.reply_markup as never }),
-    answerCallbackQuery: (p) => api.answerCallbackQuery(p.callback_query_id),
+    deleteMessage: (p) => api.deleteMessage(p.chat_id, p.message_id),
+    answerCallbackQuery: (p) =>
+      api.answerCallbackQuery(p.callback_query_id, {
+        ...(typeof p.text === 'string' && p.text.trim().length > 0 ? { text: p.text.trim() } : {}),
+        ...(p.show_alert === true ? { show_alert: true } : {}),
+      }),
   };
 }

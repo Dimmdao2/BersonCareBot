@@ -15,6 +15,7 @@ export function isTelegramCallbackDataWithinLimit(data: string): boolean {
 
 export type InlineKeyboardButton =
   | { text: string; url: string }
+  | { text: string; web_app: { url: string } }
   | { text: string; callback_data: string };
 
 /** Primary CTA label from webapp `reminder_intent`. */
@@ -23,22 +24,27 @@ export function reminderIntentPrimaryLabel(intent: string | null | undefined): s
   return 'Начать занятие';
 }
 
+export type ReminderOpenLinkSpec =
+  | { kind: 'web_app'; url: string }
+  | { kind: 'url'; url: string };
+
+function openButton(label: string, spec: ReminderOpenLinkSpec): InlineKeyboardButton {
+  if (spec.kind === 'web_app') return { text: label, web_app: { url: spec.url } };
+  return { text: label, url: spec.url };
+}
+
 export function buildReminderDispatchInlineKeyboard(params: {
   primaryLabel: string;
-  openUrl: string;
+  primary: ReminderOpenLinkSpec;
+  schedule: ReminderOpenLinkSpec;
   occurrenceId: string;
-  /** Deeplink to patient reminders UI («Своя настройка» snooze path). */
-  remindersEditUrl?: string;
 }): { inline_keyboard: InlineKeyboardButton[][] } {
-  const { primaryLabel, openUrl, occurrenceId, remindersEditUrl } = params;
-  const rows: InlineKeyboardButton[][] = [[{ text: primaryLabel, url: openUrl }]];
-  if (remindersEditUrl?.trim()) {
-    rows.push([{ text: 'Своя настройка', url: remindersEditUrl.trim() }]);
-  }
+  const { primaryLabel, primary, schedule, occurrenceId } = params;
+  const rows: InlineKeyboardButton[][] = [[openButton(primaryLabel, primary)]];
 
   const snoozeRow: InlineKeyboardButton[] = [
-    { text: '15м', callback_data: `rem_snooze:${occurrenceId}:15` },
-    { text: '30м', callback_data: `rem_snooze:${occurrenceId}:30` },
+    { text: 'Через 15м', callback_data: `rem_snooze:${occurrenceId}:15` },
+    { text: 'Через 30м', callback_data: `rem_snooze:${occurrenceId}:30` },
   ];
   if (snoozeRow.every((b) => 'callback_data' in b && isTelegramCallbackDataWithinLimit(b.callback_data))) {
     rows.push(snoozeRow);
@@ -46,19 +52,21 @@ export function buildReminderDispatchInlineKeyboard(params: {
 
   const doneSkipRow: InlineKeyboardButton[] = [
     { text: 'Уже выполнено', callback_data: `rem_done:${occurrenceId}` },
-    { text: 'Пропущу сегодня', callback_data: `rem_skip:${occurrenceId}` },
+    { text: 'Пропущу сейчас', callback_data: `rem_skip:${occurrenceId}` },
   ];
   if (doneSkipRow.every((b) => 'callback_data' in b && isTelegramCallbackDataWithinLimit(b.callback_data))) {
     rows.push(doneSkipRow);
   }
 
   const muteRow: InlineKeyboardButton[] = [
-    { text: 'Тишина 2ч', callback_data: 'rem_mute:120' },
-    { text: 'Тишина 8ч', callback_data: 'rem_mute:480' },
+    { text: 'Тишина до 8ч', callback_data: 'rem_mute:480' },
+    { text: 'Тишина до завтра', callback_data: 'rem_mute:tomorrow' },
   ];
   if (muteRow.every((b) => 'callback_data' in b && isTelegramCallbackDataWithinLimit(b.callback_data))) {
     rows.push(muteRow);
   }
+
+  rows.push([openButton('Расписание', schedule)]);
 
   return { inline_keyboard: rows };
 }

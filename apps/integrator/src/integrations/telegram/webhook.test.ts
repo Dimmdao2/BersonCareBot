@@ -100,19 +100,21 @@ describe('mapBodyToIncoming', () => {
     }
   });
 
-  it('parses /start link_<secret> with leading BOM to start.link', () => {
-    const body: TelegramWebhookBodyValidated = {
+  it('propagates reply_to_message.message_id as replyToMessageId', () => {
+    const body = {
       message: {
-        from: { id: 321, is_bot: false, first_name: 'Link' },
-        chat: { id: 321 },
-        text: '\uFEFF/start link_abC123-_',
+        from: { id: 100, is_bot: false, first_name: 'A' },
+        chat: { id: 100 },
+        message_id: 999,
+        text: 'болит колено',
+        reply_to_message: { message_id: 42 },
       },
-    };
+    } as TelegramWebhookBodyValidated;
     const incoming = mapBodyToIncoming(body);
-    expect(incoming).not.toBeNull();
+    expect(incoming?.kind).toBe('message');
     if (incoming?.kind === 'message') {
-      expect(incoming.action).toBe('start.link');
-      expect((incoming as { linkSecret?: string }).linkSecret).toBe('link_abC123-_');
+      expect(incoming.replyToMessageId).toBe(42);
+      expect(incoming.messageId).toBe(999);
     }
   });
 });

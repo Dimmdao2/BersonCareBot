@@ -27,7 +27,7 @@ describe('executeJob', () => {
         },
       },
       {
-        dispatchOutgoing: vi.fn().mockResolvedValue(undefined),
+        dispatchOutgoing: vi.fn().mockResolvedValue({}),
       },
     );
 

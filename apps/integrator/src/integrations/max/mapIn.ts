@@ -137,6 +137,7 @@ export function fromMax(body: MaxUpdateValidated): IncomingUpdate | null {
       ...(typeof normalized.reminderOccurrenceId === 'string' ? { reminderOccurrenceId: normalized.reminderOccurrenceId } : {}),
       ...(typeof normalized.reminderSnoozeMinutes === 'number' ? { reminderSnoozeMinutes: normalized.reminderSnoozeMinutes } : {}),
       ...(typeof normalized.reminderMuteMinutes === 'number' ? { reminderMuteMinutes: normalized.reminderMuteMinutes } : {}),
+      ...(normalized.reminderMutePreset === 'tomorrow' ? { reminderMutePreset: 'tomorrow' } : {}),
       ...(typeof normalized.skipReasonCode === 'string' ? { skipReasonCode: normalized.skipReasonCode } : {}),
       ...(normalized.questionConfirm === 'yes' || normalized.questionConfirm === 'no'
         ? { questionConfirm: normalized.questionConfirm }

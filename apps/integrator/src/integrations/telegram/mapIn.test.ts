@@ -29,6 +29,17 @@ describe('normalizeChannelCallbackPayload (reminders + question confirm)', () =>
     });
   });
 
+  it('parses rem_mute minutes and tomorrow preset', () => {
+    expect(normalizeChannelCallbackPayload('rem_mute:480')).toEqual({
+      action: 'rem_mute',
+      reminderMuteMinutes: 480,
+    });
+    expect(normalizeChannelCallbackPayload('rem_mute:tomorrow')).toEqual({
+      action: 'rem_mute',
+      reminderMutePreset: 'tomorrow',
+    });
+  });
+
   it('parses rem_skip and rem_skip_r', () => {
     expect(normalizeChannelCallbackPayload('rem_skip:occ-1')).toEqual({
       action: 'rem_skip',

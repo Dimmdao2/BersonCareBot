@@ -1,5 +1,6 @@
 import type {
   DeliveryAdapter,
+  DeliverySendResult,
   DispatchPort,
   DbWritePort,
   OutgoingIntent,
@@ -86,16 +87,17 @@ export function createDefaultDispatchPort(deps: {
   readPort?: unknown;
 }): DispatchPort {
   return {
-    async dispatchOutgoing(intent: OutgoingIntent): Promise<void> {
+    async dispatchOutgoing(intent: OutgoingIntent): Promise<DeliverySendResult> {
       const channel = readChannel(intent);
       if (!channel) throw new Error('CHANNEL_NOT_SPECIFIED');
       const intentForChannel = withChannel(intent, channel);
       const adapter = deps.adapters.find((item) => item.canHandle(intentForChannel));
       if (!adapter) throw new Error(`CHANNEL_NOT_SUPPORTED:${channel}`);
-      await adapter.send(intentForChannel);
+      const sendResult = await adapter.send(intentForChannel);
       if (intent.type === 'message.send') {
         await logDeliveryAttempt(deps.writePort, intent, channel, 'success', 1);
       }
+      return sendResult ?? {};
     },
   };
 }

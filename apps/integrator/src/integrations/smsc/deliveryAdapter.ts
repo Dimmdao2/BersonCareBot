@@ -1,4 +1,4 @@
-import type { DeliveryAdapter, OutgoingIntent } from '../../kernel/contracts/index.js';
+import type { DeliveryAdapter, DeliverySendResult, OutgoingIntent } from '../../kernel/contracts/index.js';
 import type { SmsClient } from './types.js';
 
 type DeliveryPayload = {
@@ -23,13 +23,14 @@ export function createSmscDeliveryAdapter(deps: { smsClient: SmsClient }): Deliv
       if (intent.type !== 'message.send') return false;
       return readChannel(intent) === 'smsc';
     },
-    async send(intent: OutgoingIntent): Promise<void> {
-      if (intent.type !== 'message.send') return;
+    async send(intent: OutgoingIntent): Promise<DeliverySendResult> {
+      if (intent.type !== 'message.send') return {};
       const payload = intent.payload as DeliveryPayload;
       const toPhone = payload.recipient?.phoneNormalized ?? '';
       const message = payload.message?.text ?? '';
-      if (!toPhone || !message) return;
+      if (!toPhone || !message) return {};
       await deps.smsClient.sendSms({ toPhone, message });
+      return {};
     },
   };
 }

@@ -252,12 +252,38 @@ export async function handleDelivery(
     return { actionId: action.id, status: 'success', intents };
   }
 
+  if (action.type === 'message.delete') {
+    const chatId = asNumber(action.params.chatId);
+    const messageId = asMessageId(action.params.messageId);
+    const delivery = asRecord(action.params.delivery);
+    const channels = asStringArray(delivery.channels);
+    const channel = channels[0] ?? ctx.event.meta.source;
+    const intents: OutgoingIntent[] = [{
+      type: 'message.delete',
+      meta: {
+        ...buildIntentMeta(action, ctx),
+        source: typeof channel === 'string' && channel.trim().length > 0 ? channel.trim() : ctx.event.meta.source,
+      },
+      payload: {
+        recipient: chatId === null ? {} : { chatId },
+        ...(messageId === null ? {} : { messageId }),
+        delivery: { channels: channels.length > 0 ? channels : [ctx.event.meta.source], maxAttempts: 1 },
+      },
+    }];
+    return { actionId: action.id, status: 'success', intents };
+  }
+
   if (action.type === 'callback.answer') {
     const callbackQueryId = asString(action.params.callbackQueryId);
     const intents: OutgoingIntent[] = callbackQueryId ? [{
       type: 'callback.answer',
       meta: buildIntentMeta(action, ctx),
-      payload: { callbackQueryId },
+      payload: {
+        callbackQueryId,
+        ...(asString(action.params.text) ? { text: asString(action.params.text) } : {}),
+        ...(asString(action.params.notification) ? { notification: asString(action.params.notification) } : {}),
+        ...(action.params.show_alert === true ? { show_alert: true } : {}),
+      },
     }] : [];
     return { actionId: action.id, status: 'success', ...(intents.length > 0 ? { intents } : {}) };
   }
