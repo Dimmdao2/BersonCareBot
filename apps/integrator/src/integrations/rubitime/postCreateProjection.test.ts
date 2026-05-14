@@ -4,6 +4,7 @@ const mockFetchRubitimeRecordById = vi.hoisted(() => vi.fn());
 const mockPrepareRubitimeWebhookIngress = vi.hoisted(() => vi.fn());
 const mockSyncRubitimeWebhookBodyToGoogleCalendar = vi.hoisted(() => vi.fn());
 const mockBuildUserEmailAutobindWebappEvent = vi.hoisted(() => vi.fn());
+const mockReportOperatorFailure = vi.hoisted(() => vi.fn());
 
 vi.mock('./client.js', () => ({
   fetchRubitimeRecordById: mockFetchRubitimeRecordById,
@@ -16,6 +17,10 @@ vi.mock('./ingestNormalization.js', () => ({
 vi.mock('./connector.js', () => ({
   syncRubitimeWebhookBodyToGoogleCalendar: mockSyncRubitimeWebhookBodyToGoogleCalendar,
   buildUserEmailAutobindWebappEvent: mockBuildUserEmailAutobindWebappEvent,
+}));
+
+vi.mock('../../infra/operatorIncident/reportOperatorFailure.js', () => ({
+  reportOperatorFailure: mockReportOperatorFailure,
 }));
 
 vi.mock('../../infra/db/client.js', () => ({
@@ -64,6 +69,8 @@ describe('runPostCreateProjection', () => {
     mockPrepareRubitimeWebhookIngress.mockResolvedValue(makeIncoming());
     mockSyncRubitimeWebhookBodyToGoogleCalendar.mockResolvedValue('gcal-123');
     mockBuildUserEmailAutobindWebappEvent.mockReturnValue(null);
+    mockReportOperatorFailure.mockReset();
+    mockReportOperatorFailure.mockResolvedValue(undefined);
   });
 
   it('happy path: fetch + normalize + gcal + upsert all succeed', async () => {
@@ -110,6 +117,13 @@ describe('runPostCreateProjection', () => {
     expect(result.projectionOk).toBe(true);
     expect(result.gcalEventId).toBeNull();
     expect(deps.dbWritePort.writeDb).toHaveBeenCalledTimes(1);
+    expect(mockReportOperatorFailure).toHaveBeenCalledTimes(1);
+    expect(mockReportOperatorFailure).toHaveBeenCalledWith(
+      expect.objectContaining({
+        direction: 'outbound',
+        integration: 'google_calendar',
+      }),
+    );
     const upsertCall = deps.dbWritePort.writeDb.mock.calls[0]![0];
     expect(upsertCall.params.gcalEventId).toBeUndefined();
   });

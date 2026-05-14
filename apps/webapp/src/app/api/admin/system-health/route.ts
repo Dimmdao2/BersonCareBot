@@ -11,6 +11,7 @@ import { getPool } from "@/app-layer/db/client";
 import { proxyIntegratorProjectionHealth } from "@/app-layer/health/proxyIntegratorProjectionHealth";
 import { requireAdminModeSession } from "@/modules/auth/requireAdminMode";
 import { getConfigBool } from "@/modules/system-settings/configAdapter";
+import type { OperatorIncidentOpenRow } from "@/modules/operator-health/ports";
 
 const INTEGRATOR_TIMEOUT_MS = 8_000;
 
@@ -74,6 +75,16 @@ type VideoTranscodeHealthPayload = {
   oldestPendingAgeSeconds: number | null;
 };
 
+type OperatorBackupJobPayload = {
+  lastStatus: string;
+  lastStartedAt: string | null;
+  lastFinishedAt: string | null;
+  lastSuccessAt: string | null;
+  lastFailureAt: string | null;
+  lastDurationMs: number | null;
+  lastError: string | null;
+};
+
 type SystemHealthResponse = {
   webappDb: DbStatus;
   integratorApi: { status: IntegratorApiStatus; db?: DbStatus };
@@ -88,6 +99,10 @@ type SystemHealthResponse = {
   videoPlayback: VideoPlaybackHealthPayload;
   /** VIDEO_HLS: transcode queue metrics from DB (not systemd liveness). */
   videoTranscode: VideoTranscodeHealthPayload;
+  /** Открытые строки `operator_incidents` (resolved_at IS NULL), последние по last_seen_at. */
+  operatorIncidentsOpen: OperatorIncidentOpenRow[];
+  /** Статусы backup job (`job_family = postgres_backup`), ключ — job_key. */
+  backupJobs: Record<string, OperatorBackupJobPayload>;
   meta: {
     probes: {
       webappDb: { status: string; durationMs: number; errorCode?: string };
@@ -96,6 +111,8 @@ type SystemHealthResponse = {
       mediaPreview: { status: string; durationMs: number; errorCode?: string };
       videoPlayback: { status: string; durationMs: number; errorCode?: string };
       videoTranscode: { status: string; durationMs: number; errorCode?: string };
+      operatorIncidents: { status: string; durationMs: number; errorCode?: string };
+      operatorBackupJobs: { status: string; durationMs: number; errorCode?: string };
     };
   };
   fetchedAt: string;
@@ -425,6 +442,39 @@ async function probeVideoTranscode(): Promise<ProbeResult<VideoTranscodeHealthPa
   }
 }
 
+async function probeOperatorHealthData(): Promise<
+  ProbeResult<{ incidents: OperatorIncidentOpenRow[]; backupJobs: Record<string, OperatorBackupJobPayload> }>
+> {
+  const startedAt = Date.now();
+  try {
+    const read = buildAppDeps().operatorHealthRead;
+    const [incidents, jobRows] = await Promise.all([
+      read.listOpenIncidents(20),
+      read.listPostgresBackupJobStatus(),
+    ]);
+    const backupJobs: Record<string, OperatorBackupJobPayload> = {};
+    for (const r of jobRows) {
+      backupJobs[r.jobKey] = {
+        lastStatus: r.lastStatus,
+        lastStartedAt: r.lastStartedAt,
+        lastFinishedAt: r.lastFinishedAt,
+        lastSuccessAt: r.lastSuccessAt,
+        lastFailureAt: r.lastFailureAt,
+        lastDurationMs: r.lastDurationMs,
+        lastError: r.lastError,
+      };
+    }
+    return { ok: true, value: { incidents, backupJobs }, durationMs: elapsedMs(startedAt) };
+  } catch {
+    return {
+      ok: false,
+      status: "error",
+      errorCode: "operator_health_read_failed",
+      durationMs: elapsedMs(startedAt),
+    };
+  }
+}
+
 function logProbe(
   probe:
     | "webapp_db"
@@ -432,7 +482,9 @@ function logProbe(
     | "projection"
     | "media_preview"
     | "video_playback"
-    | "video_transcode",
+    | "video_transcode"
+    | "operator_incidents"
+    | "operator_backup_jobs",
   result: ProbeResult<unknown>,
   statusOverride?: string,
 ) {
@@ -470,14 +522,16 @@ export async function GET() {
     /* ignore — videoTranscode shell uses these flags when probe fails */
   }
 
-  const [webappDb, integratorApi, projection, mediaPreview, videoPlayback, videoTranscode] = await Promise.allSettled([
-    probeWebappDb(),
-    probeIntegratorApi(),
-    probeProjection(),
-    probeMediaPreview(),
-    probeVideoPlayback(),
-    probeVideoTranscode(),
-  ]);
+  const [webappDb, integratorApi, projection, mediaPreview, videoPlayback, videoTranscode, operatorHealth] =
+    await Promise.allSettled([
+      probeWebappDb(),
+      probeIntegratorApi(),
+      probeProjection(),
+      probeMediaPreview(),
+      probeVideoPlayback(),
+      probeVideoTranscode(),
+      probeOperatorHealthData(),
+    ]);
 
   const webappDbResult: ProbeResult<DbStatus> =
     webappDb.status === "fulfilled"
@@ -520,6 +574,29 @@ export async function GET() {
     ? videoTranscodeResult.value
     : emptyVideoTranscodePayload("error", pipelineEnabledFallback, reconcileEnabledFallback);
 
+  const operatorHealthResult: ProbeResult<{
+    incidents: OperatorIncidentOpenRow[];
+    backupJobs: Record<string, OperatorBackupJobPayload>;
+  }> =
+    operatorHealth.status === "fulfilled"
+      ? operatorHealth.value
+      : { ok: false, status: "error", errorCode: "operator_health_probe_rejected", durationMs: 0 };
+
+  const operatorIncidentsOpen = operatorHealthResult.ok ? operatorHealthResult.value.incidents : [];
+  const backupJobs = operatorHealthResult.ok ? operatorHealthResult.value.backupJobs : {};
+
+  const operatorIncidentsProbeStatus = !operatorHealthResult.ok
+    ? operatorHealthResult.status
+    : operatorIncidentsOpen.length > 0
+      ? "degraded"
+      : "ok";
+
+  const backupJobsProbeStatus = !operatorHealthResult.ok
+    ? operatorHealthResult.status
+    : Object.values(backupJobs).some((j) => j.lastStatus === "failure")
+      ? "degraded"
+      : "ok";
+
   const response: SystemHealthResponse = {
     webappDb: webappDbResult.ok ? webappDbResult.value : "down",
     integratorApi: integratorApiResult.ok
@@ -543,6 +620,8 @@ export async function GET() {
         },
     videoPlayback: videoPlaybackPayload,
     videoTranscode: videoTranscodePayload,
+    operatorIncidentsOpen,
+    backupJobs,
     meta: {
       probes: {
         webappDb: {
@@ -575,6 +654,16 @@ export async function GET() {
           durationMs: videoTranscodeResult.durationMs,
           ...(videoTranscodeResult.ok ? {} : { errorCode: videoTranscodeResult.errorCode }),
         },
+        operatorIncidents: {
+          status: operatorIncidentsProbeStatus,
+          durationMs: operatorHealthResult.durationMs,
+          ...(!operatorHealthResult.ok ? { errorCode: operatorHealthResult.errorCode } : {}),
+        },
+        operatorBackupJobs: {
+          status: backupJobsProbeStatus,
+          durationMs: operatorHealthResult.durationMs,
+          ...(!operatorHealthResult.ok ? { errorCode: operatorHealthResult.errorCode } : {}),
+        },
       },
     },
     fetchedAt: nowIso(),
@@ -586,6 +675,8 @@ export async function GET() {
   logProbe("media_preview", mediaPreviewResult, response.mediaPreview.status);
   logProbe("video_playback", videoPlaybackResult, response.videoPlayback.status);
   logProbe("video_transcode", videoTranscodeResult, response.videoTranscode.status);
+  logProbe("operator_incidents", operatorHealthResult, operatorIncidentsProbeStatus);
+  logProbe("operator_backup_jobs", operatorHealthResult, backupJobsProbeStatus);
 
   return NextResponse.json(response);
 }

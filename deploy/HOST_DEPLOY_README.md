@@ -153,18 +153,18 @@
 
 Скрипт `/opt/backups/scripts/postgres-backup.sh` вызывается с первым аргументом `pre-migrations` перед миграциями в deploy-prod и в deploy-webapp-prod.
 
-**Каноническая реализация** живёт в репозитории: [`deploy/postgres/postgres-backup.sh`](../postgres/postgres-backup.sh). Установка на хост: см. [`deploy/postgres/README.md`](../postgres/README.md). Скрипт читает `DATABASE_URL` из **`api.prod`** и **`webapp.prod`** и делает до **двух** `pg_dump -Fc`. После **unification** URL совпадают — получаются **два идентичных дампа** одной БД (допустимо до упрощения скрипта).
+**Каноническая реализация** живёт в репозитории: [`deploy/postgres/postgres-backup.sh`](../postgres/postgres-backup.sh). Установка на хост: см. [`deploy/postgres/README.md`](../postgres/README.md). Скрипт читает `DATABASE_URL` из **`api.prod`** и **`webapp.prod`**. Если URL **совпадают** (unified Postgres), выполняется **один** `pg_dump -Fc` с префиксом `unified_` в имени файла; если различаются — два дампа (`integrator_…`, `webapp_…`). Режимы **`weekly`**, **`prune`** (retention под `/opt/backups/postgres/`) и тики в **`public.operator_job_status`** (`job_family=postgres_backup`) — см. README.
 
 **Ожидаемое поведение (оператор должен обеспечить на хосте):**
 
 1. **Вызов:** `postgres-backup.sh pre-migrations`
 2. **Назначение:** снимок БД перед применением миграций для возможности отката.
-3. **Куда писать:** каталог `/opt/backups/postgres/pre-migrations/`. Имена файлов: `integrator_<dbname>_<timestamp>.dump` и `webapp_<dbname>_<timestamp>.dump` (custom format).
-4. **Какие БД:** при **двух** разных `DATABASE_URL` — два дампа; при **одной** БД — два файла с одним и тем же содержимым.
+3. **Куда писать:** каталог `/opt/backups/postgres/pre-migrations/`. Имена файлов: при одной БД — `unified_<dbname>_<timestamp>.dump`; при двух URL — `integrator_<dbname>_<timestamp>.dump` и `webapp_<dbname>_<timestamp>.dump` (custom format).
+4. **Сколько файлов:** при **двух** разных `DATABASE_URL` — два дампа; при **одной** БД — **один** файл дампа.
 
-Режим **`hourly`** (и при необходимости `daily` / `manual`) использует те же env-файлы и пишет в `/opt/backups/postgres/hourly/` и т.д. — см. скрипт.
+Режимы **`hourly`**, **`daily`**, **`weekly`**, **`manual`**, **`prune`** используют те же env-файлы; каталоги и retention — [`deploy/postgres/README.md`](../postgres/README.md).
 
-**Проверка на хосте:** после установки скрипта из репо убедиться, что в `/opt/backups/postgres/pre-migrations/` появляются **два** `.dump` после `sudo /opt/backups/scripts/postgres-backup.sh pre-migrations` (или один уникальный дамп, если скрипт уже упрощён).
+**Проверка на хосте:** после установки скрипта из репо убедиться, что в `/opt/backups/postgres/pre-migrations/` появился **один** `.dump` при unified БД (или два — при двух URL) после `sudo /opt/backups/scripts/postgres-backup.sh pre-migrations`.
 
 ---
 

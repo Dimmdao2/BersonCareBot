@@ -28,6 +28,8 @@ const {
   getConfigBoolMock,
   loadAdminPlaybackHealthMetricsMock,
   loadAdminTranscodeHealthMetricsMock,
+  listOpenIncidentsMock,
+  listPostgresBackupJobStatusMock,
 } = vi.hoisted(() => ({
   requireAdminModeSessionMock: vi.fn(),
   checkDbHealthMock: vi.fn(),
@@ -43,6 +45,8 @@ const {
   getConfigBoolMock: vi.fn(),
   loadAdminPlaybackHealthMetricsMock: vi.fn(),
   loadAdminTranscodeHealthMetricsMock: vi.fn(),
+  listOpenIncidentsMock: vi.fn(),
+  listPostgresBackupJobStatusMock: vi.fn(),
 }));
 
 /** Routes SQL by substring — media preview probes run in parallel with playback metrics; order unspecified. */
@@ -63,6 +67,10 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: vi.fn(() => ({
     health: {
       checkDbHealth: checkDbHealthMock,
+    },
+    operatorHealthRead: {
+      listOpenIncidents: listOpenIncidentsMock,
+      listPostgresBackupJobStatus: listPostgresBackupJobStatusMock,
     },
   })),
 }));
@@ -123,6 +131,10 @@ describe("GET /api/admin/system-health", () => {
     loadAdminPlaybackHealthMetricsMock.mockReset();
     loadAdminTranscodeHealthMetricsMock.mockReset();
     loadAdminTranscodeHealthMetricsMock.mockResolvedValue(zeroTranscodeMetrics);
+    listOpenIncidentsMock.mockReset();
+    listPostgresBackupJobStatusMock.mockReset();
+    listOpenIncidentsMock.mockResolvedValue([]);
+    listPostgresBackupJobStatusMock.mockResolvedValue([]);
     globalThis.fetch = originalFetch;
   });
 
@@ -177,11 +189,15 @@ describe("GET /api/admin/system-health", () => {
         status: string;
         pendingCount: number;
       };
+      operatorIncidentsOpen: unknown[];
+      backupJobs: Record<string, unknown>;
       meta?: {
         probes?: {
           projection?: { status: string; durationMs: number };
           videoPlayback?: { status: string; durationMs: number };
           videoTranscode?: { status: string; durationMs: number };
+          operatorIncidents?: { status: string; durationMs: number; errorCode?: string };
+          operatorBackupJobs?: { status: string; durationMs: number; errorCode?: string };
         };
       };
       fetchedAt: string;
@@ -203,6 +219,10 @@ describe("GET /api/admin/system-health", () => {
     expect(body.videoTranscode.status).toBe("ok");
     expect(body.videoTranscode.pendingCount).toBe(0);
     expect(body.meta?.probes?.videoTranscode?.status).toBe("ok");
+    expect(body.operatorIncidentsOpen).toEqual([]);
+    expect(body.backupJobs).toEqual({});
+    expect(body.meta?.probes?.operatorIncidents?.status).toBe("ok");
+    expect(body.meta?.probes?.operatorBackupJobs?.status).toBe("ok");
     expect(loggerInfoMock).toHaveBeenCalled();
   });
 
@@ -406,5 +426,113 @@ describe("GET /api/admin/system-health", () => {
       expect.objectContaining({ probe: "video_transcode", errorCode: "video_transcode_probe_failed" }),
       "system_health_probe",
     );
+  });
+
+  it("includes open operator incidents and flags backup job failure in probes", async () => {
+    requireAdminModeSessionMock.mockResolvedValue({
+      ok: true,
+      session: { user: { userId: "a1", role: "admin" }, adminMode: true },
+    });
+    checkDbHealthMock.mockResolvedValue(true);
+    globalThis.fetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ ok: true, db: "up" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    ) as typeof fetch;
+    proxyIntegratorProjectionHealthMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          pendingCount: 0,
+          deadCount: 0,
+          retriesOverThreshold: 0,
+          lastSuccessAt: null,
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+    listOpenIncidentsMock.mockResolvedValue([
+      {
+        id: "i1",
+        dedupKey: "k1",
+        direction: "outbound",
+        integration: "max",
+        errorClass: "e1",
+        errorDetail: "boom",
+        openedAt: "2026-04-16T10:00:00.000Z",
+        lastSeenAt: "2026-04-16T10:05:00.000Z",
+        occurrenceCount: 3,
+      },
+    ]);
+    listPostgresBackupJobStatusMock.mockResolvedValue([
+      {
+        jobKey: "hourly",
+        jobFamily: "postgres_backup",
+        lastStatus: "failure",
+        lastStartedAt: null,
+        lastFinishedAt: "2026-04-16T10:00:00.000Z",
+        lastSuccessAt: null,
+        lastFailureAt: "2026-04-16T10:00:00.000Z",
+        lastDurationMs: 100,
+        lastError: "oops",
+      },
+    ]);
+
+    const res = await GET();
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      operatorIncidentsOpen: Array<{ id: string; integration: string }>;
+      backupJobs: Record<string, { lastStatus: string }>;
+      meta?: { probes?: { operatorIncidents?: { status: string }; operatorBackupJobs?: { status: string } } };
+    };
+    expect(body.operatorIncidentsOpen).toHaveLength(1);
+    expect(body.operatorIncidentsOpen[0]!.integration).toBe("max");
+    expect(body.backupJobs.hourly?.lastStatus).toBe("failure");
+    expect(body.meta?.probes?.operatorIncidents?.status).toBe("degraded");
+    expect(body.meta?.probes?.operatorBackupJobs?.status).toBe("degraded");
+  });
+
+  it("returns empty operator payloads when operator health read throws", async () => {
+    requireAdminModeSessionMock.mockResolvedValue({
+      ok: true,
+      session: { user: { userId: "a1", role: "admin" }, adminMode: true },
+    });
+    checkDbHealthMock.mockResolvedValue(true);
+    listOpenIncidentsMock.mockRejectedValue(new Error("db_down"));
+    globalThis.fetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ ok: true, db: "up" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    ) as typeof fetch;
+    proxyIntegratorProjectionHealthMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          pendingCount: 0,
+          deadCount: 0,
+          retriesOverThreshold: 0,
+          lastSuccessAt: null,
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+
+    const res = await GET();
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      operatorIncidentsOpen: unknown[];
+      backupJobs: Record<string, unknown>;
+      meta?: {
+        probes?: {
+          operatorIncidents?: { status: string; errorCode?: string };
+          operatorBackupJobs?: { status: string; errorCode?: string };
+        };
+      };
+    };
+    expect(body.operatorIncidentsOpen).toEqual([]);
+    expect(body.backupJobs).toEqual({});
+    expect(body.meta?.probes?.operatorIncidents?.status).toBe("error");
+    expect(body.meta?.probes?.operatorIncidents?.errorCode).toBe("operator_health_read_failed");
+    expect(body.meta?.probes?.operatorBackupJobs?.status).toBe("error");
   });
 });

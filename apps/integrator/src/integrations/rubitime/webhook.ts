@@ -17,6 +17,8 @@ import {
 import { prepareRubitimeWebhookIngress } from './ingestNormalization.js';
 import { getRubitimeWebhookToken } from './runtimeConfig.js';
 import { parseRubitimeBody } from './schema.js';
+import { mapGoogleCalendarSyncErrorToClass } from '../../infra/operatorIncident/googleCalendarErrorClass.js';
+import { reportOperatorFailure } from '../../infra/operatorIncident/reportOperatorFailure.js';
 
 /** Dependencies for Rubitime webhook handler registration. */
 export type RubitimeWebhookDeps = {
@@ -61,6 +63,19 @@ async function processRubitimeBody(input: {
     });
   } catch (err) {
     reqLogger.warn({ err }, '[rubitime] google calendar sync failed');
+    const msg = err instanceof Error ? err.message : String(err);
+    try {
+      await reportOperatorFailure({
+        dispatchPort: input.dispatchPort,
+        direction: 'outbound',
+        integration: 'google_calendar',
+        errorClass: mapGoogleCalendarSyncErrorToClass(msg),
+        errorDetail: msg,
+        alertLines: ['Google Calendar sync failed (Rubitime webhook)', msg],
+      });
+    } catch (reportErr) {
+      reqLogger.warn({ reportErr }, '[rubitime] reportOperatorFailure failed');
+    }
   }
 
   const incomingEvent = rubitimeIncomingToEvent({

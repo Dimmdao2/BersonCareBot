@@ -25,6 +25,8 @@ import {
   syncRubitimeWebhookBodyToGoogleCalendar,
 } from './connector.js';
 import type { RubitimeWebhookBodyValidated } from './schema.js';
+import { mapGoogleCalendarSyncErrorToClass } from '../../infra/operatorIncident/googleCalendarErrorClass.js';
+import { reportOperatorFailure } from '../../infra/operatorIncident/reportOperatorFailure.js';
 
 /** Margin over Rubitime's ~5s consecutive-request window before retrying `get-record` after a failure. */
 export const RUBITIME_POST_CREATE_GET_RECORD_RETRY_MS = 5200;
@@ -90,6 +92,23 @@ export async function runPostCreateProjection(
     }
   } catch (err) {
     logger.warn({ err, recordId }, '[postCreateProjection] gcal sync failed');
+    const msg = err instanceof Error ? err.message : String(err);
+    try {
+      await reportOperatorFailure({
+        dispatchPort: deps.dispatchPort,
+        direction: 'outbound',
+        integration: 'google_calendar',
+        errorClass: mapGoogleCalendarSyncErrorToClass(msg),
+        errorDetail: msg,
+        alertLines: [
+          'Google Calendar sync failed (post-create projection)',
+          `recordId: ${recordId}`,
+          msg,
+        ],
+      });
+    } catch (reportErr) {
+      logger.warn({ reportErr, recordId }, '[postCreateProjection] reportOperatorFailure failed');
+    }
   }
 
   try {

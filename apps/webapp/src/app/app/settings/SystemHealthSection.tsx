@@ -38,6 +38,30 @@ type SystemHealthPayload = {
     stalePendingCount: number;
     byMimeAndStatus: MediaPreviewCounters;
   };
+  /** Открытые операторские инциденты (интеграции / пробы). */
+  operatorIncidentsOpen?: Array<{
+    id: string;
+    dedupKey: string;
+    direction: string;
+    integration: string;
+    errorClass: string;
+    errorDetail: string | null;
+    openedAt: string;
+    lastSeenAt: string;
+    occurrenceCount: number;
+  }>;
+  backupJobs?: Record<
+    string,
+    {
+      lastStatus: string;
+      lastStartedAt: string | null;
+      lastFinishedAt: string | null;
+      lastSuccessAt: string | null;
+      lastFailureAt: string | null;
+      lastDurationMs: number | null;
+      lastError: string | null;
+    }
+  >;
   /** VIDEO_HLS_DELIVERY: hourly playback aggregates (UTC), rolling window. */
   videoPlayback: {
     status: "ok" | "error";
@@ -71,6 +95,8 @@ type SystemHealthPayload = {
       mediaPreview?: { status: string; durationMs: number; errorCode?: string };
       videoPlayback?: { status: string; durationMs: number; errorCode?: string };
       videoTranscode?: { status: string; durationMs: number; errorCode?: string };
+      operatorIncidents?: { status: string; durationMs: number; errorCode?: string };
+      operatorBackupJobs?: { status: string; durationMs: number; errorCode?: string };
     };
   };
   fetchedAt: string;
@@ -296,6 +322,8 @@ export function SystemHealthSection() {
   const lastSuccess = projection?.lastSuccessAt ?? null;
   const oldestPending = projection?.oldestPendingAt ?? null;
   const queueEmpty = queuePending === 0 && queueProcessing === 0;
+  const openOperatorIncidents = data?.operatorIncidentsOpen ?? [];
+  const backupJobEntries = Object.entries(data?.backupJobs ?? {}).sort(([a], [b]) => a.localeCompare(b));
 
   return (
     <div className="space-y-4">
@@ -508,10 +536,50 @@ export function SystemHealthSection() {
 
           <div className="space-y-2">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Инфраструктурные источники</p>
-            <HealthAccordionItem name="Журнал бэкапов (backup journal)" status="no_source">
-              <DetailRow label="Источник" value="не подключен" />
-              <DetailRow label="Статус" value="нет данных о бэкапах" />
-              <DetailRow label="Ограничение" value="В варианте 1 источник telemetry для backup journal отсутствует" />
+            <HealthAccordionItem
+              name={`Операторские инциденты (${openOperatorIncidents.length})`}
+              status={data?.meta?.probes?.operatorIncidents?.status ?? "error"}
+            >
+              <ProbeInfo probe={data?.meta?.probes?.operatorIncidents} />
+              {openOperatorIncidents.length === 0 ? (
+                <DetailRow label="Открытые" value="нет" />
+              ) : (
+                <div className="space-y-2">
+                  {openOperatorIncidents.map((row) => (
+                    <div key={row.id} className="rounded border border-border/50 p-2 font-mono text-[11px] leading-snug">
+                      <DetailRow label="integration" value={row.integration} />
+                      <DetailRow label="class" value={row.errorClass} />
+                      <DetailRow label="count" value={String(row.occurrenceCount)} />
+                      <DetailRow label="last_seen" value={formatDateTime(row.lastSeenAt)} />
+                      {row.errorDetail ? (
+                        <p className="mt-1 break-all text-foreground">{row.errorDetail}</p>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </HealthAccordionItem>
+
+            <HealthAccordionItem
+              name={`Бэкапы PostgreSQL (${backupJobEntries.length})`}
+              status={data?.meta?.probes?.operatorBackupJobs?.status ?? "error"}
+            >
+              <ProbeInfo probe={data?.meta?.probes?.operatorBackupJobs} />
+              {backupJobEntries.length === 0 ? (
+                <DetailRow label="Строки job" value="нет" />
+              ) : (
+                <div className="space-y-2">
+                  {backupJobEntries.map(([jobKey, st]) => (
+                    <div key={jobKey} className="rounded border border-border/50 p-2 font-mono text-[11px] leading-snug">
+                      <DetailRow label="job_key" value={jobKey} />
+                      <DetailRow label="last_status" value={st.lastStatus} />
+                      <DetailRow label="last_success" value={formatDateTime(st.lastSuccessAt)} />
+                      <DetailRow label="last_failure" value={formatDateTime(st.lastFailureAt)} />
+                      <DetailRow label="last_error" value={st.lastError ?? "—"} />
+                    </div>
+                  ))}
+                </div>
+              )}
             </HealthAccordionItem>
           </div>
         </CardContent>

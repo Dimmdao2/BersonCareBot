@@ -1,0 +1,73 @@
+import { desc, eq, isNull } from "drizzle-orm";
+import { getDrizzle } from "@/app-layer/db/drizzle";
+import { operatorIncidents, operatorJobStatus } from "../../../db/schema/operatorHealth";
+import type {
+  OperatorBackupJobStatusRow,
+  OperatorHealthReadPort,
+  OperatorIncidentOpenRow,
+} from "@/modules/operator-health/ports";
+
+export const pgOperatorHealthReadPort: OperatorHealthReadPort = {
+  async listOpenIncidents(limit: number): Promise<OperatorIncidentOpenRow[]> {
+    const db = getDrizzle();
+    const rows = await db
+      .select({
+        id: operatorIncidents.id,
+        dedupKey: operatorIncidents.dedupKey,
+        direction: operatorIncidents.direction,
+        integration: operatorIncidents.integration,
+        errorClass: operatorIncidents.errorClass,
+        errorDetail: operatorIncidents.errorDetail,
+        openedAt: operatorIncidents.openedAt,
+        lastSeenAt: operatorIncidents.lastSeenAt,
+        occurrenceCount: operatorIncidents.occurrenceCount,
+      })
+      .from(operatorIncidents)
+      .where(isNull(operatorIncidents.resolvedAt))
+      .orderBy(desc(operatorIncidents.lastSeenAt))
+      .limit(Math.min(Math.max(limit, 1), 100));
+
+    return rows.map((r) => ({
+      id: r.id,
+      dedupKey: r.dedupKey,
+      direction: r.direction,
+      integration: r.integration,
+      errorClass: r.errorClass,
+      errorDetail: r.errorDetail ?? null,
+      openedAt: r.openedAt,
+      lastSeenAt: r.lastSeenAt,
+      occurrenceCount: r.occurrenceCount,
+    }));
+  },
+
+  async listPostgresBackupJobStatus(): Promise<OperatorBackupJobStatusRow[]> {
+    const db = getDrizzle();
+    const rows = await db
+      .select({
+        jobKey: operatorJobStatus.jobKey,
+        jobFamily: operatorJobStatus.jobFamily,
+        lastStatus: operatorJobStatus.lastStatus,
+        lastStartedAt: operatorJobStatus.lastStartedAt,
+        lastFinishedAt: operatorJobStatus.lastFinishedAt,
+        lastSuccessAt: operatorJobStatus.lastSuccessAt,
+        lastFailureAt: operatorJobStatus.lastFailureAt,
+        lastDurationMs: operatorJobStatus.lastDurationMs,
+        lastError: operatorJobStatus.lastError,
+      })
+      .from(operatorJobStatus)
+      .where(eq(operatorJobStatus.jobFamily, "postgres_backup"))
+      .orderBy(operatorJobStatus.jobKey);
+
+    return rows.map((r) => ({
+      jobKey: r.jobKey,
+      jobFamily: r.jobFamily,
+      lastStatus: r.lastStatus,
+      lastStartedAt: r.lastStartedAt ?? null,
+      lastFinishedAt: r.lastFinishedAt ?? null,
+      lastSuccessAt: r.lastSuccessAt ?? null,
+      lastFailureAt: r.lastFailureAt ?? null,
+      lastDurationMs: r.lastDurationMs ?? null,
+      lastError: r.lastError ?? null,
+    }));
+  },
+};

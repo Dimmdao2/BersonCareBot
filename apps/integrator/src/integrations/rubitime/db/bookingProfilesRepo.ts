@@ -290,6 +290,38 @@ export async function resolveBookingProfile(
   };
 }
 
+/**
+ * Любой активный профиль записи → Rubitime IDs для health-probe `get-schedule` (read-only).
+ */
+export async function pickAnyActiveRubitimeScheduleTriple(
+  db: DbPort,
+): Promise<{ branchId: number; cooperatorId: number; serviceId: number } | null> {
+  const res = await db.query<{
+    rubitime_branch_id: number;
+    rubitime_service_id: number;
+    rubitime_cooperator_id: number;
+  }>(
+    `SELECT
+       b.rubitime_branch_id,
+       s.rubitime_service_id,
+       c.rubitime_cooperator_id
+     FROM rubitime_booking_profiles p
+     JOIN rubitime_branches     b ON b.id = p.branch_id
+     JOIN rubitime_services     s ON s.id = p.service_id
+     JOIN rubitime_cooperators  c ON c.id = p.cooperator_id
+     WHERE p.is_active = TRUE AND b.is_active = TRUE AND s.is_active = TRUE AND c.is_active = TRUE
+     ORDER BY p.id
+     LIMIT 1`,
+  );
+  const r = res.rows[0];
+  if (!r) return null;
+  return {
+    branchId: r.rubitime_branch_id,
+    cooperatorId: r.rubitime_cooperator_id,
+    serviceId: r.rubitime_service_id,
+  };
+}
+
 export async function listBookingProfiles(db: DbPort): Promise<RubitimeBookingProfile[]> {
   const res = await db.query<{
     id: string;

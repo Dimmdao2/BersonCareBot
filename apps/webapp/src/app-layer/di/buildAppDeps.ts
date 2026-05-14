@@ -168,6 +168,8 @@ import { createLfkAssignmentsService } from "@/modules/lfk-assignments/service";
 import type { LfkAssignmentsPort } from "@/modules/lfk-assignments/ports";
 import { pgLfkAssignmentsPort } from "@/infra/repos/pgLfkAssignments";
 import { checkDbHealth } from "@/infra/db/client";
+import { pgOperatorHealthReadPort } from "@/infra/repos/pgOperatorHealthRead";
+import { inMemoryOperatorHealthReadPort } from "@/infra/repos/inMemoryOperatorHealthRead";
 import { env, integratorWebhookSecret, isS3MediaEnabled, webappReposAreInMemory } from "@/config/env";
 import { resolveRoleFromEnv } from "@/modules/auth/envRole";
 import { getRedirectPathForRole } from "@/modules/auth/redirectPolicy";
@@ -191,6 +193,8 @@ import { createPatientPracticeService } from "@/modules/patient-practice/service
 import { createPatientMoodService } from "@/modules/patient-mood/service";
 
 const inMemoryRepos = webappReposAreInMemory();
+
+const operatorHealthReadPort = !inMemoryRepos ? pgOperatorHealthReadPort : inMemoryOperatorHealthReadPort;
 
 const symptomDiaryPort = !inMemoryRepos ? pgSymptomDiaryPort : inMemorySymptomDiaryPort;
 const lfkDiaryPort = !inMemoryRepos ? pgLfkDiaryPort : inMemoryLfkDiaryPort;
@@ -712,6 +716,7 @@ function _buildAppDeps() {
     health: {
       checkDbHealth,
     },
+    operatorHealthRead: operatorHealthReadPort,
     media: mediaService,
     channelPreferences: channelPreferencesService,
     contentCatalog,
