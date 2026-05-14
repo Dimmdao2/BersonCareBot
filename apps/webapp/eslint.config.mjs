@@ -16,7 +16,7 @@ export default [
 
   // ─── Clean architecture: modules must not reach into infra directly ───
   // Legacy violations are allowlisted below; new code MUST go through ports/DI.
-  // See: docs/TREATMENT_PROGRAM_INITIATIVE/LEGACY_CLEANUP_BACKLOG.md
+  // See: docs/archive/2026-05-initiatives/TREATMENT_PROGRAM_INITIATIVE/LEGACY_CLEANUP_BACKLOG.md
   {
     files: ["src/modules/**/*.ts", "src/modules/**/*.tsx"],
     ignores: ["src/modules/**/*.test.ts", "src/modules/**/*.test.tsx"],

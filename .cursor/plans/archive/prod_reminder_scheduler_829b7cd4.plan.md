@@ -26,7 +26,7 @@ isProject: false
 
 # План: напоминания в проде (scheduler) + хвосты из разбора
 
-**Архив (репозиторий):** фиксация шагов A1–A6 и B — `docs/OPERATIONS/REMINDER_SCHEDULER_ROLLOUT_LOG.md` (2026-05-14). Оставшиеся строки **Host (ops)** — вне репозитория, в том же журнале.
+**Архив (репозиторий):** фиксация шагов A1–A6 и B — `docs/RULES/OPERATIONS/REMINDER_SCHEDULER_ROLLOUT_LOG.md` (2026-05-14). Оставшиеся строки **Host (ops)** — вне репозитория, в том же журнале.
 
 > Дубликат канона: `~/.cursor/plans/prod_reminder_scheduler_829b7cd4.plan.md` — держи содержимое синхронным при правках.
 
@@ -74,7 +74,7 @@ flowchart LR
 
 ## Execution log (обязателен)
 
-- Вести журнал выполнения в `docs/OPERATIONS/REMINDER_SCHEDULER_ROLLOUT_LOG.md`.
+- Вести журнал выполнения в `docs/RULES/OPERATIONS/REMINDER_SCHEDULER_ROLLOUT_LOG.md`.
 - Для каждого шага фиксировать: дата/время, что изменено, проверки, результат, откат.
 
 ### A1. Unit-файл

@@ -3,7 +3,7 @@
 Контекст инициативы:
 
 - Master plan: `docs/TREATMENT_PROGRAM_INITIATIVE/MASTER_PLAN.md`
-- Правила исполнения: `docs/TREATMENT_PROGRAM_INITIATIVE/EXECUTION_RULES.md`
+- Правила исполнения: `docs/RULES/TREATMENT_PROGRAM_EXECUTION_RULES.md`
 - Эталон логики системы: `docs/TREATMENT_PROGRAM_INITIATIVE/SYSTEM_LOGIC_SCHEMA.md`
 - Legacy backlog: `docs/TREATMENT_PROGRAM_INITIATIVE/LEGACY_CLEANUP_BACKLOG.md`
 - LOG: `docs/TREATMENT_PROGRAM_INITIATIVE/LOG.md`
@@ -41,7 +41,7 @@
 
 Вход:
 - docs/TREATMENT_PROGRAM_INITIATIVE/MASTER_PLAN.md
-- docs/TREATMENT_PROGRAM_INITIATIVE/EXECUTION_RULES.md
+- docs/RULES/TREATMENT_PROGRAM_EXECUTION_RULES.md
 - docs/TREATMENT_PROGRAM_INITIATIVE/LEGACY_CLEANUP_BACKLOG.md
 
 Сделай:
@@ -74,7 +74,7 @@
 
 Вход:
 - docs/TREATMENT_PROGRAM_INITIATIVE/AUDIT_PHASE_0.md
-- docs/TREATMENT_PROGRAM_INITIATIVE/EXECUTION_RULES.md
+- docs/RULES/TREATMENT_PROGRAM_EXECUTION_RULES.md
 - docs/TREATMENT_PROGRAM_INITIATIVE/SYSTEM_LOGIC_SCHEMA.md
 
 Сделай:
@@ -96,7 +96,7 @@
 
 Вход:
 - docs/TREATMENT_PROGRAM_INITIATIVE/MASTER_PLAN.md (фаза 1)
-- docs/TREATMENT_PROGRAM_INITIATIVE/EXECUTION_RULES.md
+- docs/RULES/TREATMENT_PROGRAM_EXECUTION_RULES.md
 
 Сделай:
 1) Установи drizzle-orm и drizzle-kit в apps/webapp.
@@ -137,7 +137,7 @@ Introspect: `pnpm --dir apps/webapp run db:introspect` (включает post-pr
 Вход:
 - docs/TREATMENT_PROGRAM_INITIATIVE/AUDIT_PHASE_1.md
 - docs/TREATMENT_PROGRAM_INITIATIVE/SYSTEM_LOGIC_SCHEMA.md
-- docs/TREATMENT_PROGRAM_INITIATIVE/EXECUTION_RULES.md
+- docs/RULES/TREATMENT_PROGRAM_EXECUTION_RULES.md
 
 Сделай:
 1) Закрой все critical и major из MANDATORY FIX INSTRUCTIONS.
@@ -159,7 +159,7 @@ Introspect: `pnpm --dir apps/webapp run db:introspect` (включает post-pr
 Вход:
 - docs/TREATMENT_PROGRAM_INITIATIVE/MASTER_PLAN.md (фаза 2)
 - docs/TREATMENT_PROGRAM_INITIATIVE/SYSTEM_LOGIC_SCHEMA.md (§ 4 типы элементов)
-- docs/TREATMENT_PROGRAM_INITIATIVE/EXECUTION_RULES.md
+- docs/RULES/TREATMENT_PROGRAM_EXECUTION_RULES.md
 
 Сделай:
 1) Создай Drizzle schema: tests, test_sets, test_set_items, recommendations.
@@ -201,7 +201,7 @@ Introspect: `pnpm --dir apps/webapp run db:introspect` (включает post-pr
 Вход:
 - docs/TREATMENT_PROGRAM_INITIATIVE/AUDIT_PHASE_2.md
 - docs/TREATMENT_PROGRAM_INITIATIVE/SYSTEM_LOGIC_SCHEMA.md
-- docs/TREATMENT_PROGRAM_INITIATIVE/EXECUTION_RULES.md
+- docs/RULES/TREATMENT_PROGRAM_EXECUTION_RULES.md
 
 Сделай:
 1) Закрой все critical и major из MANDATORY FIX INSTRUCTIONS.
@@ -263,7 +263,7 @@ Introspect: `pnpm --dir apps/webapp run db:introspect` (включает post-pr
 Вход:
 - docs/TREATMENT_PROGRAM_INITIATIVE/AUDIT_PHASE_3.md
 - docs/TREATMENT_PROGRAM_INITIATIVE/SYSTEM_LOGIC_SCHEMA.md
-- docs/TREATMENT_PROGRAM_INITIATIVE/EXECUTION_RULES.md
+- docs/RULES/TREATMENT_PROGRAM_EXECUTION_RULES.md
 
 Сделай:
 1) Закрой все critical и major из MANDATORY FIX INSTRUCTIONS.
@@ -324,7 +324,7 @@ Introspect: `pnpm --dir apps/webapp run db:introspect` (включает post-pr
 Вход:
 - docs/TREATMENT_PROGRAM_INITIATIVE/AUDIT_PHASE_4.md
 - docs/TREATMENT_PROGRAM_INITIATIVE/SYSTEM_LOGIC_SCHEMA.md
-- docs/TREATMENT_PROGRAM_INITIATIVE/EXECUTION_RULES.md
+- docs/RULES/TREATMENT_PROGRAM_EXECUTION_RULES.md
 
 Сделай:
 1) Закрой все critical и major из MANDATORY FIX INSTRUCTIONS.
@@ -383,7 +383,7 @@ Introspect: `pnpm --dir apps/webapp run db:introspect` (включает post-pr
 Вход:
 - docs/TREATMENT_PROGRAM_INITIATIVE/AUDIT_PHASE_5.md
 - docs/TREATMENT_PROGRAM_INITIATIVE/SYSTEM_LOGIC_SCHEMA.md (§ 7)
-- docs/TREATMENT_PROGRAM_INITIATIVE/EXECUTION_RULES.md
+- docs/RULES/TREATMENT_PROGRAM_EXECUTION_RULES.md
 
 Сделай:
 1) Закрой все critical и major из MANDATORY FIX INSTRUCTIONS.
@@ -445,7 +445,7 @@ Introspect: `pnpm --dir apps/webapp run db:introspect` (включает post-pr
 Вход:
 - docs/TREATMENT_PROGRAM_INITIATIVE/AUDIT_PHASE_6.md
 - docs/TREATMENT_PROGRAM_INITIATIVE/SYSTEM_LOGIC_SCHEMA.md (§ 3)
-- docs/TREATMENT_PROGRAM_INITIATIVE/EXECUTION_RULES.md
+- docs/RULES/TREATMENT_PROGRAM_EXECUTION_RULES.md
 
 Сделай:
 1) Закрой все critical и major из MANDATORY FIX INSTRUCTIONS.
@@ -503,7 +503,7 @@ Introspect: `pnpm --dir apps/webapp run db:introspect` (включает post-pr
 Вход:
 - docs/TREATMENT_PROGRAM_INITIATIVE/AUDIT_PHASE_7.md
 - docs/TREATMENT_PROGRAM_INITIATIVE/SYSTEM_LOGIC_SCHEMA.md (§ 8)
-- docs/TREATMENT_PROGRAM_INITIATIVE/EXECUTION_RULES.md
+- docs/RULES/TREATMENT_PROGRAM_EXECUTION_RULES.md
 
 Сделай:
 1) Закрой все critical и major из MANDATORY FIX INSTRUCTIONS.
@@ -563,7 +563,7 @@ Introspect: `pnpm --dir apps/webapp run db:introspect` (включает post-pr
 Вход:
 - docs/TREATMENT_PROGRAM_INITIATIVE/AUDIT_PHASE_8.md
 - docs/TREATMENT_PROGRAM_INITIATIVE/SYSTEM_LOGIC_SCHEMA.md (§ 9, 10)
-- docs/TREATMENT_PROGRAM_INITIATIVE/EXECUTION_RULES.md
+- docs/RULES/TREATMENT_PROGRAM_EXECUTION_RULES.md
 
 Сделай:
 1) Закрой все critical и major из MANDATORY FIX INSTRUCTIONS.
@@ -621,7 +621,7 @@ Introspect: `pnpm --dir apps/webapp run db:introspect` (включает post-pr
 Вход:
 - docs/TREATMENT_PROGRAM_INITIATIVE/AUDIT_PHASE_9.md
 - docs/TREATMENT_PROGRAM_INITIATIVE/SYSTEM_LOGIC_SCHEMA.md (§ 8, 11)
-- docs/TREATMENT_PROGRAM_INITIATIVE/EXECUTION_RULES.md
+- docs/RULES/TREATMENT_PROGRAM_EXECUTION_RULES.md
 
 Сделай:
 1) Закрой все critical и major из MANDATORY FIX INSTRUCTIONS.

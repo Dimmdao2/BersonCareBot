@@ -1,38 +1,5 @@
-# Reminder scheduler — production rollout log
+# Перенос
 
-Журнал выполнения плана «напоминания в проде (scheduler)»: systemd unit, bootstrap/deploy, sudoers, доки, политика lock/restart, reminder-хвосты.
+Журнал выката перенесён в **[`docs/RULES/OPERATIONS/REMINDER_SCHEDULER_ROLLOUT_LOG.md`](../RULES/OPERATIONS/REMINDER_SCHEDULER_ROLLOUT_LOG.md)**.
 
-Формат записи: дата (UTC), что изменено, проверки, результат, откат.
-
----
-
-## Template (копировать для новой строки)
-
-| Дата | Шаг | Изменения | Проверки | Результат | Откат |
-|------|-----|-----------|----------|-----------|-------|
-| YYYY-MM-DD | A1… | … | … | … | … |
-
----
-
-## Записи (репозиторий — по шагам плана)
-
-| Дата | Шаг | Изменения | Проверки | Результат | Откат |
-|------|-----|-----------|----------|-----------|-------|
-| 2026-05-14 | A1 Unit | `deploy/systemd/bersoncarebot-scheduler-prod.service`: `api.prod`, `ExecStart` → `dist/infra/runtime/scheduler/main.js`, `Restart=on-failure`, `RestartSec=5` | Сверка с `bersoncarebot-worker-prod.service` | Зафиксировано в репо | Удалить unit с хоста + `daemon-reload` |
-| 2026-05-14 | A2 Bootstrap | `deploy/host/bootstrap-systemd-prod.sh`: install/enable scheduler; `enable --now` только при наличии `dist/.../scheduler/main.js` | Логика веток enable vs enable --now | Зафиксировано в репо | Откат скрипта + ручной `systemctl disable` при необходимости |
-| 2026-05-14 | A3 deploy-prod | `deploy/host/deploy-prod.sh`: install, `require_unit_file`, sudo checks, restart после migrate вместе с API/worker, `is-active` + `journalctl -n 40` при падении | `rg` по деплой-докам | Зафиксировано в репо | Откат скрипта |
-| 2026-05-14 | A4 Sudoers | `deploy/sudoers-deploy.example`: NOPASSWD для install/enable/restart/is-active/journalctl scheduler | Соответствие командам из deploy-prod | Зафиксировано в репо | Обновить реальный sudoers на хосте |
-| 2026-05-14 | A5 Доки | `SERVER CONVENTIONS`, `HOST_DEPLOY_README`, `ARCHITECTURE` (снятие отклонения 3), `deploy/env/README`, `INTEGRATOR_CONTRACT`, `api.md`, `OUTGOING_DELIVERY_QUEUE`, списки unit-шаблонов; архивные чеклисты/runbook/HLS gap — упоминание `bersoncarebot-scheduler-prod` | Чтение ссылок кросс-репо | Зафиксировано в репо | Откат коммита доков |
-| 2026-05-14 | A6 Scripts | `apps/integrator`: `scheduler:dev`, `scheduler:start`; корень: `scheduler:dev`, `scheduler:start`, `scheduler:start:host` | Имена согласованы с `worker:*` | Зафиксировано в репо | — |
-| 2026-05-14 | Lock / restart | `scheduler/main.ts`: `process.exit(1)` при отказе lock; unit `Restart=on-failure` | Нет tight loop при дубликате unit | Зафиксировано в репо | Согласовать с ops при смене политики |
-| 2026-05-14 | B Хвосты | `reminders.ts` due: `LEFT JOIN` telegram; handler: topic-bindings не режут каналы при `{}`; `client.ts`: логи без полного URL; webapp stub dispatch + тесты; `executeAction` тест на пустые bindings | `vitest` по `reminders.dispatchDue` | Зафиксировано в репо | — |
-| 2026-05-14 | C1 SQL | `apps/integrator` `resolveLinkedTitle`: убран ложный фильтр `deleted_at` для `public.content_sections` (колонки в БД нет; см. Drizzle schema). Требуется пересборка `pnpm --dir apps/integrator run build` на деплое. | `rg content_sections` в `dist/.../reminders.js`; `journalctl` без `42703` на due-напоминаниях с `content_section` | Зафиксировано в репо | Откат коммита + redeploy предыдущего dist |
-
-### Хост (ops — вне репозитория)
-
-| Дата | Шаг | Изменения | Проверки | Результат | Откат |
-|------|-----|-----------|----------|-----------|-------|
-| 2026-05-14 | Host sudoers | Применён NOPASSWD-фрагмент для `deploy` (install/enable/restart/journalctl scheduler + остальные unit из `sudoers-deploy.example`) | `sudo -n -l` от пользователя деплоя | Подтверждено оператором | visudo |
-| 2026-05-14 | Host scheduler | `systemctl enable --now bersoncarebot-scheduler-prod`; dev-юниты webapp/api/worker сняты | `systemctl is-active` по prod-юнитам; `journalctl -u bersoncarebot-scheduler-prod` — нет новых `column "deleted_at" does not exist` после выката **C1**; артефакт `dist` на хосте пересобран | Подтверждено оператором (2026-05-14) | `systemctl stop …` |
-
-Перед merge в ветку с кодом: полный **`pnpm run ci`** на актуальном дереве (барьер репозитория).
+Этот файл — указатель для старых ссылок на `docs/OPERATIONS/REMINDER_SCHEDULER_ROLLOUT_LOG.md`.

@@ -103,7 +103,7 @@ Runtime-источник главной:
 3. **Persona-таксономия как отдельная сущность БД.** Не заводим таблицу `personas`. «Ситуация» = обычный CMS-раздел (`content_sections`), добавленный админом в блок главной `situations`.
 4. **Размещение главной на полях `content_sections`.** Запрещено добавлять `home_slot`, `home_sort_order`, `access_type` в `content_sections`. Размещение, порядок, видимость и состав блоков главной живут в отдельной настройке главной: `patient_home_blocks` + `patient_home_block_items`.
 5. **Хардкод slug-ов из `CONTENT_PLAN.md`.** Запрещено добавлять runtime-логику, завязанную на конкретные slug-и из контент-плана. См. §2.1.
-6. **Изменение модели курсов.** Сущности `courses`, `treatment_program_*` не меняем (см. правила TREATMENT_PROGRAM_INITIATIVE/EXECUTION_RULES.md). Только новое поле `linked_course_id` у `content_pages`.
+6. **Изменение модели курсов.** Сущности `courses`, `treatment_program_*` не меняем (см. правила `docs/RULES/TREATMENT_PROGRAM_EXECUTION_RULES.md`). Только новое поле `linked_course_id` у `content_pages`.
 7. **Изменение существующих LFK-таблиц.** См. правило `clean-architecture-module-isolation.mdc` §1a.
 8. **Изменение бот-сценариев SOS.** Используем существующий поток.
 9. **Перенос Reels-аналитики, шаринга, генерации share-картинок** — отдельная инициатива.
@@ -1342,7 +1342,7 @@ docs/PATIENT_HOME_REDESIGN_INITIATIVE/
 - Кабинет специалиста: `docs/ARCHITECTURE/SPECIALIST_CABINET_STRUCTURE.md`.
 - Платформенная модель: `docs/ARCHITECTURE/FULL PLATFORM MODEL.md`.
 - Курсы и программы лечения: `docs/TREATMENT_PROGRAM_INITIATIVE/README.md`.
-- Правила Drizzle/архитектуры: `docs/TREATMENT_PROGRAM_INITIATIVE/EXECUTION_RULES.md`.
+- Правила Drizzle/архитектуры: `docs/RULES/TREATMENT_PROGRAM_EXECUTION_RULES.md`.
 - system_settings vs env: `docs/ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md`.
 - Платформенный пользователь и trusted phone: `docs/ARCHITECTURE/PLATFORM_IDENTITY_SPECIFICATION.md`.
 - Server conventions: `docs/ARCHITECTURE/SERVER CONVENTIONS.md`.

@@ -27,7 +27,7 @@
 | [`archive/.../PROGRAM_PATIENT_SHAPE_INITIATIVE/`](../archive/2026-05-initiatives/PROGRAM_PATIENT_SHAPE_INITIATIVE/README.md) | Карта кодовой базы (MASTER_PLAN): `modules/treatment-program`, API doctor/patient, Drizzle `treatmentProgram*.ts` — **отправная точка инвентаризации**. |
 | [`ASSIGNMENT_CATALOGS_REWORK_PLAN.md`](../APP_RESTRUCTURE_INITIATIVE/ASSIGNMENT_CATALOGS_REWORK_PLAN.md) | UX/данные каталогов (в т.ч. конструктор шаблонов, фильтры, universal comment pattern B7). README инициативы: по шаблонам программ оставался **«мелкий хвост»**, не блокер для [`ROADMAP_2.md`](../APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md). |
 | [`ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md`](../APP_RESTRUCTURE_INITIATIVE/done/ASSIGNMENT_CATALOG_USAGE_ARCHIVE_PLAN.md) (done) | Связь шаблон ↔ использование ↔ пациенты при архивации — контекст безопасных изменений каталога. |
-| [`../TREATMENT_PROGRAM_INITIATIVE/EXECUTION_RULES.md`](../TREATMENT_PROGRAM_INITIATIVE/EXECUTION_RULES.md) | Абсолюты: каталог ЛФК менять можно (Drizzle-миграции и постановка); не строить отдельный движок курсов; полиморфный `item_ref_id` без FK; Drizzle для новых сущностей; фазы и CI. |
+| [`../RULES/TREATMENT_PROGRAM_EXECUTION_RULES.md`](../RULES/TREATMENT_PROGRAM_EXECUTION_RULES.md) | Абсолюты: каталог ЛФК менять можно (Drizzle-миграции и постановка); не строить отдельный движок курсов; полиморфный `item_ref_id` без FK; Drizzle для новых сущностей; фазы и CI. |
 | [`PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/README.md`](../archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/README.md) | Пациентский UI программ ([`ROADMAP_2`](../APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md) §1.x) — **смежный**, не заменяет врачебный поток, но влияет на согласованность отображения после назначения/правок. |
 
 ---
@@ -79,7 +79,7 @@
 
 - Пройти [`MASTER_PLAN`](../archive/2026-05-initiatives/PROGRAM_PATIENT_SHAPE_INITIATIVE/MASTER_PLAN.md) §карта кода + фактические маршруты `app/app/doctor/**`, `modules/treatment-program/**`.
 - Зафиксировать gap: что уже есть для **создания instance из template** и **мутаций инстанса** с карточки vs что только в отдельных экранах каталога.
-- Проверить соблюдение [`EXECUTION_RULES.md`](../archive/2026-05-initiatives/TREATMENT_PROGRAM_INITIATIVE/EXECUTION_RULES.md) и портов/DI.
+- Проверить соблюдение [`TREATMENT_PROGRAM_EXECUTION_RULES.md`](../RULES/TREATMENT_PROGRAM_EXECUTION_RULES.md) и портов/DI.
 
 **Выход:** короткий аудит-заметка в [`LOG.md`](LOG.md) (таблица «есть / нет»).
 

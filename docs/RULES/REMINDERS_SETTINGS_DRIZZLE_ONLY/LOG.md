@@ -22,7 +22,7 @@ Scheduler (integrator) при обогащении текста напомина
 
 ### Ссылки
 
-- Журнал выката scheduler: [`docs/OPERATIONS/REMINDER_SCHEDULER_ROLLOUT_LOG.md`](../OPERATIONS/REMINDER_SCHEDULER_ROLLOUT_LOG.md) (строка **C1**).
+- Журнал выката scheduler: [`docs/RULES/OPERATIONS/REMINDER_SCHEDULER_ROLLOUT_LOG.md`](../OPERATIONS/REMINDER_SCHEDULER_ROLLOUT_LOG.md) (строка **C1**).
 
 ---
 
@@ -30,7 +30,7 @@ Scheduler (integrator) при обогащении текста напомина
 
 ### Сделано
 
-- Созданы `README.md`, `STAGE_PLAN.md`, `LOG.md` в `docs/REMINDERS_SETTINGS_DRIZZLE_ONLY/`.
+- Созданы `README.md`, `STAGE_PLAN.md`, `LOG.md` в `docs/RULES/REMINDERS_SETTINGS_DRIZZLE_ONLY/`.
 
 ### Проверки
 
@@ -50,8 +50,8 @@ Scheduler (integrator) при обогащении текста напомина
 
 ### Сделано
 
-- В [`docs/README.md`](../README.md) добавлена строка в «Активные инициативы».
-- В [`apps/webapp/scripts/README.md`](../../apps/webapp/scripts/README.md) добавлен подпункт со ссылкой на инициативу.
+- В [`docs/README.md`](../../README.md) добавлена строка в «Активные инициативы».
+- В [`apps/webapp/scripts/README.md`](../../../apps/webapp/scripts/README.md) добавлен подпункт со ссылкой на инициативу.
 
 ### Проверки
 
@@ -94,7 +94,7 @@ Scheduler (integrator) при обогащении текста напомина
 
 ### Сделано
 
-- Зафиксировано в [`STAGE_PLAN.md`](./STAGE_PLAN.md) поведение [`vitest.globalSetup.ts`](../../apps/webapp/vitest.globalSetup.ts) и CI без `DATABASE_URL`; в backlog добавлены **B1** / **B2**.
+- Зафиксировано в [`STAGE_PLAN.md`](./STAGE_PLAN.md) поведение [`vitest.globalSetup.ts`](../../../apps/webapp/vitest.globalSetup.ts) и CI без `DATABASE_URL`; в backlog добавлены **B1** / **B2**.
 
 ### Проверки
 

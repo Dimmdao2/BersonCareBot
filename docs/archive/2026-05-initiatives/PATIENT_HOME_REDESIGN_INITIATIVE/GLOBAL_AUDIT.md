@@ -4,7 +4,7 @@
 
 Инициатива `PATIENT_HOME_REDESIGN_INITIATIVE` готова к release-проходу по проверенному scope.
 
-Проверены `README.md`, `CONTENT_PLAN.md`, `LOG.md`, `AUDIT_PHASE_1.md` … `AUDIT_PHASE_9.md` (включая фактическую Phase 4.5), а также `docs/TREATMENT_PROGRAM_INITIATIVE/EXECUTION_RULES.md`. Все phase-аудиты имеют verdict `PASS` / `PASS WITH MINOR NOTES`; mandatory fixes отсутствуют. Phase 9 зафиксировала финальный зелёный `pnpm run ci`.
+Проверены `README.md`, `CONTENT_PLAN.md`, `LOG.md`, `AUDIT_PHASE_1.md` … `AUDIT_PHASE_9.md` (включая фактическую Phase 4.5), а также `docs/RULES/TREATMENT_PROGRAM_EXECUTION_RULES.md`. Все phase-аудиты имеют verdict `PASS` / `PASS WITH MINOR NOTES`; mandatory fixes отсутствуют. Phase 9 зафиксировала финальный зелёный `pnpm run ci`.
 
 ## 2. Release blockers
 

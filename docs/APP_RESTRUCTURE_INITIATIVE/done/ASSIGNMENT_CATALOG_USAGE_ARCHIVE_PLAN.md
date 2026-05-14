@@ -82,7 +82,7 @@
 - `.cursor/rules/plan-authoring-execution-standard.mdc`;
 - `.cursor/rules/000-critical-integration-config-in-db.mdc`;
 - `.cursor/rules/runtime-config-env-vs-db.mdc`;
-- `docs/TREATMENT_PROGRAM_INITIATIVE/EXECUTION_RULES.md` (для абсолютных запретов инициативы);
+- `docs/RULES/TREATMENT_PROGRAM_EXECUTION_RULES.md` (для абсолютных запретов инициативы);
 - `docs/APP_RESTRUCTURE_INITIATIVE/PLAN_DOCTOR_CABINET.md` (этап 7 как parent-plan).
 
 Если между документами есть конфликт, приоритет: always-apply rules -> более узкоспециализированное правило по теме -> текущий plan.

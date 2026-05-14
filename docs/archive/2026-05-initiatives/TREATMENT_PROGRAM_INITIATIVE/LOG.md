@@ -872,7 +872,7 @@
 
 ## 2026-05-08 — follow-up аудита декомпозиции UI detail (пациентский план)
 
-**По результатам пост-ревью:** удалены мёртвые **`busy`/`base`** и неиспользуемое состояние activity-key из оркестратора detail; восстановлена **`formatPatientTestResultRawValue`** в форматтерах; добавлен **`apps/webapp/src/app/app/patient/treatment/program-detail/README.md`**; синхронизированы **`docs/TODO.md`**, **`docs/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/{README,LOG}.md`**.
+**По результатам пост-ревью:** удалены мёртвые **`busy`/`base`** и неиспользуемое состояние activity-key из оркестратора detail; восстановлена **`formatPatientTestResultRawValue`** в форматтерах; добавлен **`apps/webapp/src/app/app/patient/treatment/program-detail/README.md`**; синхронизированы **`docs/TODO.md`**, ссылка на инициативу страницы программы — **`docs/archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/`** (исторически упоминался корневой `docs/PATIENT_*`, снят).
 
 **Проверки:** `pnpm --dir apps/webapp exec tsc --noEmit`; eslint на изменённых ts/tsx; vitest на трёх файлах treatment detail/page.
 

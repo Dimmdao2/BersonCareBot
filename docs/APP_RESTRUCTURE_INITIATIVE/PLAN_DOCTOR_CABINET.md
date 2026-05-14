@@ -117,7 +117,7 @@ Out of scope unless explicitly promoted into a separate plan:
 - Прочитать актуальные правила:
   - `.cursor/rules/clean-architecture-module-isolation.mdc`
   - `.cursor/rules/test-execution-policy.md`
-  - при работе с treatment programs / LFK: `docs/TREATMENT_PROGRAM_INITIATIVE/EXECUTION_RULES.md`, если файл существует в текущей ветке.
+  - при работе с treatment programs / LFK: `docs/RULES/TREATMENT_PROGRAM_EXECUTION_RULES.md`, если файл существует в текущей ветке.
 - Проверить `LOG.md` и этот план на уже выполненные пункты.
 - Не смешивать несколько крупных этапов в один PR/батч.
 - Вести execution log в `LOG.md`: что сделано, какие проверки выполнены, что сознательно не делали.

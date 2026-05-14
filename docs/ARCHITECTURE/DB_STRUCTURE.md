@@ -292,7 +292,7 @@
 - Дневники: symptom, LFK и связанные таблицы.
 - Auth / audit / runtime в `public` (в т.ч. idempotency для webapp).
 - Таблицы 2.4–2.7 — проекция данных из integrator; первичный перенос через backfill. **Актуально (2026-04):** одна БД, схемы `integrator` + `public`; целевой путь — **прямой SQL** из integrator в `public`, HTTP projection и worker — **legacy / fallback** (см. [`DATABASE_UNIFIED_POSTGRES.md`](./DATABASE_UNIFIED_POSTGRES.md), [Stage 13 ownership map](./STAGE13_OWNERSHIP_MAP.md)).
-- Таблицы 2.9 — новый контур **TREATMENT_PROGRAM_INITIATIVE**; для него source of truth по логике — `docs/TREATMENT_PROGRAM_INITIATIVE/SYSTEM_LOGIC_SCHEMA.md`, по структуре БД — Drizzle schema + `db/drizzle-migrations`.
+- Таблицы 2.9 — новый контур **TREATMENT_PROGRAM_INITIATIVE**; для него source of truth по логике — [`SYSTEM_LOGIC_SCHEMA` в архиве инициативы](../archive/2026-05-initiatives/TREATMENT_PROGRAM_INITIATIVE/SYSTEM_LOGIC_SCHEMA.md), по структуре БД — Drizzle schema + `db/drizzle-migrations`.
 
 ### 3.3 Общие имена таблиц
 
@@ -327,4 +327,4 @@
 - [Telegram DB schema](../../apps/integrator/src/integrations/telegram/db/schema.md)
 - [Stage 13 ownership map](./STAGE13_OWNERSHIP_MAP.md)
 - [Data migration checklist](../../deploy/DATA_MIGRATION_CHECKLIST.md)
-- [Treatment program system logic](../TREATMENT_PROGRAM_INITIATIVE/SYSTEM_LOGIC_SCHEMA.md)
+- [Treatment program system logic](../archive/2026-05-initiatives/TREATMENT_PROGRAM_INITIATIVE/SYSTEM_LOGIC_SCHEMA.md)

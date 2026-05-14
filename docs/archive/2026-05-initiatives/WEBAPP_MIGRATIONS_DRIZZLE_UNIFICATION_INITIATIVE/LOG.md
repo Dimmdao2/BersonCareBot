@@ -435,7 +435,7 @@ Guardrail **усиливает** прод-путь и **совпадает по 
 | Документация webapp scripts (вне scope правок Stage D) | `apps/webapp/scripts/README.md` |
 | Ops / media | `docs/MEDIA_PREVIEW_PIPELINE.md` |
 | Архивный снимок БД | `docs/ARCHITECTURE/PRODUCTION_DB_INVENTORY_2026-04-13.md` (упоминание `run-migrations.mjs`) |
-| Архив инициатив | `docs/archive/2026-05-initiatives/TREATMENT_PROGRAM_INITIATIVE/EXECUTION_RULES.md`, `AUDIT_PHASE_1.md` |
+| Архив инициатив | `docs/RULES/TREATMENT_PROGRAM_EXECUTION_RULES.md`; `docs/archive/2026-05-initiatives/TREATMENT_PROGRAM_INITIATIVE/AUDIT_PHASE_1.md` |
 | Прочие архивы | `docs/archive/**` — множественные упоминания `run-migrations.mjs` / legacy (низкий приоритет, исторический контекст) |
 
 ### Gate закрытия инициативы (WEBAPP_MIGRATIONS_DRIZZLE_UNIFICATION)

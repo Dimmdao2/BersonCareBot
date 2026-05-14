@@ -52,7 +52,7 @@
 - API `treatment-program-instances` — не менять контракт; POST уже есть и работает
 - Пациентский UI (`app/patient/*`) — не трогать
 - LFK-каталоги в кабинете врача — не трогать
-- `TREATMENT_PROGRAM_INITIATIVE/EXECUTION_RULES.md` — только читать
+- `RULES/TREATMENT_PROGRAM_EXECUTION_RULES.md` — только читать
 
 ---
 

@@ -28,23 +28,23 @@
 
 ### 1. Изменения только в `public` (webapp)
 
-1. Правки схемы: [`apps/webapp/db/schema`](../../apps/webapp/db/schema) (или вынесенные файлы схемы).
-2. Из каталога `apps/webapp`: `pnpm exec drizzle-kit generate` — конфиг [`apps/webapp/drizzle.config.ts`](../../apps/webapp/drizzle.config.ts).
+1. Правки схемы: [`apps/webapp/db/schema`](../../../apps/webapp/db/schema) (или вынесенные файлы схемы).
+2. Из каталога `apps/webapp`: `pnpm exec drizzle-kit generate` — конфиг [`apps/webapp/drizzle.config.ts`](../../../apps/webapp/drizzle.config.ts).
 3. Ревью сгенерированного SQL в `apps/webapp/db/drizzle-migrations/` и `meta/_journal.json`.
-4. Локально: `pnpm --dir apps/webapp run migrate` ([`run-webapp-drizzle-migrate.mjs`](../../apps/webapp/scripts/run-webapp-drizzle-migrate.mjs)).
+4. Локально: `pnpm --dir apps/webapp run migrate` ([`run-webapp-drizzle-migrate.mjs`](../../../apps/webapp/scripts/run-webapp-drizzle-migrate.mjs)).
 
 Модули не импортируют `getPool` из infra напрямую — см. `.cursor/rules/clean-architecture-module-isolation.mdc`.
 
 ### 2. Параллельные изменения в `integrator`
 
-1. Новый файл: [`apps/integrator/src/infra/db/migrations/core`](../../apps/integrator/src/infra/db/migrations/core) с именем `YYYYMMDD_000N_description.sql`.
+1. Новый файл: [`apps/integrator/src/infra/db/migrations/core`](../../../apps/integrator/src/infra/db/migrations/core) с именем `YYYYMMDD_000N_description.sql`.
 2. В SQL явно квалифицировать **`integrator.`** для таблиц integrator-схемы, где применимо.
 
-**Глобальный порядок применения:** [`apps/integrator/src/infra/db/migrate.ts`](../../apps/integrator/src/infra/db/migrate.ts) объединяет **core** и все [`src/integrations/*/db/migrations`](../../apps/integrator/src/integrations) и сортирует миграции по **одному** полю `fileName`. Новое имя файла должно быть уникально среди всех scopes и корректно по лексикографическому порядку относительно существующих файлов (в т.ч. telegram / rubitime). Дублирующиеся префиксы даты в разных папках с одинаковым `fileName` недопустимы.
+**Глобальный порядок применения:** [`apps/integrator/src/infra/db/migrate.ts`](../../../apps/integrator/src/infra/db/migrate.ts) объединяет **core** и все [`src/integrations/*/db/migrations`](../../../apps/integrator/src/integrations) и сортирует миграции по **одному** полю `fileName`. Новое имя файла должно быть уникально среди всех scopes и корректно по лексикографическому порядку относительно существующих файлов (в т.ч. telegram / rubitime). Дублирующиеся префиксы даты в разных папках с одинаковым `fileName` недопустимы.
 
 ### 3. Порядок migrate на хосте
 
-[`scripts/migrate-all.sh`](../../scripts/migrate-all.sh):
+[`scripts/migrate-all.sh`](../../../scripts/migrate-all.sh):
 
 1. `pnpm --dir apps/integrator run migrate`
 2. `pnpm --dir apps/webapp run migrate`
@@ -64,8 +64,8 @@
 
 ### Фактическое поведение
 
-- [`apps/webapp/vitest.globalSetup.ts`](../../apps/webapp/vitest.globalSetup.ts): при заданном `DATABASE_URL` выполняется `pnpm run migrate:legacy`, затем `pnpm run migrate`.
-- GitHub Actions [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml): job `test-webapp-core` (matrix `VITEST_SHARD` 1/3–3/3 + кэш Vitest) на **каждом** PR/push запускает `pnpm test:webapp:fast`; job `test-webapp-inprocess` с тем же шардированием — **только** на `push` в `main` и `pnpm test:webapp:inprocess`. Полный набор как у локального `pnpm test:webapp` — на `main` и при локальном `pnpm run ci`. Все webapp-тесты в CI **без** `DATABASE_URL` → globalSetup **сразу выходит**, миграции в CI не выполняются.
+- [`apps/webapp/vitest.globalSetup.ts`](../../../apps/webapp/vitest.globalSetup.ts): при заданном `DATABASE_URL` выполняется `pnpm run migrate:legacy`, затем `pnpm run migrate`.
+- GitHub Actions [`.github/workflows/ci.yml`](../../../.github/workflows/ci.yml): job `test-webapp-core` (matrix `VITEST_SHARD` 1/3–3/3 + кэш Vitest) на **каждом** PR/push запускает `pnpm test:webapp:fast`; job `test-webapp-inprocess` с тем же шардированием — **только** на `push` в `main` и `pnpm test:webapp:inprocess`. Полный набор как у локального `pnpm test:webapp` — на `main` и при локальном `pnpm run ci`. Все webapp-тесты в CI **без** `DATABASE_URL` → globalSetup **сразу выходит**, миграции в CI не выполняются.
 
 Это **не отменяет** политику «новый DDL только Drizzle»: legacy нужен для **bootstrap / существующей** тестовой БД, а не как канал для новых штатных DDL.
 

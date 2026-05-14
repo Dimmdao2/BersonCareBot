@@ -33,7 +33,7 @@
 Прочитай:
 - docs/PATIENT_HOME_REDESIGN_INITIATIVE/README.md полностью
 - docs/PATIENT_HOME_REDESIGN_INITIATIVE/CONTENT_PLAN.md
-- docs/TREATMENT_PROGRAM_INITIATIVE/EXECUTION_RULES.md
+- docs/RULES/TREATMENT_PROGRAM_EXECUTION_RULES.md
 - .cursor/rules/clean-architecture-module-isolation.mdc
 - .cursor/rules/000-critical-integration-config-in-db.mdc
 - .cursor/rules/system-settings-integrator-mirror.mdc
@@ -73,7 +73,7 @@
 - Убедись, что ветка patient-home-redesign-initiative.
 - Прочитай docs/PATIENT_HOME_REDESIGN_INITIATIVE/README.md раздел Phase 1.
 - Прочитай docs/PATIENT_HOME_REDESIGN_INITIATIVE/CONTENT_PLAN.md, но НЕ хардкодь slug-и оттуда.
-- Прочитай docs/TREATMENT_PROGRAM_INITIATIVE/EXECUTION_RULES.md.
+- Прочитай docs/RULES/TREATMENT_PROGRAM_EXECUTION_RULES.md.
 
 Сделай только Phase 1:
 - Добавь в content_sections только cover_image_url и icon_image_url.
@@ -112,7 +112,7 @@
 - docs/PATIENT_HOME_REDESIGN_INITIATIVE/README.md полностью
 - docs/PATIENT_HOME_REDESIGN_INITIATIVE/CONTENT_PLAN.md
 - docs/PATIENT_HOME_REDESIGN_INITIATIVE/LOG.md
-- docs/TREATMENT_PROGRAM_INITIATIVE/EXECUTION_RULES.md
+- docs/RULES/TREATMENT_PROGRAM_EXECUTION_RULES.md
 
 Проверь код и тесты после Phase 1:
 - content_sections содержит только cover_image_url и icon_image_url из новых полей.
@@ -179,7 +179,7 @@
 - docs/PATIENT_HOME_REDESIGN_INITIATIVE/README.md полностью
 - docs/PATIENT_HOME_REDESIGN_INITIATIVE/LOG.md
 - docs/PATIENT_HOME_REDESIGN_INITIATIVE/AUDIT_PHASE_1.md
-- docs/TREATMENT_PROGRAM_INITIATIVE/EXECUTION_RULES.md
+- docs/RULES/TREATMENT_PROGRAM_EXECUTION_RULES.md
 
 Составь детальный план Phase 2 — “Промо-материал курса + целевые настройки главной”.
 
@@ -1050,7 +1050,7 @@
 - docs/PATIENT_HOME_REDESIGN_INITIATIVE/AUDIT_PHASE_7.md
 - docs/PATIENT_HOME_REDESIGN_INITIATIVE/AUDIT_PHASE_8.md
 - docs/PATIENT_HOME_REDESIGN_INITIATIVE/AUDIT_PHASE_9.md
-- docs/TREATMENT_PROGRAM_INITIATIVE/EXECUTION_RULES.md
+- docs/RULES/TREATMENT_PROGRAM_EXECUTION_RULES.md
 
 Проверь глобально:
 - Все фазы выполнены в рамках scope.

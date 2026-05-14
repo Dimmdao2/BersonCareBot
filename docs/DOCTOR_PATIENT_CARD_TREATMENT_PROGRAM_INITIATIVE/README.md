@@ -16,7 +16,7 @@
 
 ## Зачем отдельная папка
 
-Связанные материалы размазаны по `APP_RESTRUCTURE_INITIATIVE`, `PROGRAM_PATIENT_SHAPE_PLAN`, архиву `PROGRAM_PATIENT_SHAPE_INITIATIVE`, `PLAN_DOCTOR_CABINET` и правилам `TREATMENT_PROGRAM_INITIATIVE`. Здесь — **одна точка входа** и **приоритизированный roadmap** по задаче «врач в карточке пациента: шаблон → инстанс → правки».
+Связанные материалы размазаны по `APP_RESTRUCTURE_INITIATIVE`, `PROGRAM_PATIENT_SHAPE_PLAN`, архиву `PROGRAM_PATIENT_SHAPE_INITIATIVE`, `PLAN_DOCTOR_CABINET` и [`docs/RULES/TREATMENT_PROGRAM_EXECUTION_RULES.md`](../RULES/TREATMENT_PROGRAM_EXECUTION_RULES.md). Здесь — **одна точка входа** и **приоритизированный roadmap** по задаче «врач в карточке пациента: шаблон → инстанс → правки».
 
 ---
 
@@ -29,9 +29,9 @@
 | Домен плана лечения, deep copy, правка инстанса, inbox, §4 UX врача | [`../APP_RESTRUCTURE_INITIATIVE/PROGRAM_PATIENT_SHAPE_PLAN.md`](../APP_RESTRUCTURE_INITIATIVE/PROGRAM_PATIENT_SHAPE_PLAN.md) |
 | Сводка инициатив и статус A1–A5 / B1–B7 | [`../APP_RESTRUCTURE_INITIATIVE/README.md`](../APP_RESTRUCTURE_INITIATIVE/README.md) |
 | Каталоги «Назначений», comment pattern, хвост по шаблонам | [`../APP_RESTRUCTURE_INITIATIVE/ASSIGNMENT_CATALOGS_REWORK_PLAN.md`](../APP_RESTRUCTURE_INITIATIVE/ASSIGNMENT_CATALOGS_REWORK_PLAN.md) |
-| Пациент: страницы программы (смежный контур) | [`../archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/README.md`](../archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/README.md) · [`LOG.md`](../archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/LOG.md) · указатель [`../PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/README.md`](../PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/README.md) |
+| Пациент: страницы программы (смежный контур), инициатива **закрыта** | [`../archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/README.md`](../archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/README.md) · [`LOG.md`](../archive/2026-05-initiatives/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/LOG.md) |
 | Реестр HTTP webapp (doctor/patient, test-results + accept) | [`../../apps/webapp/src/app/api/api.md`](../../apps/webapp/src/app/api/api.md) |
-| Правила исполнения (Drizzle, LFK, фазы) | [`../TREATMENT_PROGRAM_INITIATIVE/EXECUTION_RULES.md`](../TREATMENT_PROGRAM_INITIATIVE/EXECUTION_RULES.md) |
+| Правила исполнения (Drizzle, LFK, фазы) | [`../RULES/TREATMENT_PROGRAM_EXECUTION_RULES.md`](../RULES/TREATMENT_PROGRAM_EXECUTION_RULES.md) |
 
 ---
 

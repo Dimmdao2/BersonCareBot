@@ -6,7 +6,7 @@
 
 CI guardrail: `check-legacy-migrations-frozen.sh` блокирует добавление новых legacy-файлов с префиксом выше текущего baseline (`086_*`). Для штатных изменений схемы используйте только `apps/webapp/db/drizzle-migrations/*.sql`.
 
-**Напоминания и админ-настройки (`reminder_*`, `system_settings`, projection):** канон DDL только Drizzle и согласование с integrator — см. [`docs/REMINDERS_SETTINGS_DRIZZLE_ONLY/README.md`](../../../docs/REMINDERS_SETTINGS_DRIZZLE_ONLY/README.md) и [`STAGE_PLAN.md`](../../../docs/REMINDERS_SETTINGS_DRIZZLE_ONLY/STAGE_PLAN.md).
+**Напоминания и админ-настройки (`reminder_*`, `system_settings`, projection):** канон DDL только Drizzle и согласование с integrator — см. [`docs/RULES/REMINDERS_SETTINGS_DRIZZLE_ONLY/README.md`](../../../docs/RULES/REMINDERS_SETTINGS_DRIZZLE_ONLY/README.md) и [`STAGE_PLAN.md`](../../../docs/RULES/REMINDERS_SETTINGS_DRIZZLE_ONLY/STAGE_PLAN.md).
 
 **Процесс `pnpm worker:start` (integrator)** эти файлы **не запускает**. Он гоняет job queue и projection outbox → события уходят в webapp по HTTP и обрабатываются продуктовым кодом (tier/trust там же, что при webhook). Подробнее: [`PLATFORM_IDENTITY_OPS.md`](PLATFORM_IDENTITY_OPS.md) §3.
 
