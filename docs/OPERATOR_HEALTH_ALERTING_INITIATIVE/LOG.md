@@ -4,6 +4,13 @@
 
 ## Записи
 
+### 2026-05-14 — Синхронизация оглавлений документации (system-health / reconcile)
+
+- **`docs/README.md`** — хаб: reconcile cron, `collectAdminSystemHealthData`, `adminHealthThresholds`, ссылки на план и `HLS_RECONCILE_METRICS_LOG`.
+- **`README.md` / `MASTER_PLAN.md`** (эта папка) — актуальный состав `GET /api/admin/system-health` и пути в репо.
+- **`docs/ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md`** — в списке admin-ключей VIDEO_HLS добавлен **`video_hls_reconcile_enabled`**.
+- **`docs/archive/2026-05-initiatives/VIDEO_HLS_DELIVERY/README.md`** — строка таблицы на **`HLS_RECONCILE_METRICS_LOG.md`**.
+
 ### 2026-05-14 — Cron reconcile + транскод в админском health (план `cron_and_system_health`)
 
 - **Internal:** `POST /api/internal/media-transcode/reconcile` — тик в **`public.operator_job_status`** (`job_family=media`, `job_key=media_transcode.reconcile`) best-effort; **`OperatorHealthWritePort`** + DI; константы в `reconcileJobKeys.ts`.
@@ -11,6 +18,8 @@
 - **Деплой:** два режима cron в **`deploy/HOST_DEPLOY_README.md`** (`*/10` + nightly Москва **`0 4 * * *`**); отдельный реестр в **`SERVER CONVENTIONS`** по плану не вводился.
 - **Интегратор:** миграция **`core:20260513_0001_video_hls_reconcile_enabled.sql`** — сид **`video_hls_reconcile_enabled`** в `system_settings`.
 - **Пост-аудит UI:** блок «Техническая диагностика» маркером **`SYSTEM_HEALTH_TECH_DIAGNOSTICS_TESTID`**; RTL **`SystemHealthSection.primaryLayerInvariants.test.tsx`**; русские подписи машинных статусов на сводке и для БД integrator на карточке.
+- **Пороги транскода в health:** `videoTranscode.status` — **`ok` \| `degraded` \| `error`** через **`classifyVideoTranscodeSystemHealthStatus`** (`adminHealthThresholds.ts`); unit **`adminHealthThresholds.test.ts`**, кейсы в **`system-health/route.test.ts`**.
+- **Аудит документации:** выровнен текст **`.cursor/plans/cron_and_system_health.plan.md`** (§5/§8/DoD, фактическое состояние: webapp **0056**, `degraded`, исторический UI-аудит); **`HLS_RECONCILE_METRICS_LOG.md`** — пороги и расширенная команда vitest.
 - Трекер: **`.cursor/plans/cron_and_system_health.plan.md`**.
 
 ### 2026-05-14 — Общая очередь доставки (`outgoing_delivery_queue`)

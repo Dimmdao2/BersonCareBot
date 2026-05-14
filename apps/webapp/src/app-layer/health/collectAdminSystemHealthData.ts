@@ -144,6 +144,10 @@ export type VideoTranscodeLastReconcileTickPayload = {
   metaJson: Record<string, unknown>;
 };
 
+/**
+ * Поле `status`: при успешной пробе метрик — результат `classifyVideoTranscodeSystemHealthStatus`
+ * (`modules/operator-health/adminHealthThresholds.ts`); при падении пробы — `error` из оболочки.
+ */
 type VideoTranscodeHealthPayload = {
   status: VideoTranscodeHealthStatus;
   pipelineEnabled: boolean;

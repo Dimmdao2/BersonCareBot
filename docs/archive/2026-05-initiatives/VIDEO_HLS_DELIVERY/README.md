@@ -19,7 +19,7 @@
 | [AUDIT_EXTRA_PLAYBACK_METRICS_CLOSURE.md](./AUDIT_EXTRA_PLAYBACK_METRICS_CLOSURE.md) | Пост-аудит closure batch (метрики playback) + фиксы 2026-05-03 |
 | [HLS_PROXY_DELIVERY_LOG.md](./HLS_PROXY_DELIVERY_LOG.md) | Same-origin прокси HLS (webapp), телеметрия `media_hls_proxy_error_events`, health, retention |
 | [07-post-documentation-implementation-roadmap.md](./07-post-documentation-implementation-roadmap.md) | Дорожная карта после утверждения доков |
-| [PROMPTS_EXEC_AUDIT_FIX_GLOBAL.md](./PROMPTS_EXEC_AUDIT_FIX_GLOBAL.md) | Готовые copy-paste промпты для Composer (`EXEC -> AUDIT -> FIX`, `GLOBAL AUDIT/FIX`, `PREPUSH POSTFIX AUDIT`) |
+| [HLS_RECONCILE_METRICS_LOG.md](./HLS_RECONCILE_METRICS_LOG.md) | Reconcile batch, метрики транскода в `GET /api/admin/system-health`, агрегат `videoTranscode.status`, команды vitest |
 
 ## Фазы реализации
 

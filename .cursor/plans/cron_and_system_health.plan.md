@@ -1,6 +1,6 @@
 ---
 name: Cron and System Health
-overview: Cron reconcile HLS backlog, тики reconcile в operator_job_status, расширенный транскод в system-health, операторская панель SystemHealthSection и пост-аудит — RTL-инварианты операторского слоя и стабильный data-testid для «Техническая диагностика» (закрыто).
+overview: Cron reconcile HLS backlog, тики reconcile в operator_job_status, расширенный транскод в system-health (в т.ч. агрегатный статус ok/degraded/error), операторская панель SystemHealthSection и пост-аудит — RTL-инварианты и data-testid «Техническая диагностика» (закрыто).
 todos:
   - id: docs-cron-night
     content: HOST_DEPLOY_README — два режима cron (быстрый */10 и nightly 04:00 Europe/Moscow); SERVER CONVENTIONS не меняли — отдельного реестра internal cron в документе нет
@@ -15,10 +15,10 @@ todos:
     content: lifetime + 24h по media_transcode_jobs; счётчик кандидатов reconcile = SQL-смысл fetchLegacyBackfillBatch(includeFailed:false) + фильтр size_bytes≤cap; добавить счётчик ready+HLS
     status: completed
   - id: system-health-payload-ui
-    content: Расширить VideoTranscodeHealthPayload и SystemHealthSection; подпись UTC; degraded для транскода вне scope (ok|error как раньше)
+    content: Расширить VideoTranscodeHealthPayload и SystemHealthSection; подпись UTC; статус транскода ok|degraded|error (classifyVideoTranscodeSystemHealthStatus в adminHealthThresholds.ts)
     status: completed
   - id: system-health-human-readable-ui
-    content: Переработать тексты SystemHealthSection для оператора: понятные названия карточек, человекочитаемые статусы, смысловые описания, тех. поля только во вторичном слое
+    content: "Переработать тексты SystemHealthSection для оператора: понятные названия карточек, человекочитаемые статусы, смысловые описания, тех. поля только во вторичном слое"
     status: completed
   - id: docs-api-tests-ci
     content: Обновить api.md (side-effect reconcile); тесты reconcile + system-health; целевой lint/typecheck/webapp-тесты, полный CI по правилам перед push
@@ -38,9 +38,10 @@ isProject: false
 - **Reconcile:** [reconcile/route.ts](../../apps/webapp/src/app/api/internal/media-transcode/reconcile/route.ts) — `runVideoHlsLegacyBackfill` при включённых настройках; best-effort upsert **`public.operator_job_status`** для **`job_family=media`**, **`job_key=media_transcode.reconcile`** (не превращает **200** в **500** при сбое записи). Контракт см. строку **`internal/media-transcode/reconcile`** в [api.md](../../apps/webapp/src/app/api/api.md).
 - **Чтение тика:** [getOperatorJobStatus](../../apps/webapp/src/modules/operator-health/ports.ts); payload **`videoTranscode.lastReconcileTick`** собирается в [collectAdminSystemHealthData.ts](../../apps/webapp/src/app-layer/health/collectAdminSystemHealthData.ts).
 - **Метрики транскода / DRY backlog:** общий предикат `legacyHlsBackfillCandidateWhereClause` — [videoHlsLegacyBackfill.ts](../../apps/webapp/src/app-layer/media/videoHlsLegacyBackfill.ts) + счётчики — [adminTranscodeHealthMetrics.ts](../../apps/webapp/src/app-layer/media/adminTranscodeHealthMetrics.ts).
+- **Агрегатный статус карточки транскода:** `videoTranscode.status` — **`ok` \| `degraded` \| `error`** — [classifyVideoTranscodeSystemHealthStatus](../../apps/webapp/src/modules/operator-health/adminHealthThresholds.ts) (пороги по возрасту pending, ошибкам за 1 ч / 24 ч UTC при включённом пайплайне, тику сверки при включённой reconcile); **`error`** также при падении пробы чтения метрик. Тесты: [adminHealthThresholds.test.ts](../../apps/webapp/src/modules/operator-health/adminHealthThresholds.test.ts), [system-health/route.test.ts](../../apps/webapp/src/app/api/admin/system-health/route.test.ts).
 - **UI:** [SystemHealthSection.tsx](../../apps/webapp/src/app/app/settings/SystemHealthSection.tsx); блок «Техническая диагностика» маркируется **`data-testid` = `SYSTEM_HEALTH_TECH_DIAGNOSTICS_TESTID`**; RTL-инварианты операторского слоя — [SystemHealthSection.primaryLayerInvariants.test.tsx](../../apps/webapp/src/app/app/settings/SystemHealthSection.primaryLayerInvariants.test.tsx).
 - **Деплой / cron:** два режима (**`*/10`** и nightly **Europe/Moscow 04:00**) — [HOST_DEPLOY_README.md](../../deploy/HOST_DEPLOY_README.md).
-- **Миграции:** отдельная DDL под тики reconcile **не** добавлялась ( **[0057](../../apps/webapp/db/drizzle-migrations/0057_operator_health_mvp.sql)** и др. ); integrator добавляет ключ **`video_hls_reconcile_enabled`** в `system_settings` — `core:20260513_0001_video_hls_reconcile_enabled.sql`.
+- **Миграции / ключ `video_hls_reconcile_enabled`:** webapp — **[0056](../../apps/webapp/db/drizzle-migrations/0056_media_transcode_job_timestamps_reconcile.sql)**; integrator — **`core:20260513_0001_video_hls_reconcile_enabled.sql`**. Отдельная DDL под тики reconcile **не** вводилась — таблица **`operator_job_status`** уже в **[0057](../../apps/webapp/db/drizzle-migrations/0057_operator_health_mvp.sql)** (и др.).
 
 ## Контекст (исходная постановка)
 
@@ -50,9 +51,11 @@ isProject: false
 
 > **Примечание.** Ниже — **исходный** аудит проблем UX до операторской переработки (2026‑05); многие пункты закрыты в **`SystemHealthSection`** и регрессионируются RTL **`primaryLayerInvariants`**. Свежая точка сборки см. блок **«Фактическое состояние»**.
 
-## UI-аудит текущего блока «Здоровье системы»
+## UI-аудит (архив до переработки)
 
-Сейчас экран выглядит как дамп внутренних сигналов, а не как операторская панель. Проблемные классы текста:
+**Актуально:** карточки и сводка приведены к операторскому слою; сырое — в блоке «Техническая диагностика». Ниже сохранён **исторический** список болей до рефакторинга.
+
+Исторически экран выглядел как дамп внутренних сигналов, а не как операторская панель. Проблемные классы текста:
 
 - В заголовках торчат технические имена: `projection_outbox`, `media_transcode_jobs`, `preview-pipeline`, `playback / HLS`, `bersoncarebot-*`, `GET /api/...`.
 - В бейджах и строках видны машинные статусы: `up`, `ok`, `idle`, `running`, `configured`, `pending`, `processing`, `ready`, `failed`, `skipped`.
@@ -121,7 +124,7 @@ flowchart LR
 ### 5) Ответ API и статус accordion
 
 - Расширить `VideoTranscodeHealthPayload`: новые поля библиотеки и jobs 24h/lifetime вложением или плоским объектом по стилю соседних блоков (`videoPlayback`).
-- **`status` accordion:** в этом плане оставить `status: "ok"|"error"` как сейчас (`error` только при падении probe/DB). Деградационный статус `degraded` для транскода вынесен **вне scope**: его нужно проектировать отдельным правилом порога и отдельным обновлением типа `VideoTranscodeHealthStatus`.
+- **`status` accordion:** **`ok` \| `degraded` \| `error`**. **`error`** — при недоступности/ошибке пробы чтения метрик (как «падение probe»). **`degraded`** и часть **`error`** по очереди — компактные пороги в [adminHealthThresholds.ts](../../apps/webapp/src/modules/operator-health/adminHealthThresholds.ts) (`classifyVideoTranscodeSystemHealthStatus`); контракт в [api.md](../../apps/webapp/src/app/api/api.md) → **admin/system-health**. Исходная формулировка плана про «только ok\|error» **снята** после аудита и внедрения порогов.
 
 ### 6) UI: человекочитаемая панель
 
@@ -168,7 +171,8 @@ flowchart LR
 
 - Тесты в репозитории:
   - [reconcile/route.test.ts](../../apps/webapp/src/app/api/internal/media-transcode/reconcile/route.test.ts) — write-порт (success + failure path).
-  - [system-health/route.test.ts](../../apps/webapp/src/app/api/admin/system-health/route.test.ts) — в т.ч. **`lastReconcileTick`** при наличии строки в БД.
+  - [system-health/route.test.ts](../../apps/webapp/src/app/api/admin/system-health/route.test.ts) — в т.ч. **`lastReconcileTick`** при наличии строки в БД и сценарии **`degraded` / `error`** для транскода.
+  - [adminHealthThresholds.test.ts](../../apps/webapp/src/modules/operator-health/adminHealthThresholds.test.ts) — **`classifyVideoTranscodeSystemHealthStatus`**.
   - [videoHlsLegacyBackfill.test.ts](../../apps/webapp/src/app-layer/media/videoHlsLegacyBackfill.test.ts) — общий **`legacyHlsBackfillCandidateWhereClause`**.
   - RTL: [SystemHealthSection.primaryLayerInvariants.test.tsx](../../apps/webapp/src/app/app/settings/SystemHealthSection.primaryLayerInvariants.test.tsx) — текст вне веток с **`SYSTEM_HEALTH_TECH_DIAGNOSTICS_TESTID`** не содержит сырых паттернов вроде `Probe status`, `job_key`, `media_transcode.reconcile`; см. также [operatorIncidents.test.tsx](../../apps/webapp/src/app/app/settings/SystemHealthSection.operatorIncidents.test.tsx).
 
@@ -176,13 +180,14 @@ flowchart LR
 
 - HLS из приватного бакета: [.cursor/plans/hls_private_bucket_proxy.plan.md](.cursor/plans/hls_private_bucket_proxy.plan.md).
 - Деплой миграций client-events и плеер — только после решения rollout.
-- `degraded`-статус для транскода: отдельное решение по порогам и типам, не часть этого плана.
+- Выравнивание **всех** счётчиков `media_files` в метриках транскода на Drizzle (сейчас кандидаты / ready+HLS — raw SQL через pool) — отдельный рефакторинг по желанию, не блокер плана.
 
 ## Definition of Done
 
 - [x] Два сценария cron описаны в [HOST_DEPLOY_README.md](../../deploy/HOST_DEPLOY_README.md); команды копируемые (loopback + Bearer + **`webapp.prod`** по канону хоста).
 - [x] При успешном коде приложения каждый `POST …/reconcile` инициирует попытку upsert строки reconcile в **`operator_job_status`** (**best-effort** запись статус-job не переводит **200** в **500**; в пустой dev-БД строка появится после первого реального POST).
 - [x] `GET /api/admin/system-health` и UI: backlog-кандидатов reconcile (DRY-предикат), **24h + lifetime**, **1h**, **`lastReconcileTick`** или **`null`**.
+- [x] **`videoTranscode.status`**: **`ok` \| `degraded` \| `error`** с порогами в **`adminHealthThresholds.ts`** и регрессией в тестах.
 - [x] Операторские тексты **`SystemHealthSection`** + техблок под **`SYSTEM_HEALTH_TECH_DIAGNOSTICS_TESTID`**; пост-аудит — **`SystemHealthSection.primaryLayerInvariants.test.tsx`**.
 - [x] **`api.md`** синхронизирован (reconcile side-effect + **admin/system-health**).
 - [x] Локальные lint/typecheck/тесты по области; финальный **`pnpm run ci`** по правилам репозитория перед merge/push (см. [.cursor/rules/pre-push-ci.mdc](../../.cursor/rules/pre-push-ci.mdc)).

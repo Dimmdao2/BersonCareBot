@@ -28,7 +28,8 @@ export type ResolveMediaPlaybackFailure = { ok: false; status: number; error: st
 export type ResolveMediaPlaybackSuccess = { ok: true; data: MediaPlaybackPayload };
 
 /**
- * Shared by GET /api/media/[id]/playback and RSC (patient content) — same presign + strategy as HTTP.
+ * Shared by GET /api/media/[id]/playback and RSC (patient content).
+ * Master — same-origin HLS proxy; presign — постер и MP4, не сегменты HLS.
  */
 export async function resolveMediaPlaybackPayload(input: {
   id: string;

@@ -3,16 +3,16 @@ name: Doctor inbox by attempt
 overview: "Сгруппировать секцию «Тесты, ожидающие оценки» в карточке пациента врача по попытке (attempt_id): одна карточка на попытку, счётчик неоценённых тестов в группе, одна ссылка на экземпляр программы с якорем к блоку результатов."
 todos:
   - id: dto-attempt-fields
-    content: "Расширить PendingProgramTestEvaluationRow; pg + inMemory listPendingEvaluationResultsForPatient; при необходимости — assert в progress-service.test (A4)"
+    content: Расширить PendingProgramTestEvaluationRow; pg + inMemory listPendingEvaluationResultsForPatient; при необходимости — assert в progress-service.test (A4)
     status: completed
   - id: group-fn-tests
-    content: "groupPendingProgramTestEvaluations.ts + vitest fast (группы, сортировка, tie-break)"
+    content: groupPendingProgramTestEvaluations.ts + vitest fast (группы, сортировка, tie-break)
     status: completed
   - id: client-profile-ui
     content: "ClientProfileCard: группы, бейдж, ссылка #doctor-program-instance-test-results; без лишних подписей"
     status: completed
   - id: doc-ci
-    content: "Короткая запись в docs/DOCTOR_PATIENT_CARD…/LOG.md или E2E_ACCEPTANCE; pnpm run ci перед merge"
+    content: Короткая запись в docs/DOCTOR_PATIENT_CARD…/LOG.md или E2E_ACCEPTANCE; pnpm run ci перед merge
     status: completed
 isProject: false
 ---

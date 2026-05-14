@@ -12,6 +12,10 @@
 - Retention: `POST /api/internal/media-hls-proxy-errors/retention` (Bearer `INTERNAL_JOB_SECRET`).
 - Документы: `api.md`, `MEDIA_HTTP_ACCESS_AUTHORIZATION.md`, `PATIENT_MEDIA_PLAYBACK_VIDEO.md`.
 
+## Эксплуатация (ops)
+
+- **Retention `media_hls_proxy_error_events`:** `POST /api/internal/media-hls-proxy-errors/retention` с Bearer **`INTERNAL_JOB_SECRET`**; параметры **`?days=`** (по умолчанию `90`), **`?dryRun=1`**. Рекомендуется редкий cron на loopback **рядом** с `media-playback-stats/retention`. Полный контекст, примеры cron и ограничение `/api/internal/` по nginx: [`deploy/HOST_DEPLOY_README.md`](../../../../deploy/HOST_DEPLOY_README.md) (раздел Nginx → Webapp → CMS медиа и S3).
+
 ## Доработки после аудита плана
 
 - **401:** `warn` `hls_proxy_error` с `reasonCode: session_unauthorized`, `mediaId` (без строки в `media_hls_proxy_error_events`).

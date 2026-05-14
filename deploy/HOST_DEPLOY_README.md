@@ -316,6 +316,10 @@ mc cors set myminio/<PRIVATE_BUCKET_NAME> /path/to/cors.json
 
 **Почасовая статистика playback (HOUSEKEEPING):** после миграции с таблицей **`media_playback_stats_hourly`** — `POST /api/internal/media-playback-stats/retention` с тем же Bearer: удаление старых `bucket_hour` (параметр **`?days=`**, по умолчанию **90**; **`?dryRun=1`** — только число затронутых строк). Таблица дедупа **`media_playback_user_video_first_resolve`** не затрагивается. На хосте достаточно редкого cron на loopback (например раз в неделю).
 
+**Журнал ошибок HLS‑прокси:** таблица **`media_hls_proxy_error_events`** хранит диагностические события при доставке HLS через same‑origin прокси (исключения и семантика записей — см. архивный журнал [`docs/archive/2026-05-initiatives/VIDEO_HLS_DELIVERY/HLS_PROXY_DELIVERY_LOG.md`](../docs/archive/2026-05-initiatives/VIDEO_HLS_DELIVERY/HLS_PROXY_DELIVERY_LOG.md)).
+
+**Retention журнала ошибок HLS‑прокси (HOUSEKEEPING):** `POST /api/internal/media-hls-proxy-errors/retention` с тем же Bearer: удаление строк **`media_hls_proxy_error_events`** старше окна **`?days=`** суток (по умолчанию **90**, минимум 1; **`?dryRun=1`** — только подсчёт затронутых строк без удаления). На хосте достаточно **редкого** cron на loopback, логично ставить **рядом по расписанию** с retention почасовой playback‑статистики (`media-playback-stats/retention`), чтобы housekeeping по медиа‑метрикам и по логам прокси совпадали по ритму.
+
 **HLS: reconcile очереди транскода (легаси-библиотека):** `POST /api/internal/media-transcode/reconcile` с тем же Bearer и JSON-телом **`{ "limit": 50 }`** (опционально; верхний cap на стороне сервера **200**). Работает только при **`video_hls_pipeline_enabled`** и **`video_hls_reconcile_enabled`** в admin **`system_settings`** (иначе **`503`** `pipeline_disabled` / `reconcile_disabled`). Один вызов = один батч постановки в **`media_transcode_jobs`** по той же логике, что скрипт phase-07 backfill. Успешная итерация обновляет строку **`public.operator_job_status`** (`job_family=media`, ключ **`media_transcode.reconcile`**), чтобы в админском «Здоровье системы» было видно последний тик reconcile.
 
 На хосте полезно сочетать **два** режима cron (оба используют тот же `curl`/`INTERNAL_JOB_SECRET` и loopback **`127.0.0.1:6200`):  
@@ -372,6 +376,14 @@ location /api/internal/ {
 ```cron
 15 4 * * 1 root bash -lc 'set -a && source /opt/env/bersoncarebot/webapp.prod && set +a; [ -n "$INTERNAL_JOB_SECRET" ] || exit 1; curl -fsS -X POST -H "Authorization: Bearer $INTERNAL_JOB_SECRET" "http://127.0.0.1:6200/api/internal/media-playback-stats/retention" >/dev/null'
 ```
+
+Пример недельной очистки журнала ошибок HLS‑прокси (`media_hls_proxy_error_events`; время подберите под политику; здесь — понедельник **04:20**, сразу после примера playback‑retention выше):
+
+```cron
+20 4 * * 1 root bash -lc 'set -a && source /opt/env/bersoncarebot/webapp.prod && set +a; [ -n "$INTERNAL_JOB_SECRET" ] || exit 1; curl -fsS -X POST -H "Authorization: Bearer $INTERNAL_JOB_SECRET" "http://127.0.0.1:6200/api/internal/media-hls-proxy-errors/retention" >/dev/null'
+```
+
+**Примечание:** в файлах **`/etc/cron.d/*`** между расписанием и командой указывается пользователь (**`root`** в примерах выше). В **личном** `crontab` пользователя **`root`** (`crontab -e` от root) поле пользователя **не пишется** — только пять полей расписания и команда.
 
 Пример **частого** cron для reconcile HLS (прогресс хвоста; флаги pipeline + reconcile в админке):
 
@@ -464,7 +476,7 @@ curl -sI "$BASE$CHUNK" | tr -d '\r' | grep -i cache
 - `ADMIN_TELEGRAM_ID=364943522`
 - `TELEGRAM_BOT_TOKEN=...`
 
-**S3 / MinIO и фоновые джобы (webapp):** имена ключей (значения не в документ): `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, **`S3_PRIVATE_BUCKET`** (обязателен для CMS-медиа в private-режиме), опционально `S3_PUBLIC_BUCKET`, `S3_REGION`, `S3_FORCE_PATH_STYLE`; **`INTERNAL_JOB_SECRET`** — Bearer для `POST /api/internal/media-pending-delete/purge`, `POST /api/internal/media-multipart/cleanup`, `POST /api/internal/media-preview/process`, `POST /api/internal/media-playback-stats/retention` и `POST /api/internal/media-transcode/reconcile`; `FFMPEG_PATH=/usr/bin/ffmpeg` — путь к системному ffmpeg для preview-воркера (на хосте обязателен `apt install ffmpeg`); опционально **`LOG_LEVEL`** — уровень логов pino в webapp (`info`, `warn`, `error`; по умолчанию в приложении `info`). Подробности и CORS: раздел **Nginx → Webapp** выше («CMS медиа и S3», «Очередь удаления медиа»); канон env: `docs/ARCHITECTURE/SERVER CONVENTIONS.md`. **Политика private-бакета (без анонимного чтения):** чеклист в [`docs/REPORTS/S3_PRIVATE_MEDIA_EXECUTION_LOG.md`](../docs/REPORTS/S3_PRIVATE_MEDIA_EXECUTION_LOG.md) § Private bucket policy.
+**S3 / MinIO и фоновые джобы (webapp):** имена ключей (значения не в документ): `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, **`S3_PRIVATE_BUCKET`** (обязателен для CMS-медиа в private-режиме), опционально `S3_PUBLIC_BUCKET`, `S3_REGION`, `S3_FORCE_PATH_STYLE`; **`INTERNAL_JOB_SECRET`** — Bearer для `POST /api/internal/media-pending-delete/purge`, `POST /api/internal/media-multipart/cleanup`, `POST /api/internal/media-preview/process`, `POST /api/internal/media-playback-stats/retention`, `POST /api/internal/media-hls-proxy-errors/retention` и `POST /api/internal/media-transcode/reconcile`; `FFMPEG_PATH=/usr/bin/ffmpeg` — путь к системному ffmpeg для preview-воркера (на хосте обязателен `apt install ffmpeg`); опционально **`LOG_LEVEL`** — уровень логов pino в webapp (`info`, `warn`, `error`; по умолчанию в приложении `info`). Подробности и CORS: раздел **Nginx → Webapp** выше («CMS медиа и S3», «Очередь удаления медиа»); канон env: `docs/ARCHITECTURE/SERVER CONVENTIONS.md`. **Политика private-бакета (без анонимного чтения):** чеклист в [`docs/REPORTS/S3_PRIVATE_MEDIA_EXECUTION_LOG.md`](../docs/REPORTS/S3_PRIVATE_MEDIA_EXECUTION_LOG.md) § Private bucket policy.
 
 **Auth (webapp):** Yandex OAuth и Telegram Login Widget **не** требуют новых ключей в `webapp.prod` — клиент OAuth и имя бота для виджета задаются в **`system_settings`** (admin scope) в БД webapp; см. `docs/ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md`. Секреты в env-файлы деплоя не добавлять.
 
