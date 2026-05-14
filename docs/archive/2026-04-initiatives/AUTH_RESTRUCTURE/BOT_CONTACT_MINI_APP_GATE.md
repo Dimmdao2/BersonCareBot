@@ -37,7 +37,7 @@
 - Клиентская логика `/api/me` и ссылок: [`patientMessengerContactGate.ts`](../../apps/webapp/src/shared/lib/patientMessengerContactGate.ts).
 - Восстановление сессии при 401: [`miniAppSessionRecovery.ts`](../../apps/webapp/src/shared/lib/miniAppSessionRecovery.ts).
 - Обёртка layout: [`PatientClientLayout`](../../apps/webapp/src/app/app/patient/PatientClientLayout.tsx) (провайдер контекста шапки + `MiniAppShareContactGate`).
-- Серверный layout и редирект «нужен телефон»: [`layout.tsx`](../../apps/webapp/src/app/app/patient/layout.tsx), политика путей [`patientRouteApiPolicy.ts`](../../apps/webapp/src/modules/platform-access/patientRouteApiPolicy.ts) (shim: [`patientPhonePolicy.ts`](../../apps/webapp/src/app-layer/guards/patientPhonePolicy.ts)), заголовки в [`middleware.ts`](../../apps/webapp/src/middleware.ts).
+- Серверный layout и редирект «нужен телефон»: [`layout.tsx`](../../apps/webapp/src/app/app/patient/layout.tsx), политика путей [`patientRouteApiPolicy.ts`](../../apps/webapp/src/modules/platform-access/patientRouteApiPolicy.ts) (shim: [`patientPhonePolicy.ts`](../../apps/webapp/src/app-layer/guards/patientPhonePolicy.ts)), заголовки в [`proxy.ts`](../../apps/webapp/src/proxy.ts).
 
 ## Связанные документы
 

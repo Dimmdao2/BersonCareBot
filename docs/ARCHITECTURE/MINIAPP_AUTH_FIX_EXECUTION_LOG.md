@@ -50,7 +50,7 @@
 
 ### 2026-04-15 — Шаг 4–5 (middleware / integrator)
 
-- **Файлы:** `apps/webapp/src/middleware/platformContext.ts` — `ctx=max` legacy → тот же redirect+cookie, что и `ctx=bot`; `apps/webapp/src/middleware.test.ts`; `apps/webapp/src/app/api/auth/max-init/route.ts` — поле `miniappAuthOutcome: "session_ok"` в success-log.
+- **Файлы:** `apps/webapp/src/middleware/platformContext.ts` — `ctx=max` legacy → тот же redirect+cookie, что и `ctx=bot`; `apps/webapp/src/platformContextRedirects.test.ts`; `apps/webapp/src/app/api/auth/max-init/route.ts` — поле `miniappAuthOutcome: "session_ok"` в success-log.
 - **Integrator:** ссылки уже с `ctx=bot` в `integrations/max/webhook.ts` и `integrations/telegram/webhook.ts`; добавлены тесты контракта URL: `integrations/max/webhook.links.test.ts`, расширен `integrations/telegram/webhook.links.test.ts` (экспорт `buildMaxLinks` для MAX).
 
 ---

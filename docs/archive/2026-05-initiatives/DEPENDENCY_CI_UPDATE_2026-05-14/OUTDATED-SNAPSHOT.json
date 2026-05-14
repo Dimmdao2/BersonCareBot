@@ -1,0 +1,546 @@
+{
+  "_generated": "2026-05-14",
+  "_command": "pnpm outdated -r --format json",
+  "packages": {
+    "fluent-ffmpeg": {
+      "current": "2.1.3",
+      "latest": "2.1.3",
+      "wanted": "2.1.3",
+      "isDeprecated": true,
+      "dependencyType": "dependencies",
+      "dependentPackages": [
+        {
+          "name": "@bersoncare/webapp",
+          "location": "/home/dev/dev-projects/BersonCareBot/apps/webapp"
+        }
+      ]
+    },
+    "@tanstack/react-virtual": {
+      "current": "3.13.23",
+      "latest": "3.13.24",
+      "wanted": "3.13.23",
+      "isDeprecated": false,
+      "dependencyType": "dependencies",
+      "dependentPackages": [
+        {
+          "name": "@bersoncare/webapp",
+          "location": "/home/dev/dev-projects/BersonCareBot/apps/webapp"
+        }
+      ]
+    },
+    "dotenv": {
+      "current": "17.4.1",
+      "latest": "17.4.2",
+      "wanted": "17.4.1",
+      "isDeprecated": false,
+      "dependencyType": "dependencies",
+      "dependentPackages": [
+        {
+          "name": "@bersoncare/integrator",
+          "location": "/home/dev/dev-projects/BersonCareBot/apps/integrator"
+        },
+        {
+          "name": "@bersoncare/media-worker",
+          "location": "/home/dev/dev-projects/BersonCareBot/apps/media-worker"
+        },
+        {
+          "name": "@bersoncare/webapp",
+          "location": "/home/dev/dev-projects/BersonCareBot/apps/webapp"
+        }
+      ]
+    },
+    "nock": {
+      "current": "14.0.12",
+      "latest": "14.0.15",
+      "wanted": "14.0.12",
+      "isDeprecated": false,
+      "dependencyType": "devDependencies",
+      "dependentPackages": [
+        {
+          "name": "@bersoncare/integrator",
+          "location": "/home/dev/dev-projects/BersonCareBot/apps/integrator"
+        }
+      ]
+    },
+    "nodemailer": {
+      "current": "8.0.5",
+      "latest": "8.0.7",
+      "wanted": "8.0.5",
+      "isDeprecated": false,
+      "dependencyType": "dependencies",
+      "dependentPackages": [
+        {
+          "name": "@bersoncare/integrator",
+          "location": "/home/dev/dev-projects/BersonCareBot/apps/integrator"
+        }
+      ]
+    },
+    "postcss": {
+      "current": "8.5.12",
+      "latest": "8.5.14",
+      "wanted": "8.5.12",
+      "isDeprecated": false,
+      "dependencyType": "devDependencies",
+      "dependentPackages": [
+        {
+          "name": "@bersoncare/webapp",
+          "location": "/home/dev/dev-projects/BersonCareBot/apps/webapp"
+        }
+      ]
+    },
+    "prettier": {
+      "current": "3.8.1",
+      "latest": "3.8.3",
+      "wanted": "3.8.1",
+      "isDeprecated": false,
+      "dependencyType": "devDependencies",
+      "dependentPackages": [
+        {
+          "name": "berson-care-bot",
+          "location": "/home/dev/dev-projects/BersonCareBot"
+        }
+      ]
+    },
+    "react": {
+      "current": "19.2.4",
+      "latest": "19.2.6",
+      "wanted": "19.2.4",
+      "isDeprecated": false,
+      "dependencyType": "dependencies",
+      "dependentPackages": [
+        {
+          "name": "@bersoncare/webapp",
+          "location": "/home/dev/dev-projects/BersonCareBot/apps/webapp"
+        }
+      ]
+    },
+    "react-dom": {
+      "current": "19.2.4",
+      "latest": "19.2.6",
+      "wanted": "19.2.4",
+      "isDeprecated": false,
+      "dependencyType": "dependencies",
+      "dependentPackages": [
+        {
+          "name": "@bersoncare/webapp",
+          "location": "/home/dev/dev-projects/BersonCareBot/apps/webapp"
+        }
+      ]
+    },
+    "vitest": {
+      "current": "4.1.3",
+      "latest": "4.1.6",
+      "wanted": "4.1.3",
+      "isDeprecated": false,
+      "dependencyType": "devDependencies",
+      "dependentPackages": [
+        {
+          "name": "@bersoncare/integrator",
+          "location": "/home/dev/dev-projects/BersonCareBot/apps/integrator"
+        },
+        {
+          "name": "@bersoncare/media-worker",
+          "location": "/home/dev/dev-projects/BersonCareBot/apps/media-worker"
+        },
+        {
+          "name": "@bersoncare/webapp",
+          "location": "/home/dev/dev-projects/BersonCareBot/apps/webapp"
+        }
+      ]
+    },
+    "@aws-sdk/client-s3": {
+      "current": "3.1026.0",
+      "latest": "3.1047.0",
+      "wanted": "3.1026.0",
+      "isDeprecated": false,
+      "dependencyType": "devDependencies",
+      "dependentPackages": [
+        {
+          "name": "@bersoncare/integrator",
+          "location": "/home/dev/dev-projects/BersonCareBot/apps/integrator"
+        }
+      ]
+    },
+    "@aws-sdk/s3-request-presigner": {
+      "current": "3.1026.0",
+      "latest": "3.1047.0",
+      "wanted": "3.1026.0",
+      "isDeprecated": false,
+      "dependencyType": "dependencies",
+      "dependentPackages": [
+        {
+          "name": "@bersoncare/webapp",
+          "location": "/home/dev/dev-projects/BersonCareBot/apps/webapp"
+        }
+      ]
+    },
+    "@base-ui/react": {
+      "current": "1.3.0",
+      "latest": "1.4.1",
+      "wanted": "1.3.0",
+      "isDeprecated": false,
+      "dependencyType": "dependencies",
+      "dependentPackages": [
+        {
+          "name": "@bersoncare/webapp",
+          "location": "/home/dev/dev-projects/BersonCareBot/apps/webapp"
+        }
+      ]
+    },
+    "@tailwindcss/postcss": {
+      "current": "4.2.2",
+      "latest": "4.3.0",
+      "wanted": "4.2.2",
+      "isDeprecated": false,
+      "dependencyType": "devDependencies",
+      "dependentPackages": [
+        {
+          "name": "@bersoncare/webapp",
+          "location": "/home/dev/dev-projects/BersonCareBot/apps/webapp"
+        }
+      ]
+    },
+    "@types/node": {
+      "current": "24.12.2",
+      "latest": "25.8.0",
+      "wanted": "24.12.2",
+      "isDeprecated": false,
+      "dependencyType": "devDependencies",
+      "dependentPackages": [
+        {
+          "name": "@bersoncare/media-worker",
+          "location": "/home/dev/dev-projects/BersonCareBot/apps/media-worker"
+        }
+      ]
+    },
+    "@typescript-eslint/eslint-plugin": {
+      "current": "8.58.1",
+      "latest": "8.59.3",
+      "wanted": "8.58.1",
+      "isDeprecated": false,
+      "dependencyType": "devDependencies",
+      "dependentPackages": [
+        {
+          "name": "berson-care-bot",
+          "location": "/home/dev/dev-projects/BersonCareBot"
+        }
+      ]
+    },
+    "@typescript-eslint/parser": {
+      "current": "8.58.1",
+      "latest": "8.59.3",
+      "wanted": "8.58.1",
+      "isDeprecated": false,
+      "dependencyType": "devDependencies",
+      "dependentPackages": [
+        {
+          "name": "berson-care-bot",
+          "location": "/home/dev/dev-projects/BersonCareBot"
+        }
+      ]
+    },
+    "eslint": {
+      "current": "9.39.4",
+      "latest": "10.3.0",
+      "wanted": "9.39.4",
+      "isDeprecated": false,
+      "dependencyType": "devDependencies",
+      "dependentPackages": [
+        {
+          "name": "@bersoncare/webapp",
+          "location": "/home/dev/dev-projects/BersonCareBot/apps/webapp"
+        }
+      ]
+    },
+    "globals": {
+      "current": "17.4.0",
+      "latest": "17.6.0",
+      "wanted": "17.4.0",
+      "isDeprecated": false,
+      "dependencyType": "devDependencies",
+      "dependentPackages": [
+        {
+          "name": "berson-care-bot",
+          "location": "/home/dev/dev-projects/BersonCareBot"
+        }
+      ]
+    },
+    "isomorphic-dompurify": {
+      "current": "3.7.1",
+      "latest": "3.13.0",
+      "wanted": "3.7.1",
+      "isDeprecated": false,
+      "dependencyType": "dependencies",
+      "dependentPackages": [
+        {
+          "name": "@bersoncare/webapp",
+          "location": "/home/dev/dev-projects/BersonCareBot/apps/webapp"
+        }
+      ]
+    },
+    "libphonenumber-js": {
+      "current": "1.12.41",
+      "latest": "1.13.1",
+      "wanted": "1.12.41",
+      "isDeprecated": false,
+      "dependencyType": "dependencies",
+      "dependentPackages": [
+        {
+          "name": "@bersoncare/webapp",
+          "location": "/home/dev/dev-projects/BersonCareBot/apps/webapp"
+        }
+      ]
+    },
+    "lucide-react": {
+      "current": "1.0.1",
+      "latest": "1.16.0",
+      "wanted": "1.0.1",
+      "isDeprecated": false,
+      "dependencyType": "dependencies",
+      "dependentPackages": [
+        {
+          "name": "@bersoncare/webapp",
+          "location": "/home/dev/dev-projects/BersonCareBot/apps/webapp"
+        }
+      ]
+    },
+    "shadcn": {
+      "current": "4.1.1",
+      "latest": "4.7.0",
+      "wanted": "4.1.1",
+      "isDeprecated": false,
+      "dependencyType": "dependencies",
+      "dependentPackages": [
+        {
+          "name": "@bersoncare/webapp",
+          "location": "/home/dev/dev-projects/BersonCareBot/apps/webapp"
+        }
+      ]
+    },
+    "tailwind-merge": {
+      "current": "3.5.0",
+      "latest": "3.6.0",
+      "wanted": "3.5.0",
+      "isDeprecated": false,
+      "dependencyType": "dependencies",
+      "dependentPackages": [
+        {
+          "name": "@bersoncare/webapp",
+          "location": "/home/dev/dev-projects/BersonCareBot/apps/webapp"
+        }
+      ]
+    },
+    "tailwindcss": {
+      "current": "4.2.2",
+      "latest": "4.3.0",
+      "wanted": "4.2.2",
+      "isDeprecated": false,
+      "dependencyType": "devDependencies",
+      "dependentPackages": [
+        {
+          "name": "@bersoncare/webapp",
+          "location": "/home/dev/dev-projects/BersonCareBot/apps/webapp"
+        }
+      ]
+    },
+    "tsx": {
+      "current": "4.21.0",
+      "latest": "4.22.0",
+      "wanted": "4.21.0",
+      "isDeprecated": false,
+      "dependencyType": "devDependencies",
+      "dependentPackages": [
+        {
+          "name": "@bersoncare/integrator",
+          "location": "/home/dev/dev-projects/BersonCareBot/apps/integrator"
+        },
+        {
+          "name": "@bersoncare/media-worker",
+          "location": "/home/dev/dev-projects/BersonCareBot/apps/media-worker"
+        },
+        {
+          "name": "@bersoncare/webapp",
+          "location": "/home/dev/dev-projects/BersonCareBot/apps/webapp"
+        }
+      ]
+    },
+    "zod": {
+      "current": "4.3.6",
+      "latest": "4.4.3",
+      "wanted": "4.3.6",
+      "isDeprecated": false,
+      "dependencyType": "dependencies",
+      "dependentPackages": [
+        {
+          "name": "@bersoncare/integrator",
+          "location": "/home/dev/dev-projects/BersonCareBot/apps/integrator"
+        },
+        {
+          "name": "@bersoncare/media-worker",
+          "location": "/home/dev/dev-projects/BersonCareBot/apps/media-worker"
+        },
+        {
+          "name": "@bersoncare/webapp",
+          "location": "/home/dev/dev-projects/BersonCareBot/apps/webapp"
+        }
+      ]
+    },
+    "@types/nodemailer": {
+      "current": "7.0.11",
+      "latest": "8.0.0",
+      "wanted": "7.0.11",
+      "isDeprecated": false,
+      "dependencyType": "devDependencies",
+      "dependentPackages": [
+        {
+          "name": "@bersoncare/integrator",
+          "location": "/home/dev/dev-projects/BersonCareBot/apps/integrator"
+        }
+      ]
+    },
+    "jose": {
+      "current": "5.10.0",
+      "latest": "6.2.3",
+      "wanted": "5.10.0",
+      "isDeprecated": false,
+      "dependencyType": "dependencies",
+      "dependentPackages": [
+        {
+          "name": "@bersoncare/webapp",
+          "location": "/home/dev/dev-projects/BersonCareBot/apps/webapp"
+        }
+      ]
+    },
+    "jsdom": {
+      "current": "26.1.0",
+      "latest": "29.1.1",
+      "wanted": "26.1.0",
+      "isDeprecated": false,
+      "dependencyType": "devDependencies",
+      "dependentPackages": [
+        {
+          "name": "@bersoncare/webapp",
+          "location": "/home/dev/dev-projects/BersonCareBot/apps/webapp"
+        }
+      ]
+    },
+    "p-retry": {
+      "current": "7.1.1",
+      "latest": "8.0.0",
+      "wanted": "7.1.1",
+      "isDeprecated": false,
+      "dependencyType": "dependencies",
+      "dependentPackages": [
+        {
+          "name": "@bersoncare/integrator",
+          "location": "/home/dev/dev-projects/BersonCareBot/apps/integrator"
+        }
+      ]
+    },
+    "typescript": {
+      "current": "5.9.3",
+      "latest": "6.0.3",
+      "wanted": "5.9.3",
+      "isDeprecated": false,
+      "dependencyType": "devDependencies",
+      "dependentPackages": [
+        {
+          "name": "berson-care-bot",
+          "location": "/home/dev/dev-projects/BersonCareBot"
+        },
+        {
+          "name": "@bersoncare/integrator",
+          "location": "/home/dev/dev-projects/BersonCareBot/apps/integrator"
+        },
+        {
+          "name": "@bersoncare/media-worker",
+          "location": "/home/dev/dev-projects/BersonCareBot/apps/media-worker"
+        },
+        {
+          "name": "@bersoncare/webapp",
+          "location": "/home/dev/dev-projects/BersonCareBot/apps/webapp"
+        },
+        {
+          "name": "@bersoncare/booking-rubitime-sync",
+          "location": "/home/dev/dev-projects/BersonCareBot/packages/booking-rubitime-sync"
+        },
+        {
+          "name": "@bersoncare/operator-db-schema",
+          "location": "/home/dev/dev-projects/BersonCareBot/packages/operator-db-schema"
+        },
+        {
+          "name": "@bersoncare/platform-merge",
+          "location": "/home/dev/dev-projects/BersonCareBot/packages/platform-merge"
+        }
+      ]
+    },
+    "undici": {
+      "current": "7.24.3",
+      "latest": "8.3.0",
+      "wanted": "7.24.3",
+      "isDeprecated": false,
+      "dependencyType": "devDependencies",
+      "dependentPackages": [
+        {
+          "name": "@bersoncare/integrator",
+          "location": "/home/dev/dev-projects/BersonCareBot/apps/integrator"
+        }
+      ]
+    },
+    "vite": {
+      "current": "7.3.2",
+      "latest": "8.0.13",
+      "wanted": "7.3.2",
+      "isDeprecated": false,
+      "dependencyType": "devDependencies",
+      "dependentPackages": [
+        {
+          "name": "@bersoncare/integrator",
+          "location": "/home/dev/dev-projects/BersonCareBot/apps/integrator"
+        },
+        {
+          "name": "@bersoncare/webapp",
+          "location": "/home/dev/dev-projects/BersonCareBot/apps/webapp"
+        }
+      ]
+    }
+  },
+  "waves": {
+    "safe_patch_minor": [
+      "@tanstack/react-virtual",
+      "dotenv",
+      "nock",
+      "nodemailer",
+      "postcss",
+      "prettier",
+      "react",
+      "react-dom",
+      "vitest",
+      "@aws-sdk/client-s3",
+      "@aws-sdk/s3-request-presigner",
+      "@typescript-eslint/eslint-plugin",
+      "@typescript-eslint/parser",
+      "globals",
+      "tailwind-merge",
+      "tsx",
+      "zod",
+      "@tailwindcss/postcss",
+      "tailwindcss",
+      "@base-ui/react",
+      "isomorphic-dompurify",
+      "libphonenumber-js",
+      "shadcn"
+    ],
+    "deferred_major_or_high_risk": [
+      "fluent-ffmpeg (deprecated; replace later)",
+      "lucide-react (large minor jump under ^)",
+      "jose 6",
+      "jsdom 29",
+      "p-retry 8",
+      "typescript 6",
+      "undici 8",
+      "vite 8",
+      "@types/nodemailer 8 (pairs nodemailer major if bumped)"
+    ]
+  }
+}

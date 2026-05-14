@@ -12,7 +12,7 @@
 ## Cookie
 
 - Имя: `bersoncare_platform`, значение `bot` для контекста бота.
-- **Middleware** ([middleware.ts](../../middleware.ts), [middleware/platformContext.ts](../../middleware/platformContext.ts)): при запросе с `?ctx=bot` выставляет cookie и редиректит URL без параметра (reply keyboard в Telegram может открывать ссылку с `ctx`).
+- **Proxy** ([proxy.ts](../../proxy.ts), [middleware/platformContext.ts](../../middleware/platformContext.ts)): при запросе с `?ctx=bot` выставляет cookie и редиректит URL без параметра (reply keyboard в Telegram может открывать ссылку с `ctx`).
 - В production cookie: `SameSite=None; Secure` (iframe Mini App). В dev на http: `Lax` без `Secure`.
 - **Клиентский fallback**: если Mini App без предварительного `?ctx=bot`, [PlatformProvider.tsx](../ui/PlatformProvider.tsx) пишет ту же cookie через `serializePlatformBotCookie()` ([platform.ts](platform.ts)).
 

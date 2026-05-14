@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { NextRequest } from "next/server";
-import { middleware } from "@/middleware";
 import { handlePlatformContextRequest } from "@/middleware/platformContext";
 import { PLATFORM_COOKIE_NAME } from "@/shared/lib/platform";
 

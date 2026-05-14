@@ -19,7 +19,7 @@ export type MiddlewareEntryHint =
 
 /**
  * Если в URL есть `?ctx=bot` (канон) или legacy `?ctx=max`, ставит cookie платформы `bot` и редиректит без параметра.
- * Вынесено для unit-тестов; вызывается из `src/middleware.ts`.
+ * Вынесено для unit-тестов; вызывается из `src/proxy.ts`.
  */
 export function handlePlatformContextRequest(
   request: NextRequest,

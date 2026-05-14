@@ -2,7 +2,7 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { classifyEntryHintFromRequest, handlePlatformContextRequest } from "@/middleware/platformContext";
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const ctxResponse = handlePlatformContextRequest(request);
   if (ctxResponse.headers.has("location")) {
     return ctxResponse;
