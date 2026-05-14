@@ -67,6 +67,7 @@
 
 - `bersoncarebot-api-prod.service`
 - `bersoncarebot-worker-prod.service`
+- `bersoncarebot-scheduler-prod.service` — integrator `schedule.tick` (напоминания `reminders.planDue` / `reminders.dispatchDue`)
 - `bersoncarebot-webapp-prod.service`
 - `bersoncarebot-media-worker-prod.service` — FFmpeg HLS transcode (`apps/media-worker`), очередь `public.media_transcode_jobs`; **не** путать с integrator `bersoncarebot-worker-prod`.
 
@@ -87,6 +88,16 @@
 - EnvironmentFile: `/opt/env/bersoncarebot/api.prod`
 - ExecStart: `/usr/bin/node dist/infra/runtime/worker/main.js`
 - Public port: нет
+
+#### Scheduler
+
+- Unit: **`bersoncarebot-scheduler-prod.service`** (шаблон `deploy/systemd/bersoncarebot-scheduler-prod.service`)
+- WorkingDirectory: `/opt/projects/bersoncarebot/apps/integrator`
+- EnvironmentFile: `/opt/env/bersoncarebot/api.prod`
+- ExecStart: `/usr/bin/node dist/infra/runtime/scheduler/main.js`
+- Публичный порт: нет
+- Назначение: периодический **`schedule.tick`** → `reminders.planDue` / `reminders.dispatchDue` (см. `apps/integrator/src/content/scheduler/scripts.json`).
+- Проверка журнала (пример): `journalctl -u bersoncarebot-scheduler-prod.service -n 80 --no-pager` — ожидается строка **`Scheduler lock acquired, starting scheduler loop`** на единственном лидере.
 
 #### Webapp
 
@@ -116,6 +127,7 @@
 | Integrator API | `127.0.0.1:3200` |
 | Webapp | `127.0.0.1:6200` |
 | Integrator worker | без порта |
+| Integrator scheduler | без порта |
 | HLS media-worker (`apps/media-worker`) | без порта |
 
 ### Public URLs / nginx
@@ -329,6 +341,7 @@
 
 - `deploy/systemd/bersoncarebot-api-prod.service`
 - `deploy/systemd/bersoncarebot-worker-prod.service`
+- `deploy/systemd/bersoncarebot-scheduler-prod.service`
 - `deploy/systemd/bersoncarebot-webapp-prod.service`
 - `deploy/systemd/bersoncarebot-media-worker-prod.service`
 - `deploy/systemd/bersoncarebot-api-dev.service`

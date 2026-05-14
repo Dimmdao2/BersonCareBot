@@ -6,10 +6,12 @@
   "scripts": {
     "dev": "bash ../../scripts/ensure-booking-sync-built.sh && tsx watch src/main.ts",
     "worker:dev": "bash ../../scripts/ensure-booking-sync-built.sh && tsx watch src/infra/runtime/worker/main.ts",
+    "scheduler:dev": "bash ../../scripts/ensure-booking-sync-built.sh && tsx watch src/infra/runtime/scheduler/main.ts",
     "clean": "rm -rf dist",
     "build": "pnpm --dir ../../packages/operator-db-schema run build && pnpm --dir ../../packages/booking-rubitime-sync run build && pnpm --dir ../../packages/platform-merge run build && pnpm run clean && tsc -p tsconfig.build.json",
     "start": "node dist/main.js",
     "worker:start": "node dist/infra/runtime/worker/main.js",
+    "scheduler:start": "node dist/infra/runtime/scheduler/main.js",
     "test": "bash ../../scripts/ensure-booking-sync-built.sh && vitest --run",
     "test:e2e": "bash ../../scripts/ensure-booking-sync-built.sh && RUN_E2E_TESTS=true vitest --run e2e/*.test.ts",
     "typecheck": "bash ../../scripts/ensure-booking-sync-built.sh && tsc --noEmit",

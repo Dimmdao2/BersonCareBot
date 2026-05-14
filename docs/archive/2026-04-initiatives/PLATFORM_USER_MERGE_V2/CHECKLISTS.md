@@ -4,7 +4,7 @@
 
 - [ ] Локально: `pnpm run ci` (как в GitHub Actions).
 - [ ] Ветка: `feature/merge-v2-deploy-N-...` (N = 1…4).
-- [ ] На проде деплой идёт через [`deploy/host/deploy-prod.sh`](../../deploy/host/deploy-prod.sh): бэкап (скрипт может сделать два прохода по `api.prod`/`webapp.prod`; при unified — одна БД) → миграции integrator → миграции webapp → рестарт `bersoncarebot-api-prod`, `bersoncarebot-worker-prod`, `bersoncarebot-webapp-prod`.
+- [ ] На проде деплой идёт через [`deploy/host/deploy-prod.sh`](../../deploy/host/deploy-prod.sh): бэкап (скрипт может сделать два прохода по `api.prod`/`webapp.prod`; при unified — одна БД) → миграции integrator → миграции webapp → рестарт `bersoncarebot-api-prod`, `bersoncarebot-worker-prod`, `bersoncarebot-scheduler-prod`, `bersoncarebot-webapp-prod`.
 - [ ] После деплоя: health API (`/health`), webapp (`/api/health`), при необходимости [`apps/integrator/scripts/projection-health.mjs`](../../apps/integrator/scripts/projection-health.mjs).
 - [ ] Мониторинг: `admin_audit_log` — `user_purge`, `user_merge`, `auto_merge_conflict` (см. [`STAGE_A_V1_STABILIZATION.md`](STAGE_A_V1_STABILIZATION.md)).
 

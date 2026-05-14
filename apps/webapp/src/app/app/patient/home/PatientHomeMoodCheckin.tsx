@@ -196,13 +196,13 @@ export function PatientHomeMoodCheckin({
             </div>
           : <div className="flex min-h-0 flex-1 flex-col gap-1.5 px-4 max-md:pt-2 md:px-0 md:pt-2">
               <div className="flex min-h-0 flex-1 flex-col gap-5 sm:flex-row sm:items-stretch sm:gap-3">
-                <div className="flex min-h-0 w-full min-w-0 flex-col sm:w-[35%] sm:max-w-[35%] sm:shrink-0">
+                <div className="order-2 flex min-h-0 w-full min-w-0 flex-col sm:order-1 sm:w-[35%] sm:max-w-[35%] sm:shrink-0">
                   <h3 id="patient-home-mood-week-heading" className={patientHomeMoodColumnHeadingClass}>
                     Ваша неделя
                   </h3>
                   <PatientHomeWellbeingWeekStrip days={moodWeekDays} timeZone={wellbeingWeekTimeZone} />
                 </div>
-                <div className="flex min-h-0 min-w-0 flex-1 flex-col sm:basis-[65%] sm:min-w-0">
+                <div className="order-1 flex min-h-0 min-w-0 flex-1 flex-col sm:order-2 sm:basis-[65%] sm:min-w-0">
                   <h3 id="patient-home-mood-heading" className={patientHomeMoodColumnHeadingClass}>
                     Как ваше сегодня?
                   </h3>

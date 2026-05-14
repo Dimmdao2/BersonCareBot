@@ -2830,6 +2830,41 @@ describe('executeAction', () => {
       const firstCall = enqueueReminderOutboxMock.mock.calls[0]?.[1] as { channel?: string } | undefined;
       expect(firstCall?.channel).toBe('max');
     });
+
+    it('does not drop all channels when topic bindings resolve to an empty object', async () => {
+      const readDb = vi.fn().mockImplementation(async (q: { type: string }) => {
+        if (q.type === 'reminders.occurrences.due') return [dueOcc];
+        if (q.type === 'reminders.rules.forUser') return [baseRule];
+        if (q.type === 'identities.allByUserId') {
+          return [{ resource: 'max', externalId: 'max-ext-1', chatId: 7 }];
+        }
+        return null;
+      });
+      const writeDb = vi.fn().mockResolvedValue(undefined);
+      const getTargetsByChannelBinding = vi.fn().mockResolvedValue({});
+      const deliveryTargetsPort = {
+        getTargetsByPhone: vi.fn(),
+        getTargetsByChannelBinding,
+      };
+      const action: Action = {
+        id: 'rd2',
+        type: 'reminders.dispatchDue',
+        mode: 'async',
+        params: { nowIso: '2026-03-05T12:00:00.000Z', limit: 10 },
+      };
+      const result = await executeAction(action, ctx, {
+        readPort: { readDb },
+        writePort: { writeDb },
+        deliveryTargetsPort,
+      });
+      expect(result.status).toBe('success');
+      expect(getTargetsByChannelBinding).toHaveBeenCalled();
+      expect(enqueueReminderOutboxMock).toHaveBeenCalledTimes(2);
+      const channels = enqueueReminderOutboxMock.mock.calls.map(
+        (c) => (c[1] as { channel?: string } | undefined)?.channel,
+      );
+      expect(channels.sort()).toEqual(['max', 'telegram']);
+    });
   });
 });
 

@@ -1,6 +1,6 @@
 # Outgoing delivery queue
 
-Исходящие уведомления (операторские Telegram-алерты, напоминания пациентам по каналам `telegram` / `max`) ставятся в таблицу **`public.outgoing_delivery_queue`** и доставляются **integrator worker** (`bersoncarebot-worker-prod`) отдельным циклом рядом с job queue и projection outbox.
+Исходящие уведомления (операторские Telegram-алерты, напоминания пациентам по каналам `telegram` / `max`) ставятся в таблицу **`public.outgoing_delivery_queue`**. **Пациентские напоминания по правилам:** integrator **`bersoncarebot-scheduler-prod`** → `schedule.tick` → **`reminders.dispatchDue`** ставит строки в очередь; доставка и ретраи выполняются **integrator worker** (`bersoncarebot-worker-prod`) отдельным циклом рядом с job queue и projection outbox. Операторские алерты enqueue из своих путей — тот же worker обрабатывает очередь.
 
 ## Идемпотентность
 

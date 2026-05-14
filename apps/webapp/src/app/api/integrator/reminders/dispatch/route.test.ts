@@ -25,7 +25,7 @@ describe("POST /api/integrator/reminders/dispatch", () => {
     handleReminderDispatchMock.mockReset();
     handleReminderDispatchMock.mockResolvedValue({
       accepted: false,
-      reason: "durable reminder dispatch is not implemented",
+      reason: "use_integrator_reminders_dispatchDue_not_http_dispatch",
     });
   });
 

@@ -355,10 +355,10 @@ export async function getDueReminderOccurrences(
        r.user_id,
        r.category,
        r.timezone,
-       i.external_id::text AS channel_id
+       COALESCE(i.external_id::text, '') AS channel_id
      FROM user_reminder_occurrences o
      JOIN user_reminder_rules r ON r.id = o.rule_id
-     JOIN identities i ON i.user_id = r.user_id AND i.resource = 'telegram'
+     LEFT JOIN identities i ON i.user_id = r.user_id AND i.resource = 'telegram'
      LEFT JOIN public.platform_users pu ON pu.integrator_user_id = r.user_id
      WHERE o.status = 'planned'
        AND o.planned_at <= $1::timestamptz
@@ -376,10 +376,10 @@ export async function getDueReminderOccurrences(
       userId: String(row.user_id),
       category: row.category as ReminderCategory,
       timezone: row.timezone,
-      channelId: row.channel_id,
+      channelId: row.channel_id ?? '',
       chatId: Number.isFinite(chatId) ? chatId : 0,
     };
-  }).filter((row) => row.chatId > 0);
+  });
 }
 
 /** Upserts rule by `id` (webapp integrator_rule_id PK); returns DB `updated_at`. */

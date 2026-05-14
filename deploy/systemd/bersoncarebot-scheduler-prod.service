@@ -1,0 +1,14 @@
+[Unit]
+Description=BersonCareBot Scheduler (Production)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/projects/bersoncarebot/apps/integrator
+EnvironmentFile=/opt/env/bersoncarebot/api.prod
+ExecStart=/usr/bin/node dist/infra/runtime/scheduler/main.js
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -117,7 +117,7 @@ ffmpeg -y -i input.mp4 -ss 00:00:01 -vframes 1 -q:v 3 poster.jpg
 
 ## 7. Деплой и процессы
 
-- **Сейчас:** `bersoncarebot-webapp-prod`, `bersoncarebot-api-prod`, `bersoncarebot-worker-prod` (integrator).
+- **Сейчас:** `bersoncarebot-webapp-prod`, `bersoncarebot-api-prod`, `bersoncarebot-worker-prod`, `bersoncarebot-scheduler-prod` (integrator API + worker + scheduler).
 - **После внедрения:** добавить **`bersoncarebot-media-worker-prod.service`** (имя согласовать с ops), `WorkingDirectory` → сборка из `apps/media-worker`, `EnvironmentFile` → `webapp.prod` (тот же `DATABASE_URL`, S3, секреты) или отдельный env-файл с ссылкой на те же переменные.
 - **FFmpeg:** системный пакет на хосте worker (`apt install ffmpeg`) — зафиксировать в `deploy/HOST_DEPLOY_README.md` при появлении сервиса.
 - Масштабирование: v1 — тот же хост, что webapp; v2 — отдельная машина с тем же env и доступом к S3/DB (без изменения кода, только systemd и сеть).

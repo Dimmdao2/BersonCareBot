@@ -8,6 +8,7 @@
 ## Архитектура и эксплуатация
 
 - [`ARCHITECTURE/SERVER CONVENTIONS.md`](ARCHITECTURE/SERVER%20CONVENTIONS.md) — среда выполнения, пути, сервисы (источник фактов для деплоя).
+- [`OPERATIONS/REMINDER_SCHEDULER_ROLLOUT_LOG.md`](OPERATIONS/REMINDER_SCHEDULER_ROLLOUT_LOG.md) — журнал выката **`bersoncarebot-scheduler-prod`** (`schedule.tick` / напоминания) и связанных правок репозитория.
 - [`ARCHITECTURE/DATABASE_UNIFIED_POSTGRES.md`](ARCHITECTURE/DATABASE_UNIFIED_POSTGRES.md) — единая PostgreSQL (`public` / `integrator`), прямой SQL vs очередь.
 - [`ARCHITECTURE/DB_STRUCTURE.md`](ARCHITECTURE/DB_STRUCTURE.md) — карта таблиц.
 - [`ARCHITECTURE/PRODUCTION_DB_INVENTORY_2026-04-13.md`](ARCHITECTURE/PRODUCTION_DB_INVENTORY_2026-04-13.md) — снимок production.

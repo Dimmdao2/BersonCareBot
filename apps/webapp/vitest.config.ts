@@ -21,7 +21,6 @@ export default defineConfig({
     projects: [
       {
         extends: true,
-        name: "fast",
         test: {
           name: "fast",
           environment: "node",
@@ -33,7 +32,6 @@ export default defineConfig({
       },
       {
         extends: true,
-        name: "inprocess",
         test: {
           name: "inprocess",
           environment: "node",

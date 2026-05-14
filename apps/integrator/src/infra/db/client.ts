@@ -1,10 +1,30 @@
-
 import { Pool } from 'pg';
 import type { QueryResultRow } from 'pg';
 import type { DbPort, DbQueryResult } from '../../kernel/contracts/index.js';
 import { env } from '../../config/env.js';
 import { logger } from '../observability/logger.js';
 
+function databaseUrlDiagnostics(): {
+  databaseUrlConfigured: boolean;
+  databaseHost?: string;
+  databaseName?: string;
+} {
+  const raw = env.DATABASE_URL;
+  if (raw == null || String(raw).trim() === '') {
+    return { databaseUrlConfigured: false };
+  }
+  try {
+    const u = new URL(String(raw));
+    const name = u.pathname.replace(/^\//, '');
+    return {
+      databaseUrlConfigured: true,
+      databaseHost: u.hostname,
+      ...(name ? { databaseName: name } : {}),
+    };
+  } catch {
+    return { databaseUrlConfigured: true };
+  }
+}
 
 /** Общий пул подключений к PostgreSQL. */
 export const db = new Pool({
@@ -12,9 +32,10 @@ export const db = new Pool({
 });
 
 db.on('error', (err) => {
+	const dbDiag = databaseUrlDiagnostics();
 	logger.error({
 		err,
-		connectionString: env.DATABASE_URL,
+		...dbDiag,
 		db_env: {
 			PGHOST: process.env.PGHOST,
 			PGPORT: process.env.PGPORT,
@@ -24,7 +45,7 @@ db.on('error', (err) => {
 		}
 	}, '[db][pool] connection error');
 	console.error('[db][pool] connection error', err, {
-		connectionString: env.DATABASE_URL,
+		...dbDiag,
 		db_env: {
 			PGHOST: process.env.PGHOST,
 			PGPORT: process.env.PGPORT,
@@ -45,11 +66,12 @@ export function createDbPort(pool: Pool = db): DbPort {
 					...(typeof res.rowCount === 'number' ? { rowCount: res.rowCount } : {}),
 				};
 			} catch (err) {
+				const dbDiag = databaseUrlDiagnostics();
 				logger.error({
 					err,
 					sql,
 					params,
-					connectionString: env.DATABASE_URL,
+					...dbDiag,
 					db_env: {
 						PGHOST: process.env.PGHOST,
 						PGPORT: process.env.PGPORT,
@@ -67,9 +89,10 @@ export function createDbPort(pool: Pool = db): DbPort {
 			try {
 				client = await pool.connect();
 			} catch (err) {
+				const dbDiag = databaseUrlDiagnostics();
 				logger.error({
 					err,
-					connectionString: env.DATABASE_URL,
+					...dbDiag,
 					db_env: {
 						PGHOST: process.env.PGHOST,
 						PGPORT: process.env.PGPORT,
@@ -92,11 +115,12 @@ export function createDbPort(pool: Pool = db): DbPort {
 								...(typeof res.rowCount === 'number' ? { rowCount: res.rowCount } : {}),
 							};
 						} catch (err) {
+							const dbDiag = databaseUrlDiagnostics();
 							logger.error({
 								err,
 								sql,
 								params,
-								connectionString: env.DATABASE_URL,
+								...dbDiag,
 								db_env: {
 									PGHOST: process.env.PGHOST,
 									PGPORT: process.env.PGPORT,
@@ -116,9 +140,10 @@ export function createDbPort(pool: Pool = db): DbPort {
 				return result;
 			} catch (err) {
 				await client.query('ROLLBACK');
+				const dbDiag = databaseUrlDiagnostics();
 				logger.error({
 					err,
-					connectionString: env.DATABASE_URL,
+					...dbDiag,
 					db_env: {
 						PGHOST: process.env.PGHOST,
 						PGPORT: process.env.PGPORT,

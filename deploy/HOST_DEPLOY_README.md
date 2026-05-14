@@ -49,6 +49,7 @@
 
 - `bersoncarebot-api-prod.service`
 - `bersoncarebot-worker-prod.service`
+- `bersoncarebot-scheduler-prod.service` — integrator `schedule.tick` (напоминания и сценарии из `content/scheduler/scripts.json`)
 - `bersoncarebot-webapp-prod.service`
 - `bersoncarebot-media-worker-prod.service` — HLS transcode (`apps/media-worker`), см. § **systemd units → HLS media-worker**
 
@@ -114,6 +115,20 @@
 - Юнит **`bersoncarebot-worker-prod`** и команды **`pnpm worker:start`** / **`pnpm worker:dev`** в корне репозитория относятся **только** к **integrator projection worker** (`apps/integrator`). Он **не** выполняет FFmpeg‑транскод HLS и **не** читает очередь `public.media_transcode_jobs`.
 
 См. отдельный unit **`bersoncarebot-media-worker-prod`** ниже.
+
+#### Scheduler (integrator)
+
+Файл юнита:
+
+- `/etc/systemd/system/bersoncarebot-scheduler-prod.service`
+
+Эффективная конфигурация:
+
+- `WorkingDirectory=/opt/projects/bersoncarebot/apps/integrator`
+- `EnvironmentFile=/opt/env/bersoncarebot/api.prod`
+- `ExecStart=/usr/bin/node dist/infra/runtime/scheduler/main.js`
+
+**Не путать** с `bersoncarebot-worker-prod`: scheduler только генерирует `schedule.tick` и планирует due-напоминания; **integrator worker** обрабатывает очередь jobs / projection / `outgoing_delivery_queue`.
 
 #### HLS media-worker (VIDEO_HLS_DELIVERY)
 
@@ -253,7 +268,7 @@ bash /opt/projects/bersoncarebot/deploy/host/operator-health-probe.sh
 2. TLS: выпущен и подключён сертификат для нового домена в nginx (`listen 443 ssl`, корректные `fullchain`/`privkey`).
 3. Nginx vhost: в `server_name` указан новый домен; при необходимости старый домен оставлен как `301` redirect на новый.
 4. Env: в `/opt/env/bersoncarebot/api.prod` и `/opt/env/bersoncarebot/webapp.prod` обновлён `APP_BASE_URL=https://bersoncare.ru`.
-5. Перезапуск: `sudo systemctl restart bersoncarebot-api-prod.service bersoncarebot-worker-prod.service bersoncarebot-webapp-prod.service` и `sudo systemctl reload nginx`.
+5. Перезапуск: `sudo systemctl restart bersoncarebot-api-prod.service bersoncarebot-worker-prod.service bersoncarebot-scheduler-prod.service bersoncarebot-webapp-prod.service` и `sudo systemctl reload nginx`.
 6. Внешние интеграции: обновлены allowlist/redirect/cors, где зашит origin webapp (Google OAuth redirect URI, MinIO CORS, CDN rules).
 
 Проверка:
@@ -643,6 +658,7 @@ bash deploy/host/deploy-prod.sh
 sudo systemctl status \
   bersoncarebot-api-prod.service \
   bersoncarebot-worker-prod.service \
+  bersoncarebot-scheduler-prod.service \
   bersoncarebot-webapp-prod.service \
   bersoncarebot-media-worker-prod.service
 ```
@@ -744,7 +760,7 @@ curl -sI -H "Host: bersoncare.ru" "http://127.0.0.1:6200/_next/static/chunks/$(b
 **Разовое исправление от root** (пользователь деплоя — **`deploy`**, путь проекта — из `SERVER CONVENTIONS.md`):
 
 ```bash
-sudo systemctl stop bersoncarebot-webapp-prod.service bersoncarebot-api-prod.service bersoncarebot-worker-prod.service bersoncarebot-media-worker-prod.service 2>/dev/null || true
+sudo systemctl stop bersoncarebot-webapp-prod.service bersoncarebot-api-prod.service bersoncarebot-worker-prod.service bersoncarebot-scheduler-prod.service bersoncarebot-media-worker-prod.service 2>/dev/null || true
 sudo chown -R deploy:deploy /opt/projects/bersoncarebot
 ```
 

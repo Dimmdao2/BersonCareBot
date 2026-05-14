@@ -18,7 +18,8 @@ async function startScheduler(): Promise<void> {
       'Scheduler lock not acquired, another instance is leader. Exiting.',
     );
     await closeDb();
-    process.exit(0);
+    // Non-zero exit with Restart=on-failure avoids a tight restart loop if two hosts share one DB.
+    process.exit(1);
   }
 
   const { buildDeps } = await import('../../../app/di.js');

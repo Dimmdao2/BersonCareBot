@@ -1,11 +1,10 @@
 /**
- * Domain handling for reminder dispatch (POST /api/integrator/reminders/dispatch).
- * Parsed body shape per contracts/integrator-reminders-dispatch-body.json and ReminderDispatchRequest.
+ * Legacy HTTP entry for integrator → webapp reminder push (POST /api/integrator/reminders/dispatch).
  *
- * Delivery targets: when building the dispatch body (e.g. from scheduler), use
- * getDeliveryTargetsForUser(userId, bindings, preferencesPort) from channel-preferences/deliveryTargets
- * to fill channelBindings with all linked channels enabled for notifications (telegram, max).
- * The integrator will then fan out to each channel in channelBindings.
+ * **Production patient reminders** are planned and enqueued by integrator
+ * `schedule.tick` → `reminders.dispatchDue` → `public.outgoing_delivery_queue` (see
+ * `apps/integrator/src/content/scheduler/scripts.json` and deploy unit `bersoncarebot-scheduler-prod`).
+ * This handler remains intentionally non-durable so callers do not assume messenger delivery here.
  */
 export type ReminderDispatchBody = {
   idempotencyKey?: string;
@@ -21,13 +20,11 @@ export type ReminderDispatchResult = {
 };
 
 export async function handleReminderDispatch(body: ReminderDispatchBody): Promise<ReminderDispatchResult> {
-  // MVP: log. Later: enqueue for orchestrator or HTTP call to tgcarebot with signature;
-  // integrator will fan out to each channel in body.channelBindings (telegram, max).
   if (process.env.NODE_ENV !== "production") {
     console.info("[integrator] reminder dispatch", body.userId, body.message?.title ?? "", body.channelBindings ?? {});
   }
   return {
     accepted: false,
-    reason: "durable reminder dispatch is not implemented",
+    reason: "use_integrator_reminders_dispatchDue_not_http_dispatch",
   };
 }

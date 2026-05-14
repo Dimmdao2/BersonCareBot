@@ -431,7 +431,10 @@ export async function handleReminders(
         if (tg && tg.chatId > 0) bindingParams.telegramId = String(tg.chatId);
         if (maxCh?.externalId) bindingParams.maxId = maxCh.externalId;
         const bindings = await deps.deliveryTargetsPort.getTargetsByChannelBinding(bindingParams);
-        if (bindings) {
+        const hasResolvedTopicBindings =
+          bindings &&
+          (Boolean(bindings.telegramId?.trim()) || Boolean(bindings.maxId?.trim()));
+        if (hasResolvedTopicBindings) {
           sendChannels = channelsToSend.filter((ch) => {
             if (ch.channel === 'telegram') return Boolean(bindings.telegramId?.trim());
             if (ch.channel === 'max') return Boolean(bindings.maxId?.trim());

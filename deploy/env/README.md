@@ -6,14 +6,15 @@
 
 ## Production
 
-### `api.prod` (integrator API + worker)
+### `api.prod` (integrator API + worker + scheduler)
 
 **Путь на хосте:** `/opt/env/bersoncarebot/api.prod`
 
-Этот файл используют оба production unit'а:
+Этот файл используют production unit'ы integrator:
 
 - `bersoncarebot-api-prod.service`
 - `bersoncarebot-worker-prod.service`
+- `bersoncarebot-scheduler-prod.service`
 
 **PostgreSQL (unified):** `DATABASE_URL` в `api.prod` и в `webapp.prod` указывает на **одну** базу; **одна и та же роль** PostgreSQL используется и для webapp, и для integrator — доступ к схемам **`public` и `integrator`** у одного пользователя БД (`search_path`, при необходимости GRANT из миграций). См. [`docs/ARCHITECTURE/DATABASE_UNIFIED_POSTGRES.md`](../../docs/ARCHITECTURE/DATABASE_UNIFIED_POSTGRES.md). Если миграции integrator выполнялись суперпользователем, те же `GRANT` на `public` (в т.ч. `USAGE` на схему и права на таблицы канона) должны быть у **роли из `DATABASE_URL`** — см. миграции `20260413_0002`, `20260413_0003` и [`docs/archive/2026-04-initiatives/WEBAPP_FIRST_PHONE_BIND/STAGE_01_BIND_TX_AND_GRANTS.md`](../../docs/archive/2026-04-initiatives/WEBAPP_FIRST_PHONE_BIND/STAGE_01_BIND_TX_AND_GRANTS.md).
 
@@ -58,9 +59,11 @@
 ```bash
 systemctl show bersoncarebot-api-prod.service -p EnvironmentFiles
 systemctl show bersoncarebot-worker-prod.service -p EnvironmentFiles
+systemctl show bersoncarebot-scheduler-prod.service -p EnvironmentFiles
 ls -la /opt/env/bersoncarebot/api.prod
 sudo systemctl restart bersoncarebot-api-prod.service
 sudo systemctl restart bersoncarebot-worker-prod.service
+sudo systemctl restart bersoncarebot-scheduler-prod.service
 curl -s http://127.0.0.1:3200/health
 ```
 
@@ -203,6 +206,7 @@ curl -s http://127.0.0.1:6200/api/health
 ```bash
 systemctl cat bersoncarebot-api-prod.service
 systemctl cat bersoncarebot-worker-prod.service
+systemctl cat bersoncarebot-scheduler-prod.service
 systemctl cat bersoncarebot-webapp-prod.service
 ```
 
@@ -214,6 +218,7 @@ systemctl cat bersoncarebot-webapp-prod.service
 sudo systemctl daemon-reload
 sudo systemctl restart bersoncarebot-api-prod.service
 sudo systemctl restart bersoncarebot-worker-prod.service
+sudo systemctl restart bersoncarebot-scheduler-prod.service
 sudo systemctl restart bersoncarebot-webapp-prod.service
 ```
 

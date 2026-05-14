@@ -49,7 +49,7 @@ set -a && source /opt/env/bersoncarebot/cutover.prod && set +a
 
 ## Deploy 2 (canonical path)
 
-- Смотреть логи `bersoncarebot-api-prod`, `bersoncarebot-worker-prod` на ошибки identity/outbox.
+- Смотреть логи `bersoncarebot-api-prod`, `bersoncarebot-worker-prod`, `bersoncarebot-scheduler-prod` на ошибки identity/outbox (для scheduler — в т.ч. lock/tick; канон имён: `docs/ARCHITECTURE/SERVER CONVENTIONS.md`).
 - При необходимости выборочно сравнить counts в `projection_outbox` (pending/dead) до/после окна.
 
 ## Deploy 3 (merge + realignment)

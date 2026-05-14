@@ -5,10 +5,12 @@ PROJECT_ROOT=/opt/projects/bersoncarebot
 SYSTEMD_DIR=/etc/systemd/system
 API_SERVICE=bersoncarebot-api-prod.service
 WORKER_SERVICE=bersoncarebot-worker-prod.service
+SCHEDULER_SERVICE=bersoncarebot-scheduler-prod.service
 WEBAPP_SERVICE=bersoncarebot-webapp-prod.service
 MEDIA_WORKER_SERVICE=bersoncarebot-media-worker-prod.service
 API_UNIT_SOURCE="${PROJECT_ROOT}/deploy/systemd/${API_SERVICE}"
 WORKER_UNIT_SOURCE="${PROJECT_ROOT}/deploy/systemd/${WORKER_SERVICE}"
+SCHEDULER_UNIT_SOURCE="${PROJECT_ROOT}/deploy/systemd/${SCHEDULER_SERVICE}"
 WEBAPP_UNIT_SOURCE="${PROJECT_ROOT}/deploy/systemd/${WEBAPP_SERVICE}"
 MEDIA_WORKER_UNIT_SOURCE="${PROJECT_ROOT}/deploy/systemd/${MEDIA_WORKER_SERVICE}"
 
@@ -35,9 +37,11 @@ require_file() {
 
 require_file "${API_UNIT_SOURCE}" "API unit template"
 require_file "${WORKER_UNIT_SOURCE}" "Worker unit template"
+require_file "${SCHEDULER_UNIT_SOURCE}" "Scheduler unit template"
 
 run_as_root install -m 0644 "${API_UNIT_SOURCE}" "${SYSTEMD_DIR}/${API_SERVICE}"
 run_as_root install -m 0644 "${WORKER_UNIT_SOURCE}" "${SYSTEMD_DIR}/${WORKER_SERVICE}"
+run_as_root install -m 0644 "${SCHEDULER_UNIT_SOURCE}" "${SYSTEMD_DIR}/${SCHEDULER_SERVICE}"
 if [ -f "${WEBAPP_UNIT_SOURCE}" ]; then
   run_as_root install -m 0644 "${WEBAPP_UNIT_SOURCE}" "${SYSTEMD_DIR}/${WEBAPP_SERVICE}"
 fi
@@ -48,9 +52,11 @@ run_as_root /bin/systemctl daemon-reload
 
 if [ -f /opt/env/bersoncarebot/api.prod ] \
   && [ -f "${PROJECT_ROOT}/apps/integrator/dist/main.js" ] \
-  && [ -f "${PROJECT_ROOT}/apps/integrator/dist/infra/runtime/worker/main.js" ]; then
+  && [ -f "${PROJECT_ROOT}/apps/integrator/dist/infra/runtime/worker/main.js" ] \
+  && [ -f "${PROJECT_ROOT}/apps/integrator/dist/infra/runtime/scheduler/main.js" ]; then
   run_as_root /bin/systemctl enable --now "${API_SERVICE}"
   run_as_root /bin/systemctl enable --now "${WORKER_SERVICE}"
+  run_as_root /bin/systemctl enable --now "${SCHEDULER_SERVICE}"
   if [ -e "${SYSTEMD_DIR}/${WEBAPP_SERVICE}" ] \
     && [ -f /opt/env/bersoncarebot/webapp.prod ] \
     && [ -d "${PROJECT_ROOT}/apps/webapp/.next" ]; then
@@ -64,6 +70,7 @@ if [ -f /opt/env/bersoncarebot/api.prod ] \
 else
   run_as_root /bin/systemctl enable "${API_SERVICE}"
   run_as_root /bin/systemctl enable "${WORKER_SERVICE}"
+  run_as_root /bin/systemctl enable "${SCHEDULER_SERVICE}"
   if [ -e "${SYSTEMD_DIR}/${WEBAPP_SERVICE}" ]; then
     run_as_root /bin/systemctl enable "${WEBAPP_SERVICE}"
   fi

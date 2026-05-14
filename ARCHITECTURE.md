@@ -210,7 +210,7 @@
   - обработка delivery/runtime jobs
 
 - `src/infra/runtime/scheduler/main.ts`
-  - scheduler tick entrypoint присутствует в кодовой базе
+  - production: systemd **`bersoncarebot-scheduler-prod.service`** (`deploy/systemd/bersoncarebot-scheduler-prod.service`); цикл `schedule.tick` → напоминания и др. сценарии из `content/scheduler/scripts.json`
 
 ## Webapp: операции с БД вне UI (скрипты, ручной SQL)
 
@@ -235,8 +235,8 @@
 
 Дефолты политики доставки по source задаются через порт `DeliveryDefaultsPort` (реализация в infra); ядро их не содержит. Явные `delivery`/`retry`/`onFail` в сценариях по-прежнему допустимы. Целевая чистая модель: сценарии только generic intent/data, вся delivery policy вне content.
 
-### ⚠ Отклонение 3. Scheduler есть в коде, но не запущен как отдельный сервис
+### ~~⚠ Отклонение 3. Scheduler есть в коде, но не запущен как отдельный сервис~~ (устранено)
 
-`src/infra/runtime/scheduler/main.ts` существует в кодовой базе, но в текущем host-deploy отдельный systemd-юнит для scheduler не поднят.
+Ранее отдельный systemd-юнит для `src/infra/runtime/scheduler/main.ts` не был частью host-deploy. Сейчас канонический unit: **`bersoncarebot-scheduler-prod.service`** (`deploy/systemd/bersoncarebot-scheduler-prod.service`), установка и restart — `deploy/host/bootstrap-systemd-prod.sh` / `deploy/host/deploy-prod.sh` (см. `docs/ARCHITECTURE/SERVER CONVENTIONS.md`).
 
 *(Отклонения 2 и 4 устранены: eventGateway — только idempotencyPort и pipeline; дефолты доставки вынесены в порт `DeliveryDefaultsPort`, реализация в infra, ядро не знает имён каналов.)*

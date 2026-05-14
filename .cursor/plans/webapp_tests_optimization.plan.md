@@ -48,7 +48,7 @@ isProject: false
 
 ## Текущее состояние (зафиксировано в репозитории)
 
-- [apps/webapp/vitest.config.ts](apps/webapp/vitest.config.ts): два Vitest-проекта — **`fast`** (`testTimeout` 20s / `hookTimeout` 25s, `e2e/**/*.test.ts` кроме `*inprocess*`) и **`inprocess`** (30s / 120s hook, только `e2e/*inprocess*.test.ts`); включён `experimental.fsModuleCache`.
+- [apps/webapp/vitest.config.ts](apps/webapp/vitest.config.ts): два Vitest-проекта — **`fast`** и **`inprocess`**: одинаковые **`testTimeout` 20s** и **`hookTimeout` 25s** по умолчанию; `inprocess` включает только `e2e/*inprocess*.test.ts`; включён `experimental.fsModuleCache`. Долгий холодный прогрев графа страниц — только в `beforeAll(..., timeout)` (см. smoke), не в каждом `it`.
 - [`.github/workflows/ci.yml`](.github/workflows/ci.yml): **`test-webapp-core`** — matrix **3 шарда** + `actions/cache` (пути `.vite` и `.experimental-vitest-cache`), ключ кэша включает **`s${{ matrix.shard }}`**; **`test-webapp-inprocess`** — то же, но **`if: push` + `refs/heads/main`**.
 - Локальный pre-push: [package.json](package.json) `pnpm run ci` по-прежнему гоняет полный `pnpm test:webapp` (см. `.cursor/rules/pre-push-ci.mdc`).
 - In-process smoke страниц: [apps/webapp/e2e/smoke-app-router-rsc-pages-inprocess.test.ts](apps/webapp/e2e/smoke-app-router-rsc-pages-inprocess.test.ts); доменные `*inprocess*.test.ts` без массовых повторных `import(page)`.
@@ -152,7 +152,7 @@ Checklist:
 
 ## Риски и guardrails
 
-- Риск флапов после снижения таймаутов: смягчать точечно в конкретных cold import тестах, не возвращать глобально 30s.
+- Риск флапов после снижения таймаутов: смягчать точечно в конкретных cold import тестах (`beforeAll` / один `it`), **не** раздувать глобальные лимиты в `vitest.config.ts`.
 - Риск ложной «экономии» от CI фильтров: full in-process обязательно остаётся на `main`.
 - Риск растущего in-process набора: новые `import(page)` добавлять только в smoke-файлы, не размазывать по доменным e2e.
 - Перед merge: сверка, что правила pre-push (`pnpm run ci`) не нарушены.

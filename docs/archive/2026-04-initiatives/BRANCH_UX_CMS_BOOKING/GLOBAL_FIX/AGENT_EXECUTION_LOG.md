@@ -553,6 +553,7 @@
 ### Prod evidence (заполняет оператор на хосте)
 
 - **commit SHA / services:** confirmed on host — `27193e3897d9ce74c6980e2f0d2705d4bedbce72`; `bersoncarebot-api-prod`, `bersoncarebot-worker-prod`, `bersoncarebot-webapp-prod` = `active`.
+- **Актуализация (2026-05, scheduler):** в канон добавлен `bersoncarebot-scheduler-prod` (`docs/ARCHITECTURE/SERVER CONVENTIONS.md`); на дату evidence выше отдельный scheduler-unit на хосте мог ещё не быть установлен.
 - **health:** `GET http://127.0.0.1:3200/health` -> `{"ok":true,"db":"up"}`; `GET http://127.0.0.1:6200/api/health` -> `{"ok":true,"db":"up"}`.
 - **dead projection remediation:** выполнены requeue-волны по `parameter $5`, затем `parameter $11`, затем `parameter $14`; после точечных SQL-фиксов `pgPatientBookings.ts` и replay итог outbox: `done=93`, `dead=1`.
 - **остаточный dead:** `id=498` (`slot_no_overlap`) — intentional technical block-window record (`+70000000000`, `БЛОК ОКНА`), оставлен в `dead` как non-actionable.

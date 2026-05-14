@@ -30,7 +30,7 @@
 ### 1.3 Документация и ops (подтверждённые факты)
 
 - Приватное медиа и purge: `docs/REPORTS/S3_PRIVATE_MEDIA_EXECUTION_LOG.md`.
-- Прод-сервисы: `docs/ARCHITECTURE/SERVER CONVENTIONS.md` — `bersoncarebot-webapp-prod`, `bersoncarebot-api-prod`, `bersoncarebot-worker-prod` (последний — **integrator** projection worker, не медиа).
+- Прод-сервисы: `docs/ARCHITECTURE/SERVER CONVENTIONS.md` — `bersoncarebot-webapp-prod`, `bersoncarebot-api-prod`, `bersoncarebot-worker-prod`, `bersoncarebot-scheduler-prod` (worker — **integrator** projection/delivery; scheduler — **integrator** `schedule.tick`; не медиа).
 
 ---
 
@@ -58,7 +58,7 @@
 ## 4. Worker / queue infrastructure (релевантное)
 
 - **Webapp:** фоновая обработка реализована как **вызываемые по HTTP** internal routes с `INTERNAL_JOB_SECRET` — подходит для **лёгких** батчей, **не** для FFmpeg.
-- **Integrator:** `bersoncarebot-worker-prod` — домен проекций; **не использовать** для транскодинга медиа webapp (разные границы отказа, другое назначение).
+- **Integrator:** `bersoncarebot-worker-prod` — домен проекций и delivery queue; **`bersoncarebot-scheduler-prod`** — `schedule.tick` (напоминания и др.); **не использовать** ни один из них для транскодинга медиа webapp (разные границы отказа, другое назначение).
 - **Вывод:** для HLS нужен **новый** процесс **`apps/media-worker`** и **новая** очередь (минимум — PostgreSQL в webapp DB).
 
 ---

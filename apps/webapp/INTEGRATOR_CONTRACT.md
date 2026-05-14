@@ -114,11 +114,15 @@ Examples:
 
 ### `POST /api/integrator/reminders/dispatch`
 
-Purpose:
+**Канон для пациентских напоминаний по правилам:** доставка идёт через integrator **`schedule.tick`** → **`reminders.dispatchDue`** → запись в **`public.outgoing_delivery_queue`** и обработку integrator worker (см. `apps/integrator/src/content/scheduler/scripts.json`, unit **`bersoncarebot-scheduler-prod.service`** в `deploy/systemd/`).
+
+Этот HTTP-эндпоинт остаётся **legacy/контрактным**: после проверки подписи и idempotency тело валидируется и передаётся в `handleReminderDispatch`, который **не** выполняет доставку в мессенджеры (ответ **503** с `accepted: false`). Не использовать его как основной путь напоминаний в production.
+
+Purpose (исторический контекст в контракте):
 
 - allow the `webapp` reminder scheduler to ask `tgcarebot` to deliver a reminder through messenger channels
 
-After signature and idempotency checks, the body is validated and passed to domain handler `handleReminderDispatch(body)`. Future: enqueue for orchestrator or HTTP call to tgcarebot with signature.
+After signature and idempotency checks, the body is validated and passed to domain handler `handleReminderDispatch(body)`.
 
 Payload example:
 

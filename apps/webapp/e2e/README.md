@@ -24,6 +24,10 @@
 
 Эталон в репозитории: [`src/app/app/patient/treatment/PatientTreatmentProgramDetailClient.test.tsx`](../src/app/app/patient/treatment/PatientTreatmentProgramDetailClient.test.tsx) (`beforeAll` + `import` табов).
 
+## Таймауты Vitest
+
+В [`vitest.config.ts`](../vitest.config.ts) у проектов **`fast`** и **`inprocess`** одинаковые **`testTimeout` / `hookTimeout` (20s / 25s)** — «раздутый» `it` без прогрева должен упасть. Холодный граф страниц — только в **`beforeAll(..., timeout)`** в конкретных файлах (см. smoke и `doctor-clients-scope-redirects`), не через отдельный глобальный потолок на 30s для каждого теста.
+
 ## Скрипты (корень монорепо)
 
 - `pnpm test:webapp:fast` — проект Vitest `fast` (без `*inprocess*.test.ts`), в CI по шардам `VITEST_SHARD`.

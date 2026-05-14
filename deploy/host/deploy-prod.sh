@@ -8,6 +8,7 @@ BACKUP_SCRIPT=/opt/backups/scripts/postgres-backup.sh
 STAGE13_CUTOVER_SCRIPT=deploy/host/run-stage13-cutover.sh
 API_SERVICE=bersoncarebot-api-prod.service
 WORKER_SERVICE=bersoncarebot-worker-prod.service
+SCHEDULER_SERVICE=bersoncarebot-scheduler-prod.service
 WEBAPP_SERVICE=bersoncarebot-webapp-prod.service
 MEDIA_WORKER_SERVICE=bersoncarebot-media-worker-prod.service
 
@@ -55,6 +56,7 @@ fi
 # Requires deploy user to have NOPASSWD for install and systemctl daemon-reload (see HOST_DEPLOY_README).
 require_sudo_rule "systemd unit install API (bootstrap)" /usr/bin/install -m 0644 "${PROJECT_ROOT}/deploy/systemd/bersoncarebot-api-prod.service" /etc/systemd/system/bersoncarebot-api-prod.service
 require_sudo_rule "systemd unit install worker (bootstrap)" /usr/bin/install -m 0644 "${PROJECT_ROOT}/deploy/systemd/bersoncarebot-worker-prod.service" /etc/systemd/system/bersoncarebot-worker-prod.service
+require_sudo_rule "systemd unit install scheduler (bootstrap)" /usr/bin/install -m 0644 "${PROJECT_ROOT}/deploy/systemd/bersoncarebot-scheduler-prod.service" /etc/systemd/system/bersoncarebot-scheduler-prod.service
 if [ -f "${PROJECT_ROOT}/deploy/systemd/bersoncarebot-webapp-prod.service" ]; then
   require_sudo_rule "systemd unit install webapp (bootstrap)" /usr/bin/install -m 0644 "${PROJECT_ROOT}/deploy/systemd/bersoncarebot-webapp-prod.service" /etc/systemd/system/bersoncarebot-webapp-prod.service
 fi
@@ -69,13 +71,16 @@ require_file "${WEBAPP_ENV_FILE}" "Production webapp environment file"
 require_file "${BACKUP_SCRIPT}" "Backup script"
 require_unit_file "${API_SERVICE}"
 require_unit_file "${WORKER_SERVICE}"
+require_unit_file "${SCHEDULER_SERVICE}"
 require_unit_file "${WEBAPP_SERVICE}"
 
 require_sudo_rule "backup script" "${BACKUP_SCRIPT}" pre-migrations
 require_sudo_rule "API restart" /bin/systemctl restart "${API_SERVICE}"
 require_sudo_rule "worker restart" /bin/systemctl restart "${WORKER_SERVICE}"
+require_sudo_rule "scheduler restart" /bin/systemctl restart "${SCHEDULER_SERVICE}"
 require_sudo_rule "API status check" /bin/systemctl is-active --quiet "${API_SERVICE}"
 require_sudo_rule "worker status check" /bin/systemctl is-active --quiet "${WORKER_SERVICE}"
+require_sudo_rule "scheduler status check" /bin/systemctl is-active --quiet "${SCHEDULER_SERVICE}"
 
 export CI=true
 pnpm install --frozen-lockfile
@@ -123,6 +128,7 @@ bash "${PROJECT_ROOT}/deploy/host/webapp-post-migrate-schema-check.sh"
 
 sudo -n /bin/systemctl restart "${API_SERVICE}"
 sudo -n /bin/systemctl restart "${WORKER_SERVICE}"
+sudo -n /bin/systemctl restart "${SCHEDULER_SERVICE}"
 
 sudo -n /bin/systemctl restart "${WEBAPP_SERVICE}"
 # Next may not listen on 6200 immediately; curl exits 7 on connection refused — retry like /health below.
@@ -164,6 +170,11 @@ fi
 if ! sudo -n /bin/systemctl is-active --quiet "${WORKER_SERVICE}"; then
   echo "deploy-prod: ${WORKER_SERVICE} is not active. Last journal lines:" >&2
   sudo -n journalctl -u "${WORKER_SERVICE}" -n 40 --no-pager 2>/dev/null || true
+  exit 1
+fi
+if ! sudo -n /bin/systemctl is-active --quiet "${SCHEDULER_SERVICE}"; then
+  echo "deploy-prod: ${SCHEDULER_SERVICE} is not active. Last journal lines:" >&2
+  sudo -n journalctl -u "${SCHEDULER_SERVICE}" -n 40 --no-pager 2>/dev/null || true
   exit 1
 fi
 
