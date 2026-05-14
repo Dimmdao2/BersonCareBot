@@ -64,8 +64,20 @@ async function resolveBranchTimezone(branchId: number | string): Promise<BranchT
 
   let raw: string | null;
   try {
-    const res = await db.query<{ timezone: string }>(
-      "SELECT timezone FROM rubitime_branches WHERE rubitime_branch_id = $1 LIMIT 1",
+    /**
+     * Unified Postgres: canonical timezone for slots/ingest comes from webapp admin
+     * «Каталог записи» — `public.booking_branches`, with `public.branches` as secondary
+     * (synced on PATCH). Do not read `integrator.rubitime_branches.timezone` (duplicate).
+     */
+    const res = await db.query<{ timezone: string | null }>(
+      `SELECT COALESCE(
+         NULLIF(TRIM(COALESCE(bb.timezone::text, '')), ''),
+         NULLIF(TRIM(COALESCE(b.timezone::text, '')), '')
+       ) AS timezone
+       FROM (SELECT $1::bigint AS rid) AS x
+       LEFT JOIN public.booking_branches bb ON bb.rubitime_branch_id = trim(both from x.rid::text)
+       LEFT JOIN public.branches b ON b.integrator_branch_id = x.rid
+       LIMIT 1`,
       [id],
     );
     raw = res.rows[0]?.timezone ?? null;
@@ -105,7 +117,7 @@ async function resolveBranchTimezone(branchId: number | string): Promise<BranchT
   return { kind: "valid", timezone: trimmed };
 }
 
-/** Clears branch timezone TTL cache (e.g. after rubitime_branches update). */
+/** Clears branch timezone TTL cache (e.g. after booking catalog / branches timezone update). */
 export function invalidateBranchTimezoneCache(): void {
   cache.clear();
 }
@@ -116,8 +128,9 @@ export function resetBranchTimezoneCacheForTests(): void {
 }
 
 /**
- * IANA timezone for Rubitime branch id (`rubitime_branches.rubitime_branch_id`), with 60s in-memory TTL.
- * Missing branch, empty or invalid timezone → {@link FALLBACK_TZ} (warn on DB path, once per TTL miss).
+ * IANA timezone for numeric Rubitime branch id, with 60s in-memory TTL.
+ * Reads `public.booking_branches` then `public.branches` (unified DB; admin catalog).
+ * Missing / empty / invalid → {@link FALLBACK_TZ} (warn on DB path, once per TTL miss).
  */
 export async function getBranchTimezone(branchId: number | string): Promise<string> {
   const r = await resolveBranchTimezone(branchId);

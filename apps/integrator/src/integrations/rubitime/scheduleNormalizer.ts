@@ -13,7 +13,10 @@
  * Время в ответе Rubitime — настенные часы филиала. Интерпретация через IANA
  * `branchTimezone` (см. каталог филиалов / `branches.timezone`).
  *
- * Если data не совпадает с ожидаемым shape — бросаем ошибку, чтобы caller мог
+ * Пустой массив `[]` в `data` (так иногда отвечает api2/get-schedule при отсутствии
+ * доступных слотов) трактуем как пустое расписание — `[]`, без 502.
+ *
+ * Иной не-object (null, непустой массив, примитив) — бросаем ошибку, чтобы caller мог
  * вернуть 502, а не silent empty.
  */
 
@@ -67,8 +70,17 @@ export function normalizeRubitimeSchedule(
   branchTimezone: string,
   dateFilter?: string,
 ): NormalizedSlotsByDate[] {
-  if (typeof data !== 'object' || data === null || Array.isArray(data)) {
-    throw new Error(`RUBITIME_SCHEDULE_MALFORMED_DATA: expected object, got ${Array.isArray(data) ? 'array' : typeof data}`);
+  if (data === null) {
+    throw new Error('RUBITIME_SCHEDULE_MALFORMED_DATA: expected object, got null');
+  }
+  if (Array.isArray(data)) {
+    if (data.length === 0) {
+      return [];
+    }
+    throw new Error('RUBITIME_SCHEDULE_MALFORMED_DATA: expected object, got non-empty array');
+  }
+  if (typeof data !== 'object') {
+    throw new Error(`RUBITIME_SCHEDULE_MALFORMED_DATA: expected object, got ${typeof data}`);
   }
 
   const result: NormalizedSlotsByDate[] = [];

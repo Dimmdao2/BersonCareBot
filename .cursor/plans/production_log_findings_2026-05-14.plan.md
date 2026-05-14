@@ -16,11 +16,11 @@ todos:
     content: "Слоты 400 slots_mapping_not_configured для сценариев, где **должен** использоваться Rubitime (очная запись v1 и т.п.) — integrator rubitime_booking_profiles или M2M v2 с ID из каталога"
     status: pending
   - id: rubitime-schedule-malformed
-    content: "Слоты 502 RUBITIME_SCHEDULE_MALFORMED_DATA (expected object, got array) — зафиксировать сырой ответ Rubitime get-schedule для проблемного triple; расширить scheduleNormalizer или исправить данные/endpoint в Rubitime"
+    content: "Слоты 502 RUBITIME_SCHEDULE_MALFORMED_DATA — кейс **пустой массив `[]`** от Rubitime при отсутствии слотов: исправлено в `scheduleNormalizer` (→ 200, пустые slots). Непустой массив / иной shape — по-прежнему снять сырой ответ API и расширить парсер или данные Rubitime"
     status: pending
   - id: rubitime-branch-timezone
-    content: "Integrator: [branchTimezone] fallback missing_or_empty для rubitime_branch_id (логи 18265, 17356) — заполнить rubitime_branches.timezone валидной IANA; процесс при онбординге филиала"
-    status: pending
+    content: "Integrator getBranchTimezone: читать public.booking_branches / public.branches (админка), не integrator.rubitime_branches — сделано в branchTimezone.ts (unified DB)"
+    status: completed
   - id: operator-health-rubitime-skip
     content: "Operator probe rubitime skipped_not_configured / no_active_booking_profile — при желании реальной пробы добавить ≥1 активный rubitime_booking_profiles; иначе оставить как ожидаемое и зафиксировать в runbook"
     status: pending
@@ -59,7 +59,7 @@ isProject: false
 |------|----------------|
 | Слоты v1 маппинг | `apps/integrator/src/integrations/rubitime/bookingScheduleMapping.ts`, `db/bookingProfilesRepo.ts`, `recordM2mRoute.ts` |
 | Нормализация расписания | `apps/integrator/src/integrations/rubitime/scheduleNormalizer.ts` |
-| TZ филиала | `apps/integrator/src/infra/db/branchTimezone.ts`, таблица `rubitime_branches.timezone` |
+| TZ филиала | `apps/integrator/src/infra/db/branchTimezone.ts` → `public.booking_branches` + `public.branches` |
 | HLS прокси | `apps/webapp/src/app-layer/media/hlsDeliveryProxy`, `app/api/media/[id]/hls/[[...path]]/route.ts` |
 | Operator probe Rubitime | `apps/integrator/src/app/operatorHealthProbeRunner.ts` |
 | Legacy флаг | `apps/integrator/src/integrations/rubitime/LEGACY_BOOKING_PROFILES.md`, `legacyResolveFlag.ts` |

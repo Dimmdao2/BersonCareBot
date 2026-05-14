@@ -100,7 +100,7 @@ async function postRubitimeApi2(input: {
     if (input.method === 'update-record' || input.method === 'remove-record' || input.method === 'create-record') {
       return data ?? {};
     }
-    // get-schedule: data is an object keyed by date, not an array
+    // get-schedule: envelope `data` is usually an object keyed by date; Rubitime may send `[]` when no slots
     return parsed.data ?? {};
   }
 

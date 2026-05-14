@@ -400,7 +400,7 @@ describe('POST /api/bersoncare/rubitime/slots', () => {
     expect(res.statusCode).toBe(401);
   });
 
-  it('returns 502 when Rubitime returns malformed schedule data (array instead of object)', async () => {
+  it('returns 200 with empty slots when Rubitime returns empty array (no open slots)', async () => {
     resolveBookingProfile.mockResolvedValueOnce(TEST_PROFILE);
     vi.spyOn(rubitimeClient, 'fetchRubitimeSchedule').mockResolvedValue([]);
     const app = await buildApp();
@@ -411,8 +411,10 @@ describe('POST /api/bersoncare/rubitime/slots', () => {
       headers: makeHeaders(body),
       body,
     });
-    expect(res.statusCode).toBe(502);
-    expect(JSON.parse(res.body).error).toBe('rubitime_schedule_malformed');
+    expect(res.statusCode).toBe(200);
+    const j = JSON.parse(res.body) as { ok: boolean; slots: unknown };
+    expect(j.ok).toBe(true);
+    expect(j.slots).toEqual([]);
   });
 
   it('returns 502 when Rubitime call itself throws', async () => {
@@ -724,6 +726,27 @@ describe('POST /api/bersoncare/rubitime/slots (v2 explicit IDs)', () => {
         params: { branchId: 10, cooperatorId: 20, serviceId: 30 },
       }),
     );
+  });
+
+  it('returns 200 with empty slots when Rubitime returns empty array (v2, no open slots)', async () => {
+    vi.spyOn(rubitimeClient, 'fetchRubitimeSchedule').mockResolvedValue([]);
+    const app = await buildApp();
+    const body = JSON.stringify({
+      version: 'v2',
+      rubitimeBranchId: '10',
+      rubitimeCooperatorId: '20',
+      rubitimeServiceId: '30',
+      slotDurationMinutes: 60,
+      dateFrom: '2026-04-10',
+    });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/bersoncare/rubitime/slots',
+      headers: makeHeaders(body),
+      body,
+    });
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(res.body)).toEqual({ ok: true, slots: [] });
   });
 
   it('returns 400 invalid_rubitime_ids for v2 slots when ids are not numeric', async () => {

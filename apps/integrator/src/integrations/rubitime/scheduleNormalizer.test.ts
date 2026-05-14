@@ -69,15 +69,15 @@ describe('normalizeRubitimeSchedule', () => {
     expect(normalizeRubitimeSchedule({}, 60, MSK)).toEqual([]);
   });
 
-  it('throws RUBITIME_SCHEDULE_MALFORMED_DATA for non-object data', () => {
-    expect(() => normalizeRubitimeSchedule(null, 60, MSK)).toThrow('RUBITIME_SCHEDULE_MALFORMED_DATA');
-    expect(() => normalizeRubitimeSchedule([], 60, MSK)).toThrow('RUBITIME_SCHEDULE_MALFORMED_DATA');
-    expect(() => normalizeRubitimeSchedule('string', 60, MSK)).toThrow('RUBITIME_SCHEDULE_MALFORMED_DATA');
-    expect(() => normalizeRubitimeSchedule(123, 60, MSK)).toThrow('RUBITIME_SCHEDULE_MALFORMED_DATA');
+  it('returns empty array when Rubitime sends empty array (no open slots)', () => {
+    expect(normalizeRubitimeSchedule([], 60, MSK)).toEqual([]);
   });
 
-  it('throws for null data', () => {
+  it('throws RUBITIME_SCHEDULE_MALFORMED_DATA for non-object data', () => {
     expect(() => normalizeRubitimeSchedule(null, 60, MSK)).toThrow('RUBITIME_SCHEDULE_MALFORMED_DATA');
+    expect(() => normalizeRubitimeSchedule([{ x: 1 }], 60, MSK)).toThrow('non-empty array');
+    expect(() => normalizeRubitimeSchedule('string', 60, MSK)).toThrow('RUBITIME_SCHEDULE_MALFORMED_DATA');
+    expect(() => normalizeRubitimeSchedule(123, 60, MSK)).toThrow('RUBITIME_SCHEDULE_MALFORMED_DATA');
   });
 
   it('skips malformed date keys', () => {
