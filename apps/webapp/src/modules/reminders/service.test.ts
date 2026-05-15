@@ -6,6 +6,7 @@ import {
   REMINDER_INTEGRATOR_SYNC_WARNING,
   validateReminderDispatchPayload,
 } from "./service";
+import { DEFAULT_REHAB_DAILY_SLOTS } from "./scheduleSlots";
 import type { ReminderRule } from "./types";
 
 const makeRule = (overrides: Partial<ReminderRule> = {}): ReminderRule => ({
@@ -287,6 +288,28 @@ describe("reminders service", () => {
         },
       });
       expect(res.ok).toBe(false);
+    });
+
+    it("fills DEFAULT_REHAB_DAILY_SLOTS when rehab_program uses slots_v1 without scheduleData", async () => {
+      const port = createInMemoryReminderRulesPort([]);
+      const svc = createRemindersService(port);
+      const res = await svc.createObjectReminder("user-1", {
+        linkedObjectType: "rehab_program",
+        linkedObjectId: "prog-1",
+        schedule: {
+          intervalMinutes: 60,
+          windowStartMinute: 0,
+          windowEndMinute: 1440,
+          daysMask: "1111111",
+        },
+        scheduleType: "slots_v1",
+        scheduleData: null,
+      });
+      expect(res.ok).toBe(true);
+      if (res.ok) {
+        expect(res.data.scheduleType).toBe("slots_v1");
+        expect(res.data.scheduleData).toEqual(DEFAULT_REHAB_DAILY_SLOTS);
+      }
     });
 
     it("allows two reminders for the same linked object (no unique constraint at service layer)", async () => {

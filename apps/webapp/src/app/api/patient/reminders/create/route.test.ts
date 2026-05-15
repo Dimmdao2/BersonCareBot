@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextResponse } from "next/server";
 import type { ReminderRule } from "@/modules/reminders/types";
+import { DEFAULT_REHAB_DAILY_SLOTS, SLOTS_V1_DB_PLACEHOLDER } from "@/modules/reminders/scheduleSlots";
 
 const mockRequirePatientApiBusinessAccess = vi.hoisted(() => vi.fn());
 vi.mock("@/app-layer/guards/requireRole", () => ({
@@ -67,6 +68,18 @@ const sampleCustomRule = (): ReminderRule => ({
   customTitle: "Вода",
   customText: "Утром",
   notificationTopicCode: null,
+});
+
+const sampleRehabSlotsRule = (): ReminderRule => ({
+  ...sampleObjectRule(),
+  id: "wp-rehab-1",
+  linkedObjectType: "rehab_program",
+  scheduleType: "slots_v1",
+  scheduleData: DEFAULT_REHAB_DAILY_SLOTS,
+  reminderIntent: "exercises",
+  intervalMinutes: 60,
+  windowStartMinute: 0,
+  windowEndMinute: 1440,
 });
 
 function req(body: unknown) {
@@ -186,6 +199,42 @@ describe("POST /api/patient/reminders/create", () => {
           timesLocal: ["09:00"],
           dayFilter: "weekdays",
         }),
+      }),
+    );
+  });
+
+  it("returns 201 for rehab_program slots_v1 without scheduleData (service applies rehab defaults)", async () => {
+    mockCreateObject.mockResolvedValueOnce({ ok: true, data: sampleRehabSlotsRule() });
+    const res = await POST(
+      req({
+        linkedObjectType: "rehab_program",
+        linkedObjectId: "550e8400-e29b-41d4-a716-446655440000",
+        schedule: {
+          scheduleType: "slots_v1",
+          daysMask: "1111111",
+        },
+      }),
+    );
+    expect(res.status).toBe(201);
+    const json = (await res.json()) as { ok: boolean; reminder: { id: string } };
+    expect(json.ok).toBe(true);
+    expect(json.reminder.id).toBe("wp-rehab-1");
+    expect(mockCreateObject).toHaveBeenCalledWith(
+      "platform-user-1",
+      expect.objectContaining({
+        linkedObjectType: "rehab_program",
+        linkedObjectId: "550e8400-e29b-41d4-a716-446655440000",
+        scheduleType: "slots_v1",
+        scheduleData: null,
+        schedule: {
+          intervalMinutes: SLOTS_V1_DB_PLACEHOLDER.intervalMinutes,
+          windowStartMinute: SLOTS_V1_DB_PLACEHOLDER.windowStartMinute,
+          windowEndMinute: SLOTS_V1_DB_PLACEHOLDER.windowEndMinute,
+          daysMask: "1111111",
+        },
+        enabled: true,
+        quietHoursStartMinute: null,
+        quietHoursEndMinute: null,
       }),
     );
   });

@@ -48,7 +48,7 @@ describe('remindersReadsPort', () => {
             daysMask: '1111111',
             contentMode: 'none',
             updatedAt: '2025-01-01T00:00:00.000Z',
-            scheduleData: { timesLocal: ['12:00', '15:00'], dayFilter: 'weekdays' },
+            scheduleData: { timesLocal: ['09:00', '19:00'], dayFilter: 'weekly_mask', daysMask: '1111111' },
             reminderIntent: 'generic',
             notificationTopicCode: 'exercise_reminders',
           },
@@ -66,7 +66,11 @@ describe('remindersReadsPort', () => {
     expect(list[0]!.userId).toBe('42');
     expect(list[0]!.category).toBe('exercise');
     expect(list[0]!.notificationTopicCode).toBe('exercise_reminders');
-    expect(list[0]!.scheduleData).toEqual({ timesLocal: ['12:00', '15:00'], dayFilter: 'weekdays' });
+    expect(list[0]!.scheduleData).toEqual({
+      timesLocal: ['09:00', '19:00'],
+      dayFilter: 'weekly_mask',
+      daysMask: '1111111',
+    });
     expect(list[0]!.reminderIntent).toBe('generic');
   });
 

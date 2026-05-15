@@ -7,7 +7,8 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import type { ReminderLinkedObjectType } from "@/modules/reminders/types";
 import type { ReminderDayFilter } from "@/modules/reminders/scheduleSlots";
-import { DEFAULT_REHAB_WEEKDAY_SLOTS } from "@/modules/reminders/scheduleSlots";
+import { DEFAULT_REHAB_DAILY_SLOTS } from "@/modules/reminders/scheduleSlots";
+import { DEFAULT_REMINDER_FORM_FIRST_SLOT_TIME } from "@/modules/reminders/reminderFormDefaults";
 import {
   REMINDER_INTERVAL_WINDOW_MAX_MINUTES,
   REMINDER_INTERVAL_WINDOW_MIN_MINUTES,
@@ -119,7 +120,9 @@ export function ReminderScheduleForm({
   };
 
   const defaultSlotForNewRow =
-    linkedObjectTypeForDefaults === "rehab_program" ? DEFAULT_REHAB_WEEKDAY_SLOTS.timesLocal[0] ?? "09:00" : "09:00";
+    linkedObjectTypeForDefaults === "rehab_program"
+      ? DEFAULT_REHAB_DAILY_SLOTS.timesLocal[0] ?? "09:00"
+      : DEFAULT_REMINDER_FORM_FIRST_SLOT_TIME;
 
   return (
     <div className="flex flex-col gap-3">
@@ -212,7 +215,7 @@ export function ReminderScheduleForm({
               size="sm"
               variant="outline"
               disabled={submitting}
-              onClick={() => setSlotTimeRows([DEFAULT_REHAB_WEEKDAY_SLOTS.timesLocal[0] ?? "09:00"])}
+              onClick={() => setSlotTimeRows([DEFAULT_REHAB_DAILY_SLOTS.timesLocal[0] ?? "09:00"])}
             >
               Утро
             </Button>
@@ -223,8 +226,8 @@ export function ReminderScheduleForm({
               disabled={submitting}
               onClick={() =>
                 setSlotTimeRows([
-                  DEFAULT_REHAB_WEEKDAY_SLOTS.timesLocal[0] ?? "09:00",
-                  DEFAULT_REHAB_WEEKDAY_SLOTS.timesLocal[DEFAULT_REHAB_WEEKDAY_SLOTS.timesLocal.length - 1] ?? "18:00",
+                  DEFAULT_REHAB_DAILY_SLOTS.timesLocal[0] ?? "09:00",
+                  DEFAULT_REHAB_DAILY_SLOTS.timesLocal[DEFAULT_REHAB_DAILY_SLOTS.timesLocal.length - 1] ?? "19:00",
                 ])
               }
             >
@@ -235,7 +238,14 @@ export function ReminderScheduleForm({
               size="sm"
               variant="outline"
               disabled={submitting}
-              onClick={() => setSlotTimeRows(["09:00", "13:00", "18:00"])}
+              onClick={() =>
+                setSlotTimeRows([
+                  DEFAULT_REHAB_DAILY_SLOTS.timesLocal[0] ?? "09:00",
+                  "13:00",
+                  DEFAULT_REHAB_DAILY_SLOTS.timesLocal[DEFAULT_REHAB_DAILY_SLOTS.timesLocal.length - 1] ??
+                    "19:00",
+                ])
+              }
             >
               3 раза
             </Button>

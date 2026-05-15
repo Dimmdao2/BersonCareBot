@@ -143,6 +143,29 @@ export function countWarmupReminderSlotsInUtcRange(rules: ReminderRule[], rangeS
 }
 
 /**
+ * Planned home-linked reminder fires matching optional predicate (same LINKED_TYPES gate as full count).
+ */
+export function countPlannedHomeLinkedReminderOccurrencesWithPredicate(
+  rules: ReminderRule[],
+  predicate: (rule: ReminderRule) => boolean,
+  rangeStart: Date,
+  rangeEnd: Date,
+): number {
+  let n = 0;
+  for (const rule of rules) {
+    if (!rule.enabled) continue;
+    if (!rule.linkedObjectType || !LINKED_TYPES.includes(rule.linkedObjectType)) continue;
+    if (!predicate(rule)) continue;
+    if (rule.scheduleType === "slots_v1" && rule.scheduleData) {
+      n += countSlotsV1OccurrencesInRange(rule, rangeStart, rangeEnd);
+    } else {
+      n += countIntervalWindowOccurrencesInRange(rule, rangeStart, rangeEnd);
+    }
+  }
+  return n;
+}
+
+/**
  * Planned home-linked reminder fires (interval_window or slots_v1) whose instant falls in `[rangeStart, rangeEnd)`.
  * Used for «n из N» on patient home; evaluate each rule in its own `timezone`.
  */
@@ -151,17 +174,7 @@ export function countPlannedHomeReminderOccurrencesInUtcRange(
   rangeStart: Date,
   rangeEnd: Date,
 ): number {
-  let n = 0;
-  for (const rule of rules) {
-    if (!rule.enabled) continue;
-    if (!rule.linkedObjectType || !LINKED_TYPES.includes(rule.linkedObjectType)) continue;
-    if (rule.scheduleType === "slots_v1" && rule.scheduleData) {
-      n += countSlotsV1OccurrencesInRange(rule, rangeStart, rangeEnd);
-    } else {
-      n += countIntervalWindowOccurrencesInRange(rule, rangeStart, rangeEnd);
-    }
-  }
-  return n;
+  return countPlannedHomeLinkedReminderOccurrencesWithPredicate(rules, () => true, rangeStart, rangeEnd);
 }
 
 function computeNextSlotsV1OccurrenceUtc(
@@ -368,6 +381,18 @@ export function formatReminderMuteRemainingRu(mutedUntilIso: string, now: Date):
   }
   const daysTotal = Math.ceil(minsTotal / (60 * 24));
   return `${daysTotal} ${ruDayWordMute(daysTotal)}`;
+}
+
+/** Enabled reminder on warmups CMS section (`content_section` + resolved section slug). */
+export function hasEnabledWarmupsSectionReminder(rules: ReminderRule[], warmupsLinkedId: string): boolean {
+  const id = warmupsLinkedId.trim();
+  if (!id) return false;
+  return rules.some(
+    (r) =>
+      r.enabled &&
+      r.linkedObjectType === "content_section" &&
+      (r.linkedObjectId ?? "").trim() === id,
+  );
 }
 
 /** Есть ли хотя бы одно включённое домашнее напоминание (тип из LINKED_TYPES). */

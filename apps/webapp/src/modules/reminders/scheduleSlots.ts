@@ -11,9 +11,11 @@ export type SlotsV1ScheduleData = {
   anchorDate?: string;
 };
 
-export const DEFAULT_REHAB_WEEKDAY_SLOTS: SlotsV1ScheduleData = {
-  timesLocal: ["12:00", "15:00", "17:00"],
-  dayFilter: "weekdays",
+/** Default rehab slots: twice daily, every calendar day (weekly_mask all ones). */
+export const DEFAULT_REHAB_DAILY_SLOTS: SlotsV1ScheduleData = {
+  timesLocal: ["09:00", "19:00"],
+  dayFilter: "weekly_mask",
+  daysMask: "1111111",
 };
 
 /** Sentinel stored in DB / POST when schedule_type is slots_v1 (dispatch uses schedule_data). */

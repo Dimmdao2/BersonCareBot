@@ -1,9 +1,10 @@
 /** @vitest-environment jsdom */
 
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import type { AppSession } from "@/shared/types/session";
 import type { PatientHomeBlock, PatientHomeBlockItem } from "@/modules/patient-home/ports";
+import type { ReminderRule } from "@/modules/reminders/types";
 import { getPatientHomeTodayConfig } from "@/modules/patient-home/todayConfig";
 import { PatientHomeToday } from "./PatientHomeToday";
 import { routePaths } from "@/app-layer/routes/paths";
@@ -27,6 +28,7 @@ const getCheckinState = vi.fn();
 const getWeekSparkline = vi.fn();
 const refresh = vi.fn();
 const systemSettingsGetSetting = vi.hoisted(() => vi.fn().mockImplementation(async () => null));
+const getReminderMutedUntil = vi.hoisted(() => vi.fn().mockResolvedValue(null));
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh }),
@@ -35,10 +37,13 @@ vi.mock("next/navigation", () => ({
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
     patientHomeBlocks: { listBlocksWithItems },
-    contentSections: { getBySlug: contentSectionsGetBySlug },
+    contentSections: {
+      getBySlug: contentSectionsGetBySlug,
+      getRedirectNewSlugForOldSlug: vi.fn().mockResolvedValue(null),
+    },
     contentPages: { getBySlug: contentPagesGetBySlug },
     courses: { getCourseForDoctor: coursesGetCourseForDoctor },
-    reminders: { listRulesByUser, getReminderMutedUntil: vi.fn().mockResolvedValue(null) },
+    reminders: { listRulesByUser, getReminderMutedUntil },
     treatmentProgramInstance: {
       listForPatient,
       getInstanceForPatient,
@@ -115,6 +120,93 @@ const fixtureSession: AppSession = {
   issuedAt: 0,
   expiresAt: Number.MAX_SAFE_INTEGER,
 };
+
+/** Shared fixtures for patient-tier reminder math on home (warmups section + rehab slots). */
+function reminderRulesWarmupsSectionPlusRehab(): ReminderRule[] {
+  return [
+    {
+      id: "warmups-section-rule",
+      integratorUserId: "i1",
+      category: "lfk",
+      enabled: true,
+      intervalMinutes: 60,
+      windowStartMinute: 9 * 60,
+      windowEndMinute: 10 * 60,
+      daysMask: "1111111",
+      timezone: "Europe/Moscow",
+      fallbackEnabled: true,
+      linkedObjectType: "content_section",
+      linkedObjectId: "warmups",
+      customTitle: null,
+      customText: null,
+      scheduleType: "interval_window",
+      scheduleData: null,
+      reminderIntent: "warmup",
+      displayTitle: null,
+      displayDescription: null,
+      quietHoursStartMinute: null,
+      quietHoursEndMinute: null,
+      notificationTopicCode: "exercise_reminders",
+      updatedAt: "2026-04-28T00:00:00.000Z",
+    },
+    {
+      id: "rehab-rule",
+      integratorUserId: "i1",
+      category: "lfk",
+      enabled: true,
+      intervalMinutes: null,
+      windowStartMinute: 0,
+      windowEndMinute: 0,
+      daysMask: "1111111",
+      timezone: "Europe/Moscow",
+      fallbackEnabled: true,
+      linkedObjectType: "rehab_program",
+      linkedObjectId: "program-1",
+      customTitle: null,
+      customText: null,
+      scheduleType: "slots_v1",
+      scheduleData: { timesLocal: ["12:00"], dayFilter: "weekly_mask", daysMask: "1111111" },
+      reminderIntent: "exercises",
+      displayTitle: null,
+      displayDescription: null,
+      quietHoursStartMinute: null,
+      quietHoursEndMinute: null,
+      notificationTopicCode: "exercise_reminders",
+      updatedAt: "2026-04-28T00:00:00.000Z",
+    },
+  ];
+}
+
+function reminderRulesProgressTargetFour(): ReminderRule[] {
+  return [
+    ...reminderRulesWarmupsSectionPlusRehab(),
+    {
+      id: "custom-rule",
+      integratorUserId: "i1",
+      category: "important",
+      enabled: true,
+      intervalMinutes: 60,
+      windowStartMinute: 20 * 60,
+      windowEndMinute: 20 * 60,
+      daysMask: "1111111",
+      timezone: "Europe/Moscow",
+      fallbackEnabled: true,
+      linkedObjectType: "custom",
+      linkedObjectId: null,
+      customTitle: "После прогулки",
+      customText: null,
+      scheduleType: "interval_window",
+      scheduleData: null,
+      reminderIntent: "generic",
+      displayTitle: null,
+      displayDescription: null,
+      quietHoursStartMinute: null,
+      quietHoursEndMinute: null,
+      notificationTopicCode: null,
+      updatedAt: "2026-04-28T00:00:00.000Z",
+    },
+  ];
+}
 
 describe("PatientHomeToday", () => {
   beforeEach(() => {
@@ -207,6 +299,8 @@ describe("PatientHomeToday", () => {
       lastEntry: { id: "e1", recordedAt: "2026-04-28T10:00:00.000Z", score: 4 },
     });
     getWeekSparkline.mockResolvedValue([]);
+    getReminderMutedUntil.mockReset();
+    getReminderMutedUntil.mockResolvedValue(null);
     systemSettingsGetSetting.mockReset();
     systemSettingsGetSetting.mockImplementation(async () => null);
   });
@@ -372,34 +466,47 @@ describe("PatientHomeToday", () => {
     expect(screen.getByText(/^день$/)).toBeInTheDocument();
   });
 
-  it("patient tier: progress target uses planned reminder total (warmup + rehab + custom)", async () => {
+  it("patient tier: progress target uses planned reminder total when warmups section reminder exists", async () => {
+    listRulesByUser.mockResolvedValueOnce(reminderRulesProgressTargetFour());
+    getProgress.mockResolvedValueOnce({ todayDone: 1, todayTarget: 3, streak: 2 });
+
+    const tree = await PatientHomeToday({
+      session: fixtureSession,
+      personalTierOk: true,
+      canViewAuthOnlyContent: true,
+    });
+    render(tree);
+
+    expect(
+      screen.getByLabelText(/^Выполнено практик сегодня: 1, цель 4, в плане разминок: 2, остальных: 2$/),
+    ).toBeInTheDocument();
+    expect(getProgress).toHaveBeenCalledWith(fixtureSession.user.userId, "Europe/Moscow", 4);
+  });
+
+  it("patient tier: mute zeros practice goal and hides warmup/LFK breakdown labels", async () => {
+    getReminderMutedUntil.mockResolvedValueOnce("2099-01-01T12:00:00.000Z");
+    listRulesByUser.mockResolvedValueOnce(reminderRulesWarmupsSectionPlusRehab());
+    getProgress.mockResolvedValueOnce({ todayDone: 0, todayTarget: 0, streak: 1 });
+
+    const tree = await PatientHomeToday({
+      session: fixtureSession,
+      personalTierOk: true,
+      canViewAuthOnlyContent: true,
+    });
+    render(tree);
+
+    expect(getReminderMutedUntil).toHaveBeenCalledWith(fixtureSession.user.userId);
+    expect(getProgress).toHaveBeenCalledWith(fixtureSession.user.userId, "Europe/Moscow", 0);
+    expect(screen.getByLabelText(/^Выполнено практик сегодня: 0, цель 0$/)).toBeInTheDocument();
+    const progressArticle = document.getElementById("patient-home-progress-block");
+    expect(progressArticle).not.toBeNull();
+    expect(within(progressArticle as HTMLElement).queryByText(/^разминок:/)).toBeNull();
+  });
+
+  it("patient tier: uses admin practice target when reminders lack enabled warmups section rule", async () => {
     listRulesByUser.mockResolvedValueOnce([
       {
-        id: "warmup-rule",
-        integratorUserId: "i1",
-        category: "lfk",
-        enabled: true,
-        intervalMinutes: 60,
-        windowStartMinute: 9 * 60,
-        windowEndMinute: 10 * 60,
-        daysMask: "1111111",
-        timezone: "Europe/Moscow",
-        fallbackEnabled: true,
-        linkedObjectType: "content_page",
-        linkedObjectId: "warmup-page",
-        customTitle: null,
-        customText: null,
-        scheduleType: "interval_window",
-        scheduleData: null,
-        reminderIntent: "warmup",
-        displayTitle: null,
-        displayDescription: null,
-        quietHoursStartMinute: null,
-        quietHoursEndMinute: null,
-        updatedAt: "2026-04-28T00:00:00.000Z",
-      },
-      {
-        id: "rehab-rule",
+        id: "rehab-only",
         integratorUserId: "i1",
         category: "lfk",
         enabled: true,
@@ -420,30 +527,7 @@ describe("PatientHomeToday", () => {
         displayDescription: null,
         quietHoursStartMinute: null,
         quietHoursEndMinute: null,
-        updatedAt: "2026-04-28T00:00:00.000Z",
-      },
-      {
-        id: "custom-rule",
-        integratorUserId: "i1",
-        category: "important",
-        enabled: true,
-        intervalMinutes: 60,
-        windowStartMinute: 20 * 60,
-        windowEndMinute: 20 * 60,
-        daysMask: "1111111",
-        timezone: "Europe/Moscow",
-        fallbackEnabled: true,
-        linkedObjectType: "custom",
-        linkedObjectId: null,
-        customTitle: "После прогулки",
-        customText: null,
-        scheduleType: "interval_window",
-        scheduleData: null,
-        reminderIntent: "generic",
-        displayTitle: null,
-        displayDescription: null,
-        quietHoursStartMinute: null,
-        quietHoursEndMinute: null,
+        notificationTopicCode: "exercise_reminders",
         updatedAt: "2026-04-28T00:00:00.000Z",
       },
     ]);
@@ -456,7 +540,8 @@ describe("PatientHomeToday", () => {
     });
     render(tree);
 
-    expect(screen.getByLabelText(/Выполнено практик сегодня: 1, цель 4/)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Выполнено практик сегодня: 1, цель 3/)).toBeInTheDocument();
+    expect(getProgress).toHaveBeenCalledWith(fixtureSession.user.userId, "Europe/Moscow", 3);
   });
 
   it("patient tier: week sparkline uses saved calendar IANA when set", async () => {

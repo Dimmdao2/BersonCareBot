@@ -18,10 +18,17 @@ import { PatientHomeSafeImage } from "./PatientHomeSafeImage";
 import { streakFlameOpacity } from "./patientHomeStreakFlameOpacity";
 import { cn } from "@/lib/utils";
 
+export type PatientHomeProgressGoalBreakdown = {
+  warmup: number;
+  lfk: number;
+};
+
 type Props = {
   practiceTarget: number;
   anonymousGuest: boolean;
   progress: { todayDone: number; streak: number } | null;
+  /** Запланировано сегодня по напоминаниям: разминки vs остальное (когда цель с главной из суммы слотов). */
+  progressGoalBreakdown?: PatientHomeProgressGoalBreakdown | null;
   /** CMS media URL for streak leading icon; Lucide fallback when null/empty. */
   blockIconImageUrl?: string | null;
 };
@@ -30,12 +37,23 @@ export function PatientHomeProgressBlock({
   practiceTarget,
   anonymousGuest,
   progress,
+  progressGoalBreakdown = null,
   blockIconImageUrl,
 }: Props) {
   const displayDone =
     progress && practiceTarget > 0 ? Math.min(progress.todayDone, practiceTarget) : progress?.todayDone ?? 0;
   const pct =
     practiceTarget > 0 ? Math.min(100, Math.round((displayDone / practiceTarget) * 100)) : 0;
+
+  const showBreakdown =
+    progressGoalBreakdown != null &&
+    practiceTarget > 0 &&
+    (progressGoalBreakdown.warmup > 0 || progressGoalBreakdown.lfk > 0);
+
+  const progressAriaLabel =
+    showBreakdown ?
+      `Выполнено практик сегодня: ${progress?.todayDone ?? 0}, цель ${practiceTarget}, в плане разминок: ${progressGoalBreakdown!.warmup}, остальных: ${progressGoalBreakdown!.lfk}`
+    : `Выполнено практик сегодня: ${progress?.todayDone ?? 0}, цель ${practiceTarget}`;
 
   const guestCopy = anonymousGuest ?
     <>
@@ -75,17 +93,31 @@ export function PatientHomeProgressBlock({
                 <p className={patientHomeBlockBodySmClass}>Загрузка прогресса…</p>
               </div>
             : <>
-                <p className="mt-0.5" aria-label={`Выполнено практик сегодня: ${progress.todayDone}, цель ${practiceTarget}`}>
-                  <span className={patientHomeProgressValueClass}>{displayDone}</span>
-                  <span className={patientHomeProgressValueSuffixClass}> из {practiceTarget}</span>
-                </p>
+                <div className="mt-0.5 flex flex-row flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                  <p className="m-0 shrink-0" aria-label={progressAriaLabel}>
+                    <span className={patientHomeProgressValueClass}>{displayDone}</span>
+                    <span className={patientHomeProgressValueSuffixClass}>
+                      {" "}
+                      из {practiceTarget}
+                    </span>
+                  </p>
+                  {showBreakdown ?
+                    <div
+                      className="min-w-0 text-[10px] leading-tight text-[var(--patient-text-muted)] md:text-xs"
+                      aria-hidden
+                    >
+                      <div>разминок: {progressGoalBreakdown!.warmup}</div>
+                      <div>ЛФК: {progressGoalBreakdown!.lfk}</div>
+                    </div>
+                  : null}
+                </div>
                 <div
                   className="mt-2 h-2 w-full overflow-hidden rounded-full bg-[#e5e7eb]"
                   role="progressbar"
                   aria-valuenow={displayDone}
                   aria-valuemin={0}
                   aria-valuemax={practiceTarget}
-                  aria-label="Прогресс за сегодня"
+                  aria-label={showBreakdown ? `${progressAriaLabel}. Полоса прогресса.` : "Прогресс за сегодня"}
                 >
                   <div
                     className="h-full rounded-full bg-[var(--patient-color-primary)] transition-[width] duration-300"

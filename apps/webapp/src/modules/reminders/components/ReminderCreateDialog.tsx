@@ -16,7 +16,14 @@ import { Textarea } from "@/components/ui/textarea";
 import type { PatientReminderRuleJson } from "@/app/api/patient/reminders/reminderPatientJson";
 import type { ReminderLinkedObjectType } from "@/modules/reminders/types";
 import type { ReminderDayFilter, SlotsV1ScheduleData } from "@/modules/reminders/scheduleSlots";
-import { DEFAULT_REHAB_WEEKDAY_SLOTS, normalizeSlotsV1ScheduleData } from "@/modules/reminders/scheduleSlots";
+import { DEFAULT_REHAB_DAILY_SLOTS, normalizeSlotsV1ScheduleData } from "@/modules/reminders/scheduleSlots";
+import {
+  DEFAULT_REMINDER_FORM_DAYS_MASK,
+  DEFAULT_REMINDER_FORM_FIRST_SLOT_TIME,
+  DEFAULT_REMINDER_FORM_INTERVAL_MINUTES,
+  DEFAULT_REMINDER_FORM_WINDOW_END_MINUTE,
+  DEFAULT_REMINDER_FORM_WINDOW_START_MINUTE,
+} from "@/modules/reminders/reminderFormDefaults";
 import { validateQuietHoursPair } from "@/modules/reminders/quietHours";
 import {
   REMINDER_INTERVAL_WINDOW_MAX_MINUTES,
@@ -60,11 +67,6 @@ export type ReminderCreateDialogProps = {
   onSaved: () => void;
 };
 
-const DEFAULT_INTERVAL = 60;
-const DEFAULT_START = 9 * 60;
-const DEFAULT_END = 21 * 60;
-const DEFAULT_MASK = "1111111";
-
 const DELIVERY_NOTE =
   "Уведомления приходят в доступный канал бота (Telegram или MAX), если он подключён.";
 
@@ -84,12 +86,12 @@ export function ReminderCreateDialog({
 }: ReminderCreateDialogProps) {
   const isMobileViewport = useSyncExternalStore(subscribeMobileViewport, getMobileViewportSnapshot, () => false);
 
-  const [intervalMinutes, setIntervalMinutes] = useState(DEFAULT_INTERVAL);
-  const [startTime, setStartTime] = useState(minutesToTimeInput(DEFAULT_START));
-  const [endTime, setEndTime] = useState(minutesToTimeInput(DEFAULT_END));
-  const [daysMask, setDaysMask] = useState(DEFAULT_MASK);
+  const [intervalMinutes, setIntervalMinutes] = useState(DEFAULT_REMINDER_FORM_INTERVAL_MINUTES);
+  const [startTime, setStartTime] = useState(minutesToTimeInput(DEFAULT_REMINDER_FORM_WINDOW_START_MINUTE));
+  const [endTime, setEndTime] = useState(minutesToTimeInput(DEFAULT_REMINDER_FORM_WINDOW_END_MINUTE));
+  const [daysMask, setDaysMask] = useState(DEFAULT_REMINDER_FORM_DAYS_MASK);
   const [scheduleMode, setScheduleMode] = useState<"interval_window" | "slots_v1">("interval_window");
-  const [slotTimeRows, setSlotTimeRows] = useState<string[]>(() => [...DEFAULT_REHAB_WEEKDAY_SLOTS.timesLocal]);
+  const [slotTimeRows, setSlotTimeRows] = useState<string[]>(() => [...DEFAULT_REHAB_DAILY_SLOTS.timesLocal]);
   const [slotsDayFilter, setSlotsDayFilter] = useState<ReminderDayFilter>("weekdays");
   const [quietStart, setQuietStart] = useState("");
   const [quietEnd, setQuietEnd] = useState("");
@@ -111,18 +113,30 @@ export function ReminderCreateDialog({
     if (existingRule) {
       const isSlots = existingRule.scheduleType === "slots_v1";
       setScheduleMode(isSlots ? "slots_v1" : "interval_window");
-      setIntervalMinutes(clampIntervalMinutes(existingRule.intervalMinutes ?? DEFAULT_INTERVAL));
+      setIntervalMinutes(clampIntervalMinutes(existingRule.intervalMinutes ?? DEFAULT_REMINDER_FORM_INTERVAL_MINUTES));
       setStartTime(minutesToTimeInput(existingRule.windowStartMinute));
       setEndTime(minutesToTimeInput(existingRule.windowEndMinute));
-      setDaysMask(/^[01]{7}$/.test(existingRule.daysMask) ? existingRule.daysMask : DEFAULT_MASK);
+      setDaysMask(/^[01]{7}$/.test(existingRule.daysMask) ? existingRule.daysMask : DEFAULT_REMINDER_FORM_DAYS_MASK);
       setCustomTitle(existingRule.customTitle?.trim() ?? "");
       setCustomText(existingRule.customText?.trim() ?? "");
       if (isSlots && existingRule.scheduleData?.timesLocal?.length) {
         setSlotTimeRows(dedupeSortTimes([...existingRule.scheduleData.timesLocal]));
-        setSlotsDayFilter(existingRule.scheduleData.dayFilter ?? "weekdays");
+        const df = existingRule.scheduleData.dayFilter ?? "weekdays";
+        setSlotsDayFilter(df);
+        if (df === "weekly_mask" && /^[01]{7}$/.test(existingRule.scheduleData.daysMask ?? "")) {
+          setDaysMask(existingRule.scheduleData.daysMask!.padEnd(7, "0").slice(0, 7));
+        }
+      } else if (isSlots) {
+        setSlotTimeRows([...DEFAULT_REHAB_DAILY_SLOTS.timesLocal]);
+        setSlotsDayFilter("weekly_mask");
+        setDaysMask(DEFAULT_REHAB_DAILY_SLOTS.daysMask ?? "1111111");
       } else {
-        setSlotTimeRows([...DEFAULT_REHAB_WEEKDAY_SLOTS.timesLocal]);
-        setSlotsDayFilter("weekdays");
+        setSlotTimeRows(
+          existingRule.linkedObjectType === "rehab_program"
+            ? [...DEFAULT_REHAB_DAILY_SLOTS.timesLocal]
+            : [DEFAULT_REMINDER_FORM_FIRST_SLOT_TIME],
+        );
+        setSlotsDayFilter(existingRule.linkedObjectType === "rehab_program" ? "weekly_mask" : "weekdays");
       }
       if (existingRule.quietHoursStartMinute != null && existingRule.quietHoursEndMinute != null) {
         setQuietStart(minutesToTimeInput(existingRule.quietHoursStartMinute));
@@ -133,18 +147,20 @@ export function ReminderCreateDialog({
       }
     } else {
       setScheduleMode(linkedObjectType === "rehab_program" ? "slots_v1" : "interval_window");
-      setIntervalMinutes(DEFAULT_INTERVAL);
-      setStartTime(minutesToTimeInput(DEFAULT_START));
-      setEndTime(minutesToTimeInput(DEFAULT_END));
-      setDaysMask(DEFAULT_MASK);
+      setIntervalMinutes(DEFAULT_REMINDER_FORM_INTERVAL_MINUTES);
+      setStartTime(minutesToTimeInput(DEFAULT_REMINDER_FORM_WINDOW_START_MINUTE));
+      setEndTime(minutesToTimeInput(DEFAULT_REMINDER_FORM_WINDOW_END_MINUTE));
       setCustomTitle("");
       setCustomText("");
-      setSlotTimeRows(
-        linkedObjectType === "rehab_program"
-          ? [...DEFAULT_REHAB_WEEKDAY_SLOTS.timesLocal]
-          : [minutesToTimeInput(DEFAULT_START)],
-      );
-      setSlotsDayFilter("weekdays");
+      if (linkedObjectType === "rehab_program") {
+        setDaysMask(DEFAULT_REHAB_DAILY_SLOTS.daysMask ?? "1111111");
+        setSlotTimeRows([...DEFAULT_REHAB_DAILY_SLOTS.timesLocal]);
+        setSlotsDayFilter("weekly_mask");
+      } else {
+        setDaysMask(DEFAULT_REMINDER_FORM_DAYS_MASK);
+        setSlotTimeRows([DEFAULT_REMINDER_FORM_FIRST_SLOT_TIME]);
+        setSlotsDayFilter("weekdays");
+      }
       setQuietStart("");
       setQuietEnd("");
     }

@@ -46,4 +46,33 @@ describe("PatientHomeProgressBlock", () => {
     const img = container.querySelector("img");
     expect(img).toHaveAttribute("src", "/api/media/eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee");
   });
+
+  it("shows micro goal breakdown labels and extended aria-label when progressGoalBreakdown is set", () => {
+    render(
+      <PatientHomeProgressBlock
+        practiceTarget={4}
+        anonymousGuest={false}
+        progress={{ todayDone: 1, streak: 2 }}
+        progressGoalBreakdown={{ warmup: 2, lfk: 2 }}
+      />,
+    );
+    expect(screen.getByText("разминок: 2")).toBeInTheDocument();
+    expect(screen.getByText("ЛФК: 2")).toBeInTheDocument();
+    expect(
+      screen.getByLabelText(/^Выполнено практик сегодня: 1, цель 4, в плане разминок: 2, остальных: 2$/),
+    ).toBeInTheDocument();
+  });
+
+  it("does not render breakdown when both warmup and lfk counts are zero", () => {
+    render(
+      <PatientHomeProgressBlock
+        practiceTarget={4}
+        anonymousGuest={false}
+        progress={{ todayDone: 1, streak: 2 }}
+        progressGoalBreakdown={{ warmup: 0, lfk: 0 }}
+      />,
+    );
+    expect(screen.queryByText(/разминок:/)).toBeNull();
+    expect(screen.getByLabelText(/^Выполнено практик сегодня: 1, цель 4$/)).toBeInTheDocument();
+  });
 });

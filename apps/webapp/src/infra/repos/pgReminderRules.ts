@@ -13,7 +13,7 @@ import type {
   ReminderUpdateSchedule,
 } from "@/modules/reminders/types";
 import type { SlotsV1ScheduleData } from "@/modules/reminders/scheduleSlots";
-import { DEFAULT_REHAB_WEEKDAY_SLOTS } from "@/modules/reminders/scheduleSlots";
+import { DEFAULT_REHAB_DAILY_SLOTS } from "@/modules/reminders/scheduleSlots";
 import { notificationTopicCodeFromReminderRule } from "@/modules/reminders/notificationTopicCode";
 
 const FALLBACK_CATEGORIES = new Set(["appointment", "lfk", "chat", "important"]);
@@ -194,7 +194,7 @@ export function createPgReminderRulesPort(): ReminderRulesPort {
       const reminderIntent = input.reminderIntent ?? "generic";
       const tz = input.timezone?.trim() || "Europe/Moscow";
       if (input.linkedObjectType === "rehab_program" && scheduleType === "slots_v1" && !scheduleData) {
-        scheduleData = DEFAULT_REHAB_WEEKDAY_SLOTS;
+        scheduleData = DEFAULT_REHAB_DAILY_SLOTS;
       }
       const notificationTopicCode = notificationTopicCodeFromReminderRule({
         category,

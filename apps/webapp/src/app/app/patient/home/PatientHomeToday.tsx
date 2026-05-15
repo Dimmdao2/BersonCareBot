@@ -13,10 +13,14 @@ import {
   formatPatientHomeNextReminderHeadline,
   formatReminderMuteRemainingRu,
   hasConfiguredHomeLinkedReminders,
+  hasEnabledWarmupsSectionReminder,
   pickNextHomeReminder,
   reminderScheduleEvaluationInstant,
   countPlannedHomeReminderOccurrencesInUtcRange,
+  countPlannedHomeLinkedReminderOccurrencesWithPredicate,
 } from "@/modules/patient-home/nextReminderOccurrence";
+import { resolvePatientContentSectionSlug } from "@/infra/repos/resolvePatientContentSectionSlug";
+import { DEFAULT_WARMUPS_SECTION_SLUG } from "@/modules/patient-home/warmupsSection";
 import { pickActivePlanInstance } from "@/modules/treatment-program/pickActivePlanInstance";
 import { formatBookingDateLongRu } from "@/shared/lib/formatBusinessDateTime";
 import type { PatientHomeBlockCode } from "@/modules/patient-home/ports";
@@ -212,7 +216,9 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
   let dailyWarmupHeroCooldownActive = false;
   let warmupCooldownCaption: string | null = null;
 
-  if (session) {
+  let progressGoalBreakdown: { warmup: number; lfk: number } | null = null;
+
+  if (session && !personalTierOk) {
     const p = await deps.patientPractice.getProgress(session.user.userId, appTz, todayCfg.practiceTarget);
     progress = { todayDone: p.todayDone, streak: p.streak };
   }
@@ -236,6 +242,50 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
       deps.patientPractice.listRecent(session.user.userId, 1500),
       deps.treatmentProgramPatientActions.listLocalDoneDateKeysForRecentDays(session.user.userId, 120),
     ]);
+    const warmRes = await resolvePatientContentSectionSlug(
+      {
+        getBySlug: (s) => deps.contentSections.getBySlug(s),
+        getRedirectNewSlugForOldSlug: (s) => deps.contentSections.getRedirectNewSlugForOldSlug(s),
+      },
+      DEFAULT_WARMUPS_SECTION_SLUG,
+    );
+    const warmupsLinkedId = (warmRes?.canonicalSlug ?? DEFAULT_WARMUPS_SECTION_SLUG).trim();
+
+    patientHomeReminderEvaluatedAt = new Date();
+    const dayStart = DateTime.now().setZone(appTz).startOf("day");
+    const dayEnd = dayStart.plus({ days: 1 });
+    const rangeStart = dayStart.toUTC().toJSDate();
+    const rangeEnd = dayEnd.toUTC().toJSDate();
+    const compareNow = patientHomeReminderEvaluatedAt;
+    const muted = !!(mutedUntilIso && new Date(mutedUntilIso).getTime() > compareNow.getTime());
+    const plannedTotal = muted ? 0 : countPlannedHomeReminderOccurrencesInUtcRange(rules, rangeStart, rangeEnd);
+    const hasWarmupsSchedule = hasEnabledWarmupsSectionReminder(rules, warmupsLinkedId);
+    if (muted) {
+      practiceTarget = 0;
+    } else if (hasWarmupsSchedule) {
+      practiceTarget = plannedTotal;
+    } else {
+      practiceTarget = todayCfg.practiceTarget;
+    }
+
+    const warmupPlanned =
+      muted ? 0
+      : countPlannedHomeLinkedReminderOccurrencesWithPredicate(
+          rules,
+          (r) =>
+            r.linkedObjectType === "content_section" &&
+            (r.linkedObjectId ?? "").trim() === warmupsLinkedId,
+          rangeStart,
+          rangeEnd,
+        );
+    const lfkPlanned = plannedTotal - warmupPlanned;
+    if (hasWarmupsSchedule && !muted && plannedTotal > 0) {
+      progressGoalBreakdown = { warmup: warmupPlanned, lfk: lfkPlanned };
+    }
+
+    const gp = await deps.patientPractice.getProgress(session.user.userId, appTz, practiceTarget);
+    progress = { todayDone: gp.todayDone, streak: gp.streak };
+
     if (progress) {
       const mergedDates = new Set<string>();
       for (const row of recentPracticeRows) {
@@ -263,20 +313,9 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
     }
     moodWeekTz = resolveCalendarDayIanaForPatient(patientCalTz, appTz);
     const week = await deps.patientMood.getWeekSparkline(session.user.userId, moodWeekTz);
-    patientHomeReminderEvaluatedAt = new Date();
     const scheduleInstant = reminderScheduleEvaluationInstant(patientHomeReminderEvaluatedAt, mutedUntilIso);
     hasConfiguredSchedule = hasConfiguredHomeLinkedReminders(rules);
     homeReminder = pickNextHomeReminder(rules, scheduleInstant, appTz);
-    const dayStart = DateTime.now().setZone(appTz).startOf("day");
-    const dayEnd = dayStart.plus({ days: 1 });
-    const rangeStart = dayStart.toUTC().toJSDate();
-    const rangeEnd = dayEnd.toUTC().toJSDate();
-    const compareNow = patientHomeReminderEvaluatedAt ?? new Date();
-    const muted = !!(mutedUntilIso && new Date(mutedUntilIso).getTime() > compareNow.getTime());
-    const plannedTotal = muted ? 0 : countPlannedHomeReminderOccurrencesInUtcRange(rules, rangeStart, rangeEnd);
-    if (hasConfiguredSchedule) {
-      practiceTarget = plannedTotal;
-    }
     const picked = pickActivePlanInstance(instances);
     planInstance = picked ? { id: picked.id, title: picked.title } : null;
     if (planInstance) {
@@ -385,6 +424,7 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
             practiceTarget={practiceTarget}
             anonymousGuest={anonymousGuest}
             progress={progress}
+            progressGoalBreakdown={progressGoalBreakdown}
             blockIconImageUrl={blockLeadingIconFor("progress")}
           />
         );

@@ -6,8 +6,10 @@ import {
   formatPatientHomeNextReminderHeadline,
   formatReminderMuteRemainingRu,
   hasConfiguredHomeLinkedReminders,
+  hasEnabledWarmupsSectionReminder,
   pickNextHomeReminder,
   reminderScheduleEvaluationInstant,
+  countPlannedHomeLinkedReminderOccurrencesWithPredicate,
   countPlannedHomeReminderOccurrencesInUtcRange,
   countWarmupReminderSlotsInUtcRange,
 } from "./nextReminderOccurrence";
@@ -118,7 +120,7 @@ describe("pickNextHomeReminder", () => {
     expect(pickNextHomeReminder([a, b], now, "Europe/Moscow")?.rule.id).toBe("b");
   });
 
-  it("includes rehab_program with slots_v1", () => {
+  it("includes rehab_program with slots_v1 (explicit weekday times)", () => {
     const now = DateTime.fromObject(
       { year: 2026, month: 4, day: 28, hour: 10, minute: 0, second: 0 },
       { zone: "Europe/Moscow" },
@@ -128,6 +130,7 @@ describe("pickNextHomeReminder", () => {
       linkedObjectType: "rehab_program",
       linkedObjectId: "p1",
       scheduleType: "slots_v1",
+      // Explicit times for this test (not DEFAULT_REHAB_DAILY_SLOTS).
       scheduleData: { timesLocal: ["12:00", "15:00", "17:00"], dayFilter: "weekdays" },
     });
     const next = pickNextHomeReminder([r], now, "Europe/Moscow");
@@ -360,6 +363,103 @@ describe("countPlannedHomeReminderOccurrencesInUtcRange", () => {
       scheduleData: null,
     });
     expect(countPlannedHomeReminderOccurrencesInUtcRange([r], rangeStart, rangeEnd)).toBe(3);
+  });
+
+  it("counts exactly three interval_window fires on a weekday for office window 12–18 every 180 min (Mon–Fri mask)", () => {
+    const dayStart = DateTime.fromObject(
+      { year: 2026, month: 4, day: 28, hour: 0, minute: 0, second: 0 },
+      { zone: "Europe/Moscow" },
+    );
+    const rangeStart = dayStart.toUTC().toJSDate();
+    const rangeEnd = dayStart.plus({ days: 1 }).toUTC().toJSDate();
+    const r = rule({
+      id: "office",
+      linkedObjectType: "custom",
+      linkedObjectId: null,
+      customTitle: "Офис",
+      windowStartMinute: 12 * 60,
+      windowEndMinute: 18 * 60,
+      intervalMinutes: 180,
+      daysMask: "1111100",
+      scheduleType: "interval_window",
+      scheduleData: null,
+    });
+    expect(countPlannedHomeReminderOccurrencesInUtcRange([r], rangeStart, rangeEnd)).toBe(3);
+  });
+
+  it("countPlannedHomeLinkedReminderOccurrencesWithPredicate sums only matching rules", () => {
+    const dayStart = DateTime.fromObject(
+      { year: 2026, month: 4, day: 28, hour: 0, minute: 0, second: 0 },
+      { zone: "Europe/Moscow" },
+    );
+    const rangeStart = dayStart.toUTC().toJSDate();
+    const rangeEnd = dayStart.plus({ days: 1 }).toUTC().toJSDate();
+    const warm = rule({
+      id: "warm-section",
+      linkedObjectType: "content_section",
+      linkedObjectId: "warmups",
+      windowStartMinute: 9 * 60,
+      windowEndMinute: 10 * 60,
+      intervalMinutes: 60,
+      scheduleType: "interval_window",
+      scheduleData: null,
+    });
+    const rehab = rule({
+      id: "rehab",
+      linkedObjectType: "rehab_program",
+      linkedObjectId: "p1",
+      scheduleType: "slots_v1",
+      scheduleData: { timesLocal: ["12:00"], dayFilter: "weekdays" },
+    });
+    expect(countPlannedHomeReminderOccurrencesInUtcRange([warm, rehab], rangeStart, rangeEnd)).toBe(3);
+    expect(
+      countPlannedHomeLinkedReminderOccurrencesWithPredicate(
+        [warm, rehab],
+        (x) => x.linkedObjectType === "content_section" && x.linkedObjectId === "warmups",
+        rangeStart,
+        rangeEnd,
+      ),
+    ).toBe(2);
+  });
+});
+
+describe("hasEnabledWarmupsSectionReminder", () => {
+  it("is false when no enabled warmups-section rule matches resolved slug", () => {
+    expect(hasEnabledWarmupsSectionReminder([], "warmups")).toBe(false);
+    expect(
+      hasEnabledWarmupsSectionReminder(
+        [
+          rule({
+            id: "wrong-slug",
+            linkedObjectType: "content_section",
+            linkedObjectId: "articles",
+          }),
+        ],
+        "warmups",
+      ),
+    ).toBe(false);
+    expect(
+      hasEnabledWarmupsSectionReminder(
+        [
+          rule({
+            id: "off",
+            enabled: false,
+            linkedObjectType: "content_section",
+            linkedObjectId: "warmups",
+          }),
+        ],
+        "warmups",
+      ),
+    ).toBe(false);
+  });
+
+  it("is true when an enabled rule targets content_section with the warmups slug", () => {
+    expect(
+      hasEnabledWarmupsSectionReminder(
+        [rule({ id: "on", linkedObjectType: "content_section", linkedObjectId: "warmups" })],
+        "warmups",
+      ),
+    ).toBe(true);
   });
 });
 

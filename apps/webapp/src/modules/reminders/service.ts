@@ -8,7 +8,7 @@ import type {
 } from "./types";
 import type { SlotsV1ScheduleData } from "./scheduleSlots";
 import {
-  DEFAULT_REHAB_WEEKDAY_SLOTS,
+  DEFAULT_REHAB_DAILY_SLOTS,
   SLOTS_V1_DB_PLACEHOLDER,
   normalizeSlotsV1ScheduleData,
 } from "./scheduleSlots";
@@ -240,7 +240,7 @@ export function createRemindersService(port: ReminderRulesPort, deps?: Reminders
         if (target.scheduleType === "slots_v1") {
           const daysMask = data.daysMask ?? target.daysMask;
           if (!/^[01]{7}$/.test(daysMask)) return { ok: false, error: "validation_error: daysMask" };
-          const baseData = target.scheduleData ?? DEFAULT_REHAB_WEEKDAY_SLOTS;
+          const baseData = target.scheduleData ?? DEFAULT_REHAB_DAILY_SLOTS;
           const norm = normalizeSlotsV1ScheduleData(baseData);
           if (!norm.ok) return { ok: false, error: norm.error };
           await port.updateScheduleAndType(ruleId, {
@@ -317,7 +317,7 @@ export function createRemindersService(port: ReminderRulesPort, deps?: Reminders
       if (scheduleType === "slots_v1") {
         let sdInput: SlotsV1ScheduleData | null | undefined = params.scheduleData ?? null;
         if (!sdInput && params.linkedObjectType === "rehab_program") {
-          sdInput = DEFAULT_REHAB_WEEKDAY_SLOTS;
+          sdInput = DEFAULT_REHAB_DAILY_SLOTS;
         }
         if (!sdInput) return { ok: false, error: "validation_error: scheduleData" };
         const norm = normalizeSlotsV1ScheduleData(sdInput);

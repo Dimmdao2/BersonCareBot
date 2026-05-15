@@ -22,7 +22,14 @@ import type { UpdateRuleData } from "@/modules/reminders/service";
 import type { ReminderRule } from "@/modules/reminders/types";
 import { scheduleInvalidFromError } from "@/modules/reminders/reminderFormAria";
 import type { ReminderDayFilter, SlotsV1ScheduleData } from "@/modules/reminders/scheduleSlots";
-import { DEFAULT_REHAB_WEEKDAY_SLOTS, normalizeSlotsV1ScheduleData } from "@/modules/reminders/scheduleSlots";
+import { DEFAULT_REHAB_DAILY_SLOTS, normalizeSlotsV1ScheduleData } from "@/modules/reminders/scheduleSlots";
+import {
+  DEFAULT_REMINDER_FORM_DAYS_MASK,
+  DEFAULT_REMINDER_FORM_FIRST_SLOT_TIME,
+  DEFAULT_REMINDER_FORM_INTERVAL_MINUTES,
+  DEFAULT_REMINDER_FORM_WINDOW_END_MINUTE,
+  DEFAULT_REMINDER_FORM_WINDOW_START_MINUTE,
+} from "@/modules/reminders/reminderFormDefaults";
 import { validateQuietHoursPair } from "@/modules/reminders/quietHours";
 import {
   REMINDER_INTERVAL_WINDOW_MAX_MINUTES,
@@ -56,11 +63,6 @@ function getMobileViewportSnapshot(): boolean {
 
 const WEEKDAY_LABELS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"] as const;
 
-const DEFAULT_INTERVAL = 60;
-const DEFAULT_START = 9 * 60;
-const DEFAULT_END = 21 * 60;
-const DEFAULT_MASK = "1111111";
-
 const DELIVERY_NOTE =
   "Уведомления приходят в доступный канал бота (Telegram или MAX), если он подключён.";
 
@@ -84,12 +86,12 @@ export function LegacyReminderScheduleDialog({
 }) {
   const isMobileViewport = useSyncExternalStore(subscribeMobileViewport, getMobileViewportSnapshot, () => false);
 
-  const [intervalMinutes, setIntervalMinutes] = useState(DEFAULT_INTERVAL);
-  const [startTime, setStartTime] = useState(minutesToTimeInput(DEFAULT_START));
-  const [endTime, setEndTime] = useState(minutesToTimeInput(DEFAULT_END));
-  const [daysMask, setDaysMask] = useState(DEFAULT_MASK);
+  const [intervalMinutes, setIntervalMinutes] = useState(DEFAULT_REMINDER_FORM_INTERVAL_MINUTES);
+  const [startTime, setStartTime] = useState(minutesToTimeInput(DEFAULT_REMINDER_FORM_WINDOW_START_MINUTE));
+  const [endTime, setEndTime] = useState(minutesToTimeInput(DEFAULT_REMINDER_FORM_WINDOW_END_MINUTE));
+  const [daysMask, setDaysMask] = useState(DEFAULT_REMINDER_FORM_DAYS_MASK);
   const [scheduleMode, setScheduleMode] = useState<"interval_window" | "slots_v1">("interval_window");
-  const [slotTimeRows, setSlotTimeRows] = useState<string[]>(() => [...DEFAULT_REHAB_WEEKDAY_SLOTS.timesLocal]);
+  const [slotTimeRows, setSlotTimeRows] = useState<string[]>(() => [...DEFAULT_REHAB_DAILY_SLOTS.timesLocal]);
   const [slotsDayFilter, setSlotsDayFilter] = useState<ReminderDayFilter>("weekdays");
   const [quietStart, setQuietStart] = useState("");
   const [quietEnd, setQuietEnd] = useState("");
@@ -106,15 +108,23 @@ export function LegacyReminderScheduleDialog({
     const json: PatientReminderRuleJson = reminderRuleToPatientJson(rule);
     const isSlots = json.scheduleType === "slots_v1";
     setScheduleMode(isSlots ? "slots_v1" : "interval_window");
-    setIntervalMinutes(clampIntervalMinutes(json.intervalMinutes ?? DEFAULT_INTERVAL));
+    setIntervalMinutes(clampIntervalMinutes(json.intervalMinutes ?? DEFAULT_REMINDER_FORM_INTERVAL_MINUTES));
     setStartTime(minutesToTimeInput(json.windowStartMinute));
     setEndTime(minutesToTimeInput(json.windowEndMinute));
-    setDaysMask(/^[01]{7}$/.test(json.daysMask) ? json.daysMask : DEFAULT_MASK);
+    setDaysMask(/^[01]{7}$/.test(json.daysMask) ? json.daysMask : DEFAULT_REMINDER_FORM_DAYS_MASK);
     if (isSlots && json.scheduleData?.timesLocal?.length) {
       setSlotTimeRows(dedupeSortTimes([...json.scheduleData.timesLocal]));
-      setSlotsDayFilter(json.scheduleData.dayFilter ?? "weekdays");
+      const df = json.scheduleData.dayFilter ?? "weekdays";
+      setSlotsDayFilter(df);
+      if (df === "weekly_mask" && /^[01]{7}$/.test(json.scheduleData.daysMask ?? "")) {
+        setDaysMask(json.scheduleData.daysMask!.padEnd(7, "0").slice(0, 7));
+      }
+    } else if (isSlots) {
+      setSlotTimeRows([...DEFAULT_REHAB_DAILY_SLOTS.timesLocal]);
+      setSlotsDayFilter("weekly_mask");
+      setDaysMask(DEFAULT_REHAB_DAILY_SLOTS.daysMask ?? "1111111");
     } else {
-      setSlotTimeRows([...DEFAULT_REHAB_WEEKDAY_SLOTS.timesLocal]);
+      setSlotTimeRows([DEFAULT_REMINDER_FORM_FIRST_SLOT_TIME]);
       setSlotsDayFilter("weekdays");
     }
     if (json.quietHoursStartMinute != null && json.quietHoursEndMinute != null) {

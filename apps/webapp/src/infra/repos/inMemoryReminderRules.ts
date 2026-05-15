@@ -9,7 +9,7 @@ import { randomUUID } from "node:crypto";
 import type { ReminderRulesPort } from "@/modules/reminders/ports";
 import type { ReminderCategory, ReminderLinkedObjectType, ReminderRule, ReminderUpdateSchedule } from "@/modules/reminders/types";
 import type { SlotsV1ScheduleData } from "@/modules/reminders/scheduleSlots";
-import { DEFAULT_REHAB_WEEKDAY_SLOTS } from "@/modules/reminders/scheduleSlots";
+import { DEFAULT_REHAB_DAILY_SLOTS } from "@/modules/reminders/scheduleSlots";
 import { notificationTopicCodeFromReminderRule } from "@/modules/reminders/notificationTopicCode";
 
 const FALLBACK_CATEGORIES = new Set(["appointment", "lfk", "chat", "important"]);
@@ -64,7 +64,7 @@ export function createInMemoryReminderRulesPort(
       const scheduleType = input.scheduleType ?? "interval_window";
       let scheduleData: SlotsV1ScheduleData | null = input.scheduleData ?? null;
       if (input.linkedObjectType === "rehab_program" && scheduleType === "slots_v1" && !scheduleData) {
-        scheduleData = DEFAULT_REHAB_WEEKDAY_SLOTS;
+        scheduleData = DEFAULT_REHAB_DAILY_SLOTS;
       }
       const rule: ReminderRule = {
         id,
