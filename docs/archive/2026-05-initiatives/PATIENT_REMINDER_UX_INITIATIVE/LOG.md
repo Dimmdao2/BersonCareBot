@@ -1,5 +1,15 @@
 # LOG — Patient Reminder UX
 
+## 2026-05-15 — Дефолты rehab / «офисный день», цель на главной (`practiceTarget`), разбивка прогресса
+
+- **План (архив репозитория):** [`reminder_defaults_and_home_goal.plan.md`](../../../../.cursor/plans/archive/reminder_defaults_and_home_goal.plan.md) — файл перенесён из `~/.cursor/plans/` в монорепозиторий; в YAML добавлено `status: completed`, все `todos.status: completed`, блок Definition of Done помечен `[x]`.
+- **Код (webapp):** `DEFAULT_REHAB_DAILY_SLOTS`; `reminderFormDefaults.ts`; формы + repos/service; `nextReminderOccurrence` (предикатный счётчик, `hasEnabledWarmupsSectionReminder`); `PatientHomeToday` (матрица цели, mute, единый `plannedTotal`); `PatientHomeProgressBlock` (разбивка, a11y).
+- **Интегратор:** выровнены фикстуры под канон слотов (напр. `remindersReadsPort.test.ts`).
+- **Тесты:** цепочка из плана + пост-аудит (mute в `#patient-home-progress-block`, общие helpers правил, `POST .../create` rehab без `scheduleData` и контракт `SLOTS_V1_DB_PLACEHOLDER`).
+- **Документация модулей:** [`patient-home.md`](../../../../apps/webapp/src/modules/patient-home/patient-home.md), [`reminders.md`](../../../../apps/webapp/src/modules/reminders/reminders.md), [`CONFIGURATION_ENV_VS_DATABASE.md`](../../../ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md).
+- **Проверки при разработке:** точечный `vitest`; полный **`pnpm run ci`** — перед merge по политике репозитория (в сессии только док-синхронизации повторно не запускался).
+- **Сознательно не делали:** согласование числителя «выполнено сегодня» с разбивкой (отдельная продуктовая задача); изменения GitHub Actions workflow.
+
 ## 2026-05-10 — Выравнивание тем рассылок и reminder-движка (`notification_topic_code`)
 
 - **Цель:** связать id тем из `notifications_topics` с доставкой integrator без расширения `REMINDER_CATEGORIES`.
