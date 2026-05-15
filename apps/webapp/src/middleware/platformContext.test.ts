@@ -16,6 +16,16 @@ describe("handlePlatformContextRequest", () => {
     expect(setCookie).toContain(`${MESSENGER_SURFACE_COOKIE_NAME}=telegram`);
   });
 
+  it("ctx=bot on /app strips ctx and keeps other query params", () => {
+    const req = new NextRequest("https://example.com/app?ctx=bot&t=abc&next=%2Ffoo");
+    const res = handlePlatformContextRequest(req);
+    const loc = res.headers.get("location") ?? "";
+    expect(loc).toContain("/app");
+    expect(loc).toContain("t=abc");
+    expect(loc).toContain("next=");
+    expect(loc).not.toContain("ctx=");
+  });
+
   it("sets messenger surface cookie max for ctx=max", () => {
     const req = new NextRequest("https://example.com/app?ctx=max");
     const res = handlePlatformContextRequest(req);

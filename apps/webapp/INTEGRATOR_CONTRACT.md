@@ -31,13 +31,15 @@ This document defines the explicit contract between `tgcarebot` and `webapp`.
 - **Telegram:** `https://bersoncare.ru/app/tg?t=<signed-token>` (and optional `&next=` URL-encoded path under `/app/...`).
 - **MAX:** `https://bersoncare.ru/app/max?t=<signed-token>` (same optional `next=`).
 
+Integrator/reminder URLs **usually include** `?t=` (JWT-style signed token); if it is absent, bootstrap may still authenticate from messenger **initData** first (`telegram-init` / `max-init`) and only rely on **`POST /api/auth/exchange`** with `?t=` after the messenger poll soft-cap — see client `AuthBootstrap`.
+
 Legacy `https://bersoncare.ru/app?t=<signed-token>&ctx=bot|max` may still appear in old links; webapp middleware normalizes `ctx` into cookies and (for `ctx=max` on `/app`) redirects to `/app/max`.
 
 Token payload shape:
 
 ```json
 {
-  "sub": "platform-user-or-external-user-id",
+  "sub": "tg:123456789",
   "role": "client",
   "displayName": "User Name",
   "bindings": {
@@ -48,6 +50,11 @@ Token payload shape:
   "exp": 1760000000
 }
 ```
+
+`sub` encoding (integrator token builder):
+
+- Telegram users: **`tg:<chatId>`** (numeric Telegram chat/user id).
+- MAX users: **`max:<externalMaxId>`** (string external id).
 
 Token requirements:
 

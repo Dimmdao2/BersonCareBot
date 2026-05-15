@@ -15,8 +15,8 @@ vi.mock('../../../infra/db/repos/outgoingDeliveryQueue.js', () => ({
 
 vi.mock('../reminders/reminderMessengerWebAppUrls.js', () => ({
   buildExerciseReminderWebAppUrls: vi.fn().mockResolvedValue({
-    primaryWebAppUrl: 'https://app.test/webapp-entry?n=1&next=%2Fpatient',
-    scheduleWebAppUrl: 'https://app.test/webapp-entry?n=1&next=%2Fprofile',
+    primaryWebAppUrl: 'https://app.test/app/tg?t=1&next=%2Fpatient',
+    scheduleWebAppUrl: 'https://app.test/app/tg?t=1&next=%2Fprofile',
   }),
 }));
 

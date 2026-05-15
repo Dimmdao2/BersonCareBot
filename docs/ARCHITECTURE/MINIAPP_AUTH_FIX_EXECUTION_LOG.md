@@ -210,7 +210,7 @@ Todos плана (все **`completed`**): `route-entry-split`, `auth-bootstrap-
 | **`?t=` в URL**, **client-readable** platform/surface **cookies** (не `httpOnly`) | Архитектурные компромиссы входа; менять — отдельная security/UX инициатива |
 | Отдельный **продуктовый** UX: «откройте из бота» при **`/app/tg`/`/app/max`** в обычном десктопном браузере | Сейчас по дизайну плана — ошибка / «Повторить», без полноценного web-login как на `/app` |
 | **Legacy `ctx=bot` на `/app`** для пользователя MAX | Сознательный tradeoff same-path редиректа (см. план §5); новые ссылки — только `/app/max` |
-| Полный **`pnpm run ci`** после последнего коммита агента | Не прогонялся в сессии; барьер перед push — по правилам репозитория |
+| Полный **`pnpm run ci`** после волны miniapp audit (2026-05-15) | См. блок **Remediation miniapp audit** ниже (**exit 0** локально) |
 
 ---
 
@@ -219,3 +219,32 @@ Todos плана (все **`completed`**): `route-entry-split`, `auth-bootstrap-
 - Закрытый план: [`.cursor/plans/archive/miniapp_entrypoint_split_be613c6d.plan.md`](../../.cursor/plans/archive/miniapp_entrypoint_split_be613c6d.plan.md)  
 - Итоговый аудит (с актуализацией 2026-05): [`MINIAPP_AUTH_AUDIT_2026-04-19.md`](./MINIAPP_AUTH_AUDIT_2026-04-19.md)  
 - Индекс доков (в т.ч. ссылка на план): [`docs/README.md`](../README.md)
+
+---
+
+## Remediation miniapp audit (2026-05-15) — усиление entry-split
+
+**Шаг 0 — итог baseline `rg` (без дампов stdout):**
+
+- **`apps/`:** в runtime **нет** `x-bc-entry-hint` — контроль для miniapp-split.
+- **Legacy `ctx=bot|max`, `webapp-entry` в текстах:** документация, middleware/normalize, описание JWT (`purpose: webapp-entry`), тесты; канонических **path-only** вида **`/webapp-entry`** в моках **kernel/domain** после правок нет.
+- Контрольные шаблоны из плана (при аудите заново локально):  
+  `rg "webapp-entry|/app\\?ctx|ctx=bot|ctx=max|x-bc-entry-hint" apps docs contracts .cursor/plans/archive`  
+  и `rg "buildExerciseReminderWebAppUrls|buildWebappEntryUrl|buildWebappEntryUrlForMax|/app/tg|/app/max" apps/integrator/src`.
+
+**Repo (закрыто в этой волне):**
+
+- **`AuthBootstrap`**: приоритет initData зависит от surface (`flowHint`): на **`/app/max`** сначала MAX initData, на **`/app/tg`** — Telegram-first; neutral browser сохраняет прежний безопасный порядок. Покрыто unit-тестами (`AuthBootstrap.test.tsx`): dual-init guardrails, route-bound **`routeBoundMiniappEntry`**, EARLY_UI_V2 без интерактивного входа до cap, **`?t=`** → `exchange`, без **`?t=`** после cap — retry.
+- **`platformContext`**: кейс **`ctx=bot`** на **`/app`** — **`ctx`** удаляется из **`Location`**, остальные query сохраняются (`platformContext.test.ts`).
+- **Integrator**: мок **`webapp-entry`** в reminder-тестах заменён на **`/app/tg`**; добавлен **`reminderMessengerWebAppUrls.test.ts`** (pathname **`/app/tg`** / **`/app/max`**, **`t`**, **`next`**, fallback через `patientPathFromReminderTargetUrl`); **`patientHomeMorningPing`** — assertion **`web_app.url`** для Telegram и MAX (numeric `external_id` для enqueue, см. код хендлера).
+- **Доки**: **`INTEGRATOR_CONTRACT.md`** — фактический формат **`sub`** (`tg:…` / `max:…`), пояснение про **`?t=`** vs порядок initData/`exchange` на клиенте.
+
+**Проверки (локально в сессии):** targeted vitest (webapp + integrator по списку плана), `pnpm --dir apps/webapp typecheck`, `pnpm --dir apps/integrator typecheck`; полный **`pnpm install --frozen-lockfile && pnpm run ci`** — **exit 0** (локально, 2026-05-15).
+
+**Ops acceptance (partial until operator confirms):**
+
+- MAX Business статический miniapp URL: **`…/app/max`**
+- Telegram/BotFather/menu при необходимости: **`…/app/tg`**
+- **`max_bot_api_key`** в **`public.system_settings`** scope **`admin`** — см. образец **`psql`** в плане / `SERVER CONVENTIONS.md` (**секрет не выводить**)
+
+Статус ops: **`partial (ops)`** — подтверждения консолями/production DB из этой сессии не получены.

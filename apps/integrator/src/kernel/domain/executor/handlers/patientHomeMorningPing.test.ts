@@ -145,11 +145,79 @@ describe("handlePatientHomeMorningPing", () => {
     expect(res.status).toBe("success");
     expect(res.values).toMatchObject({ deliveryMode: "queued", enqueued: 1 });
     expect(enqueue).toHaveBeenCalledTimes(1);
-    const call = enqueue.mock.calls[0]![0] as { kind: string; payload: { intent: { payload: { message: { text: string } } }; retry: { backoffSeconds: number[] } } };
+    const call = enqueue.mock.calls[0]![0] as {
+      kind: string;
+      payload: {
+        intent: {
+          payload: {
+            recipient: unknown;
+            message: { text: string };
+            replyMarkup: { inline_keyboard: Array<Array<{ web_app?: { url: string } }>> };
+          };
+        };
+        retry: { backoffSeconds: number[] };
+      };
+    };
     expect(call.kind).toBe("message.deliver");
     expect(call.payload.intent.payload.message.text).toContain("Разминка дня");
     expect(call.payload.retry.backoffSeconds[0]).toBe(0);
     expect(insertedKey).toContain(":42:telegram");
+    const webAppUrl =
+      call.payload.intent.payload.replyMarkup.inline_keyboard[0]?.[0]?.web_app?.url;
+    expect(webAppUrl).toBeTruthy();
+    const morningUrl = new URL(webAppUrl!);
+    expect(morningUrl.pathname).toBe("/app/tg");
+    expect(morningUrl.searchParams.has("t")).toBe(true);
+    expect(morningUrl.searchParams.get("next")).toBe("/app/patient?from=morning_ping");
+  });
+
+  it("enqueues morning ping with /app/max web_app url for max recipient", async () => {
+    const enqueue = vi.fn().mockResolvedValue(undefined);
+    let insertedKey = "";
+    queryMock.mockImplementation(async (sql: string, params?: unknown[]) => {
+      if (sql.includes("system_settings") && params?.[0] === "patient_home_morning_ping_enabled") {
+        return { rows: [{ value_json: { value: true } }], rowCount: 1 };
+      }
+      if (sql.includes("system_settings") && params?.[0] === "patient_home_morning_ping_local_time") {
+        return { rows: [{ value_json: { value: "04:00" } }], rowCount: 1 };
+      }
+      if (sql.includes("patient_home_block_items") && sql.includes("daily_warmup")) {
+        return { rows: [{ ok: 1 }], rowCount: 1 };
+      }
+      if (sql.includes("DISTINCT ON")) {
+        return {
+          rows: [{ user_id: "77", resource: "max", external_id: "888002" }],
+          rowCount: 1,
+        };
+      }
+      if (sql.includes("INSERT INTO idempotency_keys")) {
+        insertedKey = String(params?.[0] ?? "");
+        return { rows: [{ key: "k" }], rowCount: 1 };
+      }
+      return { rows: [], rowCount: 0 };
+    });
+    const res = await handlePatientHomeMorningPing(action, makeCtx(), { queuePort: { enqueue } });
+    expect(res.status).toBe("success");
+    expect(enqueue).toHaveBeenCalledTimes(1);
+    const call = enqueue.mock.calls[0]![0] as {
+      kind: string;
+      payload: {
+        intent: {
+          payload: {
+            replyMarkup: { inline_keyboard: Array<Array<{ web_app?: { url: string } }>> };
+          };
+        };
+      };
+    };
+    expect(call.kind).toBe("message.deliver");
+    expect(insertedKey).toContain(":77:max");
+    const webAppUrl =
+      call.payload.intent.payload.replyMarkup.inline_keyboard[0]?.[0]?.web_app?.url;
+    expect(webAppUrl).toBeTruthy();
+    const morningUrl = new URL(webAppUrl!);
+    expect(morningUrl.pathname).toBe("/app/max");
+    expect(morningUrl.searchParams.has("t")).toBe(true);
+    expect(morningUrl.searchParams.get("next")).toBe("/app/patient?from=morning_ping");
   });
 
   it("returns intents when queuePort is absent (test / fallback)", async () => {

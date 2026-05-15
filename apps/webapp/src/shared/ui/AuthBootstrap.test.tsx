@@ -171,7 +171,7 @@ describe("AuthBootstrap", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<AuthBootstrap entryClassification="max_miniapp" />);
+    render(<AuthBootstrap entryClassification="max_miniapp" routeBoundMiniappEntry />);
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(8000);
@@ -247,5 +247,139 @@ describe("AuthBootstrap", () => {
       { timeout: 4000 },
     );
     vi.useFakeTimers();
+  });
+
+  it("на max_miniapp при наличии TG и MAX initData сначала вызывает max-init", async () => {
+    mockUseSearchParams.mockReturnValue(new URLSearchParams(""));
+    window.history.pushState({}, "", "/app/max");
+    document.cookie = `${PLATFORM_COOKIE_NAME}=; path=/; max-age=0`;
+    (window as Window & { Telegram?: { WebApp?: { initData: string } } }).Telegram = {
+      WebApp: { initData: "tg-both" },
+    };
+    (window as Window & { WebApp?: { ready: () => void; initData: string } }).WebApp = {
+      ready: () => undefined,
+      initData: "max-both",
+    };
+
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : (input as Request).url;
+      if (url.includes("max-init")) {
+        expect(JSON.parse(String(init?.body))).toEqual({ initData: "max-both" });
+        return new Response(
+          JSON.stringify({ ok: true, role: "client", redirectTo: "/app/patient" }),
+          { status: 200 },
+        );
+      }
+      if (url.includes("telegram-init")) {
+        return new Response(JSON.stringify({ ok: false, error: "unexpected" }), { status: 500 });
+      }
+      return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<AuthBootstrap entryClassification="max_miniapp" routeBoundMiniappEntry />);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(300);
+    });
+
+    expect(
+      (fetchMock.mock.calls as unknown as Array<[RequestInfo | URL]>).some((c) =>
+        String(c[0]).includes("max-init"),
+      ),
+    ).toBe(true);
+    expect(
+      (fetchMock.mock.calls as unknown as Array<[RequestInfo | URL]>).some((c) =>
+        String(c[0]).includes("telegram-init"),
+      ),
+    ).toBe(false);
+  });
+
+  it("на telegram_miniapp при наличии TG и MAX initData сначала вызывает telegram-init", async () => {
+    mockUseSearchParams.mockReturnValue(new URLSearchParams(""));
+    window.history.pushState({}, "", "/app/tg");
+    document.cookie = `${PLATFORM_COOKIE_NAME}=; path=/; max-age=0`;
+    (window as Window & { Telegram?: { WebApp?: { initData: string } } }).Telegram = {
+      WebApp: { initData: "tg-both" },
+    };
+    (window as Window & { WebApp?: { ready: () => void; initData: string } }).WebApp = {
+      ready: () => undefined,
+      initData: "max-both",
+    };
+
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : (input as Request).url;
+      if (url.includes("telegram-init")) {
+        expect(JSON.parse(String(init?.body))).toEqual({ initData: "tg-both" });
+        return new Response(
+          JSON.stringify({ ok: true, role: "client", redirectTo: "/app/patient" }),
+          { status: 200 },
+        );
+      }
+      if (url.includes("max-init")) {
+        return new Response(JSON.stringify({ ok: false, error: "unexpected" }), { status: 500 });
+      }
+      return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<AuthBootstrap entryClassification="telegram_miniapp" />);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(300);
+    });
+
+    expect(
+      (fetchMock.mock.calls as unknown as Array<[RequestInfo | URL]>).some((c) =>
+        String(c[0]).includes("telegram-init"),
+      ),
+    ).toBe(true);
+    expect(
+      (fetchMock.mock.calls as unknown as Array<[RequestInfo | URL]>).some((c) =>
+        String(c[0]).includes("max-init"),
+      ),
+    ).toBe(false);
+  });
+
+  it("route-bound max miniapp не показывает телефон до cap при EARLY_UI_V2", async () => {
+    const prev = process.env.NEXT_PUBLIC_AUTH_BOOTSTRAP_EARLY_UI_V2;
+    process.env.NEXT_PUBLIC_AUTH_BOOTSTRAP_EARLY_UI_V2 = "1";
+    mockUseSearchParams.mockReturnValue(new URLSearchParams(""));
+    window.history.pushState({}, "", "/app/max");
+    document.cookie = `${PLATFORM_COOKIE_NAME}=; path=/; max-age=0`;
+    delete (window as unknown as { Telegram?: unknown }).Telegram;
+    delete (window as unknown as { WebApp?: unknown }).WebApp;
+
+    render(<AuthBootstrap entryClassification="max_miniapp" routeBoundMiniappEntry />);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2500);
+    });
+
+    expect(screen.queryByText(/укажите номер телефона/i)).not.toBeInTheDocument();
+
+    if (prev === undefined) delete process.env.NEXT_PUBLIC_AUTH_BOOTSTRAP_EARLY_UI_V2;
+    else process.env.NEXT_PUBLIC_AUTH_BOOTSTRAP_EARLY_UI_V2 = prev;
+  });
+
+  it("route-bound max без initData и без ?t= после cap не вызывает exchange и даёт Повторить", async () => {
+    mockUseSearchParams.mockReturnValue(new URLSearchParams(""));
+    window.history.pushState({}, "", "/app/max");
+    document.cookie = `${PLATFORM_COOKIE_NAME}=; path=/; max-age=0`;
+    delete (window as unknown as { Telegram?: unknown }).Telegram;
+    delete (window as unknown as { WebApp?: unknown }).WebApp;
+
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ ok: true }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<AuthBootstrap entryClassification="max_miniapp" routeBoundMiniappEntry />);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(8000);
+    });
+
+    const calls = fetchMock.mock.calls as unknown as Array<[RequestInfo | URL]>;
+    expect(calls.some((c) => String(c[0]).includes("/api/auth/exchange"))).toBe(false);
+    expect(screen.getByRole("button", { name: /повторить/i })).toBeInTheDocument();
   });
 });

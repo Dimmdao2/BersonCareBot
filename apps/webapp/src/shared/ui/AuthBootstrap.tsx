@@ -295,8 +295,8 @@ export function AuthBootstrap({
   };
 
   /**
-   * Единый клиентский bootstrap: опрос initData (Telegram → MAX), затем отложенный обмен JWT;
-   * конкретная ветка задаётся сервером через `entryClassification`.
+   * Единый клиентский bootstrap: опрос initData (порядок зависит от `entryClassification`: на `/app/max` — MAX
+   * затем Telegram; на `/app/tg` — Telegram затем MAX; на legacy `/app` — Telegram затем MAX), затем отложенный обмен JWT.
    */
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -328,6 +328,33 @@ export function AuthBootstrap({
         : effectiveEntryClassification === "telegram_miniapp"
           ? "telegram"
           : "browser";
+
+    /**
+     * При одновременном наличии строк initData (редкий overlap в WebView) порядок должен совпадать с route-bound surface,
+     * иначе на `/app/max` мог уйти `telegram-init`.
+     */
+    const pickInitDataForMessengerTick = (
+      hint: typeof flowHint,
+      tg: string,
+      maxRaw: string,
+    ): { channel: "telegram" | "max"; initData: string } | null => {
+      const maxTrim = maxRaw.trim();
+      const tgPresent = tg.length > 0;
+      const maxPresent = maxTrim.length > 0;
+      if (hint === "max") {
+        if (maxPresent) return { channel: "max", initData: maxTrim };
+        if (tgPresent) return { channel: "telegram", initData: tg };
+        return null;
+      }
+      if (hint === "telegram") {
+        if (tgPresent) return { channel: "telegram", initData: tg };
+        if (maxPresent) return { channel: "max", initData: maxTrim };
+        return null;
+      }
+      if (tgPresent) return { channel: "telegram", initData: tg };
+      if (maxPresent) return { channel: "max", initData: maxTrim };
+      return null;
+    };
 
     const messengerEntryFromUrlOrCookie = (): boolean => {
       return (
@@ -649,10 +676,16 @@ export function AuthBootstrap({
       const elapsed = Date.now() - t0;
       const webApp = window.Telegram?.WebApp;
       const rawTg = readTelegramInitDataForAuth();
-      const rawMax = getMaxWebAppInitDataForAuth();
-
       const maxBridgeReady =
         typeof (window as Window & { WebApp?: { ready?: () => void } }).WebApp?.ready === "function";
+      const rawMaxDirect =
+        maxBridgeReady &&
+        typeof (window as Window & { WebApp?: { initData?: string } }).WebApp?.initData === "string"
+          ? String((window as Window & { WebApp?: { initData?: string } }).WebApp!.initData).trim()
+          : "";
+      /** Legacy `/app`: MAX скрывается, если уже есть TG initData (`messengerMiniApp.ts`). Route-bound `/app/tg`/`/app/max` — оба источника видны для surface-first выбора. */
+      const rawMaxLegacyMessenger = getMaxWebAppInitDataForAuth();
+      const rawMaxForPick = flowHint === "browser" ? rawMaxLegacyMessenger : rawMaxDirect;
 
       if (!contextDetectedEmittedRef.current) {
         contextDetectedEmittedRef.current = true;
@@ -662,48 +695,35 @@ export function AuthBootstrap({
           telegramWebAppPresent: typeof window.Telegram?.WebApp !== "undefined",
         });
         let source: "ctx" | "cookie" | "bridge" | "tg_init" | "max_init" = "bridge";
-        if (rawTg) source = "tg_init";
-        else if (rawMax) source = "max_init";
+        const previewPick = pickInitDataForMessengerTick(flowHint, rawTg, rawMaxForPick);
+        if (previewPick?.channel === "telegram") source = "tg_init";
+        else if (previewPick?.channel === "max") source = "max_init";
         else if (isMessengerMiniAppEntry) source = "ctx";
         else if (readPlatformCookieBot()) source = "cookie";
         emitAuthFlowEvent("context_detected", {
           correlationId,
           suspected,
-          confirmed: Boolean(rawTg || rawMax),
+          confirmed: Boolean(rawTg || rawMaxForPick),
           source,
           elapsedMs: elapsed,
         });
       }
 
-      if (rawTg) {
+      const pickedInit = pickInitDataForMessengerTick(flowHint, rawTg, rawMaxForPick);
+      if (pickedInit) {
         if (!initDataDetectedEmittedRef.current) {
           initDataDetectedEmittedRef.current = true;
           emitAuthFlowEvent("initData_detected", {
             correlationId,
-            channel: "telegram",
-            initDataLength: rawTg.length,
+            channel: pickedInit.channel,
+            initDataLength: pickedInit.initData.length,
             elapsedMs: elapsed,
             isLate: interactiveEngagedRef.current,
           });
         }
         setInitDataStatus("yes");
-        runTelegramInit(rawTg);
-        return;
-      }
-
-      if (rawMax) {
-        if (!initDataDetectedEmittedRef.current) {
-          initDataDetectedEmittedRef.current = true;
-          emitAuthFlowEvent("initData_detected", {
-            correlationId,
-            channel: "max",
-            initDataLength: rawMax.length,
-            elapsedMs: elapsed,
-            isLate: interactiveEngagedRef.current,
-          });
-        }
-        setInitDataStatus("yes");
-        runMaxInit(rawMax);
+        if (pickedInit.channel === "telegram") runTelegramInit(pickedInit.initData);
+        else runMaxInit(pickedInit.initData);
         return;
       }
 
@@ -718,7 +738,7 @@ export function AuthBootstrap({
         !maxSurfaceEarly &&
         !maxBridgeReady &&
         !rawTg &&
-        !rawMax.trim() &&
+        !rawMaxLegacyMessenger.trim() &&
         staleBotStandaloneBrowser;
 
       if (staleBotCookieToWebAuth) {
