@@ -27,9 +27,9 @@ describe("PatientTopNav", () => {
     expect(mobileNav).toHaveClass("md:hidden");
     expect(within(mobileNav).getAllByRole("link").map((link) => link.textContent)).toEqual([
       "Сегодня",
-      "Запись",
-      "Дневник",
       "План",
+      "Дневник",
+      "Запись",
       "Профиль",
     ]);
     expect(within(mobileNav).queryByRole("link", { name: /Разминки/i })).not.toBeInTheDocument();

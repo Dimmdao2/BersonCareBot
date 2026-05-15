@@ -22,13 +22,13 @@ export type PatientPrimaryNavItem = {
 /**
  * Порядок primary nav пациента: верхняя полоска на всех ширинах (`PatientTopNav`).
  * Mobile повторяет бывшее нижнее меню, перенесённое наверх:
- * «Сегодня / Запись / Дневник / План / Профиль».
+ * «Сегодня / План / Дневник / Запись / Профиль».
  */
 export const PATIENT_PRIMARY_NAV_ITEMS: readonly PatientPrimaryNavItem[] = [
   { id: "today", label: "Сегодня", href: routePaths.patient },
-  { id: "booking", label: "Запись", href: routePaths.bookingNew },
-  { id: "diary", label: "Дневник", href: routePaths.diary },
   { id: "plan", label: "План", href: routePaths.patientTreatmentPrograms },
+  { id: "diary", label: "Дневник", href: routePaths.diary },
+  { id: "booking", label: "Запись", href: routePaths.bookingNew },
   { id: "profile", label: "Профиль", href: routePaths.profile },
 ] as const;
 

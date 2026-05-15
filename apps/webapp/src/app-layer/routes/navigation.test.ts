@@ -34,12 +34,12 @@ describe("patientNavByPlatform", () => {
 });
 
 describe("PATIENT_PRIMARY_NAV_ITEMS", () => {
-  it("lists Сегодня, Запись, Дневник, План, Профиль in order (без разминок)", () => {
+  it("lists Сегодня, План, Дневник, Запись, Профиль in order (без разминок)", () => {
     expect(PATIENT_PRIMARY_NAV_ITEMS.map((i) => i.label)).toEqual([
       "Сегодня",
-      "Запись",
-      "Дневник",
       "План",
+      "Дневник",
+      "Запись",
       "Профиль",
     ]);
   });
