@@ -345,8 +345,7 @@ export async function executeAction(
               keyboard: [
                 [
                   { textTemplateKey: 'telegram:menu.book' },
-                  { textTemplateKey: 'telegram:menu.diary', webAppUrlFact: 'links.webappDiaryUrl' },
-                  { textTemplateKey: 'telegram:menu.more', webAppUrlFact: 'links.webappRemindersUrl' },
+                  { textTemplateKey: 'telegram:menu.app', webAppUrlFact: 'links.webappHomeUrl' },
                 ],
               ],
               resizeKeyboard: true,
@@ -1292,17 +1291,62 @@ export async function executeAction(
           })}`,
           callback_data: `admin_reply:${asString(item.conversation_id)}`,
         }]);
+      const inlineRows: Array<Array<{ text: string; callback_data: string }>> = [...inline_keyboard];
+      if (rows.length > 0) {
+        const markAllLabel = deps.templatePort
+          ? (await renderText({ templateKey: ADMIN.QUESTIONS_MARK_ALL_BUTTON, ctx, templatePort: deps.templatePort }))?.trim() || 'Пометить все как отвеченные'
+          : 'Пометить все как отвеченные';
+        inlineRows.push([{ text: markAllLabel, callback_data: 'questions.mark_all_answered' }]);
+      }
       const intents: OutgoingIntent[] = [{
         type: 'message.send',
         meta: buildIntentMeta(action, ctx),
         payload: {
           recipient: { chatId: adminChatId },
           message: { text },
-          ...(inline_keyboard.length > 0 ? { replyMarkup: { inline_keyboard } } : {}),
+          ...(inlineRows.length > 0 ? { replyMarkup: { inline_keyboard: inlineRows } } : {}),
           delivery: { maxAttempts: 1 },
         },
       }];
       return { actionId: action.id, status: 'success', intents };
+    }
+
+    /**
+     * «Все» = неотвеченные в той же выборке, что и ветка `question.listUnanswered`: один read
+     * `questions.unanswered` с тем же `limit` (по умолчанию 20), затем по каждой строке с непустым `id`
+     * — мутация `question.markAnswered` (как при одиночной пометке), не только строки с инлайн «Ответить» (до 15).
+     */
+    case 'question.markAllUnansweredAnswered': {
+      if (!deps.readPort) {
+        return { actionId: action.id, status: 'skipped', error: 'READ_PORT_REQUIRED' };
+      }
+      if (!deps.writePort) {
+        return { actionId: action.id, status: 'skipped', error: 'WRITE_PORT_REQUIRED' };
+      }
+      const limit = asNumber(action.params.limit) ?? 20;
+      const items = await deps.readPort.readDb<Array<Record<string, unknown>>>({
+        type: 'questions.unanswered',
+        params: { limit },
+      });
+      const rows = Array.isArray(items) ? items : [];
+      const writes: DbWriteMutation[] = [];
+      for (const item of rows) {
+        const questionId = asString(item.id)?.trim();
+        if (!questionId) continue;
+        writes.push({
+          type: 'question.markAnswered',
+          params: { questionId, answeredAt: ctx.nowIso },
+        });
+      }
+      if (writes.length > 0) {
+        await persistWrites(deps.writePort, writes);
+      }
+      return {
+        actionId: action.id,
+        status: 'success',
+        values: { markedCount: writes.length },
+        ...(writes.length > 0 ? { writes } : {}),
+      };
     }
 
     case 'conversation.show': {

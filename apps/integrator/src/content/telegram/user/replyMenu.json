@@ -1,7 +1,6 @@
 [
   [
     { "textTemplateKey": "telegram:menu.book" },
-    { "textTemplateKey": "telegram:menu.diary", "webAppUrlFact": "links.webappDiaryUrl" },
-    { "textTemplateKey": "telegram:menu.more", "webAppUrlFact": "links.webappRemindersUrl" }
+    { "textTemplateKey": "telegram:menu.app", "webAppUrlFact": "links.webappHomeUrl" }
   ]
 ]

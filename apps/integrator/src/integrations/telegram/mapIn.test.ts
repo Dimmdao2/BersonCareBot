@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeChannelCallbackPayload, normalizeTelegramMessageAction } from './mapIn.js';
+import {
+  normalizeChannelCallbackPayload,
+  normalizeTelegramMessageAction,
+  telegramReplyTextToMenuAction,
+} from './mapIn.js';
 
 describe('normalizeChannelCallbackPayload (reminders + question confirm)', () => {
   it('parses rem_snooze with allowed minutes (last colon separates id and minutes)', () => {
@@ -52,6 +56,12 @@ describe('normalizeChannelCallbackPayload (reminders + question confirm)', () =>
     });
   });
 
+  it('maps questions.mark_all_answered callback to admin action', () => {
+    expect(normalizeChannelCallbackPayload('questions.mark_all_answered')).toEqual({
+      action: 'questions.mark_all_answered',
+    });
+  });
+
   it('parses q_confirm yes/no', () => {
     expect(normalizeChannelCallbackPayload('q_confirm:yes')).toEqual({
       action: 'q_confirm:yes',
@@ -64,6 +74,14 @@ describe('normalizeChannelCallbackPayload (reminders + question confirm)', () =>
   });
 });
 
+describe('reply keyboard text to gated menu action', () => {
+  it('treats only booking label as reply-menu action for phone gate', () => {
+    expect(telegramReplyTextToMenuAction('📅 Запись на приём')).toBe('booking.open');
+    expect(telegramReplyTextToMenuAction('📓 Дневник')).toBeNull();
+    expect(telegramReplyTextToMenuAction('Помощник')).toBeNull();
+  });
+});
+
 describe('normalizeTelegramMessageAction', () => {
   it('maps diary button text to diary.open', () => {
     expect(normalizeTelegramMessageAction('📓 Дневник')).toBe('diary.open');
@@ -73,6 +91,10 @@ describe('normalizeTelegramMessageAction', () => {
   it('maps menu.more and booking.open', () => {
     expect(normalizeTelegramMessageAction('⚙️ Меню')).toBe('menu.more');
     expect(normalizeTelegramMessageAction('📅 Запись на приём')).toBe('booking.open');
+  });
+
+  it('maps Приложение to cabinet.open', () => {
+    expect(normalizeTelegramMessageAction('Приложение')).toBe('cabinet.open');
   });
 
   it('maps /show_my_id and group form with @bot suffix', () => {

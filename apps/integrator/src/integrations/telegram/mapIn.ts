@@ -32,6 +32,7 @@ const MESSAGE_TEXT_TO_ACTION: Record<string, string> = {
   'Помощник': 'menu.more',
   '👤 Кабинет': 'cabinet.open',
   'Кабинет': 'cabinet.open',
+  'Приложение': 'cabinet.open',
   [REQUEST_PHONE_CANCEL_TEXT]: 'phone.request.cancel',
   '/admin_bookings': 'admin.stats.bookings',
   '/admin_users': 'admin.stats.users',
@@ -41,12 +42,8 @@ const MESSAGE_TEXT_TO_ACTION: Record<string, string> = {
   'Неотвеченные вопросы': 'admin.questions.unanswered',
 };
 
-const TELEGRAM_REPLY_MENU_ACTIONS = new Set([
-  'booking.open',
-  'menu.more',
-  'cabinet.open',
-  'diary.open',
-]);
+/** Reply-клавиатура главного меню: только текстовые пункты, совпадающие с {@link MESSAGE_TEXT_TO_ACTION}. WebApp-кнопки сюда не входят. */
+const TELEGRAM_REPLY_MENU_ACTIONS = new Set(['booking.open']);
 
 /**
  * Текст с reply-клавиатуры главного меню → action (если это пункт меню, требующий привязки).
@@ -183,6 +180,8 @@ export function normalizeChannelCallbackPayload(value: string): DynamicActionRes
   }
   if (trimmed === 'q_confirm:yes') return { action: 'q_confirm:yes', questionConfirm: 'yes' };
   if (trimmed === 'q_confirm:no') return { action: 'q_confirm:no', questionConfirm: 'no' };
+  /** Админ: пометить все неотвеченные из текущей выборки списка (см. question.markAllUnansweredAnswered). */
+  if (trimmed === 'questions.mark_all_answered') return { action: 'questions.mark_all_answered' };
   return { action: LEGACY_CALLBACK_TO_ACTION[trimmed] ?? trimmed };
 }
 

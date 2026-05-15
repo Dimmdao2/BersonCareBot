@@ -15,6 +15,8 @@
   "admin.questions.empty": "Неотвеченных вопросов нет.",
   "admin.questions.list": "Неотвеченные вопросы ({{count}}):\n\n{{listBody}}",
   "admin.questions.replyButton": "Ответить: {{label}}",
+  "admin.questions.markAllButton": "Пометить все как отвеченные",
+  "admin.questions.markAllDone": "Отмечено ответов: {{markedCount}}.",
   "admin.conversation.newMessage": "Новое сообщение в диалоге\nОт: {{userLabel}}\n\n{{text}}",
   "admin.conversation.show": "Диалог\nПользователь: {{label}}\nСтатус: {{status}}",
   "admin.relay.unsupportedType": "Такой тип сообщения нельзя переслать пользователю. Используйте текст, фото или документ.",

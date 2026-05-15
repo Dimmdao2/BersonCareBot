@@ -21,8 +21,6 @@ export async function setupTelegramMenuButton(): Promise<void> {
 
     await api.setMyCommands(
       [
-        { command: 'start', description: 'Главное меню' },
-        { command: 'show_my_id', description: 'Показать ID пользователя' },
         { command: 'admin_bookings', description: '📅 Активные записи' },
         { command: 'admin_users', description: '👥 Пользователи' },
         { command: 'unanswered', description: '❓ Неотвеченные вопросы' },

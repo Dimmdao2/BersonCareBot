@@ -15,6 +15,8 @@ export const ADMIN = {
   QUESTIONS_EMPTY: 'telegram:admin.questions.empty',
   QUESTIONS_LIST: 'telegram:admin.questions.list',
   QUESTIONS_REPLY_BUTTON: 'telegram:admin.questions.replyButton',
+  QUESTIONS_MARK_ALL_BUTTON: 'telegram:admin.questions.markAllButton',
+  QUESTIONS_MARK_ALL_DONE: 'telegram:admin.questions.markAllDone',
   FORWARD: 'telegram:adminForward',
   RELAY_UNSUPPORTED_ADMIN: 'telegram:admin.relay.unsupportedType',
 } as const;

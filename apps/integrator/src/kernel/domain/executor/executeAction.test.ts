@@ -2619,8 +2619,13 @@ describe('executeAction', () => {
       mode: 'sync',
       params: { linkToken: 'link_testtoken', channelCode: 'telegram', externalId: '111' },
     };
-    const renderTemplate = vi.fn().mockResolvedValue({
-      text: 'Номер привязан. Вы можете остаться и продолжить в боте или вернуться в веб-приложение - возможности платформ одинаковые.',
+    const renderTemplate = vi.fn().mockImplementation(async ({ templateId }: { templateId: string }) => {
+      if (templateId === 'afterPhoneLinked') {
+        return { text: 'Номер привязан. Вы можете остаться и продолжить в боте или вернуться в веб-приложение - возможности платформ одинаковые.' };
+      }
+      if (templateId === 'menu.book') return { text: '📅 Запись на приём' };
+      if (templateId === 'menu.app') return { text: 'Приложение' };
+      return { text: '' };
     });
     const result = await executeAction(action, tgCtx, {
       webappEventsPort,
@@ -2630,9 +2635,14 @@ describe('executeAction', () => {
     expect(result.status).toBe('success');
     expect(writeDb).toHaveBeenCalled();
     expect(renderTemplate).toHaveBeenCalled();
-    expect(result.intents?.some((i) => i.type === 'message.send')).toBe(true);
-    const send = result.intents?.find((i) => i.type === 'message.send');
-    expect((send?.payload as { message?: { text?: string } })?.message?.text).toContain('Номер привязан');
+    const welcome = result.intents?.find((i) => i.type === 'message.send');
+    expect(welcome).toBeDefined();
+    expect((welcome?.payload as { message?: { text?: string } })?.message?.text).toContain('Номер привязан');
+    const row = (welcome?.payload as { replyMarkup?: { keyboard?: unknown[][] } })?.replyMarkup?.keyboard?.[0];
+    expect(row).toEqual([
+      { text: '📅 Запись на приём' },
+      { text: 'Приложение', web_app: { url: 'https://app.example/home' } },
+    ]);
   });
 
   it('webapp.channelLink.complete sends afterChannelLinked for Max when phone already on platform', async () => {
@@ -3066,6 +3076,86 @@ describe('executeAction', () => {
       const pl = intent && 'payload' in intent ? (intent.payload as Record<string, unknown>) : null;
       expect(pl?.messageId).toBe('prompt-mid-1');
       expect(pl?.delivery).toEqual(expect.objectContaining({ channels: ['max'] }));
+    });
+  });
+
+  describe('question.markAllUnansweredAnswered', () => {
+    it('marks each unanswered row with question.markAnswered', async () => {
+      const readDb = vi.fn()
+        .mockResolvedValueOnce([
+          { id: 'q1', conversation_id: 'c1', text: 'hi', user_channel_id: '1', first_name: 'A' },
+          { id: 'q2', conversation_id: 'c2', text: 'yo', user_channel_id: '2', first_name: 'B' },
+        ]);
+      const writeDb = vi.fn().mockResolvedValue(undefined);
+      const adminCtx: DomainContext = {
+        ...ctx,
+        event: {
+          type: 'callback.received',
+          meta: { ...ctx.event.meta, source: 'telegram' },
+          payload: {
+            incoming: {
+              kind: 'callback',
+              chatId: 999,
+              channelId: '999',
+              action: 'questions.mark_all_answered',
+            },
+          },
+        },
+        base: { ...ctx.base, actor: { isAdmin: true } },
+      };
+      const action: Action = {
+        id: 'mark-all-1',
+        type: 'question.markAllUnansweredAnswered',
+        mode: 'sync',
+        params: { limit: 20 },
+      };
+      const result = await executeAction(action, adminCtx, {
+        readPort: { readDb },
+        writePort: { writeDb },
+      });
+      expect(result.status).toBe('success');
+      expect(result.values?.markedCount).toBe(2);
+      expect(writeDb).toHaveBeenCalledTimes(2);
+      const markCalls = writeDb.mock.calls.filter(
+        (c) => c[0] && typeof c[0] === 'object' && (c[0] as { type?: string }).type === 'question.markAnswered',
+      );
+      expect(markCalls).toHaveLength(2);
+      expect((markCalls[0]?.[0] as { params?: { questionId?: string } }).params?.questionId).toBe('q1');
+      expect((markCalls[1]?.[0] as { params?: { questionId?: string } }).params?.questionId).toBe('q2');
+    });
+
+    it('returns zero markedCount when list empty', async () => {
+      const readDb = vi.fn().mockResolvedValueOnce([]);
+      const writeDb = vi.fn().mockResolvedValue(undefined);
+      const adminCtx: DomainContext = {
+        ...ctx,
+        event: {
+          type: 'callback.received',
+          meta: { ...ctx.event.meta, source: 'telegram' },
+          payload: {
+            incoming: {
+              kind: 'callback',
+              chatId: 999,
+              channelId: '999',
+              action: 'questions.mark_all_answered',
+            },
+          },
+        },
+        base: { ...ctx.base, actor: { isAdmin: true } },
+      };
+      const action: Action = {
+        id: 'mark-all-0',
+        type: 'question.markAllUnansweredAnswered',
+        mode: 'sync',
+        params: { limit: 20 },
+      };
+      const result = await executeAction(action, adminCtx, {
+        readPort: { readDb },
+        writePort: { writeDb },
+      });
+      expect(result.status).toBe('success');
+      expect(result.values?.markedCount).toBe(0);
+      expect(writeDb).not.toHaveBeenCalled();
     });
   });
 });

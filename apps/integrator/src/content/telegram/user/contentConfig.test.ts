@@ -6,15 +6,14 @@ import { describe, expect, it } from 'vitest';
 const dir = dirname(fileURLToPath(import.meta.url));
 
 describe('telegram user static content', () => {
-  it('replyMenu: одна строка — запись, дневник и меню; diary/menu открывают webapp сразу', () => {
+  it('replyMenu: одна строка — запись и приложение (WebApp на главную)', () => {
     const rows = JSON.parse(readFileSync(join(dir, 'replyMenu.json'), 'utf8')) as Array<
       Array<{ textTemplateKey: string; webAppUrlFact?: string }>
     >;
     expect(rows).toHaveLength(1);
     expect(rows[0]).toEqual([
       { textTemplateKey: 'telegram:menu.book' },
-      { textTemplateKey: 'telegram:menu.diary', webAppUrlFact: 'links.webappDiaryUrl' },
-      { textTemplateKey: 'telegram:menu.more', webAppUrlFact: 'links.webappRemindersUrl' },
+      { textTemplateKey: 'telegram:menu.app', webAppUrlFact: 'links.webappHomeUrl' },
     ]);
   });
 
@@ -55,15 +54,14 @@ describe('telegram user static content', () => {
     ]);
   });
 
-  it('menu.json main — одна строка: запись, дневник, меню (webapp)', () => {
+  it('menu.json main — одна строка: запись и приложение (webapp)', () => {
     const menus = JSON.parse(readFileSync(join(dir, 'menu.json'), 'utf8')) as {
       main: Array<Array<{ textTemplateKey?: string; callbackData?: string; webAppUrlFact?: string }>>;
     };
     expect(menus.main).toHaveLength(1);
     expect(menus.main[0]).toEqual([
       { textTemplateKey: 'telegram:menu.book', callbackData: 'booking.open' },
-      { textTemplateKey: 'telegram:menu.diary', webAppUrlFact: 'links.webappDiaryUrl', callbackData: 'diary.open' },
-      { textTemplateKey: 'telegram:menu.more', webAppUrlFact: 'links.webappRemindersUrl', callbackData: 'menu.more' },
+      { textTemplateKey: 'telegram:menu.app', webAppUrlFact: 'links.webappHomeUrl', callbackData: 'cabinet.open' },
     ]);
   });
 });
