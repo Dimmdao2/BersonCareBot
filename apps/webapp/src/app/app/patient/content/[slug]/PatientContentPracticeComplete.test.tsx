@@ -2,7 +2,6 @@
 
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { routePaths } from "@/app-layer/routes/paths";
 import { parsePatientHomeMoodIcons } from "@/modules/patient-home/patientHomeMoodIcons";
 import { PatientContentPracticeComplete } from "./PatientContentPracticeComplete";
 
@@ -73,7 +72,7 @@ describe("PatientContentPracticeComplete", () => {
     expect(push).not.toHaveBeenCalled();
   });
 
-  it("daily_warmup: POST then PATCH and redirect to home", async () => {
+  it("daily_warmup: POST then PATCH, stay on page and show completed status", async () => {
     vi.mocked(global.fetch)
       .mockResolvedValueOnce({
         ok: true,
@@ -97,7 +96,7 @@ describe("PatientContentPracticeComplete", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /Я выполнил\(а\) практику/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Отметить выполнение/i }));
 
     await waitFor(() => {
       expect(global.fetch).toHaveBeenCalledTimes(1);
@@ -113,10 +112,17 @@ describe("PatientContentPracticeComplete", () => {
 
     await waitFor(() => {
       expect(global.fetch).toHaveBeenCalledTimes(2);
-      expect(push).toHaveBeenCalledWith(routePaths.patient);
+      expect(refresh).toHaveBeenCalled();
     });
+    expect(push).not.toHaveBeenCalled();
     const patchUrl = vi.mocked(global.fetch).mock.calls[1][0] as string;
     expect(patchUrl).toContain("/api/patient/practice/completion/warmup-completion-1/feeling");
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("status", { name: /Разминка отмечена выполненной/i }),
+      ).toHaveTextContent(/Разминка выполнена/i);
+    });
   });
 
   it("daily_warmup: clears POST guard when fetch throws so a second click retries", async () => {
@@ -139,7 +145,7 @@ describe("PatientContentPracticeComplete", () => {
       />,
     );
 
-    const cta = screen.getByRole("button", { name: /Я выполнил\(а\) практику/i });
+    const cta = screen.getByRole("button", { name: /Отметить выполнение/i });
     fireEvent.click(cta);
     await waitFor(() => {
       expect(global.fetch).toHaveBeenCalledTimes(1);
@@ -169,7 +175,7 @@ describe("PatientContentPracticeComplete", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /Я выполнил\(а\) практику/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Отметить выполнение/i }));
 
     await waitFor(() => {
       expect(screen.getByText(/Как самочувствие после разминки/i)).toBeInTheDocument();

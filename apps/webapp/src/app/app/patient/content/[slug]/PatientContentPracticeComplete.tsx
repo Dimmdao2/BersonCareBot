@@ -13,11 +13,13 @@ import type { PatientHomeMoodIconOption } from "@/modules/patient-home/patientHo
 import type { PracticeSource } from "@/modules/patient-practice/types";
 import { cn } from "@/lib/utils";
 import {
+  patientButtonPrimaryClass,
   patientButtonSuccessClass,
   patientCardClass,
   patientInlineLinkClass,
   patientMutedTextClass,
   patientSectionTitleClass,
+  patientSimpleCompleteDoneButtonToneClass,
   patientSurfaceSuccessClass,
 } from "@/shared/ui/patientVisual";
 
@@ -121,8 +123,9 @@ export function PatientContentPracticeComplete({
       }
       warmupSubmittedRef.current = true;
       setDialogOpen(false);
+      setSaved(true);
       toast.success("Записано.");
-      router.push(routePaths.patient);
+      router.refresh();
     } catch {
       setPickedMoodScore(null);
       toast.error("Не удалось сохранить. Попробуйте позже.");
@@ -187,6 +190,7 @@ export function PatientContentPracticeComplete({
     }
     if (!open && isWarmup && warmupCompletionId !== null && !warmupSubmittedRef.current) {
       setSaved(true);
+      router.refresh();
     }
   }
 
@@ -220,6 +224,24 @@ export function PatientContentPracticeComplete({
   }
 
   if (saved) {
+    if (isWarmup) {
+      return (
+        <section id="patient-content-practice-complete" className={patientCardClass}>
+          <div
+            role="status"
+            aria-label="Разминка отмечена выполненной"
+            className={cn(
+              patientButtonPrimaryClass,
+              patientSimpleCompleteDoneButtonToneClass,
+              "cursor-default gap-1",
+            )}
+          >
+            <Check className="size-4 shrink-0 stroke-[2.75] text-current" aria-hidden />
+            <span className="font-semibold">Разминка выполнена</span>
+          </div>
+        </section>
+      );
+    }
     return (
       <section id="patient-content-practice-complete" className={patientSurfaceSuccessClass}>
         <div className="flex items-center gap-2">
@@ -240,12 +262,12 @@ export function PatientContentPracticeComplete({
       <section id="patient-content-practice-complete" className={patientCardClass}>
         <button
           type="button"
-          className={cn(patientButtonSuccessClass, "w-full")}
+          className={cn(isWarmup ? patientButtonPrimaryClass : patientButtonSuccessClass, "w-full")}
           disabled={postingWarmup || submitting}
           onClick={() => void (isWarmup ? postWarmupCompletionThenOpenModal() : setDialogOpen(true))}
         >
-          <Check className="size-5 shrink-0" aria-hidden />
-          Я выполнил(а) практику
+          {isWarmup ? null : <Check className="size-5 shrink-0" aria-hidden />}
+          {isWarmup ? "Отметить выполнение" : "Я выполнил(а) практику"}
         </button>
       </section>
       <Dialog open={dialogOpen} onOpenChange={handleDialogOpenChange}>
