@@ -1565,7 +1565,7 @@ describe('executeAction', () => {
       ...ctx,
       base: {
         ...ctx.base,
-        facts: { links: { webappRemindersUrl: 'https://webapp.example/app?ctx=bot' } },
+        facts: { links: { webappRemindersUrl: 'https://webapp.example/app/tg?t=dummy' } },
       },
     }, {
       templatePort: {
@@ -1585,7 +1585,7 @@ describe('executeAction', () => {
         recipient: { chatId: 321 },
         message: { text: 'Выберите действие' },
         replyMarkup: {
-          keyboard: [[{ text: 'Помощник', web_app: { url: 'https://webapp.example/app?ctx=bot' } }]],
+          keyboard: [[{ text: 'Помощник', web_app: { url: 'https://webapp.example/app/tg?t=dummy' } }]],
           resize_keyboard: true,
           one_time_keyboard: false,
           is_persistent: true,

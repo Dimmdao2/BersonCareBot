@@ -137,7 +137,7 @@ describe('max deliveryAdapter', () => {
         message: { text: 'Open app' },
         delivery: { channels: ['max'] },
         replyMarkup: {
-          inline_keyboard: [[{ text: 'Веб-приложение', web_app: { url: 'https://app.example/t?ctx=bot' } }]],
+          inline_keyboard: [[{ text: 'Веб-приложение', web_app: { url: 'https://app.example/app/max?t=dummy' } }]],
         },
       },
     });
@@ -154,7 +154,7 @@ describe('max deliveryAdapter', () => {
                     {
                       type: 'open_app',
                       text: 'Веб-приложение',
-                      web_app: 'https://app.example/t?ctx=bot',
+                      web_app: 'https://app.example/app/max?t=dummy',
                       contact_id: 200,
                     },
                   ],

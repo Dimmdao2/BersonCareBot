@@ -149,8 +149,8 @@ npx tsx scripts/check-max.ts
 
 Два поддерживаемых пути входа в вебапп из MAX:
 
-1. **Подписанная ссылка с `?t=<signed-token>`** (как у Telegram): интегратор формирует URL на `APP_BASE_URL/app?t=...`; в payload — привязка `bindings.maxId`. Вебапп вызывает `POST /api/auth/exchange` и создаёт сессию.
-2. **MAX Mini App без токена в URL:** клиент открывает `APP_BASE_URL/app` внутри WebView; среда передаёт строку **`initData`**. Вебапп проверяет подпись через MAX Platform API, используя секрет бота из **`system_settings`** (ключ **`max_bot_api_key`**, admin; см. `docs/ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md`). HTTP: **`POST /api/auth/max-init`**. На странице `/app` опрос и отправка `initData` делают **`AuthBootstrap`** и восстановление сессии в `miniAppSessionRecovery` (при 401 на `/api/me`).
+1. **Подписанная ссылка с `?t=<signed-token>`:** интегратор формирует URL **`APP_BASE_URL/app/max?t=...`** (`apps/integrator/src/integrations/webappEntryToken.ts`). В Mini App сначала ожидается **`initData`** и **`POST /api/auth/max-init`**; при таймауте/отсутствии bridge — резервный **`POST /api/auth/exchange`** по тому же `t` (клиент: `AuthBootstrap`). В обычном браузере без WebView достаточно обмена по `t` → сессия.
+2. **MAX Mini App без токена в URL:** клиент открывает **`APP_BASE_URL/app/max`** (канон entry) внутри WebView; среда передаёт строку **`initData`**. Вебапп проверяет подпись через MAX Platform API, используя секрет бота из **`system_settings`** (ключ **`max_bot_api_key`**, admin; см. `docs/ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md`). HTTP: **`POST /api/auth/max-init`**. Опрос bridge и отправка `initData` — **`AuthBootstrap`**; восстановление сессии в `miniAppSessionRecovery` (при 401 на `/api/me`).
 
 Что нужно в **вебапп** (bootstrap / интеграция с ботом):
 

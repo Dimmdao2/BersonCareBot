@@ -150,6 +150,40 @@ describe("AuthBootstrap", () => {
     expect(mockReplace).toHaveBeenCalled();
   });
 
+  it("при max_miniapp с ?t= без initData после cap вызывает обмен JWT (резерв integrator)", async () => {
+    mockUseSearchParams.mockReturnValue(new URLSearchParams("t=signed-entry-token"));
+    window.history.pushState({}, "", "/app/max?t=signed-entry-token");
+    document.cookie = `${PLATFORM_COOKIE_NAME}=; path=/; max-age=0`;
+    delete (window as unknown as { Telegram?: unknown }).Telegram;
+    delete (window as unknown as { WebApp?: unknown }).WebApp;
+
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : (input as Request).url;
+      if (url.includes("/api/auth/exchange")) {
+        expect(init?.method).toBe("POST");
+        expect(JSON.parse(String(init?.body))).toEqual({ token: "signed-entry-token" });
+        return new Response(
+          JSON.stringify({ ok: true, role: "client", redirectTo: "/app/patient" }),
+          { status: 200 },
+        );
+      }
+      return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<AuthBootstrap entryClassification="max_miniapp" />);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(8000);
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/auth/exchange",
+      expect.objectContaining({ method: "POST" }),
+    );
+    expect(mockReplace).toHaveBeenCalled();
+  });
+
   it("при ctx=bot не показывает телефонный флоу после таймаута initData и даёт Повторить", async () => {
     render(<AuthBootstrap entryClassification="telegram_miniapp" />);
 

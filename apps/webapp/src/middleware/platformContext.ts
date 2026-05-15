@@ -17,6 +17,13 @@ export type MiddlewareEntryHint =
   | "max_miniapp"
   | "browser_interactive";
 
+/** Снимает завершающие `/` для сравнения канонических путей (`/app/` → `/app`). */
+export function normalizeWebappEntryPathname(pathname: string): string {
+  if (pathname.length <= 1) return pathname;
+  const trimmed = pathname.replace(/\/+$/, "");
+  return trimmed.length > 0 ? trimmed : "/";
+}
+
 /**
  * Если в URL есть `?ctx=bot` (канон) или legacy `?ctx=max`, ставит cookie платформы `bot` и редиректит без параметра.
  * Для `ctx=max` на пути `/app` редирект ведёт на `/app/max` (канон MAX miniapp-entry), query сохраняется.
@@ -34,10 +41,7 @@ export function handlePlatformContextRequest(
   const url = request.nextUrl.clone();
   url.searchParams.delete("ctx");
   if (ctx === "max") {
-    const normalizedPath =
-      request.nextUrl.pathname.length > 1
-        ? request.nextUrl.pathname.replace(/\/+$/, "")
-        : request.nextUrl.pathname;
+    const normalizedPath = normalizeWebappEntryPathname(request.nextUrl.pathname);
     if (normalizedPath === "/app") {
       url.pathname = "/app/max";
     }
@@ -69,6 +73,13 @@ export function handlePlatformContextRequest(
 
 /** Предклассификация входа на edge (без проверки server-session). */
 export function classifyEntryHintFromRequest(request: NextRequest): MiddlewareEntryHint {
+  const path = normalizeWebappEntryPathname(request.nextUrl.pathname);
+  if (path === "/app/max") {
+    return "max_miniapp";
+  }
+  if (path === "/app/tg") {
+    return "telegram_miniapp";
+  }
   const token = (request.nextUrl.searchParams.get("t") ?? request.nextUrl.searchParams.get("token") ?? "").trim();
   const platformCookie = request.cookies.get(PLATFORM_COOKIE_NAME)?.value === "bot";
   const surfaceCookie = request.cookies.get(MESSENGER_SURFACE_COOKIE_NAME)?.value;
