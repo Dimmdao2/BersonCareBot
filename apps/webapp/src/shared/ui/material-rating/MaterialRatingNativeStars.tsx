@@ -10,7 +10,7 @@ export type MaterialRatingNativeStarsProps = {
   readOnly: boolean;
   onChange: (v: number) => void;
   className?: string;
-  /** Размер звезды в px (интерактивный выбор — 25). */
+  /** Размер звезды в px (интерактивный выбор — 30). */
   starSize?: number;
   /** Уменьшить зазор между звёздами (компактная строка). */
   tight?: boolean;
@@ -25,7 +25,7 @@ export function MaterialRatingNativeStars({
   readOnly,
   onChange,
   className,
-  starSize = 25,
+  starSize = 30,
   tight = false,
   "aria-label": ariaLabel = "Оценка материала",
 }: MaterialRatingNativeStarsProps) {

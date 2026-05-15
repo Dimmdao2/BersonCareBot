@@ -220,7 +220,6 @@ export function MaterialRatingBlock({
         scheduleSave(v);
       }}
       className={pickerClassName}
-      starSize={25}
       aria-label="Оценка материала"
     />
   );

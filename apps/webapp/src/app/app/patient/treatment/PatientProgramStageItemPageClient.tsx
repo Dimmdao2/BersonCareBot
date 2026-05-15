@@ -769,94 +769,96 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
             </div>
           ) : null}
 
-          {!contentBlocked && !readOnly && item.itemType !== "clinical_test" ? (
-            <div className="flex flex-wrap items-stretch gap-2">
-              {isPersistentRecommendation(item) ? (
-                flatNextItemId ? (
-                  <Link
-                    href={itemLink(flatNextItemId)}
-                    className={cn(
-                      patientButtonSuccessClass,
-                      "min-h-9 flex-1 text-xs font-medium no-underline sm:min-h-10",
-                    )}
-                  >
-                    Следующая рекомендация
-                  </Link>
+          <div className="flex flex-col gap-0">
+            {!contentBlocked && !readOnly && item.itemType !== "clinical_test" ? (
+              <div className="flex flex-wrap items-stretch gap-2">
+                {isPersistentRecommendation(item) ? (
+                  flatNextItemId ? (
+                    <Link
+                      href={itemLink(flatNextItemId)}
+                      className={cn(
+                        patientButtonSuccessClass,
+                        "min-h-9 flex-1 text-xs font-medium no-underline sm:min-h-10",
+                      )}
+                    >
+                      Следующая рекомендация
+                    </Link>
+                  ) : (
+                    <Link
+                      href={backHref}
+                      className={cn(
+                        patientButtonSuccessClass,
+                        "min-h-9 flex-1 text-xs font-medium no-underline sm:min-h-10",
+                      )}
+                    >
+                      Следующая рекомендация
+                    </Link>
+                  )
                 ) : (
-                  <Link
-                    href={backHref}
-                    className={cn(
-                      patientButtonSuccessClass,
-                      "min-h-9 flex-1 text-xs font-medium no-underline sm:min-h-10",
-                    )}
-                  >
-                    Следующая рекомендация
-                  </Link>
-                )
-              ) : (
-                <div className="flex w-full min-w-0 flex-wrap items-stretch gap-2">
-                  {!(item.itemType === "lfk_complex" && !isPersistentRecommendation(item)) ? (
-                    <>
-                      <button
-                        type="button"
-                        className={cn(
-                          patientButtonPrimaryClass,
-                          "min-h-9 flex-1 text-xs font-medium sm:min-h-10",
-                          simpleCompleteDoneFrozen &&
-                            cn(patientSimpleCompleteDoneButtonToneClass, "gap-1 disabled:cursor-default"),
-                          !simpleCompleteDoneFrozen && "gap-0",
-                        )}
-                        disabled={busy !== null || simpleCompleteDoneFrozen}
-                        onClick={() => void handleComplete()}
-                      >
-                        {simpleCompleteDoneFrozen ? (
-                          <>
-                            <Check className="mr-[-20px] size-4 shrink-0 stroke-[2.75] text-current" aria-hidden />
-                            <span className="min-w-0 flex-1 text-center font-semibold">Выполнено</span>
-                          </>
-                        ) : (
-                          <span className="w-full text-center">Отметить выполнение</span>
-                        )}
-                      </button>
-                      {simpleCompleteDoneFrozen && simpleCompleteCooldownMinutes != null ? (
-                        <p
+                  <div className="flex w-full min-w-0 flex-wrap items-stretch gap-2">
+                    {!(item.itemType === "lfk_complex" && !isPersistentRecommendation(item)) ? (
+                      <>
+                        <button
+                          type="button"
                           className={cn(
-                            patientMutedTextClass,
-                            "w-full basis-full text-center text-[11px] leading-tight",
+                            patientButtonPrimaryClass,
+                            "min-h-9 flex-1 text-xs font-medium sm:min-h-10",
+                            simpleCompleteDoneFrozen &&
+                              cn(patientSimpleCompleteDoneButtonToneClass, "gap-1 disabled:cursor-default"),
+                            !simpleCompleteDoneFrozen && "gap-0",
                           )}
+                          disabled={busy !== null || simpleCompleteDoneFrozen}
+                          onClick={() => void handleComplete()}
                         >
-                          {formatPlanItemDoneCooldownCaption(simpleCompleteCooldownMinutes)}
-                        </p>
-                      ) : null}
-                    </>
-                  ) : null}
-                  <button
-                    type="button"
-                    className={cn(
-                      patientSecondaryActionClass,
-                      "inline-flex min-h-9 flex-1 cursor-pointer items-center justify-center text-xs font-medium sm:min-h-10",
-                    )}
-                    onClick={() => setCommentModalOpen(true)}
-                  >
-                    Комментарий
-                  </button>
-                </div>
-              )}
-            </div>
-          ) : null}
+                          {simpleCompleteDoneFrozen ? (
+                            <>
+                              <Check className="mr-[-20px] size-4 shrink-0 stroke-[2.75] text-current" aria-hidden />
+                              <span className="min-w-0 flex-1 text-center font-semibold">Выполнено</span>
+                            </>
+                          ) : (
+                            <span className="w-full text-center">Отметить выполнение</span>
+                          )}
+                        </button>
+                        {simpleCompleteDoneFrozen && simpleCompleteCooldownMinutes != null ? (
+                          <p
+                            className={cn(
+                              patientMutedTextClass,
+                              "w-full basis-full text-center text-[11px] leading-tight",
+                            )}
+                          >
+                            {formatPlanItemDoneCooldownCaption(simpleCompleteCooldownMinutes)}
+                          </p>
+                        ) : null}
+                      </>
+                    ) : null}
+                    <button
+                      type="button"
+                      className={cn(
+                        patientSecondaryActionClass,
+                        "inline-flex min-h-9 flex-1 cursor-pointer items-center justify-center text-xs font-medium sm:min-h-10",
+                      )}
+                      onClick={() => setCommentModalOpen(true)}
+                    >
+                      Комментарий
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : null}
 
-          <div className="mt-2 -mx-4 flex flex-wrap items-center gap-2 border-b border-[var(--patient-border)]/50 bg-muted/15 px-4 py-2.5 lg:-mx-5 lg:px-5">
-            <span className={cn("text-xs leading-snug", patientMutedTextStrongClass)}>
-              {(() => {
-                const lastIso = mergeLastActivityDisplayedIso(lastDoneAtIsoByItemId[item.id], item.completedAt);
-                const todayCount = doneTodayCountByItemId[item.id] ?? 0;
-                if (!lastIso) return "Выполнялось: никогда";
-                const rel = formatRelativePatientCalendarDayRu(lastIso, appDisplayTimeZone);
-                const suffix = todayCount > 0 ? ` · Сегодня ${todayCount} раз` : "";
-                return `Выполнялось: ${rel}${suffix}`;
-              })()}
-            </span>
-            <ItemPageTodayDots todayCount={doneTodayCountByItemId[item.id] ?? 0} />
+            <div className="-mx-4 flex flex-wrap items-center gap-2 border-b border-[var(--patient-border)]/50 bg-muted/15 px-4 py-2.5 lg:-mx-5 lg:px-5">
+              <span className={cn("text-xs leading-snug", patientMutedTextStrongClass)}>
+                {(() => {
+                  const lastIso = mergeLastActivityDisplayedIso(lastDoneAtIsoByItemId[item.id], item.completedAt);
+                  const todayCount = doneTodayCountByItemId[item.id] ?? 0;
+                  if (!lastIso) return "Выполнялось: никогда";
+                  const rel = formatRelativePatientCalendarDayRu(lastIso, appDisplayTimeZone);
+                  const suffix = todayCount > 0 ? ` · Сегодня ${todayCount} раз` : "";
+                  return `Выполнялось: ${rel}${suffix}`;
+                })()}
+              </span>
+              <ItemPageTodayDots todayCount={doneTodayCountByItemId[item.id] ?? 0} />
+            </div>
           </div>
 
           {!contentBlocked && !readOnly && item.itemType === "lfk_complex" && !isPersistentRecommendation(item) ? (
