@@ -23,15 +23,15 @@ npx tsx scripts/check-max.ts
 
 Ниже — рабочий минимум MAX API, который нужен интегратору для входящих событий, исходящей доставки и callback-UX.
 
-| API | Где используется в интеграторе | Назначение |
-|-----|--------------------------------|-----------|
-| `GET /me` | `scripts/check-max.ts`, `apps/integrator/src/integrations/max/client.ts` (`getMaxBotInfo`) | Проверка ключа `MAX_API_KEY`, диагностика доступности API. |
-| `POST /subscriptions` | ops/runbook, webhook setup | Регистрация webhook `POST /webhook/max`, `update_types`, `secret`. |
-| `GET /updates` | dev fallback (когда webhook не настроен) | Long polling для локальной отладки/аварийного чтения событий. |
-| `POST /messages` | `apps/integrator/src/integrations/max/client.ts` (`sendMaxMessage`) → `deliveryAdapter.ts` | Отправка сообщений пользователю (`chat_id`/`user_id`), включая inline-attachments. |
-| `PUT /messages` | `apps/integrator/src/integrations/max/client.ts` (`editMaxMessage`) → `deliveryAdapter.ts` | Редактирование текста/клавиатуры сообщения (важно для callback-ответов без лишних пузырей). |
-| `POST /answers` | `apps/integrator/src/integrations/max/client.ts` (`answerMaxCallback`) → `deliveryAdapter.ts` | Снятие «спиннера» на кнопке и пользовательская нотификация после callback. |
-| `DELETE /messages` | `apps/integrator/src/integrations/max/client.ts` (`deleteMaxMessage`) → `deliveryAdapter.ts` | Удаление сообщения по `message_id` (stale reminder перед resend). Ошибки API **не рвут** основной send: логируются / soft-fail в адаптере. |
+| API                   | Где используется в интеграторе                                                                | Назначение                                                                                                                                 |
+| --------------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `GET /me`             | `scripts/check-max.ts`, `apps/integrator/src/integrations/max/client.ts` (`getMaxBotInfo`)    | Проверка ключа `MAX_API_KEY`, диагностика доступности API.                                                                                 |
+| `POST /subscriptions` | ops/runbook, webhook setup                                                                    | Регистрация webhook `POST /webhook/max`, `update_types`, `secret`.                                                                         |
+| `GET /updates`        | dev fallback (когда webhook не настроен)                                                      | Long polling для локальной отладки/аварийного чтения событий.                                                                              |
+| `POST /messages`      | `apps/integrator/src/integrations/max/client.ts` (`sendMaxMessage`) → `deliveryAdapter.ts`    | Отправка сообщений пользователю (`chat_id`/`user_id`), включая inline-attachments.                                                         |
+| `PUT /messages`       | `apps/integrator/src/integrations/max/client.ts` (`editMaxMessage`) → `deliveryAdapter.ts`    | Редактирование текста/клавиатуры сообщения (важно для callback-ответов без лишних пузырей).                                                |
+| `POST /answers`       | `apps/integrator/src/integrations/max/client.ts` (`answerMaxCallback`) → `deliveryAdapter.ts` | Снятие «спиннера» на кнопке и пользовательская нотификация после callback.                                                                 |
+| `DELETE /messages`    | `apps/integrator/src/integrations/max/client.ts` (`deleteMaxMessage`) → `deliveryAdapter.ts`  | Удаление сообщения по `message_id` (stale reminder перед resend). Ошибки API **не рвут** основной send: логируются / soft-fail в адаптере. |
 
 ### Какие входящие события должны быть подписаны минимумом
 
@@ -44,14 +44,14 @@ npx tsx scripts/check-max.ts
 
 ### Reminders: parity с Telegram (outbound)
 
-| Log / message key | Где | Смысл (кратко) |
-|-------------------|-----|----------------|
-| `max deleteMessage failed` | MAX client | API отказал delete по валидному id. |
-| `max_reminder_delete_payload_invalid` | MAX adapter | Пустой/невалидный `message_id` в delete — no-op. |
-| `max_reminder_stale_message_delete_soft_fail` | Adapter | Мягкий отказ stale-delete перед resend. |
-| `max_reminder_stale_message_delete_failed` | Worker | Исключение после delete (ловится, send идёт дальше). |
-| `max editMessage failed` | MAX client | Редактирование не удалось. |
-| `reminder_stale_message_delete_failed` | Worker | Stale-delete для Telegram не удался (ловится). |
+| Log / message key                             | Где         | Смысл (кратко)                                       |
+| --------------------------------------------- | ----------- | ---------------------------------------------------- |
+| `max deleteMessage failed`                    | MAX client  | API отказал delete по валидному id.                  |
+| `max_reminder_delete_payload_invalid`         | MAX adapter | Пустой/невалидный `message_id` в delete — no-op.     |
+| `max_reminder_stale_message_delete_soft_fail` | Adapter     | Мягкий отказ stale-delete перед resend.              |
+| `max_reminder_stale_message_delete_failed`    | Worker      | Исключение после delete (ловится, send идёт дальше). |
+| `max editMessage failed`                      | MAX client  | Редактирование не удалось.                           |
+| `reminder_stale_message_delete_failed`        | Worker      | Stale-delete для Telegram не удался (ловится).       |
 
 - Перед новой отправкой `reminder_dispatch` в MAX выполняется **best-effort** `message.delete` по `maxMessageId` из прошлого успешного лога той же rule (см. `reminders.delivery.staleMessengerMessage`, `deleteBeforeSendMessageId` в очереди).
 - После успешной отправки в `user_reminder_delivery_logs.payload_json` пишется **`maxMessageId`** (строка `body.mid` от API).
@@ -78,14 +78,14 @@ npx tsx scripts/check-max.ts
 
 В файле окружения **интегратора** (корень репо: `.env`; прод: `/opt/env/bersoncarebot/api.prod`) задать:
 
-| Переменная | Описание |
-|------------|----------|
-| `MAX_ENABLED` | `true` — включить приём webhook и отправку в MAX. |
-| `MAX_API_KEY` | Ключ доступа к MAX Platform API (как у Telegram — токен бота). |
-| `MAX_WEBHOOK_SECRET` | Секрет для проверки заголовка `X-Max-Bot-Api-Secret` в webhook; **рекомендуется в проде**. |
-| `MAX_BOT_ID` | Идентификатор бота в MAX (при необходимости для сценариев). |
-| `MAX_ADMIN_CHAT_ID` | Chat ID админского диалога в MAX для пересылки пользовательских вопросов и ответов администратора. Для личного чата с ботом обычно берётся из `recipient_chat_id` в логах webhook. |
-| `MAX_ADMIN_USER_ID` | (Опционально.) User ID администратора в MAX; если задан, используется для проверки «пишет ли админ» (вместо сравнения по chat_id). |
+| Переменная           | Описание                                                                                                                                                                           |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `MAX_ENABLED`        | `true` — включить приём webhook и отправку в MAX.                                                                                                                                  |
+| `MAX_API_KEY`        | Ключ доступа к MAX Platform API (как у Telegram — токен бота).                                                                                                                     |
+| `MAX_WEBHOOK_SECRET` | Секрет для проверки заголовка `X-Max-Bot-Api-Secret` в webhook; **рекомендуется в проде**.                                                                                         |
+| `MAX_BOT_ID`         | Идентификатор бота в MAX (при необходимости для сценариев).                                                                                                                        |
+| `MAX_ADMIN_CHAT_ID`  | Chat ID админского диалога в MAX для пересылки пользовательских вопросов и ответов администратора. Для личного чата с ботом обычно берётся из `recipient_chat_id` в логах webhook. |
+| `MAX_ADMIN_USER_ID`  | (Опционально.) User ID администратора в MAX; если задан, используется для проверки «пишет ли админ» (вместо сравнения по chat_id).                                                 |
 
 Пример (dev, в `.env` рядом с `TELEGRAM_*`):
 
@@ -180,9 +180,9 @@ npx tsx scripts/check-max.ts
 
 ## 6. Smoke-проверка (start → меню → открытие вебапп)
 
-1. В MAX откройте чат с ботом: для приветствия с меню можно отправить `/start` (те же deep link параметры, что у Telegram: `link_*`, `setphone_…`, Rubitime, `noticeme` и т.д. — см. [`INTEGRATOR_TELEGRAM_START_SCRIPTS.md`](../archive/2026-04-initiatives/AUTH_RESTRUCTURE/INTEGRATOR_TELEGRAM_START_SCRIPTS.md)) или дождаться сценария старта; текст **`/menu`** по-прежнему обрабатывается ботом (`mapIn.ts`), но **список команд у бота в UI пустой** — главное меню через инлайн-кнопки под сообщениями.
-2. После старта с привязанным номером — **одна строка** inline-кнопок: запись на приём, дневник (WebApp), **Меню** (WebApp на дом). Отдельного развёрнутого блока «ещё» в боте нет; уведомления и прочее — в вебаппе.
-3. Нажмите **«Меню»** — сообщение с текстом-подсказкой и кнопкой открытия вебаппа (если в facts задан `links.webappHomeUrl`; иначе шаблон «не настроено»).
+1. В MAX откройте чат с ботом: для приветствия с меню можно отправить `/start` (те же deep link параметры, что у Telegram: `link_*`, `setphone_…`, Rubitime, `noticeme` и т.д. — см. [`INTEGRATOR_TELEGRAM_START_SCRIPTS.md`](../archive/2026-04-initiatives/AUTH_RESTRUCTURE/INTEGRATOR_TELEGRAM_START_SCRIPTS.md)) или дождаться сценария старта; текст **`/menu`** по-прежнему обрабатывается ботом (`mapIn.ts`), но **список slash-команд у бота в UI пустой** (`setMyCommands` → `[]`) — главное меню через инлайн-кнопки под сообщениями.
+2. После старта с привязанным номером — **одна строка** inline-кнопок, как в Telegram `menus.main`: **«Запись на приём»** (callback) и **WebApp «Приложение»** на главную (`links.webappHomeUrl`). См. [`apps/integrator/src/content/max/user/menu.json`](../../apps/integrator/src/content/max/user/menu.json) и [`MAX_CAPABILITY_MATRIX.md`](MAX_CAPABILITY_MATRIX.md).
+3. Нажмите **«Приложение»** — сообщение/кнопка ведёт в мини-приложение (если в facts задан `links.webappHomeUrl`; иначе шаблон «не настроено»). Текст **`/book`**, **`/diary`**, **`/menu`** по-прежнему можно отправить вручную — обработка в сценариях, не через меню команд MAX.
 4. Откройте вебапп с кнопки — интегратор шлёт кнопку **`open_app`** (поле `web_app` = URL с `?t=...&ctx=bot`), мини-приложение открывается **внутри клиента MAX** с MAX Bridge и `initData` (`POST /api/auth/max-init`). Если пользователь открыл тот же URL как обычную ссылку (`link`) во внешнем браузере — работает только обмен по **`?t=`** (`exchange`), без `initData`.
 
 При ошибках: проверьте логи интегратора (webhook received, pipeline accepted), наличие `links.webappEntryUrl` в facts для MAX (логировать при необходимости) и переменные вебапп `INTEGRATOR_WEBAPP_ENTRY_SECRET` / `APP_BASE_URL`.
@@ -195,8 +195,8 @@ npx tsx scripts/check-max.ts
 
 - Для **пересылки сообщений админу** (support relay) в env интегратора обязательно задать `MAX_ADMIN_CHAT_ID` и/или `MAX_ADMIN_USER_ID`. Без этого входящие текстовые сообщения пользователей не пересылаются админу.
 - При первом текстовом сообщении пользователя (кроме команд `/start`, `/book`, `/diary`, `/menu` и кнопок меню) автоматически открывается диалог с поддержкой и сообщение уходит админу; последующие сообщения в этом диалоге тоже пересылаются.
-- Сейчас для MAX при старте webhook автоматически настраиваются команды бота через `setMyCommands`: **`book`** (запись на приём), **`diary`** (дневник), **`menu`** (главное меню). Команда **`/start`** в это меню не регистрируется — старт остаётся обычным текстом/deep link.
-- Это не полный аналог telegram-style menu button: в MAX сейчас основной UX строится на командах бота и inline-кнопках в сообщениях.
+- При старте webhook для MAX вызывается **`setMyCommands` с пустым списком** — в UI клиента MAX **нет** зарегистрированных slash-команд бота; навигация через **инлайн-кнопки** (`menus.main` и сценарии). Тексты **`/start`**, **`/book`**, **`/diary`**, **`/menu`** по-прежнему обрабатываются пайплайном как сообщения, но **не** показываются как пункты меню команд.
+- Это не полный аналог telegram-style menu button: в MAX основной UX — инлайн-кнопки в сообщениях (см. [`MAX_CAPABILITY_MATRIX.md`](MAX_CAPABILITY_MATRIX.md)).
 - Сейчас для support relay в MAX гарантированно поддерживается только **текст**.
 - Если пользователь или администратор отправляет в MAX неподдерживаемый тип сообщения, бот отвечает, что пока поддерживается только текст и пересылка медиа появится позже.
 - Сводка отличий сценариев Telegram vs MAX (гэпы, slash, меню), снимок 2026-04: [`docs/archive/2026-04-docs-cleanup/reports/TELEGRAM_VS_MAX_SCENARIOS_2026-04-13.md`](../archive/2026-04-docs-cleanup/reports/TELEGRAM_VS_MAX_SCENARIOS_2026-04-13.md). Матрица возможностей API: [`MAX_CAPABILITY_MATRIX.md`](MAX_CAPABILITY_MATRIX.md).

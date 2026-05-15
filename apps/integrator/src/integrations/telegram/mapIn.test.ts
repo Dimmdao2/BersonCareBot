@@ -93,8 +93,8 @@ describe('normalizeTelegramMessageAction', () => {
     expect(normalizeTelegramMessageAction('📅 Запись на приём')).toBe('booking.open');
   });
 
-  it('maps Приложение to cabinet.open', () => {
-    expect(normalizeTelegramMessageAction('Приложение')).toBe('cabinet.open');
+  it('does not map plain text «Приложение» (reply uses WebApp button, not text)', () => {
+    expect(normalizeTelegramMessageAction('Приложение')).toBe('');
   });
 
   it('maps /show_my_id and group form with @bot suffix', () => {

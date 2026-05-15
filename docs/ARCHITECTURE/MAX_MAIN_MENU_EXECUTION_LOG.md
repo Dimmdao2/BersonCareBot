@@ -6,7 +6,7 @@
 
 ## Шаг 0 — журнал и оглавление
 
-**Цель:** убрать команды `book`/`diary`/`menu` из UI MAX (`setMyCommands` → `[]`); автоприкреплять `menus.main` к исходящим `message.send` / `message.compose` в канал MAX при `linkedPhone` и без своей `replyMarkup`; три кнопки главного меню — мини-приложение (`open_app`), в т.ч. запись через `links.bookingUrl`.
+**Цель (снимок 2026-04-14):** убрать команды `book`/`diary`/`menu` из UI MAX (`setMyCommands` → `[]`); автоприкреплять `menus.main` к исходящим `message.send` / `message.compose` в канал MAX при `linkedPhone` и без своей `replyMarkup`. Состав **`menus.main`** позже выровнен с Telegram: **две** кнопки в одной строке — запись (`booking.open`) + WebApp на **`links.webappHomeUrl`** (см. приложение к журналу ниже и [`CONTENT_AND_SCRIPTS_FLOW.md`](CONTENT_AND_SCRIPTS_FLOW.md)).
 
 **Изменённые / добавленные файлы:**
 
@@ -41,11 +41,13 @@
 
 ## Шаг 2 — `menu.json`: запись → мини-приложение
 
-- Первая кнопка `menus.main`: `webAppUrlFact: "links.bookingUrl"`.
+**Исторически (снимок шага):** первая кнопка `menus.main` могла быть WebApp на `links.bookingUrl`.
+
+**Актуально (2026-05, паритет с Telegram):** в `menus.main` — **две** кнопки: callback **`booking.open`** и WebApp на **`links.webappHomeUrl`**; см. приложение в конце файла и [`apps/integrator/src/content/max/user/menu.json`](../../apps/integrator/src/content/max/user/menu.json).
 
 ### Чек-лист шага 2
 
-- [x] JSON валиден; `bookingUrl` задаётся в `webhook.ts` (`buildMaxLinks`).
+- [x] JSON валиден; ссылки на facts задаются в `webhook.ts` (`buildMaxLinks` / `buildTelegramLinks`).
 
 ---
 
@@ -64,7 +66,7 @@
 
 ## Шаг 4 — тесты
 
-- `executeAction.test.ts`: прикрепление трёх кнопок для max; пропуск для telegram-only.
+- `executeAction.test.ts`: прикрепление **главной** строки inline для max; пропуск для telegram-only.
 - `deliveryAdapter.test.ts`: ряд из трёх `web_app` → три `open_app`.
 
 ### Чек-лист шага 4
@@ -93,14 +95,14 @@
 
 ### Находки
 
-| Критичность | Описание |
-|-------------|----------|
-| Исправлено | **Подмешивание меню без `recipient.chatId`:** при цепочках вроде Rubitime с телефоном и **пустым** fan-out (или до разрешения адресата) payload мог остаться только с `phoneNormalized`. Разметка добавлялась, тогда как MAX-адаптер всё равно отклонял send (`MAX_PAYLOAD_INVALID`). Добавлена явная проверка `asNumber(recipient.chatId) !== null` в `enrichPayloadWithMaxMainInlineIfApplicable`. |
-| Документация | Уточнены `INTEGRATOR_CONTRACT.md`, `MAX_CAPABILITY_MATRIX.md` (Summary) — условие `chatId`. |
-| Низкая | Лог успеха `setMyCommands`: текст **`MAX: setMyCommands ok (empty command list)`** для однозначности в логах эксплуатации. |
-| Вне scope / принято | **`message.deliver`** (очередь) по-прежнему **не** проходит через обогащение `message.send` — автоменю только для прямых `message.send` / `message.compose` в executor; это соответствует исходному плану. |
-| Не уязвимость | Факты `links.*` формируются на стороне интегратора (webhook), не из произвольного ввода пользователя в этом пути. |
-| Оптимизация (не делали) | Кэш `getBundle({ source: 'max', audience: 'user' })` на процесс — возможный микро-оптимизационный хвост. |
+| Критичность             | Описание                                                                                                                                                                                                                                                                                                                                                                                             |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Исправлено              | **Подмешивание меню без `recipient.chatId`:** при цепочках вроде Rubitime с телефоном и **пустым** fan-out (или до разрешения адресата) payload мог остаться только с `phoneNormalized`. Разметка добавлялась, тогда как MAX-адаптер всё равно отклонял send (`MAX_PAYLOAD_INVALID`). Добавлена явная проверка `asNumber(recipient.chatId) !== null` в `enrichPayloadWithMaxMainInlineIfApplicable`. |
+| Документация            | Уточнены `INTEGRATOR_CONTRACT.md`, `MAX_CAPABILITY_MATRIX.md` (Summary) — условие `chatId`.                                                                                                                                                                                                                                                                                                          |
+| Низкая                  | Лог успеха `setMyCommands`: текст **`MAX: setMyCommands ok (empty command list)`** для однозначности в логах эксплуатации.                                                                                                                                                                                                                                                                           |
+| Вне scope / принято     | **`message.deliver`** (очередь) по-прежнему **не** проходит через обогащение `message.send` — автоменю только для прямых `message.send` / `message.compose` в executor; это соответствует исходному плану.                                                                                                                                                                                           |
+| Не уязвимость           | Факты `links.*` формируются на стороне интегратора (webhook), не из произвольного ввода пользователя в этом пути.                                                                                                                                                                                                                                                                                    |
+| Оптимизация (не делали) | Кэш `getBundle({ source: 'max', audience: 'user' })` на процесс — возможный микро-оптимизационный хвост.                                                                                                                                                                                                                                                                                             |
 
 ### Правки после аудита
 
@@ -122,3 +124,8 @@
 - Коммит: `cbce51b` — `feat(max): empty bot commands, auto main inline menu, post-audit guard`
 - Ветка `main` запушена в `origin`.
 
+---
+
+## Актуализация 2026-05-15 (паритет с Telegram)
+
+Содержимое `apps/integrator/src/content/max/user/menu.json` → ключ `main`: **две** кнопки в одной строке — `booking.open` (callback) и WebApp на **`links.webappHomeUrl`** (как в Telegram `menu.json` / `replyMenu.json`). Ранее зафиксированная в этом журнале схема «три кнопки / запись через `links.bookingUrl`» для `menus.main` **заменена**; детали — `docs/ARCHITECTURE/CONTENT_AND_SCRIPTS_FLOW.md`, `docs/ARCHITECTURE/MAX_CAPABILITY_MATRIX.md`.

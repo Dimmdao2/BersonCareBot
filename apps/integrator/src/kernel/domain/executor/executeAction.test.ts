@@ -245,6 +245,7 @@ describe('executeAction', () => {
     const templatePort = {
       renderTemplate: vi.fn().mockImplementation(async ({ templateId }: { templateId: string }) => {
         if (templateId === 'menu.book') return { text: '📅 Запись' };
+        if (templateId === 'menu.app') return { text: 'Приложение' };
         return { text: '' };
       }),
     };
@@ -256,7 +257,10 @@ describe('executeAction', () => {
             scripts: [],
             templates: {},
             menus: {
-              main: [[{ textTemplateKey: 'max:menu.book', webAppUrlFact: 'links.bookingUrl' }]],
+              main: [[
+                { textTemplateKey: 'max:menu.book', callbackData: 'booking.open' },
+                { textTemplateKey: 'max:menu.app', webAppUrlFact: 'links.webappHomeUrl' },
+              ]],
             },
           };
         }
@@ -280,7 +284,7 @@ describe('executeAction', () => {
         base: {
           ...ctx.base,
           linkedPhone: true,
-          facts: { links: { bookingUrl: 'https://app.example/book' } },
+          facts: { links: { bookingUrl: 'https://app.example/book', webappHomeUrl: 'https://app.example/home' } },
         },
         event: {
           ...ctx.event,
@@ -297,9 +301,14 @@ describe('executeAction', () => {
       (i) => i.type === 'message.send' && (i.payload as { delivery?: { channels?: string[] } }).delivery?.channels?.[0] === 'max',
     );
     expect((telegramIntent?.payload as { replyMarkup?: unknown }).replyMarkup).toBeUndefined();
-    expect((maxIntent?.payload as { replyMarkup?: { inline_keyboard?: unknown[][] } }).replyMarkup?.inline_keyboard?.[0]?.[0]).toMatchObject({
+    expect((maxIntent?.payload as { replyMarkup?: { inline_keyboard?: unknown[][] } }).replyMarkup?.inline_keyboard?.[0]).toHaveLength(2);
+    expect((maxIntent?.payload as { replyMarkup?: { inline_keyboard?: Array<Array<{ text: string; web_app?: { url: string }; callback_data?: string }>> } }).replyMarkup?.inline_keyboard?.[0]?.[0]).toMatchObject({
       text: '📅 Запись',
-      web_app: { url: 'https://app.example/book' },
+      callback_data: 'booking.open',
+    });
+    expect((maxIntent?.payload as { replyMarkup?: { inline_keyboard?: Array<Array<{ text: string; web_app?: { url: string } }>> } }).replyMarkup?.inline_keyboard?.[0]?.[1]).toMatchObject({
+      text: 'Приложение',
+      web_app: { url: 'https://app.example/home' },
     });
   });
 
@@ -1663,14 +1672,15 @@ describe('executeAction', () => {
   });
 
   it('attaches main reply keyboard to user messages without explicit keyboard when enabled', async () => {
+    const homeUrl = 'https://app.example/home';
     const templatePort = {
       renderTemplate: vi.fn().mockImplementation(async ({ templateId }) => ({
         text: templateId === 'questionAccepted'
           ? 'Вопрос принят. Я отвечу вам в ближайшее время.'
           : templateId === 'menu.book'
             ? '📅 Запись на приём'
-            : templateId === 'menu.more'
-              ? 'Помощник'
+            : templateId === 'menu.app'
+              ? 'Приложение'
               : '',
       })),
     };
@@ -1686,7 +1696,11 @@ describe('executeAction', () => {
       },
     }, {
       ...ctx,
-      base: { ...ctx.base, linkedPhone: true },
+      base: {
+        ...ctx.base,
+        linkedPhone: true,
+        facts: { ...(ctx.base.facts ?? {}), links: { webappHomeUrl: homeUrl } },
+      },
       event: { ...ctx.event, meta: { ...ctx.event.meta, source: 'telegram' }, payload: { incoming: { text: 'question', chatId: 123 } } },
     }, {
       templatePort,
@@ -1698,7 +1712,7 @@ describe('executeAction', () => {
           templates: {},
           mainReplyKeyboard: [[
             { textTemplateKey: 'telegram:menu.book' },
-            { textTemplateKey: 'telegram:menu.more' },
+            { textTemplateKey: 'telegram:menu.app', webAppUrlFact: 'links.webappHomeUrl' },
           ]],
         }),
       },
@@ -1712,7 +1726,7 @@ describe('executeAction', () => {
         replyMarkup: {
           keyboard: [[
             { text: '📅 Запись на приём' },
-            { text: 'Помощник' },
+            { text: 'Приложение', web_app: { url: homeUrl } },
           ]],
           resize_keyboard: true,
           one_time_keyboard: false,
@@ -1723,13 +1737,16 @@ describe('executeAction', () => {
   });
 
   it('attaches main reply keyboard when user pressed Помощник or Запись на приём', async () => {
+    const homeUrl = 'https://app.example/home';
     const templatePort = {
       renderTemplate: vi.fn().mockImplementation(async ({ templateId }) => ({
         text: templateId === 'menu.more'
           ? 'Помощник'
           : templateId === 'menu.book'
             ? '📅 Запись на приём'
-            : '',
+            : templateId === 'menu.app'
+              ? 'Приложение'
+              : '',
       })),
     };
 
@@ -1744,7 +1761,11 @@ describe('executeAction', () => {
       },
     }, {
       ...ctx,
-      base: { ...ctx.base, linkedPhone: true },
+      base: {
+        ...ctx.base,
+        linkedPhone: true,
+        facts: { ...(ctx.base.facts ?? {}), links: { webappHomeUrl: homeUrl } },
+      },
       event: { ...ctx.event, meta: { ...ctx.event.meta, source: 'telegram' }, payload: { incoming: { action: 'menu.more', text: 'Помощник', chatId: 123 } } },
     }, {
       templatePort,
@@ -1756,7 +1777,7 @@ describe('executeAction', () => {
           templates: {},
           mainReplyKeyboard: [[
             { textTemplateKey: 'telegram:menu.book' },
-            { textTemplateKey: 'telegram:menu.more' },
+            { textTemplateKey: 'telegram:menu.app', webAppUrlFact: 'links.webappHomeUrl' },
           ]],
         }),
       },
@@ -1770,7 +1791,7 @@ describe('executeAction', () => {
         replyMarkup: {
           keyboard: [[
             { text: '📅 Запись на приём' },
-            { text: 'Помощник' },
+            { text: 'Приложение', web_app: { url: homeUrl } },
           ]],
           resize_keyboard: true,
           one_time_keyboard: false,
@@ -1812,7 +1833,7 @@ describe('executeAction', () => {
           templates: {},
           mainReplyKeyboard: [[
             { textTemplateKey: 'telegram:menu.book' },
-            { textTemplateKey: 'telegram:menu.more' },
+            { textTemplateKey: 'telegram:menu.app', webAppUrlFact: 'links.webappHomeUrl' },
           ]],
         }),
       },
@@ -1834,12 +1855,11 @@ describe('executeAction', () => {
         const id = String(templateId);
         if (id === 'questionAccepted') return { text: 'Вопрос принят.' };
         if (id === 'menu.book') return { text: '📅 Запись на приём' };
-        if (id === 'menu.diary') return { text: '📓 Дневник' };
-        if (id === 'menu.more') return { text: 'Помощник' };
+        if (id === 'menu.app') return { text: 'Приложение' };
         return { text: '' };
       }),
     };
-    const bookingUrl = 'https://app.example/t?ctx=bot&next=cabinet';
+    const webappHomeUrl = 'https://app.example/home';
     const result = await executeAction({
       id: 'max-inline-main-1',
       type: 'message.send',
@@ -1856,9 +1876,7 @@ describe('executeAction', () => {
         linkedPhone: true,
         facts: {
           links: {
-            bookingUrl,
-            webappDiaryUrl: 'https://app.example/d',
-            webappRemindersUrl: 'https://app.example/h',
+            webappHomeUrl,
           },
         },
       },
@@ -1878,9 +1896,8 @@ describe('executeAction', () => {
               templates: {},
               menus: {
                 main: [[
-                  { textTemplateKey: 'max:menu.book', webAppUrlFact: 'links.bookingUrl' },
-                  { textTemplateKey: 'max:menu.diary', webAppUrlFact: 'links.webappDiaryUrl' },
-                  { textTemplateKey: 'max:menu.more', webAppUrlFact: 'links.webappRemindersUrl' },
+                  { textTemplateKey: 'max:menu.book', callbackData: 'booking.open' },
+                  { textTemplateKey: 'max:menu.app', webAppUrlFact: 'links.webappHomeUrl' },
                 ]],
               },
             };
@@ -1891,16 +1908,16 @@ describe('executeAction', () => {
     });
 
     const payload = result.intents?.[0]?.payload as {
-      replyMarkup?: { inline_keyboard?: Array<Array<{ text: string; web_app?: { url: string } }>> };
+      replyMarkup?: { inline_keyboard?: Array<Array<{ text: string; web_app?: { url: string }; callback_data?: string }>> };
     };
-    expect(payload?.replyMarkup?.inline_keyboard?.[0]).toHaveLength(3);
+    expect(payload?.replyMarkup?.inline_keyboard?.[0]).toHaveLength(2);
     expect(payload?.replyMarkup?.inline_keyboard?.[0]?.[0]).toMatchObject({
       text: '📅 Запись на приём',
-      web_app: { url: bookingUrl },
+      callback_data: 'booking.open',
     });
-    expect(payload?.replyMarkup?.inline_keyboard?.[0]?.[2]).toMatchObject({
-      text: 'Помощник',
-      web_app: { url: 'https://app.example/h' },
+    expect(payload?.replyMarkup?.inline_keyboard?.[0]?.[1]).toMatchObject({
+      text: 'Приложение',
+      web_app: { url: webappHomeUrl },
     });
   });
 
@@ -1968,7 +1985,7 @@ describe('executeAction', () => {
           templates: {},
           mainReplyKeyboard: [[
             { textTemplateKey: 'telegram:menu.book' },
-            { textTemplateKey: 'telegram:menu.more' },
+            { textTemplateKey: 'telegram:menu.app', webAppUrlFact: 'links.webappHomeUrl' },
           ]],
         }),
       },
@@ -2015,7 +2032,7 @@ describe('executeAction', () => {
           templates: {},
           mainReplyKeyboard: [[
             { textTemplateKey: 'telegram:menu.book' },
-            { textTemplateKey: 'telegram:menu.more' },
+            { textTemplateKey: 'telegram:menu.app', webAppUrlFact: 'links.webappHomeUrl' },
           ]],
         }),
       },

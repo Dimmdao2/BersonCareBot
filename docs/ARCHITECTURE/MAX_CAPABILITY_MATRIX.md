@@ -58,6 +58,6 @@ Reference: [MAX API docs](https://dev.max.ru/docs-api), [Telegram Bot API](https
 ## Summary
 
 - **Fully supported in MAX for MVP:** receive text/callback, send text, inline keyboard, edit message, answer callback, HTML/Markdown.
-- **Авто-главное меню (executor):** к `message.send` / `message.compose` в канал MAX подмешивается строка `menus.main` только при **`linkedPhone`**, числовом **`recipient.chatId`**, отсутствии своей `replyMarkup` и доставке в max (в т.ч. отдельный интент при Rubitime fan-out). Без `chatId` меню не подмешивается — иначе отправка в MAX невозможна. См. `delivery.ts`, `INTEGRATOR_CONTRACT.md`.
+- **Авто-главное меню (executor):** к `message.send` / `message.compose` в канал MAX подмешивается строка `menus.main` из [`apps/integrator/src/content/max/user/menu.json`](../../apps/integrator/src/content/max/user/menu.json) (паритет с Telegram: запись + WebApp на `links.webappHomeUrl`) только при **`linkedPhone`**, числовом **`recipient.chatId`**, отсутствии своей `replyMarkup` и доставке в max (в т.ч. отдельный интент при Rubitime fan-out). Без `chatId` меню не подмешивается — иначе отправка в MAX невозможна. См. `delivery.ts`, `INTEGRATOR_CONTRACT.md`.
 - **Partial:** contact request **кнопка** vs полный UX Telegram; входящий контакт в сообщении — см. строку Contact request выше.
 - **Unsupported (with fallback):** reply keyboard → use inline keyboard for main menu.

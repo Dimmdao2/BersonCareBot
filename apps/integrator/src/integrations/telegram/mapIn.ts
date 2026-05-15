@@ -32,7 +32,6 @@ const MESSAGE_TEXT_TO_ACTION: Record<string, string> = {
   'Помощник': 'menu.more',
   '👤 Кабинет': 'cabinet.open',
   'Кабинет': 'cabinet.open',
-  'Приложение': 'cabinet.open',
   [REQUEST_PHONE_CANCEL_TEXT]: 'phone.request.cancel',
   '/admin_bookings': 'admin.stats.bookings',
   '/admin_users': 'admin.stats.users',

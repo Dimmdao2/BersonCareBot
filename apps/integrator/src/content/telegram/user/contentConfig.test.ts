@@ -61,7 +61,7 @@ describe('telegram user static content', () => {
     expect(menus.main).toHaveLength(1);
     expect(menus.main[0]).toEqual([
       { textTemplateKey: 'telegram:menu.book', callbackData: 'booking.open' },
-      { textTemplateKey: 'telegram:menu.app', webAppUrlFact: 'links.webappHomeUrl', callbackData: 'cabinet.open' },
+      { textTemplateKey: 'telegram:menu.app', webAppUrlFact: 'links.webappHomeUrl' },
     ]);
   });
 });

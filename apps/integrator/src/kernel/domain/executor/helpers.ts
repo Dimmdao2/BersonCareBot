@@ -263,7 +263,7 @@ export async function buildMainReplyKeyboardMarkup(input: {
 }
 
 /**
- * Главное инлайн-меню MAX (`menus.main` из бандла max/user): три WebApp-кнопки, если заданы facts с URL.
+ * Главное инлайн-меню MAX (`menus.main` из бандла max/user): строка из `menu.json` (обычно запись + WebApp «Приложение»), если заданы facts с URL.
  * Не зависит от `ctx.event.meta.source` — используется при исходящей доставке в канал `max`.
  */
 export async function buildMaxMainInlineKeyboardMarkup(input: {

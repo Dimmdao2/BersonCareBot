@@ -33,15 +33,14 @@ describe('max user static content', () => {
     ]);
   });
 
-  it('menu.json main — одна строка: запись, дневник, меню (webapp)', () => {
+  it('menu.json main — одна строка: запись (callback) и приложение (WebApp на главную), паритет с Telegram', () => {
     const menus = JSON.parse(readFileSync(join(dir, 'menu.json'), 'utf8')) as {
       main: Array<Array<{ textTemplateKey?: string; callbackData?: string; webAppUrlFact?: string }>>;
     };
     expect(menus.main).toHaveLength(1);
     expect(menus.main[0]).toEqual([
-      { textTemplateKey: 'max:menu.book', webAppUrlFact: 'links.bookingUrl', callbackData: 'booking.open' },
-      { textTemplateKey: 'max:menu.diary', webAppUrlFact: 'links.webappDiaryUrl', callbackData: 'diary.open' },
-      { textTemplateKey: 'max:menu.more', webAppUrlFact: 'links.webappRemindersUrl', callbackData: 'menu.more' },
+      { textTemplateKey: 'max:menu.book', callbackData: 'booking.open' },
+      { textTemplateKey: 'max:menu.app', webAppUrlFact: 'links.webappHomeUrl' },
     ]);
   });
 

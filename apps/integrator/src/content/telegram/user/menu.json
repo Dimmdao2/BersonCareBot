@@ -7,7 +7,7 @@
   "main": [
     [
       { "textTemplateKey": "telegram:menu.book", "callbackData": "booking.open" },
-      { "textTemplateKey": "telegram:menu.app", "webAppUrlFact": "links.webappHomeUrl", "callbackData": "cabinet.open" }
+      { "textTemplateKey": "telegram:menu.app", "webAppUrlFact": "links.webappHomeUrl" }
     ]
   ]
 }

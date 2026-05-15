@@ -1,10 +1,10 @@
 ---
 name: Telegram menu reply admin
-overview: "Telegram: урезать админские slash-команды; кнопка «Пометить все как отвеченные» у списка неотвеченных с экшеном на базе question.markAnswered; reply-меню пользователя — две кнопки (Запись + WebApp на webappHomeUrl) и выравнивание всех дублей клавиатуры в контенте и webapp.channelLink.complete."
+overview: 'Telegram: урезать админские slash-команды; кнопка «Пометить все как отвеченные» у списка неотвеченных с экшеном на базе question.markAnswered; reply-меню пользователя — две кнопки (Запись + WebApp на webappHomeUrl) и выравнивание всех дублей клавиатуры в контенте и webapp.channelLink.complete.'
 status: completed
 todos:
   - id: admin-commands
-    content: "setupMenuButton.ts: из admin setMyCommands убрать start и show_my_id; оставить admin_bookings, admin_users, unanswered"
+    content: 'setupMenuButton.ts: из admin setMyCommands убрать start и show_my_id; оставить admin_bookings, admin_users, unanswered'
     status: completed
   - id: mark-all-feature
     content: mapIn normalizeChannelCallbackPayload → questions.mark_all_answered; listUnanswered + кнопка; executeAction question.markAllUnansweredAnswered; telegram+max admin scripts + admin templates; mapIn/executeAction тесты
@@ -16,7 +16,7 @@ todos:
     content: rg остатки тройки в user TG; целевые vitest/eslint по apps/integrator; при пуше — полный ci по правилам репо
     status: completed
   - id: docs-sync
-    content: "Доки: PLATFORM_IDENTITY_SCENARIOS_AND_CODE_MAP, CONTENT_AND_SCRIPTS_FLOW, SCENARIO_LOGIC_SUMMARY, docs/README; excludeActions mark_all в admin reply; план status completed + архив"
+    content: 'Доки: PLATFORM_IDENTITY_SCENARIOS_AND_CODE_MAP, CONTENT_AND_SCRIPTS_FLOW, SCENARIO_LOGIC_SUMMARY, docs/README; excludeActions mark_all в admin reply; план status completed + архив'
     status: completed
 isProject: false
 ---
@@ -40,9 +40,9 @@ isProject: false
 **Вне scope (отдельное решение / другой PR)**
 
 - WebApp-приложение: `Telegram.WebApp.expand` / fullscreen — только клиент.
-- [apps/integrator/src/content/max/user/menu.json](apps/integrator/src/content/max/user/menu.json) и MAX user reply (reply keyboard в MAX API нет).
+- Постоянная reply-клавиатура в MAX (в API MAX нет аналога Telegram reply keyboard).
 
-**Сделано вне изначального «опционально»:** [menu.json](apps/integrator/src/content/telegram/user/menu.json) `main` приведён к паритету с reply (две кнопки: запись + WebApp на главную) — см. `contentConfig.test.ts`.
+**Сделано сверх изначального scope:** [menu.json](apps/integrator/src/content/telegram/user/menu.json) и [max/user/menu.json](apps/integrator/src/content/max/user/menu.json) — ключ `main`: **паритет** с reply (две кнопки: запись + WebApp на `links.webappHomeUrl`) — см. `contentConfig.test.ts`, `MAX_CAPABILITY_MATRIX.md`.
 
 **Не менять без причины**
 
@@ -76,13 +76,13 @@ isProject: false
 
 ### 2.3 Реализация по шагам
 
-| Шаг | Действие | Проверка |
-|-----|-----------|----------|
-| A | В [mapIn.ts](apps/integrator/src/integrations/telegram/mapIn.ts) в `normalizeChannelCallbackPayload` до fallback: если `trimmed === 'questions.mark_all_answered'` → `{ action: 'questions.mark_all_answered' }`. Длина `callback_data` в пределах лимита Telegram (64 байта). | `mapIn.test.ts` |
-| B | В `question.listUnanswered`: при `rows.length > 0` добавить ряд `inline_keyboard` с одной кнопкой; `callback_data: 'questions.mark_all_answered'`; подпись через `renderText` + ключ в **admin** templates (например `telegram:admin.questions.markAllButton`). | Визуально в коде + при необходимости снапшот текста в тесте |
-| C | Новый `case` в executeAction: `question.markAllUnansweredAnswered` — read + цикл `persistWrites`; при 0 строк — success без записей; опционально вернуть `values: { markedCount: n }` для шаблона подтверждения. | `executeAction.test.ts` с моками read/write |
-| D | Скрипты: [telegram/admin/scripts.json](apps/integrator/src/content/telegram/admin/scripts.json) и [max/admin/scripts.json](apps/integrator/src/content/max/admin/scripts.json) — `event: callback.received`, `actor.isAdmin`, `input.action: questions.mark_all_answered`, шаги: sync экшен из п. C → async `callback.answer` → при желании `message.send` с шаблоном «отмечено N» ([telegram/admin/templates.json](apps/integrator/src/content/telegram/admin/templates.json)). | Ручной smoke или e2e при наличии |
-| E | При необходимости добавить `questions.mark_all_answered` в `excludeActions` у сценария admin reply message, если матчинг по тексту/callback может пересечься (оценка по факту после реализации). | **Сделано:** в `telegram.admin.reply.message` и `max.admin.reply.message` |
+| Шаг | Действие                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | Проверка                                                                  |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| A   | В [mapIn.ts](apps/integrator/src/integrations/telegram/mapIn.ts) в `normalizeChannelCallbackPayload` до fallback: если `trimmed === 'questions.mark_all_answered'` → `{ action: 'questions.mark_all_answered' }`. Длина `callback_data` в пределах лимита Telegram (64 байта).                                                                                                                                                                                                   | `mapIn.test.ts`                                                           |
+| B   | В `question.listUnanswered`: при `rows.length > 0` добавить ряд `inline_keyboard` с одной кнопкой; `callback_data: 'questions.mark_all_answered'`; подпись через `renderText` + ключ в **admin** templates (например `telegram:admin.questions.markAllButton`).                                                                                                                                                                                                                  | Визуально в коде + при необходимости снапшот текста в тесте               |
+| C   | Новый `case` в executeAction: `question.markAllUnansweredAnswered` — read + цикл `persistWrites`; при 0 строк — success без записей; опционально вернуть `values: { markedCount: n }` для шаблона подтверждения.                                                                                                                                                                                                                                                                 | `executeAction.test.ts` с моками read/write                               |
+| D   | Скрипты: [telegram/admin/scripts.json](apps/integrator/src/content/telegram/admin/scripts.json) и [max/admin/scripts.json](apps/integrator/src/content/max/admin/scripts.json) — `event: callback.received`, `actor.isAdmin`, `input.action: questions.mark_all_answered`, шаги: sync экшен из п. C → async `callback.answer` → при желании `message.send` с шаблоном «отмечено N» ([telegram/admin/templates.json](apps/integrator/src/content/telegram/admin/templates.json)). | Ручной smoke или e2e при наличии                                          |
+| E   | При необходимости добавить `questions.mark_all_answered` в `excludeActions` у сценария admin reply message, если матчинг по тексту/callback может пересечься (оценка по факту после реализации).                                                                                                                                                                                                                                                                                 | **Сделано:** в `telegram.admin.reply.message` и `max.admin.reply.message` |
 
 ```mermaid
 sequenceDiagram
@@ -106,13 +106,13 @@ sequenceDiagram
 
 **Подтверждено:** вторая кнопка — WebApp на **`links.webappHomeUrl`** ([webhook.ts](apps/integrator/src/integrations/telegram/webhook.ts): `next=/app/patient`).
 
-| Элемент | Содержимое |
-|---------|------------|
-| [replyMenu.json](apps/integrator/src/content/telegram/user/replyMenu.json) | Одна строка: `telegram:menu.book` (без web_app); `telegram:menu.app` + `webAppUrlFact: links.webappHomeUrl` |
-| [templates.json](apps/integrator/src/content/telegram/user/templates.json) | Ключ `menu.app` → подпись кнопки «Приложение» (или согласованный короткий текст) |
-| [scripts.json](apps/integrator/src/content/telegram/user/scripts.json) | Все `message.replyKeyboard.show` с тройкой `menu.diary` / `menu.more` заменены на пару `menu.book` + `menu.app` (WebApp) |
-| [executeAction.ts](apps/integrator/src/kernel/domain/executor/executeAction.ts) | Блок `webapp.channelLink.complete` (~welcome keyboard): та же двухкнопочная строка |
-| [mapIn.ts](apps/integrator/src/integrations/telegram/mapIn.ts) | `TELEGRAM_REPLY_MENU_ACTIONS`: убрать `diary.open`, `menu.more` (reply больше не шлёт эти тексты как кнопки). **Не** убирать `diary.open`/`menu.more` из `MESSAGE_TEXT_TO_ACTION` — ручной ввод и старые клавиатуры. |
+| Элемент                                                                         | Содержимое                                                                                                                                                                                                           |
+| ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [replyMenu.json](apps/integrator/src/content/telegram/user/replyMenu.json)      | Одна строка: `telegram:menu.book` (без web_app); `telegram:menu.app` + `webAppUrlFact: links.webappHomeUrl`                                                                                                          |
+| [templates.json](apps/integrator/src/content/telegram/user/templates.json)      | Ключ `menu.app` → подпись кнопки «Приложение» (или согласованный короткий текст)                                                                                                                                     |
+| [scripts.json](apps/integrator/src/content/telegram/user/scripts.json)          | Все `message.replyKeyboard.show` с тройкой `menu.diary` / `menu.more` заменены на пару `menu.book` + `menu.app` (WebApp)                                                                                             |
+| [executeAction.ts](apps/integrator/src/kernel/domain/executor/executeAction.ts) | Блок `webapp.channelLink.complete` (~welcome keyboard): та же двухкнопочная строка                                                                                                                                   |
+| [mapIn.ts](apps/integrator/src/integrations/telegram/mapIn.ts)                  | `TELEGRAM_REPLY_MENU_ACTIONS`: убрать `diary.open`, `menu.more` (reply больше не шлёт эти тексты как кнопки). **Не** убирать `diary.open`/`menu.more` из `MESSAGE_TEXT_TO_ACTION` — ручной ввод и старые клавиатуры. |
 
 **Инлайн [menu.json](apps/integrator/src/content/telegram/user/menu.json):** паритет с reply выполнен (две кнопки в `main`).
 
