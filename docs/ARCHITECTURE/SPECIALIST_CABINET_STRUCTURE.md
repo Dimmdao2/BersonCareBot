@@ -317,7 +317,7 @@ Master-detail: слева список, справа карточка выбра
 
 ### 9.7. Реализация в webapp (2026-05)
 
-Каноническое описание маршрута, предпросмотра (в т.ч. список имён и учёт **`dev_mode`** / **`test_account_identifiers`**), записи в **`broadcast_audit`** и ограничения «массовая доставка не в этом модуле»: **[`DOCTOR_BROADCASTS.md`](DOCTOR_BROADCASTS.md)**.
+Каноническое описание маршрута **`/app/doctor/broadcasts`**: предпросмотр (в т.ч. список имён, учёт **`dev_mode`** / **`test_account_identifiers`**), подтверждение, запись в **`broadcast_audit`**, постановка заданий в **`public.outgoing_delivery_queue`** (`kind = doctor_broadcast_intent`), доставка **воркером integrator** через **`dispatchOutgoing`**, опция **«Прикрепить / обновить меню»** — см. **[`DOCTOR_BROADCASTS.md`](DOCTOR_BROADCASTS.md)**.
 
 ---
 

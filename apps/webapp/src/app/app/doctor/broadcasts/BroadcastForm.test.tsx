@@ -53,6 +53,7 @@ describe("BroadcastForm", () => {
         audienceFilter: "with_telegram",
         message: { title: "Заголовок теста", body: "Достаточно длинный текст" },
         channels: ["bot_message", "sms"],
+        attachMenuAfterSend: false,
       });
     });
   });
