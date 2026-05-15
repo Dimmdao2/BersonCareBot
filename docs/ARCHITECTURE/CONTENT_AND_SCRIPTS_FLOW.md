@@ -37,6 +37,12 @@
 
 Главное инлайн-меню задаётся в **одном месте**: `src/content/telegram/user/menu.json` (ключ `main`). В сценариях в шагах указывается `"menu": "main"` вместо дублирования `inlineKeyboard`. При сборке плана `buildPlan` подставляет `inlineKeyboard` из `bundle.menus.main`. Так и открытие меню (кнопка «Меню»), и возврат по «Назад» показывают один и тот же набор пунктов.
 
+**Reply-клавиатура Telegram:** отдельный файл `src/content/telegram/user/replyMenu.json` попадает в бандл как `mainReplyKeyboard` (`loadContentRegistry` в `src/kernel/contentRegistry/index.ts`). Содержимое **согласовано** с `menus.main` (две кнопки: запись + WebApp «Приложение» на `links.webappHomeUrl`); см. `contentConfig.test.ts` и [`.cursor/plans/archive/telegram_menu_reply_admin.plan.md`](../../.cursor/plans/archive/telegram_menu_reply_admin.plan.md).
+
+## Админ Telegram: меню slash-команд
+
+Список команд в клиенте Telegram для **админского** чата задаётся в [`setupMenuButton.ts`](../../apps/integrator/src/integrations/telegram/setupMenuButton.ts) (`setMyCommands` с `scope: chat`): **`admin_bookings`**, **`admin_users`**, **`unanswered`**. Команды **`/start`** и **`/show_my_id`** в это меню **не** входят — обработка остаётся вебхуком по тексту/сценариям. Список неотвеченных и массовая пометка — в контенте `telegram/admin` и `max/admin` (см. тот же план в archive).
+
 ## Явные команды и сценарии «открытого диалога»
 
 Сценарии вроде **`telegram.conversation.user.message`** / **`max.conversation.user.message`** матчятся на произвольный текст при **`hasOpenConversation: true`** и набирают большую **specificity** за счёт длинных `exclude*`. Команда **`/show_my_id`** при этом маппится во входе в действие **`debug.show_my_id`** (`mapIn.ts` для Telegram и MAX).

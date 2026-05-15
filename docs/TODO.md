@@ -7,7 +7,7 @@
 - **Репозиторий** vs **домашний каталог Cursor:** планы **в монорепо** — `<репо>/.cursor/plans/` (см. ниже и [`.cursor/plans/archive/README.md`](../.cursor/plans/archive/README.md)); планы **на машине** — `~/.cursor/plans`. Не смешивать: пояснение в начале [`CURSOR_PLANS_REVIEW_2026-05-01.md`](CURSOR_PLANS_REVIEW_2026-05-01.md). Закрытый план MAX/TG pre-prod (integrator): [`.cursor/plans/archive/max_tg_pre-prod_automation.plan.md`](../.cursor/plans/archive/max_tg_pre-prod_automation.plan.md) · журнал [`ARCHITECTURE/MAX_PREPROD_AUTOMATION_LOG.md`](ARCHITECTURE/MAX_PREPROD_AUTOMATION_LOG.md).
 
 - **Активные планы** (корень репозитория): `.cursor/plans/integrator_drizzle_migration_master.plan.md` + `integrator_drizzle_phase_*.plan.md` — см. `docs/INTEGRATOR_DRIZZLE_MIGRATION/LOG.md`.
-- **Архив закрытых планов (репозиторий):** `.cursor/plans/archive/` — [README](../.cursor/plans/archive/README.md).
+- **Архив закрытых планов (репозиторий):** `.cursor/plans/archive/` — [README](../.cursor/plans/archive/README.md) (в т.ч. `telegram_menu_reply_admin.plan.md` — меню Telegram админ/пользователь 2026-05).
 - **Архив закрытых планов (домашний каталог Cursor):** `~/.cursor/plans/archive/2026-05-01-closed/`, `~/.cursor/plans/archive/2026-05-14-closed/` (корень `~/.cursor/plans/*.plan.md` — только открытые или без полностью закрытого набора structured `todos`).
 - **Архивные инициативы docs:** `docs/archive/2026-05-initiatives/` (в т.ч. WEBAPP Drizzle unification, Patient Reminder UX, страница программы, LFK expand — оглавление в [docs/README.md](README.md) §Архив).
 - **Закрытые пункты этого backlog (история):** [archive/TODO_BACKLOG_CLOSED_HISTORY.md](archive/TODO_BACKLOG_CLOSED_HISTORY.md).
