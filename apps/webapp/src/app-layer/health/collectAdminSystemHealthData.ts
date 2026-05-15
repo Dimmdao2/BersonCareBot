@@ -19,6 +19,9 @@ import { getPool } from "@/app-layer/db/client";
 import { proxyIntegratorProjectionHealth } from "@/app-layer/health/proxyIntegratorProjectionHealth";
 import { getConfigBool } from "@/modules/system-settings/configAdapter";
 import type { OperatorIncidentOpenRow } from "@/modules/operator-health/ports";
+import type { IntegratorPushOutboxHealthSnapshot } from "@/modules/operator-health/ports";
+import { classifyIntegratorPushOutboxSystemHealthStatus } from "@/modules/operator-health/integratorPushOutboxHealth";
+import { writeAuditLogDedupeOpenConflictKey } from "@/infra/adminAuditLog";
 import {
   ADMIN_DELIVERY_DUE_BACKLOG_WARNING,
   classifyVideoTranscodeSystemHealthStatus,
@@ -195,6 +198,9 @@ export type OutgoingDeliveryHealthPayload = {
   lastQueueActivityAt: string | null;
 };
 
+/** Очередь `integrator_push_outbox` (счётчики без payload). */
+export type IntegratorPushOutboxHealthPayload = IntegratorPushOutboxHealthSnapshot;
+
 export type SystemHealthResponse = {
   webappDb: DbStatus;
   integratorApi: { status: IntegratorApiStatus; db?: DbStatus };
@@ -219,6 +225,8 @@ export type SystemHealthResponse = {
   backupJobs: Record<string, OperatorBackupJobPayload>;
   /** Очередь исходящей доставки уведомлений (`public.outgoing_delivery_queue`). */
   outgoingDelivery: OutgoingDeliveryHealthPayload;
+  /** Очередь синка настроек/напоминаний в integrator (`public.integrator_push_outbox`). */
+  integratorPushOutbox: IntegratorPushOutboxHealthPayload;
   meta: {
     probes: {
       webappDb: { status: string; durationMs: number; errorCode?: string };
@@ -232,6 +240,7 @@ export type SystemHealthResponse = {
       operatorIncidents: { status: string; durationMs: number; errorCode?: string };
       operatorBackupJobs: { status: string; durationMs: number; errorCode?: string };
       outgoingDelivery: { status: string; durationMs: number; errorCode?: string };
+      integratorPushOutbox: { status: string; durationMs: number; errorCode?: string };
     };
   };
   fetchedAt: string;
@@ -719,15 +728,17 @@ async function probeOperatorHealthData(): Promise<
     incidents: OperatorIncidentOpenRow[];
     backupJobs: Record<string, OperatorBackupJobPayload>;
     outgoingDelivery: OutgoingDeliveryHealthPayload;
+    integratorPushOutbox: IntegratorPushOutboxHealthPayload;
   }>
 > {
   const startedAt = Date.now();
   try {
     const read = buildAppDeps().operatorHealthRead;
-    const [incidents, jobRows, outgoingSnapshot] = await Promise.all([
+    const [incidents, jobRows, outgoingSnapshot, ipoSnapshot] = await Promise.all([
       read.listOpenIncidents(20),
       read.listBackupJobStatus(),
       read.getOutgoingDeliveryQueueHealth(),
+      read.getIntegratorPushOutboxHealth(),
     ]);
     const backupJobs: Record<string, OperatorBackupJobPayload> = {};
     for (const r of jobRows) {
@@ -754,7 +765,21 @@ async function probeOperatorHealthData(): Promise<
     };
     return {
       ok: true,
-      value: { incidents, backupJobs, outgoingDelivery },
+      value: {
+        incidents,
+        backupJobs,
+        outgoingDelivery,
+        integratorPushOutbox: {
+          dueBacklog: ipoSnapshot.dueBacklog,
+          deadTotal: ipoSnapshot.deadTotal,
+          oldestDueAgeSeconds: ipoSnapshot.oldestDueAgeSeconds,
+          dueByKind: ipoSnapshot.dueByKind,
+          deadByKind: ipoSnapshot.deadByKind,
+          processingCount: ipoSnapshot.processingCount,
+          oldestProcessingAgeSeconds: ipoSnapshot.oldestProcessingAgeSeconds,
+          lastQueueActivityAt: ipoSnapshot.lastQueueActivityAt,
+        },
+      },
       durationMs: elapsedMs(startedAt),
     };
   } catch {
@@ -779,7 +804,8 @@ function logProbe(
     | "video_transcode"
     | "operator_incidents"
     | "operator_backup_jobs"
-    | "outgoing_delivery",
+    | "outgoing_delivery"
+    | "integrator_push_outbox",
   result: ProbeResult<unknown>,
   statusOverride?: string,
 ) {
@@ -806,6 +832,17 @@ const emptyOutgoingDeliveryHealthPayload = (): OutgoingDeliveryHealthPayload => 
   deadByKind: {},
   processingCount: 0,
   lastSentAt: null,
+  lastQueueActivityAt: null,
+});
+
+const emptyIntegratorPushOutboxHealthPayload = (): IntegratorPushOutboxHealthPayload => ({
+  dueBacklog: 0,
+  deadTotal: 0,
+  oldestDueAgeSeconds: null,
+  dueByKind: {},
+  deadByKind: {},
+  processingCount: 0,
+  oldestProcessingAgeSeconds: null,
   lastQueueActivityAt: null,
 });
 
@@ -912,6 +949,7 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
     incidents: OperatorIncidentOpenRow[];
     backupJobs: Record<string, OperatorBackupJobPayload>;
     outgoingDelivery: OutgoingDeliveryHealthPayload;
+    integratorPushOutbox: IntegratorPushOutboxHealthPayload;
   }> =
     operatorHealth.status === "fulfilled"
       ? operatorHealth.value
@@ -922,6 +960,32 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
   const outgoingDeliveryPayload: OutgoingDeliveryHealthPayload = operatorHealthResult.ok
     ? operatorHealthResult.value.outgoingDelivery
     : emptyOutgoingDeliveryHealthPayload();
+
+  const integratorPushOutboxPayload: IntegratorPushOutboxHealthPayload = operatorHealthResult.ok
+    ? operatorHealthResult.value.integratorPushOutbox
+    : emptyIntegratorPushOutboxHealthPayload();
+
+  const integratorPushOutboxClassified = classifyIntegratorPushOutboxSystemHealthStatus(integratorPushOutboxPayload);
+
+  if (operatorHealthResult.ok && integratorPushOutboxClassified !== "ok") {
+    const rank = integratorPushOutboxClassified === "error" ? 2 : 1;
+    const hourKey = new Date().toISOString().slice(0, 13);
+    void writeAuditLogDedupeOpenConflictKey(getPool(), {
+      actorId: null,
+      action: "system_health_integrator_push_outbox",
+      conflictKey: `system_health:ipo:${hourKey}:s${rank}`,
+      details: {
+        status: integratorPushOutboxClassified,
+        dueBacklog: integratorPushOutboxPayload.dueBacklog,
+        deadTotal: integratorPushOutboxPayload.deadTotal,
+        processingCount: integratorPushOutboxPayload.processingCount,
+        oldestDueAgeSeconds: integratorPushOutboxPayload.oldestDueAgeSeconds,
+        oldestProcessingAgeSeconds: integratorPushOutboxPayload.oldestProcessingAgeSeconds,
+        fetchedAt: nowIso(),
+      },
+      status: integratorPushOutboxClassified === "error" ? "error" : "partial_failure",
+    });
+  }
 
   const operatorIncidentsProbeStatus = !operatorHealthResult.ok
     ? operatorHealthResult.status
@@ -941,6 +1005,14 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
       || outgoingDeliveryPayload.dueBacklog >= ADMIN_DELIVERY_DUE_BACKLOG_WARNING
       ? "degraded"
       : "ok";
+
+  const integratorPushOutboxProbeStatus = !operatorHealthResult.ok
+    ? operatorHealthResult.status
+    : integratorPushOutboxClassified === "error"
+      ? "error"
+      : integratorPushOutboxClassified === "degraded"
+        ? "degraded"
+        : "ok";
 
   const response: SystemHealthResponse = {
     webappDb: webappDbResult.ok ? webappDbResult.value : "down",
@@ -970,6 +1042,7 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
     operatorIncidentsOpen,
     backupJobs,
     outgoingDelivery: outgoingDeliveryPayload,
+    integratorPushOutbox: integratorPushOutboxPayload,
     meta: {
       probes: {
         webappDb: {
@@ -1026,6 +1099,11 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
         },
         outgoingDelivery: {
           status: outgoingDeliveryProbeStatus,
+          durationMs: operatorHealthResult.durationMs,
+          ...(!operatorHealthResult.ok ? { errorCode: operatorHealthResult.errorCode } : {}),
+        },
+        integratorPushOutbox: {
+          status: integratorPushOutboxProbeStatus,
           durationMs: operatorHealthResult.durationMs,
           ...(!operatorHealthResult.ok ? { errorCode: operatorHealthResult.errorCode } : {}),
         },

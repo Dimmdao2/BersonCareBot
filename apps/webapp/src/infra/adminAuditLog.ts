@@ -88,6 +88,33 @@ export async function writeAuditLog(pool: Pool, entry: AuditLogWriteEntry): Prom
   }
 }
 
+/**
+ * Insert audit row; ignore unique violation on open `conflict_key` (hourly / severity dedupe).
+ */
+export async function writeAuditLogDedupeOpenConflictKey(
+  pool: Pool,
+  entry: AuditLogWriteEntry & { conflictKey: string },
+): Promise<void> {
+  const status: AuditLogStatus = entry.status ?? "ok";
+  try {
+    await pool.query(
+      `INSERT INTO admin_audit_log (actor_id, action, target_id, conflict_key, details, status)
+       VALUES ($1::uuid, $2, $3, $4, $5::jsonb, $6)`,
+      [
+        entry.actorId,
+        entry.action,
+        entry.targetId ?? null,
+        entry.conflictKey,
+        JSON.stringify(entry.details ?? {}),
+        status,
+      ],
+    );
+  } catch (err) {
+    if (isPgUniqueViolation(err)) return;
+    logger.error({ err, action: entry.action }, "writeAuditLogDedupeOpenConflictKey failed");
+  }
+}
+
 export type UpsertOpenConflictLogInput = {
   actorId: string | null;
   candidateIds: string[];

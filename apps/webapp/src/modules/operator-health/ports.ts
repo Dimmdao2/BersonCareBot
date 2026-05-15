@@ -42,6 +42,20 @@ export type OutgoingDeliveryQueueHealthSnapshot = {
   lastQueueActivityAt: string | null;
 };
 
+/** Снимок `public.integrator_push_outbox` для админского health (без payload/idempotency). */
+export type IntegratorPushOutboxHealthSnapshot = {
+  dueBacklog: number;
+  deadTotal: number;
+  /** Возраст самой «старшей» due-pending строки: `now() - min(next_try_at)` среди due. */
+  oldestDueAgeSeconds: number | null;
+  dueByKind: Record<string, number>;
+  deadByKind: Record<string, number>;
+  processingCount: number;
+  /** `now() - min(updated_at)` среди `processing` (null если нет processing). */
+  oldestProcessingAgeSeconds: number | null;
+  lastQueueActivityAt: string | null;
+};
+
 export type OperatorHealthReadPort = {
   listOpenIncidents(limit: number): Promise<OperatorIncidentOpenRow[]>;
   /** Строки `operator_job_status` с `job_family = backup` (ключи `backup.hourly`, …). */
@@ -50,6 +64,8 @@ export type OperatorHealthReadPort = {
   getOperatorJobStatus(jobFamily: string, jobKey: string): Promise<OperatorJobStatusTickRow | null>;
   /** Метрики `public.outgoing_delivery_queue` для админских health-экранов. */
   getOutgoingDeliveryQueueHealth(): Promise<OutgoingDeliveryQueueHealthSnapshot>;
+  /** Метрики `public.integrator_push_outbox` (ретраи signed POST в integrator). */
+  getIntegratorPushOutboxHealth(): Promise<IntegratorPushOutboxHealthSnapshot>;
 };
 
 export type OperatorHealthWritePort = {
