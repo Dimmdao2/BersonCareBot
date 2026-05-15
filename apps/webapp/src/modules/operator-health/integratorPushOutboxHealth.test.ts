@@ -1,8 +1,6 @@
 import { describe, expect, it } from "vitest";
-import {
-  ADMIN_INTEGRATOR_PUSH_OUTBOX_DUE_WARNING,
-  classifyIntegratorPushOutboxSystemHealthStatus,
-} from "./integratorPushOutboxHealth";
+import { ADMIN_DELIVERY_DUE_BACKLOG_WARNING } from "./adminHealthThresholds";
+import { classifyIntegratorPushOutboxSystemHealthStatus } from "./integratorPushOutboxHealth";
 import type { IntegratorPushOutboxHealthSnapshot } from "./ports";
 
 function snap(partial: Partial<IntegratorPushOutboxHealthSnapshot>): IntegratorPushOutboxHealthSnapshot {
@@ -31,7 +29,7 @@ describe("classifyIntegratorPushOutboxSystemHealthStatus", () => {
   it("returns degraded when due backlog crosses warning", () => {
     expect(
       classifyIntegratorPushOutboxSystemHealthStatus(
-        snap({ dueBacklog: ADMIN_INTEGRATOR_PUSH_OUTBOX_DUE_WARNING }),
+        snap({ dueBacklog: ADMIN_DELIVERY_DUE_BACKLOG_WARNING }),
       ),
     ).toBe("degraded");
   });

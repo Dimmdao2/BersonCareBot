@@ -13,6 +13,7 @@
 Связанные документы:
 
 - Текущая вкладка «Здоровье системы»: [`SystemHealthSection.tsx`](../../apps/webapp/src/app/app/settings/SystemHealthSection.tsx), сбор [`collectAdminSystemHealthData.ts`](../../apps/webapp/src/app-layer/health/collectAdminSystemHealthData.ts) → `GET /api/admin/system-health`.
+- Очередь **`integrator_push_outbox`** (карточка health, аудит, proactive guard-tick): закрытый план [`.cursor/plans/archive/admin_db_guard_monitoring.plan.md`](../../.cursor/plans/archive/admin_db_guard_monitoring.plan.md), запись в [`LOG.md`](LOG.md) § 2026-05-15.
 - Пороги **`videoTranscode.status`** (`ok` \| `degraded` \| `error`): [`adminHealthThresholds.ts`](../../apps/webapp/src/modules/operator-health/adminHealthThresholds.ts); тик reconcile в **`operator_job_status`**: [`reconcile/route.ts`](../../apps/webapp/src/app/api/internal/media-transcode/reconcile/route.ts) + [`pgOperatorHealthWrite.ts`](../../apps/webapp/src/infra/repos/pgOperatorHealthWrite.ts).
 - План cron reconcile HLS backlog + расширения health/UI: [`.cursor/plans/archive/cron_and_system_health.plan.md`](../../.cursor/plans/archive/cron_and_system_health.plan.md).
 - Архив метрик reconcile / system-health (команды проверок): [`docs/archive/2026-05-initiatives/VIDEO_HLS_DELIVERY/HLS_RECONCILE_METRICS_LOG.md`](../archive/2026-05-initiatives/VIDEO_HLS_DELIVERY/HLS_RECONCILE_METRICS_LOG.md).

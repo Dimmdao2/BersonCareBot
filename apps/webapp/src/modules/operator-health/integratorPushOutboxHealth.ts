@@ -1,7 +1,5 @@
 import type { IntegratorPushOutboxHealthSnapshot } from "./ports";
-
-/** Порог due-backlog (аналог исходящей доставки). */
-export const ADMIN_INTEGRATOR_PUSH_OUTBOX_DUE_WARNING = 50;
+import { ADMIN_DELIVERY_DUE_BACKLOG_WARNING } from "./adminHealthThresholds";
 
 /** Due-pending старше — degraded (сек). */
 export const ADMIN_INTEGRATOR_PUSH_OUTBOX_OLDEST_DUE_DEGRADED_SEC = 15 * 60;
@@ -27,7 +25,7 @@ export function classifyIntegratorPushOutboxSystemHealthStatus(
     bump(2);
   }
 
-  if (s.dueBacklog >= ADMIN_INTEGRATOR_PUSH_OUTBOX_DUE_WARNING) {
+  if (s.dueBacklog >= ADMIN_DELIVERY_DUE_BACKLOG_WARNING) {
     bump(1);
   }
 

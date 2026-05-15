@@ -4,14 +4,17 @@
 
 ## Записи
 
-### 2026-05-15 — System health: `integrator_push_outbox` + guard tick
+### 2026-05-15 — System health: `integrator_push_outbox` + guard tick (**закрыто**)
 
-- **Снимок и пороги:** `OperatorHealthReadPort.getIntegratorPushOutboxHealth` в `pgOperatorHealthRead.ts` (Drizzle), классификатор **`classifyIntegratorPushOutboxSystemHealthStatus`** в `integratorPushOutboxHealth.ts` (unit: `integratorPushOutboxHealth.test.ts`).
-- **API/UI:** блок в `GET /api/admin/system-health` и карточка «Очередь синка в integrator» в `SystemHealthSection.tsx`; проба `meta.probes.integratorPushOutbox`.
-- **Баннер врача:** `adminDoctorTodayHealthBannerFromSystemHealth` учитывает ту же классификацию.
-- **Аудит:** при `degraded`/`error` — `writeAuditLogDedupeOpenConflictKey` (`action: system_health_integrator_push_outbox`, дедуп по `conflict_key` час+ранг).
-- **Relay:** тема **`system_health_db_guard`** в `admin_incident_alert_config` (дефолт **false**); internal **`POST /api/internal/system-health-guard/tick`** (Bearer `INTERNAL_JOB_SECRET`); оркестрация `runIntegratorPushOutboxHealthGuardTick.ts`; тест `system-health-guard/tick/route.test.ts`.
-- **Проверки:** `pnpm --filter @bersoncare/webapp run test:inprocess -- src/app/api/admin/system-health/route.test.ts src/app/api/internal/system-health-guard/tick/route.test.ts src/modules/operator-health/integratorPushOutboxHealth.test.ts` (плюс затронутые RTL при необходимости).
+Канонический план (закрыт): [`.cursor/plans/archive/admin_db_guard_monitoring.plan.md`](../../.cursor/plans/archive/admin_db_guard_monitoring.plan.md).
+
+- **Снимок:** `OperatorHealthReadPort.getIntegratorPushOutboxHealth` → `pgOperatorHealthRead.ts` (Drizzle, один `Promise.all`). **`oldestDueAgeSeconds`**: для due-pending (`status=pending` AND `next_try_at<=now()`) берётся строка с **минимальным** `next_try_at` (порядок `ASC`), возраст = **секунды от этого timestamp до `Date.now()`** (насколько «просрочен» самый старый слот ретрая). **`oldestProcessingAgeSeconds`**: при `processing` — `now - min(updated_at)` по строкам `processing`.
+- **Пороги:** `integratorPushOutboxHealth.ts`; due-warning = **`ADMIN_DELIVERY_DUE_BACKLOG_WARNING`** (тот же числовой порог, что исходящая доставка). **`deadTotal > 0` → `error`** (жёстче, чем probe только по dead у `outgoing_delivery` — осознанно для синка в integrator).
+- **API/UI:** `GET /api/admin/system-health` + `meta.probes.integratorPushOutbox`; карточка «Очередь синка в integrator» в `SystemHealthSection.tsx`.
+- **Баннер врача:** `adminDoctorTodayHealthBannerFromSystemHealth` — тот же `classifyIntegratorPushOutboxSystemHealthStatus`.
+- **Аудит:** `writeAuditLogDedupeOpenConflictKey`, `action: system_health_integrator_push_outbox`, `conflict_key`: `system_health:ipo:<UTC YYYY-MM-DDTHH>:s<rank>` (rank 1=degraded, 2=error).
+- **Relay:** топик **`system_health_db_guard`** в `admin_incident_alert_config` (дефолт **false**); **`POST /api/internal/system-health-guard/tick`** с Bearer **`INTERNAL_JOB_SECRET`** (тот же паттерн, что остальные internal cron — **без** отдельного ключа в `system_settings` для секрета tick). Оркестрация: `runIntegratorPushOutboxHealthGuardTick.ts`.
+- **Проверки:** `pnpm --filter @bersoncare/webapp run test:inprocess -- src/app/api/admin/system-health/route.test.ts src/app/api/internal/system-health-guard/tick/route.test.ts src/modules/operator-health/integratorPushOutboxHealth.test.ts`; RTL `SystemHealthSection.*.test.tsx` при правках UI. Перед merge — полный **`pnpm run ci`** из корня репозитория.
 
 ### 2026-05-15 — Admin incident alerts (identity relay)
 
