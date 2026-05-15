@@ -118,8 +118,10 @@ describe("ContentForm", () => {
           requiresAuth: false,
           videoUrl: null,
         }}
+        materialRatingSummary={{ avg: 4.5, count: 12 }}
       />,
     );
+    expect(screen.getByText(/Оценки пациентов/i)).toBeInTheDocument();
     const sel = document.querySelector("select[name=section]") as HTMLSelectElement;
     expect(sel).not.toBeNull();
     expect(sel.value).toBe("lessons");

@@ -35,7 +35,9 @@ describe('mailingLogs (Drizzle onConflict)', () => {
       error: null,
     });
     expect(onConflictDoUpdate).toHaveBeenCalledTimes(1);
-    const arg = onConflictDoUpdate.mock.calls[0][0] as {
+    const firstCall = onConflictDoUpdate.mock.calls[0];
+    expect(firstCall).toBeDefined();
+    const arg = firstCall![0] as {
       set: { status: string; sentAt: string; error: string | null };
     };
     expect(arg.set).toEqual({

@@ -29,6 +29,7 @@ import {
   exerciseUsageSections,
   type ExerciseUsageSection,
 } from "./exerciseUsageSummaryText";
+import { MaterialRatingBlock } from "@/shared/ui/material-rating/MaterialRatingBlock";
 
 function ExerciseUsageSectionsView({ sections }: { sections: ExerciseUsageSection[] }) {
   if (sections.length === 0) {
@@ -396,6 +397,14 @@ export function ExerciseForm({
 
       {exercise && !isArchived ? (
         <div className="border-t border-border/60 pt-4">
+          <div className="mb-3 rounded-md border border-border/60 bg-muted/20 p-3">
+            <MaterialRatingBlock
+              targetKind="lfk_exercise"
+              targetId={exercise.id}
+              variant="doctorCompact"
+              readOnly
+            />
+          </div>
           <div className="mb-3 rounded-md border border-border/60 bg-muted/20 p-3">
             <p className="text-sm font-medium text-foreground">Где используется</p>
             {usageBusy ? (

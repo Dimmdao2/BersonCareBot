@@ -7,12 +7,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { patientLfkDifficultySelectItems } from "@/shared/ui/selectOpaqueValueLabels";
 import { listLfkSnapshotExerciseLines } from "@/modules/treatment-program/programActionActivityKey";
 import { type PatientProgramChecklistRow } from "@/modules/treatment-program/patient-program-actions";
+import { treatmentProgramItemToRatingTarget } from "@/modules/material-rating/mapProgramItemToTarget";
+import { MaterialRatingBlock } from "@/shared/ui/material-rating/MaterialRatingBlock";
 import { cn } from "@/lib/utils";
 import { patientCompactActionClass, patientFormSurfaceClass, patientMutedTextClass } from "@/shared/ui/patientVisual";
 import { snapshotTitle } from "@/app/app/patient/treatment/program-detail/patientPlanDetailFormatters";
 
 export function PatientLfkChecklistRow(props: {
   row: PatientProgramChecklistRow;
+  instanceId: string;
   itemBaseUrl: string;
   done: boolean;
   onUpdated: (ids: string[]) => void;
@@ -20,7 +23,7 @@ export function PatientLfkChecklistRow(props: {
   onAfterSave: () => void | Promise<void>;
   setError: (e: string | null) => void;
 }) {
-  const { row, itemBaseUrl, done, onUpdated, onAfterSave, setError } = props;
+  const { row, instanceId, itemBaseUrl, done, onUpdated, onAfterSave, setError } = props;
   const [difficulty, setDifficulty] = useState<"easy" | "medium" | "hard">("medium");
   const [note, setNote] = useState("");
   const [pending, setPending] = useState(false);
@@ -100,6 +103,20 @@ export function PatientLfkChecklistRow(props: {
       >
         {pending ? "Сохраняю…" : done ? "Добавить отметку" : "Сохранить"}
       </button>
+      {(() => {
+        const t = treatmentProgramItemToRatingTarget(row.item.itemType, row.item.itemRefId);
+        if (!t.kind) return null;
+        return (
+          <div className="mt-3 border-t border-[var(--patient-border)]/60 pt-3">
+            <MaterialRatingBlock
+              targetKind={t.kind}
+              targetId={t.targetId}
+              programInstanceId={instanceId}
+              programStageItemId={row.item.id}
+            />
+          </div>
+        );
+      })()}
     </div>
   );
 }

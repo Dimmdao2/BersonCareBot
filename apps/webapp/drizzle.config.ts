@@ -31,6 +31,7 @@ export default defineConfig({
     "./db/schema/entityComments.ts",
     "./db/schema/courses.ts",
     "./db/schema/patientPractice.ts",
+    "./db/schema/materialRatings.ts",
     "./db/schema/operatorHealth.ts",
     "./db/schema/outgoingDeliveryQueue.ts",
   ],

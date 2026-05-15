@@ -194,6 +194,9 @@ import { createPgPatientHomeLegacyContentPort } from "@/infra/repos/pgPatientHom
 import { createInMemoryPatientHomeLegacyContentPort } from "@/infra/repos/inMemoryPatientHomeLegacyContent";
 import { createPgPatientPracticeCompletionsPort } from "@/infra/repos/pgPatientPracticeCompletions";
 import { createInMemoryPatientPracticeCompletionsPort } from "@/infra/repos/inMemoryPatientPracticeCompletions";
+import { createPgMaterialRatingPort } from "@/infra/repos/pgMaterialRating";
+import { createInMemoryMaterialRatingPort } from "@/infra/repos/inMemoryMaterialRating";
+import { createMaterialRatingService } from "@/modules/material-rating/service";
 import { createPgWarmupFeelingCompletionPort } from "@/infra/repos/pgWarmupFeelingCompletion";
 import { createInMemoryWarmupFeelingCompletionPort } from "@/infra/repos/inMemoryWarmupFeelingCompletion";
 import { createPatientHomeBlocksService } from "@/modules/patient-home/service";
@@ -358,6 +361,13 @@ const patientHomeLegacyContentPort = !inMemoryRepos
 const patientPracticeCompletionsPort = !inMemoryRepos
   ? createPgPatientPracticeCompletionsPort()
   : createInMemoryPatientPracticeCompletionsPort();
+const materialRatingPort = !inMemoryRepos ? createPgMaterialRatingPort() : createInMemoryMaterialRatingPort();
+const materialRatingService = createMaterialRatingService({
+  ratings: materialRatingPort,
+  contentPages: contentPagesPort,
+  itemRefs: treatmentProgramItemRefValidationPort,
+  instances: treatmentProgramInstancePort,
+});
 const warmupFeelingCompletionPort = !inMemoryRepos
   ? createPgWarmupFeelingCompletionPort({
       diaries: symptomDiaryPort,
@@ -774,6 +784,7 @@ function _buildAppDeps() {
     /** Legacy новости / рассылки / цитаты главной пациента (Drizzle или in-memory в Vitest). */
     patientHomeLegacy: patientHomeLegacyContentPort,
     patientPractice: patientPracticeService,
+    materialRating: materialRatingService,
     warmupFeelingCompletion: warmupFeelingCompletionPort,
     patientMood: patientMoodService,
     treatmentProgramProgress: treatmentProgramProgressService,

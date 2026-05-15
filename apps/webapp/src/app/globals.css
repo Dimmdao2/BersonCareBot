@@ -169,6 +169,10 @@
   cursor: pointer;
 }
 
+#app-shell-patient .material-rating-stars svg {
+  color: var(--patient-block-heading);
+}
+
 /*---break---
  */
 

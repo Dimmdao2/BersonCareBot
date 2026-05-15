@@ -1,4 +1,4 @@
-import { and, asc, eq, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import { contentPages } from "../../../db/schema/schema";
 
@@ -54,6 +54,8 @@ export type ContentPagesPort = {
   /** Устанавливает sort_order по порядку id (0..n-1) только для строк с данным section. */
   reorderInSection: (section: string, orderedIds: string[]) => Promise<void>;
   countPagesWithSectionSlug: (sectionSlug: string) => Promise<number>;
+  /** Метаданные по списку id (для сводок и т.п.); дубликаты id игнорируются. */
+  listMetaByIds: (ids: string[]) => Promise<Array<{ id: string; title: string; slug: string }>>;
 };
 
 const patientVisible = and(
@@ -116,6 +118,17 @@ export function createPgContentPagesPort(): ContentPagesPort {
       const db = getDrizzle();
       const rows = await db.select().from(contentPages).where(eq(contentPages.id, id)).limit(1);
       return rows[0] ? mapDrizzleRow(rows[0]) : null;
+    },
+
+    async listMetaByIds(ids) {
+      const unique = [...new Set(ids.filter((x) => Boolean(x?.trim())))];
+      if (unique.length === 0) return [];
+      const db = getDrizzle();
+      const rows = await db
+        .select({ id: contentPages.id, title: contentPages.title, slug: contentPages.slug })
+        .from(contentPages)
+        .where(inArray(contentPages.id, unique));
+      return rows.map((r) => ({ id: r.id, title: r.title, slug: r.slug }));
     },
 
     async listAll() {
@@ -287,6 +300,13 @@ export const inMemoryContentPagesPort: ContentPagesPort = {
 
   async getById(id) {
     return inMemoryContentPagesStore.find((p) => p.id === id) ?? null;
+  },
+
+  async listMetaByIds(ids) {
+    const set = new Set(ids);
+    return inMemoryContentPagesStore
+      .filter((p) => set.has(p.id))
+      .map((p) => ({ id: p.id, title: p.title, slug: p.slug }));
   },
 
   async listAll() {

@@ -21,6 +21,7 @@ export default async function DoctorContentEditPage({ params }: Props) {
   let sections: Awaited<ReturnType<typeof deps.contentSections.listAll>> = [];
   let publishedCourses: { id: string; title: string }[] = [];
   let loadError: ReturnType<typeof logServerRuntimeError> | null = null;
+  let materialRatingSummary: { avg: number | null; count: number } | null = null;
   try {
     sections = await deps.contentSections.listAll();
     publishedCourses = (
@@ -28,6 +29,15 @@ export default async function DoctorContentEditPage({ params }: Props) {
     ).map((c) => ({ id: c.id, title: c.title }));
   } catch (err) {
     loadError = logServerRuntimeError("app/doctor/content/edit", err, { pageId: id });
+  }
+  try {
+    const agg = await deps.materialRating.getPublicAggregate({
+      targetKind: "content_page",
+      targetId: page.id,
+    });
+    materialRatingSummary = { avg: agg.avg, count: agg.count };
+  } catch {
+    materialRatingSummary = null;
   }
 
   const isDev = process.env.NODE_ENV === "development";
@@ -41,7 +51,7 @@ export default async function DoctorContentEditPage({ params }: Props) {
             devMessage={isDev ? `${loadError.name}: ${loadError.message}` : undefined}
           />
         ) : null}
-        <ContentForm key={`${page.id}-${page.slug}`} page={page} sections={sections} publishedCourses={publishedCourses} />
+        <ContentForm key={`${page.id}-${page.slug}`} page={page} sections={sections} publishedCourses={publishedCourses} materialRatingSummary={materialRatingSummary} />
       </section>
     </AppShell>
   );

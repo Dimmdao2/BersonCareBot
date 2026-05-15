@@ -37,6 +37,8 @@ import { patientTreatmentProgramListItemClass } from "@/app/app/patient/treatmen
 import { snapshotTitle } from "@/app/app/patient/treatment/program-detail/patientPlanDetailFormatters";
 import { usePostMarkItemViewedWhenVisible } from "@/app/app/patient/treatment/program-detail/usePostMarkItemViewedWhenVisible";
 import { PatientLfkChecklistRow } from "@/app/app/patient/treatment/program-detail/PatientLfkChecklistRow";
+import { treatmentProgramItemToRatingTarget } from "@/modules/material-rating/mapProgramItemToTarget";
+import { MaterialRatingBlock } from "@/shared/ui/material-rating/MaterialRatingBlock";
 
 export function PatientInstanceStageItemCard(props: {
   instanceId: string;
@@ -340,6 +342,7 @@ export function PatientInstanceStageItemCard(props: {
               >
                 <PatientLfkChecklistRow
                   row={lfkRow}
+                  instanceId={instanceId}
                   itemBaseUrl={base}
                   done={doneItemIds.includes(item.id)}
                   onUpdated={onDoneItemIds}
@@ -386,6 +389,25 @@ export function PatientInstanceStageItemCard(props: {
               </div>
             ) : null
           ) : null}
+          {(() => {
+            const t = treatmentProgramItemToRatingTarget(item.itemType, item.itemRefId);
+            if (!t.kind) return null;
+            return (
+              <div
+                className="mt-2"
+                onClick={(e) => e.stopPropagation()}
+                onKeyDown={(e) => e.stopPropagation()}
+              >
+                <MaterialRatingBlock
+                  targetKind={t.kind}
+                  targetId={t.targetId}
+                  programInstanceId={instanceId}
+                  programStageItemId={item.id}
+                  readOnly={readOnly || contentBlocked}
+                />
+              </div>
+            );
+          })()}
           {!contentBlocked && readOnly && item.itemType === "clinical_test" ? (
             <p className="mt-2 text-xs text-emerald-600 dark:text-emerald-400">
               {item.completedAt ? "Тест пройден." : "Тест не выполнялся."}

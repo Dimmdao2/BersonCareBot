@@ -65,6 +65,7 @@ describe("content-catalog resolver", () => {
       updateLifecycle: async () => {},
       reorderInSection: async () => {},
       countPagesWithSectionSlug: async () => 0,
+      listMetaByIds: async () => [],
     };
     const resolver = createContentCatalogResolver({ contentPages: port });
     const item = await resolver.getBySlug("md-test");
@@ -103,6 +104,7 @@ describe("content-catalog resolver", () => {
       updateLifecycle: async () => {},
       reorderInSection: async () => {},
       countPagesWithSectionSlug: async () => 0,
+      listMetaByIds: async () => [],
     };
     const resolver = createContentCatalogResolver({ contentPages: port });
     const item = await resolver.getBySlug("legacy");

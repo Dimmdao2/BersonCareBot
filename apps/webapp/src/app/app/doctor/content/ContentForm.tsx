@@ -9,6 +9,7 @@ import { MarkdownEditorToastUi } from "@/shared/ui/markdown/MarkdownEditorToastU
 import type { ContentSectionRow } from "@/infra/repos/pgContentSections";
 import type { PatientHomeCmsReturnQuery } from "@/modules/patient-home/patientHomeCmsReturnUrls";
 import { fallbackSlug, slugFromTitle } from "@/shared/lib/slugify";
+import { ruRatingCountLabel } from "@/shared/lib/ruRatingCountLabel";
 import { MediaLibraryPickerDialog } from "./MediaLibraryPickerDialog";
 import { ContentPreview } from "./ContentPreview";
 import { saveContentPage, type SaveContentPageState } from "./actions";
@@ -38,6 +39,7 @@ export function ContentForm({
   sections,
   publishedCourses = [],
   patientHomeContext,
+  materialRatingSummary,
   /** При создании страницы: slug раздела из query (`?section=`), если есть в списке разделов. */
   initialSectionSlug,
   /** Если один допустимый раздел в контексте — скрыть выбор и отправить hidden `section`. */
@@ -47,6 +49,7 @@ export function ContentForm({
   sections: ContentSectionRow[];
   publishedCourses?: PublishedCourseOption[];
   patientHomeContext?: PatientHomeCmsReturnQuery;
+  materialRatingSummary?: { avg: number | null; count: number } | null;
   initialSectionSlug?: string | null;
   sectionSelectReadOnly?: boolean;
 }) {
@@ -119,6 +122,14 @@ export function ContentForm({
             Сохранено
           </p>
         )
+      ) : null}
+
+      {page && materialRatingSummary ? (
+        <p className="text-xs text-muted-foreground tabular-nums">
+          {materialRatingSummary.count === 0
+            ? "Пациенты ещё не оценили материал."
+            : `Оценки пациентов: средняя ${materialRatingSummary.avg != null ? materialRatingSummary.avg.toFixed(1) : "—"}, ${materialRatingSummary.count} ${ruRatingCountLabel(materialRatingSummary.count)}.`}
+        </p>
       ) : null}
 
       <label className="flex flex-col gap-1">

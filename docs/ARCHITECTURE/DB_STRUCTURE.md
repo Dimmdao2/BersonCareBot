@@ -275,6 +275,16 @@
 - `courses.intro_lesson_page_id` → `content_pages.id` (SET NULL)
 - курс хранит метаданные и ссылку на шаблон программы; собственных таблиц прохождения не создаёт
 
+#### Оценки материалов (звёзды 1–5)
+
+- `material_ratings`
+
+Связи:
+
+- `material_ratings.user_id` → `platform_users.id` (CASCADE)
+
+Инварианты: уникальная пара пользователь + цель (`target_kind`, `target_id`); `target_kind` ограничен CHECK; `stars` в диапазоне 1…5. См. [`MATERIAL_RATINGS.md`](./MATERIAL_RATINGS.md).
+
 ---
 
 ## 3. Наблюдаемые особенности схемы

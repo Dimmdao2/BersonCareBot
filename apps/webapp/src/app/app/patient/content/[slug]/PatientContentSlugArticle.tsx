@@ -30,6 +30,7 @@ import type { ContentStubItem } from "@/modules/content-catalog/types";
 import type { ContentPageRow } from "@/infra/repos/pgContentPages";
 import type { AppSession } from "@/shared/types/session";
 import { PatientContentAdaptiveVideo } from "./PatientContentAdaptiveVideo";
+import { PatientContentMaterialRating } from "./PatientContentMaterialRating";
 import { PatientContentPracticeComplete } from "./PatientContentPracticeComplete";
 import { PatientDailyWarmupHeroCover } from "./PatientDailyWarmupHeroCover";
 
@@ -196,10 +197,28 @@ export async function PatientContentSlugArticle({
         moodIconOptions={moodIconOptions}
       />
 
+      {!showWarmupBadge ? (
+        <PatientContentMaterialRating
+          contentPageId={dbRow.id}
+          guest={session === null}
+          needsActivation={session !== null && !personalTierOk}
+          className="mt-2"
+        />
+      ) : null}
+
       {showWarmupBadge && item.bodyText?.trim() ? (
         <div className={cn(patientCardClass, patientDailyWarmupDetailMarkdownClass)}>
           <MarkdownContent text={item.bodyText} bodyFormat={item.bodyFormat ?? "markdown"} />
         </div>
+      ) : null}
+
+      {showWarmupBadge ? (
+        <PatientContentMaterialRating
+          contentPageId={dbRow.id}
+          guest={session === null}
+          needsActivation={session !== null && !personalTierOk}
+          className="mt-2"
+        />
       ) : null}
 
       {courseCta ? (

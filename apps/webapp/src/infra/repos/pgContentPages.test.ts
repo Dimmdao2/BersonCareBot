@@ -103,4 +103,27 @@ describe("inMemoryContentPagesPort (linked_course_id)", () => {
     expect(row?.section).toBe("b");
     expect(row?.bodyMd).toBe("y");
   });
+
+  it("listMetaByIds returns title and slug for existing pages", async () => {
+    const id = await inMemoryContentPagesPort.upsert({
+      section: "lessons",
+      slug: "meta-page",
+      title: "Meta title",
+      summary: "",
+      bodyMd: "x",
+      bodyHtml: "",
+      sortOrder: 0,
+      isPublished: true,
+      requiresAuth: false,
+      videoUrl: null,
+      videoType: null,
+      imageUrl: null,
+      linkedCourseId: null,
+    });
+    const meta = await inMemoryContentPagesPort.listMetaByIds([
+      id,
+      "00000000-0000-4000-8000-000000000099",
+    ]);
+    expect(meta).toEqual([{ id, title: "Meta title", slug: "meta-page" }]);
+  });
 });

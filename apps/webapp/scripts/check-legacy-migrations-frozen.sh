@@ -7,7 +7,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MIGRATIONS_DIR="${SCRIPT_DIR}/../migrations"
-MAX_ALLOWED_PREFIX=86
+MAX_ALLOWED_PREFIX=87
 
 shopt -s nullglob
 for path in "${MIGRATIONS_DIR}"/*.sql; do

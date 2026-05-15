@@ -28,6 +28,8 @@ import {
   splitPatientProgramStagesForDetailUi,
 } from "@/modules/treatment-program/stage-semantics";
 import { routePaths } from "@/app-layer/routes/paths";
+import { treatmentProgramItemToRatingTarget } from "@/modules/material-rating/mapProgramItemToTarget";
+import { MaterialRatingBlock } from "@/shared/ui/material-rating/MaterialRatingBlock";
 import type { PatientProgramItemNavMode } from "@/app/app/patient/treatment/patientProgramItemPageResolve";
 import type { PatientPlanTab } from "@/app/app/patient/treatment/patientPlanTab";
 import { resolvePatientProgramItemPage } from "@/app/app/patient/treatment/patientProgramItemPageResolve";
@@ -873,6 +875,22 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
               </Select>
             </div>
           ) : null}
+
+          {(() => {
+            const t = treatmentProgramItemToRatingTarget(item.itemType, item.itemRefId);
+            if (!t.kind) return null;
+            return (
+              <div className="mt-3">
+                <MaterialRatingBlock
+                  targetKind={t.kind}
+                  targetId={t.targetId}
+                  programInstanceId={instanceId}
+                  programStageItemId={item.id}
+                  readOnly={readOnly || contentBlocked}
+                />
+              </div>
+            );
+          })()}
 
           {item.effectiveComment?.trim() ? (
             <div className="flex flex-col gap-1.5 rounded-lg border border-[var(--patient-border)]/60 bg-muted/10 px-3 py-2.5">

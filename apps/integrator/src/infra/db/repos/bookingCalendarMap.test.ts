@@ -22,7 +22,7 @@ describe('bookingCalendarMap (Drizzle + public.patient_bookings sync)', () => {
     vi.clearAllMocks();
   });
 
-  it('getGoogleEventIdByRubitimeRecordId returns gcal id from first row', async () => {
+  it("returns Google calendar event id from first map row", async () => {
     const limit = vi.fn().mockResolvedValue([{ gcalEventId: 'gcal-99' }]);
     const where = vi.fn().mockReturnValue({ limit });
     const from = vi.fn().mockReturnValue({ where });
@@ -34,7 +34,7 @@ describe('bookingCalendarMap (Drizzle + public.patient_bookings sync)', () => {
     expect(select).toHaveBeenCalledTimes(1);
   });
 
-  it('getGoogleEventIdByRubitimeRecordId returns null when map row missing', async () => {
+  it("returns null when rubitime record has no calendar map row", async () => {
     const limit = vi.fn().mockResolvedValue([]);
     const where = vi.fn().mockReturnValue({ limit });
     const from = vi.fn().mockReturnValue({ where });

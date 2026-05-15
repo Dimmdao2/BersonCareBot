@@ -1,12 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const envHolder = { INTERNAL_JOB_SECRET: "test-internal-secret" as string | undefined };
+const { envHolder, runTickMock } = vi.hoisted(() => {
+  const envHolder = { INTERNAL_JOB_SECRET: "test-internal-secret" as string | undefined };
+  const runTickMock = vi.fn();
+  return { envHolder, runTickMock };
+});
 
 vi.mock("@/config/env", () => ({
   env: envHolder,
 }));
-
-const runTickMock = vi.fn();
 
 vi.mock("@/app-layer/health/runIntegratorPushOutboxHealthGuardTick", () => ({
   runIntegratorPushOutboxHealthGuardTick: runTickMock,
