@@ -895,9 +895,14 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
           ) : null}
 
           {item.effectiveComment?.trim() ? (
-            <div className="flex flex-col gap-1.5 rounded-lg border border-[var(--patient-border)]/60 bg-muted/10 px-3 py-2.5">
-              <span className={cn(patientMutedTextClass, "text-xs")}>От врача</span>
-              <p className={cn(patientBodyTextClass, "m-0 whitespace-pre-wrap text-sm leading-relaxed")}>
+            <div className="flex flex-col gap-1.5 rounded-lg border border-[var(--patient-border)]/60 bg-[#fff5e8] px-3 py-5">
+              <span className="text-xs text-[#7e6c61]">Комментарий специалиста</span>
+              <p
+                className={cn(
+                  patientBodyTextClass,
+                  "m-0 whitespace-pre-wrap text-sm leading-relaxed text-[#714c2f]",
+                )}
+              >
                 {item.effectiveComment.trim()}
               </p>
             </div>
