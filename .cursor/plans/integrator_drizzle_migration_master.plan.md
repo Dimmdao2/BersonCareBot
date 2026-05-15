@@ -16,7 +16,7 @@ todos:
     status: completed
   - id: phase-3
     content: "Выполнить план integrator_drizzle_phase_3_domain_repos.plan.md — доменные репозитории"
-    status: pending
+    status: completed
   - id: phase-4
     content: "Выполнить план integrator_drizzle_phase_4_complex_sql.plan.md — сложный SQL последним"
     status: pending

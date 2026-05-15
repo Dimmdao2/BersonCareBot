@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DbPort } from '../../kernel/contracts/index.js';
 import {
   REMINDER_RULE_UPSERTED,
@@ -6,10 +6,45 @@ import {
   REMINDER_DELIVERY_LOGGED,
   CONTENT_ACCESS_GRANTED,
 } from '../../kernel/contracts/index.js';
+
+const mockGetReminderOccurrenceContextForProjection = vi.hoisted(() => vi.fn());
+
+vi.mock('./repos/reminders.js', async (importOriginal) => {
+  const mod = await importOriginal<typeof import('./repos/reminders.js')>();
+  return {
+    ...mod,
+    getReminderOccurrenceContextForProjection: mockGetReminderOccurrenceContextForProjection,
+  };
+});
+
 import { createDbWritePort } from './writePort.js';
 import { stubIntegratorDrizzleForTests } from './stubIntegratorDrizzleForTests.js';
 
 describe('writePort reminder/content projection events', () => {
+  beforeEach(() => {
+    mockGetReminderOccurrenceContextForProjection.mockImplementation(async (_db: DbPort, occurrenceId: string) => {
+      if (occurrenceId === 'occ-2') {
+        return {
+          ruleId: 'rule-1',
+          userId: '42',
+          category: 'exercise',
+          status: 'failed',
+          occurredAt: '2025-01-01T12:00:00.000Z',
+          deliveryChannel: 'telegram',
+          errorCode: 'timeout',
+        };
+      }
+      return {
+        ruleId: 'rule-1',
+        userId: '42',
+        category: 'exercise',
+        status: 'sent',
+        occurredAt: '2025-01-01T12:00:00.000Z',
+        deliveryChannel: 'telegram',
+        errorCode: null,
+      };
+    });
+  });
   function makeMockDb(capture: {
     projectionInserts: { eventType: string; idempotencyKey: string; payload: unknown }[];
   }): DbPort {

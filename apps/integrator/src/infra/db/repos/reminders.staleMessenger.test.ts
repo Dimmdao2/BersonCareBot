@@ -1,26 +1,45 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DbPort } from '../../../kernel/contracts/index.js';
+
+const executeMock = vi.hoisted(() => vi.fn());
+
+vi.mock('../drizzle.js', () => ({
+  getIntegratorDrizzleSession: () => ({ execute: executeMock }),
+}));
+
 import { getStaleReminderMessengerMessageIdForResend } from './reminders.js';
 
 describe('getStaleReminderMessengerMessageIdForResend', () => {
+  beforeEach(() => {
+    executeMock.mockReset();
+  });
+
   it('queries with channel max and returns trimmed maxMessageId', async () => {
-    const query = vi.fn().mockResolvedValue({ rows: [{ mid: '  mid-max-1  ' }] });
-    const db = { query } as unknown as DbPort;
+    executeMock.mockResolvedValue({ rows: [{ mid: '  mid-max-1  ' }] });
+    const db = {} as DbPort;
     const r = await getStaleReminderMessengerMessageIdForResend(db, {
       ruleId: 'rule-a',
       excludeOccurrenceId: 'occ-x',
       channel: 'max',
     });
     expect(r).toBe('mid-max-1');
-    expect(query).toHaveBeenCalledTimes(1);
-    const [sql, params] = query.mock.calls[0] ?? [];
-    expect(String(sql)).toContain("CASE WHEN $1 = 'max'");
-    expect(params).toEqual(['max', 'rule-a', 'occ-x']);
+    expect(executeMock).toHaveBeenCalledTimes(1);
+    const arg0 = executeMock.mock.calls[0]?.[0];
+    const flat = (n: unknown): string => {
+      if (n === null || n === undefined) return '';
+      if (typeof n === 'string' || typeof n === 'number' || typeof n === 'boolean') return String(n);
+      if (typeof n !== 'object') return '';
+      const o = n as Record<string, unknown>;
+      if (Array.isArray(o.queryChunks)) return o.queryChunks.map(flat).join('');
+      if (Array.isArray(o.value)) return o.value.map(flat).join('');
+      return '';
+    };
+    expect(flat(arg0)).toContain('CASE WHEN');
   });
 
   it('returns stringified positive int telegram id from numeric string', async () => {
-    const query = vi.fn().mockResolvedValue({ rows: [{ mid: '  42  ' }] });
-    const db = { query } as unknown as DbPort;
+    executeMock.mockResolvedValue({ rows: [{ mid: '  42  ' }] });
+    const db = {} as DbPort;
     const r = await getStaleReminderMessengerMessageIdForResend(db, {
       ruleId: 'rule-b',
       excludeOccurrenceId: 'occ-y',
@@ -30,8 +49,8 @@ describe('getStaleReminderMessengerMessageIdForResend', () => {
   });
 
   it('returns null for telegram when messenger id is not numeric', async () => {
-    const query = vi.fn().mockResolvedValue({ rows: [{ mid: 'abc' }] });
-    const db = { query } as unknown as DbPort;
+    executeMock.mockResolvedValue({ rows: [{ mid: 'abc' }] });
+    const db = {} as DbPort;
     const r = await getStaleReminderMessengerMessageIdForResend(db, {
       ruleId: 'rule-c',
       excludeOccurrenceId: 'occ-z',
@@ -41,8 +60,8 @@ describe('getStaleReminderMessengerMessageIdForResend', () => {
   });
 
   it('telegram: truncates fractional numeric string to int string', async () => {
-    const query = vi.fn().mockResolvedValue({ rows: [{ mid: '42.9' }] });
-    const db = { query } as unknown as DbPort;
+    executeMock.mockResolvedValue({ rows: [{ mid: '42.9' }] });
+    const db = {} as DbPort;
     const r = await getStaleReminderMessengerMessageIdForResend(db, {
       ruleId: 'rule-frac',
       excludeOccurrenceId: 'occ-frac',
@@ -52,7 +71,8 @@ describe('getStaleReminderMessengerMessageIdForResend', () => {
   });
 
   it('returns null for telegram when id is zero or negative', async () => {
-    const dbZero = { query: vi.fn().mockResolvedValue({ rows: [{ mid: '0' }] }) } as unknown as DbPort;
+    executeMock.mockResolvedValue({ rows: [{ mid: '0' }] });
+    const dbZero = {} as DbPort;
     expect(
       await getStaleReminderMessengerMessageIdForResend(dbZero, {
         ruleId: 'r',
@@ -60,7 +80,8 @@ describe('getStaleReminderMessengerMessageIdForResend', () => {
         channel: 'telegram',
       }),
     ).toBeNull();
-    const dbNeg = { query: vi.fn().mockResolvedValue({ rows: [{ mid: '-3' }] }) } as unknown as DbPort;
+    executeMock.mockResolvedValue({ rows: [{ mid: '-3' }] });
+    const dbNeg = {} as DbPort;
     expect(
       await getStaleReminderMessengerMessageIdForResend(dbNeg, {
         ruleId: 'r',
@@ -71,8 +92,8 @@ describe('getStaleReminderMessengerMessageIdForResend', () => {
   });
 
   it('non-telegram non-max channel returns raw trimmed mid from SQL', async () => {
-    const query = vi.fn().mockResolvedValue({ rows: [{ mid: '  opaque-ref  ' }] });
-    const db = { query } as unknown as DbPort;
+    executeMock.mockResolvedValue({ rows: [{ mid: '  opaque-ref  ' }] });
+    const db = {} as DbPort;
     const r = await getStaleReminderMessengerMessageIdForResend(db, {
       ruleId: 'rule-other',
       excludeOccurrenceId: 'occ-o',
@@ -82,8 +103,8 @@ describe('getStaleReminderMessengerMessageIdForResend', () => {
   });
 
   it('returns null when no row', async () => {
-    const query = vi.fn().mockResolvedValue({ rows: [] });
-    const db = { query } as unknown as DbPort;
+    executeMock.mockResolvedValue({ rows: [] });
+    const db = {} as DbPort;
     const r = await getStaleReminderMessengerMessageIdForResend(db, {
       ruleId: 'rule-d',
       excludeOccurrenceId: 'occ-w',

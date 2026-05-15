@@ -22,13 +22,40 @@ function insertValuesChain(
       payload: vals.payload as Record<string, unknown>,
     });
   }
+  const afterConflict = {
+    returning: <T>() =>
+      Promise.resolve([
+        {
+          updated_at: '2025-01-01T00:00:00.000Z',
+          created_at: '2025-01-01T00:00:00.000Z',
+        },
+      ] as T[]),
+    then: (onFulfilled?: (value: unknown) => unknown, onRejected?: (reason: unknown) => unknown) =>
+      done.then(onFulfilled as never, onRejected),
+  };
   return {
     onConflictDoNothing: () => done,
-    onConflictDoUpdate: () => done,
+    onConflictDoUpdate: () => afterConflict,
+    returning: <T>() =>
+      Promise.resolve([
+        {
+          created_at: '2025-01-01T00:00:00.000Z',
+          updated_at: '2025-01-01T00:00:00.000Z',
+        },
+      ] as T[]),
     then: (onFulfilled?: (value: unknown) => unknown, onRejected?: (reason: unknown) => unknown) =>
       done.then(onFulfilled as never, onRejected),
   };
 }
+
+/** После `.from()` / join — `where` / `orderBy` / `limit` (цепочки reminders и др.). */
+const selectAfterFrom = {
+  innerJoin: () => selectAfterFrom,
+  leftJoin: () => selectAfterFrom,
+  where: () => selectAfterFrom,
+  orderBy: () => Promise.resolve([] as unknown[]),
+  limit: () => Promise.resolve([] as unknown[]),
+};
 
 /**
  * @param capture — если задан, `insert(projectionOutbox).values()` наполняет `projectionInserts`
@@ -41,16 +68,13 @@ export function stubIntegratorDrizzleForTests(capture?: ProjectionOutboxInsertCa
     }),
     execute: () => Promise.resolve({ rows: [] as unknown[] }),
     select: () => ({
-      from: () => ({
-        where: () => ({
-          limit: () => Promise.resolve([]),
-          orderBy: () => Promise.resolve([]),
-        }),
-      }),
+      from: () => selectAfterFrom,
     }),
     update: () => ({
       set: () => ({
-        where: () => Promise.resolve(undefined),
+        where: () => ({
+          returning: () => Promise.resolve([{ id: 'x' }]),
+        }),
       }),
     }),
     delete: () => ({

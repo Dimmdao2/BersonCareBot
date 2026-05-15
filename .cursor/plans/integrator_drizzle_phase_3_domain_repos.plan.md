@@ -4,19 +4,19 @@ overview: После паттернов P1+P2 перевести reminders, book
 todos:
   - id: p3-schema
     content: Зарегистрировать все таблицы/вью затронутые reminders.ts, bookingRecords.ts, publicAppointmentRecordSync.ts в integrator Drizzle schema
-    status: pending
+    status: completed
   - id: p3-reminders
     content: Перевести reminders.ts на Drizzle с сохранением типов контрактов kernel (DueReminderOccurrence и др.)
-    status: pending
+    status: completed
   - id: p3-booking-records
     content: Перевести bookingRecords.ts + поддержать bookingRecords.sql.test.ts
-    status: pending
+    status: completed
   - id: p3-public-appointment-sync
     content: Перевести publicAppointmentRecordSync.ts; проверить сценарии диффов/UPSERT против текущего SQL
-    status: pending
+    status: completed
   - id: p3-verify
     content: apps/integrator typecheck + test; LOG.md дополнить разделом «этап 3»
-    status: pending
+    status: completed
 isProject: false
 ---
 
@@ -45,12 +45,12 @@ isProject: false
 
 ## Чек-лист по шагам
 
-- [ ] Инвентаризация таблиц: из `apps/integrator/src/infra/db/repos` выполнить `rg -n 'FROM |JOIN |INSERT INTO'` по `reminders.ts`, `bookingRecords.ts`, `publicAppointmentRecordSync.ts` и сверить имена таблиц с webapp/schema или дампами.
-- [ ] По каждому файлу: черновое сравнение «до/после» для критических SELECT (EXPLAIN необязательно).
-- [ ] `pnpm --dir apps/integrator run typecheck` и `pnpm --dir apps/integrator run test`.
+- [x] Инвентаризация таблиц: из `apps/integrator/src/infra/db/repos` выполнить `rg -n 'FROM |JOIN |INSERT INTO'` по `reminders.ts`, `bookingRecords.ts`, `publicAppointmentRecordSync.ts` и сверить имена таблиц с webapp/schema или дампами.
+- [x] По каждому файлу: черновое сравнение «до/после» для критических SELECT (EXPLAIN необязательно).
+- [x] `pnpm --dir apps/integrator run typecheck` и `pnpm --dir apps/integrator run test`.
 
 ## Definition of Done (этап 3)
 
-- [ ] Три целевых файла без сырого `db.query(<template string)` для операций своего домена (допускается `execute(sql)` при сложных выражениях с явной пометкой).
-- [ ] Все связанные тесты интегратора зелёные.
-- [ ] Мастер-план todo `phase-3` — `completed`.
+- [x] Три целевых файла без сырого `db.query(<template string)` для операций своего домена (допускается `execute(sql)` при сложных выражениях с явной пометкой).
+- [x] Все связанные тесты интегратора зелёные.
+- [x] Мастер-план todo `phase-3` — `completed`.

@@ -1,3 +1,4 @@
+import { and, asc, desc, eq, gte, lte, ne, sql } from 'drizzle-orm';
 import type {
   DbPort,
   DueReminderOccurrence,
@@ -5,6 +6,13 @@ import type {
   ReminderOccurrenceRecord,
   ReminderRuleRecord,
 } from '../../../kernel/contracts/index.js';
+import { getIntegratorDrizzleSession } from '../drizzle.js';
+import {
+  contentAccessGrants,
+  userReminderDeliveryLogs,
+  userReminderOccurrences,
+  userReminderRules,
+} from '../schema/integratorDomainRepos.js';
 
 function normalizeRuleRow(row: {
   id: string;
@@ -92,62 +100,58 @@ function normalizeOccurrenceRow(row: {
   };
 }
 
+const ruleSelectShape = {
+  id: userReminderRules.id,
+  user_id: userReminderRules.userId,
+  category: userReminderRules.category,
+  is_enabled: userReminderRules.isEnabled,
+  schedule_type: userReminderRules.scheduleType,
+  timezone: userReminderRules.timezone,
+  interval_minutes: userReminderRules.intervalMinutes,
+  window_start_minute: userReminderRules.windowStartMinute,
+  window_end_minute: userReminderRules.windowEndMinute,
+  days_mask: userReminderRules.daysMask,
+  content_mode: userReminderRules.contentMode,
+  linked_object_type: userReminderRules.linkedObjectType,
+  linked_object_id: userReminderRules.linkedObjectId,
+  custom_title: userReminderRules.customTitle,
+  custom_text: userReminderRules.customText,
+  deep_link: userReminderRules.deepLink,
+  schedule_data: userReminderRules.scheduleData,
+  reminder_intent: userReminderRules.reminderIntent,
+  quiet_hours_start_minute: userReminderRules.quietHoursStartMinute,
+  quiet_hours_end_minute: userReminderRules.quietHoursEndMinute,
+  notification_topic_code: userReminderRules.notificationTopicCode,
+  created_at: userReminderRules.createdAt,
+  updated_at: userReminderRules.updatedAt,
+};
+
+const occurrenceSelectShape = {
+  id: userReminderOccurrences.id,
+  rule_id: userReminderOccurrences.ruleId,
+  occurrence_key: userReminderOccurrences.occurrenceKey,
+  planned_at: userReminderOccurrences.plannedAt,
+  status: userReminderOccurrences.status,
+  queued_at: userReminderOccurrences.queuedAt,
+  sent_at: userReminderOccurrences.sentAt,
+  failed_at: userReminderOccurrences.failedAt,
+  delivery_channel: userReminderOccurrences.deliveryChannel,
+  delivery_job_id: userReminderOccurrences.deliveryJobId,
+  error_code: userReminderOccurrences.errorCode,
+  created_at: userReminderOccurrences.createdAt,
+  updated_at: userReminderOccurrences.updatedAt,
+};
+
 export async function getReminderRulesForUser(db: DbPort, userId: string): Promise<ReminderRuleRecord[]> {
-  const res = await db.query<{
-    id: string;
-    user_id: string | number;
-    category: string;
-    is_enabled: boolean;
-    schedule_type: string;
-    timezone: string;
-    interval_minutes: number;
-    window_start_minute: number;
-    window_end_minute: number;
-    days_mask: string;
-    content_mode: string;
-    linked_object_type: string | null;
-    linked_object_id: string | null;
-    custom_title: string | null;
-    custom_text: string | null;
-    deep_link: string | null;
-    schedule_data: unknown | null;
-    reminder_intent: string | null;
-    quiet_hours_start_minute: number | null;
-    quiet_hours_end_minute: number | null;
-    notification_topic_code: string | null;
-    created_at: string;
-    updated_at: string;
-  }>(
-    `SELECT
-       id,
-       user_id,
-       category,
-       is_enabled,
-       schedule_type,
-       timezone,
-       interval_minutes,
-       window_start_minute,
-       window_end_minute,
-       days_mask,
-       content_mode,
-       linked_object_type,
-       linked_object_id,
-       custom_title,
-       custom_text,
-       deep_link,
-       schedule_data,
-       reminder_intent,
-       quiet_hours_start_minute,
-       quiet_hours_end_minute,
-       notification_topic_code,
-       created_at::text,
-       updated_at::text
-     FROM user_reminder_rules
-     WHERE user_id = $1
-     ORDER BY category ASC`,
-    [userId],
+  const d = getIntegratorDrizzleSession(db);
+  const rows = await d
+    .select(ruleSelectShape)
+    .from(userReminderRules)
+    .where(eq(userReminderRules.userId, Number(userId)))
+    .orderBy(asc(userReminderRules.category));
+  return rows.map((r) =>
+    normalizeRuleRow(r as Parameters<typeof normalizeRuleRow>[0]),
   );
-  return res.rows.map(normalizeRuleRow);
 }
 
 export async function getReminderRuleForUserAndCategory(
@@ -155,118 +159,24 @@ export async function getReminderRuleForUserAndCategory(
   userId: string,
   category: ReminderCategory,
 ): Promise<ReminderRuleRecord | null> {
-  const res = await db.query<{
-    id: string;
-    user_id: string | number;
-    category: string;
-    is_enabled: boolean;
-    schedule_type: string;
-    timezone: string;
-    interval_minutes: number;
-    window_start_minute: number;
-    window_end_minute: number;
-    days_mask: string;
-    content_mode: string;
-    linked_object_type: string | null;
-    linked_object_id: string | null;
-    custom_title: string | null;
-    custom_text: string | null;
-    deep_link: string | null;
-    schedule_data: unknown | null;
-    reminder_intent: string | null;
-    quiet_hours_start_minute: number | null;
-    quiet_hours_end_minute: number | null;
-    notification_topic_code: string | null;
-    created_at: string;
-    updated_at: string;
-  }>(
-    `SELECT
-       id,
-       user_id,
-       category,
-       is_enabled,
-       schedule_type,
-       timezone,
-       interval_minutes,
-       window_start_minute,
-       window_end_minute,
-       days_mask,
-       content_mode,
-       linked_object_type,
-       linked_object_id,
-       custom_title,
-       custom_text,
-       deep_link,
-       schedule_data,
-       reminder_intent,
-       quiet_hours_start_minute,
-       quiet_hours_end_minute,
-       notification_topic_code,
-       created_at::text,
-       updated_at::text
-     FROM user_reminder_rules
-     WHERE user_id = $1 AND category = $2
-     LIMIT 1`,
-    [userId, category],
-  );
-  return res.rows[0] ? normalizeRuleRow(res.rows[0]) : null;
+  const d = getIntegratorDrizzleSession(db);
+  const rows = await d
+    .select(ruleSelectShape)
+    .from(userReminderRules)
+    .where(and(eq(userReminderRules.userId, Number(userId)), eq(userReminderRules.category, category)))
+    .limit(1);
+  const row = rows[0] as Parameters<typeof normalizeRuleRow>[0] | undefined;
+  return row ? normalizeRuleRow(row) : null;
 }
 
 export async function getEnabledReminderRules(db: DbPort): Promise<ReminderRuleRecord[]> {
-  const res = await db.query<{
-    id: string;
-    user_id: string | number;
-    category: string;
-    is_enabled: boolean;
-    schedule_type: string;
-    timezone: string;
-    interval_minutes: number;
-    window_start_minute: number;
-    window_end_minute: number;
-    days_mask: string;
-    content_mode: string;
-    linked_object_type: string | null;
-    linked_object_id: string | null;
-    custom_title: string | null;
-    custom_text: string | null;
-    deep_link: string | null;
-    schedule_data: unknown | null;
-    reminder_intent: string | null;
-    quiet_hours_start_minute: number | null;
-    quiet_hours_end_minute: number | null;
-    notification_topic_code: string | null;
-    created_at: string;
-    updated_at: string;
-  }>(
-    `SELECT
-       id,
-       user_id,
-       category,
-       is_enabled,
-       schedule_type,
-       timezone,
-       interval_minutes,
-       window_start_minute,
-       window_end_minute,
-       days_mask,
-       content_mode,
-       linked_object_type,
-       linked_object_id,
-       custom_title,
-       custom_text,
-       deep_link,
-       schedule_data,
-       reminder_intent,
-       quiet_hours_start_minute,
-       quiet_hours_end_minute,
-       notification_topic_code,
-       created_at::text,
-       updated_at::text
-     FROM user_reminder_rules
-     WHERE is_enabled = true
-     ORDER BY updated_at DESC`,
-  );
-  return res.rows.map(normalizeRuleRow);
+  const d = getIntegratorDrizzleSession(db);
+  const rows = await d
+    .select(ruleSelectShape)
+    .from(userReminderRules)
+    .where(eq(userReminderRules.isEnabled, true))
+    .orderBy(desc(userReminderRules.updatedAt));
+  return rows.map((r) => normalizeRuleRow(r as Parameters<typeof normalizeRuleRow>[0]));
 }
 
 export async function getReminderOccurrencesForRuleRange(
@@ -275,43 +185,19 @@ export async function getReminderOccurrencesForRuleRange(
   fromIso: string,
   toIso: string,
 ): Promise<ReminderOccurrenceRecord[]> {
-  const res = await db.query<{
-    id: string;
-    rule_id: string;
-    occurrence_key: string;
-    planned_at: string;
-    status: ReminderOccurrenceRecord['status'];
-    queued_at: string | null;
-    sent_at: string | null;
-    failed_at: string | null;
-    delivery_channel: string | null;
-    delivery_job_id: string | null;
-    error_code: string | null;
-    created_at: string;
-    updated_at: string;
-  }>(
-    `SELECT
-       id,
-       rule_id,
-       occurrence_key,
-       planned_at::text,
-       status,
-       queued_at::text,
-       sent_at::text,
-       failed_at::text,
-       delivery_channel,
-       delivery_job_id,
-       error_code,
-       created_at::text,
-       updated_at::text
-     FROM user_reminder_occurrences
-     WHERE rule_id = $1
-       AND planned_at >= $2::timestamptz
-       AND planned_at <= $3::timestamptz
-     ORDER BY planned_at ASC`,
-    [ruleId, fromIso, toIso],
-  );
-  return res.rows.map(normalizeOccurrenceRow);
+  const d = getIntegratorDrizzleSession(db);
+  const rows = await d
+    .select(occurrenceSelectShape)
+    .from(userReminderOccurrences)
+    .where(
+      and(
+        eq(userReminderOccurrences.ruleId, ruleId),
+        gte(userReminderOccurrences.plannedAt, fromIso),
+        lte(userReminderOccurrences.plannedAt, toIso),
+      ),
+    )
+    .orderBy(asc(userReminderOccurrences.plannedAt));
+  return rows.map((r) => normalizeOccurrenceRow(r as Parameters<typeof normalizeOccurrenceRow>[0]));
 }
 
 export async function getDueReminderOccurrences(
@@ -319,26 +205,10 @@ export async function getDueReminderOccurrences(
   nowIso: string,
   limit: number,
 ): Promise<DueReminderOccurrence[]> {
-  const res = await db.query<{
-    id: string;
-    rule_id: string;
-    occurrence_key: string;
-    planned_at: string;
-    status: ReminderOccurrenceRecord['status'];
-    queued_at: string | null;
-    sent_at: string | null;
-    failed_at: string | null;
-    delivery_channel: string | null;
-    delivery_job_id: string | null;
-    error_code: string | null;
-    created_at: string;
-    updated_at: string;
-    user_id: string | number;
-    category: string;
-    timezone: string;
-    channel_id: string;
-  }>(
-    `SELECT
+  const d = getIntegratorDrizzleSession(db);
+  const lim = Math.max(1, Math.trunc(limit));
+  const res = await d.execute(sql`
+    SELECT
        o.id,
        o.rule_id,
        o.occurrence_key,
@@ -361,14 +231,32 @@ export async function getDueReminderOccurrences(
      LEFT JOIN identities i ON i.user_id = r.user_id AND i.resource = 'telegram'
      LEFT JOIN public.platform_users pu ON pu.integrator_user_id = r.user_id
      WHERE o.status = 'planned'
-       AND o.planned_at <= $1::timestamptz
+       AND o.planned_at <= ${nowIso}::timestamptz
        AND r.is_enabled = true
-       AND (pu.reminder_muted_until IS NULL OR pu.reminder_muted_until <= $1::timestamptz)
+       AND (pu.reminder_muted_until IS NULL OR pu.reminder_muted_until <= ${nowIso}::timestamptz)
      ORDER BY o.planned_at ASC
-     LIMIT $2`,
-    [nowIso, Math.max(1, Math.trunc(limit))],
-  );
-  return res.rows.map((row) => {
+     LIMIT ${lim}
+  `);
+  const rows = res.rows as {
+    id: string;
+    rule_id: string;
+    occurrence_key: string;
+    planned_at: string;
+    status: ReminderOccurrenceRecord['status'];
+    queued_at: string | null;
+    sent_at: string | null;
+    failed_at: string | null;
+    delivery_channel: string | null;
+    delivery_job_id: string | null;
+    error_code: string | null;
+    created_at: string;
+    updated_at: string;
+    user_id: string | number;
+    category: string;
+    timezone: string;
+    channel_id: string;
+  }[];
+  return rows.map((row) => {
     const occurrence = normalizeOccurrenceRow(row);
     const chatId = Number(row.channel_id);
     return {
@@ -383,13 +271,11 @@ export async function getDueReminderOccurrences(
 }
 
 /** Upserts rule by `id` (webapp integrator_rule_id PK); returns DB `updated_at`. */
-export async function upsertReminderRule(
-  db: DbPort,
-  input: ReminderRuleRecord,
-): Promise<string> {
+export async function upsertReminderRule(db: DbPort, input: ReminderRuleRecord): Promise<string> {
+  const d = getIntegratorDrizzleSession(db);
   const scheduleJson =
     input.scheduleData !== undefined && input.scheduleData !== null
-      ? JSON.stringify(input.scheduleData as Record<string, unknown>)
+      ? (input.scheduleData as Record<string, unknown>)
       : null;
 
   let notificationTopicForSql: string | null;
@@ -398,113 +284,88 @@ export async function upsertReminderRule(
     notificationTopicForSql =
       v === null || v === undefined ? null : typeof v === 'string' ? v.trim() || null : null;
   } else {
-    const prev = await db.query<{ notification_topic_code: string | null }>(
-      `SELECT notification_topic_code FROM user_reminder_rules WHERE id = $1`,
-      [input.id],
-    );
-    notificationTopicForSql = prev.rows[0]?.notification_topic_code ?? null;
+    const prev = await d
+      .select({ notification_topic_code: userReminderRules.notificationTopicCode })
+      .from(userReminderRules)
+      .where(eq(userReminderRules.id, input.id))
+      .limit(1);
+    notificationTopicForSql = prev[0]?.notification_topic_code ?? null;
   }
 
-  const res = await db.query<{ updated_at: string }>(
-    `INSERT INTO user_reminder_rules (
-       id,
-       user_id,
-       category,
-       is_enabled,
-       schedule_type,
-       timezone,
-       interval_minutes,
-       window_start_minute,
-       window_end_minute,
-       days_mask,
-       content_mode,
-       linked_object_type,
-       linked_object_id,
-       custom_title,
-       custom_text,
-       deep_link,
-       schedule_data,
-       reminder_intent,
-       quiet_hours_start_minute,
-       quiet_hours_end_minute,
-       notification_topic_code,
-       created_at,
-       updated_at
-     ) VALUES (
-       $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
-       $12, $13, $14, $15, $16, $17::jsonb, $18,
-       $19, $20, $21,
-       now(), now()
-     )
-     ON CONFLICT (id) DO UPDATE SET
-       user_id = EXCLUDED.user_id,
-       category = EXCLUDED.category,
-       is_enabled = EXCLUDED.is_enabled,
-       schedule_type = EXCLUDED.schedule_type,
-       timezone = EXCLUDED.timezone,
-       interval_minutes = EXCLUDED.interval_minutes,
-       window_start_minute = EXCLUDED.window_start_minute,
-       window_end_minute = EXCLUDED.window_end_minute,
-       days_mask = EXCLUDED.days_mask,
-       content_mode = EXCLUDED.content_mode,
-       linked_object_type = EXCLUDED.linked_object_type,
-       linked_object_id = EXCLUDED.linked_object_id,
-       custom_title = EXCLUDED.custom_title,
-       custom_text = EXCLUDED.custom_text,
-       deep_link = EXCLUDED.deep_link,
-       schedule_data = EXCLUDED.schedule_data,
-       reminder_intent = EXCLUDED.reminder_intent,
-       quiet_hours_start_minute = EXCLUDED.quiet_hours_start_minute,
-       quiet_hours_end_minute = EXCLUDED.quiet_hours_end_minute,
-       notification_topic_code = EXCLUDED.notification_topic_code,
-       updated_at = now()
-     RETURNING updated_at::text`,
-    [
-      input.id,
-      input.userId,
-      input.category,
-      input.isEnabled,
-      input.scheduleType,
-      input.timezone,
-      input.intervalMinutes,
-      input.windowStartMinute,
-      input.windowEndMinute,
-      input.daysMask,
-      input.contentMode,
-      input.linkedObjectType ?? null,
-      input.linkedObjectId ?? null,
-      input.customTitle ?? null,
-      input.customText ?? null,
-      input.deepLink ?? null,
-      scheduleJson,
-      input.reminderIntent ?? null,
-      input.quietHoursStartMinute ?? null,
-      input.quietHoursEndMinute ?? null,
-      notificationTopicForSql,
-    ],
-  );
-  return res.rows[0]?.updated_at ?? new Date().toISOString();
+  const rows = await d
+    .insert(userReminderRules)
+    .values({
+      id: input.id,
+      userId: Number(input.userId),
+      category: input.category,
+      isEnabled: input.isEnabled,
+      scheduleType: input.scheduleType,
+      timezone: input.timezone,
+      intervalMinutes: input.intervalMinutes,
+      windowStartMinute: input.windowStartMinute,
+      windowEndMinute: input.windowEndMinute,
+      daysMask: input.daysMask,
+      contentMode: input.contentMode,
+      linkedObjectType: input.linkedObjectType ?? null,
+      linkedObjectId: input.linkedObjectId ?? null,
+      customTitle: input.customTitle ?? null,
+      customText: input.customText ?? null,
+      deepLink: input.deepLink ?? null,
+      scheduleData: scheduleJson,
+      reminderIntent: input.reminderIntent ?? null,
+      quietHoursStartMinute: input.quietHoursStartMinute ?? null,
+      quietHoursEndMinute: input.quietHoursEndMinute ?? null,
+      notificationTopicCode: notificationTopicForSql,
+      createdAt: sql`now()`,
+      updatedAt: sql`now()`,
+    })
+    .onConflictDoUpdate({
+      target: userReminderRules.id,
+      set: {
+        userId: Number(input.userId),
+        category: input.category,
+        isEnabled: input.isEnabled,
+        scheduleType: input.scheduleType,
+        timezone: input.timezone,
+        intervalMinutes: input.intervalMinutes,
+        windowStartMinute: input.windowStartMinute,
+        windowEndMinute: input.windowEndMinute,
+        daysMask: input.daysMask,
+        contentMode: input.contentMode,
+        linkedObjectType: input.linkedObjectType ?? null,
+        linkedObjectId: input.linkedObjectId ?? null,
+        customTitle: input.customTitle ?? null,
+        customText: input.customText ?? null,
+        deepLink: input.deepLink ?? null,
+        scheduleData: scheduleJson,
+        reminderIntent: input.reminderIntent ?? null,
+        quietHoursStartMinute: input.quietHoursStartMinute ?? null,
+        quietHoursEndMinute: input.quietHoursEndMinute ?? null,
+        notificationTopicCode: notificationTopicForSql,
+        updatedAt: sql`now()`,
+      },
+    })
+    .returning({ updated_at: userReminderRules.updatedAt });
+  return rows[0]?.updated_at ?? new Date().toISOString();
 }
 
 export async function upsertReminderOccurrencePlanned(
   db: DbPort,
   input: { id: string; ruleId: string; occurrenceKey: string; plannedAt: string },
 ): Promise<void> {
-  await db.query(
-    `INSERT INTO user_reminder_occurrences (
-       id,
-       rule_id,
-       occurrence_key,
-       planned_at,
-       status,
-       created_at,
-       updated_at
-     ) VALUES (
-       $1, $2, $3, $4::timestamptz, 'planned', now(), now()
-     )
-     ON CONFLICT (occurrence_key) DO NOTHING`,
-    [input.id, input.ruleId, input.occurrenceKey, input.plannedAt],
-  );
+  const d = getIntegratorDrizzleSession(db);
+  await d
+    .insert(userReminderOccurrences)
+    .values({
+      id: input.id,
+      ruleId: input.ruleId,
+      occurrenceKey: input.occurrenceKey,
+      plannedAt: input.plannedAt,
+      status: 'planned',
+      createdAt: sql`now()`,
+      updatedAt: sql`now()`,
+    })
+    .onConflictDoNothing({ target: userReminderOccurrences.occurrenceKey });
 }
 
 export async function markReminderOccurrenceQueued(
@@ -512,15 +373,16 @@ export async function markReminderOccurrenceQueued(
   occurrenceId: string,
   deliveryJobId: string | null,
 ): Promise<void> {
-  await db.query(
-    `UPDATE user_reminder_occurrences
-     SET status = 'queued',
-         queued_at = now(),
-         delivery_job_id = $2,
-         updated_at = now()
-     WHERE id = $1`,
-    [occurrenceId, deliveryJobId],
-  );
+  const d = getIntegratorDrizzleSession(db);
+  await d
+    .update(userReminderOccurrences)
+    .set({
+      status: 'queued',
+      queuedAt: sql`now()`,
+      deliveryJobId,
+      updatedAt: sql`now()`,
+    })
+    .where(eq(userReminderOccurrences.id, occurrenceId));
 }
 
 export async function markReminderOccurrenceSent(
@@ -528,15 +390,16 @@ export async function markReminderOccurrenceSent(
   occurrenceId: string,
   channel: string,
 ): Promise<void> {
-  await db.query(
-    `UPDATE user_reminder_occurrences
-     SET status = 'sent',
-         sent_at = now(),
-         delivery_channel = $2,
-         updated_at = now()
-     WHERE id = $1`,
-    [occurrenceId, channel],
-  );
+  const d = getIntegratorDrizzleSession(db);
+  await d
+    .update(userReminderOccurrences)
+    .set({
+      status: 'sent',
+      sentAt: sql`now()`,
+      deliveryChannel: channel,
+      updatedAt: sql`now()`,
+    })
+    .where(eq(userReminderOccurrences.id, occurrenceId));
 }
 
 export async function markReminderOccurrenceFailed(
@@ -545,16 +408,17 @@ export async function markReminderOccurrenceFailed(
   channel: string,
   errorCode: string | null,
 ): Promise<void> {
-  await db.query(
-    `UPDATE user_reminder_occurrences
-     SET status = 'failed',
-         failed_at = now(),
-         delivery_channel = $2,
-         error_code = $3,
-         updated_at = now()
-     WHERE id = $1`,
-    [occurrenceId, channel, errorCode],
-  );
+  const d = getIntegratorDrizzleSession(db);
+  await d
+    .update(userReminderOccurrences)
+    .set({
+      status: 'failed',
+      failedAt: sql`now()`,
+      deliveryChannel: channel,
+      errorCode,
+      updatedAt: sql`now()`,
+    })
+    .where(eq(userReminderOccurrences.id, occurrenceId));
 }
 
 /** Inserts delivery log; returns DB `created_at` for projection idempotency payload. */
@@ -569,29 +433,20 @@ export async function insertReminderDeliveryLog(
     payloadJson?: Record<string, unknown>;
   },
 ): Promise<string> {
-  const res = await db.query<{ created_at: string }>(
-    `INSERT INTO user_reminder_delivery_logs (
-       id,
-       occurrence_id,
-       channel,
-       status,
-       error_code,
-       payload_json,
-       created_at
-     ) VALUES (
-       $1, $2, $3, $4, $5, $6::jsonb, now()
-     )
-     RETURNING created_at::text`,
-    [
-      input.id,
-      input.occurrenceId,
-      input.channel,
-      input.status,
-      input.errorCode ?? null,
-      JSON.stringify(input.payloadJson ?? {}),
-    ],
-  );
-  return res.rows[0]?.created_at ?? new Date().toISOString();
+  const d = getIntegratorDrizzleSession(db);
+  const rows = await d
+    .insert(userReminderDeliveryLogs)
+    .values({
+      id: input.id,
+      occurrenceId: input.occurrenceId,
+      channel: input.channel,
+      status: input.status,
+      errorCode: input.errorCode ?? null,
+      payloadJson: input.payloadJson ?? {},
+      createdAt: sql`now()`,
+    })
+    .returning({ created_at: userReminderDeliveryLogs.createdAt });
+  return rows[0]?.created_at ?? new Date().toISOString();
 }
 
 /** Context for projection reminder.occurrence.finalized / reminder.delivery.logged. */
@@ -607,25 +462,23 @@ export async function getReminderOccurrenceContextForProjection(
   deliveryChannel: string | null;
   errorCode: string | null;
 } | null> {
-  const res = await db.query<{
-    rule_id: string;
-    user_id: string | number;
-    category: string;
-    status: string;
-    sent_at: string | null;
-    failed_at: string | null;
-    delivery_channel: string | null;
-    error_code: string | null;
-  }>(
-    `SELECT o.rule_id, r.user_id::text AS user_id, r.category, o.status,
-            o.sent_at::text AS sent_at, o.failed_at::text AS failed_at,
-            o.delivery_channel, o.error_code
-     FROM user_reminder_occurrences o
-     JOIN user_reminder_rules r ON r.id = o.rule_id
-     WHERE o.id = $1`,
-    [occurrenceId],
-  );
-  const row = res.rows[0];
+  const d = getIntegratorDrizzleSession(db);
+  const rows = await d
+    .select({
+      rule_id: userReminderOccurrences.ruleId,
+      user_id: sql<string>`${userReminderRules.userId}::text`,
+      category: userReminderRules.category,
+      status: userReminderOccurrences.status,
+      sent_at: userReminderOccurrences.sentAt,
+      failed_at: userReminderOccurrences.failedAt,
+      delivery_channel: userReminderOccurrences.deliveryChannel,
+      error_code: userReminderOccurrences.errorCode,
+    })
+    .from(userReminderOccurrences)
+    .innerJoin(userReminderRules, eq(userReminderRules.id, userReminderOccurrences.ruleId))
+    .where(eq(userReminderOccurrences.id, occurrenceId))
+    .limit(1);
+  const row = rows[0];
   if (!row) return null;
   const occurredAt = row.sent_at ?? row.failed_at ?? new Date().toISOString();
   return {
@@ -652,44 +505,33 @@ export async function createContentAccessGrant(
     metaJson?: Record<string, unknown>;
   },
 ): Promise<string> {
-  const res = await db.query<{ created_at: string }>(
-    `INSERT INTO content_access_grants (
-       id,
-       user_id,
-       content_id,
-       purpose,
-       token_hash,
-       expires_at,
-       meta_json,
-       created_at
-     ) VALUES (
-       $1, $2, $3, $4, $5, $6::timestamptz, $7::jsonb, now()
-     )
-     RETURNING created_at::text`,
-    [
-      input.id,
-      input.userId,
-      input.contentId,
-      input.purpose,
-      input.tokenHash ?? null,
-      input.expiresAt,
-      JSON.stringify(input.metaJson ?? {}),
-    ],
-  );
-  return res.rows[0]?.created_at ?? new Date().toISOString();
+  const d = getIntegratorDrizzleSession(db);
+  const rows = await d
+    .insert(contentAccessGrants)
+    .values({
+      id: input.id,
+      userId: Number(input.userId),
+      contentId: input.contentId,
+      purpose: input.purpose,
+      tokenHash: input.tokenHash ?? null,
+      expiresAt: input.expiresAt,
+      metaJson: input.metaJson ?? {},
+      createdAt: sql`now()`,
+    })
+    .returning({ created_at: contentAccessGrants.createdAt });
+  return rows[0]?.created_at ?? new Date().toISOString();
 }
 
 /** Integrator `users.id` (text) owning the occurrence's rule, or null if missing. */
 export async function getReminderOccurrenceOwnerUserId(db: DbPort, occurrenceId: string): Promise<string | null> {
-  const res = await db.query<{ user_id: string }>(
-    `SELECT r.user_id::text AS user_id
-     FROM user_reminder_occurrences o
-     JOIN user_reminder_rules r ON r.id = o.rule_id
-     WHERE o.id = $1
-     LIMIT 1`,
-    [occurrenceId],
-  );
-  const id = res.rows[0]?.user_id;
+  const d = getIntegratorDrizzleSession(db);
+  const rows = await d
+    .select({ user_id: sql<string>`${userReminderRules.userId}::text` })
+    .from(userReminderOccurrences)
+    .innerJoin(userReminderRules, eq(userReminderRules.id, userReminderOccurrences.ruleId))
+    .where(eq(userReminderOccurrences.id, occurrenceId))
+    .limit(1);
+  const id = rows[0]?.user_id;
   return id && id.trim().length > 0 ? id.trim() : null;
 }
 
@@ -699,34 +541,36 @@ export async function rescheduleReminderOccurrencePlanned(
   occurrenceId: string,
   plannedAtIso: string,
 ): Promise<boolean> {
-  const res = await db.query(
-    `UPDATE user_reminder_occurrences
-     SET planned_at = $2::timestamptz,
-         status = 'planned',
-         queued_at = NULL,
-         sent_at = NULL,
-         failed_at = NULL,
-         delivery_channel = NULL,
-         delivery_job_id = NULL,
-         error_code = NULL,
-         updated_at = now()
-     WHERE id = $1
-       AND status <> 'skipped'`,
-    [occurrenceId, plannedAtIso],
-  );
-  return (res.rowCount ?? 0) > 0;
+  const d = getIntegratorDrizzleSession(db);
+  const updated = await d
+    .update(userReminderOccurrences)
+    .set({
+      plannedAt: plannedAtIso,
+      status: 'planned',
+      queuedAt: null,
+      sentAt: null,
+      failedAt: null,
+      deliveryChannel: null,
+      deliveryJobId: null,
+      errorCode: null,
+      updatedAt: sql`now()`,
+    })
+    .where(and(eq(userReminderOccurrences.id, occurrenceId), ne(userReminderOccurrences.status, 'skipped')))
+    .returning({ id: userReminderOccurrences.id });
+  return updated.length > 0;
 }
 
 export async function markReminderOccurrenceSkippedLocal(db: DbPort, occurrenceId: string): Promise<boolean> {
-  const res = await db.query(
-    `UPDATE user_reminder_occurrences
-     SET status = 'skipped',
-         updated_at = now()
-     WHERE id = $1
-       AND status <> 'skipped'`,
-    [occurrenceId],
-  );
-  return (res.rowCount ?? 0) > 0;
+  const d = getIntegratorDrizzleSession(db);
+  const updated = await d
+    .update(userReminderOccurrences)
+    .set({
+      status: 'skipped',
+      updatedAt: sql`now()`,
+    })
+    .where(and(eq(userReminderOccurrences.id, occurrenceId), ne(userReminderOccurrences.status, 'skipped')))
+    .returning({ id: userReminderOccurrences.id });
+  return updated.length > 0;
 }
 
 /**
@@ -738,29 +582,29 @@ export async function getStaleReminderMessengerMessageIdForResend(
   db: DbPort,
   input: { ruleId: string; excludeOccurrenceId: string; channel: string },
 ): Promise<string | null> {
-  const res = await db.query<{ mid: string | null }>(
-    `SELECT (
-       CASE WHEN $1 = 'max'
+  const d = getIntegratorDrizzleSession(db);
+  const res = await d.execute(sql`
+    SELECT (
+       CASE WHEN ${input.channel} = 'max'
          THEN l.payload_json->>'maxMessageId'
          ELSE l.payload_json->>'telegramMessageId'
        END
      ) AS mid
      FROM user_reminder_delivery_logs l
      INNER JOIN user_reminder_occurrences o ON o.id = l.occurrence_id
-     WHERE l.channel = $1
+     WHERE l.channel = ${input.channel}
        AND l.status = 'success'
-       AND o.rule_id = $2
-       AND o.id <> $3
+       AND o.rule_id = ${input.ruleId}
+       AND o.id <> ${input.excludeOccurrenceId}
        AND o.status = 'sent'
        AND (
-         ($1 = 'max' AND (l.payload_json ? 'maxMessageId'))
-         OR ($1 <> 'max' AND (l.payload_json ? 'telegramMessageId'))
+         (${input.channel} = 'max' AND (l.payload_json ? 'maxMessageId'))
+         OR (${input.channel} <> 'max' AND (l.payload_json ? 'telegramMessageId'))
        )
      ORDER BY l.created_at DESC
-     LIMIT 1`,
-    [input.channel, input.ruleId, input.excludeOccurrenceId],
-  );
-  const raw = res.rows[0]?.mid;
+     LIMIT 1
+  `);
+  const raw = (res.rows[0] as { mid: string | null } | undefined)?.mid;
   if (raw == null || raw.trim() === '') return null;
   const trimmed = raw.trim();
   if (input.channel === 'telegram') {

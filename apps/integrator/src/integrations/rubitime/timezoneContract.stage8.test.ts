@@ -13,6 +13,7 @@ vi.mock("../../infra/db/repos/integrationDataQualityIncidents.js", () => ({
 
 import type { DbPort } from "../../kernel/contracts/index.js";
 import { stubIntegratorDrizzleForTests } from "../../infra/db/stubIntegratorDrizzleForTests.js";
+import { appointmentRecords } from "../../infra/db/schema/integratorDomainRepos.js";
 import { syncAppointmentToCalendar } from "../google-calendar/sync.js";
 import { createGetBranchTimezoneWithDataQuality, resetBranchTimezoneCacheForTests } from "../../infra/db/branchTimezone.js";
 import { createDbWritePort } from "../../infra/db/writePort.js";
@@ -72,19 +73,28 @@ describe("Stage 8 timezone contract (STAGE_8_CONTRACT_TESTS)", () => {
     const botMsk = formatBookingRuDateTime(incoming.recordAt ?? null, "Europe/Moscow");
     expect(botMsk).toBe("7 апр. 2026 г., 11:00");
 
-    const capture: { appointmentParams: unknown[]; projectionRecordAt: unknown } = {
-      appointmentParams: [],
-      projectionRecordAt: undefined,
+    const capture: { appointmentRecordAt: unknown } = { appointmentRecordAt: undefined };
+    const query = vi.fn(async () => ({ rows: [] } as Awaited<ReturnType<DbPort["query"]>>));
+    const inner = stubIntegratorDrizzleForTests() as {
+      insert: (t: unknown) => { values: (v: Record<string, unknown>) => unknown };
+      execute: () => Promise<{ rows: unknown[] }>;
+      select: () => unknown;
+      update: () => unknown;
+      delete: () => unknown;
     };
-    const query = vi.fn(async (sql: string, params: unknown[]) => {
-      if (typeof sql === "string" && sql.includes("INSERT INTO public.appointment_records")) {
-        capture.appointmentParams = [...params];
-        capture.projectionRecordAt = params[2];
-      }
-      return { rows: [] } as Awaited<ReturnType<DbPort["query"]>>;
-    });
-    const tx = vi.fn(async (fn: (txDb: DbPort) => Promise<void>) => fn({ query, tx } as DbPort));
-    const db = { query, tx } as DbPort;
+    const integratorDrizzle = {
+      ...inner,
+      insert: (table: unknown) => ({
+        values: (vals: Record<string, unknown>) => {
+          if (table === appointmentRecords) capture.appointmentRecordAt = vals.recordAt;
+          return inner.insert(table).values(vals);
+        },
+      }),
+    };
+    const tx = vi.fn(async (fn: (txDb: DbPort) => Promise<void>) =>
+      fn({ query, tx, integratorDrizzle } as DbPort),
+    );
+    const db = { query, tx, integratorDrizzle } as DbPort;
 
     const writePort = createDbWritePort({ db });
     await writePort.writeDb({
@@ -99,8 +109,7 @@ describe("Stage 8 timezone contract (STAGE_8_CONTRACT_TESTS)", () => {
         timeNormalizationStatus: "ok",
       },
     });
-    expect(capture.appointmentParams[2]).toBe(STAGE8_EXPECTED_MOSCOW_UTC_ISO);
-    expect(capture.projectionRecordAt).toBe(STAGE8_EXPECTED_MOSCOW_UTC_ISO);
+    expect(capture.appointmentRecordAt).toBe(STAGE8_EXPECTED_MOSCOW_UTC_ISO);
   });
 
   it("S8.T03: Samara — UTC 07:00; MSK display 10:00; Samara display 11:00", async () => {
@@ -159,17 +168,28 @@ describe("Stage 8 timezone contract (STAGE_8_CONTRACT_TESTS)", () => {
     expect(upsertEvent).not.toHaveBeenCalled();
     expect(deleteEvent).not.toHaveBeenCalled();
 
-    const captureNull: { appointmentParams: unknown[] } = { appointmentParams: [] };
-    const queryWrite = vi.fn(async (sql: string, params: unknown[]) => {
-      if (typeof sql === "string" && sql.includes("INSERT INTO public.appointment_records")) {
-        captureNull.appointmentParams = [...params];
-      }
-      return { rows: [] } as Awaited<ReturnType<DbPort["query"]>>;
-    });
+    const captureNull: { appointmentRecordAt: unknown } = { appointmentRecordAt: undefined };
+    const queryWrite = vi.fn(async () => ({ rows: [] } as Awaited<ReturnType<DbPort["query"]>>));
+    const innerW = stubIntegratorDrizzleForTests() as {
+      insert: (t: unknown) => { values: (v: Record<string, unknown>) => unknown };
+      execute: () => Promise<{ rows: unknown[] }>;
+      select: () => unknown;
+      update: () => unknown;
+      delete: () => unknown;
+    };
+    const integratorDrizzleWrite = {
+      ...innerW,
+      insert: (table: unknown) => ({
+        values: (vals: Record<string, unknown>) => {
+          if (table === appointmentRecords) captureNull.appointmentRecordAt = vals.recordAt;
+          return innerW.insert(table).values(vals);
+        },
+      }),
+    };
     const txWrite = vi.fn(async (fn: (txDb: DbPort) => Promise<void>) =>
-      fn({ query: queryWrite, tx: txWrite } as DbPort),
+      fn({ query: queryWrite, tx: txWrite, integratorDrizzle: integratorDrizzleWrite } as DbPort),
     );
-    const dbWrite = { query: queryWrite, tx: txWrite } as DbPort;
+    const dbWrite = { query: queryWrite, tx: txWrite, integratorDrizzle: integratorDrizzleWrite } as DbPort;
     const writePortDegraded = createDbWritePort({ db: dbWrite });
     await writePortDegraded.writeDb({
       type: "booking.upsert",
@@ -182,7 +202,7 @@ describe("Stage 8 timezone contract (STAGE_8_CONTRACT_TESTS)", () => {
         timeNormalizationStatus: "degraded",
       },
     });
-    expect(captureNull.appointmentParams[2]).toBeNull();
+    expect(captureNull.appointmentRecordAt).toBeNull();
   });
 
   it("S8.T05: invalid branch IANA in DB — fallback MSK, incident + Telegram, ingest still normalizes", async () => {

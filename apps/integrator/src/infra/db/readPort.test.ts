@@ -4,13 +4,22 @@ import type { CommunicationReadsPort } from '../../kernel/contracts/index.js';
 import type { RemindersReadsPort } from '../../kernel/contracts/index.js';
 import type { AppointmentsReadsPort } from '../../kernel/contracts/index.js';
 import type { SubscriptionMailingReadsPort } from '../../kernel/contracts/index.js';
+import type { DbPort } from '../../kernel/contracts/index.js';
+import { stubIntegratorDrizzleForTests } from './stubIntegratorDrizzleForTests.js';
 
-function createMockDb() {
+/** Test double: `query`/`tx` are Vitest mocks (see `mockResolvedValue` / `mockImplementation`). */
+type MockDbPort = DbPort & {
+  query: ReturnType<typeof vi.fn>;
+  tx: ReturnType<typeof vi.fn>;
+};
+
+function createMockDb(): MockDbPort {
   const query = vi.fn().mockResolvedValue({ rows: [] });
-  const tx = vi.fn().mockImplementation(async (fn: (client: { query: typeof query }) => Promise<unknown>) =>
-    fn({ query }),
+  const integratorDrizzle = stubIntegratorDrizzleForTests();
+  const tx = vi.fn().mockImplementation(async (fn: (client: DbPort) => Promise<unknown>) =>
+    fn({ query, tx, integratorDrizzle } as DbPort),
   );
-  return { query, tx };
+  return { query, tx, integratorDrizzle } as MockDbPort;
 }
 
 describe('createDbReadPort', () => {
@@ -280,7 +289,7 @@ describe('createDbReadPort', () => {
         params: { nowIso: '2025-01-01T12:00:00.000Z', limit: 10 },
       });
 
-      expect(db.query).toHaveBeenCalled();
+      expect(db.query).not.toHaveBeenCalled();
       expect(remindersReadsPort.listRulesForUser).not.toHaveBeenCalled();
     });
 
@@ -298,7 +307,7 @@ describe('createDbReadPort', () => {
         params: {},
       });
 
-      expect(db.query).toHaveBeenCalled();
+      expect(db.query).not.toHaveBeenCalled();
       expect(remindersReadsPort.listRulesForUser).not.toHaveBeenCalled();
     });
   });

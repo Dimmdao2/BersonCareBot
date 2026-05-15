@@ -6,6 +6,15 @@ import {
   mailingTopics,
   userSubscriptions,
 } from './schema/integratorPublicProduct.js';
+import {
+  appointmentRecords,
+  contentAccessGrants,
+  rubitimeEvents,
+  rubitimeRecords,
+  userReminderDeliveryLogs,
+  userReminderOccurrences,
+  userReminderRules,
+} from './schema/integratorDomainRepos.js';
 import { projectionOutbox, rubitimeCreateRetryJobs } from './schema/integratorQueues.js';
 
 export const integratorDrizzleSchema = {
@@ -18,4 +27,11 @@ export const integratorDrizzleSchema = {
   deliveryAttemptLogs,
   projectionOutbox,
   rubitimeCreateRetryJobs,
+  userReminderRules,
+  userReminderOccurrences,
+  userReminderDeliveryLogs,
+  contentAccessGrants,
+  rubitimeRecords,
+  rubitimeEvents,
+  appointmentRecords,
 } as const;

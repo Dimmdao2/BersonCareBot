@@ -1,5 +1,8 @@
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import type { DbPort } from '../../../kernel/contracts/index.js';
 import { logger } from '../../observability/logger.js';
+import { getIntegratorDrizzleSession } from '../drizzle.js';
+import { rubitimeEvents, rubitimeRecords } from '../schema/integratorDomainRepos.js';
 
 /** Repository for external booking records and incoming events. */
 export type BookingRecordStatus = 'created' | 'updated' | 'canceled';
@@ -42,41 +45,33 @@ export type BookingRecordForLinking = {
 
 /** Creates or updates a booking record by external id. */
 export async function upsertRecord(db: DbPort, input: UpsertBookingRecordInput): Promise<void> {
-  const query = `
-    INSERT INTO rubitime_records (
-      rubitime_record_id,
-      phone_normalized,
-      record_at,
-      status,
-      gcal_event_id,
-      payload_json,
-      last_event,
-      created_at,
-      updated_at
-    )
-    VALUES ($1, $2, $3::timestamptz, $4, $5, $6::jsonb, $7, NOW(), NOW())
-    ON CONFLICT (rubitime_record_id)
-    DO UPDATE SET
-      phone_normalized = EXCLUDED.phone_normalized,
-      record_at = EXCLUDED.record_at,
-      status = EXCLUDED.status,
-      gcal_event_id = EXCLUDED.gcal_event_id,
-      payload_json = EXCLUDED.payload_json,
-      last_event = EXCLUDED.last_event,
-      updated_at = NOW()
-  `;
-
-  const recordAt = input.recordAt instanceof Date ? input.recordAt.toISOString() : input.recordAt;
+  const recordAt =
+    input.recordAt instanceof Date ? input.recordAt.toISOString() : (input.recordAt as string | null);
+  const d = getIntegratorDrizzleSession(db);
   try {
-    await db.query(query, [
-      input.externalRecordId,
-      input.phoneNormalized,
-      recordAt,
-      input.status,
-      input.gcalEventId ?? null,
-      JSON.stringify(input.payloadJson),
-      input.lastEvent,
-    ]);
+    await d
+      .insert(rubitimeRecords)
+      .values({
+        rubitimeRecordId: input.externalRecordId,
+        phoneNormalized: input.phoneNormalized,
+        recordAt,
+        status: input.status,
+        gcalEventId: input.gcalEventId ?? null,
+        payloadJson: input.payloadJson as Record<string, unknown>,
+        lastEvent: input.lastEvent,
+      })
+      .onConflictDoUpdate({
+        target: rubitimeRecords.rubitimeRecordId,
+        set: {
+          phoneNormalized: input.phoneNormalized,
+          recordAt,
+          status: input.status,
+          gcalEventId: input.gcalEventId ?? null,
+          payloadJson: input.payloadJson as Record<string, unknown>,
+          lastEvent: input.lastEvent,
+          updatedAt: sql`NOW()`,
+        },
+      });
   } catch (err) {
     logger.error({ err, externalRecordId: input.externalRecordId }, 'upsert booking record failed');
   }
@@ -84,21 +79,13 @@ export async function upsertRecord(db: DbPort, input: UpsertBookingRecordInput):
 
 /** Saves raw incoming booking event journal entry. */
 export async function insertEvent(db: DbPort, input: InsertBookingEventInput): Promise<void> {
-  const query = `
-    INSERT INTO rubitime_events (
-      rubitime_record_id,
-      event,
-      payload_json,
-      received_at
-    )
-    VALUES ($1, $2, $3::jsonb, NOW())
-  `;
+  const d = getIntegratorDrizzleSession(db);
   try {
-    await db.query(query, [
-      input.externalRecordId ?? null,
-      input.event,
-      JSON.stringify(input.payloadJson),
-    ]);
+    await d.insert(rubitimeEvents).values({
+      rubitimeRecordId: input.externalRecordId ?? null,
+      event: input.event,
+      payloadJson: input.payloadJson as Record<string, unknown>,
+    });
   } catch (err) {
     logger.error({ err, event: input.event }, 'insert booking event failed');
   }
@@ -117,35 +104,31 @@ export async function getActiveRecordsByPhone(
   db: DbPort,
   phoneNormalized: string,
 ): Promise<ActiveBookingRecord[]> {
-  // SQL column names trigger no-secrets entropy check (false positive)
-  /* eslint-disable-next-line no-secrets/no-secrets */
-  const query = `
-    SELECT
-      rubitime_record_id,
-      record_at,
-      status,
-      COALESCE(
-        NULLIF(TRIM(payload_json->>'link'), ''),
-        NULLIF(TRIM(payload_json->>'url'), ''),
-        NULLIF(TRIM(payload_json->>'record_url'), '')
-      ) AS record_link
-    FROM rubitime_records
-    WHERE phone_normalized = $1
-      AND status IN ('created', 'updated')
-    ORDER BY record_at ASC NULLS LAST
-  `;
+  const d = getIntegratorDrizzleSession(db);
   try {
-    const res = await db.query<{
-      rubitime_record_id: string;
-      record_at: Date | null;
-      status: string;
-      record_link: string | null;
-    }>(query, [phoneNormalized]);
-    return res.rows.map((row) => ({
-      rubitimeRecordId: row.rubitime_record_id,
-      recordAt: row.record_at ? row.record_at.toISOString() : null,
+    const rows = await d
+      .select({
+        rubitimeRecordId: rubitimeRecords.rubitimeRecordId,
+        recordAt: rubitimeRecords.recordAt,
+        status: rubitimeRecords.status,
+        recordLink: sql<string | null>`
+          COALESCE(
+            NULLIF(TRIM(${rubitimeRecords.payloadJson}->>'link'), ''),
+            NULLIF(TRIM(${rubitimeRecords.payloadJson}->>'url'), ''),
+            NULLIF(TRIM(${rubitimeRecords.payloadJson}->>'record_url'), '')
+          )
+        `.as('record_link'),
+      })
+      .from(rubitimeRecords)
+      .where(
+        and(eq(rubitimeRecords.phoneNormalized, phoneNormalized), inArray(rubitimeRecords.status, ['created', 'updated'])),
+      )
+      .orderBy(sql`${rubitimeRecords.recordAt} ASC NULLS LAST`);
+    return rows.map((row) => ({
+      rubitimeRecordId: row.rubitimeRecordId,
+      recordAt: row.recordAt ?? null,
       status: row.status,
-      link: row.record_link ?? null,
+      link: row.recordLink ?? null,
     }));
   } catch (err) {
     logger.error({ err, phoneNormalized }, 'get active records by phone failed');
@@ -158,33 +141,27 @@ export async function getRecordByExternalId(
   db: DbPort,
   externalRecordId: string,
 ): Promise<BookingRecordForLinking | null> {
-  const query = `
-    SELECT
-      rubitime_record_id AS external_record_id,
-      phone_normalized,
-      payload_json,
-      record_at,
-      status
-    FROM rubitime_records
-    WHERE rubitime_record_id = $1
-    LIMIT 1
-  `;
+  const d = getIntegratorDrizzleSession(db);
   try {
-    const res = await db.query<{
-      external_record_id: string;
-      phone_normalized: string | null;
-      payload_json: unknown;
-      record_at: Date | null;
-      status: BookingRecordStatus;
-    }>(query, [externalRecordId]);
-    const row = res.rows[0];
+    const rows = await d
+      .select({
+        externalRecordId: rubitimeRecords.rubitimeRecordId,
+        phoneNormalized: rubitimeRecords.phoneNormalized,
+        payloadJson: rubitimeRecords.payloadJson,
+        recordAt: rubitimeRecords.recordAt,
+        status: rubitimeRecords.status,
+      })
+      .from(rubitimeRecords)
+      .where(eq(rubitimeRecords.rubitimeRecordId, externalRecordId))
+      .limit(1);
+    const row = rows[0];
     if (!row) return null;
     return {
-      externalRecordId: row.external_record_id,
-      phoneNormalized: row.phone_normalized,
-      payloadJson: row.payload_json,
-      recordAt: row.record_at,
-      status: row.status,
+      externalRecordId: row.externalRecordId,
+      phoneNormalized: row.phoneNormalized,
+      payloadJson: row.payloadJson,
+      recordAt: row.recordAt ? new Date(row.recordAt) : null,
+      status: row.status as BookingRecordStatus,
     };
   } catch (err) {
     logger.error({ err, externalRecordId }, 'get booking record by id failed');

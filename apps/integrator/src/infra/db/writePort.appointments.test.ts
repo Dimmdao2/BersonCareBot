@@ -1,9 +1,35 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { DbPort } from '../../kernel/contracts/index.js';
 import { createDbWritePort } from './writePort.js';
+import { appointmentRecords, rubitimeEvents } from './schema/integratorDomainRepos.js';
+import { stubIntegratorDrizzleForTests } from './stubIntegratorDrizzleForTests.js';
 
 describe('writePort booking.upsert → public schema (unified DB)', () => {
-  function makeMockDb(capture: { sqlCalls: string[] }): DbPort {
+  type Capture = {
+    sqlCalls: string[];
+    drizzleInserts: { table: unknown; values: Record<string, unknown> }[];
+  };
+
+  function wrapDrizzle(capture: Capture): unknown {
+    const inner = stubIntegratorDrizzleForTests() as {
+      insert: (t: unknown) => { values: (v: Record<string, unknown>) => unknown };
+      execute: () => Promise<{ rows: unknown[] }>;
+      select: () => unknown;
+      update: () => unknown;
+      delete: () => unknown;
+    };
+    return {
+      ...inner,
+      insert: (table: unknown) => ({
+        values: (vals: Record<string, unknown>) => {
+          capture.drizzleInserts.push({ table, values: vals });
+          return inner.insert(table).values(vals);
+        },
+      }),
+    };
+  }
+
+  function makeMockDb(capture: Capture): DbPort {
     const query = vi.fn(async (sql: string, params: unknown[]) => {
       if (typeof sql === 'string' && sql.includes('merged_into_user_id') && sql.includes('FROM users')) {
         const id = String((params as string[])[0] ?? '');
@@ -15,14 +41,19 @@ describe('writePort booking.upsert → public schema (unified DB)', () => {
       capture.sqlCalls.push(sql);
       return { rows: [] } as Awaited<ReturnType<DbPort['query']>>;
     });
+    const integratorDrizzle = wrapDrizzle(capture);
     const tx = vi.fn(async (fn: (txDb: DbPort) => Promise<void>) => {
-      return fn({ query, tx } as DbPort);
+      return fn({ query, tx, integratorDrizzle } as DbPort);
     });
-    return { query, tx } as DbPort;
+    return { query, tx, integratorDrizzle } as DbPort;
+  }
+
+  function appointmentInsert(capture: Capture) {
+    return capture.drizzleInserts.find((x) => x.table === appointmentRecords);
   }
 
   it('booking.upsert writes appointment_records + patient_bookings in tx (no HTTP projection outbox)', async () => {
-    const capture = { sqlCalls: [] as string[] };
+    const capture: Capture = { sqlCalls: [], drizzleInserts: [] };
     const db = makeMockDb(capture);
     const writePort = createDbWritePort({ db });
     await writePort.writeDb({
@@ -37,13 +68,13 @@ describe('writePort booking.upsert → public schema (unified DB)', () => {
       },
     });
     const joined = capture.sqlCalls.join('\n');
-    expect(joined).toContain('INSERT INTO public.appointment_records');
+    expect(appointmentInsert(capture)?.values.integratorRecordId).toBe('rec-app-1');
     expect(joined).toContain('public.patient_bookings');
     expect(joined).not.toContain('projection_outbox');
   });
 
   it('booking.upsert canonicalizes integrator ids inside payloadJson before public writes', async () => {
-    const capture = { sqlCalls: [] as string[] };
+    const capture: Capture = { sqlCalls: [], drizzleInserts: [] };
     const db = makeMockDb(capture);
     const writePort = createDbWritePort({ db });
     const payloadJson = { integrator_user_id: '2', link: 'https://rubitime.example/r' };
@@ -58,20 +89,15 @@ describe('writePort booking.upsert → public schema (unified DB)', () => {
         lastEvent: 'sync',
       },
     });
-    const appointmentInsert = capture.sqlCalls.find((s) => s.includes('INSERT INTO public.appointment_records'));
-    expect(appointmentInsert).toBeDefined();
-    const payloadParam = (db.query as ReturnType<typeof vi.fn>).mock.calls.find(
-      (c) => String(c[0]).includes('INSERT INTO public.appointment_records'),
-    )?.[1] as unknown[] | undefined;
-    const payloadJsonStr = payloadParam?.[4];
-    expect(JSON.parse(String(payloadJsonStr))).toMatchObject({
+    const ap = appointmentInsert(capture)?.values.payloadJson as Record<string, unknown>;
+    expect(ap).toMatchObject({
       integrator_user_id: '100',
       link: 'https://rubitime.example/r',
     });
   });
 
   it('booking.upsert keeps ISO-Z recordAt for public appointment row', async () => {
-    const capture = { sqlCalls: [] as string[] };
+    const capture: Capture = { sqlCalls: [], drizzleInserts: [] };
     const db = makeMockDb(capture);
     const writePort = createDbWritePort({ db });
     await writePort.writeDb({
@@ -86,15 +112,11 @@ describe('writePort booking.upsert → public schema (unified DB)', () => {
         lastEvent: 'updated',
       },
     });
-    const call = (db.query as ReturnType<typeof vi.fn>).mock.calls.find((c) =>
-      String(c[0]).includes('INSERT INTO public.appointment_records'),
-    );
-    const params = call?.[1] as unknown[];
-    expect(params?.[2]).toBe('2026-04-07T08:00:00.000Z');
+    expect(appointmentInsert(capture)?.values.recordAt).toBe('2026-04-07T08:00:00.000Z');
   });
 
   it('booking.upsert drops naive recordAt so SQL never gets session-TZ interpretation', async () => {
-    const capture = { sqlCalls: [] as string[] };
+    const capture: Capture = { sqlCalls: [], drizzleInserts: [] };
     const db = makeMockDb(capture);
     const writePort = createDbWritePort({ db });
     await writePort.writeDb({
@@ -108,30 +130,30 @@ describe('writePort booking.upsert → public schema (unified DB)', () => {
         lastEvent: 'updated',
       },
     });
-    const call = (db.query as ReturnType<typeof vi.fn>).mock.calls.find((c) =>
-      String(c[0]).includes('INSERT INTO public.appointment_records'),
-    );
-    const params = call?.[1] as unknown[];
-    expect(params?.[2]).toBeNull();
+    expect(appointmentInsert(capture)?.values.recordAt).toBeNull();
   });
 
   it('event.log booking writes action field as event (not "unknown")', async () => {
-    const eventInserts: { externalRecordId: string | null; event: string; payloadJson: unknown }[] = [];
-    const query = vi.fn(async (sql: string, params: unknown[]) => {
-      if (typeof sql === 'string' && sql.includes('rubitime_events')) {
-        const [externalRecordId, event, payloadJsonStr] = params as [string | null, string, string];
-        let payloadJson: unknown = {};
-        try {
-          payloadJson = JSON.parse(payloadJsonStr);
-        } catch {
-          /* */
-        }
-        eventInserts.push({ externalRecordId, event, payloadJson });
-      }
-      return { rows: [] } as Awaited<ReturnType<DbPort['query']>>;
-    });
-    const tx = vi.fn(async (fn: (txDb: DbPort) => Promise<void>) => fn({ query, tx } as DbPort));
-    const db = { query, tx } as DbPort;
+    const eventInserts: Record<string, unknown>[] = [];
+    const query = vi.fn(async () => ({ rows: [] } as Awaited<ReturnType<DbPort['query']>>));
+    const inner = stubIntegratorDrizzleForTests() as {
+      insert: (t: unknown) => { values: (v: Record<string, unknown>) => unknown };
+      execute: () => Promise<{ rows: unknown[] }>;
+      select: () => unknown;
+      update: () => unknown;
+      delete: () => unknown;
+    };
+    const integratorDrizzle = {
+      ...inner,
+      insert: (table: unknown) => ({
+        values: (vals: Record<string, unknown>) => {
+          if (table === rubitimeEvents) eventInserts.push(vals);
+          return inner.insert(table).values(vals);
+        },
+      }),
+    };
+    const tx = vi.fn(async (fn: (txDb: DbPort) => Promise<void>) => fn({ query, tx, integratorDrizzle } as DbPort));
+    const db = { query, tx, integratorDrizzle } as DbPort;
     const writePort = createDbWritePort({ db });
 
     await writePort.writeDb({
@@ -150,19 +172,30 @@ describe('writePort booking.upsert → public schema (unified DB)', () => {
     });
     expect(eventInserts.length).toBe(1);
     expect(eventInserts[0]!.event).toBe('created');
-    expect(eventInserts[0]!.externalRecordId).toBe('8077942');
+    expect(eventInserts[0]!.rubitimeRecordId).toBe('8077942');
   });
 
   it('event.log booking falls back to eventType then unknown', async () => {
     const eventInserts: { event: string }[] = [];
-    const query = vi.fn(async (sql: string, params: unknown[]) => {
-      if (typeof sql === 'string' && sql.includes('rubitime_events')) {
-        eventInserts.push({ event: params[1] as string });
-      }
-      return { rows: [] } as Awaited<ReturnType<DbPort['query']>>;
-    });
-    const tx = vi.fn(async (fn: (txDb: DbPort) => Promise<void>) => fn({ query, tx } as DbPort));
-    const db = { query, tx } as DbPort;
+    const query = vi.fn(async () => ({ rows: [] } as Awaited<ReturnType<DbPort['query']>>));
+    const inner = stubIntegratorDrizzleForTests() as {
+      insert: (t: unknown) => { values: (v: Record<string, unknown>) => unknown };
+      execute: () => Promise<{ rows: unknown[] }>;
+      select: () => unknown;
+      update: () => unknown;
+      delete: () => unknown;
+    };
+    const integratorDrizzle = {
+      ...inner,
+      insert: (table: unknown) => ({
+        values: (vals: Record<string, unknown>) => {
+          if (table === rubitimeEvents) eventInserts.push({ event: String(vals.event) });
+          return inner.insert(table).values(vals);
+        },
+      }),
+    };
+    const tx = vi.fn(async (fn: (txDb: DbPort) => Promise<void>) => fn({ query, tx, integratorDrizzle } as DbPort));
+    const db = { query, tx, integratorDrizzle } as DbPort;
     const writePort = createDbWritePort({ db });
 
     await writePort.writeDb({
