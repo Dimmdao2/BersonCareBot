@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 
 import { describe, expect, it } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { BroadcastAuditLog } from "./BroadcastAuditLog";
 import type { BroadcastAuditEntry } from "@/modules/doctor-broadcasts/ports";
 
@@ -19,6 +19,7 @@ const makeEntry = (overrides: Partial<BroadcastAuditEntry> = {}): BroadcastAudit
   audienceSize: 30,
   sentCount: 0,
   errorCount: 0,
+  attachMenuAfterSend: false,
   ...overrides,
 });
 
@@ -62,5 +63,15 @@ describe("BroadcastAuditLog", () => {
   it("shows error column when any entry has errorCount > 0", () => {
     render(<BroadcastAuditLog entries={[makeEntry({ errorCount: 2 })]} />);
     expect(screen.getByText("Не удалось доставить")).toBeInTheDocument();
+  });
+
+  it("shows menu line in expanded details when attachMenuAfterSend", () => {
+    render(
+      <BroadcastAuditLog
+        entries={[makeEntry({ attachMenuAfterSend: true, deliveryJobsTotal: 1, sentCount: 1 })]}
+      />,
+    );
+    fireEvent.click(screen.getByText("▶"));
+    expect(screen.getByText("Меню в чате обновлялось.")).toBeInTheDocument();
   });
 });

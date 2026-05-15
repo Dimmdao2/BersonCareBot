@@ -30,6 +30,11 @@ export type BroadcastCommand = {
   actorId: string;
   /** Если не задано на границе — сервис подставляет активные каналы по умолчанию. */
   channels?: BroadcastChannel[];
+  /**
+   * После доставки в мессенджер — подмешать главное меню в это сообщение (reply keyboard / MAX inline),
+   * как при обычной доставке с привязанным телефоном. По умолчанию выключено.
+   */
+  attachMenuAfterSend?: boolean;
 };
 
 /** Макс. имён в предпросмотре списка получателей (остальные — счётчиком). */
@@ -74,6 +79,8 @@ export type BroadcastAuditEntry = {
   audienceSize: number;
   /** Число строк `outgoing_delivery_queue` для этой рассылки; 0 — запись до внедрения очереди. */
   deliveryJobsTotal: number;
+  /** Флаг на момент отправки: обновлять меню в чате бота при доставке. */
+  attachMenuAfterSend: boolean;
   sentCount: number;
   errorCount: number;
 };

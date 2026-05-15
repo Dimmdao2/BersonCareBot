@@ -463,6 +463,13 @@
       "when": 1780800000000,
       "tag": "0065_material_ratings",
       "breakpoints": true
+    },
+    {
+      "idx": 66,
+      "version": "7",
+      "when": 1780900000000,
+      "tag": "0066_broadcast_audit_attach_menu_after_send",
+      "breakpoints": true
     }
   ]
 }

@@ -58,10 +58,13 @@ export function buildDoctorBroadcastDeliveryJobs(input: {
   effectiveClients: readonly ClientListItem[];
   channels: readonly BroadcastChannel[];
   messageText: string;
+  /** Копия на момент постановки в очередь; воркер читает из `payload_json`. */
+  attachMenu?: boolean;
 }): DoctorBroadcastQueueJob[] {
   const wantsBot = input.channels.includes("bot_message");
   const wantsSms = input.channels.includes("sms");
   const jobs: DoctorBroadcastQueueJob[] = [];
+  const attachMenu = input.attachMenu === true;
 
   for (const client of input.effectiveClients) {
     if (wantsBot) {
@@ -77,6 +80,7 @@ export function buildDoctorBroadcastDeliveryJobs(input: {
           payloadJson: {
             broadcastAuditId: input.auditId,
             clientUserId: client.userId,
+            attachMenu,
             intent: buildMessageSendIntent({
               eventId,
               channel: "telegram",
@@ -99,6 +103,7 @@ export function buildDoctorBroadcastDeliveryJobs(input: {
           payloadJson: {
             broadcastAuditId: input.auditId,
             clientUserId: client.userId,
+            attachMenu,
             intent: buildMessageSendIntent({
               eventId,
               channel: "max",
@@ -124,6 +129,7 @@ export function buildDoctorBroadcastDeliveryJobs(input: {
           payloadJson: {
             broadcastAuditId: input.auditId,
             clientUserId: client.userId,
+            attachMenu,
             intent: buildMessageSendIntent({
               eventId,
               channel: "sms",

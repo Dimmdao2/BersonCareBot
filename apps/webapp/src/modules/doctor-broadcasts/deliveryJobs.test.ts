@@ -27,6 +27,29 @@ describe("buildDoctorBroadcastDeliveryJobs", () => {
     expect(jobs[0].payloadJson.broadcastAuditId).toBe(auditId);
   });
 
+  it("sets attachMenu on payload when attachMenu true", () => {
+    const jobs = buildDoctorBroadcastDeliveryJobs({
+      auditId,
+      effectiveClients: [
+        {
+          userId: "u1",
+          displayName: "A",
+          phone: null,
+          bindings: { telegramId: "111" },
+          nextAppointmentLabel: null,
+          activeTreatmentProgram: false,
+          activeTreatmentProgramInstanceId: null,
+          cancellationCount30d: 0,
+        },
+      ],
+      channels: ["bot_message"],
+      messageText: "Hello",
+      attachMenu: true,
+    });
+    expect(jobs.length).toBe(1);
+    expect(jobs[0].payloadJson.attachMenu).toBe(true);
+  });
+
   it("includes sms when phone valid and sms channel selected", () => {
     const jobs = buildDoctorBroadcastDeliveryJobs({
       auditId,

@@ -19,6 +19,7 @@ function mapRow(row: Record<string, unknown>): BroadcastAuditEntry {
     previewOnly: Boolean(row.preview_only),
     audienceSize: Number(row.audience_size),
     deliveryJobsTotal: Number(row.delivery_jobs_total ?? 0),
+    attachMenuAfterSend: Boolean(row.attach_menu_after_send ?? false),
     sentCount: Number(row.sent_count),
     errorCount: Number(row.error_count),
   };
@@ -45,10 +46,11 @@ export function createPgDoctorBroadcastDeliveryCommitPort(): DoctorBroadcastDeli
              preview_only,
              audience_size,
              delivery_jobs_total,
+             attach_menu_after_send,
              sent_count,
              error_count
-           ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-           RETURNING id, actor_id, category, audience_filter, message_title, message_body, channels, executed_at, preview_only, audience_size, delivery_jobs_total, sent_count, error_count`,
+           ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+           RETURNING id, actor_id, category, audience_filter, message_title, message_body, channels, executed_at, preview_only, audience_size, delivery_jobs_total, attach_menu_after_send, sent_count, error_count`,
           [
             auditId,
             input.audit.actorId,
@@ -60,6 +62,7 @@ export function createPgDoctorBroadcastDeliveryCommitPort(): DoctorBroadcastDeli
             input.audit.previewOnly,
             input.audit.audienceSize,
             deliveryTotal,
+            input.audit.attachMenuAfterSend,
             input.audit.sentCount,
             input.audit.errorCount,
           ],

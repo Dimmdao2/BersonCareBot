@@ -31,11 +31,14 @@ function deliveryTargetsMax(delivery: Record<string, unknown>, ctx: DomainContex
   return channels.length === 0 && ctx.event.meta.source === 'max';
 }
 
-/** Подмешивание `menus.main` (max/user) к исходящим в MAX без своей разметки — см. `MAX_CAPABILITY_MATRIX.md`. */
-async function enrichPayloadWithMaxMainInlineIfApplicable(
+/**
+ * Подмешивание `menus.main` (max/user) к исходящим в MAX без своей разметки — см. `MAX_CAPABILITY_MATRIX.md`.
+ * Экспорт: воркер `doctor_broadcast_intent` обогащает payload с теми же правилами, что `message.send`.
+ */
+export async function enrichMessageSendPayloadWithMaxMainInlineIfApplicable(
   payload: Record<string, unknown>,
   ctx: DomainContext,
-  deps: ExecutorDeps,
+  deps: Pick<ExecutorDeps, 'templatePort' | 'contentPort'>,
 ): Promise<Record<string, unknown>> {
   if (contentAudience(ctx) !== 'user' || !canAttachMainReplyKeyboard(ctx)) return payload;
   if (payload.replyMarkup) return payload;
@@ -110,7 +113,7 @@ export async function handleDelivery(
         }
       }
     }
-    firstPayload = await enrichPayloadWithMaxMainInlineIfApplicable(firstPayload, ctx, deps);
+    firstPayload = await enrichMessageSendPayloadWithMaxMainInlineIfApplicable(firstPayload, ctx, deps);
     const intents: OutgoingIntent[] = [{
       type: 'message.send',
       meta: {
@@ -175,7 +178,7 @@ export async function handleDelivery(
               recipient: { chatId },
               delivery: { channels: [target.channel], maxAttempts },
             };
-            payload = await enrichPayloadWithMaxMainInlineIfApplicable(payload, ctx, deps);
+            payload = await enrichMessageSendPayloadWithMaxMainInlineIfApplicable(payload, ctx, deps);
             return {
               type: 'message.send' as const,
               meta: buildIntentMeta(action, ctx),
@@ -187,7 +190,7 @@ export async function handleDelivery(
       }
     }
 
-    resolvedParams = await enrichPayloadWithMaxMainInlineIfApplicable(resolvedParams, ctx, deps);
+    resolvedParams = await enrichMessageSendPayloadWithMaxMainInlineIfApplicable(resolvedParams, ctx, deps);
 
     const intents: OutgoingIntent[] = [{
       type: 'message.send',

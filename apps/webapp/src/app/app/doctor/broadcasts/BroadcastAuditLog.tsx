@@ -110,6 +110,7 @@ export function BroadcastAuditLog({ entries }: Props) {
                           <span className="font-medium text-foreground">Текст (начало): </span>
                           {entry.messageBody.trim().length > 0 ? bodyPreview(entry.messageBody) : "—"}
                         </p>
+                        {entry.attachMenuAfterSend ? <p className="text-foreground">Меню в чате обновлялось.</p> : null}
                         {deliveryIncomplete(entry) ? (
                           <p className="text-amber-800 dark:text-amber-400">
                             Часть сообщений ещё в очереди — обновите страницу через минуту.

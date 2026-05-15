@@ -154,6 +154,8 @@ export const broadcastAudit = pgTable("broadcast_audit", {
 	previewOnly: boolean("preview_only").default(false).notNull(),
 	audienceSize: integer("audience_size").default(0).notNull(),
 	deliveryJobsTotal: integer("delivery_jobs_total").notNull().default(0),
+	/** При отправке рассылки в бот — прикрепить/обновить главное меню в чате (reply / MAX inline), см. воркер integrator. */
+	attachMenuAfterSend: boolean("attach_menu_after_send").default(false).notNull(),
 	sentCount: integer("sent_count").default(0).notNull(),
 	errorCount: integer("error_count").default(0).notNull(),
 }, (table) => [

@@ -39,6 +39,7 @@ describe("doctor-broadcasts service", () => {
         ...entry,
         messageBody: entry.messageBody ?? "",
         deliveryJobsTotal: entry.deliveryJobsTotal ?? 0,
+        attachMenuAfterSend: entry.attachMenuAfterSend ?? false,
         id,
         executedAt,
       };
@@ -63,6 +64,7 @@ describe("doctor-broadcasts service", () => {
         id: input.auditId,
         executedAt,
         deliveryJobsTotal: input.jobs.length,
+        attachMenuAfterSend: input.audit.attachMenuAfterSend,
       };
       auditEntries.push(full);
       return full;
@@ -110,6 +112,21 @@ describe("doctor-broadcasts service", () => {
     expect(committed.length).toBe(1);
     expect(committed[0].jobs.length).toBe(2);
     expect(committed[0].jobs[0].kind).toBe("doctor_broadcast_intent");
+  });
+
+  it("execute stores attachMenuAfterSend and sets attachMenu on queue jobs", async () => {
+    const { auditEntry } = await service.execute({
+      category: "service",
+      audienceFilter: "all",
+      message: { title: "M", body: "Body text here long enough" },
+      actorId: "doctor-m",
+      channels: ["bot_message"],
+      attachMenuAfterSend: true,
+    });
+    expect(auditEntry.attachMenuAfterSend).toBe(true);
+    const last = committed[committed.length - 1];
+    expect(last.jobs.length).toBeGreaterThan(0);
+    expect(last.jobs.every((j) => j.payloadJson.attachMenu === true)).toBe(true);
   });
 
   it("preview respects explicit channels subset", async () => {

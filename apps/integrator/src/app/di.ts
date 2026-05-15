@@ -28,6 +28,7 @@ import type {
   EventGateway,
   IdempotencyPort,
   QueuePort,
+  TemplatePort,
   WebappEventsPort,
 } from '../kernel/contracts/index.js';
 import { logger } from '../infra/observability/logger.js';
@@ -122,6 +123,10 @@ export type AppDeps = {
   dbWritePort: DbWritePort;
   dispatchPort: DispatchPort;
   contentPort: ContentPort;
+  /** Шаблоны контента (reply keyboard / inline из JSON меню). */
+  templatePort: TemplatePort;
+  /** Когда true, к исходящим user `message.send` в Telegram подмешивается главное reply-меню (см. executor). */
+  sendMenuOnButtonPress: boolean;
   contentCatalogPort: ContentCatalogPort;
   contextQueryPort: ContextQueryPort;
   eventGateway: EventGateway;
@@ -270,6 +275,8 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
     dbWritePort,
     dispatchPort,
     contentPort,
+    templatePort,
+    sendMenuOnButtonPress: telegramConfig.sendMenuOnButtonPress ?? false,
     contentCatalogPort,
     contextQueryPort,
     eventGateway,

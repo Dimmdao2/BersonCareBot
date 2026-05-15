@@ -11,6 +11,7 @@ vi.mock('../../db/repos/outgoingDeliveryQueue.js', async (importOriginal) => {
 import type { OutgoingDeliveryQueueRow } from '../../db/repos/outgoingDeliveryQueue.js';
 import { processOutgoingDeliveryRow } from './outgoingDeliveryWorker.js';
 import { markOutgoingDeliverySent } from '../../db/repos/outgoingDeliveryQueue.js';
+import * as doctorBroadcastIntentMenu from './doctorBroadcastIntentMenu.js';
 
 function baseRow(overrides: Partial<OutgoingDeliveryQueueRow>): OutgoingDeliveryQueueRow {
   return {
@@ -319,5 +320,62 @@ describe('doctor_broadcast_intent outgoing delivery row', () => {
     expect(dispatchOutgoing).not.toHaveBeenCalled();
     const sql = db.query.mock.calls.map((c) => String(c[0])).join('\n');
     expect(sql).toContain('dead');
+  });
+
+  it('calls menu enricher when doctorBroadcastMenu deps provided', async () => {
+    const spy = vi.spyOn(doctorBroadcastIntentMenu, 'enrichDoctorBroadcastIntentIfNeeded').mockImplementation(
+      async ({ intent }) => ({
+        ...intent,
+        payload: {
+          ...(intent as { payload: Record<string, unknown> }).payload,
+          replyMarkup: { testMenu: true },
+        },
+      }),
+    );
+    const dispatchOutgoing = vi.fn().mockResolvedValue({});
+    const auditId = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
+    const db = {
+      query: vi.fn().mockResolvedValue({ rows: [] }),
+    };
+    await processOutgoingDeliveryRow(
+      baseRow({
+        kind: 'doctor_broadcast_intent',
+        channel: 'telegram',
+        payloadJson: {
+          attachMenu: true,
+          broadcastAuditId: auditId,
+          clientUserId: 'u1',
+          intent: {
+            type: 'message.send',
+            meta: {
+              eventId: 'e-d',
+              occurredAt: '2026-01-01T00:00:00.000Z',
+              source: 'telegram',
+              userId: 'u1',
+            },
+            payload: {
+              recipient: { chatId: 1 },
+              message: { text: 'Hi' },
+              delivery: { channels: ['telegram'], maxAttempts: 1 },
+            },
+          },
+        },
+      }),
+      {
+        db: db as never,
+        writePort: { writeDb: vi.fn() } as never,
+        dispatchOutgoing,
+        doctorBroadcastMenu: {
+          templatePort: {} as never,
+          contentPort: {} as never,
+          sendMenuOnButtonPress: true,
+        },
+      },
+    );
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(dispatchOutgoing.mock.calls[0]?.[0]).toMatchObject({
+      payload: { replyMarkup: { testMenu: true } },
+    });
+    spy.mockRestore();
   });
 });

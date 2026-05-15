@@ -80,6 +80,11 @@ async function startWorker(): Promise<void> {
             writePort: deliveryWritePort,
             dispatchOutgoing: (intent) => deps.dispatchPort.dispatchOutgoing(intent),
             batchSize,
+            doctorBroadcastMenu: {
+              templatePort: deps.templatePort,
+              contentPort: deps.contentPort,
+              sendMenuOnButtonPress: deps.sendMenuOnButtonPress,
+            },
           });
         } catch (err) {
           logger.error({ err }, 'Outgoing delivery worker tick failed');

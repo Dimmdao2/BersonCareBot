@@ -14,6 +14,7 @@ export const inMemoryBroadcastAuditPort: BroadcastAuditPort = {
       ...entry,
       messageBody: entry.messageBody ?? "",
       deliveryJobsTotal: entry.deliveryJobsTotal ?? 0,
+      attachMenuAfterSend: entry.attachMenuAfterSend ?? false,
       id,
       executedAt,
     };

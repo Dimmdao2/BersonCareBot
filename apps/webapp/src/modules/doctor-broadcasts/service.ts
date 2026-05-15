@@ -72,6 +72,7 @@ export function createDoctorBroadcastsService(deps: DoctorBroadcastsServiceDeps)
         effectiveClients,
         channels,
         messageText: messageBody,
+        attachMenu: command.attachMenuAfterSend === true,
       });
       const auditBase = {
         actorId: command.actorId,
@@ -83,6 +84,7 @@ export function createDoctorBroadcastsService(deps: DoctorBroadcastsServiceDeps)
         previewOnly: false,
         audienceSize,
         deliveryJobsTotal: jobs.length,
+        attachMenuAfterSend: command.attachMenuAfterSend === true,
         sentCount: 0,
         errorCount: 0,
       };

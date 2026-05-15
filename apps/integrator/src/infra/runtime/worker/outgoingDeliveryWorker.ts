@@ -18,11 +18,16 @@ import {
   resetStaleOutgoingDeliveryProcessing,
   type OutgoingDeliveryQueueRow,
 } from '../../db/repos/outgoingDeliveryQueue.js';
+import {
+  enrichDoctorBroadcastIntentIfNeeded,
+  type DoctorBroadcastMenuWorkerDeps,
+} from './doctorBroadcastIntentMenu.js';
 
 export type OutgoingDeliveryWorkerDeps = {
   db: DbPort;
   writePort: DbWritePort;
   dispatchOutgoing: (intent: OutgoingIntent) => Promise<DeliverySendResult>;
+  doctorBroadcastMenu?: DoctorBroadcastMenuWorkerDeps;
 };
 
 function asChatIdFromRecipient(recipient: unknown): number | null {
@@ -177,7 +182,7 @@ export async function processOutgoingDeliveryRow(
   row: OutgoingDeliveryQueueRow,
   deps: OutgoingDeliveryWorkerDeps,
 ): Promise<void> {
-  const { db, writePort, dispatchOutgoing } = deps;
+  const { db, writePort, dispatchOutgoing, doctorBroadcastMenu } = deps;
   const intent = parseIntentFromPayload(row.payloadJson);
   if (!intent) {
     await markOutgoingDeliveryDead(db, row.id, 'BAD_PAYLOAD');
@@ -325,7 +330,16 @@ export async function processOutgoingDeliveryRow(
     }
     const maskedRecipient = maskRecipientForDoctorBroadcastLog(row.channel, intent);
     try {
-      await dispatchOutgoing(intent);
+      const toSend =
+        doctorBroadcastMenu !== undefined
+          ? await enrichDoctorBroadcastIntentIfNeeded({
+              db,
+              row,
+              intent,
+              menu: doctorBroadcastMenu,
+            })
+          : intent;
+      await dispatchOutgoing(toSend);
       await markOutgoingDeliverySent(db, row.id);
       await db.query(`UPDATE public.broadcast_audit SET sent_count = sent_count + 1 WHERE id = $1::uuid`, [
         broadcastAuditId,
@@ -372,6 +386,7 @@ export async function runOutgoingDeliveryWorkerTick(input: {
   writePort: DbWritePort;
   dispatchOutgoing: (intent: OutgoingIntent) => Promise<DeliverySendResult>;
   batchSize: number;
+  doctorBroadcastMenu?: DoctorBroadcastMenuWorkerDeps;
 }): Promise<{ claimed: number; processed: number; errors: number }> {
   await resetStaleOutgoingDeliveryProcessing(input.db, 10);
   const rows = await claimDueOutgoingDeliveries(input.db, input.batchSize);
@@ -383,6 +398,9 @@ export async function runOutgoingDeliveryWorkerTick(input: {
         db: input.db,
         writePort: input.writePort,
         dispatchOutgoing: input.dispatchOutgoing,
+        ...(input.doctorBroadcastMenu !== undefined
+          ? { doctorBroadcastMenu: input.doctorBroadcastMenu }
+          : {}),
       });
       processed += 1;
     } catch (err) {

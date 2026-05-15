@@ -11,6 +11,7 @@ import type {
 } from "@/modules/doctor-broadcasts/ports";
 import { BROADCAST_PLANNED_CHANNELS } from "@/modules/doctor-broadcasts/broadcastChannels";
 import { CATEGORY_LABELS, CHANNEL_LABELS, isAudienceEstimateApproximate } from "./labels";
+import { LabeledSwitch } from "@/components/common/form/LabeledSwitch";
 import { BroadcastAudienceSelect } from "./BroadcastAudienceSelect";
 import { BroadcastConfirmStep } from "./BroadcastConfirmStep";
 import { BroadcastSentMessage } from "./BroadcastSentMessage";
@@ -36,6 +37,7 @@ export function BroadcastForm({ onBroadcastSent }: Props) {
   const [audience, setAudience] = useState<BroadcastAudienceFilter | "">("");
   const [channelBot, setChannelBot] = useState(true);
   const [channelSms, setChannelSms] = useState(true);
+  const [attachMenuAfterSend, setAttachMenuAfterSend] = useState(false);
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
 
@@ -52,6 +54,7 @@ export function BroadcastForm({ onBroadcastSent }: Props) {
       audienceFilter: audience,
       message: { title: title.trim(), body: body.trim() },
       channels,
+      attachMenuAfterSend: attachMenuAfterSend && channelBot,
     };
   }
 
@@ -106,6 +109,7 @@ export function BroadcastForm({ onBroadcastSent }: Props) {
     setAudience("");
     setChannelBot(true);
     setChannelSms(true);
+    setAttachMenuAfterSend(false);
     setTitle("");
     setBody("");
     setPreview(null);
@@ -227,6 +231,13 @@ export function BroadcastForm({ onBroadcastSent }: Props) {
           </label>
         ))}
       </fieldset>
+
+      <LabeledSwitch
+        label="Прикрепить / обновить меню"
+        checked={attachMenuAfterSend}
+        onCheckedChange={setAttachMenuAfterSend}
+        disabled={isFormLocked || !channelBot}
+      />
 
       <div className="flex flex-col gap-1.5">
         <label htmlFor="broadcast-title" className="text-sm font-medium">

@@ -45,9 +45,13 @@
 **`execute`** (сервис `doctor-broadcasts`):
 
 1. Собирает текст сообщения (заголовок + тело, с усечением по лимиту в `deliveryJobs.ts`).
-2. Генерирует `auditId`, строит плоский список заданий (`buildDoctorBroadcastDeliveryJobs`) с `event_id` и `payload_json` (`intent` + `broadcastAuditId` + опционально `clientUserId`).
+2. Генерирует `auditId`, строит плоский список заданий (`buildDoctorBroadcastDeliveryJobs`) с `event_id` и `payload_json` (`intent` + `broadcastAuditId` + `clientUserId` + флаг **`attachMenu`** при включённой опции меню).
 3. Ограничение **`MAX_BROADCAST_DELIVERY_JOBS`** — при превышении ошибка до транзакции.
-4. **`commitAuditAndDeliveryQueue`**: `INSERT broadcast_audit` (в т.ч. `message_body`, `delivery_jobs_total`) + для каждой строки очереди — `INSERT … ON CONFLICT (event_id) DO NOTHING` в `outgoing_delivery_queue`; если вставка строки не произошла (`rowCount ≠ 1`, дубликат `event_id` или иной сбой) — **откат всей транзакции** (в т.ч. запись `broadcast_audit` не фиксируется).
+4. **`commitAuditAndDeliveryQueue`**: `INSERT broadcast_audit` (в т.ч. `message_body`, `delivery_jobs_total`, **`attach_menu_after_send`**) + для каждой строки очереди — `INSERT … ON CONFLICT (event_id) DO NOTHING` в `outgoing_delivery_queue`; если вставка строки не произошла (`rowCount ≠ 1`, дубликат `event_id` или иной сбой) — **откат всей транзакции** (в т.ч. запись `broadcast_audit` не фиксируется).
+
+### Меню в чате (опция формы)
+
+Переключатель **«Прикрепить / обновить меню»** (по умолчанию выкл., действует только если выбран канал «сообщение в боте»): в аудит пишется **`broadcast_audit.attach_menu_after_send`**, в каждую строку очереди — **`payload_json.attachMenu`**. Воркер integrator (`doctorBroadcastIntentMenu`) перед **`dispatchOutgoing`** обогащает `message.send` той же разметкой, что и обычная доставка в **`delivery.ts`** (reply keyboard в Telegram при **`sendMenuOnButtonPress`** и привязанном телефоне; для MAX — inline `menus.main` при `linkedPhone` и числовом `chatId`, как в доменном обработчике). Глобальные команды меню BotFather / MAX setup из воркера **не** вызываются. SMS-задания не получают клавиатуру.
 
 Массовая доставка **не** идёт через HTTP **`relay-outbound`**: воркер integrator в штатном цикле **`runOutgoingDeliveryWorkerTick`** вызывает **`dispatchOutgoing`** по строкам с `kind = doctor_broadcast_intent` (см. `apps/integrator/src/infra/runtime/worker/outgoingDeliveryWorker.ts`).
 
@@ -58,6 +62,7 @@
 | `audience_size` | Число клиентов в эффективной выборке (когорта + dev_mode). |
 | `delivery_jobs_total` | Число строк очереди для этой рассылки; **0** — запись до внедрения очереди (legacy). |
 | `sent_count` / `error_count` | Инкременты воркера по **завершённым** заданиям очереди (успех / `dead`). |
+| `attach_menu_after_send` | Запрошено ли прикрепление главного меню к исходящим в мессенджер для этой рассылки. |
 
 ## Наблюдаемость
 
