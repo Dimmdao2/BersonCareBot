@@ -3194,8 +3194,58 @@ describe('executeAction', () => {
     });
   });
 
+  describe('reminders.snooze.callback (telegram)', () => {
+    const snoozeCtx: DomainContext = {
+      ...ctx,
+      event: {
+        type: 'callback.received',
+        meta: { eventId: 'evt-snooze', occurredAt: '2026-03-05T12:00:00.000Z', source: 'telegram' },
+        payload: {
+          incoming: {
+            kind: 'callback',
+            chatId: 100,
+            messageId: 55,
+            channelUserId: 777,
+            callbackQueryId: 'cb-snooze-1',
+            action: 'rem_snooze',
+          },
+        },
+      },
+    };
+
+    it('emits callback.answer before message.edit', async () => {
+      const readDb = vi.fn().mockImplementation(async (q: { type: string }) => {
+        if (q.type === 'user.byIdentity') return { userId: 'int-user-snooze' };
+        if (q.type === 'reminders.occurrence.ownerUserId') return 'int-user-snooze';
+        return null;
+      });
+      const writeDb = vi.fn().mockResolvedValue(undefined);
+      const action: Action = {
+        id: 'snooze-1',
+        type: 'reminders.snooze.callback',
+        mode: 'sync',
+        params: {
+          occurrenceId: 'occ-snooze-1',
+          minutes: 15,
+          channelUserId: '777',
+          resource: 'telegram',
+          chatId: 100,
+          messageId: 55,
+          callbackQueryId: 'cb-snooze-1',
+        },
+      };
+      const result = await executeAction(action, snoozeCtx, {
+        readPort: { readDb },
+        writePort: { writeDb },
+      });
+      expect(result.status).toBe('success');
+      expect(result.intents?.map((i) => i.type)).toEqual(['callback.answer', 'message.edit']);
+      expect((result.intents?.[0]?.payload as { callbackQueryId?: string }).callbackQueryId).toBe('cb-snooze-1');
+    });
+  });
+
   describe('reminders.skip.applyPreset (telegram)', () => {
-    it('reason none: marks skipped, ack via message.edit + callback.answer when messageId set', async () => {
+    it('reason none: marks skipped; ack intents are callback.answer then message.edit when messageId set', async () => {
       const readDb = vi.fn().mockImplementation(async (q: { type: string; params?: Record<string, unknown> }) => {
         if (q.type === 'user.byIdentity') {
           expect(q.params).toMatchObject({ resource: 'telegram', externalId: '777' });
@@ -3239,8 +3289,7 @@ describe('executeAction', () => {
         }),
       );
       const types = result.intents?.map((i) => i.type) ?? [];
-      expect(types).toContain('message.edit');
-      expect(types).toContain('callback.answer');
+      expect(types).toEqual(['callback.answer', 'message.edit']);
       const edit = result.intents?.find((i) => i.type === 'message.edit');
       expect(edit && 'payload' in edit ? (edit.payload as { messageId?: unknown }).messageId : null).toBe(9001);
     });
@@ -3276,9 +3325,8 @@ describe('executeAction', () => {
       });
       expect(result.status).toBe('success');
       const types = result.intents?.map((i) => i.type) ?? [];
-      expect(types).toContain('message.send');
+      expect(types).toEqual(['callback.answer', 'message.send']);
       expect(types).not.toContain('message.edit');
-      expect(types).toContain('callback.answer');
       const send = result.intents?.find((i) => i.type === 'message.send');
       expect(send && 'payload' in send ? (send.payload as { message?: { text?: string } }).message?.text : null).toBe(
         'ack no mid',

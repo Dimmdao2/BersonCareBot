@@ -56,6 +56,13 @@ function buildReminderCallbackAckIntents(
   const intents: import('../../../contracts/index.js').OutgoingIntent[] = [];
   const mid = asMessageId(input.messageId);
   const useEdit = mid !== null;
+  if (input.callbackQueryId) {
+    intents.push({
+      type: 'callback.answer',
+      meta: buildIntentMeta(action, ctx),
+      payload: { callbackQueryId: input.callbackQueryId },
+    });
+  }
   if (useEdit) {
     intents.push({
       type: 'message.edit',
@@ -79,13 +86,6 @@ function buildReminderCallbackAckIntents(
         parse_mode: 'HTML',
         delivery: { channels: [input.channel], maxAttempts: 1 },
       },
-    });
-  }
-  if (input.callbackQueryId) {
-    intents.push({
-      type: 'callback.answer',
-      meta: buildIntentMeta(action, ctx),
-      payload: { callbackQueryId: input.callbackQueryId },
     });
   }
   return intents;
@@ -680,6 +680,13 @@ export async function handleReminders(
     const messageId = asMessageId(action.params.messageId) ?? asMessageId(readIncoming(ctx).messageId);
     const callbackQueryId = asString(action.params.callbackQueryId) ?? asString(readIncoming(ctx).callbackQueryId);
     const intents: import('../../../contracts/index.js').OutgoingIntent[] = [];
+    if (callbackQueryId) {
+      intents.push({
+        type: 'callback.answer',
+        meta: buildIntentMeta(action, ctx),
+        payload: { callbackQueryId },
+      });
+    }
     if (messageId !== null) {
       intents.push({
         type: 'message.edit',
@@ -703,13 +710,6 @@ export async function handleReminders(
           ...(replyMarkup.inline_keyboard.length > 0 ? { replyMarkup } : {}),
           delivery: { channels: [src], maxAttempts: 1 },
         },
-      });
-    }
-    if (callbackQueryId) {
-      intents.push({
-        type: 'callback.answer',
-        meta: buildIntentMeta(action, ctx),
-        payload: { callbackQueryId },
       });
     }
     return {
@@ -755,6 +755,13 @@ export async function handleReminders(
       const messageId = asMessageId(action.params.messageId) ?? asMessageId(readIncoming(ctx).messageId);
       const callbackQueryId = asString(action.params.callbackQueryId) ?? asString(readIncoming(ctx).callbackQueryId);
       const intents: import('../../../contracts/index.js').OutgoingIntent[] = [];
+      if (callbackQueryId) {
+        intents.push({
+          type: 'callback.answer',
+          meta: buildIntentMeta(action, ctx),
+          payload: { callbackQueryId },
+        });
+      }
       if (messageId !== null) {
         intents.push({
           type: 'message.edit',
@@ -777,13 +784,6 @@ export async function handleReminders(
             message: { text: prompt },
             delivery: { channels: [src], maxAttempts: 1 },
           },
-        });
-      }
-      if (callbackQueryId) {
-        intents.push({
-          type: 'callback.answer',
-          meta: buildIntentMeta(action, ctx),
-          payload: { callbackQueryId },
         });
       }
       return {

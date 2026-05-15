@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import type { TelegramWebhookBodyValidated } from './schema.js';
 import {
+  incomingCallbackUpdateFromTelegramCallbackQuery,
   normalizeChannelCallbackPayload,
   normalizeTelegramMessageAction,
   telegramReplyTextToMenuAction,
@@ -71,6 +73,50 @@ describe('normalizeChannelCallbackPayload (reminders + question confirm)', () =>
       action: 'q_confirm:no',
       questionConfirm: 'no',
     });
+  });
+});
+
+describe('Telegram callback_query mapper (webhook parity)', () => {
+  function cq(data: string): NonNullable<TelegramWebhookBodyValidated['callback_query']> {
+    return {
+      id: 'cq-x',
+      from: { id: 42, is_bot: false, first_name: 'U' },
+      message: { message_id: 7, chat: { id: 42 } },
+      data,
+    };
+  }
+
+  it('propagates rem_done, rem_skip_r, and diary.symptom.entryType like normalizeChannelCallbackPayload', () => {
+    expect(incomingCallbackUpdateFromTelegramCallbackQuery(cq('rem_done:occ-done'))).toMatchObject({
+      kind: 'callback',
+      action: 'rem_done',
+      reminderOccurrenceId: 'occ-done',
+      channelUserId: 42,
+      messageId: 7,
+      chatId: 42,
+      callbackQueryId: 'cq-x',
+    });
+    expect(incomingCallbackUpdateFromTelegramCallbackQuery(cq('rem_skip_r:occ-s:reason'))).toMatchObject({
+      action: 'rem_skip_r',
+      reminderOccurrenceId: 'occ-s',
+      skipReasonCode: 'reason',
+    });
+    expect(incomingCallbackUpdateFromTelegramCallbackQuery(cq('diary.symptom.entryType:tr-1:5:instant'))).toMatchObject({
+      action: 'diary.symptom.entryType',
+      trackingId: 'tr-1',
+      value: 5,
+      entryType: 'instant',
+    });
+  });
+
+  it('returns null when chat/message/from ids are incomplete', () => {
+    expect(
+      incomingCallbackUpdateFromTelegramCallbackQuery({
+        id: 'x',
+        from: { id: 1, is_bot: false },
+        message: {},
+      } as NonNullable<TelegramWebhookBodyValidated['callback_query']>),
+    ).toBeNull();
   });
 });
 

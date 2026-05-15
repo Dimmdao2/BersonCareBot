@@ -72,9 +72,18 @@ pnpm --dir apps/integrator run test
 
 ### Outgoing delivery worker (рассылки врача)
 
-| Область                                              | Тесты                                                                 | Примечание                                                                                                 |
-| ---------------------------------------------------- | --------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `outgoingDeliveryWorker` / `doctor_broadcast_intent` | `outgoingDeliveryWorker.test.ts`, `doctorBroadcastIntentMenu.test.ts` | Успех/ошибки очереди, spy на `enrichDoctorBroadcastIntentIfNeeded` при `attachMenu`; без живой БД очереди. |
+| Область                                              | Тесты                                                                 | Примечание                                                                                                                                                                       |
+| ---------------------------------------------------- | --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `outgoingDeliveryWorker` / `doctor_broadcast_intent` | `outgoingDeliveryWorker.test.ts`, `doctorBroadcastIntentMenu.test.ts` | Успех/ошибки очереди, spy на `enrichDoctorBroadcastIntentIfNeeded` при `attachMenu`; без живой БД очереди.                                                                       |
+| `reminder_dispatch` stale message delete             | `outgoingDeliveryWorker.test.ts`                                      | MAX и Telegram: `deleteBeforeSendMessageId` / legacy `deleteBeforeSendTelegramMessageId`; ошибка delete не блокирует send; для Telegram добавлен кейс **unified** строкового id. |
+
+### Telegram: prod callback ingress + intent dispatch (2026-05, post-audit)
+
+| Область                                                                 | Тесты                                                                                         | Примечание                                                                                                                                                                      |
+| ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `incomingCallbackUpdateFromTelegramCallbackQuery` + `mapBodyToIncoming` | `mapIn.test.ts` (блок mapper callback), `webhook.test.ts`, `connector.test.ts` (fromTelegram) | Поля `rem_snooze` / diary / admin попадают в `IncomingCallbackUpdate`; единая функция `incomingCallbackPayloadFromNormalized` снижает дрейф относительно `DynamicActionResult`. |
+| `buildReminderCallbackAckIntents` (Telegram/Max)                        | `executeAction.test.ts`                                                                       | `callback.answer` раньше `message.edit` / `message.send` для ack напоминаний.                                                                                                   |
+| `processAcceptedIncomingEvent`                                          | `processAcceptedIncomingEvent.test.ts`                                                        | Per-intent `try/catch`, лог при ошибке; второй intent доставляется после reject первого.                                                                                        |
 
 ---
 
@@ -90,3 +99,4 @@ pnpm --dir apps/integrator run test
 
 - Журнал инициативы: [`LOG.md`](./LOG.md)
 - Инвентаризация сырого SQL / Wave 2: [`RAW_SQL_INVENTORY.md`](./RAW_SQL_INVENTORY.md), [`DRIZZLE_TRANSITION_PLAN.md`](./DRIZZLE_TRANSITION_PLAN.md)
+- Закрытый план фикса Telegram reminder callbacks + dispatch: [`.cursor/plans/archive/telegram_reminder_callback_fix_cf461c6a.plan.md`](../../.cursor/plans/archive/telegram_reminder_callback_fix_cf461c6a.plan.md)

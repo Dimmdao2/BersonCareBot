@@ -7,7 +7,7 @@ import { telegramIncomingToEvent } from './connector.js';
 import { telegramConfig } from './config.js';
 import { buildWebappEntryUrl } from '../webappEntryToken.js';
 import { parseMessengerStartCommand } from '../common/messengerStartParse.js';
-import { normalizeTelegramAction, normalizeTelegramContactPhone, normalizeTelegramMessageAction } from './mapIn.js';
+import { incomingCallbackUpdateFromTelegramCallbackQuery, normalizeTelegramContactPhone, normalizeTelegramMessageAction } from './mapIn.js';
 import { getMessageTypeFromTelegramMessage } from './supportRelayTypes.js';
 import { ensureNoMenuButtonForUser, setupTelegramMenuButton } from './setupMenuButton.js';
 import { parseWebhookBody } from './schema.js';
@@ -110,39 +110,7 @@ export type TelegramWebhookDeps = {
 /** Exported for tests (contact ownership, setphone deep link). */
 export function mapBodyToIncoming(body: TelegramWebhookBodyValidated): IncomingUpdate | null {
   if (body.callback_query) {
-    const callback = body.callback_query;
-    const chatId = callback.message?.chat?.id;
-    const messageId = callback.message?.message_id;
-    const telegramId = callback.from?.id;
-    const action = normalizeTelegramAction(callback.data ?? '');
-    const callbackQueryId = callback.id;
-    if (typeof chatId !== 'number' || typeof messageId !== 'number' || typeof telegramId !== 'number') {
-      return null;
-    }
-    return {
-      kind: 'callback',
-      chatId,
-      messageId,
-      channelUserId: telegramId,
-      action,
-      ...(typeof callback.from?.username === 'string' ? { channelUsername: callback.from.username } : {}),
-      ...(typeof callback.from?.first_name === 'string' ? { channelFirstName: callback.from.first_name } : {}),
-      ...(typeof callback.from?.last_name === 'string' ? { channelLastName: callback.from.last_name } : {}),
-      ...(typeof callback.data === 'string' && callback.data.startsWith('admin_reply:')
-        ? { conversationId: callback.data.slice('admin_reply:'.length) }
-        : {}),
-      ...(typeof callback.data === 'string' && callback.data.startsWith('admin_reply_continue:')
-        ? { conversationId: callback.data.slice('admin_reply_continue:'.length) }
-        : {}),
-      ...(typeof callback.data === 'string' && callback.data.startsWith('admin_close_dialog:')
-        ? { conversationId: callback.data.slice('admin_close_dialog:'.length) }
-        : {}),
-      ...(typeof callback.data === 'string' && callback.data.startsWith('dialogs.view:')
-        ? { conversationId: callback.data.slice('dialogs.view:'.length) }
-        : {}),
-      callbackData: action,
-      callbackQueryId,
-    };
+    return incomingCallbackUpdateFromTelegramCallbackQuery(body.callback_query);
   }
 
   if (body.message?.from && typeof body.message.chat?.id === 'number') {

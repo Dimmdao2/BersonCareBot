@@ -6,9 +6,9 @@
  */
 
 import type {
-  IncomingUpdate,
-  IncomingMessageUpdate,
   IncomingCallbackUpdate,
+  IncomingMessageUpdate,
+  IncomingUpdate,
 } from '../../kernel/domain/types.js';
 import { telegramConfig } from './config.js';
 import type { TelegramWebhookBodyValidated } from './schema.js';
@@ -83,6 +83,43 @@ type DynamicActionResult = {
   skipReasonCode?: string;
   questionConfirm?: 'yes' | 'no';
 };
+
+/**
+ * Поля {@link IncomingCallbackUpdate}, копируемые из {@link DynamicActionResult} (кроме `action`).
+ * При добавлении поля в `DynamicActionResult` для callback — расширить здесь и тип `IncomingCallbackUpdate`.
+ */
+function incomingCallbackPayloadFromNormalized(
+  normalized: DynamicActionResult,
+): Pick<
+  IncomingCallbackUpdate,
+  | 'conversationId'
+  | 'trackingId'
+  | 'value'
+  | 'entryType'
+  | 'complexId'
+  | 'reminderOccurrenceId'
+  | 'reminderSnoozeMinutes'
+  | 'reminderMuteMinutes'
+  | 'reminderMutePreset'
+  | 'skipReasonCode'
+  | 'questionConfirm'
+> {
+  return {
+    ...(typeof normalized.conversationId === 'string' ? { conversationId: normalized.conversationId } : {}),
+    ...(typeof normalized.trackingId === 'string' ? { trackingId: normalized.trackingId } : {}),
+    ...(typeof normalized.value === 'number' ? { value: normalized.value } : {}),
+    ...(typeof normalized.entryType === 'string' ? { entryType: normalized.entryType } : {}),
+    ...(typeof normalized.complexId === 'string' ? { complexId: normalized.complexId } : {}),
+    ...(typeof normalized.reminderOccurrenceId === 'string' ? { reminderOccurrenceId: normalized.reminderOccurrenceId } : {}),
+    ...(typeof normalized.reminderSnoozeMinutes === 'number' ? { reminderSnoozeMinutes: normalized.reminderSnoozeMinutes } : {}),
+    ...(typeof normalized.reminderMuteMinutes === 'number' ? { reminderMuteMinutes: normalized.reminderMuteMinutes } : {}),
+    ...(normalized.reminderMutePreset === 'tomorrow' ? { reminderMutePreset: 'tomorrow' } : {}),
+    ...(typeof normalized.skipReasonCode === 'string' ? { skipReasonCode: normalized.skipReasonCode } : {}),
+    ...(normalized.questionConfirm === 'yes' || normalized.questionConfirm === 'no'
+      ? { questionConfirm: normalized.questionConfirm }
+      : {}),
+  };
+}
 
 /** Разбор callback payload для Telegram и Max (общий формат `callbackData`). */
 export function normalizeChannelCallbackPayload(value: string): DynamicActionResult {
@@ -217,6 +254,37 @@ export type FromTelegramContext = {
 };
 
 /**
+ * Единый разбор `callback_query` для prod webhook и `fromTelegram`.
+ * Должен совпадать с полями {@link IncomingCallbackUpdate}, заполняемыми из {@link normalizeChannelCallbackPayload}.
+ */
+export function incomingCallbackUpdateFromTelegramCallbackQuery(
+  cq: NonNullable<TelegramWebhookBodyValidated['callback_query']>,
+  extras?: { hasLinkedPhone?: boolean },
+): IncomingCallbackUpdate | null {
+  const chatId = cq.message?.chat?.id;
+  const messageId = cq.message?.message_id;
+  const telegramId = cq.from?.id;
+  if (typeof chatId !== 'number' || typeof messageId !== 'number' || typeof telegramId !== 'number') {
+    return null;
+  }
+  const normalized = normalizeChannelCallbackPayload(cq.data ?? '');
+  return {
+    kind: 'callback',
+    chatId,
+    messageId,
+    channelUserId: telegramId,
+    action: normalized.action,
+    ...(typeof extras?.hasLinkedPhone === 'boolean' ? { hasLinkedPhone: extras.hasLinkedPhone } : {}),
+    ...(typeof cq.from.username === 'string' ? { channelUsername: cq.from.username } : {}),
+    ...(typeof cq.from.first_name === 'string' ? { channelFirstName: cq.from.first_name } : {}),
+    ...(typeof cq.from.last_name === 'string' ? { channelLastName: cq.from.last_name } : {}),
+    ...incomingCallbackPayloadFromNormalized(normalized),
+    callbackData: normalized.action,
+    callbackQueryId: cq.id,
+  };
+}
+
+/**
  * Map validated webhook body + context to internal IncomingUpdate.
  */
 export function fromTelegram(
@@ -226,38 +294,9 @@ export function fromTelegram(
   const { userRow, telegramId, userState, hasLinkedPhone } = context;
 
   if (body.callback_query) {
-    const cq = body.callback_query;
-    const chatId = cq.message?.chat?.id;
-    const messageId = cq.message?.message_id;
-    if (typeof chatId !== 'number' || typeof messageId !== 'number') return null;
-    const normalized = normalizeChannelCallbackPayload(cq.data ?? '');
-    const update: IncomingCallbackUpdate = {
-      kind: 'callback',
-      chatId,
-      messageId,
-      channelUserId: cq.from.id,
-      action: normalized.action,
-      ...(typeof hasLinkedPhone === 'boolean' && { hasLinkedPhone }),
-      ...(typeof cq.from.username === 'string' ? { channelUsername: cq.from.username } : {}),
-      ...(typeof cq.from.first_name === 'string' ? { channelFirstName: cq.from.first_name } : {}),
-      ...(typeof cq.from.last_name === 'string' ? { channelLastName: cq.from.last_name } : {}),
-      ...(typeof normalized.conversationId === 'string' ? { conversationId: normalized.conversationId } : {}),
-      ...(typeof normalized.trackingId === 'string' ? { trackingId: normalized.trackingId } : {}),
-      ...(typeof normalized.value === 'number' ? { value: normalized.value } : {}),
-      ...(typeof normalized.entryType === 'string' ? { entryType: normalized.entryType } : {}),
-      ...(typeof normalized.complexId === 'string' ? { complexId: normalized.complexId } : {}),
-      ...(typeof normalized.reminderOccurrenceId === 'string' ? { reminderOccurrenceId: normalized.reminderOccurrenceId } : {}),
-      ...(typeof normalized.reminderSnoozeMinutes === 'number' ? { reminderSnoozeMinutes: normalized.reminderSnoozeMinutes } : {}),
-      ...(typeof normalized.reminderMuteMinutes === 'number' ? { reminderMuteMinutes: normalized.reminderMuteMinutes } : {}),
-      ...(normalized.reminderMutePreset === 'tomorrow' ? { reminderMutePreset: 'tomorrow' } : {}),
-      ...(typeof normalized.skipReasonCode === 'string' ? { skipReasonCode: normalized.skipReasonCode } : {}),
-      ...(normalized.questionConfirm === 'yes' || normalized.questionConfirm === 'no'
-        ? { questionConfirm: normalized.questionConfirm }
-        : {}),
-      callbackData: normalized.action,
-      callbackQueryId: cq.id,
-    };
-    return update;
+    return incomingCallbackUpdateFromTelegramCallbackQuery(body.callback_query, {
+      ...(typeof hasLinkedPhone === 'boolean' ? { hasLinkedPhone } : {}),
+    });
   }
 
   if (body.message?.from && body.message.chat && typeof body.message.chat.id === 'number') {

@@ -117,6 +117,60 @@ describe('mapBodyToIncoming', () => {
       expect(incoming.messageId).toBe(999);
     }
   });
+
+  it('maps rem_snooze callback_data to reminderOccurrenceId and reminderSnoozeMinutes', () => {
+    const occId = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
+    const body = {
+      callback_query: {
+        id: 'cq-rem',
+        from: { id: 100, is_bot: false, first_name: 'U' },
+        message: { message_id: 50, chat: { id: 100 } },
+        data: `rem_snooze:${occId}:15`,
+      },
+    } as TelegramWebhookBodyValidated;
+    const incoming = mapBodyToIncoming(body);
+    expect(incoming?.kind).toBe('callback');
+    if (incoming?.kind === 'callback') {
+      expect(incoming.action).toBe('rem_snooze');
+      expect(incoming.reminderOccurrenceId).toBe(occId);
+      expect(incoming.reminderSnoozeMinutes).toBe(15);
+      expect(incoming.callbackQueryId).toBe('cq-rem');
+    }
+  });
+
+  it('maps diary.symptom.select callback_data to trackingId', () => {
+    const body = {
+      callback_query: {
+        id: 'cq-diary',
+        from: { id: 200, is_bot: false, first_name: 'U' },
+        message: { message_id: 51, chat: { id: 200 } },
+        data: 'diary.symptom.select:track-uuid-1',
+      },
+    } as TelegramWebhookBodyValidated;
+    const incoming = mapBodyToIncoming(body);
+    expect(incoming?.kind).toBe('callback');
+    if (incoming?.kind === 'callback') {
+      expect(incoming.action).toBe('diary.symptom.select');
+      expect(incoming.trackingId).toBe('track-uuid-1');
+    }
+  });
+
+  it('maps admin_reply callback to action and conversationId', () => {
+    const body = {
+      callback_query: {
+        id: 'cq-adm',
+        from: { id: 1, is_bot: false, first_name: 'Admin' },
+        message: { message_id: 1, chat: { id: 1 } },
+        data: 'admin_reply:conv-123',
+      },
+    } as TelegramWebhookBodyValidated;
+    const incoming = mapBodyToIncoming(body);
+    expect(incoming?.kind).toBe('callback');
+    if (incoming?.kind === 'callback') {
+      expect(incoming.action).toBe('admin_reply');
+      expect(incoming.conversationId).toBe('conv-123');
+    }
+  });
 });
 
 describe('registerTelegramWebhookRoutes', () => {

@@ -126,6 +126,47 @@ describe('reminder_dispatch outgoing delivery row', () => {
     });
   });
 
+  it('telegram: deleteBeforeSendMessageId (unified string) before send', async () => {
+    const dispatchOutgoing = vi.fn().mockImplementation(async (intent: { type: string }) => {
+      if (intent.type === 'message.delete') return {};
+      if (intent.type === 'message.send') return { telegramMessageId: 2002 };
+      return {};
+    });
+    const writeDb = vi.fn().mockResolvedValue(undefined);
+    const db = {
+      query: vi.fn().mockResolvedValue({ rows: [{ status: 'queued' }] }),
+    };
+    await processOutgoingDeliveryRow(
+      baseRow({
+        channel: 'telegram',
+        payloadJson: {
+          occurrenceId: 'occ-tg-unified',
+          channel: 'telegram',
+          deliveryLogId: 'rdl:occ-tg-unified:telegram',
+          externalId: '99',
+          logText: 'rem',
+          deleteBeforeSendMessageId: '88',
+          intent: {
+            type: 'message.send',
+            meta: { eventId: 'e-tg-u', occurredAt: '2026-01-01T00:00:00.000Z', source: 'telegram' },
+            payload: {
+              recipient: { chatId: 99 },
+              message: { text: 'Hi' },
+              delivery: { channels: ['telegram'], maxAttempts: 1 },
+            },
+          },
+        },
+      }),
+      { db: db as never, writePort: { writeDb } as never, dispatchOutgoing },
+    );
+    expect(dispatchOutgoing).toHaveBeenCalledTimes(2);
+    expect(dispatchOutgoing.mock.calls[0]?.[0]).toMatchObject({
+      type: 'message.delete',
+      payload: { messageId: 88, recipient: { chatId: 99 } },
+    });
+    expect(dispatchOutgoing.mock.calls[1]?.[0]).toMatchObject({ type: 'message.send' });
+  });
+
   it('max: without stale id dispatches send only once and logs success', async () => {
     const dispatchOutgoing = vi.fn().mockImplementation(async (intent: { type: string }) => {
       if (intent.type === 'message.send') return { maxMessageId: 'mid-only-send' };
