@@ -28,3 +28,9 @@
 - **Тесты:** моки `getIntegratorDrizzleSession` в `projectionOutbox.test.ts`, `jobQueuePort.test.ts`; `projectionFanout.test.ts` и writePort-тесты — `stubIntegratorDrizzleForTests(capture)` на **корневом** `DbPort` (fanout после TX вызывает enqueue на root `db`); в stub добавлен **`onConflictDoUpdate`** для `mailing_logs` в том же tx.
 - **Проверки:** `pnpm --dir apps/integrator run typecheck`, `pnpm --dir apps/integrator run test`.
 - **Вне этапа 2:** сырой SQL в `projectionHealth.ts`, `mergeIntegratorUsers.ts` (projection payload), `scripts/projection-health.mjs` — без изменений в этом этапе.
+
+### Постаудит этапа 2 (2026-05-15)
+
+- **`rubitime_create_retry_jobs`:** отмена pending/processing jobs по `bookingId` (напоминания при отмене записи) перенесена из сырого SQL в `recordM2mRoute.ts` в репозиторий — `cancelPendingBookingReminderJobsByBookingId` в `repos/jobQueue.ts` (Drizzle `update` + `and` / `inArray` / `eq` / `sql` по JSON path), единый канал с остальной очередью.
+- **Тесты:** удалены мёртвые ветки перехвата `INSERT INTO projection_outbox` через `db.query` в writePort-тестах; `stubIntegratorDrizzleForTests` — capture только для `insert(projectionOutbox)`; assert на наличие `FOR UPDATE SKIP LOCKED` в аргументе `execute` для claim в `projectionOutbox.test.ts` и `jobQueuePort.test.ts`; добавлен `jobQueue.test.ts` на cancel; в `recordM2mRoute.test.ts` мок `jobQueue.js` расширен экспортом `cancelPendingBookingReminderJobsByBookingId`.
+- **План:** `.cursor/plans/integrator_drizzle_phase_2_outbox_job_queue.plan.md` — todo `p2-audit-hardening`, секция «Постаудит», уточнение формулировки про эквивалентность claim-SQL.

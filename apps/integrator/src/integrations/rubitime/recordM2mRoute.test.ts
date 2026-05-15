@@ -15,12 +15,14 @@ vi.mock('./postCreateProjection.js', () => ({
 }));
 
 const enqueueMessageRetryJob = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
+const cancelPendingBookingReminderJobsByBookingId = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 const dbQuery = vi.hoisted(() => vi.fn().mockResolvedValue({ rows: [] }));
 const getTargetsByPhone = vi.hoisted(() => vi.fn().mockResolvedValue(null));
 const resolveBookingProfile = vi.hoisted(() => vi.fn().mockResolvedValue(null));
 
 vi.mock('../../infra/db/repos/jobQueue.js', () => ({
   enqueueMessageRetryJob,
+  cancelPendingBookingReminderJobsByBookingId,
 }));
 
 vi.mock('../../infra/db/client.js', () => ({
@@ -107,6 +109,7 @@ describe('Rubitime record M2M routes', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     enqueueMessageRetryJob.mockClear();
+    cancelPendingBookingReminderJobsByBookingId.mockClear();
     dbQuery.mockClear();
     getTargetsByPhone.mockResolvedValue(null);
     resolveBookingProfile.mockResolvedValue(null);
@@ -164,6 +167,7 @@ describe('Rubitime record M2M routes', () => {
 describe('POST /api/bersoncare/rubitime/booking-event', () => {
   beforeEach(() => {
     enqueueMessageRetryJob.mockClear();
+    cancelPendingBookingReminderJobsByBookingId.mockClear();
     dbQuery.mockClear();
     getTargetsByPhone.mockResolvedValue(null);
   });

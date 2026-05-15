@@ -31,6 +31,12 @@ todos:
   - id: p2-verify
     content: apps/integrator typecheck + test; запись в docs/INTEGRATOR_DRIZZLE_MIGRATION/LOG.md.
     status: completed
+  - id: p2-audit-hardening
+    content: >-
+      Постаудит: cancel retry jobs по bookingId через jobQueue + Drizzle; stub insert(table)
+      с capture только для projectionOutbox; удалены мёртвые writePort-моки projection_outbox;
+      assert FOR UPDATE SKIP LOCKED в projectionOutbox/jobQueuePort тестах; jobQueue.test.ts.
+    status: completed
 isProject: false
 ---
 
@@ -58,9 +64,15 @@ isProject: false
 - Изменение частоты воркеров/scheduler systemd, конфиг backoff в БД/UI.
 - Функциональные изменения статус-машины (новые статусы, другая ключевость dedup).
 
+## Постаудит (выполнено после закрытия этапа 2)
+
+- Единая запись в `rubitime_create_retry_jobs` для отмены напоминаний: `cancelPendingBookingReminderJobsByBookingId` в [`jobQueue.ts`](../../apps/integrator/src/infra/db/repos/jobQueue.ts), вызов из [`recordM2mRoute.ts`](../../apps/integrator/src/integrations/rubitime/recordM2mRoute.ts) вместо сырого `db.query(UPDATE …)`.
+- Тестовые моки: `stubIntegratorDrizzleForTests` — `insert(table)`; capture только при `table === projectionOutbox`.
+- Удалены неиспользуемые ветки `projection_outbox` в `db.query` моках writePort-тестов (enqueue идёт через Drizzle).
+
 ## Технические требования
 
-1. **`claimDueProjectionEvents` / `claimDueMessageRetryJobs`:** семантика «выбрать due-строки с блокировкой и обновить одним statement» сохранена через **`db.execute(sql\`…\`)`** (тот же текст запроса, параметр `LIMIT` через placeholder Drizzle `${lim}`).
+1. **`claimDueProjectionEvents` / `claimDueMessageRetryJobs`:** семантика «выбрать due-строки с блокировкой и обновить одним statement» сохранена через **`db.execute(sql\`…\`)`** (эквивалентный SQL одному legacy statement; `LIMIT` параметризован через `${lim}` в шаблоне Drizzle).
 2. **`INSERT … ON CONFLICT DO NOTHING`** (outbox dedup по `idempotency_key`): `onConflictDoNothing({ target: projectionOutbox.idempotencyKey })`.
 3. **Интервалы retry** (`now() + (($n::text || ' seconds')::interval)`): в `update`/`insert` через `sql\`now() + (${String(n)}::text || ' seconds')::interval\``.
 4. **`RETURNING` алиасы** camelCase совпадают с типами `ProjectionOutboxRow`, `MessageRetryJobRow`.
@@ -76,3 +88,4 @@ isProject: false
 - [x] Все экспортируемые функции двух файлов используют Drizzle и/или `execute(sql)` без `db.query('...')`.
 - [x] Наблюдаемое поведение воркеров не менялось (claim — один statement; enqueue dedup — ON CONFLICT DO NOTHING).
 - [x] Мастер-план todo `phase-2` — `completed`.
+- [x] Постаудит: отмена retry jobs по booking через `jobQueue`; усилены assert на claim-SQL; чистка writePort-моков.

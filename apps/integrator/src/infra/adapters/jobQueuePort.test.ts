@@ -6,6 +6,20 @@ vi.mock('../db/drizzle.js', () => ({
   getIntegratorDrizzleSession: vi.fn(),
 }));
 
+function drizzleSqlNodeToText(node: unknown): string {
+  if (node === null || node === undefined) return '';
+  if (typeof node === 'string' || typeof node === 'number' || typeof node === 'boolean') return String(node);
+  if (typeof node !== 'object') return '';
+  const rec = node as Record<string, unknown>;
+  if (Array.isArray(rec.queryChunks)) {
+    return rec.queryChunks.map(drizzleSqlNodeToText).join('');
+  }
+  if (Array.isArray(rec.value)) {
+    return rec.value.map(drizzleSqlNodeToText).join('');
+  }
+  return '';
+}
+
 describe('createPostgresJobQueue', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -107,6 +121,7 @@ describe('createPostgresJobQueue', () => {
 
     expect(jobs).toHaveLength(1);
     expect(execute).toHaveBeenCalledTimes(1);
+    expect(drizzleSqlNodeToText(execute.mock.calls[0]![0])).toMatch(/FOR UPDATE SKIP LOCKED/i);
     expect(jobs[0]).toMatchObject({
       kind: 'message.deliver',
       runAt: '2026-03-10T10:00:00.000Z',

@@ -13,6 +13,21 @@ vi.mock('../drizzle.js', () => ({
   getIntegratorDrizzleSession: vi.fn(),
 }));
 
+/** Литералы из Drizzle `sql` для assert на claim без `toQuery` диалекта. */
+function drizzleSqlNodeToText(node: unknown): string {
+  if (node === null || node === undefined) return '';
+  if (typeof node === 'string' || typeof node === 'number' || typeof node === 'boolean') return String(node);
+  if (typeof node !== 'object') return '';
+  const rec = node as Record<string, unknown>;
+  if (Array.isArray(rec.queryChunks)) {
+    return rec.queryChunks.map(drizzleSqlNodeToText).join('');
+  }
+  if (Array.isArray(rec.value)) {
+    return rec.value.map(drizzleSqlNodeToText).join('');
+  }
+  return '';
+}
+
 describe('projectionOutbox', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -72,6 +87,7 @@ describe('projectionOutbox', () => {
 
     expect(result).toHaveLength(1);
     expect(execute).toHaveBeenCalledTimes(1);
+    expect(drizzleSqlNodeToText(execute.mock.calls[0]![0])).toMatch(/FOR UPDATE SKIP LOCKED/i);
   });
 
   it('completeProjectionEvent sets status to done', async () => {

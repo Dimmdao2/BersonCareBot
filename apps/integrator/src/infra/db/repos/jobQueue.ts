@@ -1,4 +1,4 @@
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import type { DbPort } from '../../../kernel/contracts/index.js';
 import { getIntegratorDrizzleSession } from '../drizzle.js';
 import { rubitimeCreateRetryJobs } from '../schema/integratorQueues.js';
@@ -37,7 +37,7 @@ export async function enqueueMessageRetryJob(db: DbPort, input: {
 }
 
 /**
- * Claim: CTE + UPDATE … FOR UPDATE SKIP LOCKED — идентичный legacy SQL, `execute(sql)`.
+ * Claim: CTE + UPDATE … FOR UPDATE SKIP LOCKED — та же семантика, что и legacy SQL, через `execute(sql)`.
  */
 export async function claimDueMessageRetryJobs(db: DbPort, limit: number): Promise<MessageRetryJobRow[]> {
   const d = getIntegratorDrizzleSession(db);
@@ -109,4 +109,25 @@ export async function failMessageRetryJob(db: DbPort, input: { id: number; lastE
       updatedAt: sql`now()`,
     })
     .where(eq(rubitimeCreateRetryJobs.id, input.id));
+}
+
+/**
+ * Отмена напоминаний по записи: те же фильтры, что и legacy `UPDATE … WHERE payload_json->'booking'->>'bookingId'`.
+ */
+export async function cancelPendingBookingReminderJobsByBookingId(db: DbPort, bookingId: string): Promise<void> {
+  const d = getIntegratorDrizzleSession(db);
+  await d
+    .update(rubitimeCreateRetryJobs)
+    .set({
+      status: 'dead',
+      lastError: 'booking_cancelled',
+      updatedAt: sql`now()`,
+    })
+    .where(
+      and(
+        inArray(rubitimeCreateRetryJobs.status, ['pending', 'processing']),
+        eq(rubitimeCreateRetryJobs.kind, 'message.deliver'),
+        sql`${rubitimeCreateRetryJobs.payloadJson}->'booking'->>'bookingId' = ${bookingId}`,
+      ),
+    );
 }

@@ -17,17 +17,6 @@ describe('writePort communication projection events', () => {
       if (typeof sql === 'string' && sql.includes('merged_into_user_id') && sql.includes('FROM users')) {
         return { rows: [{ merged_into_user_id: null }] } as Awaited<ReturnType<DbPort['query']>>;
       }
-      if (typeof sql === 'string' && sql.includes('projection_outbox')) {
-        const [eventType, idempotencyKey, _occurredAt, payloadJson] = params as [string, string, string, string];
-        let payload: unknown = {};
-        try {
-          payload = JSON.parse(payloadJson) as Record<string, unknown>;
-        } catch {
-          // ignore
-        }
-        capture.projectionInserts.push({ eventType, idempotencyKey, payload });
-        return { rows: [] } as Awaited<ReturnType<DbPort['query']>>;
-      }
       if (typeof sql === 'string' && sql.includes('user_identity_id') && sql.includes('FROM conversations')) {
         return { rows: [{ user_identity_id: '42' }] } as Awaited<ReturnType<DbPort['query']>>;
       }

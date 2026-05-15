@@ -37,15 +37,6 @@ function makeMockDb(capture: {
     if (sql.includes("merged_into_user_id") && sql.includes("FROM users")) {
       return { rows: [{ merged_into_user_id: null }] } as Awaited<ReturnType<DbPort["query"]>>;
     }
-    if (sql.includes("projection_outbox")) {
-      const [eventType, idempotencyKey, _occurredAt, payloadJson] = params as [string, string, string, string];
-      capture.projectionInserts.push({
-        eventType,
-        idempotencyKey,
-        payload: JSON.parse(payloadJson) as Record<string, unknown>,
-      });
-      return { rows: [] } as Awaited<ReturnType<DbPort["query"]>>;
-    }
 
     // telegram upsertUser() final SELECT
     if (sql.includes("SELECT ri.user_id::text AS id")) {
@@ -206,15 +197,6 @@ describe("writePort user.upsert projection payload", () => {
       }
       if (sql.includes("merged_into_user_id") && sql.includes("FROM users")) {
         return { rows: [{ merged_into_user_id: null }] } as Awaited<ReturnType<DbPort["query"]>>;
-      }
-      if (sql.includes("projection_outbox")) {
-        const [eventType, idempotencyKey, _occurredAt, payloadJson] = params as [string, string, string, string];
-        capture.projectionInserts.push({
-          eventType,
-          idempotencyKey,
-          payload: JSON.parse(payloadJson) as Record<string, unknown>,
-        });
-        return { rows: [] } as Awaited<ReturnType<DbPort["query"]>>;
       }
       if (sql.includes("FROM identities i") && sql.includes("i.resource = $2")) {
         return { rows: [{ user_id: "uid-tg" }], rowCount: 1 } as Awaited<ReturnType<DbPort["query"]>>;

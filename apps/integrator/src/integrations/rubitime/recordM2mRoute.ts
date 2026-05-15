@@ -7,7 +7,10 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { logger } from '../../infra/observability/logger.js';
 import { getAppBaseUrl } from '../../config/appBaseUrl.js';
 import { createDbPort } from '../../infra/db/client.js';
-import { enqueueMessageRetryJob } from '../../infra/db/repos/jobQueue.js';
+import {
+  cancelPendingBookingReminderJobsByBookingId,
+  enqueueMessageRetryJob,
+} from '../../infra/db/repos/jobQueue.js';
 import { createDeliveryTargetsPort } from '../../infra/adapters/deliveryTargetsPort.js';
 import { PATIENT_NOTIFICATION_TOPIC_APPOINTMENT_REMINDERS } from '../../kernel/domain/reminders/patientNotificationTopics.js';
 import type { DbWritePort, DispatchPort, WebappEventsPort } from '../../kernel/contracts/index.js';
@@ -210,16 +213,7 @@ async function sendDoctorMessage(dispatchPort: DispatchPort, text: string, event
 
 async function cancelPendingBookingReminders(bookingId: string): Promise<void> {
   const db = createDbPort();
-  await db.query(
-    `UPDATE rubitime_create_retry_jobs
-        SET status = 'dead',
-            last_error = 'booking_cancelled',
-            updated_at = now()
-      WHERE status IN ('pending', 'processing')
-        AND kind = 'message.deliver'
-        AND payload_json -> 'booking' ->> 'bookingId' = $1`,
-    [bookingId],
-  );
+  await cancelPendingBookingReminderJobsByBookingId(db, bookingId);
 }
 
 async function scheduleBookingReminders(input: {
