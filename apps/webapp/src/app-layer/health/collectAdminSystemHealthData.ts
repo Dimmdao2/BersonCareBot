@@ -18,8 +18,7 @@ import {
 import { getPool } from "@/app-layer/db/client";
 import { proxyIntegratorProjectionHealth } from "@/app-layer/health/proxyIntegratorProjectionHealth";
 import { getConfigBool } from "@/modules/system-settings/configAdapter";
-import type { OperatorIncidentOpenRow } from "@/modules/operator-health/ports";
-import type { IntegratorPushOutboxHealthSnapshot } from "@/modules/operator-health/ports";
+import type { IntegratorPushOutboxHealthSnapshot, OperatorIncidentOpenRow } from "@/modules/operator-health/ports";
 import { classifyIntegratorPushOutboxSystemHealthStatus } from "@/modules/operator-health/integratorPushOutboxHealth";
 import { writeAuditLogDedupeOpenConflictKey } from "@/infra/adminAuditLog";
 import {
@@ -1123,6 +1122,7 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
   logProbe("operator_incidents", operatorHealthResult, operatorIncidentsProbeStatus);
   logProbe("operator_backup_jobs", operatorHealthResult, backupJobsProbeStatus);
   logProbe("outgoing_delivery", operatorHealthResult, outgoingDeliveryProbeStatus);
+  logProbe("integrator_push_outbox", operatorHealthResult, integratorPushOutboxProbeStatus);
 
   return response;
 }

@@ -6,12 +6,13 @@ import {
 } from "./adminIncidentAlertConfig";
 
 describe("parseAdminIncidentAlertConfig", () => {
-  it("defaults all v1 topics and channels to true", () => {
+  it("defaults identity v1 topics and channels to true except system_health_db_guard", () => {
     const c = parseAdminIncidentAlertConfig(null);
     expect(c.channels.telegram).toBe(true);
     expect(c.channels.max).toBe(true);
     expect(c.topics.channel_link).toBe(true);
     expect(c.topics.messenger_phone_bind_anomaly).toBe(true);
+    expect(c.topics.system_health_db_guard).toBe(false);
   });
 
   it("honors partial topic overrides and ignores unknown topic keys", () => {
@@ -25,6 +26,7 @@ describe("parseAdminIncidentAlertConfig", () => {
     expect(c.topics.auto_merge_conflict).toBe(true);
     expect(c.channels.telegram).toBe(false);
     expect(c.channels.max).toBe(true);
+    expect(c.topics.system_health_db_guard).toBe(false);
   });
 
   it("treats broken JSON root as defaults", () => {
@@ -61,6 +63,7 @@ describe("normalizeAdminIncidentAlertConfigForAdminPatch", () => {
         auto_merge_conflict_anomaly: true,
         messenger_phone_bind_blocked: false,
         messenger_phone_bind_anomaly: true,
+        system_health_db_guard: true,
       },
       channels: { telegram: true, max: false },
     };
@@ -68,6 +71,7 @@ describe("normalizeAdminIncidentAlertConfigForAdminPatch", () => {
     expect(r.ok).toBe(true);
     if (r.ok) {
       expect(r.value.topics.channel_link).toBe(false);
+      expect(r.value.topics.system_health_db_guard).toBe(true);
       expect(r.value.channels.max).toBe(false);
     }
   });
@@ -87,6 +91,7 @@ describe("normalizeAdminIncidentAlertConfigForAdminPatch", () => {
     if (r.ok) {
       expect(r.value.topics.messenger_phone_bind_anomaly).toBe(true);
       expect(r.value.topics.channel_link).toBe(false);
+      expect(r.value.topics.system_health_db_guard).toBe(false);
     }
   });
 
@@ -102,6 +107,7 @@ describe("normalizeAdminIncidentAlertConfigForAdminPatch", () => {
       expect(r.value.topics.channel_link).toBe(false);
       expect(r.value.topics.auto_merge_conflict).toBe(true);
       expect(r.value.topics.messenger_phone_bind_anomaly).toBe(true);
+      expect(r.value.topics.system_health_db_guard).toBe(false);
     }
   });
 
@@ -113,6 +119,7 @@ describe("normalizeAdminIncidentAlertConfigForAdminPatch", () => {
         auto_merge_conflict_anomaly: true,
         messenger_phone_bind_blocked: true,
         messenger_phone_bind_anomaly: true,
+        system_health_db_guard: false,
       },
       channels: { telegram: false, future_flag: true },
     });
@@ -130,6 +137,7 @@ describe("normalizeAdminIncidentAlertConfigForAdminPatch", () => {
         auto_merge_conflict_anomaly: true,
         messenger_phone_bind_blocked: true,
         messenger_phone_bind_anomaly: true,
+        system_health_db_guard: false,
       },
       channels: { telegram: true, max: true },
     });

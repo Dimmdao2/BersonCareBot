@@ -1,4 +1,5 @@
 import { ADMIN_DELIVERY_DUE_BACKLOG_WARNING } from "@/modules/operator-health/adminHealthThresholds";
+import { classifyIntegratorPushOutboxSystemHealthStatus } from "@/modules/operator-health/integratorPushOutboxHealth";
 import { collectAdminSystemHealthData, type SystemHealthResponse } from "./collectAdminSystemHealthData";
 
 const SYSTEM_HEALTH_HREF = "/app/settings?adminTab=system-health";
@@ -30,6 +31,7 @@ export function adminDoctorTodayHealthBannerFromSystemHealth(s: SystemHealthResp
   if (s.operatorIncidentsOpen.length > 0) return BANNER_ON;
   const od = s.outgoingDelivery;
   if (od.deadTotal > 0 || od.dueBacklog >= ADMIN_DELIVERY_DUE_BACKLOG_WARNING) return BANNER_ON;
+  if (classifyIntegratorPushOutboxSystemHealthStatus(s.integratorPushOutbox) !== "ok") return BANNER_ON;
   return { show: false };
 }
 

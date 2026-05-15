@@ -34,6 +34,17 @@ const zeroOutgoingSnapshot = {
   lastQueueActivityAt: null as string | null,
 };
 
+const zeroIntegratorPushOutboxSnapshot = {
+  dueBacklog: 0,
+  deadTotal: 0,
+  oldestDueAgeSeconds: null as number | null,
+  dueByKind: {} as Record<string, number>,
+  deadByKind: {} as Record<string, number>,
+  processingCount: 0,
+  oldestProcessingAgeSeconds: null as number | null,
+  lastQueueActivityAt: null as string | null,
+};
+
 const {
   requireAdminModeSessionMock,
   checkDbHealthMock,
@@ -51,6 +62,7 @@ const {
   listOpenIncidentsMock,
   listBackupJobStatusMock,
   getOutgoingDeliveryQueueHealthMock,
+  getIntegratorPushOutboxHealthMock,
   getOperatorJobStatusMock,
 } = vi.hoisted(() => ({
   requireAdminModeSessionMock: vi.fn(),
@@ -72,6 +84,7 @@ const {
   listOpenIncidentsMock: vi.fn(),
   listBackupJobStatusMock: vi.fn(),
   getOutgoingDeliveryQueueHealthMock: vi.fn(),
+  getIntegratorPushOutboxHealthMock: vi.fn(),
   getOperatorJobStatusMock: vi.fn(),
 }));
 
@@ -80,6 +93,9 @@ function mockPoolPreviewOnly() {
   poolQueryMock.mockImplementation((sql: string) => {
     if (typeof sql === "string" && sql.includes("stale_pending_count")) {
       return Promise.resolve({ rows: [{ stale_pending_count: "0" }] });
+    }
+    if (typeof sql === "string" && sql.includes("INSERT INTO admin_audit_log")) {
+      return Promise.resolve({ rows: [], rowCount: 1 });
     }
     return Promise.resolve({ rows: [] });
   });
@@ -99,6 +115,7 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
       listBackupJobStatus: listBackupJobStatusMock,
       getOperatorJobStatus: getOperatorJobStatusMock,
       getOutgoingDeliveryQueueHealth: getOutgoingDeliveryQueueHealthMock,
+      getIntegratorPushOutboxHealth: getIntegratorPushOutboxHealthMock,
     },
   })),
 }));
@@ -210,10 +227,12 @@ describe("GET /api/admin/system-health", () => {
     listOpenIncidentsMock.mockReset();
     listBackupJobStatusMock.mockReset();
     getOutgoingDeliveryQueueHealthMock.mockReset();
+    getIntegratorPushOutboxHealthMock.mockReset();
     getOperatorJobStatusMock.mockReset();
     listOpenIncidentsMock.mockResolvedValue([]);
     listBackupJobStatusMock.mockResolvedValue([]);
     getOutgoingDeliveryQueueHealthMock.mockResolvedValue({ ...zeroOutgoingSnapshot });
+    getIntegratorPushOutboxHealthMock.mockResolvedValue({ ...zeroIntegratorPushOutboxSnapshot });
     getOperatorJobStatusMock.mockResolvedValue(null);
     globalThis.fetch = originalFetch;
   });
@@ -272,6 +291,7 @@ describe("GET /api/admin/system-health", () => {
       operatorIncidentsOpen: unknown[];
       backupJobs: Record<string, unknown>;
       outgoingDelivery: typeof zeroOutgoingSnapshot;
+      integratorPushOutbox: typeof zeroIntegratorPushOutboxSnapshot;
       meta?: {
         probes?: {
           projection?: { status: string; durationMs: number };
@@ -280,6 +300,7 @@ describe("GET /api/admin/system-health", () => {
           operatorIncidents?: { status: string; durationMs: number; errorCode?: string };
           operatorBackupJobs?: { status: string; durationMs: number; errorCode?: string };
           outgoingDelivery?: { status: string; durationMs: number; errorCode?: string };
+          integratorPushOutbox?: { status: string; durationMs: number; errorCode?: string };
         };
       };
       fetchedAt: string;
@@ -304,9 +325,11 @@ describe("GET /api/admin/system-health", () => {
     expect(body.operatorIncidentsOpen).toEqual([]);
     expect(body.backupJobs).toEqual({});
     expect(body.outgoingDelivery).toEqual(zeroOutgoingSnapshot);
+    expect(body.integratorPushOutbox).toEqual(zeroIntegratorPushOutboxSnapshot);
     expect(body.meta?.probes?.operatorIncidents?.status).toBe("ok");
     expect(body.meta?.probes?.operatorBackupJobs?.status).toBe("ok");
     expect(body.meta?.probes?.outgoingDelivery?.status).toBe("ok");
+    expect(body.meta?.probes?.integratorPushOutbox?.status).toBe("ok");
     expect(loggerInfoMock).toHaveBeenCalled();
   });
 

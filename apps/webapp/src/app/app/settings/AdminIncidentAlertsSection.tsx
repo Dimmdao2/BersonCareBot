@@ -17,6 +17,7 @@ const TOPIC_LABELS: Record<AdminIncidentTopicKey, string> = {
   auto_merge_conflict_anomaly: "Аномалия автомержа (пустые кандидаты)",
   messenger_phone_bind_blocked: "Блокировка привязки телефона (мессенджер)",
   messenger_phone_bind_anomaly: "Аномалия привязки телефона (мессенджер)",
+  system_health_db_guard: "Очередь синка в integrator (system health)",
 };
 
 export type AdminIncidentAlertsSectionProps = {

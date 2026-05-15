@@ -73,6 +73,16 @@ type SystemHealthPayload = {
     lastSentAt: string | null;
     lastQueueActivityAt: string | null;
   };
+  integratorPushOutbox?: {
+    dueBacklog: number;
+    deadTotal: number;
+    oldestDueAgeSeconds: number | null;
+    dueByKind: Record<string, number>;
+    deadByKind: Record<string, number>;
+    processingCount: number;
+    oldestProcessingAgeSeconds: number | null;
+    lastQueueActivityAt: string | null;
+  };
   /** VIDEO_HLS_DELIVERY: hourly playback aggregates (UTC), rolling window. */
   videoPlayback: {
     status: "ok" | "error";
@@ -181,6 +191,7 @@ type SystemHealthPayload = {
       operatorIncidents?: { status: string; durationMs: number; errorCode?: string };
       operatorBackupJobs?: { status: string; durationMs: number; errorCode?: string };
       outgoingDelivery?: { status: string; durationMs: number; errorCode?: string };
+      integratorPushOutbox?: { status: string; durationMs: number; errorCode?: string };
     };
   };
   fetchedAt: string;
@@ -474,6 +485,22 @@ function formatOutgoingByKind(counts: Record<string, number>): string {
   return entries
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([kind, n]) => `${outgoingDeliveryKindHuman(kind)}: ${n}`)
+    .join(", ");
+}
+
+function integratorPushOutboxKindHuman(kind: string): string {
+  const k = kind.trim();
+  if (k === "system_settings_sync") return "Настройки → integrator";
+  if (k === "reminder_rule_upsert") return "Правила напоминаний";
+  return k || "Прочее";
+}
+
+function formatIntegratorPushOutboxByKind(counts: Record<string, number>): string {
+  const entries = Object.entries(counts).filter(([, n]) => n > 0);
+  if (entries.length === 0) return "—";
+  return entries
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([kind, n]) => `${integratorPushOutboxKindHuman(kind)}: ${n}`)
     .join(", ");
 }
 
@@ -983,6 +1010,45 @@ export function SystemHealthSection() {
                   data?.outgoingDelivery?.oldestDueAgeSeconds == null
                     ? "—"
                     : String(data.outgoingDelivery.oldestDueAgeSeconds)
+                }
+              />
+            </HealthAccordionItem>
+
+            <HealthAccordionItem
+              name="Очередь синка в integrator"
+              status={data?.meta?.probes?.integratorPushOutbox?.status ?? "error"}
+            >
+              <DetailRow label="Итог" value="Очередь signed POST в integrator (ретраи)" />
+              <ProbeInfo probe={data?.meta?.probes?.integratorPushOutbox} />
+              <DetailRow label="Ждут (due)" value={String(data?.integratorPushOutbox?.dueBacklog ?? 0)} />
+              <DetailRow label="Dead" value={String(data?.integratorPushOutbox?.deadTotal ?? 0)} />
+              <DetailRow label="Processing" value={String(data?.integratorPushOutbox?.processingCount ?? 0)} />
+              <DetailRow
+                label="Ждут по типу"
+                value={formatIntegratorPushOutboxByKind(data?.integratorPushOutbox?.dueByKind ?? {})}
+              />
+              <DetailRow
+                label="Dead по типу"
+                value={formatIntegratorPushOutboxByKind(data?.integratorPushOutbox?.deadByKind ?? {})}
+              />
+              <DetailRow
+                label="Последнее изменение в очереди"
+                value={formatDateTime(data?.integratorPushOutbox?.lastQueueActivityAt ?? null)}
+              />
+              <DetailRow
+                label="Старейший due (с)"
+                value={
+                  data?.integratorPushOutbox?.oldestDueAgeSeconds == null
+                    ? "—"
+                    : String(data.integratorPushOutbox.oldestDueAgeSeconds)
+                }
+              />
+              <DetailRow
+                label="Старейший processing (с)"
+                value={
+                  data?.integratorPushOutbox?.oldestProcessingAgeSeconds == null
+                    ? "—"
+                    : String(data.integratorPushOutbox.oldestProcessingAgeSeconds)
                 }
               />
             </HealthAccordionItem>

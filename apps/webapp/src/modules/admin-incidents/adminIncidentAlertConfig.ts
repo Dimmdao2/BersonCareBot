@@ -13,6 +13,7 @@ export const ADMIN_INCIDENT_V1_TOPIC_KEYS = [
   "auto_merge_conflict_anomaly",
   "messenger_phone_bind_blocked",
   "messenger_phone_bind_anomaly",
+  "system_health_db_guard",
 ] as const;
 
 export type AdminIncidentTopicKey = (typeof ADMIN_INCIDENT_V1_TOPIC_KEYS)[number];
@@ -33,6 +34,7 @@ const DEFAULT_TOPICS: Record<AdminIncidentTopicKey, boolean> = {
   auto_merge_conflict_anomaly: true,
   messenger_phone_bind_blocked: true,
   messenger_phone_bind_anomaly: true,
+  system_health_db_guard: false,
 };
 
 const DEFAULT_CHANNELS: AdminIncidentAlertChannels = {

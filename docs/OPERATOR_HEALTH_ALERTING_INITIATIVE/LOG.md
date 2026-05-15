@@ -4,6 +4,15 @@
 
 ## Записи
 
+### 2026-05-15 — System health: `integrator_push_outbox` + guard tick
+
+- **Снимок и пороги:** `OperatorHealthReadPort.getIntegratorPushOutboxHealth` в `pgOperatorHealthRead.ts` (Drizzle), классификатор **`classifyIntegratorPushOutboxSystemHealthStatus`** в `integratorPushOutboxHealth.ts` (unit: `integratorPushOutboxHealth.test.ts`).
+- **API/UI:** блок в `GET /api/admin/system-health` и карточка «Очередь синка в integrator» в `SystemHealthSection.tsx`; проба `meta.probes.integratorPushOutbox`.
+- **Баннер врача:** `adminDoctorTodayHealthBannerFromSystemHealth` учитывает ту же классификацию.
+- **Аудит:** при `degraded`/`error` — `writeAuditLogDedupeOpenConflictKey` (`action: system_health_integrator_push_outbox`, дедуп по `conflict_key` час+ранг).
+- **Relay:** тема **`system_health_db_guard`** в `admin_incident_alert_config` (дефолт **false**); internal **`POST /api/internal/system-health-guard/tick`** (Bearer `INTERNAL_JOB_SECRET`); оркестрация `runIntegratorPushOutboxHealthGuardTick.ts`; тест `system-health-guard/tick/route.test.ts`.
+- **Проверки:** `pnpm --filter @bersoncare/webapp run test:inprocess -- src/app/api/admin/system-health/route.test.ts src/app/api/internal/system-health-guard/tick/route.test.ts src/modules/operator-health/integratorPushOutboxHealth.test.ts` (плюс затронутые RTL при необходимости).
+
 ### 2026-05-15 — Admin incident alerts (identity relay)
 
 - Реализация и доки синхронизированы; закрытый план: [`.cursor/plans/archive/admin_incident_alerts.plan.md`](../../.cursor/plans/archive/admin_incident_alerts.plan.md) (миграции webapp **`0064`**, integrator **`20260515_0001`**). См. также шапку [`README.md`](README.md) и [`PHASE_D_EVENT_HOOKS.md`](PHASE_D_EVENT_HOOKS.md) §8 (in-app merge/purge — backlog).

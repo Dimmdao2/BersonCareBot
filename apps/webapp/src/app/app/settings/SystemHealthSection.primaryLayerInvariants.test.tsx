@@ -40,6 +40,7 @@ async function expandAllServiceAccordions(): Promise<void> {
     /Открытые инциденты \(\d+\)/,
     /Бэкапы базы данных/,
     /Очередь доставки уведомлений/,
+    /Очередь синка в integrator/,
   ];
   for (const name of patterns) {
     await userEvent.click(screen.getByRole("button", { name }));
@@ -68,6 +69,7 @@ const probeShell = {
   operatorIncidents: { status: "degraded", durationMs: 18 },
   operatorBackupJobs: { status: "ok", durationMs: 19 },
   outgoingDelivery: { status: "ok", durationMs: 20 },
+  integratorPushOutbox: { status: "ok", durationMs: 21 },
 };
 
 const videoPlaybackShell = {
@@ -199,6 +201,16 @@ function fetchHealthJson(): Record<string, unknown> {
       dueByChannel: { telegram_bot: 2 },
       processingCount: 0,
       lastSentAt: "2026-04-16T09:59:00.000Z",
+      lastQueueActivityAt: "2026-04-16T10:00:00.000Z",
+    },
+    integratorPushOutbox: {
+      dueBacklog: 0,
+      deadTotal: 0,
+      oldestDueAgeSeconds: null,
+      dueByKind: {},
+      deadByKind: {},
+      processingCount: 0,
+      oldestProcessingAgeSeconds: null,
       lastQueueActivityAt: "2026-04-16T10:00:00.000Z",
     },
     meta: { probes: probeShell },

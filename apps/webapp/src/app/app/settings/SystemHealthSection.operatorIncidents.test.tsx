@@ -57,6 +57,7 @@ const probeShell = {
   operatorIncidents: { status: "ok", durationMs: 1 },
   operatorBackupJobs: { status: "ok", durationMs: 1 },
   outgoingDelivery: { status: "ok", durationMs: 1 },
+  integratorPushOutbox: { status: "ok", durationMs: 1 },
 };
 
 function healthJson(overrides: Record<string, unknown> = {}) {
@@ -86,6 +87,16 @@ function healthJson(overrides: Record<string, unknown> = {}) {
       dueByChannel: {},
       processingCount: 0,
       lastSentAt: null,
+      lastQueueActivityAt: null,
+    },
+    integratorPushOutbox: {
+      dueBacklog: 0,
+      deadTotal: 0,
+      oldestDueAgeSeconds: null,
+      dueByKind: {},
+      deadByKind: {},
+      processingCount: 0,
+      oldestProcessingAgeSeconds: null,
       lastQueueActivityAt: null,
     },
     meta: { probes: probeShell },
