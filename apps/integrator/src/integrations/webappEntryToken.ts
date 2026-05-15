@@ -106,7 +106,8 @@ export function buildWebappEntryUrlFromSource(params: WebappEntrySource, appBase
   if (!token) return null;
   const baseUrl = effectiveAppBaseUrl(appBaseUrlOverride);
   if (!baseUrl) return null;
-  return `${baseUrl}/app?t=${encodeURIComponent(token)}`;
+  const entryPath = params.source === 'max' ? '/app/max' : '/app/tg';
+  return `${baseUrl}${entryPath}?t=${encodeURIComponent(token)}`;
 }
 
 /** @deprecated Prefer source-agnostic builder with source telegram. Kept for backward compatibility. */

@@ -27,13 +27,22 @@ export function shouldAllowStandaloneTokenExchange(input: {
  * Server-first классификация входа для `/app`:
  * - miniapp приоритетнее query-токена (в miniapp query JWT не основной канал);
  * - token_exchange только для standalone браузера с `?t=` / `?token=`.
+ * - Явные роуты `/app/tg` и `/app/max` задают surface без cookie/`ctx`.
  */
 export function classifyUnauthenticatedAppEntry(input: {
   platformEntry: PlatformEntry;
   messengerSurface: MessengerSurfaceHint | null;
   token: string | null;
   allowStandaloneTokenExchange?: boolean;
+  /** Приоритет над `platformEntry` / cookie: канон miniapp-entry. */
+  routeBoundMessengerSurface?: MessengerSurfaceHint | null;
 }): UnauthenticatedAppEntryClassification {
+  if (input.routeBoundMessengerSurface === "max") {
+    return "max_miniapp";
+  }
+  if (input.routeBoundMessengerSurface === "telegram") {
+    return "telegram_miniapp";
+  }
   if (input.platformEntry === "bot") {
     return input.messengerSurface === "max" ? "max_miniapp" : "telegram_miniapp";
   }

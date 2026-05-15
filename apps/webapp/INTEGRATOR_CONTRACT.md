@@ -26,9 +26,12 @@ This document defines the explicit contract between `tgcarebot` and `webapp`.
 
 ## Flow 1: Signed Webapp Entry
 
-`tgcarebot` sends a button or deep link that opens:
+`tgcarebot` sends a button or deep link that opens the webapp entry with a signed token:
 
-`https://bersoncare.ru/app?t=<signed-token>`
+- **Telegram:** `https://bersoncare.ru/app/tg?t=<signed-token>` (and optional `&next=` URL-encoded path under `/app/...`).
+- **MAX:** `https://bersoncare.ru/app/max?t=<signed-token>` (same optional `next=`).
+
+Legacy `https://bersoncare.ru/app?t=<signed-token>&ctx=bot|max` may still appear in old links; webapp middleware normalizes `ctx` into cookies and (for `ctx=max` on `/app`) redirects to `/app/max`.
 
 Token payload shape:
 

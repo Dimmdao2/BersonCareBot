@@ -55,7 +55,7 @@ export async function buildLinksFromBody(
       appBaseUrl ?? null,
     );
     if (webappEntryUrl) {
-      const baseWebappUrl = `${webappEntryUrl}&ctx=bot`;
+      const baseWebappUrl = webappEntryUrl;
       links.webappEntryUrl = baseWebappUrl;
       const enc = (p: string) => encodeURIComponent(p);
       links.webappHomeUrl = `${baseWebappUrl}&next=${enc('/app/patient')}`;

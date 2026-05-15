@@ -19,7 +19,7 @@ export type MaxWebhookDeps = {
   getAppBaseUrl?: () => Promise<string>;
 };
 
-/** Экспорт для тестов контракта URL miniapp (`ctx=bot`, `next=`). */
+/** Экспорт для тестов контракта URL miniapp (`/app/max`, `next=`). */
 export async function buildMaxLinks(
   data: MaxUpdateValidated,
   resolveIntegratorUserIdForMessenger: MaxWebhookDeps['resolveIntegratorUserIdForMessenger'] | undefined,
@@ -49,7 +49,7 @@ export async function buildMaxLinks(
     appBaseUrl,
   );
   if (!webappEntryUrl) return {};
-  const baseWebappUrl = `${webappEntryUrl}&ctx=bot`;
+  const baseWebappUrl = webappEntryUrl;
   const enc = (p: string) => encodeURIComponent(p);
   return {
     links: {

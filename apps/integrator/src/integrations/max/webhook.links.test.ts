@@ -17,16 +17,16 @@ const body = {
 
 describe('buildMaxLinks miniapp URL contract', () => {
   beforeEach(() => {
-    vi.mocked(entryToken.buildWebappEntryUrlForMax).mockReturnValue('https://webapp.test/entry?t=signed');
+    vi.mocked(entryToken.buildWebappEntryUrlForMax).mockReturnValue('https://webapp.test/app/max?t=signed');
   });
 
-  it('добавляет ctx=bot и next= к ссылкам webapp', async () => {
+  it('добавляет next= к ссылкам webapp без legacy ctx=bot', async () => {
     const result = (await buildMaxLinks(body, undefined, 'https://webapp.test')) as {
       links: Record<string, string>;
     };
     const links = result.links;
-    expect(links.webappEntryUrl).toContain('ctx=bot');
-    expect(links.webappHomeUrl).toContain('ctx=bot');
+    expect(links.webappEntryUrl).toContain('/app/max');
+    expect(links.webappEntryUrl).not.toContain('ctx=bot');
     expect(links.webappHomeUrl).toContain('next=');
     expect(links.webappHomeUrl).toContain(encodeURIComponent('/app/patient'));
     expect(links.webappDiaryUrl).toContain(encodeURIComponent('/app/patient/diary?tab=symptoms'));

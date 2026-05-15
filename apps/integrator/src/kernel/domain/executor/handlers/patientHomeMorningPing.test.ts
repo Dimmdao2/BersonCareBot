@@ -17,8 +17,8 @@ vi.mock("../../../../config/appTimezone.js", () => ({
 }));
 
 vi.mock("../../../../integrations/webappEntryToken.js", () => ({
-  buildWebappEntryUrl: vi.fn(() => "https://app.example/app?t=tg"),
-  buildWebappEntryUrlForMax: vi.fn(() => "https://app.example/app?t=max"),
+  buildWebappEntryUrl: vi.fn(() => "https://app.example/app/tg?t=tg"),
+  buildWebappEntryUrlForMax: vi.fn(() => "https://app.example/app/max?t=max"),
 }));
 
 const action: Action = {

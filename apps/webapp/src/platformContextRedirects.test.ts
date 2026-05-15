@@ -37,6 +37,12 @@ describe("handlePlatformContextRequest", () => {
     expect(setCookie.toLowerCase()).not.toContain("httponly");
   });
 
+  it("redirects ctx=max on /app to /app/max preserving query", () => {
+    const req = new NextRequest("http://localhost/app?ctx=max&keep=1");
+    const res = handlePlatformContextRequest(req, { isProduction: false });
+    expect(res.headers.get("location")).toBe("http://localhost/app/max?keep=1");
+  });
+
   it("uses SameSite=None and Secure in production", () => {
     const req = new NextRequest("https://example.com/app?ctx=bot");
     const res = handlePlatformContextRequest(req, { isProduction: true });

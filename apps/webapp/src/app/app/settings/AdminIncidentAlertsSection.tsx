@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { LabeledSwitch } from "@/components/common/form/LabeledSwitch";
+import { Switch } from "@/components/ui/switch";
 import { patchAdminSetting } from "./patchAdminSetting";
 import {
   ADMIN_INCIDENT_V1_TOPIC_KEYS,
@@ -58,31 +58,57 @@ export function AdminIncidentAlertsSection({ initialConfig }: AdminIncidentAlert
         </p>
       </CardHeader>
       <CardContent className="flex flex-col gap-5">
-        <section className="flex flex-col gap-3">
+        <section className="flex flex-col gap-2">
           <p className="text-sm font-medium">Каналы</p>
-          <LabeledSwitch
-            checked={channels.telegram}
-            onCheckedChange={(v) => setChannels((c) => ({ ...c, telegram: v }))}
-            label="Telegram"
-          />
-          <LabeledSwitch
-            checked={channels.max}
-            onCheckedChange={(v) => setChannels((c) => ({ ...c, max: v }))}
-            label="Max"
-          />
+          <table className="w-full border-collapse text-sm">
+            <tbody>
+              <tr className="border-b border-border/60 last:border-0">
+                <th scope="row" className="py-2.5 pr-4 text-left align-middle font-medium">
+                  Telegram
+                </th>
+                <td className="w-px whitespace-nowrap py-2.5 align-middle text-right">
+                  <Switch
+                    checked={channels.telegram}
+                    onCheckedChange={(v) => setChannels((c) => ({ ...c, telegram: v }))}
+                    aria-label="Telegram"
+                  />
+                </td>
+              </tr>
+              <tr className="border-b border-border/60 last:border-0">
+                <th scope="row" className="py-2.5 pr-4 text-left align-middle font-medium">
+                  Max
+                </th>
+                <td className="w-px whitespace-nowrap py-2.5 align-middle text-right">
+                  <Switch
+                    checked={channels.max}
+                    onCheckedChange={(v) => setChannels((c) => ({ ...c, max: v }))}
+                    aria-label="Max"
+                  />
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </section>
-        <section className="flex flex-col gap-3">
+        <section className="flex flex-col gap-2">
           <p className="text-sm font-medium">Темы</p>
-          <div className="flex flex-col gap-2">
-            {ADMIN_INCIDENT_V1_TOPIC_KEYS.map((key) => (
-              <LabeledSwitch
-                key={key}
-                checked={topics[key]}
-                onCheckedChange={(v) => setTopics((t) => ({ ...t, [key]: v }))}
-                label={TOPIC_LABELS[key]}
-              />
-            ))}
-          </div>
+          <table className="w-full border-collapse text-sm">
+            <tbody>
+              {ADMIN_INCIDENT_V1_TOPIC_KEYS.map((key) => (
+                <tr key={key} className="border-b border-border/60 last:border-0">
+                  <th scope="row" className="py-2.5 pr-4 text-left align-middle font-medium">
+                    {TOPIC_LABELS[key]}
+                  </th>
+                  <td className="w-px whitespace-nowrap py-2.5 align-middle text-right">
+                    <Switch
+                      checked={topics[key]}
+                      onCheckedChange={(v) => setTopics((t) => ({ ...t, [key]: v }))}
+                      aria-label={TOPIC_LABELS[key]}
+                    />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </section>
         {error ? <p className="text-sm text-destructive">{error}</p> : null}
         {saved ? <p className="text-sm text-muted-foreground">Сохранено</p> : null}

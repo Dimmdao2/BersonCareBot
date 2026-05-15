@@ -36,6 +36,8 @@ type AppEntryLoginContentProps = {
   serverMessengerSurface?: MessengerSurfaceHint | null;
   /** Server-first классификация входа на `/app` (без сессии). */
   entryClassification: UnauthenticatedAppEntryClassification;
+  /** Канон `/app/tg` или `/app/max`: не подменять miniapp полноценным веб-входом. */
+  routeBoundMiniappEntry?: boolean;
 };
 
 export function AppEntryLoginContent({
@@ -45,6 +47,7 @@ export function AppEntryLoginContent({
   serverPlatformMessengerCookie,
   serverMessengerSurface,
   entryClassification,
+  routeBoundMiniappEntry = false,
 }: AppEntryLoginContentProps) {
   const [authStep, setAuthStep] = useState<AuthFlowStep | null>(null);
   const onAuthStepChange = useCallback((step: AuthFlowStep) => {
@@ -106,6 +109,7 @@ export function AppEntryLoginContent({
           serverPlatformMessengerCookie={Boolean(serverPlatformMessengerCookie)}
           serverMessengerSurface={serverMessengerSurface ?? null}
           entryClassification={entryClassification}
+          routeBoundMiniappEntry={routeBoundMiniappEntry}
         />
       </Suspense>
       <LegalFooterLinks className="mt-8" supportHref={supportContactHref} />

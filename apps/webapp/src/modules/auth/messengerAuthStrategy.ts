@@ -103,6 +103,7 @@ export function isAuthBootstrapEarlyUiV2Enabled(): boolean {
  * В контексте messenger mini app (`ctx`/cookie) **не** показываем телефонный флоу при `state === "error"`
  * (таймаут initData / отказ init) — только `Повторить` / подсказки; исключение: {@link isAuthBootstrapEarlyUiV2Enabled}
  * + messenger soft-timeout при ещё `unknown` initData.
+ * На канонических `/app/tg` и `/app/max` интерактивный веб-вход отключён полностью — только initData, резервный `?t=`, ошибка.
  */
 export function shouldExposeInteractiveLogin(input: {
   earlyUiEnabled: boolean;
@@ -111,8 +112,17 @@ export function shouldExposeInteractiveLogin(input: {
   browserSoftOk: boolean;
   initDataStatus: "unknown" | "yes" | "no";
   state: "idle" | "loading" | "error";
+  /** Явный miniapp-entry роут: не показывать OAuth/телефон как «обычный сайт». */
+  routeBoundMiniappEntry?: boolean;
 }): boolean {
-  if (input.initDataStatus === "no") return true;
+  if (input.initDataStatus === "no") {
+    if (input.routeBoundMiniappEntry && input.isMessengerMiniAppEntry) return false;
+    return true;
+  }
+
+  if (input.routeBoundMiniappEntry && input.isMessengerMiniAppEntry) {
+    return false;
+  }
 
   if (input.isMessengerMiniAppEntry) {
     if (input.state === "error") return false;

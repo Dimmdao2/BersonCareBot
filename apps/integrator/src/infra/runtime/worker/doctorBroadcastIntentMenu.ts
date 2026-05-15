@@ -142,7 +142,7 @@ async function buildWebappLinkFactsForRecipient(input: {
         appBase,
       );
       if (webappEntryUrl) {
-        const baseWebappUrl = `${webappEntryUrl}&ctx=bot`;
+        const baseWebappUrl = webappEntryUrl;
         const enc = (p: string) => encodeURIComponent(p);
         links.webappEntryUrl = baseWebappUrl;
         links.webappHomeUrl = `${baseWebappUrl}&next=${enc('/app/patient')}`;
@@ -162,7 +162,7 @@ async function buildWebappLinkFactsForRecipient(input: {
         appBase,
       );
       if (webappEntryUrl) {
-        const baseWebappUrl = `${webappEntryUrl}&ctx=bot`;
+        const baseWebappUrl = webappEntryUrl;
         const enc = (p: string) => encodeURIComponent(p);
         links.webappEntryUrl = baseWebappUrl;
         links.webappHomeUrl = `${baseWebappUrl}&next=${enc('/app/patient')}`;

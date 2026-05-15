@@ -19,6 +19,7 @@ export type MiddlewareEntryHint =
 
 /**
  * Если в URL есть `?ctx=bot` (канон) или legacy `?ctx=max`, ставит cookie платформы `bot` и редиректит без параметра.
+ * Для `ctx=max` на пути `/app` редирект ведёт на `/app/max` (канон MAX miniapp-entry), query сохраняется.
  * Вынесено для unit-тестов; вызывается из `src/proxy.ts`.
  */
 export function handlePlatformContextRequest(
@@ -32,6 +33,15 @@ export function handlePlatformContextRequest(
 
   const url = request.nextUrl.clone();
   url.searchParams.delete("ctx");
+  if (ctx === "max") {
+    const normalizedPath =
+      request.nextUrl.pathname.length > 1
+        ? request.nextUrl.pathname.replace(/\/+$/, "")
+        : request.nextUrl.pathname;
+    if (normalizedPath === "/app") {
+      url.pathname = "/app/max";
+    }
+  }
 
   const isProd = opts?.isProduction ?? process.env.NODE_ENV === "production";
   const response = NextResponse.redirect(url);

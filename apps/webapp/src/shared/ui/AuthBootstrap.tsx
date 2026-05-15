@@ -61,6 +61,8 @@ type AuthBootstrapProps = {
   serverMessengerSurface?: MessengerSurfaceHint | null;
   /** Server-first классификация входа для неавторизованного пользователя на `/app`. */
   entryClassification: UnauthenticatedAppEntryClassification;
+  /** Явные entry `/app/tg` и `/app/max` — без интерактивного «веб-сайта» вместо miniapp. */
+  routeBoundMiniappEntry?: boolean;
 };
 
 const TOKEN_FALLBACK_MS = 1100;
@@ -124,6 +126,7 @@ export function AuthBootstrap({
   serverPlatformMessengerCookie = false,
   serverMessengerSurface = null,
   entryClassification,
+  routeBoundMiniappEntry = false,
 }: AuthBootstrapProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -251,6 +254,7 @@ export function AuthBootstrap({
     browserSoftOk,
     initDataStatus,
     state,
+    routeBoundMiniappEntry,
   });
 
   const showPhoneFlow =
@@ -308,6 +312,15 @@ export function AuthBootstrap({
     telegramInitSentRef.current = false;
     maxInitSentRef.current = false;
     tokenExchangeSentRef.current = false;
+
+    const miniappFallbackTokenParam = searchParams.get("t") ?? searchParams.get("token");
+    const miniappFallbackTokenTrim =
+      typeof miniappFallbackTokenParam === "string" ? miniappFallbackTokenParam.trim() : "";
+    const miniappFallbackToken =
+      (effectiveEntryClassification === "telegram_miniapp" || effectiveEntryClassification === "max_miniapp") &&
+      miniappFallbackTokenTrim.length > 0
+        ? miniappFallbackTokenTrim
+        : null;
 
     const flowHint: "browser" | "telegram" | "max" =
       effectiveEntryClassification === "max_miniapp"
@@ -825,6 +838,15 @@ export function AuthBootstrap({
             }
 
             if (messengerEntry) {
+              if (miniappFallbackToken && !tokenExchangeSentRef.current) {
+                logAuthBootstrap("messenger initData timeout → query token fallback", {
+                  flow: flowHint,
+                  correlationId,
+                  entry: "integrator_jwt_after_miniapp_cap",
+                });
+                postTokenExchange(miniappFallbackToken);
+                return;
+              }
               setState("error");
               setError(maxSurface ? MAX_INIT_DATA_TIMEOUT_USER_MESSAGE : MESSENGER_MINIAPP_INIT_TIMEOUT_USER_MESSAGE);
               logAuthBootstrap("messenger initData timeout", {
@@ -862,6 +884,7 @@ export function AuthBootstrap({
     retryKey,
     effectiveEntryClassification,
     isMessengerMiniAppEntry,
+    searchParams,
   ]);
 
   const handleMessengerAuthRetry = () => {

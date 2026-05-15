@@ -82,7 +82,7 @@ describe("isLikelyMaxMiniAppSurface", () => {
 });
 
 describe("shouldExposeInteractiveLogin", () => {
-  it("exposes initData=no in messenger context", () => {
+  it("exposes initData=no in messenger context (legacy /app + cookie)", () => {
     expect(
       shouldExposeInteractiveLogin({
         earlyUiEnabled: false,
@@ -93,6 +93,20 @@ describe("shouldExposeInteractiveLogin", () => {
         state: "idle",
       }),
     ).toBe(true);
+  });
+
+  it("does not expose initData=no on route-bound miniapp entry (/app/tg, /app/max)", () => {
+    expect(
+      shouldExposeInteractiveLogin({
+        earlyUiEnabled: false,
+        isMessengerMiniAppEntry: true,
+        messengerSoftOk: false,
+        browserSoftOk: false,
+        initDataStatus: "no",
+        state: "idle",
+        routeBoundMiniappEntry: true,
+      }),
+    ).toBe(false);
   });
 
   it("does not expose messenger mini app on error state (timeout / init failure UI)", () => {
@@ -121,7 +135,7 @@ describe("shouldExposeInteractiveLogin", () => {
     ).toBe(true);
   });
 
-  it("with early UI exposes after messenger soft while initData unknown", () => {
+  it("with early UI exposes after messenger soft while initData unknown (legacy entry)", () => {
     expect(
       shouldExposeInteractiveLogin({
         earlyUiEnabled: true,
@@ -132,6 +146,20 @@ describe("shouldExposeInteractiveLogin", () => {
         state: "idle",
       }),
     ).toBe(true);
+  });
+
+  it("with early UI does not expose messenger soft on route-bound miniapp entry", () => {
+    expect(
+      shouldExposeInteractiveLogin({
+        earlyUiEnabled: true,
+        isMessengerMiniAppEntry: true,
+        messengerSoftOk: true,
+        browserSoftOk: false,
+        initDataStatus: "unknown",
+        state: "idle",
+        routeBoundMiniappEntry: true,
+      }),
+    ).toBe(false);
   });
 
   it("with early UI exposes after browser soft in non-messenger context", () => {

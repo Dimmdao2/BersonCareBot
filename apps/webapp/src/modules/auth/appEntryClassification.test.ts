@@ -67,4 +67,27 @@ describe("appEntryClassification", () => {
       }),
     ).toBe("token_exchange");
   });
+
+  it("route-bound /app/max wins over bot+telegram cookies", () => {
+    expect(
+      classifyUnauthenticatedAppEntry({
+        platformEntry: "bot",
+        messengerSurface: "telegram",
+        token: "jwt",
+        allowStandaloneTokenExchange: true,
+        routeBoundMessengerSurface: "max",
+      }),
+    ).toBe("max_miniapp");
+  });
+
+  it("route-bound /app/tg wins over bot+max surface", () => {
+    expect(
+      classifyUnauthenticatedAppEntry({
+        platformEntry: "bot",
+        messengerSurface: "max",
+        token: null,
+        routeBoundMessengerSurface: "telegram",
+      }),
+    ).toBe("telegram_miniapp");
+  });
 });

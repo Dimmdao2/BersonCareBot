@@ -26,6 +26,8 @@ const LOADERS = {
   doctorContentMotivation: () => import("@/app/app/doctor/content/motivation/page") as Promise<PageMod>,
   doctorExercises: () => import("@/app/app/doctor/exercises/page") as Promise<PageMod>,
   doctorLfkTemplates: () => import("@/app/app/doctor/lfk-templates/page") as Promise<PageMod>,
+  appTgEntry: () => import("@/app/app/tg/page") as Promise<PageMod>,
+  appMaxEntry: () => import("@/app/app/max/page") as Promise<PageMod>,
 };
 
 type PageKey = keyof typeof LOADERS;
@@ -90,5 +92,10 @@ describe("app router RSC pages smoke (in-process)", () => {
     expectAsyncRscPage(mod("doctorContentMotivation"), "doctor/content/motivation");
     expectAsyncRscPage(mod("doctorExercises"), "doctor/exercises");
     expectAsyncRscPage(mod("doctorLfkTemplates"), "doctor/lfk-templates");
+  });
+
+  it("miniapp entry routes /app/tg and /app/max export async RSC defaults", () => {
+    expectAsyncRscPage(mod("appTgEntry"), "app/tg");
+    expectAsyncRscPage(mod("appMaxEntry"), "app/max");
   });
 });

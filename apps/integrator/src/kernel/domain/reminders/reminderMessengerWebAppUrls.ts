@@ -5,12 +5,6 @@ import type { DbPort } from '../../contracts/index.js';
 import { getAppBaseUrl } from '../../../config/appBaseUrl.js';
 import { buildWebappEntryUrl, buildWebappEntryUrlForMax } from '../../../integrations/webappEntryToken.js';
 
-/** Align with `buildLinksFromBody` / patient WebApp: entry context for in-bot opens. */
-function webappEntryWithBotCtx(entry: string): string {
-  if (!entry || entry.includes('ctx=bot')) return entry;
-  return `${entry}&ctx=bot`;
-}
-
 /** Path + query for `next=` from an absolute patient URL or a path. */
 export function patientPathFromReminderTargetUrl(targetUrl: string): string {
   const t = targetUrl.trim();
@@ -41,10 +35,9 @@ export async function buildExerciseReminderWebAppUrls(params: {
       base,
     );
     if (!entry) return null;
-    const entryCtx = webappEntryWithBotCtx(entry);
     return {
-      primaryWebAppUrl: `${entryCtx}&next=${encodeURIComponent(pathPrimary)}`,
-      scheduleWebAppUrl: `${entryCtx}&next=${encodeURIComponent(pathSchedule)}`,
+      primaryWebAppUrl: `${entry}&next=${encodeURIComponent(pathPrimary)}`,
+      scheduleWebAppUrl: `${entry}&next=${encodeURIComponent(pathSchedule)}`,
     };
   }
   const entry = buildWebappEntryUrlForMax(
@@ -52,9 +45,8 @@ export async function buildExerciseReminderWebAppUrls(params: {
     base,
   );
   if (!entry) return null;
-  const entryCtx = webappEntryWithBotCtx(entry);
   return {
-    primaryWebAppUrl: `${entryCtx}&next=${encodeURIComponent(pathPrimary)}`,
-    scheduleWebAppUrl: `${entryCtx}&next=${encodeURIComponent(pathSchedule)}`,
+    primaryWebAppUrl: `${entry}&next=${encodeURIComponent(pathPrimary)}`,
+    scheduleWebAppUrl: `${entry}&next=${encodeURIComponent(pathSchedule)}`,
   };
 }
