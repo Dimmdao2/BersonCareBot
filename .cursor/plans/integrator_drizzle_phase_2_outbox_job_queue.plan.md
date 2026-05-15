@@ -1,5 +1,6 @@
 ---
 name: Integrator Drizzle — этап 2 (outbox + очередь)
+status: completed
 overview: >-
   Перевод projection_outbox и rubitime_create_retry_jobs на Drizzle с сохранением
   claim-транзакций (CTE + UPDATE … FOR UPDATE SKIP LOCKED), ретраев и статус-машины.

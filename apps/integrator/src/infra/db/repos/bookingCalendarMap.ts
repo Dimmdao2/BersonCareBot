@@ -1,6 +1,7 @@
 import { eq, sql } from 'drizzle-orm';
 import type { DbPort } from '../../../kernel/contracts/index.js';
 import { getIntegratorDrizzleSession } from '../drizzle.js';
+import { runIntegratorSql } from '../runIntegratorSql.js';
 import { bookingCalendarMap } from '../schema/integratorPublicProduct.js';
 
 export async function getGoogleEventIdByRubitimeRecordId(
@@ -35,23 +36,23 @@ export async function upsertBookingCalendarMap(
       },
     });
 
-  await db.query(
-    `UPDATE public.patient_bookings
-        SET gcal_event_id = $2,
+  await runIntegratorSql(
+    db,
+    sql`UPDATE public.patient_bookings
+        SET gcal_event_id = ${input.gcalEventId},
             updated_at = now()
-      WHERE rubitime_id = $1`,
-    [input.rubitimeRecordId, input.gcalEventId],
+      WHERE rubitime_id = ${input.rubitimeRecordId}`,
   );
 }
 
 export async function deleteBookingCalendarMap(db: DbPort, rubitimeRecordId: string): Promise<void> {
   const d = getIntegratorDrizzleSession(db);
   await d.delete(bookingCalendarMap).where(eq(bookingCalendarMap.rubitimeRecordId, rubitimeRecordId));
-  await db.query(
-    `UPDATE public.patient_bookings
+  await runIntegratorSql(
+    db,
+    sql`UPDATE public.patient_bookings
         SET gcal_event_id = NULL,
             updated_at = now()
-      WHERE rubitime_id = $1`,
-    [rubitimeRecordId],
+      WHERE rubitime_id = ${rubitimeRecordId}`,
   );
 }

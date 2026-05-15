@@ -1,5 +1,6 @@
 ---
 name: Integrator Drizzle — этап 1 (простые репозитории)
+status: completed
 overview: >-
   Перевод P1-репозиториев (подписки, топики, маппинг календаря, mailing_logs,
   delivery_attempt_logs через repos/messageLogs.ts) с DbPort-SQL на Drizzle

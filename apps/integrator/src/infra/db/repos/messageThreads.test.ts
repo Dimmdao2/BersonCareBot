@@ -112,10 +112,13 @@ describe('messageThreads repo', () => {
     const draftSql = drizzleSqlFragmentToApproximateSql(execute.mock.calls[0]?.[0]);
     expect(draftSql).toContain('FROM identities i');
     expect(draftSql).toContain('JOIN message_drafts md');
+    expect(draftSql).toContain('LIMIT 1');
 
     const conversationSql = drizzleSqlFragmentToApproximateSql(execute.mock.calls[1]?.[0]);
     expect(conversationSql).toContain('JOIN conversations c');
     expect(conversationSql).toContain('c.closed_at IS NULL');
+    expect(conversationSql).toContain('ORDER BY c.last_message_at DESC');
+    expect(conversationSql).toContain('LIMIT 1');
   });
 
   it('writes and lists conversations/messages', async () => {
@@ -202,7 +205,11 @@ describe('messageThreads repo', () => {
     expect(drizzleSqlFragmentToApproximateSql(execute.mock.calls[0]?.[0])).toContain('INSERT INTO conversations');
     expect(drizzleSqlFragmentToApproximateSql(execute.mock.calls[1]?.[0])).toContain('INSERT INTO conversation_messages');
     expect(drizzleSqlFragmentToApproximateSql(execute.mock.calls[2]?.[0])).toContain('UPDATE conversations');
-    expect(drizzleSqlFragmentToApproximateSql(execute.mock.calls[3]?.[0])).toContain('LEFT JOIN LATERAL');
+    const listOpenSql = drizzleSqlFragmentToApproximateSql(execute.mock.calls[3]?.[0]);
+    expect(listOpenSql).toContain('LEFT JOIN LATERAL');
+    expect(listOpenSql).toContain('ORDER BY c.last_message_at DESC');
+    expect(listOpenSql).toContain('10');
+
     expect(drizzleSqlFragmentToApproximateSql(execute.mock.calls[4]?.[0])).toContain('WHERE c.id = ');
     expect(drizzleSqlFragmentToApproximateSql(execute.mock.calls[4]?.[0])).toContain('conv-1');
   });

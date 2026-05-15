@@ -12,7 +12,7 @@
 ### Этап 1 (P1 repos) — выполнено
 
 - **Стратегия схемы (`schema-strategy`, мастер-план):** для этапа 1 принят **локальный дубль** — узкие `pgTable` в `apps/integrator/src/infra/db/schema/integratorPublicProduct.ts` сверены с `apps/webapp/db/schema/schema.ts` (колонки, уникальные ограничения; для `delivery_attempt_logs` — те же btree-индексы и CHECK `attempt > 0`, `status ∈ {success,failed}`). Зависимость от пакета webapp не добавлялась. Регистрация: `integratorDrizzleSchema.ts` + `getIntegratorDrizzle()` / `getIntegratorDrizzleSession()` в `apps/integrator/src/infra/db/drizzle.ts` (вместе с `@bersoncare/operator-db-schema`). **Backlog:** вынести общий набор таблиц в workspace-пакет по образцу `operator-db-schema`, когда дубль станет шире P1.
-- **Переведены на Drizzle:** `repos/subscriptions.ts`, `topics.ts`, `booking_calendar_map` в `repos/bookingCalendarMap.ts` (обновление `public.patient_bookings` остаётся `db.query`), `mailingLogs.ts`, `messageLogs.ts` (таблица **`delivery_attempt_logs`**; не путать с несуществующим именем `message_logs`).
+- **Переведены на Drizzle:** `repos/subscriptions.ts`, `topics.ts`, `booking_calendar_map` в `repos/bookingCalendarMap.ts`; синхронизация **`public.patient_bookings`** (поля `gcal_event_id` / `updated_at`) — **`runIntegratorSql`** + параметризованный **`sql`…``** (тот же канон, что P4), без `db.query`. `mailingLogs.ts`, `messageLogs.ts` (таблица **`delivery_attempt_logs`**; не путать с несуществующим именем `message_logs`).
 - **Транзакции:** на `DbPort` внутри `createDbPort().tx` добавлено поле `integratorDrizzle` (тот же `pg` client); репозитории используют `getIntegratorDrizzleSession(port)` — без отката на пул внутри TX.
 - **Валидация перед INSERT в `delivery_attempt_logs`:** в `messageLogs.ts` отсекаются строки с невалидными `channel` / `status` / `attempt` (до вызова Drizzle), чтобы не полагаться на небезопасные приведения типов.
 - **Проверки:** `pnpm --dir apps/integrator run typecheck`, `pnpm --dir apps/integrator run test`.
@@ -63,6 +63,21 @@
 - **Инфра:** `runIntegratorSql` (`apps/integrator/src/infra/db/runIntegratorSql.ts`) — единая обёртка `getIntegratorDrizzleSession(db).execute(fragment)` с нормализацией `DbQueryResult` (в т.ч. `rowCount` только при `typeof === 'number'` для `exactOptionalPropertyTypes`). `drizzleSqlFragmentToApproximateSql` (`drizzleSqlDebugText.ts`) — развёртка `sql` для assert’ов в тестах.
 - **Репозитории:** `messageThreads.ts`, `channelUsers.ts`, `mergeIntegratorUsers.ts` — доменные запросы через `runIntegratorSql` + `sql`…`` (CTE/LATERAL/merge-транзакции); в `channelUsers.ts` в том числе `setUserPhone` (lookup identity + DELETE/INSERT contacts) без строкового `db.query`.
 - **Тесты:** обновлены моки `integratorDrizzle.execute` (`messageThreads`, `channelUsers`, `mergeIntegratorUsers`, `readPort` fallback’и); `writePort.userUpsert.test.ts` — `attachExecuteToQuery` (flatten → legacy `query`-mock); `requestContactRoute.test.ts` — `dbWithTx` с `integratorDrizzle` и тем же мостом для `user.upsert`/`user.state.set`; `stubIntegratorDrizzleForTests` — `execute` как `vi.fn`.
-- **Оставшийся сырой SQL вне P4-repos (осознанно):** `repos/bookingCalendarMap.ts` — обновления `public.patient_bookings`; `repos/outgoingDeliveryQueue.ts`; `repos/platformUserDeliveryPhone.ts` (`user.phoneForDeliveryLookup`); `repos/canonicalUserId.ts` и `repos/linkedPhoneSource.ts` — узкие `db.query` без переноса в scope этапа 4.
+- **Оставшийся сырой SQL вне P4-repos (осознанно):** `repos/outgoingDeliveryQueue.ts`; `repos/platformUserDeliveryPhone.ts` (`user.phoneForDeliveryLookup`); `repos/canonicalUserId.ts` и `repos/linkedPhoneSource.ts` — узкие `db.query` без переноса в scope этапа 4.
 - **Проверки:** `pnpm --dir apps/integrator run lint`, `typecheck`, `test`.
-- **Планы:** `.cursor/plans/integrator_drizzle_phase_4_complex_sql.plan.md` — `status: completed`; мастер-план — `phase-4`, `dod-master` — `completed`.
+- **Планы:** `.cursor/plans/integrator_drizzle_phase_4_complex_sql.plan.md` — `status: completed` в YAML frontmatter (как у этапа 3); мастер-план — `phase-4`, `dod-master` — `completed`.
+
+### Постаудит этапа 4 (2026-05-15)
+
+- **План:** в `.cursor/plans/integrator_drizzle_phase_4_complex_sql.plan.md` добавлено поле **`status: completed`** в frontmatter — синхрон с мастер-планом и записью в этом логе.
+- **Тесты:** в `repos/messageThreads.test.ts` зафиксированы ожидаемые **`ORDER BY` / `LIMIT`** для открытого диалога по identity и для `listOpenConversations` (чек-лист P4 по поведению списков).
+
+### Выравнивание после аудита (2026-05-15)
+
+- **`bookingCalendarMap.ts`:** `public.patient_bookings` — только `runIntegratorSql` + `sql` (убраны остатки `db.query`); DoD этапа 1 согласован с кодом.
+- **Планы:** в frontmatter **`.cursor/plans/integrator_drizzle_phase_1_simple_repos.plan.md`** и **`integrator_drizzle_phase_2_outbox_job_queue.plan.md`** добавлено **`status: completed`** (как у этапов 3–4 и мастера).
+
+### Закрытие инициативы
+
+- Этапы **P1–P4** и **мастер-план** закрыты; целевые репозитории плана не используют для своей доменной логики строковый **`db.query(...)`** (Drizzle API и/или **`runIntegratorSql` / `execute(sql)`**).
+- Вне scope этой инициативы (отдельный backlog при необходимости): **`outgoingDeliveryQueue.ts`**, **`platformUserDeliveryPhone.ts`**, **`canonicalUserId.ts`**, **`linkedPhoneSource.ts`**, а также скрипты/health вне списка мастера (`projectionHealth`, `projection-health.mjs` и т.п.).
