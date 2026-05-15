@@ -41,5 +41,5 @@ export function isItemDoneCooldownActive(
 /** Подпись под «Выполнено» на пункте плана (аналогично подписи cooldown разминки на главной). */
 export function formatPlanItemDoneCooldownCaption(minutesRemaining: number): string {
   const through = `${minutesRemaining} ${ruMinutesAccusativeForThrough(minutesRemaining)}`;
-  return `Снова через ${through}.`;
+  return `Можно отметить повторно через ${through}`;
 }

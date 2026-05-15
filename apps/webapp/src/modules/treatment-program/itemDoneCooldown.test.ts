@@ -14,7 +14,7 @@ describe("itemDoneCooldown", () => {
     const last = "2026-05-10T11:30:00.000Z";
     expect(isItemDoneCooldownActive(last, ONE_HOUR_MS, now)).toBe(true);
     expect(itemDoneCooldownMinutesRemaining(last, ONE_HOUR_MS, now)).toBe(30);
-    expect(formatPlanItemDoneCooldownCaption(30)).toMatch(/Снова через/);
+    expect(formatPlanItemDoneCooldownCaption(30)).toMatch(/Можно отметить повторно через/);
   });
 
   it("unlocks after cooldown window", () => {

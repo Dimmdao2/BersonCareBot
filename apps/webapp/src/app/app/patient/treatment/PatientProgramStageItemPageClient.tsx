@@ -62,7 +62,6 @@ import {
   patientInnerPageStackClass,
   patientMutedTextClass,
   patientScrollbarHiddenClass,
-  patientSecondaryActionClass,
   patientSectionTitleClass,
   patientSectionTitleNormalClass,
   patientSimpleCompleteDoneButtonToneClass,
@@ -795,14 +794,14 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
                     </Link>
                   )
                 ) : (
-                  <div className="flex w-full min-w-0 flex-wrap items-stretch gap-2">
-                    {!(item.itemType === "lfk_complex" && !isPersistentRecommendation(item)) ? (
-                      <>
+                  <div className="flex w-full min-w-0 flex-col gap-1">
+                    <div className="flex min-w-0 flex-nowrap items-stretch gap-2">
+                      {!(item.itemType === "lfk_complex" && !isPersistentRecommendation(item)) ? (
                         <button
                           type="button"
                           className={cn(
                             patientButtonPrimaryClass,
-                            "min-h-9 flex-1 text-xs font-medium sm:min-h-10",
+                            "min-h-9 min-w-0 shrink basis-0 flex-1 text-xs font-medium sm:min-h-10",
                             simpleCompleteDoneFrozen &&
                               cn(patientSimpleCompleteDoneButtonToneClass, "gap-1 disabled:cursor-default"),
                             !simpleCompleteDoneFrozen && "gap-0",
@@ -819,28 +818,29 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
                             <span className="w-full text-center">Отметить выполнение</span>
                           )}
                         </button>
-                        {simpleCompleteDoneFrozen && simpleCompleteCooldownMinutes != null ? (
-                          <p
-                            className={cn(
-                              patientMutedTextClass,
-                              "w-full basis-full text-center text-[11px] leading-tight",
-                            )}
-                          >
-                            {formatPlanItemDoneCooldownCaption(simpleCompleteCooldownMinutes)}
-                          </p>
-                        ) : null}
-                      </>
+                      ) : null}
+                      <button
+                        type="button"
+                        className={cn(
+                          "inline-flex min-h-9 min-w-0 shrink basis-0 flex-1 cursor-pointer items-center justify-center gap-2 rounded-md border border-[var(--patient-color-primary,#284da0)]/28 bg-[var(--patient-color-primary-soft,#e0e7ff)]/40 px-3 text-xs font-medium text-[var(--patient-color-primary,#284da0)] transition-colors sm:min-h-10",
+                          "hover:bg-[var(--patient-color-primary-soft,#e0e7ff)]/75 active:bg-[var(--patient-color-primary-soft,#e0e7ff)]",
+                          "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-primary,#284da0)]",
+                        )}
+                        onClick={() => setCommentModalOpen(true)}
+                      >
+                        Добавить комментарий
+                      </button>
+                    </div>
+                    {simpleCompleteDoneFrozen && simpleCompleteCooldownMinutes != null ? (
+                      <p
+                        className={cn(
+                          patientMutedTextClass,
+                          "w-full text-center text-[11px] leading-tight",
+                        )}
+                      >
+                        {formatPlanItemDoneCooldownCaption(simpleCompleteCooldownMinutes)}
+                      </p>
                     ) : null}
-                    <button
-                      type="button"
-                      className={cn(
-                        patientSecondaryActionClass,
-                        "inline-flex min-h-9 flex-1 cursor-pointer items-center justify-center text-xs font-medium sm:min-h-10",
-                      )}
-                      onClick={() => setCommentModalOpen(true)}
-                    >
-                      Комментарий
-                    </button>
                   </div>
                 )}
               </div>
@@ -895,7 +895,7 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
           ) : null}
 
           {item.effectiveComment?.trim() ? (
-            <div className="flex flex-col gap-1.5 rounded-lg border border-[var(--patient-border)]/60 bg-[#fff5e8] px-3 py-5">
+            <div className="my-4 flex flex-col gap-1.5 rounded-lg border border-[var(--patient-border)]/60 bg-[#fff5e8] px-3 py-2.5">
               <span className="text-xs text-[#7e6c61]">Комментарий специалиста</span>
               <p
                 className={cn(
