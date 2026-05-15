@@ -41,3 +41,9 @@
 - **Переведены на Drizzle:** `repos/reminders.ts` (чтения/апдейты через `getIntegratorDrizzleSession`; сложные выборки `getDueReminderOccurrences`, `getStaleReminderMessengerMessageIdForResend` — `execute(sql\`…\`)` с прежними JOIN/JSON), `repos/bookingRecords.ts`, `repos/publicAppointmentRecordSync.ts` (`insert(appointmentRecords).onConflictDoUpdate`).
 - **Тесты:** расширен `stubIntegratorDrizzleForTests.ts` (`returning`, цепочки `select`/`join`/`where`/`orderBy`/`limit`); `readPort.test.ts` — тип `MockDbPort` для `query.mockResolvedValue`; `writePort.reminders.test.ts` — `vi.mock` на `getReminderOccurrenceContextForProjection` (стаб контекста проекций при unit-stub Drizzle); `reminders.staleMessenger.test.ts` — развёртка `sql` через `queryChunks` для assert по тексту SQL.
 - **Проверки:** `pnpm --dir apps/integrator run lint`, `typecheck`, `test`.
+
+### Постаудит этапа 3 (2026-05-15)
+
+- **План:** `.cursor/plans/integrator_drizzle_phase_3_domain_repos.plan.md` — в frontmatter добавлено `status: completed`; YAML выровнен под стиль этапов 1–2 (`overview`/`content` через `>-`); DoD уточнён формулировкой «без сырого SQL через `db.query(...)`».
+- **Код:** у `getDueReminderOccurrences` в `repos/reminders.ts` — JSDoc с пометкой escape hatch (`execute(sql)` + cross-schema JOIN), в духе DoD этапа 3.
+- **Тесты:** `writePort.reminders.test.ts` по-прежнему мокает `getReminderOccurrenceContextForProjection` для стабильной fanout-проекции при stub Drizzle — осознанный trade-off unit-слоя (см. детальный аудит закрытия этапа).

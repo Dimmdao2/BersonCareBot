@@ -200,6 +200,11 @@ export async function getReminderOccurrencesForRuleRange(
   return rows.map((r) => normalizeOccurrenceRow(r as Parameters<typeof normalizeOccurrenceRow>[0]));
 }
 
+/**
+ * Due occurrences for the worker: integrator reminder tables + `identities` + `public.platform_users`.
+ * **Escape hatch:** one `execute` call with a Drizzle `sql` template — cross-schema JOINs and
+ * mute-window logic match legacy; not modeled as typed Drizzle-only selects here.
+ */
 export async function getDueReminderOccurrences(
   db: DbPort,
   nowIso: string,

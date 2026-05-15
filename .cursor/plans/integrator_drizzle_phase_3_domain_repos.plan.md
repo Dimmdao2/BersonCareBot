@@ -1,21 +1,33 @@
 ---
 name: Integrator Drizzle — этап 3 (доменные репозитории)
-overview: После паттернов P1+P2 перевести reminders, bookingRecords и publicAppointmentRecordSync на Drizzle; высокая отдача, но больше ветвлений и связка с синхронизацией записей.
+overview: >-
+  После паттернов P1+P2 перевести reminders, bookingRecords и publicAppointmentRecordSync на Drizzle;
+  высокая отдача, но больше ветвлений и связка с синхронизацией записей.
+status: completed
 todos:
   - id: p3-schema
-    content: Зарегистрировать все таблицы/вью затронутые reminders.ts, bookingRecords.ts, publicAppointmentRecordSync.ts в integrator Drizzle schema
+    content: >-
+      Зарегистрировать в integrator Drizzle schema таблицы, задействованные в reminders.ts,
+      bookingRecords.ts и publicAppointmentRecordSync.ts.
     status: completed
   - id: p3-reminders
-    content: Перевести reminders.ts на Drizzle с сохранением типов контрактов kernel (DueReminderOccurrence и др.)
+    content: >-
+      Перевести reminders.ts на Drizzle с сохранением типов контрактов kernel
+      (DueReminderOccurrence и др.).
     status: completed
   - id: p3-booking-records
-    content: Перевести bookingRecords.ts + поддержать bookingRecords.sql.test.ts
+    content: >-
+      Перевести bookingRecords.ts; поддержать bookingRecords.sql.test.ts.
     status: completed
   - id: p3-public-appointment-sync
-    content: Перевести publicAppointmentRecordSync.ts; проверить сценарии диффов/UPSERT против текущего SQL
+    content: >-
+      Перевести publicAppointmentRecordSync.ts; проверить сценарии диффов/UPSERT
+      против прежнего SQL.
     status: completed
   - id: p3-verify
-    content: apps/integrator typecheck + test; LOG.md дополнить разделом «этап 3»
+    content: >-
+      apps/integrator lint + typecheck + test; LOG.md — раздел «этап 3»;
+      frontmatter плана — status completed (постаудит).
     status: completed
 isProject: false
 ---
@@ -51,6 +63,6 @@ isProject: false
 
 ## Definition of Done (этап 3)
 
-- [x] Три целевых файла без сырого `db.query(<template string)` для операций своего домена (допускается `execute(sql)` при сложных выражениях с явной пометкой).
+- [x] Три целевых файла без сырого SQL через `db.query(...)` для операций своего домена (допускается `execute(sql)` при сложных выражениях с явной пометкой в коде/JSDoc).
 - [x] Все связанные тесты интегратора зелёные.
 - [x] Мастер-план todo `phase-3` — `completed`.
