@@ -77,6 +77,11 @@
 - **`bookingCalendarMap.ts`:** `public.patient_bookings` — только `runIntegratorSql` + `sql` (убраны остатки `db.query`); DoD этапа 1 согласован с кодом.
 - **Планы:** в frontmatter **`.cursor/plans/integrator_drizzle_phase_1_simple_repos.plan.md`** и **`integrator_drizzle_phase_2_outbox_job_queue.plan.md`** добавлено **`status: completed`** (как у этапов 3–4 и мастера).
 
+### Аудит тестов поведения БД по закрытым фазам (2026-05-15)
+
+- Полный прогон **`pnpm --dir apps/integrator run test`**: зелёный; матрица покрытия P1–P4, ограничения моков и пробелы — в [`TEST_BEHAVIOR_AUDIT.md`](./TEST_BEHAVIOR_AUDIT.md).
+- **Hardening по аудиту (тот же день):** добавлены unit-тесты без изменения прод-кода Drizzle — `repos/messageLogs.test.ts`, `repos/mailingLogs.test.ts`, `repos/bookingCalendarMap.test.ts`, `repos/reminders.projectionContext.test.ts` (`getReminderOccurrenceContextForProjection` без мока функции в отдельном файле); см. §3 в [`TEST_BEHAVIOR_AUDIT.md`](./TEST_BEHAVIOR_AUDIT.md).
+
 ### Инструментальные проверки (репозиторий)
 
 - В корневом **`eslint.config.mjs`** **нет** отдельного правила, запрещающего **`db.query(...)`** по всему `apps/integrator` (только ограничения `no-restricted-imports` для `domain` / `telegram` / `worker`). Контроль канона SQL для переведённых репо — **DoD этапных планов** и ревью; автоматический запрет на весь пакет не вводился, чтобы не ломать миграции, скрипты и осознанный backlog (`outgoingDeliveryQueue`, `projectionHealth` и др.).
