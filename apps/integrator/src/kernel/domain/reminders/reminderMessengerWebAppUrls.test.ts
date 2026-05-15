@@ -123,6 +123,7 @@ describe("buildExerciseReminderWebAppUrls", () => {
   });
 
   it("returns null when token builder yields null", async () => {
+    // Runtime `null` satisfies `if (!entry)` in SUT; Vitest infers mock return as `string`.
     buildTelegramStub.mockImplementationOnce(() => null as unknown as string);
     const res = await buildExerciseReminderWebAppUrls({
       db: dbStub,

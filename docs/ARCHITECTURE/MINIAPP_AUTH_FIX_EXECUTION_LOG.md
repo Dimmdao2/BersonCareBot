@@ -141,8 +141,8 @@
 |------|----------|
 | Дата | 2026-05-15 |
 | Цель | Убрать двусмысленность `ctx=bot` для MAX: явный surface по пути URL; синхронизировать integrator, middleware, клиентский fallback `?t=` после cap. |
-| Webapp | `AppEntryRsc.tsx`, `app/app/tg/page.tsx`, `app/app/max/page.tsx`, `app/app/page.tsx`; `appEntryClassification.ts` (`routeBoundMessengerSurface`); `AuthBootstrap` (miniapp `?t=` fallback, `routeBoundMiniappEntry`, poll **150ms**); `messengerAuthStrategy.shouldExposeInteractiveLogin`; `platformContext.ts` (`ctx=max` на `/app` → `/app/max`); `classifyEntryHintFromRequest` — только unit-тесты; `miniAppSessionRecovery` (убран блокирующий `exchange` при `ctx=max`); `platformContext.test.ts`, `platformContextRedirects.test.ts`, `AuthBootstrap.test.tsx`. |
-| Integrator | `webappEntryToken.ts` (`/app/tg` / `/app/max`); убран `&ctx=bot` из `telegram/webhook.ts`, `max/webhook.ts`, `doctorBroadcastIntentMenu.ts`; `reminderMessengerWebAppUrls.ts`; тесты `webhook.links`, `patientHomeMorningPing`. |
+| Webapp | `AppEntryRsc.tsx`, `app/app/tg/page.tsx`, `app/app/max/page.tsx`, `app/app/page.tsx`; `appEntryClassification.ts` (`routeBoundMessengerSurface`); **`AuthBootstrap`** — miniapp **`?t=`** fallback, **`routeBoundMiniappEntry`**, poll **150 ms**, **`pickInitDataForMessengerTick(flowHint)`** (max-first / telegram-first / browser fallback), **`rawMaxDirect`** vs **`rawMaxLegacyMessenger`**; `messengerAuthStrategy.shouldExposeInteractiveLogin`; `platformContext.ts` (`ctx=max` на `/app` → `/app/max`); `classifyEntryHintFromRequest` — unit-тесты; `miniAppSessionRecovery`; `platformContext.test.ts`, `platformContextRedirects.test.ts`, `AuthBootstrap.test.tsx`. Follow-up аудита: [.cursor/plans/archive/miniapp-audit-fixes_813ba600.plan.md](../../.cursor/plans/archive/miniapp-audit-fixes_813ba600.plan.md). |
+| Integrator | `webappEntryToken.ts` (`/app/tg` / `/app/max`); убран `&ctx=bot` из `telegram/webhook.ts`, `max/webhook.ts`, `doctorBroadcastIntentMenu.ts`; **`reminderMessengerWebAppUrls.ts`** + **`reminderMessengerWebAppUrls.test.ts`**; morning ping **`web_app.url`** TG+MAX в **`patientHomeMorningPing.test.ts`**; тесты `webhook.links`. |
 | Доки | `apps/webapp/INTEGRATOR_CONTRACT.md`, `apps/webapp/src/modules/auth/auth.md`, `PLATFORM_IDENTITY_SCENARIOS_AND_CODE_MAP.md` §канон URL; smoke `e2e/smoke-app-router-rsc-pages-inprocess.test.ts` — `/app/tg`, `/app/max`. **Доп. синхронизация доков (сессия 2026-05):** `MAX_SETUP.md`, `SERVER CONVENTIONS.md`, `docs/README.md` (ссылка на архивный план), `apps/webapp/README.md` (URL Spaces), `PATIENT_UX_AUTH_MENU_LOG.md`, `CONTENT_CMS_REPORT.md`, `MINIAPP_AUTH_AUDIT_2026-04-19.md`, `apps/webapp/src/shared/lib/platform.md`. |
 | Проверки | Целевые vitest + `apps/webapp` typecheck (локально). |
 
@@ -172,9 +172,19 @@
 | Перенос канона плана из `~/.cursor/plans/` в репозиторий (`mv`, без дубликата) | ✅ |
 | YAML frontmatter (`status: completed`, `overview`, `todos` со `status`) | ✅ |
 | **DoD плана:** `/app/max`, `/app/tg`, `/app` в браузере без регрессии; integrator без `ctx` как основного классификатора; fallback `?t=` после cap; legacy `ctx=max`→`/app/max` с тестом; unit/e2e smoke без анти-паттерна холодного `import` страниц в каждом `it` | ✅ по коду и перечисленным тестам |
-| Полный **`pnpm run ci`** как барьер merge | ⚠️ не зафиксирован в логе после последних правок; ожидается у команды |
+| Полный **`pnpm run ci`** после follow-up аудита (**`miniapp-audit-fixes`**) | ✅ зафиксирован в §Remediation miniapp audit |
 
 Todos плана (все **`completed`**): `route-entry-split`, `auth-bootstrap-surface-priority`, `integrator-links-update`, `fallback-policy`, `legacy-ctx-middleware`, `tests-and-docs`, `docs-architecture-and-logs`.
+
+### 1a. План `.cursor/plans/archive/miniapp-audit-fixes_813ba600.plan.md`
+
+| Элемент | Статус |
+|---------|--------|
+| Усиление `AuthBootstrap`: `pickInitDataForMessengerTick`, dual MAX initData для route-bound | ✅ |
+| Тестовые контракты webapp + integrator (`reminderMessengerWebAppUrls.test`, TG+MAX morning ping `web_app.url`) | ✅ |
+| Доки `INTEGRATOR_CONTRACT`, execution log baseline + remediation, links из `docs/README` | ✅ |
+| YAML **`status: completed`**, **`isProject: false`**, смежная ссылки `../../../…` из archive | ✅ |
+| Ops (MAX/TG URL, `max_bot_api_key` на prod) | **`partial (ops)`** — §Remediation miniapp audit |
 
 ---
 
@@ -216,6 +226,7 @@ Todos плана (все **`completed`**): `route-entry-split`, `auth-bootstrap-
 
 ### 5. Кросс-ссылки
 
+- План дозакрытия аудита entry-split: [`.cursor/plans/archive/miniapp-audit-fixes_813ba600.plan.md`](../../.cursor/plans/archive/miniapp-audit-fixes_813ba600.plan.md)
 - Закрытый план: [`.cursor/plans/archive/miniapp_entrypoint_split_be613c6d.plan.md`](../../.cursor/plans/archive/miniapp_entrypoint_split_be613c6d.plan.md)  
 - Итоговый аудит (с актуализацией 2026-05): [`MINIAPP_AUTH_AUDIT_2026-04-19.md`](./MINIAPP_AUTH_AUDIT_2026-04-19.md)  
 - Индекс доков (в т.ч. ссылка на план): [`docs/README.md`](../README.md)
@@ -239,12 +250,12 @@ Todos плана (все **`completed`**): `route-entry-split`, `auth-bootstrap-
 - **Integrator**: мок **`webapp-entry`** в reminder-тестах заменён на **`/app/tg`**; добавлен **`reminderMessengerWebAppUrls.test.ts`** (pathname **`/app/tg`** / **`/app/max`**, **`t`**, **`next`**, fallback через `patientPathFromReminderTargetUrl`); **`patientHomeMorningPing`** — assertion **`web_app.url`** для Telegram и MAX (numeric `external_id` для enqueue, см. код хендлера).
 - **Доки**: **`INTEGRATOR_CONTRACT.md`** — фактический формат **`sub`** (`tg:…` / `max:…`), пояснение про **`?t=`** vs порядок initData/`exchange` на клиенте.
 
-**Проверки (локально в сессии):** targeted vitest (webapp + integrator по списку плана), `pnpm --dir apps/webapp typecheck`, `pnpm --dir apps/integrator typecheck`; полный **`pnpm install --frozen-lockfile && pnpm run ci`** — **exit 0** (локально, 2026-05-15).
+**Проверки (локально в сессии):** targeted vitest (webapp + integrator по списку плана), `pnpm --dir apps/webapp typecheck`, `pnpm --dir apps/integrator typecheck`; полный **`pnpm install --frozen-lockfile && pnpm run ci`** — **exit 0** (локально, 2026-05-15); **повтор после дозакрытия** (baseline в логе, MAX morning-ping test, чеклисты плана) — **exit 0** (тот же пайплайн).
 
-**Ops acceptance (partial until operator confirms):**
+**Ops acceptance — `partial (ops)` до подтверждения оператором:**
 
 - MAX Business статический miniapp URL: **`…/app/max`**
 - Telegram/BotFather/menu при необходимости: **`…/app/tg`**
 - **`max_bot_api_key`** в **`public.system_settings`** scope **`admin`** — см. образец **`psql`** в плане / `SERVER CONVENTIONS.md` (**секрет не выводить**)
 
-Статус ops: **`partial (ops)`** — подтверждения консолями/production DB из этой сессии не получены.
+Статус ops: **`partial (ops)`** — подтверждения из консолей мессенджеров и проверки production DB в репозитории не фиксировались (см. §Шаг 5 плана `miniapp-audit-fixes`).
