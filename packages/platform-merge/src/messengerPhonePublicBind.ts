@@ -199,9 +199,37 @@ export async function applyMessengerPhonePublicBind(
         if (nextId) platformUserId = nextId;
         continue;
       }
-      throw new MessengerPhoneLinkError("integrator_id_mismatch", {
-        candidateIds: [platformUserId],
-      });
+      // Channel already on this platform user; `integrator_user_id` stale vs canonical from integrator — realign if unique key allows.
+      const realign = await db.query(
+        `UPDATE public.platform_users SET
+           integrator_user_id = $1::bigint,
+           updated_at = now()
+         WHERE id = $2::uuid
+           AND merged_into_id IS NULL
+           AND integrator_user_id::text = $3
+           AND NOT EXISTS (
+             SELECT 1 FROM public.platform_users pu2
+             WHERE pu2.integrator_user_id = $1::bigint
+               AND pu2.merged_into_id IS NULL
+               AND pu2.id <> $2::uuid
+           )`,
+        [canonicalIntegratorUserId, platformUserId, existingInt],
+      );
+      if ((realign.rowCount ?? 0) < 1) {
+        throw new MessengerPhoneLinkError("integrator_id_mismatch", {
+          candidateIds: [platformUserId],
+        });
+      }
+      logger.info(
+        {
+          event: "phone_bind_realign_integrator_user_id",
+          targetId: platformUserId,
+          old: existingInt,
+          new: canonicalIntegratorUserId,
+        },
+        "[messengerPhone] realigned platform_users.integrator_user_id",
+      );
+      continue;
     }
 
     let changed = false;

@@ -95,6 +95,10 @@ const DELIVERY_TYPES = new Set<string>([
 
 function channelLinkCompleteFailureTemplateKey(source: string, errRaw: string | undefined): string {
   const e = (errRaw ?? '').trim().toLowerCase();
+  /** PRODUCT_REASONS (WEBAPP_FIRST_PHONE_BIND): mismatch → generic / support path */
+  if (e === 'integrator_id_mismatch') {
+    return `${source}:channelLink.completeFailed.generic`;
+  }
   const conflictLike = new Set([
     'conflict',
     'channel_owned_by_real_user',
@@ -308,8 +312,90 @@ export async function executeAction(
           });
         }
       }
+      const appliedChannelLinkWrites: DbWriteMutation[] = [];
+      let phoneLinkSyncFailure:
+        | { error: string; phoneLinkReason?: PhoneLinkFailureReason }
+        | undefined;
       if (syncWrites.length > 0 && fullDeps.writePort) {
-        await persistWrites(fullDeps.writePort, syncWrites);
+        for (const write of syncWrites) {
+          const meta = await fullDeps.writePort.writeDb(write);
+          appliedChannelLinkWrites.push(write);
+          if (write.type === 'user.phone.link') {
+            const hasMeta =
+              typeof meta === 'object' && meta !== null && 'userPhoneLinkApplied' in meta;
+            const m = hasMeta ? (meta as DbWriteDbResult) : null;
+            const indeterminate = !hasMeta || m?.phoneLinkIndeterminate === true;
+            const notApplied = hasMeta && m && !m.userPhoneLinkApplied;
+            if (notApplied || indeterminate) {
+              const reason = m?.phoneLinkReason;
+              phoneLinkSyncFailure = {
+                error:
+                  reason !== undefined
+                    ? `channel link phone sync: ${reason}`
+                    : indeterminate
+                      ? 'channel link phone sync: indeterminate'
+                      : 'channel link phone sync: not applied',
+                ...(reason !== undefined ? { phoneLinkReason: reason } : {}),
+              };
+              logger.warn(
+                {
+                  event: 'channel_link_phone_sync_failed',
+                  externalId,
+                  channelCode,
+                  phoneLinkReason: reason,
+                  indeterminate,
+                },
+                '[webapp.channelLink.complete] user.phone.link did not apply',
+              );
+              break;
+            }
+          }
+        }
+      }
+
+      if (phoneLinkSyncFailure) {
+        const failureIntents: OutgoingIntent[] = [];
+        const tplPort = fullDeps.templatePort;
+        const source = ctx.event.meta.source;
+        if (tplPort && (source === 'telegram' || source === 'max')) {
+          const chatId = resolveChannelLinkFailureChatId(ctx, externalId);
+          if (chatId !== null) {
+            const templateKey = channelLinkCompleteFailureTemplateKey(
+              source,
+              phoneLinkSyncFailure.phoneLinkReason ?? phoneLinkSyncFailure.error,
+            );
+            const text = await renderText({
+              templateKey,
+              ctx,
+              templatePort: tplPort,
+            });
+            if (text.trim().length > 0) {
+              const channels = source === 'max' ? ['max'] : ['telegram'];
+              failureIntents.push({
+                type: 'message.send',
+                meta: buildIntentMeta({ ...action, id: `${action.id}:channel-link-phone-sync-failed` }, ctx),
+                payload: {
+                  recipient: { chatId },
+                  message: { text },
+                  delivery: { channels, maxAttempts: 1 },
+                },
+              });
+            }
+          }
+        }
+        return {
+          actionId: action.id,
+          status: 'failed',
+          error: phoneLinkSyncFailure.error,
+          values: {
+            channelLink: {
+              ok: true,
+              phoneLinkSync: { ok: false, reason: phoneLinkSyncFailure.phoneLinkReason },
+            },
+          },
+          ...(failureIntents.length > 0 ? { intents: failureIntents } : {}),
+          ...(appliedChannelLinkWrites.length > 0 ? { writes: appliedChannelLinkWrites } : {}),
+        };
       }
 
       if (needsPhone && fullDeps.dispatchPort) {
@@ -393,7 +479,7 @@ export async function executeAction(
         actionId: action.id,
         status: 'success',
         values: { channelLink: { ok: true, needsPhone, contactPromptSent: needsPhone } },
-        ...(syncWrites.length > 0 ? { writes: syncWrites } : {}),
+        ...(appliedChannelLinkWrites.length > 0 ? { writes: appliedChannelLinkWrites } : {}),
         ...(intents !== undefined && intents.length > 0 ? { intents } : {}),
       };
     }

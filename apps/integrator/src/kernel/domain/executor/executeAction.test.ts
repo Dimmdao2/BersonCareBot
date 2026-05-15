@@ -2698,7 +2698,12 @@ describe('executeAction', () => {
       needsPhone: false,
       phoneNormalized: '+79990001122',
     });
-    const writeDb = vi.fn().mockResolvedValue(undefined);
+    const writeDb = vi.fn().mockImplementation(async (mutation: { type: string }) => {
+      if (mutation.type === 'user.phone.link') {
+        return { userPhoneLinkApplied: true };
+      }
+      return undefined;
+    });
     const webappEventsPort = {
       completeChannelLink,
       emit: vi.fn(),
@@ -2759,6 +2764,12 @@ describe('executeAction', () => {
     });
     expect(result.status).toBe('success');
     expect(writeDb).toHaveBeenCalled();
+    expect(writeDb).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'user.phone.link', params: expect.objectContaining({ resource: 'telegram' }) }),
+    );
+    expect(writeDb).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'user.state.set' }),
+    );
     expect(renderTemplate).toHaveBeenCalled();
     const welcome = result.intents?.find((i) => i.type === 'message.send');
     expect(welcome).toBeDefined();
@@ -2776,7 +2787,12 @@ describe('executeAction', () => {
       needsPhone: false,
       phoneNormalized: '+79990001122',
     });
-    const writeDb = vi.fn().mockResolvedValue(undefined);
+    const writeDb = vi.fn().mockImplementation(async (mutation: { type: string }) => {
+      if (mutation.type === 'user.phone.link') {
+        return { userPhoneLinkApplied: true };
+      }
+      return undefined;
+    });
     const webappEventsPort = {
       completeChannelLink,
       emit: vi.fn(),
@@ -2826,6 +2842,80 @@ describe('executeAction', () => {
     expect(send).toBeDefined();
     expect((send?.payload as { message?: { text?: string } })?.message?.text).toContain('привязан');
     expect((send?.payload as { delivery?: { channels?: string[] } }).delivery?.channels).toEqual(['max']);
+  });
+
+  it('webapp.channelLink.complete fails Max when user.phone.link returns not applied (no afterChannelLinked)', async () => {
+    const completeChannelLink = vi.fn().mockResolvedValue({
+      ok: true,
+      needsPhone: false,
+      phoneNormalized: '+79990001122',
+    });
+    const writeDb = vi.fn().mockResolvedValue({
+      userPhoneLinkApplied: false,
+      phoneLinkReason: 'integrator_id_mismatch',
+    });
+    const webappEventsPort = {
+      completeChannelLink,
+      emit: vi.fn(),
+      listSymptomTrackings: vi.fn(),
+      listLfkComplexes: vi.fn(),
+    };
+    const maxCtx: DomainContext = {
+      ...ctx,
+      event: {
+        type: 'message.received',
+        meta: {
+          eventId: 'evt-cl-max-phone-fail',
+          occurredAt: '2026-04-13T12:00:00.000Z',
+          source: 'max',
+          userId: '207278131',
+        },
+        payload: {
+          incoming: {
+            kind: 'message',
+            text: '/start link_testtoken',
+            chatId: 5090177,
+            channelId: '207278131',
+            action: 'start.link',
+            linkSecret: 'link_testtoken',
+          },
+        },
+      },
+    };
+    const action: Action = {
+      id: 'cl-max-phone-fail',
+      type: 'webapp.channelLink.complete',
+      mode: 'sync',
+      params: { linkToken: 'link_testtoken', channelCode: 'max', externalId: '207278131' },
+    };
+    const renderTemplate = vi.fn().mockResolvedValue({
+      text: 'Не удалось завершить привязку (generic).',
+    });
+    const result = await executeAction(action, maxCtx, {
+      webappEventsPort,
+      writePort: { writeDb },
+      templatePort: { renderTemplate },
+    });
+    expect(result.status).toBe('failed');
+    expect(result.error).toContain('integrator_id_mismatch');
+    expect(writeDb).toHaveBeenCalledTimes(1);
+    expect(writeDb).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'user.phone.link', params: expect.objectContaining({ resource: 'max' }) }),
+    );
+    const afterLinked = result.intents?.find(
+      (i) => i.type === 'message.send' && i.meta?.eventId?.includes('after-channel-linked'),
+    );
+    expect(afterLinked).toBeUndefined();
+    expect(renderTemplate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        templateId: 'channelLink.completeFailed.generic',
+      }),
+    );
+    const failureSend = result.intents?.find(
+      (i) => i.type === 'message.send' && i.meta?.eventId?.includes('channel-link-phone-sync-failed'),
+    );
+    expect(failureSend).toBeDefined();
+    expect((failureSend?.payload as { message?: { text?: string } })?.message?.text).toContain('generic');
   });
 
   describe('diary.symptom.afterTrackingCreated', () => {
