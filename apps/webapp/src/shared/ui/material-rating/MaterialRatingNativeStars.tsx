@@ -10,6 +10,10 @@ export type MaterialRatingNativeStarsProps = {
   readOnly: boolean;
   onChange: (v: number) => void;
   className?: string;
+  /** Размер звезды в px (интерактивный выбор — 25). */
+  starSize?: number;
+  /** Уменьшить зазор между звёздами (компактная строка). */
+  tight?: boolean;
   "aria-label"?: string;
 };
 
@@ -21,10 +25,16 @@ export function MaterialRatingNativeStars({
   readOnly,
   onChange,
   className,
+  starSize = 25,
+  tight = false,
   "aria-label": ariaLabel = "Оценка материала",
 }: MaterialRatingNativeStarsProps) {
   return (
-    <div role="radiogroup" aria-label={ariaLabel} className={cn("flex gap-0.5 sm:gap-1", className)}>
+    <div
+      role="radiogroup"
+      aria-label={ariaLabel}
+      className={cn("flex", tight ? "gap-0" : "gap-1.5 sm:gap-2", className)}
+    >
       {LEVELS.map((n) => {
         const filled = value >= 1 && n <= value;
         return (
@@ -40,12 +50,18 @@ export function MaterialRatingNativeStars({
               onChange(value === n ? 0 : n);
             }}
             className={cn(
-              "rounded p-0.5 transition-opacity",
+              "rounded transition-opacity",
+              tight ? "p-0" : "p-0.5",
               readOnly ? "cursor-default" : "cursor-pointer hover:opacity-90",
-              filled ? "text-amber-500" : "text-muted-foreground/45",
             )}
           >
-            <Star className="h-7 w-7 sm:h-8 sm:w-8" fill={filled ? "currentColor" : "none"} strokeWidth={filled ? 0 : 1.8} />
+            <Star
+              className="shrink-0"
+              size={starSize}
+              fill={filled ? "#f7965c" : "#fff7ed"}
+              stroke={filled ? "#bb5e26" : "#eda76a"}
+              strokeWidth={starSize <= 18 ? 1.5 : 2}
+            />
           </button>
         );
       })}

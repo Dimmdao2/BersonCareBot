@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Rating } from "@smastrom/react-rating";
+import { Star } from "lucide-react";
+import { Rating, Star as RatingStarShape } from "@smastrom/react-rating";
 import "@smastrom/react-rating/style.css";
 import { cn } from "@/lib/utils";
 import { patientMutedTextClass } from "@/shared/ui/patientVisual";
@@ -54,6 +55,16 @@ function fetchApiUrl(pathWithLeadingSlash: string): string {
   return new URL(pathWithLeadingSlash, origin).toString();
 }
 
+/** Цвета и обводка звёзд (см. `.material-rating-stars` в `globals.css`). */
+const MATERIAL_RATING_ITEM_STYLES = {
+  itemShapes: RatingStarShape,
+  itemStrokeWidth: 2,
+  activeFillColor: "#f7965c",
+  inactiveFillColor: "#fff7ed",
+  activeStrokeColor: "#bb5e26",
+  inactiveStrokeColor: "#eda76a",
+} as const;
+
 type SmastromBoundaryProps = {
   children: React.ReactNode;
   fallback: React.ReactNode;
@@ -92,6 +103,8 @@ export function MaterialRatingBlock({
   const [error, setError] = useState<string | null>(null);
   const [aggregate, setAggregate] = useState<LoadPayload | null>(null);
   const [value, setValue] = useState(0);
+  /** После подтверждения «Изменить оценку» — снова полноразмерный выбор (до сохранения новой). */
+  const [editRatingPicker, setEditRatingPicker] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const interactive = !readOnly && !guest && !needsActivation;
@@ -143,6 +156,10 @@ export function MaterialRatingBlock({
     void load();
   }, [load]);
 
+  useEffect(() => {
+    setEditRatingPicker(false);
+  }, [ratingKey]);
+
   const scheduleSave = useCallback(
     (next: number) => {
       if (!interactive || next < 1 || next > 5) return;
@@ -181,6 +198,7 @@ export function MaterialRatingBlock({
               myStars: my,
             });
             setValue(my ?? 0);
+            setEditRatingPicker(false);
           } catch {
             setError("Не удалось сохранить");
             await load();
@@ -191,6 +209,8 @@ export function MaterialRatingBlock({
     [interactive, load, programInstanceId, programStageItemId, targetId, targetKind],
   );
 
+  const pickerClassName = cn("material-rating-stars material-rating-stars--size-primary");
+
   const nativeStars = (
     <MaterialRatingNativeStars
       value={value}
@@ -199,7 +219,8 @@ export function MaterialRatingBlock({
         setValue(v);
         scheduleSave(v);
       }}
-      className="material-rating-stars max-w-[280px]"
+      className={pickerClassName}
+      starSize={25}
       aria-label="Оценка материала"
     />
   );
@@ -231,29 +252,67 @@ export function MaterialRatingBlock({
     return null;
   }
 
+  const myStars = aggregate?.myStars;
+  const hasSavedVote = typeof myStars === "number" && myStars >= 1;
+  const showSummaryRow = hasSavedVote && !editRatingPicker && !guest;
+  const showChangeLink = showSummaryRow && interactive;
+  const showStarPicker = !showSummaryRow;
+
   return (
     <div className={cn("flex flex-col gap-1.5", className)}>
-      <MaterialRatingSmastromBoundary key={ratingKey} fallback={nativeStars}>
-        <Rating
-          value={value}
-          readOnly={!interactive}
-          isRequired={false}
-          onChange={(v: number) => {
-            setValue(v);
-            scheduleSave(v);
-          }}
-          aria-label="Оценка материала"
-          className="material-rating-stars max-w-[200px]"
-        />
-      </MaterialRatingSmastromBoundary>
-      {aggregate && aggregate.count > 0 ? (
-        <p className={cn(patientMutedTextClass, "text-xs tabular-nums")}>
-          Средняя {aggregate.avg != null ? aggregate.avg.toFixed(1) : "—"} · {aggregate.count}{" "}
-          {ruRatingCountLabel(aggregate.count)}
-        </p>
-      ) : (
-        <p className={cn(patientMutedTextClass, "text-xs")}>Пока нет оценок</p>
-      )}
+      {showSummaryRow ? (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-normal leading-snug">
+          <span className={cn(patientMutedTextClass, "font-normal")}>Ваша оценка:</span>
+          <span className="inline-flex items-center gap-1.5" aria-hidden>
+            {[1, 2, 3, 4, 5].map((n) => {
+              const filled = n <= (myStars ?? 0);
+              return (
+                <Star
+                  key={n}
+                  size={15}
+                  className="shrink-0"
+                  fill={filled ? "#f7965c" : "#fff7ed"}
+                  stroke={filled ? "#bb5e26" : "#eda76a"}
+                  strokeWidth={1.5}
+                />
+              );
+            })}
+          </span>
+          {showChangeLink ? (
+            <button
+              type="button"
+              className={cn(
+                patientMutedTextClass,
+                "cursor-pointer border-0 bg-transparent p-0 text-[11px] font-normal underline decoration-muted-foreground/55 underline-offset-2 hover:opacity-90",
+              )}
+              onClick={() => {
+                if (!window.confirm("Сбросить вашу прошлую оценку?")) return;
+                setEditRatingPicker(true);
+                setValue(0);
+              }}
+            >
+              Изменить оценку
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+      {showStarPicker ? (
+        <MaterialRatingSmastromBoundary key={ratingKey} fallback={nativeStars}>
+          <Rating
+            value={value}
+            readOnly={!interactive}
+            isRequired={false}
+            onChange={(v: number) => {
+              setValue(v);
+              scheduleSave(v);
+            }}
+            aria-label="Оценка материала"
+            className={pickerClassName}
+            itemStyles={MATERIAL_RATING_ITEM_STYLES}
+            spaceBetween="medium"
+          />
+        </MaterialRatingSmastromBoundary>
+      ) : null}
       {error ? <p className="text-xs text-destructive">{error}</p> : null}
     </div>
   );

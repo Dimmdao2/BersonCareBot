@@ -169,8 +169,24 @@
   cursor: pointer;
 }
 
-#app-shell-patient .material-rating-stars svg {
-  color: var(--patient-block-heading);
+/* Оценка материалов (уроки/видео): 25px звезда при выборе, палитра и промежуток rr--gap-md */
+.material-rating-stars.rr--group {
+  --rr--fill-on-color: #f7965c;
+  --rr--fill-off-color: #fff7ed;
+  --rr--stroke-on-color: #bb5e26;
+  --rr--stroke-off-color: #eda76a;
+}
+
+.material-rating-stars--size-primary.rr--group.rr--dir-x {
+  width: fit-content;
+  max-width: none;
+}
+
+.material-rating-stars--size-primary.rr--group.rr--dir-x > .rr--box {
+  flex: 0 0 25px;
+  width: 25px;
+  min-width: 25px;
+  max-width: 25px;
 }
 
 /*---break---

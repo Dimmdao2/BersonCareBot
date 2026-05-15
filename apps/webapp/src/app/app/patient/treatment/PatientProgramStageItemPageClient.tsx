@@ -735,19 +735,21 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
           })()
         ) : null}
 
-        <div className="flex items-center justify-between gap-3 border-b border-[var(--patient-border)]/50 bg-muted/15 px-4 py-2.5 lg:px-5">
-          <span className={cn("min-w-0 flex-1 text-xs leading-snug", patientMutedTextStrongClass)}>
-            {(() => {
-              const lastIso = mergeLastActivityDisplayedIso(lastDoneAtIsoByItemId[item.id], item.completedAt);
-              const todayCount = doneTodayCountByItemId[item.id] ?? 0;
-              if (!lastIso) return "Выполнялось: никогда";
-              const rel = formatRelativePatientCalendarDayRu(lastIso, appDisplayTimeZone);
-              const suffix = todayCount > 0 ? ` · Сегодня ${todayCount} раз` : "";
-              return `Выполнялось: ${rel}${suffix}`;
-            })()}
-          </span>
-          <ItemPageTodayDots todayCount={doneTodayCountByItemId[item.id] ?? 0} />
-        </div>
+        {(() => {
+          const t = treatmentProgramItemToRatingTarget(item.itemType, item.itemRefId);
+          if (!t.kind) return null;
+          return (
+            <div className="border-b border-[var(--patient-border)]/50 px-4 py-3 lg:px-5">
+              <MaterialRatingBlock
+                targetKind={t.kind}
+                targetId={t.targetId}
+                programInstanceId={instanceId}
+                programStageItemId={item.id}
+                readOnly={readOnly || contentBlocked}
+              />
+            </div>
+          );
+        })()}
 
         <div className={cn(patientInnerPageStackClass, "p-4 pb-8 lg:p-5 lg:pb-10")}>
           {item.itemType === "lfk_complex" ? (
@@ -843,6 +845,20 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
             </div>
           ) : null}
 
+          <div className="mt-2 -mx-4 flex flex-wrap items-center gap-2 border-b border-[var(--patient-border)]/50 bg-muted/15 px-4 py-2.5 lg:-mx-5 lg:px-5">
+            <span className={cn("text-xs leading-snug", patientMutedTextStrongClass)}>
+              {(() => {
+                const lastIso = mergeLastActivityDisplayedIso(lastDoneAtIsoByItemId[item.id], item.completedAt);
+                const todayCount = doneTodayCountByItemId[item.id] ?? 0;
+                if (!lastIso) return "Выполнялось: никогда";
+                const rel = formatRelativePatientCalendarDayRu(lastIso, appDisplayTimeZone);
+                const suffix = todayCount > 0 ? ` · Сегодня ${todayCount} раз` : "";
+                return `Выполнялось: ${rel}${suffix}`;
+              })()}
+            </span>
+            <ItemPageTodayDots todayCount={doneTodayCountByItemId[item.id] ?? 0} />
+          </div>
+
           {!contentBlocked && !readOnly && item.itemType === "lfk_complex" && !isPersistentRecommendation(item) ? (
             <div
               className={cn(
@@ -875,22 +891,6 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
               </Select>
             </div>
           ) : null}
-
-          {(() => {
-            const t = treatmentProgramItemToRatingTarget(item.itemType, item.itemRefId);
-            if (!t.kind) return null;
-            return (
-              <div className="mt-3">
-                <MaterialRatingBlock
-                  targetKind={t.kind}
-                  targetId={t.targetId}
-                  programInstanceId={instanceId}
-                  programStageItemId={item.id}
-                  readOnly={readOnly || contentBlocked}
-                />
-              </div>
-            );
-          })()}
 
           {item.effectiveComment?.trim() ? (
             <div className="flex flex-col gap-1.5 rounded-lg border border-[var(--patient-border)]/60 bg-muted/10 px-3 py-2.5">
