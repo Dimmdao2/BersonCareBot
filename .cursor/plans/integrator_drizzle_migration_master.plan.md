@@ -1,7 +1,11 @@
 ---
 name: Integrator SQL → Drizzle (мастер-план)
-overview: Поэтапный перевод выбранных репозиториев интегратора с сырого SQL на Drizzle-ORM без смены контрактов kernel и без изменения транзакционной семантики (особенно claim + SKIP LOCKED + retry для outbox/очередей).
 status: completed
+overview: >-
+  Поэтапный перевод выбранных репозиториев интегратора с сырого SQL на Drizzle-ORM
+  без смены контрактов kernel и без изменения транзакционной семантики (особенно
+  claim + SKIP LOCKED + retry для outbox/очередей). Этапы P1–P4 закрыты; остатки
+  сырого SQL и webapp — см. docs/INTEGRATOR_DRIZZLE_MIGRATION (Wave 2), не в scope этого мастера.
 todos:
   - id: schema-strategy
     content: >-
@@ -23,6 +27,12 @@ todos:
     status: completed
   - id: dod-master
     content: Definition of Done мастера — все этапы закрыты, integrator-тесты и typecheck по зоне зелёные, запись финала в docs/INTEGRATOR_DRIZZLE_MIGRATION/LOG.md
+    status: completed
+  - id: wave-2-doc-sync
+    content: >-
+      Синхронизация документации с кодом после P1–P4: Wave 2 (DRIZZLE_TRANSITION_PLAN.md,
+      RAW_SQL_INVENTORY.md), постаудиты (bookingCalendarMap, doctor broadcast queue),
+      frontmatter мастер-плана и ссылка из docs/README.md.
     status: completed
 isProject: true
 ---
@@ -89,3 +99,12 @@ isProject: true
 - [x] Все четыре этапных плана переведены в завершённые состояния (`todos`, чеклисты, **`status: completed` в YAML**, LOG).
 - [x] `pnpm --dir apps/integrator run typecheck` и `pnpm --dir apps/integrator run test` зелёные после финального этапа.
 - [x] В [`docs/INTEGRATOR_DRIZZLE_MIGRATION/LOG.md`](../../docs/INTEGRATOR_DRIZZLE_MIGRATION/LOG.md) зафиксированы решения по схеме, риски оставшегося сырого SQL (если есть) и краткий итог по этапам.
+- [x] Документация Wave 2 и ссылки из корневого [`docs/README.md`](../../docs/README.md) согласованы с закрытием мастера (todo **`wave-2-doc-sync`**).
+
+## Следующая волна (Wave 2) — вне закрытого scope P1–P4
+
+Оставшийся сырой SQL (`db.query` / `pool.query`), webapp `infra/repos`, worker и скрипты — **не продолжение этого мастер-плана**, а отдельная очередь работ:
+
+- План фаз и рисков: [`docs/INTEGRATOR_DRIZZLE_MIGRATION/DRIZZLE_TRANSITION_PLAN.md`](../../docs/INTEGRATOR_DRIZZLE_MIGRATION/DRIZZLE_TRANSITION_PLAN.md)
+- Построчная инвентаризация: [`docs/INTEGRATOR_DRIZZLE_MIGRATION/RAW_SQL_INVENTORY.md`](../../docs/INTEGRATOR_DRIZZLE_MIGRATION/RAW_SQL_INVENTORY.md)
+- Журнал: [`docs/INTEGRATOR_DRIZZLE_MIGRATION/LOG.md`](../../docs/INTEGRATOR_DRIZZLE_MIGRATION/LOG.md) (раздел **Wave 2**)

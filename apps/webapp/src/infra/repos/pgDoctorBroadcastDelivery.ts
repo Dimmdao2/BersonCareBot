@@ -65,7 +65,7 @@ export function createPgDoctorBroadcastDeliveryCommitPort(): DoctorBroadcastDeli
           ],
         );
         for (const job of input.jobs) {
-          await client.query(
+          const insJob = await client.query(
             `INSERT INTO outgoing_delivery_queue (
                event_id,
                kind,
@@ -75,9 +75,14 @@ export function createPgDoctorBroadcastDeliveryCommitPort(): DoctorBroadcastDeli
                attempt_count,
                max_attempts,
                next_retry_at
-             ) VALUES ($1, $2, $3, $4::jsonb, 'pending', 0, $5, now())`,
+             ) VALUES ($1, $2, $3, $4::jsonb, 'pending', 0, $5, now())
+             ON CONFLICT (event_id) DO NOTHING
+             RETURNING id`,
             [job.eventId, job.kind, job.channel, JSON.stringify(job.payloadJson), job.maxAttempts],
           );
+          if (insJob.rowCount !== 1) {
+            throw new Error("outgoing_delivery_queue_insert_conflict_or_skipped");
+          }
         }
         await client.query("COMMIT");
         return mapRow(ins.rows[0] as Record<string, unknown>);

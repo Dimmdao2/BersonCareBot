@@ -1,9 +1,9 @@
 ---
 name: Integrator Drizzle — этап 3 (доменные репозитории)
+status: completed
 overview: >-
   После паттернов P1+P2 перевести reminders, bookingRecords и publicAppointmentRecordSync на Drizzle;
   высокая отдача, но больше ветвлений и связка с синхронизацией записей.
-status: completed
 todos:
   - id: p3-schema
     content: >-

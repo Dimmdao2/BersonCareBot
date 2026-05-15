@@ -1,7 +1,7 @@
 # Инвентаризация: сырой SQL вне Drizzle query builder
 
 **Дата снимка:** 2026-05-15  
-**Контекст:** миграция интегратора на Drizzle; в отчёте — весь монорепозиторий (не только `apps/integrator`), т.к. «сырой» `pg` и строковый SQL широко используется в webapp, worker и пакетах.
+**Контекст:** миграция интегратора на Drizzle; мастер-план **P1–P4 интегратора закрыт** — здесь перечислены **остатки** сырого SQL и зона вне интегратора (webapp, worker, пакеты): `pg` и строковый SQL там по-прежнему широко используются.
 
 **План перехода (фазы, риски, приоритеты):** [DRIZZLE_TRANSITION_PLAN.md](./DRIZZLE_TRANSITION_PLAN.md)
 
@@ -9,7 +9,7 @@
 
 | Столбец | Смысл |
 |---------|--------|
-| **Сложн.** | **Н** — простой маппинг на Drizzle API; **С** — транзакции, динамика, несколько таблиц; **В** — очереди/merge/purge, крупные CTE, `SKIP LOCKED`, cross-schema. |
+| **Сложн.** | **Н** — простой маппинг на Drizzle API; **С** — транзакции, динамика, несколько таблиц, чтение `public` из другого процесса; **В** — очереди/merge/purge, крупные CTE, `SKIP LOCKED`, cross-schema; **—** — вне цели перевода на Drizzle builder (мигратор, чистый транспорт). |
 | **Вариант** | Целевой подход: `Drizzle` — builder; `+sql` — фрагменты `sql`…``; `execute(sql)` — оставить явный SQL через Drizzle-сессию; `pg` — целесообразно оставить на `pg` (мигратор, ops). |
 | **Риски** | Кратко: что ломается при ошибке миграции. |
 
@@ -35,7 +35,7 @@
 
 | Файл | Назначение | Сложн. | Вариант | Риски |
 |------|------------|--------|---------|-------|
-| `apps/integrator/src/infra/db/repos/projectionOutbox.ts` | Claim событий projection outbox (CTE + `FOR UPDATE SKIP LOCKED`). | В | `execute(sql)` сохранить; опционально вынести в SQL-view + простой select | Регресс claim, дедлоки, порядок строк |
+| `apps/integrator/src/infra/db/repos/projectionOutbox.ts` | Claim событий projection outbox (CTE + `FOR UPDATE SKIP LOCKED`). | В | `execute(sql)` сохранить; view + простой `select` — отдельная постановка (backlog), если понадобится упростить claim | Регресс claim, дедлоки, порядок строк |
 | `apps/integrator/src/infra/db/repos/jobQueue.ts` | Claim отложенных jobs очереди сообщений. | В | как выше | Идемпотентность, конкуренция воркеров |
 | `apps/integrator/src/infra/db/repos/reminders.ts` | Сложные операции напоминаний (в т.ч. `execute(sql)`). | В | частично `Drizzle`, hot-path `execute(sql)` | Доменные правила напоминаний, TZ |
 | `apps/integrator/src/infra/db/repos/bookingCalendarMap.ts` | Синхронизация полей `public.patient_bookings` с картой календаря (`runIntegratorSql`). | С | `Drizzle` + `runIntegratorSql`/`+sql` для public sync | Расхождение схем public vs integrator |
@@ -43,7 +43,7 @@
 | `apps/integrator/src/infra/db/repos/mergeIntegratorUsers.ts` | Слияние пользователей интегратора (identities, telegram_state, projection outbox и др., `runIntegratorSql`). | В | оставить `runIntegratorSql` ядро; оболочки — `Drizzle` | Катастрофический регресс данных |
 | `apps/integrator/src/infra/db/repos/messageThreads.ts` | Треды поддержки / черновики / списки разговоров (`runIntegratorSql`). | В | поэтапно `Drizzle` + `+sql` | UX поддержки, пагинация |
 | `apps/webapp/src/infra/repos/warmupFeelingTrackingTx.ts` | Прогрев/проверка транзакции Drizzle (`tx.execute(sql)`). | Н | без изменений / `execute(sql)` | Низкий |
-| `apps/webapp/src/app-layer/db/drizzle.smoke.test.ts` | Smoke `select 1` для Drizzle. | Н | `pg` / как есть | Низкий |
+| `apps/webapp/src/app-layer/db/drizzle.smoke.test.ts` | Smoke `select 1` для Drizzle. | Н | без изменений (`getDrizzle().execute`) | Низкий |
 
 ---
 
@@ -53,15 +53,15 @@
 
 | Файл | Назначение запросов | Сложн. | Вариант | Риски |
 |------|---------------------|--------|---------|-------|
-| `src/infra/db/client.ts` | Реализация `DbPort.query` / транзакция `BEGIN`/`COMMIT`/`ROLLBACK` на `pg` client; health `SELECT 1` на пуле. | Н | `DbPort` оставить как транспорт; health — опционально `execute(sql)` | Низкие; не трогать TX-оболочку без нужды |
-| `src/infra/db/migrate.ts` | Применение SQL-миграций: `CREATE SCHEMA`, проверки таблицы миграций, `BEGIN`/`COMMIT`/`ROLLBACK`, выполнение тела миграции, запись в ledger. | Н | **`pg`** — не переносить на ORM | Низкие; мигратор должен оставаться прозрачным |
+| `src/infra/db/client.ts` | Реализация `DbPort.query` / транзакция `BEGIN`/`COMMIT`/`ROLLBACK` на `pg` client; health `SELECT 1` на пуле. | С | `DbPort` оставить как транспорт; внутри TX уже есть `integratorDrizzle` — не ломать оболочку без задачи | Регресс всех репозиториев на TX |
+| `src/infra/db/migrate.ts` | Применение SQL-миграций: `CREATE SCHEMA`, проверки таблицы миграций, `BEGIN`/`COMMIT`/`ROLLBACK`, выполнение тела миграции, запись в ledger. | — | **`pg`** — вне цели Drizzle-ORM для тел миграций | Низкие; мигратор остаётся на строковом SQL |
 
 ### 1.2 Репозитории и чтение (сырой `db.query` / `tx.query`)
 
 | Файл | Назначение | Сложн. | Вариант | Риски |
 |------|------------|--------|---------|-------|
 | `src/infra/db/repos/outgoingDeliveryQueue.ts` | Очередь `public.outgoing_delivery_queue`: idempotent insert, сброс зависших `processing`, claim с `SKIP LOCKED`, финальные статусы и reschedule. | В | `Drizzle` для insert/update; claim — `execute(sql)` или аккуратный перенос | Очередь исходящей доставки |
-| `src/infra/db/repos/projectionHealth.ts` | Агрегаты по `projection_outbox` (counts по статусам, oldest pending, распределение ретраев, last success, over threshold). | Н | `Drizzle` `select` + `groupBy` / `sql` агрегаты | Расхождение с CLI-скриптом, если не синхронизировать |
+| `src/infra/db/repos/projectionHealth.ts` | Агрегаты по `projection_outbox` (counts по статусам, oldest pending, распределение ретраев, last success, over threshold). | С | `Drizzle` + `groupBy` / параллельные `select`; синхронизировать с CLI | Расхождение с `projection-health.mjs`, неверные release-gate метрики |
 | `src/infra/db/repos/messengerPhoneBindAudit.ts` | В транзакции: upsert/инкремент аудита привязки телефона мессенджера (`tx.query`). | С | `getIntegratorDrizzleSession(tx)` + `insert`/`onConflict` | Дубликаты аудита, гонки |
 | `src/infra/db/repos/platformUserDeliveryPhone.ts` | Нормализованный телефон платформенного пользователя. | Н | `Drizzle` | Низкие |
 | `src/infra/db/repos/patientHomeMorningPing.ts` | Данные для утреннего пинга (привязки, флаги, ключи настроек). | С | `Drizzle` + при необходимости `+sql` | Неверный выбор получателей пинга |
@@ -77,10 +77,10 @@
 
 | Файл | Назначение | Сложн. | Вариант | Риски |
 |------|------------|--------|---------|-------|
-| `src/integrations/bersoncare/settingsSyncRoute.ts` | Подписанный webhook: upsert в `integrator.system_settings` сырой `INSERT … ON CONFLICT`. | С | `Drizzle` `insert` `onConflictDoUpdate` | Зеркало webapp↔integrator (`updateSetting`) |
+| `src/integrations/bersoncare/settingsSyncRoute.ts` | Подписанный webhook: upsert в `integrator.system_settings` сырой `INSERT … ON CONFLICT`. | С | `Drizzle` `insert` `onConflictDoUpdate` | Обратный канал к webapp `updateSetting`: не нарушить зеркало `public`↔`integrator` и инвалидации кэшей |
 | `src/infra/db/adminIncidentAlertRelay.ts` | Чтение настроек для релея инцидентов. | Н | `Drizzle` | Пропуск/ложные алерты |
-| `src/infra/db/branchTimezone.ts` | IANA timezone филиала. | Н | `Drizzle` | Неверное время в отчётах |
-| `src/infra/runtime/worker/outgoingDeliveryWorker.ts` | Проверка статуса строки очереди перед обработкой. | Н | `Drizzle` | Лишняя/недостаточная доставка |
+| `src/infra/db/branchTimezone.ts` | IANA timezone филиала. | С | `Drizzle` + join на `public.booking_branches` / `public.branches` (чтение public из integrator) | Неверный слот времени, data-quality инциденты |
+| `src/infra/runtime/worker/outgoingDeliveryWorker.ts` | Воркер `public.outgoing_delivery_queue`: `SELECT` статуса напоминания; для `doctor_broadcast_intent` — `UPDATE public.broadcast_audit` (`sent_count` после успеха; `error_count` через `finalizeOutgoingDeliveryDead` / `incrementBroadcastAuditErrorIfDoctorBroadcast`, если в `payload_json` есть `broadcastAuditId`). | С | `Drizzle` + `execute(sql)` для UPDATE/SELECT; ветки reminder/operator сохранить | Счётчики рассылок врача, идемпотентность очереди |
 | `src/config/appBaseUrl.ts` | Кэшируемое чтение `app_base_url` из `system_settings`. | Н | `Drizzle` | Неверные URL в интеграторе |
 | `src/config/appTimezone.ts` | Кэшируемое чтение таймзоны отображения. | Н | `Drizzle` | Неверное отображение времени |
 | `src/integrations/google-calendar/runtimeConfig.ts` | JSON настройки Google Calendar из `system_settings`. | Н | `Drizzle` | Сбой GCal интеграции |
@@ -115,7 +115,7 @@
 | `src/infra/userLifecycleLock.ts` | Транзакционные `pg_advisory_xact_lock` / shared lock по user id (сериализация жизненного цикла). | С | `execute(sql)` в Drizzle tx | Дедлоки, гонки lifecycle |
 | `src/infra/multipartSessionLock.ts` | Advisory lock по id multipart-сессии. | С | `execute(sql)` в tx | Параллельные загрузки |
 | `src/modules/system-settings/configAdapter.ts` | Dual-read настроек: `SELECT value_json FROM system_settings` (admin scope) с TTL-кэшем. | Н | `Drizzle` | Кэш/инвалидация уже есть |
-| `src/infra/integrator-push/integratorPushOutbox.ts` | Запись и обновление статусов `integrator_push_outbox` на пуле webapp (сырой SQL). | С | `Drizzle` (схема `integrator` в unified DB) | Outbox доставки в интегратор |
+| `src/infra/integrator-push/integratorPushOutbox.ts` | Запись и обновление статусов **`public.integrator_push_outbox`** на пуле webapp (сырой SQL); таблица уже описана в Drizzle-схеме webapp. | С | `getDrizzle()` + `insert`/`update` по таблице из `apps/webapp/db/schema` | Очередь подписанных POST в интегратор, идемпотентность, worker tick |
 | `src/infra/idempotency/pgStore.ts` | Хранилище идемпотентности API (insert/select). | С | `Drizzle` | Двойные побочные эффекты API |
 
 ### 2.2 Аутентификация и лимиты
@@ -142,7 +142,7 @@
 
 | Файл | Назначение | Сложн. | Вариант | Риски |
 |------|------------|--------|---------|-------|
-| `src/infra/repos/pgDoctorBroadcastDelivery.ts` | Рассылка врача: транзакция, insert попыток доставки. | С | `Drizzle` + tx | Дубликаты попыток |
+| `src/infra/repos/pgDoctorBroadcastDelivery.ts` | Рассылка врача: транзакция `broadcast_audit` + `INSERT … ON CONFLICT (event_id) DO NOTHING` в `outgoing_delivery_queue` (при `rowCount ≠ 1` — откат). | С | `Drizzle` + tx | Дубликаты `event_id`, целостность аудита и очереди |
 | `src/infra/repos/pgReminderProjection.ts` | Проекция напоминаний webapp ↔ integrator_user_id. | С | `Drizzle` | Рассинхрон с интегратором |
 | `src/infra/repos/pgReminderRules.ts` | Правила напоминаний + синхронизация с webapp-правилами в транзакции. | В | `Drizzle` + tx + `+sql` | Двойные правила |
 | `src/infra/repos/pgReminderJournal.ts` | Журнал/события напоминаний, snooze, транзакции с несколькими апдейтами. | В | `Drizzle` + tx | Неверные snooze / доставки |
@@ -229,7 +229,7 @@
 
 | Файл | Назначение | Сложн. | Вариант | Риски |
 |------|------------|--------|---------|-------|
-| `src/processTranscodeJob.ts` | Статусы медиа и джобов: несколько `pool.query` / `ctx.pool.query` (обновление прогресса, финализация, ошибки). | С | `Drizzle` + общий schema пакет | Рассинхрон с webapp |
+| `src/processTranscodeJob.ts` | Статусы медиа и джобов: несколько `pool.query` / `ctx.pool.query` (обновление прогресса, финализация, ошибки). | С | ввести Drizzle в worker **или** общий пакет схемы с webapp (сейчас в worker нет Drizzle) | Новая зависимость, рассинхрон с webapp при расхождении DDL |
 | `src/jobs/claim.ts` | Claim транскодинг-джоба в транзакции (`FOR UPDATE SKIP LOCKED` + update). | В | `Drizzle` + `execute(sql)` claim | Двойной claim |
 
 ---
@@ -246,8 +246,8 @@
 
 ## 5. Как читать этот отчёт дальше
 
-1. **Интегратор:** приоритет миграции — файлы с **частым** изменением схемы (`bookingProfilesRepo`, `outgoingDeliveryQueue`, конфиг-чтения) и **операционные скрипты**. `migrate.ts` и `client.ts` останутся точкой выполнения SQL даже при полном Drizzle на домене.  
-2. **Webapp:** основная масса — `src/infra/repos/pg*.ts` и auth; Drizzle уже покрывает часть доменов, но параллельно живёт `pg` для legacy-сложных запросов.  
-3. **Точечный поиск в репозитории:** `rg "pool\\.query\\(|client\\.query\\(" apps packages` и для интегратора `rg "await db\\.query\\(" apps/integrator` (имя `db` там — пул `pg`).
+1. **Интегратор:** этапы P1–P4 мастер-плана закрыты; в приоритете хвост **`outgoingDeliveryQueue`**, **`bookingProfilesRepo`**, чтения настроек и мелкие `db.query` (см. [DRIZZLE_TRANSITION_PLAN.md](./DRIZZLE_TRANSITION_PLAN.md)). `migrate.ts` и оболочка `client.ts` для TX — **не** цель «весь SQL в Drizzle builder».  
+2. **Webapp:** перенос только через **`src/infra/repos`** (модули не импортируют `@/infra/db` напрямую по правилам репозитория).  
+3. **Поиск в коде:** `rg "pool\\.query\\(|client\\.query\\(" apps packages` и `rg "\\bdb\\.query\\(" apps/integrator` — в `apps/integrator` экспорт `db` из `client.ts` это **`pg.Pool`**, не Drizzle relational `db.query` из webapp.
 
 *Примечание:* при добавлении файлов этот документ стоит обновлять или регенерировать по тем же запросам `rg`, чтобы не расходиться с кодом.

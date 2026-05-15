@@ -47,7 +47,7 @@
 1. Собирает текст сообщения (заголовок + тело, с усечением по лимиту в `deliveryJobs.ts`).
 2. Генерирует `auditId`, строит плоский список заданий (`buildDoctorBroadcastDeliveryJobs`) с `event_id` и `payload_json` (`intent` + `broadcastAuditId` + опционально `clientUserId`).
 3. Ограничение **`MAX_BROADCAST_DELIVERY_JOBS`** — при превышении ошибка до транзакции.
-4. **`commitAuditAndDeliveryQueue`**: `INSERT broadcast_audit` (в т.ч. `message_body`, `delivery_jobs_total`) + `INSERT outgoing_delivery_queue` для каждой строки; при ошибке — откат всей транзакции.
+4. **`commitAuditAndDeliveryQueue`**: `INSERT broadcast_audit` (в т.ч. `message_body`, `delivery_jobs_total`) + для каждой строки очереди — `INSERT … ON CONFLICT (event_id) DO NOTHING` в `outgoing_delivery_queue`; если вставка строки не произошла (`rowCount ≠ 1`, дубликат `event_id` или иной сбой) — **откат всей транзакции** (в т.ч. запись `broadcast_audit` не фиксируется).
 
 Массовая доставка **не** идёт через HTTP **`relay-outbound`**: воркер integrator в штатном цикле **`runOutgoingDeliveryWorkerTick`** вызывает **`dispatchOutgoing`** по строкам с `kind = doctor_broadcast_intent` (см. `apps/integrator/src/infra/runtime/worker/outgoingDeliveryWorker.ts`).
 
@@ -63,7 +63,7 @@
 
 - **Журнал врача** (`BroadcastAuditLog`): человекочитаемые заголовки колонок, раскрытие строки — начало текста, подсказка при незавершённой доставке.
 - **Админка «Здоровье системы»**: блок очереди доставки; агрегаты **`dueByKind`** / **`deadByKind`** с подписями «Напоминания пациентам», «Рассылки от специалистов», «Служебные оповещения», «Прочее».
-- **Логи integrator** (`doctor_broadcast_delivery.sent` / `.dead` / `.dispatch_failed`): `broadcastAuditId`, `eventId`, `channel`, исход, **маскированный** получатель (без полного текста рассылки).
+- **Логи integrator** (`doctor_broadcast_delivery.sent` / `.dead`; при планируемом ретрае — **debug** `doctor_broadcast_delivery.dispatch_will_retry` с усечённым `error`, без сырого объекта исключения): `broadcastAuditId`, `eventId`, `channel`, исход, **маскированный** получатель (без полного текста рассылки).
 
 ## Связанные документы
 

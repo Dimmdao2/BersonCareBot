@@ -86,3 +86,9 @@
 - Этапы **P1–P4** и **мастер-план** закрыты; целевые репозитории плана не используют для своей доменной логики строковый **`db.query(...)`** (Drizzle API и/или **`runIntegratorSql` / `execute(sql)`**).
 - После выравнивания: **`pnpm --dir apps/integrator run lint`**, **`typecheck`**, **`test`** — зелёные.
 - Вне scope этой инициативы (отдельный backlog при необходимости): **`outgoingDeliveryQueue.ts`**, **`platformUserDeliveryPhone.ts`**, **`canonicalUserId.ts`**, **`linkedPhoneSource.ts`**, а также скрипты/health вне списка мастера (`projectionHealth`, `projection-health.mjs` и т.п.).
+
+### Wave 2 — план и инвентаризация (документация)
+
+- Обновлены **`docs/INTEGRATOR_DRIZZLE_MIGRATION/DRIZZLE_TRANSITION_PLAN.md`** (волна после закрытого мастера P1–P4: фазы, риски, DoD по каналам `system_settings`, правило webapp `infra/repos`) и **`RAW_SQL_INVENTORY.md`** (в т.ч. **`public.integrator_push_outbox`**, оценки для `client.ts` / `migrate.ts` / `branchTimezone`, уточнение `rg` для `db.query`).
+- Постаудит **рассылок врача / `outgoing_delivery_queue`**: webapp `pgDoctorBroadcastDelivery` — `INSERT … ON CONFLICT (event_id) DO NOTHING` + откат транзакции при `rowCount ≠ 1` (**один** `ROLLBACK` в `catch`, без дубля перед `throw`); integrator `outgoingDeliveryWorker` — при планируемом ретрае только **`logger.debug`** с усечённым `error` (без сырого `err` в структурированных полях); **`docs/ARCHITECTURE/DOCTOR_BROADCASTS.md`** и строка **`outgoingDeliveryWorker`** в **`RAW_SQL_INVENTORY.md`** приведены в соответствие с кодом.
+- **Мастер-план** `.cursor/plans/integrator_drizzle_migration_master.plan.md`: frontmatter выровнен под этапы 1–2 (`status` сразу после `name`, `overview: >-`), todo **`wave-2-doc-sync`** (completed); в теле плана — раздел **«Следующая волна (Wave 2)»** со ссылками на `DRIZZLE_TRANSITION_PLAN` / `RAW_SQL_INVENTORY` / `LOG`.

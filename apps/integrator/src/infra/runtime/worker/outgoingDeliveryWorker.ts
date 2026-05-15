@@ -341,16 +341,24 @@ export async function processOutgoingDeliveryRow(
         'doctor_broadcast_delivery.sent',
       );
     } catch (err) {
-      logger.warn(
-        {
-          err,
-          broadcastAuditId,
-          eventId: row.eventId,
-          channel: row.channel,
-          recipient: maskedRecipient,
-        },
-        'doctor_broadcast_delivery.dispatch_failed',
-      );
+      const msg = err instanceof Error ? err.message : String(err);
+      const safeErr = truncateDeliveryErrorMessage(msg);
+      const attempts = row.attemptCount;
+      const willRetry =
+        isOutgoingDeliveryDispatchErrorRetryable(safeErr) && attempts < row.maxAttempts;
+      if (willRetry) {
+        logger.debug(
+          {
+            broadcastAuditId,
+            eventId: row.eventId,
+            channel: row.channel,
+            recipient: maskedRecipient,
+            error: safeErr,
+            attempt: attempts,
+          },
+          'doctor_broadcast_delivery.dispatch_will_retry',
+        );
+      }
       await handleDispatchFailure(db, row, err, writePort);
     }
     return;

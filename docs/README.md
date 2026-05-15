@@ -13,6 +13,7 @@
 - [`RULES/README.md`](RULES/README.md) — **правила исполнения и операционные каноны** (программы лечения, напоминания/Drizzle, журналы выката).
 - [`RULES/OPERATIONS/REMINDER_SCHEDULER_ROLLOUT_LOG.md`](RULES/OPERATIONS/REMINDER_SCHEDULER_ROLLOUT_LOG.md) — журнал выката **`bersoncarebot-scheduler-prod`** (`schedule.tick` / напоминания) и связанных правок репозитория.
 - [`ARCHITECTURE/DATABASE_UNIFIED_POSTGRES.md`](ARCHITECTURE/DATABASE_UNIFIED_POSTGRES.md) — единая PostgreSQL (`public` / `integrator`), прямой SQL vs очередь.
+- **Integrator Drizzle (закрытый мастер P1–P4 + Wave 2):** [`INTEGRATOR_DRIZZLE_MIGRATION/LOG.md`](INTEGRATOR_DRIZZLE_MIGRATION/LOG.md) · [инвентаризация сырого SQL](INTEGRATOR_DRIZZLE_MIGRATION/RAW_SQL_INVENTORY.md) · [план Wave 2](INTEGRATOR_DRIZZLE_MIGRATION/DRIZZLE_TRANSITION_PLAN.md); мастер-план — [`.cursor/plans/integrator_drizzle_migration_master.plan.md`](../.cursor/plans/integrator_drizzle_migration_master.plan.md).
 - [`ARCHITECTURE/DB_STRUCTURE.md`](ARCHITECTURE/DB_STRUCTURE.md) — карта таблиц.
 - [`ARCHITECTURE/PRODUCTION_DB_INVENTORY_2026-04-13.md`](ARCHITECTURE/PRODUCTION_DB_INVENTORY_2026-04-13.md) — снимок production.
 - [`ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md`](ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md) — env vs `system_settings`.

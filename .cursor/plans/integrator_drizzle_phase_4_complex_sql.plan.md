@@ -1,7 +1,10 @@
 ---
 name: Integrator Drizzle — этап 4 (сложный SQL)
-overview: Последним блоком перевести messageThreads, channelUsers и mergeIntegratorUsers — CTE, LATERAL, identity/merge-потоки; максимально использовать Drizzle, допускать целевой sql только с полным сохранением логики.
 status: completed
+overview: >-
+  Последним блоком перевести messageThreads, channelUsers и mergeIntegratorUsers — CTE, LATERAL,
+  identity/merge-потоки; максимально использовать Drizzle, допускать целевой sql только с полным
+  сохранением логики.
 todos:
   - id: p4-inventory
     content: "Инвентаризация конструкций (CTE, LATERAL, merge/outbox) и решение builder vs sql template: таблица «Инвентаризация P4» в docs/INTEGRATOR_DRIZZLE_MIGRATION/LOG.md (раздел этапа 4); итог — runIntegratorSql + drizzle-orm sql шаблоны."
