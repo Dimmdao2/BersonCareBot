@@ -2916,6 +2916,101 @@ describe('executeAction', () => {
     );
     expect(failureSend).toBeDefined();
     expect((failureSend?.payload as { message?: { text?: string } })?.message?.text).toContain('generic');
+    expect(
+      (result.values as { channelLink?: { ok?: boolean; webappComplete?: boolean } })?.channelLink?.ok,
+    ).toBe(false);
+    expect(
+      (result.values as { channelLink?: { webappComplete?: boolean } })?.channelLink?.webappComplete,
+    ).toBe(true);
+  });
+
+  it('webapp.channelLink.complete fails Telegram when user.phone.link not applied (no user.state.set, no welcome)', async () => {
+    const completeChannelLink = vi.fn().mockResolvedValue({
+      ok: true,
+      needsPhone: false,
+      phoneNormalized: '+79990001122',
+    });
+    const writeDb = vi.fn().mockResolvedValue({
+      userPhoneLinkApplied: false,
+      phoneLinkReason: 'integrator_id_mismatch',
+    });
+    const webappEventsPort = {
+      completeChannelLink,
+      emit: vi.fn(),
+      listSymptomTrackings: vi.fn(),
+      listLfkComplexes: vi.fn(),
+    };
+    const tgCtx: DomainContext = {
+      ...ctx,
+      base: {
+        ...ctx.base,
+        facts: {
+          links: {
+            webappDiaryUrl: 'https://app.example/diary',
+            webappHomeUrl: 'https://app.example/home',
+          },
+        },
+      },
+      event: {
+        type: 'message.received',
+        meta: {
+          eventId: 'evt-cl-tg-phone-fail',
+          occurredAt: '2026-05-15T12:00:00.000Z',
+          source: 'telegram',
+          userId: '111',
+        },
+        payload: {
+          incoming: {
+            kind: 'message',
+            text: '/start link_testtoken',
+            chatId: 111,
+            channelId: '111',
+            action: 'start.link',
+            linkSecret: 'link_testtoken',
+            userRow: null,
+            userState: '',
+          },
+        },
+      },
+    };
+    const action: Action = {
+      id: 'cl-tg-phone-fail',
+      type: 'webapp.channelLink.complete',
+      mode: 'sync',
+      params: { linkToken: 'link_testtoken', channelCode: 'telegram', externalId: '111' },
+    };
+    const renderTemplate = vi.fn().mockResolvedValue({
+      text: 'Не удалось завершить привязку (generic).',
+    });
+    const result = await executeAction(action, tgCtx, {
+      webappEventsPort,
+      writePort: { writeDb },
+      templatePort: { renderTemplate },
+    });
+    expect(result.status).toBe('failed');
+    expect(writeDb).toHaveBeenCalledTimes(1);
+    expect(writeDb).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'user.phone.link', params: expect.objectContaining({ resource: 'telegram' }) }),
+    );
+    const welcomeSend = result.intents?.find(
+      (i) => i.type === 'message.send' && i.meta?.eventId?.includes('after-phone-linked'),
+    );
+    expect(welcomeSend).toBeUndefined();
+    expect(renderTemplate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        templateId: 'channelLink.completeFailed.generic',
+      }),
+    );
+    const failureSend = result.intents?.find(
+      (i) => i.type === 'message.send' && i.meta?.eventId?.includes('channel-link-phone-sync-failed'),
+    );
+    expect(failureSend).toBeDefined();
+    expect(
+      (result.values as { channelLink?: { ok?: boolean; webappComplete?: boolean } })?.channelLink?.ok,
+    ).toBe(false);
+    expect(
+      (result.values as { channelLink?: { webappComplete?: boolean } })?.channelLink?.webappComplete,
+    ).toBe(true);
   });
 
   describe('diary.symptom.afterTrackingCreated', () => {

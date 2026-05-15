@@ -92,6 +92,8 @@
 
 **Ошибка complete в integrator:** при `ok: false` от webapp шаг `webapp.channelLink.complete` добавляет исходящее `message.send` с шаблонами `channelLink.completeFailed.*` (Telegram / Max), плюс `warn` с `event: channel_link_complete_failed`.
 
+**Webapp complete ок, но не применился `user.phone.link` в integrator** (например откат binding-first TX): тот же шаг возвращает `failed` с шаблоном `channelLink.completeFailed.*` и **без** сообщения успеха (`afterChannelLinked` / welcome-клавиатура не строятся). В `values.channelLink`: `ok: false`, `webappComplete: true`, `phoneLinkSync.ok: false` и причина при наличии.
+
 **Админ в Telegram:** сценарий `telegram.admin.start.link` (приоритет выше catch-all) обрабатывает `/start link_*` так же, как пользовательский `telegram.start.link` — вызов `webapp.channelLink.complete`.
 
 ### Открытие ссылки Telegram в браузере (bind-phone / профиль)

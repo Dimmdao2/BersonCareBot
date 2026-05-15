@@ -389,7 +389,9 @@ export async function executeAction(
           error: phoneLinkSyncFailure.error,
           values: {
             channelLink: {
-              ok: true,
+              /** Итог шага для планировщика: webapp complete прошёл, синк телефона в БД бота — нет. */
+              ok: false,
+              webappComplete: true,
               phoneLinkSync: { ok: false, reason: phoneLinkSyncFailure.phoneLinkReason },
             },
           },

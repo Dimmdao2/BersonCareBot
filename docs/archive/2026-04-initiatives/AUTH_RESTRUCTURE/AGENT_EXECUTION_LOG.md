@@ -815,3 +815,24 @@ Checks:
 Gate verdict:
 - PASS
 ```
+
+```text
+[2026-05-15T00:00:00Z] [PHONE_BIND_MISMATCH_UX / channel-link complete] [FIX] agent
+Tasks done:
+- platform-merge: self-heal `integrator_user_id` в `messengerPhonePublicBind.ts` при отсутствии merge-партнёра.
+- integrator: `webapp.channelLink.complete` — последовательный `writeDb`, учёт meta `user.phone.link`, `values.channelLink` (`ok: false`, `webappComplete: true` при сбое синка), шаблоны `channelLink.completeFailed.*`.
+- Тесты: `executeAction.test.ts` (fail Max / fail Telegram, happy-path с `userPhoneLinkApplied: true`).
+- Доки: `docs/TODO.md`, `apps/webapp/src/modules/auth/auth.md`, `apps/webapp/INTEGRATOR_CONTRACT.md`; план: `.cursor/plans/archive/phone_bind_mismatch_ux.plan.md`.
+Changed files:
+- packages/platform-merge/src/messengerPhonePublicBind.ts
+- apps/integrator/src/kernel/domain/executor/executeAction.ts, executeAction.test.ts
+- apps/webapp/INTEGRATOR_CONTRACT.md, apps/webapp/src/modules/auth/auth.md
+- docs/TODO.md, docs/archive/2026-04-initiatives/AUTH_RESTRUCTURE/AGENT_EXECUTION_LOG.md
+- .cursor/plans/archive/phone_bind_mismatch_ux.plan.md
+Checks:
+- vitest filter `webapp.channelLink.complete`; typecheck platform-merge + integrator (полный ci — перед merge).
+Gate verdict:
+- PASS
+Notes:
+- Черновик Cursor `~/.cursor/plans/phone_bind_mismatch_ux_b62847ed.plan.md` удалён после переноса в archive репозитория.
+```
