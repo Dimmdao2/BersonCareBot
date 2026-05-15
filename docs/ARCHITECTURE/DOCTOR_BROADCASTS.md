@@ -4,7 +4,7 @@
 
 ## Назначение
 
-Форма **категории**, **сегмента аудитории**, **каналов** (`bot_message`, `sms`), текста; **предпросмотр** → **подтверждение** → запись в **`broadcast_audit`** и отображение **журнала** на той же странице.
+Форма **категории**, **сегмента аудитории**, **каналов** (`bot_message`, `sms`), текста; **предпросмотр** → **подтверждение** → одна транзакция webapp: **`broadcast_audit`** + пакетная вставка в **`public.outgoing_delivery_queue`** (`kind = doctor_broadcast_intent`). **Журнал** на той же странице.
 
 ## Код (webapp)
 
@@ -13,10 +13,12 @@
 | Страница | `apps/webapp/src/app/app/doctor/broadcasts/page.tsx` |
 | Server actions | `.../broadcasts/actions.ts` (`previewBroadcastAction`, `executeBroadcastAction`, `listBroadcastAuditAction`) |
 | Доменный сервис | `apps/webapp/src/modules/doctor-broadcasts/service.ts` |
-| Типы и константы | `.../doctor-broadcasts/ports.ts` (`BroadcastPreviewResult`, **`BROADCAST_RECIPIENT_PREVIEW_NAME_CAP`** = 20) |
+| Построение заданий очереди | `.../doctor-broadcasts/deliveryJobs.ts` |
+| Типы и константы | `.../doctor-broadcasts/ports.ts`, `deliveryQueueKind.ts` (`BROADCAST_RECIPIENT_PREVIEW_NAME_CAP` = 20) |
 | Оценка аудитории / dev_mode | `.../doctor-broadcasts/broadcastAudienceMetrics.ts` |
-| DI | `apps/webapp/src/app-layer/di/buildAppDeps.ts` (`doctorBroadcasts`) |
-| Аудит в БД | `apps/webapp/src/infra/repos/pgBroadcastAudit.ts` → таблица **`broadcast_audit`** |
+| DI | `apps/webapp/src/app-layer/di/buildAppDeps.ts` (`doctorBroadcasts`, `doctorBroadcastDeliveryCommitPort`) |
+| Аудит в БД | `apps/webapp/src/infra/repos/pgBroadcastAudit.ts` → **`broadcast_audit`** |
+| Транзакция аудит + очередь | `apps/webapp/src/infra/repos/pgDoctorBroadcastDelivery.ts` |
 
 ## Предпросмотр: число получателей и список имён
 
@@ -31,16 +33,37 @@
 
 При **`dev_mode` = true** (admin `system_settings`) расчёт доставки в мессенджер для канала «сообщение в боте» **пересекает** сегмент с **`test_account_identifiers.telegramIds` / `maxIds`** — ту же семантику, что guard исходящего relay: `systemSettingsService.shouldDispatchRelayToRecipient` (см. **`apps/webapp/INTEGRATOR_CONTRACT.md`**, раздел *dev_mode guard*).
 
-- Только **SMS** при включённом `dev_mode`: relay-guard для SMS в текущем контракте не покрывает телефон как `recipient` → в превью **доставка 0** для этого сценария.
+- Только **SMS** при включённом `dev_mode`: relay-guard для SMS в текущем контракте не покрывает телефон как `recipient` → в превью **доставка 0** для этого сценария; **в очередь SMS-задачи не ставятся** (тот же список `effectiveClients`, что в превью).
 - Каналы «скоро» (`push`, `home_banner`, …) в форме не активны; при попадании в расчёт без `bot_message`/`sms` **пересечение dev_mode не применяется** (список = весь сегмент).
 
 Снимок настроек для превью: **`getRelayDevContext`** в `apps/webapp/src/modules/system-settings/service.ts`.
 
 ## `preview` и `execute`
 
-Оба пути вызывают один и тот же резолвер аудитории в DI — **число в подтверждении и число в аудите совпадают**.
+Оба пути используют один резолвер аудитории в DI — **`resolveBroadcastAudience`** возвращает в том числе **`effectiveClients`**: тот же набор, что даёт превью (имена/число), и именно он идёт в постановку заданий в **`outgoing_delivery_queue`**.
 
-Модуль **`doctor-broadcasts.execute`** по смыслу **не выполняет массовую отправку** по каналам: только пишет **`broadcast_audit`** (`sent_count` / `error_count` на старте 0). Реальная доставка массовым контуром — **отдельный долг** (см. `docs/BACKLOG_TAILS.md`, блок про `broadcast_audit`).
+**`execute`** (сервис `doctor-broadcasts`):
+
+1. Собирает текст сообщения (заголовок + тело, с усечением по лимиту в `deliveryJobs.ts`).
+2. Генерирует `auditId`, строит плоский список заданий (`buildDoctorBroadcastDeliveryJobs`) с `event_id` и `payload_json` (`intent` + `broadcastAuditId` + опционально `clientUserId`).
+3. Ограничение **`MAX_BROADCAST_DELIVERY_JOBS`** — при превышении ошибка до транзакции.
+4. **`commitAuditAndDeliveryQueue`**: `INSERT broadcast_audit` (в т.ч. `message_body`, `delivery_jobs_total`) + `INSERT outgoing_delivery_queue` для каждой строки; при ошибке — откат всей транзакции.
+
+Массовая доставка **не** идёт через HTTP **`relay-outbound`**: воркер integrator в штатном цикле **`runOutgoingDeliveryWorkerTick`** вызывает **`dispatchOutgoing`** по строкам с `kind = doctor_broadcast_intent` (см. `apps/integrator/src/infra/runtime/worker/outgoingDeliveryWorker.ts`).
+
+### Семантика счётчиков в `broadcast_audit`
+
+| Колонка | Смысл |
+|--------|--------|
+| `audience_size` | Число клиентов в эффективной выборке (когорта + dev_mode). |
+| `delivery_jobs_total` | Число строк очереди для этой рассылки; **0** — запись до внедрения очереди (legacy). |
+| `sent_count` / `error_count` | Инкременты воркера по **завершённым** заданиям очереди (успех / `dead`). |
+
+## Наблюдаемость
+
+- **Журнал врача** (`BroadcastAuditLog`): человекочитаемые заголовки колонок, раскрытие строки — начало текста, подсказка при незавершённой доставке.
+- **Админка «Здоровье системы»**: блок очереди доставки; агрегаты **`dueByKind`** / **`deadByKind`** с подписями «Напоминания пациентам», «Рассылки от специалистов», «Служебные оповещения», «Прочее».
+- **Логи integrator** (`doctor_broadcast_delivery.sent` / `.dead` / `.dispatch_failed`): `broadcastAuditId`, `eventId`, `channel`, исход, **маскированный** получатель (без полного текста рассылки).
 
 ## Связанные документы
 

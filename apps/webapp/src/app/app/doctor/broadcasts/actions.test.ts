@@ -71,6 +71,8 @@ describe("executeBroadcastAction", () => {
       category: "reminder",
       audienceFilter: "with_telegram",
       messageTitle: "Test",
+      messageBody: "",
+      deliveryJobsTotal: 0,
       channels: ["bot_message", "sms"],
       executedAt: new Date().toISOString(),
       previewOnly: false,

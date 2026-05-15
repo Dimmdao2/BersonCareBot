@@ -11,6 +11,8 @@ const makeEntry = (overrides: Partial<BroadcastAuditEntry> = {}): BroadcastAudit
   category: "reminder",
   audienceFilter: "with_telegram",
   messageTitle: "Напоминание о приёме",
+  messageBody: "",
+  deliveryJobsTotal: 0,
   channels: ["bot_message", "sms"],
   executedAt: "2026-03-31T10:05:00.000Z",
   previewOnly: false,
@@ -54,11 +56,11 @@ describe("BroadcastAuditLog", () => {
 
   it("hides error column when all errorCount are zero", () => {
     render(<BroadcastAuditLog entries={[makeEntry({ errorCount: 0 })]} />);
-    expect(screen.queryByText("Ошибки")).not.toBeInTheDocument();
+    expect(screen.queryByText("Не удалось доставить")).not.toBeInTheDocument();
   });
 
   it("shows error column when any entry has errorCount > 0", () => {
     render(<BroadcastAuditLog entries={[makeEntry({ errorCount: 2 })]} />);
-    expect(screen.getByText("Ошибки")).toBeInTheDocument();
+    expect(screen.getByText("Не удалось доставить")).toBeInTheDocument();
   });
 });

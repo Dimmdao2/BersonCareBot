@@ -16,6 +16,7 @@ describe("BroadcastSentMessage", () => {
     };
     render(<BroadcastSentMessage preview={preview} />);
     expect(screen.getByText(/рассылка запущена/i)).toBeInTheDocument();
+    expect(screen.getByText(/счётчики «доставлено»/i)).toBeInTheDocument();
     expect(screen.getByText(/получателей \(доставка\): 7/i)).toBeInTheDocument();
     expect(screen.getByText("A")).toBeInTheDocument();
     expect(screen.getByText("B")).toBeInTheDocument();
