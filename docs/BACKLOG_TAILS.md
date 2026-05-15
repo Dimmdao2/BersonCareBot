@@ -40,7 +40,7 @@
 ### APP_RESTRUCTURE — хвосты этапа 1 (2026-05-01)
 
 - **Ops:** перед первым применением `0016_drop_news_broadcast_channels` на БД с ценными строками `news_items` — readonly выгрузка и фиксация в тикете/хранилище (в репо артефакт не коммитится); см. [`LOG.md`](APP_RESTRUCTURE_INITIATIVE/LOG.md) §«Этап 1».
-- **Продукт/интеграция:** массовая доставка по выбранным `channels` после записи в `broadcast_audit` — отдельный контур (сейчас UI и аудит фиксируют намерение).
+- **Продукт/интеграция:** массовая доставка по выбранным `channels` после записи в `broadcast_audit` — отдельный контур (сейчас UI и аудит фиксируют намерение). Поведение превью / `dev_mode` / журнал: [`ARCHITECTURE/DOCTOR_BROADCASTS.md`](ARCHITECTURE/DOCTOR_BROADCASTS.md).
 - **Архитектура:** мутации мотивации в [`motivation/actions.ts`](../apps/webapp/src/app/app/doctor/content/motivation/actions.ts) (raw SQL) — вынести в порт/DI; baseline [`STRUCTURE_AUDIT.md`](APP_RESTRUCTURE_INITIATIVE/STRUCTURE_AUDIT.md) §III по news/RSC не обновлять (immutable).
 
 ### Хвосты ASSIGNMENT_CATALOGS / defer-wave (2026-05-04)

@@ -115,7 +115,7 @@
 
 - `phone_challenges`
 - `message_log`
-- `broadcast_audit`
+- `broadcast_audit` — журнал намерения рассылки из `/app/doctor/broadcasts` (каналы, размер аудитории, автор); подробнее см. [`DOCTOR_BROADCASTS.md`](DOCTOR_BROADCASTS.md).
 - `admin_audit_log` — персистентный журнал операций админки (опасные действия, смена настроек, конфликты auto-merge и т.д.); UI «Лог операций» в `/app/settings`, API `GET /api/admin/audit-log`. Миграция `066_admin_audit_log.sql`. Подробности и политика записи: `docs/REPORTS/STRICT_PURGE_MANUAL_MERGE_EXECUTION_LOG.md`, план strict purge §0.
 - `idempotency_keys`
 - `webapp_schema_migrations` — учёт **legacy** SQL-миграций webapp (`apps/webapp/migrations/*.sql`). Записи появляются только при ручном прогоне **`pnpm --dir apps/webapp run migrate:legacy`** (`apps/webapp/scripts/run-migrations.mjs`). Это **не** шаг регулярного production deploy: `deploy/host/deploy-prod.sh` и `deploy/host/deploy-webapp-prod.sh` вызывают только Drizzle (`pnpm migrate` / `pnpm --dir apps/webapp run migrate`) и post-migrate guardrail. Раннер legacy используют для bootstrap пустой БД, восстановления после сбоя или применения SQL вне Drizzle-журнала (**emergency / historical**). Отдельное имя от `integrator.schema_migrations` (`version`) и от исторической `public.schema_migrations (filename)`. Канонический прогон схемы webapp в нормальной разработке — Drizzle (`pnpm --dir apps/webapp run migrate`).

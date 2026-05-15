@@ -11,6 +11,11 @@ const preview: BroadcastPreviewResult = {
   category: "reminder",
   audienceFilter: "with_telegram",
   channels: ["bot_message", "sms"],
+  recipientsPreview: {
+    names: ["Иван Т.", "Мария К."],
+    total: 42,
+    truncated: true,
+  },
 };
 
 const command: Omit<BroadcastCommand, "actorId"> = {
@@ -31,6 +36,9 @@ describe("BroadcastConfirmStep", () => {
       />
     );
     expect(screen.getByText("42")).toBeInTheDocument();
+    expect(screen.getByText("Иван Т.")).toBeInTheDocument();
+    expect(screen.getByText("Мария К.")).toBeInTheDocument();
+    expect(document.getElementById("broadcast-recipients-preview-truncated")).toBeInTheDocument();
     expect(document.getElementById("broadcast-channels-summary")).toHaveTextContent(/сообщение в боте/i);
     expect(document.getElementById("broadcast-channels-summary")).toHaveTextContent(/sms/i);
   });
@@ -95,6 +103,7 @@ describe("BroadcastConfirmStep", () => {
     );
     expect(document.getElementById("broadcast-preview-estimate-warning")).toBeInTheDocument();
     expect(screen.getByText(/грубая оценка/i)).toBeInTheDocument();
+    expect(document.getElementById("broadcast-recipients-preview")).not.toBeInTheDocument();
   });
 
   it("does not show estimate warning for with_telegram", () => {
@@ -108,6 +117,23 @@ describe("BroadcastConfirmStep", () => {
       />
     );
     expect(document.getElementById("broadcast-preview-estimate-warning")).not.toBeInTheDocument();
+  });
+
+  it("shows empty recipients note when preview total is zero", () => {
+    render(
+      <BroadcastConfirmStep
+        preview={{
+          ...preview,
+          audienceSize: 0,
+          recipientsPreview: { names: [], total: 0, truncated: false },
+        }}
+        command={command}
+        onConfirm={vi.fn()}
+        onCancel={vi.fn()}
+        isLoading={false}
+      />
+    );
+    expect(document.getElementById("broadcast-recipients-preview-empty")).toBeInTheDocument();
   });
 
   it("shows dev_mode reach note when segmentSize exceeds audienceSize", () => {

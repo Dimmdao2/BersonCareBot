@@ -1,7 +1,7 @@
 /**
  * Рассылки кабинета специалиста («/app/doctor/broadcasts»).
  * Preview / подтверждение / запись в `broadcast_audit` (включая выбранные каналы и оценку аудитории).
- * Фактическая массовая доставка по каналам — вне `doctor-broadcasts.execute` (см. подпись на странице и LOG этап 1).
+ * Фактическая массовая доставка по каналам — вне `doctor-broadcasts.execute` (см. подпись ниже и docs/ARCHITECTURE/DOCTOR_BROADCASTS.md).
  */
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { AppShell } from "@/shared/ui/AppShell";

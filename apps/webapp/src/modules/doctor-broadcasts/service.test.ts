@@ -8,11 +8,24 @@ describe("doctor-broadcasts service", () => {
   const resolveBroadcastAudienceForPreview = async (
     _filter: BroadcastAudienceFilter,
     _channels: unknown[],
-  ): Promise<{ audienceSize: number; segmentSize?: number }> => {
-    if (_filter === "all") return { audienceSize: 42 };
-    if (_filter === "with_telegram") return { audienceSize: 30 };
-    if (_filter === "with_max") return { audienceSize: 15 };
-    return { audienceSize: 0 };
+  ): Promise<{
+    audienceSize: number;
+    segmentSize?: number;
+    recipientsPreview: { names: string[]; total: number; truncated: boolean };
+  }> => {
+    if (_filter === "all")
+      return {
+        audienceSize: 42,
+        recipientsPreview: { names: [], total: 42, truncated: true },
+      };
+    if (_filter === "with_telegram")
+      return {
+        audienceSize: 30,
+        recipientsPreview: { names: ["A"], total: 30, truncated: true },
+      };
+    if (_filter === "with_max")
+      return { audienceSize: 15, recipientsPreview: { names: [], total: 15, truncated: true } };
+    return { audienceSize: 0, recipientsPreview: { names: [], total: 0, truncated: false } };
   };
 
   const broadcastAuditPort = {
@@ -88,7 +101,11 @@ describe("doctor-broadcasts service", () => {
 
   it("preview passes segmentSize when resolver returns it", async () => {
     const svc = createDoctorBroadcastsService({
-      resolveBroadcastAudienceForPreview: async () => ({ audienceSize: 1, segmentSize: 75 }),
+      resolveBroadcastAudienceForPreview: async () => ({
+        audienceSize: 1,
+        segmentSize: 75,
+        recipientsPreview: { names: ["Тест"], total: 1, truncated: false },
+      }),
       broadcastAuditPort,
     });
     const result = await svc.preview({
@@ -99,6 +116,11 @@ describe("doctor-broadcasts service", () => {
     });
     expect(result.audienceSize).toBe(1);
     expect(result.segmentSize).toBe(75);
+    expect(result.recipientsPreview).toEqual({
+      names: ["Тест"],
+      total: 1,
+      truncated: false,
+    });
   });
 
   it("listAudit returns entries", async () => {

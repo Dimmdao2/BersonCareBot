@@ -20,6 +20,7 @@
 - [`ARCHITECTURE/PLATFORM_IDENTITY_SCENARIOS_AND_CODE_MAP.md`](ARCHITECTURE/PLATFORM_IDENTITY_SCENARIOS_AND_CODE_MAP.md) — сценарии и привязка к коду (trusted paths, ops-скрипты §8).
 - [`ARCHITECTURE/PLATFORM_USER_MERGE.md`](ARCHITECTURE/PLATFORM_USER_MERGE.md) — canonical user, logical merge, миграции 061-064.
 - [`ARCHITECTURE/SPECIALIST_CABINET_STRUCTURE.md`](ARCHITECTURE/SPECIALIST_CABINET_STRUCTURE.md) — кабинет специалиста (header, layout, карточка клиента, вкладки settings).
+- [`ARCHITECTURE/DOCTOR_BROADCASTS.md`](ARCHITECTURE/DOCTOR_BROADCASTS.md) — массовые рассылки врача (`/app/doctor/broadcasts`): превью, `dev_mode`, журнал `broadcast_audit`; массовая доставка — отдельный контур.
 - [`ARCHITECTURE/PATIENT_APP_UI_STYLE_GUIDE.md`](ARCHITECTURE/PATIENT_APP_UI_STYLE_GUIDE.md) — стандарт patient UI: shared primitives, shadcn base, запрет лишнего custom chrome.
 - [`archive/2026-05-initiatives/PATIENT_SHELL_MD_BREAKPOINT/README.md`](archive/2026-05-initiatives/PATIENT_SHELL_MD_BREAKPOINT/README.md) — единый брейкпоинт **`md`** для ширины `#app-shell-patient`, `PatientTopNav`, главной «Сегодня» и карточного слоя (`patientVisual` / home styles); журнал — [`archive/2026-05-initiatives/PATIENT_SHELL_MD_BREAKPOINT/LOG.md`](archive/2026-05-initiatives/PATIENT_SHELL_MD_BREAKPOINT/LOG.md).
 - Пациентский дневник (MVP): недельный график самочувствия на `/app/patient/diary` — [`apps/webapp/src/app/app/patient/diary/diary.md`](../apps/webapp/src/app/app/patient/diary/diary.md).

@@ -44,7 +44,8 @@ import type { ClientAppointmentHistoryItem } from "@/modules/doctor-clients/serv
 import { createDoctorBroadcastsService } from "@/modules/doctor-broadcasts/service";
 import {
   listClientsForBroadcastAudience,
-  computeDevModeRelayBroadcastReach,
+  resolveBroadcastEffectiveClients,
+  buildRecipientsPreviewFromClients,
 } from "@/modules/doctor-broadcasts/broadcastAudienceMetrics";
 import { inMemoryDoctorClientsPort } from "@/infra/repos/inMemoryDoctorClients";
 import { inMemoryBroadcastAuditPort } from "@/infra/repos/inMemoryBroadcastAudit";
@@ -636,16 +637,21 @@ function _buildAppDeps() {
     doctorBroadcasts: createDoctorBroadcastsService({
       resolveBroadcastAudienceForPreview: async (filter, channels) => {
         const clients = await listClientsForBroadcastAudience(doctorClientsPort, filter);
-        const nominal = clients.length;
         const { devMode, testAccounts } = await systemSettingsService.getRelayDevContext();
+        const { effective, nominal, cappedByDevMode } = resolveBroadcastEffectiveClients(
+          clients,
+          channels,
+          devMode,
+          testAccounts,
+        );
+        const recipientsPreview = buildRecipientsPreviewFromClients(effective);
         if (!devMode) {
-          return { audienceSize: nominal };
+          return { audienceSize: nominal, recipientsPreview };
         }
-        const r = computeDevModeRelayBroadcastReach(clients, channels, testAccounts);
-        if (r.cappedByDevMode) {
-          return { audienceSize: r.effective, segmentSize: nominal };
+        if (cappedByDevMode) {
+          return { audienceSize: effective.length, segmentSize: nominal, recipientsPreview };
         }
-        return { audienceSize: r.effective };
+        return { audienceSize: effective.length, recipientsPreview };
       },
       broadcastAuditPort,
     }),

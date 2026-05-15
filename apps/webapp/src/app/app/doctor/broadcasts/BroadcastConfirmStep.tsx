@@ -7,6 +7,7 @@ import {
   formatChannelsSummary,
   isAudienceEstimateApproximate,
 } from "./labels";
+import { BroadcastRecipientsPreviewBlock } from "./BroadcastRecipientsPreview";
 
 type Props = {
   preview: BroadcastPreviewResult;
@@ -36,6 +37,10 @@ export function BroadcastConfirmStep({ preview, command, onConfirm, onCancel, is
         <dt className="text-muted-foreground">Каналы</dt>
         <dd id="broadcast-channels-summary">{formatChannelsSummary(preview.channels)}</dd>
       </dl>
+
+      {!isAudienceEstimateApproximate(command.audienceFilter) ? (
+        <BroadcastRecipientsPreviewBlock recipientsPreview={preview.recipientsPreview} />
+      ) : null}
 
       {preview.segmentSize != null && preview.segmentSize > preview.audienceSize ? (
         <p id="broadcast-dev-mode-reach-note" className="text-xs text-muted-foreground">

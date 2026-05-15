@@ -5,6 +5,7 @@ import type {
   BroadcastCategory,
   BroadcastCommand,
   BroadcastPreviewResult,
+  BroadcastRecipientsPreview,
 } from "./ports";
 import { normalizeBroadcastChannels, type BroadcastChannel } from "./broadcastChannels";
 
@@ -16,7 +17,11 @@ export type DoctorBroadcastsServiceDeps = {
   resolveBroadcastAudienceForPreview(
     filter: BroadcastAudienceFilter,
     channels: BroadcastChannel[],
-  ): Promise<{ audienceSize: number; segmentSize?: number }>;
+  ): Promise<{
+    audienceSize: number;
+    segmentSize?: number;
+    recipientsPreview: BroadcastRecipientsPreview;
+  }>;
   broadcastAuditPort: BroadcastAuditPort;
 };
 
@@ -43,12 +48,13 @@ export function createDoctorBroadcastsService(deps: DoctorBroadcastsServiceDeps)
 
     async preview(command: BroadcastCommand): Promise<BroadcastPreviewResult> {
       const channels = resolvedChannels(command);
-      const { audienceSize, segmentSize } = await deps.resolveBroadcastAudienceForPreview(
+      const { audienceSize, segmentSize, recipientsPreview } = await deps.resolveBroadcastAudienceForPreview(
         command.audienceFilter,
         channels,
       );
       return {
         audienceSize,
+        recipientsPreview,
         ...(segmentSize !== undefined ? { segmentSize } : {}),
         category: command.category,
         audienceFilter: command.audienceFilter,

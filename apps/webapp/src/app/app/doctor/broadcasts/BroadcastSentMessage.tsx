@@ -1,7 +1,8 @@
 "use client";
 
 import type { BroadcastPreviewResult } from "@/modules/doctor-broadcasts/ports";
-import { formatChannelsSummary } from "./labels";
+import { formatChannelsSummary, isAudienceEstimateApproximate } from "./labels";
+import { BroadcastRecipientsPreviewBlock } from "./BroadcastRecipientsPreview";
 
 type Props = {
   preview: BroadcastPreviewResult;
@@ -21,6 +22,10 @@ export function BroadcastSentMessage({ preview }: Props) {
           ? ` (в сегменте ${preview.segmentSize})`
           : ""}
       </p>
+      {!isAudienceEstimateApproximate(preview.audienceFilter) ? (
+        <BroadcastRecipientsPreviewBlock recipientsPreview={preview.recipientsPreview} />
+      ) : null}
+
       <p className="text-xs text-muted-foreground">Каналы: {formatChannelsSummary(preview.channels)}</p>
     </div>
   );

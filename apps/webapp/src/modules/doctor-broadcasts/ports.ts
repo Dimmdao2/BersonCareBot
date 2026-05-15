@@ -31,6 +31,17 @@ export type BroadcastCommand = {
   channels?: BroadcastChannel[];
 };
 
+/** Макс. имён в предпросмотре списка получателей (остальные — счётчиком). */
+export const BROADCAST_RECIPIENT_PREVIEW_NAME_CAP = 20;
+
+export type BroadcastRecipientsPreview = {
+  /** Имена по алфавиту (первые до `BROADCAST_RECIPIENT_PREVIEW_NAME_CAP`). */
+  names: string[];
+  /** Число получателей с учётом dev_mode / каналов (как `audienceSize`). */
+  total: number;
+  truncated: boolean;
+};
+
 /** Результат preview (dry-run): сколько пользователей попало, без отправки. */
 export type BroadcastPreviewResult = {
   /** Ожидаемое число получателей с учётом relay dev_mode (если включён — пересечение с тестовыми Telegram/Max). */
@@ -40,6 +51,8 @@ export type BroadcastPreviewResult = {
    * Заполняется, когда `audienceSize` меньше (показать в UI «в сегменте N…»).
    */
   segmentSize?: number;
+  /** Имена эффективных получателей (сегмент + dev_mode при включённом relay). */
+  recipientsPreview?: BroadcastRecipientsPreview;
   category: BroadcastCategory;
   audienceFilter: BroadcastAudienceFilter;
   channels: BroadcastChannel[];

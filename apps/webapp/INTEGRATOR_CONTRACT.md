@@ -324,6 +324,8 @@ Canonical linking rules:
 
 Если в `system_settings` включён `dev_mode` (scope: admin), исходящий relay из webapp разрешён только когда пара **`channel` + `recipient`** (Telegram chat id / Max user id) попадает в списки **`test_account_identifiers`** (`telegramIds` / `maxIds`). Проверка: `systemSettingsService.shouldDispatchRelayToRecipient({ channel, recipient })`. Ключ **`integration_test_ids`** остаётся в схеме настроек как legacy, **не** используется для этого guard в текущем webapp.
 
+Экран **`/app/doctor/broadcasts`** в предпросмотре учитывает ту же семантику для оценки доставки в мессенджер (пересечение сегмента с тестовыми Telegram/Max ID). Подробнее: **`docs/ARCHITECTURE/DOCTOR_BROADCASTS.md`**.
+
 ### Каналы dispatch
 
 | channel | recipient | Адаптер integrator |

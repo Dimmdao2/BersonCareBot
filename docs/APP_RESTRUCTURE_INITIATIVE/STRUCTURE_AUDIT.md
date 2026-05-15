@@ -134,8 +134,8 @@
 | Подписчики (legacy) | `/app/doctor/subscribers`, `/subscribers/[userId]` | Полные redirect-ы на `/clients?scope=all` |
 | Hint admin | `/app/doctor/clients/name-match-hints` | Admin-debug |
 | Записи | `/app/doctor/appointments` | Расписание; `view=future\|month\|cancellationsMonth` |
-| Сообщения | `/app/doctor/messages` | Чат с пациентами + журнал рассылок |
-| Рассылки | `/app/doctor/broadcasts` | Категории + аудитории + двухшаговое подтверждение + audit |
+| Сообщения | `/app/doctor/messages` | Чат поддержки с пациентами (журнал массовых рассылок — на `/broadcasts`) |
+| Рассылки | `/app/doctor/broadcasts` | Категории + аудитории + предпросмотр (число/имена, `dev_mode`) + подтверждение + `broadcast_audit`; см. [`../ARCHITECTURE/DOCTOR_BROADCASTS.md`](../ARCHITECTURE/DOCTOR_BROADCASTS.md) |
 | Онлайн-заявки | `/app/doctor/online-intake`, `/online-intake/[requestId]` | Inbox онлайн-запросов от пациентов |
 | Упражнения | `/app/doctor/exercises`, `/[id]`, `/new`, `/auto-create` | Каталог упражнений ЛФК |
 | Комплексы ЛФК | `/app/doctor/lfk-templates`, `/[id]`, `/new` | Сборки упражнений |
