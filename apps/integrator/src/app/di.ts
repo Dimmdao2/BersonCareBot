@@ -171,9 +171,15 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
   const webappEventsPort = createWebappEventsPort({
     getAppBaseUrl: () => getAppBaseUrl(dbPort),
   });
+  const dispatchPortRef: { current?: DispatchPort } = {};
   const dbWritePort =
     input.dbWritePort ??
-    createDbWritePort({ db: dbPort, readPort: dbReadPort, webappEventsPort });
+    createDbWritePort({
+      db: dbPort,
+      readPort: dbReadPort,
+      webappEventsPort,
+      getDispatchPort: () => dispatchPortRef.current,
+    });
   const queuePort = input.queuePort ?? createPostgresJobQueue({
     db: dbPort,
     retryDelaySeconds: appSettings.runtime.worker.retryDelaySeconds,
@@ -211,6 +217,8 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
       readPort: dbReadPort,
       writePort: dbWritePort,
     });
+
+  dispatchPortRef.current = dispatchPort;
 
   dispatchPortForReminders.current = dispatchPort;
 

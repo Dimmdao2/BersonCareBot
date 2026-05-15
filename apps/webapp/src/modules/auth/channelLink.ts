@@ -2,13 +2,15 @@ import { createHash, randomBytes } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
 import { classifyMergeFailure, pickMergeTargetId, type PickMergeTargetCandidate } from "@bersoncare/platform-merge";
 import { getPool } from "@/infra/db/client";
-import { upsertOpenConflictLog } from "@/infra/adminAuditLog";
+import { upsertOpenConflictLog, computeConflictKeyFromCandidateIds } from "@/infra/adminAuditLog";
+import type { UpsertOpenConflictLogResult } from "@/infra/adminAuditLog";
 import { env } from "@/config/env";
 import { integratorWebhookSecret } from "@/config/env";
 import { logger } from "@/infra/logging/logger";
 import { resolveCanonicalUserId } from "@/infra/repos/pgCanonicalPlatformUser";
 import { mergePlatformUsersInTransaction } from "@/infra/repos/pgPlatformUserMerge";
 import { normalizeMaxBotNicknameInput } from "@/modules/system-settings/maxLoginBotNickname";
+import { notifyChannelLinkBindingConflict, sendAdminIncidentRelayAlert } from "@/modules/admin-incidents/sendAdminIncidentAlerts";
 
 const SECRET_TTL_MIN = 10;
 
@@ -21,11 +23,42 @@ export type ChannelLinkConflictContext = {
 };
 
 /**
- * TODO(AUDIT-BACKLOG-023): wire to admin + user notification pipeline (legacy E-R1.1; USER_TODO_STAGE: конфликт привязки).
- * Replace in DI/bootstrap when notifications exist.
+ * After `upsertOpenConflictLog` from channel-link merge failure: relay only on first open row.
+ */
+async function notifyChannelLinkAutoMergeConflictRelay(
+  pool: Pool,
+  upsertResult: UpsertOpenConflictLogResult,
+  candidateIds: string[],
+  details: Record<string, unknown>,
+): Promise<void> {
+  if (upsertResult.kind !== "conflict" || !upsertResult.insertedFirst) return;
+  try {
+    const conflictKey = computeConflictKeyFromCandidateIds(candidateIds);
+    const mergeMsg =
+      typeof details.mergeMessage === "string" ? details.mergeMessage.slice(0, 400) : undefined;
+    await sendAdminIncidentRelayAlert({
+      topic: "auto_merge_conflict",
+      dedupKey: conflictKey,
+      lines: [
+        "auto_merge_conflict (channel_link)",
+        `candidateIds=${candidateIds.join(",")}`,
+        ...(typeof details.channelCode === "string" ? [`channel=${details.channelCode}`] : []),
+        ...(typeof details.externalId === "string" ? [`externalId=${details.externalId}`] : []),
+        ...(typeof details.classifiedReason === "string" ? [`classifiedReason=${details.classifiedReason}`] : []),
+        ...(mergeMsg ? [`mergeMessage=${mergeMsg}`] : []),
+      ],
+    });
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
+ * Wire to admin relay (Telegram/Max) + console; tests override via {@link setChannelLinkBindingConflictReporter}.
  */
 let reportChannelLinkBindingConflict: (ctx: ChannelLinkConflictContext) => void = (ctx) => {
   console.warn("[channel_link:binding_conflict]", ctx);
+  void notifyChannelLinkBindingConflict(ctx);
 };
 
 export function setChannelLinkBindingConflictReporter(
@@ -263,7 +296,7 @@ export async function completeChannelLinkFromIntegrator(params: {
             const puB = await loadPickMergeCandidate(client, pairB);
             if (!puA || !puB) {
               await client.query("ROLLBACK");
-              void upsertOpenConflictLog(pool, {
+              const up = await upsertOpenConflictLog(pool, {
                 actorId: null,
                 candidateIds: [pairA, pairB],
                 details: {
@@ -274,7 +307,12 @@ export async function completeChannelLinkFromIntegrator(params: {
                   classifiedReason: "merge_blocked_ambiguous_candidates",
                 },
                 status: "error",
-              }).catch(() => {});
+              });
+              await notifyChannelLinkAutoMergeConflictRelay(pool, up, [pairA, pairB], {
+                channelCode: params.channelCode,
+                externalId: params.externalId,
+                classifiedReason: "merge_blocked_ambiguous_candidates",
+              });
               return { ok: false, code: "conflict", mergeReason: "merge_blocked_ambiguous_candidates" };
             }
             const picked = pickMergeTargetId(puA, puB);
@@ -298,9 +336,10 @@ export async function completeChannelLinkFromIntegrator(params: {
               subReason: "existing_owner_no_phone",
               channelCode: params.channelCode,
             });
-            void upsertOpenConflictLog(pool, {
+            const ids = classified.candidateIds.length > 0 ? classified.candidateIds : [pairA, pairB];
+            const up = await upsertOpenConflictLog(pool, {
               actorId: null,
-              candidateIds: classified.candidateIds.length > 0 ? classified.candidateIds : [pairA, pairB],
+              candidateIds: ids,
               details: {
                 source: "channel_link",
                 subReason: "existing_owner_no_phone",
@@ -310,7 +349,13 @@ export async function completeChannelLinkFromIntegrator(params: {
                 mergeMessage: err instanceof Error ? err.message : String(err),
               },
               status: "error",
-            }).catch(() => {});
+            });
+            await notifyChannelLinkAutoMergeConflictRelay(pool, up, ids, {
+              channelCode: params.channelCode,
+              externalId: params.externalId,
+              classifiedReason: classified.code,
+              mergeMessage: err instanceof Error ? err.message : String(err),
+            });
             return { ok: false, code: "conflict", mergeReason: classified.code };
           }
         } catch (err) {
@@ -378,7 +423,7 @@ export async function completeChannelLinkFromIntegrator(params: {
           const puB = await loadPickMergeCandidate(client, pairB);
           if (!puA || !puB) {
             await client.query("ROLLBACK");
-            void upsertOpenConflictLog(pool, {
+            const up = await upsertOpenConflictLog(pool, {
               actorId: null,
               candidateIds: [pairA, pairB],
               details: {
@@ -389,7 +434,12 @@ export async function completeChannelLinkFromIntegrator(params: {
                 classifiedReason: "merge_blocked_ambiguous_candidates",
               },
               status: "error",
-            }).catch(() => {});
+            });
+            await notifyChannelLinkAutoMergeConflictRelay(pool, up, [pairA, pairB], {
+              channelCode: params.channelCode,
+              externalId: params.externalId,
+              classifiedReason: "merge_blocked_ambiguous_candidates",
+            });
             return { ok: false, code: "conflict", mergeReason: "merge_blocked_ambiguous_candidates" };
           }
           const picked = pickMergeTargetId(puA, puB);
@@ -412,9 +462,10 @@ export async function completeChannelLinkFromIntegrator(params: {
             candidateIds: classified.candidateIds,
             channelCode: params.channelCode,
           });
-          void upsertOpenConflictLog(pool, {
+          const ids = classified.candidateIds.length > 0 ? classified.candidateIds : [pairA, pairB];
+          const up = await upsertOpenConflictLog(pool, {
             actorId: null,
-            candidateIds: classified.candidateIds.length > 0 ? classified.candidateIds : [pairA, pairB],
+            candidateIds: ids,
             details: {
               source: "channel_link",
               subReason: "oauth_stub_auto_merge",
@@ -424,7 +475,13 @@ export async function completeChannelLinkFromIntegrator(params: {
               mergeMessage: err instanceof Error ? err.message : String(err),
             },
             status: "error",
-          }).catch(() => {});
+          });
+          await notifyChannelLinkAutoMergeConflictRelay(pool, up, ids, {
+            channelCode: params.channelCode,
+            externalId: params.externalId,
+            classifiedReason: classified.code,
+            mergeMessage: err instanceof Error ? err.message : String(err),
+          });
           return { ok: false, code: "conflict", mergeReason: classified.code };
         }
       } catch (err) {

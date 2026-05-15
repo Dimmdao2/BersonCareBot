@@ -86,11 +86,19 @@ export type UpsertOpenConflictLogInput = {
   status?: AuditLogStatus;
 };
 
+export type UpsertOpenConflictLogResult =
+  | { kind: "anomaly" }
+  | { kind: "conflict"; insertedFirst: boolean }
+  | { kind: "skipped" };
+
 /**
  * Dedup open rows for `action = auto_merge_conflict` by conflict_key.
  * If candidateIds is empty, do not call this — use `writeAuditLog` with `auto_merge_conflict_anomaly` (plan §0).
  */
-export async function upsertOpenConflictLog(pool: Pool, input: UpsertOpenConflictLogInput): Promise<void> {
+export async function upsertOpenConflictLog(
+  pool: Pool,
+  input: UpsertOpenConflictLogInput,
+): Promise<UpsertOpenConflictLogResult> {
   const { candidateIds } = input;
   if (!candidateIds.length) {
     // Plan contract: empty candidateIds is anomaly-path without conflict_key.
@@ -101,14 +109,14 @@ export async function upsertOpenConflictLog(pool: Pool, input: UpsertOpenConflic
       details: { ...input.details, candidateIds: [] },
       status: input.status ?? "error",
     });
-    return;
+    return { kind: "anomaly" };
   }
   let conflictKey: string;
   try {
     conflictKey = computeConflictKeyFromCandidateIds(candidateIds);
   } catch (err) {
     logger.error({ err }, "upsertOpenConflictLog: conflict key failed");
-    return;
+    return { kind: "skipped" };
   }
 
   const status: AuditLogStatus = input.status ?? "error";
@@ -119,9 +127,10 @@ export async function upsertOpenConflictLog(pool: Pool, input: UpsertOpenConflic
   );
 
   let client: PoolClient | null = null;
+  let insertedFirst = false;
   try {
     client = await pool.connect();
-    if (!client) return;
+    if (!client) return { kind: "skipped" };
     await client.query("BEGIN");
     const existing = await client.query<{
       id: string;
@@ -162,6 +171,7 @@ export async function upsertOpenConflictLog(pool: Pool, input: UpsertOpenConflic
            VALUES ($1::uuid, 'auto_merge_conflict', $2, $3, $4::jsonb, $5, 1, now())`,
           [input.actorId, input.targetId ?? null, conflictKey, JSON.stringify(firstDetails), status],
         );
+        insertedFirst = true;
       } catch (err) {
         if (!isPgUniqueViolation(err)) throw err;
         // Race-safe fallback: another tx inserted open row with same conflict_key.
@@ -195,6 +205,7 @@ export async function upsertOpenConflictLog(pool: Pool, input: UpsertOpenConflic
       }
     }
     await client.query("COMMIT");
+    return { kind: "conflict", insertedFirst };
   } catch (err) {
     if (client) {
       try {
@@ -204,6 +215,7 @@ export async function upsertOpenConflictLog(pool: Pool, input: UpsertOpenConflic
       }
     }
     logger.error({ err }, "upsertOpenConflictLog failed");
+    return { kind: "skipped" };
   } finally {
     client?.release();
   }

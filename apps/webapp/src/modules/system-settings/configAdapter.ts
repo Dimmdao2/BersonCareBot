@@ -41,6 +41,13 @@ async function fetchFromDb(key: string): Promise<string | null> {
       if (typeof v === "string") return v.trim() || null;
       if (typeof v === "boolean") return v ? "true" : "false";
       if (typeof v === "number") return String(v);
+      if (typeof v === "object" && v !== null && !Array.isArray(v)) {
+        try {
+          return JSON.stringify(v);
+        } catch {
+          return null;
+        }
+      }
       if (Array.isArray(v)) {
         const normalized = v.map((item) => String(item).trim()).filter(Boolean);
         return normalized.length > 0 ? JSON.stringify(normalized) : null;

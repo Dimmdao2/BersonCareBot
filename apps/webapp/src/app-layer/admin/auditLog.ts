@@ -1,4 +1,5 @@
 export {
+  computeConflictKeyFromCandidateIds,
   countOpenAutoMergeConflicts,
   listAdminAuditLog,
   upsertOpenConflictLog,
@@ -7,4 +8,5 @@ export {
   type ListAdminAuditLogParams,
   type ListAdminAuditLogResult,
   type UpsertOpenConflictLogInput,
+  type UpsertOpenConflictLogResult,
 } from "@/infra/adminAuditLog";

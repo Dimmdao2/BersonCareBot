@@ -22,8 +22,17 @@ vi.mock("@/infra/repos/pgPlatformUserMerge", () => ({
     mergePlatformUsersInTransactionMock(...args),
 }));
 
-vi.mock("@/infra/adminAuditLog", () => ({
-  upsertOpenConflictLog: vi.fn().mockResolvedValue(undefined),
+vi.mock("@/infra/adminAuditLog", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/infra/adminAuditLog")>();
+  return {
+    ...actual,
+    upsertOpenConflictLog: vi.fn().mockResolvedValue({ kind: "conflict", insertedFirst: true }),
+  };
+});
+
+vi.mock("@/modules/admin-incidents/sendAdminIncidentAlerts", () => ({
+  notifyChannelLinkBindingConflict: vi.fn().mockResolvedValue(undefined),
+  sendAdminIncidentRelayAlert: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("@/infra/logging/logger", () => ({

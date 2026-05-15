@@ -1,7 +1,11 @@
 import { createHash } from 'node:crypto';
-import type { DbPort } from '../../../kernel/contracts/index.js';
-import { telegramConfig } from '../../../integrations/telegram/config.js';
+import type { DbPort, DispatchPort } from '../../../kernel/contracts/index.js';
 import { logger } from '../../observability/logger.js';
+import {
+  messengerPhoneBindDedupKey,
+  relayMessengerPhoneBindAdminIncident,
+  type MessengerPhoneBindIncidentTopic,
+} from '../adminIncidentAlertRelay.js';
 
 /**
  * Inserts/updates `public.admin_audit_log` for messenger phone-bind failures.
@@ -9,24 +13,17 @@ import { logger } from '../../observability/logger.js';
  * `apps/webapp/db/schema/schema.ts` (integrator uses raw SQL + `DbPort`; webapp owns schema).
  */
 
-export function computeConflictKeyFromCandidateIds(candidateIds: string[]): string {
-  const normalized = [...new Set(candidateIds.map((id) => id.trim()).filter(Boolean))].sort();
-  if (normalized.length === 0) {
-    throw new Error('candidateIds must be non-empty');
-  }
-  return createHash('sha256').update(normalized.join('|'), 'utf8').digest('hex');
-}
-
 function isPgUniqueViolation(err: unknown): boolean {
   return typeof err === 'object' && err !== null && 'code' in err && (err as { code?: unknown }).code === '23505';
 }
 
 /**
- * Durable audit + deduped Telegram admin ping (first inserted open row per `conflict_key`).
+ * Durable audit + deduped admin relay (first inserted open row per `conflict_key`, or first anomaly insert).
  * Runs in a **separate** `db.tx` after the main bind transaction has rolled back — not nested in the bind tx.
  */
 export async function recordMessengerPhoneBindBlocked(input: {
   db: DbPort;
+  getDispatchPort?: () => DispatchPort | undefined;
   reason: string;
   candidateIds: string[];
   details: Record<string, unknown>;
@@ -35,7 +32,10 @@ export async function recordMessengerPhoneBindBlocked(input: {
   let conflictKey: string | null = null;
   if (candidateIds.length > 0) {
     try {
-      conflictKey = computeConflictKeyFromCandidateIds(candidateIds);
+      const normalized = [...new Set(candidateIds.map((id) => id.trim()).filter(Boolean))].sort();
+      if (normalized.length > 0) {
+        conflictKey = createHash('sha256').update(normalized.join('|'), 'utf8').digest('hex');
+      }
     } catch {
       conflictKey = null;
     }
@@ -107,30 +107,32 @@ export async function recordMessengerPhoneBindBlocked(input: {
 
   if (!insertedFirst) return;
 
-  const token = process.env.TELEGRAM_BOT_TOKEN?.trim();
-  const adminId = telegramConfig.adminTelegramId;
-  if (!token || typeof adminId !== 'number' || !Number.isFinite(adminId)) return;
-
-  const text = [
-    `messenger_phone_bind_blocked: ${input.reason}`,
-    `candidates: ${candidateIds.join(', ')}`,
-    ...(input.details.channelCode ? [`channel: ${String(input.details.channelCode)}`] : []),
-    ...(input.details.externalId ? [`externalId: ${String(input.details.externalId)}`] : []),
-    ...(input.details.correlationId ? [`correlation: ${String(input.details.correlationId)}`] : []),
-  ].join('\n');
+  const topic: MessengerPhoneBindIncidentTopic = conflictKey ? 'messenger_phone_bind_blocked' : 'messenger_phone_bind_anomaly';
+  const lines = [
+    conflictKey ? 'messenger_phone_bind_blocked (integrator)' : 'messenger_phone_bind_anomaly (integrator)',
+    `reason=${input.reason}`,
+    `candidates=${candidateIds.join(', ')}`,
+    ...(input.details.channelCode ? [`channel=${String(input.details.channelCode)}`] : []),
+    ...(input.details.externalId ? [`externalId=${String(input.details.externalId)}`] : []),
+    ...(input.details.correlationId ? [`correlation=${String(input.details.correlationId)}`] : []),
+  ];
+  const dedupKey = messengerPhoneBindDedupKey({
+    topic,
+    conflictKey,
+    reason: input.reason,
+    candidateIds,
+    details: input.details,
+  });
 
   try {
-    const url = `https://api.telegram.org/bot${token}/sendMessage`;
-    await fetch(url, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: adminId,
-        text: text.slice(0, 3900),
-        disable_web_page_preview: true,
-      }),
+    await relayMessengerPhoneBindAdminIncident({
+      db: input.db,
+      ...(input.getDispatchPort ? { getDispatchPort: input.getDispatchPort } : {}),
+      topic,
+      dedupKey,
+      lines,
     });
   } catch (err) {
-    logger.warn({ err }, 'recordMessengerPhoneBindBlocked: telegram notify failed');
+    logger.warn({ err, topic }, 'recordMessengerPhoneBindBlocked: relay failed');
   }
 }

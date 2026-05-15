@@ -78,6 +78,12 @@
 - Унифицировать обработку ошибок OAuth (JSON vs redirect) между callback-роутами.
 - Проверить все OAuth callback-роуты на единый контракт ответа.
 
+## Admin / platform identity — in-app merge & purge (без relay)
+
+- **Контекст:** внешняя доставка инцидентов идентичности (TG/Max по **`admin_incident_alert_config`**) закрыта — [`.cursor/plans/archive/admin_incident_alerts.plan.md`](../.cursor/plans/archive/admin_incident_alerts.plan.md). Отдельно остаётся **только админский UI**, без этого ключа и без relay.
+- **TODO:** при ошибке **ручного merge** в админке — **toast** (оператор уже в контексте действия). При **частичном purge** / **отложенном** сбое внешней очистки — как и задумано: **`admin_audit_log`** + in-app: мгновенный сбой — **toast**; отложенный (post-commit) — **заметка на экране «сегодня»** админа, не терять при уходе со страницы.
+- **Спека / backlog:** [`docs/OPERATOR_HEALTH_ALERTING_INITIATIVE/PHASE_D_EVENT_HOOKS.md`](OPERATOR_HEALTH_ALERTING_INITIATIVE/PHASE_D_EVENT_HOOKS.md) §8.
+
 ## Rate limiting
 
 - Расширить ключ rate limit для OAuth start (например IP + provider или отдельный ключ на route).

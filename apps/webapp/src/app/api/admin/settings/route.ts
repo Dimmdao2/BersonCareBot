@@ -22,6 +22,7 @@ import {
   PATIENT_REPEAT_COOLDOWN_MINUTES_MAX,
   PATIENT_REPEAT_COOLDOWN_MINUTES_MIN,
 } from "@/modules/patient-home/patientHomeRepeatCooldownSettings";
+import { normalizeAdminIncidentAlertConfigForAdminPatch } from "@/modules/admin-incidents/adminIncidentAlertConfig";
 
 /** Single-key PATCH: boolean keys normalized like `video_watermark_enabled`. */
 const ADMIN_BOOLEAN_SETTING_KEYS = new Set<string>([
@@ -96,6 +97,7 @@ const ADMIN_SCOPE_KEYS = [
   "admin_phones",
   "doctor_phones",
   "allowed_phones",
+  "admin_incident_alert_config",
 ] as const;
 
 const patchSchema = z.object({
@@ -356,6 +358,15 @@ export async function PATCH(request: Request) {
     const topics = await deps.subscriptionMailingProjection.listTopics();
     const knownTopicCodes = new Set(topics.map((t) => t.code));
     const checked = normalizeNotificationsTopicsForAdminPatch(inner, { knownTopicCodes });
+    if (!checked.ok) {
+      return NextResponse.json({ ok: false, error: "invalid_value" }, { status: 400 });
+    }
+    normalizedValue = { value: checked.value };
+  }
+
+  if (parsed.data.key === "admin_incident_alert_config") {
+    const inner = normalizedValue.value;
+    const checked = normalizeAdminIncidentAlertConfigForAdminPatch(inner);
     if (!checked.ok) {
       return NextResponse.json({ ok: false, error: "invalid_value" }, { status: 400 });
     }

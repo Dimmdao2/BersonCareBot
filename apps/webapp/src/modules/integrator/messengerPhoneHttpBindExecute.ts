@@ -16,6 +16,7 @@ import {
   type MessengerPhoneLinkFailureCode,
 } from "@bersoncare/platform-merge";
 import { computeConflictKeyFromCandidateIds, writeAuditLog } from "@/infra/adminAuditLog";
+import { notifyMessengerPhoneBindBlockedFromWebapp } from "@/modules/admin-incidents/sendAdminIncidentAlerts";
 import { logger } from "@/infra/logging/logger";
 
 /** Minimal DB surface for this TX (matches integrator `DbPort.query`). */
@@ -282,7 +283,18 @@ export async function executeMessengerPhoneHttpBind(
               ...(input.correlationId?.trim() ? { correlationId: input.correlationId.trim() } : {}),
             },
             status: "error",
-          });
+          })
+            .then(() =>
+              notifyMessengerPhoneBindBlockedFromWebapp({
+                conflictKey,
+                reason: err.code,
+                channelCode: resource,
+                externalId: channelUserId,
+                phoneSuffix,
+                candidateIds: err.candidateIds,
+              }),
+            )
+            .catch(() => {});
         }
         if (err.code === "db_transient_failure") {
           return { ok: false, reason: "db_transient_failure", phoneLinkIndeterminate: true };

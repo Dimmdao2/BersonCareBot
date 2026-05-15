@@ -53,13 +53,14 @@ describe("upsertOpenConflictLog", () => {
   it("writes anomaly log when candidateIds is empty", async () => {
     const query = vi.fn().mockResolvedValue({ rowCount: 1, rows: [] });
     const pool = { query } as unknown as Pool;
-    await upsertOpenConflictLog(pool, {
+    const res = await upsertOpenConflictLog(pool, {
       actorId: null,
       candidateIds: [],
       targetId: "u1",
       details: { reason: "missing_ids" },
       status: "error",
     });
+    expect(res).toEqual({ kind: "anomaly" });
     expect(query).toHaveBeenCalledTimes(1);
     const args = query.mock.calls[0];
     expect(args?.[0]).toContain("INSERT INTO admin_audit_log");
@@ -81,7 +82,7 @@ describe("upsertOpenConflictLog", () => {
     const pool = {
       connect: vi.fn().mockResolvedValue({ query, release }),
     } as unknown as Pool;
-    await upsertOpenConflictLog(pool, {
+    const res = await upsertOpenConflictLog(pool, {
       actorId: null,
       candidateIds: ["aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"],
       details: {
@@ -90,6 +91,7 @@ describe("upsertOpenConflictLog", () => {
       },
       status: "error",
     });
+    expect(res).toEqual({ kind: "conflict", insertedFirst: false });
     const updateCall = query.mock.calls.find((c) => String(c[0]).includes("UPDATE admin_audit_log"));
     expect(updateCall).toBeDefined();
     const payloadJson = updateCall?.[1]?.[1];
@@ -124,13 +126,36 @@ describe("upsertOpenConflictLog", () => {
     const pool = {
       connect: vi.fn().mockResolvedValue({ query, release }),
     } as unknown as Pool;
-    await upsertOpenConflictLog(pool, {
+    const res = await upsertOpenConflictLog(pool, {
       actorId: null,
       candidateIds: ["aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"],
       details: { eventType: "contact.linked" },
       status: "error",
     });
+    expect(res).toEqual({ kind: "conflict", insertedFirst: false });
     expect(query.mock.calls.some((c) => String(c[0]).includes("UPDATE admin_audit_log"))).toBe(true);
+  });
+
+  it("returns insertedFirst on new open conflict row", async () => {
+    const query = vi.fn(async (sql: string, _params?: unknown[]) => {
+      if (sql === "BEGIN" || sql === "COMMIT") return { rowCount: 0, rows: [] };
+      if (sql.includes("SELECT id, details, repeat_count")) {
+        return { rowCount: 0, rows: [] };
+      }
+      if (sql.includes("INSERT INTO admin_audit_log")) return { rowCount: 1, rows: [] };
+      return { rowCount: 0, rows: [] };
+    });
+    const release = vi.fn();
+    const pool = {
+      connect: vi.fn().mockResolvedValue({ query, release }),
+    } as unknown as Pool;
+    const res = await upsertOpenConflictLog(pool, {
+      actorId: null,
+      candidateIds: ["aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"],
+      details: { eventType: "contact.linked" },
+      status: "error",
+    });
+    expect(res).toEqual({ kind: "conflict", insertedFirst: true });
   });
 
   it("swallows connect failure and logs error", async () => {
@@ -144,7 +169,7 @@ describe("upsertOpenConflictLog", () => {
         candidateIds: ["aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"],
         details: { eventType: "contact.linked" },
       }),
-    ).resolves.toBeUndefined();
+    ).resolves.toEqual({ kind: "skipped" });
     expect(errorSpy).toHaveBeenCalled();
     errorSpy.mockRestore();
   });

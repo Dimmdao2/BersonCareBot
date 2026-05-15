@@ -18,6 +18,7 @@ import {
 import { SettingsForm } from "./SettingsForm";
 import { AdminSettingsTabsClient } from "./AdminSettingsTabsClient";
 import { AdminSettingsSection, type IntegratorLinkedPhoneSource } from "./AdminSettingsSection";
+import { AdminIncidentAlertsSection } from "./AdminIncidentAlertsSection";
 import {
   VideoSystemSettingsSection,
   type VideoDefaultDeliveryUi,
@@ -31,6 +32,7 @@ import { GoogleCalendarSection } from "./GoogleCalendarSection";
 import { AdminAuditLogSection } from "./AdminAuditLogSection";
 import { SystemHealthSection } from "./SystemHealthSection";
 import { parseNotificationsTopics } from "@/modules/patient-notifications/notificationsTopics";
+import { parseAdminIncidentAlertConfig } from "@/modules/admin-incidents/adminIncidentAlertConfig";
 
 function getValueJson<T>(valueJson: unknown, fallback: T): T {
   if (valueJson !== null && typeof valueJson === "object" && "value" in (valueJson as Record<string, unknown>)) {
@@ -165,6 +167,9 @@ export default async function SettingsPage({
           const s = typeof raw === "string" ? raw.trim() : "";
           return s.length > 0 ? s : DEFAULT_PATIENT_BOOKING_URL;
         })(),
+        incidentAlertsConfig: parseAdminIncidentAlertConfig(
+          adminSettingsList.find((x) => x.key === "admin_incident_alert_config")?.valueJson ?? null,
+        ),
       }
     : null;
 
@@ -303,23 +308,26 @@ export default async function SettingsPage({
           <AdminSettingsTabsClient
             initialTab={adminTab}
             diagnostics={
-              <AdminSettingsSection
-                devMode={adminSettings.devMode}
-                debugForwardToAdmin={adminSettings.debugForwardToAdmin}
-                miniappAuthVerboseServerLog={adminSettings.miniappAuthVerboseServerLog}
-                importantFallbackDelayMinutes={adminSettings.importantFallbackDelayMinutes}
-                platformUserMergeV2Enabled={adminSettings.platformUserMergeV2Enabled}
-                integratorLinkedPhoneSource={adminSettings.integratorLinkedPhoneSource}
-                adminPhone={adminSettings.adminPhone}
-                adminTelegramId={adminSettings.adminTelegramId}
-                adminMaxId={adminSettings.adminMaxId}
-                testAccountPhones={adminSettings.testAccountIdentifiers.phones.join(" ")}
-                testAccountTelegramIds={adminSettings.testAccountIdentifiers.telegramIds.join(" ")}
-                testAccountMaxIds={adminSettings.testAccountIdentifiers.maxIds.join(" ")}
-                patientAppMaintenanceEnabled={adminSettings.patientAppMaintenanceEnabled}
-                patientAppMaintenanceMessage={adminSettings.patientAppMaintenanceMessage}
-                patientBookingUrl={adminSettings.patientBookingUrl}
-              />
+              <>
+                <AdminSettingsSection
+                  devMode={adminSettings.devMode}
+                  debugForwardToAdmin={adminSettings.debugForwardToAdmin}
+                  miniappAuthVerboseServerLog={adminSettings.miniappAuthVerboseServerLog}
+                  importantFallbackDelayMinutes={adminSettings.importantFallbackDelayMinutes}
+                  platformUserMergeV2Enabled={adminSettings.platformUserMergeV2Enabled}
+                  integratorLinkedPhoneSource={adminSettings.integratorLinkedPhoneSource}
+                  adminPhone={adminSettings.adminPhone}
+                  adminTelegramId={adminSettings.adminTelegramId}
+                  adminMaxId={adminSettings.adminMaxId}
+                  testAccountPhones={adminSettings.testAccountIdentifiers.phones.join(" ")}
+                  testAccountTelegramIds={adminSettings.testAccountIdentifiers.telegramIds.join(" ")}
+                  testAccountMaxIds={adminSettings.testAccountIdentifiers.maxIds.join(" ")}
+                  patientAppMaintenanceEnabled={adminSettings.patientAppMaintenanceEnabled}
+                  patientAppMaintenanceMessage={adminSettings.patientAppMaintenanceMessage}
+                  patientBookingUrl={adminSettings.patientBookingUrl}
+                />
+                <AdminIncidentAlertsSection initialConfig={adminSettings.incidentAlertsConfig} />
+              </>
             }
             systemHealth={<SystemHealthSection />}
             appParams={

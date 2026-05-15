@@ -15,7 +15,7 @@
 ### In scope
 
 - **Google Calendar:** `postCreateProjection.ts` (catch вокруг `syncRubitimeWebhookBodyToGoogleCalendar` и аналоги), классы ошибок из `client.ts` (`GOOGLE_CALENDAR_HTTP_*`, token errors) → отдельные `error_class`.
-- **Автомерж:** при записи `auto_merge_conflict` в audit (`admin_audit_log`) — один алерт на **новый** `conflict_key` (см. существующую дедуп-логику в `adminAuditLog.ts`); не дублировать при повторных событиях той же пары.
+- **Автомерж:** при записи `auto_merge_conflict` в audit (`admin_audit_log`) — один алерт на **новый** `conflict_key` (см. `upsertOpenConflictLog` + внешняя доставка при включённой теме в **`admin_incident_alert_config`**); не дублировать при повторных событиях той же пары (`repeat_count` без нового relay).
 - **Projection queue:** при snapshot из `/health/projection` или в worker — пороги: `deadCount > 0`, `retriesOverThreshold > 0`, `oldestPendingAt` старше X (значение из `system_settings`) → `internal:projection:…`.
 - **Media-worker:** сигнал по метрикам БД (failed jobs, stale pending) или heartbeat-файл — **уточнить при реализации**; минимум — хук при известной ошибке job.
 
@@ -106,3 +106,8 @@
 
 - [`MASTER_PLAN.md`](MASTER_PLAN.md)
 - [`PHASE_E_RESOLUTION_AND_RECOVERY_NOTIFICATIONS.md`](PHASE_E_RESOLUTION_AND_RECOVERY_NOTIFICATIONS.md)
+
+## 8. Backlog: in-app только (не `admin_incident_alert_config`)
+
+- **Ручной merge / ошибка merge в админке** — toast в UI, без relay.
+- **Purge частичный / отложенный сбой** — `admin_audit_log` + in-app: мгновенный сбой — toast; отложенный — заметка на экране «сегодня» админа.

@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { upsertOpenConflictLog, writeAuditLog } from "@/app-layer/admin/auditLog";
+import { upsertOpenConflictLog, writeAuditLog, computeConflictKeyFromCandidateIds } from "@/app-layer/admin/auditLog";
+import { integratorAutoMergeAnomalyDedupKey } from "@/modules/admin-incidents/adminIncidentAlertConfig";
+import { sendAdminIncidentRelayAlert } from "@/modules/admin-incidents/sendAdminIncidentAlerts";
 import { getPool } from "@/app-layer/db/client";
 import { computeIntegratorEventsRequestHash } from "@/app-layer/idempotency/integratorEventSemanticHash";
 import { handleIntegratorEvent } from "@/modules/integrator/events";
@@ -84,9 +86,24 @@ export async function POST(request: Request) {
             },
             status: "error",
           });
+          void sendAdminIncidentRelayAlert({
+            topic: "auto_merge_conflict_anomaly",
+            dedupKey: integratorAutoMergeAnomalyDedupKey({
+              eventType: input.eventType,
+              reason: input.reason,
+              conflictClass: input.conflictClass,
+              integratorUserIds: input.integratorUserIds,
+            }),
+            lines: [
+              "auto_merge_conflict_anomaly",
+              `eventType=${input.eventType}`,
+              `reason=${String(input.reason)}`,
+              `conflictClass=${String(input.conflictClass)}`,
+            ],
+          }).catch(() => {});
           return;
         }
-        await upsertOpenConflictLog(pool, {
+        const up = await upsertOpenConflictLog(pool, {
           actorId: null,
           candidateIds: input.candidateIds,
           targetId: input.candidateIds[0] ?? null,
@@ -99,6 +116,23 @@ export async function POST(request: Request) {
           },
           status: "error",
         });
+        if (up.kind === "conflict" && up.insertedFirst) {
+          try {
+            const conflictKey = computeConflictKeyFromCandidateIds(input.candidateIds);
+            void sendAdminIncidentRelayAlert({
+              topic: "auto_merge_conflict",
+              dedupKey: conflictKey,
+              lines: [
+                "auto_merge_conflict (integrator projection)",
+                `eventType=${input.eventType}`,
+                `candidateIds=${input.candidateIds.join(",")}`,
+                `reason=${String(input.reason)}`,
+              ],
+            }).catch(() => {});
+          } catch {
+            /* ignore */
+          }
+        }
       },
     },
     diaries: deps.diaries,

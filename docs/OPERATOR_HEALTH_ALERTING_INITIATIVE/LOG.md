@@ -4,6 +4,10 @@
 
 ## Записи
 
+### 2026-05-15 — Admin incident alerts (identity relay)
+
+- Реализация и доки синхронизированы; закрытый план: [`.cursor/plans/archive/admin_incident_alerts.plan.md`](../../.cursor/plans/archive/admin_incident_alerts.plan.md) (миграции webapp **`0064`**, integrator **`20260515_0001`**). См. также шапку [`README.md`](README.md) и [`PHASE_D_EVENT_HOOKS.md`](PHASE_D_EVENT_HOOKS.md) §8 (in-app merge/purge — backlog).
+
 ### 2026-05-14 — Док: PHASE G не блокирует закрытый MVP
 
 - **`PHASE_G_TESTS_AND_DOCS.md`**: в шапке зафиксировано, что **MVP** закрыт по `MVP_IMPLEMENTATION_PLAN.md`; чеклисты фазы G — пост-MVP полировка; G.1 помечен как **defer** с отсылкой к `LOG.md` / MVP DoD.
@@ -81,5 +85,3 @@
 
 - Добавлен unit [`operatorHealthDrizzle.openOrTouch.test.ts`](../../apps/integrator/src/infra/db/repos/operatorHealthDrizzle.openOrTouch.test.ts) (цепочка insert/onConflict + sequential touch).
 - Добавлен [`deploy/host/operator-health-probe.sh`](../../deploy/host/operator-health-probe.sh); операционное описание cron/systemd в [`deploy/HOST_DEPLOY_README.md`](../../deploy/HOST_DEPLOY_README.md) и [`docs/ARCHITECTURE/SERVER CONVENTIONS.md`](../../docs/ARCHITECTURE/SERVER%20CONVENTIONS.md).
-
-

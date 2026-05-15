@@ -684,6 +684,127 @@ describe("PATCH /api/admin/settings", () => {
     expect(updateSettingMock).toHaveBeenCalledWith("notifications_topics", "admin", { value }, "a1");
   });
 
+  it("returns 200 for admin_incident_alert_config when full v1 shape", async () => {
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSettingMock.mockResolvedValue(null);
+    const value = {
+      topics: {
+        channel_link: false,
+        auto_merge_conflict: true,
+        auto_merge_conflict_anomaly: true,
+        messenger_phone_bind_blocked: true,
+        messenger_phone_bind_anomaly: false,
+      },
+      channels: { telegram: true, max: false },
+    };
+    updateSettingMock.mockResolvedValue({
+      key: "admin_incident_alert_config",
+      scope: "admin",
+      valueJson: { value },
+      updatedAt: "",
+      updatedBy: "a1",
+    });
+    const res = await PATCH(
+      new Request("http://localhost/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: "admin_incident_alert_config", value: { value } }),
+      }),
+    );
+    expect(res.status).toBe(200);
+    expect(updateSettingMock).toHaveBeenCalledWith("admin_incident_alert_config", "admin", { value }, "a1");
+  });
+
+  it("returns 200 for admin_incident_alert_config when topic keys partial (defaults applied)", async () => {
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSettingMock.mockResolvedValue(null);
+    const expectedValue = {
+      topics: {
+        channel_link: true,
+        auto_merge_conflict: true,
+        auto_merge_conflict_anomaly: true,
+        messenger_phone_bind_blocked: true,
+        messenger_phone_bind_anomaly: true,
+      },
+      channels: { telegram: true, max: true },
+    };
+    updateSettingMock.mockResolvedValue({
+      key: "admin_incident_alert_config",
+      scope: "admin",
+      valueJson: { value: expectedValue },
+      updatedAt: "",
+      updatedBy: "a1",
+    });
+    const res = await PATCH(
+      new Request("http://localhost/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          key: "admin_incident_alert_config",
+          value: {
+            value: {
+              topics: {
+                channel_link: true,
+                auto_merge_conflict: true,
+                auto_merge_conflict_anomaly: true,
+                messenger_phone_bind_blocked: true,
+              },
+              channels: { telegram: true, max: true },
+            },
+          },
+        }),
+      }),
+    );
+    expect(res.status).toBe(200);
+    expect(updateSettingMock).toHaveBeenCalledWith("admin_incident_alert_config", "admin", { value: expectedValue }, "a1");
+  });
+
+  it("returns 200 for admin_incident_alert_config and strips unknown topic keys", async () => {
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSettingMock.mockResolvedValue(null);
+    const expectedValue = {
+      topics: {
+        channel_link: false,
+        auto_merge_conflict: true,
+        auto_merge_conflict_anomaly: true,
+        messenger_phone_bind_blocked: true,
+        messenger_phone_bind_anomaly: true,
+      },
+      channels: { telegram: true, max: false },
+    };
+    updateSettingMock.mockResolvedValue({
+      key: "admin_incident_alert_config",
+      scope: "admin",
+      valueJson: { value: expectedValue },
+      updatedAt: "",
+      updatedBy: "a1",
+    });
+    const res = await PATCH(
+      new Request("http://localhost/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          key: "admin_incident_alert_config",
+          value: {
+            value: {
+              topics: {
+                channel_link: false,
+                auto_merge_conflict: true,
+                auto_merge_conflict_anomaly: true,
+                messenger_phone_bind_blocked: true,
+                messenger_phone_bind_anomaly: true,
+                future_topic: false,
+              },
+              channels: { telegram: true, max: false },
+            },
+          },
+        }),
+      }),
+    );
+    expect(res.status).toBe(200);
+    expect(updateSettingMock).toHaveBeenCalledWith("admin_incident_alert_config", "admin", { value: expectedValue }, "a1");
+  });
+
   it("returns 200 for notifications_topics when ids are subset of projection codes", async () => {
     getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
     getSettingMock.mockResolvedValue(null);

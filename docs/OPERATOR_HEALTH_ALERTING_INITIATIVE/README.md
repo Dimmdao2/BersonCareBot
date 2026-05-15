@@ -18,3 +18,4 @@
 - Архив метрик reconcile / system-health (команды проверок): [`docs/archive/2026-05-initiatives/VIDEO_HLS_DELIVERY/HLS_RECONCILE_METRICS_LOG.md`](../archive/2026-05-initiatives/VIDEO_HLS_DELIVERY/HLS_RECONCILE_METRICS_LOG.md).
 - Рубитайм / вебхук: `docs/ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md`.
 - Конфигурация: `docs/ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md` (ключи интеграций в `system_settings`, не в env).
+- **Инциденты идентичности (внешняя доставка TG/Max):** ключ **`admin_incident_alert_config`** (admin) — relay для channel-link, первого открытия `auto_merge_conflict`, projection anomaly, messenger phone bind; **не** смешивать с пробами operator health. Закрытый план: [`.cursor/plans/archive/admin_incident_alerts.plan.md`](../../.cursor/plans/archive/admin_incident_alerts.plan.md); дедуп и хуки — [`PHASE_D_EVENT_HOOKS.md`](PHASE_D_EVENT_HOOKS.md).

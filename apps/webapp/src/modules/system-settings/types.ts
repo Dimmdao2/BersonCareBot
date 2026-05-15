@@ -70,6 +70,8 @@ export const ALLOWED_KEYS = [
   "patient_home_mood_icons",
   /** Темы рассылок для экрана пациента `/notifications` (id = mailing_topics_webapp.code, title — подпись). */
   "notifications_topics",
+  /** Операторские алерты идентичности: темы + каналы TG/Max для relay на admin_*_ids (см. adminIncidentAlertConfig). */
+  "admin_incident_alert_config",
   /** Yandex OAuth (backend-only; не показывать в публичном login UI). */
   "yandex_oauth_client_id",
   "yandex_oauth_client_secret",

@@ -1,6 +1,7 @@
 import type {
   DbPort,
   DbReadPort,
+  DispatchPort,
   DbWriteDbResult,
   DbWriteMutation,
   DbWritePort,
@@ -170,10 +171,13 @@ export function createDbWritePort(input: {
   readPort?: DbReadPort;
   /** When set, projection events are POSTed to webapp immediately after commit; outbox only on failure. */
   webappEventsPort?: WebappEventsPort;
+  /** Filled after `buildDeps` constructs `dispatchPort` (avoid circular init). */
+  getDispatchPort?: () => DispatchPort | undefined;
 } = {}): DbWritePort {
   const db = input.db ?? createDbPort();
   const readPort = input.readPort;
   const webappEventsPort = input.webappEventsPort;
+  const getDispatchPort = input.getDispatchPort;
 
   async function fanoutProjectionsAfterTx(pending: ProjectionFanoutInput[]): Promise<void> {
     for (const ev of pending) {
@@ -498,6 +502,7 @@ export function createDbWritePort(input: {
               if (err.code !== 'db_transient_failure') {
                 void recordMessengerPhoneBindBlocked({
                   db,
+                  ...(getDispatchPort ? { getDispatchPort } : {}),
                   reason: err.code,
                   candidateIds: err.candidateIds,
                   details: {

@@ -88,6 +88,8 @@
 
 **Конфликт привязки (мессенджер уже у другого `platform_users`, токен выдан OAuth-stub):** прежний лог `[channel_link:binding_conflict]` сохраняется. **Автомерж в транзакции** возможен в двух вариантах: (1) классический OAuth-stub: у пользователя токена пустой `phone_normalized`, есть хотя бы одна строка `user_oauth_bindings`, `merged_into_id IS NULL`; цель мержа — владелец существующей привязки канала; `mergePlatformUsersInTransaction(..., "phone_bind")`. (2) **«Фантом» без телефона:** у **текущего владельца** привязки пустой `phone_normalized` — мерж в пользу пользователя с токеном (`reason` в логе: `existing_owner_no_phone`). Успех → токен помечается `used_at`, ответ как при обычной успешной привязке; канонический пользователь дальше через `resolveCanonicalUserId` / `findByUserId`. Иначе — `409 conflict`. Структурированные события в webapp: `channel_link_auto_merge_applied`, `channel_link_auto_merge_skipped`, `channel_link_auto_merge_tx_error` (`scope: channel_link`).
 
+Операторские уведомления вне админки по конфликтам привязки / автомержу настраиваются ключом **`admin_incident_alert_config`** (темы и каналы TG/Max, получатели — `admin_telegram_ids` / `admin_max_ids`); дедуп внешнего пинга по политике открытых конфликтов — см. `docs/OPERATOR_HEALTH_ALERTING_INITIATIVE/PHASE_D_EVENT_HOOKS.md`.
+
 **Ошибка complete в integrator:** при `ok: false` от webapp шаг `webapp.channelLink.complete` добавляет исходящее `message.send` с шаблонами `channelLink.completeFailed.*` (Telegram / Max), плюс `warn` с `event: channel_link_complete_failed`.
 
 **Админ в Telegram:** сценарий `telegram.admin.start.link` (приоритет выше catch-all) обрабатывает `/start link_*` так же, как пользовательский `telegram.start.link` — вызов `webapp.channelLink.complete`.
