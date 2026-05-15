@@ -1,5 +1,5 @@
 /**
- * Единая политика клиентского bootstrap для мессенджерных mini app (Telegram / MAX) на `/app`.
+ * Единая политика клиентского bootstrap для мессенджерных mini app (Telegram / MAX) на entry **`/app`**, **`/app/tg`**, **`/app/max`**.
  * Отделена от UI, чтобы тестировать без React.
  */
 

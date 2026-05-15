@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { classifyEntryHintFromRequest, handlePlatformContextRequest } from "@/middleware/platformContext";
+import { handlePlatformContextRequest } from "@/middleware/platformContext";
 
 export function proxy(request: NextRequest) {
   const ctxResponse = handlePlatformContextRequest(request);
@@ -10,7 +10,6 @@ export function proxy(request: NextRequest) {
 
   const pathname = request.nextUrl.pathname;
   const requestHeaders = new Headers(request.headers);
-  requestHeaders.set("x-bc-entry-hint", classifyEntryHintFromRequest(request));
   if (pathname.startsWith("/app/patient")) {
     requestHeaders.set("x-bc-pathname", pathname);
     requestHeaders.set("x-bc-search", request.nextUrl.search);

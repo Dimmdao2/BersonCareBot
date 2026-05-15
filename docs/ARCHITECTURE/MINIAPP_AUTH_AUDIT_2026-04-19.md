@@ -14,7 +14,7 @@
 |------|--------|------|
 | MAX bugfix (`max_unavailable`, no fallback) | ✅ | `POST /api/auth/max-init` возвращает `max_unavailable`; `AuthBootstrap` не уводит MAX-ошибку в phone flow. |
 | TG first-open stabilization | ✅ | В `PatientBindPhoneClient` удалён `ensureMessengerMiniAppWebappSession`; в gate убрано дублирование recovery внутри poll. |
-| Server-first classification | ✅ | Добавлен `appEntryClassification`, ветка входа передаётся из `AppEntryPage` в `AuthBootstrap`. |
+| Server-first classification | ✅ | Добавлен `appEntryClassification`, ветка входа передаётся из `AppEntryRsc` в `AuthBootstrap`. |
 | Lazy SDK + prefetch dedup | ✅ | Client prefetch удалён из `AuthBootstrap`/`AuthFlowV2`; публичные auth-config приходят через RSC snapshot. |
 | PlatformProvider quiet | ✅ | `router.refresh()` отсутствует в `PlatformProvider`, runtime не шумит лишними refresh. |
 | Error isolation | ✅ | Присутствуют `app/error.tsx`, `app/app/error.tsx`, `app/app/patient/error.tsx`, `app/app/doctor/error.tsx`. |
@@ -25,7 +25,7 @@
 | Инвариант | Статус | Комментарий |
 |-----------|--------|-------------|
 | Сессия только сервером (`httpOnly`) | ✅ | Сессия выставляется в auth service (`cookies().set`). |
-| `/app` server redirect или login UI | ✅ | `AppEntryPage`: server redirect при сессии, иначе auth UI. |
+| `/app` server redirect или login UI | ✅ | `AppEntryRsc` (в т.ч. `/app`, `/app/tg`, `/app/max`): server redirect при сессии, иначе auth UI. |
 | На входе одна auth-ветка | ✅ | `AuthBootstrap` работает по server `entryClassification`. |
 | Нет `router.refresh()` до успеха auth | ✅ | В `AuthBootstrap` удалён stale-cookie refresh-path. |
 | SDK не блокирует интерактивный вход | ✅ | Telegram SDK lazy, MAX bridge условный, UI не ждёт client prefetch. |
@@ -48,3 +48,7 @@
    - `time-to-usable-login-ui`
    - число auth-запросов и отсутствие pre-success `router.refresh()`
 3. Подтвердить конфиг `max_bot_api_key` в `system_settings` production.
+
+---
+
+**Актуализация 2026-05-15:** поверх этого аудита зафиксирован split точек входа **`/app/tg`** / **`/app/max`**, убран `ctx` из ссылок integrator; порядок pathname/cookie/query для справки — **`classifyEntryHintFromRequest`** (тесты), без заголовка в запросе. Детали в [`MINIAPP_AUTH_FIX_EXECUTION_LOG.md`](./MINIAPP_AUTH_FIX_EXECUTION_LOG.md) §2026-05-15 и [`PLATFORM_IDENTITY_SCENARIOS_AND_CODE_MAP.md`](./PLATFORM_IDENTITY_SCENARIOS_AND_CODE_MAP.md).

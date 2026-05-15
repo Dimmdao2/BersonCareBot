@@ -11,7 +11,9 @@ It is intentionally separated from the current `tgcarebot` integrator **as a pro
 
 ## URL Spaces
 
-- `/app` - common entrypoint with role resolution
+- `/app` - common entrypoint with role resolution (legacy miniapp: optional `?ctx=bot|max`; **`ctx=max` на `/app` → redirect на `/app/max`**)
+- `/app/tg` - Telegram Mini App entry (shared `AppEntryRsc` + messenger auth)
+- `/app/max` - MAX Mini App entry (shared `AppEntryRsc` + messenger auth)
 - `/app/patient` - patient workspace (в т.ч. `/app/patient/support` — форма обращения в поддержку, `POST /api/patient/support` → Telegram админу; см. `src/modules/auth/auth.md`)
 - `/app/doctor` - doctor workspace
 - `/app/settings` - shared settings space with role guards

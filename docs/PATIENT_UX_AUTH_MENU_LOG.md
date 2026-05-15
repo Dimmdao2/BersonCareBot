@@ -7,7 +7,7 @@
 | STEP | FILES | RATIONALE | TESTS | STATUS |
 |------|-------|-----------|-------|--------|
 | A1 | `apps/integrator/src/content/telegram/user/scripts.json`, `max/user/scripts.json` | Кнопка ассистента как Mini App (`webAppUrlFact`) | `contentConfig.test.ts` | done |
-| A2 | `apps/integrator/src/integrations/max/webhook.ts` | `ctx=bot` в ссылке входа для MAX | — | done |
+| A2 | `apps/integrator/src/integrations/max/webhook.ts` | (история) `ctx=bot` в ссылке входа для MAX; **актуализация 2026-05:** канон **`/app/max`** + `?t=` без `ctx` (`buildWebappEntryUrlFromSource`) | — | done |
 | A4 | `apps/integrator/src/content/max/user/contentConfig.test.ts` | Регрессия JSON | vitest integrator | done |
 | B | `PinSection.tsx`, `profile/page.tsx`, `PinInput.tsx`, `*.test.tsx` | PIN создан / сброс, подписи кнопок | vitest webapp | done |
 | C | `migrations/040_*.sql`, `pgChannelPreferences.ts`, `inMemory*`, `service.ts`, `checkPhoneMethods.ts`, `check-phone/route.ts`, `AuthFlowV2.tsx`, `profile/*` | Предпочтение канала OTP | vitest webapp | done |
@@ -18,7 +18,7 @@
 
 ### Scope delivered
 
-1. Открытие webapp из бота в режиме Mini App + `ctx=bot` для MAX.
+1. Открытие webapp из бота в режиме Mini App; для MAX с **2026-05** канонический путь **`/app/max`** (ранее — query `ctx=bot` на `/app`, см. `MINIAPP_AUTH_FIX_EXECUTION_LOG.md`).
 2. Профиль: PIN со статусом и сбросом; двойной ввод при установке/смене.
 3. Профиль: выбор канала подтверждения входа с сохранением в БД и учётом в `AuthFlowV2`.
 4. Кнопка «Записаться на приём» убрана с главной; добавлена в меню (sheet + `getMenuForRole`).
@@ -62,14 +62,14 @@
 
 Дата: 2026-04-15
 
-## Mini App auth: `ctx=bot`, без авто-телефона
+## Mini App auth: канон `/app/tg` | `/app/max`, без авто-телефона
 
 | Изменение | Суть |
 |-----------|------|
-| Канон URL | `?ctx=bot` для кнопок бота (TG/MAX); `?ctx=max` в middleware трактуется как legacy и тоже приводит к cookie `bot`. |
-| Query JWT | При `ctx=bot` / `ctx=max` токен `?t=` не подставляется в сессию — вход через `initData` + `telegram-init` / `max-init`. |
+| Канон URL (2026-05+) | Первый заход из бота: **`/app/tg`** (Telegram) и **`/app/max`** (MAX); integrator **не** добавляет `ctx`. Legacy: **`?ctx=bot|max` на `/app`** — middleware (`platformContext`) ставит cookie `bersoncare_platform=bot` (+ surface); при **`ctx=max` на `/app`** — редирект на **`/app/max`**. |
+| Query JWT | В messenger/miniapp-контексте (cookie/hint/`ctx` legacy) токен `?t=` **не** подставляется в сессию как основной вход — сначала `initData` → `telegram-init` / `max-init`; при cap — резервный `exchange` если есть `t`. |
 | Ошибка initData | Экран с **«Повторить»**, без автоматического показа телефонного флоу в miniapp-контексте. |
 | Сессия TG | После успешного `POST /api/auth/telegram-init` выставляется platform-cookie `bot` (как у `max-init`). |
-| Аудит 2026-04-15 | `AuthBootstrap`: контекст miniapp по **`useSearchParams` + cookie** (не «сырой» `window.location`); **`PlatformProvider`**: при `serverHint=bot` не сбрасывать bot-режим при гонке детектора; integrator — тесты `ctx=bot`/`next` в `webhook.links.test.ts`; grep по логам — **`SERVER CONVENTIONS.md`**. |
+| Аудит 2026-04-15 + 2026-05 | `AuthBootstrap`: контекст miniapp по **`useSearchParams` + cookie** + server `entryClassification` (`AppEntryRsc`); **`PlatformProvider`**: при `serverHint=bot` не сбрасывать bot-режим при гонке детектора; integrator — `webhook.links.test.ts` (подписанные URL на `/app/tg` / `/app/max`); grep по логам — **`SERVER CONVENTIONS.md`**, **`MINIAPP_AUTH_FIX_EXECUTION_LOG.md`**. |
 
 Журнал правок и CI: `docs/ARCHITECTURE/MINIAPP_AUTH_FIX_EXECUTION_LOG.md`.

@@ -337,7 +337,8 @@ export function AuthBootstrap({
       );
     };
 
-    const TICK_MS = 100;
+    /** Было 100ms — ~70 тиков до 7s cap; 150ms снижает нагрузку таймера в WebView без заметной задержки UX. */
+    const TICK_MS = 150;
     const STABLE_EMPTY_TICKS = 10;
 
     let cancelled = false;

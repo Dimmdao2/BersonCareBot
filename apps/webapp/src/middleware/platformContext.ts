@@ -71,7 +71,11 @@ export function handlePlatformContextRequest(
   return response;
 }
 
-/** Предклассификация входа на edge (без проверки server-session). */
+/**
+ * Предклассификация по raw request (pathname → miniapp до эвристики `token_exchange`).
+ * Используется в **unit-тестах** и как документированный эталон порядка правил; **не** пробрасывается
+ * заголовком в RSC — канон авторизации остаётся в `AppEntryRsc` + `classifyUnauthenticatedAppEntry` (иначе риск рассинхрона).
+ */
 export function classifyEntryHintFromRequest(request: NextRequest): MiddlewareEntryHint {
   const path = normalizeWebappEntryPathname(request.nextUrl.pathname);
   if (path === "/app/max") {

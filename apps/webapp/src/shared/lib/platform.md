@@ -12,9 +12,9 @@
 ## Cookie
 
 - Имя: `bersoncare_platform`, значение `bot` для контекста бота.
-- **Proxy** ([proxy.ts](../../proxy.ts), [middleware/platformContext.ts](../../middleware/platformContext.ts)): при запросе с `?ctx=bot` выставляет cookie и редиректит URL без параметра (reply keyboard в Telegram может открывать ссылку с `ctx`).
+- **Proxy** ([proxy.ts](../../proxy.ts), [middleware/platformContext.ts](../../middleware/platformContext.ts)): **канон (2026-05)** — первый заход по путям **`/app/tg`** / **`/app/max`**; для **`/app/patient/*`** при необходимости пробрасываются **`x-bc-pathname`** / **`x-bc-search`**. **Legacy:** запрос с **`?ctx=bot|max` на `/app`** выставляет platform/surface-cookies и редиректит URL без `ctx`; при **`ctx=max` на `/app`** — редирект на **`/app/max`** (reply keyboard и старые ссылки могут ещё открывать с `ctx`).
 - В production cookie: `SameSite=None; Secure` (iframe Mini App). В dev на http: `Lax` без `Secure`.
-- **Клиентский fallback**: если Mini App без предварительного `?ctx=bot`, [PlatformProvider.tsx](../ui/PlatformProvider.tsx) пишет ту же cookie через `serializePlatformBotCookie()` ([platform.ts](platform.ts)).
+- **Клиентский fallback**: если Mini App открылся без предварительной cookie бота, [PlatformProvider.tsx](../ui/PlatformProvider.tsx) может записать её через `serializePlatformBotCookie()` ([platform.ts](platform.ts)) после детекта хоста/SDK.
 
 ## Навигация пациента
 

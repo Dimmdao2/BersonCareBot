@@ -95,10 +95,6 @@ async function ensureMessengerMiniAppWebappSessionImpl(router: { refresh: () => 
   }
 
   const params = new URLSearchParams(window.location.search);
-  if (params.get("ctx") === "max") {
-    return;
-  }
-
   const token = (params.get("t") ?? params.get("token"))?.trim() ?? "";
   if (!token.length) return;
 

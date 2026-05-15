@@ -1,6 +1,6 @@
 # Miniapp auth fix — execution log
 
-**Scope:** стабильный вход из miniapp при каноне `ctx=bot`, подавление query-JWT в контексте мессенджера, error+retry вместо авто-fallback в телефон, platform-cookie после `telegram-init`, согласованность ссылок integrator.
+**Scope (история 2026-04):** стабильный вход из miniapp при legacy `?ctx=bot|max` на `/app`, подавление query-JWT в контексте мессенджера, error+retry вместо авто-fallback в телефон, platform-cookie после `telegram-init`, согласованность ссылок integrator. **Продолжение 2026-05:** канонические entry **`/app/tg`** и **`/app/max`**, без `ctx` в ссылках integrator — см. раздел *2026-05-15* ниже и `apps/webapp/INTEGRATOR_CONTRACT.md`.
 
 ## Ход выполнения
 
@@ -51,7 +51,7 @@
 ### 2026-04-15 — Шаг 4–5 (middleware / integrator)
 
 - **Файлы:** `apps/webapp/src/middleware/platformContext.ts` — `ctx=max` legacy → тот же redirect+cookie, что и `ctx=bot`; `apps/webapp/src/platformContextRedirects.test.ts`; `apps/webapp/src/app/api/auth/max-init/route.ts` — поле `miniappAuthOutcome: "session_ok"` в success-log.
-- **Integrator:** ссылки уже с `ctx=bot` в `integrations/max/webhook.ts` и `integrations/telegram/webhook.ts`; добавлены тесты контракта URL: `integrations/max/webhook.links.test.ts`, расширен `integrations/telegram/webhook.links.test.ts` (экспорт `buildMaxLinks` для MAX).
+- **Integrator (2026-04):** ссылки с `ctx=bot` в `integrations/max/webhook.ts` и `integrations/telegram/webhook.ts`; тесты контракта URL: `integrations/max/webhook.links.test.ts`, `integrations/telegram/webhook.links.test.ts` (экспорт `buildMaxLinks` для MAX). **Актуализация 2026-05:** `ctx` убран; URL строятся через `buildWebappEntryUrlFromSource` → `/app/tg` / `/app/max` — см. раздел *2026-05-15*.
 
 ---
 
@@ -80,7 +80,7 @@
 ### Диагностика (устранённая проблема)
 
 - **Симптом:** долгое «Проверяем вход…», затем экран телефона / «старый» standalone-флоу при открытии miniapp из бота.
-- **Проверки:** в URL первого захода должен быть `ctx=bot` (или legacy `ctx=max`); после redirect в cookie — `bersoncare_platform=bot`. В журнале webapp при успешном входе искать **`miniappAuthOutcome":"session_ok"`** на маршрутах `auth/telegram-init` и `auth/max-init` (и строки `Telegram Mini App: initData принят` / `MAX Mini App: initData принят`).
+- **Проверки (2026-04):** при открытии через legacy `/app?ctx=...` после redirect в cookie — `bersoncare_platform=bot`. **Проверки (2026-05+):** канон первого захода из бота — URL на **`/app/tg`** или **`/app/max`** (опционально `?t=` + `&next=`). В журнале webapp при успешном входе искать **`miniappAuthOutcome":"session_ok"`** на маршрутах `auth/telegram-init` и `auth/max-init` (и строки `Telegram Mini App: initData принят` / `MAX Mini App: initData принят`).
 - **Поведение после фикса:** при сбое/таймауте initData — сообщение и **«Повторить»**, без авто-`AuthFlowV2`; `telegram-init` выставляет platform-cookie как `max-init`.
 
 ---
@@ -103,7 +103,7 @@
 
 ### Что закрыто в коде дополнительно
 
-- **Server-first orchestration:** добавлен `modules/auth/appEntryClassification.ts`; `AppEntryPage` передаёт ветку входа в `AuthBootstrap` как `entryClassification`; legacy `authEntryFlow.ts` и тест удалены.
+- **Server-first orchestration:** добавлен `modules/auth/appEntryClassification.ts`; **`AppEntryRsc`** (страницы `/app`, `/app/tg`, `/app/max`) передаёт ветку входа в `AuthBootstrap` как `entryClassification`; legacy `authEntryFlow.ts` и тест удалены.
 - **Одна ветка в `AuthBootstrap`:** bootstrap больше не делает URL-only классификацию и не держит двойной источник истины (`ctx` vs cookie).
 - **No pre-success refresh:** удалён `router.refresh()` из ветки stale bot-cookie в `AuthBootstrap` (переключение на `browser_interactive` без server refresh).
 - **Prefetch dedup:** убраны client prefetch `Promise.all` из `AuthBootstrap`; `AuthFlowV2` использует только `prefetchedAuthConfig` из RSC (без client fetch публичных auth-config).
@@ -130,3 +130,29 @@
 | PlatformProvider quiet | ✅ complete | `router.refresh()` отсутствует; `useEffect`-модель стабильна. |
 | Error isolation | ✅ complete | Сегментные `error.tsx` + `SegmentRouteError` (reset/hard reload). |
 | Scenario verification | ⚠️ partial (ops) | Автотесты/код закрыты; матрица 10 сценариев на dev/prod и измерения TTI/time-to-session требуют ручного прогонa на окружениях. |
+
+---
+
+## 2026-05-15 — Miniapp entry split (`/app/tg`, `/app/max`)
+
+| Поле | Значение |
+|------|----------|
+| Дата | 2026-05-15 |
+| Цель | Убрать двусмысленность `ctx=bot` для MAX: явный surface по пути URL; синхронизировать integrator, middleware, клиентский fallback `?t=` после cap. |
+| Webapp | `AppEntryRsc.tsx`, `app/app/tg/page.tsx`, `app/app/max/page.tsx`, `app/app/page.tsx`; `appEntryClassification.ts` (`routeBoundMessengerSurface`); `AuthBootstrap` (miniapp `?t=` fallback, `routeBoundMiniappEntry`, poll **150ms**); `messengerAuthStrategy.shouldExposeInteractiveLogin`; `platformContext.ts` (`ctx=max` на `/app` → `/app/max`); `classifyEntryHintFromRequest` — только unit-тесты; `miniAppSessionRecovery` (убран блокирующий `exchange` при `ctx=max`); `platformContext.test.ts`, `platformContextRedirects.test.ts`, `AuthBootstrap.test.tsx`. |
+| Integrator | `webappEntryToken.ts` (`/app/tg` / `/app/max`); убран `&ctx=bot` из `telegram/webhook.ts`, `max/webhook.ts`, `doctorBroadcastIntentMenu.ts`; `reminderMessengerWebAppUrls.ts`; тесты `webhook.links`, `patientHomeMorningPing`. |
+| Доки | `apps/webapp/INTEGRATOR_CONTRACT.md`, `apps/webapp/src/modules/auth/auth.md`, `PLATFORM_IDENTITY_SCENARIOS_AND_CODE_MAP.md` §канон URL; smoke `e2e/smoke-app-router-rsc-pages-inprocess.test.ts` — `/app/tg`, `/app/max`. |
+| Проверки | Целевые vitest + `apps/webapp` typecheck (локально). |
+
+**Ops:** в консоли MAX Business статический URL miniapp задать на **`https://<origin>/app/max`** (без обязательного `?t=` в настройках); Telegram — **`.../app/tg`** при наличии поля для базового URL.
+
+---
+
+## 2026-05-16 — Аудит follow-up (proxy, recovery, poll)
+
+| Поле | Значение |
+|------|----------|
+| Дата | 2026-05-16 |
+| Цель | Убрать неиспользуемый заголовок `x-bc-entry-hint` (риск рассинхрона с RSC); не блокировать `exchange` при legacy `ctx=max` в query; снизить частоту таймера опроса initData в `AuthBootstrap`. |
+| Webapp | `proxy.ts` — без `x-bc-entry-hint`; `platformContext.ts` — JSDoc для `classifyEntryHintFromRequest`; `miniAppSessionRecovery.ts`; `AuthBootstrap.tsx` (`TICK_MS` 150); доки `auth.md`, `ui.md`, `platform.md`, архитектура см. выше. |
+| Проверки | Целевые vitest по затронутым файлам (локально). |

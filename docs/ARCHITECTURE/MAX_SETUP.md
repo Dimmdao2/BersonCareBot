@@ -161,7 +161,7 @@ npx tsx scripts/check-max.ts
 
 Кнопки «открыть приложение» из сценариев используют Telegram-разметку `web_app`; модуль [`deliveryAdapter.ts`](../../apps/integrator/src/integrations/max/deliveryAdapter.ts) преобразует её в кнопку MAX **`open_app`** (не `link`), чтобы не уводить пользователя во внешний браузер. В API уходит **`contact_id`** = числовой `chat_id` получателя (если есть), иначе из meta — для корректного `initData`/логина в мини-приложении.
 
-**Канон miniapp-входа (Telegram + MAX):** в ссылках на webapp используется **`?ctx=bot`** (интегратор добавляет его к базовому URL). Middleware выставляет cookie платформы `bersoncare_platform=bot` и убирает `ctx` из URL; legacy **`?ctx=max`** обрабатывается так же (cookie `bot`, strip). JWT в query (`?t=`) в этих контекстах **не** используется как основной вход — только `initData` и `POST /api/auth/telegram-init` или **`POST /api/auth/max-init`**. После успешного `telegram-init` webapp выставляет ту же platform-cookie `bot`, что и после `max-init`, чтобы клиент не уходил в standalone-ветку. При таймауте/ошибке initData на `/app` показывается сообщение и кнопка **«Повторить»**, без автоматического перехода в телефонный `AuthFlowV2` (см. `docs/ARCHITECTURE/MINIAPP_AUTH_FIX_EXECUTION_LOG.md`). На клиенте `AuthBootstrap` определяет miniapp-контекст по **`useSearchParams()` (Next) и cookie**, а не по «сырому» `window.location`, чтобы не расходиться с URL после redirect.
+**Канон miniapp-входа (Telegram + MAX, 2026-05):** явные URL **`/app/tg`** (Telegram) и **`/app/max`** (MAX); integrator **не** добавляет `ctx` к ссылкам — surface задаётся путём. RSC общий: `apps/webapp/src/app/app/AppEntryRsc.tsx`. Legacy **`?ctx=bot|max` на `/app`**: middleware `handlePlatformContextRequest` выставляет cookie `bersoncare_platform=bot` + `bersoncare_messenger_surface`, снимает `ctx` из query; при **`ctx=max` на пути `/app`** дополнительно редирект на **`/app/max`** (сохранение остальных query). В miniapp JWT в query **не** основной вход: сначала `initData` → `telegram-init` / `max-init`; после cap при наличии `t` — резервный `exchange`. На канонических `/app/tg` и `/app/max` без интерактивного «веб-сайта» вместо miniapp см. `routeBoundMiniappEntry` в `AuthBootstrap`. Диагностика и журнал правок: `docs/ARCHITECTURE/MINIAPP_AUTH_FIX_EXECUTION_LOG.md`.
 
 ---
 
@@ -174,7 +174,7 @@ npx tsx scripts/check-max.ts
 - [ ] В вебапп заданы `INTEGRATOR_*` и `APP_BASE_URL`; для входа по MAX в вебапп при необходимости задать `ALLOWED_MAX_IDS` (список разрешённых max user id через запятую).
 - [ ] В admin webapp сохранён **`max_bot_api_key`** (подпись MAX Mini App `initData`), если пользователи открывают приложение из WebView без `?t=...`.
 
-После этого MAX бот подключён к интегратору (webhook + отправка сообщений), а вебапп принимает пользователей из MAX через **`?t=...`** и/или **Mini App `max-init`**.
+После этого MAX бот подключён к интегратору (webhook + отправка сообщений), а вебапп принимает пользователей из MAX через **`/app/max`** (`initData` / **`max-init`**, резервно **`?t=`** + **`exchange`**).
 
 ---
 
@@ -183,7 +183,7 @@ npx tsx scripts/check-max.ts
 1. В MAX откройте чат с ботом: для приветствия с меню можно отправить `/start` (те же deep link параметры, что у Telegram: `link_*`, `setphone_…`, Rubitime, `noticeme` и т.д. — см. [`INTEGRATOR_TELEGRAM_START_SCRIPTS.md`](../archive/2026-04-initiatives/AUTH_RESTRUCTURE/INTEGRATOR_TELEGRAM_START_SCRIPTS.md)) или дождаться сценария старта; текст **`/menu`** по-прежнему обрабатывается ботом (`mapIn.ts`), но **список slash-команд у бота в UI пустой** (`setMyCommands` → `[]`) — главное меню через инлайн-кнопки под сообщениями.
 2. После старта с привязанным номером — **одна строка** inline-кнопок, как в Telegram `menus.main`: **«Запись на приём»** (callback) и **WebApp «Приложение»** на главную (`links.webappHomeUrl`). См. [`apps/integrator/src/content/max/user/menu.json`](../../apps/integrator/src/content/max/user/menu.json) и [`MAX_CAPABILITY_MATRIX.md`](MAX_CAPABILITY_MATRIX.md).
 3. Нажмите **«Приложение»** — сообщение/кнопка ведёт в мини-приложение (если в facts задан `links.webappHomeUrl`; иначе шаблон «не настроено»). Текст **`/book`**, **`/diary`**, **`/menu`** по-прежнему можно отправить вручную — обработка в сценариях, не через меню команд MAX.
-4. Откройте вебапп с кнопки — интегратор шлёт кнопку **`open_app`** (поле `web_app` = URL с `?t=...&ctx=bot`), мини-приложение открывается **внутри клиента MAX** с MAX Bridge и `initData` (`POST /api/auth/max-init`). Если пользователь открыл тот же URL как обычную ссылку (`link`) во внешнем браузере — работает только обмен по **`?t=`** (`exchange`), без `initData`.
+4. Откройте вебапп с кнопки — интегратор шлёт кнопку **`open_app`** (поле `web_app` = URL вида **`.../app/max?t=...&next=...`** без `ctx`), мини-приложение открывается **внутри клиента MAX** с MAX Bridge и `initData` (`POST /api/auth/max-init`). Если пользователь открыл тот же URL как обычную ссылку (`link`) во внешнем браузере — работает обмен по **`?t=`** (`exchange`), без `initData`.
 
 При ошибках: проверьте логи интегратора (webhook received, pipeline accepted), наличие `links.webappEntryUrl` в facts для MAX (логировать при необходимости) и переменные вебапп `INTEGRATOR_WEBAPP_ENTRY_SECRET` / `APP_BASE_URL`.
 

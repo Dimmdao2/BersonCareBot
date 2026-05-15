@@ -92,7 +92,7 @@
 
 ## Дополнения (пациент: вход, PIN, меню, бот)
 
-- **Mini App из Telegram/MAX:** в сценариях `assistant.open` кнопка открытия webapp через `webAppUrlFact` (не `url`); для MAX в facts к URL добавлен `ctx=bot` (как в Telegram). См. `apps/integrator/src/content/*/user/scripts.json`, `apps/integrator/src/integrations/max/webhook.ts`.
+- **Mini App из Telegram/MAX:** в сценариях `assistant.open` кнопка открытия webapp через `webAppUrlFact` (не `url`). **2026-05:** фактический URL собирается integrator’ом как **`/app/tg`** / **`/app/max`** + опционально подписанный `?t=` (`buildWebappEntryUrlFromSource`); query **`ctx`** к ссылкам из бота **не** добавляется. См. `apps/integrator/src/content/*/user/scripts.json`, `apps/integrator/src/integrations/*/webhook.ts`, `apps/integrator/src/integrations/webappEntryToken.ts`.
 - **Профиль — PIN:** при уже созданном PIN показывается статус «PIN-код создан» и «Сбросить PIN»; установка/смена — два шага с подтверждением. См. `apps/webapp/src/app/app/patient/profile/PinSection.tsx`.
 - **Профиль — канал OTP:** блок «Подтверждение входа»; сохранение в `user_channel_preferences.is_preferred_for_auth` (миграция `040_auth_preferred_channel.sql`); `check-phone` отдаёт `preferredOtpChannel`, `AuthFlowV2` использует `pickOtpChannelWithPreference`.
 - **Запись на приём:** убрана с главной (`PatientHomeBrowserHero`); пункт в гамбургер-меню (`PatientHeader`) и в `getMenuForRole` (`menu/service.ts`).
