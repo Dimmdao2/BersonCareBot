@@ -162,7 +162,7 @@ function PatientProgramTileSimpleCompleteButton(props: {
         type="button"
         className={cn(
           patientCompactActionClass,
-          "min-h-0 min-w-0 flex-1 basis-0 px-2 text-xs font-medium",
+          "min-h-9 min-w-0 flex-1 basis-0 px-2 py-2.5 text-xs font-medium leading-tight",
           doneFrozen && patientSimpleCompleteDoneButtonToneClass,
         )}
         disabled={busy !== null || doneFrozen}
@@ -185,7 +185,9 @@ function PatientProgramTileSimpleCompleteButton(props: {
           }
         }}
       >
-        {doneFrozen ? "Выполнено" : "Отметить выполнение"}
+        <span className="w-full text-center leading-tight">
+          {doneFrozen ? "Выполнено" : "Отметить выполнение"}
+        </span>
       </button>
       {/* Скрыто: строка «Можно отметить повторно…» — см. cooldownMinutes выше.
       {doneFrozen && cooldownMinutes != null ? (
@@ -412,11 +414,11 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
                 href={itemProgramHref(item.id)}
                 className={cn(
                   patientSecondaryActionClass,
-                  "!w-auto h-8 min-h-0 min-w-0 flex-1 basis-0 text-xs font-medium",
-                  "inline-flex items-center justify-center gap-1.5 no-underline",
+                  "!w-auto min-h-9 min-w-0 flex-1 basis-0 px-2 py-2.5 text-center text-xs font-medium leading-tight no-underline",
+                  "inline-flex items-center justify-center gap-1.5",
                 )}
               >
-                Добавить комментарий
+                <span className="w-full text-center leading-tight">Добавить комментарий</span>
               </Link>
               {showSimpleCompleteFooter ? (
                 <PatientProgramTileSimpleCompleteButton
