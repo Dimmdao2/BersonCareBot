@@ -46,6 +46,7 @@ Rubitime передаёт `name` как полную строку (часто Ф
 
 **Разделение UI:**
 - Doctor appointments UI питается из `appointment_records` (заполняется через projection).
+- В списке записей врача (`/app/doctor/appointments`) и на экране «Сегодня» основная строка имени — джойн к `platform_users` (как в SQL `COALESCE`); если `payload_json.name` от Rubitime после нормализации отличается от этой подписи, под основной строкой показывается краткая подсказка «В Rubitime: …».
 - Patient «Мои записи» питается из `patient_bookings` (заполняется напрямую в webapp).
 
 ## Google Calendar: поле `description` события

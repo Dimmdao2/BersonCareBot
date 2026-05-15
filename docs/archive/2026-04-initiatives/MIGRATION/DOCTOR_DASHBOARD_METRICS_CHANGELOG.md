@@ -1,5 +1,17 @@
 # Лог: метрики дашборда врача и навигация (webapp)
 
+## 2026-05-15
+
+### Сделано
+
+- Подсказка **«В Rubitime: …»** при расхождении `appointment_records.payload_json.name` и подписи профиля (`platform_users`): список `/app/doctor/appointments` и блоки записей на `/app/doctor` («Сегодня»). Код: `appointmentRubitimeNameMismatch.ts`, `pgDoctorAppointments.ts` (`rubitimeNameIfDifferent` на строке записи).
+
+### Документация
+
+- `docs/ARCHITECTURE/DOCTOR_DASHBOARD_METRICS.md`, `RUBITIME_BOOKING_PIPELINE.md`, `SPECIALIST_CABINET_STRUCTURE.md`, `docs/README.md`.
+
+---
+
 ## 2026-04-02
 
 ### Проблема

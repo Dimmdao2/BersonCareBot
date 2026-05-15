@@ -92,6 +92,7 @@ describe("DoctorTodayDashboard", () => {
           status: "created",
           branchName: "Филиал А",
           scheduleProvenancePrefix: "Rubitime",
+          rubitimeNameIfDifferent: null,
           href: "/app/doctor/clients/user-1",
           ctaLabel: "Открыть карточку",
         },
@@ -105,6 +106,29 @@ describe("DoctorTodayDashboard", () => {
       "href",
       "/app/doctor/clients/user-1",
     );
+  });
+
+  it("renders Rubitime name hint when different from profile label", () => {
+    const data: TodayDashboardData = {
+      ...emptyData(),
+      todayAppointments: [
+        {
+          id: "ap2",
+          time: "10:00",
+          clientLabel: "Иван",
+          rubitimeNameIfDifferent: "Иванов И.И.",
+          clientUserId: "user-2",
+          type: "Осмотр",
+          status: "created",
+          branchName: null,
+          scheduleProvenancePrefix: null,
+          href: "/app/doctor/clients/user-2",
+          ctaLabel: "Открыть карточку",
+        },
+      ],
+    };
+    render(<DoctorTodayDashboard data={data} />);
+    expect(screen.getByText("В Rubitime: Иванов И.И.")).toBeInTheDocument();
   });
 
   it("renders intake row with deep link", () => {

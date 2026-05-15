@@ -22,6 +22,7 @@ describe("doctor-appointments service", () => {
             link: null,
             cancellationCountForClient: 0,
             branchName: null,
+            rubitimeNameIfDifferent: null,
           },
         ];
       }
@@ -73,6 +74,7 @@ describe("doctor-appointments service", () => {
             link: null,
             cancellationCountForClient: 0,
             branchName: null,
+            rubitimeNameIfDifferent: null,
           },
         ];
       },

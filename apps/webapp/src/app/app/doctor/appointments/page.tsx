@@ -63,19 +63,29 @@ export default async function DoctorAppointmentsPage({ searchParams }: Props) {
           <p className="text-muted-foreground">Нет записей на выбранный период.</p>
         ) : (
           <ul id="doctor-appointments-upcoming-list" className="m-0 list-none space-y-3 p-0">
-            {appointments.map((a) => (
+            {appointments.map((a) => {
+              const uid = a.clientUserId?.trim() ?? "";
+              const hasClient = uid.length > 0;
+              const clientHref = hasClient
+                ? `/app/doctor/clients/${encodeURIComponent(uid)}`
+                : "/app/doctor/appointments";
+              return (
               <li key={a.id} id={`doctor-appointments-item-${a.id}`} className="rounded-lg border border-border bg-card p-3">
                 <div className="flex flex-col gap-2">
                   {a.scheduleProvenancePrefix ? (
                     <p className="text-xs text-muted-foreground">{a.scheduleProvenancePrefix}</p>
                   ) : null}
-                  <Link href={`/app/doctor/clients/${a.clientUserId}`}>
+                  <Link href={clientHref}>
                     {a.time} — {a.clientLabel} ({a.type}, {a.status})
                   </Link>
+                  {a.rubitimeNameIfDifferent ? (
+                    <p className="text-xs text-muted-foreground">В Rubitime: {a.rubitimeNameIfDifferent}</p>
+                  ) : null}
                   <DoctorAppointmentActions recordId={a.id} />
                 </div>
               </li>
-            ))}
+            );
+            })}
           </ul>
         )}
       </section>

@@ -105,6 +105,9 @@ export function DoctorTodayDashboard({ data, adminHealthBanner }: Props) {
                 <p className="font-medium text-foreground">
                   {a.time} · {a.clientLabel}
                 </p>
+                {a.rubitimeNameIfDifferent ? (
+                  <p className="text-xs text-muted-foreground mt-0.5">В Rubitime: {a.rubitimeNameIfDifferent}</p>
+                ) : null}
                 <p className="text-xs text-muted-foreground mt-0.5">
                   {a.type} · {a.status}
                   {a.branchName ? ` · ${a.branchName}` : ""}
@@ -234,6 +237,9 @@ export function DoctorTodayDashboard({ data, adminHealthBanner }: Props) {
                   <p className="font-medium text-foreground">
                     {a.time} · {a.clientLabel}
                   </p>
+                  {a.rubitimeNameIfDifferent ? (
+                    <p className="text-xs text-muted-foreground mt-0.5">В Rubitime: {a.rubitimeNameIfDifferent}</p>
+                  ) : null}
                   <p className="text-xs text-muted-foreground mt-0.5">
                     {a.type} · {a.status}
                     {a.branchName ? ` · ${a.branchName}` : ""}

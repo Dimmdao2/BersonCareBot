@@ -53,6 +53,8 @@
 
 **Списки:** `/app/doctor/appointments?view=future|month|cancellationsMonth`.
 
+**Подпись клиента (Rubitime vs профиль):** в списке записей и на `/app/doctor` («Сегодня») основная строка имени — джойн к `platform_users` (как в `LIST_SELECT` → `clientLabel` в `pgDoctorAppointments.ts`). Если `payload_json.name` из проекции Rubitime после нормализации отличается от этой подписи, под основной строкой показывается краткая подсказка «В Rubitime: …». Логика сравнения без БД: `apps/webapp/src/shared/lib/appointmentRubitimeNameMismatch.ts`. Подробнее поток данных — [`RUBITIME_BOOKING_PIPELINE.md`](RUBITIME_BOOKING_PIPELINE.md).
+
 ---
 
 ## Страница «Статистика» (`/app/doctor/stats`)
@@ -66,4 +68,4 @@
 
 ## Журнал изменений
 
-См. `docs/MIGRATION/DOCTOR_DASHBOARD_METRICS_CHANGELOG.md`.
+См. [`docs/archive/2026-04-initiatives/MIGRATION/DOCTOR_DASHBOARD_METRICS_CHANGELOG.md`](../archive/2026-04-initiatives/MIGRATION/DOCTOR_DASHBOARD_METRICS_CHANGELOG.md).

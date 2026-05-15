@@ -16,6 +16,7 @@ function appt(partial: Partial<AppointmentRow> & Pick<AppointmentRow, "id">): Ap
   return {
     clientUserId: "",
     clientLabel: "",
+    rubitimeNameIfDifferent: null,
     time: "",
     recordAtIso: null,
     type: "",
@@ -41,6 +42,19 @@ describe("loadDoctorTodayDashboard helpers", () => {
     expect(item.href).toBe("/app/doctor/clients/uuid-1");
     expect(item.ctaLabel).toBe("Открыть карточку");
     expect(item.clientUserId).toBe("uuid-1");
+  });
+
+  it("mapAppointmentToTodayItem passes rubitimeNameIfDifferent", () => {
+    const row = appt({
+      id: "a3",
+      clientUserId: "u1",
+      clientLabel: "Иван",
+      rubitimeNameIfDifferent: "Иванов Иван Иванович",
+      time: "12:00",
+      type: "Приём",
+      status: "created",
+    });
+    expect(mapAppointmentToTodayItem(row).rubitimeNameIfDifferent).toBe("Иванов Иван Иванович");
   });
 
   it("mapAppointmentToTodayItem falls back to appointments when clientUserId empty", () => {

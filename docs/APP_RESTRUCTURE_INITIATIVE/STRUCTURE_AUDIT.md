@@ -133,7 +133,7 @@
 | Карточка клиента | `/app/doctor/clients/[userId]` | Аккордеон с 13 секциями |
 | Подписчики (legacy) | `/app/doctor/subscribers`, `/subscribers/[userId]` | Полные redirect-ы на `/clients?scope=all` |
 | Hint admin | `/app/doctor/clients/name-match-hints` | Admin-debug |
-| Записи | `/app/doctor/appointments` | Расписание; `view=future\|month\|cancellationsMonth` |
+| Записи | `/app/doctor/appointments` | Расписание; `view=future\|month\|cancellationsMonth`; при расхождении имени Rubitime и профиля — подсказка «В Rubitime» |
 | Сообщения | `/app/doctor/messages` | Чат поддержки с пациентами (журнал массовых рассылок — на `/broadcasts`) |
 | Рассылки | `/app/doctor/broadcasts` | Категории + аудитории + предпросмотр (число/имена, `dev_mode`) + подтверждение + `broadcast_audit`; см. [`../ARCHITECTURE/DOCTOR_BROADCASTS.md`](../ARCHITECTURE/DOCTOR_BROADCASTS.md) |
 | Онлайн-заявки | `/app/doctor/online-intake`, `/online-intake/[requestId]` | Inbox онлайн-запросов от пациентов |

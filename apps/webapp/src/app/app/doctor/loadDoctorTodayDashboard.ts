@@ -43,6 +43,8 @@ export type TodayAppointmentItem = {
   id: string;
   time: string;
   clientLabel: string;
+  /** Имя из Rubitime при расхождении с профилем; иначе `null`. */
+  rubitimeNameIfDifferent: string | null;
   clientUserId: string | null;
   type: string;
   status: string;
@@ -123,6 +125,7 @@ export function mapAppointmentToTodayItem(row: AppointmentRow): TodayAppointment
     id: row.id,
     time: row.time,
     clientLabel: row.clientLabel,
+    rubitimeNameIfDifferent: row.rubitimeNameIfDifferent,
     clientUserId: hasClient ? uid : null,
     type: row.type,
     status: row.status,

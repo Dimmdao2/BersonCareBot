@@ -1,4 +1,5 @@
 import { getPool } from "@/infra/db/client";
+import { rubitimeNameIfDifferent } from "@/shared/lib/appointmentRubitimeNameMismatch";
 import { SCHEDULE_RECORD_PROVENANCE_PREFIX } from "@/shared/lib/scheduleRecordProvenance";
 import type {
   AppointmentRow,
@@ -86,10 +87,12 @@ function mapListRows(
       nameFromPayload ||
       phoneLabel ||
       "Неизвестный клиент";
+    const rubitimeHint = rubitimeNameIfDifferent(row.display_name, nameFromPayload);
     return {
       id: row.integrator_record_id,
       clientUserId: row.user_id ?? "",
       clientLabel,
+      rubitimeNameIfDifferent: rubitimeHint,
       time: "",
       recordAtIso: row.record_at ? row.record_at.toISOString() : null,
       type: (payload.service_title && payload.service_title.trim()) || "Запись",

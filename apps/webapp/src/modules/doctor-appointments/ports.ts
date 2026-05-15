@@ -31,6 +31,8 @@ export type AppointmentRow = {
   branchName: string | null;
   /** F-04: маркер происхождения (все строки из `appointment_records`). */
   scheduleProvenancePrefix?: string;
+  /** Имя из Rubitime (`payload_json.name`), если отличается от профильной подписи; иначе `null`. */
+  rubitimeNameIfDifferent: string | null;
 };
 
 /** Агрегатная статистика по записям. */
