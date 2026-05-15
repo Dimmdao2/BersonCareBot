@@ -802,7 +802,7 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
                           type="button"
                           className={cn(
                             patientButtonPrimaryClass,
-                            "min-h-9 min-w-0 shrink basis-0 flex-1 text-xs font-medium sm:min-h-10",
+                            "min-h-9 min-w-0 shrink basis-0 flex-1 py-2.5 text-xs font-medium leading-tight sm:min-h-10",
                             simpleCompleteDoneFrozen &&
                               cn(patientSimpleCompleteDoneButtonToneClass, "gap-1 disabled:cursor-default"),
                             !simpleCompleteDoneFrozen && "gap-0",
@@ -813,23 +813,25 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
                           {simpleCompleteDoneFrozen ? (
                             <>
                               <Check className="mr-[-20px] size-4 shrink-0 stroke-[2.75] text-current" aria-hidden />
-                              <span className="min-w-0 flex-1 text-center font-semibold">Выполнено</span>
+                              <span className="min-w-0 flex-1 text-center font-semibold leading-tight">
+                                Выполнено
+                              </span>
                             </>
                           ) : (
-                            <span className="w-full text-center">Отметить выполнение</span>
+                            <span className="w-full text-center leading-tight">Отметить выполнение</span>
                           )}
                         </button>
                       ) : null}
                       <button
                         type="button"
                         className={cn(
-                          "inline-flex min-h-9 min-w-0 shrink basis-0 flex-1 cursor-pointer items-center justify-center gap-2 rounded-md border border-[var(--patient-color-primary,#284da0)]/28 bg-[var(--patient-color-primary-soft,#e0e7ff)]/40 px-3 text-xs font-medium text-[var(--patient-color-primary,#284da0)] transition-colors sm:min-h-10",
+                          "inline-flex min-h-9 min-w-0 shrink basis-0 flex-1 cursor-pointer items-center justify-center gap-2 rounded-md border border-[var(--patient-color-primary,#284da0)]/28 bg-[var(--patient-color-primary-soft,#e0e7ff)]/40 px-3 py-2.5 text-center text-xs font-medium leading-tight text-[var(--patient-color-primary,#284da0)] transition-colors sm:min-h-10",
                           "hover:bg-[var(--patient-color-primary-soft,#e0e7ff)]/75 active:bg-[var(--patient-color-primary-soft,#e0e7ff)]",
                           "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-primary,#284da0)]",
                         )}
                         onClick={() => setCommentModalOpen(true)}
                       >
-                        Добавить комментарий
+                        <span className="w-full text-center leading-tight">Добавить комментарий</span>
                       </button>
                     </div>
                     {/* Скрыто: строка «Можно отметить повторно…» — см. закомментированный simpleCompleteCooldownMinutes выше.
