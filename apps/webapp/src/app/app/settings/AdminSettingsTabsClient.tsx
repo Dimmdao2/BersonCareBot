@@ -63,7 +63,12 @@ export function AdminSettingsTabsClient({
         value={value}
         onValueChange={setValue}
         orientation="vertical"
-        className="w-full flex-col gap-4 sm:flex-row sm:gap-6 lg:gap-8"
+        className={cn(
+          "w-full gap-4 sm:gap-6 lg:gap-8",
+          // `Tabs` с vertical задаёт `data-[orientation=vertical]:flex-row` с более высокой специфичностью,
+          // из‑за чего «flex-col» сюда не применялся: на мобильных визуально доминировала колонка триггеров.
+          "!flex-col sm:!flex-row",
+        )}
       >
         <TabsList
           variant="default"
@@ -84,7 +89,7 @@ export function AdminSettingsTabsClient({
           ))}
         </TabsList>
 
-        <div className="min-w-0 flex-1 space-y-0">
+        <div className="min-w-0 w-full flex-1 space-y-0">
           <TabsContent value="diagnostics" className="mt-0">
             {diagnostics}
           </TabsContent>
