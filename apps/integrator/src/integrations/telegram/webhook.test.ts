@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import Fastify from 'fastify';
+import * as loggerMod from '../../infra/observability/logger.js';
 import { mapBodyToIncoming, registerTelegramWebhookRoutes } from './webhook.js';
 import type { TelegramWebhookBodyValidated } from './schema.js';
 
@@ -200,5 +201,54 @@ describe('registerTelegramWebhookRoutes', () => {
     expect(handleIncomingEvent).toHaveBeenCalledTimes(1);
     const event = handleIncomingEvent.mock.calls[0]?.[0] as { meta: { source: string } };
     expect(event.meta.source).toBe('telegram');
+  });
+
+  it('logs warn and skips gateway when callback_query cannot be mapped', async () => {
+    const warn = vi.fn();
+    const loggerSpy = vi.spyOn(loggerMod, 'getRequestLogger').mockImplementation(() =>
+      ({
+        warn,
+        error: vi.fn(),
+        debug: vi.fn(),
+        info: vi.fn(),
+        child: vi.fn(),
+      }) as unknown as ReturnType<typeof loggerMod.getRequestLogger>,
+    );
+
+    const handleIncomingEvent = vi.fn().mockResolvedValue({ status: 'accepted' });
+    const app = Fastify();
+    await registerTelegramWebhookRoutes(app, {
+      eventGateway: { handleIncomingEvent },
+      resolveIntegratorUserIdForMessenger: async () => undefined,
+    });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/webhook/telegram',
+      payload: {
+        update_id: 77,
+        callback_query: {
+          id: 'cq-bad',
+          from: { id: 100, is_bot: false, first_name: 'U' },
+          message: { chat: { id: 100, type: 'private' } },
+          data: 'menu_back',
+        },
+      },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(handleIncomingEvent).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        reason: 'telegram_callback_mapper_null',
+        updateId: 77,
+        hasChatId: true,
+        hasMessageId: false,
+        hasFromId: true,
+        callbackDataLength: 9,
+      }),
+      expect.stringContaining('callback_query dropped'),
+    );
+
+    loggerSpy.mockRestore();
   });
 });

@@ -69,60 +69,61 @@ export function normalizeTelegramContactPhone(value: string): string | null {
   return null;
 }
 
-type DynamicActionResult = {
-  action: string;
-  conversationId?: string;
-  trackingId?: string;
-  value?: number;
-  entryType?: string;
-  complexId?: string;
-  reminderOccurrenceId?: string;
-  reminderSnoozeMinutes?: number;
-  reminderMuteMinutes?: number;
-  reminderMutePreset?: 'tomorrow';
-  skipReasonCode?: string;
-  questionConfirm?: 'yes' | 'no';
-};
+/**
+ * Полезная нагрузка inline callback после парса `callback_data` (без транспортных полей чата/сообщения).
+ * Совпадает с опциональными полями {@link IncomingCallbackUpdate}, кроме ключей,
+ * которые выставляет адаптер (`chatId`, `callbackQueryId`, …): добавление поля в
+ * {@link IncomingCallbackUpdate} здесь проявится в типе и напомнит дополнить
+ * {@link incomingCallbackPayloadFromNormalized}.
+ */
+type IncomingCallbackTelegramTransportKeys =
+  | 'kind'
+  | 'chatId'
+  | 'messageId'
+  | 'replyToMessageId'
+  | 'channelUserId'
+  | 'hasLinkedPhone'
+  | 'channelUsername'
+  | 'channelFirstName'
+  | 'channelLastName'
+  | 'callbackData'
+  | 'callbackQueryId';
+
+export type DynamicChannelCallbackPayload = Omit<
+  IncomingCallbackUpdate,
+  IncomingCallbackTelegramTransportKeys
+> & { action: string };
+
+/** Alias совместимости с внешними упоминаниями «dynamic action». */
+export type DynamicActionResult = DynamicChannelCallbackPayload;
+
+type IncomingCallbackPayloadFromNormalize = Omit<DynamicChannelCallbackPayload, 'action'>;
 
 /**
- * Поля {@link IncomingCallbackUpdate}, копируемые из {@link DynamicActionResult} (кроме `action`).
- * При добавлении поля в `DynamicActionResult` для callback — расширить здесь и тип `IncomingCallbackUpdate`.
+ * Копирует распознанные поля payload в {@link IncomingCallbackUpdate} (кроме `action`).
  */
-function incomingCallbackPayloadFromNormalized(
-  normalized: DynamicActionResult,
-): Pick<
-  IncomingCallbackUpdate,
-  | 'conversationId'
-  | 'trackingId'
-  | 'value'
-  | 'entryType'
-  | 'complexId'
-  | 'reminderOccurrenceId'
-  | 'reminderSnoozeMinutes'
-  | 'reminderMuteMinutes'
-  | 'reminderMutePreset'
-  | 'skipReasonCode'
-  | 'questionConfirm'
-> {
-  return {
-    ...(typeof normalized.conversationId === 'string' ? { conversationId: normalized.conversationId } : {}),
-    ...(typeof normalized.trackingId === 'string' ? { trackingId: normalized.trackingId } : {}),
-    ...(typeof normalized.value === 'number' ? { value: normalized.value } : {}),
-    ...(typeof normalized.entryType === 'string' ? { entryType: normalized.entryType } : {}),
-    ...(typeof normalized.complexId === 'string' ? { complexId: normalized.complexId } : {}),
-    ...(typeof normalized.reminderOccurrenceId === 'string' ? { reminderOccurrenceId: normalized.reminderOccurrenceId } : {}),
-    ...(typeof normalized.reminderSnoozeMinutes === 'number' ? { reminderSnoozeMinutes: normalized.reminderSnoozeMinutes } : {}),
-    ...(typeof normalized.reminderMuteMinutes === 'number' ? { reminderMuteMinutes: normalized.reminderMuteMinutes } : {}),
-    ...(normalized.reminderMutePreset === 'tomorrow' ? { reminderMutePreset: 'tomorrow' } : {}),
-    ...(typeof normalized.skipReasonCode === 'string' ? { skipReasonCode: normalized.skipReasonCode } : {}),
-    ...(normalized.questionConfirm === 'yes' || normalized.questionConfirm === 'no'
-      ? { questionConfirm: normalized.questionConfirm }
-      : {}),
-  };
+export function incomingCallbackPayloadFromNormalized(
+  normalized: DynamicChannelCallbackPayload,
+): IncomingCallbackPayloadFromNormalize {
+  const out: IncomingCallbackPayloadFromNormalize = {};
+  if (typeof normalized.conversationId === 'string') out.conversationId = normalized.conversationId;
+  if (typeof normalized.trackingId === 'string') out.trackingId = normalized.trackingId;
+  if (typeof normalized.value === 'number') out.value = normalized.value;
+  if (typeof normalized.entryType === 'string') out.entryType = normalized.entryType;
+  if (typeof normalized.complexId === 'string') out.complexId = normalized.complexId;
+  if (typeof normalized.reminderOccurrenceId === 'string') out.reminderOccurrenceId = normalized.reminderOccurrenceId;
+  if (typeof normalized.reminderSnoozeMinutes === 'number') out.reminderSnoozeMinutes = normalized.reminderSnoozeMinutes;
+  if (typeof normalized.reminderMuteMinutes === 'number') out.reminderMuteMinutes = normalized.reminderMuteMinutes;
+  if (normalized.reminderMutePreset === 'tomorrow') out.reminderMutePreset = 'tomorrow';
+  if (typeof normalized.skipReasonCode === 'string') out.skipReasonCode = normalized.skipReasonCode;
+  if (normalized.questionConfirm === 'yes' || normalized.questionConfirm === 'no') {
+    out.questionConfirm = normalized.questionConfirm;
+  }
+  return out;
 }
 
 /** Разбор callback payload для Telegram и Max (общий формат `callbackData`). */
-export function normalizeChannelCallbackPayload(value: string): DynamicActionResult {
+export function normalizeChannelCallbackPayload(value: string): DynamicChannelCallbackPayload {
   const trimmed = value.trim();
   if (!trimmed) return { action: '' };
   for (const prefix of ['admin_reply:', 'admin_reply_continue:', 'admin_close_dialog:', 'dialogs.view:']) {

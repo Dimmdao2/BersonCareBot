@@ -131,7 +131,8 @@ describe('processAcceptedIncomingEvent', () => {
     });
 
     expect(dispatchIntent).toHaveBeenCalledTimes(2);
-    expect(warnSpy).toHaveBeenCalled();
+    expect(warnSpy.mock.calls.length).toBeGreaterThanOrEqual(2);
+    expect(warnSpy.mock.calls.some((c) => typeof c[1] === 'string' && c[1].includes('finished with'))).toBe(true);
     warnSpy.mockRestore();
   });
 });

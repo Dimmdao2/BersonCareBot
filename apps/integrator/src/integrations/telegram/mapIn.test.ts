@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { TelegramWebhookBodyValidated } from './schema.js';
 import {
+  type DynamicChannelCallbackPayload,
+  incomingCallbackPayloadFromNormalized,
   incomingCallbackUpdateFromTelegramCallbackQuery,
   normalizeChannelCallbackPayload,
   normalizeTelegramMessageAction,
@@ -72,6 +74,70 @@ describe('normalizeChannelCallbackPayload (reminders + question confirm)', () =>
     expect(normalizeChannelCallbackPayload('q_confirm:no')).toEqual({
       action: 'q_confirm:no',
       questionConfirm: 'no',
+    });
+  });
+});
+
+describe('incomingCallbackPayloadFromNormalized', () => {
+  it('copies every optional payload field when present on normalized', () => {
+    const normalized: DynamicChannelCallbackPayload = {
+      action: 'rem_skip_r',
+      conversationId: 'c1',
+      trackingId: 't1',
+      value: 3,
+      entryType: 'daily',
+      complexId: 'cx',
+      reminderOccurrenceId: 'occ',
+      reminderSnoozeMinutes: 10,
+      reminderMuteMinutes: 60,
+      reminderMutePreset: 'tomorrow',
+      skipReasonCode: 'x',
+      questionConfirm: 'yes',
+    };
+    expect(incomingCallbackPayloadFromNormalized(normalized)).toEqual({
+      conversationId: 'c1',
+      trackingId: 't1',
+      value: 3,
+      entryType: 'daily',
+      complexId: 'cx',
+      reminderOccurrenceId: 'occ',
+      reminderSnoozeMinutes: 10,
+      reminderMuteMinutes: 60,
+      reminderMutePreset: 'tomorrow',
+      skipReasonCode: 'x',
+      questionConfirm: 'yes',
+    });
+  });
+});
+
+describe('incomingCallbackPayloadFromNormalized', () => {
+  it('copies every optional payload field when present on normalized', () => {
+    const normalized: DynamicChannelCallbackPayload = {
+      action: 'rem_skip_r',
+      conversationId: 'c1',
+      trackingId: 't1',
+      value: 3,
+      entryType: 'daily',
+      complexId: 'cx',
+      reminderOccurrenceId: 'occ',
+      reminderSnoozeMinutes: 10,
+      reminderMuteMinutes: 60,
+      reminderMutePreset: 'tomorrow',
+      skipReasonCode: 'x',
+      questionConfirm: 'yes',
+    };
+    expect(incomingCallbackPayloadFromNormalized(normalized)).toEqual({
+      conversationId: 'c1',
+      trackingId: 't1',
+      value: 3,
+      entryType: 'daily',
+      complexId: 'cx',
+      reminderOccurrenceId: 'occ',
+      reminderSnoozeMinutes: 10,
+      reminderMuteMinutes: 60,
+      reminderMutePreset: 'tomorrow',
+      skipReasonCode: 'x',
+      questionConfirm: 'yes',
     });
   });
 });

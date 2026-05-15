@@ -4,6 +4,7 @@ import type {
   DbReadPort,
   DomainContext,
   IncomingEvent,
+  IntentMeta,
   Orchestrator,
   OutgoingIntent,
 } from '../../contracts/index.js';
@@ -37,14 +38,21 @@ export async function processAcceptedIncomingEvent(
     },
   });
 
+  let dispatchFailureCount = 0;
+  const failedIntentIndices: number[] = [];
+  const failedIntentTypes: string[] = [];
+
   for (let i = 0; i < domainResult.intents.length; i++) {
     const intent = domainResult.intents[i];
     if (intent === undefined) continue;
     try {
       await deps.dispatchIntent(intent);
     } catch (caught) {
+      dispatchFailureCount++;
+      failedIntentIndices.push(i);
+      failedIntentTypes.push(intent.type);
       const err = caught instanceof Error ? caught : new Error(String(caught));
-      const meta = intent.meta as { eventId?: string; correlationId?: string };
+      const meta: IntentMeta = intent.meta;
       logger.warn(
         {
           err,
@@ -56,5 +64,20 @@ export async function processAcceptedIncomingEvent(
         'processAcceptedIncomingEvent: intent dispatch failed (continuing)',
       );
     }
+  }
+
+  if (dispatchFailureCount > 0) {
+    logger.warn(
+      {
+        dispatchFailureCount,
+        intentTotal: domainResult.intents.length,
+        failedIntentIndices,
+        failedIntentTypes,
+        eventId: event.meta.eventId,
+        correlationId: event.meta.correlationId,
+        source: event.meta.source,
+      },
+      'processAcceptedIncomingEvent: intent dispatch finished with one or more failures',
+    );
   }
 }

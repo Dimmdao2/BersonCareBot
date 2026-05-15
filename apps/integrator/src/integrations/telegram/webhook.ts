@@ -201,7 +201,23 @@ export async function registerTelegramWebhookRoutes(
 
       const body = parseResult.data;
       const incoming = mapBodyToIncoming(body);
-      if (!incoming) return reply.code(200).send({ ok: true });
+      if (!incoming) {
+        if (body.callback_query) {
+          const cq = body.callback_query;
+          reqLogger.warn(
+            {
+              reason: 'telegram_callback_mapper_null',
+              updateId: typeof body.update_id === 'number' ? body.update_id : undefined,
+              hasChatId: typeof cq.message?.chat?.id === 'number',
+              hasMessageId: typeof cq.message?.message_id === 'number',
+              hasFromId: typeof cq.from?.id === 'number',
+              callbackDataLength: typeof cq.data === 'string' ? cq.data.length : 0,
+            },
+            'telegram webhook: callback_query dropped (mapBodyToIncoming returned null)',
+          );
+        }
+        return reply.code(200).send({ ok: true });
+      }
 
       if (incoming.kind === 'message') {
         const trimmed = incoming.text?.trim() ?? '';
