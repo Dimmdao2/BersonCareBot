@@ -160,3 +160,53 @@ describe("createWebappEventsPort emit", () => {
     );
   });
 });
+
+describe("createWebappEventsPort completeChannelLink", () => {
+  const originalFetch = globalThis.fetch;
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  it("prefers mergeReason over error when HTTP status is not ok (409)", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 409,
+      json: async () => ({
+        ok: false,
+        error: "conflict",
+        mergeReason: "channel_link_claim_failed",
+      }),
+    });
+    const { createWebappEventsPort } = await import("./webappEventsClient.js");
+    const port = createWebappEventsPort({ getAppBaseUrl: async () => "https://webapp.test" });
+    const complete = port.completeChannelLink;
+    if (!complete) throw new Error("expected completeChannelLink on port");
+    const result = await complete({
+      linkToken: "link_x",
+      channelCode: "telegram",
+      externalId: "99",
+    });
+    expect(result.ok).toBe(false);
+    expect(result.error).toBe("channel_link_claim_failed");
+  });
+
+  it("falls back to error when mergeReason absent on failed HTTP", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 409,
+      json: async () => ({ ok: false, error: "conflict" }),
+    });
+    const { createWebappEventsPort } = await import("./webappEventsClient.js");
+    const port = createWebappEventsPort({ getAppBaseUrl: async () => "https://webapp.test" });
+    const complete = port.completeChannelLink;
+    if (!complete) throw new Error("expected completeChannelLink on port");
+    const result = await complete({
+      linkToken: "link_x",
+      channelCode: "telegram",
+      externalId: "99",
+    });
+    expect(result.ok).toBe(false);
+    expect(result.error).toBe("conflict");
+  });
+});

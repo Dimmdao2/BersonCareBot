@@ -74,6 +74,68 @@ function preservedEmailVerifiedAtSql(chosenEmailSql: string): string {
           END`;
 }
 
+const SINGLETON_SYMPTOM_KEYS = ["general_wellbeing", "warmup_feeling"] as const;
+
+/**
+ * Before bulk reassignment of `symptom_trackings.platform_user_id`, collapse duplicate singleton
+ * diary trackings (partial unique per `platform_user_id` + `symptom_key`) so the follow-up UPDATE
+ * cannot violate `uq_symptom_trackings_*_active_platform_user`.
+ */
+async function dedupeSingletonSymptomTrackingsForMerge(
+  client: PlatformMergeDbClient,
+  targetId: string,
+  duplicateId: string,
+  symptomKey: (typeof SINGLETON_SYMPTOM_KEYS)[number],
+): Promise<void> {
+  await client.query(
+    `WITH tgt AS (
+       SELECT id FROM symptom_trackings
+       WHERE symptom_key = $5::text
+         AND deleted_at IS NULL
+         AND (platform_user_id = $1::uuid OR user_id = $2::text)
+       ORDER BY created_at ASC, id ASC
+       LIMIT 1
+     ),
+     dup AS (
+       SELECT id FROM symptom_trackings
+       WHERE symptom_key = $5::text
+         AND deleted_at IS NULL
+         AND (platform_user_id = $3::uuid OR user_id = $4::text)
+     )
+     UPDATE symptom_entries e
+     SET tracking_id = (SELECT id FROM tgt)
+     FROM dup
+     WHERE e.tracking_id = dup.id
+       AND EXISTS (SELECT 1 FROM tgt)
+       AND dup.id IS DISTINCT FROM (SELECT id FROM tgt)`,
+    [targetId, targetId, duplicateId, duplicateId, symptomKey],
+  );
+
+  await client.query(
+    `WITH tgt AS (
+       SELECT id FROM symptom_trackings
+       WHERE symptom_key = $5::text
+         AND deleted_at IS NULL
+         AND (platform_user_id = $1::uuid OR user_id = $2::text)
+       ORDER BY created_at ASC, id ASC
+       LIMIT 1
+     ),
+     dup AS (
+       SELECT id FROM symptom_trackings
+       WHERE symptom_key = $5::text
+         AND deleted_at IS NULL
+         AND (platform_user_id = $3::uuid OR user_id = $4::text)
+     )
+     UPDATE symptom_trackings st
+     SET is_active = false, deleted_at = now(), updated_at = now()
+     FROM dup
+     WHERE st.id = dup.id
+       AND EXISTS (SELECT 1 FROM tgt)
+       AND dup.id IS DISTINCT FROM (SELECT id FROM tgt)`,
+    [targetId, targetId, duplicateId, duplicateId, symptomKey],
+  );
+}
+
 /**
  * Merge duplicate platform user into canonical target inside an open transaction.
  * Caller must BEGIN; this function does not COMMIT.
@@ -289,6 +351,10 @@ export async function mergePlatformUsersInTransaction(
   await client.query(`DELETE FROM login_tokens WHERE user_id = $1::uuid`, [duplicateId]);
 
   await mergeUserChannelPreferences(client, targetId, duplicateId, manualResolution?.channelPreferences ?? "keep_newer");
+
+  for (const sk of SINGLETON_SYMPTOM_KEYS) {
+    await dedupeSingletonSymptomTrackingsForMerge(client, targetId, duplicateId, sk);
+  }
 
   // PG cannot infer one type for the same $n used as both ::text and ::uuid — use distinct placeholders.
   await client.query(

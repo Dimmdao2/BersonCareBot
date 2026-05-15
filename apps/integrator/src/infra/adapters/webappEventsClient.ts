@@ -211,12 +211,20 @@ export function createWebappEventsPort(deps: { getAppBaseUrl: () => Promise<stri
         const data = (await res.json().catch(() => ({}))) as {
           ok?: boolean;
           error?: string;
+          mergeReason?: string;
           needsPhone?: boolean;
           phoneNormalized?: string;
           status?: string;
         };
         if (!res.ok) {
-          return { ok: false, error: data.error ?? res.statusText };
+          const mergeReason =
+            typeof data.mergeReason === 'string' && data.mergeReason.trim().length > 0
+              ? data.mergeReason.trim()
+              : undefined;
+          const err =
+            typeof data.error === 'string' && data.error.trim().length > 0 ? data.error.trim() : undefined;
+          /* Prefer server mergeReason on 409 so executor can map channel-link codes to user-facing templates. */
+          return { ok: false, error: mergeReason ?? err ?? res.statusText };
         }
         if (data.ok !== true) {
           return { ok: false, error: data.error ?? 'channel link rejected' };

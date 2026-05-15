@@ -95,13 +95,24 @@ const DELIVERY_TYPES = new Set<string>([
 
 function channelLinkCompleteFailureTemplateKey(source: string, errRaw: string | undefined): string {
   const e = (errRaw ?? '').trim().toLowerCase();
-  const tail =
-    e === 'conflict'
-      ? 'channelLink.completeFailed.conflict'
-      : e === 'invalid_token' || e === 'unknown_or_expired' || e === 'used_token' || e.includes('expired')
-        ? 'channelLink.completeFailed.expired'
-        : 'channelLink.completeFailed.generic';
-  return `${source}:${tail}`;
+  const conflictLike = new Set([
+    'conflict',
+    'channel_owned_by_real_user',
+    'channel_link_claim_rejected',
+    'phone_owned_by_other_user',
+  ]);
+  if (conflictLike.has(e)) {
+    return `${source}:channelLink.completeFailed.conflict`;
+  }
+  if (
+    e === 'invalid_token' ||
+    e === 'unknown_or_expired' ||
+    e === 'used_token' ||
+    e.includes('expired')
+  ) {
+    return `${source}:channelLink.completeFailed.expired`;
+  }
+  return `${source}:channelLink.completeFailed.generic`;
 }
 
 function resolveChannelLinkFailureChatId(ctx: DomainContext, externalId: string): string | number | null {

@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { computeChannelLinkOwnershipConflictKey, type UpsertOpenConflictLogResult } from "@/infra/adminAuditLog";
 import { logger } from "@/infra/logging/logger";
 import { relayOutbound } from "@/modules/messaging/relayOutbound";
 import { getConfigValue } from "@/modules/system-settings/configAdapter";
@@ -151,6 +152,32 @@ export function notifyChannelLinkBindingConflict(ctx: ChannelLinkBindingConflict
     topic: "channel_link",
     dedupKey: channelLinkBindingDedupKey(ctx),
     lines,
+  });
+}
+
+/** Relay on first open `channel_link_ownership_conflict` row (`insertedFirst` from {@link upsertOpenConflictLog}). */
+export async function notifyChannelLinkOwnershipConflictRelay(
+  upsertResult: UpsertOpenConflictLogResult,
+  ctx: ChannelLinkBindingConflictCtx & { classifiedReason: string },
+): Promise<void> {
+  if (upsertResult.kind !== "conflict" || !upsertResult.insertedFirst) return;
+  const dk = computeChannelLinkOwnershipConflictKey(
+    ctx.channelCode,
+    ctx.externalId,
+    ctx.tokenUserId,
+    ctx.existingUserId,
+  );
+  await sendAdminIncidentRelayAlert({
+    topic: "channel_link",
+    dedupKey: dk,
+    lines: [
+      "channel_link ownership conflict",
+      `channel=${ctx.channelCode}`,
+      `externalId=${ctx.externalId}`,
+      `tokenUserId=${ctx.tokenUserId}`,
+      `existingUserId=${ctx.existingUserId}`,
+      `classifiedReason=${ctx.classifiedReason}`,
+    ],
   });
 }
 

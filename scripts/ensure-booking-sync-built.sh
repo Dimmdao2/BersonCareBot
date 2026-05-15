@@ -12,9 +12,11 @@ if [[ ! -f "$PKG/dist/index.js" ]]; then
   pnpm --dir "$PKG" run build
 fi
 PM="$ROOT/packages/platform-merge"
-# Stale dist/index.js without newer exports (e.g. classifyMergeFailure) breaks channel-link / integrator at runtime.
+# Stale dist without newer exports or merge internals breaks webapp tests / integrator at runtime.
 if [[ ! -f "$PM/dist/index.js" ]] ||
   [[ ! -f "$PM/dist/mergeFailureClassification.js" ]] ||
-  ! grep -q classifyMergeFailure "$PM/dist/index.js" 2>/dev/null; then
+  [[ ! -f "$PM/dist/pgPlatformUserMerge.js" ]] ||
+  ! grep -q classifyMergeFailure "$PM/dist/index.js" 2>/dev/null ||
+  ! grep -q dedupeSingletonSymptomTrackingsForMerge "$PM/dist/pgPlatformUserMerge.js" 2>/dev/null; then
   pnpm --dir "$PM" run build
 fi

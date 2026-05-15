@@ -25,6 +25,18 @@ export function computeConflictKeyFromCandidateIds(candidateIds: string[]): stri
   return createHash("sha256").update(normalized.join("|"), "utf8").digest("hex");
 }
 
+/** Open-row dedupe key for channel-link ownership conflicts (distinct from merge candidate hashes). */
+export function computeChannelLinkOwnershipConflictKey(
+  channelCode: string,
+  externalId: string,
+  tokenUserId: string,
+  existingUserId: string,
+): string {
+  const sorted = [tokenUserId, existingUserId].map((x) => x.trim()).filter(Boolean).sort();
+  const payload = `channel_link_ownership|${channelCode.trim()}|${externalId.trim()}|${sorted.join("|")}`;
+  return createHash("sha256").update(payload, "utf8").digest("hex");
+}
+
 function mergeSeenEventTypes(
   existing: unknown,
   incoming: unknown,
@@ -81,6 +93,13 @@ export type UpsertOpenConflictLogInput = {
   candidateIds: string[];
   /** Optional `admin_audit_log.target_id` (e.g. primary platform user id for display). */
   targetId?: string | null;
+  /** Defaults to `auto_merge_conflict`. */
+  action?: string;
+  /**
+   * When set, used as `conflict_key` instead of {@link computeConflictKeyFromCandidateIds}.
+   * Required for actions that must not collide with merge keys (e.g. channel-link ownership).
+   */
+  conflictKey?: string | null;
   /** Merged into stored details; include `eventType` for seenEventTypes aggregation */
   details: Record<string, unknown>;
   status?: AuditLogStatus;
@@ -92,7 +111,8 @@ export type UpsertOpenConflictLogResult =
   | { kind: "skipped" };
 
 /**
- * Dedup open rows for `action = auto_merge_conflict` by conflict_key.
+ * Dedup open rows by `conflict_key` among unresolved (`resolved_at IS NULL`) audit rows.
+ * Default `action` is `auto_merge_conflict`; pass `action` + `conflictKey` for channel-link ownership, etc.
  * If candidateIds is empty, do not call this — use `writeAuditLog` with `auto_merge_conflict_anomaly` (plan §0).
  */
 export async function upsertOpenConflictLog(
@@ -100,6 +120,7 @@ export async function upsertOpenConflictLog(
   input: UpsertOpenConflictLogInput,
 ): Promise<UpsertOpenConflictLogResult> {
   const { candidateIds } = input;
+  const action = (input.action ?? "auto_merge_conflict").trim() || "auto_merge_conflict";
   if (!candidateIds.length) {
     // Plan contract: empty candidateIds is anomaly-path without conflict_key.
     await writeAuditLog(pool, {
@@ -112,11 +133,16 @@ export async function upsertOpenConflictLog(
     return { kind: "anomaly" };
   }
   let conflictKey: string;
-  try {
-    conflictKey = computeConflictKeyFromCandidateIds(candidateIds);
-  } catch (err) {
-    logger.error({ err }, "upsertOpenConflictLog: conflict key failed");
-    return { kind: "skipped" };
+  const overrideKey = input.conflictKey?.trim();
+  if (overrideKey) {
+    conflictKey = overrideKey;
+  } else {
+    try {
+      conflictKey = computeConflictKeyFromCandidateIds(candidateIds);
+    } catch (err) {
+      logger.error({ err }, "upsertOpenConflictLog: conflict key failed");
+      return { kind: "skipped" };
+    }
   }
 
   const status: AuditLogStatus = input.status ?? "error";
@@ -168,8 +194,8 @@ export async function upsertOpenConflictLog(
       try {
         await client.query(
           `INSERT INTO admin_audit_log (actor_id, action, target_id, conflict_key, details, status, repeat_count, last_seen_at)
-           VALUES ($1::uuid, 'auto_merge_conflict', $2, $3, $4::jsonb, $5, 1, now())`,
-          [input.actorId, input.targetId ?? null, conflictKey, JSON.stringify(firstDetails), status],
+           VALUES ($1::uuid, $2, $3, $4, $5::jsonb, $6, 1, now())`,
+          [input.actorId, action, input.targetId ?? null, conflictKey, JSON.stringify(firstDetails), status],
         );
         insertedFirst = true;
       } catch (err) {
@@ -298,6 +324,12 @@ export async function listAdminAuditLog(pool: Pool, params: ListAdminAuditLogPar
     conditions.push(
       `(l.target_id = $${i} OR (
         l.action = 'auto_merge_conflict' AND EXISTS (
+          SELECT 1
+          FROM jsonb_array_elements_text(COALESCE(l.details->'candidateIds', '[]'::jsonb)) AS cid
+          WHERE cid = $${i}
+        )
+      ) OR (
+        l.action = 'channel_link_ownership_conflict' AND EXISTS (
           SELECT 1
           FROM jsonb_array_elements_text(COALESCE(l.details->'candidateIds', '[]'::jsonb)) AS cid
           WHERE cid = $${i}

@@ -170,6 +170,40 @@ describe("POST /api/integrator/channel-link/complete", () => {
     });
   });
 
+  it("returns 409 with mergeReason channel_link_claim_failed alongside error conflict", async () => {
+    completeChannelLinkFromIntegratorMock.mockResolvedValueOnce({
+      ok: false,
+      code: "conflict",
+      mergeReason: "channel_link_claim_failed",
+    });
+    const body = JSON.stringify({
+      linkToken: "link_abc123",
+      channelCode: "telegram",
+      externalId: "123456",
+    });
+    const timestamp = String(Math.floor(Date.now() / 1000));
+    const signature = sign(timestamp, body);
+
+    const res = await POST(
+      new Request("http://localhost/api/integrator/channel-link/complete", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-bersoncare-timestamp": timestamp,
+          "x-bersoncare-signature": signature,
+        },
+        body,
+      })
+    );
+
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({
+      ok: false,
+      error: "conflict",
+      mergeReason: "channel_link_claim_failed",
+    });
+  });
+
   it("returns 200 already_used when token was already completed", async () => {
     completeChannelLinkFromIntegratorMock.mockResolvedValueOnce({
       ok: false,

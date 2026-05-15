@@ -626,6 +626,17 @@ describe("mergePlatformUsersInTransaction (manual)", () => {
     expect(sqlLog.some((q) => q.includes("integrator_user_id = NULL") && q.includes("WHERE id = $1::uuid"))).toBe(
       true,
     );
+
+    const dedupeSingletonUpdates = sqlLog.filter(
+      (q) => q.includes("UPDATE symptom_trackings st") && q.includes("FROM dup"),
+    );
+    expect(dedupeSingletonUpdates.length).toBeGreaterThanOrEqual(2);
+    const bulkSymptomReassign = sqlLog.findIndex((q) =>
+      q.includes("UPDATE symptom_trackings SET user_id = $1::text, platform_user_id = $2::uuid"),
+    );
+    const firstDedupe = sqlLog.findIndex((q) => q.includes("UPDATE symptom_trackings st") && q.includes("FROM dup"));
+    expect(firstDedupe).toBeGreaterThan(-1);
+    expect(bulkSymptomReassign).toBeGreaterThan(firstDedupe);
   });
 });
 

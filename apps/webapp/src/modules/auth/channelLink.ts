@@ -1,16 +1,21 @@
 import { createHash, randomBytes } from "node:crypto";
-import type { Pool, PoolClient } from "pg";
-import { classifyMergeFailure, pickMergeTargetId, type PickMergeTargetCandidate } from "@bersoncare/platform-merge";
+import type { Pool } from "pg";
 import { getPool } from "@/infra/db/client";
-import { upsertOpenConflictLog, computeConflictKeyFromCandidateIds } from "@/infra/adminAuditLog";
-import type { UpsertOpenConflictLogResult } from "@/infra/adminAuditLog";
+import {
+  upsertOpenConflictLog,
+  computeChannelLinkOwnershipConflictKey,
+} from "@/infra/adminAuditLog";
 import { env } from "@/config/env";
 import { integratorWebhookSecret } from "@/config/env";
 import { logger } from "@/infra/logging/logger";
 import { resolveCanonicalUserId } from "@/infra/repos/pgCanonicalPlatformUser";
-import { mergePlatformUsersInTransaction } from "@/infra/repos/pgPlatformUserMerge";
 import { normalizeMaxBotNicknameInput } from "@/modules/system-settings/maxLoginBotNickname";
-import { notifyChannelLinkBindingConflict, sendAdminIncidentRelayAlert } from "@/modules/admin-incidents/sendAdminIncidentAlerts";
+import { notifyChannelLinkOwnershipConflictRelay } from "@/modules/admin-incidents/sendAdminIncidentAlerts";
+import {
+  classifyChannelBindingOwnerForLink,
+  claimMessengerChannelBindingInTransaction,
+  ChannelLinkClaimRejectedError,
+} from "./channelLinkClaim";
 
 const SECRET_TTL_MIN = 10;
 
@@ -22,35 +27,40 @@ export type ChannelLinkConflictContext = {
   existingUserId: string;
 };
 
-/**
- * After `upsertOpenConflictLog` from channel-link merge failure: relay only on first open row.
- */
-async function notifyChannelLinkAutoMergeConflictRelay(
+async function recordChannelLinkOwnershipConflict(
   pool: Pool,
-  upsertResult: UpsertOpenConflictLogResult,
-  candidateIds: string[],
-  details: Record<string, unknown>,
+  ctx: ChannelLinkConflictContext,
+  options: { classifiedReason: string; stubClassificationReason?: string },
 ): Promise<void> {
-  if (upsertResult.kind !== "conflict" || !upsertResult.insertedFirst) return;
-  try {
-    const conflictKey = computeConflictKeyFromCandidateIds(candidateIds);
-    const mergeMsg =
-      typeof details.mergeMessage === "string" ? details.mergeMessage.slice(0, 400) : undefined;
-    await sendAdminIncidentRelayAlert({
-      topic: "auto_merge_conflict",
-      dedupKey: conflictKey,
-      lines: [
-        "auto_merge_conflict (channel_link)",
-        `candidateIds=${candidateIds.join(",")}`,
-        ...(typeof details.channelCode === "string" ? [`channel=${details.channelCode}`] : []),
-        ...(typeof details.externalId === "string" ? [`externalId=${details.externalId}`] : []),
-        ...(typeof details.classifiedReason === "string" ? [`classifiedReason=${details.classifiedReason}`] : []),
-        ...(mergeMsg ? [`mergeMessage=${mergeMsg}`] : []),
-      ],
-    });
-  } catch {
-    /* ignore */
-  }
+  reportChannelLinkBindingConflict(ctx);
+  const sorted = [ctx.tokenUserId, ctx.existingUserId].map((x) => x.trim()).filter(Boolean).sort();
+  const conflictKey = computeChannelLinkOwnershipConflictKey(
+    ctx.channelCode,
+    ctx.externalId,
+    ctx.tokenUserId,
+    ctx.existingUserId,
+  );
+  const up = await upsertOpenConflictLog(pool, {
+    actorId: null,
+    action: "channel_link_ownership_conflict",
+    conflictKey,
+    candidateIds: sorted,
+    targetId: ctx.tokenUserId,
+    details: {
+      source: "channel_link",
+      classifiedReason: options.classifiedReason,
+      ...(options.stubClassificationReason
+        ? { stubClassificationReason: options.stubClassificationReason }
+        : {}),
+      channelCode: ctx.channelCode,
+      externalId: ctx.externalId,
+    },
+    status: "error",
+  });
+  await notifyChannelLinkOwnershipConflictRelay(up, {
+    ...ctx,
+    classifiedReason: options.classifiedReason,
+  });
 }
 
 /**
@@ -58,7 +68,6 @@ async function notifyChannelLinkAutoMergeConflictRelay(
  */
 let reportChannelLinkBindingConflict: (ctx: ChannelLinkConflictContext) => void = (ctx) => {
   console.warn("[channel_link:binding_conflict]", ctx);
-  void notifyChannelLinkBindingConflict(ctx);
 };
 
 export function setChannelLinkBindingConflictReporter(
@@ -71,41 +80,6 @@ function hashToken(token: string): string {
   return createHash("sha256")
     .update(`${token}:${integratorWebhookSecret() || "dev-channel-link"}`)
     .digest("hex");
-}
-
-/** Условия безопасного автомержа OAuth-stub при конфликте TG: пустой телефон, есть OAuth, не смержен. */
-async function channelLinkOauthStubEligibleForAutoMerge(
-  pool: Pool,
-  tokenUserId: string
-): Promise<{ ok: true } | { ok: false; skipReason: string }> {
-  const res = await pool.query<{
-    phone_normalized: string | null;
-    merged_into_id: string | null;
-    oauth_count: string;
-  }>(
-    `SELECT pu.phone_normalized,
-            pu.merged_into_id,
-            (SELECT count(*)::text FROM user_oauth_bindings uob WHERE uob.user_id = pu.id) AS oauth_count
-     FROM platform_users pu
-     WHERE pu.id = $1::uuid`,
-    [tokenUserId]
-  );
-  const row = res.rows[0];
-  if (!row) {
-    return { ok: false, skipReason: "token_user_missing" };
-  }
-  if (row.merged_into_id) {
-    return { ok: false, skipReason: "token_user_already_merged" };
-  }
-  const phone = row.phone_normalized?.trim() ?? "";
-  if (phone.length > 0) {
-    return { ok: false, skipReason: "token_user_has_phone" };
-  }
-  const n = Number.parseInt(row.oauth_count, 10);
-  if (!Number.isFinite(n) || n < 1) {
-    return { ok: false, skipReason: "token_user_no_oauth" };
-  }
-  return { ok: true };
 }
 
 async function platformPhoneBindingInfo(
@@ -131,31 +105,6 @@ export async function platformUserNeedsPhoneBinding(pool: Pool, userId: string):
 export type ChannelLinkCompleteResult =
   | { ok: true; userId: string; needsPhone: boolean; phoneNormalized?: string }
   | { ok: false; code: string; needsPhone?: boolean; mergeReason?: string };
-
-async function loadPickMergeCandidate(client: PoolClient, id: string): Promise<PickMergeTargetCandidate | null> {
-  const r = await client.query<{
-    id: string;
-    phone_normalized: string | null;
-    integrator_user_id: string | null;
-    created_at: Date | string;
-  }>(
-    `SELECT id::text,
-            phone_normalized,
-            integrator_user_id::text AS integrator_user_id,
-            created_at
-     FROM platform_users
-     WHERE id = $1::uuid AND merged_into_id IS NULL`,
-    [id],
-  );
-  const row = r.rows[0];
-  if (!row) return null;
-  return {
-    id: row.id,
-    phone_normalized: row.phone_normalized,
-    integrator_user_id: row.integrator_user_id,
-    created_at: row.created_at instanceof Date ? row.created_at : new Date(row.created_at),
-  };
-}
 
 export type ChannelLinkStartResult =
   | { ok: true; url: string; expiresAtIso: string; manualCommand?: string }
@@ -272,251 +221,77 @@ export async function completeChannelLinkFromIntegrator(params: {
   if (existing.rows.length > 0) {
     const boundUserId = existing.rows[0].user_id;
     if (boundUserId !== r.user_id) {
-      reportChannelLinkBindingConflict({
+      const ctx: ChannelLinkConflictContext = {
         channelCode: params.channelCode,
         externalId: params.externalId,
         tokenUserId: r.user_id,
         existingUserId: boundUserId,
-      });
-      /**
-       * Владелец строки привязки без телефона — считаем дубликатом/«хвостом»: полный merge в пользователя токена
-       * (диплинк), а не только UPDATE одной строки `user_channel_bindings`.
-       */
-      const existingPhone = await platformPhoneBindingInfo(pool, boundUserId);
-      if (existingPhone.needsPhone) {
-        const pairA = r.user_id;
-        const pairB = boundUserId;
-        let mergeTargetForCanon = pairA;
-        let mergeDupForLog = pairB;
-        const client = await pool.connect();
-        try {
-          await client.query("BEGIN");
-          try {
-            const puA = await loadPickMergeCandidate(client, pairA);
-            const puB = await loadPickMergeCandidate(client, pairB);
-            if (!puA || !puB) {
-              await client.query("ROLLBACK");
-              const up = await upsertOpenConflictLog(pool, {
-                actorId: null,
-                candidateIds: [pairA, pairB],
-                details: {
-                  source: "channel_link",
-                  subReason: "existing_owner_no_phone",
-                  channelCode: params.channelCode,
-                  externalId: params.externalId,
-                  classifiedReason: "merge_blocked_ambiguous_candidates",
-                },
-                status: "error",
-              });
-              await notifyChannelLinkAutoMergeConflictRelay(pool, up, [pairA, pairB], {
-                channelCode: params.channelCode,
-                externalId: params.externalId,
-                classifiedReason: "merge_blocked_ambiguous_candidates",
-              });
-              return { ok: false, code: "conflict", mergeReason: "merge_blocked_ambiguous_candidates" };
-            }
-            const picked = pickMergeTargetId(puA, puB);
-            mergeTargetForCanon = picked.target;
-            mergeDupForLog = picked.duplicate;
-            await mergePlatformUsersInTransaction(client, picked.target, picked.duplicate, "phone_bind");
-            await client.query(
-              "UPDATE channel_link_secrets SET used_at = now() WHERE id = $1::uuid AND used_at IS NULL",
-              [r.id],
-            );
-            await client.query("COMMIT");
-          } catch (err) {
-            await client.query("ROLLBACK");
-            const classified = classifyMergeFailure(err, [pairA, pairB]);
-            logger.warn({
-              scope: "channel_link",
-              event: "channel_link_auto_merge_skipped",
-              reason: classified.code,
-              mergeMessage: err instanceof Error ? err.message : String(err),
-              candidateIds: classified.candidateIds,
-              subReason: "existing_owner_no_phone",
-              channelCode: params.channelCode,
-            });
-            const ids = classified.candidateIds.length > 0 ? classified.candidateIds : [pairA, pairB];
-            const up = await upsertOpenConflictLog(pool, {
-              actorId: null,
-              candidateIds: ids,
-              details: {
-                source: "channel_link",
-                subReason: "existing_owner_no_phone",
-                channelCode: params.channelCode,
-                externalId: params.externalId,
-                classifiedReason: classified.code,
-                mergeMessage: err instanceof Error ? err.message : String(err),
-              },
-              status: "error",
-            });
-            await notifyChannelLinkAutoMergeConflictRelay(pool, up, ids, {
-              channelCode: params.channelCode,
-              externalId: params.externalId,
-              classifiedReason: classified.code,
-              mergeMessage: err instanceof Error ? err.message : String(err),
-            });
-            return { ok: false, code: "conflict", mergeReason: classified.code };
-          }
-        } catch (err) {
-          try {
-            await client.query("ROLLBACK");
-          } catch {
-            /* ignore */
-          }
-          logger.error({
-            err,
-            scope: "channel_link",
-            event: "channel_link_auto_merge_tx_error",
-            targetId: pairA,
-            duplicateId: pairB,
-            subReason: "existing_owner_no_phone",
-          });
-          return { ok: false, code: "conflict" };
-        } finally {
-          client.release();
-        }
+      };
 
-        logger.info({
-          scope: "channel_link",
-          event: "channel_link_auto_merge_applied",
-          reason: "existing_owner_no_phone",
-          targetId: mergeTargetForCanon,
-          duplicateId: mergeDupForLog,
-          channelCode: params.channelCode,
+      const classification = await classifyChannelBindingOwnerForLink(pool, boundUserId);
+      if (classification.kind === "real") {
+        await recordChannelLinkOwnershipConflict(pool, ctx, {
+          classifiedReason: "channel_owned_by_real_user",
+          stubClassificationReason: classification.reason,
         });
-        const canonicalAfterMerge = await resolveCanonicalUserId(pool, mergeTargetForCanon);
-        if (canonicalAfterMerge == null) {
-          return { ok: false, code: "user_not_found" };
-        }
-        const { needsPhone, phoneNormalized } = await platformPhoneBindingInfo(pool, mergeTargetForCanon);
-        return {
-          ok: true,
-          userId: canonicalAfterMerge,
-          needsPhone,
-          ...(phoneNormalized ? { phoneNormalized } : {}),
-        };
+        return { ok: false, code: "conflict", mergeReason: "channel_owned_by_real_user" };
       }
 
-      const stubGate = await channelLinkOauthStubEligibleForAutoMerge(pool, r.user_id);
-      if (!stubGate.ok) {
-        logger.warn({
-          scope: "channel_link",
-          event: "channel_link_auto_merge_skipped",
-          reason: stubGate.skipReason,
-          targetId: boundUserId,
-          duplicateId: r.user_id,
-          channelCode: params.channelCode,
-        });
-        return { ok: false, code: "conflict" };
-      }
-
-      const pairA = boundUserId;
-      const pairB = r.user_id;
-      let mergeTargetForCanon = pairA;
-      let mergeDupForLog = pairB;
       const client = await pool.connect();
       try {
         await client.query("BEGIN");
         try {
-          const puA = await loadPickMergeCandidate(client, pairA);
-          const puB = await loadPickMergeCandidate(client, pairB);
-          if (!puA || !puB) {
-            await client.query("ROLLBACK");
-            const up = await upsertOpenConflictLog(pool, {
-              actorId: null,
-              candidateIds: [pairA, pairB],
-              details: {
-                source: "channel_link",
-                subReason: "oauth_stub_auto_merge",
-                channelCode: params.channelCode,
-                externalId: params.externalId,
-                classifiedReason: "merge_blocked_ambiguous_candidates",
-              },
-              status: "error",
-            });
-            await notifyChannelLinkAutoMergeConflictRelay(pool, up, [pairA, pairB], {
-              channelCode: params.channelCode,
-              externalId: params.externalId,
-              classifiedReason: "merge_blocked_ambiguous_candidates",
-            });
-            return { ok: false, code: "conflict", mergeReason: "merge_blocked_ambiguous_candidates" };
-          }
-          const picked = pickMergeTargetId(puA, puB);
-          mergeTargetForCanon = picked.target;
-          mergeDupForLog = picked.duplicate;
-          await mergePlatformUsersInTransaction(client, picked.target, picked.duplicate, "phone_bind");
-          await client.query(
-            "UPDATE channel_link_secrets SET used_at = now() WHERE id = $1::uuid AND used_at IS NULL",
-            [r.id],
-          );
+          await claimMessengerChannelBindingInTransaction(client, {
+            tokenUserId: r.user_id,
+            stubUserId: boundUserId,
+            channelCode: params.channelCode,
+            externalId: params.externalId,
+            secretRowId: r.id,
+          });
           await client.query("COMMIT");
         } catch (err) {
           await client.query("ROLLBACK");
-          const classified = classifyMergeFailure(err, [pairA, pairB]);
-          logger.warn({
-            scope: "channel_link",
-            event: "channel_link_auto_merge_skipped",
-            reason: classified.code,
-            mergeMessage: err instanceof Error ? err.message : String(err),
-            candidateIds: classified.candidateIds,
-            channelCode: params.channelCode,
-          });
-          const ids = classified.candidateIds.length > 0 ? classified.candidateIds : [pairA, pairB];
-          const up = await upsertOpenConflictLog(pool, {
-            actorId: null,
-            candidateIds: ids,
-            details: {
-              source: "channel_link",
-              subReason: "oauth_stub_auto_merge",
+          if (err instanceof ChannelLinkClaimRejectedError) {
+            logger.warn({
+              scope: "channel_link",
+              event: "channel_link_claim_rejected",
+              reason: err.reason,
               channelCode: params.channelCode,
-              externalId: params.externalId,
-              classifiedReason: classified.code,
-              mergeMessage: err instanceof Error ? err.message : String(err),
-            },
-            status: "error",
+            });
+            await recordChannelLinkOwnershipConflict(pool, ctx, {
+              classifiedReason: "channel_link_claim_rejected",
+              stubClassificationReason: err.reason,
+            });
+            return { ok: false, code: "conflict", mergeReason: "channel_link_claim_rejected" };
+          }
+          logger.error({
+            err,
+            scope: "channel_link",
+            event: "channel_link_claim_tx_error",
+            tokenUserId: r.user_id,
+            stubUserId: boundUserId,
           });
-          await notifyChannelLinkAutoMergeConflictRelay(pool, up, ids, {
-            channelCode: params.channelCode,
-            externalId: params.externalId,
-            classifiedReason: classified.code,
-            mergeMessage: err instanceof Error ? err.message : String(err),
-          });
-          return { ok: false, code: "conflict", mergeReason: classified.code };
+          return { ok: false, code: "conflict", mergeReason: "channel_link_claim_failed" };
         }
-      } catch (err) {
-        try {
-          await client.query("ROLLBACK");
-        } catch {
-          /* ignore */
-        }
-        logger.error({
-          err,
-          scope: "channel_link",
-          event: "channel_link_auto_merge_tx_error",
-          targetId: pairA,
-          duplicateId: pairB,
-        });
-        return { ok: false, code: "conflict" };
       } finally {
         client.release();
       }
 
       logger.info({
         scope: "channel_link",
-        event: "channel_link_auto_merge_applied",
-        targetId: mergeTargetForCanon,
-        duplicateId: mergeDupForLog,
+        event: "channel_link_claim_applied",
+        tokenUserId: r.user_id,
+        stubUserId: boundUserId,
         channelCode: params.channelCode,
       });
-      const canonicalAfterMerge = await resolveCanonicalUserId(pool, mergeTargetForCanon);
-      if (canonicalAfterMerge == null) {
+      const canonicalAfterClaim = await resolveCanonicalUserId(pool, r.user_id);
+      if (canonicalAfterClaim == null) {
         return { ok: false, code: "user_not_found" };
       }
-      const { needsPhone, phoneNormalized } = await platformPhoneBindingInfo(pool, mergeTargetForCanon);
+      const { needsPhone, phoneNormalized } = await platformPhoneBindingInfo(pool, canonicalAfterClaim);
       return {
         ok: true,
-        userId: canonicalAfterMerge,
+        userId: canonicalAfterClaim,
         needsPhone,
         ...(phoneNormalized ? { phoneNormalized } : {}),
       };

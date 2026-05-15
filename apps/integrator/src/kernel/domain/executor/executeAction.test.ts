@@ -2567,6 +2567,114 @@ describe('executeAction', () => {
     expect((send?.payload as { recipient?: { chatId?: number } })?.recipient?.chatId).toBe(111);
   });
 
+  it('webapp.channelLink.complete uses generic failure template when error is channel_link_claim_failed', async () => {
+    const completeChannelLink = vi.fn().mockResolvedValue({ ok: false, error: 'channel_link_claim_failed' });
+    const webappEventsPort = {
+      completeChannelLink,
+      emit: vi.fn(),
+      listSymptomTrackings: vi.fn(),
+      listLfkComplexes: vi.fn(),
+    };
+    const tgCtx: DomainContext = {
+      ...ctx,
+      event: {
+        type: 'message.received',
+        meta: {
+          eventId: 'evt-cl-fail-gen',
+          occurredAt: '2026-04-11T12:00:00.000Z',
+          source: 'telegram',
+          userId: '111',
+        },
+        payload: {
+          incoming: {
+            kind: 'message',
+            text: '/start link_testtoken',
+            chatId: 111,
+            channelId: '111',
+            action: 'start.link',
+            linkSecret: 'link_testtoken',
+            userRow: null,
+            userState: '',
+          },
+        },
+      },
+    };
+    const action: Action = {
+      id: 'cl-tg-fail-gen',
+      type: 'webapp.channelLink.complete',
+      mode: 'sync',
+      params: { linkToken: 'link_testtoken', channelCode: 'telegram', externalId: '111' },
+    };
+    const renderTemplate = vi.fn().mockResolvedValue({
+      text: 'Не удалось завершить привязку (generic).',
+    });
+    const result = await executeAction(action, tgCtx, {
+      webappEventsPort,
+      templatePort: { renderTemplate },
+    });
+    expect(result.status).toBe('failed');
+    expect(renderTemplate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        templateId: 'channelLink.completeFailed.generic',
+      }),
+    );
+    const send = result.intents?.find((i) => i.type === 'message.send');
+    expect(send).toBeDefined();
+  });
+
+  it('webapp.channelLink.complete maps channel_owned_by_real_user to conflict failure template', async () => {
+    const completeChannelLink = vi.fn().mockResolvedValue({ ok: false, error: 'channel_owned_by_real_user' });
+    const webappEventsPort = {
+      completeChannelLink,
+      emit: vi.fn(),
+      listSymptomTrackings: vi.fn(),
+      listLfkComplexes: vi.fn(),
+    };
+    const tgCtx: DomainContext = {
+      ...ctx,
+      event: {
+        type: 'message.received',
+        meta: {
+          eventId: 'evt-cl-fail-own',
+          occurredAt: '2026-04-11T12:00:00.000Z',
+          source: 'telegram',
+          userId: '111',
+        },
+        payload: {
+          incoming: {
+            kind: 'message',
+            text: '/start link_testtoken',
+            chatId: 111,
+            channelId: '111',
+            action: 'start.link',
+            linkSecret: 'link_testtoken',
+            userRow: null,
+            userState: '',
+          },
+        },
+      },
+    };
+    const action: Action = {
+      id: 'cl-tg-fail-own',
+      type: 'webapp.channelLink.complete',
+      mode: 'sync',
+      params: { linkToken: 'link_testtoken', channelCode: 'telegram', externalId: '111' },
+    };
+    const renderTemplate = vi.fn().mockResolvedValue({
+      text: 'Привязка не выполнена (ownership).',
+    });
+    const result = await executeAction(action, tgCtx, {
+      webappEventsPort,
+      templatePort: { renderTemplate },
+    });
+    expect(result.status).toBe('failed');
+    expect(renderTemplate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        templateId: 'channelLink.completeFailed.conflict',
+      }),
+    );
+  });
+
   it('webapp.channelLink.complete syncs phone and sends welcome intents for Telegram when phone already on platform', async () => {
     const completeChannelLink = vi.fn().mockResolvedValue({
       ok: true,

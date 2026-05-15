@@ -158,6 +158,35 @@ describe("upsertOpenConflictLog", () => {
     expect(res).toEqual({ kind: "conflict", insertedFirst: true });
   });
 
+  it("insert uses custom action and conflictKey when provided", async () => {
+    const query = vi.fn(async (sql: string, _params?: unknown[]) => {
+      if (sql === "BEGIN" || sql === "COMMIT") return { rowCount: 0, rows: [] };
+      if (sql.includes("SELECT id, details, repeat_count")) {
+        return { rowCount: 0, rows: [] };
+      }
+      if (sql.includes("INSERT INTO admin_audit_log")) return { rowCount: 1, rows: [] };
+      return { rowCount: 0, rows: [] };
+    });
+    const release = vi.fn();
+    const pool = {
+      connect: vi.fn().mockResolvedValue({ query, release }),
+    } as unknown as Pool;
+    await upsertOpenConflictLog(pool, {
+      actorId: null,
+      action: "channel_link_ownership_conflict",
+      conflictKey: "custom-ownership-key",
+      candidateIds: ["aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"],
+      targetId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      details: { source: "channel_link", classifiedReason: "channel_owned_by_real_user" },
+      status: "error",
+    });
+    const insertCall = query.mock.calls.find((c) => String(c[0]).includes("INSERT INTO admin_audit_log"));
+    expect(insertCall).toBeDefined();
+    const params = insertCall?.[1] as unknown[];
+    expect(params?.[1]).toBe("channel_link_ownership_conflict");
+    expect(params?.[3]).toBe("custom-ownership-key");
+  });
+
   it("swallows connect failure and logs error", async () => {
     const errorSpy = vi.spyOn((await import("./logging/logger")).logger, "error").mockImplementation(() => {});
     const pool = {
@@ -192,6 +221,7 @@ describe("listAdminAuditLog", () => {
     expect(countCall).toBeDefined();
     const countSql = String(countCall?.[0]);
     expect(countSql).toContain("auto_merge_conflict");
+    expect(countSql).toContain("channel_link_ownership_conflict");
     expect(countSql).toContain("candidateIds");
     expect(countSql).toContain("user_merge");
     expect(countSql).toContain("integrator_user_merge");
