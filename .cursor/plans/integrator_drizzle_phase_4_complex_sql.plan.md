@@ -1,22 +1,29 @@
 ---
 name: Integrator Drizzle — этап 4 (сложный SQL)
-overview: Последним блоком перевести messageThreads, channelUsers и mergeIntegratorUsers — CTE, LATERAL, identity/merge-потоки; максимально использовать Drizzle, допускать целевой sql только с полным сохранением логики.
+overview: >-
+  Последним блоком перевести messageThreads, channelUsers и mergeIntegratorUsers — CTE, LATERAL,
+  identity/merge-потоки; максимально использовать Drizzle, допускать целевой sql только с полным
+  сохранением логики.
+status: completed
 todos:
   - id: p4-inventory
-    content: Зафиксировать для каждого файла список нестандартных конструкций (CTE, LATERAL, window, volatile функции) и решение builder vs sql template
-    status: pending
+    content: >-
+      Инвентаризация конструкций (CTE, LATERAL, merge/outbox) и решение builder vs sql template:
+      таблица «Инвентаризация P4» в docs/INTEGRATOR_DRIZZLE_MIGRATION/LOG.md (раздел этапа 4);
+      итог — runIntegratorSql + drizzle-orm sql шаблоны.
+    status: completed
   - id: p4-message-threads
-    content: Перевести messageThreads.ts; обновить messageThreads.test.ts при необходимости без ослабления утверждений
-    status: pending
+    content: Перевести messageThreads.ts; обновить messageThreads.test.ts
+    status: completed
   - id: p4-channel-users
-    content: Перевести channelUsers.ts; прогнать channelUsers.test.ts
-    status: pending
+    content: Перевести channelUsers.ts (включая setUserPhone lookup); channelUsers.test.ts
+    status: completed
   - id: p4-merge-users
-    content: Перевести mergeIntegratorUsers.ts; прогнать mergeIntegratorUsers.test.ts
-    status: pending
+    content: Перевести mergeIntegratorUsers.ts; mergeIntegratorUsers.test.ts
+    status: completed
   - id: p4-verify
-    content: apps/integrator typecheck + test; финальная запись в LOG.md и закрытие мастер-плана
-    status: pending
+    content: apps/integrator lint + typecheck + test; LOG.md; закрытие мастер-плана
+    status: completed
 isProject: false
 ---
 
@@ -45,12 +52,12 @@ isProject: false
 
 ## Чек-лист
 
-- [ ] Для merge: прогнать сценарии тестов на конфликт идентичности / канонического user id.
-- [ ] Для threads/channel: проверить индексы и `LIMIT`/`ORDER BY` на соответствие текущему поведению списков.
-- [ ] Полный прогон `pnpm --dir apps/integrator run test` перед закрытием мастера.
+- [x] Для merge: прогнать сценарии тестов на конфликт идентичности / канонического user id.
+- [x] Для threads/channel: проверить индексы и `LIMIT`/`ORDER BY` на соответствие текущему поведению списков.
+- [x] Полный прогон `pnpm --dir apps/integrator run test` перед закрытием мастера.
 
 ## Definition of Done (этап 4 и финал мастера)
 
-- [ ] Три целевых репозитория не используют `db.query(<строковый шаблон` для доменной логики (Drizzle query builder или один явный sql-блок на функцию допустим).
-- [ ] Все перечисленные тесты зелёные.
-- [ ] Мастер-план: `phase-4`, `dod-master`, при необходимости `schema-strategy` — `completed`; LOG.md содержит итоговую сводку инициативы.
+- [x] Три целевых репозитория не используют `db.query(<строковый шаблон>)` для доменной логики (Drizzle `runIntegratorSql` / `sql`).
+- [x] Все перечисленные тесты зелёные.
+- [x] Мастер-план: `phase-4`, `dod-master` — `completed`; LOG.md содержит итоговую сводку инициативы.

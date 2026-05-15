@@ -1,7 +1,19 @@
 import { describe, expect, it, vi } from "vitest";
 import type { DbPort } from "../../kernel/contracts/index.js";
+import { drizzleSqlFragmentToApproximateSql } from "./drizzleSqlDebugText.js";
 import { createDbWritePort } from "./writePort.js";
 import { stubIntegratorDrizzleForTests } from "./stubIntegratorDrizzleForTests.js";
+
+function attachExecuteToQuery(
+  query: DbPort["query"],
+  drizzle: ReturnType<typeof stubIntegratorDrizzleForTests>,
+): void {
+  const d = drizzle as { execute: ReturnType<typeof vi.fn> };
+  d.execute = vi.fn(async (frag: unknown) => {
+    const flat = drizzleSqlFragmentToApproximateSql(frag);
+    return query(flat, []);
+  });
+}
 
 function makeMockDb(capture: {
   projectionInserts: { eventType: string; idempotencyKey: string; payload: Record<string, unknown> }[];
@@ -49,7 +61,7 @@ function makeMockDb(capture: {
     }
 
     // setUserPhone: identities by resource + external_id
-    if (sql.includes("FROM identities i") && sql.includes("i.resource = $2")) {
+    if (sql.includes("FROM identities i") && sql.includes("i.resource") && sql.includes("external_id")) {
       return { rows: [{ user_id: "uid-tg" }], rowCount: 1 } as Awaited<ReturnType<DbPort["query"]>>;
     }
 
@@ -58,8 +70,9 @@ function makeMockDb(capture: {
     }
 
     return { rows: [] } as Awaited<ReturnType<DbPort["query"]>>;
-  });
+  }) as DbPort["query"];
   const drizzle = stubIntegratorDrizzleForTests(capture);
+  attachExecuteToQuery(query, drizzle);
   const tx = vi.fn(async (fn: (txDb: DbPort) => Promise<void>) => fn({ query, tx, integratorDrizzle: drizzle } as DbPort));
   return { query, tx, integratorDrizzle: drizzle } as DbPort;
 }
@@ -135,7 +148,7 @@ describe("writePort user.upsert projection payload", () => {
       if (sql.includes("user_channel_bindings")) {
         return { rows: [] } as Awaited<ReturnType<DbPort["query"]>>;
       }
-      if (sql.includes("FROM identities i") && sql.includes("i.resource = $2") && sql.includes("LIMIT 1")) {
+      if (sql.includes("FROM identities i") && sql.includes("i.resource") && sql.includes("LIMIT 1")) {
         return { rows: [{ user_id: "uid-tg" }], rowCount: 1 } as Awaited<ReturnType<DbPort["query"]>>;
       }
       if (sql.includes("INSERT INTO contacts") && sql.includes("ON CONFLICT")) {
@@ -143,8 +156,9 @@ describe("writePort user.upsert projection payload", () => {
         return { rows: [], rowCount: 1 } as Awaited<ReturnType<DbPort["query"]>>;
       }
       return { rows: [] } as Awaited<ReturnType<DbPort["query"]>>;
-    });
+    }) as DbPort["query"];
     const drizzle = stubIntegratorDrizzleForTests();
+    attachExecuteToQuery(query, drizzle);
     const tx = vi.fn(async (fn: (txDb: DbPort) => Promise<void>) => fn({ query, tx, integratorDrizzle: drizzle } as DbPort));
     const db = { query, tx, integratorDrizzle: drizzle } as DbPort;
     const writePort = createDbWritePort({ db });
@@ -198,15 +212,16 @@ describe("writePort user.upsert projection payload", () => {
       if (sql.includes("merged_into_user_id") && sql.includes("FROM users")) {
         return { rows: [{ merged_into_user_id: null }] } as Awaited<ReturnType<DbPort["query"]>>;
       }
-      if (sql.includes("FROM identities i") && sql.includes("i.resource = $2")) {
+      if (sql.includes("FROM identities i") && sql.includes("i.resource")) {
         return { rows: [{ user_id: "uid-tg" }], rowCount: 1 } as Awaited<ReturnType<DbPort["query"]>>;
       }
       if (sql.includes("INSERT INTO contacts") && sql.includes("ON CONFLICT")) {
         throw new Error("simulated contacts write failure");
       }
       return { rows: [] } as Awaited<ReturnType<DbPort["query"]>>;
-    });
+    }) as DbPort["query"];
     const drizzle = stubIntegratorDrizzleForTests();
+    attachExecuteToQuery(query, drizzle);
     const tx = vi.fn(async (fn: (txDb: DbPort) => Promise<void>) => fn({ query, tx, integratorDrizzle: drizzle } as DbPort));
     const db = { query, tx, integratorDrizzle: drizzle } as DbPort;
     const writePort = createDbWritePort({ db });
@@ -263,7 +278,7 @@ describe("writePort user.upsert projection payload", () => {
       if (sql.includes("merged_into_user_id") && sql.includes("FROM users")) {
         return { rows: [{ merged_into_user_id: null }] } as Awaited<ReturnType<DbPort["query"]>>;
       }
-      if (sql.includes("FROM identities i") && sql.includes("i.resource = $2") && sql.includes("LIMIT 1")) {
+      if (sql.includes("FROM identities i") && sql.includes("i.resource") && sql.includes("LIMIT 1")) {
         return { rows: [{ user_id: "42" }], rowCount: 1 } as Awaited<ReturnType<DbPort["query"]>>;
       }
       if (sql.includes("INSERT INTO contacts") && sql.includes("ON CONFLICT")) {
@@ -271,8 +286,9 @@ describe("writePort user.upsert projection payload", () => {
         return { rows: [], rowCount: 1 } as Awaited<ReturnType<DbPort["query"]>>;
       }
       return { rows: [] } as Awaited<ReturnType<DbPort["query"]>>;
-    });
+    }) as DbPort["query"];
     const drizzle = stubIntegratorDrizzleForTests();
+    attachExecuteToQuery(query, drizzle);
     const tx = vi.fn(async (fn: (txDb: DbPort) => Promise<void>) => fn({ query, tx, integratorDrizzle: drizzle } as DbPort));
     const db = { query, tx, integratorDrizzle: drizzle } as DbPort;
     const writePort = createDbWritePort({ db });

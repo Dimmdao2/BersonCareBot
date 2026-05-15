@@ -1,5 +1,7 @@
 import type { DbPort } from '../../../kernel/contracts/index.js';
+import { sql } from 'drizzle-orm';
 import { logger } from '../../observability/logger.js';
+import { runIntegratorSql } from '../runIntegratorSql.js';
 import { deepReplaceIntegratorUserIdInValue, recomputeProjectionIdempotencyKeyAfterMerge } from './projectionOutboxMergePolicy.js';
 
 const BIGINT_STRING = /^\d+$/;
@@ -64,24 +66,26 @@ async function realignProjectionOutboxInTx(
   winner: string,
 ): Promise<{ payloadRewrites: number; keyRewrites: number; deduped: number }> {
   /** Only `pending`: avoids racing the projection worker while a row is `processing`. */
-  const res = await db.query<{
+  const res = await runIntegratorSql<{
     id: string;
     event_type: string;
     idempotency_key: string;
     payload: Record<string, unknown>;
   }>(
-    `SELECT id::text AS id, event_type, idempotency_key, payload
+    db,
+    sql`
+    SELECT id::text AS id, event_type, idempotency_key, payload
      FROM projection_outbox
      WHERE status = 'pending'
        AND (
-         (payload->>'integratorUserId') = $1
-         OR (payload #>> '{payloadJson,integratorUserId}') = $1
-         OR (payload #>> '{payloadJson,integrator_user_id}') = $1
-         OR (payload::text LIKE '%"integratorUserId":"' || $1 || '"%')
-         OR (payload::text LIKE '%"integrator_user_id":"' || $1 || '"%')
+         (payload->>'integratorUserId') = ${loser}
+         OR (payload #>> '{payloadJson,integratorUserId}') = ${loser}
+         OR (payload #>> '{payloadJson,integrator_user_id}') = ${loser}
+         OR (payload::text LIKE '%"integratorUserId":"' || ${loser} || '"%')
+         OR (payload::text LIKE '%"integrator_user_id":"' || ${loser} || '"%')
        )
-     ORDER BY id::bigint ASC`,
-    [loser],
+     ORDER BY id::bigint ASC
+  `,
   );
 
   let payloadRewrites = 0;
@@ -92,41 +96,46 @@ async function realignProjectionOutboxInTx(
     const rawPayload = row.payload && typeof row.payload === 'object' ? row.payload : {};
     const newPayload = deepReplaceIntegratorUserIdInValue(rawPayload, loser, winner) as Record<string, unknown>;
     const newKey = recomputeProjectionIdempotencyKeyAfterMerge(row.event_type, newPayload, Number(row.id));
+    const payloadJson = JSON.stringify(newPayload);
 
     if (newKey === row.idempotency_key) {
-      await db.query(
-        `UPDATE projection_outbox SET payload = $2::jsonb, updated_at = now() WHERE id = $1::bigint`,
-        [row.id, JSON.stringify(newPayload)],
+      await runIntegratorSql(
+        db,
+        sql`UPDATE projection_outbox SET payload = ${payloadJson}::jsonb, updated_at = now() WHERE id = ${row.id}::bigint`,
       );
       payloadRewrites += 1;
       continue;
     }
 
-    const exists = await db.query<{ id: string }>(
-      `SELECT id::text AS id FROM projection_outbox WHERE idempotency_key = $1 AND id <> $2::bigint LIMIT 1`,
-      [newKey, row.id],
+    const exists = await runIntegratorSql<{ id: string }>(
+      db,
+      sql`SELECT id::text AS id FROM projection_outbox WHERE idempotency_key = ${newKey} AND id <> ${row.id}::bigint LIMIT 1`,
     );
 
     if (exists.rows.length > 0) {
-      await db.query(
-        `UPDATE projection_outbox
+      await runIntegratorSql(
+        db,
+        sql`
+        UPDATE projection_outbox
          SET status = 'cancelled',
-             last_error = $2,
+             last_error = ${'merge:user deduped (winner idempotency_key already present)'},
              updated_at = now()
-         WHERE id = $1::bigint`,
-        [row.id, 'merge:user deduped (winner idempotency_key already present)'],
+         WHERE id = ${row.id}::bigint
+      `,
       );
       deduped += 1;
       continue;
     }
 
-    await db.query(
-      `UPDATE projection_outbox
-       SET idempotency_key = $2,
-           payload = $3::jsonb,
+    await runIntegratorSql(
+      db,
+      sql`
+      UPDATE projection_outbox
+       SET idempotency_key = ${newKey},
+           payload = ${payloadJson}::jsonb,
            updated_at = now()
-       WHERE id = $1::bigint`,
-      [row.id, newKey, JSON.stringify(newPayload)],
+       WHERE id = ${row.id}::bigint
+    `,
     );
     payloadRewrites += 1;
     keyRewrites += 1;
@@ -163,15 +172,15 @@ export async function mergeIntegratorUsers(
   }
 
   return db.tx(async (tx) => {
-    await tx.query(
-      `SELECT id FROM users WHERE id IN ($1::bigint, $2::bigint) ORDER BY id ASC FOR UPDATE`,
-      [winner, loser],
+    await runIntegratorSql(
+      tx,
+      sql`SELECT id FROM users WHERE id IN (${winner}::bigint, ${loser}::bigint) ORDER BY id ASC FOR UPDATE`,
     );
 
-    const usersRes = await tx.query<UserRow>(
-      `SELECT id::text AS id, merged_into_user_id::text AS merged_into_user_id
-       FROM users WHERE id IN ($1::bigint, $2::bigint)`,
-      [winner, loser],
+    const usersRes = await runIntegratorSql<UserRow>(
+      tx,
+      sql`SELECT id::text AS id, merged_into_user_id::text AS merged_into_user_id
+       FROM users WHERE id IN (${winner}::bigint, ${loser}::bigint)`,
     );
     const foundKeys = new Set(usersRes.rows.map((r) => integratorUserIdNumericKey(r.id)));
     const missingIntegratorUserIds = [winner, loser].filter((id) => !foundKeys.has(integratorUserIdNumericKey(id)));
@@ -245,152 +254,171 @@ export async function mergeIntegratorUsers(
       };
     }
 
-    const pairsRes = await tx.query<{ loser_identity_id: string; winner_identity_id: string }>(
-      `SELECT li.id::text AS loser_identity_id, wi.id::text AS winner_identity_id
+    const pairsRes = await runIntegratorSql<{ loser_identity_id: string; winner_identity_id: string }>(
+      tx,
+      sql`
+      SELECT li.id::text AS loser_identity_id, wi.id::text AS winner_identity_id
        FROM identities li
        JOIN identities wi
-         ON wi.user_id = $1::bigint
-        AND li.user_id = $2::bigint
+         ON wi.user_id = ${winner}::bigint
+        AND li.user_id = ${loser}::bigint
         AND wi.resource = li.resource
-        AND wi.external_id = li.external_id`,
-      [winner, loser],
+        AND wi.external_id = li.external_id
+    `,
     );
 
     for (const p of pairsRes.rows) {
-      const wState = await tx.query(`SELECT 1 FROM telegram_state WHERE identity_id = $1::bigint LIMIT 1`, [
-        p.winner_identity_id,
-      ]);
-      const lState = await tx.query(`SELECT 1 FROM telegram_state WHERE identity_id = $1::bigint LIMIT 1`, [
-        p.loser_identity_id,
-      ]);
+      const wState = await runIntegratorSql(
+        tx,
+        sql`SELECT 1 FROM telegram_state WHERE identity_id = ${p.winner_identity_id}::bigint LIMIT 1`,
+      );
+      const lState = await runIntegratorSql(
+        tx,
+        sql`SELECT 1 FROM telegram_state WHERE identity_id = ${p.loser_identity_id}::bigint LIMIT 1`,
+      );
       if (wState.rows.length > 0 && lState.rows.length > 0) {
-        await tx.query(`DELETE FROM telegram_state WHERE identity_id = $1::bigint`, [p.loser_identity_id]);
+        await runIntegratorSql(tx, sql`DELETE FROM telegram_state WHERE identity_id = ${p.loser_identity_id}::bigint`);
       } else if (lState.rows.length > 0) {
-        await tx.query(`UPDATE telegram_state SET identity_id = $1::bigint WHERE identity_id = $2::bigint`, [
-          p.winner_identity_id,
-          p.loser_identity_id,
-        ]);
+        await runIntegratorSql(
+          tx,
+          sql`UPDATE telegram_state SET identity_id = ${p.winner_identity_id}::bigint WHERE identity_id = ${p.loser_identity_id}::bigint`,
+        );
       }
 
-      await tx.query(
-        `DELETE FROM message_drafts d
+      await runIntegratorSql(
+        tx,
+        sql`
+        DELETE FROM message_drafts d
          USING message_drafts w
-         WHERE d.identity_id = $1::bigint
-           AND w.identity_id = $2::bigint
-           AND d.source = w.source`,
-        [p.loser_identity_id, p.winner_identity_id],
+         WHERE d.identity_id = ${p.loser_identity_id}::bigint
+           AND w.identity_id = ${p.winner_identity_id}::bigint
+           AND d.source = w.source
+      `,
       );
-      await tx.query(`UPDATE message_drafts SET identity_id = $1::bigint WHERE identity_id = $2::bigint`, [
-        p.winner_identity_id,
-        p.loser_identity_id,
-      ]);
+      await runIntegratorSql(
+        tx,
+        sql`UPDATE message_drafts SET identity_id = ${p.winner_identity_id}::bigint WHERE identity_id = ${p.loser_identity_id}::bigint`,
+      );
 
-      await tx.query(
-        `DELETE FROM conversations c
+      await runIntegratorSql(
+        tx,
+        sql`
+        DELETE FROM conversations c
          USING conversations w
-         WHERE c.user_identity_id = $1::bigint
-           AND w.user_identity_id = $2::bigint
+         WHERE c.user_identity_id = ${p.loser_identity_id}::bigint
+           AND w.user_identity_id = ${p.winner_identity_id}::bigint
            AND c.source = w.source
            AND w.closed_at IS NULL
            AND w.status <> 'closed'
            AND c.closed_at IS NULL
-           AND c.status <> 'closed'`,
-        [p.loser_identity_id, p.winner_identity_id],
+           AND c.status <> 'closed'
+      `,
       );
-      await tx.query(
-        `UPDATE conversations SET user_identity_id = $1::bigint WHERE user_identity_id = $2::bigint`,
-        [p.winner_identity_id, p.loser_identity_id],
+      await runIntegratorSql(
+        tx,
+        sql`UPDATE conversations SET user_identity_id = ${p.winner_identity_id}::bigint WHERE user_identity_id = ${p.loser_identity_id}::bigint`,
       );
-      await tx.query(
-        `UPDATE user_questions SET user_identity_id = $1::bigint WHERE user_identity_id = $2::bigint`,
-        [p.winner_identity_id, p.loser_identity_id],
+      await runIntegratorSql(
+        tx,
+        sql`UPDATE user_questions SET user_identity_id = ${p.winner_identity_id}::bigint WHERE user_identity_id = ${p.loser_identity_id}::bigint`,
       );
 
-      await tx.query(`DELETE FROM identities WHERE id = $1::bigint`, [p.loser_identity_id]);
+      await runIntegratorSql(tx, sql`DELETE FROM identities WHERE id = ${p.loser_identity_id}::bigint`);
     }
 
     const duplicateIdentitiesMerged = pairsRes.rows.length;
 
-    const idRe = await tx.query(
-      `UPDATE identities SET user_id = $1::bigint WHERE user_id = $2::bigint`,
-      [winner, loser],
+    const idRe = await runIntegratorSql(
+      tx,
+      sql`UPDATE identities SET user_id = ${winner}::bigint WHERE user_id = ${loser}::bigint`,
     );
     const identitiesReassigned = idRe.rowCount ?? 0;
 
-    const cd = await tx.query(
-      `DELETE FROM contacts c
+    const cd = await runIntegratorSql(
+      tx,
+      sql`
+      DELETE FROM contacts c
        USING contacts w
-       WHERE c.user_id = $1::bigint
-         AND w.user_id = $2::bigint
+       WHERE c.user_id = ${loser}::bigint
+         AND w.user_id = ${winner}::bigint
          AND c.type = w.type
-         AND c.value_normalized = w.value_normalized`,
-      [loser, winner],
+         AND c.value_normalized = w.value_normalized
+    `,
     );
     const contactsDeletedDuplicate = cd.rowCount ?? 0;
 
-    const cr = await tx.query(`UPDATE contacts SET user_id = $1::bigint WHERE user_id = $2::bigint`, [winner, loser]);
+    const cr = await runIntegratorSql(
+      tx,
+      sql`UPDATE contacts SET user_id = ${winner}::bigint WHERE user_id = ${loser}::bigint`,
+    );
     const contactsReassigned = cr.rowCount ?? 0;
 
-    const rrd = await tx.query(
-      `DELETE FROM user_reminder_rules r
+    const rrd = await runIntegratorSql(
+      tx,
+      sql`
+      DELETE FROM user_reminder_rules r
        USING user_reminder_rules w
-       WHERE r.user_id = $1::bigint
-         AND w.user_id = $2::bigint
-         AND r.category = w.category`,
-      [loser, winner],
+       WHERE r.user_id = ${loser}::bigint
+         AND w.user_id = ${winner}::bigint
+         AND r.category = w.category
+    `,
     );
     const reminderRulesDeletedDuplicate = rrd.rowCount ?? 0;
 
-    const rr = await tx.query(
-      `UPDATE user_reminder_rules SET user_id = $1::bigint WHERE user_id = $2::bigint`,
-      [winner, loser],
+    const rr = await runIntegratorSql(
+      tx,
+      sql`UPDATE user_reminder_rules SET user_id = ${winner}::bigint WHERE user_id = ${loser}::bigint`,
     );
     const reminderRulesReassigned = rr.rowCount ?? 0;
 
-    const cag = await tx.query(
-      `UPDATE content_access_grants SET user_id = $1::bigint WHERE user_id = $2::bigint`,
-      [winner, loser],
+    const cag = await runIntegratorSql(
+      tx,
+      sql`UPDATE content_access_grants SET user_id = ${winner}::bigint WHERE user_id = ${loser}::bigint`,
     );
     const contentAccessGrantsReassigned = cag.rowCount ?? 0;
 
-    const usd = await tx.query(
-      `DELETE FROM user_subscriptions us
+    const usd = await runIntegratorSql(
+      tx,
+      sql`
+      DELETE FROM user_subscriptions us
        USING user_subscriptions w
-       WHERE us.user_id = $1::bigint
-         AND w.user_id = $2::bigint
-         AND us.subscription_id = w.subscription_id`,
-      [loser, winner],
+       WHERE us.user_id = ${loser}::bigint
+         AND w.user_id = ${winner}::bigint
+         AND us.subscription_id = w.subscription_id
+    `,
     );
     const userSubscriptionsDeletedDuplicate = usd.rowCount ?? 0;
 
-    const usr = await tx.query(
-      `UPDATE user_subscriptions SET user_id = $1::bigint WHERE user_id = $2::bigint`,
-      [winner, loser],
+    const usr = await runIntegratorSql(
+      tx,
+      sql`UPDATE user_subscriptions SET user_id = ${winner}::bigint WHERE user_id = ${loser}::bigint`,
     );
     const userSubscriptionsReassigned = usr.rowCount ?? 0;
 
-    const mld = await tx.query(
-      `DELETE FROM mailing_logs ml
+    const mld = await runIntegratorSql(
+      tx,
+      sql`
+      DELETE FROM mailing_logs ml
        USING mailing_logs w
-       WHERE ml.user_id = $1::bigint
-         AND w.user_id = $2::bigint
-         AND ml.mailing_id = w.mailing_id`,
-      [loser, winner],
+       WHERE ml.user_id = ${loser}::bigint
+         AND w.user_id = ${winner}::bigint
+         AND ml.mailing_id = w.mailing_id
+    `,
     );
     const mailingLogsDeletedDuplicate = mld.rowCount ?? 0;
 
-    const mlr = await tx.query(`UPDATE mailing_logs SET user_id = $1::bigint WHERE user_id = $2::bigint`, [
-      winner,
-      loser,
-    ]);
+    const mlr = await runIntegratorSql(
+      tx,
+      sql`UPDATE mailing_logs SET user_id = ${winner}::bigint WHERE user_id = ${loser}::bigint`,
+    );
     const mailingLogsReassigned = mlr.rowCount ?? 0;
 
     const ob = await realignProjectionOutboxInTx(tx, loser, winner);
 
-    await tx.query(`UPDATE users SET merged_into_user_id = $1::bigint, updated_at = now() WHERE id = $2::bigint`, [
-      winner,
-      loser,
-    ]);
+    await runIntegratorSql(
+      tx,
+      sql`UPDATE users SET merged_into_user_id = ${winner}::bigint, updated_at = now() WHERE id = ${loser}::bigint`,
+    );
 
     const result: MergeIntegratorUsersResult = {
       winnerId: winner,

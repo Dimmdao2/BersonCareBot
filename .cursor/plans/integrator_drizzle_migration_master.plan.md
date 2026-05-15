@@ -1,6 +1,7 @@
 ---
 name: Integrator SQL → Drizzle (мастер-план)
 overview: Поэтапный перевод выбранных репозиториев интегратора с сырого SQL на Drizzle-ORM без смены контрактов kernel и без изменения транзакционной семантики (особенно claim + SKIP LOCKED + retry для outbox/очередей).
+status: completed
 todos:
   - id: schema-strategy
     content: >-
@@ -19,10 +20,10 @@ todos:
     status: completed
   - id: phase-4
     content: "Выполнить план integrator_drizzle_phase_4_complex_sql.plan.md — сложный SQL последним"
-    status: pending
+    status: completed
   - id: dod-master
     content: Definition of Done мастера — все этапы закрыты, integrator-тесты и typecheck по зоне зелёные, запись финала в docs/INTEGRATOR_DRIZZLE_MIGRATION/LOG.md
-    status: pending
+    status: completed
 isProject: true
 ---
 
@@ -84,7 +85,7 @@ isProject: true
 
 ## Definition of Done (мастер)
 
-- [ ] Принято и описано решение по общей Drizzle-схеме для integrator таблиц; `getIntegratorDrizzle` покрывает все переведённые таблицы этапов 1–4.
-- [ ] Все четыре этапных плана переведены в завершённые состояния (`todos`, чеклисты, LOG).
-- [ ] `pnpm --dir apps/integrator run typecheck` и `pnpm --dir apps/integrator run test` зелёные после финального этапа.
-- [ ] В [`docs/INTEGRATOR_DRIZZLE_MIGRATION/LOG.md`](../../docs/INTEGRATOR_DRIZZLE_MIGRATION/LOG.md) зафиксированы решения по схеме, риски оставшегося сырого SQL (если есть) и краткий итог по этапам.
+- [x] Принято и описано решение по общей Drizzle-схеме для integrator таблиц; `getIntegratorDrizzle` покрывает все переведённые таблицы этапов 1–4.
+- [x] Все четыре этапных плана переведены в завершённые состояния (`todos`, чеклисты, LOG).
+- [x] `pnpm --dir apps/integrator run typecheck` и `pnpm --dir apps/integrator run test` зелёные после финального этапа.
+- [x] В [`docs/INTEGRATOR_DRIZZLE_MIGRATION/LOG.md`](../../docs/INTEGRATOR_DRIZZLE_MIGRATION/LOG.md) зафиксированы решения по схеме, риски оставшегося сырого SQL (если есть) и краткий итог по этапам.

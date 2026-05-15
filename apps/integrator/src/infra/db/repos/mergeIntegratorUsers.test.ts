@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { DbPort } from '../../../kernel/contracts/index.js';
+import { drizzleSqlFragmentToApproximateSql } from '../drizzleSqlDebugText.js';
 import { mergeIntegratorUsers, MergeIntegratorUsersError } from './mergeIntegratorUsers.js';
 
 function createRecordingDb(): { db: DbPort; sql: string[]; queryImpl: ReturnType<typeof vi.fn> } {
@@ -11,6 +12,13 @@ function createRecordingDb(): { db: DbPort; sql: string[]; queryImpl: ReturnType
       return queryImpl(q, p);
     },
     tx: async <T>(fn: (d: DbPort) => Promise<T>) => fn(db),
+    integratorDrizzle: {
+      execute: async (frag: unknown) => {
+        const flat = drizzleSqlFragmentToApproximateSql(frag).replace(/^\s+/u, '').trim();
+        sql.push(flat);
+        return queryImpl(flat);
+      },
+    } as DbPort['integratorDrizzle'],
   };
   return { db, sql, queryImpl };
 }

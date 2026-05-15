@@ -1,3 +1,4 @@
+import { vi } from 'vitest';
 import { projectionOutbox } from './schema/integratorQueues.js';
 
 /**
@@ -66,7 +67,7 @@ export function stubIntegratorDrizzleForTests(capture?: ProjectionOutboxInsertCa
     insert: (table: unknown) => ({
       values: (vals: Record<string, unknown>) => insertValuesChain(table, vals, capture),
     }),
-    execute: () => Promise.resolve({ rows: [] as unknown[] }),
+    execute: vi.fn(() => Promise.resolve({ rows: [] as unknown[] })),
     select: () => ({
       from: () => selectAfterFrom,
     }),

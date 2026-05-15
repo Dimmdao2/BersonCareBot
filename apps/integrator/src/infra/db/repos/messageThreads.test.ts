@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { DbPort, DbQueryResult } from '../../../kernel/contracts/index.js';
+import { drizzleSqlFragmentToApproximateSql } from '../drizzleSqlDebugText.js';
 import {
   cancelDraftByIdentity,
   getActiveDraftByIdentity,
@@ -14,18 +15,20 @@ import {
 
 function createDbMock() {
   const queryMock = vi.fn();
+  const executeMock = vi.fn();
   const txMock = vi.fn();
   const db: DbPort = {
     query: queryMock as unknown as DbPort['query'],
     tx: txMock as unknown as DbPort['tx'],
+    integratorDrizzle: { execute: executeMock } as DbPort['integratorDrizzle'],
   };
-  return { db, query: queryMock };
+  return { db, query: queryMock, execute: executeMock };
 }
 
 describe('messageThreads repo', () => {
   it('upserts and cancels drafts through identities', async () => {
-    const { db, query } = createDbMock();
-    query.mockResolvedValue({ rows: [], rowCount: 1 } as DbQueryResult);
+    const { db, execute } = createDbMock();
+    execute.mockResolvedValue({ rows: [], rowCount: 1 } as DbQueryResult);
 
     await upsertDraftByIdentity(db, {
       id: 'draft-1',
@@ -37,10 +40,14 @@ describe('messageThreads repo', () => {
       draftTextCurrent: 'hello',
     });
 
-    const [upsertSql, upsertParams] = query.mock.calls[0] ?? [];
-    expect(String(upsertSql)).toContain('INSERT INTO message_drafts');
-    expect(String(upsertSql)).toContain('ON CONFLICT (identity_id, source)');
-    expect(upsertParams).toEqual(['telegram', '123', 'draft-1', 'telegram', '123', '55', 'hello', 'pending_confirmation']);
+    const upsertFrag = execute.mock.calls[0]?.[0];
+    const upsertSql = drizzleSqlFragmentToApproximateSql(upsertFrag);
+    expect(upsertSql).toContain('INSERT INTO message_drafts');
+    expect(upsertSql).toContain('ON CONFLICT (identity_id, source)');
+    expect(upsertSql).toContain('telegram');
+    expect(upsertSql).toContain('draft-1');
+    expect(upsertSql).toContain('hello');
+    expect(upsertSql).toContain('pending_confirmation');
 
     await cancelDraftByIdentity(db, {
       resource: 'telegram',
@@ -48,14 +55,14 @@ describe('messageThreads repo', () => {
       source: 'telegram',
     });
 
-    const [cancelSql] = query.mock.calls[1] ?? [];
-    expect(String(cancelSql)).toContain('DELETE FROM message_drafts');
-    expect(String(cancelSql)).toContain('USING identities i');
+    const cancelSql = drizzleSqlFragmentToApproximateSql(execute.mock.calls[1]?.[0]);
+    expect(cancelSql).toContain('DELETE FROM message_drafts');
+    expect(cancelSql).toContain('USING identities i');
   });
 
   it('reads active draft and open conversation via identities joins', async () => {
-    const { db, query } = createDbMock();
-    query
+    const { db, execute } = createDbMock();
+    execute
       .mockResolvedValueOnce({
         rows: [{
           id: 'draft-1',
@@ -87,6 +94,7 @@ describe('messageThreads repo', () => {
           closed_at: null,
           close_reason: null,
           user_channel_id: '123',
+          user_chat_id: null,
           username: 'alice',
           first_name: 'Alice',
           last_name: 'Example',
@@ -101,18 +109,18 @@ describe('messageThreads repo', () => {
     expect(draft?.draft_text_current).toBe('hello');
     expect(conversation?.id).toBe('conv-1');
 
-    const [draftSql] = query.mock.calls[0] ?? [];
-    expect(String(draftSql)).toContain('FROM identities i');
-    expect(String(draftSql)).toContain('JOIN message_drafts md');
+    const draftSql = drizzleSqlFragmentToApproximateSql(execute.mock.calls[0]?.[0]);
+    expect(draftSql).toContain('FROM identities i');
+    expect(draftSql).toContain('JOIN message_drafts md');
 
-    const [conversationSql] = query.mock.calls[1] ?? [];
-    expect(String(conversationSql)).toContain('JOIN conversations c');
-    expect(String(conversationSql)).toContain('c.closed_at IS NULL');
+    const conversationSql = drizzleSqlFragmentToApproximateSql(execute.mock.calls[1]?.[0]);
+    expect(conversationSql).toContain('JOIN conversations c');
+    expect(conversationSql).toContain('c.closed_at IS NULL');
   });
 
   it('writes and lists conversations/messages', async () => {
-    const { db, query } = createDbMock();
-    query
+    const { db, execute } = createDbMock();
+    execute
       .mockResolvedValueOnce({ rows: [], rowCount: 1 } as DbQueryResult)
       .mockResolvedValueOnce({ rows: [], rowCount: 1 } as DbQueryResult)
       .mockResolvedValueOnce({ rows: [], rowCount: 1 } as DbQueryResult)
@@ -128,6 +136,7 @@ describe('messageThreads repo', () => {
           closed_at: null,
           close_reason: null,
           user_channel_id: '123',
+          user_chat_id: null,
           username: 'alice',
           first_name: 'Alice',
           last_name: 'Example',
@@ -149,6 +158,7 @@ describe('messageThreads repo', () => {
           closed_at: null,
           close_reason: null,
           user_channel_id: '123',
+          user_chat_id: null,
           username: 'alice',
           first_name: 'Alice',
           last_name: 'Example',
@@ -189,10 +199,11 @@ describe('messageThreads repo', () => {
     expect(items).toHaveLength(1);
     expect(byId?.id).toBe('conv-1');
 
-    expect(String(query.mock.calls[0]?.[0])).toContain('INSERT INTO conversations');
-    expect(String(query.mock.calls[1]?.[0])).toContain('INSERT INTO conversation_messages');
-    expect(String(query.mock.calls[2]?.[0])).toContain('UPDATE conversations');
-    expect(String(query.mock.calls[3]?.[0])).toContain('LEFT JOIN LATERAL');
-    expect(String(query.mock.calls[4]?.[0])).toContain('WHERE c.id = $1');
+    expect(drizzleSqlFragmentToApproximateSql(execute.mock.calls[0]?.[0])).toContain('INSERT INTO conversations');
+    expect(drizzleSqlFragmentToApproximateSql(execute.mock.calls[1]?.[0])).toContain('INSERT INTO conversation_messages');
+    expect(drizzleSqlFragmentToApproximateSql(execute.mock.calls[2]?.[0])).toContain('UPDATE conversations');
+    expect(drizzleSqlFragmentToApproximateSql(execute.mock.calls[3]?.[0])).toContain('LEFT JOIN LATERAL');
+    expect(drizzleSqlFragmentToApproximateSql(execute.mock.calls[4]?.[0])).toContain('WHERE c.id = ');
+    expect(drizzleSqlFragmentToApproximateSql(execute.mock.calls[4]?.[0])).toContain('conv-1');
   });
 });

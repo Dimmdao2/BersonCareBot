@@ -14,6 +14,8 @@ import {
   getIntegratorLinkedPhoneSource,
   resolveLinkedPhoneNormalized,
 } from './linkedPhoneSource.js';
+import { sql } from 'drizzle-orm';
+import { runIntegratorSql } from '../runIntegratorSql.js';
 
 export type ChannelUserByPhone = {
   chatId: number;
@@ -43,31 +45,29 @@ export const TELEGRAM_START_DEBOUNCE_SECONDS = 3;
 export async function tryConsumeStart(db: DbPort, channelUserId: number): Promise<boolean> {
   const externalId = String(channelUserId);
   const debounceSec = TELEGRAM_START_DEBOUNCE_SECONDS;
-  const updateSql = `
+  try {
+    const res = await runIntegratorSql<{ identity_id: string }>(db, sql`
     UPDATE telegram_state ts
     SET last_start_at = now(), updated_at = now()
     FROM identities i
     WHERE ts.identity_id = i.id
       AND i.resource = 'telegram'
-      AND i.external_id = $1
-      AND (ts.last_start_at IS NULL OR ts.last_start_at < now() - ($2::int * interval '1 second'))
-    RETURNING ts.identity_id;
-  `;
-  try {
-    const res = await db.query(updateSql, [externalId, debounceSec]);
+      AND i.external_id = ${externalId}
+      AND (ts.last_start_at IS NULL OR ts.last_start_at < now() - (${debounceSec}::int * interval '1 second'))
+    RETURNING ts.identity_id
+  `);
     if ((res.rowCount ?? 0) > 0) return true;
 
-    const recentSql = `
+    const recent = await runIntegratorSql(db, sql`
       SELECT 1
       FROM telegram_state ts
       INNER JOIN identities i ON ts.identity_id = i.id
       WHERE i.resource = 'telegram'
-        AND i.external_id = $1
+        AND i.external_id = ${externalId}
         AND ts.last_start_at IS NOT NULL
-        AND ts.last_start_at >= now() - ($2::int * interval '1 second')
+        AND ts.last_start_at >= now() - (${debounceSec}::int * interval '1 second')
       LIMIT 1
-    `;
-    const recent = await db.query(recentSql, [externalId, debounceSec]);
+    `);
     if ((recent.rowCount ?? 0) > 0) return false;
 
     return true;
@@ -85,17 +85,16 @@ export async function tryAdvanceLastUpdateId(
   channelUserId: number,
   updateId: number,
 ): Promise<boolean> {
-  const query = `
+  try {
+    const res = await runIntegratorSql(db, sql`
     UPDATE telegram_state ts
-    SET last_update_id = $2, updated_at = now()
+    SET last_update_id = ${updateId}, updated_at = now()
     FROM identities i
     WHERE ts.identity_id = i.id
       AND i.resource = 'telegram'
-      AND i.external_id = $1
-      AND (ts.last_update_id IS NULL OR ts.last_update_id < $2)
-  `;
-  try {
-    const res = await db.query(query, [String(channelUserId), updateId]);
+      AND i.external_id = ${String(channelUserId)}
+      AND (ts.last_update_id IS NULL OR ts.last_update_id < ${updateId})
+  `);
     return res.rowCount === 1;
   } catch (err) {
     logger.error({ err }, 'tryAdvanceLastUpdateId error');
@@ -115,12 +114,13 @@ export async function upsertUser(
   const firstName = from.first_name ?? null;
   const lastName = from.last_name ?? null;
 
-  const query = `
+  try {
+    const res = await runIntegratorSql<ChannelUserRow>(db, sql`
     WITH existing_identity AS (
       SELECT i.id, i.user_id
       FROM identities i
       WHERE i.resource = 'telegram'
-        AND i.external_id = $1
+        AND i.external_id = ${channelId}
       LIMIT 1
     ),
     new_user AS (
@@ -137,7 +137,7 @@ export async function upsertUser(
     ),
     upsert_identity AS (
       INSERT INTO identities (user_id, resource, external_id, created_at, updated_at)
-      SELECT ru.user_id, 'telegram', $1, now(), now()
+      SELECT ru.user_id, 'telegram', ${channelId}, now(), now()
       FROM resolved_user ru
       ON CONFLICT (resource, external_id)
       DO UPDATE SET
@@ -159,7 +159,7 @@ export async function upsertUser(
         created_at,
         updated_at
       )
-      SELECT ri.id, $2, $3, $4, now(), now()
+      SELECT ri.id, ${username}, ${firstName}, ${lastName}, now(), now()
       FROM resolved_identity ri
       ON CONFLICT (identity_id)
       DO UPDATE SET
@@ -168,17 +168,9 @@ export async function upsertUser(
         last_name = EXCLUDED.last_name,
         updated_at = now()
     )
-    SELECT ri.user_id::text AS id, $1::text AS channel_id
-    FROM resolved_identity ri;
-  `;
-
-  try {
-    const res = await db.query<ChannelUserRow>(query, [
-      channelId,
-      username,
-      firstName,
-      lastName,
-    ]);
+    SELECT ri.user_id::text AS id, ${channelId}::text AS channel_id
+    FROM resolved_identity ri
+  `);
     return res.rows[0] ?? null;
   } catch (err) {
     logger.error({ err }, 'upsertUser error');
@@ -192,17 +184,18 @@ export async function setUserState(
   channelUserId: string,
   state: string | null,
 ): Promise<void> {
-  const query = `
+  try {
+    await runIntegratorSql(db, sql`
     WITH target_identity AS (
       SELECT i.id
       FROM identities i
       WHERE i.resource = 'telegram'
-        AND i.external_id = $1
+        AND i.external_id = ${channelUserId}
       LIMIT 1
     ),
     upsert_state AS (
       INSERT INTO telegram_state (identity_id, state, created_at, updated_at)
-      SELECT ti.id, $2, now(), now()
+      SELECT ti.id, ${state}, now(), now()
       FROM target_identity ti
       ON CONFLICT (identity_id)
       DO UPDATE SET
@@ -211,9 +204,7 @@ export async function setUserState(
       RETURNING *
     )
     SELECT 1 FROM upsert_state
-  `;
-  try {
-    await db.query(query, [channelUserId, state]);
+  `);
   } catch (err) {
     logger.error({ err }, 'setUserState error');
   }
@@ -221,17 +212,16 @@ export async function setUserState(
 
 /** Reads dialog state for a channel user. */
 export async function getUserState(db: DbPort, channelUserId: string): Promise<string | null> {
-  const query = `
+  try {
+    const res = await runIntegratorSql<{ state: string | null }>(db, sql`
     SELECT ts.state
     FROM identities i
     LEFT JOIN telegram_state ts
       ON ts.identity_id = i.id
     WHERE i.resource = 'telegram'
-      AND i.external_id = $1
+      AND i.external_id = ${channelUserId}
     LIMIT 1
-  `;
-  try {
-    const res = await db.query<{ state: string | null }>(query, [channelUserId]);
+  `);
     return res.rows[0]?.state ?? null;
   } catch (err) {
     logger.error({ err }, 'getUserState error');
@@ -270,35 +260,39 @@ export async function updateNotificationSettings(
 
   if (columns.length === 0) return;
 
-  const updateFromExcluded = columns.map((column) => `${column} = EXCLUDED.${column}`);
-  const query = `
+  const insertColList = sql.join(columns.map((c) => sql.raw(c)), sql.raw(', '));
+  const insertValList = sql.join(values.map((v) => sql`${v}`), sql.raw(', '));
+  const updateSet = sql.join(
+    columns.map((c) => sql.raw(`${c} = EXCLUDED.${c}`)),
+    sql.raw(', '),
+  );
+
+  try {
+    await runIntegratorSql(db, sql`
     WITH target_identity AS (
       SELECT i.id
       FROM identities i
       WHERE i.resource = 'telegram'
-        AND i.external_id = $1
+        AND i.external_id = ${String(channelUserId)}
       LIMIT 1
     ),
     upsert_state AS (
       INSERT INTO telegram_state (
         identity_id,
-        ${columns.join(', ')},
+        ${insertColList},
         created_at,
         updated_at
       )
-      SELECT ti.id, ${values.map((_, index) => `$${index + 2}`).join(', ')}, now(), now()
+      SELECT ti.id, ${insertValList}, now(), now()
       FROM target_identity ti
       ON CONFLICT (identity_id)
       DO UPDATE SET
-        ${updateFromExcluded.join(', ')},
+        ${updateSet},
         updated_at = now()
       RETURNING *
     )
     SELECT 1 FROM upsert_state
-  `;
-
-  try {
-    await db.query(query, [String(channelUserId), ...values]);
+  `);
   } catch (err) {
     logger.error({ err }, 'updateNotificationSettings error');
   }
@@ -309,23 +303,21 @@ export async function getNotificationSettings(
   db: DbPort,
   channelUserId: number,
 ): Promise<NotificationSettings | null> {
-  const query = `
+  try {
+    const res = await runIntegratorSql<{
+      notify_spb: boolean | null;
+      notify_msk: boolean | null;
+      notify_online: boolean | null;
+      notify_bookings: boolean | null;
+    }>(db, sql`
     SELECT ts.notify_spb, ts.notify_msk, ts.notify_online, ts.notify_bookings
     FROM identities i
     LEFT JOIN telegram_state ts
       ON ts.identity_id = i.id
     WHERE i.resource = 'telegram'
-      AND i.external_id = $1
+      AND i.external_id = ${String(channelUserId)}
     LIMIT 1
-  `;
-
-  try {
-    const res = await db.query<{
-      notify_spb: boolean | null;
-      notify_msk: boolean | null;
-      notify_online: boolean | null;
-      notify_bookings: boolean | null;
-    }>(query, [String(channelUserId)]);
+  `);
 
     const row = res.rows[0];
     if (!row) return null;
@@ -357,16 +349,15 @@ export async function findByIdentityByPhone(
   resource: string,
 ): Promise<ChannelUserByPhone | null> {
   if (resource === 'telegram' || resource === 'channel') {
-    const query = `
+    try {
+      const res = await runIntegratorSql<{ channel_id: string; username: string | null }>(db, sql`
       SELECT i.external_id::text AS channel_id, ts.username
       FROM contacts c
       JOIN identities i ON i.user_id = c.user_id AND i.resource = 'telegram'
       LEFT JOIN telegram_state ts ON ts.identity_id = i.id
-      WHERE c.type = 'phone' AND c.value_normalized = $1
+      WHERE c.type = 'phone' AND c.value_normalized = ${phoneNormalized}
       LIMIT 1
-    `;
-    try {
-      const res = await db.query<{ channel_id: string; username: string | null }>(query, [phoneNormalized]);
+    `);
       const row = res.rows[0];
       if (!row) return null;
       const chatId = Number(row.channel_id);
@@ -378,15 +369,14 @@ export async function findByIdentityByPhone(
     }
   }
 
-  const query = `
+  try {
+    const res = await runIntegratorSql<{ channel_id: string }>(db, sql`
     SELECT i.external_id::text AS channel_id
     FROM contacts c
-    JOIN identities i ON i.user_id = c.user_id AND i.resource = $2
-    WHERE c.type = 'phone' AND c.value_normalized = $1
+    JOIN identities i ON i.user_id = c.user_id AND i.resource = ${resource}
+    WHERE c.type = 'phone' AND c.value_normalized = ${phoneNormalized}
     LIMIT 1
-  `;
-  try {
-    const res = await db.query<{ channel_id: string }>(query, [phoneNormalized, resource]);
+  `);
     const row = res.rows[0];
     if (!row) return null;
     const chatId = Number(row.channel_id);
@@ -427,7 +417,15 @@ export async function getLinkDataByIdentity(
   const strategy = await getIntegratorLinkedPhoneSource(db);
 
   if (resource === 'telegram') {
-    const query = `
+    try {
+      const res = await runIntegratorSql<{
+        user_id: string;
+        channel_id: string;
+        username: string | null;
+        user_state: string | null;
+        pub_phone: string | null;
+        legacy_contact_phone: string | null;
+      }>(db, sql`
       SELECT i.user_id::text AS user_id, i.external_id::text AS channel_id, ts.username, ts.state AS user_state,
              NULLIF(TRIM(pub.phone_normalized), '') AS pub_phone,
              cp.phone AS legacy_contact_phone
@@ -452,22 +450,13 @@ export async function getLinkDataByIdentity(
       LEFT JOIN LATERAL (
         SELECT c.value_normalized AS phone
         FROM contacts c
-        WHERE c.user_id = i.user_id AND c.type = 'phone' AND c.label = $1
+        WHERE c.user_id = i.user_id AND c.type = 'phone' AND c.label = ${resource}
         ORDER BY c.is_primary DESC NULLS LAST, c.id ASC
         LIMIT 1
       ) cp ON true
-      WHERE i.resource = $1 AND i.external_id = $2
+      WHERE i.resource = ${resource} AND i.external_id = ${externalId}
       LIMIT 1
-    `;
-    try {
-      const res = await db.query<{
-        user_id: string;
-        channel_id: string;
-        username: string | null;
-        user_state: string | null;
-        pub_phone: string | null;
-        legacy_contact_phone: string | null;
-      }>(query, [resource, externalId]);
+    `);
       const row = res.rows[0];
       if (!row) return null;
       const pub = row.pub_phone;
@@ -511,7 +500,13 @@ export async function getLinkDataByIdentity(
     }
   }
 
-  const query = `
+  try {
+    const res = await runIntegratorSql<{
+      user_id: string;
+      channel_id: string;
+      pub_phone: string | null;
+      legacy_contact_phone: string | null;
+    }>(db, sql`
     SELECT i.user_id::text AS user_id, i.external_id::text AS channel_id,
            NULLIF(TRIM(pub.phone_normalized), '') AS pub_phone,
            cp.phone AS legacy_contact_phone
@@ -535,20 +530,13 @@ export async function getLinkDataByIdentity(
     LEFT JOIN LATERAL (
       SELECT c.value_normalized AS phone
       FROM contacts c
-      WHERE c.user_id = i.user_id AND c.type = 'phone' AND c.label = $1
+      WHERE c.user_id = i.user_id AND c.type = 'phone' AND c.label = ${resource}
       ORDER BY c.is_primary DESC NULLS LAST, c.id ASC
       LIMIT 1
     ) cp ON true
-    WHERE i.resource = $1 AND i.external_id = $2
+    WHERE i.resource = ${resource} AND i.external_id = ${externalId}
     LIMIT 1
-  `;
-  try {
-    const res = await db.query<{
-      user_id: string;
-      channel_id: string;
-      pub_phone: string | null;
-      legacy_contact_phone: string | null;
-    }>(query, [resource, externalId]);
+  `);
     const row = res.rows[0];
     if (!row) return null;
     const pub = row.pub_phone;
@@ -592,14 +580,13 @@ export async function getChannelIdsByUserId(
   db: DbPort,
   userId: string,
 ): Promise<Array<{ resource: string; externalId: string; chatId: number }>> {
-  const query = `
+  try {
+    const res = await runIntegratorSql<{ resource: string; external_id: string }>(db, sql`
     SELECT i.resource, i.external_id::text AS external_id
     FROM identities i
-    WHERE i.user_id = $1 AND i.resource IN ('telegram', 'max')
+    WHERE i.user_id = ${userId} AND i.resource IN ('telegram', 'max')
     ORDER BY i.resource ASC
-  `;
-  try {
-    const res = await db.query<{ resource: string; external_id: string }>(query, [userId]);
+  `);
     return res.rows.map((row) => {
       const chatId = Number(row.external_id);
       return {
@@ -620,8 +607,10 @@ export async function getIdentityIdByResourceAndExternalId(
   resource: string,
   externalId: string,
 ): Promise<string | null> {
-  const query = `SELECT i.id::text FROM identities i WHERE i.resource = $1 AND i.external_id = $2 LIMIT 1`;
-  const res = await db.query<{ id: string }>(query, [resource, externalId]);
+  const res = await runIntegratorSql<{ id: string }>(
+    db,
+    sql`SELECT i.id::text AS id FROM identities i WHERE i.resource = ${resource} AND i.external_id = ${externalId} LIMIT 1`,
+  );
   const row = res.rows[0];
   return row?.id ?? null;
 }
@@ -639,39 +628,45 @@ export async function setUserPhone(
   phoneNormalized: string,
   resource: string = "telegram",
 ): Promise<SetUserPhoneOutcome> {
-  const idRes = await db.query<{ user_id: string }>(
-    `SELECT i.user_id::text AS user_id
-     FROM identities i
-     WHERE i.resource = $2
-       AND i.external_id = $1
-     LIMIT 1`,
-    [channelUserId, resource],
+  const idRes = await runIntegratorSql<{ user_id: string }>(
+    db,
+    sql`
+    SELECT i.user_id::text AS user_id
+    FROM identities i
+    WHERE i.resource = ${resource}
+      AND i.external_id = ${channelUserId}
+    LIMIT 1
+  `,
   );
   const rawUserId = idRes.rows[0]?.user_id;
   if (!rawUserId) return 'failed';
 
   const userId = await resolveCanonicalIntegratorUserId(db, rawUserId);
 
-  await db.query(
-    `DELETE FROM contacts
+  await runIntegratorSql(
+    db,
+    sql`
+    DELETE FROM contacts
      WHERE type = 'phone'
-       AND value_normalized = $2
-       AND user_id <> $1::bigint`,
-    [userId, phoneNormalized],
+       AND value_normalized = ${phoneNormalized}
+       AND user_id <> ${userId}::bigint
+  `,
   );
 
-  const query = `
+  try {
+    const res = await runIntegratorSql(
+      db,
+      sql`
     INSERT INTO contacts (user_id, type, value_normalized, label, is_primary, created_at, updated_at)
-    VALUES ($1::bigint, 'phone', $2, $3, NULL, now(), now())
+    VALUES (${userId}::bigint, 'phone', ${phoneNormalized}, ${resource}, NULL, now(), now())
     ON CONFLICT (type, value_normalized)
     DO UPDATE SET
       user_id = EXCLUDED.user_id,
       label = EXCLUDED.label,
       updated_at = now()
-    WHERE contacts.user_id = $1::bigint
-  `;
-  try {
-    const res = await db.query(query, [userId, phoneNormalized, resource]);
+    WHERE contacts.user_id = ${userId}::bigint
+  `,
+    );
     return (res.rowCount ?? 0) > 0 ? 'applied' : 'noop_conflict';
   } catch (err) {
     logger.error({ err }, 'setUserPhone error');

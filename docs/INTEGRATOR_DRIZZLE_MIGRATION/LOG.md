@@ -17,7 +17,7 @@
 - **Валидация перед INSERT в `delivery_attempt_logs`:** в `messageLogs.ts` отсекаются строки с невалидными `channel` / `status` / `attempt` (до вызова Drizzle), чтобы не полагаться на небезопасные приведения типов.
 - **Проверки:** `pnpm --dir apps/integrator run typecheck`, `pnpm --dir apps/integrator run test`.
 - **Тесты:** заглушка `stubIntegratorDrizzleForTests.ts` для writePort/unit-тестов с мок-`DbPort`.
-- **Вне P1-repos, осознанный сырой SQL:** `mergeIntegratorUsers.ts` — `user_subscriptions` / `mailing_logs` при merge пользователей (этап 4 мастер-плана).
+- **На момент записи P1:** `mergeIntegratorUsers.ts` и прочий «тяжёлый» SQL **не входили** в scope этапа 1; их перенос запланирован как **этап 4** мастер-плана. Фактическое состояние после P4 — см. раздел **«Этап 4»** ниже (там же инвентаризация конструкций).
 
 ### Этап 2 (outbox + job queue) — выполнено
 
@@ -27,7 +27,7 @@
 - **Транзакции:** по-прежнему `getIntegratorDrizzleSession(port)` (в т.ч. внутри `createDbPort().tx`).
 - **Тесты:** моки `getIntegratorDrizzleSession` в `projectionOutbox.test.ts`, `jobQueuePort.test.ts`; `projectionFanout.test.ts` и writePort-тесты — `stubIntegratorDrizzleForTests(capture)` на **корневом** `DbPort` (fanout после TX вызывает enqueue на root `db`); в stub добавлен **`onConflictDoUpdate`** для `mailing_logs` в том же tx.
 - **Проверки:** `pnpm --dir apps/integrator run typecheck`, `pnpm --dir apps/integrator run test`.
-- **Вне этапа 2:** сырой SQL в `projectionHealth.ts`, `mergeIntegratorUsers.ts` (projection payload), `scripts/projection-health.mjs` — без изменений в этом этапе.
+- **Вне этапа 2:** без изменений в этом этапе оставались, в частности, `projectionHealth.ts` и `scripts/projection-health.mjs`. **`mergeIntegratorUsers.ts` в этапе 2 не переводился** (включая политику projection outbox); перенос на `runIntegratorSql` / `sql` выполнен позже в **P4** — см. раздел «Этап 4».
 
 ### Постаудит этапа 2 (2026-05-15)
 
@@ -47,3 +47,22 @@
 - **План:** `.cursor/plans/integrator_drizzle_phase_3_domain_repos.plan.md` — в frontmatter добавлено `status: completed`; YAML выровнен под стиль этапов 1–2 (`overview`/`content` через `>-`); DoD уточнён формулировкой «без сырого SQL через `db.query(...)`».
 - **Код:** у `getDueReminderOccurrences` в `repos/reminders.ts` — JSDoc с пометкой escape hatch (`execute(sql)` + cross-schema JOIN), в духе DoD этапа 3.
 - **Тесты:** `writePort.reminders.test.ts` по-прежнему мокает `getReminderOccurrenceContextForProjection` для стабильной fanout-проекции при stub Drizzle — осознанный trade-off unit-слоя (см. детальный аудит закрытия этапа).
+
+### Этап 4 (P4 — сложный SQL) — выполнено
+
+#### Инвентаризация P4 (конструкции → решение)
+
+Зафиксировано для закрытия todo **p4-inventory** плана P4: везде **`runIntegratorSql` + `sql`…``** через `getIntegratorDrizzleSession` (пул или тот же клиент внутри `db.tx`), без строкового `DbPort.query` в целевых репозиториях.
+
+| Файл | Нестандартные конструкции / нагрузка | Решение |
+|------|--------------------------------------|---------|
+| `repos/messageThreads.ts` | CTE (`WITH …`), несколько **`LEFT JOIN LATERAL`**, списки с `ORDER BY` / `LIMIT` | Цельные фрагменты `sql`…`` + `runIntegratorSql` на операцию |
+| `repos/channelUsers.ts` | CTE для `upsertUser` / `telegram_state`, `ON CONFLICT`, lookup идентичности, `setUserPhone` (purge + upsert `contacts`) | То же; lookup в `setUserPhone` переведён с отдельного `db.query` на `runIntegratorSql` |
+| `repos/mergeIntegratorUsers.ts` | Длинная TX: пары identities, `telegram_state`, каскады по сателлитам, **`realignProjectionOutboxInTx`** (SELECT pending + построчные UPDATE / дедуп) | Последовательность `runIntegratorSql(tx, sql…)`; переписывание payload/idempotency — TypeScript (`projectionOutboxMergePolicy`) + параметризованные `sql` |
+
+- **Инфра:** `runIntegratorSql` (`apps/integrator/src/infra/db/runIntegratorSql.ts`) — единая обёртка `getIntegratorDrizzleSession(db).execute(fragment)` с нормализацией `DbQueryResult` (в т.ч. `rowCount` только при `typeof === 'number'` для `exactOptionalPropertyTypes`). `drizzleSqlFragmentToApproximateSql` (`drizzleSqlDebugText.ts`) — развёртка `sql` для assert’ов в тестах.
+- **Репозитории:** `messageThreads.ts`, `channelUsers.ts`, `mergeIntegratorUsers.ts` — доменные запросы через `runIntegratorSql` + `sql`…`` (CTE/LATERAL/merge-транзакции); в `channelUsers.ts` в том числе `setUserPhone` (lookup identity + DELETE/INSERT contacts) без строкового `db.query`.
+- **Тесты:** обновлены моки `integratorDrizzle.execute` (`messageThreads`, `channelUsers`, `mergeIntegratorUsers`, `readPort` fallback’и); `writePort.userUpsert.test.ts` — `attachExecuteToQuery` (flatten → legacy `query`-mock); `requestContactRoute.test.ts` — `dbWithTx` с `integratorDrizzle` и тем же мостом для `user.upsert`/`user.state.set`; `stubIntegratorDrizzleForTests` — `execute` как `vi.fn`.
+- **Оставшийся сырой SQL вне P4-repos (осознанно):** `repos/bookingCalendarMap.ts` — обновления `public.patient_bookings`; `repos/outgoingDeliveryQueue.ts`; `repos/platformUserDeliveryPhone.ts` (`user.phoneForDeliveryLookup`); `repos/canonicalUserId.ts` и `repos/linkedPhoneSource.ts` — узкие `db.query` без переноса в scope этапа 4.
+- **Проверки:** `pnpm --dir apps/integrator run lint`, `typecheck`, `test`.
+- **Планы:** `.cursor/plans/integrator_drizzle_phase_4_complex_sql.plan.md` — `status: completed`; мастер-план — `phase-4`, `dod-master` — `completed`.

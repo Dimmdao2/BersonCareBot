@@ -11,6 +11,9 @@ import { stubIntegratorDrizzleForTests } from './stubIntegratorDrizzleForTests.j
 type MockDbPort = DbPort & {
   query: ReturnType<typeof vi.fn>;
   tx: ReturnType<typeof vi.fn>;
+  integratorDrizzle: ReturnType<typeof stubIntegratorDrizzleForTests> & {
+    execute: ReturnType<typeof vi.fn>;
+  };
 };
 
 function createMockDb(): MockDbPort {
@@ -58,7 +61,7 @@ describe('createDbReadPort', () => {
       });
 
       expect(result).toEqual([]);
-      expect(db.query).toHaveBeenCalled();
+      expect(db.integratorDrizzle.execute).toHaveBeenCalled();
     });
 
     it('conversation.byId delegates to communicationReadsPort when available', async () => {
@@ -92,7 +95,7 @@ describe('createDbReadPort', () => {
       });
 
       expect(result).toBeNull();
-      expect(db.query).toHaveBeenCalled();
+      expect(db.integratorDrizzle.execute).toHaveBeenCalled();
     });
 
     it('questions.unanswered delegates to communicationReadsPort when available', async () => {
@@ -126,7 +129,7 @@ describe('createDbReadPort', () => {
       });
 
       expect(result).toEqual([]);
-      expect(db.query).toHaveBeenCalled();
+      expect(db.integratorDrizzle.execute).toHaveBeenCalled();
     });
 
     it('question.byConversationId delegates to communicationReadsPort when available', async () => {
@@ -160,7 +163,7 @@ describe('createDbReadPort', () => {
       });
 
       expect(result).toBeNull();
-      expect(db.query).toHaveBeenCalled();
+      expect(db.integratorDrizzle.execute).toHaveBeenCalled();
     });
 
     it('conversation.openByIdentity still uses local DB when communicationReadsPort is set', async () => {
@@ -178,7 +181,7 @@ describe('createDbReadPort', () => {
         params: { resource: 'telegram', externalId: '123' },
       });
 
-      expect(db.query).toHaveBeenCalled();
+      expect(db.integratorDrizzle.execute).toHaveBeenCalled();
       expect(communicationReadsPort.getConversationById).not.toHaveBeenCalled();
       expect(communicationReadsPort.listOpenConversations).not.toHaveBeenCalled();
     });

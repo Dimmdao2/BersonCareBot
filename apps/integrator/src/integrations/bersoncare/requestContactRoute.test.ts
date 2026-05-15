@@ -2,14 +2,20 @@ import Fastify from 'fastify';
 import { createHmac } from 'node:crypto';
 import { describe, expect, it, vi } from 'vitest';
 import type { DbPort } from '../../kernel/contracts/index.js';
+import { drizzleSqlFragmentToApproximateSql } from '../../infra/db/drizzleSqlDebugText.js';
+import { stubIntegratorDrizzleForTests } from '../../infra/db/stubIntegratorDrizzleForTests.js';
 import { registerBersoncareRequestContactRoute } from './requestContactRoute.js';
 
 const TEST_SECRET = 'test-secret-request-contact';
 
-/** `user.upsert` в writePort идёт через `db.tx`; для route-тестов достаточно прокинуть тот же `query`. */
+/** `user.upsert` / `user.state.set` в writePort идут через `db.tx` и Drizzle `execute`; `query` остаётся для оставшихся raw SQL путей. */
 function dbWithTx(query: DbPort['query']): DbPort {
-  const tx = vi.fn(async <T>(fn: (d: DbPort) => Promise<T>) => fn({ query, tx } as DbPort));
-  return { query, tx } as DbPort;
+  const integratorDrizzle = stubIntegratorDrizzleForTests();
+  (integratorDrizzle as { execute: ReturnType<typeof vi.fn> }).execute = vi.fn(async (frag: unknown) =>
+    query(drizzleSqlFragmentToApproximateSql(frag), []),
+  );
+  const tx = vi.fn(async <T>(fn: (d: DbPort) => Promise<T>) => fn({ query, tx, integratorDrizzle } as DbPort));
+  return { query, tx, integratorDrizzle } as DbPort;
 }
 
 function sign(timestamp: string, rawBody: string, secret: string): string {
