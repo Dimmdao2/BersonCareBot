@@ -57,7 +57,7 @@ isProject: false
 
 **Вне scope:** `projectionOutbox`, `jobQueue`, любые репозитории вне списка.
 
-**Вне этапа 1, осознанный второй канал SQL:** merge пользователей — [`mergeIntegratorUsers.ts`](../../apps/integrator/src/infra/db/repos/mergeIntegratorUsers.ts) (сырой SQL по `user_subscriptions` / `mailing_logs`); не дублировать в P1 без отдельной задачи.
+**Исторически вне этапа 1:** merge пользователей — [`mergeIntegratorUsers.ts`](../../apps/integrator/src/infra/db/repos/mergeIntegratorUsers.ts) — перенос на **`runIntegratorSql`** выполнен в **этапе 4** мастер-плана (см. [`docs/INTEGRATOR_DRIZZLE_MIGRATION/LOG.md`](../../docs/INTEGRATOR_DRIZZLE_MIGRATION/LOG.md)).
 
 ## Порядок работ (обязательный)
 
@@ -69,7 +69,7 @@ isProject: false
 
 - [x] Сверить физические имена таблиц и колонок с [`apps/webapp/db/schema/schema.ts`](../../apps/webapp/db/schema/schema.ts) и/или dump integrator DDL (`docs/ARCHITECTURE/DB_DUMPS/` при необходимости).
 - [x] Добавить таблицы в регистрируемый schema-object для [`getIntegratorDrizzle()`](../../apps/integrator/src/infra/db/drizzle.ts).
-- [x] Проверка второго канала записи (`rg` по `user_subscriptions`, `booking_calendar_map`, `mailing_logs`, `delivery_attempt_logs`): кроме осознанного merge-SQL — отдельный канал не вводился.
+- [x] Проверка второго канала записи (`rg` по `user_subscriptions`, `booking_calendar_map`, `mailing_logs`, `delivery_attempt_logs`): кроме merge в **этапе 4** (`mergeIntegratorUsers`) — отдельный канал не вводился.
 
 ### 2. Пер-компонентный перевод
 

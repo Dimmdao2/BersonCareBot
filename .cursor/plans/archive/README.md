@@ -1,16 +1,11 @@
 # Архив Cursor-планов (`status: completed`)
 
-Закрытые планы хранятся здесь, чтобы в **`.cursor/plans/*.plan.md`** (корень) оставались только **активные** треки.
+Закрытые планы хранятся здесь, чтобы в **`.cursor/plans/*.plan.md`** (корень) оставались в основном **открытые** треки. Исключения см. ниже.
 
-## Активные планы (корень `.cursor/plans/`)
+## Корень `.cursor/plans/` (файлы вне этого каталога `archive/`)
 
-- `integrator_drizzle_migration_master.plan.md`
-- `integrator_drizzle_phase_1_simple_repos.plan.md`
-- `integrator_drizzle_phase_2_outbox_job_queue.plan.md`
-- `integrator_drizzle_phase_3_domain_repos.plan.md`
-- `integrator_drizzle_phase_4_complex_sql.plan.md`
-
-Журнал: `docs/INTEGRATOR_DRIZZLE_MIGRATION/LOG.md`.
+- **Integrator → Drizzle** — закрыто **2026-05-15** (`status: completed` в `integrator_drizzle_*.plan.md`); журнал [`docs/INTEGRATOR_DRIZZLE_MIGRATION/LOG.md`](../../docs/INTEGRATOR_DRIZZLE_MIGRATION/LOG.md). Планы по-прежнему лежат в **корне** `.cursor/plans/` (стабильные ссылки из `docs/README.md`, `docs/TODO.md`); при уборке по процессу — **`git mv`** в этот каталог ([правило планов](../../.cursor/rules/plan-authoring-execution-standard.mdc) §9).
+- **Активный трек:** [`production_log_findings_2026-05-14.plan.md`](../production_log_findings_2026-05-14.plan.md) (`status: pending`).
 
 ## Содержимое этого каталога
 

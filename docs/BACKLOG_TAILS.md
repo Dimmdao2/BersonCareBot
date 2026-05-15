@@ -10,7 +10,7 @@
 
 ## Средние хвосты
 
-- **`INTEGRATOR_DRIZZLE_MIGRATION`:** активные планы в `.cursor/plans/integrator_drizzle_*.plan.md`, журнал — `docs/INTEGRATOR_DRIZZLE_MIGRATION/LOG.md`.
+- **`INTEGRATOR_DRIZZLE_MIGRATION`:** закрыта **2026-05-15**; журнал — [`INTEGRATOR_DRIZZLE_MIGRATION/LOG.md`](INTEGRATOR_DRIZZLE_MIGRATION/LOG.md); планы — `.cursor/plans/integrator_drizzle_*.plan.md`. Follow-up **`db.query`** вне scope мастера — в том же журнале (раздел «Закрытие инициативы» / «Инструментальные проверки»).
 - `TREATMENT_PROGRAM_INITIATIVE` (архив): планово разгребать `LEGACY_CLEANUP_BACKLOG.md` (старые boundary-нарушения, не блокируют runtime).
 - `PATIENT_HOME_REDESIGN_INITIATIVE` (архив): остаточная pixel-полировка пустых состояний и микро-UX мелочи (не блокеры).
 

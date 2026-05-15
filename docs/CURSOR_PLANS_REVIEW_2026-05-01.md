@@ -3,7 +3,7 @@
 ## Для агентов (не путать контексты)
 
 - Этот файл описывает планы в **домашнем каталоге Cursor** `~/.cursor/plans` (на машине пользователя), **а не** единственный источник правды по репозиторию.
-- **В репозитории BersonCareBot** отдельное дерево: **`<репо>/.cursor/plans/`** — см. [`.cursor/plans/archive/README.md`](../.cursor/plans/archive/README.md). Активные треки репо: **Integrator → Drizzle** (`integrator_drizzle_*.plan.md` в корне `<репо>/.cursor/plans/`); закрытое — в **`<репо>/.cursor/plans/archive/`**.
+- **В репозитории BersonCareBot** отдельное дерево: **`<репо>/.cursor/plans/`** — см. [`.cursor/plans/archive/README.md`](../.cursor/plans/archive/README.md). Пример закрытого трека в корне репо: **Integrator → Drizzle** (2026-05-15, `integrator_drizzle_*.plan.md` + [`docs/INTEGRATOR_DRIZZLE_MIGRATION/LOG.md`](INTEGRATOR_DRIZZLE_MIGRATION/LOG.md)); закрытое по методологии — в **`<репо>/.cursor/plans/archive/`**.
 - Ниже по тексту — **архивный снимок методики и таблиц на 2026-05-01**; счётчики и «активные в корне» для **`~/.cursor/plans`** после уборок **2026-05-01** и **2026-05-14** не совпадают с промежуточными цифрами в таблицах. Актуальное правило уборки домашнего каталога — блок **«2026-05-14»** в конце и [`docs/TODO.md`](TODO.md) §Cursor-планы.
 - Исторически в корне **`~/.cursor/plans`** иногда держали и полностью закрытые structured-планы; **сейчас** такие уносят в **`~/.cursor/plans/archive/*-closed/`**, чтобы в корне оставались в основном открытые треки.
 
