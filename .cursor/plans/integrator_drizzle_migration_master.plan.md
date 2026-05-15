@@ -86,6 +86,6 @@ isProject: true
 ## Definition of Done (мастер)
 
 - [x] Принято и описано решение по общей Drizzle-схеме для integrator таблиц; `getIntegratorDrizzle` покрывает все переведённые таблицы этапов 1–4.
-- [x] Все четыре этапных плана переведены в завершённые состояния (`todos`, чеклисты, LOG).
+- [x] Все четыре этапных плана переведены в завершённые состояния (`todos`, чеклисты, **`status: completed` в YAML**, LOG).
 - [x] `pnpm --dir apps/integrator run typecheck` и `pnpm --dir apps/integrator run test` зелёные после финального этапа.
 - [x] В [`docs/INTEGRATOR_DRIZZLE_MIGRATION/LOG.md`](../../docs/INTEGRATOR_DRIZZLE_MIGRATION/LOG.md) зафиксированы решения по схеме, риски оставшегося сырого SQL (если есть) и краткий итог по этапам.

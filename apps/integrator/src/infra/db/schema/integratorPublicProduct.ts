@@ -2,6 +2,8 @@
  * Узкие Drizzle-описания таблиц `public`, с которыми работает integrator (P1 repos).
  * Колонки, индексы и CHECK сверены с `apps/webapp/db/schema/schema.ts`
  * (без FK в объект схемы — не тянем users/mailings).
+ * Обновления `public.patient_bookings` из `repos/bookingCalendarMap.ts` — через `runIntegratorSql` + `sql`
+ * (отдельная таблица здесь не регистрируется).
  */
 import { sql } from 'drizzle-orm';
 import {

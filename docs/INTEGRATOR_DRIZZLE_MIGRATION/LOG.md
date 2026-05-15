@@ -3,7 +3,7 @@
 ## 2026-05-14
 
 - Заведена инициатива: мастер-план и поэтапные планы в **`.cursor/plans/integrator_drizzle_migration_*.plan.md`** (корень `.cursor/plans/`). Закрытые планы репозитория — **`.cursor/plans/archive/`** ([README](../../.cursor/plans/archive/README.md)).
-- Контекст: в интеграторе уже есть Drizzle только для операторских таблиц через `@bersoncare/operator-db-schema` (`getIntegratorDrizzle`); остальные репозитории пока на `DbPort` / сырой SQL.
+- Контекст: в интеграторе Drizzle для операторских таблиц через `@bersoncare/operator-db-schema` (`getIntegratorDrizzle`); целевые репозитории этапов P1–P4 переведены на Drizzle API и/или **`runIntegratorSql` / `execute(sql)`** (см. раздел «Закрытие инициативы»). Остатки **`db.query`** вне scope плана — в том же разделе.
 
 ## 2026-05-15
 
@@ -77,7 +77,12 @@
 - **`bookingCalendarMap.ts`:** `public.patient_bookings` — только `runIntegratorSql` + `sql` (убраны остатки `db.query`); DoD этапа 1 согласован с кодом.
 - **Планы:** в frontmatter **`.cursor/plans/integrator_drizzle_phase_1_simple_repos.plan.md`** и **`integrator_drizzle_phase_2_outbox_job_queue.plan.md`** добавлено **`status: completed`** (как у этапов 3–4 и мастера).
 
+### Инструментальные проверки (репозиторий)
+
+- В корневом **`eslint.config.mjs`** **нет** отдельного правила, запрещающего **`db.query(...)`** по всему `apps/integrator` (только ограничения `no-restricted-imports` для `domain` / `telegram` / `worker`). Контроль канона SQL для переведённых репо — **DoD этапных планов** и ревью; автоматический запрет на весь пакет не вводился, чтобы не ломать миграции, скрипты и осознанный backlog (`outgoingDeliveryQueue`, `projectionHealth` и др.).
+
 ### Закрытие инициативы
 
 - Этапы **P1–P4** и **мастер-план** закрыты; целевые репозитории плана не используют для своей доменной логики строковый **`db.query(...)`** (Drizzle API и/или **`runIntegratorSql` / `execute(sql)`**).
+- После выравнивания: **`pnpm --dir apps/integrator run lint`**, **`typecheck`**, **`test`** — зелёные.
 - Вне scope этой инициативы (отдельный backlog при необходимости): **`outgoingDeliveryQueue.ts`**, **`platformUserDeliveryPhone.ts`**, **`canonicalUserId.ts`**, **`linkedPhoneSource.ts`**, а также скрипты/health вне списка мастера (`projectionHealth`, `projection-health.mjs` и т.п.).
