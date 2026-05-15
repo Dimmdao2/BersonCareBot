@@ -109,4 +109,18 @@ describe("BroadcastConfirmStep", () => {
     );
     expect(document.getElementById("broadcast-preview-estimate-warning")).not.toBeInTheDocument();
   });
+
+  it("shows dev_mode reach note when segmentSize exceeds audienceSize", () => {
+    render(
+      <BroadcastConfirmStep
+        preview={{ ...preview, audienceSize: 1, segmentSize: 75 }}
+        command={{ ...command, audienceFilter: "all" }}
+        onConfirm={vi.fn()}
+        onCancel={vi.fn()}
+        isLoading={false}
+      />
+    );
+    expect(document.getElementById("broadcast-dev-mode-reach-note")).toBeInTheDocument();
+    expect(screen.getByText(/dev_mode/i)).toBeInTheDocument();
+  });
 });

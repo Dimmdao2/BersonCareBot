@@ -5,11 +5,14 @@ import type { BroadcastAudienceFilter, BroadcastAuditEntry } from "./ports";
 describe("doctor-broadcasts service", () => {
   const auditEntries: BroadcastAuditEntry[] = [];
 
-  const resolveAudienceSize = async (filter: BroadcastAudienceFilter): Promise<number> => {
-    if (filter === "all") return 42;
-    if (filter === "with_telegram") return 30;
-    if (filter === "with_max") return 15;
-    return 0;
+  const resolveBroadcastAudienceForPreview = async (
+    _filter: BroadcastAudienceFilter,
+    _channels: unknown[],
+  ): Promise<{ audienceSize: number; segmentSize?: number }> => {
+    if (_filter === "all") return { audienceSize: 42 };
+    if (_filter === "with_telegram") return { audienceSize: 30 };
+    if (_filter === "with_max") return { audienceSize: 15 };
+    return { audienceSize: 0 };
   };
 
   const broadcastAuditPort = {
@@ -28,7 +31,7 @@ describe("doctor-broadcasts service", () => {
   };
 
   const service = createDoctorBroadcastsService({
-    resolveAudienceSize,
+    resolveBroadcastAudienceForPreview,
     broadcastAuditPort,
   });
 
@@ -81,6 +84,21 @@ describe("doctor-broadcasts service", () => {
       channels: ["sms"],
     });
     expect(result.channels).toEqual(["sms"]);
+  });
+
+  it("preview passes segmentSize when resolver returns it", async () => {
+    const svc = createDoctorBroadcastsService({
+      resolveBroadcastAudienceForPreview: async () => ({ audienceSize: 1, segmentSize: 75 }),
+      broadcastAuditPort,
+    });
+    const result = await svc.preview({
+      category: "service",
+      audienceFilter: "all",
+      message: { title: "T", body: "Body text here" },
+      actorId: "a",
+    });
+    expect(result.audienceSize).toBe(1);
+    expect(result.segmentSize).toBe(75);
   });
 
   it("listAudit returns entries", async () => {

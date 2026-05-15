@@ -33,7 +33,13 @@ export type BroadcastCommand = {
 
 /** Результат preview (dry-run): сколько пользователей попало, без отправки. */
 export type BroadcastPreviewResult = {
+  /** Ожидаемое число получателей с учётом relay dev_mode (если включён — пересечение с тестовыми Telegram/Max). */
   audienceSize: number;
+  /**
+   * Размер сегмента по выбранному фильтру без сужения dev_mode.
+   * Заполняется, когда `audienceSize` меньше (показать в UI «в сегменте N…»).
+   */
+  segmentSize?: number;
   category: BroadcastCategory;
   audienceFilter: BroadcastAudienceFilter;
   channels: BroadcastChannel[];

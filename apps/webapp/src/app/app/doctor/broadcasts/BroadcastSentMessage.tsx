@@ -16,7 +16,10 @@ export function BroadcastSentMessage({ preview }: Props) {
     >
       <p className="font-medium text-sm">Рассылка запущена. Журнал обновится автоматически.</p>
       <p className="text-xs text-muted-foreground">
-        Аудитория: {preview.audienceSize} получателей
+        Получателей (доставка): {preview.audienceSize}
+        {preview.segmentSize != null && preview.segmentSize > preview.audienceSize
+          ? ` (в сегменте ${preview.segmentSize})`
+          : ""}
       </p>
       <p className="text-xs text-muted-foreground">Каналы: {formatChannelsSummary(preview.channels)}</p>
     </div>

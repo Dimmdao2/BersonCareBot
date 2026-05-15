@@ -37,6 +37,14 @@ export function BroadcastConfirmStep({ preview, command, onConfirm, onCancel, is
         <dd id="broadcast-channels-summary">{formatChannelsSummary(preview.channels)}</dd>
       </dl>
 
+      {preview.segmentSize != null && preview.segmentSize > preview.audienceSize ? (
+        <p id="broadcast-dev-mode-reach-note" className="text-xs text-muted-foreground">
+          В сегменте «{formatAudienceLabel(command.audienceFilter)}» — {preview.segmentSize} клиентов. Учтён
+          dev_mode: в мессенджер уйдут только привязки Telegram/Max из «Тестовые аккаунты» в настройках администратора;
+          SMS в этом режиме через relay не отправляется.
+        </p>
+      ) : null}
+
       {isAudienceEstimateApproximate(command.audienceFilter) ? (
         <p
           id="broadcast-preview-estimate-warning"

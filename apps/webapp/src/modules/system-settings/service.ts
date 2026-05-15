@@ -26,6 +26,23 @@ export function createSystemSettingsService(port: SystemSettingsPort) {
     return (ALLOWED_KEYS as readonly string[]).includes(key);
   }
 
+  async function readRelayDevContext(): Promise<{
+    devMode: boolean;
+    testAccounts: TestAccountIdentifiers | null;
+  }> {
+    const devModeSetting = await port.getByKey("dev_mode", "admin");
+    const devMode =
+      devModeSetting?.valueJson !== null &&
+      typeof devModeSetting?.valueJson === "object" &&
+      (devModeSetting.valueJson as Record<string, unknown>).value === true;
+
+    if (!devMode) {
+      return { devMode: false, testAccounts: null };
+    }
+    const testAccounts = await readTestAccountIdentifiersFromPort(port);
+    return { devMode: true, testAccounts };
+  }
+
   return {
     getSetting(key: SystemSettingKey, scope: SystemSettingScope): Promise<SystemSetting | null> {
       return port.getByKey(key, scope);
@@ -94,19 +111,16 @@ export function createSystemSettingsService(port: SystemSettingsPort) {
      * bypass техработ пациента (`isTestPatientSession`), не для этого метода, пока нет phone-based relay-вызовов.
      */
     async shouldDispatchRelayToRecipient(ctx: { channel: string; recipient: string }): Promise<boolean> {
-      const devModeSetting = await port.getByKey("dev_mode", "admin");
-      const devMode =
-        devModeSetting?.valueJson !== null &&
-        typeof devModeSetting?.valueJson === "object" &&
-        (devModeSetting.valueJson as Record<string, unknown>).value === true;
-
+      const { devMode, testAccounts } = await readRelayDevContext();
       if (!devMode) return true;
-
-      const spec = await readTestAccountIdentifiersFromPort(port);
-      if (spec === null) return false;
-
-      return relayRecipientAllowedInDevMode(ctx.channel, ctx.recipient, spec);
+      if (testAccounts === null) return false;
+      return relayRecipientAllowedInDevMode(ctx.channel, ctx.recipient, testAccounts);
     },
+
+    /**
+     * Снимок admin `dev_mode` + `test_account_identifiers` для оценки доставки (рассылки, предпросмотр relay).
+     */
+    getRelayDevContext: readRelayDevContext,
 
     /**
      * Тестовый пациентский аккаунт для bypass техработ: совпадение по телефону (E.164) или Telegram/Max ID из сессии.

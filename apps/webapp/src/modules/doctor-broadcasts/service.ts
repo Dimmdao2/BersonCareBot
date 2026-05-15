@@ -6,11 +6,17 @@ import type {
   BroadcastCommand,
   BroadcastPreviewResult,
 } from "./ports";
-import { normalizeBroadcastChannels } from "./broadcastChannels";
+import { normalizeBroadcastChannels, type BroadcastChannel } from "./broadcastChannels";
 
 export type DoctorBroadcastsServiceDeps = {
-  /** Resolves number of users matching the audience filter (for preview and audit). */
-  resolveAudienceSize(filter: BroadcastAudienceFilter): Promise<number>;
+  /**
+   * Размер аудитории для preview и аудита: `audienceSize` — фактическая доставка с учётом dev_mode;
+   * `segmentSize` — размер сегмента по фильтру, если dev_mode сужает охват.
+   */
+  resolveBroadcastAudienceForPreview(
+    filter: BroadcastAudienceFilter,
+    channels: BroadcastChannel[],
+  ): Promise<{ audienceSize: number; segmentSize?: number }>;
   broadcastAuditPort: BroadcastAuditPort;
 };
 
@@ -37,9 +43,13 @@ export function createDoctorBroadcastsService(deps: DoctorBroadcastsServiceDeps)
 
     async preview(command: BroadcastCommand): Promise<BroadcastPreviewResult> {
       const channels = resolvedChannels(command);
-      const audienceSize = await deps.resolveAudienceSize(command.audienceFilter);
+      const { audienceSize, segmentSize } = await deps.resolveBroadcastAudienceForPreview(
+        command.audienceFilter,
+        channels,
+      );
       return {
         audienceSize,
+        ...(segmentSize !== undefined ? { segmentSize } : {}),
         category: command.category,
         audienceFilter: command.audienceFilter,
         channels,
@@ -49,7 +59,7 @@ export function createDoctorBroadcastsService(deps: DoctorBroadcastsServiceDeps)
     async execute(command: BroadcastCommand): Promise<{ auditEntry: BroadcastAuditEntry }> {
       // Аудит + размер аудитории; массовая доставка по каналам не вызывается здесь.
       const channels = resolvedChannels(command);
-      const audienceSize = await deps.resolveAudienceSize(command.audienceFilter);
+      const { audienceSize } = await deps.resolveBroadcastAudienceForPreview(command.audienceFilter, channels);
       const entry = await deps.broadcastAuditPort.append({
         actorId: command.actorId,
         category: command.category,

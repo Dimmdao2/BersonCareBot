@@ -42,7 +42,10 @@ import { createDoctorStatsService } from "@/modules/doctor-stats/service";
 import { createDoctorNotesService } from "@/modules/doctor-notes/service";
 import type { ClientAppointmentHistoryItem } from "@/modules/doctor-clients/service";
 import { createDoctorBroadcastsService } from "@/modules/doctor-broadcasts/service";
-import type { BroadcastAudienceFilter } from "@/modules/doctor-broadcasts/ports";
+import {
+  listClientsForBroadcastAudience,
+  computeDevModeRelayBroadcastReach,
+} from "@/modules/doctor-broadcasts/broadcastAudienceMetrics";
 import { inMemoryDoctorClientsPort } from "@/infra/repos/inMemoryDoctorClients";
 import { inMemoryBroadcastAuditPort } from "@/infra/repos/inMemoryBroadcastAudit";
 import { createPgBroadcastAuditPort } from "@/infra/repos/pgBroadcastAudit";
@@ -631,44 +634,18 @@ function _buildAppDeps() {
       getDashboardAppointmentMetrics: () => doctorAppointmentsPort.getDashboardAppointmentMetrics(),
     }),
     doctorBroadcasts: createDoctorBroadcastsService({
-      resolveAudienceSize: async (filter: BroadcastAudienceFilter) => {
-        if (filter === "with_telegram") {
-          const list = await doctorClientsPort.listClients({ hasTelegram: true });
-          return list.length;
+      resolveBroadcastAudienceForPreview: async (filter, channels) => {
+        const clients = await listClientsForBroadcastAudience(doctorClientsPort, filter);
+        const nominal = clients.length;
+        const { devMode, testAccounts } = await systemSettingsService.getRelayDevContext();
+        if (!devMode) {
+          return { audienceSize: nominal };
         }
-        if (filter === "with_max") {
-          const list = await doctorClientsPort.listClients({ hasMax: true });
-          return list.length;
+        const r = computeDevModeRelayBroadcastReach(clients, channels, testAccounts);
+        if (r.cappedByDevMode) {
+          return { audienceSize: r.effective, segmentSize: nominal };
         }
-        if (filter === "with_upcoming_appointment") {
-          const list = await doctorClientsPort.listClients({ hasUpcomingAppointment: true });
-          return list.length;
-        }
-        if (filter === "active_clients") {
-          const list = await doctorClientsPort.listClients({ onlyWithAppointmentRecords: true });
-          return list.length;
-        }
-        if (filter === "without_appointment") {
-          // Clients without an upcoming appointment = all − with_upcoming_appointment.
-          const [all, withUpcoming] = await Promise.all([
-            doctorClientsPort.listClients({}),
-            doctorClientsPort.listClients({ hasUpcomingAppointment: true }),
-          ]);
-          return all.length - withUpcoming.length;
-        }
-        if (filter === "inactive") {
-          // TODO(AUDIT-BACKLOG-010): add lastEventBefore filter to DoctorClientsPort when inactivity tracking lands.
-          const list = await doctorClientsPort.listClients({});
-          return list.length;
-        }
-        if (filter === "sms_only") {
-          // TODO(AUDIT-BACKLOG-011): add smsOnly filter to DoctorClientsPort when channel-attribute tracking lands.
-          const list = await doctorClientsPort.listClients({});
-          return list.length;
-        }
-        // filter === "all"
-        const list = await doctorClientsPort.listClients({});
-        return list.length;
+        return { audienceSize: r.effective };
       },
       broadcastAuditPort,
     }),

@@ -177,6 +177,40 @@ describe("SystemSettingsService", () => {
     expect(await service.shouldDispatchRelayToRecipient({ channel: "max", recipient: "m1" })).toBe(true);
   });
 
+  it("getRelayDevContext — dev_mode off → devMode false", async () => {
+    const port = makePort({
+      getByKey: vi.fn().mockImplementation(async (key) => {
+        if (key === "dev_mode")
+          return { key: "dev_mode", scope: "admin", valueJson: { value: false }, updatedAt: "", updatedBy: null };
+        return null;
+      }),
+    });
+    const service = createSystemSettingsService(port);
+    await expect(service.getRelayDevContext()).resolves.toEqual({ devMode: false, testAccounts: null });
+  });
+
+  it("getRelayDevContext — dev_mode on → testAccounts loaded", async () => {
+    const port = makePort({
+      getByKey: vi.fn().mockImplementation(async (key) => {
+        if (key === "dev_mode")
+          return { key: "dev_mode", scope: "admin", valueJson: { value: true }, updatedAt: "", updatedBy: null };
+        if (key === "test_account_identifiers")
+          return {
+            key: "test_account_identifiers",
+            scope: "admin",
+            valueJson: { value: { phones: [], telegramIds: ["9"], maxIds: [] } },
+            updatedAt: "",
+            updatedBy: null,
+          };
+        return null;
+      }),
+    });
+    const service = createSystemSettingsService(port);
+    const ctx = await service.getRelayDevContext();
+    expect(ctx.devMode).toBe(true);
+    expect(ctx.testAccounts?.telegramIds).toEqual(["9"]);
+  });
+
   it("isTestPatientSession — совпадение по телефону", async () => {
     const port = makePort({
       getByKey: vi.fn().mockImplementation(async (key) => {
