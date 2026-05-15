@@ -18,9 +18,7 @@ import {
   type InstanceStageItem,
 } from "@/app/app/patient/treatment/stageItemSnapshot";
 import {
-  formatPlanItemDoneCooldownCaption,
   isItemDoneCooldownActive,
-  itemDoneCooldownMinutesRemaining,
   planItemDoneRepeatCooldownMsFromMinutes,
 } from "@/modules/treatment-program/itemDoneCooldown";
 import {
@@ -154,7 +152,9 @@ function PatientProgramTileSimpleCompleteButton(props: {
     props;
   const merged = mergeLastActivityDisplayedIso(lastDoneAtIso, completedAt);
   const doneFrozen = isItemDoneCooldownActive(merged, planItemDoneRepeatCooldownMs);
+  /* Скрыто: подпись cooldown — при возврате раскомментировать и импорт formatPlanItemDoneCooldownCaption + itemDoneCooldownMinutesRemaining.
   const cooldownMinutes = itemDoneCooldownMinutesRemaining(merged, planItemDoneRepeatCooldownMs);
+  */
 
   return (
     <div className="flex min-w-0 flex-1 basis-0 flex-col gap-0.5">
@@ -187,11 +187,13 @@ function PatientProgramTileSimpleCompleteButton(props: {
       >
         {doneFrozen ? "Выполнено" : "Отметить выполнение"}
       </button>
+      {/* Скрыто: строка «Можно отметить повторно…» — см. cooldownMinutes выше.
       {doneFrozen && cooldownMinutes != null ? (
         <p className={cn(patientMutedTextClass, "text-center text-[10px] leading-tight")}>
           {formatPlanItemDoneCooldownCaption(cooldownMinutes)}
         </p>
       ) : null}
+      */}
     </div>
   );
 }

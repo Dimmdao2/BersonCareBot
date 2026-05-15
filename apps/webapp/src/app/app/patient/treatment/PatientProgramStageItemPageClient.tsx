@@ -44,9 +44,7 @@ import {
   testTitleFromTestSetSnapshot,
 } from "@/app/app/patient/treatment/stageItemSnapshot";
 import {
-  formatPlanItemDoneCooldownCaption,
   isItemDoneCooldownActive,
-  itemDoneCooldownMinutesRemaining,
   planItemDoneRepeatCooldownMsFromMinutes,
 } from "@/modules/treatment-program/itemDoneCooldown";
 import { patientHomeCardHeroClass } from "@/app/app/patient/home/patientHomeCardStyles";
@@ -445,10 +443,13 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
   const lastIsoForSimpleComplete =
     item ? mergeLastActivityDisplayedIso(lastDoneAtIsoByItemId[item.id], item.completedAt) : null;
   const simpleCompleteDoneFrozen = isItemDoneCooldownActive(lastIsoForSimpleComplete, planItemDoneRepeatCooldownMs);
+  /* Скрыто: подпись «Можно отметить повторно…» — при возврате раскомментировать и вернуть импорт
+     `formatPlanItemDoneCooldownCaption`, `itemDoneCooldownMinutesRemaining` и блок ниже.
   const simpleCompleteCooldownMinutes = itemDoneCooldownMinutesRemaining(
     lastIsoForSimpleComplete,
     planItemDoneRepeatCooldownMs,
   );
+  */
 
   const primaryMedia = useMemo(() => {
     if (!item) return null;
@@ -831,6 +832,7 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
                         Добавить комментарий
                       </button>
                     </div>
+                    {/* Скрыто: строка «Можно отметить повторно…» — см. закомментированный simpleCompleteCooldownMinutes выше.
                     {simpleCompleteDoneFrozen && simpleCompleteCooldownMinutes != null ? (
                       <p
                         className={cn(
@@ -841,6 +843,7 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
                         {formatPlanItemDoneCooldownCaption(simpleCompleteCooldownMinutes)}
                       </p>
                     ) : null}
+                    */}
                   </div>
                 )}
               </div>

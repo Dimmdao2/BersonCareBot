@@ -20,9 +20,7 @@ import {
   mergeLastActivityDisplayedIso,
 } from "@/app/app/patient/treatment/stageItemSnapshot";
 import {
-  formatPlanItemDoneCooldownCaption,
   isItemDoneCooldownActive,
-  itemDoneCooldownMinutesRemaining,
   planItemDoneRepeatCooldownMsFromMinutes,
 } from "@/modules/treatment-program/itemDoneCooldown";
 import { PatientCatalogMediaStaticThumb } from "@/shared/ui/patient/PatientCatalogMediaStaticThumb";
@@ -92,7 +90,9 @@ export function PatientInstanceStageItemCard(props: {
   );
   const mergedDoneIso = mergeLastActivityDisplayedIso(lastDoneAtIsoByItemId[item.id], item.completedAt);
   const simpleCompleteDoneFrozen = isItemDoneCooldownActive(mergedDoneIso, planItemDoneRepeatCooldownMs);
+  /* Скрыто: подпись cooldown — при возврате раскомментировать и импорт formatPlanItemDoneCooldownCaption + itemDoneCooldownMinutesRemaining.
   const simpleCooldownMinutes = itemDoneCooldownMinutesRemaining(mergedDoneIso, planItemDoneRepeatCooldownMs);
+  */
   const router = useRouter();
   const readOnly = itemInteraction === "readOnly";
   const [markingViewed, setMarkingViewed] = useState(false);
@@ -401,11 +401,13 @@ export function PatientInstanceStageItemCard(props: {
                 >
                   {simpleCompleteDoneFrozen ? "Выполнено" : "Отметить выполненным"}
                 </button>
+                {/* Скрыто: строка «Можно отметить повторно…» — см. simpleCooldownMinutes выше.
                 {simpleCompleteDoneFrozen && simpleCooldownMinutes != null ? (
                   <p className={cn(patientMutedTextClass, "text-[10px] leading-tight")}>
                     {formatPlanItemDoneCooldownCaption(simpleCooldownMinutes)}
                   </p>
                 ) : null}
+                */}
               </div>
             ) : null
           ) : null}
