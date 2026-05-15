@@ -34,6 +34,9 @@ export type OutgoingDeliveryQueueHealthSnapshot = {
   deadTotal: number;
   oldestDueAgeSeconds: number | null;
   dueByChannel: Record<string, number>;
+  /** Due-строки по `outgoing_delivery_queue.kind` (внутренние ключи; для UI — маппинг). */
+  dueByKind: Record<string, number>;
+  deadByKind: Record<string, number>;
   processingCount: number;
   lastSentAt: string | null;
   lastQueueActivityAt: string | null;

@@ -185,6 +185,8 @@ export type OutgoingDeliveryHealthPayload = {
   oldestDueAgeSeconds: number | null;
   /** Количество due-строк по каналу (`outgoing_delivery_queue.channel`). */
   dueByChannel: Record<string, number>;
+  dueByKind: Record<string, number>;
+  deadByKind: Record<string, number>;
   /** Строки в `processing` (в т.ч. до сброса зависших). */
   processingCount: number;
   /** `max(sent_at)` по успешно отправленным строкам. */
@@ -744,6 +746,8 @@ async function probeOperatorHealthData(): Promise<
       deadTotal: outgoingSnapshot.deadTotal,
       oldestDueAgeSeconds: outgoingSnapshot.oldestDueAgeSeconds,
       dueByChannel: outgoingSnapshot.dueByChannel,
+      dueByKind: outgoingSnapshot.dueByKind,
+      deadByKind: outgoingSnapshot.deadByKind,
       processingCount: outgoingSnapshot.processingCount,
       lastSentAt: outgoingSnapshot.lastSentAt,
       lastQueueActivityAt: outgoingSnapshot.lastQueueActivityAt,
@@ -798,6 +802,8 @@ const emptyOutgoingDeliveryHealthPayload = (): OutgoingDeliveryHealthPayload => 
   deadTotal: 0,
   oldestDueAgeSeconds: null,
   dueByChannel: {},
+  dueByKind: {},
+  deadByKind: {},
   processingCount: 0,
   lastSentAt: null,
   lastQueueActivityAt: null,

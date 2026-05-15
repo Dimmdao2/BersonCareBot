@@ -2,11 +2,21 @@ import type { BroadcastAuditEntry, BroadcastAuditPort } from "@/modules/doctor-b
 
 const store: BroadcastAuditEntry[] = [];
 
+export function pushInMemoryBroadcastAuditEntry(entry: BroadcastAuditEntry): void {
+  store.push(entry);
+}
+
 export const inMemoryBroadcastAuditPort: BroadcastAuditPort = {
   async append(entry): Promise<BroadcastAuditEntry> {
     const id = `broadcast-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
     const executedAt = new Date().toISOString();
-    const full: BroadcastAuditEntry = { ...entry, id, executedAt };
+    const full: BroadcastAuditEntry = {
+      ...entry,
+      messageBody: entry.messageBody ?? "",
+      deliveryJobsTotal: entry.deliveryJobsTotal ?? 0,
+      id,
+      executedAt,
+    };
     store.push(full);
     return full;
   },

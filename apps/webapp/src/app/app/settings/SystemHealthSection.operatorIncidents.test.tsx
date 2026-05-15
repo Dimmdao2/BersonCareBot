@@ -81,6 +81,8 @@ function healthJson(overrides: Record<string, unknown> = {}) {
       dueBacklog: 0,
       deadTotal: 0,
       oldestDueAgeSeconds: null,
+      dueByKind: {},
+      deadByKind: {},
       dueByChannel: {},
       processingCount: 0,
       lastSentAt: null,

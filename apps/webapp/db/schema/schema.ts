@@ -148,10 +148,12 @@ export const broadcastAudit = pgTable("broadcast_audit", {
 	category: text().notNull(),
 	audienceFilter: text("audience_filter").notNull(),
 	messageTitle: text("message_title").notNull(),
+	messageBody: text("message_body").notNull().default(""),
 	channels: text("channels").array().notNull().default(sql`ARRAY['bot_message'::text, 'sms'::text]`),
 	executedAt: timestamp("executed_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 	previewOnly: boolean("preview_only").default(false).notNull(),
 	audienceSize: integer("audience_size").default(0).notNull(),
+	deliveryJobsTotal: integer("delivery_jobs_total").notNull().default(0),
 	sentCount: integer("sent_count").default(0).notNull(),
 	errorCount: integer("error_count").default(0).notNull(),
 }, (table) => [

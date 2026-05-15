@@ -1,40 +1,47 @@
 import { describe, it, expect } from "vitest";
 import { createDoctorBroadcastsService } from "./service";
-import type { BroadcastAudienceFilter, BroadcastAuditEntry } from "./ports";
+import type { BroadcastAudienceFilter, BroadcastAuditEntry, DoctorBroadcastQueueJob } from "./ports";
+import type { ClientListItem } from "@/modules/doctor-clients/ports";
+import { BROADCAST_DELIVERY_CAP_EXCEEDED_CODE } from "./deliveryQueueKind";
 
 describe("doctor-broadcasts service", () => {
   const auditEntries: BroadcastAuditEntry[] = [];
+  const committed: Array<{ auditId: string; jobs: DoctorBroadcastQueueJob[] }> = [];
 
-  const resolveBroadcastAudienceForPreview = async (
+  const client = (id: string, tg?: string): ClientListItem => ({
+    userId: id,
+    displayName: `User ${id}`,
+    phone: "+79990001122",
+    bindings: { telegramId: tg },
+    nextAppointmentLabel: null,
+    activeTreatmentProgram: false,
+    activeTreatmentProgramInstanceId: null,
+    cancellationCount30d: 0,
+  });
+
+  const resolveBroadcastAudience = async (
     _filter: BroadcastAudienceFilter,
     _channels: unknown[],
-  ): Promise<{
-    audienceSize: number;
-    segmentSize?: number;
-    recipientsPreview: { names: string[]; total: number; truncated: boolean };
-  }> => {
-    if (_filter === "all")
-      return {
-        audienceSize: 42,
-        recipientsPreview: { names: [], total: 42, truncated: true },
-      };
-    if (_filter === "with_telegram")
-      return {
-        audienceSize: 30,
-        recipientsPreview: { names: ["A"], total: 30, truncated: true },
-      };
-    if (_filter === "with_max")
-      return { audienceSize: 15, recipientsPreview: { names: [], total: 15, truncated: true } };
-    return { audienceSize: 0, recipientsPreview: { names: [], total: 0, truncated: false } };
+  ) => {
+    const effective = [client("u1", "12345"), client("u2", "67890")];
+    return {
+      audienceSize: effective.length,
+      recipientsPreview: { names: [], total: effective.length, truncated: false },
+      effectiveClients: effective,
+    };
   };
 
   const broadcastAuditPort = {
-    async append(
-      entry: Omit<BroadcastAuditEntry, "id" | "executedAt">
-    ): Promise<BroadcastAuditEntry> {
+    async append(entry: Omit<BroadcastAuditEntry, "id" | "executedAt">): Promise<BroadcastAuditEntry> {
       const id = `audit-${auditEntries.length}`;
       const executedAt = new Date().toISOString();
-      const full: BroadcastAuditEntry = { ...entry, id, executedAt };
+      const full: BroadcastAuditEntry = {
+        ...entry,
+        messageBody: entry.messageBody ?? "",
+        deliveryJobsTotal: entry.deliveryJobsTotal ?? 0,
+        id,
+        executedAt,
+      };
       auditEntries.push(full);
       return full;
     },
@@ -43,9 +50,29 @@ describe("doctor-broadcasts service", () => {
     },
   };
 
+  const doctorBroadcastDeliveryCommitPort = {
+    async commitAuditAndDeliveryQueue(input: {
+      auditId: string;
+      audit: Omit<BroadcastAuditEntry, "id" | "executedAt">;
+      jobs: readonly DoctorBroadcastQueueJob[];
+    }): Promise<BroadcastAuditEntry> {
+      committed.push({ auditId: input.auditId, jobs: [...input.jobs] });
+      const executedAt = new Date().toISOString();
+      const full: BroadcastAuditEntry = {
+        ...input.audit,
+        id: input.auditId,
+        executedAt,
+        deliveryJobsTotal: input.jobs.length,
+      };
+      auditEntries.push(full);
+      return full;
+    },
+  };
+
   const service = createDoctorBroadcastsService({
-    resolveBroadcastAudienceForPreview,
+    resolveBroadcastAudience,
     broadcastAuditPort,
+    doctorBroadcastDeliveryCommitPort,
   });
 
   it("returns categories list", () => {
@@ -62,30 +89,27 @@ describe("doctor-broadcasts service", () => {
       message: { title: "Test", body: "Body" },
       actorId: "actor-1",
     });
-    expect(result.audienceSize).toBe(30);
+    expect(result.audienceSize).toBe(2);
     expect(result.category).toBe("reminder");
     expect(result.audienceFilter).toBe("with_telegram");
     expect(result.channels).toEqual(["bot_message", "sms"]);
     expect(auditEntries.length).toBe(0);
   });
 
-  it("execute writes audit entry with author and params", async () => {
+  it("execute commits audit and queue jobs with delivery totals", async () => {
     const { auditEntry } = await service.execute({
       category: "important_notice",
       audienceFilter: "all",
-      message: { title: "Важно", body: "Текст" },
+      message: { title: "Важно", body: "Текст длиннее десяти символов" },
       actorId: "doctor-123",
+      channels: ["bot_message"],
     });
     expect(auditEntry.actorId).toBe("doctor-123");
-    expect(auditEntry.category).toBe("important_notice");
-    expect(auditEntry.audienceFilter).toBe("all");
-    expect(auditEntry.messageTitle).toBe("Важно");
-    expect(auditEntry.previewOnly).toBe(false);
-    expect(auditEntry.audienceSize).toBe(42);
-    expect(auditEntry.sentCount).toBe(0);
-    expect(auditEntry.errorCount).toBe(0);
-    expect(auditEntry.channels).toEqual(["bot_message", "sms"]);
-    expect(auditEntries.length).toBe(1);
+    expect(auditEntry.deliveryJobsTotal).toBe(2);
+    expect(auditEntry.messageBody).toContain("Важно");
+    expect(committed.length).toBe(1);
+    expect(committed[0].jobs.length).toBe(2);
+    expect(committed[0].jobs[0].kind).toBe("doctor_broadcast_intent");
   });
 
   it("preview respects explicit channels subset", async () => {
@@ -101,12 +125,14 @@ describe("doctor-broadcasts service", () => {
 
   it("preview passes segmentSize when resolver returns it", async () => {
     const svc = createDoctorBroadcastsService({
-      resolveBroadcastAudienceForPreview: async () => ({
+      resolveBroadcastAudience: async () => ({
         audienceSize: 1,
         segmentSize: 75,
         recipientsPreview: { names: ["Тест"], total: 1, truncated: false },
+        effectiveClients: [client("x", "1")],
       }),
       broadcastAuditPort,
+      doctorBroadcastDeliveryCommitPort,
     });
     const result = await svc.preview({
       category: "service",
@@ -125,7 +151,29 @@ describe("doctor-broadcasts service", () => {
 
   it("listAudit returns entries", async () => {
     const list = await service.listAudit(10);
-    expect(list.length).toBe(1);
+    expect(list.length).toBeGreaterThan(0);
     expect(list[0].messageTitle).toBe("Важно");
+  });
+
+  it("throws when delivery job cap exceeded", async () => {
+    const many = Array.from({ length: 3000 }, (_, i) => client(`u${i}`, String(100000 + i)));
+    const svc = createDoctorBroadcastsService({
+      resolveBroadcastAudience: async () => ({
+        audienceSize: many.length,
+        recipientsPreview: { names: [], total: many.length, truncated: true },
+        effectiveClients: many,
+      }),
+      broadcastAuditPort,
+      doctorBroadcastDeliveryCommitPort,
+    });
+    await expect(
+      svc.execute({
+        category: "service",
+        audienceFilter: "all",
+        message: { title: "T", body: "Body text here long enough" },
+        actorId: "a",
+        channels: ["bot_message"],
+      }),
+    ).rejects.toThrow(BROADCAST_DELIVERY_CAP_EXCEEDED_CODE);
   });
 });

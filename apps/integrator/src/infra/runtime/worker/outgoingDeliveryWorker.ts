@@ -3,6 +3,7 @@ import {
   retryDelaySecondsAfterFailure,
   truncateDeliveryErrorMessage,
   isOutgoingDeliveryDispatchErrorRetryable,
+  DOCTOR_BROADCAST_INTENT_QUEUE_KIND,
 } from '../../delivery/deliveryContract.js';
 import { logger } from '../../observability/logger.js';
 import {
@@ -61,6 +62,38 @@ function parseIntentFromPayload(payload: Record<string, unknown>): OutgoingInten
   };
 }
 
+function maskRecipientForDoctorBroadcastLog(channel: string, intent: OutgoingIntent): string {
+  const pl = intent.payload;
+  const r = pl?.recipient;
+  if (!r || typeof r !== 'object') return '—';
+  const rec = r as Record<string, unknown>;
+  if (channel === 'sms') {
+    const phone = typeof rec.phoneNormalized === 'string' ? rec.phoneNormalized : '';
+    const d = phone.replace(/\D/g, '');
+    if (d.length < 4) return 'tel:****';
+    return `tel:…${d.slice(-4)}`;
+  }
+  const cid = rec.chatId;
+  if (typeof cid === 'number' && Number.isFinite(cid)) {
+    return `${channel}:…${String(Math.trunc(cid)).slice(-4)}`;
+  }
+  if (typeof cid === 'string' && cid.trim().length > 0) {
+    const t = cid.trim();
+    return `${channel}:…${t.slice(-4)}`;
+  }
+  return `${channel}:…`;
+}
+
+async function incrementBroadcastAuditErrorIfDoctorBroadcast(
+  db: DbPort,
+  row: OutgoingDeliveryQueueRow,
+): Promise<void> {
+  if (row.kind !== DOCTOR_BROADCAST_INTENT_QUEUE_KIND) return;
+  const auditId = typeof row.payloadJson.broadcastAuditId === 'string' ? row.payloadJson.broadcastAuditId : null;
+  if (!auditId) return;
+  await db.query(`UPDATE public.broadcast_audit SET error_count = error_count + 1 WHERE id = $1::uuid`, [auditId]);
+}
+
 async function readOperatorAlertAlreadySent(incidentId: string): Promise<boolean> {
   const row = await getOperatorIncidentAlertState(incidentId);
   return Boolean(row?.alertSentAt);
@@ -81,6 +114,20 @@ async function finalizeOutgoingDeliveryDead(
   writePort: DbWritePort,
 ): Promise<void> {
   await markOutgoingDeliveryDead(db, row.id, safeError);
+  await incrementBroadcastAuditErrorIfDoctorBroadcast(db, row);
+  if (row.kind === DOCTOR_BROADCAST_INTENT_QUEUE_KIND) {
+    const auditId = typeof row.payloadJson.broadcastAuditId === 'string' ? row.payloadJson.broadcastAuditId : '';
+    logger.warn(
+      {
+        broadcastAuditId: auditId || undefined,
+        eventId: row.eventId,
+        channel: row.channel,
+        outcome: 'dead',
+        error: truncateDeliveryErrorMessage(safeError),
+      },
+      'doctor_broadcast_delivery.dead',
+    );
+  }
   if (row.kind === 'reminder_dispatch') {
     const p = row.payloadJson;
     const occurrenceId = typeof p.occurrenceId === 'string' ? p.occurrenceId : null;
@@ -134,6 +181,7 @@ export async function processOutgoingDeliveryRow(
   const intent = parseIntentFromPayload(row.payloadJson);
   if (!intent) {
     await markOutgoingDeliveryDead(db, row.id, 'BAD_PAYLOAD');
+    await incrementBroadcastAuditErrorIfDoctorBroadcast(db, row);
     return;
   }
 
@@ -263,6 +311,46 @@ export async function processOutgoingDeliveryRow(
       });
       await markOutgoingDeliverySent(db, row.id);
     } catch (err) {
+      await handleDispatchFailure(db, row, err, writePort);
+    }
+    return;
+  }
+
+  if (row.kind === DOCTOR_BROADCAST_INTENT_QUEUE_KIND) {
+    const broadcastAuditId =
+      typeof row.payloadJson.broadcastAuditId === 'string' ? row.payloadJson.broadcastAuditId : null;
+    if (!broadcastAuditId) {
+      await markOutgoingDeliveryDead(db, row.id, 'MISSING_BROADCAST_AUDIT_ID');
+      return;
+    }
+    const maskedRecipient = maskRecipientForDoctorBroadcastLog(row.channel, intent);
+    try {
+      await dispatchOutgoing(intent);
+      await markOutgoingDeliverySent(db, row.id);
+      await db.query(`UPDATE public.broadcast_audit SET sent_count = sent_count + 1 WHERE id = $1::uuid`, [
+        broadcastAuditId,
+      ]);
+      logger.info(
+        {
+          broadcastAuditId,
+          eventId: row.eventId,
+          channel: row.channel,
+          outcome: 'sent',
+          recipient: maskedRecipient,
+        },
+        'doctor_broadcast_delivery.sent',
+      );
+    } catch (err) {
+      logger.warn(
+        {
+          err,
+          broadcastAuditId,
+          eventId: row.eventId,
+          channel: row.channel,
+          recipient: maskedRecipient,
+        },
+        'doctor_broadcast_delivery.dispatch_failed',
+      );
       await handleDispatchFailure(db, row, err, writePort);
     }
     return;

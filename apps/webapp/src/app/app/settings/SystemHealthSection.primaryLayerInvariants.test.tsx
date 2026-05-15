@@ -194,6 +194,8 @@ function fetchHealthJson(): Record<string, unknown> {
       dueBacklog: 2,
       deadTotal: 0,
       oldestDueAgeSeconds: 120,
+      dueByKind: {},
+      deadByKind: {},
       dueByChannel: { telegram_bot: 2 },
       processingCount: 0,
       lastSentAt: "2026-04-16T09:59:00.000Z",

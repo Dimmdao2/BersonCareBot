@@ -50,6 +50,8 @@ import {
 import { inMemoryDoctorClientsPort } from "@/infra/repos/inMemoryDoctorClients";
 import { inMemoryBroadcastAuditPort } from "@/infra/repos/inMemoryBroadcastAudit";
 import { createPgBroadcastAuditPort } from "@/infra/repos/pgBroadcastAudit";
+import { createPgDoctorBroadcastDeliveryCommitPort } from "@/infra/repos/pgDoctorBroadcastDelivery";
+import { createInMemoryDoctorBroadcastDeliveryCommitPort } from "@/infra/repos/inMemoryDoctorBroadcastDelivery";
 import { createPgDoctorMotivationQuotesEditorPort } from "@/infra/repos/pgDoctorMotivationQuotesEditor";
 import { inMemoryDoctorMotivationQuotesEditorPort } from "@/infra/repos/inMemoryDoctorMotivationQuotesEditor";
 import { inMemoryDoctorAppointmentsPort } from "@/infra/repos/inMemoryDoctorAppointments";
@@ -218,6 +220,9 @@ const doctorAppointmentsPort = !inMemoryRepos ? createPgDoctorAppointmentsPort()
 const challengeStore = !inMemoryRepos ? createPgPhoneChallengeStore() : inMemoryPhoneChallengeStore;
 const messageLogPort = !inMemoryRepos ? createPgMessageLogPort() : inMemoryMessageLogPort;
 const broadcastAuditPort = !inMemoryRepos ? createPgBroadcastAuditPort() : inMemoryBroadcastAuditPort;
+const doctorBroadcastDeliveryCommitPort = !inMemoryRepos
+  ? createPgDoctorBroadcastDeliveryCommitPort()
+  : createInMemoryDoctorBroadcastDeliveryCommitPort();
 const doctorMotivationQuotesEditorPort = !inMemoryRepos
   ? createPgDoctorMotivationQuotesEditorPort()
   : inMemoryDoctorMotivationQuotesEditorPort;
@@ -635,7 +640,7 @@ function _buildAppDeps() {
       getDashboardAppointmentMetrics: () => doctorAppointmentsPort.getDashboardAppointmentMetrics(),
     }),
     doctorBroadcasts: createDoctorBroadcastsService({
-      resolveBroadcastAudienceForPreview: async (filter, channels) => {
+      resolveBroadcastAudience: async (filter, channels) => {
         const clients = await listClientsForBroadcastAudience(doctorClientsPort, filter);
         const { devMode, testAccounts } = await systemSettingsService.getRelayDevContext();
         const { effective, nominal, cappedByDevMode } = resolveBroadcastEffectiveClients(
@@ -646,14 +651,20 @@ function _buildAppDeps() {
         );
         const recipientsPreview = buildRecipientsPreviewFromClients(effective);
         if (!devMode) {
-          return { audienceSize: nominal, recipientsPreview };
+          return { audienceSize: nominal, effectiveClients: effective, recipientsPreview };
         }
         if (cappedByDevMode) {
-          return { audienceSize: effective.length, segmentSize: nominal, recipientsPreview };
+          return {
+            audienceSize: effective.length,
+            segmentSize: nominal,
+            effectiveClients: effective,
+            recipientsPreview,
+          };
         }
-        return { audienceSize: effective.length, recipientsPreview };
+        return { audienceSize: effective.length, effectiveClients: effective, recipientsPreview };
       },
       broadcastAuditPort,
+      doctorBroadcastDeliveryCommitPort,
     }),
     doctorMotivationQuotesEditor: doctorMotivationQuotesEditorPort,
     purchases: {

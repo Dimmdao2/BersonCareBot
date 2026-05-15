@@ -20,6 +20,8 @@ export const inMemoryOperatorHealthReadPort: OperatorHealthReadPort = {
       deadTotal: 0,
       oldestDueAgeSeconds: null,
       dueByChannel: {},
+      dueByKind: {},
+      deadByKind: {},
       processingCount: 0,
       lastSentAt: null,
       lastQueueActivityAt: null,

@@ -1,3 +1,4 @@
+import type { ClientListItem } from "@/modules/doctor-clients/ports";
 import type { BroadcastChannel } from "./broadcastChannels";
 
 /** Категория рассылки (обязательный выбор). */
@@ -65,10 +66,14 @@ export type BroadcastAuditEntry = {
   category: BroadcastCategory;
   audienceFilter: BroadcastAudienceFilter;
   messageTitle: string;
+  /** Полный текст (заголовок + тело) на момент отправки — для деталей в журнале. */
+  messageBody: string;
   channels: BroadcastChannel[];
   executedAt: string;
   previewOnly: boolean;
   audienceSize: number;
+  /** Число строк `outgoing_delivery_queue` для этой рассылки; 0 — запись до внедрения очереди. */
+  deliveryJobsTotal: number;
   sentCount: number;
   errorCount: number;
 };
@@ -76,6 +81,33 @@ export type BroadcastAuditEntry = {
 export type BroadcastAuditPort = {
   append(entry: Omit<BroadcastAuditEntry, "id" | "executedAt">): Promise<BroadcastAuditEntry>;
   list(limit?: number): Promise<BroadcastAuditEntry[]>;
+};
+
+/** Одна строка очереди доставки рассылки врача. */
+export type DoctorBroadcastQueueJob = {
+  eventId: string;
+  kind: string;
+  channel: string;
+  payloadJson: Record<string, unknown>;
+  maxAttempts: number;
+};
+
+/** Транзакция: INSERT `broadcast_audit` + пакет INSERT в `outgoing_delivery_queue`. */
+export type DoctorBroadcastDeliveryCommitPort = {
+  commitAuditAndDeliveryQueue(input: {
+    /** Заранее сгенерированный id аудита (стабильные `event_id` в очереди). */
+    auditId: string;
+    audit: Omit<BroadcastAuditEntry, "id" | "executedAt">;
+    jobs: readonly DoctorBroadcastQueueJob[];
+  }): Promise<BroadcastAuditEntry>;
+};
+
+/** Единый резолвер аудитории для preview и execute (включая `effectiveClients` под постановку в очередь). */
+export type BroadcastAudienceResolveResult = {
+  audienceSize: number;
+  segmentSize?: number;
+  recipientsPreview: BroadcastRecipientsPreview;
+  effectiveClients: ClientListItem[];
 };
 
 export type { BroadcastChannel } from "./broadcastChannels";

@@ -67,6 +67,8 @@ type SystemHealthPayload = {
     deadTotal: number;
     oldestDueAgeSeconds: number | null;
     dueByChannel: Record<string, number>;
+    dueByKind: Record<string, number>;
+    deadByKind: Record<string, number>;
     processingCount: number;
     lastSentAt: string | null;
     lastQueueActivityAt: string | null;
@@ -456,6 +458,23 @@ function outgoingDeliveryChannelHuman(channel: string): string {
     whatsapp: "WhatsApp",
   };
   return m[c] ?? channel;
+}
+
+function outgoingDeliveryKindHuman(kind: string): string {
+  const k = kind.trim();
+  if (k === "reminder_dispatch") return "Напоминания пациентам";
+  if (k === "operator_alert") return "Служебные оповещения";
+  if (k === "doctor_broadcast_intent") return "Рассылки от специалистов";
+  return "Прочее";
+}
+
+function formatOutgoingByKind(label: string, counts: Record<string, number>): string {
+  const entries = Object.entries(counts).filter(([, n]) => n > 0);
+  if (entries.length === 0) return "—";
+  return entries
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([kind, n]) => `${outgoingDeliveryKindHuman(kind)}: ${n}`)
+    .join(", ");
 }
 
 function playbackClientEventRu(eventClass: string): string {
@@ -944,6 +963,14 @@ export function SystemHealthSection() {
                         .join(", ")
                     : "—"
                 }
+              />
+              <DetailRow
+                label="Ждут по типу задачи"
+                value={formatOutgoingByKind("due", data?.outgoingDelivery?.dueByKind ?? {})}
+              />
+              <DetailRow
+                label="Ошибки без повтора по типу"
+                value={formatOutgoingByKind("dead", data?.outgoingDelivery?.deadByKind ?? {})}
               />
               <DetailRow label="Последнее время отправки" value={formatDateTime(data?.outgoingDelivery?.lastSentAt ?? null)} />
               <DetailRow

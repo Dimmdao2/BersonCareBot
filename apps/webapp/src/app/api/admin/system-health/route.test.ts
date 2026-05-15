@@ -27,6 +27,8 @@ const zeroOutgoingSnapshot = {
   deadTotal: 0,
   oldestDueAgeSeconds: null as number | null,
   dueByChannel: {} as Record<string, number>,
+  dueByKind: {} as Record<string, number>,
+  deadByKind: {} as Record<string, number>,
   processingCount: 0,
   lastSentAt: null as string | null,
   lastQueueActivityAt: null as string | null,

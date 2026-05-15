@@ -122,6 +122,8 @@ export const pgOperatorHealthReadPort: OperatorHealthReadPort = {
       deadRows,
       oldestRows,
       channelRows,
+      kindDueRows,
+      kindDeadRows,
       processingRows,
       activityRows,
       sentRows,
@@ -139,6 +141,16 @@ export const pgOperatorHealthReadPort: OperatorHealthReadPort = {
         .from(outgoingDeliveryQueue)
         .where(dueWh)
         .groupBy(outgoingDeliveryQueue.channel),
+      db
+        .select({ kind: outgoingDeliveryQueue.kind, n: count() })
+        .from(outgoingDeliveryQueue)
+        .where(dueWh)
+        .groupBy(outgoingDeliveryQueue.kind),
+      db
+        .select({ kind: outgoingDeliveryQueue.kind, n: count() })
+        .from(outgoingDeliveryQueue)
+        .where(eq(outgoingDeliveryQueue.status, "dead"))
+        .groupBy(outgoingDeliveryQueue.kind),
       db
         .select({ c: count() })
         .from(outgoingDeliveryQueue)
@@ -160,11 +172,21 @@ export const pgOperatorHealthReadPort: OperatorHealthReadPort = {
     for (const r of channelRows) {
       dueByChannel[r.channel] = Number(r.n ?? 0);
     }
+    const dueByKind: Record<string, number> = {};
+    for (const r of kindDueRows) {
+      dueByKind[r.kind] = Number(r.n ?? 0);
+    }
+    const deadByKind: Record<string, number> = {};
+    for (const r of kindDeadRows) {
+      deadByKind[r.kind] = Number(r.n ?? 0);
+    }
     return {
       dueBacklog: Number(dueRow?.c ?? 0),
       deadTotal: Number(deadRow?.c ?? 0),
       oldestDueAgeSeconds,
       dueByChannel,
+      dueByKind,
+      deadByKind,
       processingCount: Number(processingRows[0]?.c ?? 0),
       lastSentAt: sentRows[0]?.mx ?? null,
       lastQueueActivityAt: activityRows[0]?.mx ?? null,

@@ -1,28 +1,25 @@
+import { randomUUID } from "node:crypto";
 import type {
   BroadcastAudienceFilter,
+  BroadcastAudienceResolveResult,
   BroadcastAuditEntry,
   BroadcastAuditPort,
   BroadcastCategory,
   BroadcastCommand,
   BroadcastPreviewResult,
-  BroadcastRecipientsPreview,
+  DoctorBroadcastDeliveryCommitPort,
 } from "./ports";
 import { normalizeBroadcastChannels, type BroadcastChannel } from "./broadcastChannels";
+import { buildBroadcastMessageText, buildDoctorBroadcastDeliveryJobs } from "./deliveryJobs";
+import { BROADCAST_DELIVERY_CAP_EXCEEDED_CODE } from "./deliveryQueueKind";
 
 export type DoctorBroadcastsServiceDeps = {
-  /**
-   * Размер аудитории для preview и аудита: `audienceSize` — фактическая доставка с учётом dev_mode;
-   * `segmentSize` — размер сегмента по фильтру, если dev_mode сужает охват.
-   */
-  resolveBroadcastAudienceForPreview(
+  resolveBroadcastAudience(
     filter: BroadcastAudienceFilter,
     channels: BroadcastChannel[],
-  ): Promise<{
-    audienceSize: number;
-    segmentSize?: number;
-    recipientsPreview: BroadcastRecipientsPreview;
-  }>;
+  ): Promise<BroadcastAudienceResolveResult>;
   broadcastAuditPort: BroadcastAuditPort;
+  doctorBroadcastDeliveryCommitPort: DoctorBroadcastDeliveryCommitPort;
 };
 
 const CATEGORIES: BroadcastCategory[] = [
@@ -48,7 +45,7 @@ export function createDoctorBroadcastsService(deps: DoctorBroadcastsServiceDeps)
 
     async preview(command: BroadcastCommand): Promise<BroadcastPreviewResult> {
       const channels = resolvedChannels(command);
-      const { audienceSize, segmentSize, recipientsPreview } = await deps.resolveBroadcastAudienceForPreview(
+      const { audienceSize, segmentSize, recipientsPreview } = await deps.resolveBroadcastAudience(
         command.audienceFilter,
         channels,
       );
@@ -63,19 +60,36 @@ export function createDoctorBroadcastsService(deps: DoctorBroadcastsServiceDeps)
     },
 
     async execute(command: BroadcastCommand): Promise<{ auditEntry: BroadcastAuditEntry }> {
-      // Аудит + размер аудитории; массовая доставка по каналам не вызывается здесь.
       const channels = resolvedChannels(command);
-      const { audienceSize } = await deps.resolveBroadcastAudienceForPreview(command.audienceFilter, channels);
-      const entry = await deps.broadcastAuditPort.append({
+      const { audienceSize, effectiveClients } = await deps.resolveBroadcastAudience(
+        command.audienceFilter,
+        channels,
+      );
+      const messageBody = buildBroadcastMessageText(command.message.title, command.message.body);
+      const auditId = randomUUID();
+      const jobs = buildDoctorBroadcastDeliveryJobs({
+        auditId,
+        effectiveClients,
+        channels,
+        messageText: messageBody,
+      });
+      const auditBase = {
         actorId: command.actorId,
         category: command.category,
         audienceFilter: command.audienceFilter,
         messageTitle: command.message.title,
+        messageBody,
         channels,
         previewOnly: false,
         audienceSize,
+        deliveryJobsTotal: jobs.length,
         sentCount: 0,
         errorCount: 0,
+      };
+      const entry = await deps.doctorBroadcastDeliveryCommitPort.commitAuditAndDeliveryQueue({
+        auditId,
+        audit: auditBase,
+        jobs,
       });
       return { auditEntry: entry };
     },
@@ -85,3 +99,5 @@ export function createDoctorBroadcastsService(deps: DoctorBroadcastsServiceDeps)
     },
   };
 }
+
+export { BROADCAST_DELIVERY_CAP_EXCEEDED_CODE };

@@ -248,3 +248,75 @@ describe('reminder_dispatch outgoing delivery row', () => {
     });
   });
 });
+
+import { markOutgoingDeliveryDead } from '../../db/repos/outgoingDeliveryQueue.js';
+
+describe('doctor_broadcast_intent outgoing delivery row', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('success: dispatch, mark sent, increment broadcast_audit.sent_count', async () => {
+    const dispatchOutgoing = vi.fn().mockResolvedValue({});
+    const auditId = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
+    const db = {
+      query: vi.fn().mockResolvedValue({ rows: [] }),
+    };
+    await processOutgoingDeliveryRow(
+      baseRow({
+        kind: 'doctor_broadcast_intent',
+        channel: 'telegram',
+        payloadJson: {
+          broadcastAuditId: auditId,
+          clientUserId: 'u1',
+          intent: {
+            type: 'message.send',
+            meta: {
+              eventId: 'e-d',
+              occurredAt: '2026-01-01T00:00:00.000Z',
+              source: 'telegram',
+              userId: 'u1',
+            },
+            payload: {
+              recipient: { chatId: 1 },
+              message: { text: 'Hi' },
+              delivery: { channels: ['telegram'], maxAttempts: 1 },
+            },
+          },
+        },
+      }),
+      { db: db as never, writePort: { writeDb: vi.fn() } as never, dispatchOutgoing },
+    );
+    expect(dispatchOutgoing).toHaveBeenCalledTimes(1);
+    expect(db.query).toHaveBeenCalledWith(
+      expect.stringContaining('broadcast_audit'),
+      expect.arrayContaining([auditId]),
+    );
+  });
+
+  it('missing broadcastAuditId: marks dead without dispatch', async () => {
+    const dispatchOutgoing = vi.fn();
+    const db = { query: vi.fn().mockResolvedValue({ rows: [] }) };
+    await processOutgoingDeliveryRow(
+      baseRow({
+        kind: 'doctor_broadcast_intent',
+        channel: 'telegram',
+        payloadJson: {
+          intent: {
+            type: 'message.send',
+            meta: { eventId: 'e1', occurredAt: '2026-01-01T00:00:00.000Z', source: 'telegram' },
+            payload: {
+              recipient: { chatId: 1 },
+              message: { text: 'Hi' },
+              delivery: { channels: ['telegram'], maxAttempts: 1 },
+            },
+          },
+        },
+      }),
+      { db: db as never, writePort: { writeDb: vi.fn() } as never, dispatchOutgoing },
+    );
+    expect(dispatchOutgoing).not.toHaveBeenCalled();
+    const sql = db.query.mock.calls.map((c) => String(c[0])).join('\n');
+    expect(sql).toContain('dead');
+  });
+});
