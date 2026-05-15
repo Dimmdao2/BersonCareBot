@@ -70,6 +70,14 @@
 - **TODO 2:** добавить комментарий пациента к факту выполнения `exercise` / `lesson` / actionable `recommendation` (сейчас заметка есть только в LFK post-session).
 - **Ссылки:** `docs/APP_RESTRUCTURE_INITIATIVE/ROADMAP_2.md` (§1.0, §1.1a, §8), `docs/BACKLOG_TAILS.md` («Хвосты по Плану лечения / Курсам»).
 
+## Channel-link complete (webapp ↔ integrator) — расширения
+
+- **Сделано (2026-05):** политика **claim vs real conflict** (`channelLink.ts` + `channelLinkClaim.ts`), аудит `channel_link_ownership_conflict`, relay админу только при первом открытии (`insertedFirst`), dedupe singleton-симптомов в `@bersoncare/platform-merge` перед массовым UPDATE `symptom_trackings`, ответ **409** с `mergeReason`, integrator `webappEventsClient.completeChannelLink` отдаёт в `executeAction` **`mergeReason` в приоритете над `error`** при не-OK HTTP, маппинг шаблонов `channelLinkCompleteFailureTemplateKey` (conflict / generic / expired). Контракт: [`apps/webapp/INTEGRATOR_CONTRACT.md`](../apps/webapp/INTEGRATOR_CONTRACT.md); продуктовый текст: [`apps/webapp/src/modules/auth/auth.md`](../apps/webapp/src/modules/auth/auth.md).
+- **TODO:** интеграционный или devDb-тест на **полный SQL-путь** `claimMessengerChannelBindingInTransaction` (сейчас покрытие — unit `channelLinkClaim.test.ts` + моки в `channelLink.test.ts`).
+- **TODO:** при необходимости продуктом — **отдельные** пользовательские шаблоны Telegram/Max под каждый значимый `mergeReason` (сейчас группировка: conflict-подобные vs `channel_link_claim_failed` → generic vs expired).
+- **TODO:** если появится ответ **HTTP 200** с телом `ok: false` и полем `mergeReason` — расширить `webappEventsClient.completeChannelLink` тем же приоритетом `mergeReason` над `error`, что и для `!res.ok` (сейчас ветка `data.ok !== true` смотрит только на `error`).
+- **TODO (проверка сценария):** убедиться, что при `webapp.channelLink.complete` нет рассинхрона «пользователю показан успех при фактическом сбое webapp» (см. `executeAction.ts`, ветки `needsPhone` / `intents`); при обнаружении — завести точечный фикс и тест.
+
 ## Security / Auth
 
 - **Видео / медиа по UUID (post-prod):** верхний раздел этого файла («Медиа / видео — авторизация и права на поток») и `docs/ARCHITECTURE/MEDIA_HTTP_ACCESS_AUTHORIZATION.md`.
