@@ -1,12 +1,16 @@
+import { and, eq } from 'drizzle-orm';
 import type { DbPort } from '../../../kernel/contracts/index.js';
+import { getIntegratorDrizzleSession } from '../drizzle.js';
+import { userSubscriptions } from '../schema/integratorPublicProduct.js';
 
 /** Возвращает активные topic_id подписок пользователя (канонический user_id). */
 export async function getUserSubscriptions(db: DbPort, userId: number): Promise<Set<number>> {
-  const res = await db.query<{ topic_id: number }>(
-    `SELECT topic_id FROM user_subscriptions WHERE user_id=$1 AND is_active=true`,
-    [userId],
-  );
-  return new Set(res.rows.map((r) => r.topic_id));
+  const d = getIntegratorDrizzleSession(db);
+  const rows = await d
+    .select({ topicId: userSubscriptions.topicId })
+    .from(userSubscriptions)
+    .where(and(eq(userSubscriptions.userId, userId), eq(userSubscriptions.isActive, true)));
+  return new Set(rows.map((r) => r.topicId));
 }
 
 /** Создает или обновляет состояние подписки пользователя на тему (канонический user_id). */
@@ -16,12 +20,14 @@ export async function upsertUserSubscription(
   topicId: number,
   isActive: boolean,
 ): Promise<void> {
-  await db.query(
-    `INSERT INTO user_subscriptions(user_id, topic_id, is_active)
-     VALUES ($1, $2, $3)
-     ON CONFLICT (user_id, topic_id) DO UPDATE SET is_active = EXCLUDED.is_active`,
-    [userId, topicId, isActive],
-  );
+  const d = getIntegratorDrizzleSession(db);
+  await d
+    .insert(userSubscriptions)
+    .values({ userId, topicId, isActive })
+    .onConflictDoUpdate({
+      target: [userSubscriptions.userId, userSubscriptions.topicId],
+      set: { isActive },
+    });
 }
 
 /** Переключает состояние подписки и возвращает новое значение (канонический user_id). */
@@ -30,11 +36,13 @@ export async function toggleUserSubscription(
   userId: number,
   topicId: number,
 ): Promise<boolean> {
-  const res = await db.query<{ is_active: boolean | null }>(
-    `SELECT is_active FROM user_subscriptions WHERE user_id=$1 AND topic_id=$2`,
-    [userId, topicId],
-  );
-  const current = res.rows[0]?.is_active === true;
+  const d = getIntegratorDrizzleSession(db);
+  const cur = await d
+    .select({ isActive: userSubscriptions.isActive })
+    .from(userSubscriptions)
+    .where(and(eq(userSubscriptions.userId, userId), eq(userSubscriptions.topicId, topicId)))
+    .limit(1);
+  const current = cur[0]?.isActive === true;
   const newState = !current;
   await upsertUserSubscription(db, userId, topicId, newState);
   return newState;

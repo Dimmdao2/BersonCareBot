@@ -1,4 +1,7 @@
+import { eq, sql } from 'drizzle-orm';
 import type { DbPort } from '../../../kernel/contracts/index.js';
+import { getIntegratorDrizzleSession } from '../drizzle.js';
+import { projectionOutbox } from '../schema/integratorQueues.js';
 
 export type ProjectionOutboxRow = {
   id: number;
@@ -19,24 +22,34 @@ export async function enqueueProjectionEvent(
     payload: Record<string, unknown>;
   },
 ): Promise<void> {
-  await db.query(
-    `INSERT INTO projection_outbox (event_type, idempotency_key, occurred_at, payload)
-     VALUES ($1, $2, $3, $4::jsonb)
-     ON CONFLICT (idempotency_key) DO NOTHING`,
-    [input.eventType, input.idempotencyKey, input.occurredAt, JSON.stringify(input.payload)],
-  );
+  const d = getIntegratorDrizzleSession(db);
+  await d
+    .insert(projectionOutbox)
+    .values({
+      eventType: input.eventType,
+      idempotencyKey: input.idempotencyKey,
+      occurredAt: input.occurredAt,
+      payload: input.payload,
+    })
+    .onConflictDoNothing({ target: projectionOutbox.idempotencyKey });
 }
 
+/**
+ * Claim: один statement CTE + UPDATE … FOR UPDATE SKIP LOCKED (как legacy SQL).
+ * Оставлено через `execute(sql\`…\`)` — см. план этапа 2.
+ */
 export async function claimDueProjectionEvents(
   db: DbPort,
   limit: number,
 ): Promise<ProjectionOutboxRow[]> {
-  const res = await db.query<ProjectionOutboxRow>(
-    `WITH due AS (
+  const d = getIntegratorDrizzleSession(db);
+  const lim = Math.max(1, Math.trunc(limit));
+  const res = await d.execute(sql`
+    WITH due AS (
        SELECT id FROM projection_outbox
        WHERE status = 'pending' AND next_try_at <= now()
        ORDER BY next_try_at ASC
-       LIMIT $1
+       LIMIT ${lim}
        FOR UPDATE SKIP LOCKED
      )
      UPDATE projection_outbox o
@@ -49,24 +62,25 @@ export async function claimDueProjectionEvents(
        o.occurred_at::text AS "occurredAt",
        o.payload,
        o.attempts_done AS "attemptsDone",
-       o.max_attempts AS "maxAttempts"`,
-    [Math.max(1, Math.trunc(limit))],
-  );
-  return res.rows;
+       o.max_attempts AS "maxAttempts"
+  `);
+  return res.rows as ProjectionOutboxRow[];
 }
 
 export async function completeProjectionEvent(db: DbPort, id: number): Promise<void> {
-  await db.query(
-    `UPDATE projection_outbox SET status = 'done', updated_at = now() WHERE id = $1`,
-    [id],
-  );
+  const d = getIntegratorDrizzleSession(db);
+  await d
+    .update(projectionOutbox)
+    .set({ status: 'done', updatedAt: sql`now()` })
+    .where(eq(projectionOutbox.id, id));
 }
 
 export async function failProjectionEvent(db: DbPort, id: number, lastError: string): Promise<void> {
-  await db.query(
-    `UPDATE projection_outbox SET status = 'dead', last_error = $2, updated_at = now() WHERE id = $1`,
-    [id, lastError],
-  );
+  const d = getIntegratorDrizzleSession(db);
+  await d
+    .update(projectionOutbox)
+    .set({ status: 'dead', lastError, updatedAt: sql`now()` })
+    .where(eq(projectionOutbox.id, id));
 }
 
 export async function rescheduleProjectionEvent(
@@ -75,13 +89,16 @@ export async function rescheduleProjectionEvent(
   attemptsDone: number,
   retryDelaySeconds: number,
 ): Promise<void> {
-  await db.query(
-    `UPDATE projection_outbox
-     SET status = 'pending',
-         attempts_done = $2,
-         next_try_at = now() + (($3::text || ' seconds')::interval),
-         updated_at = now()
-     WHERE id = $1`,
-    [id, Math.max(0, attemptsDone), Math.max(1, retryDelaySeconds)],
-  );
+  const d = getIntegratorDrizzleSession(db);
+  const delay = Math.max(1, retryDelaySeconds);
+  const attempts = Math.max(0, attemptsDone);
+  await d
+    .update(projectionOutbox)
+    .set({
+      status: 'pending',
+      attemptsDone: attempts,
+      nextTryAt: sql`now() + (${String(delay)}::text || ' seconds')::interval`,
+      updatedAt: sql`now()`,
+    })
+    .where(eq(projectionOutbox.id, id));
 }

@@ -12,6 +12,7 @@ vi.mock("../../infra/db/repos/integrationDataQualityIncidents.js", () => ({
 }));
 
 import type { DbPort } from "../../kernel/contracts/index.js";
+import { stubIntegratorDrizzleForTests } from "../../infra/db/stubIntegratorDrizzleForTests.js";
 import { syncAppointmentToCalendar } from "../google-calendar/sync.js";
 import { createGetBranchTimezoneWithDataQuality, resetBranchTimezoneCacheForTests } from "../../infra/db/branchTimezone.js";
 import { createDbWritePort } from "../../infra/db/writePort.js";
@@ -130,7 +131,11 @@ describe("Stage 8 timezone contract (STAGE_8_CONTRACT_TESTS)", () => {
     const deleteEvent = vi.fn();
     const mapQuery = vi.fn(async () => ({ rows: [] } as Awaited<ReturnType<DbPort["query"]>>));
     const mapTx = vi.fn(async <T>(fn: (txDb: DbPort) => Promise<T>) => fn({ query: mapQuery, tx: mapTx } as DbPort));
-    const mapDb = { query: mapQuery, tx: mapTx } as unknown as DbPort;
+    const mapDb = {
+      query: mapQuery,
+      tx: mapTx,
+      integratorDrizzle: stubIntegratorDrizzleForTests(),
+    } as unknown as DbPort;
 
     await syncAppointmentToCalendar(
       {

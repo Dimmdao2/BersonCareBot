@@ -7,6 +7,7 @@ import {
   CONTENT_ACCESS_GRANTED,
 } from '../../kernel/contracts/index.js';
 import { createDbWritePort } from './writePort.js';
+import { stubIntegratorDrizzleForTests } from './stubIntegratorDrizzleForTests.js';
 
 describe('writePort reminder/content projection events', () => {
   function makeMockDb(capture: {
@@ -51,10 +52,11 @@ describe('writePort reminder/content projection events', () => {
       }
       return { rows: [] } as Awaited<ReturnType<DbPort['query']>>;
     });
+    const drizzle = stubIntegratorDrizzleForTests(capture);
     const tx = vi.fn(async (fn: (txDb: DbPort) => Promise<void>) => {
-      return fn({ query, tx } as DbPort);
+      return fn({ query, tx, integratorDrizzle: drizzle } as DbPort);
     });
-    return { query, tx } as DbPort;
+    return { query, tx, integratorDrizzle: drizzle } as DbPort;
   }
 
   it('reminders.rule.upsert enqueues reminder.rule.upserted', async () => {

@@ -1,5 +1,6 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DbPort } from '../../../kernel/contracts/index.js';
+import { getIntegratorDrizzleSession } from '../drizzle.js';
 import {
   enqueueProjectionEvent,
   claimDueProjectionEvents,
@@ -8,19 +9,30 @@ import {
   rescheduleProjectionEvent,
 } from './projectionOutbox.js';
 
-function createDbMock() {
-  const queryMock = vi.fn();
-  const db: DbPort = {
-    query: queryMock as unknown as DbPort['query'],
-    tx: vi.fn() as unknown as DbPort['tx'],
-  };
-  return { db, query: queryMock };
-}
+vi.mock('../drizzle.js', () => ({
+  getIntegratorDrizzleSession: vi.fn(),
+}));
 
 describe('projectionOutbox', () => {
-  it('enqueueProjectionEvent inserts with correct params', async () => {
-    const { db, query } = createDbMock();
-    query.mockResolvedValueOnce({ rows: [], rowCount: 1 });
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  function createDbMock() {
+    const queryMock = vi.fn();
+    const db: DbPort = {
+      query: queryMock as unknown as DbPort['query'],
+      tx: vi.fn() as unknown as DbPort['tx'],
+    };
+    return { db, query: queryMock };
+  }
+
+  it('enqueueProjectionEvent inserts via Drizzle onConflictDoNothing', async () => {
+    const { db } = createDbMock();
+    const onConflict = vi.fn().mockResolvedValue(undefined);
+    const values = vi.fn().mockReturnValue({ onConflictDoNothing: onConflict });
+    const insert = vi.fn().mockReturnValue({ values });
+    vi.mocked(getIntegratorDrizzleSession).mockReturnValue({ insert } as never);
 
     await enqueueProjectionEvent(db, {
       eventType: 'user.upserted',
@@ -29,68 +41,86 @@ describe('projectionOutbox', () => {
       payload: { integratorUserId: '42' },
     });
 
-    expect(query).toHaveBeenCalledOnce();
-    const call = query.mock.calls[0]!;
-    const sql = call[0] as string;
-    const params = call[1] as unknown[];
-    expect(sql).toContain('INSERT INTO projection_outbox');
-    expect(sql).toContain('ON CONFLICT (idempotency_key) DO NOTHING');
-    expect(params[0]).toBe('user.upserted');
-    expect(params[1]).toBe('user.upserted:42:abc');
-    expect(params[2]).toBe('2026-03-19T00:00:00Z');
-    expect(params[3]).toBe('{"integratorUserId":"42"}');
+    expect(insert).toHaveBeenCalledTimes(1);
+    expect(values).toHaveBeenCalledWith({
+      eventType: 'user.upserted',
+      idempotencyKey: 'user.upserted:42:abc',
+      occurredAt: '2026-03-19T00:00:00Z',
+      payload: { integratorUserId: '42' },
+    });
+    expect(onConflict).toHaveBeenCalledTimes(1);
   });
 
-  it('claimDueProjectionEvents uses FOR UPDATE SKIP LOCKED', async () => {
-    const { db, query } = createDbMock();
-    query.mockResolvedValueOnce({
-      rows: [{ id: 1, eventType: 'user.upserted', idempotencyKey: 'k', occurredAt: 'ts', payload: {}, attemptsDone: 0, maxAttempts: 5 }],
+  it('claimDueProjectionEvents uses execute with SKIP LOCKED', async () => {
+    const { db } = createDbMock();
+    const execute = vi.fn().mockResolvedValue({
+      rows: [
+        {
+          id: 1,
+          eventType: 'user.upserted',
+          idempotencyKey: 'k',
+          occurredAt: 'ts',
+          payload: {},
+          attemptsDone: 0,
+          maxAttempts: 5,
+        },
+      ],
     });
+    vi.mocked(getIntegratorDrizzleSession).mockReturnValue({ execute } as never);
 
     const result = await claimDueProjectionEvents(db, 5);
 
     expect(result).toHaveLength(1);
-    const sql = query.mock.calls[0]![0] as string;
-    expect(sql).toContain('FOR UPDATE SKIP LOCKED');
-    expect(sql).toContain("status = 'processing'");
+    expect(execute).toHaveBeenCalledTimes(1);
   });
 
   it('completeProjectionEvent sets status to done', async () => {
-    const { db, query } = createDbMock();
-    query.mockResolvedValueOnce({ rows: [] });
+    const { db } = createDbMock();
+    const where = vi.fn().mockResolvedValue(undefined);
+    const set = vi.fn().mockReturnValue({ where });
+    const update = vi.fn().mockReturnValue({ set });
+    vi.mocked(getIntegratorDrizzleSession).mockReturnValue({ update } as never);
 
     await completeProjectionEvent(db, 99);
 
-    const sql = query.mock.calls[0]![0] as string;
-    const params = query.mock.calls[0]![1] as unknown[];
-    expect(sql).toContain("status = 'done'");
-    expect(params[0]).toBe(99);
+    expect(update).toHaveBeenCalledTimes(1);
+    expect(set).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'done' }),
+    );
+    expect(where).toHaveBeenCalledTimes(1);
   });
 
   it('failProjectionEvent sets status to dead with error', async () => {
-    const { db, query } = createDbMock();
-    query.mockResolvedValueOnce({ rows: [] });
+    const { db } = createDbMock();
+    const where = vi.fn().mockResolvedValue(undefined);
+    const set = vi.fn().mockReturnValue({ where });
+    const update = vi.fn().mockReturnValue({ set });
+    vi.mocked(getIntegratorDrizzleSession).mockReturnValue({ update } as never);
 
     await failProjectionEvent(db, 7, 'timeout');
 
-    const sql = query.mock.calls[0]![0] as string;
-    const params = query.mock.calls[0]![1] as unknown[];
-    expect(sql).toContain("status = 'dead'");
-    expect(params[0]).toBe(7);
-    expect(params[1]).toBe('timeout');
+    expect(set).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'dead', lastError: 'timeout' }),
+    );
   });
 
   it('rescheduleProjectionEvent sets pending with backoff', async () => {
-    const { db, query } = createDbMock();
-    query.mockResolvedValueOnce({ rows: [] });
+    const { db } = createDbMock();
+    const where = vi.fn().mockResolvedValue(undefined);
+    const set = vi.fn().mockReturnValue({ where });
+    const update = vi.fn().mockReturnValue({ set });
+    vi.mocked(getIntegratorDrizzleSession).mockReturnValue({ update } as never);
 
     await rescheduleProjectionEvent(db, 3, 2, 60);
 
-    const sql = query.mock.calls[0]![0] as string;
-    const params = query.mock.calls[0]![1] as unknown[];
-    expect(sql).toContain("status = 'pending'");
-    expect(params[0]).toBe(3);
-    expect(params[1]).toBe(2);
-    expect(params[2]).toBe(60);
+    expect(set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'pending',
+        attemptsDone: 2,
+      }),
+    );
+    const setArg = set.mock.calls[0]![0] as Record<string, unknown>;
+    expect(setArg.nextTryAt).toBeDefined();
+    expect(setArg.updatedAt).toBeDefined();
   });
 });

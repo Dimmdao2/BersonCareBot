@@ -1,28 +1,40 @@
 ---
 name: Integrator Drizzle — этап 1 (простые репозитории)
-overview: Перевод P1-репозиториев (подписки, топики, маппинг календаря, логи рассылок/сообщений) с DbPort-SQL на Drizzle после расширения integrator Drizzle-схемы — быстрые победы и выработка паттерна для следующих этапов.
+overview: >-
+  Перевод P1-репозиториев (подписки, топики, маппинг календаря, mailing_logs,
+  delivery_attempt_logs через repos/messageLogs.ts) с DbPort-SQL на Drizzle
+  после расширения integrator Drizzle-схемы.
 todos:
   - id: p1-schema-tables
-    content: Зарегистрировать в integrator Drizzle таблицы для user_subscriptions, mailing_topics/topics, booking calendar map (уточнить физические имена по schema.ts или DDL), mailing_logs, message_logs — согласовать с решением из мастер-плана
-    status: pending
+    content: >-
+      Зарегистрировать в integrator Drizzle: user_subscriptions, mailing_topics,
+      booking_calendar_map, mailing_logs, delivery_attempt_logs (+ индексы/CHECK
+      как в webapp schema.ts); согласовано с мастер-планом schema-strategy.
+    status: completed
   - id: p1-subscriptions
-    content: Переписать apps/integrator/src/infra/db/repos/subscriptions.ts на Drizzle; сохранить сигнатуры getUserSubscriptions, upsertUserSubscription, toggleUserSubscription
-    status: pending
+    content: >-
+      Переписать apps/integrator/src/infra/db/repos/subscriptions.ts на Drizzle;
+      сигнатуры getUserSubscriptions, upsertUserSubscription, toggleUserSubscription.
+    status: completed
   - id: p1-topics
-    content: Переписать apps/integrator/src/infra/db/repos/topics.ts на Drizzle
-    status: pending
+    content: Переписать apps/integrator/src/infra/db/repos/topics.ts на Drizzle.
+    status: completed
   - id: p1-booking-calendar-map
-    content: Переписать apps/integrator/src/infra/db/repos/bookingCalendarMap.ts на Drizzle
-    status: pending
+    content: Переписать apps/integrator/src/infra/db/repos/bookingCalendarMap.ts на Drizzle.
+    status: completed
   - id: p1-mailing-logs
-    content: Переписать apps/integrator/src/infra/db/repos/mailingLogs.ts на Drizzle
-    status: pending
+    content: Переписать apps/integrator/src/infra/db/repos/mailingLogs.ts на Drizzle.
+    status: completed
   - id: p1-message-logs
-    content: Переписать apps/integrator/src/infra/db/repos/messageLogs.ts на Drizzle
-    status: pending
+    content: >-
+      Переписать apps/integrator/src/infra/db/repos/messageLogs.ts на Drizzle
+      (таблица delivery_attempt_logs).
+    status: completed
   - id: p1-verify
-    content: Прогон apps/integrator typecheck + test по затронутым тестам; зафиксировать итог в docs/INTEGRATOR_DRIZZLE_MIGRATION/LOG.md
-    status: pending
+    content: >-
+      Прогон apps/integrator typecheck + test; запись в
+      docs/INTEGRATOR_DRIZZLE_MIGRATION/LOG.md.
+    status: completed
 isProject: false
 ---
 
@@ -40,9 +52,11 @@ isProject: false
 - [`topics.ts`](../../apps/integrator/src/infra/db/repos/topics.ts)
 - [`bookingCalendarMap.ts`](../../apps/integrator/src/infra/db/repos/bookingCalendarMap.ts)
 - [`mailingLogs.ts`](../../apps/integrator/src/infra/db/repos/mailingLogs.ts)
-- [`messageLogs.ts`](../../apps/integrator/src/infra/db/repos/messageLogs.ts)
+- [`messageLogs.ts`](../../apps/integrator/src/infra/db/repos/messageLogs.ts) → БД `delivery_attempt_logs`
 
 **Вне scope:** `projectionOutbox`, `jobQueue`, любые репозитории вне списка.
+
+**Вне этапа 1, осознанный второй канал SQL:** merge пользователей — [`mergeIntegratorUsers.ts`](../../apps/integrator/src/infra/db/repos/mergeIntegratorUsers.ts) (сырой SQL по `user_subscriptions` / `mailing_logs`); не дублировать в P1 без отдельной задачи.
 
 ## Порядок работ (обязательный)
 
@@ -52,26 +66,26 @@ isProject: false
 
 ### 1. Схема Drizzle
 
-- [ ] Сверить физические имена таблиц и колонок с [`apps/webapp/db/schema/schema.ts`](../../apps/webapp/db/schema/schema.ts) и/или dump integrator DDL (`docs/ARCHITECTURE/DB_DUMPS/` при необходимости).
-- [ ] Добавить таблицы в регистрируемый schema-object для [`getIntegratorDrizzle()`](../../apps/integrator/src/infra/db/drizzle.ts).
-- [ ] `rg 'user_subscriptions|booking_calendar|mailing_logs|message_logs'` (уточнить реальные имена после сверки с DDL) по `apps/integrator` — нет второго канала записи, минующего переводимый репозиторий без осознанного решения.
+- [x] Сверить физические имена таблиц и колонок с [`apps/webapp/db/schema/schema.ts`](../../apps/webapp/db/schema/schema.ts) и/или dump integrator DDL (`docs/ARCHITECTURE/DB_DUMPS/` при необходимости).
+- [x] Добавить таблицы в регистрируемый schema-object для [`getIntegratorDrizzle()`](../../apps/integrator/src/infra/db/drizzle.ts).
+- [x] Проверка второго канала записи (`rg` по `user_subscriptions`, `booking_calendar_map`, `mailing_logs`, `delivery_attempt_logs`): кроме осознанного merge-SQL — отдельный канал не вводился.
 
 ### 2. Пер-компонентный перевод
 
 Для каждого файла:
 
-- [ ] Сохранить публичные типы экспортов и читаемость JSON/jsonb через те же доменные поля.
-- [ ] `ON CONFLICT`, `RETURNING`, фильтры — эквивалентны старому SQL (сравнить план выполнения не обязательно, но одинаковые предикаты и порядок сортировок при `LIMIT`).
-- [ ] Не смешивать в одном PR не связанный рефакторинг.
+- [x] Сохранить публичные типы экспортов и читаемость JSON/jsonb через те же доменные поля.
+- [x] `ON CONFLICT`, `RETURNING`, фильтры — эквивалентны старому SQL (сравнить план выполнения не обязательно, но одинаковые предикаты и порядок сортировок при `LIMIT`).
+- [x] Не смешивать в одном PR не связанный рефакторинг.
 
 ### 3. Закрытие этапа
 
-- [ ] `pnpm --dir apps/integrator run typecheck`
-- [ ] `pnpm --dir apps/integrator run test` (или узкий поднабор `--run path/to/file` при итерациях между правками; перед merge этапа — полный интеграторский test как в процессе команды).
-- [ ] Запись в [`docs/INTEGRATOR_DRIZZLE_MIGRATION/LOG.md`](../../docs/INTEGRATOR_DRIZZLE_MIGRATION/LOG.md): что переведено, какие таблицы в schema.
+- [x] `pnpm --dir apps/integrator run typecheck`
+- [x] `pnpm --dir apps/integrator run test` (или узкий поднабор `--run path/to/file` при итерациях между правками; перед merge этапа — полный интеграторский test как в процессе команды).
+- [x] Запись в [`docs/INTEGRATOR_DRIZZLE_MIGRATION/LOG.md`](../../docs/INTEGRATOR_DRIZZLE_MIGRATION/LOG.md): что переведено, какие таблицы в schema.
 
 ## Definition of Done (этап 1)
 
-- [ ] Все пять файлов не используют `db.query(<строка` для операций домена этого файла (Drizzle API или узкий `sql` фрагмент только если документировано почему).
-- [ ] Поведение API репозиториев сохранено; существующие тесты зелёные.
-- [ ] Мастер-план todo `phase-1` можно пометить `completed`.
+- [x] Все пять файлов не используют `db.query(<строка` для операций домена этого файла (Drizzle API или узкий `sql` фрагмент только если документировано почему).
+- [x] Поведение API репозиториев сохранено; существующие тесты зелёные.
+- [x] Мастер-план todo `phase-1` можно пометить `completed`.

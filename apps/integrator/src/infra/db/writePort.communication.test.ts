@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { DbPort } from '../../kernel/contracts/index.js';
 import { createDbWritePort } from './writePort.js';
+import { stubIntegratorDrizzleForTests } from './stubIntegratorDrizzleForTests.js';
 
 describe('writePort communication projection events', () => {
   function makeMockDb(capture: { projectionInserts: { eventType: string; idempotencyKey: string; payload: unknown }[] }): DbPort {
@@ -30,15 +31,17 @@ describe('writePort communication projection events', () => {
       if (typeof sql === 'string' && sql.includes('user_identity_id') && sql.includes('FROM conversations')) {
         return { rows: [{ user_identity_id: '42' }] } as Awaited<ReturnType<DbPort['query']>>;
       }
-      if (typeof sql === 'string' && sql.includes('delivery_attempt_logs')) {
-        return { rows: [] } as Awaited<ReturnType<DbPort['query']>>;
-      }
       return { rows: [] } as Awaited<ReturnType<DbPort['query']>>;
     });
+    const drizzle = stubIntegratorDrizzleForTests(capture);
     const tx = vi.fn(async (fn: (txDb: DbPort) => Promise<void>) => {
-      return fn({ query, tx } as DbPort);
+      return fn({
+        query,
+        tx,
+        integratorDrizzle: drizzle,
+      } as DbPort);
     });
-    return { query, tx } as DbPort;
+    return { query, tx, integratorDrizzle: drizzle } as DbPort;
   }
 
   it('conversation.open enqueues support.conversation.opened', async () => {

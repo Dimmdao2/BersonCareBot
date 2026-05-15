@@ -1,30 +1,39 @@
+import { eq, sql } from 'drizzle-orm';
 import type { DbPort } from '../../../kernel/contracts/index.js';
+import { getIntegratorDrizzleSession } from '../drizzle.js';
+import { bookingCalendarMap } from '../schema/integratorPublicProduct.js';
 
 export async function getGoogleEventIdByRubitimeRecordId(
   db: DbPort,
   rubitimeRecordId: string,
 ): Promise<string | null> {
-  const res = await db.query<{ gcal_event_id: string | null }>(
-    `SELECT gcal_event_id
-       FROM booking_calendar_map
-      WHERE rubitime_record_id = $1
-      LIMIT 1`,
-    [rubitimeRecordId],
-  );
-  return res.rows[0]?.gcal_event_id ?? null;
+  const d = getIntegratorDrizzleSession(db);
+  const rows = await d
+    .select({ gcalEventId: bookingCalendarMap.gcalEventId })
+    .from(bookingCalendarMap)
+    .where(eq(bookingCalendarMap.rubitimeRecordId, rubitimeRecordId))
+    .limit(1);
+  return rows[0]?.gcalEventId ?? null;
 }
 
 export async function upsertBookingCalendarMap(
   db: DbPort,
   input: { rubitimeRecordId: string; gcalEventId: string },
 ): Promise<void> {
-  await db.query(
-    `INSERT INTO booking_calendar_map (rubitime_record_id, gcal_event_id, created_at, updated_at)
-     VALUES ($1, $2, now(), now())
-     ON CONFLICT (rubitime_record_id)
-     DO UPDATE SET gcal_event_id = EXCLUDED.gcal_event_id, updated_at = now()`,
-    [input.rubitimeRecordId, input.gcalEventId],
-  );
+  const d = getIntegratorDrizzleSession(db);
+  await d
+    .insert(bookingCalendarMap)
+    .values({
+      rubitimeRecordId: input.rubitimeRecordId,
+      gcalEventId: input.gcalEventId,
+    })
+    .onConflictDoUpdate({
+      target: bookingCalendarMap.rubitimeRecordId,
+      set: {
+        gcalEventId: input.gcalEventId,
+        updatedAt: sql`now()`,
+      },
+    });
 
   await db.query(
     `UPDATE public.patient_bookings
@@ -35,15 +44,9 @@ export async function upsertBookingCalendarMap(
   );
 }
 
-export async function deleteBookingCalendarMap(
-  db: DbPort,
-  rubitimeRecordId: string,
-): Promise<void> {
-  await db.query(
-    `DELETE FROM booking_calendar_map
-      WHERE rubitime_record_id = $1`,
-    [rubitimeRecordId],
-  );
+export async function deleteBookingCalendarMap(db: DbPort, rubitimeRecordId: string): Promise<void> {
+  const d = getIntegratorDrizzleSession(db);
+  await d.delete(bookingCalendarMap).where(eq(bookingCalendarMap.rubitimeRecordId, rubitimeRecordId));
   await db.query(
     `UPDATE public.patient_bookings
         SET gcal_event_id = NULL,

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { DbPort } from "../../../kernel/contracts/index.js";
 import type { WebappEventsPort } from "../../../kernel/contracts/index.js";
+import { stubIntegratorDrizzleForTests } from "../stubIntegratorDrizzleForTests.js";
 import { tryEmitWebappProjectionThenEnqueue } from "./projectionFanout.js";
 
 describe("projectionFanout: sync emit then outbox fallback", () => {
@@ -12,12 +13,11 @@ describe("projectionFanout: sync emit then outbox fallback", () => {
   };
 
   it("skips outbox when sync emit succeeds", async () => {
-    const projectionQueries: unknown[][] = [];
+    const capture = { projectionInserts: [] as { eventType: string; idempotencyKey: string; payload: unknown }[] };
     const db = {
-      query: vi.fn(async (sql: string, params: unknown[]) => {
-        projectionQueries.push([sql, params]);
-        return { rows: [] };
-      }),
+      query: vi.fn(async () => ({ rows: [] })),
+      tx: vi.fn() as unknown as DbPort["tx"],
+      integratorDrizzle: stubIntegratorDrizzleForTests(capture),
     } as unknown as DbPort;
     const webapp: WebappEventsPort = {
       emit: vi.fn().mockResolvedValue({ ok: true, status: 202 }),
@@ -26,16 +26,15 @@ describe("projectionFanout: sync emit then outbox fallback", () => {
     };
     await tryEmitWebappProjectionThenEnqueue(db, webapp, input);
     expect(webapp.emit).toHaveBeenCalledTimes(1);
-    expect(projectionQueries.some((q) => String(q[0]).includes("projection_outbox"))).toBe(false);
+    expect(capture.projectionInserts).toHaveLength(0);
   });
 
   it("enqueues when sync emit fails", async () => {
-    const projectionQueries: unknown[][] = [];
+    const capture = { projectionInserts: [] as { eventType: string; idempotencyKey: string; payload: unknown }[] };
     const db = {
-      query: vi.fn(async (sql: string, params: unknown[]) => {
-        projectionQueries.push([sql, params]);
-        return { rows: [] };
-      }),
+      query: vi.fn(async () => ({ rows: [] })),
+      tx: vi.fn() as unknown as DbPort["tx"],
+      integratorDrizzle: stubIntegratorDrizzleForTests(capture),
     } as unknown as DbPort;
     const webapp: WebappEventsPort = {
       emit: vi.fn().mockResolvedValue({ ok: false, status: 503, error: "unavailable" }),
@@ -44,18 +43,19 @@ describe("projectionFanout: sync emit then outbox fallback", () => {
     };
     await tryEmitWebappProjectionThenEnqueue(db, webapp, input);
     expect(webapp.emit).toHaveBeenCalledTimes(1);
-    expect(projectionQueries.some((q) => String(q[0]).includes("projection_outbox"))).toBe(true);
+    expect(capture.projectionInserts).toHaveLength(1);
+    expect(capture.projectionInserts[0]?.eventType).toBe("contact.linked");
   });
 
   it("enqueues when webapp port is missing", async () => {
-    const projectionQueries: unknown[][] = [];
+    const capture = { projectionInserts: [] as { eventType: string; idempotencyKey: string; payload: unknown }[] };
     const db = {
-      query: vi.fn(async (sql: string, params: unknown[]) => {
-        projectionQueries.push([sql, params]);
-        return { rows: [] };
-      }),
+      query: vi.fn(async () => ({ rows: [] })),
+      tx: vi.fn() as unknown as DbPort["tx"],
+      integratorDrizzle: stubIntegratorDrizzleForTests(capture),
     } as unknown as DbPort;
     await tryEmitWebappProjectionThenEnqueue(db, undefined, input);
-    expect(projectionQueries.some((q) => String(q[0]).includes("projection_outbox"))).toBe(true);
+    expect(capture.projectionInserts).toHaveLength(1);
+    expect(capture.projectionInserts[0]?.idempotencyKey).toBe("contact.linked:test");
   });
 });

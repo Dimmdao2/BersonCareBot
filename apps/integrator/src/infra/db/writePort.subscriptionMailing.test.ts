@@ -6,6 +6,7 @@ import {
   MAILING_LOG_SENT,
 } from '../../kernel/contracts/index.js';
 import { createDbWritePort } from './writePort.js';
+import { stubIntegratorDrizzleForTests } from './stubIntegratorDrizzleForTests.js';
 
 describe('writePort subscription/mailing projection events', () => {
   function makeMockDb(capture: {
@@ -28,10 +29,15 @@ describe('writePort subscription/mailing projection events', () => {
       }
       return { rows: [] } as Awaited<ReturnType<DbPort['query']>>;
     });
+    const drizzle = stubIntegratorDrizzleForTests(capture);
     const tx = vi.fn(async (fn: (txDb: DbPort) => Promise<void>) => {
-      return fn({ query, tx } as DbPort);
+      return fn({
+        query,
+        tx,
+        integratorDrizzle: drizzle,
+      } as DbPort);
     });
-    return { query, tx } as DbPort;
+    return { query, tx, integratorDrizzle: drizzle } as DbPort;
   }
 
   it('mailing.topic.upsert enqueues mailing.topic.upserted with deterministic idempotency key', async () => {

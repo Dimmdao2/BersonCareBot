@@ -96,6 +96,11 @@ export type DbQueryResult<T = unknown> = {
 export type DbPort = {
   query<T = unknown>(sql: string, params?: unknown[]): Promise<DbQueryResult<T>>;
   tx<T>(fn: (db: DbPort) => Promise<T>): Promise<T>;
+  /**
+   * Внутри `createDbPort().tx` — Drizzle на том же `pg` client, что и `query`.
+   * Репозитории читают через `getIntegratorDrizzleSession` из `infra/db/drizzle.ts`.
+   */
+  integratorDrizzle?: unknown;
 };
 
 /** Порт чтения данных, используемый orchestrator/domain. */

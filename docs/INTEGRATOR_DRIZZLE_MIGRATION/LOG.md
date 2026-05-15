@@ -8,3 +8,23 @@
 ## 2026-05-15
 
 - Глобальный бэклог **«Integrator — один каталог записи (убрать дубль `integrator.rubitime_*`)»** — в [`docs/TODO.md`](../TODO.md) (раздел после Rubitime API2 фазы 2); пересекается с этапами Drizzle-репозиториев и cutover v1/v2.
+
+### Этап 1 (P1 repos) — выполнено
+
+- **Стратегия схемы (`schema-strategy`, мастер-план):** для этапа 1 принят **локальный дубль** — узкие `pgTable` в `apps/integrator/src/infra/db/schema/integratorPublicProduct.ts` сверены с `apps/webapp/db/schema/schema.ts` (колонки, уникальные ограничения; для `delivery_attempt_logs` — те же btree-индексы и CHECK `attempt > 0`, `status ∈ {success,failed}`). Зависимость от пакета webapp не добавлялась. Регистрация: `integratorDrizzleSchema.ts` + `getIntegratorDrizzle()` / `getIntegratorDrizzleSession()` в `apps/integrator/src/infra/db/drizzle.ts` (вместе с `@bersoncare/operator-db-schema`). **Backlog:** вынести общий набор таблиц в workspace-пакет по образцу `operator-db-schema`, когда дубль станет шире P1.
+- **Переведены на Drizzle:** `repos/subscriptions.ts`, `topics.ts`, `booking_calendar_map` в `repos/bookingCalendarMap.ts` (обновление `public.patient_bookings` остаётся `db.query`), `mailingLogs.ts`, `messageLogs.ts` (таблица **`delivery_attempt_logs`**; не путать с несуществующим именем `message_logs`).
+- **Транзакции:** на `DbPort` внутри `createDbPort().tx` добавлено поле `integratorDrizzle` (тот же `pg` client); репозитории используют `getIntegratorDrizzleSession(port)` — без отката на пул внутри TX.
+- **Валидация перед INSERT в `delivery_attempt_logs`:** в `messageLogs.ts` отсекаются строки с невалидными `channel` / `status` / `attempt` (до вызова Drizzle), чтобы не полагаться на небезопасные приведения типов.
+- **Проверки:** `pnpm --dir apps/integrator run typecheck`, `pnpm --dir apps/integrator run test`.
+- **Тесты:** заглушка `stubIntegratorDrizzleForTests.ts` для writePort/unit-тестов с мок-`DbPort`.
+- **Вне P1-repos, осознанный сырой SQL:** `mergeIntegratorUsers.ts` — `user_subscriptions` / `mailing_logs` при merge пользователей (этап 4 мастер-плана).
+
+### Этап 2 (outbox + job queue) — выполнено
+
+- **Схема:** `apps/integrator/src/infra/db/schema/integratorQueues.ts` — `projection_outbox`, `rubitime_create_retry_jobs` (колонки и индексы как в `apps/webapp/db/schema/schema.ts`: partial `idx_projection_outbox_due`, unique `idx_projection_outbox_idempotency_key`, `idx_rubitime_create_retry_jobs_due`). Регистрация в `integratorDrizzleSchema.ts`.
+- **`projectionOutbox.ts`:** `enqueueProjectionEvent` — Drizzle `insert` + `onConflictDoNothing`; `claimDueProjectionEvents` — **`getIntegratorDrizzleSession(db).execute(sql\`…\`)`** с прежним CTE + `FOR UPDATE SKIP LOCKED` + `RETURNING` с camelCase алиасами; `complete` / `fail` / `reschedule` — `update` + `eq`, для `next_try_at`/`updated_at` — фрагменты `sql` с тем же выражением интервала, что и в legacy.
+- **`jobQueue.ts`:** `enqueueMessageRetryJob` — `insert` + `sql` для `next_try_at`; `claimDueMessageRetryJobs` — **`execute(sql\`…\`)`** (аналогичный claim-паттерн); `reschedule` / `complete` / `fail` — `update`.
+- **Транзакции:** по-прежнему `getIntegratorDrizzleSession(port)` (в т.ч. внутри `createDbPort().tx`).
+- **Тесты:** моки `getIntegratorDrizzleSession` в `projectionOutbox.test.ts`, `jobQueuePort.test.ts`; `projectionFanout.test.ts` и writePort-тесты — `stubIntegratorDrizzleForTests(capture)` на **корневом** `DbPort` (fanout после TX вызывает enqueue на root `db`); в stub добавлен **`onConflictDoUpdate`** для `mailing_logs` в том же tx.
+- **Проверки:** `pnpm --dir apps/integrator run typecheck`, `pnpm --dir apps/integrator run test`.
+- **Вне этапа 2:** сырой SQL в `projectionHealth.ts`, `mergeIntegratorUsers.ts` (projection payload), `scripts/projection-health.mjs` — без изменений в этом этапе.

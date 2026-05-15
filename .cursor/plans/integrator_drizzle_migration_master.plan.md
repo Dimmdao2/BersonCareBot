@@ -3,14 +3,17 @@ name: Integrator SQL → Drizzle (мастер-план)
 overview: Поэтапный перевод выбранных репозиториев интегратора с сырого SQL на Drizzle-ORM без смены контрактов kernel и без изменения транзакционной семантики (особенно claim + SKIP LOCKED + retry для outbox/очередей).
 todos:
   - id: schema-strategy
-    content: Зафиксировать стратегию общих Drizzle-определений таблиц (workspace-пакет vs локальная schema в integrator vs выборочный импорт) и расширить регистрацию схемы в getIntegratorDrizzle
-    status: pending
+    content: >-
+      Закрыто для этапа 1: локальные pgTable в apps/integrator (integratorPublicProduct.ts
+      + integratorDrizzleSchema.ts), канон колонок/индексов/CHECK — сверка с webapp schema.ts;
+      вынос в workspace-пакет (как operator-db-schema) — отдельный backlog при росте дубля.
+    status: completed
   - id: phase-1
     content: "Выполнить план integrator_drizzle_phase_1_simple_repos.plan.md — P1 простые репозитории"
-    status: pending
+    status: completed
   - id: phase-2
     content: "Выполнить план integrator_drizzle_phase_2_outbox_job_queue.plan.md — outbox + job queue"
-    status: pending
+    status: completed
   - id: phase-3
     content: "Выполнить план integrator_drizzle_phase_3_domain_repos.plan.md — доменные репозитории"
     status: pending
@@ -43,12 +46,18 @@ isProject: true
 
 Единый PostgreSQL с таблицами, часть которых уже описана в [`apps/webapp/db/schema/schema.ts`](../../apps/webapp/db/schema/schema.ts) (например `projectionOutbox`, `userSubscriptions`). Integrator сегодня **не** зависит от webapp-пакета.
 
-Выбрать один подход и зафиксировать его в [`docs/INTEGRATOR_DRIZZLE_MIGRATION/LOG.md`](../../docs/INTEGRATOR_DRIZZLE_MIGRATION/LOG.md):
+**Статус выбора:** см. подраздел «Решение (зафиксировано, этап 1)» ниже. Исторические варианты:
 
-- **Предпочтительно:** вынести минимальный набор `pgTable` для integrator-путей в отдельный workspace-пакет (по образцу [`packages/operator-db-schema`](../../packages/operator-db-schema)), чтобы не подтягивать webapp и не дублировать колонки вручную в двух местах без процесса синхронизации.
-- **Альтернатива:** явно дублировать узкие определения только для читаемых integrator-колонок в `apps/integrator/` — допустимо только с чеклистом «поле к полю совпадает с каноническим DDL / webapp schema» для каждой таблицы.
+- **Предпочтительно (backlog):** вынести минимальный набор `pgTable` для integrator-путей в отдельный workspace-пакет (по образцу [`packages/operator-db-schema`](../../packages/operator-db-schema)), чтобы не подтягивать webapp и не дублировать колонки вручную в двух местах без процесса синхронизации.
+- **Принято для этапа 1:** явно дублировать узкие определения в `apps/integrator/` с чеклистом «поле к полю совпадает с каноническим DDL / webapp schema» для каждой таблицы.
 
 Расширить [`apps/integrator/src/infra/db/drizzle.ts`](../../apps/integrator/src/infra/db/drizzle.ts): зарегистрировать новые таблицы в объекте `schema`, сохранить один пул (`db` из `client.ts`).
+
+### Решение (зафиксировано, этап 1)
+
+- **Выбран вариант «локальный дубль»:** `apps/integrator/src/infra/db/schema/integratorPublicProduct.ts` + регистрация в [`integratorDrizzleSchema.ts`](../../apps/integrator/src/infra/db/integratorDrizzleSchema.ts); integrator **не** зависит от пакета webapp.
+- **Workspace-пакет** для общих `pgTable` остаётся предпочтительным направлением на будущее, когда дублирование выйдет за пределы узкого набора таблиц — до этого чеклист «поле к полю с `schema.ts` / DDL» обязателен при любых правках.
+- Подробности и риски: [`docs/INTEGRATOR_DRIZZLE_MIGRATION/LOG.md`](../../docs/INTEGRATOR_DRIZZLE_MIGRATION/LOG.md).
 
 ## Границы scope (разрешено / вне scope)
 

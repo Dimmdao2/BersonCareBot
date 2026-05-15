@@ -1,4 +1,7 @@
+import { eq, sql } from 'drizzle-orm';
 import type { DbPort } from '../../../kernel/contracts/index.js';
+import { getIntegratorDrizzleSession } from '../drizzle.js';
+import { rubitimeCreateRetryJobs } from '../schema/integratorQueues.js';
 
 export type MessageRetryJobRow = {
   id: number;
@@ -19,46 +22,34 @@ export async function enqueueMessageRetryJob(db: DbPort, input: {
   kind: string;
   payloadJson: Record<string, unknown>;
 }): Promise<void> {
-  const query = `
-    INSERT INTO rubitime_create_retry_jobs (
-      phone_normalized,
-      message_text,
-      next_try_at,
-      attempts_done,
-      max_attempts,
-      status,
-      kind,
-      payload_json
-    ) VALUES (
-      $1,
-      $2,
-      now() + (($3::text || ' seconds')::interval),
-      0,
-      $4,
-      'pending',
-      $5,
-      $6::jsonb
-    )
-  `;
-  await db.query(query, [
-    input.phoneNormalized,
-    input.messageText,
-    Math.max(0, Math.trunc(input.firstTryDelaySeconds)),
-    Math.max(1, Math.trunc(input.maxAttempts)),
-    input.kind,
-    JSON.stringify(input.payloadJson),
-  ]);
+  const d = getIntegratorDrizzleSession(db);
+  const delaySec = Math.max(0, Math.trunc(input.firstTryDelaySeconds));
+  await d.insert(rubitimeCreateRetryJobs).values({
+    phoneNormalized: input.phoneNormalized,
+    messageText: input.messageText,
+    nextTryAt: sql`now() + (${String(delaySec)}::text || ' seconds')::interval`,
+    attemptsDone: 0,
+    maxAttempts: Math.max(1, Math.trunc(input.maxAttempts)),
+    status: 'pending',
+    kind: input.kind,
+    payloadJson: input.payloadJson,
+  });
 }
 
+/**
+ * Claim: CTE + UPDATE … FOR UPDATE SKIP LOCKED — идентичный legacy SQL, `execute(sql)`.
+ */
 export async function claimDueMessageRetryJobs(db: DbPort, limit: number): Promise<MessageRetryJobRow[]> {
-  const query = `
+  const d = getIntegratorDrizzleSession(db);
+  const lim = Math.max(1, Math.trunc(limit));
+  const res = await d.execute(sql`
     WITH due AS (
       SELECT id
       FROM rubitime_create_retry_jobs
       WHERE status = 'pending'
         AND next_try_at <= now()
       ORDER BY next_try_at ASC
-      LIMIT $1
+      LIMIT ${lim}
       FOR UPDATE SKIP LOCKED
     )
     UPDATE rubitime_create_retry_jobs j
@@ -75,9 +66,8 @@ export async function claimDueMessageRetryJobs(db: DbPort, limit: number): Promi
       j.payload_json AS "payloadJson",
       j.attempts_done AS "attemptsDone",
       j.max_attempts AS "maxAttempts"
-  `;
-  const res = await db.query<MessageRetryJobRow>(query, [Math.max(1, Math.trunc(limit))]);
-  return res.rows;
+  `);
+  return res.rows as MessageRetryJobRow[];
 }
 
 export async function rescheduleMessageRetryJob(db: DbPort, input: {
@@ -86,40 +76,37 @@ export async function rescheduleMessageRetryJob(db: DbPort, input: {
   retryDelaySeconds: number;
   lastError?: string;
 }): Promise<void> {
-  const query = `
-    UPDATE rubitime_create_retry_jobs
-    SET status = 'pending',
-        attempts_done = $2,
-        next_try_at = now() + (($3::text || ' seconds')::interval),
-        last_error = $4,
-        updated_at = now()
-    WHERE id = $1
-  `;
-  await db.query(query, [
-    input.id,
-    Math.max(0, Math.trunc(input.attemptsDone)),
-    Math.max(1, Math.trunc(input.retryDelaySeconds)),
-    input.lastError ?? null,
-  ]);
+  const d = getIntegratorDrizzleSession(db);
+  const delay = Math.max(1, Math.trunc(input.retryDelaySeconds));
+  const attempts = Math.max(0, Math.trunc(input.attemptsDone));
+  await d
+    .update(rubitimeCreateRetryJobs)
+    .set({
+      status: 'pending',
+      attemptsDone: attempts,
+      nextTryAt: sql`now() + (${String(delay)}::text || ' seconds')::interval`,
+      lastError: input.lastError ?? null,
+      updatedAt: sql`now()`,
+    })
+    .where(eq(rubitimeCreateRetryJobs.id, input.id));
 }
 
 export async function completeMessageRetryJob(db: DbPort, id: number): Promise<void> {
-  const query = `
-    UPDATE rubitime_create_retry_jobs
-    SET status = 'done',
-        updated_at = now()
-    WHERE id = $1
-  `;
-  await db.query(query, [id]);
+  const d = getIntegratorDrizzleSession(db);
+  await d
+    .update(rubitimeCreateRetryJobs)
+    .set({ status: 'done', updatedAt: sql`now()` })
+    .where(eq(rubitimeCreateRetryJobs.id, id));
 }
 
 export async function failMessageRetryJob(db: DbPort, input: { id: number; lastError?: string }): Promise<void> {
-  const query = `
-    UPDATE rubitime_create_retry_jobs
-    SET status = 'dead',
-        last_error = $2,
-        updated_at = now()
-    WHERE id = $1
-  `;
-  await db.query(query, [input.id, input.lastError ?? null]);
+  const d = getIntegratorDrizzleSession(db);
+  await d
+    .update(rubitimeCreateRetryJobs)
+    .set({
+      status: 'dead',
+      lastError: input.lastError ?? null,
+      updatedAt: sql`now()`,
+    })
+    .where(eq(rubitimeCreateRetryJobs.id, input.id));
 }

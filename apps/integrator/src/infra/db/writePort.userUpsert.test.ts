@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { DbPort } from "../../kernel/contracts/index.js";
 import { createDbWritePort } from "./writePort.js";
+import { stubIntegratorDrizzleForTests } from "./stubIntegratorDrizzleForTests.js";
 
 function makeMockDb(capture: {
   projectionInserts: { eventType: string; idempotencyKey: string; payload: Record<string, unknown> }[];
@@ -67,8 +68,9 @@ function makeMockDb(capture: {
 
     return { rows: [] } as Awaited<ReturnType<DbPort["query"]>>;
   });
-  const tx = vi.fn(async (fn: (txDb: DbPort) => Promise<void>) => fn({ query, tx } as DbPort));
-  return { query, tx } as DbPort;
+  const drizzle = stubIntegratorDrizzleForTests(capture);
+  const tx = vi.fn(async (fn: (txDb: DbPort) => Promise<void>) => fn({ query, tx, integratorDrizzle: drizzle } as DbPort));
+  return { query, tx, integratorDrizzle: drizzle } as DbPort;
 }
 
 describe("writePort user.upsert projection payload", () => {
@@ -151,8 +153,9 @@ describe("writePort user.upsert projection payload", () => {
       }
       return { rows: [] } as Awaited<ReturnType<DbPort["query"]>>;
     });
-    const tx = vi.fn(async (fn: (txDb: DbPort) => Promise<void>) => fn({ query, tx } as DbPort));
-    const db = { query, tx } as DbPort;
+    const drizzle = stubIntegratorDrizzleForTests();
+    const tx = vi.fn(async (fn: (txDb: DbPort) => Promise<void>) => fn({ query, tx, integratorDrizzle: drizzle } as DbPort));
+    const db = { query, tx, integratorDrizzle: drizzle } as DbPort;
     const writePort = createDbWritePort({ db });
 
     const meta = await writePort.writeDb({
@@ -221,8 +224,9 @@ describe("writePort user.upsert projection payload", () => {
       }
       return { rows: [] } as Awaited<ReturnType<DbPort["query"]>>;
     });
-    const tx = vi.fn(async (fn: (txDb: DbPort) => Promise<void>) => fn({ query, tx } as DbPort));
-    const db = { query, tx } as DbPort;
+    const drizzle = stubIntegratorDrizzleForTests();
+    const tx = vi.fn(async (fn: (txDb: DbPort) => Promise<void>) => fn({ query, tx, integratorDrizzle: drizzle } as DbPort));
+    const db = { query, tx, integratorDrizzle: drizzle } as DbPort;
     const writePort = createDbWritePort({ db });
 
     const meta = await writePort.writeDb({
@@ -286,8 +290,9 @@ describe("writePort user.upsert projection payload", () => {
       }
       return { rows: [] } as Awaited<ReturnType<DbPort["query"]>>;
     });
-    const tx = vi.fn(async (fn: (txDb: DbPort) => Promise<void>) => fn({ query, tx } as DbPort));
-    const db = { query, tx } as DbPort;
+    const drizzle = stubIntegratorDrizzleForTests();
+    const tx = vi.fn(async (fn: (txDb: DbPort) => Promise<void>) => fn({ query, tx, integratorDrizzle: drizzle } as DbPort));
+    const db = { query, tx, integratorDrizzle: drizzle } as DbPort;
     const writePort = createDbWritePort({ db });
 
     const meta = await writePort.writeDb({

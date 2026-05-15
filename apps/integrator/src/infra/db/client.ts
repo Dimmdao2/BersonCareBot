@@ -1,8 +1,10 @@
 import { Pool } from 'pg';
 import type { QueryResultRow } from 'pg';
+import { drizzle } from 'drizzle-orm/node-postgres';
 import type { DbPort, DbQueryResult } from '../../kernel/contracts/index.js';
 import { env } from '../../config/env.js';
 import { logger } from '../observability/logger.js';
+import { integratorDrizzleSchema } from './integratorDrizzleSchema.js';
 
 function databaseUrlDiagnostics(): {
   databaseUrlConfigured: boolean;
@@ -106,7 +108,9 @@ export function createDbPort(pool: Pool = db): DbPort {
 			}
 			try {
 				await client.query('BEGIN');
+				const integratorDrizzle = drizzle(client, { schema: integratorDrizzleSchema });
 				const txPort: DbPort = {
+					integratorDrizzle,
 					query: async <Row = QueryResultRow>(sql: string, params?: unknown[]): Promise<DbQueryResult<Row>> => {
 						try {
 							const res = await client.query(sql, params);

@@ -1,5 +1,7 @@
 import type { DbPort, DbWriteMutation } from '../../../kernel/contracts/index.js';
 import { logger } from '../../observability/logger.js';
+import { getIntegratorDrizzleSession } from '../drizzle.js';
+import { deliveryAttemptLogs } from '../schema/integratorPublicProduct.js';
 
 type DeliveryAttemptLogParams = {
   intentType?: unknown;
@@ -22,32 +24,32 @@ function asNumber(value: unknown): number | null {
 }
 
 export async function insertDeliveryAttemptLog(db: DbPort, params: DeliveryAttemptLogParams): Promise<void> {
-  const query = `
-    INSERT INTO delivery_attempt_logs (
-      intent_type,
-      intent_event_id,
-      correlation_id,
+  const channel = asString(params.channel);
+  const status = asString(params.status);
+  const attempt = asNumber(params.attempt);
+  if (channel === null || status === null || attempt === null || attempt <= 0) {
+    logger.warn({ params }, 'insertDeliveryAttemptLog: skip row with invalid channel/status/attempt');
+    return;
+  }
+  if (status !== 'success' && status !== 'failed') {
+    logger.warn({ params, status }, 'insertDeliveryAttemptLog: skip row with status outside success|failed');
+    return;
+  }
+  const d = getIntegratorDrizzleSession(db);
+  try {
+    await d.insert(deliveryAttemptLogs).values({
+      intentType: asString(params.intentType),
+      intentEventId: asString(params.intentEventId),
+      correlationId: asString(params.correlationId),
       channel,
       status,
       attempt,
-      reason,
-      payload_json,
-      occurred_at
-    )
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9)
-  `;
-  try {
-    await db.query(query, [
-      asString(params.intentType),
-      asString(params.intentEventId),
-      asString(params.correlationId),
-      asString(params.channel),
-      asString(params.status),
-      asNumber(params.attempt),
-      asString(params.reason),
-      JSON.stringify(params.payload ?? {}),
-      asString(params.occurredAt) ?? new Date().toISOString(),
-    ]);
+      reason: asString(params.reason),
+      payloadJson: typeof params.payload === 'object' && params.payload !== null
+        ? (params.payload as Record<string, unknown>)
+        : {},
+      occurredAt: asString(params.occurredAt) ?? new Date().toISOString(),
+    });
   } catch (err) {
     logger.error({ err, params }, 'insert delivery attempt log failed');
   }
