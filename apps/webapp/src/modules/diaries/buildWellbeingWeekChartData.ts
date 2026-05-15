@@ -25,9 +25,9 @@ export type WellbeingWeekChartModel = {
 };
 
 function warmupValueToBand(value: number): WarmupScatterBand | null {
-  if (value === 1) return "low";
+  if (value === 1 || value === 2) return "low";
   if (value === 3) return "mid";
-  if (value === 5) return "high";
+  if (value === 4 || value === 5) return "high";
   return null;
 }
 

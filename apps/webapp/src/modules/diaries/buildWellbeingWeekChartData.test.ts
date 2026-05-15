@@ -68,16 +68,17 @@ describe("buildWellbeingWeekChartData", () => {
     expect(modelExplicit.weekEndMs).toBe(modelAnchor.weekEndMs);
   });
 
-  it("warmupScatter маппит только 1/3/5 в band", () => {
+  it("warmupScatter включает все оценки 1–5 (band: 1–2 low, 3 mid, 4–5 high)", () => {
     const warmup: SymptomEntry[] = [
       baseEntry({ recordedAt: "2026-05-07T12:00:00.000Z", value0_10: 1 }),
       baseEntry({ recordedAt: "2026-05-08T12:00:00.000Z", value0_10: 3 }),
       baseEntry({ recordedAt: "2026-05-09T12:00:00.000Z", value0_10: 5 }),
       baseEntry({ recordedAt: "2026-05-09T13:00:00.000Z", value0_10: 2 }),
+      baseEntry({ recordedAt: "2026-05-09T14:00:00.000Z", value0_10: 4 }),
     ];
     const model = buildWellbeingWeekChartData([], warmup, iana, { anchor });
-    expect(model.warmupScatter).toHaveLength(3);
-    expect(model.warmupScatter.map((p) => p.band)).toEqual(["low", "mid", "high"]);
+    expect(model.warmupScatter).toHaveLength(5);
+    expect(model.warmupScatter.map((p) => p.band)).toEqual(["low", "mid", "high", "low", "high"]);
   });
 
   it("отбрасывает записи вне текущей недели", () => {

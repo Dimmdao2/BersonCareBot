@@ -4,7 +4,7 @@
 
 ## Текущий MVP (страница `page.tsx`)
 
-- Одна секция **«Самочувствие за неделю»**: Recharts `ComposedChart` — среднее за день (`general_wellbeing`, только **instant**), линия отметок в течение дня (**только instant**; записи `daily` на линию не попадают), точки «после разминки» (`warmup_feeling`, значения 1/3/5).
+- Одна секция **«Самочувствие за неделю»**: Recharts `ComposedChart` — среднее за день (`general_wellbeing`, только **instant**), линия отметок в течение дня (**только instant**; записи `daily` на линию не попадают), точки «после разминки» (`warmup_feeling`, шкала **1–5**; цвет точки: 1–2 low, 3 mid, 4–5 high).
 - Данные: `loadPatientDiaryWeekWellbeing` → `buildWellbeingWeekChartData`; границы недели в ms передаются из лоадера в хелпер (**одинаковое окно** с SQL `fromRecordedAt` / `toRecordedAtExclusive`).
 - TZ календарного дня — `resolveCalendarDayIanaForPatient` + `patientCalendarTimezone` (**тот же выбор IANA**, что `GET /api/patient/mood/week` и полоса «Ваша неделя» на главной).
 - Ось Y графика самочувствия в коде — **1–5** (шкала чек-ина; ноль не используется); при необходимости расширения до 0–10 — отдельная задача.
