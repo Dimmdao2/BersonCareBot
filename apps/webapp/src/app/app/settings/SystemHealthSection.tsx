@@ -468,7 +468,7 @@ function outgoingDeliveryKindHuman(kind: string): string {
   return "Прочее";
 }
 
-function formatOutgoingByKind(label: string, counts: Record<string, number>): string {
+function formatOutgoingByKind(counts: Record<string, number>): string {
   const entries = Object.entries(counts).filter(([, n]) => n > 0);
   if (entries.length === 0) return "—";
   return entries
@@ -966,11 +966,11 @@ export function SystemHealthSection() {
               />
               <DetailRow
                 label="Ждут по типу задачи"
-                value={formatOutgoingByKind("due", data?.outgoingDelivery?.dueByKind ?? {})}
+                value={formatOutgoingByKind(data?.outgoingDelivery?.dueByKind ?? {})}
               />
               <DetailRow
                 label="Ошибки без повтора по типу"
-                value={formatOutgoingByKind("dead", data?.outgoingDelivery?.deadByKind ?? {})}
+                value={formatOutgoingByKind(data?.outgoingDelivery?.deadByKind ?? {})}
               />
               <DetailRow label="Последнее время отправки" value={formatDateTime(data?.outgoingDelivery?.lastSentAt ?? null)} />
               <DetailRow

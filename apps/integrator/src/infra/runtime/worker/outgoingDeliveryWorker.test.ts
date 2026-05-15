@@ -10,6 +10,7 @@ vi.mock('../../db/repos/outgoingDeliveryQueue.js', async (importOriginal) => {
 
 import type { OutgoingDeliveryQueueRow } from '../../db/repos/outgoingDeliveryQueue.js';
 import { processOutgoingDeliveryRow } from './outgoingDeliveryWorker.js';
+import { markOutgoingDeliverySent } from '../../db/repos/outgoingDeliveryQueue.js';
 
 function baseRow(overrides: Partial<OutgoingDeliveryQueueRow>): OutgoingDeliveryQueueRow {
   return {
@@ -249,7 +250,6 @@ describe('reminder_dispatch outgoing delivery row', () => {
   });
 });
 
-import { markOutgoingDeliveryDead } from '../../db/repos/outgoingDeliveryQueue.js';
 
 describe('doctor_broadcast_intent outgoing delivery row', () => {
   beforeEach(() => {
@@ -288,6 +288,7 @@ describe('doctor_broadcast_intent outgoing delivery row', () => {
       { db: db as never, writePort: { writeDb: vi.fn() } as never, dispatchOutgoing },
     );
     expect(dispatchOutgoing).toHaveBeenCalledTimes(1);
+    expect(markOutgoingDeliverySent).toHaveBeenCalled();
     expect(db.query).toHaveBeenCalledWith(
       expect.stringContaining('broadcast_audit'),
       expect.arrayContaining([auditId]),

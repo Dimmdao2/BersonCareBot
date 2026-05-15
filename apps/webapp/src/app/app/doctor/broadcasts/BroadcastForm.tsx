@@ -15,6 +15,7 @@ import { BroadcastAudienceSelect } from "./BroadcastAudienceSelect";
 import { BroadcastConfirmStep } from "./BroadcastConfirmStep";
 import { BroadcastSentMessage } from "./BroadcastSentMessage";
 import { previewBroadcastAction, executeBroadcastAction } from "./actions";
+import { BROADCAST_DELIVERY_CAP_EXCEEDED_CODE } from "@/modules/doctor-broadcasts/deliveryQueueKind";
 
 type Stage = "idle" | "previewing" | "previewed" | "confirming" | "sent" | "error";
 
@@ -84,9 +85,13 @@ export function BroadcastForm({ onBroadcastSent }: Props) {
         setSentEntry(auditEntry);
         setStage("sent");
         onBroadcastSent?.(auditEntry);
-      } catch {
+      } catch (err) {
         setStage("error");
-        setErrorMsg("Ошибка при отправке рассылки. Попробуйте ещё раз.");
+        setErrorMsg(
+          err instanceof Error && err.message === BROADCAST_DELIVERY_CAP_EXCEEDED_CODE
+            ? "Слишком много сообщений в одной рассылке. Уменьшите аудиторию или каналы."
+            : "Ошибка при отправке рассылки. Попробуйте ещё раз.",
+        );
       }
     });
   }

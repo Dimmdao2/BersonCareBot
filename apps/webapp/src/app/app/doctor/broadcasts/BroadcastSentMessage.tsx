@@ -17,6 +17,9 @@ export function BroadcastSentMessage({ preview }: Props) {
     >
       <p className="font-medium text-sm">Рассылка запущена. Журнал обновится автоматически.</p>
       <p className="text-xs text-muted-foreground">
+        Счётчики «доставлено» в журнале сначала могут быть нулевыми — обновление займёт до минуты.
+      </p>
+      <p className="text-xs text-muted-foreground">
         Получателей (доставка): {preview.audienceSize}
         {preview.segmentSize != null && preview.segmentSize > preview.audienceSize
           ? ` (в сегменте ${preview.segmentSize})`
