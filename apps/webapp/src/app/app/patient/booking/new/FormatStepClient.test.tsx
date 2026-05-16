@@ -40,16 +40,16 @@ describe("FormatStepClient", () => {
     );
   });
 
-  it("«Реабилитация онлайн» ведёт на шаг выбора слота (онлайн ЛФК)", () => {
+  it("«Реабилитация онлайн» ведёт на форму онлайн-intake (реабилитация)", () => {
     render(<FormatStepClient cities={[city()]} catalogError={null} />);
     const link = screen.getByRole("link", { name: /Реабилитация онлайн/i });
-    expect(link).toHaveAttribute("href", `${routePaths.bookingNewSlot}?type=online&category=rehab_lfk`);
+    expect(link).toHaveAttribute("href", routePaths.intakeLfk);
   });
 
-  it("«Нутрициология онлайн» ведёт на шаг выбора слота (онлайн нутрициология)", () => {
+  it("«Нутрициология онлайн» ведёт на форму онлайн-intake (нутрициология)", () => {
     render(<FormatStepClient cities={[city()]} catalogError={null} />);
     const link = screen.getByRole("link", { name: /Нутрициология онлайн/i });
-    expect(link).toHaveAttribute("href", `${routePaths.bookingNewSlot}?type=online&category=nutrition`);
+    expect(link).toHaveAttribute("href", routePaths.intakeNutrition);
   });
 
   it("shows catalog error and retry refreshes router", async () => {

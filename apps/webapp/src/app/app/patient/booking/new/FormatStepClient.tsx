@@ -61,16 +61,12 @@ export function FormatStepClient({ cities, catalogError }: FormatStepClientProps
 
       <div className="flex flex-col gap-2">
         <p className={cn(patientMutedTextClass, "text-xs font-medium uppercase tracking-wide")}>Онлайн</p>
-        <Link
-          href={`${routePaths.bookingNewSlot}?type=online&category=rehab_lfk`}
-          prefetch={false}
-          className={cn(bookingChoiceRowClass, "text-left")}
-        >
+        <Link href={routePaths.intakeLfk} prefetch={false} className={cn(bookingChoiceRowClass, "text-left")}>
           <Dumbbell className={bookingChoiceRowIconClass} aria-hidden />
           Реабилитация онлайн
         </Link>
         <Link
-          href={`${routePaths.bookingNewSlot}?type=online&category=nutrition`}
+          href={routePaths.intakeNutrition}
           prefetch={false}
           className={cn(bookingChoiceRowClass, "text-left")}
         >
