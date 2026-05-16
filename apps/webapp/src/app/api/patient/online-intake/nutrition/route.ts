@@ -4,13 +4,8 @@ import { requirePatientApiBusinessAccess } from "@/app-layer/guards/requireRole"
 import { routePaths } from "@/app-layer/routes/paths";
 import { getOnlineIntakeService } from "@/app-layer/di/onlineIntakeDeps";
 
-const answerSchema = z.object({
-  questionId: z.enum(["q1", "q2", "q3", "q4", "q5"]),
-  value: z.string().min(1),
-});
-
 const bodySchema = z.object({
-  answers: z.array(answerSchema).min(1),
+  description: z.string().min(20, "description_too_short").max(5000, "description_too_long"),
 });
 
 export async function POST(request: Request) {
@@ -33,7 +28,7 @@ export async function POST(request: Request) {
       userId: session.user.userId,
       patientName: session.user.displayName ?? "",
       patientPhone: session.user.phone ?? "",
-      answers: parsed.data.answers,
+      description: parsed.data.description,
     });
     return NextResponse.json(
       { id: result.id, type: result.type, status: result.status, createdAt: result.createdAt },

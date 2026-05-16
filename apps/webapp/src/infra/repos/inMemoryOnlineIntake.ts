@@ -123,8 +123,7 @@ export function createInMemoryOnlineIntake(deps?: {
     async createNutritionRequest(input: CreateNutritionIntakeInput): Promise<IntakeRequest> {
       const id = randomUUID();
       const ts = now();
-      const firstAnswer = input.answers.find((a) => a.questionId === "q5")?.value ?? "";
-      const summary = firstAnswer.slice(0, 200);
+      const summary = input.description.slice(0, 200);
       const req: IntakeRequest = {
         id,
         userId: input.userId,
@@ -136,14 +135,16 @@ export function createInMemoryOnlineIntake(deps?: {
       };
       requests.set(id, req);
 
-      const ans: IntakeAnswer[] = input.answers.map((a, i) => ({
-        id: randomUUID(),
-        requestId: id,
-        questionId: a.questionId,
-        ordinal: i + 1,
-        value: a.value,
-        createdAt: ts,
-      }));
+      const ans: IntakeAnswer[] = [
+        {
+          id: randomUUID(),
+          requestId: id,
+          questionId: "nutrition_description",
+          ordinal: 1,
+          value: input.description,
+          createdAt: ts,
+        },
+      ];
       answers.set(id, ans);
       attachments.set(id, []);
 

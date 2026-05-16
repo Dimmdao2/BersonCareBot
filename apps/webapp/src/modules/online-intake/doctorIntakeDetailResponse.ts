@@ -3,7 +3,7 @@ import { logServerRuntimeError } from "@/infra/logging/serverRuntimeLog";
 import { s3PublicUrl } from "@/infra/s3/client";
 import { getVideoPresignTtlSeconds } from "@/app-layer/media/videoPresignTtl";
 import { presignGetUrl } from "@/app-layer/media/s3Client";
-import { NUTRITION_QUESTIONS } from "@/modules/online-intake/types";
+import { NUTRITION_ANSWER_LABELS } from "@/modules/online-intake/types";
 import type { IntakeRequestFullWithPatientIdentity } from "@/modules/online-intake/types";
 
 export type DoctorLfkAttachmentFile = {
@@ -101,7 +101,7 @@ export async function buildDoctorOnlineIntakeDetailResponse(
     };
   }
 
-  const qText = new Map(NUTRITION_QUESTIONS.map((q) => [q.id, q.text]));
+  const qText = new Map(Object.entries(NUTRITION_ANSWER_LABELS));
   return {
     ...base,
     answers: full.answers.map((a) => ({

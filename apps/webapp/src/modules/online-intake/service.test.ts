@@ -53,29 +53,18 @@ describe("onlineIntakeService", () => {
       patientName: "Мария",
       patientPhone: "+79001234568",
     };
-    const validAnswers = [
-      { questionId: "q1", value: "28" },
-      { questionId: "q2", value: "65 / 170" },
-      { questionId: "q4", value: "healthy_eating" },
-      { questionId: "q5", value: "Хочу улучшить питание и самочувствие" },
-    ];
 
-    it("creates nutrition request with valid answers", async () => {
-      const result = await service.submitNutrition({ ...base, answers: validAnswers });
+    it("creates nutrition request with valid description", async () => {
+      const result = await service.submitNutrition({
+        ...base,
+        description: "Хочу составить рацион при непереносимости лактозы и снизить вес безопасно",
+      });
       expect(result.type).toBe("nutrition");
       expect(result.status).toBe("new");
     });
 
-    it("throws on missing required q4", async () => {
-      const answers = validAnswers.filter((a) => a.questionId !== "q4");
-      await expect(service.submitNutrition({ ...base, answers })).rejects.toMatchObject({
-        code: "VALIDATION_ERROR",
-      });
-    });
-
-    it("throws on invalid q4 value", async () => {
-      const answers = validAnswers.map((a) => (a.questionId === "q4" ? { ...a, value: "invalid" } : a));
-      await expect(service.submitNutrition({ ...base, answers })).rejects.toMatchObject({
+    it("throws on description too short", async () => {
+      await expect(service.submitNutrition({ ...base, description: "short" })).rejects.toMatchObject({
         code: "VALIDATION_ERROR",
       });
     });
@@ -149,17 +138,11 @@ describe("onlineIntakeService", () => {
         intakePort: createInMemoryOnlineIntake(),
         notificationPort,
       });
-      const validAnswers = [
-        { questionId: "q1", value: "28" },
-        { questionId: "q2", value: "65 / 170" },
-        { questionId: "q4", value: "healthy_eating" },
-        { questionId: "q5", value: "Хочу улучшить питание и самочувствие" },
-      ];
       const result = await svc.submitNutrition({
         userId: "user-notify-2",
         patientName: "Мария",
         patientPhone: "+79001234568",
-        answers: validAnswers,
+        description: "Нужна консультация по рациону при диабете 2 типа и активном образе жизни",
       });
       expect(notifyNewIntakeRequest).toHaveBeenCalledTimes(1);
       expect(notifyNewIntakeRequest).toHaveBeenCalledWith(

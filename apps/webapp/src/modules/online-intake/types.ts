@@ -75,7 +75,17 @@ export type CreateLfkIntakeInput = {
 
 export type CreateNutritionIntakeInput = {
   userId: string;
-  answers: Array<{ questionId: string; value: string }>;
+  description: string;
+};
+
+/** Подписи вопросов для отображения заявок нутрициологии (в т.ч. legacy-строки в БД). */
+export const NUTRITION_ANSWER_LABELS: Record<string, string> = {
+  nutrition_description: "Описание запроса",
+  q1: "Ваш возраст?",
+  q2: "Ваш вес (кг) и рост (см)?",
+  q3: "Есть ли хронические заболевания или ограничения в питании?",
+  q4: "Ваша цель (weight_loss / weight_gain / healthy_eating / other)?",
+  q5: "Опишите текущий рацион и ваш запрос к нутрициологу",
 };
 
 export type ChangeIntakeStatusInput = {
@@ -84,36 +94,6 @@ export type ChangeIntakeStatusInput = {
   toStatus: IntakeStatus;
   note?: string;
 };
-
-export const NUTRITION_QUESTIONS: Array<{
-  id: string;
-  text: string;
-  ordinal: number;
-  required: boolean;
-}> = [
-  { id: "q1", text: "Ваш возраст?", ordinal: 1, required: true },
-  { id: "q2", text: "Ваш вес (кг) и рост (см)?", ordinal: 2, required: true },
-  {
-    id: "q3",
-    text: "Есть ли хронические заболевания или ограничения в питании?",
-    ordinal: 3,
-    required: false,
-  },
-  {
-    id: "q4",
-    text: "Ваша цель (weight_loss / weight_gain / healthy_eating / other)?",
-    ordinal: 4,
-    required: true,
-  },
-  {
-    id: "q5",
-    text: "Опишите текущий рацион и ваш запрос к нутрициологу",
-    ordinal: 5,
-    required: true,
-  },
-];
-
-export const VALID_Q4_VALUES = ["weight_loss", "weight_gain", "healthy_eating", "other"] as const;
 
 export const VALID_STATUS_TRANSITIONS: Record<IntakeStatus, IntakeStatus[]> = {
   new: ["in_review", "contacted", "closed"],

@@ -193,8 +193,7 @@ export function createPgOnlineIntakePort(): OnlineIntakePort {
         await client.query("BEGIN");
         await client.query(`SELECT pg_advisory_xact_lock_shared(hashtext($1::text))`, [input.userId]);
         const id = randomUUID();
-        const q5Answer = input.answers.find((a) => a.questionId === "q5")?.value ?? "";
-        const summary = q5Answer.slice(0, 200);
+        const summary = input.description.slice(0, 200);
 
         const { rows } = await client.query<RequestRow>(
           `INSERT INTO online_intake_requests (id, user_id, type, summary)
@@ -204,14 +203,11 @@ export function createPgOnlineIntakePort(): OnlineIntakePort {
         );
         const request = mapRequest(rows[0]);
 
-        for (let i = 0; i < input.answers.length; i++) {
-          const a = input.answers[i];
-          await client.query(
-            `INSERT INTO online_intake_answers (id, request_id, question_id, ordinal, value)
-             VALUES ($1, $2, $3, $4, $5)`,
-            [randomUUID(), id, a.questionId, i + 1, a.value],
-          );
-        }
+        await client.query(
+          `INSERT INTO online_intake_answers (id, request_id, question_id, ordinal, value)
+           VALUES ($1, $2, 'nutrition_description', 1, $3)`,
+          [randomUUID(), id, input.description],
+        );
 
         await client.query(
           `INSERT INTO online_intake_status_history (id, request_id, from_status, to_status)

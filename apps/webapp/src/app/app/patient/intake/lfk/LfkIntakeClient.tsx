@@ -2,11 +2,21 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { routePaths } from "@/app-layer/routes/paths";
+import { cn } from "@/lib/utils";
+import {
+  patientButtonPrimaryClass,
+  patientButtonSecondaryClass,
+  patientFormSurfaceClass,
+  patientInnerPageStackClass,
+  patientMutedTextClass,
+  patientMutedTextStrongClass,
+  patientSectionSurfaceClass,
+  patientSectionTitleClass,
+  patientSurfaceDangerClass,
+  patientSurfaceSuccessClass,
+} from "@/shared/ui/patientVisual";
 
 type State = "form" | "submitting" | "success" | "error";
 
@@ -14,7 +24,6 @@ export function LfkIntakeClient() {
   const router = useRouter();
   const [state, setState] = useState<State>("form");
   const [description, setDescription] = useState("");
-  const [attachmentUrl, setAttachmentUrl] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const canSubmit = description.trim().length >= 20;
@@ -24,13 +33,11 @@ export function LfkIntakeClient() {
     setState("submitting");
     setErrorMessage(null);
 
-    const attachmentUrls = attachmentUrl.trim() ? [attachmentUrl.trim()] : [];
-
     try {
       const res = await fetch("/api/patient/online-intake/lfk", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ description: description.trim(), attachmentUrls }),
+        body: JSON.stringify({ description: description.trim() }),
       });
 
       if (res.ok) {
@@ -48,87 +55,71 @@ export function LfkIntakeClient() {
 
   if (state === "success") {
     return (
-      <div className="flex flex-col gap-4">
-        <div className="flex flex-col gap-2">
-          <h2 className="text-base font-semibold text-green-700">Заявка отправлена</h2>
-          <p className="text-sm text-muted-foreground">
+      <div className={patientInnerPageStackClass}>
+        <div className={patientSurfaceSuccessClass}>
+          <h2 className={patientSectionTitleClass}>Заявка отправлена</h2>
+          <p className={patientMutedTextClass}>
             Врач свяжется с вами лично или через приложение в ближайшее время.
           </p>
         </div>
-        <Button variant="outline" onClick={() => router.push(routePaths.bookingNew)}>
+        <button
+          type="button"
+          className={cn(patientButtonSecondaryClass, "sm:w-auto")}
+          onClick={() => router.push(routePaths.bookingNew)}
+        >
           Вернуться в кабинет
-        </Button>
+        </button>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center gap-2">
-        <h2 className="text-sm font-semibold">Онлайн-запрос: Реабилитация (ЛФК)</h2>
-        <Badge variant="outline">Онлайн</Badge>
-      </div>
+    <div className={patientInnerPageStackClass}>
+      <section className={patientSectionSurfaceClass}>
+        <h1 className={patientSectionTitleClass}>Реабилитация (ЛФК)</h1>
 
-      <p className="text-sm text-muted-foreground">
-        Опишите проблему, с которой обращаетесь. По возможности прикрепите врачебные выписки,
-        снимки рентген / МРТ / КТ (архив или ссылку на облако).
-      </p>
+        <p className={patientMutedTextClass}>Опишите проблему или запрос, с которым обращаетесь.</p>
 
-      <div className="flex flex-col gap-1">
-        <label className="text-xs font-medium text-muted-foreground" htmlFor="lfk-description">
-          Описание проблемы <span className="text-destructive">*</span>
-        </label>
-        <Textarea
-          id="lfk-description"
-          className="min-h-32"
-          placeholder="Опишите, что беспокоит: симптомы, давность, предыдущее лечение..."
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          disabled={state === "submitting"}
-        />
-        {description.trim().length > 0 && description.trim().length < 20 && (
-          <p className="text-xs text-destructive">Минимум 20 символов</p>
-        )}
-      </div>
+        <div className="flex flex-col gap-1.5">
+          <label className={cn("text-xs font-medium", patientMutedTextStrongClass)} htmlFor="lfk-description">
+            Описание проблемы <span className="text-destructive">*</span>
+          </label>
+          <Textarea
+            id="lfk-description"
+            className={cn(patientFormSurfaceClass, "min-h-32 resize-y text-sm")}
+            placeholder="Опишите, что беспокоит: симптомы, давность, предыдущее лечение..."
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            disabled={state === "submitting"}
+          />
+          {description.trim().length > 0 && description.trim().length < 20 && (
+            <p className="text-xs text-destructive">Минимум 20 символов</p>
+          )}
+        </div>
 
-      <div className="flex flex-col gap-1">
-        <label className="text-xs font-medium text-muted-foreground" htmlFor="lfk-attachment">
-          Ссылка на файлы (необязательно)
-        </label>
-        <Input
-          id="lfk-attachment"
-          type="url"
-          placeholder="https://drive.google.com/..."
-          value={attachmentUrl}
-          onChange={(e) => setAttachmentUrl(e.target.value)}
-          disabled={state === "submitting"}
-        />
-        <p className="text-xs text-muted-foreground">
-          Ссылка на архив или облачное хранилище со снимками / выписками
-        </p>
-      </div>
+        {state === "error" && errorMessage ? (
+          <div className={cn(patientSurfaceDangerClass, "text-sm")}>{errorMessage}</div>
+        ) : null}
 
-      {state === "error" && errorMessage && (
-        <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
-          {errorMessage}
-        </p>
-      )}
-
-      <div className="flex gap-2">
-        <Button
-          variant="outline"
-          onClick={() => router.back()}
-          disabled={state === "submitting"}
-        >
-          Назад
-        </Button>
-        <Button
-          onClick={handleSubmit}
-          disabled={!canSubmit || state === "submitting"}
-        >
-          {state === "submitting" ? "Отправка..." : "Отправить запрос"}
-        </Button>
-      </div>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-stretch">
+          <button
+            type="button"
+            className={cn(patientButtonSecondaryClass, "sm:w-auto")}
+            onClick={() => router.back()}
+            disabled={state === "submitting"}
+          >
+            Назад
+          </button>
+          <button
+            type="button"
+            className={cn(patientButtonPrimaryClass, "sm:w-auto")}
+            onClick={handleSubmit}
+            disabled={!canSubmit || state === "submitting"}
+          >
+            {state === "submitting" ? "Отправка..." : "Отправить запрос"}
+          </button>
+        </div>
+      </section>
     </div>
   );
 }

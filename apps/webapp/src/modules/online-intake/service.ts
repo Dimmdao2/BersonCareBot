@@ -1,5 +1,6 @@
 import type { OnlineIntakePort, OnlineIntakeService, IntakeNotificationPort, ListIntakeQuery } from "./ports";
 import type { ChangeIntakeStatusInput, CreateLfkIntakeInput, CreateNutritionIntakeInput } from "./types";
+import { MAX_ACTIVE_INTAKE_PER_USER, VALID_STATUS_TRANSITIONS } from "./types";
 
 function dedupeStringsPreserveOrder(arr: string[] | undefined): string[] | undefined {
   if (!arr?.length) return arr;
@@ -12,12 +13,6 @@ function dedupeStringsPreserveOrder(arr: string[] | undefined): string[] | undef
   }
   return out;
 }
-import {
-  MAX_ACTIVE_INTAKE_PER_USER,
-  NUTRITION_QUESTIONS,
-  VALID_Q4_VALUES,
-  VALID_STATUS_TRANSITIONS,
-} from "./types";
 
 function validateLfkInput(input: CreateLfkIntakeInput): void {
   if (!input.description || input.description.trim().length < 20) {
@@ -35,19 +30,11 @@ function validateLfkInput(input: CreateLfkIntakeInput): void {
 }
 
 function validateNutritionInput(input: CreateNutritionIntakeInput): void {
-  const answerMap = new Map(input.answers.map((a) => [a.questionId, a.value]));
-  for (const q of NUTRITION_QUESTIONS) {
-    if (q.required && !answerMap.has(q.id)) {
-      throw Object.assign(new Error(`missing_required_answer:${q.id}`), { code: "VALIDATION_ERROR" });
-    }
+  if (!input.description || input.description.trim().length < 20) {
+    throw Object.assign(new Error("description_too_short"), { code: "VALIDATION_ERROR" });
   }
-  const q4 = answerMap.get("q4");
-  if (q4 && !(VALID_Q4_VALUES as readonly string[]).includes(q4)) {
-    throw Object.assign(new Error("invalid_q4_value"), { code: "VALIDATION_ERROR" });
-  }
-  const q5 = answerMap.get("q5");
-  if (q5 !== undefined && q5.trim().length < 10) {
-    throw Object.assign(new Error("q5_too_short"), { code: "VALIDATION_ERROR" });
+  if (input.description.length > 5000) {
+    throw Object.assign(new Error("description_too_long"), { code: "VALIDATION_ERROR" });
   }
 }
 
