@@ -32,6 +32,7 @@
 Эти места решают, **показывать ли** страницу или элемент с `mediaUrl`, но **не** подменяют проверку при прямом обращении к `/api/media/...`:
 
 - **Контент по slug** (`/app/patient/content/[slug]`): `requiresAuth` → `resolvePatientCanViewAuthOnlyContent`; при необходимости `patientRscPersonalDataGate`; RSC может заранее вызвать `resolveMediaPlaybackPayload` только при наличии сессии — это удобство и согласованность с playback API, а не ACL на UUID.
+- **Markdown тела страницы (`body_md`):** на клиенте для ссылок на `/api/media/{uuid}` выполняется тот же **`GET /api/media/{id}/playback`** с cookie-сессией; без сессии или при ошибке пользователь видит обычную ссылку, а не встроенный плеер ([`MarkdownEmbeddedLink.tsx`](../../apps/webapp/src/shared/ui/markdown/MarkdownEmbeddedLink.tsx)).
 - **Программа лечения (пациент):** загрузка данных через `getInstanceForPatient(userId, instanceId)` — пациент не получает чужой инстанс в UI; видимость пунктов этапа — `stage-semantics` и `docs/ARCHITECTURE/PATIENT_TREATMENT_PROGRAM_STAGE_SURFACES.md`. Плеер в модалке (`PatientProgramStageItemModal`) использует тот же `/api/media/...`, если UUID утечёл вне этого контекста.
 
 ## Исключение по смыслу «владение файлом» (не поток каталога)
@@ -40,7 +41,7 @@
 
 ## Связанные документы
 
-- `docs/ARCHITECTURE/PATIENT_MEDIA_PLAYBACK_VIDEO.md` — единый плеер и контракт playback JSON.
+- `docs/ARCHITECTURE/PATIENT_MEDIA_PLAYBACK_VIDEO.md` — единый плеер и контракт playback JSON (включая использование в Markdown теле страниц).
 - `docs/ARCHITECTURE/PATIENT_TREATMENT_PROGRAM_STAGE_SURFACES.md` — какие пункты этапа видны пациенту в UI.
 - TTL presign и конфиг: `docs/ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md`, слой `video_presign_ttl_seconds` / `getVideoPresignTtlSeconds` (см. код webapp).
 

@@ -40,6 +40,11 @@ function isPlaybackPayload(v: unknown): v is MediaPlaybackPayload {
   );
 }
 
+/**
+ * Origin для распознавания абсолютных URL вида `https://…/api/media/{uuid}` в Markdown:
+ * `window.location.origin` и при необходимости публичный `NEXT_PUBLIC_APP_BASE_URL`
+ * (задайте тот же канонический базовый URL, что и `APP_BASE_URL` на деплое).
+ */
 function markdownTrustedMediaOrigins(): string[] {
   const out: string[] = [];
   if (typeof window !== "undefined") out.push(window.location.origin);

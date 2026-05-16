@@ -195,6 +195,7 @@
 - `HOST=127.0.0.1`
 - `PORT=6200`
 - `APP_BASE_URL=https://bersoncare.ru`
+- опционально **`NEXT_PUBLIC_APP_BASE_URL=https://bersoncare.ru`** — совпадает с каноническим публичным URL приложения (распознавание абсолютных ссылок медиабиблиотеки в Markdown на клиенте; см. `docs/ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md`). Несекретно.
 - `DATABASE_URL=...` (после unification — **та же** БД, что в `api.prod`; схема **`public`**)
 - `SESSION_COOKIE_SECRET=...`
 - `INTEGRATOR_SHARED_SECRET=...`
@@ -270,6 +271,7 @@
 - `HOST=127.0.0.1`
 - `PORT=5200`
 - `APP_BASE_URL=http://127.0.0.1:5200`
+- опционально **`NEXT_PUBLIC_APP_BASE_URL=http://127.0.0.1:5200`** — для тестов Markdown с абсолютными URL медиа (см. `docs/ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md`)
 - `DATABASE_URL=...`
 - `SESSION_COOKIE_SECRET=...`
 - `INTEGRATOR_SHARED_SECRET=...`

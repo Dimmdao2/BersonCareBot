@@ -7,7 +7,8 @@
 1. **Подключения к инфраструктуре** — `DATABASE_URL` и аналоги.
 2. **Секретов процесса веб-приложения** — `SESSION_COOKIE_SECRET`, секреты обмена с интегратором (`INTEGRATOR_WEBAPP_ENTRY_SECRET`, `INTEGRATOR_WEBHOOK_SECRET`), при необходимости `INTEGRATOR_SHARED_SECRET`.
 3. **Базовых параметров процесса** — `NODE_ENV`, `HOST`, `PORT`, `APP_BASE_URL`.
-4. **Bootstrap интегратора** — env integrator (`apps/integrator`) по своему `config`/`env.ts`; webhook/SMS к интегратору на стороне webapp: `INTEGRATOR_API_URL` + shared secret для вызовов отправки SMS/email OTP.
+4. **Опционально в клиентском бандле webapp:** `NEXT_PUBLIC_APP_BASE_URL` — тот же канонический базовый URL приложения, что и **`APP_BASE_URL`** у процесса Next.js (публичная строка, **не секрет**). Нужен только если в **`body_md`** страниц контента встречаются **абсолютные** ссылки на медиабиблиотеку вида `https://<ваш-хост>/api/media/{uuid}` и при открытии страницы origin браузера может не совпасть с этим хостом; иначе достаточно относительных путей `/api/media/…`. Логика: [`MarkdownEmbeddedLink.tsx`](../../apps/webapp/src/shared/ui/markdown/MarkdownEmbeddedLink.tsx), [`parseApiMediaIdFromMarkdownHref`](../../apps/webapp/src/shared/lib/parseApiMediaIdFromPlayableUrl.ts).
+5. **Bootstrap интегратора** — env integrator (`apps/integrator`) по своему `config`/`env.ts`; webhook/SMS к интегратору на стороне webapp: `INTEGRATOR_API_URL` + shared secret для вызовов отправки SMS/email OTP.
 
 **Таблица `system_settings` (webapp, scope `admin`)** — источник истины для **операционной** конфигурации, которую разумно менять без передеплоя, включая **часть интеграционных параметров авторизации**, согласно правилам репозитория:
 

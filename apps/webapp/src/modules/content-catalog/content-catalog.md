@@ -7,6 +7,7 @@
 ## Контракт текста страницы (`content_pages`)
 
 - Основное поле контента в БД: **`body_md`** (Markdown).
+- Рендер у пациента и в превью редактора [`MarkdownPreview`](../../shared/ui/markdown/MarkdownPreview.tsx): общий [`MarkdownBodyTree`](../../shared/ui/markdown/markdownRenderTree.tsx); ссылки на YouTube/RuTube → iframe; на **`/api/media/{uuid}`** → воспроизведение через playback API при активной сессии (`video/*` — [`PatientMediaPlaybackVideo`](../../shared/ui/media/PatientMediaPlaybackVideo.tsx), `audio/*` — `<audio>`). Детали и ограничение превью Toast UI — [`docs/ARCHITECTURE/DOCTOR_CMS_AND_RUNTIME.md`](../../../../../docs/ARCHITECTURE/DOCTOR_CMS_AND_RUNTIME.md).
 - **`body_html`** хранит только legacy-контент для записей, созданных до перехода на Markdown; пока `body_md` пустой, резолвер (`createContentCatalogResolver`) подставляет в `ContentStubItem.bodyText` значение из **`body_html`**.
 - Если **`body_md`** непустой (после `trim`), используется только он, **`body_html`** для отображения игнорируется.
 - Slug материала редактируется в CMS на форме `/app/doctor/content/edit/[id]`; серверная валидация сохраняет уникальность пары `section + slug` и ревалидирует старый и новый patient URL.

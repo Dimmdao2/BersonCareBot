@@ -29,12 +29,13 @@ Master и сегменты запрашиваются с **того же origin*
 
 ## Вспомогательные модули
 
-- **`parseApiMediaIdFromPlayableUrl`** — `apps/webapp/src/shared/lib/parseApiMediaIdFromPlayableUrl.ts` (путь вида `/api/media/{uuid}`).
+- **`parseApiMediaIdFromPlayableUrl`**, **`parseApiMediaIdFromHref`**, **`parseApiMediaIdFromMarkdownHref`** — `apps/webapp/src/shared/lib/parseApiMediaIdFromPlayableUrl.ts` (извлечение UUID из пути `/api/media/{uuid}`, в т.ч. для ссылок в Markdown и поля видео страницы контента).
 - **`initialPlaybackSourceKind`** — `apps/webapp/src/shared/ui/media/patientPlaybackSourceKind.ts` (ветвление HLS vs MP4 по телу JSON).
 
 ## Где используется
 
-- Страница контента пациента (`PatientContentAdaptiveVideo` — реэкспорт).
+- Страница контента пациента (`PatientContentAdaptiveVideo` — реэкспорт) — блок «Видео» страницы (отдельное поле каталога): файл из медиатеки или iframe **YouTube / RuTube** по URL поля видео ([`hostingEmbedUrls.ts`](../../apps/webapp/src/shared/lib/hostingEmbedUrls.ts)).
+- **Тело статьи (`body_md`):** при отображении Markdown компонент [`MarkdownEmbeddedLink`](../../apps/webapp/src/shared/ui/markdown/MarkdownEmbeddedLink.tsx) подставляет **`PatientMediaPlaybackVideo`** для ссылок на **`/api/media/{uuid}`** с MIME `video/*` после успешного playback JSON (те же правила сессии и флага `video_playback_api_enabled`, что у прямого запроса к API).
 - Модалка пункта этапа программы лечения (`PatientProgramStageItemModal` / `ModalMediaBlock`).
 - **Быстрый превью видео** в медиа-пикере (`MediaPickerQuickPreviewDialog`): тот же компонент, чтобы врач/админ и будущий пациентский сценарий с пикером не расходились с кабинетом пациента.
 
@@ -44,5 +45,6 @@ Master и сегменты запрашиваются с **того же origin*
 
 ## Вне области компонента
 
-- Встраивание **YouTube** и других внешних iframe на страницах контента — отдельная разметка, не этот плеер.
+- Встраивание **YouTube / RuTube** через `<iframe>` на странице контента: отдельная вёрстка **блока «Видео»** страницы (поле видео каталога), не сам React-плеер файлов.
+- В том же **теле Markdown** (`body_md`) ссылки на YouTube/RuTube также превращаются в iframe отдельным узлом разметки ([`MarkdownEmbeddedLink`](../../apps/webapp/src/shared/ui/markdown/MarkdownEmbeddedLink.tsx)); это по-прежнему не потоковый файл из медиатеки.
 - **Миниатюры и строки списков** в кабинете пациента по-прежнему только **статичное изображение** (`PatientCatalogMediaStaticThumb` и правила patient UI) — без `<video>` в превью строки.
