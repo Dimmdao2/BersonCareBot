@@ -1,6 +1,7 @@
 "use client";
 
 import { MarkdownContent } from "@/shared/ui/markdown/MarkdownContent";
+import { toYoutubeOrRutubeEmbedSrc } from "@/shared/lib/hostingEmbedUrls";
 import { ContentHeroImage } from "@/shared/ui/media/ContentHeroImage";
 import { NoContextMenuVideo } from "@/shared/ui/media/NoContextMenuVideo";
 
@@ -12,33 +13,8 @@ type Props = {
   videoUrl: string;
 };
 
-function toYoutubeEmbedSrc(url: string): string | null {
-  try {
-    const u = new URL(url);
-    const host = u.hostname.replace(/^www\./, "");
-    if (host === "youtu.be") {
-      const id = u.pathname.replace(/^\//, "").split("/")[0];
-      return id ? `https://www.youtube.com/embed/${id}` : null;
-    }
-    if (host.includes("youtube.com")) {
-      if (u.pathname.startsWith("/embed/")) return url;
-      if (u.pathname === "/watch") {
-        const id = u.searchParams.get("v");
-        return id ? `https://www.youtube.com/embed/${id}` : null;
-      }
-      const shortsMatch = /^\/shorts\/([^/?]+)/.exec(u.pathname);
-      if (shortsMatch?.[1]) {
-        return `https://www.youtube.com/embed/${shortsMatch[1]}`;
-      }
-    }
-    return null;
-  } catch {
-    return null;
-  }
-}
-
 export function ContentPreview({ title, summary, bodyMd, imageUrl, videoUrl }: Props) {
-  const youtubeEmbedSrc = videoUrl ? toYoutubeEmbedSrc(videoUrl) : null;
+  const hostedVideoIframeSrc = videoUrl ? toYoutubeOrRutubeEmbedSrc(videoUrl) : null;
   return (
     <section className="rounded-xl border border-border bg-muted/10 p-4">
       <h3 className="m-0 text-base font-semibold">Предпросмотр для пациента</h3>
@@ -55,10 +31,10 @@ export function ContentPreview({ title, summary, bodyMd, imageUrl, videoUrl }: P
         ) : null}
         <MarkdownContent text={bodyMd} bodyFormat="markdown" />
         {videoUrl.trim() ? (
-          youtubeEmbedSrc ? (
+          hostedVideoIframeSrc ? (
             <div className="relative aspect-video overflow-hidden rounded-lg">
               <iframe
-                src={youtubeEmbedSrc}
+                src={hostedVideoIframeSrc}
                 className="absolute inset-0 size-full border-0"
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                 allowFullScreen

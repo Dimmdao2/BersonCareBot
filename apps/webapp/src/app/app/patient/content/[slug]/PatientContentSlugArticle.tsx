@@ -42,7 +42,8 @@ type Props = {
   personalTierOk: boolean;
   practiceSource: "daily_warmup" | "section_page";
   videoPlayableUrl: string | undefined;
-  youtubeEmbedSrc: string | null;
+  /** YouTube или RuTube — канонический URL для `<iframe>` (не файл из медиабиблиотеки). */
+  hostedVideoIframeSrc: string | null;
   apiMediaId: string | null;
 };
 
@@ -54,7 +55,7 @@ export async function PatientContentSlugArticle({
   personalTierOk,
   practiceSource,
   videoPlayableUrl,
-  youtubeEmbedSrc,
+  hostedVideoIframeSrc,
   apiMediaId,
 }: Props) {
   const deps = buildAppDeps();
@@ -157,10 +158,10 @@ export async function PatientContentSlugArticle({
           id={`patient-content-video-section-${slug}`}
           className="overflow-hidden rounded-[var(--patient-card-radius-mobile)] shadow-[var(--patient-shadow-card-mobile)] lg:rounded-[var(--patient-card-radius-desktop)] lg:shadow-[var(--patient-shadow-card-desktop)]"
         >
-          {youtubeEmbedSrc ? (
+          {hostedVideoIframeSrc ? (
             <div className="relative aspect-video">
               <iframe
-                src={youtubeEmbedSrc}
+                src={hostedVideoIframeSrc}
                 className="absolute inset-0 size-full border-0"
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                 allowFullScreen

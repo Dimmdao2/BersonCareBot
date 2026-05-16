@@ -1,8 +1,6 @@
 "use client";
 
-import ReactMarkdown from "react-markdown";
-import rehypeSanitize from "rehype-sanitize";
-import remarkGfm from "remark-gfm";
+import { MarkdownBodyTree } from "@/shared/ui/markdown/markdownRenderTree";
 
 type Props = {
   markdown: string;
@@ -12,9 +10,7 @@ type Props = {
 export function MarkdownPreview({ markdown, className }: Props) {
   return (
     <div className={className ?? "markdown-preview text-sm"}>
-      <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]}>
-        {markdown.length > 0 ? markdown : "*Пусто*"}
-      </ReactMarkdown>
+      <MarkdownBodyTree>{markdown.length > 0 ? markdown : "*Пусто*"}</MarkdownBodyTree>
     </div>
   );
 }

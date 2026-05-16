@@ -1,49 +1,26 @@
 /**
  * Страница одного материала по адресу «/app/patient/content/[slug]».
  * Только для пациента. Открывается из разделов «Полезные уроки» и «Скорая помощь» по идентификатору
- * материала. Показывает заголовок, картинку, текст и блок «Видео» (YouTube или файл по URL). Если материал не найден —
+ * материала. Показывает заголовок, картинку, текст и блок «Видео» (YouTube / RuTube по URL или файл из медиабиблиотеки). Если материал не найден —
  * 404. Кнопка «Назад» ведёт в главное меню пациента.
  */
 
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { env } from "@/config/env";
 import { getOptionalPatientSession, patientRscPersonalDataGate } from "@/app-layer/guards/requireRole";
 import { resolvePatientCanViewAuthOnlyContent } from "@/modules/platform-access";
 import { AppShell } from "@/shared/ui/AppShell";
 import { PatientLoadingPatternBody } from "@/shared/ui/patientVisual";
-import { parseApiMediaIdFromPlayableUrl } from "@/shared/lib/parseApiMediaIdFromPlayableUrl";
+import { toYoutubeOrRutubeEmbedSrc } from "@/shared/lib/hostingEmbedUrls";
+import { parseApiMediaIdFromHref, parseApiMediaIdFromPlayableUrl } from "@/shared/lib/parseApiMediaIdFromPlayableUrl";
 import { PatientContentSlugArticle } from "./PatientContentSlugArticle";
 
 type Props = {
   params: Promise<{ slug: string }>;
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
-
-function toYoutubeEmbedSrc(url: string): string | null {
-  try {
-    const u = new URL(url);
-    const host = u.hostname.replace(/^www\./, "");
-    if (host === "youtu.be") {
-      const id = u.pathname.replace(/^\//, "").split("/")[0];
-      return id ? `https://www.youtube.com/embed/${id}` : null;
-    }
-    if (host.includes("youtube.com")) {
-      if (u.pathname.startsWith("/embed/")) return url;
-      if (u.pathname === "/watch") {
-        const id = u.searchParams.get("v");
-        return id ? `https://www.youtube.com/embed/${id}` : null;
-      }
-      const shortsMatch = /^\/shorts\/([^/?]+)/.exec(u.pathname);
-      if (shortsMatch?.[1]) {
-        return `https://www.youtube.com/embed/${shortsMatch[1]}`;
-      }
-    }
-    return null;
-  } catch {
-    return null;
-  }
-}
 
 /** Загружает материал по slug из каталога и рендерит статью. Доступно без входа. */
 export default async function ContentSlugPage({ params, searchParams }: Props) {
@@ -75,10 +52,20 @@ export default async function ContentSlugPage({ params, searchParams }: Props) {
           ? item.videoSource.mediaId
           : `/api/media/${item.videoSource.mediaId}`
       : undefined;
-  const youtubeEmbedSrc = videoPlayableUrl ? toYoutubeEmbedSrc(videoPlayableUrl) : null;
+  const hostedVideoIframeSrc = videoPlayableUrl ? toYoutubeOrRutubeEmbedSrc(videoPlayableUrl) : null;
+
+  let appTrustedOrigin: string | null = null;
+  try {
+    appTrustedOrigin = new URL(env.APP_BASE_URL).origin;
+  } catch {
+    appTrustedOrigin = null;
+  }
 
   const apiMediaId =
-    videoPlayableUrl && !youtubeEmbedSrc ? parseApiMediaIdFromPlayableUrl(videoPlayableUrl) : null;
+    videoPlayableUrl && !hostedVideoIframeSrc
+      ? (parseApiMediaIdFromPlayableUrl(videoPlayableUrl) ??
+          parseApiMediaIdFromHref(videoPlayableUrl, appTrustedOrigin))
+      : null;
 
   const backHref = "/app/patient";
 
@@ -100,7 +87,7 @@ export default async function ContentSlugPage({ params, searchParams }: Props) {
           personalTierOk={personalTierOk}
           practiceSource={practiceSource}
           videoPlayableUrl={videoPlayableUrl}
-          youtubeEmbedSrc={youtubeEmbedSrc}
+          hostedVideoIframeSrc={hostedVideoIframeSrc}
           apiMediaId={apiMediaId}
         />
       </Suspense>

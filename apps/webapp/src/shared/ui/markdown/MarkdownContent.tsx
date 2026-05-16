@@ -1,10 +1,8 @@
 "use client";
 
 import DOMPurify from "isomorphic-dompurify";
-import ReactMarkdown from "react-markdown";
-import rehypeSanitize from "rehype-sanitize";
-import remarkGfm from "remark-gfm";
 import type { ContentBodyFormat } from "@/modules/content-catalog/types";
+import { MarkdownBodyTree } from "@/shared/ui/markdown/markdownRenderTree";
 
 type Props = {
   text: string;
@@ -30,9 +28,7 @@ export function MarkdownContent({ text, bodyFormat, className }: Props) {
 
   return (
     <div className={wrap}>
-      <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]}>
-        {text.length > 0 ? text : ""}
-      </ReactMarkdown>
+      <MarkdownBodyTree>{text.length > 0 ? text : ""}</MarkdownBodyTree>
     </div>
   );
 }
