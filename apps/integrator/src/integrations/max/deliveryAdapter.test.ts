@@ -317,7 +317,7 @@ describe('max deliveryAdapter', () => {
     ).rejects.toThrow('MAX_SEND_FAILED');
   });
 
-  it('send callback.answer calls answerMaxCallback', async () => {
+  it('send callback.answer calls answerMaxCallback without notification when omitting text', async () => {
     const adapter = createMaxDeliveryAdapter();
     await adapter.send({
       type: 'callback.answer',
@@ -326,7 +326,20 @@ describe('max deliveryAdapter', () => {
     });
     expect(answerMaxCallbackMock).toHaveBeenCalledWith(
       expect.any(Object),
-      { callbackId: 'cb-99', extra: { notification: 'OK' } },
+      { callbackId: 'cb-99' },
+    );
+  });
+
+  it('send callback.answer forwards payload.text when no notification', async () => {
+    const adapter = createMaxDeliveryAdapter();
+    await adapter.send({
+      type: 'callback.answer',
+      meta: { eventId: 'e', occurredAt: '', source: 'max' },
+      payload: { callbackQueryId: 'cb-101', text: 'Сохранено' },
+    });
+    expect(answerMaxCallbackMock).toHaveBeenCalledWith(
+      expect.any(Object),
+      { callbackId: 'cb-101', extra: { notification: 'Сохранено' } },
     );
   });
 

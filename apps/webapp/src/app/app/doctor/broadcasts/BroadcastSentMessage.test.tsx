@@ -4,14 +4,18 @@ import { describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { BroadcastSentMessage } from "./BroadcastSentMessage";
 import type { BroadcastPreviewResult } from "@/modules/doctor-broadcasts/ports";
+import { deriveBroadcastDeliveryPolicy } from "@/modules/doctor-broadcasts/broadcastEligible";
 
 describe("BroadcastSentMessage", () => {
   it("renders success copy and audience size", () => {
+    const pol = deriveBroadcastDeliveryPolicy("all", ["bot_message", "sms"]);
     const preview: BroadcastPreviewResult = {
       audienceSize: 7,
       category: "reminder",
       audienceFilter: "all",
       channels: ["bot_message", "sms"],
+      deliveryPolicyKind: pol.kind,
+      deliveryPolicyDescriptionRu: pol.descriptionRu,
       recipientsPreview: { names: ["A", "B"], total: 7, truncated: true },
     };
     render(<BroadcastSentMessage preview={preview} />);

@@ -1,35 +1,66 @@
 import { describe, it, expect } from "vitest";
 import { createDoctorBroadcastsService } from "./service";
-import type { BroadcastAudienceFilter, BroadcastAuditEntry, DoctorBroadcastQueueJob } from "./ports";
+import type {
+  BroadcastAudienceFilter,
+  BroadcastAuditEntry,
+  BroadcastAudienceResolveResult,
+  BroadcastChannel,
+  DoctorBroadcastQueueJob,
+} from "./ports";
 import type { ClientListItem } from "@/modules/doctor-clients/ports";
 import { BROADCAST_DELIVERY_CAP_EXCEEDED_CODE } from "./deliveryQueueKind";
+import {
+  buildRecipientsPreviewFromClients,
+} from "./broadcastAudienceMetrics";
+import {
+  deriveBroadcastDeliveryPolicy,
+  filterEligibleBroadcastClients,
+} from "./broadcastEligible";
 
 describe("doctor-broadcasts service", () => {
   const auditEntries: BroadcastAuditEntry[] = [];
   const committed: Array<{ auditId: string; jobs: DoctorBroadcastQueueJob[] }> = [];
 
-  const client = (id: string, tg?: string): ClientListItem => ({
+  const client = (
+    id: string,
+    opts?: Partial<Pick<ClientListItem, "bindings" | "phone">>,
+  ): ClientListItem => ({
     userId: id,
     displayName: `User ${id}`,
-    phone: "+79990001122",
-    bindings: { telegramId: tg },
+    phone: opts?.phone ?? "+79990001122",
+    bindings: opts?.bindings ?? { telegramId: "12345" },
     nextAppointmentLabel: null,
     activeTreatmentProgram: false,
     activeTreatmentProgramInstanceId: null,
     cancellationCount30d: 0,
   });
 
-  const resolveBroadcastAudience = async (
-    _filter: BroadcastAudienceFilter,
-    _channels: unknown[],
-  ) => {
-    const effective = [client("u1", "12345"), client("u2", "67890")];
-    return {
-      audienceSize: effective.length,
-      recipientsPreview: { names: [], total: effective.length, truncated: false },
-      effectiveClients: effective,
+  function makeResolve(effectiveClients: ClientListItem[]) {
+    return async (
+      filter: BroadcastAudienceFilter,
+      channels: BroadcastChannel[],
+    ): Promise<BroadcastAudienceResolveResult> => {
+      const prefsMap = new Map();
+      const eligibleClients = filterEligibleBroadcastClients(effectiveClients, channels, filter, prefsMap);
+      const recipientsPreview = buildRecipientsPreviewFromClients(eligibleClients);
+      const policy = deriveBroadcastDeliveryPolicy(filter, channels);
+      return {
+        audienceSize: eligibleClients.length,
+        recipientsPreview,
+        effectiveClients: effectiveClients,
+        eligibleClients,
+        audienceFilter: filter,
+        notificationPrefsByUserId: prefsMap,
+        deliveryPolicyKind: policy.kind,
+        deliveryPolicyDescriptionRu: policy.descriptionRu,
+      };
     };
-  };
+  }
+
+  let resolveBroadcastAudience = makeResolve([
+    client("u1", { bindings: { telegramId: "a" } }),
+    client("u2", { bindings: { telegramId: "b" } }),
+  ]);
 
   const broadcastAuditPort = {
     async append(entry: Omit<BroadcastAuditEntry, "id" | "executedAt">): Promise<BroadcastAuditEntry> {
@@ -95,6 +126,8 @@ describe("doctor-broadcasts service", () => {
     expect(result.category).toBe("reminder");
     expect(result.audienceFilter).toBe("with_telegram");
     expect(result.channels).toEqual(["bot_message", "sms"]);
+    expect(result.deliveryPolicyKind).toBe("telegram_isolate_bot_respect_prefs_sms");
+    expect(result.deliveryPolicyDescriptionRu.length).toBeGreaterThan(10);
     expect(auditEntries.length).toBe(0);
   });
 
@@ -138,15 +171,15 @@ describe("doctor-broadcasts service", () => {
       channels: ["sms"],
     });
     expect(result.channels).toEqual(["sms"]);
+    expect(result.deliveryPolicyKind).toBe("respect_prefs_sms");
   });
 
   it("preview passes segmentSize when resolver returns it", async () => {
     const svc = createDoctorBroadcastsService({
-      resolveBroadcastAudience: async () => ({
+      resolveBroadcastAudience: async (filter, channels) => ({
+        ...(await makeResolve([client("x", { bindings: { telegramId: "1" } })])(filter, channels)),
         audienceSize: 1,
         segmentSize: 75,
-        recipientsPreview: { names: ["Тест"], total: 1, truncated: false },
-        effectiveClients: [client("x", "1")],
       }),
       broadcastAuditPort,
       doctorBroadcastDeliveryCommitPort,
@@ -156,14 +189,17 @@ describe("doctor-broadcasts service", () => {
       audienceFilter: "all",
       message: { title: "T", body: "Body text here" },
       actorId: "a",
+      channels: ["bot_message"],
     });
     expect(result.audienceSize).toBe(1);
     expect(result.segmentSize).toBe(75);
     expect(result.recipientsPreview).toEqual({
-      names: ["Тест"],
+      names: ["User x"],
       total: 1,
       truncated: false,
     });
+    expect(result.deliveryPolicyKind).toBe("respect_prefs_bot");
+    expect(result.channels).toEqual(["bot_message"]);
   });
 
   it("listAudit returns entries", async () => {
@@ -173,13 +209,9 @@ describe("doctor-broadcasts service", () => {
   });
 
   it("throws when delivery job cap exceeded", async () => {
-    const many = Array.from({ length: 3000 }, (_, i) => client(`u${i}`, String(100000 + i)));
+    const many = Array.from({ length: 3000 }, (_, i) => client(`u${i}`, { bindings: { telegramId: String(100000 + i) } }));
     const svc = createDoctorBroadcastsService({
-      resolveBroadcastAudience: async () => ({
-        audienceSize: many.length,
-        recipientsPreview: { names: [], total: many.length, truncated: true },
-        effectiveClients: many,
-      }),
+      resolveBroadcastAudience: makeResolve(many),
       broadcastAuditPort,
       doctorBroadcastDeliveryCommitPort,
     });

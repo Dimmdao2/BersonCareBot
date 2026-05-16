@@ -13,6 +13,20 @@ vi.mock("./actions", () => ({
 }));
 
 import { BroadcastForm } from "./BroadcastForm";
+import type { BroadcastPreviewResult } from "@/modules/doctor-broadcasts/ports";
+import { deriveBroadcastDeliveryPolicy } from "@/modules/doctor-broadcasts/broadcastEligible";
+
+/** Минимальный ответ превью, совместимый с `BroadcastConfirmStep`. */
+function previewResult(
+  base: Omit<BroadcastPreviewResult, "deliveryPolicyKind" | "deliveryPolicyDescriptionRu">,
+): BroadcastPreviewResult {
+  const policy = deriveBroadcastDeliveryPolicy(base.audienceFilter, base.channels);
+  return {
+    ...base,
+    deliveryPolicyKind: policy.kind,
+    deliveryPolicyDescriptionRu: policy.descriptionRu,
+  };
+}
 
 async function fillValidForm() {
   await userEvent.selectOptions(screen.getByLabelText(/категория/i), "reminder");
@@ -36,12 +50,14 @@ describe("BroadcastForm", () => {
   });
 
   it("calls previewBroadcastAction with correct BroadcastCommand when form is valid", async () => {
-    previewBroadcastAction.mockResolvedValue({
-      audienceSize: 30,
-      category: "reminder",
-      audienceFilter: "with_telegram",
-      channels: ["bot_message", "sms"],
-    });
+    previewBroadcastAction.mockResolvedValue(
+      previewResult({
+        audienceSize: 30,
+        category: "reminder",
+        audienceFilter: "with_telegram",
+        channels: ["bot_message", "sms"],
+      }),
+    );
 
     render(<BroadcastForm />);
     await fillValidForm();
@@ -75,12 +91,14 @@ describe("BroadcastForm", () => {
       expect(screen.getByRole("button", { name: /загрузка/i })).toBeDisabled();
     });
 
-    resolvePreview!({
-      audienceSize: 5,
-      category: "reminder",
-      audienceFilter: "with_telegram",
-      channels: ["bot_message", "sms"],
-    });
+    resolvePreview!(
+      previewResult({
+        audienceSize: 5,
+        category: "reminder",
+        audienceFilter: "with_telegram",
+        channels: ["bot_message", "sms"],
+      }),
+    );
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: /подтверждение рассылки/i })).toBeInTheDocument();
     });
@@ -96,12 +114,14 @@ describe("BroadcastForm", () => {
   });
 
   it("after successful preview renders confirm step with audience size", async () => {
-    previewBroadcastAction.mockResolvedValue({
-      audienceSize: 99,
-      category: "reminder",
-      audienceFilter: "with_telegram",
-      channels: ["bot_message", "sms"],
-    });
+    previewBroadcastAction.mockResolvedValue(
+      previewResult({
+        audienceSize: 99,
+        category: "reminder",
+        audienceFilter: "with_telegram",
+        channels: ["bot_message", "sms"],
+      }),
+    );
 
     render(<BroadcastForm />);
     await fillValidForm();
@@ -114,12 +134,14 @@ describe("BroadcastForm", () => {
   });
 
   it("after confirm shows sent message", async () => {
-    previewBroadcastAction.mockResolvedValue({
-      audienceSize: 2,
-      category: "reminder",
-      audienceFilter: "with_telegram",
-      channels: ["bot_message", "sms"],
-    });
+    previewBroadcastAction.mockResolvedValue(
+      previewResult({
+        audienceSize: 2,
+        category: "reminder",
+        audienceFilter: "with_telegram",
+        channels: ["bot_message", "sms"],
+      }),
+    );
     executeBroadcastAction.mockResolvedValue({
       auditEntry: {
         id: "a1",
@@ -127,12 +149,15 @@ describe("BroadcastForm", () => {
         category: "reminder",
         audienceFilter: "with_telegram",
         messageTitle: "Заголовок теста",
+        messageBody: "",
         channels: ["bot_message", "sms"],
         executedAt: new Date().toISOString(),
         previewOnly: false,
         audienceSize: 2,
+        deliveryJobsTotal: 0,
         sentCount: 0,
         errorCount: 0,
+        attachMenuAfterSend: false,
       },
     });
 

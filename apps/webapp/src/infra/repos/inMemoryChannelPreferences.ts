@@ -1,3 +1,4 @@
+import type { BroadcastNotificationPrefsFlags } from "@/modules/doctor-broadcasts/ports";
 import type { ChannelPreferencesPort } from "@/modules/channel-preferences/ports";
 import type { ChannelCode, ChannelPreference } from "@/modules/channel-preferences/types";
 
@@ -40,6 +41,19 @@ export const inMemoryChannelPreferencesPort: ChannelPreferencesPort = {
     };
     m.set(params.channelCode, pref);
     return pref;
+  },
+
+  async getBroadcastNotificationFlagsBatch(platformUserIds): Promise<Map<string, BroadcastNotificationPrefsFlags>> {
+    const out = new Map<string, BroadcastNotificationPrefsFlags>();
+    for (const id of platformUserIds) {
+      const m = getPrefs(id);
+      out.set(id, {
+        telegram: m.get("telegram")!.isEnabledForNotifications !== false,
+        max: m.get("max")!.isEnabledForNotifications !== false,
+        sms: m.get("sms")!.isEnabledForNotifications !== false,
+      });
+    }
+    return out;
   },
 
   async getPreferredAuthChannelCode(userId) {

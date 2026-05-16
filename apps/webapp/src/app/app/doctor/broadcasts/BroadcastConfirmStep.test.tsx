@@ -5,12 +5,17 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { BroadcastConfirmStep } from "./BroadcastConfirmStep";
 import type { BroadcastCommand, BroadcastPreviewResult } from "@/modules/doctor-broadcasts/ports";
+import { deriveBroadcastDeliveryPolicy } from "@/modules/doctor-broadcasts/broadcastEligible";
+
+const policy = deriveBroadcastDeliveryPolicy("with_telegram", ["bot_message", "sms"]);
 
 const preview: BroadcastPreviewResult = {
   audienceSize: 42,
   category: "reminder",
   audienceFilter: "with_telegram",
   channels: ["bot_message", "sms"],
+  deliveryPolicyKind: policy.kind,
+  deliveryPolicyDescriptionRu: policy.descriptionRu,
   recipientsPreview: {
     names: ["Иван Т.", "Мария К."],
     total: 42,
@@ -41,6 +46,7 @@ describe("BroadcastConfirmStep", () => {
     expect(document.getElementById("broadcast-recipients-preview-truncated")).toBeInTheDocument();
     expect(document.getElementById("broadcast-channels-summary")).toHaveTextContent(/сообщение в боте/i);
     expect(document.getElementById("broadcast-channels-summary")).toHaveTextContent(/sms/i);
+    expect(document.getElementById("broadcast-delivery-policy")).toHaveTextContent(policy.descriptionRu);
   });
 
   it("calls onConfirm when confirm button is clicked", async () => {

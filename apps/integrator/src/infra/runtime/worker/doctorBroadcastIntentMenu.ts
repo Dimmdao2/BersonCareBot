@@ -1,6 +1,6 @@
 /**
- * Enrich queued `doctor_broadcast_intent` message.send payloads with the same reply / inline
- * menu markup as normal `message.send` in `delivery.ts` (per-chat only; no global BotFather menu).
+ * Enrich queued `doctor_broadcast_intent` message.send payloads with the same Telegram reply
+ * keyboard as normal `message.send` in `delivery.ts` (per-chat only; no global BotFather menu).
  */
 import { sql } from 'drizzle-orm';
 import type {
@@ -21,10 +21,8 @@ import {
 import {
   asNumber,
   asRecord,
-  asStringArray,
   buildMainReplyKeyboardMarkup,
 } from '../../../kernel/domain/executor/helpers.js';
-import { enrichMessageSendPayloadWithMaxMainInlineIfApplicable } from '../../../kernel/domain/executor/handlers/delivery.js';
 import type { OutgoingDeliveryQueueRow } from '../../db/repos/outgoingDeliveryQueue.js';
 
 export type DoctorBroadcastMenuWorkerDeps = {
@@ -85,12 +83,6 @@ async function resolveLinkedPhoneForPlatformUser(
   } catch {
     return { linkedPhone: false, integratorUserId: null };
   }
-}
-
-function deliveryTargetsMax(delivery: Record<string, unknown>, eventSource: string): boolean {
-  const channels = asStringArray(delivery.channels);
-  if (channels.includes('max')) return true;
-  return channels.length === 0 && eventSource === 'max';
 }
 
 function buildDoctorBroadcastMenuContext(input: {
@@ -178,9 +170,9 @@ async function buildWebappLinkFactsForRecipient(input: {
 }
 
 /**
- * When `attachMenu` is set on the queue payload, merge reply / inline keyboard into `message.send`
- * (Telegram persistent reply keyboard; MAX `menus.main` inline) if the patient has linked phone
- * and the product flag `sendMenuOnButtonPress` is on for Telegram reply keyboard.
+ * When `attachMenu` is set on the queue payload, merge reply keyboard into `message.send`
+ * for Telegram only (persistent reply menu) when linked phone and `sendMenuOnButtonPress`.
+ * MAX: авто-подмешивание `menus.main` (Запись/Приложение) отключено — мини-приложение из чата.
  */
 export async function enrichDoctorBroadcastIntentIfNeeded(input: {
   db: DbPort;
@@ -204,7 +196,6 @@ export async function enrichDoctorBroadcastIntentIfNeeded(input: {
 
   const payload = asRecord(intent.payload);
   const recipient = asRecord(payload.recipient);
-  const delivery = asRecord(payload.delivery);
 
   const webappFacts = await buildWebappLinkFactsForRecipient({
     db,
@@ -239,13 +230,6 @@ export async function enrichDoctorBroadcastIntentIfNeeded(input: {
         nextPayload = { ...nextPayload, replyMarkup };
       }
     }
-  }
-
-  if (linkedPhone && deliveryTargetsMax(delivery, ctx.event.meta.source) && row.channel === 'max') {
-    nextPayload = await enrichMessageSendPayloadWithMaxMainInlineIfApplicable(nextPayload, ctx, {
-      templatePort: menu.templatePort,
-      contentPort: menu.contentPort,
-    });
   }
 
   return { ...intent, payload: nextPayload };

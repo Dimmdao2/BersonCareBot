@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createChannelPreferencesService } from "./service";
 import type { ChannelPreferencesPort } from "./ports";
+import type { BroadcastNotificationPrefsFlags } from "@/modules/doctor-broadcasts/ports";
 
 const basePrefs = [
   { channelCode: "telegram" as const, isEnabledForMessages: true, isEnabledForNotifications: true, isPreferredForAuth: false },
@@ -28,6 +29,20 @@ describe("channel-preferences service", () => {
     },
     async setPreferredAuthChannel() {
       /* noop */
+    },
+    async getBroadcastNotificationFlagsBatch(userIds: string[]): Promise<Map<string, BroadcastNotificationPrefsFlags>> {
+      const map = new Map<string, BroadcastNotificationPrefsFlags>();
+      const notifyOn = (code: string): boolean =>
+        basePrefs.find((x) => x.channelCode === code)?.isEnabledForNotifications !== false;
+      const flags: BroadcastNotificationPrefsFlags = {
+        telegram: notifyOn("telegram"),
+        max: notifyOn("max"),
+        sms: notifyOn("sms"),
+      };
+      for (const userId of userIds) {
+        map.set(userId, flags);
+      }
+      return map;
     },
   };
 

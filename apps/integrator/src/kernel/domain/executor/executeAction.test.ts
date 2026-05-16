@@ -237,7 +237,7 @@ describe('executeAction', () => {
     });
   });
 
-  it('rubitime fan-out: only max intent gets auto main inline keyboard when linkedPhone', async () => {
+  it('rubitime fan-out: max intent omits auto main inline (menus.main Запись/Приложение disabled for MAX)', async () => {
     const deliveryTargetsPort = {
       getTargetsByPhone: async () => ({ telegramId: '123', maxId: '456' }),
       getTargetsByChannelBinding: async () => null,
@@ -301,15 +301,7 @@ describe('executeAction', () => {
       (i) => i.type === 'message.send' && (i.payload as { delivery?: { channels?: string[] } }).delivery?.channels?.[0] === 'max',
     );
     expect((telegramIntent?.payload as { replyMarkup?: unknown }).replyMarkup).toBeUndefined();
-    expect((maxIntent?.payload as { replyMarkup?: { inline_keyboard?: unknown[][] } }).replyMarkup?.inline_keyboard?.[0]).toHaveLength(2);
-    expect((maxIntent?.payload as { replyMarkup?: { inline_keyboard?: Array<Array<{ text: string; web_app?: { url: string }; callback_data?: string }>> } }).replyMarkup?.inline_keyboard?.[0]?.[0]).toMatchObject({
-      text: '📅 Запись',
-      callback_data: 'booking.open',
-    });
-    expect((maxIntent?.payload as { replyMarkup?: { inline_keyboard?: Array<Array<{ text: string; web_app?: { url: string } }>> } }).replyMarkup?.inline_keyboard?.[0]?.[1]).toMatchObject({
-      text: 'Приложение',
-      web_app: { url: 'https://app.example/home' },
-    });
+    expect((maxIntent?.payload as { replyMarkup?: unknown }).replyMarkup).toBeUndefined();
   });
 
   it('applies rubitime delivery policy when message.send fields are missing', async () => {
@@ -1849,7 +1841,7 @@ describe('executeAction', () => {
     expect((result.intents?.[0]?.payload as { replyMarkup?: unknown }).replyMarkup).toBeUndefined();
   });
 
-  it('attaches max main inline keyboard to message.send for max channel when linkedPhone', async () => {
+  it('does not attach max menus.main inline (Запись/Приложение) to message.send for max when linkedPhone', async () => {
     const templatePort = {
       renderTemplate: vi.fn().mockImplementation(async ({ templateId }: { templateId: string }) => {
         const id = String(templateId);
@@ -1907,18 +1899,9 @@ describe('executeAction', () => {
       },
     });
 
-    const payload = result.intents?.[0]?.payload as {
-      replyMarkup?: { inline_keyboard?: Array<Array<{ text: string; web_app?: { url: string }; callback_data?: string }>> };
-    };
-    expect(payload?.replyMarkup?.inline_keyboard?.[0]).toHaveLength(2);
-    expect(payload?.replyMarkup?.inline_keyboard?.[0]?.[0]).toMatchObject({
-      text: '📅 Запись на приём',
-      callback_data: 'booking.open',
-    });
-    expect(payload?.replyMarkup?.inline_keyboard?.[0]?.[1]).toMatchObject({
-      text: 'Приложение',
-      web_app: { url: webappHomeUrl },
-    });
+    expect(
+      (result.intents?.[0]?.payload as { replyMarkup?: unknown }).replyMarkup,
+    ).toBeUndefined();
   });
 
   it('does not attach max main inline when delivery is telegram only', async () => {

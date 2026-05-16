@@ -43,25 +43,47 @@ export const BROADCAST_RECIPIENT_PREVIEW_NAME_CAP = 20;
 export type BroadcastRecipientsPreview = {
   /** Имена по алфавиту (первые до `BROADCAST_RECIPIENT_PREVIEW_NAME_CAP`). */
   names: string[];
-  /** Число получателей с учётом dev_mode / каналов (как `audienceSize`). */
+  /** Как `BroadcastPreviewResult.audienceSize` для этого же превью. */
   total: number;
   truncated: boolean;
 };
 
+/** Классификация политики доставки (превью / подпись перед отправкой). */
+export type BroadcastDeliveryPolicyKind =
+  | "respect_prefs_bot"
+  | "telegram_isolate_bot"
+  | "max_isolate_bot"
+  | "respect_prefs_sms"
+  | "sms_isolate"
+  | "respect_prefs_bot_sms"
+  | "telegram_isolate_bot_respect_prefs_sms"
+  | "telegram_isolate_bot_sms_isolate"
+  | "max_isolate_bot_respect_prefs_sms"
+  | "max_isolate_bot_sms_isolate"
+  | "none";
+
 /** Результат preview (dry-run): сколько пользователей попало, без отправки. */
 export type BroadcastPreviewResult = {
-  /** Ожидаемое число получателей с учётом relay dev_mode (если включён — пересечение с тестовыми Telegram/Max). */
+  /**
+   * Клиенты с ≥ одной возможной строкой очереди: после сужения **`dev_mode` для мессенджеров** (если включён),
+   * затем **`user_channel_preferences`** и изоляция (**`with_telegram`** / **`with_max`** / **`sms_only`**).
+   */
   audienceSize: number;
   /**
    * Размер сегмента по выбранному фильтру без сужения dev_mode.
    * Заполняется, когда `audienceSize` меньше (показать в UI «в сегменте N…»).
    */
   segmentSize?: number;
-  /** Имена эффективных получателей (сегмент + dev_mode при включённом relay). */
+  /**
+   * Список получателей в UI (те же клиенты, что и **`audienceSize`**: после dev_mode, prefs и isolate).
+   * Для сегментов с грубой оценкой числа см. **`isAudienceEstimateApproximate`** в UI — блок может быть скрыт.
+   */
   recipientsPreview?: BroadcastRecipientsPreview;
   category: BroadcastCategory;
   audienceFilter: BroadcastAudienceFilter;
   channels: BroadcastChannel[];
+  deliveryPolicyKind: BroadcastDeliveryPolicyKind;
+  deliveryPolicyDescriptionRu: string;
 };
 
 /** Запись в журнале рассылок (аудит). */
@@ -109,12 +131,28 @@ export type DoctorBroadcastDeliveryCommitPort = {
   }): Promise<BroadcastAuditEntry>;
 };
 
-/** Единый резолвер аудитории для preview и execute (включая `effectiveClients` под постановку в очередь). */
+/** Флаги `is_enabled_for_notifications` по кодам после batch (нет строки в БД ⇒ true). */
+export type BroadcastNotificationPrefsFlags = {
+  telegram: boolean;
+  max: boolean;
+  sms: boolean;
+};
+
+/**
+ * Единый резолвер аудитории для preview и execute.
+ * - **`effectiveClients`** — множество после сегмента и **`resolveBroadcastEffectiveClients`** (dev_mode для TG/MAX).
+ * - **`eligibleClients`** — пересечение с prefs/isolate-сегментом; именно они получают задачи очереди (как `audienceSize`).
+ */
 export type BroadcastAudienceResolveResult = {
   audienceSize: number;
   segmentSize?: number;
   recipientsPreview: BroadcastRecipientsPreview;
   effectiveClients: ClientListItem[];
+  eligibleClients: ClientListItem[];
+  audienceFilter: BroadcastAudienceFilter;
+  notificationPrefsByUserId: ReadonlyMap<string, BroadcastNotificationPrefsFlags>;
+  deliveryPolicyKind: BroadcastDeliveryPolicyKind;
+  deliveryPolicyDescriptionRu: string;
 };
 
 export type { BroadcastChannel } from "./broadcastChannels";

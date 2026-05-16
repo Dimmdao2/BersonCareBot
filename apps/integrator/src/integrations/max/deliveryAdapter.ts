@@ -37,9 +37,9 @@ function parseMaxPlatformUserId(value: unknown): number | undefined {
 }
 
 /**
- * Use **`recipient.chatId`** first — it is always the MAX user targeted by this send (DM id == contact id).
- * Fallback to **`meta.userId`** when recipient is missing (some edits) or non-numeric.
- * Preferring chatId avoids wrong `contact_id` when `meta` comes from another channel (e.g. rubitime fan-out).
+ * **`open_app.contact_id`** в MAX API — платформенный user id пользователя.
+ * Из payload берём **`recipient.chatId`** (обычно `chat_id` диалога в исходящих после вебхука);
+ * если нет — fallback на **`meta.userId`** для jobs/fan-out.
  */
 function maxContactIdForOpenApp(intent: OutgoingIntent, payload: DeliveryPayload): number | undefined {
   const fromRecipient = parseMaxPlatformUserId(payload.recipient?.chatId);
@@ -232,12 +232,10 @@ export function createMaxDeliveryAdapter(): DeliveryAdapter {
       if (intent.type === 'callback.answer') {
         const callbackQueryId = asNonEmptyString(payload.callbackQueryId);
         if (!callbackQueryId) throw new Error('MAX_PAYLOAD_INVALID: callbackQueryId required');
-        const notification = asNonEmptyString(payload.notification)
-          ?? asNonEmptyString(payload.text)
-          ?? 'OK';
+        const hint = asNonEmptyString(payload.notification) ?? asNonEmptyString(payload.text);
         const result = await maxClient.answerMaxCallback(config, {
           callbackId: callbackQueryId,
-          extra: { notification },
+          ...(hint ? { extra: { notification: hint } } : {}),
         });
         if (!result) throw new Error('MAX_CALLBACK_ANSWER_FAILED');
       }

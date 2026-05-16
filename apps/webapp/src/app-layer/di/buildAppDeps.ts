@@ -47,6 +47,10 @@ import {
   resolveBroadcastEffectiveClients,
   buildRecipientsPreviewFromClients,
 } from "@/modules/doctor-broadcasts/broadcastAudienceMetrics";
+import {
+  deriveBroadcastDeliveryPolicy,
+  filterEligibleBroadcastClients,
+} from "@/modules/doctor-broadcasts/broadcastEligible";
 import { inMemoryDoctorClientsPort } from "@/infra/repos/inMemoryDoctorClients";
 import { inMemoryBroadcastAuditPort } from "@/infra/repos/inMemoryBroadcastAudit";
 import { createPgBroadcastAuditPort } from "@/infra/repos/pgBroadcastAudit";
@@ -659,19 +663,27 @@ function _buildAppDeps() {
           devMode,
           testAccounts,
         );
-        const recipientsPreview = buildRecipientsPreviewFromClients(effective);
+        const prefsMap = await channelPreferencesPort.getBroadcastNotificationFlagsBatch(effective.map((c) => c.userId));
+        const eligibleClients = filterEligibleBroadcastClients(effective, channels, filter, prefsMap);
+        const recipientsPreview = buildRecipientsPreviewFromClients(eligibleClients);
+        const policy = deriveBroadcastDeliveryPolicy(filter, channels);
+        const base = {
+          audienceSize: eligibleClients.length,
+          recipientsPreview,
+          effectiveClients: effective,
+          eligibleClients,
+          audienceFilter: filter,
+          notificationPrefsByUserId: prefsMap,
+          deliveryPolicyKind: policy.kind,
+          deliveryPolicyDescriptionRu: policy.descriptionRu,
+        };
         if (!devMode) {
-          return { audienceSize: nominal, effectiveClients: effective, recipientsPreview };
+          return base;
         }
         if (cappedByDevMode) {
-          return {
-            audienceSize: effective.length,
-            segmentSize: nominal,
-            effectiveClients: effective,
-            recipientsPreview,
-          };
+          return { ...base, segmentSize: nominal };
         }
-        return { audienceSize: effective.length, effectiveClients: effective, recipientsPreview };
+        return base;
       },
       broadcastAuditPort,
       doctorBroadcastDeliveryCommitPort,

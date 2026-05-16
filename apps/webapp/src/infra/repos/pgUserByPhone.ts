@@ -8,6 +8,8 @@ import { normalizeRuPhoneE164 } from "@/shared/phone/normalizeRuPhoneE164";
 import { findCanonicalUserIdByPhone, resolveCanonicalUserId } from "@/infra/repos/pgCanonicalPlatformUser";
 import { mergePlatformUsersInTransaction, pickMergeTargetId } from "@/infra/repos/pgPlatformUserMerge";
 import type { PoolClient } from "pg";
+
+import { upsertBroadcastDefaultsAfterChannelBind } from "@/infra/upsertBroadcastDefaultsAfterChannelBind";
 import { MergeConflictError, MergeDependentConflictError } from "@/infra/repos/platformUserMergeErrors";
 import {
   TrustedPatientPhoneSource,
@@ -195,7 +197,9 @@ export const pgUserByPhonePort: UserByPhonePort = {
            RETURNING user_id`,
           [userId, channelCode, context.chatId],
         );
-        if (insB.rows.length === 0) {
+        if (insB.rows.length > 0) {
+          await upsertBroadcastDefaultsAfterChannelBind(client, userId, channelCode);
+        } else {
           const o = await client.query<{ user_id: string }>(
             `SELECT user_id FROM user_channel_bindings WHERE channel_code = $1 AND external_id = $2 FOR UPDATE`,
             [channelCode, context.chatId],

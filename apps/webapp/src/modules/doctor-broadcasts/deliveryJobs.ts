@@ -2,7 +2,13 @@ import type { ClientListItem } from "@/modules/doctor-clients/ports";
 import { normalizePhone } from "@/modules/auth/phoneNormalize";
 import { isValidPhoneE164 } from "@/modules/auth/phoneValidation";
 import type { BroadcastChannel } from "./broadcastChannels";
-import type { DoctorBroadcastQueueJob } from "./ports";
+import type { BroadcastAudienceFilter, BroadcastNotificationPrefsFlags, DoctorBroadcastQueueJob } from "./ports";
+import {
+  broadcastIncludeMaxJob,
+  broadcastIncludeSmsJob,
+  broadcastIncludeTelegramJob,
+  resolveBroadcastNotificationPrefsFromBatch,
+} from "./broadcastEligible";
 import {
   BROADCAST_DELIVERY_CAP_EXCEEDED_CODE,
   DOCTOR_BROADCAST_QUEUE_KIND,
@@ -50,26 +56,38 @@ function buildMessageSendIntent(input: {
   };
 }
 
-/**
- * Плоский список заданий очереди по эффективным клиентам и каналам (как guard превью / dev_mode на webapp).
- */
-export function buildDoctorBroadcastDeliveryJobs(input: {
+export type DoctorBroadcastDeliveryJobsParams = {
   auditId: string;
-  effectiveClients: readonly ClientListItem[];
+  /** Тот же состав, что в превью «получатели» (**`eligibleClients`** из резолвера аудитории). */
+  eligibleClients: readonly ClientListItem[];
   channels: readonly BroadcastChannel[];
   messageText: string;
+  audienceFilter?: BroadcastAudienceFilter;
+  notificationPrefsByUserId?: ReadonlyMap<string, BroadcastNotificationPrefsFlags>;
   /** Копия на момент постановки в очередь; воркер читает из `payload_json`. */
   attachMenu?: boolean;
-}): DoctorBroadcastQueueJob[] {
+};
+
+/**
+ * Плоский список заданий очереди по **eligible**-клиентам (совпадает с превью) и выбранным каналам.
+ * Правило prefs / изоляции совпадает с filterEligibleBroadcastClients для превью.
+ */
+export function buildDoctorBroadcastDeliveryJobs(input: DoctorBroadcastDeliveryJobsParams): DoctorBroadcastQueueJob[] {
+  const audienceFilter = input.audienceFilter ?? "all";
+  const prefsMap = input.notificationPrefsByUserId ?? new Map<string, BroadcastNotificationPrefsFlags>();
+
   const wantsBot = input.channels.includes("bot_message");
   const wantsSms = input.channels.includes("sms");
   const jobs: DoctorBroadcastQueueJob[] = [];
   const attachMenu = input.attachMenu === true;
 
-  for (const client of input.effectiveClients) {
+  for (const client of input.eligibleClients) {
+    const prefs = resolveBroadcastNotificationPrefsFromBatch(prefsMap, client.userId);
+    const tg = client.bindings.telegramId?.trim();
+    const mx = client.bindings.maxId?.trim();
+
     if (wantsBot) {
-      const tg = client.bindings.telegramId?.trim();
-      if (tg) {
+      if (tg && broadcastIncludeTelegramJob(audienceFilter, prefs, true)) {
         const chatId = /^\d+$/.test(tg) ? Number(tg) : tg;
         const eventId = stableEventId(input.auditId, "telegram", client.userId, "tg");
         jobs.push({
@@ -92,8 +110,7 @@ export function buildDoctorBroadcastDeliveryJobs(input: {
           },
         });
       }
-      const mx = client.bindings.maxId?.trim();
-      if (mx) {
+      if (mx && broadcastIncludeMaxJob(audienceFilter, prefs, true)) {
         const eventId = stableEventId(input.auditId, "max", client.userId, "max");
         jobs.push({
           eventId,
@@ -119,7 +136,7 @@ export function buildDoctorBroadcastDeliveryJobs(input: {
 
     if (wantsSms && client.phone) {
       const normalized = normalizePhone(client.phone.trim());
-      if (isValidPhoneE164(normalized)) {
+      if (broadcastIncludeSmsJob(audienceFilter, prefs, isValidPhoneE164(normalized))) {
         const eventId = stableEventId(input.auditId, "sms", client.userId, "sms");
         jobs.push({
           eventId,

@@ -52,6 +52,17 @@ export type MaxEditMessageParams = {
 
 let cachedBot: { cacheKey: string; bot: Bot } | null = null;
 
+/** `sendMessageToChat` требует chat_id диалога; в БД/привязке часто хранится platform user_id — тогда нужен `sendMessageToUser`. */
+function isMaxDialogNotFoundError(err: unknown): boolean {
+  const m =
+    err !== null && typeof err === 'object' && 'message' in err && typeof (err as { message: unknown }).message === 'string'
+      ? (err as { message: string }).message
+      : err instanceof Error
+        ? err.message
+        : String(err);
+  return m.includes('dialog.notfound') || m.includes('error.dialog.notfound');
+}
+
 function getBot(config: MaxClientConfig): Bot {
   const cacheKey = `${config.apiKey}::${config.baseUrl ?? ''}`;
   if (cachedBot?.cacheKey === cacheKey) return cachedBot.bot;
@@ -99,16 +110,32 @@ export async function sendMaxMessage(
   config: MaxClientConfig,
   params: MaxSendMessageParams,
 ): Promise<Message | null> {
+  const { logger } = await import('../../infra/observability/logger.js');
   try {
     const bot = getBot(config);
-    const message = params.chatId != null
-      ? await bot.api.sendMessageToChat(params.chatId, params.text, params.extra)
-      : params.userId != null
-        ? await bot.api.sendMessageToUser(params.userId, params.text, params.extra)
-        : null;
-    return message;
+    if (params.userId != null) {
+      return await bot.api.sendMessageToUser(params.userId, params.text, params.extra);
+    }
+    if (params.chatId != null) {
+      const chatId = params.chatId;
+      try {
+        return await bot.api.sendMessageToChat(chatId, params.text, params.extra);
+      } catch (errFirst) {
+        if (!isMaxDialogNotFoundError(errFirst)) throw errFirst;
+        logger.info({ chatIdFailedAsDialog: chatId }, 'max sendMessageToChat dialog not found, retry sendMessageToUser');
+        try {
+          return await bot.api.sendMessageToUser(chatId, params.text, params.extra);
+        } catch (errFallback) {
+          logger.error(
+            { err: errFallback, chatIdTriedAsUserId: chatId, textLength: params.text?.length },
+            'max sendMessageToUser after dialog.notfound failed',
+          );
+          return null;
+        }
+      }
+    }
+    return null;
   } catch (err) {
-    const { logger } = await import('../../infra/observability/logger.js');
     logger.error(
       { err, chatId: params.chatId, userId: params.userId, textLength: params.text?.length },
       'max sendMessage failed',

@@ -16,6 +16,7 @@ import {
   claimMessengerChannelBindingInTransaction,
   ChannelLinkClaimRejectedError,
 } from "./channelLinkClaim";
+import { upsertBroadcastDefaultsAfterChannelBind } from "@/infra/upsertBroadcastDefaultsAfterChannelBind";
 
 const SECRET_TTL_MIN = 10;
 
@@ -312,6 +313,7 @@ export async function completeChannelLinkFromIntegrator(params: {
      VALUES ($1, $2, $3)`,
     [r.user_id, params.channelCode, params.externalId]
   );
+  await upsertBroadcastDefaultsAfterChannelBind(pool, r.user_id, params.channelCode);
   await pool.query("UPDATE channel_link_secrets SET used_at = now() WHERE id = $1", [r.id]);
 
   const canonical = await resolveCanonicalUserId(pool, r.user_id);

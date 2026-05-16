@@ -38,6 +38,10 @@ export function BroadcastConfirmStep({ preview, command, onConfirm, onCancel, is
         <dd id="broadcast-channels-summary">{formatChannelsSummary(preview.channels)}</dd>
       </dl>
 
+      <p id="broadcast-delivery-policy" className="rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
+        {preview.deliveryPolicyDescriptionRu}
+      </p>
+
       {!isAudienceEstimateApproximate(command.audienceFilter) ? (
         <BroadcastRecipientsPreviewBlock recipientsPreview={preview.recipientsPreview} />
       ) : null}

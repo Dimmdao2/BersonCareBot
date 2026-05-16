@@ -7,6 +7,7 @@ import {
   trustedPatientPhoneWriteAnchor,
 } from "@/modules/platform-access/trustedPhonePolicy";
 import type { PoolClient } from "pg";
+import { upsertBroadcastDefaultsAfterChannelBind } from "@/infra/upsertBroadcastDefaultsAfterChannelBind";
 
 export type UserProjectionPort = {
   upsertFromProjection: (params: {
@@ -244,12 +245,16 @@ async function upsertFromProjectionTx(
   }
 
   if (params.channelCode && params.externalId) {
-    await client.query(
+    const insBinding = await client.query<{ user_id: string | null }>(
       `INSERT INTO user_channel_bindings (user_id, channel_code, external_id)
        VALUES ($1::uuid, $2, $3)
-       ON CONFLICT (channel_code, external_id) DO NOTHING`,
+       ON CONFLICT (channel_code, external_id) DO NOTHING
+       RETURNING user_id`,
       [userId, params.channelCode, params.externalId],
     );
+    if (insBinding.rows.length > 0) {
+      await upsertBroadcastDefaultsAfterChannelBind(client, userId, params.channelCode);
+    }
   }
 
   return userId;

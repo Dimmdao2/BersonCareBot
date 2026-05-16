@@ -1,5 +1,7 @@
 import type { Pool, PoolClient } from "pg";
 
+import { upsertBroadcastDefaultsAfterChannelBind } from "@/infra/upsertBroadcastDefaultsAfterChannelBind";
+
 type SqlQueryable = Pick<Pool, "query">;
 
 export class ChannelLinkClaimRejectedError extends Error {
@@ -160,6 +162,8 @@ export async function claimMessengerChannelBindingInTransaction(
      WHERE channel_code = $2 AND external_id = $3 AND user_id = $4::uuid`,
     [tokenUserId, channelCode, externalId, stubUserId],
   );
+
+  await upsertBroadcastDefaultsAfterChannelBind(client, tokenUserId, channelCode);
 
   await client.query(
     `UPDATE platform_users

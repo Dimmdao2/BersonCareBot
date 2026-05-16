@@ -1,4 +1,5 @@
 import { getPool } from "@/infra/db/client";
+import type { BroadcastNotificationPrefsFlags } from "@/modules/doctor-broadcasts/ports";
 import type { ChannelPreferencesPort } from "@/modules/channel-preferences/ports";
 import type { ChannelCode, ChannelPreference } from "@/modules/channel-preferences/types";
 
@@ -67,6 +68,35 @@ export const pgChannelPreferencesPort: ChannelPreferencesPort = {
       [params.userId, params.channelCode]
     );
     return rowToPreference(result.rows[0]);
+  },
+
+  async getBroadcastNotificationFlagsBatch(platformUserIds): Promise<Map<string, BroadcastNotificationPrefsFlags>> {
+    const out = new Map<string, BroadcastNotificationPrefsFlags>();
+    for (const id of platformUserIds) {
+      out.set(id, { telegram: true, max: true, sms: true });
+    }
+    if (platformUserIds.length === 0) return out;
+
+    const pool = getPool();
+    const result = await pool.query<{
+      platform_user_id: string;
+      channel_code: string;
+      is_enabled_for_notifications: boolean;
+    }>(
+      `SELECT platform_user_id, channel_code, is_enabled_for_notifications
+       FROM user_channel_preferences
+       WHERE platform_user_id = ANY($1::uuid[])
+         AND channel_code = ANY(ARRAY['telegram'::text, 'max'::text, 'sms'::text])`,
+      [platformUserIds],
+    );
+    for (const row of result.rows) {
+      const cur = out.get(row.platform_user_id);
+      if (!cur) continue;
+      if (row.channel_code === "telegram") cur.telegram = row.is_enabled_for_notifications;
+      else if (row.channel_code === "max") cur.max = row.is_enabled_for_notifications;
+      else if (row.channel_code === "sms") cur.sms = row.is_enabled_for_notifications;
+    }
+    return out;
   },
 
   async getPreferredAuthChannelCode(userId) {

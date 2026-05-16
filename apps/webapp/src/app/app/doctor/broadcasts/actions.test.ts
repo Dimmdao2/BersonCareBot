@@ -32,6 +32,7 @@ import {
   executeBroadcastAction,
   listBroadcastAuditAction,
 } from "./actions";
+import { deriveBroadcastDeliveryPolicy } from "@/modules/doctor-broadcasts/broadcastEligible";
 
 const baseCommand = {
   category: "reminder" as const,
@@ -43,11 +44,14 @@ describe("previewBroadcastAction", () => {
   beforeEach(() => previewMock.mockClear());
 
   it("calls preview with actorId injected from session", async () => {
+    const policy = deriveBroadcastDeliveryPolicy(baseCommand.audienceFilter, ["bot_message", "sms"]);
     const expected: BroadcastPreviewResult = {
       audienceSize: 30,
       category: "reminder",
       audienceFilter: "with_telegram",
       channels: ["bot_message", "sms"],
+      deliveryPolicyKind: policy.kind,
+      deliveryPolicyDescriptionRu: policy.descriptionRu,
     };
     previewMock.mockResolvedValue(expected);
 

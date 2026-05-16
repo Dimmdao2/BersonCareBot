@@ -13,6 +13,8 @@ import { mergeCanonicalPlatformUserCandidates } from "@/infra/repos/pgUserProjec
 import { isPlatformUserUuid } from "@/shared/platform-user/isPlatformUserUuid";
 import type { PoolClient } from "pg";
 
+import { upsertBroadcastDefaultsAfterChannelBind } from "@/infra/upsertBroadcastDefaultsAfterChannelBind";
+
 async function collectMessengerResolutionCandidates(
   client: PoolClient,
   hints: MessengerIdentityResolutionHints | undefined,
@@ -133,7 +135,9 @@ export const pgIdentityResolutionPort: IdentityResolutionPort = {
            RETURNING user_id`,
           [userId, params.channelCode, params.externalId],
         );
-        if (insBinding.rows.length === 0) {
+        if (insBinding.rows.length > 0) {
+          await upsertBroadcastDefaultsAfterChannelBind(client, userId, params.channelCode);
+        } else {
           const reread = await client.query<{ user_id: string }>(
             "SELECT user_id FROM user_channel_bindings WHERE channel_code = $1 AND external_id = $2 FOR UPDATE",
             [params.channelCode, params.externalId],

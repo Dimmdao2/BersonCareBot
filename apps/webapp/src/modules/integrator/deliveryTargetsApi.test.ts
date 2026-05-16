@@ -42,6 +42,13 @@ describe("deliveryTargetsApi", () => {
         },
       ]),
       upsertPreference: vi.fn(),
+      getBroadcastNotificationFlagsBatch: vi.fn().mockImplementation(async (ids: string[]) => {
+        const m = new Map();
+        for (const id of ids) {
+          m.set(id, { telegram: true, max: true, sms: true });
+        }
+        return m;
+      }),
       getPreferredAuthChannelCode: vi.fn().mockResolvedValue(null),
       setPreferredAuthChannel: vi.fn(),
     },

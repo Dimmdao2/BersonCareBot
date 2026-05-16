@@ -25,7 +25,7 @@ export function BroadcastSentMessage({ preview }: Props) {
           ? ` (в сегменте ${preview.segmentSize})`
           : ""}
       </p>
-      {!isAudienceEstimateApproximate(preview.audienceFilter) ? (
+      {!isAudienceEstimateApproximate(preview.audienceFilter) && preview.recipientsPreview ? (
         <BroadcastRecipientsPreviewBlock recipientsPreview={preview.recipientsPreview} />
       ) : null}
 

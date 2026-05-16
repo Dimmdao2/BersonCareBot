@@ -45,13 +45,13 @@ export function createDoctorBroadcastsService(deps: DoctorBroadcastsServiceDeps)
 
     async preview(command: BroadcastCommand): Promise<BroadcastPreviewResult> {
       const channels = resolvedChannels(command);
-      const { audienceSize, segmentSize, recipientsPreview } = await deps.resolveBroadcastAudience(
-        command.audienceFilter,
-        channels,
-      );
+      const resolved = await deps.resolveBroadcastAudience(command.audienceFilter, channels);
+      const { audienceSize, segmentSize, recipientsPreview, deliveryPolicyKind, deliveryPolicyDescriptionRu } = resolved;
       return {
         audienceSize,
         recipientsPreview,
+        deliveryPolicyKind,
+        deliveryPolicyDescriptionRu,
         ...(segmentSize !== undefined ? { segmentSize } : {}),
         category: command.category,
         audienceFilter: command.audienceFilter,
@@ -61,7 +61,7 @@ export function createDoctorBroadcastsService(deps: DoctorBroadcastsServiceDeps)
 
     async execute(command: BroadcastCommand): Promise<{ auditEntry: BroadcastAuditEntry }> {
       const channels = resolvedChannels(command);
-      const { audienceSize, effectiveClients } = await deps.resolveBroadcastAudience(
+      const { audienceSize, eligibleClients, notificationPrefsByUserId } = await deps.resolveBroadcastAudience(
         command.audienceFilter,
         channels,
       );
@@ -69,10 +69,12 @@ export function createDoctorBroadcastsService(deps: DoctorBroadcastsServiceDeps)
       const auditId = randomUUID();
       const jobs = buildDoctorBroadcastDeliveryJobs({
         auditId,
-        effectiveClients,
+        eligibleClients,
         channels,
         messageText: messageBody,
         attachMenu: command.attachMenuAfterSend === true,
+        audienceFilter: command.audienceFilter,
+        notificationPrefsByUserId,
       });
       const auditBase = {
         actorId: command.actorId,
