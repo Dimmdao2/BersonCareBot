@@ -35,6 +35,17 @@ async function resolveTelegramMessengerDisplayHint(db: MessengerPhoneBindDb, ext
   }
 }
 
+async function resolveMaxMessengerPhoneHint(
+  db: MessengerPhoneBindDb,
+  platformUserId: string | null,
+): Promise<string | null> {
+  const id = platformUserId?.trim();
+  if (!id) return null;
+  const summary = await resolveCanonicalPlatformUserSummary(db, id);
+  const p = summary?.phoneNormalized?.trim();
+  return p && p.length > 0 ? p : null;
+}
+
 async function resolveCanonicalPlatformUserSummary(
   db: MessengerPhoneBindDb,
   id: string,
@@ -120,8 +131,13 @@ export async function enrichMessengerBindAuditDetailsFields(
       [cc, ext],
     );
     const puId = bind.rows[0]?.platform_user_id ?? null;
-    const messengerDisplayHint =
-      cc.trim().toLowerCase() === "telegram" ? await resolveTelegramMessengerDisplayHint(db, ext) : null;
+    const ccLower = cc.trim().toLowerCase();
+    let messengerDisplayHint: string | null = null;
+    if (ccLower === "telegram") {
+      messengerDisplayHint = await resolveTelegramMessengerDisplayHint(db, ext);
+    } else if (ccLower === "max") {
+      messengerDisplayHint = await resolveMaxMessengerPhoneHint(db, puId);
+    }
     initiator = {
       channelLabel: messengerChannelLabelRu(cc),
       channelCode: cc,

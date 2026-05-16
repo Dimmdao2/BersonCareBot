@@ -104,7 +104,12 @@ export function buildMessengerBindBlockedRelayLines(input: BuildMessengerBindBlo
 
   const hintTrimmed = input.initiator?.messengerDisplayHint?.trim();
   if (hintTrimmed) {
-    lines.push(`Подпись в мессенджере: ${hintTrimmed}`);
+    const ch =
+      input.channelCode?.trim().toLowerCase() ??
+      input.initiator?.channelCode?.trim().toLowerCase() ??
+      "";
+    const hintLabel = ch === "max" ? "Телефон в профиле (MAX)" : "Подпись в мессенджере";
+    lines.push(`${hintLabel}: ${hintTrimmed}`);
   }
 
   if (input.phoneSuffix?.trim()) {

@@ -50,6 +50,39 @@ describe("buildMessengerBindBlockedRelayLines", () => {
       ),
     ).toBe(true);
   });
+
+  it("labels MAX messengerDisplayHint as profile phone", () => {
+    const lines = buildMessengerBindBlockedRelayLines({
+      variantLabel: "HTTP bind (webapp)",
+      machineReason: "phone_owned_by_other_user",
+      reasonHumanRu: "Тест",
+      appBaseUrl: "https://example.com/",
+      candidates: [
+        {
+          platformUserId: "11111111-1111-1111-1111-111111111111",
+          displayName: null,
+          phoneNormalized: null,
+          email: null,
+        },
+        {
+          platformUserId: "22222222-2222-2222-2222-222222222222",
+          displayName: null,
+          phoneNormalized: null,
+          email: null,
+        },
+      ],
+      initiator: {
+        channelLabel: "MAX",
+        channelCode: "max",
+        externalId: "max-ext-1",
+        platformUserId: "22222222-2222-2222-2222-222222222222",
+        messengerDisplayHint: "+79001112233",
+      },
+      channelCode: "max",
+      externalId: "max-ext-1",
+    });
+    expect(lines.some((l) => l.includes("Телефон в профиле (MAX): +79001112233"))).toBe(true);
+  });
 });
 
 describe("parseMessengerPhoneBindAuditTargets", () => {
