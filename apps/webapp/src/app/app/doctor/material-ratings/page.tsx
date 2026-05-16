@@ -48,6 +48,9 @@ export default async function DoctorMaterialRatingsPage({ searchParams }: Props)
     }),
   );
 
+  const exerciseIds = [...new Set(rows.filter((r) => r.targetKind === "lfk_exercise").map((r) => r.targetId))];
+  const exerciseTitleById = await deps.lfkExercises.listExerciseTitlesByIds(exerciseIds);
+
   const grouped: Record<MaterialRatingTargetKind, typeof rows> = {
     content_page: [],
     lfk_exercise: [],
@@ -79,7 +82,8 @@ export default async function DoctorMaterialRatingsPage({ searchParams }: Props)
                       <th className="py-2 pr-3 font-medium">Материал</th>
                       <th className="py-2 pr-3 font-medium">Средняя</th>
                       <th className="py-2 pr-3 font-medium">Оценок</th>
-                      <th className="py-2 font-medium">1–5</th>
+                      <th className="py-2 pr-3 font-medium">1–5</th>
+                      <th className="py-2 font-medium w-[100px]" />
                     </tr>
                   </thead>
                   <tbody>
@@ -90,13 +94,17 @@ export default async function DoctorMaterialRatingsPage({ searchParams }: Props)
                         </span>
                       );
                       if (kind === "lfk_exercise") {
+                        const title = exerciseTitleById.get(r.targetId)?.trim();
                         label = (
-                          <Link
-                            className="text-primary underline-offset-2 hover:underline"
-                            href={`/app/doctor/exercises/${r.targetId}`}
-                          >
-                            {r.targetId}
-                          </Link>
+                          <div className="flex flex-col gap-0.5">
+                            <Link
+                              className="text-primary underline-offset-2 hover:underline"
+                              href={`/app/doctor/exercises/${r.targetId}`}
+                            >
+                              {title || "Упражнение"}
+                            </Link>
+                            <span className="text-xs text-muted-foreground font-mono">{r.targetId}</span>
+                          </div>
                         );
                       } else if (kind === "content_page") {
                         const meta = contentById.get(r.targetId);
@@ -134,6 +142,14 @@ export default async function DoctorMaterialRatingsPage({ searchParams }: Props)
                           <td className="py-2 pr-3 tabular-nums">{r.count}</td>
                           <td className="py-2 text-xs text-muted-foreground tabular-nums">
                             {[1, 2, 3, 4, 5].map((s) => `${s}:${r.distribution[s] ?? 0}`).join(" · ")}
+                          </td>
+                          <td className="py-2 align-top">
+                            <Link
+                              className="text-primary text-sm underline-offset-2 hover:underline whitespace-nowrap"
+                              href={`/app/doctor/material-ratings/${r.targetKind}/${r.targetId}`}
+                            >
+                              Подробно
+                            </Link>
                           </td>
                         </tr>
                       );

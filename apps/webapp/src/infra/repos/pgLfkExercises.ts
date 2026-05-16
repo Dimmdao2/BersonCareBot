@@ -532,6 +532,21 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
       });
     },
 
+    async listTitlesByIds(ids: readonly string[]): Promise<Map<string, string>> {
+      const out = new Map<string, string>();
+      const unique = [...new Set(ids.map((x) => x.trim()).filter(Boolean))];
+      if (unique.length === 0) return out;
+      const pool = getPool();
+      const r = await pool.query<{ id: string; title: string }>(
+        `SELECT id::text AS id, title FROM lfk_exercises WHERE id = ANY($1::uuid[])`,
+        [unique],
+      );
+      for (const row of r.rows) {
+        out.set(row.id, row.title);
+      }
+      return out;
+    },
+
     async getById(id: string): Promise<Exercise | null> {
       const pool = getPool();
       const r = await pool.query(

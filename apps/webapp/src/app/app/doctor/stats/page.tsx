@@ -2,8 +2,11 @@
  * Статистика кабинета специалиста («/app/doctor/stats»).
  * Агрегаты по записям — окно «неделя» от UTC-полуночи сегодня; см. DOCTOR_DASHBOARD_METRICS.md.
  */
+import { DateTime } from "luxon";
+
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
+import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
 import { AppShell } from "@/shared/ui/AppShell";
 import { AdminPlatformRegistrationStatsClient } from "./AdminPlatformRegistrationStatsClient";
 import { DoctorStatCard } from "./DoctorStatCard";
@@ -13,12 +16,17 @@ export default async function DoctorStatsPage() {
   const deps = buildAppDeps();
   const stats = await deps.doctorStats.getStats();
   const isAdmin = session.user.role === "admin";
+  let calendarTodayYmd = "";
+  if (isAdmin) {
+    const tz = await getAppDisplayTimeZone();
+    calendarTodayYmd = DateTime.now().setZone(tz).toFormat("yyyy-LL-dd");
+  }
 
   return (
     <AppShell title="Статистика" user={session.user} variant="doctor">
       {isAdmin ? (
         <div className="mb-4">
-          <AdminPlatformRegistrationStatsClient />
+          <AdminPlatformRegistrationStatsClient calendarTodayYmd={calendarTodayYmd} />
         </div>
       ) : null}
       <section id="doctor-stats-appointments-section" className="rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col gap-4">

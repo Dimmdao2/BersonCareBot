@@ -1,5 +1,7 @@
 import type {
   MaterialRatingAggregate,
+  MaterialRatingDoctorDetailDay,
+  MaterialRatingDoctorDetailRater,
   MaterialRatingDoctorSummaryRow,
   MaterialRatingTargetKind,
 } from "./types";
@@ -28,4 +30,16 @@ export type MaterialRatingPort = {
     limit: number;
     offset: number;
   }): Promise<MaterialRatingDoctorSummaryRow[]>;
+
+  getDoctorDetail(input: {
+    targetKind: MaterialRatingTargetKind;
+    targetId: string;
+    iana: string;
+    startUtcIso: string;
+    endExclusiveUtcIso: string;
+    dayKeys: string[];
+  }): Promise<{
+    days: MaterialRatingDoctorDetailDay[];
+    raters: MaterialRatingDoctorDetailRater[];
+  }>;
 };

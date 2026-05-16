@@ -15,6 +15,7 @@ describe("createMaterialRatingService putForPatient snapshot", () => {
         distribution: { 1: 0, 2: 0, 3: 0, 4: 1, 5: 0 },
       } satisfies MaterialRatingAggregate),
       listDoctorSummary: vi.fn(),
+      getDoctorDetail: vi.fn(),
     };
     const svc = createMaterialRatingService({
       ratings,
@@ -51,6 +52,7 @@ describe("createMaterialRatingService putForPatient snapshot", () => {
       getMyRating: vi.fn(),
       getAggregate: vi.fn(),
       listDoctorSummary: vi.fn(),
+      getDoctorDetail: vi.fn(),
     };
     const svc = createMaterialRatingService({
       ratings,

@@ -1,6 +1,6 @@
 # Инвентаризация: сырой SQL вне Drizzle query builder
 
-**Дата снимка:** 2026-05-15  
+**Дата снимка:** 2026-05-15 (правка 2026-05-16: `pgMaterialRating` doctor detail)  
 **Контекст:** миграция интегратора на Drizzle; мастер-план **P1–P4 интегратора закрыт** — здесь перечислены **остатки** сырого SQL и зона вне интегратора (webapp, worker, пакеты): `pg` и строковый SQL там по-прежнему широко используются.
 
 **План перехода (фазы, риски, приоритеты):** [DRIZZLE_TRANSITION_PLAN.md](./DRIZZLE_TRANSITION_PLAN.md)
@@ -174,6 +174,7 @@
 | `src/infra/repos/pgPhoneChallengeStore.ts`           | Хранилище phone challenges (insert/select/delete).                                                                                                    | С      | `Drizzle`                                                 | OTP/SMS злоупотребления                            |
 | `src/infra/repos/pgUserPins.ts`                      | Закрепления пользователя.                                                                                                                             | Н      | `Drizzle`                                                 | Низкие                                             |
 | `src/infra/repos/pgLoginTokens.ts`                   | Токены логина.                                                                                                                                        | С      | `Drizzle`                                                 | Сессии                                             |
+| `src/infra/repos/pgMaterialRating.ts`                | Оценки материалов: агрегаты через Drizzle; **doctor detail** — сырой `pool.query`: дневные `COUNT` первых resolve playback по видео-media, группировки `material_ratings` по локальному дню (`timezone`), список оценивших с `LEFT JOIN platform_users`. | С      | `Drizzle` + `+sql` / `execute(sql)` для TZ-агрегатов | Детализация оценок врача, метрики просмотров |
 | `src/infra/repos/pgSubscriptionMailingProjection.ts` | Проекция подписок/рассылок.                                                                                                                           | С      | `Drizzle`                                                 | Рассылки                                           |
 | `src/infra/repos/pgOnlineIntake.ts`                  | Online intake: shared advisory lock по user id + операции заявки.                                                                                     | С      | `Drizzle` + `execute(sql)` lock                           | Двойная заявка                                     |
 | `src/infra/repos/pgDiaryPurge.ts`                    | Purge данных дневника (advisory + delete).                                                                                                            | С      | `Drizzle` + `execute(sql)`                                | Удаление не тех данных                             |

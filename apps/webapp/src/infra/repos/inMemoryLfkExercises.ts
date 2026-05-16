@@ -61,6 +61,15 @@ export const inMemoryLfkExercisesPort: LfkExercisesPort = {
       .sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
   },
 
+  async listTitlesByIds(ids: readonly string[]): Promise<Map<string, string>> {
+    const out = new Map<string, string>();
+    for (const id of ids) {
+      const ex = exercises.get(id.trim());
+      if (ex) out.set(ex.id, ex.title);
+    }
+    return out;
+  },
+
   async getById(id: string): Promise<Exercise | null> {
     return exercises.get(id) ?? null;
   },

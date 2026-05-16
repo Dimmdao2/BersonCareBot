@@ -49,7 +49,7 @@
   - `SET CONSTRAINTS ... DEFERRED`;
   - переносом dependent rows на canonical;
   - очисткой strong IDs у duplicate;
-  - установкой `merged_into_id`.
+  - установкой `merged_into_id` и **`merged_at = now()`** (фиксация момента alias; миграция **`0067_platform_users_merged_at.sql`**, аналогично узкий **channel-link claim** в `channelLinkClaim.ts`).
 
 ## Миграции инициативы
 
@@ -67,6 +67,7 @@
   - `NOT NULL` для migrated tables;
   - финальные unique indexes на новых UUID refs;
   - FK для `lfk_sessions.user_id -> platform_users(id)`.
+- `0067_platform_users_merged_at.sql` — колонка **`merged_at`** (timestamptz, nullable) + индекс; backfill **`merged_at = updated_at`** для существующих alias; заполняется при merge и channel-link claim.
 
 ## Read/Write правила для migrated legacy таблиц
 

@@ -7,10 +7,6 @@ import type { AdminRegistrationPreset, AdminRegistrationStatsPayload } from "@/m
 
 import { AdminRegistrationLineChart } from "./AdminRegistrationLineChart";
 
-function todayYmd(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
 function buildQuery(preset: AdminRegistrationPreset, from: string, to: string): string {
   const p = new URLSearchParams();
   p.set("preset", preset);
@@ -21,7 +17,7 @@ function buildQuery(preset: AdminRegistrationPreset, from: string, to: string): 
   return `/api/admin/platform-user-registration-stats?${p.toString()}`;
 }
 
-export function AdminPlatformRegistrationStatsClient() {
+export function AdminPlatformRegistrationStatsClient({ calendarTodayYmd }: { calendarTodayYmd: string }) {
   const [preset, setPreset] = useState<AdminRegistrationPreset>("today");
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
@@ -53,13 +49,13 @@ export function AdminPlatformRegistrationStatsClient() {
 
   useEffect(() => {
     if (preset === "custom" && (!customFrom.trim() || !customTo.trim())) {
-      const t = todayYmd();
+      const t = calendarTodayYmd.trim() || new Date().toISOString().slice(0, 10);
       setCustomFrom(t);
       setCustomTo(t);
       return;
     }
     void load();
-  }, [preset, customFrom, customTo, load]);
+  }, [preset, customFrom, customTo, load, calendarTodayYmd]);
 
   return (
     <section

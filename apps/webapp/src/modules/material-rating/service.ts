@@ -251,6 +251,30 @@ export function createMaterialRatingService(deps: {
     }) {
       return deps.ratings.listDoctorSummary(input);
     },
+
+    /**
+     * Детализация для кабинета врача: цель должна существовать.
+     * Для `content_page` достаточно строки в CMS без soft-delete — черновики/неопубликованное допустимы (врач редактирует контент).
+     */
+    async getDoctorDetailForDoctor(input: {
+      targetKind: MaterialRatingTargetKind;
+      targetId: string;
+      iana: string;
+      startUtcIso: string;
+      endExclusiveUtcIso: string;
+      dayKeys: string[];
+    }) {
+      if (input.targetKind === "content_page") {
+        await loadContentPageOrThrow(input.targetId);
+      } else {
+        try {
+          await assertTargetExistsNonContent(input.targetKind, input.targetId);
+        } catch {
+          throw new MaterialRatingAccessError("not_found");
+        }
+      }
+      return deps.ratings.getDoctorDetail(input);
+    },
   };
 }
 

@@ -17,6 +17,23 @@ export type MaterialRatingDoctorSummaryRow = {
   distribution: Record<number, number>;
 };
 
+export type MaterialRatingDoctorDetailDay = {
+  /** YYYY-MM-DD в календаре `iana` */
+  day: string;
+  /** Первые успешные resolve playback для связанных видео-media в этот день */
+  viewCount: number;
+  /** Строки `material_ratings` с `updated_at` в этот локальный день */
+  ratingActivityCount: number;
+  avgStarsInActivity: number | null;
+};
+
+export type MaterialRatingDoctorDetailRater = {
+  userId: string;
+  stars: number;
+  updatedAt: string;
+  displayLabel: string;
+};
+
 /** Доступ к материалу для оценок (пациентский API). */
 export class MaterialRatingAccessError extends Error {
   readonly accessCode: "not_found" | "forbidden";

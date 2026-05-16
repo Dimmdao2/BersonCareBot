@@ -95,7 +95,7 @@
 
 Таблицы:
 
-- `platform_users`
+- `platform_users` — канон платформы; **`merged_into_id`** — ссылка на канона для alias-строки после merge; **`merged_at`** — момент пометки alias (merge / channel-link claim), для операционной статистики и отличия от прочих обновлений `updated_at` (миграция **`0067_platform_users_merged_at.sql`**).
 - `user_channel_bindings`
 - `user_channel_preferences`
 - `user_notification_topics`

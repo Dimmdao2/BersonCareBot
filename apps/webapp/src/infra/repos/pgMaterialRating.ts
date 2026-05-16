@@ -1,8 +1,15 @@
 import { and, avg, count, desc, eq, sql } from "drizzle-orm";
+import { getPool } from "@/infra/db/client";
+import { resolveMaterialRatingTargetVideoMediaIds } from "@/infra/repos/materialRatingTargetVideoMediaIds";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import { materialRatings } from "../../../db/schema/materialRatings";
 import type { MaterialRatingPort } from "@/modules/material-rating/ports";
-import type { MaterialRatingAggregate, MaterialRatingDoctorSummaryRow } from "@/modules/material-rating/types";
+import type {
+  MaterialRatingAggregate,
+  MaterialRatingDoctorDetailDay,
+  MaterialRatingDoctorDetailRater,
+  MaterialRatingDoctorSummaryRow,
+} from "@/modules/material-rating/types";
 
 function emptyDistribution(): Record<number, number> {
   return { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
@@ -111,6 +118,99 @@ export function createPgMaterialRatingPort(): MaterialRatingPort {
         avg: Number(r.cnt) === 0 ? null : r.avgStars != null ? Number(r.avgStars) : null,
         distribution: buildDistributionFromRow(r),
       }));
+    },
+
+    async getDoctorDetail(input): Promise<{
+      days: MaterialRatingDoctorDetailDay[];
+      raters: MaterialRatingDoctorDetailRater[];
+    }> {
+      const pool = getPool();
+      const mediaIds = await resolveMaterialRatingTargetVideoMediaIds(input.targetKind, input.targetId);
+
+      const viewByDay = new Map<string, number>();
+      if (mediaIds.length > 0) {
+        const vr = await pool.query<{ d: string; c: number }>(
+          `SELECT (timezone($1::text, first_resolved_at))::date::text AS d,
+                  count(*)::int AS c
+           FROM media_playback_user_video_first_resolve
+           WHERE media_id = ANY($2::uuid[])
+             AND first_resolved_at >= $3::timestamptz
+             AND first_resolved_at < $4::timestamptz
+           GROUP BY 1`,
+          [input.iana, mediaIds, input.startUtcIso, input.endExclusiveUtcIso],
+        );
+        for (const row of vr.rows) {
+          if (row.d) viewByDay.set(row.d, row.c);
+        }
+      }
+
+      const ratingByDay = new Map<string, { cnt: number; avg: number | null }>();
+      const rr = await pool.query<{ d: string; cnt: number; avg_stars: string | null }>(
+        `SELECT (timezone($1::text, updated_at))::date::text AS d,
+                count(*)::int AS cnt,
+                avg(stars::numeric)::text AS avg_stars
+         FROM material_ratings
+         WHERE target_kind = $2 AND target_id = $3::uuid
+           AND updated_at >= $4::timestamptz
+           AND updated_at < $5::timestamptz
+         GROUP BY 1`,
+        [input.iana, input.targetKind, input.targetId, input.startUtcIso, input.endExclusiveUtcIso],
+      );
+      for (const row of rr.rows) {
+        if (!row.d) continue;
+        const avgVal =
+          row.avg_stars != null && row.avg_stars !== ""
+            ? Number.parseFloat(row.avg_stars)
+            : null;
+        ratingByDay.set(row.d, {
+          cnt: row.cnt,
+          avg: avgVal != null && Number.isFinite(avgVal) ? avgVal : null,
+        });
+      }
+
+      const ratersR = await pool.query<{
+        user_id: string;
+        stars: number;
+        updated_at: string;
+        display_label: string;
+      }>(
+        `SELECT mr.user_id::text AS user_id,
+                mr.stars,
+                mr.updated_at::text AS updated_at,
+                COALESCE(
+                  NULLIF(trim(pu.display_name), ''),
+                  NULLIF(trim(pu.phone_normalized), ''),
+                  mr.user_id::text
+                ) AS display_label
+         FROM material_ratings mr
+         LEFT JOIN platform_users pu ON pu.id = mr.user_id
+         WHERE mr.target_kind = $1 AND mr.target_id = $2::uuid
+           AND mr.updated_at >= $3::timestamptz
+           AND mr.updated_at < $4::timestamptz
+         ORDER BY mr.updated_at DESC
+         LIMIT 2000`,
+        [input.targetKind, input.targetId, input.startUtcIso, input.endExclusiveUtcIso],
+      );
+
+      const days: MaterialRatingDoctorDetailDay[] = input.dayKeys.map((day) => {
+        const v = viewByDay.get(day) ?? 0;
+        const r = ratingByDay.get(day);
+        return {
+          day,
+          viewCount: v,
+          ratingActivityCount: r?.cnt ?? 0,
+          avgStarsInActivity: r?.avg ?? null,
+        };
+      });
+
+      const raters: MaterialRatingDoctorDetailRater[] = ratersR.rows.map((row) => ({
+        userId: row.user_id,
+        stars: row.stars,
+        updatedAt: row.updated_at,
+        displayLabel: row.display_label,
+      }));
+
+      return { days, raters };
     },
   };
 }

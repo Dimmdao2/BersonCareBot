@@ -23,6 +23,10 @@ export function createLfkExercisesService(port: LfkExercisesPort) {
       return port.getById(id);
     },
 
+    async listExerciseTitlesByIds(ids: readonly string[]) {
+      return port.listTitlesByIds(ids);
+    },
+
     async createExercise(input: CreateExerciseInput, createdBy: string | null) {
       const title = input.title?.trim() ?? "";
       if (!title) {

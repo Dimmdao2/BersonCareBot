@@ -1,15 +1,19 @@
 import type { MaterialRatingPort } from "@/modules/material-rating/ports";
 import type {
   MaterialRatingAggregate,
+  MaterialRatingDoctorDetailDay,
+  MaterialRatingDoctorDetailRater,
   MaterialRatingDoctorSummaryRow,
   MaterialRatingTargetKind,
 } from "@/modules/material-rating/types";
+import { DateTime } from "luxon";
 
 type Row = {
   userId: string;
   targetKind: MaterialRatingTargetKind;
   targetId: string;
   stars: number;
+  updatedAt: string;
 };
 
 function rowKey(u: string, k: MaterialRatingTargetKind, id: string) {
@@ -45,11 +49,13 @@ export function createInMemoryMaterialRatingPort(): MaterialRatingPort {
 
   return {
     async upsertRating(input) {
+      const now = new Date().toISOString();
       rows.set(rowKey(input.userId, input.targetKind, input.targetId), {
         userId: input.userId,
         targetKind: input.targetKind,
         targetId: input.targetId,
         stars: input.stars,
+        updatedAt: now,
       });
     },
 
@@ -87,6 +93,57 @@ export function createInMemoryMaterialRatingPort(): MaterialRatingPort {
         .map((x) => x.row)
         .sort((a, b) => b.count - a.count);
       return sorted.slice(input.offset, input.offset + input.limit);
+    },
+
+    async getDoctorDetail(input): Promise<{
+      days: MaterialRatingDoctorDetailDay[];
+      raters: MaterialRatingDoctorDetailRater[];
+    }> {
+      const startMs = Date.parse(input.startUtcIso);
+      const endMs = Date.parse(input.endExclusiveUtcIso);
+      const zone = input.iana;
+
+      const matching = [...rows.values()].filter(
+        (r) =>
+          r.targetKind === input.targetKind &&
+          r.targetId === input.targetId &&
+          Date.parse(r.updatedAt) >= startMs &&
+          Date.parse(r.updatedAt) < endMs,
+      );
+
+      const ratingByDay = new Map<string, { cnt: number; sum: number }>();
+      for (const r of matching) {
+        const day = DateTime.fromISO(r.updatedAt, { zone: "utc" }).setZone(zone).toFormat("yyyy-LL-dd");
+        const prev = ratingByDay.get(day);
+        if (prev) {
+          prev.cnt += 1;
+          prev.sum += r.stars;
+        } else {
+          ratingByDay.set(day, { cnt: 1, sum: r.stars });
+        }
+      }
+
+      const days: MaterialRatingDoctorDetailDay[] = input.dayKeys.map((day) => {
+        const agg = ratingByDay.get(day);
+        return {
+          day,
+          viewCount: 0,
+          ratingActivityCount: agg?.cnt ?? 0,
+          avgStarsInActivity:
+            agg != null && agg.cnt > 0 ? Math.round((agg.sum / agg.cnt) * 100) / 100 : null,
+        };
+      });
+
+      const raters: MaterialRatingDoctorDetailRater[] = [...matching]
+        .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))
+        .map((r) => ({
+          userId: r.userId,
+          stars: r.stars,
+          updatedAt: r.updatedAt,
+          displayLabel: r.userId,
+        }));
+
+      return { days, raters };
     },
   };
 }

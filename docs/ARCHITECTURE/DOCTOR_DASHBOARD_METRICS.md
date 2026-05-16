@@ -1,7 +1,7 @@
 # Метрики дашборда специалиста (webapp)
 
 **Назначение:** единые определения плиток `/app/doctor` и соответствующих SQL/списков.  
-**Код:** `apps/webapp/src/infra/repos/pgDoctorAppointments.ts`, `pgDoctorClients.ts`, типы в `modules/doctor-appointments/ports.ts` и `modules/doctor-clients/ports.ts`.
+**Код:** `apps/webapp/src/infra/repos/pgDoctorAppointments.ts`, `pgDoctorClients.ts`, типы в `modules/doctor-appointments/ports.ts` и `modules/doctor-clients/ports.ts`; админский блок регистраций — `modules/admin-platform-stats/`, `pgAdminPlatformUserStats.ts`.
 
 ---
 
@@ -64,7 +64,9 @@
 - **Отмен в окне:** подмножество с `status = 'canceled'` и фильтром `last_event`.
 - **Отмен за 30 дн.:** по `updated_at`, не soft-delete.
 
----
+### Блок админа: регистрации и слияния
+
+Только **`session.user.role === admin`**: клиентский блок загружает **`GET /api/admin/platform-user-registration-stats`** (контракт — [`api.md`](../../apps/webapp/src/app/api/api.md) в дереве `app/api`). Границы **«сегодня / N дней / произвольный период»** считаются в **IANA `app_display_timezone`** (через `getAppDisplayTimeZone()`), не в UTC-полуночи страницы записей выше. **Новые аккаунты** — `platform_users.role = 'client'` и `created_at` в интервале; **слияния** — строки с `merged_into_id` и меткой времени **`merged_at`** (заполняется при merge и channel-link claim; миграция **`0067_platform_users_merged_at.sql`**). График — Recharts (`LineChart`), см. `AdminRegistrationLineChart.tsx`.
 
 ## Журнал изменений
 
