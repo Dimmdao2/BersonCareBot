@@ -429,3 +429,50 @@ export async function listAdminAuditLog(pool: Pool, params: ListAdminAuditLogPar
     limit,
   };
 }
+
+/** Admin UI may set `resolved_at` for these `admin_audit_log.action` values (manual close). */
+export const MANUALLY_RESOLVABLE_ADMIN_AUDIT_ACTIONS = [
+  "auto_merge_conflict",
+  "auto_merge_conflict_anomaly",
+  "channel_link_ownership_conflict",
+] as const;
+
+export type ManuallyResolvableAdminAuditAction = (typeof MANUALLY_RESOLVABLE_ADMIN_AUDIT_ACTIONS)[number];
+
+export type ResolveAdminAuditConflictResult =
+  | { ok: true; updated: true }
+  | { ok: false; error: "not_found" | "already_resolved" | "not_closeable" };
+
+/**
+ * Mark a single open audit row as resolved (`resolved_at = now()`).
+ * Only {@link MANUALLY_RESOLVABLE_ADMIN_AUDIT_ACTIONS}; idempotent for already-resolved rows.
+ */
+export async function resolveAdminAuditConflictById(pool: Pool, id: string): Promise<ResolveAdminAuditConflictResult> {
+  const trimmed = id.trim();
+  if (!trimmed) return { ok: false, error: "not_found" };
+
+  const meta = await pool.query<{ action: string; resolved_at: string | null }>(
+    `SELECT action, resolved_at FROM admin_audit_log WHERE id = $1::uuid`,
+    [trimmed],
+  );
+  const row = meta.rows[0];
+  if (!row) return { ok: false, error: "not_found" };
+  if (row.resolved_at != null) return { ok: false, error: "already_resolved" };
+  if (!MANUALLY_RESOLVABLE_ADMIN_AUDIT_ACTIONS.includes(row.action as ManuallyResolvableAdminAuditAction)) {
+    return { ok: false, error: "not_closeable" };
+  }
+
+  const upd = await pool.query(
+    `UPDATE admin_audit_log
+     SET resolved_at = NOW()
+     WHERE id = $1::uuid
+       AND resolved_at IS NULL
+       AND action = ANY($2::text[])
+     RETURNING id`,
+    [trimmed, [...MANUALLY_RESOLVABLE_ADMIN_AUDIT_ACTIONS]],
+  );
+  if (upd.rowCount === 0) {
+    return { ok: false, error: "already_resolved" };
+  }
+  return { ok: true, updated: true };
+}

@@ -88,6 +88,23 @@ function statusBadgeVariant(status: AuditItem["status"]): "secondary" | "outline
   return "destructive";
 }
 
+function canManuallyResolveAuditRow(row: AuditItem): boolean {
+  if (row.resolved_at != null) return false;
+  return (
+    row.action === "auto_merge_conflict" ||
+    row.action === "auto_merge_conflict_anomaly" ||
+    row.action === "channel_link_ownership_conflict"
+  );
+}
+
+function isOpenConflictLabel(row: AuditItem): boolean {
+  if (row.resolved_at != null) return false;
+  if (row.action === "auto_merge_conflict" && row.conflict_key) return true;
+  if (row.action === "auto_merge_conflict_anomaly") return true;
+  if (row.action === "channel_link_ownership_conflict") return true;
+  return false;
+}
+
 type FilterState = {
   action: string;
   target: string;
@@ -113,6 +130,7 @@ export function AdminAuditLogSection() {
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<ApiOk | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
+  const [resolvingId, setResolvingId] = useState<string | null>(null);
 
   const queryString = useMemo(() => {
     const p = new URLSearchParams();
@@ -319,13 +337,44 @@ export function AdminAuditLogSection() {
                             <td className="px-3 py-2 align-top">
                               <div className="flex flex-col gap-1">
                                 <Badge variant={statusBadgeVariant(row.status)}>{row.status}</Badge>
-                                {row.action === "auto_merge_conflict" && row.resolved_at == null && row.conflict_key ? (
+                                {isOpenConflictLabel(row) ? (
                                   <span className="text-[10px] text-amber-700 dark:text-amber-400">конфликт открыт</span>
                                 ) : null}
                                 {row.resolved_at ? (
                                   <span className="text-[10px] text-muted-foreground">
                                     закрыт {new Date(row.resolved_at).toLocaleString()}
                                   </span>
+                                ) : null}
+                                {canManuallyResolveAuditRow(row) ? (
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-7 mt-1 text-[10px]"
+                                    disabled={resolvingId === row.id}
+                                    onClick={async () => {
+                                      setResolvingId(row.id);
+                                      setError(null);
+                                      try {
+                                        const res = await fetch("/api/admin/audit-log/resolve", {
+                                          method: "POST",
+                                          credentials: "include",
+                                          headers: { "Content-Type": "application/json" },
+                                          body: JSON.stringify({ id: row.id }),
+                                        });
+                                        const json = (await res.json()) as { ok?: boolean; error?: string };
+                                        if (!res.ok || json.ok !== true) {
+                                          setError(json.error ?? `close_failed_${res.status}`);
+                                          return;
+                                        }
+                                        await load();
+                                      } finally {
+                                        setResolvingId(null);
+                                      }
+                                    }}
+                                  >
+                                    Закрыть
+                                  </Button>
                                 ) : null}
                               </div>
                             </td>

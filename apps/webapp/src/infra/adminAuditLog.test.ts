@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   computeConflictKeyFromCandidateIds,
   listAdminAuditLog,
+  resolveAdminAuditConflictById,
   upsertOpenConflictLog,
   writeAuditLog,
 } from "./adminAuditLog";
@@ -228,5 +229,55 @@ describe("listAdminAuditLog", () => {
     expect(countSql).toContain("details->>'targetId'");
     expect(countSql).toContain("details->>'duplicateId'");
     expect(countSql).toContain(`l.target_id = $1`);
+  });
+});
+
+describe("resolveAdminAuditConflictById", () => {
+  const id = "6ef47437-fbed-4d47-a3d4-de6a4ea609cb";
+
+  it("returns not_found when row missing", async () => {
+    const query = vi.fn().mockResolvedValueOnce({ rows: [], rowCount: 0 });
+    const pool = { query } as unknown as Pool;
+    const r = await resolveAdminAuditConflictById(pool, id);
+    expect(r).toEqual({ ok: false, error: "not_found" });
+    expect(query).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns not_closeable for arbitrary action", async () => {
+    const query = vi.fn().mockResolvedValueOnce({
+      rows: [{ action: "settings_change", resolved_at: null }],
+      rowCount: 1,
+    });
+    const pool = { query } as unknown as Pool;
+    const r = await resolveAdminAuditConflictById(pool, id);
+    expect(r).toEqual({ ok: false, error: "not_closeable" });
+    expect(query).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns already_resolved when resolved_at set", async () => {
+    const query = vi.fn().mockResolvedValueOnce({
+      rows: [{ action: "auto_merge_conflict", resolved_at: "2026-01-01" }],
+      rowCount: 1,
+    });
+    const pool = { query } as unknown as Pool;
+    const r = await resolveAdminAuditConflictById(pool, id);
+    expect(r).toEqual({ ok: false, error: "already_resolved" });
+  });
+
+  it("updates when open auto_merge_conflict", async () => {
+    const query = vi.fn(async (_sql: string, params?: unknown[]) => {
+      if (String(_sql).includes("SELECT action")) {
+        return { rows: [{ action: "auto_merge_conflict", resolved_at: null }], rowCount: 1 };
+      }
+      if (String(_sql).includes("UPDATE admin_audit_log")) {
+        expect(params?.[0]).toBe(id);
+        return { rows: [{ id }], rowCount: 1 };
+      }
+      return { rows: [], rowCount: 0 };
+    });
+    const pool = { query } as unknown as Pool;
+    const r = await resolveAdminAuditConflictById(pool, id);
+    expect(r).toEqual({ ok: true, updated: true });
+    expect(query).toHaveBeenCalledTimes(2);
   });
 });

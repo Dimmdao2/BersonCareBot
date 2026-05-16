@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { AuditLogMergeTarget } from "@/components/admin/AuditLogMergeTarget";
 import { auditActorShortLabel } from "@/infra/adminAuditLogPresentation";
 
@@ -30,6 +31,7 @@ export function AdminClientAuditHistorySection({ platformUserId, enabled, suspen
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [items, setItems] = useState<AuditItem[]>([]);
+  const [resolvingId, setResolvingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -61,11 +63,26 @@ export function AdminClientAuditHistorySection({ platformUserId, enabled, suspen
     void load();
   }, [enabled, suspendLoad, load]);
 
-  if (!enabled) return null;
+  function canManuallyResolveAuditRow(row: AuditItem): boolean {
+    if (row.resolved_at != null) return false;
+    return (
+      row.action === "auto_merge_conflict" ||
+      row.action === "auto_merge_conflict_anomaly" ||
+      row.action === "channel_link_ownership_conflict"
+    );
+  }
 
-  const openConflictsHere = items.filter(
-    (r) => r.action === "auto_merge_conflict" && r.resolved_at == null && r.conflict_key,
-  );
+  function isOpenConflictLabelRow(row: AuditItem): boolean {
+    if (row.resolved_at != null) return false;
+    if (row.action === "auto_merge_conflict" && row.conflict_key) return true;
+    if (row.action === "auto_merge_conflict_anomaly") return true;
+    if (row.action === "channel_link_ownership_conflict") return true;
+    return false;
+  }
+
+  const openConflictsHere = items.filter(isOpenConflictLabelRow);
+
+  if (!enabled) return null;
 
   return (
     <div className="flex flex-col gap-3" aria-labelledby="admin-client-audit-history-heading">
@@ -106,7 +123,7 @@ export function AdminClientAuditHistorySection({ platformUserId, enabled, suspen
                   {row.status}
                 </Badge>
                 <span className="text-muted-foreground">актор: {auditActorShortLabel(row.actor_id, row.action)}</span>
-                {row.action === "auto_merge_conflict" && row.resolved_at == null && row.conflict_key ? (
+                {isOpenConflictLabelRow(row) ? (
                   <span className="text-amber-700 dark:text-amber-400">открыт</span>
                 ) : null}
               </div>
@@ -114,6 +131,42 @@ export function AdminClientAuditHistorySection({ platformUserId, enabled, suspen
               <AuditLogMergeTarget row={row} />
               {row.action === "auto_merge_conflict" && row.repeat_count > 1 ? (
                 <span className="text-muted-foreground">Повторов: {row.repeat_count}</span>
+              ) : null}
+              {row.resolved_at ? (
+                <span className="text-muted-foreground">
+                  закрыт {new Date(row.resolved_at).toLocaleString()}
+                </span>
+              ) : null}
+              {canManuallyResolveAuditRow(row) ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 w-fit text-[10px]"
+                  disabled={resolvingId === row.id}
+                  onClick={async () => {
+                    setResolvingId(row.id);
+                    setError(null);
+                    try {
+                      const res = await fetch("/api/admin/audit-log/resolve", {
+                        method: "POST",
+                        credentials: "include",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ id: row.id }),
+                      });
+                      const json = (await res.json()) as { ok?: boolean; error?: string };
+                      if (!res.ok || json.ok !== true) {
+                        setError(json.error ?? `close_failed_${res.status}`);
+                        return;
+                      }
+                      await load();
+                    } finally {
+                      setResolvingId(null);
+                    }
+                  }}
+                >
+                  Закрыть
+                </Button>
               ) : null}
             </li>
           ))}
