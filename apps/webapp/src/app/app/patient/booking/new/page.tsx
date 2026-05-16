@@ -1,10 +1,10 @@
 import Link from "next/link";
-import { Calendar } from "lucide-react";
 import { redirect } from "next/navigation";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { getOptionalPatientSession } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
+import { patientHomePlanCardClass } from "@/app/app/patient/home/patientHomeCardStyles";
 import { LegalFooterLinks } from "@/shared/ui/LegalFooterLinks";
 import { cn } from "@/lib/utils";
 import { patientInnerPageStackClass, patientSectionTitleClass } from "@/shared/ui/patientVisual";
@@ -38,8 +38,27 @@ export default async function BookingNewFormatPage() {
     <BookingWizardShell
       title=""
       shellTitleSlot={
-        <div className="flex min-w-0 items-center gap-3">
-          <Calendar className="size-6 shrink-0 text-[var(--patient-color-primary)]" aria-hidden />
+        <div className="flex min-w-0 flex-col gap-8">
+          <div className="-mx-4 w-[calc(100%+2rem)] min-w-0 max-w-none shrink-0">
+            <div
+              className={cn(
+                patientHomePlanCardClass,
+                "rounded-none border-0 text-sm font-light leading-snug md:rounded-none",
+              )}
+            >
+              <span className="text-[#132a52]">
+                Подробно обо мне и моих услугах вы можете почитать{" "}
+              </span>
+              <a
+                href="https://dmitryberson.ru"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-light text-[var(--patient-color-primary)] underline decoration-[var(--patient-color-primary)] underline-offset-2"
+              >
+                на моём сайте
+              </a>
+            </div>
+          </div>
           <h1 className={cn(patientSectionTitleClass, "min-w-0")}>Запись</h1>
         </div>
       }
