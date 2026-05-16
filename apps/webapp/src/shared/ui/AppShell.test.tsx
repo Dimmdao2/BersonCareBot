@@ -77,6 +77,23 @@ describe("AppShell patient width variants", () => {
     expect(screen.queryByTestId("patient-gated-header-wrap")).toBeNull();
   });
 
+  it("renders patientShellTitleSlot under top nav when title strip is suppressed", () => {
+    render(
+      <AppShell
+        title="Скрытый заголовок"
+        user={null}
+        variant="patient"
+        patientSuppressShellTitle
+        patientShellTitleSlot={<span data-testid="patient-shell-custom-slot">Custom</span>}
+      >
+        <div>Content</div>
+      </AppShell>,
+    );
+
+    expect(screen.getByTestId("patient-shell-page-title-wrap")).toBeInTheDocument();
+    expect(screen.getByTestId("patient-shell-custom-slot")).toHaveTextContent("Custom");
+  });
+
   it("shows patient header on all breakpoints when bottom nav is hidden (no top nav)", () => {
     render(
       <AppShell title="Вход" user={null} variant="patient" patientHideBottomNav>

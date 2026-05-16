@@ -5,15 +5,22 @@
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { AppShell } from "@/shared/ui/AppShell";
+import { AdminPlatformRegistrationStatsClient } from "./AdminPlatformRegistrationStatsClient";
 import { DoctorStatCard } from "./DoctorStatCard";
 
 export default async function DoctorStatsPage() {
   const session = await requireDoctorAccess();
   const deps = buildAppDeps();
   const stats = await deps.doctorStats.getStats();
+  const isAdmin = session.user.role === "admin";
 
   return (
     <AppShell title="Статистика" user={session.user} variant="doctor">
+      {isAdmin ? (
+        <div className="mb-4">
+          <AdminPlatformRegistrationStatsClient />
+        </div>
+      ) : null}
       <section id="doctor-stats-appointments-section" className="rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col gap-4">
         <h2>Записи (неделя, UTC)</h2>
         <p className="text-muted-foreground text-sm">

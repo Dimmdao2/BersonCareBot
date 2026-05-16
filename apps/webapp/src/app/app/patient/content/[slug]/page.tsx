@@ -2,7 +2,7 @@
  * Страница одного материала по адресу «/app/patient/content/[slug]».
  * Только для пациента. Открывается из разделов «Полезные уроки» и «Скорая помощь» по идентификатору
  * материала. Показывает заголовок, картинку, текст и блок «Видео» (YouTube / RuTube по URL или файл из медиабиблиотеки). Если материал не найден —
- * 404. Кнопка «Назад» ведёт в главное меню пациента.
+ * 404. Сверху — ссылка «Назад к разделу» в список материалов раздела (`content_pages.section`).
  */
 
 import { notFound } from "next/navigation";
@@ -12,6 +12,7 @@ import { env } from "@/config/env";
 import { getOptionalPatientSession, patientRscPersonalDataGate } from "@/app-layer/guards/requireRole";
 import { resolvePatientCanViewAuthOnlyContent } from "@/modules/platform-access";
 import { AppShell } from "@/shared/ui/AppShell";
+import { PatientBackToSectionShellRow } from "@/shared/ui/patient/PatientBackToSectionShellRow";
 import { PatientLoadingPatternBody } from "@/shared/ui/patientVisual";
 import { toYoutubeOrRutubeEmbedSrc } from "@/shared/lib/hostingEmbedUrls";
 import { parseApiMediaIdFromHref, parseApiMediaIdFromPlayableUrl } from "@/shared/lib/parseApiMediaIdFromPlayableUrl";
@@ -67,16 +68,21 @@ export default async function ContentSlugPage({ params, searchParams }: Props) {
           parseApiMediaIdFromHref(videoPlayableUrl, appTrustedOrigin))
       : null;
 
-  const backHref = "/app/patient";
+  const sectionSlug = dbRow.section.trim();
+  const backToSectionHref =
+    sectionSlug ? `/app/patient/sections/${encodeURIComponent(sectionSlug)}` : "/app/patient";
 
   return (
     <AppShell
       title={item.title}
       user={session?.user ?? null}
-      backHref={backHref}
-      backLabel="Назад"
+      backHref={backToSectionHref}
+      backLabel={sectionSlug ? "Назад к разделу" : "Меню"}
       variant="patient"
       patientSuppressShellTitle
+      patientShellTitleSlot={
+        sectionSlug ? <PatientBackToSectionShellRow sectionSlug={dbRow.section} /> : undefined
+      }
     >
       <Suspense fallback={<PatientLoadingPatternBody pattern="heroList" />}>
         <PatientContentSlugArticle

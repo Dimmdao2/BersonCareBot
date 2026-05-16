@@ -39,6 +39,7 @@ import { createDoctorClientsService } from "@/modules/doctor-clients/service";
 import { createDoctorAppointmentsService } from "@/modules/doctor-appointments/service";
 import { createDoctorMessagingService } from "@/modules/doctor-messaging/service";
 import { createDoctorStatsService } from "@/modules/doctor-stats/service";
+import { createAdminPlatformUserStatsService } from "@/modules/admin-platform-stats/service";
 import { createDoctorNotesService } from "@/modules/doctor-notes/service";
 import type { ClientAppointmentHistoryItem } from "@/modules/doctor-clients/service";
 import { createDoctorBroadcastsService } from "@/modules/doctor-broadcasts/service";
@@ -62,6 +63,8 @@ import { inMemoryDoctorAppointmentsPort } from "@/infra/repos/inMemoryDoctorAppo
 import { inMemoryMessageLogPort } from "@/infra/repos/inMemoryMessageLog";
 import { createPgMessageLogPort } from "@/infra/repos/pgMessageLog";
 import { createPgDoctorClientsPort } from "@/infra/repos/pgDoctorClients";
+import { createPgAdminPlatformUserStatsPort } from "@/infra/repos/pgAdminPlatformUserStats";
+import { createInMemoryAdminPlatformUserStatsPort } from "@/infra/repos/inMemoryAdminPlatformUserStats";
 import { createPgDoctorAppointmentsPort } from "@/infra/repos/pgDoctorAppointments";
 import { getPurchaseSectionState } from "@/modules/purchases/service";
 import {
@@ -208,6 +211,11 @@ import { createPatientPracticeService } from "@/modules/patient-practice/service
 import { createPatientMoodService } from "@/modules/patient-mood/service";
 
 const inMemoryRepos = webappReposAreInMemory();
+
+const adminPlatformUserStatsPort = !inMemoryRepos
+  ? createPgAdminPlatformUserStatsPort()
+  : createInMemoryAdminPlatformUserStatsPort();
+const adminPlatformUserStats = createAdminPlatformUserStatsService(adminPlatformUserStatsPort);
 
 const operatorHealthReadPort = !inMemoryRepos ? pgOperatorHealthReadPort : inMemoryOperatorHealthReadPort;
 const operatorHealthWritePort = !inMemoryRepos ? pgOperatorHealthWritePort : inMemoryOperatorHealthWritePort;
@@ -653,6 +661,7 @@ function _buildAppDeps() {
       getDashboardPatientMetrics: () => doctorClientsPort.getDashboardPatientMetrics(),
       getDashboardAppointmentMetrics: () => doctorAppointmentsPort.getDashboardAppointmentMetrics(),
     }),
+    adminPlatformUserStats,
     doctorBroadcasts: createDoctorBroadcastsService({
       resolveBroadcastAudience: async (filter, channels) => {
         const clients = await listClientsForBroadcastAudience(doctorClientsPort, filter);

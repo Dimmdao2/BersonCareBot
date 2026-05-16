@@ -66,6 +66,8 @@ export const platformUsers = pgTable("platform_users", {
 	blockedBy: uuid("blocked_by"),
 	isArchived: boolean("is_archived").default(false).notNull(),
 	mergedIntoId: uuid("merged_into_id"),
+	/** Момент слияния в канонический аккаунт (`merged_into_id`); для статистики и отличия от прочих `updated_at`. */
+	mergedAt: timestamp("merged_at", { withTimezone: true, mode: 'string' }),
 	patientPhoneTrustAt: timestamp("patient_phone_trust_at", { withTimezone: true, mode: 'string' }),
 	/** IANA zone for patient-local calendar day (чек-лист программы и т.п.); null → `app_display_timezone`. */
 	calendarTimezone: text("calendar_timezone"),
@@ -74,6 +76,7 @@ export const platformUsers = pgTable("platform_users", {
 }, (table) => [
 	index("idx_platform_users_integrator_uid").using("btree", table.integratorUserId.asc().nullsLast().op("int8_ops")).where(sql`(integrator_user_id IS NOT NULL)`),
 	index("idx_platform_users_merged_into").using("btree", table.mergedIntoId.asc().nullsLast().op("uuid_ops")).where(sql`(merged_into_id IS NOT NULL)`),
+	index("idx_platform_users_merged_at").using("btree", table.mergedAt.asc().nullsLast().op("timestamptz_ops")).where(sql`(merged_at IS NOT NULL)`),
 	index("idx_platform_users_phone").using("btree", table.phoneNormalized.asc().nullsLast().op("text_ops")).where(sql`(phone_normalized IS NOT NULL)`),
 	foreignKey({
 			columns: [table.blockedBy],

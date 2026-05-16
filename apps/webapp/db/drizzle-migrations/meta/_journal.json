@@ -470,6 +470,13 @@
       "when": 1780900000000,
       "tag": "0066_broadcast_audit_attach_menu_after_send",
       "breakpoints": true
+    },
+    {
+      "idx": 67,
+      "version": "7",
+      "when": 1781000000000,
+      "tag": "0067_platform_users_merged_at",
+      "breakpoints": true
     }
   ]
 }
