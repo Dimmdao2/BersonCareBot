@@ -71,6 +71,8 @@
 
 **Сценарий «второй мессенджер, тот же номер»:** вставка binding для канона, найденного по телефону, конфликтует с binding другого `user_id` → ветка merge `phone_bind` в `createOrBind`.
 
+**TX integrator bind:** в [`applyMessengerPhonePublicBind`](../../packages/platform-merge/src/messengerPhonePublicBind.ts) между двумя merge в одном проходе выполняется `resolveBoundPlatformUserId` по каналу, чтобы после переноса `user_channel_bindings` не вызывать второй merge с UUID уже смерженного дубликата (ложный `merge_blocked_ambiguous_candidates`).
+
 **Сценарий «канон с телефоном из интегратора, новый канал без binding»:** до доверенной привязки пользователь не считается patient для полного UI; безопасный путь — OTP → `createOrBind` → при необходимости merge ([`PLATFORM_IDENTITY_SPECIFICATION.md`](PLATFORM_IDENTITY_SPECIFICATION.md) §10).
 
 ---

@@ -51,3 +51,33 @@ export function parseMergeAuditDetails(
 export function isMergeAuditAction(action: string): boolean {
   return action === "user_merge" || action === "integrator_user_merge";
 }
+
+export type MessengerBindAuditTargetRow = {
+  platformUserId: string;
+  label: string;
+};
+
+/** Parse `messenger_phone_bind_blocked` / `_anomaly` enriched `details.candidates` for admin tables. */
+export function parseMessengerPhoneBindAuditTargets(
+  details: Record<string, unknown> | null | undefined,
+): MessengerBindAuditTargetRow[] | null {
+  if (!details || typeof details !== "object") return null;
+  const raw = details.candidates;
+  if (!Array.isArray(raw) || raw.length === 0) return null;
+  const rows: MessengerBindAuditTargetRow[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== "object") continue;
+    const rec = item as Record<string, unknown>;
+    const id = typeof rec.platformUserId === "string" ? rec.platformUserId.trim() : "";
+    if (!id) continue;
+    const dn = typeof rec.displayName === "string" ? rec.displayName.trim() : "";
+    rows.push({ platformUserId: id, label: dn.length > 0 ? dn : id });
+  }
+  if (rows.length === 0) return null;
+  rows.sort((a, b) => a.platformUserId.localeCompare(b.platformUserId));
+  return rows;
+}
+
+export function isMessengerPhoneBindAuditAction(action: string): boolean {
+  return action === "messenger_phone_bind_blocked" || action === "messenger_phone_bind_anomaly";
+}

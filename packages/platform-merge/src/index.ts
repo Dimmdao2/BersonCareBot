@@ -34,3 +34,18 @@ export type {
 } from "./mergeFailureClassification.js";
 
 export { classifyMergeFailure } from "./mergeFailureClassification.js";
+
+export type {
+  BuildMessengerBindBlockedRelayLinesInput,
+  MessengerBindAuditCandidateSummary,
+  MessengerBindAuditInitiatorSummary,
+} from "./messengerBindAuditPresentation.js";
+
+export {
+  buildMessengerBindBlockedRelayLines,
+  messengerChannelLabelRu,
+  messengerPhoneBindReasonHumanRu,
+} from "./messengerBindAuditPresentation.js";
+
+export { enrichMessengerBindAuditDetailsFields } from "./messengerBindAuditEnrichment.js";
+export type { EnrichMessengerBindAuditDetailsArgs } from "./messengerBindAuditEnrichment.js";

@@ -12,12 +12,19 @@
 import type { Pool, PoolClient } from "pg";
 import {
   applyMessengerPhonePublicBind,
+  buildMessengerBindBlockedRelayLines,
+  enrichMessengerBindAuditDetailsFields,
+  messengerPhoneBindReasonHumanRu,
   MessengerPhoneLinkError,
+  type MessengerBindAuditCandidateSummary,
+  type MessengerBindAuditInitiatorSummary,
+  type MessengerPhoneBindDb,
   type MessengerPhoneLinkFailureCode,
 } from "@bersoncare/platform-merge";
 import { computeConflictKeyFromCandidateIds, writeAuditLog } from "@/infra/adminAuditLog";
 import { notifyMessengerPhoneBindBlockedFromWebapp } from "@/modules/admin-incidents/sendAdminIncidentAlerts";
 import { logger } from "@/infra/logging/logger";
+import { getAppBaseUrl } from "@/modules/system-settings/integrationRuntime";
 
 /** Minimal DB surface for this TX (matches integrator `DbPort.query`). */
 type TxQuery = {
@@ -268,12 +275,34 @@ export async function executeMessengerPhoneHttpBind(
               conflictKey = null;
             }
           }
-          void writeAuditLog(pool, {
-            actorId: null,
-            action: "messenger_phone_bind_blocked",
-            targetId: err.candidateIds[0] ?? null,
-            ...(conflictKey ? { conflictKey } : {}),
-            details: {
+          void (async () => {
+            let enrichedFields: {
+              candidates: MessengerBindAuditCandidateSummary[];
+              initiator: MessengerBindAuditInitiatorSummary | null;
+              reasonHumanRu: string;
+            };
+            try {
+              enrichedFields = await enrichMessengerBindAuditDetailsFields(pool as MessengerPhoneBindDb, {
+                reason: err.code,
+                candidateIds: err.candidateIds,
+                channelCode: resource,
+                externalId: channelUserId,
+              });
+            } catch (enrichErr) {
+              logger.warn({ enrichErr, reason: err.code }, "messenger_phone_http_bind: audit enrich failed");
+              const uniq = [...new Set(err.candidateIds.map((id) => id.trim()).filter(Boolean))];
+              enrichedFields = {
+                candidates: uniq.map((id) => ({
+                  platformUserId: id,
+                  displayName: null,
+                  phoneNormalized: null,
+                  email: null,
+                })),
+                initiator: null,
+                reasonHumanRu: messengerPhoneBindReasonHumanRu(err.code),
+              };
+            }
+            const auditDetails: Record<string, unknown> = {
               reason: err.code,
               source: "http_bind",
               channelCode: resource,
@@ -281,20 +310,55 @@ export async function executeMessengerPhoneHttpBind(
               phoneSuffix,
               candidateIds: err.candidateIds,
               ...(input.correlationId?.trim() ? { correlationId: input.correlationId.trim() } : {}),
-            },
-            status: "error",
-          })
-            .then(() =>
-              notifyMessengerPhoneBindBlockedFromWebapp({
-                conflictKey,
-                reason: err.code,
+              candidates: enrichedFields.candidates,
+              initiator: enrichedFields.initiator,
+              reasonHumanRu: enrichedFields.reasonHumanRu,
+            };
+            let relayLines: string[];
+            try {
+              const appBaseUrl = await getAppBaseUrl();
+              relayLines = buildMessengerBindBlockedRelayLines({
+                variantLabel: "HTTP bind (webapp)",
+                machineReason: err.code,
+                reasonHumanRu: enrichedFields.reasonHumanRu,
+                appBaseUrl,
+                candidates: enrichedFields.candidates,
+                initiator: enrichedFields.initiator,
                 channelCode: resource,
                 externalId: channelUserId,
-                phoneSuffix,
-                candidateIds: err.candidateIds,
-              }),
-            )
-            .catch(() => {});
+                ...(phoneSuffix ? { phoneSuffix } : {}),
+                ...(input.correlationId?.trim() ? { correlationId: input.correlationId.trim() } : {}),
+                source: "http_bind",
+              });
+            } catch (relayErr) {
+              logger.warn({ relayErr }, "messenger_phone_http_bind: relay line build failed");
+              relayLines = [
+                "messenger_phone_bind_blocked (http_bind)",
+                `reason=${err.code}`,
+                `channel=${resource}`,
+                `externalId=${channelUserId}`,
+                ...(phoneSuffix ? [`phoneSuffix=${phoneSuffix}`] : []),
+                `candidateIds=${err.candidateIds.join(",")}`,
+              ];
+            }
+            await writeAuditLog(pool, {
+              actorId: null,
+              action: "messenger_phone_bind_blocked",
+              targetId: err.candidateIds[0] ?? null,
+              ...(conflictKey ? { conflictKey } : {}),
+              details: auditDetails,
+              status: "error",
+            });
+            await notifyMessengerPhoneBindBlockedFromWebapp({
+              conflictKey,
+              reason: err.code,
+              channelCode: resource,
+              externalId: channelUserId,
+              phoneSuffix,
+              candidateIds: err.candidateIds,
+              relayLines,
+            });
+          })().catch(() => {});
         }
         if (err.code === "db_transient_failure") {
           return { ok: false, reason: "db_transient_failure", phoneLinkIndeterminate: true };

@@ -148,6 +148,8 @@ async function mergePairIfDistinct(
 /**
  * Strict binding-first: row must exist in `user_channel_bindings` for (channelCode, externalId).
  * Resolves duplicate platform rows via full `mergePlatformUsersInTransaction`, then sets phone + trust + integrator_user_id.
+ * After each intra-loop merge by phone or duplicate integrator id on another row, re-resolves canonical `platformUserId`
+ * via bindings so merge does not reuse a stale UUID that already became a merged-away alias (`merged_into_id` set).
  */
 export async function applyMessengerPhonePublicBind(
   db: MessengerPhoneBindDb,
@@ -166,6 +168,11 @@ export async function applyMessengerPhonePublicBind(
   }
 
   const mergeRoundMax = 8;
+  const reboundFromChannel = async (): Promise<void> => {
+    const next = await resolveBoundPlatformUserId(db, channelCode, externalId);
+    if (next) platformUserId = next;
+  };
+
   for (let round = 0; round < mergeRoundMax; round++) {
     const rowMeta: {
       rows: Array<{ existing_int_uid: string | null }>;
@@ -242,6 +249,7 @@ export async function applyMessengerPhonePublicBind(
         if (err instanceof MessengerPhoneLinkError) throw err;
         throw mapMergeFailure(err, [platformUserId, otherPhone]);
       }
+      await reboundFromChannel();
       changed = true;
     }
 
@@ -257,6 +265,7 @@ export async function applyMessengerPhonePublicBind(
         if (err instanceof MessengerPhoneLinkError) throw err;
         throw mapMergeFailure(err, [platformUserId, otherInt]);
       }
+      await reboundFromChannel();
       changed = true;
     }
 

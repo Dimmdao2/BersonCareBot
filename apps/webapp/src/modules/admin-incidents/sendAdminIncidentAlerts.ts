@@ -189,6 +189,8 @@ export async function notifyMessengerPhoneBindBlockedFromWebapp(input: {
   externalId: string;
   phoneSuffix?: string;
   candidateIds: string[];
+  /** Preformatted Russian plaintext lines for Telegram/Max; fallback if omitted */
+  relayLines?: string[];
 }): Promise<void> {
   const dk =
     input.conflictKey ??
@@ -197,14 +199,16 @@ export async function notifyMessengerPhoneBindBlockedFromWebapp(input: {
         `http_bind:${input.channelCode}:${input.externalId}:${input.reason}:${[...new Set(input.candidateIds.map((x) => x.trim()).filter(Boolean))].sort().join("|")}`,
       )
       .digest("hex");
-  const lines = [
-    "messenger_phone_bind_blocked (http_bind)",
-    `reason=${input.reason}`,
-    `channel=${input.channelCode}`,
-    `externalId=${input.externalId}`,
-    ...(input.phoneSuffix ? [`phoneSuffix=${input.phoneSuffix}`] : []),
-    `candidateIds=${input.candidateIds.join(",")}`,
-  ];
+  const lines =
+    input.relayLines ??
+    ([
+      "messenger_phone_bind_blocked (http_bind)",
+      `reason=${input.reason}`,
+      `channel=${input.channelCode}`,
+      `externalId=${input.externalId}`,
+      ...(input.phoneSuffix ? [`phoneSuffix=${input.phoneSuffix}`] : []),
+      `candidateIds=${input.candidateIds.join(",")}`,
+    ] as string[]);
   await sendAdminIncidentRelayAlert({
     topic: "messenger_phone_bind_blocked",
     dedupKey: dk.slice(0, 120),

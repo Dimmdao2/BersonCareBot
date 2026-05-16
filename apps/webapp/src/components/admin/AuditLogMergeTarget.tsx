@@ -3,7 +3,9 @@
 import Link from "next/link";
 import {
   isMergeAuditAction,
+  isMessengerPhoneBindAuditAction,
   parseMergeAuditDetails,
+  parseMessengerPhoneBindAuditTargets,
 } from "@/infra/adminAuditLogPresentation";
 
 const UUID_RE =
@@ -41,6 +43,41 @@ export function AuditLogMergeTarget({ row }: { row: Row }) {
             {bottom}
           </Link>
         </div>
+      );
+    }
+  }
+
+  if (isMessengerPhoneBindAuditAction(row.action)) {
+    const mb = parseMessengerPhoneBindAuditTargets(details);
+    if (mb && mb.length >= 2) {
+      const top = mb[0];
+      const bottom = mb[1];
+      return (
+        <div className="flex flex-col gap-0.5 font-sans text-xs break-words">
+          <Link
+            href={`/app/doctor/clients/${encodeURIComponent(top.platformUserId)}`}
+            className="text-primary underline-offset-2 hover:underline"
+          >
+            {top.label}
+          </Link>
+          <Link
+            href={`/app/doctor/clients/${encodeURIComponent(bottom.platformUserId)}`}
+            className="text-muted-foreground underline-offset-2 hover:underline"
+          >
+            {bottom.label}
+          </Link>
+        </div>
+      );
+    }
+    if (mb && mb.length === 1) {
+      const only = mb[0];
+      return (
+        <Link
+          href={`/app/doctor/clients/${encodeURIComponent(only.platformUserId)}`}
+          className="text-primary underline-offset-2 hover:underline font-sans text-xs break-words"
+        >
+          {only.label}
+        </Link>
       );
     }
   }

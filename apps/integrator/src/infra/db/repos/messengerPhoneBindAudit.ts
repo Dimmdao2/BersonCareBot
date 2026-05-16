@@ -1,5 +1,12 @@
 import { createHash } from 'node:crypto';
+import type { MessengerBindAuditCandidateSummary, MessengerBindAuditInitiatorSummary, MessengerPhoneBindDb } from '@bersoncare/platform-merge';
+import {
+  buildMessengerBindBlockedRelayLines,
+  enrichMessengerBindAuditDetailsFields,
+  messengerPhoneBindReasonHumanRu,
+} from '@bersoncare/platform-merge';
 import type { DbPort, DispatchPort } from '../../../kernel/contracts/index.js';
+import { getAppBaseUrl } from '../../../config/appBaseUrl.js';
 import { logger } from '../../observability/logger.js';
 import {
   messengerPhoneBindDedupKey,
@@ -41,11 +48,41 @@ export async function recordMessengerPhoneBindBlocked(input: {
     }
   }
 
+  let enrichedFields: {
+    candidates: MessengerBindAuditCandidateSummary[];
+    initiator: MessengerBindAuditInitiatorSummary | null;
+    reasonHumanRu: string;
+  };
+  try {
+    enrichedFields = await enrichMessengerBindAuditDetailsFields(input.db as MessengerPhoneBindDb, {
+      reason: input.reason,
+      candidateIds,
+      ...(typeof input.details.channelCode === 'string' ? { channelCode: input.details.channelCode } : {}),
+      ...(typeof input.details.externalId === 'string' ? { externalId: input.details.externalId } : {}),
+    });
+  } catch (err) {
+    logger.warn({ err, reason: input.reason }, 'recordMessengerPhoneBindBlocked: enrich failed');
+    const uniq = [...new Set(candidateIds.map((id) => id.trim()).filter(Boolean))];
+    enrichedFields = {
+      candidates: uniq.map((id) => ({
+        platformUserId: id,
+        displayName: null,
+        phoneNormalized: null,
+        email: null,
+      })),
+      initiator: null,
+      reasonHumanRu: messengerPhoneBindReasonHumanRu(input.reason),
+    };
+  }
+
   const baseDetails = {
     ...input.details,
     reason: input.reason,
     candidateIds,
     source: 'integrator.user.phone.link',
+    candidates: enrichedFields.candidates,
+    initiator: enrichedFields.initiator,
+    reasonHumanRu: enrichedFields.reasonHumanRu,
   };
 
   let insertedFirst = false;
@@ -108,20 +145,39 @@ export async function recordMessengerPhoneBindBlocked(input: {
   if (!insertedFirst) return;
 
   const topic: MessengerPhoneBindIncidentTopic = conflictKey ? 'messenger_phone_bind_blocked' : 'messenger_phone_bind_anomaly';
-  const lines = [
-    conflictKey ? 'messenger_phone_bind_blocked (integrator)' : 'messenger_phone_bind_anomaly (integrator)',
-    `reason=${input.reason}`,
-    `candidates=${candidateIds.join(', ')}`,
-    ...(input.details.channelCode ? [`channel=${String(input.details.channelCode)}`] : []),
-    ...(input.details.externalId ? [`externalId=${String(input.details.externalId)}`] : []),
-    ...(input.details.correlationId ? [`correlation=${String(input.details.correlationId)}`] : []),
-  ];
+  let relayLines: string[];
+  try {
+    const appBaseUrl = await getAppBaseUrl(input.db);
+    relayLines = buildMessengerBindBlockedRelayLines({
+      variantLabel: conflictKey ? 'integrator · user.phone.link' : 'integrator · user.phone.link (аномалия)',
+      machineReason: input.reason,
+      reasonHumanRu: enrichedFields.reasonHumanRu,
+      appBaseUrl,
+      candidates: enrichedFields.candidates,
+      initiator: enrichedFields.initiator,
+      ...(typeof input.details.channelCode === 'string' ? { channelCode: input.details.channelCode } : {}),
+      ...(typeof input.details.externalId === 'string' ? { externalId: input.details.externalId } : {}),
+      ...(typeof input.details.phoneSuffix === 'string' ? { phoneSuffix: input.details.phoneSuffix } : {}),
+      ...(typeof input.details.correlationId === 'string' ? { correlationId: input.details.correlationId } : {}),
+      source: String(baseDetails.source ?? ''),
+    });
+  } catch (err) {
+    logger.warn({ err, topic }, 'recordMessengerPhoneBindBlocked: relay line build failed');
+    relayLines = [
+      conflictKey ? 'messenger_phone_bind_blocked (integrator)' : 'messenger_phone_bind_anomaly (integrator)',
+      `reason=${input.reason}`,
+      `candidates=${candidateIds.join(', ')}`,
+      ...(input.details.channelCode ? [`channel=${String(input.details.channelCode)}`] : []),
+      ...(input.details.externalId ? [`externalId=${String(input.details.externalId)}`] : []),
+      ...(input.details.correlationId ? [`correlation=${String(input.details.correlationId)}`] : []),
+    ];
+  }
   const dedupKey = messengerPhoneBindDedupKey({
     topic,
     conflictKey,
     reason: input.reason,
     candidateIds,
-    details: input.details,
+    details: baseDetails,
   });
 
   try {
@@ -130,7 +186,7 @@ export async function recordMessengerPhoneBindBlocked(input: {
       ...(input.getDispatchPort ? { getDispatchPort: input.getDispatchPort } : {}),
       topic,
       dedupKey,
-      lines,
+      lines: relayLines,
     });
   } catch (err) {
     logger.warn({ err, topic }, 'recordMessengerPhoneBindBlocked: relay failed');
