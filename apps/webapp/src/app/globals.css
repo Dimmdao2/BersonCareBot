@@ -169,12 +169,71 @@
   cursor: pointer;
 }
 
-/* Оценка материалов (уроки/видео): 30px звезда при выборе, палитра и промежуток rr--gap-md */
+/* Оценка материалов (уроки/видео): 30px звезда при выборе, палитра и промежуток rr--gap-md.
+ * Библиотека @smastrom/react-rating подключает `dist/style.css` отдельным чанком: без базовых
+ * правил `.rr--group`/`fill` звёзды складываются столбиком (блочные .rr--box) и дают чёрный SVG.
+ * Ниже — минимальный дубль критичной вёрстки/заливки вместе с токенами (источник правды — здесь). */
 .material-rating-stars.rr--group {
   --rr--fill-on-color: #f7965c;
   --rr--fill-off-color: #fff7ed;
   --rr--stroke-on-color: #bb5e26;
   --rr--stroke-off-color: #eda76a;
+  display: flex;
+  position: relative;
+  flex-wrap: nowrap;
+  align-items: center;
+  box-sizing: border-box;
+}
+
+.material-rating-stars.rr--group.rr--dir-x {
+  flex-direction: row;
+}
+
+.material-rating-stars.rr--group.rr--dir-y {
+  flex-direction: column;
+}
+
+.material-rating-stars .rr--box {
+  display: flex;
+  box-sizing: border-box;
+}
+
+.material-rating-stars .rr--svg {
+  display: flex;
+  aspect-ratio: 1;
+  width: 100%;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  overflow: clip;
+  pointer-events: none;
+}
+
+@supports not (overflow: clip) {
+  .material-rating-stars .rr--svg {
+    overflow: hidden;
+  }
+}
+
+.material-rating-stars.rr--has-stroke .rr--svg {
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.material-rating-stars .rr--on .rr--svg {
+  fill: var(--rr--fill-on-color);
+}
+
+.material-rating-stars .rr--off .rr--svg {
+  fill: var(--rr--fill-off-color);
+}
+
+.material-rating-stars.rr--has-stroke .rr--on .rr--svg {
+  stroke: var(--rr--stroke-on-color);
+}
+
+.material-rating-stars.rr--has-stroke .rr--off .rr--svg {
+  stroke: var(--rr--stroke-off-color);
 }
 
 .material-rating-stars--size-primary.rr--group.rr--dir-x {
