@@ -5,6 +5,7 @@ import {
   isMergeAuditAction,
   isMessengerPhoneBindAuditAction,
   parseMergeAuditDetails,
+  parseMessengerPhoneBindAuditInitiator,
   parseMessengerPhoneBindAuditTargets,
 } from "@/infra/adminAuditLogPresentation";
 
@@ -49,35 +50,31 @@ export function AuditLogMergeTarget({ row }: { row: Row }) {
 
   if (isMessengerPhoneBindAuditAction(row.action)) {
     const mb = parseMessengerPhoneBindAuditTargets(details);
-    if (mb && mb.length >= 2) {
-      const top = mb[0];
-      const bottom = mb[1];
+    const ini = parseMessengerPhoneBindAuditInitiator(details);
+    if (mb && mb.length >= 1) {
       return (
         <div className="flex flex-col gap-0.5 font-sans text-xs break-words">
-          <Link
-            href={`/app/doctor/clients/${encodeURIComponent(top.platformUserId)}`}
-            className="text-primary underline-offset-2 hover:underline"
-          >
-            {top.label}
-          </Link>
-          <Link
-            href={`/app/doctor/clients/${encodeURIComponent(bottom.platformUserId)}`}
-            className="text-muted-foreground underline-offset-2 hover:underline"
-          >
-            {bottom.label}
-          </Link>
+          {mb.map((rowItem, idx) => (
+            <Link
+              key={rowItem.platformUserId}
+              href={`/app/doctor/clients/${encodeURIComponent(rowItem.platformUserId)}`}
+              className={
+                idx === 0
+                  ? "text-primary underline-offset-2 hover:underline"
+                  : "text-muted-foreground underline-offset-2 hover:underline"
+              }
+            >
+              {rowItem.label}
+            </Link>
+          ))}
+          {ini ? (
+            <span className="text-muted-foreground">
+              {ini.channelLabel}
+              {" · "}
+              {ini.messengerDisplayHint ?? ini.externalId}
+            </span>
+          ) : null}
         </div>
-      );
-    }
-    if (mb && mb.length === 1) {
-      const only = mb[0];
-      return (
-        <Link
-          href={`/app/doctor/clients/${encodeURIComponent(only.platformUserId)}`}
-          className="text-primary underline-offset-2 hover:underline font-sans text-xs break-words"
-        >
-          {only.label}
-        </Link>
       );
     }
   }

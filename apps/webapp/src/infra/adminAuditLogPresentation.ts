@@ -78,6 +78,35 @@ export function parseMessengerPhoneBindAuditTargets(
   return rows;
 }
 
+export type MessengerBindAuditInitiatorParsed = {
+  channelLabel: string;
+  externalId: string;
+  platformUserId: string | null;
+  messengerDisplayHint: string | null;
+};
+
+/** Parse `details.initiator` from enriched messenger phone-bind audit rows. */
+export function parseMessengerPhoneBindAuditInitiator(
+  details: Record<string, unknown> | null | undefined,
+): MessengerBindAuditInitiatorParsed | null {
+  if (!details || typeof details !== "object") return null;
+  const raw = details.initiator;
+  if (!raw || typeof raw !== "object") return null;
+  const rec = raw as Record<string, unknown>;
+  const channelLabel = typeof rec.channelLabel === "string" ? rec.channelLabel.trim() : "";
+  const externalId = typeof rec.externalId === "string" ? rec.externalId.trim() : "";
+  if (!channelLabel || !externalId) return null;
+  const platformUserId =
+    typeof rec.platformUserId === "string" && rec.platformUserId.trim().length > 0
+      ? rec.platformUserId.trim()
+      : null;
+  const messengerDisplayHint =
+    typeof rec.messengerDisplayHint === "string" && rec.messengerDisplayHint.trim().length > 0
+      ? rec.messengerDisplayHint.trim()
+      : null;
+  return { channelLabel, externalId, platformUserId, messengerDisplayHint };
+}
+
 export function isMessengerPhoneBindAuditAction(action: string): boolean {
   return action === "messenger_phone_bind_blocked" || action === "messenger_phone_bind_anomaly";
 }

@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { buildMessengerBindBlockedRelayLines } from "@bersoncare/platform-merge";
-import { parseMessengerPhoneBindAuditTargets } from "@/infra/adminAuditLogPresentation";
+import {
+  parseMessengerPhoneBindAuditInitiator,
+  parseMessengerPhoneBindAuditTargets,
+} from "@/infra/adminAuditLogPresentation";
 
 describe("buildMessengerBindBlockedRelayLines", () => {
   it("includes Russian headings and doctor client URLs", () => {
@@ -28,6 +31,7 @@ describe("buildMessengerBindBlockedRelayLines", () => {
         channelCode: "telegram",
         externalId: "467240537",
         platformUserId: "ae6e205a-9127-4283-862b-ac12b0239391",
+        messengerDisplayHint: "@operator_hint",
       },
       channelCode: "telegram",
       externalId: "467240537",
@@ -37,6 +41,14 @@ describe("buildMessengerBindBlockedRelayLines", () => {
     expect(lines[0]).toContain("Ошибка автопривязки телефона");
     expect(lines.some((l) => l.includes("https://example.com/app/doctor/clients/"))).toBe(true);
     expect(lines.some((l) => l.includes("Иванова Мария"))).toBe(true);
+    expect(lines.some((l) => l.includes("Подпись в мессенджере: @operator_hint"))).toBe(true);
+    expect(
+      lines.some((l) =>
+        l.includes(
+          "/api/doctor/clients/merge-preview?targetId=ae6e205a-9127-4283-862b-ac12b0239391&duplicateId=f6545bcc-9ae8-4e07-9762-2553a9f9de94",
+        ),
+      ),
+    ).toBe(true);
   });
 });
 
@@ -54,5 +66,40 @@ describe("parseMessengerPhoneBindAuditTargets", () => {
       "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
     ]);
     expect(rows![0].label).toBe("Alpha");
+  });
+
+  it("returns three rows sorted by platformUserId", () => {
+    const rows = parseMessengerPhoneBindAuditTargets({
+      candidates: [
+        { platformUserId: "cccccccc-cccc-cccc-cccc-cccccccccccc", displayName: "Gamma" },
+        { platformUserId: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", displayName: "Alpha" },
+        { platformUserId: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb", displayName: "Zeta" },
+      ],
+    });
+    expect(rows!.map((r) => r.platformUserId)).toEqual([
+      "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+      "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+      "cccccccc-cccc-cccc-cccc-cccccccccccc",
+    ]);
+  });
+});
+
+describe("parseMessengerPhoneBindAuditInitiator", () => {
+  it("reads channelLabel, externalId, platformUserId, messengerDisplayHint", () => {
+    const ini = parseMessengerPhoneBindAuditInitiator({
+      initiator: {
+        channelLabel: "MAX",
+        channelCode: "max",
+        externalId: "u-1",
+        platformUserId: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+        messengerDisplayHint: "@nick",
+      },
+    });
+    expect(ini).toEqual({
+      channelLabel: "MAX",
+      externalId: "u-1",
+      platformUserId: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+      messengerDisplayHint: "@nick",
+    });
   });
 });

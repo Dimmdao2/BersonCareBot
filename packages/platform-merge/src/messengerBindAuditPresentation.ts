@@ -14,6 +14,8 @@ export type MessengerBindAuditInitiatorSummary = {
   channelCode: string;
   externalId: string;
   platformUserId: string | null;
+  /** Telegram: @username/ФИО из telegram_users; MAX: телефон канонического platform_users по привязке. */
+  messengerDisplayHint?: string | null;
 };
 
 /** Localized messenger channel_code for audit UI / alerts. */
@@ -100,6 +102,11 @@ export function buildMessengerBindBlockedRelayLines(input: BuildMessengerBindBlo
     lines.push(`Канал инициатора: ${label}, external_id=${String(input.externalId).trim()}`);
   }
 
+  const hintTrimmed = input.initiator?.messengerDisplayHint?.trim();
+  if (hintTrimmed) {
+    lines.push(`Подпись в мессенджере: ${hintTrimmed}`);
+  }
+
   if (input.phoneSuffix?.trim()) {
     lines.push(`Суффикс номера в событии: …${input.phoneSuffix.trim()}`);
   }
@@ -124,9 +131,12 @@ export function buildMessengerBindBlockedRelayLines(input: BuildMessengerBindBlo
 
   if (sorted.length === 2) {
     const [a, b] = sorted;
+    const base = input.appBaseUrl.trim().replace(/\/$/, "");
+    const previewUrl = `${base}/api/doctor/clients/merge-preview?targetId=${encodeURIComponent(a.platformUserId)}&duplicateId=${encodeURIComponent(b.platformUserId)}`;
     lines.push(
       `Ручной merge (начните с карточки): ${doctorClientUrl(input.appBaseUrl, a.platformUserId)} ↔ ${doctorClientUrl(input.appBaseUrl, b.platformUserId)}`,
     );
+    lines.push(`Предпросмотр merge (GET, нужна сессия админа): ${previewUrl}`);
   }
 
   return lines;

@@ -9,6 +9,32 @@ import {
   type MessengerBindAuditInitiatorSummary,
 } from "./messengerBindAuditPresentation.js";
 
+async function resolveTelegramMessengerDisplayHint(db: MessengerPhoneBindDb, externalId: string): Promise<string | null> {
+  const trimmed = externalId.trim();
+  if (!/^\d+$/.test(trimmed)) return null;
+  try {
+    const r = await db.query<{ username: string | null; fullName: string | null }>(
+      `SELECT NULLIF(TRIM(username), '') AS username,
+              NULLIF(
+                TRIM(BOTH FROM concat_ws(' ', NULLIF(TRIM(first_name), ''), NULLIF(TRIM(last_name), ''))),
+                ''
+              ) AS "fullName"
+       FROM public.telegram_users
+       WHERE telegram_id = $1::bigint
+       LIMIT 1`,
+      [trimmed],
+    );
+    const row = r.rows[0];
+    if (!row) return null;
+    const un = row.username?.trim();
+    if (un) return `@${un}`;
+    const fn = row.fullName?.trim();
+    return fn && fn.length > 0 ? fn : null;
+  } catch {
+    return null;
+  }
+}
+
 async function resolveCanonicalPlatformUserSummary(
   db: MessengerPhoneBindDb,
   id: string,
@@ -94,11 +120,14 @@ export async function enrichMessengerBindAuditDetailsFields(
       [cc, ext],
     );
     const puId = bind.rows[0]?.platform_user_id ?? null;
+    const messengerDisplayHint =
+      cc.trim().toLowerCase() === "telegram" ? await resolveTelegramMessengerDisplayHint(db, ext) : null;
     initiator = {
       channelLabel: messengerChannelLabelRu(cc),
       channelCode: cc,
       externalId: ext,
       platformUserId: puId,
+      ...(messengerDisplayHint ? { messengerDisplayHint } : {}),
     };
   }
 
