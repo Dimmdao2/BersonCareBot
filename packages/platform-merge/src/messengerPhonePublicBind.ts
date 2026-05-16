@@ -202,8 +202,7 @@ export async function applyMessengerPhonePublicBind(
           if (err instanceof MessengerPhoneLinkError) throw err;
           throw mapMergeFailure(err, [platformUserId, otherId]);
         }
-        const nextId = await resolveBoundPlatformUserId(db, channelCode, externalId);
-        if (nextId) platformUserId = nextId;
+        await reboundFromChannel();
         continue;
       }
       // Channel already on this platform user; `integrator_user_id` stale vs canonical from integrator — realign if unique key allows.
