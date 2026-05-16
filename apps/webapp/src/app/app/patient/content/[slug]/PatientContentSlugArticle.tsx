@@ -97,8 +97,30 @@ export async function PatientContentSlugArticle({
 
   const contentPath = `/app/patient/content/${encodeURIComponent(slug)}`;
   const showWarmupBadge = practiceSource === "daily_warmup";
+  /** Уроки из разделов (не «разминка дня»): без CTA «Я выполнил(а) практику», оценка — полосой под видео как у элемента программы. */
+  const simpleSectionMaterial = !showWarmupBadge;
   const hasDecorImage = Boolean(item.imageUrl);
   const anonymousGuest = session === null;
+
+  const videoSectionShellClass =
+    "overflow-hidden rounded-[var(--patient-card-radius-mobile)] shadow-[var(--patient-shadow-card-mobile)] lg:rounded-[var(--patient-card-radius-desktop)] lg:shadow-[var(--patient-shadow-card-desktop)]";
+
+  const sectionMaterialRatingUnderVideo =
+    simpleSectionMaterial ? (
+      <div
+        className={cn(
+          "w-full min-w-0 border-t border-[var(--patient-border)]/50",
+          "bg-[var(--patient-card-bg)] px-4 py-3 lg:px-5",
+        )}
+      >
+        <PatientContentMaterialRating
+          contentPageId={dbRow.id}
+          guest={session === null}
+          needsActivation={session !== null && !personalTierOk}
+          className="w-full min-w-0"
+        />
+      </div>
+    ) : null;
 
   return (
     <article id={`patient-content-article-${slug}`} className="flex flex-col gap-3 lg:gap-4">
@@ -154,10 +176,7 @@ export async function PatientContentSlugArticle({
       )}
 
       {videoPlayableUrl ? (
-        <section
-          id={`patient-content-video-section-${slug}`}
-          className="overflow-hidden rounded-[var(--patient-card-radius-mobile)] shadow-[var(--patient-shadow-card-mobile)] lg:rounded-[var(--patient-card-radius-desktop)] lg:shadow-[var(--patient-shadow-card-desktop)]"
-        >
+        <section id={`patient-content-video-section-${slug}`} className={videoSectionShellClass}>
           {hostedVideoIframeSrc ? (
             <div className="relative aspect-video">
               <iframe
@@ -176,10 +195,17 @@ export async function PatientContentSlugArticle({
               initialPlayback={patientPlaybackInitial}
             />
           )}
+          {sectionMaterialRatingUnderVideo}
         </section>
       ) : (
-        <section id={`patient-content-video-section-${slug}`} className={cn(patientCardClass, "py-3")}>
-          <p className={patientMutedTextClass}>Видео будет добавлено в ближайшее время.</p>
+        <section
+          id={`patient-content-video-section-${slug}`}
+          className={simpleSectionMaterial ? cn(videoSectionShellClass, "flex flex-col") : cn(patientCardClass, "py-3")}
+        >
+          <p className={cn(patientMutedTextClass, simpleSectionMaterial && "px-4 py-3 lg:px-5")}>
+            Видео будет добавлено в ближайшее время.
+          </p>
+          {sectionMaterialRatingUnderVideo}
         </section>
       )}
 
@@ -189,21 +215,14 @@ export async function PatientContentSlugArticle({
         </div>
       ) : null}
 
-      <PatientContentPracticeComplete
-        contentPageId={dbRow.id}
-        contentPath={contentPath}
-        practiceSource={practiceSource}
-        guest={session === null}
-        needsActivation={session !== null && !personalTierOk}
-        moodIconOptions={moodIconOptions}
-      />
-
-      {!showWarmupBadge ? (
-        <PatientContentMaterialRating
+      {showWarmupBadge ? (
+        <PatientContentPracticeComplete
           contentPageId={dbRow.id}
+          contentPath={contentPath}
+          practiceSource={practiceSource}
           guest={session === null}
           needsActivation={session !== null && !personalTierOk}
-          className="mt-2"
+          moodIconOptions={moodIconOptions}
         />
       ) : null}
 
