@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 const ADMIN_SECTIONS = [
   { value: "diagnostics", label: "Режимы" },
   { value: "system-health", label: "Здоровье системы" },
+  { value: "health-archive", label: "Архив сбоев" },
   { value: "app-params", label: "Параметры приложения" },
   { value: "auth", label: "Авторизация" },
   { value: "integrations", label: "Интеграции" },
@@ -18,6 +19,7 @@ export type AdminSettingsTabsClientProps = {
   initialTab?: string;
   diagnostics: ReactNode;
   systemHealth: ReactNode;
+  healthArchive: ReactNode;
   appParams: ReactNode;
   auth: ReactNode;
   integrations: ReactNode;
@@ -31,6 +33,7 @@ export function AdminSettingsTabsClient({
   initialTab,
   diagnostics,
   systemHealth,
+  healthArchive,
   appParams,
   auth,
   integrations,
@@ -95,6 +98,9 @@ export function AdminSettingsTabsClient({
           </TabsContent>
           <TabsContent value="system-health" className="mt-0">
             {systemHealth}
+          </TabsContent>
+          <TabsContent value="health-archive" className="mt-0">
+            {healthArchive}
           </TabsContent>
           <TabsContent value="app-params" className="mt-0">
             {appParams}

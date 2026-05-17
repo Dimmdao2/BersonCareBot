@@ -2,11 +2,26 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { ReactNode } from "react";
+import Link from "next/link";
 import { ChevronDown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
+import {
+  HEALTH_FAILURE_ARCHIVE_INTEGRATOR_OUTBOX_PROBE,
+  HEALTH_FAILURE_ARCHIVE_OUTGOING_PROBE,
+  HEALTH_FAILURE_ARCHIVE_RETENTION_DAYS,
+} from "@/modules/operator-health/healthFailureArchiveConstants";
 
 type DbStatus = "up" | "down";
 type IntegratorApiStatus = "ok" | "unreachable" | "error";
@@ -520,6 +535,11 @@ export function SystemHealthSection() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<SystemHealthPayload | null>(null);
+  const [clearProbe, setClearProbe] = useState<
+    typeof HEALTH_FAILURE_ARCHIVE_OUTGOING_PROBE | typeof HEALTH_FAILURE_ARCHIVE_INTEGRATOR_OUTBOX_PROBE | null
+  >(null);
+  const [clearBusy, setClearBusy] = useState(false);
+  const [clearError, setClearError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -545,6 +565,31 @@ export function SystemHealthSection() {
       setLoading(false);
     }
   }, []);
+
+  const runArchiveClear = useCallback(async () => {
+    if (!clearProbe) return;
+    setClearBusy(true);
+    setClearError(null);
+    try {
+      const res = await fetch("/api/admin/health-failure-archive/clear", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ probe: clearProbe }),
+      });
+      const body = (await res.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
+      if (!res.ok || !body?.ok) {
+        setClearError(body?.error ?? "request_failed");
+        return;
+      }
+      setClearProbe(null);
+      await load();
+    } catch {
+      setClearError("network");
+    } finally {
+      setClearBusy(false);
+    }
+  }, [clearProbe, load]);
 
   useEffect(() => {
     void load();
@@ -1012,6 +1057,21 @@ export function SystemHealthSection() {
                     : String(data.outgoingDelivery.oldestDueAgeSeconds)
                 }
               />
+              {(data?.outgoingDelivery?.deadTotal ?? 0) > 0 ? (
+                <div className="pt-3">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => {
+                      setClearError(null);
+                      setClearProbe(HEALTH_FAILURE_ARCHIVE_OUTGOING_PROBE);
+                    }}
+                  >
+                    Заархивировать и сбросить dead
+                  </Button>
+                </div>
+              ) : null}
             </HealthAccordionItem>
 
             <HealthAccordionItem
@@ -1051,6 +1111,21 @@ export function SystemHealthSection() {
                     : String(data.integratorPushOutbox.oldestProcessingAgeSeconds)
                 }
               />
+              {(data?.integratorPushOutbox?.deadTotal ?? 0) > 0 ? (
+                <div className="pt-3">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => {
+                      setClearError(null);
+                      setClearProbe(HEALTH_FAILURE_ARCHIVE_INTEGRATOR_OUTBOX_PROBE);
+                    }}
+                  >
+                    Заархивировать и сбросить dead
+                  </Button>
+                </div>
+              ) : null}
             </HealthAccordionItem>
           </div>
         </CardContent>
@@ -1076,6 +1151,58 @@ export function SystemHealthSection() {
           </div>
         </CardContent>
       </Card>
+
+      <Collapsible className="rounded-lg border border-border/50 bg-muted/20 px-3 py-2">
+        <CollapsibleTrigger className="flex w-full items-center justify-between gap-2 text-left text-xs text-muted-foreground">
+          <span>Архив сбоев очередей (срок хранения {HEALTH_FAILURE_ARCHIVE_RETENTION_DAYS} дн.)</span>
+          <ChevronDown className="size-4 shrink-0 opacity-70" />
+        </CollapsibleTrigger>
+        <CollapsibleContent className="pt-2 text-xs text-muted-foreground">
+          <div className="flex flex-col gap-1">
+            <Link
+              href={`/app/settings?adminTab=health-archive&probe=${HEALTH_FAILURE_ARCHIVE_OUTGOING_PROBE}`}
+              className="text-foreground underline underline-offset-2"
+            >
+              Архив: очередь доставки уведомлений
+            </Link>
+            <Link
+              href={`/app/settings?adminTab=health-archive&probe=${HEALTH_FAILURE_ARCHIVE_INTEGRATOR_OUTBOX_PROBE}`}
+              className="text-foreground underline underline-offset-2"
+            >
+              Архив: очередь синка в integrator
+            </Link>
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
+
+      <Dialog
+        open={clearProbe !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setClearProbe(null);
+            setClearError(null);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md" showCloseButton={!clearBusy}>
+          <DialogHeader>
+            <DialogTitle>Сброс dead в очереди</DialogTitle>
+            <DialogDescription>
+              Необратимо удалит dead-строки из очереди; копия останется в архиве до {HEALTH_FAILURE_ARCHIVE_RETENTION_DAYS}{" "}
+              дней. Задачи due и журнал рассылок не пересчитываются.
+            </DialogDescription>
+          </DialogHeader>
+          {clearError ? <p className="text-sm text-destructive">Не удалось выполнить ({clearError}).</p> : null}
+          <DialogFooter className="gap-2 sm:justify-end">
+            <Button type="button" variant="outline" disabled={clearBusy} onClick={() => setClearProbe(null)}>
+              Отмена
+            </Button>
+            <Button type="button" variant="destructive" disabled={clearBusy} onClick={() => void runArchiveClear()}>
+              {clearBusy ? "Выполняется…" : "Подтвердить"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

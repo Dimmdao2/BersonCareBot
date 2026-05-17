@@ -31,6 +31,11 @@ import { RubitimeSection } from "./RubitimeSection";
 import { GoogleCalendarSection } from "./GoogleCalendarSection";
 import { AdminAuditLogSection } from "./AdminAuditLogSection";
 import { SystemHealthSection } from "./SystemHealthSection";
+import { HealthFailureArchiveSection } from "./HealthFailureArchiveSection";
+import {
+  HEALTH_FAILURE_ARCHIVE_INTEGRATOR_OUTBOX_PROBE,
+  HEALTH_FAILURE_ARCHIVE_OUTGOING_PROBE,
+} from "@/modules/operator-health/healthFailureArchiveConstants";
 import { parseNotificationsTopics } from "@/modules/patient-notifications/notificationsTopics";
 import { parseAdminIncidentAlertConfig } from "@/modules/admin-incidents/adminIncidentAlertConfig";
 
@@ -64,6 +69,20 @@ function parseVideoDefaultDeliverySetting(valueJson: unknown): VideoDefaultDeliv
   return "auto";
 }
 
+function parseHealthArchiveProbeParam(
+  raw: string | string[] | undefined,
+): typeof HEALTH_FAILURE_ARCHIVE_OUTGOING_PROBE | typeof HEALTH_FAILURE_ARCHIVE_INTEGRATOR_OUTBOX_PROBE | undefined {
+  const s =
+    typeof raw === "string"
+      ? raw.trim()
+      : Array.isArray(raw) && typeof raw[0] === "string"
+        ? raw[0].trim()
+        : "";
+  if (!s) return undefined;
+  if (s === HEALTH_FAILURE_ARCHIVE_OUTGOING_PROBE || s === HEALTH_FAILURE_ARCHIVE_INTEGRATOR_OUTBOX_PROBE) return s;
+  return undefined;
+}
+
 function parseVideoPresignTtlSeconds(valueJson: unknown): number {
   const raw = getValueJson<unknown>(valueJson, 3600);
   const n =
@@ -78,7 +97,7 @@ function parseVideoPresignTtlSeconds(valueJson: unknown): number {
 export default async function SettingsPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ adminTab?: string | string[] }>;
+  searchParams?: Promise<{ adminTab?: string | string[]; probe?: string | string[] }>;
 }) {
   const sp = searchParams != null ? await searchParams : {};
   const adminTabRaw = sp.adminTab;
@@ -88,6 +107,7 @@ export default async function SettingsPage({
       : Array.isArray(adminTabRaw) && typeof adminTabRaw[0] === "string"
         ? adminTabRaw[0]
         : undefined;
+  const healthArchiveProbe = parseHealthArchiveProbeParam(sp.probe);
   const session = await getCurrentSession();
   if (!session) redirect("/app");
   if (session.user.role === "client") redirect("/app/patient/profile");
@@ -330,6 +350,11 @@ export default async function SettingsPage({
               </>
             }
             systemHealth={<SystemHealthSection />}
+            healthArchive={
+              <HealthFailureArchiveSection
+                initialProbe={healthArchiveProbe ?? "all"}
+              />
+            }
             appParams={
               appParametersConfig && videoSystemSettingsProps ? (
                 <>

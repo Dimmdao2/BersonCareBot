@@ -50,6 +50,7 @@ const ACTION_FILTER_OPTIONS = [
   "reference_archive",
   "admin_mode_toggle",
   "admin_client_profile_patch",
+  "health_failure_archive_clear_dead",
 ] as const;
 
 function actionTierLabel(action: string): string {
@@ -61,6 +62,7 @@ function actionTierLabel(action: string): string {
     "appointment_soft_delete",
     "media_delete",
     "reference_archive",
+    "health_failure_archive_clear_dead",
   ]);
   const tier2 = new Set([
     "settings_change",

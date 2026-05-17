@@ -185,6 +185,9 @@ import { pgOperatorHealthReadPort } from "@/infra/repos/pgOperatorHealthRead";
 import { inMemoryOperatorHealthReadPort } from "@/infra/repos/inMemoryOperatorHealthRead";
 import { pgOperatorHealthWritePort } from "@/infra/repos/pgOperatorHealthWrite";
 import { inMemoryOperatorHealthWritePort } from "@/infra/repos/inMemoryOperatorHealthWrite";
+import { pgHealthFailureArchivePort } from "@/infra/repos/pgHealthFailureArchive";
+import { inMemoryHealthFailureArchivePort } from "@/infra/repos/inMemoryHealthFailureArchive";
+import { createHealthFailureArchiveService } from "@/modules/operator-health/healthFailureArchiveService";
 import { env, integratorWebhookSecret, isS3MediaEnabled, webappReposAreInMemory } from "@/config/env";
 import { resolveRoleFromEnv } from "@/modules/auth/envRole";
 import { getRedirectPathForRole } from "@/modules/auth/redirectPolicy";
@@ -219,6 +222,10 @@ const adminPlatformUserStats = createAdminPlatformUserStatsService(adminPlatform
 
 const operatorHealthReadPort = !inMemoryRepos ? pgOperatorHealthReadPort : inMemoryOperatorHealthReadPort;
 const operatorHealthWritePort = !inMemoryRepos ? pgOperatorHealthWritePort : inMemoryOperatorHealthWritePort;
+const healthFailureArchivePort = !inMemoryRepos
+  ? pgHealthFailureArchivePort
+  : inMemoryHealthFailureArchivePort;
+const healthFailureArchive = createHealthFailureArchiveService(healthFailureArchivePort);
 
 const symptomDiaryPort = !inMemoryRepos ? pgSymptomDiaryPort : inMemorySymptomDiaryPort;
 const lfkDiaryPort = !inMemoryRepos ? pgLfkDiaryPort : inMemoryLfkDiaryPort;
@@ -746,6 +753,7 @@ function _buildAppDeps() {
     },
     operatorHealthRead: operatorHealthReadPort,
     operatorHealthWrite: operatorHealthWritePort,
+    healthFailureArchive,
     media: mediaService,
     channelPreferences: channelPreferencesService,
     contentCatalog,

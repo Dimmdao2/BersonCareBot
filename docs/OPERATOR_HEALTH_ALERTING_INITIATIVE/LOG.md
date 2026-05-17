@@ -4,6 +4,16 @@
 
 ## Записи
 
+### 2026-05-17 — Архив dead-очередей + сброс из «Здоровье системы» (**закрыто**)
+
+- **Таблица:** `public.operator_health_failure_archive` (миграция webapp **`0068`**), Drizzle `operatorHealthFailureArchive.ts`.
+- **Семантика:** POST clear архивирует **все** `dead` для пробы `outgoing_delivery` (`outgoing_delivery_queue`) или `integrator_push_outbox` батчами по 500: `INSERT` архив → `DELETE` источника. Повтор при `dead=0`: **200**, `inserted=deleted=0`.
+- **TTL:** записи старше **90** дней удаляются при **`POST /api/internal/system-health-guard/tick`** (best-effort `purgeExpired` после проверки outbox).
+- **API:** `POST /api/admin/health-failure-archive/clear`, `GET /api/admin/health-failure-archive` (admin); `GET /api/doctor/health-failure-archive` — только **`doctor` \| `admin`**, строки с `health_probe=outgoing_delivery` и `doctor_user_id = session.user.userId` (рассылки врача; чужие не отдаём).
+- **Аудит:** успешный `POST .../clear` пишет **`admin_audit_log`** с `action: health_failure_archive_clear_dead` и `details: { probe, inserted, deleted }`.
+- **UI:** `SystemHealthSection` — подтверждение + clear при `deadTotal>0`; свёрнутый блок со ссылками на `?adminTab=health-archive&probe=`; вкладка **`health-archive`**; врач — `/app/doctor/broadcasts/archive` + ссылка с страницы рассылок.
+- **Ограничения (осознанно):** due-бэклог очередей clear **не трогает**; счётчики `broadcast_audit.sent_count` / `error_count` при архивации **не** пересчитываются (как при `dead` в воркере — отдельная синхронизация вне этого объёма).
+
 ### 2026-05-15 — System health: `integrator_push_outbox` + guard tick (**закрыто**)
 
 Канонический план (закрыт): [`.cursor/plans/archive/admin_db_guard_monitoring.plan.md`](../../.cursor/plans/archive/admin_db_guard_monitoring.plan.md).

@@ -477,6 +477,13 @@
       "when": 1781000000000,
       "tag": "0067_platform_users_merged_at",
       "breakpoints": true
+    },
+    {
+      "idx": 68,
+      "version": "7",
+      "when": 1781100000000,
+      "tag": "0068_operator_health_failure_archive",
+      "breakpoints": true
     }
   ]
 }

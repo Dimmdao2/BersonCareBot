@@ -3,6 +3,7 @@
  * Предпросмотр, подтверждение, запись в `broadcast_audit` и постановка строк в `outgoing_delivery_queue`;
  * доставку выполняет воркер интегратора (`dispatchOutgoing`).
  */
+import Link from "next/link";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { AppShell } from "@/shared/ui/AppShell";
 import { listBroadcastAuditAction } from "./actions";
@@ -17,7 +18,10 @@ export default async function DoctorBroadcastsPage() {
     <AppShell title="Рассылки" user={session.user} variant="doctor">
       <div className="flex flex-col gap-6">
         <p className="text-sm text-muted-foreground">
-          После отправки сообщения ставятся в очередь доставки; счётчики в журнале обновляются по мере работы воркера.
+          После отправки сообщения ставятся в очередь доставки; счётчики в журнале обновляются по мере работы воркера.{" "}
+          <Link href="/app/doctor/broadcasts/archive" className="underline underline-offset-2">
+            Архив ошибок доставки
+          </Link>
         </p>
         <section className="rounded-2xl border border-border bg-card p-4 shadow-sm">
           <h2 className="mb-4 text-base font-semibold">Новая рассылка</h2>

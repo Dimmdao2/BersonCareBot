@@ -34,6 +34,7 @@ export default defineConfig({
     "./db/schema/materialRatings.ts",
     "./db/schema/operatorHealth.ts",
     "./db/schema/outgoingDeliveryQueue.ts",
+    "./db/schema/operatorHealthFailureArchive.ts",
   ],
   out: "./db/drizzle-migrations",
   dbCredentials: {
