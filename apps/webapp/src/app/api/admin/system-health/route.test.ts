@@ -64,6 +64,7 @@ const {
   getOutgoingDeliveryQueueHealthMock,
   getIntegratorPushOutboxHealthMock,
   getOperatorJobStatusMock,
+  loadAdminReminderPipelineMetricsMock,
 } = vi.hoisted(() => ({
   requireAdminModeSessionMock: vi.fn(),
   checkDbHealthMock: vi.fn(),
@@ -86,6 +87,7 @@ const {
   getOutgoingDeliveryQueueHealthMock: vi.fn(),
   getIntegratorPushOutboxHealthMock: vi.fn(),
   getOperatorJobStatusMock: vi.fn(),
+  loadAdminReminderPipelineMetricsMock: vi.fn(),
 }));
 
 /** Routes SQL by substring — media preview probes run in parallel with playback metrics; order unspecified. */
@@ -164,6 +166,16 @@ vi.mock("@/app-layer/media/adminTranscodeHealthMetrics", () => ({
   loadAdminTranscodeHealthMetrics: loadAdminTranscodeHealthMetricsMock,
 }));
 
+vi.mock("@/app-layer/health/adminReminderPipelineMetrics", () => ({
+  loadAdminReminderPipelineMetrics: loadAdminReminderPipelineMetricsMock,
+  emptyRemindersPipelineHealthPayload: () => ({
+    windowHours: 24,
+    outgoingReminderDispatch: { due: 0, dead: 0, processing: 0 },
+    occurrenceHistory: { sent: 0, failed: 0 },
+    deliveryEvents: { sent: 0, failed: 0 },
+  }),
+}));
+
 import { GET } from "./route";
 import {
   OPERATOR_MEDIA_JOB_FAMILY,
@@ -229,11 +241,21 @@ describe("GET /api/admin/system-health", () => {
     getOutgoingDeliveryQueueHealthMock.mockReset();
     getIntegratorPushOutboxHealthMock.mockReset();
     getOperatorJobStatusMock.mockReset();
+    loadAdminReminderPipelineMetricsMock.mockReset();
     listOpenIncidentsMock.mockResolvedValue([]);
     listBackupJobStatusMock.mockResolvedValue([]);
     getOutgoingDeliveryQueueHealthMock.mockResolvedValue({ ...zeroOutgoingSnapshot });
     getIntegratorPushOutboxHealthMock.mockResolvedValue({ ...zeroIntegratorPushOutboxSnapshot });
     getOperatorJobStatusMock.mockResolvedValue(null);
+    loadAdminReminderPipelineMetricsMock.mockResolvedValue({
+      ok: true,
+      value: {
+        windowHours: 24,
+        outgoingReminderDispatch: { due: 0, dead: 0, processing: 0 },
+        occurrenceHistory: { sent: 0, failed: 0 },
+        deliveryEvents: { sent: 0, failed: 0 },
+      },
+    });
     globalThis.fetch = originalFetch;
   });
 
@@ -292,6 +314,12 @@ describe("GET /api/admin/system-health", () => {
       backupJobs: Record<string, unknown>;
       outgoingDelivery: typeof zeroOutgoingSnapshot;
       integratorPushOutbox: typeof zeroIntegratorPushOutboxSnapshot;
+      remindersPipeline: {
+        windowHours: number;
+        outgoingReminderDispatch: { due: number; dead: number; processing: number };
+        occurrenceHistory: { sent: number; failed: number };
+        deliveryEvents: { sent: number; failed: number };
+      };
       meta?: {
         probes?: {
           projection?: { status: string; durationMs: number };
@@ -301,6 +329,7 @@ describe("GET /api/admin/system-health", () => {
           operatorBackupJobs?: { status: string; durationMs: number; errorCode?: string };
           outgoingDelivery?: { status: string; durationMs: number; errorCode?: string };
           integratorPushOutbox?: { status: string; durationMs: number; errorCode?: string };
+          remindersPipeline?: { status: string; durationMs: number; errorCode?: string };
         };
       };
       fetchedAt: string;
@@ -326,11 +355,18 @@ describe("GET /api/admin/system-health", () => {
     expect(body.backupJobs).toEqual({});
     expect(body.outgoingDelivery).toEqual(zeroOutgoingSnapshot);
     expect(body.integratorPushOutbox).toEqual(zeroIntegratorPushOutboxSnapshot);
+    expect(body.remindersPipeline).toEqual({
+      windowHours: 24,
+      outgoingReminderDispatch: { due: 0, dead: 0, processing: 0 },
+      occurrenceHistory: { sent: 0, failed: 0 },
+      deliveryEvents: { sent: 0, failed: 0 },
+    });
     expect(body.meta?.probes?.operatorIncidents?.status).toBe("ok");
     expect(body.meta?.probes?.operatorBackupJobs?.status).toBe("ok");
     expect(body.meta?.probes?.outgoingDelivery?.status).toBe("ok");
     expect(body.meta?.probes?.integratorPushOutbox?.status).toBe("ok");
-    expect(loggerInfoMock).toHaveBeenCalled();
+    expect(body.meta?.probes?.remindersPipeline?.status).toBe("ok");
+    expect(loadAdminReminderPipelineMetricsMock).toHaveBeenCalled();
   });
 
   it("returns integrator unreachable when /health probe fails", async () => {

@@ -31,6 +31,7 @@ import { RubitimeSection } from "./RubitimeSection";
 import { GoogleCalendarSection } from "./GoogleCalendarSection";
 import { AdminAuditLogSection } from "./AdminAuditLogSection";
 import { SystemHealthSection } from "./SystemHealthSection";
+import { ReminderStatsSection } from "./ReminderStatsSection";
 import { HealthFailureArchiveSection } from "./HealthFailureArchiveSection";
 import {
   HEALTH_FAILURE_ARCHIVE_INTEGRATOR_OUTBOX_PROBE,
@@ -350,6 +351,7 @@ export default async function SettingsPage({
               </>
             }
             systemHealth={<SystemHealthSection />}
+            reminderStats={<ReminderStatsSection />}
             healthArchive={
               <HealthFailureArchiveSection
                 initialProbe={healthArchiveProbe ?? "all"}

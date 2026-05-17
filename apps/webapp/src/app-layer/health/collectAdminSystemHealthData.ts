@@ -25,6 +25,11 @@ import {
   ADMIN_DELIVERY_DUE_BACKLOG_WARNING,
   classifyVideoTranscodeSystemHealthStatus,
 } from "@/modules/operator-health/adminHealthThresholds";
+import {
+  emptyRemindersPipelineHealthPayload,
+  loadAdminReminderPipelineMetrics,
+  type RemindersPipelineHealthPayload,
+} from "@/app-layer/health/adminReminderPipelineMetrics";
 
 const INTEGRATOR_TIMEOUT_MS = 8_000;
 
@@ -226,6 +231,8 @@ export type SystemHealthResponse = {
   outgoingDelivery: OutgoingDeliveryHealthPayload;
   /** Очередь синка настроек/напоминаний в integrator (`public.integrator_push_outbox`). */
   integratorPushOutbox: IntegratorPushOutboxHealthPayload;
+  /** Напоминания: срез очереди `reminder_dispatch` + факты projection за 24 ч. */
+  remindersPipeline: RemindersPipelineHealthPayload;
   meta: {
     probes: {
       webappDb: { status: string; durationMs: number; errorCode?: string };
@@ -240,6 +247,7 @@ export type SystemHealthResponse = {
       operatorBackupJobs: { status: string; durationMs: number; errorCode?: string };
       outgoingDelivery: { status: string; durationMs: number; errorCode?: string };
       integratorPushOutbox: { status: string; durationMs: number; errorCode?: string };
+      remindersPipeline: { status: string; durationMs: number; errorCode?: string };
     };
   };
   fetchedAt: string;
@@ -804,7 +812,8 @@ function logProbe(
     | "operator_incidents"
     | "operator_backup_jobs"
     | "outgoing_delivery"
-    | "integrator_push_outbox",
+    | "integrator_push_outbox"
+    | "reminders_pipeline",
   result: ProbeResult<unknown>,
   statusOverride?: string,
 ) {
@@ -964,6 +973,13 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
     ? operatorHealthResult.value.integratorPushOutbox
     : emptyIntegratorPushOutboxHealthPayload();
 
+  const remindersPipelineStartedAt = Date.now();
+  const remindersPipelineResult = await loadAdminReminderPipelineMetrics(outgoingDeliveryPayload);
+  const remindersPipelinePayload: RemindersPipelineHealthPayload = remindersPipelineResult.ok
+    ? remindersPipelineResult.value
+    : emptyRemindersPipelineHealthPayload();
+  const remindersPipelineDurationMs = elapsedMs(remindersPipelineStartedAt);
+
   const integratorPushOutboxClassified = classifyIntegratorPushOutboxSystemHealthStatus(integratorPushOutboxPayload);
 
   if (operatorHealthResult.ok && integratorPushOutboxClassified !== "ok") {
@@ -1042,6 +1058,7 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
     backupJobs,
     outgoingDelivery: outgoingDeliveryPayload,
     integratorPushOutbox: integratorPushOutboxPayload,
+    remindersPipeline: remindersPipelinePayload,
     meta: {
       probes: {
         webappDb: {
@@ -1106,6 +1123,11 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
           durationMs: operatorHealthResult.durationMs,
           ...(!operatorHealthResult.ok ? { errorCode: operatorHealthResult.errorCode } : {}),
         },
+        remindersPipeline: {
+          status: remindersPipelineResult.ok ? "ok" : "error",
+          durationMs: remindersPipelineDurationMs,
+          ...(!remindersPipelineResult.ok ? { errorCode: remindersPipelineResult.errorCode } : {}),
+        },
       },
     },
     fetchedAt: nowIso(),
@@ -1123,6 +1145,17 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
   logProbe("operator_backup_jobs", operatorHealthResult, backupJobsProbeStatus);
   logProbe("outgoing_delivery", operatorHealthResult, outgoingDeliveryProbeStatus);
   logProbe("integrator_push_outbox", operatorHealthResult, integratorPushOutboxProbeStatus);
+  logProbe(
+    "reminders_pipeline",
+    remindersPipelineResult.ok
+      ? { ok: true, value: remindersPipelinePayload, durationMs: remindersPipelineDurationMs }
+      : {
+          ok: false,
+          status: "error",
+          errorCode: remindersPipelineResult.errorCode,
+          durationMs: remindersPipelineDurationMs,
+        },
+  );
 
   return response;
 }

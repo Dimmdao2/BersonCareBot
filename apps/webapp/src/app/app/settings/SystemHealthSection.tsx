@@ -98,6 +98,12 @@ type SystemHealthPayload = {
     oldestProcessingAgeSeconds: number | null;
     lastQueueActivityAt: string | null;
   };
+  remindersPipeline?: {
+    windowHours: number;
+    outgoingReminderDispatch: { due: number; dead: number; processing: number };
+    occurrenceHistory: { sent: number; failed: number };
+    deliveryEvents: { sent: number; failed: number };
+  };
   /** VIDEO_HLS_DELIVERY: hourly playback aggregates (UTC), rolling window. */
   videoPlayback: {
     status: "ok" | "error";
@@ -207,6 +213,7 @@ type SystemHealthPayload = {
       operatorBackupJobs?: { status: string; durationMs: number; errorCode?: string };
       outgoingDelivery?: { status: string; durationMs: number; errorCode?: string };
       integratorPushOutbox?: { status: string; durationMs: number; errorCode?: string };
+      remindersPipeline?: { status: string; durationMs: number; errorCode?: string };
     };
   };
   fetchedAt: string;
@@ -1072,6 +1079,41 @@ export function SystemHealthSection() {
                   </Button>
                 </div>
               ) : null}
+            </HealthAccordionItem>
+
+            <HealthAccordionItem
+              name="Напоминания"
+              status={data?.meta?.probes?.remindersPipeline?.status ?? "error"}
+            >
+              <ProbeInfo probe={data?.meta?.probes?.remindersPipeline} />
+              <DetailRow
+                label="Очередь reminder_dispatch (ожидают)"
+                value={String(data?.remindersPipeline?.outgoingReminderDispatch?.due ?? 0)}
+              />
+              <DetailRow
+                label="Очередь reminder_dispatch (dead)"
+                value={String(data?.remindersPipeline?.outgoingReminderDispatch?.dead ?? 0)}
+              />
+              <DetailRow
+                label="Очередь reminder_dispatch (processing)"
+                value={String(data?.remindersPipeline?.outgoingReminderDispatch?.processing ?? 0)}
+              />
+              <DetailRow
+                label={`Факты occurrence за ${data?.remindersPipeline?.windowHours ?? 24} ч (sent)`}
+                value={String(data?.remindersPipeline?.occurrenceHistory.sent ?? 0)}
+              />
+              <DetailRow
+                label={`Факты occurrence за ${data?.remindersPipeline?.windowHours ?? 24} ч (failed)`}
+                value={String(data?.remindersPipeline?.occurrenceHistory.failed ?? 0)}
+              />
+              <DetailRow
+                label={`События доставки за ${data?.remindersPipeline?.windowHours ?? 24} ч (sent)`}
+                value={String(data?.remindersPipeline?.deliveryEvents.sent ?? 0)}
+              />
+              <DetailRow
+                label={`События доставки за ${data?.remindersPipeline?.windowHours ?? 24} ч (failed)`}
+                value={String(data?.remindersPipeline?.deliveryEvents.failed ?? 0)}
+              />
             </HealthAccordionItem>
 
             <HealthAccordionItem
