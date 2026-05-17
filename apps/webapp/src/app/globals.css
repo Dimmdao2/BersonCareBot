@@ -87,6 +87,11 @@
  * `--patient-radius-lg`, `--patient-touch`, `--patient-gap` в `:root` не трогаем (MASTER_PLAN §6).
  */
 #app-shell-patient {
+  /**
+   * Минимальный горизонтальный gutter контента (см. `.safe-padding-patient`, `.safe-bleed-x`).
+   * Чуть шире между 431px и `md`, чтобы на «широких» телефонах поля не казались тесными.
+   */
+  --patient-shell-inline-pad: 1rem;
   --patient-page-bg: #ffffff;
   --patient-card-bg: #ffffff;
   --patient-border: #e5e7eb;
@@ -158,6 +163,12 @@
   --patient-surface-danger-border: #fecaca;
   --patient-surface-danger-text: var(--patient-text-primary);
   --patient-surface-danger-accent: var(--patient-color-danger);
+}
+
+@media (min-width: 431px) and (max-width: 767px) {
+  #app-shell-patient {
+    --patient-shell-inline-pad: 1.125rem;
+  }
 }
 
 /** Явный pointer для интерактива в кабинете пациента (кнопки, ссылки). */
@@ -505,32 +516,39 @@
 
 @layer utilities {
   .safe-padding-patient {
-    padding-left: max(1rem, env(safe-area-inset-left, 0px));
-    padding-right: max(1rem, env(safe-area-inset-right, 0px));
+    padding-left: max(var(--patient-shell-inline-pad, 1rem), env(safe-area-inset-left, 0px));
+    padding-right: max(var(--patient-shell-inline-pad, 1rem), env(safe-area-inset-right, 0px));
     /* Нижняя навигация снята: только safe area + обычный отступ */
     padding-bottom: max(1.25rem, env(safe-area-inset-bottom, 0px));
   }
 
+  /** Только горизонтальные поля shell (напр. фиксированная верхняя навигация), без нижнего padding. */
+  .safe-padding-patient-horiz {
+    padding-left: max(var(--patient-shell-inline-pad, 1rem), env(safe-area-inset-left, 0px));
+    padding-right: max(var(--patient-shell-inline-pad, 1rem), env(safe-area-inset-right, 0px));
+  }
+
   .safe-bleed-x {
-    margin-left: calc(-1 * max(1rem, env(safe-area-inset-left, 0px)));
-    margin-right: calc(-1 * max(1rem, env(safe-area-inset-right, 0px)));
-    padding-left: max(1rem, env(safe-area-inset-left, 0px));
-    padding-right: max(1rem, env(safe-area-inset-right, 0px));
+    margin-left: calc(-1 * max(var(--patient-shell-inline-pad, 1rem), env(safe-area-inset-left, 0px)));
+    margin-right: calc(-1 * max(var(--patient-shell-inline-pad, 1rem), env(safe-area-inset-right, 0px)));
+    padding-left: max(var(--patient-shell-inline-pad, 1rem), env(safe-area-inset-left, 0px));
+    padding-right: max(var(--patient-shell-inline-pad, 1rem), env(safe-area-inset-right, 0px));
   }
 
   /** Растянуть контент на всю ширину колонки пациента (отмена горизонтального padding shell), без внутренних полей — для iframe. */
   .patient-iframe-bleed {
-    margin-left: calc(-1 * max(1rem, env(safe-area-inset-left, 0px)));
-    margin-right: calc(-1 * max(1rem, env(safe-area-inset-right, 0px)));
+    margin-left: calc(-1 * max(var(--patient-shell-inline-pad, 1rem), env(safe-area-inset-left, 0px)));
+    margin-right: calc(-1 * max(var(--patient-shell-inline-pad, 1rem), env(safe-area-inset-right, 0px)));
     width: calc(
-      100% + max(1rem, env(safe-area-inset-left, 0px)) + max(1rem, env(safe-area-inset-right, 0px))
+      100% + max(var(--patient-shell-inline-pad, 1rem), env(safe-area-inset-left, 0px)) +
+        max(var(--patient-shell-inline-pad, 1rem), env(safe-area-inset-right, 0px))
     );
   }
 
   .safe-fab-br {
     position: fixed;
     bottom: max(1.25rem, env(safe-area-inset-bottom, 0px));
-    right: max(1rem, env(safe-area-inset-right, 0px));
+    right: max(var(--patient-shell-inline-pad, 1rem), env(safe-area-inset-right, 0px));
     z-index: 50;
   }
 }

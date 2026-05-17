@@ -105,7 +105,7 @@ export function PatientRouteLoadingShell({
       id="app-shell-patient"
       className={cn(
         "mx-auto flex min-h-[100dvh] w-full flex-col bg-[var(--patient-page-bg)] pt-[max(0px,env(safe-area-inset-top,0px))]",
-        "max-w-[430px] safe-padding-patient gap-3 md:max-w-[min(1180px,calc(100vw-2rem))]",
+        "w-full max-w-full min-w-0 safe-padding-patient gap-3 md:max-w-[min(1180px,calc(100vw-2rem))]",
       )}
       aria-busy="true"
       aria-label={navLabel}

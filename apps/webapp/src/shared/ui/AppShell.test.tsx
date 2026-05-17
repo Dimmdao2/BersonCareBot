@@ -21,7 +21,7 @@ vi.mock("@/shared/hooks/useReminderUnread", () => ({
 }));
 
 describe("AppShell patient width variants", () => {
-  it("keeps patient variant in mobile shell width and widens on md+ (VISUAL_SYSTEM_SPEC baseline)", () => {
+  it("uses full-width mobile shell with safe padding and caps width from md+", () => {
     const { container } = render(
       <AppShell title="Сегодня" user={null} variant="patient">
         <div>Content</div>
@@ -29,7 +29,9 @@ describe("AppShell patient width variants", () => {
     );
 
     const shell = container.querySelector("#app-shell-patient");
-    expect(shell).toHaveClass("max-w-[430px]");
+    expect(shell).toHaveClass("w-full");
+    expect(shell).toHaveClass("max-w-full");
+    expect(shell).toHaveClass("safe-padding-patient");
     expect(shell).toHaveClass("md:max-w-[min(1180px,calc(100vw-2rem))]");
   });
 
@@ -41,7 +43,9 @@ describe("AppShell patient width variants", () => {
     );
 
     const shell = container.querySelector("#app-shell-patient");
-    expect(shell).toHaveClass("max-w-[430px]");
+    expect(shell).toHaveClass("w-full");
+    expect(shell).toHaveClass("max-w-full");
+    expect(shell).toHaveClass("safe-padding-patient");
     expect(shell).toHaveClass("md:max-w-[min(1180px,calc(100vw-2rem))]");
   });
 

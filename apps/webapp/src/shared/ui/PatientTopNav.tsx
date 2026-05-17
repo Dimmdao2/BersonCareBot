@@ -194,7 +194,7 @@ export function PatientTopNav(_props: PatientTopNavProps) {
         <nav
           aria-label="Основная навигация пациента"
           data-testid="patient-mobile-top-nav"
-          className="mx-auto flex max-w-[430px] items-stretch justify-around px-1 py-1 md:hidden"
+          className="safe-padding-patient-horiz flex w-full min-w-0 items-stretch justify-around py-1 md:hidden"
         >
           {PATIENT_PRIMARY_NAV_ITEMS.map(renderMobileNavLink)}
         </nav>
