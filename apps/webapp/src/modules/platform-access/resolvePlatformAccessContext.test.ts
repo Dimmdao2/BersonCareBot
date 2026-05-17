@@ -73,6 +73,7 @@ describe("resolvePlatformAccessContext", () => {
       phoneTrustedForPatient: true,
       resolution: "resolved_canon",
     });
+    expect(consoleInfoSpy).not.toHaveBeenCalled();
   });
 
   it("resolved client with phone but no trust → onboarding", async () => {

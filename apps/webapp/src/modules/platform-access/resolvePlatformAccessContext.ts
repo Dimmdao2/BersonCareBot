@@ -12,7 +12,7 @@ type CanonRow = {
   patient_phone_trust_at: Date | null;
 };
 
-/** DoD §8 / MASTER_PLAN §3.8: tier + trust signals (no raw phone in logs). */
+/** DoD §8 / MASTER_PLAN §3.8: tier + trust signals (no raw phone). Skips noisy happy path (patient + trusted + resolved_canon). */
 function logClientPlatformAccess(payload: {
   tier: ClientAccessTier | null;
   resolution: string;
@@ -20,6 +20,12 @@ function logClientPlatformAccess(payload: {
   hasPhoneInDb: boolean;
   canonicalUserId: string | null;
 }): void {
+  const skipNoisyHappyPath =
+    payload.resolution === "resolved_canon" &&
+    payload.tier === "patient" &&
+    payload.phoneTrustedForPatient;
+  if (skipNoisyHappyPath) return;
+
   console.info(
     "[platform_access] tier=%s resolution=%s phone_trusted=%s has_phone_db=%s canon=%s",
     payload.tier ?? "n/a",
