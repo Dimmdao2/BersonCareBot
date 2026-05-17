@@ -134,6 +134,12 @@ export async function POST(request: Request) {
     return NextResponse.redirect(new URL(oauthWebLoginErrorRedirect("db_error"), appBase));
   }
 
+  const deps = buildAppDeps();
+  await deps.patientCalendarTimezone.trySetInitialIfEmpty(
+    resolved.userId,
+    verified.browserCalendarIana ?? null,
+  );
+
   const done = await completeOAuthWebLoginRedirectUrls({
     userId: resolved.userId,
     displayNameHint: displayName?.trim() || email || claims.sub,

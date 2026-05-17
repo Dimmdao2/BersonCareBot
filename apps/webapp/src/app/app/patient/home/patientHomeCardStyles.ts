@@ -182,7 +182,7 @@ export const patientHomeBookingCompanionSlotClass = cn(
 export const patientHomeSecondaryCardShellClass = cn("flex flex-col gap-3 overflow-hidden");
 
 /**
- * Фиксированная высота secondary-карточки напоминания (меньше, чем у блока «план»).
+ * Фиксированная высота secondary-карточки напоминания (меньше, чем ряд «Ситуации | План» на md+).
  * Значения подобраны так, чтобы на каждом breakpoint высота «плана» (`patientHomeSecondaryCardTallHeightClass`) была не меньше.
  */
 export const patientHomeSecondaryCardShortHeightClass = cn(
@@ -190,10 +190,16 @@ export const patientHomeSecondaryCardShortHeightClass = cn(
   "h-[152px] sm:h-[160px] lg:h-[168px]",
 );
 
-/** Минимальная высота secondary-карточки «Мой план» (заголовок до 3 строк без overflow-hidden обрезки). */
+/**
+ * Общая высота ряда «Ситуации | Мой план» на `md+` — оба блока в одной строке сетки должны совпадать по пикселю.
+ */
+export const patientHomeSituationsPlanRowMdHeightClass = "md:h-[176px] md:min-h-0";
+
+/** «Мой план»: до md — минимальная высота под контент; с md — та же фиксированная полоса, что у «Ситуации». */
 export const patientHomeSecondaryCardTallHeightClass = cn(
   patientHomeSecondaryCardShellClass,
-  "min-h-[156px] sm:min-h-[156px] lg:min-h-[156px]",
+  "min-h-[156px]",
+  patientHomeSituationsPlanRowMdHeightClass,
 );
 
 /**
@@ -427,7 +433,10 @@ export const patientHomeSituationTileTitleClass = cn(
  * `overflow-visible` на всех breakpoints — иначе hover ring/shadow и translate-y плиток
  * обрезаются по краю карточки (и на lg, и при увеличении на mobile).
  */
-export const patientHomeSituationsCardGeometryClass = cn("overflow-visible md:h-[176px] md:min-h-0");
+export const patientHomeSituationsCardGeometryClass = cn(
+  "overflow-visible",
+  patientHomeSituationsPlanRowMdHeightClass,
+);
 
 /** Mobile: секция «ситуации» без рамки/тени карточки и без вертикального padding оболочки. */
 export const patientHomeSituationsCardMobileChromeClass =
@@ -474,14 +483,11 @@ export const patientHomeMoodCardGeometryClass = cn(
  * (`PatientHomeTodayLayout`: `gap-5` = 20px mobile, `md:gap-6` = 24px, `xl:gap-7` = 28px).
  *
  * - **С рамкой** (карточка border+shadow на md+): симметричный `my-2` (8px) — рамка даёт визуальный вес.
- * - **Без рамки на mobile** (ситуации: `patientHomeSituationsCardMobileChromeClass`): `max-md:my-2.5` (10px) — легче «тонет» без бордера.
+ * - **Ситуации**: без доп. `margin` на ячейке сетки — ритм между рядами только `gap` (как у «Разминка | пост» и «План»).
  * - **Настроение**: только верх (`mt`), низ остаётся на {@link patientHomeMoodCardGeometryClass}.
  * - **Прогресс**: снизу только на `md+`; на mobile поджат к «Следующее напоминание» (ячейка `next_reminder` компенсирует `gap-5`).
  */
 export const patientHomeTodayGridCellPadBorderedSymClass = "my-2 md:my-2";
-
-/** Ситуации: на узкой колонке без карточной рамки — чуть шире, на md с рамкой — как у bordered. */
-export const patientHomeTodayGridCellPadSituationsClass = "max-md:my-2.5 md:my-2";
 
 /** «Как ваше сегодня» / чек-ин: дополнительный отступ сверху к соседнему блоку в потоке. */
 export const patientHomeTodayGridCellPadMoodTopClass = "mt-3";

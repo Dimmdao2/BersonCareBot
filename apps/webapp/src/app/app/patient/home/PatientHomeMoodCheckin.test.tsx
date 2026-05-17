@@ -66,7 +66,11 @@ describe("PatientHomeMoodCheckin", () => {
     vi.mocked(global.fetch).mockResolvedValue({
       ok: true,
       status: 200,
-      json: async () => ({ ok: true, mood: { moodDate: "2026-04-28", score: 5 } }),
+      json: async () => ({
+        ok: true,
+        mood: { moodDate: "2026-04-28", score: 5 },
+        lastEntry: { id: "e-new", recordedAt: "2026-04-28T10:00:00.000Z", score: 5, notes: null },
+      }),
     } as Response);
 
     render(
@@ -115,21 +119,31 @@ describe("PatientHomeMoodCheckin", () => {
     expect(toastError).toHaveBeenCalledWith("Не удалось сохранить, попробуйте позже.");
   });
 
-  it("opens choice dialog in 10–60 min window without posting first", async () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(Date.parse("2026-05-08T12:00:00.000Z"));
+  it("posts mood immediately when last entry is older than 5 minutes (no modal)", async () => {
+    const oldIso = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+    vi.mocked(global.fetch).mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        ok: true,
+        mood: { moodDate: "2026-05-08", score: 5 },
+        lastEntry: { id: "e-new", recordedAt: new Date().toISOString(), score: 5, notes: null },
+      }),
+    } as Response);
+
     render(
       <PatientHomeMoodCheckin
         moodOptions={defaultMoodOptions}
         personalTierOk
         anonymousGuest={false}
         initialMood={{ moodDate: "2026-05-08", score: 3 }}
-        initialLastEntry={{ id: "e-prev", score: 3, recordedAt: "2026-05-08T11:35:00.000Z" }}
+        initialLastEntry={{ id: "e-prev", score: 3, recordedAt: oldIso }}
       />,
     );
     fireEvent.click(screen.getByRole("button", { name: /Самочувствие 5 из 5/i }));
-    expect(global.fetch).not.toHaveBeenCalled();
-    expect(screen.getByRole("dialog")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Новая запись" })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalled();
+    });
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 });

@@ -7,7 +7,6 @@ import toast from "react-hot-toast";
 import { routePaths } from "@/app-layer/routes/paths";
 import type { PatientMoodIntent, PatientMoodLastEntry, PatientMoodToday, PatientMoodWeekDay } from "@/modules/patient-mood/types";
 import type { PatientHomeMoodIconOption } from "@/modules/patient-home/patientHomeMoodIcons";
-import { wellbeingResubmitKind } from "@/modules/patient-mood/wellbeingConstants";
 import {
   patientHomeMoodCardGeometryClass,
   patientHomeMoodCheckinShellClass,
@@ -16,14 +15,7 @@ import {
 } from "./patientHomeCardStyles";
 import { appLoginWithNextHref } from "./patientHomeGuestNav";
 import { cn } from "@/lib/utils";
-import {
-  patientButtonPrimaryClass,
-  patientButtonSecondaryClass,
-  patientMutedTextClass,
-  patientPortalModalSurfaceClass,
-  patientSectionTitleClass,
-} from "@/shared/ui/patientVisual";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { patientMutedTextClass } from "@/shared/ui/patientVisual";
 import { PatientHomeWellbeingWeekStrip } from "./PatientHomeWellbeingWeekStrip";
 import { PatientHomeMoodScoreRow } from "./PatientHomeMoodScoreRow";
 
@@ -52,9 +44,6 @@ export function PatientHomeMoodCheckin({
   const [savedScore, setSavedScore] = useState<number | null>(initialMood?.score ?? null);
   const [lastEntry, setLastEntry] = useState<PatientMoodLastEntry | null>(initialLastEntry);
   const [submittingScore, setSubmittingScore] = useState<number | null>(null);
-  const [choiceOpen, setChoiceOpen] = useState(false);
-  const [choiceScore, setChoiceScore] = useState<number | null>(null);
-  const [choicePrevLast, setChoicePrevLast] = useState<PatientMoodLastEntry | null>(null);
 
   useEffect(() => {
     setSelectedScore(initialMood?.score ?? null);
@@ -62,8 +51,12 @@ export function PatientHomeMoodCheckin({
     setLastEntry(initialLastEntry);
   }, [initialMood, initialLastEntry]);
 
-  function toastAfterSuccessfulSave(intent: PatientMoodIntent, hadPreviousLastEntry: boolean) {
-    const added = intent === "new_instant" || (intent === "auto" && !hadPreviousLastEntry);
+  function toastAfterSuccessfulSave(previousLast: PatientMoodLastEntry | null, newLast: PatientMoodLastEntry | null) {
+    if (!newLast) {
+      toast.success("Сохранено");
+      return;
+    }
+    const added = !previousLast || previousLast.id !== newLast.id;
     toast.success(added ? "Запись добавлена" : "Запись обновлена");
   }
 
@@ -85,15 +78,6 @@ export function PatientHomeMoodCheckin({
         lastEntry?: PatientMoodLastEntry | null;
         error?: string;
       };
-      if (res.status === 409 && data.error === "intent_required" && data.lastEntry) {
-        setSelectedScore(previousSelected);
-        setSavedScore(previousSaved);
-        setLastEntry(data.lastEntry);
-        setChoiceScore(score);
-        setChoicePrevLast(data.lastEntry);
-        setChoiceOpen(true);
-        return false;
-      }
       if (!res.ok || !data.ok || !data.mood) {
         setSelectedScore(previousSelected);
         setSavedScore(previousSaved);
@@ -103,10 +87,11 @@ export function PatientHomeMoodCheckin({
       }
       setSelectedScore(data.mood.score);
       setSavedScore(data.mood.score);
-      if ("lastEntry" in data && data.lastEntry !== undefined) {
-        setLastEntry(data.lastEntry);
+      const newLast = "lastEntry" in data ? data.lastEntry : undefined;
+      if (newLast !== undefined) {
+        setLastEntry(newLast);
       }
-      toastAfterSuccessfulSave(intent, previousLast != null);
+      toastAfterSuccessfulSave(previousLast, newLast ?? null);
       router.refresh();
       return true;
     } catch {
@@ -121,28 +106,7 @@ export function PatientHomeMoodCheckin({
   }
 
   async function onPickScore(score: number) {
-    if (!lastEntry) {
-      await postMood(score, "auto");
-      return;
-    }
-    const kind = wellbeingResubmitKind(lastEntry.recordedAt);
-    if (kind === "replace_silent") {
-      await postMood(score, "auto");
-      return;
-    }
-    if (kind === "modal") {
-      setChoiceScore(score);
-      setChoicePrevLast(lastEntry);
-      setChoiceOpen(true);
-      return;
-    }
-    await postMood(score, "new_instant");
-  }
-
-  async function confirmChoice(intent: "replace_last" | "new_instant") {
-    if (choiceScore == null) return;
-    const ok = await postMood(choiceScore, intent);
-    if (ok) setChoiceOpen(false);
+    await postMood(score, "auto");
   }
 
   const statusLine =
@@ -231,48 +195,6 @@ export function PatientHomeMoodCheckin({
             </div>}
         </div>
       </section>
-
-      <Dialog
-        open={choiceOpen}
-        onOpenChange={(open) => {
-          setChoiceOpen(open);
-          if (!open) {
-            setSelectedScore(savedScore);
-            setChoiceScore(null);
-            setChoicePrevLast(null);
-          }
-        }}
-      >
-        <DialogContent
-          showCloseButton
-          className={cn(
-            patientPortalModalSurfaceClass,
-            "flex max-h-[85vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-[min(92vw,22rem)]",
-            "rounded-2xl border border-[var(--patient-border)] shadow-lg",
-            "[&_[data-slot=dialog-close]]:text-[var(--patient-text-muted)] [&_[data-slot=dialog-close]]:hover:bg-black/[0.06] [&_[data-slot=dialog-close]]:focus-visible:ring-[var(--patient-border)]",
-          )}
-        >
-          <DialogHeader className="shrink-0 gap-1.5 px-4 pb-0 pt-4 pr-12 text-left">
-            <DialogTitle className={cn(patientSectionTitleClass, "text-base leading-snug")}>Заменить или добавить</DialogTitle>
-            {choicePrevLast != null && choicePrevLast.score != null ?
-              <p className={cn(patientMutedTextClass, "leading-snug")}>
-                Последняя — <span className="font-medium text-[var(--patient-text-primary)]">{choicePrevLast.score}</span>
-                . Обновить её или добавить строку?
-              </p>
-            : choicePrevLast != null ?
-              <p className={cn(patientMutedTextClass, "leading-snug")}>Обновить последнюю или добавить строку?</p>
-            : null}
-          </DialogHeader>
-          <div className="flex flex-col gap-2 px-4 pb-4 pt-3">
-            <button type="button" className={patientButtonSecondaryClass} onClick={() => void confirmChoice("new_instant")}>
-              Новая запись
-            </button>
-            <button type="button" className={patientButtonPrimaryClass} onClick={() => void confirmChoice("replace_last")}>
-              Изменить прошлую
-            </button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </>
   );
 }

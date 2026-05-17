@@ -1,60 +1,62 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
+import { WELLBEING_GENERAL_MIRROR_NOTE } from "@/modules/diaries/wellbeingGeneralMirrorNote";
 import { createPatientMoodService } from "./service";
 import type { PatientWellbeingMoodDeps } from "./wellbeingMoodService";
 import { GENERAL_WELLBEING_SYMPTOM_KEY, GENERAL_WELLBEING_TITLE } from "./wellbeingConstants";
 
-const trackingId = "t1";
+const trackingIdGeneral = "t1";
+const trackingIdWarmup = "tw";
+
+type RangeRow = {
+  id: string;
+  value0_10: number;
+  recordedAt: string;
+  entryType?: "instant" | "daily";
+  notes?: string | null;
+};
 
 function makeDeps(overrides?: {
-  entriesGlob?: Array<{
-    id: string;
-    value0_10: number;
-    recordedAt: string;
-  }>;
-  entriesInRange?: Array<{
-    id: string;
-    value0_10: number;
-    recordedAt: string;
-    entryType?: "instant" | "daily";
-  }>;
+  entriesGlob?: RangeRow[];
+  entriesInRange?: RangeRow[];
+  warmupEntriesInRange?: RangeRow[];
 }) {
-  const listSymptomEntriesForUserInRange = vi.fn(async () => {
-    const rows = overrides?.entriesGlob ?? [];
-    return rows.map((r) => ({
-      id: r.id,
-      userId: "u1",
-      trackingId,
-      value0_10: r.value0_10,
-      entryType: "instant" as const,
-      recordedAt: r.recordedAt,
-      source: "webapp" as const,
-      notes: null,
-      createdAt: r.recordedAt,
-    }));
-  });
-  const listSymptomEntriesForTrackingInRange = vi.fn(async () => {
-    const rows = overrides?.entriesInRange ?? [];
-    return rows.map((r) => ({
-      id: r.id,
-      userId: "u1",
-      trackingId,
-      value0_10: r.value0_10,
-      entryType: r.entryType ?? ("instant" as const),
-      recordedAt: r.recordedAt,
-      source: "webapp" as const,
-      notes: null,
-      createdAt: r.recordedAt,
-    }));
-  });
-  const addEntry = vi.fn(async (p: { value0_10: number; recordedAt: string }) => ({
-    id: "new-entry",
+  const mapRow = (r: RangeRow, trackingId: string) => ({
+    id: r.id,
     userId: "u1",
     trackingId,
+    value0_10: r.value0_10,
+    entryType: r.entryType ?? ("instant" as const),
+    recordedAt: r.recordedAt,
+    source: "webapp" as const,
+    notes: r.notes ?? null,
+    createdAt: r.recordedAt,
+  });
+
+  const listSymptomEntriesForUserInRange = vi.fn(async () => {
+    const rows = overrides?.entriesGlob ?? [];
+    return rows.map((r) => mapRow(r, trackingIdGeneral));
+  });
+
+  const listSymptomEntriesForTrackingInRange = vi.fn(
+    async (p: { userId: string; trackingId: string; fromRecordedAt: string; toRecordedAtExclusive: string }) => {
+      if (p.trackingId === trackingIdWarmup) {
+        const rows = overrides?.warmupEntriesInRange ?? [];
+        return rows.map((r) => mapRow(r, trackingIdWarmup));
+      }
+      const rows = overrides?.entriesInRange ?? overrides?.entriesGlob ?? [];
+      return rows.map((r) => mapRow(r, trackingIdGeneral));
+    },
+  );
+
+  const addEntry = vi.fn(async (p: { value0_10: number; recordedAt: string; notes?: string | null }) => ({
+    id: "new-entry",
+    userId: "u1",
+    trackingId: trackingIdGeneral,
     value0_10: p.value0_10,
     entryType: "instant" as const,
     recordedAt: p.recordedAt,
     source: "webapp" as const,
-    notes: null,
+    notes: p.notes ?? null,
     createdAt: p.recordedAt,
   }));
   const updateSymptomEntry = vi.fn(async () => {});
@@ -63,7 +65,7 @@ function makeDeps(overrides?: {
     diaries: {
       listTrackings: vi.fn(async () => [
         {
-          id: trackingId,
+          id: trackingIdGeneral,
           userId: "u1",
           symptomKey: GENERAL_WELLBEING_SYMPTOM_KEY,
           symptomTitle: GENERAL_WELLBEING_TITLE,
@@ -73,7 +75,7 @@ function makeDeps(overrides?: {
         },
       ]),
       ensureGeneralWellbeingTracking: vi.fn(async () => ({
-        id: trackingId,
+        id: trackingIdGeneral,
         userId: "u1",
         symptomKey: GENERAL_WELLBEING_SYMPTOM_KEY,
         symptomTitle: GENERAL_WELLBEING_TITLE,
@@ -81,6 +83,15 @@ function makeDeps(overrides?: {
         createdAt: "",
         updatedAt: "",
         symptomTypeRefId: "ref-gw",
+      })),
+      ensureWarmupFeelingTracking: vi.fn(async () => ({
+        id: trackingIdWarmup,
+        userId: "u1",
+        symptomKey: "warmup_feeling",
+        symptomTitle: "После разминки",
+        isActive: true,
+        createdAt: "",
+        updatedAt: "",
       })),
       createTracking: vi.fn(),
       listSymptomEntriesForUserInRange,
@@ -91,6 +102,7 @@ function makeDeps(overrides?: {
     references: {
       listActiveItemsByCategoryCode: vi.fn(async () => [
         { id: "ref-gw", code: GENERAL_WELLBEING_SYMPTOM_KEY, title: GENERAL_WELLBEING_TITLE },
+        { id: "ref-wu", code: "warmup_feeling", title: "После разминки" },
       ]),
       findItemById: vi.fn(),
     },
@@ -124,7 +136,7 @@ describe("createPatientMoodService (wellbeing / symptom_entries)", () => {
     expect(deps.diaries.addEntry).toHaveBeenCalledWith(
       expect.objectContaining({
         userId: "u1",
-        trackingId,
+        trackingId: trackingIdGeneral,
         value0_10: 3,
         entryType: "instant",
         recordedAt: new Date(nowMs).toISOString(),
@@ -134,12 +146,13 @@ describe("createPatientMoodService (wellbeing / symptom_entries)", () => {
     expect(deps.diaries.updateSymptomEntry).not.toHaveBeenCalled();
   });
 
-  it("when last entry is under 10 minutes old, auto updates same row and keeps recorded_at", async () => {
+  it("when last entry ≤5 min and no recent warmup, auto updates same row", async () => {
     const nowMs = Date.parse("2026-05-08T12:00:00.000Z");
-    const lastAt = new Date(nowMs - 5 * 60 * 1000).toISOString();
+    const lastAt = new Date(nowMs - 3 * 60 * 1000).toISOString();
     const deps = makeDeps({
-      entriesGlob: [{ id: "e1", value0_10: 2, recordedAt: lastAt }],
-      entriesInRange: [{ id: "e1", value0_10: 2, recordedAt: lastAt }],
+      entriesGlob: [{ id: "e1", value0_10: 2, recordedAt: lastAt, notes: null }],
+      entriesInRange: [{ id: "e1", value0_10: 2, recordedAt: lastAt, notes: null }],
+      warmupEntriesInRange: [],
     });
     const svc = createPatientMoodService(deps);
     const r = await svc.submitScore("u1", "Europe/Moscow", 4, "auto", nowMs);
@@ -149,63 +162,55 @@ describe("createPatientMoodService (wellbeing / symptom_entries)", () => {
         entryId: "e1",
         value0_10: 4,
         recordedAt: lastAt,
+        notes: null,
       }),
     );
     expect(deps.diaries.addEntry).not.toHaveBeenCalled();
   });
 
-  it("in 10–60 min window, auto returns intent_required", async () => {
+  it("when last is warmup mirror ≤5 min and recent warmup, adds new row (does not overwrite mirror)", async () => {
     const nowMs = Date.parse("2026-05-08T12:00:00.000Z");
-    const lastAt = new Date(nowMs - 20 * 60 * 1000).toISOString();
+    const warmupAt = new Date(nowMs - 2 * 60 * 1000).toISOString();
     const deps = makeDeps({
-      entriesGlob: [{ id: "e1", value0_10: 3, recordedAt: lastAt }],
+      entriesGlob: [{ id: "mirror", value0_10: 3, recordedAt: warmupAt, notes: WELLBEING_GENERAL_MIRROR_NOTE }],
+      entriesInRange: [{ id: "mirror", value0_10: 3, recordedAt: warmupAt, notes: WELLBEING_GENERAL_MIRROR_NOTE }],
+      warmupEntriesInRange: [{ id: "w1", value0_10: 3, recordedAt: warmupAt }],
     });
     const svc = createPatientMoodService(deps);
     const r = await svc.submitScore("u1", "UTC", 5, "auto", nowMs);
-    expect(r).toEqual({
-      ok: false,
-      error: "intent_required",
-      lastEntry: { id: "e1", recordedAt: lastAt, score: 3 },
-    });
-  });
-
-  it("in 10–60 min window, replace_last updates last entry", async () => {
-    const nowMs = Date.parse("2026-05-08T12:00:00.000Z");
-    const lastAt = new Date(nowMs - 20 * 60 * 1000).toISOString();
-    const deps = makeDeps({
-      entriesGlob: [{ id: "e1", value0_10: 3, recordedAt: lastAt }],
-    });
-    const svc = createPatientMoodService(deps);
-    const r = await svc.submitScore("u1", "UTC", 5, "replace_last", nowMs);
-    expect(r.ok).toBe(true);
-    expect(deps.diaries.updateSymptomEntry).toHaveBeenCalledWith(
-      expect.objectContaining({
-        entryId: "e1",
-        value0_10: 5,
-        recordedAt: new Date(nowMs).toISOString(),
-      }),
-    );
-  });
-
-  it("in 10–60 min window, new_instant adds a row", async () => {
-    const nowMs = Date.parse("2026-05-08T12:00:00.000Z");
-    const lastAt = new Date(nowMs - 20 * 60 * 1000).toISOString();
-    const deps = makeDeps({
-      entriesGlob: [{ id: "e1", value0_10: 3, recordedAt: lastAt }],
-    });
-    const svc = createPatientMoodService(deps);
-    const r = await svc.submitScore("u1", "UTC", 5, "new_instant", nowMs);
     expect(r.ok).toBe(true);
     expect(deps.diaries.addEntry).toHaveBeenCalled();
     expect(deps.diaries.updateSymptomEntry).not.toHaveBeenCalled();
   });
 
-  it("at exactly 10 minutes, auto still replaces last row (inclusive bound)", async () => {
+  it("when last ≤5 min, warmup recent, and user general already after warmup → update last only", async () => {
     const nowMs = Date.parse("2026-05-08T12:00:00.000Z");
-    const lastAt = new Date(nowMs - 10 * 60 * 1000).toISOString();
+    const warmupAt = new Date(nowMs - 4 * 60 * 1000).toISOString();
+    const userAt = new Date(nowMs - 2 * 60 * 1000).toISOString();
     const deps = makeDeps({
-      entriesGlob: [{ id: "e1", value0_10: 2, recordedAt: lastAt }],
-      entriesInRange: [{ id: "e1", value0_10: 2, recordedAt: lastAt }],
+      entriesGlob: [{ id: "e2", value0_10: 4, recordedAt: userAt, notes: null }],
+      entriesInRange: [
+        { id: "mirror", value0_10: 3, recordedAt: warmupAt, notes: WELLBEING_GENERAL_MIRROR_NOTE },
+        { id: "e2", value0_10: 4, recordedAt: userAt, notes: null },
+      ],
+      warmupEntriesInRange: [{ id: "w1", value0_10: 3, recordedAt: warmupAt }],
+    });
+    const svc = createPatientMoodService(deps);
+    const r = await svc.submitScore("u1", "UTC", 2, "auto", nowMs);
+    expect(r.ok).toBe(true);
+    expect(deps.diaries.updateSymptomEntry).toHaveBeenCalledWith(
+      expect.objectContaining({ entryId: "e2", value0_10: 2, recordedAt: userAt, notes: null }),
+    );
+    expect(deps.diaries.addEntry).not.toHaveBeenCalled();
+  });
+
+  it("at exactly 5 minutes from last entry, still in silent window (inclusive)", async () => {
+    const nowMs = Date.parse("2026-05-08T12:00:00.000Z");
+    const lastAt = new Date(nowMs - 5 * 60 * 1000).toISOString();
+    const deps = makeDeps({
+      entriesGlob: [{ id: "e1", value0_10: 2, recordedAt: lastAt, notes: null }],
+      entriesInRange: [{ id: "e1", value0_10: 2, recordedAt: lastAt, notes: null }],
+      warmupEntriesInRange: [],
     });
     const svc = createPatientMoodService(deps);
     const r = await svc.submitScore("u1", "Europe/Moscow", 4, "auto", nowMs);
@@ -216,24 +221,9 @@ describe("createPatientMoodService (wellbeing / symptom_entries)", () => {
     expect(deps.diaries.addEntry).not.toHaveBeenCalled();
   });
 
-  it("at exactly 60 minutes, auto returns intent_required (inclusive modal bound)", async () => {
+  it("just over 5 minutes, auto adds new instant entry", async () => {
     const nowMs = Date.parse("2026-05-08T12:00:00.000Z");
-    const lastAt = new Date(nowMs - 60 * 60 * 1000).toISOString();
-    const deps = makeDeps({
-      entriesGlob: [{ id: "e1", value0_10: 3, recordedAt: lastAt }],
-    });
-    const svc = createPatientMoodService(deps);
-    const r = await svc.submitScore("u1", "UTC", 5, "auto", nowMs);
-    expect(r).toEqual({
-      ok: false,
-      error: "intent_required",
-      lastEntry: { id: "e1", recordedAt: lastAt, score: 3 },
-    });
-  });
-
-  it("just over 60 minutes, auto adds new instant entry", async () => {
-    const nowMs = Date.parse("2026-05-08T12:00:00.000Z");
-    const lastAt = new Date(nowMs - (60 * 60 * 1000 + 1)).toISOString();
+    const lastAt = new Date(nowMs - (5 * 60 * 1000 + 1)).toISOString();
     const deps = makeDeps({
       entriesGlob: [{ id: "e1", value0_10: 3, recordedAt: lastAt }],
     });
@@ -241,14 +231,16 @@ describe("createPatientMoodService (wellbeing / symptom_entries)", () => {
     const r = await svc.submitScore("u1", "UTC", 5, "auto", nowMs);
     expect(r.ok).toBe(true);
     expect(deps.diaries.addEntry).toHaveBeenCalled();
+    expect(deps.diaries.updateSymptomEntry).not.toHaveBeenCalled();
   });
 
   it("when latest value is outside 1–5, still updates that row in silent window", async () => {
     const nowMs = Date.parse("2026-05-08T12:00:00.000Z");
-    const lastAt = new Date(nowMs - 5 * 60 * 1000).toISOString();
+    const lastAt = new Date(nowMs - 3 * 60 * 1000).toISOString();
     const deps = makeDeps({
-      entriesGlob: [{ id: "e1", value0_10: 7, recordedAt: lastAt }],
-      entriesInRange: [{ id: "e1", value0_10: 7, recordedAt: lastAt }],
+      entriesGlob: [{ id: "e1", value0_10: 7, recordedAt: lastAt, notes: null }],
+      entriesInRange: [{ id: "e1", value0_10: 7, recordedAt: lastAt, notes: null }],
+      warmupEntriesInRange: [],
     });
     const svc = createPatientMoodService(deps);
     const r = await svc.submitScore("u1", "Europe/Moscow", 4, "auto", nowMs);
@@ -273,32 +265,9 @@ describe("createPatientMoodService (wellbeing / symptom_entries)", () => {
       id: "e1",
       recordedAt: "2026-05-08T08:00:00.000Z",
       score: null,
+      notes: null,
     });
     vi.useRealTimers();
-  });
-
-  it("after 60 minutes, replace_last is rejected", async () => {
-    const nowMs = Date.parse("2026-05-08T12:00:00.000Z");
-    const lastAt = new Date(nowMs - (60 * 60 * 1000 + 1)).toISOString();
-    const deps = makeDeps({
-      entriesGlob: [{ id: "e1", value0_10: 3, recordedAt: lastAt }],
-    });
-    const svc = createPatientMoodService(deps);
-    const r = await svc.submitScore("u1", "UTC", 5, "replace_last", nowMs);
-    expect(r).toMatchObject({ ok: false, error: "replace_too_old" });
-    expect(deps.diaries.addEntry).not.toHaveBeenCalled();
-  });
-
-  it("after 60 minutes, auto adds new instant entry", async () => {
-    const nowMs = Date.parse("2026-05-08T12:00:00.000Z");
-    const lastAt = new Date(nowMs - (60 * 60 * 1000 + 1)).toISOString();
-    const deps = makeDeps({
-      entriesGlob: [{ id: "e1", value0_10: 3, recordedAt: lastAt }],
-    });
-    const svc = createPatientMoodService(deps);
-    const r = await svc.submitScore("u1", "UTC", 5, "auto", nowMs);
-    expect(r.ok).toBe(true);
-    expect(deps.diaries.addEntry).toHaveBeenCalled();
   });
 
   it("getCheckinState returns today mood from latest entry on local day", async () => {

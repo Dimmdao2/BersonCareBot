@@ -10,8 +10,10 @@ export type PatientMoodToday = {
 export type PatientMoodLastEntry = {
   id: string;
   recordedAt: string;
-  /** `null` если в БД `value_0_10` вне шкалы 1–5 (редкий сбой данных); правила 10/60 мин всё равно по `recordedAt` этой строки. */
+  /** `null` если в БД `value_0_10` вне шкалы 1–5 (редкий сбой данных); окно «тихой» ветки по `recordedAt` этой строки. */
   score: PatientMoodScore | null;
+  /** `symptom_entries.notes` (например маркер дубля после разминки). */
+  notes?: string | null;
 };
 
 export type PatientMoodCheckinState = {
@@ -23,8 +25,7 @@ export type PatientMoodIntent = "auto" | "replace_last" | "new_instant";
 
 export type PatientMoodSubmitResult =
   | ({ ok: true } & PatientMoodCheckinState)
-  | { ok: false; error: "invalid_score" | "invalid_intent" | "replace_too_old" }
-  | { ok: false; error: "intent_required"; lastEntry: PatientMoodLastEntry };
+  | { ok: false; error: "invalid_score" };
 
 /** One local calendar day in app TZ (for home sparkline / weekly strip). */
 export type PatientMoodWeekDay = {

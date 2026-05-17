@@ -58,7 +58,7 @@ export function PatientHomePlanCard({
         id="patient-home-plan-card"
         className={cn(patientHomePlanCardClass, patientHomeSecondaryCardTallHeightClass)}
       >
-        <div className="flex min-h-0 gap-3">
+        <div className="flex min-h-0 flex-1 gap-3">
           <LeadingPlanIcon blockIconImageUrl={blockIconImageUrl} />
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
             <h3 id="patient-home-plan-heading" className={cn(patientHomeBlockHeadingClass, "shrink-0")}>

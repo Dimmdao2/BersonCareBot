@@ -21,6 +21,8 @@ todos:
 isProject: false
 ---
 
+> **Актуально (2026-05-17):** повторный чек-ин на главной — окно **5 мин**, без **409**; после успешного PATCH разминки в `general_wellbeing` может добавляться зеркальная instant с **`WELLBEING_GENERAL_MIRROR_NOTE`** (`apps/webapp/src/modules/diaries/wellbeingGeneralMirrorNote.ts`). Канон: `patient-mood.md`, `patient-practice.md`, запись **2026-05-17** в `docs/APP_RESTRUCTURE_INITIATIVE/LOG.md`.
+
 # План: самочувствие после разминки + UX экрана материала
 
 ## Связь с унификацией mood → symptom

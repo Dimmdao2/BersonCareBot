@@ -327,6 +327,16 @@ const items: ReferenceItem[] = [
     deletedAt: null,
     metaJson: {},
   },
+  {
+    id: "ri-lt-static-hold",
+    categoryId: "rc-load_type",
+    code: "static_hold",
+    title: "Статическое укрепление / удержание",
+    sortOrder: 6,
+    isActive: true,
+    deletedAt: null,
+    metaJson: {},
+  },
 ];
 
 function throwDuplicateCode(conflictingCodes: string[]): never {

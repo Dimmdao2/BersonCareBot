@@ -3,7 +3,8 @@ import type { RecommendationListFilterScope } from "@/shared/lib/doctorCatalogLi
 
 import { mergeCatalogBodyRegionIds } from "@/shared/lib/mergeCatalogBodyRegionIds";
 
-export type ExerciseLoadType = "strength" | "stretch" | "balance" | "cardio" | "other";
+/** Код из справочника `load_type` (`reference_items`); не ограничивать union — админка добавляет значения. */
+export type ExerciseLoadType = string;
 
 export type ExerciseMediaType = "image" | "video" | "gif";
 

@@ -26,6 +26,8 @@ const OAUTH_STATE_TTL_SECONDS = 600; // 10 минут
 
 const bodySchema = z.object({
   provider: z.enum(["yandex", "google", "apple"]),
+  /** IANA с клиента (`Intl.DateTimeFormat().resolvedOptions().timeZone`), до 120 символов. */
+  browserCalendarIana: z.string().max(120).optional(),
 });
 
 const GOOGLE_LOGIN_SCOPES = ["openid", "email", "profile"].join(" ");
@@ -62,7 +64,8 @@ export async function POST(request: Request) {
     );
   }
 
-  const { provider } = parsed.data;
+  const { provider, browserCalendarIana } = parsed.data;
+  const tzOpt = { browserCalendarIana: browserCalendarIana?.trim() || null };
 
   if (provider === "yandex") {
     const clientId = (await getYandexOauthClientId()).trim();
@@ -74,7 +77,7 @@ export async function POST(request: Request) {
         { status: 501 },
       );
     }
-    const state = createSignedOAuthState("yandex", OAUTH_STATE_TTL_SECONDS);
+    const state = createSignedOAuthState("yandex", OAUTH_STATE_TTL_SECONDS, tzOpt);
     const authUrl = new URL("https://oauth.yandex.ru/authorize");
     authUrl.searchParams.set("response_type", "code");
     authUrl.searchParams.set("client_id", clientId);
@@ -94,7 +97,7 @@ export async function POST(request: Request) {
         { status: 501 },
       );
     }
-    const state = createSignedOAuthState("google_login", OAUTH_STATE_TTL_SECONDS);
+    const state = createSignedOAuthState("google_login", OAUTH_STATE_TTL_SECONDS, tzOpt);
     const authUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
     authUrl.searchParams.set("client_id", clientId);
     authUrl.searchParams.set("redirect_uri", redirectUri);
@@ -117,7 +120,7 @@ export async function POST(request: Request) {
       { status: 501 },
     );
   }
-  const { state, nonce } = createAppleSignedOAuthState(OAUTH_STATE_TTL_SECONDS);
+  const { state, nonce } = createAppleSignedOAuthState(OAUTH_STATE_TTL_SECONDS, tzOpt);
   const authUrl = new URL("https://appleid.apple.com/auth/authorize");
   authUrl.searchParams.set("client_id", appleClientId);
   authUrl.searchParams.set("redirect_uri", appleRedirect);

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { verifySignedOAuthState } from "@/modules/auth/oauthSignedState";
+import { parseVerifiedSignedOAuthState } from "@/modules/auth/oauthSignedState";
 import {
   getGoogleClientId,
   getGoogleClientSecret,
@@ -21,14 +21,15 @@ export async function GET(request: Request) {
   const appBase = await getAppBaseUrl();
   const url = new URL(request.url);
   const stateFromQuery = url.searchParams.get("state") ?? "";
-
-  if (!stateFromQuery || !verifySignedOAuthState(stateFromQuery, "google_login")) {
+  const verifiedState = parseVerifiedSignedOAuthState(stateFromQuery, "google_login");
+  if (!verifiedState) {
     return NextResponse.json(
       { error: "oauth_csrf", message: "Недействительный или просроченный state" },
       { status: 403 },
     );
   }
 
+  const deps = buildAppDeps();
   const clientId = (await getGoogleClientId()).trim();
   const clientSecret = (await getGoogleClientSecret()).trim();
   const redirectUri = (await getGoogleOauthLoginRedirectUri()).trim();
@@ -56,7 +57,7 @@ export async function GET(request: Request) {
     return NextResponse.redirect(new URL(oauthWebLoginErrorRedirect("userinfo_failed"), appBase));
   }
 
-  const resolved = await resolveUserIdForWebOAuthLogin(buildAppDeps().oauthBindings, {
+  const resolved = await resolveUserIdForWebOAuthLogin(deps.oauthBindings, {
     provider: "google",
     providerUserId: profile.sub,
     email: profile.email,
@@ -75,6 +76,11 @@ export async function GET(request: Request) {
     }
     return NextResponse.redirect(new URL(oauthWebLoginErrorRedirect("db_error"), appBase));
   }
+
+  await deps.patientCalendarTimezone.trySetInitialIfEmpty(
+    resolved.userId,
+    verifiedState.browserCalendarIana ?? null,
+  );
 
   const done = await completeOAuthWebLoginRedirectUrls({
     userId: resolved.userId,

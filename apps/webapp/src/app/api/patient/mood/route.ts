@@ -37,15 +37,6 @@ export async function POST(req: Request) {
   );
 
   if (!result.ok) {
-    if (result.error === "intent_required") {
-      return NextResponse.json(
-        { ok: false, error: result.error, lastEntry: result.lastEntry },
-        { status: 409 },
-      );
-    }
-    if (result.error === "replace_too_old") {
-      return NextResponse.json({ ok: false, error: result.error }, { status: 400 });
-    }
     return NextResponse.json({ ok: false, error: result.error }, { status: 400 });
   }
 

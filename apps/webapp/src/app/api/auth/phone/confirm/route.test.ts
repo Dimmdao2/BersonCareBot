@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 
 const setSessionFromUserMock = vi.fn().mockResolvedValue(undefined);
 
+const trySetInitialIfEmptyMock = vi.fn().mockResolvedValue(undefined);
+
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
     auth: {
@@ -22,6 +24,9 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
         }
         return { ok: false as const, code: "invalid_code" };
       },
+    },
+    patientCalendarTimezone: {
+      trySetInitialIfEmpty: trySetInitialIfEmptyMock,
     },
   }),
 }));
@@ -44,6 +49,7 @@ describe("POST /api/auth/phone/confirm", () => {
 
   it("returns 200 and sets session when code is correct", async () => {
     setSessionFromUserMock.mockClear();
+    trySetInitialIfEmptyMock.mockClear();
     const res = await POST(
       new Request("http://localhost/api/auth/phone/confirm", {
         method: "POST",
@@ -57,5 +63,23 @@ describe("POST /api/auth/phone/confirm", () => {
     expect(data.redirectTo).toBe("/app/patient");
     expect(data.role).toBe("client");
     expect(setSessionFromUserMock).toHaveBeenCalledTimes(1);
+    expect(trySetInitialIfEmptyMock).not.toHaveBeenCalled();
+  });
+
+  it("passes browserCalendarIana to trySetInitialIfEmpty when provided", async () => {
+    trySetInitialIfEmptyMock.mockClear();
+    const res = await POST(
+      new Request("http://localhost/api/auth/phone/confirm", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          challengeId: "test-challenge",
+          code: "123456",
+          browserCalendarIana: "Europe/Berlin",
+        }),
+      })
+    );
+    expect(res.status).toBe(200);
+    expect(trySetInitialIfEmptyMock).toHaveBeenCalledWith("phone:1", "Europe/Berlin");
   });
 });

@@ -13,9 +13,8 @@ import { getSupportContactUrl } from "@/modules/system-settings/supportContactUr
 import { parseNotificationsTopics } from "@/modules/patient-notifications/notificationsTopics";
 import { buildProfileNotificationTopicModels } from "@/modules/patient-notifications/profileTopicChannelsModel";
 import { LogoutSection } from "./LogoutSection";
+import { PatientCalendarTimezoneSection } from "./PatientCalendarTimezoneSection";
 import { PatientProfileHero } from "./PatientProfileHero";
-import { PatientProfileShareCabinetTile } from "./PatientProfileShareCabinetTile";
-import { ProfileExtraSection } from "./ProfileExtraSection";
 import { ProfileNotificationsSection } from "./ProfileNotificationsSection";
 
 /** Профиль в onboarding-allowlist: `requirePatientAccess`, не `WithPhone` — см. `patientRouteApiPolicy.ts` (`patientPageMinAccessTier` → onboarding). */
@@ -72,9 +71,9 @@ export default async function PatientProfilePage() {
 
         <ProfileNotificationsSection initialTopics={notificationModels} />
 
-        <ProfileExtraSection />
-
-        <PatientProfileShareCabinetTile />
+        <section className={patientSectionSurfaceClass}>
+          <PatientCalendarTimezoneSection />
+        </section>
 
         {platformEntry !== "bot" ? <LogoutSection /> : null}
       </div>

@@ -28,6 +28,7 @@ import {
   AUTH_LOGIN_OUTLINE_BUTTON_CLASS,
   AUTH_LOGIN_PRIMARY_BUTTON_CLASS,
 } from "@/shared/ui/auth/loginChrome";
+import { getBrowserCalendarIanaForAuth } from "@/shared/lib/browserCalendarIana";
 
 const WEB_CHAT_ID_KEY = "bersoncare_web_chat_id";
 
@@ -238,7 +239,10 @@ export function AuthFlowV2({
       const res = await fetch("/api/auth/oauth/start", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ provider }),
+        body: JSON.stringify({
+          provider,
+          browserCalendarIana: getBrowserCalendarIanaForAuth(),
+        }),
       });
       const data = (await res.json().catch(() => ({}))) as {
         ok?: boolean;
@@ -914,7 +918,13 @@ export function AuthFlowV2({
             const res = await fetch("/api/auth/phone/confirm", {
               method: "POST",
               headers: { "content-type": "application/json" },
-              body: JSON.stringify({ challengeId, code, channel: "web", chatId }),
+              body: JSON.stringify({
+                challengeId,
+                code,
+                channel: "web",
+                chatId,
+                browserCalendarIana: getBrowserCalendarIanaForAuth(),
+              }),
             });
             const data = (await res.json().catch(() => ({}))) as {
               ok?: boolean;

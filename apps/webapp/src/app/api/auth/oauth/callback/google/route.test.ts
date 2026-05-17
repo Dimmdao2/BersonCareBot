@@ -31,6 +31,7 @@ vi.mock("@/modules/auth/oauthWebSession", () => ({
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
     oauthBindings: {},
+    patientCalendarTimezone: { trySetInitialIfEmpty: vi.fn().mockResolvedValue(undefined) },
   }),
 }));
 

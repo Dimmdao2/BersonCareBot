@@ -109,6 +109,75 @@ function PatientWellbeingWeekLegendContent() {
   );
 }
 
+const TOOLTIP_SERIES_LABELS: Record<string, string> = {
+  aggregate: "Среднее за день",
+  instant: "В течение дня",
+  warmup: "После разминки",
+};
+
+type WellbeingTooltipPayloadRow = {
+  dataKey?: string | number;
+  name?: string | number;
+  value?: unknown;
+  payload?: { x?: number; y?: number };
+};
+
+function PatientWellbeingWeekChartTooltip({
+  active,
+  payload,
+  iana,
+}: {
+  active?: boolean;
+  payload?: WellbeingTooltipPayloadRow[];
+  iana: string;
+}) {
+  if (!active || !payload?.length) return null;
+  const rows = payload.filter(
+    (p) =>
+      String(p.dataKey) === "y" &&
+      (p.name === "aggregate" || p.name === "instant" || p.name === "warmup") &&
+      p.value != null &&
+      Number.isFinite(Number(p.value)),
+  );
+  if (rows.length === 0) return null;
+  const xRaw = rows[0]?.payload?.x;
+  const xMs = typeof xRaw === "number" ? xRaw : Number(xRaw);
+  if (!Number.isFinite(xMs)) return null;
+
+  const title = DateTime.fromMillis(xMs, { zone: iana }).setLocale("ru").toFormat("ccc d MMM, HH:mm");
+
+  return (
+    <div
+      className="rounded border px-1.5 py-1 text-[10px] leading-[13px]"
+      style={{
+        background: "var(--patient-card-bg)",
+        borderColor: "var(--patient-border)",
+        boxShadow: "0 1px 4px rgba(15, 23, 42, 0.06)",
+      }}
+    >
+      <div
+        className="mb-0.5 font-semibold"
+        style={{ fontSize: "10px", lineHeight: "13px", color: "var(--patient-text-primary)" }}
+      >
+        {title}
+      </div>
+      {rows.map((p, idx) => {
+        const v = Number(p.value);
+        const name = String(p.name ?? "");
+        return (
+          <div
+            key={`${name}-${idx}`}
+            className="py-px"
+            style={{ fontSize: "10px", lineHeight: "13px", color: "var(--patient-text-secondary)" }}
+          >
+            {TOOLTIP_SERIES_LABELS[name] ?? name}: {v.toFixed(1)}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export type PatientWellbeingWeekComposedChartProps = {
   model: WellbeingWeekChartModel;
   /** IANA для подписей оси X */
@@ -292,9 +361,6 @@ export default function PatientWellbeingWeekComposedChart({ model, iana }: Patie
   const fmtWeekdayDay = (ms: number) =>
     DateTime.fromMillis(ms, { zone: iana }).setLocale("ru").toFormat("ccc d");
 
-  const fmtTooltipLabel = (ms: number) =>
-    DateTime.fromMillis(ms, { zone: iana }).setLocale("ru").toFormat("ccc d MMM, HH:mm");
-
   return (
     <div className="h-[220px] w-full min-w-0 overflow-x-visible pb-2 [&_.recharts-wrapper]:overflow-visible">
       <ResponsiveContainer width="100%" height="100%">
@@ -351,48 +417,13 @@ export default function PatientWellbeingWeekComposedChart({ model, iana }: Patie
             axisLine={false}
           />
           <Tooltip
-            formatter={(value: unknown, name: unknown) => {
-              const v = typeof value === "number" ? value : Number(value);
-              const n = typeof name === "string" ? name : String(name ?? "");
-              const labels: Record<string, string> = {
-                aggregate: "Среднее за день",
-                instant: "В течение дня",
-                warmup: "После разминки",
-              };
-              if (value === undefined || value === null || !Number.isFinite(v)) {
-                return ["—", labels[n] ?? n];
-              }
-              return [`${v.toFixed(1)}`, labels[n] ?? n];
-            }}
-            labelFormatter={(_, payload) => {
-              const p = payload?.[0]?.payload as { x?: number } | undefined;
-              const x = p?.x;
-              if (x == null) return "";
-              return fmtTooltipLabel(x);
-            }}
-            contentStyle={{
-              background: "var(--patient-card-bg)",
-              border: "1px solid var(--patient-border)",
-              borderRadius: "4px",
-              padding: "4px 6px",
-              fontSize: "10px",
-              lineHeight: "13px",
-              boxShadow: "0 1px 4px rgba(15, 23, 42, 0.06)",
-            }}
-            labelStyle={{
-              fontSize: "10px",
-              lineHeight: "13px",
-              marginBottom: "2px",
-              fontWeight: 600,
-              color: "var(--patient-text-primary)",
-            }}
-            itemStyle={{
-              fontSize: "10px",
-              lineHeight: "13px",
-              paddingTop: "1px",
-              paddingBottom: "1px",
-              color: "var(--patient-text-secondary)",
-            }}
+            content={(props) => (
+              <PatientWellbeingWeekChartTooltip
+                active={props.active}
+                payload={props.payload as unknown as WellbeingTooltipPayloadRow[] | undefined}
+                iana={iana}
+              />
+            )}
           />
           <Legend
             verticalAlign="bottom"

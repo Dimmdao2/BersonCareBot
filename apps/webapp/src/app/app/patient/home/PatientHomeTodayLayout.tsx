@@ -5,7 +5,6 @@ import {
   patientHomeTodayGridCellPadBorderedSymClass,
   patientHomeTodayGridCellPadMoodTopClass,
   patientHomeTodayGridCellPadProgressBottomClass,
-  patientHomeTodayGridCellPadSituationsClass,
   patientHomeTodayGridCellPullNextReminderAfterProgressClass,
 } from "./patientHomeCardStyles";
 import { PatientHomeGreeting, type PatientGreetingPrefix } from "./PatientHomeGreeting";
@@ -185,7 +184,6 @@ export function PatientHomeTodayLayout({ personalizedName, timeOfDayPrefix, bloc
               className={cn(
                 "min-w-0",
                 block.code === "next_reminder" && patientHomeTodayGridCellPullNextReminderAfterProgressClass,
-                block.code === "situations" && patientHomeTodayGridCellPadSituationsClass,
                 (block.code === "sos_booking_split" || block.code === "booking" || block.code === "sos") &&
                   patientHomeTodayGridCellPadBorderedSymClass,
                 block.code === "mood_checkin" && patientHomeTodayGridCellPadMoodTopClass,

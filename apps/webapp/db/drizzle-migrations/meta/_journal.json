@@ -484,6 +484,13 @@
       "when": 1781100000000,
       "tag": "0068_operator_health_failure_archive",
       "breakpoints": true
+    },
+    {
+      "idx": 69,
+      "version": "7",
+      "when": 1781200000000,
+      "tag": "0069_lfk_exercises_load_type_catalog",
+      "breakpoints": true
     }
   ]
 }

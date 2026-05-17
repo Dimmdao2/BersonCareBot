@@ -74,19 +74,4 @@ describe("POST /api/patient/mood", () => {
     expect(mockGetAppDisplayTimeZone).toHaveBeenCalled();
     expect(mockSubmitScore).toHaveBeenCalledWith(SESSION.user.userId, "Europe/Moscow", 4, "auto");
   });
-
-  it("returns 409 when intent_required", async () => {
-    mockSubmitScore.mockResolvedValue({
-      ok: false,
-      error: "intent_required",
-      lastEntry: { id: "e0", recordedAt: "2026-04-28T10:00:00.000Z", score: 3 },
-    });
-    const res = await POST(makeRequest({ score: 4, intent: "auto" }));
-    expect(res.status).toBe(409);
-    expect(await res.json()).toEqual({
-      ok: false,
-      error: "intent_required",
-      lastEntry: { id: "e0", recordedAt: "2026-04-28T10:00:00.000Z", score: 3 },
-    });
-  });
 });

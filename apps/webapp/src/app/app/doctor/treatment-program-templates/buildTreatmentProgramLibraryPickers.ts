@@ -15,12 +15,13 @@ function exerciseThumbUrl(m: ExerciseMedia | undefined): string | null {
   return m.previewSmUrl ?? m.previewMdUrl ?? m.mediaUrl ?? null;
 }
 
-const LOAD_SUBTITLE: Record<NonNullable<Exercise["loadType"]>, string> = {
+const LOAD_SUBTITLE: Record<string, string> = {
   strength: "Сила / укрепление",
   stretch: "Растяжка",
   balance: "Равновесие",
   cardio: "Кардио",
   other: "Другое",
+  static_hold: "Статическое укрепление / удержание",
 };
 
 function lfkTemplateThumb(t: Template): string | null {
@@ -57,7 +58,7 @@ export function buildTreatmentProgramLibraryPickers(params: {
     exercises: exercises.map((e) => ({
       id: e.id,
       title: e.title,
-      subtitle: e.loadType ? LOAD_SUBTITLE[e.loadType] : null,
+      subtitle: e.loadType ? (LOAD_SUBTITLE[e.loadType] ?? null) : null,
       thumbUrl: exerciseThumbUrl(e.media[0]),
     })),
     lfkComplexes: lfkTemplates.map((t) => {

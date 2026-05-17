@@ -22,14 +22,14 @@ describe("exercise load type seed parity", () => {
     }
   });
 
-  it("SQL migration lists the same codes as EXERCISE_LOAD_TYPE_SEED_V1", async () => {
-    const sqlPath = join(
-      process.cwd(),
-      "db/drizzle-migrations/0041_exercise_load_type_reference_align.sql",
-    );
-    const sql = await readFile(sqlPath, "utf8");
+  it("SQL migrations list the same codes as EXERCISE_LOAD_TYPE_SEED_V1", async () => {
+    const parts = await Promise.all([
+      readFile(join(process.cwd(), "db/drizzle-migrations/0041_exercise_load_type_reference_align.sql"), "utf8"),
+      readFile(join(process.cwd(), "db/drizzle-migrations/0069_lfk_exercises_load_type_catalog.sql"), "utf8"),
+    ]);
+    const combined = parts.join("\n");
     for (const s of EXERCISE_LOAD_TYPE_SEED_V1) {
-      expect(sql).toContain(`'${s.code}'`);
+      expect(combined).toContain(`'${s.code}'`);
     }
   });
 });

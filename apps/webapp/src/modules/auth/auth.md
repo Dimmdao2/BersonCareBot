@@ -38,7 +38,7 @@
 
 | Метод | Путь | Назначение |
 |--------|------|------------|
-| POST | `/api/auth/oauth/start` | Старт OAuth; body `{ "provider": "yandex" \| "google" \| "apple" }`; ответ `{ ok, authUrl }` или ошибка. **Rate limit:** до 60 стартов в час на ключ клиента (таблица `auth_rate_limit_events`, scope `auth.oauth_start`). Ключ — **только `X-Real-IP`** (nginx должен передать `$remote_addr`); **`X-Forwarded-For` не используется** — иначе при `$proxy_add_x_forwarded_for` клиент мог бы подставить левый первый hop и обойти лимит. **Production (`NODE_ENV=production`):** без непустого `X-Real-IP` маршрут отвечает **503** с `error: proxy_configuration` (нарушение инфраструктурного инварианта), лог `oauth_start_x_real_ip_required`. **Development / test:** без `X-Real-IP` — лог `oauth_start_missing_x_real_ip` (debug) и общий fallback-ключ `oauth_start:missing_x_real_ip` для локальной работы. |
+| POST | `/api/auth/oauth/start` | Старт OAuth; body `{ "provider": "yandex" \| "google" \| "apple", "browserCalendarIana"?: string }` (`browserCalendarIana` — опционально IANA из `Intl`, до 120 символов; попадает в подписанный `state` как `tz` и при успешном callback выставляет `platform_users.calendar_timezone`, если ещё `null`). Ответ `{ ok, authUrl }` или ошибка. **Rate limit:** до 60 стартов в час на ключ клиента (таблица `auth_rate_limit_events`, scope `auth.oauth_start`). Ключ — **только `X-Real-IP`** (nginx должен передать `$remote_addr`); **`X-Forwarded-For` не используется** — иначе при `$proxy_add_x_forwarded_for` клиент мог бы подставить левый первый hop и обойти лимит. **Production (`NODE_ENV=production`):** без непустого `X-Real-IP` маршрут отвечает **503** с `error: proxy_configuration` (нарушение инфраструктурного инварианта), лог `oauth_start_x_real_ip_required`. **Development / test:** без `X-Real-IP` — лог `oauth_start_missing_x_real_ip` (debug) и общий fallback-ключ `oauth_start:missing_x_real_ip` для локальной работы. |
 | GET | `/api/auth/oauth/callback/yandex` | Яндекс OAuth; подписанный `state` с purpose `yandex`. Канонический redirect URI. |
 | GET | `/api/auth/oauth/callback` | Legacy: тот же обработчик, что `/callback/yandex` (совместимость со старыми redirect URI в кабинете Яндекса). |
 | GET | `/api/auth/oauth/callback/google` | Веб-логин Google; `state` — purpose `google_login`. |
@@ -47,7 +47,7 @@
 
 ### Подписанный `state` (CSRF)
 
-Модуль `oauthSignedState.ts`: HMAC-SHA256 от `SESSION_COOKIE_SECRET`, payload `{ p, exp, n, nonce? }`, отдельный **purpose** на поток (`yandex` | `gcal` | `google_login` | `apple`). Cookie для state не используется. Срок ~10 мин; **повторное использование** того же `state` до истечения `exp` теоретически возможно (как и у типичного signed-state); при ротации `SESSION_COOKIE_SECRET` незавершённые переходы сбрасываются. **Осознанный компромисс:** server-side store «used state» не ведётся; повтор callback с тем же `code` обычно падает на обмене у провайдера (authorization `code` одноразовый).
+Модуль `oauthSignedState.ts`: HMAC-SHA256 от `SESSION_COOKIE_SECRET`, payload `{ p, exp, n, nonce?, tz? }` (`tz` — опциональная IANA с клиента для веб-входа), отдельный **purpose** на поток (`yandex` | `gcal` | `google_login` | `apple`). Cookie для state не используется. Срок ~10 мин; **повторное использование** того же `state` до истечения `exp` теоретически возможно (как и у типичного signed-state); при ротации `SESSION_COOKIE_SECRET` незавершённые переходы сбрасываются. **Осознанный компромисс:** server-side store «used state» не ведётся; повтор callback с тем же `code` обычно падает на обмене у провайдера (authorization `code` одноразовый).
 
 **Почему rate limit не смотрит на `X-Forwarded-For`:** см. выше; кратко — доверие только к заголовку, который выставляет **доверенный** reverse proxy (`X-Real-IP`), а не к цепочке, в начало которой клиент может дописать свой IP.
 
@@ -121,6 +121,7 @@
 
 - **startPhoneAuth** / **confirmPhoneAuth** (`phoneAuth.ts`) — челленджи, лимиты (`phoneOtpLimits`), верификация кода; доставка задаётся `PhoneOtpDelivery` (в т.ч. telegram / max / email).
 - HTTP `POST /api/auth/phone/start` для **`channel: web`** не принимает доставку **SMS** (`sms_disabled_web`).
+- `POST /api/auth/phone/confirm`: опционально **`browserCalendarIana`** (IANA из `Intl`, до 120 символов) — после успешного входа выставляет `platform_users.calendar_timezone`, если поле ещё `null`.
 - Порты: **SmsPort**, **PhoneChallengeStore**, **UserByPhonePort**.
 
 ## Роль пользователя

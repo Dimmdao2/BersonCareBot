@@ -28,6 +28,14 @@ const robotoHeading = Roboto({
 export const metadata: Metadata = {
   title: "BersonCare Webapp",
   description: "Patient and doctor web application for the BersonCare platform.",
+  icons: {
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180" }],
+  },
+  appleWebApp: {
+    capable: true,
+    title: "BersonCare",
+    statusBarStyle: "default",
+  },
 };
 
 /** Safe-area insets для мобильных (вырез, индикатор дома) — нужен viewport-fit=cover. */
@@ -35,6 +43,8 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
+  /** Согласовано с `--patient-color-primary` в `#app-shell-patient` (splash / status bar при установке). */
+  themeColor: "#284da0",
 };
 
 /** Рендерит общую обёртку страницы: тег html, тело и дочернее содержимое (конкретная страница). */

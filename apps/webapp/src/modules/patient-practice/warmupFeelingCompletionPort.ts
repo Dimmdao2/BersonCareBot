@@ -7,6 +7,9 @@ export type ApplyDailyWarmupFeelingParams = {
   completedAtIso: string;
   symptomTypeRefId: string;
   symptomTitle: string;
+  /** Запись «Общее самочувствие» (instant) с тем же временем и значением — для графика; опционально, если нет ref в справочниках. */
+  generalWellbeingSymptomTypeRefId?: string;
+  generalWellbeingSymptomTitle?: string;
 };
 
 export type WarmupFeelingCompletionPort = {

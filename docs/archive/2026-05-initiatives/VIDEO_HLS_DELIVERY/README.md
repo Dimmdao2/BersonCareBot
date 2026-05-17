@@ -20,6 +20,7 @@
 | [HLS_PROXY_DELIVERY_LOG.md](./HLS_PROXY_DELIVERY_LOG.md) | Same-origin прокси HLS (webapp), телеметрия `media_hls_proxy_error_events`, health, retention |
 | [07-post-documentation-implementation-roadmap.md](./07-post-documentation-implementation-roadmap.md) | Дорожная карта после утверждения доков |
 | [HLS_RECONCILE_METRICS_LOG.md](./HLS_RECONCILE_METRICS_LOG.md) | Reconcile batch, метрики транскода в `GET /api/admin/system-health`, агрегат `videoTranscode.status`, команды vitest |
+| UI качества HLS в пациентском плеере (`PatientMediaPlaybackVideo`, `hls.qualities`, `hls.js`) | Закрытый план репозитория: [`.cursor/plans/archive/hls_quality_selector_ui_c281dac4.plan.md`](../../../../.cursor/plans/archive/hls_quality_selector_ui_c281dac4.plan.md); архитектура — [`docs/ARCHITECTURE/PATIENT_MEDIA_PLAYBACK_VIDEO.md`](../../../ARCHITECTURE/PATIENT_MEDIA_PLAYBACK_VIDEO.md) |
 
 ## Фазы реализации
 

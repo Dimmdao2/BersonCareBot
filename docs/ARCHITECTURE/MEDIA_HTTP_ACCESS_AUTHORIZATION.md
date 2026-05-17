@@ -41,7 +41,7 @@
 
 ## Связанные документы
 
-- `docs/ARCHITECTURE/PATIENT_MEDIA_PLAYBACK_VIDEO.md` — единый плеер и контракт playback JSON (включая использование в Markdown теле страниц).
+- `docs/ARCHITECTURE/PATIENT_MEDIA_PLAYBACK_VIDEO.md` — единый плеер и контракт playback JSON (включая Markdown-тело страниц; формат доставки vs выбор разрешения при `hls.js`).
 - `docs/ARCHITECTURE/PATIENT_TREATMENT_PROGRAM_STAGE_SURFACES.md` — какие пункты этапа видны пациенту в UI.
 - TTL presign и конфиг: `docs/ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md`, слой `video_presign_ttl_seconds` / `getVideoPresignTtlSeconds` (см. код webapp).
 

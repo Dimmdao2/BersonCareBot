@@ -53,6 +53,7 @@ export async function PATCH(req: Request, context: { params: Promise<{ id: strin
   if (!warmupRef) {
     return NextResponse.json({ ok: false, error: "warmup_feeling_reference_missing" }, { status: 500 });
   }
+  const generalRef = items.find((i) => i.code === "general_wellbeing");
 
   const result = await deps.warmupFeelingCompletion.applyDailyWarmupFeeling({
     userId,
@@ -61,6 +62,12 @@ export async function PATCH(req: Request, context: { params: Promise<{ id: strin
     completedAtIso: completion.completedAt,
     symptomTypeRefId: warmupRef.id,
     symptomTitle: warmupRef.title,
+    ...(generalRef ?
+      {
+        generalWellbeingSymptomTypeRefId: generalRef.id,
+        generalWellbeingSymptomTitle: generalRef.title?.trim() || "Общее самочувствие",
+      }
+    : {}),
   });
 
   revalidatePath(routePaths.patient);

@@ -71,6 +71,13 @@ function asNonEmptyString(value: unknown): string | null {
   return typeof value === 'string' && value.trim().length > 0 ? value : null;
 }
 
+/**
+ * MAX `POST /answers` rejects requests without `message` or `notification` (400:
+ * "`message` or `notification` required"). Telegram-style silent ack is not supported;
+ * use an invisible placeholder so the client does not show a visible toast.
+ */
+const MAX_CALLBACK_ANSWER_PLACEHOLDER_NOTIFICATION = '\u200b';
+
 type TelegramStyleKeyboardRow = Array<{
   text?: string;
   callback_data?: string;
@@ -233,9 +240,10 @@ export function createMaxDeliveryAdapter(): DeliveryAdapter {
         const callbackQueryId = asNonEmptyString(payload.callbackQueryId);
         if (!callbackQueryId) throw new Error('MAX_PAYLOAD_INVALID: callbackQueryId required');
         const hint = asNonEmptyString(payload.notification) ?? asNonEmptyString(payload.text);
+        const notification = hint ?? MAX_CALLBACK_ANSWER_PLACEHOLDER_NOTIFICATION;
         const result = await maxClient.answerMaxCallback(config, {
           callbackId: callbackQueryId,
-          ...(hint ? { extra: { notification: hint } } : {}),
+          extra: { notification },
         });
         if (!result) throw new Error('MAX_CALLBACK_ANSWER_FAILED');
       }

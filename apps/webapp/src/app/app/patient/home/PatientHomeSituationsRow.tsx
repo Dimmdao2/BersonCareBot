@@ -1,7 +1,6 @@
 import Link from "next/link";
 import type { ResolvedSituationChip } from "@/modules/patient-home/patientHomeResolvers";
 import {
-  patientHomeBlockHeadingClass,
   patientHomeCardClass,
   patientHomeSituationsCardGeometryClass,
   patientHomeSituationsCardMobileChromeClass,
@@ -37,16 +36,6 @@ export function PatientHomeSituationsRow({ chips }: Props) {
       aria-label="Выберите пользу для себя"
     >
       <div className="min-w-0">
-        <h3
-          id="patient-home-situations-heading"
-          aria-hidden="true"
-          className={cn(
-            patientHomeBlockHeadingClass,
-            "hidden shrink-0 md:block",
-          )}
-        >
-          Выберите пользу для себя:
-        </h3>
         <div className={patientHomeTodayCardScrollRowBleedClass}>
           {chips.map((c) => (
             <Link

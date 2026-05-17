@@ -105,7 +105,7 @@ export async function loadPatientDiaryWeekWellbeing(
     weekEndMs: weekEnd.toMillis(),
   });
   const hasAnyInstant = chart.instantSeries.length > 0;
-  const warmupImpactSummary = buildWarmupWeekImpactSummary(chart.instantSeries, chart.warmupScatter);
+  const warmupImpactSummary = buildWarmupWeekImpactSummary(chart.instantSeries, chart.warmupScatter, iana);
 
   return { iana, chart, hasAnyInstant, warmupImpactSummary };
 }

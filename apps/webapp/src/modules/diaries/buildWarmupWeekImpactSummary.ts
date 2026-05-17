@@ -1,7 +1,5 @@
+import { DateTime } from "luxon";
 import type { WarmupScatterPoint, WellbeingWeekPoint } from "@/modules/diaries/buildWellbeingWeekChartData";
-
-/** Максимум времени от ближайшей общей instant-отметки до разминки (мс), чтобы связать пару «до разминки / сразу после». */
-const PAIR_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 /** Порог для класса «улучшение / ухудшение» по среднему Δ на шкале 1–5. */
 const TREND_EPS = 0.08;
@@ -21,22 +19,35 @@ export type WarmupWeekImpactSummary = {
   warmupCount: number;
 };
 
-function findInstantBefore(sorted: WellbeingWeekPoint[], tw: number): WellbeingWeekPoint | null {
+function localDayKey(ms: number, iana: string): string | null {
+  return DateTime.fromMillis(ms, { zone: iana }).toISODate();
+}
+
+/** Последняя общая instant-оценка в тот же календарный день (IANA), строго до момента разминки. */
+function findInstantBeforeSameLocalDay(
+  sorted: WellbeingWeekPoint[],
+  warmupAtMs: number,
+  iana: string,
+): WellbeingWeekPoint | null {
+  const warmupDay = localDayKey(warmupAtMs, iana);
+  if (!warmupDay) return null;
   let best: WellbeingWeekPoint | null = null;
   for (const p of sorted) {
-    if (p.t >= tw) break;
-    if (tw - p.t <= PAIR_WINDOW_MS) best = p;
+    if (p.t >= warmupAtMs) break;
+    if (localDayKey(p.t, iana) !== warmupDay) continue;
+    best = p;
   }
   return best;
 }
 
 /**
- * Влияние разминок за неделю: для каждой отметки «после разминки» ({@link warmupScatter}) ищем ближайшую
- * общую instant-оценку строго до неё в окне {@link PAIR_WINDOW_MS}; Δ = оценка после разминки − общая до.
+ * Влияние разминок за неделю: для каждой отметки «после разминки» ({@link warmupScatter}) ищем последнюю
+ * общую instant-оценку в тот же календарный день ({@link iana}), строго до неё; Δ = после − до.
  */
 export function buildWarmupWeekImpactSummary(
   instantSeries: WellbeingWeekPoint[],
   warmupScatter: WarmupScatterPoint[],
+  iana: string,
 ): WarmupWeekImpactSummary {
   const warmupCount = warmupScatter.length;
   if (warmupCount === 0) {
@@ -50,7 +61,7 @@ export function buildWarmupWeekImpactSummary(
 
   const deltas: number[] = [];
   for (const w of warmupScatter) {
-    const before = findInstantBefore(instant, w.t);
+    const before = findInstantBeforeSameLocalDay(instant, w.t, iana);
     if (!before) continue;
     deltas.push(w.v - before.v);
   }

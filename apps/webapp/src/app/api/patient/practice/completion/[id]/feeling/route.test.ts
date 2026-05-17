@@ -36,6 +36,7 @@ const SESSION = {
 };
 
 const WARMUP_REF = { id: "11111111-1111-4111-8111-111111111111", code: "warmup_feeling", title: "Самочувствие после разминки" };
+const GENERAL_REF = { id: "22222222-2222-4222-8222-222222222222", code: "general_wellbeing", title: "Общее самочувствие" };
 
 describe("PATCH /api/patient/practice/completion/[id]/feeling", () => {
   beforeEach(() => {
@@ -46,7 +47,7 @@ describe("PATCH /api/patient/practice/completion/[id]/feeling", () => {
     mockRevalidatePath.mockReset();
 
     mockRequirePatientApiBusinessAccess.mockResolvedValue({ ok: true, session: SESSION });
-    mockListRefItems.mockResolvedValue([WARMUP_REF]);
+    mockListRefItems.mockResolvedValue([GENERAL_REF, WARMUP_REF]);
     mockApplyDailyWarmupFeeling.mockResolvedValue({ duplicate: false });
   });
 
@@ -134,6 +135,23 @@ describe("PATCH /api/patient/practice/completion/[id]/feeling", () => {
     expect(mockApplyDailyWarmupFeeling).not.toHaveBeenCalled();
   });
 
+  it("when general_wellbeing reference missing still saves warmup (no mirror params)", async () => {
+    mockGetCompletion.mockResolvedValue(completionWarmupNull);
+    mockListRefItems.mockResolvedValue([WARMUP_REF]);
+    const res = await PATCH(makeRequest({ feeling: 3 }), {
+      params: Promise.resolve({ id: completionWarmupNull.id }),
+    });
+    expect(res.status).toBe(200);
+    expect(mockApplyDailyWarmupFeeling).toHaveBeenCalledWith({
+      userId: SESSION.user.userId,
+      completionId: completionWarmupNull.id,
+      feeling: 3,
+      completedAtIso: completionWarmupNull.completedAt,
+      symptomTypeRefId: WARMUP_REF.id,
+      symptomTitle: WARMUP_REF.title,
+    });
+  });
+
   it("calls applyDailyWarmupFeeling for daily_warmup when feeling null", async () => {
     mockGetCompletion.mockResolvedValue(completionWarmupNull);
     const res = await PATCH(makeRequest({ feeling: 3 }), {
@@ -149,6 +167,8 @@ describe("PATCH /api/patient/practice/completion/[id]/feeling", () => {
       completedAtIso: completionWarmupNull.completedAt,
       symptomTypeRefId: WARMUP_REF.id,
       symptomTitle: WARMUP_REF.title,
+      generalWellbeingSymptomTypeRefId: GENERAL_REF.id,
+      generalWellbeingSymptomTitle: GENERAL_REF.title,
     });
     expect(mockRevalidatePath).toHaveBeenCalled();
   });

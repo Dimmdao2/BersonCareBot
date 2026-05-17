@@ -78,6 +78,7 @@ import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimez
 import {
   getPatientCalendarTimezoneIana,
   setPatientCalendarTimezoneIana,
+  trySetInitialCalendarTimezoneIfEmpty,
 } from "@/infra/repos/pgPatientCalendarTimezone";
 import {
   formatAppointmentDateNumericRu,
@@ -342,6 +343,9 @@ const patientCalendarTimezoneGet = inMemoryRepos
 const patientCalendarTimezoneSet = inMemoryRepos
   ? async (_userId: string, _value: string | null) => true
   : setPatientCalendarTimezoneIana;
+const patientCalendarTimezoneTryInitial = inMemoryRepos
+  ? async (_userId: string, _raw: string | null) => {}
+  : trySetInitialCalendarTimezoneIfEmpty;
 const treatmentProgramPatientActions = createTreatmentProgramPatientActionService({
   instances: treatmentProgramInstancePort,
   actionLog: programActionLogPort,
@@ -824,6 +828,7 @@ function _buildAppDeps() {
     patientCalendarTimezone: {
       getIanaForUser: patientCalendarTimezoneGet,
       setIanaForPatient: patientCalendarTimezoneSet,
+      trySetInitialIfEmpty: patientCalendarTimezoneTryInitial,
     },
     lfkTemplates: lfkTemplatesService,
     lfkAssignments: lfkAssignmentsService,

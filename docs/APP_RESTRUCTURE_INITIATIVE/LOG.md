@@ -52,15 +52,27 @@
 
 ---
 
+## 2026-05-17 — самочувствие: окно 5 мин, без 409/модалки, зеркало после разминки
+
+**Канон (актуальное поведение и документы):**
+
+- **Повторный чек-ин на главной (`POST /api/patient/mood`):** окно **≤5 мин** к последней по времени instant `general_wellbeing`; при недавней `warmup_feeling` и отсутствии **после неё** «ручной» instant (строки с `notes = WELLBEING_GENERAL_MIRROR_NOTE` не учитываются) — **всегда новая** instant; иначе в окне — **тихая замена** последней; **>5 мин** — новая. **409 `intent_required`**, выбор replace/new в UI и модалка **10–60 мин** — **сняты**.
+- **`PATCH /api/patient/practice/completion/[id]/feeling`:** при наличии ref **`general_wellbeing`** в справочнике — instant зеркало в `general_wellbeing` (`notes` из **`wellbeingGeneralMirrorNote.ts`**); без ref — **200**, сохраняются только `warmup_feeling` + `patient_practice_completions.feeling`.
+- **Дневник / баннер недели:** дельта «влияние разминок» только при паре «общее **в тот же календарный день** (IANA), **строго до** разминки»; тултип графика — по сериям y.
+
+**Документация:** [`patient-mood.md`](../../apps/webapp/src/modules/patient-mood/patient-mood.md), [`api.md`](../../apps/webapp/src/app/api/api.md) §**patient/mood**, [`patient-practice.md`](../../apps/webapp/src/modules/patient-practice/patient-practice.md), [`diary.md`](../../apps/webapp/src/app/app/patient/diary/diary.md).
+
+---
+
 ## 2026-05-08 — самочувствие: унификация с дневником симптомов (`general_wellbeing`)
 
-**Сделано (webapp):** миграция **`0049_wellbeing_symptom_unify`**: справочник `general_wellbeing`, backfill `symptom_trackings` для клиентов, перенос `patient_daily_mood` → `symptom_entries`, `DROP patient_daily_mood` (в одном теге с остальным rollout; см. комментарий в SQL). Миграция **`0050_symptom_general_wellbeing_unique`**: дедуп + partial unique для гонки первого чек-ина. Сервис настроения переведён на **`symptom_entries`** (`wellbeingMoodService`), API mood с **`intent`** и **409 `intent_required`**, **`GET …/mood/week`** для полоски 7 дней; главная — модалка 10–60 мин и `PatientHomeWellbeingWeekStrip`. Пациентский **self-create** symptom tracking отключён (`createSymptomTracking` → **`patient_self_create_disabled`** + убран UI); операции rename/archive и журнал не трогают wellbeing-трекинг; врачебный **`POST /api/doctor/clients/[userId]/symptom-trackings`**. Дневник скрывает wellbeing-трекинг из списков пациента.
+**Сделано (webapp):** миграция **`0049_wellbeing_symptom_unify`**: справочник `general_wellbeing`, backfill `symptom_trackings` для клиентов, перенос `patient_daily_mood` → `symptom_entries`, `DROP patient_daily_mood` (в одном теге с остальным rollout; см. комментарий в SQL). Миграция **`0050_symptom_general_wellbeing_unique`**: дедуп + partial unique для гонки первого чек-ина. Сервис настроения переведён на **`symptom_entries`** (`wellbeingMoodService`); **`GET …/mood/week`** для полоски 7 дней; **`PatientHomeWellbeingWeekStrip`** на главной. *(Повторный чек-ин, **409**, модалка 10–60 мин — эволюция до **2026-05-17**, см. запись выше и `patient-mood.md`.)* Пациентский **self-create** symptom tracking отключён (`createSymptomTracking` → **`patient_self_create_disabled`** + убран UI); операции rename/archive и журнал не трогают wellbeing-трекинг; врачебный **`POST /api/doctor/clients/[userId]/symptom-trackings`**. Дневник скрывает wellbeing-трекинг из списков пациента.
 
 **Документация:** [`apps/webapp/src/modules/patient-mood/patient-mood.md`](../../apps/webapp/src/modules/patient-mood/patient-mood.md), [`TARGET_STRUCTURE_PATIENT.md`](TARGET_STRUCTURE_PATIENT.md) §10 п.4.
 
 **Проверки:** `pnpm --dir apps/webapp exec vitest run` по затронутым тестам patient-mood / mood API / `PatientHomeToday` / `PatientHomeMoodCheckin`.
 
-**Доработка после аудита (тот же релизный контур):** границы **10 / 60 мин** приведены к плану (**включительно** ≤10 тихая замена; ≤60 модалка); `lastEntry.score` допускает **`null`** при невалидном `value_0_10`, логика времени — по последней строке; **`GET /api/integrator/diary/symptom-trackings`** исключает `general_wellbeing`; обновлены `api.md`, `symptoms.md`, тесты (в т.ч. doctor `symptom-trackings`, integrator filter).
+**Доработка после аудита (тот же релизный контур, исторически):** промежуточные границы **10 / 60 мин** и модалка; *(заменено **2026-05-17** на окно **5 мин** без модалки и без **409** — см. запись **2026-05-17** выше.)* `lastEntry.score` допускает **`null`** при невалидном `value_0_10`, логика времени — по последней строке; **`GET /api/integrator/diary/symptom-trackings`** исключает `general_wellbeing`; обновлены `api.md`, `symptoms.md`, тесты (в т.ч. doctor `symptom-trackings`, integrator filter).
 
 **Доработка (второй проход, аудит идемпотентности / контракта):** `diaries.ensureGeneralWellbeingTracking` (upsert в PG); в weekly-ответе поле **`diaryNoteHint`** (резерв); server action **`createSymptomTracking`** — явный **`reason: "patient_self_create_disabled"`**.
 

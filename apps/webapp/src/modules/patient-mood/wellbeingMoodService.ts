@@ -1,11 +1,12 @@
 import { DateTime } from "luxon";
 import type { ReferencesPort } from "@/modules/references/ports";
+import { isWellbeingGeneralMirrorNote } from "@/modules/diaries/wellbeingGeneralMirrorNote";
+import type { SymptomEntry } from "@/modules/diaries/types";
 import type { createSymptomDiaryService } from "@/modules/diaries/symptom-service";
 import { getMoodDateForTimeZone } from "./moodDate";
 import {
   GENERAL_WELLBEING_SYMPTOM_KEY,
   GENERAL_WELLBEING_TITLE,
-  WELLBEING_MODAL_WINDOW_MAX_MS,
   WELLBEING_REPLACE_LAST_MAX_MS,
 } from "./wellbeingConstants";
 import type {
@@ -20,6 +21,8 @@ import type {
 import { isPatientMoodScore } from "./types";
 
 type SymptomDiary = ReturnType<typeof createSymptomDiaryService>;
+
+const WARMUP_FEELING_SYMPTOM_TYPE_CODE = "warmup_feeling";
 
 export type PatientWellbeingMoodDeps = {
   diaries: SymptomDiary;
@@ -61,6 +64,18 @@ export function createPatientMoodService(deps: PatientWellbeingMoodDeps) {
     return t.id;
   }
 
+  async function tryWarmupFeelingTrackingId(userId: string): Promise<string | null> {
+    const items = await deps.references.listActiveItemsByCategoryCode("symptom_type");
+    const item = items.find((i) => i.code === WARMUP_FEELING_SYMPTOM_TYPE_CODE);
+    if (!item) return null;
+    const t = await deps.diaries.ensureWarmupFeelingTracking({
+      userId,
+      symptomTitle: item.title?.trim() || "Самочувствие после разминки",
+      symptomTypeRefId: item.id,
+    });
+    return t.id;
+  }
+
   async function getLatestWellbeingEntry(userId: string, trackingId: string): Promise<PatientMoodLastEntry | null> {
     const list = await deps.diaries.listSymptomEntriesForUserInRange({
       userId,
@@ -75,6 +90,7 @@ export function createPatientMoodService(deps: PatientWellbeingMoodDeps) {
       id: e.id,
       recordedAt: e.recordedAt,
       score: toMoodScore(e.value0_10),
+      notes: e.notes ?? null,
     };
   }
 
@@ -107,11 +123,58 @@ export function createPatientMoodService(deps: PatientWellbeingMoodDeps) {
     return { mood, lastEntry };
   }
 
+  async function findLatestWarmupFeelingInLookback(
+    userId: string,
+    warmupTrackingId: string,
+    nowMs: number,
+  ): Promise<SymptomEntry | null> {
+    const fromMs = nowMs - WELLBEING_REPLACE_LAST_MAX_MS;
+    const entries = await deps.diaries.listSymptomEntriesForTrackingInRange({
+      userId,
+      trackingId: warmupTrackingId,
+      fromRecordedAt: new Date(fromMs).toISOString(),
+      toRecordedAtExclusive: new Date(nowMs + 1).toISOString(),
+    });
+    let best: SymptomEntry | null = null;
+    let bestT = -Infinity;
+    for (const e of entries) {
+      if (e.entryType !== "instant") continue;
+      const t = new Date(e.recordedAt).getTime();
+      if (t > nowMs) continue;
+      if (t >= bestT) {
+        bestT = t;
+        best = e;
+      }
+    }
+    return best;
+  }
+
+  async function hasNonMirrorGeneralStrictlyAfterWarmup(
+    userId: string,
+    generalTrackingId: string,
+    warmupRecordedAtIso: string,
+    nowMs: number,
+  ): Promise<boolean> {
+    const t0 = new Date(warmupRecordedAtIso).getTime();
+    const entries = await deps.diaries.listSymptomEntriesForTrackingInRange({
+      userId,
+      trackingId: generalTrackingId,
+      fromRecordedAt: warmupRecordedAtIso,
+      toRecordedAtExclusive: new Date(nowMs + 1).toISOString(),
+    });
+    for (const e of entries) {
+      if (e.entryType !== "instant") continue;
+      if (isWellbeingGeneralMirrorNote(e.notes)) continue;
+      if (new Date(e.recordedAt).getTime() > t0) return true;
+    }
+    return false;
+  }
+
   async function submitScore(
     userId: string,
     tz: string,
     score: number,
-    intent: PatientMoodIntent,
+    _intent: PatientMoodIntent,
     nowMs: number = Date.now(),
   ): Promise<PatientMoodSubmitResult> {
     if (!Number.isInteger(score) || !isPatientMoodScore(score)) {
@@ -137,33 +200,24 @@ export function createPatientMoodService(deps: PatientWellbeingMoodDeps) {
     const ageMs = nowMs - new Date(last.recordedAt).getTime();
 
     if (ageMs <= WELLBEING_REPLACE_LAST_MAX_MS) {
-      await deps.diaries.updateSymptomEntry({
-        userId,
-        entryId: last.id,
-        value0_10: score,
-        entryType: "instant",
-        recordedAt: last.recordedAt,
-        notes: null,
-      });
-      return { ok: true, ...(await getCheckinState(userId, tz)) };
-    }
+      const warmupTid = await tryWarmupFeelingTrackingId(userId);
+      let addNewInsteadOfReplace = false;
+      if (warmupTid) {
+        const recentWarmup = await findLatestWarmupFeelingInLookback(userId, warmupTid, nowMs);
+        if (recentWarmup) {
+          const hasUserGeneralAfter = await hasNonMirrorGeneralStrictlyAfterWarmup(
+            userId,
+            trackingId,
+            recentWarmup.recordedAt,
+            nowMs,
+          );
+          if (!hasUserGeneralAfter) {
+            addNewInsteadOfReplace = true;
+          }
+        }
+      }
 
-    if (ageMs <= WELLBEING_MODAL_WINDOW_MAX_MS) {
-      if (intent === "auto") {
-        return { ok: false, error: "intent_required", lastEntry: last };
-      }
-      if (intent === "replace_last") {
-        await deps.diaries.updateSymptomEntry({
-          userId,
-          entryId: last.id,
-          value0_10: score,
-          entryType: "instant",
-          recordedAt: nowIso,
-          notes: null,
-        });
-        return { ok: true, ...(await getCheckinState(userId, tz)) };
-      }
-      if (intent === "new_instant") {
+      if (addNewInsteadOfReplace) {
         await deps.diaries.addEntry({
           userId,
           trackingId,
@@ -175,11 +229,16 @@ export function createPatientMoodService(deps: PatientWellbeingMoodDeps) {
         });
         return { ok: true, ...(await getCheckinState(userId, tz)) };
       }
-      return { ok: false, error: "invalid_intent" };
-    }
 
-    if (intent === "replace_last") {
-      return { ok: false, error: "replace_too_old" };
+      await deps.diaries.updateSymptomEntry({
+        userId,
+        entryId: last.id,
+        value0_10: score,
+        entryType: "instant",
+        recordedAt: last.recordedAt,
+        notes: last.notes ?? null,
+      });
+      return { ok: true, ...(await getCheckinState(userId, tz)) };
     }
 
     await deps.diaries.addEntry({
@@ -219,10 +278,10 @@ export function createPatientMoodService(deps: PatientWellbeingMoodDeps) {
       if (e.entryType !== "instant") continue;
       const localD = DateTime.fromISO(e.recordedAt, { zone: "utc" }).setZone(tz).toISODate();
       if (!localD || !dayKeySet.has(localD)) continue;
-      const score = toMoodScore(e.value0_10);
-      if (score == null) continue;
+      const sc = toMoodScore(e.value0_10);
+      if (sc == null) continue;
       const arr = byDay.get(localD) ?? [];
-      arr.push(score);
+      arr.push(sc);
       byDay.set(localD, arr);
     }
 

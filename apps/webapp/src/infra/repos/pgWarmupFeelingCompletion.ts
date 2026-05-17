@@ -1,6 +1,7 @@
 import { and, eq, isNull } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import { patientPracticeCompletions, symptomEntries } from "../../../db/schema";
+import { WELLBEING_GENERAL_MIRROR_NOTE } from "@/modules/diaries/wellbeingGeneralMirrorNote";
 import type { SymptomDiaryPort } from "@/modules/diaries/ports";
 import type { PatientPracticePort } from "@/modules/patient-practice/ports";
 import type {
@@ -19,7 +20,7 @@ function pgErrCode(e: unknown): string | undefined {
 }
 
 export function createPgWarmupFeelingCompletionPort(opts: {
-  diaries: Pick<SymptomDiaryPort, "upsertWarmupFeelingTrackingIdInTx">;
+  diaries: Pick<SymptomDiaryPort, "upsertWarmupFeelingTrackingIdInTx" | "ensureGeneralWellbeingTracking">;
   completions: Pick<PatientPracticePort, "getByIdForUser" | "updateFeelingById">;
 }): WarmupFeelingCompletionPort {
   return {
@@ -35,6 +36,15 @@ export function createPgWarmupFeelingCompletionPort(opts: {
 
       const db = getDrizzle();
       let duplicate = false;
+
+      const generalTracking =
+        params.generalWellbeingSymptomTypeRefId && params.generalWellbeingSymptomTitle ?
+          await opts.diaries.ensureGeneralWellbeingTracking({
+            userId,
+            symptomTitle: params.generalWellbeingSymptomTitle,
+            symptomTypeRefId: params.generalWellbeingSymptomTypeRefId,
+          })
+        : null;
 
       try {
         await db.transaction(async (tx) => {
@@ -75,6 +85,20 @@ export function createPgWarmupFeelingCompletionPort(opts: {
             notes: null,
             patientPracticeCompletionId: completionId,
           });
+
+          if (generalTracking) {
+            await tx.insert(symptomEntries).values({
+              userId,
+              platformUserId: userId,
+              trackingId: generalTracking.id,
+              value010: feeling,
+              entryType: "instant",
+              recordedAt: completedAtIso,
+              source: "webapp",
+              notes: WELLBEING_GENERAL_MIRROR_NOTE,
+              patientPracticeCompletionId: null,
+            });
+          }
 
           await tx
             .update(patientPracticeCompletions)

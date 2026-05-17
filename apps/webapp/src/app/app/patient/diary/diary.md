@@ -4,7 +4,8 @@
 
 ## Текущий MVP (страница `page.tsx`)
 
-- Одна секция **«Самочувствие за неделю»**: Recharts `ComposedChart` — среднее за день (`general_wellbeing`, только **instant**), линия отметок в течение дня (**только instant**; записи `daily` на линию не попадают), точки «после разминки» (`warmup_feeling`, шкала **1–5**; цвет точки: 1–2 low, 3 mid, 4–5 high).
+- Одна секция **«Самочувствие за неделю»**: Recharts `ComposedChart` — среднее за день (`general_wellbeing`, только **instant**), линия отметок в течение дня (**только instant**; записи `daily` на линию не попадают), точки «после разминки» (`warmup_feeling`, шкала **1–5**; цвет точки: 1–2 low, 3 mid, 4–5 high). Для непрерывности «общей» линии после разминки может существовать вторая instant `general_wellbeing` с тем же временем и значением и **`notes` = `WELLBEING_GENERAL_MIRROR_NOTE`** (`apps/webapp/src/modules/diaries/wellbeingGeneralMirrorNote.ts`); см. `patient-practice.md` / `patient-mood.md`.
+- Баннер «влияние разминок на самочувствие» считает дельту только при паре **в тот же календарный день** (IANA пациента): instant **общего** **строго до** момента разминки (`apps/webapp/src/modules/diaries/buildWarmupWeekImpactSummary.ts`).
 - Данные: `loadPatientDiaryWeekWellbeing` → `buildWellbeingWeekChartData`; границы недели в ms передаются из лоадера в хелпер (**одинаковое окно** с SQL `fromRecordedAt` / `toRecordedAtExclusive`).
 - TZ календарного дня — `resolveCalendarDayIanaForPatient` + `patientCalendarTimezone` (**тот же выбор IANA**, что `GET /api/patient/mood/week` и полоса «Ваша неделя» на главной).
 - Ось Y графика самочувствия в коде — **1–5** (шкала чек-ина; ноль не используется); при необходимости расширения до 0–10 — отдельная задача.

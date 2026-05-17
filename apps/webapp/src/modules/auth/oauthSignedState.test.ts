@@ -34,12 +34,25 @@ describe("oauthSignedState", () => {
     expect(verifySignedOAuthState(t, "yandex")).toBe(false);
   });
 
+  it("roundtrips optional browser IANA in signed state (tz)", () => {
+    const t = createSignedOAuthState("google_login", 600, { browserCalendarIana: "Europe/Moscow" });
+    const p = parseVerifiedSignedOAuthState(t, "google_login");
+    expect(p?.browserCalendarIana).toBe("Europe/Moscow");
+  });
+
   it("apple state carries nonce verifiable as apple purpose", () => {
     const { state, nonce } = createAppleSignedOAuthState(600);
     expect(nonce.length).toBeGreaterThan(10);
     expect(verifySignedOAuthState(state, "apple")).toBe(true);
     const parsed = parseVerifiedSignedOAuthState(state, "apple");
     expect(parsed?.nonce).toBe(nonce);
+  });
+
+  it("apple state may include tz alongside nonce", () => {
+    const { state, nonce } = createAppleSignedOAuthState(600, { browserCalendarIana: "Europe/Berlin" });
+    const parsed = parseVerifiedSignedOAuthState(state, "apple");
+    expect(parsed?.nonce).toBe(nonce);
+    expect(parsed?.browserCalendarIana).toBe("Europe/Berlin");
   });
 
   it("rejects tampered token", () => {

@@ -17,6 +17,18 @@
 
 Master и сегменты запрашиваются с **того же origin**, что и webapp: **`GET /api/media/{id}/hls/...`** (сессионная авторизация). Presigned URL используются для **постера** (если есть) и для **progressive MP4** через **`GET /api/media/{id}`** (редирект). Детали HTTP (коды, rewrite плейлистов, Range) — в [`apps/webapp/src/app/api/api.md`](../../apps/webapp/src/app/api/api.md) (маршрут **`GET /api/media/[id]/hls/[[...path]]`**).
 
+## Разрешение внутри HLS (не формат доставки)
+
+- **Формат** (отдавать HLS или progressive MP4 в первую очередь) по-прежнему задаёт только playback JSON и fallback при сбое — отдельного переключателя «HLS / MP4» у пользователя нет.
+- Если в JSON есть **`hls.qualities`** и в нём **не меньше двух** вариантов, в браузерах на **`hls.js`** показываются компактный селектор (**«Авто»** или фиксированное разрешение из списка) и строка **«Сейчас: …»**, обновляемая по событиям уровня качества.
+- Если **`hls.js` недоступен** при том, что playback по-прежнему предписывает HLS, плеер переходит на **progressive MP4** и для UI считается веткой **MP4** (селектор разрешения **не** показывается).
+- В **нативном HLS** (например Safari / iOS, без `hls.js`) нет стабильного API для текущего варианта и ручного выбора как в `hls.js`; показывается только краткая подпись **«Качество: авто»**.
+- При воспроизведении **только MP4** (ветка progressive) блок выбора разрешения **не** показывается.
+
+## Обновление playback JSON и жизненный цикл `hls.js`
+
+Фоновое обновление ответа **`GET /api/media/[id]/playback`** (например продление presigned для постера или MP4) **не пересоздаёт** экземпляр **`hls.js`**, пока не меняются **`hls.masterUrl`**, **`mp4.url`** и **`posterUrl`** — см. зависимости эффекта источника в [`PatientMediaPlaybackVideo.tsx`](../../apps/webapp/src/shared/ui/media/PatientMediaPlaybackVideo.tsx).
+
 ## Пропсы
 
 | Проп | Назначение |
@@ -31,6 +43,7 @@ Master и сегменты запрашиваются с **того же origin*
 
 - **`parseApiMediaIdFromPlayableUrl`**, **`parseApiMediaIdFromHref`**, **`parseApiMediaIdFromMarkdownHref`** — `apps/webapp/src/shared/lib/parseApiMediaIdFromPlayableUrl.ts` (извлечение UUID из пути `/api/media/{uuid}`, в т.ч. для ссылок в Markdown и поля видео страницы контента).
 - **`initialPlaybackSourceKind`** — `apps/webapp/src/shared/ui/media/patientPlaybackSourceKind.ts` (ветвление HLS vs MP4 по телу JSON).
+- **`patientHlsQuality`** — `apps/webapp/src/shared/ui/media/patientHlsQuality.ts` (сопоставление строк `hls.qualities` с уровнями `hls.js` и подпись текущего варианта).
 
 ## Где используется
 

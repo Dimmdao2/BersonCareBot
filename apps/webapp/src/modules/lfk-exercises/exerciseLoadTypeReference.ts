@@ -5,10 +5,12 @@ import type { ExerciseLoadType } from "./types";
  * Тип нагрузки упражнения — код в `lfk_exercises.load_type` сверяется со справочником
  * `reference_categories` / `reference_items` (`load_type`).
  *
- * **Синхронизация набора кодов v1 при любом изменении списка (три точки в одном PR):**
- * 1. SQL: `apps/webapp/db/drizzle-migrations/0041_exercise_load_type_reference_align.sql` (INSERT … ON CONFLICT DO NOTHING — без удаления существующих строк)
- * 2. Константа `EXERCISE_LOAD_TYPE_SEED_V1` ниже (фоллбек allowlist/UI при пустой БД)
+ * **Синхронизация набора кодов v1 при любом изменении списка (согласованность в одном PR):**
+ * 1. SQL: `0041_exercise_load_type_reference_align.sql` + `0069_lfk_exercises_load_type_catalog.sql` (INSERT … ON CONFLICT DO NOTHING)
+ * 2. Константа `EXERCISE_LOAD_TYPE_SEED_V1` (фоллбек allowlist/UI при пустой БД)
  * 3. `apps/webapp/src/infra/repos/inMemoryReferences.ts` — строки категории `load_type`
+ *
+ * Ограничение: в `lfk_exercises` **нет** фиксированного CHECK по `load_type` — коды задаются справочником.
  *
  * Регрессия: `src/modules/lfk-exercises/exerciseLoadTypeSeedParity.test.ts`.
  */
@@ -20,6 +22,7 @@ export const EXERCISE_LOAD_TYPE_SEED_V1 = [
   { code: "balance" as const, title: "Баланс", sortOrder: 3 },
   { code: "cardio" as const, title: "Кардио", sortOrder: 4 },
   { code: "other" as const, title: "Другое", sortOrder: 5 },
+  { code: "static_hold" as const, title: "Статическое укрепление / удержание", sortOrder: 6 },
 ] as const;
 
 function seedCodesSet(): Set<string> {

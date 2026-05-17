@@ -317,7 +317,7 @@ describe('max deliveryAdapter', () => {
     ).rejects.toThrow('MAX_SEND_FAILED');
   });
 
-  it('send callback.answer calls answerMaxCallback without notification when omitting text', async () => {
+  it('send callback.answer sends placeholder notification when text omitted (MAX API requirement)', async () => {
     const adapter = createMaxDeliveryAdapter();
     await adapter.send({
       type: 'callback.answer',
@@ -326,7 +326,7 @@ describe('max deliveryAdapter', () => {
     });
     expect(answerMaxCallbackMock).toHaveBeenCalledWith(
       expect.any(Object),
-      { callbackId: 'cb-99' },
+      { callbackId: 'cb-99', extra: { notification: '\u200b' } },
     );
   });
 

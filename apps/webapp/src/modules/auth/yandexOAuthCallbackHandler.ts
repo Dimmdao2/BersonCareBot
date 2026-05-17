@@ -8,6 +8,7 @@ import { resolveUserIdForYandexOAuth } from "@/modules/auth/oauthYandexResolve";
 import { pgUserByPhonePort } from "@/infra/repos/pgUserByPhone";
 import { pgOAuthBindingsPort } from "@/infra/repos/pgOAuthBindings";
 import { inMemoryOAuthBindingsPort } from "@/infra/repos/inMemoryOAuthBindings";
+import { trySetInitialCalendarTimezoneIfEmpty } from "@/infra/repos/pgPatientCalendarTimezone";
 import { routePaths } from "@/app-layer/routes/paths";
 import {
   getAppBaseUrl,
@@ -15,7 +16,7 @@ import {
   getYandexOauthClientSecret,
   getYandexOauthRedirectUri,
 } from "@/modules/system-settings/integrationRuntime";
-import { verifySignedOAuthState } from "@/modules/auth/oauthSignedState";
+import { parseVerifiedSignedOAuthState } from "@/modules/auth/oauthSignedState";
 
 /**
  * Yandex OAuth callback: signed state → code → token → userinfo → resolve user → session → redirect.
@@ -29,7 +30,8 @@ export async function handleYandexOAuthCallbackGet(request: Request): Promise<Ne
   const url = new URL(request.url);
   const stateFromQuery = url.searchParams.get("state") ?? "";
 
-  if (!stateFromQuery || !verifySignedOAuthState(stateFromQuery, "yandex")) {
+  const verifiedState = parseVerifiedSignedOAuthState(stateFromQuery, "yandex");
+  if (!verifiedState) {
     return NextResponse.json(
       { error: "oauth_csrf", message: "Недействительный или просроченный state" },
       { status: 403 },
@@ -93,6 +95,10 @@ export async function handleYandexOAuthCallbackGet(request: Request): Promise<Ne
       return NextResponse.redirect(redirectToAppQuery("email_ambiguous"));
     }
     return NextResponse.redirect(redirectToAppQuery("db_error"));
+  }
+
+  if (env.DATABASE_URL?.trim()) {
+    await trySetInitialCalendarTimezoneIfEmpty(resolved.userId, verifiedState.browserCalendarIana ?? null);
   }
 
   let sessionUser;

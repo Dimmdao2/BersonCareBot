@@ -5,11 +5,14 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 const bodySchema = z.object({
   challengeId: z.string().trim().min(1),
   code: z.string().trim().min(1),
+  /** IANA с браузера (`Intl`), опционально — заполняет `calendar_timezone` при первом входе, если ещё пусто. */
+  browserCalendarIana: z.string().max(120).optional(),
 });
 
 /**
  * Confirm phone code. Channel/chatId/displayName are never read from body;
  * binding uses only the context stored in the challenge at start.
+ * Optional `browserCalendarIana` (IANA from `Intl`) fills `calendar_timezone` on first login if still empty.
  */
 export async function POST(request: Request) {
   const raw = (await request.json().catch(() => null)) as unknown;
@@ -20,7 +23,7 @@ export async function POST(request: Request) {
       { status: 400 }
     );
   }
-  const { challengeId, code } = parsed.data;
+  const { challengeId, code, browserCalendarIana } = parsed.data;
 
   const deps = buildAppDeps();
   const result = await deps.auth.confirmPhoneAuth(challengeId, code);
@@ -46,6 +49,11 @@ export async function POST(request: Request) {
   await deps.auth.setSessionFromUser(result.user, {
     postLoginHints: { phoneOtpChannel: result.deliveryChannel ?? "sms" },
   });
+
+  const tz = browserCalendarIana?.trim();
+  if (tz) {
+    await deps.patientCalendarTimezone.trySetInitialIfEmpty(result.user.userId, tz);
+  }
 
   return NextResponse.json({
     ok: true,

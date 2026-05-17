@@ -5,12 +5,13 @@ import { listLfkSnapshotExerciseLines } from "@/modules/treatment-program/progra
 import { formatRelativePatientCalendarDayRu } from "@/modules/treatment-program/stage-semantics";
 import type { ExerciseLoadType } from "@/modules/lfk-exercises/types";
 
-const PATIENT_EXERCISE_LOAD_LABEL_RU: Record<ExerciseLoadType, string> = {
+const PATIENT_EXERCISE_LOAD_LABEL_RU: Record<string, string> = {
   strength: "Сила / укрепление",
   stretch: "Растяжка",
   balance: "Равновесие",
   cardio: "Кардио",
   other: "Другое",
+  static_hold: "Статическое укрепление / удержание",
 };
 
 /** Подпись типа нагрузки для кабинета пациента (значение, не сырой ключ). */

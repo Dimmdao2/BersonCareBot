@@ -788,7 +788,6 @@ export const lfkExercises = pgTable("lfk_exercises", {
 			name: "lfk_exercises_region_ref_id_fkey"
 		}),
 	check("lfk_exercises_difficulty_1_10_check", sql`(difficulty_1_10 IS NULL) OR ((difficulty_1_10 >= 1) AND (difficulty_1_10 <= 10))`),
-	check("lfk_exercises_load_type_check", sql`load_type = ANY (ARRAY['strength'::text, 'stretch'::text, 'balance'::text, 'cardio'::text, 'other'::text])`),
 ]);
 
 /** M2M: упражнение ↔ регион тела (`reference_items`, категория `body_region`). Legacy: `lfk_exercises.region_ref_id` (dual-write, первый выбранный). */

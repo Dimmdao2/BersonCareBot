@@ -32,7 +32,7 @@ function hmacSha256(secret: string, message: string): Buffer {
   return createHmac("sha256", secret).update(message, "utf8").digest();
 }
 
-type Payload = { p: OAuthStatePurpose; exp: number; n: string; nonce?: string };
+type Payload = { p: OAuthStatePurpose; exp: number; n: string; nonce?: string; tz?: string };
 
 function signPayload(payload: Payload): string {
   const secret = requireSigningSecret();
@@ -46,21 +46,36 @@ function signPayload(payload: Payload): string {
  * Одноразовый подписанный `state` для OAuth (без cookie): провайдер видит только opaque строку;
  * сервер проверяет HMAC, срок и назначение.
  */
-export function createSignedOAuthState(purpose: OAuthStatePurpose, ttlSeconds: number): string {
+export function createSignedOAuthState(
+  purpose: OAuthStatePurpose,
+  ttlSeconds: number,
+  options?: { browserCalendarIana?: string | null },
+): string {
   const exp = Math.floor(Date.now() / 1000) + ttlSeconds;
   const payload: Payload = { p: purpose, exp, n: randomUUID() };
+  const rawTz = options?.browserCalendarIana?.trim();
+  if (rawTz && rawTz.length <= 120) {
+    payload.tz = rawTz;
+  }
   return signPayload(payload);
 }
 
 /** Apple: `state` + отдельный `nonce` для authorize и проверки в `id_token`. */
-export function createAppleSignedOAuthState(ttlSeconds: number): { state: string; nonce: string } {
+export function createAppleSignedOAuthState(
+  ttlSeconds: number,
+  options?: { browserCalendarIana?: string | null },
+): { state: string; nonce: string } {
   const exp = Math.floor(Date.now() / 1000) + ttlSeconds;
   const nonce = randomUUID();
   const payload: Payload = { p: "apple", exp, n: randomUUID(), nonce };
+  const rawTz = options?.browserCalendarIana?.trim();
+  if (rawTz && rawTz.length <= 120) {
+    payload.tz = rawTz;
+  }
   return { state: signPayload(payload), nonce };
 }
 
-export type VerifiedOAuthState = { nonce?: string };
+export type VerifiedOAuthState = { nonce?: string; browserCalendarIana?: string };
 
 function verifyTokenInternal(
   token: string,
@@ -95,7 +110,7 @@ function verifyTokenInternal(
     return null;
   }
 
-  const { p, exp, n, nonce } = payloadRaw as Record<string, unknown>;
+  const { p, exp, n, nonce, tz } = payloadRaw as Record<string, unknown>;
   if (p !== expectedPurpose || typeof exp !== "number" || typeof n !== "string" || !n) {
     return null;
   }
@@ -114,8 +129,14 @@ function verifyTokenInternal(
   if (!timingSafeEqual(gotSig, expectedSig)) return null;
 
   if (nonce !== undefined && typeof nonce !== "string") return null;
+  if (tz !== undefined && (typeof tz !== "string" || tz.length > 120)) return null;
 
-  return { nonce: typeof nonce === "string" ? nonce : undefined };
+  const out: VerifiedOAuthState = {};
+  if (typeof nonce === "string") out.nonce = nonce;
+  if (typeof tz === "string" && tz.trim().length > 0) {
+    out.browserCalendarIana = tz.trim();
+  }
+  return out;
 }
 
 export function verifySignedOAuthState(token: string, expectedPurpose: OAuthStatePurpose): boolean {

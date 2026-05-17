@@ -1,21 +1,34 @@
 /**
  * Единый пациентский видеоплеер: источник и fallback (HLS → MP4) задаёт только ответ
- * `GET /api/media/[id]/playback` и внутренняя логика при сбоях HLS — пользователь не выбирает формат.
+ * `GET /api/media/[id]/playback` и внутренняя логика при сбоях HLS — пользователь не выбирает формат доставки.
+ * При HLS через hls.js и ≥2 вариантах в `hls.qualities` доступны режим «Авто» и фиксированное разрешение.
  *
  * Телеметрия / отладка: не логировать presigned URL, poster URL, query на подписанных ссылках.
  * Использовать только безопасные поля (mediaId, delivery, тип события, HTTP status) — см. `patientPlaybackDiag`.
  */
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type Hls from "hls.js";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import { NoContextMenuVideo } from "@/shared/ui/media/NoContextMenuVideo";
 import { shouldUseNativeHls } from "@/shared/lib/nativeHls";
 import type { MediaPlaybackPayload } from "@/modules/media/playbackPayloadTypes";
+import type { MediaAvailableQuality } from "@/modules/media/types";
 import { patientBodyTextClass, patientMutedTextClass } from "@/shared/ui/patientVisual";
 import { cn } from "@/lib/utils";
 import { initialPlaybackSourceKind } from "@/shared/ui/media/patientPlaybackSourceKind";
+import {
+  PATIENT_HLS_QUALITY_AUTO_VALUE,
+  displayLabelForSwitchedLevel,
+  findQualityBySelectValue,
+  matchQualityToLevelIndex,
+  sortedQualitiesDesc,
+  stableQualitySelectValue,
+  type HlsVariantProbe,
+} from "@/shared/ui/media/patientHlsQuality";
 
 const DEFAULT_SHELL =
   "relative aspect-video w-full overflow-hidden rounded-lg bg-muted/30";
@@ -69,6 +82,25 @@ function attachNativeHls(video: HTMLVideoElement, masterUrl: string, posterUrl: 
   video.load();
 }
 
+function probeFromHlsJsLevel(level: {
+  height: number;
+  bitrate: number;
+  maxBitrate: number;
+  url: string[];
+}): HlsVariantProbe {
+  const url = level.url[0];
+  return {
+    height: level.height > 0 ? level.height : undefined,
+    bitrate:
+      level.bitrate > 0
+        ? level.bitrate
+        : level.maxBitrate > 0
+          ? level.maxBitrate
+          : undefined,
+    url: url && url.length > 0 ? url : undefined,
+  };
+}
+
 function PlaybackEngine({
   mediaId,
   mp4Url,
@@ -83,7 +115,7 @@ function PlaybackEngine({
   shellClassName: string;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const hlsRef = useRef<{ destroy: () => void } | null>(null);
+  const hlsRef = useRef<Hls | null>(null);
   const autoFallbackUsedRef = useRef(false);
   const hlsRefreshAttemptedRef = useRef(false);
   const lastIssueReportAtRef = useRef<Record<string, number>>({});
@@ -92,9 +124,62 @@ function PlaybackEngine({
   const [sourceKind, setSourceKind] = useState<"hls" | "mp4">(() =>
     initialPlaybackSourceKind(initialPayload),
   );
+  const sortedPlaybackQualities = useMemo(
+    () => sortedQualitiesDesc(payload.hls?.qualities ?? []),
+    [payload.hls?.qualities],
+  );
+
+  const [hlsQualityChoice, setHlsQualityChoice] = useState<string>(PATIENT_HLS_QUALITY_AUTO_VALUE);
+  const [hlsCurrentLabel, setHlsCurrentLabel] = useState<string | null>(null);
+  const hlsQualityChoiceRef = useRef(hlsQualityChoice);
+  hlsQualityChoiceRef.current = hlsQualityChoice;
+
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [retryBusy, setRetryBusy] = useState(false);
+
+  useEffect(() => {
+    setHlsQualityChoice(PATIENT_HLS_QUALITY_AUTO_VALUE);
+    setHlsCurrentLabel(null);
+  }, [mediaId, payload.hls?.masterUrl]);
+
+  const applyPatientHlsQualityChoice = useCallback((hls: Hls, choice: string, qs: MediaAvailableQuality[]) => {
+    if (choice === PATIENT_HLS_QUALITY_AUTO_VALUE) {
+      hls.loadLevel = -1;
+      return;
+    }
+    const row = findQualityBySelectValue(qs, choice);
+    if (!row) return;
+    const probes = hls.levels.map((lvl) => probeFromHlsJsLevel(lvl));
+    const idx = matchQualityToLevelIndex(probes, row);
+    if (idx == null || idx < 0) return;
+    hls.currentLevel = idx;
+  }, []);
+
+  const onHlsQualityValueChange = useCallback(
+    (value: string | null) => {
+      if (value == null) return;
+      setHlsQualityChoice(value);
+      const hls = hlsRef.current;
+      if (!hls) return;
+      applyPatientHlsQualityChoice(hls, value, sortedPlaybackQualities);
+    },
+    [applyPatientHlsQualityChoice, sortedPlaybackQualities],
+  );
+
+  const qualityTriggerDisplayLabel = useMemo(() => {
+    if (hlsQualityChoice === PATIENT_HLS_QUALITY_AUTO_VALUE) return "Авто";
+    const q = findQualityBySelectValue(sortedPlaybackQualities, hlsQualityChoice);
+    if (!q) return "Качество";
+    if (q.label?.trim()) return q.label.trim();
+    if (typeof q.height === "number") return `${q.height}p`;
+    return "Качество";
+  }, [hlsQualityChoice, sortedPlaybackQualities]);
+
+  const useNativeHlsPlayback = shouldUseNativeHls();
+  const showNativeQualityHint = sourceKind === "hls" && useNativeHlsPlayback && !error;
+  const showHlsJsQualityControls =
+    sourceKind === "hls" && !useNativeHlsPlayback && sortedPlaybackQualities.length >= 2 && !error;
 
   const fetchPlaybackJson = useCallback(async (): Promise<MediaPlaybackPayload | null> => {
     try {
@@ -166,7 +251,7 @@ function PlaybackEngine({
     destroyHls();
 
     const masterUrl = payload.hls?.masterUrl;
-    const progressive = payload.mp4?.url ?? mp4Url;
+    const progressiveUrl = payload.mp4?.url ?? mp4Url;
     const posterUrl = payload.posterUrl;
 
     const tryMp4Fallback = () => {
@@ -213,11 +298,11 @@ function PlaybackEngine({
 
     void (async () => {
       if (sourceKind === "mp4" || !masterUrl) {
-        attachProgressive(video, progressive, posterUrl);
+        attachProgressive(video, progressiveUrl, posterUrl);
         return;
       }
 
-      if (shouldUseNativeHls()) {
+      if (useNativeHlsPlayback) {
         attachNativeHls(video, masterUrl, posterUrl);
         return;
       }
@@ -227,7 +312,8 @@ function PlaybackEngine({
         if (cancelled) return;
 
         if (!Hls.isSupported()) {
-          attachProgressive(video, progressive, posterUrl);
+          if (!cancelled) setSourceKind("mp4");
+          attachProgressive(video, progressiveUrl, posterUrl);
           patientPlaybackDiag({ event: "hls_js_unsupported", mediaId });
           reportPlaybackIssue({ eventClass: "hls_js_unsupported", delivery: "hls" });
           return;
@@ -245,6 +331,24 @@ function PlaybackEngine({
           lowLatencyMode: false,
         });
         hlsRef.current = hls;
+        const qs = sortedPlaybackQualities;
+
+        hls.on(Hls.Events.LEVEL_SWITCHED, (_e, data) => {
+          if (cancelled) return;
+          const probes = hls.levels.map((lvl) => probeFromHlsJsLevel(lvl));
+          setHlsCurrentLabel(displayLabelForSwitchedLevel(probes, data.level, qs));
+        });
+
+        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          if (cancelled) return;
+          applyPatientHlsQualityChoice(hls, hlsQualityChoiceRef.current, qs);
+          const cur = hls.currentLevel;
+          if (cur >= 0 && hls.levels.length > 0) {
+            const probes = hls.levels.map((lvl) => probeFromHlsJsLevel(lvl));
+            setHlsCurrentLabel(displayLabelForSwitchedLevel(probes, cur, qs));
+          }
+        });
+
         hls.loadSource(masterUrl);
         hls.attachMedia(video);
 
@@ -302,7 +406,20 @@ function PlaybackEngine({
       while (video.firstChild) video.removeChild(video.firstChild);
       video.load();
     };
-  }, [destroyHls, fetchPlaybackJson, mediaId, mp4Url, payload, reportPlaybackIssue, sourceKind]);
+  }, [
+    applyPatientHlsQualityChoice,
+    destroyHls,
+    fetchPlaybackJson,
+    mediaId,
+    mp4Url,
+    payload.hls?.masterUrl,
+    payload.mp4?.url,
+    payload.posterUrl,
+    reportPlaybackIssue,
+    sortedPlaybackQualities,
+    sourceKind,
+    useNativeHlsPlayback,
+  ]);
 
   const onRetry = useCallback(async () => {
     setRetryBusy(true);
@@ -366,6 +483,43 @@ function PlaybackEngine({
           {loading ? (
             <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/50">
               <Loader2 className="size-8 animate-spin text-muted-foreground" aria-hidden />
+            </div>
+          ) : null}
+          {showNativeQualityHint ? (
+            <div
+              className={cn(
+                patientMutedTextClass,
+                "pointer-events-none absolute bottom-12 right-2 z-20 max-w-[min(100%-1rem,14rem)] rounded-md bg-background/80 px-2 py-1 text-xs backdrop-blur-sm",
+              )}
+            >
+              Качество: авто
+            </div>
+          ) : null}
+          {showHlsJsQualityControls ? (
+            <div className="absolute bottom-12 right-2 z-20 flex max-w-[min(100%-1rem,16rem)] flex-col items-end gap-1 rounded-md bg-background/85 px-2 py-1.5 shadow-sm backdrop-blur-sm dark:bg-background/80">
+              <span className={cn(patientMutedTextClass, "text-xs tabular-nums")} aria-live="polite">
+                Сейчас: {hlsCurrentLabel ?? "—"}
+              </span>
+              <Select value={hlsQualityChoice} onValueChange={onHlsQualityValueChange}>
+                <SelectTrigger
+                  size="sm"
+                  displayLabel={qualityTriggerDisplayLabel}
+                  aria-label="Разрешение видео"
+                  className="max-w-full bg-background/90 dark:bg-background/70"
+                />
+                <SelectContent align="end" className="min-w-36">
+                  <SelectItem value={PATIENT_HLS_QUALITY_AUTO_VALUE}>Авто</SelectItem>
+                  {sortedPlaybackQualities.map((q) => {
+                    const v = stableQualitySelectValue(q);
+                    const itemLabel = q.label?.trim() || (typeof q.height === "number" ? `${q.height}p` : v);
+                    return (
+                      <SelectItem key={v} value={v}>
+                        {itemLabel}
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
             </div>
           ) : null}
           <NoContextMenuVideo
