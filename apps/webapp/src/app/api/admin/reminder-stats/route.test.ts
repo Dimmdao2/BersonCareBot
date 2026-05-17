@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { requireAdminModeSessionMock, loadAdminReminderStatsMock } = vi.hoisted(() => ({
+const { requireAdminModeSessionMock, loadContentEngagementStatsMock } = vi.hoisted(() => ({
   requireAdminModeSessionMock: vi.fn(),
-  loadAdminReminderStatsMock: vi.fn(),
+  loadContentEngagementStatsMock: vi.fn(),
 }));
 
 vi.mock("@/modules/auth/requireAdminMode", () => ({
@@ -13,7 +13,8 @@ vi.mock("@/app-layer/stats/loadAdminReminderStats", async (importOriginal) => {
   const mod = await importOriginal<typeof import("@/app-layer/stats/loadAdminReminderStats")>();
   return {
     ...mod,
-    loadAdminReminderStats: loadAdminReminderStatsMock,
+    loadContentEngagementStats: loadContentEngagementStatsMock,
+    loadAdminReminderStats: loadContentEngagementStatsMock,
   };
 });
 
@@ -55,6 +56,7 @@ const emptyPlaybackClient = (): {
 
 const samplePayload = {
   windowHours: 24,
+  reminderRulesEnabledCount: 12,
   occurrenceHistoryHourly: [] as Array<{ bucket: string; sent: number; failed: number }>,
   occurrenceHistoryDaily: [] as Array<{ bucket: string; sent: number; failed: number }>,
   journalByAction: { done: 1, skipped: 2, snoozed: 0 },
@@ -73,8 +75,8 @@ const samplePayload = {
 describe("GET /api/admin/reminder-stats", () => {
   beforeEach(() => {
     requireAdminModeSessionMock.mockReset();
-    loadAdminReminderStatsMock.mockReset();
-    loadAdminReminderStatsMock.mockResolvedValue(samplePayload);
+    loadContentEngagementStatsMock.mockReset();
+    loadContentEngagementStatsMock.mockResolvedValue(samplePayload);
   });
 
   it("returns 403 when not admin mode", async () => {
@@ -84,10 +86,10 @@ describe("GET /api/admin/reminder-stats", () => {
     });
     const res = await GET(new Request("http://localhost/api/admin/reminder-stats"));
     expect(res.status).toBe(403);
-    expect(loadAdminReminderStatsMock).not.toHaveBeenCalled();
+    expect(loadContentEngagementStatsMock).not.toHaveBeenCalled();
   });
 
-  it("returns JSON from loadAdminReminderStats", async () => {
+  it("returns JSON from loadContentEngagementStats", async () => {
     requireAdminModeSessionMock.mockResolvedValue({
       ok: true,
       session: { user: { userId: "a1", role: "admin" }, adminMode: true },
@@ -96,6 +98,7 @@ describe("GET /api/admin/reminder-stats", () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as typeof samplePayload;
     expect(body.journalByAction.done).toBe(1);
-    expect(loadAdminReminderStatsMock).toHaveBeenCalledWith({ windowHours: 48 });
+    expect(body.reminderRulesEnabledCount).toBe(12);
+    expect(loadContentEngagementStatsMock).toHaveBeenCalledWith({ windowHours: 48 });
   });
 });

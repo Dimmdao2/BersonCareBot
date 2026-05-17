@@ -44,11 +44,11 @@ export default async function DoctorMaterialRatingDetailPage({ params }: Props) 
 
   return (
     <AppShell
-      title={`Оценки · ${titleSuffix}`}
+      title={`Статистика · ${titleSuffix}`}
       user={session.user}
       variant="doctor"
       backHref="/app/doctor/material-ratings"
-      backLabel="Сводка"
+      backLabel="К сводке"
     >
       <div className="flex flex-col gap-6">
         <MaterialRatingDetailClient kind={kind} id={id} calendarTodayYmd={calendarTodayYmd} />

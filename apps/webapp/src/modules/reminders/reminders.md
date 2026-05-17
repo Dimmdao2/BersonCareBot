@@ -9,7 +9,7 @@
 ## Наблюдаемость (admin)
 
 - **Краткий срез в «Здоровье системы»:** [`GET /api/admin/system-health`](../../app/api/admin/system-health/route.ts) → поле **`remindersPipeline`** в теле ответа и проба **`reminders_pipeline`** в **`meta.probes`** (реализация: [`collectAdminSystemHealthData.ts`](../../app-layer/health/collectAdminSystemHealthData.ts), [`adminReminderPipelineMetrics.ts`](../../app-layer/health/adminReminderPipelineMetrics.ts)); UI — аккордеон «Напоминания» в [`SystemHealthSection.tsx`](../../app/app/settings/SystemHealthSection.tsx).
-- **Детальная статистика за окно (`windowHours`):** [`GET /api/admin/reminder-stats`](../../app/api/admin/reminder-stats/route.ts) — [`loadAdminReminderStats.ts`](../../app-layer/stats/loadAdminReminderStats.ts); вкладка **`/app/settings?adminTab=reminder-stats`**, компонент [`ReminderStatsSection.tsx`](../../app/app/settings/ReminderStatsSection.tsx). Описание контракта: [`api.md`](../../app/api/api.md) (пункт **admin/reminder-stats**).
+- **Детальная статистика за окно (`windowHours`):** [`GET /api/admin/reminder-stats`](../../app/api/admin/reminder-stats/route.ts) (admin mode) и **`GET /api/doctor/content-stats`** (doctor/admin без admin mode) — один загрузчик **`loadContentEngagementStats`** ([`loadAdminReminderStats.ts`](../../app-layer/stats/loadAdminReminderStats.ts)); вкладка **`/app/settings?adminTab=reminder-stats`**, компонент [`ReminderStatsSection.tsx`](../../app/app/settings/ReminderStatsSection.tsx). Контракт и поля (в т.ч. **`reminderRulesEnabledCount`**) — [`api.md`](../../app/api/api.md) (**admin/reminder-stats**, **doctor/content-stats**).
 
 ## Бот (Telegram / MAX): «Выполнить»
 

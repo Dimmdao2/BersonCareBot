@@ -10,6 +10,7 @@ import {
   contentPages,
   reminderJournal,
   reminderOccurrenceHistory,
+  reminderRules,
 } from "../../../db/schema/schema";
 
 const DEFAULT_WINDOW_HOURS = 168;
@@ -25,8 +26,12 @@ export type OccurrenceHourlyBucket = {
 /** UTC-дни (`date_trunc('day', occurred_at)`). */
 export type OccurrenceDailyBucket = OccurrenceHourlyBucket;
 
-export type AdminReminderStatsResponse = {
+export type ContentEngagementStatsResponse = {
   windowHours: number;
+  /**
+   * Число строк в `reminder_rules` с `is_enabled = true` (вся таблица webapp, без дедупликации по пациенту).
+   */
+  reminderRulesEnabledCount: number;
   occurrenceHistoryHourly: OccurrenceHourlyBucket[];
   occurrenceHistoryDaily: OccurrenceDailyBucket[];
   journalByAction: {
@@ -48,12 +53,15 @@ export type AdminReminderStatsResponse = {
   videoPlaybackClient: AdminPlaybackClientHealthMetrics;
 };
 
+/** @deprecated Prefer {@link ContentEngagementStatsResponse}. */
+export type AdminReminderStatsResponse = ContentEngagementStatsResponse;
+
 function clampWindowHours(raw: unknown): number {
   const n = typeof raw === "number" && Number.isFinite(raw) ? Math.floor(raw) : DEFAULT_WINDOW_HOURS;
   return Math.min(MAX_WINDOW_HOURS, Math.max(MIN_WINDOW_HOURS, n || DEFAULT_WINDOW_HOURS));
 }
 
-/** Safe entrypoint for `GET /api/admin/reminder-stats` query parsing. */
+/** Safe entrypoint for `GET /api/admin/reminder-stats` and `GET /api/doctor/content-stats` query parsing. */
 export function parseReminderStatsWindowHours(param: string | null): number {
   if (param == null || param.trim() === "") return DEFAULT_WINDOW_HOURS;
   const parsed = Number.parseInt(param.trim(), 10);
@@ -79,9 +87,12 @@ function mergeOccurrenceHourly(
 }
 
 /**
- * Product / operator aggregates for reminders and linked completion / video usage (no PII lists).
+ * Платформенные агрегаты: напоминания, практика по страницам, метрики выдачи видео (без списков PII).
+ * Используется и админкой (`/api/admin/reminder-stats`), и кабинетом врача (`/api/doctor/content-stats`).
  */
-export async function loadAdminReminderStats(opts: { windowHours?: number }): Promise<AdminReminderStatsResponse> {
+export async function loadContentEngagementStats(opts: {
+  windowHours?: number;
+}): Promise<ContentEngagementStatsResponse> {
   const windowHours = clampWindowHours(opts.windowHours);
   const windowCutoffSql = sql`(now() - (${windowHours}::integer * interval '1 hour'))`;
   const db = getDrizzle();
@@ -96,6 +107,7 @@ export async function loadAdminReminderStats(opts: { windowHours?: number }): Pr
     skipRows,
     practiceSourceRows,
     practicePageRows,
+    reminderRulesEnabledRow,
     videoPlayback,
     videoPlaybackClient,
   ] = await Promise.all([
@@ -165,6 +177,7 @@ export async function loadAdminReminderStats(opts: { windowHours?: number }): Pr
       .groupBy(patientPracticeCompletions.contentPageId, contentPages.section, contentPages.slug)
       .orderBy(desc(count()))
       .limit(15),
+    db.select({ cnt: count() }).from(reminderRules).where(eq(reminderRules.isEnabled, true)),
     loadAdminPlaybackHealthMetrics({ windowHours }),
     loadAdminPlaybackClientHealthMetrics({ windowHours }),
   ]);
@@ -182,8 +195,11 @@ export async function loadAdminReminderStats(opts: { windowHours?: number }): Pr
     practiceBySource[r.source] = Number(r.n ?? 0);
   }
 
+  const reminderRulesEnabledCount = Number(reminderRulesEnabledRow[0]?.cnt ?? 0);
+
   return {
     windowHours,
+    reminderRulesEnabledCount,
     occurrenceHistoryHourly: mergeOccurrenceHourly(
       occRows.map((r) => ({ bucket: r.bucket, status: r.status, n: r.n })),
     ),
@@ -203,3 +219,6 @@ export async function loadAdminReminderStats(opts: { windowHours?: number }): Pr
     videoPlaybackClient,
   };
 }
+
+/** @deprecated Use {@link loadContentEngagementStats}. */
+export const loadAdminReminderStats = loadContentEngagementStats;

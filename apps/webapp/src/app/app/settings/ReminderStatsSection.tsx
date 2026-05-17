@@ -110,6 +110,11 @@ export function ReminderStatsSection() {
         {loading ? <span className="text-xs text-muted-foreground">Загрузка…</span> : null}
         {error ? <span className="text-xs text-destructive">{error}</span> : null}
       </div>
+      {data ? (
+        <p className="text-xs text-muted-foreground tabular-nums">
+          Включено правил напоминаний (в системе): {data.reminderRulesEnabledCount}
+        </p>
+      ) : null}
 
       {data ? (
         <>

@@ -1,6 +1,6 @@
 # Оценки материалов (1–5 звёзд)
 
-Краткий канон по реализации в webapp: одна строка на пару **пользователь × цель** (`public.material_ratings`), агрегаты для отображения считаются в сервисе.
+Краткий канон по реализации в webapp: одна строка на пару **пользователь × цель** (`public.material_ratings`), агрегаты для отображения считаются в сервисе. Страница врача **`/app/doctor/material-ratings`** в UI называется **«Статистика материалов»**: сверху платформенный дашборд (`GET /api/doctor/content-stats`), ниже таблицы именно **оценок звёздами**.
 
 ## Данные
 
@@ -18,7 +18,7 @@
 ## UI
 
 - Блок звёзд: `MaterialRatingBlock` (+ нативный fallback `MaterialRatingNativeStars`), встраивается на пациентских страницах контента/ЛФК и в формах врача/CMS там, где нужна обратная связь по материалу.
-- Кабинет врача: **`/app/doctor/material-ratings`** — сводка по целям; **`/app/doctor/material-ratings/[kind]/[id]`** — детализация за период ≤31 дня (график и список оценивших).
+- Кабинет врача: **`/app/doctor/material-ratings`** (пункт меню «Статистика материалов») — сверху дашборд платформенных метрик (**`GET /api/doctor/content-stats`**, тот же JSON, что **`GET /api/admin/reminder-stats`**, загрузчик **`loadContentEngagementStats`** в [`loadAdminReminderStats.ts`](../../apps/webapp/src/app-layer/stats/loadAdminReminderStats.ts); агрегаты **по всей платформе**, не фильтр «только пациенты этого врача»); UI: [`MaterialContentStatsClient.tsx`](../../apps/webapp/src/app/app/doctor/material-ratings/MaterialContentStatsClient.tsx); ниже постраничная сводка по оценкам; **`/app/doctor/material-ratings/[kind]/[id]`** — детализация за период ≤31 дня (график и список оценивших).
 
 ## Детализация для врача (`GET /api/doctor/material-ratings/detail`)
 
@@ -40,5 +40,5 @@ Non-video и страницы без распознанного **`/api/media/{u
 
 - Модуль: `apps/webapp/src/modules/material-rating/`
 - Репозиторий: `apps/webapp/src/infra/repos/pgMaterialRating.ts` (+ in-memory для тестов), хелпер видео-media: `apps/webapp/src/infra/repos/materialRatingTargetVideoMediaIds.ts`
-- API: `apps/webapp/src/app/api/patient/material-ratings/`, `apps/webapp/src/app/api/doctor/material-ratings/{aggregate,summary,detail}/`
-- Реестр HTTP: `apps/webapp/src/app/api/api.md` (раздел patient/doctor material-ratings)
+- API: `apps/webapp/src/app/api/patient/material-ratings/`, `apps/webapp/src/app/api/doctor/material-ratings/{aggregate,summary,detail}/`, `apps/webapp/src/app/api/doctor/content-stats/route.ts`
+- Реестр HTTP: `apps/webapp/src/app/api/api.md` — **`patient/material-ratings`**, **`doctor/material-ratings/*`**, **`doctor/content-stats`**, **`admin/reminder-stats`** (тот же payload, что у врача, плюс admin mode).

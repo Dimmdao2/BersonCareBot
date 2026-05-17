@@ -81,7 +81,7 @@ const CLUSTER_APP_CONTENT: DoctorMenuCluster = {
   items: [
     { id: "patient-home", label: "Главная пациента", href: "/app/doctor/patient-home" },
     { id: "content", label: "CMS", href: "/app/doctor/content" },
-    { id: "material-ratings", label: "Оценки материалов", href: "/app/doctor/material-ratings" },
+    { id: "material-ratings", label: "Статистика материалов", href: "/app/doctor/material-ratings" },
   ],
 };
 

@@ -1,8 +1,9 @@
 /**
- * Сводка оценок материалов (звёзды) по данным пациентов.
+ * Статистика материалов: платформенные метрики и сводка оценок (звёзды) по данным пациентов.
  */
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { MaterialContentStatsClient } from "@/app/app/doctor/material-ratings/MaterialContentStatsClient";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { AppShell } from "@/shared/ui/AppShell";
@@ -63,10 +64,11 @@ export default async function DoctorMaterialRatingsPage({ searchParams }: Props)
   const basePath = "/app/doctor/material-ratings";
 
   return (
-    <AppShell title="Оценки материалов" user={session.user} variant="doctor" backHref="/app/doctor/content" backLabel="CMS">
+    <AppShell title="Статистика материалов" user={session.user} variant="doctor" backHref="/app/doctor/content" backLabel="CMS">
       <div className="flex flex-col gap-6">
+        <MaterialContentStatsClient />
         <p className="text-xs text-muted-foreground">
-          Страница {pageNum}
+          Оценки · страница {pageNum}
           {hasNext ? " · есть следующие записи" : offset > 0 ? " · конец списка" : null}
         </p>
         {(Object.keys(grouped) as MaterialRatingTargetKind[]).map((kind) => {
