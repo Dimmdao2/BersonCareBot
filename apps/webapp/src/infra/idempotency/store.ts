@@ -19,7 +19,7 @@ function getStorePath(): string {
   if (process.env.IDEMPOTENCY_STORE_PATH && process.env.IDEMPOTENCY_STORE_PATH.trim().length > 0) {
     return process.env.IDEMPOTENCY_STORE_PATH;
   }
-  return path.join(process.cwd(), ".data", "idempotency-store.json");
+  return path.join(/* turbopackIgnore: true */ process.cwd(), ".data", "idempotency-store.json");
 }
 
 async function loadStore(): Promise<IdempotencyRecord> {

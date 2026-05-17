@@ -1,9 +1,14 @@
 import withBundleAnalyzer from "@next/bundle-analyzer";
 import type { NextConfig } from "next";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 const withAnalyzer = withBundleAnalyzer({
   enabled: process.env.ANALYZE === "true",
 });
+
+/** Monorepo root — limits standalone file tracing to the workspace (avoids tracing entire disk via `process.cwd()` chains). */
+const outputFileTracingRoot = path.join(path.dirname(fileURLToPath(import.meta.url)), "../..");
 
 const allowedDevOrigins = [
   "127.0.0.1:15200",
@@ -15,6 +20,7 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   allowedDevOrigins,
   output: "standalone",
+  outputFileTracingRoot,
   async redirects() {
     const diarySymptomsDest = "/app/patient/diary?tab=symptoms";
     const diaryLfkDest = "/app/patient/diary?tab=lfk";
