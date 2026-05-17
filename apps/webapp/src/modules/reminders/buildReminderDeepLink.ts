@@ -1,3 +1,4 @@
+import { routePaths } from "@/app-layer/routes/paths";
 import { getAppBaseUrlSync } from "@/modules/system-settings/integrationRuntime";
 import type { ReminderLinkedObjectType } from "./types";
 
@@ -22,8 +23,16 @@ function narrowLinkedType(raw: string | null): ReminderLinkedObjectType | null {
 export function buildReminderDeepLink(params: {
   linkedObjectType: ReminderLinkedObjectType | string | null;
   linkedObjectId: string | null;
+  reminderIntent?: string | null;
 }): string {
   const base = getAppBaseUrlSync().replace(/\/$/, "");
+  const intentRaw = typeof params.reminderIntent === "string" ? params.reminderIntent.trim() : "";
+  if (intentRaw === "warmup") {
+    return `${base}${routePaths.patientGoDailyWarmup}?from=reminder`;
+  }
+  if (intentRaw === "exercises" || intentRaw === "stretch") {
+    return `${base}${routePaths.patientGoPlanStartLesson}?from=reminder`;
+  }
   const linkedObjectType = narrowLinkedType(
     typeof params.linkedObjectType === "string" ? params.linkedObjectType : null,
   );

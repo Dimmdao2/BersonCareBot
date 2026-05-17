@@ -10,6 +10,10 @@ export const routePaths = {
   /** Поддержка с экрана входа (гость, без сессии). */
   loginContactSupport: LOGIN_CONTACT_SUPPORT_PATH,
   patient: "/app/patient",
+  /** Редирект из напоминаний бота: актуальная разминка дня (как «Начать разминку» на главной). */
+  patientGoDailyWarmup: "/app/patient/go/daily-warmup",
+  /** Редирект из напоминаний бота: «Начать занятие» по программе (как на карточке плана / в программе). */
+  patientGoPlanStartLesson: "/app/patient/go/plan-start-lesson",
   doctor: "/app/doctor",
   /** Настройка блоков главной пациента (doctor/admin). */
   doctorPatientHome: "/app/doctor/patient-home",

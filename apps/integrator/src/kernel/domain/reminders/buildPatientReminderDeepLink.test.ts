@@ -32,4 +32,31 @@ describe('buildPatientReminderDeepLink', () => {
     });
     expect(url).toBe('https://app.example/app/patient/treatment/prog-9?from=reminder');
   });
+
+  it('warmup intent uses go daily-warmup URL (overrides linked object)', () => {
+    const url = buildPatientReminderDeepLink({
+      linkedObjectType: 'treatment_program_item',
+      linkedObjectId: 'inst-1:item-2',
+      reminderIntent: 'warmup',
+    });
+    expect(url).toBe('https://app.example/app/patient/go/daily-warmup?from=reminder');
+  });
+
+  it('exercises intent uses go plan-start-lesson URL', () => {
+    const url = buildPatientReminderDeepLink({
+      linkedObjectType: 'rehab_program',
+      linkedObjectId: 'prog-9',
+      reminderIntent: 'exercises',
+    });
+    expect(url).toBe('https://app.example/app/patient/go/plan-start-lesson?from=reminder');
+  });
+
+  it('stretch intent uses go plan-start-lesson URL', () => {
+    const url = buildPatientReminderDeepLink({
+      linkedObjectType: 'content_section',
+      linkedObjectId: 'warmups',
+      reminderIntent: 'stretch',
+    });
+    expect(url).toBe('https://app.example/app/patient/go/plan-start-lesson?from=reminder');
+  });
 });

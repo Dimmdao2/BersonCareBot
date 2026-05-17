@@ -4,6 +4,15 @@
  */
 import { getAppBaseUrlSync } from '../../../config/appBaseUrl.js';
 
+const GO_DAILY_WARMUP = '/app/patient/go/daily-warmup?from=reminder';
+const GO_PLAN_START_LESSON = '/app/patient/go/plan-start-lesson?from=reminder';
+
+/** Primary open URL для dispatch: warmup / exercises / stretch — go-URL в webapp (редирект как на главной / в плане). */
+export function reminderDispatchUsesIntentOpenTarget(intent: string | null | undefined): boolean {
+  const i = typeof intent === 'string' ? intent.trim() : '';
+  return i === 'warmup' || i === 'exercises' || i === 'stretch';
+}
+
 const KNOWN = new Set([
   'lfk_complex',
   'content_section',
@@ -16,8 +25,16 @@ const KNOWN = new Set([
 export function buildPatientReminderDeepLink(params: {
   linkedObjectType: string | null | undefined;
   linkedObjectId: string | null | undefined;
+  reminderIntent?: string | null | undefined;
 }): string {
   const base = getAppBaseUrlSync().replace(/\/$/, '');
+  const intentRaw = typeof params.reminderIntent === 'string' ? params.reminderIntent.trim() : '';
+  if (intentRaw === 'warmup') {
+    return base ? `${base}${GO_DAILY_WARMUP}` : GO_DAILY_WARMUP;
+  }
+  if (intentRaw === 'exercises' || intentRaw === 'stretch') {
+    return base ? `${base}${GO_PLAN_START_LESSON}` : GO_PLAN_START_LESSON;
+  }
   if (!base) return '/app/patient/reminders?from=reminder';
   const rawType = typeof params.linkedObjectType === 'string' ? params.linkedObjectType.trim() : '';
   const linkedObjectType = KNOWN.has(rawType) ? rawType : null;

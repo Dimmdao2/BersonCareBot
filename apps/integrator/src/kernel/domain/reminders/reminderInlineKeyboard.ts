@@ -20,7 +20,7 @@ export type InlineKeyboardButton =
 
 /** Primary CTA label from webapp `reminder_intent`. */
 export function reminderIntentPrimaryLabel(intent: string | null | undefined): string {
-  if (intent === 'warmup') return 'Выполнить разминку';
+  if (intent === 'warmup') return 'Начать разминку';
   return 'Начать занятие';
 }
 

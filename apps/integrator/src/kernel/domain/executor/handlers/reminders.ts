@@ -27,7 +27,10 @@ import {
   planDueReminderOccurrences,
   reminderPresetConfig,
 } from '../../reminders/policy.js';
-import { buildPatientReminderDeepLink } from '../../reminders/buildPatientReminderDeepLink.js';
+import {
+  buildPatientReminderDeepLink,
+  reminderDispatchUsesIntentOpenTarget,
+} from '../../reminders/buildPatientReminderDeepLink.js';
 import { reminderOccurrenceTopicCode } from '../../reminders/reminderNotificationTopicCode.js';
 import {
   buildReminderDispatchInlineKeyboard,
@@ -428,13 +431,19 @@ export async function handleReminders(
       }
       const reminderBodyRaw = rule?.customText?.trim() ?? '';
       const reminderBody = reminderBodyRaw ? escapeReminderHtml(reminderBodyRaw) : '';
+      const computedOpen = buildPatientReminderDeepLink({
+        linkedObjectType: rule?.linkedObjectType ?? null,
+        linkedObjectId: rule?.linkedObjectId ?? null,
+        reminderIntent: rule?.reminderIntent ?? null,
+      });
       const openUrl =
-        (rule?.deepLink?.trim() && rule.deepLink.trim().length > 0
-          ? rule.deepLink.trim()
-          : buildPatientReminderDeepLink({
-            linkedObjectType: rule?.linkedObjectType ?? null,
-            linkedObjectId: rule?.linkedObjectId ?? null,
-          })) || buildPatientReminderDeepLink({ linkedObjectType: null, linkedObjectId: null });
+        reminderDispatchUsesIntentOpenTarget(rule?.reminderIntent ?? null) ? computedOpen
+        : (rule?.deepLink?.trim() && rule.deepLink.trim().length > 0 ? rule.deepLink.trim() : computedOpen) ||
+          buildPatientReminderDeepLink({
+            linkedObjectType: null,
+            linkedObjectId: null,
+            reminderIntent: null,
+          });
 
       let remindersEditUrl: string | undefined;
       try {

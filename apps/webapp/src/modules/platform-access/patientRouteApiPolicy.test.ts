@@ -55,6 +55,11 @@ describe("patientPathsAllowedDuringPhoneActivation", () => {
     expect(patientPathsAllowedDuringPhoneActivation("/app/patient/content/public-slug")).toBe(true);
   });
 
+  it("allows reminder bot go redirects during activation gate", () => {
+    expect(patientPathsAllowedDuringPhoneActivation("/app/patient/go/daily-warmup")).toBe(true);
+    expect(patientPathsAllowedDuringPhoneActivation("/app/patient/go/plan-start-lesson")).toBe(true);
+  });
+
   it("denies home, profile, cabinet, and booking during activation gate", () => {
     expect(patientPathsAllowedDuringPhoneActivation("/app/patient")).toBe(false);
     expect(patientPathsAllowedDuringPhoneActivation("/app/patient/profile")).toBe(false);
@@ -84,6 +89,11 @@ describe("patientPathRequiresBoundPhone", () => {
     expect(patientPathRequiresBoundPhone("/app/patient/content/foo")).toBe(false);
   });
 
+  it("allows reminder bot go redirects (same layout tolerance as content drilldown)", () => {
+    expect(patientPathRequiresBoundPhone("/app/patient/go/daily-warmup")).toBe(false);
+    expect(patientPathRequiresBoundPhone("/app/patient/go/plan-start-lesson")).toBe(false);
+  });
+
   it("allows cabinet, booking wizard, diary, purchases, notifications without patient tier", () => {
     expect(patientPathRequiresBoundPhone("/app/patient/cabinet")).toBe(false);
     expect(patientPathRequiresBoundPhone("/app/patient/booking/new/city")).toBe(false);
@@ -106,6 +116,7 @@ describe("patientPageMinAccessTier", () => {
     expect(patientPageMinAccessTier("/app/patient/cabinet")).toBe("guest");
     expect(patientPageMinAccessTier("/app/patient/profile")).toBe("onboarding");
     expect(patientPageMinAccessTier("/app/patient/reminders")).toBe("patient");
+    expect(patientPageMinAccessTier("/app/patient/go/daily-warmup")).toBe("onboarding");
   });
 });
 

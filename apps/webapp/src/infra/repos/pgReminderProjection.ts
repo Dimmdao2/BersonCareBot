@@ -324,6 +324,7 @@ export function createPgReminderProjectionPort(): ReminderProjectionPort {
           deepLink: buildReminderDeepLink({
             linkedObjectType: row.linked_object_type,
             linkedObjectId: row.linked_object_id,
+            reminderIntent: row.reminder_intent,
           }),
           createdAt: row.created_at,
           updatedAt: row.updated_at,
@@ -397,6 +398,7 @@ export function createPgReminderProjectionPort(): ReminderProjectionPort {
         deepLink: buildReminderDeepLink({
           linkedObjectType: row.linked_object_type,
           linkedObjectId: row.linked_object_id,
+          reminderIntent: row.reminder_intent,
         }),
         createdAt: row.created_at,
         updatedAt: row.updated_at,

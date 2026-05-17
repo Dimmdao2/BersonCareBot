@@ -9,7 +9,7 @@ import {
 
 describe('reminderIntentPrimaryLabel', () => {
   it('maps intents to product CTA copy', () => {
-    expect(reminderIntentPrimaryLabel('warmup')).toBe('Выполнить разминку');
+    expect(reminderIntentPrimaryLabel('warmup')).toBe('Начать разминку');
     expect(reminderIntentPrimaryLabel('exercises')).toBe('Начать занятие');
     expect(reminderIntentPrimaryLabel('stretch')).toBe('Начать занятие');
     expect(reminderIntentPrimaryLabel('generic')).toBe('Начать занятие');

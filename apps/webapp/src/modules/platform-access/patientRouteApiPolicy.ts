@@ -52,6 +52,8 @@ const PATIENT_PAGE_PREFIXES_WITHOUT_PATIENT_TIER = [
   "/app/patient/sections",
   "/app/patient/sections/",
   "/app/patient/content/",
+  /** Редиректы из напоминаний бота → разминка дня / старт занятия (как CTA на главной, без лишнего bind-phone в legacy snapshot). */
+  "/app/patient/go/",
   "/app/patient/help",
   "/app/patient/support",
   "/app/patient/install",
@@ -114,6 +116,8 @@ const PATH_PREFIXES_ALLOWED_DURING_PHONE_ACTIVATION = [
   "/app/patient/sections/",
   /** Публичные материалы CMS (`requires_auth = false`); доступность текста — на странице RSC. */
   "/app/patient/content/",
+  /** Редиректы из напоминаний бота → главная разминка / старт занятия по программе. */
+  "/app/patient/go/",
   /** Каталог курсов (метаданные) без записи — мутация через API с tier patient. */
   "/app/patient/courses",
 ] as const;

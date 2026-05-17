@@ -9,6 +9,6 @@
 ## Ключевые точки кода
 
 - `service.ts` — бизнес-логика; порты: `ReminderRulesPort`, опционально `ReminderJournalPort`.
-- `buildReminderDeepLink.ts` — deeplink для payload integrator (в т.ч. `rehab_program` → `/app/patient/treatment/...`).
+- `buildReminderDeepLink.ts` — deeplink для payload integrator (в т.ч. `rehab_program` → `/app/patient/treatment/...`). Для `reminder_intent` **`warmup`** / **`exercises`** / **`stretch`** — стабильные пути `/app/patient/go/daily-warmup` и `/app/patient/go/plan-start-lesson` (RSC-редирект на тот же контент, что CTA «Начать разминку» / «Начать занятие» на главной пациента). Префикс `/app/patient/go/` учтён в `patientRouteApiPolicy` (в т.ч. без лишнего bind-phone в legacy snapshot, как у `/app/patient/content/`).
 - `scheduleSlots.ts` — формат `slots_v1`, дефолт реабилитации `DEFAULT_REHAB_DAILY_SLOTS` (09:00 и 19:00, `weekly_mask` 7/7). Дефолты формы «офисный день» для не-rehab — `reminderFormDefaults.ts` (окно 12–18, интервал 180 мин, маска Пн–Пт).
 - Репозитории: `infra/repos/pgReminderRules.ts`, `pgReminderJournal.ts`; проекция для integrator GET: `infra/repos/pgReminderProjection.ts` (поля `schedule_data`, `reminder_intent`, `display_*` в ответе списка правил).

@@ -1,5 +1,12 @@
 # LOG — Patient Reminder UX
 
+## 2026-05-17 — Deeplink из бота: разминка дня и старт занятия по плану
+
+- **Webapp:** маршруты `routePaths.patientGoDailyWarmup` / `patientGoPlanStartLesson`; `app/app/patient/go/[kind]/page.tsx` + `resolvePatientReminderGoTargets.ts` (та же логика выбора, что главная «Начать разминку» / план «Начать занятие»); `buildReminderDeepLink` с `reminder_intent`; проекция и M2M upsert передают intent; `patientRouteApiPolicy` — префикс `/app/patient/go/` при `need_activation` и в `PATIENT_PAGE_PREFIXES_WITHOUT_PATIENT_TIER` (без лишнего bind-phone в legacy snapshot до редиректа, как у drilldown на `/app/patient/content/…`).
+- **Integrator:** `buildPatientReminderDeepLink` / `reminderDispatchUsesIntentOpenTarget`; `reminders.dispatchDue` — для warmup/exercises/stretch игнорируется кастомный `deepLink` правила; primary label разминки — «Начать разминку».
+- **Тесты:** `buildPatientReminderDeepLink.test.ts`, `reminderInlineKeyboard.test.ts`; smoke RSC — `patient/go/[kind]/page`; `patientRouteApiPolicy.test.ts` (go-пути, `need_activation`, `patientPageMinAccessTier`).
+- **Документация модуля:** [`reminders.md`](../../../../apps/webapp/src/modules/reminders/reminders.md).
+
 ## 2026-05-15 — Дефолты rehab / «офисный день», цель на главной (`practiceTarget`), разбивка прогресса
 
 - **План (архив репозитория):** [`reminder_defaults_and_home_goal.plan.md`](../../../../.cursor/plans/archive/reminder_defaults_and_home_goal.plan.md) — файл перенесён из `~/.cursor/plans/` в монорепозиторий; в YAML добавлено `status: completed`, все `todos.status: completed`, блок Definition of Done помечен `[x]`.

@@ -93,6 +93,7 @@ export async function postReminderRuleUpsertToIntegrator(rule: ReminderRule): Pr
       deepLink: buildReminderDeepLink({
         linkedObjectType: rule.linkedObjectType,
         linkedObjectId: rule.linkedObjectId,
+        reminderIntent: rule.reminderIntent ?? null,
       }),
       scheduleData: rule.scheduleData,
       reminderIntent: rule.reminderIntent ?? "generic",
