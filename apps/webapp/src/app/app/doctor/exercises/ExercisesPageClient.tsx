@@ -25,6 +25,11 @@ import {
   DoctorCatalogFiltersToolbar,
   DoctorCatalogToolbarFiltersSlot,
 } from "@/shared/ui/doctor/DoctorCatalogFiltersToolbar";
+import type { DoctorCatalogToolbarLayout } from "@/shared/ui/doctor/DoctorCatalogFiltersForm";
+import {
+  DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_EXPANDED,
+  DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE,
+} from "@/shared/ui/doctorWorkspaceLayout";
 import { CatalogLeftPane } from "@/shared/ui/CatalogLeftPane";
 import { CatalogRightPane } from "@/shared/ui/CatalogRightPane";
 import { CatalogSplitLayout } from "@/shared/ui/CatalogSplitLayout";
@@ -146,6 +151,8 @@ type ExercisesContentProps = {
   changeTitleSort: (next: ExerciseTitleSort | null) => void;
   filters: ExerciseCatalogFiltersMerged;
   bodyRegionIdToCode: Record<string, string>;
+  filterToolbarLayout: DoctorCatalogToolbarLayout;
+  onFilterToolbarLayoutChange: (layout: DoctorCatalogToolbarLayout) => void;
 };
 
 function ExercisesContent({
@@ -162,6 +169,8 @@ function ExercisesContent({
   changeTitleSort,
   filters,
   bodyRegionIdToCode,
+  filterToolbarLayout,
+  onFilterToolbarLayoutChange,
 }: ExercisesContentProps) {
   const exercises = use(listPromise);
   const selection = use(doctorExerciseSelectionPromise);
@@ -308,6 +317,7 @@ function ExercisesContent({
                 view={viewMode}
                 titleSort={filters.titleSort}
                 selectedId={desktopSelectedId}
+                onFilterToolbarLayoutChange={onFilterToolbarLayoutChange}
               />
             </DoctorCatalogToolbarFiltersSlot>
           }
@@ -324,7 +334,11 @@ function ExercisesContent({
       }
     >
       <CatalogSplitLayout
-        className="lg:h-[calc(100dvh-3.5rem-env(safe-area-inset-top,0px)-3.25rem-1rem)] lg:overflow-hidden"
+        className={cn(
+          filterToolbarLayout === "expanded"
+            ? DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_EXPANDED
+            : DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE,
+        )}
         left={
           <CatalogLeftPane
             stickySplit={false}
@@ -452,6 +466,10 @@ export function ExercisesPageClient({
   const [desktopSelectedId, setDesktopSelectedId] = useState<string | null>(null);
   const [mobileSheet, setMobileSheet] = useState<{ exercise: Exercise | null } | null>(null);
   const [isListPending, startListTransition] = useTransition();
+  const [filterToolbarLayout, setFilterToolbarLayout] = useState<DoctorCatalogToolbarLayout>("compact");
+  const onFilterToolbarLayoutChange = useCallback((layout: DoctorCatalogToolbarLayout) => {
+    setFilterToolbarLayout(layout);
+  }, []);
 
   useEffect(() => {
     if (viewLockedByUrl) {
@@ -504,6 +522,8 @@ export function ExercisesPageClient({
         changeTitleSort={changeTitleSort}
         filters={mergedFilters}
         bodyRegionIdToCode={bodyRegionIdToCode}
+        filterToolbarLayout={filterToolbarLayout}
+        onFilterToolbarLayoutChange={onFilterToolbarLayoutChange}
       />
     </Suspense>
   );

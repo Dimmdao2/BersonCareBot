@@ -44,6 +44,18 @@ export const DOCTOR_CATALOG_LEFT_ASIDE_STICKY_LAYOUT_DOUBLE_ROW_CLASS =
   "lg:sticky lg:top-[calc(3.5rem+env(safe-area-inset-top,0px)+6.5rem)] lg:h-[calc(100dvh-3.5rem-env(safe-area-inset-top,0px)-6.5rem-1rem)]";
 
 /**
+ * Desktop `CatalogSplitLayout`: высота под шапкой + один ряд липких фильтров (~3.25rem).
+ */
+export const DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE =
+  "lg:h-[calc(100dvh-3.5rem-env(safe-area-inset-top,0px)-3.25rem-1rem)] lg:overflow-hidden";
+
+/**
+ * То же, когда липкий тулбар фильтров в два ряда (~6.5rem под блок).
+ */
+export const DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_EXPANDED =
+  "lg:h-[calc(100dvh-3.5rem-env(safe-area-inset-top,0px)-6.5rem-1rem)] lg:overflow-hidden";
+
+/**
  * Desktop master/detail: ограничение высоты под шапкой + safe-area (без липкого блока над сеткой).
  */
 export const DOCTOR_DESKTOP_SPLIT_PANE_MAX_H_CLASS =

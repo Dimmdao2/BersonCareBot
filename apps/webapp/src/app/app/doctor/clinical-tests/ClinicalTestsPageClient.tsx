@@ -28,7 +28,14 @@ import { CatalogSplitLayout } from "@/shared/ui/CatalogSplitLayout";
 import { DoctorCatalogPageLayout } from "@/shared/ui/DoctorCatalogPageLayout";
 import type { RecommendationListFilterScope } from "@/shared/lib/doctorCatalogListStatus";
 import { archiveClinicalTestInline, saveClinicalTestInline, unarchiveClinicalTestInline } from "./actionsInline";
-import { DoctorCatalogFiltersForm } from "@/shared/ui/doctor/DoctorCatalogFiltersForm";
+import {
+  DoctorCatalogFiltersForm,
+  type DoctorCatalogToolbarLayout,
+} from "@/shared/ui/doctor/DoctorCatalogFiltersForm";
+import {
+  DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_EXPANDED,
+  DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE,
+} from "@/shared/ui/doctorWorkspaceLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { ClinicalTestForm } from "./ClinicalTestForm";
 import { useDoctorCatalogDisplayList } from "@/shared/hooks/useDoctorCatalogDisplayList";
@@ -162,6 +169,8 @@ function ClinicalTestsContent({
   assessmentKindFilterItems,
   assessmentKindCatalogItems,
   bodyRegionIdToCode,
+  filterToolbarLayout,
+  onFilterToolbarLayoutChange,
 }: {
   initialItems: ClinicalTest[];
   initialSelectedId: string | null;
@@ -179,6 +188,8 @@ function ClinicalTestsContent({
   assessmentKindFilterItems: ReferenceItemDto[];
   assessmentKindCatalogItems: ReferenceItem[];
   bodyRegionIdToCode: Record<string, string>;
+  filterToolbarLayout: DoctorCatalogToolbarLayout;
+  onFilterToolbarLayoutChange: (layout: DoctorCatalogToolbarLayout) => void;
 }) {
   useEffect(() => {
     if (!initialSelectedId) return;
@@ -351,6 +362,7 @@ function ClinicalTestsContent({
                 view={viewMode}
                 titleSort={filters.titleSort}
                 selectedId={desktopSelectedId}
+                onFilterToolbarLayoutChange={onFilterToolbarLayoutChange}
               />
             </DoctorCatalogToolbarFiltersSlot>
           }
@@ -379,7 +391,11 @@ function ClinicalTestsContent({
         </p>
       ) : null}
       <CatalogSplitLayout
-        className="lg:h-[calc(100dvh-3.5rem-env(safe-area-inset-top,0px)-3.25rem-1rem)] lg:overflow-hidden"
+        className={cn(
+          filterToolbarLayout === "expanded"
+            ? DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_EXPANDED
+            : DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE,
+        )}
         left={
           <CatalogLeftPane
             stickySplit={false}
@@ -453,6 +469,10 @@ export function ClinicalTestsPageClient({
   const [desktopSelectedId, setDesktopSelectedId] = useState<string | null>(null);
   const [mobileSheet, setMobileSheet] = useState<{ test: ClinicalTest | null } | null>(null);
   const [isListPending, startListTransition] = useTransition();
+  const [filterToolbarLayout, setFilterToolbarLayout] = useState<DoctorCatalogToolbarLayout>("compact");
+  const onFilterToolbarLayoutChange = useCallback((layout: DoctorCatalogToolbarLayout) => {
+    setFilterToolbarLayout(layout);
+  }, []);
 
   useEffect(() => {
     if (viewLockedByUrl) {
@@ -507,6 +527,8 @@ export function ClinicalTestsPageClient({
       assessmentKindFilterItems={assessmentKindFilterItems}
       assessmentKindCatalogItems={assessmentKindCatalogItems}
       bodyRegionIdToCode={bodyRegionIdToCode}
+      filterToolbarLayout={filterToolbarLayout}
+      onFilterToolbarLayoutChange={onFilterToolbarLayoutChange}
     />
   );
 }

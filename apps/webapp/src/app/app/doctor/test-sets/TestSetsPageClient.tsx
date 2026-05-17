@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import type { TestSet, TestSetUsageSnapshot } from "@/modules/tests/types";
 import { cn } from "@/lib/utils";
@@ -18,7 +18,10 @@ import {
   DoctorCatalogFiltersToolbar,
   DoctorCatalogToolbarFiltersSlot,
 } from "@/shared/ui/doctor/DoctorCatalogFiltersToolbar";
-import { DoctorCatalogFiltersForm } from "@/shared/ui/doctor/DoctorCatalogFiltersForm";
+import {
+  DoctorCatalogFiltersForm,
+  type DoctorCatalogToolbarLayout,
+} from "@/shared/ui/doctor/DoctorCatalogFiltersForm";
 import {
   archiveDoctorTestSetInline,
   saveDoctorTestSetInline,
@@ -26,6 +29,10 @@ import {
 } from "./actionsInline";
 import type { DoctorCatalogPubArchQuery } from "@/shared/lib/doctorCatalogListStatus";
 import { DoctorCatalogInvalidPubArchToast } from "@/shared/ui/doctor/DoctorCatalogInvalidPubArchToast";
+import {
+  DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_EXPANDED,
+  DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE,
+} from "@/shared/ui/doctorWorkspaceLayout";
 import { DoctorCatalogMasterListRow } from "@/shared/ui/doctor/DoctorCatalogMasterListRow";
 import { MediaThumb } from "@/shared/ui/media/MediaThumb";
 import { clinicalTestMediaItemToPreviewUi } from "@/shared/ui/media/mediaPreviewUiModel";
@@ -59,6 +66,10 @@ export function TestSetsPageClient({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [mobileSheet, setMobileSheet] = useState<TestSet | null>(null);
+  const [filterToolbarLayout, setFilterToolbarLayout] = useState<DoctorCatalogToolbarLayout>("compact");
+  const onFilterToolbarLayoutChange = useCallback((layout: DoctorCatalogToolbarLayout) => {
+    setFilterToolbarLayout(layout);
+  }, []);
 
   const filterScope = useMemo(() => ({ ...filters, titleSort }), [filters, titleSort]);
   const mergedFilters = useDoctorCatalogClientFilterMerge(filterScope);
@@ -231,6 +242,7 @@ export function TestSetsPageClient({
             titleSort={mergedFilters.titleSort}
             selectedId={creating ? null : selected?.id ?? mobileSheet?.id ?? null}
             catalogPubArch={mergedFilters.listPubArch}
+            onFilterToolbarLayoutChange={onFilterToolbarLayoutChange}
           />
         </DoctorCatalogToolbarFiltersSlot>
       }
@@ -255,7 +267,11 @@ export function TestSetsPageClient({
       <DoctorCatalogInvalidPubArchToast />
       <DoctorCatalogPageLayout toolbar={toolbar}>
       <CatalogSplitLayout
-        className="lg:h-[calc(100dvh-3.5rem-env(safe-area-inset-top,0px)-3.25rem-1rem)] lg:overflow-hidden"
+        className={cn(
+          filterToolbarLayout === "expanded"
+            ? DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_EXPANDED
+            : DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE,
+        )}
         left={
           <CatalogLeftPane
             stickySplit={false}

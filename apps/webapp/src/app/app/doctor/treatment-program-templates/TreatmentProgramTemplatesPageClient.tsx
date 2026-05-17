@@ -36,6 +36,7 @@ import type { DoctorCatalogPubArchQuery } from "@/shared/lib/doctorCatalogListSt
 import { MediaThumb } from "@/shared/ui/media/MediaThumb";
 import { clinicalTestMediaItemToPreviewUi } from "@/shared/ui/media/mediaPreviewUiModel";
 import { DoctorCatalogInvalidPubArchToast } from "@/shared/ui/doctor/DoctorCatalogInvalidPubArchToast";
+import { DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE } from "@/shared/ui/doctorWorkspaceLayout";
 import { TreatmentProgramTemplateStatusBadge } from "./TreatmentProgramTemplateStatusBadge";
 
 /** Краткая строка счётчиков + подпись для aria (список шаблонов). */
@@ -342,60 +343,60 @@ export function TreatmentProgramTemplatesPageClient({
     <>
       <DoctorCatalogInvalidPubArchToast />
       <DoctorCatalogPageLayout toolbar={toolbar}>
-      <CatalogSplitLayout
-        className="lg:h-[calc(100dvh-3.5rem-env(safe-area-inset-top,0px)-3.25rem-1rem)] lg:overflow-hidden"
-        left={
-          <CatalogLeftPane
-            stickySplit={false}
-            stickyToolbarRows={1}
-            className="h-full"
-            headerSlot={
-              <DoctorCatalogListSortHeader
-                summaryLine={
-                  displayList.length === 0 ? "Нет шаблонов" : `Шаблонов: ${displayList.length}`
-                }
-                titleSort={titleSortForHeader}
-                onTitleSortChange={changeTitleSort}
-                catalogPubArch={mergedFilters.listPubArch}
-                archiveScopeExtraParams={{
-                  titleSort: mergedFilters.titleSort,
+        <CatalogSplitLayout
+          className={DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE}
+          left={
+            <CatalogLeftPane
+              stickySplit={false}
+              stickyToolbarRows={1}
+              className="h-full"
+              headerSlot={
+                <DoctorCatalogListSortHeader
+                  summaryLine={
+                    displayList.length === 0 ? "Нет шаблонов" : `Шаблонов: ${displayList.length}`
+                  }
+                  titleSort={titleSortForHeader}
+                  onTitleSortChange={changeTitleSort}
+                  catalogPubArch={mergedFilters.listPubArch}
+                  archiveScopeExtraParams={{
+                    titleSort: mergedFilters.titleSort,
+                  }}
+                />
+              }
+            >
+              <div
+                className={cn(
+                  "min-h-0 flex-1 overflow-hidden transition-opacity",
+                  isListPending && "opacity-80",
+                )}
+                aria-busy={isListPending}
+              >
+                {renderRows((t) => {
+                  setCreating(false);
+                  setSelectedId(t.id);
+                  setMobileSheet(t);
+                }, creating ? null : selected?.id ?? mobileSheet?.id ?? null)}
+              </div>
+            </CatalogLeftPane>
+          }
+          right={desktopRight}
+          mobileView={mobileDetailOpen ? "detail" : "list"}
+          mobileBackSlot={
+            mobileDetailOpen ? (
+              <Button
+                variant="ghost"
+                type="button"
+                className="mb-2 h-9 px-2"
+                onClick={() => {
+                  setMobileSheet(null);
+                  setCreating(false);
                 }}
-              />
-            }
-          >
-            <div
-              className={cn(
-                "min-h-0 flex-1 overflow-hidden transition-opacity",
-                isListPending && "opacity-80",
-              )}
-              aria-busy={isListPending}
-            >
-              {renderRows((t) => {
-                setCreating(false);
-                setSelectedId(t.id);
-                setMobileSheet(t);
-              }, creating ? null : selected?.id ?? mobileSheet?.id ?? null)}
-            </div>
-          </CatalogLeftPane>
-        }
-        right={desktopRight}
-        mobileView={mobileDetailOpen ? "detail" : "list"}
-        mobileBackSlot={
-          mobileDetailOpen ? (
-            <Button
-              variant="ghost"
-              type="button"
-              className="mb-2 h-9 px-2"
-              onClick={() => {
-                setMobileSheet(null);
-                setCreating(false);
-              }}
-            >
-              ← Назад
-            </Button>
-          ) : null
-        }
-      />
+              >
+                ← Назад
+              </Button>
+            ) : null
+          }
+        />
     </DoctorCatalogPageLayout>
     </>
   );

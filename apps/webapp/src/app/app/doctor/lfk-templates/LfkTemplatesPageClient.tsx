@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import type { ExerciseLoadType, ExerciseMedia } from "@/modules/lfk-exercises/types";
 import type { Template } from "@/modules/lfk-templates/types";
@@ -9,7 +9,10 @@ import { cn } from "@/lib/utils";
 import { useDoctorCatalogDisplayList } from "@/shared/hooks/useDoctorCatalogDisplayList";
 import { useDoctorCatalogClientFilterMerge } from "@/shared/hooks/useDoctorCatalogClientFilterMerge";
 import { useDoctorCatalogMasterSelectionSync } from "@/shared/hooks/useDoctorCatalogMasterSelectionSync";
-import { DoctorCatalogFiltersForm } from "@/shared/ui/doctor/DoctorCatalogFiltersForm";
+import {
+  DoctorCatalogFiltersForm,
+  type DoctorCatalogToolbarLayout,
+} from "@/shared/ui/doctor/DoctorCatalogFiltersForm";
 import { DoctorCatalogListSortHeader } from "@/shared/ui/doctor/DoctorCatalogListSortHeader";
 import type { CatalogMasterTitleSort } from "@/shared/ui/doctor/DoctorCatalogMasterListHeader";
 import { CatalogLeftPane } from "@/shared/ui/CatalogLeftPane";
@@ -29,6 +32,10 @@ import { buildLfkTemplatesListPreserveQuery } from "./lfkTemplatesListPreserveQu
 import { TemplateEditor } from "./TemplateEditor";
 import type { DoctorCatalogPubArchQuery } from "@/shared/lib/doctorCatalogListStatus";
 import { DoctorCatalogInvalidPubArchToast } from "@/shared/ui/doctor/DoctorCatalogInvalidPubArchToast";
+import {
+  DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_EXPANDED,
+  DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE,
+} from "@/shared/ui/doctorWorkspaceLayout";
 
 type Props = {
   templates: Template[];
@@ -60,6 +67,10 @@ export function LfkTemplatesPageClient({
   const [creating, setCreating] = useState(false);
   const [mobileSheet, setMobileSheet] = useState<Template | null>(null);
   const [isListPending, startListTransition] = useTransition();
+  const [filterToolbarLayout, setFilterToolbarLayout] = useState<DoctorCatalogToolbarLayout>("compact");
+  const onFilterToolbarLayoutChange = useCallback((layout: DoctorCatalogToolbarLayout) => {
+    setFilterToolbarLayout(layout);
+  }, []);
 
   const filterScope = useMemo(() => ({ ...filters, titleSort }), [filters, titleSort]);
   const mergedFilters = useDoctorCatalogClientFilterMerge(filterScope);
@@ -236,6 +247,7 @@ export function LfkTemplatesPageClient({
             loadType={mergedFilters.loadType}
             titleSort={mergedFilters.titleSort}
             catalogPubArch={mergedFilters.listPubArch}
+            onFilterToolbarLayoutChange={onFilterToolbarLayoutChange}
           />
         </DoctorCatalogToolbarFiltersSlot>
       }
@@ -268,7 +280,11 @@ export function LfkTemplatesPageClient({
       <DoctorCatalogInvalidPubArchToast />
       <DoctorCatalogPageLayout toolbar={toolbar}>
       <CatalogSplitLayout
-        className="lg:h-[calc(100dvh-3.5rem-env(safe-area-inset-top,0px)-3.25rem-1rem)] lg:overflow-hidden"
+        className={cn(
+          filterToolbarLayout === "expanded"
+            ? DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_EXPANDED
+            : DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE,
+        )}
         left={
           <CatalogLeftPane
             stickySplit={false}

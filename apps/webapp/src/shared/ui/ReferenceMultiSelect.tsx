@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { ChevronDown, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,8 +37,11 @@ export function ReferenceMultiSelect({
   const [loadState, setLoadState] = useState<"loading" | "done">("loading");
   const [open, setOpen] = useState(false);
   const [listScrollOverflowBottom, setListScrollOverflowBottom] = useState(false);
+  /** First pointer click after programmatic open from focus would otherwise toggle closed (same event sequence). */
+  const ignoreNextToggleClickRef = useRef(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const listboxRef = useRef<HTMLUListElement>(null);
+  const listboxId = useId();
 
   useEffect(() => {
     let cancelled = false;
@@ -107,6 +110,17 @@ export function ReferenceMultiSelect({
     [onChange, selectedSet, value],
   );
 
+  useEffect(() => {
+    if (!open) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setOpen(false);
+      }
+    };
+    globalThis.addEventListener?.("keydown", onKeyDown);
+    return () => globalThis.removeEventListener?.("keydown", onKeyDown);
+  }, [open]);
+
   return (
     <div ref={rootRef} className={cn("flex flex-col gap-2", className)}>
       {name
@@ -139,15 +153,23 @@ export function ReferenceMultiSelect({
           type="text"
           role="combobox"
           aria-expanded={open}
+          aria-controls={open && availableToPick.length > 0 ? listboxId : undefined}
           disabled={disabled || loadState !== "done"}
           placeholder={loadState !== "done" ? "Загрузка…" : placeholder}
           value=""
           readOnly
           onClick={() => {
-            if (loadState === "done" && !disabled) setOpen((o) => !o);
+            if (loadState !== "done" || disabled) return;
+            if (ignoreNextToggleClickRef.current) {
+              ignoreNextToggleClickRef.current = false;
+              return;
+            }
+            setOpen((o) => !o);
           }}
           onFocus={() => {
-            if (loadState === "done" && !disabled) setOpen(true);
+            if (loadState !== "done" || disabled) return;
+            ignoreNextToggleClickRef.current = true;
+            setOpen(true);
           }}
           onBlur={() => {
             setTimeout(() => setOpen(false), 150);
@@ -162,6 +184,7 @@ export function ReferenceMultiSelect({
           <div className="absolute left-0 right-0 top-full z-50 mt-1 w-full min-w-0">
             <div className="relative max-h-48 overflow-hidden rounded-md border border-border bg-background shadow-md">
               <ul
+                id={listboxId}
                 ref={listboxRef}
                 onScroll={updateListScrollOverflow}
                 className="max-h-48 w-full overflow-auto"

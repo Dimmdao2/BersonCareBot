@@ -3,6 +3,8 @@
 import type { ReactNode } from "react";
 import { startTransition, useCallback, useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
+import { Settings } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ReferenceSelect } from "@/shared/ui/ReferenceSelect";
 import { EXERCISE_LOAD_TYPE_CATEGORY_CODE } from "@/modules/lfk-exercises/exerciseLoadTypeReference";
@@ -10,6 +12,7 @@ import type { ExerciseLoadType } from "@/modules/lfk-exercises/types";
 import type { ReferenceItemDto } from "@/modules/references/referenceCache";
 import type { DoctorCatalogPubArchQuery } from "@/shared/lib/doctorCatalogListStatus";
 import { dispatchDoctorCatalogUrlSync } from "@/shared/lib/doctorCatalogClientUrlSync";
+import { cn } from "@/lib/utils";
 
 const Q_DEBOUNCE_MS = 350;
 
@@ -24,6 +27,8 @@ export type DoctorCatalogTertiaryFilter = {
   /** Зарезервировано для подписей вне формы (строка под фильтрами удалена). */
   summaryLabel: string;
 };
+
+export type DoctorCatalogToolbarLayout = "compact" | "expanded";
 
 export type DoctorCatalogFiltersFormProps = {
   q: string;
@@ -44,6 +49,8 @@ export type DoctorCatalogFiltersFormProps = {
   catalogPubArch?: DoctorCatalogPubArchQuery;
   /** Редко: доп. контроль слева (без фильтров по черновикам/архиву в статусе шаблона). */
   leadingSlot?: ReactNode;
+  /** Синхронизация высоты split-pane: второй ряд с регионом = `expanded`. */
+  onFilterToolbarLayoutChange?: (layout: DoctorCatalogToolbarLayout) => void;
 };
 
 function applyParamsPatch(sp: URLSearchParams, patch: Record<string, string | null | undefined>): URLSearchParams {
@@ -72,6 +79,7 @@ export function DoctorCatalogFiltersForm({
   idPrefix = "catalog",
   catalogPubArch,
   leadingSlot,
+  onFilterToolbarLayoutChange,
 }: DoctorCatalogFiltersFormProps) {
   const pathname = usePathname();
 
@@ -81,23 +89,45 @@ export function DoctorCatalogFiltersForm({
     tertiaryFilter?.value ?? null,
   );
   const [qInput, setQInput] = useState(q);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
 
   const qInputRef = useRef(qInput);
   const qDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Latest callback without listing it in layout effect deps (avoids duplicate layout notifications). */
+  const onFilterToolbarLayoutChangeRef = useRef(onFilterToolbarLayoutChange);
+
+  useEffect(() => {
+    onFilterToolbarLayoutChangeRef.current = onFilterToolbarLayoutChange;
+  }, [onFilterToolbarLayoutChange]);
+
+  useEffect(() => {
+    if (!showRegionFilter) setAdvancedOpen(false);
+  }, [showRegionFilter]);
+
+  useEffect(() => {
+    if (!showRegionFilter) {
+      onFilterToolbarLayoutChangeRef.current?.("compact");
+      return;
+    }
+    onFilterToolbarLayoutChangeRef.current?.(advancedOpen ? "expanded" : "compact");
+  }, [advancedOpen, showRegionFilter]);
 
   useEffect(() => {
     qInputRef.current = qInput;
   }, [qInput]);
 
-  const replaceSearch = useCallback((next: URLSearchParams) => {
-    const qs = next.toString();
-    const url = qs ? `${pathname}?${qs}` : pathname;
-    if (typeof window === "undefined") return;
-    window.history.replaceState(window.history.state, "", url);
-    startTransition(() => {
-      dispatchDoctorCatalogUrlSync();
-    });
-  }, [pathname]);
+  const replaceSearch = useCallback(
+    (next: URLSearchParams) => {
+      const qs = next.toString();
+      const url = qs ? `${pathname}?${qs}` : pathname;
+      if (typeof window === "undefined") return;
+      window.history.replaceState(window.history.state, "", url);
+      startTransition(() => {
+        dispatchDoctorCatalogUrlSync();
+      });
+    },
+    [pathname],
+  );
 
   const mergeWorkspaceInto = useCallback(
     (sp: URLSearchParams) => {
@@ -176,87 +206,123 @@ export function DoctorCatalogFiltersForm({
     };
   }, []);
 
-  return (
-    <div className="flex flex-wrap items-center gap-2">
-      {leadingSlot}
-      <div className="w-[220px] shrink-0">
-        <label className="sr-only" htmlFor={`${idPrefix}-q`}>
-          Поиск по названию
+  const showAdvancedGear = showRegionFilter;
+
+  const regionField = (
+    <div className="w-40 shrink-0">
+      <label className="sr-only" htmlFor={`${idPrefix}-region`}>
+        Регион
+      </label>
+      <ReferenceSelect
+        id={`${idPrefix}-region`}
+        categoryCode="body_region"
+        valueMatch="code"
+        submitField="code"
+        value={selectedRegionCode}
+        onChange={(code) => {
+          setSelectedRegionCode(code);
+          navigateWithPatch({ region: code });
+        }}
+        placeholder="Выберите регион"
+        clearOptionLabel="Все регионы"
+        showAllOnFocus
+        searchable={false}
+      />
+    </div>
+  );
+
+  let typesFilterNode: ReactNode = null;
+  if (tertiaryFilter) {
+    typesFilterNode = (
+      <div className="w-40 shrink-0">
+        <label className="sr-only" htmlFor={`${idPrefix}-${tertiaryFilter.paramName}`}>
+          {tertiaryFilter.label}
         </label>
-        <Input
-          id={`${idPrefix}-q`}
-          value={qInput}
-          onChange={(e) => {
-            setQInput(e.target.value);
-            scheduleCommitQ();
+        <ReferenceSelect
+          id={`${idPrefix}-${tertiaryFilter.paramName}`}
+          prefetchedItems={tertiaryFilter.items}
+          valueMatch="code"
+          submitField="code"
+          value={selectedCustomTertiary}
+          onChange={(code) => {
+            setSelectedCustomTertiary(code);
+            navigateWithPatch({ [tertiaryFilter.paramName]: code });
           }}
-          placeholder="Поиск по названию"
-          className="w-full"
+          placeholder={tertiaryFilter.placeholder}
+          clearOptionLabel={tertiaryFilter.clearLabel}
+          showAllOnFocus
+          searchable={false}
         />
       </div>
-      {showRegionFilter ? (
-        <div className="w-40 shrink-0">
-          <label className="sr-only" htmlFor={`${idPrefix}-region`}>
-            Регион
+    );
+  } else if (showLoadFilter) {
+    typesFilterNode = (
+      <div className="w-40 shrink-0">
+        <label className="sr-only" htmlFor={`${idPrefix}-load`}>
+          Тип нагрузки
+        </label>
+        <ReferenceSelect
+          id={`${idPrefix}-load`}
+          categoryCode={EXERCISE_LOAD_TYPE_CATEGORY_CODE}
+          valueMatch="code"
+          submitField="code"
+          value={selectedExerciseLoad}
+          onChange={(code) => {
+            setSelectedExerciseLoad(code);
+            navigateWithPatch({ load: code });
+          }}
+          placeholder="Все типы"
+          clearOptionLabel="Все типы"
+          showAllOnFocus
+          searchable={false}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className={cn("flex w-full min-w-0 flex-col gap-2")}>
+      <div className="flex flex-wrap items-center gap-2">
+        {leadingSlot}
+        <div className="w-[168px] min-w-[140px] shrink-0">
+          <label className="sr-only" htmlFor={`${idPrefix}-q`}>
+            Поиск по названию
           </label>
-          <ReferenceSelect
-            id={`${idPrefix}-region`}
-            categoryCode="body_region"
-            valueMatch="code"
-            submitField="code"
-            value={selectedRegionCode}
-            onChange={(code) => {
-              setSelectedRegionCode(code);
-              navigateWithPatch({ region: code });
+          <Input
+            id={`${idPrefix}-q`}
+            value={qInput}
+            onChange={(e) => {
+              setQInput(e.target.value);
+              scheduleCommitQ();
             }}
-            placeholder="Выберите регион"
-            clearOptionLabel="Все регионы"
-            showAllOnFocus
-            searchable={false}
+            placeholder="Поиск по названию"
+            className="w-full"
           />
         </div>
-      ) : null}
-      {tertiaryFilter ? (
-        <div className="w-40 shrink-0">
-          <label className="sr-only" htmlFor={`${idPrefix}-${tertiaryFilter.paramName}`}>
-            {tertiaryFilter.label}
-          </label>
-          <ReferenceSelect
-            id={`${idPrefix}-${tertiaryFilter.paramName}`}
-            prefetchedItems={tertiaryFilter.items}
-            valueMatch="code"
-            submitField="code"
-            value={selectedCustomTertiary}
-            onChange={(code) => {
-              setSelectedCustomTertiary(code);
-              navigateWithPatch({ [tertiaryFilter.paramName]: code });
-            }}
-            placeholder={tertiaryFilter.placeholder}
-            clearOptionLabel={tertiaryFilter.clearLabel}
-            showAllOnFocus
-            searchable={false}
-          />
-        </div>
-      ) : showLoadFilter ? (
-        <div className="w-40 shrink-0">
-          <label className="sr-only" htmlFor={`${idPrefix}-load`}>
-            Тип нагрузки
-          </label>
-          <ReferenceSelect
-            id={`${idPrefix}-load`}
-            categoryCode={EXERCISE_LOAD_TYPE_CATEGORY_CODE}
-            valueMatch="code"
-            submitField="code"
-            value={selectedExerciseLoad}
-            onChange={(code) => {
-              setSelectedExerciseLoad(code);
-              navigateWithPatch({ load: code });
-            }}
-            placeholder="Все типы"
-            clearOptionLabel="Все типы"
-            showAllOnFocus
-            searchable={false}
-          />
+        {typesFilterNode}
+        {showAdvancedGear ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            className="box-border size-9 min-h-[32px] shrink-0"
+            aria-expanded={advancedOpen}
+            aria-label={advancedOpen ? "Свернуть дополнительные фильтры" : "Все фильтры"}
+            aria-controls={advancedOpen ? `${idPrefix}-advanced-filters` : undefined}
+            onClick={() => setAdvancedOpen((o) => !o)}
+          >
+            <Settings className="size-4" aria-hidden />
+          </Button>
+        ) : null}
+      </div>
+      {showRegionFilter && advancedOpen ? (
+        <div
+          id={`${idPrefix}-advanced-filters`}
+          className="flex flex-wrap items-center gap-2 border-t border-border/60 pt-2"
+          role="region"
+          aria-label="Дополнительные фильтры"
+        >
+          {regionField}
         </div>
       ) : null}
     </div>
