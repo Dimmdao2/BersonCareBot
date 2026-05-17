@@ -72,7 +72,7 @@ export function PatientHomeMoodScoreRow({
                 fallback={
                   <MoodIcon
                     aria-hidden
-                    className={cn("size-8 shrink-0 sm:size-9", PATIENT_HOME_MOOD_SCORE_ICON_CLASS[option.score])}
+                    className={cn("size-8 shrink-0 min-[560px]:size-9", PATIENT_HOME_MOOD_SCORE_ICON_CLASS[option.score])}
                     strokeWidth={1.15}
                   />
                 }

@@ -85,9 +85,41 @@ export function insertMoodBetweenUsefulPostAndBooking(
   return next;
 }
 
+/**
+ * «Ситуации» сразу под разминкой дня; если есть полезный пост — **над** постом (до `sm` пост не «перекрывает» ситуации).
+ * На `sm+` пост в одной строке с разминкой, ситуации — полной шириной под строкой. Вызывать после {@link insertMoodBetweenUsefulPostAndBooking}.
+ */
+export function moveSituationsImmediatelyAfterWarmupHeroRow(
+  blocks: PatientHomeTodayLayoutBlock[],
+): PatientHomeTodayLayoutBlock[] {
+  const situations = blocks.find((b) => b.code === "situations");
+  if (!situations) return [...blocks];
+
+  const without = blocks.filter((b) => b.code !== "situations");
+  const wIdx = without.findIndex((b) => b.code === "daily_warmup");
+
+  let insertAt: number;
+  if (wIdx !== -1) {
+    insertAt = wIdx + 1;
+  } else {
+    const uIdx = without.findIndex((b) => b.code === "useful_post");
+    if (uIdx !== -1) insertAt = uIdx + 1;
+    else {
+      const planIdx = without.findIndex((b) => b.code === "plan");
+      insertAt = planIdx !== -1 ? planIdx + 1 : 0;
+    }
+  }
+
+  const next = [...without];
+  next.splice(insertAt, 0, situations);
+  return next;
+}
+
 export function reorderPatientHomeLayoutBlocks(blocks: PatientHomeTodayLayoutBlock[]): PatientHomeTodayLayoutBlock[] {
-  return insertMoodBetweenUsefulPostAndBooking(
-    moveDailyWarmupAndUsefulPostImmediatelyAfterPlan(prependPlanBlock(blocks)),
+  return moveSituationsImmediatelyAfterWarmupHeroRow(
+    insertMoodBetweenUsefulPostAndBooking(
+      moveDailyWarmupAndUsefulPostImmediatelyAfterPlan(prependPlanBlock(blocks)),
+    ),
   );
 }
 

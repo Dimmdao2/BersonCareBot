@@ -49,14 +49,14 @@ describe("PatientHomeTodayLayout", () => {
     expect(usefulPost).toHaveClass("sm:col-span-4");
 
     const booking = container.querySelector('[data-patient-home-block="booking"]');
-    expect(booking).toHaveAttribute("data-md-order", "20");
+    expect(booking).toHaveAttribute("data-md-order", "21");
     expect(booking).toHaveAttribute("data-md-col-start", "9");
     expect(booking).toHaveAttribute("data-md-col-span", "4");
 
     const situations = container.querySelector('[data-patient-home-block="situations"]');
     expect(situations).toHaveAttribute("data-md-order", "20");
     expect(situations).toHaveAttribute("data-md-col-start", "1");
-    expect(situations).toHaveAttribute("data-md-col-span", "12");
+    expect(situations).toHaveAttribute("data-md-col-span", "8");
 
     const nextReminder = container.querySelector('[data-patient-home-block="next_reminder"]');
     expect(nextReminder).toHaveAttribute("data-md-order", "42");
@@ -76,15 +76,15 @@ describe("PatientHomeTodayLayout", () => {
     expect(sos).toHaveClass("md:order-[40]");
 
     const plan = container.querySelector('[data-patient-home-block="plan"]');
-    expect(plan).toHaveAttribute("data-md-order", "40");
+    expect(plan).toHaveAttribute("data-md-order", "20");
     expect(plan).toHaveAttribute("data-md-col-start", "9");
     expect(plan).toHaveAttribute("data-md-col-span", "4");
-    expect(plan).toHaveClass("md:order-[40]");
+    expect(plan).toHaveClass("md:order-[20]");
 
     const mood = container.querySelector('[data-patient-home-block="mood_checkin"]');
     expect(mood).toHaveAttribute("data-md-order", "40");
     expect(mood).toHaveAttribute("data-md-col-start", "1");
-    expect(mood).toHaveAttribute("data-md-col-span", "4");
+    expect(mood).toHaveAttribute("data-md-col-span", "12");
     expect(mood).toHaveClass("md:order-[40]");
 
     const subscription = container.querySelector('[data-patient-home-block="subscription_carousel"]');
@@ -110,6 +110,18 @@ describe("PatientHomeTodayLayout", () => {
     expect(split).toHaveAttribute("data-md-col-start", "1");
     expect(split).toHaveAttribute("data-md-col-span", "12");
     expect(split).toHaveClass("md:order-[43]");
+  });
+
+  it("keeps plan on mood row (order 40) when situations block is absent", () => {
+    const { container } = render(
+      <PatientHomeTodayLayout
+        personalizedName={null}
+        blocks={[block("mood_checkin", "Mood"), block("plan", "Plan"), block("daily_warmup", "Warmup")]}
+      />,
+    );
+    const plan = container.querySelector('[data-patient-home-block="plan"]');
+    expect(plan).toHaveAttribute("data-md-order", "40");
+    expect(plan).toHaveClass("md:order-[40]");
   });
 
   it("does not render full-width carousel wrapper when carousel block is absent", () => {

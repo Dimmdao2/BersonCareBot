@@ -6,6 +6,7 @@ import {
   insertMoodBetweenUsefulPostAndBooking,
   insertProgressThenSosBookingSplitAfterMood,
   moveNextReminderAfterProgress,
+  moveSituationsImmediatelyAfterWarmupHeroRow,
   prependPlanBlock,
   reorderPatientHomeLayoutBlocks,
 } from "./patientHomeTodayLayoutOrder";
@@ -89,10 +90,10 @@ describe("patientHomeTodayLayoutOrder", () => {
     expect(out.map((x) => x.code)).toEqual([
       "plan",
       "daily_warmup",
+      "situations",
       "useful_post",
       "mood_checkin",
       "booking",
-      "situations",
     ]);
   });
 
@@ -108,9 +109,28 @@ describe("patientHomeTodayLayoutOrder", () => {
     expect(out.map((x) => x.code)).toEqual([
       "plan",
       "daily_warmup",
+      "situations",
       "useful_post",
       "mood_checkin",
+      "booking",
+    ]);
+  });
+
+  it("places situations between warmup and useful when mood already after useful_post", () => {
+    const out = moveSituationsImmediatelyAfterWarmupHeroRow([
+      b("plan"),
+      b("daily_warmup"),
+      b("useful_post"),
+      b("mood_checkin"),
+      b("booking"),
+      b("situations"),
+    ]);
+    expect(out.map((x) => x.code)).toEqual([
+      "plan",
+      "daily_warmup",
       "situations",
+      "useful_post",
+      "mood_checkin",
       "booking",
     ]);
   });

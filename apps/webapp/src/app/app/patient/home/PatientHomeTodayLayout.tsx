@@ -38,7 +38,10 @@ function smHeroRowLayout(
 }
 
 /** Wide-viewport grid placement (`md+`): Tailwind classes + stable `data-md-*` for tests (avoid coupling tests to full class strings). */
-function desktopBlockLayout(code: PatientHomeTodayLayoutBlockCode): {
+function desktopBlockLayout(
+  code: PatientHomeTodayLayoutBlockCode,
+  ctx: { hasPlan: boolean; hasSituations: boolean },
+): {
   className: string;
   "data-md-order"?: string;
   "data-md-col-start"?: string;
@@ -60,16 +63,23 @@ function desktopBlockLayout(code: PatientHomeTodayLayoutBlockCode): {
         "data-md-col-span": "4",
       };
     case "situations":
-      return {
-        className: "md:col-span-12 md:col-start-1 md:order-[20]",
-        "data-md-order": "20",
-        "data-md-col-start": "1",
-        "data-md-col-span": "12",
-      };
+      return ctx.hasPlan ?
+          {
+            className: "md:col-span-8 md:col-start-1 md:order-[20]",
+            "data-md-order": "20",
+            "data-md-col-start": "1",
+            "data-md-col-span": "8",
+          }
+        : {
+            className: "md:col-span-12 md:col-start-1 md:order-[20]",
+            "data-md-order": "20",
+            "data-md-col-start": "1",
+            "data-md-col-span": "12",
+          };
     case "booking":
       return {
-        className: "md:col-span-4 md:col-start-9 md:order-[20]",
-        "data-md-order": "20",
+        className: "md:col-span-4 md:col-start-9 md:order-[21]",
+        "data-md-order": "21",
         "data-md-col-start": "9",
         "data-md-col-span": "4",
       };
@@ -81,7 +91,7 @@ function desktopBlockLayout(code: PatientHomeTodayLayoutBlockCode): {
         "data-md-col-start": "1",
         "data-md-col-span": "12",
       };
-    /** Compact desktop row: mood / SOS / rehab plan. */
+    /** Compact desktop row: SOS под полноширинным блоком настроения (тот же `order`, новая строка). */
     case "sos":
       return {
         className: "md:col-span-4 md:col-start-5 md:order-[40]",
@@ -89,7 +99,7 @@ function desktopBlockLayout(code: PatientHomeTodayLayoutBlockCode): {
         "data-md-col-start": "5",
         "data-md-col-span": "4",
       };
-    /** «Сегодня выполнено» — под строкой mood | plan, полная ширина, перед SOS+запись. */
+    /** «Сегодня выполнено» — под блоком самочувствия, полная ширина, перед SOS+запись. */
     case "progress":
       return {
         className: "md:col-span-12 md:col-start-1 md:order-[41]",
@@ -106,18 +116,26 @@ function desktopBlockLayout(code: PatientHomeTodayLayoutBlockCode): {
         "data-md-col-span": "12",
       };
     case "plan":
-      return {
-        className: "md:col-span-4 md:col-start-9 md:order-[40]",
-        "data-md-order": "40",
-        "data-md-col-start": "9",
-        "data-md-col-span": "4",
-      };
+      return ctx.hasSituations ?
+          {
+            className: "md:col-span-4 md:col-start-9 md:order-[20]",
+            "data-md-order": "20",
+            "data-md-col-start": "9",
+            "data-md-col-span": "4",
+          }
+        : {
+            className: "md:col-span-4 md:col-start-9 md:order-[40]",
+            "data-md-order": "40",
+            "data-md-col-start": "9",
+            "data-md-col-span": "4",
+          };
+    /** Полная ширина: неделя + самочувствие (на `md+` не сжимать в 4 колонки). */
     case "mood_checkin":
       return {
-        className: "md:col-span-4 md:col-start-1 md:order-[40]",
+        className: "md:col-span-12 md:col-start-1 md:order-[40]",
         "data-md-order": "40",
         "data-md-col-start": "1",
-        "data-md-col-span": "4",
+        "data-md-col-span": "12",
       };
     case "courses":
       return {
@@ -139,7 +157,10 @@ function desktopBlockLayout(code: PatientHomeTodayLayoutBlockCode): {
 export function PatientHomeTodayLayout({ personalizedName, timeOfDayPrefix, blocks }: Props) {
   const hasDailyWarmup = blocks.some((b) => b.code === "daily_warmup");
   const hasUsefulPost = blocks.some((b) => b.code === "useful_post");
+  const hasPlan = blocks.some((b) => b.code === "plan");
+  const hasSituations = blocks.some((b) => b.code === "situations");
   const heroRowCtx = { hasDailyWarmup, hasUsefulPost };
+  const desktopCtx = { hasPlan, hasSituations };
 
   return (
     <div
@@ -153,11 +174,11 @@ export function PatientHomeTodayLayout({ personalizedName, timeOfDayPrefix, bloc
          * `sm:grid-flow-row-dense` / `md:grid-flow-row-dense` — при соседних 8+4 в одной строке плотнее заполняет сетку;
          * на `sm` порядок строк — по DOM (без `sm:order` у hero-пары), на `md+` — по `md:order-*`.
          */
-        className="grid w-full min-w-0 gap-5 sm:grid-cols-12 sm:grid-flow-row-dense sm:items-stretch md:gap-6 xl:gap-7"
+        className="grid w-full min-w-0 gap-5 sm:grid-cols-12 sm:grid-flow-row-dense sm:items-stretch md:grid-flow-row-dense md:gap-6 xl:gap-7"
         data-testid="patient-home-layout-grid"
       >
         {blocks.map((block) => {
-          const layout = desktopBlockLayout(block.code);
+          const layout = desktopBlockLayout(block.code, desktopCtx);
           return (
             <div
               key={block.code}

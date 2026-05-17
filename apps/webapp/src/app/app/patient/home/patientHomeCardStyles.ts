@@ -99,14 +99,11 @@ export const patientHomeCardGradientWarmClass = cn(
 
 /**
  * Оболочка блока настроения (график недели + шкала «сегодня»):
- * mobile — без фона/бордера/тени и без вертикальных отступов карточки;
- * md+ — почти белый с холодным подтоном, лёгкая рамка.
+ * на главной «Сегодня» — без отдельной «карточки» на `md+` (как до 768), только max-width сбросы.
  */
 export const patientHomeMoodCheckinShellClass = cn(
   "relative overflow-hidden text-[var(--patient-text-primary)]",
-  "max-md:border-0 max-md:bg-transparent max-md:shadow-none max-md:rounded-none max-md:p-0 max-md:py-0",
-  "md:rounded-[var(--patient-card-radius-desktop)] md:border md:border-[#e2e8f0]/90",
-  "md:bg-[#f4f7fb] md:p-[18px] md:shadow-[0_1px_2px_rgba(15,23,42,0.04)]",
+  "border-0 bg-transparent shadow-none rounded-none p-0 py-0",
 );
 
 /** Shared 24px pill metrics for top-card labels (hero / useful post). */
@@ -466,11 +463,10 @@ export const patientHomeMoodColumnHeadingClass = cn(
   "mb-2",
 );
 
-/** Mood: на mobile высота по контенту; на desktop — фиксированная строка дашборда (чуть выше под график недели). */
+/** Mood: высота по контенту на всех ширинах главной «Сегодня» (без фиксированной полосы `md`). */
 export const patientHomeMoodCardGeometryClass = cn(
   "flex flex-col overflow-hidden",
-  "max-md:mb-1.5 max-md:h-auto max-md:min-h-0",
-  "md:mb-1.5 md:h-[132px]",
+  "mb-1.5 h-auto min-h-0",
 );
 
 /**
@@ -488,7 +484,7 @@ export const patientHomeTodayGridCellPadBorderedSymClass = "my-2 md:my-2";
 export const patientHomeTodayGridCellPadSituationsClass = "max-md:my-2.5 md:my-2";
 
 /** «Как ваше сегодня» / чек-ин: дополнительный отступ сверху к соседнему блоку в потоке. */
-export const patientHomeTodayGridCellPadMoodTopClass = "max-md:mt-3 md:mt-2.5";
+export const patientHomeTodayGridCellPadMoodTopClass = "mt-3";
 
 /** Прогресс: снизу только desktop; на mobile без доп. margin — склейка с напоминанием. */
 export const patientHomeTodayGridCellPadProgressBottomClass = "max-md:mb-0 md:mb-3";
@@ -505,7 +501,7 @@ export const patientHomeMoodStatusSlotClass = cn(
 );
 
 export const patientHomeMoodOptionButtonClass = cn(
-  "mx-auto flex size-9 max-w-full shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-full border border-transparent bg-white/45 p-0 transition-colors sm:size-10",
+  "mx-auto flex size-9 max-w-full shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-full border border-transparent bg-white/45 p-0 transition-colors min-[560px]:size-10",
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-primary)]",
   "disabled:cursor-not-allowed",
 );

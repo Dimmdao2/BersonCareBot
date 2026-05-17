@@ -174,8 +174,8 @@ export function PatientHomeMoodCheckin({
       >
         <div className="relative z-[1] flex h-full min-h-0 flex-col">
           {anonymousGuest ?
-            <div className="flex min-h-0 flex-1 flex-col justify-between gap-1.5 max-md:pt-1 md:pt-2">
-              <h3 id="patient-home-mood-heading" className={cn(patientHomeMoodColumnHeadingClass, "shrink-0 px-4 md:px-0")}>
+            <div className="flex min-h-0 flex-1 flex-col justify-between gap-1.5 pt-1">
+              <h3 id="patient-home-mood-heading" className={cn(patientHomeMoodColumnHeadingClass, "shrink-0 px-4")}>
                 Как ваше сегодня?
               </h3>
               {renderMoodScale(true)}
@@ -187,22 +187,28 @@ export function PatientHomeMoodCheckin({
               </p>
             </div>
           : !personalTierOk ?
-            <div className="flex min-h-0 flex-1 flex-col justify-between gap-1.5 max-md:pt-1 md:pt-2">
-              <h3 id="patient-home-mood-heading" className={cn(patientHomeMoodColumnHeadingClass, "shrink-0 px-4 md:px-0")}>
+            <div className="flex min-h-0 flex-1 flex-col justify-between gap-1.5 pt-1">
+              <h3 id="patient-home-mood-heading" className={cn(patientHomeMoodColumnHeadingClass, "shrink-0 px-4")}>
                 Как ваше сегодня?
               </h3>
               {renderMoodScale(true)}
               <p className={patientHomeMoodStatusSlotClass}>Чек-ин самочувствия будет доступен после активации профиля.</p>
             </div>
-          : <div className="flex min-h-0 flex-1 flex-col gap-1.5 px-4 max-md:pt-1 md:px-0 md:pt-1">
-              <div className="flex min-h-0 flex-1 flex-col gap-6 sm:flex-row sm:items-stretch sm:gap-4">
-                <div className="order-2 flex min-h-0 w-full min-w-0 flex-col sm:order-1 sm:flex-1 sm:basis-0 sm:min-w-0 md:min-w-0 md:flex-1 md:basis-0">
+          : <div className="flex min-h-0 flex-1 flex-col gap-1.5 px-4 pt-1">
+              <div className="flex min-h-0 flex-1 flex-col gap-6 min-[560px]:flex-row min-[560px]:items-stretch min-[560px]:gap-4">
+                <div className="order-2 flex min-h-0 w-full min-w-0 flex-col min-[560px]:order-1 min-[560px]:flex-1 min-[560px]:basis-0 min-[560px]:min-w-0">
                   <h3 id="patient-home-mood-week-heading" className={patientHomeMoodColumnHeadingClass}>
                     Ваша неделя
                   </h3>
                   <PatientHomeWellbeingWeekStrip days={moodWeekDays} timeZone={wellbeingWeekTimeZone} />
                 </div>
-                <div className="order-1 flex min-h-0 w-full min-w-0 flex-col sm:order-2 sm:flex-1 sm:basis-0 sm:min-w-0 md:w-[min(22rem,calc((100%-1rem)/2))] md:flex-none md:shrink-0">
+                <div
+                  className={cn(
+                    "order-1 flex min-h-0 w-full min-w-0 flex-col",
+                    /** Ряд с 560px (кастом); Tailwind `sm` = 640px. Минимум ширины колонки иконок — как при 50% при viewport 640. */
+                    "min-[560px]:order-2 min-[560px]:flex-1 min-[560px]:basis-0 min-[560px]:min-w-[calc((640px-5.5rem)/2)]",
+                  )}
+                >
                   <h3 id="patient-home-mood-heading" className={patientHomeMoodColumnHeadingClass}>
                     Как ваше сегодня?
                   </h3>
