@@ -283,7 +283,7 @@
 
 - `material_ratings.user_id` → `platform_users.id` (CASCADE)
 
-Инварианты: уникальная пара пользователь + цель (`target_kind`, `target_id`); `target_kind` ограничен CHECK; `stars` в диапазоне 1…5. См. [`MATERIAL_RATINGS.md`](./MATERIAL_RATINGS.md).
+Инварианты: уникальная пара пользователь + цель (`target_kind`, `target_id`); `target_kind` ограничен CHECK; `stars` в диапазоне 1…5. См. [`MATERIAL_RATINGS.md`](./MATERIAL_RATINGS.md) (в т.ч. дашборд врача **`GET /api/doctor/content-stats`** и связанные таблицы напоминаний / практики в том же контракте, не в `material_ratings`).
 
 ---
 

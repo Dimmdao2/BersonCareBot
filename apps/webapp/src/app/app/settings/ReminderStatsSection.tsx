@@ -9,7 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { AdminReminderStatsResponse } from "@/app-layer/stats/loadAdminReminderStats";
+import type { ContentEngagementStatsResponse } from "@/app-layer/stats/loadAdminReminderStats";
 
 const PRESETS = [
   { hours: 24, label: "24 ч" },
@@ -55,7 +55,7 @@ function StatTable({
 
 export function ReminderStatsSection() {
   const [windowHours, setWindowHours] = useState<number>(168);
-  const [data, setData] = useState<AdminReminderStatsResponse | null>(null);
+  const [data, setData] = useState<ContentEngagementStatsResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -69,7 +69,7 @@ export function ReminderStatsSection() {
         setData(null);
         return;
       }
-      const json = (await res.json()) as AdminReminderStatsResponse;
+      const json = (await res.json()) as ContentEngagementStatsResponse;
       setData(json);
     } catch {
       setError("Не удалось загрузить");
@@ -110,14 +110,12 @@ export function ReminderStatsSection() {
         {loading ? <span className="text-xs text-muted-foreground">Загрузка…</span> : null}
         {error ? <span className="text-xs text-destructive">{error}</span> : null}
       </div>
-      {data ? (
-        <p className="text-xs text-muted-foreground tabular-nums">
-          Включено правил напоминаний (в системе): {data.reminderRulesEnabledCount}
-        </p>
-      ) : null}
 
       {data ? (
         <>
+          <p className="text-xs text-muted-foreground tabular-nums">
+            Включено правил напоминаний (в системе): {data.reminderRulesEnabledCount}
+          </p>
           <Card>
             <CardHeader className="py-3">
               <CardTitle className="text-sm">События напоминаний по часам (UTC)</CardTitle>

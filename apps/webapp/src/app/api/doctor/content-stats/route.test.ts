@@ -84,4 +84,11 @@ describe("GET /api/doctor/content-stats", () => {
     expect(body.reminderRulesEnabledCount).toBe(5);
     expect(loadContentEngagementStatsMock).toHaveBeenCalledWith({ windowHours: 720 });
   });
+
+  it("returns JSON for admin role without admin mode", async () => {
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    const res = await GET(new Request("http://localhost/api/doctor/content-stats?windowHours=168"));
+    expect(res.status).toBe(200);
+    expect(loadContentEngagementStatsMock).toHaveBeenCalledWith({ windowHours: 168 });
+  });
 });
