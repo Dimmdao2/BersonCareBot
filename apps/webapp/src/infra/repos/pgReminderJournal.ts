@@ -144,13 +144,19 @@ export function createPgReminderJournalPort(): ReminderJournalPort {
       return row ? parseInt(row.cnt, 10) : 0;
     },
 
-    async recordDone(platformUserId, integratorOccurrenceId) {
+    async recordDone(platformUserId, integratorOccurrenceId, displayTimeZone) {
       const pool = getPool();
       const client = await pool.connect();
       try {
         await client.query("BEGIN");
-        const own = await client.query<{ rule_pk: string }>(
-          `SELECT rr.id AS rule_pk
+        const own = await client.query<{
+          rule_pk: string;
+          integrator_user_id: string;
+          occurred_at: string;
+        }>(
+          `SELECT rr.id AS rule_pk,
+                  roh.integrator_user_id::text AS integrator_user_id,
+                  roh.occurred_at::text AS occurred_at
            FROM reminder_occurrence_history roh
            INNER JOIN platform_users pu ON pu.integrator_user_id = roh.integrator_user_id
            INNER JOIN reminder_rules rr ON rr.integrator_rule_id = roh.integrator_rule_id
@@ -161,7 +167,8 @@ export function createPgReminderJournalPort(): ReminderJournalPort {
           await client.query("ROLLBACK");
           return { ok: false, error: "not_found" };
         }
-        const rulePk = own.rows[0].rule_pk;
+        const { rule_pk: rulePk, integrator_user_id: integratorUserId, occurred_at: occurredAt } =
+          own.rows[0];
         const ins = await client.query<{ created_at: string }>(
           `INSERT INTO reminder_journal (rule_id, occurrence_id, action)
            SELECT $1::uuid, $2, 'done'
@@ -172,22 +179,74 @@ export function createPgReminderJournalPort(): ReminderJournalPort {
            RETURNING created_at::text`,
           [rulePk, integratorOccurrenceId],
         );
-        if ((ins.rowCount ?? 0) === 0) {
+        const firstDoneForOccurrence = (ins.rowCount ?? 0) > 0;
+        let doneAt: string | undefined;
+        if (!firstDoneForOccurrence) {
           const existing = await client.query<{ created_at: string }>(
             `SELECT created_at::text FROM reminder_journal
              WHERE occurrence_id = $1 AND action = 'done'
              ORDER BY created_at DESC LIMIT 1`,
             [integratorOccurrenceId],
           );
-          const doneAt = existing.rows[0]?.created_at;
-          await client.query("COMMIT");
-          if (!doneAt) return { ok: false, error: "conflict" };
-          return { ok: true, occurrenceId: integratorOccurrenceId, doneAt };
+          doneAt = existing.rows[0]?.created_at;
+          if (!doneAt) {
+            await client.query("ROLLBACK");
+            return { ok: false, error: "conflict" };
+          }
+        } else {
+          doneAt = ins.rows[0]?.created_at;
+          if (!doneAt) {
+            await client.query("ROLLBACK");
+            return { ok: false, error: "not_found" };
+          }
         }
-        const doneAt = ins.rows[0]?.created_at;
+
+        const stats = await client.query<{ day_sent_total: number; day_done_count: number }>(
+          `WITH day_ctx AS (
+             SELECT ($1::timestamptz AT TIME ZONE $2::text)::date AS local_day,
+                    $3::bigint AS iu
+           )
+           SELECT
+             (
+               SELECT COUNT(*)::int
+               FROM reminder_occurrence_history roh
+               CROSS JOIN day_ctx d
+               WHERE roh.integrator_user_id = d.iu
+                 AND roh.status = 'sent'
+                 AND (roh.occurred_at AT TIME ZONE $2::text)::date = d.local_day
+             ) AS day_sent_total,
+             (
+               SELECT COUNT(*)::int
+               FROM reminder_occurrence_history roh
+               INNER JOIN reminder_rules rr ON rr.integrator_rule_id = roh.integrator_rule_id
+               INNER JOIN reminder_journal rj
+                 ON rj.rule_id = rr.id
+                 AND rj.occurrence_id = roh.integrator_occurrence_id
+                 AND rj.action = 'done'
+               CROSS JOIN day_ctx d
+               WHERE roh.integrator_user_id = d.iu
+                 AND roh.status = 'sent'
+                 AND (roh.occurred_at AT TIME ZONE $2::text)::date = d.local_day
+             ) AS day_done_count`,
+          [occurredAt, displayTimeZone, integratorUserId],
+        );
+        const daySentTotal = Number(stats.rows[0]?.day_sent_total ?? 0);
+        const dayDoneCount = Number(stats.rows[0]?.day_done_count ?? 0);
+        const dayFullyDone =
+          firstDoneForOccurrence &&
+          daySentTotal > 0 &&
+          dayDoneCount === daySentTotal;
+
         await client.query("COMMIT");
-        if (!doneAt) return { ok: false, error: "not_found" };
-        return { ok: true, occurrenceId: integratorOccurrenceId, doneAt };
+        return {
+          ok: true,
+          occurrenceId: integratorOccurrenceId,
+          doneAt: doneAt!,
+          firstDoneForOccurrence,
+          dayDoneCount,
+          daySentTotal,
+          dayFullyDone,
+        };
       } catch (err) {
         try {
           await client.query("ROLLBACK");

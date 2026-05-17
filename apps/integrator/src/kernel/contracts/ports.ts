@@ -501,7 +501,17 @@ export type RemindersWebappWritesPort = {
   postOccurrenceDone(input: {
     integratorUserId: string;
     occurrenceId: string;
-  }): Promise<{ ok: true; doneAt: string } | { ok: false; error: string }>;
+  }): Promise<
+    | {
+        ok: true;
+        doneAt: string;
+        firstDoneForOccurrence: boolean;
+        dayDoneCount: number;
+        daySentTotal: number;
+        dayFullyDone: boolean;
+      }
+    | { ok: false; error: string }
+  >;
   postReminderMuteUntil(input: {
     integratorUserId: string;
     mutedUntilIso: string | null;

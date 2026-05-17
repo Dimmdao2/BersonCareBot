@@ -31,5 +31,9 @@ export async function POST(req: Request, context: { params: Promise<{ id: string
     ok: true,
     occurrenceId: res.data.occurrenceId,
     doneAt: res.data.doneAt,
+    firstDoneForOccurrence: res.data.firstDoneForOccurrence,
+    dayDoneCount: res.data.dayDoneCount,
+    daySentTotal: res.data.daySentTotal,
+    dayFullyDone: res.data.dayFullyDone,
   });
 }

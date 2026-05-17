@@ -1,4 +1,4 @@
-import type { ReminderJournalPort } from "./reminderJournalPort";
+import type { ReminderDoneDayStats, ReminderJournalPort } from "./reminderJournalPort";
 import type { ReminderRulesPort } from "./ports";
 import type {
   ReminderCategory,
@@ -17,6 +17,7 @@ import {
   REMINDER_INTERVAL_WINDOW_MAX_MINUTES,
   REMINDER_INTERVAL_WINDOW_MIN_MINUTES,
 } from "./reminderIntervalBounds";
+import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
 
 export type { ReminderCategory, ReminderRule } from "./types";
 
@@ -486,14 +487,30 @@ export function createRemindersService(port: ReminderRulesPort, deps?: Reminders
     async doneOccurrence(
       platformUserId: string,
       integratorOccurrenceId: string,
-    ): Promise<ServiceResult<{ occurrenceId: string; doneAt: string }>> {
+      displayTimeZone?: string,
+    ): Promise<
+      ServiceResult<
+        { occurrenceId: string; doneAt: string } & ReminderDoneDayStats
+      >
+    > {
       if (!deps?.journal) return { ok: false, error: "not_available" };
-      const res = await deps.journal.recordDone(platformUserId, integratorOccurrenceId);
+      const tz = displayTimeZone ?? (await getAppDisplayTimeZone());
+      const res = await deps.journal.recordDone(platformUserId, integratorOccurrenceId, tz);
       if (!res.ok) {
         if (res.error === "conflict") return { ok: false, error: "conflict" };
         return { ok: false, error: "not_found" };
       }
-      return { ok: true, data: { occurrenceId: res.occurrenceId, doneAt: res.doneAt } };
+      return {
+        ok: true,
+        data: {
+          occurrenceId: res.occurrenceId,
+          doneAt: res.doneAt,
+          firstDoneForOccurrence: res.firstDoneForOccurrence,
+          dayDoneCount: res.dayDoneCount,
+          daySentTotal: res.daySentTotal,
+          dayFullyDone: res.dayFullyDone,
+        },
+      };
     },
 
     async skipOccurrence(

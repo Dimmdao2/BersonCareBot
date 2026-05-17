@@ -936,31 +936,63 @@ export async function handleReminders(
     if (!userId || !(await assertOccurrenceOwnedByUser(deps.readPort, occurrenceId, userId))) {
       return { actionId: action.id, status: 'failed', error: 'reminders.done.callback: forbidden' };
     }
-    if (deps.remindersWebappWritesPort) {
-      await deps.remindersWebappWritesPort.postOccurrenceDone({
-        integratorUserId: userId,
-        occurrenceId,
-      });
+    if (!deps.remindersWebappWritesPort) {
+      return { actionId: action.id, status: 'skipped', error: 'reminders.done.callback: no remindersWebappWritesPort' };
     }
+    const web = await deps.remindersWebappWritesPort.postOccurrenceDone({
+      integratorUserId: userId,
+      occurrenceId,
+    });
+    if (!web.ok) {
+      return { actionId: action.id, status: 'failed', error: `reminders.done.callback: ${web.error}` };
+    }
+
     const tplSrc = resource === 'max' ? 'max' : 'telegram';
-    const ack = deps.templatePort
-      ? (await deps.templatePort.renderTemplate({
-          source: tplSrc,
-          templateId: 'reminder.done.saved',
-          vars: {},
-          audience: 'user',
-        })).text
-      : 'Так держать! Не забывай отмечать самочувствие после разминки - это классно мотивирует, а еще на графике самочувствия будут красивые точки';
     const src = resource === 'max' ? 'max' : 'telegram';
     const messageId = action.params.messageId ?? readIncoming(ctx).messageId;
     const callbackQueryId = asString(action.params.callbackQueryId) ?? asString(readIncoming(ctx).callbackQueryId);
-    const intents = buildReminderCallbackAckIntents(action, ctx, {
-      chatId,
-      messageId,
-      callbackQueryId,
-      text: ack,
-      channel: src,
-    });
+    const mid = asMessageId(messageId);
+
+    const intents: import('../../../contracts/index.js').OutgoingIntent[] = [];
+    if (callbackQueryId) {
+      intents.push({
+        type: 'callback.answer',
+        meta: buildIntentMeta(action, ctx),
+        payload: { callbackQueryId },
+      });
+    }
+    if (mid !== null) {
+      intents.push({
+        type: 'message.delete',
+        meta: buildIntentMeta(action, ctx),
+        payload: {
+          recipient: { chatId },
+          messageId: mid,
+          delivery: { channels: [src], maxAttempts: 1 },
+        },
+      });
+    }
+    if (web.firstDoneForOccurrence && web.dayFullyDone && web.daySentTotal > 0) {
+      const vars = { done: String(web.dayDoneCount), total: String(web.daySentTotal) };
+      const celebration = deps.templatePort
+        ? (await deps.templatePort.renderTemplate({
+            source: tplSrc,
+            templateId: 'reminder.dayAllDone',
+            vars,
+            audience: 'user',
+          })).text
+        : `Супер! Сегодня вы выполнили ${vars.done} из ${vars.total} запланированных активностей!\n\nПродолжайте делать разминки и упражнения, и ваше здоровье скажет вам спасибо!`;
+      intents.push({
+        type: 'message.send',
+        meta: buildIntentMeta(action, ctx),
+        payload: {
+          recipient: { chatId },
+          message: { text: celebration },
+          parse_mode: 'HTML',
+          delivery: { channels: [src], maxAttempts: 1 },
+        },
+      });
+    }
     return { actionId: action.id, status: 'success', intents };
   }
 

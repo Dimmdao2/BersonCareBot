@@ -88,51 +88,36 @@ export default async function DoctorMaterialRatingsPage({ searchParams }: Props)
                   </thead>
                   <tbody>
                     {list.map((r) => {
-                      let label: ReactNode = (
-                        <span className="font-mono text-xs" title={r.targetId}>
-                          {r.targetId}
-                        </span>
-                      );
+                      let label: ReactNode = <span className="text-muted-foreground">Материал</span>;
                       if (kind === "lfk_exercise") {
                         const title = exerciseTitleById.get(r.targetId)?.trim();
                         label = (
-                          <div className="flex flex-col gap-0.5">
-                            <Link
-                              className="text-primary underline-offset-2 hover:underline"
-                              href={`/app/doctor/exercises/${r.targetId}`}
-                            >
-                              {title || "Упражнение"}
-                            </Link>
-                            <span className="text-xs text-muted-foreground font-mono">{r.targetId}</span>
-                          </div>
+                          <Link
+                            className="text-primary underline-offset-2 hover:underline"
+                            href={`/app/doctor/exercises/${r.targetId}`}
+                          >
+                            {title || "Упражнение"}
+                          </Link>
                         );
                       } else if (kind === "content_page") {
                         const meta = contentById.get(r.targetId);
                         label = (
-                          <div className="flex flex-col gap-0.5">
-                            <Link
-                              className="text-primary underline-offset-2 hover:underline"
-                              href={`/app/doctor/content/edit/${r.targetId}`}
-                            >
-                              {meta?.title?.trim() ? meta.title : "Страница"}
-                            </Link>
-                            {meta?.slug ? (
-                              <span className="text-xs text-muted-foreground font-mono">{meta.slug}</span>
-                            ) : null}
-                          </div>
+                          <Link
+                            className="text-primary underline-offset-2 hover:underline"
+                            href={`/app/doctor/content/edit/${r.targetId}`}
+                          >
+                            {meta?.title?.trim() ? meta.title : "Страница"}
+                          </Link>
                         );
                       } else if (kind === "lfk_complex") {
                         const title = templateTitleById.get(r.targetId);
                         label = (
-                          <div className="flex flex-col gap-0.5">
-                            <Link
-                              className="text-primary underline-offset-2 hover:underline"
-                              href={`/app/doctor/lfk-templates/${r.targetId}`}
-                            >
-                              {title ?? "Шаблон комплекса"}
-                            </Link>
-                            <span className="text-xs text-muted-foreground font-mono">{r.targetId}</span>
-                          </div>
+                          <Link
+                            className="text-primary underline-offset-2 hover:underline"
+                            href={`/app/doctor/lfk-templates/${r.targetId}`}
+                          >
+                            {title ?? "Шаблон комплекса"}
+                          </Link>
                         );
                       }
                       return (

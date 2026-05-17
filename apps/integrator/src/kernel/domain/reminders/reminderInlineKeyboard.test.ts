@@ -33,6 +33,10 @@ describe('reminderInlineKeyboard', () => {
     expect(kb.inline_keyboard[0]?.[0]).toMatchObject({ text: 'Открыть программу', web_app: { url: webPrimary.url } });
     const snooze = kb.inline_keyboard[1];
     expect(snooze?.[0]).toMatchObject({ callback_data: `rem_snooze:${id}:15` });
+    const doneRow = kb.inline_keyboard.find((row) =>
+      row.some((b) => 'callback_data' in b && b.callback_data === `rem_done:${id}`),
+    );
+    expect(doneRow?.[0]).toMatchObject({ text: 'Выполнить', callback_data: `rem_done:${id}` });
     expect(kb.inline_keyboard.at(-1)?.[0]).toMatchObject({ text: 'Расписание', web_app: { url: webSchedule.url } });
   });
 

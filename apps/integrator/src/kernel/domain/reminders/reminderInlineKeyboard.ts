@@ -51,7 +51,7 @@ export function buildReminderDispatchInlineKeyboard(params: {
   }
 
   const doneSkipRow: InlineKeyboardButton[] = [
-    { text: 'Уже выполнено', callback_data: `rem_done:${occurrenceId}` },
+    { text: 'Выполнить', callback_data: `rem_done:${occurrenceId}` },
     { text: 'Пропущу сейчас', callback_data: `rem_skip:${occurrenceId}` },
   ];
   if (doneSkipRow.every((b) => 'callback_data' in b && isTelegramCallbackDataWithinLimit(b.callback_data))) {

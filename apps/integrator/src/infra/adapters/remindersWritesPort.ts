@@ -118,12 +118,23 @@ export function createRemindersWritesPort(deps: { db: DbPort }): RemindersWebapp
         const data = (await res.json().catch(() => ({}))) as {
           ok?: boolean;
           doneAt?: string;
+          firstDoneForOccurrence?: boolean;
+          dayDoneCount?: unknown;
+          daySentTotal?: unknown;
+          dayFullyDone?: boolean;
           error?: string;
         };
         if (!res.ok || data.ok !== true || typeof data.doneAt !== 'string') {
           return { ok: false, error: data.error ?? res.statusText };
         }
-        return { ok: true, doneAt: data.doneAt };
+        return {
+          ok: true,
+          doneAt: data.doneAt,
+          firstDoneForOccurrence: data.firstDoneForOccurrence === true,
+          dayDoneCount: typeof data.dayDoneCount === 'number' ? data.dayDoneCount : Number(data.dayDoneCount) || 0,
+          daySentTotal: typeof data.daySentTotal === 'number' ? data.daySentTotal : Number(data.daySentTotal) || 0,
+          dayFullyDone: data.dayFullyDone === true,
+        };
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         return { ok: false, error: message };

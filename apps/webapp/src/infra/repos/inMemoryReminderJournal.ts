@@ -1,4 +1,6 @@
+import { DateTime } from "luxon";
 import type {
+  ReminderDoneDayStats,
   ReminderJournalEntry,
   ReminderJournalPort,
   ReminderJournalRuleStats,
@@ -10,6 +12,8 @@ type OccState = {
   skipReason: string | null;
   /** Synthetic key aligned with `logAction.ruleId` / listByRule filter (no DB join in tests). */
   journalRuleIntegratorId: string;
+  /** Approximates `reminder_occurrence_history.occurred_at` for day bucketing in tests. */
+  deliveredAt: string;
 };
 
 /**
@@ -18,6 +22,42 @@ type OccState = {
 export function createInMemoryReminderJournalPort(): ReminderJournalPort {
   const journal: ReminderJournalEntry[] = [];
   const occById = new Map<string, OccState>();
+
+  function localDayKey(iso: string, tz: string): string {
+    return DateTime.fromISO(iso, { setZone: true }).setZone(tz).toISODate() ?? "";
+  }
+
+  function dayStatsForOccurrence(
+    platformUserId: string,
+    integratorOccurrenceId: string,
+    displayTimeZone: string,
+    firstDoneForOccurrence: boolean,
+  ): Pick<ReminderDoneDayStats, "dayDoneCount" | "daySentTotal" | "dayFullyDone"> {
+    const st = occById.get(`${platformUserId}:${integratorOccurrenceId}`);
+    const anchorDay = st ? localDayKey(st.deliveredAt, displayTimeZone) : "";
+    let daySentTotal = 0;
+    for (const [key, o] of occById) {
+      if (!key.startsWith(`${platformUserId}:`)) continue;
+      if (localDayKey(o.deliveredAt, displayTimeZone) === anchorDay) daySentTotal += 1;
+    }
+    const sentOccIds = new Set<string>();
+    for (const [key, o] of occById) {
+      if (!key.startsWith(`${platformUserId}:`)) continue;
+      if (localDayKey(o.deliveredAt, displayTimeZone) === anchorDay) {
+        sentOccIds.add(key.slice(`${platformUserId}:`.length));
+      }
+    }
+    let dayDoneCount = 0;
+    for (const e of journal) {
+      if (e.action !== "done" || !e.occurrenceId) continue;
+      if (sentOccIds.has(e.occurrenceId)) dayDoneCount += 1;
+    }
+    const dayFullyDone =
+      firstDoneForOccurrence &&
+      daySentTotal > 0 &&
+      dayDoneCount === daySentTotal;
+    return { daySentTotal, dayDoneCount, dayFullyDone };
+  }
 
   return {
     async logAction(params) {
@@ -75,6 +115,7 @@ export function createInMemoryReminderJournalPort(): ReminderJournalPort {
           skippedAt: null,
           skipReason: null,
           journalRuleIntegratorId: `inmem-rule-${integratorOccurrenceId}`,
+          deliveredAt: new Date().toISOString(),
         });
       }
       const st = occById.get(key)!;
@@ -98,7 +139,7 @@ export function createInMemoryReminderJournalPort(): ReminderJournalPort {
       return { ok: true, occurrenceId: integratorOccurrenceId, snoozedUntil: until };
     },
 
-    async recordDone(platformUserId, integratorOccurrenceId) {
+    async recordDone(platformUserId, integratorOccurrenceId, displayTimeZone) {
       const key = `${platformUserId}:${integratorOccurrenceId}`;
       if (!occById.has(key)) {
         occById.set(key, {
@@ -106,12 +147,27 @@ export function createInMemoryReminderJournalPort(): ReminderJournalPort {
           skippedAt: null,
           skipReason: null,
           journalRuleIntegratorId: `inmem-rule-${integratorOccurrenceId}`,
+          deliveredAt: new Date().toISOString(),
         });
       }
       const st = occById.get(key)!;
       const existingDone = journal.find((e) => e.occurrenceId === integratorOccurrenceId && e.action === "done");
       if (existingDone) {
-        return { ok: true, occurrenceId: integratorOccurrenceId, doneAt: existingDone.createdAt };
+        const { dayDoneCount, daySentTotal, dayFullyDone } = dayStatsForOccurrence(
+          platformUserId,
+          integratorOccurrenceId,
+          displayTimeZone,
+          false,
+        );
+        return {
+          ok: true,
+          occurrenceId: integratorOccurrenceId,
+          doneAt: existingDone.createdAt,
+          firstDoneForOccurrence: false,
+          dayDoneCount,
+          daySentTotal,
+          dayFullyDone,
+        };
       }
       const doneAt = new Date().toISOString();
       journal.unshift({
@@ -123,7 +179,21 @@ export function createInMemoryReminderJournalPort(): ReminderJournalPort {
         skipReason: null,
         createdAt: doneAt,
       });
-      return { ok: true, occurrenceId: integratorOccurrenceId, doneAt };
+      const { dayDoneCount, daySentTotal, dayFullyDone } = dayStatsForOccurrence(
+        platformUserId,
+        integratorOccurrenceId,
+        displayTimeZone,
+        true,
+      );
+      return {
+        ok: true,
+        occurrenceId: integratorOccurrenceId,
+        doneAt,
+        firstDoneForOccurrence: true,
+        dayDoneCount,
+        daySentTotal,
+        dayFullyDone,
+      };
     },
 
     async recordSkip(platformUserId, integratorOccurrenceId, reason) {
@@ -134,6 +204,7 @@ export function createInMemoryReminderJournalPort(): ReminderJournalPort {
           skippedAt: null,
           skipReason: null,
           journalRuleIntegratorId: `inmem-rule-${integratorOccurrenceId}`,
+          deliveredAt: new Date().toISOString(),
         });
       }
       const st = occById.get(key)!;

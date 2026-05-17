@@ -16,6 +16,14 @@ export type ReminderJournalRuleStats = {
   snoozed: number;
 };
 
+/** Stats for integrator bot UX: day bucket matches `reminder_occurrence_history.occurred_at` in app display IANA TZ. */
+export type ReminderDoneDayStats = {
+  firstDoneForOccurrence: boolean;
+  dayDoneCount: number;
+  daySentTotal: number;
+  dayFullyDone: boolean;
+};
+
 export type ReminderJournalPort = {
   logAction(params: {
     ruleIntegratorId: string;
@@ -48,8 +56,9 @@ export type ReminderJournalPort = {
   recordDone(
     platformUserId: string,
     integratorOccurrenceId: string,
+    displayTimeZone: string,
   ): Promise<
-    | { ok: true; occurrenceId: string; doneAt: string }
+    | ({ ok: true; occurrenceId: string; doneAt: string } & ReminderDoneDayStats)
     | { ok: false; error: "not_found" | "conflict" }
   >;
   recordSkip(

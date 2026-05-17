@@ -74,6 +74,10 @@ export async function POST(request: Request) {
       ok: true,
       occurrenceId: res.data.occurrenceId,
       doneAt: res.data.doneAt,
+      firstDoneForOccurrence: res.data.firstDoneForOccurrence,
+      dayDoneCount: res.data.dayDoneCount,
+      daySentTotal: res.data.daySentTotal,
+      dayFullyDone: res.data.dayFullyDone,
     },
     { status: 200 },
   );

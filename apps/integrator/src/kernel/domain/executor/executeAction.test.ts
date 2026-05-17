@@ -3371,6 +3371,151 @@ describe('executeAction', () => {
     });
   });
 
+  describe('reminders.done.callback (telegram)', () => {
+    const tgCtx: DomainContext = {
+      ...ctx,
+      event: {
+        ...ctx.event,
+        meta: { ...ctx.event.meta, source: 'telegram' },
+      },
+    };
+
+    it('answers callback, deletes message; no celebration when day not complete', async () => {
+      const readDb = vi.fn().mockImplementation(async (q: { type: string; params?: Record<string, unknown> }) => {
+        if (q.type === 'user.byIdentity') return { userId: 'int-user-done' };
+        if (q.type === 'reminders.occurrence.ownerUserId') {
+          expect(q.params).toMatchObject({ occurrenceId: 'occ-done-1' });
+          return 'int-user-done';
+        }
+        return null;
+      });
+      const postOccurrenceDone = vi.fn().mockResolvedValue({
+        ok: true,
+        doneAt: '2026-01-01T12:00:00.000Z',
+        firstDoneForOccurrence: true,
+        dayDoneCount: 1,
+        daySentTotal: 2,
+        dayFullyDone: false,
+      });
+      const remindersWebappWritesPort: RemindersWebappWritesPort = {
+        postOccurrenceSnooze: vi.fn(),
+        postOccurrenceSkip: vi.fn(),
+        postOccurrenceDone,
+        postReminderMuteUntil: vi.fn(),
+      };
+      const action: Action = {
+        id: 'done-1',
+        type: 'reminders.done.callback',
+        mode: 'sync',
+        params: {
+          occurrenceId: 'occ-done-1',
+          channelUserId: '111',
+          resource: 'telegram',
+          chatId: 55,
+          messageId: 777,
+          callbackQueryId: 'cb-done-1',
+        },
+      };
+      const result = await executeAction(action, tgCtx, {
+        readPort: { readDb },
+        remindersWebappWritesPort,
+      });
+      expect(result.status).toBe('success');
+      expect(postOccurrenceDone).toHaveBeenCalledWith({
+        integratorUserId: 'int-user-done',
+        occurrenceId: 'occ-done-1',
+      });
+      const types = result.intents?.map((i) => i.type) ?? [];
+      expect(types).toEqual(['callback.answer', 'message.delete']);
+      const del = result.intents?.find((i) => i.type === 'message.delete');
+      expect(del && 'payload' in del ? (del.payload as { messageId?: unknown }).messageId : null).toBe(777);
+    });
+
+    it('sends celebration when day fully done', async () => {
+      const readDb = vi.fn().mockImplementation(async (q: { type: string }) => {
+        if (q.type === 'user.byIdentity') return { userId: 'int-user-done2' };
+        if (q.type === 'reminders.occurrence.ownerUserId') return 'int-user-done2';
+        return null;
+      });
+      const postOccurrenceDone = vi.fn().mockResolvedValue({
+        ok: true,
+        doneAt: '2026-01-01T12:00:00.000Z',
+        firstDoneForOccurrence: true,
+        dayDoneCount: 2,
+        daySentTotal: 2,
+        dayFullyDone: true,
+      });
+      const renderTemplate = vi.fn().mockResolvedValue({ text: 'celebrate' });
+      const remindersWebappWritesPort: RemindersWebappWritesPort = {
+        postOccurrenceSnooze: vi.fn(),
+        postOccurrenceSkip: vi.fn(),
+        postOccurrenceDone,
+        postReminderMuteUntil: vi.fn(),
+      };
+      const action: Action = {
+        id: 'done-2',
+        type: 'reminders.done.callback',
+        mode: 'sync',
+        params: {
+          occurrenceId: 'occ-done-2',
+          channelUserId: '112',
+          resource: 'telegram',
+          chatId: 56,
+          messageId: 778,
+          callbackQueryId: 'cb-done-2',
+        },
+      };
+      const result = await executeAction(action, tgCtx, {
+        readPort: { readDb },
+        remindersWebappWritesPort,
+        templatePort: { renderTemplate },
+      });
+      expect(result.status).toBe('success');
+      expect(renderTemplate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          templateId: 'reminder.dayAllDone',
+          vars: { done: '2', total: '2' },
+        }),
+      );
+      const types = result.intents?.map((i) => i.type) ?? [];
+      expect(types).toEqual(['callback.answer', 'message.delete', 'message.send']);
+    });
+
+    it('fails when webapp returns error', async () => {
+      const readDb = vi.fn().mockImplementation(async (q: { type: string }) => {
+        if (q.type === 'user.byIdentity') return { userId: 'int-user-x' };
+        if (q.type === 'reminders.occurrence.ownerUserId') return 'int-user-x';
+        return null;
+      });
+      const postOccurrenceDone = vi.fn().mockResolvedValue({ ok: false, error: 'not_found' });
+      const remindersWebappWritesPort: RemindersWebappWritesPort = {
+        postOccurrenceSnooze: vi.fn(),
+        postOccurrenceSkip: vi.fn(),
+        postOccurrenceDone,
+        postReminderMuteUntil: vi.fn(),
+      };
+      const action: Action = {
+        id: 'done-3',
+        type: 'reminders.done.callback',
+        mode: 'sync',
+        params: {
+          occurrenceId: 'occ-bad',
+          channelUserId: '113',
+          resource: 'telegram',
+          chatId: 57,
+          messageId: 779,
+          callbackQueryId: 'cb-done-3',
+        },
+      };
+      const result = await executeAction(action, tgCtx, {
+        readPort: { readDb },
+        remindersWebappWritesPort,
+      });
+      expect(result.status).toBe('failed');
+      expect(result.intents).toBeUndefined();
+    });
+  });
+
   describe('reminders.skip.applyFreeText (max)', () => {
     it('uses message.edit on reply target when replyToMessageId is present', async () => {
       const readDb = vi.fn().mockImplementation(async (q: { type: string; params?: { occurrenceId?: string } }) => {
