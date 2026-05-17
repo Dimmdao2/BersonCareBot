@@ -9,7 +9,7 @@ export default function manifest(): MetadataRoute.Manifest {
     id: "/",
     name: "BersonCare",
     short_name: "BersonCare",
-    description: "Кабинет пациента и врача платформы BersonCare.",
+    description: "Разминки и упражнения от реабилитолога",
     start_url: "/app/patient",
     scope: "/",
     display: "standalone",

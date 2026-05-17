@@ -44,7 +44,6 @@
 
 ## Активные инициативы
 
-- **Календарный пояс пациента (IANA):** [`PATIENT_CALENDAR_TIMEZONE_INITIATIVE/README.md`](PATIENT_CALENDAR_TIMEZONE_INITIATIVE/README.md) · [`MASTER_PLAN.md`](PATIENT_CALENDAR_TIMEZONE_INITIATIVE/MASTER_PLAN.md) · [`LOG.md`](PATIENT_CALENDAR_TIMEZONE_INITIATIVE/LOG.md) — профиль, bootstrap из браузера, подписи селекта и дедуп `react-timezone-select`.
 - **PWA (webapp, без SW на старте):** [`PWA_INITIATIVE/README.md`](PWA_INITIATIVE/README.md) · [`BASELINE_STRUCTURE.md`](PWA_INITIATIVE/BASELINE_STRUCTURE.md) · [`LOG.md`](PWA_INITIATIVE/LOG.md) — manifest, иконки; снимок структуры под дальнейший Web Push / офлайн.
 - **Онлайн-запись: реабилитация и нутрициология (вне Rubitime):** [`ONLINE_CONSULT_REHAB_NUTRITION_BOOKING_INITIATIVE/README.md`](ONLINE_CONSULT_REHAB_NUTRITION_BOOKING_INITIATIVE/README.md) · [`LOG.md`](ONLINE_CONSULT_REHAB_NUTRITION_BOOKING_INITIATIVE/LOG.md) — целевой контур без Rubitime; структура ТЗ в папке будет дополнена.
 - **Doctor patient card — программы лечения (кабинет врача):** единая точка входа [`DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/README.md`](DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/README.md) · [`ROADMAP.md`](DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/ROADMAP.md) · [`LOG.md`](DOCTOR_PATIENT_CARD_TREATMENT_PROGRAM_INITIATIVE/LOG.md) (шаблон → инстанс, правки; канон ТЗ — ссылки внутри README).

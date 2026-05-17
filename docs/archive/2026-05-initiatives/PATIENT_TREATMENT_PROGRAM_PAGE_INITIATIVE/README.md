@@ -8,7 +8,7 @@
 
 **Схема исполнения в roadmap:** A (данные) → B (деталь MVP) → C (редизайн детали: вкладки + встроенное тело этапа) → D (список). См. `ROADMAP_2` §1.1a «Схема исполнения для блока 1.x».
 
-**Статус:** пайплайн этапов **A→D** и хвосты **lifecycle клинтестов (2026-05-14)** закрыты (см. [`LOG.md`](LOG.md)); указатель в корне репозитория — [`docs/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/README.md`](../../../PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/README.md). Актуальная блок-схема detail после редизайна «Мой план» — [`BLOCK_LAYOUT_REFERENCE.md`](BLOCK_LAYOUT_REFERENCE.md) §3; структура модулей detail — [`apps/webapp/src/app/app/patient/treatment/program-detail/README.md`](../../apps/webapp/src/app/app/patient/treatment/program-detail/README.md).
+**Статус:** пайплайн этапов **A→D** и хвосты **lifecycle клинтестов (2026-05-14)** закрыты (см. [`LOG.md`](LOG.md)). Указатель в `docs/PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE/` удалён (2026-05-17); канон — только этот каталог в архиве. Актуальная блок-схема detail после редизайна «Мой план» — [`BLOCK_LAYOUT_REFERENCE.md`](BLOCK_LAYOUT_REFERENCE.md) §3; структура модулей detail — [`apps/webapp/src/app/app/patient/treatment/program-detail/README.md`](../../apps/webapp/src/app/app/patient/treatment/program-detail/README.md).
 
 ## Сопровождение документации (не блокирует закрытие)
 

@@ -25,3 +25,7 @@
 ## 2026-05 — вынесенные закрытые пункты project backlog
 
 Записи, удалённые из [`../TODO.md`](../TODO.md) как история: [`TODO_BACKLOG_CLOSED_HISTORY.md`](TODO_BACKLOG_CLOSED_HISTORY.md).
+
+## 2026-05-17 — аудит папок инициатив в `docs/`
+
+Сводка: что активно, что указатель, что уже в архиве, что переносить только с обновлением ссылок — [`INITIATIVE_FOLDERS_AUDIT_2026-05-17.md`](INITIATIVE_FOLDERS_AUDIT_2026-05-17.md).
