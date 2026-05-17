@@ -156,6 +156,14 @@ Payload example:
 }
 ```
 
+### `POST /api/integrator/reminders/occurrences/done`
+
+Подписанный webhook **webapp ← integrator** (те же заголовки `X-Bersoncare-Timestamp` / `X-Bersoncare-Signature`, HMAC по `timestamp + "." + rawBody`, секрет **`INTEGRATOR_WEBHOOK_SECRET`**). Тело JSON: **`integratorUserId`**, **`occurrenceId`** (id строки `reminder_occurrence_history` / integrator occurrence).
+
+**Успех 200:** `{ "ok": true, "occurrenceId", "doneAt", "firstDoneForOccurrence", "dayDoneCount", "daySentTotal", "dayFullyDone" }` — последние четыре поля нужны боту: «первая отметка по этому occurrence», счётчики за **календарный день доставки** (`occurred_at` в **`app_display_timezone`**): сколько **sent**-напоминаний за день и сколько из них с записью `done` в `reminder_journal`, и флаг «в этом запросе закрыт последний слот дня». Ошибки: **404** `not_found`, **409** `conflict` (повторный `done`), **401** неверная подпись.
+
+Сценарий бота после успеха: удалить сообщение с пушем; при `firstDoneForOccurrence && dayFullyDone && daySentTotal > 0` отправить пользователю отдельное сообщение (шаблон integrator **`reminder.dayAllDone`**). См. [`apps/webapp/src/modules/reminders/reminders.md`](src/modules/reminders/reminders.md) §«Бот».
+
 ## Authentication
 
 Webhook requests use:

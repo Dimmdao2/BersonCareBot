@@ -1,5 +1,11 @@
 # LOG — Patient Reminder UX
 
+## 2026-05-17 — Бот: «Выполнить», удаление пуша, поздравление при закрытии дня
+
+- **Продукт:** кнопка **«Выполнить»** (`rem_done`) вместо «Уже выполнено»; после успешного `done` через webapp — **удаление** сообщения с напоминанием (Telegram / MAX); если это первая отметка `done` по occurrence и за локальный день доставки (`occurred_at` в `app_display_timezone`) выполнены все **sent**-напоминания пользователя — отдельное сообщение (`reminder.dayAllDone`, `{{done}}` / `{{total}}`).
+- **Webapp:** `pgReminderJournal.recordDone` — агрегаты `firstDoneForOccurrence`, `dayDoneCount`, `daySentTotal`, `dayFullyDone`; ответы **`POST /api/integrator/reminders/occurrences/done`** и **`POST /api/patient/reminders/[id]/done`** с этими полями.
+- **Integrator:** `reminders.done.callback` — `callback.answer` → `message.delete` → условный `message.send`; при ошибке webapp — `failed`. Тесты: `executeAction.test.ts`, `reminderInlineKeyboard.test.ts`; webapp: `inMemoryReminderJournal.test.ts`.
+
 ## 2026-05-17 — Deeplink из бота: разминка дня и старт занятия по плану
 
 - **Webapp:** маршруты `routePaths.patientGoDailyWarmup` / `patientGoPlanStartLesson`; `app/app/patient/go/[kind]/page.tsx` + `resolvePatientReminderGoTargets.ts` (та же логика выбора, что главная «Начать разминку» / план «Начать занятие»); `buildReminderDeepLink` с `reminder_intent`; проекция и M2M upsert передают intent; `patientRouteApiPolicy` — префикс `/app/patient/go/` при `need_activation` и в `PATIENT_PAGE_PREFIXES_WITHOUT_PATIENT_TIER` (без лишнего bind-phone в legacy snapshot до редиректа, как у drilldown на `/app/patient/content/…`).

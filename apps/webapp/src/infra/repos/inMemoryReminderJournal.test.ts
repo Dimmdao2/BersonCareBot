@@ -43,7 +43,27 @@ describe("createInMemoryReminderJournalPort", () => {
       action: "skipped",
     });
     const byRule = await j.statsPerRuleForUser("u1", 30);
-    expect(byRule["rule-a"]).toEqual({ done: 1, skipped: 0, snoozed: 0 });
+    expect(byRule["rule-a"]).toEqual({ done: 1, skipped: 0, snoozed: 0 });    
     expect(byRule["rule-b"]).toEqual({ done: 0, skipped: 1, snoozed: 0 });
+  });
+
+  it("recordDone reports dayFullyDone when all same-day occurrences are done", async () => {
+    const j = createInMemoryReminderJournalPort();
+    const tz = "Europe/Moscow";
+    const u = "platform-user-1";
+    await j.recordSnooze(u, "occ-b", 15);
+    const first = await j.recordDone(u, "occ-a", tz);
+    expect(first.ok).toBe(true);
+    if (!first.ok) return;
+    expect(first.firstDoneForOccurrence).toBe(true);
+    expect(first.daySentTotal).toBe(2);
+    expect(first.dayFullyDone).toBe(false);
+    const second = await j.recordDone(u, "occ-b", tz);
+    expect(second.ok).toBe(true);
+    if (!second.ok) return;
+    expect(second.firstDoneForOccurrence).toBe(true);
+    expect(second.dayFullyDone).toBe(true);
+    expect(second.dayDoneCount).toBe(2);
+    expect(second.daySentTotal).toBe(2);
   });
 });

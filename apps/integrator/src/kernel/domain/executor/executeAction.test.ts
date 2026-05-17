@@ -3514,6 +3514,59 @@ describe('executeAction', () => {
       expect(result.status).toBe('failed');
       expect(result.intents).toBeUndefined();
     });
+
+    it('passes string messageId through for max (delete)', async () => {
+      const maxCtx: DomainContext = {
+        ...ctx,
+        event: {
+          ...ctx.event,
+          meta: { ...ctx.event.meta, source: 'max' },
+        },
+      };
+      const readDb = vi.fn().mockImplementation(async (q: { type: string }) => {
+        if (q.type === 'user.byIdentity') return { userId: 'int-max-done' };
+        if (q.type === 'reminders.occurrence.ownerUserId') return 'int-max-done';
+        return null;
+      });
+      const postOccurrenceDone = vi.fn().mockResolvedValue({
+        ok: true,
+        doneAt: '2026-01-01T12:00:00.000Z',
+        firstDoneForOccurrence: true,
+        dayDoneCount: 1,
+        daySentTotal: 3,
+        dayFullyDone: false,
+      });
+      const remindersWebappWritesPort: RemindersWebappWritesPort = {
+        postOccurrenceSnooze: vi.fn(),
+        postOccurrenceSkip: vi.fn(),
+        postOccurrenceDone,
+        postReminderMuteUntil: vi.fn(),
+      };
+      const action: Action = {
+        id: 'done-max-1',
+        type: 'reminders.done.callback',
+        mode: 'sync',
+        params: {
+          occurrenceId: 'occ-max-done',
+          channelUserId: '200',
+          resource: 'max',
+          chatId: 201,
+          messageId: 'max-mid-abc',
+          callbackQueryId: 'cb-max-done',
+        },
+      };
+      const result = await executeAction(action, maxCtx, {
+        readPort: { readDb },
+        remindersWebappWritesPort,
+      });
+      expect(result.status).toBe('success');
+      expect(postOccurrenceDone).toHaveBeenCalledWith({
+        integratorUserId: 'int-max-done',
+        occurrenceId: 'occ-max-done',
+      });
+      const del = result.intents?.find((i) => i.type === 'message.delete');
+      expect(del && 'payload' in del ? (del.payload as { messageId?: unknown }).messageId : null).toBe('max-mid-abc');
+    });
   });
 
   describe('reminders.skip.applyFreeText (max)', () => {
