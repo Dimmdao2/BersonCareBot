@@ -11,5 +11,9 @@ export function createInMemoryAdminPlatformUserStatsPort(): AdminPlatformUserSta
       }
       return { newUsersTotal: 0, mergesTotal: 0, newByDay, mergesByDay };
     },
+
+    async getSubscriberBindingStats() {
+      return { countBeforeStart: 0, newByDay: new Map<string, number>() };
+    },
   };
 }

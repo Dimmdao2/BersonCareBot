@@ -106,7 +106,7 @@ Per-channel предпочтения по темам (`user_notification_topic_c
 - Webapp: `apps/webapp/src/modules/system-settings/types.ts` (`ALLOWED_KEYS`).
 - Webapp: `apps/webapp/src/modules/system-settings/service.ts`, `syncToIntegrator.ts`, `configAdapter.ts`, `integrationRuntime.ts`.
 - Webapp: `apps/webapp/src/config/env.ts`.
-- Webapp (UI админских настроек, вкладки): `apps/webapp/src/app/app/settings/page.tsx`, `AdminSettingsTabsClient.tsx`, `AdminSettingsSection.tsx`, `AppParametersSection.tsx`, `AuthProvidersSection.tsx`, `AccessListsSection.tsx` (legacy, не монтируется в `page.tsx`), `GoogleCalendarSection.tsx`, `patchAdminSetting.ts` (`patchAdminSetting`, **`patchAdminSettingsBatch`** для формы «Режимы»).
+- Webapp (UI админских настроек, вкладки): `apps/webapp/src/app/app/settings/page.tsx`, `AdminSettingsTabsClient.tsx` (в т.ч. `reminder-stats` / «Статистика»), `AdminSettingsSection.tsx`, `AppParametersSection.tsx`, `AuthProvidersSection.tsx`, `AccessListsSection.tsx` (legacy, не монтируется в `page.tsx`), `GoogleCalendarSection.tsx`, `patchAdminSetting.ts` (`patchAdminSetting`, **`patchAdminSettingsBatch`** для формы «Режимы»).
 - Webapp (главная пациента — doctor UI, server actions с `revalidatePath`): `apps/webapp/src/app/app/doctor/patient-home/patientHomeDoctorSettingsActions.ts` (в т.ч. `savePatientHomeRepeatCooldownsAction` для пауз повтора).
 - Webapp (нормализация / batch): `apps/webapp/src/modules/system-settings/modesFormKeys.ts`, `adminSettingsPatchNormalize.ts`, `ports.ts` (`upsertManyInTransaction`), `infra/repos/pgSystemSettings.ts`, `infra/repos/inMemorySystemSettings.ts`.
 - Integrator: `apps/integrator/src/config/env.ts`, `settingsSyncRoute.ts`.

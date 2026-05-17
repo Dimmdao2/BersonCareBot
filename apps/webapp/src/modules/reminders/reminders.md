@@ -6,7 +6,10 @@
 
 - Инициатива UX / контракты: [`docs/archive/2026-05-initiatives/PATIENT_REMINDER_UX_INITIATIVE/README.md`](../../../../../docs/archive/2026-05-initiatives/PATIENT_REMINDER_UX_INITIATIVE/README.md)
 
-## Ключевые точки кода
+## Наблюдаемость (admin)
+
+- **Краткий срез в «Здоровье системы»:** [`GET /api/admin/system-health`](../../app/api/admin/system-health/route.ts) → поле **`remindersPipeline`** в теле ответа и проба **`reminders_pipeline`** в **`meta.probes`** (реализация: [`collectAdminSystemHealthData.ts`](../../app-layer/health/collectAdminSystemHealthData.ts), [`adminReminderPipelineMetrics.ts`](../../app-layer/health/adminReminderPipelineMetrics.ts)); UI — аккордеон «Напоминания» в [`SystemHealthSection.tsx`](../../app/app/settings/SystemHealthSection.tsx).
+- **Детальная статистика за окно (`windowHours`):** [`GET /api/admin/reminder-stats`](../../app/api/admin/reminder-stats/route.ts) — [`loadAdminReminderStats.ts`](../../app-layer/stats/loadAdminReminderStats.ts); вкладка **`/app/settings?adminTab=reminder-stats`**, компонент [`ReminderStatsSection.tsx`](../../app/app/settings/ReminderStatsSection.tsx). Описание контракта: [`api.md`](../../app/api/api.md) (пункт **admin/reminder-stats**).
 
 - `service.ts` — бизнес-логика; порты: `ReminderRulesPort`, опционально `ReminderJournalPort`.
 - `buildReminderDeepLink.ts` — deeplink для payload integrator (в т.ч. `rehab_program` → `/app/patient/treatment/...`). Для `reminder_intent` **`warmup`** / **`exercises`** / **`stretch`** — стабильные пути `/app/patient/go/daily-warmup` и `/app/patient/go/plan-start-lesson` (RSC-редирект на тот же контент, что CTA «Начать разминку» / «Начать занятие» на главной пациента). Префикс `/app/patient/go/` учтён в `patientRouteApiPolicy` (в т.ч. без лишнего bind-phone в legacy snapshot, как у `/app/patient/content/`).

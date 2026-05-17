@@ -1,8 +1,11 @@
 import { DateTime } from "luxon";
 
-import type { AdminRegistrationPreset } from "@/modules/admin-platform-stats/types";
+import type { AdminStatsTimePreset } from "@/modules/admin-platform-stats/types";
 
 const DAY_KEY = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Минимум календарных дней для custom в API «Регистрации и слияния». */
+export const MIN_REGISTRATION_STATS_INCLUSIVE_DAYS = 7;
 
 export type ResolvedRegistrationLocalRange = {
   fromDay: string;
@@ -10,6 +13,11 @@ export type ResolvedRegistrationLocalRange = {
   startUtcIso: string;
   endExclusiveUtcIso: string;
   dayKeys: string[];
+};
+
+export type ResolveAdminStatsRangeOpts = {
+  /** Для `preset === "custom"`: ошибка `range_too_short`, если число календарных дней [from..to] меньше этого значения. */
+  enforceMinInclusiveDays?: number;
 };
 
 function parseDayInZone(iana: string, ymd: string): DateTime {
@@ -36,11 +44,12 @@ const MAX_CUSTOM_SPAN_DAYS = 400;
 /**
  * Границы в UTC для полуинтервала [startUtc, endExclusiveUtc) по локальным суткам `iana`.
  */
-export function resolveRegistrationLocalRange(
+export function resolveAdminStatsLocalRange(
   iana: string,
-  preset: AdminRegistrationPreset,
+  preset: AdminStatsTimePreset,
   customFrom: string | undefined,
   customTo: string | undefined,
+  opts?: ResolveAdminStatsRangeOpts,
 ): ResolvedRegistrationLocalRange {
   const now = DateTime.now().setZone(iana);
   const todayStart = now.startOf("day");
@@ -48,10 +57,7 @@ export function resolveRegistrationLocalRange(
   let fromStart: DateTime;
   let toEndInclusiveStart: DateTime;
 
-  if (preset === "today") {
-    fromStart = todayStart;
-    toEndInclusiveStart = todayStart;
-  } else if (preset === "week") {
+  if (preset === "week") {
     fromStart = todayStart.minus({ days: 6 });
     toEndInclusiveStart = todayStart;
   } else if (preset === "month") {
@@ -67,7 +73,12 @@ export function resolveRegistrationLocalRange(
     toEndInclusiveStart = parseDayInZone(iana, t);
     const span = toEndInclusiveStart.diff(fromStart, "days").days;
     if (span < 0) throw new Error("range_inverted");
-    if (span + 1 > MAX_CUSTOM_SPAN_DAYS) throw new Error("range_too_long");
+    const inclusiveDays = span + 1;
+    if (inclusiveDays > MAX_CUSTOM_SPAN_DAYS) throw new Error("range_too_long");
+    const min = opts?.enforceMinInclusiveDays;
+    if (min !== undefined && inclusiveDays < min) {
+      throw new Error("range_too_short");
+    }
   }
 
   const fromDay = fromStart.toFormat("yyyy-LL-dd");

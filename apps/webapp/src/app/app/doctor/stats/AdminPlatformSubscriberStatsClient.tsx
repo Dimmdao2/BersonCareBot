@@ -3,9 +3,9 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import type { AdminRegistrationStatsPayload, AdminStatsTimePreset } from "@/modules/admin-platform-stats/types";
+import type { AdminStatsTimePreset, AdminSubscriberStatsPayload } from "@/modules/admin-platform-stats/types";
 
-import { AdminRegistrationLineChart } from "./AdminRegistrationLineChart";
+import { AdminSubscriberLineChart } from "./AdminSubscriberLineChart";
 
 function buildQuery(preset: AdminStatsTimePreset, from: string, to: string): string {
   const p = new URLSearchParams();
@@ -14,15 +14,7 @@ function buildQuery(preset: AdminStatsTimePreset, from: string, to: string): str
     p.set("from", from);
     p.set("to", to);
   }
-  return `/api/admin/platform-user-registration-stats?${p.toString()}`;
-}
-
-function inclusiveCalendarDays(fromYmd: string, toYmd: string): number {
-  const [yf, mf, df] = fromYmd.split("-").map((x) => Number.parseInt(x, 10));
-  const [yt, mt, dt] = toYmd.split("-").map((x) => Number.parseInt(x, 10));
-  const a = new Date(yf!, mf! - 1, df!);
-  const b = new Date(yt!, mt! - 1, dt!);
-  return Math.round((b.getTime() - a.getTime()) / 86400000) + 1;
+  return `/api/admin/platform-user-subscriber-stats?${p.toString()}`;
 }
 
 function ymdMinusDays(ymd: string, days: number): string {
@@ -35,16 +27,11 @@ function ymdMinusDays(ymd: string, days: number): string {
   return `${yy}-${mm}-${dd}`;
 }
 
-function formatRegistrationError(code: string): string {
-  if (code === "range_too_short") return "Выберите период не короче 7 дней.";
-  return code;
-}
-
-export function AdminPlatformRegistrationStatsClient({ calendarTodayYmd }: { calendarTodayYmd: string }) {
-  const [preset, setPreset] = useState<AdminStatsTimePreset>("week");
+export function AdminPlatformSubscriberStatsClient({ calendarTodayYmd }: { calendarTodayYmd: string }) {
+  const [preset, setPreset] = useState<AdminStatsTimePreset>("month");
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
-  const [data, setData] = useState<AdminRegistrationStatsPayload | null>(null);
+  const [data, setData] = useState<AdminSubscriberStatsPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -52,26 +39,16 @@ export function AdminPlatformRegistrationStatsClient({ calendarTodayYmd }: { cal
     setLoading(true);
     setError(null);
     try {
-      if (preset === "custom") {
-        const from = customFrom.trim();
-        const to = customTo.trim();
-        if (from && to && inclusiveCalendarDays(from, to) < 7) {
-          setData(null);
-          setError(formatRegistrationError("range_too_short"));
-          setLoading(false);
-          return;
-        }
-      }
       const q = buildQuery(preset, customFrom.trim(), customTo.trim());
       const res = await fetch(q, { cache: "no-store" });
-      const json = (await res.json()) as { ok?: boolean; error?: string } & Partial<AdminRegistrationStatsPayload>;
+      const json = (await res.json()) as { ok?: boolean; error?: string } & Partial<AdminSubscriberStatsPayload>;
       if (!res.ok || !json.ok) {
         setData(null);
-        const raw = json.error ?? `HTTP ${res.status}`;
-        setError(formatRegistrationError(raw));
+        const code = json.error ?? `HTTP ${res.status}`;
+        setError(code);
         return;
       }
-      const { ok: _ok, ...rest } = json as { ok: true } & AdminRegistrationStatsPayload;
+      const { ok: _ok, ...rest } = json as { ok: true } & AdminSubscriberStatsPayload;
       setData(rest);
     } catch {
       setData(null);
@@ -93,11 +70,11 @@ export function AdminPlatformRegistrationStatsClient({ calendarTodayYmd }: { cal
 
   return (
     <section
-      id="doctor-stats-admin-registrations-section"
+      id="doctor-stats-admin-subscribers-section"
       className="min-w-0 rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col gap-3"
     >
       <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between">
-        <h2>Регистрации и слияния</h2>
+        <h2>Подписчики</h2>
         {data ? <p className="text-muted-foreground text-sm">Календарь: {data.iana}</p> : null}
       </div>
 
@@ -171,21 +148,17 @@ export function AdminPlatformRegistrationStatsClient({ calendarTodayYmd }: { cal
           <p className="text-muted-foreground text-sm">
             {data.fromDay === data.toDay ? `День ${data.fromDay}` : `Период ${data.fromDay} — ${data.toDay}`}
           </p>
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-2">
             <div className="rounded-lg border border-border bg-muted/30 px-3 py-2">
-              <div className="text-muted-foreground text-xs">Новые аккаунты</div>
-              <div className="text-2xl font-semibold tabular-nums">{data.summary.newUsers}</div>
+              <div className="text-muted-foreground text-xs">На конец периода</div>
+              <div className="text-2xl font-semibold tabular-nums">{data.summary.cumulativeEnd}</div>
             </div>
             <div className="rounded-lg border border-border bg-muted/30 px-3 py-2">
-              <div className="text-muted-foreground text-xs">Слияния</div>
-              <div className="text-2xl font-semibold tabular-nums">{data.summary.merges}</div>
-            </div>
-            <div className="rounded-lg border border-border bg-muted/30 px-3 py-2">
-              <div className="text-muted-foreground text-xs">Всего событий</div>
-              <div className="text-2xl font-semibold tabular-nums">{data.summary.combined}</div>
+              <div className="text-muted-foreground text-xs">Прирост за период</div>
+              <div className="text-2xl font-semibold tabular-nums">{data.summary.deltaInRange}</div>
             </div>
           </div>
-          {data.series.length > 0 ? <AdminRegistrationLineChart series={data.series} /> : null}
+          {data.series.length > 0 ? <AdminSubscriberLineChart series={data.series} /> : null}
         </>
       ) : null}
     </section>

@@ -40,7 +40,7 @@ export async function GET(req: Request) {
   const deps = buildAppDeps();
 
   try {
-    const body = await deps.adminPlatformUserStats.getRegistrationStats({
+    const body = await deps.adminPlatformUserStats.getSubscriberStats({
       iana,
       preset,
       customFrom: fromRaw ?? undefined,
@@ -53,7 +53,6 @@ export async function GET(req: Request) {
       msg === "custom_range_required" ||
       msg === "range_inverted" ||
       msg === "range_too_long" ||
-      msg === "range_too_short" ||
       msg === "invalid_date"
     ) {
       return NextResponse.json({ ok: false, error: msg }, { status: 400 });

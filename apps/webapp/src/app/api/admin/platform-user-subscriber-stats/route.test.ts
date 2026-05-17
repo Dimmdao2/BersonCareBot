@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { requireAdminModeSessionMock, getRegistrationStatsMock } = vi.hoisted(() => ({
+const { requireAdminModeSessionMock, getSubscriberStatsMock } = vi.hoisted(() => ({
   requireAdminModeSessionMock: vi.fn(),
-  getRegistrationStatsMock: vi.fn(),
+  getSubscriberStatsMock: vi.fn(),
 }));
 
 vi.mock("@/modules/auth/requireAdminMode", () => ({
@@ -16,17 +16,17 @@ vi.mock("@/modules/system-settings/appDisplayTimezone", () => ({
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
     adminPlatformUserStats: {
-      getRegistrationStats: getRegistrationStatsMock,
+      getSubscriberStats: getSubscriberStatsMock,
     },
   }),
 }));
 
 import { GET } from "./route";
 
-describe("GET /api/admin/platform-user-registration-stats", () => {
+describe("GET /api/admin/platform-user-subscriber-stats", () => {
   beforeEach(() => {
     requireAdminModeSessionMock.mockReset();
-    getRegistrationStatsMock.mockReset();
+    getSubscriberStatsMock.mockReset();
   });
 
   it("returns 403 when not admin", async () => {
@@ -34,7 +34,7 @@ describe("GET /api/admin/platform-user-registration-stats", () => {
       ok: false,
       response: new Response(JSON.stringify({ ok: false }), { status: 403 }),
     });
-    const res = await GET(new Request("http://localhost/api/admin/platform-user-registration-stats"));
+    const res = await GET(new Request("http://localhost/api/admin/platform-user-subscriber-stats"));
     expect(res.status).toBe(403);
   });
 
@@ -43,9 +43,7 @@ describe("GET /api/admin/platform-user-registration-stats", () => {
       ok: true,
       session: { user: { userId: "a1", role: "admin" } },
     });
-    const res = await GET(
-      new Request("http://localhost/api/admin/platform-user-registration-stats?preset=custom"),
-    );
+    const res = await GET(new Request("http://localhost/api/admin/platform-user-subscriber-stats?preset=custom"));
     expect(res.status).toBe(400);
     const body = (await res.json()) as { ok: boolean; error?: string };
     expect(body.ok).toBe(false);
@@ -59,67 +57,51 @@ describe("GET /api/admin/platform-user-registration-stats", () => {
     });
     const res = await GET(
       new Request(
-        "http://localhost/api/admin/platform-user-registration-stats?preset=today&from=2026-01-01&to=2026-01-02",
+        "http://localhost/api/admin/platform-user-subscriber-stats?preset=week&from=2026-01-01&to=2026-01-02",
       ),
     );
     expect(res.status).toBe(400);
   });
 
-  it("returns stats payload when authorized (default preset = week)", async () => {
+  it("defaults omitted preset to week and returns payload", async () => {
     requireAdminModeSessionMock.mockResolvedValue({
       ok: true,
       session: { user: { userId: "a1", role: "admin" } },
     });
-    getRegistrationStatsMock.mockResolvedValue({
+    getSubscriberStatsMock.mockResolvedValue({
       iana: "Europe/Moscow",
       fromDay: "2026-05-10",
       toDay: "2026-05-16",
       startUtcIso: "2026-05-09T21:00:00.000Z",
       endExclusiveUtcIso: "2026-05-16T21:00:00.000Z",
-      summary: { newUsers: 2, merges: 1, combined: 3 },
-      series: [{ day: "2026-05-16", newUsers: 2, merges: 1 }],
+      summary: { cumulativeEnd: 42, deltaInRange: 3 },
+      series: [{ day: "2026-05-16", cumulativeSubscribers: 42 }],
     });
-    const res = await GET(new Request("http://localhost/api/admin/platform-user-registration-stats"));
+    const res = await GET(new Request("http://localhost/api/admin/platform-user-subscriber-stats"));
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { ok: boolean; summary?: { combined: number } };
+    const body = (await res.json()) as { ok: boolean; summary?: { cumulativeEnd: number } };
     expect(body.ok).toBe(true);
-    expect(body.summary?.combined).toBe(3);
-    expect(getRegistrationStatsMock).toHaveBeenCalledWith(
+    expect(body.summary?.cumulativeEnd).toBe(42);
+    expect(getSubscriberStatsMock).toHaveBeenCalledWith(
       expect.objectContaining({ preset: "week", iana: "Europe/Moscow" }),
     );
   });
 
-  it("normalizes preset=today query to week", async () => {
+  it("normalizes preset=today to week", async () => {
     requireAdminModeSessionMock.mockResolvedValue({
       ok: true,
       session: { user: { userId: "a1", role: "admin" } },
     });
-    getRegistrationStatsMock.mockResolvedValue({
+    getSubscriberStatsMock.mockResolvedValue({
       iana: "Europe/Moscow",
       fromDay: "x",
       toDay: "y",
       startUtcIso: "a",
       endExclusiveUtcIso: "b",
-      summary: { newUsers: 0, merges: 0, combined: 0 },
+      summary: { cumulativeEnd: 0, deltaInRange: 0 },
       series: [],
     });
-    await GET(new Request("http://localhost/api/admin/platform-user-registration-stats?preset=today"));
-    expect(getRegistrationStatsMock).toHaveBeenCalledWith(expect.objectContaining({ preset: "week" }));
-  });
-
-  it("returns 400 range_too_short when service rejects", async () => {
-    requireAdminModeSessionMock.mockResolvedValue({
-      ok: true,
-      session: { user: { userId: "a1", role: "admin" } },
-    });
-    getRegistrationStatsMock.mockRejectedValue(new Error("range_too_short"));
-    const res = await GET(
-      new Request(
-        "http://localhost/api/admin/platform-user-registration-stats?preset=custom&from=2026-01-01&to=2026-01-07",
-      ),
-    );
-    expect(res.status).toBe(400);
-    const body = (await res.json()) as { ok: boolean; error?: string };
-    expect(body.error).toBe("range_too_short");
+    await GET(new Request("http://localhost/api/admin/platform-user-subscriber-stats?preset=today"));
+    expect(getSubscriberStatsMock).toHaveBeenCalledWith(expect.objectContaining({ preset: "week" }));
   });
 });

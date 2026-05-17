@@ -14,7 +14,7 @@
 
 ## Runbook
 
-- **Dead / рост due:** админка → «Здоровье системы» — блок «Очередь доставки уведомлений» и `GET /api/admin/system-health` (`outgoingDelivery`, `meta.probes.outgoing_delivery`). В payload: **`dueByChannel`**, **`processingCount`**, **`lastSentAt`**, **`lastQueueActivityAt`**.
+- **Dead / рост due:** админка → «Здоровье системы» — блок «Очередь доставки уведомлений» и `GET /api/admin/system-health` (`outgoingDelivery`, `meta.probes.outgoing_delivery`). В payload: **`dueByChannel`**, **`processingCount`**, **`lastSentAt`**, **`lastQueueActivityAt`**. Для пациентских напоминаний отдельно смотрите **`remindersPipeline`** в том же ответе (срез **`kind=reminder_dispatch`**, факты за 24 ч) и детальную вкладку **«Статистика»** / `GET /api/admin/reminder-stats` (см. [`apps/webapp/src/app-layer/stats/loadAdminReminderStats.ts`](../../apps/webapp/src/app-layer/stats/loadAdminReminderStats.ts)).
 - **Постоянные ошибки доставки:** воркер помечает `dead` без длительных ретраев для известных «конфигурационных» сообщений (`CHANNEL_NOT_SUPPORTED`, `BAD_PAYLOAD`, …), см. `isOutgoingDeliveryDispatchErrorRetryable` в `deliveryContract.ts`.
 - **Строки в БД:** `public.outgoing_delivery_queue` (`status`, `last_error`, `attempt_count`).
 

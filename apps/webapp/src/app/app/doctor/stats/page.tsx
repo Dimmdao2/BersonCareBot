@@ -9,6 +9,7 @@ import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
 import { AppShell } from "@/shared/ui/AppShell";
 import { AdminPlatformRegistrationStatsClient } from "./AdminPlatformRegistrationStatsClient";
+import { AdminPlatformSubscriberStatsClient } from "./AdminPlatformSubscriberStatsClient";
 import { DoctorStatCard } from "./DoctorStatCard";
 
 export default async function DoctorStatsPage() {
@@ -25,7 +26,8 @@ export default async function DoctorStatsPage() {
   return (
     <AppShell title="Статистика" user={session.user} variant="doctor">
       {isAdmin ? (
-        <div className="mb-4">
+        <div className="mb-4 grid gap-4 lg:grid-cols-2">
+          <AdminPlatformSubscriberStatsClient calendarTodayYmd={calendarTodayYmd} />
           <AdminPlatformRegistrationStatsClient calendarTodayYmd={calendarTodayYmd} />
         </div>
       ) : null}
