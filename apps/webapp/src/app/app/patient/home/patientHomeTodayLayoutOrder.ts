@@ -41,6 +41,25 @@ export function prependPlanBlock(blocks: PatientHomeTodayLayoutBlock[]): Patient
   return [plan, ...next];
 }
 
+/** «Разминка» и «полезный пост» сразу после «Мой план» (для `sm` сетки и мобильного DOM); если плана нет — в начало. */
+export function moveDailyWarmupAndUsefulPostImmediatelyAfterPlan(
+  blocks: PatientHomeTodayLayoutBlock[],
+): PatientHomeTodayLayoutBlock[] {
+  const warmup = blocks.find((b) => b.code === "daily_warmup");
+  const useful = blocks.find((b) => b.code === "useful_post");
+  if (!warmup && !useful) return [...blocks];
+
+  const rest = blocks.filter((b) => b.code !== "daily_warmup" && b.code !== "useful_post");
+  const planIdx = rest.findIndex((b) => b.code === "plan");
+  const insertAt = planIdx >= 0 ? planIdx + 1 : 0;
+  const pair: PatientHomeTodayLayoutBlock[] = [];
+  if (warmup) pair.push(warmup);
+  if (useful) pair.push(useful);
+  const next = [...rest];
+  next.splice(insertAt, 0, ...pair);
+  return next;
+}
+
 /**
  * Mobile DOM order: «Как ваше сегодня?» между постом дня и записью.
  * Desktop порядок карточек задаётся `PatientHomeTodayLayout` (`md:order`), не DOM.
@@ -67,7 +86,9 @@ export function insertMoodBetweenUsefulPostAndBooking(
 }
 
 export function reorderPatientHomeLayoutBlocks(blocks: PatientHomeTodayLayoutBlock[]): PatientHomeTodayLayoutBlock[] {
-  return insertMoodBetweenUsefulPostAndBooking(prependPlanBlock(blocks));
+  return insertMoodBetweenUsefulPostAndBooking(
+    moveDailyWarmupAndUsefulPostImmediatelyAfterPlan(prependPlanBlock(blocks)),
+  );
 }
 
 /**

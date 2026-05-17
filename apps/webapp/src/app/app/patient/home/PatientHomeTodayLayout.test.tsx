@@ -40,11 +40,13 @@ describe("PatientHomeTodayLayout", () => {
     expect(warmup).toHaveAttribute("data-md-order", "10");
     expect(warmup).toHaveAttribute("data-md-col-start", "1");
     expect(warmup).toHaveAttribute("data-md-col-span", "8");
+    expect(warmup).toHaveClass("sm:col-span-8");
 
     const usefulPost = container.querySelector('[data-patient-home-block="useful_post"]');
     expect(usefulPost).toHaveAttribute("data-md-order", "10");
     expect(usefulPost).toHaveAttribute("data-md-col-start", "9");
     expect(usefulPost).toHaveAttribute("data-md-col-span", "4");
+    expect(usefulPost).toHaveClass("sm:col-span-4");
 
     const booking = container.querySelector('[data-patient-home-block="booking"]');
     expect(booking).toHaveAttribute("data-md-order", "20");
@@ -122,6 +124,9 @@ describe("PatientHomeTodayLayout", () => {
     );
 
     expect(container.querySelector('[data-patient-home-block="subscription_carousel"]')).not.toBeInTheDocument();
+
+    const warmupOnly = container.querySelector('[data-patient-home-block="daily_warmup"]');
+    expect(warmupOnly).toHaveClass("sm:col-span-12");
   });
 
   it("keeps mobile block order in the same order as resolved settings", () => {

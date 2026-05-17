@@ -23,6 +23,20 @@ type Props = {
   blocks: PatientHomeTodayLayoutBlock[];
 };
 
+/** `sm+` (640px+): одна строка «разминка | полезный пост», если оба блока есть; иначе каждый на полную ширину. Порядок — по DOM (после «Мой план» из {@link reorderPatientHomeLayoutBlocks}), без `order`, иначе пара уезжает вниз. */
+function smHeroRowLayout(
+  code: PatientHomeTodayLayoutBlockCode,
+  ctx: { hasDailyWarmup: boolean; hasUsefulPost: boolean },
+): string {
+  if (code === "daily_warmup") {
+    return ctx.hasUsefulPost ? "sm:col-span-8 sm:col-start-1" : "sm:col-span-12 sm:col-start-1";
+  }
+  if (code === "useful_post") {
+    return ctx.hasDailyWarmup ? "sm:col-span-4 sm:col-start-9" : "sm:col-span-12 sm:col-start-1";
+  }
+  return "sm:col-span-12 sm:col-start-1";
+}
+
 /** Wide-viewport grid placement (`md+`): Tailwind classes + stable `data-md-*` for tests (avoid coupling tests to full class strings). */
 function desktopBlockLayout(code: PatientHomeTodayLayoutBlockCode): {
   className: string;
@@ -123,6 +137,10 @@ function desktopBlockLayout(code: PatientHomeTodayLayoutBlockCode): {
 }
 
 export function PatientHomeTodayLayout({ personalizedName, timeOfDayPrefix, blocks }: Props) {
+  const hasDailyWarmup = blocks.some((b) => b.code === "daily_warmup");
+  const hasUsefulPost = blocks.some((b) => b.code === "useful_post");
+  const heroRowCtx = { hasDailyWarmup, hasUsefulPost };
+
   return (
     <div
       id="patient-home-today-layout"
@@ -132,10 +150,10 @@ export function PatientHomeTodayLayout({ personalizedName, timeOfDayPrefix, bloc
 
       <div
         /**
-         * `md:grid-flow-row-dense` — чтобы пары (col-span-8 + col-span-4) держались на одной строке
-         * вне зависимости от DOM-порядка (`sort_order` в БД может ставить правый col перед левым).
+         * `sm:grid-flow-row-dense` / `md:grid-flow-row-dense` — при соседних 8+4 в одной строке плотнее заполняет сетку;
+         * на `sm` порядок строк — по DOM (без `sm:order` у hero-пары), на `md+` — по `md:order-*`.
          */
-        className="grid w-full min-w-0 gap-5 md:grid-cols-12 md:grid-flow-row-dense md:items-stretch md:gap-6 xl:gap-7"
+        className="grid w-full min-w-0 gap-5 sm:grid-cols-12 sm:grid-flow-row-dense sm:items-stretch md:gap-6 xl:gap-7"
         data-testid="patient-home-layout-grid"
       >
         {blocks.map((block) => {
@@ -151,6 +169,7 @@ export function PatientHomeTodayLayout({ personalizedName, timeOfDayPrefix, bloc
                   patientHomeTodayGridCellPadBorderedSymClass,
                 block.code === "mood_checkin" && patientHomeTodayGridCellPadMoodTopClass,
                 block.code === "progress" && patientHomeTodayGridCellPadProgressBottomClass,
+                smHeroRowLayout(block.code, heroRowCtx),
                 layout.className,
               )}
               data-patient-home-block={block.code}

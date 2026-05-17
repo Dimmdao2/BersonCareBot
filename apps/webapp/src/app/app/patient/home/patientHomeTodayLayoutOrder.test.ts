@@ -96,6 +96,25 @@ describe("patientHomeTodayLayoutOrder", () => {
     ]);
   });
 
+  it("pulls warmup and useful_post directly under plan when CMS had other blocks between", () => {
+    const out = reorderPatientHomeLayoutBlocks([
+      b("situations"),
+      b("plan"),
+      b("daily_warmup"),
+      b("useful_post"),
+      b("booking"),
+      b("mood_checkin"),
+    ]);
+    expect(out.map((x) => x.code)).toEqual([
+      "plan",
+      "daily_warmup",
+      "useful_post",
+      "mood_checkin",
+      "situations",
+      "booking",
+    ]);
+  });
+
   it("moves next_reminder immediately after progress", () => {
     const out = moveNextReminderAfterProgress([
       b("next_reminder"),
