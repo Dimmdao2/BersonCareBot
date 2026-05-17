@@ -1,6 +1,6 @@
 import type { WarmupScatterPoint, WellbeingWeekPoint } from "@/modules/diaries/buildWellbeingWeekChartData";
 
-/** Максимум времени от разминки до ближайшей отметки самочувствия (мс), чтобы связать пару «до / после». */
+/** Максимум времени от ближайшей общей instant-отметки до разминки (мс), чтобы связать пару «до разминки / сразу после». */
 const PAIR_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 /** Порог для класса «улучшение / ухудшение» по среднему Δ на шкале 1–5. */
@@ -15,7 +15,7 @@ export type WarmupWeekImpactKind =
 
 export type WarmupWeekImpactSummary = {
   kind: WarmupWeekImpactKind;
-  /** Среднее (v_after − v_before) по успешным парам; иначе null. */
+  /** Среднее (оценка сразу после разминки − общая instant до разминки) по успешным парам; иначе null. */
   avgDelta: number | null;
   pairedCount: number;
   warmupCount: number;
@@ -30,17 +30,9 @@ function findInstantBefore(sorted: WellbeingWeekPoint[], tw: number): WellbeingW
   return best;
 }
 
-function findInstantAfter(sorted: WellbeingWeekPoint[], tw: number): WellbeingWeekPoint | null {
-  for (const p of sorted) {
-    if (p.t <= tw) continue;
-    if (p.t - tw <= PAIR_WINDOW_MS) return p;
-  }
-  return null;
-}
-
 /**
- * Оценка влияния разминок на неделе: для каждой отметки после разминки ищем ближайшие instant-самочувствия
- * строго до и строго после неё в окне {@link PAIR_WINDOW_MS}; среднее изменение по шкале 1–5.
+ * Влияние разминок за неделю: для каждой отметки «после разминки» ({@link warmupScatter}) ищем ближайшую
+ * общую instant-оценку строго до неё в окне {@link PAIR_WINDOW_MS}; Δ = оценка после разминки − общая до.
  */
 export function buildWarmupWeekImpactSummary(
   instantSeries: WellbeingWeekPoint[],
@@ -59,9 +51,8 @@ export function buildWarmupWeekImpactSummary(
   const deltas: number[] = [];
   for (const w of warmupScatter) {
     const before = findInstantBefore(instant, w.t);
-    const after = findInstantAfter(instant, w.t);
-    if (!before || !after) continue;
-    deltas.push(after.v - before.v);
+    if (!before) continue;
+    deltas.push(w.v - before.v);
   }
 
   const pairedCount = deltas.length;

@@ -18,7 +18,7 @@ describe("buildWarmupWeekImpactSummary", () => {
     });
   });
 
-  it("paired: улучшение после разминки", () => {
+  it("paired: улучшение — Δ = оценка после разминки минус общая до", () => {
     const t0 = Date.UTC(2026, 4, 5, 8, 0, 0);
     const instant = [
       { t: t0, v: 2 },
@@ -27,7 +27,7 @@ describe("buildWarmupWeekImpactSummary", () => {
     const warmup = [{ t: t0 + 2 * hour, v: 5, band: "high" as const }];
     const r = buildWarmupWeekImpactSummary(instant, warmup);
     expect(r.kind).toBe("improved");
-    expect(r.avgDelta).toBeCloseTo(2, 5);
+    expect(r.avgDelta).toBeCloseTo(3, 5);
     expect(r.pairedCount).toBe(1);
   });
 
@@ -40,10 +40,22 @@ describe("buildWarmupWeekImpactSummary", () => {
     const warmup = [{ t: t0 + 2 * hour, v: 1, band: "low" as const }];
     const r = buildWarmupWeekImpactSummary(instant, warmup);
     expect(r.kind).toBe("worse");
-    expect(r.avgDelta).toBeCloseTo(-3, 5);
+    expect(r.avgDelta).toBeCloseTo(-4, 5);
   });
 
-  it("игнорирует отметки вне 24ч окна", () => {
+  it("игнорирует instant после разминки при расчёте Δ", () => {
+    const t0 = Date.UTC(2026, 4, 5, 8, 0, 0);
+    const instant = [
+      { t: t0, v: 3 },
+      { t: t0 + 4 * hour, v: 5 },
+    ];
+    const warmup = [{ t: t0 + 2 * hour, v: 3, band: "mid" as const }];
+    const r = buildWarmupWeekImpactSummary(instant, warmup);
+    expect(r.avgDelta).toBeCloseTo(0, 5);
+    expect(r.kind).toBe("neutral");
+  });
+
+  it("игнорирует общую отметку вне 24ч до разминки", () => {
     const t0 = Date.UTC(2026, 4, 5, 8, 0, 0);
     const instant = [{ t: t0, v: 3 }];
     const warmup = [{ t: t0 + 30 * hour, v: 5, band: "high" as const }];
