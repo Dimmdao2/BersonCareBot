@@ -17,6 +17,7 @@ import {
   resolvePatientProgramControlRemainderDaysForPatientUi,
   expectedStageControlDeadlineIsoForPatientUi,
 } from "@/modules/treatment-program/stage-semantics";
+import { patientPersonalProgramCtaShouldRender } from "@/modules/treatment-program/patientPersonalProgramCtaEligible";
 import {
   normalizeChecklistCountMap,
   normalizeChecklistLastMap,
@@ -298,10 +299,10 @@ export function PatientTreatmentProgramDetailClient(props: {
 
       <div className="flex flex-col gap-2">
         {detail.status === "active" && planReminderStrip ? (
-          <div className="grid grid-cols-1 gap-2 md:grid-cols-[minmax(0,17.5rem)_minmax(0,1fr)] md:items-start">
-            <PatientPlanTodayRemindersCard {...planReminderStrip} />
-            <PatientPlanSupportCard />
-          </div>
+          <PatientPlanTodayRemindersCard
+            {...planReminderStrip}
+            trailingAccessory={<PatientPlanSupportCard />}
+          />
         ) : null}
         <PatientPlanHeroActive
           detail={detail}
@@ -348,7 +349,7 @@ export function PatientTreatmentProgramDetailClient(props: {
         planItemDoneRepeatCooldownMinutes={planItemDoneRepeatCooldownMinutes}
       />
 
-      {detail.status === "active" ? (
+      {detail.status === "active" && patientPersonalProgramCtaShouldRender(detail.assignmentSource) ? (
         <div className="mt-4">
           <PatientPlanPersonalProgramCtaCard />
         </div>

@@ -227,7 +227,7 @@ export function PatientHeader({
     <>
       <header
         id="patient-header"
-        className="safe-bleed-x sticky top-0 z-40 shrink-0 border-b border-border/60 bg-[var(--patient-surface)] py-2 shadow-sm"
+        className="safe-bleed-x sticky top-0 z-40 shrink-0 border-b border-border/60 bg-white py-2 shadow-sm"
       >
         {brandTitleBar ? (
           <div

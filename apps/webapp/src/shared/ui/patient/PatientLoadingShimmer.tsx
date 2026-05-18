@@ -104,7 +104,7 @@ export function PatientRouteLoadingShell({
     <div
       id="app-shell-patient"
       className={cn(
-        "mx-auto flex min-h-[100dvh] w-full flex-col bg-[var(--patient-page-bg)] pt-[max(0px,env(safe-area-inset-top,0px))]",
+        "mx-auto flex min-h-[100dvh] w-full flex-col bg-white pt-[max(0px,env(safe-area-inset-top,0px))]",
         "w-full max-w-full min-w-0 safe-padding-patient gap-3 md:max-w-[min(1180px,calc(100vw-2rem))]",
       )}
       aria-busy="true"
@@ -120,7 +120,7 @@ export function PatientRouteLoadingShell({
         <PatientShimmerLine className="h-9 w-9 shrink-0 rounded-lg" />
       </div>
 
-      <div className="shrink-0 border-b border-[var(--patient-border)] bg-[var(--patient-page-bg)] px-4 py-3" aria-hidden>
+      <div className="shrink-0 border-b border-[var(--patient-border)] bg-white px-4 py-3" aria-hidden>
         <PatientShimmerLine className="h-6 w-2/3 max-w-[14rem]" />
       </div>
 

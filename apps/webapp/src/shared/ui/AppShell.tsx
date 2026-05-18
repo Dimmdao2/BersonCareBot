@@ -92,7 +92,7 @@ export function AppShell({
       <div
         id="app-shell-patient"
         className={cn(
-          "mx-auto flex min-h-[100dvh] w-full flex-col bg-[var(--patient-page-bg)] pt-[max(0px,env(safe-area-inset-top,0px))]",
+          "mx-auto flex min-h-[100dvh] w-full flex-col bg-white pt-[max(0px,env(safe-area-inset-top,0px))]",
           patientEmbedMain
             ? "max-w-[480px] gap-0 pl-[max(1rem,env(safe-area-inset-left,0px))] pr-[max(1rem,env(safe-area-inset-right,0px))] pb-[max(0.75rem,env(safe-area-inset-bottom,0px))]"
             : patientHideBottomNav

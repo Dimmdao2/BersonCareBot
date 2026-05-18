@@ -392,6 +392,24 @@ export const patientHomeHeroImageSlotClass = cn(
   "h-[156px] w-[132px] min-[380px]:h-[168px] min-[380px]:w-[148px] md:h-[262px] md:w-[224px] xl:h-[274px] xl:w-[248px]",
 );
 
+/**
+ * То же позиционирование и размер слота что {@link patientHomeHeroImageSlotClass}, но **слева** снизу
+ * (текст/CTA занимают правую часть карточки через {@link patientHomeHeroTextColumnImageLeftClass}).
+ */
+export const patientHomeHeroImageSlotLeftClass = cn(
+  "pointer-events-none absolute bottom-0 left-4 z-[1] flex items-end justify-start overflow-hidden min-[380px]:left-6 md:left-10",
+  "h-[156px] w-[132px] min-[380px]:h-[168px] min-[380px]:w-[148px] md:h-[262px] md:w-[224px] xl:h-[274px] xl:w-[248px]",
+);
+
+/**
+ * Зеркально {@link patientHomeHeroTextColumnClass}: колонка с **отступом слева** под слот
+ * {@link patientHomeHeroImageSlotLeftClass}.
+ */
+export const patientHomeHeroTextColumnImageLeftClass = cn(
+  "relative z-10 flex flex-1 flex-col md:min-h-0",
+  "pl-[100px] min-[380px]:pl-[124px] min-[415px]:pl-[160px] md:pl-[244px] xl:pl-[268px]",
+);
+
 /** Booking: compact beside situations on desktop (VISUAL_SYSTEM_SPEC refresh). */
 export const patientHomeBookingCardGeometryClass = cn(
   "flex min-h-[128px] flex-col gap-3 overflow-hidden",

@@ -28,7 +28,7 @@ export function DoctorWorkspaceShell({
 
   return (
     <DoctorSupportUnreadProvider>
-      <div className="flex min-h-screen flex-col bg-muted/30">
+      <div className="flex min-h-screen flex-col bg-white">
         <DoctorHeader
           userDisplayName={userDisplayName}
           adminMode={adminMode}

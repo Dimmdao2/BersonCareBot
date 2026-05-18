@@ -1,9 +1,14 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { cn } from "@/lib/utils";
-import { groupMessagesByDay } from "../messageFormatting";
+import { patientBodyTextClass, patientChatMetaLineClass, patientMutedTextClass } from "@/shared/ui/patientVisual";
+import {
+  formatChatMessageTimeRu,
+  formatChatRelativeDateLabelRu,
+  groupMessagesByDay,
+} from "../messageFormatting";
 import type { SerializedSupportMessage } from "../serializeSupportMessage";
 
 type Variant = "patient" | "doctor";
@@ -13,29 +18,96 @@ function isAlignedRight(senderRole: string, variant: Variant): boolean {
   return senderRole === "admin";
 }
 
+const bubbleRadiusPatientChatClass =
+  "rounded-[var(--patient-card-radius-mobile)] md:rounded-[var(--patient-card-radius-desktop)]";
+
 type ChatViewProps = {
   variant: Variant;
   messages: SerializedSupportMessage[];
   emptyText?: string;
   composer: ReactNode;
+  /**
+   * Пациент: подпись дата и время под пузырём (сегодня / вчера / 5 июня / … год),
+   * без блоковых разделителей по дням.
+   */
+  relativeFooters?: boolean;
+  className?: string;
 };
 
 /** Каркас чата: группировка по дням, пузырьки, скролл вниз. */
-export function ChatView({ variant, messages, emptyText, composer }: ChatViewProps) {
+export function ChatView({
+  variant,
+  messages,
+  emptyText,
+  composer,
+  relativeFooters = false,
+  className,
+}: ChatViewProps) {
+  const patientRelative = variant === "patient" && relativeFooters;
   const bottomRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length]);
 
-  const groups = groupMessagesByDay(messages);
+  const grouped = groupMessagesByDay(messages);
+  const flatSorted = useMemo(
+    () => [...messages].sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
+    [messages],
+  );
+  const scrollClasses = "min-h-0 flex-1 overflow-y-auto space-y-4 pb-4 pt-1 md:pb-5";
+
+  const patientBubbleMine = cn(
+    "max-w-full px-3 py-2 text-sm shadow-sm md:max-w-[min(100%,24rem)]",
+    bubbleRadiusPatientChatClass,
+    "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]",
+  );
+
+  const patientBubbleOther = cn(
+    "max-w-full px-3 py-2 text-sm shadow-sm md:max-w-[min(100%,24rem)]",
+    bubbleRadiusPatientChatClass,
+    "border border-[var(--patient-surface-info-border)]/80 bg-[var(--patient-color-primary-soft)] text-[var(--patient-text-primary)]",
+  );
 
   return (
-    <div className="flex min-h-[50vh] flex-col">
-      <div className="flex-1 space-y-4 overflow-y-auto pb-4">
-        {messages.length === 0 ? (
-          <p className="text-muted-foreground text-center text-muted-foreground">{emptyText ?? "Пока нет сообщений."}</p>
-        ) : (
-          groups.map((g) => (
+    <div className={cn("flex min-h-0 flex-1 flex-col", className)}>
+      <div className={scrollClasses}>
+        {messages.length === 0 ?
+          <p
+            className={cn(patientRelative ? cn("text-center", patientMutedTextClass) : "text-center text-sm text-muted-foreground")}
+          >
+            {emptyText ?? "Пока нет сообщений."}
+          </p>
+        : relativeFooters ?
+          flatSorted.map((m) => {
+            const mine = isAlignedRight(m.senderRole, variant);
+            return (
+              <div key={m.id} className={cn("flex flex-col gap-1", mine ? "items-end" : "items-start")}>
+                <div className={cn("flex max-w-[min(100%,22rem)]", mine ? "justify-end" : "justify-start")}>
+                  <div className={mine ? patientBubbleMine : patientBubbleOther}>
+                    <p
+                      className={cn(
+                        "whitespace-pre-wrap break-words",
+                        mine ? undefined : patientRelative ? patientBodyTextClass : undefined,
+                      )}
+                    >
+                      {m.text}
+                    </p>
+                  </div>
+                </div>
+                <p
+                  className={cn(
+                    "max-w-[min(100%,22rem)] md:max-w-[min(100%,24rem)]",
+                    patientRelative ? patientChatMetaLineClass : "text-[11px] leading-snug tabular-nums text-muted-foreground",
+                    mine ? "text-end" : "text-start",
+                  )}
+                >
+                  {formatChatRelativeDateLabelRu(m.createdAt, new Date())} ·{" "}
+                  {formatChatMessageTimeRu(m.createdAt)}
+                </p>
+              </div>
+            );
+          })
+        : grouped.map((g) => (
             <div key={g.dayKey}>
               <p className="mb-2 text-center text-xs capitalize text-muted-foreground">{g.dayLabel}</p>
               <div className="space-y-2">
@@ -48,15 +120,12 @@ export function ChatView({ variant, messages, emptyText, composer }: ChatViewPro
                           "max-w-[85%] rounded-2xl px-3 py-2 text-sm shadow-sm",
                           mine
                             ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]"
-                            : "bg-muted text-foreground"
+                            : "bg-muted text-foreground",
                         )}
                       >
                         <p className="whitespace-pre-wrap break-words">{m.text}</p>
-                        <p className="mt-1 text-[10px] opacity-70">
-                          {new Date(m.createdAt).toLocaleTimeString("ru-RU", {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
+                        <p className="mt-1 text-[10px] tabular-nums opacity-70">
+                          {formatChatMessageTimeRu(m.createdAt)}
                         </p>
                       </div>
                     </div>
@@ -64,11 +133,10 @@ export function ChatView({ variant, messages, emptyText, composer }: ChatViewPro
                 })}
               </div>
             </div>
-          ))
-        )}
+          ))}
         <div ref={bottomRef} />
       </div>
-      {composer}
+      <div className="mt-auto shrink-0">{composer}</div>
     </div>
   );
 }

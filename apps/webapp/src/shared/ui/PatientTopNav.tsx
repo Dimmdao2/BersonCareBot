@@ -187,7 +187,7 @@ export function PatientTopNav(_props: PatientTopNavProps) {
           "max-md:fixed max-md:left-0 max-md:right-0 max-md:top-[env(safe-area-inset-top,0px)]",
           /* desktop: липкая полоска в колонке shell */
           "md:sticky md:top-[env(safe-area-inset-top,0px)]",
-          "border-b border-[var(--patient-border)] bg-[rgba(255,255,255,0.96)] backdrop-blur-md md:bg-[var(--patient-surface)]",
+          "border-b border-[var(--patient-border)] bg-[rgba(255,255,255,0.96)] backdrop-blur-md md:bg-white",
           compact ? "shadow-md md:shadow-sm" : "shadow-[var(--patient-shadow-nav)] md:shadow-sm",
         )}
       >

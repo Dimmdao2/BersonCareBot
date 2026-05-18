@@ -6,7 +6,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { ChatView } from "@/modules/messaging/components/ChatView";
 import { useMessagePolling } from "@/modules/messaging/hooks/useMessagePolling";
 import type { SerializedSupportMessage } from "@/modules/messaging/serializeSupportMessage";
-import { PatientShimmerPanel } from "@/shared/ui/patientVisual";
+import { cn } from "@/lib/utils";
+import { PatientShimmerPanel, patientCardClass, patientChatComposerTextareaClass, patientInnerPageStackClass, patientMutedTextClass, patientPrimaryActionClass } from "@/shared/ui/patientVisual";
 
 export function PatientMessagesClient() {
   const [conversationId, setConversationId] = useState<string | null>(null);
@@ -113,23 +114,34 @@ export function PatientMessagesClient() {
 
   if (loading) {
     return (
-      <div className="py-6" aria-busy="true" aria-label="Загрузка">
+      <div className="flex min-h-0 flex-1 flex-col justify-center py-6" aria-busy="true" aria-label="Загрузка">
         <PatientShimmerPanel />
       </div>
     );
   }
 
   return (
-    <section className="rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col gap-4">
-      {error ? <p className="text-sm text-destructive">{error}</p> : null}
+    <section className={cn(patientCardClass, "flex min-h-0 flex-1 flex-col gap-3 pb-6 md:pb-8")}>
+      {error ?
+        <p className={cn(patientMutedTextClass, "shrink-0 font-medium text-[var(--patient-color-danger)]")}>
+          {error}
+        </p>
+      : null}
       <ChatView
         variant="patient"
+        relativeFooters
         messages={messages}
         emptyText="Напишите сообщение поддержке — ответ появится здесь."
+        className="min-h-0 flex-1"
         composer={
-          <div className="flex flex-col gap-2 border-t border-border pt-3">
+          <div
+            className={cn(
+              "flex flex-col border-t border-[var(--patient-border)] pt-3 md:pt-4",
+              patientInnerPageStackClass,
+            )}
+          >
             <Textarea
-              className="min-h-[88px] resize-y text-sm"
+              className={patientChatComposerTextareaClass}
               placeholder="Ваше сообщение…"
               value={draft}
               maxLength={4000}
@@ -137,7 +149,12 @@ export function PatientMessagesClient() {
               disabled={sending}
               aria-label="Текст сообщения"
             />
-            <Button type="button" onClick={() => void send()} disabled={sending || !draft.trim()}>
+            <Button
+              type="button"
+              className={cn(patientPrimaryActionClass, "disabled:opacity-55")}
+              onClick={() => void send()}
+              disabled={sending || !draft.trim()}
+            >
               {sending ? "Отправка…" : "Отправить"}
             </Button>
           </div>

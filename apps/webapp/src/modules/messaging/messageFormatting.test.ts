@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { dayKeyFromIso, formatChatDayLabelRu, groupMessagesByDay } from "./messageFormatting";
+import {
+  dayKeyFromIso,
+  formatChatDayLabelRu,
+  formatChatMessageTimeRu,
+  formatChatRelativeDateLabelRu,
+  groupMessagesByDay,
+} from "./messageFormatting";
 
 describe("messageFormatting", () => {
   it("dayKeyFromIso groups UTC day", () => {
@@ -20,5 +26,18 @@ describe("messageFormatting", () => {
     expect(g).toHaveLength(2);
     expect(g[0]!.items).toHaveLength(2);
     expect(g[1]!.items).toHaveLength(1);
+  });
+
+  it("formatChatRelativeDateLabelRu maps same calendar instant to сегодня", () => {
+    const iso = "2030-02-08T09:41:22.333Z";
+    expect(formatChatRelativeDateLabelRu(iso, new Date(iso))).toBe("сегодня");
+  });
+
+  it("formatChatRelativeDateLabelRu ignores invalid timestamps", () => {
+    expect(formatChatRelativeDateLabelRu("invalid", new Date())).toBe("");
+  });
+
+  it("formatChatMessageTimeRu matches ru hour:minute shape", () => {
+    expect(formatChatMessageTimeRu("2030-01-07T07:07:07.000Z")).toMatch(/\d{1,2}:\d{2}/);
   });
 });

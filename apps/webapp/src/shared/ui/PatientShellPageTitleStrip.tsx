@@ -24,7 +24,7 @@ export function PatientShellPageTitleStrip({ children }: { children: ReactNode }
       <div className="min-h-0 overflow-hidden">
         <div
           className={cn(
-            "border-b border-[var(--patient-border)] bg-[var(--patient-page-bg)] px-4 py-3",
+            "border-b border-[var(--patient-border)] bg-white px-4 py-3",
             !show && "pointer-events-none",
           )}
         >

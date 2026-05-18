@@ -49,7 +49,7 @@ describe("AppShell patient width variants", () => {
     expect(shell).toHaveClass("md:max-w-[min(1180px,calc(100vw-2rem))]");
   });
 
-  it("uses patient page background token", () => {
+  it("uses white patient canvas background", () => {
     const { container } = render(
       <AppShell title="Сегодня" user={null} variant="patient">
         <div>Content</div>
@@ -57,7 +57,7 @@ describe("AppShell patient width variants", () => {
     );
 
     const shell = container.querySelector("#app-shell-patient");
-    expect(shell).toHaveClass("bg-[var(--patient-page-bg)]");
+    expect(shell).toHaveClass("bg-white");
   });
 
   it("forwards patientTitleBadge below top nav title strip", () => {

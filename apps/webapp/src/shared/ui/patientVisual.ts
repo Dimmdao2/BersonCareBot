@@ -209,6 +209,20 @@ export const patientEmptyStateClass = cn(
   "flex flex-col items-center justify-center gap-2 py-8 text-center text-sm text-[var(--patient-text-muted)]",
 );
 
+/** Textarea блока отправки сообщения — те же радиус и токены, что у patient-карточки. */
+export const patientChatComposerTextareaClass = cn(
+  "min-h-[112px] w-full resize-y rounded-[var(--patient-card-radius-mobile)] md:rounded-[var(--patient-card-radius-desktop)]",
+  "border border-[var(--patient-border)] bg-[var(--patient-card-bg)] px-3 py-2 text-sm text-[var(--patient-text-primary)]",
+  "placeholder:text-[var(--patient-text-muted)] outline-none transition-colors",
+  "focus-visible:border-[var(--patient-color-primary)] focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--patient-color-primary)_30%,transparent)]",
+  "disabled:cursor-not-allowed disabled:opacity-50",
+);
+
+/** Подпись даты и времени под «пузырём» сообщения в чате поддержки. */
+export const patientChatMetaLineClass = cn(
+  "text-[11px] leading-snug tabular-nums text-[var(--patient-text-muted)]",
+);
+
 /** Компактная «пилюля» / бейдж для статусов и меток (не hero-метрики главной). */
 export const patientPillClass = cn(
   "inline-flex max-w-full items-center rounded-[var(--patient-pill-radius)] px-2 py-0.5 text-xs font-medium",
