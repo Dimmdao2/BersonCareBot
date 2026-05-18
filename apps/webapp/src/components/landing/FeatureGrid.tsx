@@ -52,22 +52,22 @@ const features: ReadonlyArray<{ title: string; description: string; icon: Lucide
 
 export function FeatureGrid() {
   return (
-    <section id="features" className="bg-[#F8FAFF] py-14 lg:py-16">
-      <div className="mx-auto max-w-full px-5 sm:px-6 md:max-w-3xl lg:max-w-6xl lg:px-8">
-        <h2 className="text-center text-2xl font-semibold tracking-[-0.03em] text-[#17264A] sm:text-3xl">
+    <section id="features" className="bg-[#F8FAFF] py-10 lg:py-16">
+      <div className="mx-auto max-w-full px-4 sm:px-6 md:max-w-3xl lg:max-w-6xl lg:px-8">
+        <h2 className="text-center text-lg font-semibold tracking-[-0.02em] text-[#17264A] max-[439px]:text-base sm:text-3xl">
           Всё, что нужно для восстановления
         </h2>
 
-        <div className="mt-10 grid grid-cols-2 gap-x-6 gap-y-8 lg:grid-cols-3">
+        <div className="mt-7 grid grid-cols-2 gap-x-4 gap-y-6 lg:mt-10 lg:gap-x-6 lg:gap-y-8 lg:grid-cols-3">
           {features.map((f) => {
             const Icon = f.icon;
             return (
               <div key={f.title} className="text-center">
-                <div className={cn("mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl", toneClass[f.tone])}>
-                  <Icon className="h-5 w-5" aria-hidden />
+                <div className={cn("mx-auto mb-2.5 flex h-10 w-10 items-center justify-center rounded-2xl sm:mb-3 sm:h-12 sm:w-12", toneClass[f.tone])}>
+                  <Icon className="h-4 w-4 sm:h-5 sm:w-5" aria-hidden />
                 </div>
-                <h3 className="text-sm font-semibold text-[#17264A] sm:text-base">{f.title}</h3>
-                <p className="mx-auto mt-2 max-w-[17rem] text-xs leading-5 text-[#667085] sm:text-sm sm:leading-6">{f.description}</p>
+                <h3 className="text-[11px] font-semibold text-[#17264A] max-[439px]:text-[10px] sm:text-base">{f.title}</h3>
+                <p className="mx-auto mt-1.5 max-w-[17rem] text-[10px] leading-4 text-[#667085] sm:mt-2 sm:text-sm sm:leading-6">{f.description}</p>
               </div>
             );
           })}

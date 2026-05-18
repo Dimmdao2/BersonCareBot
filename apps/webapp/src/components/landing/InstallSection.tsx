@@ -17,19 +17,19 @@ const stepsAndroid = [
 
 export function InstallSection() {
   return (
-    <section id="install" className="bg-[#F8FAFF] py-14 lg:py-16">
-      <div className="mx-auto max-w-full px-5 sm:px-6 md:max-w-3xl lg:max-w-6xl lg:px-8">
-        <h2 className="text-center text-2xl font-semibold tracking-[-0.03em] text-[#17264A] sm:text-3xl">
+    <section id="install" className="bg-[#F8FAFF] py-10 lg:py-16">
+      <div className="mx-auto max-w-full px-4 sm:px-6 md:max-w-3xl lg:max-w-6xl lg:px-8">
+        <h2 className="text-center text-lg font-semibold tracking-[-0.02em] text-[#17264A] max-[439px]:text-base sm:text-3xl">
           Как установить BersonCare
         </h2>
 
-        <div className="mt-8 grid gap-6 md:grid-cols-2 lg:grid-cols-[1fr_1fr_220px] lg:items-start">
+        <div className="mt-6 grid gap-5 md:grid-cols-2 lg:mt-8 lg:gap-6 lg:grid-cols-[1fr_1fr_220px] lg:items-start">
           <div className="space-y-3">
             <div className="flex items-center gap-2 text-[#17264A]">
               <Apple className="h-4 w-4 text-[#667085]" aria-hidden />
-              <h3 className="text-base font-semibold">Для iPhone (Safari)</h3>
+              <h3 className="text-xs font-semibold max-[439px]:text-[11px] sm:text-base">Для iPhone (Safari)</h3>
             </div>
-            <ol className="list-decimal space-y-1.5 pl-5 text-sm leading-6 text-[#667085]">
+            <ol className="list-decimal space-y-1 pl-5 text-xs leading-5 text-[#667085] sm:space-y-1.5 sm:text-sm sm:leading-6">
               {stepsIos.map((s) => (
                 <li key={s}>{s}</li>
               ))}
@@ -39,9 +39,9 @@ export function InstallSection() {
           <div className="space-y-3">
             <div className="flex items-center gap-2 text-[#17264A]">
               <Smartphone className="h-4 w-4 text-[#667085]" aria-hidden />
-              <h3 className="text-base font-semibold">Для Android (Chrome)</h3>
+              <h3 className="text-xs font-semibold max-[439px]:text-[11px] sm:text-base">Для Android (Chrome)</h3>
             </div>
-            <ol className="list-decimal space-y-1.5 pl-5 text-sm leading-6 text-[#667085]">
+            <ol className="list-decimal space-y-1 pl-5 text-xs leading-5 text-[#667085] sm:space-y-1.5 sm:text-sm sm:leading-6">
               {stepsAndroid.map((s) => (
                 <li key={s}>{s}</li>
               ))}

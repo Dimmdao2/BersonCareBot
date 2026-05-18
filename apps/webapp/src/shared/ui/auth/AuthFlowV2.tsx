@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Публичный поток входа (web): Яндекс, Google, Telegram, Max; **email+пароль** и телефон — отдельные шаги.
+ * Публичный поток входа (web): Яндекс, Google, Telegram, Max; **email+пароль** и телефон — отдельные шаги (на шаге телефона без дубля OAuth/email).
  * Apple показывается только если включён Apple и при этом выключены Яндекс и Google (резерв для таких деплоев).
  * OTP в вебе — Telegram / Max / подтверждённый email (SMS отключён). PIN в этом flow намеренно отключён (Stage 5).
  */
@@ -887,87 +887,30 @@ export function AuthFlowV2({
   }
 
   if (step === "phone") {
+    const showPhoneSmsNotice = !isMessengerMiniAppHost();
+    const showPhoneBack =
+      !isMessengerMiniAppHost() && (hasWebOauthAlternatives || Boolean(telegramBotUsername?.length));
+
     return (
       <div id="auth-flow-v2-phone" className={cn(authFlowShellClass, "items-center text-center")}>
-        {hasWebOauthAlternatives ? (
-          <>
-            <Button
-              type="button"
-              variant="link"
-              className={authLinkButtonClass}
-              onClick={() => setStep("oauth_first")}
-            >
-              Вход без номера
-            </Button>
-            <div className="flex w-full flex-col items-center gap-2">
-                {oauthProviders.yandex ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className={AUTH_LOGIN_OUTLINE_BUTTON_CLASS}
-                    disabled={loading}
-                    onClick={() => void startOauth("yandex")}
-                  >
-                    Яндекс
-                  </Button>
-                ) : null}
-                {oauthProviders.google ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className={AUTH_LOGIN_OUTLINE_BUTTON_CLASS}
-                    disabled={loading}
-                    onClick={() => void startOauth("google")}
-                  >
-                    Google
-                  </Button>
-                ) : null}
-                {showAppleFallback ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className={AUTH_LOGIN_OUTLINE_BUTTON_CLASS}
-                    disabled={loading}
-                    onClick={() => void startOauth("apple")}
-                  >
-                    Apple
-                  </Button>
-                ) : null}
-                <MaxLoginCta
-                  maxAltLoading={maxAltLoading}
-                  maxOpenUrl={maxOpenUrl}
-                  variant="outline"
-                  onActivate={engageInteractive}
-                />
-            </div>
-          </>
-        ) : null}
-        <Button
-          type="button"
-          variant="default"
-          className={AUTH_LOGIN_PRIMARY_BUTTON_CLASS}
-          disabled={loading}
-          onClick={() => openEmailPasswordLogin("phone")}
-        >
-          Войти по email
-        </Button>
-        <InternationalPhoneInput disabled={loading} onSubmit={runCheckPhone} submitLabel="Продолжить" />
-        {showTelegramAuthSlot ? (
+        {showPhoneBack ? (
           <Button
             type="button"
             variant="link"
-            className={cn(authLinkButtonClass, "disabled:opacity-60")}
-            disabled={loading || !telegramWidgetReady}
-            onClick={() => {
-              if (telegramWidgetReady) {
-                engageInteractive();
-                setStep("landing");
-              }
-            }}
+            className={authLinkButtonClass}
+            disabled={loading}
+            onClick={() => goBackToEntry()}
           >
-            {telegramLoginConfigLoaded ? "Войти через Telegram" : "Войти через Telegram…"}
+            Назад
           </Button>
         ) : null}
+        {showPhoneSmsNotice ? (
+          <p className={cn(authStepMutedParagraphClass, "text-center")}>
+            Подтверждение телефона по SMS временно недоступно. Вы можете войти или зарегистрироваться с номером
+            телефона при помощи мессенджеров Telegram или Макс.
+          </p>
+        ) : null}
+        <InternationalPhoneInput disabled={loading} onSubmit={runCheckPhone} submitLabel="Продолжить" />
       </div>
     );
   }

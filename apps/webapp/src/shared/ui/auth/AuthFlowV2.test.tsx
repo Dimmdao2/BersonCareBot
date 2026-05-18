@@ -404,6 +404,48 @@ describe("AuthFlowV2", () => {
     expect(screen.getByRole("button", { name: "Регистрация" })).toBeInTheDocument();
   });
 
+  it("phone step shows SMS notice without duplicate OAuth, email, or Telegram web-login link", async () => {
+    const user = userEvent.setup();
+    isMiniAppHost.mockReturnValue(false);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL) => {
+        const url = typeof input === "string" ? input : input.toString();
+        if (url.includes("/api/auth/telegram-login/config")) {
+          return jsonRes({ ok: true, botUsername: "test_bot" });
+        }
+        if (url.includes("/api/auth/oauth/providers")) {
+          return jsonRes({ ok: true, yandex: true, google: false, apple: false });
+        }
+        if (url.includes("/api/auth/login/alternatives-config")) {
+          return jsonRes({ ok: true, telegramBotUsername: "test_bot", maxBotOpenUrl: null });
+        }
+        return jsonRes({});
+      }),
+    );
+
+    render(
+      <AuthFlowV2
+        nextParam={null}
+        prefetchedAuthConfig={{
+          oauthProviders: { yandex: true, google: false, apple: false },
+          telegramBotUsername: "test_bot",
+          maxBotOpenUrl: null,
+          fetchedAt: Date.now(),
+        }}
+      />,
+    );
+    await waitFor(() => expect(document.getElementById("auth-flow-v2-oauth-first")).toBeTruthy());
+    await user.click(screen.getByRole("button", { name: "Войти по номеру телефона" }));
+    await waitFor(() => expect(document.getElementById("auth-flow-v2-phone")).toBeTruthy());
+    expect(screen.getByText(/Подтверждение телефона по SMS временно недоступно/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Войти по email" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Яндекс" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Войти через Telegram/ })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Назад" }));
+    await waitFor(() => expect(document.getElementById("auth-flow-v2-oauth-first")).toBeTruthy());
+  });
+
   it("oauth-first shows email login button alongside OAuth", async () => {
     isMiniAppHost.mockReturnValue(false);
     vi.stubGlobal(
