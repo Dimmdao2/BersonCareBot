@@ -106,6 +106,31 @@ type SolidEdge = {
   s1: PatientMoodScore;
 };
 
+type WeekDayCell = { iso: string | null; weekday: string; score: number | null };
+
+/** Совпадает с условием отрисовки сегмента k→k+1 (сплошной или пунктир). */
+function isWeekSegmentRendered(week: readonly WeekDayCell[], k: number, todayIso: string): boolean {
+  if (k < 0 || k > 5) return false;
+  const solidSeg = week[k]!.score != null && week[k + 1]!.score != null;
+  if (solidSeg) return true;
+  const endIso = week[k + 1]!.iso;
+  const endsInFuture = endIso != null && endIso > todayIso;
+  return !endsInFuture;
+}
+
+function dayIndicesWithSoloScoreTick(week: readonly WeekDayCell[], todayIso: string): number[] {
+  const out: number[] = [];
+  for (let d = 0; d < 7; d += 1) {
+    if (week[d]!.score == null) continue;
+    const left = d > 0 && isWeekSegmentRendered(week, d - 1, todayIso);
+    const right = d < 6 && isWeekSegmentRendered(week, d, todayIso);
+    if (!left && !right) out.push(d);
+  }
+  return out;
+}
+
+const SOLO_SCORE_TICK_HALF = 4;
+
 /** Неделя пн–вс: сплошные участки — градиент между цветами соседних оценок; пропуски — серый пунктир (не в будущее). */
 export function PatientHomeWellbeingWeekStrip({ days, timeZone, className }: Props) {
   const byDate = new Map(days.map((d) => [d.date, d.score] as const));
@@ -163,6 +188,7 @@ export function PatientHomeWellbeingWeekStrip({ days, timeZone, className }: Pro
   const gradPrefix = `mood-wk-${mondayIso.replace(/-/g, "")}`;
 
   const todayIdx = week.findIndex((d) => d.iso === todayIso);
+  const soloScoreTickDays = dayIndicesWithSoloScoreTick(week, todayIso);
 
   return (
     <div className={cn("flex min-h-0 min-w-0 flex-1 flex-col px-0.5", className)}>
@@ -235,6 +261,24 @@ export function PatientHomeWellbeingWeekStrip({ days, timeZone, className }: Pro
               strokeLinecap="round"
             />
           : null}
+          {soloScoreTickDays.map((d) => {
+            const s = week[d]!.score;
+            if (s == null) return null;
+            const y = yForScore(s);
+            const x = d * POINT_X_STEP;
+            return (
+              <line
+                key={`solo-tick-${d}`}
+                x1={x}
+                x2={x}
+                y1={y - SOLO_SCORE_TICK_HALF}
+                y2={y + SOLO_SCORE_TICK_HALF}
+                stroke={moodStroke(s)}
+                strokeWidth={2.25}
+                strokeLinecap="round"
+              />
+            );
+          })}
         </svg>
       </div>
 
