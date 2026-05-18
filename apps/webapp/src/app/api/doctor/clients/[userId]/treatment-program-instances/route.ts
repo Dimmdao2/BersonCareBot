@@ -86,6 +86,7 @@ export async function POST(
             templateId: parsed.data.templateId,
             patientUserId: userId,
             assignedBy: session.user.userId,
+            assignmentSource: "doctor",
           })
         : await deps.treatmentProgramInstance.createBlankIndividualPlan({
             patientUserId: userId,

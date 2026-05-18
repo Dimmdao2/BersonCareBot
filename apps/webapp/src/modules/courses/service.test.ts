@@ -120,6 +120,7 @@ describe("createCoursesService", () => {
       templateId: TPL,
       patientUserId: PAT,
       assignedBy: null,
+      assignmentSource: "course",
     });
   });
 

@@ -8,7 +8,7 @@ import { patientMutedTextClass, patientInnerPageStackClass } from "@/shared/ui/p
 import { pickActivePlanInstance } from "@/modules/treatment-program/pickActivePlanInstance";
 import { mapTemplateStageItemToInstanceStageItemId } from "@/modules/treatment-program/mapTemplateStageItemToInstanceItem";
 import { MarkdownContent } from "@/shared/ui/markdown/MarkdownContent";
-import { PatientPromoVirtualItemActions } from "./PatientPromoVirtualItemActions";
+import { PatientPromoVirtualItemActions } from "../PatientPromoVirtualItemActions";
 import { cn } from "@/lib/utils";
 
 type Props = { params: Promise<{ templateStageItemId: string }> };
@@ -72,7 +72,7 @@ export default async function PatientTreatmentPromoItemPage({ params }: Props) {
 
   const commentMd = tplItem.comment?.trim() ?? "";
   const contentHref =
-    tplItem.itemType === "content_page" && tplItem.itemRefId.trim() ?
+    tplItem.itemType === "lesson" && tplItem.itemRefId.trim() ?
       `/app/patient/content/${encodeURIComponent(tplItem.itemRefId.trim())}`
     : null;
 

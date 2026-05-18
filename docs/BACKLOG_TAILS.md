@@ -8,6 +8,8 @@
 
 - Нет открытых критичных хвостов по состоянию на 2026-05-01.
 
+- **`TREATMENT_PROGRAM` / промо по умолчанию:** смена глобального промо-шаблона — уведомление пациентам, согласие, миграция инстансов и напоминаний (`rehab_program`). См. `docs/LOG/PROMO_ASSIGNMENT_SOURCE.md` (вне scope v1).
+
 ## Средние хвосты
 
 - **`INTEGRATOR_DRIZZLE_MIGRATION`:** закрыта **2026-05-15**; журнал — [`INTEGRATOR_DRIZZLE_MIGRATION/LOG.md`](INTEGRATOR_DRIZZLE_MIGRATION/LOG.md); планы — `.cursor/plans/integrator_drizzle_*.plan.md`. Follow-up **`db.query`** вне scope мастера — в том же журнале (раздел «Закрытие инициативы» / «Инструментальные проверки»).

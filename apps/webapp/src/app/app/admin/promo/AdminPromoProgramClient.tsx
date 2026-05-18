@@ -45,7 +45,7 @@ export function AdminPromoProgramClient(props: {
 
   return (
     <div className="flex max-w-xl flex-col gap-4">
-      <Select value={selected} onValueChange={setSelected}>
+      <Select value={selected} onValueChange={(v) => setSelected(v ?? PROMO_TEMPLATE_NONE)}>
         <SelectTrigger displayLabel={displayLabel} className="w-full max-w-xl">
           <SelectValue />
         </SelectTrigger>

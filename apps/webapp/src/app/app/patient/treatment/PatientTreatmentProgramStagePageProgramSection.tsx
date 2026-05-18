@@ -1,12 +1,25 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { AlertTriangle, MessageCircle, NotebookText, PlayCircle } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { patientLfkDifficultySelectItems } from "@/shared/ui/selectOpaqueValueLabels";
 import { routePaths } from "@/app-layer/routes/paths";
 import type { PatientPlanTab } from "@/app/app/patient/treatment/patientPlanTab";
 import { PatientCatalogMediaStaticThumb } from "@/shared/ui/patient/PatientCatalogMediaStaticThumb";
 import type { TreatmentProgramInstanceDetail } from "@/modules/treatment-program/types";
+import { listLfkSnapshotExerciseLines } from "@/modules/treatment-program/programActionActivityKey";
 import {
   formatRelativePatientCalendarDayRu,
   isPersistentRecommendation,
@@ -23,8 +36,10 @@ import {
 } from "@/modules/treatment-program/itemDoneCooldown";
 import {
   patientBodyTextClass,
+  patientButtonPrimaryClass,
   patientCardClass,
   patientCompactActionClass,
+  patientFormSurfaceClass,
   patientMutedTextClass,
   patientSecondaryActionClass,
   patientSectionTitleClass,
@@ -271,6 +286,82 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
     [planItemDoneRepeatCooldownMinutes],
   );
 
+  const [commentModalItemId, setCommentModalItemId] = useState<string | null>(null);
+  const [observationDraft, setObservationDraft] = useState("");
+  const [observationSaving, setObservationSaving] = useState(false);
+  const [lfkFeeling, setLfkFeeling] = useState<"easy" | "medium" | "hard">("medium");
+
+  const commentModalItem = useMemo(() => {
+    if (!commentModalItemId) return null;
+    return stage.items.find((it) => it.id === commentModalItemId) ?? null;
+  }, [commentModalItemId, stage.items]);
+
+  useEffect(() => {
+    if (!commentModalItemId) return;
+    setObservationDraft("");
+    setLfkFeeling("medium");
+  }, [commentModalItemId]);
+
+  const submitObservationFromPlanModal = useCallback(async () => {
+    if (!commentModalItem) return;
+    const item = commentModalItem;
+    const noteTrim = observationDraft.trim();
+    if (item.itemType !== "lfk_complex" && noteTrim === "") {
+      setError("Введите текст наблюдения");
+      return;
+    }
+    setObservationSaving(true);
+    setError(null);
+    try {
+      if (item.itemType === "lfk_complex") {
+        const res = await fetch(`${base}/${encodeURIComponent(item.id)}/progress/lfk-session`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            difficulty: lfkFeeling,
+            note: noteTrim === "" ? null : noteTrim,
+            completedExerciseIds: listLfkSnapshotExerciseLines(item.snapshot as Record<string, unknown>).map(
+              (l) => l.exerciseId,
+            ),
+          }),
+        });
+        const data = (await res.json().catch(() => null)) as {
+          ok?: boolean;
+          doneItemIds?: string[];
+          error?: string;
+        };
+        if (!res.ok || !data.ok) {
+          setError(data.error ?? "Ошибка сохранения");
+          return;
+        }
+        if (data.doneItemIds) onDoneItemIds(data.doneItemIds);
+      } else {
+        const res = await fetch(`${base}/${encodeURIComponent(item.id)}/progress/observation-note`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ note: noteTrim }),
+        });
+        const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
+        if (!res.ok || !data.ok) {
+          setError(data.error ?? "Ошибка сохранения");
+          return;
+        }
+      }
+      setCommentModalItemId(null);
+      await refresh();
+    } finally {
+      setObservationSaving(false);
+    }
+  }, [
+    commentModalItem,
+    observationDraft,
+    lfkFeeling,
+    base,
+    setError,
+    onDoneItemIds,
+    refresh,
+  ]);
+
   const readOnly = itemInteraction === "readOnly";
   const visibleProgramItems = useMemo(
     () => sortProgramCompositionItemsByOrderThenId(stage.items.filter((it) => isProgramCompositionItem(it, stage))),
@@ -410,16 +501,21 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
 
           {!readOnlyTile ? (
             <div className="mt-1.5 flex w-full min-w-0 gap-2 border-t border-[var(--patient-border)] pt-2">
-              <Link
-                href={itemProgramHref(item.id)}
+              <button
+                type="button"
                 className={cn(
                   patientSecondaryActionClass,
-                  "!w-auto min-h-9 min-w-0 flex-1 basis-0 px-2 py-2.5 text-center text-xs font-medium leading-tight no-underline",
-                  "inline-flex items-center justify-center gap-1.5",
+                  "!w-auto min-h-9 min-w-0 flex-1 basis-0 px-2 py-2.5 text-center text-xs font-medium leading-tight",
+                  "inline-flex cursor-pointer items-center justify-center gap-1.5",
                 )}
+                disabled={busy !== null || (observationSaving && commentModalItemId === item.id)}
+                onClick={() => {
+                  setError(null);
+                  setCommentModalItemId(item.id);
+                }}
               >
                 <span className="w-full text-center leading-tight">Добавить комментарий</span>
-              </Link>
+              </button>
               {showSimpleCompleteFooter ? (
                 <PatientProgramTileSimpleCompleteButton
                   itemId={item.id}
@@ -475,6 +571,76 @@ export function PatientTreatmentProgramStagePageProgramSection(props: {
           ),
         )}
       </ul>
+
+      {commentModalItem ? (
+        <Dialog
+          open
+          onOpenChange={(open) => {
+            if (!open) setCommentModalItemId(null);
+          }}
+        >
+          <DialogContent
+            className="rounded-lg border border-[var(--patient-border)] shadow-md sm:max-w-md"
+            initialFocus={() => {
+              const el = document.getElementById(`patient-plan-observation-note-${commentModalItem.id}`);
+              return el instanceof HTMLTextAreaElement ? el : true;
+            }}
+          >
+            <DialogHeader>
+              <DialogTitle>Наблюдение</DialogTitle>
+            </DialogHeader>
+            <div className="flex flex-col gap-3">
+              {commentModalItem.itemType === "lfk_complex" ? (
+                <div className={cn(patientFormSurfaceClass, "flex flex-col gap-2 border border-[var(--patient-border)]/70 p-3")}>
+                  <Label className={cn(patientMutedTextClass, "text-xs")}>Как прошло занятие?</Label>
+                  <Select
+                    value={lfkFeeling}
+                    onValueChange={(v) => setLfkFeeling(v as "easy" | "medium" | "hard")}
+                    items={patientLfkDifficultySelectItems}
+                  >
+                    <SelectTrigger
+                      className="h-10 w-full max-w-xs"
+                      displayLabel={patientLfkDifficultySelectItems[lfkFeeling]}
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="easy">Легко</SelectItem>
+                      <SelectItem value="medium">Средне</SelectItem>
+                      <SelectItem value="hard">Тяжело</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : null}
+              <div className="flex flex-col gap-2">
+                <Label
+                  htmlFor={`patient-plan-observation-note-${commentModalItem.id}`}
+                  className={cn(patientMutedTextClass, "text-xs")}
+                >
+                  Ваше наблюдение
+                </Label>
+                <Textarea
+                  id={`patient-plan-observation-note-${commentModalItem.id}`}
+                  value={observationDraft}
+                  onChange={(e) => setObservationDraft(e.target.value)}
+                  disabled={observationSaving}
+                  rows={5}
+                  maxLength={4000}
+                  className={cn(patientFormSurfaceClass, "min-h-[120px] resize-y text-sm")}
+                />
+              </div>
+              <Button
+                type="button"
+                className={cn(patientButtonPrimaryClass, "w-full sm:w-auto")}
+                disabled={observationSaving}
+                onClick={() => void submitObservationFromPlanModal()}
+              >
+                {observationSaving ? "Отправляю…" : "Отправить"}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      ) : null}
     </section>
   );
 }

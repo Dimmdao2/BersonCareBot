@@ -90,6 +90,7 @@ function minimalActiveDetail(): TreatmentProgramInstanceDetail {
     patientUserId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
     templateId: null,
     assignedBy: null,
+    assignmentSource: "doctor",
     title: "Программа деталь",
     status: "active",
     createdAt: now,

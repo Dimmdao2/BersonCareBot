@@ -8,6 +8,7 @@ function sum(partial: Partial<TreatmentProgramInstanceSummary> & Pick<TreatmentP
     patientUserId: "p1",
     templateId: null,
     assignedBy: null,
+    assignmentSource: partial.assignmentSource ?? "doctor",
     title: partial.title ?? "T",
     status: partial.status ?? "active",
     createdAt: partial.createdAt ?? "2026-01-01T00:00:00.000Z",

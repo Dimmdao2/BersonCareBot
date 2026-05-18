@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextResponse } from "next/server";
 import type { ReminderRule } from "@/modules/reminders/types";
 import { DEFAULT_REHAB_DAILY_SLOTS, SLOTS_V1_DB_PLACEHOLDER } from "@/modules/reminders/scheduleSlots";
+import { PATIENT_REHAB_PROGRAM_LINKED_PLACEHOLDER } from "@/modules/reminders/rehabProgramLinkedObject";
 
 const mockRequirePatientApiBusinessAccess = vi.hoisted(() => vi.fn());
 vi.mock("@/app-layer/guards/requireRole", () => ({
@@ -14,11 +15,17 @@ vi.mock("next/cache", () => ({
 
 const mockCreateObject = vi.hoisted(() => vi.fn());
 const mockCreateCustom = vi.hoisted(() => vi.fn());
+const mockListForPatient = vi.hoisted(() => vi.fn());
+const mockEnsurePromo = vi.hoisted(() => vi.fn());
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
     reminders: {
       createObjectReminder: mockCreateObject,
       createCustomReminder: mockCreateCustom,
+    },
+    treatmentProgramInstance: {
+      listForPatient: mockListForPatient,
+      ensureDefaultPromoProgramForPatient: mockEnsurePromo,
     },
   }),
 }));
@@ -96,6 +103,8 @@ describe("POST /api/patient/reminders/create", () => {
     mockRequirePatientApiBusinessAccess.mockResolvedValue({ ok: true, session: SESSION });
     mockCreateObject.mockResolvedValue({ ok: true, data: sampleObjectRule() });
     mockCreateCustom.mockResolvedValue({ ok: true, data: sampleCustomRule() });
+    mockListForPatient.mockResolvedValue([]);
+    mockEnsurePromo.mockResolvedValue({ id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" });
   });
 
   it("returns 401 when not authenticated", async () => {
@@ -199,6 +208,69 @@ describe("POST /api/patient/reminders/create", () => {
           timesLocal: ["09:00"],
           dayFilter: "weekdays",
         }),
+      }),
+    );
+  });
+
+  it("rehab_program placeholder resolves to ensured promo instance when no active program", async () => {
+    mockListForPatient.mockResolvedValueOnce([]);
+    const ensuredId = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+    mockEnsurePromo.mockResolvedValueOnce({ id: ensuredId });
+    mockCreateObject.mockResolvedValueOnce({ ok: true, data: { ...sampleRehabSlotsRule(), linkedObjectId: ensuredId } });
+    const res = await POST(
+      req({
+        linkedObjectType: "rehab_program",
+        linkedObjectId: PATIENT_REHAB_PROGRAM_LINKED_PLACEHOLDER,
+        schedule: {
+          scheduleType: "slots_v1",
+          daysMask: "1111111",
+        },
+      }),
+    );
+    expect(res.status).toBe(201);
+    expect(mockEnsurePromo).toHaveBeenCalledWith({ patientUserId: "platform-user-1" });
+    expect(mockCreateObject).toHaveBeenCalledWith(
+      "platform-user-1",
+      expect.objectContaining({
+        linkedObjectType: "rehab_program",
+        linkedObjectId: ensuredId,
+      }),
+    );
+  });
+
+  it("rehab_program placeholder uses existing active instance id without ensure", async () => {
+    const activeId = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+    mockListForPatient.mockResolvedValueOnce([
+      {
+        id: activeId,
+        patientUserId: "platform-user-1",
+        templateId: "11111111-1111-4111-8111-111111111111",
+        assignedBy: null,
+        assignmentSource: "doctor",
+        title: "Программа",
+        status: "active",
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-02T00:00:00.000Z",
+        patientPlanLastOpenedAt: null,
+      },
+    ]);
+    mockCreateObject.mockResolvedValueOnce({ ok: true, data: { ...sampleRehabSlotsRule(), linkedObjectId: activeId } });
+    const res = await POST(
+      req({
+        linkedObjectType: "rehab_program",
+        linkedObjectId: PATIENT_REHAB_PROGRAM_LINKED_PLACEHOLDER,
+        schedule: {
+          scheduleType: "slots_v1",
+          daysMask: "1111111",
+        },
+      }),
+    );
+    expect(res.status).toBe(201);
+    expect(mockEnsurePromo).not.toHaveBeenCalled();
+    expect(mockCreateObject).toHaveBeenCalledWith(
+      "platform-user-1",
+      expect.objectContaining({
+        linkedObjectId: activeId,
       }),
     );
   });

@@ -57,6 +57,7 @@ const detailBase: Omit<TreatmentProgramInstanceDetail, "stages"> = {
   patientUserId: "u1",
   templateId: null,
   assignedBy: null,
+  assignmentSource: "doctor",
   title: "План",
   status: "active",
   createdAt: "",

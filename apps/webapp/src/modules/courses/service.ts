@@ -18,6 +18,7 @@ type AssignTemplate = (input: {
   templateId: string;
   patientUserId: string;
   assignedBy: string | null;
+  assignmentSource?: import("@/modules/treatment-program/types").TreatmentProgramAssignmentSource;
 }) => Promise<unknown>;
 
 function isCourseLessonSection(section: string): boolean {

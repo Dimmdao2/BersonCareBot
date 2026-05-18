@@ -109,6 +109,7 @@ function minimalActiveDetail(templateId: string | null): TreatmentProgramInstanc
     patientUserId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
     templateId,
     assignedBy: null,
+    assignmentSource: "doctor",
     title: "Программа деталь",
     status: "active",
     createdAt: now,

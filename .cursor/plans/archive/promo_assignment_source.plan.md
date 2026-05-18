@@ -13,31 +13,31 @@ todos:
     status: completed
   - id: doctor-filter
     content: "Аудит потребителей active+program: pgDoctorClients, getDashboardPatientMetrics, doctor-broadcasts*, любые SQL с tpi.status=active; фильтр clinical = doctor; порты/тесты"
-    status: in_progress
+    status: completed
   - id: system-settings
     content: ALLOWED_KEYS + admin Settings UI + typed accessor; валидация UUID шаблона + published; без env; зеркало updateSetting
-    status: pending
+    status: completed
   - id: patient-virtual-promo
     content: "RSC: промо только если нет ни одного active instance; published шаблон; patient UX copy (программа реабилитации); revalidate кэшей"
-    status: pending
+    status: completed
   - id: patient-materialize
     content: Единый server helper + контракт API (без произвольного templateId от клиента); интеграция complete/comment/localComment; порядок транзакции материализация→действие
-    status: pending
+    status: completed
   - id: reminders-rehab
     content: "Перед create rehab_program: ensurePromo если нет active; linkedObjectId только реальный UUID; интегратор sync order; UI RemindersPageBody/ReminderCreateDialog"
-    status: pending
+    status: completed
   - id: admin-promo-page
     content: "Admin страница: модалка выбора шаблона + stats v1 по promo; не дублировать sync system_settings"
-    status: pending
+    status: completed
   - id: callers-audit
     content: Пройти все вызовы assignTemplateToPatient/createInstanceTree (courses, lfk-assignments если жив, тесты) — явный assignment_source
-    status: pending
+    status: completed
   - id: docs-log-backlog
     content: "docs/LOG инициативы; пункт в backlog (например отдельный docs/.../BACKLOG.md или существующий initiative backlog): смена промо-шаблона + уведомление; git mv плана в .cursor/plans/archive/"
-    status: pending
+    status: completed
   - id: tests
     content: "Vitest: clinical filter; auto-complete; ensure под гонкой (два параллельных); reminders+ensure; course/doctor/blank; отсутствие ключа промо"
-    status: pending
+    status: completed
 isProject: false
 ---
 
@@ -210,11 +210,11 @@ flowchart TD
 
 ## Definition of Done
 
-- [ ] `assignment_source` в схеме, миграция, backfill, типы, in-memory.
-- [ ] Все пути создания экземпляра задают источник явно; grep по репо без «забытых» insert.
-- [ ] Врачебные списки + `onSupportCount` + audit смежных модулей используют клинический фильтр `doctor`.
-- [ ] Промо: виртуальный показ только при отсутствии любого active; материализация по трём триггерам; транзакции; безопасность §3.1.
-- [ ] Напоминания: порядок ensure → create → integrator sync.
-- [ ] Admin: ключ в `ALLOWED_KEYS` + UI + валидация published.
-- [ ] LOG + backlog про смену шаблона; план перенесён в репозиторий archive.
-- [ ] Тесты из §10; перед merge — полный `pnpm run ci` по правилам репозитория.
+- [x] `assignment_source` в схеме, миграция, backfill, типы, in-memory.
+- [x] Все пути создания экземпляра задают источник явно; grep по репо без «забытых» insert.
+- [x] Врачебные списки + `onSupportCount` + audit смежных модулей используют клинический фильтр `doctor`.
+- [x] Промо: виртуальный показ только при отсутствии любого active; материализация по трём триггерам; безопасность §3.1. *(Единая SQL-транзакция на «complete promo + doctor assign» и «материализация + действие» в v1 не внедрялась — см. `docs/LOG/PROMO_ASSIGNMENT_SOURCE.md`.)*
+- [x] Напоминания: порядок ensure → create → integrator sync.
+- [x] Admin: ключ в `ALLOWED_KEYS` + UI + валидация published.
+- [x] LOG + backlog про смену шаблона; план перенесён в репозиторий archive.
+- [x] Тесты из §10 (contract + unit/integration в Vitest); перед merge — полный `pnpm run ci` по правилам репозитория.

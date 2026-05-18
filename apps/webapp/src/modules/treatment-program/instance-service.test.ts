@@ -443,6 +443,105 @@ describe("treatment-program instance service", () => {
     expect(it0.groupId).toBe(userGroup?.id);
   });
 
+  describe("promo assignment source", () => {
+    const patient = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    const doctorId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+
+    function makePromoSvc(getDefaultPromoTemplateId?: () => Promise<string | null>) {
+      const tplPortLocal = createInMemoryTreatmentProgramPort();
+      const tplLocal = createTreatmentProgramService(tplPortLocal, itemRefs);
+      const { instancePort, eventsPort } = createInMemoryTreatmentProgramPersistence();
+      const instLocal = createTreatmentProgramInstanceService({
+        instances: instancePort,
+        templates: tplLocal,
+        snapshots: createInMemoryTreatmentProgramItemSnapshotPort(),
+        itemRefs,
+        events: eventsPort,
+        getDefaultPromoTemplateId,
+      });
+      return { tplSvc: tplLocal, instSvc: instLocal, instancePort, eventsPort };
+    }
+
+    it("doctor assign completes active promo and records supersededBy event", async () => {
+      const { tplSvc: tps, instSvc: isvc, instancePort, eventsPort } = makePromoSvc();
+      const tplPromo = await tps.createTemplate({ title: "Промо", status: "published" }, null);
+      await tps.createStage(tplPromo.id, { title: "Этап 1" });
+      const tplDoc = await tps.createTemplate({ title: "Клиника", status: "published" }, null);
+      await tps.createStage(tplDoc.id, { title: "Этап 1" });
+
+      const promoInst = await isvc.assignTemplateToPatient({
+        templateId: tplPromo.id,
+        patientUserId: patient,
+        assignedBy: null,
+        assignmentSource: "promo",
+      });
+      expect(promoInst.status).toBe("active");
+      expect(promoInst.assignmentSource).toBe("promo");
+
+      await isvc.assignTemplateToPatient({
+        templateId: tplDoc.id,
+        patientUserId: patient,
+        assignedBy: doctorId,
+        assignmentSource: "doctor",
+      });
+
+      const afterPromo = await instancePort.getInstanceById(promoInst.id);
+      expect(afterPromo?.status).toBe("completed");
+
+      const evs = await eventsPort.listEventsForInstance(promoInst.id);
+      const completeEv = evs.find(
+        (e) =>
+          e.eventType === "status_changed" &&
+          (e.payload as { supersededBy?: string }).supersededBy === "doctor_assign",
+      );
+      expect(completeEv).toBeDefined();
+
+      const summaries = await instancePort.listInstancesForPatient(patient);
+      const active = summaries.filter((s) => s.status === "active");
+      expect(active).toHaveLength(1);
+      expect(active[0]?.assignmentSource).toBe("doctor");
+    });
+
+    it("ensureDefaultPromoProgramForPatient is idempotent under parallel calls", async () => {
+      const tplPortLocal = createInMemoryTreatmentProgramPort();
+      const tplLocal = createTreatmentProgramService(tplPortLocal, itemRefs);
+      const tpl = await tplLocal.createTemplate({ title: "Промо", status: "published" }, null);
+      await tplLocal.createStage(tpl.id, { title: "Этап 1" });
+      const { instancePort, eventsPort } = createInMemoryTreatmentProgramPersistence();
+      const isvc = createTreatmentProgramInstanceService({
+        instances: instancePort,
+        templates: tplLocal,
+        snapshots: createInMemoryTreatmentProgramItemSnapshotPort(),
+        itemRefs,
+        events: eventsPort,
+        getDefaultPromoTemplateId: async () => tpl.id,
+      });
+
+      const [a, b] = await Promise.all([
+        isvc.ensureDefaultPromoProgramForPatient({ patientUserId: patient }),
+        isvc.ensureDefaultPromoProgramForPatient({ patientUserId: patient }),
+      ]);
+      expect(a.id).toBe(b.id);
+      const active = (await instancePort.listInstancesForPatient(patient)).filter((r) => r.status === "active");
+      expect(active).toHaveLength(1);
+      expect(active[0]?.assignmentSource).toBe("promo");
+    });
+
+    it("ensureDefaultPromoProgramForPatient rejects when promo template is not configured", async () => {
+      const { instSvc } = makePromoSvc(undefined);
+      await expect(instSvc.ensureDefaultPromoProgramForPatient({ patientUserId: patient })).rejects.toThrow(
+        "Промо-программа не настроена",
+      );
+    });
+
+    it("ensureDefaultPromoProgramForPatient rejects when settings return empty id", async () => {
+      const { instSvc } = makePromoSvc(async () => null);
+      await expect(instSvc.ensureDefaultPromoProgramForPatient({ patientUserId: patient })).rejects.toThrow(
+        "Промо-программа не настроена",
+      );
+    });
+  });
+
   describe("doctorExpandTestSetIntoStage", () => {
     const testSetId = "99999999-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
     const t3 = "33333333-3333-4333-8333-333333333333";

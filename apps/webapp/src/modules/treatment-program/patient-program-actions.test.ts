@@ -33,6 +33,7 @@ function makeDetail(over: Partial<TreatmentProgramInstanceDetail> = {}): Treatme
     patientUserId: patient,
     templateId: null,
     assignedBy: null,
+    assignmentSource: "doctor",
     title: "Программа",
     status: "active",
     createdAt: now,

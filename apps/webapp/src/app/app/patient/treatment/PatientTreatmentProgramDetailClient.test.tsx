@@ -82,6 +82,7 @@ function makeInstance(over: Partial<TreatmentProgramInstanceDetail> = {}): Treat
     patientUserId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
     templateId: null,
     assignedBy: null,
+    assignmentSource: "doctor",
     title: "Программа",
     status: "active",
     createdAt: now,
