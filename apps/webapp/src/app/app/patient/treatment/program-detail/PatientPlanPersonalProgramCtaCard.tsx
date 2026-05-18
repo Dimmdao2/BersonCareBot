@@ -12,10 +12,10 @@ const DEFAULT_REHAB_REQUEST_HREF = routePaths.intakeLfk;
 
 const PERSONAL_PROGRAM_PHOTO_SRC = "/patient/personal-program-consultation.png";
 
-/** Фон «Мой план»: flex-ряд, высота по контенту; фото слева в рамке по высоте без обрезки (`object-contain`). */
+/** Фон «Мой план»; нижний padding карточки снят — 16px только у правой колонки (`personalProgramTextColumnClass`). */
 const personalProgramCtaArticleClass = cn(
   patientHomePlanCardClass,
-  "relative isolate flex min-h-0 flex-row items-start gap-2 overflow-hidden p-4 md:gap-4 md:p-5",
+  "relative isolate flex min-h-0 flex-row items-start gap-2 overflow-hidden px-4 pt-4 pb-0 min-[430px]:gap-4 md:gap-5 md:px-5 md:pt-5 md:pb-0",
 );
 
 /**
@@ -36,7 +36,7 @@ const personalProgramImageClass = cn(
 );
 
 const personalProgramTextColumnClass = cn(
-  "relative z-10 flex min-h-0 min-w-0 flex-1 flex-col gap-4 md:gap-5",
+  "relative z-10 flex min-h-0 min-w-0 flex-1 flex-col gap-4 pb-4 md:gap-5 md:pb-4",
 );
 
 const personalProgramHeroTitleClass = cn(
