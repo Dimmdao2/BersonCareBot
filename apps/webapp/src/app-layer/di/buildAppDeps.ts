@@ -205,6 +205,9 @@ import { inMemoryOperatorHealthWritePort } from "@/infra/repos/inMemoryOperatorH
 import { pgHealthFailureArchivePort } from "@/infra/repos/pgHealthFailureArchive";
 import { inMemoryHealthFailureArchivePort } from "@/infra/repos/inMemoryHealthFailureArchive";
 import { createHealthFailureArchiveService } from "@/modules/operator-health/healthFailureArchiveService";
+import { createNotificationDeliveryService } from "@/modules/notification-delivery/service";
+import { pgNotificationDeliveryAttemptsPort } from "@/infra/repos/pgNotificationDeliveryAttempts";
+import { inMemoryNotificationDeliveryAttemptsPort } from "@/infra/repos/inMemoryNotificationDeliveryAttempts";
 import { env, integratorWebhookSecret, isS3MediaEnabled, webappReposAreInMemory } from "@/config/env";
 import { resolveRoleFromEnv } from "@/modules/auth/envRole";
 import { getRedirectPathForRole } from "@/modules/auth/redirectPolicy";
@@ -243,6 +246,10 @@ const healthFailureArchivePort = !inMemoryRepos
   ? pgHealthFailureArchivePort
   : inMemoryHealthFailureArchivePort;
 const healthFailureArchive = createHealthFailureArchiveService(healthFailureArchivePort);
+const notificationDeliveryAttemptsPort = !inMemoryRepos
+  ? pgNotificationDeliveryAttemptsPort
+  : inMemoryNotificationDeliveryAttemptsPort;
+const notificationDelivery = createNotificationDeliveryService(notificationDeliveryAttemptsPort);
 
 const symptomDiaryPort = !inMemoryRepos ? pgSymptomDiaryPort : inMemorySymptomDiaryPort;
 const lfkDiaryPort = !inMemoryRepos ? pgLfkDiaryPort : inMemoryLfkDiaryPort;
@@ -794,6 +801,7 @@ function _buildAppDeps() {
     operatorHealthRead: operatorHealthReadPort,
     operatorHealthWrite: operatorHealthWritePort,
     healthFailureArchive,
+    notificationDelivery,
     media: mediaService,
     channelPreferences: channelPreferencesService,
     channelPreferencesPort,

@@ -15,6 +15,8 @@ import {
 import type { TopicChannelPrefsPort } from "@/modules/patient-notifications/topicChannelPrefsPort";
 import type { SystemSettingsService } from "@/modules/system-settings/service";
 import { getWebPushVapidKeyPair } from "@/modules/system-settings/webPushVapidRuntime";
+import type { RecordNotificationDeliveryAttemptInput } from "@/modules/notification-delivery/types";
+import type { SkippedNotificationChannel } from "@/modules/patient-notifications/notificationChannelContract";
 import type { WebPushSubscriptionsPort } from "@/modules/web-push/ports";
 import { sendWebPushToSubscriptions } from "@/modules/web-push/sendWebPushToSubscriptions";
 
@@ -57,7 +59,43 @@ export type PatientReminderIntegratorNotifyDeps = {
     platformUserId: string,
   ) => Promise<{ telegramId?: string | null; maxId?: string | null }>;
   reminderTransactionalEmailCooldown?: ReminderTransactionalEmailCooldownPort;
+  recordDeliveryAttempt?: (input: RecordNotificationDeliveryAttemptInput) => Promise<void>;
 };
+
+const PATIENT_REMINDER_INTENT_TYPE = "patient_reminder";
+
+function mapEmailSendError(error: string): { reason: string; errorMessage: string } {
+  if (error === "smtp_not_configured" || error === "smtp_password_missing") {
+    return { reason: "provider_disabled", errorMessage: error };
+  }
+  return { reason: "smtp_error", errorMessage: error.slice(0, 500) };
+}
+
+async function recordChannelSkips(
+  record: PatientReminderIntegratorNotifyDeps["recordDeliveryAttempt"],
+  base: {
+    userId?: string;
+    integratorUserId: string;
+    topicCode: string;
+    occurrenceId: string;
+  },
+  skipped: SkippedNotificationChannel[],
+): Promise<void> {
+  if (!record) return;
+  for (const s of skipped) {
+    if (s.channel === "telegram" || s.channel === "max") continue;
+    await record({
+      userId: base.userId,
+      integratorUserId: base.integratorUserId,
+      topicCode: base.topicCode,
+      intentType: PATIENT_REMINDER_INTENT_TYPE,
+      channel: s.channel,
+      status: "skipped",
+      reason: s.reason,
+      occurrenceId: base.occurrenceId,
+    });
+  }
+}
 
 function resolveChannelsForGateOnly(
   topicCode: string,
@@ -215,6 +253,12 @@ export async function runPatientReminderIntegratorNotify(
       resolved: gateResolved,
       flowSkipped,
     });
+    await recordChannelSkips(deps.recordDeliveryAttempt, {
+      userId: uid,
+      integratorUserId: body.integratorUserId,
+      topicCode: body.topicCode,
+      occurrenceId: body.occurrenceId,
+    }, gateResolved.skippedChannels);
     const out = {
       ok: true,
       skipped: flowSkipped,
@@ -263,6 +307,23 @@ export async function runPatientReminderIntegratorNotify(
     skippedChannels: resolved.skippedChannels,
   };
 
+  if (
+    resolved.selectedChannels.includes("web_push") &&
+    !vapidKeys &&
+    deps.recordDeliveryAttempt
+  ) {
+    await deps.recordDeliveryAttempt({
+      userId: uid,
+      integratorUserId: body.integratorUserId,
+      topicCode: body.topicCode,
+      intentType: PATIENT_REMINDER_INTENT_TYPE,
+      channel: "web_push",
+      status: "skipped",
+      reason: "vapid_missing",
+      occurrenceId: body.occurrenceId,
+    });
+  }
+
   if (resolved.selectedChannels.includes("web_push") && vapidKeys) {
     const title = stripHtmlLight(body.title).slice(0, 200);
     const textBody = stripHtmlLight(body.bodyText ?? "").slice(0, 500);
@@ -285,6 +346,23 @@ export async function runPatientReminderIntegratorNotify(
       onSubscriptionDead: async (endpoint) => {
         await deps.webPushSubscriptions.deleteByEndpointIfExists(endpoint);
       },
+      onAttempt: deps.recordDeliveryAttempt
+        ? async (attempt) => {
+            await deps.recordDeliveryAttempt!({
+              userId: uid,
+              integratorUserId: body.integratorUserId,
+              topicCode: body.topicCode,
+              intentType: PATIENT_REMINDER_INTENT_TYPE,
+              channel: "web_push",
+              status: attempt.status,
+              reason: attempt.reason,
+              providerStatusCode: attempt.providerStatusCode,
+              endpointHash: attempt.endpointHash,
+              occurrenceId: body.occurrenceId,
+              errorMessage: attempt.errorMessage,
+            });
+          }
+        : undefined,
       logContext: {
         userId: uid,
         topicCode: body.topicCode,
@@ -329,6 +407,17 @@ export async function runPatientReminderIntegratorNotify(
     if (cooldownPort && (await cooldownPort.shouldSkipDueToCooldown(uid))) {
       emailSkipped = "rate_limited";
       out.emailSkipped = emailSkipped;
+      await deps.recordDeliveryAttempt?.({
+        userId: uid,
+        integratorUserId: body.integratorUserId,
+        topicCode: body.topicCode,
+        intentType: PATIENT_REMINDER_INTENT_TYPE,
+        channel: "email",
+        status: "skipped",
+        reason: "rate_limited",
+        occurrenceId: body.occurrenceId,
+        recipientRef: emailFields.email.trim(),
+      });
     } else {
       const listUnsubscribe =
         smtpParsed?.success === true && smtpParsed.data.from.includes("@") ?
@@ -345,14 +434,51 @@ export async function runPatientReminderIntegratorNotify(
         listUnsubscribe,
       });
       out.emailOk = res.ok;
-      if (!res.ok) out.emailError = res.error;
-      else if (cooldownPort) await cooldownPort.recordSent(uid);
+      if (!res.ok) {
+        out.emailError = res.error;
+        const mapped = mapEmailSendError(res.error);
+        await deps.recordDeliveryAttempt?.({
+          userId: uid,
+          integratorUserId: body.integratorUserId,
+          topicCode: body.topicCode,
+          intentType: PATIENT_REMINDER_INTENT_TYPE,
+          channel: "email",
+          status: "failed",
+          reason: mapped.reason,
+          occurrenceId: body.occurrenceId,
+          recipientRef: emailFields.email.trim(),
+          errorMessage: mapped.errorMessage,
+        });
+      } else {
+        await deps.recordDeliveryAttempt?.({
+          userId: uid,
+          integratorUserId: body.integratorUserId,
+          topicCode: body.topicCode,
+          intentType: PATIENT_REMINDER_INTENT_TYPE,
+          channel: "email",
+          status: "success",
+          occurrenceId: body.occurrenceId,
+          recipientRef: emailFields.email.trim(),
+        });
+        if (cooldownPort) await cooldownPort.recordSent(uid);
+      }
     }
   }
 
   out.skippedChannels = withEmailRateLimitSkip(
     resolved.skippedChannels,
     emailSkipped,
+  );
+
+  await recordChannelSkips(
+    deps.recordDeliveryAttempt,
+    {
+      userId: uid,
+      integratorUserId: body.integratorUserId,
+      topicCode: body.topicCode,
+      occurrenceId: body.occurrenceId,
+    },
+    (out.skippedChannels as SkippedNotificationChannel[]) ?? resolved.skippedChannels,
   );
 
   logNotifyResult({ ...resultCtx, platformUserId: uid, outcome: out });

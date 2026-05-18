@@ -14,4 +14,5 @@ export * from "./patientDiarySnapshots";
 export * from "./operatorHealth";
 export * from "./outgoingDeliveryQueue";
 export * from "./operatorHealthFailureArchive";
+export * from "./notificationDeliveryAttempts";
 export * from "./relations";

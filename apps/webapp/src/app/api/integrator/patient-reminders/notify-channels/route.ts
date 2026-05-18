@@ -65,6 +65,7 @@ export async function POST(request: Request) {
       readReminderNotifyGate: deps.readReminderNotifyGate,
       reminderTransactionalEmailCooldown: deps.reminderTransactionalEmailCooldown,
       getChannelBindings: deps.loadPlatformUserChannelBindings,
+      recordDeliveryAttempt: (input) => deps.notificationDelivery.recordNotificationDeliveryAttempt(input),
     });
 
     const status = 200;

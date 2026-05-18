@@ -35,6 +35,11 @@ import {
   loadAdminWebPushHealthMetrics,
   type WebPushHealthPayload,
 } from "@/app-layer/health/adminWebPushHealthMetrics";
+import {
+  emptyNotificationDeliveryHealthPayload,
+  loadAdminNotificationDeliveryHealthMetrics,
+  type NotificationDeliveryHealthPayload,
+} from "@/app-layer/health/adminNotificationDeliveryHealthMetrics";
 
 const INTEGRATOR_TIMEOUT_MS = 8_000;
 
@@ -240,6 +245,8 @@ export type SystemHealthResponse = {
   remindersPipeline: RemindersPipelineHealthPayload;
   /** Web Push: VAPID + активные подписки `user_web_push_subscriptions` (без агрегатов provider в БД). */
   webPush: WebPushHealthPayload;
+  /** Фактические попытки доставки по каналам (`notification_delivery_attempts`), 24 ч. */
+  notificationDelivery: NotificationDeliveryHealthPayload;
   meta: {
     probes: {
       webappDb: { status: string; durationMs: number; errorCode?: string };
@@ -256,6 +263,7 @@ export type SystemHealthResponse = {
       integratorPushOutbox: { status: string; durationMs: number; errorCode?: string };
       remindersPipeline: { status: string; durationMs: number; errorCode?: string };
       webPush: { status: string; durationMs: number; errorCode?: string };
+      notificationDelivery: { status: string; durationMs: number; errorCode?: string };
     };
   };
   fetchedAt: string;
@@ -822,7 +830,8 @@ function logProbe(
     | "outgoing_delivery"
     | "integrator_push_outbox"
     | "reminders_pipeline"
-    | "web_push",
+    | "web_push"
+    | "notification_delivery",
   result: ProbeResult<unknown>,
   statusOverride?: string,
 ) {
@@ -996,6 +1005,13 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
     : emptyWebPushHealthPayload("no_data");
   const webPushDurationMs = elapsedMs(webPushStartedAt);
 
+  const notificationDeliveryStartedAt = Date.now();
+  const notificationDeliveryResult = await loadAdminNotificationDeliveryHealthMetrics();
+  const notificationDeliveryPayload: NotificationDeliveryHealthPayload = notificationDeliveryResult.ok
+    ? notificationDeliveryResult.value
+    : emptyNotificationDeliveryHealthPayload("no_data");
+  const notificationDeliveryDurationMs = elapsedMs(notificationDeliveryStartedAt);
+
   const integratorPushOutboxClassified = classifyIntegratorPushOutboxSystemHealthStatus(integratorPushOutboxPayload);
 
   if (operatorHealthResult.ok && integratorPushOutboxClassified !== "ok") {
@@ -1076,6 +1092,7 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
     integratorPushOutbox: integratorPushOutboxPayload,
     remindersPipeline: remindersPipelinePayload,
     webPush: webPushPayload,
+    notificationDelivery: notificationDeliveryPayload,
     meta: {
       probes: {
         webappDb: {
@@ -1150,6 +1167,11 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
           durationMs: webPushDurationMs,
           ...(!webPushResult.ok ? { errorCode: webPushResult.errorCode } : {}),
         },
+        notificationDelivery: {
+          status: notificationDeliveryResult.ok ? notificationDeliveryPayload.status : "error",
+          durationMs: notificationDeliveryDurationMs,
+          ...(!notificationDeliveryResult.ok ? { errorCode: notificationDeliveryResult.errorCode } : {}),
+        },
       },
     },
     fetchedAt: nowIso(),
@@ -1188,6 +1210,18 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
           errorCode: webPushResult.errorCode,
           durationMs: webPushDurationMs,
         },
+  );
+  logProbe(
+    "notification_delivery",
+    notificationDeliveryResult.ok
+      ? { ok: true, value: notificationDeliveryPayload, durationMs: notificationDeliveryDurationMs }
+      : {
+          ok: false,
+          status: "error",
+          errorCode: notificationDeliveryResult.errorCode,
+          durationMs: notificationDeliveryDurationMs,
+        },
+    notificationDeliveryPayload.status,
   );
 
   return response;

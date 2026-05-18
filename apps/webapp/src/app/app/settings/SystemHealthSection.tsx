@@ -114,6 +114,36 @@ type SystemHealthPayload = {
     subscriptionsTouchedLast24h: number;
     deliveryMetricsInDb: boolean;
   };
+  notificationDelivery?: {
+    windowHours: number;
+    status: "ok" | "degraded" | "not_configured" | "no_data";
+    vapidConfigured: boolean;
+    smtpConfigured: boolean;
+    totalAttempts24h: number;
+    byChannel: Record<
+      string,
+      {
+        successCount: number;
+        failedCount: number;
+        skippedCount: number;
+        lastAttemptAt: string | null;
+        lastSuccessAt: string | null;
+        lastErrorAt: string | null;
+        lastErrorReason: string | null;
+        lastErrorMessage: string | null;
+      }
+    >;
+    recentIssues: Array<{
+      createdAt: string;
+      channel: string;
+      status: string;
+      reason: string | null;
+      topicCode: string | null;
+      recipientRef: string | null;
+      userId: string | null;
+      errorMessage: string | null;
+    }>;
+  };
   /** VIDEO_HLS_DELIVERY: hourly playback aggregates (UTC), rolling window. */
   videoPlayback: {
     status: "ok" | "error";
@@ -225,6 +255,7 @@ type SystemHealthPayload = {
       integratorPushOutbox?: { status: string; durationMs: number; errorCode?: string };
       remindersPipeline?: { status: string; durationMs: number; errorCode?: string };
       webPush?: { status: string; durationMs: number; errorCode?: string };
+      notificationDelivery?: { status: string; durationMs: number; errorCode?: string };
     };
   };
   fetchedAt: string;
@@ -381,6 +412,54 @@ type HealthAccordionItemProps = {
   children: ReactNode;
 };
 
+function NotificationDeliveryChannelBlock({
+  channel,
+  agg,
+}: {
+  channel: string;
+  agg?: {
+    successCount: number;
+    failedCount: number;
+    skippedCount: number;
+    lastAttemptAt: string | null;
+    lastSuccessAt: string | null;
+    lastErrorAt: string | null;
+    lastErrorReason: string | null;
+    lastErrorMessage: string | null;
+  };
+}) {
+  return (
+    <div className="rounded border border-border/50 p-2 font-mono text-[11px] leading-snug">
+      <p className="mb-1 font-medium text-foreground">{notificationDeliveryChannelHuman(channel)}</p>
+      <DetailRow label="success" value={String(agg?.successCount ?? 0)} />
+      <DetailRow label="failed" value={String(agg?.failedCount ?? 0)} />
+      <DetailRow label="skipped" value={String(agg?.skippedCount ?? 0)} />
+      <DetailRow label="последняя попытка" value={formatDateTime(agg?.lastAttemptAt ?? null)} />
+      <DetailRow label="последняя успешная" value={formatDateTime(agg?.lastSuccessAt ?? null)} />
+      <DetailRow
+        label="последняя ошибка"
+        value={
+          agg?.lastErrorReason || agg?.lastErrorMessage
+            ? `${agg?.lastErrorReason ?? "—"}${agg?.lastErrorMessage ? ` (${agg.lastErrorMessage.slice(0, 80)})` : ""}`
+            : formatDateTime(agg?.lastErrorAt ?? null)
+        }
+      />
+    </div>
+  );
+}
+
+function formatNotificationDeliveryIssueLine(issue: {
+  createdAt: string;
+  channel: string;
+  status: string;
+  reason: string | null;
+}): string {
+  const t = new Date(issue.createdAt);
+  const hh = String(t.getHours()).padStart(2, "0");
+  const mm = String(t.getMinutes()).padStart(2, "0");
+  return `${hh}:${mm} ${issue.channel} ${issue.status}: ${issue.reason ?? "—"}`;
+}
+
 function DetailRow({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div className="flex items-start justify-between gap-3">
@@ -491,6 +570,25 @@ function operatorIncidentDirectionHuman(direction: string): string {
 }
 
 /** Подписи канала доставки в health (ключи произвольные из integrator queue). */
+const NOTIFICATION_DELIVERY_CHANNEL_ORDER = ["telegram", "max", "web_push", "email"] as const;
+
+function notificationDeliveryChannelHuman(channel: string): string {
+  if (channel === "telegram") return "Telegram";
+  if (channel === "max") return "MAX";
+  if (channel === "web_push") return "Web Push";
+  if (channel === "email") return "Email";
+  return channel;
+}
+
+function shortRecipientRef(issue: {
+  recipientRef: string | null;
+  userId: string | null;
+}): string {
+  if (issue.recipientRef?.trim()) return issue.recipientRef.trim();
+  if (issue.userId) return `user …${issue.userId.slice(-6)}`;
+  return "—";
+}
+
 function outgoingDeliveryChannelHuman(channel: string): string {
   const c = channel.trim().toLowerCase();
   const m: Record<string, string> = {
@@ -703,7 +801,7 @@ export function SystemHealthSection() {
               />
               <DetailRow
                 label="Смысл"
-                value="Показывает, двигается ли поток событий между интегратором и веб-приложением."
+                value="Это не доставка уведомлений пользователю. Это внутренняя синхронизация событий между integrator и webapp."
               />
               <DetailRow
                 label="Ждут обработки / обрабатываются сейчас"
@@ -714,7 +812,15 @@ export function SystemHealthSection() {
                 }
               />
               <DetailRow label="Ошибок без повтора (dead)" value={String(queueDead)} />
-              <DetailRow label="Отменено / повторов сверх порога" value={`${queueCancelled} / ${queueRetries}`} />
+              <p className="text-[11px] text-muted-foreground">
+                dead: задачи, которые окончательно упали и больше не повторяются
+              </p>
+              <DetailRow label="Отменено (cancelled)" value={String(queueCancelled)} />
+              <p className="text-[11px] text-muted-foreground">cancelled: задачи, отменённые системой</p>
+              <DetailRow label="Повторов сверх порога" value={String(queueRetries)} />
+              <p className="text-[11px] text-muted-foreground">
+                retries exhausted: задачи, у которых закончились попытки повторной обработки
+              </p>
               <DetailRow label="Последняя успешная обработка" value={formatDateTime(lastSuccess)} />
               <DetailRow label="Самая старая задача ждёт с" value={formatDateTime(oldestPending)} />
               <ProbeInfo probe={data?.meta?.probes?.projection} />
@@ -1037,6 +1143,10 @@ export function SystemHealthSection() {
               name="Очередь доставки уведомлений"
               status={data?.meta?.probes?.outgoingDelivery?.status ?? "error"}
             >
+              <DetailRow
+                label="Смысл"
+                value="Показывает, есть ли застрявшие задачи в очереди отправки. Пустая очередь не означает, что все каналы успешно доставляются."
+              />
               <DetailRow label="Итог" value="Состояние исходящей очереди интегратора" />
               <ProbeInfo probe={data?.meta?.probes?.outgoingDelivery} />
               <DetailRow label="Ждут отправки" value={String(data?.outgoingDelivery?.dueBacklog ?? 0)} />
@@ -1093,9 +1203,57 @@ export function SystemHealthSection() {
             </HealthAccordionItem>
 
             <HealthAccordionItem
+              name="Доставка уведомлений"
+              status={data?.meta?.probes?.notificationDelivery?.status ?? data?.notificationDelivery?.status ?? "error"}
+            >
+              <ProbeInfo probe={data?.meta?.probes?.notificationDelivery} />
+              <DetailRow
+                label="Смысл"
+                value={`Фактические попытки доставки по каналам за ${data?.notificationDelivery?.windowHours ?? 24} ч (без SMS).`}
+              />
+              <DetailRow
+                label="Диагностический статус"
+                value={data?.notificationDelivery?.status ?? "—"}
+              />
+              <DetailRow
+                label="Всего попыток за окно"
+                value={String(data?.notificationDelivery?.totalAttempts24h ?? 0)}
+              />
+              <p className="pt-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                По каналам
+              </p>
+              {NOTIFICATION_DELIVERY_CHANNEL_ORDER.map((ch) => {
+                const agg = data?.notificationDelivery?.byChannel?.[ch];
+                return (
+                  <NotificationDeliveryChannelBlock key={ch} channel={ch} agg={agg} />
+                );
+              })}
+              <p className="pt-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Последние проблемы доставки
+              </p>
+              {(data?.notificationDelivery?.recentIssues?.length ?? 0) === 0 ? (
+                <DetailRow label="Список" value="нет за окно" />
+              ) : (
+                <ul className="list-inside list-disc space-y-0.5 font-mono text-[11px]">
+                  {data!.notificationDelivery!.recentIssues.map((issue, i) => (
+                    <li key={`${issue.createdAt}-${issue.channel}-${i}`}>
+                      {formatNotificationDeliveryIssueLine(issue)}
+                      {issue.topicCode ? ` · ${issue.topicCode}` : ""}
+                      {shortRecipientRef(issue) !== "—" ? ` · ${shortRecipientRef(issue)}` : ""}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </HealthAccordionItem>
+
+            <HealthAccordionItem
               name="Напоминания"
               status={data?.meta?.probes?.remindersPipeline?.status ?? "error"}
             >
+              <DetailRow
+                label="Смысл"
+                value="Occurrence sent означает, что напоминание было обработано системой. Фактическая доставка по каналам отображается в карточке «Доставка уведомлений»."
+              />
               <ProbeInfo probe={data?.meta?.probes?.remindersPipeline} />
               <DetailRow
                 label="Очередь reminder_dispatch (ожидают)"

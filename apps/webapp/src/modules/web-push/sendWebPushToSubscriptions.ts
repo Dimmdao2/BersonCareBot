@@ -13,6 +13,14 @@ export type WebPushClientPayload = {
 /**
  * Отправка Web Push всем подпискам пользователя. 410/404 — вызывает onSubscriptionDead.
  */
+export type WebPushDeliveryAttemptResult = {
+  status: "success" | "failed";
+  endpointHash: string;
+  providerStatusCode?: number;
+  reason?: "provider_404" | "provider_410" | "provider_error" | "send_error";
+  errorMessage?: string;
+};
+
 export async function sendWebPushToSubscriptions(params: {
   subscriptions: WebPushSubscriptionPayloadV1[];
   vapidPublicKey: string;
@@ -21,13 +29,14 @@ export async function sendWebPushToSubscriptions(params: {
   vapidSubject: string;
   payload: WebPushClientPayload;
   onSubscriptionDead: (endpoint: string) => Promise<void>;
+  onAttempt?: (result: WebPushDeliveryAttemptResult) => void | Promise<void>;
   logContext?: {
     userId?: string;
     topicCode?: string;
     occurrenceId?: string;
   };
 }): Promise<{ delivered: number; errors: number; deactivated: number }> {
-  const { subscriptions, vapidPublicKey, vapidPrivateKey, vapidSubject, payload, onSubscriptionDead, logContext } =
+  const { subscriptions, vapidPublicKey, vapidPrivateKey, vapidSubject, payload, onSubscriptionDead, onAttempt, logContext } =
     params;
   if (subscriptions.length === 0) return { delivered: 0, errors: 0, deactivated: 0 };
 
@@ -64,6 +73,11 @@ export async function sendWebPushToSubscriptions(params: {
         },
       );
       delivered += 1;
+      await onAttempt?.({
+        status: "success",
+        endpointHash,
+        providerStatusCode: result?.statusCode,
+      });
       logger.info(
         {
           event: "web_push_provider_response",
@@ -80,6 +94,14 @@ export async function sendWebPushToSubscriptions(params: {
       if (status === 410 || status === 404) {
         await onSubscriptionDead(sub.endpoint);
         deactivated += 1;
+        const reason = status === 410 ? "provider_410" : "provider_404";
+        await onAttempt?.({
+          status: "failed",
+          endpointHash,
+          providerStatusCode: status,
+          reason,
+          errorMessage: message,
+        });
         logger.info(
           {
             event: "web_push_provider_response",
@@ -91,6 +113,13 @@ export async function sendWebPushToSubscriptions(params: {
           "web push subscription deactivated",
         );
       } else {
+        await onAttempt?.({
+          status: "failed",
+          endpointHash,
+          providerStatusCode: typeof status === "number" ? status : undefined,
+          reason: "provider_error",
+          errorMessage: message,
+        });
         logger.warn(
           {
             event: "web_push_provider_response",

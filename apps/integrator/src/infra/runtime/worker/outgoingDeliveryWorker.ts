@@ -22,6 +22,7 @@ import {
   enrichDoctorBroadcastIntentIfNeeded,
   type DoctorBroadcastMenuWorkerDeps,
 } from './doctorBroadcastIntentMenu.js';
+import { recordNotificationDeliveryAttemptBestEffort } from '../../db/repos/notificationDeliveryAttempts.js';
 
 export type OutgoingDeliveryWorkerDeps = {
   db: DbPort;
@@ -160,17 +161,55 @@ async function finalizeOutgoingDeliveryDead(
   }
 }
 
+async function recordMessengerQueueDeliveryAttempt(
+  db: DbPort,
+  row: OutgoingDeliveryQueueRow,
+  intent: OutgoingIntent,
+  params: {
+    status: 'success' | 'failed';
+    reason?: string;
+    errorMessage?: string;
+    providerStatusCode?: number;
+  },
+): Promise<void> {
+  if (row.channel !== 'telegram' && row.channel !== 'max') return;
+  const p = row.payloadJson;
+  const occurrenceId = typeof p.occurrenceId === 'string' ? p.occurrenceId : undefined;
+  const externalId = typeof p.externalId === 'string' ? p.externalId : undefined;
+  await recordNotificationDeliveryAttemptBestEffort(db, {
+    integratorUserId: typeof intent.meta.userId === 'string' ? intent.meta.userId : undefined,
+    topicCode: typeof p.topicCode === 'string' ? p.topicCode : undefined,
+    intentType: row.kind === 'reminder_dispatch' ? 'reminder_dispatch' : row.kind,
+    channel: row.channel,
+    status: params.status,
+    reason: params.reason,
+    providerStatusCode: params.providerStatusCode,
+    eventId: row.eventId,
+    occurrenceId,
+    recipientRef: externalId ? `${row.channel}:${externalId.slice(-4)}` : undefined,
+    errorMessage: params.errorMessage,
+  });
+}
+
 async function handleDispatchFailure(
   db: DbPort,
   row: OutgoingDeliveryQueueRow,
   err: unknown,
   writePort: DbWritePort,
+  intent?: OutgoingIntent,
 ): Promise<void> {
   const msg = err instanceof Error ? err.message : String(err);
   const safe = truncateDeliveryErrorMessage(msg);
   const attempts = row.attemptCount;
   const retryable = isOutgoingDeliveryDispatchErrorRetryable(safe);
   if (!retryable || attempts >= row.maxAttempts) {
+    if (intent && (row.channel === 'telegram' || row.channel === 'max')) {
+      await recordMessengerQueueDeliveryAttempt(db, row, intent, {
+        status: 'failed',
+        reason: 'delivery_dead',
+        errorMessage: safe,
+      });
+    }
     await finalizeOutgoingDeliveryDead(db, row, safe, writePort);
     return;
   }
@@ -205,7 +244,7 @@ export async function processOutgoingDeliveryRow(
       await markOperatorIncidentAlertSent(incidentId);
       await markOutgoingDeliverySent(db, row.id);
     } catch (err) {
-      await handleDispatchFailure(db, row, err, writePort);
+      await handleDispatchFailure(db, row, err, writePort, intent);
     }
     return;
   }
@@ -314,9 +353,16 @@ export async function processOutgoingDeliveryRow(
         type: 'reminders.occurrence.markSent',
         params: { occurrenceId, channel },
       });
+      await recordMessengerQueueDeliveryAttempt(db, row, intent, { status: 'success' });
       await markOutgoingDeliverySent(db, row.id);
     } catch (err) {
-      await handleDispatchFailure(db, row, err, writePort);
+      const msg = err instanceof Error ? err.message : String(err);
+      await recordMessengerQueueDeliveryAttempt(db, row, intent, {
+        status: 'failed',
+        reason: 'provider_error',
+        errorMessage: truncateDeliveryErrorMessage(msg),
+      });
+      await handleDispatchFailure(db, row, err, writePort, intent);
     }
     return;
   }
@@ -340,6 +386,7 @@ export async function processOutgoingDeliveryRow(
             })
           : intent;
       await dispatchOutgoing(toSend);
+      await recordMessengerQueueDeliveryAttempt(db, row, toSend, { status: 'success' });
       await markOutgoingDeliverySent(db, row.id);
       await db.query(`UPDATE public.broadcast_audit SET sent_count = sent_count + 1 WHERE id = $1::uuid`, [
         broadcastAuditId,
@@ -373,7 +420,13 @@ export async function processOutgoingDeliveryRow(
           'doctor_broadcast_delivery.dispatch_will_retry',
         );
       }
-      await handleDispatchFailure(db, row, err, writePort);
+      const msg = err instanceof Error ? err.message : String(err);
+      await recordMessengerQueueDeliveryAttempt(db, row, toSend, {
+        status: 'failed',
+        reason: 'provider_error',
+        errorMessage: truncateDeliveryErrorMessage(msg),
+      });
+      await handleDispatchFailure(db, row, err, writePort, toSend);
     }
     return;
   }
