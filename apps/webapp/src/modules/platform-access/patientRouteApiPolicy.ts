@@ -61,12 +61,11 @@ const PATIENT_PAGE_PREFIXES_WITHOUT_PATIENT_TIER = [
   /** Редиректы на sections — промежуточные URL без patient tier. */
   "/app/patient/lessons",
   "/app/patient/emergency",
-  /** Кабинет, визард записи, дневник (просмотр), покупки, уведомления — RSC с optional session + гостевой UI. */
+  /** Кабинет, визард записи, дневник (просмотр), покупки — RSC с optional session + гостевой UI. */
   "/app/patient/cabinet",
   "/app/patient/booking",
   "/app/patient/diary",
   "/app/patient/purchases",
-  "/app/patient/notifications",
   "/app/patient/courses",
 ] as const;
 
@@ -90,7 +89,6 @@ function pathMatchesAnyPrefix(path: string, prefixes: readonly string[]): boolea
 function patientPageAllowsGuestOptionalSession(path: string): boolean {
   if (path === "/app/patient/cabinet") return true;
   if (path === "/app/patient/purchases") return true;
-  if (path === "/app/patient/notifications") return true;
   if (path === "/app/patient/address") return true;
   if (path === "/app/patient/lessons" || path === "/app/patient/emergency") return true;
   if (path.startsWith("/app/patient/booking")) return true;

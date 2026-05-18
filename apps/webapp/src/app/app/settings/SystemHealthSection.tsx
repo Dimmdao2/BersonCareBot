@@ -105,6 +105,15 @@ type SystemHealthPayload = {
     deliveryEvents: { sent: number; failed: number };
     patientReminderM2mIdempotencyKeysActive: number;
   };
+  webPush?: {
+    windowHours: number;
+    status: "ok" | "degraded" | "not_configured" | "no_data";
+    vapidConfigured: boolean;
+    activeSubscriptionsCount: number;
+    usersWithSubscriptionCount: number;
+    subscriptionsTouchedLast24h: number;
+    deliveryMetricsInDb: boolean;
+  };
   /** VIDEO_HLS_DELIVERY: hourly playback aggregates (UTC), rolling window. */
   videoPlayback: {
     status: "ok" | "error";
@@ -215,6 +224,7 @@ type SystemHealthPayload = {
       outgoingDelivery?: { status: string; durationMs: number; errorCode?: string };
       integratorPushOutbox?: { status: string; durationMs: number; errorCode?: string };
       remindersPipeline?: { status: string; durationMs: number; errorCode?: string };
+      webPush?: { status: string; durationMs: number; errorCode?: string };
     };
   };
   fetchedAt: string;
@@ -1118,6 +1128,41 @@ export function SystemHealthSection() {
               <DetailRow
                 label="M2M push/email: активные ключи idempotency"
                 value={String(data?.remindersPipeline?.patientReminderM2mIdempotencyKeysActive ?? 0)}
+              />
+            </HealthAccordionItem>
+
+            <HealthAccordionItem
+              name="Web Push (PWA)"
+              status={data?.meta?.probes?.webPush?.status ?? data?.webPush?.status ?? "error"}
+            >
+              <ProbeInfo probe={data?.meta?.probes?.webPush} />
+              <DetailRow
+                label="Диагностический статус"
+                value={data?.webPush?.status ?? "—"}
+              />
+              <DetailRow
+                label="VAPID настроен"
+                value={data?.webPush?.vapidConfigured ? "да" : "нет"}
+              />
+              <DetailRow
+                label="Активные подписки (строк в БД)"
+                value={String(data?.webPush?.activeSubscriptionsCount ?? 0)}
+              />
+              <DetailRow
+                label="Пользователей с подпиской"
+                value={String(data?.webPush?.usersWithSubscriptionCount ?? 0)}
+              />
+              <DetailRow
+                label={`Подписки с активностью за ${data?.webPush?.windowHours ?? 24} ч`}
+                value={String(data?.webPush?.subscriptionsTouchedLast24h ?? 0)}
+              />
+              <DetailRow
+                label="Агрегаты доставки (delivered/errors) в БД"
+                value={
+                  data?.webPush?.deliveryMetricsInDb === false ?
+                    "нет — смотрите логи web_push_send_result / notify-channels"
+                  : "да"
+                }
               />
             </HealthAccordionItem>
 

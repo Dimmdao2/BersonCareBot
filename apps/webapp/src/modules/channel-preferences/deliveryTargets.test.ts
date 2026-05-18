@@ -1,4 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
+import type { ChannelPreferencesPort } from "@/modules/channel-preferences/ports";
+import type { TopicChannelPrefsPort } from "@/modules/patient-notifications/topicChannelPrefsPort";
 import { resolveDeliveryTargetsForTopic } from "./deliveryTargets";
 
 describe("resolveDeliveryTargetsForTopic", () => {
@@ -11,7 +13,11 @@ describe("resolveDeliveryTargetsForTopic", () => {
           { channelCode: "telegram", isEnabledForMessages: true, isEnabledForNotifications: true, isPreferredForAuth: false },
           { channelCode: "max", isEnabledForMessages: true, isEnabledForNotifications: true, isPreferredForAuth: false },
         ]),
-      },
+        upsertPreference: vi.fn(),
+        getBroadcastNotificationFlagsBatch: vi.fn().mockResolvedValue(new Map()),
+        getPreferredAuthChannelCode: vi.fn().mockResolvedValue(null),
+        setPreferredAuthChannel: vi.fn(),
+      } satisfies ChannelPreferencesPort,
       topicCode: "exercise_reminders",
       topicChannelPrefsPort: {
         listByUserId: vi.fn().mockResolvedValue([
@@ -19,7 +25,7 @@ describe("resolveDeliveryTargetsForTopic", () => {
           { topicCode: "exercise_reminders", channelCode: "max", isEnabled: false },
         ]),
         upsert: vi.fn(),
-      },
+      } satisfies TopicChannelPrefsPort,
       gate: { muted: false, topicMasterEnabled: true },
       availability: {
         hasTelegram: true,

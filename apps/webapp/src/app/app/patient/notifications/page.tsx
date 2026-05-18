@@ -24,17 +24,27 @@ export default async function PatientNotificationsPage() {
   const maxId = session.user.bindings.maxId ?? "";
   const hasTelegram = Boolean(telegramId.trim());
   const hasMax = Boolean(maxId.trim());
-  const hasWebPush = await deps.webPushSubscriptions.hasAnyForUserId(session.user.userId);
+  const hasWebPushSubscription = await deps.webPushSubscriptions.hasAnyForUserId(session.user.userId);
+  const channelPrefs = await deps.channelPreferencesPort.getPreferences(session.user.userId);
+  const globalWebPushEnabled =
+    channelPrefs.find((p) => p.channelCode === "web_push")?.isEnabledForNotifications !== false;
 
   const notificationsTopicsSetting = await deps.systemSettings.getSetting("notifications_topics", "admin");
   const subscriptionTopics = parseNotificationsTopics(notificationsTopicsSetting?.valueJson ?? null);
   const prefRows = await deps.topicChannelPrefs.listByUserId(session.user.userId);
-  const notificationModels = buildProfileNotificationTopicModels(subscriptionTopics, prefRows, {
-    hasTelegram,
-    hasMax,
-    emailVerified,
-    hasWebPush,
-  });
+  const topicMasterRows = await deps.patientNotificationTopics.listByUserId(session.user.userId);
+  const notificationModels = buildProfileNotificationTopicModels(
+    subscriptionTopics,
+    prefRows,
+    topicMasterRows,
+    {
+      hasTelegram,
+      hasMax,
+      emailVerified,
+      hasWebPushSubscription,
+      globalWebPushEnabled,
+    },
+  );
 
   const hasMessengerOrEmail = hasTelegram || hasMax || (hasEmail && emailVerified);
 
@@ -49,7 +59,7 @@ export default async function PatientNotificationsPage() {
             hasEmail={hasEmail}
             emailVerified={emailVerified}
           />
-          {!hasMessengerOrEmail && !hasWebPush ?
+          {!hasMessengerOrEmail && !hasWebPushSubscription ?
             <p className={`${patientMutedTextClass} mt-3`}>
               Подключите мессенджер или email в{" "}
               <Link href={routePaths.profile} className="underline">
@@ -65,7 +75,8 @@ export default async function PatientNotificationsPage() {
           <PatientNotificationsTopicsSection
             initialTopics={notificationModels}
             hasMessengerOrEmail={hasMessengerOrEmail}
-            initialHasWebPush={hasWebPush}
+            hasWebPushSubscription={hasWebPushSubscription}
+            globalWebPushEnabled={globalWebPushEnabled}
           />
         </section>
       </div>

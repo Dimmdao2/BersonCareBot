@@ -35,6 +35,7 @@ export async function POST(request: Request) {
     const card = (await deps.channelPreferences.getChannelCards(uid, gate.session.user.bindings, {})).find(
       (c) => c.code === "web_push",
     );
+    /** Глобальный канал off; topic-level `user_notification_topic_channels` не трогаем. */
     await deps.channelPreferences.updatePreference(uid, "web_push", {
       isEnabledForMessages: card?.isEnabledForMessages ?? true,
       isEnabledForNotifications: false,

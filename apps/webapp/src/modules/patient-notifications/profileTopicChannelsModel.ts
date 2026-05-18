@@ -1,3 +1,4 @@
+import type { NotificationTopicMasterRow } from "./patientNotificationTopicsPort";
 import type { TopicChannelPrefRow } from "./topicChannelPrefsPort";
 import {
   allowedChannelsForTopic,
@@ -21,7 +22,19 @@ export type ProfileNotificationChannelModel = {
 export type ProfileNotificationTopicModel = {
   topicId: string;
   displayTitle: string;
+  /** Master switch: `user_notification_topics`; нет строки → включено. */
+  topicMasterEnabled: boolean;
   channels: ProfileNotificationChannelModel[];
+};
+
+export type ProfileNotificationAvailability = {
+  hasTelegram: boolean;
+  hasMax: boolean;
+  emailVerified: boolean;
+  /** Активная browser subscription. */
+  hasWebPushSubscription: boolean;
+  /** Глобальный pref `user_channel_preferences.web_push`. */
+  globalWebPushEnabled: boolean;
 };
 
 function resolveTopicChannelEnabled(
@@ -33,10 +46,20 @@ function resolveTopicChannelEnabled(
   return row ? row.isEnabled : true;
 }
 
+function resolveTopicMasterEnabled(rows: NotificationTopicMasterRow[], topicCode: string): boolean {
+  const row = rows.find((r) => r.topicCode === topicCode);
+  return row ? row.isEnabled : true;
+}
+
+function webPushColumnVisible(availability: ProfileNotificationAvailability): boolean {
+  return availability.hasWebPushSubscription && availability.globalWebPushEnabled;
+}
+
 export function buildProfileNotificationTopicModels(
   topics: Array<{ id: string; title: string }>,
   prefRows: TopicChannelPrefRow[],
-  availability: { hasTelegram: boolean; hasMax: boolean; emailVerified: boolean; hasWebPush: boolean },
+  topicMasterRows: NotificationTopicMasterRow[],
+  availability: ProfileNotificationAvailability,
 ): ProfileNotificationTopicModel[] {
   return topics.map((t) => {
     const allowed = allowedChannelsForTopic(t.id);
@@ -45,7 +68,7 @@ export function buildProfileNotificationTopicModels(
       if (code === "telegram" && !availability.hasTelegram) continue;
       if (code === "max" && !availability.hasMax) continue;
       if (code === "email" && !availability.emailVerified) continue;
-      if (code === "web_push" && !availability.hasWebPush) continue;
+      if (code === "web_push" && !webPushColumnVisible(availability)) continue;
       channels.push({
         code,
         label: CHANNEL_LABEL[code],
@@ -55,6 +78,7 @@ export function buildProfileNotificationTopicModels(
     return {
       topicId: t.id,
       displayTitle: patientNotificationTopicDisplayTitle(t.id, t.title),
+      topicMasterEnabled: resolveTopicMasterEnabled(topicMasterRows, t.id),
       channels,
     };
   });
@@ -63,9 +87,10 @@ export function buildProfileNotificationTopicModels(
 /** Client-side: после subscribe до router.refresh() SSR topics могут быть без колонки Push. */
 export function ensureWebPushInNotificationTopics(
   topics: ProfileNotificationTopicModel[],
-  hasWebPush: boolean,
+  hasWebPushSubscription: boolean,
+  globalWebPushEnabled: boolean,
 ): ProfileNotificationTopicModel[] {
-  if (!hasWebPush) return topics;
+  if (!hasWebPushSubscription || !globalWebPushEnabled) return topics;
   return topics.map((t) => {
     if (!allowedChannelsForTopic(t.topicId).includes("web_push")) return t;
     if (t.channels.some((c) => c.code === "web_push")) return t;

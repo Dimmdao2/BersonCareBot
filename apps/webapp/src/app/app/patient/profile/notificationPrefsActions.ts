@@ -1,1 +1,4 @@
-export { setTopicChannelNotificationEnabled } from "../notifications/notificationPrefsActions";
+export {
+  setNotificationTopicMasterEnabled,
+  setTopicChannelNotificationEnabled,
+} from "../notifications/notificationPrefsActions";

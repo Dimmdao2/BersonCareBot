@@ -93,16 +93,16 @@ describe("patientPathRequiresBoundPhone", () => {
     expect(patientPathRequiresBoundPhone("/app/patient/go/plan-start-lesson")).toBe(false);
   });
 
-  it("allows cabinet, booking wizard, diary, purchases, notifications without patient tier", () => {
+  it("allows cabinet, booking wizard, diary, purchases without patient tier", () => {
     expect(patientPathRequiresBoundPhone("/app/patient/cabinet")).toBe(false);
     expect(patientPathRequiresBoundPhone("/app/patient/booking/new/city")).toBe(false);
     expect(patientPathRequiresBoundPhone("/app/patient/diary")).toBe(false);
     expect(patientPathRequiresBoundPhone("/app/patient/diary/symptoms/journal")).toBe(false);
     expect(patientPathRequiresBoundPhone("/app/patient/purchases")).toBe(false);
-    expect(patientPathRequiresBoundPhone("/app/patient/notifications")).toBe(false);
   });
 
-  it("requires patient tier for reminders, messages, intake", () => {
+  it("requires patient tier for notifications, reminders, messages, intake", () => {
+    expect(patientPathRequiresBoundPhone("/app/patient/notifications")).toBe(true);
     expect(patientPathRequiresBoundPhone("/app/patient/reminders")).toBe(true);
     expect(patientPathRequiresBoundPhone("/app/patient/messages")).toBe(true);
     expect(patientPathRequiresBoundPhone("/app/patient/intake/lfk")).toBe(true);
@@ -114,6 +114,7 @@ describe("patientPageMinAccessTier", () => {
     expect(patientPageMinAccessTier("/app/patient")).toBe("onboarding");
     expect(patientPageMinAccessTier("/app/patient/cabinet")).toBe("guest");
     expect(patientPageMinAccessTier("/app/patient/profile")).toBe("onboarding");
+    expect(patientPageMinAccessTier("/app/patient/notifications")).toBe("patient");
     expect(patientPageMinAccessTier("/app/patient/reminders")).toBe("patient");
     expect(patientPageMinAccessTier("/app/patient/go/daily-warmup")).toBe("onboarding");
   });

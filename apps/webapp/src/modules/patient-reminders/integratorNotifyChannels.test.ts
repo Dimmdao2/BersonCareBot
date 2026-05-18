@@ -1,5 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { ChannelPreferencesPort } from "@/modules/channel-preferences/ports";
 import type { ChannelPreference } from "@/modules/channel-preferences/types";
+import type { TopicChannelPrefsPort } from "@/modules/patient-notifications/topicChannelPrefsPort";
+import type { WebPushSubscriptionsPort } from "@/modules/web-push/ports";
 import type { WebPushSubscriptionPayloadV1 } from "@/modules/web-push/ports";
 import {
   runPatientReminderIntegratorNotify,
@@ -50,18 +53,37 @@ const activeSub: WebPushSubscriptionPayloadV1 = {
   keys: { p256dh: "p", auth: "a" },
 };
 
+const channelPreferencesPort: ChannelPreferencesPort = {
+  getPreferences: async () => allChannelPrefs,
+  upsertPreference: async () => allChannelPrefs[0]!,
+  getBroadcastNotificationFlagsBatch: async () => new Map(),
+  getPreferredAuthChannelCode: async () => null,
+  setPreferredAuthChannel: async () => {},
+};
+
+const topicChannelPrefsPort: TopicChannelPrefsPort = {
+  listByUserId: async () => [],
+  upsert: async () => {},
+};
+
+const webPushSubscriptionsPort = {
+  saveSubscription: async () => {},
+  removeSubscriptionByEndpoint: async () => {},
+  removeSubscriptionsForUser: async () => {},
+  hasAnyForUserId: async () => true,
+  listActiveByUserId: async () => [activeSub],
+  deleteByEndpointIfExists: async () => false,
+} satisfies WebPushSubscriptionsPort;
+
 function buildDeps(overrides: Partial<PatientReminderIntegratorNotifyDeps> = {}): PatientReminderIntegratorNotifyDeps {
   return {
     findPlatformUserByIntegratorId: async () => ({ platformUserId: "platform-uid" }),
-    channelPreferences: { getPreferences: async () => allChannelPrefs },
-    topicChannelPrefs: { listByUserId: async () => [] },
-    webPushSubscriptions: {
-      listActiveByUserId: async () => [activeSub],
-      deleteByEndpointIfExists: async () => undefined,
-    },
+    channelPreferences: channelPreferencesPort,
+    topicChannelPrefs: topicChannelPrefsPort,
+    webPushSubscriptions: webPushSubscriptionsPort,
     systemSettings: {
-      getSetting: async (key: string) => {
-        if (key === "smtp_outbound") return { valueJson: { value: { host: "smtp" } } };
+      getSetting: async (key) => {
+        if (key === "smtp_outbound") return { valueJson: { value: { host: "smtp" } } } as never;
         return null;
       },
     },
@@ -121,8 +143,9 @@ describe("runPatientReminderIntegratorNotify", () => {
       { ...baseBody, topicCode: "exercise_reminders" },
       buildDeps({
         webPushSubscriptions: {
+          ...webPushSubscriptionsPort,
           listActiveByUserId: async () => [],
-          deleteByEndpointIfExists: async () => undefined,
+          hasAnyForUserId: async () => false,
         },
         getChannelBindings: async () => ({ telegramId: "tg-1" }),
       }),
@@ -137,10 +160,7 @@ describe("runPatientReminderIntegratorNotify", () => {
     const result = await runPatientReminderIntegratorNotify(
       { ...baseBody, topicCode: "exercise_reminders" },
       buildDeps({
-        webPushSubscriptions: {
-          listActiveByUserId: async () => [activeSub],
-          deleteByEndpointIfExists: async () => undefined,
-        },
+        webPushSubscriptions: webPushSubscriptionsPort,
         getProfileEmailFields: async () => ({ email: null, emailVerifiedAt: null }),
       }),
     );

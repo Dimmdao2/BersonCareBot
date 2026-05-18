@@ -110,6 +110,10 @@ import { inMemoryChannelPreferencesPort } from "@/infra/repos/inMemoryChannelPre
 import { inMemoryWebPushSubscriptionsPort } from "@/infra/repos/inMemoryWebPushSubscriptions";
 import { pgChannelPreferencesPort } from "@/infra/repos/pgChannelPreferences";
 import { createPgWebPushSubscriptionsPort } from "@/infra/repos/pgWebPushSubscriptions";
+import {
+  createPgPatientNotificationTopicsPort,
+  inMemoryPatientNotificationTopicsPort,
+} from "@/infra/repos/pgPatientNotificationTopics";
 import { createPgTopicChannelPrefsPort, inMemoryTopicChannelPrefsPort } from "@/infra/repos/pgTopicChannelPrefs";
 import { pgUserProjectionPort, inMemoryUserProjectionPort } from "@/infra/repos/pgUserProjection";
 import { pgUserPinsPort } from "@/infra/repos/pgUserPins";
@@ -250,6 +254,9 @@ const reminderTransactionalEmailCooldownPort = !inMemoryRepos
   ? createPgReminderTransactionalEmailCooldownPort()
   : createNoOpReminderTransactionalEmailCooldownPort();
 const topicChannelPrefsPort = !inMemoryRepos ? createPgTopicChannelPrefsPort() : inMemoryTopicChannelPrefsPort;
+const patientNotificationTopicsPort = !inMemoryRepos
+  ? createPgPatientNotificationTopicsPort()
+  : inMemoryPatientNotificationTopicsPort;
 const userByPhonePort = !inMemoryRepos ? pgUserByPhonePort : inMemoryUserByPhonePort;
 const userPinsPort = !inMemoryRepos ? pgUserPinsPort : inMemoryUserPinsPort;
 const userPasswordCredentialsPort = !inMemoryRepos
@@ -805,6 +812,7 @@ function _buildAppDeps() {
       }) => getDeliveryTargetsForIntegrator(params, integratorDeliveryTargetsDeps),
     },
     topicChannelPrefs: topicChannelPrefsPort,
+    patientNotificationTopics: patientNotificationTopicsPort,
     userProjection: {
       upsertFromProjection: userProjectionPort.upsertFromProjection,
       ensureClientFromAppointmentProjection: userProjectionPort.ensureClientFromAppointmentProjection,

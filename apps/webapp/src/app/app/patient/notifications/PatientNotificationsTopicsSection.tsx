@@ -12,24 +12,26 @@ import { PatientNotificationsTopicMatrix } from "./PatientNotificationsTopicMatr
 type Props = {
   initialTopics: ProfileNotificationTopicModel[];
   hasMessengerOrEmail: boolean;
-  initialHasWebPush: boolean;
+  hasWebPushSubscription: boolean;
+  globalWebPushEnabled: boolean;
 };
 
 /**
- * Секция «Типы уведомлений»: учитывает server subscription и client refresh после subscribe.
+ * Секция «Типы уведомлений»: учитывает server subscription, global web_push pref и client refresh.
  */
 export function PatientNotificationsTopicsSection({
   initialTopics,
   hasMessengerOrEmail,
-  initialHasWebPush,
+  hasWebPushSubscription: initialHasSubscription,
+  globalWebPushEnabled,
 }: Props) {
   const push = useWebPushClientState();
-  const hasWebPush = push.mounted ? push.hasServerSubscription : initialHasWebPush;
-  const hasAnyChannel = hasMessengerOrEmail || hasWebPush;
+  const hasSubscription = push.mounted ? push.hasServerSubscription : initialHasSubscription;
+  const pushActive = hasSubscription && globalWebPushEnabled;
 
   const topicsForMatrix = useMemo(
-    () => ensureWebPushInNotificationTopics(initialTopics, hasWebPush),
-    [initialTopics, hasWebPush],
+    () => ensureWebPushInNotificationTopics(initialTopics, hasSubscription, globalWebPushEnabled),
+    [initialTopics, hasSubscription, globalWebPushEnabled],
   );
 
   const canEnablePushOnPage =
@@ -37,9 +39,11 @@ export function PatientNotificationsTopicsSection({
     push.uiStatus === "granted_no_subscription" ||
     push.uiStatus === "needs_pwa";
 
-  const showPushSetupCta = !hasAnyChannel && canEnablePushOnPage;
+  const showPushSetupCta = !hasMessengerOrEmail && !pushActive && canEnablePushOnPage;
+  const showMatrix =
+    hasMessengerOrEmail || pushActive || topicsForMatrix.some((t) => t.channels.length > 0);
 
-  if (hasAnyChannel) {
+  if (showMatrix) {
     return <PatientNotificationsTopicMatrix initialTopics={topicsForMatrix} />;
   }
 
