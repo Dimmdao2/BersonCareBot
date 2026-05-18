@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { classifyWebPushSystemHealthStatus } from "./adminWebPushHealthMetrics";
+import { classifyWebPushSystemHealthStatus, emptyWebPushHealthPayload } from "./adminWebPushHealthMetrics";
 
 describe("classifyWebPushSystemHealthStatus", () => {
   it("returns not_configured when VAPID is missing", () => {
@@ -14,5 +14,11 @@ describe("classifyWebPushSystemHealthStatus", () => {
 
   it("returns ok when VAPID and subscriptions exist", () => {
     expect(classifyWebPushSystemHealthStatus({ vapidConfigured: true, activeSubscriptionsCount: 3 })).toBe("ok");
+  });
+});
+
+describe("emptyWebPushHealthPayload deliveryMetricsInDb", () => {
+  it("points operators to notification_delivery_attempts card", () => {
+    expect(emptyWebPushHealthPayload().deliveryMetricsInDb).toBe(true);
   });
 });

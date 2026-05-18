@@ -278,6 +278,7 @@ function techProbeStatusHuman(status: string): string {
   if (status === "no_signal") return "нет последнего сигнала";
   if (status === "configured") return "настроены";
   if (status === "not_configured") return "не настроены";
+  if (status === "no_data") return "нет данных";
   if (status === "playback_disabled") return "выключено";
   if (status === "running") return "работает";
   if (status === "pending") return "ожидает обработки";
@@ -321,6 +322,7 @@ function statusDotClass(status: string): string {
   }
   if (status === "configured") return "bg-blue-500";
   if (status === "not_configured") return "bg-zinc-400";
+  if (status === "no_data") return "bg-zinc-400";
   return "bg-rose-500";
 }
 
@@ -1315,11 +1317,11 @@ export function SystemHealthSection() {
                 value={String(data?.webPush?.subscriptionsTouchedLast24h ?? 0)}
               />
               <DetailRow
-                label="Агрегаты доставки (delivered/errors) в БД"
+                label="Агрегаты попыток доставки в БД"
                 value={
-                  data?.webPush?.deliveryMetricsInDb === false ?
-                    "нет — смотрите логи web_push_send_result / notify-channels"
-                  : "да"
+                  data?.webPush?.deliveryMetricsInDb ?
+                    "да — карточка «Доставка уведомлений»"
+                  : "нет"
                 }
               />
             </HealthAccordionItem>

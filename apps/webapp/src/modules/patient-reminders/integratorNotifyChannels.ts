@@ -83,7 +83,6 @@ async function recordChannelSkips(
 ): Promise<void> {
   if (!record) return;
   for (const s of skipped) {
-    if (s.channel === "telegram" || s.channel === "max") continue;
     await record({
       userId: base.userId,
       integratorUserId: base.integratorUserId,

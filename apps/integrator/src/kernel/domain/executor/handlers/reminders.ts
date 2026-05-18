@@ -17,6 +17,10 @@ import { randomUUID } from 'node:crypto';
 import { DateTime } from 'luxon';
 import { createDbPort } from '../../../../infra/db/client.js';
 import { enqueueOutgoingDeliveryIfAbsent } from '../../../../infra/db/repos/outgoingDeliveryQueue.js';
+import {
+  recordMessengerChannelSkipsBestEffort,
+  recordMessengerNotEnqueuedSkipsBestEffort,
+} from '../../../../infra/db/repos/notificationDeliveryAttempts.js';
 import { DEFAULT_REMINDER_DELIVERY_MAX_ATTEMPTS } from '../../../../infra/delivery/deliveryContract.js';
 import { logger } from '../../../../infra/observability/logger.js';
 import { getAppDisplayTimezone } from '../../../../config/appTimezone.js';
@@ -491,6 +495,9 @@ export async function handleReminders(
 
       const topicCode = reminderOccurrenceTopicCode(rule, occ.category);
       let sendChannels = channelsToSend;
+      let deliveryTargetsFetched: Awaited<
+        ReturnType<NonNullable<ExecutorDeps['deliveryTargetsPort']>['getTargetsByChannelBinding']>
+      > | undefined;
       if (topicCode && deps.deliveryTargetsPort) {
         const tg = channelsToSend.find((c) => c.channel === 'telegram');
         const maxCh = channelsToSend.find((c) => c.channel === 'max');
@@ -502,7 +509,8 @@ export async function handleReminders(
         } = { topic: topicCode, integratorUserId: occ.userId };
         if (tg && tg.chatId > 0) bindingParams.telegramId = String(tg.chatId);
         if (maxCh?.externalId) bindingParams.maxId = maxCh.externalId;
-        const fetched = await deps.deliveryTargetsPort.getTargetsByChannelBinding(bindingParams);
+        deliveryTargetsFetched = await deps.deliveryTargetsPort.getTargetsByChannelBinding(bindingParams);
+        const fetched = deliveryTargetsFetched;
         const bindings = fetched?.channelBindings;
         if (fetched?.resolution) {
           logger.info(
@@ -531,6 +539,29 @@ export async function handleReminders(
             return true;
           });
         }
+      }
+
+      if (topicCode) {
+        const resolutionSkipped = deliveryTargetsFetched?.resolution?.skippedChannels ?? [];
+        const alreadySkipped = new Set<string>();
+        if (resolutionSkipped.length > 0) {
+          await recordMessengerChannelSkipsBestEffort(reminderAuxDb, {
+            integratorUserId: occ.userId,
+            occurrenceId: occ.id,
+            topicCode,
+            skippedChannels: resolutionSkipped,
+          });
+          for (const s of resolutionSkipped) {
+            if (s.channel === 'telegram' || s.channel === 'max') alreadySkipped.add(s.channel);
+          }
+        }
+        await recordMessengerNotEnqueuedSkipsBestEffort(reminderAuxDb, {
+          integratorUserId: occ.userId,
+          occurrenceId: occ.id,
+          topicCode,
+          sendChannels,
+          alreadySkippedChannels: alreadySkipped,
+        });
       }
 
       const idempotencyKey = `prn:${occ.id}:channels`;
@@ -726,6 +757,7 @@ export async function handleReminders(
           channel,
           payloadJson: {
             occurrenceId: occ.id,
+            topicCode,
             channel,
             deliveryLogId,
             externalId,

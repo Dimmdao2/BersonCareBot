@@ -16,6 +16,8 @@ const DEGRADED_SKIP_REASONS = new Set([
   "provider_error",
   "no_active_subscriptions",
   "missing_binding",
+  "missing_email",
+  "email_not_verified",
 ]);
 
 export type NotificationDeliveryHealthPayload = NotificationDeliveryHealthSnapshot & {
@@ -61,13 +63,12 @@ export function classifyNotificationDeliverySystemHealthStatus(input: {
   vapidConfigured: boolean;
   smtpConfigured: boolean;
 }): NotificationDeliverySystemHealthStatus {
-  if (!input.vapidConfigured && !input.smtpConfigured && input.totalAttempts24h === 0) {
-    return "not_configured";
-  }
-
   if (input.totalAttempts24h <= 0) {
+    if (!input.vapidConfigured && !input.smtpConfigured) return "not_configured";
     return "no_data";
   }
+
+  if (!input.vapidConfigured && !input.smtpConfigured) return "not_configured";
 
   const hasSuccess = NOTIFICATION_DELIVERY_CHANNELS.some((ch) => input.byChannel[ch].successCount > 0);
   const hasFailed = NOTIFICATION_DELIVERY_CHANNELS.some((ch) => input.byChannel[ch].failedCount > 0);
@@ -75,7 +76,18 @@ export function classifyNotificationDeliverySystemHealthStatus(input: {
     (issue) => issue.status === "skipped" && issue.reason !== null && DEGRADED_SKIP_REASONS.has(issue.reason),
   );
 
-  if (hasFailed || hasDegradedSkip) return "degraded";
+  const pushInfraGap =
+    !input.vapidConfigured &&
+    (input.byChannel.web_push.failedCount > 0 ||
+      input.byChannel.web_push.skippedCount > 0 ||
+      input.recentIssues.some((i) => i.channel === "web_push"));
+  const emailInfraGap =
+    !input.smtpConfigured &&
+    (input.byChannel.email.failedCount > 0 ||
+      input.byChannel.email.skippedCount > 0 ||
+      input.recentIssues.some((i) => i.channel === "email"));
+
+  if (hasFailed || hasDegradedSkip || pushInfraGap || emailInfraGap) return "degraded";
   if (hasSuccess) return "ok";
   return "degraded";
 }

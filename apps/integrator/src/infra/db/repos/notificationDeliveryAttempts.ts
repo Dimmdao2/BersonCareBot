@@ -3,6 +3,12 @@ import { logger } from '../../observability/logger.js';
 
 export type IntegratorNotificationDeliveryChannel = 'telegram' | 'max';
 
+const MESSENGER_CHANNELS: IntegratorNotificationDeliveryChannel[] = ['telegram', 'max'];
+
+function isMessengerChannel(channel: string): channel is IntegratorNotificationDeliveryChannel {
+  return (MESSENGER_CHANNELS as readonly string[]).includes(channel);
+}
+
 export type IntegratorRecordNotificationDeliveryAttemptInput = {
   integratorUserId?: string;
   topicCode?: string;
@@ -59,5 +65,57 @@ export async function recordNotificationDeliveryAttemptBestEffort(
       { err, channel: input.channel, status: input.status, eventId: input.eventId },
       'notification_delivery_attempt_record_failed',
     );
+  }
+}
+
+/** Persist telegram/max skips from channel resolution (dispatchDue, before queue enqueue). */
+export async function recordMessengerChannelSkipsBestEffort(
+  db: DbPort,
+  input: {
+    integratorUserId: string;
+    occurrenceId: string;
+    topicCode: string;
+    intentType?: string;
+    skippedChannels: Array<{ channel: string; reason: string }>;
+  },
+): Promise<void> {
+  for (const s of input.skippedChannels) {
+    if (!isMessengerChannel(s.channel)) continue;
+    await recordNotificationDeliveryAttemptBestEffort(db, {
+      integratorUserId: input.integratorUserId,
+      topicCode: input.topicCode,
+      occurrenceId: input.occurrenceId,
+      intentType: input.intentType ?? 'reminder_dispatch',
+      channel: s.channel,
+      status: 'skipped',
+      reason: s.reason,
+    });
+  }
+}
+
+/** Messenger channels not enqueued (no identity / binding); skips duplicates from resolution. */
+export async function recordMessengerNotEnqueuedSkipsBestEffort(
+  db: DbPort,
+  input: {
+    integratorUserId: string;
+    occurrenceId: string;
+    topicCode: string;
+    intentType?: string;
+    sendChannels: Array<{ channel: 'telegram' | 'max' }>;
+    alreadySkippedChannels: ReadonlySet<string>;
+  },
+): Promise<void> {
+  for (const ch of MESSENGER_CHANNELS) {
+    if (input.alreadySkippedChannels.has(ch)) continue;
+    if (input.sendChannels.some((s) => s.channel === ch)) continue;
+    await recordNotificationDeliveryAttemptBestEffort(db, {
+      integratorUserId: input.integratorUserId,
+      topicCode: input.topicCode,
+      occurrenceId: input.occurrenceId,
+      intentType: input.intentType ?? 'reminder_dispatch',
+      channel: ch,
+      status: 'skipped',
+      reason: 'missing_binding',
+    });
   }
 }

@@ -176,18 +176,20 @@ async function recordMessengerQueueDeliveryAttempt(
   const p = row.payloadJson;
   const occurrenceId = typeof p.occurrenceId === 'string' ? p.occurrenceId : undefined;
   const externalId = typeof p.externalId === 'string' ? p.externalId : undefined;
+  const integratorUserId = typeof intent.meta.userId === 'string' ? intent.meta.userId : undefined;
+  const topicCode = typeof p.topicCode === 'string' ? p.topicCode : undefined;
   await recordNotificationDeliveryAttemptBestEffort(db, {
-    integratorUserId: typeof intent.meta.userId === 'string' ? intent.meta.userId : undefined,
-    topicCode: typeof p.topicCode === 'string' ? p.topicCode : undefined,
+    ...(integratorUserId !== undefined ? { integratorUserId } : {}),
+    ...(topicCode !== undefined ? { topicCode } : {}),
     intentType: row.kind === 'reminder_dispatch' ? 'reminder_dispatch' : row.kind,
     channel: row.channel,
     status: params.status,
-    reason: params.reason,
-    providerStatusCode: params.providerStatusCode,
+    ...(params.reason !== undefined ? { reason: params.reason } : {}),
+    ...(params.providerStatusCode !== undefined ? { providerStatusCode: params.providerStatusCode } : {}),
     eventId: row.eventId,
-    occurrenceId,
-    recipientRef: externalId ? `${row.channel}:${externalId.slice(-4)}` : undefined,
-    errorMessage: params.errorMessage,
+    ...(occurrenceId !== undefined ? { occurrenceId } : {}),
+    ...(externalId ? { recipientRef: `${row.channel}:${externalId.slice(-4)}` } : {}),
+    ...(params.errorMessage !== undefined ? { errorMessage: params.errorMessage } : {}),
   });
 }
 
@@ -206,7 +208,7 @@ async function handleDispatchFailure(
     if (intent && (row.channel === 'telegram' || row.channel === 'max')) {
       await recordMessengerQueueDeliveryAttempt(db, row, intent, {
         status: 'failed',
-        reason: 'delivery_dead',
+        reason: retryable ? 'delivery_dead' : 'provider_error',
         errorMessage: safe,
       });
     }
@@ -356,12 +358,6 @@ export async function processOutgoingDeliveryRow(
       await recordMessengerQueueDeliveryAttempt(db, row, intent, { status: 'success' });
       await markOutgoingDeliverySent(db, row.id);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      await recordMessengerQueueDeliveryAttempt(db, row, intent, {
-        status: 'failed',
-        reason: 'provider_error',
-        errorMessage: truncateDeliveryErrorMessage(msg),
-      });
       await handleDispatchFailure(db, row, err, writePort, intent);
     }
     return;
@@ -375,8 +371,9 @@ export async function processOutgoingDeliveryRow(
       return;
     }
     const maskedRecipient = maskRecipientForDoctorBroadcastLog(row.channel, intent);
+    let toSend: OutgoingIntent = intent;
     try {
-      const toSend =
+      toSend =
         doctorBroadcastMenu !== undefined
           ? await enrichDoctorBroadcastIntentIfNeeded({
               db,
@@ -420,12 +417,6 @@ export async function processOutgoingDeliveryRow(
           'doctor_broadcast_delivery.dispatch_will_retry',
         );
       }
-      const msg = err instanceof Error ? err.message : String(err);
-      await recordMessengerQueueDeliveryAttempt(db, row, toSend, {
-        status: 'failed',
-        reason: 'provider_error',
-        errorMessage: truncateDeliveryErrorMessage(msg),
-      });
       await handleDispatchFailure(db, row, err, writePort, toSend);
     }
     return;

@@ -35,6 +35,20 @@ describe("classifyNotificationDeliverySystemHealthStatus", () => {
     ).toBe("not_configured");
   });
 
+  it("returns not_configured when attempts exist but vapid and smtp both missing", () => {
+    const byChannel = emptyByChannel();
+    byChannel.telegram.successCount = 1;
+    expect(
+      classifyNotificationDeliverySystemHealthStatus({
+        totalAttempts24h: 1,
+        byChannel,
+        recentIssues: [],
+        vapidConfigured: false,
+        smtpConfigured: false,
+      }),
+    ).toBe("not_configured");
+  });
+
   it("returns no_data when no attempts but smtp configured", () => {
     expect(
       classifyNotificationDeliverySystemHealthStatus({

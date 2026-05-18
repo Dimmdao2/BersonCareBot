@@ -16,12 +16,8 @@ export type WebPushHealthPayload = {
   usersWithSubscriptionCount: number;
   /** Строки с `updated_at` в rolling window (новые подписки и перепривязки endpoint). */
   subscriptionsTouchedLast24h: number;
-  /**
-   * Агрегаты доставки (delivered/errors/deactivated, last attempt) пишутся в structured logs,
-   * в БД отдельной таблицы нет — оператор смотрит journalctl / log drain по событиям
-   * `web_push_send_result`, `web_push_provider_response`, `patient_reminder.notify_channels.*`.
-   */
-  deliveryMetricsInDb: false;
+  /** Агрегаты попыток доставки web_push за 24 ч — в карточке «Доставка уведомлений» (`notification_delivery_attempts`). */
+  deliveryMetricsInDb: boolean;
 };
 
 export function emptyWebPushHealthPayload(status: WebPushSystemHealthStatus = "no_data"): WebPushHealthPayload {
@@ -32,7 +28,7 @@ export function emptyWebPushHealthPayload(status: WebPushSystemHealthStatus = "n
     activeSubscriptionsCount: 0,
     usersWithSubscriptionCount: 0,
     subscriptionsTouchedLast24h: 0,
-    deliveryMetricsInDb: false,
+    deliveryMetricsInDb: true,
   };
 }
 
@@ -84,7 +80,7 @@ export async function loadAdminWebPushHealthMetrics(): Promise<
         activeSubscriptionsCount,
         usersWithSubscriptionCount,
         subscriptionsTouchedLast24h,
-        deliveryMetricsInDb: false,
+        deliveryMetricsInDb: true,
       },
     };
   } catch {
