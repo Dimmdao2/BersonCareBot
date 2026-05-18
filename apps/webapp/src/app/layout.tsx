@@ -43,8 +43,12 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  /** Согласовано с `--patient-color-primary` в `#app-shell-patient` (splash / status bar при установке). */
-  themeColor: "#284da0",
+  /**
+   * Светлый канвас: при `theme-color` = primary синий (#284da0) на iOS/Android при скролле
+   * за границу страницы «просвечивала» синяя подложка. Бренд primary остаётся в UI; для PWA
+   * при необходимости — отдельный manifest / `apple-mobile-web-app-status-bar-style`.
+   */
+  themeColor: "#ffffff",
 };
 
 /** Рендерит общую обёртку страницы: тег html, тело и дочернее содержимое (конкретная страница). */

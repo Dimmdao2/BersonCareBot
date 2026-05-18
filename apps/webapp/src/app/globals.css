@@ -374,8 +374,14 @@
     @apply text-base text-foreground;
     background: #ffffff;
   }
+  /**
+   * Фон на `html`, не только на `body`: при overscroll / rubber-band мобильные браузеры
+   * иначе могут показать `theme-color` или дефолтный канвас под контентом.
+   */
   html {
     @apply font-sans;
+    min-height: 100%;
+    background-color: #ffffff;
   }
 
   /**
