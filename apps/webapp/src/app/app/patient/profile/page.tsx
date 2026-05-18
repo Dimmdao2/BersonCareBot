@@ -16,6 +16,7 @@ import { LogoutSection } from "./LogoutSection";
 import { PatientCalendarTimezoneSection } from "./PatientCalendarTimezoneSection";
 import { PatientProfileHero } from "./PatientProfileHero";
 import { ProfileNotificationsSection } from "./ProfileNotificationsSection";
+import { PatientWebPushSettingsSection } from "@/shared/ui/patient/webPush/PatientWebPushSettingsSection";
 
 /** Профиль в onboarding-allowlist: `requirePatientAccess`, не `WithPhone` — см. `patientRouteApiPolicy.ts` (`patientPageMinAccessTier` → onboarding). */
 export default async function PatientProfilePage() {
@@ -69,6 +70,8 @@ export default async function PatientProfilePage() {
           <h2 className={patientSectionTitleClass}>Мессенджеры</h2>
           <ConnectMessengersBlock channelCards={channelCards} showHeading={false} />
         </section>
+
+        <PatientWebPushSettingsSection />
 
         <ProfileNotificationsSection initialTopics={notificationModels} />
 

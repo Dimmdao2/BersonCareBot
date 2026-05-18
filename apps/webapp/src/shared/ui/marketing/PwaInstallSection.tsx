@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { routePaths } from "@/app-layer/routes/paths";
 import { Button } from "@/components/ui/button";
 import { isMessengerMiniAppHost } from "@/shared/lib/messengerMiniApp";
+import { isStandalonePwa } from "@/shared/lib/webPush/pwaDisplay";
 
 /** Chromium install prompt (не все конфигурации `tsc` подтягивают тип из DOM lib). */
 type BeforeInstallPromptEventLike = Event & {
@@ -17,13 +18,6 @@ function isIosTouchDevice(): boolean {
   if (/iPad|iPhone|iPod/i.test(ua)) return true;
   const maxTouchPoints = navigator.maxTouchPoints ?? 0;
   return navigator.platform === "MacIntel" && maxTouchPoints > 1;
-}
-
-function readStandaloneDisplay(): boolean {
-  if (typeof window === "undefined") return false;
-  if (window.matchMedia("(display-mode: standalone)").matches) return true;
-  const nav = window.navigator as Navigator & { standalone?: boolean };
-  return nav.standalone === true;
 }
 
 /** Safari / WebKit без Chromium: у Safari нет меню «⋯» как в Chrome. */
@@ -62,7 +56,7 @@ export function PwaInstallSection() {
       setMounted(true);
       setIsIos(isIosTouchDevice());
       setIsSafari(isLikelySafariNotChromium());
-      setStandalone(readStandaloneDisplay());
+      setStandalone(isStandalonePwa());
       if (!isMessengerMiniAppHost() && "serviceWorker" in navigator) {
         void navigator.serviceWorker.register("/sw.js", { scope: routePaths.root }).catch(() => {});
       }

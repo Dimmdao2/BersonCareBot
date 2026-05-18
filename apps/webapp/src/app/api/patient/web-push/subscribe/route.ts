@@ -4,6 +4,8 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requirePatientApiBusinessAccess } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
 
+const platformSchema = z.enum(["pwa", "browser", "ios-pwa", "android-pwa"]);
+
 const bodySchema = z.object({
   endpoint: z.string().min(10),
   expirationTime: z.number().nullable().optional(),
@@ -11,6 +13,7 @@ const bodySchema = z.object({
     p256dh: z.string().min(1),
     auth: z.string().min(1),
   }),
+  platform: platformSchema.optional(),
 });
 
 /** POST /api/patient/web-push/subscribe */
@@ -32,7 +35,12 @@ export async function POST(request: Request) {
 
   const deps = buildAppDeps();
   const uid = gate.session.user.userId;
-  const ua = request.headers.get("user-agent");
+  const uaHeader = request.headers.get("user-agent")?.trim() ?? "";
+  const platform = parsed.data.platform;
+  const ua =
+    platform ?
+      `[bc-push:${platform}]${uaHeader ? ` ${uaHeader}` : ""}`.trim()
+    : uaHeader || null;
   await deps.webPushSubscriptions.saveSubscription(
     uid,
     {

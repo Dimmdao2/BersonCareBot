@@ -3,58 +3,38 @@
 import { useCallback, useState } from "react";
 import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
-
-function urlBase64ToUint8Array(base64String: string) {
-  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
-  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
-  const rawData = window.atob(base64);
-  const outputArray = new Uint8Array(rawData.length);
-  for (let i = 0; i < rawData.length; ++i) {
-    outputArray[i] = rawData.charCodeAt(i);
-  }
-  return outputArray;
-}
+import { subscribePatientWebPush } from "@/shared/lib/webPush/subscribePatientWebPush";
+import { isPushSupported } from "@/shared/lib/webPush/pushCapability";
+import { isStandalonePwa } from "@/shared/lib/webPush/pwaDisplay";
 
 export function WebPushOptInControls() {
   const [busy, setBusy] = useState(false);
 
   const onEnable = useCallback(async () => {
-    if (!("Notification" in window) || !("serviceWorker" in navigator)) {
+    if (!isPushSupported()) {
       toast.error("Уведомления не поддерживаются");
+      return;
+    }
+    if (!isStandalonePwa()) {
+      toast.error("Сначала откройте приложение с иконки на главном экране");
       return;
     }
     setBusy(true);
     try {
-      const st = await fetch("/api/patient/web-push/status", { credentials: "include" });
-      const j = (await st.json()) as {
-        vapidConfigured?: boolean;
-        publicKey?: string | null;
-      };
-      if (!st.ok || !j.vapidConfigured || !j.publicKey) {
-        toast.error("Push недоступен");
+      const result = await subscribePatientWebPush();
+      if (result.ok) {
+        toast.success("Готово");
         return;
       }
-      const perm = await Notification.requestPermission();
-      if (perm !== "granted") {
+      if (result.reason === "permission_denied") {
         toast.error("Разрешение не выдано");
         return;
       }
-      const reg = await navigator.serviceWorker.register("/sw.js", { scope: "/app" });
-      const sub = await reg.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(j.publicKey),
-      });
-      const r = await fetch("/api/patient/web-push/subscribe", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(sub.toJSON()),
-      });
-      if (!r.ok) {
-        toast.error("Не удалось сохранить подписку");
+      if (result.reason === "vapid_unavailable") {
+        toast.error("Push недоступен");
         return;
       }
-      toast.success("Готово");
+      toast.error("Не удалось включить уведомления");
     } catch {
       toast.error("Ошибка");
     } finally {
@@ -64,7 +44,7 @@ export function WebPushOptInControls() {
 
   return (
     <Button type="button" variant="secondary" disabled={busy} onClick={() => void onEnable()}>
-      Включить уведомления в браузере
+      Включить уведомления
     </Button>
   );
 }
