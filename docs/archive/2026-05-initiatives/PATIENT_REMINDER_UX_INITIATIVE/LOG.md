@@ -1,5 +1,10 @@
 # LOG — Patient Reminder UX
 
+## 2026-05-18 — Бот: диспатч-клавиатура, один тап «Пропущу», messenger-topic/disable, указатель архива и документация
+
+- **Архивный план (репозиторий), закрыт:** [`.cursor/plans/archive/reminder_bot_buttons_ux_2dc55692.plan.md`](../../../../../.cursor/plans/archive/reminder_bot_buttons_ux_2dc55692.plan.md) — статус **`completed`** во frontmatter; длинное описание задачи убрано в пользу **единственного канона §«Бот»** (`apps/webapp/src/modules/reminders/reminders.md`, этот файл).
+- **Отчёт трассируемости:** см. указательную выжимку в архивном плане и Cross-links здесь же в [`README.md`](README.md); корневой [**`docs/README.md`](../../../README.md)** — добавлен явный перекрестный линк на архив указателя («канон» указывает на тот же `reminders.md` §Бот).
+
 ## 2026-05-17 — Бот: «Выполнить», удаление пуша, поздравление при закрытии дня
 
 - **Продукт:** кнопка **«Выполнить»** (`rem_done`) вместо «Уже выполнено»; после успешного `done` через webapp — **удаление** сообщения с напоминанием (Telegram / MAX); если это первая отметка `done` по occurrence и за локальный день доставки (`occurred_at` в `app_display_timezone`) выполнены все **sent**-напоминания пользователя — отдельное сообщение (`reminder.dayAllDone`, `{{done}}` / `{{total}}`).

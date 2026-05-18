@@ -5,6 +5,7 @@
 ## Документация
 
 - Инициатива UX / контракты: [`docs/archive/2026-05-initiatives/PATIENT_REMINDER_UX_INITIATIVE/README.md`](../../../../../docs/archive/2026-05-initiatives/PATIENT_REMINDER_UX_INITIATIVE/README.md)
+- План архива (**закрыт**, указатель статус): [`.cursor/plans/archive/reminder_bot_buttons_ux_2dc55692.plan.md`](../../../../../.cursor/plans/archive/reminder_bot_buttons_ux_2dc55692.plan.md) — без дублирования описания ниже §**Бот**.
 
 ## Пациент: план программы (`/app/patient/treatment/[instanceId]`)
 

@@ -26,8 +26,9 @@
 
 ## Cross-links
 
+- **Telegram / MAX — диспатч-бот: клавиатура inline, один тап «Пропущу», «Не напоминать в боте» (закрыто 2026-05):** [`.cursor/plans/archive/reminder_bot_buttons_ux_2dc55692.plan.md`](../../../../.cursor/plans/archive/reminder_bot_buttons_ux_2dc55692.plan.md) — архивный указатель; **канон** — актуальный [`apps/webapp/src/modules/reminders/reminders.md`](../../../../apps/webapp/src/modules/reminders/reminders.md) §«Бот (Telegram / MAX)».
 - План реализации (базовый): `.cursor/plans/archive/reminder_ux_full.plan.md` (не редактировать здесь)
 - **Дефолты rehab / офисный день / цель на главной / разбивка прогресса (2026-05-15):** [`.cursor/plans/archive/reminder_defaults_and_home_goal.plan.md`](../../../../.cursor/plans/archive/reminder_defaults_and_home_goal.plan.md) — журнал в [LOG.md](./LOG.md) §2026-05-15
 - Усиленный UX-план (блоки, план, интервал): см. выполнение в [LOG.md](./LOG.md) §2026-05-09 — аудит
 - **Темы рассылок × reminder-движок (`notification_topic_code`):** [NOTIFICATION_TOPIC_ALIGNMENT.md](./NOTIFICATION_TOPIC_ALIGNMENT.md) и [LOG.md](./LOG.md) §2026-05-10
-- Оглавление docs: [docs/README.md](../../README.md)
+- Оглавление docs: [`docs/README.md`](../../../README.md)
