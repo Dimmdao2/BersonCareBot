@@ -509,7 +509,31 @@ export async function handleReminders(
         }
       }
 
-      if (topicCode && deps.webappEventsPort?.notifyPatientReminderChannels) {
+      const idempotencyKey = `prn:${occ.id}:channels`;
+      if (!topicCode) {
+        logger.info(
+          {
+            event: 'reminders.dispatchDue.webapp_notify_channels.skipped',
+            reason: 'no_topic_code',
+            occurrenceId: occ.id,
+            integratorUserId: occ.userId,
+            category: occ.category,
+          },
+          'reminders.dispatchDue: notify-channels skipped (no topic)',
+        );
+      } else if (!deps.webappEventsPort?.notifyPatientReminderChannels) {
+        logger.info(
+          {
+            event: 'reminders.dispatchDue.webapp_notify_channels.skipped',
+            reason: 'webapp_events_port_missing',
+            occurrenceId: occ.id,
+            integratorUserId: occ.userId,
+            topicCode,
+            idempotencyKey,
+          },
+          'reminders.dispatchDue: notify-channels skipped (port missing)',
+        );
+      } else {
         let notifyTitle: string;
         if (titleMode.kind === 'fixed') {
           notifyTitle = titleMode.title;
@@ -534,9 +558,35 @@ export async function handleReminders(
           openUrl,
         };
         const body = JSON.stringify(notifyPayload);
-        const idempotencyKey = `prn:${occ.id}:channels`;
+        logger.info(
+          {
+            event: 'reminders.dispatchDue.webapp_notify_channels.start',
+            occurrenceId: occ.id,
+            integratorUserId: occ.userId,
+            topicCode,
+            idempotencyKey,
+          },
+          'reminders.dispatchDue: notify-channels start',
+        );
         try {
           const r = await deps.webappEventsPort.notifyPatientReminderChannels({ body, idempotencyKey });
+          logger.info(
+            {
+              event: 'reminders.dispatchDue.webapp_notify_channels.result',
+              occurrenceId: occ.id,
+              integratorUserId: occ.userId,
+              topicCode,
+              ok: r.ok,
+              status: r.status,
+              error: r.error,
+              webPushDelivered: r.webPushDelivered,
+              webPushErrors: r.webPushErrors,
+              emailOk: r.emailOk,
+              skipped: r.skipped,
+              selectedChannels: r.selectedChannels,
+            },
+            'reminders.dispatchDue: notify-channels result',
+          );
           if (!r.ok) {
             logger.warn(
               {
@@ -552,9 +602,12 @@ export async function handleReminders(
         } catch (err) {
           logger.warn(
             {
-              metric: 'webapp_prn_err',
+              event: 'reminders.dispatchDue.webapp_notify_channels.result',
               occurrenceId: occ.id,
-              err,
+              integratorUserId: occ.userId,
+              topicCode,
+              ok: false,
+              error: err instanceof Error ? err.message : String(err),
             },
             'reminders.dispatchDue: webapp notify-channels threw',
           );

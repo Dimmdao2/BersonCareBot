@@ -6,6 +6,7 @@ const TOPIC_DISPLAY_TITLE: Record<string, string> = {
   exercise_reminders: "Разминки и упражнения",
   symptom_reminders: "Дневник самочувствия",
   appointment_reminders: "Запись на прием",
+  news: "Сервисные уведомления",
 };
 
 export function patientNotificationTopicDisplayTitle(topicId: string, adminTitle: string): string {

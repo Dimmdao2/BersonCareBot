@@ -1,4 +1,6 @@
 import webpush from "web-push";
+import { logger } from "@/infra/logging/logger";
+import { hashWebPushEndpoint } from "@/modules/patient-notifications/hashWebPushEndpoint";
 import type { WebPushSubscriptionPayloadV1 } from "@/modules/web-push/ports";
 
 export type WebPushClientPayload = {
@@ -19,9 +21,15 @@ export async function sendWebPushToSubscriptions(params: {
   vapidSubject: string;
   payload: WebPushClientPayload;
   onSubscriptionDead: (endpoint: string) => Promise<void>;
-}): Promise<{ delivered: number; errors: number }> {
-  const { subscriptions, vapidPublicKey, vapidPrivateKey, vapidSubject, payload, onSubscriptionDead } = params;
-  if (subscriptions.length === 0) return { delivered: 0, errors: 0 };
+  logContext?: {
+    userId?: string;
+    topicCode?: string;
+    occurrenceId?: string;
+  };
+}): Promise<{ delivered: number; errors: number; deactivated: number }> {
+  const { subscriptions, vapidPublicKey, vapidPrivateKey, vapidSubject, payload, onSubscriptionDead, logContext } =
+    params;
+  if (subscriptions.length === 0) return { delivered: 0, errors: 0, deactivated: 0 };
 
   const body = JSON.stringify({
     title: payload.title,
@@ -32,10 +40,12 @@ export async function sendWebPushToSubscriptions(params: {
 
   let delivered = 0;
   let errors = 0;
+  let deactivated = 0;
 
   for (const sub of subscriptions) {
+    const endpointHash = hashWebPushEndpoint(sub.endpoint);
     try {
-      await webpush.sendNotification(
+      const result = await webpush.sendNotification(
         {
           endpoint: sub.endpoint,
           keys: {
@@ -54,14 +64,48 @@ export async function sendWebPushToSubscriptions(params: {
         },
       );
       delivered += 1;
+      logger.info(
+        {
+          event: "web_push_provider_response",
+          outcome: "ok",
+          statusCode: result?.statusCode,
+          endpointHash,
+          ...logContext,
+        },
+        "web push provider response",
+      );
     } catch (e: unknown) {
       const status = (e as { statusCode?: number })?.statusCode;
+      const message = e instanceof Error ? e.message : String(e);
       if (status === 410 || status === 404) {
         await onSubscriptionDead(sub.endpoint);
+        deactivated += 1;
+        logger.info(
+          {
+            event: "web_push_provider_response",
+            outcome: "subscription_dead",
+            statusCode: status,
+            endpointHash,
+            ...logContext,
+          },
+          "web push subscription deactivated",
+        );
+      } else {
+        logger.warn(
+          {
+            event: "web_push_provider_response",
+            outcome: "error",
+            statusCode: status ?? null,
+            endpointHash,
+            error: message,
+            ...logContext,
+          },
+          "web push provider error",
+        );
       }
       errors += 1;
     }
   }
 
-  return { delivered, errors };
+  return { delivered, errors, deactivated };
 }

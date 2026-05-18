@@ -405,7 +405,16 @@ export type WebappEventsPort = {
   notifyPatientReminderChannels?(input: {
     body: string;
     idempotencyKey: string;
-  }): Promise<{ ok: boolean; status: number; error?: string }>;
+  }): Promise<{
+    ok: boolean;
+    status: number;
+    error?: string;
+    webPushDelivered?: number;
+    webPushErrors?: number;
+    emailOk?: boolean;
+    skipped?: string;
+    selectedChannels?: string[];
+  }>;
 };
 
 /** Channel bindings for multi-channel delivery (telegramId, maxId). */

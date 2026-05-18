@@ -205,10 +205,10 @@ export function createWebappEventsPort(deps: { getAppBaseUrl: () => Promise<stri
           body: input.body,
         });
         const text = await res.text().catch(() => '');
-        let parsed: { ok?: boolean; error?: string } = {};
+        let parsed: Record<string, unknown> = {};
         if (text) {
           try {
-            parsed = JSON.parse(text) as { ok?: boolean; error?: string };
+            parsed = JSON.parse(text) as Record<string, unknown>;
           } catch {
             /* non-JSON body */
           }
@@ -217,7 +217,17 @@ export function createWebappEventsPort(deps: { getAppBaseUrl: () => Promise<stri
         return {
           ok,
           status: res.status,
-          ...(ok ? {} : { error: typeof parsed.error === 'string' ? parsed.error : text || res.statusText }),
+          ...(ok
+            ? {
+                webPushDelivered: typeof parsed.webPushDelivered === 'number' ? parsed.webPushDelivered : undefined,
+                webPushErrors: typeof parsed.webPushErrors === 'number' ? parsed.webPushErrors : undefined,
+                emailOk: typeof parsed.emailOk === 'boolean' ? parsed.emailOk : undefined,
+                skipped: typeof parsed.skipped === 'string' ? parsed.skipped : undefined,
+                selectedChannels: Array.isArray(parsed.selectedChannels)
+                  ? parsed.selectedChannels.filter((c): c is string => typeof c === 'string')
+                  : undefined,
+              }
+            : { error: typeof parsed.error === 'string' ? parsed.error : text || res.statusText }),
         };
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);

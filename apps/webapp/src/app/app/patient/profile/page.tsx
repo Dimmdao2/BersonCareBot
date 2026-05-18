@@ -1,27 +1,23 @@
+import Link from "next/link";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requirePatientAccess } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
-import { getPlatformEntry } from "@/shared/lib/platformCookie.server";
 import { AppShell } from "@/shared/ui/AppShell";
 import { ConnectMessengersBlock } from "@/shared/ui/ConnectMessengersBlock";
 import {
   patientInnerPageStackClass,
+  patientMutedTextClass,
   patientSectionSurfaceClass,
   patientSectionTitleClass,
 } from "@/shared/ui/patientVisual";
 import { getSupportContactUrl } from "@/modules/system-settings/supportContactUrl";
-import { parseNotificationsTopics } from "@/modules/patient-notifications/notificationsTopics";
-import { buildProfileNotificationTopicModels } from "@/modules/patient-notifications/profileTopicChannelsModel";
 import { LogoutSection } from "./LogoutSection";
 import { PatientCalendarTimezoneSection } from "./PatientCalendarTimezoneSection";
 import { PatientProfileHero } from "./PatientProfileHero";
-import { ProfileNotificationsSection } from "./ProfileNotificationsSection";
-import { PatientWebPushSettingsSection } from "@/shared/ui/patient/webPush/PatientWebPushSettingsSection";
 
 /** Профиль в onboarding-allowlist: `requirePatientAccess`, не `WithPhone` — см. `patientRouteApiPolicy.ts` (`patientPageMinAccessTier` → onboarding). */
 export default async function PatientProfilePage() {
   const session = await requirePatientAccess(routePaths.profile);
-  const platformEntry = await getPlatformEntry();
   const deps = buildAppDeps();
   const supportContactHref = await getSupportContactUrl();
   const emailFields = await deps.userProjection.getProfileEmailFields(session.user.userId);
@@ -42,16 +38,6 @@ export default async function PatientProfilePage() {
     (session.user.phone && session.user.phone.trim()) ||
     ".";
 
-  const notificationsTopicsSetting = await deps.systemSettings.getSetting("notifications_topics", "admin");
-  const subscriptionTopics = parseNotificationsTopics(notificationsTopicsSetting?.valueJson ?? null);
-  const prefRows = await deps.topicChannelPrefs.listByUserId(session.user.userId);
-  const notificationModels = buildProfileNotificationTopicModels(subscriptionTopics, prefRows, {
-    hasTelegram: Boolean(telegramId.trim()),
-    hasMax: Boolean(maxId.trim()),
-    emailVerified,
-    hasWebPush: await deps.webPushSubscriptions.hasAnyForUserId(session.user.userId),
-  });
-
   return (
     <AppShell title="Мой профиль" user={session.user} backHref={routePaths.patient} backLabel="Меню" variant="patient">
       <div className={patientInnerPageStackClass}>
@@ -71,15 +57,24 @@ export default async function PatientProfilePage() {
           <ConnectMessengersBlock channelCards={channelCards} showHeading={false} />
         </section>
 
-        <PatientWebPushSettingsSection />
-
-        <ProfileNotificationsSection initialTopics={notificationModels} />
+        <section className={patientSectionSurfaceClass}>
+          <h2 className={patientSectionTitleClass}>Уведомления</h2>
+          <p className={patientMutedTextClass}>
+            Каналы доставки и типы уведомлений настраиваются на отдельной странице.
+          </p>
+          <Link
+            href={routePaths.notifications}
+            className="mt-2 inline-flex text-sm font-medium text-primary underline-offset-4 hover:underline"
+          >
+            Настройки уведомлений
+          </Link>
+        </section>
 
         <section className={patientSectionSurfaceClass}>
           <PatientCalendarTimezoneSection />
         </section>
 
-        {platformEntry !== "bot" ? <LogoutSection /> : null}
+        <LogoutSection />
       </div>
     </AppShell>
   );

@@ -3,6 +3,10 @@ import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requirePatientApiBusinessAccess } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
+import { logger } from "@/infra/logging/logger";
+import { enableWebPushNotificationDefaults } from "@/modules/patient-notifications/enableWebPushNotificationDefaults";
+import { hashWebPushEndpoint } from "@/modules/patient-notifications/hashWebPushEndpoint";
+import { parseNotificationsTopics } from "@/modules/patient-notifications/notificationsTopics";
 
 const platformSchema = z.enum(["pwa", "browser", "ios-pwa", "android-pwa"]);
 
@@ -41,6 +45,7 @@ export async function POST(request: Request) {
     platform ?
       `[bc-push:${platform}]${uaHeader ? ` ${uaHeader}` : ""}`.trim()
     : uaHeader || null;
+
   await deps.webPushSubscriptions.saveSubscription(
     uid,
     {
@@ -51,6 +56,17 @@ export async function POST(request: Request) {
     { userAgent: ua },
   );
 
+  const endpointHash = hashWebPushEndpoint(parsed.data.endpoint);
+  logger.info(
+    {
+      event: "web_push_subscription_registered",
+      userId: uid,
+      endpointHash,
+      platform: platform ?? null,
+    },
+    "web push subscription registered",
+  );
+
   const card = (await deps.channelPreferences.getChannelCards(uid, gate.session.user.bindings, {})).find(
     (c) => c.code === "web_push",
   );
@@ -59,5 +75,22 @@ export async function POST(request: Request) {
     isEnabledForNotifications: true,
   });
 
-  return NextResponse.json({ ok: true });
+  const topicsSetting = await deps.systemSettings.getSetting("notifications_topics", "admin");
+  const notificationTopics = parseNotificationsTopics(topicsSetting?.valueJson ?? null);
+  const { enabledTopics } = await enableWebPushNotificationDefaults({
+    userId: uid,
+    topicChannelPrefs: deps.topicChannelPrefs,
+    notificationTopics,
+  });
+
+  logger.info(
+    {
+      event: "web_push_defaults_enabled",
+      userId: uid,
+      enabledTopics,
+    },
+    "web push defaults enabled for notification topics",
+  );
+
+  return NextResponse.json({ ok: true, enabledTopics });
 }
