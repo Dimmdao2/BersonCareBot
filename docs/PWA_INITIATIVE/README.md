@@ -4,6 +4,7 @@
 
 - **Индекс дорожной карты:** [`ROADMAP.md`](ROADMAP.md)
 - **Фазы (планы по этапам):** [`PHASE_00_PRINCIPLES_AND_SCOPE.md`](PHASE_00_PRINCIPLES_AND_SCOPE.md) · [`PHASE_01_ROOT_LANDING.md`](PHASE_01_ROOT_LANDING.md) · [`PHASE_02_INSTALL_FLOW.md`](PHASE_02_INSTALL_FLOW.md) · [`PHASE_03_MANIFEST_AUDIT.md`](PHASE_03_MANIFEST_AUDIT.md) · [`BACKLOG.md`](BACKLOG.md)
+- **Web Push — VAPID в админке (ключи в БД):** [`WEB_PUSH_VAPID_ADMIN.plan.md`](WEB_PUSH_VAPID_ADMIN.plan.md)
 - **Базовая структура до расширений (офлайн, Web Push):** [`BASELINE_STRUCTURE.md`](BASELINE_STRUCTURE.md)
 - **Журнал:** [`LOG.md`](LOG.md)
 - **После деплоя:** чеклист оператора — в [`PHASE_00`](PHASE_00_PRINCIPLES_AND_SCOPE.md) блок «Верификация на стенде» и ручные § в фазах 1–3.

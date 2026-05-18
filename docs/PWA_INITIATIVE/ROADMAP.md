@@ -10,6 +10,7 @@
 | 1 — лендинг на `/` | [PHASE_01_ROOT_LANDING.md](PHASE_01_ROOT_LANDING.md) | done |
 | 2 — установка (Chrome + iOS + SW при необходимости) | [PHASE_02_INSTALL_FLOW.md](PHASE_02_INSTALL_FLOW.md) | done |
 | 3 — аудит manifest после лендинга | [PHASE_03_MANIFEST_AUDIT.md](PHASE_03_MANIFEST_AUDIT.md) | done |
+| 4 — Web Push: VAPID в админке (`system_settings`) | [WEB_PUSH_VAPID_ADMIN.plan.md](WEB_PUSH_VAPID_ADMIN.plan.md) | planned |
 | Backlog | [BACKLOG.md](BACKLOG.md) | backlog |
 
 Код первой волны (фазы 1–3) в репозитории **done**; чекбоксы **на стенде** — в [`PHASE_00`](PHASE_00_PRINCIPLES_AND_SCOPE.md) («Верификация на стенде») и в ручных § фаз 1–3.
