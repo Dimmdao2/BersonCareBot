@@ -28,5 +28,12 @@ export async function GET(request: Request) {
   if (!result) {
     return NextResponse.json({ ok: true, channelBindings: {} }, { status: 200 });
   }
-  return NextResponse.json({ ok: true, channelBindings: result.channelBindings }, { status: 200 });
+  return NextResponse.json(
+    {
+      ok: true,
+      channelBindings: result.channelBindings,
+      ...(result.resolution ? { resolution: result.resolution } : {}),
+    },
+    { status: 200 },
+  );
 }

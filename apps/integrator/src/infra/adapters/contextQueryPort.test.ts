@@ -13,7 +13,7 @@ function createReadPortMock() {
 describe('contextQueryPort', () => {
   it('uses deliveryTargetsPort for channel.lookupByPhone and does not call readPort user.lookup', async () => {
     const { readPort, readDb } = createReadPortMock();
-    const getTargetsByPhone = vi.fn().mockResolvedValue({ telegramId: '12345', maxId: 'max-1' });
+    const getTargetsByPhone = vi.fn().mockResolvedValue({ channelBindings: { telegramId: '12345', maxId: 'max-1' } });
     const deliveryTargetsPort: DeliveryTargetsPort = { getTargetsByPhone, getTargetsByChannelBinding: vi.fn() };
 
     const port = createContextQueryPort({
@@ -37,7 +37,7 @@ describe('contextQueryPort', () => {
   it('uses deliveryTargetsPort for subscriptions.forUser and does not call readPort user.lookup', async () => {
     const { readPort, readDb } = createReadPortMock();
     readDb.mockResolvedValue(null);
-    const getTargetsByPhone = vi.fn().mockResolvedValue({ telegramId: '999', maxId: 'max-2' });
+    const getTargetsByPhone = vi.fn().mockResolvedValue({ channelBindings: { telegramId: '999', maxId: 'max-2' } });
     const deliveryTargetsPort: DeliveryTargetsPort = { getTargetsByPhone, getTargetsByChannelBinding: vi.fn() };
 
     const port = createContextQueryPort({
@@ -64,7 +64,7 @@ describe('contextQueryPort', () => {
   it('subscriptions.forUser resolves platform user id to phone via readPort then deliveryTargetsPort', async () => {
     const { readPort, readDb } = createReadPortMock();
     readDb.mockResolvedValue('+78887776655');
-    const getTargetsByPhone = vi.fn().mockResolvedValue({ telegramId: '111', maxId: 'max-9' });
+    const getTargetsByPhone = vi.fn().mockResolvedValue({ channelBindings: { telegramId: '111', maxId: 'max-9' } });
     const deliveryTargetsPort: DeliveryTargetsPort = { getTargetsByPhone, getTargetsByChannelBinding: vi.fn() };
 
     const port = createContextQueryPort({

@@ -61,8 +61,8 @@ export function createContextQueryPort(input: ContextQueryPortInput): ContextQue
             ? query.resource
             : 'telegram';
           if (deliveryTargetsPort) {
-            const bindings = await deliveryTargetsPort.getTargetsByPhone(phoneNormalized);
-            const item = bindingsToLookupItem(bindings ?? null, resource);
+            const fetched = await deliveryTargetsPort.getTargetsByPhone(phoneNormalized);
+            const item = bindingsToLookupItem(fetched?.channelBindings ?? null, resource);
             return { type: 'channel.lookupByPhone', item };
           }
           return { type: 'channel.lookupByPhone', item: null };
@@ -106,7 +106,8 @@ export function createContextQueryPort(input: ContextQueryPortInput): ContextQue
               if (digits.length >= 10) phoneForTargets = asPhone;
             }
             if (!phoneForTargets) return { type: 'subscriptions.forUser', items: [] };
-            const bindings = await deliveryTargetsPort.getTargetsByPhone(phoneForTargets);
+            const fetched = await deliveryTargetsPort.getTargetsByPhone(phoneForTargets);
+            const bindings = fetched?.channelBindings;
             const items: Array<{ kind: string; chatId: number; channelId: string; username: string | null; notificationsEnabled: boolean }> = [];
             if (bindings?.telegramId) {
               const tid = bindings.telegramId.trim();

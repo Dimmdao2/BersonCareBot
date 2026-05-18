@@ -1,7 +1,10 @@
 "use client";
 
 import { useMemo } from "react";
-import { ensureWebPushInNotificationTopics } from "@/modules/patient-notifications/profileTopicChannelsModel";
+import {
+  ensureWebPushInNotificationTopics,
+  type ProfileNotificationTopicModel,
+} from "@/modules/patient-notifications/profileTopicChannelsModel";
 import { useWebPushClientState } from "@/shared/lib/webPush/PatientWebPushContext";
 import { patientMutedTextClass } from "@/shared/ui/patientVisual";
 import { PatientNotificationsTopicMatrix } from "./PatientNotificationsTopicMatrix";

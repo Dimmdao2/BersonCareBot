@@ -457,82 +457,77 @@ function PlaybackEngine({
   }, [fetchPlaybackJson, mediaId, reportPlaybackIssue, sourceKind]);
 
   return (
-    <div
-      className={shellClassName}
-      onContextMenu={(e) => {
-        e.preventDefault();
-      }}
-    >
-      {error ? (
-        <div
-          className={cn(
-            patientBodyTextClass,
-            "flex size-full flex-col items-center justify-center gap-3 p-4 text-center",
-          )}
-        >
-          <p>{error}</p>
-          <Button type="button" variant="secondary" size="sm" disabled={retryBusy} onClick={() => void onRetry()}>
-            {retryBusy ? "Загрузка…" : "Повторить"}
-          </Button>
-          <p className={cn(patientMutedTextClass, "text-xs")}>
-            Если ошибка повторяется, обновите страницу или проверьте, что вы вошли в аккаунт.
-          </p>
+    <div className="flex w-full flex-col gap-2">
+      <div
+        className={shellClassName}
+        onContextMenu={(e) => {
+          e.preventDefault();
+        }}
+      >
+        {error ? (
+          <div
+            className={cn(
+              patientBodyTextClass,
+              "flex size-full flex-col items-center justify-center gap-3 p-4 text-center",
+            )}
+          >
+            <p>{error}</p>
+            <Button type="button" variant="secondary" size="sm" disabled={retryBusy} onClick={() => void onRetry()}>
+              {retryBusy ? "Загрузка…" : "Повторить"}
+            </Button>
+            <p className={cn(patientMutedTextClass, "text-xs")}>
+              Если ошибка повторяется, обновите страницу или проверьте, что вы вошли в аккаунт.
+            </p>
+          </div>
+        ) : (
+          <>
+            {loading ? (
+              <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/50">
+                <Loader2 className="size-8 animate-spin text-muted-foreground" aria-hidden />
+              </div>
+            ) : null}
+            <NoContextMenuVideo
+              ref={videoRef}
+              controls
+              controlsList="nodownload"
+              preload="metadata"
+              playsInline
+              className="absolute inset-0 z-0 h-full w-full object-contain"
+              title={title}
+            />
+          </>
+        )}
+      </div>
+      {!error && showNativeQualityHint ? (
+        <p className={cn(patientMutedTextClass, "text-right text-xs")}>Качество: авто</p>
+      ) : null}
+      {!error && showHlsJsQualityControls ? (
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <span className={cn(patientMutedTextClass, "text-xs tabular-nums")} aria-live="polite">
+            Сейчас: {hlsCurrentLabel ?? "—"}
+          </span>
+          <Select value={hlsQualityChoice} onValueChange={onHlsQualityValueChange}>
+            <SelectTrigger
+              size="sm"
+              displayLabel={qualityTriggerDisplayLabel}
+              aria-label="Разрешение видео"
+              className="max-w-full"
+            />
+            <SelectContent align="end" className="min-w-36">
+              <SelectItem value={PATIENT_HLS_QUALITY_AUTO_VALUE}>Авто</SelectItem>
+              {sortedPlaybackQualities.map((q) => {
+                const v = stableQualitySelectValue(q);
+                const itemLabel = q.label?.trim() || (typeof q.height === "number" ? `${q.height}p` : v);
+                return (
+                  <SelectItem key={v} value={v}>
+                    {itemLabel}
+                  </SelectItem>
+                );
+              })}
+            </SelectContent>
+          </Select>
         </div>
-      ) : (
-        <>
-          {loading ? (
-            <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/50">
-              <Loader2 className="size-8 animate-spin text-muted-foreground" aria-hidden />
-            </div>
-          ) : null}
-          {showNativeQualityHint ? (
-            <div
-              className={cn(
-                patientMutedTextClass,
-                "pointer-events-none absolute bottom-12 right-2 z-20 max-w-[min(100%-1rem,14rem)] rounded-md bg-background/80 px-2 py-1 text-xs backdrop-blur-sm",
-              )}
-            >
-              Качество: авто
-            </div>
-          ) : null}
-          {showHlsJsQualityControls ? (
-            <div className="absolute bottom-12 right-2 z-20 flex max-w-[min(100%-1rem,16rem)] flex-col items-end gap-1 rounded-md bg-background/85 px-2 py-1.5 shadow-sm backdrop-blur-sm dark:bg-background/80">
-              <span className={cn(patientMutedTextClass, "text-xs tabular-nums")} aria-live="polite">
-                Сейчас: {hlsCurrentLabel ?? "—"}
-              </span>
-              <Select value={hlsQualityChoice} onValueChange={onHlsQualityValueChange}>
-                <SelectTrigger
-                  size="sm"
-                  displayLabel={qualityTriggerDisplayLabel}
-                  aria-label="Разрешение видео"
-                  className="max-w-full bg-background/90 dark:bg-background/70"
-                />
-                <SelectContent align="end" className="min-w-36">
-                  <SelectItem value={PATIENT_HLS_QUALITY_AUTO_VALUE}>Авто</SelectItem>
-                  {sortedPlaybackQualities.map((q) => {
-                    const v = stableQualitySelectValue(q);
-                    const itemLabel = q.label?.trim() || (typeof q.height === "number" ? `${q.height}p` : v);
-                    return (
-                      <SelectItem key={v} value={v}>
-                        {itemLabel}
-                      </SelectItem>
-                    );
-                  })}
-                </SelectContent>
-              </Select>
-            </div>
-          ) : null}
-          <NoContextMenuVideo
-            ref={videoRef}
-            controls
-            controlsList="nodownload"
-            preload="metadata"
-            playsInline
-            className="absolute inset-0 z-0 h-full w-full object-contain"
-            title={title}
-          />
-        </>
-      )}
+      ) : null}
     </div>
   );
 }

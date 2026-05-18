@@ -268,8 +268,8 @@ describe('POST /api/bersoncare/rubitime/booking-event', () => {
   it('booking.created schedules patient reminders using delivery-targets topic appointment_reminders', async () => {
     const dispatchOutgoing = vi.fn().mockResolvedValue(undefined);
     getTargetsByPhone
-      .mockResolvedValueOnce({ telegramId: 'tg-patient-immediate', maxId: null })
-      .mockResolvedValueOnce({ telegramId: 'tg-chat-1', maxId: null });
+      .mockResolvedValueOnce({ channelBindings: { telegramId: 'tg-patient-immediate', maxId: null } })
+      .mockResolvedValueOnce({ channelBindings: { telegramId: 'tg-chat-1', maxId: null } });
     const app = await buildApp(dispatchOutgoing);
     const slot = bookingEventBody({
       bookingId: '6f14566f-a4de-4ab4-9336-5ddf806cd6ce',
@@ -293,7 +293,7 @@ describe('POST /api/bersoncare/rubitime/booking-event', () => {
     enqueueMessageRetryJob.mockClear();
     const dispatchOutgoing = vi.fn().mockResolvedValue(undefined);
     getTargetsByPhone
-      .mockResolvedValueOnce({ telegramId: 'tg-immediate', maxId: null })
+      .mockResolvedValueOnce({ channelBindings: { telegramId: 'tg-immediate', maxId: null } })
       .mockResolvedValueOnce(null);
     const app = await buildApp(dispatchOutgoing);
     const raw = JSON.stringify(

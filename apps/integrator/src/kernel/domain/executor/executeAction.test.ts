@@ -194,7 +194,7 @@ describe('executeAction', () => {
 
   it('fans out rubitime message.send to multiple channels when deliveryTargetsPort returns bindings', async () => {
     const deliveryTargetsPort = {
-      getTargetsByPhone: async () => ({ telegramId: '123', maxId: '456' }),
+      getTargetsByPhone: async () => ({ channelBindings: { telegramId: '123', maxId: '456' } }),
       getTargetsByChannelBinding: async () => null,
     };
     const result = await executeAction(
@@ -241,7 +241,7 @@ describe('executeAction', () => {
 
   it('rubitime fan-out: max intent omits auto main inline (menus.main Запись/Приложение disabled for MAX)', async () => {
     const deliveryTargetsPort = {
-      getTargetsByPhone: async () => ({ telegramId: '123', maxId: '456' }),
+      getTargetsByPhone: async () => ({ channelBindings: { telegramId: '123', maxId: '456' } }),
       getTargetsByChannelBinding: async () => null,
     };
     const templatePort = {
@@ -3114,7 +3114,7 @@ describe('executeAction', () => {
         return null;
       });
       const writeDb = vi.fn().mockResolvedValue(undefined);
-      const getTargetsByChannelBinding = vi.fn().mockResolvedValue({ maxId: 'max-ext-1' });
+      const getTargetsByChannelBinding = vi.fn().mockResolvedValue({ channelBindings: { maxId: 'max-ext-1' } });
       const deliveryTargetsPort = {
         getTargetsByPhone: vi.fn(),
         getTargetsByChannelBinding,
@@ -3135,6 +3135,7 @@ describe('executeAction', () => {
         telegramId: '42',
         maxId: 'max-ext-1',
         topic: 'exercise_reminders',
+        integratorUserId: 'user-1',
       });
       const sends = result.intents?.filter((i) => i.type === 'message.send') ?? [];
       expect(sends).toHaveLength(0);
@@ -3154,7 +3155,7 @@ describe('executeAction', () => {
         return null;
       });
       const writeDb = vi.fn().mockResolvedValue(undefined);
-      const getTargetsByChannelBinding = vi.fn().mockResolvedValue({ maxId: 'max-ext-1' });
+      const getTargetsByChannelBinding = vi.fn().mockResolvedValue({ channelBindings: { maxId: 'max-ext-1' } });
       const action: Action = {
         id: 'rd-notify',
         type: 'reminders.dispatchDue',
@@ -3194,7 +3195,7 @@ describe('executeAction', () => {
         return null;
       });
       const writeDb = vi.fn().mockResolvedValue(undefined);
-      const getTargetsByChannelBinding = vi.fn().mockResolvedValue({});
+      const getTargetsByChannelBinding = vi.fn().mockResolvedValue({ channelBindings: {} });
       const deliveryTargetsPort = {
         getTargetsByPhone: vi.fn(),
         getTargetsByChannelBinding,
@@ -3900,7 +3901,7 @@ describe('resolveTargets guardrail: webapp-backed resolution', () => {
   it('uses deliveryTargetsPort and does NOT call readPort for user.lookup', async () => {
     const readDb = vi.fn();
     const readPort = { readDb } as unknown as DbReadPort;
-    const getTargetsByPhone = vi.fn().mockResolvedValue({ telegramId: '555', maxId: 'max-1' });
+    const getTargetsByPhone = vi.fn().mockResolvedValue({ channelBindings: { telegramId: '555', maxId: 'max-1' } });
     const deliveryTargetsPort = { getTargetsByPhone, getTargetsByChannelBinding: vi.fn() };
 
     const targets = await resolveTargets(

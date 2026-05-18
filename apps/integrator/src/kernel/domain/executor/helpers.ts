@@ -497,7 +497,8 @@ export async function resolveTargets(
 
   const deliveryTargetsPort = opts?.deliveryTargetsPort;
   if (deliveryTargetsPort) {
-    const bindings = await deliveryTargetsPort.getTargetsByPhone(phoneNormalized);
+    const fetched = await deliveryTargetsPort.getTargetsByPhone(phoneNormalized);
+    const bindings = fetched?.channelBindings;
     if (bindings && typeof bindings === 'object') {
       const targets: Array<{ resource: string; address: Record<string, unknown> }> = [];
       const telegramId = typeof bindings.telegramId === 'string' && bindings.telegramId.trim().length > 0

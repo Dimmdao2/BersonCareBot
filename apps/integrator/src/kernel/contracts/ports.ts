@@ -423,9 +423,12 @@ export type WebappEventsPort = {
 /** Channel bindings for multi-channel delivery (telegramId, maxId). */
 export type DeliveryTargetsChannelBindings = Record<string, string>;
 
+export type { DeliveryTargetsFetchResult } from './notificationChannels.js';
+
 /** Optional query for webapp `GET /api/integrator/delivery-targets` (per-topic prefs). */
 export type DeliveryTargetsFetchOptions = {
   topic?: string;
+  integratorUserId?: string;
 };
 
 /** Port to resolve delivery targets (linked channels) for a user by phone or channel binding. Used for reminder/booking fan-out. */
@@ -433,12 +436,13 @@ export type DeliveryTargetsPort = {
   getTargetsByPhone(
     phoneNormalized: string,
     options?: DeliveryTargetsFetchOptions,
-  ): Promise<DeliveryTargetsChannelBindings | null>;
+  ): Promise<import('./notificationChannels.js').DeliveryTargetsFetchResult | null>;
   getTargetsByChannelBinding(params: {
     telegramId?: string;
     maxId?: string;
     topic?: string;
-  }): Promise<DeliveryTargetsChannelBindings | null>;
+    integratorUserId?: string;
+  }): Promise<import('./notificationChannels.js').DeliveryTargetsFetchResult | null>;
 };
 
 /** Item shape for conversation list (admin); compatible with executeAction formatters. */

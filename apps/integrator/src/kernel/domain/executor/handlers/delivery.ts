@@ -146,8 +146,8 @@ export async function handleDelivery(
     const incoming = asRecord((ctx.event.payload as { incoming?: unknown })?.incoming);
     const phone = asString(incoming?.phone) ?? asString(asRecord(resolvedParams.recipient).phoneNormalized);
     if (source === 'rubitime' && deps.deliveryTargetsPort && phone) {
-      const bindings = await deps.deliveryTargetsPort.getTargetsByPhone(phone);
-      const targets = channelBindingsToTargets(bindings ?? undefined);
+      const fetched = await deps.deliveryTargetsPort.getTargetsByPhone(phone);
+      const targets = channelBindingsToTargets(fetched?.channelBindings);
       if (targets.length > 0) {
         const delivery = asRecord(resolvedParams.delivery);
         const maxAttempts = typeof delivery.maxAttempts === 'number' && Number.isFinite(delivery.maxAttempts)

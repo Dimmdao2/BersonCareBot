@@ -494,10 +494,33 @@ export async function handleReminders(
       if (topicCode && deps.deliveryTargetsPort) {
         const tg = channelsToSend.find((c) => c.channel === 'telegram');
         const maxCh = channelsToSend.find((c) => c.channel === 'max');
-        const bindingParams: { telegramId?: string; maxId?: string; topic: string } = { topic: topicCode };
+        const bindingParams: {
+          telegramId?: string;
+          maxId?: string;
+          topic: string;
+          integratorUserId: string;
+        } = { topic: topicCode, integratorUserId: occ.userId };
         if (tg && tg.chatId > 0) bindingParams.telegramId = String(tg.chatId);
         if (maxCh?.externalId) bindingParams.maxId = maxCh.externalId;
-        const bindings = await deps.deliveryTargetsPort.getTargetsByChannelBinding(bindingParams);
+        const fetched = await deps.deliveryTargetsPort.getTargetsByChannelBinding(bindingParams);
+        const bindings = fetched?.channelBindings;
+        if (fetched?.resolution) {
+          logger.info(
+            {
+              event: 'notification_channels_resolved',
+              deliveryPath: 'integrator_worker',
+              intentType: rule?.reminderIntent ?? undefined,
+              userId: fetched.resolution.userId,
+              integratorUserId: fetched.resolution.integratorUserId ?? occ.userId,
+              topicCode: fetched.resolution.topicCode,
+              availableChannels: fetched.resolution.availableChannels,
+              enabledChannels: fetched.resolution.enabledChannels,
+              selectedChannels: fetched.resolution.selectedChannels,
+              skippedChannels: fetched.resolution.skippedChannels,
+            },
+            'notification channels resolved',
+          );
+        }
         const hasResolvedTopicBindings =
           bindings &&
           (Boolean(bindings.telegramId?.trim()) || Boolean(bindings.maxId?.trim()));

@@ -10,7 +10,7 @@ describe("deliveryTargetsApi", () => {
     bindings: { telegramId: "tg123", maxId: "max456", vkId: undefined },
   };
 
-  const deps: DeliveryTargetsApiDeps = {
+  const baseDeps: DeliveryTargetsApiDeps = {
     userByPhonePort: {
       findByPhone: vi.fn().mockResolvedValue(null),
       findByUserId: vi.fn().mockResolvedValue(null),
@@ -56,28 +56,27 @@ describe("deliveryTargetsApi", () => {
       listByUserId: vi.fn().mockResolvedValue([]),
       upsert: vi.fn(),
     },
+    readReminderNotifyGate: vi.fn().mockResolvedValue({ muted: false, topicMasterEnabled: true }),
+    getProfileEmailFields: vi.fn().mockResolvedValue({ email: null, emailVerifiedAt: null }),
+    webPushSubscriptions: { hasAnyForUserId: vi.fn().mockResolvedValue(false) },
+    systemSettings: { getSetting: vi.fn().mockResolvedValue(null) },
   };
 
   it("returns null when no phone, telegramId, or maxId", async () => {
-    const result = await getDeliveryTargetsForIntegrator({}, deps);
+    const result = await getDeliveryTargetsForIntegrator({}, baseDeps);
     expect(result).toBeNull();
   });
 
-  it("resolves by telegramId and returns channelBindings", async () => {
-    const result = await getDeliveryTargetsForIntegrator({ telegramId: "tg123" }, deps);
+  it("resolves by telegramId and returns channelBindings (legacy without topic)", async () => {
+    const result = await getDeliveryTargetsForIntegrator({ telegramId: "tg123" }, baseDeps);
     expect(result).not.toBeNull();
     expect(result!.channelBindings).toHaveProperty("telegramId", "tg123");
+    expect(result!.resolution).toBeUndefined();
   });
 
-  it("resolves by maxId and returns channelBindings", async () => {
-    const result = await getDeliveryTargetsForIntegrator({ maxId: "max456" }, deps);
-    expect(result).not.toBeNull();
-    expect(result!.channelBindings).toHaveProperty("maxId", "max456");
-  });
-
-  it("applies topic filter: drops telegram when topic prefs exclude it", async () => {
-    const depsTopic: DeliveryTargetsApiDeps = {
-      ...deps,
+  it("with topic returns resolution and filters telegram when topic prefs exclude it", async () => {
+    const deps: DeliveryTargetsApiDeps = {
+      ...baseDeps,
       topicChannelPrefsPort: {
         listByUserId: vi.fn().mockResolvedValue([
           { topicCode: "exercise_reminders", channelCode: "telegram" as const, isEnabled: false },
@@ -87,11 +86,16 @@ describe("deliveryTargetsApi", () => {
       },
     };
     const result = await getDeliveryTargetsForIntegrator(
-      { telegramId: "tg123", topic: "exercise_reminders" },
-      depsTopic,
+      { telegramId: "tg123", topic: "exercise_reminders", integratorUserId: "99" },
+      deps,
     );
     expect(result).not.toBeNull();
     expect(result!.channelBindings).not.toHaveProperty("telegramId");
     expect(result!.channelBindings).toHaveProperty("maxId", "max456");
+    expect(result!.resolution?.topicCode).toBe("exercise_reminders");
+    expect(result!.resolution?.integratorUserId).toBe("99");
+    expect(result!.resolution?.skippedChannels.find((s) => s.channel === "telegram")?.reason).toBe(
+      "disabled_by_user_topic_channel",
+    );
   });
 });

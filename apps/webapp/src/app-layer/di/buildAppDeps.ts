@@ -607,6 +607,16 @@ function _buildAppDeps() {
     getChannelCards: (userId, bindings, delivery) =>
       channelPreferencesService.getChannelCards(userId, bindings, delivery),
   });
+  const integratorDeliveryTargetsDeps = {
+    userByPhonePort,
+    identityResolutionPort,
+    preferencesPort: channelPreferencesPort,
+    topicChannelPrefsPort,
+    readReminderNotifyGate: readReminderWebappNotifyGate,
+    getProfileEmailFields: userProjectionPort.getProfileEmailFields,
+    webPushSubscriptions: webPushSubscriptionsPort,
+    systemSettings: systemSettingsService,
+  };
   return {
     auth: {
       getCurrentSession,
@@ -679,12 +689,7 @@ function _buildAppDeps() {
         return p?.identity ?? null;
       },
       getDeliveryTargets: (params) =>
-        getDeliveryTargetsForIntegrator(params, {
-          userByPhonePort,
-          identityResolutionPort,
-          preferencesPort: channelPreferencesPort,
-          topicChannelPrefsPort,
-        }),
+        getDeliveryTargetsForIntegrator(params, integratorDeliveryTargetsDeps),
       messageLogPort,
     }),
     doctorAppointments: createDoctorAppointmentsService({
@@ -791,13 +796,13 @@ function _buildAppDeps() {
     reminderTransactionalEmailCooldown: reminderTransactionalEmailCooldownPort,
     contentCatalog,
     deliveryTargetsApi: {
-      getTargets: (params: { phone?: string; telegramId?: string; maxId?: string; topic?: string }) =>
-        getDeliveryTargetsForIntegrator(params, {
-          userByPhonePort,
-          identityResolutionPort,
-          preferencesPort: channelPreferencesPort,
-          topicChannelPrefsPort,
-        }),
+      getTargets: (params: {
+        phone?: string;
+        telegramId?: string;
+        maxId?: string;
+        topic?: string;
+        integratorUserId?: string;
+      }) => getDeliveryTargetsForIntegrator(params, integratorDeliveryTargetsDeps),
     },
     topicChannelPrefs: topicChannelPrefsPort,
     userProjection: {

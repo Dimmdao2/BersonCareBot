@@ -3,6 +3,15 @@
  * Used when fanning out a single notification to multiple channels (telegram, max).
  */
 
+import type { DeliveryTargetsFetchResult } from '../../kernel/contracts/notificationChannels.js';
+
+export function unwrapDeliveryTargets(
+  fetched: DeliveryTargetsFetchResult | null | undefined,
+): Record<string, string> | null {
+  if (!fetched) return null;
+  return fetched.channelBindings;
+}
+
 export type DeliveryTarget = {
   channel: 'telegram' | 'max';
   externalId: string;

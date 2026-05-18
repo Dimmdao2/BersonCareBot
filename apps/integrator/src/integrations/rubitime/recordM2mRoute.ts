@@ -143,7 +143,8 @@ async function sendLinkedChannelMessage(input: {
   const deliveryTargets = createDeliveryTargetsPort({
     getAppBaseUrl: () => getAppBaseUrl(createDbPort()),
   });
-  const bindings = await deliveryTargets.getTargetsByPhone(input.phoneNormalized);
+  const fetched = await deliveryTargets.getTargetsByPhone(input.phoneNormalized);
+  const bindings = fetched?.channelBindings;
   if (!bindings) return;
 
   if (typeof bindings.telegramId === 'string' && bindings.telegramId.trim()) {
@@ -226,11 +227,12 @@ async function scheduleBookingReminders(input: {
   const deliveryTargets = createDeliveryTargetsPort({
     getAppBaseUrl: () => getAppBaseUrl(createDbPort()),
   });
-  const bindings = input.phoneNormalized
+  const fetched = input.phoneNormalized
     ? await deliveryTargets.getTargetsByPhone(input.phoneNormalized, {
         topic: PATIENT_NOTIFICATION_TOPIC_APPOINTMENT_REMINDERS,
       })
     : null;
+  const bindings = fetched?.channelBindings;
   if (!bindings) return;
 
   const targets: Array<{ resource: string; address: Record<string, unknown> }> = [];

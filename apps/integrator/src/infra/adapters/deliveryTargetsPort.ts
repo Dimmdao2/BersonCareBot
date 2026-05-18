@@ -6,9 +6,9 @@ import { createHmac } from 'node:crypto';
 import { integratorWebhookSecret } from '../../config/env.js';
 import type {
   DeliveryTargetsPort,
-  DeliveryTargetsChannelBindings,
   DeliveryTargetsFetchOptions,
 } from '../../kernel/contracts/index.js';
+import type { DeliveryTargetsFetchResult } from '../../kernel/contracts/notificationChannels.js';
 
 function signGet(timestamp: string, canonicalGet: string, secret: string): string {
   return createHmac('sha256', secret).update(`${timestamp}.${canonicalGet}`).digest('base64url');
@@ -17,7 +17,7 @@ function signGet(timestamp: string, canonicalGet: string, secret: string): strin
 async function fetchDeliveryTargets(
   getAppBaseUrl: () => Promise<string>,
   query: Record<string, string | undefined>,
-): Promise<DeliveryTargetsChannelBindings | null> {
+): Promise<DeliveryTargetsFetchResult | null> {
   const baseUrl = await getAppBaseUrl();
   const secret = integratorWebhookSecret();
   if (!baseUrl || !secret) return null;
@@ -36,10 +36,18 @@ async function fetchDeliveryTargets(
   };
   try {
     const res = await fetch(url, { method: 'GET', headers });
-    const data = (await res.json().catch(() => ({}))) as { ok?: boolean; channelBindings?: Record<string, string> };
+    const data = (await res.json().catch(() => ({}))) as {
+      ok?: boolean;
+      channelBindings?: Record<string, string>;
+      resolution?: DeliveryTargetsFetchResult['resolution'];
+    };
     if (!res.ok || data.ok !== true) return null;
     const bindings = data.channelBindings;
-    return typeof bindings === 'object' && bindings !== null ? bindings : null;
+    const channelBindings = typeof bindings === 'object' && bindings !== null ? bindings : {};
+    return {
+      channelBindings,
+      ...(data.resolution ? { resolution: data.resolution } : {}),
+    };
   } catch {
     return null;
   }
@@ -51,21 +59,27 @@ export function createDeliveryTargetsPort(deps: { getAppBaseUrl: () => Promise<s
     async getTargetsByPhone(
       phoneNormalized: string,
       options?: DeliveryTargetsFetchOptions,
-    ): Promise<DeliveryTargetsChannelBindings | null> {
+    ): Promise<DeliveryTargetsFetchResult | null> {
       if (!phoneNormalized || !phoneNormalized.trim()) return null;
       const topic = options?.topic?.trim();
       return fetchDeliveryTargets(getAppBaseUrl, {
         phone: phoneNormalized.trim(),
         ...(topic ? { topic } : {}),
+        ...(options?.integratorUserId ? { integratorUserId: options.integratorUserId } : {}),
       });
     },
     async getTargetsByChannelBinding(params: {
       telegramId?: string;
       maxId?: string;
       topic?: string;
-    }): Promise<DeliveryTargetsChannelBindings | null> {
+      integratorUserId?: string;
+    }): Promise<DeliveryTargetsFetchResult | null> {
       const topic = params.topic?.trim();
-      const q = (base: Record<string, string>) => (topic ? { ...base, topic } : base);
+      const q = (base: Record<string, string>) => ({
+        ...base,
+        ...(topic ? { topic } : {}),
+        ...(params.integratorUserId ? { integratorUserId: params.integratorUserId } : {}),
+      });
       if (params.telegramId?.trim()) {
         return fetchDeliveryTargets(getAppBaseUrl, q({ telegramId: params.telegramId.trim() }));
       }

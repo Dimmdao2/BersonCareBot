@@ -3,9 +3,14 @@ import { logger } from "@/infra/logging/logger";
 import type { ChannelPreferencesPort } from "@/modules/channel-preferences/ports";
 import { smtpInnerFromValueJson, sendTransactionalSmtpEmail } from "@/modules/outbound-email/sendTransactionalSmtp";
 import {
+  attachResolutionIdentity,
+  logNotificationChannelsResolved,
+  type ResolvedNotificationChannels,
+  type ResolvedNotificationChannelsCore,
+} from "@/modules/patient-notifications/notificationChannelContract";
+import {
   resolvePatientNotificationChannels,
   type NotificationTopicGate,
-  type ResolvedNotificationChannels,
 } from "@/modules/patient-notifications/resolveNotificationChannels";
 import type { TopicChannelPrefsPort } from "@/modules/patient-notifications/topicChannelPrefsPort";
 import type { SystemSettingsService } from "@/modules/system-settings/service";
@@ -57,7 +62,7 @@ export type PatientReminderIntegratorNotifyDeps = {
 function resolveChannelsForGateOnly(
   topicCode: string,
   gate: NotificationTopicGate,
-): ResolvedNotificationChannels {
+): ResolvedNotificationChannelsCore {
   return resolvePatientNotificationChannels({
     topicCode,
     availability: {
@@ -79,7 +84,7 @@ function logResolvedChannels(params: {
   platformUserId?: string;
   integratorUserId: string;
   topicCode: string;
-  resolved: ResolvedNotificationChannels;
+  resolved: Omit<ResolvedNotificationChannels, "userId" | "topicCode" | "integratorUserId">;
   flowSkipped?: string;
 }): void {
   logger.info(
@@ -96,18 +101,17 @@ function logResolvedChannels(params: {
     "patient reminder notify-channels resolved channels",
   );
 
-  logger.info(
-    {
-      event: "notification_channels_resolved",
-      userId: params.platformUserId,
-      topicCode: params.topicCode,
-      selectedChannels: params.resolved.selectedChannels,
-      skippedChannels: params.resolved.skippedChannels,
-      availableChannels: params.resolved.availableChannels,
-      enabledChannels: params.resolved.enabledChannels,
-    },
-    "notification channels resolved",
-  );
+  if (params.platformUserId) {
+    logNotificationChannelsResolved({
+      resolution: attachResolutionIdentity(params.resolved, {
+        userId: params.platformUserId,
+        topicCode: params.topicCode,
+        integratorUserId: params.integratorUserId,
+      }),
+      deliveryPath: "webapp_m2m",
+      intentType: "patient_reminder",
+    });
+  }
 }
 
 function logNotifyResult(params: {
@@ -173,7 +177,7 @@ export async function runPatientReminderIntegratorNotify(
 
   const platform = await deps.findPlatformUserByIntegratorId(body.integratorUserId);
   if (!platform) {
-    const emptyResolved: ResolvedNotificationChannels = {
+    const emptyResolved = {
       selectedChannels: [],
       skippedChannels: [],
       availableChannels: [],
