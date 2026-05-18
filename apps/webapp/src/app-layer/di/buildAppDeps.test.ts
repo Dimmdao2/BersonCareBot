@@ -45,7 +45,7 @@ describe("buildAppDeps", () => {
       vkId: undefined,
     });
     expect(Array.isArray(cards)).toBe(true);
-    expect(cards.length).toBe(5);
+    expect(cards.length).toBe(6);
     expect(cards[0]).toMatchObject({
       code: "telegram",
       title: expect.any(String),

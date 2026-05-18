@@ -60,7 +60,14 @@ function isMaxDialogNotFoundError(err: unknown): boolean {
       : err instanceof Error
         ? err.message
         : String(err);
-  return m.includes('dialog.notfound') || m.includes('error.dialog.notfound');
+  const lower = m.toLowerCase();
+  return (
+    lower.includes('dialog.notfound') ||
+    lower.includes('error.dialog.notfound') ||
+    /** REST/SDK: "404: Chat 123 not found" — id был user_id, не chat_id диалога */
+    (lower.includes('chat') && lower.includes('not found')) ||
+    (lower.includes('404') && lower.includes('chat'))
+  );
 }
 
 function getBot(config: MaxClientConfig): Bot {

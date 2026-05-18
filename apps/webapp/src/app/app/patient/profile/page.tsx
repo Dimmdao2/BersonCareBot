@@ -48,6 +48,7 @@ export default async function PatientProfilePage() {
     hasTelegram: Boolean(telegramId.trim()),
     hasMax: Boolean(maxId.trim()),
     emailVerified,
+    hasWebPush: await deps.webPushSubscriptions.hasAnyForUserId(session.user.userId),
   });
 
   return (

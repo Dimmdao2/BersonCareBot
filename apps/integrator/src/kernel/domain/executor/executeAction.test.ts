@@ -3141,6 +3141,47 @@ describe('executeAction', () => {
       expect(firstCall?.channel).toBe('max');
     });
 
+    it('calls webapp fan-out after dispatchDue', async () => {
+      const notifyPatientReminderChannels = vi.fn().mockResolvedValue({ ok: true, status: 200 });
+      const readDb = vi.fn().mockImplementation(async (q: { type: string }) => {
+        if (q.type === 'reminders.occurrences.due') return [dueOcc];
+        if (q.type === 'reminders.rules.forUser') return [baseRule];
+        if (q.type === 'identities.allByUserId') {
+          return [{ resource: 'max', externalId: 'max-ext-1', chatId: 7 }];
+        }
+        return null;
+      });
+      const writeDb = vi.fn().mockResolvedValue(undefined);
+      const getTargetsByChannelBinding = vi.fn().mockResolvedValue({ maxId: 'max-ext-1' });
+      const action: Action = {
+        id: 'rd-notify',
+        type: 'reminders.dispatchDue',
+        mode: 'async',
+        params: { nowIso: '2026-03-05T12:00:00.000Z', limit: 10 },
+      };
+      const result = await executeAction(action, ctx, {
+        readPort: { readDb },
+        writePort: { writeDb },
+        deliveryTargetsPort: {
+          getTargetsByPhone: vi.fn(),
+          getTargetsByChannelBinding,
+        },
+        webappEventsPort: {
+          emit: vi.fn(),
+          listSymptomTrackings: vi.fn().mockResolvedValue({ ok: true, trackings: [] }),
+          listLfkComplexes: vi.fn().mockResolvedValue({ ok: true, complexes: [] }),
+          notifyPatientReminderChannels,
+        },
+      });
+      expect(result.status).toBe('success');
+      expect(notifyPatientReminderChannels).toHaveBeenCalledTimes(1);
+      const arg = notifyPatientReminderChannels.mock.calls[0]?.[0];
+      expect(arg?.idempotencyKey).toBe('prn:occ-1:channels');
+      const parsed = JSON.parse(arg?.body ?? '{}') as { topicCode?: string; integratorUserId?: string };
+      expect(parsed.topicCode).toBe('exercise_reminders');
+      expect(parsed.integratorUserId).toBe('user-1');
+    });
+
     it('does not drop all channels when topic bindings resolve to an empty object', async () => {
       const readDb = vi.fn().mockImplementation(async (q: { type: string }) => {
         if (q.type === 'reminders.occurrences.due') return [dueOcc];

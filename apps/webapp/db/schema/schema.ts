@@ -557,7 +557,7 @@ export const userChannelPreferences = pgTable("user_channel_preferences", {
 			name: "user_channel_preferences_platform_user_id_fkey"
 		}).onDelete("cascade"),
 	unique("user_channel_preferences_user_id_channel_code_key").on(table.userId, table.channelCode),
-	check("user_channel_preferences_channel_code_check", sql`channel_code = ANY (ARRAY['telegram'::text, 'max'::text, 'vk'::text, 'sms'::text, 'email'::text])`),
+	check("user_channel_preferences_channel_code_check", sql`channel_code = ANY (ARRAY['telegram'::text, 'max'::text, 'vk'::text, 'sms'::text, 'email'::text, 'web_push'::text])`),
 ]);
 
 export const userOauthBindings = pgTable("user_oauth_bindings", {
@@ -2377,8 +2377,31 @@ export const userNotificationTopicChannels = pgTable(
 		}),
 		check(
 			"user_notification_topic_channels_channel_check",
-			sql`${table.channelCode} = ANY (ARRAY['telegram'::text, 'max'::text, 'email'::text])`,
+			sql`${table.channelCode} = ANY (ARRAY['telegram'::text, 'max'::text, 'email'::text, 'web_push'::text])`,
 		),
+	],
+);
+
+export const userWebPushSubscriptions = pgTable(
+	"user_web_push_subscriptions",
+	{
+		id: uuid().defaultRandom().primaryKey().notNull(),
+		userId: uuid("user_id").notNull(),
+		endpoint: text("endpoint").notNull(),
+		p256dh: text("p256dh").notNull(),
+		auth: text("auth").notNull(),
+		userAgent: text("user_agent"),
+		createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+		updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+	},
+	(table) => [
+		uniqueIndex("uq_user_web_push_subscriptions_endpoint").using("btree", table.endpoint.asc().nullsLast().op("text_ops")),
+		index("idx_user_web_push_subscriptions_user").using("btree", table.userId.asc().nullsLast().op("uuid_ops")),
+		foreignKey({
+			columns: [table.userId],
+			foreignColumns: [platformUsers.id],
+			name: "user_web_push_subscriptions_user_id_fkey",
+		}).onDelete("cascade"),
 	],
 );
 

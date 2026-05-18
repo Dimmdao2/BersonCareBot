@@ -95,8 +95,8 @@ const CONTENT_TABLES: { table: string; column: string }[] = [
   { table: "support_conversations", column: "platform_user_id" },
   { table: "patient_lfk_assignments", column: "patient_user_id" },
   { table: "content_access_grants_webapp", column: "platform_user_id" },
-  { table: "user_notification_topics", column: "user_id" },
-  { table: "user_channel_preferences", column: "user_id" },
+  { table: "user_notification_topic_channels", column: "user_id" },
+  { table: "user_web_push_subscriptions", column: "user_id" },
   { table: "online_intake_requests", column: "user_id" },
 ];
 

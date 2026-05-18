@@ -161,6 +161,47 @@ describe("createWebappEventsPort emit", () => {
   });
 });
 
+describe("createWebappEventsPort notifyPatientReminderChannels", () => {
+  const originalFetch = globalThis.fetch;
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  it("POSTs signed JSON with idempotency header", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      status: 200,
+      text: async () => JSON.stringify({ ok: true }),
+    });
+    globalThis.fetch = fetchMock;
+    const { createWebappEventsPort } = await import("./webappEventsClient.js");
+    const port = createWebappEventsPort({ getAppBaseUrl: async () => "https://webapp.test" });
+    const body = JSON.stringify({
+      integratorUserId: "1",
+      occurrenceId: "occ-1",
+      topicCode: "exercise_reminders",
+      title: "Напоминание",
+      bodyText: "Текст",
+      openUrl: "https://webapp.test/app/patient",
+    });
+    const notify = port.notifyPatientReminderChannels;
+    if (!notify) throw new Error("expected notifyPatientReminderChannels");
+    const r = await notify({ body, idempotencyKey: "prn:occ-1:channels" });
+    expect(r.ok).toBe(true);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://webapp.test/api/integrator/patient-reminders/notify-channels",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({
+          "Content-Type": "application/json",
+          "X-Bersoncare-Idempotency-Key": "prn:occ-1:channels",
+        }),
+        body,
+      }),
+    );
+  });
+});
+
 describe("createWebappEventsPort completeChannelLink", () => {
   const originalFetch = globalThis.fetch;
 

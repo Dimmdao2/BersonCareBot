@@ -498,6 +498,13 @@
       "when": 1781300000000,
       "tag": "0070_identity_email_phone_merge",
       "breakpoints": true
+    },
+    {
+      "idx": 71,
+      "version": "7",
+      "when": 1781400000000,
+      "tag": "0071_web_push_subscriptions_and_channel_codes",
+      "breakpoints": true
     }
   ]
 }

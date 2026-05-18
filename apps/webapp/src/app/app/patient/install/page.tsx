@@ -3,6 +3,7 @@ import { requirePatientAccess } from "@/app-layer/guards/requireRole";
 import { AppShell } from "@/shared/ui/AppShell";
 import { cn } from "@/lib/utils";
 import { patientMutedTextClass, patientSectionSurfaceClass } from "@/shared/ui/patientVisual";
+import { WebPushOptInControls } from "./WebPushOptInControls";
 
 export default async function PatientInstallPage() {
   const session = await requirePatientAccess(routePaths.patientInstall);
@@ -21,6 +22,7 @@ export default async function PatientInstallPage() {
         <p className={patientMutedTextClass}>
           После установки можно входить через Telegram (мини-приложение) или через браузер — тот же аккаунт.
         </p>
+        <WebPushOptInControls />
       </section>
     </AppShell>
   );

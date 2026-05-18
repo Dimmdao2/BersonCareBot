@@ -23,7 +23,7 @@ type Props = {
 export function ConnectMessengersBlock({ channelCards, implementedOnly = true, showHeading = true }: Props) {
   const cards = implementedOnly
     ? channelCards.filter((c): c is ChannelCard => c.code === "telegram" || c.code === "max")
-    : channelCards.filter((c) => c.code !== "vk");
+    : channelCards.filter((c) => c.code !== "vk" && c.code !== "web_push");
   const linkedCount = cards.filter((c) => c.isLinked).length;
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);

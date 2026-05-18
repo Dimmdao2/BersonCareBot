@@ -1,9 +1,10 @@
 /**
- * Future Web Push (browser subscriptions + server-side send). No adapter in `buildAppDeps` yet.
- * Status probe: `GET /api/patient/web-push/status` → **501** `not_implemented` until backlog ships.
+ * Web Push: browser subscriptions (public schema) + server-side send via VAPID in `system_settings`.
+ *
+ * Patient API: subscribe/unsubscribe + status. Integrator M2M: reminder fan-out to push/email.
  */
 
-/** Serialized `PushSubscriptionJSON` keys as stored for a user (future). */
+/** Serialized `PushSubscriptionJSON` keys as stored for a user. */
 export type WebPushSubscriptionKeysV1 = {
   p256dh: string;
   auth: string;
@@ -15,11 +16,17 @@ export type WebPushSubscriptionPayloadV1 = {
   keys: WebPushSubscriptionKeysV1;
 };
 
-/**
- * Port for persisting subscriptions and sending payloads (implement when product backlog clears).
- * Keep business logic in `modules/web-push/service.ts` (future), DB in `infra/repos` (future).
- */
 export type WebPushSubscriptionsPort = {
-  saveSubscription(userId: string, subscription: WebPushSubscriptionPayloadV1): Promise<void>;
+  /** Upsert by endpoint; trims subscriptions to max per user (oldest dropped). */
+  saveSubscription(
+    userId: string,
+    subscription: WebPushSubscriptionPayloadV1,
+    options?: { userAgent?: string | null },
+  ): Promise<void>;
+  removeSubscriptionByEndpoint(userId: string, endpoint: string): Promise<void>;
   removeSubscriptionsForUser(userId: string): Promise<void>;
+  hasAnyForUserId(userId: string): Promise<boolean>;
+  listActiveByUserId(userId: string): Promise<WebPushSubscriptionPayloadV1[]>;
+  /** Remove stale subscription after 410/404 from push service; returns whether a row was removed. */
+  deleteByEndpointIfExists(endpoint: string): Promise<boolean>;
 };

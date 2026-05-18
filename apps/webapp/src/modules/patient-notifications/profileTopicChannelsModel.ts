@@ -9,6 +9,7 @@ const CHANNEL_LABEL: Record<PatientTopicChannelCode, string> = {
   telegram: "Telegram",
   max: "MAX",
   email: "Email",
+  web_push: "Браузер",
 };
 
 export type ProfileNotificationChannelModel = {
@@ -35,7 +36,7 @@ function resolveTopicChannelEnabled(
 export function buildProfileNotificationTopicModels(
   topics: Array<{ id: string; title: string }>,
   prefRows: TopicChannelPrefRow[],
-  availability: { hasTelegram: boolean; hasMax: boolean; emailVerified: boolean },
+  availability: { hasTelegram: boolean; hasMax: boolean; emailVerified: boolean; hasWebPush: boolean },
 ): ProfileNotificationTopicModel[] {
   return topics.map((t) => {
     const allowed = allowedChannelsForTopic(t.id);
@@ -44,6 +45,7 @@ export function buildProfileNotificationTopicModels(
       if (code === "telegram" && !availability.hasTelegram) continue;
       if (code === "max" && !availability.hasMax) continue;
       if (code === "email" && !availability.emailVerified) continue;
+      if (code === "web_push" && !availability.hasWebPush) continue;
       channels.push({
         code,
         label: CHANNEL_LABEL[code],

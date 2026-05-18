@@ -5,7 +5,7 @@ import type { OtpUiChannel } from "@/modules/auth/otpChannelUi";
 import type { ChannelBindings } from "@/shared/types/session";
 
 function channelCodeToOtpUi(code: ChannelCode | null): OtpUiChannel | null {
-  if (!code || code === "vk") return null;
+  if (!code || code === "vk" || code === "web_push") return null;
   if (code === "telegram" || code === "max" || code === "email" || code === "sms") return code;
   return null;
 }
@@ -17,7 +17,12 @@ export type ChannelDeliveryContext = {
   emailVerified?: boolean;
 };
 
-function isLinked(bindings: ChannelBindings, code: ChannelCode, ctx?: ChannelDeliveryContext): boolean {
+function isLinked(
+  bindings: ChannelBindings,
+  code: ChannelCode,
+  ctx?: ChannelDeliveryContext,
+  webPushSubscribed = false,
+): boolean {
   switch (code) {
     case "telegram":
       return Boolean(bindings.telegramId);
@@ -29,25 +34,38 @@ function isLinked(bindings: ChannelBindings, code: ChannelCode, ctx?: ChannelDel
       return Boolean(ctx?.phone?.trim());
     case "email":
       return Boolean(ctx?.emailVerified);
+    case "web_push":
+      return webPushSubscribed;
     default:
       return false;
   }
 }
 
-export function createChannelPreferencesService(port: ChannelPreferencesPort) {
+export type ChannelPreferencesServiceOptions = {
+  webPushHasSubscription?: (userId: string) => Promise<boolean>;
+};
+
+export function createChannelPreferencesService(
+  port: ChannelPreferencesPort,
+  serviceOptions?: ChannelPreferencesServiceOptions,
+) {
   return {
     async getChannelCards(
       userId: string,
       bindings: ChannelBindings,
       delivery?: ChannelDeliveryContext
     ): Promise<ChannelCard[]> {
+      const webPushSubscribed =
+        serviceOptions?.webPushHasSubscription != null ?
+          await serviceOptions.webPushHasSubscription(userId)
+        : false;
       const prefs = await port.getPreferences(userId);
       const byCode = new Map(prefs.map((p) => [p.channelCode, p]));
       return CHANNEL_LIST.map((ch) => ({
         code: ch.code,
         title: ch.title,
         openUrl: ch.openUrl,
-        isLinked: isLinked(bindings, ch.code, delivery),
+        isLinked: isLinked(bindings, ch.code, delivery, webPushSubscribed),
         isImplemented: ch.implemented,
         isEnabledForMessages: byCode.get(ch.code)?.isEnabledForMessages ?? true,
         isEnabledForNotifications: byCode.get(ch.code)?.isEnabledForNotifications ?? true,

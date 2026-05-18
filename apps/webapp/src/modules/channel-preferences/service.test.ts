@@ -9,6 +9,7 @@ const basePrefs = [
   { channelCode: "vk" as const, isEnabledForMessages: true, isEnabledForNotifications: true, isPreferredForAuth: false },
   { channelCode: "sms" as const, isEnabledForMessages: true, isEnabledForNotifications: true, isPreferredForAuth: false },
   { channelCode: "email" as const, isEnabledForMessages: true, isEnabledForNotifications: true, isPreferredForAuth: false },
+  { channelCode: "web_push" as const, isEnabledForMessages: true, isEnabledForNotifications: true, isPreferredForAuth: false },
 ];
 
 describe("channel-preferences service", () => {
@@ -53,7 +54,7 @@ describe("channel-preferences service", () => {
       maxId: undefined,
       vkId: undefined,
     });
-    expect(cards).toHaveLength(5);
+    expect(cards).toHaveLength(6);
     expect(cards[0].code).toBe("telegram");
     expect(cards[0].isLinked).toBe(true);
     expect(cards[0].isEnabledForMessages).toBe(true);
@@ -63,6 +64,9 @@ describe("channel-preferences service", () => {
     expect(cards[1].isEnabledForMessages).toBe(false);
     expect(cards[3].code).toBe("sms");
     expect(cards[3].isLinked).toBe(false);
+    expect(cards[4].code).toBe("email");
+    expect(cards[5].code).toBe("web_push");
+    expect(cards[5].isLinked).toBe(false);
     const withPhone = await service.getChannelCards(
       "user-1",
       { telegramId: "123", maxId: undefined, vkId: undefined },

@@ -492,6 +492,58 @@ export async function handleReminders(
         }
       }
 
+      if (topicCode && deps.webappEventsPort?.notifyPatientReminderChannels) {
+        let notifyTitle: string;
+        if (titleMode.kind === 'fixed') {
+          notifyTitle = titleMode.title;
+        } else if (deps.templatePort) {
+          notifyTitle = (
+            await deps.templatePort.renderTemplate({
+              source: 'telegram',
+              templateId: categoryTemplateId,
+              vars: {},
+              audience: 'user',
+            })
+          ).text.trim();
+        } else {
+          notifyTitle = 'Напоминание';
+        }
+        const notifyPayload = {
+          integratorUserId: occ.userId,
+          occurrenceId: occ.id,
+          topicCode,
+          title: notifyTitle,
+          bodyText: reminderBodyRaw.trim().slice(0, 4000),
+          openUrl,
+        };
+        const body = JSON.stringify(notifyPayload);
+        const idempotencyKey = `prn:${occ.id}:channels`;
+        try {
+          const r = await deps.webappEventsPort.notifyPatientReminderChannels({ body, idempotencyKey });
+          if (!r.ok) {
+            logger.warn(
+              {
+                metric: 'webapp_prn_failed',
+                occurrenceId: occ.id,
+                integratorUserId: occ.userId,
+                status: r.status,
+                error: r.error,
+              },
+              'reminders.dispatchDue: webapp notify-channels failed',
+            );
+          }
+        } catch (err) {
+          logger.warn(
+            {
+              metric: 'webapp_prn_err',
+              occurrenceId: occ.id,
+              err,
+            },
+            'reminders.dispatchDue: webapp notify-channels threw',
+          );
+        }
+      }
+
       for (const { channel, chatId, externalId } of sendChannels) {
         let reminderTitle: string;
         if (titleMode.kind === 'fixed') {

@@ -42,6 +42,12 @@ export async function setTopicChannelNotificationEnabled(
     if (cc === "email" && !emailVerified) {
       return { ok: false, message: "Подтвердите email" };
     }
+    if (cc === "web_push") {
+      const hasPush = await deps.webPushSubscriptions.hasAnyForUserId(session.user.userId);
+      if (!hasPush) {
+        return { ok: false, message: "Включите уведомления браузера в настройках приложения" };
+      }
+    }
 
     await deps.topicChannelPrefs.upsert(session.user.userId, tc, cc, en);
     revalidatePath(routePaths.profile);

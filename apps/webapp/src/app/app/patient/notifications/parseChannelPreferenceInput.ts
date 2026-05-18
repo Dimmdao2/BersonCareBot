@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { ChannelCode } from "@/modules/channel-preferences/types";
 
-const channelCodeSchema = z.enum(["telegram", "max", "vk", "sms", "email"]);
+const channelCodeSchema = z.enum(["telegram", "max", "vk", "sms", "email", "web_push"]);
 
 export type ParseChannelNotificationResult =
   | { ok: true; code: ChannelCode; enabled: boolean }

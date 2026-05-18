@@ -181,6 +181,50 @@ export function createWebappEventsPort(deps: { getAppBaseUrl: () => Promise<stri
         : { ok: false, error: result.error ?? 'request failed' };
     },
 
+    async notifyPatientReminderChannels(input: {
+      body: string;
+      idempotencyKey: string;
+    }): Promise<{ ok: boolean; status: number; error?: string }> {
+      const baseUrl = await deps.getAppBaseUrl();
+      if (!baseUrl || !secret) {
+        return { ok: false, status: 0, error: 'APP_BASE_URL or webhook secret not set' };
+      }
+      const url = `${baseUrl.replace(/\/$/, '')}/api/integrator/patient-reminders/notify-channels`;
+      const timestamp = String(Math.floor(Date.now() / 1000));
+      const signature = sign(timestamp, input.body, secret);
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'X-Bersoncare-Timestamp': timestamp,
+        'X-Bersoncare-Signature': signature,
+        'X-Bersoncare-Idempotency-Key': input.idempotencyKey,
+      };
+      try {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers,
+          body: input.body,
+        });
+        const text = await res.text().catch(() => '');
+        let parsed: { ok?: boolean; error?: string } = {};
+        if (text) {
+          try {
+            parsed = JSON.parse(text) as { ok?: boolean; error?: string };
+          } catch {
+            /* non-JSON body */
+          }
+        }
+        const ok = (res.status === 200 || res.status === 202) && parsed.ok === true;
+        return {
+          ok,
+          status: res.status,
+          ...(ok ? {} : { error: typeof parsed.error === 'string' ? parsed.error : text || res.statusText }),
+        };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        return { ok: false, status: 0, error: message };
+      }
+    },
+
     async completeChannelLink(params: {
       linkToken: string;
       channelCode: string;

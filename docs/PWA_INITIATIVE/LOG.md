@@ -1,5 +1,12 @@
 # PWA — журнал
 
+## 2026-05-18 — Web Push + email: контур напоминаний (MVP)
+
+- **Канал `web_push`:** prefs, матрица тем, таблица подписок, `GET/POST` patient API, отправка из webapp по VAPID из `system_settings`.
+- **Email:** transactional SMTP из `smtp_outbound`, те же гейты темы/канала; вызов из integrator через M2M (см. ниже).
+- **Integrator `reminders.dispatchDue`:** после расчёта текста/темы — `notifyPatientReminderChannels` → `POST /api/integrator/patient-reminders/notify-channels` (подпись + `x-bersoncare-idempotency-key` `prn:<occurrenceId>:channels`).
+- **`public/sw.js`:** обработчики `push` и `notificationclick` (открытие только same-origin, путь `/app/*`); по-прежнему без `fetch`.
+
 ## 2026-05-18 — Укрепление VAPID / SW / контур push
 
 - **`web_push_vapid`:** ответы `GET`/`PATCH`/batch и RSC `/app/settings` не держат `privateKey` в данных для композиции страницы (`redactAdminSettingsForClient` на списке admin); в HTTP/API — `hasPrivateKey`; усилена проверка декодированных длин ключей P-256 (`webPushVapidPatch.ts`, `webPushVapidRuntime.ts`).

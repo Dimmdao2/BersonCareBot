@@ -98,10 +98,13 @@ import { inMemoryLfkDiaryPort } from "@/infra/repos/lfkDiary";
 import { pgSymptomDiaryPort } from "@/infra/repos/pgSymptomDiary";
 import { pgLfkDiaryPort } from "@/infra/repos/pgLfkDiary";
 import { purgeAllDiaryDataForUserPg } from "@/infra/repos/pgDiaryPurge";
+import { readReminderWebappNotifyGate } from "@/infra/repos/pgReminderWebappNotifyGate";
 import { purgeInMemoryLfkDiaryForUser } from "@/infra/repos/lfkDiary";
 import { purgeInMemorySymptomDiaryForUser } from "@/infra/repos/symptomDiary";
 import { inMemoryChannelPreferencesPort } from "@/infra/repos/inMemoryChannelPreferences";
+import { inMemoryWebPushSubscriptionsPort } from "@/infra/repos/inMemoryWebPushSubscriptions";
 import { pgChannelPreferencesPort } from "@/infra/repos/pgChannelPreferences";
+import { createPgWebPushSubscriptionsPort } from "@/infra/repos/pgWebPushSubscriptions";
 import { createPgTopicChannelPrefsPort, inMemoryTopicChannelPrefsPort } from "@/infra/repos/pgTopicChannelPrefs";
 import { pgUserProjectionPort, inMemoryUserProjectionPort } from "@/infra/repos/pgUserProjection";
 import { pgUserPinsPort } from "@/infra/repos/pgUserPins";
@@ -235,6 +238,9 @@ const healthFailureArchive = createHealthFailureArchiveService(healthFailureArch
 const symptomDiaryPort = !inMemoryRepos ? pgSymptomDiaryPort : inMemorySymptomDiaryPort;
 const lfkDiaryPort = !inMemoryRepos ? pgLfkDiaryPort : inMemoryLfkDiaryPort;
 const channelPreferencesPort = !inMemoryRepos ? pgChannelPreferencesPort : inMemoryChannelPreferencesPort;
+const webPushSubscriptionsPort = !inMemoryRepos
+  ? createPgWebPushSubscriptionsPort()
+  : inMemoryWebPushSubscriptionsPort;
 const topicChannelPrefsPort = !inMemoryRepos ? createPgTopicChannelPrefsPort() : inMemoryTopicChannelPrefsPort;
 const userByPhonePort = !inMemoryRepos ? pgUserByPhonePort : inMemoryUserByPhonePort;
 const userPinsPort = !inMemoryRepos ? pgUserPinsPort : inMemoryUserPinsPort;
@@ -538,7 +544,9 @@ const patientMoodService = createPatientMoodService({
   references: referencesPort,
 });
 const lfkDiaryService = createLfkDiaryService(lfkDiaryPort);
-const channelPreferencesService = createChannelPreferencesService(channelPreferencesPort);
+const channelPreferencesService = createChannelPreferencesService(channelPreferencesPort, {
+  webPushHasSubscription: (userId) => webPushSubscriptionsPort.hasAnyForUserId(userId),
+});
 const mediaService = createMediaService(mediaStoragePort);
 const contentCatalog = createContentCatalogResolver({
   testVideoUrl: env.MEDIA_TEST_VIDEO_URL?.length ? env.MEDIA_TEST_VIDEO_URL : undefined,
@@ -767,6 +775,9 @@ function _buildAppDeps() {
     healthFailureArchive,
     media: mediaService,
     channelPreferences: channelPreferencesService,
+    channelPreferencesPort,
+    webPushSubscriptions: webPushSubscriptionsPort,
+    readReminderNotifyGate: readReminderWebappNotifyGate,
     contentCatalog,
     deliveryTargetsApi: {
       getTargets: (params: { phone?: string; telegramId?: string; maxId?: string; topic?: string }) =>

@@ -3,7 +3,7 @@ import type { BroadcastNotificationPrefsFlags } from "@/modules/doctor-broadcast
 import type { ChannelPreferencesPort } from "@/modules/channel-preferences/ports";
 import type { ChannelCode, ChannelPreference } from "@/modules/channel-preferences/types";
 
-const CODES: ChannelCode[] = ["telegram", "max", "vk", "sms", "email"];
+const CODES: ChannelCode[] = ["telegram", "max", "vk", "sms", "email", "web_push"];
 
 const AUTH_CHANNELS = new Set<ChannelCode>(["telegram", "max", "email", "sms"]);
 
