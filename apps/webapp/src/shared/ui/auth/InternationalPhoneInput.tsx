@@ -6,7 +6,8 @@ import type { E164Number } from "libphonenumber-js/core";
 import { isValidPhoneNumber } from "libphonenumber-js/min";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { patientMutedTextClass, patientPrimaryActionClass } from "@/shared/ui/patientVisual";
+import { AUTH_LOGIN_FORM_PRIMARY_BUTTON_CLASS } from "@/shared/ui/auth/loginChrome";
+import { patientMutedTextClass } from "@/shared/ui/patientVisual";
 import "react-phone-number-input/style.css";
 import "./international-phone-input.css";
 
@@ -114,7 +115,8 @@ export function InternationalPhoneInput({
       {showError ? <p className="text-sm text-[var(--patient-color-danger)]">Введите корректный номер</p> : null}
       <Button
         type="submit"
-        className={cn(patientPrimaryActionClass, "min-h-10")}
+        variant="outline"
+        className={AUTH_LOGIN_FORM_PRIMARY_BUTTON_CLASS}
         disabled={disabled || !canSubmit}
         aria-label={submitLabel}
       >

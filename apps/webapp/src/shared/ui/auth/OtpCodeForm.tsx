@@ -9,7 +9,11 @@ import { isAppSupportPath } from "@/lib/url/isAppSupportPath";
 import { isSafeExternalHref } from "@/lib/url/isSafeExternalHref";
 import { SupportContactLink } from "@/shared/ui/SupportContactLink";
 import { cn } from "@/lib/utils";
-import { patientInlineLinkClass, patientMutedTextClass, patientPrimaryActionClass } from "@/shared/ui/patientVisual";
+import {
+  AUTH_LOGIN_FORM_PRIMARY_BUTTON_CLASS,
+  AUTH_LOGIN_FORM_SECONDARY_BUTTON_CLASS,
+} from "@/shared/ui/auth/loginChrome";
+import { patientInlineLinkClass, patientMutedTextClass } from "@/shared/ui/patientVisual";
 
 export type OtpConfirmResult =
   | { ok: true; redirectTo?: string }
@@ -202,15 +206,32 @@ export function OtpCodeForm({
         />
       </div>
       {error ? <p className="text-sm text-[var(--patient-color-danger)]">{error}</p> : null}
-      <Button type="submit" className={patientPrimaryActionClass} disabled={loading || hardBlocked}>
+      <Button
+        type="submit"
+        variant="outline"
+        className={AUTH_LOGIN_FORM_PRIMARY_BUTTON_CLASS}
+        disabled={loading || hardBlocked}
+      >
         {loading ? "Проверка…" : submitLabel}
       </Button>
       <div className="flex flex-wrap items-center gap-3">
-        <Button type="button" variant="ghost" size="sm" onClick={onBack} disabled={loading}>
+        <Button
+          type="button"
+          variant="outline"
+          className={AUTH_LOGIN_FORM_SECONDARY_BUTTON_CLASS}
+          onClick={onBack}
+          disabled={loading}
+        >
           Назад
         </Button>
         {canResend && !hardBlocked ? (
-          <Button type="button" variant="ghost" size="sm" onClick={() => void handleResend()} disabled={loading || resendLoading}>
+          <Button
+            type="button"
+            variant="outline"
+            className={AUTH_LOGIN_FORM_SECONDARY_BUTTON_CLASS}
+            onClick={() => void handleResend()}
+            disabled={loading || resendLoading}
+          >
             {resendLoading ? "Отправка…" : "Отправить код повторно"}
           </Button>
         ) : !hardBlocked ? (
@@ -270,8 +291,8 @@ export function OtpCodeForm({
                   <Button
                     key={i}
                     type="button"
-                    variant="secondary"
-                    size="sm"
+                    variant="outline"
+                    className={AUTH_LOGIN_FORM_PRIMARY_BUTTON_CLASS}
                     onClick={() => void alt.onClick()}
                     disabled={loading || resendLoading || hardBlocked}
                   >
@@ -283,7 +304,7 @@ export function OtpCodeForm({
           ) : null}
         </div>
       ) : null}
-      <SupportContactLink href={supportHref} className={textLinkClass}>
+      <SupportContactLink href={supportHref} className={cn(AUTH_LOGIN_FORM_SECONDARY_BUTTON_CLASS, "w-full sm:w-auto")}>
         Написать в поддержку
       </SupportContactLink>
     </form>

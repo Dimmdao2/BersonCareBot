@@ -10,6 +10,7 @@ import {
   pickPrimaryOtpChannelPublic,
   type OtpUiChannel,
 } from "@/modules/auth/otpChannelUi";
+import { AUTH_LOGIN_FORM_PRIMARY_BUTTON_CLASS } from "@/shared/ui/auth/loginChrome";
 import { patientInlineLinkClass, patientMutedTextClass } from "@/shared/ui/patientVisual";
 
 type ChannelPickerProps = {
@@ -69,7 +70,14 @@ export function ChannelPicker({ methods, disabled, onChoose }: ChannelPickerProp
 
   return (
     <div className={cn("flex max-w-sm flex-col gap-2")} role="group" aria-label="Способ получения кода">
-      <Button type="button" disabled={disabled} aria-label={primaryAria} onClick={handlePrimary}>
+      <Button
+        type="button"
+        variant="outline"
+        className={AUTH_LOGIN_FORM_PRIMARY_BUTTON_CLASS}
+        disabled={disabled}
+        aria-label={primaryAria}
+        onClick={handlePrimary}
+      >
         {primaryLabel}
       </Button>
 
@@ -104,7 +112,8 @@ export function ChannelPicker({ methods, disabled, onChoose }: ChannelPickerProp
                   <Button
                     key={ch}
                     type="button"
-                    variant="secondary"
+                    variant="outline"
+                    className={AUTH_LOGIN_FORM_PRIMARY_BUTTON_CLASS}
                     disabled={disabled}
                     aria-label={aria}
                     onClick={() => {

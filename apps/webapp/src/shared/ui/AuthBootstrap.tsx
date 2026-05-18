@@ -29,6 +29,7 @@ import { getPostAuthRedirectTarget } from "@/modules/auth/redirectPolicy";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { AuthFlowV2, type AuthFlowStep, type PrefetchedPublicAuthConfig } from "@/shared/ui/auth/AuthFlowV2";
+import { AUTH_LOGIN_FORM_PRIMARY_BUTTON_CLASS } from "@/shared/ui/auth/loginChrome";
 import { MaxBridgeScript } from "@/shared/ui/MaxBridgeScript";
 import { patientInlineLinkClass, patientMutedTextClass } from "@/shared/ui/patientVisual";
 import { persistMessengerBindingCandidate } from "@/shared/lib/messengerBindingCandidate";
@@ -1015,7 +1016,12 @@ export function AuthBootstrap({
         error === MINIAPP_ACTIVATE_BOT_AND_AUTH_MESSAGE ||
         error === MAX_SERVICE_UNAVAILABLE_MESSAGE ? (
           <div className="mt-4">
-            <Button type="button" variant="secondary" onClick={handleMessengerAuthRetry}>
+            <Button
+              type="button"
+              variant="outline"
+              className={AUTH_LOGIN_FORM_PRIMARY_BUTTON_CLASS}
+              onClick={handleMessengerAuthRetry}
+            >
               Повторить
             </Button>
           </div>

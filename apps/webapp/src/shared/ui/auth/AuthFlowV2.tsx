@@ -9,7 +9,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { isMessengerMiniAppHost } from "@/shared/lib/messengerMiniApp";
@@ -26,6 +26,7 @@ import { InternationalPhoneInput } from "@/shared/ui/auth/InternationalPhoneInpu
 import { TelegramLoginButton } from "@/shared/ui/auth/TelegramLoginButton";
 import { SupportContactLink } from "@/shared/ui/SupportContactLink";
 import {
+  AUTH_LOGIN_FORM_PRIMARY_BUTTON_CLASS,
   AUTH_LOGIN_OUTLINE_BUTTON_CLASS,
   AUTH_LOGIN_PRIMARY_BUTTON_CLASS,
 } from "@/shared/ui/auth/loginChrome";
@@ -35,7 +36,6 @@ import {
   patientInnerPageStackClass,
   patientInlineLinkClass,
   patientMutedTextClass,
-  patientPrimaryActionClass,
 } from "@/shared/ui/patientVisual";
 
 const WEB_CHAT_ID_KEY = "bersoncare_web_chat_id";
@@ -149,12 +149,12 @@ function MaxLoginCta({
   variant: "primary" | "outline";
   onActivate?: () => void;
 }) {
-  const cls = variant === "primary" ? AUTH_LOGIN_PRIMARY_BUTTON_CLASS : AUTH_LOGIN_OUTLINE_BUTTON_CLASS;
+  const cls = AUTH_LOGIN_PRIMARY_BUTTON_CLASS;
   if (maxAltLoading) {
     return (
       <Button
         type="button"
-        variant={variant === "primary" ? "default" : "outline"}
+        variant="outline"
         className={cn(cls, "animate-pulse")}
         disabled
         aria-busy="true"
@@ -169,7 +169,7 @@ function MaxLoginCta({
       href={maxOpenUrl}
       target="_blank"
       rel="noopener noreferrer"
-      className={cn(buttonVariants({ variant: variant === "primary" ? "default" : "outline" }), cls)}
+      className={cls}
       onClick={() => onActivate?.()}
     >
       {variant === "primary" ? "Войти через Max" : "Max"}
@@ -563,7 +563,7 @@ export function AuthFlowV2({
           <div className="mt-4 flex w-full flex-col items-center gap-3">
             <Button
               type="button"
-              variant="default"
+              variant="outline"
               className={AUTH_LOGIN_PRIMARY_BUTTON_CLASS}
               disabled={loading}
               onClick={() => setEmailAuthMode("login")}
@@ -572,7 +572,7 @@ export function AuthFlowV2({
             </Button>
             <Button
               type="button"
-              variant="default"
+              variant="outline"
               className={AUTH_LOGIN_PRIMARY_BUTTON_CLASS}
               disabled={loading}
               onClick={() => setEmailAuthMode("register")}
@@ -605,7 +605,7 @@ export function AuthFlowV2({
               disabled={loading}
               className="w-full"
             />
-            <Button type="submit" className={patientPrimaryActionClass} disabled={loading}>
+            <Button type="submit" variant="outline" className={AUTH_LOGIN_FORM_PRIMARY_BUTTON_CLASS} disabled={loading}>
               Войти
             </Button>
           </form>
@@ -634,7 +634,7 @@ export function AuthFlowV2({
               disabled={loading}
               className="w-full"
             />
-            <Button type="submit" className={patientPrimaryActionClass} disabled={loading}>
+            <Button type="submit" variant="outline" className={AUTH_LOGIN_FORM_PRIMARY_BUTTON_CLASS} disabled={loading}>
               Продолжить
             </Button>
           </form>
@@ -725,7 +725,7 @@ export function AuthFlowV2({
           {oauthProviders.yandex ? (
             <Button
               type="button"
-              variant="default"
+              variant="outline"
               className={AUTH_LOGIN_PRIMARY_BUTTON_CLASS}
               disabled={loading}
               onClick={() => void startOauth("yandex")}
@@ -736,7 +736,7 @@ export function AuthFlowV2({
           {oauthProviders.google ? (
             <Button
               type="button"
-              variant="default"
+              variant="outline"
               className={AUTH_LOGIN_PRIMARY_BUTTON_CLASS}
               disabled={loading}
               onClick={() => void startOauth("google")}
@@ -747,7 +747,7 @@ export function AuthFlowV2({
           {showAppleFallback ? (
             <Button
               type="button"
-              variant="default"
+              variant="outline"
               className={AUTH_LOGIN_PRIMARY_BUTTON_CLASS}
               disabled={loading}
               onClick={() => void startOauth("apple")}
@@ -768,7 +768,7 @@ export function AuthFlowV2({
             ) : (
               <Button
                 type="button"
-                variant="default"
+                variant="outline"
                 className={cn(AUTH_LOGIN_PRIMARY_BUTTON_CLASS, "animate-pulse")}
                 disabled
                 aria-busy="true"
@@ -786,7 +786,7 @@ export function AuthFlowV2({
         />
         <Button
           type="button"
-          variant="default"
+          variant="outline"
           className={AUTH_LOGIN_PRIMARY_BUTTON_CLASS}
           disabled={loading}
           onClick={() => openEmailPasswordLogin("oauth_first")}
@@ -817,7 +817,7 @@ export function AuthFlowV2({
             {oauthProviders.yandex ? (
               <Button
                 type="button"
-                variant="default"
+                variant="outline"
                 className={AUTH_LOGIN_PRIMARY_BUTTON_CLASS}
                 disabled={loading}
                 onClick={() => void startOauth("yandex")}
@@ -828,7 +828,7 @@ export function AuthFlowV2({
             {oauthProviders.google ? (
               <Button
                 type="button"
-                variant="default"
+                variant="outline"
                 className={AUTH_LOGIN_PRIMARY_BUTTON_CLASS}
                 disabled={loading}
                 onClick={() => void startOauth("google")}
@@ -839,7 +839,7 @@ export function AuthFlowV2({
             {showAppleFallback ? (
               <Button
                 type="button"
-                variant="default"
+                variant="outline"
                 className={AUTH_LOGIN_PRIMARY_BUTTON_CLASS}
                 disabled={loading}
                 onClick={() => void startOauth("apple")}
@@ -863,7 +863,7 @@ export function AuthFlowV2({
         />
         <Button
           type="button"
-          variant="default"
+          variant="outline"
           className={AUTH_LOGIN_PRIMARY_BUTTON_CLASS}
           disabled={loading}
           onClick={() => openEmailPasswordLogin("landing")}
@@ -979,7 +979,7 @@ export function AuthFlowV2({
             href={maxOpenUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className={cn(buttonVariants({ variant: "default" }), AUTH_LOGIN_PRIMARY_BUTTON_CLASS)}
+            className={AUTH_LOGIN_PRIMARY_BUTTON_CLASS}
             onClick={() => engageInteractive()}
           >
             Войти через Max
@@ -988,7 +988,7 @@ export function AuthFlowV2({
         {showTelegramAuthSlot ? (
           <Button
             type="button"
-            variant="default"
+            variant="outline"
             className={AUTH_LOGIN_PRIMARY_BUTTON_CLASS}
             disabled={loading || !telegramWidgetReady}
             onClick={() => {
@@ -1080,7 +1080,7 @@ export function AuthFlowV2({
             href={maxOpenUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className={cn(buttonVariants({ variant: "default" }), AUTH_LOGIN_PRIMARY_BUTTON_CLASS)}
+            className={AUTH_LOGIN_PRIMARY_BUTTON_CLASS}
             onClick={() => engageInteractive()}
           >
             Войти через Max
@@ -1089,7 +1089,7 @@ export function AuthFlowV2({
         {showTelegramAuthSlot ? (
           <Button
             type="button"
-            variant="default"
+            variant="outline"
             className={AUTH_LOGIN_PRIMARY_BUTTON_CLASS}
             disabled={loading || !telegramWidgetReady}
             onClick={() => {
@@ -1105,11 +1105,7 @@ export function AuthFlowV2({
         {supportContactHref ? (
           <SupportContactLink
             href={supportContactHref}
-            className={cn(
-              buttonVariants({ variant: "outline" }),
-              AUTH_LOGIN_OUTLINE_BUTTON_CLASS,
-              "inline-flex items-center justify-center",
-            )}
+            className={cn(AUTH_LOGIN_PRIMARY_BUTTON_CLASS, "inline-flex items-center justify-center")}
           >
             Связаться с поддержкой
           </SupportContactLink>
