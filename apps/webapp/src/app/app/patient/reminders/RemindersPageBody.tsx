@@ -14,6 +14,7 @@ import { resolvePatientCanViewAuthOnlyContent } from "@/modules/platform-access"
 import { RemindersHashScroll } from "./RemindersHashScroll";
 import { PatientRemindersMuteBar } from "./PatientRemindersMuteBar";
 import type { AppSession } from "@/shared/types/session";
+import { PATIENT_REHAB_PROGRAM_LINKED_PLACEHOLDER } from "@/modules/reminders/rehabProgramLinkedObject";
 
 function mapIconKind(linked: NonNullable<ReminderRule["linkedObjectType"]>): PersonalReminderRowVM["iconKind"] {
   switch (linked) {
@@ -108,8 +109,31 @@ export async function RemindersPageBody({ session }: { session: AppSession }) {
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || b.id.localeCompare(a.id));
   const activeProgram = activeCandidates[0] ?? null;
 
-  const rehabMatches = activeProgram
-    ? rules.filter((r) => r.linkedObjectType === "rehab_program" && r.linkedObjectId === activeProgram.id)
+  const promoTplId = await deps.systemSettings.getPatientDefaultPromoTreatmentProgramTemplateId();
+  let virtualPromoTitle: string | null = null;
+  if (!activeProgram && promoTplId) {
+    try {
+      const tpl = await deps.treatmentProgram.getTemplate(promoTplId);
+      if (tpl.status === "published") {
+        virtualPromoTitle = tpl.title?.trim() || "Программа реабилитации";
+      }
+    } catch {
+      virtualPromoTitle = null;
+    }
+  }
+
+  const rehabProgramForBlock =
+    activeProgram ?
+      { id: activeProgram.id, title: activeProgram.title?.trim() || "Программа" }
+    : virtualPromoTitle ?
+      { id: PATIENT_REHAB_PROGRAM_LINKED_PLACEHOLDER, title: virtualPromoTitle }
+    : null;
+
+  const rehabMatches =
+    rehabProgramForBlock && rehabProgramForBlock.id !== PATIENT_REHAB_PROGRAM_LINKED_PLACEHOLDER ?
+      rules.filter(
+        (r) => r.linkedObjectType === "rehab_program" && r.linkedObjectId === rehabProgramForBlock.id,
+      )
     : [];
   rehabMatches.sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
   const rehabRuleForBlock = rehabMatches[0] ?? null;
@@ -188,9 +212,7 @@ export async function RemindersPageBody({ session }: { session: AppSession }) {
         personalRows={personalRows}
         legacyRules={legacyRules}
         unseenCount={projectionStats.unseen}
-        activeProgram={
-          activeProgram ? { id: activeProgram.id, title: activeProgram.title?.trim() || "Программа" } : null
-        }
+        activeProgram={rehabProgramForBlock}
         warmupsSectionAvailable={warmupsSectionAvailable}
         warmupsSectionTitle={warmupsSectionTitle}
         rehabRuleForBlock={rehabRuleForBlock}

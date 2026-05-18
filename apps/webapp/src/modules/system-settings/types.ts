@@ -36,6 +36,11 @@ export const ALLOWED_KEYS = [
   "app_display_timezone",
   /** Цель «коротких практик в день» на главной пациента (1–10), default 3. */
   "patient_home_daily_practice_target",
+  /**
+   * UUID опубликованного шаблона программы реабилитации по умолчанию (промо для пациентов без активного плана).
+   * Значение в `value_json`: обёртка `{ "value": "<uuid>" }`.
+   */
+  "patient_default_promo_treatment_program_template_id",
   /** Вкл/выкл глобальную ежедневную рассылку в мессенджер пациентам (интегратор). Не «пинг админа». */
   "patient_home_morning_ping_enabled",
   /** Локальное время ежедневного напоминания (HH:MM) в таймзоне приложения, default 09:00. */

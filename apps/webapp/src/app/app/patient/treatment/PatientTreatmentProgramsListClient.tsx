@@ -46,8 +46,10 @@ export function PatientTreatmentProgramsListClient(props: {
   hero: PatientTreatmentProgramsListHero | null;
   archived: TreatmentProgramInstanceSummary[];
   messagesHref: string;
+  /** Ссылка на промо-шаблон, если нет активного инстанса. */
+  virtualPromo?: { title: string; href: string } | null;
 }) {
-  const { hero, archived, messagesHref } = props;
+  const { hero, archived, messagesHref, virtualPromo = null } = props;
 
   return (
     <div className={patientInnerPageStackClass}>
@@ -96,7 +98,18 @@ export function PatientTreatmentProgramsListClient(props: {
             Нет активной программы
           </h2>
           <p className="text-sm text-[var(--patient-surface-info-text)]">
-            Здесь появится программа после назначения врачом.
+            {virtualPromo ?
+              <>
+                Доступна программа:{" "}
+                <Link href={virtualPromo.href} prefetch={false} className={cn(patientInlineLinkClass, "font-medium")}>
+                  {virtualPromo.title}
+                </Link>
+                .
+              </>
+            : <>
+                Здесь появится программа после назначения врачом.
+              </>
+            }
           </p>
           <p>
             <Link href={messagesHref} prefetch={false} className={cn(patientInlineLinkClass, "text-sm font-medium")}>

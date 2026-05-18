@@ -382,6 +382,7 @@ const treatmentProgramInstanceService = createTreatmentProgramInstanceService({
   itemRefs: treatmentProgramItemRefValidationPort,
   events: treatmentProgramEventsPort,
   testAttempts: treatmentProgramTestAttemptsPort,
+  getDefaultPromoTemplateId: () => systemSettingsService.getPatientDefaultPromoTreatmentProgramTemplateId(),
 });
 const coursesPort = !inMemoryRepos ? createPgCoursesPort() : createInMemoryCoursesPort();
 const coursesService = createCoursesService({

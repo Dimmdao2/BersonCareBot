@@ -209,6 +209,18 @@ export function createSystemSettingsService(port: SystemSettingsPort) {
         spec,
       );
     },
+
+    /** UUID шаблона промо-программы (`patient_default_promo_treatment_program_template_id`, admin). Пусто → null. */
+    async getPatientDefaultPromoTreatmentProgramTemplateId(): Promise<string | null> {
+      const row = await port.getByKey("patient_default_promo_treatment_program_template_id", "admin");
+      if (row?.valueJson === null || row?.valueJson === undefined || typeof row.valueJson !== "object") {
+        return null;
+      }
+      const inner = (row.valueJson as Record<string, unknown>).value;
+      if (typeof inner !== "string") return null;
+      const t = inner.trim();
+      return t.length > 0 ? t : null;
+    },
   };
 }
 

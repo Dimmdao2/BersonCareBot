@@ -18,6 +18,7 @@ import type {
   ExpandTestSetIntoInstanceStageItemsPortInput,
   ExpandTestSetIntoInstanceStageItemsResult,
   ReplaceTreatmentProgramInstanceStageItemInput,
+  TreatmentProgramAssignmentSource,
   TreatmentProgramInstanceDetail,
   TreatmentProgramInstanceStageGroup,
   TreatmentProgramInstanceStageItemRow,
@@ -58,6 +59,7 @@ function mapInstance(row: typeof instTable.$inferSelect): TreatmentProgramInstan
     patientUserId: row.patientUserId,
     templateId: row.templateId ?? null,
     assignedBy: row.assignedBy ?? null,
+    assignmentSource: (row.assignmentSource ?? "doctor") as TreatmentProgramInstanceSummary["assignmentSource"],
     title: row.title,
     status: row.status as TreatmentProgramInstanceStatus,
     createdAt: row.createdAt,
@@ -180,6 +182,7 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
             templateId: input.templateId,
             patientUserId: input.patientUserId,
             assignedBy: input.assignedBy,
+            assignmentSource: input.assignmentSource ?? "doctor",
             title: input.title,
             status: "active",
           })
@@ -388,6 +391,22 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
         .where(eq(instTable.patientUserId, patientUserId))
         .orderBy(desc(instTable.updatedAt), desc(instTable.id));
       return rows.map(mapInstance);
+    },
+
+    async countInstancesWhere(filter: {
+      assignmentSource: TreatmentProgramAssignmentSource;
+      status?: TreatmentProgramInstanceStatus;
+    }): Promise<number> {
+      const db = getDrizzle();
+      const conds = [
+        eq(instTable.assignmentSource, filter.assignmentSource),
+        ...(filter.status !== undefined ? [eq(instTable.status, filter.status)] : []),
+      ];
+      const [row] = await db
+        .select({ c: sql<number>`count(*)::int` })
+        .from(instTable)
+        .where(and(...conds));
+      return row?.c ?? 0;
     },
 
     async updateStageItemLocalComment(

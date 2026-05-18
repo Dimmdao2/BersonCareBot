@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { summarizeReminderForCalendarDay, isSlotsV1DayActive } from "./summarizeReminderForCalendarDay";
+import {
+  summarizeReminderForCalendarDay,
+  isSlotsV1DayActive,
+  formatPlanReminderTodayLine,
+} from "./summarizeReminderForCalendarDay";
 import type { ReminderRule } from "./types";
 import { DateTime } from "luxon";
 
@@ -115,5 +119,43 @@ describe("summarizeReminderForCalendarDay", () => {
     expect(summarizeReminderForCalendarDay(r, tue, "Europe/Moscow")).toBe("Сегодня без напоминаний");
     const wed = "2026-05-13";
     expect(summarizeReminderForCalendarDay(r, wed, "Europe/Moscow")).toBe("12:00");
+  });
+});
+
+describe("formatPlanReminderTodayLine", () => {
+  it("returns не настроено for null rule", () => {
+    expect(formatPlanReminderTodayLine(null, "2026-05-11", "Europe/Moscow", new Date("2026-05-11T10:00:00+03:00"))).toBe(
+      "не настроено",
+    );
+  });
+
+  it("slots_v1: template with count of remaining times", () => {
+    const r: ReminderRule = {
+      ...baseRule(),
+      scheduleType: "slots_v1",
+      scheduleData: { timesLocal: ["09:00", "18:00"], dayFilter: "weekdays" },
+    };
+    const now = DateTime.fromISO("2026-05-11T10:00:00", { zone: "Europe/Moscow" }).toJSDate();
+    expect(formatPlanReminderTodayLine(r, "2026-05-11", "Europe/Moscow", now)).toBe("Сегодня еще 1: в 18:00");
+  });
+
+  it("slots_v1: two remaining", () => {
+    const r: ReminderRule = {
+      ...baseRule(),
+      scheduleType: "slots_v1",
+      scheduleData: { timesLocal: ["09:00", "18:00"], dayFilter: "weekdays" },
+    };
+    const now = DateTime.fromISO("2026-05-11T08:00:00", { zone: "Europe/Moscow" }).toJSDate();
+    expect(formatPlanReminderTodayLine(r, "2026-05-11", "Europe/Moscow", now)).toBe("Сегодня еще 2: в 09:00, 18:00");
+  });
+
+  it("slots_v1: after last slot", () => {
+    const r: ReminderRule = {
+      ...baseRule(),
+      scheduleType: "slots_v1",
+      scheduleData: { timesLocal: ["09:00", "18:00"], dayFilter: "weekdays" },
+    };
+    const now = DateTime.fromISO("2026-05-11T19:00:00", { zone: "Europe/Moscow" }).toJSDate();
+    expect(formatPlanReminderTodayLine(r, "2026-05-11", "Europe/Moscow", now)).toBe("На сегодня всё");
   });
 });

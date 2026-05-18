@@ -62,6 +62,10 @@ export const routePaths = {
   intakeLfk: "/app/patient/intake/lfk",
   /** Каталог курсов (продажа → тот же экземпляр программы, что и назначение врача). */
   patientCourses: "/app/patient/courses",
+  /** Промо-программа по умолчанию (шаблон из admin settings, до материализации). */
+  patientTreatmentPromoDefault: "/app/patient/treatment/promo",
+  patientTreatmentPromoTemplateItem: (templateStageItemId: string) =>
+    `/app/patient/treatment/promo/item/${encodeURIComponent(templateStageItemId)}`,
   /** Программы лечения (назначенные экземпляры). */
   patientTreatmentPrograms: "/app/patient/treatment",
   /** `planTab` — вкладка плана при возврате (`?tab=`). Для `program` query не добавляется. */

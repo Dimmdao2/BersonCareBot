@@ -96,7 +96,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
              patient_user_id,
              id AS instance_id
            FROM treatment_program_instances
-           WHERE status = 'active'
+           WHERE status = 'active' AND assignment_source = 'doctor'
            ORDER BY patient_user_id, updated_at DESC NULLS LAST`,
         ),
       ]);
@@ -190,7 +190,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         pool.query<{ c: string }>(
           `SELECT COUNT(DISTINCT pu.id)::text AS c
            FROM platform_users pu
-           INNER JOIN treatment_program_instances tpi ON tpi.patient_user_id = pu.id AND tpi.status = 'active'
+           INNER JOIN treatment_program_instances tpi ON tpi.patient_user_id = pu.id AND tpi.status = 'active' AND tpi.assignment_source = 'doctor'
            WHERE pu.role = 'client'
              AND pu.merged_into_id IS NULL
              AND COALESCE(pu.is_archived, false) = false`

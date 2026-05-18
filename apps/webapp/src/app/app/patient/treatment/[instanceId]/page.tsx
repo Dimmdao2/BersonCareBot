@@ -17,7 +17,7 @@ import { resolveCalendarDayIanaForPatient } from "@/modules/system-settings/cale
 import { resolvePatientContentSectionSlug } from "@/infra/repos/resolvePatientContentSectionSlug";
 import { DEFAULT_WARMUPS_SECTION_SLUG } from "@/modules/patient-home/warmupsSection";
 import { resolvePatientCanViewAuthOnlyContent } from "@/modules/platform-access";
-import { summarizeReminderForCalendarDay } from "@/modules/reminders/summarizeReminderForCalendarDay";
+import { formatPlanReminderTodayLine } from "@/modules/reminders/summarizeReminderForCalendarDay";
 import { parsePatientTreatmentPlanItemDoneRepeatCooldownMinutes } from "@/modules/patient-home/patientHomeRepeatCooldownSettings";
 
 type Props = { params: Promise<{ instanceId: string }>; searchParams: Promise<{ tab?: string | string[] }> };
@@ -96,6 +96,7 @@ export default async function PatientTreatmentProgramDetailPage({ params, search
     warmRes && (!warmRes.section.requiresAuth || canViewAuth),
   );
   const calendarDateKey = DateTime.now().setZone(resolvedIana).toISODate()!;
+  const planReminderNow = new Date();
 
   const rehabMatches = rules.filter(
     (r) => r.linkedObjectType === "rehab_program" && r.linkedObjectId === instanceId,
@@ -112,13 +113,9 @@ export default async function PatientTreatmentProgramDetailPage({ params, search
   const planReminderStrip =
     detail.status === "active" ?
       {
-        rehabTodayLine: rehabRuleForStrip
-          ? summarizeReminderForCalendarDay(rehabRuleForStrip, calendarDateKey, resolvedIana)
-          : "не настроено",
+        rehabTodayLine: formatPlanReminderTodayLine(rehabRuleForStrip, calendarDateKey, resolvedIana, planReminderNow),
         warmupTodayLine: warmupsSectionAvailable
-          ? warmupRuleForStrip
-            ? summarizeReminderForCalendarDay(warmupRuleForStrip, calendarDateKey, resolvedIana)
-            : "не настроено"
+          ? formatPlanReminderTodayLine(warmupRuleForStrip, calendarDateKey, resolvedIana, planReminderNow)
           : null,
         remindersHref: `${routePaths.patientReminders}#patient-reminders-rehab`,
       }

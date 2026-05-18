@@ -35,6 +35,8 @@ export const treatmentProgramInstances = pgTable(
       withTimezone: true,
       mode: "string",
     }),
+    /** Источник назначения: врач, промо по умолчанию, курс. */
+    assignmentSource: text("assignment_source").notNull(),
   },
   (table) => [
     index("idx_treatment_program_instances_patient").using(
@@ -43,6 +45,9 @@ export const treatmentProgramInstances = pgTable(
       table.updatedAt.desc().nullsFirst().op("timestamptz_ops"),
     ),
     index("idx_treatment_program_instances_template").using("btree", table.templateId.asc().nullsLast().op("uuid_ops")),
+    uniqueIndex("uq_treatment_program_instances_one_active_per_patient")
+      .on(table.patientUserId)
+      .where(sql`status = 'active'::text`),
     foreignKey({
       columns: [table.templateId],
       foreignColumns: [treatmentProgramTemplates.id],
@@ -61,6 +66,10 @@ export const treatmentProgramInstances = pgTable(
     check(
       "treatment_program_instances_status_check",
       sql`status = ANY (ARRAY['active'::text, 'completed'::text])`,
+    ),
+    check(
+      "treatment_program_instances_assignment_source_check",
+      sql`assignment_source = ANY (ARRAY['doctor'::text, 'promo'::text, 'course'::text])`,
     ),
   ],
 );

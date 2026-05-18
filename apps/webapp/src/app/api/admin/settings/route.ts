@@ -71,6 +71,7 @@ const ADMIN_SCOPE_KEYS = [
   "video_presign_ttl_seconds",
   "video_watermark_enabled",
   "patient_booking_url",
+  "patient_default_promo_treatment_program_template_id",
   "patient_home_daily_practice_target",
   "patient_home_morning_ping_enabled",
   "patient_home_morning_ping_local_time",
@@ -392,6 +393,23 @@ export async function PATCH(request: Request) {
     }
     cleaned.sort((a, b) => a.score - b.score);
     normalizedValue = { value: cleaned };
+  }
+
+  if (parsed.data.key === "patient_default_promo_treatment_program_template_id") {
+    const inner = normalizedValue.value;
+    const s = typeof inner === "string" ? inner.trim() : "";
+    if (s === "") {
+      normalizedValue = { value: "" };
+    } else {
+      if (!z.string().uuid().safeParse(s).success) {
+        return NextResponse.json({ ok: false, error: "invalid_value" }, { status: 400 });
+      }
+      const tpl = await deps.treatmentProgram.getTemplate(s);
+      if (tpl.status !== "published") {
+        return NextResponse.json({ ok: false, error: "invalid_value" }, { status: 400 });
+      }
+      normalizedValue = { value: s };
+    }
   }
 
   if (parsed.data.key === "notifications_topics") {

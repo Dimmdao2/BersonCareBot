@@ -7,6 +7,7 @@ import type { ReminderLinkedObjectType } from "@/modules/reminders/types";
 import type { SlotsV1ScheduleData } from "@/modules/reminders/scheduleSlots";
 import { SLOTS_V1_DB_PLACEHOLDER } from "@/modules/reminders/scheduleSlots";
 import { reminderRuleToPatientJson } from "../reminderPatientJson";
+import { PATIENT_REHAB_PROGRAM_LINKED_PLACEHOLDER } from "@/modules/reminders/rehabProgramLinkedObject";
 
 const LINKED_TYPES = new Set<ReminderLinkedObjectType>([
   "lfk_complex",
@@ -149,9 +150,31 @@ export async function POST(req: Request) {
     );
   }
 
-  const linkedObjectId = body.linkedObjectId;
-  if (typeof linkedObjectId !== "string" || linkedObjectId.trim().length === 0 || linkedObjectId.length > 200) {
+  const linkedObjectIdRaw = body.linkedObjectId;
+  if (typeof linkedObjectIdRaw !== "string" || linkedObjectIdRaw.trim().length === 0 || linkedObjectIdRaw.length > 200) {
     return NextResponse.json({ ok: false, error: "validation_error" }, { status: 400 });
+  }
+  let linkedObjectId = linkedObjectIdRaw.trim();
+
+  if (linkedObjectType === "rehab_program" && linkedObjectId === PATIENT_REHAB_PROGRAM_LINKED_PLACEHOLDER) {
+    const programList = await deps.treatmentProgramInstance.listForPatient(userId);
+    const activeCandidates = programList
+      .filter((p) => p.status === "active")
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || b.id.localeCompare(a.id));
+    const firstActive = activeCandidates[0] ?? null;
+    if (firstActive) {
+      linkedObjectId = firstActive.id;
+    } else {
+      try {
+        const ensured = await deps.treatmentProgramInstance.ensureDefaultPromoProgramForPatient({
+          patientUserId: userId,
+        });
+        linkedObjectId = ensured.id;
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "error";
+        return NextResponse.json({ ok: false, error: msg }, { status: 400 });
+      }
+    }
   }
 
   const res = await deps.reminders.createObjectReminder(userId, {

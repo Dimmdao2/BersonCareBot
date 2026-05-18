@@ -47,7 +47,7 @@ export function PatientTreatmentProgramDetailClient(props: {
   patientCalendarDayIana: string;
   /** Вкладка из `?tab=` (серверный первый рендер). */
   initialPlanTab?: PatientPlanTab;
-  /** Верхняя карточка «напоминания сегодня» (только active). */
+  /** Карточка «напоминания на сегодня» внизу страницы (только active). */
   planReminderStrip?: PatientPlanTodayRemindersCardProps | null;
   /** Пауза перед повторным «Выполнено» у простых пунктов плана (мин). */
   planItemDoneRepeatCooldownMinutes: number;
@@ -295,9 +295,6 @@ export function PatientTreatmentProgramDetailClient(props: {
       ) : null}
 
       <div className="flex flex-col">
-        {detail.status === "active" && planReminderStrip ? (
-          <PatientPlanTodayRemindersCard {...planReminderStrip} />
-        ) : null}
         <PatientPlanHeroActive
           detail={detail}
           appDisplayTimeZone={appDisplayTimeZone}
@@ -342,6 +339,10 @@ export function PatientTreatmentProgramDetailClient(props: {
         statsRefreshToken={statsRefreshToken}
         planItemDoneRepeatCooldownMinutes={planItemDoneRepeatCooldownMinutes}
       />
+
+      {detail.status === "active" && planReminderStrip ? (
+        <PatientPlanTodayRemindersCard {...planReminderStrip} />
+      ) : null}
     </div>
   );
 }

@@ -505,6 +505,13 @@
       "when": 1781400000000,
       "tag": "0071_web_push_subscriptions_and_channel_codes",
       "breakpoints": true
+    },
+    {
+      "idx": 72,
+      "version": "7",
+      "when": 1781500000000,
+      "tag": "0072_treatment_program_assignment_source",
+      "breakpoints": true
     }
   ]
 }

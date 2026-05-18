@@ -352,6 +352,22 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
           );
         }
       }
+    } else {
+      const promoTemplateId = await deps.systemSettings.getPatientDefaultPromoTreatmentProgramTemplateId();
+      if (promoTemplateId) {
+        try {
+          const tpl = await deps.treatmentProgram.getTemplate(promoTemplateId);
+          if (tpl.status === "published") {
+            planInstance = {
+              id: "__virtual_promo__",
+              title: tpl.title?.trim() || "Программа реабилитации",
+            };
+            planStartLessonHref = routePaths.patientTreatmentPromoDefault;
+          }
+        } catch {
+          /* ignore */
+        }
+      }
     }
     initialMoodCheckin = moodState;
     moodWeekDays = week;
@@ -459,7 +475,12 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
         return (
           <PatientHomePlanCard
             instance={planInstance}
-            startLessonHref={planStartLessonHref ?? routePaths.patientTreatmentProgram(planInstance.id)}
+            startLessonHref={
+              planStartLessonHref ??
+              (planInstance.id === "__virtual_promo__" ?
+                routePaths.patientTreatmentPromoDefault
+              : routePaths.patientTreatmentProgram(planInstance.id))
+            }
             progressDay={planProgressDay}
             todayPracticeDone={planTodayPracticeDone}
             planUpdatedLabel={planUpdatedLabel}

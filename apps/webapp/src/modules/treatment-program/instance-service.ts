@@ -8,7 +8,7 @@ import type {
 import { buildAppendEventInput } from "./event-recording";
 import type { TreatmentProgramService } from "./service";
 import { assertUuid } from "./service";
-import type { TreatmentProgramInstanceStageStatus } from "./types";
+import type { TreatmentProgramAssignmentSource, TreatmentProgramInstanceStageStatus, TreatmentProgramInstanceStatus } from "./types";
 import {
   BLANK_INDIVIDUAL_PLAN_DEFAULT_TITLE,
   effectiveInstanceStageItemComment,
@@ -30,6 +30,11 @@ import { isStageZero, assertTreatmentProgramStageItemFitsSystemGroup } from "./s
 export const SECOND_ACTIVE_TREATMENT_PROGRAM_MESSAGE =
   "У пациента уже есть активная программа. Завершите текущую программу или дождитесь её завершения перед назначением новой.";
 
+/** Postgres unique_violation — гонка при partial unique «один active на пациента». */
+function isUniqueViolation(e: unknown): boolean {
+  return typeof e === "object" && e !== null && "code" in e && (e as { code: string }).code === "23505";
+}
+
 export function createTreatmentProgramInstanceService(deps: {
   instances: TreatmentProgramInstancePort;
   templates: TreatmentProgramService;
@@ -38,6 +43,8 @@ export function createTreatmentProgramInstanceService(deps: {
   events?: TreatmentProgramEventsPort;
   /** §8–9: проверка попыток тестов перед удалением/заменой элемента. */
   testAttempts?: TreatmentProgramTestAttemptsPort;
+  /** UUID шаблона промо из `system_settings` (admin). */
+  getDefaultPromoTemplateId?: () => Promise<string | null>;
 }) {
   const { instances, templates, snapshots, itemRefs, testAttempts } = deps;
   const events = deps.events;
@@ -63,13 +70,49 @@ export function createTreatmentProgramInstanceService(deps: {
       templateId: string;
       patientUserId: string;
       assignedBy: string | null;
+      assignmentSource?: TreatmentProgramAssignmentSource;
     }) {
       assertUuid(input.templateId);
       assertUuid(input.patientUserId);
       if (input.assignedBy) assertUuid(input.assignedBy);
 
+      const assignmentSource: TreatmentProgramAssignmentSource =
+        input.assignmentSource ?? (input.assignedBy != null ? "doctor" : "course");
+
+      if (assignmentSource === "doctor" && input.assignedBy) {
+        const pre = await instances.listInstancesForPatient(input.patientUserId.trim());
+        for (const row of pre) {
+          if (row.status === "active" && row.assignmentSource === "promo") {
+            const prev = await instances.getInstanceById(row.id);
+            if (!prev) continue;
+            await instances.updateInstanceMeta(row.id, { status: "completed" });
+            await appendEvent({
+              instanceId: row.id,
+              actorId: input.assignedBy,
+              eventType: "status_changed",
+              targetType: "program",
+              targetId: row.id,
+              payload: {
+                scope: "program",
+                from: prev.status,
+                to: "completed",
+                supersededBy: "doctor_assign",
+              },
+            });
+          }
+        }
+      }
+
       const existing = await instances.listInstancesForPatient(input.patientUserId.trim());
-      if (existing.some((i) => i.status === "active")) {
+      const active = existing.filter((i) => i.status === "active");
+      if (active.length > 0) {
+        if (assignmentSource === "promo") {
+          const promo = active.find((i) => i.assignmentSource === "promo");
+          if (promo) {
+            const full = await instances.getInstanceById(promo.id);
+            if (full) return full;
+          }
+        }
         throw new Error(SECOND_ACTIVE_TREATMENT_PROGRAM_MESSAGE);
       }
 
@@ -203,12 +246,46 @@ export function createTreatmentProgramInstanceService(deps: {
         });
       }
 
-      return instances.createInstanceTree({
-        templateId: tpl.id,
+      try {
+        return await instances.createInstanceTree({
+          templateId: tpl.id,
+          patientUserId: input.patientUserId.trim(),
+          assignedBy: input.assignedBy,
+          assignmentSource,
+          title: tpl.title,
+          stages: stageInputs,
+        });
+      } catch (e) {
+        if (assignmentSource === "promo") {
+          const msg = e instanceof Error ? e.message : "";
+          if (isUniqueViolation(e) || msg === SECOND_ACTIVE_TREATMENT_PROGRAM_MESSAGE) {
+            const again = await instances.listInstancesForPatient(input.patientUserId.trim());
+            const row = again.find((i) => i.status === "active" && i.assignmentSource === "promo");
+            if (row) {
+              const full = await instances.getInstanceById(row.id);
+              if (full) return full;
+            }
+          }
+        }
+        throw e;
+      }
+    },
+
+    async ensureDefaultPromoProgramForPatient(input: { patientUserId: string }) {
+      assertUuid(input.patientUserId);
+      const getId = deps.getDefaultPromoTemplateId;
+      if (!getId) {
+        throw new Error("Промо-программа не настроена");
+      }
+      const templateId = (await getId())?.trim() ?? "";
+      if (!templateId) {
+        throw new Error("Промо-программа не настроена");
+      }
+      return this.assignTemplateToPatient({
+        templateId,
         patientUserId: input.patientUserId.trim(),
-        assignedBy: input.assignedBy,
-        title: tpl.title,
-        stages: stageInputs,
+        assignedBy: null,
+        assignmentSource: "promo",
       });
     },
 
@@ -233,6 +310,7 @@ export function createTreatmentProgramInstanceService(deps: {
         templateId: null,
         patientUserId: input.patientUserId.trim(),
         assignedBy: input.assignedBy,
+        assignmentSource: "doctor",
         title,
         stages: [
           {
@@ -270,6 +348,13 @@ export function createTreatmentProgramInstanceService(deps: {
     async listForPatient(patientUserId: string) {
       assertUuid(patientUserId);
       return instances.listInstancesForPatient(patientUserId.trim());
+    },
+
+    async countInstancesForAssignmentSource(input: {
+      assignmentSource: TreatmentProgramAssignmentSource;
+      status?: TreatmentProgramInstanceStatus;
+    }) {
+      return instances.countInstancesWhere(input);
     },
 
     async listProgramEvents(instanceId: string) {

@@ -48,6 +48,22 @@ export default async function PatientTreatmentProgramsPage() {
     .filter((p) => p.status === "completed")
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || b.id.localeCompare(a.id));
 
+  let virtualPromo: { title: string; href: string } | null = null;
+  const promoTplId = await deps.systemSettings.getPatientDefaultPromoTreatmentProgramTemplateId();
+  if (promoTplId) {
+    try {
+      const tpl = await deps.treatmentProgram.getTemplate(promoTplId);
+      if (tpl.status === "published") {
+        virtualPromo = {
+          title: tpl.title?.trim() || "Программа реабилитации",
+          href: routePaths.patientTreatmentPromoDefault,
+        };
+      }
+    } catch {
+      virtualPromo = null;
+    }
+  }
+
   return (
     <AppShell
       title="Программы лечения"
@@ -61,6 +77,7 @@ export default async function PatientTreatmentProgramsPage() {
         hero={null}
         archived={archived}
         messagesHref={routePaths.patientMessages}
+        virtualPromo={virtualPromo}
       />
     </AppShell>
   );

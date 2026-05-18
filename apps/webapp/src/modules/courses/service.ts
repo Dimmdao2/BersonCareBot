@@ -171,6 +171,7 @@ export function createCoursesService(deps: {
         templateId: course.programTemplateId,
         patientUserId,
         assignedBy: null,
+        assignmentSource: "course",
       });
     },
   };

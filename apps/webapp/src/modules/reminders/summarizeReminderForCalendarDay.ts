@@ -3,6 +3,7 @@ import { clampIntervalMinutes } from "@/modules/reminders/reminderIntervalBounds
 import { formatReminderMinuteOfDayToHhMm } from "@/modules/reminders/reminderScheduleFormat";
 import type { ReminderRule } from "@/modules/reminders/types";
 import type { SlotsV1ScheduleData } from "@/modules/reminders/scheduleSlots";
+import { isMinuteOfDayInQuietHours } from "@/modules/reminders/quietHours";
 
 /** Same weekday index as Luxon: Mon=0 … Sun=6 (Luxon weekday 1..7 → minus 1). */
 function weekdayIndex0FromLuxonWeekday(weekday: number): number {
@@ -61,7 +62,19 @@ export type SummarizeReminderInput = Pick<
   | "windowStartMinute"
   | "windowEndMinute"
   | "timezone"
+  | "quietHoursStartMinute"
+  | "quietHoursEndMinute"
 >;
+
+function parseHhMmToMinuteOfDay(s: string): number | null {
+  const t = s.trim();
+  const m = /^(\d{1,2}):(\d{2})$/.exec(t);
+  if (!m) return null;
+  const h = Number(m[1]);
+  const min = Number(m[2]);
+  if (!Number.isFinite(h) || !Number.isFinite(min) || h > 23 || min > 59) return null;
+  return h * 60 + min;
+}
 
 /**
  * One-line summary for a calendar date (`calendarDateKey` = yyyy-LL-dd) in `patientCalendarDayIana`,
@@ -97,4 +110,101 @@ export function summarizeReminderForCalendarDay(
   const ws = rule.windowStartMinute;
   const we = rule.windowEndMinute;
   return `${formatReminderMinuteOfDayToHhMm(ws)}–${formatReminderMinuteOfDayToHhMm(we)}, каждые ${interval} мин.`;
+}
+
+const PLAN_REMINDER_DONE_TODAY = "На сегодня всё";
+
+/**
+ * Строка для карточки «План»: при оставшихся на сегодня срабатываниях — «Сегодня еще n: в ЧЧ:ММ, …»;
+ * иначе — как {@link summarizeReminderForCalendarDay} или «не настроено» / «На сегодня всё».
+ */
+export function formatPlanReminderTodayLine(
+  rule: SummarizeReminderInput | null,
+  calendarDateKey: string,
+  patientCalendarDayIana: string,
+  now: Date,
+): string {
+  if (rule == null) return "не настроено";
+
+  const fallbackSummary = (): string =>
+    summarizeReminderForCalendarDay(rule as ReminderRule, calendarDateKey, patientCalendarDayIana);
+
+  if (!rule.enabled) return fallbackSummary();
+
+  const ruleTz = rule.timezone?.trim() || "Europe/Moscow";
+  const noonPatient = DateTime.fromISO(`${calendarDateKey}T12:00:00`, { zone: patientCalendarDayIana });
+  if (!noonPatient.isValid) return fallbackSummary();
+  const dayInRuleTz = noonPatient.setZone(ruleTz);
+  const nowInRuleTz = DateTime.fromJSDate(now, { zone: ruleTz });
+  const dayStart = dayInRuleTz.startOf("day");
+
+  if (rule.scheduleType === "slots_v1" && rule.scheduleData && Array.isArray(rule.scheduleData.timesLocal)) {
+    const data = rule.scheduleData;
+    if (!isSlotsV1DayActive(data, rule as ReminderRule, dayInRuleTz, ruleTz)) {
+      return fallbackSummary();
+    }
+    const plannedLabels: string[] = [];
+    const remainingLabels: string[] = [];
+    for (const tl of data.timesLocal) {
+      if (typeof tl !== "string" || !tl.trim()) continue;
+      const mod = parseHhMmToMinuteOfDay(tl);
+      if (mod == null) continue;
+      if (isMinuteOfDayInQuietHours(mod, rule.quietHoursStartMinute, rule.quietHoursEndMinute)) continue;
+      const label = formatReminderMinuteOfDayToHhMm(mod);
+      plannedLabels.push(label);
+      const slot = dayStart.set({
+        hour: Math.floor(mod / 60),
+        minute: mod % 60,
+        second: 0,
+        millisecond: 0,
+      });
+      if (slot > nowInRuleTz) {
+        remainingLabels.push(label);
+      }
+    }
+    plannedLabels.sort();
+    remainingLabels.sort();
+    if (remainingLabels.length > 0) {
+      return `Сегодня еще ${remainingLabels.length}: в ${remainingLabels.join(", ")}`;
+    }
+    if (plannedLabels.length > 0) {
+      return PLAN_REMINDER_DONE_TODAY;
+    }
+    return fallbackSummary();
+  }
+
+  const interval = clampIntervalMinutes(rule.intervalMinutes ?? 60);
+  const mask = rule.daysMask.padStart(7, "0").slice(0, 7);
+  if (!/^[01]{7}$/.test(mask)) return fallbackSummary();
+  if (!isIntervalDayActive(rule as ReminderRule, dayInRuleTz)) {
+    return fallbackSummary();
+  }
+  const ws = rule.windowStartMinute;
+  const we = rule.windowEndMinute;
+  if (ws > we) return fallbackSummary();
+
+  const plannedLabels: string[] = [];
+  const remainingLabels: string[] = [];
+  for (let m = ws; m <= we; m += interval) {
+    if (isMinuteOfDayInQuietHours(m, rule.quietHoursStartMinute, rule.quietHoursEndMinute)) continue;
+    const label = formatReminderMinuteOfDayToHhMm(m);
+    plannedLabels.push(label);
+    const slot = dayStart.set({
+      hour: Math.floor(m / 60),
+      minute: m % 60,
+      second: 0,
+      millisecond: 0,
+    });
+    if (slot > nowInRuleTz) {
+      remainingLabels.push(label);
+    }
+  }
+  remainingLabels.sort((a, b) => (parseHhMmToMinuteOfDay(a) ?? 0) - (parseHhMmToMinuteOfDay(b) ?? 0));
+  if (remainingLabels.length > 0) {
+    return `Сегодня еще ${remainingLabels.length}: в ${remainingLabels.join(", ")}`;
+  }
+  if (plannedLabels.length > 0) {
+    return PLAN_REMINDER_DONE_TODAY;
+  }
+  return fallbackSummary();
 }

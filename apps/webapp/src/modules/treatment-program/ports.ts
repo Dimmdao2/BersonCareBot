@@ -17,6 +17,8 @@ import type {
   TreatmentProgramInstanceStageStatus,
   TreatmentProgramInstanceStageItemStatus,
   TreatmentProgramInstanceSummary,
+  TreatmentProgramAssignmentSource,
+  TreatmentProgramInstanceStatus,
   TreatmentProgramItemType,
   TreatmentProgramTemplate,
   TreatmentProgramTemplateDetail,
@@ -124,6 +126,12 @@ export type TreatmentProgramInstancePort = {
     instanceId: string,
   ): Promise<TreatmentProgramInstanceDetail | null>;
   listInstancesForPatient(patientUserId: string): Promise<TreatmentProgramInstanceSummary[]>;
+
+  countInstancesWhere(filter: {
+    assignmentSource: TreatmentProgramAssignmentSource;
+    status?: TreatmentProgramInstanceStatus;
+  }): Promise<number>;
+
   updateStageItemLocalComment(
     instanceId: string,
     stageItemId: string,

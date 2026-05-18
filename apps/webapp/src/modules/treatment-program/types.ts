@@ -325,6 +325,9 @@ export type UpdateTreatmentProgramInstanceStageGroupInput = {
 
 export type TreatmentProgramInstanceStatus = "active" | "completed";
 
+/** Происхождение экземпляра программы (клиника / промо / курс). */
+export type TreatmentProgramAssignmentSource = "doctor" | "promo" | "course";
+
 export type TreatmentProgramInstanceStageStatus =
   | "locked"
   | "available"
@@ -340,6 +343,7 @@ export type TreatmentProgramInstanceSummary = {
   patientUserId: string;
   templateId: string | null;
   assignedBy: string | null;
+  assignmentSource: TreatmentProgramAssignmentSource;
   title: string;
   status: TreatmentProgramInstanceStatus;
   createdAt: string;
@@ -496,6 +500,8 @@ export type CreateTreatmentProgramInstanceTreeInput = {
   templateId: string | null;
   patientUserId: string;
   assignedBy: string | null;
+  /** По умолчанию `doctor` только для совместимости тестов/наследия; прод-пути задают явно. */
+  assignmentSource?: TreatmentProgramAssignmentSource;
   title: string;
   stages: TreatmentProgramInstanceStageInput[];
 };

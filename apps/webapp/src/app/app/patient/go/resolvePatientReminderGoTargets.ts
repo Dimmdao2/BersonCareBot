@@ -65,7 +65,18 @@ export async function resolveDailyWarmupStartPathForPatient(
 export async function resolvePlanStartLessonPathForPatient(deps: Deps, userId: string): Promise<string> {
   const instances = await deps.treatmentProgramInstance.listForPatient(userId);
   const picked = pickActivePlanInstance(instances);
-  if (!picked) return routePaths.patientTreatmentPrograms;
+  if (!picked) {
+    const promoId = await deps.systemSettings.getPatientDefaultPromoTreatmentProgramTemplateId();
+    if (promoId) {
+      try {
+        const tpl = await deps.treatmentProgram.getTemplate(promoId);
+        if (tpl.status === "published") return routePaths.patientTreatmentPromoDefault;
+      } catch {
+        /* fall through */
+      }
+    }
+    return routePaths.patientTreatmentPrograms;
+  }
   let href = routePaths.patientTreatmentProgram(picked.id);
   const rawDetail = await deps.treatmentProgramInstance.getInstanceForPatient(userId, picked.id);
   if (!rawDetail) return href;

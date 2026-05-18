@@ -23,6 +23,7 @@ import type {
   TreatmentProgramInstanceStageItemStatus,
   TreatmentProgramInstanceStatus,
   TreatmentProgramInstanceSummary,
+  TreatmentProgramAssignmentSource,
   TreatmentProgramItemType,
   TreatmentProgramTestAttemptRow,
   TreatmentProgramTestResultDetailRow,
@@ -157,6 +158,13 @@ export function createInMemoryTreatmentProgramPersistence(seed?: {
 
   const instancePort: TreatmentProgramInstancePort = {
     async createInstanceTree(input: CreateTreatmentProgramInstanceTreeInput): Promise<TreatmentProgramInstanceDetail> {
+      for (const r of instances.values()) {
+        if (r.patientUserId === input.patientUserId && r.status === "active") {
+          throw new Error(
+            "У пациента уже есть активная программа. Завершите текущую программу или дождитесь её завершения перед назначением новой.",
+          );
+        }
+      }
       const id = crypto.randomUUID();
       const now = isoNow();
       const inst: InstRow = {
@@ -164,6 +172,7 @@ export function createInMemoryTreatmentProgramPersistence(seed?: {
         patientUserId: input.patientUserId,
         templateId: input.templateId,
         assignedBy: input.assignedBy,
+        assignmentSource: input.assignmentSource ?? "doctor",
         title: input.title,
         status: "active" as TreatmentProgramInstanceStatus,
         createdAt: now,
@@ -284,6 +293,19 @@ export function createInMemoryTreatmentProgramPersistence(seed?: {
       return [...instances.values()]
         .filter((i) => i.patientUserId === patientUserId)
         .sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
+    },
+
+    async countInstancesWhere(filter: {
+      assignmentSource: TreatmentProgramAssignmentSource;
+      status?: TreatmentProgramInstanceStatus;
+    }) {
+      let n = 0;
+      for (const i of instances.values()) {
+        if (i.assignmentSource !== filter.assignmentSource) continue;
+        if (filter.status !== undefined && i.status !== filter.status) continue;
+        n += 1;
+      }
+      return n;
     },
 
     async updateStageItemLocalComment(instanceId: string, stageItemId: string, localComment: string | null) {
