@@ -13,7 +13,8 @@
 
 - [x] Обработать **`beforeinstallprompt`**: сохранить событие, по кнопке вызвать `prompt()`; если события нет — fallback (меню Chrome «Установить» / «Добавить…»).
 - [x] Блок **iOS** — короткая инструкция (Поделиться → На экран «Домой»), **без** программного `prompt()` установки PWA.
-- [x] **Пустой** SW с `fetch` passthrough и **`scope: '/'`**; в **`install`/`activate`** нет кэша HTML/API.
+- [x] **Пустой** SW с `fetch` passthrough и регистрация с лендинга с **`scope: "/app"`** (как manifest); в **`install`/`activate`** нет кэша HTML/API.
+- [x] **Manifest** **`scope: "/app"`** — совпадает с областью регистрации SW (см. [фаза 3](PHASE_03_MANIFEST_AUDIT.md)).
 - [x] **Не** регистрировать SW при `isMessengerMiniAppHost()` (`messengerMiniApp.ts`).
 - [x] Событие **`appinstalled`**: сброс промпта + короткое UX‑подтверждение при уже установленном / standalone.
 - [ ] **Ручной smoke:** Telegram/MAX WebView — первый экран без зависаний после выкладки (код гарантирует только отсутствие регистрации SW в Mini App).
@@ -36,7 +37,7 @@
 
 ### В репозитории
 
-- [x] Запись в `LOG.md`: SW включён с лендинга; путь `public/sw.js`; scope `/`; не регистрировать в Mini App.
+- [x] Запись в `LOG.md`: SW включён с лендинга; путь `public/sw.js`; регистрация SW и manifest с **`scope: "/app"`**; не регистрировать в Mini App.
 
 ### На стенде
 

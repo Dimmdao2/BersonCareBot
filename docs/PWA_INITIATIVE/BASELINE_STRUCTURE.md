@@ -22,7 +22,7 @@
 
 ## Что появилось в рамках PWA (фаза 0 и первая волна)
 
-- **`src/app/manifest.ts`** — Web App Manifest (имя, `start_url`, `display`, иконки).
+- **`src/app/manifest.ts`** — Web App Manifest (имя, `start_url`, **`scope: "/app"`**, `display`, иконки).
 - **Статические иконки** в `public/`: `pwa-icon-192.png`, `pwa-icon-512.png`, `apple-touch-icon.png` (временные плейсхолдеры под фирменный дизайн).
 - **Корневой `metadata` / `viewport`:** иконка Apple, `themeColor`, `appleWebApp` — улучшают поведение при «Добавить на экран Домой» (iOS).
 - **Первая волна (код):** лендинг **`src/app/page.tsx`**, `src/shared/ui/marketing/*`, **`public/sw.js`** (passthrough `fetch`, без кэша HTML/API).

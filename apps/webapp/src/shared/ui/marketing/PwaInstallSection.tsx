@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { routePaths } from "@/app-layer/routes/paths";
 import { Button } from "@/components/ui/button";
 import { isMessengerMiniAppHost } from "@/shared/lib/messengerMiniApp";
 
@@ -63,7 +64,7 @@ export function PwaInstallSection() {
       setIsSafari(isLikelySafariNotChromium());
       setStandalone(readStandaloneDisplay());
       if (!isMessengerMiniAppHost() && "serviceWorker" in navigator) {
-        void navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(() => {});
+        void navigator.serviceWorker.register("/sw.js", { scope: routePaths.root }).catch(() => {});
       }
     }, 0);
 

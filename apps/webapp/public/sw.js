@@ -1,6 +1,6 @@
 /**
  * Минимальный service worker для installability PWA: только сеть, без кэша HTML/API.
- * Регистрация — с лендинга `/`, не в Mini App (см. PwaInstallSection).
+ * Регистрация — с лендинга `/` с `scope: "/app"`, не в Mini App (см. PwaInstallSection).
  */
 self.addEventListener("install", (event) => {
   event.waitUntil(self.skipWaiting());

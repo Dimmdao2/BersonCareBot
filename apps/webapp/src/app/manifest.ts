@@ -2,7 +2,8 @@ import type { MetadataRoute } from "next";
 
 /**
  * Web App Manifest (PWA). Иконки — `public/pwa-icon-*.png` (плейсхолдеры до фирменного набора).
- * Service worker: `public/sw.js`, регистрация только с лендинга `/` и не в Mini App.
+ * `scope: "/app"` — установленное приложение не тянет публичный `/` и пути вне `/app` (напр. `/legal/*`) в ту же оболочку.
+ * Service worker: `public/sw.js`, регистрация с лендинга `/` с тем же `scope: "/app"` (`PwaInstallSection`), не в Mini App.
  */
 export default function manifest(): MetadataRoute.Manifest {
   return {
@@ -11,7 +12,7 @@ export default function manifest(): MetadataRoute.Manifest {
     short_name: "BersonCare",
     description: "Разминки и упражнения от реабилитолога",
     start_url: "/app/patient",
-    scope: "/",
+    scope: "/app",
     display: "standalone",
     background_color: "#ffffff",
     theme_color: "#284da0",

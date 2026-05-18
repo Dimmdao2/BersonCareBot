@@ -1,5 +1,15 @@
 # PWA — журнал
 
+## 2026-05-18 — SW: регистрация `scope: "/app"`
+
+- **`PwaInstallSection`:** `register("/sw.js", { scope: routePaths.root })` — совпадает с **`manifest.scope`**; страница **`/`** не входит в область SW.
+- **Комментарии:** `public/sw.js`, `src/app/manifest.ts`; документы [`PHASE_00`](PHASE_00_PRINCIPLES_AND_SCOPE.md), [`PHASE_02`](PHASE_02_INSTALL_FLOW.md), [`apps/webapp/README`](../../apps/webapp/README.md), [`ARCHITECTURE.md`](../ARCHITECTURE.md).
+
+## 2026-05-18 — manifest: `scope: "/app"`
+
+- **`apps/webapp/src/app/manifest.ts`:** `scope` изменён с **`/`** на **`/app`** — установленное Web App по URL охватывает кабинет; публичный **`/`** и пути вне **`/app`** (в т.ч. **`/legal/*`**) вне manifest scope.
+- **Документы:** [`PHASE_00`](PHASE_00_PRINCIPLES_AND_SCOPE.md) (продуктовый пункт), [`PHASE_02`](PHASE_02_INSTALL_FLOW.md), [`PHASE_03`](PHASE_03_MANIFEST_AUDIT.md), [`BASELINE_STRUCTURE`](BASELINE_STRUCTURE.md), [`README`](README.md) инициативы; [`apps/webapp/README.md`](../../apps/webapp/README.md); [`docs/README.md`](../README.md); [`ARCHITECTURE.md`](../ARCHITECTURE.md).
+
 ## 2026-05-18 — Web Push: синхронизация индекса доков
 
 - **`ROADMAP.md`:** этап 4 — статус **done**; уточнён текст про код в репо vs операторский ввод ключей на стенде.
@@ -31,9 +41,9 @@
 
 **Фаза 2 — установка:** клиентский `PwaInstallSection` — `beforeinstallprompt` + кнопка «Установить», fallback-текст для меню Chrome, iOS — инструкция «Поделиться → На экран „Домой“», `appinstalled` сбрасывает промпт и показывает подтверждение; в **`isMessengerMiniAppHost()`** регистрация SW **не** вызывается.
 
-**Service worker:** `public/sw.js` — только `install`/`activate`/`fetch` с passthrough в сеть, без кэша HTML/API; scope `/`, регистрация с лендинга.
+**Service worker:** `public/sw.js` — только `install`/`activate`/`fetch` с passthrough в сеть, без кэша HTML/API; регистрация с лендинга с **`scope: "/app"`** (см. запись **«SW: регистрация scope: "/app"»** выше; в день первой волны в коде фиксировали **`/`**).
 
-**Фаза 3 — manifest:** кодовый аудит `manifest.ts`: `start_url: /app/patient`, `scope: /`, `display: standalone`, `theme_color: #284da0`, иконки `/pwa-icon-192.png`, `/pwa-icon-512.png` (`purpose: any`). Отдельные **maskable**-иконки не добавлялись (нет ассетов) — остаётся в [BACKLOG](BACKLOG.md) при появлении набора.
+**Фаза 3 — manifest:** кодовый аудит `manifest.ts`: `start_url: /app/patient`, `scope: /app` (см. также запись **«manifest: scope: "/app"»** выше), `display: standalone`, `theme_color: #284da0`, иконки `/pwa-icon-192.png`, `/pwa-icon-512.png` (`purpose: any`). Отдельные **maskable**-иконки не добавлялись (нет ассетов) — остаётся в [BACKLOG](BACKLOG.md) при появлении набора.
 
 **Проверки агента:** `pnpm --filter @bersoncare/webapp lint`, `typecheck`, `pnpm --filter @bersoncare/webapp build`, vitest `e2e/smoke-app-router-rsc-pages-inprocess.test.ts` (добавлен прогрев `homeRoot`). Ручной DevTools Manifest / установка с реального телефона — на стенде после выкладки.
 
