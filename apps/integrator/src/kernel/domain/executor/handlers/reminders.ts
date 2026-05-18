@@ -47,6 +47,12 @@ function escapeReminderHtml(text: string): string {
   return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
+function trimTrailingSlash(s: string): string {
+  const t = s.trim();
+  if (t.length === 0) return '';
+  return t.replace(/\/+$/, '');
+}
+
 function buildReminderCallbackAckIntents(
   action: Action,
   ctx: DomainContext,
@@ -1136,6 +1142,129 @@ export async function handleReminders(
       callbackQueryId,
       text: ack,
       channel: src,
+    });
+    return {
+      actionId: action.id,
+      status: 'success',
+      intents,
+    };
+  }
+
+  if (action.type === 'reminders.messengerTopic.disable.callback') {
+    if (!deps.readPort) {
+      return {
+        actionId: action.id,
+        status: 'skipped',
+        error: 'reminders.messengerTopic.disable.callback: missing readPort',
+      };
+    }
+    if (!deps.remindersWebappWritesPort) {
+      return {
+        actionId: action.id,
+        status: 'skipped',
+        error: 'reminders.messengerTopic.disable.callback: no remindersWebappWritesPort',
+      };
+    }
+
+    const occurrenceId = asString(action.params.occurrenceId);
+    const channelUserId = asNumericString(action.params.channelUserId) ?? readExternalActorId(ctx);
+    const resource = asString(action.params.resource) ?? ctx.event.meta.source ?? 'telegram';
+    const chatId = asNumber(action.params.chatId) ?? asNumber(readIncoming(ctx).chatId);
+
+    const messengerChannel: 'telegram' | 'max' = resource === 'max' ? 'max' : 'telegram';
+
+    if (!occurrenceId || !channelUserId || chatId === null) {
+      return {
+        actionId: action.id,
+        status: 'failed',
+        error: 'reminders.messengerTopic.disable.callback: missing params',
+      };
+    }
+
+    const userId = await resolveIntegratorUserId(deps.readPort, channelUserId, resource);
+    if (!userId || !(await assertOccurrenceOwnedByUser(deps.readPort, occurrenceId, userId))) {
+      return {
+        actionId: action.id,
+        status: 'failed',
+        error: 'reminders.messengerTopic.disable.callback: forbidden',
+      };
+    }
+
+    const web = await deps.remindersWebappWritesPort.postMessengerTopicDisable({
+      integratorUserId: userId,
+      occurrenceId,
+      messengerChannel,
+    });
+    if (!web.ok) {
+      return {
+        actionId: action.id,
+        status: 'failed',
+        error: `reminders.messengerTopic.disable.callback: ${web.error}`,
+      };
+    }
+
+    const src = messengerChannel === 'max' ? 'max' : 'telegram';
+    const messageId = action.params.messageId ?? readIncoming(ctx).messageId;
+    const callbackQueryId =
+      asString(action.params.callbackQueryId) ?? asString(readIncoming(ctx).callbackQueryId);
+
+    const reminderAuxDb = createDbPort();
+    const identities = await deps.readPort.readDb<Array<{ resource: string; externalId: string }>>({
+      type: 'identities.allByUserId',
+      params: { userId },
+    });
+    const maxIdentity =
+      Array.isArray(identities)
+        ? identities.find((i) => i.resource === 'max' && i.externalId.trim().length > 0)
+      : undefined;
+
+    let maxExternal = maxIdentity?.externalId.trim() ?? '';
+    if (messengerChannel === 'max' && !maxExternal) {
+      maxExternal = channelUserId;
+    }
+
+    const webUrls = await buildExerciseReminderWebAppUrls({
+      db: reminderAuxDb,
+      channel: messengerChannel,
+      chatId,
+      externalId: messengerChannel === 'max' ? maxExternal : String(chatId),
+      integratorUserId: userId,
+      reminderTargetUrl: '/app/patient',
+    });
+
+    const baseHttpRaw = trimTrailingSlash(await getAppBaseUrl(reminderAuxDb));
+    let profileSpec: ReminderOpenLinkSpec;
+    let mobileSpec: ReminderOpenLinkSpec;
+    if (webUrls) {
+      profileSpec = { kind: 'web_app', url: webUrls.profileChannelsWebAppUrl };
+      mobileSpec = { kind: 'web_app', url: webUrls.mobileAppWebAppUrl };
+    } else if (baseHttpRaw.startsWith('http://') || baseHttpRaw.startsWith('https://')) {
+      profileSpec = {
+        kind: 'url',
+        url: `${baseHttpRaw}/app/patient/profile#patient-profile-notifications`,
+      };
+      mobileSpec = { kind: 'url', url: `${baseHttpRaw}/app/patient` };
+    } else {
+      profileSpec = { kind: 'url', url: '/app/patient/profile#patient-profile-notifications' };
+      mobileSpec = { kind: 'url', url: '/app/patient' };
+    }
+
+    const ackText = web.paragraphs.map((p) => escapeReminderHtml(p)).join('\n\n');
+
+    const followUpKb: InlineKeyboardButton[][] = [
+      [
+        reminderLinkKeyboardButton('Настроить каналы уведомлений', profileSpec),
+        reminderLinkKeyboardButton('Установить мобильное приложение', mobileSpec),
+      ],
+    ];
+
+    const intents = buildReminderCallbackAckIntents(action, ctx, {
+      chatId,
+      messageId,
+      callbackQueryId,
+      text: ackText,
+      channel: src,
+      replyMarkup: followUpKb,
     });
     return {
       actionId: action.id,

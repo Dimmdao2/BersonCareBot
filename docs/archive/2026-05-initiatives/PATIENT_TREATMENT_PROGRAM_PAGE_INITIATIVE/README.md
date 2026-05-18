@@ -12,7 +12,7 @@
 
 ## Сопровождение документации (не блокирует закрытие)
 
-- Синхронизация **`BLOCK_LAYOUT_REFERENCE.md`** с любыми следующими UX-изменениями detail (при необходимости).
+- Синхронизация **`BLOCK_LAYOUT_REFERENCE.md`** и **`apps/webapp/.../program-detail/README.md`** с UX-изменениями detail (последняя синхронизация по чату: **2026-05-18** — расписание над hero, CTA персональной программы, модалка комментария с плитки, `formatPlanReminderTodayLine`).
 
 Декомпозиция detail-клиента (**hero, вкладки, timeline, прогресс, тело этапа**) выполнена — см. [`apps/webapp/src/app/app/patient/treatment/program-detail/README.md`](../../apps/webapp/src/app/app/patient/treatment/program-detail/README.md), записи в [`LOG.md`](LOG.md) (2026-05-08).
 

@@ -6,6 +6,10 @@
 
 - Инициатива UX / контракты: [`docs/archive/2026-05-initiatives/PATIENT_REMINDER_UX_INITIATIVE/README.md`](../../../../../docs/archive/2026-05-initiatives/PATIENT_REMINDER_UX_INITIATIVE/README.md)
 
+## Пациент: план программы (`/app/patient/treatment/[instanceId]`)
+
+- **Расписание на сегодня:** над hero, **collapsible** (`PatientPlanTodayRemindersCard`), иконка `Bell`; строки «Тренировки» / «Разминки» в RSC через **`formatPlanReminderTodayLine`** в [`summarizeReminderForCalendarDay.ts`](summarizeReminderForCalendarDay.ts) (остаток слотов на локальный день пациента, тихие часы; иначе fallback на `summarizeReminderForCalendarDay` / «На сегодня всё»). Юнит-тесты: [`summarizeReminderForCalendarDay.test.ts`](summarizeReminderForCalendarDay.test.ts). Канон модулей плана — [`program-detail/README.md`](../../app/app/patient/treatment/program-detail/README.md).
+
 ## Наблюдаемость (admin)
 
 - **Краткий срез в «Здоровье системы»:** [`GET /api/admin/system-health`](../../app/api/admin/system-health/route.ts) → поле **`remindersPipeline`** в теле ответа (в т.ч. **`patientReminderM2mIdempotencyKeysActive`** — активные ключи idempotency M2M push/email) и проба **`reminders_pipeline`** в **`meta.probes`** (реализация: [`collectAdminSystemHealthData.ts`](../../app-layer/health/collectAdminSystemHealthData.ts), [`adminReminderPipelineMetrics.ts`](../../app-layer/health/adminReminderPipelineMetrics.ts)); UI — аккордеон «Напоминания» в [`SystemHealthSection.tsx`](../../app/app/settings/SystemHealthSection.tsx).

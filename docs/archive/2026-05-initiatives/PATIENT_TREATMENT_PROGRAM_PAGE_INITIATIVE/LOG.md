@@ -1,5 +1,12 @@
 # LOG — PATIENT_TREATMENT_PROGRAM_PAGE_INITIATIVE
 
+## 2026-05-18 — синхронизация документации с текущей деталью плана (UI + напоминания)
+
+- **Расписание:** над hero — collapsible «Расписание на сегодня» (`PatientPlanTodayRemindersCard`), строки из RSC через **`formatPlanReminderTodayLine`** (`summarizeReminderForCalendarDay.ts`); подписи **Тренировки** / **Разминки**; ссылка «Настроить расписание».
+- **CTA персональной программы:** под панелями вкладок — **`PatientPlanPersonalProgramCtaCard`**: вёрстка как hero «Разминка дня» (`patientHomeCardStyles` + `patientHeroPrimaryActionClass`), фото `public/patient/personal-program-consultation.png`, заявка → **`/app/patient/intake/lfk`**.
+- **Вкладка «Программа»:** «Добавить комментарий» на плитке — модалка наблюдения в **`PatientTreatmentProgramStagePageProgramSection`** (без перехода на страницу пункта).
+- **Док:** обновлены [`apps/webapp/src/app/app/patient/treatment/program-detail/README.md`](../../apps/webapp/src/app/app/patient/treatment/program-detail/README.md) и [`BLOCK_LAYOUT_REFERENCE.md`](BLOCK_LAYOUT_REFERENCE.md) §3.
+
 ## 2026-05-14 — клинтесты: lifecycle попыток (история приёма + актуальность)
 
 - **`accepted_at` / `accepted_by`:** не сбрасываются при `patientStartNewTestAttempt` и при приёме другой попытки (audit trail по строке попытки).
