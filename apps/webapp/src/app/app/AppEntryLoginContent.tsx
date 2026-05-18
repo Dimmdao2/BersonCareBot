@@ -43,7 +43,7 @@ export function AppEntryLoginContent({
       <div id="app-entry-content" className="flex flex-col gap-6">
         {allowDevBypass ? (
           <div id="app-entry-dev-bypass-panel" className={cn(patientHeroBookingSectionClass, "mt-2 flex flex-col gap-4")}>
-            <p className={cn(patientMutedTextClass, "text-xs font-medium uppercase tracking-wide")}>
+            <p className={cn(patientMutedTextClass, "text-xs font-normal uppercase tracking-wide")}>
               Режим разработки
             </p>
             <p className={patientMutedTextClass}>

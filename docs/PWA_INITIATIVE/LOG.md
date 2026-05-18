@@ -6,6 +6,7 @@
 - **Email:** transactional SMTP из `smtp_outbound`, те же гейты темы/канала; вызов из integrator через M2M (см. ниже); опционально **List-Unsubscribe** (mailto); интервал между письмами напоминаний одному пользователю через `email_send_cooldowns` (ключ `!reminder_txn_v1`).
 - **Integrator `reminders.dispatchDue`:** после расчёта текста/темы — `notifyPatientReminderChannels` → `POST /api/integrator/patient-reminders/notify-channels` (подпись + `x-bersoncare-idempotency-key` `prn:<occurrenceId>:channels`).
 - **`public/sw.js`:** обработчики `push` и `notificationclick` (открытие только same-origin, путь `/app/*`); по-прежнему без `fetch`.
+- **Канал для кода входа (профиль):** предпочтение **`is_preferred_for_auth`** только для **`telegram` / `max` / `email` / `sms`** (`preferredAuthChannelPolicy.ts`); **`web_push` / `vk`** запрещены на запись, при чтении наследие в БД маскируется — см. `apps/webapp/src/modules/auth/auth.md` → **Email**.
 - **iOS / Safari:** Web Push в установленном PWA зависит от версии ОС и Safari; на части устройств недоступен — не входит в гарантию продукта; см. [`PHASE_02`](PHASE_02_INSTALL_FLOW.md).
 
 ## 2026-05-18 — Укрепление VAPID / SW / контур push

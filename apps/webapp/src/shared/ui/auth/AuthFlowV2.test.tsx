@@ -213,7 +213,7 @@ describe("AuthFlowV2", () => {
     );
     await waitFor(() => expect(document.getElementById("auth-flow-v2-landing")).toBeTruthy());
     expect(screen.queryByRole("button", { name: "Другие способы входа" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Войти по номеру телефона" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Другие варианты" })).toBeInTheDocument();
   });
 
   it("does not show OAuth buttons when providers endpoint reports all disabled", async () => {
@@ -250,6 +250,7 @@ describe("AuthFlowV2", () => {
   });
 
   it("oauth-first shows Max link from alternatives-config (no «Другие способы» screen)", async () => {
+    const user = userEvent.setup();
     isMiniAppHost.mockReturnValue(false);
     vi.stubGlobal(
       "fetch",
@@ -286,6 +287,7 @@ describe("AuthFlowV2", () => {
     );
     await waitFor(() => expect(document.getElementById("auth-flow-v2-oauth-first")).toBeTruthy());
     expect(screen.queryByRole("button", { name: "Другие способы входа" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Другие варианты" }));
     const maxLink = await screen.findByRole("link", { name: "Войти через Max" });
     expect(maxLink).toHaveAttribute("href", "https://max.ru/test_bot_nick");
     expect(screen.queryByRole("link", { name: "Войти с VK ID" })).not.toBeInTheDocument();
@@ -400,8 +402,9 @@ describe("AuthFlowV2", () => {
     );
     await waitFor(() => expect(document.getElementById("auth-flow-v2-oauth-first")).toBeTruthy());
     await user.click(screen.getByRole("button", { name: "Войти по email" }));
-    expect(await screen.findByRole("button", { name: "Вход" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Регистрация" })).toBeInTheDocument();
+    expect(await screen.findByRole("tab", { name: "Вход" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: "Регистрация" })).toHaveAttribute("aria-selected", "false");
+    expect(screen.getByRole("textbox", { name: "Email" })).toBeInTheDocument();
   });
 
   it("phone step shows SMS notice without duplicate OAuth, email, or Telegram web-login link", async () => {
@@ -436,6 +439,7 @@ describe("AuthFlowV2", () => {
       />,
     );
     await waitFor(() => expect(document.getElementById("auth-flow-v2-oauth-first")).toBeTruthy());
+    await user.click(screen.getByRole("button", { name: "Другие варианты" }));
     await user.click(screen.getByRole("button", { name: "Войти по номеру телефона" }));
     await waitFor(() => expect(document.getElementById("auth-flow-v2-phone")).toBeTruthy());
     expect(screen.getByText(/Подтверждение телефона по SMS временно недоступно/)).toBeInTheDocument();

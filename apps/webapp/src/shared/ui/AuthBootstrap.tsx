@@ -29,7 +29,7 @@ import { getPostAuthRedirectTarget } from "@/modules/auth/redirectPolicy";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { AuthFlowV2, type AuthFlowStep, type PrefetchedPublicAuthConfig } from "@/shared/ui/auth/AuthFlowV2";
-import { AUTH_LOGIN_FORM_PRIMARY_BUTTON_CLASS } from "@/shared/ui/auth/loginChrome";
+import { AUTH_LOGIN_ACCENT_TEXT_CLASS, AUTH_LOGIN_FORM_PRIMARY_BUTTON_CLASS } from "@/shared/ui/auth/loginChrome";
 import { MaxBridgeScript } from "@/shared/ui/MaxBridgeScript";
 import { patientInlineLinkClass, patientMutedTextClass } from "@/shared/ui/patientVisual";
 import { persistMessengerBindingCandidate } from "@/shared/lib/messengerBindingCandidate";
@@ -991,7 +991,7 @@ export function AuthBootstrap({
           <div className={cn(patientMutedTextClass, "mt-3 flex flex-col items-center gap-2")}>
             {miniappHelpLinks.telegram ? (
               <a
-                className={cn(patientInlineLinkClass, "underline")}
+                className={cn(patientInlineLinkClass, "font-medium underline", AUTH_LOGIN_ACCENT_TEXT_CLASS)}
                 href={miniappHelpLinks.telegram}
                 target="_blank"
                 rel="noopener noreferrer"
@@ -1001,7 +1001,7 @@ export function AuthBootstrap({
             ) : null}
             {miniappHelpLinks.max ? (
               <a
-                className={cn(patientInlineLinkClass, "underline")}
+                className={cn(patientInlineLinkClass, "font-medium underline", AUTH_LOGIN_ACCENT_TEXT_CLASS)}
                 href={miniappHelpLinks.max}
                 target="_blank"
                 rel="noopener noreferrer"

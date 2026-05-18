@@ -1,6 +1,9 @@
 import type { BroadcastNotificationPrefsFlags } from "@/modules/doctor-broadcasts/ports";
 import type { ChannelPreferencesPort } from "@/modules/channel-preferences/ports";
-import { assertChannelAllowedForPreferredAuth } from "@/modules/channel-preferences/preferredAuthChannelPolicy";
+import {
+  assertChannelAllowedForPreferredAuth,
+  isChannelAllowedForPreferredAuth,
+} from "@/modules/channel-preferences/preferredAuthChannelPolicy";
 import type { ChannelCode, ChannelPreference } from "@/modules/channel-preferences/types";
 
 const CODES: ChannelCode[] = ["telegram", "max", "vk", "sms", "email", "web_push"];
@@ -26,7 +29,13 @@ function getPrefs(userId: string): Map<ChannelCode, ChannelPreference> {
 export const inMemoryChannelPreferencesPort: ChannelPreferencesPort = {
   async getPreferences(userId) {
     const m = getPrefs(userId);
-    return CODES.map((code) => m.get(code)!);
+    return CODES.map((code) => {
+      const p = m.get(code)!;
+      return {
+        ...p,
+        isPreferredForAuth: p.isPreferredForAuth && isChannelAllowedForPreferredAuth(code),
+      };
+    });
   },
 
   async upsertPreference(params) {
@@ -58,7 +67,7 @@ export const inMemoryChannelPreferencesPort: ChannelPreferencesPort = {
   async getPreferredAuthChannelCode(userId) {
     const m = getPrefs(userId);
     for (const code of CODES) {
-      if (m.get(code)?.isPreferredForAuth) return code;
+      if (m.get(code)?.isPreferredForAuth && isChannelAllowedForPreferredAuth(code)) return code;
     }
     return null;
   },

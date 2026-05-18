@@ -10,7 +10,7 @@ import {
   pickPrimaryOtpChannelPublic,
   type OtpUiChannel,
 } from "@/modules/auth/otpChannelUi";
-import { AUTH_LOGIN_FORM_PRIMARY_BUTTON_CLASS } from "@/shared/ui/auth/loginChrome";
+import { AUTH_LOGIN_ACCENT_TEXT_CLASS, AUTH_LOGIN_FORM_PRIMARY_BUTTON_CLASS } from "@/shared/ui/auth/loginChrome";
 import { patientInlineLinkClass, patientMutedTextClass } from "@/shared/ui/patientVisual";
 
 type ChannelPickerProps = {
@@ -89,6 +89,7 @@ export function ChannelPicker({ methods, disabled, onChoose }: ChannelPickerProp
             className={cn(
               patientInlineLinkClass,
               "w-fit bg-transparent p-0 text-left text-sm font-normal underline disabled:pointer-events-none disabled:opacity-50",
+              AUTH_LOGIN_ACCENT_TEXT_CLASS,
             )}
             disabled={disabled}
             aria-expanded={expanded}

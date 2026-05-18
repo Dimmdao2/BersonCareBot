@@ -1,7 +1,10 @@
 import { getPool } from "@/infra/db/client";
 import type { BroadcastNotificationPrefsFlags } from "@/modules/doctor-broadcasts/ports";
 import type { ChannelPreferencesPort } from "@/modules/channel-preferences/ports";
-import { assertChannelAllowedForPreferredAuth } from "@/modules/channel-preferences/preferredAuthChannelPolicy";
+import {
+  assertChannelAllowedForPreferredAuth,
+  isChannelAllowedForPreferredAuth,
+} from "@/modules/channel-preferences/preferredAuthChannelPolicy";
 import type { ChannelCode, ChannelPreference } from "@/modules/channel-preferences/types";
 
 const CODES: ChannelCode[] = ["telegram", "max", "vk", "sms", "email", "web_push"];
@@ -16,11 +19,13 @@ function rowToPreference(row: {
   is_enabled_for_notifications: boolean;
   is_preferred_for_auth?: boolean;
 }): ChannelPreference {
+  const channelCode = row.channel_code as ChannelCode;
   return {
-    channelCode: row.channel_code as ChannelCode,
+    channelCode,
     isEnabledForMessages: row.is_enabled_for_messages,
     isEnabledForNotifications: row.is_enabled_for_notifications,
-    isPreferredForAuth: Boolean(row.is_preferred_for_auth),
+    isPreferredForAuth:
+      Boolean(row.is_preferred_for_auth) && isChannelAllowedForPreferredAuth(channelCode),
   };
 }
 
@@ -107,6 +112,7 @@ export const pgChannelPreferencesPort: ChannelPreferencesPort = {
       [userId]
     );
     const code = result.rows[0]?.channel_code as ChannelCode | undefined;
+    if (code != null && !isChannelAllowedForPreferredAuth(code)) return null;
     return code ?? null;
   },
 

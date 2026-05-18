@@ -4,6 +4,12 @@
 
 ## Записи
 
+### 2026-05-18 — `remindersPipeline`: M2M idempotency + `deliveryEvents`
+
+- Поле **`patientReminderM2mIdempotencyKeysActive`**: число неистёкших строк **`idempotency_keys`** с ключом **`LIKE 'prn:%:channels'`** (`expires_at > now()`), индикатор «ответ M2M на fan-out ещё в TTL» для web push + email.
+- Тип **`RemindersPipelineHealthPayload`** / пустой fallback включают **`deliveryEvents`** (агрегат **`reminder_delivery_events`** за 24 ч UTC, sent/failed) наряду с **`occurrenceHistory`**.
+- UI: строка метрики в аккордеоне «Напоминания» [`SystemHealthSection.tsx`](../../apps/webapp/src/app/app/settings/SystemHealthSection.tsx); реализация — [`adminReminderPipelineMetrics.ts`](../../apps/webapp/src/app-layer/health/adminReminderPipelineMetrics.ts).
+
 ### 2026-05-17 — Напоминания: `remindersPipeline` в system-health + вкладка «Статистика»
 
 - **Health:** `GET /api/admin/system-health` расширен полем **`remindersPipeline`** и пробой **`meta.probes.remindersPipeline`**; сбор Drizzle — [`apps/webapp/src/app-layer/health/adminReminderPipelineMetrics.ts`](../../apps/webapp/src/app-layer/health/adminReminderPipelineMetrics.ts) (очередь `outgoing_delivery_queue` для `kind=reminder_dispatch`, счётчики **`reminder_occurrence_history`** / **`reminder_delivery_events`** за 24 ч UTC).

@@ -93,7 +93,7 @@ export function InternationalPhoneInput({
       className={cn("mx-auto flex w-full max-w-sm flex-col gap-2")}
       onSubmit={handleSubmit}
     >
-      <label className={cn(patientMutedTextClass, "text-xs font-medium uppercase tracking-wide")} htmlFor={id}>
+      <label className={cn(patientMutedTextClass, "text-xs font-normal uppercase tracking-wide")} htmlFor={id}>
         Номер телефона
       </label>
       <div

@@ -3,16 +3,17 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getPostAuthRedirectTarget } from "@/modules/auth/redirectPolicy";
-import { AUTH_LOGIN_PRIMARY_BUTTON_CLASS, LOGIN_CTA_HEIGHT_CLASS, LOGIN_CTA_WIDTH_CLASS } from "@/shared/ui/auth/loginChrome";
+import { AUTH_LOGIN_ACCENT_TEXT_CLASS, AUTH_LOGIN_PRIMARY_BUTTON_CLASS, LOGIN_CTA_HEIGHT_CLASS, LOGIN_CTA_WIDTH_CLASS } from "@/shared/ui/auth/loginChrome";
 import { cn } from "@/lib/utils";
 import { patientMutedTextClass } from "@/shared/ui/patientVisual";
 
-/** Пока виджет Telegram не вставил iframe / не пришёл `load` (CDN заблокирован, нет сети и т.д.) — явно «неактивная» серая кнопка, не полупрозрачный primary. */
+/** Пока виджет Telegram не вставил iframe / не пришёл `load` (CDN заблокирован, нет сети и т.д.) — тот же тёмно-синий текст, слегка приглушённый. */
 const TELEGRAM_WIDGET_PENDING_CHROME = cn(
   LOGIN_CTA_HEIGHT_CLASS,
   LOGIN_CTA_WIDTH_CLASS,
-  "inline-flex shrink-0 items-center justify-center rounded-md border border-[var(--patient-color-primary,#284da0)] bg-white px-4 text-sm font-medium shadow-none",
-  patientMutedTextClass,
+  "inline-flex shrink-0 items-center justify-center rounded-md border border-[var(--patient-color-primary,#284da0)] bg-white px-4 text-sm font-normal shadow-none",
+  AUTH_LOGIN_ACCENT_TEXT_CLASS,
+  "opacity-70",
 );
 
 /** `load` на iframe срабатывает и при пустом/ошибочном документе — не считаем виджет готовым без ожидаемого src и геометрии. */

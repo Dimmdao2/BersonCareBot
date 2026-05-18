@@ -26,6 +26,7 @@ import { InternationalPhoneInput } from "@/shared/ui/auth/InternationalPhoneInpu
 import { TelegramLoginButton } from "@/shared/ui/auth/TelegramLoginButton";
 import { SupportContactLink } from "@/shared/ui/SupportContactLink";
 import {
+  AUTH_LOGIN_ACCENT_TEXT_CLASS,
   AUTH_LOGIN_FORM_PRIMARY_BUTTON_CLASS,
   AUTH_LOGIN_OUTLINE_BUTTON_CLASS,
   AUTH_LOGIN_PRIMARY_BUTTON_CLASS,
@@ -52,10 +53,16 @@ const authFlowShellClass = cn(
 const authStepMutedParagraphClass = cn(patientMutedTextClass, "text-balance");
 
 const authLinkButtonClass = cn(
-  "h-auto min-h-0 px-0 py-0 text-sm font-normal",
+  "border-none bg-transparent",
+  "h-auto min-h-0 px-0 py-0 text-sm",
   patientInlineLinkClass,
   "underline-offset-2",
+  "font-medium",
+  AUTH_LOGIN_ACCENT_TEXT_CLASS,
 );
+
+const authFormFieldLabelClass = cn(patientMutedTextClass, "text-sm");
+const authEmailInputClass = "w-full bg-white";
 
 function getWebChatId(): string {
   if (typeof window === "undefined") return "";
@@ -234,10 +241,13 @@ export function AuthFlowV2({
   const [emailLoginEmail, setEmailLoginEmail] = useState("");
   const [emailLoginPassword, setEmailLoginPassword] = useState("");
   const [emailRegPassword, setEmailRegPassword] = useState("");
-  const [emailAuthMode, setEmailAuthMode] = useState<"pick" | "login" | "register" | "verify">("pick");
+  const [emailAuthMode, setEmailAuthMode] = useState<"login" | "register" | "verify">("login");
   const [emailRegChallengeId, setEmailRegChallengeId] = useState<string | null>(null);
   const [emailRegRetrySec, setEmailRegRetrySec] = useState(60);
   const [emailPasswordReturn, setEmailPasswordReturn] = useState<"oauth_first" | "landing" | "phone">("oauth_first");
+  /** Раскрывающийся блок «Другие варианты» на первом экране (oauth_first / landing). */
+  const [authEntryAlternativesExpanded, setAuthEntryAlternativesExpanded] = useState(false);
+  const [emailRegDisplayName, setEmailRegDisplayName] = useState("");
 
   useEffect(() => {
     if (smsStartCooldownSec <= 0) return;
@@ -270,6 +280,12 @@ export function AuthFlowV2({
   useEffect(() => {
     onStepChange?.(step);
   }, [step, onStepChange]);
+
+  useEffect(() => {
+    if (step !== "oauth_first" && step !== "landing") {
+      setAuthEntryAlternativesExpanded(false);
+    }
+  }, [step]);
 
   const startOauth = async (provider: "yandex" | "google" | "apple") => {
     engageInteractive();
@@ -320,10 +336,11 @@ export function AuthFlowV2({
   const showTelegramAuthSlot = !telegramLoginConfigLoaded || telegramWidgetReady;
 
   const resetEmailAuthFields = () => {
-    setEmailAuthMode("pick");
+    setEmailAuthMode("login");
     setEmailRegChallengeId(null);
     setEmailRegRetrySec(60);
     setEmailRegPassword("");
+    setEmailRegDisplayName("");
     setEmailLoginEmail("");
     setEmailLoginPassword("");
   };
@@ -331,6 +348,7 @@ export function AuthFlowV2({
   const goBackToEntry = () => {
     setSmsStartCooldownSec(0);
     resetEmailAuthFields();
+    setAuthEntryAlternativesExpanded(false);
     if (hasWebOauthAlternatives && !isMessengerMiniAppHost()) {
       setStep("oauth_first");
     } else if (telegramBotUsername) {
@@ -346,6 +364,7 @@ export function AuthFlowV2({
     engageInteractive();
     setEmailPasswordReturn(returnTo);
     resetEmailAuthFields();
+    setAuthEntryAlternativesExpanded(false);
     setStep("email_password");
   };
 
@@ -389,6 +408,15 @@ export function AuthFlowV2({
     engageInteractive();
     const email = emailLoginEmail.trim();
     const password = emailRegPassword;
+    const displayName = emailRegDisplayName.trim();
+    if (!displayName) {
+      toast.error("Введите имя");
+      return;
+    }
+    if (displayName.length > 200) {
+      toast.error("Имя не длиннее 200 символов");
+      return;
+    }
     if (!email || !password) {
       toast.error("Введите email и пароль");
       return;
@@ -402,7 +430,7 @@ export function AuthFlowV2({
       const res = await fetch("/api/auth/email-password/register", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password, displayName }),
       });
       const data = (await res.json().catch(() => ({}))) as {
         ok?: boolean;
@@ -543,68 +571,97 @@ export function AuthFlowV2({
           className={authLinkButtonClass}
           disabled={loading}
           onClick={() => {
-            if (emailAuthMode === "pick") {
-              resetEmailAuthFields();
-              setStep(emailPasswordReturn);
-              return;
-            }
             if (emailAuthMode === "verify") {
               setEmailRegChallengeId(null);
               setEmailAuthMode("register");
               return;
             }
-            setEmailAuthMode("pick");
+            resetEmailAuthFields();
+            setStep(emailPasswordReturn);
           }}
         >
           Назад
         </Button>
 
-        {emailAuthMode === "pick" ? (
-          <div className="mt-4 flex w-full flex-col items-center gap-3">
-            <Button
+        {emailAuthMode !== "verify" ? (
+          <div
+            role="tablist"
+            aria-label="Режим входа по email"
+            className="mt-3 grid grid-cols-2 gap-1.5"
+          >
+            <button
+              id="auth-email-tab-login"
               type="button"
-              variant="outline"
-              className={AUTH_LOGIN_PRIMARY_BUTTON_CLASS}
+              role="tab"
+              aria-selected={emailAuthMode === "login"}
               disabled={loading}
+              className={cn(
+                "rounded-md border px-3 py-2 text-sm font-medium transition-colors",
+                emailAuthMode === "login"
+                  ? "border-[var(--patient-color-primary,#284da0)] bg-[var(--patient-color-primary-soft)]/40 text-[#1a3366]"
+                  : "border-[var(--patient-border)] bg-white text-[var(--patient-text-muted)] hover:bg-[var(--patient-color-primary-soft)]/25",
+              )}
               onClick={() => setEmailAuthMode("login")}
             >
               Вход
-            </Button>
-            <Button
+            </button>
+            <button
+              id="auth-email-tab-register"
               type="button"
-              variant="outline"
-              className={AUTH_LOGIN_PRIMARY_BUTTON_CLASS}
+              role="tab"
+              aria-selected={emailAuthMode === "register"}
               disabled={loading}
+              className={cn(
+                "rounded-md border px-3 py-2 text-sm font-medium transition-colors",
+                emailAuthMode === "register"
+                  ? "border-[var(--patient-color-primary,#284da0)] bg-[var(--patient-color-primary-soft)]/40 text-[#1a3366]"
+                  : "border-[var(--patient-border)] bg-white text-[var(--patient-text-muted)] hover:bg-[var(--patient-color-primary-soft)]/25",
+              )}
               onClick={() => setEmailAuthMode("register")}
             >
               Регистрация
-            </Button>
+            </button>
           </div>
         ) : null}
 
         {emailAuthMode === "login" ? (
-          <form className="mt-2 flex w-full flex-col gap-3" onSubmit={(e) => void submitEmailPasswordLogin(e)}>
-            <Input
-              type="email"
-              name="email"
-              autoComplete="email"
-              inputMode="email"
-              aria-label="Email"
-              value={emailLoginEmail}
-              onChange={(e) => setEmailLoginEmail(e.target.value)}
-              disabled={loading}
-              className="w-full"
-            />
-            <Input
-              type="password"
-              name="password"
-              autoComplete="current-password"
-              aria-label="Пароль"
-              value={emailLoginPassword}
-              onChange={(e) => setEmailLoginPassword(e.target.value)}
-              disabled={loading}
-              className="w-full"
-            />
+          <form
+            role="tabpanel"
+            aria-labelledby="auth-email-tab-login"
+            className="mt-3 flex w-full flex-col gap-3"
+            onSubmit={(e) => void submitEmailPasswordLogin(e)}
+          >
+            <div className="flex flex-col gap-1">
+              <label htmlFor="auth-email-login" className={authFormFieldLabelClass}>
+                Email
+              </label>
+              <Input
+                id="auth-email-login"
+                type="email"
+                name="email"
+                autoComplete="email"
+                inputMode="email"
+                value={emailLoginEmail}
+                onChange={(e) => setEmailLoginEmail(e.target.value)}
+                disabled={loading}
+                className={authEmailInputClass}
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label htmlFor="auth-password-login" className={authFormFieldLabelClass}>
+                Пароль
+              </label>
+              <Input
+                id="auth-password-login"
+                type="password"
+                name="password"
+                autoComplete="current-password"
+                value={emailLoginPassword}
+                onChange={(e) => setEmailLoginPassword(e.target.value)}
+                disabled={loading}
+                className={authEmailInputClass}
+              />
+            </div>
             <Button type="submit" variant="outline" className={AUTH_LOGIN_FORM_PRIMARY_BUTTON_CLASS} disabled={loading}>
               Войти
             </Button>
@@ -612,28 +669,60 @@ export function AuthFlowV2({
         ) : null}
 
         {emailAuthMode === "register" ? (
-          <form className="mt-2 flex w-full flex-col gap-3" onSubmit={(e) => void submitEmailRegister(e)}>
-            <Input
-              type="email"
-              name="reg-email"
-              autoComplete="email"
-              inputMode="email"
-              aria-label="Email"
-              value={emailLoginEmail}
-              onChange={(e) => setEmailLoginEmail(e.target.value)}
-              disabled={loading}
-              className="w-full"
-            />
-            <Input
-              type="password"
-              name="reg-password"
-              autoComplete="new-password"
-              aria-label="Пароль"
-              value={emailRegPassword}
-              onChange={(e) => setEmailRegPassword(e.target.value)}
-              disabled={loading}
-              className="w-full"
-            />
+          <form
+            role="tabpanel"
+            aria-labelledby="auth-email-tab-register"
+            className="mt-3 flex w-full flex-col gap-3"
+            onSubmit={(e) => void submitEmailRegister(e)}
+          >
+            <div className="flex flex-col gap-1">
+              <label htmlFor="auth-reg-name" className={authFormFieldLabelClass}>
+                Имя
+              </label>
+              <Input
+                id="auth-reg-name"
+                type="text"
+                name="reg-name"
+                autoComplete="name"
+                aria-label="Имя"
+                value={emailRegDisplayName}
+                maxLength={200}
+                onChange={(e) => setEmailRegDisplayName(e.target.value)}
+                disabled={loading}
+                className={authEmailInputClass}
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label htmlFor="auth-reg-email" className={authFormFieldLabelClass}>
+                Email
+              </label>
+              <Input
+                id="auth-reg-email"
+                type="email"
+                name="reg-email"
+                autoComplete="email"
+                inputMode="email"
+                value={emailLoginEmail}
+                onChange={(e) => setEmailLoginEmail(e.target.value)}
+                disabled={loading}
+                className={authEmailInputClass}
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label htmlFor="auth-reg-password" className={authFormFieldLabelClass}>
+                Пароль
+              </label>
+              <Input
+                id="auth-reg-password"
+                type="password"
+                name="reg-password"
+                autoComplete="new-password"
+                value={emailRegPassword}
+                onChange={(e) => setEmailRegPassword(e.target.value)}
+                disabled={loading}
+                className={authEmailInputClass}
+              />
+            </div>
             <Button type="submit" variant="outline" className={AUTH_LOGIN_FORM_PRIMARY_BUTTON_CLASS} disabled={loading}>
               Продолжить
             </Button>
@@ -686,7 +775,11 @@ export function AuthFlowV2({
                 const res = await fetch("/api/auth/email-password/register", {
                   method: "POST",
                   headers: { "content-type": "application/json" },
-                  body: JSON.stringify({ email, password }),
+                  body: JSON.stringify({
+                    email,
+                    password,
+                    displayName: emailRegDisplayName.trim() || undefined,
+                  }),
                 });
                 const data = (await res.json().catch(() => ({}))) as {
                   ok?: boolean;
@@ -756,34 +849,6 @@ export function AuthFlowV2({
             </Button>
           ) : null}
         </div>
-        {showTelegramAuthSlot ? (
-          <div className="flex w-full flex-col items-center gap-4">
-            {telegramWidgetReady && telegramBotUsername ? (
-              <TelegramLoginButton
-                botUsername={telegramBotUsername}
-                nextParam={nextParam}
-                disabled={loading}
-                onAuthEngaged={engageInteractive}
-              />
-            ) : (
-              <Button
-                type="button"
-                variant="outline"
-                className={cn(AUTH_LOGIN_PRIMARY_BUTTON_CLASS, "animate-pulse")}
-                disabled
-                aria-busy="true"
-              >
-                Войти через Telegram…
-              </Button>
-            )}
-          </div>
-        ) : null}
-        <MaxLoginCta
-          maxAltLoading={maxAltLoading}
-          maxOpenUrl={maxOpenUrl}
-          variant="primary"
-          onActivate={engageInteractive}
-        />
         <Button
           type="button"
           variant="outline"
@@ -793,18 +858,62 @@ export function AuthFlowV2({
         >
           Войти по email
         </Button>
-        <Button
+        <button
           type="button"
-          variant="link"
           className={authLinkButtonClass}
           disabled={loading}
-          onClick={() => {
-            engageInteractive();
-            setStep("phone");
-          }}
+          aria-expanded={authEntryAlternativesExpanded}
+          onClick={() => setAuthEntryAlternativesExpanded((v) => !v)}
         >
-          Войти по номеру телефона
-        </Button>
+          Другие варианты
+        </button>
+        {authEntryAlternativesExpanded ? (
+          <div
+            id="auth-flow-v2-oauth-first-alternatives"
+            className="mt-1 flex w-full max-w-sm flex-col items-center gap-3 border-t border-[var(--patient-border)] pt-3"
+          >
+            {showTelegramAuthSlot ? (
+              <div className="flex w-full flex-col items-center gap-4">
+                {telegramWidgetReady && telegramBotUsername ? (
+                  <TelegramLoginButton
+                    botUsername={telegramBotUsername}
+                    nextParam={nextParam}
+                    disabled={loading}
+                    onAuthEngaged={engageInteractive}
+                  />
+                ) : (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className={cn(AUTH_LOGIN_PRIMARY_BUTTON_CLASS, "animate-pulse")}
+                    disabled
+                    aria-busy="true"
+                  >
+                    Войти через Telegram…
+                  </Button>
+                )}
+              </div>
+            ) : null}
+            <MaxLoginCta
+              maxAltLoading={maxAltLoading}
+              maxOpenUrl={maxOpenUrl}
+              variant="primary"
+              onActivate={engageInteractive}
+            />
+            <button
+              type="button"
+              className={authLinkButtonClass}
+              disabled={loading}
+              onClick={() => {
+                engageInteractive();
+                setAuthEntryAlternativesExpanded(false);
+                setStep("phone");
+              }}
+            >
+              Войти по номеру телефона
+            </button>
+          </div>
+        ) : null}
     </div>
     );
   }
@@ -849,18 +958,6 @@ export function AuthFlowV2({
             ) : null}
           </div>
         ) : null}
-        <TelegramLoginButton
-          botUsername={telegramBotUsername}
-          nextParam={nextParam}
-          disabled={loading}
-          onAuthEngaged={engageInteractive}
-        />
-        <MaxLoginCta
-          maxAltLoading={maxAltLoading}
-          maxOpenUrl={maxOpenUrl}
-          variant="primary"
-          onActivate={engageInteractive}
-        />
         <Button
           type="button"
           variant="outline"
@@ -870,18 +967,46 @@ export function AuthFlowV2({
         >
           Войти по email
         </Button>
-        <Button
+        <button
           type="button"
-          variant="link"
           className={authLinkButtonClass}
           disabled={loading}
-          onClick={() => {
-            engageInteractive();
-            setStep("phone");
-          }}
+          aria-expanded={authEntryAlternativesExpanded}
+          onClick={() => setAuthEntryAlternativesExpanded((v) => !v)}
         >
-          Войти по номеру телефона
-        </Button>
+          Другие варианты
+        </button>
+        {authEntryAlternativesExpanded ? (
+          <div
+            id="auth-flow-v2-landing-alternatives"
+            className="mt-1 flex w-full max-w-sm flex-col items-center gap-3 border-t border-[var(--patient-border)] pt-3"
+          >
+            <TelegramLoginButton
+              botUsername={telegramBotUsername}
+              nextParam={nextParam}
+              disabled={loading}
+              onAuthEngaged={engageInteractive}
+            />
+            <MaxLoginCta
+              maxAltLoading={maxAltLoading}
+              maxOpenUrl={maxOpenUrl}
+              variant="primary"
+              onActivate={engageInteractive}
+            />
+            <button
+              type="button"
+              className={authLinkButtonClass}
+              disabled={loading}
+              onClick={() => {
+                engageInteractive();
+                setAuthEntryAlternativesExpanded(false);
+                setStep("phone");
+              }}
+            >
+              Войти по номеру телефона
+            </button>
+          </div>
+        ) : null}
       </div>
     );
   }

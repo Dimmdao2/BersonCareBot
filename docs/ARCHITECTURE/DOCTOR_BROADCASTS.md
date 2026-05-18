@@ -89,7 +89,7 @@
 ## Наблюдаемость
 
 - **Журнал врача** (`BroadcastAuditLog`): человекочитаемые заголовки колонок, раскрытие строки — начало текста, подсказка при незавершённой доставке.
-- **Админка «Здоровье системы»**: блок очереди доставки; агрегаты **`dueByKind`** / **`deadByKind`** с подписями «Напоминания пациентам», «Рассылки от специалистов», «Служебные оповещения», «Прочее». Для цепочки напоминаний отдельно — блок **«Напоминания»** / поле **`remindersPipeline`** в `GET /api/admin/system-health` и детали на вкладке **«Статистика»** (`GET /api/admin/reminder-stats`); врач без admin mode — **`GET /api/doctor/content-stats`** (тот же JSON, **`loadContentEngagementStats`**).
+- **Админка «Здоровье системы»**: блок очереди доставки; агрегаты **`dueByKind`** / **`deadByKind`** с подписями «Напоминания пациентам», «Рассылки от специалистов», «Служебные оповещения», «Прочее». Для цепочки напоминаний отдельно — блок **«Напоминания»** / поле **`remindersPipeline`** в `GET /api/admin/system-health` (в т.ч. **`patientReminderM2mIdempotencyKeysActive`**, **`deliveryEvents`**) и детали на вкладке **«Статистика»** (`GET /api/admin/reminder-stats`); врач без admin mode — **`GET /api/doctor/content-stats`** (тот же JSON, **`loadContentEngagementStats`**).
 - **Логи integrator** (`doctor_broadcast_delivery.sent` / `.dead`; при планируемом ретрае — **debug** `doctor_broadcast_delivery.dispatch_will_retry` с усечённым `error`, без сырого объекта исключения): `broadcastAuditId`, `eventId`, `channel`, исход, **маскированный** получатель (без полного текста рассылки).
 
 ## Связанные документы

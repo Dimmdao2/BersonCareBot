@@ -10,6 +10,7 @@ import { isSafeExternalHref } from "@/lib/url/isSafeExternalHref";
 import { SupportContactLink } from "@/shared/ui/SupportContactLink";
 import { cn } from "@/lib/utils";
 import {
+  AUTH_LOGIN_ACCENT_TEXT_CLASS,
   AUTH_LOGIN_FORM_PRIMARY_BUTTON_CLASS,
   AUTH_LOGIN_FORM_SECONDARY_BUTTON_CLASS,
 } from "@/shared/ui/auth/loginChrome";
@@ -183,13 +184,14 @@ export function OtpCodeForm({
   const textLinkClass = cn(
     patientInlineLinkClass,
     "w-fit bg-transparent p-0 text-left text-sm font-normal underline disabled:pointer-events-none disabled:opacity-50",
+    AUTH_LOGIN_ACCENT_TEXT_CLASS,
   );
 
   return (
     <form id={`otp-code-form-${challengeId}`} onSubmit={handleSubmit} className="flex max-w-sm flex-col gap-3">
       <p className={patientMutedTextClass}>{description}</p>
       <div className="flex flex-col gap-1">
-        <label className={cn(patientMutedTextClass, "text-xs font-medium uppercase tracking-wide")} htmlFor={`otp-${challengeId}`}>
+        <label className={cn(patientMutedTextClass, "text-xs font-normal uppercase tracking-wide")} htmlFor={`otp-${challengeId}`}>
           Код подтверждения
         </label>
         <Input
