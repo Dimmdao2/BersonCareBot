@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { LabeledSwitch } from "@/components/common/form/LabeledSwitch";
 import { parseIdTokens } from "@/shared/parsers/parseIdTokens";
-import { normalizePhone } from "@/modules/auth/phoneAuth";
+import { normalizePhone } from "@/modules/auth/phoneNormalize";
 import { isValidPhoneE164 } from "@/modules/auth/phoneValidation";
 import { previewTestAccountPhoneTokens } from "@/modules/system-settings/testAccounts";
 import { patchAdminSettingsBatch } from "./patchAdminSetting";

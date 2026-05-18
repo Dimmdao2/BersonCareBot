@@ -6,7 +6,7 @@ import { isPlatformUserUuid } from "@/shared/platform-user/isPlatformUserUuid";
 import { decodeBase64Url, encodeBase64Url } from "@/shared/utils/base64url";
 import { resolveRoleAsync, isWhitelistedAsync } from "./envRole";
 import type { IdentityResolutionPort, MessengerIdentityResolutionHints } from "./identityResolutionPort";
-import { normalizePhone } from "./phoneAuth";
+import { normalizePhone } from "./phoneNormalize";
 import { isValidPhoneE164 } from "./phoneValidation";
 import { getRedirectPathForRole } from "./redirectPolicy";
 import {

@@ -5,20 +5,21 @@ import { LANDING_BOOKING_HREF, LANDING_INSTALL_HASH } from "@/components/landing
 
 export function FinalCta() {
   return (
-    <section className="py-16 lg:py-24">
+    <section className="bg-[#F8FAFF] py-16 lg:py-20">
       <div className="mx-auto max-w-full px-5 sm:px-6 md:max-w-3xl lg:max-w-6xl lg:px-8">
-        <div className="rounded-[28px] bg-gradient-to-br from-[#2F55B7] to-[#5A78D6] px-8 py-10 text-white shadow-[0_16px_50px_rgba(31,61,120,0.15)] sm:px-10 sm:py-12 lg:rounded-[32px]">
-          <div className="grid gap-8 lg:grid-cols-2 lg:items-center lg:gap-16">
+        <div className="overflow-hidden rounded-[24px] bg-gradient-to-br from-[#1E3F9C] via-[#2F55B7] to-[#5A78D6] px-7 py-10 shadow-[0_20px_60px_rgba(31,61,120,0.20)] sm:px-10 sm:py-12 lg:rounded-[28px]">
+          {/* md: — текст слева, кнопки справа */}
+          <div className="grid gap-8 md:grid-cols-[1fr_auto] md:items-center md:gap-12">
             <div>
-              <h2 className="text-2xl font-semibold tracking-[-0.03em] sm:text-3xl lg:text-[2.5rem] lg:leading-[1.15]">
+              <h2 className="text-2xl font-semibold tracking-[-0.02em] text-white sm:text-3xl">
                 Начните восстановление с понятного плана
               </h2>
-              <p className="mt-4 max-w-lg text-base leading-7 text-white/85">
-                Установите приложение, выполняйте назначенные упражнения, отмечайте самочувствие и
-                возвращайтесь к программе без поиска сообщений и файлов.
+              <p className="mt-4 max-w-lg text-base leading-7 text-white/80">
+                Установите приложение, выполняйте назначенные упражнения, отмечайте самочувствие и возвращайтесь к программе без поиска сообщений и файлов.
               </p>
             </div>
-            <div className="flex flex-col gap-3 sm:flex-row lg:flex-col lg:max-w-xs lg:ml-auto">
+
+            <div className="flex flex-col gap-3 sm:flex-row md:flex-col md:min-w-[200px]">
               <Link
                 href={LANDING_INSTALL_HASH}
                 className={cn(
@@ -30,9 +31,7 @@ export function FinalCta() {
               </Link>
               <Link
                 href={LANDING_BOOKING_HREF}
-                className={cn(
-                  "inline-flex h-10 w-full items-center justify-center rounded-xl border border-white/30 bg-white/10 px-4 text-base font-semibold text-white transition-colors hover:bg-white/20",
-                )}
+                className="inline-flex h-10 w-full items-center justify-center rounded-xl border border-white/25 bg-transparent px-4 text-base font-semibold text-white transition-colors hover:bg-white/15"
               >
                 Записаться на консультацию
               </Link>

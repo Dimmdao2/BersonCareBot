@@ -1,15 +1,16 @@
 "use client";
 
 /**
- * Публичный поток входа (web): Яндекс, Google, Telegram, Max; телефон — отдельный шаг.
+ * Публичный поток входа (web): Яндекс, Google, Telegram, Max; **email+пароль** и телефон — отдельные шаги.
  * Apple показывается только если включён Apple и при этом выключены Яндекс и Google (резерв для таких деплоев).
  * OTP в вебе — Telegram / Max / подтверждённый email (SMS отключён). PIN в этом flow намеренно отключён (Stage 5).
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { isMessengerMiniAppHost } from "@/shared/lib/messengerMiniApp";
 import type { AuthMethodsPayload } from "@/modules/auth/checkPhoneMethods";
@@ -34,6 +35,7 @@ import {
   patientInnerPageStackClass,
   patientInlineLinkClass,
   patientMutedTextClass,
+  patientPrimaryActionClass,
 } from "@/shared/ui/patientVisual";
 
 const WEB_CHAT_ID_KEY = "bersoncare_web_chat_id";
@@ -70,6 +72,7 @@ export type AuthFlowStep =
   | "oauth_first"
   | "landing"
   | "phone"
+  | "email_password"
   | "new_user_foreign"
   | "foreign_no_otp_channel"
   | "choose_channel"
@@ -228,6 +231,13 @@ export function AuthFlowV2({
   const [otpChannel, setOtpChannel] = useState<OtpChannel>("telegram");
   const [otpEntrySource, setOtpEntrySource] = useState<"registration" | "channel" | "auto" | null>(null);
   const [maxBotOpenUrl, setMaxBotOpenUrl] = useState<MaxBotOpenUrlState>({ status: "idle" });
+  const [emailLoginEmail, setEmailLoginEmail] = useState("");
+  const [emailLoginPassword, setEmailLoginPassword] = useState("");
+  const [emailRegPassword, setEmailRegPassword] = useState("");
+  const [emailAuthMode, setEmailAuthMode] = useState<"pick" | "login" | "register" | "verify">("pick");
+  const [emailRegChallengeId, setEmailRegChallengeId] = useState<string | null>(null);
+  const [emailRegRetrySec, setEmailRegRetrySec] = useState(60);
+  const [emailPasswordReturn, setEmailPasswordReturn] = useState<"oauth_first" | "landing" | "phone">("oauth_first");
 
   useEffect(() => {
     if (smsStartCooldownSec <= 0) return;
@@ -311,6 +321,8 @@ export function AuthFlowV2({
 
   const goBackToEntry = () => {
     setSmsStartCooldownSec(0);
+    setEmailLoginEmail("");
+    setEmailLoginPassword("");
     if (hasWebOauthAlternatives && !isMessengerMiniAppHost()) {
       setStep("oauth_first");
     } else if (telegramBotUsername) {
@@ -320,6 +332,49 @@ export function AuthFlowV2({
     }
     setPhone(null);
     setMethods(null);
+  };
+
+  const openEmailPasswordLogin = (returnTo: "oauth_first" | "landing" | "phone") => {
+    engageInteractive();
+    setEmailPasswordReturn(returnTo);
+    setEmailLoginEmail("");
+    setEmailLoginPassword("");
+    setStep("email_password");
+  };
+
+  const submitEmailPasswordLogin = async (e: FormEvent) => {
+    e.preventDefault();
+    engageInteractive();
+    const email = emailLoginEmail.trim();
+    if (!email || !emailLoginPassword) {
+      toast.error("Введите email и пароль");
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await fetch("/api/auth/email-password/login", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email, password: emailLoginPassword }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        redirectTo?: string;
+        role?: "client" | "doctor" | "admin";
+        error?: string;
+      };
+      if (data.ok && data.redirectTo) {
+        redirectOk(data.redirectTo, data.role);
+        return;
+      }
+      if (res.status === 401 || data.error === "invalid_credentials") {
+        toast.error("Неверный email или пароль");
+        return;
+      }
+      toast.error("Не удалось войти");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const redirectOk = (redirectTo: string, role?: "client" | "doctor" | "admin") => {
@@ -425,6 +480,52 @@ export function AuthFlowV2({
     );
   }
 
+  if (step === "email_password") {
+    return (
+      <div id="auth-flow-v2-email-password" className={cn(authFlowShellClass, "w-full text-left")}>
+        <Button
+          type="button"
+          variant="link"
+          className={authLinkButtonClass}
+          disabled={loading}
+          onClick={() => {
+            setEmailLoginEmail("");
+            setEmailLoginPassword("");
+            setStep(emailPasswordReturn);
+          }}
+        >
+          Назад
+        </Button>
+        <form className="mt-2 flex w-full flex-col gap-3" onSubmit={(e) => void submitEmailPasswordLogin(e)}>
+          <Input
+            type="email"
+            name="email"
+            autoComplete="email"
+            inputMode="email"
+            aria-label="Email"
+            value={emailLoginEmail}
+            onChange={(e) => setEmailLoginEmail(e.target.value)}
+            disabled={loading}
+            className="w-full"
+          />
+          <Input
+            type="password"
+            name="password"
+            autoComplete="current-password"
+            aria-label="Пароль"
+            value={emailLoginPassword}
+            onChange={(e) => setEmailLoginPassword(e.target.value)}
+            disabled={loading}
+            className="w-full"
+          />
+          <Button type="submit" className={patientPrimaryActionClass} disabled={loading}>
+            Войти
+          </Button>
+        </form>
+      </div>
+    );
+  }
+
   if (step === "oauth_first") {
     return (
       <div id="auth-flow-v2-oauth-first" className={cn(authFlowShellClass, "items-center text-center")}>
@@ -493,6 +594,15 @@ export function AuthFlowV2({
         />
         <Button
           type="button"
+          variant="default"
+          className={AUTH_LOGIN_PRIMARY_BUTTON_CLASS}
+          disabled={loading}
+          onClick={() => openEmailPasswordLogin("oauth_first")}
+        >
+          Войти по email
+        </Button>
+        <Button
+          type="button"
           variant="link"
           className={authLinkButtonClass}
           disabled={loading}
@@ -559,6 +669,15 @@ export function AuthFlowV2({
           variant="primary"
           onActivate={engageInteractive}
         />
+        <Button
+          type="button"
+          variant="default"
+          className={AUTH_LOGIN_PRIMARY_BUTTON_CLASS}
+          disabled={loading}
+          onClick={() => openEmailPasswordLogin("landing")}
+        >
+          Войти по email
+        </Button>
         <Button
           type="button"
           variant="link"
@@ -631,6 +750,15 @@ export function AuthFlowV2({
             </div>
           </>
         ) : null}
+        <Button
+          type="button"
+          variant="default"
+          className={AUTH_LOGIN_PRIMARY_BUTTON_CLASS}
+          disabled={loading}
+          onClick={() => openEmailPasswordLogin("phone")}
+        >
+          Войти по email
+        </Button>
         <InternationalPhoneInput disabled={loading} onSubmit={runCheckPhone} submitLabel="Продолжить" />
         {showTelegramAuthSlot ? (
           <Button

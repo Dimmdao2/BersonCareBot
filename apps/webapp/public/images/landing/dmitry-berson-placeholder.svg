@@ -1,0 +1,10 @@
+<svg width="460" height="575" viewBox="0 0 460 575" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="460" height="575" fill="url(#grad)"/>
+  <defs>
+    <linearGradient id="grad" x1="0" y1="0" x2="460" y2="575" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#C8D9F5"/>
+      <stop offset="100%" stop-color="#EEF4FF"/>
+    </linearGradient>
+  </defs>
+  <text x="230" y="295" text-anchor="middle" font-family="system-ui,sans-serif" font-size="14" fill="#667085">Добавьте фото: public/images/landing/dmitry-berson.jpg</text>
+</svg>

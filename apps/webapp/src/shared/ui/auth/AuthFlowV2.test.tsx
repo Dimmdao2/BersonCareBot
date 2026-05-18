@@ -367,6 +367,40 @@ describe("AuthFlowV2", () => {
     expect(fetchMock).toHaveBeenCalled();
   });
 
+  it("oauth-first shows email login button alongside OAuth", async () => {
+    isMiniAppHost.mockReturnValue(false);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL) => {
+        const url = typeof input === "string" ? input : input.toString();
+        if (url.includes("/api/auth/telegram-login/config")) {
+          return jsonRes({ ok: true, botUsername: "test_bot" });
+        }
+        if (url.includes("/api/auth/oauth/providers")) {
+          return jsonRes({ ok: true, yandex: true, google: false, apple: false });
+        }
+        if (url.includes("/api/auth/login/alternatives-config")) {
+          return jsonRes({ ok: true, telegramBotUsername: "test_bot", maxBotOpenUrl: null });
+        }
+        return jsonRes({});
+      }),
+    );
+
+    render(
+      <AuthFlowV2
+        nextParam={null}
+        prefetchedAuthConfig={{
+          oauthProviders: { yandex: true, google: false, apple: false },
+          telegramBotUsername: "test_bot",
+          maxBotOpenUrl: null,
+          fetchedAt: Date.now(),
+        }}
+      />,
+    );
+    await waitFor(() => expect(document.getElementById("auth-flow-v2-oauth-first")).toBeTruthy());
+    expect(screen.getByRole("button", { name: "Войти по email" })).toBeInTheDocument();
+  });
+
   it("shows Apple when only Apple OAuth is configured (Yandex and Google off)", async () => {
     isMiniAppHost.mockReturnValue(false);
     vi.stubGlobal(

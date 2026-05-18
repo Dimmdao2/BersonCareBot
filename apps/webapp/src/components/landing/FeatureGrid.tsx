@@ -66,32 +66,33 @@ export function FeatureGrid() {
   return (
     <section id="features" className="scroll-mt-20 bg-white py-16 lg:py-24">
       <div className="mx-auto max-w-full px-5 sm:px-6 md:max-w-3xl lg:max-w-6xl lg:px-8">
-        <div className="mx-auto max-w-2xl text-center">
+        <div className="text-center">
           <h2 className="text-2xl font-semibold tracking-[-0.03em] text-[#17264A] sm:text-3xl lg:text-[2.5rem]">
             Всё, что нужно для восстановления
           </h2>
-          <p className="mt-3 text-base leading-7 text-[#667085]">
-            Программа, упражнения, дневник и запись собраны в одном пациентском кабинете.
-          </p>
         </div>
-        <div className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+
+        {/* mobile: 2 колонки; md+: 3 колонки */}
+        <div className="mt-10 grid grid-cols-2 gap-4 md:grid-cols-3">
           {features.map((f) => {
             const Icon = f.icon;
             return (
               <div
                 key={f.title}
-                className="flex flex-col rounded-2xl border border-[#DDE3F0] bg-white p-5 shadow-sm transition-shadow hover:shadow-md"
+                className="flex flex-col rounded-2xl border border-[#DDE3F0] bg-white p-4 shadow-sm sm:p-5"
               >
                 <div
                   className={cn(
-                    "mb-4 flex h-12 w-12 items-center justify-center rounded-2xl",
+                    "mb-3 flex h-11 w-11 items-center justify-center rounded-2xl sm:h-12 sm:w-12",
                     toneClass[f.tone],
                   )}
                 >
-                  <Icon className="h-6 w-6" aria-hidden />
+                  <Icon className="h-5 w-5 sm:h-6 sm:w-6" aria-hidden />
                 </div>
-                <h3 className="text-base font-semibold text-[#17264A] sm:text-lg">{f.title}</h3>
-                <p className="mt-2 text-sm leading-6 text-[#667085]">{f.description}</p>
+                <h3 className="text-sm font-semibold leading-snug text-[#17264A] sm:text-base">{f.title}</h3>
+                <p className="mt-1.5 text-xs leading-5 text-[#667085] sm:mt-2 sm:text-sm sm:leading-6">
+                  {f.description}
+                </p>
               </div>
             );
           })}

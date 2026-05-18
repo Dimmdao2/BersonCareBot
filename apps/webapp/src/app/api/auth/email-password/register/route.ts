@@ -29,22 +29,39 @@ export async function POST(request: Request) {
     passwordHash,
     displayName,
   });
-  if (!reg.ok) {
-    return NextResponse.json({ ok: false, error: "duplicate_email" }, { status: 409 });
+
+  async function respondWithChallenge(userId: string, rollbackOnSendFail: boolean) {
+    const challenge = await startEmailChallenge(userId, emailNorm);
+    if (!challenge.ok) {
+      if (rollbackOnSendFail) {
+        await deps.userPasswordCredentials.deleteUnverifiedEmailPasswordRegistration(userId);
+      }
+      return NextResponse.json(
+        { ok: false, error: challenge.code, retryAfterSeconds: challenge.retryAfterSeconds },
+        { status: challenge.code === "rate_limited" ? 429 : 400 },
+      );
+    }
+    return NextResponse.json({
+      ok: true,
+      challengeId: challenge.challengeId,
+      retryAfterSeconds: challenge.retryAfterSeconds,
+    });
   }
 
-  const challenge = await startEmailChallenge(reg.userId, emailNorm);
-  if (!challenge.ok) {
-    await deps.userPasswordCredentials.deleteUnverifiedEmailPasswordRegistration(reg.userId);
-    return NextResponse.json(
-      { ok: false, error: challenge.code, retryAfterSeconds: challenge.retryAfterSeconds },
-      { status: challenge.code === "rate_limited" ? 429 : 400 },
-    );
+  if (reg.ok) {
+    return respondWithChallenge(reg.userId, true);
   }
 
-  return NextResponse.json({
-    ok: true,
-    challengeId: challenge.challengeId,
-    retryAfterSeconds: challenge.retryAfterSeconds,
-  });
+  if (reg.reason === "duplicate_email") {
+    const resent = await deps.userPasswordCredentials.tryResendRegistrationChallenge({
+      emailNormalized: emailNorm,
+      plainPassword: parsed.data.password,
+    });
+    if (!resent.ok) {
+      return NextResponse.json({ ok: false, error: "duplicate_email" }, { status: 409 });
+    }
+    return respondWithChallenge(resent.userId, false);
+  }
+
+  return NextResponse.json({ ok: false, error: "duplicate_email" }, { status: 409 });
 }

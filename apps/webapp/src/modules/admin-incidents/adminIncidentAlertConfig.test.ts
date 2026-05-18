@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
-  integratorAutoMergeAnomalyDedupKey,
   parseAdminIncidentAlertConfig,
   normalizeAdminIncidentAlertConfigForAdminPatch,
 } from "./adminIncidentAlertConfig";
+import { integratorAutoMergeAnomalyDedupKey } from "./integratorAutoMergeAnomalyDedup";
 
 describe("parseAdminIncidentAlertConfig", () => {
   it("defaults identity v1 topics and channels to true except system_health_db_guard", () => {

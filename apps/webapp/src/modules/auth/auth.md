@@ -21,7 +21,7 @@
 
 - **Оболочка:** `AppShell` с `variant="patient"` (как у кабинета пациента). RSC `AppEntryRsc` (`/app`, `/app/tg`, `/app/max`): при отсутствии сессии — `AppEntryLoginContent` + `AuthBootstrap`.
 - **`AppEntryLoginContent`:** при `ALLOW_DEV_AUTH_BYPASS` — блок dev-входа; иначе только `Suspense` + `AuthBootstrap`. **Отдельной плашки** «войдите или зарегистрируйтесь» нет.
-- **`AuthFlowV2`:** компактные шаги без дублирующих заголовков «Вход» и без длинного подзаголовка над списком провайдеров (текст на кнопках самодостаточен). Ветки `oauth_first` / `landing` / `phone` / `choose_channel` / `code`, а также `new_user_foreign` / `foreign_no_otp_channel` при необходимости.
+- **`AuthFlowV2`:** компактные шаги без дублирующих заголовков «Вход» и без длинного подзаголовка над списком провайдеров (текст на кнопках самодостаточен). Ветки `oauth_first` / `landing` / `phone` / **`email_password`** / `choose_channel` / `code`, а также `new_user_foreign` / `foreign_no_otp_channel` при необходимости.
 - **Patient-оформление:** контент шага в **`patientCardClass` + `patientInnerPageStackClass`** (`max-w-sm`, центрирование для OAuth/Telephone). Кнопки OAuth — **`shared/ui/auth/loginChrome.ts`** (primary/secondary в палитре patient, **`rounded-md`**, ширина **242px** где нужно выравнивание с Telegram Login Widget). **`InternationalPhoneInput`** и submit в **`OtpCodeForm`** — **`patientPrimaryActionClass`** на полную ширину карточки для основной CTA.
 - **`ChannelPicker`:** без вводной строки над кнопкой — сразу основной канал и при необходимости «Другие способы».
 - **Профиль (`PatientProfileHero`):** смена номера — тот же сценарий, что на `/app/patient/bind-phone` (`PatientBindPhoneClient`, без SMS и без удалённых `BindPhoneBlock` / `PhoneAuthForm`).
@@ -128,7 +128,8 @@
 
 - Подтверждённый email в учётке используется backend’ом для **OTP на почту** и для потока **email+password** там, где эти API вызываются.
 - **Публичный веб-вход на `/app`:** OTP на **email** доступен, если в `check-phone` пришёл `methods.email` (подтверждённый email в учётке); **`isOtpChannelAvailablePublic`** для **`email`** совпадает с полным набором (для **`sms`** всегда **`false`**). Порядок альтернатив — **`OTP_PUBLIC_OTHER_CHANNELS_ORDER`** (**max** → **email** → **telegram**). **`pickOtpChannelWithPreferencePublic`** учитывает предпочтение **`telegram` / `max` / `email`**, но **никогда** не выберет **`sms`** для публичного веба.
-- **Экрана «войти по email + пароль» на `/app` нет** — только маршруты API `POST /api/auth/email-password/login` (и register / forgot / reset); визуальный вход на сайте — OAuth, Telegram/Max, телефон с OTP (мессенджеры или email по `methods`), как выше.
+- **Экран входа по email+паролю на `/app`:** кнопка «Войти по email» на `oauth_first` / `landing` и ссылка на шаге телефона → шаг `email_password` → `POST /api/auth/email-password/login` (регистрация и сброс пароля — только API, см. ниже).
+- **Экрана регистрации email+пароль в UI `/app` нет** — `POST /api/auth/email-password/register` и forgot/reset; визуальный вход на сайте дополняется OAuth, Max, телефоном и формой email+пароль, как выше.
 
 ## Телефон и OTP
 

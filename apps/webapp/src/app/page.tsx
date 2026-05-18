@@ -11,7 +11,6 @@ import { LandingFooter } from "@/components/landing/LandingFooter";
 import { LandingHeader } from "@/components/landing/LandingHeader";
 import { LandingPwaClientBootstrap } from "@/components/landing/LandingPwaClientBootstrap";
 import { SpecialistSection } from "@/components/landing/SpecialistSection";
-import { WhySection } from "@/components/landing/WhySection";
 
 const ogTitle = "BersonCare — кабинет восстановления и реабилитации";
 const ogDescription =
@@ -32,13 +31,12 @@ export const metadata: Metadata = {
 
 export default async function HomePage() {
   return (
-    <div className="min-h-screen bg-[#F8FAFF] text-[#17264A]">
+    <div className="min-h-screen bg-white text-[#17264A]">
       <LandingPwaClientBootstrap />
       <LandingHeader />
       <main>
         <HeroSection />
         <FeatureGrid />
-        <WhySection />
         <SpecialistSection />
         <InstallSection />
         <FinalCta />

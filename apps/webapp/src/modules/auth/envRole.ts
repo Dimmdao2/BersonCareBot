@@ -1,6 +1,6 @@
 import { env } from "@/config/env";
 import type { UserRole } from "@/shared/types/session";
-import { normalizePhone } from "./phoneAuth";
+import { normalizePhone } from "./phoneNormalize";
 import { getConfigValue } from "@/modules/system-settings/configAdapter";
 import { parseIdTokens } from "@/shared/parsers/parseIdTokens";
 

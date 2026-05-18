@@ -1,4 +1,4 @@
-import { normalizePhone } from "@/modules/auth/phoneAuth";
+import { normalizePhone } from "@/modules/auth/phoneNormalize";
 import { isValidPhoneE164 } from "@/modules/auth/phoneValidation";
 
 /** Stored under `system_settings.test_account_identifiers` (admin). */

@@ -1,9 +1,10 @@
 /**
  * Admin relay toggles for identity incidents (channel-link, auto-merge, messenger phone bind).
  * Stored in system_settings key `admin_incident_alert_config` (scope admin).
+ *
+ * Без Node-only импортов: клиентские компоненты настроек импортируют константы/типы из этого файла.
+ * Dedup-хеш для integrator — {@link integratorAutoMergeAnomalyDedupKey}.
  */
-
-import { createHash } from "node:crypto";
 
 export const ADMIN_INCIDENT_ALERT_CONFIG_KEY = "admin_incident_alert_config" as const;
 
@@ -83,27 +84,6 @@ export function parseAdminIncidentAlertConfig(valueJson: unknown): AdminIncident
 
 export function isAdminIncidentTopicEnabled(cfg: AdminIncidentAlertConfig, topic: AdminIncidentTopicKey): boolean {
   return cfg.topics[topic] === true;
-}
-
-/**
- * Stable dedup key for integrator projection `auto_merge_conflict_anomaly` relay (order-independent ids).
- */
-export function integratorAutoMergeAnomalyDedupKey(input: {
-  eventType: string;
-  reason: unknown;
-  conflictClass: unknown;
-  integratorUserIds: unknown;
-}): string {
-  const ids = Array.isArray(input.integratorUserIds)
-    ? [...new Set(input.integratorUserIds.map((x) => String(x).trim()).filter(Boolean))].sort()
-    : [];
-  const payload = {
-    t: input.eventType,
-    r: input.reason,
-    c: input.conflictClass,
-    i: ids,
-  };
-  return createHash("sha256").update(JSON.stringify(payload), "utf8").digest("hex").slice(0, 48);
 }
 
 /**

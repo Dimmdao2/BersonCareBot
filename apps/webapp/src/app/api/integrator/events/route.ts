@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { upsertOpenConflictLog, writeAuditLog, computeConflictKeyFromCandidateIds } from "@/app-layer/admin/auditLog";
-import { integratorAutoMergeAnomalyDedupKey } from "@/modules/admin-incidents/adminIncidentAlertConfig";
+import { integratorAutoMergeAnomalyDedupKey } from "@/modules/admin-incidents/integratorAutoMergeAnomalyDedup";
 import { sendAdminIncidentRelayAlert } from "@/modules/admin-incidents/sendAdminIncidentAlerts";
 import { getPool } from "@/app-layer/db/client";
 import { computeIntegratorEventsRequestHash } from "@/app-layer/idempotency/integratorEventSemanticHash";

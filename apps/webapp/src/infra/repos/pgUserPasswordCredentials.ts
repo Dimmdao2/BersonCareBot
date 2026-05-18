@@ -10,6 +10,16 @@ export type UserPasswordCredentialsPort = {
   }): Promise<{ ok: true; userId: string } | { ok: false; reason: "duplicate_email" }>;
   /** Удалить канон без подтверждения email (откат после сбоя отправки кода и т.п.). */
   deleteUnverifiedEmailPasswordRegistration(userId: string): Promise<void>;
+  /** Владелец активного челленджа на email (для публичного подтверждения после регистрации). */
+  findUserIdByEmailChallengeId(challengeId: string): Promise<string | null>;
+  /**
+   * Неподтверждённая регистрация с тем же email: проверка пароля и повторная отправка кода
+   * (тот же контракт ответа, что у успешного `registerPendingVerification` + `startEmailChallenge`).
+   */
+  tryResendRegistrationChallenge(params: {
+    emailNormalized: string;
+    plainPassword: string;
+  }): Promise<{ ok: true; userId: string } | { ok: false }>;
   tryVerifyLogin(emailNormalized: string, plainPassword: string): Promise<{ userId: string } | null>;
   /** Пользователь с подтверждённым email и строкой пароля (для сброса). */
   findVerifiedUserIdWithPassword(emailNormalized: string): Promise<string | null>;
@@ -59,6 +69,37 @@ export function createPgUserPasswordCredentialsPort(): UserPasswordCredentialsPo
            AND email_verified_at IS NULL`,
         [userId],
       );
+    },
+
+    async findUserIdByEmailChallengeId(challengeId) {
+      const pool = getPool();
+      const r = await pool.query<{ user_id: string }>(
+        "SELECT user_id::text AS user_id FROM email_challenges WHERE id = $1::uuid LIMIT 1",
+        [challengeId],
+      );
+      return r.rows[0]?.user_id ?? null;
+    },
+
+    async tryResendRegistrationChallenge({ emailNormalized, plainPassword }) {
+      const pool = getPool();
+      const r = await pool.query<{ id: string; password_hash: string }>(
+        `SELECT pu.id::text AS id, upc.password_hash
+         FROM platform_users pu
+         INNER JOIN user_password_credentials upc ON upc.user_id = pu.id
+         WHERE pu.email_normalized = $1
+           AND pu.merged_into_id IS NULL
+           AND pu.email_verified_at IS NULL`,
+        [emailNormalized],
+      );
+      const row = r.rows[0];
+      if (!row) return { ok: false };
+      try {
+        const ok = await argon2.verify(row.password_hash, plainPassword);
+        if (!ok) return { ok: false };
+        return { ok: true, userId: row.id };
+      } catch {
+        return { ok: false };
+      }
     },
 
     async tryVerifyLogin(emailNormalized, plainPassword) {
@@ -115,6 +156,12 @@ export const inMemoryUserPasswordCredentialsPort: UserPasswordCredentialsPort = 
     return { ok: false, reason: "duplicate_email" };
   },
   async deleteUnverifiedEmailPasswordRegistration() {},
+  async findUserIdByEmailChallengeId() {
+    return null;
+  },
+  async tryResendRegistrationChallenge() {
+    return { ok: false };
+  },
   async tryVerifyLogin() {
     return null;
   },
