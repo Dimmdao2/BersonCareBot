@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useState, type ReactNode } from "react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -41,6 +42,7 @@ function ChannelRow({ label, status, action }: { label: string; status: string; 
 
 function PushChannelRow() {
   const state = useWebPushClientState();
+  const router = useRouter();
   const [busy, setBusy] = useState(false);
 
   const runSubscribe = useCallback(async () => {
@@ -50,21 +52,27 @@ function PushChannelRow() {
         state.uiStatus === "granted_no_subscription" ?
           await restorePatientWebPushSubscription()
         : await subscribePatientWebPush();
-      await state.refresh();
+      if (result.ok) {
+        await state.refresh();
+        router.refresh();
+      }
     } finally {
       setBusy(false);
     }
-  }, [state]);
+  }, [state, router]);
 
   const runUnsubscribe = useCallback(async () => {
     setBusy(true);
     try {
-      await unsubscribePatientWebPush();
-      await state.refresh();
+      const ok = await unsubscribePatientWebPush();
+      if (ok) {
+        await state.refresh();
+        router.refresh();
+      }
     } finally {
       setBusy(false);
     }
-  }, [state]);
+  }, [state, router]);
 
   if (!state.mounted) return null;
 

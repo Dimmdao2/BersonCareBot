@@ -2,7 +2,6 @@ import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 import { verifyIntegratorSignature } from "@/infra/webhooks/verifyIntegratorSignature";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { loadPlatformUserChannelBindings } from "@/infra/repos/loadPlatformUserChannelBindings";
 import { getCachedResponse, isKeyValid, setCachedResponse } from "@/app-layer/idempotency/idempotencyStore";
 import {
   integratorPatientReminderNotifyBodySchema,
@@ -65,7 +64,7 @@ export async function POST(request: Request) {
       getProfileEmailFields: deps.userProjection.getProfileEmailFields,
       readReminderNotifyGate: deps.readReminderNotifyGate,
       reminderTransactionalEmailCooldown: deps.reminderTransactionalEmailCooldown,
-      getChannelBindings: loadPlatformUserChannelBindings,
+      getChannelBindings: deps.loadPlatformUserChannelBindings,
     });
 
     const status = 200;

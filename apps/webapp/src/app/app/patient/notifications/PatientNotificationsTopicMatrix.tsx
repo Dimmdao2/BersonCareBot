@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState, useTransition } from "react";
+import { useCallback, useEffect, useState, useTransition } from "react";
 import { Switch } from "@/components/ui/switch";
 import type { ProfileNotificationTopicModel } from "@/modules/patient-notifications/profileTopicChannelsModel";
 import { patientMutedTextClass } from "@/shared/ui/patientVisual";
@@ -12,9 +12,13 @@ export function PatientNotificationsTopicMatrix({ initialTopics }: { initialTopi
   const [topics, setTopics] = useState(initialTopics);
   const [pending, startTransition] = useTransition();
 
+  useEffect(() => {
+    setTopics(initialTopics);
+  }, [initialTopics]);
+
   const channelLabels = (() => {
     const labels = new Map<string, string>();
-    for (const t of initialTopics) {
+    for (const t of topics) {
       for (const c of t.channels) {
         labels.set(c.code, c.label);
       }

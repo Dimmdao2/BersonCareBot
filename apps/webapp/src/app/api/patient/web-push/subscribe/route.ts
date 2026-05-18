@@ -1,3 +1,4 @@
+import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
@@ -91,6 +92,10 @@ export async function POST(request: Request) {
     },
     "web push defaults enabled for notification topics",
   );
+
+  revalidatePath(routePaths.notifications);
+  revalidatePath(routePaths.profile);
+  revalidatePath(routePaths.patient);
 
   return NextResponse.json({ ok: true, enabledTopics });
 }

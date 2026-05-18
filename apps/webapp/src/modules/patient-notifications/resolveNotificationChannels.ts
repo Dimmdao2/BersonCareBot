@@ -16,7 +16,8 @@ export type SkippedNotificationChannelReason =
   | "channel_not_allowed_for_topic"
   | "topic_disabled"
   | "muted"
-  | "smtp_missing";
+  | "smtp_missing"
+  | "rate_limited";
 
 export type PatientNotificationChannelAvailability = {
   hasTelegram: boolean;

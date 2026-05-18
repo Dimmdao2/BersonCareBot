@@ -32,6 +32,7 @@ import {
   reminderDispatchUsesIntentOpenTarget,
 } from '../../reminders/buildPatientReminderDeepLink.js';
 import { reminderOccurrenceTopicCode } from '../../reminders/reminderNotificationTopicCode.js';
+import { REMINDER_DISPATCH_NOTIFY_LOG_EVENT } from '../../reminders/reminderDispatchNotifyLogEvents.js';
 import {
   buildReminderDispatchInlineKeyboard,
   buildReminderSkipReasonInlineKeyboard,
@@ -513,7 +514,7 @@ export async function handleReminders(
       if (!topicCode) {
         logger.info(
           {
-            event: 'reminders.dispatchDue.webapp_notify_channels.skipped',
+            event: REMINDER_DISPATCH_NOTIFY_LOG_EVENT.skipped,
             reason: 'no_topic_code',
             occurrenceId: occ.id,
             integratorUserId: occ.userId,
@@ -524,7 +525,7 @@ export async function handleReminders(
       } else if (!deps.webappEventsPort?.notifyPatientReminderChannels) {
         logger.info(
           {
-            event: 'reminders.dispatchDue.webapp_notify_channels.skipped',
+            event: REMINDER_DISPATCH_NOTIFY_LOG_EVENT.skipped,
             reason: 'webapp_events_port_missing',
             occurrenceId: occ.id,
             integratorUserId: occ.userId,
@@ -560,7 +561,7 @@ export async function handleReminders(
         const body = JSON.stringify(notifyPayload);
         logger.info(
           {
-            event: 'reminders.dispatchDue.webapp_notify_channels.start',
+            event: REMINDER_DISPATCH_NOTIFY_LOG_EVENT.start,
             occurrenceId: occ.id,
             integratorUserId: occ.userId,
             topicCode,
@@ -572,7 +573,7 @@ export async function handleReminders(
           const r = await deps.webappEventsPort.notifyPatientReminderChannels({ body, idempotencyKey });
           logger.info(
             {
-              event: 'reminders.dispatchDue.webapp_notify_channels.result',
+              event: REMINDER_DISPATCH_NOTIFY_LOG_EVENT.result,
               occurrenceId: occ.id,
               integratorUserId: occ.userId,
               topicCode,
@@ -602,7 +603,7 @@ export async function handleReminders(
         } catch (err) {
           logger.warn(
             {
-              event: 'reminders.dispatchDue.webapp_notify_channels.result',
+              event: REMINDER_DISPATCH_NOTIFY_LOG_EVENT.result,
               occurrenceId: occ.id,
               integratorUserId: occ.userId,
               topicCode,

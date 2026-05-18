@@ -99,6 +99,7 @@ import { pgSymptomDiaryPort } from "@/infra/repos/pgSymptomDiary";
 import { pgLfkDiaryPort } from "@/infra/repos/pgLfkDiary";
 import { purgeAllDiaryDataForUserPg } from "@/infra/repos/pgDiaryPurge";
 import { readReminderWebappNotifyGate } from "@/infra/repos/pgReminderWebappNotifyGate";
+import { loadPlatformUserChannelBindings } from "@/infra/repos/loadPlatformUserChannelBindings";
 import {
   createNoOpReminderTransactionalEmailCooldownPort,
   createPgReminderTransactionalEmailCooldownPort,
@@ -786,6 +787,7 @@ function _buildAppDeps() {
     channelPreferencesPort,
     webPushSubscriptions: webPushSubscriptionsPort,
     readReminderNotifyGate: readReminderWebappNotifyGate,
+    loadPlatformUserChannelBindings,
     reminderTransactionalEmailCooldown: reminderTransactionalEmailCooldownPort,
     contentCatalog,
     deliveryTargetsApi: {

@@ -12,7 +12,7 @@ import {
   patientSectionTitleClass,
 } from "@/shared/ui/patientVisual";
 import { PatientNotificationChannelsStatus } from "./PatientNotificationChannelsStatus";
-import { PatientNotificationsTopicMatrix } from "./PatientNotificationsTopicMatrix";
+import { PatientNotificationsTopicsSection } from "./PatientNotificationsTopicsSection";
 
 export default async function PatientNotificationsPage() {
   const session = await requirePatientAccessWithPhone(routePaths.notifications);
@@ -24,6 +24,7 @@ export default async function PatientNotificationsPage() {
   const maxId = session.user.bindings.maxId ?? "";
   const hasTelegram = Boolean(telegramId.trim());
   const hasMax = Boolean(maxId.trim());
+  const hasWebPush = await deps.webPushSubscriptions.hasAnyForUserId(session.user.userId);
 
   const notificationsTopicsSetting = await deps.systemSettings.getSetting("notifications_topics", "admin");
   const subscriptionTopics = parseNotificationsTopics(notificationsTopicsSetting?.valueJson ?? null);
@@ -32,11 +33,10 @@ export default async function PatientNotificationsPage() {
     hasTelegram,
     hasMax,
     emailVerified,
-    hasWebPush: await deps.webPushSubscriptions.hasAnyForUserId(session.user.userId),
+    hasWebPush,
   });
 
-  const hasAnyChannel =
-    hasTelegram || hasMax || (hasEmail && emailVerified) || notificationModels.some((t) => t.channels.length > 0);
+  const hasMessengerOrEmail = hasTelegram || hasMax || (hasEmail && emailVerified);
 
   return (
     <AppShell title="Уведомления" user={session.user} backHref={routePaths.patient} backLabel="Меню" variant="patient">
@@ -49,7 +49,7 @@ export default async function PatientNotificationsPage() {
             hasEmail={hasEmail}
             emailVerified={emailVerified}
           />
-          {!hasTelegram && !hasMax && !(hasEmail && emailVerified) ?
+          {!hasMessengerOrEmail ?
             <p className={`${patientMutedTextClass} mt-3`}>
               Подключите мессенджер или email в{" "}
               <Link href={routePaths.profile} className="underline">
@@ -62,9 +62,11 @@ export default async function PatientNotificationsPage() {
 
         <section className={patientSectionSurfaceClass}>
           <h2 className={patientSectionTitleClass}>Типы уведомлений</h2>
-          {hasAnyChannel ?
-            <PatientNotificationsTopicMatrix initialTopics={notificationModels} />
-          : <p className={patientMutedTextClass}>Сначала подключите хотя бы один канал доставки.</p>}
+          <PatientNotificationsTopicsSection
+            initialTopics={notificationModels}
+            hasMessengerOrEmail={hasMessengerOrEmail}
+            initialHasWebPush={hasWebPush}
+          />
         </section>
       </div>
     </AppShell>
