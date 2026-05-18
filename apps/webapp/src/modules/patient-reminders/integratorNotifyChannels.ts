@@ -2,8 +2,11 @@ import { z } from "zod";
 import { logger } from "@/infra/logging/logger";
 import type { ChannelPreferencesPort } from "@/modules/channel-preferences/ports";
 import { smtpInnerFromValueJson, sendTransactionalSmtpEmail } from "@/modules/outbound-email/sendTransactionalSmtp";
-import { hashWebPushEndpoint } from "@/modules/patient-notifications/hashWebPushEndpoint";
-import { resolvePatientNotificationChannels } from "@/modules/patient-notifications/resolveNotificationChannels";
+import {
+  resolvePatientNotificationChannels,
+  type NotificationTopicGate,
+  type ResolvedNotificationChannels,
+} from "@/modules/patient-notifications/resolveNotificationChannels";
 import type { TopicChannelPrefsPort } from "@/modules/patient-notifications/topicChannelPrefsPort";
 import type { SystemSettingsService } from "@/modules/system-settings/service";
 import { getWebPushVapidKeyPair } from "@/modules/system-settings/webPushVapidRuntime";
@@ -25,6 +28,8 @@ export const integratorPatientReminderNotifyBodySchema = z.object({
 });
 
 export type IntegratorPatientReminderNotifyBody = z.infer<typeof integratorPatientReminderNotifyBodySchema>;
+
+export type PatientReminderEmailSkippedReason = "rate_limited";
 
 function stripHtmlLight(s: string): string {
   return s.replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim();
@@ -49,6 +54,102 @@ export type PatientReminderIntegratorNotifyDeps = {
   reminderTransactionalEmailCooldown?: ReminderTransactionalEmailCooldownPort;
 };
 
+function resolveChannelsForGateOnly(
+  topicCode: string,
+  gate: NotificationTopicGate,
+): ResolvedNotificationChannels {
+  return resolvePatientNotificationChannels({
+    topicCode,
+    availability: {
+      hasTelegram: false,
+      hasMax: false,
+      hasEmail: false,
+      emailVerified: false,
+      hasWebPushSubscription: false,
+      vapidConfigured: false,
+      smtpConfigured: false,
+    },
+    channelPrefs: [],
+    topicChannelRows: [],
+    gate,
+  });
+}
+
+function logResolvedChannels(params: {
+  platformUserId?: string;
+  integratorUserId: string;
+  topicCode: string;
+  resolved: ResolvedNotificationChannels;
+  flowSkipped?: string;
+}): void {
+  logger.info(
+    {
+      event: "patient_reminder.notify_channels.resolved_channels",
+      integratorUserId: params.integratorUserId,
+      platformUserId: params.platformUserId,
+      topicCode: params.topicCode,
+      flowSkipped: params.flowSkipped,
+      availableChannels: params.resolved.availableChannels,
+      selectedChannels: params.resolved.selectedChannels,
+      skippedChannels: params.resolved.skippedChannels,
+    },
+    "patient reminder notify-channels resolved channels",
+  );
+
+  logger.info(
+    {
+      event: "notification_channels_resolved",
+      userId: params.platformUserId,
+      topicCode: params.topicCode,
+      selectedChannels: params.resolved.selectedChannels,
+      skippedChannels: params.resolved.skippedChannels,
+      availableChannels: params.resolved.availableChannels,
+      enabledChannels: params.resolved.enabledChannels,
+    },
+    "notification channels resolved",
+  );
+}
+
+function logNotifyResult(params: {
+  integratorUserId: string;
+  platformUserId?: string;
+  topicCode: string;
+  occurrenceId: string;
+  outcome: Record<string, unknown>;
+}): void {
+  logger.info(
+    {
+      event: "patient_reminder.notify_channels.result",
+      integratorUserId: params.integratorUserId,
+      platformUserId: params.platformUserId,
+      topicCode: params.topicCode,
+      occurrenceId: params.occurrenceId,
+      ok: params.outcome.ok,
+      skipped: params.outcome.skipped,
+      selectedChannels: params.outcome.selectedChannels,
+      skippedChannels: params.outcome.skippedChannels,
+      webPushDelivered: params.outcome.webPushDelivered,
+      webPushErrors: params.outcome.webPushErrors,
+      webPushDeactivated: params.outcome.webPushDeactivated,
+      emailOk: params.outcome.emailOk,
+      emailError: params.outcome.emailError,
+      emailSkipped: params.outcome.emailSkipped,
+    },
+    "patient reminder notify-channels result",
+  );
+}
+
+function withEmailRateLimitSkip(
+  skippedChannels: ResolvedNotificationChannels["skippedChannels"],
+  emailSkipped?: PatientReminderEmailSkippedReason,
+): ResolvedNotificationChannels["skippedChannels"] {
+  if (emailSkipped !== "rate_limited") return skippedChannels;
+  if (skippedChannels.some((s) => s.channel === "email" && s.reason === "rate_limited")) {
+    return skippedChannels;
+  }
+  return [...skippedChannels, { channel: "email", reason: "rate_limited" }];
+}
+
 export async function runPatientReminderIntegratorNotify(
   body: IntegratorPatientReminderNotifyBody,
   deps: PatientReminderIntegratorNotifyDeps,
@@ -64,17 +165,29 @@ export async function runPatientReminderIntegratorNotify(
     "patient reminder notify-channels received",
   );
 
+  const resultCtx = {
+    integratorUserId: body.integratorUserId,
+    topicCode: body.topicCode,
+    occurrenceId: body.occurrenceId,
+  };
+
   const platform = await deps.findPlatformUserByIntegratorId(body.integratorUserId);
   if (!platform) {
-    logger.info(
-      {
-        event: "patient_reminder.notify_channels.resolved_user",
-        integratorUserId: body.integratorUserId,
-        skipped: "no_platform_user",
-      },
-      "patient reminder notify-channels no platform user",
-    );
-    return { ok: true, skipped: "no_platform_user" };
+    const emptyResolved: ResolvedNotificationChannels = {
+      selectedChannels: [],
+      skippedChannels: [],
+      availableChannels: [],
+      enabledChannels: [],
+    };
+    logResolvedChannels({
+      integratorUserId: body.integratorUserId,
+      topicCode: body.topicCode,
+      resolved: emptyResolved,
+      flowSkipped: "no_platform_user",
+    });
+    const out = { ok: true, skipped: "no_platform_user", skippedChannels: [] as const };
+    logNotifyResult({ ...resultCtx, outcome: out });
+    return out;
   }
   const uid = platform.platformUserId;
 
@@ -88,11 +201,24 @@ export async function runPatientReminderIntegratorNotify(
   );
 
   const gate = await deps.readReminderNotifyGate(uid, body.topicCode);
-  if (gate.muted) {
-    return { ok: true, skipped: "muted" };
-  }
-  if (!gate.topicMasterEnabled) {
-    return { ok: true, skipped: "topic_disabled" };
+  if (gate.muted || !gate.topicMasterEnabled) {
+    const gateResolved = resolveChannelsForGateOnly(body.topicCode, gate);
+    const flowSkipped = gate.muted ? "muted" : "topic_disabled";
+    logResolvedChannels({
+      integratorUserId: body.integratorUserId,
+      platformUserId: uid,
+      topicCode: body.topicCode,
+      resolved: gateResolved,
+      flowSkipped,
+    });
+    const out = {
+      ok: true,
+      skipped: flowSkipped,
+      selectedChannels: gateResolved.selectedChannels,
+      skippedChannels: gateResolved.skippedChannels,
+    };
+    logNotifyResult({ ...resultCtx, platformUserId: uid, outcome: out });
+    return out;
   }
 
   const prefs = await deps.channelPreferences.getPreferences(uid);
@@ -120,30 +246,12 @@ export async function runPatientReminderIntegratorNotify(
     gate,
   });
 
-  logger.info(
-    {
-      event: "patient_reminder.notify_channels.resolved_channels",
-      platformUserId: uid,
-      topicCode: body.topicCode,
-      allowedChannels: resolved.availableChannels,
-      selectedChannels: resolved.selectedChannels,
-      skippedChannels: resolved.skippedChannels,
-    },
-    "patient reminder notify-channels resolved channels",
-  );
-
-  logger.info(
-    {
-      event: "notification_channels_resolved",
-      userId: uid,
-      topicCode: body.topicCode,
-      selectedChannels: resolved.selectedChannels,
-      skippedChannels: resolved.skippedChannels,
-      availableChannels: resolved.availableChannels,
-      enabledChannels: resolved.enabledChannels,
-    },
-    "notification channels resolved",
-  );
+  logResolvedChannels({
+    integratorUserId: body.integratorUserId,
+    platformUserId: uid,
+    topicCode: body.topicCode,
+    resolved,
+  });
 
   const out: Record<string, unknown> = {
     ok: true,
@@ -211,10 +319,12 @@ export async function runPatientReminderIntegratorNotify(
     );
   }
 
+  let emailSkipped: PatientReminderEmailSkippedReason | undefined;
   if (resolved.selectedChannels.includes("email") && emailFields.email?.trim() && emailFields.emailVerifiedAt) {
     const cooldownPort = deps.reminderTransactionalEmailCooldown;
     if (cooldownPort && (await cooldownPort.shouldSkipDueToCooldown(uid))) {
-      out.emailSkipped = "rate_limited";
+      emailSkipped = "rate_limited";
+      out.emailSkipped = emailSkipped;
     } else {
       const listUnsubscribe =
         smtpParsed?.success === true && smtpParsed.data.from.includes("@") ?
@@ -236,5 +346,11 @@ export async function runPatientReminderIntegratorNotify(
     }
   }
 
+  out.skippedChannels = withEmailRateLimitSkip(
+    resolved.skippedChannels,
+    emailSkipped,
+  );
+
+  logNotifyResult({ ...resultCtx, platformUserId: uid, outcome: out });
   return out;
 }
