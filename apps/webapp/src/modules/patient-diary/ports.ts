@@ -11,6 +11,8 @@ export type PatientDiarySnapshotsPort = {
     fromLocalDate: string,
     toLocalDateInclusive: string,
   ): Promise<PatientDiaryDaySnapshotRow[]>;
+  /** Минимальный `local_date` по пользователю или null, если снимков нет. */
+  minLocalDateForUser(platformUserId: string): Promise<string | null>;
 };
 
 export type { PatientDiaryDaySnapshotRow };

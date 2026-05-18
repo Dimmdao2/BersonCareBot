@@ -1,4 +1,4 @@
-import { and, asc, eq, gte, lte } from "drizzle-orm";
+import { and, asc, eq, gte, lte, min } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import {
   patientDiaryDaySnapshots,
@@ -36,6 +36,15 @@ export function createPgPatientDiarySnapshotsPort(): PatientDiarySnapshotsPort {
           ),
         )
         .orderBy(asc(patientDiaryDaySnapshots.localDate));
+    },
+
+    async minLocalDateForUser(platformUserId: string): Promise<string | null> {
+      const db = getDrizzle();
+      const row = await db
+        .select({ d: min(patientDiaryDaySnapshots.localDate) })
+        .from(patientDiaryDaySnapshots)
+        .where(eq(patientDiaryDaySnapshots.platformUserId, platformUserId));
+      return row[0]?.d ?? null;
     },
   };
 }

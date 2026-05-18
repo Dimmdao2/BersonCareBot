@@ -39,5 +39,11 @@ export function createInMemoryPatientDiarySnapshotsPort(): PatientDiarySnapshots
         )
         .sort((a, b) => a.localDate.localeCompare(b.localDate));
     },
+
+    async minLocalDateForUser(platformUserId) {
+      const dates = rows.filter((r) => r.platformUserId === platformUserId).map((r) => r.localDate);
+      if (dates.length === 0) return null;
+      return dates.reduce((a, b) => (a < b ? a : b));
+    },
   };
 }

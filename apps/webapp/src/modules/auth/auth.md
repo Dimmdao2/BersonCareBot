@@ -21,8 +21,8 @@
 
 - **`POST /api/auth/email-password/register`** — создание канона с паролем в `user_password_credentials`, отправка кода на почту (`startEmailChallenge`).
 - **`POST /api/auth/email-password/login`** — вход после `email_verified_at`.
-- **`POST /api/auth/email-password/forgot`** — сброс: код на почту для пользователя с подтверждённым email и паролем; если учётки нет — **`{ ok: true }`** без поля `challengeId`.
-- **`POST /api/auth/email-password/reset`** — проверка кода через `consumeEmailChallengeCode`, обновление хэша пароля.
+- **`POST /api/auth/email-password/forgot`** — сброс: код на почту для пользователя с подтверждённым email и паролем; ответ **всегда** **`{ ok: true, retryAfterSeconds }`** (без `challengeId`, uniform при отсутствии учётки / rate limit / сбое отправки).
+- **`POST /api/auth/email-password/reset`** — проверка кода через `consumeEmailChallengeCode` (если передан `challengeId`) или `consumeLatestEmailChallengeCodeForUser`, обновление хэша пароля.
 
 ## Мессенджеры и обмен токенами
 

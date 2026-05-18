@@ -35,6 +35,7 @@ export async function POST(request: Request) {
 
   const challenge = await startEmailChallenge(reg.userId, emailNorm);
   if (!challenge.ok) {
+    await deps.userPasswordCredentials.deleteUnverifiedEmailPasswordRegistration(reg.userId);
     return NextResponse.json(
       { ok: false, error: challenge.code, retryAfterSeconds: challenge.retryAfterSeconds },
       { status: challenge.code === "rate_limited" ? 429 : 400 },

@@ -8,6 +8,8 @@ export type UserPasswordCredentialsPort = {
     passwordHash: string;
     displayName: string;
   }): Promise<{ ok: true; userId: string } | { ok: false; reason: "duplicate_email" }>;
+  /** Удалить канон без подтверждения email (откат после сбоя отправки кода и т.п.). */
+  deleteUnverifiedEmailPasswordRegistration(userId: string): Promise<void>;
   tryVerifyLogin(emailNormalized: string, plainPassword: string): Promise<{ userId: string } | null>;
   /** Пользователь с подтверждённым email и строкой пароля (для сброса). */
   findVerifiedUserIdWithPassword(emailNormalized: string): Promise<string | null>;
@@ -45,6 +47,18 @@ export function createPgUserPasswordCredentialsPort(): UserPasswordCredentialsPo
       } finally {
         client.release();
       }
+    },
+
+    async deleteUnverifiedEmailPasswordRegistration(userId) {
+      const pool = getPool();
+      await pool.query(
+        `DELETE FROM platform_users
+         WHERE id = $1::uuid
+           AND role = 'client'
+           AND merged_into_id IS NULL
+           AND email_verified_at IS NULL`,
+        [userId],
+      );
     },
 
     async tryVerifyLogin(emailNormalized, plainPassword) {
@@ -100,6 +114,7 @@ export const inMemoryUserPasswordCredentialsPort: UserPasswordCredentialsPort = 
   async registerPendingVerification() {
     return { ok: false, reason: "duplicate_email" };
   },
+  async deleteUnverifiedEmailPasswordRegistration() {},
   async tryVerifyLogin() {
     return null;
   },

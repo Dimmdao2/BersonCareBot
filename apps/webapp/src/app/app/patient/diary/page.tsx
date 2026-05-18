@@ -15,7 +15,11 @@ import { AppShell } from "@/shared/ui/AppShell";
 import { PatientLoadingPatternBody } from "@/shared/ui/patientVisual";
 import { PatientDiaryAuthenticatedMain } from "./PatientDiaryAuthenticatedMain";
 
-export default async function PatientDiaryPage() {
+type PageProps = {
+  searchParams?: Promise<{ week?: string | string[] }>;
+};
+
+export default async function PatientDiaryPage({ searchParams }: PageProps) {
   const session = await getOptionalPatientSession();
   const dataGate = await patientRscPersonalDataGate(session, routePaths.diary);
   if (dataGate === "guest") {
@@ -32,11 +36,14 @@ export default async function PatientDiaryPage() {
     );
   }
   const s = session!;
+  const sp = searchParams != null ? await searchParams : {};
+  const weekRaw = sp.week;
+  const week = Array.isArray(weekRaw) ? weekRaw[0] : weekRaw;
 
   return (
     <AppShell title="Дневник" user={s.user} backHref="/app/patient" backLabel="Меню" variant="patient">
       <Suspense fallback={<PatientLoadingPatternBody pattern="heroList" />}>
-        <PatientDiaryAuthenticatedMain userId={s.user.userId} />
+        <PatientDiaryAuthenticatedMain userId={s.user.userId} week={week} />
       </Suspense>
     </AppShell>
   );

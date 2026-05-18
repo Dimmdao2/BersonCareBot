@@ -251,3 +251,92 @@ export async function consumeEmailChallengeCode(
 
   return { ok: true };
 }
+
+/**
+ * Проверка кода, когда клиенту не возвращали `challengeId` (anti-enumeration на forgot-password).
+ * Использует единственную неистёкшую строку `email_challenges` для пользователя (как после {@link startEmailChallenge}).
+ */
+export async function consumeLatestEmailChallengeCodeForUser(
+  userId: string,
+  codeRaw: string,
+): Promise<EmailConfirmResult> {
+  const code = codeRaw.trim();
+  if (!code) {
+    return { ok: false, code: "invalid_code" };
+  }
+
+  if (!env.DATABASE_URL) {
+    const now = Math.floor(Date.now() / 1000);
+    let bestId: string | null = null;
+    let best: { userId: string; email: string; code: string; expiresAt: number; attempts: number } | null = null;
+    for (const [cid, row] of memEmailChallenges) {
+      if (row.userId !== userId) continue;
+      if (row.expiresAt <= now) {
+        memEmailChallenges.delete(cid);
+        continue;
+      }
+      if (!best || row.expiresAt > best.expiresAt) {
+        best = row;
+        bestId = cid;
+      }
+    }
+    if (!bestId || !best) {
+      return { ok: false, code: "expired_code" };
+    }
+    if (best.code !== code) {
+      best.attempts += 1;
+      if (best.attempts >= OTP_MAX_VERIFY_ATTEMPTS) {
+        memEmailChallenges.delete(bestId);
+        return { ok: false, code: "too_many_attempts", retryAfterSeconds: OTP_LOCK_DURATION_SEC };
+      }
+      return { ok: false, code: "invalid_code" };
+    }
+    memEmailChallenges.delete(bestId);
+    return { ok: true };
+  }
+
+  const pool = getPool();
+  const now = Math.floor(Date.now() / 1000);
+
+  const row = await pool.query<{
+    id: string;
+    code_hash: string;
+    expires_at: string;
+    attempts: string;
+  }>(
+    `SELECT id, code_hash, expires_at, attempts FROM email_challenges
+     WHERE user_id = $1::uuid AND expires_at > $2
+     ORDER BY created_at DESC
+     LIMIT 1`,
+    [userId, now],
+  );
+  if (row.rows.length === 0) {
+    return { ok: false, code: "expired_code" };
+  }
+  const r = row.rows[0]!;
+  const expiresAt = Number(r.expires_at);
+  if (expiresAt <= now) {
+    await pool.query("DELETE FROM email_challenges WHERE id = $1", [r.id]);
+    return { ok: false, code: "expired_code" };
+  }
+
+  const attempts = Number(r.attempts);
+  if (attempts >= OTP_MAX_VERIFY_ATTEMPTS) {
+    return { ok: false, code: "too_many_attempts", retryAfterSeconds: OTP_LOCK_DURATION_SEC };
+  }
+
+  const expectedHashLatest = hashCode(code);
+  if (expectedHashLatest !== r.code_hash) {
+    const next = attempts + 1;
+    await pool.query("UPDATE email_challenges SET attempts = $1 WHERE id = $2", [next, r.id]);
+    if (next >= OTP_MAX_VERIFY_ATTEMPTS) {
+      await pool.query("DELETE FROM email_challenges WHERE id = $1", [r.id]);
+      return { ok: false, code: "too_many_attempts", retryAfterSeconds: OTP_LOCK_DURATION_SEC };
+    }
+    return { ok: false, code: "invalid_code" };
+  }
+
+  await pool.query("DELETE FROM email_challenges WHERE user_id = $1", [userId]);
+
+  return { ok: true };
+}

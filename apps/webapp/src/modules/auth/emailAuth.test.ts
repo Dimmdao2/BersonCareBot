@@ -7,7 +7,7 @@ vi.mock("@/infra/integrations/email/integratorEmailAdapter", () => ({
   sendEmailCodeViaIntegrator: (...args: unknown[]) => sendEmailCodeViaIntegratorMock(...args),
 }));
 
-import { normalizeEmail, startEmailChallenge } from "./emailAuth";
+import { normalizeEmail, startEmailChallenge, consumeLatestEmailChallengeCodeForUser } from "./emailAuth";
 
 describe("normalizeEmail", () => {
   it("trim и нижний регистр", () => {
@@ -42,5 +42,22 @@ describe("startEmailChallenge", () => {
     sendEmailCodeViaIntegratorMock.mockResolvedValueOnce({ ok: false, error: "http_503" });
     const r = await startEmailChallenge(randomUUID(), "user@example.org");
     expect(r).toEqual({ ok: false, code: "email_send_failed" });
+  });
+});
+
+describe("consumeLatestEmailChallengeCodeForUser", () => {
+  beforeEach(() => {
+    sendEmailCodeViaIntegratorMock.mockReset();
+    sendEmailCodeViaIntegratorMock.mockResolvedValue({ ok: true });
+  });
+
+  it("принимает код без challengeId (in-memory челлендж)", async () => {
+    const uid = randomUUID();
+    const start = await startEmailChallenge(uid, "who@example.org");
+    expect(start.ok).toBe(true);
+    const sentCode = sendEmailCodeViaIntegratorMock.mock.calls[0]?.[1];
+    expect(typeof sentCode).toBe("string");
+    const consumed = await consumeLatestEmailChallengeCodeForUser(uid, sentCode as string);
+    expect(consumed).toEqual({ ok: true });
   });
 });

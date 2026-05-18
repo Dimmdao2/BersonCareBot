@@ -14,21 +14,30 @@ import { loadPatientDiaryWeekActivity } from "@/modules/patient-diary/loadPatien
 import { PatientDiaryWarmupWeekBars } from "@/modules/patient-diary/components/PatientDiaryWarmupWeekBars";
 import { PatientDiaryPlanWeekStripes } from "@/modules/patient-diary/components/PatientDiaryPlanWeekStripes";
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
+import { PatientDiaryWeekNavStrip } from "./PatientDiaryWeekNavStrip";
 
 const EMPTY_STATS =
   "За эту неделю пока нет отметок общего самочувствия. Отметки можно добавить на главной «Сегодня».";
 
-export async function PatientDiaryAuthenticatedMain({ userId }: { userId: string }) {
+export async function PatientDiaryAuthenticatedMain({
+  userId,
+  week,
+}: {
+  userId: string;
+  /** Сырой query `week` (YYYY-MM-DD); парсинг и clamp — в {@link loadPatientDiaryWeekWellbeing}. */
+  week?: string;
+}) {
   const deps = buildAppDeps();
 
   const wellbeing = await loadPatientDiaryWeekWellbeing(
     {
       diaries: deps.diaries,
+      patientDiarySnapshots: deps.patientDiarySnapshots,
       references: deps.references,
       patientCalendarTimezone: deps.patientCalendarTimezone,
       getAppDisplayTimeZone,
     },
-    { userId },
+    { userId, week },
   );
 
   const activity = await loadPatientDiaryWeekActivity(
@@ -74,6 +83,7 @@ export async function PatientDiaryAuthenticatedMain({ userId }: { userId: string
 
   const diaryMain = (
     <>
+      <PatientDiaryWeekNavStrip nav={wellbeing.weekNav} />
       {wellbeingMvpSingle}
       <PatientDiaryWarmupWeekBars weekDayLabels={weekDayLabels} days={activity.warmupDays} />
       <PatientDiaryPlanWeekStripes weekDayLabels={weekDayLabels} days={activity.planDays} />
