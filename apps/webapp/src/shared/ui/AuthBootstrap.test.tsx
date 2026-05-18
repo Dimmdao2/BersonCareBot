@@ -46,7 +46,7 @@ describe("AuthBootstrap", () => {
       await vi.advanceTimersByTimeAsync(8000);
     });
 
-    expect(screen.getByText(/укажите номер телефона/i)).toBeInTheDocument();
+    expect(screen.getByLabelText("Номер телефона")).toBeInTheDocument();
   });
 
   it("при устаревшем bot-cookie в обычном браузере сбрасывает cookie и показывает веб-вход (телефон)", async () => {
@@ -63,7 +63,7 @@ describe("AuthBootstrap", () => {
       await vi.advanceTimersByTimeAsync(500);
     });
 
-    expect(screen.getByText(/укажите номер телефона/i)).toBeInTheDocument();
+    expect(screen.getByLabelText("Номер телефона")).toBeInTheDocument();
     expect(mockRefresh).not.toHaveBeenCalled();
     expect(document.cookie).not.toMatch(new RegExp(`${PLATFORM_COOKIE_NAME}=bot`));
   });
@@ -80,7 +80,7 @@ describe("AuthBootstrap", () => {
       await vi.advanceTimersByTimeAsync(500);
     });
 
-    expect(screen.getByText(/укажите номер телефона/i)).toBeInTheDocument();
+    expect(screen.getByLabelText("Номер телефона")).toBeInTheDocument();
     expect(mockRefresh).not.toHaveBeenCalled();
     expect(document.cookie).not.toMatch(new RegExp(`${PLATFORM_COOKIE_NAME}=bot`));
   });
@@ -96,7 +96,7 @@ describe("AuthBootstrap", () => {
       await vi.advanceTimersByTimeAsync(500);
     });
 
-    expect(screen.getByText(/укажите номер телефона/i)).toBeInTheDocument();
+    expect(screen.getByLabelText("Номер телефона")).toBeInTheDocument();
   });
 
   it("в обычном браузере с загруженным MAX bridge не зависает в miniapp-ожидании", async () => {
@@ -114,7 +114,7 @@ describe("AuthBootstrap", () => {
       await vi.advanceTimersByTimeAsync(1200);
     });
 
-    expect(screen.getByText(/укажите номер телефона/i)).toBeInTheDocument();
+    expect(screen.getByLabelText("Номер телефона")).toBeInTheDocument();
   });
 
   it("в обычном браузере с ?t=dev:admin&switch=1 без Telegram.WebApp обменивает токен после TOKEN_FALLBACK_MS", async () => {
@@ -191,7 +191,7 @@ describe("AuthBootstrap", () => {
       await vi.advanceTimersByTimeAsync(8000);
     });
 
-    expect(screen.queryByText(/укажите номер телефона/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Номер телефона")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /повторить/i })).toBeInTheDocument();
     expect(screen.getByText(/Не удалось получить данные для входа/i)).toBeInTheDocument();
   });
@@ -356,7 +356,7 @@ describe("AuthBootstrap", () => {
       await vi.advanceTimersByTimeAsync(2500);
     });
 
-    expect(screen.queryByText(/укажите номер телефона/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Номер телефона")).not.toBeInTheDocument();
 
     if (prev === undefined) delete process.env.NEXT_PUBLIC_AUTH_BOOTSTRAP_EARLY_UI_V2;
     else process.env.NEXT_PUBLIC_AUTH_BOOTSTRAP_EARLY_UI_V2 = prev;

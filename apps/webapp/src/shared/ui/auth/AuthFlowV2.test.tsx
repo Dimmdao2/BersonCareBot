@@ -442,7 +442,7 @@ describe("AuthFlowV2", () => {
     expect(screen.queryByRole("button", { name: "Войти по email" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Яндекс" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Войти через Telegram/ })).not.toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Назад" }));
+    await user.click(screen.getByRole("button", { name: "Войти без номера" }));
     await waitFor(() => expect(document.getElementById("auth-flow-v2-oauth-first")).toBeTruthy());
   });
 

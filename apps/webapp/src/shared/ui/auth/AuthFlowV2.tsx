@@ -901,7 +901,7 @@ export function AuthFlowV2({
             disabled={loading}
             onClick={() => goBackToEntry()}
           >
-            Назад
+            Войти без номера
           </Button>
         ) : null}
         {showPhoneSmsNotice ? (

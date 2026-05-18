@@ -58,11 +58,11 @@ export function FeatureGrid() {
           Всё, что нужно для восстановления
         </h2>
 
-        <div className="mt-7 grid grid-cols-2 gap-x-4 gap-y-6 lg:mt-10 lg:gap-x-6 lg:gap-y-8 lg:grid-cols-3">
+        <div className="mt-7 grid min-w-0 grid-cols-2 gap-x-4 gap-y-6 lg:mt-10 lg:gap-x-6 lg:gap-y-8 lg:grid-cols-3">
           {features.map((f) => {
             const Icon = f.icon;
             return (
-              <div key={f.title} className="text-center">
+              <div key={f.title} className="min-w-0 text-center">
                 <div className={cn("mx-auto mb-2.5 flex h-10 w-10 items-center justify-center rounded-2xl sm:mb-3 sm:h-12 sm:w-12", toneClass[f.tone])}>
                   <Icon className="h-4 w-4 sm:h-5 sm:w-5" aria-hidden />
                 </div>

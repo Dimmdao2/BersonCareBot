@@ -18,7 +18,7 @@ export function HeroSection() {
         <div className="grid items-center gap-7 md:grid-cols-2 md:gap-8 lg:gap-12">
 
           {/* Левая колонка — текст */}
-          <div className="relative flex flex-col items-start pr-[38%] sm:pr-[34%] md:pr-0">
+          <div className="relative flex min-w-0 flex-col items-start pr-[38%] sm:pr-[34%] md:pr-0">
             <h1 className="text-[1.45rem] font-semibold leading-[1.12] tracking-[-0.02em] text-[#17264A] max-[439px]:text-[1.08rem] max-[439px]:leading-[1.15] sm:text-[2.4rem] lg:text-[3rem] lg:leading-[1.05] lg:tracking-[-0.04em]">
               BersonCare — приложение для вашего здоровья
             </h1>
@@ -33,9 +33,9 @@ export function HeroSection() {
               </Link>
             </div>
 
-            <p className="mt-3.5 flex items-start gap-2 text-[11px] leading-5 text-[#98A2B3] sm:mt-5 sm:text-sm sm:leading-6">
+            <p className="mt-3.5 flex min-w-0 items-start gap-2 text-[11px] leading-5 text-[#98A2B3] sm:mt-5 sm:text-sm sm:leading-6">
               <Smartphone className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-              <span>
+              <span className="min-w-0 break-words">
                 Работает как PWA (Прогрессивное Веб Приложение). Установка не требует магазина приложений.
               </span>
             </p>
