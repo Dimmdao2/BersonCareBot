@@ -1941,6 +1941,30 @@
 		]
 	},
 	{
+		"id": "max.reminder.botOff",
+		"source": "max",
+		"event": "callback.received",
+		"match": {
+			"input": {
+				"action": "rem_bot_off"
+			}
+		},
+		"steps": [
+			{
+				"action": "reminders.messengerTopic.disable.callback",
+				"mode": "sync",
+				"params": {
+					"occurrenceId": "{{input.reminderOccurrenceId}}",
+					"channelUserId": "{{actor.channelUserId}}",
+					"resource": "max",
+					"chatId": "{{actor.chatId}}",
+					"messageId": "{{input.messageId}}",
+					"callbackQueryId": "{{input.callbackQueryId}}"
+				}
+			}
+		]
+	},
+	{
 		"id": "max.reminder.skip.open",
 		"source": "max",
 		"event": "callback.received",
@@ -1951,10 +1975,11 @@
 		},
 		"steps": [
 			{
-				"action": "reminders.skip.reasonPrompt",
+				"action": "reminders.skip.applyPreset",
 				"mode": "sync",
 				"params": {
 					"occurrenceId": "{{input.reminderOccurrenceId}}",
+					"reasonCode": "none",
 					"channelUserId": "{{actor.channelUserId}}",
 					"resource": "max",
 					"chatId": "{{actor.chatId}}",

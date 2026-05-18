@@ -5,6 +5,7 @@ const EXERCISE_TOPIC = 'exercise_reminders';
 /**
  * Webapp `notifications_topics.id` for `GET /api/integrator/delivery-targets?topic=`.
  * Used to filter telegram/max fan-out by per-topic prefs (`user_notification_topic_channels`).
+ * Parity regressions: `reminderNotificationTopicCode.parity.test.ts`.
  *
  * Precedence: persisted `rule.notificationTopicCode` (from webapp) > legacy heuristic on intent/category.
  *

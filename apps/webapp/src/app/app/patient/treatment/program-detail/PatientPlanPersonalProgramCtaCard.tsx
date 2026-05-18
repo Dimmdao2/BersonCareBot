@@ -2,12 +2,10 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { Send, Sparkles } from "lucide-react";
+import { Send } from "lucide-react";
 import { routePaths } from "@/app-layer/routes/paths";
 import {
-  patientHomeHeroBadgeClass,
   patientHomeHeroCardGeometryClass,
-  patientHomeHeroDurationBadgeClass,
   patientHomeHeroImageSlotClass,
   patientHomeHeroSummaryClampClass,
   patientHomeHeroTextColumnClass,
@@ -21,24 +19,11 @@ const DEFAULT_REHAB_REQUEST_HREF = routePaths.intakeLfk;
 
 const PERSONAL_PROGRAM_PHOTO_SRC = "/patient/personal-program-consultation.png";
 
-function PersonalProgramHeroBadgeRow() {
-  return (
-    <div className="relative z-20 flex h-6 shrink-0 items-start justify-start gap-1.5">
-      <span className={patientHomeHeroBadgeClass}>Персонально</span>
-      <span className={patientHomeHeroDurationBadgeClass}>
-        <Sparkles className="size-3.5 shrink-0" aria-hidden />
-        Консультация
-      </span>
-    </div>
-  );
-}
-
 export function PatientPlanPersonalProgramCtaCard(props: { rehabRequestHref?: string }) {
   const href = props.rehabRequestHref ?? DEFAULT_REHAB_REQUEST_HREF;
   return (
     <section aria-labelledby="patient-plan-personal-program-heading">
       <article className={patientHomeHeroCardGeometryClass}>
-        <PersonalProgramHeroBadgeRow />
         <div className={patientHomeHeroTextColumnClass}>
           <h2 id="patient-plan-personal-program-heading" className={patientHomeHeroTitleClampClass}>
             Хочу персональную программу!

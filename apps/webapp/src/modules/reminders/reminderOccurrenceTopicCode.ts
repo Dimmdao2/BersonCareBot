@@ -1,6 +1,7 @@
 /**
  * Same semantics as `apps/integrator/src/kernel/domain/reminders/reminderNotificationTopicCode.ts`.
  * Keep implementations in sync; change both when product rules evolve.
+ * Parity regressions: `reminderOccurrenceTopicCode.parity.test.ts`.
  */
 
 const EXERCISE_TOPIC = "exercise_reminders";

@@ -17,6 +17,8 @@ vi.mock('../reminders/reminderMessengerWebAppUrls.js', () => ({
   buildExerciseReminderWebAppUrls: vi.fn().mockResolvedValue({
     primaryWebAppUrl: 'https://app.test/app/tg?t=1&next=%2Fpatient',
     scheduleWebAppUrl: 'https://app.test/app/tg?t=1&next=%2Fprofile',
+    mobileAppWebAppUrl: 'https://app.test/app/tg?t=1&next=%2Fapp%2Fpatient',
+    profileChannelsWebAppUrl: 'https://app.test/app/tg?t=1&next=profile-hash',
   }),
 }));
 
@@ -3377,6 +3379,7 @@ describe('executeAction', () => {
         postOccurrenceSkip,
         postOccurrenceDone: vi.fn(),
         postReminderMuteUntil: vi.fn(),
+        postMessengerTopicDisable: vi.fn(),
       };
       const action: Action = {
         id: 'skip-preset-webapp',
@@ -3412,6 +3415,155 @@ describe('executeAction', () => {
     });
   });
 
+  describe('reminders.messengerTopic.disable.callback', () => {
+    const telegramCtx: DomainContext = {
+      ...ctx,
+      event: {
+        type: 'callback.received',
+        meta: { eventId: 'evt-bot-off', occurredAt: '2026-03-05T12:00:00.000Z', source: 'telegram' },
+        payload: {
+          incoming: {
+            kind: 'callback',
+            chatId: 420,
+            messageId: 77,
+            channelUserId: 7001,
+            callbackQueryId: 'cb-bot-off-tg',
+            action: 'rem_bot_off',
+          },
+        },
+      },
+    };
+
+    it('telegram: calls webapp disable, escapes HTML paragraphs, attaches two-url follow-up keyboard', async () => {
+      const readDb = vi.fn().mockImplementation(async (q: { type: string; params?: Record<string, unknown> }) => {
+        if (q.type === 'user.byIdentity') {
+          expect(q.params).toMatchObject({ resource: 'telegram', externalId: '7001' });
+          return { userId: 'int-bot-off-user' };
+        }
+        if (q.type === 'reminders.occurrence.ownerUserId') {
+          expect(q.params).toMatchObject({ occurrenceId: 'occ-bot-off-1' });
+          return 'int-bot-off-user';
+        }
+        if (q.type === 'identities.allByUserId') {
+          expect(q.params).toMatchObject({ userId: 'int-bot-off-user' });
+          return [{ resource: 'telegram', externalId: '7001' }];
+        }
+        return null;
+      });
+      const postMessengerTopicDisable = vi.fn().mockResolvedValue({
+        ok: true,
+        paragraphs: ['Первый абзац <b>нет</b>, ок.', 'Второй.'],
+      });
+      const remindersWebappWritesPort: RemindersWebappWritesPort = {
+        postOccurrenceSnooze: vi.fn(),
+        postOccurrenceSkip: vi.fn(),
+        postOccurrenceDone: vi.fn(),
+        postReminderMuteUntil: vi.fn(),
+        postMessengerTopicDisable,
+      };
+      const action: Action = {
+        id: 'bot-off-tg',
+        type: 'reminders.messengerTopic.disable.callback',
+        mode: 'sync',
+        params: {
+          occurrenceId: 'occ-bot-off-1',
+          channelUserId: '7001',
+          resource: 'telegram',
+          chatId: 420,
+          messageId: 77,
+          callbackQueryId: 'cb-bot-off-tg',
+        },
+      };
+      const result = await executeAction(action, telegramCtx, {
+        readPort: { readDb },
+        remindersWebappWritesPort,
+      });
+      expect(result.status).toBe('success');
+      expect(postMessengerTopicDisable).toHaveBeenCalledWith({
+        integratorUserId: 'int-bot-off-user',
+        occurrenceId: 'occ-bot-off-1',
+        messengerChannel: 'telegram',
+      });
+      const types = result.intents?.map((i) => i.type) ?? [];
+      expect(types).toEqual(['callback.answer', 'message.edit']);
+      const edit = result.intents?.find((i) => i.type === 'message.edit');
+      const payload = edit && 'payload' in edit ? edit.payload : null;
+      expect(payload && typeof payload === 'object' && 'message' in payload ? (payload as { message: { text?: string } }).message?.text : '').toContain(
+        '&lt;b&gt;нет&lt;/b&gt;',
+      );
+      const rm =
+        payload && typeof payload === 'object' && 'replyMarkup' in payload ?
+          (payload as { replyMarkup: { inline_keyboard: { url?: string; web_app?: { url: string } }[][] } }).replyMarkup
+        : null;
+      const row = rm?.inline_keyboard?.[0];
+      expect(row?.length).toBe(2);
+      expect(JSON.stringify(row)).toContain('profile-hash');
+      expect(JSON.stringify(row)).toContain('%2Fapp%2Fpatient');
+    });
+
+    it('max: resolves messengerChannel max for postMessengerTopicDisable', async () => {
+      const maxCtx: DomainContext = {
+        ...ctx,
+        event: {
+          type: 'callback.received',
+          meta: { eventId: 'evt-bot-off-max', occurredAt: '2026-03-05T12:00:00.000Z', source: 'max' },
+          payload: {
+            incoming: {
+              kind: 'callback',
+              chatId: 430,
+              messageId: 88,
+              channelUserId: 'max-ext',
+              callbackQueryId: 'cb-bot-off-max',
+              action: 'rem_bot_off',
+            },
+          },
+        },
+      };
+      const readDb = vi.fn().mockImplementation(async (q: { type: string; params?: Record<string, unknown> }) => {
+        if (q.type === 'user.byIdentity')
+          return { userId: 'int-bot-off-max' };
+        if (q.type === 'reminders.occurrence.ownerUserId') return 'int-bot-off-max';
+        if (q.type === 'identities.allByUserId')
+          return [{ resource: 'max', externalId: 'max-ext' }];
+        return null;
+      });
+      const postMessengerTopicDisable = vi.fn().mockResolvedValue({
+        ok: true,
+        paragraphs: ['Ок.', 'Спасибо.'],
+      });
+      const remindersWebappWritesPort: RemindersWebappWritesPort = {
+        postOccurrenceSnooze: vi.fn(),
+        postOccurrenceSkip: vi.fn(),
+        postOccurrenceDone: vi.fn(),
+        postReminderMuteUntil: vi.fn(),
+        postMessengerTopicDisable,
+      };
+      const action: Action = {
+        id: 'bot-off-max',
+        type: 'reminders.messengerTopic.disable.callback',
+        mode: 'sync',
+        params: {
+          occurrenceId: 'occ-bot-off-max',
+          channelUserId: '900',
+          resource: 'max',
+          chatId: 430,
+          messageId: 88,
+          callbackQueryId: 'cb-bot-off-max',
+        },
+      };
+      const result = await executeAction(action, maxCtx, {
+        readPort: { readDb },
+        remindersWebappWritesPort,
+      });
+      expect(result.status).toBe('success');
+      expect(postMessengerTopicDisable).toHaveBeenCalledWith({
+        integratorUserId: 'int-bot-off-max',
+        occurrenceId: 'occ-bot-off-max',
+        messengerChannel: 'max',
+      });
+    });
+  });
+
   describe('reminders.done.callback (telegram)', () => {
     const tgCtx: DomainContext = {
       ...ctx,
@@ -3443,6 +3595,7 @@ describe('executeAction', () => {
         postOccurrenceSkip: vi.fn(),
         postOccurrenceDone,
         postReminderMuteUntil: vi.fn(),
+        postMessengerTopicDisable: vi.fn(),
       };
       const action: Action = {
         id: 'done-1',
@@ -3492,6 +3645,7 @@ describe('executeAction', () => {
         postOccurrenceSkip: vi.fn(),
         postOccurrenceDone,
         postReminderMuteUntil: vi.fn(),
+        postMessengerTopicDisable: vi.fn(),
       };
       const action: Action = {
         id: 'done-2',
@@ -3534,6 +3688,7 @@ describe('executeAction', () => {
         postOccurrenceSkip: vi.fn(),
         postOccurrenceDone,
         postReminderMuteUntil: vi.fn(),
+        postMessengerTopicDisable: vi.fn(),
       };
       const action: Action = {
         id: 'done-3',
@@ -3582,6 +3737,7 @@ describe('executeAction', () => {
         postOccurrenceSkip: vi.fn(),
         postOccurrenceDone,
         postReminderMuteUntil: vi.fn(),
+        postMessengerTopicDisable: vi.fn(),
       };
       const action: Action = {
         id: 'done-max-1',

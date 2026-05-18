@@ -8,7 +8,7 @@ import {
   BookOpen,
   CalendarCheck,
   CalendarPlus,
-  ClipboardList,
+  Dumbbell,
   Home,
   LayoutGrid,
   MessageCircle,
@@ -31,7 +31,7 @@ const NAV_ICONS: Record<PatientPrimaryNavItemId, typeof LayoutGrid> = {
   today: Home,
   booking: CalendarPlus,
   diary: BookOpen,
-  plan: ClipboardList,
+  plan: Dumbbell,
   profile: UserCircle,
 };
 
@@ -39,7 +39,7 @@ const DESKTOP_NAV_ICONS: Record<PatientPrimaryNavItemId, typeof LayoutGrid> = {
   today: LayoutGrid,
   booking: CalendarCheck,
   diary: BookOpen,
-  plan: ClipboardList,
+  plan: Dumbbell,
   profile: UserCircle,
 };
 

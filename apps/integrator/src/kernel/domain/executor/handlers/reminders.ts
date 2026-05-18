@@ -901,7 +901,7 @@ export async function handleReminders(
         vars: {},
         audience: 'user',
       })).text
-      : 'Один пропуск - не проблема! Твое здоровье ещё может подождать...';
+      : 'Все ок, один пропуск — не проблема. Сделаешь, когда сможешь 👌';
     const src = resource === 'max' ? 'max' : 'telegram';
     const messageId = action.params.messageId ?? readIncoming(ctx).messageId;
     const callbackQueryId = asString(action.params.callbackQueryId) ?? asString(readIncoming(ctx).callbackQueryId);
@@ -962,7 +962,7 @@ export async function handleReminders(
         vars: {},
         audience: 'user',
       })).text
-      : 'Один пропуск - не проблема! Твое здоровье ещё может подождать...';
+      : 'Все ок, один пропуск — не проблема. Сделаешь, когда сможешь 👌';
     const src = resourceFt === 'max' ? 'max' : 'telegram';
     const incoming = readIncoming(ctx);
     const replyEditTarget = asMessageId(incoming.replyToMessageId);
@@ -1232,21 +1232,23 @@ export async function handleReminders(
       reminderTargetUrl: '/app/patient',
     });
 
-    const baseHttpRaw = trimTrailingSlash(await getAppBaseUrl(reminderAuxDb));
     let profileSpec: ReminderOpenLinkSpec;
     let mobileSpec: ReminderOpenLinkSpec;
     if (webUrls) {
       profileSpec = { kind: 'web_app', url: webUrls.profileChannelsWebAppUrl };
       mobileSpec = { kind: 'web_app', url: webUrls.mobileAppWebAppUrl };
-    } else if (baseHttpRaw.startsWith('http://') || baseHttpRaw.startsWith('https://')) {
-      profileSpec = {
-        kind: 'url',
-        url: `${baseHttpRaw}/app/patient/profile#patient-profile-notifications`,
-      };
-      mobileSpec = { kind: 'url', url: `${baseHttpRaw}/app/patient` };
     } else {
-      profileSpec = { kind: 'url', url: '/app/patient/profile#patient-profile-notifications' };
-      mobileSpec = { kind: 'url', url: '/app/patient' };
+      const baseHttpRaw = trimTrailingSlash(await getAppBaseUrl(reminderAuxDb));
+      if (baseHttpRaw.startsWith('http://') || baseHttpRaw.startsWith('https://')) {
+        profileSpec = {
+          kind: 'url',
+          url: `${baseHttpRaw}/app/patient/profile#patient-profile-notifications`,
+        };
+        mobileSpec = { kind: 'url', url: `${baseHttpRaw}/app/patient` };
+      } else {
+        profileSpec = { kind: 'url', url: '/app/patient/profile#patient-profile-notifications' };
+        mobileSpec = { kind: 'url', url: '/app/patient' };
+      }
     }
 
     const ackText = web.paragraphs.map((p) => escapeReminderHtml(p)).join('\n\n');

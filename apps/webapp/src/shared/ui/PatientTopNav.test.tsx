@@ -27,7 +27,7 @@ describe("PatientTopNav", () => {
     expect(mobileNav).toHaveClass("md:hidden");
     expect(within(mobileNav).getAllByRole("link").map((link) => link.textContent)).toEqual([
       "Сегодня",
-      "План",
+      "Упражнения",
       "Дневник",
       "Запись",
       "Профиль",
@@ -44,25 +44,25 @@ describe("PatientTopNav", () => {
     expect(within(mobileNav).getByRole("link", { name: "Сегодня" })).toHaveAttribute("aria-current", "page");
   });
 
-  it("sets aria-current=page on plan when pathname matches /app/patient/treatment", () => {
+  it("sets aria-current=page on Упражнения when pathname matches /app/patient/treatment", () => {
     pathnameRef.value = "/app/patient/treatment";
     render(<PatientTopNav />);
     const mobileNav = screen.getByTestId("patient-mobile-top-nav");
-    expect(within(mobileNav).getByRole("link", { name: "План" })).toHaveAttribute("aria-current", "page");
+    expect(within(mobileNav).getByRole("link", { name: "Упражнения" })).toHaveAttribute("aria-current", "page");
   });
 
-  it("sets aria-current=page on plan for treatment instance subpath", () => {
+  it("sets aria-current=page on Упражнения for treatment instance subpath", () => {
     pathnameRef.value = "/app/patient/treatment/11111111-1111-4111-8111-111111111111";
     render(<PatientTopNav />);
     const mobileNav = screen.getByTestId("patient-mobile-top-nav");
-    expect(within(mobileNav).getByRole("link", { name: "План" })).toHaveAttribute("aria-current", "page");
+    expect(within(mobileNav).getByRole("link", { name: "Упражнения" })).toHaveAttribute("aria-current", "page");
   });
 
   it("does not set plan active on legacy treatment-programs pathname", () => {
     pathnameRef.value = "/app/patient/treatment-programs";
     render(<PatientTopNav />);
     const mobileNav = screen.getByTestId("patient-mobile-top-nav");
-    expect(within(mobileNav).getByRole("link", { name: "План" })).not.toHaveAttribute("aria-current", "page");
+    expect(within(mobileNav).getByRole("link", { name: "Упражнения" })).not.toHaveAttribute("aria-current", "page");
   });
 
   it("keeps desktop nav as a separate md branch", () => {

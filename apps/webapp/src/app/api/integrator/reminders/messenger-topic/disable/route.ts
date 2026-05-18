@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { verifyIntegratorSignature } from "@/app-layer/integrator/verifyIntegratorSignature";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { getPool } from "@/app-layer/db/client";
-import { findCanonicalUserIdByIntegratorId } from "@/infra/repos/pgCanonicalPlatformUser";
+import { findCanonicalUserIdByIntegratorId } from "@/app-layer/platform-user/canonicalPlatformUser";
 import { disableReminderMessengerTopicForOccurrence } from "@/modules/reminders/disableReminderMessengerTopic";
 
 type Body = {

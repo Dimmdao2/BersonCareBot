@@ -48,6 +48,13 @@ describe('normalizeChannelCallbackPayload (reminders + question confirm)', () =>
     });
   });
 
+  it('parses rem_bot_off', () => {
+    expect(normalizeChannelCallbackPayload('rem_bot_off:occ-1')).toEqual({
+      action: 'rem_bot_off',
+      reminderOccurrenceId: 'occ-1',
+    });
+  });
+
   it('parses rem_skip and rem_skip_r', () => {
     expect(normalizeChannelCallbackPayload('rem_skip:occ-1')).toEqual({
       action: 'rem_skip',

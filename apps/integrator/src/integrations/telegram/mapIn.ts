@@ -215,6 +215,11 @@ export function normalizeChannelCallbackPayload(value: string): DynamicChannelCa
     if (!occurrenceId) return { action: trimmed };
     return { action: 'rem_skip', reminderOccurrenceId: occurrenceId };
   }
+  if (trimmed.startsWith('rem_bot_off:')) {
+    const occurrenceId = trimmed.slice('rem_bot_off:'.length).trim();
+    if (!occurrenceId) return { action: trimmed };
+    return { action: 'rem_bot_off', reminderOccurrenceId: occurrenceId };
+  }
   if (trimmed === 'q_confirm:yes') return { action: 'q_confirm:yes', questionConfirm: 'yes' };
   if (trimmed === 'q_confirm:no') return { action: 'q_confirm:no', questionConfirm: 'no' };
   /** Админ: пометить все неотвеченные из текущей выборки списка (см. question.markAllUnansweredAnswered). */

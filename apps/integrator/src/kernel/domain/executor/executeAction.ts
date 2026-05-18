@@ -51,14 +51,12 @@ import {
   buildMessageDeliverJob,
   renderText,
   buildReplyMarkup,
-  resolveGenericMessageParams,
   persistWrites,
   contentAudience,
   defaultNotificationSettings,
   readNotificationSettings,
   sendAdminMessage,
 } from './helpers.js';
-import { applyMessageSendDeliveryPolicy } from './deliveryPolicy.js';
 import { ADMIN } from './templateKeys.js';
 import { dispatchRequestContactToUser } from '../../../integrations/bersoncare/dispatchRequestContact.js';
 import { logger } from '../../../infra/observability/logger.js';
@@ -87,10 +85,14 @@ const REMINDER_TYPES = new Set<string>([
   'reminders.skip.reasonPrompt',
   'reminders.skip.applyPreset',
   'reminders.skip.applyFreeText',
+  'reminders.messengerTopic.disable.callback',
 ]);
 const DELIVERY_TYPES = new Set<string>([
-  'message.compose', 'message.send', 'message.edit', 'message.replyMarkup.edit', 'message.delete',
-  'callback.answer', 'message.deliver', 'message.retry.enqueue', 'intent.enqueueDelivery',
+  'callback.answer',
+  'message.deliver',
+  'message.retry.enqueue',
+  'intent.enqueueDelivery',
+  'message.send',
 ]);
 
 function channelLinkCompleteFailureTemplateKey(source: string, errRaw: string | undefined): string {
@@ -543,25 +545,6 @@ export async function executeAction(
           message: { text: composedText },
           delivery,
         },
-      }];
-      return { actionId: action.id, status: 'success', intents };
-    }
-
-    case 'message.send': {
-      const policyParams = await applyMessageSendDeliveryPolicy(
-        action.params,
-        ctx,
-        deps.deliveryDefaultsPort,
-      );
-      const resolvedParams = await resolveGenericMessageParams({
-        params: policyParams,
-        ctx,
-        templatePort: deps.templatePort,
-      });
-      const intents: OutgoingIntent[] = [{
-        type: 'message.send',
-        meta: buildIntentMeta(action, ctx),
-        payload: resolvedParams,
       }];
       return { actionId: action.id, status: 'success', intents };
     }

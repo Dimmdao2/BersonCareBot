@@ -80,7 +80,7 @@
 
 Реализация: **сворачиваемый блок «Расписание на сегодня»** (над hero: `Bell`, строки тренировок/разминок, ссылка в напоминания; строки из RSC через `formatPlanReminderTodayLine` в `summarizeReminderForCalendarDay.ts`) + **hero** (название, описание шаблона при наличии, история, бейджи, CTA «Начать занятие» → модалка пункта) + **липкая панель из трёх вкладок** — **Программа** (цели/задачи + `PatientTreatmentProgramStagePageProgramSection` для рабочего этапа; «Добавить комментарий» на плитке — модалка наблюдения без ухода на страницу пункта), **Рекомендации** (две секции плоским списком), **Прогресс** (timeline этапов, «Следующий контроль», блок «Статистика прохождения»: API `passage-stats`; показатель «назначений ещё не выполнялось» — только по строкам видимого чеклиста, см. `buildPatientProgramChecklistRows`). Переключение вкладок **не размонтирует** скрытые панели (`hidden`). Счётчик «N дней» на вкладке «Прогресс» считается в RSC с рубежом **03:00** в IANA пациента (`computeProgressDaysAt0300`).
 
-**Под панелями вкладок (активная программа):** CTA «персональная программа» — **hero-геометрия главной** (`patientHomeHeroCardGeometryClass` и связанные классы из `patientHomeCardStyles.ts`), фото `public/patient/personal-program-consultation.png`, кнопка «Отправить заявку» → `/app/patient/intake/lfk`.
+**Под панелями вкладок (активная программа):** CTA «персональная программа» — **hero-геометрия главной** (`patientHomeHeroCardGeometryClass` и связанные классы из `patientHomeCardStyles.ts`), **без** строки pill-бейджей; фото `public/patient/personal-program-consultation.png`, кнопка «Отправить заявку» → `/app/patient/intake/lfk`.
 
 Строка «Вы занимаетесь N дней» в hero **не используется**.
 
@@ -99,7 +99,7 @@
 │  Контент активной вкладки (см. выше)                    │
 └─────────────────────────────────────────────────────────┘
 ┌─────────────────────────────────────────────────────────┐
-│  CTA «персональная программа» (hero как «Разминка дня»)   │
+│  CTA «персональная программа» (hero-геометрия, без бейджей) │
 │  → /app/patient/intake/lfk                               │
 └─────────────────────────────────────────────────────────┘
 ```
@@ -108,7 +108,7 @@
 
 Превью в строке ЛФК — из **`exercises[].media`** в JSON-снимке (тот же формат, что у элемента **`exercise`**), поле заполняется при **`buildSnapshot`** для `lfk_complex` в [`apps/webapp/src/infra/repos/pgTreatmentProgramItemSnapshot.ts`](../../apps/webapp/src/infra/repos/pgTreatmentProgramItemSnapshot.ts). Ключ **`media`** у строки комплекса и у снимков типов **`exercise`** / **`recommendation`** в JSON **не сериализуется**, если список пустой (меньше шум в БД; клиент и так трактует отсутствие ключа как «нет превью»). Разбор строк для UI и ключей активности — [`listLfkSnapshotExerciseLines`](../../apps/webapp/src/modules/treatment-program/programActionActivityKey.ts): в объект строки попадает только непустой массив **объектов** медиа (примитивы и вложенные массивы отбрасываются). Юнит-тесты: [`programActionActivityKey.test.ts`](../../apps/webapp/src/modules/treatment-program/programActionActivityKey.test.ts). В модалке «Состав этапа»: при **есть** выбранное медиа — статичное превью (`PatientCatalogMediaStaticThumb`); при **пустом** медиа у упражнения (в т.ч. строка ЛФК и элемент **`exercise`**) — иконка гантели, у **`recommendation`** — иконка текста (`ScrollText`). **Бэклог (отдельная инициатива):** при назначении шаблона пациенту разворачивать комплекс в несколько элементов типа **`exercise`** вместо одного **`lfk_complex`** — затронет assign (`instance-service`), чек-лист, `lfk-session`, ключи журнала; нужны продуктовое решение и миграция данных.
 
-**Цветовые зоны (из §1.1b, привязка к токенам):** hero программы — `patientHomeCardHeroClass` / программные бейджи из `patientHomeCardStyles`; **сворачиваемое «Расписание на сегодня»** — `patientSurfaceInfoClass` (карточка напоминаний); **CTA «персональная программа»** — та же hero-хромировка, что «Разминка дня» на главной (`patientHomeHeroCardGeometryClass` и слот изображения); карточка контроля — `patientSurfaceWarningClass`; этап 0 — `patientSurfaceSuccessClass`; timeline и прочие карточки — `patientCardClass` / `patientListItemClass` (прошлые строки: `bg-muted/20 opacity-70`; заблокированные будущие: `opacity-50`).
+**Цветовые зоны (из §1.1b, привязка к токенам):** hero программы — `patientHomeCardHeroClass` / программные бейджи из `patientHomeCardStyles`; **сворачиваемое «Расписание на сегодня»** — `patientSurfaceInfoClass` (карточка напоминаний); **CTA «персональная программа»** — те же hero-токены геометрии и слота изображения (`patientHomeHeroCardGeometryClass`), **без** верхних pill-бейджей; карточка контроля — `patientSurfaceWarningClass`; этап 0 — `patientSurfaceSuccessClass`; timeline и прочие карточки — `patientCardClass` / `patientListItemClass` (прошлые строки: `bg-muted/20 opacity-70`; заблокированные будущие: `opacity-50`).
 
 ---
 

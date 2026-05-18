@@ -81,7 +81,7 @@ export default async function BookingNewFormatPage() {
               "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-primary)]",
             )}
           >
-            Задать вопрос
+            Задать вопрос в чате
           </Link>
         </div>
         <BookingPastHistorySection items={pastItems} appDisplayTimeZone={appDisplayTimeZone} />
