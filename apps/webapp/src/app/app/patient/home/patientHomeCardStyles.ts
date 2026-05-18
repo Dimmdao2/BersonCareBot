@@ -328,12 +328,17 @@ export const patientHomePlanSubtitleClampClass = cn(
   "mt-1 text-sm leading-5 text-[var(--patient-block-caption)]",
 );
 
-/** Hero: одинаковая внешняя геометрия filled/empty. */
-export const patientHomeHeroCardGeometryClass = cn(
-  patientHomeCardHeroClass,
+/**
+ * Внешняя геометрия hero «Разминка дня» (flex, min-height, padding) **без** фона/рамки
+ * {@link patientHomeCardHeroClass} — для оверлея на другие карточки (напр. CTA «Мой план»).
+ */
+export const patientHomeHeroCardGeometryShellClass = cn(
   "relative isolate flex flex-col overflow-hidden",
   "min-h-[192px] p-4 min-[380px]:min-h-[204px] md:h-[300px] md:min-h-0 md:p-5 xl:h-[300px]",
 );
+
+/** Hero: одинаковая внешняя геометрия filled/empty. */
+export const patientHomeHeroCardGeometryClass = cn(patientHomeCardHeroClass, patientHomeHeroCardGeometryShellClass);
 
 /** Экран материала «Разминка дня» (`from=daily_warmup`): ниже hero, уже текстовая колонка под компактный image-slot. */
 export const patientDailyWarmupDetailHeroGeometryClass = cn(
