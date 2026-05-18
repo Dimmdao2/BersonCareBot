@@ -156,6 +156,7 @@ systemctl reset-failed
 
 Эффективная конфигурация (канон — **Next.js standalone**, как в [`deploy/systemd/bersoncarebot-webapp-prod.service`](../systemd/bersoncarebot-webapp-prod.service) и [`docs/ARCHITECTURE/SERVER CONVENTIONS.md`](../docs/ARCHITECTURE/SERVER%20CONVENTIONS.md); не `pnpm start`):
 
+- `User=deploy`, `Group=deploy`
 - `WorkingDirectory=/opt/projects/bersoncarebot/apps/webapp/.next/standalone/apps/webapp`
 - `EnvironmentFile=/opt/env/bersoncarebot/webapp.prod`
 - `ExecStart=/usr/bin/node /opt/projects/bersoncarebot/apps/webapp/.next/standalone/apps/webapp/server.js`

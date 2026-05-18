@@ -102,6 +102,7 @@
 #### Webapp
 
 - Unit: `bersoncarebot-webapp-prod.service`
+- Process: `User=deploy`, `Group=deploy` (шаблон `deploy/systemd/bersoncarebot-webapp-prod.service`; не запускать webapp от root — иначе артефакты под `.next` становятся `root`-owned и деплой не может их удалить)
 - WorkingDirectory: `/opt/projects/bersoncarebot/apps/webapp/.next/standalone/apps/webapp`
 - EnvironmentFile: `/opt/env/bersoncarebot/webapp.prod`
 - Environment: `PORT=6200`, `HOSTNAME=127.0.0.1`

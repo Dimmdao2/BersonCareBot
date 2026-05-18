@@ -3,6 +3,8 @@ Description=BersonCare Webapp (Production)
 After=network.target
 
 [Service]
+User=deploy
+Group=deploy
 Type=simple
 WorkingDirectory=/opt/projects/bersoncarebot/apps/webapp/.next/standalone/apps/webapp
 EnvironmentFile=/opt/env/bersoncarebot/webapp.prod
