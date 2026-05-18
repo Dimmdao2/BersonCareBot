@@ -2,7 +2,7 @@ import type { MetadataRoute } from "next";
 
 /**
  * Web App Manifest (PWA). Иконки — `public/pwa-icon-*.png` (плейсхолдеры до фирменного набора).
- * Service worker намеренно не подключается на этом шаге.
+ * Service worker: `public/sw.js`, регистрация только с лендинга `/` и не в Mini App.
  */
 export default function manifest(): MetadataRoute.Manifest {
   return {

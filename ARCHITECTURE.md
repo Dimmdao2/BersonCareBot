@@ -219,6 +219,7 @@
 - **Правила для агентов и операторов:** [`apps/webapp/scripts/PLATFORM_IDENTITY_OPS.md`](apps/webapp/scripts/PLATFORM_IDENTITY_OPS.md) (порядок действий, когда выставлять доверие, предпочтение готовых инструментов вроде `user-phone-admin.ts` и продуктового merge).
 - **Продуктовая карта и enum trusted paths:** [`docs/ARCHITECTURE/PLATFORM_IDENTITY_SCENARIOS_AND_CODE_MAP.md`](docs/ARCHITECTURE/PLATFORM_IDENTITY_SCENARIOS_AND_CODE_MAP.md) §8.
 - **Оглавление папки скриптов:** [`apps/webapp/scripts/README.md`](apps/webapp/scripts/README.md).
+- **Публичный лендинг и PWA (корень `/`):** [`docs/PWA_INITIATIVE/README.md`](docs/PWA_INITIATIVE/README.md) — manifest, установка из браузера; регистрация service worker с **`/`** не выполняется внутри Telegram/MAX Mini App (детали в фазах инициативы).
 
 ## Deploy model
 

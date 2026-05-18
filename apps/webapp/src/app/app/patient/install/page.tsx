@@ -14,8 +14,9 @@ export default async function PatientInstallPage() {
           Чтобы открывать кабинет как приложение, добавьте страницу на главный экран (PWA / «Добавить на экран Домой») в меню браузера.
         </p>
         <ul className={cn(patientMutedTextClass, "m-0 list-disc space-y-2 pl-5")}>
-          <li>Chrome / Android: меню «⋯» → «Установить приложение» или «Добавить на главный экран».</li>
-          <li>Safari / iOS: «Поделиться» → «На экран «Домой»».</li>
+          <li>Chrome / Edge / Android: меню «⋯» → «Установить приложение» или «Добавить на главный экран».</li>
+          <li>Safari на Mac: меню «Файл» → «Добавить в Dock».</li>
+          <li>Safari на iPhone / iPad: «Поделиться» → «На экран «Домой»».</li>
         </ul>
         <p className={patientMutedTextClass}>
           После установки можно входить через Telegram (мини-приложение) или через браузер — тот же аккаунт.

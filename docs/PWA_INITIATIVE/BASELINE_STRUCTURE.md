@@ -1,6 +1,6 @@
 # Базовая структура webapp (фиксация под PWA и Web Push)
 
-Дата снимка: 2026-05-15. Цель документа — зафиксировать состояние **до** внедрения service worker, офлайн‑кэша и push, чтобы не смешивать слои.
+**Снимок «до расширений»:** 2026-05-15. Ниже зафиксировано состояние **до** полноценного офлайн‑кэша и **Web Push** — чтобы не смешивать слои. **Актуальное поведение первой волны PWA** (лендинг `/`, минимальный SW, install UX) — в [`ROADMAP.md`](ROADMAP.md), [`PHASE_00`…`PHASE_03`](PHASE_00_PRINCIPLES_AND_SCOPE.md) и [`LOG.md`](LOG.md).
 
 ## Стек и сборка
 
@@ -12,21 +12,28 @@
 
 - **Канон:** см. `apps/webapp/src/shared/lib/platform.md` — `PlatformEntry` / `PlatformMode`, cookie, proxy `?ctx=bot`, детект Mini App на клиенте.
 - **Маршруты мини‑аппов:** `/app/tg`, `/app/max` (см. архивные планы miniapp в `docs/README.md`).
-- **Страница «установить приложение»:** `/app/patient/install` — сейчас только **инструкция** для пользователя; технический manifest подключается с **корня** сайта (один origin для бота и браузера).
+- **Публичная установка PWA и обложка:** **`/`** — маркетинг + `PwaInstallSection` (`src/shared/ui/marketing/`), регистрация **`public/sw.js`** только если **не** `isMessengerMiniAppHost()` (см. [`PHASE_02`](PHASE_02_INSTALL_FLOW.md)).
+- **Инструкции в кабинете пациента:** **`/app/patient/install`** — текст для **уже вошедшего** пациента (не дублирует маркетинг **`/`**).
 
-## Что появилоcь в рамках PWA (фаза 0)
+## План дальнейших работ
+
+- **Индекс:** [`ROADMAP.md`](ROADMAP.md)
+- **По этапам:** [`PHASE_00_PRINCIPLES_AND_SCOPE.md`](PHASE_00_PRINCIPLES_AND_SCOPE.md) · [`PHASE_01_ROOT_LANDING.md`](PHASE_01_ROOT_LANDING.md) · [`PHASE_02_INSTALL_FLOW.md`](PHASE_02_INSTALL_FLOW.md) · [`PHASE_03_MANIFEST_AUDIT.md`](PHASE_03_MANIFEST_AUDIT.md) · [`BACKLOG.md`](BACKLOG.md)
+
+## Что появилось в рамках PWA (фаза 0 и первая волна)
 
 - **`src/app/manifest.ts`** — Web App Manifest (имя, `start_url`, `display`, иконки).
 - **Статические иконки** в `public/`: `pwa-icon-192.png`, `pwa-icon-512.png`, `apple-touch-icon.png` (временные плейсхолдеры под фирменный дизайн).
 - **Корневой `metadata` / `viewport`:** иконка Apple, `themeColor`, `appleWebApp` — улучшают поведение при «Добавить на экран Домой» (iOS).
+- **Первая волна (код):** лендинг **`src/app/page.tsx`**, `src/shared/ui/marketing/*`, **`public/sw.js`** (passthrough `fetch`, без кэша HTML/API).
 
 ## Чего пока нет (намеренно)
 
-- **Service worker** — не регистрируется: нет перехвата fetch, нет влияния на мини‑апп и кэш.
+- **Полный офлайн‑кэш** страниц и данных — не вводился (см. [`BACKLOG.md`](BACKLOG.md)).
 - **Web Push** — нет подписок, нет VAPID, нет API отправки; при появлении ключи и URL провайдера — по канону проекта в **`system_settings`**, не env.
 
 ## Связка с будущим push
 
 1. Регистрация SW и `PushManager` — только в **браузерном** контексте; для Mini App обычно **пропуск регистрации** при детекте Telegram/MAX (см. `messengerMiniApp.ts` / `PlatformProvider`).
-2. Scope SW — сузить до нужного префикса (например `/app/patient`), если не хотим охватывать весь сайт.
+2. Scope SW — сейчас **`/`** для installability; при push можно сузить до нужного префикса (например `/app/patient`), если не хотим охватывать весь сайт — отдельное решение.
 3. Хранение **PushSubscription** — новые таблицы/поля в webapp, API подписки/отписки, фоновая отправка (отдельный дизайн).

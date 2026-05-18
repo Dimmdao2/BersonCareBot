@@ -31,6 +31,7 @@ const LOADERS = {
   doctorMaterialRatingDetail: () => import("@/app/app/doctor/material-ratings/[kind]/[id]/page") as Promise<PageMod>,
   appTgEntry: () => import("@/app/app/tg/page") as Promise<PageMod>,
   appMaxEntry: () => import("@/app/app/max/page") as Promise<PageMod>,
+  homeRoot: () => import("@/app/page") as Promise<PageMod>,
 };
 
 type PageKey = keyof typeof LOADERS;
@@ -103,5 +104,9 @@ describe("app router RSC pages smoke (in-process)", () => {
   it("miniapp entry routes /app/tg and /app/max export async RSC defaults", () => {
     expectAsyncRscPage(mod("appTgEntry"), "app/tg");
     expectAsyncRscPage(mod("appMaxEntry"), "app/max");
+  });
+
+  it("marketing home / exports async RSC default", () => {
+    expectAsyncRscPage(mod("homeRoot"), "/");
   });
 });

@@ -1,11 +1,17 @@
 /**
- * Корневая страница «/»: сразу перенаправляет на /app.
- * Пользователь не остаётся на этой странице — показывается только редирект.
+ * Корневая страница «/»: маркетинговая обложка и установка PWA (без редиректа в `/app`).
  */
 
-import { redirect } from "next/navigation";
+import type { Metadata } from "next";
+import { MarketingHomeLanding } from "@/shared/ui/marketing/MarketingHomeLanding";
+import { PwaInstallSection } from "@/shared/ui/marketing/PwaInstallSection";
 
-/** При открытии главной страницы перенаправляет в раздел приложения. */
-export default function HomePage() {
-  redirect("/app");
+export const metadata: Metadata = {
+  title: "BersonCare — приложение реабилитолога",
+  description:
+    "Разминки, видео, материалы и программа реабилитации. Установите приложение на телефон для быстрого доступа.",
+};
+
+export default async function HomePage() {
+  return <MarketingHomeLanding installSlot={<PwaInstallSection />} />;
 }
