@@ -1,5 +1,13 @@
 # PWA — журнал
 
+## 2026-05-18 — Web Push: клиентский onboarding в PWA
+
+- **Patient PWA:** карточка «Включите уведомления» (только `standalone`, `permission=default`, нет подписки на сервере); `requestPermission` / `subscribe` только по клику; dismiss → localStorage 14 дней.
+- **Профиль:** блок «Уведомления» (статусы, установка PWA, восстановление, отключение); общий `PatientWebPushProvider`.
+- **iOS:** `probePushSupported()` через `registration.pushManager`; Safari во вкладке → `needs_pwa`, не «не поддерживаются».
+- **SW:** `pushsubscriptionchange` → `postMessage` клиенту → `restorePatientWebPushSubscription`; синк локальной подписки на backend при загрузке.
+- **API:** `POST /api/patient/pwa/launch` (лог); `subscribe` — опциональный `platform` в `user_agent`.
+
 ## 2026-05-18 — Web Push + email: контур напоминаний (MVP)
 
 - **Канал `web_push`:** prefs, матрица тем, таблица подписок, `GET/POST` patient API, отправка из webapp по VAPID из `system_settings`.

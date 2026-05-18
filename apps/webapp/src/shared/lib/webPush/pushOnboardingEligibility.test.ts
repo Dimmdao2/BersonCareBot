@@ -5,40 +5,69 @@ import {
 } from "@/shared/lib/webPush/pushOnboardingEligibility";
 
 describe("resolveWebPushUiStatus", () => {
-  it("marks browser-only as needs_pwa when push is supported", () => {
+  it("marks browser tab on phone as needs_pwa before push probe", () => {
     expect(
       resolveWebPushUiStatus({
-        pushSupported: true,
+        pushSupported: false,
+        pushNeedsPwaInstall: true,
         standalone: false,
         permission: "default",
-        hasSubscription: false,
+        hasServerSubscription: false,
         vapidConfigured: true,
       }),
     ).toBe("needs_pwa");
   });
 
-  it("marks granted without subscription as restore candidate", () => {
+  it("marks browser-only as needs_pwa when push is supported but not standalone", () => {
     expect(
       resolveWebPushUiStatus({
         pushSupported: true,
+        pushNeedsPwaInstall: false,
+        standalone: false,
+        permission: "default",
+        hasServerSubscription: false,
+        vapidConfigured: true,
+      }),
+    ).toBe("needs_pwa");
+  });
+
+  it("marks granted without server subscription as restore candidate", () => {
+    expect(
+      resolveWebPushUiStatus({
+        pushSupported: true,
+        pushNeedsPwaInstall: false,
         standalone: true,
         permission: "granted",
-        hasSubscription: false,
+        hasServerSubscription: false,
         vapidConfigured: true,
       }),
     ).toBe("granted_no_subscription");
   });
 
-  it("marks enabled when subscription exists", () => {
+  it("marks enabled when server subscription exists", () => {
     expect(
       resolveWebPushUiStatus({
         pushSupported: true,
+        pushNeedsPwaInstall: false,
         standalone: true,
         permission: "granted",
-        hasSubscription: true,
+        hasServerSubscription: true,
         vapidConfigured: true,
       }),
     ).toBe("enabled");
+  });
+
+  it("marks denied in standalone PWA", () => {
+    expect(
+      resolveWebPushUiStatus({
+        pushSupported: true,
+        pushNeedsPwaInstall: false,
+        standalone: true,
+        permission: "denied",
+        hasServerSubscription: false,
+        vapidConfigured: true,
+      }),
+    ).toBe("denied_system");
   });
 });
 
@@ -81,7 +110,11 @@ describe("shouldShowPushOnboardingPrompt", () => {
     ).toBe(true);
   });
 
-  it("hides when subscription exists", () => {
+  it("hides when server subscription exists", () => {
     expect(shouldShowPushOnboardingPrompt({ ...base, hasServerSubscription: true })).toBe(false);
+  });
+
+  it("hides when permission denied", () => {
+    expect(shouldShowPushOnboardingPrompt({ ...base, permission: "denied" })).toBe(false);
   });
 });

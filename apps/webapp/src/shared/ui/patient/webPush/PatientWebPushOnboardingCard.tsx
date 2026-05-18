@@ -4,30 +4,19 @@ import { useCallback, useState } from "react";
 import { Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useWebPushClientState } from "@/shared/lib/webPush/PatientWebPushContext";
 import { subscribePatientWebPush } from "@/shared/lib/webPush/subscribePatientWebPush";
 import { patientCardClass, patientMutedTextClass } from "@/shared/ui/patientVisual";
-import type { WebPushClientSnapshot } from "@/shared/lib/webPush/useWebPushClientState";
 
-type Props = {
-  state: WebPushClientSnapshot;
-};
-
-export function PatientWebPushOnboardingCard({ state }: Props) {
+export function PatientWebPushOnboardingCard() {
+  const state = useWebPushClientState();
   const [busy, setBusy] = useState(false);
-  const [deniedHint, setDeniedHint] = useState(false);
 
   const onEnable = useCallback(async () => {
     setBusy(true);
-    setDeniedHint(false);
     try {
-      const result = await subscribePatientWebPush();
-      if (result.ok) {
-        await state.refresh();
-        return;
-      }
-      if (result.reason === "permission_denied") {
-        setDeniedHint(true);
-      }
+      await subscribePatientWebPush();
+      await state.refresh();
     } finally {
       setBusy(false);
     }
@@ -55,29 +44,15 @@ export function PatientWebPushOnboardingCard({ state }: Props) {
           </span>
           <p className="text-base font-semibold text-[var(--patient-text-primary)]">Включите уведомления</p>
         </div>
-        {deniedHint ? (
-          <p className={cn(patientMutedTextClass, "mt-2 text-sm")}>
-            Уведомления отключены. Их можно включить вручную в настройках телефона.
-          </p>
-        ) : (
-          <p className={cn(patientMutedTextClass, "mt-2 text-sm")}>
-            Так вы сможете получать напоминания о тренировках, обновления плана и важные сообщения по программе.
-          </p>
-        )}
+        <p className={cn(patientMutedTextClass, "mt-2 text-sm")}>
+          Так вы сможете получать напоминания о тренировках, обновления плана и важные сообщения по программе.
+        </p>
         <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-          {!deniedHint ? (
-            <Button type="button" className="w-full sm:flex-1" disabled={busy} onClick={() => void onEnable()}>
-              Включить уведомления
-            </Button>
-          ) : null}
-          <Button
-            type="button"
-            variant="outline"
-            className="w-full sm:flex-1"
-            disabled={busy}
-            onClick={onDismiss}
-          >
-            {deniedHint ? "Закрыть" : "Не сейчас"}
+          <Button type="button" className="w-full sm:flex-1" disabled={busy} onClick={() => void onEnable()}>
+            Включить уведомления
+          </Button>
+          <Button type="button" variant="outline" className="w-full sm:flex-1" disabled={busy} onClick={onDismiss}>
+            Не сейчас
           </Button>
         </div>
       </div>

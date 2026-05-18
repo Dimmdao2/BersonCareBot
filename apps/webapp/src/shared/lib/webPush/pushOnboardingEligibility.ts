@@ -11,16 +11,19 @@ export type WebPushUiStatus =
 
 export function resolveWebPushUiStatus(input: {
   pushSupported: boolean;
+  /** Safari/Chrome во вкладке на телефоне — push после установки PWA. */
+  pushNeedsPwaInstall: boolean;
   standalone: boolean;
   permission: PushPermissionState;
-  hasSubscription: boolean;
+  hasServerSubscription: boolean;
   vapidConfigured: boolean;
 }): WebPushUiStatus {
+  if (!input.standalone && input.pushNeedsPwaInstall) return "needs_pwa";
   if (!input.pushSupported) return "unsupported";
   if (!input.standalone) return "needs_pwa";
   if (input.permission === "denied") return "denied_system";
   if (input.permission === "granted") {
-    return input.hasSubscription ? "enabled" : "granted_no_subscription";
+    return input.hasServerSubscription ? "enabled" : "granted_no_subscription";
   }
   if (input.permission === "default") {
     if (!input.vapidConfigured) return "unsupported";

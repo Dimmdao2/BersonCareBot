@@ -3,20 +3,20 @@
 import { useCallback, useState } from "react";
 import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
-import { subscribePatientWebPush } from "@/shared/lib/webPush/subscribePatientWebPush";
-import { isPushSupported } from "@/shared/lib/webPush/pushCapability";
+import { probePushSupported } from "@/shared/lib/webPush/pushCapability";
 import { isStandalonePwa } from "@/shared/lib/webPush/pwaDisplay";
+import { subscribePatientWebPush } from "@/shared/lib/webPush/subscribePatientWebPush";
 
 export function WebPushOptInControls() {
   const [busy, setBusy] = useState(false);
 
   const onEnable = useCallback(async () => {
-    if (!isPushSupported()) {
-      toast.error("Уведомления не поддерживаются");
+    if (!(await probePushSupported()) && !isStandalonePwa()) {
+      toast.error("Сначала откройте приложение с иконки на главном экране");
       return;
     }
-    if (!isStandalonePwa()) {
-      toast.error("Сначала откройте приложение с иконки на главном экране");
+    if (!(await probePushSupported())) {
+      toast.error("Уведомления не поддерживаются");
       return;
     }
     setBusy(true);

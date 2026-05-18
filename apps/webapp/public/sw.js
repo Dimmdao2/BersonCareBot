@@ -43,6 +43,18 @@ self.addEventListener("push", (event) => {
   );
 });
 
+/** Клиент пере-подписывает push (VAPID только в приложении). */
+self.addEventListener("pushsubscriptionchange", (event) => {
+  event.waitUntil(
+    (async () => {
+      const clients = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+      for (const client of clients) {
+        client.postMessage({ type: "WEB_PUSH_SUBSCRIPTION_CHANGE" });
+      }
+    })(),
+  );
+});
+
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   const raw = event.notification.data && event.notification.data.url;

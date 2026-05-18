@@ -4,10 +4,11 @@ import Link from "next/link";
 import { useCallback, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { routePaths } from "@/app-layer/routes/paths";
-import { restorePatientWebPushSubscription, subscribePatientWebPush } from "@/shared/lib/webPush/subscribePatientWebPush";
+import { useWebPushClientState } from "@/shared/lib/webPush/PatientWebPushContext";
 import type { WebPushUiStatus } from "@/shared/lib/webPush/pushOnboardingEligibility";
+import { restorePatientWebPushSubscription, subscribePatientWebPush } from "@/shared/lib/webPush/subscribePatientWebPush";
+import { unsubscribePatientWebPush } from "@/shared/lib/webPush/unsubscribePatientWebPush";
 import { patientMutedTextClass, patientSectionSurfaceClass, patientSectionTitleClass } from "@/shared/ui/patientVisual";
-import { useWebPushClientState } from "@/shared/lib/webPush/useWebPushClientState";
 
 const STATUS_LABEL: Record<WebPushUiStatus, string> = {
   unsupported: "Не поддерживаются на этом устройстве или в этом браузере",
@@ -31,14 +32,13 @@ export function PatientWebPushSettingsSection() {
         state.uiStatus === "granted_no_subscription" ?
           await restorePatientWebPushSubscription()
         : await subscribePatientWebPush();
+      await state.refresh();
       if (result.ok) {
-        await state.refresh();
         setMessage("Уведомления включены");
         return;
       }
       if (result.reason === "permission_denied") {
         setMessage("Уведомления отключены. Включите их в настройках телефона.");
-        await state.refresh();
         return;
       }
       if (result.reason === "vapid_unavailable") {
@@ -51,10 +51,23 @@ export function PatientWebPushSettingsSection() {
     }
   }, [state]);
 
+  const runUnsubscribe = useCallback(async () => {
+    setBusy(true);
+    setMessage(null);
+    try {
+      const ok = await unsubscribePatientWebPush();
+      await state.refresh();
+      setMessage(ok ? "Уведомления отключены" : "Не удалось отключить уведомления");
+    } finally {
+      setBusy(false);
+    }
+  }, [state]);
+
   if (!state.mounted) return null;
 
   const showEnable = state.uiStatus === "pending_permission";
   const showRestore = state.uiStatus === "granted_no_subscription";
+  const showDisable = state.uiStatus === "enabled";
 
   return (
     <section className={patientSectionSurfaceClass}>
@@ -74,11 +87,18 @@ export function PatientWebPushSettingsSection() {
         </p>
       ) : null}
       {message ? <p className="text-sm text-[var(--patient-text-primary)]">{message}</p> : null}
-      {showEnable || showRestore ? (
-        <Button type="button" disabled={busy} onClick={() => void runSubscribe()}>
-          {showRestore ? "Восстановить уведомления" : "Включить уведомления"}
-        </Button>
-      ) : null}
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+        {showEnable || showRestore ? (
+          <Button type="button" disabled={busy} onClick={() => void runSubscribe()}>
+            {showRestore ? "Восстановить уведомления" : "Включить уведомления"}
+          </Button>
+        ) : null}
+        {showDisable ? (
+          <Button type="button" variant="outline" disabled={busy} onClick={() => void runUnsubscribe()}>
+            Отключить уведомления
+          </Button>
+        ) : null}
+      </div>
     </section>
   );
 }
