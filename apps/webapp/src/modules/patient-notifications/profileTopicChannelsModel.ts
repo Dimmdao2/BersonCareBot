@@ -59,3 +59,22 @@ export function buildProfileNotificationTopicModels(
     };
   });
 }
+
+/** Client-side: после subscribe до router.refresh() SSR topics могут быть без колонки Push. */
+export function ensureWebPushInNotificationTopics(
+  topics: ProfileNotificationTopicModel[],
+  hasWebPush: boolean,
+): ProfileNotificationTopicModel[] {
+  if (!hasWebPush) return topics;
+  return topics.map((t) => {
+    if (!allowedChannelsForTopic(t.topicId).includes("web_push")) return t;
+    if (t.channels.some((c) => c.code === "web_push")) return t;
+    return {
+      ...t,
+      channels: [
+        ...t.channels,
+        { code: "web_push", label: CHANNEL_LABEL.web_push, isEnabled: true },
+      ],
+    };
+  });
+}

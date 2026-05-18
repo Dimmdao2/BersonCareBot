@@ -1,6 +1,7 @@
 "use client";
 
-import type { ProfileNotificationTopicModel } from "@/modules/patient-notifications/profileTopicChannelsModel";
+import { useMemo } from "react";
+import { ensureWebPushInNotificationTopics } from "@/modules/patient-notifications/profileTopicChannelsModel";
 import { useWebPushClientState } from "@/shared/lib/webPush/PatientWebPushContext";
 import { patientMutedTextClass } from "@/shared/ui/patientVisual";
 import { PatientNotificationsTopicMatrix } from "./PatientNotificationsTopicMatrix";
@@ -23,12 +24,20 @@ export function PatientNotificationsTopicsSection({
   const hasWebPush = push.mounted ? push.hasServerSubscription : initialHasWebPush;
   const hasAnyChannel = hasMessengerOrEmail || hasWebPush;
 
-  const showPushSetupCta =
-    !hasAnyChannel &&
-    (push.uiStatus === "pending_permission" || push.uiStatus === "granted_no_subscription");
+  const topicsForMatrix = useMemo(
+    () => ensureWebPushInNotificationTopics(initialTopics, hasWebPush),
+    [initialTopics, hasWebPush],
+  );
+
+  const canEnablePushOnPage =
+    push.uiStatus === "pending_permission" ||
+    push.uiStatus === "granted_no_subscription" ||
+    push.uiStatus === "needs_pwa";
+
+  const showPushSetupCta = !hasAnyChannel && canEnablePushOnPage;
 
   if (hasAnyChannel) {
-    return <PatientNotificationsTopicMatrix initialTopics={initialTopics} />;
+    return <PatientNotificationsTopicMatrix initialTopics={topicsForMatrix} />;
   }
 
   if (showPushSetupCta) {

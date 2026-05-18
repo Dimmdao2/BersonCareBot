@@ -411,9 +411,12 @@ export type WebappEventsPort = {
     error?: string;
     webPushDelivered?: number;
     webPushErrors?: number;
+    webPushDeactivated?: number;
     emailOk?: boolean;
+    emailSkipped?: string;
     skipped?: string;
     selectedChannels?: string[];
+    skippedChannels?: Array<{ channel: string; reason: string }>;
   }>;
 };
 

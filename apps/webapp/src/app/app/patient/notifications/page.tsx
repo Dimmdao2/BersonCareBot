@@ -49,7 +49,7 @@ export default async function PatientNotificationsPage() {
             hasEmail={hasEmail}
             emailVerified={emailVerified}
           />
-          {!hasMessengerOrEmail ?
+          {!hasMessengerOrEmail && !hasWebPush ?
             <p className={`${patientMutedTextClass} mt-3`}>
               Подключите мессенджер или email в{" "}
               <Link href={routePaths.profile} className="underline">

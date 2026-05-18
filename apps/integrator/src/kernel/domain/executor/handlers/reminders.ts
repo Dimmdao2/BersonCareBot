@@ -582,9 +582,12 @@ export async function handleReminders(
               error: r.error,
               webPushDelivered: r.webPushDelivered,
               webPushErrors: r.webPushErrors,
+              webPushDeactivated: r.webPushDeactivated,
               emailOk: r.emailOk,
+              emailSkipped: r.emailSkipped,
               skipped: r.skipped,
               selectedChannels: r.selectedChannels,
+              skippedChannels: r.skippedChannels,
             },
             'reminders.dispatchDue: notify-channels result',
           );

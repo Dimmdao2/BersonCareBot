@@ -214,6 +214,16 @@ export function createWebappEventsPort(deps: { getAppBaseUrl: () => Promise<stri
           }
         }
         const ok = (res.status === 200 || res.status === 202) && parsed.ok === true;
+        const skippedChannels = Array.isArray(parsed.skippedChannels)
+          ? parsed.skippedChannels
+              .filter(
+                (row): row is { channel: string; reason: string } =>
+                  row !== null &&
+                  typeof row === 'object' &&
+                  typeof (row as { channel?: unknown }).channel === 'string' &&
+                  typeof (row as { reason?: unknown }).reason === 'string',
+              )
+          : undefined;
         return {
           ok,
           status: res.status,
@@ -221,11 +231,15 @@ export function createWebappEventsPort(deps: { getAppBaseUrl: () => Promise<stri
             ? {
                 webPushDelivered: typeof parsed.webPushDelivered === 'number' ? parsed.webPushDelivered : undefined,
                 webPushErrors: typeof parsed.webPushErrors === 'number' ? parsed.webPushErrors : undefined,
+                webPushDeactivated:
+                  typeof parsed.webPushDeactivated === 'number' ? parsed.webPushDeactivated : undefined,
                 emailOk: typeof parsed.emailOk === 'boolean' ? parsed.emailOk : undefined,
+                emailSkipped: typeof parsed.emailSkipped === 'string' ? parsed.emailSkipped : undefined,
                 skipped: typeof parsed.skipped === 'string' ? parsed.skipped : undefined,
                 selectedChannels: Array.isArray(parsed.selectedChannels)
                   ? parsed.selectedChannels.filter((c): c is string => typeof c === 'string')
                   : undefined,
+                skippedChannels,
               }
             : { error: typeof parsed.error === 'string' ? parsed.error : text || res.statusText }),
         };

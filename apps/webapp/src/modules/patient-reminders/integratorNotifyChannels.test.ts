@@ -149,8 +149,8 @@ describe("runPatientReminderIntegratorNotify", () => {
     expect(sendWebPushMock).toHaveBeenCalledTimes(1);
   });
 
-  it("records web_push provider errors", async () => {
-    sendWebPushMock.mockResolvedValue({ delivered: 0, errors: 2, deactivated: 0 });
+  it("records web_push provider errors and deactivated subscriptions", async () => {
+    sendWebPushMock.mockResolvedValue({ delivered: 0, errors: 2, deactivated: 1 });
     const result = await runPatientReminderIntegratorNotify(
       { ...baseBody, topicCode: "exercise_reminders" },
       buildDeps({
@@ -159,6 +159,7 @@ describe("runPatientReminderIntegratorNotify", () => {
     );
     expect(result.webPushErrors).toBe(2);
     expect(result.webPushDelivered).toBe(0);
+    expect(result.webPushDeactivated).toBe(1);
   });
 
   it("sends email when selected and not rate limited", async () => {
