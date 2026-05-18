@@ -367,6 +367,43 @@ describe("AuthFlowV2", () => {
     expect(fetchMock).toHaveBeenCalled();
   });
 
+  it("email flow shows login vs registration choice after opening email", async () => {
+    const user = userEvent.setup();
+    isMiniAppHost.mockReturnValue(false);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL) => {
+        const url = typeof input === "string" ? input : input.toString();
+        if (url.includes("/api/auth/telegram-login/config")) {
+          return jsonRes({ ok: true, botUsername: "test_bot" });
+        }
+        if (url.includes("/api/auth/oauth/providers")) {
+          return jsonRes({ ok: true, yandex: true, google: false, apple: false });
+        }
+        if (url.includes("/api/auth/login/alternatives-config")) {
+          return jsonRes({ ok: true, telegramBotUsername: "test_bot", maxBotOpenUrl: null });
+        }
+        return jsonRes({});
+      }),
+    );
+
+    render(
+      <AuthFlowV2
+        nextParam={null}
+        prefetchedAuthConfig={{
+          oauthProviders: { yandex: true, google: false, apple: false },
+          telegramBotUsername: "test_bot",
+          maxBotOpenUrl: null,
+          fetchedAt: Date.now(),
+        }}
+      />,
+    );
+    await waitFor(() => expect(document.getElementById("auth-flow-v2-oauth-first")).toBeTruthy());
+    await user.click(screen.getByRole("button", { name: "Войти по email" }));
+    expect(await screen.findByRole("button", { name: "Вход" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Регистрация" })).toBeInTheDocument();
+  });
+
   it("oauth-first shows email login button alongside OAuth", async () => {
     isMiniAppHost.mockReturnValue(false);
     vi.stubGlobal(

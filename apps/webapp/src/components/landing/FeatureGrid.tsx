@@ -1,12 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import {
-  Activity,
-  Bell,
-  CalendarPlus,
-  ClipboardList,
-  LineChart,
-  PlaySquare,
-} from "lucide-react";
+import { Activity, Bell, CalendarPlus, ClipboardList, LineChart, PlaySquare } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type Tone = "blue" | "green" | "orange" | "purple";
@@ -18,12 +11,7 @@ const toneClass: Record<Tone, string> = {
   purple: "bg-[#F3F0FF] text-[#7A5AF8]",
 };
 
-const features: ReadonlyArray<{
-  title: string;
-  description: string;
-  icon: LucideIcon;
-  tone: Tone;
-}> = [
+const features: ReadonlyArray<{ title: string; description: string; icon: LucideIcon; tone: Tone }> = [
   {
     title: "Программа реабилитации",
     description: "Индивидуальный план упражнений, видеоинструкции и отметки выполнения.",
@@ -52,47 +40,34 @@ const features: ReadonlyArray<{
     title: "Запись на приём",
     description: "Очные и онлайн-консультации, выбор услуги и удобного времени.",
     icon: CalendarPlus,
-    tone: "green",
+    tone: "purple",
   },
   {
     title: "Материалы и видео",
     description: "Полезные статьи, уроки и видео в одном пациентском кабинете.",
     icon: PlaySquare,
-    tone: "purple",
+    tone: "orange",
   },
 ];
 
 export function FeatureGrid() {
   return (
-    <section id="features" className="scroll-mt-20 bg-white py-16 lg:py-24">
+    <section id="features" className="bg-[#F8FAFF] py-14 lg:py-16">
       <div className="mx-auto max-w-full px-5 sm:px-6 md:max-w-3xl lg:max-w-6xl lg:px-8">
-        <div className="text-center">
-          <h2 className="text-2xl font-semibold tracking-[-0.03em] text-[#17264A] sm:text-3xl lg:text-[2.5rem]">
-            Всё, что нужно для восстановления
-          </h2>
-        </div>
+        <h2 className="text-center text-2xl font-semibold tracking-[-0.03em] text-[#17264A] sm:text-3xl">
+          Всё, что нужно для восстановления
+        </h2>
 
-        {/* mobile: 2 колонки; md+: 3 колонки */}
-        <div className="mt-10 grid grid-cols-2 gap-4 md:grid-cols-3">
+        <div className="mt-10 grid grid-cols-2 gap-x-6 gap-y-8 lg:grid-cols-3">
           {features.map((f) => {
             const Icon = f.icon;
             return (
-              <div
-                key={f.title}
-                className="flex flex-col rounded-2xl border border-[#DDE3F0] bg-white p-4 shadow-sm sm:p-5"
-              >
-                <div
-                  className={cn(
-                    "mb-3 flex h-11 w-11 items-center justify-center rounded-2xl sm:h-12 sm:w-12",
-                    toneClass[f.tone],
-                  )}
-                >
-                  <Icon className="h-5 w-5 sm:h-6 sm:w-6" aria-hidden />
+              <div key={f.title} className="text-center">
+                <div className={cn("mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl", toneClass[f.tone])}>
+                  <Icon className="h-5 w-5" aria-hidden />
                 </div>
-                <h3 className="text-sm font-semibold leading-snug text-[#17264A] sm:text-base">{f.title}</h3>
-                <p className="mt-1.5 text-xs leading-5 text-[#667085] sm:mt-2 sm:text-sm sm:leading-6">
-                  {f.description}
-                </p>
+                <h3 className="text-sm font-semibold text-[#17264A] sm:text-base">{f.title}</h3>
+                <p className="mx-auto mt-2 max-w-[17rem] text-xs leading-5 text-[#667085] sm:text-sm sm:leading-6">{f.description}</p>
               </div>
             );
           })}

@@ -319,10 +319,18 @@ export function AuthFlowV2({
   /** Пока конфиг грузится — считаем, что Telegram-вход может появиться; после ответа — только если бот задан. */
   const showTelegramAuthSlot = !telegramLoginConfigLoaded || telegramWidgetReady;
 
-  const goBackToEntry = () => {
-    setSmsStartCooldownSec(0);
+  const resetEmailAuthFields = () => {
+    setEmailAuthMode("pick");
+    setEmailRegChallengeId(null);
+    setEmailRegRetrySec(60);
+    setEmailRegPassword("");
     setEmailLoginEmail("");
     setEmailLoginPassword("");
+  };
+
+  const goBackToEntry = () => {
+    setSmsStartCooldownSec(0);
+    resetEmailAuthFields();
     if (hasWebOauthAlternatives && !isMessengerMiniAppHost()) {
       setStep("oauth_first");
     } else if (telegramBotUsername) {
@@ -337,8 +345,7 @@ export function AuthFlowV2({
   const openEmailPasswordLogin = (returnTo: "oauth_first" | "landing" | "phone") => {
     engageInteractive();
     setEmailPasswordReturn(returnTo);
-    setEmailLoginEmail("");
-    setEmailLoginPassword("");
+    resetEmailAuthFields();
     setStep("email_password");
   };
 
@@ -372,6 +379,53 @@ export function AuthFlowV2({
         return;
       }
       toast.error("Не удалось войти");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const submitEmailRegister = async (e: FormEvent) => {
+    e.preventDefault();
+    engageInteractive();
+    const email = emailLoginEmail.trim();
+    const password = emailRegPassword;
+    if (!email || !password) {
+      toast.error("Введите email и пароль");
+      return;
+    }
+    if (password.length < 8) {
+      toast.error("Пароль не менее 8 символов");
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await fetch("/api/auth/email-password/register", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        challengeId?: string;
+        retryAfterSeconds?: number;
+        error?: string;
+        message?: string;
+      };
+      if (res.status === 409 || data.error === "duplicate_email") {
+        toast.error("Этот email уже занят или неверный пароль");
+        return;
+      }
+      if (data.ok && data.challengeId) {
+        setEmailRegChallengeId(data.challengeId);
+        setEmailRegRetrySec(data.retryAfterSeconds ?? 60);
+        setEmailAuthMode("verify");
+        return;
+      }
+      if (res.status === 429 || data.error === "rate_limited") {
+        toast.error(data.message ?? "Слишком частые запросы");
+        return;
+      }
+      toast.error(data.message ?? "Не удалось отправить код");
     } finally {
       setLoading(false);
     }
@@ -489,39 +543,177 @@ export function AuthFlowV2({
           className={authLinkButtonClass}
           disabled={loading}
           onClick={() => {
-            setEmailLoginEmail("");
-            setEmailLoginPassword("");
-            setStep(emailPasswordReturn);
+            if (emailAuthMode === "pick") {
+              resetEmailAuthFields();
+              setStep(emailPasswordReturn);
+              return;
+            }
+            if (emailAuthMode === "verify") {
+              setEmailRegChallengeId(null);
+              setEmailAuthMode("register");
+              return;
+            }
+            setEmailAuthMode("pick");
           }}
         >
           Назад
         </Button>
-        <form className="mt-2 flex w-full flex-col gap-3" onSubmit={(e) => void submitEmailPasswordLogin(e)}>
-          <Input
-            type="email"
-            name="email"
-            autoComplete="email"
-            inputMode="email"
-            aria-label="Email"
-            value={emailLoginEmail}
-            onChange={(e) => setEmailLoginEmail(e.target.value)}
-            disabled={loading}
-            className="w-full"
-          />
-          <Input
-            type="password"
-            name="password"
-            autoComplete="current-password"
-            aria-label="Пароль"
-            value={emailLoginPassword}
-            onChange={(e) => setEmailLoginPassword(e.target.value)}
-            disabled={loading}
-            className="w-full"
-          />
-          <Button type="submit" className={patientPrimaryActionClass} disabled={loading}>
-            Войти
-          </Button>
-        </form>
+
+        {emailAuthMode === "pick" ? (
+          <div className="mt-4 flex w-full flex-col items-center gap-3">
+            <Button
+              type="button"
+              variant="default"
+              className={AUTH_LOGIN_PRIMARY_BUTTON_CLASS}
+              disabled={loading}
+              onClick={() => setEmailAuthMode("login")}
+            >
+              Вход
+            </Button>
+            <Button
+              type="button"
+              variant="default"
+              className={AUTH_LOGIN_PRIMARY_BUTTON_CLASS}
+              disabled={loading}
+              onClick={() => setEmailAuthMode("register")}
+            >
+              Регистрация
+            </Button>
+          </div>
+        ) : null}
+
+        {emailAuthMode === "login" ? (
+          <form className="mt-2 flex w-full flex-col gap-3" onSubmit={(e) => void submitEmailPasswordLogin(e)}>
+            <Input
+              type="email"
+              name="email"
+              autoComplete="email"
+              inputMode="email"
+              aria-label="Email"
+              value={emailLoginEmail}
+              onChange={(e) => setEmailLoginEmail(e.target.value)}
+              disabled={loading}
+              className="w-full"
+            />
+            <Input
+              type="password"
+              name="password"
+              autoComplete="current-password"
+              aria-label="Пароль"
+              value={emailLoginPassword}
+              onChange={(e) => setEmailLoginPassword(e.target.value)}
+              disabled={loading}
+              className="w-full"
+            />
+            <Button type="submit" className={patientPrimaryActionClass} disabled={loading}>
+              Войти
+            </Button>
+          </form>
+        ) : null}
+
+        {emailAuthMode === "register" ? (
+          <form className="mt-2 flex w-full flex-col gap-3" onSubmit={(e) => void submitEmailRegister(e)}>
+            <Input
+              type="email"
+              name="reg-email"
+              autoComplete="email"
+              inputMode="email"
+              aria-label="Email"
+              value={emailLoginEmail}
+              onChange={(e) => setEmailLoginEmail(e.target.value)}
+              disabled={loading}
+              className="w-full"
+            />
+            <Input
+              type="password"
+              name="reg-password"
+              autoComplete="new-password"
+              aria-label="Пароль"
+              value={emailRegPassword}
+              onChange={(e) => setEmailRegPassword(e.target.value)}
+              disabled={loading}
+              className="w-full"
+            />
+            <Button type="submit" className={patientPrimaryActionClass} disabled={loading}>
+              Продолжить
+            </Button>
+          </form>
+        ) : null}
+
+        {emailAuthMode === "verify" && emailRegChallengeId ? (
+          <div className="mt-2">
+            <OtpCodeForm
+              challengeId={emailRegChallengeId}
+              retryAfterSeconds={emailRegRetrySec}
+              supportContactHref={supportContactHref}
+              submitLabel="Продолжить"
+              description="Введите код из письма."
+              onConfirm={async (code) => {
+                engageInteractive();
+                const res = await fetch("/api/auth/email-password/register/confirm", {
+                  method: "POST",
+                  headers: { "content-type": "application/json" },
+                  body: JSON.stringify({ challengeId: emailRegChallengeId, code }),
+                });
+                const data = (await res.json().catch(() => ({}))) as {
+                  ok?: boolean;
+                  redirectTo?: string;
+                  role?: "client" | "doctor" | "admin";
+                  error?: string;
+                  message?: string;
+                  retryAfterSeconds?: number;
+                };
+                if (data.ok && data.redirectTo) {
+                  redirectOk(data.redirectTo, data.role);
+                  return { ok: true as const, redirectTo: data.redirectTo };
+                }
+                if (res.status === 429 || data.error === "too_many_attempts") {
+                  return {
+                    ok: false as const,
+                    message: data.message ?? "",
+                    code: "too_many_attempts",
+                    retryAfterSeconds: data.retryAfterSeconds,
+                  };
+                }
+                return { ok: false as const, message: data.message ?? "Ошибка" };
+              }}
+              onResend={async () => {
+                const email = emailLoginEmail.trim();
+                const password = emailRegPassword;
+                if (!email || !password) {
+                  return { kind: "error" as const, message: "Нет данных для повторной отправки" };
+                }
+                const res = await fetch("/api/auth/email-password/register", {
+                  method: "POST",
+                  headers: { "content-type": "application/json" },
+                  body: JSON.stringify({ email, password }),
+                });
+                const data = (await res.json().catch(() => ({}))) as {
+                  ok?: boolean;
+                  challengeId?: string;
+                  retryAfterSeconds?: number;
+                  error?: string;
+                  message?: string;
+                };
+                if (data.ok && data.challengeId) {
+                  setEmailRegChallengeId(data.challengeId);
+                  setEmailRegRetrySec(data.retryAfterSeconds ?? 60);
+                  return { kind: "ok" as const };
+                }
+                if (res.status === 429 || data.error === "rate_limited") {
+                  const sec = Math.max(1, Math.ceil(data.retryAfterSeconds ?? 60));
+                  setEmailRegRetrySec(sec);
+                  return { kind: "rate_limited" as const, retryAfterSeconds: sec };
+                }
+                return { kind: "error" as const, message: data.message ?? "Не удалось отправить код" };
+              }}
+              onBack={() => {
+                setEmailRegChallengeId(null);
+                setEmailAuthMode("register");
+              }}
+            />
+          </div>
+        ) : null}
       </div>
     );
   }

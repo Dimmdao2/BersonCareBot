@@ -8,6 +8,8 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
     userPasswordCredentials: {
       registerPendingVerification: registerPending,
       deleteUnverifiedEmailPasswordRegistration: deleteUnverified,
+      tryResendRegistrationChallenge: vi.fn().mockResolvedValue({ ok: false }),
+      findUserIdByEmailChallengeId: vi.fn(),
     },
   }),
 }));

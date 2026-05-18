@@ -128,8 +128,8 @@
 
 - Подтверждённый email в учётке используется backend’ом для **OTP на почту** и для потока **email+password** там, где эти API вызываются.
 - **Публичный веб-вход на `/app`:** OTP на **email** доступен, если в `check-phone` пришёл `methods.email` (подтверждённый email в учётке); **`isOtpChannelAvailablePublic`** для **`email`** совпадает с полным набором (для **`sms`** всегда **`false`**). Порядок альтернатив — **`OTP_PUBLIC_OTHER_CHANNELS_ORDER`** (**max** → **email** → **telegram**). **`pickOtpChannelWithPreferencePublic`** учитывает предпочтение **`telegram` / `max` / `email`**, но **никогда** не выберет **`sms`** для публичного веба.
-- **Экран входа по email+паролю на `/app`:** кнопка «Войти по email» на `oauth_first` / `landing` и ссылка на шаге телефона → шаг `email_password` → `POST /api/auth/email-password/login` (регистрация и сброс пароля — только API, см. ниже).
-- **Экрана регистрации email+пароль в UI `/app` нет** — `POST /api/auth/email-password/register` и forgot/reset; визуальный вход на сайте дополняется OAuth, Max, телефоном и формой email+пароль, как выше.
+- **Экран входа по email+паролю на `/app`:** кнопка «Войти по email» → выбор **Вход** / **Регистрация** → вход `POST /api/auth/email-password/login` или регистрация `POST /api/auth/email-password/register` → ввод кода → **`POST /api/auth/email-password/register/confirm`** (сессия после успеха). Повторная отправка кода — снова `POST .../register` с тем же email и паролем (ветка неподтверждённой учётки).
+- **Сброс пароля (`forgot` / `reset`)** в UI `/app` не реализован — только API.
 
 ## Телефон и OTP
 
