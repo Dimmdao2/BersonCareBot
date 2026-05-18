@@ -660,6 +660,13 @@ describe("pickMergeTargetId", () => {
     created_at: new Date(created),
   });
 
+  it("prefers higher patientBookingCount when both share phone", () => {
+    const lowBook = { ...cand("a", "+7900", null, "2021-01-01"), patientBookingCount: 1 };
+    const highBook = { ...cand("b", "+7900", null, "2020-01-01"), patientBookingCount: 10 };
+    expect(pickMergeTargetId(lowBook, highBook)).toEqual({ target: "b", duplicate: "a" });
+    expect(pickMergeTargetId(highBook, lowBook)).toEqual({ target: "b", duplicate: "a" });
+  });
+
   it("prefers row with phone when the other has none", () => {
     const withPhone = cand("a", "+7900", null, "2021-01-01");
     const noPhone = cand("b", null, "99", "2020-01-01");

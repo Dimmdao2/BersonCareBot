@@ -1,7 +1,7 @@
 import { isSafeExternalHref } from "@/lib/url/isSafeExternalHref";
 import { getConfigValue } from "@/modules/system-settings/configAdapter";
 import { getMaxLoginBotNickname, normalizeMaxBotNicknameInput } from "@/modules/system-settings/maxLoginBotNickname";
-import { getTelegramLoginBotUsername } from "@/modules/system-settings/telegramLoginBotUsername";
+import { getSmsFallbackEnabled } from "@/modules/system-settings/smsFallbackPolicy";
 
 export type LoginAlternativesPublicConfig = {
   telegramBotUsername: string | null;
@@ -9,6 +9,8 @@ export type LoginAlternativesPublicConfig = {
   maxBotOpenUrl: string | null;
   /** Ссылка из кабинета VK (OAuth, VK ID, vk.me и т.д.). */
   vkWebLoginUrl: string | null;
+  /** Глобальный флаг SMS fallback (`sms_fallback_enabled`, doctor→admin fallback в БД). */
+  smsFallbackEnabled: boolean;
 };
 
 /** Публичные URL для экрана входа (Max, VK и т.д.), без секретов. */
@@ -21,9 +23,12 @@ export async function getLoginAlternativesPublicConfig(): Promise<LoginAlternati
   const vkRaw = (await getConfigValue("vk_web_login_url", "")).trim();
   const vkWebLoginUrl = vkRaw.length > 0 && isSafeExternalHref(vkRaw) ? vkRaw : null;
 
+  const smsFallbackEnabled = await getSmsFallbackEnabled();
+
   return {
     telegramBotUsername: tgRaw.length > 0 ? tgRaw : null,
     maxBotOpenUrl,
     vkWebLoginUrl,
+    smsFallbackEnabled,
   };
 }

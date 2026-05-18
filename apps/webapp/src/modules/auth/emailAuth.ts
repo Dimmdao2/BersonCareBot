@@ -167,8 +167,8 @@ export async function confirmEmailChallenge(userId: string, challengeId: string,
   }
 
   await pool.query(
-    "UPDATE platform_users SET email = $1, email_verified_at = now(), updated_at = now() WHERE id = $2",
-    [r.email, userId]
+    "UPDATE platform_users SET email = $1, email_normalized = lower(btrim($1)), email_verified_at = now(), updated_at = now() WHERE id = $2",
+    [r.email, userId],
   );
   await pool.query("DELETE FROM email_challenges WHERE user_id = $1", [userId]);
 

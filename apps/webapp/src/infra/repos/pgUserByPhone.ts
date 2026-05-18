@@ -6,10 +6,11 @@ import type { UserByPhonePort } from "@/modules/auth/userByPhonePort";
 import { channelToBindingKey } from "@/modules/auth/channelContext";
 import { normalizeRuPhoneE164 } from "@/shared/phone/normalizeRuPhoneE164";
 import { findCanonicalUserIdByPhone, resolveCanonicalUserId } from "@/infra/repos/pgCanonicalPlatformUser";
-import { mergePlatformUsersInTransaction, pickMergeTargetId } from "@/infra/repos/pgPlatformUserMerge";
+import { mergePlatformUsersInTransaction, pickMergeTargetId, enrichPickMergeCandidatesWithBookingCounts } from "@/infra/repos/pgPlatformUserMerge";
 import type { PoolClient } from "pg";
 
 import { upsertBroadcastDefaultsAfterChannelBind } from "@/infra/upsertBroadcastDefaultsAfterChannelBind";
+import { applyPlatformUserPhoneHistoryTransition } from "@/infra/repos/pgPhoneHistory";
 import { MergeConflictError, MergeDependentConflictError } from "@/infra/repos/platformUserMergeErrors";
 import {
   TrustedPatientPhoneSource,
@@ -187,6 +188,11 @@ export const pgUserByPhonePort: UserByPhonePort = {
         );
         userId = insert.rows[0]!.id;
         displayName = insert.rows[0]!.display_name;
+        await applyPlatformUserPhoneHistoryTransition(client, {
+          platformUserId: userId,
+          newPhoneNormalized: normalized,
+          source: "otp",
+        });
       }
 
       if (key) {
@@ -212,7 +218,8 @@ export const pgUserByPhonePort: UserByPhonePort = {
             const a = await loadPuRowForMerge(client, userId);
             const b = await loadPuRowForMerge(client, other);
             if (!a || !b) throw new MergeConflictError("createOrBind: row load failed", [userId, other]);
-            const { target, duplicate } = pickMergeTargetId(a, b);
+            const [ea, eb] = await enrichPickMergeCandidatesWithBookingCounts(client, a, b);
+            const { target, duplicate } = pickMergeTargetId(ea, eb);
             try {
               await mergePlatformUsersInTransaction(client, target, duplicate, "phone_bind");
             } catch (e) {

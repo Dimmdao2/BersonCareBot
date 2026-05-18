@@ -7,6 +7,7 @@ import { mergeLogger as logger } from "./mergeLogger.js";
 import {
   mergePlatformUsersInTransaction,
   pickMergeTargetId,
+  enrichPickMergeCandidatesWithBookingCounts,
   type PickMergeTargetCandidate,
   type PlatformMergeDbClient,
 } from "./pgPlatformUserMerge.js";
@@ -141,7 +142,8 @@ async function mergePairIfDistinct(
       candidateIds: [idA, idB],
     });
   }
-  const { target, duplicate } = pickMergeTargetId(a, b);
+  const [ea, eb] = await enrichPickMergeCandidatesWithBookingCounts(mergeClient, a, b);
+  const { target, duplicate } = pickMergeTargetId(ea, eb);
   await mergePlatformUsersInTransaction(mergeClient, target, duplicate, "phone_bind");
 }
 

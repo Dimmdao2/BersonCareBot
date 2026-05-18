@@ -77,16 +77,23 @@ export function createPgAppointmentProjectionPort(): AppointmentProjectionPort {
       const pool = getPool();
       await pool.query(
         `INSERT INTO appointment_records (
-          integrator_record_id, phone_normalized, record_at, status, payload_json, last_event, updated_at, branch_id
-        ) VALUES ($1, $2, $3::timestamptz, $4, $5::jsonb, $6, $7::timestamptz, $8::uuid)
+          integrator_record_id, phone_normalized, record_at, status, payload_json, last_event, updated_at, branch_id,
+          platform_user_id
+        )
+        SELECT $1, $2, $3::timestamptz, $4, $5::jsonb, $6, $7::timestamptz, $8::uuid,
+          COALESCE(
+            (SELECT id FROM platform_users WHERE merged_into_id IS NULL AND phone_normalized = $2 LIMIT 1),
+            (SELECT platform_user_id FROM user_phone_history WHERE phone_normalized = $2 AND valid_to IS NULL LIMIT 1)
+          )
         ON CONFLICT (integrator_record_id) DO UPDATE SET
-          phone_normalized = EXCLUDED.phone_normalized,
+          phone_normalized = COALESCE(appointment_records.phone_normalized, EXCLUDED.phone_normalized),
           record_at = EXCLUDED.record_at,
           status = EXCLUDED.status,
           payload_json = EXCLUDED.payload_json,
           last_event = EXCLUDED.last_event,
           updated_at = EXCLUDED.updated_at,
-          branch_id = EXCLUDED.branch_id`,
+          branch_id = EXCLUDED.branch_id,
+          platform_user_id = COALESCE(appointment_records.platform_user_id, EXCLUDED.platform_user_id)`,
         [
           params.integratorRecordId,
           params.phoneNormalized,
@@ -96,7 +103,7 @@ export function createPgAppointmentProjectionPort(): AppointmentProjectionPort {
           params.lastEvent,
           params.updatedAt,
           params.branchId ?? null,
-        ]
+        ],
       );
     },
 

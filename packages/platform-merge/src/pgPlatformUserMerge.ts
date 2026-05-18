@@ -54,7 +54,14 @@ type PuRow = {
   created_at: Date;
 };
 
-export type PickMergeTargetCandidate = Pick<PuRow, "id" | "phone_normalized" | "integrator_user_id" | "created_at">;
+export type PickMergeTargetCandidate = {
+  id: string;
+  phone_normalized: string | null;
+  integrator_user_id: string | null;
+  created_at: Date;
+  /** Количество строк `patient_bookings` для канона — выше приоритет как merge target (native bookings). */
+  patientBookingCount?: number;
+};
 
 function preservedEmailVerifiedAtSql(chosenEmailSql: string): string {
   return `CASE
@@ -310,6 +317,14 @@ export async function mergePlatformUsersInTransaction(
     [targetId, duplicateId],
   );
   await client.query(
+    `UPDATE appointment_records SET platform_user_id = $1::uuid WHERE platform_user_id = $2::uuid`,
+    [targetId, duplicateId],
+  );
+  await client.query(
+    `UPDATE user_phone_history SET platform_user_id = $1::uuid WHERE platform_user_id = $2::uuid`,
+    [targetId, duplicateId],
+  );
+  await client.query(
     `UPDATE online_intake_requests SET user_id = $1::uuid WHERE user_id = $2::uuid`,
     [targetId, duplicateId],
   );
@@ -338,6 +353,22 @@ export async function mergePlatformUsersInTransaction(
     [targetId, duplicateId],
   );
   await client.query(`UPDATE email_challenges SET user_id = $1::uuid WHERE user_id = $2::uuid`, [targetId, duplicateId]);
+
+  const pwTarget = await client.query(`SELECT 1 FROM user_password_credentials WHERE user_id = $1::uuid LIMIT 1`, [
+    targetId,
+  ]);
+  const pwDup = await client.query(`SELECT 1 FROM user_password_credentials WHERE user_id = $1::uuid LIMIT 1`, [
+    duplicateId,
+  ]);
+  if (pwTarget.rows.length === 0 && pwDup.rows.length > 0) {
+    await client.query(`UPDATE user_password_credentials SET user_id = $1::uuid WHERE user_id = $2::uuid`, [
+      targetId,
+      duplicateId,
+    ]);
+  } else {
+    await client.query(`DELETE FROM user_password_credentials WHERE user_id = $1::uuid`, [duplicateId]);
+  }
+
   await client.query(
     `INSERT INTO email_send_cooldowns (user_id, email_normalized, last_sent_at)
      SELECT $1::uuid, email_normalized, last_sent_at
@@ -514,6 +545,14 @@ export async function mergePlatformUsersInTransaction(
       [targetId, duplicateId],
     );
   }
+
+  await client.query(
+    `UPDATE platform_users SET email_normalized = CASE
+       WHEN email IS NOT NULL AND btrim(email) <> '' THEN lower(btrim(email))
+       ELSE NULL
+     END WHERE id = $1::uuid`,
+    [targetId],
+  );
 
   await client.query(
     `UPDATE platform_users SET
@@ -838,14 +877,44 @@ async function assertPatientLfkAssignmentsSafe(
 }
 
 /**
+ * Загружает счётчики `patient_bookings` для пары кандидатов перед {@link pickMergeTargetId}.
+ */
+export async function enrichPickMergeCandidatesWithBookingCounts(
+  client: PlatformMergeDbClient,
+  a: PickMergeTargetCandidate,
+  b: PickMergeTargetCandidate,
+): Promise<[PickMergeTargetCandidate, PickMergeTargetCandidate]> {
+  const r = await client.query<{ uid: string; c: string }>(
+    `SELECT platform_user_id::text AS uid, COUNT(*)::text AS c
+     FROM patient_bookings
+     WHERE platform_user_id = ANY($1::uuid[])
+     GROUP BY platform_user_id`,
+    [[a.id, b.id]],
+  );
+  const map = new Map<string, number>();
+  for (const row of r.rows) {
+    map.set(row.uid, parseInt(row.c, 10));
+  }
+  return [
+    { ...a, patientBookingCount: map.get(a.id) ?? 0 },
+    { ...b, patientBookingCount: map.get(b.id) ?? 0 },
+  ];
+}
+
+/**
  * Pick canonical target id from two distinct candidate ids.
- * Priority: row with phone vs without → **older created_at** (Rubitime / CRM row before bot stub) → integrator id → stable id.
- * Older `created_at` avoids choosing a newer bot-linked row over an existing phone client when both share the same number.
+ * Priority: **больше подтверждённых native-бронирований** (`patientBookingCount`) → row with phone vs without → **older created_at** → integrator id → stable id.
  */
 export function pickMergeTargetId(
   a: PickMergeTargetCandidate,
   b: PickMergeTargetCandidate,
 ): { target: string; duplicate: string } {
+  const ba = a.patientBookingCount ?? 0;
+  const bb = b.patientBookingCount ?? 0;
+  if (ba !== bb) {
+    return ba > bb ? { target: a.id, duplicate: b.id } : { target: b.id, duplicate: a.id };
+  }
+
   const hasPhone = (r: PickMergeTargetCandidate) => (r.phone_normalized?.trim() ? 1 : 0);
   const pa = hasPhone(a);
   const pb = hasPhone(b);

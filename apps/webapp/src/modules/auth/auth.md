@@ -65,7 +65,7 @@
 
 ### Сессия после входа
 
-Общая логика `oauthWebSession.completeOAuthWebLoginRedirectUrls` (и аналог для Яндекса): `setSessionFromUser`, редирект по роли; **без телефона** — редирект на привязку номера (`/app/patient/bind-phone`, `reason=oauth_phone_required`). На странице привязки в браузере — **channel-link** (`POST /api/auth/channel-link/start`, deep link `link_*` в боте) и при уже привязанном чате — `POST /api/patient/messenger/request-contact`; SMS не используется.
+Общая логика `oauthWebSession.completeOAuthWebLoginRedirectUrls` (и аналог для Яндекса): `setSessionFromUser`, редирект по роли; **без телефона** — если нет **подтверждённого email** (`email_verified_at`), редирект на привязку номера (`/app/patient/bind-phone`, `reason=oauth_phone_required`); при verified email пользователь может продолжить без немедленной привязки телефона (отдельный gate для записи на приём). На странице привязки в браузере — **channel-link** (`POST /api/auth/channel-link/start`, deep link `link_*` в боте) и при уже привязанном чате — `POST /api/patient/messenger/request-contact`; SMS зависит от `sms_fallback_enabled`.
 
 ### Пациент: `need_activation` и навигация
 

@@ -10,6 +10,7 @@ type CanonRow = {
   role: string;
   phone_normalized: string | null;
   patient_phone_trust_at: Date | null;
+  email_verified_at: Date | null;
 };
 
 /** DoD §8 / MASTER_PLAN §3.8: tier + trust signals (no raw phone). Skips noisy happy path (patient + trusted + resolved_canon). */
@@ -43,7 +44,9 @@ function computeClientTier(row: CanonRow): {
 } {
   const hasPhoneInDb = Boolean(row.phone_normalized?.trim());
   const phoneTrustedForPatient = isTrustedPatientPhoneActivation(row);
-  const tier: ClientAccessTier = phoneTrustedForPatient ? "patient" : "onboarding";
+  const emailVerifiedCabinet = row.email_verified_at != null;
+  const tier: ClientAccessTier =
+    phoneTrustedForPatient || emailVerifiedCabinet ? "patient" : "onboarding";
   return { tier, hasPhoneInDb, phoneTrustedForPatient };
 }
 
@@ -97,7 +100,7 @@ export async function resolvePlatformAccessContext(
 
   const canonicalUserId = (await resolveCanonicalUserId(db, sessionUserId)) ?? sessionUserId;
   const r = await db.query<CanonRow>(
-    `SELECT role, phone_normalized, patient_phone_trust_at
+    `SELECT role, phone_normalized, patient_phone_trust_at, email_verified_at
      FROM platform_users WHERE id = $1::uuid`,
     [canonicalUserId],
   );

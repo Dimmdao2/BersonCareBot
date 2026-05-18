@@ -1,13 +1,14 @@
 import { getPool } from "@/infra/db/client";
 import { findCanonicalUserIdByChannelBinding } from "@/infra/repos/pgCanonicalPlatformUser";
 import { MergeConflictError, MergeDependentConflictError } from "@/infra/repos/platformUserMergeErrors";
-import { mergePlatformUsersInTransaction, pickMergeTargetId } from "@/infra/repos/pgPlatformUserMerge";
+import { mergePlatformUsersInTransaction, pickMergeTargetId, enrichPickMergeCandidatesWithBookingCounts } from "@/infra/repos/pgPlatformUserMerge";
 import {
   TrustedPatientPhoneSource,
   trustedPatientPhoneWriteAnchor,
 } from "@/modules/platform-access/trustedPhonePolicy";
 import type { PoolClient } from "pg";
 import { upsertBroadcastDefaultsAfterChannelBind } from "@/infra/upsertBroadcastDefaultsAfterChannelBind";
+import { applyPlatformUserPhoneHistoryTransition } from "@/infra/repos/pgPhoneHistory";
 
 export type UserProjectionPort = {
   upsertFromProjection: (params: {
@@ -123,7 +124,8 @@ async function mergeCandidates(
     const a = await loadPuRow(client, id0);
     const b = await loadPuRow(client, id1);
     if (!a || !b) throw new MergeConflictError("mergeCandidates: row missing", ids);
-    const { target, duplicate } = pickMergeTargetId(a, b);
+    const [ea, eb] = await enrichPickMergeCandidatesWithBookingCounts(client, a, b);
+    const { target, duplicate } = pickMergeTargetId(ea, eb);
     try {
       await mergePlatformUsersInTransaction(client, target, duplicate, reason);
     } catch (e) {
@@ -417,10 +419,25 @@ export const pgUserProjectionPort: UserProjectionPort = {
   async updatePhone(platformUserId, phoneNormalized) {
     const pool = getPool();
     trustedPatientPhoneWriteAnchor(TrustedPatientPhoneSource.IntegratorUpdatePhone);
-    await pool.query(
-      "UPDATE platform_users SET phone_normalized = $1, patient_phone_trust_at = now(), updated_at = now() WHERE id = $2",
-      [phoneNormalized, platformUserId],
-    );
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(
+        "UPDATE platform_users SET phone_normalized = $1, patient_phone_trust_at = now(), updated_at = now() WHERE id = $2",
+        [phoneNormalized, platformUserId],
+      );
+      await applyPlatformUserPhoneHistoryTransition(client, {
+        platformUserId,
+        newPhoneNormalized: phoneNormalized,
+        source: "projection",
+      });
+      await client.query("COMMIT");
+    } catch (e) {
+      await client.query("ROLLBACK");
+      throw e;
+    } finally {
+      client.release();
+    }
   },
 
   async updateDisplayName(platformUserId, displayName) {
@@ -523,7 +540,7 @@ export const pgUserProjectionPort: UserProjectionPort = {
       return { outcome: "skipped_conflict" as const };
     }
     await pool.query(
-      `UPDATE platform_users SET email = $1, email_verified_at = NULL, updated_at = now()
+      `UPDATE platform_users SET email = $1, email_normalized = lower(btrim($1)), email_verified_at = NULL, updated_at = now()
        WHERE id = $2`,
       [emailNorm, u.id],
     );
@@ -579,6 +596,12 @@ export const pgUserProjectionPort: UserProjectionPort = {
           ELSE email_verified_at
         END`,
       );
+      sets.push(
+        `email_normalized = CASE
+          WHEN $${emailN}::text IS NULL OR btrim(COALESCE($${emailN}::text, '')) = '' THEN NULL
+          ELSE lower(btrim($${emailN}::text))
+        END`,
+      );
     }
     if (patch.phoneNormalized !== undefined) {
       trustedPatientPhoneWriteAnchor(TrustedPatientPhoneSource.AdminManualProfilePatch);
@@ -602,16 +625,38 @@ export const pgUserProjectionPort: UserProjectionPort = {
     const idPlaceholder = n;
     vals.push(platformUserId);
 
-    const result = await pool.query(
-      `UPDATE platform_users SET ${sets.join(", ")}
-       WHERE id = $${idPlaceholder}::uuid AND role = 'client' AND merged_into_id IS NULL`,
-      vals,
-    );
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const result = await client.query(
+        `UPDATE platform_users SET ${sets.join(", ")}
+         WHERE id = $${idPlaceholder}::uuid AND role = 'client' AND merged_into_id IS NULL`,
+        vals,
+      );
 
-    if (result.rowCount === 0) {
-      return { ok: false as const, reason: "not_found_or_not_client" as const };
+      if ((result.rowCount ?? 0) > 0 && patch.phoneNormalized !== undefined) {
+        const pn =
+          patch.phoneNormalized != null && String(patch.phoneNormalized).trim().length > 0
+            ? String(patch.phoneNormalized).trim()
+            : null;
+        await applyPlatformUserPhoneHistoryTransition(client, {
+          platformUserId,
+          newPhoneNormalized: pn,
+          source: "admin",
+        });
+      }
+
+      await client.query("COMMIT");
+      if (result.rowCount === 0) {
+        return { ok: false as const, reason: "not_found_or_not_client" as const };
+      }
+      return { ok: true as const };
+    } catch (e) {
+      await client.query("ROLLBACK");
+      throw e;
+    } finally {
+      client.release();
     }
-    return { ok: true as const };
   },
 };
 

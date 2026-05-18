@@ -175,7 +175,7 @@ export function patientPageMinAccessTier(pathname: string): ClientAccessTier {
   return "onboarding";
 }
 
-/** Префиксы API, где операции от имени пациента требуют tier patient (общий gate в handlers). */
+/** Префиксы API, где операции от имени пациента требуют tier patient (`patientClientBusinessGate`). Для подтверждения native-записи и отмены см. {@link requirePatientBookingTrustedPhoneAccess}. */
 export const PATIENT_BUSINESS_API_PREFIXES = ["/api/patient/", "/api/booking/"] as const;
 
 /** `POST …/pin/set` и `…/verify` — с `requirePatientApiBusinessAccess`; `…/pin/login` — отдельный поток входа (без gate). */

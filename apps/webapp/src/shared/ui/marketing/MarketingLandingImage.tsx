@@ -46,6 +46,8 @@ export function MarketingLandingImage({ src, alt, ratio, className }: MarketingL
           <div className="h-12 w-12 rounded-full border-2 border-dashed border-[#284da0]/25" />
         </div>
       ) : (
+        /* Локальные файлы из `public/landing/`, нужны onLoad/onError — next/image без кастомного loader не покрывает */
+        // eslint-disable-next-line @next/next/no-img-element -- см. комментарий выше
         <img
           src={src}
           alt={alt}

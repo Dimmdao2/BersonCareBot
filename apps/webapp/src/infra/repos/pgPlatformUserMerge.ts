@@ -8,4 +8,4 @@ export type {
   VerifiedDistinctIntegratorUserIds,
 } from "@bersoncare/platform-merge";
 
-export { mergePlatformUsersInTransaction, pickMergeTargetId } from "@bersoncare/platform-merge";
+export { mergePlatformUsersInTransaction, pickMergeTargetId, enrichPickMergeCandidatesWithBookingCounts } from "@bersoncare/platform-merge";

@@ -79,7 +79,7 @@ export function SettingsForm({ patientLabel, smsFallbackEnabled }: SettingsFormP
 
         <LabeledSwitch
           label="SMS fallback"
-          hint="Отправлять SMS, если нет подтверждения через мессенджер"
+          hint="Разрешить SMS для OTP и записи на приём; если выключено — только Telegram / Max / email."
           checked={smsFallback}
           onCheckedChange={setSmsFallback}
           disabled={isPending}

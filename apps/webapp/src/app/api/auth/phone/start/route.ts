@@ -6,6 +6,7 @@ import type { ChannelContext } from "@/modules/auth/channelContext";
 import { normalizePhone } from "@/modules/auth/phoneNormalize";
 import type { PhoneOtpDelivery } from "@/modules/auth/smsPort";
 import { isRuMobile, isValidPhoneE164 } from "@/modules/auth/phoneValidation";
+import { getSmsFallbackEnabled } from "@/modules/system-settings/smsFallbackPolicy";
 
 const bodySchema = z.object({
   phone: z.string().min(1),
@@ -64,6 +65,20 @@ export async function POST(request: Request) {
       { ok: false, error: "invalid_phone", message: "Неверный формат номера" },
       { status: 400 }
     );
+  }
+
+  if (deliveryChannel === "sms") {
+    const smsAllowed = await getSmsFallbackEnabled();
+    if (!smsAllowed) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "sms_disabled_by_policy",
+          message: "Отправка SMS отключена в настройках клиники.",
+        },
+        { status: 403 },
+      );
+    }
   }
 
   if (channel === "web" && deliveryChannel === "sms") {

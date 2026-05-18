@@ -1,7 +1,8 @@
 import { redirect } from "next/navigation";
 import { NextResponse } from "next/server";
 import { getCurrentSession } from "@/modules/auth/service";
-import { patientClientBusinessGate } from "@/modules/platform-access";
+import { patientClientBusinessGate, resolvePlatformAccessContext } from "@/modules/platform-access";
+import { getPool } from "@/infra/db/client";
 import { canAccessDoctor, canAccessPatient } from "@/modules/roles/service";
 import { routePaths } from "@/app-layer/routes/paths";
 import type { AppSession } from "@/shared/types/session";
@@ -115,6 +116,40 @@ export async function requirePatientApiBusinessAccess(options?: {
   }
 
   return { ok: true, session };
+}
+
+/** Как {@link requirePatientApiBusinessAccess}, плюс доверенный телефон (`patient_phone_trust_at`) для native-записи и отмены. */
+export async function requirePatientBookingTrustedPhoneAccess(options?: {
+  returnPath?: string;
+}): Promise<{ ok: true; session: AppSession } | { ok: false; response: NextResponse }> {
+  const gate = await requirePatientApiBusinessAccess(options);
+  if (!gate.ok) return gate;
+
+  try {
+    const ctx = await resolvePlatformAccessContext(getPool(), {
+      sessionUserId: gate.session.user.userId,
+      sessionRoleHint: gate.session.user.role,
+    });
+    if (!ctx.phoneTrustedForPatient) {
+      const ret = options?.returnPath ?? routePaths.patientBooking;
+      const next = encodeURIComponent(ret);
+      return {
+        ok: false,
+        response: NextResponse.json(
+          {
+            ok: false,
+            error: "booking_phone_trust_required",
+            message: "Для записи на приём нужен подтверждённый номер телефона.",
+            redirectTo: `${routePaths.bindPhone}?next=${next}`,
+          },
+          { status: 403 },
+        ),
+      };
+    }
+    return { ok: true, session: gate.session };
+  } catch {
+    return { ok: false, response: NextResponse.json({ ok: false, error: "server_error" }, { status: 500 }) };
+  }
 }
 
 /** @deprecated Используйте {@link requirePatientApiBusinessAccess}; алиас сохранён для совместимости. */

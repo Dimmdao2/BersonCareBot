@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requirePatientApiBusinessAccess } from "@/app-layer/guards/requireRole";
+import { requirePatientBookingTrustedPhoneAccess } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
 
 const onlineBody = z.object({
@@ -29,7 +29,7 @@ const inPersonBody = z.object({
 const bodySchema = z.discriminatedUnion("type", [onlineBody, inPersonBody]);
 
 export async function POST(request: Request) {
-  const gate = await requirePatientApiBusinessAccess({ returnPath: routePaths.patientBooking });
+  const gate = await requirePatientBookingTrustedPhoneAccess({ returnPath: routePaths.patientBooking });
   if (!gate.ok) return gate.response;
   const { session } = gate;
 

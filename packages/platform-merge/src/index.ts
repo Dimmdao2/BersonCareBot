@@ -16,6 +16,7 @@ export type {
 export {
   mergePlatformUsersInTransaction,
   pickMergeTargetId,
+  enrichPickMergeCandidatesWithBookingCounts,
 } from "./pgPlatformUserMerge.js";
 
 export type {

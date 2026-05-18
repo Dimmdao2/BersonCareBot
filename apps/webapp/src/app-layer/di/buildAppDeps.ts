@@ -106,6 +106,10 @@ import { createPgTopicChannelPrefsPort, inMemoryTopicChannelPrefsPort } from "@/
 import { pgUserProjectionPort, inMemoryUserProjectionPort } from "@/infra/repos/pgUserProjection";
 import { pgUserPinsPort } from "@/infra/repos/pgUserPins";
 import { inMemoryUserPinsPort } from "@/infra/repos/inMemoryUserPins";
+import {
+  createPgUserPasswordCredentialsPort,
+  inMemoryUserPasswordCredentialsPort,
+} from "@/infra/repos/pgUserPasswordCredentials";
 import { pgOAuthBindingsPort } from "@/infra/repos/pgOAuthBindings";
 import { inMemoryOAuthBindingsPort } from "@/infra/repos/inMemoryOAuthBindings";
 import { pgLoginTokensPort } from "@/infra/repos/pgLoginTokens";
@@ -234,6 +238,9 @@ const channelPreferencesPort = !inMemoryRepos ? pgChannelPreferencesPort : inMem
 const topicChannelPrefsPort = !inMemoryRepos ? createPgTopicChannelPrefsPort() : inMemoryTopicChannelPrefsPort;
 const userByPhonePort = !inMemoryRepos ? pgUserByPhonePort : inMemoryUserByPhonePort;
 const userPinsPort = !inMemoryRepos ? pgUserPinsPort : inMemoryUserPinsPort;
+const userPasswordCredentialsPort = !inMemoryRepos
+  ? createPgUserPasswordCredentialsPort()
+  : inMemoryUserPasswordCredentialsPort;
 const oauthBindingsPort = !inMemoryRepos ? pgOAuthBindingsPort : inMemoryOAuthBindingsPort;
 const loginTokensPort = !inMemoryRepos ? pgLoginTokensPort : inMemoryLoginTokensPort;
 const identityResolutionPort = !inMemoryRepos ? pgIdentityResolutionPort : inMemoryIdentityResolutionPort;
@@ -801,6 +808,7 @@ function _buildAppDeps() {
     contentSections: contentSectionsPort,
     userByPhone: userByPhonePort,
     userPins: userPinsPort,
+    userPasswordCredentials: userPasswordCredentialsPort,
     oauthBindings: oauthBindingsPort,
     loginTokens: loginTokensPort,
     systemSettings: systemSettingsService,

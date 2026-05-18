@@ -48,10 +48,18 @@ export async function completeOAuthWebLoginRedirectUrls(opts: {
   const finalRedirect = getRedirectPathForRole(role);
 
   if (!sessionUser.phone) {
-    const bindPhoneUrl = new URL(routePaths.bindPhone, appBase);
-    bindPhoneUrl.searchParams.set("next", finalRedirect);
-    bindPhoneUrl.searchParams.set("reason", "oauth_phone_required");
-    return { ok: true, redirectUrl: bindPhoneUrl.toString() };
+    let verifiedEmail: string | null = null;
+    try {
+      verifiedEmail = await pgUserByPhonePort.getVerifiedEmailForUser(opts.userId);
+    } catch {
+      verifiedEmail = null;
+    }
+    if (!verifiedEmail?.trim()) {
+      const bindPhoneUrl = new URL(routePaths.bindPhone, appBase);
+      bindPhoneUrl.searchParams.set("next", finalRedirect);
+      bindPhoneUrl.searchParams.set("reason", "oauth_phone_required");
+      return { ok: true, redirectUrl: bindPhoneUrl.toString() };
+    }
   }
 
   return { ok: true, redirectUrl: new URL(finalRedirect, appBase).toString() };

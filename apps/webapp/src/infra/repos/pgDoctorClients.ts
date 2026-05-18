@@ -19,6 +19,20 @@ function rowToBindings(rows: { channel_code: string; external_id: string }[]): C
   return bindings;
 }
 
+function appointmentRecordsJoinPu(puAlias: string, arAlias: string): string {
+  return `(
+      ${arAlias}.platform_user_id = ${puAlias}.id
+      OR (
+        ${arAlias}.phone_normalized IS NOT NULL
+        AND EXISTS (
+          SELECT 1 FROM user_phone_history h
+          WHERE h.platform_user_id = ${puAlias}.id
+            AND h.phone_normalized = ${arAlias}.phone_normalized
+        )
+      )
+    )`;
+}
+
 export function createPgDoctorClientsPort(): DoctorClientsPort {
   return {
     async listClients(filters: DoctorClientsFilters): Promise<ClientListItem[]> {
@@ -47,15 +61,17 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         bindingsByUser.set(row.user_id, list);
       }
 
-      const [upcomingPhones, activeProgramPatients] = await Promise.all([
-        pool.query<{ phone_normalized: string }>(
-          `SELECT DISTINCT phone_normalized
-           FROM appointment_records ar
-           WHERE ar.phone_normalized IS NOT NULL
+      const [upcomingUsers, activeProgramPatients] = await Promise.all([
+        pool.query<{ id: string }>(
+          `SELECT DISTINCT pu.id
+           FROM platform_users pu
+           INNER JOIN appointment_records ar ON ${appointmentRecordsJoinPu("pu", "ar")}
+           WHERE pu.id = ANY($1::uuid[])
              AND ar.deleted_at IS NULL
              AND ar.status IN ('created', 'updated')
              AND ar.record_at IS NOT NULL
-             AND ar.record_at >= NOW()`
+             AND ar.record_at >= NOW()`,
+          [userIds],
         ),
         pool.query<{ patient_user_id: string; instance_id: string }>(
           `SELECT DISTINCT ON (patient_user_id)
@@ -63,12 +79,10 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
              id AS instance_id
            FROM treatment_program_instances
            WHERE status = 'active'
-           ORDER BY patient_user_id, updated_at DESC NULLS LAST`
+           ORDER BY patient_user_id, updated_at DESC NULLS LAST`,
         ),
       ]);
-      const phoneHasUpcoming = new Set(
-        upcomingPhones.rows.map((row) => row.phone_normalized).filter(Boolean) as string[],
-      );
+      const userHasUpcomingAppointment = new Set(upcomingUsers.rows.map((row) => row.id));
       const activeProgramInstanceByPatient = new Map<string, string>(
         activeProgramPatients.rows.map((row) => [row.patient_user_id, row.instance_id]),
       );
@@ -77,7 +91,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         (r: { id: string; display_name: string; phone_normalized: string | null; created_at: string }) => {
           const bindings = rowToBindings(bindingsByUser.get(r.id) ?? []);
           const phone = r.phone_normalized;
-          const hasUpcoming = phone && phoneHasUpcoming.has(phone);
+          const hasUpcoming = userHasUpcomingAppointment.has(r.id);
           const activeInstanceId = activeProgramInstanceByPatient.get(r.id) ?? null;
           return {
             userId: r.id,
@@ -115,28 +129,33 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         list = list.filter((item) => item.activeTreatmentProgram);
       }
       if (filters.onlyWithAppointmentRecords === true && !filters.archivedOnly) {
-        const phones = await pool.query<{ phone_normalized: string }>(
-          `SELECT DISTINCT phone_normalized FROM appointment_records WHERE phone_normalized IS NOT NULL AND deleted_at IS NULL`
+        const withAnyRecord = await pool.query<{ id: string }>(
+          `SELECT DISTINCT pu.id
+           FROM platform_users pu
+           INNER JOIN appointment_records ar ON ${appointmentRecordsJoinPu("pu", "ar")}
+           WHERE pu.id = ANY($1::uuid[])
+             AND ar.deleted_at IS NULL`,
+          [list.map((item) => item.userId)],
         );
-        const phoneSet = new Set(
-          phones.rows.map((row) => row.phone_normalized).filter(Boolean) as string[]
-        );
-        list = list.filter((item) => Boolean(item.phone) && phoneSet.has(item.phone!));
+        const idSet = new Set(withAnyRecord.rows.map((row) => row.id));
+        list = list.filter((item) => idSet.has(item.userId));
       }
       if (filters.visitedThisCalendarMonth === true && !filters.archivedOnly) {
         const visited = await pool.query<{ id: string }>(
           `SELECT DISTINCT pu.id
            FROM platform_users pu
-           INNER JOIN appointment_records ar ON pu.phone_normalized IS NOT NULL AND ar.phone_normalized = pu.phone_normalized
+           INNER JOIN appointment_records ar ON ${appointmentRecordsJoinPu("pu", "ar")}
            WHERE pu.role = 'client'
              AND pu.merged_into_id IS NULL
              AND COALESCE(pu.is_archived, false) = false
+             AND pu.id = ANY($1::uuid[])
              AND ar.record_at IS NOT NULL
              AND ar.record_at >= date_trunc('month', NOW())
              AND ar.record_at < date_trunc('month', NOW()) + interval '1 month'
              AND ar.record_at < NOW()
              AND ar.status IN ('created', 'updated')
-             AND ar.deleted_at IS NULL`
+             AND ar.deleted_at IS NULL`,
+          [list.map((item) => item.userId)],
         );
         const idSet = new Set(visited.rows.map((r) => r.id));
         list = list.filter((item) => idSet.has(item.userId));
@@ -161,7 +180,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         pool.query<{ c: string }>(
           `SELECT COUNT(DISTINCT pu.id)::text AS c
            FROM platform_users pu
-           INNER JOIN appointment_records ar ON pu.phone_normalized IS NOT NULL AND ar.phone_normalized = pu.phone_normalized
+           INNER JOIN appointment_records ar ON ${appointmentRecordsJoinPu("pu", "ar")}
            WHERE pu.role = 'client'
              AND pu.merged_into_id IS NULL
              AND COALESCE(pu.is_archived, false) = false
@@ -170,7 +189,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
              AND ar.record_at < date_trunc('month', NOW()) + interval '1 month'
              AND ar.record_at < NOW()
              AND ar.status IN ('created', 'updated')
-             AND ar.deleted_at IS NULL`
+             AND ar.deleted_at IS NULL`,
         ),
       ]);
       return {

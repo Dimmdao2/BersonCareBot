@@ -61,9 +61,12 @@ export async function resolveUserIdForYandexOAuth(
     if (!userId && emailNorm) {
       const byEmail = await pool.query<{ id: string }>(
         `SELECT id FROM platform_users
-         WHERE lower(trim(COALESCE(email, ''))) = $1
+         WHERE merged_into_id IS NULL
            AND email_verified_at IS NOT NULL
-           AND merged_into_id IS NULL
+           AND (
+             email_normalized = $1
+             OR (email_normalized IS NULL AND lower(trim(COALESCE(email, ''))) = $1)
+           )
          LIMIT 4`,
         [emailNorm],
       );
@@ -81,10 +84,16 @@ export async function resolveUserIdForYandexOAuth(
       const emailVerifiedAt = emailRaw ? new Date() : null;
       const ins = await pool.query<{ id: string }>(
         `INSERT INTO platform_users (
-           phone_normalized, display_name, email, email_verified_at, role, patient_phone_trust_at
+           phone_normalized, display_name, email, email_normalized, email_verified_at, role, patient_phone_trust_at
          )
          VALUES (
-           $1, $2, $3, $4, 'client',
+           $1, $2, $3,
+           CASE
+             WHEN $4::timestamptz IS NOT NULL AND COALESCE(btrim($3::text), '') <> ''
+               THEN lower(btrim($3::text))
+             ELSE NULL
+           END,
+           $4, 'client',
            CASE WHEN $1::text IS NOT NULL AND trim($1::text) <> '' THEN now() ELSE NULL END
          )
          RETURNING id`,
