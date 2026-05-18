@@ -88,7 +88,6 @@ function pathMatchesAnyPrefix(path: string, prefixes: readonly string[]): boolea
  * Не использовать префикс `/app/patient` целиком — иначе совпадёт с profile и т.д.
  */
 function patientPageAllowsGuestOptionalSession(path: string): boolean {
-  if (isPatientHomePath(path)) return true;
   if (path === "/app/patient/cabinet") return true;
   if (path === "/app/patient/purchases") return true;
   if (path === "/app/patient/notifications") return true;
@@ -213,18 +212,3 @@ export function patientSessionSnapshotHasPhone(session: { user: { phone?: string
   return Boolean(session?.user.phone?.trim());
 }
 
-/**
- * Разрешить рендер `app/app/patient/layout.tsx` **без сессии** только на канонической главной.
- * Query не входит: `pathname` уже без search (как из `x-bc-pathname` / referer).
- *
- * Отличается от {@link patientPageAllowsGuestOptionalSession}: там «гость» = опциональная сессия
- * на RSC при **залогиненном** пользователе без tier; здесь — полное отсутствие cookie-сессии.
- *
- * Пустой pathname → `false` (не считаем публичной главной при неизвестном контексте).
- */
-export function patientLayoutAllowsUnauthenticatedAccess(pathname: string): boolean {
-  const raw = pathname.trim();
-  if (!raw) return false;
-  const path = normalizeAppPatientPath(raw);
-  return path === "/app/patient";
-}

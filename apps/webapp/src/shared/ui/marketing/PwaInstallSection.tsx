@@ -85,10 +85,10 @@ export function PwaInstallSection() {
 
   return (
     <section
-      className="rounded-xl border border-slate-200 bg-slate-50/50 p-6"
+      className="rounded-[12px] border border-[#dce4f5] bg-white/95 p-6 shadow-[0_8px_24px_rgba(15,23,42,0.05)] backdrop-blur-[2px]"
       aria-labelledby="pwa-install-heading"
     >
-      <h2 id="pwa-install-heading" className="text-lg font-semibold text-[#284da0]">
+      <h2 id="pwa-install-heading" className="font-[family-name:var(--font-roboto-heading)] text-lg font-semibold text-[#284da0]">
         Установить приложение
       </h2>
 

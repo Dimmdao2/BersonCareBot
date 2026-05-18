@@ -18,7 +18,6 @@ export {
   patientPathsAllowedDuringPhoneActivation,
   patientServerActionPageAllowsOnboardingOnly,
   patientSessionSnapshotHasPhone,
-  patientLayoutAllowsUnauthenticatedAccess,
   resolvePatientLayoutPathname,
 } from "./patientRouteApiPolicy";
 export { patientOnboardingServerActionSurfaceOk } from "./onboardingServerActionSurface";

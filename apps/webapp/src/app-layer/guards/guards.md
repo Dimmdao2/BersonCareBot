@@ -13,7 +13,7 @@
 - **getOptionalPatientSession** — возвращает сессию или null; редирект только при роли не-пациент. Для страниц с `patientPageMinAccessTier` = **guest** (меню, кабинет, визард записи, дневник как просмотр, …).
 - **patientRscPersonalDataGate** — RSC перед чтением персональных данных из БД по `userId`: тот же **`patientClientBusinessGate`**, что у API; `guest` / `allow`; при `stale_session` — редирект на `/app?next=`.
 
-**Согласование RSC и политики:** страницы с **`getOptionalPatientSession`** должны попадать под tier **guest** в `patientPageMinAccessTier`; профиль / bind-phone / help / install — **onboarding** (`requirePatientAccess`); напоминания, сообщения, intake — **patient** (`requirePatientAccessWithPhone`). Мутации — API/actions с **`requirePatientApiBusinessAccess`** / **`requirePatientAccessWithPhone`**. Там, где после optional session идут запросы в БД (кабинет, дневник, уведомления, главная и т.д.) — **`patientRscPersonalDataGate`**.
+**Согласование RSC и политики:** страницы с **`getOptionalPatientSession`** должны попадать под tier **guest** в `patientPageMinAccessTier`; главная **`/app/patient`** — **onboarding** (`requirePatientAccess` в RSC; без сессии — редирект в `patient/layout.tsx` на `/app?next=`). Профиль / bind-phone / help / install — **onboarding** (`requirePatientAccess`); напоминания, сообщения, intake — **patient** (`requirePatientAccessWithPhone`). Мутации — API/actions с **`requirePatientApiBusinessAccess`** / **`requirePatientAccessWithPhone`**. Там, где после optional session идут запросы в БД (кабинет, дневник, уведомления и т.д.) — **`patientRscPersonalDataGate`**.
 
 Используются в серверных компонентах и серверных действиях (actions).
 

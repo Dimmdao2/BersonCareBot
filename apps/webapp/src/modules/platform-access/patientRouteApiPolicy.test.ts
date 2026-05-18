@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   patientApiPathIsPatientBusinessSurface,
-  patientLayoutAllowsUnauthenticatedAccess,
   patientPageMinAccessTier,
   patientPathRequiresBoundPhone,
   patientPathsAllowedDuringPhoneActivation,
@@ -112,31 +111,11 @@ describe("patientPathRequiresBoundPhone", () => {
 
 describe("patientPageMinAccessTier", () => {
   it("classifies guest-optional pages", () => {
-    expect(patientPageMinAccessTier("/app/patient")).toBe("guest");
+    expect(patientPageMinAccessTier("/app/patient")).toBe("onboarding");
     expect(patientPageMinAccessTier("/app/patient/cabinet")).toBe("guest");
     expect(patientPageMinAccessTier("/app/patient/profile")).toBe("onboarding");
     expect(patientPageMinAccessTier("/app/patient/reminders")).toBe("patient");
     expect(patientPageMinAccessTier("/app/patient/go/daily-warmup")).toBe("onboarding");
-  });
-});
-
-describe("patientLayoutAllowsUnauthenticatedAccess", () => {
-  it("allows only exact /app/patient (with optional trailing slash normalization)", () => {
-    expect(patientLayoutAllowsUnauthenticatedAccess("/app/patient")).toBe(true);
-    expect(patientLayoutAllowsUnauthenticatedAccess("/app/patient/")).toBe(true);
-    expect(patientLayoutAllowsUnauthenticatedAccess("  /app/patient  ")).toBe(true);
-  });
-
-  it("denies empty pathname and internal patient routes", () => {
-    expect(patientLayoutAllowsUnauthenticatedAccess("")).toBe(false);
-    expect(patientLayoutAllowsUnauthenticatedAccess("   ")).toBe(false);
-    expect(patientLayoutAllowsUnauthenticatedAccess("/app/patient/sections")).toBe(false);
-    expect(patientLayoutAllowsUnauthenticatedAccess("/app/patient/sections/fixture-slug")).toBe(false);
-    expect(patientLayoutAllowsUnauthenticatedAccess("/app/patient/content/fixture-page")).toBe(false);
-    expect(patientLayoutAllowsUnauthenticatedAccess("/app/patient/cabinet")).toBe(false);
-    expect(patientLayoutAllowsUnauthenticatedAccess("/app/patient/reminders")).toBe(false);
-    expect(patientLayoutAllowsUnauthenticatedAccess("/app/patient/messages")).toBe(false);
-    expect(patientLayoutAllowsUnauthenticatedAccess("/app/doctor")).toBe(false);
   });
 });
 

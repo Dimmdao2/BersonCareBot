@@ -59,6 +59,8 @@ export const platformUsers = pgTable("platform_users", {
 	firstName: text("first_name"),
 	lastName: text("last_name"),
 	email: text(),
+	/** Lowercase trimmed canonical email for uniqueness (`merged_into_id IS NULL`). */
+	emailNormalized: text("email_normalized"),
 	emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true, mode: 'string' }),
 	isBlocked: boolean("is_blocked").default(false).notNull(),
 	blockedAt: timestamp("blocked_at", { withTimezone: true, mode: 'string' }),
@@ -92,6 +94,51 @@ export const platformUsers = pgTable("platform_users", {
 	unique("platform_users_integrator_user_id_key").on(table.integratorUserId),
 	check("platform_users_no_self_merge", sql`(merged_into_id IS NULL) OR (merged_into_id <> id)`),
 	check("platform_users_role_check", sql`role = ANY (ARRAY['client'::text, 'doctor'::text, 'admin'::text])`),
+	uniqueIndex("uq_platform_users_email_normalized_active").using(
+		"btree",
+		table.emailNormalized.asc().nullsLast().op("text_ops"),
+	).where(sql`(merged_into_id IS NULL AND email_normalized IS NOT NULL)`),
+]);
+
+/** Password login credentials (OAuth-only users have no row). */
+export const userPasswordCredentials = pgTable("user_password_credentials", {
+	userId: uuid("user_id").primaryKey().notNull(),
+	passwordHash: text("password_hash").notNull(),
+	algo: text().default("argon2id").notNull(),
+	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+}, (table) => [
+	foreignKey({
+			columns: [table.userId],
+			foreignColumns: [platformUsers.id],
+			name: "user_password_credentials_user_id_fkey"
+		}).onDelete("cascade"),
+]);
+
+/** Historical phone assignments per canonical user (`valid_to` null = current spell). */
+export const userPhoneHistory = pgTable("user_phone_history", {
+	id: uuid().defaultRandom().primaryKey().notNull(),
+	platformUserId: uuid("platform_user_id").notNull(),
+	phoneNormalized: text("phone_normalized").notNull(),
+	validFrom: timestamp("valid_from", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+	validTo: timestamp("valid_to", { withTimezone: true, mode: 'string' }),
+	source: text("source").notNull(),
+}, (table) => [
+	index("idx_user_phone_history_phone").using("btree", table.phoneNormalized.asc().nullsLast().op("text_ops")),
+	index("idx_user_phone_history_user").using("btree", table.platformUserId.asc().nullsLast().op("uuid_ops")),
+	foreignKey({
+			columns: [table.platformUserId],
+			foreignColumns: [platformUsers.id],
+			name: "user_phone_history_platform_user_id_fkey"
+		}).onDelete("cascade"),
+	uniqueIndex("uq_user_phone_history_phone_active").using(
+		"btree",
+		table.phoneNormalized.asc().nullsLast().op("text_ops"),
+	).where(sql`(valid_to IS NULL)`),
+	uniqueIndex("uq_user_phone_history_user_active").using(
+		"btree",
+		table.platformUserId.asc().nullsLast().op("uuid_ops"),
+	).where(sql`(valid_to IS NULL)`),
+	check("user_phone_history_source_check", sql`source = ANY (ARRAY['otp'::text, 'messenger'::text, 'merge'::text, 'admin'::text, 'projection'::text])`),
 ]);
 
 export const messageLog = pgTable("message_log", {
@@ -320,6 +367,7 @@ export const appointmentRecords = pgTable("appointment_records", {
 	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 	branchId: uuid("branch_id"),
 	deletedAt: timestamp("deleted_at", { withTimezone: true, mode: 'string' }),
+	platformUserId: uuid("platform_user_id"),
 }, (table) => [
 	index("idx_appointment_records_branch_id").using("btree", table.branchId.asc().nullsLast().op("uuid_ops")).where(sql`(branch_id IS NOT NULL)`),
 	uniqueIndex("idx_appointment_records_integrator_record_id").using("btree", table.integratorRecordId.asc().nullsLast().op("text_ops")),
@@ -327,10 +375,16 @@ export const appointmentRecords = pgTable("appointment_records", {
 	index("idx_appointment_records_phone_not_deleted").using("btree", table.phoneNormalized.asc().nullsLast().op("timestamptz_ops"), table.recordAt.desc().nullsFirst().op("timestamptz_ops")).where(sql`((deleted_at IS NULL) AND (phone_normalized IS NOT NULL))`),
 	index("idx_appointment_records_record_at").using("btree", table.recordAt.asc().nullsLast().op("timestamptz_ops")).where(sql`(record_at IS NOT NULL)`),
 	index("idx_appointment_records_status").using("btree", table.status.asc().nullsLast().op("text_ops")),
+	index("idx_appointment_records_platform_user_id").using("btree", table.platformUserId.asc().nullsLast().op("uuid_ops")).where(sql`(platform_user_id IS NOT NULL)`),
 	foreignKey({
 			columns: [table.branchId],
 			foreignColumns: [branches.id],
 			name: "appointment_records_branch_id_fkey"
+		}).onDelete("set null"),
+	foreignKey({
+			columns: [table.platformUserId],
+			foreignColumns: [platformUsers.id],
+			name: "appointment_records_platform_user_id_fkey"
 		}).onDelete("set null"),
 	unique("appointment_records_integrator_record_id_key").on(table.integratorRecordId),
 	check("appointment_records_status_check", sql`status = ANY (ARRAY['created'::text, 'updated'::text, 'canceled'::text])`),

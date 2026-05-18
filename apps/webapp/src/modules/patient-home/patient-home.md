@@ -40,7 +40,7 @@
 
 ## Public home
 
-Точный маршрут `/app/patient` без сессии разрешён только в `patient/layout.tsx` через `patientLayoutAllowsUnauthenticatedAccess` из `modules/platform-access/patientRouteApiPolicy.ts`.
+`patient/layout.tsx` при отсутствии сессии всегда редиректит на `/app?next=…` (в т.ч. с `/app/patient` после установки PWA).
 
 `PatientHomeToday` принимает `session: AppSession | null`; персональные запросы (`reminders`, `treatmentProgramInstance`, practice progress, mood) выполняются только при `personalTierOk && session`.
 

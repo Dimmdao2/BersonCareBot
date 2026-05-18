@@ -1,9 +1,9 @@
 /**
  * Главная пациента «Сегодня» (`/app/patient`): витрина из `patient_home_blocks` / `patient_home_block_items`.
- * Без сессии — только non-personal витрина (Phase 4.5); персональные блоки при tier patient.
+ * Без сессии — редирект на `/app` в `patient/layout.tsx` (в т.ч. после установки PWA с `start_url` здесь).
  */
 
-import { getOptionalPatientSession, patientRscPersonalDataGate } from "@/app-layer/guards/requireRole";
+import { patientRscPersonalDataGate, requirePatientAccess } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
 import { resolvePatientCanViewAuthOnlyContent } from "@/modules/platform-access";
 import { AppShell } from "@/shared/ui/AppShell";
@@ -13,24 +13,7 @@ import { PatientLoadingPatternBody } from "@/shared/ui/patientVisual";
 import { PatientHomeToday } from "./home/PatientHomeToday";
 
 export default async function PatientHomePage() {
-  const session = await getOptionalPatientSession();
-  if (!session) {
-    return (
-      <AppShell
-        title="Сегодня"
-        user={null}
-        variant="patient-wide"
-        patientSuppressShellTitle
-        patientHideRightIcons
-        patientHideHome
-      >
-        <Suspense fallback={<PatientLoadingPatternBody pattern="heroList" />}>
-          <PatientHomeToday session={null} personalTierOk={false} canViewAuthOnlyContent={false} />
-        </Suspense>
-        <LegalFooterLinks className="mt-3 pb-2" />
-      </AppShell>
-    );
-  }
+  const session = await requirePatientAccess(routePaths.patient);
 
   const personalTierOk = (await patientRscPersonalDataGate(session, routePaths.patient)) === "allow";
   const canViewAuthOnlyContent = await resolvePatientCanViewAuthOnlyContent(session);
