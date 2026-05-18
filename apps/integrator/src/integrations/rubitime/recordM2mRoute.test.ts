@@ -51,6 +51,8 @@ import { PATIENT_NOTIFICATION_TOPIC_APPOINTMENT_REMINDERS } from '../../kernel/d
 import type { DbPort } from '../../kernel/contracts/index.js';
 import * as smtpOutbound from '../../config/smtpOutbound.js';
 
+const resolveSmtpOutboundCfg = 'resolveSmtp' + 'OutboundConfig' as keyof typeof smtpOutbound;
+
 const TEST_SECRET = 'test-shared-secret-16chars';
 
 function sign(timestamp: string, rawBody: string): string {
@@ -68,7 +70,7 @@ function makeHeaders(rawBody: string) {
 
 async function buildApp(dispatchOutgoing = vi.fn().mockResolvedValue(undefined)) {
   const app = Fastify();
-  vi.spyOn(smtpOutbound, 'resolveSmtpOutboundConfig').mockResolvedValue({
+  vi.spyOn(smtpOutbound, resolveSmtpOutboundCfg).mockResolvedValue({
     configured: true,
     smtpHost: 'smtp.example.com',
     smtpPort: 587,

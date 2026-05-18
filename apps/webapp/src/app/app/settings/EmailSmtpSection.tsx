@@ -22,7 +22,7 @@ export function EmailSmtpSection({
   secure: initialSecure,
   user: initialUser,
   from: initialFrom,
-  hasStoredPassword,
+  hasStoredPassword: _hasStoredPassword,
 }: EmailSmtpSectionProps) {
   const [host, setHost] = useState(initialHost);
   const [port, setPort] = useState(String(initialPort));
@@ -69,14 +69,7 @@ export function EmailSmtpSection({
       <CardHeader className="pb-2">
         <CardTitle className="text-base">Исходящая почта (SMTP)</CardTitle>
         <p className="text-xs text-muted-foreground">
-          Для отправки кодов email (регистрация, сброс пароля); обрабатывается интегратором. Пустое поле пароля —
-          сохранить без смены пароля.
-          {hasStoredPassword ? (
-            <>
-              {" "}
-              Пароль в БД задан.
-            </>
-          ) : null}
+          Коды подтверждения отправляет интегратор. Пустое поле «Пароль» — не менять сохранённый.
         </p>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
@@ -121,7 +114,7 @@ export function EmailSmtpSection({
             onChange={(e) => setPassword(e.target.value)}
             disabled={isPending}
             autoComplete="new-password"
-            placeholder={hasStoredPassword ? "(без изменения — оставьте пустым)" : ""}
+            placeholder={_hasStoredPassword ? "(без изменения — оставьте пустым)" : ""}
           />
         </label>
         <label className="flex flex-col gap-1">

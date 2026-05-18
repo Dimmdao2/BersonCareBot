@@ -1,7 +1,6 @@
 import { isSafeExternalHref } from "@/lib/url/isSafeExternalHref";
-import { getConfigValue } from "@/modules/system-settings/configAdapter";
+import { getConfigValue, getSmsFallbackEnabled } from "@/modules/system-settings/configAdapter";
 import { getMaxLoginBotNickname, normalizeMaxBotNicknameInput } from "@/modules/system-settings/maxLoginBotNickname";
-import { getSmsFallbackEnabled } from "@/modules/system-settings/smsFallbackPolicy";
 import { getTelegramLoginBotUsername } from "@/modules/system-settings/telegramLoginBotUsername";
 
 export type LoginAlternativesPublicConfig = {

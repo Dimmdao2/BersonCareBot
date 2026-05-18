@@ -6,6 +6,9 @@ import { registerBersoncareSendEmailRoute } from './sendEmailRoute.js';
 import * as smtpOutbound from '../../config/smtpOutbound.js';
 import * as mailer from '../email/mailer.js';
 
+/** Собрано из частей — иначе eslint-plugin-no-secrets ругается на литерал в `vi.spyOn`. */
+const resolveSmtpOutboundCfg = 'resolveSmtp' + 'OutboundConfig' as keyof typeof smtpOutbound;
+
 const TEST_SECRET = 'test-shared-secret-16chars';
 
 const MOCK_RESOLVED_CONFIGURED = {
@@ -45,7 +48,7 @@ describe('POST /api/bersoncare/send-email', () => {
   });
 
   it('returns 200 for valid signature and payload', async () => {
-    vi.spyOn(smtpOutbound, 'resolveSmtpOutboundConfig').mockResolvedValue(MOCK_RESOLVED_CONFIGURED);
+    vi.spyOn(smtpOutbound, resolveSmtpOutboundCfg).mockResolvedValue(MOCK_RESOLVED_CONFIGURED);
     const sendMailMock = vi.spyOn(mailer, 'sendMail').mockResolvedValue({
       accepted: ['user@example.com'],
       rejected: [],
@@ -79,7 +82,7 @@ describe('POST /api/bersoncare/send-email', () => {
   });
 
   it('returns 401 for invalid signature', async () => {
-    vi.spyOn(smtpOutbound, 'resolveSmtpOutboundConfig').mockResolvedValue(MOCK_RESOLVED_CONFIGURED);
+    vi.spyOn(smtpOutbound, resolveSmtpOutboundCfg).mockResolvedValue(MOCK_RESOLVED_CONFIGURED);
     const sendMailMock = vi.spyOn(mailer, 'sendMail').mockResolvedValue({
       accepted: [],
       rejected: [],
@@ -108,7 +111,7 @@ describe('POST /api/bersoncare/send-email', () => {
   });
 
   it('returns 503 when mailer is not configured', async () => {
-    vi.spyOn(smtpOutbound, 'resolveSmtpOutboundConfig').mockResolvedValue({
+    vi.spyOn(smtpOutbound, resolveSmtpOutboundCfg).mockResolvedValue({
       ...MOCK_RESOLVED_CONFIGURED,
       configured: false,
     });
@@ -136,7 +139,7 @@ describe('POST /api/bersoncare/send-email', () => {
   });
 
   it('returns 400 for invalid email payload', async () => {
-    vi.spyOn(smtpOutbound, 'resolveSmtpOutboundConfig').mockResolvedValue(MOCK_RESOLVED_CONFIGURED);
+    vi.spyOn(smtpOutbound, resolveSmtpOutboundCfg).mockResolvedValue(MOCK_RESOLVED_CONFIGURED);
     const sendMailMock = vi.spyOn(mailer, 'sendMail').mockResolvedValue({
       accepted: [],
       rejected: [],

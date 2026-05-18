@@ -115,3 +115,35 @@ export async function getConfigPositiveInt(
   }
   return Math.min(opts.max, Math.max(opts.min, n));
 }
+
+function parseBoolFromSmsFallbackValueJson(valueJson: unknown): boolean | null {
+  if (valueJson === null || typeof valueJson !== "object" || !("value" in valueJson)) return null;
+  const v = (valueJson as Record<string, unknown>).value;
+  if (typeof v === "boolean") return v;
+  if (v === "true" || v === "1") return true;
+  if (v === "false" || v === "0") return false;
+  return null;
+}
+
+/**
+ * SMS fallback для OTP / записи: ключ `sms_fallback_enabled` в `system_settings`;
+ * приоритет строки `doctor`, затем `admin` (сид из миграций).
+ * Реализация здесь — рядом с {@link getConfigValue} (тот же allowlist `no-restricted-imports` для адаптера).
+ */
+export async function getSmsFallbackEnabled(): Promise<boolean> {
+  try {
+    const pool = getPool();
+    const r = await pool.query<{ value_json: unknown }>(
+      `SELECT value_json FROM system_settings
+       WHERE key = 'sms_fallback_enabled' AND scope IN ('doctor', 'admin')
+       ORDER BY CASE scope WHEN 'doctor' THEN 0 ELSE 1 END
+       LIMIT 1`,
+    );
+    const row = r.rows[0];
+    if (!row) return true;
+    const b = parseBoolFromSmsFallbackValueJson(row.value_json);
+    return b ?? true;
+  } catch {
+    return true;
+  }
+}

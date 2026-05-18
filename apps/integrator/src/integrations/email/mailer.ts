@@ -1,6 +1,6 @@
 /**
  * Mailer: отправка email через SMTP (nodemailer).
- * Конфиг передаётся вызывающим кодом после `resolveSmtpOutboundConfig` (БД или env fallback).
+ * Конфиг передаётся вызывающим кодом после загрузки исходящего SMTP из БД или env (см. config/smtpOutbound).
  */
 import { createHash } from 'node:crypto';
 import nodemailer from 'nodemailer';

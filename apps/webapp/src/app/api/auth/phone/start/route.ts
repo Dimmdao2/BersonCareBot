@@ -6,7 +6,7 @@ import type { ChannelContext } from "@/modules/auth/channelContext";
 import { normalizePhone } from "@/modules/auth/phoneNormalize";
 import type { PhoneOtpDelivery } from "@/modules/auth/smsPort";
 import { isRuMobile, isValidPhoneE164 } from "@/modules/auth/phoneValidation";
-import { getSmsFallbackEnabled } from "@/modules/system-settings/smsFallbackPolicy";
+import { getSmsFallbackEnabled } from "@/modules/system-settings/configAdapter";
 
 const bodySchema = z.object({
   phone: z.string().min(1),
