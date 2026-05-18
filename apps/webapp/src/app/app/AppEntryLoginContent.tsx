@@ -7,7 +7,7 @@
 import { Suspense } from "react";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { cn } from "@/lib/utils";
-import { patientCardClass, patientMutedTextClass } from "@/shared/ui/patientVisual";
+import { patientHeroBookingSectionClass, patientMutedTextClass } from "@/shared/ui/patientVisual";
 import { AuthBootstrap } from "@/shared/ui/AuthBootstrap";
 import { LegalFooterLinks } from "@/shared/ui/LegalFooterLinks";
 import type { MessengerSurfaceHint } from "@/shared/lib/platform";
@@ -42,7 +42,7 @@ export function AppEntryLoginContent({
     <>
       <div id="app-entry-content" className="flex flex-col gap-6">
         {allowDevBypass ? (
-          <div id="app-entry-dev-bypass-panel" className={cn(patientCardClass, "mt-2 flex flex-col gap-4")}>
+          <div id="app-entry-dev-bypass-panel" className={cn(patientHeroBookingSectionClass, "mt-2 flex flex-col gap-4")}>
             <p className={cn(patientMutedTextClass, "text-xs font-medium uppercase tracking-wide")}>
               Режим разработки
             </p>

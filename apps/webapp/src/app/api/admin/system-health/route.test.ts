@@ -173,6 +173,7 @@ vi.mock("@/app-layer/health/adminReminderPipelineMetrics", () => ({
     outgoingReminderDispatch: { due: 0, dead: 0, processing: 0 },
     occurrenceHistory: { sent: 0, failed: 0 },
     deliveryEvents: { sent: 0, failed: 0 },
+    patientReminderM2mIdempotencyKeysActive: 0,
   }),
 }));
 
@@ -254,6 +255,7 @@ describe("GET /api/admin/system-health", () => {
         outgoingReminderDispatch: { due: 0, dead: 0, processing: 0 },
         occurrenceHistory: { sent: 0, failed: 0 },
         deliveryEvents: { sent: 0, failed: 0 },
+        patientReminderM2mIdempotencyKeysActive: 0,
       },
     });
     globalThis.fetch = originalFetch;
@@ -319,6 +321,7 @@ describe("GET /api/admin/system-health", () => {
         outgoingReminderDispatch: { due: number; dead: number; processing: number };
         occurrenceHistory: { sent: number; failed: number };
         deliveryEvents: { sent: number; failed: number };
+        patientReminderM2mIdempotencyKeysActive: number;
       };
       meta?: {
         probes?: {
@@ -360,6 +363,7 @@ describe("GET /api/admin/system-health", () => {
       outgoingReminderDispatch: { due: 0, dead: 0, processing: 0 },
       occurrenceHistory: { sent: 0, failed: 0 },
       deliveryEvents: { sent: 0, failed: 0 },
+      patientReminderM2mIdempotencyKeysActive: 0,
     });
     expect(body.meta?.probes?.operatorIncidents?.status).toBe("ok");
     expect(body.meta?.probes?.operatorBackupJobs?.status).toBe("ok");

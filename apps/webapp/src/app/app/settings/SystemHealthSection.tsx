@@ -103,6 +103,7 @@ type SystemHealthPayload = {
     outgoingReminderDispatch: { due: number; dead: number; processing: number };
     occurrenceHistory: { sent: number; failed: number };
     deliveryEvents: { sent: number; failed: number };
+    patientReminderM2mIdempotencyKeysActive: number;
   };
   /** VIDEO_HLS_DELIVERY: hourly playback aggregates (UTC), rolling window. */
   videoPlayback: {
@@ -1113,6 +1114,10 @@ export function SystemHealthSection() {
               <DetailRow
                 label={`События доставки за ${data?.remindersPipeline?.windowHours ?? 24} ч (failed)`}
                 value={String(data?.remindersPipeline?.deliveryEvents.failed ?? 0)}
+              />
+              <DetailRow
+                label="M2M push/email: активные ключи idempotency"
+                value={String(data?.remindersPipeline?.patientReminderM2mIdempotencyKeysActive ?? 0)}
               />
             </HealthAccordionItem>
 

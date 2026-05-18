@@ -63,6 +63,7 @@ export async function POST(request: Request) {
       systemSettings: deps.systemSettings,
       getProfileEmailFields: deps.userProjection.getProfileEmailFields,
       readReminderNotifyGate: deps.readReminderNotifyGate,
+      reminderTransactionalEmailCooldown: deps.reminderTransactionalEmailCooldown,
     });
 
     const status = 200;

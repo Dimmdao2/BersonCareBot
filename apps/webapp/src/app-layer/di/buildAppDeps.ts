@@ -99,6 +99,10 @@ import { pgSymptomDiaryPort } from "@/infra/repos/pgSymptomDiary";
 import { pgLfkDiaryPort } from "@/infra/repos/pgLfkDiary";
 import { purgeAllDiaryDataForUserPg } from "@/infra/repos/pgDiaryPurge";
 import { readReminderWebappNotifyGate } from "@/infra/repos/pgReminderWebappNotifyGate";
+import {
+  createNoOpReminderTransactionalEmailCooldownPort,
+  createPgReminderTransactionalEmailCooldownPort,
+} from "@/infra/repos/pgReminderTransactionalEmailCooldown";
 import { purgeInMemoryLfkDiaryForUser } from "@/infra/repos/lfkDiary";
 import { purgeInMemorySymptomDiaryForUser } from "@/infra/repos/symptomDiary";
 import { inMemoryChannelPreferencesPort } from "@/infra/repos/inMemoryChannelPreferences";
@@ -241,6 +245,9 @@ const channelPreferencesPort = !inMemoryRepos ? pgChannelPreferencesPort : inMem
 const webPushSubscriptionsPort = !inMemoryRepos
   ? createPgWebPushSubscriptionsPort()
   : inMemoryWebPushSubscriptionsPort;
+const reminderTransactionalEmailCooldownPort = !inMemoryRepos
+  ? createPgReminderTransactionalEmailCooldownPort()
+  : createNoOpReminderTransactionalEmailCooldownPort();
 const topicChannelPrefsPort = !inMemoryRepos ? createPgTopicChannelPrefsPort() : inMemoryTopicChannelPrefsPort;
 const userByPhonePort = !inMemoryRepos ? pgUserByPhonePort : inMemoryUserByPhonePort;
 const userPinsPort = !inMemoryRepos ? pgUserPinsPort : inMemoryUserPinsPort;
@@ -778,6 +785,7 @@ function _buildAppDeps() {
     channelPreferencesPort,
     webPushSubscriptions: webPushSubscriptionsPort,
     readReminderNotifyGate: readReminderWebappNotifyGate,
+    reminderTransactionalEmailCooldown: reminderTransactionalEmailCooldownPort,
     contentCatalog,
     deliveryTargetsApi: {
       getTargets: (params: { phone?: string; telegramId?: string; maxId?: string; topic?: string }) =>

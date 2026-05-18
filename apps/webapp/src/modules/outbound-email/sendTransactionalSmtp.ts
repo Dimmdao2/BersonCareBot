@@ -14,6 +14,8 @@ export async function sendTransactionalSmtpEmail(params: {
   to: string;
   subject: string;
   text: string;
+  /** RFC 2369 — одна строка, например `<mailto:support@example.com?subject=unsubscribe>` */
+  listUnsubscribe?: string | null;
 }): Promise<{ ok: true } | { ok: false; error: string }> {
   const parsed = smtpInnerFromValueJson(params.smtpValueJson);
   if (!parsed.success) {
@@ -31,12 +33,18 @@ export async function sendTransactionalSmtpEmail(params: {
     auth: { user: c.user, pass: c.password },
   });
 
+  const headers =
+    typeof params.listUnsubscribe === "string" && params.listUnsubscribe.trim().length > 0 ?
+      { "List-Unsubscribe": params.listUnsubscribe.trim() }
+    : undefined;
+
   try {
     await transporter.sendMail({
       from: c.from,
       to: params.to,
       subject: params.subject,
       text: params.text,
+      ...(headers ? { headers } : {}),
     });
     return { ok: true };
   } catch (e) {

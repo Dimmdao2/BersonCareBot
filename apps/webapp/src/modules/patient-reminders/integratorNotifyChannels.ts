@@ -8,6 +8,11 @@ import { getWebPushVapidKeyPair } from "@/modules/system-settings/webPushVapidRu
 import type { WebPushSubscriptionsPort } from "@/modules/web-push/ports";
 import { sendWebPushToSubscriptions } from "@/modules/web-push/sendWebPushToSubscriptions";
 
+export type ReminderTransactionalEmailCooldownPort = {
+  shouldSkipDueToCooldown: (platformUserId: string) => Promise<boolean>;
+  recordSent: (platformUserId: string) => Promise<void>;
+};
+
 export const integratorPatientReminderNotifyBodySchema = z.object({
   integratorUserId: z.string().regex(/^\d+$/),
   occurrenceId: z.string().min(1).max(240),
@@ -45,6 +50,7 @@ export type PatientReminderIntegratorNotifyDeps = {
     platformUserId: string,
     topicCode: string,
   ) => Promise<{ muted: boolean; topicMasterEnabled: boolean }>;
+  reminderTransactionalEmailCooldown?: ReminderTransactionalEmailCooldownPort;
 };
 
 export async function runPatientReminderIntegratorNotify(
@@ -121,18 +127,30 @@ export async function runPatientReminderIntegratorNotify(
   if (wantEmail) {
     const emailFields = await deps.getProfileEmailFields(uid);
     if (emailFields.email?.trim() && emailFields.emailVerifiedAt) {
-      const smtp = await deps.systemSettings.getSetting("smtp_outbound", "admin");
-      const subject = stripHtmlLight(body.title).slice(0, 200) || "Напоминание";
-      const text =
-        `${stripHtmlLight(body.bodyText ?? "")}\n\n${body.openUrl}`.trim().slice(0, 8000);
-      const res = await sendTransactionalSmtpEmail({
-        smtpValueJson: smtp?.valueJson,
-        to: emailFields.email.trim(),
-        subject,
-        text: text || body.openUrl,
-      });
-      out.emailOk = res.ok;
-      if (!res.ok) out.emailError = res.error;
+      const cooldownPort = deps.reminderTransactionalEmailCooldown;
+      if (cooldownPort && (await cooldownPort.shouldSkipDueToCooldown(uid))) {
+        out.emailSkipped = "rate_limited";
+      } else {
+        const smtp = await deps.systemSettings.getSetting("smtp_outbound", "admin");
+        const smtpParsed = smtp?.valueJson ? smtpInnerFromValueJson(smtp.valueJson) : null;
+        const listUnsubscribe =
+          smtpParsed?.success === true && smtpParsed.data.from.includes("@") ?
+            `<mailto:${smtpParsed.data.from.trim()}?subject=unsubscribe>`
+          : null;
+        const subject = stripHtmlLight(body.title).slice(0, 200) || "Напоминание";
+        const text =
+          `${stripHtmlLight(body.bodyText ?? "")}\n\n${body.openUrl}`.trim().slice(0, 8000);
+        const res = await sendTransactionalSmtpEmail({
+          smtpValueJson: smtp?.valueJson,
+          to: emailFields.email.trim(),
+          subject,
+          text: text || body.openUrl,
+          listUnsubscribe,
+        });
+        out.emailOk = res.ok;
+        if (!res.ok) out.emailError = res.error;
+        else if (cooldownPort) await cooldownPort.recordSent(uid);
+      }
     }
   }
 

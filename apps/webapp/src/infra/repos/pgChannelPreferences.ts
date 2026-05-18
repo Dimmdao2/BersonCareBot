@@ -1,11 +1,10 @@
 import { getPool } from "@/infra/db/client";
 import type { BroadcastNotificationPrefsFlags } from "@/modules/doctor-broadcasts/ports";
 import type { ChannelPreferencesPort } from "@/modules/channel-preferences/ports";
+import { assertChannelAllowedForPreferredAuth } from "@/modules/channel-preferences/preferredAuthChannelPolicy";
 import type { ChannelCode, ChannelPreference } from "@/modules/channel-preferences/types";
 
 const CODES: ChannelCode[] = ["telegram", "max", "vk", "sms", "email", "web_push"];
-
-const AUTH_CHANNELS = new Set<ChannelCode>(["telegram", "max", "email", "sms"]);
 
 function userMatchSql(paramIndex: number): string {
   return `(platform_user_id = $${paramIndex}::uuid OR (platform_user_id IS NULL AND user_id = $${paramIndex}::text))`;
@@ -112,6 +111,7 @@ export const pgChannelPreferencesPort: ChannelPreferencesPort = {
   },
 
   async setPreferredAuthChannel(userId, channelCode) {
+    assertChannelAllowedForPreferredAuth(channelCode);
     const pool = getPool();
     const now = new Date();
     const client = await pool.connect();
@@ -122,10 +122,6 @@ export const pgChannelPreferencesPort: ChannelPreferencesPort = {
         [userId]
       );
       if (channelCode == null) {
-        await client.query("COMMIT");
-        return;
-      }
-      if (!AUTH_CHANNELS.has(channelCode)) {
         await client.query("COMMIT");
         return;
       }

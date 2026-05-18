@@ -1,10 +1,9 @@
 import type { BroadcastNotificationPrefsFlags } from "@/modules/doctor-broadcasts/ports";
 import type { ChannelPreferencesPort } from "@/modules/channel-preferences/ports";
+import { assertChannelAllowedForPreferredAuth } from "@/modules/channel-preferences/preferredAuthChannelPolicy";
 import type { ChannelCode, ChannelPreference } from "@/modules/channel-preferences/types";
 
 const CODES: ChannelCode[] = ["telegram", "max", "vk", "sms", "email", "web_push"];
-
-const AUTH_CHANNELS = new Set<ChannelCode>(["telegram", "max", "email", "sms"]);
 
 const store = new Map<string, Map<ChannelCode, ChannelPreference>>();
 
@@ -65,12 +64,13 @@ export const inMemoryChannelPreferencesPort: ChannelPreferencesPort = {
   },
 
   async setPreferredAuthChannel(userId, channelCode) {
+    assertChannelAllowedForPreferredAuth(channelCode);
     const m = getPrefs(userId);
     for (const code of CODES) {
       const p = m.get(code)!;
       m.set(code, { ...p, isPreferredForAuth: false });
     }
-    if (channelCode == null || !AUTH_CHANNELS.has(channelCode)) return;
+    if (channelCode == null) return;
     const p = m.get(channelCode)!;
     m.set(channelCode, { ...p, isPreferredForAuth: true });
   },

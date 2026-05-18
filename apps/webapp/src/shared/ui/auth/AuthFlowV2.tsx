@@ -31,7 +31,7 @@ import {
 } from "@/shared/ui/auth/loginChrome";
 import { getBrowserCalendarIanaForAuth } from "@/shared/lib/browserCalendarIana";
 import {
-  patientCardClass,
+  patientHeroBookingSectionClass,
   patientInnerPageStackClass,
   patientInlineLinkClass,
   patientMutedTextClass,
@@ -44,7 +44,7 @@ const SMS_DISABLED_WEB_MESSAGE =
   "SMS для входа с сайта отключён. Используйте код в Telegram, Max или на email.";
 
 const authFlowShellClass = cn(
-  patientCardClass,
+  patientHeroBookingSectionClass,
   patientInnerPageStackClass,
   "mx-auto w-full max-w-sm",
 );

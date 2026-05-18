@@ -3,15 +3,17 @@
 ## 2026-05-18 — Web Push + email: контур напоминаний (MVP)
 
 - **Канал `web_push`:** prefs, матрица тем, таблица подписок, `GET/POST` patient API, отправка из webapp по VAPID из `system_settings`.
-- **Email:** transactional SMTP из `smtp_outbound`, те же гейты темы/канала; вызов из integrator через M2M (см. ниже).
+- **Email:** transactional SMTP из `smtp_outbound`, те же гейты темы/канала; вызов из integrator через M2M (см. ниже); опционально **List-Unsubscribe** (mailto); интервал между письмами напоминаний одному пользователю через `email_send_cooldowns` (ключ `!reminder_txn_v1`).
 - **Integrator `reminders.dispatchDue`:** после расчёта текста/темы — `notifyPatientReminderChannels` → `POST /api/integrator/patient-reminders/notify-channels` (подпись + `x-bersoncare-idempotency-key` `prn:<occurrenceId>:channels`).
 - **`public/sw.js`:** обработчики `push` и `notificationclick` (открытие только same-origin, путь `/app/*`); по-прежнему без `fetch`.
+- **iOS / Safari:** Web Push в установленном PWA зависит от версии ОС и Safari; на части устройств недоступен — не входит в гарантию продукта; см. [`PHASE_02`](PHASE_02_INSTALL_FLOW.md).
 
 ## 2026-05-18 — Укрепление VAPID / SW / контур push
 
 - **`web_push_vapid`:** ответы `GET`/`PATCH`/batch и RSC `/app/settings` не держат `privateKey` в данных для композиции страницы (`redactAdminSettingsForClient` на списке admin); в HTTP/API — `hasPrivateKey`; усилена проверка декодированных длин ключей P-256 (`webPushVapidPatch.ts`, `webPushVapidRuntime.ts`).
-- **`public/sw.js`:** только `install`/`activate`, без перехвата `fetch`.
-- **Заглушка:** `GET /api/patient/web-push/status` → **501** `not_implemented`; контракт расширения — `apps/webapp/src/modules/web-push/ports.ts`.
+- **Историческая запись (до MVP push):** ниже описан старый контур — **`GET /api/patient/web-push/status`** ранее отдавал **501**; **SW** был только install/activate. Актуальное поведение — в блоке «Web Push + email» выше.
+- **`public/sw.js` (исторически):** только `install`/`activate`, без перехвата `fetch`.
+- **Заглушка (устарело):** `GET /api/patient/web-push/status` → **501** `not_implemented`; контракт расширения — `apps/webapp/src/modules/web-push/ports.ts`.
 
 ## 2026-05-18 — SW: регистрация `scope: "/app"`
 

@@ -1,6 +1,6 @@
-import { and, count, eq, sql } from "drizzle-orm";
+import { and, count, eq, gt, like, sql } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
-import { reminderDeliveryEvents, reminderOccurrenceHistory } from "../../../db/schema/schema";
+import { reminderDeliveryEvents, reminderOccurrenceHistory, idempotencyKeys } from "../../../db/schema/schema";
 import { outgoingDeliveryQueue } from "../../../db/schema/outgoingDeliveryQueue";
 
 /** Matches integrator `enqueueOutgoingDeliveryIfAbsent` kind for patient reminder pushes. */
@@ -18,8 +18,10 @@ export type RemindersPipelineHealthPayload = {
   };
   /** `reminder_occurrence_history` rows with `occurred_at` in rolling window (UTC `now()`). */
   occurrenceHistory: { sent: number; failed: number };
-  /** `reminder_delivery_events` rows with `created_at` in rolling window. */
+  /** `reminder_delivery_events` rows with `created_at` in rolling window (UTC `now()`). */
   deliveryEvents: { sent: number; failed: number };
+  /** Активные ключи idempotency `prn:*:channels` (ответ M2M web push + email ещё в TTL). */
+  patientReminderM2mIdempotencyKeysActive: number;
 };
 
 export function emptyRemindersPipelineHealthPayload(): RemindersPipelineHealthPayload {
@@ -28,6 +30,7 @@ export function emptyRemindersPipelineHealthPayload(): RemindersPipelineHealthPa
     outgoingReminderDispatch: { due: 0, dead: 0, processing: 0 },
     occurrenceHistory: { sent: 0, failed: 0 },
     deliveryEvents: { sent: 0, failed: 0 },
+    patientReminderM2mIdempotencyKeysActive: 0,
   };
 }
 
@@ -59,7 +62,7 @@ export async function loadAdminReminderPipelineMetrics(outgoingDelivery: {
     const due = outgoingDelivery.dueByKind[REMINDER_OUTGOING_KIND] ?? 0;
     const dead = outgoingDelivery.deadByKind[REMINDER_OUTGOING_KIND] ?? 0;
 
-    const [processingRows, occRows, evRows] = await Promise.all([
+    const [processingRows, occRows, evRows, prnIdemRows] = await Promise.all([
       db
         .select({ c: count() })
         .from(outgoingDeliveryQueue)
@@ -82,6 +85,12 @@ export async function loadAdminReminderPipelineMetrics(outgoingDelivery: {
         .from(reminderDeliveryEvents)
         .where(sql`${reminderDeliveryEvents.createdAt} >= now() - interval '24 hours'`)
         .groupBy(reminderDeliveryEvents.status),
+      db
+        .select({ c: count() })
+        .from(idempotencyKeys)
+        .where(
+          and(like(idempotencyKeys.key, "prn:%:channels"), gt(idempotencyKeys.expiresAt, sql`now()`)),
+        ),
     ]);
 
     const occurrenceHistory = sumStatus(
@@ -106,6 +115,7 @@ export async function loadAdminReminderPipelineMetrics(outgoingDelivery: {
         },
         occurrenceHistory,
         deliveryEvents,
+        patientReminderM2mIdempotencyKeysActive: Number(prnIdemRows[0]?.c ?? 0),
       },
     };
   } catch {
