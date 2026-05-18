@@ -1,6 +1,7 @@
 ---
 name: Promo assignment source
-overview: Ввести явный `assignment_source` у `treatment_program_instances`, конфиг промо-шаблона в `system_settings`, пациентский режим «шаблон без инстанса» с материализацией по первому действию/первому напоминанию, авто-завершение промо при назначении врача, и сузить врачебные метрики/«Сегодня» до клинических (`doctor`) назначений.
+overview: "Ввести явный `assignment_source` у `treatment_program_instances`, конфиг промо-шаблона в `system_settings`, пациентский режим «шаблон без инстанса» с материализацией по первому действию/первому напоминанию, авто-завершение промо при назначении врача, и сузить врачебные метрики/«Сегодня» до клинических (`doctor`) назначений."
+status: completed
 todos:
   - id: schema-migration
     content: "Drizzle: assignment_source + CHECK; миграция + backfill; mapInstance/CreateTreeInput/types; опционально partial UNIQUE(patient) WHERE active (см. риск multi-plan)"
@@ -15,13 +16,13 @@ todos:
     content: "Аудит потребителей active+program: pgDoctorClients, getDashboardPatientMetrics, doctor-broadcasts*, любые SQL с tpi.status=active; фильтр clinical = doctor; порты/тесты"
     status: completed
   - id: system-settings
-    content: ALLOWED_KEYS + admin Settings UI + typed accessor; валидация UUID шаблона + published; без env; зеркало updateSetting
+    content: "ALLOWED_KEYS + admin Settings UI + typed accessor; валидация UUID шаблона + published; без env; зеркало updateSetting"
     status: completed
   - id: patient-virtual-promo
     content: "RSC: промо только если нет ни одного active instance; published шаблон; patient UX copy (программа реабилитации); revalidate кэшей"
     status: completed
   - id: patient-materialize
-    content: Единый server helper + контракт API (без произвольного templateId от клиента); интеграция complete/comment/localComment; порядок транзакции материализация→действие
+    content: "Единый server helper + контракт API (без произвольного templateId от клиента); интеграция complete/comment/localComment; порядок транзакции материализация→действие"
     status: completed
   - id: reminders-rehab
     content: "Перед create rehab_program: ensurePromo если нет active; linkedObjectId только реальный UUID; интегратор sync order; UI RemindersPageBody/ReminderCreateDialog"
@@ -30,7 +31,7 @@ todos:
     content: "Admin страница: модалка выбора шаблона + stats v1 по promo; не дублировать sync system_settings"
     status: completed
   - id: callers-audit
-    content: Пройти все вызовы assignTemplateToPatient/createInstanceTree (courses, lfk-assignments если жив, тесты) — явный assignment_source
+    content: "Пройти все вызовы assignTemplateToPatient/createInstanceTree (courses, lfk-assignments если жив, тесты) — явный assignment_source"
     status: completed
   - id: docs-log-backlog
     content: "docs/LOG инициативы; пункт в backlog (например отдельный docs/.../BACKLOG.md или существующий initiative backlog): смена промо-шаблона + уведомление; git mv плана в .cursor/plans/archive/"

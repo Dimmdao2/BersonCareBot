@@ -524,6 +524,12 @@ export type RemindersWebappWritesPort = {
     integratorUserId: string;
     mutedUntilIso: string | null;
   }): Promise<{ ok: true } | { ok: false; error: string }>;
+  /** Turn off reminder delivery in Telegram/MAX for occurrence's topic (`user_notification_topic_channels`). */
+  postMessengerTopicDisable(input: {
+    integratorUserId: string;
+    occurrenceId: string;
+    messengerChannel: 'telegram' | 'max';
+  }): Promise<{ ok: true; paragraphs: string[] } | { ok: false; error: string }>;
 };
 
 /** Port to read reminder product data from webapp (projection). Used with fallback to local DB. */

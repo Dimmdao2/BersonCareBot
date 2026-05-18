@@ -25,10 +25,19 @@ export async function buildExerciseReminderWebAppUrls(params: {
   externalId: string;
   integratorUserId: string;
   reminderTargetUrl: string;
-}): Promise<{ primaryWebAppUrl: string; scheduleWebAppUrl: string } | null> {
+}): Promise<{
+  primaryWebAppUrl: string;
+  scheduleWebAppUrl: string;
+  /** Stable PWA entry for «установить / открыть мобильное приложение». */
+  mobileAppWebAppUrl: string;
+  /** Profile → notification topic channels UI. */
+  profileChannelsWebAppUrl: string;
+} | null> {
   const base = await getAppBaseUrl(params.db);
   const pathPrimary = patientPathFromReminderTargetUrl(params.reminderTargetUrl);
   const pathSchedule = '/app/patient/reminders?from=reminder';
+  const pathPatientHome = '/app/patient';
+  const pathProfileChannels = '/app/patient/profile#patient-profile-notifications';
   if (params.channel === 'telegram') {
     const entry = buildWebappEntryUrl(
       { chatId: params.chatId, integratorUserId: params.integratorUserId },
@@ -38,6 +47,8 @@ export async function buildExerciseReminderWebAppUrls(params: {
     return {
       primaryWebAppUrl: `${entry}&next=${encodeURIComponent(pathPrimary)}`,
       scheduleWebAppUrl: `${entry}&next=${encodeURIComponent(pathSchedule)}`,
+      mobileAppWebAppUrl: `${entry}&next=${encodeURIComponent(pathPatientHome)}`,
+      profileChannelsWebAppUrl: `${entry}&next=${encodeURIComponent(pathProfileChannels)}`,
     };
   }
   const entry = buildWebappEntryUrlForMax(
@@ -48,5 +59,7 @@ export async function buildExerciseReminderWebAppUrls(params: {
   return {
     primaryWebAppUrl: `${entry}&next=${encodeURIComponent(pathPrimary)}`,
     scheduleWebAppUrl: `${entry}&next=${encodeURIComponent(pathSchedule)}`,
+    mobileAppWebAppUrl: `${entry}&next=${encodeURIComponent(pathPatientHome)}`,
+    profileChannelsWebAppUrl: `${entry}&next=${encodeURIComponent(pathProfileChannels)}`,
   };
 }

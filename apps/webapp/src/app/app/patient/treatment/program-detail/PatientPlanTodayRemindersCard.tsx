@@ -2,14 +2,11 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ChevronDown } from "lucide-react";
+import { Bell, ChevronDown } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
-import {
-  patientButtonWarningOutlineClass,
-  patientSectionTitleNormalClass,
-  patientSurfaceInfoClass,
-} from "@/shared/ui/patientVisual";
+import { NAV_STRIP_ICON_STROKE } from "@/shared/ui/navChrome";
+import { patientButtonWarningOutlineClass, patientSurfaceInfoClass } from "@/shared/ui/patientVisual";
 
 export type PatientPlanTodayRemindersCardProps = {
   rehabTodayLine: string;
@@ -36,13 +33,22 @@ export function PatientPlanTodayRemindersCard({
       <CollapsibleTrigger
         type="button"
         className={cn(
-          "flex w-full min-h-10 items-center justify-between gap-2 px-3 py-2.5 text-left outline-none",
+          "flex w-full min-h-0 items-center justify-between gap-2 px-2.5 py-1.5 text-left outline-none",
           "ring-offset-background focus-visible:ring-2 focus-visible:ring-[var(--patient-border)] focus-visible:ring-offset-2",
         )}
       >
-        <h2 className={cn(patientSectionTitleNormalClass, "m-0")}>Напоминания на сегодня</h2>
+        <span className="flex min-w-0 flex-1 items-center gap-2">
+          <Bell
+            className="size-[18px] shrink-0 text-[var(--patient-color-primary)]"
+            strokeWidth={NAV_STRIP_ICON_STROKE}
+            aria-hidden
+          />
+          <h2 className="m-0 min-w-0 truncate text-sm font-semibold leading-tight text-[var(--patient-block-heading)]">
+            Расписание на сегодня
+          </h2>
+        </span>
         <ChevronDown
-          className="size-4 shrink-0 text-[var(--patient-color-primary)] transition-transform group-data-[open]/collapsible:rotate-180"
+          className="size-3.5 shrink-0 text-[var(--patient-color-primary)] transition-transform group-data-[open]/collapsible:rotate-180"
           aria-hidden
         />
       </CollapsibleTrigger>

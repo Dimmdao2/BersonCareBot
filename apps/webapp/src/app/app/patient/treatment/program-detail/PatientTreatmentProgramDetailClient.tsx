@@ -295,7 +295,10 @@ export function PatientTreatmentProgramDetailClient(props: {
         </p>
       ) : null}
 
-      <div className="flex flex-col">
+      <div className="flex flex-col gap-2">
+        {detail.status === "active" && planReminderStrip ? (
+          <PatientPlanTodayRemindersCard {...planReminderStrip} />
+        ) : null}
         <PatientPlanHeroActive
           detail={detail}
           appDisplayTimeZone={appDisplayTimeZone}
@@ -342,8 +345,7 @@ export function PatientTreatmentProgramDetailClient(props: {
       />
 
       {detail.status === "active" ? (
-        <div className="mt-4 flex flex-col gap-3">
-          {planReminderStrip ? <PatientPlanTodayRemindersCard {...planReminderStrip} /> : null}
+        <div className="mt-4">
           <PatientPlanPersonalProgramCtaCard />
         </div>
       ) : null}

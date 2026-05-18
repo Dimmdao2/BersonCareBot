@@ -36,9 +36,11 @@ import {
   buildReminderDispatchInlineKeyboard,
   buildReminderSkipReasonInlineKeyboard,
   reminderIntentPrimaryLabel,
+  reminderLinkKeyboardButton,
 } from '../../reminders/reminderInlineKeyboard.js';
-import type { ReminderOpenLinkSpec } from '../../reminders/reminderInlineKeyboard.js';
+import type { InlineKeyboardButton, ReminderOpenLinkSpec } from '../../reminders/reminderInlineKeyboard.js';
 import { buildExerciseReminderWebAppUrls } from '../../reminders/reminderMessengerWebAppUrls.js';
+import { getAppBaseUrl } from '../../../../config/appBaseUrl.js';
 import { REMINDER_BY_CATEGORY } from '../templateKeys.js';
 
 function escapeReminderHtml(text: string): string {
@@ -54,11 +56,17 @@ function buildReminderCallbackAckIntents(
     callbackQueryId: string | null;
     text: string;
     channel: 'telegram' | 'max';
+    /** When set (non-empty keyboard), replaces default «remove keyboard». */
+    replyMarkup?: InlineKeyboardButton[][];
   },
 ): import('../../../contracts/index.js').OutgoingIntent[] {
   const intents: import('../../../contracts/index.js').OutgoingIntent[] = [];
   const mid = asMessageId(input.messageId);
   const useEdit = mid !== null;
+  const editReplyMarkup =
+    input.replyMarkup && input.replyMarkup.length > 0
+      ? { inline_keyboard: input.replyMarkup }
+      : { inline_keyboard: [] };
   if (input.callbackQueryId) {
     intents.push({
       type: 'callback.answer',
@@ -75,7 +83,7 @@ function buildReminderCallbackAckIntents(
         messageId: mid,
         message: { text: input.text },
         parse_mode: 'HTML',
-        replyMarkup: { inline_keyboard: [] },
+        replyMarkup: editReplyMarkup,
         delivery: { channels: [input.channel], maxAttempts: 1 },
       },
     });
@@ -87,6 +95,9 @@ function buildReminderCallbackAckIntents(
         recipient: { chatId: input.chatId },
         message: { text: input.text },
         parse_mode: 'HTML',
+        ...(input.replyMarkup && input.replyMarkup.length > 0
+          ? { replyMarkup: editReplyMarkup }
+          : {}),
         delivery: { channels: [input.channel], maxAttempts: 1 },
       },
     });
@@ -574,10 +585,14 @@ export async function handleReminders(
         const scheduleSpec: ReminderOpenLinkSpec = webUrls
           ? { kind: 'web_app', url: webUrls.scheduleWebAppUrl }
           : { kind: 'url', url: remindersEditUrl ?? openUrl };
+        const mobileSpec: ReminderOpenLinkSpec = webUrls
+          ? { kind: 'web_app', url: webUrls.mobileAppWebAppUrl }
+          : { kind: 'url', url: remindersEditUrl ?? openUrl };
         const replyMarkup = buildReminderDispatchInlineKeyboard({
           primaryLabel: reminderIntentPrimaryLabel(rule?.reminderIntent ?? null),
           primary: primarySpec,
           schedule: scheduleSpec,
+          mobileInstall: mobileSpec,
           occurrenceId: occ.id,
         });
 

@@ -18,7 +18,8 @@
 | `patientTreatmentProgramListItemClass.ts` | Общий класс плотной строки списка (программа + экран этапа). |
 | `PatientProgramHeroHistoryPopover.tsx` | Popover «История программы» в hero (`z-20`). |
 | `PatientPlanHero.tsx` | Hero завершённой (`PatientPlanHeroCompleted`) и активной (`PatientPlanHeroActive`) программы. |
-| `PatientPlanTodayRemindersCard.tsx` | Для **активной** программы: краткая сводка напоминаний «сегодня» (реабилитация + разминки при доступности раздела) и ссылка «Настроить расписание» → `/app/patient/reminders#patient-reminders-rehab`. Данные и строки сводки собираются в RSC `[instanceId]/page.tsx` (`planReminderStrip`). |
+| `PatientPlanTodayRemindersCard.tsx` | **Активная** программа: **сворачиваемый** блок «**Расписание на сегодня**» (иконка `Bell` + шеврон, по умолчанию свёрнут; внутри — строки **Тренировки** / **Разминки** и ссылка «Настроить расписание» → `/app/patient/reminders#patient-reminders-rehab`). Размещение: **над** hero и вкладками в `PatientTreatmentProgramDetailClient`. Тексты строк собираются в RSC `[instanceId]/page.tsx` через **`formatPlanReminderTodayLine`** (`apps/webapp/src/modules/reminders/summarizeReminderForCalendarDay.ts`): при оставшихся слотах на сегодня — «Сегодня еще n: в ЧЧ:ММ, …»; если слоты на сегодня прошли — «На сегодня всё»; иначе — сводка как `summarizeReminderForCalendarDay` / «не настроено». |
+| `PatientPlanPersonalProgramCtaCard.tsx` | **Активная** программа: CTA «персональная программа» под панелями вкладок — **та же вёрстка и токены hero**, что карточка «Разминка дня» на главной (`patientHomeHeroCardGeometryClass`, бейджи, `patientHomeHeroTextColumnClass`, `patientHeroPrimaryActionClass`, слот изображения справа). Статика фото: `public/patient/personal-program-consultation.png`. Кнопка «Отправить заявку» → **`routePaths.intakeLfk`** (`/app/patient/intake/lfk`, онлайн-реабилитация). |
 | `PatientPlanTabStrip.tsx` | Липкая полоска вкладок (`sticky`, `z-[5]`). |
 | `PatientPlanTabPanels.tsx` | Панели вкладок: `lazy` + `Suspense` для «Программа»/«Рекомендации», блок «Прогресс». |
 | `PatientProgramStagesTimeline.tsx` | Timeline этапов на вкладке «Прогресс». |
@@ -29,6 +30,10 @@
 | `PatientInstanceStageBody.tsx` / `PatientInstanceStageItemCard.tsx` | Тело этапа и карточка пункта (списки, действия). Встроенный **`clinical_test`**: после `refresh` (форма, «Снять Новое», `mark-viewed` по видимости) повторно подтягивается snapshot через `reloadClinicalTestSnap`. |
 | `PatientLfkChecklistRow.tsx` | Форма отметки ЛФК за сегодня. |
 | `usePostMarkItemViewedWhenVisible.ts` | IntersectionObserver → `mark-viewed`. |
+
+## Вкладка «Программа»: комментарий с плитки
+
+- В **`PatientTreatmentProgramStagePageProgramSection`** кнопка «Добавить комментарий» открывает **модалку «Наблюдение»** (тот же поток API, что на странице пункта: `observation-note` / `lfk-session` с выбором сложности для ЛФК), без перехода на `/treatment/[instanceId]/item/...`.
 
 ## Инварианты после декомпозиции
 
