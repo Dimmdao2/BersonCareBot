@@ -25,6 +25,7 @@ import {
 } from "./VideoSystemSettingsSection";
 import { AppParametersSection } from "./AppParametersSection";
 import { NotificationsTopicsSection } from "./NotificationsTopicsSection";
+import { WebPushVapidSection } from "./WebPushVapidSection";
 import { EmailSmtpSection, type EmailSmtpSectionProps } from "./EmailSmtpSection";
 import { AuthProvidersSection } from "./AuthProvidersSection";
 import { BookingCatalogHelp } from "./BookingCatalogHelp";
@@ -344,6 +345,21 @@ export default async function SettingsPage({
 
   const smtpOutboundUi = isAdmin ? parseAdminSmtpOutboundForUi(adminSettingsList) : null;
 
+  const webPushVapidUi = isAdmin
+    ? (() => {
+        const row = adminSettingsList.find((x) => x.key === "web_push_vapid");
+        const inner = row ? getValueJson<unknown>(row.valueJson, null) : null;
+        let publicKey = "";
+        let privateKey = "";
+        if (inner !== null && typeof inner === "object" && !Array.isArray(inner)) {
+          const o = inner as Record<string, unknown>;
+          publicKey = typeof o.publicKey === "string" ? o.publicKey.trim() : "";
+          privateKey = typeof o.privateKey === "string" ? o.privateKey.trim() : "";
+        }
+        return { publicKey, privateKey };
+      })()
+    : null;
+
   return (
     <div className={DOCTOR_PAGE_CONTAINER_CLASS}>
       <h1 className="mb-6 text-xl font-semibold">Настройки</h1>
@@ -393,6 +409,12 @@ export default async function SettingsPage({
                   <AppParametersSection {...appParametersConfig} />
                   {smtpOutboundUi ? <EmailSmtpSection {...smtpOutboundUi} /> : null}
                   <VideoSystemSettingsSection {...videoSystemSettingsProps} />
+                  {webPushVapidUi ? (
+                    <WebPushVapidSection
+                      initialPublicKey={webPushVapidUi.publicKey}
+                      initialPrivateKey={webPushVapidUi.privateKey}
+                    />
+                  ) : null}
                   <NotificationsTopicsSection initialRows={notificationsTopicsRows} />
                 </>
               ) : null

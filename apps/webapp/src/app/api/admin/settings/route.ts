@@ -7,7 +7,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getCurrentSession } from "@/modules/auth/service";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { ALLOWED_KEYS } from "@/modules/system-settings/types";
+import { ALLOWED_KEYS, type SystemSetting } from "@/modules/system-settings/types";
 import { invalidateConfigKey } from "@/modules/system-settings/configAdapter";
 import { normalizeNotificationsTopicsForAdminPatch } from "@/modules/patient-notifications/notificationsTopics";
 import {
@@ -24,6 +24,10 @@ import {
 } from "@/modules/patient-home/patientHomeRepeatCooldownSettings";
 import { normalizeAdminIncidentAlertConfigForAdminPatch } from "@/modules/admin-incidents/adminIncidentAlertConfig";
 import { parseSmtpOutboundPatchValue } from "@/modules/system-settings/smtpOutboundPatch";
+import {
+  hasStoredWebPushVapidPrivate,
+  parseWebPushVapidPatchValue,
+} from "@/modules/system-settings/webPushVapidPatch";
 
 /** Single-key PATCH: boolean keys normalized like `video_watermark_enabled`. */
 const ADMIN_BOOLEAN_SETTING_KEYS = new Set<string>([
@@ -72,6 +76,7 @@ const ADMIN_SCOPE_KEYS = [
   "patient_home_mood_icons",
   "notifications_topics",
   "smtp_outbound",
+  "web_push_vapid",
   "yandex_oauth_client_id",
   "yandex_oauth_client_secret",
   "yandex_oauth_redirect_uri",
@@ -126,6 +131,19 @@ const SECRET_LIKE_KEYS = new Set<string>([
   "apple_oauth_private_key",
 ]);
 
+function redactWebPushVapidForAudit(envelope: unknown): unknown {
+  if (envelope === null || typeof envelope !== "object") return envelope;
+  if (!("value" in envelope)) return envelope;
+  const inner = (envelope as Record<string, unknown>).value;
+  if (inner === null || typeof inner !== "object" || Array.isArray(inner)) return envelope;
+  const o = { ...(inner as Record<string, unknown>) };
+  if ("privateKey" in o) {
+    const p = typeof o.privateKey === "string" ? o.privateKey.trim() : "";
+    (o as Record<string, unknown>).privateKey = p.length > 0 ? "[REDACTED]" : "";
+  }
+  return { ...(envelope as Record<string, unknown>), value: o };
+}
+
 function redactSmtpOutboundForAudit(envelope: unknown): unknown {
   if (envelope === null || typeof envelope !== "object") return envelope;
   if (!("value" in envelope)) return envelope;
@@ -142,6 +160,7 @@ function redactSmtpOutboundForAudit(envelope: unknown): unknown {
 function auditValueForLog(key: string, value: unknown): unknown {
   if (SECRET_LIKE_KEYS.has(key)) return "[REDACTED]";
   if (key === "smtp_outbound") return redactSmtpOutboundForAudit(value);
+  if (key === "web_push_vapid") return redactWebPushVapidForAudit(value);
   return value;
 }
 
@@ -397,8 +416,23 @@ export async function PATCH(request: Request) {
     normalizedValue = { value: checked.value };
   }
 
+  /** Prefetch for audit: avoid second `getSetting` for `web_push_vapid` (same row as validation). */
+  let webPushVapidOldRowForAudit: SystemSetting | null | undefined;
+  if (parsed.data.key === "web_push_vapid") {
+    webPushVapidOldRowForAudit = await deps.systemSettings.getSetting("web_push_vapid", "admin");
+    const hasExistingPrivate = hasStoredWebPushVapidPrivate(webPushVapidOldRowForAudit?.valueJson ?? null);
+    const checked = parseWebPushVapidPatchValue(normalizedValue, { hasExistingPrivate });
+    if (!checked.ok) {
+      return NextResponse.json({ ok: false, error: "invalid_value" }, { status: 400 });
+    }
+    normalizedValue = { value: checked.value };
+  }
+
   // Audit log перед обновлением (секреты редактируются без вывода raw значения в logs).
-  const oldSetting = await deps.systemSettings.getSetting(parsed.data.key, "admin");
+  const oldSetting =
+    webPushVapidOldRowForAudit !== undefined
+      ? webPushVapidOldRowForAudit
+      : await deps.systemSettings.getSetting(parsed.data.key, "admin");
   console.info("[admin-settings audit]", {
     key: parsed.data.key,
     oldValue: auditValueForLog(parsed.data.key, oldSetting?.valueJson ?? null),

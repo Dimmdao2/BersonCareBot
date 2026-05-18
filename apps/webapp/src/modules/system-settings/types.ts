@@ -72,6 +72,11 @@ export const ALLOWED_KEYS = [
   "notifications_topics",
   /** Исходящий SMTP (integrator `/api/bersoncare/send-email`). Объект: host, port, secure, user, password, from. Зеркало в integrator.system_settings; пустой password при сохранении — не менять пароль. Полный объект в БД перекрывает env SMTP_* / MAIL_* на integrator. */
   "smtp_outbound",
+  /**
+   * Web Push VAPID: пара `publicKey` / `privateKey` (base64url), scope admin. Только `system_settings` + зеркало integrator через `updateSetting` — не env.
+   * Пустой `privateKey` в PATCH при уже сохранённом приватном — merge, не сброс.
+   */
+  "web_push_vapid",
   /** Операторские алерты идентичности: темы + каналы TG/Max для relay на admin_*_ids (см. adminIncidentAlertConfig). */
   "admin_incident_alert_config",
   /** Yandex OAuth (backend-only; не показывать в публичном login UI). */

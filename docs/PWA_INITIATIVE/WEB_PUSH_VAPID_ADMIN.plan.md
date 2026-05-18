@@ -1,26 +1,29 @@
 ---
 name: Web Push VAPID в админке
 overview: "Хранение пары VAPID (public/private) в system_settings (admin), PATCH + UI; merge private; валидация и аудит. Остальной контур Web Push перечислен в §1.1; подписки/SW/отправка — отдельные этапы после этой фазы."
-status: pending
+status: completed
 todos:
   - id: allowlist-key
     content: "types.ts: web_push_vapid в ALLOWED_KEYS + JSDoc (не env; зеркало integrator через updateSetting)"
-    status: pending
+    status: completed
   - id: patch-parse-merge
     content: "webPushVapidPatch.ts (parse+validate) + mergeWebPushVapidPrivateRetain в service.ts + ADMIN_SCOPE_KEYS и ветка PATCH + audit redact в route.ts"
-    status: pending
+    status: completed
   - id: admin-ui
     content: "WebPushVapidSection.tsx + page.tsx (appParams); краткая подсказка про web-push generate-vapid-keys"
-    status: pending
+    status: completed
   - id: tests
     content: "route.test.ts: успех, invalid_value, первый save без private → 400, PATCH с пустым private при существующем → retain (через моки deps)"
-    status: pending
+    status: completed
   - id: reader-stub
     content: "getWebPushVapidKeyPair() (getSetting, не getConfigValue) в modules/system-settings — для следующего этапа sender"
-    status: pending
+    status: completed
   - id: pwa-docs-index
     content: "При merge реализации: LOG.md (дата, ключ, ссылка на план). ROADMAP/README/BACKLOG уже согласованы при переносе плана"
-    status: pending
+    status: completed
+  - id: operator-handoff
+    content: "Генерация пары и ввод в admin UI на стенде/проде — действие оператора вне агента (см. §1.1); секреты не в git/чат"
+    status: cancelled
 isProject: false
 ---
 
@@ -49,6 +52,32 @@ isProject: false
 
 - Ключ **`web_push_vapid`**, `scope: admin`, форма хранения как у остальных настроек: `value_json = { value: { publicKey, privateKey } }` (см. [`smtp_outbound`](../../apps/webapp/src/modules/system-settings/service.ts)).
 - Одна пара на **origin приложения** (не на пациента); пациентские подписки появятся позже и будут ссылаться на тот же публичный ключ при `subscribe()`.
+
+## 1.1 Полный контур Web Push — все этапы и кто что делает
+
+Ниже — **дорожная карта целиком** (чтобы ничего не забыть). **Тело этого файла (§0–9)** реализует только **шаг 1** (хранение VAPID в админке). Остальное — отдельные постановки/PR после закрытия текущих `todos`.
+
+| № | Этап | Можно сделать в репозитории без вас (код, тесты, доки) | Нужны вы / оператор |
+|---|------|--------------------------------------------------------|---------------------|
+| 1 | VAPID в `system_settings` + админ UI + PATCH + `getWebPushVapidKeyPair()` | Да (этот план) | **Прод:** один раз сгенерировать пару и ввести в админку на стенде (см. ниже про CLI). |
+| 2 | Таблица(ы) хранения `PushSubscription` (endpoint, ключи, user, device, timestamps), Drizzle + миграция | Да | Выбор политики хранения нескольких устройств на пользователя — продукт; миграция на prod по вашему процессу. |
+| 3 | API пациента: сохранить / удалить подписку (после сессии), валидация тела | Да | — |
+| 4 | Расширение [`public/sw.js`](../../apps/webapp/public/sw.js): `push`, при необходимости `notificationclick`; не ломать Mini App (без регистрации SW там) | Да | Ручной smoke Telegram/MAX WebView по [`PHASE_02`](PHASE_02_INSTALL_FLOW.md). |
+| 5 | Клиент пациента: запрос разрешения, `pushManager.subscribe` с `applicationServerKey` из `getWebPushVapidKeyPair` (публичная часть на клиент — отдельный безопасный endpoint или вшито в конфиг страницы), отправка JSON на API п.3 | Да | UX-тексты и момент показа диалога — согласование с продуктом. |
+| 6 | Зависимость `web-push` на сервере процесса, который шлёт пуши; использование пары из `getWebPushVapidKeyPair()` | Да | Привязка к очереди/cron и доменным событиям (напоминания, сообщения) — ваша постановка приоритетов. |
+| 7 | Обработка 410/404 от push-сервиса, удаление мёртвой подписки | Да | — |
+| 8 | Каналы доставки в профиле пациента (push vs прочее) — если ещё не покрыто существующей моделью | Частично | Продуктовые правила приоритета каналов. |
+| 9 | Верификация на реальных устройствах (Chrome PWA, iOS standalone по версии Safari, ограничения) | Документировать чеклист | **Вы:** ручной прогон на стенде/проде. |
+
+### Генерация VAPID: CLI и ответственность
+
+- **Нигде регистрироваться не нужно** (чистый Web Push + VAPID): пара ключей — локальная криптография, не аккаунт у Google/Firebase для базового сценария.
+- **Команда** (после того как пакет `web-push` будет добавлен в тот workspace, откуда запускаете CLI, чаще всего `apps/webapp`):  
+  `pnpm --filter @bersoncare/webapp exec web-push generate-vapid-keys`  
+  (до добавления пакета в монорепо — эквивалент `npx web-push generate-vapid-keys` на машине с Node).
+- **Агент в Cursor** при реализации **этого** плана **не обязан** выполнять CLI для продакшена: вывод попал бы в лог сессии — **риск утечки private**. Прод-пару генерирует **человек с доступом к админке**, локально, и вставляет только в UI / одноразово в безопасном канале.
+- **В автотестах** использовать **выдуманные** строки в алфавите base64url нужной длины (как фикстуры), **не** ключи из реального `generate-vapid-keys`, и не коммитить секреты.
+- **Для локальной разработки** разработчик может сам выполнить CLI и ввести ключи в локальную админку — те же правила: не коммитить.
 
 ## 2. Валидация (зафиксировать в коде, без «опционально»)
 
@@ -108,10 +137,20 @@ isProject: false
 
 - `rg "web_push_vapid" apps/webapp` — все вхождения осмысленны; нет дублирующего bypass `updateSetting`.
 
+## 8.1 Риски и контрмеры
+
+| Риск | Контрмера в этой фазе |
+|------|------------------------|
+| Утечка приватного ключа в логах PATCH | `redactWebPushVapidForAudit`; негативный тест на отсутствие сырого `privateKey` в audit-представлении |
+| Случайное обнуление `privateKey` при правке только public | Merge в `service.ts` при пустом private + тест «retain existing private» |
+| Невалидные строки (пробелы/не base64url) в БД | Строгий parse+validate в `webPushVapidPatch.ts` с `invalid_value` |
+| Хрупкий runtime-read через `configAdapter` | Явный `getWebPushVapidKeyPair()` через `getSetting`, без `getConfigValue` |
+| Попытка вести ключи через env | Прямой запрет в этом плане + ссылка на правило DB config |
+
 ## Чеклисты по шагам (локальные проверки)
 
 | Шаг | Проверка |
-|-----|------------|
+|-----|----------|
 | allowlist-key | `rg "web_push_vapid" apps/webapp/src/modules/system-settings/types.ts` — одно вхождение в массиве + JSDoc |
 | patch-parse-merge | PATCH с заведомо неверным алфавитом → 400; `auditValueForLog` для старого/нового значения без сырого `privateKey` |
 | admin-ui | Только под сессией admin виден блок; сохранение не ломает остальные секции `appParams` |
@@ -122,7 +161,7 @@ isProject: false
 ## 9. Документация инициативы
 
 - [`LOG.md`](LOG.md): при **закрытии реализации кода** — дата, ключ `web_push_vapid`, ссылка на этот план.
-- [`ROADMAP.md`](ROADMAP.md): строка «4 — Web Push: VAPID в админке» (уже добавлена при переносе плана).
+- [`ROADMAP.md`](ROADMAP.md): строка «4 — Web Push: VAPID в админке» — статус этапа **done** после merge кода в репозиторий; оглавление корневых доков (`docs/README.md`, `ARCHITECTURE.md`, `CONFIGURATION_ENV_VS_DATABASE.md`, `api.md`) согласовано с ключом **`web_push_vapid`**.
 - [`README.md`](README.md): ссылка на этот план в списке материалов (уже добавлена).
 - [`BACKLOG.md`](BACKLOG.md): разбиение Web Push на «ключи в админке» / «полный контур» уже отражено при переносе плана.
 
@@ -134,7 +173,25 @@ isProject: false
 - UI на `/app/settings` в блоке админа; сохранение через существующий патч-хелпер.
 - `getWebPushVapidKeyPair()` доступен для следующего этапа.
 - [`LOG.md`](LOG.md) обновлён после merge реализации.
-- После выполнения всех работ в frontmatter этого файла все `todos` переведены в `status: completed` (процедура закрытия плана — см. `.cursor/rules/plan-authoring-execution-standard.mdc`).
+- После выполнения всех работ в frontmatter этого плана все `todos` переведены в `status: completed` (процедура закрытия плана — см. `.cursor/rules/plan-authoring-execution-standard.mdc`).
+- **Стенд/прод (вне репозитория):** оператор один раз генерирует пару VAPID локально и сохраняет через admin UI на целевом окружении (см. §1.1); ключи не попадают в git и чат-логи.
+
+## Порядок исполнения (gate-based)
+
+1. `allowlist-key` → `patch-parse-merge` (backend contract и безопасность).
+2. `admin-ui` + `reader-stub` (вкладка настроек и runtime accessor).
+3. `tests` + локальные команды из §8.
+4. `pwa-docs-index` (LOG по факту merge).
+5. `operator-handoff` (вне репо): генерация и ввод реальных ключей на стенде/проде.
+
+### Критерий перехода между шагами
+
+- К следующему шагу переходить только после зелёных проверок текущего (таблица §«Чеклисты по шагам»).
+
+### Мини-rollback (если что-то пошло не так)
+
+- Если PATCH/UI для `web_push_vapid` вызывает регресс, откатить изменения кода этой фазы; существующие ключи OAuth/SMTP и другие настройки не затрагиваются.
+- Если в окружении сохранена неверная VAPID-пара, исправление делается повторным сохранением валидной пары через admin UI (без ручных SQL правок вне аварийного сценария).
 
 ```mermaid
 flowchart LR

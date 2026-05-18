@@ -14,6 +14,37 @@ import {
   type TestAccountIdentifiers,
 } from "./testAccounts";
 
+async function mergeWebPushVapidPrivateRetain(port: SystemSettingsPort, incoming: unknown): Promise<{ value: unknown }> {
+  const env = normalizeValueJson(incoming);
+  const inner = env.value;
+  if (inner === null || typeof inner !== "object" || Array.isArray(inner)) return env;
+
+  const o = { ...(inner as Record<string, unknown>) };
+  const privRaw = typeof o.privateKey === "string" ? o.privateKey.trim() : "";
+  if (privRaw === "") {
+    const prev = await port.getByKey("web_push_vapid", "admin");
+    let prevPriv = "";
+    const prevVj = prev?.valueJson;
+    if (
+      prevVj !== null &&
+      typeof prevVj === "object" &&
+      "value" in (prevVj as Record<string, unknown>)
+    ) {
+      const pv = (prevVj as Record<string, unknown>).value;
+      if (pv !== null && typeof pv === "object" && !Array.isArray(pv)) {
+        const p = (pv as Record<string, unknown>).privateKey;
+        if (typeof p === "string") prevPriv = p.trim();
+      }
+    }
+    o.privateKey = prevPriv;
+  } else {
+    o.privateKey = privRaw;
+  }
+  const pubRaw = typeof o.publicKey === "string" ? o.publicKey.trim() : "";
+  o.publicKey = pubRaw;
+  return { value: o };
+}
+
 async function mergeSmtpOutboundPasswordRetain(port: SystemSettingsPort, incoming: unknown): Promise<{ value: unknown }> {
   const env = normalizeValueJson(incoming);
   const inner = env.value;
@@ -94,7 +125,9 @@ export function createSystemSettingsService(port: SystemSettingsPort) {
       const valueToStore =
         key === "smtp_outbound" && scope === "admin"
           ? await mergeSmtpOutboundPasswordRetain(port, value)
-          : value;
+          : key === "web_push_vapid" && scope === "admin"
+            ? await mergeWebPushVapidPrivateRetain(port, value)
+            : value;
       const result = await port.upsert(key, scope, valueToStore, updatedBy);
       void syncSettingToIntegrator({
         key,

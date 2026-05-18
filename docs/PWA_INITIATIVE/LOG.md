@@ -1,5 +1,18 @@
 # PWA — журнал
 
+## 2026-05-18 — Web Push: синхронизация индекса доков
+
+- **`ROADMAP.md`:** этап 4 — статус **done**; уточнён текст про код в репо vs операторский ввод ключей на стенде.
+- **`BASELINE_STRUCTURE.md`**, **`BACKLOG.md`**, **`WEB_PUSH_VAPID_ADMIN.plan.md` (§9/DoD):** факт реализации VAPID в админке; backlog — только полный контур push.
+- **`route.ts` (PATCH admin settings):** один вызов `getSetting` для `web_push_vapid` на запрос (валидация + аудит).
+- **Корневая документация проекта:** `docs/README.md` (блок PWA), `ARCHITECTURE.md` (PWA + этап 4), `docs/ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md` (ключ `web_push_vapid`), `apps/webapp/src/app/api/api.md` (**admin/settings**).
+
+## 2026-05-18 — Web Push VAPID в админке (`web_push_vapid`)
+
+- **Ключ:** `web_push_vapid`, scope `admin`, значение `{ publicKey, privateKey }` в `system_settings` (зеркало integrator через `updateSetting`).
+- **Реализация:** валидация base64url + лимит длины, первый save требует оба ключа, пустой `privateKey` при PATCH — merge в `service.ts`; аудит PATCH без сырого private; UI блок на `/app/settings` (вкладка параметров приложения); `getWebPushVapidKeyPair()` в `webPushVapidRuntime.ts` для следующего этапа sender.
+- **План:** [WEB_PUSH_VAPID_ADMIN.plan.md](WEB_PUSH_VAPID_ADMIN.plan.md).
+
 ## 2026-05-18 — синхронизация документации проекта (PWA и webapp)
 
 - **`apps/webapp/README.md`:** в **URL Spaces** добавлен **`/`** (публичный лендинг + PWA); уточнено различие **`/app/patient/install`** (в сессии) vs **`/`**.

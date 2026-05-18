@@ -1,0 +1,81 @@
+"use client";
+
+import { useState, useTransition } from "react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { patchAdminSetting } from "./patchAdminSetting";
+
+export type WebPushVapidSectionProps = {
+  initialPublicKey: string;
+  initialPrivateKey: string;
+};
+
+export function WebPushVapidSection({ initialPublicKey, initialPrivateKey }: WebPushVapidSectionProps) {
+  const [publicKey, setPublicKey] = useState(initialPublicKey);
+  const [privateKey, setPrivateKey] = useState(initialPrivateKey);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
+
+  function handleSave() {
+    setSaved(false);
+    setError(null);
+    startTransition(async () => {
+      try {
+        const ok = await patchAdminSetting("web_push_vapid", {
+          publicKey,
+          privateKey,
+        });
+        if (!ok) {
+          setError("Не удалось сохранить");
+          return;
+        }
+        setSaved(true);
+      } catch {
+        setError("Ошибка при сохранении");
+      }
+    });
+  }
+
+  return (
+    <Card className="mt-6 border-border">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-base">Web Push (VAPID)</CardTitle>
+        <p className="text-xs text-muted-foreground">
+          Пара ключей: pnpm --filter @bersoncare/webapp exec web-push generate-vapid-keys (локально).
+        </p>
+      </CardHeader>
+      <CardContent className="flex max-w-xl flex-col gap-4">
+        <label className="flex flex-col gap-1">
+          <span className="text-xs font-medium">Публичный ключ</span>
+          <Input
+            value={publicKey}
+            onChange={(e) => setPublicKey(e.target.value)}
+            disabled={isPending}
+            autoComplete="off"
+            spellCheck={false}
+          />
+        </label>
+        <label className="flex flex-col gap-1">
+          <span className="text-xs font-medium">Приватный ключ</span>
+          <Input
+            type="password"
+            value={privateKey}
+            onChange={(e) => setPrivateKey(e.target.value)}
+            disabled={isPending}
+            autoComplete="off"
+            spellCheck={false}
+          />
+        </label>
+        <div className="flex flex-wrap items-center gap-3">
+          <Button type="button" onClick={handleSave} disabled={isPending}>
+            Сохранить
+          </Button>
+          {saved ? <span className="text-sm text-muted-foreground">Сохранено</span> : null}
+          {error ? <span className="text-sm text-destructive">{error}</span> : null}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}

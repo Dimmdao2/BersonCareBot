@@ -11,7 +11,7 @@ It is intentionally separated from the current `tgcarebot` integrator **as a pro
 
 ## URL Spaces
 
-- **`/`** — публичный маркетинговый лендинг и блок установки PWA (manifest глобально, `public/sw.js` регистрируется **только** вне Mini App; канон и фазы — [`docs/PWA_INITIATIVE/README.md`](../../docs/PWA_INITIATIVE/README.md))
+- **`/`** — публичный маркетинговый лендинг и блок установки PWA (manifest глобально, `public/sw.js` регистрируется **только** вне Mini App; канон и фазы — [`docs/PWA_INITIATIVE/README.md`](../../docs/PWA_INITIATIVE/README.md)). **Web Push (этап 4):** пара VAPID хранится в **`system_settings`** (`web_push_vapid`, admin), редактирование — блок на **`/app/settings`** (см. [`WEB_PUSH_VAPID_ADMIN.plan.md`](../../docs/PWA_INITIATIVE/WEB_PUSH_VAPID_ADMIN.plan.md)).
 - `/app` - common entrypoint with role resolution (legacy miniapp: optional `?ctx=bot|max`; **`ctx=max` на `/app` → redirect на `/app/max`**)
 - `/app/tg` - Telegram Mini App entry (shared `AppEntryRsc` + messenger auth)
 - `/app/max` - MAX Mini App entry (shared `AppEntryRsc` + messenger auth)

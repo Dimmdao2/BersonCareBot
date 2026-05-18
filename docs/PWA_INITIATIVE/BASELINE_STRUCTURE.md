@@ -18,7 +18,7 @@
 ## План дальнейших работ
 
 - **Индекс:** [`ROADMAP.md`](ROADMAP.md)
-- **По этапам:** [`PHASE_00_PRINCIPLES_AND_SCOPE.md`](PHASE_00_PRINCIPLES_AND_SCOPE.md) · [`PHASE_01_ROOT_LANDING.md`](PHASE_01_ROOT_LANDING.md) · [`PHASE_02_INSTALL_FLOW.md`](PHASE_02_INSTALL_FLOW.md) · [`PHASE_03_MANIFEST_AUDIT.md`](PHASE_03_MANIFEST_AUDIT.md) · [`BACKLOG.md`](BACKLOG.md)
+- **По этапам:** [`PHASE_00_PRINCIPLES_AND_SCOPE.md`](PHASE_00_PRINCIPLES_AND_SCOPE.md) · [`PHASE_01_ROOT_LANDING.md`](PHASE_01_ROOT_LANDING.md) · [`PHASE_02_INSTALL_FLOW.md`](PHASE_02_INSTALL_FLOW.md) · [`PHASE_03_MANIFEST_AUDIT.md`](PHASE_03_MANIFEST_AUDIT.md) · [`WEB_PUSH_VAPID_ADMIN.plan.md`](WEB_PUSH_VAPID_ADMIN.plan.md) · [`BACKLOG.md`](BACKLOG.md)
 
 ## Что появилось в рамках PWA (фаза 0 и первая волна)
 
@@ -30,7 +30,7 @@
 ## Чего пока нет (намеренно)
 
 - **Полный офлайн‑кэш** страниц и данных — не вводился (см. [`BACKLOG.md`](BACKLOG.md)).
-- **Web Push** — нет подписок, нет VAPID, нет API отправки; при появлении ключи и URL провайдера — по канону проекта в **`system_settings`**, не env.
+- **Web Push** — нет подписок и нет API отправки; **VAPID-пара в админке** (`web_push_vapid` в `system_settings`) — см. [WEB_PUSH_VAPID_ADMIN.plan.md](WEB_PUSH_VAPID_ADMIN.plan.md) и [LOG.md](LOG.md). Ключи и URL провайдера — по канону проекта в **`system_settings`**, не env.
 
 ## Связка с будущим push
 
