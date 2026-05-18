@@ -71,7 +71,7 @@ describe("createPatientMoodService getWeekSparkline", () => {
     ]);
 
     const svc = createPatientMoodService(deps);
-    const days = await svc.getWeekSparkline(userId, tz);
+    const { days } = await svc.getWeekSparkline(userId, tz);
 
     expect(days.map((d) => d.date)).toEqual([
       "2026-05-04",
@@ -114,8 +114,41 @@ describe("createPatientMoodService getWeekSparkline", () => {
     ]);
 
     const svc = createPatientMoodService(deps);
-    const days = await svc.getWeekSparkline(userId, tz);
+    const { days } = await svc.getWeekSparkline(userId, tz);
     const tue = days.find((d) => d.date === "2026-05-05");
     expect(tue?.score).toBe(3);
+  });
+
+  it("exposes previous-week bridge scores for the home strip", async () => {
+    listSymptomEntriesForTrackingInRange.mockResolvedValue([
+      {
+        id: "sun",
+        userId,
+        trackingId,
+        value0_10: 4,
+        entryType: "instant",
+        recordedAt: DateTime.fromISO("2026-05-03T12:00:00", { zone: tz }).toUTC().toISO()!,
+        source: "webapp",
+        notes: null,
+        createdAt: "",
+      },
+      {
+        id: "mon",
+        userId,
+        trackingId,
+        value0_10: 5,
+        entryType: "instant",
+        recordedAt: DateTime.fromISO("2026-05-04T12:00:00", { zone: tz }).toUTC().toISO()!,
+        source: "webapp",
+        notes: null,
+        createdAt: "",
+      },
+    ]);
+
+    const svc = createPatientMoodService(deps);
+    const sparkline = await svc.getWeekSparkline(userId, tz);
+    expect(sparkline.previousSundayScore).toBe(4);
+    expect(sparkline.lastScoreBeforeWeek).toBe(4);
+    expect(sparkline.days.find((d) => d.date === "2026-05-04")?.score).toBe(5);
   });
 });

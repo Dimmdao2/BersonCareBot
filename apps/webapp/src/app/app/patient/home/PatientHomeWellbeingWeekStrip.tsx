@@ -7,14 +7,21 @@ type Props = {
   days: readonly PatientMoodWeekDay[];
   /** IANA TZ (как на главной). */
   timeZone: string;
+  /** Среднее за воскресенье перед текущей неделей (для моста пн). */
+  previousSundayScore?: PatientMoodScore | null;
+  /** Последняя оценка на прошлой неделе (пн–вс) перед текущим понедельником. */
+  lastScoreBeforeWeek?: PatientMoodScore | null;
   className?: string;
 };
 
 const CHART_WIDTH = 280;
 const CHART_HEIGHT = 40;
 const POINT_X_STEP = CHART_WIDTH / 6;
+const GRAPH_LEFT_X = 0;
+const DAY_HALF = POINT_X_STEP / 2;
 const TOP_PAD = 2;
 const BOTTOM_PAD = 2;
+const DASHED_STROKE = "rgb(148 163 184)";
 
 /** Цвета линии по шкале 1–5 (как fallback-иконки эмодзи на главной). */
 const MOOD_STROKE: Record<PatientMoodScore, string> = {
@@ -43,6 +50,10 @@ function yForScore(score: number): number {
   return maxY - normalized * (maxY - minY);
 }
 
+function dayCenterX(dayIndex: number): number {
+  return dayIndex * POINT_X_STEP + DAY_HALF;
+}
+
 function buildSmoothSegmentPath(points: Array<{ x: number; y: number }>): string {
   if (points.length < 2) return "";
   let path = `M ${points[0]!.x} ${points[0]!.y}`;
@@ -55,84 +66,96 @@ function buildSmoothSegmentPath(points: Array<{ x: number; y: number }>): string
   return path;
 }
 
-/** Интерполяция Y по дням без оценки (линейно между ближайшими реальными точками). */
-function interpolatedYs(scores: Array<number | null>): number[] {
-  const n = scores.length;
-  const yKnown = scores.map((s) => (s == null ? null : yForScore(s)));
-  const y: number[] = new Array(n);
-  const neutral = yForScore(3);
+type WeekDayCell = { iso: string | null; weekday: string; score: number | null };
 
-  for (let i = 0; i < n; i += 1) {
-    if (yKnown[i] != null) {
-      y[i] = yKnown[i]!;
-      continue;
-    }
-    let L = -1;
-    let R = n;
-    for (let j = i - 1; j >= 0; j -= 1) {
-      if (yKnown[j] != null) {
-        L = j;
-        break;
-      }
-    }
-    for (let j = i + 1; j < n; j += 1) {
-      if (yKnown[j] != null) {
-        R = j;
-        break;
-      }
-    }
-    if (L >= 0 && R < n) {
-      const t = (i - L) / (R - L);
-      y[i] = yKnown[L]! + t * (yKnown[R]! - yKnown[L]!);
-    } else if (L >= 0) {
-      y[i] = yKnown[L]!;
-    } else if (R < n) {
-      y[i] = yKnown[R]!;
-    } else {
-      y[i] = neutral;
-    }
-  }
-  return y;
-}
+type ChartPoint = { x: number; y: number };
 
-type SolidEdge = {
+type StripSegment = {
   key: string;
   path: string;
+  kind: "solid" | "dashed";
   x0: number;
   y0: number;
   x1: number;
   y1: number;
-  s0: PatientMoodScore;
-  s1: PatientMoodScore;
+  s0?: PatientMoodScore;
+  s1?: PatientMoodScore;
 };
 
-type WeekDayCell = { iso: string | null; weekday: string; score: number | null };
-
-/** Совпадает с условием отрисовки сегмента k→k+1 (сплошной или пунктир). */
-function isWeekSegmentRendered(week: readonly WeekDayCell[], k: number, todayIso: string): boolean {
-  if (k < 0 || k > 5) return false;
-  const solidSeg = week[k]!.score != null && week[k + 1]!.score != null;
-  if (solidSeg) return true;
-  const endIso = week[k + 1]!.iso;
-  const endsInFuture = endIso != null && endIso > todayIso;
-  return !endsInFuture;
-}
-
-function dayIndicesWithSoloScoreTick(week: readonly WeekDayCell[], todayIso: string): number[] {
-  const out: number[] = [];
+function buildWeekStripSegments(
+  week: readonly WeekDayCell[],
+  todayIso: string,
+  previousSundayScore: PatientMoodScore | null,
+  lastScoreBeforeWeek: PatientMoodScore | null,
+): StripSegment[] {
+  const scoredIndices: number[] = [];
   for (let d = 0; d < 7; d += 1) {
+    const iso = week[d]!.iso;
     if (week[d]!.score == null) continue;
-    const left = d > 0 && isWeekSegmentRendered(week, d - 1, todayIso);
-    const right = d < 6 && isWeekSegmentRendered(week, d, todayIso);
-    if (!left && !right) out.push(d);
+    if (iso != null && iso > todayIso) continue;
+    scoredIndices.push(d);
   }
-  return out;
-}
+  if (scoredIndices.length === 0) return [];
 
-const SOLO_SCORE_TICK_HALF = 4;
+  const pointAt = (dayIndex: number): ChartPoint => {
+    const s = week[dayIndex]!.score!;
+    return { x: dayCenterX(dayIndex), y: yForScore(s) };
+  };
+
+  const segments: StripSegment[] = [];
+  const first = scoredIndices[0]!;
+  const firstScore = week[first]!.score as PatientMoodScore;
+  const yLeadStart =
+    lastScoreBeforeWeek != null ? yForScore(lastScoreBeforeWeek) : yForScore(firstScore);
+  const leadEnd = pointAt(first);
+  const sunToMonSolid =
+    previousSundayScore != null && first === 0 && week[0]!.score != null;
+
+  segments.push({
+    key: `lead-${first}`,
+    path: buildSmoothSegmentPath([
+      { x: GRAPH_LEFT_X, y: yLeadStart },
+      leadEnd,
+    ]),
+    kind: sunToMonSolid ? "solid" : "dashed",
+    x0: GRAPH_LEFT_X,
+    y0: yLeadStart,
+    x1: leadEnd.x,
+    y1: leadEnd.y,
+    s0: sunToMonSolid ? previousSundayScore! : undefined,
+    s1: sunToMonSolid ? firstScore : undefined,
+  });
+
+  for (let k = 0; k < scoredIndices.length - 1; k += 1) {
+    const i = scoredIndices[k]!;
+    const j = scoredIndices[k + 1]!;
+    const p0 = pointAt(i);
+    const p1 = pointAt(j);
+    const consecutive = j === i + 1;
+    segments.push({
+      key: `seg-${i}-${j}`,
+      path: buildSmoothSegmentPath([p0, p1]),
+      kind: consecutive ? "solid" : "dashed",
+      x0: p0.x,
+      y0: p0.y,
+      x1: p1.x,
+      y1: p1.y,
+      s0: consecutive ? (week[i]!.score as PatientMoodScore) : undefined,
+      s1: consecutive ? (week[j]!.score as PatientMoodScore) : undefined,
+    });
+  }
+
+  return segments;
+}
 
 /** Неделя пн–вс: сплошные участки — градиент между цветами соседних оценок; пропуски — серый пунктир (не в будущее). */
-export function PatientHomeWellbeingWeekStrip({ days, timeZone, className }: Props) {
+export function PatientHomeWellbeingWeekStrip({
+  days,
+  timeZone,
+  previousSundayScore = null,
+  lastScoreBeforeWeek = null,
+  className,
+}: Props) {
   const byDate = new Map(days.map((d) => [d.date, d.score] as const));
   const today = DateTime.now().setZone(timeZone).startOf("day");
   /** Понедельник текущей недели (Luxon: weekday 1 = пн). */
@@ -151,44 +174,16 @@ export function PatientHomeWellbeingWeekStrip({ days, timeZone, className }: Pro
     };
   });
 
-  const scores = week.map((w) => w.score);
-  const ys = interpolatedYs(scores);
-  const points = week.map((_, i) => ({ x: i * POINT_X_STEP, y: ys[i]! }));
-
-  const solidEdges: SolidEdge[] = [];
-  let i = 0;
-  while (i < 6) {
-    const both = week[i]!.score != null && week[i + 1]!.score != null;
-    if (both) {
-      let j = i;
-      while (j < 6 && week[j]!.score != null && week[j + 1]!.score != null) {
-        const p0 = points[j]!;
-        const p1 = points[j + 1]!;
-        const s0 = week[j]!.score!;
-        const s1 = week[j + 1]!.score!;
-        solidEdges.push({
-          key: `e-${j}`,
-          path: buildSmoothSegmentPath([p0, p1]),
-          x0: p0.x,
-          y0: p0.y,
-          x1: p1.x,
-          y1: p1.y,
-          s0,
-          s1,
-        });
-        j += 1;
-      }
-      i = j;
-    } else {
-      i += 1;
-    }
-  }
+  const stripSegments = buildWeekStripSegments(week, todayIso, previousSundayScore, lastScoreBeforeWeek);
 
   const mondayIso = monday.toISODate() ?? "wk";
   const gradPrefix = `mood-wk-${mondayIso.replace(/-/g, "")}`;
 
+  const solidSegments = stripSegments.filter(
+    (s): s is StripSegment & { s0: PatientMoodScore; s1: PatientMoodScore } =>
+      s.kind === "solid" && s.s0 != null && s.s1 != null,
+  );
   const todayIdx = week.findIndex((d) => d.iso === todayIso);
-  const soloScoreTickDays = dayIndicesWithSoloScoreTick(week, todayIso);
 
   return (
     <div className={cn("flex min-h-0 min-w-0 flex-1 flex-col px-0.5", className)}>
@@ -201,50 +196,41 @@ export function PatientHomeWellbeingWeekStrip({ days, timeZone, className }: Pro
           aria-label="График самочувствия за неделю"
         >
           <defs>
-            {solidEdges.map((e, idx) => (
-              <linearGradient
-                key={e.key}
-                id={`${gradPrefix}-g${idx}`}
-                gradientUnits="userSpaceOnUse"
-                x1={e.x0}
-                y1={e.y0}
-                x2={e.x1}
-                y2={e.y1}
-              >
-                <stop offset="0%" stopColor={moodStroke(e.s0)} />
-                <stop offset="100%" stopColor={moodStroke(e.s1)} />
-              </linearGradient>
+            {solidSegments.map((seg) => (
+                <linearGradient
+                  key={seg.key}
+                  id={`${gradPrefix}-${seg.key}`}
+                  gradientUnits="userSpaceOnUse"
+                  x1={seg.x0}
+                  y1={seg.y0}
+                  x2={seg.x1}
+                  y2={seg.y1}
+                >
+                  <stop offset="0%" stopColor={moodStroke(seg.s0)} />
+                  <stop offset="100%" stopColor={moodStroke(seg.s1)} />
+                </linearGradient>
             ))}
           </defs>
-          {Array.from({ length: 6 }, (_, k) => {
-            const x0 = points[k]!.x;
-            const y0 = points[k]!.y;
-            const x1 = points[k + 1]!.x;
-            const y1 = points[k + 1]!.y;
-            const solidSeg = week[k]!.score != null && week[k + 1]!.score != null;
-            const endIso = week[k + 1]!.iso;
-            const endsInFuture = endIso != null && endIso > todayIso;
-            if (solidSeg || endsInFuture) return null;
-            return (
-              <line
-                key={`bridge-${k}`}
-                x1={x0}
-                y1={y0}
-                x2={x1}
-                y2={y1}
-                stroke="rgb(148 163 184)"
+          {stripSegments
+            .filter((s) => s.kind === "dashed")
+            .map((seg) => (
+              <path
+                key={seg.key}
+                d={seg.path}
+                fill="none"
+                stroke={DASHED_STROKE}
                 strokeWidth={1.5}
                 strokeLinecap="round"
+                strokeLinejoin="round"
                 strokeDasharray="4 3"
               />
-            );
-          })}
-          {solidEdges.map((e, idx) => (
+            ))}
+          {solidSegments.map((seg) => (
             <path
-              key={e.key}
-              d={e.path}
+              key={seg.key}
+              d={seg.path}
               fill="none"
-              stroke={`url(#${gradPrefix}-g${idx})`}
+              stroke={`url(#${gradPrefix}-${seg.key})`}
               strokeWidth={2.25}
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -261,24 +247,6 @@ export function PatientHomeWellbeingWeekStrip({ days, timeZone, className }: Pro
               strokeLinecap="round"
             />
           : null}
-          {soloScoreTickDays.map((d) => {
-            const s = week[d]!.score;
-            if (s == null) return null;
-            const y = yForScore(s);
-            const x = d * POINT_X_STEP;
-            return (
-              <line
-                key={`solo-tick-${d}`}
-                x1={x}
-                x2={x}
-                y1={y - SOLO_SCORE_TICK_HALF}
-                y2={y + SOLO_SCORE_TICK_HALF}
-                stroke={moodStroke(s)}
-                strokeWidth={2.25}
-                strokeLinecap="round"
-              />
-            );
-          })}
         </svg>
       </div>
 

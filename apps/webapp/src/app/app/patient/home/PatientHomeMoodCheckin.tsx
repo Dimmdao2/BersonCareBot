@@ -5,7 +5,13 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { routePaths } from "@/app-layer/routes/paths";
-import type { PatientMoodIntent, PatientMoodLastEntry, PatientMoodToday, PatientMoodWeekDay } from "@/modules/patient-mood/types";
+import type {
+  PatientMoodIntent,
+  PatientMoodLastEntry,
+  PatientMoodScore,
+  PatientMoodToday,
+  PatientMoodWeekDay,
+} from "@/modules/patient-mood/types";
 import type { PatientHomeMoodIconOption } from "@/modules/patient-home/patientHomeMoodIcons";
 import {
   patientHomeMoodCardGeometryClass,
@@ -26,6 +32,8 @@ type Props = {
   initialMood?: PatientMoodToday | null;
   initialLastEntry?: PatientMoodLastEntry | null;
   moodWeekDays?: readonly PatientMoodWeekDay[];
+  moodWeekPreviousSundayScore?: PatientMoodScore | null;
+  moodWeekLastScoreBeforeWeek?: PatientMoodScore | null;
   /** IANA для полосы «Ваша неделя» — те же календарные сутки, что график самочувствия в дневнике. */
   wellbeingWeekTimeZone?: string;
 };
@@ -37,6 +45,8 @@ export function PatientHomeMoodCheckin({
   initialMood = null,
   initialLastEntry = null,
   moodWeekDays = [],
+  moodWeekPreviousSundayScore = null,
+  moodWeekLastScoreBeforeWeek = null,
   wellbeingWeekTimeZone = "UTC",
 }: Props) {
   const router = useRouter();
@@ -164,7 +174,12 @@ export function PatientHomeMoodCheckin({
                   <h3 id="patient-home-mood-week-heading" className={patientHomeMoodColumnHeadingClass}>
                     Ваша неделя
                   </h3>
-                  <PatientHomeWellbeingWeekStrip days={moodWeekDays} timeZone={wellbeingWeekTimeZone} />
+                  <PatientHomeWellbeingWeekStrip
+                    days={moodWeekDays}
+                    timeZone={wellbeingWeekTimeZone}
+                    previousSundayScore={moodWeekPreviousSundayScore}
+                    lastScoreBeforeWeek={moodWeekLastScoreBeforeWeek}
+                  />
                 </div>
                 <div
                   className={cn(

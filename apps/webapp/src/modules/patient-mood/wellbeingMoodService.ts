@@ -17,6 +17,7 @@ import type {
   PatientMoodSubmitResult,
   PatientMoodToday,
   PatientMoodWeekDay,
+  PatientMoodWeekSparkline,
 } from "./types";
 import { isPatientMoodScore } from "./types";
 
@@ -40,6 +41,11 @@ function localDayRangeUtcIso(tz: string, localYmd: string): { from: string; toEx
 
 function toMoodScore(value: number): PatientMoodScore | null {
   return isPatientMoodScore(value) ? value : null;
+}
+
+function averageMoodScores(vals: PatientMoodScore[]): PatientMoodScore {
+  const sum = vals.reduce((a, b) => a + b, 0);
+  return Math.min(5, Math.max(1, Math.round(sum / vals.length))) as PatientMoodScore;
 }
 
 export function createPatientMoodService(deps: PatientWellbeingMoodDeps) {
@@ -253,17 +259,27 @@ export function createPatientMoodService(deps: PatientWellbeingMoodDeps) {
     return { ok: true, ...(await getCheckinState(userId, tz)) };
   }
 
-  async function getWeekSparkline(userId: string, tz: string): Promise<PatientMoodWeekDay[]> {
+  async function getWeekSparkline(userId: string, tz: string): Promise<PatientMoodWeekSparkline> {
     const trackingId = await ensureWellbeingTracking(userId);
     const today = DateTime.now().setZone(tz);
     const monday = today.minus({ days: today.weekday - 1 }).startOf("day");
+    const prevMonday = monday.minus({ weeks: 1 });
     const dayKeys: string[] = [];
     for (let i = 0; i < 7; i += 1) {
       const d = monday.plus({ days: i }).toISODate();
       if (d) dayKeys.push(d);
     }
-    if (dayKeys.length === 0) return [];
-    const from = localDayRangeUtcIso(tz, dayKeys[0]!).from;
+    if (dayKeys.length === 0) {
+      return { days: [], previousSundayScore: null, lastScoreBeforeWeek: null };
+    }
+
+    const bridgeDayKeys: string[] = [];
+    for (let i = 0; i < 7; i += 1) {
+      const d = prevMonday.plus({ days: i }).toISODate();
+      if (d) bridgeDayKeys.push(d);
+    }
+    const queryDayKeys = [...bridgeDayKeys, ...dayKeys];
+    const from = localDayRangeUtcIso(tz, queryDayKeys[0]!).from;
     const toExclusive = localDayRangeUtcIso(tz, dayKeys[6]!).toExclusive;
     const entries = await deps.diaries.listSymptomEntriesForTrackingInRange({
       userId,
@@ -272,7 +288,7 @@ export function createPatientMoodService(deps: PatientWellbeingMoodDeps) {
       toRecordedAtExclusive: toExclusive,
     });
 
-    const dayKeySet = new Set(dayKeys);
+    const dayKeySet = new Set(queryDayKeys);
     const byDay = new Map<string, PatientMoodScore[]>();
     for (const e of entries) {
       if (e.entryType !== "instant") continue;
@@ -285,20 +301,32 @@ export function createPatientMoodService(deps: PatientWellbeingMoodDeps) {
       byDay.set(localD, arr);
     }
 
-    return dayKeys.map((d) => {
-      const vals = byDay.get(d);
-      if (!vals || vals.length === 0) {
-        return { date: d, score: null, warmupHint: null, diaryNoteHint: null };
-      }
-      const sum = vals.reduce((a, b) => a + b, 0);
-      const rounded = Math.min(5, Math.max(1, Math.round(sum / vals.length)));
-      return {
-        date: d,
-        score: rounded as PatientMoodScore,
-        warmupHint: null,
-        diaryNoteHint: null,
-      };
+    const dayScore = (ymd: string): PatientMoodScore | null => {
+      const vals = byDay.get(ymd);
+      if (!vals || vals.length === 0) return null;
+      return averageMoodScores(vals);
+    };
+
+    const days = dayKeys.map((d) => {
+      const score = dayScore(d);
+      return { date: d, score, warmupHint: null, diaryNoteHint: null };
     });
+
+    const prevSundayIso = monday.minus({ days: 1 }).toISODate();
+    const previousSundayScore = prevSundayIso ? dayScore(prevSundayIso) : null;
+
+    let lastScoreBeforeWeek: PatientMoodScore | null = null;
+    for (let i = 6; i >= 0; i -= 1) {
+      const ymd = prevMonday.plus({ days: i }).toISODate();
+      if (!ymd) continue;
+      const sc = dayScore(ymd);
+      if (sc != null) {
+        lastScoreBeforeWeek = sc;
+        break;
+      }
+    }
+
+    return { days, previousSundayScore, lastScoreBeforeWeek };
   }
 
   return {

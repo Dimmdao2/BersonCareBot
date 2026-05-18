@@ -15,6 +15,6 @@ export async function GET() {
     deps.patientCalendarTimezone.getIanaForUser(gate.session.user.userId),
   ]);
   const tz = resolveCalendarDayIanaForPatient(personalIana, appDefault);
-  const days = await deps.patientMood.getWeekSparkline(gate.session.user.userId, tz);
-  return NextResponse.json({ ok: true, days });
+  const sparkline = await deps.patientMood.getWeekSparkline(gate.session.user.userId, tz);
+  return NextResponse.json({ ok: true, ...sparkline });
 }

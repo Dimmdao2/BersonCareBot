@@ -25,13 +25,17 @@ const SESSION = {
   user: { userId: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", role: "client" as const, phone: "+79990001122" },
 };
 
-const fixtureDays = [{ date: "2026-05-02", score: 3 as const, warmupHint: null, diaryNoteHint: null }];
+const fixtureSparkline = {
+  days: [{ date: "2026-05-02", score: 3 as const, warmupHint: null, diaryNoteHint: null }],
+  previousSundayScore: null,
+  lastScoreBeforeWeek: null,
+};
 
 describe("GET /api/patient/mood/week", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockRequirePatientApiBusinessAccess.mockResolvedValue({ ok: true, session: SESSION });
-    mockGetWeekSparkline.mockResolvedValue(fixtureDays);
+    mockGetWeekSparkline.mockResolvedValue(fixtureSparkline);
   });
 
   it("returns 401 when not authenticated", async () => {
@@ -46,7 +50,7 @@ describe("GET /api/patient/mood/week", () => {
   it("returns week sparkline", async () => {
     const res = await GET();
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ ok: true, days: fixtureDays });
+    expect(await res.json()).toEqual({ ok: true, ...fixtureSparkline });
     expect(mockGetWeekSparkline).toHaveBeenCalledWith(SESSION.user.userId, "Europe/Moscow");
   });
 });

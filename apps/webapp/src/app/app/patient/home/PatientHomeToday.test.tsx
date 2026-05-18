@@ -305,7 +305,7 @@ describe("PatientHomeToday", () => {
       mood: { moodDate: "2026-04-28", score: 4 },
       lastEntry: { id: "e1", recordedAt: "2026-04-28T10:00:00.000Z", score: 4 },
     });
-    getWeekSparkline.mockResolvedValue([]);
+    getWeekSparkline.mockResolvedValue({ days: [], previousSundayScore: null, lastScoreBeforeWeek: null });
     getReminderMutedUntil.mockReset();
     getReminderMutedUntil.mockResolvedValue(null);
     systemSettingsGetSetting.mockReset();

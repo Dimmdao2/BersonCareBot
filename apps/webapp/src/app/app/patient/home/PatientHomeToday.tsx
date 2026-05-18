@@ -24,7 +24,7 @@ import { DEFAULT_WARMUPS_SECTION_SLUG } from "@/modules/patient-home/warmupsSect
 import { pickActivePlanInstance } from "@/modules/treatment-program/pickActivePlanInstance";
 import { formatBookingDateLongRu } from "@/shared/lib/formatBusinessDateTime";
 import type { PatientHomeBlockCode } from "@/modules/patient-home/ports";
-import type { PatientMoodCheckinState, PatientMoodWeekDay } from "@/modules/patient-mood/types";
+import type { PatientMoodCheckinState, PatientMoodScore, PatientMoodWeekDay } from "@/modules/patient-mood/types";
 import type {
   ResolvedCarouselCard,
   ResolvedCourseCard,
@@ -201,6 +201,8 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
   let progress: { todayDone: number; streak: number } | null = null;
   let initialMoodCheckin: PatientMoodCheckinState | null = null;
   let moodWeekDays: PatientMoodWeekDay[] = [];
+  let moodWeekPreviousSundayScore: PatientMoodScore | null = null;
+  let moodWeekLastScoreBeforeWeek: PatientMoodScore | null = null;
   let hasConfiguredSchedule = false;
   let reminderDaySummary: {
     done: number;
@@ -312,7 +314,7 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
       );
     }
     moodWeekTz = resolveCalendarDayIanaForPatient(patientCalTz, appTz);
-    const week = await deps.patientMood.getWeekSparkline(session.user.userId, moodWeekTz);
+    const weekSparkline = await deps.patientMood.getWeekSparkline(session.user.userId, moodWeekTz);
     const scheduleInstant = reminderScheduleEvaluationInstant(patientHomeReminderEvaluatedAt, mutedUntilIso);
     hasConfiguredSchedule = hasConfiguredHomeLinkedReminders(rules);
     homeReminder = pickNextHomeReminder(rules, scheduleInstant, appTz);
@@ -370,7 +372,9 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
       }
     }
     initialMoodCheckin = moodState;
-    moodWeekDays = week;
+    moodWeekDays = weekSparkline.days;
+    moodWeekPreviousSundayScore = weekSparkline.previousSundayScore;
+    moodWeekLastScoreBeforeWeek = weekSparkline.lastScoreBeforeWeek;
     if (deps.reminderJournal) {
       const muteRemainingLabel =
         muted && mutedUntilIso?.trim() ? formatReminderMuteRemainingRu(mutedUntilIso.trim(), compareNow) : null;
@@ -464,6 +468,8 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
             initialMood={initialMoodCheckin?.mood ?? null}
             initialLastEntry={initialMoodCheckin?.lastEntry ?? null}
             moodWeekDays={moodWeekDays}
+            moodWeekPreviousSundayScore={moodWeekPreviousSundayScore}
+            moodWeekLastScoreBeforeWeek={moodWeekLastScoreBeforeWeek}
             wellbeingWeekTimeZone={moodWeekTz}
           />
         );

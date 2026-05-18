@@ -37,6 +37,15 @@ export type PatientMoodWeekDay = {
   diaryNoteHint: null;
 };
 
+/** Mon–Sun sparkline plus bridge from the previous calendar week (home strip). */
+export type PatientMoodWeekSparkline = {
+  days: PatientMoodWeekDay[];
+  /** Daily average on the Sunday immediately before this week (in tz), if any. */
+  previousSundayScore: PatientMoodScore | null;
+  /** Daily average on the latest prior local day with data before this week's Monday, if any. */
+  lastScoreBeforeWeek: PatientMoodScore | null;
+};
+
 export function isPatientMoodScore(value: number): value is PatientMoodScore {
   return PATIENT_MOOD_SCORES.includes(value as PatientMoodScore);
 }
