@@ -16,8 +16,6 @@ export enum TrustedPatientPhoneSource {
   OtpCreateOrBind = "otp_create_or_bind",
   /** `upsertFromProjection` / merge projection в `pgUserProjection`. */
   IntegratorUpsertFromProjection = "integrator_upsert_from_projection",
-  /** `ensureClientFromAppointmentProjection` (Rubitime / appointment projection). */
-  IntegratorEnsureClientFromAppointment = "integrator_ensure_client_from_appointment",
   /** `UserProjectionPort.updatePhone` (интегратор). */
   IntegratorUpdatePhone = "integrator_update_phone",
   /** Новый пользователь с телефоном из Yandex OAuth (`oauthYandexResolve`). */

@@ -55,7 +55,9 @@
 
 ## 5. Телефон и активация patient
 
-**Patient** для `client` только если у канона есть телефон, принятый системой как **достаточный для активации**.
+Tier **patient** для закрытого кабинета PWA может включать **подтверждённый email** без телефона (см. §3); **доверенный телефон** ниже описывает активацию по номеру и обязателен там, где сервер явно проверяет `phoneTrustedForPatient` (native **запись на приём**, см. `requirePatientBookingTrustedPhoneAccess`).
+
+**Patient по телефону** для `client` только если у канона есть телефон, принятый системой как **достаточный для активации** по закрытому перечню trusted policy.
 
 Это **не** эквивалентно проверке «`phone_normalized IS NOT NULL` в произвольной записи».
 
@@ -64,7 +66,9 @@
 Примеры классов источников (конкретный enum/список — в реализации):
 
 - подтверждение OTP (`apps/webapp/src/modules/auth/phoneAuth.ts`, `createOrBind` в `pgUserByPhone.ts`);
-- доверенные обновления из интегратора (`user.upserted`, `contact.linked`, `ensureClientFromAppointmentProjection` в `pgUserProjection.ts`, события в `apps/webapp/src/modules/integrator/events.ts`).
+- доверенные обновления из интегратора по событиям `user.upserted` / `contact.linked` (`upsertFromProjection` в `pgUserProjection.ts`, маршрутизация в `apps/webapp/src/modules/integrator/events.ts`).
+
+Телефон из внешней системы записи (Rubitime / `appointment.record.upserted` → `ensureClientFromAppointmentProjection`) **не** является таким источником: канон может получить `phone_normalized` как данные записи, но **`patient_phone_trust_at`** из этого пути **не** выставляется — подтверждение номера для tier и для native-записи остаётся на OTP / мессенджер / явные доверенные пути из enum.
 
 ---
 
@@ -102,7 +106,7 @@
 
 **Формулировка:** не создавать **лишние отдельные канонические записи** без необходимости; объединять с существующим каноном, когда это следует из потока.
 
-Если после OAuth у канона нет доверенного телефона — обязательный пост-логин сценарий активации; tier **onboarding** до завершения.
+Если после OAuth у канона **нет** ни доверенного телефона по §5, **ни** подтверждённого email (`email_verified_at`) — обязательный пост-логин сценарий активации (типично привязка номера); tier **onboarding** до завершения. При **подтверждённом email** допускается вход в закрытый кабинет без немедленной привязки телефона (см. §3); запись на приём по-прежнему требует доверенный телефон на сервере (`requirePatientBookingTrustedPhoneAccess`).
 
 ---
 

@@ -9,6 +9,9 @@ export type UserPasswordCredentialsPort = {
     displayName: string;
   }): Promise<{ ok: true; userId: string } | { ok: false; reason: "duplicate_email" }>;
   tryVerifyLogin(emailNormalized: string, plainPassword: string): Promise<{ userId: string } | null>;
+  /** Пользователь с подтверждённым email и строкой пароля (для сброса). */
+  findVerifiedUserIdWithPassword(emailNormalized: string): Promise<string | null>;
+  updatePasswordHash(userId: string, passwordHash: string): Promise<void>;
 };
 
 export function createPgUserPasswordCredentialsPort(): UserPasswordCredentialsPort {
@@ -64,6 +67,32 @@ export function createPgUserPasswordCredentialsPort(): UserPasswordCredentialsPo
         return null;
       }
     },
+
+    async findVerifiedUserIdWithPassword(emailNormalized) {
+      const pool = getPool();
+      const r = await pool.query<{ id: string }>(
+        `SELECT upc.user_id::text AS id
+         FROM user_password_credentials upc
+         INNER JOIN platform_users pu ON pu.id = upc.user_id
+         WHERE pu.merged_into_id IS NULL
+           AND pu.email_normalized = $1
+           AND pu.email_verified_at IS NOT NULL
+         LIMIT 1`,
+        [emailNormalized],
+      );
+      return r.rows[0]?.id ?? null;
+    },
+
+    async updatePasswordHash(userId, passwordHash) {
+      const pool = getPool();
+      const res = await pool.query(`UPDATE user_password_credentials SET password_hash = $2, updated_at = now() WHERE user_id = $1::uuid`, [
+        userId,
+        passwordHash,
+      ]);
+      if ((res.rowCount ?? 0) === 0) {
+        throw new Error("updatePasswordHash: no credentials row");
+      }
+    },
   };
 }
 
@@ -74,4 +103,8 @@ export const inMemoryUserPasswordCredentialsPort: UserPasswordCredentialsPort = 
   async tryVerifyLogin() {
     return null;
   },
+  async findVerifiedUserIdWithPassword() {
+    return null;
+  },
+  async updatePasswordHash() {},
 };

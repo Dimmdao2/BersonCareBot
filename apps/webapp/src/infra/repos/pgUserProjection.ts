@@ -309,8 +309,8 @@ async function ensureAppointmentClientTx(
     const ins = await client.query<{ id: string }>(
       `INSERT INTO platform_users (
          phone_normalized, display_name, first_name, last_name, email, role,
-         integrator_user_id, patient_phone_trust_at
-       ) VALUES ($1, $2, $3, $4, $5, 'client', $6::bigint, now())
+         integrator_user_id
+       ) VALUES ($1, $2, $3, $4, $5, 'client', $6::bigint)
        RETURNING id`,
       [
         params.phoneNormalized,
@@ -341,10 +341,6 @@ async function ensureAppointmentClientTx(
        END,
        integrator_user_id = COALESCE(integrator_user_id, $6::bigint),
        phone_normalized = COALESCE(phone_normalized, $7::text),
-       patient_phone_trust_at = CASE
-         WHEN $7::text IS NOT NULL AND trim($7::text) <> '' THEN now()
-         ELSE patient_phone_trust_at
-       END,
        updated_at = now()
      WHERE id = $1::uuid`,
     [
@@ -394,7 +390,6 @@ export const pgUserProjectionPort: UserProjectionPort = {
       );
       const id = await ensureAppointmentClientTx(client, params);
       await client.query("COMMIT");
-      trustedPatientPhoneWriteAnchor(TrustedPatientPhoneSource.IntegratorEnsureClientFromAppointment);
       return { platformUserId: id };
     } catch (e) {
       await client.query("ROLLBACK");
@@ -634,7 +629,12 @@ export const pgUserProjectionPort: UserProjectionPort = {
         vals,
       );
 
-      if ((result.rowCount ?? 0) > 0 && patch.phoneNormalized !== undefined) {
+      if ((result.rowCount ?? 0) === 0) {
+        await client.query("ROLLBACK");
+        return { ok: false as const, reason: "not_found_or_not_client" as const };
+      }
+
+      if (patch.phoneNormalized !== undefined) {
         const pn =
           patch.phoneNormalized != null && String(patch.phoneNormalized).trim().length > 0
             ? String(patch.phoneNormalized).trim()
@@ -647,9 +647,6 @@ export const pgUserProjectionPort: UserProjectionPort = {
       }
 
       await client.query("COMMIT");
-      if (result.rowCount === 0) {
-        return { ok: false as const, reason: "not_found_or_not_client" as const };
-      }
       return { ok: true as const };
     } catch (e) {
       await client.query("ROLLBACK");

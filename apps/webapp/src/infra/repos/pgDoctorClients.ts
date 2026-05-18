@@ -24,6 +24,11 @@ function appointmentRecordsJoinPu(puAlias: string, arAlias: string): string {
       ${arAlias}.platform_user_id = ${puAlias}.id
       OR (
         ${arAlias}.phone_normalized IS NOT NULL
+        AND ${puAlias}.phone_normalized IS NOT NULL
+        AND ${puAlias}.phone_normalized = ${arAlias}.phone_normalized
+      )
+      OR (
+        ${arAlias}.phone_normalized IS NOT NULL
         AND EXISTS (
           SELECT 1 FROM user_phone_history h
           WHERE h.platform_user_id = ${puAlias}.id

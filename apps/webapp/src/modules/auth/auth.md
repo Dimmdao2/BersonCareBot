@@ -17,6 +17,13 @@
 
 **PIN** в публичном потоке входа **не показывается** (Stage 5); при необходимости re-auth для чувствительных действий — отдельные API (`pin/verify` и т.д.).
 
+### Email + пароль (пациент)
+
+- **`POST /api/auth/email-password/register`** — создание канона с паролем в `user_password_credentials`, отправка кода на почту (`startEmailChallenge`).
+- **`POST /api/auth/email-password/login`** — вход после `email_verified_at`.
+- **`POST /api/auth/email-password/forgot`** — сброс: код на почту для пользователя с подтверждённым email и паролем; если учётки нет — **`{ ok: true }`** без поля `challengeId`.
+- **`POST /api/auth/email-password/reset`** — проверка кода через `consumeEmailChallengeCode`, обновление хэша пароля.
+
 ## Мессенджеры и обмен токенами
 
 - **Server-first вход на `/app`:** RSC `AppEntryRsc` (используется `/app`, `/app/tg`, `/app/max`) классифицирует неавторизованный вход как `token_exchange | telegram_miniapp | max_miniapp | browser_interactive` (`modules/auth/appEntryClassification.ts`) и передаёт ветку в `AuthBootstrap` через `entryClassification`. Явные роуты **`/app/tg`** и **`/app/max`** задают surface без угадывания по `?ctx=` / cookie. Клиентская URL-only классификация удалена.
@@ -69,7 +76,7 @@
 
 ### Пациент: `need_activation` и навигация
 
-При `patientClientBusinessGate === 'need_activation'` (OAuth без доверенного телефона в БД) пациентский layout редиректит на bind-phone для **всех** путей под `/app/patient`, кроме минимального whitelist **`patientPathsAllowedDuringPhoneActivation`** в `patientRouteApiPolicy.ts`: `/app/patient/bind-phone`, `/app/patient/help`, `/app/patient/support` (и подпути). На редирект пишется `logger` с `scope: patient_layout`, `event: patient_redirect_bind_phone`, `reason: need_activation`. Политика **`patientPathRequiresBoundPhone`** (гость / onboarding без БД) от этого отдельна и не заменяется.
+При `patientClientBusinessGate === 'need_activation'` (нет доступа tier **patient**: ни доверенного телефона по §5, ни подтверждённого email) пациентский layout редиректит на bind-phone для **всех** путей под `/app/patient`, кроме минимального whitelist **`patientPathsAllowedDuringPhoneActivation`** в `patientRouteApiPolicy.ts`: `/app/patient/bind-phone`, `/app/patient/help`, `/app/patient/support` (и подпути). На редирект пишется `logger` с `scope: patient_layout`, `event: patient_redirect_bind_phone`, `reason: need_activation`. Политика **`patientPathRequiresBoundPhone`** (гость / onboarding без БД) от этого отдельна и не заменяется.
 
 **Mini App + OAuth:** канонический телефон для бизнес-поверхностей пациента — номер, подтверждённый через бота (`request-contact` / channel-link), а не только OAuth userinfo. Решение о `need_activation` и редирект на `/app/patient/bind-phone` принимает **post-login слой** (gate + layout), не `AuthBootstrap`. Клиентская диагностика: событие `post_auth_binding_required` (`scope: auth_flow`) при показе `PatientSharePhoneViaBotPanel` в WebView; в payload при необходимости — `hasDeferredMessengerInitCandidate` (есть ли отложенный initData-кандидат для binding/recovery).
 

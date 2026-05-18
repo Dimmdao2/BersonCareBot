@@ -19,6 +19,9 @@ export function mapBookingCreateErrorCodeToRu(code: string | undefined): string 
   if (code === "patient_activation_required") {
     return "Нужен подтверждённый номер телефона. Сейчас откроется экран привязки.";
   }
+  if (code === "booking_phone_trust_required") {
+    return "Для записи нужен номер, подтверждённый в приложении (SMS или мессенджер). Сейчас откроется экран привязки.";
+  }
   if (code === "unauthorized" || code === "forbidden") {
     return "Нет доступа. Войдите в аккаунт и попробуйте снова.";
   }

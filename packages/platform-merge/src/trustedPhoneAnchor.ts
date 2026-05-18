@@ -4,7 +4,6 @@
 export enum TrustedPatientPhoneSource {
   OtpCreateOrBind = "otp_create_or_bind",
   IntegratorUpsertFromProjection = "integrator_upsert_from_projection",
-  IntegratorEnsureClientFromAppointment = "integrator_ensure_client_from_appointment",
   IntegratorUpdatePhone = "integrator_update_phone",
   OAuthYandexVerifiedPhone = "oauth_yandex_verified_phone",
   OAuthWebLoginVerifiedPhone = "oauth_web_login_verified_phone",

@@ -18,6 +18,7 @@ describe("GET /api/auth/login/alternatives-config", () => {
       telegramBotUsername: "my_bot",
       maxBotOpenUrl: "https://max.ru/botnick",
       vkWebLoginUrl: "https://id.vk.com/auth",
+      smsFallbackEnabled: true,
     });
     const res = await GET(new Request("http://localhost/api/auth/login/alternatives-config"));
     expect(res.status).toBe(200);
@@ -26,6 +27,7 @@ describe("GET /api/auth/login/alternatives-config", () => {
     expect(data.telegramBotUsername).toBe("my_bot");
     expect(data.maxBotOpenUrl).toBe("https://max.ru/botnick");
     expect(data.vkWebLoginUrl).toBe("https://id.vk.com/auth");
+    expect(data.smsFallbackEnabled).toBe(true);
   });
 
   it("returns 500 when config load throws", async () => {
