@@ -9,8 +9,14 @@ describe("pgAppointmentProjection upsert contract", () => {
     expect(src).toContain(
       "phone_normalized = COALESCE(appointment_records.phone_normalized, EXCLUDED.phone_normalized)",
     );
-    expect(src).toContain(
-      "platform_user_id = COALESCE(appointment_records.platform_user_id, EXCLUDED.platform_user_id)",
-    );
+    expect(src).toContain("platform_user_id = CASE");
+    expect(src).toContain("WHEN EXCLUDED.platform_user_id IS NOT NULL THEN EXCLUDED.platform_user_id");
+    expect(src).toContain("WHEN EXCLUDED.phone_normalized IS NOT NULL AND EXCLUDED.record_at IS NOT NULL THEN NULL");
+    expect(src).toContain("ELSE appointment_records.platform_user_id");
+    expect(src).toContain("COUNT(*) OVER () AS owner_count");
+    expect(src).toContain("WHERE owner_count = 1");
+    expect(src).toContain("h.valid_from <= COALESCE($3::timestamptz, now())");
+    expect(src).toContain("(h.valid_to IS NULL OR h.valid_to > COALESCE($3::timestamptz, now()))");
+    expect(src).toContain("h_other_claim.platform_user_id <> pu.id");
   });
 });

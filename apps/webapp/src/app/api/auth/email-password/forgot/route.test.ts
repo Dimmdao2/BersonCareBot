@@ -54,9 +54,9 @@ describe("POST /api/auth/email-password/forgot", () => {
     );
     expect(r2.status).toBe(200);
     const j2 = (await r2.json()) as Record<string, unknown>;
-    expect(j2.ok).toBe(true);
-    expect(j2.retryAfterSeconds).toBe(52);
+    expect(j2).toEqual({ ok: true, retryAfterSeconds: OTP_RESEND_COOLDOWN_SEC });
     expect(j2.challengeId).toBeUndefined();
+    expect(startEmailChallenge).toHaveBeenCalledWith("550e8400-e29b-41d4-a716-446655440000", "real@b.com");
   });
 
   it("returns neutral 200 when startEmailChallenge fails (no enumeration)", async () => {

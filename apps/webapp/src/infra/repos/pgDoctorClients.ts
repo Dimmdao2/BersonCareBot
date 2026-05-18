@@ -19,7 +19,8 @@ function rowToBindings(rows: { channel_code: string; external_id: string }[]): C
   return bindings;
 }
 
-function appointmentRecordsJoinPu(puAlias: string, arAlias: string): string {
+/** Exported for join semantics tests; keep in sync with `appointment_records` ↔ `platform_users` attribution rules. */
+export function appointmentRecordsJoinPu(puAlias: string, arAlias: string): string {
   const arAt = `COALESCE(${arAlias}.record_at, ${arAlias}.created_at)`;
   return `(
       ${arAlias}.platform_user_id = ${puAlias}.id
@@ -28,6 +29,13 @@ function appointmentRecordsJoinPu(puAlias: string, arAlias: string): string {
         AND ${arAlias}.phone_normalized IS NOT NULL
         AND ${puAlias}.phone_normalized IS NOT NULL
         AND ${puAlias}.phone_normalized = ${arAlias}.phone_normalized
+        AND NOT EXISTS (
+          SELECT 1 FROM user_phone_history h_other_claim
+          WHERE h_other_claim.phone_normalized = ${arAlias}.phone_normalized
+            AND h_other_claim.platform_user_id <> ${puAlias}.id
+            AND h_other_claim.valid_from <= ${arAt}
+            AND (h_other_claim.valid_to IS NULL OR h_other_claim.valid_to > ${arAt})
+        )
       )
       OR (
         ${arAlias}.platform_user_id IS NULL

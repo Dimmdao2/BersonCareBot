@@ -10,5 +10,7 @@ describe("pgDoctorClients appointment_records join", () => {
     expect(src).toContain("h.valid_from <=");
     expect(src).toContain("h.valid_to");
     expect(src).toContain("COALESCE(${arAlias}.record_at, ${arAlias}.created_at)");
+    expect(src).toContain("h_other_claim.platform_user_id <> ${puAlias}.id");
+    expect(src).toContain("NOT EXISTS");
   });
 });

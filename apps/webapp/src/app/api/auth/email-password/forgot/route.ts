@@ -34,10 +34,7 @@ export async function POST(request: Request) {
     return forgotPasswordNeutralResponse();
   }
 
-  const challenge = await startEmailChallenge(userId, emailNorm);
-  if (!challenge.ok) {
-    return forgotPasswordNeutralResponse();
-  }
-
-  return forgotPasswordNeutralResponse(challenge.retryAfterSeconds ?? OTP_RESEND_COOLDOWN_SEC);
+  // Запускаем отправку асинхронно, чтобы HTTP-ответ не раскрывал существование email по latency.
+  void startEmailChallenge(userId, emailNorm).catch(() => undefined);
+  return forgotPasswordNeutralResponse(OTP_RESEND_COOLDOWN_SEC);
 }

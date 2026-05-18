@@ -16,6 +16,12 @@ const bodySchema = z.object({
   newPassword: z.string().min(8).max(128),
 });
 
+const DUMMY_RESET_USER_ID = "00000000-0000-4000-8000-000000000000";
+
+function resetNeutralFailureResponse() {
+  return NextResponse.json({ ok: false, error: "invalid_code" }, { status: 400 });
+}
+
 export async function POST(request: Request) {
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = bodySchema.safeParse(raw);
@@ -27,19 +33,19 @@ export async function POST(request: Request) {
   const deps = buildAppDeps();
   const userId = await deps.userPasswordCredentials.findVerifiedUserIdWithPassword(emailNorm);
   if (!userId) {
-    return NextResponse.json({ ok: false, error: "invalid_credentials" }, { status: 401 });
+    if (parsed.data.challengeId) {
+      await consumeEmailChallengeCode(DUMMY_RESET_USER_ID, parsed.data.challengeId, parsed.data.code);
+    } else {
+      await consumeLatestEmailChallengeCodeForUser(DUMMY_RESET_USER_ID, parsed.data.code);
+    }
+    return resetNeutralFailureResponse();
   }
 
   const consumed = parsed.data.challengeId
     ? await consumeEmailChallengeCode(userId, parsed.data.challengeId, parsed.data.code)
     : await consumeLatestEmailChallengeCodeForUser(userId, parsed.data.code);
   if (!consumed.ok) {
-    const status =
-      consumed.code === "too_many_attempts" ? 429 : consumed.code === "expired_code" ? 410 : 400;
-    return NextResponse.json(
-      { ok: false, error: consumed.code, retryAfterSeconds: consumed.retryAfterSeconds },
-      { status },
-    );
+    return resetNeutralFailureResponse();
   }
 
   const passwordHash = await hashPin(parsed.data.newPassword);

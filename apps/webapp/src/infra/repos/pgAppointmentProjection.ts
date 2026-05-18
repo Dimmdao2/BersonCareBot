@@ -82,8 +82,32 @@ export function createPgAppointmentProjectionPort(): AppointmentProjectionPort {
         )
         SELECT $1, $2, $3::timestamptz, $4, $5::jsonb, $6, $7::timestamptz, $8::uuid,
           COALESCE(
-            (SELECT id FROM platform_users WHERE merged_into_id IS NULL AND phone_normalized = $2 LIMIT 1),
-            (SELECT platform_user_id FROM user_phone_history WHERE phone_normalized = $2 AND valid_to IS NULL LIMIT 1)
+            (
+              SELECT owner_id
+              FROM (
+                SELECT h.platform_user_id AS owner_id, COUNT(*) OVER () AS owner_count
+                FROM user_phone_history h
+                WHERE h.phone_normalized = $2
+                  AND h.valid_from <= COALESCE($3::timestamptz, now())
+                  AND (h.valid_to IS NULL OR h.valid_to > COALESCE($3::timestamptz, now()))
+              ) phone_owner
+              WHERE owner_count = 1
+            ),
+            (
+              SELECT pu.id
+              FROM platform_users pu
+              WHERE pu.merged_into_id IS NULL
+                AND pu.phone_normalized = $2
+                AND NOT EXISTS (
+                  SELECT 1
+                  FROM user_phone_history h_other_claim
+                  WHERE h_other_claim.phone_normalized = $2
+                    AND h_other_claim.platform_user_id <> pu.id
+                    AND h_other_claim.valid_from <= COALESCE($3::timestamptz, now())
+                    AND (h_other_claim.valid_to IS NULL OR h_other_claim.valid_to > COALESCE($3::timestamptz, now()))
+                )
+              LIMIT 1
+            )
           )
         ON CONFLICT (integrator_record_id) DO UPDATE SET
           phone_normalized = COALESCE(appointment_records.phone_normalized, EXCLUDED.phone_normalized),
@@ -93,7 +117,11 @@ export function createPgAppointmentProjectionPort(): AppointmentProjectionPort {
           last_event = EXCLUDED.last_event,
           updated_at = EXCLUDED.updated_at,
           branch_id = EXCLUDED.branch_id,
-          platform_user_id = COALESCE(appointment_records.platform_user_id, EXCLUDED.platform_user_id)`,
+          platform_user_id = CASE
+            WHEN EXCLUDED.platform_user_id IS NOT NULL THEN EXCLUDED.platform_user_id
+            WHEN EXCLUDED.phone_normalized IS NOT NULL AND EXCLUDED.record_at IS NOT NULL THEN NULL
+            ELSE appointment_records.platform_user_id
+          END`,
         [
           params.integratorRecordId,
           params.phoneNormalized,
