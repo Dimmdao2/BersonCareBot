@@ -6,7 +6,7 @@ import type { E164Number } from "libphonenumber-js/core";
 import { isValidPhoneNumber } from "libphonenumber-js/min";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { patientMutedTextClass } from "@/shared/ui/patientVisual";
+import { patientMutedTextClass, patientPrimaryActionClass } from "@/shared/ui/patientVisual";
 import "react-phone-number-input/style.css";
 import "./international-phone-input.css";
 
@@ -89,7 +89,7 @@ export function InternationalPhoneInput({
 
   return (
     <form
-      className={cn("mx-auto flex w-[242px] max-w-full flex-col gap-2")}
+      className={cn("mx-auto flex w-full max-w-sm flex-col gap-2")}
       onSubmit={handleSubmit}
     >
       <label className={cn(patientMutedTextClass, "text-xs font-medium uppercase tracking-wide")} htmlFor={id}>
@@ -114,7 +114,7 @@ export function InternationalPhoneInput({
       {showError ? <p className="text-sm text-[var(--patient-color-danger)]">Введите корректный номер</p> : null}
       <Button
         type="submit"
-        className="h-10 w-full shrink-0"
+        className={cn(patientPrimaryActionClass, "min-h-10")}
         disabled={disabled || !canSubmit}
         aria-label={submitLabel}
       >

@@ -41,6 +41,7 @@ import {
 } from "@/modules/operator-health/healthFailureArchiveConstants";
 import { parseNotificationsTopics } from "@/modules/patient-notifications/notificationsTopics";
 import { parseAdminIncidentAlertConfig } from "@/modules/admin-incidents/adminIncidentAlertConfig";
+import { redactAdminSettingsForClient } from "@/modules/system-settings/webPushVapidRuntime";
 
 function getValueJson<T>(valueJson: unknown, fallback: T): T {
   if (valueJson !== null && typeof valueJson === "object" && "value" in (valueJson as Record<string, unknown>)) {
@@ -154,7 +155,7 @@ export default async function SettingsPage({
   const isAdmin = session.user.role === "admin";
 
   const adminSettingsList = isAdmin
-    ? await deps.systemSettings.listSettingsByScope("admin")
+    ? redactAdminSettingsForClient(await deps.systemSettings.listSettingsByScope("admin"))
     : [];
 
   function adminStr(key: string): string {
@@ -354,8 +355,12 @@ export default async function SettingsPage({
         if (inner !== null && typeof inner === "object" && !Array.isArray(inner)) {
           const o = inner as Record<string, unknown>;
           publicKey = typeof o.publicKey === "string" ? o.publicKey.trim() : "";
-          const pk = typeof o.privateKey === "string" ? o.privateKey.trim() : "";
-          hasStoredPrivateKey = pk.length > 0;
+          if (typeof o.hasPrivateKey === "boolean") {
+            hasStoredPrivateKey = o.hasPrivateKey;
+          } else {
+            const pk = typeof o.privateKey === "string" ? o.privateKey.trim() : "";
+            hasStoredPrivateKey = pk.length > 0;
+          }
         }
         return { publicKey, hasStoredPrivateKey };
       })()

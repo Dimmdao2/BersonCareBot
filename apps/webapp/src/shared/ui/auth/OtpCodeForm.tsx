@@ -9,7 +9,7 @@ import { isAppSupportPath } from "@/lib/url/isAppSupportPath";
 import { isSafeExternalHref } from "@/lib/url/isSafeExternalHref";
 import { SupportContactLink } from "@/shared/ui/SupportContactLink";
 import { cn } from "@/lib/utils";
-import { patientInlineLinkClass, patientMutedTextClass } from "@/shared/ui/patientVisual";
+import { patientInlineLinkClass, patientMutedTextClass, patientPrimaryActionClass } from "@/shared/ui/patientVisual";
 
 export type OtpConfirmResult =
   | { ok: true; redirectTo?: string }
@@ -202,7 +202,7 @@ export function OtpCodeForm({
         />
       </div>
       {error ? <p className="text-sm text-[var(--patient-color-danger)]">{error}</p> : null}
-      <Button type="submit" disabled={loading || hardBlocked}>
+      <Button type="submit" className={patientPrimaryActionClass} disabled={loading || hardBlocked}>
         {loading ? "Проверка…" : submitLabel}
       </Button>
       <div className="flex flex-wrap items-center gap-3">

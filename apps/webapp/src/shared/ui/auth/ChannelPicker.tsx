@@ -68,9 +68,6 @@ export function ChannelPicker({ methods, disabled, onChoose }: ChannelPickerProp
 
   return (
     <div className={cn("flex max-w-sm flex-col gap-2")} role="group" aria-label="Способ получения кода">
-      <p className={cn(patientMutedTextClass, "text-xs font-medium uppercase tracking-wide")}>
-        Выберите, где вам удобно получить код для входа:
-      </p>
       <Button type="button" disabled={disabled} aria-label={primaryAria} onClick={handlePrimary}>
         {primaryLabel}
       </Button>

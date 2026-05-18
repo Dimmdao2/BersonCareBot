@@ -1,35 +1,18 @@
 "use client";
 
 /**
- * Клиентская часть экрана `/app`: плашка «войдите или зарегистрируйтесь» (только на шаге телефона),
- * dev-bypass и Suspense с AuthBootstrap.
+ * Клиентская часть экрана `/app`: dev-bypass и Suspense с AuthBootstrap.
  */
 
-import { Suspense, useCallback, useState } from "react";
+import { Suspense } from "react";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { cn } from "@/lib/utils";
-import {
-  patientBodyTextClass,
-  patientCardClass,
-  patientMutedTextClass,
-  patientSurfaceInfoClass,
-} from "@/shared/ui/patientVisual";
+import { patientCardClass, patientMutedTextClass } from "@/shared/ui/patientVisual";
 import { AuthBootstrap } from "@/shared/ui/AuthBootstrap";
 import { LegalFooterLinks } from "@/shared/ui/LegalFooterLinks";
 import type { MessengerSurfaceHint } from "@/shared/lib/platform";
-import type { AuthFlowStep, PrefetchedPublicAuthConfig } from "@/shared/ui/auth/AuthFlowV2";
+import type { PrefetchedPublicAuthConfig } from "@/shared/ui/auth/AuthFlowV2";
 import type { UnauthenticatedAppEntryClassification } from "@/modules/auth/appEntryClassification";
-
-/** Видна до первого события шага, на OAuth-first, landing Telegram и шаге телефона. */
-export function shouldShowRegistrationPlaque(authStep: AuthFlowStep | null): boolean {
-  return (
-    authStep === null ||
-    authStep === "entry_loading" ||
-    authStep === "oauth_first" ||
-    authStep === "landing" ||
-    authStep === "phone"
-  );
-}
 
 type AppEntryLoginContentProps = {
   allowDevBypass: boolean;
@@ -55,21 +38,9 @@ export function AppEntryLoginContent({
   entryClassification,
   routeBoundMiniappEntry = false,
 }: AppEntryLoginContentProps) {
-  const [authStep, setAuthStep] = useState<AuthFlowStep | null>(null);
-  const onAuthStepChange = useCallback((step: AuthFlowStep) => {
-    setAuthStep(step);
-  }, []);
-
   return (
     <>
       <div id="app-entry-content" className="flex flex-col gap-6">
-        {shouldShowRegistrationPlaque(authStep) ? (
-          <div id="app-entry-auth-plaque" className={patientSurfaceInfoClass}>
-            <p className={cn(patientBodyTextClass, "m-0 leading-relaxed")}>
-              Для полноценной работы в приложении войдите или зарегистрируйтесь.
-            </p>
-          </div>
-        ) : null}
         {allowDevBypass ? (
           <div id="app-entry-dev-bypass-panel" className={cn(patientCardClass, "mt-2 flex flex-col gap-4")}>
             <p className={cn(patientMutedTextClass, "text-xs font-medium uppercase tracking-wide")}>
@@ -107,7 +78,6 @@ export function AppEntryLoginContent({
       <Suspense fallback={<p className={patientMutedTextClass}>Загрузка...</p>}>
         <AuthBootstrap
           supportContactHref={supportContactHref}
-          onAuthStepChange={onAuthStepChange}
           initialPublicAuthConfig={prefetchedPublicAuth ?? null}
           serverPlatformMessengerCookie={Boolean(serverPlatformMessengerCookie)}
           serverMessengerSurface={serverMessengerSurface ?? null}

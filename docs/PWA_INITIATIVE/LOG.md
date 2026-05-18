@@ -2,7 +2,7 @@
 
 ## 2026-05-18 — Укрепление VAPID / SW / контур push
 
-- **`web_push_vapid`:** ответы `GET`/`PATCH`/batch и SSR больше не отдают `privateKey` клиенту (`hasPrivateKey`); усилена проверка декодированных длин ключей P-256 (`webPushVapidPatch.ts`, `webPushVapidRuntime.ts`).
+- **`web_push_vapid`:** ответы `GET`/`PATCH`/batch и RSC `/app/settings` не держат `privateKey` в данных для композиции страницы (`redactAdminSettingsForClient` на списке admin); в HTTP/API — `hasPrivateKey`; усилена проверка декодированных длин ключей P-256 (`webPushVapidPatch.ts`, `webPushVapidRuntime.ts`).
 - **`public/sw.js`:** только `install`/`activate`, без перехвата `fetch`.
 - **Заглушка:** `GET /api/patient/web-push/status` → **501** `not_implemented`; контракт расширения — `apps/webapp/src/modules/web-push/ports.ts`.
 
