@@ -47,11 +47,18 @@ vi.mock("@/app-layer/guards/requireRole", () => ({
 }));
 
 const listForPatientMock = vi.hoisted(() => vi.fn());
+const getPatientDefaultPromoTreatmentProgramTemplateIdMock = vi.hoisted(() => vi.fn().mockResolvedValue(null));
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
     treatmentProgramInstance: {
       listForPatient: listForPatientMock,
+    },
+    systemSettings: {
+      getPatientDefaultPromoTreatmentProgramTemplateId: getPatientDefaultPromoTreatmentProgramTemplateIdMock,
+    },
+    treatmentProgram: {
+      getTemplate: vi.fn(),
     },
   }),
 }));
@@ -67,6 +74,8 @@ describe("PatientTreatmentProgramsPage / list loader", () => {
     notFoundMock.mockClear();
     redirectMock.mockClear();
     listForPatientMock.mockResolvedValue([]);
+    getPatientDefaultPromoTreatmentProgramTemplateIdMock.mockReset();
+    getPatientDefaultPromoTreatmentProgramTemplateIdMock.mockResolvedValue(null);
   });
 
   it("renders empty state when there is no active program (no redirect)", async () => {

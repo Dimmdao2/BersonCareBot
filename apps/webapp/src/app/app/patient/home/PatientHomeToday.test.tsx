@@ -34,6 +34,9 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh }),
 }));
 
+const getPatientDefaultPromoTreatmentProgramTemplateId = vi.hoisted(() => vi.fn().mockResolvedValue(null));
+const treatmentProgramGetTemplate = vi.hoisted(() => vi.fn());
+
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
     patientHomeBlocks: { listBlocksWithItems },
@@ -51,7 +54,11 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
     },
     patientCalendarTimezone: { getIanaForUser: patientCalendarGetIanaForUser },
     treatmentProgramPatientActions: { listChecklistDoneToday, listLocalDoneDateKeysForRecentDays },
-    systemSettings: { getSetting: systemSettingsGetSetting },
+    systemSettings: {
+      getSetting: systemSettingsGetSetting,
+      getPatientDefaultPromoTreatmentProgramTemplateId,
+    },
+    treatmentProgram: { getTemplate: treatmentProgramGetTemplate },
     patientPractice: { getProgress, getDailyWarmupHeroCooldownMeta, listRecent },
     patientMood: { getCheckinState, getWeekSparkline },
   }),
@@ -303,6 +310,9 @@ describe("PatientHomeToday", () => {
     getReminderMutedUntil.mockResolvedValue(null);
     systemSettingsGetSetting.mockReset();
     systemSettingsGetSetting.mockImplementation(async () => null);
+    getPatientDefaultPromoTreatmentProgramTemplateId.mockReset();
+    getPatientDefaultPromoTreatmentProgramTemplateId.mockResolvedValue(null);
+    treatmentProgramGetTemplate.mockReset();
   });
 
   it("anonymous guest: no personal API, login drilldown on warmup, shows personal blocks with guest CTAs", async () => {

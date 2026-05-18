@@ -36,6 +36,7 @@ import { PatientPlanTabStrip } from "@/app/app/patient/treatment/program-detail/
 import { PatientPlanTabPanels } from "@/app/app/patient/treatment/program-detail/PatientPlanTabPanels";
 import type { PatientPlanTodayRemindersCardProps } from "@/app/app/patient/treatment/program-detail/PatientPlanTodayRemindersCard";
 import { PatientPlanTodayRemindersCard } from "@/app/app/patient/treatment/program-detail/PatientPlanTodayRemindersCard";
+import { PatientPlanPersonalProgramCtaCard } from "@/app/app/patient/treatment/program-detail/PatientPlanPersonalProgramCtaCard";
 
 export function PatientTreatmentProgramDetailClient(props: {
   initial: TreatmentProgramInstanceDetail;
@@ -340,8 +341,11 @@ export function PatientTreatmentProgramDetailClient(props: {
         planItemDoneRepeatCooldownMinutes={planItemDoneRepeatCooldownMinutes}
       />
 
-      {detail.status === "active" && planReminderStrip ? (
-        <PatientPlanTodayRemindersCard {...planReminderStrip} />
+      {detail.status === "active" ? (
+        <div className="mt-4 flex flex-col gap-3">
+          {planReminderStrip ? <PatientPlanTodayRemindersCard {...planReminderStrip} /> : null}
+          <PatientPlanPersonalProgramCtaCard />
+        </div>
       ) : null}
     </div>
   );

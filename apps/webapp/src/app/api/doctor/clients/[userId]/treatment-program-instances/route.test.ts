@@ -63,6 +63,7 @@ describe("POST /api/doctor/clients/[userId]/treatment-program-instances", () => 
       templateId: TEMPLATE_ID,
       patientUserId: PATIENT_ID,
       assignedBy: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+      assignmentSource: "doctor",
     });
     expect(createBlankMock).not.toHaveBeenCalled();
   });
