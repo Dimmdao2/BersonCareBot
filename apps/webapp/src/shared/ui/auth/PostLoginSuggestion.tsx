@@ -9,6 +9,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { patientCardClass, patientMutedTextClass, patientSectionTitleClass } from "@/shared/ui/patientVisual";
 
 const STORAGE_KEY = "bc_post_login_nudge_v1";
 const DISMISS_DAYS = 7;
@@ -84,12 +85,12 @@ export function PostLoginSuggestion() {
   return (
     <section
       id="post-login-suggestion"
-      className="border-border bg-muted/40 mb-6 rounded-lg border p-4"
+      className={cn(patientCardClass, "mb-6")}
       role="region"
       aria-label="Рекомендации после входа"
     >
-      <p className="mb-2 text-sm font-medium">Усильте безопасность аккаунта</p>
-      <ul className="text-muted-foreground mb-3 list-inside list-disc space-y-1 text-sm">
+      <p className={cn(patientSectionTitleClass, "mb-2")}>Усильте безопасность аккаунта</p>
+      <ul className={cn(patientMutedTextClass, "mb-3 list-inside list-disc space-y-1")}>
         {pinLine ? <li>Создайте PIN-код для быстрого входа.</li> : null}
         {telegramLine ? <li>Привяжите Telegram для восстановления доступа.</li> : null}
       </ul>

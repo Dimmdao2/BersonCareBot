@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { SupportContactLink } from "@/shared/ui/SupportContactLink";
 import { cn } from "@/lib/utils";
+import { patientInlineLinkClass } from "@/shared/ui/patientVisual";
 
 type LegalFooterLinksProps = {
   className?: string;
@@ -14,26 +15,29 @@ export function LegalFooterLinks({ className, supportHref }: LegalFooterLinksPro
   return (
     <nav
       className={cn(
-        "flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-center text-xs text-muted-foreground",
+        "flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-center text-xs text-[var(--patient-text-muted)]",
         className,
       )}
       aria-label="Правовая информация"
     >
-      <Link href="/legal/terms" className="underline underline-offset-2 hover:text-foreground">
+      <Link href="/legal/terms" className={cn(patientInlineLinkClass, "font-normal underline underline-offset-2")}>
         Условия использования
       </Link>
-      <span className="text-border" aria-hidden>
+      <span className="text-[var(--patient-border)]" aria-hidden>
         ·
       </span>
-      <Link href="/legal/privacy" className="underline underline-offset-2 hover:text-foreground">
+      <Link href="/legal/privacy" className={cn(patientInlineLinkClass, "font-normal underline underline-offset-2")}>
         Политика конфиденциальности
       </Link>
       {support ? (
         <>
-          <span className="text-border" aria-hidden>
+          <span className="text-[var(--patient-border)]" aria-hidden>
             ·
           </span>
-          <SupportContactLink href={support} className="underline underline-offset-2 hover:text-foreground">
+          <SupportContactLink
+            href={support}
+            className={cn(patientInlineLinkClass, "font-normal underline underline-offset-2")}
+          >
             Связь с поддержкой
           </SupportContactLink>
         </>

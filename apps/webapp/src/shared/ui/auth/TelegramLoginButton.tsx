@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { getPostAuthRedirectTarget } from "@/modules/auth/redirectPolicy";
 import { LOGIN_CTA_WIDTH_CLASS } from "@/shared/ui/auth/loginChrome";
 import { cn } from "@/lib/utils";
+import { patientMutedTextClass } from "@/shared/ui/patientVisual";
 
 declare global {
   interface Window {
@@ -145,8 +146,8 @@ export function TelegramLoginButton({
           aria-busy={busy || disabled}
         />
       </div>
-      {error ? <p className="text-destructive text-sm">{error}</p> : null}
-      {busy ? <p className="text-muted-foreground text-sm">Вход…</p> : null}
+      {error ? <p className="text-sm text-[var(--patient-color-danger)]">{error}</p> : null}
+      {busy ? <p className={patientMutedTextClass}>Вход…</p> : null}
     </div>
   );
 }

@@ -28,6 +28,10 @@ import {
   hasStoredWebPushVapidPrivate,
   parseWebPushVapidPatchValue,
 } from "@/modules/system-settings/webPushVapidPatch";
+import {
+  redactAdminSettingsForClient,
+  redactWebPushVapidSettingForClient,
+} from "@/modules/system-settings/webPushVapidRuntime";
 
 /** Single-key PATCH: boolean keys normalized like `video_watermark_enabled`. */
 const ADMIN_BOOLEAN_SETTING_KEYS = new Set<string>([
@@ -172,7 +176,7 @@ export async function GET() {
   }
 
   const deps = buildAppDeps();
-  const settings = await deps.systemSettings.listSettingsByScope("admin");
+  const settings = redactAdminSettingsForClient(await deps.systemSettings.listSettingsByScope("admin"));
   return NextResponse.json({ ok: true, settings });
 }
 
@@ -240,7 +244,9 @@ export async function PATCH(request: Request) {
           timestamp: new Date().toISOString(),
         });
       }
-      const settings = await deps.systemSettings.persistAdminModesBatch(norm.rows, session.user.userId);
+      const settings = redactAdminSettingsForClient(
+        await deps.systemSettings.persistAdminModesBatch(norm.rows, session.user.userId),
+      );
       return NextResponse.json({ ok: true, settings });
     }
   }
@@ -451,5 +457,7 @@ export async function PATCH(request: Request) {
   // Invalidate configAdapter cache for updated key (sync to integrator runs inside updateSetting)
   invalidateConfigKey(parsed.data.key);
 
-  return NextResponse.json({ ok: true, setting });
+  const clientSetting =
+    setting.key === "web_push_vapid" ? redactWebPushVapidSettingForClient(setting) : setting;
+  return NextResponse.json({ ok: true, setting: clientSetting });
 }

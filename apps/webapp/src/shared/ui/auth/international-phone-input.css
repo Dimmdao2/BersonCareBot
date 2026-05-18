@@ -1,8 +1,8 @@
 /* Базовые стили библиотеки: import в TSX (`react-phone-number-input/style.css`). */
 
-/* Тема: выравниваем с shadcn Input (border-input, radius, dark). */
+/* Тема: выравниваем с полем пациента / shadcn Input (токены `--patient-*` с fallback). */
 .phone-field-auth {
-  --PhoneInput-color--focus: hsl(var(--ring));
+  --PhoneInput-color--focus: var(--patient-color-primary, hsl(var(--ring)));
 }
 
 .phone-field-auth .PhoneInput {
@@ -20,21 +20,21 @@
   background: transparent;
   font-size: 0.875rem;
   line-height: 1.25rem;
-  color: hsl(var(--foreground));
+  color: var(--patient-text-primary, hsl(var(--foreground)));
   outline: none;
   box-shadow: none;
 }
 
 .phone-field-auth .PhoneInputInput::placeholder {
-  color: hsl(var(--muted-foreground));
+  color: var(--patient-text-muted, hsl(var(--muted-foreground)));
 }
 
 .phone-field-auth .PhoneInputCountryIcon--border {
-  box-shadow: 0 0 0 1px hsl(var(--border));
+  box-shadow: 0 0 0 1px var(--patient-border, hsl(var(--border)));
 }
 
 .dark .phone-field-auth .PhoneInputCountryIcon--border {
-  box-shadow: 0 0 0 1px hsl(var(--border));
+  box-shadow: 0 0 0 1px var(--patient-border, hsl(var(--border)));
 }
 
 .phone-field-auth--error {

@@ -3,7 +3,7 @@ import type { MetadataRoute } from "next";
 /**
  * Web App Manifest (PWA). Иконки — `public/pwa-icon-*.png` (плейсхолдеры до фирменного набора).
  * `scope: "/app"` — установленное приложение не тянет публичный `/` и пути вне `/app` (напр. `/legal/*`) в ту же оболочку.
- * Service worker: `public/sw.js`, регистрация с лендинга `/` с тем же `scope: "/app"` (`PwaInstallSection`), не в Mini App.
+ * Service worker: `public/sw.js` — только `install`/`activate` (без перехвата сети); регистрация с лендинга `/` с `scope: "/app"` (`PwaInstallSection`), не в Mini App.
  */
 export default function manifest(): MetadataRoute.Manifest {
   return {

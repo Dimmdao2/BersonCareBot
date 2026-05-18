@@ -53,8 +53,26 @@ const {
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({ buildAppDeps: buildAppDepsMock }));
 vi.mock("@/modules/auth/service", () => ({ getCurrentSession: getSessionMock }));
+vi.mock("@/modules/system-settings/syncToIntegrator", () => ({
+  normalizeStoredValueJsonForIntegratorSync: (v: unknown) => v,
+  syncSettingToIntegrator: vi.fn(),
+}));
 
+import type { SystemSetting, SystemSettingKey } from "@/modules/system-settings/types";
+import type { SystemSettingsPort } from "@/modules/system-settings/ports";
+import { createSystemSettingsService } from "@/modules/system-settings/service";
 import { GET, PATCH } from "./route";
+import { createECDH } from "node:crypto";
+import { Buffer } from "node:buffer";
+
+function sampleWebPushVapidKeyPair() {
+  const ecdh = createECDH("prime256v1");
+  ecdh.generateKeys();
+  return {
+    publicKey: Buffer.from(ecdh.getPublicKey(undefined, "uncompressed")).toString("base64url"),
+    privateKey: Buffer.from(ecdh.getPrivateKey()).toString("base64url"),
+  };
+}
 
 describe("GET /api/admin/settings", () => {
   beforeEach(() => {
@@ -85,6 +103,28 @@ describe("GET /api/admin/settings", () => {
     listSettingsByScopeMock.mockResolvedValue([]);
     const res = await GET();
     expect(res.status).toBe(200);
+  });
+
+  it("redacts web_push_vapid privateKey in GET (hasPrivateKey only)", async () => {
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    const secret = "super_secret_vapid_private_not_for_client";
+    listSettingsByScopeMock.mockResolvedValue([
+      {
+        key: "web_push_vapid",
+        scope: "admin",
+        valueJson: { value: { publicKey: "BFxPubExampleOnly", privateKey: secret } },
+        updatedAt: "",
+        updatedBy: null,
+      } as SystemSetting,
+    ]);
+    const res = await GET();
+    expect(res.status).toBe(200);
+    const json = (await res.json()) as { settings: SystemSetting[] };
+    const row = json.settings.find((s) => s.key === "web_push_vapid");
+    expect(row?.valueJson).toEqual({
+      value: { publicKey: "BFxPubExampleOnly", hasPrivateKey: true },
+    });
+    expect(JSON.stringify(json)).not.toContain(secret);
   });
 });
 
@@ -292,16 +332,117 @@ describe("PATCH /api/admin/settings", () => {
     );
   });
 
+  it("returns 200 smtp_outbound PATCH with empty password keeps stored password via updateSetting merge", async () => {
+    const prevStored: SystemSetting = {
+      key: "smtp_outbound",
+      scope: "admin",
+      valueJson: {
+        value: {
+          host: "smtp.example.com",
+          port: 587,
+          secure: false,
+          user: "u",
+          password: "saved-secret",
+          from: "a@b.com",
+        },
+      },
+      updatedAt: "",
+      updatedBy: null,
+    };
+
+    const upsertSpy = vi.fn(async (key, scope, valueJson, updatedBy: string | null) => ({
+      key,
+      scope,
+      valueJson,
+      updatedAt: "",
+      updatedBy,
+    }));
+
+    const mergePort: SystemSettingsPort = {
+      getByKey: vi.fn(async (key) => (key === "smtp_outbound" ? prevStored : null)),
+      getByScope: vi.fn(),
+      upsertManyInTransaction: vi.fn(),
+      upsert: upsertSpy,
+    };
+
+    const svc = createSystemSettingsService(mergePort);
+
+    /** One PATCH → one buildAppDeps() call; restores default mocked deps for other tests automatically. */
+    buildAppDepsMock.mockReturnValueOnce({
+      systemSettings: {
+        listSettingsByScope: listSettingsByScopeMock,
+        persistAdminModesBatch: persistAdminModesBatchMock,
+        updateSetting: vi.fn((key: string, scope: "admin", value: unknown, ub: string | null) =>
+          svc.updateSetting(key as SystemSettingKey, scope, value, ub),
+        ),
+        getSetting: vi.fn((key: string, scope: "admin") => svc.getSetting(key as SystemSettingKey, scope)),
+      },
+      subscriptionMailingProjection: {
+        listTopics: listTopicsMock,
+      },
+    });
+
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+
+    const res = await PATCH(
+      new Request("http://localhost/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          key: "smtp_outbound",
+          value: {
+            host: "smtp.example.com",
+            port: 587,
+            secure: false,
+            user: "u",
+            password: "",
+            from: "a@b.com",
+          },
+        }),
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    expect(upsertSpy).toHaveBeenCalledWith(
+      "smtp_outbound",
+      "admin",
+      expect.objectContaining({
+        value: expect.objectContaining({ password: "saved-secret", host: "smtp.example.com" }),
+      }),
+      "a1",
+    );
+  });
+
   it("returns 400 for web_push_vapid with invalid base64url public key", async () => {
     getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
     getSettingMock.mockResolvedValue(null);
+    const { privateKey } = sampleWebPushVapidKeyPair();
     const res = await PATCH(
       new Request("http://localhost/api/admin/settings", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           key: "web_push_vapid",
-          value: { value: { publicKey: "bad+plus", privateKey: "Abcd0123456789-_Abcd0123456789-_" } },
+          value: { value: { publicKey: "bad+plus", privateKey } },
+        }),
+      }),
+    );
+    expect(res.status).toBe(400);
+    expect(updateSettingMock).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 for web_push_vapid when public key decodes to wrong length", async () => {
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSettingMock.mockResolvedValue(null);
+    const { privateKey } = sampleWebPushVapidKeyPair();
+    const shortPub = Buffer.alloc(10, 1).toString("base64url");
+    const res = await PATCH(
+      new Request("http://localhost/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          key: "web_push_vapid",
+          value: { value: { publicKey: shortPub, privateKey } },
         }),
       }),
     );
@@ -312,7 +453,7 @@ describe("PATCH /api/admin/settings", () => {
   it("returns 400 when first web_push_vapid save omits private key", async () => {
     getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
     getSettingMock.mockResolvedValue(null);
-    const pub = "BFxTvL2YjQwZExampleKeyOnlyBase64urlChars09_-";
+    const { publicKey: pub } = sampleWebPushVapidKeyPair();
     const res = await PATCH(
       new Request("http://localhost/api/admin/settings", {
         method: "PATCH",
@@ -327,13 +468,10 @@ describe("PATCH /api/admin/settings", () => {
     expect(updateSettingMock).not.toHaveBeenCalled();
   });
 
-  it("returns 200 for admin updating web_push_vapid with valid pair", async () => {
+  it("returns 200 for admin updating web_push_vapid with valid pair (response omits privateKey)", async () => {
     getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
     getSettingMock.mockResolvedValue(null);
-    const pair = {
-      publicKey: "BFxTvL2YjQwZExampleKeyOnlyBase64urlChars09_-",
-      privateKey: "Abcd0123456789-_Abcd0123456789-_ExtraChars09_-",
-    };
+    const pair = sampleWebPushVapidKeyPair();
     updateSettingMock.mockResolvedValue({
       key: "web_push_vapid",
       scope: "admin",
@@ -350,28 +488,28 @@ describe("PATCH /api/admin/settings", () => {
     );
     expect(res.status).toBe(200);
     expect(updateSettingMock).toHaveBeenCalledWith("web_push_vapid", "admin", { value: pair }, "a1");
+    const json = (await res.json()) as { setting: SystemSetting };
+    expect(json.setting.valueJson).toEqual({
+      value: { publicKey: pair.publicKey, hasPrivateKey: true },
+    });
   });
 
   it("audit log for web_push_vapid redacts privateKey in old and new values", async () => {
     const infoSpy = vi.spyOn(console, "info").mockImplementation(() => {});
     getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
-    const prevSecret = "OldPrivateKeyForAuditRedactionTest09_-Zz";
-    const newSecret = "NewPrivateKeyForAuditRedactionTest09_-Yy";
-    const pair = {
-      publicKey: "BFxTvL2YjQwZExampleKeyOnlyBase64urlChars09_-",
-      privateKey: newSecret,
-    };
+    const prevPair = sampleWebPushVapidKeyPair();
+    const newPair = sampleWebPushVapidKeyPair();
     getSettingMock.mockResolvedValue({
       key: "web_push_vapid",
       scope: "admin",
-      valueJson: { value: { publicKey: "BFoldPubExampleKeyOnlyBase64url09_-", privateKey: prevSecret } },
+      valueJson: { value: { publicKey: prevPair.publicKey, privateKey: prevPair.privateKey } },
       updatedAt: "",
       updatedBy: null,
     });
     updateSettingMock.mockResolvedValue({
       key: "web_push_vapid",
       scope: "admin",
-      valueJson: { value: pair },
+      valueJson: { value: newPair },
       updatedAt: "",
       updatedBy: "a1",
     });
@@ -379,31 +517,33 @@ describe("PATCH /api/admin/settings", () => {
       new Request("http://localhost/api/admin/settings", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ key: "web_push_vapid", value: { value: pair } }),
+        body: JSON.stringify({ key: "web_push_vapid", value: { value: newPair } }),
       }),
     );
     expect(res.status).toBe(200);
     const joined = infoSpy.mock.calls.map((c) => JSON.stringify(c)).join("\n");
-    expect(joined).not.toContain(prevSecret);
-    expect(joined).not.toContain(newSecret);
+    expect(joined).not.toContain(prevPair.privateKey);
+    expect(joined).not.toContain(newPair.privateKey);
     expect(joined).toContain("[REDACTED]");
     infoSpy.mockRestore();
   });
 
   it("returns 200 for web_push_vapid when private empty but stored private exists (merge in service)", async () => {
     getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
-    const pub = "BFxTvL2YjQwZExampleKeyOnlyBase64urlChars09_-";
+    const newPubPair = sampleWebPushVapidKeyPair();
+    const pub = newPubPair.publicKey;
+    const stored = sampleWebPushVapidKeyPair();
     getSettingMock.mockResolvedValue({
       key: "web_push_vapid",
       scope: "admin",
-      valueJson: { value: { publicKey: "BFoldPubExampleKeyOnlyBase64url09_-", privateKey: "StoredPrivateKey1234567890_-AbCd" } },
+      valueJson: { value: { publicKey: stored.publicKey, privateKey: stored.privateKey } },
       updatedAt: "",
       updatedBy: null,
     });
     updateSettingMock.mockResolvedValue({
       key: "web_push_vapid",
       scope: "admin",
-      valueJson: { value: { publicKey: pub, privateKey: "" } },
+      valueJson: { value: { publicKey: pub, privateKey: stored.privateKey } },
       updatedAt: "",
       updatedBy: "a1",
     });
@@ -419,6 +559,8 @@ describe("PATCH /api/admin/settings", () => {
     );
     expect(res.status).toBe(200);
     expect(updateSettingMock).toHaveBeenCalledWith("web_push_vapid", "admin", { value: { publicKey: pub, privateKey: "" } }, "a1");
+    const json = (await res.json()) as { setting: SystemSetting };
+    expect(json.setting.valueJson).toEqual({ value: { publicKey: pub, hasPrivateKey: true } });
   });
 
   it("returns 200 for admin updating yandex_oauth_client_id (system_settings)", async () => {

@@ -29,10 +29,26 @@ import {
   AUTH_LOGIN_PRIMARY_BUTTON_CLASS,
 } from "@/shared/ui/auth/loginChrome";
 import { getBrowserCalendarIanaForAuth } from "@/shared/lib/browserCalendarIana";
+import {
+  patientInlineLinkClass,
+  patientMutedTextClass,
+} from "@/shared/ui/patientVisual";
 
 const WEB_CHAT_ID_KEY = "bersoncare_web_chat_id";
 
 const SMS_DISABLED_WEB_MESSAGE = "SMS для входа с сайта отключён. Используйте код в Telegram или Max.";
+
+const authStepEyebrowClass = cn(patientMutedTextClass, "text-xs font-medium uppercase tracking-wide");
+
+const authStepMutedParagraphClass = cn(patientMutedTextClass, "max-w-sm text-balance");
+
+const authStepSubtitleClass = cn(patientMutedTextClass, "max-w-sm");
+
+const authLinkButtonClass = cn(
+  "h-auto min-h-0 px-0 py-0 text-sm font-normal",
+  patientInlineLinkClass,
+  "underline-offset-2",
+);
 
 function getWebChatId(): string {
   if (typeof window === "undefined") return "";
@@ -414,7 +430,7 @@ export function AuthFlowV2({
 
   if (step === "entry_loading") {
     return (
-      <div id="auth-flow-v2-entry-loading" className="py-6 text-sm text-muted-foreground">
+      <div id="auth-flow-v2-entry-loading" className={cn(patientMutedTextClass, "py-6")}>
         Загрузка…
       </div>
     );
@@ -423,8 +439,8 @@ export function AuthFlowV2({
   if (step === "oauth_first") {
     return (
       <div id="auth-flow-v2-oauth-first" className="flex flex-col items-center gap-5 px-4 py-3 text-center">
-        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Вход</p>
-        <p className="text-muted-foreground text-sm max-w-sm">{oauthEntrySubtitle}</p>
+        <p className={authStepEyebrowClass}>Вход</p>
+        <p className={authStepSubtitleClass}>{oauthEntrySubtitle}</p>
         <div className="flex w-full flex-col items-center gap-4">
           {oauthProviders.yandex ? (
             <Button
@@ -491,7 +507,7 @@ export function AuthFlowV2({
         <Button
           type="button"
           variant="link"
-          className="h-auto min-h-0 text-sm text-muted-foreground"
+          className={authLinkButtonClass}
           disabled={loading}
           onClick={() => {
             engageInteractive();
@@ -507,8 +523,8 @@ export function AuthFlowV2({
   if (step === "landing" && telegramBotUsername) {
     return (
       <div id="auth-flow-v2-landing" className="flex flex-col items-center gap-5 px-4 py-3 text-center">
-        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Вход</p>
-        <p className="text-muted-foreground text-sm max-w-sm">{oauthEntrySubtitle}</p>
+        <p className={authStepEyebrowClass}>Вход</p>
+        <p className={authStepSubtitleClass}>{oauthEntrySubtitle}</p>
         {showOauthRow || showAppleFallback ? (
           <div className="flex w-full flex-col items-center gap-4">
             {oauthProviders.yandex ? (
@@ -561,7 +577,7 @@ export function AuthFlowV2({
         <Button
           type="button"
           variant="link"
-          className="h-auto min-h-0 text-sm text-muted-foreground"
+          className={authLinkButtonClass}
           disabled={loading}
           onClick={() => {
             engageInteractive();
@@ -577,8 +593,8 @@ export function AuthFlowV2({
   if (step === "phone") {
     return (
       <div id="auth-flow-v2-phone" className="flex flex-col items-center gap-4 py-3 text-center">
-        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Вход</p>
-        <p className="text-muted-foreground max-w-sm text-sm text-balance">
+        <p className={authStepEyebrowClass}>Вход</p>
+        <p className={authStepMutedParagraphClass}>
           Для входа или регистрации в приложении укажите номер телефона
         </p>
         {hasWebOauthAlternatives ? (
@@ -586,13 +602,13 @@ export function AuthFlowV2({
             <Button
               type="button"
               variant="link"
-              className="h-auto min-h-0 px-0 py-0 text-sm font-normal text-muted-foreground"
+              className={authLinkButtonClass}
               onClick={() => setStep("oauth_first")}
             >
               Вход без номера
             </Button>
             <div className="flex w-full flex-col items-center gap-2">
-              <p className="text-xs text-muted-foreground">{phoneOauthCompactCaption}</p>
+              <p className={cn(patientMutedTextClass, "text-xs")}>{phoneOauthCompactCaption}</p>
               <div className="flex flex-col items-center gap-2">
                 {oauthProviders.yandex ? (
                   <Button
@@ -642,7 +658,7 @@ export function AuthFlowV2({
           <Button
             type="button"
             variant="link"
-            className="h-auto min-h-0 px-0 py-0 text-sm font-normal text-muted-foreground disabled:opacity-60"
+            className={cn(authLinkButtonClass, "disabled:opacity-60")}
             disabled={loading || !telegramWidgetReady}
             onClick={() => {
               if (telegramWidgetReady) {
@@ -661,7 +677,7 @@ export function AuthFlowV2({
   if (step === "new_user_foreign" && methods) {
     return (
       <div id="auth-flow-v2-new-user-foreign" className="flex flex-col items-center gap-3 py-3 text-center">
-        <p className="text-muted-foreground max-w-sm text-sm text-balance">
+        <p className={authStepMutedParagraphClass}>
           В браузере код подтверждения отправляется только в Telegram или Max, привязанные к номеру. SMS для входа с сайта
           отключён.
           {hasWebOauthAlternatives
@@ -676,7 +692,7 @@ export function AuthFlowV2({
         </p>
         {hasWebOauthAlternatives ? (
           <div className="flex w-full flex-col items-center gap-2">
-            <p className="text-xs text-muted-foreground">Вход без номера</p>
+            <p className={cn(patientMutedTextClass, "text-xs")}>Вход без номера</p>
             <div className="flex flex-col items-center gap-2">
               {oauthProviders.yandex ? (
                 <Button
@@ -712,11 +728,11 @@ export function AuthFlowV2({
                 </Button>
               ) : null}
               <MaxLoginCta
-                  maxAltLoading={maxAltLoading}
-                  maxOpenUrl={maxOpenUrl}
-                  variant="outline"
-                  onActivate={engageInteractive}
-                />
+                maxAltLoading={maxAltLoading}
+                maxOpenUrl={maxOpenUrl}
+                variant="outline"
+                onActivate={engageInteractive}
+              />
             </div>
           </div>
         ) : null}
@@ -750,7 +766,7 @@ export function AuthFlowV2({
         <Button
           type="button"
           variant="link"
-          className="h-auto min-h-0 px-0 py-0 text-sm font-normal"
+          className={authLinkButtonClass}
           onClick={() => {
             goBackToEntry();
           }}
@@ -764,7 +780,7 @@ export function AuthFlowV2({
   if (step === "foreign_no_otp_channel" && methods) {
     return (
       <div id="auth-flow-v2-foreign-no-otp" className="flex flex-col items-center gap-3 py-3 text-center">
-        <p className="text-muted-foreground max-w-sm text-sm text-balance">
+        <p className={authStepMutedParagraphClass}>
           Для этого номера в браузере нет способа получить код: нужны Telegram или Max, привязанные к аккаунту. SMS для
           входа с сайта отключён.
           {hasWebOauthAlternatives
@@ -780,7 +796,7 @@ export function AuthFlowV2({
         </p>
         {hasWebOauthAlternatives ? (
           <div className="flex w-full flex-col items-center gap-2">
-            <p className="text-xs text-muted-foreground">Вход без номера</p>
+            <p className={cn(patientMutedTextClass, "text-xs")}>Вход без номера</p>
             <div className="flex flex-col items-center gap-2">
               {oauthProviders.yandex ? (
                 <Button
@@ -866,7 +882,7 @@ export function AuthFlowV2({
         <Button
           type="button"
           variant="link"
-          className="h-auto min-h-0 px-0 py-0 text-sm font-normal"
+          className={authLinkButtonClass}
           onClick={() => {
             goBackToEntry();
           }}
@@ -881,7 +897,7 @@ export function AuthFlowV2({
     return (
       <div id="auth-flow-v2-channel" className="flex flex-col gap-3">
         {smsStartCooldownSec > 0 ? (
-          <p className="text-muted-foreground text-sm" role="status">
+          <p className={patientMutedTextClass} role="status">
             Повторная отправка возможна через {smsStartCooldownSec} сек
           </p>
         ) : null}
@@ -889,7 +905,7 @@ export function AuthFlowV2({
         <Button
           type="button"
           variant="link"
-          className="h-auto min-h-0 px-0 py-0 text-sm font-normal"
+          className={authLinkButtonClass}
           onClick={() => {
             goBackToEntry();
           }}

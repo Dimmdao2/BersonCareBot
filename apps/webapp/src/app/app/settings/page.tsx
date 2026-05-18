@@ -350,13 +350,14 @@ export default async function SettingsPage({
         const row = adminSettingsList.find((x) => x.key === "web_push_vapid");
         const inner = row ? getValueJson<unknown>(row.valueJson, null) : null;
         let publicKey = "";
-        let privateKey = "";
+        let hasStoredPrivateKey = false;
         if (inner !== null && typeof inner === "object" && !Array.isArray(inner)) {
           const o = inner as Record<string, unknown>;
           publicKey = typeof o.publicKey === "string" ? o.publicKey.trim() : "";
-          privateKey = typeof o.privateKey === "string" ? o.privateKey.trim() : "";
+          const pk = typeof o.privateKey === "string" ? o.privateKey.trim() : "";
+          hasStoredPrivateKey = pk.length > 0;
         }
-        return { publicKey, privateKey };
+        return { publicKey, hasStoredPrivateKey };
       })()
     : null;
 
@@ -412,7 +413,7 @@ export default async function SettingsPage({
                   {webPushVapidUi ? (
                     <WebPushVapidSection
                       initialPublicKey={webPushVapidUi.publicKey}
-                      initialPrivateKey={webPushVapidUi.privateKey}
+                      hasStoredPrivateKey={webPushVapidUi.hasStoredPrivateKey}
                     />
                   ) : null}
                   <NotificationsTopicsSection initialRows={notificationsTopicsRows} />

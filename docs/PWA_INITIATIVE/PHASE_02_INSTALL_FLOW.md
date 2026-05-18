@@ -13,7 +13,7 @@
 
 - [x] Обработать **`beforeinstallprompt`**: сохранить событие, по кнопке вызвать `prompt()`; если события нет — fallback (меню Chrome «Установить» / «Добавить…»).
 - [x] Блок **iOS** — короткая инструкция (Поделиться → На экран «Домой»), **без** программного `prompt()` установки PWA.
-- [x] **Пустой** SW с `fetch` passthrough и регистрация с лендинга с **`scope: "/app"`** (как manifest); в **`install`/`activate`** нет кэша HTML/API.
+- [x] **Минимальный** SW без перехвата `fetch` (сеть как без SW) и регистрация с лендинга с **`scope: "/app"`** (как manifest); в **`install`/`activate`** нет кэша HTML/API.
 - [x] **Manifest** **`scope: "/app"`** — совпадает с областью регистрации SW (см. [фаза 3](PHASE_03_MANIFEST_AUDIT.md)).
 - [x] **Не** регистрировать SW при `isMessengerMiniAppHost()` (`messengerMiniApp.ts`).
 - [x] Событие **`appinstalled`**: сброс промпта + короткое UX‑подтверждение при уже установленном / standalone.
@@ -25,7 +25,7 @@
 
 - [x] `pnpm --filter @bersoncare/webapp lint` проходит.
 - [x] `pnpm --filter @bersoncare/webapp typecheck` проходит.
-- [x] SW: только `fetch(event.request)` — нет кэширования API/HTML в скрипте.
+- [x] SW: нет обработчика `fetch` и нет кэширования API/HTML в скрипте.
 
 ### Ручные (устройства / стенд)
 

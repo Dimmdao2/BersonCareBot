@@ -8,6 +8,8 @@ import { DEFAULT_SUPPORT_CONTACT_URL } from "@/modules/system-settings/supportCo
 import { isAppSupportPath } from "@/lib/url/isAppSupportPath";
 import { isSafeExternalHref } from "@/lib/url/isSafeExternalHref";
 import { SupportContactLink } from "@/shared/ui/SupportContactLink";
+import { cn } from "@/lib/utils";
+import { patientInlineLinkClass, patientMutedTextClass } from "@/shared/ui/patientVisual";
 
 export type OtpConfirmResult =
   | { ok: true; redirectTo?: string }
@@ -174,11 +176,16 @@ export function OtpCodeForm({
     }
   };
 
+  const textLinkClass = cn(
+    patientInlineLinkClass,
+    "w-fit bg-transparent p-0 text-left text-sm font-normal underline disabled:pointer-events-none disabled:opacity-50",
+  );
+
   return (
     <form id={`otp-code-form-${challengeId}`} onSubmit={handleSubmit} className="flex max-w-sm flex-col gap-3">
-      <p className="text-muted-foreground text-sm">{description}</p>
+      <p className={patientMutedTextClass}>{description}</p>
       <div className="flex flex-col gap-1">
-        <label className="text-muted-foreground text-xs font-medium uppercase tracking-wide" htmlFor={`otp-${challengeId}`}>
+        <label className={cn(patientMutedTextClass, "text-xs font-medium uppercase tracking-wide")} htmlFor={`otp-${challengeId}`}>
           Код подтверждения
         </label>
         <Input
@@ -194,7 +201,7 @@ export function OtpCodeForm({
           aria-invalid={!!error}
         />
       </div>
-      {error ? <p className="text-destructive text-sm">{error}</p> : null}
+      {error ? <p className="text-sm text-[var(--patient-color-danger)]">{error}</p> : null}
       <Button type="submit" disabled={loading || hardBlocked}>
         {loading ? "Проверка…" : submitLabel}
       </Button>
@@ -207,7 +214,7 @@ export function OtpCodeForm({
             {resendLoading ? "Отправка…" : "Отправить код повторно"}
           </Button>
         ) : !hardBlocked ? (
-          <span className="text-muted-foreground text-sm">
+          <span className={patientMutedTextClass}>
             Повторная отправка возможна через {resendCountdown} сек
           </span>
         ) : null}
@@ -216,7 +223,7 @@ export function OtpCodeForm({
         <div className="flex flex-col gap-2">
           <button
             type="button"
-            className="w-fit text-sm text-muted-foreground underline hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
+            className={textLinkClass}
             onClick={() => setSmsFallbackExpanded((v) => !v)}
             disabled={loading || hardBlocked}
             aria-expanded={smsFallbackExpanded}
@@ -226,7 +233,7 @@ export function OtpCodeForm({
           {smsFallbackExpanded ? (
             <button
               type="button"
-              className="w-fit pl-1 text-left text-sm text-muted-foreground underline hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
+              className={cn(textLinkClass, "pl-1")}
               onClick={() => void handleRequestSms()}
               disabled={loading || resendLoading || hardBlocked}
             >
@@ -239,7 +246,7 @@ export function OtpCodeForm({
         <div className="flex flex-col gap-2">
           <button
             type="button"
-            className="w-fit text-sm text-muted-foreground underline hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
+            className={textLinkClass}
             onClick={() => setAltExpanded((v) => !v)}
             disabled={loading || resendLoading || hardBlocked}
             aria-expanded={altExpanded}
@@ -253,7 +260,7 @@ export function OtpCodeForm({
                   <button
                     key={i}
                     type="button"
-                    className="w-fit text-left text-sm text-muted-foreground underline"
+                    className={cn(textLinkClass, "text-left")}
                     onClick={() => void alt.onClick()}
                     disabled={loading || resendLoading || hardBlocked}
                   >
@@ -276,10 +283,7 @@ export function OtpCodeForm({
           ) : null}
         </div>
       ) : null}
-      <SupportContactLink
-        href={supportHref}
-        className="w-fit text-sm text-muted-foreground underline hover:text-foreground"
-      >
+      <SupportContactLink href={supportHref} className={textLinkClass}>
         Написать в поддержку
       </SupportContactLink>
     </form>

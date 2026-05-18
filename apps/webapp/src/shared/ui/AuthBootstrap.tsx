@@ -27,8 +27,10 @@ import {
 } from "@/modules/auth/messengerAuthStrategy";
 import { getPostAuthRedirectTarget } from "@/modules/auth/redirectPolicy";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { AuthFlowV2, type AuthFlowStep, type PrefetchedPublicAuthConfig } from "@/shared/ui/auth/AuthFlowV2";
 import { MaxBridgeScript } from "@/shared/ui/MaxBridgeScript";
+import { patientInlineLinkClass, patientMutedTextClass } from "@/shared/ui/patientVisual";
 import { persistMessengerBindingCandidate } from "@/shared/lib/messengerBindingCandidate";
 import {
   getMaxWebAppInitDataForAuth,
@@ -952,7 +954,7 @@ export function AuthBootstrap({
     return (
       <>
         <MaxBridgeScript active={loadMaxBridge} />
-        <p className="break-all text-sm text-muted-foreground">
+        <p className={cn(patientMutedTextClass, "break-all")}>
           [debug] correlation: {correlationId}
           <br />
           Нет токена в URL. Ожидается ?t=..., Telegram initData или MAX WebApp.initData.
@@ -983,12 +985,12 @@ export function AuthBootstrap({
     return (
       <>
         <MaxBridgeScript active={loadMaxBridge} />
-        <p className="text-muted-foreground">{error}</p>
+        <p className={patientMutedTextClass}>{error}</p>
         {showHelpLinks ? (
-          <div className="mt-3 flex flex-col items-center gap-2 text-sm">
+          <div className={cn(patientMutedTextClass, "mt-3 flex flex-col items-center gap-2")}>
             {miniappHelpLinks.telegram ? (
               <a
-                className="text-primary underline"
+                className={cn(patientInlineLinkClass, "underline")}
                 href={miniappHelpLinks.telegram}
                 target="_blank"
                 rel="noopener noreferrer"
@@ -998,7 +1000,7 @@ export function AuthBootstrap({
             ) : null}
             {miniappHelpLinks.max ? (
               <a
-                className="text-primary underline"
+                className={cn(patientInlineLinkClass, "underline")}
                 href={miniappHelpLinks.max}
                 target="_blank"
                 rel="noopener noreferrer"
@@ -1019,7 +1021,7 @@ export function AuthBootstrap({
           </div>
         ) : null}
         {debug && debugInfo && (
-          <pre className="whitespace-pre-wrap text-left text-xs text-muted-foreground">
+          <pre className={cn(patientMutedTextClass, "whitespace-pre-wrap text-left text-xs")}>
             [debug] correlation: {correlationId} status: {debugInfo.status ?? "—"} {debugInfo.message ?? ""}
           </pre>
         )}
@@ -1030,11 +1032,11 @@ export function AuthBootstrap({
   return (
     <>
       <MaxBridgeScript active={loadMaxBridge} />
-      <p className="text-muted-foreground">
+      <p className={patientMutedTextClass}>
         {token ? "Проверяем токен интегратора и создаем сессию..." : "Проверяем вход..."}
       </p>
       {debug && (
-        <p className="text-xs text-muted-foreground">
+        <p className={cn(patientMutedTextClass, "text-xs")}>
           [debug] state: {state} correlation: {correlationId}
         </p>
       )}

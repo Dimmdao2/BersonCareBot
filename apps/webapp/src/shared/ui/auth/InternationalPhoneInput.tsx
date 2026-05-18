@@ -6,6 +6,7 @@ import type { E164Number } from "libphonenumber-js/core";
 import { isValidPhoneNumber } from "libphonenumber-js/min";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { patientMutedTextClass } from "@/shared/ui/patientVisual";
 import "react-phone-number-input/style.css";
 import "./international-phone-input.css";
 
@@ -91,12 +92,12 @@ export function InternationalPhoneInput({
       className={cn("mx-auto flex w-[242px] max-w-full flex-col gap-2")}
       onSubmit={handleSubmit}
     >
-      <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground" htmlFor={id}>
+      <label className={cn(patientMutedTextClass, "text-xs font-medium uppercase tracking-wide")} htmlFor={id}>
         Номер телефона
       </label>
       <div
         className={cn(
-          "phone-field-auth flex min-h-10 w-full items-center rounded-md border border-input bg-background px-2 py-1 ring-offset-background focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2",
+          "phone-field-auth flex min-h-10 w-full items-center rounded-md border border-[var(--patient-border)] bg-[var(--patient-card-bg)] px-2 py-1 ring-offset-background focus-within:ring-2 focus-within:ring-[var(--patient-color-primary)] focus-within:ring-offset-2",
           showError && "phone-field-auth--error border-destructive",
         )}
       >
@@ -110,7 +111,7 @@ export function InternationalPhoneInput({
           aria-invalid={showError || undefined}
         />
       </div>
-      {showError ? <p className="text-destructive text-sm">Введите корректный номер</p> : null}
+      {showError ? <p className="text-sm text-[var(--patient-color-danger)]">Введите корректный номер</p> : null}
       <Button
         type="submit"
         className="h-10 w-full shrink-0"

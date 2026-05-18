@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -8,30 +9,50 @@ import { patchAdminSetting } from "./patchAdminSetting";
 
 export type WebPushVapidSectionProps = {
   initialPublicKey: string;
-  initialPrivateKey: string;
+  hasStoredPrivateKey: boolean;
 };
 
-export function WebPushVapidSection({ initialPublicKey, initialPrivateKey }: WebPushVapidSectionProps) {
+export function WebPushVapidSection({ initialPublicKey, hasStoredPrivateKey }: WebPushVapidSectionProps) {
+  const router = useRouter();
   const [publicKey, setPublicKey] = useState(initialPublicKey);
-  const [privateKey, setPrivateKey] = useState(initialPrivateKey);
+  const [privateKeyInput, setPrivateKeyInput] = useState("");
+  const [hasPrivate, setHasPrivate] = useState(hasStoredPrivateKey);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+
+  useEffect(() => {
+    setHasPrivate(hasStoredPrivateKey);
+  }, [hasStoredPrivateKey]);
+
+  useEffect(() => {
+    setPublicKey(initialPublicKey);
+  }, [initialPublicKey]);
 
   function handleSave() {
     setSaved(false);
     setError(null);
     startTransition(async () => {
       try {
+        const trimmedPriv = privateKeyInput.trim();
+        if (!hasPrivate && trimmedPriv.length === 0) {
+          setError("Укажите приватный ключ при первой настройке");
+          return;
+        }
         const ok = await patchAdminSetting("web_push_vapid", {
           publicKey,
-          privateKey,
+          privateKey: privateKeyInput,
         });
         if (!ok) {
           setError("Не удалось сохранить");
           return;
         }
+        if (trimmedPriv.length > 0) {
+          setHasPrivate(true);
+        }
+        setPrivateKeyInput("");
         setSaved(true);
+        router.refresh();
       } catch {
         setError("Ошибка при сохранении");
       }
@@ -61,8 +82,8 @@ export function WebPushVapidSection({ initialPublicKey, initialPrivateKey }: Web
           <span className="text-xs font-medium">Приватный ключ</span>
           <Input
             type="password"
-            value={privateKey}
-            onChange={(e) => setPrivateKey(e.target.value)}
+            value={privateKeyInput}
+            onChange={(e) => setPrivateKeyInput(e.target.value)}
             disabled={isPending}
             autoComplete="off"
             spellCheck={false}

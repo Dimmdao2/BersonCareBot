@@ -10,6 +10,7 @@ import {
   pickPrimaryOtpChannelPublic,
   type OtpUiChannel,
 } from "@/modules/auth/otpChannelUi";
+import { patientInlineLinkClass, patientMutedTextClass } from "@/shared/ui/patientVisual";
 
 type ChannelPickerProps = {
   methods: AuthMethodsPayload;
@@ -54,7 +55,7 @@ export function ChannelPicker({ methods, disabled, onChoose }: ChannelPickerProp
   if (primary == null) {
     return (
       <div className={cn("flex max-w-sm flex-col gap-2")}>
-        <p className="text-sm text-muted-foreground">
+        <p className={patientMutedTextClass}>
           Для этого номера в браузере нет способа получить код: нужен Telegram или Max, привязанные к аккаунту. Войдите
           через Яндекс, Google или Apple (если доступно) или укажите другой номер.
         </p>
@@ -67,7 +68,7 @@ export function ChannelPicker({ methods, disabled, onChoose }: ChannelPickerProp
 
   return (
     <div className={cn("flex max-w-sm flex-col gap-2")} role="group" aria-label="Способ получения кода">
-      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+      <p className={cn(patientMutedTextClass, "text-xs font-medium uppercase tracking-wide")}>
         Выберите, где вам удобно получить код для входа:
       </p>
       <Button type="button" disabled={disabled} aria-label={primaryAria} onClick={handlePrimary}>
@@ -76,10 +77,13 @@ export function ChannelPicker({ methods, disabled, onChoose }: ChannelPickerProp
 
       {showOtherToggle ? (
         <>
-          <div className="my-1 border-t border-border" />
+          <div className="my-1 border-t border-[var(--patient-border)]" />
           <button
             type="button"
-            className="w-fit text-left text-sm text-muted-foreground underline hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
+            className={cn(
+              patientInlineLinkClass,
+              "w-fit bg-transparent p-0 text-left text-sm font-normal underline disabled:pointer-events-none disabled:opacity-50",
+            )}
             disabled={disabled}
             aria-expanded={expanded}
             onClick={() => setExpanded((v) => !v)}

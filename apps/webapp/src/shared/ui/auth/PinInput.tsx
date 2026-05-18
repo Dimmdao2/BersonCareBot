@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { patientInlineLinkClass, patientMutedTextClass } from "@/shared/ui/patientVisual";
 
 type PinInputProps = {
   disabled?: boolean;
@@ -17,7 +18,7 @@ type PinInputProps = {
 };
 
 const CELL =
-  "w-12 h-14 rounded-lg border border-input bg-background text-center text-2xl font-bold tabular-nums outline-none transition-colors focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive";
+  "w-12 h-14 rounded-lg border border-[var(--patient-border)] bg-[var(--patient-card-bg)] text-center text-2xl font-bold tabular-nums text-[var(--patient-text-primary)] outline-none transition-colors focus-visible:border-[var(--patient-color-primary)] focus-visible:ring-2 focus-visible:ring-[var(--patient-color-primary)]/50 disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-[var(--patient-color-danger)]";
 
 function digitsOnly(s: string): string {
   return s.replace(/\D/g, "");
@@ -139,7 +140,7 @@ export function PinInput({
       className={cn("mx-auto flex w-full max-w-sm flex-col items-center gap-3")}
       onSubmit={handleManualSubmit}
     >
-      <span className="text-center text-xs font-medium uppercase tracking-wide text-muted-foreground">
+      <span className={cn(patientMutedTextClass, "text-center text-xs font-medium uppercase tracking-wide")}>
         PIN-код
       </span>
       <div className="flex w-full flex-row justify-center gap-3" role="group" aria-label="PIN-код из 4 цифр">
@@ -166,7 +167,7 @@ export function PinInput({
           />
         ))}
       </div>
-      {error ? <p className="text-center text-destructive text-sm">{error}</p> : null}
+      {error ? <p className="text-center text-sm text-[var(--patient-color-danger)]">{error}</p> : null}
       <Button type="submit" disabled={disabled} aria-label={submitLabel} className="w-full max-w-sm">
         {disabled ? "Проверка…" : submitLabel}
       </Button>
@@ -174,7 +175,7 @@ export function PinInput({
         <Button
           type="button"
           variant="link"
-          className="h-auto min-h-0 px-0 py-0 text-center text-sm font-normal"
+          className={cn(patientInlineLinkClass, "h-auto min-h-0 px-0 py-0 text-center text-sm font-normal")}
           onClick={onForgot}
         >
           {forgotLabel ?? "Не помню PIN"}

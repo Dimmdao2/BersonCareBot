@@ -8,6 +8,12 @@
 import { Suspense, useCallback, useState } from "react";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { cn } from "@/lib/utils";
+import {
+  patientBodyTextClass,
+  patientCardClass,
+  patientMutedTextClass,
+  patientSurfaceInfoClass,
+} from "@/shared/ui/patientVisual";
 import { AuthBootstrap } from "@/shared/ui/AuthBootstrap";
 import { LegalFooterLinks } from "@/shared/ui/LegalFooterLinks";
 import type { MessengerSurfaceHint } from "@/shared/lib/platform";
@@ -58,21 +64,18 @@ export function AppEntryLoginContent({
     <>
       <div id="app-entry-content" className="flex flex-col gap-6">
         {shouldShowRegistrationPlaque(authStep) ? (
-          <div
-            id="app-entry-auth-plaque"
-            className="rounded-2xl border border-border bg-muted/80 p-4 shadow-sm"
-          >
-            <p className="m-0 text-sm leading-relaxed text-muted-foreground">
+          <div id="app-entry-auth-plaque" className={patientSurfaceInfoClass}>
+            <p className={cn(patientBodyTextClass, "m-0 leading-relaxed")}>
               Для полноценной работы в приложении войдите или зарегистрируйтесь.
             </p>
           </div>
         ) : null}
         {allowDevBypass ? (
-          <div id="app-entry-dev-bypass-panel" className="mt-2 flex flex-col gap-4">
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          <div id="app-entry-dev-bypass-panel" className={cn(patientCardClass, "mt-2 flex flex-col gap-4")}>
+            <p className={cn(patientMutedTextClass, "text-xs font-medium uppercase tracking-wide")}>
               Режим разработки
             </p>
-            <p className="text-sm text-muted-foreground">
+            <p className={patientMutedTextClass}>
               Войти в интерфейс без Telegram (только при ALLOW_DEV_AUTH_BYPASS=true):
             </p>
             <div id="app-entry-dev-bypass-actions" className="flex flex-wrap gap-3">
@@ -101,7 +104,7 @@ export function AppEntryLoginContent({
           </div>
         ) : null}
       </div>
-      <Suspense fallback={<p className="text-muted-foreground">Загрузка...</p>}>
+      <Suspense fallback={<p className={patientMutedTextClass}>Загрузка...</p>}>
         <AuthBootstrap
           supportContactHref={supportContactHref}
           onAuthStepChange={onAuthStepChange}

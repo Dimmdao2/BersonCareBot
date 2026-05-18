@@ -1,6 +1,8 @@
 import { AppShell } from "@/shared/ui/AppShell";
 import { LegalFooterLinks } from "@/shared/ui/LegalFooterLinks";
 import { PatientSupportForm } from "@/app/app/patient/support/PatientSupportForm";
+import { cn } from "@/lib/utils";
+import { patientCardClass, patientMutedTextClass, patientSectionTitleClass } from "@/shared/ui/patientVisual";
 
 /**
  * Поддержка до входа: без меню и иконок шапки, только «К входу».
@@ -19,13 +21,10 @@ export default function LoginContactSupportPage() {
       patientBrandTitleBar
       patientHideBottomNav
     >
-      <section
-        id="login-contact-support-section"
-        className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-6 shadow-sm"
-      >
+      <section id="login-contact-support-section" className={cn(patientCardClass, "flex flex-col gap-4")}>
         <div>
-          <h2 className="text-base font-semibold">Написать в поддержку</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <h2 className={patientSectionTitleClass}>Написать в поддержку</h2>
+          <p className={cn(patientMutedTextClass, "mt-1")}>
             Сообщение уйдёт администратору. Укажите email — на него ответят при необходимости.
           </p>
         </div>
