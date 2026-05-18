@@ -9,7 +9,7 @@ const CHANNEL_LABEL: Record<PatientTopicChannelCode, string> = {
   telegram: "Telegram",
   max: "MAX",
   email: "Email",
-  web_push: "Браузер",
+  web_push: "Push",
 };
 
 export type ProfileNotificationChannelModel = {

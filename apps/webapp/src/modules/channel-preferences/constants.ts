@@ -11,5 +11,5 @@ export const CHANNEL_LIST: Array<{
   { code: "vk", title: "ВКонтакте", openUrl: "https://vk.com", implemented: false },
   { code: "sms", title: "SMS", openUrl: "", implemented: true },
   { code: "email", title: "Email", openUrl: "", implemented: true },
-  { code: "web_push", title: "Браузер", openUrl: "", implemented: true },
+  { code: "web_push", title: "Push", openUrl: "", implemented: true },
 ];
