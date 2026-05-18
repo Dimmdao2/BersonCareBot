@@ -50,11 +50,11 @@ describe("isOtpChannelAvailable", () => {
 });
 
 describe("pickPrimaryOtpChannelPublic", () => {
-  it("returns null when only email is available", () => {
-    expect(pickPrimaryOtpChannelPublic({ sms: false, email: true })).toBeNull();
+  it("returns email when only verified email channel is available", () => {
+    expect(pickPrimaryOtpChannelPublic({ sms: false, email: true })).toBe("email");
   });
 
-  it("returns null when only SMS (SMS через «Другие способы»)", () => {
+  it("returns null when only sms flag without messengers or email", () => {
     expect(pickPrimaryOtpChannelPublic({ sms: true })).toBeNull();
   });
 
@@ -66,16 +66,18 @@ describe("pickPrimaryOtpChannelPublic", () => {
 });
 
 describe("isOtpChannelAvailablePublic", () => {
-  it("never allows email", () => {
-    expect(isOtpChannelAvailablePublic({ sms: true, email: true }, "email")).toBe(false);
+  it("allows email when methods.email is true", () => {
+    expect(isOtpChannelAvailablePublic({ sms: true, email: true }, "email")).toBe(true);
+  });
+
+  it("never allows sms on public web", () => {
+    expect(isOtpChannelAvailablePublic({ sms: true, telegram: true }, "sms")).toBe(false);
   });
 });
 
 describe("pickOtpChannelWithPreferencePublic", () => {
-  it("ignores email preference", () => {
-    expect(
-      pickOtpChannelWithPreferencePublic({ sms: true, email: true }, "email"),
-    ).toBeNull();
+  it("uses email preference when available", () => {
+    expect(pickOtpChannelWithPreferencePublic({ sms: true, email: true, telegram: true }, "email")).toBe("email");
   });
 
   it("ignores sms preference so auto-start never uses SMS", () => {

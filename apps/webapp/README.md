@@ -12,7 +12,7 @@ It is intentionally separated from the current `tgcarebot` integrator **as a pro
 ## URL Spaces
 
 - **`/`** — публичный маркетинговый лендинг и блок установки PWA (`manifest.webmanifest` с **`scope: "/app"`**; `public/sw.js` с лендинга — **`scope: "/app"`**, только `install`/`activate`; **только** вне Mini App; канон и фазы — [`docs/PWA_INITIATIVE/README.md`](../../docs/PWA_INITIATIVE/README.md)). **Web Push (этап 4):** пара VAPID в **`system_settings`** (`web_push_vapid`, admin), редактирование — блок на **`/app/settings`**; ответы API без `privateKey` (см. [`WEB_PUSH_VAPID_ADMIN.plan.md`](../../docs/PWA_INITIATIVE/WEB_PUSH_VAPID_ADMIN.plan.md)). Полный push — backlog; заглушка **`GET /api/patient/web-push/status`**.
-- `/app` - common entrypoint with role resolution (legacy miniapp: optional `?ctx=bot|max`; **`ctx=max` на `/app` → redirect на `/app/max`**)
+- `/app` - common entrypoint with role resolution (legacy miniapp: optional `?ctx=bot|max`; **`ctx=max` на `/app` → redirect на `/app/max`**). **Контракт публичного входа, OAuth, телефона, miniapp:** [`src/modules/auth/auth.md`](src/modules/auth/auth.md).
 - `/app/tg` - Telegram Mini App entry (shared `AppEntryRsc` + messenger auth)
 - `/app/max` - MAX Mini App entry (shared `AppEntryRsc` + messenger auth)
 - При одновременном наличии строк Telegram и MAX initData в WebView порядок выбора канала задаётся **surface-first** в [`AuthBootstrap`](src/shared/ui/AuthBootstrap.tsx) (`flowHint`, `pickInitDataForMessengerTick`; для browser остаётся прежний безопасный порядок и `getMaxWebAppInitDataForAuth()` для stale-bot).

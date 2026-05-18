@@ -3,7 +3,7 @@
 /**
  * Публичный поток входа (web): Яндекс, Google, Telegram, Max; телефон — отдельный шаг.
  * Apple показывается только если включён Apple и при этом выключены Яндекс и Google (резерв для таких деплоев).
- * OTP в вебе — только Telegram / Max (SMS отключён). PIN в этом flow намеренно отключён (Stage 5).
+ * OTP в вебе — Telegram / Max / подтверждённый email (SMS отключён). PIN в этом flow намеренно отключён (Stage 5).
  */
 
 import { useEffect, useState } from "react";
@@ -38,7 +38,8 @@ import {
 
 const WEB_CHAT_ID_KEY = "bersoncare_web_chat_id";
 
-const SMS_DISABLED_WEB_MESSAGE = "SMS для входа с сайта отключён. Используйте код в Telegram или Max.";
+const SMS_DISABLED_WEB_MESSAGE =
+  "SMS для входа с сайта отключён. Используйте код в Telegram, Max или на email.";
 
 const authFlowShellClass = cn(
   patientCardClass,
@@ -75,6 +76,14 @@ export type AuthFlowStep =
   | "code";
 
 type OtpChannel = "sms" | "telegram" | "max" | "email";
+
+function hasPublicWebOtpChannel(methods: AuthMethodsPayload): boolean {
+  return (
+    isOtpChannelAvailablePublic(methods, "telegram") ||
+    isOtpChannelAvailablePublic(methods, "max") ||
+    isOtpChannelAvailablePublic(methods, "email")
+  );
+}
 
 function otpDescription(channel: OtpChannel, emailAddress?: string): string {
   switch (channel) {
@@ -390,15 +399,10 @@ export function AuthFlowV2({
       setExists(Boolean(data.exists));
       setMethods(data.methods);
       if (!data.exists) {
-        const hasMessenger =
-          isOtpChannelAvailablePublic(data.methods, "telegram") ||
-          isOtpChannelAvailablePublic(data.methods, "max");
-        setStep(hasMessenger ? "choose_channel" : "new_user_foreign");
+        setStep(hasPublicWebOtpChannel(data.methods) ? "choose_channel" : "new_user_foreign");
       } else {
         const primary = pickOtpChannelWithPreferencePublic(data.methods, data.preferredOtpChannel);
-        const hasPublicChannel =
-          isOtpChannelAvailablePublic(data.methods, "telegram") ||
-          isOtpChannelAvailablePublic(data.methods, "max");
+        const hasPublicChannel = hasPublicWebOtpChannel(data.methods);
         if (primary == null) {
           setStep(hasPublicChannel ? "choose_channel" : "foreign_no_otp_channel");
         } else {
@@ -968,10 +972,7 @@ export function AuthFlowV2({
             return { kind: "error" as const, message: data.message ?? "Не удалось отправить код" };
           }}
           onBack={() => {
-            const hasMessenger =
-              isOtpChannelAvailablePublic(methods, "telegram") ||
-              isOtpChannelAvailablePublic(methods, "max");
-            if (exists || hasMessenger) {
+            if (exists || hasPublicWebOtpChannel(methods)) {
               setStep("choose_channel");
             } else {
               setStep("new_user_foreign");

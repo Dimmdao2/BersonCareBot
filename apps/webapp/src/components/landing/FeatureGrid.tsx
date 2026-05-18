@@ -7,7 +7,6 @@ import {
   LineChart,
   PlaySquare,
 } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
 type Tone = "blue" | "green" | "orange" | "purple";
@@ -65,37 +64,35 @@ const features: ReadonlyArray<{
 
 export function FeatureGrid() {
   return (
-    <section id="features" className="scroll-mt-24 py-12 lg:py-20">
+    <section id="features" className="scroll-mt-20 bg-white py-16 lg:py-24">
       <div className="mx-auto max-w-full px-5 sm:px-6 md:max-w-3xl lg:max-w-6xl lg:px-8">
-        <div className="mx-auto max-w-2xl text-center lg:max-w-3xl">
-          <h2 className="text-2xl font-semibold tracking-[-0.03em] text-[#17264A] sm:text-3xl lg:text-4xl">
+        <div className="mx-auto max-w-2xl text-center">
+          <h2 className="text-2xl font-semibold tracking-[-0.03em] text-[#17264A] sm:text-3xl lg:text-[2.5rem]">
             Всё, что нужно для восстановления
           </h2>
           <p className="mt-3 text-base leading-7 text-[#667085]">
             Программа, упражнения, дневник и запись собраны в одном пациентском кабинете.
           </p>
         </div>
-        <div className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 lg:gap-5">
+        <div className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {features.map((f) => {
             const Icon = f.icon;
             return (
-              <Card
+              <div
                 key={f.title}
-                className="border border-[#DDE3F0] bg-white p-0 shadow-sm rounded-2xl"
+                className="flex flex-col rounded-2xl border border-[#DDE3F0] bg-white p-5 shadow-sm transition-shadow hover:shadow-md"
               >
-                <CardContent className="p-5">
-                  <div
-                    className={cn(
-                      "mb-4 flex h-12 w-12 items-center justify-center rounded-2xl",
-                      toneClass[f.tone],
-                    )}
-                  >
-                    <Icon className="h-6 w-6" aria-hidden />
-                  </div>
-                  <h3 className="text-lg font-semibold text-[#17264A] sm:text-xl">{f.title}</h3>
-                  <p className="mt-2 text-sm leading-6 text-[#667085] sm:text-base sm:leading-7">{f.description}</p>
-                </CardContent>
-              </Card>
+                <div
+                  className={cn(
+                    "mb-4 flex h-12 w-12 items-center justify-center rounded-2xl",
+                    toneClass[f.tone],
+                  )}
+                >
+                  <Icon className="h-6 w-6" aria-hidden />
+                </div>
+                <h3 className="text-base font-semibold text-[#17264A] sm:text-lg">{f.title}</h3>
+                <p className="mt-2 text-sm leading-6 text-[#667085]">{f.description}</p>
+              </div>
             );
           })}
         </div>

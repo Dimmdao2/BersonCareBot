@@ -31,7 +31,7 @@ const PRIMARY_META: Record<
   sms: { label: "Получить код по SMS", aria: "Получить код по SMS" },
 };
 
-/** Выбор канала доставки OTP в вебе: только Telegram / Max (SMS отключён). */
+/** Выбор канала доставки OTP в вебе: Telegram / Max / email при наличии; SMS отключён. */
 export function ChannelPicker({ methods, disabled, onChoose }: ChannelPickerProps) {
   const primary = pickPrimaryOtpChannelPublic(methods);
   const [expanded, setExpanded] = useState(false);
@@ -47,7 +47,7 @@ export function ChannelPicker({ methods, disabled, onChoose }: ChannelPickerProp
 
   const handlePrimary = () => {
     if (primary == null) return;
-    if (primary === "telegram" || primary === "max") {
+    if (primary === "telegram" || primary === "max" || primary === "email") {
       onChoose(primary);
     }
   };
@@ -56,8 +56,9 @@ export function ChannelPicker({ methods, disabled, onChoose }: ChannelPickerProp
     return (
       <div className={cn("flex max-w-sm flex-col gap-2")}>
         <p className={patientMutedTextClass}>
-          Для этого номера в браузере нет способа получить код: нужен Telegram или Max, привязанные к аккаунту. Войдите
-          через Яндекс, Google или Apple (если доступно) или укажите другой номер.
+          Для этого номера в браузере нет способа получить код: нужны Telegram или Max, привязанные к аккаунту, либо
+          подтверждённый email в профиле. Войдите через Яндекс, Google или Apple (если доступно) или укажите другой
+          номер.
         </p>
       </div>
     );
@@ -107,7 +108,7 @@ export function ChannelPicker({ methods, disabled, onChoose }: ChannelPickerProp
                     disabled={disabled}
                     aria-label={aria}
                     onClick={() => {
-                      if (ch === "telegram" || ch === "max") {
+                      if (ch === "telegram" || ch === "max" || ch === "email") {
                         onChoose(ch);
                       }
                       setExpanded(false);

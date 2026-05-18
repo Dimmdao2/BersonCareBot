@@ -326,6 +326,47 @@ describe("AuthFlowV2", () => {
     expect(screen.queryByRole("button", { name: "Войти через Apple" })).not.toBeInTheDocument();
   });
 
+  it("auto-starts email OTP for existing user when only email channel is available", async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url.includes("/api/auth/oauth/providers")) {
+        return oauthProvidersDisabled();
+      }
+      if (url.includes("/api/auth/check-phone")) {
+        return jsonRes({
+          ok: true,
+          exists: true,
+          methods: { sms: true, email: true, emailAddress: "u@example.com" },
+        });
+      }
+      if (url.includes("/api/auth/phone/start")) {
+        const body = init?.body ? JSON.parse(String(init.body)) : {};
+        expect(body.deliveryChannel).toBe("email");
+        return jsonRes({ ok: true, challengeId: "ch-email", retryAfterSeconds: 60 });
+      }
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(
+      <AuthFlowV2
+        nextParam={null}
+        prefetchedAuthConfig={{
+          oauthProviders: { yandex: false, google: false, apple: false },
+          telegramBotUsername: "test_bot",
+          maxBotOpenUrl: null,
+          fetchedAt: Date.now(),
+        }}
+      />,
+    );
+    await user.type(screen.getByLabelText("Номер телефона"), "9991234567");
+    await user.click(screen.getByRole("button", { name: "Продолжить" }));
+
+    await screen.findByLabelText("Код подтверждения");
+    expect(fetchMock).toHaveBeenCalled();
+  });
+
   it("shows Apple when only Apple OAuth is configured (Yandex and Google off)", async () => {
     isMiniAppHost.mockReturnValue(false);
     vi.stubGlobal(
