@@ -22,6 +22,7 @@ export const emailOutboundAdapter = createOutboundPlaceholder(emailIntegration);
 /** Inbound adapter placeholder (not used for email). */
 export const emailInboundAdapter = createInboundPlaceholder(emailIntegration);
 
-export { sendMail, isMailerConfigured } from './mailer.js';
+export { sendMail, isResolvedMailerConfigured } from './mailer.js';
 export type { SendMailParams, SendMailResult } from './mailer.js';
+export type { ResolvedSmtpOutboundConfig } from '../../config/smtpOutbound.js';
 export { emailConfig } from './config.js';

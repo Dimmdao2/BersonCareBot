@@ -226,6 +226,8 @@ Canonical linking rules:
 
 **Направление:** webapp (bersoncare) вызывает integrator для отправки email с OTP-кодом подтверждения. Генерация и проверка кода остаются на стороне webapp.
 
+**SMTP на integrator:** параметры исходящей почты читаются из **`system_settings.smtp_outbound`** (admin, зеркало после sync) с коротким TTL-кэшем; при неполной строке в БД используется legacy **env** `SMTP_*` / `MAIL_*` интегратора (см. `apps/integrator/src/config/smtpOutbound.ts`).
+
 ### Запрос от webapp к integrator
 
 **Метод и URL:** `POST {INTEGRATOR_API_URL}/api/bersoncare/send-email`
@@ -259,7 +261,7 @@ Canonical linking rules:
 - `200 { "ok": true }` — письмо принято к отправке
 - `400 { "ok": false, "error": "missing_headers" | "invalid_payload" }`
 - `401 { "ok": false, "error": "invalid_signature" }`
-- `503 { "ok": false, "error": "email_not_configured" }` — SMTP/mailer не настроен
+- `503 { "ok": false, "error": "email_not_configured" }` — не настроен SMTP (нет полного `smtp_outbound` в БД и нет полного набора `SMTP_*` / `MAIL_*` в env integrator)
 
 ---
 

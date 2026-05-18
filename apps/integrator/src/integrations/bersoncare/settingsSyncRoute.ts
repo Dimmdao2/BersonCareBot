@@ -4,6 +4,7 @@ import { z } from 'zod';
 import type { DbPort } from '../../kernel/contracts/index.js';
 import { logger } from '../../infra/observability/logger.js';
 import { invalidateAppBaseUrlCache } from '../../config/appBaseUrl.js';
+import { invalidateSmtpOutboundCache } from '../../config/smtpOutbound.js';
 import { invalidateAppDisplayTimezoneCache } from '../../config/appTimezone.js';
 import { invalidateGoogleCalendarConfigCache } from '../google-calendar/runtimeConfig.js';
 
@@ -101,6 +102,9 @@ export async function registerBersoncareSettingsSyncRoute(
     }
     if (key.startsWith('google_')) {
       invalidateGoogleCalendarConfigCache();
+    }
+    if (key === 'smtp_outbound') {
+      invalidateSmtpOutboundCache();
     }
 
     return reply.code(200).send({ ok: true });

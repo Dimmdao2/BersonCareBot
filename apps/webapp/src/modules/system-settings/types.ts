@@ -70,6 +70,8 @@ export const ALLOWED_KEYS = [
   "patient_home_mood_icons",
   /** Темы рассылок для экрана пациента `/notifications` (id = mailing_topics_webapp.code, title — подпись). */
   "notifications_topics",
+  /** Исходящий SMTP (integrator `/api/bersoncare/send-email`). Объект: host, port, secure, user, password, from. Зеркало в integrator.system_settings; пустой password при сохранении — не менять пароль. Полный объект в БД перекрывает env SMTP_* / MAIL_* на integrator. */
+  "smtp_outbound",
   /** Операторские алерты идентичности: темы + каналы TG/Max для relay на admin_*_ids (см. adminIncidentAlertConfig). */
   "admin_incident_alert_config",
   /** Yandex OAuth (backend-only; не показывать в публичном login UI). */

@@ -118,6 +118,10 @@ describe("ALLOWED_KEYS / ADMIN scope (Phase 2)", () => {
   it("includes notifications_topics for webapp whitelist", () => {
     expect(ALLOWED_KEYS).toContain("notifications_topics");
   });
+
+  it("includes smtp_outbound for webapp whitelist", () => {
+    expect(ALLOWED_KEYS).toContain("smtp_outbound");
+  });
 });
 
 describe("PATCH /api/admin/settings", () => {
@@ -224,6 +228,64 @@ describe("PATCH /api/admin/settings", () => {
     );
     expect(res.status).toBe(200);
     expect(updateSettingMock).toHaveBeenCalledWith("app_base_url", "admin", { value: "https://example.com" }, "a1");
+  });
+
+  it("returns 400 for invalid smtp_outbound payload", async () => {
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSettingMock.mockResolvedValue(null);
+    const res = await PATCH(
+      new Request("http://localhost/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          key: "smtp_outbound",
+          value: {
+            host: "",
+            port: 587,
+            secure: false,
+            user: "u",
+            from: "nobody@example.com",
+            password: "",
+          },
+        }),
+      }),
+    );
+    expect(res.status).toBe(400);
+    expect(updateSettingMock).not.toHaveBeenCalled();
+  });
+
+  it("returns 200 for admin updating smtp_outbound", async () => {
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSettingMock.mockResolvedValue(null);
+    const inner = {
+      host: "smtp.example.com",
+      port: 587,
+      secure: false,
+      user: "mailbox",
+      password: "sekret",
+      from: "noreply@example.com",
+    };
+    updateSettingMock.mockResolvedValue({
+      key: "smtp_outbound",
+      scope: "admin",
+      valueJson: { value: inner },
+      updatedAt: "",
+      updatedBy: "a1",
+    });
+    const res = await PATCH(
+      new Request("http://localhost/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: "smtp_outbound", value: inner }),
+      }),
+    );
+    expect(res.status).toBe(200);
+    expect(updateSettingMock).toHaveBeenCalledWith(
+      "smtp_outbound",
+      "admin",
+      expect.objectContaining({ value: expect.objectContaining({ host: inner.host, password: inner.password }) }),
+      "a1",
+    );
   });
 
   it("returns 200 for admin updating yandex_oauth_client_id (system_settings)", async () => {

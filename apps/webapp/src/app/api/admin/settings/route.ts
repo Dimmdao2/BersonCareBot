@@ -23,6 +23,7 @@ import {
   PATIENT_REPEAT_COOLDOWN_MINUTES_MIN,
 } from "@/modules/patient-home/patientHomeRepeatCooldownSettings";
 import { normalizeAdminIncidentAlertConfigForAdminPatch } from "@/modules/admin-incidents/adminIncidentAlertConfig";
+import { parseSmtpOutboundPatchValue } from "@/modules/system-settings/smtpOutboundPatch";
 
 /** Single-key PATCH: boolean keys normalized like `video_watermark_enabled`. */
 const ADMIN_BOOLEAN_SETTING_KEYS = new Set<string>([
@@ -70,6 +71,7 @@ const ADMIN_SCOPE_KEYS = [
   "patient_home_warmup_skip_to_next_available_enabled",
   "patient_home_mood_icons",
   "notifications_topics",
+  "smtp_outbound",
   "yandex_oauth_client_id",
   "yandex_oauth_client_secret",
   "yandex_oauth_redirect_uri",
@@ -124,8 +126,22 @@ const SECRET_LIKE_KEYS = new Set<string>([
   "apple_oauth_private_key",
 ]);
 
+function redactSmtpOutboundForAudit(envelope: unknown): unknown {
+  if (envelope === null || typeof envelope !== "object") return envelope;
+  if (!("value" in envelope)) return envelope;
+  const inner = (envelope as Record<string, unknown>).value;
+  if (inner === null || typeof inner !== "object" || Array.isArray(inner)) return envelope;
+  const o = { ...(inner as Record<string, unknown>) };
+  if ("password" in o) {
+    const p = typeof o.password === "string" ? o.password.trim() : "";
+    (o as Record<string, unknown>).password = p.length > 0 ? "[REDACTED]" : "";
+  }
+  return { ...(envelope as Record<string, unknown>), value: o };
+}
+
 function auditValueForLog(key: string, value: unknown): unknown {
   if (SECRET_LIKE_KEYS.has(key)) return "[REDACTED]";
+  if (key === "smtp_outbound") return redactSmtpOutboundForAudit(value);
   return value;
 }
 
@@ -367,6 +383,14 @@ export async function PATCH(request: Request) {
   if (parsed.data.key === "admin_incident_alert_config") {
     const inner = normalizedValue.value;
     const checked = normalizeAdminIncidentAlertConfigForAdminPatch(inner);
+    if (!checked.ok) {
+      return NextResponse.json({ ok: false, error: "invalid_value" }, { status: 400 });
+    }
+    normalizedValue = { value: checked.value };
+  }
+
+  if (parsed.data.key === "smtp_outbound") {
+    const checked = parseSmtpOutboundPatchValue(normalizedValue);
     if (!checked.ok) {
       return NextResponse.json({ ok: false, error: "invalid_value" }, { status: 400 });
     }

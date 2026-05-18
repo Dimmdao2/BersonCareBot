@@ -1,10 +1,11 @@
 /**
  * Mailer: отправка email через SMTP (nodemailer).
- * Пока сервер не настроен (SMTP_HOST / MAIL_FROM и т.д. не заданы), sendMail не отправляет письма и резолвится без ошибки.
+ * Конфиг передаётся вызывающим кодом после `resolveSmtpOutboundConfig` (БД или env fallback).
  */
+import { createHash } from 'node:crypto';
 import nodemailer from 'nodemailer';
 import type { Transporter } from 'nodemailer';
-import { emailConfig } from './config.js';
+import type { ResolvedSmtpOutboundConfig } from '../../config/smtpOutbound.js';
 
 export type SendMailParams = {
   to: string | string[];
@@ -21,31 +22,46 @@ export type SendMailResult = {
   messageId?: string;
 };
 
-let cachedTransport: Transporter | null = null;
+let transportCache: { sig: string; transport: Transporter } | null = null;
 
-function getTransport(): Transporter | null {
-  if (cachedTransport !== null) return cachedTransport;
-  if (!emailConfig.configured) return null;
+function transportSignature(cfg: ResolvedSmtpOutboundConfig): string {
+  return createHash('sha256')
+    .update(
+      `${cfg.smtpHost}\0${cfg.smtpPort}\0${cfg.smtpSecure}\0${cfg.smtpUser}\0${cfg.smtpPass}\0${cfg.fromAddress}`,
+    )
+    .digest('hex');
+}
 
-  cachedTransport = nodemailer.createTransport({
-    host: emailConfig.smtpHost,
-    port: emailConfig.smtpPort,
-    secure: emailConfig.smtpSecure,
-    auth: {
-      user: emailConfig.smtpUser,
-      pass: emailConfig.smtpPass,
-    },
-  });
-  return cachedTransport;
+function getOrCreateTransport(cfg: ResolvedSmtpOutboundConfig): Transporter | null {
+  if (!cfg.configured) return null;
+  const sig = transportSignature(cfg);
+  if (transportCache?.sig !== sig) {
+    transportCache = {
+      sig,
+      transport: nodemailer.createTransport({
+        host: cfg.smtpHost,
+        port: cfg.smtpPort,
+        secure: cfg.smtpSecure,
+        auth: {
+          user: cfg.smtpUser,
+          pass: cfg.smtpPass,
+        },
+      }),
+    };
+  }
+  return transportCache.transport;
 }
 
 /**
- * Отправляет письмо. Если SMTP не настроен (MAIL_FROM и сервер не заданы в env), ничего не отправляет и возвращает успех (accepted = []).
+ * Если SMTP не сконфигурирован, ничего не отправляет (accepted=[]).
  */
-export async function sendMail(params: SendMailParams): Promise<SendMailResult> {
-  const transport = getTransport();
+export async function sendMail(
+  resolved: ResolvedSmtpOutboundConfig,
+  params: SendMailParams,
+): Promise<SendMailResult> {
+  const transport = getOrCreateTransport(resolved);
   const toList = Array.isArray(params.to) ? params.to : [params.to];
-  const from = params.from ?? emailConfig.fromAddress;
+  const from = params.from ?? resolved.fromAddress;
 
   if (!transport || !from) {
     return { accepted: [], rejected: [] };
@@ -67,9 +83,6 @@ export async function sendMail(params: SendMailParams): Promise<SendMailResult> 
   };
 }
 
-/**
- * true, если в env заданы SMTP_HOST, SMTP_USER, SMTP_PASS, MAIL_FROM и sendMail будет реально отправлять.
- */
-export function isMailerConfigured(): boolean {
-  return emailConfig.configured;
+export function isResolvedMailerConfigured(resolved: ResolvedSmtpOutboundConfig): boolean {
+  return resolved.configured;
 }

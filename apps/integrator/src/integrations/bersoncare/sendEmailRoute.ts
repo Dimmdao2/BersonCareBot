@@ -5,7 +5,9 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
-import { isMailerConfigured, sendMail } from '../email/mailer.js';
+import type { DbPort } from '../../kernel/contracts/index.js';
+import { resolveSmtpOutboundConfig } from '../../config/smtpOutbound.js';
+import { isResolvedMailerConfigured, sendMail } from '../email/mailer.js';
 import { logger } from '../../infra/observability/logger.js';
 
 const WINDOW_SECONDS = 300;
@@ -37,13 +39,14 @@ function verifySignature(timestamp: string, rawBody: string, signature: string, 
 
 export type BersoncareSendEmailDeps = {
   sharedSecret: string;
+  db: DbPort;
 };
 
 export async function registerBersoncareSendEmailRoute(
   app: FastifyInstance,
   deps: BersoncareSendEmailDeps,
 ): Promise<void> {
-  const { sharedSecret } = deps;
+  const { sharedSecret, db } = deps;
 
   if (!app.hasContentTypeParser('application/json')) {
     app.addContentTypeParser('application/json', { parseAs: 'string' }, (req, body, done) => {
@@ -74,7 +77,9 @@ export async function registerBersoncareSendEmailRoute(
     if (!verifySignature(timestamp, rawBody, signature, sharedSecret)) {
       return reply.code(401).send({ ok: false, error: 'invalid_signature' });
     }
-    if (!isMailerConfigured()) {
+
+    const resolved = await resolveSmtpOutboundConfig(db);
+    if (!isResolvedMailerConfigured(resolved)) {
       return reply.code(503).send({ ok: false, error: 'email_not_configured' });
     }
 
@@ -84,7 +89,7 @@ export async function registerBersoncareSendEmailRoute(
     }
 
     const payload = parsed.data;
-    await sendMail({
+    await sendMail(resolved, {
       to: payload.to,
       subject: payload.subject ?? 'Код подтверждения BersonCare',
       text: `Ваш код BersonCare: ${payload.code}`,

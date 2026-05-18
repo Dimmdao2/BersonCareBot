@@ -1,6 +1,7 @@
 import { ALLOWED_KEYS, type SystemSettingKey, type SystemSettingScope, type SystemSetting } from "./types";
 import type { SystemSettingsPort } from "./ports";
 import type { ModesFormKey } from "./modesFormKeys";
+import { normalizeValueJson } from "./adminSettingsPatchNormalize";
 import { invalidateConfigKey } from "./configAdapter";
 import {
   normalizeStoredValueJsonForIntegratorSync,
@@ -12,6 +13,35 @@ import {
   sessionMatchesTestAccountIdentifiers,
   type TestAccountIdentifiers,
 } from "./testAccounts";
+
+async function mergeSmtpOutboundPasswordRetain(port: SystemSettingsPort, incoming: unknown): Promise<{ value: unknown }> {
+  const env = normalizeValueJson(incoming);
+  const inner = env.value;
+  if (inner === null || typeof inner !== "object" || Array.isArray(inner)) return env;
+
+  const o = { ...(inner as Record<string, unknown>) };
+  const pwdRaw = typeof o.password === "string" ? o.password.trim() : "";
+  if (pwdRaw === "") {
+    const prev = await port.getByKey("smtp_outbound", "admin");
+    let prevPwd = "";
+    const prevVj = prev?.valueJson;
+    if (
+      prevVj !== null &&
+      typeof prevVj === "object" &&
+      "value" in (prevVj as Record<string, unknown>)
+    ) {
+      const pv = (prevVj as Record<string, unknown>).value;
+      if (pv !== null && typeof pv === "object" && !Array.isArray(pv)) {
+        const p = (pv as Record<string, unknown>).password;
+        if (typeof p === "string") prevPwd = p;
+      }
+    }
+    o.password = prevPwd;
+  } else {
+    o.password = pwdRaw;
+  }
+  return { value: o };
+}
 
 async function readTestAccountIdentifiersFromPort(port: SystemSettingsPort): Promise<TestAccountIdentifiers | null> {
   const row = await port.getByKey("test_account_identifiers", "admin");
@@ -61,7 +91,11 @@ export function createSystemSettingsService(port: SystemSettingsPort) {
       if (!isAllowedKey(key)) {
         throw new Error(`unknown_setting_key: ${key}`);
       }
-      const result = await port.upsert(key, scope, value, updatedBy);
+      const valueToStore =
+        key === "smtp_outbound" && scope === "admin"
+          ? await mergeSmtpOutboundPasswordRetain(port, value)
+          : value;
+      const result = await port.upsert(key, scope, valueToStore, updatedBy);
       void syncSettingToIntegrator({
         key,
         scope,

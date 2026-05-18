@@ -48,6 +48,8 @@ vi.mock('../../infra/db/branchTimezone.js', () => ({
 
 import { registerRubitimeRecordM2mRoutes } from './recordM2mRoute.js';
 import { PATIENT_NOTIFICATION_TOPIC_APPOINTMENT_REMINDERS } from '../../kernel/domain/reminders/patientNotificationTopics.js';
+import type { DbPort } from '../../kernel/contracts/index.js';
+import * as smtpOutbound from '../../config/smtpOutbound.js';
 
 const TEST_SECRET = 'test-shared-secret-16chars';
 
@@ -66,9 +68,18 @@ function makeHeaders(rawBody: string) {
 
 async function buildApp(dispatchOutgoing = vi.fn().mockResolvedValue(undefined)) {
   const app = Fastify();
-  vi.spyOn(mailer, 'isMailerConfigured').mockReturnValue(true);
+  vi.spyOn(smtpOutbound, 'resolveSmtpOutboundConfig').mockResolvedValue({
+    configured: true,
+    smtpHost: 'smtp.example.com',
+    smtpPort: 587,
+    smtpSecure: false,
+    smtpUser: 'u',
+    smtpPass: 'p',
+    fromAddress: 'from@example.com',
+  });
   vi.spyOn(mailer, 'sendMail').mockResolvedValue({ accepted: [], rejected: [], messageId: 'x' });
-  await registerBersoncareSendEmailRoute(app, { sharedSecret: TEST_SECRET });
+  const sendEmailDb = { query: vi.fn() } as unknown as DbPort;
+  await registerBersoncareSendEmailRoute(app, { sharedSecret: TEST_SECRET, db: sendEmailDb });
   const mockWritePort = { writeDb: vi.fn().mockResolvedValue(undefined) };
   await registerRubitimeRecordM2mRoutes(app, {
     sharedSecret: TEST_SECRET,

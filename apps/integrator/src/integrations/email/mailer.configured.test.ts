@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('./config.js', () => ({
   emailConfig: {
@@ -26,13 +26,29 @@ vi.mock('nodemailer', () => ({
   },
 }));
 
+import type { ResolvedSmtpOutboundConfig } from '../../config/smtpOutbound.js';
+
+const resolvedConfigured: ResolvedSmtpOutboundConfig = {
+  configured: true,
+  fromAddress: 'noreply@test.example',
+  smtpHost: 'smtp.test.example',
+  smtpPort: 587,
+  smtpSecure: false,
+  smtpUser: 'user',
+  smtpPass: 'pass',
+};
+
 describe('mailer when configured', () => {
+  beforeEach(() => {
+    mockSendMail.mockClear();
+  });
+
   it('sendMail calls transport and returns result', async () => {
-    const { sendMail, isMailerConfigured } = await import('./mailer.js');
+    const { sendMail, isResolvedMailerConfigured } = await import('./mailer.js');
 
-    expect(isMailerConfigured()).toBe(true);
+    expect(isResolvedMailerConfigured(resolvedConfigured)).toBe(true);
 
-    const result = await sendMail({
+    const result = await sendMail(resolvedConfigured, {
       to: 'recipient@example.com',
       subject: 'Subject',
       text: 'Text body',
@@ -57,7 +73,7 @@ describe('mailer when configured', () => {
   it('uses params.from when provided', async () => {
     const { sendMail } = await import('./mailer.js');
 
-    await sendMail({
+    await sendMail(resolvedConfigured, {
       to: 'x@y.com',
       subject: 'S',
       from: 'custom@from.example',
@@ -71,7 +87,7 @@ describe('mailer when configured', () => {
   it('passes html and replyTo to transport', async () => {
     const { sendMail } = await import('./mailer.js');
 
-    await sendMail({
+    await sendMail(resolvedConfigured, {
       to: 'user@example.com',
       subject: 'HTML test',
       text: 'Plain',

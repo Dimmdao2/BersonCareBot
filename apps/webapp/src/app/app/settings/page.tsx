@@ -25,6 +25,7 @@ import {
 } from "./VideoSystemSettingsSection";
 import { AppParametersSection } from "./AppParametersSection";
 import { NotificationsTopicsSection } from "./NotificationsTopicsSection";
+import { EmailSmtpSection, type EmailSmtpSectionProps } from "./EmailSmtpSection";
 import { AuthProvidersSection } from "./AuthProvidersSection";
 import { BookingCatalogHelp } from "./BookingCatalogHelp";
 import { RubitimeSection } from "./RubitimeSection";
@@ -93,6 +94,33 @@ function parseVideoPresignTtlSeconds(valueJson: unknown): number {
         ? Number.parseInt(raw.trim(), 10)
         : 3600;
   return Math.min(VIDEO_PRESIGN_TTL_MAX_SEC, Math.max(VIDEO_PRESIGN_TTL_MIN_SEC, Math.round(n)));
+}
+
+function parseAdminSmtpOutboundForUi(settings: Array<{ key: string; valueJson: unknown }>): EmailSmtpSectionProps {
+  const row = settings.find((x) => x.key === "smtp_outbound");
+  const inner = row ? getValueJson<unknown>(row.valueJson, null) : null;
+  let host = "";
+  let port = 587;
+  let secure = false;
+  let user = "";
+  let from = "";
+  let hasStoredPassword = false;
+  if (inner !== null && typeof inner === "object" && !Array.isArray(inner)) {
+    const o = inner as Record<string, unknown>;
+    host = typeof o.host === "string" ? o.host.trim() : "";
+    if (typeof o.port === "number" && Number.isFinite(o.port)) {
+      port = Math.min(65535, Math.max(1, Math.round(o.port)));
+    } else if (typeof o.port === "string" && /^\d+$/.test(o.port.trim())) {
+      const n = Number.parseInt(o.port.trim(), 10);
+      if (Number.isFinite(n)) port = Math.min(65535, Math.max(1, n));
+    }
+    secure = o.secure === true || o.secure === 1 || o.secure === "true" || o.secure === "1";
+    user = typeof o.user === "string" ? o.user.trim() : "";
+    from = typeof o.from === "string" ? o.from.trim() : "";
+    const p = typeof o.password === "string" ? o.password : "";
+    hasStoredPassword = p.trim().length > 0;
+  }
+  return { host, port, secure, user, from, hasStoredPassword };
 }
 
 export default async function SettingsPage({
@@ -314,6 +342,8 @@ export default async function SettingsPage({
       ? parseNotificationsTopics(adminSettingsList.find((x) => x.key === "notifications_topics")?.valueJson ?? null)
       : [];
 
+  const smtpOutboundUi = isAdmin ? parseAdminSmtpOutboundForUi(adminSettingsList) : null;
+
   return (
     <div className={DOCTOR_PAGE_CONTAINER_CLASS}>
       <h1 className="mb-6 text-xl font-semibold">Настройки</h1>
@@ -361,6 +391,7 @@ export default async function SettingsPage({
               appParametersConfig && videoSystemSettingsProps ? (
                 <>
                   <AppParametersSection {...appParametersConfig} />
+                  {smtpOutboundUi ? <EmailSmtpSection {...smtpOutboundUi} /> : null}
                   <VideoSystemSettingsSection {...videoSystemSettingsProps} />
                   <NotificationsTopicsSection initialRows={notificationsTopicsRows} />
                 </>

@@ -1,10 +1,24 @@
 import { createHmac } from 'node:crypto';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import Fastify from 'fastify';
+import type { DbPort } from '../../kernel/contracts/index.js';
 import { registerBersoncareSendEmailRoute } from './sendEmailRoute.js';
+import * as smtpOutbound from '../../config/smtpOutbound.js';
 import * as mailer from '../email/mailer.js';
 
 const TEST_SECRET = 'test-shared-secret-16chars';
+
+const MOCK_RESOLVED_CONFIGURED = {
+  configured: true as const,
+  smtpHost: 'smtp.example.com',
+  smtpPort: 587,
+  smtpSecure: false,
+  smtpUser: 'u',
+  smtpPass: 'p',
+  fromAddress: 'from@example.com',
+};
+
+const noopDb = {} as DbPort;
 
 function sign(timestamp: string, rawBody: string, secret = TEST_SECRET): string {
   return createHmac('sha256', secret).update(`${timestamp}.${rawBody}`).digest('base64url');
@@ -21,7 +35,7 @@ function makeHeaders(rawBody: string, secret = TEST_SECRET) {
 
 async function buildTestApp(secret = TEST_SECRET) {
   const app = Fastify();
-  await registerBersoncareSendEmailRoute(app, { sharedSecret: secret });
+  await registerBersoncareSendEmailRoute(app, { sharedSecret: secret, db: noopDb });
   return app;
 }
 
@@ -31,7 +45,7 @@ describe('POST /api/bersoncare/send-email', () => {
   });
 
   it('returns 200 for valid signature and payload', async () => {
-    vi.spyOn(mailer, 'isMailerConfigured').mockReturnValue(true);
+    vi.spyOn(smtpOutbound, 'resolveSmtpOutboundConfig').mockResolvedValue(MOCK_RESOLVED_CONFIGURED);
     const sendMailMock = vi.spyOn(mailer, 'sendMail').mockResolvedValue({
       accepted: ['user@example.com'],
       rejected: [],
@@ -55,6 +69,7 @@ describe('POST /api/bersoncare/send-email', () => {
     expect(res.statusCode).toBe(200);
     expect(JSON.parse(res.body)).toEqual({ ok: true });
     expect(sendMailMock).toHaveBeenCalledWith(
+      expect.objectContaining({ configured: true, fromAddress: MOCK_RESOLVED_CONFIGURED.fromAddress }),
       expect.objectContaining({
         to: 'user@example.com',
         subject: 'Ваш OTP',
@@ -64,7 +79,7 @@ describe('POST /api/bersoncare/send-email', () => {
   });
 
   it('returns 401 for invalid signature', async () => {
-    vi.spyOn(mailer, 'isMailerConfigured').mockReturnValue(true);
+    vi.spyOn(smtpOutbound, 'resolveSmtpOutboundConfig').mockResolvedValue(MOCK_RESOLVED_CONFIGURED);
     const sendMailMock = vi.spyOn(mailer, 'sendMail').mockResolvedValue({
       accepted: [],
       rejected: [],
@@ -93,7 +108,10 @@ describe('POST /api/bersoncare/send-email', () => {
   });
 
   it('returns 503 when mailer is not configured', async () => {
-    vi.spyOn(mailer, 'isMailerConfigured').mockReturnValue(false);
+    vi.spyOn(smtpOutbound, 'resolveSmtpOutboundConfig').mockResolvedValue({
+      ...MOCK_RESOLVED_CONFIGURED,
+      configured: false,
+    });
     const sendMailMock = vi.spyOn(mailer, 'sendMail').mockResolvedValue({
       accepted: [],
       rejected: [],
@@ -118,7 +136,7 @@ describe('POST /api/bersoncare/send-email', () => {
   });
 
   it('returns 400 for invalid email payload', async () => {
-    vi.spyOn(mailer, 'isMailerConfigured').mockReturnValue(true);
+    vi.spyOn(smtpOutbound, 'resolveSmtpOutboundConfig').mockResolvedValue(MOCK_RESOLVED_CONFIGURED);
     const sendMailMock = vi.spyOn(mailer, 'sendMail').mockResolvedValue({
       accepted: [],
       rejected: [],
