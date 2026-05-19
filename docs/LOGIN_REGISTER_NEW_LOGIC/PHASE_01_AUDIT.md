@@ -197,3 +197,14 @@ sequenceDiagram
 ---
 
 **ИТОГ:** PHASE_01 **можно считать выполненной** для live-flow: fan-out после `booking.upsert`, исправленный `ensureClientFromAppointmentProjection`, правила phone/email/trust/имени соблюдены, журнал и pipeline-doc обновлены. Для «аудиторской строгости» остаются **дыры в тестах** (bot, phone-only), **косвенная** запись `platform_user_id` и **устаревший** AUDIT_REPORT — на прод-поведение live-записей это не должно влиять при рабочем poller/outbox.
+---
+
+## Follow-up 2026-05-20 (post-MVP hardening)
+
+| Рекомендация §8 | Статус |
+|-----------------|--------|
+| `PLATFORM_IDENTITY_OPS.md` про `patient_phone_trust_at` | **Исправлено** |
+| `AUDIT_REPORT.md` §12 | **Добавлен** актуальный статус |
+| Enqueue setup при email из projection (PHASE_02 gap) | **Реализовано:** `contactEmailSetup` + handler |
+| Unit-тесты bot / phone-only | **Открыто** |
+| Явный `platformUserId` в `upsertRecordFromProjection` | **Открыто** (опционально) |

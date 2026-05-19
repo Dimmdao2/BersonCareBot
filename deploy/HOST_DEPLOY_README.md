@@ -326,7 +326,19 @@ mc cors set myminio/<PRIVATE_BUCKET_NAME> /path/to/cors.json
 
 **Integrator push outbox (опциональный relay):** `POST /api/internal/system-health-guard/tick` с тем же Bearer — читает **`public.integrator_push_outbox`** и при деградации шлёт Telegram/Max, если в **`admin_incident_alert_config`** включена тема **`system_health_db_guard`** (по умолчанию **выключена**). Рекомендуется редкий cron на loopback (например **`*/15 * * * *`**), тот же `INTERNAL_JOB_SECRET`, тот же nginx `allow 127.0.0.1` для `/api/internal/`. Дрейн очереди по-прежнему: `pnpm run integrator-push-outbox-tick` или отдельный systemd unit.
 
-**Web Push-only напоминания (без бота):** после миграции `0075_webapp_reminder_occurrences.sql` — `POST /api/internal/reminders/web-push-only/tick` с тем же Bearer: планирует due-слоты в **`webapp_reminder_occurrences`** для правил `reminder_rules` с `integrator_user_id IS NULL` и отправляет Web Push через те же настройки каналов/тем, что M2M `notify-channels`. Рекомендуется cron на loopback **каждую минуту** (или чаще при высокой нагрузке), параметр **`?limit=`** (по умолчанию 50, cap 100).
+**Web Push-only напоминания (без бота):** после миграции `0075_webapp_reminder_occurrences.sql` — `POST /api/internal/reminders/web-push-only/tick` с тем же Bearer: планирует due-слоты в **`webapp_reminder_occurrences`** для правил `reminder_rules` с `integrator_user_id IS NULL` и отправляет Web Push через те же настройки каналов/тем, что M2M `notify-channels`. Рекомендуется cron на loopback **каждую минуту** (или чаще при высокой нагрузке), параметр **`?limit=`** (по умолчанию 50, cap 100). Ответ JSON: `rulesFound`, `plannedUpserts` (алиас **`planned`**), `dueClaimed`, `sent`, **`skipped`**, `skippedNoSubscription`, `skippedNoTopic`, `failed`.
+
+**Post-deploy checklist (Web Push-only reminders):**
+
+1. Применить миграции webapp (в т.ч. **`0075_webapp_reminder_occurrences`**) — `pnpm --filter @bersoncare/webapp run db:migrate` или принятый на хосте способ; убедиться, что таблица `webapp_reminder_occurrences` существует.
+2. Добавить cron (см. пример ниже в блоке cron) — без него push по расписанию для правил без бота **не** отправляется (integrator scheduler их не видит).
+3. Smoke (один вызов, секрет не логировать):
+   ```bash
+   set -a && source /opt/env/bersoncarebot/webapp.prod && set +a
+   curl -fsS -X POST -H "Authorization: Bearer $INTERNAL_JOB_SECRET" \
+     "http://127.0.0.1:6200/api/internal/reminders/web-push-only/tick?limit=50"
+   ```
+   Ожидается `{"ok":true,"rulesFound":…,"plannedUpserts":…,"sent":…,…}`. При due-слоте проверить строки в `webapp_reminder_occurrences` и `notification_delivery_attempts` для `platform_user_id` пациента.
 
 На хосте полезно сочетать **два** режима cron (оба используют тот же `curl`/`INTERNAL_JOB_SECRET` и loopback **`127.0.0.1:6200`):  
 1. **Частый «прогресс» большого хвоста:** например **`*/10 * * * *`** и **`limit: 50`** — быстрый догон очереди.  

@@ -184,7 +184,7 @@ flowchart TD
 
 ### 9.5 PHASE_02 gap (наследие)
 
-Пациент с email только из `appointment.record.upserted` без autobind не получит письмо, пока не пройдёт register/forgot/lookup — не задача PHASE_05.
+~~Пациент с email только из `appointment.record.upserted` без autobind не получит письмо~~ **Закрыто 2026-05-20:** enqueue при `contactEmailSetup` в projection handler; register/forgot — по-прежнему fallback.
 
 ---
 

@@ -39,7 +39,11 @@ export async function POST(request: Request) {
     const result = await runWebPushOnlyReminderInternalTick({
       dispatchLimit: Number.isFinite(dispatchLimit) ? dispatchLimit : 50,
     });
-    return NextResponse.json({ ok: true, ...result });
+    return NextResponse.json({
+      ok: true,
+      ...result,
+      planned: result.plannedUpserts,
+    });
   } catch (e) {
     logger.error({ err: e }, "[internal/reminders/web-push-only/tick] failed");
     return NextResponse.json({ ok: false, error: "tick_failed" }, { status: 500 });

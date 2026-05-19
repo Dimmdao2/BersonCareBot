@@ -70,8 +70,8 @@ Integrator `mergeIntegratorUsers.test.ts` — **не** гонялся (пути 
 
 | Файл | Проблема |
 |------|----------|
-| [`AUDIT_REPORT.md`](AUDIT_REPORT.md) §6.1, §6.3 | Шапка и таблица от **2026-05-19** («реализация не начата», «нет email-find», «нет теста appointments+diary») — **не отражают** PHASE_01–06. Рекомендация: обновить §6 или добавить отсылку к phase-аудитам. |
-| [`SCOPE_DECISIONS.md`](SCOPE_DECISIONS.md) | Строка «PHASE_06 deferred» — **расходится** с фактическим закрытием merge-страховки (2026-05-20). |
+| [`AUDIT_REPORT.md`](AUDIT_REPORT.md) §6.1, §6.3 | ~~Шапка «реализация не начата»~~ — **§12** (2026-05-20) отражает post-PHASE_01–06; §1–11 — historical baseline |
+| [`SCOPE_DECISIONS.md`](SCOPE_DECISIONS.md) | ~~«PHASE_06 deferred»~~ — **исправлено:** PHASE_06 закрыта; 07–08 deferred |
 
 ---
 
@@ -191,6 +191,6 @@ PHASE_01 снижает частоту, но не исключает: истор
 
 **PHASE_06 выполнена в заявленном объёме:** документация identity↔merge, ограничения auto-merge и `email_conflict`, регрессионный unit-тест переноса appointments + diary/warmup при **manual** merge, регрессия manual merge API по существующим тестам.
 
-**Остаётся вне фазы:** исторический backfill дублей, E2E merge в UI, перенос setup-токенов, обновление устаревшего `AUDIT_REPORT` §6.
+**Остаётся вне фазы:** исторический backfill дублей, E2E merge, перенос setup-токенов. ~~обновление устаревшего `AUDIT_REPORT` §6~~ — **§12 добавлен** (2026-05-20).
 
 **Готовность к PHASE_07:** merge-страховка для **новых** live-дублей документирована; массовое связывание старых `appointment_records` — отдельная фаза.

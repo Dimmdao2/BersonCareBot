@@ -174,11 +174,11 @@ POST resend → lookup (must be expired) → contact check → requestContactEma
 
 ### 7.1 Порядок complete: apply → consume
 
-Если `applyEmailSetupCompletion` успешен, а `consumeEmailSetupToken` падает — пользователь уже с verified+password, API вернёт `server_error` **без сессии**. Повторный submit с тем же token теоретически возможен (token ещё active). Редкий ops-кейс; для hardening — consume в той же tx или compensating transaction.
+**Исправлено 2026-05-20:** consume token в **той же транзакции**, что verify+password (`setupTokenId` в `pgEmailSetupFlowPort`). Ранее apply и consume были разными шагами.
 
 ### 7.2 `already_has_login` критерий
 
-Блок только при **verified + password**. Пользователь с verified email без password (если такое состояние возможно) — setup пройдёт.
+Блок только при **verified + password**. **UI 2026-05-20:** единое сообщение + ссылка «Перейти ко входу» на `/app/auth/email-setup`.
 
 ### 7.3 In-memory / тесты без PG
 
@@ -194,7 +194,7 @@ POST resend → lookup (must be expired) → contact check → requestContactEma
 
 ### 7.6 PHASE_02 gap (наследие)
 
-Enqueue setup при email только из `appointment.record.upserted` по-прежнему **не** подключён — пациент не получит письмо, пока не сработает doctor patch / `user.email.autobind` / manual resend.
+~~Enqueue setup при email только из `appointment.record.upserted` по-прежнему **не** подключён~~ **Закрыто 2026-05-20:** см. [`LOG.md`](LOG.md) post-MVP hardening.
 
 ---
 
@@ -225,8 +225,8 @@ Enqueue setup при email только из `appointment.record.upserted` по-
 1. Закрыть чеклист **ручного smoke** из PHASE_04 (письмо → ссылка → пароль → кабинет) или перенести в QA-runbook.
 2. Добавить краткий блок в `api.md` для трёх routes.
 3. Опционально: Playwright smoke один сценарий с test helper token (без реального SMTP).
-4. Рассмотреть consume token **в той же транзакции**, что verify+password.
-5. PHASE_05: register на contact-only email → redirect/issue setup вместо duplicate.
+4. ~~Рассмотреть consume token **в той же транзакции**~~ — **сделано** (2026-05-20).
+5. PHASE_05: register на contact-only email → redirect/issue setup вместо duplicate — **сделано** в PHASE_05.
 
 ---
 

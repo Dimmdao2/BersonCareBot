@@ -16,12 +16,30 @@ export type WebPushOnlySchedulerDeps = {
 };
 
 export type WebPushOnlyReminderTickResult = {
+  rulesFound: number;
   plannedUpserts: number;
+  dueClaimed: number;
+  /** @deprecated use dueClaimed */
   dispatched: number;
   sent: number;
-  failed: number;
+  skipped: number;
+  skippedNoSubscription: number;
   skippedNoTopic: number;
+  failed: number;
 };
+
+const NOTIFY_SKIP_REASONS = new Set([
+  "muted",
+  "topic_disabled",
+  "web_push_not_selected",
+  "vapid_missing",
+  "no_active_subscriptions",
+]);
+
+function isNotifySkipReason(reason: string): boolean {
+  if (NOTIFY_SKIP_REASONS.has(reason)) return true;
+  return reason.endsWith("_not_selected") || reason.startsWith("channel_");
+}
 
 export async function runWebPushOnlyReminderTick(
   deps: WebPushOnlySchedulerDeps,
@@ -32,6 +50,7 @@ export async function runWebPushOnlyReminderTick(
 
   let plannedUpserts = 0;
   const rules = await deps.reminders.listEnabledWebPushOnlyRules(nowIso);
+  const rulesFound = rules.length;
   const planCap = options?.planLimit ?? rules.length;
   for (const rule of rules.slice(0, planCap)) {
     const drafts = planDueReminderOccurrences(
@@ -59,9 +78,12 @@ export async function runWebPushOnlyReminderTick(
   }
 
   const due = await deps.reminders.claimDueOccurrences(nowIso, dispatchLimit);
+  const dueClaimed = due.length;
   let sent = 0;
-  let failed = 0;
+  let skipped = 0;
+  let skippedNoSubscription = 0;
   let skippedNoTopic = 0;
+  let failed = 0;
 
   for (const occ of due) {
     const rule = await deps.reminders.getRuleByIntegratorRuleId(occ.integratorRuleId);
@@ -75,6 +97,7 @@ export async function runWebPushOnlyReminderTick(
     if (!topicCode) {
       await deps.reminders.markOccurrenceFailed(occ.id, "no_topic_code");
       skippedNoTopic += 1;
+      skipped += 1;
       continue;
     }
 
@@ -99,7 +122,14 @@ export async function runWebPushOnlyReminderTick(
       sent += 1;
     } else if (notifyRes.ok && notifyRes.skipped) {
       await deps.reminders.markOccurrenceFailed(occ.id, notifyRes.skipped);
-      failed += 1;
+      if (isNotifySkipReason(notifyRes.skipped)) {
+        skipped += 1;
+        if (notifyRes.skipped === "no_active_subscriptions") {
+          skippedNoSubscription += 1;
+        }
+      } else {
+        failed += 1;
+      }
     } else {
       await deps.reminders.markOccurrenceFailed(
         occ.id,
@@ -110,15 +140,30 @@ export async function runWebPushOnlyReminderTick(
   }
 
   const result: WebPushOnlyReminderTickResult = {
+    rulesFound,
     plannedUpserts,
-    dispatched: due.length,
+    dueClaimed,
+    dispatched: dueClaimed,
     sent,
-    failed,
+    skipped,
+    skippedNoSubscription,
     skippedNoTopic,
+    failed,
   };
 
   logger.info(
-    { event: "web_push_only_reminder.tick", nowIso, ...result },
+    {
+      event: "web_push_only_reminder.tick",
+      nowIso,
+      rulesFound,
+      dueClaimed,
+      plannedUpserts,
+      sent,
+      skipped,
+      skippedNoSubscription,
+      skippedNoTopic,
+      failed,
+    },
     "web push-only reminder tick completed",
   );
 

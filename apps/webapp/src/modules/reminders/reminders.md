@@ -2,7 +2,7 @@
 
 Сервисные правила напоминаний в **webapp** (`public.reminder_rules` — источник истины для продуктовых правил), журнал действий (`reminder_journal`), API пациента и integrator M2M. **Фактическая отправка push** и планирование due-occurrence для правил **с ботом** (`integrator_user_id` задан) выполняются в **integrator**; диспетчер читает правила из локальной БД после upsert из webapp и учитывает `platform_users.reminder_muted_until`.
 
-**Web Push без бота** (`integrator_user_id IS NULL`, есть `platform_user_id` и подписка): правило остаётся только в `public.reminder_rules`, integrator **не** планирует occurrence. Планирование и доставка — webapp tick: таблица `webapp_reminder_occurrences`, `planDueReminderOccurrences` + `runWebPushOnlyReminderTick`, `POST /api/internal/reminders/web-push-only/tick` (Bearer `INTERNAL_JOB_SECRET`, loopback). Push — `runPlatformUserReminderWebPushNotify` (темы/каналы как у M2M `notify-channels`, только web_push).
+**Web Push без бота** (`integrator_user_id IS NULL`, есть `platform_user_id` и подписка): правило остаётся только в `public.reminder_rules`, integrator **не** планирует occurrence. Планирование и доставка — webapp tick: таблица `webapp_reminder_occurrences`, `planDueReminderOccurrences` + `runWebPushOnlyReminderTick`, `POST /api/internal/reminders/web-push-only/tick` (Bearer `INTERNAL_JOB_SECRET`, loopback). Push — `runPlatformUserReminderWebPushNotify` (темы/каналы как у M2M `notify-channels`, только web_push). Idempotency: `UNIQUE(integrator_rule_id, occurrence_key)` на `webapp_reminder_occurrences`. Tick summary: `rulesFound`, `plannedUpserts` / `planned`, `dueClaimed`, `sent`, `skipped`, `skippedNoSubscription`, `skippedNoTopic`, `failed`.
 
 ## Документация
 

@@ -5,7 +5,7 @@
 - **Согласованный scope (волна 1):** [`SCOPE_DECISIONS.md`](SCOPE_DECISIONS.md) — **live-flow** + фаза 6 (merge-страховка); фазы 7–8 **отложены** (backfill / mass setup).
 - **Мастер-постановка (канон требований):** [`MAIN PLAN.md`](MAIN%20PLAN.md)
 - **Дорожная карта (индекс этапов):** [`ROADMAP.md`](ROADMAP.md)
-- **Журнал исполнения:** [`LOG.md`](LOG.md)
+- **Журнал исполнения:** [`LOG.md`](LOG.md) (в т.ч. post-MVP hardening 2026-05-20)
 - **Отчёт аудита (фаза 0):** [`AUDIT_REPORT.md`](AUDIT_REPORT.md)
 - **Карта кода для аудита (фаза 0):** [`CODE_AUDIT_MAP.md`](CODE_AUDIT_MAP.md)
 - **Аудиты этапов 1–6:** [`PHASE_01_AUDIT.md`](PHASE_01_AUDIT.md) … [`PHASE_06_AUDIT.md`](PHASE_06_AUDIT.md)

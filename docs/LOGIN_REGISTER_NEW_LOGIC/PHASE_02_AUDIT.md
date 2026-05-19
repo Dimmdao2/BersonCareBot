@@ -121,9 +121,9 @@ sequenceDiagram
 | Путь | Когда | Contact policy | `requestContactEmailSetup` |
 |------|-------|----------------|----------------------------|
 | **`user.email.autobind`** | Integrator: только `event-create-record` + phone + email (`buildUserEmailAutobindWebappEvent`) | `applyRubitimeEmailAutobind` | **Да** при `applied` |
-| **`appointment.record.upserted`** | После каждого `booking.upsert` (PHASE_01 fan-out) | `ensureAppointmentClientTx` (email в payload) | **Нет** |
+| **`appointment.record.upserted`** | После каждого `booking.upsert` (PHASE_01 fan-out) | `ensureAppointmentClientTx` (email в payload) | **Да** при `contactEmailSetup` (новый/изменённый email) — **2026-05-20 hardening** |
 
-**Следствие:** запись Rubitime **updated** с новым email (без create-record autobind) сохранит contact email через projection, но **не поставит в очередь** setup до PHASE_03, если не добавить хук на `appointment.record.upserted` или расширить autobind на `updated`. Для волны 1 это **не противоречит тексту PHASE_02** (явные хуки: doctor + autobind), но **частично отстаёт от духа MAIN PLAN §2.4** «при появлении/изменении».
+**Следствие (до 2026-05-20):** запись Rubitime **updated** с новым email (без create-record autobind) сохраняла contact email через projection, но **не ставила** setup в очередь. **Hardening 2026-05-20:** при новом/изменённом email `ensureClientFromAppointmentProjection` возвращает `contactEmailSetup` → enqueue в `events.ts`.
 
 ---
 
@@ -176,7 +176,7 @@ sequenceDiagram
 1. **Stub в проде:** пациент после смены email врачом **не получит письмо**, пока не закрыт PHASE_03 — ожидаемо; продукт должен это понимать.
 2. **Только autobind на create-record:** webhook `updated` с email не дублирует autobind (см. §5).
 3. **`applyRubitimeEmailAutobind` и verified email:** при уже подтверждённом email Rubitime-адрес **не перезаписывается** (`skipped_verified`) — корректно для contact policy, но может удивить ops.
-4. **Async enqueue без await:** сбой port после PHASE_03 потребует мониторинга/журнала (сейчас ошибки глотаются в `.catch`).
+4. **Async enqueue без await:** сбой port логируется через `enqueueContactEmailSetup.ts` (`[emailSetupAccess:enqueue_failed|enqueue_error]`) — **2026-05-20**; HTTP/event ack по-прежнему не блокируется.
 
 ---
 
@@ -195,8 +195,8 @@ sequenceDiagram
 
 1. **PHASE_03:** заменить `noopPort` на реализацию с миграцией; в DoD PHASE_03 явно включить подключение существующих хуков из PHASE_02.
 2. **PHASE_03 или follow-up:** вызов `requestContactEmailSetup` при **изменении** email в `appointment.record.upserted` (сравнение до/после patch), если продукт хочет письмо на все Rubitime updates, не только create-record.
-3. Добавить contract-тест: ensure + новый email в projection → verified null, setup **не** called (документирует gap) **или** реализовать хук.
-4. Обновить шапку `AUDIT_REPORT.md` при следующем проходе документации инициативы.
+3. Добавить contract-тест: ensure + новый email в projection → setup called — **есть** `events.test.ts` «enqueues setup when ensure returns contactEmailSetup» (2026-05-20).
+4. ~~Обновить шапку `AUDIT_REPORT.md`~~ — **§12** (2026-05-20).
 
 ---
 
@@ -204,6 +204,6 @@ sequenceDiagram
 
 **PHASE_02 можно считать выполненной:** contact/unverified политика зафиксирована в данных (admin, Rubitime autobind, ensure), пароль не создаётся автоматически, forgot для contact-only документирован и опирается на `findVerifiedUserIdWithPassword`, интерфейс выпуска setup link подключён с noop до PHASE_03, тесты и LOG на месте.
 
-**Не входит в закрытие фазы (by design):** реальные токены и письма; полный MAIN PLAN §2.4 для всех Rubitime update-событий.
+**Не входит в закрытие фазы (by design на 2026-05-19):** реальные токены и письма до PHASE_03.
 
-**Готовность к PHASE_03:** **да** — port и триггеры готовы к подмене реализации.
+**Follow-up 2026-05-20:** gap projection enqueue **закрыт**; enqueue failures **логируются**. См. [`LOG.md`](LOG.md).

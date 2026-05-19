@@ -105,7 +105,7 @@ sequenceDiagram
 | `PATCH /api/admin/users/:userId/profile` | email изменился | `requestContactEmailSetup` → `enqueued` |
 | `user.email.autobind` | `outcome === "applied"` | то же, `source: rubitime` |
 
-**По-прежнему без setup enqueue:** email только из `appointment.record.upserted` / `ensureClient` (см. [PHASE_02_AUDIT.md](PHASE_02_AUDIT.md) §5) — **не входило в PHASE_03**, перенос в PHASE_03 follow-up или отдельный тикет.
+**По-прежнему без setup enqueue (до 2026-05-20):** email только из `appointment.record.upserted` / `ensureClient` — **закрыто hardening:** `contactEmailSetup` + enqueue в handler.
 
 **In-memory / тесты без PG:** `createNoopEmailSetupAccessPort()` → `stub_pending_phase3` — корректно для `inMemoryRepos`.
 
@@ -210,7 +210,7 @@ URL выпускается: `/app/auth/email-setup?token=…` — **PHASE_04 pen
 2. **PHASE_04:** страница + API complete/resend; validate с match contact email; wire `consumeEmailSetupToken`.
 3. Добавить unit: `validateEmailSetupToken` → `revoked` после re-issue.
 4. Обновить JSDoc в `emailSetupAccess/ports.ts` и `noopPort.ts`.
-5. Опционально: enqueue setup при новом email в `appointment.record.upserted` (наследие PHASE_02 gap).
+5. Опционально: enqueue setup при новом email в `appointment.record.upserted` — **сделано** (2026-05-20 hardening).
 
 ---
 
@@ -218,6 +218,6 @@ URL выпускается: `/app/auth/email-setup?token=…` — **PHASE_04 pen
 
 **PHASE_03 можно считать выполненной по продуктовой логике:** токены, hash, revoke, TTL, письмо со ссылкой, integrator контракт расширен, хуки врача и Rubitime autobind подключены к реальному port.
 
-**Блокер для уверенного prod-deploy:** синхронизация **Drizzle journal** с файлом `0076_*.sql`.
+**Блокер для уверенного prod-deploy:** ~~синхронизация Drizzle journal~~ — **снято в PHASE_04** (запись `0076` в `_journal.json`).
 
-**Пациентский happy path** (открыть ссылку → пароль → вход) — **PHASE_04**, не эта фаза.
+**Follow-up 2026-05-20:** projection enqueue + structured logging enqueue — см. [`LOG.md`](LOG.md).

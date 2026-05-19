@@ -273,4 +273,27 @@ Auto-merge по phone (`projection`, `phone_bind`) **не** зависит от 
 | Список файлов / миграций | **§9** |
 | Подтверждение `user_email_setup_tokens` | Рекомендация: **да** |
 | Продуктовое согласование MVP | **Ожидает** (вопросы в README / чат) |
-| Старт кода | **Запрещён** до ответов на блокеры |
+| Старт кода | **Запрещён** до ответов на блокеры (на момент 2026-05-19) |
+
+---
+
+## 12. Состояние после фаз 1–6 + hardening (2026-05-20)
+
+| Блок PHASE_00 (§) | Было (2026-05-19) | Сейчас |
+|-------------------|-------------------|--------|
+| §2 Rubitime hot path | Нет fan-out → нет ensure | **PHASE_01:** `appointment.record.upserted` после `booking.upsert`; ensure + `platform_user_id` на live-path |
+| §2.3 overwrite имени | ensure UPDATE затирал ФИО | **Исправлено** в `ensureAppointmentClientTx`; messenger `upsertFromProjectionTx` — отдельный legacy-path |
+| §2.3 trusted phone | Нет `patient_phone_trust_at` | **Исправлено** в ensure INSERT/UPDATE |
+| §2 email find | Нет | **Исправлено:** phone → integrator_id → email |
+| §3 contact email + setup | Нет токенов/писем | **PHASE_02–03:** политика + tokens + mail; **hardening:** enqueue на `appointment.record.upserted` при новом/изменённом email |
+| §3 forgot/register тупик | duplicate / silent forgot | **PHASE_05:** `existing_account_needs_email_setup`, forgot → setup |
+| §4 setup UI | Нет | **PHASE_04:** `/app/auth/email-setup`, validate/complete/resend; **hardening:** consume token в одной tx с verify+password |
+| §5 auth states | Нет | **PHASE_05:** `resolveAuthState`, `AuthFlowV2`, lookup/setup-access |
+| §6 merge тест §7.3 | Нет | **PHASE_06:** unit-тест appointments + diary/warmup при manual merge |
+| §7 migrations | Нет `user_email_setup_tokens` | **0076** + journal (PHASE_03–04) |
+
+**Post-MVP hardening (2026-05-20):** structured logging enqueue (`enqueueContactEmailSetup.ts`); autobind skip reporter (`skipped_verified` / conflict); UI `already_has_login`; см. [`LOG.md`](LOG.md).
+
+**По-прежнему deferred:** PHASE_07 backfill, PHASE_08 mass setup; ручной smoke / browser E2E setup; перенос setup-токенов при merge; часть unit-тестов из рекомендаций phase-аудитов.
+
+**Детали по этапам:** [`PHASE_01_AUDIT.md`](PHASE_01_AUDIT.md) … [`PHASE_06_AUDIT.md`](PHASE_06_AUDIT.md).
