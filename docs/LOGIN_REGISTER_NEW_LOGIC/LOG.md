@@ -103,6 +103,26 @@
 
 ---
 
+## 2026-05-20 — PHASE_04 Email setup flow (UI + API)
+
+**Сделано:**
+
+- API: `POST /api/auth/email-setup/validate`, `complete`, `resend`.
+- Модуль `emailSetupFlow` + `pgEmailSetupFlowPort` (contact email check, verify + upsert password в tx).
+- Страница `/app/auth/email-setup` (readonly email `autoComplete=username`, password `new-password`, expired → resend).
+- `emailSetupTokens.lookupEmailSetupToken` для expired/resend.
+- `user_password_credentials.upsertPasswordHash`; запись `0076` в drizzle `_journal.json`.
+
+**Проверки:**
+
+- `pnpm --filter @bersoncare/webapp exec vitest run emailSetupFlow email-setup EmailSetupPageClient emailSetupTokens`
+
+**Не делали:**
+
+- Register/login state machine (PHASE_05).
+
+---
+
 ## Шаблон записи при закрытии этапа
 
 ```markdown

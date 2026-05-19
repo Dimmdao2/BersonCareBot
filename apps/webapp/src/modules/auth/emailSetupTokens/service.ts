@@ -15,6 +15,11 @@ export type ValidateEmailSetupTokenResult =
   | { ok: true; tokenId: string; userId: string; emailNormalized: string }
   | { ok: false; reason: "invalid_token" | "not_found" | "expired" | "used" | "revoked" };
 
+export type LookupEmailSetupTokenResult =
+  | { ok: true; status: "active"; tokenId: string; userId: string; emailNormalized: string }
+  | { ok: true; status: "expired"; userId: string; emailNormalized: string }
+  | { ok: false; reason: "invalid_token" | "not_found" | "used" | "revoked" };
+
 export type ConsumeEmailSetupTokenResult = ValidateEmailSetupTokenResult;
 
 function isActiveToken(row: {
@@ -54,6 +59,29 @@ export function createEmailSetupTokensService(port: EmailSetupTokensPort) {
       } catch {
         return { ok: false, reason: "database_error" };
       }
+    },
+
+    async lookupEmailSetupToken(tokenPlainRaw: string): Promise<LookupEmailSetupTokenResult> {
+      const tokenPlain = tokenPlainRaw.trim();
+      if (!isEmailSetupTokenPlainFormat(tokenPlain)) {
+        return { ok: false, reason: "invalid_token" };
+      }
+
+      const row = await port.findByTokenHash(hashEmailSetupToken(tokenPlain));
+      if (!row) return { ok: false, reason: "not_found" };
+      if (row.revokedAt) return { ok: false, reason: "revoked" };
+      if (row.usedAt) return { ok: false, reason: "used" };
+      if (new Date(row.expiresAt).getTime() < Date.now()) {
+        return { ok: true, status: "expired", userId: row.userId, emailNormalized: row.emailNormalized };
+      }
+
+      return {
+        ok: true,
+        status: "active",
+        tokenId: row.id,
+        userId: row.userId,
+        emailNormalized: row.emailNormalized,
+      };
     },
 
     async validateEmailSetupToken(tokenPlainRaw: string): Promise<ValidateEmailSetupTokenResult> {

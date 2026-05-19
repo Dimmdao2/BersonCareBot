@@ -114,6 +114,28 @@ describe("emailSetupTokens service", () => {
     expect(again).toEqual({ ok: false, reason: "used" });
   });
 
+  it("lookup returns expired without used/revoked for resend flow", async () => {
+    const svc = createEmailSetupTokensService(port);
+    const issued = await svc.issueEmailSetupToken({
+      userId: "u1",
+      emailNormalized: "a@b.com",
+      source: "manual_resend",
+    });
+    if (!issued.ok) throw new Error("issue failed");
+
+    const hash = hashEmailSetupToken(issued.tokenPlain);
+    const row = await port.findByTokenHash(hash);
+    if (!row) throw new Error("missing row");
+
+    vi.spyOn(port, "findByTokenHash").mockResolvedValueOnce({
+      ...row,
+      expiresAt: new Date(Date.now() - 1000).toISOString(),
+    });
+
+    const r = await svc.lookupEmailSetupToken(issued.tokenPlain);
+    expect(r).toEqual({ ok: true, status: "expired", userId: "u1", emailNormalized: "a@b.com" });
+  });
+
   it("validate returns expired for past expires_at", async () => {
     const svc = createEmailSetupTokensService(port);
     const issued = await svc.issueEmailSetupToken({

@@ -1,6 +1,6 @@
 # Фаза 4 — Email setup flow (UI + API)
 
-**Статус:** `pending`  
+**Статус:** `completed`  
 **Канон:** [MAIN PLAN.md](MAIN%20PLAN.md) §3, §4  
 **Зависит от:** [PHASE_03](PHASE_03_EMAIL_SETUP_TOKENS.md)  
 **Следующий:** [PHASE_05](PHASE_05_AUTH_REGISTER_LOGIN_FORGOT.md)
@@ -30,17 +30,17 @@
 
 ## Definition of Done
 
-- [ ] Happy path E2E: token → password → session в patient app
-- [ ] Used token cannot reuse
-- [ ] Expired → resend flow works
-- [ ] Readonly email для keychain (см. MAIN PLAN JSX)
-- [ ] Тесты API + RTL страницы (lean: один файл, `beforeAll` при тяжёлом import)
-- [ ] [`LOG.md`](LOG.md)
+- [x] Happy path E2E: token → password → session в patient app
+- [x] Used token cannot reuse
+- [x] Expired → resend flow works
+- [x] Readonly email для keychain (см. MAIN PLAN JSX)
+- [x] Тесты API + RTL страницы (lean: один файл, `beforeAll` при тяжёлом import)
+- [x] [`LOG.md`](LOG.md)
 
 ## Локальные проверки
 
-- [ ] `pnpm --filter @bersoncare/webapp test` — auth setup routes + page
-- [ ] `pnpm --filter @bersoncare/webapp lint` / `typecheck` по затронутому пакету
+- [x] `pnpm --filter @bersoncare/webapp test` — auth setup routes + page
+- [x] `pnpm --filter @bersoncare/webapp lint` / `typecheck` по затронутому пакету
 - [ ] Ручной smoke: copy link from mail (or test helper), complete setup
 
 ## Endpoints (целевые)

@@ -32,6 +32,8 @@ export type UserPasswordCredentialsPort = {
   /** Пользователь с подтверждённым email и строкой пароля (для сброса). */
   findVerifiedUserIdWithPassword(emailNormalized: string): Promise<string | null>;
   updatePasswordHash(userId: string, passwordHash: string): Promise<void>;
+  /** Создать или обновить пароль (email setup, verified user без credentials). */
+  upsertPasswordHash(userId: string, passwordHash: string): Promise<void>;
 };
 
 export function createPgUserPasswordCredentialsPort(): UserPasswordCredentialsPort {
@@ -169,6 +171,17 @@ export function createPgUserPasswordCredentialsPort(): UserPasswordCredentialsPo
         throw new Error("updatePasswordHash: no credentials row");
       }
     },
+
+    async upsertPasswordHash(userId, passwordHash) {
+      const pool = getPool();
+      await pool.query(
+        `INSERT INTO user_password_credentials (user_id, password_hash, updated_at)
+         VALUES ($1::uuid, $2::text, now())
+         ON CONFLICT (user_id) DO UPDATE
+         SET password_hash = EXCLUDED.password_hash, updated_at = now()`,
+        [userId, passwordHash],
+      );
+    },
   };
 }
 
@@ -193,4 +206,5 @@ export const inMemoryUserPasswordCredentialsPort: UserPasswordCredentialsPort = 
     return null;
   },
   async updatePasswordHash() {},
+  async upsertPasswordHash() {},
 };

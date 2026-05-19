@@ -18,10 +18,7 @@ export type RequestContactEmailSetupResult =
   | { ok: false; reason: "invalid_email" | "not_configured" };
 
 export type EmailSetupAccessPort = {
-  /**
-   * Contact/unverified email: выпуск setup token + письмо (PHASE_03).
-   * До миграции `user_email_setup_tokens` — noop stub.
-   */
+  /** Contact/unverified email: выпуск setup token + письмо со ссылкой на `/app/auth/email-setup`. */
   requestContactEmailSetup(
     params: RequestContactEmailSetupParams,
   ): Promise<RequestContactEmailSetupResult>;

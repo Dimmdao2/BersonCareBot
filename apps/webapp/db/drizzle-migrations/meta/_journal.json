@@ -533,6 +533,13 @@
       "when": 1781800000000,
       "tag": "0075_webapp_reminder_occurrences",
       "breakpoints": true
+    },
+    {
+      "idx": 76,
+      "version": "7",
+      "when": 1781900000000,
+      "tag": "0076_user_email_setup_tokens",
+      "breakpoints": true
     }
   ]
 }
