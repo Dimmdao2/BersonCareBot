@@ -29,7 +29,10 @@ export type UserProjectionPort = {
     firstName?: string | null;
     lastName?: string | null;
     email?: string | null;
-  }) => Promise<{ platformUserId: string }>;
+  }) => Promise<{
+    platformUserId: string;
+    contactEmailSetup?: { emailNormalized: string };
+  }>;
   findByIntegratorId: (integratorUserId: string) => Promise<{
     platformUserId: string;
     phoneNormalized?: string | null;
@@ -73,7 +76,10 @@ export type UserProjectionPort = {
     email: string;
   }) => Promise<
     | { outcome: "applied"; platformUserId: string }
-    | { outcome: "skipped_no_user" | "skipped_invalid_email" | "skipped_verified" | "skipped_conflict" }
+    | {
+        outcome: "skipped_no_user" | "skipped_invalid_email" | "skipped_conflict";
+      }
+    | { outcome: "skipped_verified"; platformUserId: string }
   >;
 };
 
@@ -280,7 +286,10 @@ async function ensureAppointmentClientTx(
     lastName?: string | null;
     email?: string | null;
   },
-): Promise<string> {
+): Promise<{
+  userId: string;
+  contactEmailSetup?: { emailNormalized: string };
+}> {
   const ids: string[] = [];
   const byPhone = await client.query<{ id: string }>(
     `SELECT id FROM platform_users WHERE phone_normalized = $1 AND merged_into_id IS NULL LIMIT 2`,
@@ -348,10 +357,29 @@ async function ensureAppointmentClientTx(
         params.integratorUserId?.trim() ? params.integratorUserId : null,
       ],
     );
-    return ins.rows[0]!.id;
+    const newUserId = ins.rows[0]!.id;
+    return {
+      userId: newUserId,
+      contactEmailSetup: emailNorm
+        ? { emailNormalized: emailNorm.trim().toLowerCase() }
+        : undefined,
+    };
   }
 
   const userId = await mergeCandidates(client, uniq, "projection");
+
+  let contactEmailSetup: { emailNormalized: string } | undefined;
+  if (emailNorm) {
+    const emailNormalized = emailNorm.trim().toLowerCase();
+    const prev = await client.query<{ email_normalized: string | null }>(
+      `SELECT email_normalized FROM platform_users WHERE id = $1::uuid`,
+      [userId],
+    );
+    const prevNorm = prev.rows[0]?.email_normalized ?? null;
+    if (prevNorm !== emailNormalized) {
+      contactEmailSetup = { emailNormalized };
+    }
+  }
 
   // Existing user: enrich contact email / trusted Rubitime phone; never overwrite display/FIO from Rubitime.
   await client.query(
@@ -386,7 +414,7 @@ async function ensureAppointmentClientTx(
     ],
   );
 
-  return userId;
+  return { userId, contactEmailSetup };
 }
 
 export const pgUserProjectionPort: UserProjectionPort = {
@@ -420,12 +448,15 @@ export const pgUserProjectionPort: UserProjectionPort = {
       await client.query(
         `SET CONSTRAINTS platform_users_phone_normalized_key, platform_users_integrator_user_id_key DEFERRED`,
       );
-      const id = await ensureAppointmentClientTx(client, params);
+      const ensured = await ensureAppointmentClientTx(client, params);
       await client.query("COMMIT");
       if (params.phoneNormalized?.trim()) {
         trustedPatientPhoneWriteAnchor(TrustedPatientPhoneSource.IntegratorUpsertFromProjection);
       }
-      return { platformUserId: id };
+      return {
+        platformUserId: ensured.userId,
+        contactEmailSetup: ensured.contactEmailSetup,
+      };
     } catch (e) {
       await client.query("ROLLBACK");
       throw e;
@@ -554,7 +585,7 @@ export const pgUserProjectionPort: UserProjectionPort = {
     }
     const u = row.rows[0];
     if (u.email_verified_at) {
-      return { outcome: "skipped_verified" as const };
+      return { outcome: "skipped_verified" as const, platformUserId: u.id };
     }
     const conflict = await pool.query<{ id: string }>(
       `SELECT id FROM platform_users

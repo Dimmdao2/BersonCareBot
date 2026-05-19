@@ -16,6 +16,7 @@ import { MergeConflictError, MergeDependentConflictError } from "@/infra/repos/p
 import { normalizeRuPhoneE164 } from "@/shared/phone/normalizeRuPhoneE164";
 import { normalizeEmail } from "@/modules/auth/emailAuth";
 import type { EmailSetupAccessService } from "@/modules/auth/emailSetupAccess/service";
+import { fireAndForgetContactEmailSetup } from "@/modules/auth/emailSetupAccess/enqueueContactEmailSetup";
 
 const REMINDER_RULE_UPSERTED = "reminder.rule.upserted";
 const REMINDER_OCCURRENCE_FINALIZED = "reminder.occurrence.finalized";
@@ -31,6 +32,11 @@ type EmailAutobindConflictContext = {
   email: string;
 };
 
+type EmailAutobindSkipContext = EmailAutobindConflictContext & {
+  reason: "verified_email_unchanged" | "email_taken_by_other_user";
+  platformUserId?: string;
+};
+
 /**
  * TODO(AUDIT-BACKLOG-020): connect to admin/user notifications pipeline (legacy E-R3.2).
  * For now we keep structured warning to avoid silent conflicts.
@@ -39,10 +45,20 @@ let reportEmailAutobindConflict: (ctx: EmailAutobindConflictContext) => void = (
   console.warn("[user.email.autobind:conflict]", ctx);
 };
 
+let reportEmailAutobindSkip: (ctx: EmailAutobindSkipContext) => void = (ctx) => {
+  console.warn("[user.email.autobind:skipped]", ctx);
+};
+
 export function setEmailAutobindConflictReporter(
   fn: (ctx: EmailAutobindConflictContext) => void
 ): void {
   reportEmailAutobindConflict = fn;
+}
+
+export function setEmailAutobindSkipReporter(
+  fn: (ctx: EmailAutobindSkipContext) => void
+): void {
+  reportEmailAutobindSkip = fn;
 }
 
 export type IntegratorEventBody = {
@@ -145,13 +161,17 @@ export type IntegratorEventsDeps = {
       firstName?: string | null;
       lastName?: string | null;
       email?: string | null;
-    }) => Promise<{ platformUserId: string }>;
+    }) => Promise<{
+      platformUserId: string;
+      contactEmailSetup?: { emailNormalized: string };
+    }>;
     applyRubitimeEmailAutobind?: (params: {
       phoneNormalized: string;
       email: string;
     }) => Promise<
       | { outcome: "applied"; platformUserId: string }
-      | { outcome: "skipped_no_user" | "skipped_invalid_email" | "skipped_verified" | "skipped_conflict" }
+      | { outcome: "skipped_no_user" | "skipped_invalid_email" | "skipped_conflict" }
+      | { outcome: "skipped_verified"; platformUserId: string }
     >;
     /** Follow `merged_into_id` so diary writes attach to canonical `platform_users.id` after merge. */
     resolveCanonicalPlatformUserId?: (platformUserId: string) => Promise<string>;
@@ -873,6 +893,17 @@ export async function handleIntegratorEvent(
           email: patientEmail,
         });
         ensuredPlatformUserId = ensured.platformUserId;
+        if (ensured.contactEmailSetup && deps.emailSetupAccess) {
+          fireAndForgetContactEmailSetup(
+            deps.emailSetupAccess,
+            {
+              userId: ensured.platformUserId,
+              emailNormalized: ensured.contactEmailSetup.emailNormalized,
+              source: "rubitime",
+            },
+            { hook: "appointment.record.upserted" },
+          );
+        }
       } catch (err) {
         if (isMergeDomainConflict(err)) {
           await logMergeClassConflict(deps, err, "appointment.record.upserted", auditPayload);
@@ -1045,16 +1076,31 @@ export async function handleIntegratorEvent(
     }
     const result = await deps.users.applyRubitimeEmailAutobind({ phoneNormalized, email });
     if (result.outcome === "skipped_conflict") {
+      reportEmailAutobindSkip({
+        phoneNormalized,
+        email,
+        reason: "email_taken_by_other_user",
+      });
       reportEmailAutobindConflict({ phoneNormalized, email });
     }
+    if (result.outcome === "skipped_verified") {
+      reportEmailAutobindSkip({
+        phoneNormalized,
+        email,
+        reason: "verified_email_unchanged",
+        platformUserId: result.platformUserId,
+      });
+    }
     if (result.outcome === "applied" && deps.emailSetupAccess) {
-      void deps.emailSetupAccess
-        .requestContactEmailSetup({
+      fireAndForgetContactEmailSetup(
+        deps.emailSetupAccess,
+        {
           userId: result.platformUserId,
           emailNormalized: normalizeEmail(email),
           source: "rubitime",
-        })
-        .catch(() => undefined);
+        },
+        { hook: "user.email.autobind" },
+      );
     }
     return { accepted: true };
   }

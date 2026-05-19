@@ -1,6 +1,6 @@
 import type { EmailSetupAccessPort } from "./ports";
 
-/** PHASE_02: заглушка до таблицы токенов и отправки link (PHASE_03). */
+/** In-memory / tests without PG: setup enqueue returns stub status. */
 export function createNoopEmailSetupAccessPort(): EmailSetupAccessPort {
   return {
     async requestContactEmailSetup() {

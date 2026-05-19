@@ -163,6 +163,30 @@
 
 ---
 
+## 2026-05-20 — Post-MVP hardening (audit follow-up)
+
+**Сделано:**
+
+- **Enqueue setup-link:** общий helper `enqueueContactEmailSetup.ts` — structured log `[emailSetupAccess:enqueue_failed|enqueue_error]` вместо `.catch(() => undefined)`; подключён в admin profile patch, `user.email.autobind`, `appointment.record.upserted`, forgot (`needs_email_setup`).
+- **Gap PHASE_02/MAIN PLAN §2.4:** `ensureClientFromAppointmentProjection` возвращает `contactEmailSetup` при новом/изменённом email; handler `appointment.record.upserted` вызывает `requestContactEmailSetup` (`source: rubitime`).
+- **Rubitime autobind ops:** `[user.email.autobind:skipped]` для `skipped_verified` (`verified_email_unchanged` + `platformUserId`) и `skipped_conflict` (`email_taken_by_other_user`); `setEmailAutobindSkipReporter`.
+- **Email setup complete:** verify + password + consume token — **одна транзакция** (`pgEmailSetupFlowPort.applyEmailSetupCompletion` + `setupTokenId`).
+- **UI `already_has_login`:** единое сообщение + ссылка «Перейти ко входу» на форме setup.
+- **Док:** `PLATFORM_IDENTITY_OPS.md` — `patient_phone_trust_at` в `ensureClientFromAppointmentProjection`.
+
+**Проверки:**
+
+- `pnpm --filter @bersoncare/webapp exec vitest run enqueueContactEmailSetup emailSetupFlow EmailSetupPageClient pgUserProjection.ensureAppointmentClient events.test.ts` — 110 passed
+- `pnpm --filter @bersoncare/webapp exec tsc --noEmit` — ok
+
+**Не делали:**
+
+- PHASE_07 backfill, PHASE_08 mass setup; browser E2E setup; перенос `user_email_setup_tokens` при merge; unit-тесты bot/phone-only (PHASE_01 backlog); ручной smoke PHASE_04.
+
+**Документация:** обновлены [`AUDIT_REPORT.md`](AUDIT_REPORT.md) §12, [`SCOPE_DECISIONS.md`](SCOPE_DECISIONS.md), follow-up секции в [`PHASE_01_AUDIT.md`](PHASE_01_AUDIT.md) … [`PHASE_05_AUDIT.md`](PHASE_05_AUDIT.md).
+
+---
+
 ## Шаблон записи при закрытии этапа
 
 ```markdown

@@ -120,14 +120,18 @@ export function createEmailSetupFlowService(deps: {
         userId: validated.userId,
         emailNormalized: validated.emailNormalized,
         passwordHash,
+        setupTokenId: validated.tokenId,
       });
       if (!applied.ok) {
-        return { ok: false, error: applied.reason === "email_mismatch" ? "email_mismatch" : "server_error" };
-      }
-
-      const consumed = await deps.tokens.consumeEmailSetupToken(tokenPlain);
-      if (!consumed.ok) {
-        return { ok: false, error: "server_error" };
+        return {
+          ok: false,
+          error:
+            applied.reason === "email_mismatch"
+              ? "email_mismatch"
+              : applied.reason === "token_consume_failed"
+                ? "server_error"
+                : "server_error",
+        };
       }
 
       return { ok: true, userId: validated.userId };

@@ -19,6 +19,8 @@ import {
   patientSectionTitleClass,
 } from "@/shared/ui/patientVisual";
 
+const ALREADY_HAS_LOGIN_MESSAGE = "Доступ по этой почте уже настроен. Войдите с паролем.";
+
 type PageState =
   | { kind: "loading" }
   | { kind: "missing_token" }
@@ -67,7 +69,7 @@ export default function EmailSetupPageClient({ initialToken }: Props) {
     if (body.error === "already_has_login") {
       setPageState({
         kind: "error",
-        message: "Доступ по этой почте уже настроен. Войдите с паролем.",
+        message: ALREADY_HAS_LOGIN_MESSAGE,
       });
       return;
     }
@@ -112,7 +114,7 @@ export default function EmailSetupPageClient({ initialToken }: Props) {
         return;
       }
       if (body.error === "already_has_login") {
-        setFormError("Доступ уже настроен. Перейдите ко входу.");
+        setFormError(ALREADY_HAS_LOGIN_MESSAGE);
         return;
       }
       setFormError("Не удалось сохранить пароль. Попробуйте ещё раз.");
@@ -139,7 +141,7 @@ export default function EmailSetupPageClient({ initialToken }: Props) {
       if (body.error === "already_has_login") {
         setPageState({
           kind: "error",
-          message: "Доступ по этой почте уже настроен. Войдите с паролем.",
+          message: ALREADY_HAS_LOGIN_MESSAGE,
         });
         return;
       }
@@ -221,7 +223,18 @@ export default function EmailSetupPageClient({ initialToken }: Props) {
                   className="w-full bg-white"
                 />
               </div>
-              {formError ? <p className="text-sm text-destructive">{formError}</p> : null}
+              {formError ? (
+                <div className="flex flex-col gap-2">
+                  <p className="text-sm text-destructive">{formError}</p>
+                  {formError === ALREADY_HAS_LOGIN_MESSAGE ? (
+                    <p>
+                      <Link href="/app" className={cn(patientInlineLinkClass, "text-sm font-medium")}>
+                        Перейти ко входу
+                      </Link>
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
               <Button
                 type="submit"
                 disabled={submitting}

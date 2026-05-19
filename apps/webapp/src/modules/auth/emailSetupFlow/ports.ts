@@ -12,10 +12,11 @@ export type EmailSetupFlowPort = {
     emailNormalized: string;
   }): Promise<EmailSetupContactCheckResult>;
 
-  /** Подтвердить email и записать пароль (одна транзакция). */
+  /** Подтвердить email, записать пароль и пометить setup-токен использованным (одна транзакция). */
   applyEmailSetupCompletion(params: {
     userId: string;
     emailNormalized: string;
     passwordHash: string;
-  }): Promise<{ ok: true } | { ok: false; reason: "user_not_found" | "email_mismatch" }>;
+    setupTokenId: string;
+  }): Promise<{ ok: true } | { ok: false; reason: "user_not_found" | "email_mismatch" | "token_consume_failed" }>;
 };

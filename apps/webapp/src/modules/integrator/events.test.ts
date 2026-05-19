@@ -9,6 +9,7 @@ import { MergeConflictError, MergeDependentConflictError } from "@/infra/repos/p
 import {
   handleIntegratorEvent,
   setEmailAutobindConflictReporter,
+  setEmailAutobindSkipReporter,
   type IntegratorEventsDeps,
 } from "./events";
 import { inMemoryReminderProjectionPort } from "@/infra/repos/inMemoryReminderProjection";
@@ -59,6 +60,46 @@ describe("handleIntegratorEvent", () => {
     } finally {
       setEmailAutobindConflictReporter((ctx) => {
         console.warn("[user.email.autobind:conflict]", ctx);
+      });
+    }
+  });
+
+  it("reports skip for user.email.autobind skipped_verified", async () => {
+    const skipReporter = vi.fn();
+    setEmailAutobindSkipReporter(skipReporter);
+    const applyRubitimeEmailAutobind = vi
+      .fn()
+      .mockResolvedValue({ outcome: "skipped_verified", platformUserId: "pu-verified-1" });
+
+    try {
+      const result = await handleIntegratorEvent(
+        {
+          eventType: "user.email.autobind",
+          payload: { phoneNormalized: "+79991112233", email: "a@b.co" },
+        },
+        {
+          ...mockDeps,
+          users: {
+            upsertFromProjection: vi.fn(),
+            findByIntegratorId: vi.fn(),
+            updatePhone: vi.fn(),
+            updateProfileByPhone: vi.fn(),
+            ensureClientFromAppointmentProjection: vi.fn(),
+            applyRubitimeEmailAutobind,
+          },
+        },
+      );
+
+      expect(result.accepted).toBe(true);
+      expect(skipReporter).toHaveBeenCalledWith({
+        phoneNormalized: "+79991112233",
+        email: "a@b.co",
+        reason: "verified_email_unchanged",
+        platformUserId: "pu-verified-1",
+      });
+    } finally {
+      setEmailAutobindSkipReporter((ctx) => {
+        console.warn("[user.email.autobind:skipped]", ctx);
       });
     }
   });
@@ -1911,6 +1952,53 @@ describe("handleIntegratorEvent: Stage 11 subscription/mailing projection ingest
     expect(requestContactEmailSetup).toHaveBeenCalledWith({
       userId: "pu-rubitime-1",
       emailNormalized: "a@b.co",
+      source: "rubitime",
+    });
+  });
+
+  it("appointment.record.upserted enqueues setup when ensure returns contactEmailSetup", async () => {
+    const requestContactEmailSetup = vi.fn().mockResolvedValue({ ok: true, status: "enqueued" });
+    const mockUsers = {
+      upsertFromProjection: vi.fn(),
+      findByIntegratorId: vi.fn(),
+      updatePhone: vi.fn(),
+      updateProfileByPhone: vi.fn(),
+      ensureClientFromAppointmentProjection: vi.fn().mockResolvedValue({
+        platformUserId: "client-with-new-email",
+        contactEmailSetup: { emailNormalized: "new@example.com" },
+      }),
+    };
+    const mockAp = {
+      getRecordByIntegratorId: vi.fn(),
+      listActiveByPhoneNormalized: vi.fn(),
+      upsertRecordFromProjection: vi.fn().mockResolvedValue(undefined),
+      listHistoryByPhoneNormalized: vi.fn().mockResolvedValue([]),
+      softDeleteByIntegratorId: vi.fn().mockResolvedValue(false),
+    };
+    const result = await handleIntegratorEvent(
+      {
+        eventType: "appointment.record.upserted",
+        payload: {
+          integratorRecordId: "rec-email-1",
+          phoneNormalized: "+79991234567",
+          status: "created",
+          patientEmail: "new@example.com",
+          payloadJson: {},
+          lastEvent: "event-update",
+          updatedAt: "2025-08-01T12:00:00.000Z",
+        },
+      },
+      {
+        ...mockDeps,
+        users: mockUsers,
+        appointmentProjection: mockAp,
+        emailSetupAccess: { requestContactEmailSetup },
+      },
+    );
+    expect(result.accepted).toBe(true);
+    expect(requestContactEmailSetup).toHaveBeenCalledWith({
+      userId: "client-with-new-email",
+      emailNormalized: "new@example.com",
       source: "rubitime",
     });
   });

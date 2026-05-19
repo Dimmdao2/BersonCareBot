@@ -74,4 +74,17 @@ describe("EmailSetupPageClient", () => {
       expect(replaceMock).toHaveBeenCalledWith("/app/patient");
     });
   });
+
+  it("shows login hint when token belongs to account with password", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(JSON.stringify({ ok: false, error: "already_has_login" }), { status: 409 }),
+    );
+
+    render(<EmailSetupPageClient initialToken="est_used_account" />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Доступ по этой почте уже настроен. Войдите с паролем.")).toBeInTheDocument();
+    });
+    expect(screen.getByRole("link", { name: "Перейти ко входу" })).toHaveAttribute("href", "/app");
+  });
 });

@@ -66,7 +66,7 @@ describe("emailSetupFlow service", () => {
     expect(r).toEqual({ ok: false, error: "expired", email: "a@b.com" });
   });
 
-  it("complete verifies email, sets password, consumes token", async () => {
+  it("complete verifies email, sets password, consumes token in apply tx", async () => {
     vi.mocked(tokens.validateEmailSetupToken).mockResolvedValueOnce({
       ok: true,
       tokenId: "t1",
@@ -78,12 +78,6 @@ describe("emailSetupFlow service", () => {
       email: "a@b.com",
     });
     vi.mocked(flowPort.applyEmailSetupCompletion).mockResolvedValueOnce({ ok: true });
-    vi.mocked(tokens.consumeEmailSetupToken).mockResolvedValueOnce({
-      ok: true,
-      tokenId: "t1",
-      userId: "u1",
-      emailNormalized: "a@b.com",
-    });
 
     const svc = createEmailSetupFlowService({ tokens, flowPort, emailSetupAccess });
     const r = await svc.completeEmailSetup("est_test", "secret1234");
@@ -92,7 +86,9 @@ describe("emailSetupFlow service", () => {
       userId: "u1",
       emailNormalized: "a@b.com",
       passwordHash: "hashed:secret1234",
+      setupTokenId: "t1",
     });
+    expect(tokens.consumeEmailSetupToken).not.toHaveBeenCalled();
   });
 
   it("resend issues new link for expired token", async () => {

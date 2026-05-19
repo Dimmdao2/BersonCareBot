@@ -35,7 +35,7 @@ export const pgEmailSetupFlowPort: EmailSetupFlowPort = {
     return { ok: true, email: row.email ?? emailNormalized };
   },
 
-  async applyEmailSetupCompletion({ userId, emailNormalized, passwordHash }) {
+  async applyEmailSetupCompletion({ userId, emailNormalized, passwordHash, setupTokenId }) {
     const pool = getPool();
     const client = await pool.connect();
     try {
@@ -51,7 +51,7 @@ export const pgEmailSetupFlowPort: EmailSetupFlowPort = {
       );
       if (!userRes.rows[0]) {
         await client.query("ROLLBACK");
-        return { ok: false, reason: "email_mismatch" };
+        return { ok: false, reason: "email_mismatch" as const };
       }
 
       await client.query(
@@ -62,11 +62,25 @@ export const pgEmailSetupFlowPort: EmailSetupFlowPort = {
         [userId, passwordHash],
       );
 
+      const tokenRes = await client.query(
+        `UPDATE user_email_setup_tokens
+         SET used_at = now()
+         WHERE id = $1::uuid
+           AND used_at IS NULL
+           AND revoked_at IS NULL
+           AND expires_at >= now()`,
+        [setupTokenId],
+      );
+      if ((tokenRes.rowCount ?? 0) === 0) {
+        await client.query("ROLLBACK");
+        return { ok: false, reason: "token_consume_failed" as const };
+      }
+
       await client.query("COMMIT");
-      return { ok: true };
+      return { ok: true as const };
     } catch {
       await client.query("ROLLBACK");
-      return { ok: false, reason: "user_not_found" };
+      return { ok: false, reason: "user_not_found" as const };
     } finally {
       client.release();
     }

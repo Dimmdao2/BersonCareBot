@@ -5,6 +5,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { fireAndForgetContactEmailSetup } from "@/modules/auth/emailSetupAccess/enqueueContactEmailSetup";
 import { getPool } from "@/app-layer/db/client";
 import { writeAuditLog } from "@/app-layer/admin/auditLog";
 import { resolveCanonicalUserId } from "@/app-layer/platform-user/canonicalPlatformUser";
@@ -135,14 +136,16 @@ export async function PATCH(request: Request, context: { params: Promise<{ userI
     const normNew = patch.email.trim().toLowerCase();
     const normBefore = emailBefore?.email?.trim().toLowerCase() ?? null;
     if (normNew !== normBefore) {
-      void deps.emailSetupAccess
-        .requestContactEmailSetup({
+      fireAndForgetContactEmailSetup(
+        deps.emailSetupAccess,
+        {
           userId: canonicalId,
           emailNormalized: normNew,
           source: "doctor_profile",
           createdByUserId: adminGate.session.user.userId,
-        })
-        .catch(() => undefined);
+        },
+        { hook: "admin_client_profile_patch" },
+      );
     }
   }
 

@@ -61,7 +61,7 @@
 |------|------------------------|----------------------------|
 | [`backfill-person-domain.mjs`](backfill-person-domain.mjs) | INSERT/UPDATE из integrator | **Да** — при непустом телефоне из источника integrator (как проекция). |
 | [`backfill-appointments-domain.mjs`](backfill-appointments-domain.mjs) | INSERT/UPDATE по записям приёмов | **Да** — `now()` при INSERT; при ON CONFLICT `COALESCE(..., now())` для догонки legacy-строк. |
-| [`backfill-rubitime-history-to-patient-bookings.ts`](backfill-rubitime-history-to-patient-bookings.ts) | INSERT при создании пользователя по телефону из истории | Зависит от реализации скрипта; **не** считать автоматическим proof: в продуктовом коде `ensureClientFromAppointmentProjection` **не** выставляет `patient_phone_trust_at`. |
+| [`backfill-rubitime-history-to-patient-bookings.ts`](backfill-rubitime-history-to-patient-bookings.ts) | INSERT при создании пользователя по телефону из истории | Зависит от реализации скрипта; в продуктовом коде `ensureClientFromAppointmentProjection` **выставляет** `patient_phone_trust_at` при Rubitime phone (PHASE_01). |
 | [`user-phone-admin.ts`](user-phone-admin.ts) | DELETE / служебные UPDATE | Удаление identity; не создаёт patient без прохождения продуктовых потоков. |
 | `reconcile-*.mjs` | как правило только чтение / сверка id | по сценарию — без массовой записи телефона; перепроверять при изменении скрипта. |
 | `*.sql` (repair и пр.) | вручную | проходить шаги §2 B–C. |

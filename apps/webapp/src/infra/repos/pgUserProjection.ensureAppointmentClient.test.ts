@@ -67,6 +67,7 @@ describe("ensureClientFromAppointmentProjection (Rubitime PHASE_01)", () => {
     });
 
     expect(result.platformUserId).toBe("new-user-1");
+    expect(result.contactEmailSetup).toEqual({ emailNormalized: "ivan@example.com" });
     expect(sqlLog.some((s) => s.includes("patient_phone_trust_at"))).toBe(true);
     expect(sqlLog.some((s) => s.includes("email_normalized"))).toBe(true);
     expect(mockTrustedAnchor).toHaveBeenCalled();
@@ -78,6 +79,9 @@ describe("ensureClientFromAppointmentProjection (Rubitime PHASE_01)", () => {
       sqlLog.push(sql);
       if (sql.includes("FROM platform_users WHERE phone_normalized")) {
         return { rows: [{ id: "existing-phone-user" }] };
+      }
+      if (sql.includes("SELECT email_normalized FROM platform_users")) {
+        return { rows: [{ email_normalized: "old@example.com" }] };
       }
       return { rows: [] };
     });
@@ -91,6 +95,7 @@ describe("ensureClientFromAppointmentProjection (Rubitime PHASE_01)", () => {
     });
 
     expect(result.platformUserId).toBe("existing-phone-user");
+    expect(result.contactEmailSetup).toEqual({ emailNormalized: "other@example.com" });
     const updateSql = sqlLog.find((s) => s.includes("UPDATE platform_users SET"));
     expect(updateSql).toBeTruthy();
     expect(updateSql).not.toContain("display_name =");

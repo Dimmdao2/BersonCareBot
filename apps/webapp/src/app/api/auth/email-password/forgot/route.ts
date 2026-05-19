@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { normalizeEmail, startEmailChallenge } from "@/modules/auth/emailAuth";
-import { requestEmailSetupAccessForUser } from "@/modules/auth/emailPasswordLookup/requestSetupAccess";
+import { fireAndForgetContactEmailSetup } from "@/modules/auth/emailSetupAccess/enqueueContactEmailSetup";
 import { OTP_RESEND_COOLDOWN_SEC } from "@/modules/auth/otpConstants";
 
 const bodySchema = z.object({
@@ -42,11 +42,15 @@ export async function POST(request: Request) {
 
   const state = await deps.emailPasswordLookup.resolveAuthState(emailNorm);
   if (state.kind === "needs_email_setup") {
-    void requestEmailSetupAccessForUser(deps.emailSetupAccess, {
-      userId: state.userId,
-      emailNormalized: emailNorm,
-      source: "manual_resend",
-    }).catch(() => undefined);
+    fireAndForgetContactEmailSetup(
+      deps.emailSetupAccess,
+      {
+        userId: state.userId,
+        emailNormalized: emailNorm,
+        source: "manual_resend",
+      },
+      { hook: "auth_forgot_needs_email_setup" },
+    );
   }
 
   return forgotPasswordNeutralResponse();
