@@ -38,16 +38,15 @@ type Props = { initialFrom?: string | string[] | null };
 export default function LoginContactSupportPageClient({ initialFrom }: Props) {
   const fromParam =
     typeof initialFrom === "string" ? initialFrom : Array.isArray(initialFrom) ? initialFrom[0] : undefined;
-  const [nav, setNav] = useState(() => backNavFromSearchParams(fromParam));
-  const [prefillEmail, setPrefillEmail] = useState("");
+  const pending = readAuthFlowPending();
+  const nav = (() => {
+    if (pending?.mode === "register_verify") return { href: "/app", label: "Вернуться к коду" };
+    if (pending?.mode === "password_reset") return { href: "/app", label: "Вернуться к восстановлению пароля" };
+    return backNavFromSearchParams(fromParam);
+  })();
 
-  useEffect(() => {
-    setNav(backNavMerged(fromParam));
-    const pending = readAuthFlowPending();
-    if (pending?.mode === "register_verify" || pending?.mode === "password_reset") {
-      setPrefillEmail((cur) => (cur.trim().length > 0 ? cur : pending.email));
-    }
-  }, [fromParam]);
+  const prefillEmail =
+    pending?.mode === "register_verify" || pending?.mode === "password_reset" ? pending.email ?? "" : "";
 
   return (
     <AppShell

@@ -46,7 +46,7 @@ function readRaw(): AuthFlowPendingStored | null {
       if (typeof o.email !== "string" || typeof o.retryAfterSeconds !== "number") return null;
     }
     const maxAgeMs = 1000 * 60 * 60 * 72;
-    if (Date.now() - o.savedAt > maxAgeMs) {
+    if (typeof o.savedAt !== "number" || Date.now() - o.savedAt > maxAgeMs) {
       sessionStorage.removeItem(STORAGE_KEY);
       return null;
     }
@@ -69,7 +69,9 @@ export function clearAuthFlowPending(): void {
   }
 }
 
-export function saveRegisterVerifyPending(input: Omit<Extract<AuthFlowPendingStored, { mode: "register_verify" }>, "v" | "savedAt">): void {
+export function saveRegisterVerifyPending(
+  input: Omit<Extract<AuthFlowPendingStored, { mode: "register_verify" }>, "v" | "savedAt" | "mode">
+): void {
   if (typeof window === "undefined" || typeof sessionStorage === "undefined") return;
   const payload: AuthFlowPendingStored = {
     v: 1,
@@ -95,7 +97,9 @@ export function patchRegisterVerifyChallenge(challengeId: string, retryAfterSeco
   });
 }
 
-export function savePasswordResetPending(input: Omit<Extract<AuthFlowPendingStored, { mode: "password_reset" }>, "v" | "savedAt">): void {
+export function savePasswordResetPending(
+  input: Omit<Extract<AuthFlowPendingStored, { mode: "password_reset" }>, "v" | "savedAt" | "mode">
+): void {
   if (typeof window === "undefined" || typeof sessionStorage === "undefined") return;
   const payload: AuthFlowPendingStored = {
     v: 1,
