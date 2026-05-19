@@ -1,3 +1,4 @@
+/* eslint-disable no-secrets/no-secrets -- test titles reference exported symbol names */
 import { describe, expect, it } from 'vitest';
 import { APPOINTMENT_RECORD_UPSERTED } from '../../kernel/contracts/index.js';
 import { buildAppointmentRecordUpsertedFanout } from './buildAppointmentRecordUpsertedFanout.js';

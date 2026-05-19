@@ -54,7 +54,7 @@ export function sanitizeLfkTemplatesListPreserveQuery(raw: string): string {
     region.length <= 120 &&
     !/[\s<>"']/.test(region) &&
     !z.string().uuid().safeParse(region).success &&
-    (region === DOCTOR_CATALOG_FILTER_MISSING || /^[a-z0-9_]+$/.test(region))
+    (region === DOCTOR_CATALOG_FILTER_MISSING || /^[a-z0-9_-]+$/.test(region))
   ) {
     out.set("region", region);
   }
