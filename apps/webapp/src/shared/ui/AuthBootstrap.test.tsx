@@ -400,4 +400,23 @@ describe("AuthBootstrap", () => {
     expect(calls.some((c) => String(c[0]).includes("/api/auth/exchange"))).toBe(false);
     expect(screen.getByRole("button", { name: /повторить/i })).toBeInTheDocument();
   });
+
+  it("public prefetched config without telegram does not render Telegram Login button", async () => {
+    // ensure prefetchedPublicAuth with null telegram is respected by the client UI
+    render(
+      <AuthBootstrap entryClassification="browser_interactive" initialPublicAuthConfig={{
+        oauthProviders: { yandex: false, google: false, apple: false },
+        telegramBotUsername: null,
+        maxBotOpenUrl: null,
+        fetchedAt: Date.now(),
+      }} />,
+    );
+
+    // small advance to allow any effects to run
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(300);
+    });
+
+    expect(screen.queryByLabelText("Войти через Telegram")).toBeNull();
+  });
 });

@@ -24,7 +24,8 @@ describe("GET /api/auth/login/alternatives-config", () => {
     expect(res.status).toBe(200);
     const data = (await res.json()) as Record<string, unknown>;
     expect(data.ok).toBe(true);
-    expect(data.telegramBotUsername).toBe("my_bot");
+    // Policy: do not expose Telegram Login in public alternatives config
+    expect(data.telegramBotUsername).toBeNull();
     expect(data.maxBotOpenUrl).toBe("https://max.ru/botnick");
     expect(data.vkWebLoginUrl).toBe("https://id.vk.com/auth");
     expect(data.smsFallbackEnabled).toBe(true);

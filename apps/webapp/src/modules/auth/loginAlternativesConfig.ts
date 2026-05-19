@@ -15,7 +15,11 @@ export type LoginAlternativesPublicConfig = {
 
 /** Публичные URL для экрана входа (Max, VK и т.д.), без секретов. */
 export async function getLoginAlternativesPublicConfig(): Promise<LoginAlternativesPublicConfig> {
-  const tgRaw = (await getTelegramLoginBotUsername()).trim().replace(/^@/, "");
+  // Do NOT expose Telegram Login as an active public provider on the public login screen.
+  // Keep internal `/api/auth/telegram-login/config` unchanged for authenticated flows.
+  // We still call the system-settings getter to avoid side-effects in tests/env, but we will not
+  // propagate the username to the public config.
+  await getTelegramLoginBotUsername();
   const nick = normalizeMaxBotNicknameInput(await getMaxLoginBotNickname());
   const maxBotOpenUrl =
     nick.length > 0 ? `https://max.ru/${encodeURIComponent(nick)}` : null;
@@ -26,7 +30,7 @@ export async function getLoginAlternativesPublicConfig(): Promise<LoginAlternati
   const smsFallbackEnabled = await getSmsFallbackEnabled();
 
   return {
-    telegramBotUsername: tgRaw.length > 0 ? tgRaw : null,
+    telegramBotUsername: null,
     maxBotOpenUrl,
     vkWebLoginUrl,
     smsFallbackEnabled,

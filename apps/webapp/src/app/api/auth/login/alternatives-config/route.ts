@@ -9,7 +9,10 @@ export async function GET(request: Request) {
   const startedAt = Date.now();
   try {
     const cfg = await getLoginAlternativesPublicConfig();
-    const res = NextResponse.json({ ok: true as const, ...cfg });
+    // Ensure Telegram Login is not exposed in the public alternatives-config response
+    // even if system settings supply a bot username. Internal telegram endpoints remain unchanged.
+    const safe = { ...cfg, telegramBotUsername: null };
+    const res = NextResponse.json({ ok: true as const, ...safe });
     logAuthRouteTiming({
       route: ROUTE,
       request,
