@@ -28,6 +28,8 @@ export type ReferenceSelectProps = {
   id?: string;
   /** Первый пункт списка: сбрасывает значение (например «Все» в фильтрах). */
   clearOptionLabel?: string;
+  /** Пункт «без значения» (фиксированный код, не из справочника). */
+  missingValueOption?: { value: string; label: string };
   /** For enum-like filters, opening should reveal every option instead of filtering by the selected label. */
   showAllOnFocus?: boolean;
   /** Dropdown-only mode: no text editing/caret, only pick from list. */
@@ -49,6 +51,7 @@ export function ReferenceSelect({
   name,
   id,
   clearOptionLabel,
+  missingValueOption,
   showAllOnFocus = false,
   searchable = true,
 }: ReferenceSelectProps) {
@@ -99,9 +102,10 @@ export function ReferenceSelect({
 
   const selectedLabel = useMemo(() => {
     if (!value) return "";
+    if (missingValueOption && value === missingValueOption.value) return missingValueOption.label;
     const it = items.find((i) => (valueMatch === "code" ? i.code === value : i.id === value));
     return it?.title ?? "";
-  }, [items, value, valueMatch]);
+  }, [items, value, valueMatch, missingValueOption]);
 
   const hiddenSubmitValue = useMemo(() => {
     if (!value) return "";
@@ -141,7 +145,7 @@ export function ReferenceSelect({
     ro.observe(el);
     queueMicrotask(updateListScrollOverflow);
     return () => ro.disconnect();
-  }, [open, filtered, clearOptionLabel, updateListScrollOverflow]);
+  }, [open, filtered, clearOptionLabel, missingValueOption, updateListScrollOverflow]);
 
   return (
     <div ref={rootRef} className={cn("relative", className)}>
@@ -180,7 +184,7 @@ export function ReferenceSelect({
         readOnly={!searchable}
         autoComplete="off"
       />
-      {open && (clearOptionLabel || filtered.length > 0) ? (
+      {open && (clearOptionLabel || missingValueOption || filtered.length > 0) ? (
         <div className="absolute left-0 right-0 top-full z-50 mt-1 w-full min-w-0">
           <div className="relative max-h-48 overflow-hidden rounded-md border border-border bg-background shadow-md">
             <ul
@@ -204,6 +208,24 @@ export function ReferenceSelect({
                     }}
                   >
                     {clearOptionLabel}
+                  </Button>
+                </li>
+              ) : null}
+              {missingValueOption ? (
+                <li key="__missing">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="h-auto w-full justify-start rounded-none px-3 py-2 text-left text-sm font-normal"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      onChange(missingValueOption.value, missingValueOption.label);
+                      setQuery("");
+                      setOpen(false);
+                      if (!searchable) blurInput();
+                    }}
+                  >
+                    {missingValueOption.label}
                   </Button>
                 </li>
               ) : null}

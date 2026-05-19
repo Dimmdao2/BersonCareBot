@@ -124,6 +124,8 @@ import {
 } from "@/infra/repos/pgUserPasswordCredentials";
 import { createEmailSetupAccessService } from "@/modules/auth/emailSetupAccess/service";
 import { createNoopEmailSetupAccessPort } from "@/modules/auth/emailSetupAccess/noopPort";
+import { createPgEmailSetupAccessPort } from "@/infra/repos/pgEmailSetupAccessPort";
+import { pgEmailSetupTokensPort } from "@/infra/repos/pgEmailSetupTokens";
 import { pgOAuthBindingsPort } from "@/infra/repos/pgOAuthBindings";
 import { inMemoryOAuthBindingsPort } from "@/infra/repos/inMemoryOAuthBindings";
 import { pgLoginTokensPort } from "@/infra/repos/pgLoginTokens";
@@ -287,7 +289,9 @@ const doctorMotivationQuotesEditorPort = !inMemoryRepos
   ? createPgDoctorMotivationQuotesEditorPort()
   : inMemoryDoctorMotivationQuotesEditorPort;
 const userProjectionPort = !inMemoryRepos ? pgUserProjectionPort : inMemoryUserProjectionPort;
-const emailSetupAccessService = createEmailSetupAccessService(createNoopEmailSetupAccessPort());
+const emailSetupAccessService = createEmailSetupAccessService(
+  !inMemoryRepos ? createPgEmailSetupAccessPort(pgEmailSetupTokensPort) : createNoopEmailSetupAccessPort(),
+);
 const supportCommunicationPort = !inMemoryRepos
   ? createPgSupportCommunicationPort()
   : inMemorySupportCommunicationPort;

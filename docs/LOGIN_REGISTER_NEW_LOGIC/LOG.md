@@ -82,6 +82,25 @@
 
 - Таблица `user_email_setup_tokens`, реальная отправка письма (PHASE_03).
 
+## 2026-05-19 — PHASE_03 Email setup tokens + письмо
+
+**Сделано:**
+
+- Миграция `0076_user_email_setup_tokens.sql`, Drizzle schema `userEmailSetupTokens.ts`.
+- Модуль `emailSetupTokens` (issue / validate / consume, TTL 24h, hash в БД, revoke active для user+email).
+- `createPgEmailSetupAccessPort` вместо noop: письмо со ссылкой `{app_base_url}/app/auth/email-setup?token=…` через integrator `send-email` (`text` + `subject`, OTP `code` не обязателен).
+- DI: `buildAppDeps` подключает pg-port при реальной БД; хуки PHASE_02 (doctor patch, Rubitime autobind) получают `status: enqueued`.
+
+**Проверки:**
+
+- `pnpm --filter @bersoncare/webapp exec drizzle-kit check` — ok.
+- `pnpm --filter @bersoncare/webapp migrate` — 0076 применена локально.
+- `vitest` — `emailSetupTokens/*`, `pgEmailSetupAccessPort.test.ts`, integrator `sendEmailRoute.test.ts`.
+
+**Не делали:**
+
+- UI `/app/auth/email-setup` и API complete/resend (PHASE_04).
+
 ---
 
 ## Шаблон записи при закрытии этапа

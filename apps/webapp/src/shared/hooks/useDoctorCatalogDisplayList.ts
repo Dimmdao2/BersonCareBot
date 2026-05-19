@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import type { ExerciseLoadType } from "@/modules/lfk-exercises/types";
+import { isDoctorCatalogMissingFilter } from "@/shared/lib/doctorCatalogEmptyFieldFilter";
 import { normalizeRuSearchString } from "@/shared/lib/ruSearchNormalize";
 import type { TitleSortValue } from "@/shared/ui/doctor/DoctorCatalogTitleSortSelect";
 
@@ -7,7 +8,7 @@ type WithTitle = { title: string };
 
 export type DoctorCatalogDisplayListOptions<T> = {
   regionCode?: string | null;
-  loadType?: ExerciseLoadType | null;
+  loadType?: ExerciseLoadType | string | null;
   /** Коды регионов по элементу; при заданном `regionCode` — показ, если код входит в список. */
   getItemRegionCodes?: (item: T) => readonly string[];
   /** @deprecated Используйте {@link getItemRegionCodes} для мультирегионов. */
@@ -45,17 +46,33 @@ export function useDoctorCatalogDisplayList<T extends WithTitle>(
     }
 
     if (regionCode && getItemRegionCodes) {
-      out = out.filter((x) => getItemRegionCodes(x).includes(regionCode));
+      if (isDoctorCatalogMissingFilter(regionCode)) {
+        out = out.filter((x) => getItemRegionCodes(x).length === 0);
+      } else {
+        out = out.filter((x) => getItemRegionCodes(x).includes(regionCode));
+      }
     } else if (regionCode && getItemRegionCode) {
-      out = out.filter((x) => getItemRegionCode(x) === regionCode);
+      if (isDoctorCatalogMissingFilter(regionCode)) {
+        out = out.filter((x) => !getItemRegionCode(x));
+      } else {
+        out = out.filter((x) => getItemRegionCode(x) === regionCode);
+      }
     }
 
     if (loadType && getItemLoadType) {
-      out = out.filter((x) => getItemLoadType(x) === loadType);
+      if (isDoctorCatalogMissingFilter(loadType)) {
+        out = out.filter((x) => !getItemLoadType(x));
+      } else {
+        out = out.filter((x) => getItemLoadType(x) === loadType);
+      }
     }
 
     if (tertiaryCode && getItemTertiaryCode) {
-      out = out.filter((x) => getItemTertiaryCode(x) === tertiaryCode);
+      if (isDoctorCatalogMissingFilter(tertiaryCode)) {
+        out = out.filter((x) => !getItemTertiaryCode(x));
+      } else {
+        out = out.filter((x) => getItemTertiaryCode(x) === tertiaryCode);
+      }
     }
 
     if (titleSort === "asc" || titleSort === "desc") {

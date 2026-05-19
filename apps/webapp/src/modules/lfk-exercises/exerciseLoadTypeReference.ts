@@ -1,4 +1,9 @@
 import type { ReferenceItem } from "@/modules/references/types";
+import {
+  DOCTOR_CATALOG_FILTER_MISSING,
+  type DoctorCatalogMissingFilter,
+  isDoctorCatalogMissingFilterToken,
+} from "@/shared/lib/doctorCatalogEmptyFieldFilter";
 import type { ExerciseLoadType } from "./types";
 
 /**
@@ -53,6 +58,17 @@ export function parseExerciseLoadQueryParam(
   const t = raw.trim();
   if (!t || !allowSet.has(t)) return undefined;
   return t as ExerciseLoadType;
+}
+
+/** Query `load=` каталога: код из справочника или {@link DOCTOR_CATALOG_FILTER_MISSING}. */
+export function parseExerciseLoadFilterQueryParam(
+  raw: string | undefined,
+  allowSet: Set<string>,
+): ExerciseLoadType | DoctorCatalogMissingFilter | undefined {
+  if (isDoctorCatalogMissingFilterToken(typeof raw === "string" ? raw : undefined)) {
+    return DOCTOR_CATALOG_FILTER_MISSING;
+  }
+  return parseExerciseLoadQueryParam(raw, allowSet);
 }
 
 export function parseExerciseLoadFormValue(

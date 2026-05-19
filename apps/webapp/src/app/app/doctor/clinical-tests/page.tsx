@@ -5,6 +5,7 @@ import {
   clinicalTestListArchiveScopeFromRecommendationFilter,
   parseRecommendationListFilterScope,
 } from "@/shared/lib/doctorCatalogListStatus";
+import { isDoctorCatalogMissingFilterToken } from "@/shared/lib/doctorCatalogEmptyFieldFilter";
 import { parseDoctorCatalogRegionQueryParam, resolveBodyRegionRefIdFromCatalogCode } from "@/shared/lib/doctorCatalogRegionQuery";
 import {
   CLINICAL_ASSESSMENT_KIND_CATEGORY_CODE,
@@ -40,7 +41,10 @@ export default async function DoctorClinicalTestsPage({ searchParams }: PageProp
     deps.references.listActiveItemsByCategoryCode("body_region"),
   ]);
   const assessmentAllow = assessmentKindWriteAllowSet(assessmentRefItems);
-  const assessmentKind = assessmentRaw && assessmentAllow.has(assessmentRaw) ? assessmentRaw : undefined;
+  const assessmentKind =
+    assessmentRaw && (assessmentAllow.has(assessmentRaw) || isDoctorCatalogMissingFilterToken(assessmentRaw))
+      ? assessmentRaw
+      : undefined;
   const titleSort: ClinicalTestTitleSort | null =
     sp.titleSort === "asc" || sp.titleSort === "desc" ? sp.titleSort : null;
 

@@ -1,5 +1,6 @@
 import type { ReferenceItemDto } from "@/modules/references/referenceCache";
 import type { ReferenceItem } from "@/modules/references/types";
+import { isDoctorCatalogMissingFilterToken } from "@/shared/lib/doctorCatalogEmptyFieldFilter";
 
 /**
  * D3 (Q3): типы рекомендаций — код в `recommendations.domain` сверяется со справочником
@@ -103,6 +104,7 @@ export function parseRecommendationDomain(
 ): string | undefined {
   if (typeof raw !== "string" || !raw.trim()) return undefined;
   const t = raw.trim();
+  if (isDoctorCatalogMissingFilterToken(t)) return t;
   const allow = recommendationDomainWriteAllowSet(refItems);
   return allow.has(t) ? t : undefined;
 }

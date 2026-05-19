@@ -2,6 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 import { renderHook } from "@testing-library/react";
+import { DOCTOR_CATALOG_FILTER_MISSING } from "@/shared/lib/doctorCatalogEmptyFieldFilter";
 import { useDoctorCatalogDisplayList } from "./useDoctorCatalogDisplayList";
 
 type Row = { title: string; id: string; regionCode: string | null; load: "strength" | "stretch" | null };
@@ -45,6 +46,35 @@ describe("useDoctorCatalogDisplayList", () => {
       }),
     );
     expect(result.current.map((r) => r.id)).toEqual(["2"]);
+  });
+
+  it("filters items without region when missing sentinel", () => {
+    type RowM = { title: string; id: string; codes: string[] };
+    const rowsM: RowM[] = [
+      { id: "1", title: "А", codes: [] },
+      { id: "2", title: "Б", codes: ["spine"] },
+    ];
+    const { result } = renderHook(() =>
+      useDoctorCatalogDisplayList(rowsM, "", "default", {
+        regionCode: DOCTOR_CATALOG_FILTER_MISSING,
+        getItemRegionCodes: (r) => r.codes,
+      }),
+    );
+    expect(result.current.map((r) => r.id)).toEqual(["1"]);
+  });
+
+  it("filters items without load when missing sentinel", () => {
+    const rowsWithNull: Row[] = [
+      { id: "1", title: "Альфа", regionCode: "spine", load: null },
+      { id: "2", title: "Бета", regionCode: "knee", load: "stretch" },
+    ];
+    const { result } = renderHook(() =>
+      useDoctorCatalogDisplayList(rowsWithNull, "", "default", {
+        loadType: DOCTOR_CATALOG_FILTER_MISSING,
+        getItemLoadType: (r) => r.load,
+      }),
+    );
+    expect(result.current.map((r) => r.id)).toEqual(["1"]);
   });
 
   it("filters by tertiary code when getters provided", () => {

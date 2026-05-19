@@ -88,7 +88,7 @@ export default async function DoctorRecommendationsPage({ searchParams }: PagePr
           regionCode: catalogQuery.regionCodeForCatalog,
           listStatus,
           invalidDomainQuery: catalogQuery.invalidDomainQuery,
-          domain: catalogQuery.domainForList ?? undefined,
+          domain: catalogQuery.domainCodeForCatalog,
         }}
       />
     </AppShell>

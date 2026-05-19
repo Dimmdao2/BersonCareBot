@@ -114,6 +114,7 @@ const IDENTITY_TABLES: { table: string; column: string }[] = [
   { table: "user_channel_bindings", column: "user_id" },
   { table: "user_pins", column: "user_id" },
   { table: "login_tokens", column: "user_id" },
+  { table: "user_email_setup_tokens", column: "user_id" },
   { table: "user_oauth_bindings", column: "user_id" },
 ];
 

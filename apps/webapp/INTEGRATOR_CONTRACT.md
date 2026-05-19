@@ -249,12 +249,25 @@ Canonical linking rules:
 }
 ```
 
+Транзакционное письмо со ссылкой (email setup access, не OTP):
+
+```json
+{
+  "to": "patient@example.com",
+  "subject": "Подтвердите email и создайте доступ к кабинету BersonCare",
+  "text": "…текст письма со ссылкой https://…/app/auth/email-setup?token=…"
+}
+```
+
 Поля:
 
 - `to` — email получателя (обязательно)
-- `code` — OTP-код (обязательно)
+- `code` — OTP-код (обязательно для OTP; **не** указывать вместе с `text` для setup-link)
+- `text` — готовый текст письма (для setup-link и прочих transactional; обязателен, если нет `code`)
 - `subject` — тема письма (опционально)
 - `templateId` — идентификатор шаблона для будущего расширения (опционально)
+
+Требуется **либо** непустой `code`, **либо** непустой `text`.
 
 **Ответы integrator:**
 

@@ -12,12 +12,17 @@ import { logger } from '../../infra/observability/logger.js';
 
 const WINDOW_SECONDS = 300;
 
-const sendEmailBodySchema = z.object({
-  to: z.string().email(),
-  subject: z.string().optional(),
-  code: z.string(),
-  templateId: z.string().optional(),
-});
+const sendEmailBodySchema = z
+  .object({
+    to: z.string().email(),
+    subject: z.string().optional(),
+    code: z.string().optional(),
+    text: z.string().optional(),
+    templateId: z.string().optional(),
+  })
+  .refine((data) => Boolean(data.code?.trim() || data.text?.trim()), {
+    message: 'code_or_text_required',
+  });
 
 type SendEmailBody = z.infer<typeof sendEmailBodySchema>;
 
@@ -89,10 +94,15 @@ export async function registerBersoncareSendEmailRoute(
     }
 
     const payload = parsed.data;
+    const subject = payload.subject ?? (payload.text ? 'BersonCare' : 'Код подтверждения BersonCare');
+    const text =
+      payload.text?.trim() ||
+      (payload.code ? `Ваш код BersonCare: ${payload.code}` : '');
+
     await sendMail(resolved, {
       to: payload.to,
-      subject: payload.subject ?? 'Код подтверждения BersonCare',
-      text: `Ваш код BersonCare: ${payload.code}`,
+      subject,
+      text,
     });
 
     return reply.code(200).send({ ok: true });

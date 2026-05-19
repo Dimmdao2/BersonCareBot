@@ -1,8 +1,9 @@
 import type { ExerciseLoadType } from "@/modules/lfk-exercises/types";
 import {
   exerciseLoadTypeWriteAllowSet,
-  parseExerciseLoadQueryParam,
+  parseExerciseLoadFilterQueryParam,
 } from "@/modules/lfk-exercises/exerciseLoadTypeReference";
+import type { DoctorCatalogMissingFilter } from "@/shared/lib/doctorCatalogEmptyFieldFilter";
 import { parseDoctorCatalogRegionQueryParam } from "@/shared/lib/doctorCatalogRegionQuery";
 
 /** Событие после `history.replaceState` для каталогов врача (без `router.replace`). */
@@ -17,7 +18,7 @@ export function dispatchDoctorCatalogUrlSync(): void {
 export type DoctorCatalogClientFilterUrlSlice = {
   q: string;
   regionCode?: string;
-  loadType?: ExerciseLoadType;
+  loadType?: ExerciseLoadType | DoctorCatalogMissingFilter;
   titleSort: "asc" | "desc" | null;
   /** Рекомендации: `domain` из query. */
   domain?: string;
@@ -34,7 +35,7 @@ export function readDoctorCatalogClientFilterUrlSlice(): DoctorCatalogClientFilt
   const regionParsed = parseDoctorCatalogRegionQueryParam(sp.get("region") ?? undefined);
   const load = sp.get("load");
   const loadAllow = exerciseLoadTypeWriteAllowSet([]);
-  const loadType = parseExerciseLoadQueryParam(load ?? undefined, loadAllow);
+  const loadType = parseExerciseLoadFilterQueryParam(load ?? undefined, loadAllow);
   const ts = sp.get("titleSort");
   const titleSort = ts === "asc" || ts === "desc" ? ts : null;
   const domainRaw = sp.get("domain");

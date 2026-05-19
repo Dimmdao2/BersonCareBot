@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import type { ExerciseLoadType, ExerciseMedia } from "@/modules/lfk-exercises/types";
 import type { Template } from "@/modules/lfk-templates/types";
 import { cn } from "@/lib/utils";
+import { isDoctorCatalogMissingFilter } from "@/shared/lib/doctorCatalogEmptyFieldFilter";
 import { useDoctorCatalogDisplayList } from "@/shared/hooks/useDoctorCatalogDisplayList";
 import { useDoctorCatalogClientFilterMerge } from "@/shared/hooks/useDoctorCatalogClientFilterMerge";
 import { useDoctorCatalogMasterSelectionSync } from "@/shared/hooks/useDoctorCatalogMasterSelectionSync";
@@ -101,18 +102,30 @@ export function LfkTemplatesPageClient({
     const rc = mergedFilters.regionCode?.trim();
     const lt = mergedFilters.loadType;
     if (rc) {
-      out = out.filter((tpl) =>
-        tpl.exercises.some((row) => {
-          const m = exerciseMetaById[row.exerciseId];
-          if (!m?.regionRefIds?.length) return false;
-          return m.regionRefIds.some((rid) => (bodyRegionIdToCode[rid] ?? null) === rc);
-        }),
-      );
+      if (isDoctorCatalogMissingFilter(rc)) {
+        out = out.filter((tpl) =>
+          tpl.exercises.some((row) => !exerciseMetaById[row.exerciseId]?.regionRefIds?.length),
+        );
+      } else {
+        out = out.filter((tpl) =>
+          tpl.exercises.some((row) => {
+            const m = exerciseMetaById[row.exerciseId];
+            if (!m?.regionRefIds?.length) return false;
+            return m.regionRefIds.some((rid) => (bodyRegionIdToCode[rid] ?? null) === rc);
+          }),
+        );
+      }
     }
     if (lt) {
-      out = out.filter((tpl) =>
-        tpl.exercises.some((row) => exerciseMetaById[row.exerciseId]?.loadType === lt),
-      );
+      if (isDoctorCatalogMissingFilter(lt)) {
+        out = out.filter((tpl) =>
+          tpl.exercises.some((row) => !exerciseMetaById[row.exerciseId]?.loadType),
+        );
+      } else {
+        out = out.filter((tpl) =>
+          tpl.exercises.some((row) => exerciseMetaById[row.exerciseId]?.loadType === lt),
+        );
+      }
     }
     return out;
   }, [qSorted, mergedFilters.regionCode, mergedFilters.loadType, exerciseMetaById, bodyRegionIdToCode]);

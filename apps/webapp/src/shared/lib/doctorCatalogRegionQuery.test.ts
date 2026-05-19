@@ -25,6 +25,10 @@ describe("parseDoctorCatalogRegionQueryParam", () => {
     expect(parseDoctorCatalogRegionQueryParam(undefined)).toEqual({ regionCode: undefined });
     expect(parseDoctorCatalogRegionQueryParam("   ")).toEqual({ regionCode: undefined });
   });
+
+  it("accepts missing-region sentinel", () => {
+    expect(parseDoctorCatalogRegionQueryParam("__missing__")).toEqual({ regionCode: "__missing__" });
+  });
 });
 
 describe("resolveBodyRegionRefIdFromCatalogCode", () => {
@@ -50,5 +54,9 @@ describe("resolveBodyRegionRefIdFromCatalogCode", () => {
   it("returns null when code missing or unknown", () => {
     expect(resolveBodyRegionRefIdFromCatalogCode(items, undefined)).toBeNull();
     expect(resolveBodyRegionRefIdFromCatalogCode(items, "hip")).toBeNull();
+  });
+
+  it("returns null for missing-region sentinel (client-only filter)", () => {
+    expect(resolveBodyRegionRefIdFromCatalogCode(items, "__missing__")).toBeNull();
   });
 });

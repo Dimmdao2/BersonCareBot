@@ -1,6 +1,6 @@
 # Фаза 3 — Email setup tokens + письмо
 
-**Статус:** `pending`  
+**Статус:** `completed`  
 **Канон:** [MAIN PLAN.md](MAIN%20PLAN.md) §9, §2 (отправка ссылки)  
 **Зависит от:** [PHASE_02](PHASE_02_CONTACT_EMAIL_POLICY.md)  
 **Следующий:** [PHASE_04](PHASE_04_EMAIL_SETUP_FLOW.md)
@@ -36,18 +36,18 @@
 
 ## Definition of Done
 
-- [ ] Миграция применена локально; schema в `apps/webapp/db/schema`
-- [ ] Выпуск токена revokes предыдущие active для пары user+email
-- [ ] TTL 24h enforced
-- [ ] Письмо уходит через integrator `send-email` (расширить контракт при необходимости: subject/body link, не только `code`)
-- [ ] Тесты: create, revoke, expired, used, hash not stored plain
-- [ ] [`LOG.md`](LOG.md)
+- [x] Миграция применена локально; schema в `apps/webapp/db/schema`
+- [x] Выпуск токена revokes предыдущие active для пары user+email
+- [x] TTL 24h enforced
+- [x] Письмо уходит через integrator `send-email` (расширить контракт при необходимости: subject/body link, не только `code`)
+- [x] Тесты: create, revoke, expired, used, hash not stored plain
+- [x] [`LOG.md`](LOG.md)
 
 ## Локальные проверки
 
-- [ ] `pnpm --filter @bersoncare/webapp exec drizzle-kit check` (или project convention)
-- [ ] `pnpm --filter @bersoncare/webapp test` — новый модуль tokens
-- [ ] `rg user_email_setup_tokens` — только webapp modules/infra, не modules→repos нарушений ESLint
+- [x] `pnpm --filter @bersoncare/webapp exec drizzle-kit check` (или project convention)
+- [x] `pnpm --filter @bersoncare/webapp test` — новый модуль tokens
+- [x] `rg user_email_setup_tokens` — только webapp modules/infra, не modules→repos нарушений ESLint
 
 ## API (черновик для фазы 4)
 

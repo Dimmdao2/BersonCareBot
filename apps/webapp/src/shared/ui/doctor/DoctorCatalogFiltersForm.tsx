@@ -3,18 +3,20 @@
 import type { ReactNode } from "react";
 import { startTransition, useCallback, useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
-import { Settings } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ReferenceSelect } from "@/shared/ui/ReferenceSelect";
 import { EXERCISE_LOAD_TYPE_CATEGORY_CODE } from "@/modules/lfk-exercises/exerciseLoadTypeReference";
 import type { ExerciseLoadType } from "@/modules/lfk-exercises/types";
 import type { ReferenceItemDto } from "@/modules/references/referenceCache";
 import type { DoctorCatalogPubArchQuery } from "@/shared/lib/doctorCatalogListStatus";
+import { DOCTOR_CATALOG_FILTER_MISSING } from "@/shared/lib/doctorCatalogEmptyFieldFilter";
 import { dispatchDoctorCatalogUrlSync } from "@/shared/lib/doctorCatalogClientUrlSync";
 import { cn } from "@/lib/utils";
 
 const Q_DEBOUNCE_MS = 350;
+
+const missingRegionOption = { value: DOCTOR_CATALOG_FILTER_MISSING, label: "Без региона" };
+const missingLoadOption = { value: DOCTOR_CATALOG_FILTER_MISSING, label: "Без типа" };
 
 /** Альтернатива колонке «тип нагрузки»: свой справочник и имя GET-параметра (например область рекомендаций — `domain`). */
 export type DoctorCatalogTertiaryFilter = {
@@ -24,6 +26,8 @@ export type DoctorCatalogTertiaryFilter = {
   label: string;
   placeholder: string;
   clearLabel: string;
+  /** Подпись пункта «без значения» (по умолчанию «Без типа»). */
+  missingValueLabel?: string;
   /** Зарезервировано для подписей вне формы (строка под фильтрами удалена). */
   summaryLabel: string;
 };
@@ -34,7 +38,7 @@ export type DoctorCatalogFiltersFormProps = {
   q: string;
   /** Код `reference_items.code` категории `body_region` (в URL `?region=`). */
   regionCode?: string;
-  loadType?: ExerciseLoadType;
+  loadType?: ExerciseLoadType | string;
   /** Если false — колонка «Регион» скрыта (синхронизация `?region=` не используется). */
   showRegionFilter?: boolean;
   /** Если false — колонка «Тип нагрузки» скрыта (только когда нет `tertiaryFilter`). */
@@ -49,7 +53,7 @@ export type DoctorCatalogFiltersFormProps = {
   catalogPubArch?: DoctorCatalogPubArchQuery;
   /** Редко: доп. контроль слева (без фильтров по черновикам/архиву в статусе шаблона). */
   leadingSlot?: ReactNode;
-  /** Синхронизация высоты split-pane: второй ряд с регионом = `expanded`. */
+  /** Синхронизация высоты split-pane: всегда одна строка фильтров (`compact`). */
   onFilterToolbarLayoutChange?: (layout: DoctorCatalogToolbarLayout) => void;
 };
 
@@ -89,11 +93,9 @@ export function DoctorCatalogFiltersForm({
     tertiaryFilter?.value ?? null,
   );
   const [qInput, setQInput] = useState(q);
-  const [advancedOpen, setAdvancedOpen] = useState(false);
 
   const qInputRef = useRef(qInput);
   const qDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  /** Latest callback without listing it in layout effect deps (avoids duplicate layout notifications). */
   const onFilterToolbarLayoutChangeRef = useRef(onFilterToolbarLayoutChange);
 
   useEffect(() => {
@@ -101,16 +103,8 @@ export function DoctorCatalogFiltersForm({
   }, [onFilterToolbarLayoutChange]);
 
   useEffect(() => {
-    if (!showRegionFilter) setAdvancedOpen(false);
-  }, [showRegionFilter]);
-
-  useEffect(() => {
-    if (!showRegionFilter) {
-      onFilterToolbarLayoutChangeRef.current?.("compact");
-      return;
-    }
-    onFilterToolbarLayoutChangeRef.current?.(advancedOpen ? "expanded" : "compact");
-  }, [advancedOpen, showRegionFilter]);
+    onFilterToolbarLayoutChangeRef.current?.("compact");
+  }, []);
 
   useEffect(() => {
     qInputRef.current = qInput;
@@ -206,30 +200,16 @@ export function DoctorCatalogFiltersForm({
     };
   }, []);
 
-  const showAdvancedGear = showRegionFilter;
-
-  const regionField = (
-    <div className="w-40 shrink-0">
-      <label className="sr-only" htmlFor={`${idPrefix}-region`}>
-        Регион
-      </label>
-      <ReferenceSelect
-        id={`${idPrefix}-region`}
-        categoryCode="body_region"
-        valueMatch="code"
-        submitField="code"
-        value={selectedRegionCode}
-        onChange={(code) => {
-          setSelectedRegionCode(code);
-          navigateWithPatch({ region: code });
-        }}
-        placeholder="Выберите регион"
-        clearOptionLabel="Все регионы"
-        showAllOnFocus
-        searchable={false}
-      />
-    </div>
-  );
+  const regionField = showRegionFilter ? (
+    <RegionFilterField
+      idPrefix={idPrefix}
+      selectedRegionCode={selectedRegionCode}
+      onRegionChange={(code) => {
+        setSelectedRegionCode(code);
+        navigateWithPatch({ region: code });
+      }}
+    />
+  ) : null;
 
   let typesFilterNode: ReactNode = null;
   if (tertiaryFilter) {
@@ -250,6 +230,10 @@ export function DoctorCatalogFiltersForm({
           }}
           placeholder={tertiaryFilter.placeholder}
           clearOptionLabel={tertiaryFilter.clearLabel}
+          missingValueOption={{
+            value: DOCTOR_CATALOG_FILTER_MISSING,
+            label: tertiaryFilter.missingValueLabel ?? "Без типа",
+          }}
           showAllOnFocus
           searchable={false}
         />
@@ -273,6 +257,7 @@ export function DoctorCatalogFiltersForm({
           }}
           placeholder="Все типы"
           clearOptionLabel="Все типы"
+          missingValueOption={missingLoadOption}
           showAllOnFocus
           searchable={false}
         />
@@ -299,32 +284,40 @@ export function DoctorCatalogFiltersForm({
             className="w-full"
           />
         </div>
+        {regionField}
         {typesFilterNode}
-        {showAdvancedGear ? (
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            className="box-border size-9 min-h-[32px] shrink-0"
-            aria-expanded={advancedOpen}
-            aria-label={advancedOpen ? "Свернуть дополнительные фильтры" : "Все фильтры"}
-            aria-controls={advancedOpen ? `${idPrefix}-advanced-filters` : undefined}
-            onClick={() => setAdvancedOpen((o) => !o)}
-          >
-            <Settings className="size-4" aria-hidden />
-          </Button>
-        ) : null}
       </div>
-      {showRegionFilter && advancedOpen ? (
-        <div
-          id={`${idPrefix}-advanced-filters`}
-          className="flex flex-wrap items-center gap-2 border-t border-border/60 pt-2"
-          role="region"
-          aria-label="Дополнительные фильтры"
-        >
-          {regionField}
-        </div>
-      ) : null}
+    </div>
+  );
+}
+
+function RegionFilterField({
+  idPrefix,
+  selectedRegionCode,
+  onRegionChange,
+}: {
+  idPrefix: string;
+  selectedRegionCode: string | null;
+  onRegionChange: (code: string | null) => void;
+}) {
+  return (
+    <div className="w-40 shrink-0">
+      <label className="sr-only" htmlFor={`${idPrefix}-region`}>
+        Регион
+      </label>
+      <ReferenceSelect
+        id={`${idPrefix}-region`}
+        categoryCode="body_region"
+        valueMatch="code"
+        submitField="code"
+        value={selectedRegionCode}
+        onChange={onRegionChange}
+        placeholder="Выберите регион"
+        clearOptionLabel="Все регионы"
+        missingValueOption={missingRegionOption}
+        showAllOnFocus
+        searchable={false}
+      />
     </div>
   );
 }

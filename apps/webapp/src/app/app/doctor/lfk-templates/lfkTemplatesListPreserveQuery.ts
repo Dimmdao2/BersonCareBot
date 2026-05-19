@@ -1,5 +1,6 @@
 import type { ExerciseLoadType } from "@/modules/lfk-exercises/types";
 import { EXERCISE_LOAD_TYPE_SEED_CODES_ORDERED } from "@/modules/lfk-exercises/exerciseLoadTypeReference";
+import { DOCTOR_CATALOG_FILTER_MISSING } from "@/shared/lib/doctorCatalogEmptyFieldFilter";
 import { z } from "zod";
 import {
   applyDoctorCatalogPubArchToSearchParams,
@@ -12,7 +13,7 @@ const PUB_VALUES = ["all", "draft", "published"] as const;
 export type LfkTemplatesListPreserveInput = {
   q: string;
   regionCode?: string;
-  loadType?: ExerciseLoadType;
+  loadType?: ExerciseLoadType | typeof DOCTOR_CATALOG_FILTER_MISSING;
   listPubArch: DoctorCatalogPubArchQuery;
   /** Текущая сортировка в UI (может отличаться от URL до применения фильтров). */
   titleSort: "asc" | "desc" | null;
@@ -52,13 +53,20 @@ export function sanitizeLfkTemplatesListPreserveQuery(raw: string): string {
     region &&
     region.length <= 120 &&
     !/[\s<>"']/.test(region) &&
-    !z.string().uuid().safeParse(region).success
+    !z.string().uuid().safeParse(region).success &&
+    (region === DOCTOR_CATALOG_FILTER_MISSING || /^[a-z0-9_]+$/.test(region))
   ) {
     out.set("region", region);
   }
 
   const load = sp.get("load");
-  if (load && (EXERCISE_LOAD_TYPE_SEED_CODES_ORDERED as readonly string[]).includes(load)) out.set("load", load);
+  if (
+    load &&
+    (load === DOCTOR_CATALOG_FILTER_MISSING ||
+      (EXERCISE_LOAD_TYPE_SEED_CODES_ORDERED as readonly string[]).includes(load))
+  ) {
+    out.set("load", load);
+  }
 
   const titleSort = sp.get("titleSort");
   if (titleSort === "asc" || titleSort === "desc") out.set("titleSort", titleSort);

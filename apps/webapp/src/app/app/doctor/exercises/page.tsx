@@ -8,7 +8,7 @@ import type { Exercise, ExerciseUsageSnapshot } from "@/modules/lfk-exercises/ty
 import {
   EXERCISE_LOAD_TYPE_CATEGORY_CODE,
   exerciseLoadTypeWriteAllowSet,
-  parseExerciseLoadQueryParam,
+  parseExerciseLoadFilterQueryParam,
 } from "@/modules/lfk-exercises/exerciseLoadTypeReference";
 import { ExercisesPageClient } from "./ExercisesPageClient";
 
@@ -36,7 +36,7 @@ export default async function DoctorExercisesPage({ searchParams }: PageProps) {
     deps.references.listActiveItemsByCategoryCode(EXERCISE_LOAD_TYPE_CATEGORY_CODE),
   ]);
   const loadAllow = exerciseLoadTypeWriteAllowSet(loadTypeRefItems);
-  const loadType = parseExerciseLoadQueryParam(typeof sp.load === "string" ? sp.load : undefined, loadAllow);
+  const loadType = parseExerciseLoadFilterQueryParam(typeof sp.load === "string" ? sp.load : undefined, loadAllow);
 
   const { initialViewMode, viewLockedByUrl } = doctorCatalogViewFromSearchParams(
     typeof sp.view === "string" ? sp.view : undefined,

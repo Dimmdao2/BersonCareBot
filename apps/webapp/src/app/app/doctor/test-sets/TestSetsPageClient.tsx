@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState, useTransition } from "react"
 import { Button } from "@/components/ui/button";
 import type { TestSet, TestSetUsageSnapshot } from "@/modules/tests/types";
 import { cn } from "@/lib/utils";
+import { isDoctorCatalogMissingFilter } from "@/shared/lib/doctorCatalogEmptyFieldFilter";
 import { useDoctorCatalogDisplayList } from "@/shared/hooks/useDoctorCatalogDisplayList";
 import { useDoctorCatalogClientFilterMerge } from "@/shared/hooks/useDoctorCatalogClientFilterMerge";
 import { useDoctorCatalogMasterSelectionSync } from "@/shared/hooks/useDoctorCatalogMasterSelectionSync";
@@ -94,6 +95,11 @@ export function TestSetsPageClient({
   const displayList = useMemo(() => {
     const rc = mergedFilters.regionCode?.trim();
     if (!rc) return qSorted;
+    if (isDoctorCatalogMissingFilter(rc)) {
+      return qSorted.filter((s) =>
+        s.items.some((it) => !it.test.bodyRegionIds.length),
+      );
+    }
     return qSorted.filter((s) =>
       s.items.some((it) =>
         it.test.bodyRegionIds.some((bid) => bodyRegionIdToCode[bid] === rc),

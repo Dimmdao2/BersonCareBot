@@ -138,6 +138,39 @@ describe('POST /api/bersoncare/send-email', () => {
     expect(sendMailMock).not.toHaveBeenCalled();
   });
 
+  it('returns 200 for transactional text body without code', async () => {
+    vi.spyOn(smtpOutbound, resolveSmtpOutboundCfg).mockResolvedValue(MOCK_RESOLVED_CONFIGURED);
+    const sendMailMock = vi.spyOn(mailer, 'sendMail').mockResolvedValue({
+      accepted: ['user@example.com'],
+      rejected: [],
+      messageId: 'm2',
+    });
+
+    const app = await buildTestApp();
+    const body = JSON.stringify({
+      to: 'user@example.com',
+      subject: 'Подтвердите email',
+      text: 'https://app.example.com/app/auth/email-setup?token=est_test',
+    });
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/bersoncare/send-email',
+      headers: makeHeaders(body),
+      body,
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(sendMailMock).toHaveBeenCalledWith(
+      expect.objectContaining({ configured: true }),
+      expect.objectContaining({
+        to: 'user@example.com',
+        subject: 'Подтвердите email',
+        text: 'https://app.example.com/app/auth/email-setup?token=est_test',
+      }),
+    );
+  });
+
   it('returns 400 for invalid email payload', async () => {
     vi.spyOn(smtpOutbound, resolveSmtpOutboundCfg).mockResolvedValue(MOCK_RESOLVED_CONFIGURED);
     const sendMailMock = vi.spyOn(mailer, 'sendMail').mockResolvedValue({

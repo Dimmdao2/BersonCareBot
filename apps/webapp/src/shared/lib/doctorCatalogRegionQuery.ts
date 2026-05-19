@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { ReferenceItem } from "@/modules/references/types";
+import { isDoctorCatalogMissingFilterToken } from "@/shared/lib/doctorCatalogEmptyFieldFilter";
 
 const uuidSchema = z.string().uuid();
 
@@ -15,6 +16,7 @@ export function parseDoctorCatalogRegionQueryParam(raw: string | undefined): {
 } {
   const t = typeof raw === "string" ? raw.trim() : "";
   if (!t) return { regionCode: undefined };
+  if (isDoctorCatalogMissingFilterToken(t)) return { regionCode: t };
   if (uuidSchema.safeParse(t).success) return { regionCode: undefined };
   const lower = t.toLowerCase();
   if (!BODY_REGION_CODE_TOKEN.test(lower)) return { regionCode: undefined };
@@ -31,6 +33,7 @@ export function resolveBodyRegionRefIdFromCatalogCode(
 ): string | null {
   const t = regionCode?.trim();
   if (!t) return null;
+  if (isDoctorCatalogMissingFilterToken(t)) return null;
   const lower = t.toLowerCase();
   const it = bodyRegionItems.find((x) => x.code.toLowerCase() === lower);
   return it?.id ?? null;
