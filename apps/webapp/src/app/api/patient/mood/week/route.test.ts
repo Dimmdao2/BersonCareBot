@@ -27,8 +27,11 @@ const SESSION = {
 
 const fixtureSparkline = {
   days: [{ date: "2026-05-02", score: 3 as const, warmupHint: null, diaryNoteHint: null }],
-  previousSundayScore: null,
+  marks: [],
+  previousSundayHadMarks: false,
+  previousSundayLastScore: null,
   lastScoreBeforeWeek: null,
+  previousSundayScore: null,
 };
 
 describe("GET /api/patient/mood/week", () => {

@@ -270,7 +270,14 @@ export function createPatientMoodService(deps: PatientWellbeingMoodDeps) {
       if (d) dayKeys.push(d);
     }
     if (dayKeys.length === 0) {
-      return { days: [], previousSundayScore: null, lastScoreBeforeWeek: null };
+      return {
+        days: [],
+        marks: [],
+        previousSundayHadMarks: false,
+        previousSundayLastScore: null,
+        lastScoreBeforeWeek: null,
+        previousSundayScore: null,
+      };
     }
 
     const bridgeDayKeys: string[] = [];
@@ -312,21 +319,51 @@ export function createPatientMoodService(deps: PatientWellbeingMoodDeps) {
       return { date: d, score, warmupHint: null, diaryNoteHint: null };
     });
 
-    const prevSundayIso = monday.minus({ days: 1 }).toISODate();
-    const previousSundayScore = prevSundayIso ? dayScore(prevSundayIso) : null;
+    const weekMarks = entries
+      .filter((e) => e.entryType === "instant")
+      .map((e) => {
+        const localD = DateTime.fromISO(e.recordedAt, { zone: "utc" }).setZone(tz).toISODate();
+        if (!localD || !dayKeys.includes(localD)) return null;
+        const sc = toMoodScore(e.value0_10);
+        if (sc == null) return null;
+        return { recordedAt: e.recordedAt, score: sc };
+      })
+      .filter((m): m is NonNullable<typeof m> => m != null)
+      .sort((a, b) => a.recordedAt.localeCompare(b.recordedAt));
 
+    const prevSundayIso = monday.minus({ days: 1 }).toISODate();
+    const mondayIso = dayKeys[0]!;
+    let previousSundayLastScore: PatientMoodScore | null = null;
+    let previousSundayLastMs = -1;
     let lastScoreBeforeWeek: PatientMoodScore | null = null;
-    for (let i = 6; i >= 0; i -= 1) {
-      const ymd = prevMonday.plus({ days: i }).toISODate();
-      if (!ymd) continue;
-      const sc = dayScore(ymd);
-      if (sc != null) {
+    let lastBeforeWeekMs = -1;
+    for (const e of entries) {
+      if (e.entryType !== "instant") continue;
+      const localD = DateTime.fromISO(e.recordedAt, { zone: "utc" }).setZone(tz).toISODate();
+      if (!localD) continue;
+      const sc = toMoodScore(e.value0_10);
+      if (sc == null) continue;
+      const ms = new Date(e.recordedAt).getTime();
+      if (prevSundayIso && localD === prevSundayIso && ms >= previousSundayLastMs) {
+        previousSundayLastMs = ms;
+        previousSundayLastScore = sc;
+      }
+      if (localD < mondayIso && ms >= lastBeforeWeekMs) {
+        lastBeforeWeekMs = ms;
         lastScoreBeforeWeek = sc;
-        break;
       }
     }
+    const previousSundayHadMarks = previousSundayLastScore != null;
+    const previousSundayScore = prevSundayIso ? dayScore(prevSundayIso) : null;
 
-    return { days, previousSundayScore, lastScoreBeforeWeek };
+    return {
+      days,
+      marks: weekMarks,
+      previousSundayHadMarks,
+      previousSundayLastScore,
+      lastScoreBeforeWeek,
+      previousSundayScore,
+    };
   }
 
   return {

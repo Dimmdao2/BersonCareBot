@@ -2,7 +2,7 @@ import { DateTime } from "luxon";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import type { ReminderRule } from "@/modules/reminders/types";
 import { cn } from "@/lib/utils";
-import { patientMutedTextClass } from "@/shared/ui/patientVisual";
+import { patientInnerPageStackClass, patientMutedTextClass } from "@/shared/ui/patientVisual";
 import { formatBookingDateTimeMediumRu } from "@/shared/lib/formatBusinessDateTime";
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
 import { resolveCalendarDayIanaForPatient } from "@/modules/system-settings/calendarIana";
@@ -12,6 +12,7 @@ import { DEFAULT_WARMUPS_SECTION_SLUG } from "@/modules/patient-home/warmupsSect
 import { resolvePatientCanViewAuthOnlyContent } from "@/modules/platform-access";
 import { RemindersHashScroll } from "./RemindersHashScroll";
 import { RemindersPageAdditionalSection } from "./RemindersPageAdditionalSection";
+import { RemindersPageThirtyDayStats } from "./RemindersPageThirtyDayStats";
 import { filterPersonalRulesForSchedulePage } from "./filterPersonalRulesForSchedulePage";
 import type { AppSession } from "@/shared/types/session";
 import { PATIENT_REHAB_PROGRAM_LINKED_PLACEHOLDER } from "@/modules/reminders/rehabProgramLinkedObject";
@@ -173,7 +174,7 @@ export async function RemindersPageBody({ session }: { session: AppSession }) {
   }
 
   return (
-    <>
+    <div className={cn(patientInnerPageStackClass, "pb-10 md:pb-14")}>
       <RemindersHashScroll />
       <div className={cn(patientMutedTextClass, "mb-4 space-y-2")}>
         <p>Настройте расписания для разминок и тренировок.</p>
@@ -203,10 +204,9 @@ export async function RemindersPageBody({ session }: { session: AppSession }) {
         patientCalendarDayIana={patientCalendarDayIana}
       />
 
-      <RemindersPageAdditionalSection
-        muteUntilLabel={muteUntilLabel}
-        projectionStats={projectionStats}
-      />
-    </>
+      <RemindersPageAdditionalSection muteUntilLabel={muteUntilLabel} />
+
+      <RemindersPageThirtyDayStats projectionStats={projectionStats} />
+    </div>
   );
 }

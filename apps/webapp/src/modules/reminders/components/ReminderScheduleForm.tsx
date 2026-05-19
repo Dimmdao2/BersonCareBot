@@ -83,10 +83,10 @@ export function ReminderScheduleForm({
   setSlotTimeRows,
   slotsDayFilter,
   setSlotsDayFilter,
-  quietStart,
-  setQuietStart,
-  quietEnd,
-  setQuietEnd,
+  quietStart: _quietStart,
+  setQuietStart: _setQuietStart,
+  quietEnd: _quietEnd,
+  setQuietEnd: _setQuietEnd,
   deliveryNote,
   previewBadgeLabel,
   previewText,
@@ -109,16 +109,6 @@ export function ReminderScheduleForm({
     else setDaysMask("0000000");
   };
 
-  const applyQuietPresetNight = () => {
-    setQuietStart("22:00");
-    setQuietEnd("08:00");
-  };
-
-  const clearQuiet = () => {
-    setQuietStart("");
-    setQuietEnd("");
-  };
-
   const defaultSlotForNewRow =
     linkedObjectTypeForDefaults === "rehab_program"
       ? DEFAULT_REHAB_DAILY_SLOTS.timesLocal[0] ?? "09:00"
@@ -128,31 +118,33 @@ export function ReminderScheduleForm({
     <div className="flex flex-col gap-3">
       <div className={reminderScheduleSettingPanelClass}>
         <h3 className={patientSectionTitleNormalClass}>Тип расписания</h3>
-        <p className="text-xs text-muted-foreground">
-          {scheduleMode === "slots_v1"
-            ? "Напоминать несколько раз в день в выбранное время."
-            : "Напоминать каждые N минут в выбранном окне времени."}
-        </p>
-        <div className="flex flex-wrap gap-2">
+        <div className="grid grid-cols-2 gap-2">
           <Button
             type="button"
             variant={scheduleMode === "interval_window" ? "default" : "outline"}
             size="sm"
+            className="w-full"
             onClick={() => setScheduleMode("interval_window")}
             disabled={submitting}
           >
-            Интервал в окне
+            Интервальные
           </Button>
           <Button
             type="button"
             variant={scheduleMode === "slots_v1" ? "default" : "outline"}
             size="sm"
+            className="w-full"
             onClick={() => setScheduleMode("slots_v1")}
             disabled={submitting}
           >
-            Фиксированные напоминания
+            Фиксированное время
           </Button>
         </div>
+        <p className="text-xs text-muted-foreground">
+          {scheduleMode === "slots_v1"
+            ? "Напоминать несколько раз в день в выбранное время."
+            : "Напоминать каждые N минут в выбранном окне времени."}
+        </p>
       </div>
 
       {scheduleMode === "interval_window" ? (
@@ -357,45 +349,6 @@ export function ReminderScheduleForm({
           </p>
         </div>
       )}
-
-      <div className={reminderScheduleSettingPanelClass}>
-        <Label className="text-sm">Тихие часы (необязательно)</Label>
-        <div className="flex flex-wrap gap-2">
-          <Button type="button" size="sm" variant="outline" disabled={submitting} onClick={applyQuietPresetNight}>
-            Ночь 22:00–08:00
-          </Button>
-          <Button type="button" size="sm" variant="ghost" disabled={submitting} onClick={clearQuiet}>
-            Очистить
-          </Button>
-        </div>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="space-y-1.5">
-            <Label htmlFor={`${formId}-quiet-s`}>С</Label>
-            <Input
-              id={`${formId}-quiet-s`}
-              type="time"
-              value={quietStart}
-              onChange={(e) => setQuietStart(e.target.value)}
-              disabled={submitting}
-              aria-invalid={fi.quietHours || undefined}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor={`${formId}-quiet-e`}>До</Label>
-            <Input
-              id={`${formId}-quiet-e`}
-              type="time"
-              value={quietEnd}
-              onChange={(e) => setQuietEnd(e.target.value)}
-              disabled={submitting}
-              aria-invalid={fi.quietHours || undefined}
-            />
-          </div>
-        </div>
-        <p className="text-xs text-muted-foreground">
-          Конец тихих часов: до 23:59 в этом поле; полночь задайте как отдельный интервал при необходимости.
-        </p>
-      </div>
 
       {deliveryNote ? (
         <div className={cn(reminderScheduleSettingPanelClass, "gap-2")}>

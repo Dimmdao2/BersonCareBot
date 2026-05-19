@@ -37,13 +37,25 @@ export type PatientMoodWeekDay = {
   diaryNoteHint: null;
 };
 
+/** Одна instant-отметка самочувствия (для линии «в течение дня» на главной). */
+export type PatientMoodWeekMark = {
+  recordedAt: string;
+  score: PatientMoodScore;
+};
+
 /** Mon–Sun sparkline plus bridge from the previous calendar week (home strip). */
 export type PatientMoodWeekSparkline = {
   days: PatientMoodWeekDay[];
-  /** Daily average on the Sunday immediately before this week (in tz), if any. */
-  previousSundayScore: PatientMoodScore | null;
-  /** Daily average on the latest prior local day with data before this week's Monday, if any. */
+  /** Все instant-отметки текущей недели (пн–вс), по времени. */
+  marks: PatientMoodWeekMark[];
+  /** Были ли instant-отметки в воскресенье непосредственно перед этой неделей. */
+  previousSundayHadMarks: boolean;
+  /** Последняя оценка в это воскресенье (для сплошного моста к понедельнику). */
+  previousSundayLastScore: PatientMoodScore | null;
+  /** Последняя instant-оценка до понедельника текущей недели (если воскресенья не было). */
   lastScoreBeforeWeek: PatientMoodScore | null;
+  /** @deprecated Используйте previousSundayHadMarks / previousSundayLastScore. */
+  previousSundayScore: PatientMoodScore | null;
 };
 
 export function isPatientMoodScore(value: number): value is PatientMoodScore {

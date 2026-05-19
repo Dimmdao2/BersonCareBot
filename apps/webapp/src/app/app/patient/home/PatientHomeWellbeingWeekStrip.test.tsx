@@ -18,7 +18,12 @@ describe("PatientHomeWellbeingWeekStrip", () => {
     vi.setSystemTime(monday.toMillis());
     const { container } = render(
       <PatientHomeWellbeingWeekStrip
-        days={[{ date: "2026-05-18", score: 5, warmupHint: null, diaryNoteHint: null }]}
+        marks={[
+          {
+            recordedAt: DateTime.fromISO("2026-05-18T10:00:00", { zone: "Europe/Moscow" }).toUTC().toISO()!,
+            score: 5,
+          },
+        ]}
         timeZone="Europe/Moscow"
       />,
     );
@@ -26,7 +31,7 @@ describe("PatientHomeWellbeingWeekStrip", () => {
     expect(dashed).not.toBeNull();
     const d = dashed?.getAttribute("d") ?? "";
     expect(d.startsWith("M 0 ")).toBe(true);
-    expect(container.querySelectorAll("line[x1][x2]").length).toBe(1);
+    expect(container.querySelectorAll("line").length).toBe(1);
   });
 
   it("uses a solid gradient bridge from previous Sunday to Monday when both exist", () => {
@@ -34,9 +39,15 @@ describe("PatientHomeWellbeingWeekStrip", () => {
     vi.setSystemTime(monday.toMillis());
     const { container } = render(
       <PatientHomeWellbeingWeekStrip
-        days={[{ date: "2026-05-18", score: 5, warmupHint: null, diaryNoteHint: null }]}
+        marks={[
+          {
+            recordedAt: DateTime.fromISO("2026-05-18T10:00:00", { zone: "Europe/Moscow" }).toUTC().toISO()!,
+            score: 5,
+          },
+        ]}
         timeZone="Europe/Moscow"
-        previousSundayScore={4}
+        previousSundayHadMarks
+        previousSundayLastScore={4}
         lastScoreBeforeWeek={4}
       />,
     );

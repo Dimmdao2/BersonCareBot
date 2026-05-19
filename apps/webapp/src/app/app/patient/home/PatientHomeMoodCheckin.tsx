@@ -10,7 +10,7 @@ import type {
   PatientMoodLastEntry,
   PatientMoodScore,
   PatientMoodToday,
-  PatientMoodWeekDay,
+  PatientMoodWeekMark,
 } from "@/modules/patient-mood/types";
 import type { PatientHomeMoodIconOption } from "@/modules/patient-home/patientHomeMoodIcons";
 import {
@@ -31,8 +31,9 @@ type Props = {
   anonymousGuest: boolean;
   initialMood?: PatientMoodToday | null;
   initialLastEntry?: PatientMoodLastEntry | null;
-  moodWeekDays?: readonly PatientMoodWeekDay[];
-  moodWeekPreviousSundayScore?: PatientMoodScore | null;
+  moodWeekMarks?: readonly PatientMoodWeekMark[];
+  moodWeekPreviousSundayHadMarks?: boolean;
+  moodWeekPreviousSundayLastScore?: PatientMoodScore | null;
   moodWeekLastScoreBeforeWeek?: PatientMoodScore | null;
   /** IANA для полосы «Ваша неделя» — те же календарные сутки, что график самочувствия в дневнике. */
   wellbeingWeekTimeZone?: string;
@@ -44,8 +45,9 @@ export function PatientHomeMoodCheckin({
   anonymousGuest,
   initialMood = null,
   initialLastEntry = null,
-  moodWeekDays = [],
-  moodWeekPreviousSundayScore = null,
+  moodWeekMarks = [],
+  moodWeekPreviousSundayHadMarks = false,
+  moodWeekPreviousSundayLastScore = null,
   moodWeekLastScoreBeforeWeek = null,
   wellbeingWeekTimeZone = "UTC",
 }: Props) {
@@ -175,9 +177,10 @@ export function PatientHomeMoodCheckin({
                     Ваша неделя
                   </h3>
                   <PatientHomeWellbeingWeekStrip
-                    days={moodWeekDays}
+                    marks={moodWeekMarks}
                     timeZone={wellbeingWeekTimeZone}
-                    previousSundayScore={moodWeekPreviousSundayScore}
+                    previousSundayHadMarks={moodWeekPreviousSundayHadMarks}
+                    previousSundayLastScore={moodWeekPreviousSundayLastScore}
                     lastScoreBeforeWeek={moodWeekLastScoreBeforeWeek}
                   />
                 </div>

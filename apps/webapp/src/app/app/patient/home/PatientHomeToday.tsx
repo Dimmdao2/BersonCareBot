@@ -24,7 +24,7 @@ import { DEFAULT_WARMUPS_SECTION_SLUG } from "@/modules/patient-home/warmupsSect
 import { pickActivePlanInstance } from "@/modules/treatment-program/pickActivePlanInstance";
 import { formatBookingDateLongRu } from "@/shared/lib/formatBusinessDateTime";
 import type { PatientHomeBlockCode } from "@/modules/patient-home/ports";
-import type { PatientMoodCheckinState, PatientMoodScore, PatientMoodWeekDay } from "@/modules/patient-mood/types";
+import type { PatientMoodCheckinState, PatientMoodScore, PatientMoodWeekMark } from "@/modules/patient-mood/types";
 import type {
   ResolvedCarouselCard,
   ResolvedCourseCard,
@@ -200,8 +200,9 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
   let planStartLessonHref: string | null = null;
   let progress: { todayDone: number; streak: number } | null = null;
   let initialMoodCheckin: PatientMoodCheckinState | null = null;
-  let moodWeekDays: PatientMoodWeekDay[] = [];
-  let moodWeekPreviousSundayScore: PatientMoodScore | null = null;
+  let moodWeekMarks: PatientMoodWeekMark[] = [];
+  let moodWeekPreviousSundayHadMarks = false;
+  let moodWeekPreviousSundayLastScore: PatientMoodScore | null = null;
   let moodWeekLastScoreBeforeWeek: PatientMoodScore | null = null;
   let hasConfiguredSchedule = false;
   let reminderDaySummary: {
@@ -372,8 +373,9 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
       }
     }
     initialMoodCheckin = moodState;
-    moodWeekDays = weekSparkline.days;
-    moodWeekPreviousSundayScore = weekSparkline.previousSundayScore;
+    moodWeekMarks = weekSparkline.marks;
+    moodWeekPreviousSundayHadMarks = weekSparkline.previousSundayHadMarks;
+    moodWeekPreviousSundayLastScore = weekSparkline.previousSundayLastScore;
     moodWeekLastScoreBeforeWeek = weekSparkline.lastScoreBeforeWeek;
     if (deps.reminderJournal) {
       const muteRemainingLabel =
@@ -467,8 +469,9 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
             anonymousGuest={anonymousGuest}
             initialMood={initialMoodCheckin?.mood ?? null}
             initialLastEntry={initialMoodCheckin?.lastEntry ?? null}
-            moodWeekDays={moodWeekDays}
-            moodWeekPreviousSundayScore={moodWeekPreviousSundayScore}
+            moodWeekMarks={moodWeekMarks}
+            moodWeekPreviousSundayHadMarks={moodWeekPreviousSundayHadMarks}
+            moodWeekPreviousSundayLastScore={moodWeekPreviousSundayLastScore}
             moodWeekLastScoreBeforeWeek={moodWeekLastScoreBeforeWeek}
             wellbeingWeekTimeZone={moodWeekTz}
           />

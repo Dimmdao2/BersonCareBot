@@ -695,14 +695,6 @@ export function ReminderRulesClient({
         </>
       ) : null}
 
-      {personalRowsMain.length === 0 ? (
-        <div className="mb-4 mt-2">
-          <Button type="button" className="w-full sm:w-auto" onClick={() => setCustomOpen(true)}>
-            Создать напоминание
-          </Button>
-        </div>
-      ) : null}
-
       <ReminderCreateDialog
         open={customOpen}
         onOpenChange={setCustomOpen}

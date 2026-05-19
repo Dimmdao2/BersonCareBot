@@ -119,6 +119,38 @@ describe("createPatientMoodService getWeekSparkline", () => {
     expect(tue?.score).toBe(3);
   });
 
+  it("returns all instant marks for the week (not only daily average)", async () => {
+    listSymptomEntriesForTrackingInRange.mockResolvedValue([
+      {
+        id: "a",
+        userId,
+        trackingId,
+        value0_10: 2,
+        entryType: "instant",
+        recordedAt: DateTime.fromISO("2026-05-06T08:00:00", { zone: tz }).toUTC().toISO()!,
+        source: "webapp",
+        notes: null,
+        createdAt: "",
+      },
+      {
+        id: "b",
+        userId,
+        trackingId,
+        value0_10: 4,
+        entryType: "instant",
+        recordedAt: DateTime.fromISO("2026-05-06T20:00:00", { zone: tz }).toUTC().toISO()!,
+        source: "webapp",
+        notes: null,
+        createdAt: "",
+      },
+    ]);
+
+    const svc = createPatientMoodService(deps);
+    const { marks } = await svc.getWeekSparkline(userId, tz);
+    expect(marks).toHaveLength(2);
+    expect(marks.map((m) => m.score)).toEqual([2, 4]);
+  });
+
   it("exposes previous-week bridge scores for the home strip", async () => {
     listSymptomEntriesForTrackingInRange.mockResolvedValue([
       {
@@ -147,6 +179,8 @@ describe("createPatientMoodService getWeekSparkline", () => {
 
     const svc = createPatientMoodService(deps);
     const sparkline = await svc.getWeekSparkline(userId, tz);
+    expect(sparkline.previousSundayHadMarks).toBe(true);
+    expect(sparkline.previousSundayLastScore).toBe(4);
     expect(sparkline.previousSundayScore).toBe(4);
     expect(sparkline.lastScoreBeforeWeek).toBe(4);
     expect(sparkline.days.find((d) => d.date === "2026-05-04")?.score).toBe(5);
