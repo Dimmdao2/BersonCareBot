@@ -2,12 +2,13 @@
 
 Инициатива: корректный identity-flow для пациентов из Rubitime, вход по email на **существующую** карточку (без дублей), setup access вместо «тупика» duplicate_email / silent forgot.
 
-- **Согласованный scope (волна 1):** [`SCOPE_DECISIONS.md`](SCOPE_DECISIONS.md) — только **live-flow**; фазы 6–8 **отложены** (задачи по старой базе сохранены в планах).
+- **Согласованный scope (волна 1):** [`SCOPE_DECISIONS.md`](SCOPE_DECISIONS.md) — **live-flow** + фаза 6 (merge-страховка); фазы 7–8 **отложены** (backfill / mass setup).
 - **Мастер-постановка (канон требований):** [`MAIN PLAN.md`](MAIN%20PLAN.md)
 - **Дорожная карта (индекс этапов):** [`ROADMAP.md`](ROADMAP.md)
 - **Журнал исполнения:** [`LOG.md`](LOG.md)
 - **Отчёт аудита (фаза 0):** [`AUDIT_REPORT.md`](AUDIT_REPORT.md)
 - **Карта кода для аудита (фаза 0):** [`CODE_AUDIT_MAP.md`](CODE_AUDIT_MAP.md)
+- **Аудиты этапов 1–6:** [`PHASE_01_AUDIT.md`](PHASE_01_AUDIT.md) … [`PHASE_06_AUDIT.md`](PHASE_06_AUDIT.md)
 
 ## Этапы
 
@@ -19,7 +20,7 @@
 | 3 | [PHASE_03_EMAIL_SETUP_TOKENS.md](PHASE_03_EMAIL_SETUP_TOKENS.md) | Таблица токенов, сервис, письмо |
 | 4 | [PHASE_04_EMAIL_SETUP_FLOW.md](PHASE_04_EMAIL_SETUP_FLOW.md) | UI/API `/app/auth/email-setup` |
 | 5 | [PHASE_05_AUTH_REGISTER_LOGIN_FORGOT.md](PHASE_05_AUTH_REGISTER_LOGIN_FORGOT.md) | Состояния email в AuthFlow + API |
-| 6 | [PHASE_06_MERGE_IDENTITY.md](PHASE_06_MERGE_IDENTITY.md) | Merge — **отложено** |
+| 6 | [PHASE_06_MERGE_IDENTITY.md](PHASE_06_MERGE_IDENTITY.md) | Merge — страховка, тесты + docs |
 | 7 | [PHASE_07_BACKFILL_APPOINTMENTS.md](PHASE_07_BACKFILL_APPOINTMENTS.md) | Backfill старой базы — **отложено** |
 | 8 | [PHASE_08_MASS_SETUP_EMAIL.md](PHASE_08_MASS_SETUP_EMAIL.md) | Mass setup mail — **отложено** |
 

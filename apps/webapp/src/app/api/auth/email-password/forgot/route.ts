@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { normalizeEmail, startEmailChallenge } from "@/modules/auth/emailAuth";
+import { requestEmailSetupAccessForUser } from "@/modules/auth/emailPasswordLookup/requestSetupAccess";
 import { OTP_RESEND_COOLDOWN_SEC } from "@/modules/auth/otpConstants";
 
 const bodySchema = z.object({
@@ -21,8 +22,8 @@ function forgotPasswordNeutralResponse(challengeRetryAfter?: number) {
  * Подтверждение: {@link consumeLatestEmailChallengeCodeForUser} или `POST …/reset` с `challengeId`.
  *
  * Contact-only email (врач/Rubitime, `email_verified_at` NULL, нет `user_password_credentials`) **не** получает
- * reset: {@link findVerifiedUserIdWithPassword} требует и verified email, и строку пароля. До PHASE_05 — setup access
- * через `emailSetupAccess` / register lookup, не forgot.
+ * reset OTP: при {@link resolveAuthState} `needs_email_setup` отправляется setup-link (`emailSetupAccess`), HTTP-ответ
+ * остаётся нейтральным `{ ok: true }`.
  */
 export async function POST(request: Request) {
   const raw = (await request.json().catch(() => null)) as unknown;
@@ -34,11 +35,19 @@ export async function POST(request: Request) {
   const emailNorm = normalizeEmail(parsed.data.email);
   const deps = buildAppDeps();
   const userId = await deps.userPasswordCredentials.findVerifiedUserIdWithPassword(emailNorm);
-  if (!userId) {
-    return forgotPasswordNeutralResponse();
+  if (userId) {
+    void startEmailChallenge(userId, emailNorm).catch(() => undefined);
+    return forgotPasswordNeutralResponse(OTP_RESEND_COOLDOWN_SEC);
   }
 
-  // Запускаем отправку асинхронно, чтобы HTTP-ответ не раскрывал существование email по latency.
-  void startEmailChallenge(userId, emailNorm).catch(() => undefined);
-  return forgotPasswordNeutralResponse(OTP_RESEND_COOLDOWN_SEC);
+  const state = await deps.emailPasswordLookup.resolveAuthState(emailNorm);
+  if (state.kind === "needs_email_setup") {
+    void requestEmailSetupAccessForUser(deps.emailSetupAccess, {
+      userId: state.userId,
+      emailNormalized: emailNorm,
+      source: "manual_resend",
+    }).catch(() => undefined);
+  }
+
+  return forgotPasswordNeutralResponse();
 }

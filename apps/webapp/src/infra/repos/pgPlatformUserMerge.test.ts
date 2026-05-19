@@ -98,6 +98,37 @@ describe("mergePlatformUsersInTransaction (manual)", () => {
     expect(upd).toBeTruthy();
   });
 
+  it("repoints appointments and diary/warmup domains to canonical user (MAIN PLAN §7)", async () => {
+    const sqlLog: string[] = [];
+    const client = makeClient(sqlLog);
+    await mergePlatformUsersInTransaction(client, T, D, "manual", { resolution: baseResolution() });
+
+    expect(sqlLog.some((q) => q.includes("UPDATE appointment_records SET platform_user_id"))).toBe(true);
+    expect(sqlLog.some((q) => q.includes("UPDATE patient_bookings SET platform_user_id"))).toBe(true);
+    expect(sqlLog.some((q) => q.includes("UPDATE reminder_rules SET platform_user_id"))).toBe(true);
+    expect(
+      sqlLog.some(
+        (q) =>
+          q.includes("UPDATE symptom_trackings SET user_id = $1::text, platform_user_id = $2::uuid") &&
+          q.includes("WHERE user_id = $3::text OR platform_user_id = $4::uuid"),
+      ),
+    ).toBe(true);
+    expect(sqlLog.some((q) => q.includes("UPDATE symptom_entries SET user_id = $1::text"))).toBe(true);
+
+    const dedupeSingleton = sqlLog.filter(
+      (q) => q.includes("UPDATE symptom_trackings st") && q.includes("FROM dup"),
+    );
+    expect(dedupeSingleton.length).toBeGreaterThanOrEqual(2);
+    const bulkSymptomIdx = sqlLog.findIndex((q) =>
+      q.includes("UPDATE symptom_trackings SET user_id = $1::text, platform_user_id = $2::uuid"),
+    );
+    const firstDedupeIdx = sqlLog.findIndex(
+      (q) => q.includes("UPDATE symptom_trackings st") && q.includes("FROM dup"),
+    );
+    expect(firstDedupeIdx).toBeGreaterThan(-1);
+    expect(bulkSymptomIdx).toBeGreaterThan(firstDedupeIdx);
+  });
+
   it("rejects two different non-null integrator_user_id with MergeConflictError", async () => {
     const query = vi.fn(async (sql: string) => {
       const s = String(sql);

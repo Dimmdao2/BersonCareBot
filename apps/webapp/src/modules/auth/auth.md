@@ -34,9 +34,11 @@
 
 ### Email + пароль (пациент)
 
-- **`POST /api/auth/email-password/register`** — создание канона с паролем в `user_password_credentials`, отправка кода на почту (`startEmailChallenge`).
+- **`POST /api/auth/email-password/register`** — создание канона с паролем в `user_password_credentials`, отправка кода на почту (`startEmailChallenge`). Если email уже на **contact-only** карточке (врач/Rubitime, нет `user_password_credentials` или нет полноценного login) — **200** `{ ok: true, error: "existing_account_needs_email_setup", setupLinkSent: true }` и письмо со ссылкой `/app/auth/email-setup` (не `duplicate_email`).
+- **`POST /api/auth/email-password/lookup`** — `{ ok: true, state }` для ветвления UI (`free` | `pending_registration` | `verified_with_password` | `needs_email_setup` | `email_conflict`).
+- **`POST /api/auth/email-password/setup-access`** — повторная отправка setup-link для `needs_email_setup`.
 - **`POST /api/auth/email-password/login`** — при верном пароле и **`email_verified_at`** возвращает сессию и `redirectTo`. Если пароль верный, но email ещё не подтверждён — **409** `email_not_verified` (UI запускает повторную регистрацию/код).
-- **`POST /api/auth/email-password/forgot`** — сброс: код на почту для пользователя с подтверждённым email и паролем; ответ **всегда** **`{ ok: true, retryAfterSeconds }`** (без `challengeId`, uniform при отсутствии учётки / rate limit / сбое отправки).
+- **`POST /api/auth/email-password/forgot`** — сброс: код на почту только для **verified + password**; для **contact-only** (`needs_email_setup`) — setup-link в фоне, HTTP **всегда** **`{ ok: true, retryAfterSeconds }`** (без `challengeId`, uniform при отсутствии учётки / rate limit / сбое отправки).
 - **`POST /api/auth/email-password/reset`** — проверка кода через `consumeEmailChallengeCode` (если передан `challengeId`) или `consumeLatestEmailChallengeCodeForUser`, обновление хэша пароля; ошибки верификации кода (включая случай отсутствия пользователя) нормализуются в нейтральный `invalid_code`.
 
 ## Мессенджеры и обмен токенами

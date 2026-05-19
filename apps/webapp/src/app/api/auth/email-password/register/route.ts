@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { normalizeEmail, startEmailChallenge } from "@/modules/auth/emailAuth";
+import { requestEmailSetupAccessForUser } from "@/modules/auth/emailPasswordLookup/requestSetupAccess";
 import { hashPin } from "@/modules/auth/pinHash";
 
 const bodySchema = z.object({
@@ -53,14 +54,44 @@ export async function POST(request: Request) {
   }
 
   if (reg.reason === "duplicate_email") {
-    const resent = await deps.userPasswordCredentials.tryResendRegistrationChallenge({
-      emailNormalized: emailNorm,
-      plainPassword: parsed.data.password,
-    });
-    if (!resent.ok) {
+    const state = await deps.emailPasswordLookup.resolveAuthState(emailNorm);
+
+    if (state.kind === "needs_email_setup") {
+      const sent = await requestEmailSetupAccessForUser(deps.emailSetupAccess, {
+        userId: state.userId,
+        emailNormalized: emailNorm,
+        source: "registration_claim",
+      });
+      if (!sent.ok) {
+        return NextResponse.json({ ok: false, error: sent.error }, { status: 503 });
+      }
+      return NextResponse.json({
+        ok: true,
+        error: "existing_account_needs_email_setup",
+        setupLinkSent: true,
+      });
+    }
+
+    if (state.kind === "email_conflict") {
+      return NextResponse.json({ ok: false, error: "email_conflict" }, { status: 409 });
+    }
+
+    if (state.kind === "verified_with_password") {
       return NextResponse.json({ ok: false, error: "duplicate_email" }, { status: 409 });
     }
-    return respondWithChallenge(resent.userId, false);
+
+    if (state.kind === "pending_registration") {
+      const resent = await deps.userPasswordCredentials.tryResendRegistrationChallenge({
+        emailNormalized: emailNorm,
+        plainPassword: parsed.data.password,
+      });
+      if (!resent.ok) {
+        return NextResponse.json({ ok: false, error: "duplicate_email" }, { status: 409 });
+      }
+      return respondWithChallenge(resent.userId, false);
+    }
+
+    return NextResponse.json({ ok: false, error: "duplicate_email" }, { status: 409 });
   }
 
   return NextResponse.json({ ok: false, error: "duplicate_email" }, { status: 409 });

@@ -80,6 +80,28 @@
 
 **Снято (APP_RESTRUCTURE этап 1, webapp):** таблица `news_item_views` удалена миграцией `apps/webapp/db/drizzle-migrations/0016_drop_news_broadcast_channels.sql` — для merge больше не применяется; исторические миграции `062–064` в `apps/webapp/migrations/` отражают состояние до drop.
 
+## Login / Register initiative — identity vs merge (страховка)
+
+Канон продуктового потока: [`../LOGIN_REGISTER_NEW_LOGIC/MAIN PLAN.md`](../LOGIN_REGISTER_NEW_LOGIC/MAIN%20PLAN.md) §1–7, журнал — [`../LOGIN_REGISTER_NEW_LOGIC/LOG.md`](../LOGIN_REGISTER_NEW_LOGIC/LOG.md).
+
+| Слой | Роль |
+|------|------|
+| **Live identity (фаза 1+)** | Предотвращение дублей: Rubitime `booking.upsert` → `appointment.record.upserted` → `ensureAppointmentClientTx` (phone → integrator_id → email); trusted phone; contact email без auto-password. |
+| **Email setup / register (фазы 3–5)** | Contact-only не плодит второго `platform_user`; `email_conflict` / несколько кандидатов — **без** automerge. |
+| **Merge (этот документ)** | Страховка, если дубль уже есть: ручной merge в кабинете врача или auto-merge на ingestion / phone bind. |
+
+### Ограничения auto-merge (не заменяют support / manual merge)
+
+| Ситуация | Поведение |
+|----------|-----------|
+| Register/login: `email_conflict` (`resolveAuthState`) | HTTP **409** `email_conflict`; **не** сливать пользователей автоматически — оператор / support. |
+| Два canonical с **разным verified email** на одном нормализованном адресе | Ручной merge с выбором `resolution.fields.email`; auto-merge по email **не** выполняется. |
+| `appointment.record.upserted` / phone bind: `MergeConflictError` / `MergeDependentConflictError` | Событие **202**, аудит `auto_merge_conflict`, projection **без** привязки к «первому попавшемуся» user (см. § Projection ingestion ниже). |
+| Два **разных** non-null `integrator_user_id` | **v1:** hard blocker; **v2:** сначала integrator canonical merge, затем webapp merge. |
+| Один телефон, meaningful data на обоих | Hard blocker `shared_phone_both_have_meaningful_data` — только ручное решение. |
+
+Регрессия сценария «приёмы (Rubitime) + дневник/разминка (PWA) на одном canonical» — unit-тест `repoints appointments and diary/warmup domains to canonical user` в `pgPlatformUserMerge.test.ts` (manual merge path).
+
 ## Интеграционный ingestion (Rubitime)
 
 - `appointment.record.upserted` в webapp должен:

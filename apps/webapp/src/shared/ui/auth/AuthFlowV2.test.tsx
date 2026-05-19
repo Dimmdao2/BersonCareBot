@@ -349,6 +349,48 @@ describe("AuthFlowV2 — browser", () => {
     expect(screen.queryByRole("button", { name: "Войти через Google" })).not.toBeInTheDocument();
   });
 
+  it("shows email setup prompt when register returns existing_account_needs_email_setup", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL) => {
+        const url = typeof input === "string" ? input : input.toString();
+        if (url.includes("/api/auth/email-password/register")) {
+          return jsonRes({
+            ok: true,
+            error: "existing_account_needs_email_setup",
+            setupLinkSent: true,
+          });
+        }
+        return jsonRes({});
+      }),
+    );
+
+    render(
+      <AuthFlowV2
+        nextParam={null}
+        prefetchedAuthConfig={{
+          oauthProviders: { yandex: false, google: false, apple: false },
+          telegramBotUsername: null,
+          maxBotOpenUrl: null,
+          fetchedAt: Date.now(),
+        }}
+      />,
+    );
+
+    await waitFor(() => expect(document.getElementById("auth-flow-v2-email-password")).toBeTruthy());
+    await user.click(screen.getByRole("tab", { name: "Регистрация" }));
+    await user.type(screen.getByLabelText("Имя"), "Иван");
+    await user.type(screen.getByLabelText("Email"), "bot@example.com");
+    await user.type(screen.getByLabelText("Пароль"), "password12");
+    await user.click(screen.getByRole("button", { name: "Продолжить" }));
+
+    expect(
+      await screen.findByText(/Аккаунт с этой почтой уже есть/i),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Отправить ссылку" })).toBeInTheDocument();
+  });
+
   it("opens forgot-password subflow from login form", async () => {
     const user = userEvent.setup();
     vi.stubGlobal("fetch", vi.fn(() => jsonRes({})));

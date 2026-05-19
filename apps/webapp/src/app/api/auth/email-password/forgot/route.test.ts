@@ -1,11 +1,19 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
 const findVerified = vi.fn();
+const resolveAuthState = vi.fn();
+const requestContactEmailSetup = vi.fn();
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
     userPasswordCredentials: {
       findVerifiedUserIdWithPassword: findVerified,
+    },
+    emailPasswordLookup: {
+      resolveAuthState,
+    },
+    emailSetupAccess: {
+      requestContactEmailSetup,
     },
   }),
 }));
@@ -27,10 +35,13 @@ describe("POST /api/auth/email-password/forgot", () => {
   beforeEach(() => {
     findVerified.mockReset();
     startEmailChallenge.mockReset();
+    resolveAuthState.mockReset();
+    requestContactEmailSetup.mockReset();
   });
 
   it("returns same response shape without challengeId for missing user and for successful send", async () => {
     findVerified.mockResolvedValueOnce(null);
+    resolveAuthState.mockResolvedValueOnce({ kind: "free" });
     const r1 = await POST(
       new Request("http://localhost/api/auth/email-password/forgot", {
         method: "POST",
@@ -42,6 +53,7 @@ describe("POST /api/auth/email-password/forgot", () => {
     const j1 = (await r1.json()) as Record<string, unknown>;
     expect(j1).toEqual({ ok: true, retryAfterSeconds: OTP_RESEND_COOLDOWN_SEC });
     expect(j1.challengeId).toBeUndefined();
+    expect(requestContactEmailSetup).not.toHaveBeenCalled();
 
     findVerified.mockResolvedValueOnce("550e8400-e29b-41d4-a716-446655440000");
     startEmailChallenge.mockResolvedValueOnce({ ok: true, challengeId: "ch-id", retryAfterSeconds: 52 });
@@ -57,6 +69,34 @@ describe("POST /api/auth/email-password/forgot", () => {
     expect(j2).toEqual({ ok: true, retryAfterSeconds: OTP_RESEND_COOLDOWN_SEC });
     expect(j2.challengeId).toBeUndefined();
     expect(startEmailChallenge).toHaveBeenCalledWith("550e8400-e29b-41d4-a716-446655440000", "real@b.com");
+  });
+
+  it("sends setup access for contact-only email with neutral 200 response", async () => {
+    findVerified.mockResolvedValueOnce(null);
+    resolveAuthState.mockResolvedValueOnce({
+      kind: "needs_email_setup",
+      userId: "22222222-2222-2222-2222-222222222222",
+    });
+    requestContactEmailSetup.mockResolvedValueOnce({ ok: true, status: "enqueued" });
+
+    const r = await POST(
+      new Request("http://localhost/api/auth/email-password/forgot", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email: "contact@example.com" }),
+      }),
+    );
+
+    expect(r.status).toBe(200);
+    const j = (await r.json()) as Record<string, unknown>;
+    expect(j).toEqual({ ok: true, retryAfterSeconds: OTP_RESEND_COOLDOWN_SEC });
+    expect(startEmailChallenge).not.toHaveBeenCalled();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(requestContactEmailSetup).toHaveBeenCalledWith({
+      userId: "22222222-2222-2222-2222-222222222222",
+      emailNormalized: "contact@example.com",
+      source: "manual_resend",
+    });
   });
 
   it("returns neutral 200 when startEmailChallenge fails (no enumeration)", async () => {

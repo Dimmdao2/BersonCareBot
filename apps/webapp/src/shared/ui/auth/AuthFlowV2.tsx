@@ -216,6 +216,7 @@ export function AuthFlowV2({
   const [pwResetEmail, setPwResetEmail] = useState("");
   const [pwResetCode, setPwResetCode] = useState("");
   const [pwNewPassword, setPwNewPassword] = useState("");
+  const [emailSetupPromptEmail, setEmailSetupPromptEmail] = useState<string | null>(null);
 
   useEffect(() => {
     if (smsStartCooldownSec <= 0) return;
@@ -317,6 +318,44 @@ export function AuthFlowV2({
     setPwResetEmail("");
     setPwResetCode("");
     setPwNewPassword("");
+    setEmailSetupPromptEmail(null);
+  };
+
+  const lookupEmailAuthState = async (
+    email: string,
+  ): Promise<
+    | "free"
+    | "pending_registration"
+    | "verified_with_password"
+    | "needs_email_setup"
+    | "email_conflict"
+    | null
+  > => {
+    const res = await fetch("/api/auth/email-password/lookup", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email }),
+    });
+    const data = (await res.json().catch(() => ({}))) as { ok?: boolean; state?: string };
+    if (!res.ok || !data.ok || typeof data.state !== "string") {
+      return null;
+    }
+    return data.state as
+      | "free"
+      | "pending_registration"
+      | "verified_with_password"
+      | "needs_email_setup"
+      | "email_conflict";
+  };
+
+  const sendEmailSetupAccessLink = async (email: string): Promise<boolean> => {
+    const res = await fetch("/api/auth/email-password/setup-access", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email }),
+    });
+    const data = (await res.json().catch(() => ({}))) as { ok?: boolean };
+    return res.ok && Boolean(data.ok);
   };
 
   const goBackToEntry = () => {
@@ -410,14 +449,28 @@ export function AuthFlowV2({
           toast.success("Подтвердите email — отправили код.");
           return;
         }
+        if (regData.ok && regData.error === "existing_account_needs_email_setup") {
+          setEmailSetupPromptEmail(email);
+          toast.success("Отправили ссылку на почту для настройки доступа.");
+          return;
+        }
         if (resReg.status === 409 || regData.error === "duplicate_email") {
-          toast.error("Подтвердите email или проверьте пароль.");
+          toast.error("Войдите с паролем или восстановите доступ.");
           return;
         }
         toast.error(regData.message ?? "Не удалось отправить код");
         return;
       }
       if (res.status === 401 || data.error === "invalid_credentials") {
+        const lookupState = await lookupEmailAuthState(email);
+        if (lookupState === "needs_email_setup") {
+          setEmailSetupPromptEmail(email);
+          return;
+        }
+        if (lookupState === "email_conflict") {
+          toast.error("Обратитесь в поддержку.");
+          return;
+        }
         toast.error("Неверный email или пароль");
         return;
       }
@@ -463,8 +516,17 @@ export function AuthFlowV2({
         error?: string;
         message?: string;
       };
+      if (data.ok && data.error === "existing_account_needs_email_setup") {
+        setEmailSetupPromptEmail(email);
+        toast.success("Отправили ссылку на почту для настройки доступа.");
+        return;
+      }
       if (res.status === 409 || data.error === "duplicate_email") {
-        toast.error("Этот email уже занят или неверный пароль");
+        toast.error("Войдите с паролем или восстановите доступ.");
+        return;
+      }
+      if (res.status === 409 || data.error === "email_conflict") {
+        toast.error("Обратитесь в поддержку.");
         return;
       }
       if (data.ok && data.challengeId) {
@@ -505,6 +567,28 @@ export function AuthFlowV2({
     }
     setLoading(true);
     try {
+      const lookupState = await lookupEmailAuthState(email);
+      if (lookupState === "needs_email_setup") {
+        const res = await fetch("/api/auth/email-password/forgot", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ email }),
+        });
+        const data = (await res.json().catch(() => ({}))) as { ok?: boolean };
+        if (!data.ok) {
+          toast.error("Не удалось выполнить запрос");
+          return;
+        }
+        setPwRecoveryPhase("none");
+        setEmailSetupPromptEmail(email);
+        toast.success("Отправили ссылку на почту для настройки доступа.");
+        return;
+      }
+      if (lookupState === "email_conflict") {
+        toast.error("Обратитесь в поддержку.");
+        return;
+      }
+
       const res = await fetch("/api/auth/email-password/forgot", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -515,6 +599,10 @@ export function AuthFlowV2({
         toast.error("Не удалось выполнить запрос");
         return;
       }
+      if (lookupState !== "verified_with_password") {
+        toast.success("Если такой email есть в системе, на почту отправлено письмо. Проверьте «Спам».");
+        return;
+      }
       const sec = Math.max(1, Math.ceil(Number(data.retryAfterSeconds) || 60));
       savePasswordResetPending({ email, retryAfterSeconds: sec });
       setPwResetEmail(email);
@@ -522,6 +610,23 @@ export function AuthFlowV2({
       toast.success(
         "Если такой email есть в системе, на почту отправлен код. Проверьте папку «Спам».",
       );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const submitEmailSetupAccessResend = async () => {
+    const email = emailSetupPromptEmail?.trim();
+    if (!email) return;
+    engageInteractive();
+    setLoading(true);
+    try {
+      const ok = await sendEmailSetupAccessLink(email);
+      if (ok) {
+        toast.success("Отправили ссылку на почту.");
+        return;
+      }
+      toast.error("Не удалось отправить письмо");
     } finally {
       setLoading(false);
     }
@@ -669,13 +774,16 @@ export function AuthFlowV2({
 
   if (step === "email_password") {
     const showEmailChromeBack =
+      emailSetupPromptEmail != null ||
       pwRecoveryPhase !== "none" ||
       emailAuthMode === "verify" ||
       emailPasswordReturn === "oauth_first" ||
       emailPasswordReturn === "phone";
 
     const topBackLabel =
-      pwRecoveryPhase !== "none"
+      emailSetupPromptEmail != null
+        ? "Назад"
+        : pwRecoveryPhase !== "none"
         ? "Назад"
         : emailAuthMode === "verify"
           ? "Войти другим способом"
@@ -692,6 +800,10 @@ export function AuthFlowV2({
             className={authLinkButtonClass}
             disabled={loading}
             onClick={() => {
+              if (emailSetupPromptEmail != null) {
+                setEmailSetupPromptEmail(null);
+                return;
+              }
               if (pwRecoveryPhase !== "none") {
                 setPwRecoveryPhase("none");
                 setPwResetCode("");
@@ -711,7 +823,23 @@ export function AuthFlowV2({
           </Button>
         ) : null}
 
-        {pwRecoveryPhase === "forgot_email" ? (
+        {emailSetupPromptEmail ? (
+          <div className="mt-3 flex w-full flex-col gap-3">
+            <p className={patientMutedTextClass}>
+              Аккаунт с этой почтой уже есть. Подтвердите email и задайте пароль для входа.
+            </p>
+            <p className={cn(patientMutedTextClass, "break-all text-sm")}>{emailSetupPromptEmail}</p>
+            <Button
+              type="button"
+              variant="outline"
+              className={AUTH_LOGIN_FORM_PRIMARY_BUTTON_CLASS}
+              disabled={loading}
+              onClick={() => void submitEmailSetupAccessResend()}
+            >
+              Отправить ссылку
+            </Button>
+          </div>
+        ) : pwRecoveryPhase === "forgot_email" ? (
           <form className="mt-3 flex w-full flex-col gap-3" onSubmit={(e) => void submitPasswordForgotRequest(e)}>
             <p className={patientMutedTextClass}>Укажите email учётной записи. Ответ будет одинаковым независимо от наличия почты.</p>
             <div className="flex flex-col gap-1">

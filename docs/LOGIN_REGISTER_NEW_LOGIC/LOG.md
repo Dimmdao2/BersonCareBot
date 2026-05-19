@@ -123,6 +123,46 @@
 
 ---
 
+## 2026-05-20 — PHASE_05 Register / login / forgot
+
+**Сделано:**
+
+- `emailPasswordLookup`: `resolveAuthState` (free / pending_registration / verified_with_password / needs_email_setup / email_conflict).
+- Register: при duplicate + contact-only → `existing_account_needs_email_setup` + setup-link (`registration_claim`), не голый `duplicate_email`.
+- Forgot: verified+password → reset OTP; `needs_email_setup` → setup-link (`manual_resend`), нейтральный 200.
+- API: `POST …/lookup`, `POST …/setup-access`.
+- `AuthFlowV2`: экран «подтвердите email и задайте пароль», ветки register/login/forgot.
+
+**Проверки:**
+
+- `pnpm --filter @bersoncare/webapp exec vitest run src/app/api/auth/email-password src/shared/ui/auth/AuthFlowV2.test.tsx`
+
+**Не делали:**
+
+- Merge (PHASE_06).
+
+---
+
+## 2026-05-20 — PHASE_06 Merge и identity (страховка)
+
+**Сделано:**
+
+- Ревью merge vs login/register: секция в [`../ARCHITECTURE/PLATFORM_USER_MERGE.md`](../ARCHITECTURE/PLATFORM_USER_MERGE.md) (identity vs merge, ограничения auto-merge, `email_conflict` → support).
+- Регрессионный тест MAIN PLAN §7: manual merge переносит `appointment_records`, `patient_bookings`, `reminder_rules`, `symptom_trackings` / `symptom_entries` (dedupe singleton до bulk UPDATE).
+- [`PHASE_06_MERGE_IDENTITY.md`](PHASE_06_MERGE_IDENTITY.md) — чеклист сценариев закрыт.
+
+**Проверки:**
+
+- `pnpm --filter @bersoncare/webapp exec vitest run src/infra/repos/pgPlatformUserMerge.test.ts`
+
+**Не делали:**
+
+- Изменения merge engine / manual merge API; integrator `mergeIntegratorUsers` (пути не затронуты).
+
+**Аудит:** [`PHASE_06_AUDIT.md`](PHASE_06_AUDIT.md) (2026-05-20).
+
+---
+
 ## Шаблон записи при закрытии этапа
 
 ```markdown

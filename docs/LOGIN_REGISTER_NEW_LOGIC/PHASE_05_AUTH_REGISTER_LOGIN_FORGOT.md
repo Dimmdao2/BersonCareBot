@@ -1,6 +1,6 @@
 # Фаза 5 — Register / login / forgot (состояния email)
 
-**Статус:** `pending`  
+**Статус:** `completed`  
 **Канон:** [MAIN PLAN.md](MAIN%20PLAN.md) §5, §6  
 **Зависит от:** [PHASE_04](PHASE_04_EMAIL_SETUP_FLOW.md)  
 **Следующий:** [PHASE_06](PHASE_06_MERGE_IDENTITY.md)
@@ -35,19 +35,19 @@
 
 ## Definition of Done
 
-- [ ] Register + existing bot email + doctor contact → setup path, не duplicate_email
-- [ ] Forgot + contact-only → setup mail (или re-issue), не silent no-op
-- [ ] Forgot + verified+password → reset mail как сейчас
-- [ ] Forgot не шлёт на unverified doctor-only email
-- [ ] Существующий email+password аккаунт без регрессий
-- [ ] [`LOG.md`](LOG.md)
+- [x] Register + existing bot email + doctor contact → setup path, не duplicate_email
+- [x] Forgot + contact-only → setup mail (или re-issue), не silent no-op
+- [x] Forgot + verified+password → reset mail как сейчас
+- [x] Forgot не шлёт на unverified doctor-only email
+- [x] Существующий email+password аккаунт без регрессий
+- [x] [`LOG.md`](LOG.md)
 
 ## Локальные проверки
 
-- [ ] `apps/webapp/src/app/api/auth/email-password/forgot/route.test.ts` — обновить ожидания
-- [ ] `AuthFlowV2.test.tsx` — новые ветки
-- [ ] `pnpm --filter @bersoncare/webapp test` — auth module
-- [ ] `rg duplicate_email` — UI/API согласованы
+- [x] `apps/webapp/src/app/api/auth/email-password/forgot/route.test.ts` — обновить ожидания
+- [x] `AuthFlowV2.test.tsx` — новые ветки
+- [x] `pnpm --filter @bersoncare/webapp exec vitest run …/email-password` — auth routes
+- [x] `rg duplicate_email` — UI/API согласованы (409 только для verified+password / неверный resend)
 
 ## Якоря
 
