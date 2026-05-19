@@ -98,6 +98,12 @@ describe("notifyIntegratorRuleUpdated", () => {
     warnSpy.mockRestore();
   });
 
+  it("skips integrator POST when integratorUserId is null", async () => {
+    await notifyIntegratorRuleUpdated({ ...baseRule, integratorUserId: null });
+    expect(mockFetch).not.toHaveBeenCalled();
+    expect(enqueueIntegratorPushMock).not.toHaveBeenCalled();
+  });
+
   it("skips and warns when INTEGRATOR_API_URL not set", async () => {
     runtimeConfig.baseUrl = "";
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});

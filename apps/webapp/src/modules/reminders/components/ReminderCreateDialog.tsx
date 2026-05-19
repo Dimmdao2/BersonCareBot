@@ -70,6 +70,36 @@ export type ReminderCreateDialogProps = {
 const DELIVERY_NOTE =
   "Уведомления приходят в доступный канал бота (Telegram или MAX), если он подключён.";
 
+type ReminderApiResponse = {
+  ok?: boolean;
+  error?: string;
+  syncWarning?: string;
+};
+
+async function parseReminderApiResponse(res: Response): Promise<ReminderApiResponse> {
+  const text = await res.text();
+  if (!text.trim()) {
+    return { ok: false, error: `http_${res.status}` };
+  }
+  try {
+    return JSON.parse(text) as ReminderApiResponse;
+  } catch {
+    return { ok: false, error: `http_${res.status}` };
+  }
+}
+
+function reminderSaveErrorMessage(data: ReminderApiResponse, notFoundCreate: boolean): string {
+  if (data.error === "not_found") {
+    return notFoundCreate
+      ? "Свяжите аккаунт с ботом или подпишитесь на Push-уведомления, чтобы создавать напоминания."
+      : "Правило не найдено.";
+  }
+  if (data.error?.startsWith("http_")) {
+    return `Не удалось сохранить (ошибка сервера ${data.error.slice(5)}).`;
+  }
+  return notFoundCreate ? "Не удалось создать напоминание." : "Не удалось сохранить.";
+}
+
 function dedupeSortTimes(times: string[]): string[] {
   const set = new Set(times.map((t) => t.trim()).filter(Boolean));
   return [...set].sort((a, b) => a.localeCompare(b, "en"));
@@ -320,13 +350,9 @@ export function ReminderCreateDialog({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
         });
-        const data = (await res.json()) as {
-          ok?: boolean;
-          error?: string;
-          syncWarning?: string;
-        };
+        const data = await parseReminderApiResponse(res);
         if (!res.ok || !data.ok) {
-          setError(data.error === "not_found" ? "Правило не найдено." : "Не удалось сохранить.");
+          setError(reminderSaveErrorMessage(data, false));
           scrollToError();
           return;
         }
@@ -352,19 +378,9 @@ export function ReminderCreateDialog({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
         });
-        const data = (await res.json()) as {
-          ok?: boolean;
-          error?: string;
-          syncWarning?: string;
-        };
+        const data = await parseReminderApiResponse(res);
         if (!res.ok || !data.ok) {
-          if (data.error === "not_found") {
-            setError(
-              "Свяжите аккаунт с ботом или подпишитесь на Push-уведомления, чтобы создавать напоминания.",
-            );
-          } else {
-            setError("Не удалось создать напоминание.");
-          }
+          setError(reminderSaveErrorMessage(data, true));
           scrollToError();
           return;
         }

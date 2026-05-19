@@ -59,7 +59,7 @@ function parseScheduleData(raw: unknown): SlotsV1ScheduleData | null {
 
 function toRule(row: {
   integrator_rule_id: string;
-  integrator_user_id: string;
+  integrator_user_id: string | null;
   category: string;
   is_enabled: boolean;
   timezone: string;
@@ -83,7 +83,7 @@ function toRule(row: {
 }): ReminderRule {
   return {
     id: row.integrator_rule_id,
-    integratorUserId: row.integrator_user_id,
+    integratorUserId: row.integrator_user_id?.trim() ? row.integrator_user_id.trim() : null,
     category: row.category as ReminderRule["category"],
     enabled: row.is_enabled,
     timezone: row.timezone?.trim() || "Europe/Moscow",

@@ -1,9 +1,9 @@
 /**
  * In-memory реализация ReminderRulesPort для юнит-тестов.
  *
- * Семантическое упрощение: `listByPlatformUser(platformUserId)` ищет по полю `integratorUserId`
- * правила в хранилище. Это работает в тестах, где оба ID намеренно совпадают.
- * Реальная PG-реализация использует JOIN `platform_users` для корректного resolve.
+ * `listByPlatformUser` — по `platformUserId` из `platformUserIdByRuleId` (create / options)
+ * или legacy-совпадению `integratorUserId === platformUserId`.
+ * Реальная PG-реализация использует `reminder_rules.platform_user_id`.
  */
 import { randomUUID } from "node:crypto";
 import type { ReminderRulesPort } from "@/modules/reminders/ports";
@@ -28,12 +28,29 @@ function mapLinkedTypeToCategory(linked: ReminderLinkedObjectType): ReminderCate
 
 export function createInMemoryReminderRulesPort(
   initial: ReminderRule[] = [],
+  options?: { platformUserIdByRuleId?: Record<string, string> },
 ): ReminderRulesPort {
   const store: Map<string, ReminderRule> = new Map(initial.map((r) => [r.id, r]));
   const muteUntilByPlatformUser = new Map<string, string | null>();
+  const platformUserIdByRuleId = new Map<string, string>(
+    Object.entries(options?.platformUserIdByRuleId ?? {}),
+  );
+  for (const rule of initial) {
+    if (!platformUserIdByRuleId.has(rule.id) && rule.integratorUserId) {
+      platformUserIdByRuleId.set(rule.id, rule.integratorUserId);
+    }
+  }
 
   const getRulesForUser = (platformUserId: string): ReminderRule[] =>
-    Array.from(store.values()).filter((r) => r.integratorUserId === platformUserId);
+    Array.from(store.values()).filter(
+      (r) =>
+        platformUserIdByRuleId.get(r.id) === platformUserId ||
+        r.integratorUserId === platformUserId,
+    );
+
+  const ruleOwnedByPlatformUser = (rule: ReminderRule, platformUserId: string): boolean =>
+    platformUserIdByRuleId.get(rule.id) === platformUserId ||
+    rule.integratorUserId === platformUserId;
 
   return {
     async resolveIntegratorUserId(platformUserId) {
@@ -95,12 +112,13 @@ export function createInMemoryReminderRulesPort(
         updatedAt: new Date().toISOString(),
       };
       store.set(id, rule);
+      platformUserIdByRuleId.set(id, input.platformUserId);
       return rule;
     },
 
     async delete(ruleIntegratorId, platformUserId) {
       const rule = store.get(ruleIntegratorId);
-      if (!rule || rule.integratorUserId !== platformUserId) return false;
+      if (!rule || !ruleOwnedByPlatformUser(rule, platformUserId)) return false;
       store.delete(ruleIntegratorId);
       return true;
     },

@@ -8,6 +8,7 @@ import { postReminderRuleUpsertToIntegrator } from "@/infra/integrator-push/inte
 import type { ReminderRule } from "./types";
 
 export async function notifyIntegratorRuleUpdated(rule: ReminderRule): Promise<void> {
+  if (!rule.integratorUserId) return;
   try {
     await postReminderRuleUpsertToIntegrator(rule);
   } catch (err) {

@@ -108,6 +108,22 @@ describe("reminders service", () => {
       expect(res.ok).toBe(true);
       if (res.ok) expect(res.syncWarning).toBe(REMINDER_INTEGRATOR_SYNC_WARNING);
     });
+
+    it("does not call notifyIntegrator for Web Push-only category rule", async () => {
+      const notify = vi.fn().mockResolvedValue(undefined);
+      const rule = makeRule({ integratorUserId: null });
+      const port = createInMemoryReminderRulesPort([rule], {
+        platformUserIdByRuleId: { [rule.id]: "user-1" },
+      });
+      const svc = createRemindersService(port, { notifyIntegrator: notify });
+      const res = await svc.toggleCategory("user-1", "lfk", false);
+      expect(res.ok).toBe(true);
+      if (res.ok) {
+        expect(res.data.integratorUserId).toBeNull();
+        expect(res.syncWarning).toBeUndefined();
+      }
+      expect(notify).not.toHaveBeenCalled();
+    });
   });
 
   describe("updateRule", () => {
@@ -185,6 +201,22 @@ describe("reminders service", () => {
       const res = await svc.updateRule("user-1", "rule-1", { intervalMinutes: 90 });
       expect(res.ok).toBe(true);
       if (res.ok) expect(res.syncWarning).toBe(REMINDER_INTEGRATOR_SYNC_WARNING);
+    });
+
+    it("does not call notifyIntegrator for Web Push-only rule on update", async () => {
+      const notify = vi.fn().mockResolvedValue(undefined);
+      const rule = makeRule({ integratorUserId: null });
+      const port = createInMemoryReminderRulesPort([rule], {
+        platformUserIdByRuleId: { [rule.id]: "user-1" },
+      });
+      const svc = createRemindersService(port, { notifyIntegrator: notify });
+      const res = await svc.updateRule("user-1", "rule-1", { intervalMinutes: 90 });
+      expect(res.ok).toBe(true);
+      if (res.ok) {
+        expect(res.data.integratorUserId).toBeNull();
+        expect(res.syncWarning).toBeUndefined();
+      }
+      expect(notify).not.toHaveBeenCalled();
     });
 
     it("applies full interval_window schedule bundle with quiet hours", async () => {

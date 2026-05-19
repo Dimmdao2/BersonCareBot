@@ -139,6 +139,7 @@ export function createRemindersService(port: ReminderRulesPort, deps?: Reminders
 
   /** true = синхронизация ок или не настроена; false = relay пытались, но ошибка. */
   async function tryNotifyIntegrator(rule: ReminderRule): Promise<boolean> {
+    if (!rule.integratorUserId) return true;
     if (!deps?.notifyIntegrator) return true;
     try {
       await deps.notifyIntegrator(rule);
@@ -356,7 +357,7 @@ export function createRemindersService(port: ReminderRulesPort, deps?: Reminders
           quietHoursStartMinute: params.quietHoursStartMinute ?? null,
           quietHoursEndMinute: params.quietHoursEndMinute ?? null,
         });
-        const syncOk = integratorUserId ? await tryNotifyIntegrator(rule) : true;
+        const syncOk = await tryNotifyIntegrator(rule);
         return {
           ok: true,
           data: rule,
@@ -381,7 +382,7 @@ export function createRemindersService(port: ReminderRulesPort, deps?: Reminders
         quietHoursStartMinute: params.quietHoursStartMinute ?? null,
         quietHoursEndMinute: params.quietHoursEndMinute ?? null,
       });
-      const syncOk = integratorUserId ? await tryNotifyIntegrator(rule) : true;
+      const syncOk = await tryNotifyIntegrator(rule);
       return {
         ok: true,
         data: rule,
@@ -438,7 +439,7 @@ export function createRemindersService(port: ReminderRulesPort, deps?: Reminders
           quietHoursStartMinute: params.quietHoursStartMinute ?? null,
           quietHoursEndMinute: params.quietHoursEndMinute ?? null,
         });
-        const syncOk = integratorUserId ? await tryNotifyIntegrator(rule) : true;
+        const syncOk = await tryNotifyIntegrator(rule);
         return {
           ok: true,
           data: rule,
@@ -463,7 +464,7 @@ export function createRemindersService(port: ReminderRulesPort, deps?: Reminders
         quietHoursStartMinute: params.quietHoursStartMinute ?? null,
         quietHoursEndMinute: params.quietHoursEndMinute ?? null,
       });
-      const syncOk = integratorUserId ? await tryNotifyIntegrator(rule) : true;
+      const syncOk = await tryNotifyIntegrator(rule);
       return {
         ok: true,
         data: rule,

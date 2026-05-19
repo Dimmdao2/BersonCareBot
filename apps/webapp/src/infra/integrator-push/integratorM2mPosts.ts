@@ -64,6 +64,7 @@ function integratorCategoryFromRule(rule: ReminderRule): string {
 }
 
 export async function postReminderRuleUpsertToIntegrator(rule: ReminderRule): Promise<void> {
+  if (!rule.integratorUserId) return;
   const { baseUrl, secret } = await requireM2m();
   const timestamp = String(Math.floor(Date.now() / 1000));
   const idempotencyKey = `rule_${rule.id}_${timestamp}`;

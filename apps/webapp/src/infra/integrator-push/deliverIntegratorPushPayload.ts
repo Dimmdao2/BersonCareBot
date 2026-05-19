@@ -12,7 +12,9 @@ export async function deliverIntegratorPushPayload(row: IntegratorPushOutboxRow)
     return;
   }
   if (row.kind === "reminder_rule_upsert") {
-    await postReminderRuleUpsertToIntegrator(row.payload as unknown as ReminderRule);
+    const rule = row.payload as unknown as ReminderRule;
+    if (!rule.integratorUserId) return;
+    await postReminderRuleUpsertToIntegrator(rule);
     return;
   }
 }
