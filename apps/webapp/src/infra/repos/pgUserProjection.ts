@@ -262,6 +262,13 @@ async function upsertFromProjectionTx(
   return userId;
 }
 
+function normalizeRubitimeContactEmail(email: string | null | undefined): string | null {
+  const trimmed = email?.trim();
+  if (!trimmed || trimmed.length > 320) return null;
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) return null;
+  return trimmed;
+}
+
 async function ensureAppointmentClientTx(
   client: PoolClient,
   params: {
@@ -299,6 +306,20 @@ async function ensureAppointmentClientTx(
     if (byInt.rows[0]) ids.push(byInt.rows[0].id);
   }
 
+  const emailNorm = normalizeRubitimeContactEmail(params.email);
+  if (ids.length === 0 && emailNorm) {
+    const byEmail = await client.query<{ id: string }>(
+      `SELECT id FROM platform_users
+       WHERE email_normalized = lower(btrim($1::text)) AND merged_into_id IS NULL
+       LIMIT 2`,
+      [emailNorm],
+    );
+    if (byEmail.rows.length > 1) {
+      throw new MergeConflictError("multiple canonical users for email", byEmail.rows.map((r) => r.id));
+    }
+    if (byEmail.rows[0]) ids.push(byEmail.rows[0].id);
+  }
+
   const uniq = [...new Set(ids)];
   const displayName =
     params.displayName?.trim() ||
@@ -308,16 +329,21 @@ async function ensureAppointmentClientTx(
   if (uniq.length === 0) {
     const ins = await client.query<{ id: string }>(
       `INSERT INTO platform_users (
-         phone_normalized, display_name, first_name, last_name, email, role,
-         integrator_user_id
-       ) VALUES ($1, $2, $3, $4, $5, 'client', $6::bigint)
+         phone_normalized, display_name, first_name, last_name, email, email_normalized, role,
+         integrator_user_id, patient_phone_trust_at
+       ) VALUES (
+         $1, $2, $3, $4, $5,
+         CASE WHEN $5::text IS NOT NULL AND btrim($5::text) <> '' THEN lower(btrim($5::text)) ELSE NULL END,
+         'client', $6::bigint,
+         CASE WHEN $1::text IS NOT NULL AND btrim($1::text) <> '' THEN now() ELSE NULL END
+       )
        RETURNING id`,
       [
         params.phoneNormalized,
         displayName,
         params.firstName ?? null,
         params.lastName ?? null,
-        params.email ?? null,
+        emailNorm,
         params.integratorUserId?.trim() ? params.integratorUserId : null,
       ],
     );
@@ -326,29 +352,34 @@ async function ensureAppointmentClientTx(
 
   const userId = await mergeCandidates(client, uniq, "projection");
 
-  // Appointment/Rubitime projection: non-empty payload fields overwrite existing profile (display_name already did).
+  // Existing user: enrich contact email / trusted Rubitime phone; never overwrite display/FIO from Rubitime.
   await client.query(
     `UPDATE platform_users SET
-       display_name = CASE WHEN $2::text IS NOT NULL AND trim($2::text) <> '' THEN $2::text ELSE display_name END,
-       first_name = CASE WHEN $3::text IS NOT NULL AND trim($3::text) <> '' THEN $3::text ELSE first_name END,
-       last_name = CASE WHEN $4::text IS NOT NULL AND trim($4::text) <> '' THEN $4::text ELSE last_name END,
-       email = CASE WHEN $5::text IS NOT NULL AND trim($5::text) <> '' THEN $5::text ELSE email END,
+       email = CASE WHEN $2::text IS NOT NULL AND trim($2::text) <> '' THEN $2::text ELSE email END,
+       email_normalized = CASE
+         WHEN $2::text IS NOT NULL AND trim($2::text) <> ''
+              AND lower(trim($2::text)) IS DISTINCT FROM lower(trim(coalesce(email, '')))
+           THEN lower(trim($2::text))
+         WHEN $2::text IS NOT NULL AND trim($2::text) <> '' THEN email_normalized
+         ELSE email_normalized
+       END,
        email_verified_at = CASE
-         WHEN $5::text IS NOT NULL AND trim($5::text) <> ''
-              AND lower(trim($5::text)) IS DISTINCT FROM lower(trim(coalesce(email, '')))
+         WHEN $2::text IS NOT NULL AND trim($2::text) <> ''
+              AND lower(trim($2::text)) IS DISTINCT FROM lower(trim(coalesce(email, '')))
            THEN NULL
          ELSE email_verified_at
        END,
-       integrator_user_id = COALESCE(integrator_user_id, $6::bigint),
-       phone_normalized = COALESCE(phone_normalized, $7::text),
+       integrator_user_id = COALESCE(integrator_user_id, $3::bigint),
+       phone_normalized = COALESCE(phone_normalized, $4::text),
+       patient_phone_trust_at = CASE
+         WHEN $4::text IS NOT NULL AND trim($4::text) <> '' THEN now()
+         ELSE patient_phone_trust_at
+       END,
        updated_at = now()
      WHERE id = $1::uuid`,
     [
       userId,
-      displayName,
-      params.firstName ?? null,
-      params.lastName ?? null,
-      params.email ?? null,
+      emailNorm,
       params.integratorUserId?.trim() ?? null,
       params.phoneNormalized,
     ],
@@ -390,6 +421,9 @@ export const pgUserProjectionPort: UserProjectionPort = {
       );
       const id = await ensureAppointmentClientTx(client, params);
       await client.query("COMMIT");
+      if (params.phoneNormalized?.trim()) {
+        trustedPatientPhoneWriteAnchor(TrustedPatientPhoneSource.IntegratorUpsertFromProjection);
+      }
       return { platformUserId: id };
     } catch (e) {
       await client.query("ROLLBACK");

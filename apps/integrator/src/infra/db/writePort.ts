@@ -64,6 +64,7 @@ import { isExplicitZonedIsoInstant } from '../../shared/explicitZonedIsoInstant.
 import { mapRubitimeStatusToPatientBookingStatus, upsertPatientBookingFromRubitime } from '@bersoncare/booking-rubitime-sync';
 import { upsertAppointmentRecordFromBookingMutation } from './repos/publicAppointmentRecordSync.js';
 import { resolvePlatformUserIdForRubitimeBooking } from './repos/resolvePlatformUserIdForRubitimeBooking.js';
+import { buildAppointmentRecordUpsertedFanout } from './buildAppointmentRecordUpsertedFanout.js';
 
 type BookingUpsertParams = {
   externalRecordId?: unknown;
@@ -196,9 +197,10 @@ export function createDbWritePort(input: {
             return;
           }
           const statusRaw = asNonEmptyString(params.status);
-          const status = statusRaw === 'created' || statusRaw === 'updated' || statusRaw === 'canceled'
-            ? statusRaw
-            : 'updated';
+          const status: 'created' | 'updated' | 'canceled' =
+            statusRaw === 'created' || statusRaw === 'updated' || statusRaw === 'canceled'
+              ? statusRaw
+              : 'updated';
           const rawPhone = asNullableString(params.phoneNormalized);
           const phoneNormalized = rawPhone ? normalizeRuPhoneE164(rawPhone) : null;
           const recordAtRaw = asNonEmptyString(params.recordAt);
@@ -208,6 +210,7 @@ export function createDbWritePort(input: {
             : {};
           const lastEvent = asNonEmptyString(params.lastEvent) ?? 'unknown';
           const updatedAt = new Date().toISOString();
+          const patientEmail = asNullableString(params.patientEmail)?.trim() || null;
           const rawBranchId =
             asNullableString(params.integratorBranchId) ??
             asNullableString(payloadJson.branch_id) ??
@@ -248,18 +251,23 @@ export function createDbWritePort(input: {
             asNullableString(params.patientFirstName) ?? parsedFromName.firstName;
           const patientLastName: string | null =
             asNullableString(params.patientLastName) ?? parsedFromName.lastName;
+          const integratorUserIdTop =
+            asNullableString(params.integratorUserId) ??
+            asNullableString(payloadJson.integratorUserId) ??
+            asNullableString(payloadJson.integrator_user_id) ??
+            null;
+          const payloadJsonForFanout: Record<string, unknown> =
+            typeof payloadJson === 'object' && payloadJson !== null && !Array.isArray(payloadJson)
+              ? (JSON.parse(JSON.stringify(payloadJson)) as Record<string, unknown>)
+              : {};
           await db.tx(async (txDb) => {
-            const payloadJsonForProjection: Record<string, unknown> =
-              typeof payloadJson === 'object' && payloadJson !== null && !Array.isArray(payloadJson)
-                ? (JSON.parse(JSON.stringify(payloadJson)) as Record<string, unknown>)
-                : {};
-            await canonicalizeIntegratorUserIdKeysInObject(txDb, payloadJsonForProjection);
+            await canonicalizeIntegratorUserIdKeysInObject(txDb, payloadJsonForFanout);
             await upsertAppointmentRecordFromBookingMutation(txDb, {
               integratorRecordId: externalRecordId,
               phoneNormalized,
               recordAt,
               status,
-              payloadJson: payloadJsonForProjection,
+              payloadJson: payloadJsonForFanout,
               lastEvent,
               updatedAt,
               branchId: null,
@@ -272,11 +280,6 @@ export function createDbWritePort(input: {
               patientFirstName ??
               fullNameFromPayload ??
               ([patientLastName, patientFirstName].filter(Boolean).join(' ').trim() || null);
-            const integratorUserIdTop =
-              asNullableString(params.integratorUserId) ??
-              asNullableString(payloadJsonForProjection.integratorUserId) ??
-              asNullableString(payloadJsonForProjection.integrator_user_id) ??
-              null;
             const resolvedUserId = await resolvePlatformUserIdForRubitimeBooking(
               txDb,
               phoneNormalized,
@@ -310,6 +313,27 @@ export function createDbWritePort(input: {
               },
             );
           });
+          await fanoutProjectionsAfterTx([
+            buildAppointmentRecordUpsertedFanout({
+              externalRecordId,
+              phoneNormalized,
+              recordAt,
+              status,
+              payloadJson: payloadJsonForFanout,
+              lastEvent,
+              updatedAt,
+              patientFirstName,
+              patientLastName,
+              patientEmail,
+              integratorBranchId: rawBranchId,
+              branchName: rawBranchName,
+              dateTimeEnd: rawDateTimeEnd,
+              serviceId: rawServiceId,
+              serviceName: rawServiceName,
+              rubitimeCooperatorId: rawCooperatorId,
+              integratorUserId: integratorUserIdTop,
+            }),
+          ]);
           return;
         }
         case 'event.log': {

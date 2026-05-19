@@ -48,6 +48,23 @@
 
 **Обновлено:** `ROADMAP.md`, `README.md`, `MAIN PLAN.md` (шапка), PHASE_00/01/05–08.
 
+## 2026-05-19 — PHASE_01 Rubitime → platform_user
+
+**Сделано:**
+
+- Integrator: после каждого `booking.upsert` fan-out `appointment.record.upserted` (`buildAppointmentRecordUpsertedFanout` + `writePort.ts`) — webapp получает `ensureClientFromAppointmentProjection`.
+- Webapp: `ensureAppointmentClientTx` — поиск phone → integrator_id → email; новый user с `patient_phone_trust_at` и `email_normalized`; существующий user — без перезаписи ФИО, trusted phone + contact email.
+- Док: `RUBITIME_BOOKING_PIPELINE.md` (post-create path), `PHASE_01` → completed.
+
+**Проверки:**
+
+- `pnpm --filter @bersoncare/integrator test` (в т.ч. `buildAppointmentRecordUpsertedFanout.test.ts`, `writePort.appointments.test.ts`)
+- `pnpm --filter @bersoncare/webapp exec vitest run` — `pgUserProjection.ensureAppointmentClient.test.ts`, `events.test.ts` (appointment.record.upserted)
+
+**Не делали:**
+
+- Backfill / PHASE_07, email setup (фазы 3–5).
+
 ---
 
 ## Шаблон записи при закрытии этапа

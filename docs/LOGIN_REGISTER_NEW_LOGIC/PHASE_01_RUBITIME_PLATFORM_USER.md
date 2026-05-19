@@ -1,6 +1,6 @@
 # Фаза 1 — Rubitime → platform_user
 
-**Статус:** `pending`  
+**Статус:** `completed`  
 **Канон:** [MAIN PLAN.md](MAIN%20PLAN.md) §1  
 **Зависит от:** [PHASE_00](PHASE_00_AUDIT_AND_AGREEMENT.md)  
 **Следующий:** [PHASE_02](PHASE_02_CONTACT_EMAIL_POLICY.md) (параллельно допустимо), затем цепочка 03→05
@@ -32,19 +32,19 @@
 
 ## Definition of Done
 
-- [ ] Record с новым phone → создаётся `platform_user`, привязка appointment
-- [ ] Record с phone+email → user создан, email unverified, phone trusted
-- [ ] Record с существующим phone → appointment к user, имя не перезаписано
-- [ ] Record с existing email user → appointment + trusted phone добавлен при необходимости
-- [ ] Существующий bot user + Rubitime phone → appointment attached (без дубля)
-- [ ] Тесты integrator/webapp по сценариям MAIN PLAN §11 (Rubitime)
-- [ ] Запись в [`LOG.md`](LOG.md)
+- [x] Record с новым phone → создаётся `platform_user`, привязка appointment
+- [x] Record с phone+email → user создан, email unverified, phone trusted
+- [x] Record с существующим phone → appointment к user, имя не перезаписано
+- [x] Record с existing email user → appointment + trusted phone добавлен при необходимости
+- [x] Существующий bot user + Rubitime phone → appointment attached (без дубля)
+- [x] Тесты integrator/webapp по сценариям MAIN PLAN §11 (Rubitime)
+- [x] Запись в [`LOG.md`](LOG.md)
 
 ## Локальные проверки
 
-- [ ] `pnpm --filter @bersoncare/integrator test` — затронутые файлы
-- [ ] `pnpm --filter @bersoncare/webapp test` — projection/Rubitime при наличии
-- [ ] `rg appointment_records.platform_user_id` — все write path покрыты
+- [x] `pnpm --filter @bersoncare/integrator test` — затронутые файлы
+- [x] `pnpm --filter @bersoncare/webapp test` — projection/Rubitime при наличии
+- [x] `rg appointment_records.platform_user_id` — все write path покрыты
 
 ## Якоря (ожидаемые зоны правок)
 

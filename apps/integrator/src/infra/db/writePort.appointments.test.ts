@@ -2,16 +2,18 @@ import { describe, expect, it, vi } from 'vitest';
 import type { DbPort } from '../../kernel/contracts/index.js';
 import { createDbWritePort } from './writePort.js';
 import { appointmentRecords, rubitimeEvents } from './schema/integratorDomainRepos.js';
-import { stubIntegratorDrizzleForTests } from './stubIntegratorDrizzleForTests.js';
+import { stubIntegratorDrizzleForTests, type ProjectionOutboxInsertCapture } from './stubIntegratorDrizzleForTests.js';
+import { APPOINTMENT_RECORD_UPSERTED } from '../../kernel/contracts/index.js';
 
 describe('writePort booking.upsert → public schema (unified DB)', () => {
   type Capture = {
     sqlCalls: string[];
     drizzleInserts: { table: unknown; values: Record<string, unknown> }[];
+    projectionInserts: ProjectionOutboxInsertCapture['projectionInserts'];
   };
 
   function wrapDrizzle(capture: Capture): unknown {
-    const inner = stubIntegratorDrizzleForTests() as {
+    const inner = stubIntegratorDrizzleForTests({ projectionInserts: capture.projectionInserts }) as {
       insert: (t: unknown) => { values: (v: Record<string, unknown>) => unknown };
       execute: () => Promise<{ rows: unknown[] }>;
       select: () => unknown;
@@ -52,8 +54,8 @@ describe('writePort booking.upsert → public schema (unified DB)', () => {
     return capture.drizzleInserts.find((x) => x.table === appointmentRecords);
   }
 
-  it('booking.upsert writes appointment_records + patient_bookings in tx (no HTTP projection outbox)', async () => {
-    const capture: Capture = { sqlCalls: [], drizzleInserts: [] };
+  it('booking.upsert writes appointment_records + patient_bookings and enqueues appointment.record.upserted', async () => {
+    const capture: Capture = { sqlCalls: [], drizzleInserts: [], projectionInserts: [] };
     const db = makeMockDb(capture);
     const writePort = createDbWritePort({ db });
     await writePort.writeDb({
@@ -63,18 +65,24 @@ describe('writePort booking.upsert → public schema (unified DB)', () => {
         phoneNormalized: '+79991234567',
         recordAt: '2025-06-01T10:00:00.000Z',
         status: 'created',
-        payloadJson: { link: 'https://example.com' },
+        payloadJson: { link: 'https://example.com', email: 'p@example.com' },
         lastEvent: 'event-create',
       },
     });
     const joined = capture.sqlCalls.join('\n');
     expect(appointmentInsert(capture)?.values.integratorRecordId).toBe('rec-app-1');
     expect(joined).toContain('public.patient_bookings');
-    expect(joined).not.toContain('projection_outbox');
+    expect(capture.projectionInserts).toHaveLength(1);
+    expect(capture.projectionInserts[0]!.eventType).toBe(APPOINTMENT_RECORD_UPSERTED);
+    expect(capture.projectionInserts[0]!.payload).toMatchObject({
+      integratorRecordId: 'rec-app-1',
+      phoneNormalized: '+79991234567',
+      patientEmail: 'p@example.com',
+    });
   });
 
   it('booking.upsert canonicalizes integrator ids inside payloadJson before public writes', async () => {
-    const capture: Capture = { sqlCalls: [], drizzleInserts: [] };
+    const capture: Capture = { sqlCalls: [], drizzleInserts: [], projectionInserts: [] };
     const db = makeMockDb(capture);
     const writePort = createDbWritePort({ db });
     const payloadJson = { integrator_user_id: '2', link: 'https://rubitime.example/r' };
@@ -97,7 +105,7 @@ describe('writePort booking.upsert → public schema (unified DB)', () => {
   });
 
   it('booking.upsert keeps ISO-Z recordAt for public appointment row', async () => {
-    const capture: Capture = { sqlCalls: [], drizzleInserts: [] };
+    const capture: Capture = { sqlCalls: [], drizzleInserts: [], projectionInserts: [] };
     const db = makeMockDb(capture);
     const writePort = createDbWritePort({ db });
     await writePort.writeDb({
@@ -116,7 +124,7 @@ describe('writePort booking.upsert → public schema (unified DB)', () => {
   });
 
   it('booking.upsert drops naive recordAt so SQL never gets session-TZ interpretation', async () => {
-    const capture: Capture = { sqlCalls: [], drizzleInserts: [] };
+    const capture: Capture = { sqlCalls: [], drizzleInserts: [], projectionInserts: [] };
     const db = makeMockDb(capture);
     const writePort = createDbWritePort({ db });
     await writePort.writeDb({

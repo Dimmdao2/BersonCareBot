@@ -38,7 +38,7 @@ Rubitime передаёт `name` как полную строку (часто Ф
    - Синтетический `RubitimeWebhookBodyValidated` c `from: 'webapp'`, `event: 'event-create-record'`.
    - `prepareRubitimeWebhookIngress` — нормализация timezone.
    - `syncRubitimeWebhookBodyToGoogleCalendar` — Google Calendar sync (best-effort, non-fatal).
-   - `writeDb({ type: 'booking.upsert', ... })` → `rubitime_records` + `enqueueProjectionEvent('appointment.record.upserted')`.
+   - `writeDb({ type: 'booking.upsert', ... })` → `appointment_records` / compat + fan-out `appointment.record.upserted` (sync emit или `projection_outbox` при сбое).
    - webapp projection poller → `appointment_records` → Doctor appointments UI.
 3. Email autobind (если `webappEventsPort` доступен) — аналог webhook-path пункта.
 
