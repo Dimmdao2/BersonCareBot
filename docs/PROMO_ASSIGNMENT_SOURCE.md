@@ -18,7 +18,7 @@
 | Схема + CHECK | [`apps/webapp/db/schema/treatmentProgramInstances.ts`](../apps/webapp/db/schema/treatmentProgramInstances.ts) |
 | Миграция + backfill + partial unique | `0072_treatment_program_assignment_source.sql` |
 | Ключ настройки | `patient_default_promo_treatment_program_template_id` в [`types.ts`](../apps/webapp/src/modules/system-settings/types.ts), чтение [`service.ts`](../apps/webapp/src/modules/system-settings/service.ts) (`getPatientDefaultPromoTreatmentProgramTemplateId`) |
-| Admin UI промо | [`/app/admin/promo`](../apps/webapp/src/app/app/admin/promo/page.tsx) |
+| UI промо (doctor + admin) | [`/app/doctor/treatment-program-promo`](../apps/webapp/src/app/app/doctor/treatment-program-promo/page.tsx) (legacy `/app/admin/promo` → redirect) |
 | Материализация / действие | [`POST .../treatment-program-promo/action`](../apps/webapp/src/app/api/patient/treatment-program-promo/action/route.ts) |
 | Виртуальный промо (RSC) | [`treatment/promo/`](../apps/webapp/src/app/app/patient/treatment/promo/), home / list программ |
 | Follow-up (вне v1) | [`BACKLOG_TAILS.md`](BACKLOG_TAILS.md) — смена глобального промо-шаблона |
@@ -134,9 +134,11 @@ flowchart TD
 - Порядок: при необходимости ensure → `createObjectReminder` → sync интегратора (как в цепочке сервиса).
 - Sentinel на сервере: не писать placeholder в БД как постоянный id.
 
-### Админ: страница промо
+### Промо-настройка (doctor + admin)
 
-- Маршрут под `app/app/admin/promo`, статистика по инстансам с `assignment_source = 'promo'`.
+- Маршрут [`/app/doctor/treatment-program-promo`](../apps/webapp/src/app/app/doctor/treatment-program-promo/page.tsx); пункт меню «Назначения» → «Промо-программа». Legacy [`/app/admin/promo`](../apps/webapp/src/app/app/admin/promo/page.tsx) — redirect.
+- API: [`GET/PATCH /api/doctor/treatment-program-promo`](../apps/webapp/src/app/api/doctor/treatment-program-promo/route.ts) — роли `doctor` и `admin`.
+- Статистика по инстансам с `assignment_source = 'promo'`.
 
 ### Обход создания экземпляра
 

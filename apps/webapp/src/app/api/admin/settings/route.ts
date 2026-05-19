@@ -32,6 +32,7 @@ import {
   redactAdminSettingsForClient,
   redactWebPushVapidSettingForClient,
 } from "@/modules/system-settings/webPushVapidRuntime";
+import { normalizePatientDefaultPromoTreatmentProgramTemplatePatch } from "@/modules/system-settings/patientDefaultPromoTreatmentProgramTemplate";
 
 /** Single-key PATCH: boolean keys normalized like `video_watermark_enabled`. */
 const ADMIN_BOOLEAN_SETTING_KEYS = new Set<string>([
@@ -396,20 +397,14 @@ export async function PATCH(request: Request) {
   }
 
   if (parsed.data.key === "patient_default_promo_treatment_program_template_id") {
-    const inner = normalizedValue.value;
-    const s = typeof inner === "string" ? inner.trim() : "";
-    if (s === "") {
-      normalizedValue = { value: "" };
-    } else {
-      if (!z.string().uuid().safeParse(s).success) {
-        return NextResponse.json({ ok: false, error: "invalid_value" }, { status: 400 });
-      }
-      const tpl = await deps.treatmentProgram.getTemplate(s);
-      if (tpl.status !== "published") {
-        return NextResponse.json({ ok: false, error: "invalid_value" }, { status: 400 });
-      }
-      normalizedValue = { value: s };
+    const checked = await normalizePatientDefaultPromoTreatmentProgramTemplatePatch(
+      (id) => deps.treatmentProgram.getTemplate(id),
+      normalizedValue,
+    );
+    if (!checked.ok) {
+      return NextResponse.json({ ok: false, error: checked.error }, { status: 400 });
     }
+    normalizedValue = checked.valueJson;
   }
 
   if (parsed.data.key === "notifications_topics") {

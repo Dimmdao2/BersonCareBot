@@ -62,12 +62,21 @@ export default async function PatientProfilePage() {
           <p className={patientMutedTextClass}>
             Каналы доставки и типы уведомлений настраиваются на отдельной странице.
           </p>
-          <Link
-            href={routePaths.notifications}
-            className="mt-2 inline-flex text-sm font-medium text-primary underline-offset-4 hover:underline"
-          >
-            Настройки уведомлений
-          </Link>
+          <div className="mt-2 flex flex-wrap items-center gap-x-6 gap-y-2">
+            <Link
+              href={routePaths.notifications}
+              className="inline-flex shrink-0 text-sm font-medium text-primary underline-offset-4 hover:underline"
+            >
+              Настройки уведомлений
+            </Link>
+            <Link
+              href={routePaths.patientReminders}
+              prefetch={false}
+              className="inline-flex shrink-0 text-sm font-medium text-primary underline-offset-4 hover:underline"
+            >
+              Расписание напоминаний
+            </Link>
+          </div>
         </section>
 
         <section className={patientSectionSurfaceClass}>

@@ -71,6 +71,11 @@ const CLUSTER_ASSIGNMENTS: DoctorMenuCluster = {
       label: "Шаблоны программ",
       href: "/app/doctor/treatment-program-templates",
     },
+    {
+      id: "treatment-program-promo",
+      label: "Промо-программа",
+      href: "/app/doctor/treatment-program-promo",
+    },
     { id: "courses", label: "Курсы", href: "/app/doctor/courses" },
   ],
 };
