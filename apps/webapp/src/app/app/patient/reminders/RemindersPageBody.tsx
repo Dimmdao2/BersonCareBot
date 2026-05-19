@@ -16,6 +16,10 @@ import { RemindersPageThirtyDayStats } from "./RemindersPageThirtyDayStats";
 import { filterPersonalRulesForSchedulePage } from "./filterPersonalRulesForSchedulePage";
 import type { AppSession } from "@/shared/types/session";
 import { PATIENT_REHAB_PROGRAM_LINKED_PLACEHOLDER } from "@/modules/reminders/rehabProgramLinkedObject";
+import {
+  EXERCISE_REMINDERS_TOPIC,
+  resolveActiveReminderDeliveryLabelsForTopic,
+} from "@/modules/reminders/reminderDeliveryChannelLabels";
 
 function mapIconKind(linked: NonNullable<ReminderRule["linkedObjectType"]>): PersonalReminderRowVM["iconKind"] {
   switch (linked) {
@@ -81,14 +85,26 @@ export async function RemindersPageBody({ session }: { session: AppSession }) {
   const deps = buildAppDeps();
   const userId = session.user.userId;
 
-  const [rules, projectionStats, appTz, patientIanaRaw, programList, canViewAuth] = await Promise.all([
-    deps.reminders.listRulesByUser(userId),
-    deps.reminderProjection.getStats(userId, 30),
-    getAppDisplayTimeZone(),
-    deps.patientCalendarTimezone.getIanaForUser(userId),
-    deps.treatmentProgramInstance.listForPatient(userId),
-    resolvePatientCanViewAuthOnlyContent(session),
-  ]);
+  const [rules, projectionStats, appTz, patientIanaRaw, programList, canViewAuth, exerciseDeliveryChannelLabels] =
+    await Promise.all([
+      deps.reminders.listRulesByUser(userId),
+      deps.reminderProjection.getStats(userId, 30),
+      getAppDisplayTimeZone(),
+      deps.patientCalendarTimezone.getIanaForUser(userId),
+      deps.treatmentProgramInstance.listForPatient(userId),
+      resolvePatientCanViewAuthOnlyContent(session),
+      resolveActiveReminderDeliveryLabelsForTopic({
+        platformUserId: userId,
+        topicCode: EXERCISE_REMINDERS_TOPIC,
+        bindings: {
+          telegramId: session.user.bindings.telegramId,
+          maxId: session.user.bindings.maxId,
+        },
+        channelPreferences: deps.channelPreferencesPort,
+        topicChannelPrefs: deps.topicChannelPrefs,
+        webPushSubscriptions: deps.webPushSubscriptions,
+      }),
+    ]);
 
   const patientCalendarDayIana = resolveCalendarDayIanaForPatient(patientIanaRaw, appTz);
   const calendarDateKey = DateTime.now().setZone(patientCalendarDayIana).toISODate()!;
@@ -192,6 +208,7 @@ export async function RemindersPageBody({ session }: { session: AppSession }) {
         warmupRuleForBlock={warmupRuleForBlock}
         calendarDateKey={calendarDateKey}
         patientCalendarDayIana={patientCalendarDayIana}
+        exerciseDeliveryChannelLabels={exerciseDeliveryChannelLabels}
       />
 
       <RemindersPageAdditionalSection muteUntilLabel={muteUntilLabel} />

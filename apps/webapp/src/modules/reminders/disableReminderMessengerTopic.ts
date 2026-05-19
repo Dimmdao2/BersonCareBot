@@ -1,32 +1,18 @@
 import type { Pool } from "pg";
 import type { ChannelBindings } from "@/shared/types/session";
 import type { ChannelPreferencesPort } from "@/modules/channel-preferences/ports";
-import type { PatientTopicChannelCode } from "@/modules/patient-notifications/topicChannelRules";
-import {
-  allowedChannelsForTopic,
-} from "@/modules/patient-notifications/topicChannelRules";
 import type { TopicChannelPrefsPort } from "@/modules/patient-notifications/topicChannelPrefsPort";
 import type { WebPushSubscriptionsPort } from "@/modules/web-push/ports";
+import {
+  formatReminderDeliveryChannelsListRu,
+  resolveActiveReminderDeliveryLabelsForTopic,
+} from "./reminderDeliveryChannelLabels";
 import { reminderOccurrenceTopicCode, type ReminderRuleForTopicCode } from "./reminderOccurrenceTopicCode";
 
 const MESSENGER_LABEL_RU: Record<"telegram" | "max", string> = {
   telegram: "Telegram",
   max: "MAX",
 };
-
-const CHANNEL_LABEL_TOPIC_RU: Record<PatientTopicChannelCode, string> = {
-  web_push: "Push",
-  telegram: "Telegram",
-  max: "MAX",
-  email: "Email",
-};
-
-function formatListRu(parts: string[]): string {
-  if (parts.length === 0) return "";
-  if (parts.length === 1) return parts[0] ?? "";
-  if (parts.length === 2) return `${parts[0]} и ${parts[1]}`;
-  return `${parts.slice(0, -1).join(", ")} и ${parts[parts.length - 1]}`;
-}
 
 async function loadBindings(pool: Pool, platformUserId: string): Promise<ChannelBindings> {
   const r = await pool.query<{ channel_code: string; external_id: string }>(
@@ -45,64 +31,6 @@ async function loadBindings(pool: Pool, platformUserId: string): Promise<Channel
     if (cc === "max") b.maxId = ext;
   }
   return b;
-}
-
-function topicChannelEnabled(
-  rows: Awaited<ReturnType<TopicChannelPrefsPort["listByUserId"]>>,
-  topicCode: string,
-  channelCode: PatientTopicChannelCode,
-): boolean {
-  const row = rows.find((x) => x.topicCode === topicCode && x.channelCode === channelCode);
-  return row ? row.isEnabled : true;
-}
-
-async function activeReminderDeliveryLabelsForTopic(input: {
-  platformUserId: string;
-  topicCode: string;
-  bindings: ChannelBindings;
-  channelPreferences: ChannelPreferencesPort;
-  topicChannelPrefs: TopicChannelPrefsPort;
-  webPushSubscriptions: Pick<WebPushSubscriptionsPort, "hasAnyForUserId">;
-}): Promise<string[]> {
-  const prefs = await input.channelPreferences.getPreferences(input.platformUserId);
-  const byCode = new Map(prefs.map((p) => [p.channelCode, p]));
-  const topicRows = await input.topicChannelPrefs.listByUserId(input.platformUserId);
-  const allowed = new Set(
-    allowedChannelsForTopic(input.topicCode) as readonly PatientTopicChannelCode[],
-  );
-  const ordered: PatientTopicChannelCode[] = [];
-  const pushLike: PatientTopicChannelCode[] = ["web_push", "telegram", "max", "email"];
-  for (const code of pushLike) {
-    if (allowed.has(code)) ordered.push(code);
-  }
-
-  const active: string[] = [];
-  for (const channelCode of ordered) {
-    if (!topicChannelEnabled(topicRows, input.topicCode, channelCode)) continue;
-    switch (channelCode) {
-      case "web_push":
-        if (byCode.get("web_push")?.isEnabledForNotifications === false) break;
-        if (await input.webPushSubscriptions.hasAnyForUserId(input.platformUserId)) {
-          active.push(CHANNEL_LABEL_TOPIC_RU.web_push);
-        }
-        break;
-      case "telegram":
-        if (byCode.get("telegram")?.isEnabledForNotifications === false) break;
-        if (input.bindings.telegramId) active.push(CHANNEL_LABEL_TOPIC_RU.telegram);
-        break;
-      case "max":
-        if (byCode.get("max")?.isEnabledForNotifications === false) break;
-        if (input.bindings.maxId) active.push(CHANNEL_LABEL_TOPIC_RU.max);
-        break;
-      case "email":
-        if (byCode.get("email")?.isEnabledForNotifications === false) break;
-        active.push(CHANNEL_LABEL_TOPIC_RU.email);
-        break;
-      default:
-        break;
-    }
-  }
-  return active;
 }
 
 export type DisableReminderMessengerDeps = {
@@ -171,7 +99,7 @@ export async function disableReminderMessengerTopicForOccurrence(
   await deps.topicChannelPrefs.upsert(params.platformUserId, topicCode, params.messengerChannel, false);
 
   const bindings = await loadBindings(pool, params.platformUserId);
-  const activeLabels = await activeReminderDeliveryLabelsForTopic({
+  const activeLabels = await resolveActiveReminderDeliveryLabelsForTopic({
     platformUserId: params.platformUserId,
     topicCode,
     bindings,
@@ -180,7 +108,7 @@ export async function disableReminderMessengerTopicForOccurrence(
     webPushSubscriptions: deps.webPushSubscriptions,
   });
 
-  const listCsv = formatListRu(activeLabels);
+  const listCsv = formatReminderDeliveryChannelsListRu(activeLabels);
   const paragraphs: string[] = [
     `Хорошо, отключаю напоминания в боте (${label}).`,
     ...(listCsv ?

@@ -34,6 +34,7 @@ import { summarizeReminderForCalendarDay } from "@/modules/reminders/summarizeRe
 import { DEFAULT_WARMUPS_SECTION_SLUG } from "@/modules/patient-home/warmupsSection";
 import { toggleReminderCategory } from "./actions";
 import { LegacyReminderScheduleDialog } from "./LegacyReminderScheduleDialog";
+import { ReminderExerciseDeliveryChannels } from "./ReminderExerciseDeliveryChannels";
 
 const CATEGORY_LABELS: Record<ReminderCategory, string> = {
   appointment: "Запись на приём",
@@ -296,6 +297,7 @@ export function ReminderRulesClient({
   warmupRuleForBlock = null,
   calendarDateKey = "",
   patientCalendarDayIana = "Europe/Moscow",
+  exerciseDeliveryChannelLabels = [],
 }: {
   personalRows: PersonalReminderRowVM[];
   legacyRules: ReminderRule[];
@@ -307,6 +309,7 @@ export function ReminderRulesClient({
   warmupRuleForBlock?: ReminderRule | null;
   calendarDateKey?: string;
   patientCalendarDayIana?: string;
+  exerciseDeliveryChannelLabels?: string[];
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -526,6 +529,7 @@ export function ReminderRulesClient({
           <h2 className={patientSectionTitleNormalClass}>Программа реабилитации</h2>
           <p className={cn(patientMutedTextClass, "text-sm")}>Активная программа: {activeProgram.title}</p>
           <p className={cn(patientMutedTextClass, "text-sm")}>Сегодня: {rehabCalendarLine}</p>
+          <ReminderExerciseDeliveryChannels deliveryChannelLabels={exerciseDeliveryChannelLabels} />
           {rehabRuleForBlock ? (
             <div className="space-y-2">
               <p className="text-xs text-[var(--patient-text-primary)]">{formatScheduleSummary(rehabRuleForBlock)}</p>
@@ -585,6 +589,7 @@ export function ReminderRulesClient({
         <section id="patient-reminders-warmups" className={cn(patientHeroBookingSectionClass, "mb-4 !gap-3")}>
           <h2 className={patientSectionTitleNormalClass}>{warmupsSectionTitle}</h2>
           <p className={cn(patientMutedTextClass, "text-sm")}>Сегодня: {warmupCalendarLine}</p>
+          <ReminderExerciseDeliveryChannels deliveryChannelLabels={exerciseDeliveryChannelLabels} />
           {warmupRuleForBlock ? (
             <div className="space-y-2">
               <p className="text-xs text-[var(--patient-text-primary)]">{formatScheduleSummary(warmupRuleForBlock)}</p>
