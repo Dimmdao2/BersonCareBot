@@ -1,0 +1,243 @@
+import { getPool } from "@/infra/db/client";
+import type {
+  WebPushOnlyDueOccurrenceRow,
+  WebPushOnlyReminderRuleRow,
+  WebPushOnlyRemindersPort,
+} from "@/modules/reminders/webPushOnlyPorts";
+import type { ReminderCategory, ReminderLinkedObjectType } from "@/modules/reminders/types";
+
+function parseLinkedType(raw: string | null): ReminderLinkedObjectType | null {
+  if (!raw) return null;
+  if (
+    raw === "lfk_complex" ||
+    raw === "content_section" ||
+    raw === "content_page" ||
+    raw === "custom" ||
+    raw === "rehab_program" ||
+    raw === "treatment_program_item"
+  ) {
+    return raw;
+  }
+  return null;
+}
+
+function mapRuleRow(row: {
+  integrator_rule_id: string;
+  platform_user_id: string;
+  category: string;
+  is_enabled: boolean;
+  schedule_type: string;
+  timezone: string;
+  interval_minutes: number;
+  window_start_minute: number;
+  window_end_minute: number;
+  days_mask: string;
+  schedule_data: unknown;
+  quiet_hours_start_minute: number | null;
+  quiet_hours_end_minute: number | null;
+  notification_topic_code: string | null;
+  linked_object_type: string | null;
+  linked_object_id: string | null;
+  custom_title: string | null;
+  custom_text: string | null;
+  display_title: string | null;
+  reminder_intent: string | null;
+}): WebPushOnlyReminderRuleRow {
+  return {
+    integratorRuleId: row.integrator_rule_id,
+    platformUserId: row.platform_user_id,
+    category: row.category as ReminderCategory,
+    isEnabled: row.is_enabled,
+    scheduleType: row.schedule_type ?? "interval_window",
+    timezone: row.timezone?.trim() || "Europe/Moscow",
+    intervalMinutes: row.interval_minutes,
+    windowStartMinute: row.window_start_minute,
+    windowEndMinute: row.window_end_minute,
+    daysMask: row.days_mask,
+    scheduleData: row.schedule_data,
+    quietHoursStartMinute: row.quiet_hours_start_minute,
+    quietHoursEndMinute: row.quiet_hours_end_minute,
+    notificationTopicCode: row.notification_topic_code,
+    linkedObjectType: parseLinkedType(row.linked_object_type),
+    linkedObjectId: row.linked_object_id,
+    customTitle: row.custom_title,
+    customText: row.custom_text,
+    displayTitle: row.display_title,
+    reminderIntent: row.reminder_intent,
+  };
+}
+
+const RULE_SELECT = `
+  rr.integrator_rule_id,
+  rr.platform_user_id::text,
+  rr.category,
+  rr.is_enabled,
+  rr.schedule_type,
+  rr.timezone,
+  rr.interval_minutes,
+  rr.window_start_minute,
+  rr.window_end_minute,
+  rr.days_mask,
+  rr.schedule_data,
+  rr.quiet_hours_start_minute,
+  rr.quiet_hours_end_minute,
+  rr.notification_topic_code,
+  rr.linked_object_type,
+  rr.linked_object_id,
+  rr.custom_title,
+  rr.custom_text,
+  rr.display_title,
+  rr.reminder_intent
+`;
+
+export function createPgWebPushOnlyRemindersPort(): WebPushOnlyRemindersPort {
+  return {
+    async listEnabledWebPushOnlyRules(nowIso) {
+      const pool = getPool();
+      const res = await pool.query<Parameters<typeof mapRuleRow>[0]>(
+        `SELECT ${RULE_SELECT}
+         FROM reminder_rules rr
+         INNER JOIN platform_users pu ON pu.id = rr.platform_user_id
+         WHERE rr.integrator_user_id IS NULL
+           AND rr.platform_user_id IS NOT NULL
+           AND rr.is_enabled = true
+           AND (pu.reminder_muted_until IS NULL OR pu.reminder_muted_until <= $1::timestamptz)`,
+        [nowIso],
+      );
+      return res.rows.map(mapRuleRow);
+    },
+
+    async getRuleByIntegratorRuleId(integratorRuleId) {
+      const pool = getPool();
+      const res = await pool.query<Parameters<typeof mapRuleRow>[0]>(
+        `SELECT ${RULE_SELECT}
+         FROM reminder_rules rr
+         WHERE rr.integrator_rule_id = $1
+           AND rr.integrator_user_id IS NULL
+         LIMIT 1`,
+        [integratorRuleId],
+      );
+      const row = res.rows[0];
+      return row ? mapRuleRow(row) : null;
+    },
+
+    async upsertPlannedOccurrences(platformUserId, integratorRuleId, drafts) {
+      if (drafts.length === 0) return 0;
+      const pool = getPool();
+      let inserted = 0;
+      for (const d of drafts) {
+        const r = await pool.query(
+          `INSERT INTO webapp_reminder_occurrences (
+             integrator_rule_id, platform_user_id, occurrence_key, planned_at, status, updated_at
+           ) VALUES ($1, $2::uuid, $3, $4::timestamptz, 'planned', now())
+           ON CONFLICT (integrator_rule_id, occurrence_key) DO NOTHING
+           RETURNING id`,
+          [integratorRuleId, platformUserId, d.occurrenceKey, d.plannedAt],
+        );
+        if (r.rowCount && r.rowCount > 0) inserted += 1;
+      }
+      return inserted;
+    },
+
+    async claimDueOccurrences(nowIso, limit) {
+      const pool = getPool();
+      const lim = Math.max(1, Math.trunc(limit));
+      await pool.query(
+        `UPDATE webapp_reminder_occurrences
+         SET status = 'planned', updated_at = now()
+         WHERE status = 'queued'
+           AND updated_at < $1::timestamptz - interval '10 minutes'`,
+        [nowIso],
+      );
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
+        const sel = await client.query<{
+          id: string;
+          integrator_rule_id: string;
+          platform_user_id: string;
+          occurrence_key: string;
+          planned_at: string;
+        }>(
+          `SELECT o.id::text, o.integrator_rule_id, o.platform_user_id::text, o.occurrence_key, o.planned_at::text
+           FROM webapp_reminder_occurrences o
+           INNER JOIN platform_users pu ON pu.id = o.platform_user_id
+           WHERE o.status = 'planned'
+             AND o.planned_at <= $1::timestamptz
+             AND (pu.reminder_muted_until IS NULL OR pu.reminder_muted_until <= $1::timestamptz)
+           ORDER BY o.planned_at ASC
+           LIMIT $2
+           FOR UPDATE SKIP LOCKED`,
+          [nowIso, lim],
+        );
+        const ids = sel.rows.map((r) => r.id);
+        if (ids.length > 0) {
+          await client.query(
+            `UPDATE webapp_reminder_occurrences SET status = 'queued', updated_at = now() WHERE id = ANY($1::uuid[])`,
+            [ids],
+          );
+        }
+        await client.query("COMMIT");
+        return sel.rows.map(
+          (r): WebPushOnlyDueOccurrenceRow => ({
+            id: r.id,
+            integratorRuleId: r.integrator_rule_id,
+            platformUserId: r.platform_user_id,
+            occurrenceKey: r.occurrence_key,
+            plannedAt: r.planned_at,
+          }),
+        );
+      } catch (e) {
+        await client.query("ROLLBACK");
+        throw e;
+      } finally {
+        client.release();
+      }
+    },
+
+    async markOccurrenceSent(occurrenceId) {
+      const pool = getPool();
+      await pool.query(
+        `UPDATE webapp_reminder_occurrences
+         SET status = 'sent', sent_at = now(), updated_at = now()
+         WHERE id = $1::uuid`,
+        [occurrenceId],
+      );
+    },
+
+    async markOccurrenceFailed(occurrenceId, errorCode) {
+      const pool = getPool();
+      await pool.query(
+        `UPDATE webapp_reminder_occurrences
+         SET status = 'failed', failed_at = now(), error_code = $2, updated_at = now()
+         WHERE id = $1::uuid`,
+        [occurrenceId, errorCode.slice(0, 120)],
+      );
+    },
+
+    async resolveLinkedCatalogTitle(linkedObjectType, linkedObjectId) {
+      const pool = getPool();
+      if (linkedObjectType === "content_page") {
+        const res = await pool.query<{ title: string }>(
+          `SELECT title FROM content_pages
+           WHERE slug = $1 AND is_published = true AND deleted_at IS NULL
+           LIMIT 1`,
+          [linkedObjectId],
+        );
+        const title = res.rows[0]?.title?.trim();
+        return title && title.length > 0 ? title : null;
+      }
+      if (linkedObjectType === "content_section") {
+        const res = await pool.query<{ title: string }>(
+          `SELECT title FROM content_sections WHERE slug = $1 LIMIT 1`,
+          [linkedObjectId],
+        );
+        const title = res.rows[0]?.title?.trim();
+        return title && title.length > 0 ? title : null;
+      }
+      return null;
+    },
+  };
+}
+
+export const pgWebPushOnlyRemindersPort = createPgWebPushOnlyRemindersPort();

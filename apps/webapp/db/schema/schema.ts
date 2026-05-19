@@ -1625,7 +1625,7 @@ export const reminderRules = pgTable("reminder_rules", {
 	integratorRuleId: text("integrator_rule_id").notNull(),
 	platformUserId: uuid("platform_user_id"),
 	// You can use { mode: "bigint" } if numbers are exceeding js number limitations
-	integratorUserId: bigint("integrator_user_id", { mode: "number" }).notNull(),
+	integratorUserId: bigint("integrator_user_id", { mode: "number" }),
 	category: text().notNull(),
 	isEnabled: boolean("is_enabled").default(false).notNull(),
 	scheduleType: text("schedule_type").default('interval_window').notNull(),

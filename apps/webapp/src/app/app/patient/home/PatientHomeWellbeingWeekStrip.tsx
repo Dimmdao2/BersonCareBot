@@ -1,3 +1,6 @@
+"use client";
+
+import { useState } from "react";
 import { DateTime } from "luxon";
 import type { PatientMoodScore, PatientMoodWeekMark } from "@/modules/patient-mood/types";
 import { patientMutedTextClass } from "@/shared/ui/patientVisual";
@@ -50,6 +53,7 @@ export function PatientHomeWellbeingWeekStrip({
   lastScoreBeforeWeek = null,
   className,
 }: Props) {
+  const [nowMs] = useState(() => Date.now());
   const today = DateTime.now().setZone(timeZone).startOf("day");
   const monday = today.minus({ days: today.weekday - 1 });
   const todayIso = DateTime.now().setZone(timeZone).toISODate();
@@ -72,7 +76,7 @@ export function PatientHomeWellbeingWeekStrip({
     timeZone,
     todayIso,
     weekMondayIso,
-    nowMs: Date.now(),
+    nowMs,
     previousSundayHadMarks,
     previousSundayLastScore,
     lastScoreBeforeWeek,

@@ -15,4 +15,5 @@ export * from "./operatorHealth";
 export * from "./outgoingDeliveryQueue";
 export * from "./operatorHealthFailureArchive";
 export * from "./notificationDeliveryAttempts";
+export * from "./webappReminderOccurrences";
 export * from "./relations";

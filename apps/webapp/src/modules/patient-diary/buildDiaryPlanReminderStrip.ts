@@ -4,7 +4,7 @@ import { routePaths } from "@/app-layer/routes/paths";
 import {
   resolvePatientContentSectionSlug,
   type PatientContentSectionSlugResolverDeps,
-} from "@/infra/repos/resolvePatientContentSectionSlug";
+} from "@/modules/content-sections/resolvePatientContentSectionSlug";
 import { DEFAULT_WARMUPS_SECTION_SLUG } from "@/modules/patient-home/warmupsSection";
 import { formatPlanReminderTodayLine } from "@/modules/reminders/summarizeReminderForCalendarDay";
 import type { ReminderRule } from "@/modules/reminders/types";
