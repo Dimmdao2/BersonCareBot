@@ -118,6 +118,23 @@ describe("requirePatientApiBusinessAccess / requirePatientApiSessionWithPhone â€
     expect(gate.ok).toBe(true);
   });
 
+  it("allows when getPlatformEntry throws (treat as standalone)", async () => {
+    const sess = clientSession({ phone: undefined });
+    vi.mocked(getCurrentSession).mockResolvedValueOnce(sess);
+    resolveMock.mockResolvedValueOnce({
+      canonicalUserId: "aaaaaaaa-bbbb-4ccc-dddd-eeeeeeeeeeee",
+      dbRole: "client",
+      tier: "onboarding",
+      hasPhoneInDb: false,
+      phoneTrustedForPatient: false,
+      resolution: "resolved_canon",
+    });
+    vi.mocked(getPlatformEntryMock).mockRejectedValueOnce(new Error("boom"));
+
+    const gate = await requirePatientApiBusinessAccess({ returnPath: "/app/patient/diary" });
+    expect(gate.ok).toBe(true);
+  });
+
   it("returns 401 when there is no session", async () => {
     vi.mocked(getCurrentSession).mockResolvedValueOnce(null);
 

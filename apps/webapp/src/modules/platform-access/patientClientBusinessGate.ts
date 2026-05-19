@@ -28,8 +28,13 @@ export async function patientClientBusinessGate(session: AppSession): Promise<Pa
         try {
           const entry = await getPlatformEntry();
           return entry === "bot" ? "need_activation" : "allow";
-        } catch {
-          return "need_activation";
+        } catch (err) {
+          // Treat failures to determine platform entry as non-bot (standalone) to
+          // avoid blocking regular web/PWA/email/OAuth users due to platform detection errors.
+          try {
+            console.warn("[platform_access] getPlatformEntry failed, treating entry as standalone");
+          } catch {}
+          return "allow";
         }
       }
       return "allow";
