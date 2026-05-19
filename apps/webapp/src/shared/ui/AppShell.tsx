@@ -59,6 +59,8 @@ type AppShellProps = {
    * Если задано — рендерится вместо строки `title` / бейджа.
    */
   patientShellTitleSlot?: ReactNode;
+  /** Контент между {@link PatientTopNav} и полоской заголовка страницы (напр. «Расписание» на дневнике). */
+  patientShellAboveTitleSlot?: ReactNode;
 };
 
 /** Рендерит контейнер приложения, шапку с заголовком и действиями и основной контент. */
@@ -79,6 +81,7 @@ export function AppShell({
   patientHideBottomNav = false,
   patientSuppressShellTitle = false,
   patientShellTitleSlot,
+  patientShellAboveTitleSlot,
 }: AppShellProps) {
   if (variant === "patient" || variant === "patient-wide") {
     const showPatientShellNav = !patientEmbedMain && !patientHideBottomNav && !patientBrandTitleBar;
@@ -105,6 +108,9 @@ export function AppShell({
             <div className="z-50 shrink-0">
               <PatientTopNav backHref={backHref} backLabel={backLabel} />
             </div>
+            {patientShellAboveTitleSlot ?
+              <div className="w-full min-w-0 shrink-0">{patientShellAboveTitleSlot}</div>
+            : null}
             {showShellTitleStrip ?
               <PatientShellPageTitleStrip>
                 {patientShellTitleSlot ?

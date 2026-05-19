@@ -8,11 +8,14 @@
  * Подробности — `diary/diary.md`.
  */
 import { Suspense } from "react";
+import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { getOptionalPatientSession, patientRscPersonalDataGate } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
+import { PatientPlanTodayRemindersCard } from "@/app/app/patient/treatment/program-detail/PatientPlanTodayRemindersCard";
 import { DiarySectionGuestAccess } from "@/shared/ui/patient/guestAccess";
 import { AppShell } from "@/shared/ui/AppShell";
 import { PatientLoadingPatternBody } from "@/shared/ui/patientVisual";
+import { buildDiaryPlanReminderStrip } from "@/modules/patient-diary/buildDiaryPlanReminderStrip";
 import { resolvePatientCanViewAuthOnlyContent } from "@/modules/platform-access";
 import { PatientDiaryAuthenticatedMain } from "./PatientDiaryAuthenticatedMain";
 
@@ -41,15 +44,22 @@ export default async function PatientDiaryPage({ searchParams }: PageProps) {
   const weekRaw = sp.week;
   const week = Array.isArray(weekRaw) ? weekRaw[0] : weekRaw;
   const canViewAuthOnlyContent = await resolvePatientCanViewAuthOnlyContent(s);
+  const deps = buildAppDeps();
+  const planReminderStrip = await buildDiaryPlanReminderStrip(deps, s.user.userId, canViewAuthOnlyContent);
 
   return (
-    <AppShell title="Дневник" user={s.user} backHref="/app/patient" backLabel="Меню" variant="patient">
+    <AppShell
+      title="Дневник"
+      user={s.user}
+      backHref="/app/patient"
+      backLabel="Меню"
+      variant="patient"
+      patientShellAboveTitleSlot={
+        <PatientPlanTodayRemindersCard {...planReminderStrip} defaultOpen />
+      }
+    >
       <Suspense fallback={<PatientLoadingPatternBody pattern="heroList" />}>
-        <PatientDiaryAuthenticatedMain
-          userId={s.user.userId}
-          week={week}
-          canViewAuthOnlyContent={canViewAuthOnlyContent}
-        />
+        <PatientDiaryAuthenticatedMain userId={s.user.userId} week={week} />
       </Suspense>
     </AppShell>
   );

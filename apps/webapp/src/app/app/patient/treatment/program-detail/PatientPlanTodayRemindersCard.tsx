@@ -30,6 +30,8 @@ export type PatientPlanTodayRemindersCardProps = {
   remindersHref: string;
   /** Узкая кнопка/ссылка в одну строку с триггером (напр. поддержка); корень блока занимает ширину колонки страницы. */
   trailingAccessory?: ReactNode;
+  /** Начальное состояние раскрытия (дневник — развёрнуто). */
+  defaultOpen?: boolean;
 };
 
 export function PatientPlanTodayRemindersCard({
@@ -37,8 +39,9 @@ export function PatientPlanTodayRemindersCard({
   warmupTodayLine,
   remindersHref,
   trailingAccessory,
+  defaultOpen = false,
 }: PatientPlanTodayRemindersCardProps) {
-  const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [scheduleOpen, setScheduleOpen] = useState(defaultOpen);
 
   return (
     <Collapsible
