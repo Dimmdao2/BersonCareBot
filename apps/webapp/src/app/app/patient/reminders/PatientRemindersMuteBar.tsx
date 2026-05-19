@@ -20,9 +20,11 @@ function tomorrowMorningIso(hour = 8): string {
 
 export function PatientRemindersMuteBar({
   muteUntilLabel,
+  className,
 }: {
   /** Отформатированная подпись конца паузы или null */
   muteUntilLabel: string | null;
+  className?: string;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -53,7 +55,7 @@ export function PatientRemindersMuteBar({
   const muted = Boolean(muteUntilLabel?.trim());
 
   return (
-    <div className="mb-4 space-y-3" aria-busy={pending}>
+    <div className={cn("mb-4 space-y-3", className)} aria-busy={pending}>
       {muted ? (
         <div
           className={cn(

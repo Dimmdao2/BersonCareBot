@@ -5,6 +5,7 @@ import { routePaths } from "@/app-layer/routes/paths";
 import { parseNotificationsTopics } from "@/modules/patient-notifications/notificationsTopics";
 import { buildProfileNotificationTopicModels } from "@/modules/patient-notifications/profileTopicChannelsModel";
 import { AppShell } from "@/shared/ui/AppShell";
+import { PatientShellPageTitleWithHistoryBack } from "@/shared/ui/patient/PatientShellPageTitleWithHistoryBack";
 import {
   patientInnerPageStackClass,
   patientMutedTextClass,
@@ -49,7 +50,19 @@ export default async function PatientNotificationsPage() {
   const hasMessengerOrEmail = hasTelegram || hasMax || (hasEmail && emailVerified);
 
   return (
-    <AppShell title="Уведомления" user={session.user} backHref={routePaths.patient} backLabel="Меню" variant="patient">
+    <AppShell
+      title="Настройка уведомлений"
+      user={session.user}
+      backHref={routePaths.patient}
+      backLabel="Меню"
+      variant="patient"
+      patientShellTitleSlot={
+        <PatientShellPageTitleWithHistoryBack
+          title="Настройка уведомлений"
+          fallbackHref={routePaths.profile}
+        />
+      }
+    >
       <div className={patientInnerPageStackClass}>
         <section className={patientSectionSurfaceClass}>
           <h2 className={patientSectionTitleClass}>Каналы</h2>

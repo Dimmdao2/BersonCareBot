@@ -1,9 +1,8 @@
 import { DateTime } from "luxon";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import type { ReminderRule } from "@/modules/reminders/types";
-import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { patientCardClass, patientMutedTextClass } from "@/shared/ui/patientVisual";
+import { patientMutedTextClass } from "@/shared/ui/patientVisual";
 import { formatBookingDateTimeMediumRu } from "@/shared/lib/formatBusinessDateTime";
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
 import { resolveCalendarDayIanaForPatient } from "@/modules/system-settings/calendarIana";
@@ -12,7 +11,7 @@ import { resolvePatientContentSectionSlug } from "@/infra/repos/resolvePatientCo
 import { DEFAULT_WARMUPS_SECTION_SLUG } from "@/modules/patient-home/warmupsSection";
 import { resolvePatientCanViewAuthOnlyContent } from "@/modules/platform-access";
 import { RemindersHashScroll } from "./RemindersHashScroll";
-import { PatientRemindersMuteBar } from "./PatientRemindersMuteBar";
+import { RemindersPageAdditionalSection } from "./RemindersPageAdditionalSection";
 import type { AppSession } from "@/shared/types/session";
 import { PATIENT_REHAB_PROGRAM_LINKED_PLACEHOLDER } from "@/modules/reminders/rehabProgramLinkedObject";
 
@@ -172,41 +171,10 @@ export async function RemindersPageBody({ session }: { session: AppSession }) {
   return (
     <>
       <RemindersHashScroll />
-      <p className={cn(patientMutedTextClass, "mb-4")}>
-        Программа реабилитации, разминки, свои напоминания и системные уведомления.
-      </p>
-
-      <PatientRemindersMuteBar muteUntilLabel={muteUntilLabel} />
-
-      <Card className={cn(patientCardClass, "mb-4")}>
-        <CardContent className="pb-4 pt-4">
-          <p
-            className={cn(
-              patientMutedTextClass,
-              "mb-2 text-xs font-semibold uppercase tracking-wide",
-            )}
-          >
-            Уведомления за 30 дней
-          </p>
-          <p className={cn(patientMutedTextClass, "mb-3 text-xs")}>
-            По напоминаниям из бота и приложения.
-          </p>
-          <div className="flex flex-wrap gap-4 text-sm">
-            <span>
-              <span className="font-medium">{projectionStats.total}</span>{" "}
-              <span className={patientMutedTextClass}>отправлено</span>
-            </span>
-            <span>
-              <span className="font-medium">{projectionStats.seen}</span>{" "}
-              <span className={patientMutedTextClass}>просмотрено</span>
-            </span>
-            <span>
-              <span className="font-medium">{projectionStats.unseen}</span>{" "}
-              <span className={patientMutedTextClass}>без открытия</span>
-            </span>
-          </div>
-        </CardContent>
-      </Card>
+      <div className={cn(patientMutedTextClass, "mb-4 space-y-2")}>
+        <p>Настройте расписания для разминок и тренировок.</p>
+        <p>Это обновит ваши цели активности на странице Сегодня и в Дневнике.</p>
+      </div>
 
       <ReminderRulesClient
         personalRows={personalRows}
@@ -229,6 +197,11 @@ export async function RemindersPageBody({ session }: { session: AppSession }) {
         }
         calendarDateKey={calendarDateKey}
         patientCalendarDayIana={patientCalendarDayIana}
+      />
+
+      <RemindersPageAdditionalSection
+        muteUntilLabel={muteUntilLabel}
+        projectionStats={projectionStats}
       />
     </>
   );
