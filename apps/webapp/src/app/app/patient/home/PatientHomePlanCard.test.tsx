@@ -17,7 +17,7 @@ describe("PatientHomePlanCard", () => {
     expect(cta).toHaveAttribute("href", href);
   });
 
-  it("renders «День N» и строку «Сегодня» с точкой", () => {
+  it("progress day and today indicator render inline below title", () => {
     render(
       <PatientHomePlanCard
         instance={{ id: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee", title: "Plan title" }}
@@ -27,8 +27,20 @@ describe("PatientHomePlanCard", () => {
       />,
     );
     expect(screen.getByText(/День 12/)).toBeInTheDocument();
-    expect(screen.getByText("Сегодня:")).toBeInTheDocument();
     expect(screen.getByLabelText(/Сегодня занятий по программе не отмечено/i)).toBeInTheDocument();
+  });
+
+  it("renders CTA on the same row as the section heading", () => {
+    render(
+      <PatientHomePlanCard
+        instance={{ id: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee", title: "Plan title" }}
+        startLessonHref={routePaths.patientTreatmentProgram("aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee")}
+      />,
+    );
+    const heading = screen.getByRole("heading", { name: /Мой план реабилитации/i });
+    const cta = screen.getByRole("link", { name: /Начать занятие/i });
+    expect(heading.compareDocumentPosition(cta)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(heading.parentElement).toBe(cta.parentElement);
   });
 
   it("при отметках за сегодня — доступное описание для точки", () => {

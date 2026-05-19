@@ -320,7 +320,8 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
     hasConfiguredSchedule = hasConfiguredHomeLinkedReminders(rules);
     homeReminder = pickNextHomeReminder(rules, scheduleInstant, appTz);
     const picked = pickActivePlanInstance(instances);
-    planInstance = picked ? { id: picked.id, title: picked.title } : null;
+    const doctorPlan = picked?.assignmentSource === "doctor" ? picked : null;
+    planInstance = doctorPlan ? { id: doctorPlan.id, title: doctorPlan.title } : null;
     if (planInstance) {
       planStartLessonHref = routePaths.patientTreatmentProgram(planInstance.id);
       const [nudge, rawDetail, snap] = await Promise.all([
@@ -353,22 +354,6 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
             "exec",
             "program",
           );
-        }
-      }
-    } else {
-      const promoTemplateId = await deps.systemSettings.getPatientDefaultPromoTreatmentProgramTemplateId();
-      if (promoTemplateId) {
-        try {
-          const tpl = await deps.treatmentProgram.getTemplate(promoTemplateId);
-          if (tpl.status === "published") {
-            planInstance = {
-              id: "__virtual_promo__",
-              title: tpl.title?.trim() || "Программа реабилитации",
-            };
-            planStartLessonHref = routePaths.patientTreatmentPromoDefault;
-          }
-        } catch {
-          /* ignore */
         }
       }
     }
@@ -484,12 +469,7 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
         return (
           <PatientHomePlanCard
             instance={planInstance}
-            startLessonHref={
-              planStartLessonHref ??
-              (planInstance.id === "__virtual_promo__" ?
-                routePaths.patientTreatmentPromoDefault
-              : routePaths.patientTreatmentProgram(planInstance.id))
-            }
+            startLessonHref={planStartLessonHref ?? routePaths.patientTreatmentProgram(planInstance.id)}
             progressDay={planProgressDay}
             todayPracticeDone={planTodayPracticeDone}
             planUpdatedLabel={planUpdatedLabel}

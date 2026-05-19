@@ -444,6 +444,7 @@ describe("PatientHomeToday", () => {
         id: "inst-active-1",
         title: "Активный план",
         status: "active",
+        assignmentSource: "doctor",
         updatedAt: "2026-04-28T10:00:00.000Z",
       },
     ]);
@@ -466,6 +467,53 @@ describe("PatientHomeToday", () => {
 
     expect(screen.getByLabelText(/Выполнено практик сегодня: 1, цель 3/)).toBeInTheDocument();
     expect(listChecklistDoneToday).toHaveBeenCalledWith(fixtureSession.user.userId, "inst-active-1");
+  });
+
+  it("patient tier: hides plan block for promo assignment (doctor plan only on home)", async () => {
+    listForPatient.mockResolvedValueOnce([
+      {
+        id: "inst-promo-1",
+        title: "Promo plan",
+        status: "active",
+        assignmentSource: "promo",
+        updatedAt: "2026-04-28T10:00:00.000Z",
+      },
+    ]);
+
+    const tree = await PatientHomeToday({
+      session: fixtureSession,
+      personalTierOk: true,
+      canViewAuthOnlyContent: true,
+    });
+    render(tree);
+
+    expect(screen.queryByRole("heading", { name: /Мой план реабилитации/i })).toBeNull();
+    expect(getPatientDefaultPromoTreatmentProgramTemplateId).not.toHaveBeenCalled();
+  });
+
+  it("patient tier: shows plan block for doctor-assigned active program", async () => {
+    listForPatient.mockResolvedValueOnce([
+      {
+        id: "inst-doctor-1",
+        title: "План от врача",
+        status: "active",
+        assignmentSource: "doctor",
+        updatedAt: "2026-04-28T10:00:00.000Z",
+      },
+    ]);
+    getInstanceForPatient.mockResolvedValueOnce(null);
+    patientPlanUpdatedBadgeForInstance.mockResolvedValueOnce({ show: false, eventIso: null });
+    listChecklistDoneToday.mockResolvedValueOnce(emptyChecklistTodaySnapshot());
+
+    const tree = await PatientHomeToday({
+      session: fixtureSession,
+      personalTierOk: true,
+      canViewAuthOnlyContent: true,
+    });
+    render(tree);
+
+    expect(screen.getByRole("heading", { name: /Мой план реабилитации/i })).toBeInTheDocument();
+    expect(screen.getByText("План от врача")).toBeInTheDocument();
   });
 
   it("patient tier: streak is boosted by LFK completion dates", async () => {

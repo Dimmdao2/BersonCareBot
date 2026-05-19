@@ -202,6 +202,22 @@ export const patientHomeSecondaryCardTallHeightClass = cn(
   patientHomeSituationsPlanRowMdHeightClass,
 );
 
+/** Компактная карточка «Мой план» на главной: auto height (mobile — под приветствием), без фиксированной полосы. */
+export const patientHomePlanCardCompactShellClass = cn(
+  "flex flex-col gap-1 overflow-hidden p-3 md:p-4",
+  "h-auto min-h-0 md:self-start",
+);
+
+/** Заголовок «Мой план реабилитации» в компактной карточке. */
+export const patientHomePlanCardHeadingCompactClass =
+  "min-w-0 truncate text-xs font-semibold leading-snug text-[var(--patient-block-heading)]";
+
+/** Название программы в компактной карточке — до 2 строк. */
+export const patientHomePlanCardTitleCompactClass = cn(
+  patientLineClamp2Class,
+  "text-xs font-normal leading-snug text-[var(--patient-block-caption)]",
+);
+
 /**
  * Карусель подписки: фиксированная высота айтема + ширина полосы (min-w для тестов / snap).
  */
